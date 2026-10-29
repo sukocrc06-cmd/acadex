@@ -107,6 +107,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
+  // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
+  'ONBELLEK_OCR_MAX_KRK', 'ONBELLEK_OCR_SURUM', 'onbellektenOcrMetni',
   'KAPSAMA_ROZET_MIN_ORNEK',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
   'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
@@ -4512,6 +4514,137 @@ test('yazar promptu ters boluyu CIFTLEMEYI soyluyor', () => {
   // Onleme tarafi: onarim son care, ilk care prompt.
   assert.ok(/DOUBLE the backslash/.test(SRC),
     'writerSys ters bolunun ciftlenmesini istemeli');
+});
+
+/* OCR CIKTISI ONBELLEKTE (29.10.2026 CANLI OLCUM).
+
+   Week_8_Derivative (29 sayfa, saf tarama) OCR'da 10 parcada 31.846 ms
+   harciyor. Ozet onbellegi isabet etse bile o 32 saniye her yuklemede
+   yeniden yaniyordu: onbellek kontrolu metin cikariminin SONRASINDA, cunku
+   onbellekten gelen belgede de document_chunks yazilmali.
+
+   Bu yuzden yukari tasinan sey kontrol degil, OCR CIKTISI. Asagidaki
+   testler hem fonksiyonu hem de SIRAYI kilitliyor: onbellek sorgusu OCR
+   cagrisindan once gelmezse 32 saniye geri doner ve kimse fark etmez. */
+console.log('\nOCR CIKTISI ONBELLEGI\n');
+
+// Sahte Supabase istemcisi: hangi tablo/kolon/alan sorguldugunu da kaydeder.
+const ocrIstemci = (rows, err) => {
+  const iz = {};
+  const c = {
+    iz,
+    from: (tablo) => { iz.tablo = tablo; return {
+      select: (kolon) => { iz.kolon = kolon; return {
+        eq: (alan, deger) => { iz.alan = alan; iz.deger = deger; return Promise.resolve({ data: rows, error: err || null }); }
+      }; }
+    }; }
+  };
+  return c;
+};
+const uzunMetin = (n) => '--- SAYFA 1 ---\n' + 'x'.repeat(n);
+
+test('satirdaki OCR metni donuyor ve sayfa sayisi tasiniyor', async () => {
+  const istemci = ocrIstemci([{ card: { summary: 's', _ocr_metin: { surum: A.ONBELLEK_OCR_SURUM, text: uzunMetin(400), sayfa: 12 } } }]);
+  const r = await A.onbellektenOcrMetni(istemci, 'abc123');
+  assert.ok(r, 'isabet beklenir');
+  assert.equal(r.text.length, uzunMetin(400).length);
+  assert.equal(r.sayfa, 12);
+});
+
+test('arama CONTENT_HASH ile yapiliyor, cache_key ile degil', async () => {
+  /* Anahtar dil/stil/uzunluk/gorsel ayarlarini tasiyor; OCR metni bunlarin
+     hicbirine degil dosyanin kendisine bagli. */
+  const istemci = ocrIstemci([]);
+  await A.onbellektenOcrMetni(istemci, 'deadbeef');
+  assert.equal(istemci.iz.tablo, 'summary_cache');
+  assert.equal(istemci.iz.kolon, 'card');
+  assert.equal(istemci.iz.alan, 'content_hash');
+  assert.equal(istemci.iz.deger, 'deadbeef');
+});
+
+test('ISKA durumlari: kisa metin, alan yok, bos sonuc, hata', async () => {
+  // 200 krk esigi OCR blogundakinin aynisi: kisasi SCANNED_PDF e gitmeli.
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci([{ card: { _ocr_metin: { surum: A.ONBELLEK_OCR_SURUM, text: 'kisa' } } }]), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci([{ card: { summary: 's' } }]), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci([]), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci(null, { message: 'kolon yok' }), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci(null), 'h'), null);
+});
+
+test('hata OZET AKISINI DUSURMUYOR', async () => {
+  // Istemci patlasa bile null donmeli: OCR yolu zaten yedek.
+  const patlak = { from: () => { throw new Error('baglanti yok'); } };
+  assert.equal(await A.onbellektenOcrMetni(patlak, 'h'), null);
+});
+
+test('birden fazla satir varsa metin TASIYAN secilir', async () => {
+  const r = await A.onbellektenOcrMetni(ocrIstemci([
+    { card: { summary: 'metinsiz satir' } },
+    { card: { _ocr_metin: { surum: A.ONBELLEK_OCR_SURUM, text: uzunMetin(300), sayfa: null } } }
+  ]), 'h');
+  assert.ok(r, 'ikinci satir secilmeli');
+  assert.equal(r.sayfa, null);
+});
+
+test('ONBELLEK SORGUSU OCR CAGRISINDAN ONCE', () => {
+  /* Sira bozulursa 32 saniye geri doner ve hicbir test dusmez — o yuzden
+     burada kaynaktaki sira dogrudan olculuyor. */
+  const i = SRC.indexOf('onbellektenOcrMetni(serviceClient');
+  const j = SRC.indexOf('tryOCRParcali(fileBytes, ocrApiKey)');
+  assert.ok(i > 0, 'OCR onbellegi cagrilmiyor');
+  assert.ok(j > 0, 'parcali OCR cagrisi yok');
+  assert.ok(i < j, 'onbellek sorgusu tryOCRParcali dan ONCE gelmeli');
+});
+
+test('sorgu yalnizca GERCEKTEN OCR yapilacaksa atiliyor', () => {
+  // Metinli PDF yolu hicbir ek maliyet gormemeli.
+  const blok = SRC.slice(SRC.indexOf('if (isScannedOrFailed) {'), SRC.indexOf('onbellektenOcrMetni(serviceClient'));
+  assert.ok(/isScannedOrFailed/.test(blok), 'sorgu tarama dalinin ICINDE olmali');
+  assert.ok(/if \(!onbellegiAtla\)/.test(blok), 'yenile=true iken OCR onbellegi okunmamali');
+});
+
+test('isabette OCR cagrisi ATLANIYOR (bayraklar dogru kuruluyor)', () => {
+  const blok = SRC.slice(SRC.indexOf('onbellektenOcrMetni(serviceClient'), SRC.indexOf('tryOCRParcali(fileBytes, ocrApiKey)'));
+  assert.ok(/ocrKullanildi = true/.test(blok), 'ocrKullanildi kurulmali: kapsama rozeti yayinlanmamali');
+  assert.ok(/ocrKismi = \{ sayfa:/.test(blok), 'kismi tarama rozeti tasinmali');
+  assert.ok(/isScannedOrFailed = false/.test(blok), 'bayrak dusmezse OCR yine kosar');
+});
+
+test('metin YALNIZCA dosya hash i satirina yaziliyor', () => {
+  assert.match(SRC, /card: \(k as string\) === summaryCacheKey \? paylasilanTam : paylasilan/,
+    'metin hash i satirina yazilan kopya hic okunmaz');
+  assert.match(SRC, /ocrKullanildi && extractedText\.length <= ONBELLEK_OCR_MAX_KRK/,
+    'yalnizca OCR dan gelen metin ve boyut siniri icinde yazilmali');
+});
+
+test('_ocr_metin study_cards A GITMIYOR', () => {
+  /* study_cards ta boyle bir kolon yok; insert patlar ve isabet bosa gider. */
+  const i = SRC.indexOf('delete (cachedPayload as any)._ocr_metin');
+  const j = SRC.indexOf("from('study_cards').insert(cachedPayload)");
+  assert.ok(i > 0, 'isabet yolunda silinmiyor');
+  assert.ok(j > 0, 'insert bulunamadi');
+  assert.ok(i < j, 'silme insert ten ONCE olmali');
+});
+
+test('SURUM UYMAYAN satir okunmuyor (dunun tuzagi)', async () => {
+  /* Arama content_hash ile; SUMMARY_CACHE_VERSION bu metni gecersiz
+     KILMIYOR. Parcali OCR ayni belgeden 1.230 yerine 10.970 karakter
+     cikardiginda eski metnin donmemesi tam buna bagli. */
+  const eski = ocrIstemci([{ card: { _ocr_metin: { surum: 'o0', text: uzunMetin(400), sayfa: null } } }]);
+  assert.equal(await A.onbellektenOcrMetni(eski, 'h'), null, 'eski surum okunmamali');
+  const damgasiz = ocrIstemci([{ card: { _ocr_metin: { text: uzunMetin(400), sayfa: null } } }]);
+  assert.equal(await A.onbellektenOcrMetni(damgasiz, 'h'), null, 'damgasiz satir okunmamali');
+});
+
+test('yazilan satir SURUM DAMGASI tasiyor', () => {
+  assert.match(SRC, /_ocr_metin: \{ surum: ONBELLEK_OCR_SURUM, text: extractedText/,
+    'damgasiz yazilan satir bir daha hic okunamaz');
+  assert.match(String(A.ONBELLEK_OCR_SURUM), /^o[0-9]+$/, `beklenmeyen surum: ${A.ONBELLEK_OCR_SURUM}`);
+});
+
+test('boyut siniri makul', () => {
+  assert.ok(A.ONBELLEK_OCR_MAX_KRK >= 100_000 && A.ONBELLEK_OCR_MAX_KRK <= 1_000_000,
+    `beklenmeyen sinir: ${A.ONBELLEK_OCR_MAX_KRK}`);
 });
 
 console.log('\nSAYISAL KAPSAMA OLCUSU\n');
