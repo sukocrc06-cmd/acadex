@@ -64,6 +64,7 @@
 <link rel="stylesheet" href="css/acadia-kit.css">
 <link rel="stylesheet" href="css/acadex-kartoteks.css">
 <link rel="stylesheet" href="css/acadex-medlab.css">
+<link rel="stylesheet" href="css/acadex-finans.css">
 <link rel="stylesheet" href="css/acadex-sinav.css">
 
   <!-- Supabase CDN & Config (Route Guard) -->
@@ -141,6 +142,7 @@
           <li class="sidebar-item" id="side-sourcehub"><a href="#sourcehub" onclick="switchDashboardView('sourcehub')"><svg viewBox="0 0 24 24"><path d="M4 5.5 C7 4.5 10 5 12 6.5 C14 5 17 4.5 20 5.5 V18.5 C17 17.5 14 18 12 19.5 C10 18 7 17.5 4 18.5 Z"/><path d="M12 6.5 V19.5"/></svg><span class="lbl">Kaynakla çalış</span></a></li>
           <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
           <li class="sidebar-item" id="side-medlab"><a href="#medlab" onclick="switchDashboardView('medlab')"><svg viewBox="0 0 24 24"><path d="M6 3.5 V9 C6 12.3 8.2 14.5 11 14.5 C13.8 14.5 16 12.3 16 9 V3.5"/><path d="M11 14.5 V16.5 C11 18.7 12.8 20.5 15 20.5 C17.2 20.5 18.5 18.9 18.5 17 V14.8"/><circle cx="18.5" cy="12.8" r="2"/></svg><span class="lbl">Acadex MedLab</span></a></li>
+          <li class="sidebar-item" id="side-finans"><a href="#finans" onclick="switchDashboardView('finans')"><svg viewBox="0 0 24 24"><path d="M3 15h18l-2.5 5h-13z"/><path d="M5 15v-5h6v5M11 15v-3.5h6V15"/><path d="M14 11.5V4M14 4h5"/></svg><span class="lbl">Acadex Finans</span></a></li>
         </ul>
         <h4>belgeler</h4>
         <ul class="sidebar-nav">
@@ -2122,6 +2124,94 @@
 </div>
       </section>
 
+      <!-- Acadex Finans: finans, muhasebe ve uluslararası ticaret istasyonları (js/acadex-finans.js, labs/finans/) -->
+      <section id="finans-view" class="dashboard-view-section axd axf">
+<div class="axf-main">
+<header class="axf-head land">
+<div>
+<span class="eyb hand">liman ofisi</span>
+<h1 class="disp">Acadex Finans</h1>
+<p class="axf-sub hand">finans, muhasebe ve uluslararası ticaret için kurulmuş istasyonlar.</p>
+</div>
+<div class="axf-port" aria-hidden="true"><svg viewBox="0 0 440 130">
+<rect width="440" height="130" rx="12" fill="#DCEBF6"/>
+<rect x="0" y="92" width="440" height="38" fill="#2C77B0"/><g class="axf-wv" fill="#fff" opacity=".28"><rect x="10" y="104" width="26" height="3" rx="1.5"/><rect x="90" y="116" width="30" height="3" rx="1.5"/><rect x="170" y="106" width="22" height="3" rx="1.5"/><rect x="250" y="118" width="30" height="3" rx="1.5"/><rect x="330" y="108" width="26" height="3" rx="1.5"/><rect x="410" y="116" width="26" height="3" rx="1.5"/><rect x="490" y="106" width="26" height="3" rx="1.5"/></g>
+<rect x="320" y="86" width="120" height="44" fill="#D9DED6"/><path d="M320 86H440" stroke="#9AA6B8" stroke-width="2"/>
+<g stroke="#0D1838" stroke-width="3" fill="none"><path d="M380 86V14M300 18H420M380 36L412 18"/></g>
+<g class="axf-trolley"><path d="M336 18v24" stroke="#0D1838" stroke-width="1.5"/><rect x="324" y="42" width="24" height="13" fill="#C8553D" stroke="#0D1838" stroke-width="1.5"/></g>
+<g class="axf-ship"><path d="M40 92h220l-14 18H54z" fill="#1E5B8C"/><rect x="62" y="74" width="26" height="18" fill="#C8553D" stroke="#0D1838" stroke-width="1.5"/><rect x="90" y="74" width="26" height="18" fill="#E0A526" stroke="#0D1838" stroke-width="1.5"/><rect x="118" y="74" width="26" height="18" fill="#1F8A7A" stroke="#0D1838" stroke-width="1.5"/><rect x="76" y="56" width="26" height="18" fill="#2F6FB0" stroke="#0D1838" stroke-width="1.5"/><rect x="104" y="56" width="26" height="18" fill="#6B4FB3" stroke="#0D1838" stroke-width="1.5"/><rect x="206" y="58" width="22" height="34" fill="#F4F1EA" stroke="#0D1838" stroke-width="1.5"/><rect x="206" y="58" width="22" height="7" fill="#0D1838"/><path d="M217 58V44" stroke="#0D1838" stroke-width="2"/></g>
+<g class="axf-hesi" transform="translate(268 30)"><rect x="0" y="0" width="34" height="48" rx="7" fill="#B5D4F4" stroke="#0D1838" stroke-width="2.4"/><rect x="5" y="5" width="24" height="11" rx="2" fill="#0D2440"/><text x="26" y="13.5" font-family="JetBrains Mono,monospace" font-size="7.5" fill="#7FE0C2" text-anchor="end" class="axf-scr">+%8</text><circle cx="11" cy="23" r="2.4" fill="#0D1838"/><circle cx="23" cy="23" r="2.4" fill="#0D1838"/><path d="M12 29q5 4 10 0" stroke="#0D1838" stroke-width="2" fill="none" stroke-linecap="round"/><g fill="#2F6FB0"><rect x="5" y="35" width="6" height="4" rx="1"/><rect x="14" y="35" width="6" height="4" rx="1"/><rect x="23" y="35" width="6" height="4" rx="1" fill="#C8553D"/><rect x="5" y="41" width="6" height="4" rx="1"/><rect x="14" y="41" width="6" height="4" rx="1"/><rect x="23" y="41" width="6" height="4" rx="1" fill="#E0A526"/></g></g>
+</svg></div>
+</header>
+
+<section class="axf-yard land" aria-labelledby="axf-yt">
+<h2 class="vh" id="axf-yt">İstasyonlar</h2>
+<p class="axf-note hand">bugün hangi konteyneri açıyoruz?</p>
+<ul class="axf-boxes">
+<li style="--i:0;--cc:#2F6FB0"><button type="button" class="axf-box" data-finans-open="zaman" aria-describedby="axf-d1">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#E3EEF8"/><g transform="translate(120 20)"><path d="M0 0h60M0 110h60M6 0c0 40 48 46 48 55S6 70 6 110M54 0c0 40-48 46-48 55s48 15 48 55" stroke="#0D1838" stroke-width="4" fill="#FFFDF8"/><path class="axf-sand" d="M14 96c8-10 24-10 32 0v10H14z" fill="#E0A526"/><path d="M30 60v30" stroke="#E0A526" stroke-width="3" stroke-dasharray="3 4" class="axf-fall"/></g><g transform="translate(230 40)"><g class="axf-c1"><ellipse cx="30" cy="80" rx="26" ry="8" fill="#E0A526" stroke="#0D1838" stroke-width="2.5"/></g><g class="axf-c2"><ellipse cx="30" cy="68" rx="26" ry="8" fill="#F2C230" stroke="#0D1838" stroke-width="2.5"/></g><g class="axf-c3"><ellipse cx="30" cy="56" rx="26" ry="8" fill="#E0A526" stroke="#0D1838" stroke-width="2.5"/></g><g class="axf-c4"><ellipse cx="30" cy="44" rx="26" ry="8" fill="#F2C230" stroke="#0D1838" stroke-width="2.5"/></g><text x="74" y="30" font-family="Caveat,cursive" font-size="26" font-weight="700" fill="#2F6FB0">+faiz</text></g></svg><span class="axf-tag mono">NBD</span></span>
+<span class="axf-t disp">Paranın zaman değeri</span>
+<span class="axf-for hand">bileşik faiz, NBD/İVO, kredi planı</span>
+<span class="axf-d" id="axf-d1">Faizin faizi istif istif büyür; gelecekteki nakit bugüne iner, kredi taksiti ay ay ayrışır.</span>
+</button></li>
+<li style="--i:1;--cc:#C8553D"><button type="button" class="axf-box" data-finans-open="muhasebe" aria-describedby="axf-d2">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#F8E9E4"/><g transform="translate(70 18)"><path d="M0 0h110v114l-14-8-14 8-14-8-14 8-14-8-14 8-14-8-12 8z" fill="#FFFDF2" stroke="#0D1838" stroke-width="3"/><path d="M14 22h80M14 40h60M14 58h80M14 76h50" stroke="#C8D0DC" stroke-width="4" stroke-linecap="round"/><g class="axf-stamp"><circle cx="78" cy="78" r="20" fill="none" stroke="#C8553D" stroke-width="3"/><text x="78" y="83" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#C8553D">B=A</text></g></g><g transform="translate(220 30)"><path d="M0 0h130M65 0v86" stroke="#0D1838" stroke-width="4"/><text x="58" y="26" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="15" fill="#0D1838" class="axf-l1">500.000</text><text x="72" y="52" font-family="JetBrains Mono,monospace" font-size="15" fill="#C8553D" class="axf-l2">144.000</text><text x="58" y="78" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="15" fill="#0D1838" class="axf-l3">40.000</text></g></svg><span class="axf-tag mono">THP</span></span>
+<span class="axf-t disp">Muhasebe</span>
+<span class="axf-for hand">yevmiye, büyük defter, mizan, bilanço</span>
+<span class="axf-d" id="axf-d2">Kurgusal bir şirketin bir ayı: fişleri kaydet, tutarlar T hesaplara uçsun, ay sonunda bilanço denkleşsin.</span>
+</button></li>
+<li style="--i:2;--cc:#1F8A7A"><button type="button" class="axf-box" data-finans-open="borsa" aria-describedby="axf-d3">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#E0F1EE"/><g class="axf-candles"><g><path d="M70 30v90" stroke="#0D1838" stroke-width="2"/><rect x="60" y="50" width="20" height="50" fill="#1F8A7A" stroke="#0D1838" stroke-width="2"/></g><g><path d="M120 40v90" stroke="#0D1838" stroke-width="2"/><rect x="110" y="60" width="20" height="44" fill="#C8553D" stroke="#0D1838" stroke-width="2"/></g><g><path d="M170 20v84" stroke="#0D1838" stroke-width="2"/><rect x="160" y="30" width="20" height="56" fill="#1F8A7A" stroke="#0D1838" stroke-width="2"/></g><g><path d="M220 10v80" stroke="#0D1838" stroke-width="2"/><rect x="210" y="22" width="20" height="46" fill="#1F8A7A" stroke="#0D1838" stroke-width="2"/></g></g><path class="axf-trend" d="M260 110 L292 86 L316 96 L356 40" stroke="#E0A526" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/><circle cx="356" cy="40" r="7" fill="#E0A526" stroke="#0D1838" stroke-width="2.5"/></svg><span class="axf-tag mono">CAPM</span></span>
+<span class="axf-t disp">Borsa ve portföy</span>
+<span class="axf-for hand">risk-getiri, etkin sınır, beta</span>
+<span class="axf-d" id="axf-d3">Beş kurgusal hisseyle portföy kur; çeşitlendirmenin riski nasıl erittiğini ve Sharpe oranını gör.</span>
+</button></li>
+<li style="--i:3;--cc:#E0A526"><button type="button" class="axf-box" data-finans-open="dis" aria-describedby="axf-d4">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#EAF3FA"/><rect y="106" width="400" height="44" fill="#2C77B0"/><g class="axf-ship2"><path d="M60 106h220l-16 22H76z" fill="#1E5B8C"/><rect x="84" y="82" width="34" height="24" fill="#C8553D" stroke="#0D1838" stroke-width="2"/><rect x="120" y="82" width="34" height="24" fill="#E0A526" stroke="#0D1838" stroke-width="2"/><rect x="156" y="82" width="34" height="24" fill="#1F8A7A" stroke="#0D1838" stroke-width="2"/><rect x="102" y="58" width="34" height="24" fill="#2F6FB0" stroke="#0D1838" stroke-width="2"/><rect x="228" y="70" width="26" height="36" fill="#F4F1EA" stroke="#0D1838" stroke-width="2"/></g><g class="axf-flag" transform="translate(320 26)"><path d="M0 0v80" stroke="#0D1838" stroke-width="3"/><path d="M0 2h50l-9 10 9 10H0z" fill="#F2C230" stroke="#0D1838" stroke-width="2"/><text x="5" y="16" font-size="10" font-weight="800" fill="#0D1838">FOB</text></g></svg><span class="axf-tag mono">ICC</span></span>
+<span class="axf-t disp">Dış ticaret</span>
+<span class="axf-for hand">Incoterms 2020, akreditif, gümrük</span>
+<span class="axf-d" id="axf-d4">Konteyner limandan limana gider; riskin el değiştirdiği yeri, belgelerin bankada yolculuğunu ve ithalat maliyetini izle.</span>
+</button></li>
+<li style="--i:4;--cc:#6B4FB3"><button type="button" class="axf-box" data-finans-open="analiz" aria-describedby="axf-d5">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#EEE9F7"/><g transform="translate(70 22)"><rect width="150" height="108" rx="6" fill="#FFFDF8" stroke="#0D1838" stroke-width="3"/><g class="axf-bars"><rect x="20" y="64" width="22" height="34" fill="#2F6FB0"/><rect x="52" y="44" width="22" height="54" fill="#C8553D"/><rect x="84" y="26" width="22" height="72" fill="#3E8E5B"/><rect x="116" y="54" width="22" height="44" fill="#E0A526"/></g></g><g class="axf-lens"><circle cx="268" cy="66" r="30" fill="rgba(255,255,255,.5)" stroke="#0D1838" stroke-width="5"/><path d="M290 88l30 30" stroke="#0D1838" stroke-width="9" stroke-linecap="round"/><text x="268" y="72" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="15" font-weight="700" fill="#6B4FB3">ROE</text></g></svg><span class="axf-tag mono">DuPont</span></span>
+<span class="axf-t disp">Finansal tablo analizi</span>
+<span class="axf-for hand">oranlar, DuPont, analist masası</span>
+<span class="axf-d" id="axf-d5">Üç kurgusal şirketin bilançosu yan yana: likidite, kaldıraç ve kârlılık oranlarıyla kim sağlam, kim riskli?</span>
+</button></li>
+<li style="--i:5;--cc:#0D5C8C"><button type="button" class="axf-box" data-finans-open="makro" aria-describedby="axf-d6">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#E1EDF5"/><g transform="translate(70 22)"><path d="M0 34L70 0l70 34z" fill="#FFFDF8" stroke="#0D1838" stroke-width="3" stroke-linejoin="round"/><g fill="#FFFDF8" stroke="#0D1838" stroke-width="3"><rect x="12" y="40" width="14" height="56"/><rect x="42" y="40" width="14" height="56"/><rect x="84" y="40" width="14" height="56"/><rect x="114" y="40" width="14" height="56"/></g><path d="M-4 100h148" stroke="#0D1838" stroke-width="5"/></g><g class="axf-arrows"><path class="axf-up" d="M262 104V42m-18 18l18-18 18 18" stroke="#C8553D" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path class="axf-dn" d="M318 42v62m-18-18l18 18 18-18" stroke="#1F8A7A" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g><text x="290" y="132" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" fill="#0D5C8C">USD/TL</text></svg><span class="axf-tag mono">FX</span></span>
+<span class="axf-t disp">Kur ve makro</span>
+<span class="axf-for hand">forward, faiz kararı, reel faiz</span>
+<span class="axf-d" id="axf-d6">İhracat alacağını forward’la sabitle; faiz kararının ekonomiye zincirleme yayılışını adım adım izle.</span>
+</button></li>
+<li style="--i:6;--cc:#B84A6B"><button type="button" class="axf-box" data-finans-open="turev" aria-describedby="axf-d7">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#F6E6EC"/><path d="M50 96h300M200 20v116" stroke="#C3B5BD" stroke-width="2"/><path class="axf-pay" d="M50 112H200L330 30" stroke="#B84A6B" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/><circle cx="226" cy="96" r="7" fill="#E0A526" stroke="#0D1838" stroke-width="2.5"/><text x="234" y="124" font-family="JetBrains Mono,monospace" font-size="12" fill="#6A7593">başabaş</text><text x="56" y="132" font-family="Caveat,cursive" font-size="22" font-weight="700" fill="#B84A6B">− prim</text></svg><span class="axf-tag mono">B–S</span></span>
+<span class="axf-t disp">Türev ürünler</span>
+<span class="axf-for hand">opsiyon stratejileri, Black–Scholes</span>
+<span class="axf-d" id="axf-d7">Alım ve satım opsiyonlarından strateji kur, vade sonu kâr-zararını çiz; Yunanlarla bugünkü değeri hesapla.</span>
+</button></li>
+<li style="--i:7;--cc:#3E8E5B"><button type="button" class="axf-box" data-finans-open="kisisel" aria-describedby="axf-d8">
+<span class="axf-cv" aria-hidden="true"><svg viewBox="0 0 400 150" preserveAspectRatio="xMidYMid slice"><rect width="400" height="150" fill="#E4F2E8"/><g class="axf-coin"><ellipse cx="200" cy="20" rx="14" ry="5" fill="#E0A526" stroke="#854F0B" stroke-width="2"/></g><g transform="translate(140 40)"><ellipse cx="60" cy="54" rx="62" ry="44" fill="#ED93B1" stroke="#72243E" stroke-width="3.5"/><path d="M48 12h24" stroke="#72243E" stroke-width="5" stroke-linecap="round"/><circle cx="34" cy="46" r="4" fill="#4B1528"/><ellipse cx="118" cy="58" rx="12" ry="10" fill="#F4C0D1" stroke="#72243E" stroke-width="3"/><path d="M28 94v12M92 94v12" stroke="#72243E" stroke-width="7" stroke-linecap="round"/></g><text x="64" y="80" font-family="Caveat,cursive" font-size="30" font-weight="700" fill="#3E8E5B">50/30/20</text></svg><span class="axf-tag mono">herkes</span></span>
+<span class="axf-t disp">Kişisel finans</span>
+<span class="axf-for hand">herkes için: bütçe, kart, birikim</span>
+<span class="axf-d" id="axf-d8">Bütçe terazisi, asgari ödemenin gerçek bedeli ve enflasyona yenilmeyen birikim hedefi.</span>
+</button></li>
+</ul>
+<div class="axf-quay" aria-hidden="true"></div>
+</section>
+<p class="axf-cite mono">Şirketler, fiyatlar ve oranlar kurgusaldır · Incoterms® 2020 (ICC) · Tekdüzen Hesap Planı · UCP 600</p>
+</div>
+<div class="axm-run axf-run" data-finans-run="" hidden role="dialog" aria-modal="true" aria-labelledby="axf-run-t">
+<div class="axm-run-top">
+<button type="button" class="axm-back" data-finans-close=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12 H5 M11 5.5 L4.5 12 L11 18.5"/></svg>Limana dön</button>
+<h2 class="disp" id="axf-run-t" data-finans-title="">Acadex Finans</h2>
+<a class="axm-newtab" data-finans-newtab="" href="labs/finans/index.html" target="_blank" rel="noopener">yeni sekmede aç</a>
+</div>
+<iframe class="axm-frame" data-finans-frame="" title="Acadex Finans" allow="fullscreen" allowfullscreen></iframe>
+<div class="axm-load" data-finans-load="" hidden><svg viewBox="0 0 220 60" aria-hidden="true"><path d="M10 40 H70 L60 52 H20 Z M26 40 V28 H40 V40 M42 40 V30 H56 V40 M110 50 V8 M90 10 H150 M126 10 V24"/></svg><p class="hand">konteyner indiriliyor…</p></div>
+</div>
+      </section>
+
       
 
     </main>
@@ -2844,6 +2934,7 @@
   <script src="js/acadex-ink.js"></script>
 <script src="js/acadex-push.js"></script>
 <script src="js/acadex-medlab.js"></script>
+<script src="js/acadex-finans.js"></script>
 <script src="js/acadex-medlab-acadia.js"></script>
 <script src="js/acadia-yerinde.js"></script>
   <script src="js/avatar-studio.js"></script>
