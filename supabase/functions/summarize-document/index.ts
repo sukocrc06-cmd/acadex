@@ -13189,7 +13189,18 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
 /* Ozet cache surumu. Prompt, model ya da kart semasi ozeti GORUNUR sekilde
  * degistirdiginde arttir: eski cache kayitlari anahtar uyusmadigi icin
  * kendiliginden devre disi kalir (silmeye gerek yok). */
-const SUMMARY_CACHE_VERSION = 'c1'
+/* SURUM 'c2' (29.10.2026). Anahtarin cekirdegi sha256(fileBytes), yani AYNI
+   dosya hat ne kadar iyilesse de ayni satiri getiriyor. Olculen durum:
+   parcali OCR ayni belgeden 1.230 yerine 10.970 karakter cikardi (4 -> 29
+   sayfa), ama kart `CACHE ISABETI [DOSYA]` ile eski 4-sayfalik haliyle
+   dondu ve 34 saniyelik OCR bosa gitti. Bir gunde kart icerigini DEGISTIREN
+   dort sey birikti: parcali OCR, grounding kapisinin olcum modu (parallel +
+   kesik OCR), pencere promptunun sadakat kurallari, kapsama olcusunun
+   artefakt elemeleri. Eski satirlarin hicbiri bunlari gormedi.
+   Surum artarsa butun satirlar gecersiz olur — kasitli: bir sonraki okuma
+   yeni hattan geciyor. "yeniden ozetle" su an kapali oldugu icin
+   (YENIDEN_OZETLE_ACIK) kullanicinin baska bir tazeleme yolu da yok. */
+const SUMMARY_CACHE_VERSION = 'c2'
 
 /* Ikinci (metin) cache anahtarinin devreye girdigi en kisa metin.
    400 karakterin altinda — bos kapak, "Hafta 3" gibi — iki ayri belgenin
