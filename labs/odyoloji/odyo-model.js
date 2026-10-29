@@ -11,6 +11,14 @@
        (aşırı maskeleme).
      - Psikometrik yanıt: eşiğin 5 dB üstü kesin, eşikte ~%75, 5 dB altı ~%15, daha altı yok.
      - Derece: Clark (1981) ölçeği, saf ses ortalaması (SSO) 500-1000-2000 Hz.
+     - Konuşma: SRT, iki heceli kelimelerin %50'sinin doğru tekrarlandığı en düşük seviye; SSO ile
+       ±10 dB uyumlu olmalı. SD tek heceli kelimelerle SRT + 30-40 dB'de; konuşmada IA 40 dB,
+       sunum seviyesi − 40 ≥ öbür kulağın en iyi kemik eşiği ise maskele.
+     - İmmitans: 226 Hz prob tonu; Jerger tipleri (A, As, Ad, B, C); B'de kulak yolu hacmi ayırır
+       (normal: sıvı, yüksek: perforasyon/tüp, düşük: buşon/prob duvara dayalı). Akustik refleks:
+       prob kulağında orta kulak sorunu refleksi yok eder; uyaran kulağındaki iletim kaybı eşiği
+       aralık kadar yükseltir; ~50 dB'ye kadar koklear kayıpta eşik normal kalır (rekrütman);
+       retrokoklear patolojide uyaran o kulaktan verilince refleks yok ya da çok yüksektir.
    ========================================================================== */
 (function (root, factory) {
   var M = factory();
@@ -28,61 +36,88 @@
   /* ---------- sanal hastalar (kabin) ve vakalar ---------- */
   /* ac/bc: [250,500,1k,2k,3k,4k,6k,8k] dB HL. ans: doğru yorum (tip, derece, konfigürasyon). */
   var P = {};
-  var add = function (o) { o.ac = { R: row(o.acR), L: row(o.acL) }; o.bc = { R: row(o.bcR), L: row(o.bcL) }; P[o.id] = o; return o; };
+  var add = function (o) {
+    o.ac = { R: row(o.acR), L: row(o.acL) }; o.bc = { R: row(o.bcR), L: row(o.bcL) };
+    if (o.gercekR) o.gercek = { bc: { R: row(o.gercekR), L: row(o.gercekL) } };          /* yalancı kayıp: gerçek kemik eşikleri */
+    o.imm = o.imm || { R: { tip: 'A', tepe: -10, uyum: 0.7, ecv: 1.3 }, L: { tip: 'A', tepe: -5, uyum: 0.75, ecv: 1.3 } };
+    o.oto = o.oto || { R: { g: 'normal', t: 'Dış kulak yolu açık, kulak zarı doğal; ışık refleksi seçiliyor.' }, L: { g: 'normal', t: 'Dış kulak yolu açık, kulak zarı doğal; ışık refleksi seçiliyor.' } };
+    P[o.id] = o; return o;
+  };
   add({ id: 'normal', ad: 'Ayşe', yas: 24, seviye: 1, kabin: true,
     ozet: 'Okul sağlık taraması için gelen, şikâyeti olmayan genç kadın.',
     acR: [10, 5, 5, 10, 5, 10, 15, 10], bcR: [5, 5, 5, 5, 5, 10],
     acL: [5, 10, 5, 5, 10, 5, 10, 15], bcL: [5, 5, 5, 5, 5, 5],
     srt: { R: 5, L: 5 }, sd: { R: 100, L: 100 },
+    imm: { R: { tip: 'A', tepe: -5, uyum: 0.72, ecv: 1.25 }, L: { tip: 'A', tepe: -15, uyum: 0.65, ecv: 1.2 } },
     ans: { R: { tip: 'normal', derece: 'normal', konf: 'duz' }, L: { tip: 'normal', derece: 'normal', konf: 'duz' } } });
   add({ id: 'ome', ad: 'Elif', yas: 6, seviye: 2, kabin: true,
     ozet: 'Üst solunum yolu enfeksiyonundan sonra seslenince duymadığı fark edilen çocuk.',
     acR: [35, 35, 30, 25, 25, 25, 20, 25], bcR: [5, 5, 10, 5, 5, 5],
     acL: [35, 35, 30, 30, 25, 25, 25, 25], bcL: [5, 5, 5, 10, 5, 5],
     srt: { R: 30, L: 30 }, sd: { R: 96, L: 96 },
+    imm: { R: { tip: 'B', tepe: null, uyum: 0, ecv: 0.7 }, L: { tip: 'B', tepe: null, uyum: 0, ecv: 0.7 } },
+    oto: { R: { g: 'sivi', t: 'Kulak zarı mat, hafif içe çekik; ışık refleksi seçilmiyor, zar arkasında sıvı seviyesi şüphesi.' }, L: { g: 'sivi', t: 'Kulak zarı mat, hafif içe çekik; ışık refleksi seçilmiyor, zar arkasında sıvı seviyesi şüphesi.' } },
     ans: { R: { tip: 'iletim', derece: 'hafif', konf: 'duz' }, L: { tip: 'iletim', derece: 'hafif', konf: 'duz' } } });
   add({ id: 'presbi', ad: 'Hasan', yas: 68, seviye: 1, kabin: true,
     ozet: 'Kalabalıkta ve gürültüde konuşmaları anlamakta zorlanan emekli öğretmen.',
     acR: [20, 20, 25, 40, 55, 60, 70, 75], bcR: [15, 20, 25, 35, 50, 55],
     acL: [20, 25, 25, 40, 50, 60, 70, 80], bcL: [20, 20, 20, 35, 45, 55],
     srt: { R: 25, L: 25 }, sd: { R: 76, L: 72 },
+    imm: { R: { tip: 'A', tepe: -20, uyum: 0.55, ecv: 1.3 }, L: { tip: 'A', tepe: -10, uyum: 0.6, ecv: 1.4 } },
     ans: { R: { tip: 'sensorinoral', derece: 'hafif', konf: 'dusen' }, L: { tip: 'sensorinoral', derece: 'hafif', konf: 'dusen' } } });
   add({ id: 'gurultu', ad: 'Murat', yas: 45, seviye: 1, kabin: true,
     ozet: '20 yıldır metal fabrikasında çalışan, iki kulakta çınlama tarifleyen işçi.',
     acR: [10, 10, 15, 25, 45, 55, 40, 25], bcR: [10, 10, 15, 20, 40, 50],
     acL: [10, 15, 15, 25, 40, 55, 45, 30], bcL: [10, 10, 15, 20, 40, 50],
     srt: { R: 15, L: 15 }, sd: { R: 92, L: 92 },
+    imm: { R: { tip: 'A', tepe: 0, uyum: 0.85, ecv: 1.3 }, L: { tip: 'A', tepe: -5, uyum: 0.8, ecv: 1.3 } },
     ans: { R: { tip: 'sensorinoral', derece: 'cok_hafif', konf: 'centikli' }, L: { tip: 'sensorinoral', derece: 'cok_hafif', konf: 'centikli' } } });
   add({ id: 'otoskleroz', ad: 'Zeynep', yas: 34, seviye: 2, kabin: true,
     ozet: 'Son iki yılda giderek artan işitme azlığı; gebelikten sonra arttığını söylüyor, annesinde de benzer şikâyet var.',
     acR: [45, 45, 40, 35, 40, 40, 45, 50], bcR: [5, 10, 10, 25, 15, 10],
     acL: [35, 35, 30, 30, 30, 35, 40, 40], bcL: [5, 10, 10, 25, 10, 10],
     srt: { R: 40, L: 30 }, sd: { R: 96, L: 100 },
+    imm: { R: { tip: 'As', tepe: -10, uyum: 0.18, ecv: 1.2 }, L: { tip: 'As', tepe: -5, uyum: 0.22, ecv: 1.1 } },
+    oto: { R: { g: 'schwartze', t: 'Kulak zarı normal görünümde; zar arkasında promontoryumda pembe yansıma (Schwartze bulgusu) şüphesi.' }, L: { g: 'normal', t: 'Dış kulak yolu açık, kulak zarı doğal görünümde.' } },
     ans: { R: { tip: 'iletim', derece: 'hafif', konf: 'duz' }, L: { tip: 'iletim', derece: 'hafif', konf: 'duz' } } });
   add({ id: 'meniere', ad: 'Deniz', yas: 40, seviye: 2, kabin: true,
     ozet: 'Ataklar hâlinde baş dönmesi, sağ kulakta dolgunluk ve uğultu; işitmesi gün gün değişiyor.',
     acR: [50, 45, 35, 25, 20, 20, 25, 30], bcR: [45, 40, 30, 20, 15, 15],
     acL: [10, 10, 5, 10, 10, 10, 15, 15], bcL: [5, 5, 5, 10, 5, 10],
     srt: { R: 35, L: 5 }, sd: { R: 80, L: 100 },
+    imm: { R: { tip: 'A', tepe: -15, uyum: 0.7, ecv: 1.1 }, L: { tip: 'A', tepe: -10, uyum: 0.75, ecv: 1.2 } },
     ans: { R: { tip: 'sensorinoral', derece: 'hafif', konf: 'yukselen' }, L: { tip: 'normal', derece: 'normal', konf: 'duz' } } });
   add({ id: 'noroma', ad: 'Emre', yas: 30, seviye: 2, kabin: true,
     ozet: 'Sağ kulakta yavaş ilerleyen işitme kaybı ve çınlama; telefonu hep sol kulağına götürüyor.',
     acR: [15, 20, 25, 35, 45, 50, 55, 60], bcR: [15, 20, 20, 30, 40, 45],
     acL: [10, 10, 10, 10, 15, 15, 15, 20], bcL: [5, 10, 10, 10, 10, 15],
-    srt: { R: 25, L: 10 }, sd: { R: 40, L: 100 },
+    srt: { R: 25, L: 10 }, sd: { R: 40, L: 100 }, retro: 'R', rollover: 'R',
+    imm: { R: { tip: 'A', tepe: -5, uyum: 0.8, ecv: 1.3 }, L: { tip: 'A', tepe: -10, uyum: 0.75, ecv: 1.3 } },
     ans: { R: { tip: 'sensorinoral', derece: 'hafif', konf: 'dusen' }, L: { tip: 'normal', derece: 'normal', konf: 'duz' } } });
   add({ id: 'ani', ad: 'Selin', yas: 52, seviye: 3, kabin: true,
     ozet: 'İki gün önce sabah uyandığında sol kulağının duymadığını fark etmiş; sol kulakta çınlama var.',
     acR: [10, 10, 10, 15, 15, 15, 20, 20], bcR: [5, 10, 10, 10, 15, 15],
     acL: [55, 60, 65, 70, 70, 75, 80, 80], bcL: [45, 55, 60, 65, 65, 70],
     srt: { R: 10, L: 65 }, sd: { R: 100, L: 60 },
+    imm: { R: { tip: 'A', tepe: -10, uyum: 0.7, ecv: 1.2 }, L: { tip: 'A', tepe: -15, uyum: 0.65, ecv: 1.2 } },
     ans: { R: { tip: 'normal', derece: 'normal', konf: 'duz' }, L: { tip: 'sensorinoral', derece: 'orta_ileri', konf: 'duz' } } });
   add({ id: 'kom', ad: 'Kemal', yas: 60, seviye: 3, kabin: true,
     ozet: 'Çocukluğundan beri sol kulağından ara ara akıntı geliyor; sol kulakta işitme azlığı.',
     acR: [15, 15, 10, 15, 20, 20, 25, 30], bcR: [10, 10, 10, 15, 15, 20],
     acL: [60, 60, 65, 70, 70, 75, 80, 85], bcL: [25, 30, 35, 45, 50, 55],
     srt: { R: 15, L: 65 }, sd: { R: 100, L: 84 },
+    imm: { R: { tip: 'A', tepe: -10, uyum: 0.75, ecv: 1.3 }, L: { tip: 'B', tepe: null, uyum: 0, ecv: 4.2 } },
+    oto: { R: { g: 'normal', t: 'Dış kulak yolu ve kulak zarı doğal.' }, L: { g: 'perfor', t: 'Kulak zarında geniş santral perforasyon; orta kulak mukozası nemli.' } },
     ans: { R: { tip: 'normal', derece: 'normal', konf: 'duz' }, L: { tip: 'mikst', derece: 'orta_ileri', konf: 'dusen' } } });
+  /* yalancı (fonksiyonel) işitme kaybı: saf ses eşikleri abartılı, SRT ve refleksler gerçek işitmeyi ele verir */
+  add({ id: 'yalanci', ad: 'Tolga', yas: 28, seviye: 3, kabin: true,
+    ozet: 'İş yerindeki patlamadan sonra iki kulağının da "hiç duymadığını" söyleyen, tazminat başvurusu yapan genç adam.',
+    acR: [55, 60, 60, 65, 65, 60, 65, 60], bcR: [50, 55, 55, 60, 60, 55],
+    acL: [60, 60, 65, 60, 65, 65, 60, 65], bcL: [55, 55, 60, 55, 60, 60],
+    gercekR: [5, 10, 10, 10, 15, 15], gercekL: [10, 10, 5, 10, 15, 15],
+    srt: { R: 15, L: 15 }, sd: { R: 100, L: 100 },
+    imm: { R: { tip: 'A', tepe: -5, uyum: 0.8, ecv: 1.4 }, L: { tip: 'A', tepe: 0, uyum: 0.85, ecv: 1.4 } },
+    ans: { R: { tip: 'sensorinoral', derece: 'orta_ileri', konf: 'duz' }, L: { tip: 'sensorinoral', derece: 'orta_ileri', konf: 'duz' } } });
 
   /* ---------- etiketler ---------- */
   var TIP = { normal: 'Normal işitme', iletim: 'İletim tipi', sensorinoral: 'Sensörinöral', mikst: 'Mikst tip' };
@@ -258,16 +293,141 @@
       yon: ['KBB: cerrahi değerlendirme (timpanoplasti), kulağı kuru tutma', 'Yalnızca işitme cihazı', 'Acil MR', 'Vestibüler rehabilitasyon'], dyon: 0,
       not: 'Düz (B) timpanogram ama kulak yolu hacmi çok yüksek (4,2 ml): perforasyon. Uzun süren orta kulak hastalığı iç kulağı da etkileyince kayıp mikst tipe döner.' }
   ];
-  var gradeCase = function (c, picked, tani, yon) {
+  /* ölçüm yapılabilen testler: istenince öğrenci kabinde kendisi ölçer */
+  var MEASURABLE = ['konusma', 'timpanometri', 'refleks'];
+  /* olcum: {test: 0..1} (yalnız istenen ve ölçülebilen testler). Varsa puanın %15'i ölçüm kalitesidir. */
+  var gradeCase = function (c, picked, tani, yon, olcum) {
     var need = c.gerekli || [], extra = c.gereksiz || [];
     var missing = need.filter(function (t) { return picked.indexOf(t) < 0; }), wasted = picked.filter(function (t) { return extra.indexOf(t) >= 0; });
     var pts = 0; pts += (need.length - missing.length) / need.length * 40; pts -= wasted.length * 5;
     if (tani === c.dogru) pts += 35; if (yon === c.dyon) pts += 25;
-    return { puan: Math.max(0, Math.round(pts)), missing: missing, wasted: wasted, taniOk: tani === c.dogru, yonOk: yon === c.dyon };
+    var ok = olcum ? Object.keys(olcum) : [], avg = null;
+    if (ok.length) { avg = ok.reduce(function (a, k) { return a + Math.max(0, Math.min(1, olcum[k] || 0)); }, 0) / ok.length; pts = pts * 0.85 + avg * 15; }
+    return { puan: Math.max(0, Math.round(pts)), missing: missing, wasted: wasted, taniOk: tani === c.dogru, yonOk: yon === c.dyon, olcum: avg };
+  };
+
+  /* =========================== KONUŞMA ODYOMETRİSİ =========================== */
+  /* Örnek kelimeler (eğitim amaçlı; standart bir klinik liste değildir). [hedef, sık karıştırılan] */
+  var SPONDEE = [['kalem', 'kale'], ['kitap', 'kira'], ['masa', 'kasa'], ['kapı', 'kaba'], ['çanta', 'çatal'], ['bardak', 'parmak'],
+    ['kaşık', 'aşık'], ['tabak', 'kabak'], ['defter', 'telefon'], ['perde', 'nerde'], ['elma', 'alma'], ['armut', 'unut'],
+    ['bulut', 'bulgur'], ['deniz', 'beniz'], ['yıldız', 'yaldız'], ['çiçek', 'çilek'], ['köprü', 'kömür'], ['sepet', 'kepek'],
+    ['yastık', 'kaştık'], ['makas', 'kafes']];
+  var MONO = [['su', 'şu'], ['el', 'il'], ['at', 'ot'], ['göz', 'söz'], ['kol', 'kul'], ['top', 'tok'], ['saç', 'suç'], ['diş', 'kış'],
+    ['yol', 'yün'], ['taş', 'kaş'], ['bal', 'dal'], ['kuş', 'muş'], ['gül', 'kül'], ['ses', 'kes'], ['buz', 'bez'], ['tuz', 'duz'],
+    ['ip', 'it'], ['kum', 'kim'], ['süt', 'üst'], ['çay', 'çağ'], ['kaz', 'kas'], ['pul', 'bul'], ['et', 'ek'], ['kar', 'kör'], ['yüz', 'düz']];
+  var SP = { IA: 40 };
+  var SDS = [ /* konuşmayı ayırt etme sınıfı (yaygın kullanılan ölçek) */
+    { k: 'mukemmel', t: 'Mükemmel (90–100)', min: 90 }, { k: 'iyi', t: 'İyi (78–89)', min: 78 }, { k: 'orta', t: 'Orta (66–77)', min: 66 },
+    { k: 'zayif', t: 'Zayıf (54–65)', min: 54 }, { k: 'cok_zayif', t: 'Çok zayıf (<54)', min: -1 }];
+  var sdSinif = function (pct) { for (var i = 0; i < SDS.length; i++) if (pct >= SDS[i].min) return SDS[i].k; return 'cok_zayif'; };
+  var bcMin = function (p, ear) { return Math.min.apply(null, [500, 1000, 2000, 4000].map(function (f) { return p.bc[ear][f]; })); };
+  var gapPta = function (p, ear) { return Math.max(0, sso(p.ac[ear]) - sso(p.bc[ear])); };
+  var pSpondee = function (m) { return 1 / (1 + Math.exp(-m / 2.2)); };                         /* SRT'de %50, ±3 dB'de ~%20-80 */
+  var pMono = function (p, ear, m) {                                                              /* performans-yoğunluk eğrisi; m = seviye - SRT */
+    var v = p.sd[ear] / 100 / (1 + Math.exp(-(m - 12) / 5));
+    if (p.rollover === ear && m > 35) v *= Math.max(0.4, 1 - (m - 35) * 0.02);                  /* retrokoklear: yüksek seviyede düşüş (rollover) */
+    return v;
+  };
+  /* stim: {ear, list:'srt'|'sd', L, mask:{on, M}} → doğru tekrar olasılığı */
+  var speechEff = function (p, stim) {
+    var t = stim.ear, n = other(t), mOn = !!(stim.mask && stim.mask.on), M = mOn ? stim.mask.M : -999;
+    var srtN = mOn ? Math.max(p.srt[n], M - gapPta(p, n)) : p.srt[n];                           /* öbür kulak gürültüyle bastırılır */
+    var srtT = mOn ? Math.max(p.srt[t], M - SP.IA + gapPta(p, t)) : p.srt[t];                    /* aşırı maske test kulağına geçer */
+    var Lc = stim.L - SP.IA, pt, pc;
+    if (stim.list === 'srt') { pt = pSpondee(stim.L - srtT); pc = pSpondee(Lc - srtN); }
+    else { pt = pMono(p, t, stim.L - srtT); pc = pMono(p, n, Lc - srtN); }
+    return { p: Math.max(pt, pc), via: pt >= pc ? 'test' : 'cross', pt: pt, pc: pc, overmask: mOn && M - SP.IA > sso(p.bc[t]) };
+  };
+  var speechRespond = function (p, stim, word, rnd) {
+    rnd = rnd || Math.random;
+    var e = speechEff(p, stim), ok = rnd() < e.p, said;
+    if (ok) said = word[0]; else if (e.p < 0.04) said = ''; else said = rnd() < 0.55 ? word[1] : 'anlamadım';
+    return { ok: ok, said: said, via: ok ? e.via : null, overmask: e.overmask, p: e.p };
+  };
+  var needMaskSpeech = function (p, ear, L) { return L - SP.IA >= bcMin(p, other(ear)); };
+  var srtUnmasked = function (p, ear) { return Math.min(p.srt[ear], p.srt[other(ear)] + SP.IA); };   /* maskesiz bulunacak SRT (gölge) */
+  var uyum = function (p, ear) { return Math.abs(p.srt[ear] - sso(p.ac[ear])) <= 10 ? 'uyumlu' : 'uyumsuz'; };
+  /* rec[ear] = {srt:{L, masked}, sd:{L, pct, n, masked, judge:{ok,total}}}; yor[ear] = {uyum, sinif} */
+  var gradeSpeech = function (p, rec, yor) {
+    rec = rec || {}; yor = yor || {};
+    var rows = [], pts = 0, meas = 0;
+    ['R', 'L'].forEach(function (e) {
+      var r = rec[e] || {}, y = yor[e] || {}, s = r.srt, d = r.sd, row = { ear: e, srt: 'eksik', sd: 'eksik', uyum: false, sinif: false };
+      if (s) {
+        var need = needMaskSpeech(p, e, p.srt[e]), okV = Math.abs(s.L - p.srt[e]) <= 5;
+        if (okV && (!need || s.masked)) { row.srt = 'dogru'; pts += 30; meas += 30; }
+        else if (need && !s.masked && Math.abs(s.L - srtUnmasked(p, e)) <= 5) row.srt = 'golge';
+        else if (okV) { row.srt = 'maskesiz'; pts += 20; meas += 20; }
+        else row.srt = 'yanlis';
+      }
+      if (d) {
+        var lvOk = d.L >= p.srt[e] + 25 && d.n >= 10, mk = !needMaskSpeech(p, e, d.L) || d.masked, jd = d.judge && d.judge.ok === d.judge.total;
+        row.sdLv = lvOk; row.sdMask = mk; row.sdJudge = !!jd; row.sd = lvOk && mk && jd ? 'dogru' : 'kismi';
+        var sp = (lvOk ? 7 : 0) + (mk ? 4 : 0) + (jd ? 4 : 0); pts += sp; meas += sp;
+      }
+      row.uyumT = uyum(p, e); row.sinifT = sdSinif(p.sd[e]);
+      if (y.uyum === row.uyumT) { row.uyum = true; pts += 2.5; }
+      if (y.sinif === row.sinifT) { row.sinif = true; pts += 2.5; }
+      rows.push(row);
+    });
+    return { rows: rows, puan: Math.round(pts), olcum: Math.round(meas / 90 * 100) / 100 };
+  };
+
+  /* =========================== İMMİTANSMETRİ =========================== */
+  var ecvNorm = function (p) { return p.yas <= 10 ? { min: 0.4, max: 1.0, hi: 1.5 } : { min: 0.6, max: 1.5, hi: 2.0 }; };
+  /* kompanse timpanogram (ml): +200 daPa'da 0'a çekilmiş */
+  var tympY = function (T, pr) {
+    if (T.tip === 'B' || T.tepe == null) return 0.03 + (pr + 400) / 600 * 0.03;
+    var w = T.tip === 'Ad' ? 55 : 72;
+    return T.uyum * Math.exp(-Math.pow((pr - T.tepe) / w, 2));
+  };
+  /* öğrencinin seçeceği tip anahtarı: B'de kulak yolu hacmi ayırır */
+  var TIPK = { A: 'Tip A (normal)', As: 'Tip As (sığ: sertleşmiş sistem)', Ad: 'Tip Ad (derin: aşırı esnek)', C: 'Tip C (negatif basınç)',
+    B_n: 'Tip B, hacim normal (orta kulakta sıvı)', B_y: 'Tip B, hacim yüksek (perforasyon / tüp)', B_d: 'Tip B, hacim düşük (buşon / prob duvarda)' };
+  var tipKey = function (p, ear) {
+    var T = p.imm[ear]; if (T.tip !== 'B') return T.tip;
+    var n = ecvNorm(p); return T.ecv > n.hi ? 'B_y' : T.ecv < n.min ? 'B_d' : 'B_n';
+  };
+  var probeOk = function (p, size) { return p.yas <= 12 ? size === 'kucuk' : size !== 'kucuk'; };
+  var REFL_F = [500, 1000, 2000], REFL_MAX = { ipsi: 110, contra: 120 };
+  /* refleks eşiği (dB HL) ya da null (yok). probe: ölçüm yapılan kulak; mode ipsi: uyaran aynı kulağa */
+  var reflex = function (p, probe, mode, f) {
+    var stim = mode === 'ipsi' ? probe : other(probe), T = p.imm[probe];
+    if (T.tip === 'B' || T.tip === 'As' || T.tip === 'C') return null;                           /* prob kulağında orta kulak sorunu */
+    if (p.retro === stim) return null;                                                             /* retrokoklear: uyaran tarafı */
+    var bcs = p.gercek ? p.gercek.bc[stim][f] : p.bc[stim][f], gap = p.gercek ? 0 : p.ac[stim][f] - p.bc[stim][f];
+    if (gap < 10) gap = 0;                                                                         /* <10 dB fark ölçüm oynaması sayılır */
+    var rt = (bcs <= 50 ? 85 : bcs + 35) + gap + (mode === 'contra' ? 5 : 0);
+    return rt > REFL_MAX[mode] ? null : rt;
+  };
+  /* rec = {R:{oto, tymp:{peak:{p,c}|null, nopeak, tip}}, L:{…}, refl:{'R.ipsi.1000':{L, nr}}} */
+  var gradeImm = function (p, rec) {
+    rec = rec || {}; var rows = [], base = 0;
+    ['R', 'L'].forEach(function (e) {
+      var r = rec[e] || {}, ty = r.tymp || {}, T = p.imm[e], row = { ear: e, oto: !!r.oto, peak: 'eksik', tip: false, tipT: tipKey(p, e), done: !!ty.done };
+      if (r.oto) base += 5;
+      if (T.tip === 'B') { if (ty.nopeak) { row.peak = 'dogru'; base += 15; } else if (ty.peak) row.peak = 'yanlis'; }
+      else if (ty.peak) {
+        var okP = Math.abs(ty.peak.p - T.tepe) <= 25, okC = Math.abs(ty.peak.c - T.uyum) <= 0.15;
+        base += (okP ? 8 : 0) + (okC ? 7 : 0); row.peak = okP && okC ? 'dogru' : 'kismi'; row.okP = okP; row.okC = okC;
+      } else if (ty.nopeak) row.peak = 'yanlis';
+      if (ty.tip === row.tipT) { row.tip = true; base += 15; }
+      rows.push(row);
+    });
+    var refl = rec.refl || {}, ks = Object.keys(refl), rok = 0, rrows = [];
+    ks.forEach(function (k) {
+      var a = k.split('.'), tr = reflex(p, a[0], a[1], +a[2]), m = refl[k], ok = m.nr ? tr == null : tr != null && Math.abs(m.L - tr) <= 5;
+      if (ok) rok++; rrows.push({ key: k, truth: tr, mark: m, ok: ok });
+    });
+    var puan = ks.length ? base + 30 * rok / ks.length : base / 70 * 100;
+    return { rows: rows, refl: rrows, puan: Math.round(puan), olcum: Math.round(puan) / 100 };
   };
 
   return { FREQS: FREQS, BC_FREQS: BC_FREQS, IA: IA, MAX: MAX, MIN: MIN, P: P, TIP: TIP, DERECE: DERECE, KONF: KONF,
     TESTS: TESTS, TIMP: TIMP, CASES: CASES, other: other, bcAt: bcAt, gapAt: gapAt, sso: sso, derece: derece, tip: tip, prob: prob,
     effective: effective, respond: respond, truth: truth, unmaskedSeen: unmaskedSeen, needMask: needMask, maskRange: maskRange,
-    grade: grade, gradeCase: gradeCase, SCOPE: SCOPE };
+    grade: grade, gradeCase: gradeCase, SCOPE: SCOPE, MEASURABLE: MEASURABLE,
+    SPONDEE: SPONDEE, MONO: MONO, SP: SP, SDS: SDS, sdSinif: sdSinif, bcMin: bcMin, speechEff: speechEff, speechRespond: speechRespond,
+    needMaskSpeech: needMaskSpeech, srtUnmasked: srtUnmasked, uyum: uyum, gradeSpeech: gradeSpeech,
+    ecvNorm: ecvNorm, tympY: tympY, TIPK: TIPK, tipKey: tipKey, probeOk: probeOk, REFL_F: REFL_F, REFL_MAX: REFL_MAX, reflex: reflex, gradeImm: gradeImm };
 });

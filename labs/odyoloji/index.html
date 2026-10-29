@@ -186,6 +186,69 @@ button{cursor:pointer}
 .karne ul{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.55}
 .karne h3{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:18px;padding-right:100px}
 
+/* ---------- cihaz test modu (saf ses / konuşma / immitans) ---------- */
+.dmodes{display:flex;gap:4px;margin:0 0 12px;padding:4px;border-radius:12px;background:#C3B99F;box-shadow:inset 0 2px 6px rgba(0,0,0,.25)}
+.dmodes button{flex:1;min-height:36px;border:0;border-radius:9px;background:transparent;font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;letter-spacing:.1em;color:#5E5540}
+.dmodes button[aria-selected="true"]{background:linear-gradient(180deg,var(--lcd-2),var(--lcd));color:var(--amber);text-shadow:0 0 8px rgba(255,181,71,.45);box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
+.dm[hidden],.dmr[hidden]{display:none!important}
+.dmr{display:flex;flex-direction:column;gap:16px}
+.kb-case{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:12px;background:#F7EBCB;box-shadow:0 12px 30px -20px rgba(0,0,0,.8);font-size:14px}
+.kb-case[hidden]{display:none}
+.kb-case b{font-family:'Bricolage Grotesque',sans-serif}
+.kb-case .btn{min-height:34px;font-size:13px;margin-left:auto}
+/* konuşma: kelime kartı */
+.wcard{position:relative;flex:1;min-width:0;padding:8px 12px 10px;border-radius:4px;background:#FFFDF4 repeating-linear-gradient(transparent 0 21px,#E7ECF5 21px 22px);box-shadow:0 6px 14px -8px rgba(0,0,0,.45);transform:rotate(-1deg)}
+.wcard::before{content:"";position:absolute;left:12px;top:0;bottom:0;width:1.2px;background:#F2B8B8}
+.wcard span{display:block;padding-left:8px;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.wcard b{display:block;padding-left:8px;font-family:'Caveat',cursive;font-size:38px;line-height:1.05;color:var(--ink);min-height:40px}
+.wcard small{display:block;padding-left:8px;font-size:11.5px;color:var(--muted)}
+.wcard small b{display:inline;padding:0;min-height:0;font-family:inherit;font-size:13px;font-weight:800;color:var(--ink)}
+.ton-b.k2{font-size:15px}
+.key.ok[aria-pressed],.key.ok:not(:disabled):hover{color:var(--ok)}
+.key.no:not(:disabled):hover{color:var(--bad)}
+.key:disabled{opacity:.5;cursor:not-allowed}
+.tally{width:100%;border-collapse:collapse;font-size:13px;margin:4px 0 8px}
+.tally th,.tally td{padding:5px 6px;border-bottom:1px solid var(--grid);text-align:left;font-variant-numeric:tabular-nums}
+.tally th{font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;color:var(--muted);font-weight:500}
+.tally .bar{display:inline-block;height:8px;border-radius:4px;background:var(--ok);vertical-align:middle;margin-right:6px}
+.tally .cur td{background:#FFF7DD}
+.tally .h50{color:var(--ok);font-weight:800}
+.k2-acts{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px}
+.k2-acts .btn{min-height:36px;font-size:13px;padding:0 12px}
+.form2{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+.form2 th,.form2 td{padding:6px 7px;border:1px solid var(--grid);text-align:left}
+.form2 th{background:#F5F7FB;font-size:12px}
+.form2 td.mute{color:var(--muted)}
+/* immitans */
+.isteps{display:flex;gap:4px;margin:12px 0 0;padding:0;list-style:none;counter-reset:st}
+.isteps li{flex:1;counter-increment:st;padding:6px 6px;border-radius:9px;background:rgba(255,255,255,.4);border:1px solid var(--panel-s);font-size:11.5px;font-weight:700;color:#7C7258;text-align:center;white-space:nowrap}
+.isteps li::before{content:counter(st) " · "}
+.isteps li.on{background:#fff;border-color:var(--ink);color:var(--ink)}
+.isteps li.ok{background:var(--ok-s);border-color:var(--ok);color:var(--ok)}
+.lamp.seal i{background:radial-gradient(circle at 35% 30%,#D9FFE9,#3BC27B 55%,#1C8A50);box-shadow:0 0 14px 3px rgba(59,194,123,.6)}
+.lamp.leak i{background:radial-gradient(circle at 35% 30%,#FFE1DC,#E2503E 55%,#A3271A);box-shadow:0 0 14px 3px rgba(226,80,62,.6)}
+.imm-top{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:center;margin:6px 0 10px}
+.oto{width:150px;height:150px;border-radius:50%;background:#1A1410;box-shadow:inset 0 0 0 6px #2A2F45,0 8px 18px -10px rgba(0,0,0,.7)}
+.oto-t{font-size:13.5px;line-height:1.5;margin:0}
+.oto-t b{display:block;margin-bottom:2px}
+.tg{display:block;width:100%;height:auto;background:var(--paper);border-radius:10px;cursor:crosshair;touch-action:manipulation}
+.tg .gl{stroke:var(--grid);stroke-width:1}.tg .ax{font-family:'JetBrains Mono',monospace;font-size:11px;fill:var(--muted)}
+.tg .nb{fill:#EEF6EA;stroke:#CFE3C6;stroke-dasharray:4 3}
+.tg .cR{stroke:var(--R);stroke-width:2.4;fill:none}.tg .cL{stroke:var(--L);stroke-width:2.4;fill:none}
+.tg .pk{fill:var(--yel);stroke:var(--ink);stroke-width:2}
+.tg .pkR{stroke:var(--R)}.tg .pkL{stroke:var(--L)}
+.rtr{display:block;width:100%;height:70px;background:#F5F7FB;border-radius:8px}
+.rtr path{fill:none;stroke:var(--ink);stroke-width:2}
+.rgrid{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+.rgrid th,.rgrid td{padding:5px 4px;border:1px solid var(--grid);text-align:center;font-variant-numeric:tabular-nums}
+.rgrid th{background:#F5F7FB;font-weight:600}
+.rgrid td.cur{outline:2px solid var(--yel);outline-offset:-2px}
+.rgrid td.bad{background:var(--bad-s)}.rgrid td.okc{background:var(--ok-s)}
+.imm-sel{width:100%;min-height:34px;padding:0 6px;border:1.5px solid var(--grid-2);border-radius:8px;background:#fff;font-size:12.5px}
+#ki-form{table-layout:fixed}
+#ki-form th:nth-child(1){width:15%}#ki-form th:nth-child(2){width:20%}#ki-form th:nth-child(3),#ki-form th:nth-child(4){width:14%}
+@media (pointer:coarse),(max-width:760px){#ton-h,#k2-h{display:none}}
+
 /* =========================== KULAK (3B) =========================== */
 .ku{position:relative;height:calc(100vh - 150px);min-height:540px;border-radius:18px;overflow:hidden;background:radial-gradient(120% 90% at 60% 40%,#2B3656,#141A2B 70%);box-shadow:0 22px 50px -24px rgba(0,0,0,.8)}
 .ku canvas{display:block;width:100%;height:100%;outline:none}
@@ -278,6 +341,15 @@ button{cursor:pointer}
   .ctl{grid-template-columns:minmax(0,1fr)}
   .ton-b{width:84px;height:84px}
   .yor,.dx{grid-template-columns:minmax(0,1fr)}
+  .imm-top{grid-template-columns:110px minmax(0,1fr)}
+  .oto{width:110px;height:110px}
+  .wcard b{font-size:32px}
+  .isteps li{font-size:10.5px;padding:6px 3px}
+  .dmodes button{font-size:10.5px;letter-spacing:.04em}
+  .form2{font-size:12.5px}.form2 th,.form2 td{padding:5px 4px}
+  .tg .ax{font-size:17px}
+  #ki-form th:nth-child(1){width:17%}#ki-form th:nth-child(2){width:24%}#ki-form th:nth-child(3),#ki-form th:nth-child(4){width:17%}
+  #ki-form td{word-break:break-word}
   .ku{height:calc(100vh - 170px)}
   .ku-list{top:auto;bottom:118px;width:auto;right:12px;max-height:150px}
   .ku-card{left:12px;right:12px;width:auto;top:12px;max-height:42%}
@@ -308,6 +380,7 @@ button{cursor:pointer}
 <!-- =========================== KABİN =========================== -->
 <main>
 <section class="ol-view on" id="kabin" role="tabpanel" aria-labelledby="t-kabin">
+  <div class="kb-case" id="kb-case" hidden></div>
   <div class="kb">
     <div class="kb-left">
       <div class="card">
@@ -318,6 +391,12 @@ button{cursor:pointer}
       </div>
       <div class="dev" aria-label="Sanal odyometre">
         <div class="dev-h"><b>AX-ODY 01</b><small>klinik odyometre · sanal</small></div>
+        <div class="dmodes" role="tablist" aria-label="Test">
+          <button type="button" role="tab" data-km="ton" aria-selected="true">SAF SES</button>
+          <button type="button" role="tab" data-km="konusma" aria-selected="false">KONUŞMA</button>
+          <button type="button" role="tab" data-km="imm" aria-selected="false">İMMİTANS</button>
+        </div>
+        <div class="dm" id="dm-ton">
         <div class="lcds">
           <div class="lcd R" id="lc-ear"><span>KANAL</span><b>SAĞ</b></div>
           <div class="lcd" id="lc-mode"><span>UYARAN</span><b>HAVA</b></div>
@@ -341,6 +420,59 @@ button{cursor:pointer}
             <p class="kbd-hint" id="ton-h"><kbd>boşluk</kbd> ton · <kbd>↑</kbd><kbd>↓</kbd> 5 dB · <kbd>←</kbd><kbd>→</kbd> frekans · <kbd>S</kbd>/<kbd>L</kbd> kulak · <kbd>M</kbd> maske · <kbd>Enter</kbd> işaretle</p>
           </div>
         </div>
+        </div>
+
+        <!-- konuşma odyometrisi -->
+        <div class="dm" id="dm-kon" hidden>
+          <div class="lcds">
+            <div class="lcd R" id="lk-ear"><span>KANAL</span><b>SAĞ</b></div>
+            <div class="lcd" id="lk-list"><span>LİSTE</span><b>SRT</b></div>
+            <div class="lcd" id="lk-db"><span>SEVİYE</span><b>40<small>dB HL</small></b></div>
+            <div class="lcd off" id="lk-m"><span>MASKE</span><b>KAPALI</b></div>
+          </div>
+          <div class="ctl">
+            <div class="grp"><span class="k">kulak</span><div class="row"><button type="button" class="key R" id="k2-R" aria-pressed="true">Sağ</button><button type="button" class="key L" id="k2-L" aria-pressed="false">Sol</button></div></div>
+            <div class="grp"><span class="k">kelime listesi</span><div class="row"><button type="button" class="key" id="k2-srt" aria-pressed="true" title="İki heceli (spondee) kelimeler">SRT</button><button type="button" class="key" id="k2-sd" aria-pressed="false" title="Tek heceli kelimeler">SD</button></div></div>
+            <div class="grp" style="grid-column:1/-1"><span class="k">seviye (dB HL)</span><div class="row"><button type="button" class="key" id="k2-dn10" aria-label="10 dB azalt">−10</button><button type="button" class="key" id="k2-dn" aria-label="5 dB azalt">−5</button><button type="button" class="key" id="k2-up" aria-label="5 dB artır">+5</button><button type="button" class="key" id="k2-up10" aria-label="10 dB artır">+10</button></div></div>
+            <div class="grp" style="grid-column:1/-1"><span class="k">maskeleme · karşı kulağa konuşma gürültüsü</span>
+              <div class="row"><button type="button" class="key" id="k2-m" aria-pressed="false" style="flex:0 0 96px">Maske</button><div class="lcd off" id="lk-m2" style="flex:1"><span>MASKE (dB EM)</span><b>KAPALI</b></div><button type="button" class="key sm" id="k2-mdn" aria-label="Maskeyi 5 dB azalt">−5</button><button type="button" class="key sm" id="k2-mup" aria-label="Maskeyi 5 dB artır">+5</button></div>
+            </div>
+          </div>
+          <div class="ton">
+            <button type="button" class="ton-b k2" id="k2-go" aria-describedby="k2-h">KELİME<small>boşluk</small></button>
+            <div class="ton-act">
+              <div class="wcard" aria-live="polite"><span id="k2-wl">kelime kartı</span><b id="k2-w">—</b><small id="k2-wn">Hasta tekrar eder; doğru mu, yanlış mı sen karar ver.</small></div>
+              <div class="row"><button type="button" class="key ok" id="k2-ok" disabled>Doğru ✓</button><button type="button" class="key no" id="k2-no" disabled>Yanlış ✗</button></div>
+              <p class="kbd-hint" id="k2-h"><kbd>boşluk</kbd> kelime · <kbd>D</kbd> doğru · <kbd>Y</kbd> yanlış · <kbd>↑</kbd><kbd>↓</kbd> 5 dB · <kbd>S</kbd>/<kbd>L</kbd> kulak · <kbd>M</kbd> maske</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- immitansmetri -->
+        <div class="dm" id="dm-imm" hidden>
+          <div class="lcds">
+            <div class="lcd R" id="li-ear"><span>PROB</span><b>SAĞ</b></div>
+            <div class="lcd" id="li-p"><span>BASINÇ</span><b>+200<small>daPa</small></b></div>
+            <div class="lcd" id="li-c"><span>UYUM</span><b>0,00<small>ml</small></b></div>
+            <div class="lcd" id="li-v"><span>HACİM</span><b>—<small>ml</small></b></div>
+          </div>
+          <ol class="isteps" id="isteps"><li data-st="oto">Otoskopi</li><li data-st="prob">Prob</li><li data-st="tara">Tara</li><li data-st="refl">Refleks</li></ol>
+          <div class="ctl">
+            <div class="grp"><span class="k">prob kulağı</span><div class="row"><button type="button" class="key R" id="ki-R" aria-pressed="true">Sağ</button><button type="button" class="key L" id="ki-L" aria-pressed="false">Sol</button></div></div>
+            <div class="grp"><span class="k">1 · otoskopi</span><div class="row"><button type="button" class="key" id="ki-oto">Otoskopla bak</button></div></div>
+            <div class="grp" style="grid-column:1/-1"><span class="k">2 · prob ucu</span><div class="row"><button type="button" class="key" id="ki-s" data-tip="kucuk" aria-pressed="false">Küçük</button><button type="button" class="key" id="ki-m" data-tip="orta" aria-pressed="false">Orta</button><button type="button" class="key" id="ki-b" data-tip="buyuk" aria-pressed="false">Büyük</button></div></div>
+            <div class="grp" style="grid-column:1/-1"><span class="k">4 · akustik refleks (isteğe bağlı)</span>
+              <div class="row"><button type="button" class="key" id="ki-ipsi" aria-pressed="true">İpsi</button><button type="button" class="key" id="ki-con" aria-pressed="false">Kontra</button><button type="button" class="key sm" id="ki-fdn" aria-label="Frekansı düşür"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="lcd" id="li-rf" style="flex:1;min-width:0"><span>UYARAN</span><b>1<small>kHz</small></b></div><button type="button" class="key sm" id="ki-fup" aria-label="Frekansı yükselt"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div>
+              <div class="row" style="margin-top:6px"><button type="button" class="key sm" id="ki-rdn" aria-label="Refleks seviyesini 5 dB azalt">−5</button><div class="lcd" id="li-rl" style="flex:1;min-width:0"><span>SEVİYE</span><b>80<small>dB HL</small></b></div><button type="button" class="key sm" id="ki-rup" aria-label="Refleks seviyesini 5 dB artır">+5</button><button type="button" class="key" id="ki-rgo">Uyaran</button></div>
+              <div class="row" style="margin-top:6px"><button type="button" class="key" id="ki-rmark">Eşik işaretle</button><button type="button" class="key" id="ki-rnr">Refleks yok</button></div>
+            </div>
+          </div>
+          <div class="ton">
+            <button type="button" class="ton-b" id="ki-run" aria-describedby="ki-h">TARA<small>+200 → −400</small></button>
+            <div class="lamp" id="ki-seal" aria-hidden="true"><i></i><span>SIZDIR-<br>MAZLIK</span></div>
+            <div class="ton-act"><p class="kbd-hint" id="ki-h">Önce otoskopla bak, sonra hastaya uygun prob ucunu tak. Sızdırmazlık lambası yeşil yanınca basıncı tara. Timpanogramın tepesine tıkla, tipini seç.</p></div>
+          </div>
+        </div>
       </div>
       <div class="win" id="win" aria-hidden="true">
         <svg viewBox="0 0 150 140"><path d="M20 140c4-30 26-44 55-44s51 14 55 44" fill="#3C4A6B"/><circle cx="75" cy="58" r="28" fill="#F2C7A1"/><path d="M47 52c0-20 13-30 28-30s28 10 28 30c-6-8-14-12-28-12s-22 4-28 12z" fill="#2A2F45"/><path d="M44 58a31 31 0 0 1 62 0" fill="none" stroke="#1A1F2E" stroke-width="5"/><rect x="38" y="50" width="11" height="20" rx="5" fill="#D64545"/><rect x="101" y="50" width="11" height="20" rx="5" fill="#2F6BFF"/><g class="hand-up"><path d="M96 118l18 6" stroke="#3C4A6B" stroke-width="12" stroke-linecap="round"/><circle cx="118" cy="125" r="7" fill="#F2C7A1"/></g><circle cx="66" cy="60" r="2.2" fill="#1A1F2E"/><circle cx="84" cy="60" r="2.2" fill="#1A1F2E"/><path d="M69 72c4 3 8 3 12 0" fill="none" stroke="#1A1F2E" stroke-width="2" stroke-linecap="round"/></svg>
@@ -349,7 +481,8 @@ button{cursor:pointer}
       <div class="card"><span class="k">kayıt şeridi · son 12 uyaran</span><div class="tape" id="tape"></div></div>
     </div>
 
-    <div class="kb-right" style="display:flex;flex-direction:column;gap:16px">
+    <div class="kb-right">
+      <div class="dmr" id="dmr-ton">
       <div class="card">
         <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><div><span class="k">odyogram</span><h2 id="ag-t">Hasta seç</h2></div><span class="pill" id="ag-c">0 / 24 nokta</span></div>
         <div class="ag-wrap"><svg class="ag" id="ag" viewBox="0 0 640 470" role="img" aria-label="Odyogram"></svg></div>
@@ -363,6 +496,44 @@ button{cursor:pointer}
         <div class="yor" id="yor"></div>
         <div class="vk-act"><button type="button" class="btn pri" id="eval">Değerlendir</button><span class="sub" id="eval-n" style="margin:0"></span></div>
         <div id="karne"></div>
+      </div>
+      </div>
+
+      <div class="dmr" id="dmr-kon" hidden>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><div><span class="k">konuşma odyometrisi</span><h2 id="k2-t">Konuşma formu</h2></div><span class="pill" id="k2-c">Sağ · SRT</span></div>
+          <table class="tally" id="k2-tally" aria-label="Seviyelere göre doğru tekrar"></table>
+          <div class="k2-acts"><button type="button" class="btn pri" id="k2-save-srt">SRT olarak kaydet</button><button type="button" class="btn" id="k2-save-sd">SD'yi kaydet</button><button type="button" class="btn" id="k2-new">Yeni liste</button></div>
+          <div class="rule" id="k2-rule"></div>
+          <table class="form2" id="k2-form" aria-label="Konuşma odyometrisi sonuçları"></table>
+        </div>
+        <div class="card">
+          <span class="k">yorum</span><h2>Konuşma sonuçlarını yorumla</h2>
+          <p class="sub">SRT, saf ses ortalamasıyla (SSO) ±10 dB uyumlu olmalı. SD sınıfı ayırt etme skoruna göre.</p>
+          <div class="yor" id="k2-yor"></div>
+          <div class="vk-act"><button type="button" class="btn pri" id="k2-eval">Değerlendir</button><span class="sub" id="k2-eval-n" style="margin:0"></span></div>
+          <div id="k2-karne"></div>
+        </div>
+      </div>
+
+      <div class="dmr" id="dmr-imm" hidden>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><div><span class="k">immitansmetri · 226 Hz</span><h2 id="ki-t">Timpanogram</h2></div><span class="pill" id="ki-c">Prob: sağ</span></div>
+          <div class="imm-top"><svg class="oto" id="ki-oto-v" viewBox="0 0 150 150" role="img" aria-label="Otoskopi görüntüsü"></svg><p class="oto-t" id="ki-oto-t"><b>Otoskopi</b>Prob takmadan önce kulak yoluna ve zara bak: buşon, perforasyon ya da akıntı ölçümü değiştirir.</p></div>
+          <svg class="tg" id="ki-g" viewBox="0 0 560 300" role="img" aria-label="Timpanogram"></svg>
+          <div class="k2-acts"><button type="button" class="btn" id="ki-nopeak">Tepe yok (düz)</button><span class="sub" style="margin:0;align-self:center">Tepeyi işaretlemek için eğrinin en yüksek noktasına tıkla.</span></div>
+          <table class="form2" id="ki-form" aria-label="Timpanometri sonuçları"></table>
+          <div class="rule" id="ki-rule"></div>
+        </div>
+        <div class="card">
+          <span class="k">akustik refleks</span><h2>Refleks eşikleri</h2>
+          <p class="sub">Uyaran verince uyumdaki düşüşü izle: 0,02 ml ve üstü refleks sayılır. Prob kulağı ve ipsi/kontra seçimi cihazdan.</p>
+          <svg class="rtr" id="ki-rtr" viewBox="0 0 300 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0 18H300"/></svg>
+          <p class="sub" id="ki-rv" style="margin:4px 0 0">Henüz uyaran verilmedi.</p>
+          <table class="rgrid" id="ki-rgrid" aria-label="Refleks eşikleri tablosu"></table>
+          <div class="vk-act"><button type="button" class="btn pri" id="ki-eval">Değerlendir</button><span class="sub" id="ki-eval-n" style="margin:0"></span></div>
+          <div id="ki-karne"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -408,6 +579,7 @@ button{cursor:pointer}
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script src="odyo-model.js"></script>
 <script src="odyo-app.js"></script>
+<script src="odyo-kabin2.js"></script>
 <script type="module" src="odyo-kulak.js"></script>
 </body>
 </html>

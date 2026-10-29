@@ -12,6 +12,12 @@
      - 3B veri yalnız kulak ve işitme yolu parçalarını içerir, lisans dosyası var
      - MedLab katmanı ve Acadia köprüsü labı tanır; ses uyarısı ve "kalibre değil"
        ibaresi sayfada
+   KONUŞMA ve İMMİTANS (29.10.2026, kabinin yeni modları — labs/odyoloji/odyo-kabin2.js):
+     - SRT %50 noktası, konuşmada IA 40 dB ve maskeleme kuralı; maskesiz ölçüm gölge SRT verir
+     - retrokoklear hastada yüksek seviyede SD düşer (rollover); yalancı kayıpta SRT, SSO ile uyumsuz
+     - her hastanın timpanogramı vaka dosyasındaki klinik kayıtla aynı (tip ve kulak yolu hacmi)
+     - akustik refleks kuralları: prob kulağında orta kulak sorunu → yok; retrokoklear uyaran → yok
+     - kendi ölçümü vaka puanının %15'i; ölçümsüz vakalarda puan değişmez
    Çalıştırma:  node tests/odyoloji-lab.js
    ========================================================================== */
 'use strict';
@@ -68,7 +74,7 @@ test('model: başlangıç hastalarında maskeleme gerekmez, ileri hastalarda ger
   const need = (p) => A.SCOPE.filter((s) => A.needMask(p, s[0], s[1], s[2])).length;
   for (const p of Object.values(A.P)) {
     if (p.seviye === 1) assert.equal(need(p), 0, p.id);
-    if (p.seviye === 3) assert.ok(need(p) >= 8, p.id);
+    if (p.seviye === 3 && !p.gercek) assert.ok(need(p) >= 8, p.id);   /* yalancı kayıp: zorluk maskelemede değil yorumda */
   }
 });
 test('puanlama: kusursuz odyogram %100; maskesiz gölge eğri ayrı yakalanır', () => {
@@ -93,6 +99,82 @@ test('vaka masası: 9 vaka; doğru cevaplar listede; puan gerekli/gereksiz testl
   const ansd = A.CASES.find((c) => c.id === 'v-ansd');
   assert.deepEqual(ansd.gerekli.sort(), ['abr', 'oae'], 'işitsel nöropati: OAE + ABR şart');
 });
+test('konuşma: SRT %50 noktası, konuşmada çapraz işitme ve maskeleme (ani kayıp, sol kulak)', () => {
+  const p = A.P.ani, st = (L, mask) => ({ ear: 'L', list: 'srt', L, mask: mask || { on: false } });
+  assert.ok(Math.abs(A.speechEff(A.P.normal, { ear: 'R', list: 'srt', L: 5, mask: { on: false } }).p - 0.5) < 0.01, 'SRT seviyesinde %50');
+  // maskesiz: 50 dB'de kelimeyi sağ kulak (SRT 10 + IA 40) duyar → gölge SRT 50
+  assert.equal(A.srtUnmasked(p, 'L'), 50);
+  const e1 = A.speechEff(p, st(50)); assert.equal(e1.via, 'cross'); assert.ok(Math.abs(e1.p - 0.5) < 0.01);
+  // yeterli maske: 50 dB'de duymaz, gerçek SRT 65'te %50
+  assert.ok(A.speechEff(p, st(50, { on: true, M: 45 })).p < 0.01);
+  assert.ok(Math.abs(A.speechEff(p, st(65, { on: true, M: 45 })).p - 0.5) < 0.01);
+  assert.equal(A.needMaskSpeech(p, 'L', 65), true); assert.equal(A.needMaskSpeech(p, 'R', 10), false);
+  assert.equal(A.needMaskSpeech(A.P.kom, 'L', 65), true);
+  // yanıt: doğruysa hedef kelime, değilse sık karıştırılan kelime / "anlamadım", çok düşükte sessizlik
+  const w = ['kalem', 'kale'];
+  assert.equal(A.speechRespond(p, st(65, { on: true, M: 45 }), w, fixed(0.1)).said, 'kalem');
+  assert.equal(A.speechRespond(p, st(65, { on: true, M: 45 }), w, fixed(0.9)).said, 'anlamadım');
+  assert.equal(A.speechRespond(p, st(20, { on: true, M: 45 }), w, fixed(0.5)).said, '');
+  assert.ok(A.SPONDEE.length >= 15 && A.MONO.length >= 20 && A.SPONDEE.concat(A.MONO).every((x) => x.length === 2 && x[0] !== x[1]));
+});
+test('konuşma: SD, rollover, SRT–SSO uyumu ve puanlama', () => {
+  const n = A.P.noroma, sd = (L) => A.speechEff(n, { ear: 'R', list: 'sd', L, mask: { on: true, M: L - 20 } }).p;
+  assert.ok(Math.abs(sd(60) - 0.4) < 0.05, 'SRT+35 dB: SD ≈ %40'); assert.ok(sd(85) < sd(60) * 0.7, 'yüksek seviyede düşüş (rollover)');
+  assert.ok(A.speechEff(A.P.normal, { ear: 'R', list: 'sd', L: 40, mask: { on: false } }).p > 0.95);
+  for (const p of Object.values(A.P)) for (const e of ['R', 'L']) assert.equal(A.uyum(p, e), p.id === 'yalanci' ? 'uyumsuz' : 'uyumlu', p.id + ' ' + e);
+  assert.equal(A.sdSinif(100), 'mukemmel'); assert.equal(A.sdSinif(84), 'iyi'); assert.equal(A.sdSinif(72), 'orta'); assert.equal(A.sdSinif(60), 'zayif'); assert.equal(A.sdSinif(40), 'cok_zayif');
+  const p = A.P.ani, rec = {}, yor = {};
+  for (const e of ['R', 'L']) {
+    const L = p.srt[e] + 35, m = A.needMaskSpeech(p, e, L);
+    rec[e] = { srt: { L: p.srt[e], masked: A.needMaskSpeech(p, e, p.srt[e]) }, sd: { L, pct: p.sd[e], n: 10, masked: m, judge: { ok: 10, total: 10 } } };
+    yor[e] = { uyum: A.uyum(p, e), sinif: A.sdSinif(p.sd[e]) };
+  }
+  const g = A.gradeSpeech(p, rec, yor); assert.equal(g.puan, 100); assert.equal(g.olcum, 1);
+  const sh = A.gradeSpeech(p, { L: { srt: { L: 50, masked: false } } }, {});
+  assert.equal(sh.rows.find((r) => r.ear === 'L').srt, 'golge', 'maskesiz sol SRT gölge');
+});
+test('immitans: timpanogramlar vaka kayıtlarıyla aynı; Jerger tipi ve hacim ayrımı', () => {
+  for (const c of A.CASES) if (c.hasta && c.sonuc.timpanometri) for (const e of ['R', 'L']) {
+    const T = A.P[c.hasta].imm[e];
+    assert.equal(T.tip, c.sonuc.timpanometri[e], c.id + ' ' + e + ' tip'); assert.equal(T.ecv, c.sonuc.timpanometri.ecv[e], c.id + ' ' + e + ' hacim');
+  }
+  assert.equal(A.tipKey(A.P.ome, 'R'), 'B_n'); assert.equal(A.tipKey(A.P.kom, 'L'), 'B_y'); assert.equal(A.tipKey(A.P.otoskleroz, 'R'), 'As'); assert.equal(A.tipKey(A.P.normal, 'L'), 'A');
+  const T = A.P.normal.imm.R; assert.ok(Math.abs(A.tympY(T, T.tepe) - T.uyum) < 1e-9, 'tepe uyumu verir'); assert.ok(A.tympY(T, 200) < 0.01, '+200 daPa’da kompanse 0');
+  assert.ok(Math.max(...[-400, -200, 0, 200].map((x) => A.tympY(A.P.ome.imm.R, x))) < 0.1, 'tip B düz');
+  for (const p of Object.values(A.P)) for (const e of ['R', 'L']) {
+    const t = p.imm[e]; assert.ok(A.TIPK[A.tipKey(p, e)], p.id);
+    if (t.tip === 'A') assert.ok(t.tepe >= -100 && t.tepe <= 50 && t.uyum >= 0.3 && t.uyum <= 1.4, p.id + ' A normal sınırlarda');
+    if (t.tip === 'As') assert.ok(t.uyum < 0.3, p.id);
+    assert.ok(p.oto[e] && p.oto[e].t, p.id + ' otoskopi');
+  }
+  assert.equal(A.probeOk(A.P.ome, 'kucuk'), true); assert.equal(A.probeOk(A.P.ome, 'buyuk'), false); assert.equal(A.probeOk(A.P.normal, 'kucuk'), false);
+});
+test('akustik refleks: prob etkisi, iletim kaybı, rekrütman, retrokoklear ve yalancı kayıp', () => {
+  const R = (id, probe, mode, f) => A.reflex(A.P[id], probe, mode, f);
+  for (const f of A.REFL_F) {
+    assert.equal(R('normal', 'R', 'ipsi', f), 85);
+    for (const e of ['R', 'L']) for (const m of ['ipsi', 'contra']) { assert.equal(R('ome', e, m, f), null); assert.equal(R('otoskleroz', e, m, f), null); }
+    assert.equal(R('noroma', 'R', 'ipsi', f), null, 'sağ uyaran: ipsi yok'); assert.equal(R('noroma', 'L', 'contra', f), null, 'sağ uyaran: kontra yok');
+    assert.ok(R('noroma', 'L', 'ipsi', f) <= 90, 'sol uyaran normal');
+    assert.equal(R('kom', 'L', 'ipsi', f), null, 'perforasyonlu prob kulağı');
+    const y = R('yalanci', 'R', 'ipsi', f); assert.ok(y != null && y - A.P.yalanci.ac.R[f] <= 30, 'refleks, iddia edilen eşiğe çok yakın');
+  }
+  assert.ok(R('ani', 'L', 'ipsi', 1000) > R('ani', 'R', 'ipsi', 1000), 'koklear kayıpta eşik yükselir ama refleks var');
+  assert.ok(R('kom', 'R', 'contra', 1000) >= R('kom', 'R', 'ipsi', 1000) + 25, 'uyaran kulağındaki iletim kaybı eşiği yükseltir');
+});
+test('immitans ve vaka puanı: kusursuz ölçüm 100; ölçüm kalitesi vaka puanının %15\'i', () => {
+  const p = A.P.kom, rec = { refl: {} };
+  for (const e of ['R', 'L']) { const T = p.imm[e]; rec[e] = { oto: true, tymp: { done: true, peak: T.tip === 'B' ? null : { p: T.tepe, c: T.uyum }, nopeak: T.tip === 'B', tip: A.tipKey(p, e) } }; }
+  assert.equal(A.gradeImm(p, rec).puan, 100, 'refleks ölçülmeden');
+  for (const e of ['R', 'L']) for (const m of ['ipsi', 'contra']) { const t = A.reflex(p, e, m, 1000); rec.refl[e + '.' + m + '.1000'] = t == null ? { nr: true } : { L: t }; }
+  assert.equal(A.gradeImm(p, rec).puan, 100, 'refleksle');
+  rec.L.tymp.tip = 'B_n'; rec.L.oto = false; assert.equal(A.gradeImm(p, rec).puan, 80, 'perforasyonu sıvı sanmak ve otoskopisiz ölçüm');
+  const c = A.CASES.find((x) => x.id === 'v-kom');
+  assert.equal(A.gradeCase(c, c.gerekli, c.dogru, c.dyon).puan, 100);
+  assert.equal(A.gradeCase(c, c.gerekli, c.dogru, c.dyon, { timpanometri: 1 }).puan, 100);
+  assert.equal(A.gradeCase(c, c.gerekli, c.dogru, c.dyon, { timpanometri: 0 }).puan, 85);
+  assert.deepEqual(A.MEASURABLE, ['konusma', 'timpanometri', 'refleks']);
+});
 test('3B veri: yalnız kulak ve işitme yolu parçaları; lisans ve kaynak notu', () => {
   const ctx = { window: {} }; vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'labs/odyoloji/data/ax-kulak.js'), 'utf8'), ctx);
   const AXD = ctx.window.AXD, buf = Buffer.from(AXD.kulak, 'base64'), jl = buf.readUInt32LE(0), items = JSON.parse(buf.subarray(4, 4 + jl).toString());
@@ -107,7 +189,14 @@ test('sayfa: kalibre değil uyarısı, ses onayı, üç sekme ve modül bağlant
   const h = read('labs/odyoloji/index.html'), app = read('labs/odyoloji/odyo-app.js');
   assert.match(h, /kalibre değil · eğitim amaçlı/); assert.match(h, /id="snd-modal"/); assert.match(h, /Bu bir işitme testi değil/);
   for (const t of ['kabin', 'kulak', 'vaka']) assert.match(h, new RegExp('data-tab="' + t + '"'));
-  for (const s of ['odyo-model.js', 'odyo-app.js', 'odyo-kulak.js']) assert.ok(h.includes(s), s);
+  for (const s of ['odyo-model.js', 'odyo-app.js', 'odyo-kulak.js', 'odyo-kabin2.js']) assert.ok(h.includes(s), s);
+  assert.ok(h.indexOf('odyo-app.js') < h.indexOf('odyo-kabin2.js'), 'kabin2 çekirdekten sonra yüklenir');
+  for (const m of ['ton', 'konusma', 'imm']) assert.match(h, new RegExp('data-km="' + m + '"'));
+  for (const id of ['dm-kon', 'dm-imm', 'dmr-kon', 'dmr-imm', 'k2-go', 'ki-run', 'ki-g', 'kb-case']) assert.match(h, new RegExp('id="' + id + '"'), id);
+  const k2 = read('labs/odyoloji/odyo-kabin2.js');
+  assert.match(k2, /Math\.min\(hl, 90\)/);                                 /* refleks uyaranı 90 dB HL karşılığında kırpılır */
+  assert.match(k2, /if \(!text \|\| !C\.snd\.on \|\| !C\.snd\.ok/);       /* konuşma sentezi de onaysız çalmaz */
+  for (const hook of ['OL.k2.caseRep', 'OL.k2.olcum', 'OL.k2.mode()', 'OL.k2.ctx()', 'OL.core =']) assert.ok(app.includes(hook), hook);
   assert.match(app, /var amp = function \(hl\) \{ return Math\.min\(1,/); /* genlik üst sınırı */
   assert.match(app, /snd\.vol \/ 100 \* 0\.35/);                              /* ana kazanç üst sınırı */
   assert.match(app, /if \(!snd\.on \|\| !snd\.ok\) return;/);                 /* onaysız ses çalmaz */

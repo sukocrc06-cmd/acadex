@@ -2,6 +2,7 @@
    ACADEX ODYOLOJİ LAB · uygulama (labs/odyoloji/odyo-app.js), 29.10.2026
    Sekmeler, ses motoru, KABİN (sanal odyometre), VAKA MASASI ve MedLab köprüsü.
    3B kulak ayrı modülde (odyo-kulak.js) ve window.OL.kulak üzerinden bağlanır.
+   Konuşma odyometrisi ve immitans odyo-kabin2.js'de; OL.core ve OL.k2 kancalarıyla bağlanır.
    Model ve klinik kurallar: odyo-model.js (window.AXODY).
    ========================================================================== */
 (function () {
@@ -25,6 +26,7 @@
     $$('.ol-view').forEach(function (v) { v.classList.toggle('on', v.id === k); });
     if (k === 'kulak' && OL.kulak && OL.kulak.start) OL.kulak.start();
     if (k === 'kulak' && !OL.kulak) OL.kulakWanted = true;
+    if (k === 'vaka' && V && V.id) paintCase();                                  /* kabinde yapılan ölçümler dosyaya yansısın */
     ls.set('tab', k); bridgeSend();
   };
   $$('.ol-tabs [data-tab]').forEach(function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); }); });
@@ -95,7 +97,8 @@
     var p = A.P[id]; if (!p) return;
     K.pid = id; K.marks = ls.get('marks.' + id, {}); K.tape = []; K.graded = false; K.showT = false; K.ear = 'R'; K.mode = 'ac'; K.fi = 2; K.L = 40; K.mask = false; K.M = 50;
     $('#karne').innerHTML = ''; $('#show-t').disabled = true; $('#show-t').setAttribute('aria-pressed', 'false');
-    paintPts(); paintDev(); paintAg(); paintTape(); paintYor(); say(''); ls.set('pid', id); bridgeSend();
+    paintPts(); paintDev(); paintAg(); paintTape(); paintYor(); say(''); ls.set('pid', id);
+    if (OL.k2 && OL.k2.onPick) OL.k2.onPick(); bridgeSend();
   };
   var cur = function () { return A.P[K.pid]; };
   var fq = function () { return F[K.fi]; };
@@ -176,6 +179,7 @@
   D.addEventListener('keydown', function (e) {
     if (tab !== 'kabin' || !modal.hidden || e.ctrlKey || e.metaKey || e.altKey) return;
     var t = e.target; if (t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable)) return;
+    if (OL.k2 && OL.k2.mode() !== 'ton') { OL.k2.key(e); return; }
     var k = e.key;
     if (k === ' ') { e.preventDefault(); $('#ton').classList.add('down'); tone(); }
     else if (k === 'ArrowUp') { e.preventDefault(); setL(5); } else if (k === 'ArrowDown') { e.preventDefault(); setL(-5); }
@@ -183,7 +187,7 @@
     else if (k === 's' || k === 'S') setEar('R'); else if (k === 'l' || k === 'L') setEar('L');
     else if (k === 'm' || k === 'M') setMask(!K.mask); else if (k === 'Enter' && t === D.body) mark(false);
   });
-  D.addEventListener('keyup', function (e) { if (e.key === ' ') $('#ton').classList.remove('down'); });
+  D.addEventListener('keyup', function (e) { if (e.key === ' ') $$('.ton-b').forEach(function (b) { b.classList.remove('down'); }); });
 
   var paintTape = function () {
     $('#tape').innerHTML = K.tape.slice().reverse().map(function (x) {
@@ -346,6 +350,10 @@
   };
   var report = function (c, t) {
     var r = c.sonuc[t], p = c.hasta ? A.P[c.hasta] : null, h = '<h3>' + X(A.TESTS[t].t) + '</h3>';
+    if (p && OL.k2 && A.MEASURABLE.indexOf(t) >= 0) { var own = OL.k2.caseRep(c, t, !!V.res); if (own) return own + (V.res ? '<div class="sub" style="margin:10px 0 4px"><b>Klinik kayıt (karşılaştırma):</b></div>' + reportTrue(c, t, r, p, '') : ''); }
+    return reportTrue(c, t, r, p, h);
+  };
+  var reportTrue = function (c, t, r, p, h) {
     if (t === 'odyometri' && p) return h + OL.audiogramSVG(p) + '<p class="sub" style="margin:4px 0 0">Kırmızı: sağ, mavi: sol. △ □ [ ]: maskeli ölçüm.</p>';
     if (t === 'konusma' && p) return h + '<table><tr><th></th><th>SRT (dB HL)</th><th>SD (%)</th></tr><tr><td><span class="pill R">Sağ</span></td><td>' + p.srt.R + '</td><td>' + p.sd.R + '</td></tr><tr><td><span class="pill L">Sol</span></td><td>' + p.srt.L + '</td><td>' + p.sd.L + '</td></tr></table><p class="sub" style="margin:6px 0 0">SRT, saf ses ortalamasıyla ±10 dB uyumlu olmalı.</p>';
     if (t === 'timpanometri' && r && r.R) return h + timpSVG(r) + '<table><tr><th></th><th>Tip</th><th>Tepe basınç</th><th>Uyum</th><th>Kulak yolu hacmi</th></tr>' + ['R', 'L'].map(function (e) { var T = A.TIMP[r[e]]; return '<tr><td><span class="pill ' + e + '">' + EAR[e] + '</span></td><td>' + T.t + '</td><td>' + (T.tepe == null ? 'tepe yok' : T.tepe + ' daPa') + '</td><td>' + (T.tepe == null ? '—' : String(T.uyum).replace('.', ',') + ' ml') + '</td><td>' + String(r.ecv[e]).replace('.', ',') + ' ml</td></tr>'; }).join('') + '</table>';
@@ -377,13 +385,14 @@
       '<li>Yönlendirme: ' + (r.yonOk ? '<b style="color:var(--ok)">doğru</b>' : 'doğrusu <b>' + X(c.yon[c.dyon]) + '</b>') + '</li>' +
       (r.missing.length ? '<li>İstemediğin gerekli testler: ' + r.missing.map(function (t) { return X(A.TESTS[t].t); }).join(', ') + '</li>' : '<li>Gerekli testlerin hepsini istedin.</li>') +
       (r.wasted.length ? '<li>Bu vakada gereksizdi: ' + r.wasted.map(function (t) { return X(A.TESTS[t].t); }).join(', ') + '</li>' : '') +
+      (r.olcum != null ? '<li>Kendi ölçümlerinin kalitesi: <b>%' + Math.round(r.olcum * 100) + '</b> (puanın %15\'i)</li>' : '') +
       '</ul><p style="margin:10px 0 0;font-size:14px;line-height:1.55"><b>Öğretici not:</b> ' + X(c.not) + '</p></div>';
   };
   $('#vk-main').addEventListener('click', function (e) {
     var t = e.target.closest('[data-test]'); if (t && !t.disabled) { V.req.push(t.getAttribute('data-test')); saveCase(); paintCase(); bridgeSend(); return; }
     if (e.target.closest('#vk-close')) {
       var c = caseOf(V.id); if (V.tani == null || V.yon == null) { toast('Ön tanı ve yönlendirmeyi seç.'); return; }
-      V.res = A.gradeCase(c, V.req, V.tani, V.yon); vdone[c.id] = V.res.puan; ls.set('vakaDone', vdone); saveCase(); paintVList(); paintCase(); bridgeSend(); return;
+      V.res = A.gradeCase(c, V.req, V.tani, V.yon, OL.k2 && c.hasta ? OL.k2.olcum(c, V.req) : null); vdone[c.id] = V.res.puan; ls.set('vakaDone', vdone); saveCase(); paintVList(); paintCase(); bridgeSend(); return;
     }
     if (e.target.closest('#vk-again')) { V.req = []; V.tani = null; V.yon = null; V.res = null; saveCase(); paintCase(); bridgeSend(); }
   });
@@ -399,7 +408,8 @@
   var clip = function (s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
   var ctx = function () {
     var o = { type: 'ctx', mode: tab, spot: false, sel: null, chips: [] };
-    if (tab === 'kabin' && K.pid) {
+    if (tab === 'kabin' && K.pid && OL.k2 && OL.k2.mode() !== 'ton') { var kc2 = OL.k2.ctx(); o.sel = kc2.sel; o.chips = kc2.chips; }
+    else if (tab === 'kabin' && K.pid) {
       var p = cur();
       o.sel = { key: 'kabin.' + p.id, title: 'Kabin · ' + p.ad + ', ' + p.yas, la: 'Saf ses odyometri', rows: [['Hasta', clip(p.ozet, 200)], ['Kanal', EAR[K.ear] + ' · ' + (K.mode === 'ac' ? 'hava yolu' : 'kemik yolu')], ['Frekans', fq() + ' Hz'], ['Seviye', K.L + ' dB HL'], ['Maske', K.mask ? K.M + ' dB EM (karşı kulak)' : 'kapalı'], ['İşaretlenen', Object.keys(K.marks).length + ' nokta']],
         about: 'öğrenci sanal odyometride ' + p.ad + ' (' + p.yas + ') adlı kurgusal hastanın eşiklerini ölçüyor; şu an ' + EAR[K.ear] + ' kulak, ' + (K.mode === 'ac' ? 'hava' : 'kemik') + ' yolu, ' + fq() + ' Hz. Gerçek eşikleri ve tanıyı söyleme; yöntemi ve kuralları anlat.' };
@@ -422,6 +432,7 @@
     abr: 'OAE dış tüy hücrelerini (koklea) yoklar; ABR sinirsel yolu (VIII. sinir ve beyin sapı). OAE var ama ABR yoksa: işitsel nöropati. İkisi de yoksa ve orta kulak normalse: koklear (ya da daha ağır) kayıp. ABR\'de I–V interpik uzaması veya kulaklar arası dalga V farkı: retrokoklear patoloji.'
   };
   var answer = function (kind) {
+    if (OL.k2 && OL.k2.answer) { var a2 = OL.k2.answer(kind); if (a2) return a2; }
     if (ANS[kind]) return ANS[kind];
     if (kind === 'mask' && K.pid) {
       var f = fq(), n = A.other(K.ear), a = K.marks[key(K.ear, 'ac', f)], b = K.marks[key(n, 'bc', f)] || K.marks[key(n, 'bc', 1000)], ta = K.marks[key(K.ear, 'bc', f)];
@@ -442,6 +453,7 @@
   };
   var classify = function (q) {
     q = q.toLocaleLowerCase('tr');
+    if (OL.k2 && OL.k2.classify && tab === 'kabin') { var c2 = OL.k2.classify(q); if (c2) return c2; }
     if (/mask/.test(q)) return /plato/.test(q) ? 'plato' : 'mask';
     if (/plato/.test(q)) return 'plato';
     if (/hughson|westlake|eşi[ğk]i? (nasıl|bul)/.test(q)) return 'hw';
@@ -470,6 +482,11 @@
       post(rep);
     });
   }
+
+  /* ---------------- odyo-kabin2.js için ortak çekirdek ---------------- */
+  OL.core = { A: A, K: K, $: $, $$: $$, X: X, ls: ls, EAR: EAR, toast: toast, live: live, say: say, askSound: askSound, snd: snd, ac: ac, amp: amp,
+    noiseBuf: noiseBuf, cur: cur, pick: pick, bridgeSend: bridgeSend, setTab: setTab, openCase: function (id) { openCase(id); }, tab: function () { return tab; },
+    caseId: function () { return V.id; }, caseOf: caseOf, timpSVG: timpSVG, win: win, lamp: lamp };
 
   /* ---------------- başlat ---------------- */
   paintPts(); paintDev(); paintAg(); paintRule(); paintVList(); paintCase();
