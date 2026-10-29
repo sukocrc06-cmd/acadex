@@ -96,6 +96,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
   'gateWorkedExamples',
   'JSON_GECERLI_KACIS', 'LATEX_IKI_HARFLI', 'repairLatexEscapes',
+  // Anlatida ters bolunun satir sonuna donmesi (29.10.2026 olcumu).
+  'LATEX_ANLATI_NET', 'LATEX_ANLATI_KELIME', 'onarAnlatiTersBolusu',
   // Yokluk iddiasi kapisi (08.10.2026).
   'YOKLUK_IDDIASI',
   // Pencere cikis tavani serit butcesinden turetilir (09.10.2026).
@@ -105,6 +107,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
+  // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
+  'ONBELLEK_OCR_MAX_KRK', 'ONBELLEK_OCR_SURUM', 'onbellektenOcrMetni',
   'KAPSAMA_ROZET_MIN_ORNEK',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
   'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
@@ -4417,6 +4421,231 @@ test('KACIS IKI KARAKTER olarak tuketiliyor', () => {
     'tirnaktan SONRAKI LaTeX onarilmali');
 });
 
+
+/* ANLATIDA TERS BOLU SATIR SONUNA DONUYOR (29.10.2026 CANLI OLCUM).
+
+   Week_8_Derivative kartinda (id dcd077c1) olculdu: anlati metnindeki 22
+   satir sonunun 18'i bir LaTeX komut adinin TAM onunde, saglam \komut
+   sayisi SIFIR. Ayni kartta sections'taki \frac saglam, key_terms'te iki
+   saglam komut var, formulas dizisinin 12 formulunun hepsi saglam — yani
+   bozulma yalnizca anlati yazarinin yazdigi alanlarda.
+
+   repairLatexEscapes suclu DEGIL: fuzz ile olculdu, \frac / \\frac / cift
+   gecis icin devirli. Depolanan baytlari (LF,f,r,a,c) ureten tek girdi ham
+   JSON'da `\nfrac`. Onarim bu yuzden ayristirmadan SONRA, cozulmus dize
+   uzerinde yapiliyor. */
+console.log('\nANLATIDA KAYIP LATEX TERS BOLUSU\n');
+
+test('olculen hata onariliyor: LF + komut adi', () => {
+  const r = A.onarAnlatiTersBolusu('the power rule \nfrac{d}{dx}(x^n) = nx^{n-1}');
+  assert.equal(r.metin, 'the power rule \\frac{d}{dx}(x^n) = nx^{n-1}');
+  assert.equal(r.onarim, 1);
+});
+
+test('net komut adlari harf gelmedigi surece onariliyor', () => {
+  for (const [girdi, bekle] of [
+    ['coefficient \nalpha_1', 'coefficient \\alpha_1'],
+    ['\nsqrt{2} kadar', '\\sqrt{2} kadar'],
+    ['egim \npartial y', 'egim \\partial y'],
+    ['\ninfty a gider', '\\infty a gider']
+  ]) assert.equal(A.onarAnlatiTersBolusu(girdi).metin, bekle, girdi);
+});
+
+test('DUZ YAZI BOZULMUYOR: ingilizcede kelime olan komut adlari', () => {
+  /* Kapali liste ve harf kontrolu tam bunun icin: "summary" \sum ile,
+     "integral" \int ile ayni harflerle basliyor. Ikinci kume (sum, int,
+     lim, left, text ...) ayrica LaTeX e ozgu bir karakter istiyor. */
+  for (const duz of [
+    'the \nsum of squares',
+    'see \nsummary below',
+    'an \nintegral part',
+    'the \nlimit of the series',
+    'on the \nleft side',
+    'plain \ntext follows'
+  ]) {
+    const r = A.onarAnlatiTersBolusu(duz);
+    assert.equal(r.metin, duz, `duz yazi bozuldu: ${JSON.stringify(duz)}`);
+    assert.equal(r.onarim, 0);
+  }
+});
+
+test('kelime olan komut adi LaTeX karakteri gelirse onariliyor', () => {
+  assert.equal(A.onarAnlatiTersBolusu('the \nsum_{i=1}^n x_i').metin, 'the \\sum_{i=1}^n x_i');
+  assert.equal(A.onarAnlatiTersBolusu('grows \ntimes 3').metin, 'grows \\times 3');
+  assert.equal(A.onarAnlatiTersBolusu('\nlim_{x \\to 0}').metin, '\\lim_{x \\to 0}');
+});
+
+test('PARAGRAF YAPISINA DOKUNULMUYOR', () => {
+  // Paragraf arasi IKI satir sonu; onarim yalnizca TEK satir sonuna bakiyor.
+  const p = 'Birinci paragraf bitti.\n\nfrac bir kelime olarak gecse bile.';
+  assert.equal(A.onarAnlatiTersBolusu(p).metin, p);
+  const kalin = '**Ilk konu.** Metin.\n\n**Ikinci konu.** Metin.';
+  assert.equal(A.onarAnlatiTersBolusu(kalin).metin, kalin);
+});
+
+test('saglam ters bolu ve satir sonsuz metin degismiyor', () => {
+  const saglam = 'rule \\frac{d}{dx} ve \\sum_{i}';
+  assert.equal(A.onarAnlatiTersBolusu(saglam).metin, saglam);
+  assert.equal(A.onarAnlatiTersBolusu(saglam).onarim, 0);
+  assert.equal(A.onarAnlatiTersBolusu('hic satir sonu yok').metin, 'hic satir sonu yok');
+  assert.equal(A.onarAnlatiTersBolusu('').metin, '');
+  assert.equal(A.onarAnlatiTersBolusu(null).metin, '');
+});
+
+test('canli olcumdeki 16 komut sayiliyor (paylasilan lastIndex yok)', () => {
+  const metin = Array(16).fill('x \nfrac{a}{b}').join(' ');
+  const r = A.onarAnlatiTersBolusu(metin);
+  assert.equal(r.onarim, 16);
+  assert.equal((r.metin.match(/\\frac/g) || []).length, 16);
+  assert.ok(!r.metin.includes('\nfrac'), 'tek bir bozuk komut kalmamali');
+  // Ayni fonksiyon ikinci cagrida da ayni sonucu vermeli.
+  assert.equal(A.onarAnlatiTersBolusu(metin).onarim, 16);
+});
+
+test('onarim CIKIS NOKTASINDA her iki anlati alanina baglanmis', () => {
+  /* Anlatiyi yazar da, review de, Gemini taslagi da yazabiliyor; onarim bu
+     yuzden tek bir cikis noktasinda duruyor. Bagli kalmazsa dosyadaki
+     fonksiyon olu kod olur ve bu test onu yakalar. */
+  const m = SRC.match(/for \(const alan of \["summary", "summary_executive"\][\s\S]{0,420}?onarAnlatiTersBolusu/);
+  assert.ok(m, 'onarAnlatiTersBolusu summary ve summary_executive alanlarina baglanmali');
+});
+
+test('yazar promptu ters boluyu CIFTLEMEYI soyluyor', () => {
+  // Onleme tarafi: onarim son care, ilk care prompt.
+  assert.ok(/DOUBLE the backslash/.test(SRC),
+    'writerSys ters bolunun ciftlenmesini istemeli');
+});
+
+/* OCR CIKTISI ONBELLEKTE (29.10.2026 CANLI OLCUM).
+
+   Week_8_Derivative (29 sayfa, saf tarama) OCR'da 10 parcada 31.846 ms
+   harciyor. Ozet onbellegi isabet etse bile o 32 saniye her yuklemede
+   yeniden yaniyordu: onbellek kontrolu metin cikariminin SONRASINDA, cunku
+   onbellekten gelen belgede de document_chunks yazilmali.
+
+   Bu yuzden yukari tasinan sey kontrol degil, OCR CIKTISI. Asagidaki
+   testler hem fonksiyonu hem de SIRAYI kilitliyor: onbellek sorgusu OCR
+   cagrisindan once gelmezse 32 saniye geri doner ve kimse fark etmez. */
+console.log('\nOCR CIKTISI ONBELLEGI\n');
+
+// Sahte Supabase istemcisi: hangi tablo/kolon/alan sorguldugunu da kaydeder.
+const ocrIstemci = (rows, err) => {
+  const iz = {};
+  const c = {
+    iz,
+    from: (tablo) => { iz.tablo = tablo; return {
+      select: (kolon) => { iz.kolon = kolon; return {
+        eq: (alan, deger) => { iz.alan = alan; iz.deger = deger; return Promise.resolve({ data: rows, error: err || null }); }
+      }; }
+    }; }
+  };
+  return c;
+};
+const uzunMetin = (n) => '--- SAYFA 1 ---\n' + 'x'.repeat(n);
+
+test('satirdaki OCR metni donuyor ve sayfa sayisi tasiniyor', async () => {
+  const istemci = ocrIstemci([{ card: { summary: 's', _ocr_metin: { surum: A.ONBELLEK_OCR_SURUM, text: uzunMetin(400), sayfa: 12 } } }]);
+  const r = await A.onbellektenOcrMetni(istemci, 'abc123');
+  assert.ok(r, 'isabet beklenir');
+  assert.equal(r.text.length, uzunMetin(400).length);
+  assert.equal(r.sayfa, 12);
+});
+
+test('arama CONTENT_HASH ile yapiliyor, cache_key ile degil', async () => {
+  /* Anahtar dil/stil/uzunluk/gorsel ayarlarini tasiyor; OCR metni bunlarin
+     hicbirine degil dosyanin kendisine bagli. */
+  const istemci = ocrIstemci([]);
+  await A.onbellektenOcrMetni(istemci, 'deadbeef');
+  assert.equal(istemci.iz.tablo, 'summary_cache');
+  assert.equal(istemci.iz.kolon, 'card');
+  assert.equal(istemci.iz.alan, 'content_hash');
+  assert.equal(istemci.iz.deger, 'deadbeef');
+});
+
+test('ISKA durumlari: kisa metin, alan yok, bos sonuc, hata', async () => {
+  // 200 krk esigi OCR blogundakinin aynisi: kisasi SCANNED_PDF e gitmeli.
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci([{ card: { _ocr_metin: { surum: A.ONBELLEK_OCR_SURUM, text: 'kisa' } } }]), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci([{ card: { summary: 's' } }]), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci([]), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci(null, { message: 'kolon yok' }), 'h'), null);
+  assert.equal(await A.onbellektenOcrMetni(ocrIstemci(null), 'h'), null);
+});
+
+test('hata OZET AKISINI DUSURMUYOR', async () => {
+  // Istemci patlasa bile null donmeli: OCR yolu zaten yedek.
+  const patlak = { from: () => { throw new Error('baglanti yok'); } };
+  assert.equal(await A.onbellektenOcrMetni(patlak, 'h'), null);
+});
+
+test('birden fazla satir varsa metin TASIYAN secilir', async () => {
+  const r = await A.onbellektenOcrMetni(ocrIstemci([
+    { card: { summary: 'metinsiz satir' } },
+    { card: { _ocr_metin: { surum: A.ONBELLEK_OCR_SURUM, text: uzunMetin(300), sayfa: null } } }
+  ]), 'h');
+  assert.ok(r, 'ikinci satir secilmeli');
+  assert.equal(r.sayfa, null);
+});
+
+test('ONBELLEK SORGUSU OCR CAGRISINDAN ONCE', () => {
+  /* Sira bozulursa 32 saniye geri doner ve hicbir test dusmez — o yuzden
+     burada kaynaktaki sira dogrudan olculuyor. */
+  const i = SRC.indexOf('onbellektenOcrMetni(serviceClient');
+  const j = SRC.indexOf('tryOCRParcali(fileBytes, ocrApiKey)');
+  assert.ok(i > 0, 'OCR onbellegi cagrilmiyor');
+  assert.ok(j > 0, 'parcali OCR cagrisi yok');
+  assert.ok(i < j, 'onbellek sorgusu tryOCRParcali dan ONCE gelmeli');
+});
+
+test('sorgu yalnizca GERCEKTEN OCR yapilacaksa atiliyor', () => {
+  // Metinli PDF yolu hicbir ek maliyet gormemeli.
+  const blok = SRC.slice(SRC.indexOf('if (isScannedOrFailed) {'), SRC.indexOf('onbellektenOcrMetni(serviceClient'));
+  assert.ok(/isScannedOrFailed/.test(blok), 'sorgu tarama dalinin ICINDE olmali');
+  assert.ok(/if \(!onbellegiAtla\)/.test(blok), 'yenile=true iken OCR onbellegi okunmamali');
+});
+
+test('isabette OCR cagrisi ATLANIYOR (bayraklar dogru kuruluyor)', () => {
+  const blok = SRC.slice(SRC.indexOf('onbellektenOcrMetni(serviceClient'), SRC.indexOf('tryOCRParcali(fileBytes, ocrApiKey)'));
+  assert.ok(/ocrKullanildi = true/.test(blok), 'ocrKullanildi kurulmali: kapsama rozeti yayinlanmamali');
+  assert.ok(/ocrKismi = \{ sayfa:/.test(blok), 'kismi tarama rozeti tasinmali');
+  assert.ok(/isScannedOrFailed = false/.test(blok), 'bayrak dusmezse OCR yine kosar');
+});
+
+test('metin YALNIZCA dosya hash i satirina yaziliyor', () => {
+  assert.match(SRC, /card: \(k as string\) === summaryCacheKey \? paylasilanTam : paylasilan/,
+    'metin hash i satirina yazilan kopya hic okunmaz');
+  assert.match(SRC, /ocrKullanildi && extractedText\.length <= ONBELLEK_OCR_MAX_KRK/,
+    'yalnizca OCR dan gelen metin ve boyut siniri icinde yazilmali');
+});
+
+test('_ocr_metin study_cards A GITMIYOR', () => {
+  /* study_cards ta boyle bir kolon yok; insert patlar ve isabet bosa gider. */
+  const i = SRC.indexOf('delete (cachedPayload as any)._ocr_metin');
+  const j = SRC.indexOf("from('study_cards').insert(cachedPayload)");
+  assert.ok(i > 0, 'isabet yolunda silinmiyor');
+  assert.ok(j > 0, 'insert bulunamadi');
+  assert.ok(i < j, 'silme insert ten ONCE olmali');
+});
+
+test('SURUM UYMAYAN satir okunmuyor (dunun tuzagi)', async () => {
+  /* Arama content_hash ile; SUMMARY_CACHE_VERSION bu metni gecersiz
+     KILMIYOR. Parcali OCR ayni belgeden 1.230 yerine 10.970 karakter
+     cikardiginda eski metnin donmemesi tam buna bagli. */
+  const eski = ocrIstemci([{ card: { _ocr_metin: { surum: 'o0', text: uzunMetin(400), sayfa: null } } }]);
+  assert.equal(await A.onbellektenOcrMetni(eski, 'h'), null, 'eski surum okunmamali');
+  const damgasiz = ocrIstemci([{ card: { _ocr_metin: { text: uzunMetin(400), sayfa: null } } }]);
+  assert.equal(await A.onbellektenOcrMetni(damgasiz, 'h'), null, 'damgasiz satir okunmamali');
+});
+
+test('yazilan satir SURUM DAMGASI tasiyor', () => {
+  assert.match(SRC, /_ocr_metin: \{ surum: ONBELLEK_OCR_SURUM, text: extractedText/,
+    'damgasiz yazilan satir bir daha hic okunamaz');
+  assert.match(String(A.ONBELLEK_OCR_SURUM), /^o[0-9]+$/, `beklenmeyen surum: ${A.ONBELLEK_OCR_SURUM}`);
+});
+
+test('boyut siniri makul', () => {
+  assert.ok(A.ONBELLEK_OCR_MAX_KRK >= 100_000 && A.ONBELLEK_OCR_MAX_KRK <= 1_000_000,
+    `beklenmeyen sinir: ${A.ONBELLEK_OCR_MAX_KRK}`);
+});
 
 console.log('\nSAYISAL KAPSAMA OLCUSU\n');
 

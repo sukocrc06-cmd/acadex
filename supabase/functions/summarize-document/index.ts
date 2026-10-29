@@ -292,6 +292,58 @@ function repairLatexEscapes(json: string): string {
   return out
 }
 
+/* ANLATIDA TERS BOLU GERCEK SATIR SONUNA DONUYOR (29.10.2026 olcumu).
+ *
+ * Week_8_Derivative kartinin ANLATI metnindeki 22 satir sonunun 18i bir
+ * LaTeX komut adinin TAM onundeydi ve saglam `\komut` sayisi SIFIRDI:
+ *   "the power rule <LF>frac{d}{dx}(x^n) = nx^{n-1}"
+ * Ayni kartta sections ve key_terms icindeki `\frac` saglam, formulas
+ * dizisinin 12 formulunun hepsi saglam. Bozulma yalnizca anlati yazarinin
+ * yazdigi alanlarda.
+ *
+ * Sebep repairLatexEscapes DEGIL: fuzz ile olculdu, o fonksiyon \frac,
+ * \\frac ve cift gecis icin devirli. Depolanan baytlari (LF,f,r,a,c)
+ * ureten tek girdi ham JSONda `\nfrac`, yani model ters boluyu `\n` diye
+ * yaziyor. Prompt ona tek kacis ornegi olarak `\n\n` veriyor, formulleri
+ * de ham LaTeX olarak gosteriyor; kopyalarken ikisini karistiriyor.
+ *
+ * Prompt daraltildi ama garanti degil, bu yuzden onarim deterministik:
+ * TEK bir satir sonunun ardindan BILINEN bir LaTeX komut adi geliyorsa o
+ * satir sonu kayip bir ters boludur. Kapali liste, serbest desen yerine
+ * bilerek (bkz. LATEX_IKI_HARFLI): "summary" ile \sum, "integral" ile
+ * \int ayni harflerle basliyor, bu yuzden komut adinin ardindan HARF
+ * gelmemesi sart. Ingilizcede de kelime olan adlar (sum, int, lim, left,
+ * text) ayrica LaTeXe ozgu bir karakter istiyor: { _ ^ ( \ ya da rakam.
+ * "<LF>sum of squares" duz yazidir, "<LF>sum_{i=1}" degildir.
+ * Paragraf arasi IKI satir sonudur; o yuzden yalnizca tek satir sonu
+ * incelenir, paragraf yapisina hic dokunulmuyor. */
+const LATEX_ANLATI_NET =
+  "frac|dfrac|tfrac|sqrt|cdots|cdot|ldots|leq|geq|neq|approx|infty|partial|" +
+  "nabla|varepsilon|varphi|alpha|beta|gamma|delta|epsilon|theta|lambda|" +
+  "sigma|Sigma|Delta|Omega|omega|rho|mathrm|mathbb|mathcal|overline|" +
+  "underline|binom|qquad|displaystyle"
+const LATEX_ANLATI_KELIME =
+  "sum|prod|int|lim|times|div|left|right|quad|text|log|ln|exp|hat|bar|" +
+  "vec|pi|mu|nu|tau|phi|begin|end|sin|cos|tan|sec|cot|max|min|pm|le|ge|to"
+
+function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } {
+  const s = String(metin || "")
+  if (s.indexOf("\n") === -1) return { metin: s, onarim: 0 }
+  let onarim = 0
+  /* Desen her cagrida uretiliyor: g bayrakli paylasilan regexin lastIndex
+     degeri iki cagri arasinda sessiz atlama yapar (bkz. mathDelimRe). */
+  const re = new RegExp(
+    "(?<!\\n)\\n(?:(" + LATEX_ANLATI_NET + ")(?![A-Za-z])" +
+    "|(" + LATEX_ANLATI_KELIME + ")(?=[{_^(\\\\]|[ ]*[0-9]))",
+    "g"
+  )
+  const out = s.replace(re, (_m: string, net: string, kelime: string) => {
+    onarim++
+    return "\\" + (net || kelime)
+  })
+  return { metin: out, onarim }
+}
+
 function stripThinkBlock(raw: string): string | null {
   const match = raw.match(/<think>[\s\S]*?<\/think>/i)
   if (match) {
@@ -9217,6 +9269,9 @@ serve(async (req) => {
        yayinlanmayacagini belirliyor — bkz. KAPSAMA_ROZET_MIN_ORNEK yanindaki
        kullanim. OCR matematigi bozuyor ve hayalet sayi uretiyor. */
     let ocrKullanildi = false
+    /* Dosyanin sha256'si iki yerde lazim: OCR onbellegi (asagida) ve ozet
+       onbellegi anahtari. Bir kez hesaplaniyor. */
+    let dosyaHash: string | null = null
     const mimeType = document.mime_type?.toLowerCase() || ""
     // Per-page PDF text, kept around after extraction (Denetim Raporu,
     // 2026-08-31) so we can measure text density per page below — this is
@@ -9267,7 +9322,30 @@ serve(async (req) => {
         }
 
         if (isScannedOrFailed) {
-          console.log("PDF text is empty, short or extraction failed. Attempting OCR fallback...")
+          console.log("PDF text is empty, short or extraction failed — OCR yolu deneniyor.")
+          /* OCR CAGRISINDAN ONCE ONBELLEK — bkz. onbellektenOcrMetni.
+             Sorgu yalnizca GERCEKTEN OCR yapilacaksa atiliyor, yani normal
+             metinli PDF yolu hicbir ek maliyet gormuyor. */
+          if (!onbellegiAtla) {
+            dosyaHash = dosyaHash ?? await sha256Hex(fileBytes)
+            const ocrOnbellek = await onbellektenOcrMetni(serviceClient, dosyaHash)
+            if (ocrOnbellek) {
+              ocrKullanildi = true
+              if (ocrOnbellek.sayfa !== null) ocrKismi = { sayfa: ocrOnbellek.sayfa }
+              /* detectAndFormatPdfTables UYGULANMIYOR: satirdaki metin zaten
+                 islenmis halde yazildi (bkz. summary_cache yazimi). */
+              extractedText = ocrOnbellek.text
+              isScannedOrFailed = false
+              console.log(
+                `OCR ONBELLEK ISABETI: ${extractedText.length} karakter` +
+                `${ocrKismi ? `, kismi (${ocrKismi.sayfa} sayfa)` : ''}` +
+                ` — OCR.space cagrisi yok`
+              )
+            }
+          }
+        }
+
+        if (isScannedOrFailed) {
           const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
           if (ocrApiKey) {
             try {
@@ -9477,7 +9555,9 @@ serve(async (req) => {
         [lang, style, len, gorsel ? 'v' : 'nv', SUMMARY_CACHE_VERSION]
       const ayarlar = ayarlariKur(analyzeVisuals)
       const ayarlarYedek = ayarlariKur(!analyzeVisuals)
-      const contentHash = await sha256Hex(fileBytes)
+      // Tarama yolunda OCR onbellegi icin zaten hesaplanmis olabilir.
+      const contentHash = dosyaHash ?? await sha256Hex(fileBytes)
+      dosyaHash = contentHash
       summaryCacheKey = [contentHash, ...ayarlar].join(':')
       const yedekDosyaKey = [contentHash, ...ayarlarYedek].join(':')
       /* IKINCI ANAHTAR: cikarilan metnin hash'i. Ayni sunum yeniden
@@ -9568,6 +9648,9 @@ serve(async (req) => {
           user_id: document.user_id,
           course_tag: document.course_tag ?? null
         }
+        /* OCR metni yalnizca onbellek satirina ait — bkz. onbellektenOcrMetni.
+           study_cards'ta boyle bir kolon yok, insert'ten once siliniyor. */
+        delete (cachedPayload as any)._ocr_metin
         let hit = await serviceClient.from('study_cards').insert(cachedPayload).select('id').single()
         if (hit.error && /quality_meta/i.test(String(hit.error.message || hit.error.details || ''))) {
           delete cachedPayload.quality_meta
@@ -12019,6 +12102,7 @@ HARD RULES (violations = failure):
 6. "summary_executive" = 2-3 sentences naming the actual subject of the document (not vague "this document discusses theories").
 7. FORMAT — the student reads this first, so it must scan:
    - Paragraphs separated by a blank line (\\n\\n), as many as the length line above asks for. Never one block of text.
+   - LaTeX inside prose: DOUBLE the backslash (\\\\frac, \\\\sum_{i=1}) — a lone \\n is a line break, never the start of a command name.
    - Open each paragraph with a bold lead-in that names its topic and ends with a period, e.g. "**Dummy variables shift the intercept.** A qualitative variable…". No markdown headings (#).
    - When the inputs give results, state them WITH their numbers: coefficients, % changes, significance levels, turning points, fit (R²).
    - Teach the content directly. Never narrate the document: no "This brief/chapter presents…", "The X section explains…", "It begins with a thesis…".
@@ -12891,6 +12975,19 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}`
       )
 
+      /* --- (c1) Anlatidaki kayip LaTeX ters bolusu — bkz.
+         onarAnlatiTersBolusu. Tek cikis noktasinda duruyor: anlatiyi
+         yazar da, review de, Gemini taslagi da yazabiliyor; uc yolun
+         hepsi bu satirdan geciyor. */
+      for (const alan of ["summary", "summary_executive"] as const) {
+        if (typeof parsedContent[alan] !== "string") continue
+        const o = onarAnlatiTersBolusu(parsedContent[alan])
+        if (o.onarim > 0) {
+          parsedContent[alan] = o.metin
+          console.log(`Anlati LaTeX ters bolu onarimi: ${alan} alaninda ${o.onarim} komut`)
+        }
+      }
+
       // --- (c2) Anlatida birebir tekrar eden cumle — bkz. dedupeNarrativeSentences
       if (typeof parsedContent.summary === 'string') {
         const anlatiDedup = dedupeNarrativeSentences(parsedContent.summary)
@@ -13169,13 +13266,22 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
           }
         }
         : shareable
+      /* OCR CIKTISI SATIRA EKLENIYOR — bkz. onbellektenOcrMetni. Yalnizca
+         metin gercekten OCR'dan geldiyse: metinli PDF'in cikarimi ~1 sn,
+         onbellekte tutmaya degmez. */
+      const paylasilanTam = ocrKullanildi && extractedText.length <= ONBELLEK_OCR_MAX_KRK
+        ? { ...paylasilan, _ocr_metin: { surum: ONBELLEK_OCR_SURUM, text: extractedText, sayfa: ocrKismi ? ocrKismi.sayfa : null } }
+        : paylasilan
       /* IKI SATIR: dosya hash'i ve metin hash'i. Ikisi de ayni karti
          gosteriyor; hangisi once isabet ederse o kullanilir. */
       const satirlar = [summaryCacheKey, metinCacheKey].filter(Boolean).map((k) => ({
         cache_key: (k as string) + (kismiKayit ? CACHE_KISMI_EKI : ''),
         content_hash: (k as string).split(':')[0],
         page_count: billablePages,
-        card: paylasilan
+        /* OCR metni YALNIZCA dosya hash'i satirinda: arama content_hash ile
+           yapiliyor ve metin hash'i satirinin content_hash'i 't' ile
+           basliyor, yani o kopya hic okunmazdi. */
+        card: (k as string) === summaryCacheKey ? paylasilanTam : paylasilan
       }))
       // Bkz. onbellekUzerineYaz: yalnizca TAM yeniden-ozet eski satiri ezer.
       const uzerineYaz = onbellekUzerineYaz(kayitTuru, onbellegiAtla)
@@ -13329,6 +13435,76 @@ async function sha256Metin(text: string): Promise<string | null> {
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource)
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/* OCR CIKTISI ONBELLEKTE TUTULUYOR (29.10.2026 olcumu).
+ *
+ * Week_8_Derivative (29 sayfa, saf tarama: 29 JPEG + 0 font) OCR'da 10
+ * parcada 31.846 ms harciyor. Ozet onbellegi ISABET ETSE BILE o 32 saniye
+ * her yuklemede yeniden yaniyordu, cunku onbellek kontrolu metin
+ * cikariminin SONRASINDA duruyor. Kontrolu yukari tasimak secenek degil:
+ * oradaki yorum sebebini yaziyor — onbellekten gelen belgede de
+ * document_chunks yazilmali, yoksa "Kaynakla calis" ve belge sohbeti o
+ * belge icin bos kalir.
+ *
+ * Bu yuzden tasinan sey kontrol degil, OCR CIKTISI. Onbellek satiri kendi
+ * metnini de tasiyor; ayni bayt dizisi yeniden yuklendiginde OCR cagrisi
+ * hic yapilmiyor, metin satirdan okunuyor. Cikarimin geri kalani, chunk
+ * yazimi, kota ve kart servisi oldugu gibi kaliyor — yani davranis degismiyor,
+ * yalnizca 32 saniye ve 10 OCR.space cagrisi gidiyor.
+ *
+ * Arama content_hash ILE: anahtar dil/stil/uzunluk/gorsel ayarlarini da
+ * tasiyor ama OCR metni bunlarin hicbirine bagli degil, dosyanin kendisine
+ * bagli. Metin hash'i satirlarinin content_hash'i 't' ile basliyor
+ * (bkz. summary_cache yazimi), yani dosya hash'iyle cakismiyor.
+ *
+ * `_ocr_metin` study_cards'a ASLA gitmiyor: isabet yolunda insert'ten once
+ * siliniyor (quality_meta'daki ayni savunma gibi). */
+const ONBELLEK_OCR_MAX_KRK = 300_000
+
+/* OCR METNININ KENDI SURUMU (29.10.2026). Arama content_hash ile yapiliyor,
+   yani SUMMARY_CACHE_VERSION bu metni GECERSIZ KILMIYOR. Dun tam bu tuzak
+   olculdu: parcali OCR ayni belgeden 1.230 yerine 10.970 karakter cikardi
+   ama onbellek eski satiri dondurdu (bkz. SURUM 'c2' notu). OCR yolu
+   degistiginde — parcalama, sayfa butcesi, isaretleme, tablo bicimleme —
+   BU SABIT artirilir; surumu uymayan satir okunmaz, metin yeniden cikarilir.
+   Damgasiz satir da okunmaz. */
+const ONBELLEK_OCR_SURUM = 'o1'
+
+async function onbellektenOcrMetni(
+  client: any,
+  contentHash: string
+): Promise<{ text: string; sayfa: number | null } | null> {
+  try {
+    const { data, error } = await client
+      .from('summary_cache')
+      .select('card')
+      .eq('content_hash', contentHash)
+    if (error) {
+      console.warn(`OCR onbellegi okunamadi (${error.message}) — normal OCR yoluna devam`)
+      return null
+    }
+    if (!Array.isArray(data)) return null
+    for (const satir of data) {
+      const m = (satir as any)?.card?._ocr_metin
+      if (m && m.surum !== ONBELLEK_OCR_SURUM) {
+        console.log(
+          `OCR onbellegi ATLANDI: satir surumu ${JSON.stringify(m.surum)}, ` +
+          `beklenen '${ONBELLEK_OCR_SURUM}' — metin yeniden cikarilacak`
+        )
+        continue
+      }
+      // 200 krk esigi OCR blogundakinin aynisi: daha kisasi "tarandi ama
+      // okunamadi" demek ve SCANNED_PDF hatasina gitmeli.
+      if (m && typeof m.text === 'string' && m.text.trim().length >= 200) {
+        return { text: m.text, sayfa: typeof m.sayfa === 'number' ? m.sayfa : null }
+      }
+    }
+    return null
+  } catch (e) {
+    console.warn('OCR onbellegi: beklenmeyen hata, atlandi:', e)
+    return null
+  }
 }
 
 /** Kota/cache RPC'leri ozet akisini asla dusurmemeli. */
