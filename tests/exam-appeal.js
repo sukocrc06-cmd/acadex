@@ -85,7 +85,7 @@ test('validateFeedbackRequest: uzun metinler kirpilir', () => {
 test('errorMessage: her hata kodunun Turkce ve Ingilizce metni var', () => {
   const codes = ['bad_body', 'bad_action', 'bad_exam', 'bad_question', 'reason_too_short', 'bad_category', 'note_required',
     'not_completed', 'no_question', 'not_appealable', 'already_full', 'already_appealed', 'already_reported',
-    'daily_limit', 'regrade_failed', 'table_missing'];
+    'daily_limit', 'help_capped', 'regrade_failed', 'table_missing'];
   for (const c of codes) {
     assert.notEqual(A.errorMessage(c, true), c, `tr metni yok: ${c}`);
     assert.notEqual(A.errorMessage(c, false), c, `en metni yok: ${c}`);

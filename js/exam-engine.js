@@ -1790,7 +1790,7 @@
         // 50 altı sonuç kâğıdında "yanlış" sayılır; kanıt olarak da çoğunlukla yanlış.
         // FAZ 5.3: "işaretle" (emin değilim) ya da ipucuyla gelen doğru zayıf kanıt
         // (Pearson DSM güven derecelendirmesi; Khan Academy'de ipucu ustalık saymaz).
-        const conf = score >= 50 ? (r.flagged ? 0.6 : 1) * (r.hint_used ? 0.5 : 1) : 1;
+        const conf = score >= 50 ? (r.flagged ? 0.6 : 1) * (r.hint_used || r.help_used ? 0.5 : 1) : 1;
         const c = (score >= 50 ? score / 100 : score / 200) * conf;
         (groups[k] = groups[k] || { name: String(r.concept).trim(), obs: [] }).obs.push({ c: c, g: guessRate(r.type, optionCount) });
       });

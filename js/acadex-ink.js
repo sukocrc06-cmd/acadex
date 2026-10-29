@@ -2968,6 +2968,119 @@ window.axNotify = function (title, opts) {
   };
   var anim = function (cls, ms) { if (reduce) return; hall.classList.remove('deal', 'lift', 'collect'); void hall.offsetWidth; hall.classList.add(cls); setTimeout(function () { hall.classList.remove(cls); }, ms || 700); };
   var letter = function (i) { return 'ABCDEFGH'.charAt(i); };
+  /* ---------- FAZ 7: adım adım yardım ----------
+     generate-exam { help: { action: info | start | check | finish } }. Adım
+     cevapları sunucuda; burada yalnızca soru, girdi ve geri bildirim.
+     Şablonlu hesap sorusu yardım bitince yeni sayılarla döner (tam puan);
+     ötekiler en çok 50 puan. Yarıda kalan yardım "devam" ile sürer. */
+  var helpBusy = false;
+  var helpCall = async function (body) {
+    var ses = (await sb().auth.getSession()).data.session; if (!ses) throw new Error('Oturum bulunamadı; yeniden giriş yap.');
+    var r = await fetch((typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : '') + '/functions/v1/generate-exam', { method: 'POST', headers: { Authorization: 'Bearer ' + ses.access_token, 'Content-Type': 'application/json', apikey: typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : '' }, body: JSON.stringify({ help: Object.assign({ examId: EXM && EXM.id }, body) }) });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d || d.error) throw new Error((d && d.error) || 'Yardım şu an açılamadı.');
+    return d;
+  };
+  var helpNote = function (hp) { return '<p class="sn-help-note">' + (hp.mode === 'variant' ? 'adım adım yardım kullanıldı · soru yeni sayılarla, tam puan' : 'adım adım yardım kullanıldı · bu soru en çok 50 puan') + '</p>'; };
+  var helpQ = function (qid) { return QS.filter(function (x) { return String(x.id) === String(qid); })[0] || null; };
+  var helpBox = function (qid) { return book.querySelector('[data-help-box="' + qid + '"]'); };
+  var helpErr = function (box, m) { var p = box.querySelector('.sn-help-err'); if (!p) { p = document.createElement('p'); p.className = 'sn-help-err'; p.setAttribute('role', 'alert'); box.appendChild(p); } p.textContent = m; };
+  var helpStep = function (box, st) {
+    var log = box.querySelector('.sn-help-log'), area = box.querySelector('.sn-help-step');
+    if (!st) { area.innerHTML = ''; return; }
+    var inp = st.kind === 'choice'
+      ? '<div class="sn-help-opts" role="radiogroup" aria-label="Şıklar">' + (st.options || []).map(function (o, k) { return '<label class="sn-opt-b" aria-pressed="false"><input type="radio" name="help-' + esc(box.getAttribute('data-help-box')) + '-' + st.n + '" value="' + k + '"><span class="l" aria-hidden="true">' + letter(k) + '</span><span>' + rich(o) + '</span></label>'; }).join('') + '</div>'
+      : '<div class="sn-calc"><input type="text" inputmode="decimal" class="sn-blank" data-help-in="" autocomplete="off" aria-label="Adımın cevabı">' + (st.unit ? '<span>' + esc(st.unit) + '</span>' : '') + '</div>';
+    area.innerHTML = '<p class="sn-help-n">adım ' + (st.n + 1) + ' / ' + st.total + '</p><p class="sn-help-p">' + rich(st.prompt) + '</p>' + inp +
+      '<p class="sn-help-fb" role="status" aria-live="polite"></p><div class="sn-help-b"><button type="button" class="btn btn-dark" data-help-check="' + st.n + '">kontrol et</button><button type="button" class="sn-lnk" data-help-close="">soruya dön</button></div>';
+    area.setAttribute('data-kind', st.kind);
+    if (log && !log.children.length) log.hidden = true;
+    var f = area.querySelector('input'); if (f) f.focus({ preventScroll: true });
+    var ti = area.querySelector('[data-help-in]'); if (ti) ti.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var cb = area.querySelector('[data-help-check]'); if (cb && !cb.disabled) cb.click(); } });
+  };
+  var helpDone = function (box, mode) {
+    box.querySelector('.sn-help-step').innerHTML = '<p class="sn-help-p"><b>Adımlar bitti.</b> ' + (mode === 'variant' ? 'Şimdi aynı soru yeni sayılarla gelecek; yeni halini çözersen tam puan alırsın.' : 'Şimdi soruyu kendin cevapla. Yardım kullandığın için bu soru en çok 50 puan sayılır.') + '</p><div class="sn-help-b"><button type="button" class="btn btn-blue" data-help-finish="">' + (mode === 'variant' ? 'yeni sayılarla soruya dön' : 'soruya dön') + '</button></div>';
+    var b = box.querySelector('[data-help-finish]'); if (b) b.focus({ preventScroll: true });
+  };
+  var helpFrame = function (box) { box.innerHTML = '<ol class="sn-help-log" hidden></ol><div class="sn-help-step"></div>'; };
+  var helpOpen = async function (qid) {
+    var box = helpBox(qid), q = helpQ(qid); if (!box || !q || helpBusy) return;
+    if (!box.hidden && box.children.length) { box.querySelector('input, button') && box.querySelector('input, button').focus(); return; }
+    box.hidden = false;
+    if (q.help && q.help.status === 'started') { helpStart(qid); return; }
+    box.innerHTML = '<p class="sn-help-p">yardım hazırlanıyor…</p>';
+    helpBusy = true;
+    try {
+      var d = await helpCall({ questionId: q.id, action: 'info' });
+      box.innerHTML = '<p class="sn-help-p"><b>Soruyu küçük adımlara bölelim.</b> Her adımın cevabını kontrol ederim; iki kez olmazsa doğrusunu gösterip açıklarım. ' +
+        (d.mode === 'variant' ? 'Adımlar bitince bu soru <b>yeni sayılarla</b> gelir; yeni halini çözersen tam puan alırsın.' : 'Yardım kullanınca bu soru <b>en çok ' + (d.cap || 50) + ' puan</b> sayılır.') + '</p>' +
+        '<div class="sn-help-b"><button type="button" class="btn btn-dark" data-help-start="">başla</button><button type="button" class="sn-lnk" data-help-cancel="">vazgeç</button></div>';
+      var b = box.querySelector('[data-help-start]'); if (b) b.focus({ preventScroll: true });
+    } catch (x) { box.innerHTML = ''; helpErr(box, x.message); }
+    finally { helpBusy = false; }
+  };
+  var helpStart = async function (qid) {
+    var box = helpBox(qid), q = helpQ(qid); if (!box || !q) return;
+    box.innerHTML = '<p class="sn-help-p">adımlar hazırlanıyor…</p>'; helpBusy = true;
+    try {
+      var d = await helpCall({ questionId: q.id, action: 'start' });
+      q.help = { mode: d.mode, status: 'started' };
+      var hb = book.querySelector('[data-help="' + qid + '"]'); if (hb) hb.textContent = 'adım adım · devam';
+      helpFrame(box); box.setAttribute('data-mode', d.mode);
+      if (d.done || !d.step) helpDone(box, d.mode); else helpStep(box, d.step);
+    } catch (x) { box.innerHTML = ''; helpErr(box, x.message); }
+    finally { helpBusy = false; }
+  };
+  var helpCheck = async function (box, btn) {
+    var qid = box.getAttribute('data-help-box'), area = box.querySelector('.sn-help-step'), n = +btn.getAttribute('data-help-check');
+    var kind = area.getAttribute('data-kind'), fb = area.querySelector('.sn-help-fb'), val;
+    if (kind === 'choice') { var c = area.querySelector('input[type="radio"]:checked'); val = c ? c.value : ''; } else { var inp = area.querySelector('[data-help-in]'); val = inp ? inp.value.trim() : ''; }
+    if (val === '') { fb.className = 'sn-help-fb no'; fb.textContent = kind === 'choice' ? 'Bir şık seç.' : 'Bir sayı yaz.'; return; }
+    btn.disabled = true; helpBusy = true;
+    try {
+      var d = await helpCall({ questionId: helpQ(qid).id, action: 'check', step: n, answer: val });
+      if (d.correct === false && !d.revealed) { fb.className = 'sn-help-fb no'; fb.innerHTML = 'Olmadı. <b>İpucu:</b> ' + rich(d.hint || '') + ' <small>(' + ((d.step && d.step.tries_left) || 1) + ' hakkın kaldı)</small>'; btn.disabled = false; return; }
+      var log = box.querySelector('.sn-help-log'), p = area.querySelector('.sn-help-p');
+      log.hidden = false;
+      log.insertAdjacentHTML('beforeend', '<li class="' + (d.correct ? 'ok' : 'rv') + '"><span>' + (p ? p.innerHTML : '') + '</span><b>' + (d.correct ? '✓ ' : 'doğrusu: ') + esc(d.answer || '') + '</b>' + (d.explain ? '<small>' + rich(d.explain) + '</small>' : '') + '</li>');
+      if (d.done || !d.step) helpDone(box, box.getAttribute('data-mode')); else helpStep(box, d.step);
+    } catch (x) { btn.disabled = false; fb.className = 'sn-help-fb no'; fb.textContent = x.message; }
+    finally { helpBusy = false; }
+  };
+  var helpFinish = async function (box, btn) {
+    var qid = box.getAttribute('data-help-box'), q = helpQ(qid); if (!q) return;
+    if (btn) btn.disabled = true; helpBusy = true;
+    try {
+      var d = await helpCall({ questionId: q.id, action: 'finish' });
+      q.help = { mode: d.mode, status: 'done' };
+      var sec = box.closest('.sn-q');
+      if (d.mode === 'variant' && d.question) {
+        q.question = d.question;
+        var qt = sec.querySelector('.sn-qtext'); if (qt) qt.innerHTML = rich(d.question);
+        var inp = sec.querySelector('[name="answer-q-' + q.id + '"]'); if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+        if (ENG() && ENG().isHeadless()) ENG().save();
+        paintOpt();
+      }
+      box.hidden = true; box.innerHTML = '';
+      box.insertAdjacentHTML('afterend', helpNote(q.help));
+      var hb = book.querySelector('[data-help="' + qid + '"]'); if (hb) { hb.textContent = 'yardım kullanıldı'; hb.disabled = true; }
+      var f = sec.querySelector('.sn-qtext ~ * input, .sn-qtext ~ * textarea, .sn-qtext input'); if (f) f.focus({ preventScroll: true });
+      say(d.mode === 'variant' ? 'Soru yeni sayılarla geldi; tam puan için bu halini çöz.' : 'Yardım kapandı; bu soru en çok 50 puan sayılır.');
+    } catch (x) { if (btn) btn.disabled = false; helpErr(box, x.message); }
+    finally { helpBusy = false; }
+  };
+  var helpClick = function (b) {
+    var box = b.closest('[data-help-box]'); if (!box || helpBusy) return;
+    if (b.hasAttribute('data-help-cancel')) { box.hidden = true; box.innerHTML = ''; return; }
+    if (b.hasAttribute('data-help-start')) { helpStart(box.getAttribute('data-help-box')); return; }
+    if (b.hasAttribute('data-help-check')) { helpCheck(box, b); return; }
+    if (b.hasAttribute('data-help-finish')) { helpFinish(box, b); return; }
+    if (b.hasAttribute('data-help-close')) {
+      /* yarıda bırakmak da yardımı kapatır (cevaplar görüldü); onay iste */
+      if (!b.hasAttribute('data-armed')) { b.setAttribute('data-armed', ''); b.textContent = 'eminsen tekrar bas: yardımı kapat'; return; }
+      helpFinish(box, b);
+    }
+  };
   var qHtml = function (q, i) {
     var name = 'answer-q-' + q.id, body = '', txt = rich(q.question);
     if (q.type === 'multiple_choice' || q.type === 'true_false') {
@@ -2990,9 +3103,13 @@ window.axNotify = function (title, opts) {
     }
     var hintB = EXM.is_simulation ? '' : '<button type="button" class="sn-ghost" id="btn-hint-' + esc(q.id) + '" data-hint="' + esc(q.id) + '">ipucu al</button>';
     var hintBox = EXM.is_simulation ? '' : '<div id="hint-box-' + esc(q.id) + '" class="exam-hint-box sn-hint" style="display:none"></div>';
+    /* FAZ 7: adım adım yardım (alıştırmada) */
+    var hp = q.help && typeof q.help === 'object' ? q.help : null;
+    var helpB = EXM.is_simulation ? '' : '<button type="button" class="sn-ghost" data-help="' + esc(q.id) + '"' + (hp && hp.status === 'done' ? ' disabled' : '') + '>' + (hp ? (hp.status === 'done' ? 'yardım kullanıldı' : 'adım adım · devam') : 'adım adım çöz') + '</button>';
+    var helpDiv = EXM.is_simulation ? '' : '<div class="sn-help" data-help-box="' + esc(q.id) + '" hidden></div>' + (hp && hp.status === 'done' ? helpNote(hp) : '');
     return '<section class="sn-q" data-qi="' + i + '" aria-label="Soru ' + (i + 1) + '" hidden><div class="sn-qn"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[q.type] || q.type) + '</span><span class="pt">' + (i + 1) + ' / ' + QS.length + '</span></div>' +
-      '<div class="sn-qtext">' + txt + '</div>' + chartHtml(q, EXM.language) + body + hintBox +
-      '<div class="sn-book-nav"><button type="button" class="sn-ghost" data-prev=""' + (i ? '' : ' disabled') + '>← önceki</button><button type="button" class="sn-ghost sn-flag" aria-pressed="false" data-flag="">işaretle</button>' + hintB + '<span class="sp"></span>' +
+      '<div class="sn-qtext">' + txt + '</div>' + chartHtml(q, EXM.language) + body + hintBox + helpDiv +
+      '<div class="sn-book-nav"><button type="button" class="sn-ghost" data-prev=""' + (i ? '' : ' disabled') + '>← önceki</button><button type="button" class="sn-ghost sn-flag" aria-pressed="false" data-flag="">işaretle</button>' + hintB + helpB + '<span class="sp"></span>' +
       (i < QS.length - 1 ? '<button type="button" class="btn btn-dark" data-next="">sonraki →</button>' : '<button type="button" class="btn btn-blue" data-hand="">kâğıdı teslim et</button>') + '</div></section>';
   };
   var answered = function (q) {
@@ -3041,7 +3158,7 @@ window.axNotify = function (title, opts) {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
     book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön; işaretli doğrular konu ustalığına daha az katkı yapar</li></ul>' +
+      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin; takılırsan “adım adım çöz” soruyu küçük adımlara böler (hesap sorusu sonra yeni sayılarla gelir, ötekiler en çok 50 puan)') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön; işaretli doğrular konu ustalığına daha az katkı yapar</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
@@ -3123,6 +3240,8 @@ window.axNotify = function (title, opts) {
     if (t.closest('[data-hand]')) { askSubmit(); return; }
     var f = t.closest('[data-flag]'); if (f) { f.setAttribute('aria-pressed', String(f.getAttribute('aria-pressed') !== 'true')); f.textContent = f.getAttribute('aria-pressed') === 'true' ? 'işaretli' : 'işaretle'; paintOpt(); return; }
     var h = t.closest('[data-hint]'); if (h && typeof revealExamHint === 'function') revealExamHint(h.getAttribute('data-hint'));
+    var hb = t.closest('[data-help]'); if (hb) { helpOpen(hb.getAttribute('data-help')); return; }
+    var hx = t.closest('[data-help-box] button'); if (hx) helpClick(hx);
   });
   book.addEventListener('change', function (e) {
     var r = e.target; if (r.type === 'radio') { $$('input[name="' + r.name + '"]', book).forEach(function (x) { x.closest('.sn-opt-b').setAttribute('aria-pressed', String(x.checked)); }); }
@@ -3203,8 +3322,9 @@ window.axNotify = function (title, opts) {
   var netLine = function (exam) {
     var s = exam && exam.scoring; if (!s || s.negative_marking !== true) return '';
     var k = (+s.wrong_per_correct === 3 || +s.wrong_per_correct === 4) ? +s.wrong_per_correct : 4, c = 0, w = 0, b = 0, t = 0;
-    (exam.question_results || []).forEach(function (r) { if (!r || r.type !== 'multiple_choice') return; t++; if (!String(r.student_answer || '').trim()) b++; else if (r.is_correct === true || r.score === 100) c++; else w++; });
+    (exam.question_results || []).forEach(function (r) { if (!r || r.type !== 'multiple_choice') return; t++; if (!String(r.student_answer || '').trim()) b++; else if (r.is_correct === true || r.score === 100) c += typeof r.help_cap === 'number' ? r.help_cap / 100 : 1; else w++; });
     if (!t) return '';
+    c = Math.round(c * 100) / 100;
     var net = Math.round((c - w / k) * 100) / 100;
     return '<span class="sn-net">test neti <b>' + esc(String(net).replace('.', ',')) + '</b><small>' + c + ' doğru · ' + w + ' yanlış · ' + b + ' boş · ' + k + ' yanlış 1 doğruyu götürür</small></span>';
   };
@@ -3433,10 +3553,10 @@ window.axNotify = function (title, opts) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
-          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + (adPlan && r.concept && adMap[ENG().conceptKey(r.concept)] ? '<span class="why ' + esc(adMap[ENG().conceptKey(r.concept)]) + '">' + esc(AD_WHY[adMap[ENG().conceptKey(r.concept)]] || '') + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
+          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + (adPlan && r.concept && adMap[ENG().conceptKey(r.concept)] ? '<span class="why ' + esc(adMap[ENG().conceptKey(r.concept)]) + '">' + esc(AD_WHY[adMap[ENG().conceptKey(r.concept)]] || '') + '</span>' : '') + (r.help_used ? '<span class="why help">' + (r.help_variant ? 'adım adım · yeni sayılarla' : 'adım adım · en çok ' + esc(String(r.help_cap || 50))) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
             '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + (r.type === 'graph' && ENG() && typeof ENG().graphResultHtml === 'function' ? ENG().graphResultHtml(r, exam.language) : '') + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
             (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
-            (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + teach(r, blank) + steps + '</div>';
+            (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + (r.help_raw_score != null ? '<p class="fb">Cevabın ' + esc(String(r.help_raw_score)) + ' puanlık; adım adım yardım kullandığın için ' + esc(String(r.help_cap || 50)) + ' sayıldı.</p>' : '') + teach(r, blank) + steps + '</div>';
         }).join('') +
         '<div class="sn-res-b">' + practice + '<button type="button" class="sn-ghost" data-to-errs="">hata defterine bak</button><button type="button" class="btn btn-dark" data-back="">salona dön</button></div>' +
         '<p class="sn-honest">Puanları Acadex’in yapay zekası verdi. Açık uçlu sorularda hocanın okuması farklı olabilir; geri bildirimi bir öneri olarak oku.</p></article>';

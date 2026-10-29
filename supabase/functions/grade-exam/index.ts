@@ -1068,7 +1068,7 @@ function buildAttemptRows(
       student_answer: r.student_answer != null ? String(r.student_answer) : null,
       score: typeof r.score === 'number' ? r.score : null,
       is_correct: typeof r.is_correct === 'boolean' ? r.is_correct : null,
-      hint_used: hintSet.has(String(r.question_id)),
+      hint_used: hintSet.has(String(r.question_id)) || r.help_used === true,
       flagged: flagSet.has(String(r.question_id))
     }
   })
@@ -1083,6 +1083,23 @@ function markConfidence(results: Array<Record<string, unknown>>, flags: unknown,
     const id = String(r.question_id ?? r.id ?? '')
     if (flagSet.has(id)) r.flagged = true
     if (hintSet.has(id)) r.hint_used = true
+  }
+}
+
+/** FAZ 7: adım adım yardım. exams.questions[i].help = { mode, status }.
+ *  'cap' ya da yeni sayıları yazılmamış 'variant' → puan en çok HELP_CAP
+ *  (ham puan help_raw_score'da). Yeni sayılarla çözülen 'variant' tam puan. */
+const HELP_CAP = 50
+function applyHelp(results: Array<Record<string, unknown>>, questions: Record<string, unknown>[]): void {
+  const byId = new Map(questions.map(q => [String(q.id), q]))
+  for (const r of results) {
+    const q = byId.get(String(r.question_id))
+    const h = q && q.help && typeof q.help === 'object' ? q.help as Record<string, unknown> : null
+    if (!h) continue
+    r.help_used = true
+    if (h.mode === 'variant' && h.status === 'done') { r.help_variant = true; continue }
+    r.help_cap = HELP_CAP
+    if (typeof r.score === 'number' && r.score > HELP_CAP) { r.help_raw_score = r.score; r.score = HELP_CAP }
   }
 }
 
@@ -1109,9 +1126,11 @@ function computeNetSummary(results: Array<Record<string, unknown>>, scoring: unk
     if (!r || r.type !== 'multiple_choice') continue
     total++
     if (!String(r.student_answer ?? '').trim()) blank++
-    else if (r.is_correct === true || r.score === 100) correct++
+    // FAZ 7: yardımla doğru (tavanlı) soru tavanı kadar doğru sayılır
+    else if (r.is_correct === true || r.score === 100) correct += typeof r.help_cap === 'number' ? r.help_cap / 100 : 1
     else wrong++
   }
+  correct = Math.round(correct * 100) / 100
   const net = Math.round((correct - wrong / k) * 100) / 100
   return { enabled: true, wrong_per_correct: k, mc_total: total, correct, wrong, blank, net }
 }
@@ -1495,6 +1514,7 @@ ${JSON.stringify(batch.map(c => ({
     }
 
     results.sort((a, b) => a.question_id - b.question_id)
+    applyHelp(results, questions)
 
     const finalGrade = computeExamGrade(results, exam.scoring)
     if (finalGrade === null) {
