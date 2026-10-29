@@ -4670,6 +4670,42 @@ test('grounding kapisi parallel modda ve kesik OCR\'da olcum moduna gecer', () =
     'gorsel yogunluk kosulu kaybolmus — metni duzgun cikan belgede kapi kesmeli');
 });
 
+/* OCR METNINE SAYFA ISARETI KONUYOR (29.10.2026).
+ *
+ * Normal cikarim "--- SAYFA N ---" basiyor; OCR yolu basmiyordu. Bedeli
+ * olculdu: 29 sayfalik tarama "belge tipi duz metin (sayfa az (0))" oldu,
+ * kart "Diger" tipiyle cikti ve atif katmani komple sustu
+ * ("Citation anchoring: pages=0 added=0") — kartta hic kaynakca yoktu. */
+test('OCR metni sayfa isareti tasiyor', () => {
+  const i = SRC.indexOf('async function tryOCRParcali(');
+  const govde = SRC.slice(i, i + 3200);
+  assert.ok(/--- SAYFA \$\{ilkSayfa \+ i\} ---/.test(govde),
+    'OCR metnine sayfa isareti konmuyor — atif katmani susar, belge tipi "duz metin" olur');
+  assert.ok(/isaretle\(r\.sayfalar, bas \+ 1\)/.test(govde),
+    'parca sayfa numaralari MUTLAK degil — atiflar yanlis sayfayi gosterir');
+  assert.ok(/isaretle\(tek\.sayfalar, 1\)/.test(govde),
+    'tek-parca yolunda isaret konmuyor');
+  // Uretilen isaret, okuyan regex ile ESLESMELI.
+  const isaretRe = /---\s*(?:SAYFA|SLAYT)\s+\d+\s*---/;
+  assert.ok(/const SAYFA_ISARETI_RE = \/---\\s\*\(\?:SAYFA\|SLAYT\)/.test(SRC),
+    'SAYFA_ISARETI_RE bicimi degismis — uretilen isaret artik eslesmeyebilir');
+  assert.ok(isaretRe.test('--- SAYFA 7 ---'), 'uretilen isaret bicimi okunamiyor');
+});
+
+/* OCR matematigi bozuyor: "d(5x^3 - 3x^2 + 7)" -> "d (521 - 323+7)".
+   O sayilar belgede YOK, kart onlari asla iceremez. 29 sayfalik taramada
+   23 hedefin hepsi bu siniftandi ve kullaniciya "%0" rozeti gosterildi. */
+test('sayisal kapsama rozeti OCR metninde yayinlanmaz', () => {
+  assert.ok(/kapsama\.total >= KAPSAMA_ROZET_MIN_ORNEK && !ocrKullanildi/.test(SRC),
+    'OCR metninde rozet hala yayinlaniyor — hayalet sayilardan %0 cikar');
+  assert.ok(/ocrKullanildi = true/.test(SRC), 'OCR bayragi hic kurulmuyor');
+  assert.ok(SRC.indexOf('let ocrKullanildi') < SRC.indexOf('ocrKullanildi = true'),
+    'bayrak kullanimdan SONRA bildirilmis — TDZ');
+  // Log susturulmuyor: gercek kayip hala gorunmeli.
+  assert.ok(/Sayisal kapsama rozeti YAYINLANMADI/.test(SRC),
+    'olcu loga da basilmiyor — gercek kayip kor noktaya duser');
+});
+
 /* PARCALI OCR (28.10.2026).
  *
  * OCR.space tek istekte plan sinirina (olculen: 3-4 sayfa) kadar okuyor ve
@@ -4729,7 +4765,7 @@ test('tryOCR: sayfa sinirinda kesik metin atilmiyor, kesildi bayragiyla donuyor'
   const i = SRC.indexOf('async function tryOCR(');
   assert.ok(i > -1, 'tryOCR bulunamadi');
   const govde = SRC.slice(i, i + 2200);
-  assert.ok(/return \{ text, kesildi: true, sayfa: parcalar\.length \}/.test(govde),
+  assert.ok(/return \{ text, sayfalar, kesildi: true, sayfa: parcalar\.length \}/.test(govde),
     'kesik sonuc hala atiliyor — belge yine failed olur');
   assert.ok(govde.indexOf('if (text.trim().length >= 200)') < govde.indexOf("throw new Error(result.ErrorMessage"),
     'kullanilabilir metin kontrolu firlatmadan ONCE gelmeli');

@@ -9213,6 +9213,10 @@ serve(async (req) => {
        ozetin belgenin tamamini gormedigini bilmeli. Bildirim BURADA,
        cunku OCR blogu asagidaki oteki `let`lerden ONCE calisiyor (TDZ). */
     let ocrKismi: { sayfa: number } | null = null
+    /* Metin OCR'dan mi geldi. Sayisal kapsama rozetinin yayinlanip
+       yayinlanmayacagini belirliyor — bkz. KAPSAMA_ROZET_MIN_ORNEK yanindaki
+       kullanim. OCR matematigi bozuyor ve hayalet sayi uretiyor. */
+    let ocrKullanildi = false
     const mimeType = document.mime_type?.toLowerCase() || ""
     // Per-page PDF text, kept around after extraction (Denetim Raporu,
     // 2026-08-31) so we can measure text density per page below — this is
@@ -9279,6 +9283,7 @@ serve(async (req) => {
                 } else {
                   console.log(`OCR succeeded! ${ocr.toplamSayfa} sayfa, ${ocrTextLen} karakter.`)
                 }
+                ocrKullanildi = true
                 extractedText = detectAndFormatPdfTables(ocr.text)
               } else {
                 throw new Error("SCANNED_PDF")
@@ -13047,8 +13052,23 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
          BUS211 22), yani esik olcumu bozmuyor.
          LOG yine basiliyor: oradaki 0,75 GERCEK bir eksikti ("0,75 A ceken
          devreye 1 A sigorta"). Susturdugumuz sey olcu degil, ROZET. */
-      if (kapsama.total >= KAPSAMA_ROZET_MIN_ORNEK) {
+      /* OCR METNINDE ROZET YAYINLANMAZ (29.10.2026 — olculmus).
+         OCR matematigi bozuyor ve olmayan sayi uretiyor. Olculen kosu
+         (29 sayfalik tarama, 0/23 = %0 rozeti) kayiplarin baglami:
+           521 <- "A) d (521 - 323+7)"    aslinda d(5x^3 - 3x^2 + 7)
+           122 <- "f（a） = 「a2， × <1 122-1,2≥1"
+           213 <- "f（z）＝丁8-213"
+         23 hedefin hepsi bu siniftan; kart onlari ASLA iceremez cunku
+         belgede yoklar. Grounding kapisiyla ayni durus: guvenilmez
+         karsilastirmada OLCULUR, hukum verilmez. Log basilmaya devam
+         ediyor — gercek bir kayip varsa orada gorunur. */
+      if (kapsama.total >= KAPSAMA_ROZET_MIN_ORNEK && !ocrKullanildi) {
         qualityMeta.numeric_coverage = { kept: kapsama.kept, total: kapsama.total }
+      } else if (ocrKullanildi && kapsama.total > 0) {
+        console.log(
+          `Sayisal kapsama rozeti YAYINLANMADI: metin OCR'dan geldi ` +
+          `(${kapsama.kept}/${kapsama.total}) — OCR bozuk sayi uretiyor`
+        )
       }
       if (eksikPencereler) qualityMeta.missing_windows = eksikPencereler
       // Taranmis belge yalnizca ilk N sayfasiyla okunduysa karta yaziliyor.
@@ -13361,9 +13381,25 @@ async function tryOCRParcali(
     toplam = 0
   }
   // Sayfa sayisi okunamadiysa ya da zaten tek parcaysa: eski tek-istek yolu.
+  /* SAYFA ISARETI KOYULUYOR (29.10.2026 — olculmus kayip).
+   *
+   * Normal cikarim metne "--- SAYFA N ---" basiyor; OCR yolu basmiyordu ve
+   * bedeli olculdu: 29 sayfalik tarama "belge tipi duz metin (sayfa az (0);
+   * 0 isaret)" oldu, kart "Diger" tipiyle cikti ve atif katmani komple
+   * sustu ("Citation anchoring: pages=0 added=0") — onceki kartta [1]-[5]
+   * atiflari vardi, bu kartta hic kaynakca yok.
+   * Parcali OCR sayfa sinirini zaten BILIYOR: parca i, sayfa i*3+1'den
+   * basliyor ve ParsedResults sayfa basina bir kayit donuyor. */
+  const isaretle = (sayfalar: string[], ilkSayfa: number) =>
+    sayfalar.map((m, i) => `--- SAYFA ${ilkSayfa + i} ---\n${m}`).join('\n\n')
+
   if (toplam <= OCR_PARCA_SAYFA) {
     const tek = await tryOCR(fileBytes, apiKey)
-    return { text: tek.text, okunanSayfa: tek.sayfa, toplamSayfa: toplam || tek.sayfa }
+    return {
+      text: isaretle(tek.sayfalar, 1),
+      okunanSayfa: tek.sayfa,
+      toplamSayfa: toplam || tek.sayfa
+    }
   }
 
   const basladi = Date.now()
@@ -13386,7 +13422,7 @@ async function tryOCRParcali(
     }
     try {
       const r = await tryOCR(alt, apiKey)
-      if (r.text.trim().length > 0) parcalar.push(r.text)
+      if (r.text.trim().length > 0) parcalar.push(isaretle(r.sayfalar, bas + 1))
       okunan += Math.max(r.sayfa, 0) || idx.length
     } catch (err) {
       /* Bir parca duserse elimizdekini tutuyoruz: yarim metin, hic
@@ -13405,7 +13441,7 @@ async function tryOCRParcali(
 async function tryOCR(
   fileBytes: Uint8Array,
   apiKey: string
-): Promise<{ text: string; kesildi: boolean; sayfa: number }> {
+): Promise<{ text: string; sayfalar: string[]; kesildi: boolean; sayfa: number }> {
   const formData = new FormData();
   const blob = new Blob([fileBytes], { type: 'application/pdf' });
   formData.append('file', blob, 'document.pdf');
@@ -13420,7 +13456,11 @@ async function tryOCR(
   });
   const result = await response.json();
   const parcalar = (result.ParsedResults ?? []) as any[]
-  const text = parcalar.map((r: any) => r.ParsedText).join('\n\n')
+  /* ParsedResults SAYFA BASINA bir kayit. Birlesik metin geriye uyumluluk
+     icin duruyor; `sayfalar` ise cagirana sayfa sinirini veriyor ki
+     "--- SAYFA N ---" isaretlerini koyabilsin (bkz. tryOCRParcali). */
+  const sayfalar = parcalar.map((r: any) => String(r.ParsedText || ''))
+  const text = sayfalar.join('\n\n')
 
   /* KESIK OCR SONUCU ATILMIYOR (28.10.2026 — olculmus kayip).
    *
@@ -13436,9 +13476,9 @@ async function tryOCR(
    * cagiran bunu karta rozet olarak yaziyor. */
   if (result.IsErroredOnProcessing) {
     if (text.trim().length >= 200) {
-      return { text, kesildi: true, sayfa: parcalar.length }
+      return { text, sayfalar, kesildi: true, sayfa: parcalar.length }
     }
     throw new Error(result.ErrorMessage?.[0] || 'OCR processing failed');
   }
-  return { text, kesildi: false, sayfa: parcalar.length };
+  return { text, sayfalar, kesildi: false, sayfa: parcalar.length };
 }
