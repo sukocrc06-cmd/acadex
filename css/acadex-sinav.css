@@ -1,0 +1,288 @@
+/* ==========================================================================
+   ACADEX SINAV PLATFORMU · "sınav salonu" görsel sistemi (css/acadex-sinav.css), 29.10.2026
+   acadex-ink.css'teki eski sınav stillerinin ÜSTÜNE yüklenir; yalnız görünüm.
+   Sahne: kara tahta (takvim) · duvar saati · kürsüde gözetmen Acadia · sıralar (ders kâğıdı,
+   kırmızı/yeşil kalem dairesi, konu boncukları) · karne panosu (konu taşları, damgalı kâğıtlar)
+   · spiral hata defteri · sınav salonu (kitapçık, optik form) · kırmızı kalemli sonuç.
+   Koyu tema (html.ax-dark) sayfayı ters çevirir; kara tahta ve ahşap geri çevrilir.
+   Hareketler prefers-reduced-motion'da durur.
+   ========================================================================== */
+html body #exams-view.axs{
+  --sn-ink:#0D1838;--sn-ink2:#46506A;--sn-muted:#6A7593;--sn-paper:#FFFDF8;--sn-line:#E6E1D6;
+  --sn-board:#22352B;--sn-board2:#1B2B22;--sn-chalk:#F4F1E6;--sn-wood:#B98552;--sn-wood2:#D3A46B;--sn-wood3:#8C5A2B;
+  --sn-red:#D9472B;--sn-green:#2E8E5B;--sn-blue:#2F6BFF;--sn-yel:#FFD86B;--sn-amber:#E7B14A;
+  --sn-spring:cubic-bezier(.3,1.5,.5,1);--sn-ease:cubic-bezier(.2,.8,.2,1)
+}
+
+/* =========================== SAHNE =========================== */
+html body #exams-view.axs .sn-stage{display:grid!important;grid-template-columns:minmax(0,1fr) 300px 196px;gap:22px;align-items:stretch;margin:0 0 30px;padding:0;border:0;background:none;box-shadow:none}
+html body #exams-view.axs .sn-board{position:relative;min-height:290px;padding:22px 26px 34px;border-radius:16px;background:radial-gradient(120% 90% at 30% 20%,#2C4436 0,var(--sn-board) 55%,var(--sn-board2) 100%);
+  border:12px solid var(--sn-wood3);box-shadow:inset 0 0 0 2px rgba(0,0,0,.25),inset 0 0 60px rgba(0,0,0,.35),0 22px 40px -22px rgba(30,20,10,.75);color:var(--sn-chalk);transform:none!important}
+html body #exams-view.axs .sn-board::before{content:"";position:absolute;inset:0;border-radius:4px;pointer-events:none;opacity:.5;
+  background:radial-gradient(circle at 18% 30%,rgba(255,255,255,.06) 0 40px,transparent 80px),radial-gradient(circle at 70% 70%,rgba(255,255,255,.05) 0 60px,transparent 110px)}
+html body #exams-view.axs .sn-board-t{position:relative;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+html body #exams-view.axs .sn-board-t .eyb{flex-basis:100%;margin:0;color:var(--sn-yel);font-size:21px;opacity:.9}
+html body #exams-view.axs .sn-board-t h1{margin:0;color:#fff;font-size:40px;line-height:1.05;letter-spacing:-.02em}
+html body #exams-view.axs .sn-board-t .d-sub{flex-basis:100%;margin:4px 0 0;color:rgba(244,241,230,.78);font-size:19px}
+html body #exams-view.axs .sn-chalk{position:relative;margin-top:16px}
+html body #exams-view.axs .sn-chalk .sn-notice-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px}
+html body #exams-view.axs .sn-chalk h2{margin:0;font-size:28px;color:var(--sn-chalk);font-weight:700;text-transform:none;letter-spacing:0}
+html body #exams-view.axs .sn-chalk .sn-lnk{padding:6px 12px;border:2px dashed rgba(244,241,230,.55);border-radius:999px;background:transparent;color:var(--sn-chalk);font-weight:700;font-size:13.5px;text-decoration:none;cursor:pointer}
+html body #exams-view.axs .sn-chalk .sn-lnk:hover{border-style:solid;background:rgba(255,255,255,.08)}
+html body #exams-view.axs .sn-cal{display:flex!important;flex-wrap:wrap;gap:12px;margin:0;padding:0;list-style:none}
+html body #exams-view.axs .sn-cal-empty{padding:14px 16px;border:2px dashed rgba(244,241,230,.35);border-radius:12px;color:rgba(244,241,230,.8);font-family:"Caveat","Segoe Print",cursive;font-size:22px;background:none!important}
+html body #exams-view.axs .sn-tk{position:relative;display:flex!important;align-items:center;gap:12px;min-width:210px;padding:10px 38px 10px 14px;border:2px dashed rgba(244,241,230,.35);border-radius:12px;background:rgba(255,255,255,.03)!important;color:var(--sn-chalk);transform:rotate(var(--r,0deg));box-shadow:none!important}
+html body #exams-view.axs .sn-tk-n{font-family:"Caveat","Segoe Print",cursive;font-weight:700;font-size:58px;line-height:.85;color:var(--sn-chalk);min-width:42px;text-align:center}
+html body #exams-view.axs .sn-tk.soon .sn-tk-n{color:var(--sn-yel)}
+html body #exams-view.axs .sn-tk.past{opacity:.55}
+html body #exams-view.axs .sn-tk-b{display:flex;flex-direction:column;min-width:0}
+html body #exams-view.axs .sn-tk-b .u{font-family:"Caveat","Segoe Print",cursive;font-size:20px;line-height:1;color:rgba(244,241,230,.85)}
+html body #exams-view.axs .sn-tk-b b{font-family:"Caveat","Segoe Print",cursive;font-size:24px;font-weight:700;line-height:1.05;color:#fff;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #exams-view.axs .sn-tk-b small{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;color:rgba(244,241,230,.6)}
+html body #exams-view.axs .sn-tk-x{position:absolute;right:6px;top:6px;width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:rgba(244,241,230,.6);font-size:18px;line-height:1;cursor:pointer}
+html body #exams-view.axs .sn-tk-x:hover{background:rgba(255,255,255,.12);color:#fff}
+html body #exams-view.axs .sn-ledge{position:absolute;left:-12px;right:-12px;bottom:-24px;height:14px;border-radius:0 0 6px 6px;background:linear-gradient(180deg,#A0703F,var(--sn-wood3));box-shadow:0 6px 10px -6px rgba(0,0,0,.6)}
+html body #exams-view.axs .sn-chalkp{position:absolute;bottom:9px;left:60px;width:46px;height:8px;border-radius:3px;background:#F4F1E6;transform:rotate(-3deg)}
+html body #exams-view.axs .sn-chalkp.y{left:118px;width:30px;background:var(--sn-yel);transform:rotate(4deg)}
+html body #exams-view.axs .sn-eraser{position:absolute;bottom:8px;right:70px;width:70px;height:16px;border-radius:4px;background:linear-gradient(180deg,#5B6474 0 45%,#E6DED0 45%);box-shadow:0 2px 0 rgba(0,0,0,.3)}
+
+/* duvar: saat + kürsü + gözetmen */
+html body #exams-view.axs .sn-wall{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-height:290px}
+html body #exams-view.axs .sn-wclock{position:absolute;right:6px;top:-6px;width:92px;height:92px;filter:drop-shadow(0 8px 10px rgba(13,24,56,.25))}
+html body #exams-view.axs .sn-wclock .f{fill:#FFFDF7;stroke:var(--sn-ink);stroke-width:5}
+html body #exams-view.axs .sn-wclock .tk line{stroke:var(--sn-ink);stroke-width:2;stroke-linecap:round}
+html body #exams-view.axs .sn-wclock .tk line.b{stroke-width:3.4}
+html body #exams-view.axs .sn-wclock .hh,html body #exams-view.axs .sn-wclock .mh,html body #exams-view.axs .sn-wclock .sh{transform-box:view-box;transform-origin:50px 50px;stroke-linecap:round}
+html body #exams-view.axs .sn-wclock .hh{stroke:var(--sn-ink);stroke-width:5}
+html body #exams-view.axs .sn-wclock .mh{stroke:var(--sn-ink);stroke-width:3.4}
+html body #exams-view.axs .sn-wclock .sh{stroke:var(--sn-red);stroke-width:1.8}
+html body #exams-view.axs .sn-wclock .hub{fill:var(--sn-red)}
+html body #exams-view.axs .sn-proctor{position:relative;display:flex;flex-direction:column;align-items:center;width:100%}
+html body #exams-view.axs .sn-bubble{position:relative;align-self:stretch;margin:0 0 8px;padding:12px 14px;border:2.5px solid var(--sn-ink);border-radius:18px;background:var(--sn-paper);box-shadow:4px 4px 0 var(--sn-ink);font-size:13.5px;line-height:1.45;color:var(--sn-ink);max-width:300px}
+html body #exams-view.axs .sn-bubble::after{content:"";position:absolute;left:50%;bottom:-12px;width:18px;height:18px;margin-left:-9px;background:var(--sn-paper);border-right:2.5px solid var(--sn-ink);border-bottom:2.5px solid var(--sn-ink);transform:rotate(45deg)}
+html body #exams-view.axs .sn-bubble [data-cal-tip]{margin:0;font-family:"Caveat","Segoe Print",cursive;font-size:20px;line-height:1.15;color:var(--sn-ink)}
+html body #exams-view.axs .sn-bubble [data-cal-tip]:empty::before{content:"Ben gözetmenin Acadia. Sınav tarihini tahtaya yaz, sana rota çizeyim."}
+html body #exams-view.axs .sn-bubble:has(.sn-acx-slot:not([hidden])) [data-cal-tip]{display:none}
+html body #exams-view.axs .sn-acx-slot{margin:0!important;padding:0!important;border:0!important;background:none!important;box-shadow:none!important}
+html body #exams-view.axs .sn-acx{margin:0;padding:0;border:0!important;background:none!important;box-shadow:none!important}
+html body #exams-view.axs .sn-acx .sn-k{display:block;font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--sn-red);margin-bottom:2px}
+html body #exams-view.axs .sn-acx b{display:block;font-size:15px}
+html body #exams-view.axs .sn-acx p{margin:4px 0 8px;font-size:13px;line-height:1.4}
+html body #exams-view.axs .sn-acx p small{display:none}
+html body #exams-view.axs .sn-acx .btn{width:100%;min-height:38px;font-size:13.5px}
+html body #exams-view.axs .sn-gz{display:block;width:128px;height:128px;margin-bottom:-26px;position:relative;z-index:2}
+html body #exams-view.axs .sn-gz svg{width:100%;height:100%;overflow:visible}
+html body #exams-view.axs .sn-lectern{position:relative;width:170px;height:96px;clip-path:polygon(8% 0,92% 0,100% 100%,0 100%);background:linear-gradient(180deg,var(--sn-wood2),var(--sn-wood));border-top:10px solid var(--sn-wood3);display:grid;place-items:center}
+html body #exams-view.axs .sn-lectern span{padding:3px 10px;border-radius:4px;background:#F4E7C8;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.2em;color:#6E4A26;box-shadow:inset 0 1px 2px rgba(0,0,0,.2)}
+/* hareketler */
+html body #exams-view.axs .sn-acts{display:flex!important;flex-direction:column;justify-content:center;gap:12px;margin:0}
+html body #exams-view.axs .sn-acts .hbtn,html body #exams-view.axs .sn-acts .btn{width:100%;justify-content:center;min-height:54px;border:2.5px solid var(--sn-ink);border-radius:16px;font-weight:800;font-size:15px;box-shadow:4px 4px 0 var(--sn-ink);transition:transform .15s var(--sn-ease),box-shadow .15s var(--sn-ease)}
+html body #exams-view.axs .sn-acts .hbtn{background:var(--sn-paper);color:var(--sn-ink)}
+html body #exams-view.axs .sn-acts .hbtn[data-goerr]{border-color:var(--sn-red);color:var(--sn-red);box-shadow:4px 4px 0 var(--sn-red);background:#FFF2EE}
+html body #exams-view.axs .sn-acts .hbtn[data-goerr] b{min-width:26px;padding:1px 7px;border-radius:999px;background:var(--sn-red);color:#fff}
+html body #exams-view.axs .sn-acts .sn-new{order:-1;background:var(--sn-blue);color:#fff;min-height:64px;font-size:16px}
+html body #exams-view.axs .sn-acts .hbtn:hover,html body #exams-view.axs .sn-acts .btn:hover{transform:translate(-1px,-1px);box-shadow:6px 6px 0 var(--sn-ink)}
+html body #exams-view.axs .sn-acts .hbtn[data-goerr]:hover{box-shadow:6px 6px 0 var(--sn-red)}
+html body #exams-view.axs .sn-acts svg{width:20px;height:20px}
+
+html body #exams-view.axs .sn-board .acd-head{display:none!important}
+html body #exams-view.axs .sn-mrev[hidden]{display:none!important}
+/* bölüm başlıkları: tebeşir çizgili el yazısı */
+html body #exams-view.axs .sn-sec-h .hd{font-size:34px}
+
+/* =========================== SIRALAR =========================== */
+html body #exams-view.axs .sn-room{padding:26px 22px 34px;border-radius:24px;background:#F2EEE5 repeating-linear-gradient(90deg,transparent 0 119px,rgba(13,24,56,.04) 119px 120px);border:0;box-shadow:inset 0 0 0 1px #E6E1D6}
+html body #exams-view.axs .sn-desks{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:34px 26px;padding-top:6px}
+html body #exams-view.axs .sn-desk{position:relative;min-height:0;padding-bottom:58px;animation:sn-in .5s var(--sn-ease) both;animation-delay:calc(var(--i,0) * 70ms)}
+@keyframes sn-in{from{opacity:0;transform:translateY(14px)}}
+html body #exams-view.axs .sn-desk .sn-top{position:relative;display:flex;flex-direction:column;gap:10px;min-height:236px;padding:16px 16px 14px;border-radius:16px;
+  background:repeating-linear-gradient(92deg,rgba(255,255,255,.05) 0 9px,rgba(0,0,0,.035) 9px 11px),linear-gradient(180deg,var(--sn-wood2),var(--sn-wood));border:0;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.4),inset 0 -5px 0 rgba(0,0,0,.14),0 20px 26px -18px rgba(60,40,20,.85);transform:rotate(var(--r,0deg))}
+html body #exams-view.axs .sn-desk .sn-legs{position:absolute;left:24px;right:24px;bottom:12px;height:50px;border:0;border-left:9px solid #6E7B93;border-right:9px solid #6E7B93;background:none}
+html body #exams-view.axs .sn-desk .sn-legs::after{content:"";position:absolute;left:0;right:0;bottom:16px;height:5px;background:#8A95AB;border-radius:3px}
+html body #exams-view.axs .sn-chair{position:absolute;left:50%;bottom:0;width:90px;height:22px;margin-left:-45px;border-radius:8px 8px 3px 3px;background:#4E6A9A;box-shadow:inset 0 -5px 0 rgba(0,0,0,.2)}
+html body #exams-view.axs .sn-pencil{position:absolute;right:18px;top:auto;bottom:132px;width:96px;height:11px;border-radius:3px;background:linear-gradient(90deg,#F2B233 0 76%,#F3D6B0 76% 90%,#333 90%);transform:rotate(-22deg);box-shadow:0 3px 3px rgba(0,0,0,.25);z-index:3;pointer-events:none}
+html body #exams-view.axs .sn-sheet{position:relative;padding:12px 14px 10px;border-radius:3px;background:#FFFDF7 repeating-linear-gradient(transparent 0 21px,#E6EAF2 21px 22px);box-shadow:0 8px 14px -8px rgba(0,0,0,.5);transform:rotate(var(--sr,-1deg))}
+html body #exams-view.axs .sn-sheet::before{content:"";position:absolute;left:10px;top:0;bottom:0;width:1.5px;background:#F2B8B8}
+html body #exams-view.axs .sn-dname{margin:0 0 2px;padding-left:8px;font-family:"Caveat","Segoe Print",cursive!important;font-size:26px!important;font-weight:700;line-height:1.05;color:var(--sn-ink);background:none!important;box-shadow:none!important;transform:none!important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+html body #exams-view.axs .sn-dsrc{margin:0;padding-left:8px;font-size:12px;color:var(--sn-muted)}
+html body #exams-view.axs .sn-dstat{display:flex!important;align-items:center;gap:10px;margin:6px 0 0;padding:0 0 0 8px;background:none!important;border:0!important;box-shadow:none!important;min-height:76px}
+html body #exams-view.axs .sn-dstat svg:not(.sn-mark svg){width:120px;height:34px;flex:1}
+html body #exams-view.axs .sn-dstat svg:not(.sn-mark svg) path{fill:none;stroke:#7A8399;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none}
+html body #exams-view.axs .sn-dstat svg:not(.sn-mark svg) path.tg{stroke:var(--sn-red);stroke-dasharray:4 4;stroke-width:1.4;opacity:.7}
+html body #exams-view.axs .sn-dstat svg:not(.sn-mark svg) circle{fill:var(--sn-ink)}
+html body #exams-view.axs .sn-mark{position:relative;flex:none;width:86px;height:70px;display:grid;place-items:center;transform:rotate(-8deg)}
+html body #exams-view.axs .sn-mark svg{position:absolute;inset:0;width:100%;height:100%}
+html body #exams-view.axs .sn-mark path{fill:none;stroke:currentColor;stroke-width:4;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;animation:sn-draw .9s .3s var(--sn-ease) both}
+@keyframes sn-draw{from{stroke-dashoffset:1}}
+html body #exams-view.axs .sn-mark b{position:relative;font-family:"Caveat","Segoe Print",cursive;font-size:42px;font-weight:700;line-height:1;color:currentColor}
+html body #exams-view.axs .sn-mark.ok{color:var(--sn-green)}html body #exams-view.axs .sn-mark.mid{color:#C77D10}html body #exams-view.axs .sn-mark.lo{color:var(--sn-red)}
+html body #exams-view.axs .sn-mark.none{width:76px;height:64px;border:3px dashed #B9B4AA;border-radius:50%;color:#8C8173;flex-direction:column;gap:0}
+html body #exams-view.axs .sn-mark.none b{font-size:30px}html body #exams-view.axs .sn-mark.none small{font-size:10.5px;font-family:"JetBrains Mono",monospace}
+html body #exams-view.axs .sn-beads{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:7px 10px;border-radius:999px;background:rgba(255,253,247,.55);align-self:flex-start}
+html body #exams-view.axs .sn-beads i{width:15px;height:15px;border-radius:50%;border:2px solid var(--sn-ink);background:#fff;box-shadow:inset -2px -2px 0 rgba(0,0,0,.12)}
+html body #exams-view.axs .sn-beads i.lo{background:var(--sn-red)}html body #exams-view.axs .sn-beads i.mid{background:#F2A65A}html body #exams-view.axs .sn-beads i.ok{background:var(--sn-blue)}html body #exams-view.axs .sn-beads i.top{background:var(--sn-amber)}
+html body #exams-view.axs .sn-beads em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--sn-ink2)}
+html body #exams-view.axs .sn-sticky{position:absolute;right:-10px;top:-16px;width:150px;padding:8px 10px;background:#FFF1A8;box-shadow:0 8px 12px -8px rgba(0,0,0,.5);transform:rotate(4deg);font-size:12px;z-index:4}
+html body #exams-view.axs .sn-sticky b{display:block;font-family:"Caveat","Segoe Print",cursive;font-size:18px;line-height:1}
+html body #exams-view.axs .sn-dbtns{display:flex!important;gap:8px;margin-top:auto}
+html body #exams-view.axs .sn-dbtns .btn{flex:1;min-height:44px;border-radius:12px;font-weight:800;font-size:14.5px;border:2.5px solid var(--sn-ink);box-shadow:3px 3px 0 var(--sn-ink)}
+html body #exams-view.axs .sn-folderb{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border:2.5px solid var(--sn-ink)!important;border-radius:12px;background:#F7EBCB!important;color:var(--sn-ink);font-weight:700;font-size:13px;box-shadow:3px 3px 0 var(--sn-ink)}
+html body #exams-view.axs .sn-folderb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+html body #exams-view.axs .sn-desk.add .sn-top{display:grid;place-items:center;background:transparent;border:3px dashed #C6BFAF;box-shadow:none;transform:none}
+html body #exams-view.axs .sn-desk.add button{display:flex;flex-direction:column;align-items:center;gap:6px;border:0;background:none;color:var(--sn-ink2);font-weight:700;font-size:14px;cursor:pointer;padding:20px}
+html body #exams-view.axs .sn-desk.add .pl{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;border:3px solid var(--sn-ink);background:var(--sn-paper);font-size:32px;line-height:1;color:var(--sn-ink);box-shadow:3px 3px 0 var(--sn-ink)}
+html body #exams-view.axs .sn-desk.add .sn-legs{opacity:.35}
+
+/* =========================== KARNE =========================== */
+html body #exams-view.axs .sn-report{margin-top:34px}
+html body #exams-view.axs .sn-rtabs{display:flex;flex-wrap:wrap;gap:0;align-items:flex-end;border-bottom:3px solid var(--sn-ink);padding-left:6px}
+html body #exams-view.axs .sn-rtab{margin:0 -2px -3px 0;padding:8px 16px 7px;border:3px solid var(--sn-ink)!important;border-bottom:0!important;border-radius:12px 12px 0 0!important;background:#EDE7D8!important;color:var(--sn-ink2)!important;font-weight:700;font-size:13.5px;box-shadow:none!important}
+html body #exams-view.axs .sn-rtab[aria-selected="true"]{background:var(--sn-paper)!important;color:var(--sn-ink)!important;padding-bottom:10px}
+html body #exams-view.axs .sn-rep-grid{display:grid!important;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);grid-template-areas:"mast mast" "chart time" "atts atts";gap:20px;margin-top:20px}
+html body #exams-view.axs .sn-rep-grid .sn-card{border:0;border-radius:20px;background:var(--sn-paper);box-shadow:0 1px 0 #E6E1D6,0 18px 34px -26px rgba(13,24,56,.6);padding:18px 20px}
+html body #exams-view.axs .sn-mast-c{grid-area:mast}html body #exams-view.axs .sn-chart-c{grid-area:chart}html body #exams-view.axs .sn-time-c{grid-area:time}html body #exams-view.axs .sn-atts-c{grid-area:atts}
+html body #exams-view.axs .sn-chart-c .sn-chart{border-radius:12px;background:#FFFFFF linear-gradient(rgba(47,107,255,.07) 1px,transparent 1px) 0 0/22px 22px,linear-gradient(90deg,rgba(47,107,255,.07) 1px,transparent 1px) 0 0/22px 22px;padding:6px}
+/* ustalık: konu taşları */
+html body #exams-view.axs .sn-mast-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:12px}
+html body #exams-view.axs .sn-mast-go{margin-left:auto;min-height:44px;border-radius:14px;background:var(--sn-blue)!important;border:2.5px solid var(--sn-ink)!important;box-shadow:3px 3px 0 var(--sn-ink);font-weight:800}
+html body #exams-view.axs .sn-mast{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:0;padding:0;list-style:none}
+html body #exams-view.axs .sn-mrow{position:relative;display:grid!important;grid-template-columns:52px minmax(0,1fr);grid-template-areas:"ring nm" "ring lv" "act act";align-items:center;gap:2px 10px;padding:12px 12px 10px;border:2.5px solid var(--sn-ink);border-radius:16px;background:#fff;box-shadow:3px 3px 0 var(--sn-ink);border-bottom-width:2.5px!important;animation:sn-in .45s var(--sn-ease) both}
+html body #exams-view.axs .sn-mrow .ring{grid-area:ring;position:relative;width:52px;height:52px;display:grid;place-items:center}
+html body #exams-view.axs .sn-mrow .ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+html body #exams-view.axs .sn-mrow .ring circle{fill:none;stroke:#EEE8DC;stroke-width:6}
+html body #exams-view.axs .sn-mrow .ring circle.v{stroke:currentColor;stroke-linecap:round;transition:stroke-dashoffset .9s var(--sn-ease)}
+html body #exams-view.axs .sn-mrow .ring b{position:relative;font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--sn-ink)}
+html body #exams-view.axs .sn-mrow.lo{color:var(--sn-red);background:#FFF6F3}html body #exams-view.axs .sn-mrow.mid{color:#E0892F}html body #exams-view.axs .sn-mrow.ok{color:var(--sn-blue)}html body #exams-view.axs .sn-mrow.top{color:var(--sn-amber);background:#FFFBEC}
+html body #exams-view.axs .sn-mrow .nm{grid-area:nm;min-width:0;color:var(--sn-ink)}
+html body #exams-view.axs .sn-mrow .nm b{display:block;font-size:14.5px;line-height:1.25}
+html body #exams-view.axs .sn-mrow .nm .mt{display:block;font-size:11.5px;color:var(--sn-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html body #exams-view.axs .sn-mrow .lv{grid-area:lv;justify-self:start;padding:1px 9px;border-radius:999px;background:currentColor;font-size:11.5px;font-weight:800}
+html body #exams-view.axs .sn-mrow .lv{color:#fff;-webkit-text-fill-color:#fff}
+html body #exams-view.axs .sn-mrow.lo .lv{background:var(--sn-red)}html body #exams-view.axs .sn-mrow.mid .lv{background:#E0892F}html body #exams-view.axs .sn-mrow.ok .lv{background:var(--sn-blue)}html body #exams-view.axs .sn-mrow.top .lv{background:var(--sn-amber);-webkit-text-fill-color:var(--sn-ink)}
+html body #exams-view.axs .sn-mrow .due{position:absolute;right:10px;top:-11px;padding:2px 8px;border-radius:999px;background:var(--sn-yel);border:2px solid var(--sn-ink);font-size:11px;font-weight:800;color:var(--sn-ink)}
+html body #exams-view.axs .sn-mrow .bar{display:none!important}
+html body #exams-view.axs .sn-mrow .sn-ghost{grid-area:act;justify-self:stretch;margin-top:8px;min-height:34px;border:2px solid var(--sn-ink)!important;border-radius:10px;background:var(--sn-paper)!important;color:var(--sn-ink)!important;font-weight:700;font-size:12.5px}
+html body #exams-view.axs .sn-mrow .sn-ghost::before{content:"▶ ";color:var(--sn-blue)}
+html body #exams-view.axs .sn-mmore{grid-column:1/-1;text-align:center;list-style:none}
+html body #exams-view.axs .sn-mrev{margin-top:14px;padding:10px 14px;border-radius:14px;background:#FFF8E2;border:2px dashed #E8C77A}
+/* denemeler: damgalı kâğıt sırası */
+html body #exams-view.axs .sn-atts{display:flex!important;flex-direction:row!important;gap:16px;overflow-x:auto;padding:8px 4px 14px;margin:0;list-style:none;scroll-snap-type:x proximity}
+html body #exams-view.axs .sn-atts li[data-ex]{position:relative;flex:none;display:flex!important;flex-direction:column;gap:2px;width:190px;min-height:132px;padding:14px 14px 12px;border:0!important;border-radius:3px;background:#fff repeating-linear-gradient(transparent 0 19px,#EEF1F7 19px 20px);box-shadow:0 10px 18px -12px rgba(0,0,0,.55);transform:rotate(calc(((var(--n,0)) - 1) * 1deg));cursor:pointer;scroll-snap-align:start;transition:transform .2s var(--sn-ease)}
+html body #exams-view.axs .sn-atts li[data-ex]:nth-child(3n+1){transform:rotate(-1.5deg)}html body #exams-view.axs .sn-atts li[data-ex]:nth-child(3n+2){transform:rotate(1.2deg)}
+html body #exams-view.axs .sn-atts li[data-ex]:hover,html body #exams-view.axs .sn-atts li[data-ex]:focus-visible{transform:translateY(-4px) rotate(0)}
+html body #exams-view.axs .sn-atts .dt{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--sn-muted)}
+html body #exams-view.axs .sn-atts .ti{text-align:left;white-space:normal;overflow:visible;font-weight:700;font-size:13.5px;line-height:1.3;padding-right:56px}
+html body #exams-view.axs .sn-atts .du{font-size:12px;color:var(--sn-muted);margin-top:auto}
+html body #exams-view.axs .sn-atts .sc{position:absolute!important;right:10px;top:10px;width:56px;height:56px;border-radius:50%;border:3px solid var(--sn-red);color:var(--sn-red);display:grid;place-items:center;font-family:"Caveat","Segoe Print",cursive;font-size:26px;font-weight:700;transform:rotate(-14deg);background:rgba(255,255,255,.8)}
+html body #exams-view.axs .sn-atts .sc.ok{border-color:var(--sn-green);color:var(--sn-green)}html body #exams-view.axs .sn-atts .sc.mid{border-color:#C77D10;color:#C77D10}
+
+/* =========================== HATA DEFTERİ =========================== */
+html body #exams-view.axs .sn-errs{margin-top:34px}
+html body #exams-view.axs .sn-eg{position:relative;margin:0 0 22px;padding:18px 24px 18px 66px;border:0!important;border-radius:8px 18px 18px 8px;background:#FFFDF7 repeating-linear-gradient(transparent 0 31px,#E8ECF4 31px 32px);box-shadow:0 18px 30px -20px rgba(0,0,0,.55)}
+html body #exams-view.axs .sn-eg::before{content:"";position:absolute;left:46px;top:0;bottom:0;width:2px;background:#F2A6A6}
+html body #exams-view.axs .sn-eg::after{content:"";position:absolute;left:12px;top:14px;bottom:14px;width:18px;background:radial-gradient(circle at 9px 9px,#C9CED8 0 7px,#9AA3B5 7.5px,transparent 8.5px) 0 0/18px 34px repeat-y}
+html body #exams-view.axs .sn-eg-h{display:flex!important;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 6px;padding:0;border:0!important;background:none!important}
+html body #exams-view.axs .sn-eg-h h3{margin:0;font-family:"Caveat","Segoe Print",cursive;font-size:32px;font-weight:700;color:var(--sn-ink)}
+html body #exams-view.axs .sn-eg-h small{padding:2px 10px;border-radius:999px;background:var(--sn-red);color:#fff;font-weight:800;font-size:12px}
+html body #exams-view.axs .sn-eg-h .btn{min-height:40px;border-radius:12px;border:2.5px solid var(--sn-ink);box-shadow:3px 3px 0 var(--sn-ink);font-weight:800}
+html body #exams-view.axs .sn-eg-h small{margin-right:auto!important}html body #exams-view.axs .sn-eg-h .btn{margin-left:0!important;justify-self:auto}html body #exams-view.axs .sn-eg-h{justify-content:flex-start!important}
+html body #exams-view.axs .sn-eg-h .axe-b{background:#FFF0EC!important;color:var(--sn-red)!important;border-color:var(--sn-red)!important;box-shadow:3px 3px 0 var(--sn-red)!important}
+html body #exams-view.axs .sn-eg .axs-wk{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+html body #exams-view.axs .sn-eg .axs-wk span{padding:3px 10px;border-radius:4px;background:rgba(217,71,43,.12);color:#A0301C;font-weight:700;font-size:12.5px;transform:rotate(-1deg)}
+html body #exams-view.axs .sn-eg ol{margin:0;padding:0;list-style:none}
+html body #exams-view.axs .sn-eg ol li{position:relative;display:flex!important;align-items:flex-start;gap:12px;padding:8px 0 8px 34px;border:0!important;min-height:32px}
+html body #exams-view.axs .sn-eg ol li::before{content:"✗";position:absolute;left:0;top:2px;font-family:"Caveat","Segoe Print",cursive;font-size:32px;font-weight:700;line-height:1;color:var(--sn-red)}
+html body #exams-view.axs .sn-eg ol li>span{flex:1;min-width:0}
+html body #exams-view.axs .sn-eg .q{display:block;font-size:14.5px;line-height:1.45}
+html body #exams-view.axs .sn-eg .a{display:block;font-size:13px;color:var(--sn-muted)}
+html body #exams-view.axs .sn-eg .a s{color:var(--sn-red)}html body #exams-view.axs .sn-eg .a b{color:var(--sn-green);font-family:"Caveat","Segoe Print",cursive;font-size:19px}
+html body #exams-view.axs .sn-eg [data-done]{flex:none;width:38px;height:38px;border:2.5px solid var(--sn-green)!important;border-radius:50%;background:#fff!important;color:var(--sn-green)!important;font-size:18px;font-weight:900;cursor:pointer;box-shadow:2px 2px 0 var(--sn-green)}
+html body #exams-view.axs .sn-eg [data-done]:hover{background:var(--sn-green)!important;color:#fff!important}
+
+/* =========================== SINAV HAZIRLA (adımlar) =========================== */
+html body #exams-view.axs .sn-steps{display:flex;gap:6px;margin:4px 0 16px;padding:0;list-style:none;counter-reset:none}
+html body #exams-view.axs .sn-steps li{flex:1}
+html body #exams-view.axs .sn-steps button{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:2px solid #D8D2C4;border-radius:12px;background:#fff;color:var(--sn-ink2);font-weight:700;font-size:13.5px;cursor:pointer}
+html body #exams-view.axs .sn-steps button i{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-family:"JetBrains Mono",monospace;font-size:12px;background:#EEE8DC;color:var(--sn-ink)}
+html body #exams-view.axs .sn-steps button[aria-current="step"]{border-color:var(--sn-ink);color:var(--sn-ink);box-shadow:3px 3px 0 var(--sn-ink)}
+html body #exams-view.axs .sn-steps button[aria-current="step"] i{background:var(--sn-blue);color:#fff}
+html body #exams-view.axs .sn-steps button.done i{background:var(--sn-green);color:#fff}
+html body [data-builddlg].sn-wide{width:min(1000px,calc(100vw - 32px))!important;max-width:none!important}
+html body #exams-view.axs form.sn-build,html body #exams-view.axs .sn-build{display:grid!important;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+html body #exams-view.axs .sn-build>*{min-width:0}
+@media (max-width:860px){html body #exams-view.axs .sn-build{grid-template-columns:minmax(0,1fr)}}
+html body #exams-view.axs .sn-step.in{animation:sn-step .35s var(--sn-ease) both}
+@keyframes sn-step{from{opacity:0;transform:translateX(18px)}}
+html body #exams-view.axs .sn-build .axs-opt span,html body #exams-view.axs .sn-build .axs-srcs label>span{position:relative}
+html body #exams-view.axs .sn-build svg.ic{display:block;width:30px;height:30px;margin-bottom:4px;fill:none;stroke:var(--sn-ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+html body #exams-view.axs .sn-build svg.ic .fl{fill:var(--sn-blue);stroke:var(--sn-ink)}
+html body #exams-view.axs .sn-build input:checked+span svg.ic{stroke:var(--sn-blue)}
+html body #exams-view.axs .sn-build input:checked+span svg.ic .fl{fill:var(--sn-blue)}
+html body #exams-view.axs .sn-build .sn-dlg-b [data-step-next]{border:2px solid var(--sn-ink)}
+
+/* =========================== SALON: sınav anı ve sonuç =========================== */
+html body #axs-layer#axs-layer .sn-hall-top{position:relative}
+html body #axs-layer#axs-layer .sn-gz-hall{display:block;width:64px;height:64px;margin:-6px -6px -10px 0;flex:none}
+html body #axs-layer#axs-layer .sn-gz-hall svg{width:100%;height:100%;overflow:visible}
+html body #axs-layer#axs-layer .sn-hall:has(.sn-clockw.warn) .sn-gz-hall{animation:sn-shake .5s ease-in-out 3}
+@keyframes sn-shake{0%,100%{transform:none}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+html body #axs-layer#axs-layer .sn-book .sn-opt-b{border-radius:16px!important;transition:transform .15s var(--sn-ease,ease),box-shadow .15s}
+html body #axs-layer#axs-layer .sn-book .sn-opt-b[aria-pressed="true"]{box-shadow:4px 4px 0 #0D1838!important;transform:translate(-1px,-1px)}
+html body #axs-layer#axs-layer .sn-score-w{position:relative;display:flex;align-items:flex-end;gap:4px;flex:none}
+html body #axs-layer#axs-layer .sn-gz-res{display:block;width:92px;height:92px;margin-right:-18px;position:relative;z-index:2;animation:sn-stampin .7s .9s var(--sn-spring,cubic-bezier(.3,1.5,.5,1)) both}
+html body #axs-layer#axs-layer .sn-gz-res svg{width:100%;height:100%;overflow:visible}
+@keyframes sn-stampin{from{opacity:0;transform:translateY(20px) scale(.7)}}
+html body #axs-layer#axs-layer .sn-score{animation:sn-stamp .55s 1.25s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes sn-stamp{from{transform:scale(1.9) rotate(-18deg);opacity:0}}
+html body #axs-layer#axs-layer .sn-score path{stroke:currentColor}html body #axs-layer#axs-layer .sn-score b,html body #axs-layer#axs-layer .sn-score small{color:currentColor}
+html body #axs-layer#axs-layer .sn-score.ok{color:#2E8E5B}html body #axs-layer#axs-layer .sn-score.mid{color:#C77D10}html body #axs-layer#axs-layer .sn-score.lo{color:#D9472B}
+
+/* =========================== koyu tema =========================== */
+html.ax-dark body #exams-view.axs .sn-board,html.ax-dark body #exams-view.axs .sn-ledge,html.ax-dark body #exams-view.axs .sn-desk .sn-top:not(.add .sn-top),html.ax-dark body #exams-view.axs .sn-lectern{filter:invert(1) hue-rotate(180deg)}
+html.ax-dark body #exams-view.axs .sn-desk .sn-top .sn-sheet,html.ax-dark body #exams-view.axs .sn-desk .sn-top .sn-dbtns,html.ax-dark body #exams-view.axs .sn-desk .sn-top .sn-beads,html.ax-dark body #exams-view.axs .sn-desk .sn-top .sn-sticky{filter:invert(1) hue-rotate(180deg)}
+
+html.ax-dark body #exams-view.axs .sn-gz,html.ax-dark body #axs-layer#axs-layer .sn-gz-hall,html.ax-dark body #axs-layer#axs-layer .sn-gz-res{filter:invert(1) hue-rotate(180deg)}
+
+/* =========================== yerleşim =========================== */
+@media (max-width:1180px){
+  html body #exams-view.axs .sn-stage{grid-template-columns:minmax(0,1fr) 260px}
+  html body #exams-view.axs .sn-acts{grid-column:1/-1;flex-direction:row;flex-wrap:wrap}
+  html body #exams-view.axs .sn-acts .hbtn,html body #exams-view.axs .sn-acts .btn{flex:1 1 180px;width:auto}
+}
+@media (max-width:860px){
+  html body #exams-view.axs .sn-stage{grid-template-columns:minmax(0,1fr);gap:16px}
+  html body #exams-view.axs .sn-wall{min-height:0;flex-direction:row;align-items:flex-end;justify-content:center}
+  html body #exams-view.axs .sn-wclock{position:relative;top:auto;right:auto;width:70px;height:70px;margin-right:8px;align-self:flex-start}
+  html body #exams-view.axs .sn-proctor{flex:1;max-width:340px}
+  html body #exams-view.axs .sn-rep-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"mast" "chart" "time" "atts"}
+}
+@media (max-width:600px){
+  html body #exams-view.axs .sn-board{padding:16px 16px 30px;border-width:9px}
+  html body #exams-view.axs .sn-wclock,html body #exams-view.axs .sn-pencil{display:none}
+  html body #exams-view.axs .sn-wall{align-items:flex-end;gap:0}
+  html body #exams-view.axs .sn-proctor{flex-direction:row;align-items:flex-end;max-width:none}
+  html body #exams-view.axs .sn-bubble{flex:1;margin:0 4px 26px 0;order:-1}
+  html body #exams-view.axs .sn-bubble::after{left:auto;right:-11px;bottom:22px;transform:rotate(-45deg)}
+  html body #exams-view.axs .sn-gz{width:88px;height:88px;margin:0 0 -4px}
+  html body #exams-view.axs .sn-lectern{display:none}
+  html body #exams-view.axs .sn-desks{gap:26px}
+  html body #exams-view.axs .sn-desk .sn-top{min-height:0}
+  html body #exams-view.axs .sn-desk{padding-bottom:46px}
+  html body #exams-view.axs .sn-desk .sn-legs{height:40px}
+  html body #exams-view.axs .sn-desk.add .sn-top{min-height:110px}
+  html body #exams-view.axs .sn-rtabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  html body #exams-view.axs .sn-rtab{flex:none;white-space:nowrap}
+  html body #exams-view.axs .sn-board-t h1{font-size:32px}
+  html body #exams-view.axs .sn-tk{min-width:0;flex:1 1 100%}
+  html body #exams-view.axs .sn-acts .hbtn,html body #exams-view.axs .sn-acts .btn{flex:1 1 140px;min-height:48px;font-size:14px}
+  html body #exams-view.axs .sn-acts .sn-new{flex-basis:100%}
+  html body #exams-view.axs .sn-room{padding:18px 12px 24px}
+  html body #exams-view.axs .sn-eg{padding:14px 14px 14px 52px}
+  html body #exams-view.axs .sn-eg::before{left:38px}html body #exams-view.axs .sn-eg::after{left:8px}
+    html body #exams-view.axs .sn-steps button span{display:none}
+  html body #exams-view.axs .sn-steps button{justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){
+  html body #exams-view.axs *,html body #axs-layer#axs-layer *{animation:none!important;transition:none!important}
+}

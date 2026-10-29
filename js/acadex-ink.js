@@ -2690,11 +2690,12 @@ window.axNotify = function (title, opts) {
   var calEl = $('[data-cal]'), calTip = $('[data-cal-tip]');
   var paintCal = function () {
     var list = EV.filter(function (e) { return e.event_date && dayDiff(e.event_date) >= -2; }).slice(0, 10);
-    if (!list.length) { calEl.innerHTML = '<li class="sn-cal-empty">takvim boş. vize ve final tarihlerini as; geri sayım burada görünür.</li>'; calTip.textContent = ''; return; }
+    if (!list.length) { calEl.innerHTML = '<li class="sn-cal-empty">takvim boş. vize ve final tarihlerini tahtaya yaz; geri sayım burada başlar.</li>'; calTip.textContent = ''; return; }
+    /* tahtada tebeşirle geri sayım: büyük gün sayısı, ders, tarih (25.10.2026 yeniden tasarım) */
     calEl.innerHTML = list.map(function (e, i) {
       var n = dayDiff(e.event_date), d = new Date(e.event_date.slice(0, 10) + 'T00:00:00'), cls = n < 0 ? ' past' : n <= 7 ? ' soon' : '';
-      var when = n < 0 ? (-n) + ' gün önceydi' : n === 0 ? 'bugün!' : n === 1 ? 'yarın' : n + ' gün kaldı';
-      return '<li class="sn-tk' + cls + '" style="--r:' + (((i * 7) % 5) - 2) * 0.6 + 'deg"><span class="sn-tk-d"><b>' + d.getDate() + '</b><small>' + MON[d.getMonth()] + '</small></span><span class="sn-tk-b"><b>' + esc(e.title) + '</b><span>' + when + '</span></span><button type="button" class="sn-tk-x" data-ev-x="' + esc(e.id) + '" aria-label="' + esc(e.title) + ' tarihini kaldır">×</button></li>';
+      var big = n < 0 ? '✓' : n === 0 ? '!' : String(n), unit = n < 0 ? (-n) + ' gün önceydi' : n === 0 ? 'bugün' : n === 1 ? 'gün · yarın' : 'gün kaldı';
+      return '<li class="sn-tk' + cls + '" style="--r:' + (((i * 7) % 5) - 2) * 0.6 + 'deg;--i:' + i + '"><span class="sn-tk-n" aria-hidden="true">' + big + '</span><span class="sn-tk-b"><span class="u">' + unit + '</span><b>' + esc(e.title) + '</b><small>' + d.getDate() + ' ' + MON[d.getMonth()] + '</small></span><button type="button" class="sn-tk-x" data-ev-x="' + esc(e.id) + '" aria-label="' + esc(e.title) + ' tarihini kaldır">×</button></li>';
     }).join('');
     var next = list.filter(function (e) { return dayDiff(e.event_date) >= 0; })[0];
     calTip.textContent = next ? (dayDiff(next.event_date) === 0 ? 'bugün ' + next.title + '. kolay gelsin!' : 'en yakını ' + next.title + ': ' + dayDiff(next.event_date) + ' gün. ' + (dayDiff(next.event_date) <= 7 ? 'her gün bir deneme iyi gider.' : 'şimdiden haftada iki deneme yeter.')) : '';
@@ -2710,6 +2711,15 @@ window.axNotify = function (title, opts) {
       var r2 = await sb().from('study_events').insert(row).select(); if (!r2.error) { EV.push((r2.data && r2.data[0]) || ev); EV.sort(function (a, b) { return a.event_date < b.event_date ? -1 : 1; }); paintCal(); }
     });
   });
+  /* duvar saati: gerçek saat; hareket azaltmada dakikada bir */
+  var wclk = $('[data-wclock]');
+  var paintClock = function () {
+    if (!wclk || (document.hidden)) return;
+    var d = new Date(), sec = d.getSeconds(), m = d.getMinutes() + sec / 60, h = (d.getHours() % 12) + m / 60;
+    var set = function (sel, deg) { var el = wclk.querySelector(sel); if (el) el.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)'; };
+    set('[data-hh]', h * 30); set('[data-mh]', m * 6); set('[data-sh]', sec * 6);
+  };
+  if (wclk) { paintClock(); setInterval(paintClock, reduce ? 30000 : 1000); }
   var calDlg = $('[data-caldlg]'), calF = $('[data-calf]');
   $('[data-cal-add]').addEventListener('click', function () {
     $('#axs-courses').innerHTML = desks().map(function (d) { return '<option value="' + esc(d.name) + '">'; }).join('');
@@ -2741,12 +2751,18 @@ window.axNotify = function (title, opts) {
       var chips = [h.type ? TYPE[h.type] : '', h.diff ? DIFF[h.diff] : '', h.lang ? (h.lang === 'tr' ? 'TR' : 'EN') : '', h.sim ? 'süreli' : ''].filter(Boolean);
       var sticky = (h.who || h.note || chips.length) ? '<div class="sn-sticky"><b>' + esc(h.who || 'hocanın tarzı') + '</b>' + (chips.length ? '<span class="chips">' + chips.map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</span>' : '') + (h.note ? '<i>' + esc(h.note) + '</i>' : '') + '</div>' : '';
       var src = [d.cards.length ? d.cards.length + ' belge' : (d.code ? 'ders ağacı' : ''), ex.length ? ex.length + ' deneme' : ''].filter(Boolean).join(' · ');
+      /* konu boncukları: her konu bir boncuk, renk ustalık seviyesi (zayıf → usta) */
+      var eng = ENG(), ms = ex.length && eng && typeof eng.conceptMastery === 'function' ? lsafe(function () { return eng.conceptMastery(ex); }, []) : [];
+      var beads = ms.length ? '<div class="sn-beads" role="img" aria-label="' + esc(ms.length + ' konu: ' + [3, 2, 1, 0].map(function (lv) { var n = ms.filter(function (c) { return c.level === lv; }).length; return n ? n + ' ' + (eng.MASTERY_LEVELS ? eng.MASTERY_LEVELS[lv] : '') : ''; }).filter(Boolean).join(', ')) + '">' + ms.slice(0, 12).map(function (c) { return '<i class="' + LV_CLS[c.level] + '" title="' + esc(c.name + ' · ' + c.levelName) + '"></i>'; }).join('') + (ms.length > 12 ? '<em>+' + (ms.length - 12) + '</em>' : '') + '</div>' : '';
+      var tone = last == null ? 'none' : last >= tgt ? 'ok' : last >= 50 ? 'mid' : 'lo';
+      var mark = last == null ? '<span class="sn-mark none" aria-label="henüz deneme yok, hedef ' + tgt + '"><b>?</b><small>hedef ' + tgt + '</small></span>'
+        : '<span class="sn-mark ' + tone + '" role="img" aria-label="son deneme ' + last + ' puan, hedef ' + tgt + '"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + last + '</b></span>';
       return '<div class="sn-desk" style="--i:' + i + '"><div class="sn-top" style="--r:' + (((i * 5) % 5) - 2) * 0.4 + 'deg">' +
-        '<h3 class="sn-dname">' + esc(d.name) + '</h3>' + (src ? '<p class="sn-dsrc">' + esc(src) + '</p>' : '') + sticky +
-        '<div class="sn-dstat">' + (ex.length ? '<b>' + last + '</b><small>son<br>deneme</small>' + spark(ex.slice(-8).map(function (x) { return +x.grade || 0; }), tgt) : '<span class="none">henüz deneme yok · hedef ' + tgt + '</span>') + '</div>' +
-        '<div class="sn-dbtns"><button type="button" class="btn btn-blue" data-try="' + esc(d.key) + '">deneme yap</button><button type="button" class="sn-ghost" data-prof="' + esc(d.key) + '">hoca dosyası</button></div>' +
-        '</div><div class="sn-legs" aria-hidden="true"></div>' + (i % 3 === 0 ? '<i class="sn-pencil" aria-hidden="true"></i>' : '') + '</div>';
-    }).join('') + '<div class="sn-desk add" style="--i:' + ds.length + '"><div class="sn-top"><button type="button" data-add-desk="">+ ' + (ds.length ? 'ders ağacından sıra aç' : 'ilk sıranı aç: ders ağacından bir ders seç') + '</button></div><div class="sn-legs" aria-hidden="true"></div></div>';
+        '<div class="sn-sheet" style="--sr:' + ((((i * 3) % 5) - 2) * 0.9).toFixed(1) + 'deg"><h3 class="sn-dname">' + esc(d.name) + '</h3>' + (src ? '<p class="sn-dsrc">' + esc(src) + '</p>' : '') +
+        '<div class="sn-dstat">' + mark + (ex.length > 1 ? spark(ex.slice(-8).map(function (x) { return +x.grade || 0; }), tgt) : '') + '</div></div>' + sticky + beads +
+        '<div class="sn-dbtns"><button type="button" class="btn btn-blue" data-try="' + esc(d.key) + '">' + (ex.length ? 'deneme yap' : 'ilk deneme') + '</button><button type="button" class="sn-ghost sn-folderb" data-prof="' + esc(d.key) + '" aria-label="' + esc(d.name) + ' hoca dosyası" title="hoca dosyası"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3z"/><path d="M7 14h8"/></svg><span>hoca dosyası</span></button></div>' +
+        '</div><div class="sn-legs" aria-hidden="true"></div><i class="sn-chair" aria-hidden="true"></i>' + (i % 2 === 0 ? '<i class="sn-pencil" aria-hidden="true"></i>' : '') + '</div>';
+    }).join('') + '<div class="sn-desk add" style="--i:' + ds.length + '"><div class="sn-top"><button type="button" data-add-desk=""><span class="pl" aria-hidden="true">+</span>' + (ds.length ? 'ders ağacından sıra aç' : 'ilk sıranı aç: ders ağacından bir ders seç') + '</button></div><div class="sn-legs" aria-hidden="true"></div></div>';
   };
   deskEl.addEventListener('click', function (e) {
     var t = e.target.closest('[data-try]'); if (t) { openBuild(t.getAttribute('data-try')); return; }
@@ -2804,9 +2820,29 @@ window.axNotify = function (title, opts) {
     if (h.diff) checkRadio('exam-difficulty', h.diff);
     if (h.lang) checkRadio('exam-lang', h.lang);
     if (h.sim != null) $('#exam-simulation-toggle').checked = !!h.sim;
-    paintCover();
+    paintCover(); stepGo(1, true);
   };
   $('[data-build]').addEventListener('click', function () { openBuild(null); });
+  /* sınav kâğıdı hazırla: üç adım (kaynak · soru türü · ayarlar). Alanların kimlikleri
+     değişmedi; "kitapçığı dağıt" her adımda açık, adımlar yalnızca düzen. */
+  var stepNow = 1;
+  var paramsOn = function () { var fp = $('#exam-form-params'); return !fp || fp.style.display !== 'none'; };
+  var stepGo = function (n, quiet) {
+    n = Math.max(1, Math.min(3, n));
+    if (n > 1 && !paramsOn()) { if (!quiet) { bdErr.textContent = 'Önce soruların nereden geleceğini seç: bir belge ya da ders ağacından bir ders.'; bdErr.hidden = false; } n = 1; }
+    else if (!quiet) bdErr.hidden = true;
+    stepNow = n;
+    $$('.sn-step', bdDlg).forEach(function (st) { st.hidden = +st.getAttribute('data-step') !== n; });
+    $$('[data-step-go]', bdDlg).forEach(function (b) { var k = +b.getAttribute('data-step-go'); if (k === n) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); b.classList.toggle('done', k < n); });
+    var pv = $('[data-step-prev]', bdDlg), nx = $('[data-step-next]', bdDlg); if (pv) pv.hidden = n === 1; if (nx) nx.hidden = n === 3;
+    if (!quiet && !reduce) { var cur = $('.sn-step[data-step="' + n + '"]', bdDlg); if (cur) { cur.classList.remove('in'); void cur.offsetWidth; cur.classList.add('in'); } }
+    var form = $('.sn-bd-form', bdDlg); if (form && !quiet) form.scrollTop = 0;
+  };
+  bdDlg.addEventListener('click', function (e) {
+    var g = e.target.closest('[data-step-go]'); if (g) { stepGo(+g.getAttribute('data-step-go')); return; }
+    if (e.target.closest('[data-step-next]')) { stepGo(stepNow + 1); return; }
+    if (e.target.closest('[data-step-prev]')) stepGo(stepNow - 1);
+  });
   var countEl = $('#exam-question-count');
   $$('[data-cnt]').forEach(function (b) { b.addEventListener('click', function () { var v = (+countEl.value || 10) + (+b.getAttribute('data-cnt')), mn = +countEl.min || 1, mx = +countEl.max || 20; countEl.value = Math.max(mn, Math.min(mx, v)); countEl.dispatchEvent(new Event('change')); paintCover(); }); });
   var val = function (n) { var r = root.querySelector('input[name="' + n + '"]:checked'); return r ? r.value : ''; };
@@ -2948,7 +2984,10 @@ window.axNotify = function (title, opts) {
     if (lim && started) {
       var left = lsafe(function () { return examTimerRemainingSeconds; }, 0);
       leftEl.textContent = mmss(left); leftNote.textContent = 'kalan süre'; wedge.setAttribute('d', wedgeD(left / lim));
-      clockW.classList.toggle('warn', left <= Math.max(60, lim * 0.1)); clockW.classList.toggle('last', left <= 10);
+      var wn = left <= Math.max(60, lim * 0.1);
+      clockW.classList.toggle('warn', wn); clockW.classList.toggle('last', left <= 10);
+      if (wn && !tick.warned) { tick.warned = true; var gz = $L('[data-gzh]'); if (gz && window.AcadiaKit && AcadiaKit.react) AcadiaKit.react(gz, 'saskin', 2600); }
+      if (!wn) tick.warned = false;
     } else {
       var el = started ? (Date.now() - started) / 1000 : 0;
       leftEl.textContent = mmss(el); leftNote.textContent = lim ? 'süre kitapçığı açınca başlar' : 'geçen süre · sınır yok'; wedge.setAttribute('d', wedgeD(lim ? 1 : (el % 3600) / 3600));
@@ -3547,7 +3586,7 @@ window.axNotify = function (title, opts) {
       if (adPlan && ENG() && typeof ENG().conceptKey === 'function') adPlan.forEach(function (x) { adMap[ENG().conceptKey(x.concept)] = x.reason; });
       var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
       res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((adPlan ? 'akıllı' : (TYPE[exam.exam_type] || 'deneme')) + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
-        '<div class="sn-score" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div>' +
+        '<div class="sn-score-w"><span class="sn-gz-res" data-acadia="" data-mood="' + (g >= 70 ? 'kutlama' : g >= 50 ? 'mutlu' : 'dusunuyor') + '" data-pose="' + (g >= 70 ? 'zipla' : 'dur') + '" data-size="92" data-costume="sinav" aria-hidden="true"></span><div class="sn-score ' + (g >= 70 ? 'ok' : g >= 50 ? 'mid' : 'lo') + '" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div></div>' +
         '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' + mch +
         rs.map(function (r, i) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
@@ -3660,9 +3699,12 @@ window.axNotify = function (title, opts) {
       var meta = (rSel === 'all' ? esc(c.desk.name) + ' · ' : '') + 'son ' + c.recentExams + ' denemede ort. ' + c.recentAvg + ' · ' + when + ' · ' + c.n + ' soru · hafıza %' + c.retention + (c.fewData ? ' · az veri' : '');
       var act = !(c.level <= 1 || c.due) ? '' : c.desk.code ? '<button type="button" class="sn-ghost" data-practice="' + esc(c.desk.code) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>'
         : '<button type="button" class="sn-ghost" data-focus-key="' + esc(c.desk.key) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>';
-      return '<li class="sn-mrow ' + LV_CLS[c.level] + '"><div class="nm"><b>' + esc(c.name) + '</b><span class="mt">' + meta + '</span></div>' +
+      /* konu taşı: halka ustalığı gösterir, ayrıntı satırı kısaltıldı; tamamı title'da */
+      var R = 17, C = 2 * Math.PI * R;
+      return '<li class="sn-mrow ' + LV_CLS[c.level] + (c.due ? ' is-due' : '') + '" title="' + meta.replace(/<[^>]+>/g, '') + '"><span class="ring" role="img" aria-label="ustalık ' + c.mastery + ' / 100"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="' + R + '"/><circle class="v" cx="22" cy="22" r="' + R + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - c.mastery / 100)).toFixed(1) + '"/></svg><b>' + c.mastery + '</b></span>' +
+        '<div class="nm"><b>' + esc(c.name) + '</b><span class="mt">' + (rSel === 'all' ? esc(c.desk.name) + ' · ' : '') + 'hafıza %' + c.retention + ' · ' + c.n + ' soru</span></div>' +
         '<span class="lv">' + esc(c.levelName) + '</span>' + (c.due ? '<span class="due">tekrar zamanı</span>' : '') +
-        '<span class="bar" role="img" aria-label="ustalık ' + c.mastery + ' / 100"><i style="width:' + c.mastery + '%"></i></span>' + act + '</li>';
+        '<span class="bar" aria-hidden="true"><i style="width:' + c.mastery + '%"></i></span>' + act + '</li>';
     }).join('') + (rows.length > 10 ? '<li class="sn-mmore"><button type="button" class="sn-ghost" data-mast-all="">' + (mastAll ? 'daha az göster' : 'tümünü göster (' + rows.length + ')') + '</button></li>' : '');
   };
   var MON_S = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
