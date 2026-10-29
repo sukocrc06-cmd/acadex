@@ -66,6 +66,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'MERMAID_TYPES', 'MERMAID_REVERSE_LABELLED_EDGE', 'repairMermaidArrows',
   'MERMAID_UNQUOTED_PAREN_LABEL', 'repairMermaidLabels',
   'validateMermaid', 'sanitizeDiagrams',
+  // Duz metin kacis dizileri mermaid'i olduruyordu (29.10.2026 olcumu).
+  'normalizeMermaidKacislari',
   // grafik kapisi
   'CHART_TYPES', 'CHART_MIN_POINTS', 'sanitizeCharts',
   // gorsel sayfa secimi
@@ -4679,6 +4681,81 @@ test('boyut siniri makul', () => {
    Ayni kartta dort formulden ikisi ekranda harf harf dizildi:
      "I n t e r e s t = P r i n c i p a l x A n n u a l ..."
    cunku matematik modunda `Interest` sekiz ayri degiskendir. */
+/* DUZ METIN \n ve TERS BOLU + KESME ISARETI
+   (29.10.2026 — "Chp 9 - Group Processes" OLCUMU).
+
+   Kartta ucuncu diyagram HIC cizilmedi ve numaralandirma 1, 3 diye atladi.
+   Sunucu onu saklamisti ("Mermaid validation: 3 kept, 0 dropped"), yani
+   dogrulayici fazla yumusakti. Veritabanindan okunan kaynak:
+
+     flowchart
+     TD\\n    A[Situational Control] --> B[High Control]\\n    A --> C[...]
+
+   Iki kusur: satir sonlari GERCEK degil duz metin, ve 'flowchart' yonsuz
+   kalmis. tekSatirAc yardim edemiyor cunku kaynakta gercek satir sonu VAR.
+
+   Ayni kartta kavram tanimi "workers\\' feelings" diye cikti ve diyagram
+   basligi "Fiedler\\'s" oldu. Suclu repairLatexEscapes'in KENDISIYDI:
+   ' JSON'da gecerli kacis olmadigi icin gecersiz-kacis dali ters boluyu
+   kaciriyor ve dizede ters bolu + kesme olarak kaliyordu. */
+console.log('\nMERMAID KACISLARI VE KESME ISARETI\n');
+
+test('OLCULEN BOZUK DIYAGRAM gecerli mermaid e donuyor', () => {
+  const bozuk = 'flowchart\nTD\\n    A[Situational Control] --> B[High Control]\\n    A --> C[Moderate Control]';
+  const r = A.normalizeMermaidKacislari(bozuk);
+  assert.equal(r.mermaid,
+    'flowchart TD\n    A[Situational Control] --> B[High Control]\n    A --> C[Moderate Control]');
+  assert.equal(r.repaired, 2, 'iki kusur da onarilmali: duz \\n ve ayri yon satiri');
+  // Dogrulayici artik onu gecerli sayip ONARILMIS haliyle dondurmeli.
+  const v = A.validateMermaid(bozuk);
+  assert.equal(v.ok, true, 'onarimdan sonra gecerli olmali: ' + v.reason);
+  assert.ok(!/\\\\n/.test(v.mermaid), 'ciktida duz metin \\n kalmamali');
+  assert.ok(/^flowchart TD/.test(v.mermaid));
+});
+
+test('SAGLAM mermaid degismiyor', () => {
+  for (const saglam of [
+    'flowchart TD\n    A[X] --> B[Y]',
+    'graph LR\n    A[Antecedents] --> B[Symptoms]\n    B --> C[Defective]'
+  ]) {
+    const r = A.normalizeMermaidKacislari(saglam);
+    assert.equal(r.mermaid, saglam, saglam);
+    assert.equal(r.repaired, 0);
+  }
+  assert.equal(A.normalizeMermaidKacislari(null).mermaid, '');
+});
+
+test('normalizasyon ok/etiket onarimindan ONCE kosuyor', () => {
+  /* Ok onarimi satir bazli calisiyor; satirlar henuz ayrilmamissa onlari
+     hic gormezdi. */
+  const i = SRC.indexOf('const kacislar = normalizeMermaidKacislari(src)');
+  const j = SRC.indexOf('const arrowsFixed = repairMermaidArrows(src)');
+  assert.ok(i > 0 && j > 0);
+  assert.ok(i < j, 'kacis normalizasyonu ok onarimindan once gelmeli');
+  assert.match(SRC, /repaired: kacislar\.repaired \+ arrowsFixed\.repaired/,
+    'onarim sayaci normalizasyonu da saymali');
+});
+
+test('TERS BOLU + KESME: ters bolu atiliyor, karakter kaliyor', () => {
+  const kesme = String.fromCharCode(39);
+  // Ham JSON: ters bolu + kesme isareti (gecersiz JSON kacisi).
+  const olcum = '{"a":"with workers\\' + kesme + ' feelings and relationships"}';
+  assert.equal(JSON.parse(A.repairLatexEscapes(olcum)).a,
+    'with workers' + kesme + ' feelings and relationships');
+  const baslik = '{"a":"Fiedler\\' + kesme + 's Contingency Theory"}';
+  assert.equal(JSON.parse(A.repairLatexEscapes(baslik)).a, 'Fiedler' + kesme + 's Contingency Theory');
+  // Ters tirnak da ayni ailede.
+  assert.equal(JSON.parse(A.repairLatexEscapes('{"a":"\\`abc"}')).a, '`abc');
+});
+
+test('LaTeX AYIRACI korunmaya devam ediyor (fazla genis degil)', () => {
+  /* \\( ve \\[ gercek ayirac; onlarin ters bolusu KALMALI, yoksa
+     renderMathInText matematigi hic bulamaz. */
+  assert.equal(JSON.parse(A.repairLatexEscapes('{"a":"\\\\( x \\\\)"}')).a, '\\( x \\)');
+  assert.ok(JSON.parse(A.repairLatexEscapes('{"a":"\\\\frac{a}{b}"}')).a.includes('\\frac'));
+  assert.equal(JSON.parse(A.repairLatexEscapes('{"a":"bir\\niki"}')).a, 'bir\niki');
+});
+
 console.log('\nANLATI DUZ YAZISI VE FORMUL SOZCUKLERI\n');
 
 test('OLCULEN UC ANLATI PARCASI duz yaziya ceviriliyor', () => {

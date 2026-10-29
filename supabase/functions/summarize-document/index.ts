@@ -230,6 +230,23 @@ function repairLatexEscapes(json: string): string {
        bozuluyordu. */
     const n = s[i + 1] ?? ''
 
+    /* TERS BOLU + KESME ISARETI: TERS BOLU ATILIR (29.10.2026 olcumu).
+     *
+     * "Chp 9 - Group Processes" kartinda kavram tanimi ekranda boyle cikti:
+     *   "concerned more with getting the job done than with workers\' feelings"
+     * Diyagram basligi da "Fiedler\'s Contingency Theory" oldu. Suclu BU
+     * FONKSIYONDU: ' JSON'da gecerli kacis olmadigi icin asagidaki gecersiz
+     * kacis dali ters boluyu KACIRIP koruyor ve dize icinde ters bolu +
+     * kesme olarak kaliyor.
+     *
+     * \( ve \[ icin korumak dogru — onlar gercek LaTeX ayiraci. \' icin
+     * degil: model orada yalnizca kesme isareti istiyor. LaTeX'te \' keskin
+     * aksandir (\'e = é) ama bu derslerde hic gecmiyor ve gecse de ekranda
+     * zaten ham basilirdi. Ters bolu atiliyor, karakter kaliyor.
+     *
+     * Ayni sey ters tirnak icin (\` = ters aksan): o da kesme ailesinden. */
+    if (n === "'" || n === '`') { out += n; i++; continue }
+
     // Gecersiz kacis (\( \) \[ \v \s ...): kacirilir. Bu ayni zamanda
     // sert ayristirma hatalarini da duzeltiyor.
     if (!JSON_GECERLI_KACIS.has(n)) { out += '\\\\' + n; i++; continue }
@@ -4577,10 +4594,53 @@ function repairMermaidLabels(src: string): { mermaid: string; repaired: number }
   return { mermaid, repaired }
 }
 
+/** Duz metin kacis dizilerini gercek satir sonuna cevirir; yon satirini
+ *  basliga birlestirir. Bkz. validateMermaid icindeki olcum notu. */
+function normalizeMermaidKacislari(raw: string): { mermaid: string; repaired: number } {
+  let s = String(raw || '')
+  let repaired = 0
+  /* Mermaid satir sonunu <br/> ile yazar, \n diye YAZMAZ — yani metinde
+     duz ters bolu+n gorunduyse o bir kacis artigidir. */
+  if (/\\[nrt]/.test(s)) {
+    const once = s
+    s = s.replace(/\\r\\n|\\n|\\r/g, '\n').replace(/\\t/g, '    ')
+    if (s !== once) repaired++
+  }
+  // 'flowchart' / 'graph' tek basina, yon alt satirda: ayni satira alinir.
+  const yonAyri = /^([ \t]*(?:flowchart|graph))[ \t]*\n[ \t]*(TD|TB|BT|LR|RL)\b[ \t]*/i
+  if (yonAyri.test(s)) {
+    /* Sonrasindaki satir sonu OLDUGU GIBI kaliyor: '\n' eklemek bos satir
+       uretiyordu (zararsiz ama kaynagi kirletiyor). */
+    s = s.replace(yonAyri, '$1 $2')
+    repaired++
+  }
+  return { mermaid: s.trim(), repaired }
+}
+
 function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: string; repaired?: number } {
   let src = String(raw || '').trim()
   // Models often wrap it in a fenced code block despite being asked not to.
   src = src.replace(/^```+\s*mermaid\s*/i, '').replace(/```+\s*$/, '').trim()
+  /* DUZ METIN \n MERMAID'I OLDURUYOR (29.10.2026 olcumu).
+   *
+   * "Chp 9 - Group Processes" kartinda ucuncu diyagram ekranda HIC
+   * cizilmedi ve numaralandirma 1, 3 diye atladi. Sunucu onu saklamisti
+   * ("Mermaid validation: 3 kept, 0 dropped"), yani dogrulayici fazla
+   * yumusakti. Saklanan kaynak:
+   *
+   *   flowchart
+   *   TD\n    A[Situational Control] --> B[High Control]\n    A --> C[...]
+   *
+   * Iki ayri kusur: (1) satir sonlari GERCEK degil, duz metin ters bolu+n;
+   * (2) 'flowchart' tek basina bir satirda, yon 'TD' alt satirda. Mermaid
+   * ikisini de ayristiramaz. Tek bir gercek \n kacisi islemis, geri kalani
+   * model \\n diye yazdigi icin duz metin kalmis.
+   *
+   * tekSatirAc bu halde yardim edemiyor: kaynakta gercek satir sonu VAR,
+   * o yuzden dokunmadan geciyor. Normalizasyon ondan once gelmeli. */
+  const kacislar = normalizeMermaidKacislari(src)
+  src = kacislar.mermaid
+
   if (!src) return { ok: false, mermaid: src, reason: 'bos' }
   if (src.length > 4000) return { ok: false, mermaid: src, reason: 'cok uzun' }
 
@@ -4597,7 +4657,7 @@ function validateMermaid(raw: string): { ok: boolean; mermaid: string; reason?: 
   // otherwise undo the quoting.
   const labelsFixed = repairMermaidLabels(src)
   src = labelsFixed.mermaid
-  const fixed = { repaired: arrowsFixed.repaired + labelsFixed.repaired }
+  const fixed = { repaired: kacislar.repaired + arrowsFixed.repaired + labelsFixed.repaired }
 
   /* TEK SATIR HER ZAMAN COPLUK DEGIL (09.10.2026).
      Canli kosuda "Dummy Variable and Interaction Structure" diyagrami tam
