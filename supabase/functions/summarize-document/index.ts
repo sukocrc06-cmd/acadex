@@ -384,13 +384,59 @@ function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } 
  * $...$ ve \\(...\\) ICI HIC ELLENMIYOR: orayi KaTeX dogru diziyor. */
 const ANLATI_MATEMATIK_ADACIK_RE = /\$[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
 
+/* Komut siniri: \int ile \infty ayri komutlar, ve \int_{0} gibi hallerde
+   ardindan '_' geliyor — '_' regex'te KELIME karakteri oldugu icin \b
+   calismaz. Bu yuzden her yerde (?![a-zA-Z]) kullaniliyor. */
+const YUM_SEMBOL: Array<[RegExp, string]> = [
+  [/\\iint(?![a-zA-Z])/g, '\u222C'], [/\\oint(?![a-zA-Z])/g, '\u222E'],
+  [/\\int(?![a-zA-Z])/g, '\u222B'],
+  [/\\sum(?![a-zA-Z])/g, '\u2211'], [/\\prod(?![a-zA-Z])/g, '\u220F'],
+  [/\\infty(?![a-zA-Z])/g, '\u221E'],
+  [/\\partial(?![a-zA-Z])/g, '\u2202'], [/\\nabla(?![a-zA-Z])/g, '\u2207'],
+  [/\\(?:rightarrow|to)(?![a-zA-Z])/g, '\u2192'],
+  [/\\(?:lvert|rvert|mid|vert)(?![a-zA-Z])/g, '|'],
+  [/\\alpha(?![a-zA-Z])/g, '\u03B1'], [/\\beta(?![a-zA-Z])/g, '\u03B2'],
+  [/\\gamma(?![a-zA-Z])/g, '\u03B3'], [/\\delta(?![a-zA-Z])/g, '\u03B4'],
+  [/\\(?:varepsilon|epsilon)(?![a-zA-Z])/g, '\u03B5'],
+  [/\\theta(?![a-zA-Z])/g, '\u03B8'], [/\\lambda(?![a-zA-Z])/g, '\u03BB'],
+  [/\\mu(?![a-zA-Z])/g, '\u03BC'], [/\\pi(?![a-zA-Z])/g, '\u03C0'],
+  [/\\rho(?![a-zA-Z])/g, '\u03C1'], [/\\sigma(?![a-zA-Z])/g, '\u03C3'],
+  [/\\tau(?![a-zA-Z])/g, '\u03C4'], [/\\phi(?![a-zA-Z])/g, '\u03C6'],
+  [/\\omega(?![a-zA-Z])/g, '\u03C9'],
+  [/\\Delta(?![a-zA-Z])/g, '\u0394'], [/\\Sigma(?![a-zA-Z])/g, '\u03A3'],
+  [/\\Omega(?![a-zA-Z])/g, '\u03A9']
+]
+
+/* Fonksiyon adlari: komut isareti kalkar, ad kalir (\\sin x -> sin x). */
+const YUM_FONKSIYON = /\\(arcsin|arccos|arctan|sinh|cosh|tanh|sin|cos|tan|sec|csc|cot|ln|log|exp|lim|max|min|det|deg|gcd)(?![a-zA-Z])/g
+
+/* Rakam alt/ust simgeleri Unicode karsiligina cevrilir: _{0} -> alt 0,
+   ^{2} -> ust 2. Harf tasiyanlar (x^n) oldugu gibi kaliyor, cunku Unicode'da
+   butun harflerin alt/ust bicimi yok. */
+const UST_RAKAM: Record<string, string> = {
+  '0': '\u2070', '1': '\u00B9', '2': '\u00B2', '3': '\u00B3', '4': '\u2074',
+  '5': '\u2075', '6': '\u2076', '7': '\u2077', '8': '\u2078', '9': '\u2079'
+}
+const ALT_RAKAM: Record<string, string> = {
+  '0': '\u2080', '1': '\u2081', '2': '\u2082', '3': '\u2083', '4': '\u2084',
+  '5': '\u2085', '6': '\u2086', '7': '\u2087', '8': '\u2088', '9': '\u2089'
+}
+
 function anlatiLatexYumusat(parca: string): string {
   let t = String(parca || '')
-  if (t.indexOf('\\') === -1) return t
+  /* Erken cikis: ters bolu YA DA suslu alt/ust simge yoksa yapacak is yok.
+     Ikinci kosul sart — "nx^{n-1}" ters bolu tasimiyor ama suslu parantezi
+     temizlenmeli (olculdu: tek basina gelen madde metinleri boyle). */
+  if (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t)) return t
   // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
   t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
-  // \frac{a}{b} -> a/b (ic ice olmayan hali; digeri formul kartinin isi).
-  t = t.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2')
+  /* \frac{a}{b} -> a/b (ic ice olmayan hali; digeri formul kartinin isi).
+     Pay ya da paydada islem varsa PARANTEZ: \frac{1}{b-a} -> 1/(b-a),
+     yoksa "1/b-a" diye belirsiz okunurdu. */
+  t = t.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (_m, pay, payda) => {
+    const sar = (x: string) => /[+\-*/^\s]/.test(String(x).trim()) ? `(${String(x).trim()})` : String(x).trim()
+    return `${sar(pay)}/${sar(payda)}`
+  })
   t = t.replace(/\\(?:times|cdot)\b/g, 'x')
   t = t.replace(/\\div\b/g, '/')
   t = t.replace(/\\pm\b/g, '+/-')
@@ -399,12 +445,47 @@ function anlatiLatexYumusat(parca: string): string {
   t = t.replace(/\\(?:left|right|displaystyle)\b/g, '')
   // Ince bosluk komutlari: \, \; \! \quad \qquad \ (ters bolu + bosluk)
   t = t.replace(/\\(?:qquad|quad)\b/g, ' ').replace(/\\[,;!:> ]/g, ' ')
+  // Sembol ve fonksiyon adlari (bkz. YUM_SEMBOL / YUM_FONKSIYON).
+  for (const [re, yerine] of YUM_SEMBOL) t = t.replace(re, yerine)
+  t = t.replace(YUM_FONKSIYON, '$1')
+  // Rakam alt/ust simgeleri.
+  t = t.replace(/\^\{(\d+)\}|\^(\d)/g, (_m, suslu, tek) =>
+    [...String(suslu ?? tek)].map((d) => UST_RAKAM[d] || d).join(''))
+  t = t.replace(/_\{(\d+)\}|_(\d)/g, (_m, suslu, tek) =>
+    [...String(suslu ?? tek)].map((d) => ALT_RAKAM[d] || d).join(''))
+  /* Harf tasiyan alt/ust simgede Unicode karsilik yok; suslu parantez
+     yerine okunur bicim: \int_{a}^{b} -> ∫_a^b. Icerikte ISLEM varsa
+     normal parantez kaliyor, yoksa nx^{n-1} "nx^n-1" diye belirsiz
+     okunurdu. Uzun icerik dokunulmuyor; orada parantez anlam tasiyor. */
+  t = t.replace(/([\^_])\{([^{}\s]{1,8})\}/g, (_m, isaret, icerik) =>
+    /[+\-*/=]/.test(String(icerik)) ? `${isaret}(${icerik})` : `${isaret}${icerik}`)
   return t.replace(/[ \t]{2,}/g, ' ')
 }
 
+/* AYIRACSIZ LATEX ANLATI DISINA DA SIZIYOR (29.10.2026 olcumu).
+ *
+ * "Week 10 Basic Applications of Integrals" kartinda anlati DOGRUYDU —
+ * model orada $...$ kullandi ve KaTeX duzgun dizdi:
+ *   "finding an antiderivative $F(x)$ and computing $\int_{a}^{b} f(x) \, dx$"
+ * Ama ayni model ayiracsiz LaTeX'i baska alanlara yazdi ve oralar ham cikti:
+ *   key_points:      "...applies the formula \int u \, dv = uv - \int v \, du."
+ *   quiz_questions:  "Compute the definite integral \int_{0}^{3} 3 \, dx."
+ *   worked_examples: "Evaluate the integral \int 2x(x^2 + 1)^3 \, dx."
+ *
+ * Yumusatma anlati icin yazilmisti ama defect ALAN BAGIMSIZ. Ayni islem
+ * butun DUZ YAZI alanlarina uygulaniyor. Kapsam disinda kalanlar bilincli:
+ *   formulas[].latex  -> gercek LaTeX, KaTeX onu dizecek
+ *   diagrams[].mermaid -> mermaid kaynagi, LaTeX degil
+ * Ikisine dokunmak calisan tek seyi bozardi. */
+const YUM_DUZ_YAZI_ALANLARI = [
+  'summary', 'summary_executive'
+] as const
+
 function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } {
   const s = String(metin || '')
-  if (s.indexOf('\\') === -1) return { metin: s, yumusatilan: 0 }
+  // Erken cikis anlatiLatexYumusat'takiyle AYNI olmali, yoksa ic fonksiyon
+  // hic cagrilmaz ve suslu alt/ust simge temizligi olu kod olur.
+  if (s.indexOf('\\') === -1 && !/[\^_]\{/.test(s)) return { metin: s, yumusatilan: 0 }
   let yumusatilan = 0
   let out = ''
   let son = 0
@@ -13452,6 +13533,52 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         if (y.yumusatilan > 0) {
           parsedContent[alan] = y.metin
           console.log(`Anlati LaTeX duz yaziya cevrildi: ${alan} (${y.yumusatilan} parca)`)
+        }
+      }
+
+      /* --- Ayni yumusatma ANLATI DISI duz yazi alanlarina da — bkz.
+         YUM_DUZ_YAZI_ALANLARI yanindaki olcum notu. formulas[].latex ve
+         diagrams[].mermaid BILEREK disarida. */
+      {
+        let sayac = 0
+        const yum = (t: any): any => {
+          if (typeof t !== 'string' || t.indexOf('\\') === -1) return t
+          const r = onarAnlatiLatex(t)
+          if (r.yumusatilan > 0) sayac++
+          return r.metin
+        }
+        const yumDizi = (a: any) => Array.isArray(a) ? a.map(yum) : a
+        parsedContent.key_points = yumDizi(parsedContent.key_points)
+        for (const q of (Array.isArray(parsedContent.quiz_questions) ? parsedContent.quiz_questions : [])) {
+          if (!q || typeof q !== 'object') continue
+          q.question = yum(q.question)
+          q.answer = yum(q.answer)
+          q.options = yumDizi(q.options)
+        }
+        for (const sec of (Array.isArray(parsedContent.sections) ? parsedContent.sections : [])) {
+          if (!sec || typeof sec !== 'object') continue
+          sec.heading = yum(sec.heading)
+          sec.summary = yum(sec.summary)
+          sec.key_points = yumDizi(sec.key_points)
+        }
+        for (const kt of (Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [])) {
+          if (!kt || typeof kt !== 'object') continue
+          kt.definition = yum(kt.definition)
+        }
+        for (const w of (Array.isArray(parsedContent.worked_examples) ? parsedContent.worked_examples : [])) {
+          if (!w || typeof w !== 'object') continue
+          w.title = yum(w.title)
+          w.prompt = yum(w.prompt)
+          w.question = yum(w.question)
+          w.final_answer = yum(w.final_answer)
+          w.steps = Array.isArray(w.steps)
+            ? w.steps.map((st: any) => (st && typeof st === 'object')
+              ? { ...st, text: yum(st.text), explanation: yum(st.explanation) }
+              : yum(st))
+            : w.steps
+        }
+        if (sayac > 0) {
+          console.log(`Ayiracsiz LaTeX duz yaziya cevrildi: ${sayac} alan (anlati disi)`)
         }
       }
 

@@ -116,6 +116,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'duzMaddeMetni', 'normalizeKeyPoints',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
   'ANLATI_MATEMATIK_ADACIK_RE', 'anlatiLatexYumusat', 'onarAnlatiLatex',
+  // Ayiracsiz LaTeX anlati disina da siziyordu (29.10.2026 olcumu).
+  'YUM_SEMBOL', 'YUM_FONKSIYON', 'UST_RAKAM', 'ALT_RAKAM', 'YUM_DUZ_YAZI_ALANLARI',
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
   // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
@@ -4698,6 +4700,78 @@ test('boyut siniri makul', () => {
    basligi "Fiedler\\'s" oldu. Suclu repairLatexEscapes'in KENDISIYDI:
    ' JSON'da gecerli kacis olmadigi icin gecersiz-kacis dali ters boluyu
    kaciriyor ve dizede ters bolu + kesme olarak kaliyordu. */
+/* AYIRACSIZ LATEX ANLATI DISINA DA SIZIYOR
+   (29.10.2026 — "Week 10 Basic Applications of Integrals" OLCUMU).
+
+   Bu kartta ANLATI DOGRUYDU: model orada $...$ kullandi ve KaTeX duzgun
+   dizdi ("$F(x)$", "$\\int_{a}^{b} f(x) \\, dx = F(b) - F(a)$"). Yani
+   yumusatma ayiracli matematige dokunmadi — tasarlandigi gibi.
+
+   Ama ayni model AYIRACSIZ LaTeX'i baska alanlara yazdi ve oralar ham
+   cikti (veritabanindan birebir):
+     key_points:      "...applies the formula \\int u \\, dv = uv - \\int v \\, du."
+     quiz_questions:  "Compute the definite integral \\int_{0}^{3} 3 \\, dx."
+     quiz_questions:  "Evaluate the indefinite integral \\int 2x(x^2 + 1)^3 \\, dx using substitution."
+   Defect ALAN BAGIMSIZ, o yuzden ayni islem butun duz yazi alanlarinda. */
+console.log('\nAYIRACSIZ LATEX: ANLATI DISI ALANLAR\n');
+
+test('OLCULEN UC ALAN okunur hale geliyor', () => {
+  const INT = String.fromCharCode(0x222B);
+  const olculen = [
+    ['Integration by parts applies the formula \\int u \\, dv = uv - \\int v \\, du. [10]',
+     'Integration by parts applies the formula ' + INT + ' u dv = uv - ' + INT + ' v du. [10]'],
+    ['Compute the definite integral \\int_{0}^{3} 3 \\, dx.',
+     'Compute the definite integral ' + INT + String.fromCharCode(0x2080) + String.fromCharCode(0x00B3) + ' 3 dx.'],
+    ['Evaluate the indefinite integral \\int 2x(x^2 + 1)^3 \\, dx using substitution.',
+     'Evaluate the indefinite integral ' + INT + ' 2x(x' + String.fromCharCode(0x00B2) + ' + 1)' + String.fromCharCode(0x00B3) + ' dx using substitution.']
+  ];
+  for (const [girdi, bekle] of olculen) assert.equal(A.onarAnlatiLatex(girdi).metin, bekle, girdi);
+});
+
+test('integral/toplam/sonsuz ve fonksiyon adlari', () => {
+  const y = (g) => A.onarAnlatiLatex(g).metin;
+  assert.equal(y('\\int \\sin x \\, dx = -\\cos x + C'),
+    String.fromCharCode(0x222B) + ' sin x dx = -cos x + C');
+  assert.equal(y('as x \\to \\infty'),
+    'as x ' + String.fromCharCode(0x2192) + ' ' + String.fromCharCode(0x221E));
+  assert.ok(y('\\sum_{i=1}^{n} \\beta_i').startsWith(String.fromCharCode(0x2211)));
+  // \\int ile \\infty ayri komutlar; \\int_{0} gibi hallerde ardindan '_'
+  // geliyor ve '_' regex'te kelime karakteri oldugu icin \\b CALISMAZ.
+  assert.ok(!y('\\infty').includes(String.fromCharCode(0x222B)), 'infty int ile karistirilmis');
+  assert.ok(y('\\int_{0}^{1}').includes(String.fromCharCode(0x222B)), 'alt simgeli int taninmali');
+});
+
+test('frac ve alt/ust simge OKUNUR, belirsiz DEGIL', () => {
+  const y = (g) => A.onarAnlatiLatex(g).metin;
+  // Pay/paydada islem varsa parantez: yoksa '1/b-a' diye okunurdu.
+  assert.ok(y('f_{avg} = \\frac{1}{b-a} \\int_{a}^{b} f(x) \\, dx').includes('1/(b-a)'));
+  assert.ok(y('\\frac{d}{dx}(x^n)').startsWith('d/dx'), 'islemsiz pay parantez ALMAMALI');
+  // Ust simgede islem varsa parantez: 'nx^n-1' belirsizdir.
+  assert.ok(y('nx^{n-1}').includes('^(n-1)'));
+  assert.ok(y('f_{upper}(x)').startsWith('f_upper'), 'islemsiz kisa icerik parantezsiz');
+});
+
+test('ANLATI DISI ALANLAR gercekten baglanmis', () => {
+  /* Yumusatma yalnizca summary'de kalirsa madde ve sorular ham kalir —
+     olculen hata tam buydu. */
+  for (const alan of [
+    'parsedContent.key_points = yumDizi(parsedContent.key_points)',
+    'q.question = yum(q.question)',
+    'sec.summary = yum(sec.summary)',
+    'kt.definition = yum(kt.definition)',
+    'w.final_answer = yum(w.final_answer)'
+  ]) assert.ok(SRC.includes(alan), 'baglanmamis: ' + alan);
+});
+
+test('FORMUL ve MERMAID kaynagina DOKUNULMUYOR', () => {
+  /* formulas[].latex gercek LaTeX (KaTeX dizecek), diagrams[].mermaid ise
+     LaTeX bile degil. Ikisini yumusatmak calisan tek seyi bozardi. */
+  const blok = SRC.slice(SRC.indexOf('const yumDizi = (a: any)'),
+                         SRC.indexOf('Ayiracsiz LaTeX duz yaziya cevrildi'));
+  assert.ok(!/formulas/.test(blok), 'formulas[].latex yumusatilmis');
+  assert.ok(!/mermaid/.test(blok), 'diagrams[].mermaid yumusatilmis');
+});
+
 console.log('\nMERMAID KACISLARI VE KESME ISARETI\n');
 
 test('OLCULEN BOZUK DIYAGRAM gecerli mermaid e donuyor', () => {
