@@ -2688,14 +2688,18 @@ window.axNotify = function (title, opts) {
 
   /* ---------- kapı: sınav takvimi ---------- */
   var calEl = $('[data-cal]'), calTip = $('[data-cal-tip]');
+  /* tahtadaki geri sayım kartının başı (takvim ve "tahtaya yaz" önizlemesi ortak) */
+  var tkHtml = function (e, i) {
+    var n = dayDiff(e.event_date), d = new Date(e.event_date.slice(0, 10) + 'T00:00:00'), cls = n < 0 ? ' past' : n <= 7 ? ' soon' : '';
+    var big = n < 0 ? '✓' : n === 0 ? '!' : String(n), unit = n < 0 ? (-n) + ' gün önceydi' : n === 0 ? 'bugün' : n === 1 ? 'gün · yarın' : 'gün kaldı';
+    return '<li class="sn-tk' + cls + '" style="--r:' + (((i * 7) % 5) - 2) * 0.6 + 'deg;--i:' + i + '"><span class="sn-tk-n" aria-hidden="true">' + big + '</span><span class="sn-tk-b"><span class="u">' + unit + '</span><b>' + esc(e.title) + '</b><small>' + d.getDate() + ' ' + MON[d.getMonth()] + '</small></span>';
+  };
   var paintCal = function () {
     var list = EV.filter(function (e) { return e.event_date && dayDiff(e.event_date) >= -2; }).slice(0, 10);
     if (!list.length) { calEl.innerHTML = '<li class="sn-cal-empty">takvim boş. vize ve final tarihlerini tahtaya yaz; geri sayım burada başlar.</li>'; calTip.textContent = ''; return; }
     /* tahtada tebeşirle geri sayım: büyük gün sayısı, ders, tarih (25.10.2026 yeniden tasarım) */
     calEl.innerHTML = list.map(function (e, i) {
-      var n = dayDiff(e.event_date), d = new Date(e.event_date.slice(0, 10) + 'T00:00:00'), cls = n < 0 ? ' past' : n <= 7 ? ' soon' : '';
-      var big = n < 0 ? '✓' : n === 0 ? '!' : String(n), unit = n < 0 ? (-n) + ' gün önceydi' : n === 0 ? 'bugün' : n === 1 ? 'gün · yarın' : 'gün kaldı';
-      return '<li class="sn-tk' + cls + '" style="--r:' + (((i * 7) % 5) - 2) * 0.6 + 'deg;--i:' + i + '"><span class="sn-tk-n" aria-hidden="true">' + big + '</span><span class="sn-tk-b"><span class="u">' + unit + '</span><b>' + esc(e.title) + '</b><small>' + d.getDate() + ' ' + MON[d.getMonth()] + '</small></span><button type="button" class="sn-tk-x" data-ev-x="' + esc(e.id) + '" aria-label="' + esc(e.title) + ' tarihini kaldır">×</button></li>';
+      return tkHtml(e, i) + '<button type="button" class="sn-tk-x" data-ev-x="' + esc(e.id) + '" aria-label="' + esc(e.title) + ' tarihini kaldır">×</button></li>';
     }).join('');
     var next = list.filter(function (e) { return dayDiff(e.event_date) >= 0; })[0];
     calTip.textContent = next ? (dayDiff(next.event_date) === 0 ? 'bugün ' + next.title + '. kolay gelsin!' : 'en yakını ' + next.title + ': ' + dayDiff(next.event_date) + ' gün. ' + (dayDiff(next.event_date) <= 7 ? 'her gün bir deneme iyi gider.' : 'şimdiden haftada iki deneme yeter.')) : '';
@@ -2723,18 +2727,31 @@ window.axNotify = function (title, opts) {
   var calDlg = $('[data-caldlg]'), calF = $('[data-calf]');
   $('[data-cal-add]').addEventListener('click', function () {
     $('#axs-courses').innerHTML = desks().map(function (d) { return '<option value="' + esc(d.name) + '">'; }).join('');
-    calF.reset(); $('[data-cl-date]').min = today(); calDlg.showModal(); setTimeout(function () { $('[data-cl-course]').focus(); }, 30);
+    calF.reset(); $('[data-cl-date]').min = today(); clPrev(); calDlg.showModal(); setTimeout(function () { $('[data-cl-course]').focus(); }, 30);
+  });
+  /* "tahtaya yaz": tür çipleri, hızlı tarih ve canlı önizleme (29.10.2026) */
+  var clKind = function () { var r = calF.querySelector('[data-cl-kind]:checked'); return r ? r.value : 'vize'; };
+  var clPrev = function () {
+    var box = $('[data-cl-prev]'); if (!box) return;
+    var c = $('[data-cl-course]').value.trim(), d = $('[data-cl-date]').value;
+    box.innerHTML = d ? tkHtml({ title: (c || 'ders') + ' ' + clKind(), event_date: d }, 0) + '</li>' : '<li class="sn-cal-empty">tarihi seç; geri sayım burada belirir.</li>';
+  };
+  calF.addEventListener('input', clPrev); calF.addEventListener('change', clPrev);
+  calF.addEventListener('click', function (e) {
+    var q = e.target.closest('[data-cl-quick]'); if (!q) return;
+    var t = new Date(); t.setDate(t.getDate() + (+q.getAttribute('data-cl-quick')));
+    $('[data-cl-date]').value = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); clPrev();
   });
   calF.addEventListener('submit', async function (e) {
     e.preventDefault();
-    var course = $('[data-cl-course]').value.trim(), kind = $('[data-cl-kind]').value, date = $('[data-cl-date]').value; if (!course || !date) return;
+    var course = $('[data-cl-course]').value.trim(), kind = clKind(), date = $('[data-cl-date]').value; if (!course || !date) return;
     var sub = $('button[type="submit"]', calF); sub.disabled = true;
     var r = await sb().from('study_events').insert({ user_id: me().id, title: course + ' ' + kind, event_date: date, event_type: 'exam', notes: '', is_done: false }).select();
     sub.disabled = false;
     if (r.error) { say('Tarih eklenemedi; tekrar dene.'); return; }
     calDlg.close(); EV.push((r.data && r.data[0]) || { id: 'n' + Date.now(), title: course + ' ' + kind, event_date: date, event_type: 'exam' });
     EV.sort(function (a, b) { return a.event_date < b.event_date ? -1 : 1; }); paintCal();
-    say('Kapıya asıldı; planlayıcına da düştü.', null, true);
+    say('Tahtaya yazıldı; planlayıcına da düştü.', null, true);
   });
 
   /* ---------- sıralar ---------- */

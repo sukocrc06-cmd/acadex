@@ -7680,10 +7680,27 @@ function openGradeCalculator() {
     if (saved.targetGrade != null) document.getElementById('gc-target-grade').value = saved.targetGrade;
   } catch (e) { /* ignore malformed/missing saved state */ }
 
+  // Karne kâğıdı (29.10.2026): "Hesapla" düğmesi yok; yazdıkça hesaplanır.
+  // Sürgü vize ağırlığını, final kalanını alır; kutular elle de düzeltilebilir.
+  if (!modal.__gcWired) {
+    modal.__gcWired = true;
+    const vw = document.getElementById('gc-vize-weight'), fw = document.getElementById('gc-final-weight'), sp = document.getElementById('gc-split');
+    const clamp = (v) => Math.max(0, Math.min(100, v));
+    if (sp) sp.addEventListener('input', () => { sp.style.setProperty('--p', sp.value + '%'); vw.value = sp.value; fw.value = 100 - (+sp.value); computeRequiredGrade(); });
+    vw.addEventListener('input', () => { const v = parseFloat(vw.value); if (!Number.isNaN(v)) { fw.value = clamp(100 - v); if (sp) { sp.value = v; sp.style.setProperty('--p', clamp(v) + '%'); } } computeRequiredGrade(); });
+    fw.addEventListener('input', () => { const v = parseFloat(fw.value); if (!Number.isNaN(v)) { vw.value = clamp(100 - v); if (sp) { sp.value = clamp(100 - v); sp.style.setProperty('--p', clamp(100 - v) + '%'); } } computeRequiredGrade(); });
+    ['gc-vize-grade', 'gc-target-grade'].forEach((id) => document.getElementById(id).addEventListener('input', computeRequiredGrade));
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeGradeCalculator(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('active')) closeGradeCalculator(); });
+  }
+  const sp = document.getElementById('gc-split');
+  if (sp) { sp.value = parseFloat(document.getElementById('gc-vize-weight').value) || 0; sp.style.setProperty('--p', sp.value + '%'); }
   const resultBox = document.getElementById('gc-result-box');
-  if (resultBox) resultBox.style.display = 'none';
+  if (resultBox) resultBox.dataset.state = 'idle';
+  computeRequiredGrade(true);
 
   modal.classList.add('active');
+  setTimeout(() => { const g = document.getElementById('gc-vize-grade'); if (g) g.focus(); }, 60);
 }
 window.openGradeCalculator = openGradeCalculator;
 
@@ -7693,49 +7710,54 @@ function closeGradeCalculator() {
 }
 window.closeGradeCalculator = closeGradeCalculator;
 
-function computeRequiredGrade() {
-  const vizeWeight = parseFloat(document.getElementById('gc-vize-weight').value);
-  const finalWeight = parseFloat(document.getElementById('gc-final-weight').value);
-  const vizeGrade = parseFloat(document.getElementById('gc-vize-grade').value);
-  const targetGrade = parseFloat(document.getElementById('gc-target-grade').value);
+// Saf hesap: test edilebilir, DOM'a dokunmaz.
+function gradeCalcResult(vizeWeight, finalWeight, vizeGrade, targetGrade) {
+  if ([vizeWeight, finalWeight, vizeGrade, targetGrade].some(v => Number.isNaN(v))) return { state: 'idle' };
+  if (finalWeight <= 0) return { state: 'bad', msg: 'final ağırlığı 0 olamaz; sürgüyü kaydır.' };
+  const required = (targetGrade - (vizeWeight / 100) * vizeGrade) / (finalWeight / 100);
+  const sumOff = Math.round(vizeWeight + finalWeight) !== 100 ? (vizeWeight + finalWeight) : null;
+  if (required > 100) return { state: 'bad', required, sumOff };
+  if (required <= 0) return { state: 'done', required, sumOff };
+  return { state: required >= 80 ? 'hard' : required >= 60 ? 'mid' : 'ok', required, sumOff };
+}
+window.gradeCalcResult = gradeCalcResult;
 
-  const resultBox = document.getElementById('gc-result-box');
-  if (!resultBox) return;
+function computeRequiredGrade(quiet) {
+  const num = (id) => parseFloat(document.getElementById(id).value);
+  const vizeWeight = num('gc-vize-weight'), finalWeight = num('gc-final-weight'), vizeGrade = num('gc-vize-grade'), targetGrade = num('gc-target-grade');
+  const box = document.getElementById('gc-result-box');
+  if (!box) return;
+  const q = (sel) => box.parentNode.querySelector(sel);
+  const r = gradeCalcResult(vizeWeight, finalWeight, vizeGrade, targetGrade);
+  const prev = box.dataset.state;
+  box.dataset.state = r.state;
+  const k = q('[data-gc-k]'), msg = q('[data-gc-msg]'), n = q('[data-gc-n]'), bar = q('[data-gc-bar]'), leg = q('[data-gc-legend]');
 
-  if ([vizeWeight, finalWeight, vizeGrade, targetGrade].some(v => Number.isNaN(v))) {
-    resultBox.style.display = 'block';
-    resultBox.style.background = '#FEE2E2';
-    resultBox.style.color = '#DC2626';
-    resultBox.textContent = 'Lütfen tüm alanları doldurun.';
-    return;
-  }
-
-  if (Math.round(vizeWeight + finalWeight) !== 100) {
-    resultBox.style.display = 'block';
-    resultBox.style.background = '#FEF3C7';
-    resultBox.style.color = '#D97706';
-    resultBox.textContent = `Uyarı: vize + final ağırlığı %100 etmiyor (şu an %${vizeWeight + finalWeight}). Yine de hesaplanıyor...`;
-  }
-
-  try {
-    localStorage.setItem(GRADE_CALC_STORAGE_KEY, JSON.stringify({ vizeWeight, finalWeight, vizeGrade, targetGrade }));
-  } catch (e) { /* localStorage unavailable — non-critical, skip persistence */ }
-
-  const requiredFinal = (targetGrade - (vizeWeight / 100) * vizeGrade) / (finalWeight / 100);
-
-  resultBox.style.display = 'block';
-  if (requiredFinal > 100) {
-    resultBox.style.background = '#FEE2E2';
-    resultBox.style.color = '#DC2626';
-    resultBox.textContent = `Bu hedefe vize notunuzla ulaşmak matematiksel olarak mümkün değil (finalden %${Math.round(requiredFinal)} gerekir). Hedefi gözden geçirin.`;
-  } else if (requiredFinal <= 0) {
-    resultBox.style.background = 'var(--color-teal-light)';
-    resultBox.style.color = 'var(--color-teal)';
-    resultBox.textContent = `Tebrikler — vize notunuzla hedefi zaten garantilediniz, finalden 0 alsanız bile yeterli!`;
+  if (r.state === 'idle') {
+    k.textContent = 'finalden en az'; n.textContent = '?';
+    msg.textContent = 'vize notunu ve hedefini yaz; hesap kendiliğinden çıkar.';
+    bar.style.setProperty('--v', '0%'); bar.style.setProperty('--f', '0%'); leg.textContent = '';
   } else {
-    resultBox.style.background = requiredFinal >= 80 ? '#FEE2E2' : (requiredFinal >= 60 ? '#FEF3C7' : 'var(--color-teal-light)');
-    resultBox.style.color = requiredFinal >= 80 ? '#DC2626' : (requiredFinal >= 60 ? '#D97706' : 'var(--color-teal)');
-    resultBox.textContent = `Finalden en az ${Math.ceil(requiredFinal)} almanız gerekiyor.`;
+    if (!Number.isNaN(vizeWeight) && !Number.isNaN(finalWeight)) {
+      try { localStorage.setItem(GRADE_CALC_STORAGE_KEY, JSON.stringify({ vizeWeight, finalWeight, vizeGrade, targetGrade })); } catch (e) { /* kayıt şart değil */ }
+    }
+    const warn = r.sumOff != null ? ` (dikkat: ağırlıklar toplamı %${r.sumOff})` : '';
+    if (r.required == null) { k.textContent = 'olmaz'; n.textContent = '—'; msg.textContent = r.msg; }
+    else if (r.state === 'bad') { k.textContent = 'finalden gereken'; n.textContent = Math.round(r.required); msg.textContent = 'vize notunla bu hedef matematiksel olarak mümkün değil; hedefi gözden geçir.' + warn; }
+    else if (r.state === 'done') { k.textContent = 'finalden en az'; n.textContent = '0'; msg.textContent = 'tebrikler, hedef vizeyle garanti; finalden 0 alsan da yeter.' + warn; }
+    else {
+      k.textContent = 'finalden en az'; n.textContent = Math.ceil(r.required);
+      msg.textContent = (r.state === 'hard' ? 'zorlu ama mümkün; finale kadar düzenli deneme çöz.' : r.state === 'mid' ? 'ulaşılabilir; zayıf konulara odaklan.' : 'rahat bir hedef; tekrarla sağlama al.') + warn;
+    }
+    const vc = Math.max(0, Math.min(100, (vizeWeight / 100) * vizeGrade));
+    const fc = r.required == null ? 0 : Math.max(0, Math.min(100 - vc, (finalWeight / 100) * Math.max(0, Math.min(100, r.required))));
+    bar.style.setProperty('--v', vc + '%'); bar.style.setProperty('--f', fc + '%'); bar.style.setProperty('--t', Math.max(0, Math.min(100, targetGrade)) + '%');
+    const f1 = (x) => x.toFixed(1).replace('.', ',');
+    leg.textContent = r.required == null ? '' : r.state === 'bad' ? `en fazla: vizeden ${f1(vc)} + finalden ${f1(fc)} = ${f1(vc + fc)} < hedef ${targetGrade}` : `vizeden ${f1(vc)} + finalden ${f1(fc)} = hedef ${targetGrade}`;
+  }
+  if (!quiet && prev !== r.state && window.AcadiaKit && AcadiaKit.react) {
+    const gz = q('[data-gc-gz]'), mood = { done: 'kutlama', ok: 'mutlu', mid: 'odakli', hard: 'saskin', bad: 'uzgun' }[r.state];
+    if (gz && mood) AcadiaKit.react(gz, mood, 2400);
   }
 }
 window.computeRequiredGrade = computeRequiredGrade;

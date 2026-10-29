@@ -1202,17 +1202,23 @@
 </dialog>
 
 <!-- takvim -->
-<dialog class="sn-dlg" data-caldlg="" aria-labelledby="cl-t">
-<form class="sn-dlg-in" data-calf="">
+<dialog class="sn-dlg sn-caldlg" data-caldlg="" aria-labelledby="cl-t">
+<form class="sn-dlg-in sn-chalkf" data-calf="">
 <button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
-<h2 id="cl-t" class="disp">takvime sınav ekle</h2>
-<label class="sn-f"><span>ders</span><input type="text" maxlength="60" data-cl-course="" list="axs-courses" required placeholder="ör. FIN201 Finansal Yönetim"><datalist id="axs-courses"></datalist></label>
-<div class="sn-f2">
-<label class="sn-f"><span>tür</span><select data-cl-kind=""><option>vize</option><option>final</option><option>quiz</option><option>bütünleme</option></select></label>
-<label class="sn-f"><span>tarih</span><input type="date" data-cl-date="" required></label>
-</div>
+<h2 id="cl-t" class="hand">tahtaya sınav yaz</h2>
+<label class="sn-f"><span>ders</span><input type="text" maxlength="60" data-cl-course="" list="axs-courses" required placeholder="ör. FIN201 Finansal Yönetim" autocomplete="off"><datalist id="axs-courses"></datalist></label>
+<fieldset class="sn-f sn-kinds"><legend>tür</legend>
+<label><input type="radio" name="cl-kind" value="vize" data-cl-kind="" checked><span>vize</span></label>
+<label><input type="radio" name="cl-kind" value="final" data-cl-kind=""><span>final</span></label>
+<label><input type="radio" name="cl-kind" value="quiz" data-cl-kind=""><span>quiz</span></label>
+<label><input type="radio" name="cl-kind" value="bütünleme" data-cl-kind=""><span>bütünleme</span></label>
+</fieldset>
+<div class="sn-f sn-when"><label for="cl-date"><span>tarih</span></label>
+<div class="sn-when-r"><input type="date" id="cl-date" data-cl-date="" required>
+<button type="button" data-cl-quick="7">+1 hafta</button><button type="button" data-cl-quick="14">+2 hafta</button><button type="button" data-cl-quick="30">+1 ay</button></div></div>
+<div class="sn-clprev" aria-live="polite"><span class="sn-clprev-k">tahtada böyle görünecek</span><ol class="sn-cal" data-cl-prev=""></ol></div>
 <p class="axs-pf-n">Tarih çalışma planlayıcına da “sınav” olarak düşer.</p>
-<div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark">kapıya as</button></div>
+<div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn sn-chalkb">tahtaya yaz</button></div>
 </form>
 </dialog>
 </div>
@@ -2131,36 +2137,33 @@
   </div>
 
   <!-- Grade Calculator Modal — "finalden kaç almam lazım" -->
-  <div class="modal-overlay" id="grade-calc-modal" role="dialog" aria-modal="true" aria-labelledby="grade-calc-modal-title">
-    <div class="modal-card" style="max-width: 440px; position: relative;">
-      <button class="btn-icon" style="position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; font-size: 1.25rem; font-weight: bold; color: var(--color-text-muted); cursor: pointer; line-height: 1;" onclick="closeGradeCalculator()" aria-label="Close modal">×</button>
-      <h3 class="modal-title" id="grade-calc-modal-title" style="color: var(--color-navy); font-weight: 800; font-size: 1.25rem;">🎯 Not Hesaplayıcı</h3>
-      <p style="font-size: 0.82rem; color: var(--color-text-muted); margin-top: 0.35rem; margin-bottom: 1rem;">Vize/final ağırlıklarınızı ve hedef ders notunuzu girin, finalden kaç almanız gerektiğini görün.</p>
-      <div style="display: flex; flex-direction: column; gap: 0.9rem;">
-        <div style="display: flex; gap: 0.75rem;">
-          <div style="flex: 1;">
-            <label for="gc-vize-weight" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Vize Ağırlığı (%)</label>
-            <input type="number" id="gc-vize-weight" class="search-input" value="40" min="0" max="100" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-          </div>
-          <div style="flex: 1;">
-            <label for="gc-final-weight" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Final Ağırlığı (%)</label>
-            <input type="number" id="gc-final-weight" class="search-input" value="60" min="0" max="100" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-          </div>
+  <div class="modal-overlay gc-modal" id="grade-calc-modal" role="dialog" aria-modal="true" aria-labelledby="grade-calc-modal-title">
+    <div class="modal-card gc-card">
+      <button type="button" class="gc-x" onclick="closeGradeCalculator()" aria-label="Kapat">×</button>
+      <span class="gc-clip" aria-hidden="true"></span>
+      <p class="gc-k">karne kâğıdı</p>
+      <h3 class="modal-title gc-t" id="grade-calc-modal-title">finalden kaç almalıyım?</h3>
+      <p class="gc-sub">ağırlıkları ayarla, vize notunu ve hedefini yaz; sonuç anında çıkar.</p>
+      <div class="gc-w">
+        <div class="gc-w-h"><span>vize</span><span>final</span></div>
+        <input type="range" id="gc-split" class="gc-split" min="0" max="100" step="5" value="40" aria-label="Vize ağırlığı (final kalanı alır)">
+        <div class="gc-w-n">
+          <label for="gc-vize-weight"><span>vize %</span><input type="number" id="gc-vize-weight" value="40" min="0" max="100" inputmode="numeric"></label>
+          <label for="gc-final-weight"><span>final %</span><input type="number" id="gc-final-weight" value="60" min="0" max="100" inputmode="numeric"></label>
         </div>
-        <div style="display: flex; gap: 0.75rem;">
-          <div style="flex: 1;">
-            <label for="gc-vize-grade" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Vize Notunuz</label>
-            <input type="number" id="gc-vize-grade" class="search-input" min="0" max="100" placeholder="örn. 65" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-          </div>
-          <div style="flex: 1;">
-            <label for="gc-target-grade" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-navy); margin-bottom: 0.3rem;">Hedef Ders Notu</label>
-            <input type="number" id="gc-target-grade" class="search-input" min="0" max="100" placeholder="örn. 70" style="width: 100%; padding: 0.55rem; border: 1px solid rgba(22,50,92,0.15); border-radius: var(--radius-sm); font-size: 0.85rem;">
-          </div>
-        </div>
-        <button type="button" class="btn btn-primary" style="border: none;" onclick="computeRequiredGrade()">Hesapla</button>
-        <div id="gc-result-box" style="display: none; padding: 0.9rem; border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 700; text-align: center;"></div>
-        <p style="font-size: 0.72rem; color: var(--color-text-muted); margin: 0;">Not: Bu hesaplama sadece iki bileşenli (vize + final) basit ağırlıklandırma içindir; dersinizin gerçek notlandırma sistemi farklıysa (ödev, katılım vb.) sonucu ona göre yorumlayın.</p>
       </div>
+      <div class="gc-g">
+        <label class="gc-big" for="gc-vize-grade"><span>vize notun</span><input type="number" id="gc-vize-grade" min="0" max="100" placeholder="65" inputmode="decimal"></label>
+        <label class="gc-big" for="gc-target-grade"><span>hedef ders notu</span><input type="number" id="gc-target-grade" min="0" max="100" placeholder="70" inputmode="decimal"></label>
+      </div>
+      <div class="gc-res" id="gc-result-box" data-state="idle" role="status" aria-live="polite">
+        <div class="gc-res-l"><span class="gc-res-k" data-gc-k>finalden en az</span><p data-gc-msg>vize notunu ve hedefini yaz; hesap kendiliğinden çıkar.</p></div>
+        <div class="gc-mark" aria-hidden="true"><svg viewBox="0 0 120 96"><path pathLength="1" d="M66 9C98 8 116 30 111 54C106 80 76 92 50 88C20 84 5 62 10 39C15 17 38 6 70 11"/></svg><b data-gc-n>?</b></div>
+        <span class="gc-gz" data-gc-gz data-acadia data-mood="dusunuyor" data-pose="dur" data-size="76" data-costume="sinav" aria-hidden="true"></span>
+      </div>
+      <div class="gc-bar" data-gc-bar aria-hidden="true"><i class="v"></i><i class="f"></i><em></em></div>
+      <p class="gc-legend" data-gc-legend aria-hidden="true"></p>
+      <p class="gc-note">Not: bu hesap yalnız iki bileşenli (vize + final) basit ağırlıklandırma içindir; dersinde ödev, katılım gibi başka bileşenler varsa sonucu ona göre yorumla.</p>
     </div>
   </div>
 

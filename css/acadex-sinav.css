@@ -286,3 +286,103 @@ html.ax-dark body #exams-view.axs .sn-gz,html.ax-dark body #axs-layer#axs-layer 
 @media (prefers-reduced-motion:reduce){
   html body #exams-view.axs *,html body #axs-layer#axs-layer *{animation:none!important;transition:none!important}
 }
+
+/* =========================== TAHTAYA SINAV YAZ (takvim penceresi) =========================== */
+html body #exams-view.axs .sn-caldlg{width:min(560px,calc(100vw - 24px))}
+html body #exams-view.axs .sn-caldlg .sn-chalkf{padding:24px 26px 20px;border:12px solid #8C5A2B;border-top-width:12px;border-radius:16px;color:#F4F1E6;
+  background:radial-gradient(120% 90% at 30% 20%,#2C4436 0,#22352B 55%,#1B2B22 100%);box-shadow:inset 0 0 50px rgba(0,0,0,.35),0 30px 50px -20px rgba(0,0,0,.7)}
+html body #exams-view.axs .sn-caldlg h2{margin:0 0 14px;font-family:"Caveat","Segoe Print",cursive;font-size:38px;font-weight:700;line-height:1;color:#fff}
+html body #exams-view.axs .sn-caldlg .sn-x{color:rgba(244,241,230,.75);background:transparent}
+html body #exams-view.axs .sn-caldlg .sn-x:hover{color:#fff;background:rgba(255,255,255,.1)}
+html body #exams-view.axs .sn-caldlg .sn-f>span,html body #exams-view.axs .sn-caldlg .sn-f legend,html body #exams-view.axs .sn-caldlg .sn-when label span{display:block;margin:0 0 6px;padding:0;font-family:"Caveat","Segoe Print",cursive;font-size:22px;color:#FFD86B;line-height:1}
+html body #exams-view.axs .sn-caldlg .sn-f input[type=text],html body #exams-view.axs .sn-caldlg .sn-f input[type=date]{min-height:46px;border:0;border-bottom:2.5px dashed rgba(244,241,230,.55);border-radius:0;background:rgba(255,255,255,.04);color:#fff;font-family:"Caveat","Segoe Print",cursive;font-size:24px;padding:4px 8px;color-scheme:dark}
+html body #exams-view.axs .sn-caldlg .sn-f input::placeholder{color:rgba(244,241,230,.4)}
+html body #exams-view.axs .sn-caldlg .sn-f input:focus{border-bottom-style:solid;border-bottom-color:#FFD86B;box-shadow:none;background:rgba(255,255,255,.07)}
+html body #exams-view.axs .sn-kinds{display:flex!important;flex-wrap:wrap;gap:8px}
+html body #exams-view.axs .sn-kinds legend{flex-basis:100%;float:left;width:100%}
+html body #exams-view.axs .sn-kinds label{position:relative;cursor:pointer}
+html body #exams-view.axs .sn-kinds input{position:absolute;opacity:0;pointer-events:none}
+html body #exams-view.axs .sn-kinds span{display:inline-block;padding:6px 16px;border:2px dashed rgba(244,241,230,.5);border-radius:999px;font-family:"Caveat","Segoe Print",cursive;font-size:22px;line-height:1.1;color:#F4F1E6;transition:transform .15s}
+html body #exams-view.axs .sn-kinds input:checked+span{border-style:solid;border-color:#F4F1E6;background:#F4F1E6;color:#22352B;font-weight:700;transform:rotate(-2deg)}
+html body #exams-view.axs .sn-kinds input:focus-visible+span{outline:2px solid #FFD86B;outline-offset:2px}
+html body #exams-view.axs .sn-when-r{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+html body #exams-view.axs .sn-when-r input{flex:1 1 180px;width:auto!important}
+html body #exams-view.axs .sn-when-r button{padding:6px 12px;border:2px solid rgba(244,241,230,.45);border-radius:10px;background:transparent;color:#F4F1E6;font-weight:700;font-size:13px;cursor:pointer}
+html body #exams-view.axs .sn-when-r button:hover{background:rgba(255,255,255,.1);border-color:#F4F1E6}
+html body #exams-view.axs .sn-clprev{margin:14px 0 6px;padding:10px 12px 12px;border-radius:12px;background:rgba(0,0,0,.18)}
+html body #exams-view.axs .sn-clprev-k{display:block;margin-bottom:6px;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(244,241,230,.55)}
+html body #exams-view.axs .sn-clprev .sn-tk{min-width:0;padding-right:14px;animation:sn-in .35s var(--sn-ease) both}
+html body #exams-view.axs .sn-clprev .sn-tk-b b{max-width:none;white-space:normal}
+html body #exams-view.axs .sn-clprev .sn-cal-empty{font-size:20px;padding:8px 12px}
+html body #exams-view.axs .sn-caldlg .axs-pf-n{color:rgba(244,241,230,.65);font-size:12.5px;margin:6px 0 12px}
+html body #exams-view.axs .sn-caldlg .sn-dlg-b{border-top:0;padding-top:0;background:transparent}
+html body #exams-view.axs .sn-caldlg .sn-dlg-b .sn-ghost{background:transparent!important;color:#F4F1E6!important;border:2px solid rgba(244,241,230,.4)!important}
+html body #exams-view.axs .sn-caldlg .sn-chalkb{min-height:46px;padding:0 22px;border:0;border-radius:12px;background:#F4F1E6;color:#22352B;font-family:"Caveat","Segoe Print",cursive;font-size:26px;font-weight:700;box-shadow:0 4px 0 #B9B2A0}
+html body #exams-view.axs .sn-caldlg .sn-chalkb:hover{background:#FFD86B}
+html.ax-dark body #exams-view.axs .sn-caldlg .sn-chalkf{filter:invert(1) hue-rotate(180deg)}
+
+/* =========================== NOT HESAPLAYICI · karne kâğıdı =========================== */
+html body #grade-calc-modal.gc-modal{background:rgba(13,24,56,.5);padding:16px}
+html body #grade-calc-modal .gc-card{position:relative;display:block;max-width:520px;width:100%;max-height:calc(100vh - 32px);overflow:auto;padding:30px 30px 20px 54px;text-align:left;color:#0D1838;
+  border:0;border-radius:4px;background:#FFFDF7 repeating-linear-gradient(transparent 0 31px,#E6EAF2 31px 32px);box-shadow:0 30px 60px -24px rgba(0,0,0,.65);transform:rotate(-.6deg) scale(.95)}
+html body #grade-calc-modal.active .gc-card{transform:rotate(-.6deg) scale(1)}
+html body #grade-calc-modal .gc-card::before{content:"";position:absolute;left:38px;top:0;bottom:0;width:2px;background:#F2A6A6}
+html body #grade-calc-modal .gc-clip{position:absolute;left:60px;top:-12px;width:18px;height:44px;border:3px solid #9AA3B5;border-radius:10px;border-bottom-color:transparent}
+html body #grade-calc-modal .gc-x{position:absolute;right:12px;top:10px;width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:#6A7593;font-size:22px;line-height:1;cursor:pointer}
+html body #grade-calc-modal .gc-x:hover{background:#F0ECE2;color:#0D1838}
+html body #grade-calc-modal .gc-k{margin:0;font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#D9472B}
+html body #grade-calc-modal .gc-t{margin:2px 0 2px;font-family:"Caveat","Segoe Print",cursive;font-size:38px;font-weight:700;line-height:1.05;color:#0D1838}
+html body #grade-calc-modal .gc-sub{margin:0 0 14px;font-size:13.5px;color:#46506A}
+html body #grade-calc-modal .gc-w{margin:0 0 14px;padding:12px 14px;border:2.5px solid #0D1838;border-radius:14px;background:#fff;box-shadow:3px 3px 0 #0D1838}
+html body #grade-calc-modal .gc-w-h{display:flex;justify-content:space-between;font-family:"Caveat","Segoe Print",cursive;font-size:22px;font-weight:700;line-height:1}
+html body #grade-calc-modal .gc-w-h span:first-child{color:#2F6BFF}html body #grade-calc-modal .gc-w-h span:last-child{color:#D9472B}
+html body #grade-calc-modal .gc-split{-webkit-appearance:none;appearance:none;width:100%;height:16px;margin:8px 0;border-radius:999px;background:linear-gradient(90deg,#2F6BFF 0 var(--p,40%),#F7C9BF var(--p,40%));outline:none}
+html body #grade-calc-modal .gc-split::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#FFD86B;border:3px solid #0D1838;box-shadow:2px 2px 0 #0D1838;cursor:grab}
+html body #grade-calc-modal .gc-split::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#FFD86B;border:3px solid #0D1838;cursor:grab}
+html body #grade-calc-modal .gc-split:focus-visible{box-shadow:0 0 0 3px rgba(47,107,255,.35)}
+html body #grade-calc-modal .gc-w-n{display:flex;justify-content:space-between;gap:10px}
+html body #grade-calc-modal .gc-w-n label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:#46506A}
+html body #grade-calc-modal .gc-w-n input{width:64px;min-height:34px;padding:2px 8px;border:2px solid #D8D2C4;border-radius:8px;background:#FFFDF7;font-family:"JetBrains Mono",monospace;font-size:14px;color:#0D1838;text-align:center}
+html body #grade-calc-modal .gc-g{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 14px}
+html body #grade-calc-modal .gc-big{display:flex;flex-direction:column;gap:2px}
+html body #grade-calc-modal .gc-big span{font-size:12.5px;font-weight:800;color:#46506A}
+html body #grade-calc-modal .gc-big input{width:100%;min-height:58px;padding:0 10px;border:0;border-bottom:3px solid #0D1838;border-radius:0;background:transparent;font-family:"Caveat","Segoe Print",cursive;font-size:44px;font-weight:700;line-height:1;color:#2F6BFF;-moz-appearance:textfield}
+html body #grade-calc-modal .gc-big input::placeholder{color:#C9C3B6}
+html body #grade-calc-modal .gc-big input:focus{outline:none;border-bottom-color:#2F6BFF;background:rgba(47,107,255,.05)}
+html body #grade-calc-modal input[type=number]::-webkit-inner-spin-button,html body #grade-calc-modal input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+html body #grade-calc-modal .gc-res{display:grid!important;grid-template-columns:minmax(0,1fr) 112px 70px;align-items:center;gap:8px;margin:0;padding:14px 0 6px;border-top:2px dashed #CFC8B8;background:none!important;color:#0D1838!important;text-align:left;font-weight:400}
+html body #grade-calc-modal .gc-res-k{display:block;font-family:"Caveat","Segoe Print",cursive;font-size:24px;font-weight:700;line-height:1}
+html body #grade-calc-modal .gc-res p{margin:4px 0 0;font-size:13.5px;line-height:1.4;color:#46506A}
+html body #grade-calc-modal .gc-mark{position:relative;width:112px;height:90px;display:grid;place-items:center;color:#B9B4AA;transform:rotate(-8deg)}
+html body #grade-calc-modal .gc-mark svg{position:absolute;inset:0;width:100%;height:100%}
+html body #grade-calc-modal .gc-mark path{fill:none;stroke:currentColor;stroke-width:4;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0}
+html body #grade-calc-modal .gc-mark b{position:relative;font-family:"Caveat","Segoe Print",cursive;font-size:48px;font-weight:700;line-height:1}
+html body #grade-calc-modal [data-state="idle"] .gc-mark path{stroke-dasharray:.04 .03}
+html body #grade-calc-modal [data-state="ok"] .gc-mark,html body #grade-calc-modal [data-state="done"] .gc-mark{color:#2E8E5B}
+html body #grade-calc-modal [data-state="mid"] .gc-mark{color:#C77D10}
+html body #grade-calc-modal [data-state="hard"] .gc-mark,html body #grade-calc-modal [data-state="bad"] .gc-mark{color:#D9472B}
+html body #grade-calc-modal [data-state="bad"] .gc-mark b{text-decoration:line-through;text-decoration-thickness:3px}
+html body #grade-calc-modal .gc-res:not([data-state="idle"]) .gc-mark path{animation:gc-draw .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes gc-draw{from{stroke-dashoffset:1}}
+html body #grade-calc-modal .gc-gz{display:block;width:70px;height:76px}
+html body #grade-calc-modal .gc-gz svg{width:100%;height:100%;overflow:visible}
+html body #grade-calc-modal .gc-bar{position:relative;display:flex;height:16px;margin:8px 0 4px;border-radius:999px;background:#EEE8DC;overflow:visible}
+html body #grade-calc-modal .gc-bar i{display:block;height:100%;transition:width .45s cubic-bezier(.2,.8,.2,1)}
+html body #grade-calc-modal .gc-bar .v{width:var(--v,0%);background:#2F6BFF;border-radius:999px 0 0 999px}
+html body #grade-calc-modal .gc-bar .f{width:var(--f,0%);background:repeating-linear-gradient(45deg,#D9472B 0 6px,#E86A4F 6px 12px)}
+html body #grade-calc-modal .gc-bar em{position:absolute;left:var(--t,0%);top:-5px;bottom:-5px;width:3px;margin-left:-1.5px;border-radius:2px;background:#0D1838}
+html body #grade-calc-modal .gc-res[data-state="idle"]~.gc-bar em{display:none}
+html body #grade-calc-modal .gc-legend{min-height:18px;margin:0 0 8px;font-family:"JetBrains Mono",monospace;font-size:11.5px;color:#6A7593}
+html body #grade-calc-modal .gc-note{margin:0;font-size:11.5px;line-height:1.45;color:#6A7593}
+html.ax-dark body #grade-calc-modal .gc-gz{filter:invert(1) hue-rotate(180deg)}
+@media (max-width:520px){
+  html body #grade-calc-modal .gc-card{padding:26px 16px 16px 40px}
+  html body #grade-calc-modal .gc-card::before{left:28px}
+  html body #grade-calc-modal .gc-t{font-size:32px}
+  html body #grade-calc-modal .gc-res{grid-template-columns:minmax(0,1fr) 96px;grid-template-areas:"l m" "z z"}
+  html body #grade-calc-modal .gc-gz{display:none}
+  html body #grade-calc-modal .gc-mark{width:96px;height:78px}
+}
+@media (prefers-reduced-motion:reduce){
+  html body #grade-calc-modal *,html body #grade-calc-modal .gc-card{animation:none!important;transition:none!important}
+}

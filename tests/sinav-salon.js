@@ -88,4 +88,39 @@ test('hareket azaltma ve koyu tema korumaları', () => {
   assert.match(css, /transform-origin:50px 50px/, 'saat kolları merkezden dönmeli');
 });
 
+/* 29.10.2026: not hesaplayıcı "karne kâğıdı" ve "tahtaya sınav yaz" penceresi */
+const dash = read('js/dashboard.js');
+const gcHtml = html.slice(html.indexOf('id="grade-calc-modal"'), html.indexOf('Global Confirm Modal'));
+const calHtml = html.slice(html.indexOf('data-caldlg'), html.indexOf('</dialog>', html.indexOf('data-caldlg')));
+
+test('not hesaplayıcı: alan kimlikleri korunuyor, canlı hesap, Hesapla düğmesi yok', () => {
+  for (const id of ['gc-vize-weight', 'gc-final-weight', 'gc-vize-grade', 'gc-target-grade', 'gc-result-box', 'gc-split'])
+    assert.ok(gcHtml.includes('id="' + id + '"'), id);
+  assert.ok(!gcHtml.includes('onclick="computeRequiredGrade()"'), 'eski Hesapla düğmesi kalmış');
+  assert.match(dash, /\['gc-vize-grade', 'gc-target-grade'\]\.forEach\(\(id\) => document\.getElementById\(id\)\.addEventListener\('input', computeRequiredGrade\)\)/);
+  assert.ok(css.includes('#grade-calc-modal'), 'karne kâğıdı stili yok');
+});
+
+test('not hesaplayıcı: hesap doğru (finalden gereken)', () => {
+  const src = dash.slice(dash.indexOf('function gradeCalcResult('), dash.indexOf('window.gradeCalcResult'));
+  const f = new Function(src + '; return gradeCalcResult;')();
+  const r = f(40, 60, 65, 70);
+  assert.equal(r.state, 'mid'); assert.equal(Math.ceil(r.required), 74);
+  assert.equal(f(40, 60, 65, 99).state, 'bad');
+  assert.equal(f(40, 60, 100, 30).state, 'done');
+  assert.equal(f(40, 60, 90, 50).state, 'ok');
+  assert.equal(f(40, 60, NaN, 50).state, 'idle');
+  assert.equal(f(100, 0, 50, 50).state, 'bad', 'final ağırlığı 0 iken bölme hatası olmamalı');
+  assert.equal(f(30, 60, 60, 70).sumOff, 90, 'toplam %100 değilse uyarı');
+});
+
+test('tahtaya sınav yaz: tür çipleri, hızlı tarih, canlı önizleme', () => {
+  assert.equal((calHtml.match(/type="radio" name="cl-kind"[^>]*data-cl-kind/g) || []).length, 4);
+  for (const q of ['7', '14', '30']) assert.ok(calHtml.includes('data-cl-quick="' + q + '"'));
+  assert.ok(calHtml.includes('data-cl-prev') && calHtml.includes('data-cl-course') && calHtml.includes('data-cl-date'));
+  assert.match(ink, /kind = clKind\(\)/, 'tür artık seçili çipten okunmalı');
+  assert.match(ink, /var tkHtml = function/);
+  assert.ok(css.includes('.sn-caldlg'));
+});
+
 summary();
