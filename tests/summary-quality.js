@@ -109,7 +109,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
-  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
   // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
   'ONBELLEK_OCR_MAX_KRK', 'ONBELLEK_OCR_SURUM', 'onbellektenOcrMetni',
@@ -4928,6 +4928,42 @@ test('OCR metni sayfa isareti tasiyor', () => {
 /* OCR matematigi bozuyor: "d(5x^3 - 3x^2 + 7)" -> "d (521 - 323+7)".
    O sayilar belgede YOK, kart onlari asla iceremez. 29 sayfalik taramada
    23 hedefin hepsi bu siniftandi ve kullaniciya "%0" rozeti gosterildi. */
+/* DERS KODU VE NOKTALI CAG ISARETI (29.10.2026 — BUS211 week3 OLCUMU).
+
+   Kart ogrenciye "sayisal kapsama %67" rozeti gosterdi. Loglardan iki
+   kayip sayinin baglami:
+     211  <- "remained as BUS101. --- SAYFA 2 --- BUS211 History of Science"
+     3200 <- "--- SAYFA 24 --- 3200 B.C. Mesopotamia"
+   Window 1 ayrica 0/2 (%0) raporladi, kayiplari 101 ve 211 — ucu de
+   artefakt. Gercek kapsama 4/4'tu; rozet YANLIS bilgi veriyordu. */
+test('DERS KODU sayi sayilmaz (BUS211, BUS101)', () => {
+  const n = A.distinctiveNumbers('remained as BUS101. BUS211 History of Science and Technology');
+  assert.deepEqual(n, [], 'ders kodu olculen deger sayilmis: ' + JSON.stringify(n));
+});
+
+test('NOKTALI cag isareti de eleniyor (3200 B.C.)', () => {
+  assert.deepEqual(A.distinctiveNumbers('3200 B.C. Mesopotamia'), []);
+  // Noktasiz bicim bozulmadan calismaya devam ediyor (BUS211 week4 olcumu).
+  assert.deepEqual(A.distinctiveNumbers('his Republic (ca. 390 bce), for example'), []);
+  for (const g of ['7500 BC', '1200 A.D.', '45 b.c.e.', '390 BCE']) {
+    assert.deepEqual(A.distinctiveNumbers(g), [], `cag isareti elenmedi: ${g}`);
+  }
+});
+
+test('GERCEK MIKTAR hala sayiliyor: filtreler fazla genis degil', () => {
+  /* Ayni kartta tasinmasi gereken degerler. Bir miktarin onunde bosluk ya
+     da simge olur; rakamin HARFE yapismasi kimlik isaretidir. */
+  /* 12-25 gibi kucuk tam sayilar ZATEN ayirt edici sayilmiyor (ondalik ya
+     da >=100 sarti) — bu filtrelerle ilgili degil, bkz. ustteki test. */
+  assert.ok(A.distinctiveNumbers('beginning inventory of $43,803 million').includes(43803));
+  assert.ok(A.distinctiveNumbers('2.3 million blocks averaging 2.5 tons').length > 0);
+  assert.ok(A.distinctiveNumbers('drifted backward every 1,460 years').includes(1460));
+  assert.ok(A.distinctiveNumbers('army of 20,000 ruling 2.5 million peasants').includes(20000));
+  // Tek harf + rakam us/alt simgedir, ders kodu dali onu YUTMAMALI.
+  assert.ok(A.distinctiveNumbers('the value 101 appears alone').includes(101),
+    'bosluktan sonra gelen sayi hala miktar');
+});
+
 test('sayisal kapsama rozeti OCR metninde yayinlanmaz', () => {
   assert.ok(/kapsama\.total >= KAPSAMA_ROZET_MIN_ORNEK && !ocrKullanildi/.test(SRC),
     'OCR metninde rozet hala yayinlaniyor — hayalet sayilardan %0 cikar');

@@ -4757,13 +4757,41 @@ const BOZUK_US_RE = /(\d[.,]\d+)\s*[x×*]?\s*10-?\d{1,3}\b/gi
  * Bu, tarihin karta GIRMEMESI gerektigi anlamina GELMEZ: prompt zaten
  * "dates, ranges and quantities ... carry them verbatim" diyor. Degisen
  * sey yalnizca sayisal kapsama rozetinin neyi sayacagi. */
-const CAG_YILI_RE = /\b\d{1,4}\s*(?:bce|bc|ad|ce|mo|ms|m\.o\.|m\.s\.)\b/gi
+/* NOKTALI CAG ISARETI DE CAG ISARETIDIR (29.10.2026 olcumu).
+ *
+ * Desen yalnizca noktasiz bicimi taniyordu. "BUS211 week3" kosusunda
+ * kayip sayilardan biri suydu:
+ *   3200 <- "--- SAYFA 24 --- 3200 B.C. Mesopotamia"
+ * "390 bce" yakalaniyor ama "3200 B.C." yakalanmiyordu: `bc` ardi ardina
+ * iki harf istiyor, metinde arada nokta var. Noktalar artik istege bagli.
+ *
+ * Sondaki \b kalkti: noktali bicim nokta ile bitiyor ve ardindan bosluk
+ * geliyor ("B.C. Mesopotamia"), iki non-word karakter arasinda sinir
+ * YOKTUR — eski desen bu yuzden noktali hali hic eslestirmezdi. Yerine
+ * "ardindan harf/rakam gelmesin" kontrolu kondu. */
+const CAG_YILI_RE = /\b\d{1,4}\s*(?:b\.?c\.?e\.?|b\.?c\.?|a\.?d\.?|c\.?e\.?|m\.?o\.?|m\.?s\.?)(?![a-z0-9])/gi
+
+/* DERS KODU SAYI DEGILDIR (29.10.2026 olcumu).
+ *
+ * "BUS211 week3" kosusunda kart %67 rozetiyle cikti. Kayiplarin baglami:
+ *   211 <- "remained as BUS101. --- SAYFA 2 --- BUS211 History of Science"
+ *   101 <- ayni yerden (Window 1: 0/2, %0)
+ * BUS211 ve BUS101 ders kodu; olculen bir miktar degil kimlik. Kart
+ * bunlari tasimadigi icin rozet %67 diyordu, gercek kapsama 4/4'tu.
+ *
+ * Kural: rakamlar 2+ HARFE DOGRUDAN yapismissa kimliktir. Gercek bir
+ * miktarin onunde bosluk ya da simge olur ("20 meters", "$43,803", "%50").
+ * Iki harf sarti bilincli: "H2O" ve "m2" tek harfli, onlar us/alt simge
+ * ve zaten baska daldan geciyor. Degisken alt simgeleri (beta1) de bu
+ * daldan dusuyor — onlar da miktar degil. */
+const DERS_KODU_RE = /\b[A-Za-z]{2,}\d{1,4}\b/g
 
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
     .replace(URL_BENZERI_RE, ' ')
     .replace(BOZUK_US_RE, '$1 ')
     .replace(CAG_YILI_RE, ' ')
+    .replace(DERS_KODU_RE, ' ')
     .replace(SAYFA_ISARETI_RE, ' ')
   const out: number[] = []
   const gorulen = new Set<number>()
@@ -6553,6 +6581,51 @@ const geminiKotaOlu = new Map<string, number>()
 const GEMINI_SORUNLU_ESIK = 2
 const geminiSorunlu = new Map<string, number>()
 
+/* ZAMAN ASIMI TEK CENTIKTE MODELI DUSURUR (29.10.2026 olcumu).
+ *
+ * Esik 2, 503 icin dogru: 503 hizli doner, yeniden denemek neredeyse
+ * bedava. Zaman asimi ise zaten BUTUN dilimi harcamis olan arizadir ve
+ * ikinci kez beklemenin bilgi degeri yok. ACCOUNTING chapter 6 kosusunda
+ * (18:07:53 -> 18:09:57) tam bu oldu:
+ *
+ *   t=42,1 sn  Gemini[flash-lite] paralel: zaman asimi (40000ms)
+ *   t=93,5 sn  Gemini[flash-lite] paralel: zaman asimi (30000ms)
+ *
+ * Ayni model, ayni kosu, 70 saniye. Geriye kalan: gorsel gecis, anlati
+ * yazari ve review UCU BIRDEN 'butce 0ms' diye atlandi. Kart cikti ama
+ * ac kaldi. Ilk zaman asiminda model kosu boyunca dusuyor; 503 esigi
+ * oldugu gibi kaliyor. */
+function geminiZamanAsimiCentik(model: string) {
+  geminiSorunlu.set(model, GEMINI_SORUNLU_ESIK)
+}
+
+/* GEMINI'NIN BIR CAGRIDAN ALABILECEGI EN BUYUK DILIM (29.10.2026 olcumu).
+ *
+ * groqViaGemini, cevirdigi Groq cagrisinin zaman asimini OLDUGU GIBI miras
+ * aliyordu: pencereler icin 40 sn, sentez icin 30 sn. Gemini cevap
+ * vermeyince o dilim tamamen gidiyor VE gerçek Groq cagrisi yine sifirdan
+ * kosuyor. Yani paralel modda bir asamanin maliyeti `groq` degil
+ * `gemini_zaman_asimi + groq` oluyor. Olculen kosu: 40+21 (pencereler) ve
+ * 30+30 (sentez) = 121 sn; 150 sn duvarina kalite asamalari hic yetismedi.
+ *
+ * Saglikli bir Lite cagrisi bu is yukunde 7-22 sn araliginda donuyor
+ * (ch7 tam istek v1: 7 sn; BUS211 kosusu: 5 cagri 22,6 sn). 15 saniye
+ * tavan hem saglikli cagriyi hic etkilemiyor hem olu cagrinin bedelini
+ * 40 sn'den 15 sn'ye indiriyor. Taban 8 sn: cagiranin zaman asimi kucukse
+ * (review 18 sn) Gemini'ye yarisindan fazlasi verilmiyor.
+ *
+ * BUTCE CAGRI BASINA DEGIL ZINCIR BASINA: aday listesi 4-5 model tasiyor
+ * ve her biri tavan kadar bekleseydi tek cagri 75 sn yakabilirdi. */
+const GEMINI_PARALLEL_MAX_CALL_MS = 15_000
+const GEMINI_PARALLEL_MIN_CALL_MS = 8_000
+/** Yeni bir denemeye girmek icin gereken en az kalan sure. */
+const GEMINI_PARALLEL_DENEME_TABANI = 2_000
+
+function geminiParalelCagriButcesi(timeoutMs: number): number {
+  const yari = Math.floor(Number(timeoutMs || 0) / 2)
+  return Math.min(GEMINI_PARALLEL_MAX_CALL_MS, Math.max(GEMINI_PARALLEL_MIN_CALL_MS, yari))
+}
+
 function geminiModelDiri(m: string): boolean {
   const t = geminiKotaOlu.get(m)
   if (t !== undefined) {
@@ -6693,11 +6766,30 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
 
   let lastStatus = 0
   let lastBody = ''
+  /* ZINCIR BUTCESI — bkz. geminiParalelCagriButcesi. Bu cagrida Gemini'ye
+     ayrilan toplam sure; dolunca yakalama biter ve cagri GERCEK Groq'a
+     gider (bkz. fetchWithRetry yedek yolu). */
+  const zincirButcesi = geminiParalelCagriButcesi(timeoutMs)
+  const zincirBasladi = Date.now()
+  const zincirKalan = () => zincirButcesi - (Date.now() - zincirBasladi)
+  let zincirDoldu = false
   for (const model of geminiModelsForLane(String(req.model || ''))) {
+    if (zincirDoldu) break
     for (let attempt = 0; attempt <= Math.max(1, maxRetries); attempt++) {
+      const kalan = zincirKalan()
+      if (kalan < GEMINI_PARALLEL_DENEME_TABANI) {
+        zincirDoldu = true
+        console.warn(
+          `Gemini paralel: cagri butcesi doldu (${zincirButcesi}ms, caginin zaman asimi ` +
+          `${timeoutMs}ms) — kalan Gemini adaylari denenmiyor, Groq'a birakiliyor`
+        )
+        break
+      }
       if (GEMINI_MODEL_CANDIDATES.indexOf(model) !== -1) geminiSerit.tamIstek++
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      // Deneme, caginin zaman asimini de zincir butcesini de asamaz.
+      const denemeMs = Math.min(timeoutMs, kalan)
+      const timer = setTimeout(() => controller.abort(), denemeMs)
       let res: Response
       try {
         res = await fetch(`${GEMINI_GENERATE_BASE}/${encodeURIComponent(model)}:generateContent`, {
@@ -6709,9 +6801,19 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
       } catch (err) {
         clearTimeout(timer)
         lastStatus = 0
-        lastBody = (err as any)?.name === 'AbortError' ? `zaman asimi (${timeoutMs}ms)` : String((err as any)?.message || err)
-        geminiSorunlu.set(model, (geminiSorunlu.get(model) || 0) + 1)
-        console.warn(`Gemini[${model}] paralel: ${lastBody}`)
+        const iptal = (err as any)?.name === 'AbortError'
+        lastBody = iptal ? `zaman asimi (${denemeMs}ms)` : String((err as any)?.message || err)
+        if (iptal) {
+          /* Tek centikte dusuyor — bkz. geminiZamanAsimiCentik. */
+          geminiZamanAsimiCentik(model)
+          console.warn(
+            `Gemini[${model}] paralel: ${lastBody} — model bu kosuda ` +
+            `aday listesinden DUSURULDU (zaman asimi dilimi zaten harcandi)`
+          )
+        } else {
+          geminiSorunlu.set(model, (geminiSorunlu.get(model) || 0) + 1)
+          console.warn(`Gemini[${model}] paralel: ${lastBody}`)
+        }
         continue
       }
       clearTimeout(timer)

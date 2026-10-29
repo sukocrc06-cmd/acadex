@@ -13,6 +13,9 @@
 
 const assert = require('node:assert/strict');
 const { loadFromSource, makeRunner } = require('./_ts-extract.js');
+const { readSource } = require('./_ts-extract.js');
+// Kaynak metni: bazi iddialar davranisi degil SIRAYI/BAGLANTIYI olcuyor.
+const SRC = readSource('supabase/functions/summarize-document/index.ts');
 
 const { test, summary } = makeRunner();
 
@@ -25,11 +28,14 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
-  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'SAYFA_ISARETI_RE', 'SAYI_BELIRTECI', 'sayiOkumalari',
+  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'SAYFA_ISARETI_RE', 'SAYI_BELIRTECI', 'sayiOkumalari',
   'distinctiveNumbers',
   'geminiModelsForLane', 'openAiContentToGeminiParts', 'groqViaGemini',
   'geminiHataCevabi', 'geminiKotaOlu', 'geminiSorunlu', 'geminiModelDiri', 'geminiDiriAdayVar',
   'GEMINI_TAM_MODEL_BUTCESI', 'GEMINI_SORUNLU_ESIK', 'GEMINI_KOTA_OLU_MS',
+  // Cagri basina Gemini dilimi ve zaman asimi centigi (29.10.2026 olcumu).
+  'GEMINI_PARALLEL_MAX_CALL_MS', 'GEMINI_PARALLEL_MIN_CALL_MS',
+  'GEMINI_PARALLEL_DENEME_TABANI', 'geminiParalelCagriButcesi', 'geminiZamanAsimiCentik',
   'GEMINI_LITE_CANDIDATES',
   'GEMINI_PARALLEL_CONCURRENCY'
 ]);
@@ -401,6 +407,89 @@ test('diri aday kalmayinca yakalama devre disi kalir (Groq yedegi)', () => {
   try {
     assert.equal(G.geminiDiriAdayVar(), false, 'hepsi oluyken yedege gecilmeli');
   } finally { G.geminiKotaOlu.clear(); }
+});
+
+/* ==========================================================================
+   CAGRI BASINA GEMINI DILIMI (29.10.2026 — ACCOUNTING chapter 6 OLCUMU)
+   ==========================================================================
+   Kart cikti ama AC KALDI: gorsel gecis, anlati yazari ve review ucu
+   birden 'butce 0ms' diye atlandi. Loglardan zaman cizelgesi
+   (t=0 -> 18:07:53,99):
+
+     t=  2,1 sn  2 pencere, 24.138 krk, 57 sayfa
+     t= 42,1 sn  Gemini[gemini-3.5-flash-lite] paralel: zaman asimi (40000ms)
+     t= 63,4 sn  Window 1 ok [openai/gpt-oss-20b]   <- gercek Groq
+     t= 93,5 sn  Gemini[gemini-3.5-flash-lite] paralel: zaman asimi (30000ms)
+     t=123,2 sn  sentez bitti, 6 bolum -> 3 bolum
+     t=123,2 sn  Gorsel gecis atlandi: butce 0ms
+     t=123,2 sn  Madde 3: anlati yazari atlandi (butce 0 ms)
+     t=123,3 sn  Review atlandi (budgetLeft=0ms)
+
+   Iki kusur birden:
+     1) groqViaGemini caginin zaman asimini OLDUGU GIBI miras aliyordu
+        (40 sn / 30 sn), yani bir asamanin maliyeti `groq` degil
+        `gemini_zaman_asimi + groq` oluyordu: 40+21 ve 30+30 = 121 sn.
+     2) Zaman asimi 503 ile ayni agirlikta tek centik sayiliyordu, bu
+        yuzden AYNI model 50 sn sonra ikinci tam zaman asimini da yakti.
+   ========================================================================== */
+
+test('Gemini dilimi caginin zaman asimini MIRAS ALMIYOR', () => {
+  // Olculen iki deger: pencere 40 sn, sentez 30 sn.
+  assert.ok(G.geminiParalelCagriButcesi(40000) <= G.GEMINI_PARALLEL_MAX_CALL_MS,
+    '40 sn lik cagri Gemini ye 15 sn den fazlasini vermemeli');
+  assert.ok(G.geminiParalelCagriButcesi(30000) <= G.GEMINI_PARALLEL_MAX_CALL_MS);
+  // Gemini dilimi + gercek Groq cagrisi caginin butcesine SIGMALI.
+  for (const t of [18000, 30000, 40000]) {
+    assert.ok(G.geminiParalelCagriButcesi(t) <= Math.floor(t / 2),
+      `${t}ms lik cagride Gemini yarisindan fazlasini aliyor`);
+  }
+});
+
+test('kucuk zaman asiminda da TABAN korunuyor', () => {
+  /* Review 18 sn ile cagriliyor; yarisi 9 sn. Saglikli bir Lite cagrisi
+     7-22 sn araliginda donuyor, bu yuzden taban 8 sn nin altina
+     inilmiyor — aksi halde Gemini hic sans bulamazdi. */
+  assert.equal(G.geminiParalelCagriButcesi(18000), 9000);
+  assert.ok(G.geminiParalelCagriButcesi(4000) >= G.GEMINI_PARALLEL_MIN_CALL_MS,
+    'cok kucuk zaman asiminda taban uygulanmali');
+  assert.ok(G.GEMINI_PARALLEL_MIN_CALL_MS < G.GEMINI_PARALLEL_MAX_CALL_MS);
+  assert.ok(G.GEMINI_PARALLEL_DENEME_TABANI < G.GEMINI_PARALLEL_MIN_CALL_MS);
+});
+
+test('ZAMAN ASIMI tek centikte modeli dusurur, 503 dusurmez', () => {
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  const m = G.GEMINI_LITE_CANDIDATES[0];
+  try {
+    G.geminiZamanAsimiCentik(m);
+    assert.equal(G.geminiModelDiri(m), false,
+      'ilk zaman asiminda model kosu boyunca dusmeli — dilim zaten harcandi');
+    G.geminiSorunlu.clear();
+    // 503 hizli doner; bir kez gormek dusurmemeli (esik oldugu gibi).
+    G.geminiSorunlu.set(m, 1);
+    assert.equal(G.geminiModelDiri(m), true, '503 esigi degismemis olmali');
+    assert.equal(G.GEMINI_SORUNLU_ESIK, 2);
+  } finally { G.geminiSorunlu.clear(); }
+});
+
+test('ZINCIR butcesi: aday listesi tavan kadar BEKLEMEZ', () => {
+  /* Aday listesi 4-5 model tasiyor. Butce cagri basina degil ZINCIR
+     basina olmasa tek cagri 5 x 15 = 75 sn yakabilirdi. */
+  assert.match(SRC, /const zincirButcesi = geminiParalelCagriButcesi\(timeoutMs\)/,
+    'zincir butcesi kurulmuyor');
+  assert.match(SRC, /if \(kalan < GEMINI_PARALLEL_DENEME_TABANI\)/,
+    'kalan sure denemeden ONCE kontrol edilmiyor');
+  assert.match(SRC, /const denemeMs = Math\.min\(timeoutMs, kalan\)/,
+    'deneme hem caginin zaman asimini hem zincir butcesini asmamali');
+  const i = SRC.indexOf('zincirDoldu = true');
+  const j = SRC.indexOf('geminiZamanAsimiCentik(model)');
+  assert.ok(i > 0 && j > 0, 'zincir butcesi ya da zaman asimi centigi bagli degil');
+});
+
+test('butce dolunca cagri GERCEK Groq a birakiliyor', () => {
+  /* Yakalama bitmezse kart hic cikmaz: diri aday kalmayinca fetchWithRetry
+     zaten Groq a dusuyor, zincir butcesi de ayni kapiyi kullaniyor. */
+  assert.match(SRC, /kalan Gemini adaylari denenmiyor, Groq'a birakiliyor/,
+    'butce dolunca durum loglanmali — aksi halde teshis edilemez');
 });
 
 summary();
