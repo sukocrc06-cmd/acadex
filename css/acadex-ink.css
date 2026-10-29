@@ -3829,6 +3829,10 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-eg li .a{display:block;font-size:12.5px;color:var(--muted)}
 :is(#exams-view.axs,#axs-layer) .sn-eg li .a s{color:var(--red)}
 :is(#exams-view.axs,#axs-layer) .sn-eg li .a b{color:var(--green)}
+/* Faz 8: ikinci şans */
+:is(#exams-view.axs,#axs-layer) .sn-eg-h .sn-ghost{margin:0;min-height:40px;padding:6px 12px;font-size:13.5px}
+:is(#exams-view.axs,#axs-layer) .sn-eg li .sn-mk{display:inline-block;margin-top:4px;padding:1px 8px;border-radius:10px;background:#F3F5F9;color:var(--muted);font-size:11.5px;font-weight:600}
+:is(#exams-view.axs,#axs-layer) .sn-eg li .sn-mk.due{background:#FFF2D6;color:var(--amber)}
 :is(#exams-view.axs,#axs-layer) .sn-eg li button{width:40px;height:40px;border:0;background:none;color:var(--soft);font-size:18px;cursor:pointer;border-radius:50%}
 :is(#exams-view.axs,#axs-layer) .sn-eg li button:focus-visible{outline:2px solid var(--blue)}
 :is(#exams-view.axs,#axs-layer) .sn-eg li::before{content:"✗";position:absolute;left:-26px;top:6px;font-family:"Caveat",cursive;font-weight:700;font-size:20px;color:var(--red)}

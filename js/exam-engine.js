@@ -1854,6 +1854,50 @@
     }).filter(r => r.inDays <= horizon).sort((a, b) => a.dueAt - b.dueAt || a.name.localeCompare(b.name, 'tr'));
   }
 
+  /** FAZ 8: hata defteri, ikinci şans. Yanlış (puanı 50 altı) soru bir
+   *  "yanlış" olur; ikinci şans sınavları (scoring.retry[i] → i+1 numaralı
+   *  soru) onun denemeleridir (80 ve üstü doğru). Takvim: hiç denenmediyse
+   *  hemen, son deneme yanlışsa 1 gün, doğruysa 3 gün sonra. Art arda
+   *  MISTAKE_WIN doğru → kazanıldı, defterden çıkar. Anahtar "sınavId:soruId". */
+  const MISTAKE_WIN = 2;
+  const MISTAKE_DAYS = { wrong: 1, right: 3 };
+  function isRetryExam(e) { return !!(e && e.scoring && Array.isArray(e.scoring.retry)); }
+  function mistakeStates(exams, opts) {
+    const now = opts && Number.isFinite(opts.now) ? opts.now : Date.now();
+    const list = (Array.isArray(exams) ? exams : []).filter(e => e && e.completed_at && Array.isArray(e.question_results))
+      .slice().sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at));
+    const out = {};
+    list.forEach(e => {
+      if (isRetryExam(e)) return;
+      e.question_results.forEach(r => {
+        if (!r || (+r.score || 0) >= 50) return;
+        const id = e.id + ':' + r.question_id;
+        out[id] = { id: id, examId: e.id, questionId: Number(r.question_id), type: r.type, at: new Date(e.completed_at).getTime(), attempts: [] };
+      });
+    });
+    list.forEach(e => {
+      if (!isRetryExam(e)) return;
+      e.scoring.retry.forEach((src, j) => {
+        const m = src && out[src.exam_id + ':' + src.question_id];
+        const r = e.question_results.filter(x => x && Number(x.question_id) === j + 1)[0];
+        if (!m || !r || typeof r.score !== 'number') return;
+        m.attempts.push({ at: new Date(e.completed_at).getTime(), ok: r.score >= 80, examId: e.id });
+      });
+    });
+    Object.keys(out).forEach(id => {
+      const m = out[id], a = m.attempts;
+      let streak = 0;
+      for (let i = a.length - 1; i >= 0 && a[i].ok; i--) streak++;
+      const last = a.length ? a[a.length - 1] : null;
+      m.streak = streak;
+      m.won = streak >= MISTAKE_WIN;
+      m.dueAt = last ? last.at + (last.ok ? MISTAKE_DAYS.right : MISTAKE_DAYS.wrong) * DAY_MS : m.at;
+      m.dueNow = !m.won && m.dueAt <= now;
+      m.inDays = Math.max(0, Math.ceil((m.dueAt - now) / DAY_MS));
+    });
+    return out;
+  }
+
   /** Bir sınavın konu seviyelerini nasıl değiştirdiği: önceki sınavlarla
    *  ve bu sınav dahil hesaplanan seviyeler karşılaştırılır. */
   function masteryChanges(priorExams, exam, opts) {
@@ -2737,6 +2781,10 @@
     conceptMastery,
     masteryChanges,
     reviewSchedule,
+    // FAZ 8: hata defteri, ikinci şans
+    MISTAKE_WIN,
+    isRetryExam,
+    mistakeStates,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,

@@ -3279,6 +3279,192 @@ async function handleExamHelp(req: Request, help: Record<string, unknown>): Prom
   }
 }
 
+// ==========================================================================
+// FAZ 8 — HATA DEFTERİ: İKİNCİ ŞANS (30.10.2026)
+//
+// Öğrencinin yanlışları (puanı 50 altı) aralıklı tekrarla geri gelir; ama
+// AYNI soru değil, benzeri: aynı tip, aynı konu ve beceri, farklı ayrıntı.
+//   - Şablonlu hesap sorusu: yeni sayılar (makeVariant), model çağrısı yok.
+//   - Ötekiler: tek model çağrısı (sınav şeması aynı), validateQuestion'dan
+//     geçer; kaynakla birebir aynı soru atılır, eksik kalan bir kez yeniden
+//     istenir.
+// Sonuç normal bir sınav kaydı (alıştırma, süresiz): scoring.retry[i] i+1
+// numaralı sorunun hangi yanlıştan geldiğini tutar. Tekrar takvimi ve
+// "kazanıldı" (iki ardışık doğru) tarayıcıda bu kayıtlardan hesaplanır
+// (exam-engine → mistakeStates). Migration yok.
+// ==========================================================================
+
+const RETRY_MAX_ITEMS = 10
+const RETRY_TYPES = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended', 'calculation']
+
+type RetrySource = { examId: string; questionId: number; exam: Record<string, unknown>; result: Record<string, unknown>; key: Record<string, unknown> }
+
+/** Şablonlu, formülü tutan hesap sorusundan yeni sayılarla soru. Sayılara
+ *  bağlı alanlar (çözüm adımları, açıklama, ipucu) atılır. */
+function retryCalcVariant(src: RetrySource, lang: string, rand?: () => number): Record<string, unknown> | null {
+  const q = { ...src.result, ...src.key }
+  if (q.type !== 'calculation' || q.chart || typeof q.template !== 'string' || typeof q.formula !== 'string') return null
+  const v = makeVariant(q, lang, rand)
+  if (!v) return null
+  return {
+    type: 'calculation', question: v.text, variables: v.variables, formula: q.formula, template: q.template, correct_answer: v.answer,
+    tolerance_percent: q.tolerance_percent ?? 2, units: q.units ?? '', concept: q.concept ?? null, common_errors: q.common_errors ?? null,
+    step_kind: q.step_kind ?? null, equation: q.equation ?? null, unknown: q.unknown ?? null, verified: true, options: null, hint: null
+  }
+}
+
+function retryUserPrompt(items: RetrySource[], lang: string, optionCount: number): string {
+  const lines = items.map((s, i) => {
+    const r = s.result
+    const parts = [`${i + 1}. TYPE: ${r.type}`, `CONCEPT: ${String(r.concept ?? '').slice(0, 120)}`, `QUESTION: ${String(r.question ?? '').slice(0, 900)}`]
+    if (Array.isArray(r.options) && r.options.length) parts.push(`OPTIONS: ${JSON.stringify(r.options)}`)
+    if (r.correct_answer != null && r.type !== 'open_ended') parts.push(`CORRECT ANSWER: ${String(r.correct_answer).slice(0, 300)}`)
+    return parts.join('\n   ')
+  })
+  return [
+    `EXAM TYPE: mixed`,
+    `LANGUAGE: ${lang}`,
+    `DIFFICULTY: medium`,
+    `QUESTION COUNT: ${items.length}`,
+    `OPTION COUNT: every 'multiple_choice' question has exactly ${optionCount} options.`,
+    `GRAPH QUESTIONS: not allowed.`,
+    `SECOND CHANCE: the student got each SOURCE QUESTION below wrong. For each one, in the same order, write exactly ONE new question of the SAME type that tests the SAME concept and skill with different specifics (a different example, case, numbers or angle), so it is not the source reworded and, where possible, its correct answer differs. Keep "concept" equal to the source concept. Write the full schema (hint, explanation, option_rationales or rubric, variables/formula/template for calculation). "source_terms" may be [].`,
+    `SOURCE QUESTIONS:`,
+    ...lines
+  ].join('\n')
+}
+
+/** Modelin sorusu, kaynağıyla aynı tipte geçerli ve kaynağın kendisi değilse. */
+function acceptRetryQuestion(raw: unknown, src: RetrySource, lang: string, optionCount: number): Record<string, unknown> | null {
+  const v = validateQuestion(raw, [String(src.result.type)], lang, optionCount, true)
+  if (!v.ok || !v.question) return null
+  const q = v.question
+  if (normalizeAnswerText(q.question) === normalizeAnswerText(src.result.question)) return null
+  if (!q.concept && src.result.concept) q.concept = src.result.concept
+  delete q.chart_ref
+  return q
+}
+
+async function requestRetryQuestions(items: RetrySource[], lang: string, optionCount: number): Promise<unknown[]> {
+  const key = Deno.env.get('GROQ_API_KEY')
+  if (!key || !items.length) return []
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'openai/gpt-oss-120b', temperature: 0.8, reasoning_effort: 'low',
+      max_completion_tokens: Math.min(GEN_TOKENS_MAX, GEN_TOKENS_BASE + (GEN_TOKENS_PER_QUESTION + GEN_TOKENS_CALC_EXTRA) * items.length),
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'system', content: STATIC_EXAM_INSTRUCTIONS }, { role: 'user', content: retryUserPrompt(items, lang, optionCount) }]
+    })
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    if (data?.error?.code === 'json_validate_failed') return salvageQuestionObjects(String(data.error.failed_generation ?? ''))
+    console.warn(`generate-exam ikinci sans: Groq ${res.status} ${String(data?.error?.message || '').slice(0, 200)}`)
+    return []
+  }
+  return parseQuestionArray(String(data.choices?.[0]?.message?.content ?? '')) || []
+}
+
+/** POST { retry: { items: [{ examId, questionId }] } } → yeni alıştırma sınavı. */
+async function handleExamRetry(req: Request, retry: Record<string, unknown>): Promise<Response> {
+  const out = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader) return out({ error: 'Missing Authorization header' }, 401)
+  const url = Deno.env.get('SUPABASE_URL') ?? ''
+  const userClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: authHeader } } })
+  const { data: { user } } = await userClient.auth.getUser()
+  if (!user) return out({ error: 'Unauthorized user token' }, 401)
+  const serviceClient = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
+
+  const wanted = (Array.isArray(retry.items) ? retry.items : []).slice(0, RETRY_MAX_ITEMS)
+    .map(x => (x && typeof x === 'object' ? x as Record<string, unknown> : {}))
+    .map(x => ({ examId: String(x.examId ?? ''), questionId: Number(x.questionId) }))
+    .filter(x => x.examId && Number.isInteger(x.questionId) && x.questionId > 0)
+  if (!wanted.length) return out({ error: 'Hata defterinden soru seçilmedi.' }, 400)
+
+  const examIds = [...new Set(wanted.map(x => x.examId))]
+  const { data: exams } = await userClient.from('exams').select('*').in('id', examIds)
+  const byId = new Map(((exams || []) as Record<string, unknown>[]).filter(e => e.user_id === user.id && e.completed_at).map(e => [String(e.id), e]))
+  if (!byId.size) return out({ error: 'Kaynak sınav bulunamadı.' }, 404)
+  const first = byId.get(wanted.find(w => byId.has(w.examId))!.examId)!
+  const lang = first.language === 'en' ? 'en' : 'tr'
+  const T = (tr: string, en: string) => lang === 'en' ? en : tr
+
+  // aynı sınır: ikinci şans da bir sınav kaydı
+  try {
+    const now = Date.now()
+    const countSince = async (ms: number) => {
+      const { count, error } = await serviceClient.from('exams').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', new Date(now - ms).toISOString())
+      if (error) throw error
+      return count ?? 0
+    }
+    const [lastHour, lastDay] = await Promise.all([countSince(3600_000), countSince(86400_000)])
+    if (lastHour >= EXAM_RATE_LIMIT_PER_HOUR) return out({ error: T(`Son bir saatte ${EXAM_RATE_LIMIT_PER_HOUR} sınav oluşturdun. Biraz sonra tekrar dene.`, `You created ${EXAM_RATE_LIMIT_PER_HOUR} exams in the last hour. Please try again later.`) }, 429)
+    if (lastDay >= EXAM_RATE_LIMIT_PER_DAY) return out({ error: T(`Bugünkü ${EXAM_RATE_LIMIT_PER_DAY} sınav hakkını kullandın. Yarın tekrar dene.`, `You have used today's ${EXAM_RATE_LIMIT_PER_DAY} exams. Please try again tomorrow.`) }, 429)
+  } catch (e) {
+    console.warn('generate-exam ikinci sans: sinir sayimi yapilamadi', e)
+  }
+
+  const { data: keyRows } = await serviceClient.from('exam_answer_keys').select('exam_id, keys').in('exam_id', [...byId.keys()])
+  const keysOf = new Map(((keyRows || []) as Record<string, unknown>[]).map(r => [String(r.exam_id), (r.keys || {}) as Record<string, Record<string, unknown>>]))
+  const sources: RetrySource[] = []
+  for (const w of wanted) {
+    const e = byId.get(w.examId)
+    if (!e) continue
+    const result = ((e.question_results || []) as Record<string, unknown>[]).find(r => Number(r.question_id) === w.questionId)
+    if (!result || !RETRY_TYPES.includes(String(result.type)) || result.chart) continue
+    sources.push({ examId: w.examId, questionId: w.questionId, exam: e, result, key: (keysOf.get(w.examId) || {})[String(w.questionId)] || {} })
+  }
+  if (!sources.length) return out({ error: T('Bu yanlışlar için ikinci şans sorusu kurulamıyor (grafik ve çizim soruları desteklenmiyor).', 'No second-chance questions can be built for these mistakes (chart and drawing questions are not supported).') }, 400)
+
+  const optionCount = [4, 5].includes(Number((first.scoring as Record<string, unknown> | null)?.option_count)) ? Number((first.scoring as Record<string, unknown>).option_count) : 4
+  const built: Array<Record<string, unknown> | null> = sources.map(s => retryCalcVariant(s, lang))
+  let need = sources.map((s, i) => ({ s, i })).filter(x => !built[x.i])
+  for (let attempt = 0; attempt < 2 && need.length; attempt++) {
+    const items = await requestRetryQuestions(need.map(x => x.s), lang, optionCount)
+    need.forEach((x, j) => { const q = acceptRetryQuestion(items[j], x.s, lang, optionCount); if (q) built[x.i] = q })
+    need = need.filter(x => !built[x.i])
+  }
+  const pairs = sources.map((s, i) => ({ s, q: built[i] })).filter(p => p.q) as Array<{ s: RetrySource; q: Record<string, unknown> }>
+  if (!pairs.length) return out({ error: T('İkinci şans soruları şu an hazırlanamadı; birazdan tekrar dene.', 'Second-chance questions could not be prepared right now; try again shortly.') }, 502)
+  if (need.length) console.warn(`generate-exam ikinci sans: ${need.length}/${sources.length} soru kurulamadi`)
+
+  const publicQuestions: Record<string, unknown>[] = []
+  const answerKeys: Record<string, Record<string, unknown>> = {}
+  pairs.forEach((p, i) => {
+    const q: Record<string, unknown> = { ...p.q, id: i + 1, difficulty: 'medium' }
+    delete q.source_terms
+    if (q.type === 'multiple_choice' && Array.isArray(q.options) && q.keep_order !== true) q.options = shuffleInPlace([...(q.options as string[])])
+    const { pub, key } = splitPublicAndKey(q)
+    publicQuestions.push(pub)
+    answerKeys[String(q.id)] = key
+  })
+  const payload: Record<string, unknown> = {
+    user_id: user.id, exam_type: 'mixed', language: lang, question_count: publicQuestions.length, questions: publicQuestions,
+    answers: null, question_results: null, grade: null, completed_at: null, is_simulation: false, time_limit_seconds: null,
+    started_at: new Date().toISOString(), source_type: first.source_type || 'study_card',
+    study_card_id: first.study_card_id ?? null, course_code: first.course_code ?? null, course_department: first.course_department ?? null,
+    is_grounded: first.is_grounded ?? null, is_admin_knowledge_grounded: first.is_admin_knowledge_grounded ?? null,
+    scoring: { ...normalizeScoring(optionCount, false), retry: pairs.map(p => ({ exam_id: p.s.examId, question_id: p.s.questionId, concept: p.s.result.concept ?? null })) }
+  }
+  for (const k of Object.keys(payload)) if (payload[k] === null && ['course_code', 'course_department', 'is_grounded', 'is_admin_knowledge_grounded'].includes(k)) delete payload[k]
+  const { data: newExam, error } = await serviceClient.from('exams').insert(payload).select().single()
+  if (error || !newExam) {
+    console.error('generate-exam ikinci sans: kayit', error)
+    return out({ error: T('İkinci şans sınavı kaydedilemedi.', 'The second-chance exam could not be saved.') }, 500)
+  }
+  const { error: keyError } = await serviceClient.from('exam_answer_keys').insert({ exam_id: newExam.id, user_id: user.id, keys: answerKeys })
+  if (keyError) {
+    console.error('generate-exam ikinci sans: anahtar', keyError)
+    await serviceClient.from('exams').delete().eq('id', newExam.id)
+    return out({ error: T('İkinci şans sınavı kaydedilemedi.', 'The second-chance exam could not be saved.') }, 500)
+  }
+  console.log(`generate-exam ikinci sans: ${pairs.length}/${sources.length} soru`)
+  return out(newExam)
+}
+
 serve(async (req) => {
   const requestStartedAt = Date.now()
   if (req.method === 'OPTIONS') {
@@ -3296,6 +3482,8 @@ serve(async (req) => {
     const reqBody = await req.json()
     // FAZ 7: adım adım yardım ayrı yol (sınav üretimi ve sınırları devreye girmez)
     if (reqBody && typeof reqBody === 'object' && reqBody.help && typeof reqBody.help === 'object') return await handleExamHelp(req, reqBody.help)
+    // FAZ 8: hata defterinden ikinci şans sınavı
+    if (reqBody && typeof reqBody === 'object' && reqBody.retry && typeof reqBody.retry === 'object') return await handleExamRetry(req, reqBody.retry)
     const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive } = reqBody
     const scoring = normalizeScoring(optionCount, negativeMarking)
     // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).

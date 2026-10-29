@@ -32,6 +32,7 @@
 | **Özet üretimi** (Gemini/Groq, kapılar, atıflar) | `supabase/functions/summarize-document/index.ts` |
 | **Haftalık Acadex önerisi** (sınav salonu, `sn-acx`, `[data-acx]`) | `js/acadex-ink.js` → `haftalık Acadex önerisi` bloğu (`acadexWeekly`, `paintAcx`) |
 | **Adım adım yardım** (sınavda `sn-help*`, `[data-help]`) | ekran `js/acadex-ink.js` → `FAZ 7: adım adım yardım` bloğu; sunucu `generate-exam` → `handleExamHelp` (`{ help }`); puan tavanı `grade-exam` → `applyHelp` |
+| **Hata defteri / ikinci şans** (`sn-eg`, `[data-second]`, `sn-mk`) | ekran `js/acadex-ink.js` → `paintErrs`; takvim `exam-engine` → `mistakeStates`; sınav `generate-exam` → `handleExamRetry` (`{ retry }`) |
 
 ---
 
