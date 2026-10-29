@@ -48,9 +48,9 @@ test('MedLab gorunumu, Anatomi Lab karti, kapak ve "tip ogrencileri icin" notu',
   const card = sec.slice(sec.indexOf('data-medlab-open="anatomi"'), sec.indexOf('</button>', sec.indexOf('data-medlab-open="anatomi"')));
   assert.match(card, /<span class="axm-lab-t disp">Anatomi Lab<\/span>/);
   assert.match(card, /tıp öğrencileri için/);
-  const img = /<img src="([^"]+)"/.exec(card);
-  assert.ok(img, 'kartta kapak resmi yok');
-  assert.ok(fs.existsSync(path.join(ROOT, img[1])), `kapak dosyasi yok: ${img[1]}`);
+  /* kapak 29.10.2026'dan beri animasyonlu iskelet karakteri (satır içi SVG); hareket tercihine bağlı */
+  assert.match(card, /class="axm-cover axm-cover-ana" role="img" aria-label="[^"]+"/, 'kartta erişilebilir kapak yok');
+  assert.match(card, /<svg class="axm-ana"[^>]*aria-hidden="true"/, 'kapak karakteri yok');
 });
 
 test('stil ve script dashboard.html\'e bagli, script acadex-ink.js\'ten sonra', () => {
@@ -101,8 +101,12 @@ test('Fizyo Lab karti acilabilir, kapagi var, "tip ogrencileri icin" yaziyor', (
   const card = html.slice(i, html.indexOf('</button>', i));
   assert.match(card, /<span class="axm-lab-t disp">Fizyo Lab<\/span>/);
   assert.match(card, /tıp öğrencileri için/);
-  const img = /<img src="([^"]+)"/.exec(card);
-  assert.ok(img && fs.existsSync(path.join(ROOT, img[1])), 'Fizyo Lab kapagi yok');
+  assert.match(card, /class="axm-cover axm-cover-fiz" role="img" aria-label="[^"]+"/, 'Fizyo Lab kapagi yok');
+  assert.match(card, /<svg class="axm-fiz"[^>]*aria-hidden="true"/, 'diz karakteri yok');
+  const css = fs.readFileSync(path.join(ROOT, 'css/acadex-medlab.css'), 'utf8'), k = css.slice(css.indexOf('Anatomi ve Fizyo Lab kapakları'));
+  const motion = k.slice(k.indexOf('@media (prefers-reduced-motion:no-preference)'), k.indexOf('@keyframes'));
+  assert.match(motion, /animation:ana-wave/); assert.match(motion, /animation:fiz-flex/);
+  assert.ok(!/animation:(ana|fiz)-/.test(k.replace(motion, '')), 'karakter animasyonları yalnız hareket tercihi açıkken');
   assert.doesNotMatch(html, /axm-soon/, 'yakinda karti kalmamali');
 });
 

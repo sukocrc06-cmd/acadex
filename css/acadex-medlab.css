@@ -202,3 +202,44 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 @keyframes dyt-needle{0%,100%{transform:rotate(-40deg)}40%{transform:rotate(25deg)}60%{transform:rotate(15deg)}}
 @keyframes dyt-arc{0%,100%{stroke-dashoffset:150}50%{stroke-dashoffset:40}}
 @keyframes dyt-steam{0%{opacity:0;transform:translateY(6px)}30%{opacity:.9}100%{opacity:0;transform:translateY(-14px)}}
+/* Anatomi ve Fizyo Lab kapakları: iskelet ve diz eklemi karakterleri (SVG + CSS) */
+#medlab-view.axm .axm-cover-ana{background:#EEF1F5}
+#medlab-view.axm .axm-cover-fiz{background:#EEF5F1}
+#medlab-view.axm .axm-ana,#medlab-view.axm .axm-fiz{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+#medlab-view.axm button.axm-labb:hover .axm-ana,#medlab-view.axm button.axm-labb:focus-visible .axm-ana,#medlab-view.axm button.axm-labb:hover .axm-fiz,#medlab-view.axm button.axm-labb:focus-visible .axm-fiz{transform:scale(1.04)}
+#medlab-view.axm .axm-ana g,#medlab-view.axm .axm-fiz g,#medlab-view.axm .axm-ana ellipse,#medlab-view.axm .axm-fiz path{transform-box:fill-box}
+#medlab-view.axm .axm-ana .ana-body{transform-origin:50% 100%}
+#medlab-view.axm .axm-ana .ana-arm-r,#medlab-view.axm .axm-ana .ana-arm-l,#medlab-view.axm .axm-fiz .fiz-low,#medlab-view.axm .axm-ana .ana-eyes,#medlab-view.axm .axm-fiz .fiz-eyes,#medlab-view.axm .axm-ana .ana-sh{transform-origin:50% 50%}
+#medlab-view.axm .axm-fiz .fiz-low{transform:rotate(110deg)}
+#medlab-view.axm .axm-fiz .fiz-d{opacity:0}#medlab-view.axm .axm-fiz .fiz-d4{opacity:1}
+#medlab-view.axm .axm-fiz .fiz-sweat{opacity:0}
+@media (prefers-reduced-motion:no-preference){
+#medlab-view.axm .axm-ana,#medlab-view.axm .axm-fiz{--k-t:2.6s}
+#medlab-view.axm button.axm-labb:hover .axm-ana,#medlab-view.axm button.axm-labb:focus-visible .axm-ana,#medlab-view.axm button.axm-labb:hover .axm-fiz,#medlab-view.axm button.axm-labb:focus-visible .axm-fiz{--k-t:1.3s}
+#medlab-view.axm .axm-ana .ana-body{animation:ana-bob var(--k-t) ease-in-out infinite}
+#medlab-view.axm .axm-ana .ana-sh{animation:ana-sh var(--k-t) ease-in-out infinite}
+#medlab-view.axm .axm-ana .ana-arm-r{animation:ana-wave var(--k-t) ease-in-out infinite}
+#medlab-view.axm .axm-ana .ana-arm-l{animation:ana-point calc(var(--k-t) * 1.5) ease-in-out infinite}
+#medlab-view.axm .axm-ana .ana-jaw{animation:ana-jaw calc(var(--k-t) / 3) ease-in-out infinite}
+#medlab-view.axm .axm-ana .ana-eyes{animation:k-blink 4.4s ease-in-out infinite}
+#medlab-view.axm .axm-ana .ana-mus{animation:ana-layer calc(var(--k-t) * 2.4) ease-in-out infinite}
+#medlab-view.axm .axm-fiz .fiz-low{animation:fiz-flex calc(var(--k-t) * 2.4) cubic-bezier(.45,0,.55,1) infinite}
+#medlab-view.axm .axm-fiz .fiz-d{animation:calc(var(--k-t) * 2.4) linear infinite}
+#medlab-view.axm .axm-fiz .fiz-d0{animation-name:fiz-d0}#medlab-view.axm .axm-fiz .fiz-d1{animation-name:fiz-d1}#medlab-view.axm .axm-fiz .fiz-d2{animation-name:fiz-d2}#medlab-view.axm .axm-fiz .fiz-d3{animation-name:fiz-d3}#medlab-view.axm .axm-fiz .fiz-d4{animation-name:fiz-d4}
+#medlab-view.axm .axm-fiz .fiz-sweat{animation:fiz-sweat calc(var(--k-t) * 2.4) ease-in-out infinite}
+#medlab-view.axm .axm-fiz .fiz-eyes{animation:k-blink 3.8s ease-in-out infinite}
+}
+@keyframes k-blink{0%,90%,100%{transform:none}94%{transform:scaleY(.12)}}
+@keyframes ana-bob{0%,100%{transform:none}50%{transform:translateY(-6px)}}
+@keyframes ana-sh{0%,100%{transform:none;opacity:.1}50%{transform:scale(.88);opacity:.07}}
+@keyframes ana-wave{0%,100%{transform:rotate(0)}25%{transform:rotate(-14deg)}75%{transform:rotate(10deg)}}
+@keyframes ana-point{0%,60%,100%{transform:rotate(0)}70%{transform:rotate(-4deg)}80%{transform:rotate(1deg)}}
+@keyframes ana-jaw{0%,100%{transform:none}50%{transform:translateY(5px)}}
+@keyframes ana-layer{0%,35%,100%{opacity:1}50%,85%{opacity:.08}}
+@keyframes fiz-flex{0%,6%{transform:rotate(0)}14%,22%{transform:rotate(30deg)}30%,38%{transform:rotate(60deg)}46%,54%{transform:rotate(90deg)}62%,76%{transform:rotate(110deg)}94%,100%{transform:rotate(0)}}
+@keyframes fiz-d0{0%,8%{opacity:1}10%,92%{opacity:0}94%,100%{opacity:1}}
+@keyframes fiz-d1{0%,11%{opacity:0}13%,24%{opacity:1}26%,100%{opacity:0}}
+@keyframes fiz-d2{0%,27%{opacity:0}29%,40%{opacity:1}42%,100%{opacity:0}}
+@keyframes fiz-d3{0%,43%{opacity:0}45%,56%{opacity:1}58%,100%{opacity:0}}
+@keyframes fiz-d4{0%,59%{opacity:0}61%,80%{opacity:1}82%,100%{opacity:0}}
+@keyframes fiz-sweat{0%,58%{opacity:0;transform:none}64%{opacity:1}80%{opacity:0;transform:translateY(16px)}100%{opacity:0}}
