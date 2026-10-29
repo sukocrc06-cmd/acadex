@@ -3213,8 +3213,8 @@ window.axNotify = function (title, opts) {
   var coverPage = function () {
     var e = EXM, lim = e.is_simulation && e.time_limit_seconds ? Math.round(e.time_limit_seconds / 60) : 0;
     book.className = 'sn-book cover';
-    book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc((TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
-      '<ul><li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin; takılırsan “adım adım çöz” soruyu küçük adımlara böler (hesap sorusu sonra yeni sayılarla gelir, ötekiler en çok 50 puan)') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön; işaretli doğrular konu ustalığına daha az katkı yapar</li></ul>' +
+    book.innerHTML = '<span class="sn-k">' + esc($L('[data-hl-course]').textContent) + '</span><h3>' + esc(e.scoring && Array.isArray(e.scoring.retry) ? 'ikinci şans' : (TYPE[e.exam_type] || 'deneme') + ' sınavı') + '</h3><p class="meta">' + QS.length + ' soru · ' + (DIFF[e.difficulty] || '') + ' · ' + (e.language === 'tr' ? 'Türkçe' : 'English') + '</p>' +
+      '<ul>' + (e.scoring && Array.isArray(e.scoring.retry) ? '<li><b>ikinci şans:</b> hata defterindeki yanlışlarının benzerleri; 80 ve üstü doğru sayılır, art arda iki doğru o yanlışı defterden çıkarır</li>' : '') + '<li>' + (lim ? 'süre: ' + lim + ' dakika; sayaç sınav hazırlanınca başladı, bitince kâğıt kendiliğinden toplanır' : 'süre sınırı yok; kendi hızında çöz') + '</li><li>' + (e.is_simulation ? 'ipucu yok, gerçek sınav gibi' : 'her soruda bir ipucu alabilirsin; takılırsan “adım adım çöz” soruyu küçük adımlara böler (hesap sorusu sonra yeni sayılarla gelir, ötekiler en çok 50 puan)') + '</li>' + (e.scoring && +e.scoring.decimal_places ? '<li><b>sayı hassasiyeti:</b> hesap cevapları ' + esc(precLabel(e.scoring.decimal_places)) + ' doğru olmalı; sonucu bu basamağa yuvarla.</li>' : '') + (e.scoring && e.scoring.negative_marking ? '<li><b>yanlış doğruyu götürür:</b> ' + esc(String(e.scoring.wrong_per_correct || 4)) + ' yanlış 1 doğruyu siler (yalnızca çoktan seçmeli); emin değilsen boş bırak</li>' : '') + '<li>sorular arasında optik formdan gezebilirsin</li><li>emin olmadığını “işaretle”, sonra dön; işaretli doğrular konu ustalığına daha az katkı yapar</li></ul>' +
       (e.is_simulation ? '<p class="warn">SEKMEDEN ÇIKARSAN NOT EDİLİR</p>' : '') + '<button type="button" class="btn btn-blue" data-open-book="">kitapçığı aç</button>';
     setTimeout(function () { var b = book.querySelector('[data-open-book]'); if (b) b.focus(); }, 60);
   };
@@ -3261,7 +3261,7 @@ window.axNotify = function (title, opts) {
       if (typeof stopExamTimer === 'function') stopExamTimer();
       var c = cardById(exam.study_card_id);
       $L('[data-hl-course]').textContent = exam.source_type === 'course' ? (exam.course_code || 'ders ağacı') : (c ? (c.course_tag ? c.course_tag + ' · ' : '') + baseName(c.documents && c.documents.file_name) : 'belge');
-      $L('[data-hl-title]').textContent = (TYPE[exam.exam_type] || 'deneme') + ' deneme' + (exam.is_simulation ? ' · gerçek süre' : '');
+      $L('[data-hl-title]').textContent = (exam.scoring && Array.isArray(exam.scoring.retry) ? 'ikinci şans' : (TYPE[exam.exam_type] || 'deneme') + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '');
       hMain.hidden = false; res.hidden = true; res.innerHTML = ''; clockW.hidden = false; subBtn.hidden = false; exitBtn.hidden = false; exitBtn.textContent = 'çık';
       openHall(); coverPage(); paintOpt();
       /* Simülasyon süresi sunucuda sınavın oluşturulduğu andan (started_at)
@@ -3602,14 +3602,14 @@ window.axNotify = function (title, opts) {
       var adPlan = exam.scoring && exam.scoring.adaptive && Array.isArray(exam.scoring.adaptive.plan) ? exam.scoring.adaptive.plan : null, adMap = {};
       if (adPlan && ENG() && typeof ENG().conceptKey === 'function') adPlan.forEach(function (x) { adMap[ENG().conceptKey(x.concept)] = x.reason; });
       var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
-      res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc((adPlan ? 'akıllı' : (TYPE[exam.exam_type] || 'deneme')) + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
+      res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc(exam.scoring && Array.isArray(exam.scoring.retry) ? 'ikinci şans' : (adPlan ? 'akıllı' : (TYPE[exam.exam_type] || 'deneme')) + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
         '<div class="sn-score-w"><span class="sn-gz-res" data-acadia="" data-mood="' + (g >= 70 ? 'kutlama' : g >= 50 ? 'mutlu' : 'dusunuyor') + '" data-pose="' + (g >= 70 ? 'zipla' : 'dur') + '" data-size="92" data-costume="sinav" aria-hidden="true"></span><div class="sn-score ' + (g >= 70 ? 'ok' : g >= 50 ? 'mid' : 'lo') + '" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div></div>' +
         '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' + mch +
         rs.map(function (r, i) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
-          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + (adPlan && r.concept && adMap[ENG().conceptKey(r.concept)] ? '<span class="why ' + esc(adMap[ENG().conceptKey(r.concept)]) + '">' + esc(AD_WHY[adMap[ENG().conceptKey(r.concept)]] || '') + '</span>' : '') + (r.help_used ? '<span class="why help">' + (r.help_variant ? 'adım adım · yeni sayılarla' : 'adım adım · en çok ' + esc(String(r.help_cap || 50))) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
+          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + (adPlan && r.concept && adMap[ENG().conceptKey(r.concept)] ? '<span class="why ' + esc(adMap[ENG().conceptKey(r.concept)]) + '">' + esc(AD_WHY[adMap[ENG().conceptKey(r.concept)]] || '') + '</span>' : '') + (exam.scoring && Array.isArray(exam.scoring.retry) ? '<span class="why review">hata defterinden</span>' : '') + (r.help_used ? '<span class="why help">' + (r.help_variant ? 'adım adım · yeni sayılarla' : 'adım adım · en çok ' + esc(String(r.help_cap || 50))) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
             '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + (r.type === 'graph' && ENG() && typeof ENG().graphResultHtml === 'function' ? ENG().graphResultHtml(r, exam.language) : '') + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
             (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + (r.help_raw_score != null ? '<p class="fb">Cevabın ' + esc(String(r.help_raw_score)) + ' puanlık; adım adım yardım kullandığın için ' + esc(String(r.help_cap || 50)) + ' sayıldı.</p>' : '') + teach(r, blank) + steps + '</div>';
@@ -3678,7 +3678,7 @@ window.axNotify = function (title, opts) {
     var list = ex.slice().reverse();
     attsEl.innerHTML = list.length ? list.slice(0, 20).map(function (e) {
       var gg = Math.round(+e.grade || 0);
-      return '<li tabindex="0" role="button" data-ex="' + esc(e.id) + '" aria-label="' + esc(nameOfKey(keyOfExam(e))) + ' denemesi, ' + gg + ' puan, sonucu aç"><span class="dt">' + dshort(e.completed_at) + '</span><span class="ti">' + esc((e.scoring && e.scoring.adaptive ? 'akıllı' : (TYPE[e.exam_type] || 'deneme')) + ' · ' + nameOfKey(keyOfExam(e))) + (e.is_simulation ? ' · ⏱' : '') + '</span><span class="du">' + (e.question_count || (e.question_results || []).length) + ' soru' + (e.difficulty ? ' · ' + (DIFF[e.difficulty] || '') : '') + '</span><span class="sc' + (gg >= 75 ? ' ok' : gg >= 50 ? ' mid' : '') + '">' + gg + '</span></li>';
+      return '<li tabindex="0" role="button" data-ex="' + esc(e.id) + '" aria-label="' + esc(nameOfKey(keyOfExam(e))) + ' denemesi, ' + gg + ' puan, sonucu aç"><span class="dt">' + dshort(e.completed_at) + '</span><span class="ti">' + esc((e.scoring && Array.isArray(e.scoring.retry) ? 'ikinci şans' : e.scoring && e.scoring.adaptive ? 'akıllı' : (TYPE[e.exam_type] || 'deneme')) + ' · ' + nameOfKey(keyOfExam(e))) + (e.is_simulation ? ' · ⏱' : '') + '</span><span class="du">' + (e.question_count || (e.question_results || []).length) + ' soru' + (e.difficulty ? ' · ' + (DIFF[e.difficulty] || '') : '') + '</span><span class="sc' + (gg >= 75 ? ' ok' : gg >= 50 ? ' mid' : '') + '">' + gg + '</span></li>';
     }).join('') : '<li class="sn-empty" style="display:block;border:0">henüz tamamlanmış deneme yok.</li>';
   };
   /* FAZ 5.1: konu ustalığı (exam-engine conceptMastery). Seçili masa ya da
@@ -3770,15 +3770,27 @@ window.axNotify = function (title, opts) {
 
   /* ---------- hata defteri ---------- */
   var errsEl = $('[data-errs]');
+  /* FAZ 8: ikinci şans. Yanlışlar aralıklı tekrarla benzer yeni soru olarak
+     döner (generate-exam { retry }); takvim ve "kazanıldı" exam-engine
+     mistakeStates'ten. İkinci şans sınavının kendi yanlışları ayrı satır
+     olmaz, kaynak yanlışın denemesi sayılır. */
+  var RETRY_OK = { multiple_choice: 1, true_false: 1, fill_blank: 1, open_ended: 1, calculation: 1 };
+  var RETRY_SETS = {}, retryBusy = false;
   var paintErrs = function () {
-    var groups = {}, total = 0;
+    var groups = {}, total = 0, E = ENG();
+    var MS = E && typeof E.mistakeStates === 'function' ? E.mistakeStates(EX) : {};
+    RETRY_SETS = {};
     EX.slice().reverse().forEach(function (e) {
-      var k = keyOfExam(e);
+      var k = keyOfExam(e), isRetry = !!(e.scoring && Array.isArray(e.scoring.retry));
       (e.question_results || []).forEach(function (r, i) {
-        var g = groups[k] = groups[k] || { key: k, items: [], con: {} };
+        var g = groups[k] = groups[k] || { key: k, items: [], con: {}, won: 0, due: [] };
         if (r.concept) { (g.con[r.concept] = g.con[r.concept] || { t: 0, n: 0 }); g.con[r.concept].t += +r.score || 0; g.con[r.concept].n++; }
-        var id = e.id + ':' + i;
-        if ((+r.score || 0) < 50 && done.indexOf(id) < 0) { g.items.push({ id: id, r: r }); total++; }
+        if (isRetry) return;
+        var id = e.id + ':' + i, st = MS[e.id + ':' + r.question_id] || null;
+        if ((+r.score || 0) >= 50 || done.indexOf(id) >= 0) return;
+        if (st && st.won) { g.won++; return; }
+        g.items.push({ id: id, r: r, st: st }); total++;
+        if (st && st.dueNow && RETRY_OK[r.type] && !r.chart && g.due.length < 10) g.due.push({ examId: e.id, questionId: r.question_id });
       });
     });
     $('[data-errn]').textContent = total;
@@ -3787,16 +3799,38 @@ window.axNotify = function (title, opts) {
     errsEl.innerHTML = gs.map(function (g) {
       var wk = Object.keys(g.con).map(function (c) { return { c: c, a: Math.round(g.con[c].t / g.con[c].n) }; }).filter(function (x) { return x.a < 75; }).sort(function (a, b) { return a.a - b.a; }).slice(0, 4);
       var code = g.key.indexOf('c:') === 0 ? g.key.slice(2) : null;
-      var btn = code && wk.length ? '<button type="button" class="btn btn-dark" data-practice="' + esc(code) + '" data-concept="' + esc(wk[0].c) + '">zayıf konudan deneme</button>' : '<button type="button" class="btn btn-dark" data-retry="' + esc(g.key) + '">yeniden deneme</button>';
-      return '<div class="sn-eg"><div class="sn-eg-h"><h3>' + esc(nameOfKey(g.key)) + '</h3><small>' + g.items.length + ' yanlış</small>' + btn + '</div>' +
+      var btn = code && wk.length ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wk[0].c) + '">zayıf konudan deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(g.key) + '">yeniden deneme</button>';
+      if (g.due.length) { RETRY_SETS[g.key] = g.due; btn = '<button type="button" class="btn btn-dark" data-second="' + esc(g.key) + '">ikinci şans · ' + g.due.length + ' soru</button>' + btn; }
+      return '<div class="sn-eg"><div class="sn-eg-h"><h3>' + esc(nameOfKey(g.key)) + '</h3><small>' + g.items.length + ' yanlış' + (g.won ? ' · ' + g.won + ' kazanıldı' : '') + '</small>' + btn + '</div>' +
         (wk.length ? '<p class="axs-wk">' + wk.map(function (w) { return '<span>' + esc(w.c) + ' <b>' + w.a + '</b></span>'; }).join('') + '</p>' : '') +
         '<ol>' + g.items.slice(0, 8).map(function (it) {
           var r = it.r;
-          return '<li><span><span class="q">' + rich(String(r.question || '').slice(0, 220)) + '</span><span class="a">senin: <s>' + esc(String(r.student_answer || '').trim() ? (r.type === 'graph' && ENG() && ENG().graphAnswerSummary ? (ENG().graphAnswerSummary(r.student_answer, r, 'tr') || 'çizim') : String(r.student_answer)).slice(0, 120) : 'boş') + '</s>' + (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? ' · doğrusu: <b>' + esc(String(r.correct_answer).slice(0, 120)) + '</b>' : '') + '</span></span><button type="button" data-done="' + esc(it.id) + '" aria-label="Öğrendim, defterden sil" title="öğrendim">✓</button></li>';
+          return '<li><span><span class="q">' + rich(String(r.question || '').slice(0, 220)) + '</span><span class="a">senin: <s>' + esc(String(r.student_answer || '').trim() ? (r.type === 'graph' && ENG() && ENG().graphAnswerSummary ? (ENG().graphAnswerSummary(r.student_answer, r, 'tr') || 'çizim') : String(r.student_answer)).slice(0, 120) : 'boş') + '</s>' + (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' ? ' · doğrusu: <b>' + esc(String(r.correct_answer).slice(0, 120)) + '</b>' : '') + '</span>' + mistakeChip(it.st, r) + '</span><button type="button" data-done="' + esc(it.id) + '" aria-label="Öğrendim, defterden sil" title="öğrendim">✓</button></li>';
         }).join('') + '</ol>' + (g.items.length > 8 ? '<p class="sn-empty" style="font-size:18px">+' + (g.items.length - 8) + ' yanlış daha</p>' : '') + '</div>';
     }).join('');
   };
+  var mistakeChip = function (st, r) {
+    if (!RETRY_OK[r.type] || r.chart) return '';
+    if (!st) return '';
+    var t = st.dueNow ? (st.attempts.length ? 'tekrar zamanı' : 'ikinci şansa hazır') : st.inDays + ' gün sonra tekrar';
+    return '<span class="sn-mk' + (st.dueNow ? ' due' : '') + '">' + (st.streak ? st.streak + '/2 doğru · ' : st.attempts.length ? 'son denemede yanlış · ' : '') + esc(t) + '</span>';
+  };
+  var startSecond = async function (key, btn) {
+    var items = RETRY_SETS[key]; if (!items || !items.length || retryBusy) return;
+    retryBusy = true; var txt = btn.textContent; btn.disabled = true; btn.textContent = 'sorular hazırlanıyor…';
+    try {
+      var ses = (await sb().auth.getSession()).data.session; if (!ses) throw new Error('Oturum bulunamadı; yeniden giriş yap.');
+      var res = await fetch((typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : '') + '/functions/v1/generate-exam', { method: 'POST', headers: { Authorization: 'Bearer ' + ses.access_token, 'Content-Type': 'application/json', apikey: typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : '' }, body: JSON.stringify({ retry: { items: items } }) });
+      var d = await res.json().catch(function () { return {}; });
+      if (!res.ok || !d || !d.id) throw new Error((d && d.error) || 'İkinci şans sınavı açılamadı.');
+      if (d.question_count < items.length) say(items.length - d.question_count + ' yanlış için benzer soru kurulamadı; ' + d.question_count + ' soruyla başlıyor.');
+      try { currentActiveExam = d; } catch (x) {}
+      window.startActiveExam(d, {});
+    } catch (x) { say(x.message || 'İkinci şans sınavı açılamadı.'); }
+    finally { retryBusy = false; if (btn.isConnected) { btn.disabled = false; btn.textContent = txt; } }
+  };
   errsEl.addEventListener('click', function (e) {
+    var s2 = e.target.closest('[data-second]'); if (s2) { startSecond(s2.getAttribute('data-second'), s2); return; }
     var d = e.target.closest('[data-done]');
     if (d) { var id = d.getAttribute('data-done'); done.push(id); put('acadex.sinav.errs.done', done); paintErrs(); say('Defterden silindi.', function () { done = done.filter(function (x) { return x !== id; }); put('acadex.sinav.errs.done', done); paintErrs(); }); return; }
     var p = e.target.closest('[data-practice]'); if (p) { practice(p.getAttribute('data-practice'), p.getAttribute('data-concept')); return; }
