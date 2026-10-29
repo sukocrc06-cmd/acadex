@@ -358,10 +358,8 @@ async function checkSessionAndLoadProfile() {
       };
     }
 
-    // Generic deep-link: ?tab=<id> lands directly on that sidebar tab. Added
-    // so teacher.html can link straight into "Sandbox Etkileşim Paneli"
-    // (dashboard.html?tab=sandbox-interaction) — teacher.html has no other
-    // route into dashboard.html's own tabs. Whitelisted against the same
+    // Generic deep-link: ?tab=<id> lands directly on that sidebar tab
+    // (e.g. dashboard.html?tab=sandbox-interaction). Whitelisted against the same
     // tab ids as ACADIA_VALID_TABS to avoid setting currentActiveTab to an
     // arbitrary querystring value.
     const deepLinkTab = deepLinkParams.get('tab');
@@ -384,7 +382,7 @@ async function checkSessionAndLoadProfile() {
     await checkNotifications();
 
     // Live toast+sound notifications (comments, likes, announcements,
-    // materials, exam feedback...) — see startNotificationPolling().
+    // achievements...) — see startNotificationPolling().
     if (!window.notificationPollIntervalWired) {
       window.notificationPollIntervalWired = true;
       startNotificationPolling();
@@ -3887,7 +3885,7 @@ function loadViewContent(viewId) {
   } else if (viewId === 'sandbox-interaction') {
     // "Ders Sözlüğü" used to live in this sidebar slot; it's now the
     // Proje Akışı feed (moved out of Geliştirici Sandbox so it's a
-    // top-level, teacher-and-student-visible panel of its own).
+    // top-level panel of its own).
     sandboxProjectsLimit = 20;
     loadDeveloperSandbox();
   } else if (viewId === 'exams') {
@@ -7854,14 +7852,6 @@ async function generateExam() {
   if ((document.getElementById('exam-adaptive') || {}).checked) {
     requestBody.adaptive = { daysToExam: Number.isFinite(window.__examAdaptiveDays) ? window.__examAdaptiveDays : null };
   }
-  // FAZ 6.2: öğretmenin ödev taslağı — sınav açılmaz; sorular cevaplarıyla
-  // ödev düzenleyicisine gider (acadex-ink.js window.__examAssignmentDraft.done).
-  const asgDraft = window.__examAssignmentDraft && typeof window.__examAssignmentDraft.done === 'function' ? window.__examAssignmentDraft : null;
-  if (asgDraft) {
-    requestBody.assignmentDraft = true;
-    requestBody.isSimulation = false;
-    delete requestBody.adaptive;
-  }
 
   if (examSelectedSource === 'course') {
     if (!examSelectedCourse || !examSelectedCourse.code) {
@@ -7945,12 +7935,6 @@ async function generateExam() {
       showDashboardAlert('error', data.error || 'Sınav oluşturulamadı.');
       btn.disabled = false;
       btn.textContent = originalText;
-      return;
-    }
-
-    if (asgDraft) {
-      if (data && data.draft && Array.isArray(data.questions)) { clearExamFocusConcept(); asgDraft.done(data, requestBody); }
-      else showDashboardAlert('error', 'Ödev taslağı hazırlanamadı.');
       return;
     }
 
@@ -8676,8 +8660,6 @@ async function loadSettingsView() {
     if (likesCheck) likesCheck.checked = prefs.likes !== false;
     const announcementsCheck = document.getElementById('notif-pref-announcements');
     if (announcementsCheck) announcementsCheck.checked = prefs.announcements !== false;
-    const materialsCheck = document.getElementById('notif-pref-materials');
-    if (materialsCheck) materialsCheck.checked = prefs.materials !== false;
     // Telefon bildirimi hatırlatmaları (29.10.2026, js/acadex-push.js +
     // supabase/migrations/20261029_web_push.sql): study / review / study_hour.
     const studyCheck = document.getElementById('notif-pref-study');
@@ -12600,30 +12582,22 @@ async function loadDashboardHome() {
     await loadRecentActivity();
     await renderStreakAndAchievements();
     renderWeakTopicsPanel(examsData || []);
-    await loadHomeAnnouncementsAndMaterials();
+    await loadHomeAnnouncements();
   } catch (err) {
     console.error("Error loading home stats:", err);
   }
 }
 
 // ==========================================
-// Duyurular & Materyaller (Home tab)
+// Duyurular (Home tab)
 //
-// announcements and teacher_materials were already correctly written by
-// teacher.html (submitTeacherAnnouncement / submitTeacherMaterial) and
-// already have working RLS select policies scoping them to the right
-// student (announcements: active + department + starts_at/ends_at window;
-// teacher_materials: own department) — see
-// supabase/migrations/20260719_admin_teacher_portals.sql and
-// 20260719b_admin_teacher_enhancements.sql. What was missing was any
-// student-facing UI reading from either table, so nothing a hoca posted
-// ever rendered anywhere for a student. Both queries below rely entirely
-// on RLS to scope the rows — no extra client-side filtering needed.
+// Yönetim panelinden yayınlanan duyurular. RLS satırları öğrenciye göre
+// süzer (active + bölüm + starts_at/ends_at penceresi); istemcide ek
+// süzme yok.
 // ==========================================
-async function loadHomeAnnouncementsAndMaterials() {
+async function loadHomeAnnouncements() {
   const annList = document.getElementById('home-announcements-list');
-  const matList = document.getElementById('home-materials-list');
-  if (!annList && !matList) return;
+  if (!annList) return;
 
   if (annList) {
     try {
@@ -12649,38 +12623,12 @@ async function loadHomeAnnouncementsAndMaterials() {
         `).join('');
       }
     } catch (err) {
-      console.error('loadHomeAnnouncementsAndMaterials (announcements) error:', err);
+      console.error('loadHomeAnnouncements error:', err);
       annList.innerHTML = `<p style="color:#DC2626; font-size: 0.85rem;">Duyurular yüklenemedi.</p>`;
     }
   }
-
-  if (matList) {
-    try {
-      const { data, error } = await supabaseClient
-        .from('teacher_materials')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        matList.innerHTML = `<div style="text-align:center; padding: 1rem; color: var(--color-text-muted); font-size: 0.85rem;">Bölümünüz için henüz paylaşılan materyal yok.</div>`;
-      } else {
-        matList.innerHTML = data.map(m => `
-          <div style="border: 1px solid rgba(22,50,92,0.08); border-radius: var(--radius-sm); padding: 0.85rem 1rem;">
-            <a href="${escapeHtml(m.url)}" target="_blank" rel="noopener" style="color: var(--color-teal); font-weight: 700; font-size: 0.9rem; text-decoration: underline;">${escapeHtml(m.title)}</a>
-            ${m.description ? `<p style="font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.25rem;">${escapeHtml(m.description)}</p>` : ''}
-            <span style="display:block; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem;">${new Date(m.created_at).toLocaleDateString()}</span>
-          </div>
-        `).join('');
-      }
-    } catch (err) {
-      console.error('loadHomeAnnouncementsAndMaterials (materials) error:', err);
-      matList.innerHTML = `<p style="color:#DC2626; font-size: 0.85rem;">Materyaller yüklenemedi.</p>`;
-    }
-  }
 }
-window.loadHomeAnnouncementsAndMaterials = loadHomeAnnouncementsAndMaterials;
+window.loadHomeAnnouncements = loadHomeAnnouncements;
 
 // ==========================================
 // Weak Topics / Focus Panel (concept-level analysis)
@@ -12871,8 +12819,8 @@ async function loadRecentActivity() {
 //
 // Consolidates every "something happened since you last checked" signal
 // into one feed: new shared study cards from your department, announcements
-// (school-wide or your department), newly unlocked achievements, and exams
-// your hoca has left review feedback on. Each source is fetched
+// (school-wide or your department) and newly unlocked achievements. Each
+// source is fetched
 // independently and fails soft — if one table/column isn't there yet (e.g.
 // a pending migration hasn't been run), that source is just skipped instead
 // of breaking the whole bell.
@@ -12932,26 +12880,6 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (konu tekrarları) error:', err);
   }
 
-  // 1c. FAZ 6.3: ödevler — son kontrolden sonra açılan yeni ödev ve 24 saatten
-  // az kalan, henüz teslim edilmemiş ödev. my_assignments yoksa sessizce atlanır.
-  try {
-    const { data: asgs, error } = await supabaseClient.rpc('my_assignments');
-    if (!error && Array.isArray(asgs)) {
-      const now = Date.now(), last = Date.parse(lastCheck || 0) || 0;
-      asgs.forEach(a => {
-        const opened = Date.parse(a.opens_at || '') || 0, due = Date.parse(a.due_at || '') || 0;
-        const fmt = d => new Date(d).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        if ((a.state === 'open' || a.state === 'in_progress') && opened > last && opened <= now) {
-          items.push({ time: new Date(opened).toISOString(), title: `📝 Yeni ödev: ${escapeHtml(a.title)}`, subtitle: `${escapeHtml(a.class_name || '')} · son teslim ${fmt(due)}`, onClick: () => switchDashboardView('exams') });
-        } else if ((a.state === 'open' || a.state === 'in_progress') && due > now && due - now < 86400000 && !(a.used > 0)) {
-          items.push({ time: new Date(now).toISOString(), title: `⏰ ${escapeHtml(a.title)}: son teslime ${Math.max(1, Math.round((due - now) / 3600000))} saat`, subtitle: `${escapeHtml(a.class_name || '')} · henüz teslim etmedin`, onClick: () => switchDashboardView('exams') });
-        }
-      });
-    }
-  } catch (err) {
-    console.error('gatherNotificationItems (ödevler) error:', err);
-  }
-
   // 2. Announcements — school-wide (audience_department null) or yours
   try {
     const { data: anns, error } = await supabaseClient
@@ -12975,31 +12903,6 @@ async function gatherNotificationItems(lastCheck) {
     }
   } catch (err) {
     console.error('gatherNotificationItems (announcements) error:', err);
-  }
-
-  // 2b. Shared materials from your own department's hocas — rendered on the
-  // Home tab by loadHomeAnnouncementsAndMaterials(); previously had no
-  // notification either, so a newly-shared material was invisible unless a
-  // student happened to revisit Home on their own.
-  try {
-    const { data: mats, error } = await supabaseClient
-      .from('teacher_materials')
-      .select('*')
-      .gt('created_at', lastCheck)
-      .order('created_at', { ascending: false });
-    if (!error && mats) {
-      mats.forEach(m => {
-        items.push({
-          time: m.created_at,
-          title: `📚 ${escapeHtml(m.title)}`,
-          subtitle: m.description ? escapeHtml(m.description) : 'Yeni bir ders materyali paylaşıldı.',
-          onClick: () => switchDashboardView('home'),
-          category: 'materials'
-        });
-      });
-    }
-  } catch (err) {
-    console.error('gatherNotificationItems (materials) error:', err);
   }
 
   // 3. Newly unlocked achievements — noToast:true because earning one in
@@ -13089,34 +12992,9 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (sandbox social) error:', err);
   }
 
-  // 5. Exams your hoca has left feedback on
-  try {
-    const { data: reviewed, error } = await supabaseClient
-      .from('exams')
-      .select('id, teacher_note, teacher_reviewed_at, study_cards(documents(file_name))')
-      .eq('user_id', currentUser.id)
-      .eq('teacher_reviewed', true)
-      .gt('teacher_reviewed_at', lastCheck)
-      .order('teacher_reviewed_at', { ascending: false });
-    if (!error && reviewed) {
-      reviewed.forEach(e => {
-        const topic = escapeHtml(e.study_cards?.documents?.file_name || 'a recent exam');
-        items.push({
-          time: e.teacher_reviewed_at,
-          title: '📝 Your Hoca Reviewed Your Exam',
-          subtitle: e.teacher_note ? `"${escapeHtml(e.teacher_note)}" — ${topic}` : `Feedback added on: ${topic}`,
-          onClick: () => switchDashboardView('exams')
-        });
-      });
-    }
-  } catch (err) {
-    console.error('gatherNotificationItems (exam reviews) error:', err);
-  }
-
   // Ayarlar → "Bildirim Tercihleri" lets a student turn off specific
-  // categories (comments/likes/announcements/materials — achievements and
-  // exam feedback are always on since they're academic, not social, signals
-  // and carry no `category`). Default to true for anyone who hasn't touched
+  // categories (comments/likes/announcements — achievements are always on
+  // since they're academic, not social, signals and carry no `category`). Default to true for anyone who hasn't touched
   // this yet (undefined prefs, or a category missing from an older saved
   // object) so behavior is unchanged until a student explicitly opts out.
   const notifPrefs = (currentUserProfile && currentUserProfile.notification_prefs) || {};
@@ -18322,7 +18200,6 @@ async function saveNotificationPrefs() {
     comments: !!document.getElementById('notif-pref-comments')?.checked,
     likes: !!document.getElementById('notif-pref-likes')?.checked,
     announcements: !!document.getElementById('notif-pref-announcements')?.checked,
-    materials: !!document.getElementById('notif-pref-materials')?.checked,
   };
   if (document.getElementById('notif-pref-study')) prefs.study = !!document.getElementById('notif-pref-study').checked;
   if (document.getElementById('notif-pref-review')) prefs.review = !!document.getElementById('notif-pref-review').checked;

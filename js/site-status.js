@@ -39,7 +39,7 @@ function acadexRenderMaintenanceNotice(maintenance) {
 window.acadexRenderMaintenanceNotice=acadexRenderMaintenanceNotice;
 function acadexApplyPortalLabel(){
   const portal=new URLSearchParams(window.location.search).get('portal'); if(!portal)return;
-  const copy={teacher:{title:'Hoca Girişi',subtitle:'Akademik panelinize erişmek için giriş yapın'},admin:{title:'Yönetim Girişi',subtitle:'Admin panelinize erişmek için giriş yapın'}}[portal]; if(!copy)return;
+  const copy={admin:{title:'Yönetim Girişi',subtitle:'Admin panelinize erişmek için giriş yapın'}}[portal]; if(!copy)return;
   const titleEl=document.querySelector('#login-view .auth-title'); const subtitleEl=document.querySelector('#login-view .auth-subtitle');
   if(titleEl){titleEl.removeAttribute('data-i18n');titleEl.textContent=copy.title;} if(subtitleEl){subtitleEl.removeAttribute('data-i18n');subtitleEl.textContent=copy.subtitle;}
 }

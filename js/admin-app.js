@@ -554,7 +554,6 @@
         (d.usage && d.usage.length ? '<div><h3 style="margin:0 0 8px;font-size:15px">Aylık kullanım</h3><div class="tbl-w"><table><thead><tr><th>Ay</th><th>Sayfa</th><th>Belge</th><th>Önbellek</th></tr></thead><tbody>' + d.usage.map(function (u) { return '<tr><td>' + new Date(u.period).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }) + '</td><td>' + NF(u.pages_used) + '</td><td>' + NF(u.docs_used) + '</td><td>' + NF(u.cache_hits) + '</td></tr>'; }).join('') + '</tbody></table></div></div>' : '') +
         (d.docs && d.docs.length ? '<div><h3 style="margin:0 0 8px;font-size:15px">Son belgeler</h3><div class="tbl-w"><table><tbody>' + d.docs.map(function (x) { return '<tr><td>' + X(x.file_name) + '</td><td>' + (x.status === 'summarized' ? '<span class="pill ok">özetlendi</span>' : '<span class="pill">' + X(x.status) + '</span>') + '</td><td class="muted">' + AGO(x.uploaded_at) + '</td></tr>'; }).join('') + '</tbody></table></div></div>' : '') +
         '<div class="acts"><a class="btn ghost sm" href="mailto:' + X(p.email) + '">e-posta yaz</a><button type="button" class="btn ghost sm" id="d-reset">şifre sıfırlama e-postası</button></div>' +
-        '<div id="d-teach"></div>' +
         (!self && !p.is_admin && typeof p.access_allowed === 'boolean' ? '<div class="danger" style="border-color:#2F6BFF;background:#F3F7FF"><h3>' + (p.access_allowed ? 'Erişimi kapat' : 'Erişim izni ver') + '</h3><p class="muted" style="font-size:13px;margin:0 0 10px">' + (p.access_allowed ? 'Geliştirme modu açıkken öğrenci giriş yapamaz; verisi silinmez.' : 'Geliştirme modu açıkken yalnızca izinli hesaplar girebilir. İzin verince öğrenci hemen giriş yapabilir.') + '</p><button type="button" class="btn ' + (p.access_allowed ? 'ghost' : 'blue') + ' sm" id="d-acc">' + (p.access_allowed ? 'Erişimi kapat' : 'Erişim izni ver') + '</button></div>' : '') +
         (self ? '<p class="muted" style="font-size:13px">Kendi hesabın: askıya alma kapalı.</p>' : p.is_admin ? '<p class="muted" style="font-size:13px">Yönetici hesapları panelden askıya alınamaz.</p>' :
           '<div class="danger"><h3>' + (p.is_suspended ? 'Askıyı kaldır' : 'Hesabı askıya al') + '</h3><p class="muted" style="font-size:13px;margin:0 0 10px">' + (p.is_suspended ? 'Öğrenci yeniden giriş yapıp Acadex\'i kullanabilir.' : 'Öğrenci giriş yaptığında panel yerine "hesabın askıda" ekranını görür. Verisi silinmez.') + '</p>' +
@@ -581,26 +580,6 @@
           catch (e) { db.disabled = false; db.textContent = 'Hesabı kalıcı sil'; toast(/admin_delete_user|could not find|does not exist|PGRST202/i.test((e && (e.message + e.code)) || '') ? 'Silme özelliği veritabanında henüz kurulu değil (SQL adımı yapılmalı).' : errMsg(e), true); }
         });
       }
-      /* Faz 6.1: öğretmen yetkisi (admin_user_detail is_teacher döndürmez; ayrı RPC). */
-      var tbox = $('#d-teach');
-      var paintTeach = async function () {
-        if (!tbox) return;
-        var t; try { t = await rpc('admin_teacher_status', { p_id: p.id }); } catch (e) { tbox.innerHTML = ''; return; }
-        if (!t) { tbox.innerHTML = ''; return; }
-        var on = !!t.is_teacher;
-        tbox.innerHTML = '<div class="danger" style="border-color:#1F9D6B;background:#F2FBF6"><h3>' + (on ? 'Öğretmen yetkisini kaldır' : 'Öğretmen yetkisi ver') + '</h3>' +
-          '<p class="muted" style="font-size:13px;margin:0 0 10px">' + (on
-            ? 'Öğretmen: ' + NF(t.classes) + ' açık sınıf, ' + NF(t.students) + ' öğrenci. Yetki kalkınca sınıflar yeni öğrenci almaz; kayıtlar silinmez.'
-            : 'Çalışma masasında "sınıflarım" açılır: sınıf kurar, katılım kodu dağıtır, ödev verir. Öğrencinin yalnızca adını, numarasını, bölümünü ve ödev sonuçlarını görür.' + (t.enrolled ? ' Bu hesap ' + NF(t.enrolled) + ' sınıfta öğrenci.' : '')) + '</p>' +
-          '<button type="button" class="btn ' + (on ? 'red' : 'green') + ' sm" id="d-teach-b">' + (on ? 'Yetkiyi kaldır' : 'Öğretmen yap') + '</button></div>';
-        $('#d-teach-b').addEventListener('click', async function () {
-          if (!confirmBox((p.full_name || p.email) + (on ? ' için öğretmen yetkisi kaldırılsın mı?' : ' öğretmen yapılsın mı?'))) return;
-          this.disabled = true;
-          try { await rpc('admin_set_teacher', { p_id: p.id, p_value: !on }); toast(on ? 'Öğretmen yetkisi kaldırıldı.' : 'Öğretmen yetkisi verildi.'); paintTeach(); }
-          catch (e) { this.disabled = false; toast(/admin_set_teacher|could not find|PGRST202/i.test((e && (e.message + e.code)) || '') ? 'Öğretmen yetkisi veritabanında henüz kurulu değil (Faz 6.1 SQL adımı).' : errMsg(e), true); }
-        });
-      };
-      paintTeach();
       var acb = $('#d-acc'); if (acb) acb.addEventListener('click', async function () {
         var to = !p.access_allowed;
         if (!confirmBox((p.full_name || p.email) + (to ? ' için erişim izni verilsin mi?' : ' için erişim kapatılsın mı?'))) return;
@@ -958,7 +937,7 @@
   });
 
   /* ---------- denetim kaydı ---------- */
-  var ACTION = { user_suspend: 'Hesap askıya alındı', user_unsuspend: 'Askı kaldırıldı', user_password_reset_email: 'Şifre sıfırlama e-postası', user_delete: 'Hesap kalıcı silindi', report_hide: 'Şikâyet: içerik gizlendi', report_dismiss: 'Şikâyet kapatıldı', report_reopen: 'Şikâyet yeniden açıldı', content_hide: 'İçerik gizlendi', content_unhide: 'İçerik görünür yapıldı', setting_change: 'Site ayarı değişti', announcement_create: 'Duyuru yayınlandı', announcement_update: 'Duyuru güncellendi', announcement_archive: 'Duyuru arşivlendi', set_is_admin: 'Yönetici atandı', set_is_teacher: 'Öğretmen yetkisi', teacher_system_removed: 'Hoca sistemi kaldırıldı', campuso_sso_login: 'Campuso girişi (eski)', access_grant: 'Erişim izni verildi', access_revoke: 'Erişim kapatıldı', invite_add: 'Davet eklendi', invite_remove: 'Davet kaldırıldı' };
+  var ACTION = { user_suspend: 'Hesap askıya alındı', user_unsuspend: 'Askı kaldırıldı', user_password_reset_email: 'Şifre sıfırlama e-postası', user_delete: 'Hesap kalıcı silindi', report_hide: 'Şikâyet: içerik gizlendi', report_dismiss: 'Şikâyet kapatıldı', report_reopen: 'Şikâyet yeniden açıldı', content_hide: 'İçerik gizlendi', content_unhide: 'İçerik görünür yapıldı', setting_change: 'Site ayarı değişti', announcement_create: 'Duyuru yayınlandı', announcement_update: 'Duyuru güncellendi', announcement_archive: 'Duyuru arşivlendi', set_is_admin: 'Yönetici atandı', set_is_teacher: 'Hoca yetkisi (eski)', teacher_system_removed: 'Hoca sistemi kaldırıldı', campuso_sso_login: 'Campuso girişi (eski)', access_grant: 'Erişim izni verildi', access_revoke: 'Erişim kapatıldı', invite_add: 'Davet eklendi', invite_remove: 'Davet kaldırıldı' };
   var AF = '';
   VIEWS.audit = async function (m) {
     var d = await rpc('admin_audit', { p_action: AF, p_limit: 200, p_offset: 0 }), rows = d.rows || [];
