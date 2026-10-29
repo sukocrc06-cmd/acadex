@@ -96,6 +96,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
   'gateWorkedExamples',
   'JSON_GECERLI_KACIS', 'LATEX_IKI_HARFLI', 'repairLatexEscapes',
+  // Anlatida ters bolunun satir sonuna donmesi (29.10.2026 olcumu).
+  'LATEX_ANLATI_NET', 'LATEX_ANLATI_KELIME', 'onarAnlatiTersBolusu',
   // Yokluk iddiasi kapisi (08.10.2026).
   'YOKLUK_IDDIASI',
   // Pencere cikis tavani serit butcesinden turetilir (09.10.2026).
@@ -4417,6 +4419,100 @@ test('KACIS IKI KARAKTER olarak tuketiliyor', () => {
     'tirnaktan SONRAKI LaTeX onarilmali');
 });
 
+
+/* ANLATIDA TERS BOLU SATIR SONUNA DONUYOR (29.10.2026 CANLI OLCUM).
+
+   Week_8_Derivative kartinda (id dcd077c1) olculdu: anlati metnindeki 22
+   satir sonunun 18'i bir LaTeX komut adinin TAM onunde, saglam \komut
+   sayisi SIFIR. Ayni kartta sections'taki \frac saglam, key_terms'te iki
+   saglam komut var, formulas dizisinin 12 formulunun hepsi saglam — yani
+   bozulma yalnizca anlati yazarinin yazdigi alanlarda.
+
+   repairLatexEscapes suclu DEGIL: fuzz ile olculdu, \frac / \\frac / cift
+   gecis icin devirli. Depolanan baytlari (LF,f,r,a,c) ureten tek girdi ham
+   JSON'da `\nfrac`. Onarim bu yuzden ayristirmadan SONRA, cozulmus dize
+   uzerinde yapiliyor. */
+console.log('\nANLATIDA KAYIP LATEX TERS BOLUSU\n');
+
+test('olculen hata onariliyor: LF + komut adi', () => {
+  const r = A.onarAnlatiTersBolusu('the power rule \nfrac{d}{dx}(x^n) = nx^{n-1}');
+  assert.equal(r.metin, 'the power rule \\frac{d}{dx}(x^n) = nx^{n-1}');
+  assert.equal(r.onarim, 1);
+});
+
+test('net komut adlari harf gelmedigi surece onariliyor', () => {
+  for (const [girdi, bekle] of [
+    ['coefficient \nalpha_1', 'coefficient \\alpha_1'],
+    ['\nsqrt{2} kadar', '\\sqrt{2} kadar'],
+    ['egim \npartial y', 'egim \\partial y'],
+    ['\ninfty a gider', '\\infty a gider']
+  ]) assert.equal(A.onarAnlatiTersBolusu(girdi).metin, bekle, girdi);
+});
+
+test('DUZ YAZI BOZULMUYOR: ingilizcede kelime olan komut adlari', () => {
+  /* Kapali liste ve harf kontrolu tam bunun icin: "summary" \sum ile,
+     "integral" \int ile ayni harflerle basliyor. Ikinci kume (sum, int,
+     lim, left, text ...) ayrica LaTeX e ozgu bir karakter istiyor. */
+  for (const duz of [
+    'the \nsum of squares',
+    'see \nsummary below',
+    'an \nintegral part',
+    'the \nlimit of the series',
+    'on the \nleft side',
+    'plain \ntext follows'
+  ]) {
+    const r = A.onarAnlatiTersBolusu(duz);
+    assert.equal(r.metin, duz, `duz yazi bozuldu: ${JSON.stringify(duz)}`);
+    assert.equal(r.onarim, 0);
+  }
+});
+
+test('kelime olan komut adi LaTeX karakteri gelirse onariliyor', () => {
+  assert.equal(A.onarAnlatiTersBolusu('the \nsum_{i=1}^n x_i').metin, 'the \\sum_{i=1}^n x_i');
+  assert.equal(A.onarAnlatiTersBolusu('grows \ntimes 3').metin, 'grows \\times 3');
+  assert.equal(A.onarAnlatiTersBolusu('\nlim_{x \\to 0}').metin, '\\lim_{x \\to 0}');
+});
+
+test('PARAGRAF YAPISINA DOKUNULMUYOR', () => {
+  // Paragraf arasi IKI satir sonu; onarim yalnizca TEK satir sonuna bakiyor.
+  const p = 'Birinci paragraf bitti.\n\nfrac bir kelime olarak gecse bile.';
+  assert.equal(A.onarAnlatiTersBolusu(p).metin, p);
+  const kalin = '**Ilk konu.** Metin.\n\n**Ikinci konu.** Metin.';
+  assert.equal(A.onarAnlatiTersBolusu(kalin).metin, kalin);
+});
+
+test('saglam ters bolu ve satir sonsuz metin degismiyor', () => {
+  const saglam = 'rule \\frac{d}{dx} ve \\sum_{i}';
+  assert.equal(A.onarAnlatiTersBolusu(saglam).metin, saglam);
+  assert.equal(A.onarAnlatiTersBolusu(saglam).onarim, 0);
+  assert.equal(A.onarAnlatiTersBolusu('hic satir sonu yok').metin, 'hic satir sonu yok');
+  assert.equal(A.onarAnlatiTersBolusu('').metin, '');
+  assert.equal(A.onarAnlatiTersBolusu(null).metin, '');
+});
+
+test('canli olcumdeki 16 komut sayiliyor (paylasilan lastIndex yok)', () => {
+  const metin = Array(16).fill('x \nfrac{a}{b}').join(' ');
+  const r = A.onarAnlatiTersBolusu(metin);
+  assert.equal(r.onarim, 16);
+  assert.equal((r.metin.match(/\\frac/g) || []).length, 16);
+  assert.ok(!r.metin.includes('\nfrac'), 'tek bir bozuk komut kalmamali');
+  // Ayni fonksiyon ikinci cagrida da ayni sonucu vermeli.
+  assert.equal(A.onarAnlatiTersBolusu(metin).onarim, 16);
+});
+
+test('onarim CIKIS NOKTASINDA her iki anlati alanina baglanmis', () => {
+  /* Anlatiyi yazar da, review de, Gemini taslagi da yazabiliyor; onarim bu
+     yuzden tek bir cikis noktasinda duruyor. Bagli kalmazsa dosyadaki
+     fonksiyon olu kod olur ve bu test onu yakalar. */
+  const m = SRC.match(/for \(const alan of \["summary", "summary_executive"\][\s\S]{0,420}?onarAnlatiTersBolusu/);
+  assert.ok(m, 'onarAnlatiTersBolusu summary ve summary_executive alanlarina baglanmali');
+});
+
+test('yazar promptu ters boluyu CIFTLEMEYI soyluyor', () => {
+  // Onleme tarafi: onarim son care, ilk care prompt.
+  assert.ok(/DOUBLE the backslash/.test(SRC),
+    'writerSys ters bolunun ciftlenmesini istemeli');
+});
 
 console.log('\nSAYISAL KAPSAMA OLCUSU\n');
 

@@ -292,6 +292,58 @@ function repairLatexEscapes(json: string): string {
   return out
 }
 
+/* ANLATIDA TERS BOLU GERCEK SATIR SONUNA DONUYOR (29.10.2026 olcumu).
+ *
+ * Week_8_Derivative kartinin ANLATI metnindeki 22 satir sonunun 18i bir
+ * LaTeX komut adinin TAM onundeydi ve saglam `\komut` sayisi SIFIRDI:
+ *   "the power rule <LF>frac{d}{dx}(x^n) = nx^{n-1}"
+ * Ayni kartta sections ve key_terms icindeki `\frac` saglam, formulas
+ * dizisinin 12 formulunun hepsi saglam. Bozulma yalnizca anlati yazarinin
+ * yazdigi alanlarda.
+ *
+ * Sebep repairLatexEscapes DEGIL: fuzz ile olculdu, o fonksiyon \frac,
+ * \\frac ve cift gecis icin devirli. Depolanan baytlari (LF,f,r,a,c)
+ * ureten tek girdi ham JSONda `\nfrac`, yani model ters boluyu `\n` diye
+ * yaziyor. Prompt ona tek kacis ornegi olarak `\n\n` veriyor, formulleri
+ * de ham LaTeX olarak gosteriyor; kopyalarken ikisini karistiriyor.
+ *
+ * Prompt daraltildi ama garanti degil, bu yuzden onarim deterministik:
+ * TEK bir satir sonunun ardindan BILINEN bir LaTeX komut adi geliyorsa o
+ * satir sonu kayip bir ters boludur. Kapali liste, serbest desen yerine
+ * bilerek (bkz. LATEX_IKI_HARFLI): "summary" ile \sum, "integral" ile
+ * \int ayni harflerle basliyor, bu yuzden komut adinin ardindan HARF
+ * gelmemesi sart. Ingilizcede de kelime olan adlar (sum, int, lim, left,
+ * text) ayrica LaTeXe ozgu bir karakter istiyor: { _ ^ ( \ ya da rakam.
+ * "<LF>sum of squares" duz yazidir, "<LF>sum_{i=1}" degildir.
+ * Paragraf arasi IKI satir sonudur; o yuzden yalnizca tek satir sonu
+ * incelenir, paragraf yapisina hic dokunulmuyor. */
+const LATEX_ANLATI_NET =
+  "frac|dfrac|tfrac|sqrt|cdots|cdot|ldots|leq|geq|neq|approx|infty|partial|" +
+  "nabla|varepsilon|varphi|alpha|beta|gamma|delta|epsilon|theta|lambda|" +
+  "sigma|Sigma|Delta|Omega|omega|rho|mathrm|mathbb|mathcal|overline|" +
+  "underline|binom|qquad|displaystyle"
+const LATEX_ANLATI_KELIME =
+  "sum|prod|int|lim|times|div|left|right|quad|text|log|ln|exp|hat|bar|" +
+  "vec|pi|mu|nu|tau|phi|begin|end|sin|cos|tan|sec|cot|max|min|pm|le|ge|to"
+
+function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } {
+  const s = String(metin || "")
+  if (s.indexOf("\n") === -1) return { metin: s, onarim: 0 }
+  let onarim = 0
+  /* Desen her cagrida uretiliyor: g bayrakli paylasilan regexin lastIndex
+     degeri iki cagri arasinda sessiz atlama yapar (bkz. mathDelimRe). */
+  const re = new RegExp(
+    "(?<!\\n)\\n(?:(" + LATEX_ANLATI_NET + ")(?![A-Za-z])" +
+    "|(" + LATEX_ANLATI_KELIME + ")(?=[{_^(\\\\]|[ ]*[0-9]))",
+    "g"
+  )
+  const out = s.replace(re, (_m: string, net: string, kelime: string) => {
+    onarim++
+    return "\\" + (net || kelime)
+  })
+  return { metin: out, onarim }
+}
+
 function stripThinkBlock(raw: string): string | null {
   const match = raw.match(/<think>[\s\S]*?<\/think>/i)
   if (match) {
@@ -12019,6 +12071,7 @@ HARD RULES (violations = failure):
 6. "summary_executive" = 2-3 sentences naming the actual subject of the document (not vague "this document discusses theories").
 7. FORMAT — the student reads this first, so it must scan:
    - Paragraphs separated by a blank line (\\n\\n), as many as the length line above asks for. Never one block of text.
+   - LaTeX inside prose: DOUBLE the backslash (\\\\frac, \\\\sum_{i=1}) — a lone \\n is a line break, never the start of a command name.
    - Open each paragraph with a bold lead-in that names its topic and ends with a period, e.g. "**Dummy variables shift the intercept.** A qualitative variable…". No markdown headings (#).
    - When the inputs give results, state them WITH their numbers: coefficients, % changes, significance levels, turning points, fit (R²).
    - Teach the content directly. Never narrate the document: no "This brief/chapter presents…", "The X section explains…", "It begins with a thesis…".
@@ -12890,6 +12943,19 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         `points ${beforeDedup.points}→${parsedContent.key_points.length}, ` +
         `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}`
       )
+
+      /* --- (c1) Anlatidaki kayip LaTeX ters bolusu — bkz.
+         onarAnlatiTersBolusu. Tek cikis noktasinda duruyor: anlatiyi
+         yazar da, review de, Gemini taslagi da yazabiliyor; uc yolun
+         hepsi bu satirdan geciyor. */
+      for (const alan of ["summary", "summary_executive"] as const) {
+        if (typeof parsedContent[alan] !== "string") continue
+        const o = onarAnlatiTersBolusu(parsedContent[alan])
+        if (o.onarim > 0) {
+          parsedContent[alan] = o.metin
+          console.log(`Anlati LaTeX ters bolu onarimi: ${alan} alaninda ${o.onarim} komut`)
+        }
+      }
 
       // --- (c2) Anlatida birebir tekrar eden cumle — bkz. dedupeNarrativeSentences
       if (typeof parsedContent.summary === 'string') {
