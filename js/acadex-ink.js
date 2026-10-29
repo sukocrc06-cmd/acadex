@@ -8494,7 +8494,10 @@ var SBX = (function () {
       '<div class="lb-pctl"><button type="button" class="btn btn-dark" data-pgo=""></button><button type="button" class="hbtn" data-pskip="">atla</button><button type="button" class="hbtn" data-preset="">sıfırla</button></div>' +
       '<p class="lb-dots" data-dots="" aria-live="polite"></p><div class="lb-seeds" data-seeds="" role="radiogroup" aria-label="Tohum seç"></div>' +
       '<details class="lb-pset"><summary class="hand">süreleri ayarla</summary><div class="lb-psrow">' +
-      '<label>odak <select data-pf=""><option>15</option><option>20</option><option>25</option><option>30</option><option>45</option><option>50</option></select> dk</label>' +
+      /* GECICI — BILDIRIM TESTI (29.10.2026). 1 dk secenegi yalnizca
+         pomodoro bitis bildirimini beklemeden denemek icin eklendi.
+         KALDIRMAK ICIN: asagidaki satirdaki <option>1</option>'i sil. */
+      '<label>odak <select data-pf=""><option>1</option><option>15</option><option>20</option><option>25</option><option>30</option><option>45</option><option>50</option></select> dk</label>' +
       '<label>mola <select data-pb=""><option>3</option><option>5</option><option>10</option></select> dk</label>' +
       '<label>uzun mola <select data-pl=""><option>10</option><option>15</option><option>20</option><option>30</option></select> dk</label>' +
       '<label>her <select data-pn=""><option>2</option><option>3</option><option>4</option><option>5</option></select> turda bir</label></div></details>' +
