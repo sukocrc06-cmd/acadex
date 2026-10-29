@@ -95,12 +95,12 @@ test('3B model lisans notu (CC BY-SA) veriyle birlikte duruyor', () => {
   assert.match(html, /3B model: Z-Anatomy · BodyParts3D \(DBCLS\) · CC BY-SA 4.0/);
 });
 
-test('Fizyo Lab karti acilabilir, kapagi var, "tip ogrencileri icin" yaziyor', () => {
+test('Fizyo Lab karti acilabilir, kapagi var, "fizyoterapi ogrencileri icin" yaziyor (29.10.2026)', () => {
   const i = html.indexOf('data-medlab-open="fizyo"');
   assert.ok(i > 0, 'Fizyo Lab karti buton olmali (yakinda karti degil)');
   const card = html.slice(i, html.indexOf('</button>', i));
   assert.match(card, /<span class="axm-lab-t disp">Fizyo Lab<\/span>/);
-  assert.match(card, /tıp öğrencileri için/);
+  assert.match(card, /fizyoterapi öğrencileri için/);
   assert.match(card, /class="axm-cover axm-cover-fiz" role="img" aria-label="[^"]+"/, 'Fizyo Lab kapagi yok');
   assert.match(card, /<svg class="axm-fiz"[^>]*aria-hidden="true"/, 'diz karakteri yok');
   const css = fs.readFileSync(path.join(ROOT, 'css/acadex-medlab.css'), 'utf8'), k = css.slice(css.indexOf('Anatomi ve Fizyo Lab kapakları'));

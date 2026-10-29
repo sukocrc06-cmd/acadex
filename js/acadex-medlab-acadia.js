@@ -14,8 +14,8 @@
   'use strict';
   var W = window, D = document;
   var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
-  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab', diyet: 'Diyet Lab' };
-  var KITLE = { odyoloji: 'odyoloji/sağlık bilimleri öğrencisine', diyet: 'beslenme ve diyetetik öğrencisine' };   /* about yollayan lablar */
+  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab', diyet: 'Diyet Lab', dkt: 'DKT Lab' };
+  var KITLE = { odyoloji: 'odyoloji/sağlık bilimleri öğrencisine', diyet: 'beslenme ve diyetetik öğrencisine', dkt: 'dil ve konuşma terapisi öğrencisine' };   /* about yollayan lablar */
   var KEY = function (k) { return 'acadex.labchat.' + k; };
   var MAX = 40;
   var $ = function (id) { return D.getElementById(id); };

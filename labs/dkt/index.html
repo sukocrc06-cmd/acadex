@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DKT Lab · Acadex MedLab</title>
+<meta name="theme-color" content="#F6E7D5">
+<script>/* MedLab köprüsü: iframe içinde (?medlab=1) labın kendi uyarı balonları sade kalır */if(window.parent!==window&&/[?&]medlab=1(&|$)/.test(location.search))document.documentElement.classList.add('axm-embed')</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Caveat:wght@600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   DKT LAB · görsel sistem "terapi odası" (29.10.2026)
+   Duvar: krem, puantiyeli duvar kâğıdı · Zemin: renkli köpük oyun halısı
+   Ahşap: oyuncak rafı · Kartlar: resimli terapi kartları (renkli bant)
+   Renk: şeftali, nane, tereyağı, gök, lila; Acadex lacivert mürekkep
+   Maskot: konuşan dudak ("Dudi")
+   ===================================================================== */
+:root{
+  --wall:#FBF4EA;--wall-2:#F6E7D5;--dot:rgba(224,112,90,.10);
+  --peach:#F4C9A8;--peach-s:#FCE9DB;--peach-d:#B4602F;
+  --mint:#BFE3D2;--mint-s:#E6F5EE;--mint-d:#1F7A5C;
+  --butter:#F9DE8F;--butter-s:#FFF4D2;--butter-d:#8A5A00;
+  --sky:#C9DDF6;--sky-s:#EAF2FC;--sky-d:#2457C5;
+  --lilac:#DCCFF2;--lilac-s:#F2EDFA;--lilac-d:#5B3FA0;
+  --coral:#E0705A;--coral-s:#FBE6E1;--coral-d:#A8412B;
+  --wood:#C99A6B;--wood-2:#B48354;--wood-d:#7A5230;
+  --ink:#0D1838;--ink2:#46506A;--muted:#6A7593;--paper:#FFFDF8;--line:#EADFD0;--line-2:#D8CBB8;
+  --ok:#2E8E5B;--ok-s:#E3F4EA;--bad:#C9483B;--bad-s:#FBE9E6;--warn:#B9821F;--warn-s:#FFF4DC;
+  --r:18px;--ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.5,.5,1)
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Instrument Sans',system-ui,sans-serif;color:var(--ink);background-color:var(--wall);min-height:100vh;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(var(--dot) 2px,transparent 2.5px),radial-gradient(rgba(91,63,160,.07) 2px,transparent 2.5px);
+  background-size:38px 38px,38px 38px;background-position:0 0,19px 19px;background-attachment:fixed}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--sky-d);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mono{font-family:'JetBrains Mono',monospace}.hand{font-family:'Caveat',cursive}.disp{font-family:'Bricolage Grotesque',system-ui,sans-serif;letter-spacing:-.015em}
+
+/* ---------- üst şerit: duvar + oyuncak rafı ---------- */
+.tk-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;padding:10px 18px 12px;background:var(--wall-2);
+  box-shadow:0 7px 0 var(--wood),0 9px 0 var(--wood-d),0 18px 26px -18px rgba(90,60,30,.6)}
+.tk-brand{display:flex;align-items:center;gap:10px;min-width:0;flex:none}
+.tk-brand svg{width:42px;height:42px;flex:none}
+.tk-brand b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:800;line-height:1.05}
+.tk-brand small{display:block;font-family:'Caveat',cursive;font-size:17px;color:var(--coral-d);line-height:1}
+.tk-tabs{display:flex;gap:6px;margin-left:8px;padding:2px;overflow-x:auto;scrollbar-width:none;min-width:0}
+.tk-tabs::-webkit-scrollbar{display:none}
+.tk-tabs button{position:relative;flex:none;display:flex;align-items:center;gap:7px;min-height:40px;padding:0 13px;border:1.5px solid var(--line-2);border-radius:12px;background:var(--paper);color:var(--ink2);font-weight:700;font-size:13.5px;white-space:nowrap;transition:transform .2s var(--spring),box-shadow .2s}
+.tk-tabs button::before{content:"";position:absolute;left:10px;right:10px;top:-1.5px;height:4px;border-radius:0 0 4px 4px;background:var(--tc,var(--peach))}
+.tk-tabs button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tk-tabs button:hover{transform:translateY(-2px)}
+.tk-tabs button[aria-selected="true"]{border-color:var(--ink);color:var(--ink);box-shadow:3px 3px 0 var(--ink);transform:translateY(-2px) rotate(-.6deg)}
+.tk-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+.tk-pill{padding:4px 10px;border:1px dashed var(--coral);border-radius:999px;font-size:12px;color:var(--coral-d);white-space:nowrap;background:rgba(255,255,255,.5)}
+.tk-toys{display:flex;gap:6px;align-items:flex-end}
+.tk-toys svg{display:block}
+.tk-toys .t1{animation:bob 3.2s ease-in-out infinite}.tk-toys .t2{animation:bob 3.2s ease-in-out .6s infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+.tk-view{display:none;padding:26px 18px 18px;max-width:1440px;margin:0 auto}
+.tk-view.on{display:block;animation:vin .35s var(--ease) both}
+@keyframes vin{from{opacity:0;transform:translateY(6px)}}
+.tk-note{max-width:1440px;margin:6px auto 0;padding:0 18px 90px;color:var(--muted);font-size:12.5px;text-align:center}
+/* oyun halısı: sayfanın dibinde */
+.mat{position:fixed;left:0;right:0;bottom:0;height:46px;z-index:0;pointer-events:none;opacity:.9;
+  background:linear-gradient(90deg,var(--peach) 0 25%,var(--mint) 25% 50%,var(--butter) 50% 75%,var(--sky) 75% 100%);background-size:240px 100%;
+  -webkit-mask:radial-gradient(10px at 30px 0,transparent 98%,#000) 0 0/60px 100%;mask:radial-gradient(10px at 30px 0,transparent 98%,#000) 0 0/60px 100%}
+main{position:relative;z-index:1}
+
+/* ---------- ortak: terapi kartı, düğme, rozet ---------- */
+.card{position:relative;background:var(--paper);border-radius:var(--r);border:1.5px solid #EFE4D4;padding:18px 18px 16px;box-shadow:0 1px 0 #fff inset,0 18px 40px -28px rgba(90,60,30,.5)}
+.card.tape::before{content:"";position:absolute;left:50%;top:-10px;width:86px;height:20px;transform:translateX(-50%) rotate(-2deg);background:var(--tc,var(--butter));opacity:.85;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.card h2{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;letter-spacing:-.01em}
+.card h3{margin:0 0 6px;font-family:'Bricolage Grotesque',sans-serif;font-size:16px}
+.sub{margin:0 0 10px;color:var(--muted);font-size:13px;line-height:1.5}
+.k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#F1EADF;color:var(--ink2);white-space:nowrap}
+.pill.ok{background:var(--ok-s);color:var(--ok)}.pill.bad{background:var(--bad-s);color:var(--bad)}.pill.warn{background:var(--warn-s);color:#8A5A00}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 15px;border:1.5px solid var(--ink);border-radius:999px;background:var(--paper);color:var(--ink);font-weight:700;font-size:14px;transition:transform .15s var(--ease),background .2s}
+.btn:hover{transform:translateY(-1px)}
+.btn.pri{background:var(--ink);color:#fff}.btn.pri:hover{background:#1A2A5C}
+.btn.cor{background:var(--coral);border-color:var(--coral);color:#fff}
+.btn.sm{min-height:32px;padding:0 11px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;gap:3px;padding:3px;border-radius:12px;background:#F1EADF;flex-wrap:wrap}
+.seg button{min-height:32px;padding:0 11px;border:0;border-radius:9px;background:none;font-size:12.5px;font-weight:700;color:var(--ink2)}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 0 rgba(0,0,0,.08),0 2px 6px -2px rgba(0,0,0,.2)}
+.rule{margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--butter-s);border:1px dashed #E8C77A;font-size:13px;line-height:1.5}
+.rule b{color:var(--butter-d)}
+.toast{position:fixed;left:50%;bottom:58px;z-index:70;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;box-shadow:0 12px 30px -12px rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:opacity .25s}
+.toast.on{opacity:1}
+.empty{display:grid;place-items:center;gap:6px;padding:26px 10px;text-align:center;color:var(--muted)}
+.empty .hand{font-size:22px;color:var(--ink2)}
+/* karne (Acadex ortak) */
+.karne{position:relative;margin-top:14px;padding:16px 18px 14px 30px;border-radius:8px;background:#FFFDF7 repeating-linear-gradient(transparent 0 27px,#EEF1F7 27px 28px);box-shadow:0 1px 0 #E1E5EE,0 24px 50px -28px rgba(13,24,56,.5);animation:kin .45s var(--ease) both}
+.karne::before{content:"";position:absolute;left:16px;top:0;bottom:0;width:1.5px;background:#F2B8B8}
+@keyframes kin{from{opacity:0;transform:translateY(10px)}}
+.stamp{position:absolute;right:16px;top:12px;width:82px;height:82px;border-radius:50%;border:3px solid currentColor;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-12deg);font-family:'JetBrains Mono',monospace;font-weight:600;animation:stamp .45s var(--spring) .15s both}
+.stamp b{font-size:24px;line-height:1}.stamp small{font-size:9.5px;letter-spacing:.1em}
+@keyframes stamp{from{transform:rotate(-12deg) scale(1.8);opacity:0}}
+.karne h3{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:18px;padding-right:100px}
+.karne ul{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.55;padding-right:6px}
+.karne li.ok::marker{color:var(--ok)}.karne li.no::marker{color:var(--bad)}
+.karne .not{margin:10px 0 0;font-size:14px;line-height:1.55}
+
+/* =========================== SESLETİM =========================== */
+.ss{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:20px;align-items:start}
+.vt-w{position:sticky;top:96px}
+.vt{display:block;width:100%;height:auto}
+.vt .art{transition:fill .35s,stroke .35s,opacity .35s}
+.vt .hl{fill:var(--coral)!important;stroke:var(--coral-d)!important}
+.vt .contact{opacity:0;transition:opacity .3s}.vt .contact.on{opacity:1;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{r:9}50%{r:13}}
+.vt .velum{transform-origin:200px 128px;transition:transform .5s var(--spring)}
+.vt.nasal .velum{transform:rotate(16deg)}
+.vt .air{fill:none;stroke:var(--sky-d);stroke-width:3;stroke-dasharray:6 8;opacity:0;stroke-linecap:round}
+.vt .air.on{opacity:.9;animation:flow .8s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-28}}
+.vt .vf{transform-origin:300px 318px}
+.vt.voiced .vf{animation:buzz .09s linear infinite}
+@keyframes buzz{50%{transform:scaleX(.6)}}
+.vt-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.vt-big{display:flex;align-items:baseline;gap:12px;margin:2px 0 6px}
+.vt-big b{font-family:'Bricolage Grotesque',sans-serif;font-size:56px;line-height:1}
+.vt-big .mono{font-size:20px;color:var(--muted)}
+.ctab-w{overflow-x:auto}
+.ctab{width:100%;border-collapse:separate;border-spacing:4px;font-size:12px;min-width:640px}
+.ctab th{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;color:var(--muted);text-align:left;padding:2px 4px;vertical-align:bottom;line-height:1.25}
+.ctab th small{display:block;font-family:'Instrument Sans',sans-serif;font-size:10.5px;color:#9AA2B6}
+.ctab td{background:#F7F0E6;border-radius:10px;padding:4px;height:46px;vertical-align:middle}
+.ctab td.x{background:repeating-linear-gradient(45deg,#F3ECE2 0 6px,#EFE6DA 6px 12px)}
+.cb{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:36px;height:38px;margin:1px;padding:0 6px;border:1.5px solid var(--line-2);border-radius:10px;background:var(--paper);font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:800;line-height:1;transition:transform .2s var(--spring)}
+.cb small{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:400;color:var(--muted)}
+.cb.ot{background:var(--lilac-s)}
+.cb:hover{transform:translateY(-2px) rotate(-3deg)}
+.cb[aria-pressed="true"]{background:var(--coral);border-color:var(--coral-d);color:#fff}.cb[aria-pressed="true"] small{color:#FFE7DF}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:5px;border:1.5px solid var(--line-2)}
+.mp{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.mpc{position:relative;width:118px;height:132px;border-radius:14px;background:#fff;border:1.5px solid var(--line-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;box-shadow:0 10px 18px -14px rgba(0,0,0,.4);transition:transform .3s var(--spring)}
+.mpc b{font-family:'Bricolage Grotesque',sans-serif;font-size:26px}
+.mpc span{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)}
+.mpc:nth-child(1){transform:rotate(-3deg)}.mpc:nth-child(3){transform:rotate(3deg)}
+.mpc em{position:absolute;top:8px;left:8px;font-style:normal;font-family:'JetBrains Mono',monospace;font-size:11px;padding:1px 6px;border-radius:6px;background:var(--butter-s);color:var(--butter-d)}
+.mp .vs{font-family:'Caveat',cursive;font-size:24px;color:var(--coral-d)}
+.det{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+.det-q{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:var(--sky-s);border:1.5px dashed var(--sky)}
+.det-q .bub{position:relative;padding:8px 14px;border-radius:16px;background:#fff;font-family:'Caveat',cursive;font-size:28px;line-height:1.1;box-shadow:0 6px 14px -10px rgba(0,0,0,.4)}
+.det-q .bub::after{content:"";position:absolute;left:-8px;top:50%;border:8px solid transparent;border-right-color:#fff;transform:translateY(-50%)}
+.det-q .tg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts button{min-height:36px;padding:0 12px;border:1.5px solid var(--line-2);border-radius:999px;background:#fff;font-size:13px;font-weight:700;color:var(--ink2);transition:transform .15s}
+.opts button:hover{transform:translateY(-1px)}
+.opts button.ok{background:var(--ok-s);border-color:var(--ok);color:var(--ok)}
+.opts button.no{background:var(--bad-s);border-color:var(--bad);color:var(--bad);animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.score{display:flex;gap:8px;align-items:center;font-family:'JetBrains Mono',monospace;font-size:13px}
+.score .dots{display:flex;gap:3px}.score .dots i{width:9px;height:9px;border-radius:50%;background:#E8DED0}.score .dots i.ok{background:var(--ok)}.score .dots i.no{background:var(--bad)}
+
+/* =========================== SES LABORATUVARI =========================== */
+.vl{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+.mon{border-radius:22px;padding:14px;background:#1B2340;color:#E6ECFF;box-shadow:inset 0 0 0 3px #2B3560,0 26px 44px -26px rgba(13,24,56,.8)}
+.mon canvas{display:block;width:100%;border-radius:12px;background:#0F1530}
+.mon .spec{height:190px}.mon .wave{height:70px;margin-top:8px}.mon .ptrk{height:110px;margin-top:8px}
+.mon-h{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.mon-h .k{color:#8D98C4}
+.mon-st{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:#B9C3EC}
+.mon-st i{width:9px;height:9px;border-radius:50%;background:#6B7398}.mon-st i.on{background:#3BD28A;box-shadow:0 0 0 4px rgba(59,210,138,.2);animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{50%{opacity:.4}}
+.gauges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.gauge{padding:10px 12px;border-radius:14px;background:#232D52}
+.gauge b{display:block;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;color:#fff;line-height:1.1}
+.gauge small{font-size:11.5px;color:#9AA6D6}
+.meter{position:relative;height:10px;border-radius:999px;background:#2E3966;overflow:hidden;margin-top:6px}
+.meter i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:999px;background:linear-gradient(90deg,#3BD28A,#F9DE8F 70%,#E0705A);transition:width .08s linear}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ctl .btn{border-color:#E6ECFF;background:transparent;color:#E6ECFF}
+.ctl .btn.pri{background:#E6ECFF;color:#1B2340}
+.task{display:flex;flex-direction:column;gap:10px}
+.timer{display:flex;align-items:center;gap:14px}
+.timer svg{width:88px;height:88px;flex:none}
+.timer .ring-bg{fill:none;stroke:#EFE6DA;stroke-width:9}
+.timer .ring-fg{fill:none;stroke:var(--coral);stroke-width:9;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .1s linear}
+.timer b{font-family:'JetBrains Mono',monospace;font-size:30px}
+.res{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.res div{padding:8px 10px;border-radius:12px;background:#F7F0E6;font-size:12.5px}
+.res b{display:block;font-family:'JetBrains Mono',monospace;font-size:18px}
+.grb{display:flex;flex-direction:column;gap:7px}
+.grb-r{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center}
+.grb-r>b{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--lilac);color:var(--lilac-d);font-family:'Bricolage Grotesque',sans-serif}
+.grb-r span{font-size:12.5px;line-height:1.3}.grb-r span small{display:block;color:var(--muted);font-size:11.5px}
+.grb-r .seg button{min-width:30px;padding:0 6px}
+
+/* =========================== AKICILIK =========================== */
+.ak{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.trans{font-size:19px;line-height:2.25;padding:18px 20px;border-radius:16px;background:#FFFDF7 repeating-linear-gradient(transparent 0 41px,#EEF1F7 41px 42px);border:1.5px solid #EFE4D4}
+.tok{display:inline;padding:3px 3px;margin:0 1px;border-radius:7px;border:0;background:none;font:inherit;color:inherit;cursor:pointer;transition:background .2s,box-shadow .2s}
+.tok:hover{background:#F3EBDF}
+.tok[data-m]{box-shadow:inset 0 -3px 0 var(--mc,#999)}
+.tok[data-m] sup{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--mc,#999);margin-left:2px;vertical-align:super}
+.tok.res-ok{background:var(--ok-s)}.tok.res-no{background:var(--bad-s)}.tok.res-miss{background:var(--butter-s);outline:2px dashed var(--warn)}
+.pal{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.pal button{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 11px;border:1.5px solid var(--line-2);border-radius:999px;background:#fff;font-size:12.5px;font-weight:700}
+.pal button i{width:12px;height:12px;border-radius:50%;background:var(--mc)}
+.pal button[aria-pressed="true"]{border-color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.pal small{font-size:11px;color:var(--muted);font-weight:500}
+.cnt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+.cnt div{padding:8px 10px;border-radius:12px;background:#F7F0E6;font-size:12px;color:var(--ink2)}
+.cnt b{display:block;font-family:'JetBrains Mono',monospace;font-size:20px;color:var(--ink)}
+.pacer{display:flex;flex-direction:column;gap:10px}
+.pc-st{position:relative;min-height:96px;border-radius:16px;background:var(--mint-s);border:1.5px dashed var(--mint);display:flex;align-items:center;justify-content:center;padding:12px;text-align:center;overflow:hidden}
+.pc-st .syl{font-family:'Bricolage Grotesque',sans-serif;font-size:30px;font-weight:800;color:var(--mint-d)}
+.pc-st .syl.pop{animation:pop .35s var(--spring)}
+@keyframes pop{from{transform:scale(.6);opacity:.2}}
+.pc-st .trail{position:absolute;left:12px;right:12px;bottom:8px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rng{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:var(--ink2)}
+.rng input{flex:1;accent-color:var(--mint-d)}
+
+/* =========================== YUTMA =========================== */
+.yt{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.yt .wide{grid-column:1/-1}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 10px}
+.steps button{flex:1;min-width:110px;min-height:46px;padding:4px 10px;border:1.5px solid var(--line-2);border-radius:12px;background:#fff;text-align:left;font-size:13px;font-weight:700;line-height:1.15}
+.steps button small{display:block;font-weight:500;font-size:11px;color:var(--muted)}
+.steps button[aria-pressed="true"]{background:var(--peach-s);border-color:var(--peach-d);box-shadow:2px 2px 0 var(--peach-d)}
+.sw{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,300px);gap:16px;align-items:center}
+.sw svg{display:block;width:100%;max-width:440px;height:auto;margin:0 auto}
+.sw .bolus{transition:transform 1.1s var(--ease)}
+.sw .velum2{transform-origin:150px 150px;transition:transform .7s var(--ease)}
+.sw .larynx{transition:transform .7s var(--ease)}
+.sw .epi{transform-origin:240px 222px;transition:transform .7s var(--ease)}
+.sw .ues{transition:opacity .5s}
+.sw[data-ev="faringeal"] .velum2{transform:rotate(-20deg)}
+.sw[data-ev="faringeal"] .larynx{transform:translate(-6px,-16px)}
+.sw[data-ev="faringeal"] .epi{transform:rotate(-70deg)}
+.sw[data-ev="faringeal"] .ues{opacity:0}
+.sw[data-ev="oral"] .velum2{transform:rotate(-12deg)}
+.ev-txt b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:20px}
+.ev-txt p{margin:6px 0;font-size:14px;line-height:1.55}
+.ev-txt .bel{padding:8px 10px;border-radius:10px;background:var(--coral-s);font-size:13px;line-height:1.45}
+.syr{display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:center}
+.syr svg{width:120px;height:auto}
+.syr .liq{transition:height 10s linear,y 10s linear}
+.syr .drip{opacity:0}.syr.run .drip{opacity:1;animation:drip .7s linear infinite}
+@keyframes drip{from{transform:translateY(0);opacity:1}to{transform:translateY(26px);opacity:0}}
+.lvl{display:flex;flex-wrap:wrap;gap:6px}
+.lvl button{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 10px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;font-size:12.5px;font-weight:700}
+.lvl button i{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;font-style:normal;font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;background:var(--lc);border:1px solid rgba(0,0,0,.25)}
+.lvl button.ok{background:var(--ok-s);border-color:var(--ok)}.lvl button.no{background:var(--bad-s);border-color:var(--bad);animation:shake .35s}
+.idd{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.idd button{position:relative;padding:10px 10px 10px 44px;border:1.5px solid var(--line-2);border-radius:12px;background:#fff;text-align:left;min-height:58px}
+.idd button i{position:absolute;left:10px;top:10px;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-style:normal;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:#fff;background:var(--lc);border:1px solid rgba(0,0,0,.25)}
+.idd button b{display:block;font-size:13px;line-height:1.2}.idd button small{font-size:11px;color:var(--muted)}
+.idd button[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.idd-d{margin-top:10px;padding:12px;border-radius:12px;background:#F7F0E6;font-size:13.5px;line-height:1.5}
+.pas{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;align-items:start}
+.pas svg{display:block;width:100%;max-width:260px;height:auto;margin:0 auto}
+.pas .bd{transition:transform .8s var(--spring)}
+.pas .cough{opacity:0;transition:opacity .4s}.pas .cough.on{opacity:1}
+.pas .pasn{display:flex;align-items:center;gap:12px;margin-top:10px}
+.pas .pasn b{display:grid;place-items:center;width:56px;height:56px;border-radius:16px;font-family:'Bricolage Grotesque',sans-serif;font-size:30px;color:#fff;background:var(--pc,var(--ok));transition:background .3s}
+.qgrp{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.qgrp>span{font-size:12.5px;font-weight:700;color:var(--ink2)}
+
+/* =========================== DİL GELİŞİMİ VE AFAZİ =========================== */
+.dg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.dg .wide{grid-column:1/-1}
+.tl{position:relative}
+.tl-kid{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;align-items:center}
+.tl-kid svg{width:150px;height:auto}
+.tl-kid .kid{transform-origin:75px 150px;transition:transform .6s var(--spring)}
+.tl-age{font-family:'Bricolage Grotesque',sans-serif;font-size:30px;font-weight:800}
+.tl-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.tl-cols div{padding:10px 12px;border-radius:12px;font-size:13.5px;line-height:1.45}
+.tl-cols .an{background:var(--sky-s)}.tl-cols .if{background:var(--peach-s)}
+.tl-cols b{display:block;font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.tl-uy{margin-top:8px;padding:8px 12px;border-radius:12px;background:var(--coral-s);font-size:13px;line-height:1.45}
+.tl-uy[hidden]{display:none}
+.tl-rng{width:100%;accent-color:var(--coral);margin-top:12px}
+.tl-ticks{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted)}
+.osu-l{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.osu-r{display:grid;grid-template-columns:minmax(0,1fr) 54px 30px;gap:6px;align-items:center}
+.osu-r input{min-height:36px;padding:0 10px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;min-width:0}
+.osu-r .n{font-family:'JetBrains Mono',monospace;text-align:center;font-weight:600}
+.osu-r .x{border:0;background:none;color:var(--bad);font-size:20px;border-radius:8px}
+.osu-res{display:flex;align-items:baseline;gap:10px;margin-top:6px}
+.osu-res b{font-family:'Bricolage Grotesque',sans-serif;font-size:34px}
+.tree{display:flex;flex-direction:column;gap:10px}
+.tq{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:#F7F0E6}
+.tq span{font-weight:700;font-size:14px}.tq small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+.tres{display:grid;grid-template-columns:110px minmax(0,1fr);gap:14px;align-items:center;padding:12px;border-radius:16px;border:2px solid var(--ink);background:#fff;animation:kin .35s var(--ease)}
+.tres svg{width:110px;height:auto}
+.tres b{font-family:'Bricolage Grotesque',sans-serif;font-size:19px}
+.tres p{margin:4px 0;font-size:13px;line-height:1.45}
+.brain .lz{fill:var(--coral);opacity:.85;animation:lz 1.6s ease-in-out infinite}
+@keyframes lz{50%{opacity:.45}}
+.vig{padding:12px 14px;border-radius:14px;background:var(--lilac-s);font-size:14px;line-height:1.55;font-style:italic}
+
+/* =========================== VAKA MASASI =========================== */
+.vk{display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start}
+.vk-list{display:flex;flex-direction:column;gap:8px}
+.pc{display:flex;gap:10px;align-items:center;width:100%;padding:10px;border:1.5px solid var(--line);border-radius:16px;background:var(--paper);text-align:left;box-shadow:0 10px 22px -18px rgba(90,60,30,.6);transition:transform .2s var(--spring)}
+.pc:hover{transform:translateX(3px)}
+.pc .av{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--ac)}
+.pc b{display:block;font-size:14.5px}.pc small{display:block;font-size:12.5px;color:var(--muted);line-height:1.35}
+.pc[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.pc .done{margin-left:auto;flex:none}
+.folder{position:relative;padding:22px 20px 18px;border-radius:6px 18px 18px 18px;background:var(--paper);border:1.5px solid #EFE4D4;box-shadow:0 22px 40px -26px rgba(90,60,30,.6)}
+.folder::before{content:"";position:absolute;left:-1.5px;top:-22px;width:150px;height:24px;border-radius:10px 10px 0 0;background:var(--fc,var(--peach));border:1.5px solid #EFE4D4;border-bottom:0}
+.vk-steps{display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap}
+.vk-steps span{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#F1EADF;font-size:12px;font-weight:700;color:var(--muted)}
+.vk-steps span.on{background:var(--ink);color:#fff}.vk-steps span.done{background:var(--ok-s);color:var(--ok)}
+.vk-q{font-weight:800;font-size:15px;margin:12px 0 8px}
+.chk{display:flex;flex-direction:column;gap:6px}
+.chk label{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1.5px solid var(--line-2);border-radius:12px;background:#fff;font-size:13.5px;line-height:1.4;cursor:pointer}
+.chk input{margin-top:2px;accent-color:var(--ink);flex:none;width:17px;height:17px}
+.chk label.ok{border-color:var(--ok);background:var(--ok-s)}.chk label.no{border-color:var(--bad);background:var(--bad-s)}.chk label.miss{border-color:var(--warn);background:var(--warn-s)}
+.find{padding:12px 14px;border-radius:12px;background:var(--sky-s);border-left:4px solid var(--sky-d);font-size:14px;line-height:1.55;animation:kin .35s var(--ease)}
+
+/* ---------- maskot Dudi (konuşan dudak) ---------- */
+.dudi .mouth{transform-origin:50% 60%;animation:talk 1.1s ease-in-out infinite}
+@keyframes talk{0%,100%{transform:scaleY(.45)}30%{transform:scaleY(1)}60%{transform:scaleY(.6)}}
+.dudi .eye{animation:blinkE 4s infinite}
+@keyframes blinkE{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.dudi .eye{transform-box:fill-box;transform-origin:center}
+.dudi .wv{animation:wv 1.6s ease-out infinite;opacity:0}
+.dudi .wv.w2{animation-delay:.4s}
+@keyframes wv{0%{opacity:0;transform:translateX(-4px)}30%{opacity:1}100%{opacity:0;transform:translateX(6px)}}
+
+/* ---------- ekran boyutları ---------- */
+@media (max-width:1180px){
+  .ss,.vl,.ak{grid-template-columns:minmax(0,1fr)}
+  .vt-w{position:static;display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px;align-items:start}
+  .yt,.dg{grid-template-columns:minmax(0,1fr)}
+  .tk-pill{display:none}
+}
+@media (max-width:860px){
+  .tk-top{flex-wrap:wrap;gap:8px;padding:8px 10px 10px}
+  .tk-tabs{order:3;width:100%;margin-left:0}
+  .tk-toys{display:none}
+  .tk-view{padding:16px 10px}
+  .vt-w{grid-template-columns:minmax(0,1fr)}
+  .det,.sw,.pas,.syr{grid-template-columns:minmax(0,1fr)}
+  .syr svg{margin:0 auto}
+  .vk{grid-template-columns:minmax(0,1fr)}
+  .vk-list{flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .vk-list .pc{flex:none;width:220px}
+  .gauges{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .gauge b{font-size:20px}
+  .trans{font-size:17px;padding:14px}
+  .tl-kid{grid-template-columns:90px minmax(0,1fr)}.tl-kid svg{width:90px}
+  .tl-cols{grid-template-columns:minmax(0,1fr)}
+  .tres{grid-template-columns:70px minmax(0,1fr)}.tres svg{width:70px}
+  .tk-brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="mat" aria-hidden="true"></div>
+<header class="tk-top">
+  <div class="tk-brand">
+    <svg class="dudi" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="#F4C9A8" stroke="#0D1838" stroke-width="2.4"/><ellipse class="eye" cx="17" cy="18" rx="2.6" ry="3.2" fill="#0D1838"/><ellipse class="eye" cx="31" cy="18" rx="2.6" ry="3.2" fill="#0D1838"/><g class="mouth"><path d="M12 28 C16 23 32 23 36 28 C32 37 16 37 12 28 Z" fill="#E0705A" stroke="#0D1838" stroke-width="2.2"/><path d="M18 31 C21 29 27 29 30 31" stroke="#F9C6B8" stroke-width="2.4" fill="none" stroke-linecap="round"/></g></svg>
+    <div><b>DKT Lab</b><small>terapi odası</small></div>
+  </div>
+  <nav class="tk-tabs" role="tablist" aria-label="DKT Lab bölümleri">
+    <button type="button" role="tab" id="t-sesletim" aria-controls="sesletim" aria-selected="true" data-tab="sesletim" style="--tc:var(--coral)"><svg viewBox="0 0 24 24"><path d="M4 13c3-4 13-4 16 0-3 5-13 5-16 0z"/><path d="M9 14.5c2-1 4-1 6 0"/></svg>Sesletim</button>
+    <button type="button" role="tab" id="t-ses" aria-controls="ses" aria-selected="false" data-tab="ses" style="--tc:var(--lilac-d)"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>Ses laboratuvarı</button>
+    <button type="button" role="tab" id="t-akicilik" aria-controls="akicilik" aria-selected="false" data-tab="akicilik" style="--tc:var(--mint-d)"><svg viewBox="0 0 24 24"><path d="M3 12c2-5 4-5 6 0s4 5 6 0 4-5 6 0"/></svg>Akıcılık</button>
+    <button type="button" role="tab" id="t-yutma" aria-controls="yutma" aria-selected="false" data-tab="yutma" style="--tc:var(--peach-d)"><svg viewBox="0 0 24 24"><path d="M6 4h12l-1.5 15a2 2 0 0 1-2 1.8h-5a2 2 0 0 1-2-1.8z"/><path d="M6.6 9h10.8"/></svg>Yutma</button>
+    <button type="button" role="tab" id="t-dil" aria-controls="dil" aria-selected="false" data-tab="dil" style="--tc:var(--sky-d)"><svg viewBox="0 0 24 24"><path d="M9 4a4 4 0 0 0-4 4c-2 1-2 4 0 5a4 4 0 0 0 4 5h1V4z"/><path d="M15 4a4 4 0 0 1 4 4c2 1 2 4 0 5a4 4 0 0 1-4 5h-1V4z"/></svg>Dil gelişimi ve afazi</button>
+    <button type="button" role="tab" id="t-vaka" aria-controls="vaka" aria-selected="false" data-tab="vaka" style="--tc:var(--butter-d)"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/><path d="M8 14h8M8 17h5"/></svg>Vaka masası</button>
+  </nav>
+  <div class="tk-right">
+    <div class="tk-toys" aria-hidden="true">
+      <svg class="t1" width="26" height="26" viewBox="0 0 26 26"><rect x="2" y="6" width="18" height="18" rx="3" fill="#C9DDF6" stroke="#0D1838" stroke-width="1.8"/><text x="11" y="20" font-family="Bricolage Grotesque" font-size="12" font-weight="800" text-anchor="middle" fill="#2457C5">A</text></svg>
+      <svg class="t2" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="13" r="10" fill="#F9DE8F" stroke="#0D1838" stroke-width="1.8"/><path d="M3 11c5 3 13 3 18 0" stroke="#E0705A" stroke-width="2" fill="none"/></svg>
+    </div>
+    <span class="tk-pill" title="Kurgusal vakalar; tanı koymaz.">eğitim amaçlı · kurgusal vakalar</span>
+  </div>
+</header>
+
+<main>
+<!-- =========================== SESLETİM =========================== -->
+<section class="tk-view on" id="sesletim" role="tabpanel" aria-labelledby="t-sesletim">
+  <div class="ss">
+    <div class="vt-w">
+      <div class="card tape" style="--tc:var(--peach)">
+        <span class="k">ağız kesiti</span>
+        <div id="vt-host"></div>
+      </div>
+      <div class="card" id="vt-info" aria-live="polite"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+      <div class="card tape" style="--tc:var(--mint)">
+        <span class="k">türkçe ünsüzler</span><h2>Nerede ve nasıl üretilir?</h2>
+        <p class="sub">Bir sese dokun: ağız kesitinde çıkış yeri yanar, ses telleri ötümlüyse titrer, genizsilse yumuşak damak iner.</p>
+        <div class="ctab-w"><table class="ctab" id="ctab"></table></div>
+        <div class="legend"><span><i style="background:var(--paper)"></i>ötümsüz</span><span><i style="background:var(--lilac-s)"></i>ötümlü</span><span><i style="background:repeating-linear-gradient(45deg,#F3ECE2 0 4px,#EFE6DA 4px 8px)"></i>Türkçede yok</span></div>
+      </div>
+      <div class="card tape" style="--tc:var(--butter)">
+        <span class="k">minimal çift</span><h2 id="mp-t">Tek ses, iki anlam</h2>
+        <p class="sub">Yalnızca bir sesi farklı olan iki sözcük. Terapide çocuğun farkı duyup üretmesi için kullanılır.</p>
+        <div class="mp" id="mp"></div>
+      </div>
+      <div class="card tape" style="--tc:var(--sky)">
+        <div class="row" style="justify-content:space-between"><div><span class="k">fonolojik süreç dedektifi</span><h2>Çocuk ne yaptı?</h2></div><div class="score" id="det-sc"></div></div>
+        <p class="sub">Hedef sözcük ile çocuğun söyleyişini karşılaştır, hangi sesbilgisel süreç olduğunu seç.</p>
+        <div class="det"><div class="det-q" id="det-q"></div><div class="opts" id="det-o"></div></div>
+        <div id="det-fb"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== SES LABORATUVARI =========================== -->
+<section class="tk-view" id="ses" role="tabpanel" aria-labelledby="t-ses">
+  <div class="vl">
+    <div>
+      <div class="mon">
+        <div class="mon-h"><span class="k">spektrogram · 0–5 kHz</span><div class="seg" id="v-mode" role="group" aria-label="Ölçüm" style="background:#232D52"></div><span class="mon-st"><i id="v-dot"></i><span id="v-st">kapalı</span></span></div>
+        <canvas class="spec" id="v-spec" width="900" height="190" aria-label="Canlı spektrogram"></canvas>
+        <canvas class="wave" id="v-wave" width="900" height="70" aria-label="Dalga biçimi"></canvas>
+        <canvas class="ptrk" id="v-ptrk" width="900" height="110" aria-label="Perde (F0) izi"></canvas>
+        <div class="gauges">
+          <div class="gauge"><small>perde (F0)</small><b id="g-f0">—</b><small id="g-f0n">Hz</small></div>
+          <div class="gauge"><small>şiddet (göreli)</small><b id="g-db">—</b><div class="meter"><i id="g-dbm"></i></div></div>
+          <div class="gauge"><small>sesli süre</small><b id="g-t">0,0</b><small>sn</small></div>
+        </div>
+        <div class="ctl"><button type="button" class="btn pri" id="v-mic">Mikrofonu aç</button><button type="button" class="btn" id="v-demo">Örnek sesle dene</button><button type="button" class="btn" id="v-stop" disabled>Durdur</button></div>
+      </div>
+      <div class="rule" id="v-rule" style="margin-top:14px"><b>Not:</b> Telefon ve bilgisayar mikrofonları kalibre değildir; şiddet göreli (dBFS) gösterilir. Bu ekran alıştırma içindir, ölçüm cihazı değildir. Ses kaydı cihazından çıkmaz.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+      <div class="card tape task" style="--tc:var(--lilac)" id="v-task"></div>
+      <div class="card tape" style="--tc:var(--peach)">
+        <span class="k">algısal değerlendirme</span><h2>GRBAS</h2>
+        <p class="sub">Kendi sesini 5 saniye kaydet, dinle ve her ölçütü 0–3 arasında derecelendir. Hirano'nun ölçeği.</p>
+        <div class="row" style="margin-bottom:10px"><button type="button" class="btn sm" id="r-rec">● 5 sn kaydet</button><button type="button" class="btn sm" id="r-play" disabled>▶ Dinle</button><span class="sub" id="r-st" style="margin:0"></span></div>
+        <div class="grb" id="grb"></div>
+        <p class="sub" id="grb-s" style="margin:10px 0 0"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== AKICILIK =========================== -->
+<section class="tk-view" id="akicilik" role="tabpanel" aria-labelledby="t-akicilik">
+  <div class="ak">
+    <div class="card tape" style="--tc:var(--mint)">
+      <div class="row" style="justify-content:space-between"><div><span class="k">konuşma örneği</span><h2 id="ak-t">Market dönüşü</h2></div><div class="seg" id="ak-ornek" role="group" aria-label="Konuşma örneği"></div></div>
+      <p class="sub" id="ak-kim"></p>
+      <p class="sub">Bir akıcısızlık türü seç, sonra metinde o akıcısızlığa dokun. Yanlış işaretlediysen tekrar dokunup kaldır.</p>
+      <div class="pal" id="ak-pal" role="group" aria-label="Akıcısızlık türü"></div>
+      <div class="trans" id="ak-txt"></div>
+      <div class="cnt" id="ak-cnt"></div>
+      <div class="row" style="margin-top:12px"><button type="button" class="btn pri" id="ak-chk">Kontrol et</button><button type="button" class="btn" id="ak-clr">Temizle</button></div>
+      <div id="ak-karne"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+      <div class="card tape pacer" style="--tc:var(--butter)">
+        <span class="k">akıcılık şekillendirme</span><h2>Hece hızı ayarlayıcı</h2>
+        <p class="sub" style="margin:0">Uzatılmış, yumuşak başlangıçlı konuşma alıştırması. Heceler seçtiğin hızda belirir; birlikte, hecenin ilk sesini yumuşak başlatarak oku.</p>
+        <div class="pc-st" aria-live="off"><span class="syl" id="pc-syl">ha-zır</span><span class="trail" id="pc-tr"></span></div>
+        <label class="rng">yavaş<input type="range" id="pc-r" min="40" max="240" step="10" value="90" aria-label="Hece / dakika">hızlı</label>
+        <div class="row" style="justify-content:space-between"><span class="mono" id="pc-v" style="font-size:13px">90 hece/dk</span><button type="button" class="btn sm cor" id="pc-go">Başlat</button></div>
+        <p class="sub" style="margin:0">Yetişkin konuşma hızı genellikle dakikada 200 hecenin üzerindedir; şekillendirme çok daha yavaş başlar, adım adım doğal hıza çıkarılır.</p>
+      </div>
+      <div class="card tape" style="--tc:var(--sky)">
+        <span class="k">hatırla</span><h2>%TH nasıl hesaplanır?</h2>
+        <p class="sub" style="margin:0 0 8px">%TH (takılmalı hece yüzdesi) = kekemeliğe özgü akıcısızlıklar ÷ toplam hece × 100.</p>
+        <ul class="sub" style="margin:0;padding-left:18px">
+          <li><b>Kekemeliğe özgü:</b> ses/hece tekrarı, tek heceli sözcük tekrarı, uzatma, blok.</li>
+          <li><b>Diğer:</b> ara söz, düzeltme, öbek tekrarı. Herkesin konuşmasında görülür, %TH'ye katılmaz.</li>
+          <li>Tekrar eden fazladan heceler ve ara sözler toplam heceye eklenmez.</li>
+          <li>Standart araçlar (örn. SSI-4) ayrıca takılma süresini ve eşlik eden fiziksel davranışları puanlar.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== YUTMA =========================== -->
+<section class="tk-view" id="yutma" role="tabpanel" aria-labelledby="t-yutma">
+  <div class="yt">
+    <div class="card tape wide" style="--tc:var(--peach)">
+      <span class="k">yutmanın evreleri</span><h2>Bir lokmanın yolculuğu</h2>
+      <div class="steps" id="ev-st" role="group" aria-label="Yutma evresi"></div>
+      <div class="sw" id="sw" data-ev="hazirlik"><div id="sw-svg"></div><div class="ev-txt" id="ev-t" aria-live="polite"></div></div>
+      <div class="row" style="margin-top:10px"><button type="button" class="btn sm" id="ev-play">▶ Baştan oynat</button></div>
+    </div>
+    <div class="card tape" style="--tc:var(--butter)">
+      <span class="k">iddsi · akış testi</span><h2>Şırınga testi</h2>
+      <p class="sub">10 mL şırıngayı doldur, ucunu aç, 10 saniye akıt. Kalan miktara göre içeceğin IDDSI düzeyini bul.</p>
+      <div class="row" id="sy-pick" style="margin-bottom:10px"></div>
+      <div class="syr" id="syr"><div id="sy-svg"></div><div><div class="mono" id="sy-st" style="font-size:14px">Bir örnek seç.</div><div class="row" style="margin:10px 0"><button type="button" class="btn sm cor" id="sy-go" disabled>10 sn akıt</button></div><div class="lvl" id="sy-lvl"></div><div id="sy-fb" style="margin-top:8px"></div></div></div>
+    </div>
+    <div class="card tape" style="--tc:var(--mint)">
+      <span class="k">iddsi çerçevesi</span><h2>Kıvam düzeyleri 0–7</h2>
+      <p class="sub">İçecekler 0–4, besinler 3–7. Bir düzeye dokun: tanımı ve test yöntemi.</p>
+      <div class="idd" id="idd"></div>
+      <div class="idd-d" id="idd-d"></div>
+    </div>
+    <div class="card tape wide" style="--tc:var(--coral)">
+      <span class="k">penetrasyon-aspirasyon skalası</span><h2>PAS: madde nereye kadar indi?</h2>
+      <p class="sub">Videofloroskopide gördüğünü seç; skala puanı ve gırtlak kesiti güncellenir. Rosenbek ve ark., 1996.</p>
+      <div class="pas"><div id="pas-svg"></div><div><div class="qgrp"><span>Madde nereye kadar indi?</span><div class="seg" id="pas-d" role="group" aria-label="Derinlik"></div></div><div class="qgrp"><span>Hava yolundan atıldı mı?</span><div class="seg" id="pas-e" role="group" aria-label="Atılma"></div></div><div class="pasn" id="pas-n"></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== DİL GELİŞİMİ VE AFAZİ =========================== -->
+<section class="tk-view" id="dil" role="tabpanel" aria-labelledby="t-dil">
+  <div class="dg">
+    <div class="card tape wide" style="--tc:var(--sky)">
+      <span class="k">dil gelişimi · 0–6 yaş</span><h2>Basamak basamak</h2>
+      <div class="tl" id="tl"></div>
+      <p class="sub" style="margin:10px 0 0">Gelişim basamakları yaklaşık değerlerdir, çocuklar arasında fark büyüktür. Uyarı işaretleri değerlendirmeye yönlendirme içindir, tanı değildir.</p>
+    </div>
+    <div class="card tape" style="--tc:var(--peach)">
+      <span class="k">ortalama sözce uzunluğu</span><h2>OSU hesaplayıcı</h2>
+      <p class="sub">Türkçe eklemeli bir dil olduğu için biçimbirim sayılır. Ekleri tire ile ayır: <span class="mono">top-u ver</span> = 3 biçimbirim.</p>
+      <div class="osu-l" id="osu-l"></div>
+      <div class="row"><button type="button" class="btn sm" id="osu-add">+ Sözce ekle</button><button type="button" class="btn sm" id="osu-ex">Örnek doldur</button></div>
+      <div class="osu-res" id="osu-res"></div>
+    </div>
+    <div class="card tape" style="--tc:var(--lilac)">
+      <span class="k">afazi sınıflaması</span><h2>Üç soruyla afazi türü</h2>
+      <p class="sub">Boston sınıflaması: akıcılık, işitsel anlama ve tekrar.</p>
+      <div class="tree" id="tree"></div>
+    </div>
+    <div class="card tape wide" style="--tc:var(--coral)">
+      <div class="row" style="justify-content:space-between"><div><span class="k">alıştırma</span><h2>Hasta ne tür afazi?</h2></div><div class="score" id="vg-sc"></div></div>
+      <div class="vig" id="vg-s"></div>
+      <div class="opts" id="vg-o" style="margin-top:10px"></div>
+      <div id="vg-fb"></div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== VAKA MASASI =========================== -->
+<section class="tk-view" id="vaka" role="tabpanel" aria-labelledby="t-vaka">
+  <div class="vk"><div class="vk-list" id="vk-list"></div><div id="vk-main"></div></div>
+</section>
+</main>
+<p class="tk-note">DKT Lab eğitim amaçlıdır; tanı koymaz ve terapi önerisi değildir. Vakalar ve konuşma örnekleri kurgusaldır. Kaynaklar: Türkçe ünsüz sınıflaması; s/z oranı (Eckel ve Boone, 1981); GRBAS (Hirano, 1981); PAS (Rosenbek ve ark., 1996); IDDSI çerçevesi (iddsi.org, CC BY-SA 4.0); Boston afazi sınıflaması.</p>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<p class="vh" id="live" aria-live="polite"></p>
+
+<script src="dkt-veri.js"></script>
+<script src="dkt-app.js"></script>
+<script src="dkt-sesletim.js"></script>
+<script src="dkt-ses.js"></script>
+<script src="dkt-akicilik.js"></script>
+<script src="dkt-yutma.js"></script>
+<script src="dkt-dil.js"></script>
+<script src="dkt-vaka.js"></script>
+<script>window.DK && DK.core && DK.core.start();</script>
+</body>
+</html>

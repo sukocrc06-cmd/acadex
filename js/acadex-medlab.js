@@ -1,4 +1,4 @@
-/* ================= ACADEX MEDLAB: tıp öğrencilerine özel laboratuvarlar ================= */
+/* ================= ACADEX MEDLAB: sağlık bilimleri öğrencilerine özel laboratuvarlar ================= */
 /* Görünüm dashboard.html → #medlab-view; stiller css/acadex-medlab.css.
    Her laboratuvar labs/<ad>/index.html altında kendi başına çalışan bir sayfadır;
    karttan açılınca tam ekran katmandaki iframe'e yüklenir (veri ağır, o yüzden ilk açılışta). */
@@ -10,7 +10,8 @@
     anatomi: { t: 'Anatomi Lab', src: 'labs/anatomi/index.html' },
     fizyo: { t: 'Fizyo Lab', src: 'labs/fizyo/index.html' }, /* 3B veriyi ../anatomi/data/ yolundan paylaşır */
     odyoloji: { t: 'Odyoloji Lab', src: 'labs/odyoloji/index.html' }, /* kabin, 3B kulak (data/ax-kulak.js), vaka masası */
-    diyet: { t: 'Diyet Lab', src: 'labs/diyet/index.html' } /* tabak & menü (data/besin.js, USDA SR28), antropometri, vaka, enteral/parenteral */
+    diyet: { t: 'Diyet Lab', src: 'labs/diyet/index.html' }, /* tabak & menü (data/besin.js, USDA SR28), antropometri, vaka, enteral/parenteral */
+    dkt: { t: 'DKT Lab', src: 'labs/dkt/index.html' } /* terapi odası: sesletim, ses laboratuvarı (mikrofon), akıcılık, yutma, dil/afazi, vaka */
   };
   window.AX_MEDLABS = LABS;
 

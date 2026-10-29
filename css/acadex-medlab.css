@@ -243,3 +243,30 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 @keyframes fiz-d3{0%,43%{opacity:0}45%,56%{opacity:1}58%,100%{opacity:0}}
 @keyframes fiz-d4{0%,59%{opacity:0}61%,80%{opacity:1}82%,100%{opacity:0}}
 @keyframes fiz-sweat{0%,58%{opacity:0;transform:none}64%{opacity:1}80%{opacity:0;transform:translateY(16px)}100%{opacity:0}}
+/* DKT Lab kapağı (29.10.2026): terapi odası, konuşan dudak maskotu Dudi */
+#medlab-view.axm .axm-cover-dkt{background:#FBF4EA}
+#medlab-view.axm .axm-dkt{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+#medlab-view.axm button.axm-labb:hover .axm-dkt,#medlab-view.axm button.axm-labb:focus-visible .axm-dkt{transform:scale(1.04)}
+#medlab-view.axm .axm-dkt g,#medlab-view.axm .axm-dkt ellipse{transform-box:fill-box}
+#medlab-view.axm .axm-dkt .dkt-body,#medlab-view.axm .axm-dkt .dkt-c1,#medlab-view.axm .axm-dkt .dkt-c2{transform-origin:50% 100%}
+#medlab-view.axm .axm-dkt .dkt-mouth,#medlab-view.axm .axm-dkt .dkt-eyes,#medlab-view.axm .axm-dkt .dkt-sh,#medlab-view.axm .axm-dkt .dkt-bub{transform-origin:50% 50%}
+@media (prefers-reduced-motion:no-preference){
+#medlab-view.axm .axm-dkt{--dkt-t:2.2s}
+#medlab-view.axm button.axm-labb:hover .axm-dkt,#medlab-view.axm button.axm-labb:focus-visible .axm-dkt{--dkt-t:1.1s}
+#medlab-view.axm .axm-dkt .dkt-mouth{animation:dkt-talk calc(var(--dkt-t) * .5) ease-in-out infinite}
+#medlab-view.axm .axm-dkt .dkt-body{animation:dkt-bob var(--dkt-t) ease-in-out infinite}
+#medlab-view.axm .axm-dkt .dkt-sh{animation:dkt-sh var(--dkt-t) ease-in-out infinite}
+#medlab-view.axm .axm-dkt .dkt-eyes{animation:dkt-blink 4.4s ease-in-out infinite}
+#medlab-view.axm .axm-dkt .dkt-wv path{animation:dkt-wv calc(var(--dkt-t) * .8) ease-out infinite}
+#medlab-view.axm .axm-dkt .dkt-wv path+path{animation-delay:calc(var(--dkt-t) * .25)}
+#medlab-view.axm .axm-dkt .dkt-bub{animation:dkt-bub var(--dkt-t) cubic-bezier(.3,1.5,.5,1) infinite}
+#medlab-view.axm .axm-dkt .dkt-c1{animation:dkt-card var(--dkt-t) ease-in-out infinite}
+#medlab-view.axm .axm-dkt .dkt-c2{animation:dkt-card var(--dkt-t) ease-in-out calc(var(--dkt-t) * -.5) infinite}
+}
+@keyframes dkt-talk{0%,100%{transform:scaleY(.45)}35%{transform:scaleY(1)}65%{transform:scaleY(.65)}}
+@keyframes dkt-bob{0%,100%{transform:none}50%{transform:translateY(-6px) rotate(-1.5deg)}}
+@keyframes dkt-sh{0%,100%{transform:none;opacity:.12}50%{transform:scale(.88);opacity:.08}}
+@keyframes dkt-blink{0%,90%,100%{transform:none}94%{transform:scaleY(.12)}}
+@keyframes dkt-wv{0%{opacity:0;transform:translateX(-6px)}30%{opacity:1}100%{opacity:0;transform:translateX(12px)}}
+@keyframes dkt-bub{0%,100%{transform:scale(1)}20%{transform:scale(1.08) rotate(-2deg)}40%{transform:scale(1)}}
+@keyframes dkt-card{0%,100%{transform:rotate(0)}50%{transform:rotate(-2.5deg)}}
