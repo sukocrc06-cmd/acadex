@@ -2988,6 +2988,23 @@ function helpInlineExpr(expr: string, vars: Record<string, number>, lang: string
 
 function helpRound(n: number): number { return Math.round(n * 1e6) / 1e6 }
 
+/** Canlı test (30.10.2026): model adım metnine "annual_rate/100/12" gibi ham
+ *  değişken adı yazdı. Uzun (3+ harf ya da alt çizgili) adlar sorudaki
+ *  değeriyle değiştirilir; "r", "n" gibi kısa etiketler kalır. */
+function helpHumanize(text: string, vars: Record<string, number>, lang: string): string {
+  let s = text
+  for (const k of Object.keys(vars).sort((a, b) => b.length - a.length)) {
+    if (k.length < 3 && !k.includes('_')) continue
+    // alt çizgisiz ad Türkçe bir kelime de olabilir ("kar"): yalnızca bir işlem işaretinin yanındaysa
+    const op = /[=+\-*/^()×÷]/
+    s = s.replace(new RegExp(`(^|[^A-Za-z0-9_])${k}(?![A-Za-z0-9_])`, 'g'), (m, pre, at, all) => {
+      const before = all.slice(0, at + pre.length).trimEnd().slice(-1), after = all.slice(at + m.length).trimStart().charAt(0)
+      return k.includes('_') || op.test(before) || op.test(after) ? `${pre}${formatNumber(tidy(vars[k]), lang)}` : m
+    })
+  }
+  return s.replace(/\*/g, '×')
+}
+
 function helpText(v: unknown, max: number): string {
   return String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
@@ -3007,7 +3024,7 @@ function normalizeCalcSteps(raw: unknown, q: Record<string, unknown>, lang: stri
     if (!it || typeof it !== 'object') continue
     const o = it as Record<string, unknown>
     const expr = String(o.expr ?? '').trim()
-    const prompt = helpText(o.prompt, HELP_PROMPT_MAX)
+    const prompt = helpHumanize(helpText(o.prompt, HELP_PROMPT_MAX), vars, lang)
     if (!expr || !prompt || expr.length > EXPR_MAX_LENGTH) continue
     const v = evaluateExpression(expr, vars)
     if (!Number.isFinite(v)) continue
@@ -3015,7 +3032,7 @@ function normalizeCalcSteps(raw: unknown, q: Record<string, unknown>, lang: stri
     if (Object.keys(vars).some(k => sameNumber(vars[k], v)) || /^[\d.\s]+$/.test(expr)) continue
     if (seen.some(x => sameNumber(x, v)) || withinTolerance(v, answer, 0.1)) continue
     seen.push(v)
-    steps.push({ kind: 'number', prompt, answer: helpRound(v), unit: unitOf(o.unit), hint: expr.replace(/\*/g, '×'), explain: `${helpInlineExpr(expr, vars, lang)} = ${formatNumber(helpRound(v), lang)}` })
+    steps.push({ kind: 'number', prompt, answer: helpRound(v), unit: unitOf(o.unit), hint: helpInlineExpr(expr, vars, lang), explain: `${helpInlineExpr(expr, vars, lang)} = ${formatNumber(helpRound(v), lang)}` })
   }
   if (!steps.length) return null
   const formula = String(q.formula)
@@ -3024,7 +3041,7 @@ function normalizeCalcSteps(raw: unknown, q: Record<string, unknown>, lang: stri
     prompt: lang === 'en' ? 'Last step: now compute the answer to the question.' : 'Son adım: şimdi sorunun cevabını hesapla.',
     answer: helpRound(answer),
     unit: unitOf(q.units),
-    hint: formula.replace(/\*/g, '×'),
+    hint: helpInlineExpr(formula, vars, lang),
     explain: `${helpInlineExpr(formula, vars, lang)} = ${formatNumber(helpRound(answer), lang)}`
   })
   return steps
@@ -3118,7 +3135,7 @@ You design step-by-step help for ONE calculation exam question. The user message
 Break the solution into 1-3 intermediate quantities the student computes BEFORE the final answer (the final answer step is added automatically; do NOT include it).
 Return ONLY JSON: {"steps":[{"prompt":"...","expr":"...","unit":"..."}]}
 - expr: an arithmetic expression using ONLY the given variable names, numbers, + - * / ^ ( ) and the functions used in the formula. It must evaluate to that intermediate quantity.
-- prompt: in the target language, at most 140 characters, names the quantity and how it is found, e.g. "Aylık faiz oranı i = r / 12 kaç?". Never write its numeric result.
+- prompt: in the target language, at most 140 characters, names the quantity in words and how it is found using the question's own numbers, e.g. "Aylık faiz oranı (yıllık %8 ÷ 12) kaç?". Never write variable names like annual_rate, and never write the step's numeric result.
 - unit: short unit or "".
 - Order steps as a student would solve it. Never repeat a given value as a step.
 `.trim()
