@@ -28,7 +28,7 @@ const GEN = 'supabase/functions/generate-exam/index.ts';
 const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables'];
 const NUM = ['parseLooseNumber', 'answerNumber', 'normalizeAnswerText', 'numberReadings', 'sameNumber', 'withinTolerance', 'shuffleInPlace'];
 const G = loadFromSource(GEN, [...EXPR, ...NUM, 'TEMPLATE_PH', 'formatNumber', 'templateMultipliers', 'tidy', 'renderTemplate', 'decimalsOf', 'significantDigits', 'makeVariant',
-  'HELP_CAP', 'HELP_TRIES', 'HELP_MAX_STEPS', 'HELP_PROMPT_MAX', 'HELP_EXPLAIN_MAX', 'helpIsCalc', 'helpInlineExpr', 'helpRound', 'helpText', 'normalizeCalcSteps',
+  'HELP_CAP', 'HELP_TRIES', 'HELP_MAX_STEPS', 'HELP_PROMPT_MAX', 'HELP_EXPLAIN_MAX', 'helpIsCalc', 'helpInlineExpr', 'helpRound', 'helpHumanize', 'helpText', 'normalizeCalcSteps',
   'helpLeaksAnswer', 'normalizeGuideSteps', 'checkHelpStep', 'publicHelpStep', 'helpShownAnswer', 'advanceHelp', 'applyHelpVariant']);
 const R = loadFromSource('supabase/functions/grade-exam/index.ts', ['HELP_CAP', 'applyHelp', 'computeFinalGrade', 'computeNetSummary', 'computeExamGrade']);
 const A = loadFromSource('supabase/functions/exam-appeal/index.ts', ['APPEALABLE_TYPES', 'appealEligibility', 'computeFinalGrade', 'computeNetSummary', 'computeExamGrade', 'applyAppealOutcome']);
@@ -73,7 +73,13 @@ test('hesap adımları: değer kodla, geçersiz/tekrar/cevaba eşit adım atıl�
   assert.equal(st[1].explain, '(1+0,04)^3 = 1,124864');
   assert.match(st[2].prompt, /Son adım/);
   assert.equal(st[2].unit, 'TL');
-  assert.equal(st[2].hint, 'P×(1+r)^n');
+  assert.equal(st[2].hint, '25.000×(1+0,04)^3', 'ipucu sorunun sayılarıyla');
+  // canlı test 30.10: ham değişken adı adım metninde kalmaz
+  const loan = { type: 'calculation', question: 'Kredi', formula: 'principal*annual_rate/1200', variables: { principal: 100000, annual_rate: 8 }, correct_answer: 666.6667 };
+  const ls = G.normalizeCalcSteps([{ prompt: 'Aylık faiz oranı r = annual_rate/100/12 kaç?', expr: 'annual_rate/100/12' }], loan, 'tr');
+  assert.equal(ls[0].prompt, 'Aylık faiz oranı r = 8/100/12 kaç?');
+  assert.equal(ls[0].hint, '8/100/12');
+  assert.equal(G.helpHumanize('Net kar marjı: kar / satis kaç?', { kar: 12, satis: 100 }, 'tr'), 'Net kar marjı: 12 / 100 kaç?', 'işlem dışındaki kelime kalır');
   assert.equal(G.normalizeCalcSteps([{ prompt: 'x', expr: 'P' }], CALC, 'tr'), null, 'ara adım yoksa yönlendirici yola düşülür');
   assert.ok(G.normalizeCalcSteps(Array.from({ length: 8 }, (_, i) => ({ prompt: 's' + i, expr: `P*${i + 2}` })), CALC, 'tr').length <= G.HELP_MAX_STEPS);
 });
@@ -113,7 +119,7 @@ test('ilerleme: yanlışta ipucu, ikinci yanlışta doğrusu ve geçiş; tarayı
   assert.equal(pub.answer, undefined); assert.equal(pub.hint, undefined); assert.equal(pub.total, 2);
   let r = G.advanceHelp(plan, 0, '2', 'tr');
   assert.deepEqual([r.reply.correct, r.reply.revealed, r.plan.cur, r.plan.tries], [false, undefined, 0, 1]);
-  assert.equal(r.reply.hint, '1+r');
+  assert.equal(r.reply.hint, '1+0,04');
   assert.equal(plan.tries, 0, 'girdi planı değişmez');
   r = G.advanceHelp(r.plan, 0, '3', 'tr');
   assert.deepEqual([r.reply.correct, r.reply.revealed, r.plan.cur, r.reply.answer], [false, true, 1, '1,04']);
