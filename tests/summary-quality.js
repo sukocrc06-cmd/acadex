@@ -104,6 +104,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
   'KAPSAMA_ROZET_MIN_ORNEK',
   'KAPSAMA_DISI_ALANLAR', 'coverageText', 'numericCoverage', 'formatCoverage',
   'SAYISAL_BAGLAM_KRK', 'sayisalKayipBaglami',
@@ -441,12 +442,19 @@ test('olcum modu IKI kosula birden bagli', () => {
   /* Yalniz Gemini yetmez (metni duzgun cikan belgede kapi calismali),
      yalniz gorsel yogunluk da yetmez (Groq yolunda model gercekten yalnizca
      metni gordu, onerme dogru). */
+  /* 28.10.2026: ifade TEK SATIR olmaktan cikti (parallel mod ve kesik OCR
+     dallari eklendi), bu yuzden satir degil IFADE okunuyor. Korunan kural
+     degismedi: MOTOR dali hala cikarim kalitesine AND ile bagli — yalniz
+     gorsel yogunluk kapiyi acmaya yetmemeli. */
   const i = SRC.indexOf('const kapiOlcumModu =');
   assert.ok(i > -1, 'kapi motora baglanmamis');
-  const satir = SRC.slice(i, SRC.indexOf('\n', i));
-  assert.ok(/draftEngine === 'gemini'/.test(satir), 'motor sorulmuyor');
-  assert.ok(/&&/.test(satir) && /isVisuallyDenseDocument/.test(satir),
+  const ifade = SRC.slice(i, SRC.indexOf('const gated = applyGroundingGate', i));
+  assert.ok(ifade.length > 20 && ifade.length < 400, `ifade okunamadi (${ifade.length} krk)`);
+  assert.ok(/draftEngine === 'gemini'/.test(ifade), 'motor sorulmuyor');
+  assert.ok(/isVisuallyDenseDocument/.test(ifade),
     'cikarim kalitesi sorulmuyor — her Gemini taslaginda kapi kapanir');
+  assert.ok(/\(draftEngine === 'gemini' \|\| geminiParallelActive\(\)\) && isVisuallyDenseDocument/.test(ifade),
+    'motor dali gorsel yogunluktan KOPMUS — Groq yolunda da kapi acilir');
   // Ve karar KAPIYA degil CAGIRANA ait: motoru yalnizca cagiran biliyor.
   assert.ok(SRC.indexOf('kapiOlcumModu') < SRC.indexOf('parsedContent.key_terms = gated.key_terms'),
     'bayrak cagri yerinde hesaplanmiyor');
@@ -4641,6 +4649,74 @@ test('uc asamada da LOGLANIYOR: pencere, birlesim, son kart', () => {
     'son kart olculmuyor');
 });
 
+/* GROUNDING KAPISI: guvenilmez karsilastirmada KESMEZ (28.10.2026).
+ *
+ * Kapi "model yalnizca cikarilan metni gordu" onermesine dayaniyor. Iki
+ * durumda bu onerme yanlis ve kapi gercek icerigi siliyordu:
+ *   1) parallel mod — draftEngine 'groq' kaliyor ama butun cagrilar
+ *      Gemini'ye gidiyor ve gorsel gecis sayfalari okuyor;
+ *   2) kesik OCR — kaynak metnin kendisi belgenin %4'u ve bozuk.
+ * Olculen kayip: "uydurma terim: Power Rule, Product Rule, Quotient Rule"
+ * — ucu de kartin formul bolumunde duruyordu. */
+test('grounding kapisi parallel modda ve kesik OCR\'da olcum moduna gecer', () => {
+  const i = SRC.indexOf('const kapiOlcumModu');
+  assert.ok(i > -1, 'kapiOlcumModu bulunamadi');
+  const ifade = SRC.slice(i, i + 220);
+  assert.ok(/geminiParallelActive\(\)/.test(ifade),
+    'parallel mod kapiyi olcum moduna sokmuyor — vision terimleri yine silinir');
+  assert.ok(/ocrKismi/.test(ifade),
+    'kesik OCR kapiyi olcum moduna sokmuyor — %4 metne bakip kesmeye devam eder');
+  assert.ok(/isVisuallyDenseDocument/.test(ifade),
+    'gorsel yogunluk kosulu kaybolmus — metni duzgun cikan belgede kapi kesmeli');
+});
+
+/* PARCALI OCR (28.10.2026).
+ *
+ * OCR.space tek istekte plan sinirina (olculen: 3-4 sayfa) kadar okuyor ve
+ * sayfa araligi parametresi YOK. 29 sayfalik tarama tek istekte belgenin
+ * %4'unu verdi. Cozum: belgeyi BIZ boluyoruz, her parcayi ayri okuyoruz.
+ * Sigmayan kisim eksik kalir ve KART ROZETLENIR — sessizce kaybolmaz. */
+test('OCR parcali okuyor: tek istek yerine sayfa parcalari', () => {
+  assert.ok(/async function tryOCRParcali\(/.test(SRC), 'parcali OCR yok');
+  assert.ok(/const ocr = await tryOCRParcali\(fileBytes, ocrApiKey\)/.test(SRC),
+    'cagiran hala tek-istek yolunda — belgenin %4\'u okunur');
+  assert.ok(A.OCR_PARCA_SAYFA <= 3,
+    `parca ${A.OCR_PARCA_SAYFA} sayfa — olculen plan siniri 3, ustune cikmak parcayi dusurur`);
+  const i = SRC.indexOf('async function tryOCRParcali(');
+  const govde = SRC.slice(i, i + 2600);
+  assert.ok(/buildPdfSubsetBytes\(fileBytes, idx\)/.test(govde),
+    'mini-PDF uretimi mevcut yardimciyla yapilmiyor');
+  assert.ok(/if \(gecen > butceMs\)/.test(govde),
+    'butce kapisi yok — 10 istek Supabase duvarini asabilir');
+  assert.ok(/toplam <= OCR_PARCA_SAYFA/.test(govde),
+    'kisa belgede gereksiz bolme yapiliyor');
+});
+
+/* Rozet artik "plan sinirina takildi"yi degil GERCEK orani soyluyor. */
+test('kismi OCR rozeti okunan/toplam sayfaya bagli', () => {
+  assert.ok(/if \(ocr\.okunanSayfa < ocr\.toplamSayfa\)/.test(SRC),
+    'rozet kosulu okunan/toplam karsilastirmasina bagli degil');
+  assert.ok(/ocrKismi = \{ sayfa: ocr\.okunanSayfa \}/.test(SRC),
+    'rozete okunan sayfa sayisi yazilmiyor');
+});
+
+/* TARANMIS BELGEDE DERINLIK SAYFADAN SECILIR.
+   29 sayfalik tarama OCR'dan 1.230 karakter dondu -> depth=brief ->
+   anlati yazari, bolum derinlestirme VE review'in ucu birden atlandi.
+   Belge kisa degildi, OKUNAMAMISTI. */
+test('OCR kesikse derinlik textLen yerine sayfa sayisindan secilir', () => {
+  const i = SRC.indexOf('let depth = explicitDepth');
+  assert.ok(i > -1, 'derinlik secimi bulunamadi');
+  const govde = SRC.slice(i, i + 1400);
+  assert.ok(/if \(!depth && ocrKismi\)/.test(govde),
+    'kesik OCR derinligi hala textLen\'den aliyor');
+  assert.ok(/billablePages <= 3 \? 'brief' : billablePages > 32 \? 'deep' : 'standard'/.test(govde),
+    'sayfa esikleri karakter esikleriyle ayni yerde degil (~950 krk/sayfa)');
+  // Normal belgede davranis DEGISMEMELI.
+  assert.ok(/if \(extractedText\.length < 2500\) depth = 'brief'/.test(govde),
+    'metni duzgun cikan belgenin derinlik yolu bozulmus');
+});
+
 /* KESIK OCR SONUCU ATILMIYOR (28.10.2026).
  *
  * OCR.space sayfa sinirinda hem hata bayragi koyuyor hem de sinira kadarki
@@ -4664,7 +4740,9 @@ test('kismi OCR karta rozet olarak yaziliyor', () => {
     'kismi OCR karta yazilmiyor — ogrenci eksigi fark edemez');
   /* Bildirim OCR blogundan ONCE olmali: blok oteki `let`lerden once
      calisiyor, sonra bildirilirse TDZ hatasi verir. */
-  assert.ok(SRC.indexOf('let ocrKismi') < SRC.indexOf('const ocr = await tryOCR('),
+  const kullanim = SRC.indexOf('const ocr = await tryOCRParcali(');
+  assert.ok(kullanim > -1, 'OCR cagrisi bulunamadi — test eskimis');
+  assert.ok(SRC.indexOf('let ocrKismi') < kullanim,
     'ocrKismi kullanimdan SONRA bildirilmis — TDZ');
 });
 

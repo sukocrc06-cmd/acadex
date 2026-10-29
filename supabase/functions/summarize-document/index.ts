@@ -6286,7 +6286,7 @@ function resetGeminiParallelUsage() {
  * base64 dondurur. Gemini bunu native okur: PNG'ye cevirme (PDF.co) adimi ve
  * metni zaten cikarilmis sayfalarin gorsel ucreti yok. Basarisizlikta null.
  */
-async function buildPdfSubsetBase64(fileBytes: Uint8Array, pageIndices: number[]): Promise<string | null> {
+async function buildPdfSubsetBytes(fileBytes: Uint8Array, pageIndices: number[]): Promise<Uint8Array | null> {
   try {
     const src = await PDFDocument.load(fileBytes, { ignoreEncryption: true })
     const total = src.getPageCount()
@@ -6295,11 +6295,16 @@ async function buildPdfSubsetBase64(fileBytes: Uint8Array, pageIndices: number[]
     const out = await PDFDocument.create()
     const pages = await out.copyPages(src, indices)
     for (const p of pages) out.addPage(p)
-    return bytesToBase64(await out.save())
+    return await out.save()
   } catch (err) {
-    console.warn('buildPdfSubsetBase64: mini-PDF uretilemedi:', err)
+    console.warn('buildPdfSubsetBytes: mini-PDF uretilemedi:', err)
     return null
   }
+}
+
+async function buildPdfSubsetBase64(fileBytes: Uint8Array, pageIndices: number[]): Promise<string | null> {
+  const bytes = await buildPdfSubsetBytes(fileBytes, pageIndices)
+  return bytes ? bytesToBase64(bytes) : null
 }
 
 /* HATA CEVABI HER ZAMAN GECERLI JSON (28.10.2026 — olculmus hata).
@@ -9262,17 +9267,17 @@ serve(async (req) => {
           const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
           if (ocrApiKey) {
             try {
-              const ocr = await tryOCR(fileBytes, ocrApiKey)
+              const ocr = await tryOCRParcali(fileBytes, ocrApiKey)
               const ocrTextLen = (ocr.text || "").trim().length
               if (ocrTextLen >= 200) {
-                if (ocr.kesildi) {
-                  ocrKismi = { sayfa: ocr.sayfa }
+                if (ocr.okunanSayfa < ocr.toplamSayfa) {
+                  ocrKismi = { sayfa: ocr.okunanSayfa }
                   console.warn(
-                    `OCR KISMI: sayfa sinirina takildi, yalnizca ${ocr.sayfa} sayfa okundu ` +
+                    `OCR KISMI: ${ocr.okunanSayfa}/${ocr.toplamSayfa} sayfa okundu ` +
                     `(${ocrTextLen} karakter) — kart bu kadariyla uretiliyor ve rozetleniyor`
                   )
                 } else {
-                  console.log(`OCR succeeded! Extracted ${ocrTextLen} characters.`)
+                  console.log(`OCR succeeded! ${ocr.toplamSayfa} sayfa, ${ocrTextLen} karakter.`)
                 }
                 extractedText = detectAndFormatPdfTables(ocr.text)
               } else {
@@ -9734,6 +9739,24 @@ serve(async (req) => {
     // depth (any caller that still sends one) always takes priority.
     // ==========================================================================
     let depth = explicitDepth
+    /* TARANMIS BELGEDE textLen YANLIS OLCUDUR (28.10.2026 — olculmus).
+     *
+     * Esikler cikarilan metnin uzunluguna bakiyor. Taranmis bir belgede o
+     * uzunluk BELGEYI degil OCR'in nerede kesildigini olcer. Olculen kosu:
+     * 29 sayfalik bir tarama OCR'dan 1.230 karakter dondu -> depth=brief ->
+     * skipNarrativeWriter, skipSectionDeepen VE review atlandi. Yani
+     * belgenin kisa olmasi degil, okunamamis olmasi butun kalite
+     * adimlarini kapatti.
+     * OCR kesildiyse olcu SAYFA SAYISI. Esikler karakter esikleriyle ayni
+     * yerde: ~950 krk/sayfa olculdu (loglardaki "ort. 892-1048 krk"),
+     * yani 2.500 krk ~ 3 sayfa, 30.000 krk ~ 32 sayfa. */
+    if (!depth && ocrKismi) {
+      depth = billablePages <= 3 ? 'brief' : billablePages > 32 ? 'deep' : 'standard'
+      console.log(
+        `Derinlik SAYFADAN secildi: ${billablePages} sayfa -> ${depth} ` +
+        `(OCR kesik, textLen=${extractedText.length} belgeyi temsil etmiyor)`
+      )
+    }
     if (!depth) {
       if (extractedText.length < 2500) depth = 'brief'
       else if (extractedText.length > 30000) depth = 'deep'
@@ -12730,7 +12753,28 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
        * kaybediyor. Kapinin kendi yorumu bunu zaten cevapliyor —
        * "halusinasyon korumasinin asil yuku zaten review ve sanitizeCharts'ta"
        * — ve olculen kosuda review gercekten kostu, dort duzeltme uyguladi. */
-      const kapiOlcumModu = draftEngine === 'gemini' && isVisuallyDenseDocument
+      /* KAPI KARSILASTIRMAYA GUVENEBILIYOR MU (28.10.2026'da iki kez genisledi).
+       *
+       * 1) PARALEL MOD. `draftEngine` yalnizca tum-PDF yolunda (only/shadow)
+       *    'gemini' oluyor; parallel modda `geminiResult` hic kurulmuyor
+       *    ("mod=parallel — tum-PDF cagrisi yok"), yani bu kapi su an
+       *    kostugumuz modda HIC acilamiyordu. Oysa onermesi orada daha da
+       *    gecerli: gorsel gecis sayfa goruntulerini gercekten okuyor.
+       *
+       * 2) KESIK OCR. Taranmis belgede kaynak metnin kendisi guvenilmez.
+       *    Olculen kosu (Week_8_Derivative_Problem_Solving_II_SS.pdf, 29
+       *    sayfa, 29 JPEG, 0 font): OCR 29 sayfanin 4'unden 1.230 karakter
+       *    verdi ve o da bozuktu ("f（a） = 「a2， × <1 122-1,2≥1").
+       *    Kapi o 1.230 karaktere bakip "Power Rule, Product Rule,
+       *    Quotient Rule" terimlerini UYDURMA sayip atti — ucu de kartin
+       *    formul bolumunde duruyor, yani sayfalarda yaziyor. Ogrenci
+       *    kavramlarin %60'ini kaybetti.
+       *
+       * Her iki dalda da kapi KESMIYOR, yalnizca olcuyor. Kesme karari
+       * karsilastirmanin saglam oldugu durumlar icin saklaniyor. */
+      const kapiOlcumModu =
+        ((draftEngine === 'gemini' || geminiParallelActive()) && isVisuallyDenseDocument) ||
+        !!ocrKismi
       const gated = applyGroundingGate(
         parsedContent.key_terms,
         parsedContent.key_points,
@@ -13275,6 +13319,76 @@ async function markFailed(client: any, documentId: string) {
   } catch (e) {
     console.error('Failed to set document status to failed: ', e)
   }
+}
+
+/* PARCALI OCR (28.10.2026 — olculmus kayip uzerine).
+ *
+ * OCR.space tek istekte plan sinirina kadar okuyor; olculen sinir 3-4
+ * sayfa. Week_8_Derivative_Problem_Solving_II_SS.pdf (29 sayfa, 29 JPEG,
+ * 0 font) tek istekte 4 sayfadan 1.230 karakter verdi — belgenin %4'u.
+ * API'nin sayfa araligi parametresi YOK, dolayisiyla belgeyi BIZ boluyoruz
+ * ve her parcayi ayri istekle okuyoruz. Mini-PDF uretimi zaten vardi
+ * (buildPdfSubsetBytes, gorsel gecis icin yazilmisti).
+ *
+ * Parca 3 sayfa: olculen sinirin (3) altinda kalmak, dorde guvenmemek.
+ * Butce, Supabase'in ~150 sn'lik sert sinirina karsi: parcalar kucuk
+ * oldugu icin her cagri tam dosyadan hizli (1,5 MB yukleme yok), ama 29
+ * sayfa 10 istek demek ve hepsi sigmayabilir. Sigmayan kisim eksik kalir
+ * ve KART ROZETLENIR — sessizce kaybolmaz. */
+const OCR_PARCA_SAYFA = 3
+const OCR_PARCA_BUTCE_MS = 60_000
+
+async function tryOCRParcali(
+  fileBytes: Uint8Array,
+  apiKey: string,
+  butceMs: number = OCR_PARCA_BUTCE_MS
+): Promise<{ text: string; okunanSayfa: number; toplamSayfa: number }> {
+  let toplam = 0
+  try {
+    toplam = (await PDFDocument.load(fileBytes, { ignoreEncryption: true })).getPageCount()
+  } catch (_e) {
+    toplam = 0
+  }
+  // Sayfa sayisi okunamadiysa ya da zaten tek parcaysa: eski tek-istek yolu.
+  if (toplam <= OCR_PARCA_SAYFA) {
+    const tek = await tryOCR(fileBytes, apiKey)
+    return { text: tek.text, okunanSayfa: tek.sayfa, toplamSayfa: toplam || tek.sayfa }
+  }
+
+  const basladi = Date.now()
+  const parcalar: string[] = []
+  let okunan = 0
+  for (let bas = 0; bas < toplam; bas += OCR_PARCA_SAYFA) {
+    const gecen = Date.now() - basladi
+    if (gecen > butceMs) {
+      console.warn(
+        `OCR parcali: butce doldu (${gecen}ms > ${butceMs}ms), ${okunan}/${toplam} sayfa okundu`
+      )
+      break
+    }
+    const idx: number[] = []
+    for (let i = bas; i < Math.min(bas + OCR_PARCA_SAYFA, toplam); i++) idx.push(i)
+    const alt = await buildPdfSubsetBytes(fileBytes, idx)
+    if (!alt) {
+      console.warn(`OCR parcali: ${bas + 1}-${bas + idx.length}. sayfalar icin mini-PDF uretilemedi, duruluyor`)
+      break
+    }
+    try {
+      const r = await tryOCR(alt, apiKey)
+      if (r.text.trim().length > 0) parcalar.push(r.text)
+      okunan += Math.max(r.sayfa, 0) || idx.length
+    } catch (err) {
+      /* Bir parca duserse elimizdekini tutuyoruz: yarim metin, hic
+         metinden iyidir ve eksiklik karta rozet olarak yaziliyor. */
+      console.warn(`OCR parcali: ${bas + 1}. sayfadan itibaren parca dustu (${err}), ${okunan}/${toplam} sayfa okundu`)
+      break
+    }
+  }
+  console.log(
+    `OCR parcali: ${okunan}/${toplam} sayfa, ${parcalar.length} parca, ` +
+    `${parcalar.join('').length} karakter, ${Date.now() - basladi}ms`
+  )
+  return { text: parcalar.join('\n\n'), okunanSayfa: Math.min(okunan, toplam), toplamSayfa: toplam }
 }
 
 async function tryOCR(
