@@ -430,13 +430,6 @@ function anlatiLatexYumusat(parca: string): string {
   if (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t)) return t
   // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
   t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
-  /* \frac{a}{b} -> a/b (ic ice olmayan hali; digeri formul kartinin isi).
-     Pay ya da paydada islem varsa PARANTEZ: \frac{1}{b-a} -> 1/(b-a),
-     yoksa "1/b-a" diye belirsiz okunurdu. */
-  t = t.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (_m, pay, payda) => {
-    const sar = (x: string) => /[+\-*/^\s]/.test(String(x).trim()) ? `(${String(x).trim()})` : String(x).trim()
-    return `${sar(pay)}/${sar(payda)}`
-  })
   t = t.replace(/\\(?:times|cdot)\b/g, 'x')
   t = t.replace(/\\div\b/g, '/')
   t = t.replace(/\\pm\b/g, '+/-')
@@ -459,6 +452,31 @@ function anlatiLatexYumusat(parca: string): string {
      okunurdu. Uzun icerik dokunulmuyor; orada parantez anlam tasiyor. */
   t = t.replace(/([\^_])\{([^{}\s]{1,8})\}/g, (_m, isaret, icerik) =>
     /[+\-*/=]/.test(String(icerik)) ? `${isaret}(${icerik})` : `${isaret}${icerik}`)
+
+  /* \frac EN SONDA VE TEKRARLI (29.10.2026 olcumu).
+   *
+   * Ilk surumde en bastaydi ve desen ic ice suslu parantezi gormuyordu;
+   * "Week 9 Introduction to Integrals" kartinda anlatida tam bu kaldi:
+   *   ∫ x^n dx = \frac{x^(n+1)}{n+1} + C
+   * Kaynak \frac{x^{n+1}}{n+1}'di: pay 'x^{n+1}' suslu tasidigi icin
+   * [^{}]* eslesmedi, sonra ust simge temizligi ^{n+1} -> ^(n+1) yapti ve
+   * ortada ciplak \frac kaldi.
+   *
+   * Cozum sira: alt/ust simgeler ONCE sadelesiyor, boylece frac'in pay ve
+   * paydasinda suslu kalmiyor. Ustelik dongu: ic ice frac'in her katmani
+   * bir gecisle acilir, degisiklik durunca cikilir. */
+  for (let gecis = 0; gecis < 3; gecis++) {
+    const once = t
+    t = t.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (_m, pay, payda, konum: number, tam: string) => {
+      const sar = (x: string) => /[+\-*/^\s]/.test(String(x).trim()) ? `(${String(x).trim()})` : String(x).trim()
+      const bolum = `${sar(pay)}/${sar(payda)}`
+      /* Hemen ardindan harf/rakam geliyorsa TAMAMI parantez icine:
+         \frac{3}{4}x^4 -> (3/4)x⁴. Yoksa "3/4x⁴" diye okunurdu. */
+      const sonra = String(tam).charAt(Number(konum) + String(_m).length)
+      return /[A-Za-z0-9(]/.test(sonra) ? `(${bolum})` : bolum
+    })
+    if (t === once) break
+  }
   return t.replace(/[ \t]{2,}/g, ' ')
 }
 

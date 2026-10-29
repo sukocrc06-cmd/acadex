@@ -4745,10 +4745,31 @@ test('frac ve alt/ust simge OKUNUR, belirsiz DEGIL', () => {
   const y = (g) => A.onarAnlatiLatex(g).metin;
   // Pay/paydada islem varsa parantez: yoksa '1/b-a' diye okunurdu.
   assert.ok(y('f_{avg} = \\frac{1}{b-a} \\int_{a}^{b} f(x) \\, dx').includes('1/(b-a)'));
-  assert.ok(y('\\frac{d}{dx}(x^n)').startsWith('d/dx'), 'islemsiz pay parantez ALMAMALI');
+  /* Ardindan harf/rakam/parantez geliyorsa BOLUMUN TAMAMI parantezlenir:
+     "3/4x\u2074" belirsizdi, "(3/4)x\u2074" degil. */
+  assert.ok(y('results such as \\frac{3}{4}x^4').includes('(3/4)x'),
+    'bolum parantezlenmeli, yoksa 3/4x belirsiz okunur');
+  assert.ok(y('\\frac{d}{dx}(x^n)').startsWith('(d/dx)'), 'ardindan ( geliyorsa parantezlenir');
+  // Cumle sonunda ya da bosluktan once parantez EKLENMEZ.
+  assert.ok(y('oran \\frac{a}{b} kadar').includes('oran a/b kadar'), 'gereksiz parantez eklenmis');
   // Ust simgede islem varsa parantez: 'nx^n-1' belirsizdir.
   assert.ok(y('nx^{n-1}').includes('^(n-1)'));
   assert.ok(y('f_{upper}(x)').startsWith('f_upper'), 'islemsiz kisa icerik parantezsiz');
+});
+
+test('IC ICE SUSLU frac: olculen hata (Week 9 kartı)', () => {
+  /* Ilk surumde frac EN BASTAYDI ve deseni ic ice suslu gormuyordu.
+     Kartta anlatida tam bu kaldi:
+       \u222B x^n dx = \\frac{x^(n+1)}{n+1} + C
+     Kaynak \\frac{x^{n+1}}{n+1}: pay suslu tasidigi icin eslesmedi, sonra
+     ust simge temizligi ^{n+1} -> ^(n+1) yapti ve ciplak \\frac kaldi.
+     Cozum: alt/ust simgeler ONCE sadelesiyor, frac EN SONDA ve tekrarli. */
+  const y = (g) => A.onarAnlatiLatex(g).metin;
+  const cikti = y('The power rule states that \\int x^n dx = \\frac{x^{n+1}}{n+1} + C');
+  assert.ok(!cikti.includes('frac'), 'ciplak frac kalmis: ' + cikti);
+  assert.ok(cikti.includes('(x^(n+1))/(n+1)'), cikti);
+  // Ic ice frac da acilmali (dongu).
+  assert.ok(!y('\\frac{\\frac{a}{b}}{c}').includes('frac'), 'ic ice frac acilmamis');
 });
 
 test('ANLATI DISI ALANLAR gercekten baglanmis', () => {
