@@ -11,6 +11,15 @@
   var SRC = 'labs/finans/index.html';
   var ST = { zaman: 'Paranın zaman değeri', muhasebe: 'Muhasebe', borsa: 'Borsa ve portföy', dis: 'Dış ticaret', analiz: 'Finansal tablo analizi', makro: 'Kur ve makro', turev: 'Türev ürünler', kisisel: 'Kişisel finans' };
   window.AX_FINANS = ST;
+  /* genel müdürlük (29.10.2026): şirket yönetimi katları ayrı lab'da (labs/sirket/), aynı katmanda açılır; anahtar 'sirket-<kat>' */
+  var SK = { terazi: 'Bilanço terazisi', tablolar: 'Üç tablo ve nakit', maliyet: 'Maliyet ve başabaş', yatirim: 'Yatırım kararı', strateji: 'Strateji masası', org: 'Organizasyon', sim: 'Şirketi yönet' };
+  window.AX_SIRKET = SK;
+  var labOf = function (k) { return /^sirket-/.test(k) ? 'sirket' : 'finans'; };
+  var info = function (k) {
+    if (labOf(k) === 'sirket') { var t = k.slice(7); return SK[t] ? { lab: 'sirket', tab: t, src: 'labs/sirket/index.html', name: 'Acadex Şirket · ' + SK[t] } : null; }
+    return ST[k] ? { lab: 'finans', tab: k, src: SRC, name: 'Acadex Finans · ' + ST[k] } : null;
+  };
+  var curLab = null;
 
   /* tam ekran katman: section'a geçiş animasyonunda transform verildiği için body'ye taşınır */
   var run = sec.querySelector('[data-finans-run]'), frame = run.querySelector('[data-finans-frame]');
@@ -35,14 +44,14 @@
   frame.addEventListener('load', function () { if (frame.getAttribute('src')) { ready = true; setTimeout(hideLoad, 200); } });
 
   var open = function (k) {
-    if (!ST[k]) return false;
-    cur = k; titleEl.textContent = 'Acadex Finans · ' + ST[k]; frame.title = 'Acadex Finans · ' + ST[k]; newTab.href = SRC + '?tab=' + k;
-    if (!frame.getAttribute('src')) { ready = false; if (loadEl) { loadEl.classList.remove('out'); loadEl.hidden = false; } frame.setAttribute('src', SRC + '?hub=1&tab=' + k); }
-    else if (ready) lsafe(function () { frame.contentWindow.postMessage({ src: 'axhost', type: 'tab', tab: k }, location.origin); });
-    else frame.setAttribute('src', SRC + '?hub=1&tab=' + k);
+    var I = info(k); if (!I) return false;
+    cur = k; titleEl.textContent = I.name; frame.title = I.name; newTab.href = I.src + '?tab=' + I.tab;
+    if (!frame.getAttribute('src') || curLab !== I.lab) { ready = false; curLab = I.lab; if (loadEl) { loadEl.classList.remove('out'); loadEl.hidden = false; } frame.setAttribute('src', I.src + '?hub=1&tab=' + I.tab); }
+    else if (ready) lsafe(function () { frame.contentWindow.postMessage({ src: 'axhost', type: 'tab', tab: I.tab }, location.origin); });
+    else frame.setAttribute('src', I.src + '?hub=1&tab=' + I.tab);
     run.hidden = false; document.body.classList.add('axm-open');
     grow(lastBtn, false);
-    if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook('finans', frame); });
+    if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook(I.lab, frame); });
     setTimeout(function () { lsafe(function () { frame.focus(); }); }, 60);
     return true;
   };

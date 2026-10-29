@@ -142,12 +142,15 @@
   FN.core = { V: V, $: $, $$: $$, X: X, ls: ls, nf: nf, tl: tl, pct: pct, num: num, clamp: clamp, toast: toast, live: live, RM: RM, karne: karne, hesi: hesi, tip: tip, shuffle: shuffle, chart: chart, donut: donut, roll: roll };
 
   /* ---------------- istasyonlar ---------------- */
-  var TABS = ['zaman', 'muhasebe', 'borsa', 'dis', 'analiz', 'makro', 'turev', 'kisisel'];
-  var NAMES = { zaman: 'Paranın zaman değeri', muhasebe: 'Muhasebe rıhtımı', borsa: 'Borsa ve portföy', dis: 'Dış ticaret', analiz: 'Finansal tablo analizi', makro: 'Kur ve makro', turev: 'Türev ürünler', kisisel: 'Kişisel finans' };
+  /* başka lablar (labs/sirket) aynı çekirdeği W.FN_CONF ile kullanır: { tabs, names, lab, brand } */
+  var CONF = W.FN_CONF || {};
+  var TABS = CONF.tabs || ['zaman', 'muhasebe', 'borsa', 'dis', 'analiz', 'makro', 'turev', 'kisisel'];
+  var NAMES = CONF.names || { zaman: 'Paranın zaman değeri', muhasebe: 'Muhasebe rıhtımı', borsa: 'Borsa ve portföy', dis: 'Dış ticaret', analiz: 'Finansal tablo analizi', makro: 'Kur ve makro', turev: 'Türev ürünler', kisisel: 'Kişisel finans' };
+  var LAB = CONF.lab || 'finans', BRAND = CONF.brand || 'Acadex Finans';
   FN.NAMES = NAMES; FN.TABS = TABS;
   var tab = null, inited = {};
   var setTab = function (k) {
-    if (TABS.indexOf(k) < 0) k = 'zaman';
+    if (TABS.indexOf(k) < 0) k = TABS[0];
     if (tab && tab !== k && FN.st[tab] && FN.st[tab].hide) FN.st[tab].hide();
     tab = k;
     $$('.pt-tabs [data-tab]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === k)); });
@@ -156,7 +159,7 @@
     var st = FN.st[k];
     if (st && !inited[k] && st.init) { inited[k] = true; st.init(); }
     if (st && st.show) st.show();
-    ls.set('tab', k); bridgeSend();
+    ls.set(LAB === 'finans' ? 'tab' : LAB + '.tab', k); bridgeSend();
   };
   $$('.pt-tabs [data-tab]').forEach(function (b) {
     b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); try { W.scrollTo({ top: 0 }); } catch (e) {} });
@@ -170,12 +173,12 @@
 
   /* ---------------- Acadex köprüsü (hub iframe'i, ?hub=1) ---------------- */
   var EMB = W.parent !== W && /(?:\?|&)hub=1(?:&|$)/.test(location.search), ORG = location.origin;
-  var post = function (m) { if (!EMB) return; m.src = 'axlab'; m.lab = 'finans'; try { W.parent.postMessage(m, ORG); } catch (e) {} };
+  var post = function (m) { if (!EMB) return; m.src = 'axlab'; m.lab = LAB; try { W.parent.postMessage(m, ORG); } catch (e) {} };
   var ctx = function () {
     var o = { type: 'ctx', mode: tab, spot: false, sel: null, chips: [] };
     var st = FN.st[tab], c = st && st.ctx ? st.ctx() : null;
     if (c) { o.sel = c.sel; o.chips = c.chips || []; }
-    if (!o.sel) o.sel = { key: 'finans.' + tab, title: NAMES[tab] || 'Acadex Finans', la: 'Acadex Finans', rows: [], about: 'öğrenci Acadex Finans\'ta ' + (NAMES[tab] || '') + ' istasyonunda çalışıyor.' };
+    if (!o.sel) o.sel = { key: LAB + '.' + tab, title: NAMES[tab] || BRAND, la: BRAND, rows: [], about: 'öğrenci ' + BRAND + '\'ta ' + (NAMES[tab] || '') + ' istasyonunda çalışıyor.' };
     o.sel.title = (NAMES[tab] || '') + (o.sel.title && o.sel.title !== NAMES[tab] ? ' · ' + o.sel.title : '');
     return o;
   };
@@ -198,6 +201,6 @@
   /* ---------------- başlat (index.html sonunda) ---------------- */
   FN.core.start = function () {
     var q = new URLSearchParams(location.search).get('tab'), h = (location.hash || '').slice(1);
-    setTab(TABS.indexOf(q) > -1 ? q : TABS.indexOf(h) > -1 ? h : ls.get('tab', 'zaman'));
+    setTab(TABS.indexOf(q) > -1 ? q : TABS.indexOf(h) > -1 ? h : ls.get(LAB === 'finans' ? 'tab' : LAB + '.tab', TABS[0]));
   };
 })();

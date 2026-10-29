@@ -14,8 +14,8 @@
   'use strict';
   var W = window, D = document;
   var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
-  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab', diyet: 'Diyet Lab', dkt: 'DKT Lab', finans: 'Acadex Finans' };
-  var KITLE = { odyoloji: 'odyoloji/sağlık bilimleri öğrencisine', diyet: 'beslenme ve diyetetik öğrencisine', dkt: 'dil ve konuşma terapisi öğrencisine', finans: 'işletme, iktisat, muhasebe ve uluslararası ticaret öğrencisine' };   /* about yollayan lablar */
+  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab', diyet: 'Diyet Lab', dkt: 'DKT Lab', finans: 'Acadex Finans', sirket: 'Acadex Şirket' };
+  var KITLE = { odyoloji: 'odyoloji/sağlık bilimleri öğrencisine', diyet: 'beslenme ve diyetetik öğrencisine', dkt: 'dil ve konuşma terapisi öğrencisine', finans: 'işletme, iktisat, muhasebe ve uluslararası ticaret öğrencisine', sirket: 'işletme ve yönetim öğrencisine' };   /* about yollayan lablar */
   var KEY = function (k) { return 'acadex.labchat.' + k; };
   var MAX = 40;
   var $ = function (id) { return D.getElementById(id); };
@@ -90,7 +90,8 @@
     log.push(m); hist().push({ role: role, content: text }); save();
   };
   var greet = function () {
-    say('assistant', lab === 'finans' ? 'Acadex Finans’tayım. Hangi istasyondaysan (faiz, muhasebe, portföy, dış ticaret…) ekrandaki rakamlarını görüyorum; soruları onlara göre cevaplarım. Sınav ya da fiş çözerken cevabı söylemem, düşünme yolunu birlikte kurarız.'
+    say('assistant', lab === 'sirket' ? 'Acadex Şirket’teyim. Hangi kattaysan (terazi, tablolar, başabaş, yatırım, strateji, simülasyon…) ekrandaki rakamları görüyorum. Senin yerine karar vermem; tablolardan birlikte okuruz.'
+      : lab === 'finans' ? 'Acadex Finans’tayım. Hangi istasyondaysan (faiz, muhasebe, portföy, dış ticaret…) ekrandaki rakamlarını görüyorum; soruları onlara göre cevaplarım. Sınav ya da fiş çözerken cevabı söylemem, düşünme yolunu birlikte kurarız.'
       : lab === 'diyet' ? 'Diyet Lab’deyim. Tabağını, ölçümlerini ya da vakanı görüyorum; sorularımı ona göre hazırlarım. Hazır menü ya da cevap yazmam, düşünme yolunu birlikte kurarız.'
       : NAMES[lab] + '’deyim. Modelden bir yapı seç; sorularımı ona göre hazırlarım. Kart bilgisinden cevaplayabildiğimi modelde de gösteririm, gerisini yapay zekâyla cevaplarım.');
   };

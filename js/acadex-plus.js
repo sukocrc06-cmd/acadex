@@ -568,6 +568,7 @@
     { t: 'Acadex Study Lab', s: 'çalışma yöntemleri', k: 'study lab yontem pomodoro feynman', v: 'studylab' },
     { t: 'Acadex MedLab', s: 'tıp öğrencileri için laboratuvarlar', k: 'medlab tip anatomi lab 3b model spot', v: 'medlab' },
     { t: 'Acadex Finans', s: 'finans, muhasebe, dış ticaret istasyonları', k: 'finans muhasebe borsa portfoy dis ticaret incoterms kur faiz opsiyon butce', v: 'finans' },
+    { t: 'Acadex Şirket', s: 'bilanço, başabaş, yatırım, strateji, şirket simülasyonu', k: 'sirket yonetim bilanco basabas maliyet yatirim nbd swot porter bcg organizasyon simulasyon isletme', v: 'finans' },
     { t: 'Belgelerim', s: 'yüklediğin dosyalar', k: 'belge dosya pdf yukle', v: 'docs' },
     { t: 'Bölüm akışı', s: 'arkadaşlarının özetleri', k: 'akis bolum pano arkadas', v: 'feed' },
     { t: 'Acadex sunum', s: 'asetatlar ve prova', k: 'sunum slayt prova', v: 'acadexsunum' },
