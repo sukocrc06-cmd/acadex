@@ -428,6 +428,28 @@ function anlatiLatexYumusat(parca: string): string {
      Ikinci kosul sart — "nx^{n-1}" ters bolu tasimiyor ama suslu parantezi
      temizlenmeli (olculdu: tek basina gelen madde metinleri boyle). */
   if (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t)) return t
+
+  /* CIFT TERS BOLU VE KACIRILMIS KESME ISARETI (29.10.2026 olcumu).
+   *
+   * "Week7 Chp5 - The Self" kartinin ANLATISINDA dort yerde ters bolu +
+   * kesme isareti cikti:
+   *   "defined in terms of one\'s own internal thoughts"
+   *   "recognition that others\' behaviors affect one\'s own actions"
+   * Ayni kartin KAVRAMLARINDA dogru ("one's"), yani repairLatexEscapes'teki
+   * \' duzeltmesi calisiyor — hata baska bir yerden.
+   *
+   * Sebep: anlati yazari ham JSON'a \\' yaziyor, yani KACIRILMIS ters bolu
+   * + kesme. Bu JSON'da GECERLIDIR; ayristirma dogru sekilde literal
+   * ters bolu + kesme uretiyor. repairLatexEscapes'in duzeltecegi bir sey
+   * yok, cunku girdi zaten gecerli.
+   *
+   * Yani onarim ayristirmadan SONRA olmali: duz yazida ters bolu + kesme
+   * (ya da tirnak) hicbir zaman kasitli degil. Cift ters bolu de ayni
+   * sinif — bkz. sanitizeFormulas'taki ayni gerekce (model "\\beta"
+   * yazdiginda KaTeX satir sonu goruyordu). */
+  t = t.replace(/\\\\(?=[A-Za-z'"`])/g, '\\')
+  t = t.replace(/\\(['"`])/g, '$1')
+
   // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
   t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
   t = t.replace(/\\(?:times|cdot)\b/g, 'x')

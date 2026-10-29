@@ -4730,6 +4730,28 @@ test('OLCULEN UC ALAN okunur hale geliyor', () => {
   for (const [girdi, bekle] of olculen) assert.equal(A.onarAnlatiLatex(girdi).metin, bekle, girdi);
 });
 
+test('KACIRILMIS KESME ISARETI duz yazida temizleniyor', () => {
+  /* "Week7 Chp5 - The Self" kartinin ANLATISINDA dort yerde cikti:
+       "defined in terms of one\\'s own internal thoughts"
+     Ayni kartin KAVRAMLARINDA dogruydu, yani repairLatexEscapes'teki
+     duzeltme calisiyor — hata baska yerden.
+
+     Sebep: anlati yazari ham JSON'a \\\\' yaziyor (KACIRILMIS ters bolu +
+     kesme). Bu JSON'da GECERLIDIR, ayristirma dogru sekilde literal ters
+     bolu + kesme uretiyor. O yuzden onarim ayristirmadan SONRA olmali. */
+  const K = String.fromCharCode(92), KESME = String.fromCharCode(39);
+  const y = (g) => A.onarAnlatiLatex(g).metin;
+  assert.equal(y('defined in terms of one' + K + KESME + 's own internal thoughts'),
+    'defined in terms of one' + KESME + 's own internal thoughts');
+  assert.equal(y('others' + K + KESME + ' behaviors affect one' + K + KESME + 's actions'),
+    'others' + KESME + ' behaviors affect one' + KESME + 's actions');
+  // Cift ters bolu ayni sinif: model \\\\frac yazdiginda tek ters boluya iniyor.
+  assert.equal(y('oran ' + K + K + 'frac{a}{b} kadar'), 'oran a/b kadar');
+  // AYIRACLI matematikte ters bolu + kesme AKSANDIR, dokunulmuyor.
+  const ayiracli = 'ayiracli $x' + K + KESME + '$ korunur';
+  assert.equal(y(ayiracli), ayiracli);
+});
+
 test('integral/toplam/sonsuz ve fonksiyon adlari', () => {
   const y = (g) => A.onarAnlatiLatex(g).metin;
   assert.equal(y('\\int \\sin x \\, dx = -\\cos x + C'),
