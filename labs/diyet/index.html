@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diyet Lab · Acadex MedLab</title>
+<meta name="theme-color" content="#2B3A1E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Caveat:wght@600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   DİYET LAB · görsel sistem "mutfak tezgâhı" (29.10.2026)
+   Zemin: mermer tezgâh (açık, damarlı) · Ahşap: kesme tahtası ve raflar
+   Porselen: tabak ve kâseler (lacivert kenar) · Terazi: krem gövde, amber gram ekranı
+   Renk: domates kırmızısı, zeytin yeşili, buğday sarısı; Acadex lacivert mürekkep
+   ===================================================================== */
+:root{
+  --marble:#F4F1EB;--marble-2:#ECE7DE;--vein:rgba(120,110,95,.10);
+  --wood:#B98552;--wood-2:#A0703F;--wood-d:#6E4A26;--wood-l:#D6A86F;
+  --tomato:#D9472B;--tomato-s:#FBE5DF;--olive:#5E7A2A;--olive-s:#EAF0DC;--wheat:#E7B14A;--wheat-s:#FFF2D2;
+  --plum:#6E3A6E;--sky:#2F6BFF;
+  --ink:#0D1838;--ink2:#46506A;--muted:#6A7593;--paper:#FFFDF8;--cream:#FFF8EC;--line:#E4DDD0;--line-2:#CFC6B5;
+  --ok:#2E8E5B;--ok-s:#E3F4EA;--bad:#C9483B;--bad-s:#FBE9E6;--warn:#B9821F;--warn-s:#FFF4DC;
+  --r:16px;--ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.5,.5,1)
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Instrument Sans',system-ui,sans-serif;color:var(--ink);background-color:var(--marble);min-height:100vh;
+  /* mermer: yumuşak damarlar */
+  background-image:
+    linear-gradient(115deg,transparent 0 31%,var(--vein) 31.2% 31.6%,transparent 31.8% 100%),
+    linear-gradient(62deg,transparent 0 58%,rgba(120,110,95,.07) 58.2% 58.5%,transparent 58.7% 100%),
+    linear-gradient(150deg,transparent 0 76%,rgba(120,110,95,.06) 76.2% 76.4%,transparent 76.6% 100%),
+    radial-gradient(1200px 700px at 80% -10%,#FFFFFF 0,transparent 60%),
+    radial-gradient(900px 600px at -10% 110%,var(--marble-2) 0,transparent 60%);
+  background-attachment:fixed;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--wheat);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mono{font-family:'JetBrains Mono',monospace}.hand{font-family:'Caveat',cursive}.disp{font-family:'Bricolage Grotesque',system-ui,sans-serif;letter-spacing:-.015em}
+
+/* ---------- üst şerit: ahşap raf ---------- */
+.dl-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;padding:10px 18px;color:#FFF8EC;
+  background:linear-gradient(180deg,#2B3A1E,#22301A);box-shadow:0 6px 0 var(--wood-2),0 7px 0 var(--wood-d),0 14px 24px -14px rgba(0,0,0,.5)}
+.dl-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.dl-brand svg{width:36px;height:36px;flex:none}
+.dl-brand b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:800;line-height:1.05}
+.dl-brand small{display:block;font-family:'Caveat',cursive;font-size:17px;color:var(--wheat);line-height:1}
+.dl-tabs{display:flex;gap:4px;margin-left:12px;padding:4px;border-radius:999px;background:rgba(255,255,255,.08)}
+.dl-tabs button{display:flex;align-items:center;gap:7px;min-height:38px;padding:0 14px;border:0;border-radius:999px;background:none;color:#DCE4C8;font-weight:600;font-size:14px;white-space:nowrap}
+.dl-tabs button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dl-tabs button[aria-selected="true"]{background:var(--cream);color:var(--ink)}
+.dl-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.dl-pill{padding:4px 10px;border:1px dashed rgba(231,177,74,.7);border-radius:999px;font-size:12px;color:var(--wheat);white-space:nowrap}
+
+.dl-view{display:none;padding:22px 18px 18px;max-width:1460px;margin:0 auto}
+.dl-view.on{display:block;animation:vin .35s var(--ease) both}
+@keyframes vin{from{opacity:0;transform:translateY(6px)}}
+.dl-note{max-width:1460px;margin:6px auto 0;padding:0 18px 22px;color:var(--muted);font-size:12.5px;text-align:center}
+
+/* ---------- ortak: kâğıt kart, düğme, rozet ---------- */
+.card{background:var(--paper);border-radius:var(--r);box-shadow:0 1px 0 #fff inset,0 1px 2px rgba(60,40,20,.08),0 18px 40px -26px rgba(60,40,20,.45);padding:16px 18px;border:1px solid #EFE8DB}
+.card h2{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;letter-spacing:-.01em}
+.card .sub{margin:0 0 10px;color:var(--muted);font-size:13px;line-height:1.45}
+.sub{color:var(--muted);font-size:13px;line-height:1.45}
+.k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#F1EDE4;color:var(--ink2);white-space:nowrap}
+.pill.ok{background:var(--ok-s);color:var(--ok)}.pill.bad{background:var(--bad-s);color:var(--bad)}.pill.warn{background:var(--warn-s);color:#8A5A00}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 15px;border:1.5px solid var(--ink);border-radius:999px;background:var(--paper);color:var(--ink);font-weight:700;font-size:14px}
+.btn.pri{background:var(--ink);color:#fff}.btn.pri:hover{background:#1A2A5C}
+.btn.tom{background:var(--tomato);border-color:var(--tomato);color:#fff}
+.btn.sm{min-height:32px;padding:0 11px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:700;color:var(--ink2)}
+.fld input,.fld select{min-height:38px;padding:0 10px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;font-weight:500;color:var(--ink);min-width:0}
+.fld small{font-weight:500;color:var(--muted)}
+.rule{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--wheat-s);border:1px dashed #E8C77A;font-size:13px;line-height:1.5}
+.rule b{color:#7A5200}
+.toast{position:fixed;left:50%;bottom:22px;z-index:70;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;box-shadow:0 12px 30px -12px rgba(0,0,0,.6);opacity:0;transition:opacity .25s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1}
+/* karne (Acadex ortak) */
+.karne{position:relative;margin-top:14px;padding:16px 18px 14px 30px;border-radius:6px;background:#FFFDF7 repeating-linear-gradient(transparent 0 27px,#EEF1F7 27px 28px);box-shadow:0 1px 0 #E1E5EE,0 24px 50px -28px rgba(13,24,56,.6);animation:kin .45s var(--ease) both}
+.karne::before{content:"";position:absolute;left:16px;top:0;bottom:0;width:1.5px;background:#F2B8B8}
+@keyframes kin{from{opacity:0;transform:translateY(10px)}}
+.stamp{position:absolute;right:16px;top:12px;width:82px;height:82px;border-radius:50%;border:3px solid currentColor;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-12deg);font-family:'JetBrains Mono',monospace;animation:stamp .5s .2s var(--spring) both;background:rgba(255,255,255,.6)}
+.stamp b{font-size:24px;line-height:1}.stamp small{font-size:9.5px;letter-spacing:.1em}
+@keyframes stamp{from{transform:rotate(-12deg) scale(1.8);opacity:0}}
+.karne h3{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:18px;padding-right:100px}
+.karne ul{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.55;padding-right:6px}
+.karne li.ok::marker{color:var(--ok)}.karne li.no::marker{color:var(--bad)}
+.karne .not{margin:10px 0 0;font-size:14px;line-height:1.55}
+
+/* =========================== TABAK & MENÜ =========================== */
+.tb{display:grid;grid-template-columns:300px minmax(0,1fr) 340px;gap:18px;align-items:start}
+/* kiler: ahşap raf */
+.kiler{position:sticky;top:84px;display:flex;flex-direction:column;max-height:calc(100vh - 104px);padding:12px;border-radius:18px;background:linear-gradient(180deg,#C99862,#B98552);box-shadow:inset 0 2px 0 rgba(255,255,255,.35),inset 0 -3px 0 rgba(0,0,0,.12),0 18px 34px -20px rgba(60,40,20,.7)}
+.kiler>*:not(.flist){flex:none}
+.kiler h2{margin:2px 4px 8px;font-family:'Bricolage Grotesque',sans-serif;font-size:17px;color:#2A1A0A;display:flex;justify-content:space-between;align-items:baseline}
+.kiler h2 small{font-family:'Caveat',cursive;font-size:17px;color:#5A3A18;font-weight:600}
+.kiler .srch{min-height:38px;width:100%;padding:0 12px;border:0;border-radius:10px;background:#FFF8EC;box-shadow:inset 0 2px 4px rgba(0,0,0,.15)}
+.cats{display:flex;gap:5px;overflow-x:auto;padding:8px 2px 8px;scrollbar-width:none}
+.cats button{flex:none;padding:5px 10px;border:0;border-radius:999px;background:rgba(255,248,236,.55);font-size:12px;font-weight:700;color:#3A2410}
+.cats button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.flist{flex:1;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:2px;scrollbar-width:thin}
+.fi{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:12px;background:var(--cream);text-align:left;box-shadow:0 2px 0 rgba(0,0,0,.12);transition:transform .15s var(--ease)}
+.fi:hover{transform:translateX(2px)}
+.fi svg{flex:none}
+.fi b{display:block;font-size:13.5px;line-height:1.2}
+.fi small{display:block;font-size:11.5px;color:var(--muted)}
+.fi .tg{margin-left:auto;flex:none;display:flex;gap:3px}
+.fi .tg i{font-style:normal;font-family:'JetBrains Mono',monospace;font-size:9.5px;padding:1px 4px;border-radius:4px;background:var(--wheat-s);color:#7A5200}
+.fi[aria-pressed="true"]{outline:2.5px solid var(--ink)}
+
+/* tezgâh: tahta, tabak, terazi */
+.tezgah{display:flex;flex-direction:column;gap:16px}
+.ogun{display:flex;gap:6px;flex-wrap:wrap}
+.ogun button{min-height:36px;padding:0 14px;border:1.5px solid var(--line-2);border-radius:999px;background:var(--paper);font-size:13px;font-weight:700;color:var(--ink2)}
+.ogun button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.ogun button span{font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.75;margin-left:4px}
+.board{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:14px;align-items:center;padding:22px;border-radius:28px;
+  background:repeating-linear-gradient(92deg,rgba(255,255,255,.05) 0 9px,rgba(0,0,0,.035) 9px 11px),linear-gradient(180deg,#D3A46B,#B98552);box-shadow:inset 0 2px 0 rgba(255,255,255,.4),inset 0 -4px 0 rgba(0,0,0,.12),0 26px 46px -26px rgba(60,40,20,.75)}
+.board::after{content:"";position:absolute;right:20px;top:14px;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#8C5A2B,#5A3818);box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
+.plate-w{position:relative;aspect-ratio:1;max-width:460px;width:100%;margin:0 auto}
+.plate{position:absolute;inset:0}
+.plate-items{position:absolute;inset:18%;border-radius:50%}
+.pi{position:absolute;width:21%;aspect-ratio:1;display:grid;place-items:center;transform:translate(-50%,-50%);filter:drop-shadow(0 4px 3px rgba(60,40,20,.25));animation:pin .55s var(--spring) both;cursor:pointer;border:0;background:none;padding:0}
+.pi svg{width:100%;height:100%}
+.pi:hover{filter:drop-shadow(0 6px 6px rgba(60,40,20,.35)) brightness(1.05)}
+@keyframes pin{from{transform:translate(-50%,-140%) scale(.4);opacity:0}}
+.plate-empty[hidden]{display:none}
+.plate-empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-family:'Caveat',cursive;font-size:24px;color:#8C8173;padding:30%}
+.plate-kcal{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);padding:4px 12px;border-radius:999px;background:var(--ink);color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;white-space:nowrap;box-shadow:0 6px 12px -6px rgba(0,0,0,.6)}
+.fly{position:fixed;z-index:80;pointer-events:none;transition:transform .6s cubic-bezier(.3,.7,.3,1),opacity .6s}
+/* terazi */
+.scale{position:relative;padding:12px 12px 14px;border-radius:22px;background:linear-gradient(180deg,#FBF5E8,#E8DCC4);border:1px solid #CDBE9F;box-shadow:inset 0 2px 0 #fff,0 14px 26px -16px rgba(60,40,20,.8)}
+.scale svg.dial{display:block;width:100%;height:auto}
+.scale .needle{transform-origin:100px 100px;transition:transform .7s var(--spring)}
+.scale .lcd{margin-top:8px;padding:6px 10px;border-radius:8px;background:linear-gradient(180deg,#1F2617,#151A10);color:#FFB547;font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:600;text-align:right;text-shadow:0 0 8px rgba(255,181,71,.45);box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
+.scale .lcd small{font-size:12px;color:#B9821F;margin-left:4px}
+.scale .sel-name{margin:8px 2px 6px;font-weight:800;font-size:14px;line-height:1.2;min-height:34px}
+.scale .meas{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.scale .meas button{padding:4px 8px;border:1.5px solid var(--line-2);border-radius:8px;background:#fff;font-size:12px;font-weight:700}
+.scale .meas button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.scale .qty{display:flex;align-items:center;gap:6px}
+.scale .qty button{width:34px;height:34px;border:0;border-radius:10px;background:linear-gradient(180deg,#FFFDF7,#E8DCC4);font-weight:800;box-shadow:0 2px 0 #B8A887}
+.scale .qty input{width:70px;min-height:34px;border:1.5px solid var(--line-2);border-radius:8px;text-align:center;font-family:'JetBrains Mono',monospace}
+.scale .add{width:100%;margin-top:8px}
+/* öğün tablosu */
+.mtab{width:100%;border-collapse:collapse;font-size:13.5px}
+.mtab th,.mtab td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+.mtab th{font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:.06em;color:var(--muted);font-weight:500}
+.mtab td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mtab td .x{border:0;background:none;color:var(--bad);font-size:18px;line-height:1;padding:2px 6px;border-radius:6px}
+.mtab td .x:hover{background:var(--bad-s)}
+.mtab .pr{width:72px;min-height:30px;border:1.5px solid var(--line-2);border-radius:7px;padding:0 6px;font-size:12.5px}
+.mtab tfoot td{font-weight:800;border-bottom:0}
+/* besin ögesi panosu */
+.pano{position:sticky;top:84px;display:flex;flex-direction:column;gap:14px}
+.prof{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:6px 0 8px}
+.prof button{min-height:34px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;font-size:12px;font-weight:700;color:var(--ink2);padding:0 4px}
+.prof button[aria-pressed="true"]{background:var(--olive);border-color:var(--olive);color:#fff}
+.rings{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:4px;align-items:end;text-align:center}
+.ring{position:relative}
+.ring svg{display:block;width:100%;height:auto;overflow:visible}
+.ring .bg{fill:none;stroke:#EFE9DD}
+.ring .fg{fill:none;stroke-linecap:round;transition:stroke-dashoffset .9s var(--ease),stroke .4s;transform:rotate(-90deg);transform-origin:50% 50%}
+.ring .val{font-family:'JetBrains Mono',monospace;font-weight:600;fill:var(--ink)}
+.ring .lb{font-size:11.5px;font-weight:700;color:var(--ink2);margin-top:2px}
+.ring .lb small{display:block;font-weight:500;color:var(--muted);font-size:10.5px}
+.ring.over .fg{animation:wob .6s ease-in-out 2}
+@keyframes wob{0%,100%{transform:rotate(-90deg)}30%{transform:rotate(-86deg)}70%{transform:rotate(-94deg)}}
+.bars{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.bar{display:grid;grid-template-columns:96px minmax(0,1fr) 92px;gap:8px;align-items:center;font-size:12.5px}
+.bar b{font-weight:700;color:var(--ink2)}
+.bar .t{position:relative;height:10px;border-radius:999px;background:#EFE9DD;overflow:visible}
+.bar .t i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--olive);transition:width .9s var(--ease),background .4s}
+.bar .t u{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55;text-decoration:none}
+.bar span{font-family:'JetBrains Mono',monospace;font-size:11.5px;text-align:right;white-space:nowrap}
+.bar.alt .t i{background:var(--wheat)}.bar.ust .t i{background:var(--tomato)}
+.flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.gorev-l{display:flex;flex-direction:column;gap:6px}
+.gorev-l button{display:block;width:100%;padding:8px 10px;border:1.5px solid var(--line);border-radius:12px;background:#fff;text-align:left}
+.gorev-l button b{display:block;font-size:13.5px}.gorev-l button small{display:block;font-size:12px;color:var(--muted);line-height:1.35;margin-top:2px}
+.gorev-l button[aria-pressed="true"]{border-color:var(--olive);box-shadow:3px 3px 0 var(--olive)}
+.gorev-l button .done{float:right}
+
+/* =========================== ANTROPOMETRİ =========================== */
+.an{display:grid;grid-template-columns:260px minmax(0,1fr) 380px;gap:18px;align-items:start}
+.plist{display:flex;flex-direction:column;gap:8px}
+.pc{display:flex;gap:10px;align-items:flex-start;width:100%;padding:10px;border:1.5px solid var(--line);border-radius:14px;background:var(--paper);text-align:left;box-shadow:0 10px 22px -18px rgba(60,40,20,.6)}
+.pc .av{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--wheat-s);font-weight:800}
+.pc b{display:block;font-size:14.5px}.pc small{display:block;font-size:12.5px;color:var(--muted);line-height:1.35}
+.pc[aria-pressed="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.pc .done{margin-left:auto;flex:none}
+.room{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(180deg,#EAF0E2 0,#E3EADA 72%,#C9B38E 72%,#BFA37A 100%);box-shadow:0 24px 44px -26px rgba(60,40,20,.7)}
+.room svg{display:block;width:100%;height:auto}
+.room .hp{transition:transform 1.2s var(--ease)}
+.room .tape{transition:transform .8s var(--ease),opacity .4s;opacity:0}
+.room .tape.on{opacity:1}
+.tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border:0;border-radius:14px;background:var(--paper);box-shadow:0 3px 0 var(--line-2),0 10px 20px -16px rgba(60,40,20,.7);font-size:12.5px;font-weight:700}
+.tool svg{width:30px;height:30px;fill:none;stroke:var(--ink);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tool.done{background:var(--ok-s);box-shadow:0 3px 0 #BFDDC9}
+.belq{display:none;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--paper);border:1.5px dashed var(--line-2);font-size:13.5px}
+.belq.on{display:block;animation:kin .3s var(--ease) both}
+.belq .row{margin-top:6px}
+.clip{position:relative;padding:20px 16px 14px;border-radius:12px;background:#FFFDF6;box-shadow:0 18px 34px -22px rgba(60,40,20,.7);border:1px solid #EFE8DB}
+.clip::before{content:"";position:absolute;left:50%;top:-10px;width:90px;height:22px;margin-left:-45px;border-radius:6px;background:linear-gradient(180deg,#C9CED8,#9AA3B5);box-shadow:0 2px 0 #7B849A}
+.clip h3{margin:0 0 6px;font-family:'Bricolage Grotesque',sans-serif;font-size:17px}
+.olc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.olc div{padding:6px 8px;border-radius:9px;background:#F6F1E6;text-align:center}
+.olc span{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--muted)}
+.olc b{display:block;font-family:'Caveat',cursive;font-size:24px;line-height:1.1}
+.form-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.form-g .full{grid-column:1/-1}
+
+/* =========================== VAKA MASASI =========================== */
+.vk{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;align-items:start}
+.vk-list{display:flex;flex-direction:column;gap:8px}
+.vk-list button{display:block;width:100%;padding:10px 12px;border:0;border-left:5px solid var(--line-2);border-radius:12px;background:var(--paper);text-align:left;box-shadow:0 10px 22px -18px rgba(60,40,20,.7)}
+.vk-list button b{display:block;font-size:14px;line-height:1.3}.vk-list button small{display:block;margin-top:2px;color:var(--muted);font-size:12px}
+.vk-list button[aria-pressed="true"]{border-left-color:var(--tomato);box-shadow:4px 4px 0 var(--tomato)}
+.vk-list button.done{border-left-color:var(--ok)}
+.folder{position:relative;margin-top:30px;padding:22px;border-radius:4px 18px 18px 18px;background:#F4ECD8;box-shadow:0 22px 50px -26px rgba(60,40,20,.75)}
+.folder::before{content:attr(data-tab);position:absolute;left:0;top:-26px;height:28px;padding:5px 14px 0;border-radius:10px 10px 0 0;background:#F4ECD8;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#7A6A3E}
+.folder h2{margin:0 0 6px;font-family:'Bricolage Grotesque',sans-serif;font-size:22px}
+.oyku{margin:0 0 14px;padding:12px 14px;border-radius:8px;background:var(--paper);font-size:14.5px;line-height:1.55}
+.vk-grid{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px;align-items:start}
+.fis{position:relative;padding:14px 14px 18px;background:#fff;font-family:'JetBrains Mono',monospace;font-size:12.5px;box-shadow:0 12px 24px -16px rgba(0,0,0,.5);
+  -webkit-mask:linear-gradient(#000 0 0) top/100% calc(100% - 8px) no-repeat,radial-gradient(circle 5px at 6px 100%,transparent 98%,#000) bottom left/12px 8px repeat-x;
+  mask:linear-gradient(#000 0 0) top/100% calc(100% - 8px) no-repeat,radial-gradient(circle 5px at 6px 100%,transparent 98%,#000) bottom left/12px 8px repeat-x;transform:rotate(-.6deg)}
+.fis h4{margin:0 0 4px;text-align:center;font-size:12px;letter-spacing:.16em}
+.fis p{margin:0 0 8px;text-align:center;font-size:10.5px;color:var(--muted)}
+.fis button{display:grid;grid-template-columns:minmax(0,1fr) auto 20px;gap:6px;width:100%;padding:5px 4px;border:0;border-top:1px dashed #DDD;background:none;text-align:left;font-family:inherit;font-size:12px;align-items:center}
+.fis button small{display:block;color:var(--muted);font-size:10px}
+.fis button .m{width:20px;height:20px;border-radius:50%;border:1.5px solid #CCC;display:grid;place-items:center;font-size:12px;font-weight:800}
+.fis button[aria-pressed="true"] .m{border-color:var(--tomato);background:var(--tomato);color:#fff}
+.fis button.tH .m::after{content:"↑"}.fis button.tL .m::after{content:"↓"}
+.fis button.hit{background:var(--ok-s)}.fis button.miss{background:var(--bad-s)}
+.recete{padding:14px 16px;border-radius:12px;background:var(--paper)}
+.recete h3{margin:0 0 8px;font-family:'Bricolage Grotesque',sans-serif;font-size:17px}
+.recete .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.chk{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chk label{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1.5px solid var(--line-2);border-radius:999px;background:#fff;font-size:12.5px;font-weight:600;cursor:pointer}
+.chk label:has(input:checked){border-color:var(--olive);background:var(--olive-s)}
+.chk input{accent-color:var(--olive)}
+.radio{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.radio label{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:9px;font-size:13.5px;line-height:1.4;cursor:pointer}
+.radio label:has(input:checked){background:var(--olive-s)}
+.radio input{margin-top:3px;accent-color:var(--olive)}
+.sec{margin-top:14px}
+.sec>.k{display:block;margin-bottom:4px}
+.calc{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:3px}
+
+/* =========================== ENTERAL / PARENTERAL =========================== */
+.ep{display:grid;grid-template-columns:270px minmax(0,1fr) 380px;gap:18px;align-items:start}
+.device{position:relative;border-radius:22px;padding:16px;background:linear-gradient(180deg,#E9EEF3,#D7DEE7);box-shadow:0 24px 44px -26px rgba(13,24,56,.6)}
+.device svg{display:block;width:100%;max-width:480px;height:auto;margin:0 auto}
+.drip{animation:drip 1.6s linear infinite}
+@keyframes drip{0%{transform:translateY(0);opacity:0}15%{opacity:1}80%{opacity:1}100%{transform:translateY(26px);opacity:0}}
+.bagfill{transition:height 1s var(--ease),y 1s var(--ease)}
+.live{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px}
+.live div{padding:7px 9px;border-radius:9px;background:#fff;font-size:12px}
+.live span{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--muted)}
+.live b{font-family:'JetBrains Mono',monospace;font-size:16px}
+.live div.ok{background:var(--ok-s)}.live div.bad{background:var(--bad-s)}
+.urunler{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:6px}
+.urunler label{position:relative;display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1.5px solid var(--line-2);border-radius:12px;background:#fff;font-size:12.5px;cursor:pointer}
+.urunler label b{font-size:13px}.urunler label small{color:var(--muted)}
+.urunler label:has(input:checked){border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.urunler input{position:absolute;opacity:0;pointer-events:none;inset:0}
+.urunler label:has(input:focus-visible){outline:3px solid var(--wheat);outline-offset:2px}
+
+/* kaynak kutusu */
+.src{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.5}
+.src summary{cursor:pointer;font-weight:700;color:var(--ink2)}
+
+@media (max-width:1280px){
+  .tb{grid-template-columns:270px minmax(0,1fr)}
+  .pano{position:static;grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .an,.ep{grid-template-columns:240px minmax(0,1fr)}
+  .an>:last-child,.ep>:last-child{grid-column:1/-1}
+}
+@media (max-width:900px){
+  .tb,.an,.ep,.vk{grid-template-columns:minmax(0,1fr)}
+  .kiler{position:static;max-height:420px}
+  .pano{grid-template-columns:minmax(0,1fr)}
+  .vk-list,.plist{flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .vk-list button,.pc{flex:none;width:230px}
+  .vk-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .dl-top{flex-wrap:wrap;padding:8px 10px;gap:8px}
+  .dl-tabs{order:3;width:100%;margin:0;overflow-x:auto;justify-content:space-between}
+  .dl-tabs{justify-content:flex-start;scrollbar-width:none}
+  .dl-tabs button{flex:none;justify-content:center;padding:0 11px;font-size:12.5px;gap:5px}
+  .dl-tabs button svg{display:none}
+  .dl-pill{display:none}
+  .dl-view{padding:14px 10px}
+  .board{grid-template-columns:minmax(0,1fr);padding:14px;border-radius:20px}
+  .tools{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .olc{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .recete .grid3{grid-template-columns:minmax(0,1fr)}
+  .bar{grid-template-columns:84px minmax(0,1fr) 86px}
+  .mtab{font-size:12.5px}.mtab th:nth-child(3),.mtab td:nth-child(3){display:none}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="dl-top">
+  <div class="dl-brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="21" r="16" fill="#D9472B"/><path d="M20 6l-4 4m4-4l4 4m-4-4v6m0-2l-6 2m6-2l6 2" stroke="#8DBF5A" stroke-width="2.6" stroke-linecap="round" fill="none"/><circle cx="15" cy="20" r="2" fill="#0D1838"/><circle cx="25" cy="20" r="2" fill="#0D1838"/><path d="M16 26c2 2 6 2 8 0" stroke="#0D1838" stroke-width="2" stroke-linecap="round" fill="none"/><ellipse cx="13" cy="15" rx="3" ry="1.6" fill="#fff" opacity=".5"/></svg>
+    <div><b>Diyet Lab</b><small>mutfak tezgâhı</small></div>
+  </div>
+  <nav class="dl-tabs" role="tablist" aria-label="Diyet Lab bölümleri">
+    <button type="button" role="tab" id="t-tabak" aria-controls="tabak" aria-selected="true" data-tab="tabak"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/></svg>Tabak &amp; menü</button>
+    <button type="button" role="tab" id="t-antro" aria-controls="antro" aria-selected="false" data-tab="antro"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.2"/><path d="M12 8v7m-4-5h8M9 21l3-6 3 6"/></svg>Antropometri</button>
+    <button type="button" role="tab" id="t-vaka" aria-controls="vaka" aria-selected="false" data-tab="vaka"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/><path d="M8 14h8M8 17h5"/></svg>Vaka masası</button>
+    <button type="button" role="tab" id="t-ep" aria-controls="ep" aria-selected="false" data-tab="ep"><svg viewBox="0 0 24 24"><path d="M8 3h8v9a4 4 0 0 1-8 0z"/><path d="M12 16v5M10 21h4"/></svg>Enteral &amp; parenteral</button>
+  </nav>
+  <div class="dl-right"><span class="dl-pill" title="Kurgusal vakalar; bireysel diyet önerisi değildir.">eğitim amaçlı · kurgusal vakalar</span></div>
+</header>
+
+<main>
+<!-- =========================== TABAK & MENÜ =========================== -->
+<section class="dl-view on" id="tabak" role="tabpanel" aria-labelledby="t-tabak">
+  <div class="tb">
+    <aside class="kiler" aria-label="Kiler: besinler">
+      <h2>Kiler <small>tıkla, tart, tabağa koy</small></h2>
+      <label class="vh" for="srch">Besin ara</label><input class="srch" id="srch" type="search" placeholder="besin ara: yoğurt, mercimek…" autocomplete="off">
+      <div class="cats" id="cats" role="group" aria-label="Besin grupları"></div>
+      <div class="flist" id="flist"></div>
+    </aside>
+
+    <div class="tezgah">
+      <div class="card" style="padding:12px 14px">
+        <div class="row" style="justify-content:space-between"><div class="ogun" id="ogun" role="group" aria-label="Öğün"></div><div class="row"><button type="button" class="btn sm" id="m-clear">Öğünü boşalt</button></div></div>
+      </div>
+      <div class="board">
+        <div class="plate-w" id="plate-w">
+          <svg class="plate" viewBox="0 0 400 400" aria-hidden="true">
+            <defs><radialGradient id="pg" cx="45%" cy="40%" r="60%"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#EEF0F4"/></radialGradient></defs>
+            <ellipse cx="200" cy="214" rx="186" ry="182" fill="rgba(60,40,20,.25)"/>
+            <circle cx="200" cy="200" r="190" fill="url(#pg)" stroke="#C9CED8" stroke-width="2"/>
+            <circle cx="200" cy="200" r="168" fill="none" stroke="#2F4FA8" stroke-width="3" stroke-dasharray="2 9" opacity=".55"/>
+            <circle cx="200" cy="200" r="150" fill="#FFFFFF" stroke="#E2E6EE" stroke-width="2"/>
+            <ellipse cx="150" cy="120" rx="60" ry="18" fill="#fff" opacity=".7" transform="rotate(-30 150 120)"/>
+          </svg>
+          <div class="plate-items" id="plate-items"></div>
+          <div class="plate-empty" id="plate-empty">Tabak boş. Kilerden bir besin seç, terazide tart.</div>
+          <div class="plate-kcal mono" id="plate-kcal">0 kcal</div>
+        </div>
+        <div class="scale" aria-label="Mutfak terazisi">
+          <svg class="dial" viewBox="0 0 200 120" aria-hidden="true">
+            <path d="M20 100a80 80 0 0 1 160 0" fill="#FFFDF7" stroke="#0D1838" stroke-width="3"/>
+            <g id="ticks"></g>
+            <g class="needle" id="needle"><path d="M100 100L100 32" stroke="#D9472B" stroke-width="3.4" stroke-linecap="round"/><circle cx="100" cy="100" r="7" fill="#0D1838"/></g>
+            <text x="100" y="80" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#8C8173">gram</text>
+          </svg>
+          <div class="lcd" id="s-lcd">0<small>g</small></div>
+          <div class="sel-name" id="s-name">Kilerden bir besin seç</div>
+          <div class="meas" id="s-meas"></div>
+          <div class="qty"><button type="button" id="q-dn" aria-label="Azalt">−</button><label class="vh" for="q-g">Gram</label><input id="q-g" type="number" min="1" max="2000" step="1" value="0" inputmode="numeric"><span class="mono" style="font-size:12px">g</span><button type="button" id="q-up" aria-label="Artır">+</button></div>
+          <button type="button" class="btn tom add" id="s-add" disabled>Tabağa koy</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:baseline"><div><span class="k">menü</span><h2 id="m-t">Kahvaltı</h2></div><label class="row" style="font-size:12.5px;font-weight:700;color:var(--ink2)"><input type="checkbox" id="m-cost"> Maliyet sütunu</label></div>
+        <table class="mtab" id="mtab"></table>
+        <p class="sub" id="m-costn" style="margin:8px 0 0" hidden>Fiyatı kendin gir (TL/kg). Fiyatlar tarayıcında saklanır; menü maliyeti girilen fiyatlardan hesaplanır.</p>
+      </div>
+    </div>
+
+    <div class="pano">
+      <div class="card">
+        <span class="k">besin ögesi panosu</span><h2 id="p-t">Hedefe göre</h2>
+        <div class="prof" id="prof" role="group" aria-label="Hedef profili"></div>
+        <p class="sub" id="prof-d" style="margin:0 0 8px"></p>
+        <div class="rings" id="rings"></div>
+        <div class="bars" id="bars"></div>
+        <div class="flags" id="flags"></div>
+      </div>
+      <div class="card">
+        <span class="k">görevler</span><h2>Menü planlama görevi</h2>
+        <p class="sub">Bir görev seç, menüyü kur, sonra değerlendir. Günlük görevlerde dört öğünün toplamı değerlendirilir.</p>
+        <div class="gorev-l" id="gorev-l"></div>
+        <div class="row" style="margin-top:10px"><button type="button" class="btn pri" id="g-eval">Değerlendir</button></div>
+        <div id="g-karne"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== ANTROPOMETRİ =========================== -->
+<section class="dl-view" id="antro" role="tabpanel" aria-labelledby="t-antro">
+  <div class="an">
+    <div class="plist" id="a-list"></div>
+    <div>
+      <div class="room" id="room"></div>
+      <div class="tools" role="group" aria-label="Ölçüm araçları">
+        <button type="button" class="tool" id="o-kg"><svg viewBox="0 0 32 32"><rect x="5" y="20" width="22" height="7" rx="2"/><path d="M11 20v-3h10v3"/></svg>Tartıya çıkar</button>
+        <button type="button" class="tool" id="o-cm"><svg viewBox="0 0 32 32"><path d="M8 3v26M8 9h5M8 15h5M8 21h5M14 6h12"/></svg>Boyu ölç</button>
+        <button type="button" class="tool" id="o-bel"><svg viewBox="0 0 32 32"><ellipse cx="16" cy="16" rx="11" ry="5"/><path d="M5 16v4M27 16v4"/></svg>Bel çevresi</button>
+        <button type="button" class="tool" id="o-kalca"><svg viewBox="0 0 32 32"><ellipse cx="16" cy="18" rx="12" ry="6"/><path d="M9 6c0 5 2 8 7 8s7-3 7-8"/></svg>Kalça çevresi</button>
+      </div>
+      <div class="belq" id="belq"><b>Bel çevresini nereden ölçeceksin?</b>
+        <div class="row"><button type="button" class="btn sm" data-bel="who">Son kaburga ile iliak tepe arası orta nokta</button><button type="button" class="btn sm" data-bel="gobek">Göbek hizası</button></div></div>
+      <div class="rule" id="a-rule"></div>
+    </div>
+    <div class="clip" id="a-clip">
+      <h3 id="a-t">Ölçüm formu</h3>
+      <div class="olc" id="a-olc"></div>
+      <div class="form-g">
+        <label class="fld">BKİ (kg/m²)<input id="f-bki" type="number" step="0.1" inputmode="decimal"></label>
+        <label class="fld">BKİ sınıfı<select id="f-bkiS"></select></label>
+        <label class="fld">Bel çevresi riski<select id="f-belS"><option value="">seç…</option><option value="yok">Risk yok</option><option value="artmis">Artmış risk</option><option value="cok">Çok artmış risk</option></select></label>
+        <label class="fld">Bel/kalça oranı<input id="f-bko" type="number" step="0.01" inputmode="decimal"></label>
+        <label class="fld">BMH, Mifflin-St Jeor (kcal)<input id="f-bmh" type="number" step="1" inputmode="numeric"></label>
+        <label class="fld">Günlük enerji, BMH × PAL (kcal)<input id="f-tee" type="number" step="1" inputmode="numeric"><small id="f-pal"></small></label>
+      </div>
+      <div class="row" style="margin-top:12px"><button type="button" class="btn pri" id="a-eval">Değerlendir</button><button type="button" class="btn" id="a-hedef">Tabakta hedef yap</button></div>
+      <div id="a-karne"></div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== VAKA MASASI =========================== -->
+<section class="dl-view" id="vaka" role="tabpanel" aria-labelledby="t-vaka">
+  <div class="vk"><div class="vk-list" id="v-list"></div><div id="v-main"></div></div>
+</section>
+
+<!-- =========================== ENTERAL & PARENTERAL =========================== -->
+<section class="dl-view" id="ep" role="tabpanel" aria-labelledby="t-ep">
+  <div class="ep"><div class="plist" id="e-list"></div><div id="e-dev"></div><div id="e-form"></div></div>
+</section>
+</main>
+<p class="dl-note">Diyet Lab eğitim amaçlıdır; tanı koymaz ve kişisel diyet önerisi değildir. Vakalar kurgusaldır. Besin bileşimi: USDA SR28 (kamu malı); Türkçe adlar ve ev ölçüleri yaklaşık.</p>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<p class="vh" id="live" aria-live="polite"></p>
+
+<script src="data/besin.js"></script>
+<script src="diyet-model.js"></script>
+<script src="diyet-ikon.js"></script>
+<script src="diyet-app.js"></script>
+<script src="diyet-klinik.js"></script>
+</body>
+</html>

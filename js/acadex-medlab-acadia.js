@@ -14,7 +14,8 @@
   'use strict';
   var W = window, D = document;
   var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
-  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab' };
+  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab', diyet: 'Diyet Lab' };
+  var KITLE = { odyoloji: 'odyoloji/sağlık bilimleri öğrencisine', diyet: 'beslenme ve diyetetik öğrencisine' };   /* about yollayan lablar */
   var KEY = function (k) { return 'acadex.labchat.' + k; };
   var MAX = 40;
   var $ = function (id) { return D.getElementById(id); };
@@ -89,7 +90,8 @@
     log.push(m); hist().push({ role: role, content: text }); save();
   };
   var greet = function () {
-    say('assistant', NAMES[lab] + '’deyim. Modelden bir yapı seç; sorularımı ona göre hazırlarım. Kart bilgisinden cevaplayabildiğimi modelde de gösteririm, gerisini yapay zekâyla cevaplarım.');
+    say('assistant', lab === 'diyet' ? 'Diyet Lab’deyim. Tabağını, ölçümlerini ya da vakanı görüyorum; sorularımı ona göre hazırlarım. Hazır menü ya da cevap yazmam, düşünme yolunu birlikte kurarız.'
+      : NAMES[lab] + '’deyim. Modelden bir yapı seç; sorularımı ona göre hazırlarım. Kart bilgisinden cevaplayabildiğimi modelde de gösteririm, gerisini yapay zekâyla cevaplarım.');
   };
 
   /* ---------- lab aç / kapat: panel sohbetini değiştir ---------- */
@@ -198,8 +200,8 @@
   W.axAcadiaPrefix = function () {
     if (!lab || !ctx || !ctx.sel) return '';
     var s = ctx.sel, rows = (s.rows || []).map(function (r) { return r[0] + ': ' + r[1]; }).join(' | ');
-    /* Odyoloji Lab bağlamı kendi cümlesini (about) yollar: kabin, 3B kulak ya da vaka */
-    var p = s.about ? '[Acadex ' + NAMES[lab] + ' bağlamı: ' + s.about + (rows ? ' Bilgi: ' + rows : '') + ' Cevabı kısa ve odyoloji/sağlık bilimleri öğrencisine uygun ver.]\n'
+    /* Odyoloji ve Diyet Lab bağlamı kendi cümlesini (about) yollar */
+    var p = s.about ? '[Acadex ' + NAMES[lab] + ' bağlamı: ' + s.about + (rows ? ' Bilgi: ' + rows : '') + ' Cevabı kısa ve ' + (KITLE[lab] || 'sağlık bilimleri öğrencisine') + ' uygun ver.]\n'
       : '[Acadex ' + NAMES[lab] + ' bağlamı: öğrenci 3B modelde "' + s.title + '" (' + s.la + ') yapısına bakıyor.' + (rows ? ' Kart bilgisi: ' + rows : '') + ' Cevabı bu yapıya göre, kısa ve tıp öğrencisine uygun ver.]\n';
     return p.length > 2400 ? p.slice(0, 2399) + '…]\n' : p;
   };

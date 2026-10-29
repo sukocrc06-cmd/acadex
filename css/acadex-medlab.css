@@ -170,3 +170,35 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 @keyframes ody-cup{0%,46%,100%{transform:none}58%{transform:rotate(-14deg)}74%{transform:none}}
 @keyframes ody-blink{0%,90%,100%{transform:none}94%{transform:scaleY(.12)}}
 @keyframes ody-note{0%,40%{opacity:0;transform:translateY(10px) rotate(-6deg)}55%{opacity:1}100%{opacity:0;transform:translateY(-18px) rotate(8deg)}}
+/* Diyet Lab kapağı: domates maskot (SVG + CSS) */
+#medlab-view.axm .axm-cover-dyt{background:#F4F1EB}
+#medlab-view.axm .axm-dyt{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+#medlab-view.axm button.axm-labb:hover .axm-dyt,#medlab-view.axm button.axm-labb:focus-visible .axm-dyt{transform:scale(1.04)}
+#medlab-view.axm .axm-dyt .dyt-body,#medlab-view.axm .axm-dyt .dyt-leaf,#medlab-view.axm .axm-dyt .dyt-eyes,#medlab-view.axm .axm-dyt .dyt-fork,#medlab-view.axm .axm-dyt .dyt-needle,#medlab-view.axm .axm-dyt .dyt-shadow,#medlab-view.axm .axm-dyt .dyt-steam path{transform-box:fill-box}
+#medlab-view.axm .axm-dyt .dyt-body{transform-origin:50% 100%}
+#medlab-view.axm .axm-dyt .dyt-leaf{transform-origin:50% 100%}
+#medlab-view.axm .axm-dyt .dyt-eyes{transform-origin:50% 50%}
+#medlab-view.axm .axm-dyt .dyt-fork{transform-origin:50% 100%}
+#medlab-view.axm .axm-dyt .dyt-needle{transform-origin:50% 100%}
+#medlab-view.axm .axm-dyt .dyt-shadow{transform-origin:50% 50%}
+@media (prefers-reduced-motion:no-preference){
+#medlab-view.axm .axm-dyt{--dyt-t:2.4s}
+#medlab-view.axm button.axm-labb:hover .axm-dyt,#medlab-view.axm button.axm-labb:focus-visible .axm-dyt{--dyt-t:1.2s}
+#medlab-view.axm .axm-dyt .dyt-body{animation:dyt-hop var(--dyt-t) ease-in-out infinite}
+#medlab-view.axm .axm-dyt .dyt-shadow{animation:dyt-shadow var(--dyt-t) ease-in-out infinite}
+#medlab-view.axm .axm-dyt .dyt-leaf{animation:dyt-leaf var(--dyt-t) ease-in-out infinite}
+#medlab-view.axm .axm-dyt .dyt-fork{animation:dyt-fork var(--dyt-t) ease-in-out infinite}
+#medlab-view.axm .axm-dyt .dyt-eyes{animation:dyt-blink 4.2s ease-in-out infinite}
+#medlab-view.axm .axm-dyt .dyt-needle{animation:dyt-needle calc(var(--dyt-t) * 1.5) cubic-bezier(.3,1.5,.5,1) infinite}
+#medlab-view.axm .axm-dyt .dyt-arc{animation:dyt-arc calc(var(--dyt-t) * 2) ease-in-out infinite}
+#medlab-view.axm .axm-dyt .dyt-steam path{animation:dyt-steam calc(var(--dyt-t) * 1.2) ease-out infinite}
+#medlab-view.axm .axm-dyt .dyt-steam path+path{animation-delay:calc(var(--dyt-t) * .4)}
+}
+@keyframes dyt-hop{0%,55%,100%{transform:none}65%{transform:translateY(2px) scale(1.05,.94)}75%{transform:translateY(-18px) scale(.97,1.04)}85%{transform:translateY(0) scale(1.03,.97)}}
+@keyframes dyt-shadow{0%,55%,100%{transform:none;opacity:.12}75%{transform:scale(.75);opacity:.06}}
+@keyframes dyt-leaf{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+@keyframes dyt-fork{0%,50%,100%{transform:rotate(0)}70%{transform:rotate(-12deg)}}
+@keyframes dyt-blink{0%,90%,100%{transform:none}94%{transform:scaleY(.12)}}
+@keyframes dyt-needle{0%,100%{transform:rotate(-40deg)}40%{transform:rotate(25deg)}60%{transform:rotate(15deg)}}
+@keyframes dyt-arc{0%,100%{stroke-dashoffset:150}50%{stroke-dashoffset:40}}
+@keyframes dyt-steam{0%{opacity:0;transform:translateY(6px)}30%{opacity:.9}100%{opacity:0;transform:translateY(-14px)}}
