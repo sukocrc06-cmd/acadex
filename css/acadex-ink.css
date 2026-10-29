@@ -4158,6 +4158,30 @@ body.axs-hall-on #pomodoro-widget-container,body.axs-hall-on #acadia-widget-cont
 :is(#exams-view.axs,#axs-layer) .sn-eg .axs-wk span b{font-family:'JetBrains Mono',monospace}
 :is(#exams-view.axs,#axs-layer) .sn-hint{margin:10px 0 0;padding:8px 12px;background:#FFF6E3;border-left:3px solid #E2A33B;font-size:14px}
 :is(#exams-view.axs,#axs-layer) .sn-hint[hidden]{display:none}
+/* Faz 7: adım adım yardım */
+:is(#exams-view.axs,#axs-layer) .sn-help{margin:12px 0 0;padding:12px 14px;background:#F4F7FF;border:1.4px solid #D6E0F7;border-radius:8px;font-size:14px}
+:is(#exams-view.axs,#axs-layer) .sn-help[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-help-p{margin:0 0 8px;line-height:1.5;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-help-n{margin:0 0 4px;font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#2C55C9}
+:is(#exams-view.axs,#axs-layer) .sn-help-b{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:8px}
+:is(#exams-view.axs,#axs-layer) .sn-help-b .btn{margin:0;min-height:44px}
+:is(#exams-view.axs,#axs-layer) .sn-help .sn-calc{margin:4px 0}
+:is(#exams-view.axs,#axs-layer) .sn-help .sn-calc input{max-width:220px}
+:is(#exams-view.axs,#axs-layer) .sn-help-opts{display:grid;gap:6px;margin:4px 0}
+:is(#exams-view.axs,#axs-layer) .sn-help-fb{margin:6px 0 0;min-height:0;font-size:13.5px}
+:is(#exams-view.axs,#axs-layer) .sn-help-fb:empty{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-help-fb.no{color:var(--red)}
+:is(#exams-view.axs,#axs-layer) .sn-help-err{margin:6px 0 0;color:var(--red);font-size:13.5px}
+:is(#exams-view.axs,#axs-layer) .sn-help-log{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+:is(#exams-view.axs,#axs-layer) .sn-help-log[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-help-log li{display:grid;gap:2px;padding:6px 10px;border-radius:6px;background:#fff;border:1px solid #E1E7F3}
+:is(#exams-view.axs,#axs-layer) .sn-help-log li span{color:var(--muted);font-size:13px}
+:is(#exams-view.axs,#axs-layer) .sn-help-log li b{font-size:14px;color:var(--green)}
+:is(#exams-view.axs,#axs-layer) .sn-help-log li.rv b{color:var(--amber)}
+:is(#exams-view.axs,#axs-layer) .sn-help-log li small{font-size:12.5px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-help-note{margin:10px 0 0;font-size:12.5px;color:#2C55C9}
+:is(#exams-view.axs,#axs-layer) .sn-ri-h .why.help{background:#EEF3FF;color:#2C55C9}
+@media (max-width:560px){:is(#exams-view.axs,#axs-layer) .sn-book-nav{flex-wrap:wrap}:is(#exams-view.axs,#axs-layer) .sn-book-nav .sp{flex-basis:100%;height:0}:is(#exams-view.axs,#axs-layer) .sn-help .sn-calc input{max-width:none}}
 :is(#exams-view.axs,#axs-layer) .sn-opt-b input{position:absolute;opacity:0;width:1px;height:1px}
 :is(#exams-view.axs,#axs-layer) .sn-opt-b{position:relative}
 :is(#exams-view.axs,#axs-layer) .sn-opt-b:has(input:focus-visible){outline:2.5px solid #2F6BFF;outline-offset:2px}

@@ -241,9 +241,11 @@ function computeNetSummary(results: Array<Record<string, unknown>>, scoring: unk
     if (!r || r.type !== 'multiple_choice') continue
     total++
     if (!String(r.student_answer ?? '').trim()) blank++
-    else if (r.is_correct === true || r.score === 100) correct++
+    // FAZ 7: yardımla doğru (tavanlı) soru tavanı kadar doğru sayılır
+    else if (r.is_correct === true || r.score === 100) correct += typeof r.help_cap === 'number' ? r.help_cap / 100 : 1
     else wrong++
   }
+  correct = Math.round(correct * 100) / 100
   const net = Math.round((correct - wrong / k) * 100) / 100
   return { enabled: true, wrong_per_correct: k, mc_total: total, correct, wrong, blank, net }
 }
@@ -305,6 +307,7 @@ function errorMessage(code: string, isTr: boolean): string {
     no_question: 'Bu soru sınavda bulunamadı.',
     not_appealable: 'Bu soru tipi kodla birebir puanlanıyor; hatalı olduğunu düşünüyorsan "soru hatalı" bildir.',
     already_full: 'Bu sorudan zaten tam puan aldın.',
+    help_capped: 'Bu soruda adım adım yardım kullandın; alabileceğin en yüksek puanı zaten aldın.',
     already_appealed: 'Bu soruya zaten itiraz ettin.',
     already_reported: 'Bu soruyu zaten bildirdin.',
     daily_limit: 'Bugünlük sınırına ulaştın; yarın tekrar deneyebilirsin.',
@@ -323,6 +326,7 @@ function errorMessage(code: string, isTr: boolean): string {
     no_question: 'This question is not in the exam.',
     not_appealable: 'This question type is graded exactly by code; report the question if you think it is wrong.',
     already_full: 'You already have full marks on this question.',
+    help_capped: 'You used step-by-step help on this question and already have the highest score it allows.',
     already_appealed: 'You already appealed this question.',
     already_reported: 'You already reported this question.',
     daily_limit: 'Daily limit reached; try again tomorrow.',
@@ -341,6 +345,8 @@ function findResultIndex(results: unknown, questionId: number): number {
 function appealEligibility(result: Record<string, unknown>): string | null {
   if (!APPEALABLE_TYPES.includes(String(result.type))) return 'not_appealable'
   if (typeof result.score === 'number' && result.score >= 100) return 'already_full'
+  // FAZ 7: adım adım yardımla tavana ulaşmış soru itirazla geçilemez
+  if (typeof result.help_cap === 'number' && typeof result.score === 'number' && result.score >= result.help_cap) return 'help_capped'
   return null
 }
 
@@ -408,7 +414,8 @@ type AppealOutcome = { regradeScore: number; feedback: string; rubricResults: Ru
 function applyAppealOutcome(results: Array<Record<string, unknown>>, idx: number, outcome: AppealOutcome, nowIso: string, scoring: unknown = null) {
   const prev = results[idx]
   const old = typeof prev.score === 'number' ? prev.score : null
-  const regrade = Math.max(0, Math.min(100, Math.round(Number(outcome.regradeScore) || 0)))
+  const cap = typeof prev.help_cap === 'number' ? prev.help_cap : 100
+  const regrade = Math.max(0, Math.min(cap, Math.round(Number(outcome.regradeScore) || 0)))
   const accepted = old === null ? true : regrade > old
   const finalScore = accepted ? regrade : (old as number)
   const next: Record<string, unknown> = {
