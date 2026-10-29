@@ -109,7 +109,12 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
-  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE',
+  // Maddeler veritabanina duz metin olarak gider (29.10.2026 olcumu).
+  'duzMaddeMetni', 'normalizeKeyPoints',
+  // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
+  'ANLATI_MATEMATIK_ADACIK_RE', 'anlatiLatexYumusat', 'onarAnlatiLatex',
+  'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
   // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
   'ONBELLEK_OCR_MAX_KRK', 'ONBELLEK_OCR_SURUM', 'onbellektenOcrMetni',
@@ -4649,6 +4654,157 @@ test('yazilan satir SURUM DAMGASI tasiyor', () => {
 test('boyut siniri makul', () => {
   assert.ok(A.ONBELLEK_OCR_MAX_KRK >= 100_000 && A.ONBELLEK_OCR_MAX_KRK <= 1_000_000,
     `beklenmeyen sinir: ${A.ONBELLEK_OCR_MAX_KRK}`);
+});
+
+/* `[object Object]` (29.10.2026 — ACCOUNTING chapter 7 OLCUMU).
+
+   Kartin "akilda kalsin" listesinde 11 satir `[object Object]` olarak
+   cikti. Veritabanindan olculdu: key_points 32 maddenin 11'i duz metin
+   degil `{ text: "..." }` nesnesi. Atif numaralari da eksikti ([1], [4],
+   [7], [10], [13], [16], [19], [22], [25], [27]) — arayuz elemani ciplak
+   basiyor, nesneden metin cikarmiyor.
+
+   Kaynak sunucu degil model: 4 pencereden biri maddeleri nesne yazdi
+   (11/32 tam bir pencerenin payi). Sunucu iki sekli de okuyor ama
+   veritabani TEK sekil tasimak zorunda. */
+/* ANLATIDA HAM LATEX ve FORMULDE CIPLAK SOZCUK
+   (29.10.2026 — ACCOUNTING chapter 7 OLCUMU).
+
+   Anlatida bunlar OLDUGU GIBI basildi:
+     \text{Bad Debt Amount} = \text{Required Balance} - \text{Existing Balance}
+     Interest = Principal \times Annual \, Interest \, Rate \times Time
+   Ters bolu artik korunuyor (bkz. onarAnlatiTersBolusu) ama ayirac yok ve
+   renderMathInText ayiracsiz metni dogru sekilde KACIRIYOR.
+
+   Ayni kartta dort formulden ikisi ekranda harf harf dizildi:
+     "I n t e r e s t = P r i n c i p a l x A n n u a l ..."
+   cunku matematik modunda `Interest` sekiz ayri degiskendir. */
+console.log('\nANLATI DUZ YAZISI VE FORMUL SOZCUKLERI\n');
+
+test('OLCULEN UC ANLATI PARCASI duz yaziya ceviriliyor', () => {
+  const olculen = [
+    ['the entry amount is calculated as \\text{Bad Debt Amount} = \\text{Required Balance} - \\text{Existing Balance}, yielding',
+     'the entry amount is calculated as Bad Debt Amount = Required Balance - Existing Balance, yielding'],
+    ['interest is computed using the formula Interest = Principal \\times Annual \\, Interest \\, Rate \\times Time.',
+     'interest is computed using the formula Interest = Principal x Annual Interest Rate x Time.'],
+    ['via Amount \\, Due \\, at \\, Maturity = Face \\, Value \\, of \\, Note + Interest \\, for \\, the \\, Time \\, Period',
+     'via Amount Due at Maturity = Face Value of Note + Interest for the Time Period']
+  ];
+  for (const [girdi, bekle] of olculen) {
+    assert.equal(A.onarAnlatiLatex(girdi).metin, bekle);
+  }
+});
+
+test('AYIRACLI matematik HIC ELLENMIYOR', () => {
+  /* $...$ ve \\(...\\) icini KaTeX dogru diziyor; oraya dokunmak calisan
+     tek seyi bozardi. */
+  for (const korunan of [
+    'ayiracli $\\frac{a}{b}$ korunur',
+    'blok \\[\\frac{x}{y}\\] korunur',
+    'satir ici \\(\\times\\) korunur'
+  ]) assert.equal(A.onarAnlatiLatex(korunan).metin, korunan, korunan);
+  // Ters bolu yoksa hic is yapilmiyor.
+  assert.equal(A.onarAnlatiLatex('duz metin').yumusatilan, 0);
+  assert.equal(A.onarAnlatiLatex(null).metin, '');
+});
+
+test('ters bolu onarimi yumusatmadan ONCE kosuyor (sira degismezi)', () => {
+  /* Tersi olsaydi yumusatma, satir sonuna donmus komutu hic goremezdi. */
+  const i = SRC.indexOf('onarAnlatiTersBolusu(parsedContent[alan])');
+  const j = SRC.indexOf('onarAnlatiLatex(parsedContent[alan])');
+  assert.ok(i > 0 && j > 0, 'iki onarim da cikisa bagli olmali');
+  assert.ok(i < j, 'ters bolu onarimi once gelmeli');
+});
+
+test('FORMULDE ciplak sozcuk \\text{} ile sariliyor', () => {
+  assert.equal(
+    A.formulSozcukleriniSar('Interest = Principal \\times Annual \\, Interest \\, Rate \\times Time'),
+    '\\text{Interest} = \\text{Principal} \\times \\text{Annual} \\, \\text{Interest} \\, \\text{Rate} \\times \\text{Time}');
+  // \\times'in 'times'i KOMUT adi, sozcuk degil.
+  assert.ok(!/text\{times\}/.test(A.formulSozcukleriniSar('a \\times b')));
+});
+
+test('DOGRU FORMULLER DEGISMIYOR: esik 3, sarmallar atlaniyor', () => {
+  /* Ayni kartta dogru cikan iki formul ve onceki kosulardan gercek
+     formuller — hicbiri degismemeli. */
+  for (const degismez of [
+    '\\text{Bad Debt Amount} = \\text{Required Balance} - \\text{Existing Balance}',
+    '\\frac{d}{dx}(x^n) = nx^{n-1}',
+    '\\frac{Q}{t}',
+    'y=\\beta_0+\\sum_{j=1}^k \\beta_j x_j',
+    'I = \\frac{V}{R}',
+    '\\operatorname{Var}(X) = E[X^2]'
+  ]) assert.equal(A.formulSozcukleriniSar(degismez), degismez, degismez);
+  // Esik 3: degisken adlari matematik modunda DOGRU gorunur.
+  assert.equal(A.FORMUL_SOZCUK_ESIK, 3);
+  assert.ok(A.FORMUL_KORUNAN_SARMAL.has('text') && A.FORMUL_KORUNAN_SARMAL.has('operatorname'));
+});
+
+test('sarma DOGRULAMADAN ONCE uygulaniyor', () => {
+  // Karta giden hali sarilmis hali; validateLatex onu gormeli.
+  assert.match(SRC, /validateLatex\(formulSozcukleriniSar\(deduped\)\)/,
+    'sarma sanitizeFormulas icinde dogrulamaya baglanmamis');
+});
+
+console.log('\nMADDELER DUZ METIN OLARAK KAYDEDILIR\n');
+
+test('olculen hata: { text } nesnesi duz metne iniyor', () => {
+  const r = A.normalizeKeyPoints([
+    'Uncollectible accounts receivable occur when customers fail to repay.',
+    { text: 'Promissory notes normally last 60 to 90 days. [2]' },
+    { point: 'The allowance method is required when bad debts are material.' }
+  ]);
+  assert.deepEqual(r.key_points, [
+    'Uncollectible accounts receivable occur when customers fail to repay.',
+    'Promissory notes normally last 60 to 90 days. [2]',
+    'The allowance method is required when bad debts are material.'
+  ]);
+  assert.equal(r.duzlesen, 2, 'duzlesen madde sayisi loglanabilir olmali');
+  for (const m of r.key_points) assert.equal(typeof m, 'string');
+});
+
+test('metni cikarilamayan madde DUSUYOR, [object Object] basilmiyor', () => {
+  const r = A.normalizeKeyPoints(['gercek madde', { page: 7 }, {}, null, '', '   ']);
+  assert.deepEqual(r.key_points, ['gercek madde']);
+  assert.ok(!r.key_points.some((m) => /\[object Object\]/.test(String(m))));
+});
+
+test('duz metin dizisi DEGISMIYOR (duzlesen=0)', () => {
+  const girdi = ['bir madde [1]', 'iki madde [2]'];
+  const r = A.normalizeKeyPoints(girdi);
+  assert.deepEqual(r.key_points, girdi);
+  assert.equal(r.duzlesen, 0);
+  assert.deepEqual(A.normalizeKeyPoints(null).key_points, []);
+  assert.deepEqual(A.normalizeKeyPoints('metin degil dizi').key_points, []);
+});
+
+test('duzMaddeMetni: text, point, content, value ve dizi', () => {
+  assert.equal(A.duzMaddeMetni('duz'), 'duz');
+  assert.equal(A.duzMaddeMetni({ text: 'a' }), 'a');
+  assert.equal(A.duzMaddeMetni({ point: 'b' }), 'b');
+  assert.equal(A.duzMaddeMetni({ content: 'c' }), 'c');
+  assert.equal(A.duzMaddeMetni({ value: 'd' }), 'd');
+  assert.equal(A.duzMaddeMetni(['x', { text: 'y' }]), 'x y');
+  assert.equal(A.duzMaddeMetni(42), '42');
+  assert.equal(A.duzMaddeMetni({ baska: 1 }), '');
+  assert.equal(A.duzMaddeMetni(null), '');
+});
+
+test('DUZLESTIRME ATIFLARDAN SONRA (sira degismezi)', () => {
+  /* anchorCitations sekli bilerek KORUYOR (readText/writeText): nesne
+     icindeki alanlari kullanma hakki onda. Duzlestirme once gelse atif
+     sistemi o bilgiyi kaybederdi. */
+  const i = SRC.indexOf('parsedContent.key_points = anchored.key_points');
+  const j = SRC.indexOf('const duz = normalizeKeyPoints(parsedContent.key_points)');
+  assert.ok(i > 0, 'atif baglama bulunamadi');
+  assert.ok(j > 0, 'duzlestirme cikisa baglanmamis');
+  assert.ok(i < j, 'duzlestirme atif baglamadan SONRA olmali');
+});
+
+test('BOLUM maddeleri de duzlestiriliyor', () => {
+  // Ayni pencere ayni sekli bolum maddelerine de yazar.
+  assert.match(SRC, /sec\.key_points = normalizeKeyPoints\(sec\.key_points\)\.key_points/,
+    'bolum maddeleri duzlestirilmiyor');
 });
 
 console.log('\nSAYISAL KAPSAMA OLCUSU\n');

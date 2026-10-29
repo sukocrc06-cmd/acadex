@@ -344,6 +344,69 @@ function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } 
   return { metin: out, onarim }
 }
 
+/* ANLATIDA HAM LATEX (29.10.2026 olcumu).
+ *
+ * ACCOUNTING chapter 7 kartinin anlatisinda bunlar OLDUGU GIBI basildi:
+ *   "\\text{Bad Debt Amount} = \\text{Required Balance} - \\text{Existing Balance}"
+ *   "Interest = Principal \\times Annual \\, Interest \\, Rate \\times Time"
+ *
+ * Ters bolu artik korunuyor (bkz. onarAnlatiTersBolusu) ama ayirac yok:
+ * renderMathInText yalnizca $...$, \\(...\\) ve \\[...\\] icini diziyor,
+ * geri kalani KACIRIYOR — dogrusu da bu, aksi halde duz yazidaki her
+ * ters bolu KaTeX'e giderdi.
+ *
+ * Ayirac EKLEMEK cozum degil: matematik sinirlari duz yaziyla ic ice
+ * ("Interest = Principal ..." sozcuklerle basliyor), nerede bittigi
+ * guvenilir sekilde bulunamaz. Formuller ZATEN formulas[] icinde kendi
+ * kartlarinda, degisken sozluguyle duruyor; anlatinin isi duz yazi.
+ *
+ * Bu yuzden anlatidaki LaTeX OKUNUR hale getiriliyor:
+ *   \\text{Bad Debt Amount}  -> Bad Debt Amount
+ *   \\times                  -> x        \\, \\; \\! \\quad -> bosluk
+ *   \\frac{a}{b}             -> a/b
+ * $...$ ve \\(...\\) ICI HIC ELLENMIYOR: orayi KaTeX dogru diziyor. */
+const ANLATI_MATEMATIK_ADACIK_RE = /\$[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
+
+function anlatiLatexYumusat(parca: string): string {
+  let t = String(parca || '')
+  if (t.indexOf('\\') === -1) return t
+  // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
+  t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
+  // \frac{a}{b} -> a/b (ic ice olmayan hali; digeri formul kartinin isi).
+  t = t.replace(/\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2')
+  t = t.replace(/\\(?:times|cdot)\b/g, 'x')
+  t = t.replace(/\\div\b/g, '/')
+  t = t.replace(/\\pm\b/g, '+/-')
+  t = t.replace(/\\(?:leq|le)\b/g, '<=').replace(/\\(?:geq|ge)\b/g, '>=')
+  t = t.replace(/\\neq\b/g, '!=').replace(/\\approx\b/g, '~')
+  t = t.replace(/\\(?:left|right|displaystyle)\b/g, '')
+  // Ince bosluk komutlari: \, \; \! \quad \qquad \ (ters bolu + bosluk)
+  t = t.replace(/\\(?:qquad|quad)\b/g, ' ').replace(/\\[,;!:> ]/g, ' ')
+  return t.replace(/[ \t]{2,}/g, ' ')
+}
+
+function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } {
+  const s = String(metin || '')
+  if (s.indexOf('\\') === -1) return { metin: s, yumusatilan: 0 }
+  let yumusatilan = 0
+  let out = ''
+  let son = 0
+  const re = new RegExp(ANLATI_MATEMATIK_ADACIK_RE.source, 'g')
+  let m: RegExpExecArray | null
+  const ekle = (duz: string) => {
+    const y = anlatiLatexYumusat(duz)
+    if (y !== duz) yumusatilan++
+    out += y
+  }
+  while ((m = re.exec(s)) !== null) {
+    ekle(s.slice(son, m.index))
+    out += m[0]            // ayiracli matematik oldugu gibi korunur
+    son = m.index + m[0].length
+  }
+  ekle(s.slice(son))
+  return { metin: out, yumusatilan }
+}
+
 function stripThinkBlock(raw: string): string | null {
   const match = raw.match(/<think>[\s\S]*?<\/think>/i)
   if (match) {
@@ -4339,6 +4402,67 @@ function formulaKey(latex: string): string {
     .toLowerCase()
 }
 
+/* COK HARFLI SOZCUK MATEMATIK MODUNDA HARF HARF DIZILIR (29.10.2026).
+ *
+ * ACCOUNTING chapter 7 kartinda dort formulden ikisi ekranda boyle cikti:
+ *   "I n t e r e s t = P r i n c i p a l x A n n u a l ..."
+ * Sebep KaTeX degil LaTeX: matematik modunda `Interest` sekiz AYRI
+ * degiskendir (I.n.t.e.r.e.s.t) ve her biri italik, aralarinda carpim
+ * boslugu ile dizilir. Ayni kartin oteki iki formulu dogru cikti, cunku
+ * model onlarda \text{...} yazmisti.
+ *
+ * Uc harften uzun ciplak harf dizileri \text{} ile sariliyor. Esik 3:
+ * degisken adlari (x, dx, nx, AB) matematik modunda DOGRU gorunur ve
+ * sarilmamalari gerekir.
+ *
+ * KOMUT ADLARI VE MEVCUT SARMALLAR ATLANIYOR: \times'in 'times'i sozcuk
+ * degil komuttur; \text{Bad Debt Amount} icindeki metne de ikinci kez
+ * dokunmak sarmali bozar. Tarayici bu yuzden karakter karakter ilerliyor,
+ * tek bir regex ile yapilamaz. */
+const FORMUL_SOZCUK_ESIK = 3
+const FORMUL_KORUNAN_SARMAL = new Set([
+  'text', 'textrm', 'textbf', 'textit', 'textsf', 'texttt',
+  'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt', 'mathcal', 'mathbb',
+  'operatorname'
+])
+
+function formulSozcukleriniSar(latex: string): string {
+  const s = String(latex || '')
+  if (!/[A-Za-z]{3,}/.test(s)) return s
+  let out = ''
+  let i = 0
+  while (i < s.length) {
+    if (s[i] === '\\') {
+      const komut = /^\\([A-Za-z]+)/.exec(s.slice(i))
+      if (!komut) { out += s.slice(i, i + 2); i += 2; continue }
+      out += komut[0]
+      i += komut[0].length
+      if (FORMUL_KORUNAN_SARMAL.has(komut[1])) {
+        while (i < s.length && /\s/.test(s[i])) { out += s[i]; i++ }
+        if (s[i] === '{') {
+          let derinlik = 0
+          do {
+            if (s[i] === '{') derinlik++
+            else if (s[i] === '}') derinlik--
+            out += s[i]
+            i++
+          } while (i < s.length && derinlik > 0)
+        }
+      }
+      continue
+    }
+    const sozcuk = /^[A-Za-z]+/.exec(s.slice(i))
+    if (sozcuk) {
+      out += sozcuk[0].length >= FORMUL_SOZCUK_ESIK ? `\\text{${sozcuk[0]}}` : sozcuk[0]
+      i += sozcuk[0].length
+      continue
+    }
+    out += s[i]
+    i++
+  }
+  return out
+}
+
 function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ name: string; reason: string }>; repaired: number; duplicates: number } {
   const list = Array.isArray(formulas) ? formulas : []
   const out: any[] = []
@@ -4353,7 +4477,9 @@ function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ 
     // once gelen cift ters bolu tek ters boluya indirilir; gercek satir sonu
     // ("a \\ b") arkasindan bosluk geldigi icin etkilenmez.
     const deduped = original.replace(/\\\\(?=[A-Za-z])/g, '\\')
-    const v = validateLatex(deduped)
+    /* Ciplak sozcukler \text{} ile sarilir — bkz. formulSozcukleriniSar.
+       Dogrulamadan ONCE, cunku karta giden hali bu. */
+    const v = validateLatex(formulSozcukleriniSar(deduped))
     if (!v.ok) {
       dropped.push({ name: String(f?.name || '(isimsiz)').slice(0, 40), reason: v.reason || 'gecersiz' })
       continue
@@ -5377,6 +5503,47 @@ function splitInlineSteps(s: string): string[] {
     parts.push(text.slice(seq[i].at, i + 1 < seq.length ? seq[i + 1].at : undefined).trim())
   }
   return parts
+}
+
+/* KEY_POINTS VERITABANINA TEK SEKILDE GIDER (29.10.2026 olcumu).
+ *
+ * ACCOUNTING chapter 7 kartinda "akilda kalsin" listesinde 11 satir
+ * `[object Object]` olarak cikti. Olculdu: key_points 32 maddenin 11'i duz
+ * metin degil `{ text: "..." }` NESNESI. Atif numaralari da o yuzden
+ * eksikti ([1], [4], [7], [10], [13], [16], [19], [22], [25], [27]) —
+ * arayuz nesneyi metin sanip dogrudan basiyor.
+ *
+ * Kaynak sunucu degil MODEL: 4 pencereden biri maddeleri nesne olarak
+ * yazdi (11/32 tam bir pencerenin payi). Sunucu tarafi iki sekli de
+ * okuyor — anchorCitations'taki readText/writeText ikilisi sekli bilerek
+ * KORUYOR, applyDensityGate ve grounding kapisi da `oku()` ile ikisini de
+ * anliyor — ama veritabani tek sekil tasimak zorunda, cunku arayuz
+ * elemani ciplak basiyor.
+ *
+ * Bu yuzden duzlestirme TEK CIKISTA: atiflar islendikten SONRA, kart
+ * kurulmadan once. Oncesinde duzlestirmek atif sisteminin nesne icindeki
+ * alanlari kullanma hakkini elinden alirdi. */
+function duzMaddeMetni(raw: any): string {
+  if (typeof raw === 'string') return raw
+  if (raw == null) return ''
+  if (typeof raw === 'number' || typeof raw === 'boolean') return String(raw)
+  if (Array.isArray(raw)) return raw.map(duzMaddeMetni).filter(Boolean).join(' ')
+  const t = raw.text ?? raw.point ?? raw.content ?? raw.value
+  return typeof t === 'string' ? t : ''
+}
+
+function normalizeKeyPoints(points: any[]): { key_points: string[]; duzlesen: number } {
+  const list = Array.isArray(points) ? points : []
+  let duzlesen = 0
+  const out: string[] = []
+  for (const p of list) {
+    if (typeof p !== 'string') duzlesen++
+    const metin = duzMaddeMetni(p).trim()
+    /* Metni cikarilamayan madde ZATEN ekranda `[object Object]` olacakti;
+       dusurmek onu basmaktan iyidir. */
+    if (metin) out.push(metin)
+  }
+  return { key_points: out, duzlesen }
 }
 
 function normalizeWorkedExamples(examples: any[]): any[] {
@@ -13219,6 +13386,13 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
           parsedContent[alan] = o.metin
           console.log(`Anlati LaTeX ters bolu onarimi: ${alan} alaninda ${o.onarim} komut`)
         }
+        /* SIRA: once ters bolu onarilir, SONRA yumusatilir. Tersi olsaydi
+           yumusatma satir sonuna donmus komutu goremezdi. */
+        const y = onarAnlatiLatex(parsedContent[alan])
+        if (y.yumusatilan > 0) {
+          parsedContent[alan] = y.metin
+          console.log(`Anlati LaTeX duz yaziya cevrildi: ${alan} (${y.yumusatilan} parca)`)
+        }
       }
 
       // --- (c2) Anlatida birebir tekrar eden cumle — bkz. dedupeNarrativeSentences
@@ -13242,6 +13416,27 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         lang
       )
       parsedContent.key_points = anchored.key_points
+      /* --- Maddeler duz metne indiriliyor — bkz. normalizeKeyPoints.
+         Atiflar yukarida islendi, bundan sonra nesne sekli bilgi tasimiyor. */
+      {
+        const duz = normalizeKeyPoints(parsedContent.key_points)
+        if (duz.duzlesen > 0) {
+          console.warn(
+            `key_points duzlestirildi: ${duz.duzlesen}/${(parsedContent.key_points || []).length} ` +
+            `madde nesne olarak gelmisti (ekranda [object Object] olurdu), ` +
+            `${duz.key_points.length} madde kaydediliyor`
+          )
+        }
+        parsedContent.key_points = duz.key_points
+        /* Bolum maddeleri ayni sinif: ayni pencere ayni sekli oraya da yazar. */
+        if (Array.isArray(parsedContent.sections)) {
+          for (const sec of parsedContent.sections) {
+            if (sec && Array.isArray(sec.key_points)) {
+              sec.key_points = normalizeKeyPoints(sec.key_points).key_points
+            }
+          }
+        }
+      }
       parsedContent.footnotes = anchored.footnotes
       /* GROUNDED'I BURADA BIR DAHA SOR (28.10.2026 olcumu).
        *
