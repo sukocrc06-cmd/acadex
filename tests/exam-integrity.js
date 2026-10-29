@@ -234,7 +234,7 @@ test('hesaplama son care: dogrulanamayan ama cevabi sayi olan soru eskisi gibi a
   assert.equal(G.validateQuestion({ ...raw, correct_answer: 'bilinmiyor' }, ['calculation'], 'tr', 4, true).reason, 'calc_formula_invalid');
   const mismatch = { type: 'calculation', question: '1.000 TL %10 faizle 2 yıl sonra kaç TL olur?', correct_answer: 1500, variables: { P: 1000, r: 10, n: 2 }, formula: 'P * (1 + r/100)^n' };
   assert.equal(G.validateQuestion(mismatch, ['calculation'], 'tr', 4, true).reason, 'calc_mismatch');
-  // FAZ 6.5 (canlı ödev testi 28.10): cevap, kendi son çözüm adımıyla çelişiyorsa alınmaz
+  // Canlı test (28.10): cevap, kendi son çözüm adımıyla çelişiyorsa alınmaz
   const twoVals = { type: 'calculation', question: 'P = 14 - 3Q ve P = 2 + Q ise denge fiyatı ve miktarı?', correct_answer: 4, solution_steps: ['12 = 4Q', 'Q* = 3', 'P* = 14 - 3*3 = 5'] };
   assert.equal(G.validateQuestion(twoVals, ['calculation'], 'tr', 4, true).reason, 'calc_unverified_inconsistent');
   assert.equal(G.validateQuestion({ ...twoVals, correct_answer: 5 }, ['calculation'], 'tr', 4, true).ok, true);

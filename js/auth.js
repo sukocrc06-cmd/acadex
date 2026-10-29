@@ -13,13 +13,12 @@ function getMsg(key, defaultVal) {
 }
 
 // ==========================================
-// Role-based landing page (Admin Paneli / Hoca Paneli / Dashboard)
+// Giriş sonrası sayfa
 //
-// Acadex uses boolean flags on profiles (is_admin, is_teacher) rather than
-// a single role column. This looks up those flags for the given user and
-// returns which page they should land on after login / when they already
-// have a session. Fails open to the normal student dashboard on any error,
-// so a profile lookup hiccup never locks a student out of their portal.
+// Herkes (yönetici dahil) çalışma masasına gider; yönetim paneline
+// dashboard'daki kenar çubuğu bağlantısıyla geçilir. Tek istisna kapalı
+// beta: izinsiz hesap oturumdan çıkarılıp girişe döner. Hata olursa
+// öğrenci kilitlenmesin diye yine çalışma masası.
 // ==========================================
 async function getPostLoginDestination(userId) {
   try {
@@ -28,36 +27,12 @@ async function getPostLoginDestination(userId) {
       const acc = await window.acadexAccess.check(userId);
       if (!acc.ok) { await supabaseClient.auth.signOut(); return 'login.html?erisim=yok'; }
     }
-    const { data: profile, error } = await supabaseClient
-      .from('profiles')
-      .select('is_admin, is_teacher')
-      .eq('id', userId)
-      .single();
-
-    if (error || !profile) return 'dashboard.html';
-    // Eski admin paneli kaldırıldı: yöneticiler de doğrudan çalışma masasına gider.
-    if (profile.is_admin) return 'dashboard.html';
-    // Hoca paneli kaldırıldı (19.10.2026): herkes çalışma masasına gider.
     return 'dashboard.html';
   } catch (e) {
     console.error('getPostLoginDestination error:', e);
     return 'dashboard.html';
   }
 }
-
-// ==========================================
-// Academic sign-in note
-//
-// login.html no longer has a Student/Academic mode toggle or a hoca
-// self-registration form (register-academic.html) — hoca accounts now
-// arrive exclusively via Campuso SSO (see supabase/functions/campuso-sso
-// and sso-callback.html), which sets profiles.is_teacher = true on first
-// arrival and drops the visitor straight into teacher.html. Routing for
-// whoever DOES sign in here with a password (students, and any
-// already-approved teacher/admin account from before this change) is still
-// 100% decided server-side by getPostLoginDestination() via
-// profiles.is_admin / is_teacher — nothing about that changed.
-// ==========================================
 
 /* GERI TUSU (25.10.2026, test raporu R75). Telefonda panelden geri
    gelindiginde tarayici giris sayfasini onbellekten (bfcache) aynen
@@ -67,7 +42,7 @@ async function getPostLoginDestination(userId) {
 window.addEventListener('pageshow', async (e) => {
   if (!e.persisted) return;
   const p = window.location.pathname;
-  if (!(p.includes('login.html') || (p.includes('register.html') && !p.includes('register-academic.html')))) return;
+  if (!(p.includes('login.html') || p.includes('register.html'))) return;
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) window.location.replace(await getPostLoginDestination(session.user.id));
@@ -79,7 +54,7 @@ window.addEventListener('pageshow', async (e) => {
 document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
   const isLoginPage = path.includes('login.html');
-  const isRegisterPage = path.includes('register.html') && !path.includes('register-academic.html');
+  const isRegisterPage = path.includes('register.html');
 
   // ==========================================
   // 1. Session Redirect Guard on Load
@@ -88,8 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
-        // If user already logged in, send them straight to their portal
-        // (admin/hoca panel or the regular student dashboard).
+        // If user already logged in, send them straight to the dashboard.
         window.location.replace(await getPostLoginDestination(session.user.id));
         return;
       }
@@ -396,11 +370,6 @@ function initRegisterForm() {
 
 // ==========================================
 // 5. Login Form Controller
-//
-// (Academic/teacher self-registration used to live here as
-// initAcademicRegisterForm() + register-academic.html's form — removed now
-// that hoca accounts arrive exclusively via Campuso SSO. See
-// supabase/functions/campuso-sso and sso-callback.html.)
 // ==========================================
 function initLoginForm() {
   const form = document.getElementById('login-form');

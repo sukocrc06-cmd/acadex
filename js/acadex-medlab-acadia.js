@@ -14,7 +14,7 @@
   'use strict';
   var W = window, D = document;
   var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
-  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab' };
+  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab' };
   var KEY = function (k) { return 'acadex.labchat.' + k; };
   var MAX = 40;
   var $ = function (id) { return D.getElementById(id); };
@@ -198,7 +198,9 @@
   W.axAcadiaPrefix = function () {
     if (!lab || !ctx || !ctx.sel) return '';
     var s = ctx.sel, rows = (s.rows || []).map(function (r) { return r[0] + ': ' + r[1]; }).join(' | ');
-    var p = '[Acadex ' + NAMES[lab] + ' bağlamı: öğrenci 3B modelde "' + s.title + '" (' + s.la + ') yapısına bakıyor.' + (rows ? ' Kart bilgisi: ' + rows : '') + ' Cevabı bu yapıya göre, kısa ve tıp öğrencisine uygun ver.]\n';
+    /* Odyoloji Lab bağlamı kendi cümlesini (about) yollar: kabin, 3B kulak ya da vaka */
+    var p = s.about ? '[Acadex ' + NAMES[lab] + ' bağlamı: ' + s.about + (rows ? ' Bilgi: ' + rows : '') + ' Cevabı kısa ve odyoloji/sağlık bilimleri öğrencisine uygun ver.]\n'
+      : '[Acadex ' + NAMES[lab] + ' bağlamı: öğrenci 3B modelde "' + s.title + '" (' + s.la + ') yapısına bakıyor.' + (rows ? ' Kart bilgisi: ' + rows : '') + ' Cevabı bu yapıya göre, kısa ve tıp öğrencisine uygun ver.]\n';
     return p.length > 2400 ? p.slice(0, 2399) + '…]\n' : p;
   };
 

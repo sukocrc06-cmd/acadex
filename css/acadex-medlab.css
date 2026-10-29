@@ -146,3 +146,27 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 .acadia-fab.axl-ping{animation:axl-ping .9s ease-in-out 3}
 @keyframes axl-ping{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
 }
+/* Odyoloji Lab kapağı: kulak maskotu (SVG + CSS) */
+#medlab-view.axm .axm-cover-ody{background:#F6F2E9}
+#medlab-view.axm .axm-ody{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+#medlab-view.axm button.axm-labb:hover .axm-ody,#medlab-view.axm button.axm-labb:focus-visible .axm-ody{transform:scale(1.04)}
+#medlab-view.axm .axm-ody .ody-body,#medlab-view.axm .axm-ody .ody-eyes,#medlab-view.axm .axm-ody .ody-note,#medlab-view.axm .axm-ody .ody-arm,#medlab-view.axm .axm-ody .ody-w{transform-box:fill-box}
+#medlab-view.axm .axm-ody .ody-body{transform-origin:50% 100%}
+#medlab-view.axm .axm-ody .ody-eyes{transform-origin:50% 50%}
+#medlab-view.axm .axm-ody .ody-arm{transform-origin:100% 100%}
+@media (prefers-reduced-motion:no-preference){
+#medlab-view.axm .axm-ody{--ody-t:2.6s}
+#medlab-view.axm button.axm-labb:hover .axm-ody,#medlab-view.axm button.axm-labb:focus-visible .axm-ody{--ody-t:1.3s}
+#medlab-view.axm .axm-ody .ody-w{animation:ody-wave var(--ody-t) ease-out infinite both}
+#medlab-view.axm .axm-ody .ody-w.w2{animation-delay:calc(var(--ody-t) * .12)}
+#medlab-view.axm .axm-ody .ody-w.w3{animation-delay:calc(var(--ody-t) * .24)}
+#medlab-view.axm .axm-ody .ody-body{animation:ody-hear var(--ody-t) ease-in-out infinite}
+#medlab-view.axm .axm-ody .ody-arm{animation:ody-cup var(--ody-t) ease-in-out infinite}
+#medlab-view.axm .axm-ody .ody-eyes{animation:ody-blink 4.4s ease-in-out infinite}
+#medlab-view.axm .axm-ody .ody-note{animation:ody-note calc(var(--ody-t) * 2) ease-out infinite}
+}
+@keyframes ody-wave{0%{opacity:0;transform:translateX(-16px)}25%{opacity:1}75%{opacity:.85}100%{opacity:0;transform:translateX(22px)}}
+@keyframes ody-hear{0%,46%,100%{transform:none}56%{transform:translateY(-4px) rotate(-4deg)}66%{transform:rotate(3deg)}76%{transform:none}}
+@keyframes ody-cup{0%,46%,100%{transform:none}58%{transform:rotate(-14deg)}74%{transform:none}}
+@keyframes ody-blink{0%,90%,100%{transform:none}94%{transform:scaleY(.12)}}
+@keyframes ody-note{0%,40%{opacity:0;transform:translateY(10px) rotate(-6deg)}55%{opacity:1}100%{opacity:0;transform:translateY(-18px) rotate(8deg)}}

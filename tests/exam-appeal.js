@@ -6,7 +6,7 @@
      - grade-exam'den kopyalanan yardımcıların BİREBİR aynı kalması
      - istek doğrulama, itiraz edilebilirlik
      - itiraz sonucunun işlenmesi: puan asla düşmez, not yeniden hesaplanır
-     - bildirim ve öğretmene iletme sonuçları değiştirmeden işler
+     - bildirim sonuçları değiştirmeden işler; "escalate" artık yok
      - yeniden puanlama mesajları, boşluk kararı ayrıştırma
 
    Çalıştırma:  node tests/exam-appeal.js
@@ -35,7 +35,7 @@ const A = loadFromSource(APPEAL_PATH, [
   'REPORT_CATEGORIES', 'APPEALABLE_TYPES', 'STATIC_APPEAL_INSTRUCTIONS', 'STATIC_BLANK_APPEAL_INSTRUCTIONS',
   'validateFeedbackRequest', 'errorMessage', 'findResultIndex', 'appealEligibility',
   'buildOpenAppealPrompt', 'buildBlankAppealPrompt', 'parseBlankVerdict',
-  'applyAppealOutcome', 'applyReport', 'applyEscalation', 'lowerEffort'
+  'applyAppealOutcome', 'applyReport', 'lowerEffort'
 ]);
 
 const { test, summary } = makeRunner();
@@ -52,14 +52,15 @@ test('grade-exam ten kopyalanan yardimcilar birebir ayni', () => {
 // ---------------------------------------------------------------------------
 // İstek doğrulama
 // ---------------------------------------------------------------------------
-test('validateFeedbackRequest: gecerli itiraz, bildirim, iletme', () => {
+test('validateFeedbackRequest: gecerli itiraz ve bildirim', () => {
   const ap = A.validateFeedbackRequest({ action: 'appeal', examId: 'e1', questionId: '2', reason: '  COUNTIF   formülünü de yazdım,  ikinci cümlede.  ' });
   assert.equal(ap.ok, true);
   assert.equal(ap.questionId, 2);
   assert.equal(ap.reason, 'COUNTIF formülünü de yazdım, ikinci cümlede.');
   const rp = A.validateFeedbackRequest({ action: 'report', examId: 7, questionId: 1, category: 'wrong_key' });
   assert.deepEqual([rp.ok, rp.examId, rp.category, rp.reason], [true, '7', 'wrong_key', '']);
-  assert.equal(A.validateFeedbackRequest({ action: 'escalate', examId: 'e', questionId: 3 }).ok, true);
+  // insan öğretmen yok: itiraz öğretmene iletilemez
+  assert.equal(A.validateFeedbackRequest({ action: 'escalate', examId: 'e', questionId: 3 }).error, 'bad_action');
 });
 
 test('validateFeedbackRequest: hatali istekler kodla reddedilir', () => {
@@ -84,7 +85,7 @@ test('validateFeedbackRequest: uzun metinler kirpilir', () => {
 test('errorMessage: her hata kodunun Turkce ve Ingilizce metni var', () => {
   const codes = ['bad_body', 'bad_action', 'bad_exam', 'bad_question', 'reason_too_short', 'bad_category', 'note_required',
     'not_completed', 'no_question', 'not_appealable', 'already_full', 'already_appealed', 'already_reported',
-    'daily_limit', 'no_appeal', 'not_rejected', 'regrade_failed', 'table_missing'];
+    'daily_limit', 'help_capped', 'regrade_failed', 'table_missing'];
   for (const c of codes) {
     assert.notEqual(A.errorMessage(c, true), c, `tr metni yok: ${c}`);
     assert.notEqual(A.errorMessage(c, false), c, `en metni yok: ${c}`);
@@ -165,18 +166,12 @@ test('yeniden puan 0-100 araligina kistirilir', () => {
   assert.equal(r.finalScore, 100);
 });
 
-test('bildirim ve iletme: puana dokunmaz, girdiyi degistirmez', () => {
+test('bildirim: puana dokunmaz, girdiyi degistirmez', () => {
   const rs = RESULTS();
   const rep = A.applyReport(rs, 0, 'wrong_key', NOW);
   assert.deepEqual(rep[0].report, { category: 'wrong_key', at: NOW });
   assert.equal(rep[0].score, 100);
   assert.equal(rs[0].report, undefined);
-  const rej = A.applyAppealOutcome(rs, 1, { regradeScore: 30, feedback: '', rubricResults: null, note: 'n' }, NOW).results;
-  const esc = A.applyEscalation(rej, 1, '2026-10-23T00:00:00.000Z');
-  assert.equal(esc[1].appeal.status, 'escalated');
-  assert.equal(esc[1].appeal.regrade_score, 30);
-  assert.equal(esc[1].appeal.escalated_at, '2026-10-23T00:00:00.000Z');
-  assert.equal(esc[1].score, 45);
 });
 
 // ---------------------------------------------------------------------------

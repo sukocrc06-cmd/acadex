@@ -308,3 +308,58 @@ tr:last-child td{border-bottom:0}
 .sup-reply textarea{flex:1;resize:vertical;min-height:44px;max-height:180px}
 @media (max-width:900px){.sup-grid{grid-template-columns:1fr;height:auto}.sup-side{max-height:300px}.sup-pane{min-height:520px}}
 .sup-rt .badge{min-width:20px;padding:0 6px;border-radius:999px;background:var(--amber);color:var(--ink);font-size:11px;font-weight:800;line-height:18px;text-align:center}
+
+/* ---------- telefon bildirimleri (29.10.2026, js/admin-app.js VIEWS.push) ---------- */
+.psh-health{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.psh-health>.pill{align-self:flex-start}
+.psh-health .kv{grid-template-columns:minmax(0,190px) minmax(0,1fr)}
+.psh-health .kv dd .pill{white-space:normal}
+.psh-s{margin-top:2px;font-size:12px;color:var(--muted);line-height:1.35}
+.psh-feed-c{margin-top:16px}
+.psh-feed-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px 16px;margin-bottom:12px}
+.psh-feed-h .tools{margin:0}
+.psh-msg{min-width:220px;max-width:420px}
+.psh-msg .muted{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#psh-feed{max-height:620px}
+@media (max-width:760px){.psh-health .kv{grid-template-columns:1fr}.psh-feed-h .tools .in{min-width:0;width:100%}.psh-feed-h .tools .fld{flex:1 1 140px}}
+
+/* ---------- Acadex ekibi · görev tanımları (29.10.2026, 20261029c_acadex_ekip_2.sql) ---------- */
+.ek-warn{margin-bottom:14px;border-color:var(--amber);background:var(--warn-l);font-size:13.5px}
+.ek-tlink{all:unset;cursor:pointer;font:inherit}
+.ek-tlink:hover{text-decoration:underline}
+.ek-tlink:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
+.ek-team.dash{border-style:dashed;border-top-style:solid}
+.ek-pills{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.ek-coord{margin:0 0 4px;font-size:12.5px;font-weight:700;color:var(--ink2)}
+.ek-duties{margin:6px 0 10px;font-size:13px}
+.ek-duties summary{cursor:pointer;font-weight:700;color:var(--ink2);min-height:28px;display:flex;align-items:center}
+.ek-ul{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:13.5px;line-height:1.45}
+.ek-rep{display:block;margin-top:3px;font-size:11.5px;color:var(--muted)}
+.ek-p.open{border-style:dashed;background:transparent}
+.ek-av-open{background:transparent!important;color:var(--muted)!important;border:1.5px dashed var(--line2);font-size:16px!important}
+.ek-gaps{margin-bottom:16px}
+.ek-gaps .tbl-w{margin-top:8px}
+.ek-gap{cursor:pointer}
+.ek-gap:hover td{background:#F7F4EA}
+.ek-gap td{vertical-align:top}
+.ek-card{display:flex;flex-direction:column;gap:12px}
+.ek-ch{display:flex;gap:12px;align-items:center}
+.ek-ch .av{width:44px;height:44px;font-size:15px}
+.ek-ch b{font-size:15px}
+.ek-kv{margin:0}
+.ek-sec h3{margin:0 0 4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--tc,var(--muted))}
+.ek-sec p{margin:0 0 6px;font-size:14px;line-height:1.5}
+.ek-board{display:flex;flex-direction:column;align-items:center;gap:10px}
+.ek-board>.ek-tn{width:auto;min-width:260px;padding:10px 18px}
+.ek-tn small{display:block}
+.ek-tn .ek-st{margin-top:2px;font-weight:700;opacity:1}
+.ek-tn.dash{background:transparent;color:var(--tc);border:2px dashed var(--tc)}
+.ek-node.dash{border-style:dashed;border-left-style:solid;background:transparent}
+.ek-tag{font-style:normal;font-size:10.5px;font-weight:700;color:#8A5A00;background:var(--warn-l);border-radius:999px;padding:0 6px}
+.ek-adv{margin-top:26px;padding-top:16px;border-top:1px dashed var(--line2)}
+.ek-advrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center}
+.ek-advrow .ek-node{width:auto;min-width:220px}
+.ek-advt{all:unset;cursor:pointer;font-size:11px;letter-spacing:.14em;color:var(--tc);font-weight:700;margin-right:6px}
+.ek-legend{justify-content:center;margin-top:18px}
+.ek-legend i.dash{background:transparent;border:1.5px dashed var(--muted)}
+@media (max-width:860px){.ek-board>.ek-tn{min-width:0;width:100%}.ek-advrow .ek-node{min-width:0;width:100%}}

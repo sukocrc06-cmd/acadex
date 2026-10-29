@@ -127,51 +127,6 @@ function checkSubmissionWindow(exam: Record<string, unknown>, nowMs: number): { 
   return { ok: true }
 }
 
-/* ==========================================================================
-   FAZ 6.3 — ÖDEV: GEÇ TESLİM KESİNTİSİ VE GİZLİ CEVAPLAR (28.10.2026)
-   Ödev sınavında (exams.assignment_id) öğretmenin kuralları:
-   - geç teslim: son teslimden sonra her başlamış gün için %pct kesinti
-     (teslim penceresi zaten süre olarak kurulur; pencere dışı gönderim
-     simülasyon süre denetimine takılır)
-   - cevaplar "son teslimden sonra" ya da "hiç" gösterilecekse exams satırına
-     yalnızca puan ve doğru/yanlış yazılır; tam sonuç exam_hidden_results'ta,
-     öğrenci reveal_at geçince okur. question_attempts'in anahtarı da boş.
-   ========================================================================== */
-const LATE_GRACE_MS = 120_000
-const HIDDEN_KEEP = ['question_id', 'type', 'question', 'options', 'concept', 'student_answer', 'score', 'is_correct', 'chart', 'flagged', 'hint_used', 'units']
-
-/** Teslim anına göre geç gün ve kesinti yüzdesi. nowMs testte sabitlenebilsin. */
-function assignmentLatePenalty(asg: Record<string, unknown> | null, nowMs: number): { days: number; pct: number } {
-  if (!asg || !asg.due_at) return { days: 0, pct: 0 }
-  const due = Date.parse(String(asg.due_at))
-  if (!Number.isFinite(due) || nowMs <= due + LATE_GRACE_MS) return { days: 0, pct: 0 }
-  const late = asg.late && typeof asg.late === 'object' ? asg.late as Record<string, unknown> : null
-  const days = Math.ceil((nowMs - due) / 86_400_000)
-  if (!late) return { days, pct: 0 }
-  return { days, pct: Math.min(100, Math.max(0, Number(late.pct) || 0) * days) }
-}
-
-/** Cevaplar gizliyken öğrencinin göreceği sonuç: puan ve doğru/yanlış, anahtar yok. */
-function redactAssignmentResult(r: Record<string, unknown>, isTr: boolean): Record<string, unknown> {
-  const o: Record<string, unknown> = {}
-  for (const k of HIDDEN_KEEP) if (k in r) o[k] = r[k]
-  const blank = !String(r.student_answer ?? '').trim()
-  const sc = typeof r.score === 'number' ? r.score : null
-  o.feedback = blank ? (isTr ? 'Boş bırakıldı.' : 'Left blank.')
-    : sc == null ? (isTr ? 'Puanlanamadı.' : 'Not graded.')
-    : sc >= 80 ? (isTr ? 'Doğru.' : 'Correct.') : sc >= 50 ? (isTr ? 'Kısmen doğru.' : 'Partially correct.') : (isTr ? 'Yanlış.' : 'Incorrect.')
-  o.answers_hidden = true
-  return o
-}
-
-/** Gizli sonuç ne zaman açılır: teslim edince (gizli değil) / pencere bitince / hiç (null). */
-function assignmentReveal(asg: Record<string, unknown> | null): { hidden: boolean; revealAt: string | null } {
-  const mode = asg ? String(asg.show_answers || 'after_due') : 'after_submit'
-  if (!asg || mode === 'after_submit') return { hidden: false, revealAt: null }
-  if (mode === 'never') return { hidden: true, revealAt: null }
-  return { hidden: true, revealAt: String(asg.window_end || asg.due_at || '') || null }
-}
-
 /** Soruyu cevap anahtarıyla birleştirir. Anahtar yoksa (eski sınav) soru
  *  olduğu gibi kullanılır. */
 function mergeQuestionWithKey(q: Record<string, unknown>, keys: Record<string, Record<string, unknown>> | null): Record<string, unknown> {
@@ -1113,7 +1068,7 @@ function buildAttemptRows(
       student_answer: r.student_answer != null ? String(r.student_answer) : null,
       score: typeof r.score === 'number' ? r.score : null,
       is_correct: typeof r.is_correct === 'boolean' ? r.is_correct : null,
-      hint_used: hintSet.has(String(r.question_id)),
+      hint_used: hintSet.has(String(r.question_id)) || r.help_used === true,
       flagged: flagSet.has(String(r.question_id))
     }
   })
@@ -1128,6 +1083,23 @@ function markConfidence(results: Array<Record<string, unknown>>, flags: unknown,
     const id = String(r.question_id ?? r.id ?? '')
     if (flagSet.has(id)) r.flagged = true
     if (hintSet.has(id)) r.hint_used = true
+  }
+}
+
+/** FAZ 7: adım adım yardım. exams.questions[i].help = { mode, status }.
+ *  'cap' ya da yeni sayıları yazılmamış 'variant' → puan en çok HELP_CAP
+ *  (ham puan help_raw_score'da). Yeni sayılarla çözülen 'variant' tam puan. */
+const HELP_CAP = 50
+function applyHelp(results: Array<Record<string, unknown>>, questions: Record<string, unknown>[]): void {
+  const byId = new Map(questions.map(q => [String(q.id), q]))
+  for (const r of results) {
+    const q = byId.get(String(r.question_id))
+    const h = q && q.help && typeof q.help === 'object' ? q.help as Record<string, unknown> : null
+    if (!h) continue
+    r.help_used = true
+    if (h.mode === 'variant' && h.status === 'done') { r.help_variant = true; continue }
+    r.help_cap = HELP_CAP
+    if (typeof r.score === 'number' && r.score > HELP_CAP) { r.help_raw_score = r.score; r.score = HELP_CAP }
   }
 }
 
@@ -1154,9 +1126,11 @@ function computeNetSummary(results: Array<Record<string, unknown>>, scoring: unk
     if (!r || r.type !== 'multiple_choice') continue
     total++
     if (!String(r.student_answer ?? '').trim()) blank++
-    else if (r.is_correct === true || r.score === 100) correct++
+    // FAZ 7: yardımla doğru (tavanlı) soru tavanı kadar doğru sayılır
+    else if (r.is_correct === true || r.score === 100) correct += typeof r.help_cap === 'number' ? r.help_cap / 100 : 1
     else wrong++
   }
+  correct = Math.round(correct * 100) / 100
   const net = Math.round((correct - wrong / k) * 100) / 100
   return { enabled: true, wrong_per_correct: k, mc_total: total, correct, wrong, blank, net }
 }
@@ -1540,6 +1514,7 @@ ${JSON.stringify(batch.map(c => ({
     }
 
     results.sort((a, b) => a.question_id - b.question_id)
+    applyHelp(results, questions)
 
     const finalGrade = computeExamGrade(results, exam.scoring)
     if (finalGrade === null) {
@@ -1553,26 +1528,16 @@ ${JSON.stringify(batch.map(c => ({
     // konu ustalığı şansla ya da ipucuyla gelen doğruyu zayıf kanıt sayar.
     markConfidence(results, flags, exam.hints_used)
 
-    // FAZ 6.3: ödev — geç teslim kesintisi, gizli cevaplar
-    const asg = exam.assignment_id && exam.scoring && typeof exam.scoring === 'object' && (exam.scoring as Record<string, unknown>).assignment && typeof (exam.scoring as Record<string, unknown>).assignment === 'object'
-      ? (exam.scoring as Record<string, unknown>).assignment as Record<string, unknown> : null
-    const late = assignmentLatePenalty(asg, Date.now())
-    const gradeToStore = late.pct > 0 ? Math.round(finalGrade * (100 - late.pct)) / 100 : finalGrade
-    const reveal = assignmentReveal(asg)
-    const storedResults = reveal.hidden ? results.map(r => redactAssignmentResult(r, isTr)) : results
-    const examPatch: Record<string, unknown> = {
-      answers: answers,
-      question_results: storedResults,
-      grade: gradeToStore,
-      completed_at: new Date().toISOString()
-    }
-    if (asg) examPatch.scoring = { ...(exam.scoring as Record<string, unknown>), assignment: { ...asg, late_days: late.days, late_applied: late.pct > 0 ? { days: late.days, pct: late.pct, raw_grade: finalGrade } : null, answers_hidden: reveal.hidden, reveal_at: reveal.revealAt } }
-
     // Koşullu tamamlama: completed_at hâlâ boşsa yaz. Aynı anda gelen ikinci
     // gönderim burada satır bulamaz ve 409 alır.
     const { data: updatedExam, error: updateError } = await serviceClient
       .from('exams')
-      .update(examPatch)
+      .update({
+        answers: answers,
+        question_results: results,
+        grade: finalGrade,
+        completed_at: new Date().toISOString()
+      })
       .eq('id', examId)
       .is('completed_at', null)
       .select()
@@ -1590,8 +1555,6 @@ ${JSON.stringify(batch.map(c => ({
     // başarısız olursa not yine kaydedilmiş durumda, öğrenci etkilenmez.
     try {
       const rows = buildAttemptRows(exam, questions, results, flags, exam.hints_used)
-      // FAZ 6.3: cevaplar gizliyken öğrencinin okuyabildiği tabloda anahtar olmasın
-      if (reveal.hidden) rows.forEach(r => { r.answer_key = null })
       if (rows.length > 0) {
         const { error: attemptsError } = await serviceClient
           .from('question_attempts')
@@ -1605,14 +1568,6 @@ ${JSON.stringify(batch.map(c => ({
       const { error: draftError } = await serviceClient.from('exam_drafts').delete().eq('exam_id', exam.id)
       if (draftError) console.warn('grade-exam: exam_drafts silinemedi:', draftError.message)
     } catch (_e) { /* tablo yoksa önemli değil */ }
-
-    // FAZ 6.3: tam sonuç ayrı tabloda; öğrenci reveal_at geçince okur
-    if (reveal.hidden) {
-      const { error: hidErr } = await serviceClient.from('exam_hidden_results')
-        .upsert({ exam_id: exam.id, user_id: exam.user_id, results, reveal_at: reveal.revealAt }, { onConflict: 'exam_id' })
-      if (hidErr) console.warn('grade-exam: exam_hidden_results yazilamadi (20261028b calistirildi mi?):', hidErr.message)
-    }
-    if (asg) console.log(`grade-exam: odev ${exam.assignment_id} not ${finalGrade}${late.pct ? ` → ${gradeToStore} (gec ${late.days} gun, %${late.pct})` : ''}${reveal.hidden ? `, cevaplar gizli (${reveal.revealAt || 'hic'})` : ''}`)
 
     return json(updatedExam, 200)
 

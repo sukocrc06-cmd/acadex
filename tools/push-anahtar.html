@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Acadex · Bildirim anahtarları</title>
+<!--
+  Acadex telefon bildirimleri için anahtar üretici (29.10.2026).
+  Her şey bu tarayıcıda üretilir (Web Crypto); hiçbir değer bir yere gönderilmez,
+  kaydedilmez. Sayfayı kapatınca değerler kaybolur. Bir kez kullanılır:
+  aynı anahtarlar kalmalı; yeniden üretilirse herkesin aboneliği geçersiz olur.
+-->
+<style>
+:root{--n:#0D1838;--i:#1A2A5C;--p:#FFFDF8;--b:#2F6BFF;--g:#2E9E6B;--r:#B5432F;--soft:#5B6787}
+*{box-sizing:border-box}
+body{margin:0;background:var(--p);color:var(--i);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:32px 18px 60px}
+h1{margin:0 0 4px;font-size:26px;letter-spacing:-.01em}
+.k{font:600 11px/1 ui-monospace,monospace;letter-spacing:.16em;color:var(--b)}
+p{margin:8px 0}
+.warn{margin:16px 0;padding:12px 14px;border:1.5px solid var(--r);border-radius:12px;background:#FFF3EF}
+button{font:inherit;cursor:pointer}
+.go{margin:12px 0 4px;padding:12px 20px;border:0;border-radius:12px;background:var(--n);color:#fff;font-weight:700}
+.go:disabled{opacity:.5}
+ol{padding-left:22px}
+li{margin:22px 0}
+li h2{margin:0 0 4px;font-size:17px}
+.row{display:flex;align-items:center;gap:8px;margin:8px 0}
+.row b{flex:none;width:170px;font:600 12.5px ui-monospace,monospace}
+.row code{flex:1;min-width:0;padding:8px 10px;border:1.4px solid #D6DCE8;border-radius:10px;background:#fff;font:12.5px ui-monospace,monospace;overflow-wrap:anywhere}
+.row button{flex:none;padding:7px 12px;border:1.4px solid var(--i);border-radius:10px;background:#fff}
+.row button.ok{border-color:var(--g);color:var(--g)}
+.hint{font-size:13px;color:var(--soft)}
+[hidden]{display:none!important}
+@media (max-width:600px){.row{flex-wrap:wrap}.row b{width:100%}}
+</style>
+</head>
+<body>
+<main>
+<span class="k">ACADEX · TELEFON BİLDİRİMLERİ</span>
+<h1>Bildirim anahtarlarını üret</h1>
+<p>Bu sayfa Web Push için gereken anahtarları <b>senin tarayıcında</b> üretir. Hiçbir değer bir yere gönderilmez ve kaydedilmez; sayfayı kapatınca kaybolur.</p>
+<div class="warn"><b>Yalnız bir kez yap.</b> Anahtarlar Supabase'e girildikten sonra değiştirilirse herkesin bildirim aboneliği geçersiz olur ve yeniden açmaları gerekir. Değerleri kimseyle paylaşma, sohbete yapıştırma.</div>
+<button type="button" class="go" id="go">Anahtarları üret</button>
+
+<ol id="out" hidden>
+  <li><h2>Supabase → Edge Functions → Secrets</h2>
+    <p class="hint">Her satırı ayrı bir gizli değişken olarak ekle (ad solda, değer sağda).</p>
+    <div class="row"><b>VAPID_PUBLIC_KEY</b><code id="pub"></code><button type="button" data-c="pub">kopyala</button></div>
+    <div class="row"><b>VAPID_PRIVATE_KEY</b><code id="priv"></code><button type="button" data-c="priv">kopyala</button></div>
+    <div class="row"><b>VAPID_SUBJECT</b><code id="sub">mailto:destek@acadex.com.tr</code><button type="button" data-c="sub">kopyala</button></div>
+    <div class="row"><b>PUSH_SECRET</b><code id="sec"></code><button type="button" data-c="sec">kopyala</button></div>
+  </li>
+  <li><h2>Supabase → SQL Editor</h2>
+    <p class="hint">Bu satırı çalıştır; veritabanı gönderici fonksiyonu bu gizli değerle dürter. Değer PUSH_SECRET ile aynıdır.</p>
+    <div class="row"><b>SQL</b><code id="sql"></code><button type="button" data-c="sql">kopyala</button></div>
+  </li>
+  <li><h2>Bitti</h2><p>Sayfayı kapatabilirsin. Açık anahtar zaten gizli değil; tarayıcılar onu gönderici fonksiyondan kendileri alır.</p></li>
+</ol>
+</main>
+<script>
+(function () {
+  'use strict';
+  var b64u = function (buf) { var s = '', a = new Uint8Array(buf); for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  var unb64u = function (s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var b = atob(s), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; };
+  var $ = function (id) { return document.getElementById(id); };
+  $('go').addEventListener('click', async function () {
+    var btn = this; btn.disabled = true;
+    try {
+      var kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+      var jwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+      var x = unb64u(jwk.x), y = unb64u(jwk.y), pub = new Uint8Array(65);
+      pub[0] = 4; pub.set(x, 1); pub.set(y, 33);
+      var sec = b64u(crypto.getRandomValues(new Uint8Array(32)));
+      $('pub').textContent = b64u(pub);
+      $('priv').textContent = jwk.d;
+      $('sec').textContent = sec;
+      $('sql').textContent = "select vault.create_secret('" + sec + "', 'push_secret');";
+      $('out').hidden = false; btn.textContent = 'Üretildi'; btn.hidden = true;
+    } catch (e) { btn.disabled = false; alert('Bu tarayıcı anahtar üretemedi: ' + e.message); }
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-c]'); if (!b) return;
+    var t = $(b.getAttribute('data-c')).textContent;
+    var done = function () { b.textContent = 'kopyalandı'; b.classList.add('ok'); setTimeout(function () { b.textContent = 'kopyala'; b.classList.remove('ok'); }, 1600); };
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(done, function () {});
+  });
+})();
+</script>
+</body>
+</html>

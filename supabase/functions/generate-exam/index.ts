@@ -2094,7 +2094,7 @@ function conceptMastery(exams: unknown, opts?: { now?: number }): ConceptMastery
       const k = conceptKey(r.concept)
       if (!k) return
       const score = Math.max(0, Math.min(100, Number(r.score) || 0))
-      const conf = score >= 50 ? (r.flagged ? 0.6 : 1) * (r.hint_used ? 0.5 : 1) : 1
+      const conf = score >= 50 ? (r.flagged ? 0.6 : 1) * (r.hint_used || r.help_used ? 0.5 : 1) : 1
       const c = (score >= 50 ? score / 100 : score / 200) * conf
       ;(groups[k] = groups[k] || { name: String(r.concept).trim(), obs: [] }).obs.push({ c: c, g: guessRate(r.type, optionCount) })
     })
@@ -2223,7 +2223,7 @@ function calcFormulaKey(q: Record<string, unknown>): string | null {
   return `${q.formula.replace(/\s+/g, '')}|${vars}`
 }
 
-/** FAZ 6.5: doğrulanamayan hesap sorusunda cevap, çözümün son adımındaki
+/** Doğrulanamayan hesap sorusunda cevap, çözümün son adımındaki
  *  sayılardan biri olmalı (adım yoksa ya da son adımda sayı yoksa kabul). */
 function unverifiedAnswerConsistent(steps: unknown, answer: number): boolean {
   const list = Array.isArray(steps) ? steps.map(s => String(s ?? '')).filter(s => s.trim()) : []
@@ -2296,7 +2296,7 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     if (!check.ok) {
       const n = answerNumber(q.correct_answer)
       if (!allowUnverifiedCalc || check.reason === 'calc_mismatch' || !Number.isFinite(n)) return { ok: false, reason: check.reason }
-      // Canlı ödev testi (28.10.2026): "denge fiyatı ve miktarı" soran soruda
+      // Canlı test (28.10.2026): "denge fiyatı ve miktarı" soran soruda
       // cevap 4, kendi çözüm adımları ise Q*=3, P*=5 diyordu. Doğrulanamayan
       // soruda cevap, son çözüm adımındaki sayılardan biri değilse soru atılır.
       if (!unverifiedAnswerConsistent(q.solution_steps, n)) return { ok: false, reason: 'calc_unverified_inconsistent' }
@@ -2863,19 +2863,29 @@ async function loadDocumentChunks(client: ReturnType<typeof createClient>, docum
 }
 
 // ==========================================================================
-// FAZ 6.3 — ÖDEVİ BAŞLATMA (28.10.2026)
+// FAZ 7 — SINAVDA ADIM ADIM YARDIM (29.10.2026)
 //
-// Öğrenci "başla" der: { assignmentStart: <ödev id> }. Model çağrılmaz.
-// Kurallar (üyelik, açılış, son teslim ve geç pencere, deneme hakkı, yarım
-// deneme) SQL'de: assignment_begin yalnızca service_role'e açık ve soruları
-// cevap anahtarıyla döndürür. Burada öğrenciye özel kopya kurulur:
-//   - sıra karıştırma (soru ve şık; keep_order şıklara dokunulmaz)
-//   - "öğrenciye özel sayılar": şablonlu hesap sorusunda makeVariant (aşağıdaki
-//     üç fonksiyon js/exam-engine.js'ten BİREBİR kopya; tests/exam-assignment-
-//     student.js iki kopyayı aynı rastgele sayılarla karşılaştırır)
-//   - süre: kendi süresi ile teslim penceresinin sonundan kısa olanı; ödev
-//     sınavı is_simulation (ipucu yok, süre sunucuda denetlenir)
-// Sonra her sınav gibi: genel sorular exams'e, anahtar exam_answer_keys'e.
+// Alıştırma sınavında (simülasyon değil) öğrenci bir soruda "adım adım çöz"
+// der; soru 2–4 küçük adıma bölünür, her adımın cevabı SUNUCUDA denetlenir
+// (adım cevapları tarayıcıya gitmez; exam_answer_keys.keys[id].help_plan).
+//   - Kodla doğrulanmış hesap sorusu ('calc'): model yalnızca ara büyüklüğün
+//     İFADESİNİ yazar (değişken adlarıyla); değeri evaluateExpression hesaplar.
+//     Son adım her zaman sorunun kendi cevabı (formülden). Yanlış adımda ipucu
+//     ifadenin kendisi.
+//   - Öteki sorular ('guide'): model 2–3 yönlendirici çoktan seçmeli soru
+//     yazar; son cevabı ele veren adım atılır.
+//   - Yanlışta bir deneme daha; ikinci yanlışta adımın cevabı gösterilir.
+// Puan (kullanıcı kararı, MyLab "Help Me Solve This" gibi):
+//   - Şablonlu hesap sorusu ('variant'): yardım bitince soru YENİ SAYILARLA
+//     gelir; yeni hali çözülürse tam puan. Yeni sayılar yardım başlarken
+//     hesaplanır, yardım kapanınca soruya yazılır.
+//   - Ötekiler ('cap'): soru aynı kalır, en çok HELP_CAP puan.
+//   - Yardım açılıp yeni sayılar yazılmadan teslim edilirse de tavan uygulanır.
+// İz: exams.questions[i].help = { mode, status } (yalnızca sunucu yazar;
+// questions alanı exams_guard_grading_fields ile kilitli). Migration yok.
+//
+// makeVariant ve yardımcıları js/exam-engine.js'ten BİREBİR kopya;
+// tests/exam-help.js iki kopyayı aynı rastgele sayılarla karşılaştırır.
 // ==========================================================================
 
 const TEMPLATE_PH = /\{([A-Za-z_][A-Za-z0-9_]*)(?:([*/])(-?\d+(?:\.\d+)?))?\}/g
@@ -2946,103 +2956,310 @@ function makeVariant(practice: Record<string, unknown>, lang: string, rand?: () 
   return null
 }
 
-/** Ödevin sorularından öğrenciye özel kopya. rand testte sabitlenebilsin diye. */
-function buildAssignmentQuestions(questions: unknown, settings: Record<string, unknown>, lang: string, rand: () => number = Math.random): Record<string, unknown>[] {
-  const src = (Array.isArray(questions) ? questions : []).filter(q => q && typeof q === 'object') as Record<string, unknown>[]
-  let qs = src.map((q, i) => {
-    // src: ödevdeki asıl sıra (FAZ 6.4 soru analizi karışık sırayı buna göre toplar)
-    const o: Record<string, unknown> = { ...q, src: i }
-    delete o.author; delete o.edited; delete o.id
-    if (o.type === 'multiple_choice' && Array.isArray(o.options) && o.keep_order !== true && settings.shuffle !== false) o.options = shuffleInPlace([...(o.options as string[])], rand)
-    if (settings.vary_numbers === true && o.type === 'calculation' && typeof o.template === 'string' && typeof o.formula === 'string' && o.variables && typeof o.variables === 'object' && !o.chart) {
-      const v = makeVariant(o, lang, rand)
-      if (v) {
-        o.question = v.text; o.variables = v.variables; o.correct_answer = v.answer; o.varied = true
-        // eski sayılara bağlı alanlar: yeni sayılarla yanlış olur
-        for (const k of ['solution_steps', 'common_errors', 'explanation', 'step_kind', 'equation', 'unknown', 'option_rationales']) delete o[k]
-      }
-    }
-    return o
-  })
-  if (settings.shuffle !== false) qs = shuffleInPlace(qs, rand)
-  return qs.map((q, i) => ({ ...q, id: i + 1 }))
+// ---- (kopya bloğun sonu) ----
+
+const HELP_CAP = 50
+const HELP_TRIES = 2
+const HELP_MAX_STEPS = 4
+const HELP_PROMPT_MAX = 220
+const HELP_EXPLAIN_MAX = 240
+
+type HelpStep = { kind: 'number' | 'choice'; prompt: string; answer: number; options?: string[]; unit?: string; hint?: string; explain?: string }
+type HelpPlan = { kind: 'calc' | 'guide'; mode: 'variant' | 'cap'; steps: HelpStep[]; cur: number; tries: number; log: Array<{ n: number; ok: boolean; revealed?: boolean }>; variant?: { text: string; variables: Record<string, number>; answer: number } | null; closed?: boolean }
+
+/** Kodla doğrulanmış hesap sorusu mu (formül + değişken + doğrulanmış cevap). */
+function helpIsCalc(q: Record<string, unknown>): boolean {
+  if (q.type !== 'calculation' || q.chart) return false
+  const vars = sanitizeVariables(q.variables)
+  if (!Object.keys(vars).length || typeof q.formula !== 'string' || !q.formula.trim()) return false
+  const v = evaluateExpression(q.formula, vars)
+  const ans = answerNumber(q.correct_answer)
+  return Number.isFinite(v) && Number.isFinite(ans) && withinTolerance(v, ans, 0.5)
 }
 
-async function startAssignmentExam(serviceClient: any, userId: string, assignmentId: string): Promise<Response> {
-  const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-  const { data: b, error: bErr } = await serviceClient.rpc('assignment_begin', { p_id: assignmentId, p_user: userId })
-  if (bErr || !b) {
-    const msg = String(bErr?.message || '')
-    return reply({ error: /could not find|PGRST202|does not exist/i.test(msg) ? 'Ödevler şu an açılamıyor (veritabanı adımı eksik).' : (msg || 'Ödev başlatılamadı.') }, bErr && /could not find|PGRST202/i.test(msg) ? 503 : 403)
+/** İfadedeki değişken adlarını değerleriyle yazar ("r / 12" → "(5) / 12"). */
+function helpInlineExpr(expr: string, vars: Record<string, number>, lang: string): string {
+  let s = expr
+  for (const k of Object.keys(vars).sort((a, b) => b.length - a.length)) {
+    s = s.replace(new RegExp(`(^|[^A-Za-z0-9_])${k}(?![A-Za-z0-9_(])`, 'g'), (_m, pre) => `${pre}${formatNumber(tidy(vars[k]), lang)}`)
   }
-  if (b.resume_exam_id) {
-    const { data: ex } = await serviceClient.from('exams').select('*').eq('id', b.resume_exam_id).single()
-    return ex ? reply({ ...ex, resumed: true }) : reply({ error: 'Yarım kalan deneme bulunamadı.' }, 404)
+  return s.replace(/\*/g, '×')
+}
+
+function helpRound(n: number): number { return Math.round(n * 1e6) / 1e6 }
+
+function helpText(v: unknown, max: number): string {
+  return String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
+/** Modelin hesap adımları → kodla hesaplanmış adımlar. Son adım her zaman
+ *  sorunun cevabı. En az 2 adım çıkmazsa null (öğretici yol denenir). */
+function normalizeCalcSteps(raw: unknown, q: Record<string, unknown>, lang: string): HelpStep[] | null {
+  const vars = sanitizeVariables(q.variables)
+  const answer = answerNumber(q.correct_answer)
+  if (!Number.isFinite(answer)) return null
+  const list = Array.isArray(raw) ? raw : []
+  const steps: HelpStep[] = []
+  const seen: number[] = []
+  const unitOf = (u: unknown) => helpText(u, 16)
+  for (const it of list) {
+    if (steps.length >= HELP_MAX_STEPS - 1) break
+    if (!it || typeof it !== 'object') continue
+    const o = it as Record<string, unknown>
+    const expr = String(o.expr ?? '').trim()
+    const prompt = helpText(o.prompt, HELP_PROMPT_MAX)
+    if (!expr || !prompt || expr.length > EXPR_MAX_LENGTH) continue
+    const v = evaluateExpression(expr, vars)
+    if (!Number.isFinite(v)) continue
+    // girdiyi aynen soran (tek değişken ya da sabit) ve tekrar eden adım atılır
+    if (Object.keys(vars).some(k => sameNumber(vars[k], v)) || /^[\d.\s]+$/.test(expr)) continue
+    if (seen.some(x => sameNumber(x, v)) || withinTolerance(v, answer, 0.1)) continue
+    seen.push(v)
+    steps.push({ kind: 'number', prompt, answer: helpRound(v), unit: unitOf(o.unit), hint: expr.replace(/\*/g, '×'), explain: `${helpInlineExpr(expr, vars, lang)} = ${formatNumber(helpRound(v), lang)}` })
   }
-  const settings = (b.settings && typeof b.settings === 'object' ? b.settings : {}) as Record<string, unknown>
-  const lang = settings.language === 'en' ? 'en' : 'tr'
-  const qs = buildAssignmentQuestions(b.questions, settings, lang)
-  if (!qs.length) return reply({ error: 'Bu ödevde soru yok.' }, 409)
-  const now = Date.now()
-  const windowLeft = Math.floor((Date.parse(String(b.window_end)) - now) / 1000)
-  const own = Number(settings.time_limit_minutes) > 0 ? Number(settings.time_limit_minutes) * 60 : Infinity
-  const limit = Math.max(60, Math.min(own, windowLeft))
-  const publicQuestions: Record<string, unknown>[] = []
-  const answerKeys: Record<string, Record<string, unknown>> = {}
-  for (const q of qs) { const { pub, key } = splitPublicAndKey(q); publicQuestions.push(pub); answerKeys[String(q.id)] = key }
-  const sc = (settings.scoring && typeof settings.scoring === 'object' ? settings.scoring : {}) as Record<string, unknown>
-  const showAnswers = ['after_submit', 'after_due', 'never'].includes(String(settings.show_answers)) ? String(settings.show_answers) : 'after_due'
-  const payload: Record<string, unknown> = {
-    user_id: userId,
-    exam_type: settings.exam_type || 'mixed',
-    language: lang,
-    question_count: qs.length,
-    questions: publicQuestions,
-    answers: null, question_results: null, grade: null, completed_at: null,
-    // karne masası: sınıfın ders kodu (yoksa sınıf adı) altında
-    source_type: 'course',
-    study_card_id: null,
-    course_code: String(b.course_code || b.class_name || 'ÖDEV').slice(0, 40),
-    is_grounded: true,
-    is_simulation: true,
-    time_limit_seconds: limit,
-    started_at: new Date(now).toISOString(),
-    assignment_id: b.assignment_id,
-    attempt_no: b.attempt_no,
-    scoring: {
-      option_count: Number(sc.option_count) === 5 ? 5 : 4,
-      negative_marking: sc.negative_marking === true,
-      wrong_per_correct: Number(sc.wrong_per_correct) === 4 ? 4 : 3,
-      ...(Number(sc.decimal_places) >= 2 ? { decimal_places: Number(sc.decimal_places) } : {}),
-      assignment: {
-        id: b.assignment_id, title: b.title, class_name: b.class_name, instructions: b.instructions || '',
-        due_at: b.due_at, window_end: b.window_end, attempt_no: b.attempt_no, attempts: Number(settings.attempts) || 1,
-        time_limit_minutes: Number(settings.time_limit_minutes) || null, show_answers: showAnswers,
-        late: settings.late === 'penalty' ? { pct: Number(settings.late_penalty_pct) || 10, days: Number(settings.late_days) || 1 } : null,
-        late_days: Number(b.late_days) || 0,
-        varied: qs.some(q => q.varied === true)
-      }
+  if (!steps.length) return null
+  const formula = String(q.formula)
+  steps.push({
+    kind: 'number',
+    prompt: lang === 'en' ? 'Last step: now compute the answer to the question.' : 'Son adım: şimdi sorunun cevabını hesapla.',
+    answer: helpRound(answer),
+    unit: unitOf(q.units),
+    hint: formula.replace(/\*/g, '×'),
+    explain: `${helpInlineExpr(formula, vars, lang)} = ${formatNumber(helpRound(answer), lang)}`
+  })
+  return steps
+}
+
+/** Cevabı ele veren metin mi (yönlendirici adımlarda yasak). */
+function helpLeaksAnswer(text: string, q: Record<string, unknown>): boolean {
+  const t = normalizeAnswerText(text)
+  if (!t) return false
+  const answers = [q.correct_answer, ...(Array.isArray(q.accepted_answers) ? q.accepted_answers : [])]
+    .map(a => normalizeAnswerText(a)).filter(a => a.length >= 2)
+  if (q.type === 'true_false' || q.type === 'open_ended') return false
+  if (q.type === 'calculation') {
+    const n = answerNumber(q.correct_answer)
+    if (Number.isFinite(n)) return (String(text).match(/-?\d+(?:[.,]\d+)*/g) || []).some(tok => numberReadings(tok).some(x => withinTolerance(x, n, 0.5)))
+  }
+  return answers.some(a => t === a || (a.length >= 4 && t.includes(a)))
+}
+
+/** Modelin yönlendirici soruları → 2–3 doğrulanmış çoktan seçmeli adım. */
+function normalizeGuideSteps(raw: unknown, q: Record<string, unknown>, rand: () => number = Math.random): HelpStep[] | null {
+  const list = Array.isArray(raw) ? raw : []
+  const steps: HelpStep[] = []
+  for (const it of list) {
+    if (steps.length >= 3) break
+    if (!it || typeof it !== 'object') continue
+    const o = it as Record<string, unknown>
+    const prompt = helpText(o.prompt, HELP_PROMPT_MAX)
+    const opts = (Array.isArray(o.options) ? o.options : []).map(x => helpText(x, 120)).filter(Boolean)
+    const ai = Number(o.answer_index)
+    if (!prompt || opts.length < 2 || opts.length > 4 || !Number.isInteger(ai) || ai < 0 || ai >= opts.length) continue
+    if (new Set(opts.map(x => normalizeAnswerText(x))).size !== opts.length) continue
+    if (helpLeaksAnswer(prompt, q) || opts.some(x => helpLeaksAnswer(x, q))) continue
+    const correct = opts[ai]
+    const shuffled = shuffleInPlace([...opts], rand)
+    steps.push({ kind: 'choice', prompt, options: shuffled, answer: shuffled.indexOf(correct), hint: helpText(o.hint, HELP_EXPLAIN_MAX) || undefined, explain: helpText(o.explain, HELP_EXPLAIN_MAX) || undefined })
+  }
+  return steps.length >= 2 ? steps : null
+}
+
+/** Adım cevabı doğru mu. Sayıda %1 pay (1'den büyük sayıda en az 0,005); "%5" ile "0,05" gibi
+ *  okunuşların hepsi denenir. Seçmede şık sırası. */
+function checkHelpStep(step: HelpStep, input: unknown): boolean {
+  if (step.kind === 'choice') return Number(input) === step.answer
+  const raw = String(input ?? '').trim()
+  if (!raw || !/\d/.test(raw)) return false
+  const cands = [answerNumber(raw), ...numberReadings(raw.replace(/^.*[=≈]/, '').replace(/[^\d.,\-+eE]/g, ''))]
+  if (/%/.test(raw)) cands.push(...cands.map(x => x / 100))
+  return cands.some(x => Number.isFinite(x) && (withinTolerance(x, step.answer, 1) || (Math.abs(step.answer) >= 1 && Math.abs(x - step.answer) <= 0.005)))
+}
+
+/** Tarayıcıya giden adım: cevap ve ipucu yok. */
+function publicHelpStep(plan: HelpPlan): Record<string, unknown> | null {
+  const s = plan.steps[plan.cur]
+  if (!s) return null
+  return { n: plan.cur, total: plan.steps.length, kind: s.kind, prompt: s.prompt, ...(s.options ? { options: s.options } : {}), ...(s.unit ? { unit: s.unit } : {}), tries_left: HELP_TRIES - plan.tries }
+}
+
+function helpShownAnswer(s: HelpStep, lang: string): string {
+  return s.kind === 'choice' ? String((s.options || [])[s.answer] ?? '') : formatNumber(s.answer, lang) + (s.unit ? ' ' + s.unit : '')
+}
+
+/** Adım cevabını işler; planı (kopya olarak) ve yanıtı döndürür. */
+function advanceHelp(planIn: HelpPlan, n: number, input: unknown, lang: string): { plan: HelpPlan; reply: Record<string, unknown> } {
+  const plan: HelpPlan = { ...planIn, log: [...(planIn.log || [])] }
+  const s = plan.steps[plan.cur]
+  if (!s || n !== plan.cur) return { plan, reply: { error: 'step_mismatch', step: publicHelpStep(plan) } }
+  const ok = checkHelpStep(s, input)
+  if (!ok && plan.tries + 1 < HELP_TRIES) {
+    plan.tries += 1
+    return { plan, reply: { correct: false, hint: s.hint || (lang === 'en' ? 'Not quite; try once more.' : 'Olmadı; bir kez daha dene.'), step: publicHelpStep(plan) } }
+  }
+  plan.log.push({ n: plan.cur, ok, ...(ok ? {} : { revealed: true }) })
+  plan.cur += 1
+  plan.tries = 0
+  const next = publicHelpStep(plan)
+  return { plan, reply: { correct: ok, revealed: !ok, answer: helpShownAnswer(s, lang), explain: s.explain || '', step: next, done: !next } }
+}
+
+/** Yardım bitince öğrenciye özel yeni sayılar: soru metni ve anahtar. Eski
+ *  sayılara bağlı alanlar (çözüm adımları, açıklama, tipik hatalar, ipucu,
+ *  denklem) atılır; şablon ve formül kalır ("farklı sayılarla" sürer). */
+function applyHelpVariant(key: Record<string, unknown>, v: { text: string; variables: Record<string, number>; answer: number }): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...key, variables: v.variables, correct_answer: v.answer, varied: true }
+  for (const k of ['solution_steps', 'explanation', 'common_errors', 'hint', 'equation', 'step_kind', 'unknown']) delete out[k]
+  return out
+}
+
+const HELP_SYS_CALC = `
+You design step-by-step help for ONE calculation exam question. The user message gives the question, its variables (name = value), the verified formula and the target language.
+Break the solution into 1-3 intermediate quantities the student computes BEFORE the final answer (the final answer step is added automatically; do NOT include it).
+Return ONLY JSON: {"steps":[{"prompt":"...","expr":"...","unit":"..."}]}
+- expr: an arithmetic expression using ONLY the given variable names, numbers, + - * / ^ ( ) and the functions used in the formula. It must evaluate to that intermediate quantity.
+- prompt: in the target language, at most 140 characters, names the quantity and how it is found, e.g. "Aylık faiz oranı i = r / 12 kaç?". Never write its numeric result.
+- unit: short unit or "".
+- Order steps as a student would solve it. Never repeat a given value as a step.
+`.trim()
+
+const HELP_SYS_GUIDE = `
+You design step-by-step help for ONE exam question. The user message gives the question, its type, the options if any, the correct answer and the target language.
+Write 2-3 short multiple-choice guiding questions that walk the student from the key idea to applying it, so they can then answer the original question themselves.
+Return ONLY JSON: {"steps":[{"prompt":"...","options":["...","...","..."],"answer_index":0,"hint":"...","explain":"..."}]}
+- Everything in the target language. prompt at most 160 characters; 3 options, each at most 80 characters; exactly one correct.
+- NEVER state, quote or paraphrase the correct answer of the original question, and no option may be that answer.
+- hint: one sentence that nudges without giving the step's answer. explain: one sentence on why the right option is right.
+`.trim()
+
+function helpUserPrompt(q: Record<string, unknown>, kind: 'calc' | 'guide', lang: string): string {
+  const lines = [`TARGET LANGUAGE: ${lang} (en = English, tr = Turkish)`, `QUESTION TYPE: ${q.type}`, `QUESTION: ${String(q.question ?? '').slice(0, 1500)}`]
+  if (kind === 'calc') {
+    const vars = sanitizeVariables(q.variables)
+    lines.push(`VARIABLES: ${Object.entries(vars).map(([k, v]) => `${k} = ${v}`).join(', ')}`, `FORMULA: ${q.formula}`)
+    if (Array.isArray(q.solution_steps) && q.solution_steps.length) lines.push(`MODEL SOLUTION (for reference): ${q.solution_steps.map(s => String(s)).join(' | ').slice(0, 800)}`)
+  } else {
+    if (Array.isArray(q.options) && q.options.length) lines.push(`OPTIONS: ${JSON.stringify(q.options)}`)
+    lines.push(`CORRECT ANSWER (never reveal): ${String(q.correct_answer ?? '').slice(0, 600)}`)
+    if (q.explanation) lines.push(`WHY: ${String(q.explanation).slice(0, 600)}`)
+  }
+  return lines.join('\n')
+}
+
+/** Yardım planı için tek model çağrısı (büyük model, kotası dolarsa küçüğü). */
+async function requestHelpSteps(system: string, user: string): Promise<unknown[] | null> {
+  const key = Deno.env.get('GROQ_API_KEY')
+  if (!key) return null
+  for (const model of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, temperature: 0.4, reasoning_effort: 'low', max_completion_tokens: 1400, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { console.warn(`generate-exam yardim: ${model} ${res.status} ${String(data?.error?.message || '').slice(0, 160)}`); continue }
+      const parsed = JSON.parse(fixJsonEscapes(String(data.choices?.[0]?.message?.content ?? '{}')))
+      if (parsed && Array.isArray(parsed.steps)) return parsed.steps
+    } catch (e) {
+      console.warn(`generate-exam yardim: ${model} yanit okunamadi`, e)
     }
   }
-  const { data: newExam, error: insErr } = await serviceClient.from('exams').insert(payload).select().single()
-  if (insErr || !newExam) {
-    // aynı anda iki "başla": benzersiz indeks ikinciyi durdurur → var olana dön
-    if (insErr && /duplicate|unique/i.test(String(insErr.message))) {
-      const { data: ex } = await serviceClient.from('exams').select('*').eq('assignment_id', b.assignment_id).eq('user_id', userId).is('completed_at', null).maybeSingle()
-      if (ex) return reply({ ...ex, resumed: true })
+  return null
+}
+
+/** POST { help: { examId, questionId, action: 'info'|'start'|'check'|'finish', step?, answer? } } */
+async function handleExamHelp(req: Request, help: Record<string, unknown>): Promise<Response> {
+  const out = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader) return out({ error: 'Missing Authorization header' }, 401)
+  const url = Deno.env.get('SUPABASE_URL') ?? ''
+  const userClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: authHeader } } })
+  const { data: { user } } = await userClient.auth.getUser()
+  if (!user) return out({ error: 'Unauthorized user token' }, 401)
+  const action = String(help.action || '')
+  if (!['info', 'start', 'check', 'finish'].includes(action)) return out({ error: 'bad_action' }, 400)
+
+  const { data: exam } = await userClient.from('exams').select('*').eq('id', String(help.examId || '')).maybeSingle()
+  if (!exam || exam.user_id !== user.id) return out({ error: 'Exam not found or access denied' }, 404)
+  const lang = exam.language === 'en' ? 'en' : 'tr'
+  const T = (tr: string, en: string) => lang === 'en' ? en : tr
+  if (exam.is_simulation) return out({ error: T('Gerçek sınav provasında adım adım yardım yok.', 'Step-by-step help is off in real exam mode.') }, 403)
+  if (exam.completed_at) return out({ error: T('Bu sınav zaten teslim edildi.', 'This exam is already submitted.') }, 409)
+  const questions = (Array.isArray(exam.questions) ? exam.questions : []) as Record<string, unknown>[]
+  const qi = questions.findIndex(x => String(x.id) === String(help.questionId))
+  if (qi < 0) return out({ error: 'Question not found inside this exam' }, 404)
+  const pubQ = questions[qi]
+
+  const serviceClient = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
+  const { data: keyRow } = await serviceClient.from('exam_answer_keys').select('keys').eq('exam_id', exam.id).maybeSingle()
+  const keys = (keyRow && keyRow.keys && typeof keyRow.keys === 'object' ? keyRow.keys : {}) as Record<string, Record<string, unknown>>
+  const key = keys[String(pubQ.id)] || {}
+  const q = { ...pubQ, ...key }
+  const pubHelp = (pubQ.help && typeof pubQ.help === 'object' ? pubQ.help : null) as Record<string, unknown> | null
+  let plan = (key.help_plan && typeof key.help_plan === 'object' ? key.help_plan : null) as HelpPlan | null
+
+  const calc = helpIsCalc(q)
+  const variantOk = calc && typeof q.template === 'string' && !!makeVariant(q, lang)
+  const saveKey = async (k: Record<string, unknown>) => {
+    const { error } = await serviceClient.from('exam_answer_keys').update({ keys: { ...keys, [String(pubQ.id)]: k } }).eq('exam_id', exam.id)
+    if (error) throw error
+  }
+  const saveQuestion = async (patch: Record<string, unknown>) => {
+    const next = questions.map((x, i) => i === qi ? { ...x, ...patch } : x)
+    const { error } = await serviceClient.from('exams').update({ questions: next }).eq('id', exam.id).is('completed_at', null)
+    if (error) throw error
+    return next[qi]
+  }
+
+  if (action === 'info') {
+    return out({ mode: plan ? plan.mode : (variantOk ? 'variant' : 'cap'), status: pubHelp ? pubHelp.status : null, cap: HELP_CAP })
+  }
+  if (pubHelp && pubHelp.status === 'done') return out({ error: T('Bu soruda yardımı zaten kullandın.', 'You already used help on this question.'), code: 'help_done' }, 409)
+
+  if (action === 'start') {
+    if (plan && !plan.closed) return out({ mode: plan.mode, cap: HELP_CAP, step: publicHelpStep(plan), done: plan.cur >= plan.steps.length, resumed: true })
+    let kind: 'calc' | 'guide' = calc ? 'calc' : 'guide'
+    let steps: HelpStep[] | null = null
+    if (calc) steps = normalizeCalcSteps(await requestHelpSteps(HELP_SYS_CALC, helpUserPrompt(q, 'calc', lang)), q, lang)
+    if (!steps) { kind = 'guide'; steps = normalizeGuideSteps(await requestHelpSteps(HELP_SYS_GUIDE, helpUserPrompt(q, 'guide', lang)), q) }
+    if (!steps) return out({ error: T('Bu soru için adım adım yardım şu an hazırlanamadı; ipucu alabilirsin.', 'Step-by-step help could not be prepared for this question right now; you can take a hint.') }, 502)
+    const variant = variantOk ? makeVariant(q, lang) : null
+    plan = { kind, mode: variant ? 'variant' : 'cap', steps, cur: 0, tries: 0, log: [], variant }
+    try {
+      await saveKey({ ...key, help_plan: plan })
+      await saveQuestion({ help: { mode: plan.mode, status: 'started' } })
+    } catch (e) {
+      console.error('generate-exam yardim: kaydedilemedi', e)
+      return out({ error: T('Yardım kaydedilemedi; tekrar dene.', 'Help could not be saved; try again.') }, 500)
     }
-    console.error('generate-exam: odev sinavi kaydedilemedi', insErr)
-    return reply({ error: 'Ödev başlatılamadı: ' + (insErr?.message || 'kayıt hatası') }, 500)
+    console.log(`generate-exam yardim: soru ${pubQ.id} ${kind}/${plan.mode}, ${steps.length} adim`)
+    return out({ mode: plan.mode, cap: HELP_CAP, step: publicHelpStep(plan), done: false })
   }
-  const { error: keyErr } = await serviceClient.from('exam_answer_keys').insert({ exam_id: newExam.id, user_id: userId, keys: answerKeys })
-  if (keyErr) {
-    // anahtarsız ödev sınavı puanlanamaz: kaydı geri al
-    await serviceClient.from('exams').delete().eq('id', newExam.id)
-    console.error('generate-exam: odev anahtari yazilamadi', keyErr)
-    return reply({ error: 'Ödev başlatılamadı (cevap anahtarı kaydedilemedi).' }, 500)
+
+  if (!plan || plan.closed) return out({ error: T('Bu soruda açık bir yardım yok.', 'There is no open help on this question.') }, 409)
+
+  if (action === 'check') {
+    const r = advanceHelp(plan, Number(help.step), help.answer, lang)
+    if (r.reply.error) return out(r.reply, 409)
+    try { await saveKey({ ...key, help_plan: r.plan }) } catch (_e) { return out({ error: T('Cevap kaydedilemedi; tekrar dene.', 'Could not save; try again.') }, 500) }
+    return out(r.reply)
   }
-  console.log(`generate-exam: odev ${b.assignment_id} deneme ${b.attempt_no} basladi (${qs.length} soru, ${limit} sn${payload.scoring && (payload.scoring as any).assignment.varied ? ', ozel sayilar' : ''})`)
-  return reply(newExam)
+
+  // finish: yardım kapanır; şablonlu hesap sorusu yeni sayılarla döner
+  try {
+    if (plan.mode === 'variant' && plan.variant) {
+      await saveKey({ ...applyHelpVariant(key, plan.variant), help_plan: { ...plan, closed: true } })
+      const nq = await saveQuestion({ question: plan.variant.text, help: { mode: 'variant', status: 'done' } })
+      return out({ mode: 'variant', question: nq.question })
+    }
+    await saveKey({ ...key, help_plan: { ...plan, closed: true } })
+    await saveQuestion({ help: { mode: 'cap', status: 'done' } })
+    return out({ mode: 'cap', cap: HELP_CAP })
+  } catch (e) {
+    console.error('generate-exam yardim: kapatilamadi', e)
+    return out({ error: T('Yardım kapatılamadı; tekrar dene.', 'Could not close help; try again.') }, 500)
+  }
 }
 
 serve(async (req) => {
@@ -3059,13 +3276,10 @@ serve(async (req) => {
       })
     }
 
-    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive: adaptiveRaw, assignmentDraft, assignmentStart } = await req.json()
-    // FAZ 6.2: öğretmenin ödev taslağı. Sınav kaydı açılmaz; sorular cevaplarıyla
-    // öğretmene döner, öğretmen düzenleyip assignment_save ile kaydeder.
-    const draftMode = assignmentDraft === true
-    // FAZ 6.3: ödevi başlatma — parametreler ödevden gelir, aşağıdaki denetimler atlanır.
-    const startMode = typeof assignmentStart === 'string' && assignmentStart.length > 0
-    const adaptive = draftMode ? null : adaptiveRaw
+    const reqBody = await req.json()
+    // FAZ 7: adım adım yardım ayrı yol (sınav üretimi ve sınırları devreye girmez)
+    if (reqBody && typeof reqBody === 'object' && reqBody.help && typeof reqBody.help === 'object') return await handleExamHelp(req, reqBody.help)
+    const { studyCardId, sourceType, courseCode, courseDepartment, examType, questionCount, language, difficulty, isSimulation, focusConcept, optionCount, negativeMarking, decimalPlaces: decimalPlacesRaw, chartExamples, noGraphs, adaptive } = reqBody
     const scoring = normalizeScoring(optionCount, negativeMarking)
     // Yalnızca hesap sorusu olabilen türlerde (test ve klasikte anlamsız).
     const decimalPlaces = examType === 'calculation' || examType === 'mixed' ? normalizeDecimalPlaces(decimalPlacesRaw) : null
@@ -3076,19 +3290,19 @@ serve(async (req) => {
     // is built (pooled shared study cards for that course if any exist, else
     // a general-knowledge fallback).
     const resolvedSourceType = sourceType === 'course' ? 'course' : 'study_card'
-    if (!startMode && resolvedSourceType === 'study_card' && !studyCardId) {
+    if (resolvedSourceType === 'study_card' && !studyCardId) {
       return new Response(JSON.stringify({ error: 'Missing required parameter: studyCardId' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-    if (!startMode && resolvedSourceType === 'course' && !courseCode) {
+    if (resolvedSourceType === 'course' && !courseCode) {
       return new Response(JSON.stringify({ error: 'Missing required parameter: courseCode' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-    if (!startMode && (!examType || !questionCount || !language)) {
+    if (!examType || !questionCount || !language) {
       return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -3096,7 +3310,7 @@ serve(async (req) => {
     }
     // Arayüz 1–20 sınırını koyuyor ama sunucu da koymalı: aksi halde tek bir
     // istek 500 soruluk bir üretimle Groq kotasını tüketebilir.
-    if (!startMode && (!ALLOWED_EXAM_TYPES.includes(examType) || !ALLOWED_LANGUAGES.includes(language))) {
+    if (!ALLOWED_EXAM_TYPES.includes(examType) || !ALLOWED_LANGUAGES.includes(language)) {
       return new Response(JSON.stringify({ error: 'Geçersiz sınav türü veya dil.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -3112,7 +3326,7 @@ serve(async (req) => {
     // mimic real vize/final/büt conditions. The time budget is computed
     // server-side (not trusted from the client) from question type/count,
     // roughly matching how long each question type realistically takes.
-    const resolvedIsSimulation = !draftMode && !!isSimulation
+    const resolvedIsSimulation = !!isSimulation
     let timeLimitSeconds: number | null = null
     if (resolvedIsSimulation) {
       const secondsPerQuestion: Record<string, number> = {
@@ -3160,30 +3374,9 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
-    // FAZ 6.3: öğrencinin ödevi — model çağrılmaz, sınır sayımı yok (ödev kuralları SQL'de).
-    if (startMode) return await startAssignmentExam(serviceClient, user.id, assignmentStart)
-
-    // FAZ 6.2: ödev taslağı yalnızca etkin öğretmene; saatte 20 taslak (assignment_gen_take).
-    // Taslak sınav kaydı açmadığı için öğrenci sınav sınırına sayılmaz.
-    if (draftMode) {
-      const { data: okTake, error: takeErr } = await userClient.rpc('assignment_gen_take')
-      if (takeErr || okTake !== true) {
-        const tr = language === 'tr'
-        const notTeacher = !takeErr && okTake === false
-        return new Response(JSON.stringify({ error: takeErr
-          ? (tr ? 'Ödev taslağı şu an hazırlanamıyor (veritabanı adımı eksik olabilir).' : 'Assignment drafts are unavailable right now.')
-          : notTeacher
-            ? (tr ? 'Ödev taslağı için öğretmen yetkisi gerekli ya da son bir saatte 20 taslak sınırına ulaştın.' : 'Teacher permission required, or the hourly limit of 20 drafts was reached.')
-            : (tr ? 'Ödev taslağı hazırlanamadı.' : 'Could not prepare the draft.') }), {
-          status: takeErr ? 503 : 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
-      }
-    }
-
     // Kullanıcı başına üretim limiti. Sayım başarısız olursa (ör. created_at
     // kolonu yoksa) üretimi engelleme — en iyi gayret.
-    if (!draftMode) try {
+    try {
       const now = Date.now()
       const countSince = async (ms: number) => {
         const { count, error } = await serviceClient
@@ -3840,21 +4033,6 @@ Additional variation seed: ${Date.now()}`
       const { pub, key } = splitPublicAndKey(q)
       publicQuestions.push(pub)
       answerKeys[String(q.id)] = key
-    }
-
-    // FAZ 6.2: ödev taslağı — kayıt yok; sorular cevaplarıyla öğretmene döner.
-    if (draftMode) {
-      return new Response(JSON.stringify({
-        draft: true,
-        questions: finalQuestions,
-        exam_type: examType,
-        language,
-        difficulty: resolvedDifficulty,
-        scoring: { ...scoring, ...(decimalPlaces ? { decimal_places: decimalPlaces } : {}) },
-        source: resolvedSourceType === 'course'
-          ? { type: 'course', course_code: canonicalCourseCode, course_department: courseDeptName, is_grounded: isGrounded }
-          : { type: 'study_card', study_card_id: studyCardId }
-      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const examInsertPayload: Record<string, unknown> = {

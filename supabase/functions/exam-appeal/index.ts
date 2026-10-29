@@ -14,15 +14,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 //   action = 'report'    "Bu soru hatalı" bildirimi (anahtar yanlış, soru
 //                        belirsiz, kaynakta yok, yazım hatası, diğer).
 //                        Puanı değiştirmez.
-//   action = 'escalate'  Reddedilen itirazı öğretmene iletir (durum
-//                        'escalated'; öğretmen ekranı Faz 6.4).
-//   FAZ 6.4 — öğretmen işlemleri (yalnızca ödev sınavı, sınıfın etkin
-//   öğretmeni; exam_teacher_ok):
-//   action = 'teacher_score'  bir sorunun puanını düzeltir (yukarı ya da aşağı);
-//                        not yeniden hesaplanır (yanlış doğruyu götürür ve geç
-//                        teslim kesintisiyle); bekleyen "öğretmene ilet"
-//                        itirazı kapanır. Cevaplar gizliyse iki kopya da güncellenir.
-//   action = 'teacher_note'   öğrenciye genel not (exams.teacher_note).
 //
 // Her soru için her türden en fazla bir kayıt (exam_question_feedback,
 // unique). Kayıt önce 'open' olarak açılır, sonra sonuçlanır: aynı anda
@@ -250,9 +241,11 @@ function computeNetSummary(results: Array<Record<string, unknown>>, scoring: unk
     if (!r || r.type !== 'multiple_choice') continue
     total++
     if (!String(r.student_answer ?? '').trim()) blank++
-    else if (r.is_correct === true || r.score === 100) correct++
+    // FAZ 7: yardımla doğru (tavanlı) soru tavanı kadar doğru sayılır
+    else if (r.is_correct === true || r.score === 100) correct += typeof r.help_cap === 'number' ? r.help_cap / 100 : 1
     else wrong++
   }
+  correct = Math.round(correct * 100) / 100
   const net = Math.round((correct - wrong / k) * 100) / 100
   return { enabled: true, wrong_per_correct: k, mc_total: total, correct, wrong, blank, net }
 }
@@ -270,27 +263,21 @@ function computeExamGrade(results: Array<Record<string, unknown>>, scoring: unkn
 
 type FeedbackRequest = {
   ok: true
-  action: 'appeal' | 'report' | 'escalate' | 'teacher_score' | 'teacher_note'
+  action: 'appeal' | 'report'
   examId: string
   questionId: number
   reason: string
   category: string | null
-  score?: number
 }
-const TEACHER_NOTE_MAX = 1000
 
 /** İstek gövdesini denetler. Hata kodları errorMessage ile metne çevrilir. */
 function validateFeedbackRequest(body: unknown): FeedbackRequest | { ok: false; error: string } {
   if (!body || typeof body !== 'object') return { ok: false, error: 'bad_body' }
   const b = body as Record<string, unknown>
   const action = String(b.action ?? '')
-  if (!['appeal', 'report', 'escalate', 'teacher_score', 'teacher_note'].includes(action)) return { ok: false, error: 'bad_action' }
+  if (action !== 'appeal' && action !== 'report') return { ok: false, error: 'bad_action' }
   const examId = (typeof b.examId === 'string' || typeof b.examId === 'number') ? String(b.examId).trim() : ''
   if (!examId) return { ok: false, error: 'bad_exam' }
-  if (action === 'teacher_note') {
-    const note = typeof b.reason === 'string' ? b.reason.trim().slice(0, TEACHER_NOTE_MAX) : ''
-    return { ok: true, action, examId, questionId: 0, reason: note, category: null }
-  }
   const questionId = Number(b.questionId)
   if (!Number.isInteger(questionId) || questionId <= 0) return { ok: false, error: 'bad_question' }
   let reason = typeof b.reason === 'string' ? b.reason.replace(/\s+/g, ' ').trim() : ''
@@ -298,37 +285,13 @@ function validateFeedbackRequest(body: unknown): FeedbackRequest | { ok: false; 
   if (action === 'appeal') {
     if (reason.length < APPEAL_REASON_MIN) return { ok: false, error: 'reason_too_short' }
     reason = reason.slice(0, APPEAL_REASON_MAX)
-  } else if (action === 'report') {
+  } else {
     category = String(b.category ?? '')
     if (!REPORT_CATEGORIES.includes(category)) return { ok: false, error: 'bad_category' }
     reason = reason.slice(0, REPORT_NOTE_MAX)
     if (category === 'other' && reason.length < 5) return { ok: false, error: 'note_required' }
-  } else if (action === 'teacher_score') {
-    const score = Number(b.score)
-    if (b.score === null || b.score === '' || !Number.isFinite(score) || score < 0 || score > 100) return { ok: false, error: 'bad_score' }
-    return { ok: true, action, examId, questionId, reason: reason.slice(0, REPORT_NOTE_MAX), category: null, score: Math.round(score) }
-  } else {
-    reason = reason.slice(0, REPORT_NOTE_MAX)
   }
-  return { ok: true, action: action as FeedbackRequest['action'], examId, questionId, reason, category }
-}
-
-/** FAZ 6.3: ödev sınavının cevapları gizli olarak mı kaydedildi. Açılıp açılmadığına
- *  exam_hidden_results'ın RLS'i karar verir (ödevin GÜNCEL son teslimi; 20261028c). */
-function assignmentAnswersHidden(exam: Record<string, unknown>): boolean {
-  const sc = exam && exam.scoring && typeof exam.scoring === 'object' ? exam.scoring as Record<string, unknown> : null
-  const asg = exam && exam.assignment_id && sc && sc.assignment && typeof sc.assignment === 'object' ? sc.assignment as Record<string, unknown> : null
-  return !!asg && asg.answers_hidden === true
-}
-
-/** FAZ 6.3: itirazla yeniden hesaplanan nota ödevin geç teslim kesintisi de uygulanır. */
-function withLatePenalty(grade: number | null | undefined, scoring: unknown): number | null | undefined {
-  if (grade === null || grade === undefined) return grade
-  const sc = scoring && typeof scoring === 'object' ? scoring as Record<string, unknown> : null
-  const asg = sc && sc.assignment && typeof sc.assignment === 'object' ? sc.assignment as Record<string, unknown> : null
-  const la = asg && asg.late_applied && typeof asg.late_applied === 'object' ? asg.late_applied as Record<string, unknown> : null
-  const pct = la ? Number(la.pct) : 0
-  return pct > 0 ? Math.round(grade * (100 - Math.min(100, pct))) / 100 : grade
+  return { ok: true, action, examId, questionId, reason, category }
 }
 
 function errorMessage(code: string, isTr: boolean): string {
@@ -344,14 +307,10 @@ function errorMessage(code: string, isTr: boolean): string {
     no_question: 'Bu soru sınavda bulunamadı.',
     not_appealable: 'Bu soru tipi kodla birebir puanlanıyor; hatalı olduğunu düşünüyorsan "soru hatalı" bildir.',
     already_full: 'Bu sorudan zaten tam puan aldın.',
+    help_capped: 'Bu soruda adım adım yardım kullandın; alabileceğin en yüksek puanı zaten aldın.',
     already_appealed: 'Bu soruya zaten itiraz ettin.',
     already_reported: 'Bu soruyu zaten bildirdin.',
     daily_limit: 'Bugünlük sınırına ulaştın; yarın tekrar deneyebilirsin.',
-    no_appeal: 'Bu soruya ait bir itiraz yok.',
-    not_rejected: 'Yalnızca reddedilen bir itiraz öğretmene iletilebilir.',
-    bad_score: 'Puan 0 ile 100 arasında olmalı.',
-    not_teacher: 'Bu sınavı yalnızca ödevi veren öğretmen düzenleyebilir.',
-    answers_hidden: 'Bu ödevin cevapları henüz açıklanmadı; açıklanınca itiraz edebilirsin. Cevaplar hiç gösterilmeyecekse itiraz öğretmene gider.',
     regrade_failed: 'Yeniden puanlama şu anda yapılamadı; itirazın kaydedilmedi, birazdan tekrar dene.',
     table_missing: 'İtiraz sistemi henüz kurulmadı.',
   }
@@ -367,14 +326,10 @@ function errorMessage(code: string, isTr: boolean): string {
     no_question: 'This question is not in the exam.',
     not_appealable: 'This question type is graded exactly by code; report the question if you think it is wrong.',
     already_full: 'You already have full marks on this question.',
+    help_capped: 'You used step-by-step help on this question and already have the highest score it allows.',
     already_appealed: 'You already appealed this question.',
     already_reported: 'You already reported this question.',
     daily_limit: 'Daily limit reached; try again tomorrow.',
-    no_appeal: 'There is no appeal for this question.',
-    not_rejected: 'Only a rejected appeal can be sent to a teacher.',
-    bad_score: 'The score must be between 0 and 100.',
-    not_teacher: 'Only the teacher who set this assignment can change it.',
-    answers_hidden: 'The answers for this assignment are not released yet; you can appeal once they are. If they are never released, appeals go to the teacher.',
     regrade_failed: 'Re-grading failed right now; your appeal was not saved, try again shortly.',
     table_missing: 'The appeal system is not set up yet.',
   }
@@ -390,6 +345,8 @@ function findResultIndex(results: unknown, questionId: number): number {
 function appealEligibility(result: Record<string, unknown>): string | null {
   if (!APPEALABLE_TYPES.includes(String(result.type))) return 'not_appealable'
   if (typeof result.score === 'number' && result.score >= 100) return 'already_full'
+  // FAZ 7: adım adım yardımla tavana ulaşmış soru itirazla geçilemez
+  if (typeof result.help_cap === 'number' && typeof result.score === 'number' && result.score >= result.help_cap) return 'help_capped'
   return null
 }
 
@@ -457,7 +414,8 @@ type AppealOutcome = { regradeScore: number; feedback: string; rubricResults: Ru
 function applyAppealOutcome(results: Array<Record<string, unknown>>, idx: number, outcome: AppealOutcome, nowIso: string, scoring: unknown = null) {
   const prev = results[idx]
   const old = typeof prev.score === 'number' ? prev.score : null
-  const regrade = Math.max(0, Math.min(100, Math.round(Number(outcome.regradeScore) || 0)))
+  const cap = typeof prev.help_cap === 'number' ? prev.help_cap : 100
+  const regrade = Math.max(0, Math.min(cap, Math.round(Number(outcome.regradeScore) || 0)))
   const accepted = old === null ? true : regrade > old
   const finalScore = accepted ? regrade : (old as number)
   const next: Record<string, unknown> = {
@@ -484,32 +442,9 @@ function applyAppealOutcome(results: Array<Record<string, unknown>>, idx: number
   return { results: out, accepted, oldScore: old, finalScore, grade: computeExamGrade(out, scoring) }
 }
 
-/** FAZ 6.4: öğretmenin puan düzeltmesi. Bekleyen "öğretmene ilet" itirazı kapanır. */
-function applyTeacherScore(results: Array<Record<string, unknown>>, idx: number, score: number, note: string, nowIso: string) {
-  const prev = results[idx]
-  const old = typeof prev.score === 'number' ? prev.score : null
-  const s = Math.max(0, Math.min(100, Math.round(Number(score) || 0)))
-  const choice = prev.type === 'multiple_choice' || prev.type === 'true_false' || prev.type === 'fill_blank'
-  const next: Record<string, unknown> = { ...prev, score: s, is_correct: choice ? s >= 100 : s >= 50, grading_failed: false,
-    teacher_override: { old_score: old, score: s, note: note || '', at: nowIso } }
-  const appeal = prev.appeal && typeof prev.appeal === 'object' ? prev.appeal as Record<string, unknown> : null
-  if (appeal && appeal.status === 'escalated') next.appeal = { ...appeal, status: old === null || s > old ? 'teacher_accepted' : 'teacher_rejected', teacher_note: note || '', resolved_at: nowIso }
-  const out = results.slice()
-  out[idx] = next
-  return { results: out, oldScore: old, score: s, escalated: !!(appeal && appeal.status === 'escalated') }
-}
-
 function applyReport(results: Array<Record<string, unknown>>, idx: number, category: string, nowIso: string) {
   const out = results.slice()
   out[idx] = { ...results[idx], report: { category, at: nowIso } }
-  return out
-}
-
-function applyEscalation(results: Array<Record<string, unknown>>, idx: number, nowIso: string) {
-  const prev = results[idx]
-  const appeal = (prev.appeal && typeof prev.appeal === 'object') ? prev.appeal as Record<string, unknown> : {}
-  const out = results.slice()
-  out[idx] = { ...prev, appeal: { ...appeal, status: 'escalated', escalated_at: nowIso } }
   return out
 }
 
@@ -593,50 +528,6 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) return json({ error: 'Unauthorized user token' }, 401)
 
-    // FAZ 6.4: öğretmen işlemleri — yetki exam_teacher_ok ile, yazma service_role ile.
-    if (v.action === 'teacher_score' || v.action === 'teacher_note') {
-      const { data: okT, error: okErr } = await userClient.rpc('exam_teacher_ok', { p_exam: v.examId })
-      if (okErr || okT !== true) return json({ error: errorMessage(okErr ? 'table_missing' : 'not_teacher', true), code: 'not_teacher' }, okErr ? 503 : 403)
-      const { data: tex } = await serviceClient.from('exams').select('*').eq('id', v.examId).single()
-      if (!tex) return json({ error: 'Exam not found' }, 404)
-      const nowT = new Date().toISOString()
-      if (v.action === 'teacher_note') {
-        const { data: saved, error } = await serviceClient.from('exams').update({ teacher_note: v.reason || null, teacher_reviewed: true, teacher_reviewed_by: user.id, teacher_reviewed_at: nowT })
-          .eq('id', tex.id).select('id, teacher_note, teacher_reviewed_at').single()
-        if (error) return json({ error: error.message }, 500)
-        return json({ exam: saved }, 200)
-      }
-      if (!tex.completed_at) return json({ error: errorMessage('not_completed', true), code: 'not_completed' }, 409)
-      const { data: hid } = await serviceClient.from('exam_hidden_results').select('results').eq('exam_id', tex.id).maybeSingle()
-      const full = (hid && Array.isArray(hid.results) ? hid.results : (Array.isArray(tex.question_results) ? tex.question_results : [])) as Array<Record<string, unknown>>
-      const fi = findResultIndex(full, v.questionId)
-      if (fi < 0) return json({ error: errorMessage('no_question', true), code: 'no_question' }, 404)
-      const ap = applyTeacherScore(full, fi, v.score as number, v.reason, nowT)
-      const grade = withLatePenalty(computeExamGrade(ap.results, tex.scoring), tex.scoring)
-      let shown = ap.results
-      if (hid) {
-        const red = (Array.isArray(tex.question_results) ? tex.question_results : []) as Array<Record<string, unknown>>
-        const ri = findResultIndex(red, v.questionId)
-        shown = red.slice()
-        if (ri >= 0) shown[ri] = { ...red[ri], score: ap.results[fi].score, is_correct: ap.results[fi].is_correct, teacher_override: ap.results[fi].teacher_override, ...(ap.results[fi].appeal ? { appeal: ap.results[fi].appeal } : {}) }
-        const { error: hErr } = await serviceClient.from('exam_hidden_results').update({ results: ap.results }).eq('exam_id', tex.id)
-        if (hErr) return json({ error: hErr.message }, 500)
-      }
-      const { data: saved, error: sErr } = await serviceClient.from('exams').update({ question_results: shown, grade }).eq('id', tex.id).select('id, grade').single()
-      if (sErr) return json({ error: sErr.message }, 500)
-      await serviceClient.from('question_attempts').update({ score: ap.score, is_correct: ap.results[fi].is_correct }).eq('exam_id', tex.id).eq('question_id', v.questionId)
-      if (ap.escalated) {
-        const { data: fb } = await serviceClient.from('exam_question_feedback').select('id, details').eq('exam_id', tex.id).eq('question_id', v.questionId).eq('kind', 'appeal').maybeSingle()
-        if (fb) {
-          const det = fb.details && typeof fb.details === 'object' ? fb.details as Record<string, unknown> : {}
-          await serviceClient.from('exam_question_feedback').update({ status: 'resolved', new_score: ap.score, resolved_at: nowT,
-            details: { ...det, teacher: { score: ap.score, old_score: ap.oldScore, note: v.reason || null, by: user.id, at: nowT } } }).eq('id', fb.id)
-        }
-      }
-      console.log(`exam-appeal: ogretmen puani sinav=${tex.id} soru=${v.questionId} ${ap.oldScore} -> ${ap.score}, not ${tex.grade} -> ${grade}`)
-      return json({ exam: { id: saved.id, grade: saved.grade }, result: ap.results[fi] }, 200)
-    }
-
     // Sahiplik kullanıcının kendi yetkisiyle (RLS).
     const { data: exam, error: examError } = await userClient.from('exams').select('*').eq('id', v.examId).single()
     if (examError || !exam) return json({ error: 'Exam not found or access denied' }, 404)
@@ -660,26 +551,8 @@ serve(async (req) => {
       return data
     }
 
-    // ---- öğretmene ilet ----
-    if (v.action === 'escalate') {
-      const { data: row, error } = await serviceClient.from('exam_question_feedback')
-        .select('id, status, details').eq('exam_id', exam.id).eq('question_id', v.questionId).eq('kind', 'appeal').maybeSingle()
-      if (error) return fail('table_missing', 503)
-      if (!row) return fail('no_appeal', 404)
-      if (row.status !== 'rejected') return fail('not_rejected', 409)
-      const prevDetails = row.details && typeof row.details === 'object' ? row.details as Record<string, unknown> : {}
-      await serviceClient.from('exam_question_feedback').update({ status: 'escalated', details: { ...prevDetails, escalated_at: nowIso, escalation_note: v.reason || null } }).eq('id', row.id)
-      const saved = await saveResults(applyEscalation(results, idx, nowIso))
-      return json({ exam: saved }, 200)
-    }
-
     const kind = v.action === 'report' ? 'report' : 'appeal'
     const result = results[idx]
-    // FAZ 6.3: ödev cevapları gizliyken yapay zekâ itirazı yok (öğrenci doğrusunu görmeden itiraz edemez)
-    if (kind === 'appeal' && assignmentAnswersHidden(exam)) {
-      const { data: shown } = await userClient.from('exam_hidden_results').select('exam_id').eq('exam_id', exam.id).maybeSingle()
-      if (!shown) return fail('answers_hidden', 403)
-    }
     if (kind === 'appeal') {
       const why = appealEligibility(result)
       if (why) return fail(why, why === 'already_full' ? 409 : 400)
@@ -749,7 +622,7 @@ serve(async (req) => {
     const applied = applyAppealOutcome(results, idx, outcome, nowIso, exam.scoring)
     let saved
     try {
-      saved = await saveResults(applied.results, withLatePenalty(applied.grade, exam.scoring))
+      saved = await saveResults(applied.results, applied.grade)
     } catch (e) {
       console.error('exam-appeal: sinav guncellenemedi:', e)
       await release()

@@ -13,6 +13,7 @@
 
 ## 3. Çalışma ve Güvenlik Prensibi
 - Mevcut dosya yapısına, isimlendirmeye ve kod stiline birebir sadık kal. Ekstra soyutlama katmanı uydurma.
+- **Ürün kuralı:** Platformda insan öğretmen yok; "hocaya sor" yalnızca Acadex'in kendi sistemidir. Öğretmen, sınıf, ödev ya da "öğretmene ilet" özelliği ekleme (`tests/sinav-kaydi-koruma.js` bunu denetler).
 - **Git & Branch Güvenliği:** Benden habersiz `git push` yapma veya `main` branch'ini doğrudan tehlikeye atacak yıkıcı komutlar çalıştırma.
 
 ---
@@ -29,10 +30,8 @@
 | **Toplu PDF** ("Hepsini PDF yap") | `js/dashboard.js` → `exportAllFilteredCardsToPDF` |
 | **Kapak + üst/alt şerit** | `buildPdfCoverPage`, `applyBrandedLayout` |
 | **Özet üretimi** (Gemini/Groq, kapılar, atıflar) | `supabase/functions/summarize-document/index.ts` |
-| **Sınıflar / öğretmen** (sınav salonu "sınıflarım", `sn-cl*`) | `js/acadex-ink.js` → `FAZ 6.1: sınıflar` bloğu; yazmalar yalnızca SQL fonksiyonlarıyla (`20261027_sinav_faz6_siniflar.sql`). `teacher.html` kaldırıldı, geri getirme |
-| **Ödev düzenleyici** (`sn-aq*`, `[data-asgdlg]`) | `js/acadex-ink.js` → `FAZ 6.2: ödev hazırlama` bloğu; taslak `generate-exam { assignmentDraft }`, kurulum penceresine kanca `dashboard.js` → `generateExam` (`window.__examAssignmentDraft`) |
-| **Öğrenci ödevleri** (`sn-sa*`, `sn-acx`, sonuçta `sn-asg-note`) | `js/acadex-ink.js` → `FAZ 6.3: ödevler (öğrenci)` bloğu; başlatma `generate-exam { assignmentStart }` → `startAssignmentExam`; gizli cevap/geç teslim `grade-exam` |
-| **Ödev sonuçları (öğretmen)** (`sn-rs*`, `[data-resdlg]`) | `js/acadex-ink.js` → `FAZ 6.4: ödev sonuçları` bloğu; hesap `exam-engine` → `assignmentAnalysis`; puan düzeltme ve öğrenciye not `exam-appeal` (`teacher_score`, `teacher_note`) |
+| **Haftalık Acadex önerisi** (sınav salonu, `sn-acx`, `[data-acx]`) | `js/acadex-ink.js` → `haftalık Acadex önerisi` bloğu (`acadexWeekly`, `paintAcx`) |
+| **Adım adım yardım** (sınavda `sn-help*`, `[data-help]`) | ekran `js/acadex-ink.js` → `FAZ 7: adım adım yardım` bloğu; sunucu `generate-exam` → `handleExamHelp` (`{ help }`); puan tavanı `grade-exam` → `applyHelp` |
 
 ---
 

@@ -55,14 +55,6 @@ const TRANSLATIONS = {
     "login.forgotPassword": "Forgot your password?",
     "login.noAccount": "Don't have an account yet?",
     "login.registerLink": "Create an account",
-    "login.mode.student": "Student Login",
-    "login.mode.academic": "Academic Login",
-    "login.mode.academicTitle": "Faculty & Staff Login",
-    "login.mode.academicSubtitle": "Access your teaching materials and admin tools.",
-    "login.mode.redirectToStudent": "This account is a student account — redirecting you to your student dashboard...",
-    "login.mode.redirectToAcademic": "This account has faculty access — redirecting you to your panel...",
-    "login.campuso.notice": "Are you faculty? Sign in through Campuso to reach the teacher panel.",
-    "login.campuso.link": "Go to Campuso",
 
     // Register Page (register.html)
     "register.title": "Join Acadex Portal",
@@ -81,17 +73,6 @@ const TRANSLATIONS = {
     "register.btn": "Create Account",
     "register.hasAccount": "Already have an account?",
     "register.loginLink": "Log in here",
-
-    // Academic (Teacher) Access Page (register-academic.html) — now an
-    // informational redirect to Campuso instead of a self-registration form.
-    "registerAcademic.title": "Academic / Faculty Access",
-    "registerAcademic.movedSubtitle": "Faculty accounts are no longer created here — sign in through Campuso to reach your Acadex teacher panel.",
-    "registerAcademic.movedNotice": "ℹ️ Academic (teacher) accounts are no longer created here. Sign in with your Campuso account and click the \"Acadex\" link on your panel — you'll be dropped straight into your Acadex teacher panel automatically.",
-    "registerAcademic.goToCampuso": "Go to Campuso",
-    "registerAcademic.notAcademic": "Are you a student?",
-    "registerAcademic.studentSignupLink": "Sign up here",
-    "registerAcademic.notStudent": "Are you faculty?",
-    "registerAcademic.academicSignupLink": "See how faculty access works",
 
     // Validation messages
     "validation.fullNameRequired": "Full Name is required.",
@@ -443,14 +424,6 @@ const TRANSLATIONS = {
     "login.forgotPassword": "Şifrenizi mi unuttunuz?",
     "login.noAccount": "Henüz bir hesabınız yok mu?",
     "login.registerLink": "Hesap oluşturun",
-    "login.mode.student": "Öğrenci Girişi",
-    "login.mode.academic": "Akademisyen Girişi",
-    "login.mode.academicTitle": "Akademisyen & Personel Girişi",
-    "login.mode.academicSubtitle": "Ders materyallerinize ve yönetim panelinize erişin.",
-    "login.mode.redirectToStudent": "Bu bir öğrenci hesabı — öğrenci panelinize yönlendiriliyorsunuz...",
-    "login.mode.redirectToAcademic": "Bu hesabın akademisyen erişimi var — panelinize yönlendiriliyorsunuz...",
-    "login.campuso.notice": "Akademisyen misiniz? Hoca Paneline giriş artık Campuso üzerinden yapılıyor.",
-    "login.campuso.link": "Campuso'ya Git",
 
     // Register Page (register.html)
     "register.title": "Acadex Portalına Katılın",
@@ -469,17 +442,6 @@ const TRANSLATIONS = {
     "register.btn": "Hesap Oluştur",
     "register.hasAccount": "Zaten bir hesabınız var mı?",
     "register.loginLink": "Buradan giriş yapın",
-
-    // Akademisyen (Hoca) Erişim Sayfası (register-academic.html) — artık bir
-    // başvuru formu değil, Campuso'ya yönlendiren bilgi sayfası.
-    "registerAcademic.title": "Akademisyen / Hoca Erişimi",
-    "registerAcademic.movedSubtitle": "Hoca hesapları artık burada oluşturulmuyor — Acadex Hoca Panelinize ulaşmak için Campuso üzerinden giriş yapın.",
-    "registerAcademic.movedNotice": "ℹ️ Akademisyen (hoca) hesapları artık burada oluşturulmuyor. Campuso hesabınızla giriş yapıp panelinizdeki \"Acadex\" bağlantısına tıklamanız yeterli — sistem sizi otomatik olarak Acadex Hoca Paneline yönlendirir.",
-    "registerAcademic.goToCampuso": "Campuso'ya Git",
-    "registerAcademic.notAcademic": "Öğrenci misiniz?",
-    "registerAcademic.studentSignupLink": "Buradan kayıt olun",
-    "registerAcademic.notStudent": "Akademisyen misiniz?",
-    "registerAcademic.academicSignupLink": "Akademisyen erişimi nasıl çalışır, öğrenin",
 
     // Validation messages
     "validation.fullNameRequired": "Ad Soyad alanı zorunludur.",
