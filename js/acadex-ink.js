@@ -8284,6 +8284,46 @@ var SBX = (function () {
   };
   var titleOrig = document.title, titleT = 0;
   var flashTitle = function (t) { if (!document.hidden) return; document.title = t; clearInterval(titleT); titleT = setInterval(function () { if (!document.hidden) { document.title = titleOrig; clearInterval(titleT); } }, 1000); };
+  /* OS BILDIRIMI (29.10.2026, kullanici raporu: "25 dk bitince bildirim
+     gelmiyor").
+
+     Pomodoro biterken YALNIZCA uc sinyal vardi:
+       beep()       — Web Audio; sekme gizliyken tarayici kisabiliyor
+       say()        — sayfa ici bildirim serisi; Study Lab ekranda DEGILSE
+                      hic gorunmuyor
+       flashTitle() — yalnizca sekme basligini degistiriyor ve basinda
+                      `if (!document.hidden) return` var, yani sayfaya
+                      bakarken hic calismiyor
+     Yani 25 dakikalik odagin tam amaci olan "baska sekmede/uygulamada
+     calismak" durumunda ogrenciye isletim sistemi seviyesinde HICBIR
+     bildirim ulasmiyordu.
+
+     Planlayici bunu zaten dogru yapiyor (bkz. axRemind -> window.axNotify,
+     servis calisani uzerinden). Study Lab o yolu HIC cagirmiyordu:
+     8000-8600 araliginda tek bir axNotify gecmiyor. */
+  var pomNotify = function (title, body) {
+    if (typeof window.axNotify !== 'function') return;
+    try {
+      window.axNotify(title, {
+        body: body,
+        icon: 'assets/logo-icon-only.png',
+        /* Ayni etiket: ust uste gelen turlar bildirim yigmiyor, sonuncusu
+           oncekini degistiriyor. renotify olmadan sessiz degisirdi. */
+        tag: 'acadex-pomodoro',
+        renotify: true,
+        /* sw.js notificationclick bu adresi kullaniyor. */
+        data: { url: 'dashboard.html#studylab' }
+      });
+    } catch (e) {}
+  };
+  /* Izin YALNIZCA odak baslatilirken ve yalnizca 'default' iken isteniyor:
+     tarayicilar kullanici hareketi olmadan sormayi reddediyor, "odagi
+     baslat" tiklamasi o hareketi sagliyor. Reddedilirse eski davranis
+     (beep + sayfa ici bildirim + sekme basligi) aynen kaliyor. */
+  var pomIzinIste = function () {
+    if (!('Notification' in window) || Notification.permission !== 'default') return;
+    try { var pr = Notification.requestPermission(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+  };
   var pomStart = function (phase) {
     POM.phase = phase; POM.paused = false; POM.startAt = Date.now(); POM.endAt = Date.now() + pomTotal() * 1000; pomSave(); pomTick();
   };
@@ -8293,9 +8333,12 @@ var SBX = (function () {
       var newly = SP.filter(function (x) { return x.need && !G(LK('seen.' + x.id), false) && unlocked(x); }); newly.forEach(function (x) { S(LK('seen.' + x.id), true); });
       beep(); var long = POM.round % POM.setN === 0;
       say(POM.round + '. tur bitti, ' + (SPI[spc] || SP[0]).n.toLocaleLowerCase('tr') + ' tezgâha kondu. ' + (newly.length ? 'Yeni tohum açıldı: ' + newly.map(function (x) { return x.n; }).join(', ') + '! ' : '') + (long ? 'Uzun mola: ' + POM.lng + ' dk.' : POM.brk + ' dk mola; bitkini sula.'), null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →');
-      flashTitle('🌼 Tur bitti · Acadex'); pomStart('break');
+      flashTitle('🌼 Tur bitti · Acadex');
+      pomNotify(POM.round + '. tur bitti · Acadex',
+        long ? 'Uzun mola: ' + POM.lng + ' dk.' : POM.brk + ' dk mola; bitkini sula.');
+      pomStart('break');
     } else {
-      beep(); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Mola bitti. Hazır olduğunda yeni turu başlat.', null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →'); flashTitle('⏰ Mola bitti · Acadex');
+      beep(); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Mola bitti. Hazır olduğunda yeni turu başlat.', null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →'); flashTitle('⏰ Mola bitti · Acadex'); pomNotify('Mola bitti · Acadex', 'Hazır olduğunda yeni turu başlat.');
     }
   };
   /* yarıda bırakılan tur: bitki solar, kuruyan saksı olarak tezgâha düşer */
@@ -8506,7 +8549,7 @@ var SBX = (function () {
     };
     Q('[data-pgo]', st).addEventListener('click', function () {
       touch();
-      if (POM.phase === 'idle') { POM.src = srcSel.value; POM.seed = seedOf(); pomStart('focus'); beep(); return; }
+      if (POM.phase === 'idle') { POM.src = srcSel.value; POM.seed = seedOf(); pomIzinIste(); pomStart('focus'); beep(); return; }
       if (POM.paused) { POM.paused = false; POM.endAt = Date.now() + POM.pausedLeft * 1000; }
       else { POM.pausedLeft = pomLeft(); POM.paused = true; }
       pomSave(); pomTick();
