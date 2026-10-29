@@ -230,7 +230,7 @@ test('ilk acilista aktif bolum yoksa #medlab-view dogrudan acilir', () => {
 test('Acadia gorunum listesi, sayfa sirasi ve Ctrl+K komutlari medlab\'i biliyor', () => {
   const ink = read('js/acadex-ink.js'), plus = read('js/acadex-plus.js');
   assert.match(ink, /studylab: 'Study Lab', medlab: 'MedLab'/);
-  assert.match(ink, /'studylab', 'medlab', 'docs'/);
+  assert.match(ink, /'studylab', 'medlab', 'finans', 'docs'/);
   assert.match(ink, /\n\s+medlab: \[/);
   assert.match(plus, /t: 'Acadex MedLab'[^}]+v: 'medlab' \}/);
 });

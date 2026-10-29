@@ -151,10 +151,10 @@ test('hub: kenar menü, sekiz kart, katman, Acadia köprüsü ve menüler', () =
   assert.match(dash, /<link rel="stylesheet" href="css\/acadex-finans\.css">/);
   assert.ok(dash.indexOf('js/acadex-finans.js') < dash.indexOf('js/acadex-medlab-acadia.js'), 'finans köprüden önce yüklenir');
   const js = read('js/acadex-finans.js');
-  assert.match(js, /\?hub=1&tab=/); assert.match(js, /axMedLabHook\('finans', frame\)/); assert.match(js, /type: 'tab'/);
+  assert.match(js, /\?hub=1&tab=/); assert.match(js, /axMedLabHook\(I\.lab, frame\)/); assert.match(js, /type: 'tab'/);
   const ac = read('js/acadex-medlab-acadia.js');
   assert.match(ac, /finans: 'Acadex Finans'/); assert.match(ac, /finans: 'işletme, iktisat, muhasebe ve uluslararası ticaret öğrencisine'/);
-  assert.match(read('labs/finans/fn-app.js'), /m\.lab = 'finans'/);
+  assert.match(read('labs/finans/fn-app.js'), /var LAB = CONF\.lab \|\| 'finans'[\s\S]*m\.lab = LAB;/);
   assert.match(read('js/acadex-ink.js'), /finans: 'Acadex Finans'/);
   assert.match(read('js/acadex-plus.js'), /v: 'finans' \}/);
 });

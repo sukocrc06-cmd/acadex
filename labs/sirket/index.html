@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Acadex Şirket · genel müdürlük</title>
+<meta name="theme-color" content="#DCEBF6">
+<script>/* hub köprüsü: iframe içinde (?hub=1) */if(window.parent!==window&&/[?&]hub=1(&|$)/.test(location.search))document.documentElement.classList.add('axf-embed')</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Caveat:wght@600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   ACADEX ŞİRKET (labs/sirket/index.html), 29.10.2026
+   Acadex Finans'ın görsel sisteminden (labs/finans/index.html) ortak taban
+   + şirket yönetimi istasyonlarının stilleri. Çekirdek: ../finans/fn-app.js
+   ===================================================================== */
+:root{
+  --sky:#DCEBF6;--sky-2:#EAF3FA;--sea:#1E5B8C;--sea-2:#2C77B0;--sea-s:#DCEBF6;
+  --dock:#EEF2F5;--dock-2:#E2E8EE;--yard:rgba(30,91,140,.06);
+  --blue:#2F6FB0;--rust:#C8553D;--teal:#1F8A7A;--must:#E0A526;--plum:#6B4FB3;--deep:#0D5C8C;--rasp:#B84A6B;--green:#3E8E5B;
+  --ink:#0D1838;--ink2:#46506A;--muted:#6A7593;--paper:#FFFDF8;--line:#E3E9F0;--line-2:#CBD5E1;
+  --ok:#2E8E5B;--ok-s:#E3F4EA;--bad:#C9483B;--bad-s:#FBE9E6;--warn:#B9821F;--warn-s:#FFF4DC;
+  --S:#C8553D;--S-s:#FBE6E1;--A:#1F8A7A;--A-s:#DDF2EE;
+  --r:14px;--ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.5,.5,1)
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Instrument Sans',system-ui,sans-serif;color:var(--ink);background-color:var(--dock);min-height:100vh;-webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(var(--yard) 2px,transparent 2px),linear-gradient(90deg,var(--yard) 2px,transparent 2px);background-size:120px 80px;background-attachment:fixed}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+input[type=number],input[type=text],select{min-height:38px;padding:6px 10px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;font-size:14px;width:100%}
+input:focus,select:focus{border-color:var(--sea-2);outline:none}
+input[type=range]{width:100%;accent-color:var(--sea)}
+:focus-visible{outline:3px solid var(--sea-2);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mono{font-family:'JetBrains Mono',monospace}.hand{font-family:'Caveat',cursive}.disp{font-family:'Bricolage Grotesque',system-ui,sans-serif;letter-spacing:-.015em}
+
+/* ---------- üst şerit: gök + konteyner sekmeler + rıhtım kenarı ---------- */
+.pt-top{position:sticky;top:0;z-index:30;display:flex;align-items:flex-end;gap:14px;padding:10px 18px 0;background:linear-gradient(var(--sky-2),var(--sky));
+  box-shadow:0 6px 0 #F2C230,0 6px 0 #F2C230,0 16px 22px -16px rgba(13,40,70,.5)}
+.pt-top::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px;background:repeating-linear-gradient(-45deg,#F2C230 0 12px,#0D1838 12px 24px);opacity:.95}
+.pt-brand{display:flex;align-items:center;gap:10px;min-width:0;flex:none;padding-bottom:12px}
+.pt-brand .hesi{width:44px;height:44px;flex:none}
+.pt-brand b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:800;line-height:1.05}
+.pt-brand small{display:block;font-family:'Caveat',cursive;font-size:17px;color:var(--sea);line-height:1}
+.pt-tabs{display:flex;gap:5px;margin-left:6px;padding:12px 2px 0;overflow-x:auto;scrollbar-width:none;min-width:0;align-items:flex-end}
+.pt-tabs::-webkit-scrollbar{display:none}
+/* konteyner sekme: oluklu yüzey, köşe dökümleri; seçili olan vinçle kalkar */
+.pt-tabs button{position:relative;flex:none;display:flex;align-items:center;gap:7px;height:42px;padding:0 10px;border:0;border-radius:3px 3px 0 0;
+  background:var(--cc) repeating-linear-gradient(90deg,rgba(255,255,255,.13) 0 3px,transparent 3px 8px);color:#fff;font-weight:700;font-size:13px;white-space:nowrap;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),inset 0 2px 0 rgba(255,255,255,.18);transition:transform .35s var(--spring),filter .2s;filter:saturate(.75) brightness(1.04)}
+.pt-tabs button::before,.pt-tabs button::after{content:"";position:absolute;top:3px;width:5px;height:5px;border-radius:1px;background:rgba(0,0,0,.28)}
+.pt-tabs button::before{left:3px}.pt-tabs button::after{right:3px}
+.pt-tabs button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.pt-tabs button:hover{filter:none;transform:translateY(-2px)}
+.pt-tabs button[aria-selected="true"]{filter:none;transform:translateY(-8px);box-shadow:inset 0 -3px 0 rgba(0,0,0,.2),0 10px 14px -8px rgba(13,24,56,.6)}
+.pt-tabs button[aria-selected="true"] .hook{opacity:1}
+.pt-tabs .hook{position:absolute;left:50%;top:-12px;width:2px;height:12px;background:#0D1838;opacity:0;transition:opacity .2s;pointer-events:none}
+.pt-tabs .hook::after{content:"";position:absolute;left:-4px;bottom:-2px;width:10px;height:4px;border-radius:2px;background:#0D1838}
+.pt-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none;padding-bottom:12px}
+.pt-pill{padding:4px 10px;border:1px dashed var(--sea-2);border-radius:999px;font-size:12px;color:var(--sea);white-space:nowrap;background:rgba(255,255,255,.55)}
+.pt-ship{display:block}
+.pt-ship .sh{animation:float 4s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-2px) rotate(-1deg)}}
+
+.pt-view{display:none;padding:28px 18px 18px;max-width:1440px;margin:0 auto}
+.pt-view.on{display:block;animation:vin .35s var(--ease) both}
+@keyframes vin{from{opacity:0;transform:translateY(6px)}}
+.pt-note{max-width:1440px;margin:6px auto 0;padding:0 18px 96px;color:var(--muted);font-size:12.5px;text-align:center}
+/* deniz şeridi */
+.pt-sea{position:fixed;left:0;right:0;bottom:0;height:40px;z-index:0;pointer-events:none;background:var(--sea);opacity:.92;
+  -webkit-mask:radial-gradient(14px at 30px 0,transparent 98%,#000) 0 0/60px 100%;mask:radial-gradient(14px at 30px 0,transparent 98%,#000) 0 0/60px 100%}
+.pt-sea::after{content:"";position:absolute;inset:8px 0 0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.18) 0 18px,transparent 18px 60px);animation:wave 6s linear infinite}
+@keyframes wave{to{background-position:120px 0}}
+main{position:relative;z-index:1}
+
+/* ---------- ortak: konşimento kartı, düğme, rozet ---------- */
+.card{position:relative;background:var(--paper);border-radius:var(--r);border:1.5px solid #E3E2DA;padding:18px 18px 16px;box-shadow:0 1px 0 #fff inset,0 18px 40px -30px rgba(13,40,70,.55)}
+.card.box{border-top:7px solid var(--cc,var(--blue));border-radius:4px 4px var(--r) var(--r)}
+.card.box::before,.card.box::after{content:"";position:absolute;top:-7px;width:8px;height:7px;background:rgba(0,0,0,.25)}
+.card.box::before{left:0}.card.box::after{right:0}
+.card h2{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:19px;letter-spacing:-.01em}
+.card h3{margin:0 0 6px;font-family:'Bricolage Grotesque',sans-serif;font-size:16px}
+.sub{margin:0 0 10px;color:var(--muted);font-size:13px;line-height:1.5}
+.k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#EDF1F5;color:var(--ink2);white-space:nowrap}
+.pill.ok{background:var(--ok-s);color:var(--ok)}.pill.bad{background:var(--bad-s);color:var(--bad)}.pill.warn{background:var(--warn-s);color:#8A5A00}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 15px;border:1.5px solid var(--ink);border-radius:999px;background:var(--paper);color:var(--ink);font-weight:700;font-size:14px;transition:transform .15s var(--ease),background .2s}
+.btn:hover{transform:translateY(-1px)}
+.btn.pri{background:var(--ink);color:#fff}.btn.pri:hover{background:#1A2A5C}
+.btn.deep{background:var(--sea);border-color:var(--sea);color:#fff}
+.btn.sm{min-height:32px;padding:0 11px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;gap:3px;padding:3px;border-radius:12px;background:#E6ECF2;flex-wrap:wrap}
+.seg button{min-height:32px;padding:0 11px;border:0;border-radius:9px;background:none;font-size:12.5px;font-weight:700;color:var(--ink2)}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 0 rgba(0,0,0,.08),0 2px 6px -2px rgba(0,0,0,.2)}
+.toast{position:fixed;left:50%;bottom:54px;z-index:70;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;box-shadow:0 12px 30px -12px rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:opacity .25s;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1}
+.grid{display:grid;gap:18px}
+.grid>*{min-width:0}
+.g2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.gside{grid-template-columns:minmax(0,340px) minmax(0,1fr);align-items:start}
+.fld{display:grid;gap:4px;font-size:12.5px;font-weight:700;color:var(--ink2)}
+.fld small{font-weight:500;color:var(--muted)}
+.fl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:12px 0}
+.kpi{padding:10px 12px;border-radius:10px;background:#F3F6F9;border:1px solid var(--line)}
+.kpi small{display:block;font-size:11.5px;color:var(--muted);font-weight:600}
+.kpi b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:21px;line-height:1.2;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi.hl{background:var(--ink);border-color:var(--ink);color:#fff}.kpi.hl small{color:rgba(255,255,255,.7)}
+.formula{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#F7F4EC;border:1px dashed #D8CFB6;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6;overflow-x:auto}
+.formula b{color:var(--rust)}
+.tipbox{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:10px 12px;border-radius:14px;background:#EAF3FA;border:1px solid #C9DDF0}
+.tipbox .hesi{flex:none}
+.tipbox p{margin:0;font-size:13.5px;line-height:1.55}
+.hesi .eye{animation:blink 4.5s infinite;transform-origin:32px 30px}
+.hesi .arm{animation:wavearm 2.6s ease-in-out infinite;transform-origin:52px 34px}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+@keyframes wavearm{0%,100%{transform:rotate(0)}50%{transform:rotate(-14deg)}}
+.tbl-w{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.t{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+table.t th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:1.5px solid var(--line-2);white-space:nowrap}
+table.t td{padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.t td.n,table.t th.n{text-align:right}
+table.t tfoot td{font-weight:700;border-top:1.5px solid var(--ink);border-bottom:0}
+/* karne (Acadex ortak) */
+.karne{position:relative;margin-top:14px;padding:16px 18px 14px 30px;border-radius:8px;background:#FFFDF7 repeating-linear-gradient(transparent 0 27px,#EEF1F7 27px 28px);box-shadow:0 1px 0 #E1E5EE,0 24px 50px -28px rgba(13,24,56,.5);animation:kin .45s var(--ease) both}
+.karne::before{content:"";position:absolute;left:16px;top:0;bottom:0;width:1.5px;background:#F2B8B8}
+@keyframes kin{from{opacity:0;transform:translateY(10px)}}
+.stamp{position:absolute;right:16px;top:12px;width:86px;height:86px;border-radius:50%;border:3px solid currentColor;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-12deg);font-family:'JetBrains Mono',monospace;font-weight:600;animation:stamp .45s var(--spring) .15s both}
+.stamp b{font-size:24px;line-height:1}.stamp small{font-size:9px;letter-spacing:.1em}
+@keyframes stamp{from{transform:rotate(-12deg) scale(1.8);opacity:0}}
+.karne h3{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:18px;padding-right:104px}
+.karne ul{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.55;padding-right:6px}
+.karne li.ok::marker{color:var(--ok)}.karne li.no::marker{color:var(--bad)}
+.karne .not{margin:10px 0 0;font-size:14px;line-height:1.55}
+/* sınav kartı */
+.q{margin-top:10px}
+.q p{margin:0 0 8px;font-size:15px;line-height:1.5;font-weight:600}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.opts button{min-height:44px;padding:6px 10px;border:1.5px solid var(--line-2);border-radius:10px;background:#fff;font-weight:700;font-size:14px;transition:transform .15s,border-color .2s,background .2s}
+.opts button:hover{border-color:var(--ink);transform:translateY(-1px)}
+.opts button.ok{background:var(--ok-s);border-color:var(--ok);color:var(--ok)}
+.opts button.no{background:var(--bad-s);border-color:var(--bad);color:var(--bad)}
+.opts button:disabled{cursor:default;transform:none}
+.fb{margin-top:8px;font-size:13.5px;line-height:1.5;min-height:1.5em}
+.prog{height:6px;border-radius:3px;background:#E6ECF2;overflow:hidden;margin:4px 0 10px}
+.prog i{display:block;height:100%;background:var(--sea);transition:width .4s var(--ease)}
+
+/* ---------- SVG grafik ---------- */
+.ch{display:block;width:100%;max-width:780px;margin:0 auto;height:auto;overflow:visible}
+.ch .gr line{stroke:#E3E9F0;stroke-width:1}.ch .gr line.z{stroke:#9AA6B8;stroke-width:1.2}
+.ch .gr line.ax{stroke:#9AA6B8}
+.ch text{font-family:'JetBrains Mono',monospace;font-size:11px;fill:#6A7593}
+.ch .axl{font-size:10.5px;fill:#8A94AD}
+.ch .ln{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ch .ln.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .9s var(--ease) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.ch .area{opacity:.14}
+.ch .rl{stroke-width:1.4;stroke-dasharray:4 4}
+.ch .rlt,.ch .slab{font-size:11px;font-weight:600}
+.ch .bar{transform-box:fill-box;transform-origin:bottom;animation:grow .55s var(--ease) var(--d,0s) both}
+@keyframes grow{from{transform:scaleY(0)}}
+.ch .dot{stroke:#fff;stroke-width:1.5;transition:cx .4s var(--ease),cy .4s var(--ease)}
+.ch .dot.me{stroke:#0D1838;stroke-width:2.5;animation:pop .5s var(--spring)}
+@keyframes pop{from{r:2}}
+.ch .dlab{font-size:11px;font-weight:600;fill:#0D1838;font-family:'Instrument Sans',sans-serif}
+.donut{display:block}
+.donut .dmid{font-family:'Bricolage Grotesque',sans-serif;font-size:13px;font-weight:800;fill:#0D1838}
+.leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;margin-top:8px}
+.leg span{display:inline-flex;align-items:center;gap:6px}
+.leg i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* =====================================================================
+   ACADEX ŞİRKET · "genel müdürlük" (limandaki şirketin kulesi)
+   Üst şerit Finans'la aynı gök + rıhtım; sekmeler kat tabelası (K1…K7).
+   ===================================================================== */
+.pt-tabs button{border-radius:8px 8px 0 0;background:var(--cc) linear-gradient(180deg,rgba(255,255,255,.14),transparent)}
+.pt-tabs button .flr{font-family:'JetBrains Mono',monospace;font-size:10.5px;opacity:.85;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.18)}
+.pt-tabs button::before,.pt-tabs button::after{display:none}
+.vh-x{display:none}
+.up{color:var(--ok)}.dn{color:var(--bad)}
+
+/* ---------- terazi ---------- */
+.fis{background:#FFFDF2;border:1.5px solid #E6DFC4;border-radius:6px;padding:14px 16px;box-shadow:0 18px 30px -26px rgba(60,40,0,.6);position:relative}
+.fis::after{content:"";position:absolute;left:0;right:0;bottom:-7px;height:8px;background:radial-gradient(circle at 6px 0,transparent 5px,#FFFDF2 5.5px) 0 0/12px 8px repeat-x}
+.fis .no{position:absolute;right:14px;top:12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)}
+.fis p.t{margin:4px 0 4px;font-size:16px;line-height:1.5;font-weight:600;padding-right:56px}
+
+.tz{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}
+.tz-stage{position:relative;height:470px;margin-top:6px;border-radius:14px;background:linear-gradient(180deg,#F7FAFD,#EEF3F8);overflow:hidden}
+.tz-badge{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:3;padding:5px 14px;border-radius:999px;font-weight:800;font-size:13.5px;color:#fff;white-space:nowrap;transition:background .3s}
+.tz-badge.ok{background:var(--ok)}.tz-badge.no{background:var(--bad)}
+.tz-scale{position:absolute;inset:0;--t:0deg}
+.tz-beam{position:absolute;left:8%;right:8%;top:70px;height:12px;border-radius:6px;background:#0D1838;transform:rotate(var(--t));transition:transform .8s var(--spring);z-index:2}
+.tz-arm{position:absolute;top:6px;width:42%;max-width:240px;display:flex;flex-direction:column;align-items:stretch;transform:rotate(calc(-1 * var(--t)));transform-origin:50% 0;transition:transform .8s var(--spring)}
+.tz-arm.A{left:-4%}.tz-arm.P{right:-4%}
+.tz-arm::before{content:"";position:absolute;left:50%;top:0;width:2px;height:22px;background:#46506A}
+.tz-tot{display:block;margin:22px 0 4px;text-align:center;font-size:22px;font-weight:700;line-height:1}
+.tz-pan{display:flex;flex-direction:column-reverse;justify-content:flex-start;gap:3px;height:318px;padding:0 6px}
+.tz-pan{flex-direction:column;justify-content:flex-end}
+.blk{position:relative;flex:none;height:var(--h);min-height:0;border-radius:5px;background:var(--c);border:2px solid #0D1838;color:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:6px;padding:3px 7px;font-size:12px;font-weight:700;overflow:hidden;transition:height .7s var(--spring)}
+.blk.z{border-width:0;padding:0}
+.blk span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk b{font-family:'JetBrains Mono',monospace;font-size:12px}
+.blk.hit{animation:hit .9s var(--ease)}
+@keyframes hit{0%{box-shadow:0 0 0 0 rgba(255,216,107,.95)}100%{box-shadow:0 0 0 12px rgba(255,216,107,0)}}
+.tz-tray{display:block;height:12px;margin:0 -4px;border-radius:0 0 30px 30px;background:#46506A}
+.tz-post{position:absolute;left:50%;top:76px;bottom:28px;width:16px;margin-left:-8px;background:#0D1838;border-radius:4px}
+.tz-foot{position:absolute;left:50%;bottom:12px;width:200px;height:18px;margin-left:-100px;border-radius:8px;background:#0D1838}
+.tz-scale.shake .tz-beam{animation:wob .6s ease-in-out}
+@keyframes wob{25%{transform:rotate(calc(var(--t) + 3deg))}75%{transform:rotate(calc(var(--t) - 3deg))}}
+.tz-dots{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0 10px}
+.tz-dots i{width:14px;height:14px;border-radius:50%;background:#E6ECF2;border:2px solid #CBD5E1}
+.tz-dots i.ok{background:var(--ok);border-color:var(--ok)}.tz-dots i.no{background:var(--warn);border-color:var(--warn)}
+.tz-dots i.cur{border-color:#0D1838;transform:scale(1.25)}
+.tz-fis{padding-left:62px}
+.tz-ic{position:absolute;left:14px;top:14px;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:22px;background:#fff;border:1.5px solid #E6DFC4}
+.tz-opts{display:grid;gap:8px}
+.tz-opts button{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border:1.5px solid var(--line-2);border-radius:12px;background:#fff;text-align:left;transition:border-color .2s,transform .15s}
+.tz-opts button:hover{border-color:var(--ink);transform:translateY(-1px)}
+.tz-opts button.ok{background:var(--ok-s);border-color:var(--ok)}.tz-opts button.no{background:var(--bad-s);border-color:var(--bad);opacity:.8}
+.fx{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-weight:700;font-size:13px;background:#EDF1F5}
+.fx.up{background:var(--ok-s);color:var(--ok)}.fx.dn{background:var(--bad-s);color:var(--bad)}
+.tz-why{margin:8px 0 0;padding:10px 12px;border-radius:12px;background:var(--bad-s);font-size:13.5px;line-height:1.5}
+
+/* ---------- üç tablo ---------- */
+.tb-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:8px}
+.tb-t{border:1.5px solid var(--ink);border-radius:10px;padding:10px 12px;background:#fff;font-size:13px}
+.tb-t h4{margin:0 0 6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.12em;color:var(--muted)}
+.tb-t .r{display:flex;justify-content:space-between;gap:8px;padding:3px 4px;border-radius:5px;font-variant-numeric:tabular-nums;transition:background .3s}
+.tb-t .r.t{border-top:1.5px solid var(--ink);margin-top:4px;padding-top:5px;font-weight:800}
+.tb-t .r[data-link]{cursor:pointer;text-decoration:underline dotted #9AA6B8;text-underline-offset:3px}
+.tb-t .r small{font-weight:700}
+.tb-t .r.lit{background:#FFF1B8;box-shadow:inset 3px 0 0 var(--must)}
+.tb-t .r.amo{color:var(--plum)}
+.tb-chain{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#F7F4EC;font-size:13.5px}
+.nd{display:grid;grid-template-columns:180px minmax(0,1fr);gap:12px;align-items:center}
+.nd .kpis,.nd .formula,.nd .tipbox{grid-column:2}
+.nd-ring{grid-row:1 / span 3;width:180px;height:180px}
+.nd-big{font-family:'Bricolage Grotesque',sans-serif;font-size:30px;font-weight:800;fill:#0D1838}.nd-sm{font-size:12px;fill:#6A7593}
+.nd-coin{transform-origin:90px 90px;animation:spin var(--d) linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sl{display:grid;grid-template-columns:130px minmax(0,1fr) 96px;gap:10px;align-items:center;font-size:13px;font-weight:700;margin:6px 0}
+.sl span{display:flex;align-items:center;gap:6px}.sl span i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.sl output{font-family:'JetBrains Mono',monospace;font-size:12.5px;text-align:right}
+.gside{grid-template-columns:minmax(0,380px) minmax(0,1fr)}
+.gside .sl{grid-template-columns:minmax(0,1fr) 92px;row-gap:2px}.gside .sl span{grid-column:1 / -1}
+.bt-r{display:grid;gap:4px}.bt-r .fb{margin:0;min-height:0}
+
+/* ---------- bütçe ---------- */
+.bt-rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bt-r{padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff}
+.bt-r table.t td{border:0;padding:2px 0}
+.bt-r .seg{margin-top:6px}
+
+/* ---------- yatırım ---------- */
+.pjs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
+.pj{display:flex;flex-direction:column;gap:6px;padding:12px;border:1.5px solid var(--line-2);border-top:6px solid var(--pc);border-radius:6px 6px 12px 12px;background:#fff;transition:box-shadow .2s,transform .2s}
+.pj.on{border-color:var(--ink);border-top-color:var(--pc);box-shadow:4px 4px 0 var(--ink);transform:translateY(-2px)}
+.pj header{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+.pj .sub{margin:0;font-size:12px}
+.pj .ch{max-width:none}
+.pj-k{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px;font-size:12px;color:var(--muted)}
+.pj-k span{display:flex;justify-content:space-between;gap:4px}.pj-k b{color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:12px}
+.pj .btn{margin-top:auto}
+.bud{margin-top:12px}
+.bud-bar{height:14px;border-radius:7px;background:#E6ECF2;overflow:hidden;margin-bottom:6px}.bud-bar i{display:block;height:100%;transition:width .4s var(--ease)}
+
+/* ---------- strateji ---------- */
+.sw{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:14px}
+.sw-deck{display:flex;flex-direction:column;gap:7px}
+.sw-c{padding:9px 11px;border:1.5px solid var(--line-2);border-radius:10px;background:#FFFDF2;text-align:left;font-size:13.5px;line-height:1.4;box-shadow:0 6px 10px -8px rgba(0,0,0,.4);transition:transform .15s}
+.sw-c:hover{transform:translateX(3px)}
+.sw-c.on{border-color:var(--ink);box-shadow:4px 4px 0 var(--ink);transform:rotate(-1deg)}
+.sw-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sw-q{display:flex;flex-direction:column;align-items:stretch;min-height:160px;padding:10px;border:2px dashed var(--qc);border-radius:14px;background:color-mix(in srgb,var(--qc) 7%,#fff);text-align:left}
+.sw-q:hover{border-style:solid}
+.sw-h{display:flex;justify-content:space-between;align-items:baseline;color:var(--qc)}.sw-h small{font-size:11px;font-family:'JetBrains Mono',monospace}
+.sw-in{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.sw-in i{font-style:normal;font-size:12.5px;padding:5px 8px;border-radius:7px;background:#fff;border-left:3px solid var(--qc);animation:drop .45s var(--spring)}
+@keyframes drop{from{opacity:0;transform:translateY(-8px)}}
+.shake{animation:shk .45s}
+@keyframes shk{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.po{display:grid;gap:10px}
+.po-r{padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff}
+.po-r p{margin:2px 0 4px;font-size:13px;color:var(--ink2);line-height:1.45}
+.radar{display:block;width:100%;max-width:400px;margin:0 auto}
+.radar text{fill:#46506A;font-family:'Instrument Sans',sans-serif}
+.rd-me{transition:all .4s}
+.bcg{display:block;width:100%;height:auto}
+.bcg .bq{font-size:12px;font-weight:700;fill:#46506A}
+.bcg .bub circle{transition:fill .3s}
+.bc-l{display:grid;gap:10px}
+.bc-r{padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff}
+.bc-r small{display:block;color:var(--muted);margin:2px 0 6px}
+
+/* ---------- organizasyon ---------- */
+.tur{display:grid;gap:8px}
+.tur-c{padding:9px 12px;border:1.5px solid var(--line);border-left:5px solid var(--teal);border-radius:10px;background:#fff}
+.tur-c p{margin:2px 0 0;font-size:12.5px;color:var(--ink2);line-height:1.45}
+.orgc,.pyr{display:block;width:100%;height:auto;margin:6px 0}
+.orgc text,.pyr text{font-family:'Instrument Sans',sans-serif;fill:#0D1838}
+
+/* ---------- simülasyon ---------- */
+.smw{display:grid;grid-template-columns:300px minmax(0,1fr) 340px;gap:18px;align-items:start}
+.sm-mid{display:grid;gap:18px;min-width:0}
+.sm-tower{position:sticky;top:96px;padding:0 14px 0;display:flex;flex-direction:column;align-items:stretch}
+.tw-roof{height:46px;margin:0 -6px;background:#0D1838;clip-path:polygon(6% 100%,50% 0,94% 100%)}
+.tw-sign{align-self:center;margin:-2px 0 0;padding:5px 12px;background:var(--rust);color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.04em;border:3px solid #0D1838;position:relative;z-index:1}
+.tw-fl{position:relative;display:flex;align-items:center;gap:9px;min-height:82px;padding:8px 10px;border:3px solid #0D1838;border-top-width:0;background:var(--paper)}
+.tw-fl:first-of-type{border-top-width:3px}
+.tw-sign+.tw-fl{border-top-width:3px;margin-top:-1px}
+.tw-ic{flex:none;width:36px;height:36px;border-radius:9px;border:2px solid #0D1838;display:grid;place-items:center;font-size:17px}
+.tw-t{min-width:0;flex:1}.tw-t b{display:block;font-size:13.5px}.tw-t small{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tw-w{display:grid;grid-template-columns:repeat(2,14px);gap:4px}
+.tw-w i{width:14px;height:12px;background:#CFE3F5;border:2px solid #0D1838;transition:background .5s}
+.tw-w i.on{background:#FFD86B;box-shadow:0 0 8px rgba(255,216,107,.8)}
+.tw-al{position:absolute;right:-12px;top:-10px;padding:2px 8px;border-radius:999px;background:var(--bad);color:#fff;font-style:normal;font-weight:800;font-size:11px;border:2px solid #0D1838;animation:pop2 .5s var(--spring)}
+@keyframes pop2{from{transform:scale(.3)}}
+.tw-fl.al{background:#FFF3F0}
+.tw-base{padding:10px;border:3px solid #0D1838;border-top-width:0;background:#0D1838;color:#FFD86B;text-align:center;font-size:12px;letter-spacing:.12em}
+.tw-base::after{content:"";display:block;height:12px;margin:10px -13px -10px;background:var(--green)}
+.gd h3{margin:4px 0 4px;font-size:18px}
+.gd-b{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0}
+.gd-p{display:flex;gap:8px;align-items:flex-start}
+.gd-av{flex:none;width:44px;height:44px;border-radius:50%;border:2.5px solid #0D1838;display:grid;place-items:center;font-weight:800;font-size:12px}
+.gd-p p{margin:0;padding:8px 10px;border:2px solid #0D1838;border-radius:12px;background:#fff;font-size:12.5px;line-height:1.4;box-shadow:3px 3px 0 #0D1838}
+.gd-o{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.gd-o button{min-height:40px;padding:0 16px;border:2px solid #0D1838;border-radius:12px;background:#fff;font-weight:800;font-size:13.5px}
+.gd-o button[aria-pressed="true"]{background:#0D1838;color:#fff;box-shadow:3px 3px 0 var(--must)}
+.sm-hint{margin:8px 0 10px;padding:9px 12px;border-radius:10px;background:#F3F6F9;font-size:13px;line-height:1.6}
+.sm-tables h3{display:flex;justify-content:space-between;align-items:baseline;gap:6px;margin:14px 0 6px;font-size:15px}.sm-tables h3 small{font-size:10.5px;color:var(--muted);font-weight:500}
+.sm-bil{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;height:206px}
+.sm-bil>div{display:flex;flex-direction:column;justify-content:flex-end;gap:2px}
+.sm-bil span{display:block;border-radius:3px;color:#fff;font-size:11px;font-weight:700;padding:2px 6px;overflow:hidden;transition:height .7s var(--spring)}
+.row2{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.row2 b{font-family:'JetBrains Mono',monospace;font-size:12.5px}.row2.t{font-weight:800;border-bottom:1.5px solid var(--ink)}
+.sm-res .kpis{margin-top:6px}
+
+@media (max-width:1280px){.smw{grid-template-columns:260px minmax(0,1fr)}.sm-tables{grid-column:1 / -1}.pjs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:1000px){.tz>.card:last-child{order:-1}.tz,.sw{grid-template-columns:minmax(0,1fr)}.tb-3{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:860px){.smw{grid-template-columns:minmax(0,1fr)}.sm-tower{position:static}.gd-b{grid-template-columns:minmax(0,1fr)}.bt-rows{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px){
+  .tz-stage{height:420px}.tz-pan{height:270px}.blk{font-size:10.5px;padding:2px 4px}.blk b{font-size:10.5px}.tz-tot{font-size:18px}
+  .sl{grid-template-columns:96px minmax(0,1fr) 78px}
+  .nd{grid-template-columns:minmax(0,1fr)}.nd .kpis,.nd .formula,.nd .tipbox{grid-column:1}.nd-ring{grid-row:auto;margin:0 auto}
+  .pjs{grid-template-columns:minmax(0,1fr)}
+  .sw-grid{grid-template-columns:minmax(0,1fr)}
+  .sw-q{min-height:90px}
+  .tw-fl{min-height:58px}.tw-roof{height:34px}
+}
+@media (max-width:1100px){.g3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.mh{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:1560px){.pt-right .pt-pill{display:none}}
+@media (max-width:900px){.g2,.gside{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px){
+  .pt-top{flex-wrap:wrap;gap:0 10px;padding:8px 12px 0}
+  .pt-brand{padding-bottom:4px}.pt-brand .hesi{width:36px;height:36px}.pt-brand b{font-size:17px}
+  .pt-right{padding-bottom:4px}
+  .pt-tabs{order:3;width:100%;margin:0;padding-top:12px}
+  html.axf-embed .pt-brand,html.axf-embed .pt-right{display:none}
+  html.axf-embed .pt-tabs{padding-top:14px}
+  .pt-tabs button{height:38px;padding:0 10px;font-size:12.5px}
+  .pt-view{padding:22px 12px 14px}
+  .g3{grid-template-columns:minmax(0,1fr)}
+  .fl{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .leg2{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .leg2 .x{justify-self:end}
+  .sl{grid-template-columns:86px minmax(0,1fr) 64px}
+  .bud .br{grid-template-columns:minmax(0,1fr) 84px 92px}
+  .who{grid-template-columns:minmax(0,1fr) 56px 56px}
+  .rat{font-size:12px}
+  .stamp{width:72px;height:72px;position:static;float:right;margin:0 0 6px 10px}.stamp b{font-size:20px}.karne h3{padding-right:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<header class="pt-top">
+  <div class="pt-brand"><span id="brand-hesi"></span><span><b>Acadex Şirket</b><small>genel müdürlük</small></span></div>
+  <nav class="pt-tabs" role="tablist" aria-label="Katlar">
+    <button type="button" role="tab" data-tab="terazi" style="--cc:var(--green)"><span class="hook"></span><span class="flr">K1</span><svg viewBox="0 0 24 24"><path d="M4 20h16M12 4v16M5 8h14M5 8l-2 6h4zM19 8l-2 6h4z"/></svg>Terazi</button>
+    <button type="button" role="tab" data-tab="tablolar" style="--cc:var(--plum)"><span class="hook"></span><span class="flr">K2</span><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg>Üç tablo</button>
+    <button type="button" role="tab" data-tab="maliyet" style="--cc:var(--rust)"><span class="hook"></span><span class="flr">K3</span><svg viewBox="0 0 24 24"><path d="M4 20L20 6M4 16h16M4 20V4"/></svg>Maliyet</button>
+    <button type="button" role="tab" data-tab="yatirim" style="--cc:var(--blue)"><span class="hook"></span><span class="flr">K4</span><svg viewBox="0 0 24 24"><path d="M12 3v18M7 8h7a3 3 0 010 6H8"/></svg>Yatırım</button>
+    <button type="button" role="tab" data-tab="strateji" style="--cc:var(--deep)"><span class="hook"></span><span class="flr">K5</span><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>Strateji</button>
+    <button type="button" role="tab" data-tab="org" style="--cc:var(--teal)"><span class="hook"></span><span class="flr">K6</span><svg viewBox="0 0 24 24"><path d="M10 3h4v4h-4zM4 15h4v4H4zM10 15h4v4h-4zM16 15h4v4h-4zM12 7v4M6 15v-4h12v4"/></svg>Organizasyon</button>
+    <button type="button" role="tab" data-tab="sim" style="--cc:var(--must)"><span class="hook"></span><span class="flr">K7</span><svg viewBox="0 0 24 24"><path d="M5 21V5l7-3 7 3v16M9 9h2M13 9h2M9 13h2M13 13h2M10 21v-4h4v4"/></svg>Şirketi yönet</button>
+  </nav>
+  <div class="pt-right">
+    <span class="pt-pill mono">tüm şirketler kurgusal</span>
+    <svg class="pt-ship" width="56" height="44" viewBox="0 0 56 44" aria-hidden="true"><g class="sh"><path d="M14 42V12l14-8 14 8v30z" fill="#FFFDF8" stroke="#0D1838" stroke-width="2.4" stroke-linejoin="round"/><g fill="#FFD86B" stroke="#0D1838" stroke-width="1.4"><rect x="19" y="16" width="6" height="5"/><rect x="31" y="16" width="6" height="5"/><rect x="19" y="25" width="6" height="5"/><rect x="31" y="25" width="6" height="5" fill="#CFE3F5"/></g><rect x="24" y="34" width="8" height="8" fill="#C8553D" stroke="#0D1838" stroke-width="1.4"/></g></svg>
+  </div>
+</header>
+<main>
+  <section class="pt-view" id="terazi" role="tabpanel" aria-label="Bilanço terazisi"></section>
+  <section class="pt-view" id="tablolar" role="tabpanel" aria-label="Üç tablo"></section>
+  <section class="pt-view" id="maliyet" role="tabpanel" aria-label="Maliyet ve başabaş"></section>
+  <section class="pt-view" id="yatirim" role="tabpanel" aria-label="Yatırım kararı"></section>
+  <section class="pt-view" id="strateji" role="tabpanel" aria-label="Strateji masası"></section>
+  <section class="pt-view" id="org" role="tabpanel" aria-label="Organizasyon"></section>
+  <section class="pt-view" id="sim" role="tabpanel" aria-label="Şirketi yönet"></section>
+  <p class="pt-note">Şirketler, ürünler ve rakamlar ders amaçlı kurgusaldır. Şirket türleri ve asgari sermaye: 6102 sayılı Türk Ticaret Kanunu, 7887 sayılı Cumhurbaşkanı Kararı (1 Ocak 2024). Simülasyonda kurumlar vergisi genel oranı %25 sadeleştirilerek kullanılır.</p>
+</main>
+<div class="pt-sea" aria-hidden="true"></div>
+<div class="toast" id="toast" role="status"></div>
+<div class="vh" id="live" aria-live="polite"></div>
+<script>window.FN_CONF = { lab: 'sirket', brand: 'Acadex Şirket', tabs: ['terazi', 'tablolar', 'maliyet', 'yatirim', 'strateji', 'org', 'sim'],
+  names: { terazi: 'Bilanço terazisi', tablolar: 'Üç tablo ve nakit döngüsü', maliyet: 'Maliyet ve başabaş', yatirim: 'Yatırım kararı', strateji: 'Strateji masası', org: 'Organizasyon', sim: 'Şirketi yönet' } };</script>
+<script src="sk-veri.js"></script>
+<script src="sk-model.js"></script>
+<script src="../finans/fn-app.js"></script>
+<script src="sk-app.js"></script>
+<script src="sk-terazi.js"></script>
+<script src="sk-tablolar.js"></script>
+<script src="sk-maliyet.js"></script>
+<script src="sk-yatirim.js"></script>
+<script src="sk-strateji.js"></script>
+<script src="sk-org.js"></script>
+<script src="sk-sim.js"></script>
+<script>document.getElementById('brand-hesi').innerHTML = FN.sk.ceo(44, 'CEO'); FN.core.start();</script>
+</body>
+</html>

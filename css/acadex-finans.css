@@ -97,3 +97,40 @@
   #finans-view.axf .axf-note{font-size:20px}
   #finans-view.axf .axf-boxes{grid-template-columns:minmax(0,1fr);gap:22px;padding-top:18px}
 }
+
+/* ---------- genel müdürlük: Acadex Şirket (labs/sirket/), 29.10.2026 ---------- */
+#finans-view.axf .axf-hq{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:28px;align-items:end;margin:40px 0 0;padding:26px 26px 0;border-radius:18px 18px 0 0;background:linear-gradient(180deg,#EAF3FA,#F4F8FB 70%);border-bottom:14px solid transparent;border-image:repeating-linear-gradient(-45deg,#F2C230 0 14px,#0D1838 14px 28px) 14}
+#finans-view.axf .axf-tower svg{display:block;width:100%;height:auto;filter:drop-shadow(0 18px 18px rgba(13,40,70,.25))}
+#finans-view.axf .axf-tf .axf-w{transition:fill .3s}
+#finans-view.axf .axf-hq-r{padding-bottom:22px}
+#finans-view.axf .axf-hq-r h2{margin:0;font-size:clamp(24px,2.4vw,32px);font-weight:800;letter-spacing:-.02em;color:var(--navy,#0D1838)}
+#finans-view.axf .axf-floors{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px}
+#finans-view.axf .axf-fl{display:flex;align-items:center;gap:14px;width:100%;padding:10px 14px;border:2px solid #0D1838;border-left:10px solid var(--cc);border-radius:10px;background:#FFFDF8;text-align:left;font:inherit;color:#1A2A5C;cursor:pointer;box-shadow:3px 3px 0 #0D1838;transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s}
+#finans-view.axf .axf-fl:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 #0D1838}
+#finans-view.axf .axf-fl:focus-visible{outline:3px solid #2F6BFF;outline-offset:3px}
+#finans-view.axf .axf-fn{flex:none;padding:3px 7px;border-radius:5px;background:var(--cc);color:#fff;font-size:12px;font-weight:600}
+#finans-view.axf .axf-ft{flex:1;min-width:0}
+#finans-view.axf .axf-ft b{display:block;font-size:17px;font-weight:800;color:var(--navy,#0D1838)}
+#finans-view.axf .axf-ft small{display:block;font-size:13px;color:var(--muted,#4B5675)}
+#finans-view.axf .axf-go{font-size:20px;font-weight:800;color:var(--cc);transition:transform .2s}
+#finans-view.axf .axf-fl:hover .axf-go{transform:translateX(4px)}
+/* düğmenin üzerine gelince kuledeki katın pencereleri yanar */
+#finans-view.axf .axf-hq:has([data-fl="1"]:is(:hover,:focus-visible)) [data-f="1"] .axf-w,
+#finans-view.axf .axf-hq:has([data-fl="2"]:is(:hover,:focus-visible)) [data-f="2"] .axf-w,
+#finans-view.axf .axf-hq:has([data-fl="3"]:is(:hover,:focus-visible)) [data-f="3"] .axf-w,
+#finans-view.axf .axf-hq:has([data-fl="4"]:is(:hover,:focus-visible)) [data-f="4"] .axf-w,
+#finans-view.axf .axf-hq:has([data-fl="5"]:is(:hover,:focus-visible)) [data-f="5"] .axf-w,
+#finans-view.axf .axf-hq:has([data-fl="6"]:is(:hover,:focus-visible)) [data-f="6"] .axf-w,
+#finans-view.axf .axf-hq:has([data-fl="7"]:is(:hover,:focus-visible)) [data-f="7"] .axf-w{fill:#FFD86B}
+@media (prefers-reduced-motion:no-preference){
+  #finans-view.axf .axf-floors>li{animation:axf-drop .6s cubic-bezier(.2,1.3,.4,1) both;animation-delay:calc(var(--i) * 60ms)}
+  #finans-view.axf .axf-hqflag{animation:axf-wave 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:0 50%}
+  #finans-view.axf .axf-ceo{animation:axf-ceo 3s ease-in-out infinite}
+  #finans-view.axf .axf-tf:nth-child(odd) .axf-w:nth-child(4n+3){animation:axf-blink 4s ease-in-out infinite}
+}
+@keyframes axf-ceo{0%,100%{transform:translate(244px,420px)}50%{transform:translate(244px,415px)}}
+@media (max-width:860px){
+  #finans-view.axf .axf-hq{grid-template-columns:minmax(0,1fr);padding:18px 14px 0}
+  #finans-view.axf .axf-tower{max-width:200px;margin:0 auto;order:2}
+  #finans-view.axf .axf-ft small{font-size:12px}
+}
