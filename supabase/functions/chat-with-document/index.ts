@@ -1113,8 +1113,7 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
-    // 1. Verify the caller can actually see this study card (RLS-enforced —
-    //    covers both "it's my own card" and "I'm a teacher with open access").
+    // 1. Verify the caller can actually see this study card (RLS-enforced).
     const { data: card, error: cardError } = await userClient
       .from('study_cards')
       .select('id, document_id, is_merged, source_documents, summary_language, summary, key_points, tables, charts, formulas')

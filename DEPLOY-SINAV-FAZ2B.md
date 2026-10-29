@@ -6,7 +6,6 @@ Sonuç kâğıdında her sorunun altında iki yeni bağlantı var:
   - Soru daha yüksek düşünme payıyla yeniden puanlanır. İtiraz notu yeniden puanlamaya gösterilir ama kanıt sayılmaz; yalnızca cevaba bakılır.
   - Klasikte rubrik maddeleri yeniden değerlendirilir. Boşlukta cevabın eşdeğer olup olmadığına (eşanlamlı, kısaltma, öteki dildeki karşılığı) karar verilir.
   - **Puan asla düşmez.** Yeni puan eskisinden yüksekse kabul edilir ve sınav notu yeniden hesaplanır; değilse eski puan kalır.
-  - Reddedilen itiraz **öğretmene ilet** ile öğretmene taşınabilir (durum `escalated`). Öğretmen ekranı Faz 8'de.
 - **soru hatalı**: cevap anahtarı yanlış / soru belirsiz / kaynakta yok / yazım hatası / diğer. Puanı değiştirmez, soru kalitesini izlemek için kaydedilir.
 
 Çoktan seçmeli, doğru-yanlış ve hesap soruları kodla birebir puanlandığı için onlarda itiraz yok; hata varsa sorun sorudadır ve "soru hatalı" ile bildirilir.
@@ -33,7 +32,7 @@ Fonksiyon ya da tablo henüz kurulmamışsa bağlantılar yalnızca "İtiraz sis
 
 ## Elle kontrol
 
-- [ ] Klasik bir soruda bilerek eksik cevap ver, teslim et. Sonuç kâğıdında **puana itiraz et** → cevabında olan bir şeyi göster → gönder. Puan yükselirse "itiraz kabul edildi · 45 → 70" etiketi çıkmalı, sınav notu güncellenmeli. Yükselmezse "puan değişmedi" ve **öğretmene ilet** çıkmalı.
+- [ ] Klasik bir soruda bilerek eksik cevap ver, teslim et. Sonuç kâğıdında **puana itiraz et** → cevabında olan bir şeyi göster → gönder. Puan yükselirse "itiraz kabul edildi · 45 → 70" etiketi çıkmalı, sınav notu güncellenmeli. Yükselmezse "puan değişmedi" çıkmalı.
 - [ ] Çoktan seçmeli bir soruda yalnızca **soru hatalı** görünmeli. Bildir → "bildirildi · …" etiketi çıkmalı.
 - [ ] Aynı soruya ikinci itiraz yapılamamalı; bağlantı kaybolmalı.
 - [ ] Supabase → Table Editor → `exam_question_feedback`: kayıtlar ve `old_score` / `new_score` görünmeli.
@@ -50,7 +49,7 @@ node tests/run-all.js       # 23 dosya, 889 test
 
 Ekran tarafı gerçek `dashboard.html`'de, sahte Supabase ile Chromium'da denendi:
 
-- **İtiraz:** kısa gerekçe uyarısı, kabul, ret ve ardından öğretmene iletme.
+- **İtiraz:** kısa gerekçe uyarısı, kabul ve ret.
 - **Bildirim** ve fonksiyonun kurulu olmadığı durum.
 - **Telefon genişliği:** 390 px'te yatay taşma yok.
 

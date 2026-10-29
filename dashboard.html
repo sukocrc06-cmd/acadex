@@ -177,7 +177,7 @@
 <span id="home-user-avatar"></span><h2 id="home-welcome-greeting"></h2><span id="home-welcome-sub"></span>
 <div id="home-streak-container"><span id="home-streak-display"></span></div>
 <b id="home-stat-docs"></b><b id="home-stat-cards"></b><b id="home-stat-exams"></b><b id="home-stat-avg-grade"></b>
-<div id="home-recent-activity-list"></div><div id="home-announcements-list"></div><div id="home-materials-list"></div>
+<div id="home-recent-activity-list"></div><div id="home-announcements-list"></div>
 </div>
 <div class="main-d">
 <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><filter id="ink" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
@@ -950,7 +950,7 @@
            TAB 4B: SANDBOX ETKİLEŞİM PANELİ (moved out of Geliştirici
            Sandbox's "Proje Akışı" so it has its own dedicated, top-level
            spot — this section has NO role check, so it's reachable by any
-           account that loads dashboard.html, teacher or student alike.
+           account that loads dashboard.html.
            ========================================== -->
       <section id="sandbox-interaction-view" class="dashboard-view-section axd axe">
 <div class="main-d etkilesim" id="etkilesim">
@@ -1078,16 +1078,7 @@
 </div>
 </section>
 
-<!-- Faz 6.1: sınıflar (my_classes RPC yanıt verince görünür) -->
-<section class="sn-cls" aria-labelledby="cls-t" data-classes="" hidden>
-<div class="sn-sec-h"><h2 class="hd" id="cls-t">sınıflarım <small class="hand" data-cls-sub="">öğretmeninin verdiği kodla katıl</small></h2><button type="button" class="btn btn-dark sn-cls-new" data-cls-new="" hidden>+ sınıf aç</button></div>
-<form class="sn-cls-join" data-cls-join="" autocomplete="off">
-<label class="sn-f"><span>katılım kodu</span><input type="text" data-cls-code="" maxlength="9" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="K7M2QX" aria-describedby="cls-msg" required></label>
-<button type="submit" class="btn btn-blue">sınıfa katıl</button>
-<p class="sn-cls-msg" id="cls-msg" data-cls-msg="" role="status" aria-live="polite"></p>
-</form>
-<div class="sn-cls-grid" data-cls-list=""></div>
-</section>
+<div class="sn-acx-slot" data-acx="" hidden></div>
 
 <section class="sn-room" aria-labelledby="room-t">
 <div class="sn-sec-h"><h2 class="hd" id="room-t">sıralar <small class="hand">her sıra bir ders</small></h2></div>
@@ -1140,7 +1131,6 @@
 <button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
 <div class="sn-bd-form">
 <h2 id="bd-t" class="disp">sınav kâğıdı hazırla</h2>
-<p class="sn-asg-ban" data-asg-ban="" hidden></p>
 <fieldset class="sn-f sn-srcs axs-srcs"><legend>sorular nereden?</legend>
 <label><input type="radio" name="exam-source" value="study_card" checked onchange="onExamSourceChange()"><span><b>belgem</b><small>özetlediğin bir belgeden</small></span></label>
 <label><input type="radio" name="exam-source" value="course" onchange="onExamSourceChange()"><span><b>ders ağacı</b><small>müfredattaki bir dersten, özet gerekmez</small></span></label>
@@ -1194,7 +1184,7 @@
 <div class="sn-f3">
 <label class="sn-f axs-cnt"><span>soru sayısı</span><span class="sn-mx on"><button type="button" data-cnt="-1" aria-label="Bir azalt">−</button><input type="number" id="exam-question-count" value="10" min="1" max="20" aria-label="Soru sayısı"><button type="button" data-cnt="1" aria-label="Bir artır">+</button></span><small id="exam-question-count-range-hint" class="axs-hint"></small></label>
 <fieldset class="sn-f axs-lang"><legend>dil</legend><label><input type="radio" name="exam-lang" value="en" checked><span>English</span></label><label><input type="radio" name="exam-lang" value="tr"><span>Türkçe</span></label></fieldset>
-<label class="sn-f sn-chk" data-sim-row=""><input type="checkbox" id="exam-simulation-toggle"><span>gerçek sınav provası <small>süreli, ipucu yok, süre bitince teslim</small></span></label>
+<label class="sn-f sn-chk"><input type="checkbox" id="exam-simulation-toggle"><span>gerçek sınav provası <small>süreli, ipucu yok, süre bitince teslim</small></span></label>
 </div>
 <p class="sn-err" data-bd-err="" role="alert" hidden></p>
 <div class="sn-dlg-b"><span class="axs-bd-note hand" data-bd-note=""></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="button" class="btn btn-blue" id="btn-generate-exam" onclick="generateExam()">kitapçığı dağıt</button></div>
@@ -1217,24 +1207,6 @@
 <p class="axs-pf-n">Tarih çalışma planlayıcına da “sınav” olarak düşer.</p>
 <div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark">kapıya as</button></div>
 </form>
-</dialog>
-<dialog class="sn-dlg" data-clsdlg="" aria-labelledby="cs-t">
-<form class="sn-dlg-in" data-clsf="">
-<button type="button" class="sn-x" data-dlg-x="" aria-label="Kapat">×</button>
-<h2 id="cs-t" class="disp" data-cs-h="">sınıf aç</h2>
-<label class="sn-f"><span>sınıf adı</span><input type="text" maxlength="80" minlength="2" data-cs-name="" required placeholder="ör. FIN201 – A şubesi, 2026 güz"></label>
-<label class="sn-f"><span>ders kodu <small>(isteğe bağlı)</small></span><input type="text" maxlength="20" data-cs-course="" list="axs-cls-courses" placeholder="ör. FIN201"><datalist id="axs-cls-courses"></datalist></label>
-<p class="axs-pf-n">Sınıf açılınca 6 karakterlik bir katılım kodu verilir; öğrenciler kodu sınav salonunda girip katılır. Öğrencinin yalnızca adını, numarasını, bölümünü ve senin verdiğin ödevlerin sonuçlarını görürsün; konu ustalığını yalnızca izin veren öğrencilerde.</p>
-<div class="sn-dlg-b"><span></span><button type="button" class="sn-ghost" data-dlg-x="">vazgeç</button><button type="submit" class="btn btn-dark" data-cs-go="">sınıfı aç</button></div>
-</form>
-</dialog>
-<!-- Faz 6.2: ödev düzenleyici (içerik acadex-ink.js'te çizilir) -->
-<dialog class="sn-dlg sn-wide sn-asg-dlg" data-asgdlg="" aria-labelledby="ag-t">
-<div class="sn-dlg-in sn-asg-in" data-asg-body=""></div>
-</dialog>
-<!-- Faz 6.4: ödev sonuçları (içerik acadex-ink.js'te çizilir) -->
-<dialog class="sn-dlg sn-wide sn-res-dlg" data-resdlg="" aria-labelledby="rs-t">
-<div class="sn-dlg-in sn-res-in" data-rs-body=""></div>
 </dialog>
 </div>
 
@@ -2932,7 +2904,7 @@
         if (!session) return;
         const { data: profile, error } = await supabaseClient
           .from('profiles')
-          .select('is_admin, is_teacher')
+          .select('is_admin')
           .eq('id', session.user.id)
           .single();
         if (error || !profile) return;

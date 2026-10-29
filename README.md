@@ -25,7 +25,7 @@ tarayıcı eski JS'i tutmaz.
 ## Repo yapısı
 
 ```
-*.html                      sayfalar (index, dashboard, admin, teacher, login, ...)
+*.html                      sayfalar (index, dashboard, admin, login, ...)
 js/                         33 modül; dashboard.js tek başına 18.347 satır
 css/style.css               tek stil dosyası
 supabase/functions/<ad>/    her edge function kendi klasöründe (index.ts)
@@ -53,10 +53,9 @@ Supabase **otomatik sağlar**, elle girmene gerek yok:
 | `OCR_SPACE_API_KEY` | `summarize-document`, `chat-with-document`, `merge-summarize` | Taranmış (metinsiz) PDF'lerde OCR |
 | `OPENAI_API_KEY` | `generate-study-image` | Görsel üretimi (`gpt-image-1`) |
 | `ELEVENLABS_API_KEY` | `generate-podcast-audio` | Podcast sesi (TTS) |
-| `RESEND_API_KEY` | `notify-role-change`, `send-contact-notification` | E-posta bildirimi |
+| `RESEND_API_KEY` | `send-contact-notification` | E-posta bildirimi |
 | `ADMIN_NOTIFICATION_EMAIL` | `send-contact-notification` | İletişim formunun gideceği adres |
 | `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD` | `send-study-reminders` | Çalışma hatırlatma e-postaları |
-| `CAMPUSO_SSO_SECRET`, `ACADEX_APP_URL` | `campuso-sso` | Campuso tek-oturum entegrasyonu |
 | `GROQ_PRESENTATION_MODEL` | `acadia-presentation-director` | Sunum motoru için model adı (opsiyonel override) |
 
 Frontend'in Supabase bağlantısı `js/supabase-config.js` içinde **açıkça**
