@@ -116,6 +116,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'WINDOW_COMPLETION_MIN', 'WINDOW_COMPLETION_MAX', 'WINDOW_COMPLETION_MARGIN',
   // Pencere kucultme testi icin (oteki bildirimler listede zaten var).
   'MAX_CHUNKS',
+  'pencereCikisiDar',
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
@@ -5240,6 +5241,80 @@ test('ONCEKI KOSULARIN gercek degerleri bozulmadi', () => {
    yapıyor:
      Long-doc visual analysis patch skipped: SyntaxError: Expected ',' or ']'
      after array element in JSON at position 2414 */
+/* TEK PENCEREDE "DAR" DA TABANDA SAYILIR
+   (30.10.2026 — "Week 8 Derivative" ÖLÇÜMÜ).
+
+   windowCompletionFloored tavanın TAM tabanda olmasını istiyordu. Ölçülen iki
+   belge aynı hastalığı taşıyor ama yalnızca biri o eşiğe takılıyordu:
+
+     Week3 Chp2    12.298 krk, 1 pencere, tavan 2048, completion 2256
+                   -> TABANDA, küçültme çalıştı, kart 2->4 bölüm, 8->12 soru
+     Week 8 Deriv  11.154 krk, 1 pencere, tavan 2256, completion 4581
+                   -> TABANDA DEĞİL (208 fark), küçültme ÇALIŞMADI, 3 bölüm
+
+   İkisinde de completion tavanın ~2 KATI; fark yalnızca promptun uzunluğu.
+
+   YALNIZCA TEK PENCEREDE gevşetildi. Çok pencereli belgede yük zaten
+   bölünmüş ve ölçülen örnek sağlıklıydı: "Weeks 4-5 Chp3" 3 pencere,
+   tavan 2097 (daha da dar) ve kart doluydu (21 kavram, 27 madde, 16 soru). */
+console.log('\nTEK PENCEREDE DAR CIKIS TAVANI\n');
+
+/* Tavanı doğrudan kuran yardımcı: payload uzunluğunu verip istenen tavanı
+   elde etmek, sentetik metin üretmekten daha kesin. */
+const DAR_SEMA = 'x'.repeat(4027);
+const darPayload = (hedefTavan) => {
+  const serit = Math.floor(A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY);
+  return 'y'.repeat(Math.max(0, Math.round((serit - A.WINDOW_COMPLETION_MARGIN - hedefTavan) * 3.2) - DAR_SEMA.length));
+};
+
+test('OLCULEN IKI VAKA: ikisi de artik DAR sayiliyor', () => {
+  // Week3 Chp2: tavan tabanda (2048)
+  const p1 = darPayload(A.WINDOW_COMPLETION_MIN);
+  assert.equal(A.windowCompletionFor(DAR_SEMA, p1), A.WINDOW_COMPLETION_MIN, 'tavan tabanda olmaliydi');
+  assert.ok(A.pencereCikisiDar(DAR_SEMA, p1, 1));
+  // Week 8: tavan 2256 — tabanda DEGIL ama dar
+  const p2 = darPayload(2256);
+  assert.ok(A.windowCompletionFor(DAR_SEMA, p2) > A.WINDOW_COMPLETION_MIN, 'tavan tabanda olmamaliydi');
+  assert.ok(A.pencereCikisiDar(DAR_SEMA, p2, 1), 'Week 8 vakasi hala dar sayilmiyor');
+});
+
+test('GENIS TAVAN tek pencerede de dar SAYILMIYOR', () => {
+  /* Week 9 Integrals: 8.655 krk, tavan ~3036 — kart inceydi ama sebebi
+     OCR'dan az metin gelmesiydi, tavan degil. */
+  const p = darPayload(3036);
+  assert.ok(!A.pencereCikisiDar(DAR_SEMA, p, 1), 'genis tavan dar sayilmis');
+});
+
+test('COK PENCEREDE gevsetme UYGULANMIYOR', () => {
+  /* Yuk zaten bolunmus; olculen 3 pencereli belge tavan 2097 ile saglikliydi.
+     Tabanda olmadigi surece dokunulmuyor. */
+  const p = darPayload(2097);
+  assert.ok(!A.pencereCikisiDar(DAR_SEMA, p, 3), '3 pencereli belge dar sayilmis');
+  assert.ok(!A.pencereCikisiDar(DAR_SEMA, p, 2), '2 pencereli belge dar sayilmis');
+  // Ama TABANA carparsa pencere sayisi ne olursa olsun dar: o cagri zaten
+  // reddedilmeye aday (bkz. windowCompletionFloored yorumu).
+  const taban = darPayload(A.WINDOW_COMPLETION_MIN);
+  assert.ok(A.pencereCikisiDar(DAR_SEMA, taban, 3), 'tabanda olan cok pencereli belge dar sayilmali');
+});
+
+test('ESIK MARGIN den turuyor, elle secilmedi', () => {
+  /* Taban + iki pay. Sabitlerden biri degisirse esik kayar ve bu test onu
+     yakalar. */
+  const esik = A.WINDOW_COMPLETION_MIN + A.WINDOW_COMPLETION_MARGIN * 2;
+  assert.equal(esik, 2448);
+  assert.ok(A.pencereCikisiDar(DAR_SEMA, darPayload(esik - 50), 1), 'esigin altinda dar olmali');
+  assert.ok(!A.pencereCikisiDar(DAR_SEMA, darPayload(esik + 50), 1), 'esigin ustunde dar olmamali');
+});
+
+test('dongu YENI kosula bagli ve tavani loglaniyor', () => {
+  assert.match(SRC, /if \(!pencereCikisiDar\(compactWindowPrompt\(0, windows\.length\), enUzun\(windows\), windows\.length\)\) break/,
+    'dongu hala yalnizca tabanda olma kosuluna bagli');
+  assert.match(SRC, /Pencere kucultuldu: cikis tavani dar kaldi/, 'kucultme loglanmiyor');
+  // Log tavanin GERCEK degerini yazmali: "tabanda" demek artik yetersiz.
+  assert.match(SRC, /taban \$\{WINDOW_COMPLETION_MIN\}\), hedef/,
+    'log tavanin gercek degerini yazmiyor');
+});
+
 console.log('\nBOS KABUK AYIKLAMA\n');
 
 const KABUK_HAM = JSON.stringify({
@@ -5527,8 +5602,12 @@ test('DONGU KENDINI SINIRLIYOR: bolunemeyen metinde sonsuz dongu yok', () => {
 test('yeniden bolme KAYNAKTA bagli ve loglaniyor', () => {
   assert.match(SRC, /if \(windows\.length >= pencereTavani\) break/,
     'pencere tavanina ulasildiginda cikilmiyor');
-  assert.match(SRC, /if \(!windowCompletionFloored\(compactWindowPrompt\(0, windows\.length\), enUzun\(windows\)\)\) break/,
-    'kucultme kosulu tavanin TABANDA olmasina bagli degil');
+  /* 30.10.2026: kosul windowCompletionFloored'dan pencereCikisiDar'a gecti —
+     tek pencerede tavanin TAM tabanda olmasi sart degil, dar olmasi yeter
+     (bkz. "TEK PENCEREDE DAR CIKIS TAVANI"). Iddianin NIYETI ayni: kucultme
+     tavanin darligina bagli olmali, elle secilmis bir uzunluga degil. */
+  assert.match(SRC, /if \(!pencereCikisiDar\(compactWindowPrompt\(0, windows\.length\), enUzun\(windows\), windows\.length\)\) break/,
+    'kucultme kosulu tavanin darligina bagli degil');
   assert.match(SRC, /if \(yeni\.length <= windows\.length\) break/,
     'bolunemeyen metin icin cikis yok — sonsuz dongu riski');
   assert.match(SRC, /Pencere kucultuldu: cikis tavani tabanda kaldi/,

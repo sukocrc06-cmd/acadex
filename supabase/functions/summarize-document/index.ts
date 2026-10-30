@@ -1717,6 +1717,32 @@ function windowCompletionFloored(systemPrompt: string, payload: string): boolean
   return windowCompletionFor(systemPrompt, payload) === WINDOW_COMPLETION_MIN
 }
 
+/* TEK PENCEREDE "DAR" DA TABANDA SAYILIR (30.10.2026 olcumu).
+ *
+ * windowCompletionFloored tavanin TAM tabanda olmasini istiyor. Olculen iki
+ * belge ayni hastaligi tasiyor ama yalnizca biri o esige takiliyordu:
+ *
+ *   Week3 Chp2   11.154->12.298 krk, 1 pencere, tavan 2048, completion 2256
+ *                -> TABANDA, kucultme calisti, kart 2->4 bolum, 8->12 soru
+ *   Week 8 Deriv 11.154 krk,        1 pencere, tavan 2256, completion 4581
+ *                -> TABANDA DEGIL (208 fark), kucultme CALISMADI, 3 bolum
+ *
+ * Ikisinde de completion tavanin ~2 KATI. Fark yalnizca promptun uzunlugu:
+ * tabana carpma esigi payload >= ~11.800 krk'ta, Week 8 ise 11.154'te.
+ *
+ * YALNIZCA TEK PENCEREDE gevsetiliyor. Cok pencereli belgede yuk zaten
+ * bolunmus durumda ve olculen ornek saglikliydi: "Weeks 4-5 Chp3" 3 pencere,
+ * tavan 2097 (daha da dar) ve kart doluydu (21 kavram, 27 madde, 16 soru).
+ * Tek pencerede ise butun belge tek cikis butcesi icin yarisiyor ve
+ * basvuracak baska yer yok.
+ *
+ * Esik MARGIN'den turuyor, elle secilmedi: tabanin iki pay kadar ustu. */
+function pencereCikisiDar(systemPrompt: string, payload: string, pencereSayisi: number): boolean {
+  if (windowCompletionFloored(systemPrompt, payload)) return true
+  if (pencereSayisi !== 1) return false
+  return windowCompletionFor(systemPrompt, payload) < WINDOW_COMPLETION_MIN + WINDOW_COMPLETION_MARGIN * 2
+}
+
 function computeAdaptiveTargets(charCount: number, lengthPreset: string) {
   const presets: Record<string, { summary: [number, number]; terms: [number, number]; points: [number, number]; quiz: [number, number]; capSummary: number; capTerms: number; capPoints: number; capQuiz: number }> = {
     short: { summary: [2, 3], terms: [3, 5], points: [3, 5], quiz: [3, 3], capSummary: 6, capTerms: 12, capPoints: 10, capQuiz: 6 },
@@ -11758,12 +11784,14 @@ Rules:
         let hedef = WINDOW
         for (let tur = 0; tur < 4; tur++) {
           if (windows.length >= pencereTavani) break
-          if (!windowCompletionFloored(compactWindowPrompt(0, windows.length), enUzun(windows))) break
+          if (!pencereCikisiDar(compactWindowPrompt(0, windows.length), enUzun(windows), windows.length)) break
           hedef = Math.floor(hedef * 0.75)
           const yeni = splitIntoWindows(extractedText, hedef, pencereTavani)
           if (yeni.length <= windows.length) break
           console.log(
-            `Pencere kucultuldu: cikis tavani tabanda kaldi, hedef ${hedef} krk ` +
+            `Pencere kucultuldu: cikis tavani dar kaldi ` +
+            `(${windowCompletionFor(compactWindowPrompt(0, windows.length), enUzun(windows))}, ` +
+            `taban ${WINDOW_COMPLETION_MIN}), hedef ${hedef} krk ` +
             `-> ${windows.length} pencere yerine ${yeni.length} pencere`
           )
           windows = yeni
