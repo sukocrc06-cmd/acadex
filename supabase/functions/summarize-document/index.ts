@@ -2323,8 +2323,8 @@ async function callGroqJson(
   } catch (ayristirmaHatasi) {
     /* KESIK JSON KURTARILIR (30.10.2026 olcumu).
      *
-     * "Computer Network Security" kosusunda ikinci pencere cikis tavanina
-     * dayandi ve JSON yarida kaldi:
+     * "Computer Network Security" kosusunda ikinci pencerenin JSON'u bozuk
+     * geldi:
      *   Window 2 token: prompt=3587 completion=2036 / max=2119
      *   Window 2 attempt 1 failed: Expected double-quoted property name in
      *     JSON at position 6276 (line 109 column 7)
@@ -2332,6 +2332,20 @@ async function callGroqJson(
      *     karta hic girmedi
      * 55 sayfalik belgenin YARISI karta hic girmedi; kart 2 bolum, 10
      * kavram, 7 soruda kaldi.
+     *
+     * SEBEP TAVAN DEGIL (30.10.2026'da duzeltildi). Ilk teshisim "cikis
+     * tavanina dayandi" demisti ama log aksini soyluyor: pencere yolu
+     * usageLabel geciyor, yani finish_reason='length' olsaydi ayni satira
+     * " — SINIRA DAYANDI" eklenirdi. Eklenmemis. Yani model normal
+     * bitirdigini bildirdi ve YINE DE bozuk JSON yazdi — kesilme degil,
+     * stokastik bozuk uretim. Zaten json_validate_failed yorumunun
+     * soyledigi sinif bu.
+     *
+     * Bu, kurtarmayi gereksiz kilmiyor: kapatma islemi tamamlanmis onEKI
+     * her halde kurtariyor, ve asil emniyet kemeri yeniden deneme.
+     * AYNI BELGE 24 dakika sonra yeniden ozetlendi ve ayni pencere bu kez
+     * 1716 token ile GECERLI JSON yazdi (4 bolum, 22 kavram, 9 soru).
+     * Yani hata run-to-run degisiyor; kurtarma+yeniden deneme sigorta.
      *
      * Iki ayri bosluk vardi:
      *  1) Bu hata Groq'un `json_validate_failed`'i DEGIL, bizim

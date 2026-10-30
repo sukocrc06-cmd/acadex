@@ -5184,8 +5184,18 @@ test('ONCEKI KOSULARIN gercek degerleri bozulmadi', () => {
      EKSIK BELGE: 1/2 pencere dustu [2] — 11957 karakter (belgenin %54'i)
        karta hic girmedi
 
-   Çıkış tavanına dayanıldı (2036/2119), JSON yarıda kaldı ve 55 sayfalık
-   belgenin yarısı karta hiç girmedi: kart 2 bölüm, 10 kavram, 7 soruda kaldı.
+   55 sayfalık belgenin yarısı karta hiç girmedi: kart 2 bölüm, 10 kavram,
+   7 soruda kaldı.
+
+   SEBEP TAVAN DEĞİL (30.10.2026'da düzeltildi). İlk teşhis "çıkış tavanına
+   dayanıldı" demişti; log aksini söylüyor. Pencere yolu usageLabel geçiyor,
+   yani finish_reason='length' olsaydı aynı satıra " — SINIRA DAYANDI"
+   eklenirdi; eklenmemiş. Model normal bitirdiğini bildirdi ve yine de bozuk
+   JSON yazdı — kesilme değil, stokastik bozuk üretim.
+
+   Aynı belge 24 dakika sonra yeniden özetlendi: aynı pencere bu kez 1716
+   token ile GEÇERLİ JSON yazdı (4 bölüm, 22 kavram, 9 soru). Yani hata
+   koşudan koşuya değişiyor; kurtarma + yeniden deneme bir sigorta.
 
    İki ayrı boşluk vardı:
      1) Bu hata Groq'un `json_validate_failed`'i DEĞİL, bizim JSON.parse'ımızın
