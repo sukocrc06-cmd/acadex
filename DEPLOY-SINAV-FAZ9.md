@@ -58,6 +58,14 @@ Kullanıcı isteğiyle önce örnek platformlar incelendi, sonra öncelik sıras
 - **Kod:** `exam-engine` → `examReadiness`; `acadex-ink` → `paintRdy`; `dashboard.html` → `[data-rdy]`. Migration yok.
 - **Test:** `tests/exam-readiness.js` (4); tarayıcı 1280 ve 390 px.
 
+## 4. İkinci şansa grafik ve çizim soruları (Faz 11)
+
+- **Örnek:** MyLab "Similar Question" benzer soruyu grafik dahil her algoritmik soruda verir.
+- **Grafik okuma** (`retryChartVariant`): model çağrılmaz. Grafiğin sayıları değişir (`chartVariant`, ±%22, seri sırası korunur). Soru aynı biçimde kodla kurulur (`buildChartQuestion`): hangisi söylenebilir / söylenemez, öncüllü, D/Y, boşluk, yorum, değer (şıklı ya da şıksız). Biçim kaynak sorunun kökünden, şıklarından ve tipinden çıkar (`retryChartFormat`). Konu ve kaynak sayfa taşınır.
+- **Çizim** (`graph`) **ve ifade** (`expression`): model yazar, kod doğrular (`verifyGraph`, `verifyExpression`). Bu sorularda kök hep benzer olduğu için kök benzerliği aranmaz. Kopya ölçütü: çizimde denklemlerin hepsi kaynakta geçiyor ya da cevap aynı; ifadede cevap ya da soru aynı.
+- **Ekran:** defterde bu yanlışlara da durum etiketi ve ikinci şans; hatırlatma ve hazırlık kartı onları da sayar.
+- **Test:** `tests/exam-retry.js` (+4).
+
 ## Test
 
 - `tests/exam-timing.js` (5) ve `tests/exam-retry.js` (hatırlatma).

@@ -3292,10 +3292,54 @@ async function handleExamHelp(req: Request, help: Record<string, unknown>): Prom
 // numaralı sorunun hangi yanlıştan geldiğini tutar. Tekrar takvimi ve
 // "kazanıldı" (iki ardışık doğru) tarayıcıda bu kayıtlardan hesaplanır
 // (exam-engine → mistakeStates). Migration yok.
+//
+// Faz 11 (30.10.2026): grafik ve çizim soruları da (MyLab benzer soruyu
+// grafik dahil her algoritmik soruda veriyor).
+//   - Grafik okuma: model yok; grafiğin sayıları değişir (chartVariant) ve
+//     aynı biçimde yeni soru kodla kurulur (buildChartQuestion).
+//   - Çizim ve ifade: model yazar, kod doğrular (verifyGraph,
+//     verifyExpression); kaynağın denklemleri ya da cevabı aynıysa kopya.
 // ==========================================================================
 
 const RETRY_MAX_ITEMS = 10
-const RETRY_TYPES = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended', 'calculation']
+const RETRY_TYPES = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended', 'calculation', 'graph', 'expression']
+
+/** Kaynak grafik sorusunun biçimi (buildChartQuestion): soru kodla
+ *  kurulduysa kökünden ve şıklarından, modelin yazdığı grafik sorusunda
+ *  tipten çıkarılır. */
+function retryChartFormat(r: Record<string, unknown>): ChartExample {
+  const stem = String(r.question ?? '').split(/\n\s*\n/)[0].trim()
+  const opts = Array.isArray(r.options) ? (r.options as unknown[]).map(String) : []
+  const ex: ChartExample = { stem, format: 'which_true', skills: [] }
+  if (r.type === 'true_false') ex.format = 'true_false'
+  else if (r.type === 'fill_blank') ex.format = 'fill'
+  else if (r.type === 'open_ended') ex.format = 'open'
+  else if (r.type === 'calculation') ex.format = 'value'
+  else if (Array.isArray(r.premises) || /\n\s*I\.\s/.test(String(r.question ?? ''))) ex.format = 'premises'
+  else if (/söylenemez|yanlıştır|NOT true|cannot be said/i.test(stem)) ex.format = 'which_false'
+  else if (opts.length >= 2 && opts.every(o => Number.isFinite(parseLooseNumber(o.replace(/[%₺$€£]|TL/gi, ''))))) ex.format = 'value'
+  if (r.type === 'multiple_choice' && [4, 5].includes(opts.length)) ex.options_count = opts.length
+  return ex
+}
+
+/** Grafik sorusundan sayıları değişmiş grafikle, aynı biçimde yeni soru. */
+function retryChartVariant(src: RetrySource, lang: string, optionCount: number, rand: () => number = Math.random): Record<string, unknown> | null {
+  const raw = (src.result.chart && typeof src.result.chart === 'object' ? src.result.chart : null) as Record<string, unknown> | null
+  const chart = normalizeChartSpec(raw)
+  if (!raw || !chart) return null
+  const ex = retryChartFormat(src.result)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const v = chartVariant(chart, rand)
+    if (!v) return null
+    const c = { ...v, ...(chartLabel(raw.x_title, 60) ? { x_title: chartLabel(raw.x_title, 60) } : {}), ...(chartLabel(raw.y_title, 60) ? { y_title: chartLabel(raw.y_title, 60) } : {}) }
+    const q = buildChartQuestion(ex, c, lang, rand, optionCount) || (src.result.type === 'multiple_choice' ? buildChartQuestion({ ...ex, format: 'which_true' }, c, lang, rand, optionCount) : null)
+    if (!q || q.type !== src.result.type) continue
+    if (src.result.concept) q.concept = src.result.concept
+    if (src.key.source) q.source = src.key.source
+    return q
+  }
+  return null
+}
 
 type RetrySource = { examId: string; questionId: number; exam: Record<string, unknown>; result: Record<string, unknown>; key: Record<string, unknown> }
 
@@ -3319,15 +3363,18 @@ function retryUserPrompt(items: RetrySource[], lang: string, optionCount: number
     const parts = [`${i + 1}. TYPE: ${r.type}`, `CONCEPT: ${String(r.concept ?? '').slice(0, 120)}`, `QUESTION: ${String(r.question ?? '').slice(0, 900)}`]
     if (Array.isArray(r.options) && r.options.length) parts.push(`OPTIONS: ${JSON.stringify(r.options)}`)
     if (r.correct_answer != null && r.type !== 'open_ended') parts.push(`CORRECT ANSWER: ${String(r.correct_answer).slice(0, 300)}`)
+    if (r.type === 'graph' && r.graph && typeof r.graph === 'object') parts.push(`GRID: ${JSON.stringify(r.graph).slice(0, 600)}`)
     return parts.join('\n   ')
   })
+  const has = (t: string) => items.some(s => s.result.type === t)
   return [
     `EXAM TYPE: mixed`,
     `LANGUAGE: ${lang}`,
     `DIFFICULTY: medium`,
     `QUESTION COUNT: ${items.length}`,
     `OPTION COUNT: every 'multiple_choice' question has exactly ${optionCount} options.`,
-    `GRAPH QUESTIONS: not allowed.`,
+    has('graph') ? `GRAPH QUESTIONS: allowed only to replace a SOURCE QUESTION of type 'graph' (that source question is the source material): same kind of drawing on the same topic, with DIFFERENT equations and numbers; a question that reuses the source equations is discarded. Choose numbers so every answer point falls on grid intersections.` : `GRAPH QUESTIONS: not allowed.`,
+    ...(has('expression') ? [`EXPRESSION QUESTIONS: allowed only to replace a SOURCE QUESTION of type 'expression': same operation (e.g. derivative, simplification) on a DIFFERENT expression, so the answer differs.`] : []),
     `SECOND CHANCE: the student got each SOURCE QUESTION below wrong. For each one, in the same order, write exactly ONE new question of the SAME type that tests the SAME concept and skill with different specifics (a different example, case, numbers or angle), so it is not the source reworded: do not reuse the source sentence; ask about a different aspect, case or example. For 'fill_blank' and 'true_false' the answer should differ from the source answer where possible. Keep "concept" equal to the source concept. Write the full schema (hint, explanation, option_rationales or rubric, variables/formula/template for calculation). "source_terms" may be [].`,
     `SOURCE QUESTIONS:`,
     ...lines
@@ -3353,6 +3400,18 @@ function acceptRetryQuestion(raw: unknown, src: RetrySource, lang: string, optio
   const v = validateQuestion(raw, [String(src.result.type)], lang, optionCount, true)
   if (!v.ok || !v.question) { console.warn(`generate-exam ikinci sans: soru atildi (${src.result.type}): ${v.reason}`); return null }
   const q = v.question
+  // Çizim ve ifade sorusunda kök hep benzer ("… doğrusunu çiziniz",
+  // "… türevini bulunuz"); kopya, aynı denklemler ya da aynı cevaptır.
+  if (q.type === 'graph' || q.type === 'expression') {
+    const srcText = `${src.result.question ?? ''}`
+    const copy = q.type === 'graph'
+      ? graphCopiesFile(String(q.question), new Set(graphEquationsIn(srcText))) || (src.key.graph_answer != null && JSON.stringify(q.graph_answer) === JSON.stringify(src.key.graph_answer))
+      : normalizeAnswerText(q.correct_answer) === normalizeAnswerText(src.key.correct_answer ?? src.result.correct_answer) || normalizeAnswerText(q.question) === normalizeAnswerText(srcText)
+    if (copy) { console.warn(`generate-exam ikinci sans: ${q.type} sorusu kaynagin kopyasi`); return null }
+    if (!q.concept && src.result.concept) q.concept = src.result.concept
+    delete q.chart_ref
+    return q
+  }
   const sim = retrySimilarity(q.question, src.result.question)
   const sameAnswer = q.type !== 'open_ended' && q.type !== 'calculation' && normalizeAnswerText(q.correct_answer) === normalizeAnswerText(src.result.correct_answer)
   if (sim >= 0.5 || (sameAnswer && sim >= 0.35)) { console.warn(`generate-exam ikinci sans: soru kaynaga cok benziyor (${sim.toFixed(2)}${sameAnswer ? ', ayni cevap' : ''})`); return null }
@@ -3369,7 +3428,7 @@ async function requestRetryQuestions(items: RetrySource[], lang: string, optionC
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'openai/gpt-oss-120b', temperature: 0.8, reasoning_effort: 'low',
-      max_completion_tokens: Math.min(GEN_TOKENS_MAX, GEN_TOKENS_BASE + (GEN_TOKENS_PER_QUESTION + GEN_TOKENS_CALC_EXTRA) * items.length),
+      max_completion_tokens: Math.min(GEN_TOKENS_MAX, GEN_TOKENS_BASE + (GEN_TOKENS_PER_QUESTION + GEN_TOKENS_CALC_EXTRA) * items.length + GEN_TOKENS_GRAPH_EXTRA * 5 * items.filter(s => s.result.type === 'graph').length),
       response_format: { type: 'json_object' },
       messages: [{ role: 'system', content: STATIC_EXAM_INSTRUCTIONS }, { role: 'user', content: retryUserPrompt(items, lang, optionCount) }]
     })
@@ -3430,14 +3489,19 @@ async function handleExamRetry(req: Request, retry: Record<string, unknown>): Pr
     const e = byId.get(w.examId)
     if (!e) continue
     const result = ((e.question_results || []) as Record<string, unknown>[]).find(r => Number(r.question_id) === w.questionId)
-    if (!result || !RETRY_TYPES.includes(String(result.type)) || result.chart) continue
+    if (!result || !RETRY_TYPES.includes(String(result.type))) continue
     sources.push({ examId: w.examId, questionId: w.questionId, exam: e, result, key: (keysOf.get(w.examId) || {})[String(w.questionId)] || {} })
   }
-  if (!sources.length) return out({ error: T('Bu yanlışlar için ikinci şans sorusu kurulamıyor (grafik ve çizim soruları desteklenmiyor).', 'No second-chance questions can be built for these mistakes (chart and drawing questions are not supported).') }, 400)
+  if (!sources.length) return out({ error: T('Bu yanlışlar için ikinci şans sorusu kurulamıyor.', 'No second-chance questions can be built for these mistakes.') }, 400)
 
   const optionCount = [4, 5].includes(Number((first.scoring as Record<string, unknown> | null)?.option_count)) ? Number((first.scoring as Record<string, unknown>).option_count) : 4
-  const built: Array<Record<string, unknown> | null> = sources.map(s => retryCalcVariant(s, lang))
-  let need = sources.map((s, i) => ({ s, i })).filter(x => !built[x.i])
+  // Grafik okuma sorusu modele gitmez: grafik kodla kurulamazsa soru düşer
+  // (model grafiğin sayılarını uyduramaz).
+  const isChart = (s: RetrySource) => !!s.result.chart && s.result.type !== 'graph'
+  const built: Array<Record<string, unknown> | null> = sources.map(s => isChart(s) ? retryChartVariant(s, lang, optionCount) : retryCalcVariant(s, lang))
+  const chartLost = sources.filter((s, i) => isChart(s) && !built[i]).length
+  if (chartLost) console.warn(`generate-exam ikinci sans: ${chartLost} grafik sorusu kurulamadi`)
+  let need = sources.map((s, i) => ({ s, i })).filter(x => !built[x.i] && !isChart(x.s))
   for (let attempt = 0; attempt < 2 && need.length; attempt++) {
     const items = await requestRetryQuestions(need.map(x => x.s), lang, optionCount)
     need.forEach((x, j) => { const q = acceptRetryQuestion(items[j], x.s, lang, optionCount); if (q) built[x.i] = q })

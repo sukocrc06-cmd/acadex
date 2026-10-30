@@ -9,7 +9,7 @@ Hata defterindeki yanlışlar (puanı 50 altı) aralıklı tekrarla geri gelir. 
   - Son ikinci şans denemesi yanlışsa (80 altı) 1 gün, doğruysa 3 gün sonra yeniden gelir.
 - **Kazanma:** art arda **iki doğru** (80 ve üstü) yanlışı kazandırır, defterden çıkar. Başlıkta "N kazanıldı" yazar.
 - **Ders başına "ikinci şans · N soru":** zamanı gelen en çok 10 yanlış.
-- **Desteklenen tipler:** çoktan seçmeli, doğru-yanlış, boşluk, açık uçlu, hesap. Grafik ve çizim soruları defterde kalır, eskisi gibi "öğrendim" ile silinir.
+- **Desteklenen tipler:** bütün tipler. Grafik okuma, çizim ve ifade soruları 30.10.2026'dan beri (Faz 11, `DEPLOY-SINAV-FAZ9.md` 4. bölüm).
 - **Hesap sorusu:** şablonu olan hesap sorusu yeni sayılarla gelir (makeVariant, model çağrısı yok). Ötekiler tek model çağrısıyla yazılır.
   - Sınavla aynı şemayı kullanır ve `validateQuestion`'dan geçer.
   - Kaynakla birebir aynı soru atılır; eksik kalanlar bir kez yeniden istenir.
