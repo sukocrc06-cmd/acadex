@@ -1151,8 +1151,19 @@ test('KISMI kart rozetinde YENIDEN OZETLE yolu var', () => {
      gizleniyor. Bu testin asil isi degismedi: KABLOLAMA yerinde durmali ki
      acmak tek satir olsun. Ustteki ve asagidaki iddialar onu olcuyor.
      Bilinen bedel: bayrak kapaliyken KISMI karttan cikis yolu da yok. */
-  assert.ok(INK_SRC.includes('if (window.YENIDEN_OZETLE_ACIK && yenileCikisi && own && c.document_id)'),
-    'dugme TAM kartta, baskasinin kartinda ya da bayrak kapaliyken cikiyor');
+  /* 30.10.2026: KISMI KART SARTI KALKTI. summary_cache donduruldu
+     (index.ts -> SUMMARY_CACHE_ACIK=false), yani cache_kismi hic yazilmiyor
+     ve yenileCikisi neredeyse hep false kalirdi — dugme kaybolurdu. Ustelik
+     amac degisti: artik ayni belgeyi tekrar ozetleyip hattaki ilerlemeyi
+     olcmek icin gerekiyor.
+     Kalan iki guard OLCULMEYE DEVAM EDIYOR: bayrak kapaliyken ve baskasinin
+     kartinda dugme cikmamali. yenileCikisi degiskeni de silinmedi; kismi
+     rozetini hala o belirliyor ve onbellek geri acilinca kosul yine
+     daraltilabilir. */
+  assert.ok(INK_SRC.includes('if (window.YENIDEN_OZETLE_ACIK && own && c.document_id)'),
+    'dugme baskasinin kartinda ya da bayrak kapaliyken cikiyor');
+  assert.ok(INK_SRC.includes('var yenileCikisi = kismiKart || !!kismiSebep;'),
+    'kismi rozetinin sebebi artik hesaplanmiyor');
   assert.ok(/window\.YENIDEN_OZETLE_ACIK = (true|false);/.test(DASH_SRC),
     'bayrak dashboard.js\'te tek yerde tanimli degil');
   assert.ok(DASH_SRC.includes('if (!window.YENIDEN_OZETLE_ACIK) return;'),

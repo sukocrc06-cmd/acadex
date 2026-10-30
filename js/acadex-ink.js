@@ -10090,11 +10090,20 @@ var SBX = (function () {
       uyarilar.push('sayısal kapsama %' + Math.round((nc.kept / nc.total) * 100));
     }
     var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');
-    // Cikis yolu yalnizca KENDI kartinda — bkz. yenileCikisi.
-    // YENIDEN_OZETLE_ACIK kapaliyken cikis yolu da cizilmiyor — bkz. dashboard.js.
-    if (window.YENIDEN_OZETLE_ACIK && yenileCikisi && own && c.document_id) {
-      uyariChip += '<button type="button" class="axr-chip warn hand" data-yenile="' + X(c.document_id) +
-        '" title="Önbelleği atlayıp sıfırdan özetler">' + ICON.redo + 'yeniden özetle</button>';
+    /* DUGME ARTIK HER KENDI KARTINDA (30.10.2026, Berkay'in karari).
+       Once yalnizca KISMI kartta cikiyordu (yenileCikisi) — mantigi "kurtarma
+       yolu" olmasiydi. Simdi summary_cache donduruldu (index.ts ->
+       SUMMARY_CACHE_ACIK=false) ve bunun iki sonucu var:
+         1) cache_kismi hic yazilmiyor, yani yenileCikisi neredeyse hep false
+            kalirdi ve dugme kaybolurdu;
+         2) amac degisti: artik ayni belgeyi tekrar ozetleyip hattaki
+            ilerlemeyi olcmek icin gerekiyor.
+       yenileCikisi degiskeni KALDIRILMADI: kismi kart rozetini hala o
+       belirliyor ve onbellek geri acildiginda kosul yine daraltilabilir. */
+    if (window.YENIDEN_OZETLE_ACIK && own && c.document_id) {
+      uyariChip += '<button type="button" class="axr-chip' + (yenileCikisi ? ' warn' : '') +
+        ' hand" data-yenile="' + X(c.document_id) +
+        '" title="Sıfırdan yeni bir özet çıkarır (önbellek kapalı)">' + ICON.redo + 'yeniden özetle</button>';
     }
     /* R44 (28.10.2026): dil düğmesi hazır değilken ("yakında", soluk) hiç gösterilmez */
     mast.innerHTML = '<div class="axr-mastin">' + (LT_ON ? '<div class="axr-ltbar"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span></div>' : '') + '<span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +

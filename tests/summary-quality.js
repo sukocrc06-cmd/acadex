@@ -102,6 +102,10 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'kurPencereler', 'splitIntoChunks', 'splitIntoWindows',
   'gateWorkedExamples',
   'JSON_GECERLI_KACIS', 'LATEX_IKI_HARFLI', 'repairLatexEscapes',
+  // Kesik pencere JSON'u kurtarma (30.10.2026 olcumu).
+  'closeTruncatedJson',
+  // Onbellek anahtari (30.10.2026).
+  'SUMMARY_CACHE_ACIK', 'SUMMARY_CACHE_VERSION',
   // Anlatida ters bolunun satir sonuna donmesi (29.10.2026 olcumu).
   'LATEX_ANLATI_NET', 'LATEX_ANLATI_KELIME', 'onarAnlatiTersBolusu',
   // Yokluk iddiasi kapisi (08.10.2026).
@@ -4625,7 +4629,12 @@ test('sorgu yalnizca GERCEKTEN OCR yapilacaksa atiliyor', () => {
   // Metinli PDF yolu hicbir ek maliyet gormemeli.
   const blok = SRC.slice(SRC.indexOf('if (isScannedOrFailed) {'), SRC.indexOf('onbellektenOcrMetni(serviceClient'));
   assert.ok(/isScannedOrFailed/.test(blok), 'sorgu tarama dalinin ICINDE olmali');
-  assert.ok(/if \(!onbellegiAtla\)/.test(blok), 'yenile=true iken OCR onbellegi okunmamali');
+  /* 30.10.2026: kosul `if (!onbellegiAtla)` yerine
+     `if (SUMMARY_CACHE_ACIK && !onbellegiAtla)` oldu — onbellek tumden
+     donduruldugu icin (bkz. ONBELLEK ANAHTARI). Iddianin NIYETI ayni:
+     yenile=true iken OCR onbellegi okunmamali. */
+  assert.ok(/if \(SUMMARY_CACHE_ACIK && !onbellegiAtla\)/.test(blok),
+    'yenile=true iken OCR onbellegi okunmamali');
 });
 
 test('isabette OCR cagrisi ATLANIYOR (bayraklar dogru kuruluyor)', () => {
@@ -5166,6 +5175,166 @@ test('ONCEKI KOSULARIN gercek degerleri bozulmadi', () => {
    bizim ÷3.2 tahmini 4.968 diyor (%25 fazla). Bölen küçültülemez, çünkü
    başka bir ölçümde 3.2 isabetliydi (10.553 krk -> 3.248 gerçek). Doğru
    çözüm pencereyi küçültmek; windowCompletionFloored bunu zaten görüyordu. */
+/* KESİK PENCERE JSON'U BELGENİN YARISINI GÖTÜRÜYOR
+   (30.10.2026 — "Computer Network Security" ÖLÇÜMÜ).
+
+     Window 2 token: prompt=3587 completion=2036 / max=2119
+     Window 2 attempt 1 failed: Expected double-quoted property name in JSON
+       at position 6276 (line 109 column 7)
+     EKSIK BELGE: 1/2 pencere dustu [2] — 11957 karakter (belgenin %54'i)
+       karta hic girmedi
+
+   Çıkış tavanına dayanıldı (2036/2119), JSON yarıda kaldı ve 55 sayfalık
+   belgenin yarısı karta hiç girmedi: kart 2 bölüm, 10 kavram, 7 soruda kaldı.
+
+   İki ayrı boşluk vardı:
+     1) Bu hata Groq'un `json_validate_failed`'i DEĞİL, bizim JSON.parse'ımızın
+        attığı SyntaxError. extractWindow'daki yeniden deneme koşulları
+        (413 / 429 / json_validate_failed) hiçbiri eşleşmiyor, o yüzden
+        pencere TEK denemede düşüyordu.
+     2) closeTruncatedJson tam bu iş için yazılmış ama yalnızca Gemini akış
+        yolunda kullanılıyordu; callGroqJson onu hiç çağırmıyordu. */
+/* ÖNBELLEK DONDURULDU (30.10.2026, Berkay'ın kararı).
+
+   Şu an özet KALİTESİ üzerinde çalışılıyor ve aynı belgeyi tekrar tekrar
+   özetleyip ilerlemeyi görmek gerekiyor. Önbellek bunu imkânsız kılıyordu:
+   anahtarın çekirdeği sha256(fileBytes), yani aynı dosya hat ne kadar
+   iyileşse de eski satırı getiriyor (bkz. SURUM 'c2' notu).
+
+   Bu testler anahtarın TEK olduğunu ve HER İKİ yönü de (okuma + yazma)
+   kapattığını kilitliyor: yarım kapatmak en kötüsü olurdu — okuma kapalı
+   yazma açık kalsa tablo büyümeye devam ederdi, tersi ise bayat kart
+   servis etmeye. */
+console.log('\nONBELLEK ANAHTARI\n');
+
+test('ONBELLEK KAPALI ve anahtar TEK', () => {
+  assert.equal(A.SUMMARY_CACHE_ACIK, false, 'onbellek acik kalmis');
+  // Surum ve mantik SILINMEDI: geri acmak tek satir olmali.
+  assert.equal(typeof A.SUMMARY_CACHE_VERSION, 'string');
+  assert.match(A.SUMMARY_CACHE_VERSION, /^c\d+$/);
+});
+
+test('ANAHTAR HER IKI YONU kapatiyor: okuma VE yazma', () => {
+  /* Yarim kapatmak en kotusu: okuma kapali/yazma acik tabloyu buyutmeye
+     devam ederdi, tersi bayat kart servis etmeye. */
+  assert.match(SRC, /\(!SUMMARY_CACHE_ACIK \|\| onbellegiAtla\)/,
+    'okuma anahtara bagli degil');
+  assert.match(SRC, /if \(!SUMMARY_CACHE_ACIK\) \{\s*\n?\s*console\.log\('summary_cache: yazma KAPALI/,
+    'yazma anahtara bagli degil');
+  // Kapali oldugu LOGLANIYOR: sessiz bir kapali anahtar teshis edilemez.
+  assert.match(SRC, /summary_cache: KAPALI \(SUMMARY_CACHE_ACIK=false\)/);
+});
+
+test('OCR ONBELLEGI de ayni anahtara bagli', () => {
+  /* OCR metni ayni tabloda duruyor (bkz. onbellektenOcrMetni). Onbellek
+     kapaliyken o satirlar da yok, bos sorgu atmanin anlami kalmiyor. */
+  assert.match(SRC, /if \(SUMMARY_CACHE_ACIK && !onbellegiAtla\) \{/,
+    'OCR onbellegi anahtardan bagimsiz sorgu atiyor');
+});
+
+/* js/ dosyalarini okumak icin: summary-quality'de `read` yardimcisi yok,
+   SRC yalnizca edge function'i tutuyor. */
+const jsOku = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8').replace(/\r\n/g, '\n');
+
+test('YENIDEN OZETLEME ACIK ve MODALSIZ', () => {
+  const dash = jsOku('js/dashboard.js');
+  assert.match(dash, /window\.YENIDEN_OZETLE_ACIK = true;/, 'yeniden ozetleme kapali');
+  /* resummarizeFresh artik modali ACMIYOR: o modal yalnizca dili soruyor ve
+     ayni belgeyi ust uste ozetlerken gereksiz bir adim. */
+  const blok = dash.slice(dash.indexOf('function resummarizeFresh'),
+                          dash.indexOf('function resummarizeFresh') + 420);
+  assert.match(blok, /proceedWithSummarization\(\)/, 'direkt ozetleme cagrisi yok');
+  assert.ok(!/openResummarizeModal\(/.test(blok), 'hala modal aciyor');
+  assert.match(blok, /onbellegiYenile = true/, 'yenile=true gonderilmiyor');
+  // "Re-summarize with different style" dugmesi modali ACMAYA devam etmeli.
+  assert.match(dash, /function openResummarizeModal\(docId\) \{[\s\S]{0,200}openSummaryStyleModal\(\)/,
+    'stil degistirme yolu da kapanmis');
+});
+
+test('INK dugmesi HER KENDI KARTINDA cikiyor', () => {
+  /* Onbellek kapaliyken cache_kismi hic yazilmiyor, yani eski kosul
+     (yenileCikisi) dugmeyi neredeyse hep gizlerdi. */
+  const ink = jsOku('js/acadex-ink.js');
+  assert.match(ink, /if \(window\.YENIDEN_OZETLE_ACIK && own && c\.document_id\) \{/,
+    'dugme hala kismi kart kosuluna bagli');
+  // yenileCikisi SILINMEDI: kismi rozetini hala o belirliyor.
+  assert.match(ink, /var yenileCikisi = kismiKart \|\| !!kismiSebep;/);
+});
+
+console.log('\nKESIK JSON KURTARMA\n');
+
+/* Pencere şemasının tavana dayanıp kesildiği gerçekçi hâli. */
+const KESIK_TAM = JSON.stringify({
+  summary: 'Intrusion prevention overview.',
+  key_terms: [{ term: 'Firewall', definition: 'Bir ag guvenlik sistemi.' },
+              { term: 'NAT', definition: 'Adres cevirisi.' }],
+  key_points: ['Packet filtering network layer', 'NAT hides topology'],
+  quiz_questions: [{ question: 'Hangi katman?', answer: 'Ag katmani' }]
+}, null, 2);
+
+test('DORT KESILME SEKLI de kurtariliyor', () => {
+  const kesikler = [
+    ['dizi ortasinda', KESIK_TAM.slice(0, KESIK_TAM.indexOf('"key_points"') + 30)],
+    ['dize ortasinda', KESIK_TAM.slice(0, KESIK_TAM.indexOf('"definition": "Adres') + 14)],
+    ['son nesne yarida', KESIK_TAM.slice(0, KESIK_TAM.lastIndexOf('}') - 20)],
+    ['cok erken', KESIK_TAM.slice(0, 120)]
+  ];
+  for (const [ad, k] of kesikler) {
+    assert.throws(() => JSON.parse(k), `${ad}: girdi zaten gecerliyse test anlamsiz`);
+    const kapali = A.closeTruncatedJson(k);
+    assert.ok(kapali, `${ad}: kapatilamadi`);
+    const o = JSON.parse(A.repairLatexEscapes(kapali));
+    assert.ok(o && typeof o === 'object', `${ad}: ayristirilamadi`);
+    /* Modelin YAZMAYI BITIRDIGI ne varsa kaliyor — yarisini kaybetmek
+       yerine tamamlanmis kismi almak. */
+    assert.ok(Array.isArray(o.key_terms) && o.key_terms.length >= 1,
+      `${ad}: tamamlanmis kavramlar da kaybolmus`);
+  }
+});
+
+test('TAM JSON kurtarma yoluna HIC girmiyor', () => {
+  // Saglam cikti normal yoldan ayristirilmali; kurtarma yalnizca son care.
+  assert.doesNotThrow(() => JSON.parse(KESIK_TAM));
+  const o = JSON.parse(KESIK_TAM);
+  assert.equal(o.key_points.length, 2);
+});
+
+test('callGroqJson KURTARMAYI cagiriyor ve ozgun hatayi SAKLIYOR', () => {
+  /* Dilim callGroqJson'un govdesinden alinmali: stripThinkBlock dosyada
+     DAHA ONCE tanimli, ona kadar dilimlemek bos dize veriyordu. */
+  const i0 = SRC.indexOf('async function callGroqJson');
+  assert.ok(i0 > 0, 'callGroqJson bulunamadi');
+  const blok = SRC.slice(i0, SRC.indexOf('// Upload local file bytes to PDF.co', i0));
+  assert.ok(blok.length > 500, 'callGroqJson govdesi dilimlenemedi');
+  assert.match(blok, /catch \(ayristirmaHatasi\)/, 'ayristirma hatasi yakalanmiyor');
+  assert.match(blok, /const kapali = closeTruncatedJson\(cleaned\)/,
+    'callGroqJson closeTruncatedJson u cagirmiyor');
+  assert.match(blok, /throw ayristirmaHatasi/,
+    'kurtarma tutmazsa ozgun hata firlatilmali — yoksa yukarideki yeniden deneme mantigi bozulur');
+  assert.match(blok, /JSON KESIKTI, kapatilip kurtarildi/, 'kurtarma loglanmiyor');
+  /* KURTARMA BEDAVA OLMALI: catch icinde yeni bir model cagrisi olmamali. */
+  const kurtarmaBlogu = blok.slice(blok.indexOf('catch (ayristirmaHatasi)'));
+  assert.ok(!/fetchWithRetry|await fetch\(/.test(kurtarmaBlogu),
+    'kurtarma ek model cagrisi yapiyor — bedava olmasi gerekiyordu');
+});
+
+test('YEREL AYRISTIRMA HATASI artik yeniden denenebilir', () => {
+  /* Olculen mesaj: "Expected double-quoted property name in JSON at
+     position 6276". Groq'un json_validate_failed'i ile ayni sinif. */
+  const i = SRC.indexOf('json_validate_failed|failed to generate json|in JSON at position');
+  assert.ok(i > 0, 'yeniden deneme kosulu yerel ayristirma hatasini tanimiyor');
+  const desen = /json_validate_failed\|failed to generate json\|in JSON at position\|Unexpected end of JSON\|Unterminated string in JSON/;
+  assert.match(SRC, desen);
+  // Olculen uc mesajin ucu de kosula uymali.
+  const re = /json_validate_failed|failed to generate json|in JSON at position|Unexpected end of JSON|Unterminated string in JSON/i;
+  for (const msg of [
+    'Expected double-quoted property name in JSON at position 6276 (line 109 column 7)',
+    'Unexpected end of JSON input',
+    'Unterminated string in JSON at position 396',
+    'json_validate_failed'
+  ]) assert.ok(re.test(msg), 'kosul eslesmiyor: ' + msg);
+});
+
 console.log('\nPENCERE KUCULTME: CIKIS TAVANI TABANDA\n');
 
 /* Testler kaynaktaki döngünün AYNISINI koşturuyor: index.ts'teki blok

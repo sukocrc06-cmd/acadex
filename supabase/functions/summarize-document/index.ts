@@ -2318,7 +2318,46 @@ async function callGroqJson(
   const cleaned = stripped.replace(/```json\s*|```/g, "").trim()
   // LaTeX ters bolulerini onar (bkz. repairLatexEscapes) — ayristirmadan
   // once yapilmali, bilgi parse aninda kayboluyor.
-  return JSON.parse(repairLatexEscapes(cleaned))
+  try {
+    return JSON.parse(repairLatexEscapes(cleaned))
+  } catch (ayristirmaHatasi) {
+    /* KESIK JSON KURTARILIR (30.10.2026 olcumu).
+     *
+     * "Computer Network Security" kosusunda ikinci pencere cikis tavanina
+     * dayandi ve JSON yarida kaldi:
+     *   Window 2 token: prompt=3587 completion=2036 / max=2119
+     *   Window 2 attempt 1 failed: Expected double-quoted property name in
+     *     JSON at position 6276 (line 109 column 7)
+     *   EKSIK BELGE: 1/2 pencere dustu [2] — 11957 karakter (belgenin %54'i)
+     *     karta hic girmedi
+     * 55 sayfalik belgenin YARISI karta hic girmedi; kart 2 bolum, 10
+     * kavram, 7 soruda kaldi.
+     *
+     * Iki ayri bosluk vardi:
+     *  1) Bu hata Groq'un `json_validate_failed`'i DEGIL, bizim
+     *     JSON.parse'imizin attigi SyntaxError. extractWindow'daki yeniden
+     *     deneme kosullari (413 / 429 / json_validate_failed) hicbiri
+     *     eslesmiyor, o yuzden pencere TEK denemede dusuyordu.
+     *  2) closeTruncatedJson tam bu is icin yazilmis ama yalnizca Gemini
+     *     akis yolunda kullaniliyordu; callGroqJson onu hic cagirmiyordu.
+     *
+     * Kurtarma BEDAVA: ek model cagrisi yok, yalnizca kesik yapi kapatilip
+     * yeniden ayristiriliyor. Tutmazsa ozgun hata aynen firlatiliyor, yani
+     * yukarideki yeniden deneme mantigi degismiyor. */
+    const kapali = closeTruncatedJson(cleaned)
+    if (kapali) {
+      try {
+        const kurtarilan = JSON.parse(repairLatexEscapes(kapali))
+        console.warn(
+          `${opts.usageLabel || 'Groq'}: JSON KESIKTI, kapatilip kurtarildi ` +
+          `(${cleaned.length} krk -> ${kapali.length} krk) — ` +
+          `${String((ayristirmaHatasi as any)?.message || '').slice(0, 90)}`
+        )
+        return kurtarilan
+      } catch (_kurtarmaHatasi) { /* kurtarma da tutmadi: ozgun hataya dus */ }
+    }
+    throw ayristirmaHatasi
+  }
 }
 
 // Upload local file bytes to PDF.co via its presigned-URL flow (Denetim
@@ -10119,7 +10158,9 @@ serve(async (req) => {
           /* OCR CAGRISINDAN ONCE ONBELLEK — bkz. onbellektenOcrMetni.
              Sorgu yalnizca GERCEKTEN OCR yapilacaksa atiliyor, yani normal
              metinli PDF yolu hicbir ek maliyet gormuyor. */
-          if (!onbellegiAtla) {
+          /* Onbellek kapaliyken OCR metni de yok (ayni tabloda duruyor),
+             bos sorgu atmanin anlami kalmiyor. */
+          if (SUMMARY_CACHE_ACIK && !onbellegiAtla) {
             dosyaHash = dosyaHash ?? await sha256Hex(fileBytes)
             const ocrOnbellek = await onbellektenOcrMetni(serviceClient, dosyaHash)
             if (ocrOnbellek) {
@@ -10367,8 +10408,10 @@ serve(async (req) => {
       /* Kismi satirlar EN SONDA: tam kart bir kez uretildiginde kismi satir
          bir daha secilmez — bkz. CACHE_KISMI_EKI. */
       const anahtarlar = [...tamAnahtarlar, ...tamAnahtarlar.map(k => k + CACHE_KISMI_EKI)]
-      const { data: cachedRows, error: cacheErr } = onbellegiAtla
-        ? (console.log('summary_cache: okuma atlandi — istek yenile=true'),
+      const { data: cachedRows, error: cacheErr } = (!SUMMARY_CACHE_ACIK || onbellegiAtla)
+        ? (console.log(SUMMARY_CACHE_ACIK
+            ? 'summary_cache: okuma atlandi — istek yenile=true'
+            : 'summary_cache: KAPALI (SUMMARY_CACHE_ACIK=false) — her kosu sifirdan'),
            { data: null, error: null })
         : await serviceClient
           .from('summary_cache')
@@ -11776,7 +11819,13 @@ Rules:
             // top, and by then the narrative writer's own budget gate
             // (35s) is at risk — trading a thin card for one with no
             // written summary at all is not a trade worth making.
-            if (/json_validate_failed|failed to generate json/i.test(msg) && attempt < 1) {
+            /* YEREL AYRISTIRMA HATASI DA AYNI SINIF (30.10.2026). Groq'un
+               json_validate_failed'i ile bizim JSON.parse SyntaxError'i ayni
+               seyi soyluyor: model bu kez bozuk JSON yazdi. Girdide kusur
+               yok, ayni istegi yeniden gondermek caliyor. closeTruncatedJson
+               cogunu zaten kurtariyor; bu dal kurtarmanin da tutmadigi hal
+               icin. */
+            if (/json_validate_failed|failed to generate json|in JSON at position|Unexpected end of JSON|Unterminated string in JSON/i.test(msg) && attempt < 1) {
               // Ask what the retry would ACTUALLY cost on the lane it would
               // actually use, instead of assuming a full TPM window.
               const retryCompletion = windowCompletionFor(compactWindowPrompt(wi, windows.length), payload)
@@ -14215,7 +14264,9 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       geminiKismiKrk,
       geciciDustu: !!geminiTani.geciciDustu
     })
-    if (kayitTuru !== 'hayir') {
+    if (!SUMMARY_CACHE_ACIK) {
+      console.log('summary_cache: yazma KAPALI (SUMMARY_CACHE_ACIK=false)')
+    } else if (kayitTuru !== 'hayir') {
       const { document_id: _d, user_id: _u, course_tag: _c, ...shareable } = cardPayload
       const kismiKayit = kayitTuru === 'kismi'
       /* Kart KENDI icinde isaretli: arayuz rozeti ve sonraki teshis, satirin
@@ -14292,6 +14343,24 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
    Surum artarsa butun satirlar gecersiz olur — kasitli: bir sonraki okuma
    yeni hattan geciyor. "yeniden ozetle" su an kapali oldugu icin
    (YENIDEN_OZETLE_ACIK) kullanicinin baska bir tazeleme yolu da yok. */
+/* ONBELLEK DONDURULDU (30.10.2026, Berkay'in karari).
+ *
+ * Su an ozet KALITESI uzerinde calisiliyor ve ayni belgeyi tekrar tekrar
+ * ozetleyip ilerlemeyi gormek gerekiyor. Onbellek bunu imkansiz kiliyordu:
+ * anahtarin cekirdegi sha256(fileBytes), yani ayni dosya hat ne kadar
+ * iyilesse de eski satiri getiriyor (bkz. SURUM 'c2' notu).
+ *
+ * Kapali oldugunda: okuma yok, yazma yok. Her kosu sifirdan.
+ *
+ * BEDELI BILINCLI:
+ *  - Ayni dosyanin ikinci ozeti yine tam ucreti odiyor (~15-90 sn + kota).
+ *  - OCR metni de bu tabloda duruyordu (bkz. onbellektenOcrMetni), yani
+ *    taranmis belgeler her kosuda yeniden OCR'a gidiyor (olculen: 47-50 sn).
+ *
+ * Kalite yeterince yukseldiginde tek satir: true. Surum ('c2') ve butun
+ * okuma/yazma mantigi oldugu gibi duruyor, silinmedi. */
+const SUMMARY_CACHE_ACIK = false
+
 const SUMMARY_CACHE_VERSION = 'c2'
 
 /* Ikinci (metin) cache anahtarinin devreye girdigi en kisa metin.

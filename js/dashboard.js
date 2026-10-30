@@ -1282,21 +1282,32 @@ window.openResummarizeModal = openResummarizeModal;
    Tek kosuluk: proceedWithSummarization tuketir, normal "Ozetle" yolu
    (summarizeDocument) sifirlar. Aksi halde iptal edilen bir yenileme
    sonraki butun ozetlerde onbellegi atlatir ve kota bosa gider. */
-/* YENIDEN OZETLEME GECICI OLARAK KAPALI (28.10.2026, Berkay'in karari).
-   Su an ozet KALITESI uzerinde calisiliyor; makine ogrenmesi eklendiginde
-   yeniden acilacak. Tek bayrak: dugmeleri her iki dosyada da gizliyor ve
-   acilis fonksiyonunu da kapatiyor, boylece onbellekten/eski HTML'den gelen
-   bir tiklama da bir sey baslatmiyor. Acmak icin true yeter.
-   acadex-ink.js bunu window uzerinden okuyor; tanimsizken de KAPALI
+/* YENIDEN OZETLEME ACIK (30.10.2026, Berkay'in karari).
+   28.10'da kalite calismasi icin kapatilmisti; simdi tam o kalite
+   calismasinin ARACI oldu: ayni belgeyi tekrar ozetleyip hattaki
+   ilerlemeyi gormek gerekiyor. Birlikte summary_cache de donduruldu
+   (index.ts -> SUMMARY_CACHE_ACIK=false), yani her yeniden ozetleme
+   gercekten sifirdan kosuyor.
+   acadex-ink.js bunu window uzerinden okuyor; tanimsizken KAPALI
    sayiliyor, yani yanlis tarafa dusmez. */
-window.YENIDEN_OZETLE_ACIK = false;
+window.YENIDEN_OZETLE_ACIK = true;
 
 let onbellegiYenile = false;
 
+/* DIREKT YENI OZET — MODAL YOK (30.10.2026, Berkay'in karari).
+   Eskiden bu da stil modalini aciyordu, ama o modal yalnizca DILI soruyor
+   (stil 'standard' sabit, derinlik/uzunluk undefined: bkz.
+   proceedWithSummarization). Ayni belgeyi ust uste ozetleyip kaliteyi
+   olcerken her tiklamada dil sormak gereksiz bir adim.
+   Dil, modalin DOM'daki mevcut secimi: yani son ne secildiyse o. Modal hic
+   acilmadiysa dashboard.html'deki varsayilan (Turkce) gecerli.
+   "Re-summarize with different style" dugmesi modali ACMAYA devam ediyor —
+   orada amac zaten ayari degistirmek. */
 function resummarizeFresh(docId) {
   if (!window.YENIDEN_OZETLE_ACIK) return;   // bkz. YENIDEN_OZETLE_ACIK
   onbellegiYenile = true;
-  openResummarizeModal(docId);
+  activeSummarizingDocId = docId;
+  proceedWithSummarization();
 }
 window.resummarizeFresh = resummarizeFresh;
 
