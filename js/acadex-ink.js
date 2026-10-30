@@ -2727,7 +2727,7 @@ window.axNotify = function (title, opts) {
       sb().from('exams').select('*, study_cards(course_tag, documents(file_name))').eq('user_id', me().id).not('completed_at', 'is', null).order('completed_at', { ascending: true }).limit(300),
       sb().from('study_events').select('*').eq('user_id', me().id).eq('event_type', 'exam').order('event_date', { ascending: true })
     ]).then(function (r) {
-      if (r[0].error) console.warn('acadex-ink: sınavlar yüklenemedi', r[0].error); else EX = (r[0].data || []).filter(function (e) { return e.completed_at; });
+      if (r[0].error) console.warn('acadex-ink: sınavlar yüklenemedi', r[0].error); else { EX = (r[0].data || []).filter(function (e) { return e.completed_at; }); PEER = null; }
       if (r[1].error) console.warn('acadex-ink: takvim yüklenemedi', r[1].error); else EV = r[1].data || [];
     }).catch(function (e) { console.warn(e); }).then(function () { loading = null; paintAll(); });
     return loading;
@@ -3775,12 +3775,47 @@ window.axNotify = function (title, opts) {
       : '<p class="sn-empty">denemelerden sonra hangi soru türünde zorlandığını burada görürsün.</p>';
     /* ustalık haritası (FAZ 5.1) */
     paintMastery(ds);
+    /* yüzdelik (30.10.2026) */
+    loadPeer(); paintPeer();
     /* denemeler */
     var list = ex.slice().reverse();
     attsEl.innerHTML = list.length ? list.slice(0, 20).map(function (e) {
       var gg = Math.round(+e.grade || 0);
       return '<li tabindex="0" role="button" data-ex="' + esc(e.id) + '" aria-label="' + esc(nameOfKey(keyOfExam(e))) + ' denemesi, ' + gg + ' puan, sonucu aç"><span class="dt">' + dshort(e.completed_at) + '</span><span class="ti">' + esc((e.scoring && Array.isArray(e.scoring.retry) ? 'ikinci şans' : e.scoring && e.scoring.adaptive ? 'akıllı' : (TYPE[e.exam_type] || 'deneme')) + ' · ' + nameOfKey(keyOfExam(e))) + (e.is_simulation ? ' · ⏱' : '') + '</span><span class="du">' + (e.question_count || (e.question_results || []).length) + ' soru' + (e.difficulty ? ' · ' + (DIFF[e.difficulty] || '') : '') + '</span><span class="sc' + (gg >= 75 ? ' ok' : gg >= 50 ? ' mid' : '') + '">' + gg + '</span></li>';
     }).join('') : '<li class="sn-empty" style="display:block;border:0">henüz tamamlanmış deneme yok.</li>';
+  };
+  /* Yüzdelik (30.10.2026, örnek UWorld / BoardVitals): ders başına, dersi en
+     az 20 öğrenci çözdüyse "yüzdelik sıran"; sunucu exam_peer_percentiles
+     (20261030b_sinav_yuzdelik.sql) yalnızca öğrencinin kendi derslerini ve
+     5'in katına yuvarlanmış sırayı döndürür, başkasının puanını değil. */
+  var PEER = null, peerBusy = false, peerEl = $('[data-peer]');
+  var loadPeer = function () {
+    if (PEER || peerBusy || !sb() || !me()) return;
+    peerBusy = true;
+    Promise.resolve(sb().rpc('exam_peer_percentiles')).then(function (r) { PEER = r && !r.error && Array.isArray(r.data) ? r.data : []; }, function () { PEER = []; })
+      .then(function () { peerBusy = false; paintPeer(); });
+  };
+  var paintPeer = function () {
+    if (!peerEl) return;
+    var rows = (PEER || []).filter(function (p) { return p && p.course; });
+    var hide = function () { peerEl.hidden = true; peerEl.innerHTML = ''; };
+    if (!rows.length) return hide();
+    var html;
+    if (rSel === 'all') {
+      var on = rows.filter(function (p) { return p.percentile != null; });
+      if (!on.length) return hide();
+      html = 'yüzdelik sıran: ' + on.map(function (p) { return esc(p.course) + ' <b>' + p.percentile + '</b>'; }).join(' · ');
+    } else {
+      if (rSel.indexOf('c:') !== 0) return hide();
+      var p = rows.filter(function (x) { return String(x.course).toUpperCase() === rSel.slice(2); })[0];
+      if (!p) return hide();
+      html = p.percentile != null
+        ? 'yüzdelik sıran <b>' + p.percentile + '</b> / 100 · bu dersi çözen ' + p.students + ' öğrenci arasında'
+        : 'akranlarla karşılaştırma, bu dersi en az 20 öğrenci çözünce açılır (şu an ' + p.students + ').';
+    }
+    peerEl.innerHTML = html;
+    peerEl.title = '100\'e yakınsa ortalaman bu dersi çözenlerin çoğundan yüksek. İsim ya da başkasının puanı gösterilmez; ikinci şans sınavları sayılmaz.';
+    peerEl.hidden = false;
   };
   /* FAZ 5.1: konu ustalığı (exam-engine conceptMastery). Seçili masa ya da
      tümü; tekrar zamanı gelenler ve en zayıflar başta. */
