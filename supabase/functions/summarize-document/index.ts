@@ -11731,10 +11731,23 @@ Rules:
        * Bu blok YINE DE duruyor, iki sebeple: (1) GERCEK Groq yolunda tavan
        * baglayicidir ve orada kesilme yasanir; (2) yalnizca cok dar bir
        * bantta (tek pencere >= ~12.250 krk) devreye giriyor ve olculen
-       * saglikli uzunluklara hic dokunmuyor. Ama "ince kart" sorununu
-       * cozdugu KANITLANMADI: "Week3 Chp2" kartinin inceligi tek pencereye
-       * sigmasindan da kaynaklanabilir. Bir sonraki o banttaki belgede
-       * kartin gercekten zenginlestigi olculmeli.
+       * saglikli uzunluklara hic dokunmuyor.
+       *
+       * KANITLANDI (30.10.2026, "Week3 Chp2" ayni belgede iki kosu).
+       * Once — tek pencere, tavan tabanda:
+       *   Long-doc compact: 1 window(s), totalChars=12298
+       *   Pencere cikis tavani TABANA dayandi (2048)
+       *   Window 1 token: prompt=3956 completion=2256 / max=2048
+       *   kart: 2 bolum, 15 madde, 8 soru, 0 tablo, 0 diyagram
+       * Sonra — bu blok devreye girdi:
+       *   Pencere kucultuldu: cikis tavani tabanda kaldi, hedef 9338 krk
+       *     -> 1 pencere yerine 2 pencere
+       *   Window 1: completion 1511 / max 3971
+       *   Window 2: completion 1895 / max 3897
+       *   kart: 4 bolum, 22 madde, 12 soru, 1 tablo, 1 diyagram
+       * Tavan 2048 -> 3971/3897 ve iki completion da rahatca icinde kaldi.
+       * Bolum sayisi ikiye katlandi, soru %50 artti. Ince kartin sebebi
+       * gercekten buydu.
        *
        * Dongu KENDINI SINIRLIYOR: hedef %25 kuculuyor, pencere sayisi
        * artmazsa cikiliyor (bolunemeyen metinde sonsuz dongu yok) ve en

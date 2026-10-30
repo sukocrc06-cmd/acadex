@@ -5478,6 +5478,13 @@ function winBol(metin) {
   return { oncePencere, onceTavan, sonraPencere: w.length, sonTavan: A.windowCompletionFor(WIN_SEMA, winEnUzun(w)), tur };
 }
 
+/* KANITLANDI (30.10.2026). Ayni belge, iki kosu:
+     once : 1 pencere, tavan 2048 (tabanda), completion 2256 > max
+            kart: 2 bolum, 15 madde, 8 soru, 0 tablo, 0 diyagram
+     sonra: "Pencere kucultuldu: ... hedef 9338 krk -> 2 pencere"
+            tavan 3971/3897, completion 1511/1895 — ikisi de rahatca icinde
+            kart: 4 bolum, 22 madde, 12 soru, 1 tablo, 1 diyagram
+   Bolum sayisi ikiye katlandi, soru %50 artti. */
 test('OLCULEN VAKA: 12.298 krk tek pencere BOLUNUYOR, tavan kurtuluyor', () => {
   const r = winBol(winMetin(12298));
   assert.equal(r.oncePencere, 1, 'olcumde tek pencereydi');
