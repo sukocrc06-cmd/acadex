@@ -73,6 +73,19 @@ test('ikinci şans sınavının kendi yanlışları yeni yanlış olmaz; arada y
   assert.equal(E.isRetryExam(r1), true); assert.equal(E.isRetryExam(SRC), false);
 });
 
+test('hatırlatma (Faz 9): hiç denenmeyen sınavdan 1 gün sonra, denenen tekrar gününde; aynı yanlış iki kez çalmaz', () => {
+  const chartSrc = { ...SRC, question_results: [...SRC.question_results, { question_id: 5, type: 'multiple_choice', score: 0, chart: { title: 'x' } }] };
+  let m = E.mistakeStates([chartSrc], { now: T0 + 0.5 * D });
+  assert.deepEqual(E.mistakeReminder(m, T0, T0 + 0.5 * D), { count: 0, at: null }, 'sınavdan hemen sonra çalmaz');
+  let r = E.mistakeReminder(m, T0, T0 + 1.2 * D);
+  assert.deepEqual([r.count, r.at], [3, T0 + D], 'grafikli soru sayılmaz');
+  assert.equal(E.mistakeReminder(m, T0 + 1.1 * D, T0 + 1.2 * D).at, null, 'son kontrolden sonra yeni yok');
+  const r1 = retryExam('r1', 2, [1], [100]);
+  m = E.mistakeStates([SRC, r1], { now: T0 + 5.5 * D });
+  r = E.mistakeReminder(m, T0 + 3 * D, T0 + 5.5 * D);
+  assert.deepEqual([r.count, r.at], [3, T0 + 5 * D], 'doğru denemeden 3 gün sonra');
+});
+
 test('hesap sorusu: şablonla yeni sayılar, sayılara bağlı alanlar yok', () => {
   const src = { examId: 'e1', questionId: 2, exam: {}, result: { type: 'calculation', question: '25.000 TL %4 3 yıl?', concept: 'Bileşik faiz', units: 'TL' },
     key: { template: '{P} TL %{r*100} {n} yıl?', formula: 'P*(1+r)^n', variables: { P: 25000, r: 0.04, n: 3 }, correct_answer: 28121.6, solution_steps: ['x'], explanation: 'e', common_errors: [{ formula: 'P*r*n', message: 'basit faiz' }] } };

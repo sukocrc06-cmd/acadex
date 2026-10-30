@@ -8357,7 +8357,8 @@ async function submitExam(opts = {}) {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY
       },
-      body: JSON.stringify({ examId: currentActiveExam.id, answers, flags })
+      // FAZ 9: soru başına süre ve şık değiştirme (acadex-ink kaydeder)
+      body: JSON.stringify({ examId: currentActiveExam.id, answers, flags, timing: typeof window.__examTiming === 'function' ? window.__examTiming(currentActiveExam.id) : null })
     });
 
     const data = await response.json();
@@ -12900,6 +12901,34 @@ async function gatherNotificationItems(lastCheck) {
     }
   } catch (err) {
     console.error('gatherNotificationItems (konu tekrarları) error:', err);
+  }
+
+  // 1c. FAZ 9: hata defterinde zamanı gelen yanlışlar (ikinci şans). Tek,
+  // toplu bildirim; takvim exam-engine mistakeStates / mistakeReminder.
+  try {
+    const E = window.AcadexExamEngine;
+    if (E && typeof E.mistakeReminder === 'function') {
+      const { data: exs, error } = await supabaseClient
+        .from('exams')
+        .select('id, completed_at, scoring, question_results')
+        .eq('user_id', currentUser.id)
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(60);
+      if (!error && exs) {
+        const rem = E.mistakeReminder(E.mistakeStates(exs), Date.parse(lastCheck || 0) || 0, Date.now());
+        if (rem.at) {
+          items.push({
+            time: new Date(rem.at).toISOString(),
+            title: `🔁 Hata defterinde ${rem.count} yanlış tekrar zamanında`,
+            subtitle: 'İkinci şans: benzer yeni sorularla dene; art arda iki doğru o yanlışı defterden çıkarır.',
+            onClick: () => { switchDashboardView('exams'); setTimeout(() => { const el = document.getElementById('hata-defteri'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 700); }
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (hata defteri) error:', err);
   }
 
   // 2. Announcements — school-wide (audience_department null) or yours

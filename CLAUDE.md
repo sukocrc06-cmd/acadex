@@ -33,6 +33,8 @@
 | **Haftalık Acadex önerisi** (sınav salonu, `sn-acx`, `[data-acx]`) | `js/acadex-ink.js` → `haftalık Acadex önerisi` bloğu (`acadexWeekly`, `paintAcx`) |
 | **Adım adım yardım** (sınavda `sn-help*`, `[data-help]`) | ekran `js/acadex-ink.js` → `FAZ 7: adım adım yardım` bloğu; sunucu `generate-exam` → `handleExamHelp` (`{ help }`); puan tavanı `grade-exam` → `applyHelp` |
 | **Hata defteri / ikinci şans** (`sn-eg`, `[data-second]`, `sn-mk`) | ekran `js/acadex-ink.js` → `paintErrs`; takvim `exam-engine` → `mistakeStates`; sınav `generate-exam` → `handleExamRetry` (`{ retry }`) |
+| **Süre ve strateji raporu** (sonuçta `sn-tim`) | kayıt `js/acadex-ink.js` → `FAZ 9: süre ve strateji` (`TIM`, `window.__examTiming`); sunucu `grade-exam` → `applyTiming`; rapor `exam-engine` → `timingReport` |
+| **Hata defteri hatırlatması** (bildirim çanı) | `js/dashboard.js` → `gatherNotificationItems` (1c); `exam-engine` → `mistakeReminder` |
 
 ---
 
