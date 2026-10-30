@@ -1864,6 +1864,9 @@
   function isRetryExam(e) { return !!(e && e.scoring && Array.isArray(e.scoring.retry)); }
   function mistakeStates(exams, opts) {
     const now = opts && Number.isFinite(opts.now) ? opts.now : Date.now();
+    // 30.10.2026: "öğrendim" denen yanlışlar ("sınavId:soruNo"; sunucuda
+    // exam_mistakes_done) defterde, çanda, telefonda ve hazırlıkta sayılmaz.
+    const learned = new Set(opts && opts.done ? Array.from(opts.done, String) : []);
     const list = (Array.isArray(exams) ? exams : []).filter(e => e && e.completed_at && Array.isArray(e.question_results))
       .slice().sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at));
     const out = {};
@@ -1872,6 +1875,7 @@
       e.question_results.forEach(r => {
         if (!r || (+r.score || 0) >= 50) return;
         const id = e.id + ':' + r.question_id;
+        if (learned.has(id)) return;
         out[id] = { id: id, examId: e.id, questionId: Number(r.question_id), type: r.type, chart: !!r.chart, at: new Date(e.completed_at).getTime(), attempts: [] };
       });
     });
@@ -1904,6 +1908,23 @@
    *  1 gün sonra (sınavdan hemen sonra çan çalmasın). Yalnızca since'ten sonra
    *  zamanı gelen varsa at dolu; aynı yanlış iki kez çaldırmaz. */
   const MISTAKE_TYPES = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended', 'calculation', 'graph', 'expression'];
+  /** "Öğrendim" listesi → "sınavId:soruNo" anahtarları. Eski tarayıcı kaydı
+   *  sınavdaki SIRA numarasıyla tutuluyordu ("sınavId:i"); sunucu satırları
+   *  { exam_id, question_id }. İkisi birleşir. */
+  function learnedKeys(exams, localIds, serverRows) {
+    const out = new Set();
+    const byId = {};
+    (Array.isArray(exams) ? exams : []).forEach(e => { if (e && e.id != null) byId[e.id] = e; });
+    (Array.isArray(localIds) ? localIds : []).forEach(id => {
+      const s = String(id), k = s.lastIndexOf(':');
+      if (k < 0) return;
+      const e = byId[s.slice(0, k)], r = e && Array.isArray(e.question_results) ? e.question_results[Number(s.slice(k + 1))] : null;
+      if (r && r.question_id != null) out.add(e.id + ':' + r.question_id);
+    });
+    (Array.isArray(serverRows) ? serverRows : []).forEach(r => { if (r && r.exam_id != null && r.question_id != null) out.add(r.exam_id + ':' + r.question_id); });
+    return Array.from(out);
+  }
+
   function mistakeReminder(states, since, now) {
     const t = Number.isFinite(now) ? now : Date.now(), from = Number.isFinite(since) ? since : 0;
     let count = 0, at = null;
@@ -1972,7 +1993,7 @@
     const ms = conceptMastery(deskExams || [], { now: now });
     const ids = {};
     (deskExams || []).forEach(e => { if (e && e.id != null) ids[e.id] = true; });
-    const st = mistakeStates(allExams || deskExams || [], { now: now });
+    const st = mistakeStates(allExams || deskExams || [], { now: now, done: opts && opts.done });
     const mist = Object.keys(st).map(k => st[k]).filter(m => ids[m.examId] && !m.won);
     const dueMist = mist.filter(m => m.dueNow && MISTAKE_TYPES.indexOf(m.type) >= 0);
     const ready = ms.filter(c => c.level >= 2 && !c.due).length;
@@ -2877,6 +2898,7 @@
     MISTAKE_WIN,
     isRetryExam,
     mistakeStates,
+    learnedKeys,
     mistakeReminder,
     timingReport,
     examReadiness,
