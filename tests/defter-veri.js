@@ -25,6 +25,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g,
 const dash = read('js/dashboard.js');
 const ink = read('js/acadex-ink.js');
 const css = read('css/acadex-ink.css');
+const html = read('dashboard.html');
 const { test, summary } = makeRunner();
 
 function body(src, head) {
@@ -41,7 +42,7 @@ function body(src, head) {
 test('R37 captureCurrentOverlayElements tanimli ve kayit onu kullaniyor', () => {
   assert.match(dash, /function captureCurrentOverlayElements\(\)/);
   assert.match(dash, /window\.captureCurrentOverlayElements = captureCurrentOverlayElements/);
-  assert.match(body(dash, 'async function saveNotebookData()'), /captureCurrentOverlayElements\(\)/);
+  assert.match(body(dash, 'async function saveNotebookData('), /captureCurrentOverlayElements\(\)/);
 });
 
 test('R37 sayfa cizimi her zaman source-over ile yeniden kurulur', () => {
@@ -97,6 +98,23 @@ test('R36 Deftere ekle ayni notu ikinci kez eklemez ve geri bildirim verir', () 
   assert.match(ink, /ax-flash/);
   assert.match(ink, /eklendi ✓/);
   assert.match(css, /@keyframes axNoteFlash/);
+});
+
+test('R35 kayit Turkce, otomatik kayit sessiz ve kaydet dugmesi arac kutusunda', () => {
+  const b = body(dash, 'async function saveNotebookData(');
+  assert.match(b, /Defter kaydedildi ✓/);
+  assert.ok(!/Notebook saved/.test(b), 'Ingilizce kayit mesaji kalmis');
+  assert.match(b, /if \(!quiet\) showDashboardAlert\('success'/);
+  assert.match(ink, /window\.saveNotebookData\(\{ quiet: true \}\)/);
+  assert.match(html, /<div class="case-r">\s*<!--[^>]*-->\s*<button type="button" class="btn btn-dark nb-save" id="btn-save-notebook"/);
+});
+
+test('R26 R27 not boyutlandirilir ve boyut geri yuklenir', () => {
+  assert.match(dash, /function addNoteResizeHandle\(note\)/);
+  assert.match(body(dash, 'function makeElementDraggable('), /addNoteResizeHandle\(el\)/);
+  assert.match(body(dash, 'function makeElementDraggable('), /closest\('\.note-resize'\)/);
+  assert.match(dash, /if \(item\.width > 0\) note\.style\.width/);
+  assert.match(css, /\.note-resize\{/);
 });
 
 summary();

@@ -647,6 +647,12 @@ transform:translateY(calc(var(--hp,0) * 90px))}
    (masa yuzeyi, kagitlar, belge kartlari) her karede yeniden ciziliyordu
    (olcum: tarama suresinin yarisi). Kendi katmanlarinda bir kez cizilir. */
 .dsk-top,.sheet,.dsk-i{will-change:transform}
+/* R1 (28.10.2026): "Acadex olmadan" satirlari okunmuyordu. Zikzak karalama
+   (.8em) harflerin ustunu tamamen kapliyordu, yazi da koyu zeminde soluktu.
+   Yazi acildi, ustune tek ince dalgali cizgi kaldi. */
+.ba-before{color:#B4C0DE}
+.ink-s{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M3 7 C60 5 130 9 197 6' fill='none' stroke='%23E8907E' stroke-width='1.6' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");background-size:100% .5em}
+.js .rise-s:not(.on) .ink-s{background-size:0% .5em}
 /* buttons: no pills; a hand-drawn line underneath */
 [data-acx-root] a[style*="999px"],[data-acx-root] button[style*="999px"]{border-radius:7px !important;position:relative}
 [data-acx-root] a[style*="999px"]::after,[data-acx-root] button[style*="999px"]::after{content:"";position:absolute;left:12%;right:10%;bottom:-9px;height:7px;pointer-events:none;
@@ -1785,10 +1791,6 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <details class="faq hrule" style="border-bottom: 1px solid #D3D9E6">
 <summary>Deneme sınavları notumu etkiler mi?<span class="faq-plus" aria-hidden="true">+</span></summary>
 <p>Hayır. Deneme sınavları yalnızca pratik içindir; resmi notlarına yansımaz.</p>
-</details>
-<details class="faq hrule" style="border-bottom: 1px solid #D3D9E6">
-<summary>Puanlama ne kadar güvenilir?<span class="faq-plus" aria-hidden="true">+</span></summary>
-<p>Yol göstermek içindir. Öğretim üyesinin değerlendirmesinin yerini tutmaz.</p>
 </details>
 <details class="faq hrule" style="border-bottom: 1px solid #D3D9E6">
 <summary>Hesabımı silebilir miyim?<span class="faq-plus" aria-hidden="true">+</span></summary>
@@ -3336,7 +3338,9 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 .pkt-beta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 16px;padding:10px 14px;border-radius:4px;background:var(--pkt-navy);color:#F1F4FA;font-size:14.5px;line-height:1.4}
 .pkt-beta b{color:var(--pkt-gold)}
 .pkt-beta .tag{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;padding:3px 8px;border-radius:3px;background:var(--pkt-gold);color:var(--pkt-navy)}
-.pkt-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+/* R90 (28.10.2026): kartlar aynı boyda (Premium eskiden kısa kalıyordu); Premium hafif öne çıkar */
+.pkt-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+.pkt-card.top{transform:rotate(var(--r,0deg)) translateY(-8px);box-shadow:0 22px 34px -18px rgba(47,107,255,.55)}
 .pkt-card{position:relative;padding:20px 18px 16px;background:var(--pkt-paper);border-radius:3px;box-shadow:0 14px 26px -18px rgba(13,24,56,.6);transform:rotate(var(--r,0deg))}
 .pkt-card::before{content:"";position:absolute;left:50%;top:-9px;width:74px;height:18px;margin-left:-37px;background:rgba(232,181,58,.55);transform:rotate(-2deg)}
 .pkt-card:nth-child(1){--r:-.8deg}.pkt-card:nth-child(2){--r:.5deg}.pkt-card:nth-child(3){--r:-.4deg}

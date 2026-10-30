@@ -53,6 +53,8 @@ const NEEDED = [
   // seviyesinde duruyor ve onlarsiz fonksiyon ReferenceError verir.
   'MERMAID_BASLIK', 'MERMAID_ATLA', 'MERMAID_YON', 'MERMAID_OK', 'mermaidToSteps',
   'drawPdfTable', 'drawChartDataFallback', 'drawMermaidSourceFallback',
+  // Belge adi kodsuz ve model aciklamasi ayiklanmis (28.10.2026, test raporu R40, R42).
+  'axDocTitle', 'AI_META_SENTENCE_RE', 'stripAiMetaSentences',
   'drawPdfCard', 'appendStudyCardToDoc'
 ];
 const body = NEEDED.map(n => sliceDeclaration(SRC, n)).join('\n\n');

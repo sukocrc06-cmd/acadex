@@ -143,6 +143,8 @@
           <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
           <li class="sidebar-item" id="side-medlab"><a href="#medlab" onclick="switchDashboardView('medlab')"><svg viewBox="0 0 24 24"><path d="M6 3.5 V9 C6 12.3 8.2 14.5 11 14.5 C13.8 14.5 16 12.3 16 9 V3.5"/><path d="M11 14.5 V16.5 C11 18.7 12.8 20.5 15 20.5 C17.2 20.5 18.5 18.9 18.5 17 V14.8"/><circle cx="18.5" cy="12.8" r="2"/></svg><span class="lbl">Acadex MedLab</span></a></li>
           <li class="sidebar-item" id="side-finans"><a href="#finans" onclick="switchDashboardView('finans')"><svg viewBox="0 0 24 24"><path d="M3 15h18l-2.5 5h-13z"/><path d="M5 15v-5h6v5M11 15v-3.5h6V15"/><path d="M14 11.5V4M14 4h5"/></svg><span class="lbl">Acadex Finans</span></a></li>
+          <!-- R70 (28.10.2026): telefonda alt menüde olan Acadia geniş ekranın menüsünde de olsun -->
+          <li class="sidebar-item" id="side-acadia"><a href="#acadia" onclick="event.preventDefault();if(typeof window.toggleAcadiaPanel==='function')window.toggleAcadiaPanel()"><svg viewBox="0 0 24 24"><path d="M12 3 L13.8 10.2 L21 12 L13.8 13.8 L12 21 L10.2 13.8 L3 12 L10.2 10.2 Z"/></svg><span class="lbl">Acadia</span></a></li>
         </ul>
         <h4>belgeler</h4>
         <ul class="sidebar-nav">
@@ -163,6 +165,12 @@
           <li class="sidebar-item" id="side-sandbox-interaction"><a href="#sandbox-interaction" onclick="switchDashboardView('sandbox-interaction')"><svg viewBox="0 0 24 24"><path d="M5 7.5 C5 5.6 6.6 4.5 8.5 4.5 H15.5 C17.4 4.5 19 5.6 19 7.5 V13 C19 14.9 17.4 16 15.5 16 H10 L6 19.5 V16 C5.4 15.6 5 14.6 5 13 Z"/></svg><span class="lbl">Sandbox etkileşim paneli</span></a></li>
           <li class="sidebar-item" id="side-sandbox"><a href="#sandbox" onclick="switchDashboardView('sandbox')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L19.5 7.5 V16.5 L12 20.5 L4.5 16.5 V7.5 Z"/><path d="M4.5 7.5 L12 11.5 L19.5 7.5 M12 11.5 V20.5"/></svg><span class="lbl">Geliştirici sandbox</span></a></li>
         </ul>
+        <!-- R19/R41/R71 (28.10.2026): dar ekranda üst çubukta gizlenen Yenilikler, dil ve hesap bilgisi hamburger menüsünde -->
+        <div class="ax-side-m">
+          <button type="button" class="ax-side-me" onclick="switchDashboardView('settings')"><span class="ax-side-me-n" data-side-me-n="">Hesabım</span><small data-side-me-d="">profil ve ayarlar</small></button>
+          <a href="changelog.html" target="_blank" class="ax-side-new">Yenilikler</a>
+          <label class="ax-side-lang">Dil <select class="lang-switcher-select" aria-label="Dil" onchange="applyLanguage(this.value)"><option value="tr">TR</option><option value="en">EN</option></select></label>
+        </div>
       </nav>
     </aside>
 
@@ -316,7 +324,7 @@
 <section class="card sched land" aria-labelledby="t-sched">
 <div class="card-h"><h2 class="hd" id="t-sched">bugünün saatleri</h2><a class="more" href="#planner" data-go="planner">planla →</a></div>
 <div class="hours-w" data-hours-w=""><ol class="hours" data-hours=""></ol></div>
-<p class="sched-n hand">bugün planın boş. istersen bir saat ayır, gerisi kendiliğinden gelir.</p>
+<p class="sched-n hand">bir saatin yanındaki + ile bugüne plan ekle; takvimine de işlenir.</p>
 </section>
 
 </div>
@@ -359,6 +367,7 @@
 </div>
 <div class="p-tools-r">
 <button type="button" class="btn btn-line" data-ics=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 V15 M8 11.4 C9.4 12.7 10.7 14 12 15.4 C13.3 14 14.6 12.7 16 11.4"/><path d="M5 15.5 V19.5 H19 V15.5"/></svg>Takvime aktar <small>.ics</small></button>
+<small class="ics-n">dosya iner; açınca takvim uygulaman etkinlikleri ve hatırlatmaları ekler</small>
 <div class="views" role="tablist" aria-label="Görünüm">
 <button type="button" role="tab" id="tab-cal" aria-selected="true" aria-controls="v-cal" data-view="cal">takvim</button>
 <button type="button" role="tab" id="tab-list" aria-selected="false" aria-controls="v-list" data-view="list">liste</button>
@@ -391,14 +400,14 @@
 <h2 id="f-t" class="hand" data-form-t="">yeni etkinlik</h2>
 <label class="fl" for="f-title">başlık</label>
 <input id="f-title" name="title" type="text" required maxlength="80" placeholder="ör. Finans vize sınavı">
-<fieldset class="types"><legend class="fl">tür</legend>
+<fieldset class="types"><legend class="fl">tür <small>(birini seç)</small></legend>
 <label><input type="radio" name="type" value="sinav"><span>SINAV</span></label>
 <label><input type="radio" name="type" value="calisma" checked><span>ÇALIŞMA</span></label>
 <label><input type="radio" name="type" value="odev"><span>ÖDEV</span></label>
 </fieldset>
 <div class="frow">
 <div><label class="fl" for="f-date">tarih</label><input id="f-date" name="date" type="date" required></div>
-<div><label class="fl" for="f-time">saat <small>(isteğe bağlı)</small></label><input id="f-time" name="time" type="time"></div>
+<div><label class="fl" for="f-time">saat <small>(isteğe bağlı · ör. 09:00)</small></label><input id="f-time" name="time" type="time" placeholder="09:00"></div>
 </div>
 <label class="fl" for="f-doc">belge <small>(isteğe bağlı)</small></label>
 <select id="f-doc" name="doc"><option value="">—</option></select>
@@ -409,7 +418,7 @@
 <div class="f-row">
 <button type="button" class="f-del" data-f-del="" hidden>sil</button>
 <button type="button" class="f-cancel" data-f-cancel="">vazgeç</button>
-<button type="submit" class="btn btn-blue" value="save">yapıştır</button>
+<button type="submit" class="btn btn-blue" value="save">kaydet</button>
 </div>
 </form>
 </dialog>
@@ -632,7 +641,6 @@
 <button type="button" class="hbtn" id="btn-depot-modal" title="Bilgi deposu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5 L12 4.5 L20 8.5 V18 L12 21 L4 18 Z"/><path d="M4 8.5 L12 12.5 L20 8.5 M12 12.5 V21"/></svg>Bilgi deposu <span class="depot-badge" id="depot-count-badge">0</span></button>
 <button type="button" class="hbtn" id="btn-share-page" onclick="openPageShareModal()" title="Bu sayfayı bir sınıf arkadaşınla paylaş"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="12" r="2.6"/><circle cx="17" cy="6.5" r="2.6"/><circle cx="17" cy="17.5" r="2.6"/><path d="M9.3 10.8 L14.7 7.7 M9.3 13.2 L14.7 16.3"/></svg>Paylaş</button>
 <button type="button" class="hbtn" id="btn-download-notebook" title="Sayfayı görsel olarak indir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 V15 M8 11.4 C9.4 12.7 10.7 14 12 15.4 C13.3 14 14.6 12.7 16 11.4"/><path d="M5 15.5 V19.5 H19 V15.5"/></svg>Sayfayı indir</button>
-<button type="button" class="btn btn-dark" id="btn-save-notebook">Defteri kaydet</button>
 </div>
 </header>
 
@@ -681,6 +689,8 @@
 <label class="ax-font" id="contextual-font-size-group" style="display: none;"><span class="hand">yazı</span><select id="text-font-size" aria-label="Yazı boyutu"><option value="12px">12</option><option value="16px" selected>16</option><option value="20px">20</option><option value="24px">24</option><option value="32px">32</option></select></label>
 </div>
 <div class="case-r">
+<!-- R35 (28.10.2026): kaydet çizim sırasında görünsün diye araç kutusunda; "Sayfayı indir"den ayrı -->
+<button type="button" class="btn btn-dark nb-save" id="btn-save-notebook" title="Defteri kaydet (Ctrl+S) · değişiklikler ayrıca kendiliğinden kaydedilir">Kaydet</button>
 <button type="button" class="ib2" id="btn-undo-notebook" onclick="undoNotebookAction()" aria-label="Geri al (Ctrl+Z)" title="Geri al (Ctrl+Z)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 L4.5 11 L9 15"/><path d="M5 11 H14 C17 11 19.5 13 19.5 16 C19.5 18 18.5 19 17 19.5"/></svg></button>
 <button type="button" class="ib2" id="btn-redo-notebook" onclick="redoNotebookAction()" aria-label="İleri al (Ctrl+Y)" title="İleri al (Ctrl+Y)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7 L19.5 11 L15 15"/><path d="M19 11 H10 C7 11 4.5 13 4.5 16 C4.5 18 5.5 19 7 19.5"/></svg></button>
 <label class="paper-s"><span class="vh">Kâğıt türü</span><select data-paper="" aria-label="Kâğıt türü"><option value="lined">çizgili</option><option value="grid">kareli</option><option value="dots">noktalı</option><option value="plain">düz</option><option value="cornell">Cornell</option></select></label>
@@ -707,7 +717,7 @@
 </div>
 </div>
 </div>
-<p class="nb-hint hand" data-hint="">çiz, yaz, karttan not as · bitince “Defteri kaydet”; kaydetmeden sayfadan çıkma.</p>
+<p class="nb-hint hand" data-hint="">çiz, yaz, karttan not as · değişiklikler kendiliğinden kaydedilir; hemen kaydetmek için “Kaydet” ya da Ctrl+S.</p>
 </section>
 </div>
 <div class="bubble" data-bubble="" role="toolbar" aria-label="Seçili metinle ne yapayım?" hidden>
@@ -766,7 +776,7 @@
 <div class="kt-leit">
 <div class="kx-leit-h"><span class="kx-k">tekrar gözleri</span><span class="kx-leit-d hand" data-kx-leit-deck=""></span></div>
 <div class="kx-leit-box" data-leit="" role="group" aria-label="Tekrar gözleri"></div>
-<small class="kx-leit-n">bir göze dokun, yalnız o gözdeki fişleri çalış · aralıklı tekrar (SM-2), yapay zekâ değil</small>
+<small class="kx-leit-n">bir göze dokun, yalnız o gözdeki kartları çalış · bildiğin kartlar sağdaki gözlere geçer ve gittikçe daha seyrek sorulur; zorlandıkların başa döner, sık sorulur</small>
 </div>
 </section>
 <div class="kt-plinth" aria-hidden="true"><i></i><i></i></div>
@@ -777,10 +787,12 @@
 <span class="kt-lamp" aria-hidden="true"><svg viewBox="0 0 90 120"><path class="kt-lamp-arm" d="M70 116 V92 L40 54 L58 26" fill="none" stroke="#7E5028" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="40" cy="54" r="5" fill="#C9A24A"/><circle cx="70" cy="92" r="4" fill="#C9A24A"/><ellipse cx="70" cy="116" rx="18" ry="4" fill="#7E5028"/><g class="kt-lamp-head"><path d="M42 12 L74 30 L64 46 L28 26 Z" fill="#2E6B4F" stroke="#1E4A36" stroke-width="2" stroke-linejoin="round"/><path d="M28 26 L64 46" stroke="#C9A24A" stroke-width="3" stroke-linecap="round"/><ellipse class="kt-bulb" cx="46" cy="38" rx="9" ry="4" transform="rotate(30 46 38)" fill="#FFE9A8"/></g></svg></span>
 <div class="kx-modes">
 <div class="modes" role="tablist" aria-label="Çalışma biçimi">
-<button type="button" role="tab" id="m-due" aria-selected="true" aria-controls="ktable" data-mode="due">bugünkü tekrar</button>
-<button type="button" role="tab" id="m-all" aria-selected="false" aria-controls="ktable" data-mode="all">sırayla çevir</button>
-<button type="button" role="tab" id="m-smart" aria-selected="false" aria-controls="ktable" data-mode="smart">akıllı tekrar</button>
+<button type="button" role="tab" id="m-due" aria-selected="true" aria-controls="ktable" data-mode="due" title="Bugün sırası gelen kartlar">bugünkü tekrar</button>
+<button type="button" role="tab" id="m-all" aria-selected="false" aria-controls="ktable" data-mode="all" title="Destedeki bütün kartlar, sırayla">sırayla çevir</button>
+<button type="button" role="tab" id="m-smart" aria-selected="false" aria-controls="ktable" data-mode="smart" title="Zorlandığın kartlar önce; ne kadar iyi hatırladığını 4 düzeyde işaretlersin">akıllı tekrar</button>
 </div>
+<!-- R51 (28.10.2026): üç sekmenin farkı tek satırda -->
+<p class="kx-mode-n hand">bugünkü tekrar: sırası gelenler · sırayla çevir: destenin tamamı · akıllı tekrar: zorlandıkların önce</p>
 </div>
 <div class="table" id="ktable" role="tabpanel" aria-labelledby="m-due">
 <div class="deck-under" aria-hidden="true"><i></i><i></i></div>
@@ -1659,7 +1671,7 @@
 <textarea class="dv-ta" data-ta="" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Kod"></textarea>
 </div>
 </div>
-<div class="dv-ebar"><span data-epos="">1:1</span><span data-elang=""></span><span class="dv-sp"></span><span class="dv-hint">Ctrl+S durak · Ctrl+F ara · Tab girinti</span></div>
+<div class="dv-ebar"><span data-epos="">1:1</span><span data-elang=""></span><span class="dv-sp"></span><button type="button" class="dv-mini" data-prevshow="" hidden>önizlemeyi göster</button><span class="dv-hint">Ctrl+S durak · Ctrl+F ara · Tab girinti</span></div>
 </section>
 
 <section class="dv-out" aria-label="Çıktı">
@@ -1668,6 +1680,8 @@
 <button type="button" role="tab" data-ot="cons" aria-selected="false">konsol <b data-ccount="">0</b></button>
 <button type="button" role="tab" data-ot="aca" aria-selected="false">Acadia</button>
 <button type="button" role="tab" data-ot="due" aria-selected="false">teslim</button>
+<!-- R88/R89 (28.10.2026): önizleme kapatılabilir (kod alanı genişler) ve tam ekrana alınabilir -->
+<span class="dv-out-sp"></span><button type="button" class="dv-mini" data-prevfull="" title="Önizlemeyi tam ekran aç" aria-label="Önizlemeyi tam ekran aç">⤢ tam ekran</button><button type="button" class="dv-mini" data-prevhide="" title="Önizlemeyi gizle" aria-label="Önizleme panelini gizle">✕</button>
 </div>
 <div class="dv-op" data-op="prev">
 <div class="dv-dev" role="group" aria-label="Önizleme boyutu"><button type="button" data-dev="desk" aria-pressed="true">masaüstü</button><button type="button" data-dev="phone" aria-pressed="false">telefon</button><span data-prevfile=""></span></div>
@@ -1825,7 +1839,7 @@
 <p class="axa-dz-err" data-dz-err="" role="alert" hidden></p>
 <button type="button" class="btn btn-red sm" data-dz-go="" disabled>Hesabımı kalıcı olarak sil</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-cihaz" aria-labelledby="axa-t-cihaz" data-pg="cihaz" hidden><h2 class="hd">Oturumlar ve cihaz<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><div class="dev"><span class="doc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="10" rx="1.5"/><path d="M8 19h3"/></svg></span><div><b data-dev-n="">Bu cihaz</b><div class="mut" data-dev-d=""></div></div><span class="tag" style="--tc:#1E8A55">bu cihaz</span></div>
 <p class="mut" style="margin-top:12px">Başka bir bilgisayarda ya da telefonda açık kalan oturumların varsa hepsini tek seferde kapatabilirsin. Bu cihazda açık kalırsın.</p>
-<div class="row"><button type="button" class="btn btn-line sm" data-out-others="">Diğer cihazlardaki oturumları kapat</button><button type="button" class="btn btn-dark sm" data-out-here="">Bu cihazdan çıkış yap</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-plan" aria-labelledby="axa-t-plan" data-pg="plan" hidden><h2 class="hd">Kullanım<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><p class="mut" style="margin-top:0">Hesabında şu an duranlar:</p><div class="axa-use" data-use=""><p class="hand">sayılıyor…</p></div></section></div>
+<div class="row"><button type="button" class="btn btn-line sm" data-out-others="">Diğer cihazlardaki oturumları kapat</button><button type="button" class="btn btn-dark sm" data-out-here="">Bu cihazdan çıkış yap</button></div></section><section class="axa-pg" role="tabpanel" id="axa-p-plan" aria-labelledby="axa-t-plan" data-pg="plan" hidden><h2 class="hd">Planım</h2><!-- R91 (28.10.2026): plan, bitiş tarihi, aylık özet kotası, ödemeler --><div class="axa-myplan" data-myplan=""><p class="hand">bakılıyor…</p></div><h2 class="hd">Kullanım<span class="sav" data-sav="" aria-hidden="true">kaydedildi</span></h2><p class="mut" style="margin-top:0">Hesabında şu an duranlar:</p><div class="axa-use" data-use=""><p class="hand">sayılıyor…</p></div></section></div>
 </div>
 </div>
 <div class="toast" data-toast="" role="status" aria-live="polite" hidden><span data-toast-t=""></span><button type="button" data-toast-b="" hidden>geri al</button></div>
@@ -2365,7 +2379,7 @@
         <div class="axs2-langs">
           <label class="axs2-tile"><input type="radio" name="summary-language-choice" value="tr"><span class="tl"><b class="disp">Türkçe</b><small>Türkçe özet, sunucular Ela &amp; Kaan</small></span><i class="tk" aria-hidden="true"></i></label>
           <label class="axs2-tile"><input type="radio" name="summary-language-choice" value="en" checked><span class="tl"><b class="disp">English</b><small>English summary, hosts Dalia &amp; Robert</small></span><i class="tk" aria-hidden="true"></i></label>
-          <label class="axs2-tile both soon" data-sd-both="" aria-disabled="true"><input type="radio" name="summary-language-choice" value="both" disabled><span class="tl"><b class="disp">İkisi de</b><small>Türkçe + İngilizce birarada</small></span><span class="axs2-soon hand">yakında</span><i class="tk" aria-hidden="true"></i></label>
+          <label class="axs2-tile both soon" data-sd-both="" aria-disabled="true" hidden><input type="radio" name="summary-language-choice" value="both" disabled><span class="tl"><b class="disp">İkisi de</b><small>Türkçe + İngilizce birarada</small></span><span class="axs2-soon hand">yakında</span><i class="tk" aria-hidden="true"></i></label>
         </div>
       </fieldset>
       <fieldset class="axs2-f" id="visual-analysis-container" style="display: none;">
@@ -2533,10 +2547,12 @@
 
   <nav class="ax-bnav" id="ax-bnav" aria-label="Alt menü">
     <button type="button" data-bv="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 L12 4.5 L20 11 V20 H14.5 V14.5 H9.5 V20 H4 Z"/></svg><span>Bugün</span></button>
-    <button type="button" data-bv="docs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/></svg><span>Belgeler</span></button>
+    <button type="button" data-bv="docs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/></svg><span>Belgelerim</span></button>
     <button type="button" data-bv="cards"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7" width="13" height="13" rx="2"/><path d="M8 4 H18.5 C19.6 4 20.5 4.9 20.5 6 V16.5"/></svg><span>Kartlar</span></button>
     <button type="button" data-bv="studylab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9.5 L5 19 C4.5 20 5.2 21 6.3 21 H17.7 C18.8 21 19.5 20 19 19 L13.5 9.5 V3.5"/><path d="M7.5 15 H16.5"/></svg><span>Study Lab</span></button>
     <button type="button" data-bv="acadia" class="aca"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 L13.8 10.2 L21 12 L13.8 13.8 L12 21 L10.2 13.8 L3 12 L10.2 10.2 Z"/></svg><span>Acadia</span></button>
+    <!-- R70 (28.10.2026): Defter, Planlayıcı, Sınav ve diğerleri telefonda menüden -->
+    <button type="button" data-bv="menu" aria-controls="nav-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7 H19.5 M4.5 12 H19.5 M4.5 17 H19.5"/></svg><span>Menü</span></button>
   </nav>
 
 

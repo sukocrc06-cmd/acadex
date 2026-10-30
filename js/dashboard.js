@@ -301,6 +301,9 @@ async function checkSessionAndLoadProfile() {
       // Display full name or fallback
       const displayName = profile.full_name || currentUser.email.split('@')[0];
       nameEl.textContent = displayName;
+      // R19 (28.10.2026): dar ekranda hamburger menüsündeki hesap satırı
+      const sideMeN = document.querySelector('[data-side-me-n]');
+      if (sideMeN) sideMeN.textContent = displayName;
 
       // Display user avatar in top bar
       const topBarAvatar = document.getElementById('topbar-user-avatar');
@@ -311,6 +314,8 @@ async function checkSessionAndLoadProfile() {
       const badgeClass = getDepartmentColorClass(profile.department);
       const shortName = getDepartmentShortName(profile.department);
       deptEl.innerHTML = `${translateDepartment(profile.department)} <span class="dept-badge ${badgeClass}">${shortName}</span>`;
+      const sideMeD = document.querySelector('[data-side-me-d]');
+      if (sideMeD && profile.department) sideMeD.textContent = translateDepartment(profile.department);
 
       // Welcome greeting
       const firstName = displayName.split(' ')[0];
@@ -2580,11 +2585,31 @@ async function jumpToFootnote(fnId, refText, page) {
 }
 window.jumpToFootnote = jumpToFootnote;
 
+/* MODELIN KENDI ACIKLAMALARI OZETTEN CIKAR (28.10.2026, test raporu R42, R63).
+   Ozetlerde ders icerigi olmayan cumleler kaliyordu: "The visible text does not
+   explicitly detail specific reasoning methods..." gibi. Yalnizca BELGENIN
+   KENDISINDEN soz eden ("gorunen/saglanan metin ... icermiyor") ya da modelin
+   kendinden soz ettigi ("as an AI", "I cannot ...") cumleler atilir; "The text
+   explains that firms do not invest" gibi icerik cumlelerine dokunulmaz.
+   Ayni kural sunucuda da uygulanmali (summarize-document); bu, kayitli eski
+   ozetleri de temizler. */
+const AI_META_SENTENCE_RE = new RegExp(
+  String.raw`[^.!?\n]*(?:` +
+  String.raw`(?:the|this|these) (?:visible|provided|given|available|uploaded|supplied|extracted) (?:text|content|document|slides?|material|excerpts?|pages?|notes)\b[^.!?\n]*\b(?:does not|doesn't|do not|don't|did not|is not|isn't|are not|aren't|lacks?|only|cannot|can't|fails? to)\b` +
+  String.raw`|\bas an ai\b|\bi (?:cannot|can't|do not have|don't have) (?:access|see|determine|verify)` +
+  String.raw`|(?:görünen|sağlanan|verilen|yüklenen|mevcut) (?:metin|belge|içerik|slayt(?:lar)?|materyal|sayfa(?:lar)?)[^.!?\n]*(?:belirtilmemiş|belirtmiyor|yer almıyor|yer almamaktadır|içermiyor|içermemektedir|değinmiyor|açıklamıyor|bulunmuyor|bulunmamaktadır)` +
+  String.raw`)[^.!?\n]*[.!?]?`, 'gi');
+function stripAiMetaSentences(text) {
+  return String(text || '').replace(AI_META_SENTENCE_RE, ' ').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').trim();
+}
+window.stripAiMetaSentences = stripAiMetaSentences;
+
 function formatSummaryText(summary, footnotes) {
   if (!summary) return "";
   // Tek blok gelen ozet paragraflara ayrilir (bkz. summaryParagraphs).
   // Satir sonu tasiyan metne dokunulmaz — yazarin kendi yapisi korunur.
-  let kaynak = String(summary);
+  let kaynak = stripAiMetaSentences(summary);
+  if (!kaynak) return "";
   if (!/\n|\\n/.test(kaynak)) {
     const paras = summaryParagraphs(kaynak);
     if (paras.length > 1) kaynak = paras.map(p => (p.lead ? `**${p.lead}** ${p.body}` : p.body)).join('\n\n');
@@ -4090,7 +4115,7 @@ function renderNotebookSidebarList(cards) {
   Object.keys(grouped).forEach(docId => {
     const groupCards = grouped[docId];
     const firstCard = groupCards[0];
-    const docName = firstCard.documents?.file_name || 'Unnamed Document';
+    const docName = axDocTitle(firstCard.documents?.file_name || 'Unnamed Document');
 
     if (groupCards.length > 1) {
       const headerDiv = document.createElement('div');
@@ -4671,6 +4696,7 @@ function makeElementDraggable(el, handle = el) {
   el.style.touchAction = 'none';
   handle.onmousedown = null;
   handle.onpointerdown = dragMouseDown;
+  if (el.classList.contains('draggable-note')) addNoteResizeHandle(el);
 
   // Intercept click events in the capture phase to cancel them if a drag occurred
   el.addEventListener('click', (e) => {
@@ -4689,7 +4715,7 @@ function makeElementDraggable(el, handle = el) {
     if (activePointer !== null) return;
     if (e.target.classList.contains('delete-overlay-btn') || e.target.closest('.delete-overlay-btn')) return;
     if (e.target.tagName === 'TD' || e.target.closest('td') || e.target.closest('[contenteditable="true"]')) return;
-    if (e.target.closest('.table-resizer')) return;
+    if (e.target.closest('.table-resizer') || e.target.closest('.note-resize')) return;
     
     e = e || window.event;
     e.preventDefault();
@@ -4747,6 +4773,42 @@ function makeElementDraggable(el, handle = el) {
       if (typeof recordNotebookState === 'function') recordNotebookState();
     }
   }
+}
+
+/* NOT BOYUTLANDIRMA (28.10.2026, test raporu R26, R27, R45). Notlar 220px'te
+   sabitti ve yazi 6 satirda kesiliyordu. Sag alt kosedeki tutamakla (fare,
+   parmak, kalem) buyutulur/kucultulur; boyut kayda girer (width/height zaten
+   kaydediliyordu) ve geri yuklemede uygulanir. */
+function addNoteResizeHandle(note) {
+  if (note.querySelector('.note-resize')) return;
+  const grip = document.createElement('span');
+  grip.className = 'note-resize';
+  grip.setAttribute('aria-hidden', 'true');
+  grip.title = 'Boyutlandır';
+  note.appendChild(grip);
+  let pid = null, sx = 0, sy = 0, sw = 0, sh = 0;
+  grip.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    pid = e.pointerId; sx = e.clientX; sy = e.clientY; sw = note.offsetWidth; sh = note.offsetHeight;
+    try { grip.setPointerCapture(pid); } catch (_e) { /* yoksay */ }
+  });
+  grip.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== pid) return;
+    e.preventDefault();
+    note.style.width = `${Math.max(160, Math.min(640, sw + e.clientX - sx))}px`;
+    note.style.height = `${Math.max(120, Math.min(640, sh + e.clientY - sy))}px`;
+    note.style.minHeight = '0';
+  });
+  const end = (e) => {
+    if (e.pointerId !== pid) return;
+    pid = null;
+    notebookHasUnsavedChanges = true;
+    if (typeof recordNotebookState === 'function') recordNotebookState();
+  };
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', end);
+  grip.addEventListener('click', (e) => e.stopPropagation());
 }
 
 /* Defter ust katmanini (not, yazi, tablo, resim, sekil, AI tablo/grafik, deşifre)
@@ -4846,13 +4908,16 @@ function captureCurrentOverlayElements() {
 }
 window.captureCurrentOverlayElements = captureCurrentOverlayElements;
 
-async function saveNotebookData() {
+// R35 (28.10.2026): mesajlar Türkçe; { quiet: true } ile otomatik kayıt (acadex-ink.js) sessiz çalışır
+async function saveNotebookData(opts) {
+  const quiet = !!(opts && opts.quiet === true);
   const btnSave = document.getElementById('btn-save-notebook');
   if (!btnSave) return;
+  if (btnSave.disabled) return;
 
   const originalText = btnSave.textContent;
   btnSave.disabled = true;
-  btnSave.textContent = 'Saving...';
+  btnSave.textContent = 'Kaydediliyor…';
 
   try {
     const canvasData = canvasElement.toDataURL('image/png');
@@ -4873,9 +4938,9 @@ async function saveNotebookData() {
 
     if (error) {
       console.error("Notebook upsert failed: ", error);
-      showDashboardAlert('error', 'Failed to save notebook. Please try again.');
+      showDashboardAlert('error', 'Defter kaydedilemedi. Bağlantını kontrol edip tekrar dene.');
     } else {
-      showDashboardAlert('success', 'Notebook saved!');
+      if (!quiet) showDashboardAlert('success', 'Defter kaydedildi ✓');
       notebookHasUnsavedChanges = false;
       
       // Update local state in memory
@@ -4906,7 +4971,7 @@ async function saveNotebookData() {
     }
   } catch (err) {
     console.error("Exception saving notebook: ", err);
-    showDashboardAlert('error', 'Notebook save failed.');
+    showDashboardAlert('error', 'Defter kaydedilemedi. Bağlantını kontrol edip tekrar dene.');
   } finally {
     btnSave.disabled = false;
     btnSave.textContent = originalText;
@@ -5034,16 +5099,17 @@ async function createNewNotebookPage() {
 }
 
 async function deleteCurrentNotebookPage() {
+  // R38 (28.10.2026): arayüz dili hiç seçilmemişse de Türkçe (varsayılan dil tr)
   if (notebookPages.length <= 1) {
-    const isTr = localStorage.getItem('acadexUILang') === 'tr';
+    const isTr = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
     showDashboardAlert('error', isTr ? 'Tek kalan sayfa silinemez!' : 'Cannot delete the only remaining page!');
     return;
   }
 
-  const isTr = localStorage.getItem('acadexUILang') === 'tr';
+  const isTr = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
   const confirmDelete = confirm(
     isTr
-      ? "Bu sayfayı silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+      ? "Sayfa " + currentNotebookPageNumber + " silinsin mi? Üzerindeki çizimler ve notlar da silinir; bu işlem geri alınamaz."
       : "Are you sure you want to delete this page? This action cannot be undone."
   );
   if (!confirmDelete) return;
@@ -5108,6 +5174,9 @@ function renderCurrentPageData() {
       note.style.left = `${item.left}px`;
       note.style.top = `${item.top}px`;
       note.style.transform = `rotate(${item.rotation || 0}deg)`;
+      // R27: kullanicinin verdigi boyut geri gelir (eski kayitlarda 220px civari, zararsiz)
+      if (item.width > 0) note.style.width = `${item.width}px`;
+      if (item.height > 0) { note.style.height = `${item.height}px`; note.style.minHeight = '0'; }
       note.setAttribute('data-type', 'sticky');
       note.setAttribute('data-card-id', item.content.cardId);
       note.setAttribute('data-rotation', item.rotation || 0);
@@ -6352,7 +6421,7 @@ function renderCardsLibraryList(cards) {
   Object.keys(grouped).forEach(docId => {
     const groupCards = grouped[docId];
     const firstCard = groupCards[0];
-    const docName = firstCard.documents?.file_name || 'İsimsiz Belge';
+    const docName = axDocTitle(firstCard.documents?.file_name || 'İsimsiz Belge');
 
     if (groupCards.length > 1) {
       listHtml += `<div class="lib-md-group-label">${escapeHtml(docName)} · ${groupCards.length} versiyon</div>`;
@@ -6360,7 +6429,7 @@ function renderCardsLibraryList(cards) {
 
     groupCards.forEach(card => {
       const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' });
-      const cardDocName = card.documents?.file_name || 'İsimsiz Belge';
+      const cardDocName = axDocTitle(card.documents?.file_name || 'İsimsiz Belge');
       const isActive = card.id === activeId;
       const progress = getCardProgressStats(card);
 
@@ -6575,7 +6644,7 @@ function renderGlobalReviewWidget() {
     } else {
       count = scored.filter(s => !s.neverSeen && s.nextAt >= dayStart.getTime() && s.nextAt < dayEnd.getTime()).length;
     }
-    forecast.push({ label: i === 0 ? 'Bugün' : (i === 1 ? 'Yrn' : dayLabels[dayStart.getDay()]), count });
+    forecast.push({ label: i === 0 ? 'Bugün' : (i === 1 ? 'Yarın' : dayLabels[dayStart.getDay()]), count }); // R62: "Yrn" anlaşılmıyordu
   }
 
   container.innerHTML = `
@@ -6612,7 +6681,7 @@ window.refreshCardsLibraryProgressUI = refreshCardsLibraryProgressUI;
 
 function buildLibraryDetailHtml(card) {
   const formattedDate = new Date(card.created_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' });
-  const cardDocName = card.documents?.file_name || 'İsimsiz Belge';
+  const cardDocName = axDocTitle(card.documents?.file_name || 'İsimsiz Belge');
   const escapedSummary = (card.summary || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
   const safeDocName = cardDocName.replace(/'/g, "\\'");
 
@@ -7124,7 +7193,7 @@ async function loadExamsPlatform() {
         if (emptyHint) emptyHint.style.display = 'none';
         cardSelect.innerHTML = '';
         cachedExamCards.forEach(card => {
-          const docName = card.documents?.file_name || 'İsimsiz Belge';
+          const docName = axDocTitle(card.documents?.file_name || 'İsimsiz Belge');
           const createdDate = new Date(card.created_at).toLocaleDateString('tr-TR');
           const opt = document.createElement('option');
           opt.value = card.id;
@@ -9315,7 +9384,8 @@ async function deleteStudyCard(event, cardId, docId) {
     event.stopPropagation();
   }
   
-  const isTr = localStorage.getItem('acadexUILang') === 'tr';
+  // R54 (28.10.2026): dil seçilmemişse de Türkçe sor (varsayılan tr)
+  const isTr = (localStorage.getItem('acadexUILang') || 'tr') === 'tr';
   const title = isTr ? "Bilgi Kartını Sil" : "Delete Study Card";
   const text = isTr 
     ? "Bu bilgi kartını silmek istediğinize emin misiniz? Bu işlem geri alınamaz." 
@@ -13061,6 +13131,45 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (sandbox social) error:', err);
   }
 
+  // 4b. Raptiyeler: bölüm panosunda SENİN özetine takılan raptiyeler
+  // (28.10.2026, test raporu R79). Eskiden yalnızca panonun kendi küçük
+  // "haberler" listesinde görünüyordu; zile hiç düşmüyordu, özeti asan kişi
+  // panoyu açmadıkça raptiyeden habersiz kalıyordu.
+  try {
+    const { data: myShared, error: mySharedErr } = await supabaseClient
+      .from('study_cards')
+      .select('id, documents(file_name)')
+      .eq('user_id', currentUser.id)
+      .eq('is_shared', true);
+    if (!mySharedErr && myShared && myShared.length > 0) {
+      const cardTitle = {};
+      myShared.forEach(c => { cardTitle[c.id] = axDocTitle(c.documents?.file_name || 'özetin'); });
+      const { data: pins, error: pinsErr } = await supabaseClient
+        .from('study_card_votes')
+        .select('card_id, user_id, created_at')
+        .in('card_id', myShared.map(c => c.id))
+        .neq('user_id', currentUser.id)
+        .gt('created_at', lastCheck);
+      if (!pinsErr && pins && pins.length > 0) {
+        const pinActorIds = [...new Set(pins.map(p => p.user_id))];
+        const pinActors = {};
+        const { data: pa } = await supabaseClient.from('profiles').select('id, full_name').in('id', pinActorIds);
+        (pa || []).forEach(a => { pinActors[a.id] = a.full_name || 'Bir öğrenci'; });
+        pins.forEach(p => {
+          items.push({
+            time: p.created_at,
+            title: `📌 ${escapeHtml(pinActors[p.user_id] || 'Bir öğrenci')} özetine raptiye taktı`,
+            subtitle: escapeHtml(cardTitle[p.card_id] || 'Bölüm panosundaki özetin'),
+            onClick: () => switchDashboardView('feed'),
+            category: 'likes'
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (raptiye) error:', err);
+  }
+
   // Ayarlar → "Bildirim Tercihleri" lets a student turn off specific
   // categories (comments/likes/announcements — achievements are always on
   // since they're academic, not social, signals and carry no `category`). Default to true for anyone who hasn't touched
@@ -14079,6 +14188,29 @@ function replaceTurkishChars(str) {
    Ekranda gorunen ad etkilenmiyor: documents.file_name alani ORIJINAL adi
    ayri sakliyor. Temizlenen yalnizca depolama anahtari.
    ========================================================================== */
+/* BELGE ADI, KODSUZ (28.10.2026, test raporu R40, R46, R53, R65).
+   Ekranda (özet başlığı, deste adı, kartlar, ana sayfa) dosya adı olduğu gibi
+   gösteriliyordu; yükleme önekleri (1730000000000_), UUID'ler, uzun onaltılık
+   özetler ve LMS'in eklediği uzun sayı kodları belge adının önüne/arkasına
+   yapışıyordu. Yalnızca GÖRÜNEN ad temizlenir; documents.file_name olduğu gibi
+   kalır (eşleştirme ve indirme onu kullanır). Temizlik adı tamamen silerse
+   orijinal ad (uzantısız) gösterilir. acadex-ink.js'teki baseName'ler de bunu
+   kullanır (window.axDocTitle). */
+function axDocTitle(name) {
+  const ham = String(name || '').trim();
+  let n = ham.replace(/\.[a-z0-9]{2,5}$/i, '');
+  const govde = n;
+  // kod: 8+ rakam, UUID ya da hem rakam hem harf içeren 12+ onaltılık
+  const KOD = String.raw`(?:\d{8,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{12,})`;
+  n = n.replace(new RegExp(String.raw`^(?:` + KOD + String.raw`[\s_.-]+)+`, 'i'), '');
+  n = n.replace(new RegExp(String.raw`(?:[\s_.-]+` + KOD + `)+$`, 'i'), '');
+  n = n.replace(/\s*[\[(][0-9a-f-]{8,}[\])]/gi, '');
+  n = n.replace(/\s*\(\d+\)$/, '');
+  n = n.replace(/_+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return n || govde.replace(/_+/g, ' ').trim() || 'İsimsiz belge';
+}
+window.axDocTitle = axDocTitle;
+
 function storageSafeName(name) {
   const ham = String(name || '').trim();
   const nokta = ham.lastIndexOf('.');
@@ -15010,7 +15142,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
   let titleStr = '';
   if (studyCard.documents?.file_name) {
-    titleStr = studyCard.documents.file_name;
+    titleStr = axDocTitle(studyCard.documents.file_name);
   } else if (studyCard.source_documents && studyCard.source_documents.length > 0) {
     titleStr = studyCard.source_documents.map(s => s.file_name).join(', ');
   } else {
@@ -15049,7 +15181,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   // kalin; paragraflar arasi bosluk var. Tek blok eski ozetler cumle
   // sinirindan bolunur (bkz. summaryParagraphs).
   if (studyCard.summary) {
-    const ozetParagraflari = summaryParagraphs(studyCard.summary);
+    const ozetParagraflari = summaryParagraphs(stripAiMetaSentences(studyCard.summary)); // R42: PDF'te de model aciklamasi yok
     const PARAGRAF_ARASI = 2.6;
     y = drawPdfCard(doc, cardState(), {
       label: 'ÖZET',
@@ -15720,7 +15852,7 @@ async function exportStudyCardToPDF(studyCard) {
   const visualAssets = await prepareStudyCardVisualAssets(studyCard);
 
   let titleStr = 'Bilgi Kartı';
-  if (studyCard.documents?.file_name) titleStr = studyCard.documents.file_name;
+  if (studyCard.documents?.file_name) titleStr = axDocTitle(studyCard.documents.file_name);
   else if (studyCard.documentFileName) titleStr = studyCard.documentFileName;
 
   const styleLabel = getStyleLabel(studyCard.summary_style);
@@ -16786,7 +16918,7 @@ async function startEditCourseTag(docId, triggerEl) {
   const input = document.createElement('input');
   input.type = 'text';
   input.value = currentTag;
-  input.placeholder = 'e.g. MIS301, Marketing 101';
+  input.placeholder = 'ör. MIS301, Pazarlama 101';
   input.setAttribute('list', 'course-tag-datalist');
   input.style.cssText = `
     font-size: 0.7rem; font-family: inherit;
@@ -16800,8 +16932,14 @@ async function startEditCourseTag(docId, triggerEl) {
   input.focus();
   input.select();
 
+  // R77 (28.10.2026): Esc kaydetmeden kapatir (eskiden yeniden cizim blur'u
+  // tetikleyip yine kaydediyordu); ayni deger iki kez yazilmaz.
+  let done = false;
   const save = async () => {
+    if (done) return;
+    done = true;
     const newTag = input.value.trim();
+    if (newTag === currentTag) { await loadDocuments(); return; }
     await saveCourseTag(docId, newTag);
   };
 
@@ -16810,6 +16948,7 @@ async function startEditCourseTag(docId, triggerEl) {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
     if (e.key === 'Escape') {
       // Restore original without saving
+      done = true;
       loadDocuments();
     }
   });
@@ -16819,18 +16958,34 @@ window.startEditCourseTag = startEditCourseTag;
 /**
  * Saves a course tag for a document to Supabase and refreshes the card.
  */
+/* DERS ETIKETI KALICI (28.10.2026, test raporu R77). Etiket kaydedilmis gibi
+   gorunup yenileyince kayboluyordu: update hata vermeden SIFIR satir
+   etkileyebiliyor (RLS / baska kullanicinin satiri) ve kod yalnizca bellekteki
+   kopyayi guncelliyordu. Artik yazilan satir .select ile dogrulanir; yazilmadiysa
+   kullaniciya soylenir ve bellek degistirilmez. Kartlar (study_cards) da ayni
+   etiketi alir; Kartoteks'teki ders suzgeci onu okur. */
 async function saveCourseTag(docId, newTag) {
   try {
     const tagValue = newTag || null;
-    const { error } = await supabaseClient
+    const { data: yazilan, error } = await supabaseClient
       .from('documents')
       .update({ course_tag: tagValue })
-      .eq('id', docId);
+      .eq('id', docId)
+      .eq('user_id', currentUser.id)
+      .select('id');
 
-    if (error) {
-      console.error('Failed to save course tag:', error);
-      showDashboardAlert('error', 'Could not save course tag. Please try again.');
+    if (error || !yazilan || !yazilan.length) {
+      console.error('Failed to save course tag:', error || 'no row updated');
+      showDashboardAlert('error', 'Ders etiketi kaydedilemedi. Sayfayı yenileyip tekrar dene.');
+      await loadDocuments();
+      return;
     }
+    await supabaseClient
+      .from('study_cards')
+      .update({ course_tag: tagValue })
+      .eq('document_id', docId)
+      .eq('user_id', currentUser.id);
+    showDashboardAlert('success', tagValue ? `Ders etiketi kaydedildi: ${tagValue}` : 'Ders etiketi kaldırıldı.');
 
     // Update the in-memory cache so filterLibraryCards() picks it up too
     const doc = activeDocuments.find(d => d.id === docId);
@@ -16840,18 +16995,67 @@ async function saveCourseTag(docId, newTag) {
     const wrapper = document.querySelector(`.doc-course-tag-wrapper[data-doc-id="${docId}"]`);
     if (wrapper) {
       if (tagValue) {
-        wrapper.innerHTML = `<span class="course-tag-pill" onclick="startEditCourseTag('${docId}', this)" title="Click to edit course tag" style="display: inline-flex; align-items: center; gap: 0.3rem; background: var(--color-teal-light); color: var(--color-teal); font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 20px; cursor: pointer; transition: background 0.2s;">🏷️ ${tagValue}</span>`;
+        wrapper.innerHTML = `<span class="course-tag-pill" onclick="startEditCourseTag('${docId}', this)" title="Ders etiketini düzenle" style="display: inline-flex; align-items: center; gap: 0.3rem; background: var(--color-teal-light); color: var(--color-teal); font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 20px; cursor: pointer; transition: background 0.2s;">🏷️ ${escapeHtml(tagValue)}</span>`;
       } else {
-        wrapper.innerHTML = `<button class="add-course-tag-btn" onclick="startEditCourseTag('${docId}', this)" style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; color: var(--color-text-muted); background: none; border: 1px dashed rgba(22,50,92,0.2); border-radius: 20px; padding: 0.2rem 0.55rem; cursor: pointer; transition: all 0.2s;">+ Add course tag</button>`;
+        wrapper.innerHTML = `<button class="add-course-tag-btn" onclick="startEditCourseTag('${docId}', this)" style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; color: var(--color-text-muted); background: none; border: 1px dashed rgba(22,50,92,0.2); border-radius: 20px; padding: 0.2rem 0.55rem; cursor: pointer; transition: all 0.2s;">+ ders etiketi</button>`;
       }
     }
   } catch (err) {
     console.error('Exception saving course tag:', err);
-    showDashboardAlert('error', 'An error occurred saving the course tag.');
+    showDashboardAlert('error', 'Ders etiketi kaydedilirken bir hata oldu.');
     await loadDocuments();
   }
 }
 window.saveCourseTag = saveCourseTag;
+
+/* BELGE ADINI DEGISTIR (28.10.2026, test raporu R76). Arsivdeki kartin
+   basligi yerinde bir kutuya donusur; Enter/odak kaybi kaydeder, Esc vazgecer.
+   Uzanti (.pdf vb.) korunur; storage_path degismez, indirme ve ozetler
+   etkilenmez. Yazilan satir dogrulanir (bkz. saveCourseTag). */
+async function renameDocument(docId) {
+  const doc = (activeDocuments || []).find(d => d.id === docId);
+  const card = document.getElementById('doc-card-' + docId);
+  const h = card && card.querySelector('.ax-fname');
+  if (!doc || !h) return;
+  const ext = (String(doc.file_name).match(/\.[a-z0-9]{2,5}$/i) || [''])[0];
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ax-fname-in';
+  input.maxLength = 120;
+  input.value = axDocTitle(doc.file_name);
+  input.setAttribute('aria-label', 'Belgenin yeni adı');
+  h.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = async (kaydet) => {
+    if (done) return;
+    done = true;
+    const v = input.value.trim().replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s{2,}/g, ' ');
+    if (!kaydet || !v || v === axDocTitle(doc.file_name)) { renderDocumentsList(); return; }
+    const yeni = v + ext;
+    const { data: yazilan, error } = await supabaseClient
+      .from('documents')
+      .update({ file_name: yeni })
+      .eq('id', docId)
+      .eq('user_id', currentUser.id)
+      .select('id');
+    if (error || !yazilan || !yazilan.length) {
+      console.error('renameDocument:', error || 'no row updated');
+      showDashboardAlert('error', 'Belgenin adı değiştirilemedi. Tekrar dene.');
+    } else {
+      doc.file_name = yeni;
+      showDashboardAlert('success', 'Belgenin adı değişti: ' + v);
+    }
+    renderDocumentsList();
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+}
+window.renameDocument = renameDocument;
 
 // ==========================================
 // PHASE 17B — MERGE & SUMMARIZE TRIGGER
@@ -19438,7 +19642,8 @@ async function loadPastComparisons() {
       .order('created_at', { ascending: false });
 
     if (error || !comparisons || comparisons.length === 0) {
-      listEl.innerHTML = '<p style="font-size: 0.8rem; color: var(--color-text-muted); font-style: italic;">No past comparisons yet. Select 2+ documents in My Documents and click "Compare Documents"!</p>';
+      // R57 (28.10.2026): boşken bölüm tümden gizlenir (CSS :empty), İngilizce boş mesajı yok
+      listEl.innerHTML = '';
       return;
     }
 
@@ -19446,8 +19651,8 @@ async function loadPastComparisons() {
     comparisons.forEach(comp => {
       const cardDiv = document.createElement('div');
       cardDiv.className = 'past-comparison-card';
-      const namesText = (comp.document_names || []).join(' vs ');
-      const dateText = new Date(comp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const namesText = (comp.document_names || []).map(axDocTitle).join(' ↔ ');
+      const dateText = new Date(comp.created_at).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' });
       const langBadge = comp.language === 'tr' ? 'Türkçe' : 'English';
 
       cardDiv.innerHTML = `
@@ -19455,7 +19660,7 @@ async function loadPastComparisons() {
           <div style="font-weight: 700; font-size: 0.875rem; color: var(--color-navy); margin-bottom: 0.2rem;">⚖️ ${escapeHtml(namesText)}</div>
           <div style="font-size: 0.75rem; color: var(--color-text-muted);">${dateText} &bull; <span style="color: var(--color-teal); font-weight: 600;">${langBadge}</span></div>
         </div>
-        <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;" onclick="event.stopPropagation(); viewPastComparison('${comp.id}')">View</button>
+        <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;" onclick="event.stopPropagation(); viewPastComparison('${comp.id}')">Aç</button>
       `;
 
       cardDiv.addEventListener('click', () => {
@@ -19511,6 +19716,8 @@ async function selectNotebookTemplate(templateType) {
   const newPageNum = maxPageNum + 1;
 
   let starterElements = [];
+  // R43 (28.10.2026): şablon başlıkları arayüz diliyle (varsayılan Türkçe)
+  const trT = (localStorage.getItem('acadexUILang') || 'tr') !== 'en';
 
   if (templateType === 'swot') {
     const w = 340, h = 270;
@@ -19521,7 +19728,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-1`, left: 35, top: 30, width: w - 30, height: 40, color: '#4338CA', fontSize: '18px',
-      content: '<strong>💪 STRENGTHS</strong>'
+      content: trT ? '<strong>💪 GÜÇLÜ YÖNLER</strong>' : '<strong>💪 STRENGTHS</strong>'
     });
 
     // Weaknesses (Top-Right)
@@ -19531,7 +19738,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-2`, left: 395, top: 30, width: w - 30, height: 40, color: '#B91C1C', fontSize: '18px',
-      content: '<strong>⚠️ WEAKNESSES</strong>'
+      content: trT ? '<strong>⚠️ ZAYIF YÖNLER</strong>' : '<strong>⚠️ WEAKNESSES</strong>'
     });
 
     // Opportunities (Bottom-Left)
@@ -19541,7 +19748,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-3`, left: 35, top: 320, width: w - 30, height: 40, color: '#047857', fontSize: '18px',
-      content: '<strong>🚀 OPPORTUNITIES</strong>'
+      content: trT ? '<strong>🚀 FIRSATLAR</strong>' : '<strong>🚀 OPPORTUNITIES</strong>'
     });
 
     // Threats (Bottom-Right)
@@ -19551,7 +19758,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-4`, left: 395, top: 320, width: w - 30, height: 40, color: '#B45309', fontSize: '18px',
-      content: '<strong>🛡️ THREATS</strong>'
+      content: trT ? '<strong>🛡️ TEHDİTLER</strong>' : '<strong>🛡️ THREATS</strong>'
     });
   } else if (templateType === 'cornell') {
     starterElements.push({
@@ -19564,18 +19771,19 @@ async function selectNotebookTemplate(templateType) {
     });
 
     starterElements.push({
-      type: 'text', id: `text-${Date.now()}-cues`, left: 25, top: 25, width: 195, height: 40, color: '#1E293B', fontSize: '16px',
-      content: '<strong>💡 CUES &amp; QUESTIONS</strong><br><span style="font-size:12px;color:#64748B;">Key terms, prompts...</span>'
+      // R43: metin kırmızı kenar çizgisinin (78-80px) sağında başlar, sütuna sığar
+      type: 'text', id: `text-${Date.now()}-cues`, left: 88, top: 25, width: 134, height: 40, color: '#1E293B', fontSize: '16px',
+      content: trT ? '<strong>💡 İPUÇLARI VE SORULAR</strong><br><span style="font-size:12px;color:#64748B;">Anahtar terimler, sorular…</span>' : '<strong>💡 CUES &amp; QUESTIONS</strong><br><span style="font-size:12px;color:#64748B;">Key terms, prompts...</span>'
     });
 
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-notes`, left: 245, top: 25, width: 460, height: 40, color: '#1E293B', fontSize: '16px',
-      content: '<strong>📝 CLASS NOTES</strong><br><span style="font-size:12px;color:#64748B;">Main notes and diagrams...</span>'
+      content: trT ? '<strong>📝 DERS NOTLARI</strong><br><span style="font-size:12px;color:#64748B;">Ana notlar ve şemalar…</span>' : '<strong>📝 CLASS NOTES</strong><br><span style="font-size:12px;color:#64748B;">Main notes and diagrams...</span>'
     });
 
     starterElements.push({
-      type: 'text', id: `text-${Date.now()}-summary`, left: 25, top: 510, width: 680, height: 40, color: '#1E293B', fontSize: '16px',
-      content: '<strong>📌 SUMMARY</strong><br><span style="font-size:12px;color:#64748B;">Brief summary of takeaways...</span>'
+      type: 'text', id: `text-${Date.now()}-summary`, left: 88, top: 510, width: 600, height: 40, color: '#1E293B', fontSize: '16px',
+      content: trT ? '<strong>📌 ÖZET</strong><br><span style="font-size:12px;color:#64748B;">Sayfanın kısa özeti…</span>' : '<strong>📌 SUMMARY</strong><br><span style="font-size:12px;color:#64748B;">Brief summary of takeaways...</span>'
     });
   } else if (templateType === 'mindmap') {
     starterElements.push({
@@ -19584,7 +19792,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-center`, left: 285, top: 275, width: 170, height: 40, color: '#0F766E', fontSize: '20px',
-      content: '<div style="text-align:center;"><strong>CENTRAL TOPIC</strong></div>'
+      content: trT ? '<div style="text-align:center;"><strong>ANA KONU</strong></div>' : '<div style="text-align:center;"><strong>CENTRAL TOPIC</strong></div>'
     });
 
     starterElements.push({
@@ -19593,7 +19801,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-sub1`, left: 60, top: 70, width: 120, height: 30, color: '#4338CA', fontSize: '14px',
-      content: '<div style="text-align:center;">Sub-topic 1</div>'
+      content: '<div style="text-align:center;">' + (trT ? 'Alt konu 1' : 'Sub-topic 1') + '</div>'
     });
     starterElements.push({
       type: 'shape', id: `line-${Date.now()}-1`, left: 170, top: 115, width: 110, height: 130, color: '#CBD5E1',
@@ -19606,7 +19814,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-sub2`, left: 560, top: 70, width: 120, height: 30, color: '#047857', fontSize: '14px',
-      content: '<div style="text-align:center;">Sub-topic 2</div>'
+      content: '<div style="text-align:center;">' + (trT ? 'Alt konu 2' : 'Sub-topic 2') + '</div>'
     });
     starterElements.push({
       type: 'shape', id: `line-${Date.now()}-2`, left: 460, top: 115, width: 110, height: 130, color: '#CBD5E1',
@@ -19619,7 +19827,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-sub3`, left: 60, top: 470, width: 120, height: 30, color: '#B45309', fontSize: '14px',
-      content: '<div style="text-align:center;">Sub-topic 3</div>'
+      content: '<div style="text-align:center;">' + (trT ? 'Alt konu 3' : 'Sub-topic 3') + '</div>'
     });
     starterElements.push({
       type: 'shape', id: `line-${Date.now()}-3`, left: 170, top: 345, width: 110, height: 115, color: '#CBD5E1',
