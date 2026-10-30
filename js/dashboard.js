@@ -8107,6 +8107,7 @@ async function checkResumableExam() {
   const ordered = Array.from(candidates.entries())
     .sort((a, b) => (Date.parse(b[1]?.updatedAt || '') || 0) - (Date.parse(a[1]?.updatedAt || '') || 0));
 
+  const resumable = [];
   for (const [examId, draft] of ordered) {
     const { data: exam } = await supabaseClient
       .from('exams')
@@ -8128,34 +8129,51 @@ async function checkResumableExam() {
       continue;
     }
 
-    const isTr = exam.language !== 'en';
+    resumable.push({ exam, draft, remaining });
+  }
+  if (!resumable.length) return;
+
+  // 30.10.2026: önceden yalnızca en yeni taslak gösteriliyordu; birden çok
+  // yarım sınav varsa eskilere dönülemiyordu. Hepsi tek kutuda satır satır.
+  const isTr = resumable[0].exam.language !== 'en';
+  const typeLabels = { classic: 'Klasik', test: 'Çoktan Seçmeli', calculation: 'Hesaplama', mixed: 'Karışık' };
+  const banner = document.createElement('div');
+  banner.id = 'exam-resume-banner';
+  banner.className = 'exam-resume-banner' + (resumable.length > 1 ? ' multi' : '');
+  const title = resumable.length > 1
+    ? (isTr ? `Yarım kalan ${resumable.length} sınavın var` : `You have ${resumable.length} unfinished exams`)
+    : (isTr ? 'Yarım kalan bir sınavın var' : 'You have an unfinished exam');
+  banner.innerHTML = `<strong class="exam-resume-title">${escapeHtml(title)}</strong>` + resumable.map(({ exam, draft, remaining }, i) => {
     const summary = E.computeSummary(exam.questions || [], draft.answers || {}, draft.flags || []);
-    const typeLabel = ({ classic: 'Klasik', test: 'Çoktan Seçmeli', calculation: 'Hesaplama', mixed: 'Karışık' })[exam.exam_type] || 'Sınav';
+    const kind = exam.scoring && Array.isArray(exam.scoring.retry) ? (isTr ? 'İkinci şans' : 'Second chance') : (typeLabels[exam.exam_type] || 'Sınav');
+    const where = exam.source_type === 'course' && exam.course_code ? ` · ${escapeHtml(exam.course_code)}` : '';
     const timeNote = remaining !== null ? ` · ${isTr ? 'kalan süre' : 'time left'} ${Math.floor(remaining / 60)} dk` : '';
-    const banner = document.createElement('div');
-    banner.id = 'exam-resume-banner';
-    banner.className = 'exam-resume-banner';
-    banner.innerHTML = `
-      <div>
-        <strong>${isTr ? 'Yarım kalan bir sınavın var' : 'You have an unfinished exam'}</strong>
-        <div style="color: var(--color-text-muted); font-size: 0.8rem; margin-top: 0.2rem;">${escapeHtml(typeLabel)}${exam.is_simulation ? ' · Simülasyon' : ''} · ${summary.answered} / ${summary.total} ${isTr ? 'cevaplı' : 'answered'}${timeNote}</div>
-      </div>
-      <div class="exam-resume-actions">
-        <button type="button" class="btn btn-primary" data-resume="continue">${isTr ? 'Devam et' : 'Continue'}</button>
-        <button type="button" class="btn btn-outline" data-resume="discard">${isTr ? 'Vazgeç' : 'Discard'}</button>
+    const when = draft.updatedAt ? ` · ${new Date(draft.updatedAt).toLocaleDateString(isTr ? 'tr-TR' : 'en-GB', { day: 'numeric', month: 'short' })}` : '';
+    return `
+      <div class="exam-resume-row" data-resume-row="${i}">
+        <div style="color: var(--color-text-muted); font-size: 0.8rem;">${escapeHtml(kind)}${where}${exam.is_simulation ? ' · Simülasyon' : ''} · ${summary.answered} / ${summary.total} ${isTr ? 'cevaplı' : 'answered'}${timeNote}${when}</div>
+        <div class="exam-resume-actions">
+          <button type="button" class="btn btn-primary" data-resume="continue">${isTr ? 'Devam et' : 'Continue'}</button>
+          <button type="button" class="btn btn-outline" data-resume="discard">${isTr ? 'Vazgeç' : 'Discard'}</button>
+        </div>
       </div>`;
-    banner.querySelector('[data-resume="continue"]').addEventListener('click', () => {
+  }).join('');
+  banner.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-resume]');
+    const row = btn && btn.closest('[data-resume-row]');
+    if (!row) return;
+    const { exam, draft } = resumable[Number(row.getAttribute('data-resume-row'))];
+    if (btn.getAttribute('data-resume') === 'continue') {
       banner.remove();
       startActiveExam(exam, { draft });
-    });
-    banner.querySelector('[data-resume="discard"]').addEventListener('click', () => {
-      E.removeLocalDraft(currentUser.id, examId);
-      deleteExamDraftRemote(examId);
-      banner.remove();
-    });
-    setupScreen.insertBefore(banner, setupScreen.firstChild);
-    return;
-  }
+      return;
+    }
+    E.removeLocalDraft(currentUser.id, exam.id);
+    deleteExamDraftRemote(exam.id);
+    row.remove();
+    if (!banner.querySelector('[data-resume-row]')) banner.remove();
+  });
+  setupScreen.insertBefore(banner, setupScreen.firstChild);
 }
 window.checkResumableExam = checkResumableExam;
 
