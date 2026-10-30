@@ -14,5 +14,6 @@ create table public.sandbox_projects (id uuid primary key default gen_random_uui
 create table public.sandbox_project_likes (id uuid primary key default gen_random_uuid(), project_id uuid references public.sandbox_projects(id), user_id uuid references auth.users(id), created_at timestamptz default now(), reaction text, unique(project_id,user_id));
 create table public.sandbox_project_comments (id uuid primary key default gen_random_uuid(), project_id uuid references public.sandbox_projects(id), user_id uuid references auth.users(id), content text, created_at timestamptz default now(), label text, parent_id uuid);
 create table public.card_item_confidence (id uuid primary key default gen_random_uuid(), user_id uuid, next_review_at timestamptz);
+create table public.exams (id uuid primary key default gen_random_uuid(), user_id uuid, completed_at timestamptz, scoring jsonb, question_results jsonb);
 create table public.study_events (id uuid primary key default gen_random_uuid(), user_id uuid, title text, event_date date, event_type text, is_done boolean default false);
 grant usage on schema public, auth to anon, authenticated, service_role;

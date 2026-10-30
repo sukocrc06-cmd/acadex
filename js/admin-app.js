@@ -775,7 +775,7 @@
      hiç gelmez. 15 sn'de bir (sekme gizliyken 60 sn) yalnız VERİ alanları
      yenilenir; süzgeç kutuları yeniden çizilmez, odak ve yazılan kaybolmaz. */
   var PSH = { state: 'all', kind: 'all', q: '', t: 0, view: 0, qT: 0 };
-  var PSH_KIND = { like: 'Beğeni', comment: 'Yorum', support: 'Destek cevabı', study: 'Çalışma hatırlatması', review: 'Kart tekrarı', exam: 'Yarınki sınav', test: 'Deneme' };
+  var PSH_KIND = { like: 'Beğeni', comment: 'Yorum', support: 'Destek cevabı', study: 'Çalışma hatırlatması', review: 'Kart tekrarı', exam: 'Yarınki sınav', mistakes: 'Hata defteri', test: 'Deneme' };
   var PSH_STATE = { gitti: ['ok', 'gitti'], bekliyor: ['blue', 'bekliyor'], hata: ['warn', 'hata · yeniden denenecek'], vazgecildi: ['bad', 'gönderilemedi'], atlandi: ['', 'atlandı'] };
   var PSH_PLAT = { apple: 'iPhone / Mac', google: 'Android / Chrome', mozilla: 'Firefox', windows: 'Windows', diger: 'Diğer' };
   var PSH_SKIP = { eskidi: '1 günden eski, gönderilmedi', goruldu: 'ziyaretçi mesajı zaten okumuştu' };

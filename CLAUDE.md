@@ -34,7 +34,7 @@
 | **Adım adım yardım** (sınavda `sn-help*`, `[data-help]`) | ekran `js/acadex-ink.js` → `FAZ 7: adım adım yardım` bloğu; sunucu `generate-exam` → `handleExamHelp` (`{ help }`); puan tavanı `grade-exam` → `applyHelp` |
 | **Hata defteri / ikinci şans** (`sn-eg`, `[data-second]`, `sn-mk`) | ekran `js/acadex-ink.js` → `paintErrs`; takvim `exam-engine` → `mistakeStates`; sınav `generate-exam` → `handleExamRetry` (`{ retry }`); grafik `retryChartVariant`, çizim/ifade modelle |
 | **Süre ve strateji raporu** (sonuçta `sn-tim`) | kayıt `js/acadex-ink.js` → `FAZ 9: süre ve strateji` (`TIM`, `window.__examTiming`); sunucu `grade-exam` → `applyTiming`; rapor `exam-engine` → `timingReport` |
-| **Hata defteri hatırlatması** (bildirim çanı) | `js/dashboard.js` → `gatherNotificationItems` (1c); `exam-engine` → `mistakeReminder` |
+| **Hata defteri hatırlatması** (bildirim çanı + telefon) | çan `js/dashboard.js` → `gatherNotificationItems` (1c), `exam-engine` → `mistakeReminder`; telefon `20261030_push_hata_defteri.sql` → `exam_mistakes_due`, `push_daily` (takvim JS ile aynı, `tests/push-hata-defteri.js`) |
 | **Sınav günü hazırlığı** (`sn-rdy`, `[data-rdy]`) | `js/acadex-ink.js` → `FAZ 10: sınav günü hazırlığı` (`paintRdy`); `exam-engine` → `examReadiness` |
 
 ---
