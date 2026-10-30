@@ -486,6 +486,18 @@ function inlineName(src: string, name: string, value: number): string {
 
 /** Hesap sorusunu kodla doğrular ve düzeltir: correct_answer formülden,
  *  şablon ve tipik hatalar temizlenmiş. Başarısızsa nedeni. */
+/** Soru metninde şablon yer tutucusu ({a}, {rate*100}). LaTeX süslü
+ *  parantezi (\frac{a}{b}, x^{n}, \text{P}) sayılmaz. */
+const CALC_PH = /(?<![\\\p{L}\p{N}}^_])\{([A-Za-z_][A-Za-z0-9_]*)(?:([*/])(-?\d+(?:\.\d+)?))?\}/gu
+function fillCalcPlaceholders(text: string, vars: Record<string, number>, lang: string): string {
+  return text.replace(CALC_PH, (m, k, op, num) => {
+    if (!Object.prototype.hasOwnProperty.call(vars, k)) return m
+    const n = Number(num)
+    const shown = op && Number.isFinite(n) && n !== 0 ? (op === '*' ? vars[k] * n : vars[k] / n) : vars[k]
+    return formatNumber(tidy(shown), lang)
+  })
+}
+
 function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: string } {
   const vars = sanitizeVariables(q.variables)
   let formula = normalizeFormula(q.formula)
@@ -2290,6 +2302,16 @@ function validateQuestion(raw: unknown, allowedTypes: string[], language: string
     q.units = typeof q.units === 'string' ? q.units.trim().slice(0, 12) : ''
     q.solution_steps = Array.isArray(q.solution_steps) ? q.solution_steps.map(s => String(s ?? '')).filter(Boolean) : []
     q.options = null
+    // Canlı bulgu (30.10.2026, ITB101 ders kaynağı): model soru metnine
+    // şablonu yazdı ("Qd = {a} - {b}*P"), öğrenci yer tutucuları gördü.
+    // Değişkenlerle doldurulur; dolmayan yer tutucu varsa soru atılır.
+    const phs = [...String(q.question).matchAll(CALC_PH)].map(m => m[1])
+    if (phs.length) {
+      const vars = sanitizeVariables(q.variables)
+      if (phs.some(n => !Object.prototype.hasOwnProperty.call(vars, n))) return { ok: false, reason: 'calc_placeholder' }
+      if (typeof q.template !== 'string' || !q.template.trim()) q.template = q.question
+      q.question = fillCalcPlaceholders(String(q.question), vars, language)
+    }
     // FAZ 3a: cevabı kod hesaplar; formül yoksa, hesaplanamıyorsa ya da
     // modelin cevabıyla çelişiyorsa soru atılır.
     const check = verifyCalculation(q)

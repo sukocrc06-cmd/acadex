@@ -31,7 +31,7 @@ const G = loadFromSource(GEN_PATH, [
   'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
-  'allowedTypesFor', 'repairLatex', 'unverifiedAnswerConsistent', 'validateQuestion', 'shuffleInPlace', 'splitPublicAndKey',
+  'allowedTypesFor', 'repairLatex', 'unverifiedAnswerConsistent', 'validateQuestion', 'CALC_PH', 'fillCalcPlaceholders', 'formatNumber', 'tidy', 'shuffleInPlace', 'splitPublicAndKey',
   'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [
   'SIMULATION_GRACE_MS',
@@ -327,6 +327,21 @@ test('answerNumber: esitlikli cevapta son esittirin sagi (canli test 27.10.2026:
   // notlama: ogrenci "MR(8) = 18" yazarsa dogru
   assert.equal(R.gradeCalculation('MR(8) = 18', 18, 1, '').score, 100);
   assert.equal(E.checkNumericAnswer('MR(8) = 18', 18, 1, 0).ok, true);
+});
+
+test('hesap sorusu metninde şablon yer tutucusu kalmaz (canlı bulgu 30.10.2026, ITB101)', () => {
+  const raw = { type: 'calculation', question: 'Talep fonksiyonu Qd = {a} - {b}*P ve arz fonksiyonu Qs = {c} + {d}*P. Denge fiyatı kaçtır?',
+    variables: { a: 80, b: 2, c: 20, d: 1 }, formula: '(a - c) / (b + d)', correct_answer: 20, units: 'TL' };
+  const r = G.validateQuestion(raw, ['calculation'], 'tr');
+  assert.equal(r.ok, true, r.reason);
+  assert.equal(r.question.question, 'Talep fonksiyonu Qd = 80 - 2*P ve arz fonksiyonu Qs = 20 + 1*P. Denge fiyatı kaçtır?');
+  assert.doesNotMatch(r.question.question, /\{[a-z]\}/);
+  assert.equal(r.question.correct_answer, 20);
+  const missing = G.validateQuestion({ ...raw, question: 'Denge fiyatı {P_eq} iken tüketici fazlası (a = {a}) kaçtır?' }, ['calculation'], 'tr');
+  assert.deepEqual([missing.ok, missing.reason], [false, 'calc_placeholder']);
+  const latex = G.fillCalcPlaceholders('$\\frac{a}{b}$ ve x^{n}, a = {a}', { a: 5, b: 2, n: 3 }, 'tr');
+  assert.equal(latex, '$\\frac{a}{b}$ ve x^{n}, a = 5', 'LaTeX süslü parantezi yer tutucu değil');
+  assert.equal(G.fillCalcPlaceholders('oran %{r*100}', { r: 0.04 }, 'tr'), 'oran %4');
 });
 
 summary();

@@ -30,7 +30,7 @@ const G = loadFromSource(GEN_PATH, [
   ...EXPR, ...SHARED, 'TRUE_FALSE_OPTIONS', 'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS', 'normalizeOptionRationales', 'normalizeRubric',
   'sanitizeVariables', 'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation',
-  'verifyExpression', 'ALGEBRA_SOURCE_CUES', 'sourceTeachesAlgebra', 'repairLatex', 'validateQuestion', 'allowedTypesFor', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
+  'verifyExpression', 'ALGEBRA_SOURCE_CUES', 'sourceTeachesAlgebra', 'repairLatex', 'validateQuestion', 'CALC_PH', 'fillCalcPlaceholders', 'formatNumber', 'tidy', 'allowedTypesFor', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [...EXPR, ...SHARED, 'gradeExpression']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 

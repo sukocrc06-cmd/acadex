@@ -27,7 +27,7 @@ const G = loadFromSource(GEN_PATH, [
   'referencesName', 'inlineName', 'STEP_KINDS', 'verifyLinearEquation', 'verifyCalculation', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION',
   'optionCanonical', 'hasAmbiguousOptions', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints',
   'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression',
-  'repairLatex', 'validateQuestion', ...CHART
+  'repairLatex', 'validateQuestion', 'CALC_PH', 'fillCalcPlaceholders', 'formatNumber', 'tidy', ...CHART
 ]);
 const R = loadFromSource(GRADE_PATH, ['chartAsText']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));

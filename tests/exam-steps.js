@@ -28,7 +28,7 @@ const G = loadFromSource(GEN_PATH, [
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS',
   'STEP_KINDS', 'verifyLinearEquation', 'verifyCalculation', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions',
   'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm',
-  'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'repairLatex', 'validateQuestion', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
+  'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'repairLatex', 'validateQuestion', 'CALC_PH', 'fillCalcPlaceholders', 'formatNumber', 'tidy', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, ['teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
 
