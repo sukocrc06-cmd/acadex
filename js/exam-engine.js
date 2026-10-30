@@ -1903,13 +1903,13 @@
    *  geldiği an" denenmişte bir sonraki tekrar günü, hiç denenmemişte sınavdan
    *  1 gün sonra (sınavdan hemen sonra çan çalmasın). Yalnızca since'ten sonra
    *  zamanı gelen varsa at dolu; aynı yanlış iki kez çaldırmaz. */
-  const MISTAKE_TYPES = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended', 'calculation'];
+  const MISTAKE_TYPES = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended', 'calculation', 'graph', 'expression'];
   function mistakeReminder(states, since, now) {
     const t = Number.isFinite(now) ? now : Date.now(), from = Number.isFinite(since) ? since : 0;
     let count = 0, at = null;
     Object.keys(states || {}).forEach(id => {
       const m = states[id];
-      if (!m || m.won || MISTAKE_TYPES.indexOf(m.type) < 0 || m.chart) return;
+      if (!m || m.won || MISTAKE_TYPES.indexOf(m.type) < 0) return;
       const ripe = m.attempts && m.attempts.length ? m.dueAt : m.at + DAY_MS;
       if (ripe > t) return;
       count++;
@@ -1974,7 +1974,7 @@
     (deskExams || []).forEach(e => { if (e && e.id != null) ids[e.id] = true; });
     const st = mistakeStates(allExams || deskExams || [], { now: now });
     const mist = Object.keys(st).map(k => st[k]).filter(m => ids[m.examId] && !m.won);
-    const dueMist = mist.filter(m => m.dueNow && MISTAKE_TYPES.indexOf(m.type) >= 0 && !m.chart);
+    const dueMist = mist.filter(m => m.dueNow && MISTAKE_TYPES.indexOf(m.type) >= 0);
     const ready = ms.filter(c => c.level >= 2 && !c.due).length;
     const weak = ms.filter(c => c.level === 0).length, due = ms.filter(c => c.due).length;
     const pct = ms.length ? Math.round(ready * 100 / ms.length) : 0;

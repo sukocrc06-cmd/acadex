@@ -3828,7 +3828,7 @@ window.axNotify = function (title, opts) {
      döner (generate-exam { retry }); takvim ve "kazanıldı" exam-engine
      mistakeStates'ten. İkinci şans sınavının kendi yanlışları ayrı satır
      olmaz, kaynak yanlışın denemesi sayılır. */
-  var RETRY_OK = { multiple_choice: 1, true_false: 1, fill_blank: 1, open_ended: 1, calculation: 1 };
+  var RETRY_OK = { multiple_choice: 1, true_false: 1, fill_blank: 1, open_ended: 1, calculation: 1, graph: 1, expression: 1 };
   var RETRY_SETS = {}, retryBusy = false;
   var paintErrs = function () {
     var groups = {}, total = 0, E = ENG();
@@ -3844,7 +3844,7 @@ window.axNotify = function (title, opts) {
         if ((+r.score || 0) >= 50 || done.indexOf(id) >= 0) return;
         if (st && st.won) { g.won++; return; }
         g.items.push({ id: id, r: r, st: st }); total++;
-        if (st && st.dueNow && RETRY_OK[r.type] && !r.chart && g.due.length < 10) g.due.push({ examId: e.id, questionId: r.question_id });
+        if (st && st.dueNow && RETRY_OK[r.type] && g.due.length < 10) g.due.push({ examId: e.id, questionId: r.question_id });
       });
     });
     $('[data-errn]').textContent = total;
@@ -3864,7 +3864,7 @@ window.axNotify = function (title, opts) {
     }).join('');
   };
   var mistakeChip = function (st, r) {
-    if (!RETRY_OK[r.type] || r.chart) return '';
+    if (!RETRY_OK[r.type]) return '';
     if (!st) return '';
     var t = st.dueNow ? (st.attempts.length ? 'tekrar zamanı' : 'ikinci şansa hazır') : st.inDays + ' gün sonra tekrar';
     return '<span class="sn-mk' + (st.dueNow ? ' due' : '') + '">' + (st.streak ? st.streak + '/2 doğru · ' : st.attempts.length ? 'son denemede yanlış · ' : '') + esc(t) + '</span>';
