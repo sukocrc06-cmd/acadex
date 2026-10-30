@@ -35,7 +35,7 @@ const UI = loadFromSource('js/dashboard.js', [
   // Cift ters bolu sadelestirmesi (20.10.2026).
   'sadeKatexKomutu',
   // Ozet metninin KACIRAN yolu (24.10.2026) — depolanmis XSS duzeltmesi.
-  'inlineMarkdownGuvenli', 'summaryParagraphs', 'OZET_KISALTMA_RE', 'formatSummaryText'
+  'inlineMarkdownGuvenli', 'summaryParagraphs', 'OZET_KISALTMA_RE', 'AI_META_SENTENCE_RE', 'stripAiMetaSentences', 'formatSummaryText'
 ]);
 
 const DASH_SRC = require('node:fs').readFileSync(
@@ -918,6 +918,19 @@ test('kacirma TEK yerden geciyor: dort dal da guvenli() cagiriyor', () => {
     'dort enterpolasyon noktasinin hepsi guvenli() uzerinden gecmiyor');
   assert.ok(!/\$\{inlineMarkdown\(/.test(govde), 'kacirmayan inlineMarkdown hala kullaniliyor');
   assert.ok(!/\$\{trimmed\}|\$\{headingText\}/.test(govde), 'ciplak enterpolasyon kalmis');
+});
+
+test('R42 modelin belge hakkindaki aciklamasi ozetten cikar, icerik cumlesi kalir', () => {
+  /* Test raporu R42/R63: "The visible text does not explicitly detail ..."
+     gibi ders icerigi olmayan cumleler ozette gorunuyordu. */
+  const t = 'Regression shows a 9.3% effect. The visible text does not explicitly detail specific reasoning methods used. OLS is BLUE.';
+  const out = UI.stripAiMetaSentences(t);
+  assert.ok(!/visible text/i.test(out), 'meta cumle kalmis: ' + out);
+  assert.ok(/9\.3% effect\./.test(out) && /OLS is BLUE\./.test(out), 'icerik kaybolmus: ' + out);
+  assert.equal(UI.stripAiMetaSentences('Sağlanan metinde bu yöntem açıkça belirtilmemiş. Varyans sabittir.'), 'Varyans sabittir.');
+  const icerik = 'The text explains that firms do not invest.';
+  assert.equal(UI.stripAiMetaSentences(icerik), icerik, 'icerik cumlesi silinmemeli');
+  assert.ok(!/visible text/i.test(UI.formatSummaryText(t, [])), 'formatSummaryText filtreden gecmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

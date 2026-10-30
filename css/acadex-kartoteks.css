@@ -289,3 +289,29 @@
   #cards-view.kt .big-in .kt-book path:last-child{animation:kt-dust 3s linear infinite}
   @keyframes kt-dust{to{stroke-dashoffset:-24}}
 }
+
+/* ===== Test raporu düzeltmeleri (28.10.2026) ===== */
+/* R50: soru kartı ekranı doldurmasın; "Tekrar"/"Biliyorum" kaydırmadan görünsün */
+#cards-view.kt .big{aspect-ratio:auto;height:clamp(220px,42vh,340px)}
+#cards-view.kt .judge,#cards-view.kt .judge4{margin-top:14px}
+/* R46/R65: uzun deste/belge adı etiketin içinde iki satıra sarılır, dışarı taşmaz (tamamı üzerine gelince) */
+#cards-view.kt .kx-dn{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+#cards-view.kt .kt-label{min-width:0;overflow:hidden}
+/* R55: çekmecedeki fişlerin sorusu iki satıra kadar, tamamı title'da */
+#cards-view.kt .kx-fan .fc-q{-webkit-line-clamp:3;overflow-wrap:anywhere}
+/* R61: beş nokta dokunulabilir; imleç açıklama olduğunu belli eder */
+#cards-view .big-in .lvl{cursor:help}
+@media (max-width:700px){
+  /* R68: telefonda deste seçimi (arama, ders, çekmeceler) daha yukarıda: başlık açıklaması ve damga şeridi gizlenir */
+  #cards-view.kt .kt-head .d-sub,#cards-view.kt .kt-dates{display:none}
+  #cards-view.kt .kt-head{margin-bottom:12px;gap:10px}
+  #cards-view.kt .big{height:clamp(200px,38vh,300px)}
+}
+/* R54: menüde "çekmeceyi sil" öteki seçeneklerden ayrık ve kırmızı; silmeden önce onay penceresi açılır */
+#cards-view.kt .kx-menu .kx-del{margin-top:10px;padding-top:10px;border-top:1px dashed rgba(181,67,47,.45);color:#B5432F}
+/* R51: sekmelerin farkı */
+#cards-view .kx-mode-n{margin:6px 0 0;font-size:16px;line-height:1.25;color:#7A6A4E;text-align:center}
+@media (max-width:700px){#cards-view .kx-mode-n{font-size:14.5px}}
+/* R48: soru ve cevap aynı yazı ailesinde (cevap el yazısı fontundaydı, soru düz; kartlar karışık görünüyordu) */
+#cards-view .big-in .a{font-family:"Instrument Sans",system-ui,sans-serif;font-weight:600;font-size:clamp(18px,2vw,24px);line-height:1.35;color:#1F2B57}
+#cards-view .big-in .q,#cards-view .kx-fan .fc-q{font-family:"Instrument Sans",system-ui,sans-serif}

@@ -8928,3 +8928,145 @@ html.ax-dark .nb-dlg-box{box-shadow:4px 4px 0 #1A2A5C}
    resim UC kez cevriliyor, renkler bozuluyordu. Acadia yildizi da hic geri cevrilmiyordu. */
 html.ax-dark #topbar-user-avatar img{filter:none}
 html.ax-dark #axa-layer .axa-mas svg{filter:drop-shadow(-4px 8px 8px rgba(13,24,56,0.28)) invert(1) hue-rotate(180deg)}
+
+/* ===== Test raporu düzeltmeleri (28.10.2026) ===== */
+/* R11: ajandadaki kırmızı kenar çizgisi tarih sütununun SAĞINDA (eskiden 64px'te gün numarasının ve "eki · bugün"ün üstündeydi).
+   Masaüstü: 26px dolgu + 80px sütun + 9px (boşluğun yarısı); telefon: 14 + 54 + 6 */
+#planner-view.axp .agenda{background-image:var(--grain),linear-gradient(90deg,transparent 115px,rgba(201,72,59,0.35) 115px 116.5px,transparent 116.5px)}
+@media (max-width: 700px){#planner-view.axp .agenda{background-image:var(--grain),linear-gradient(90deg,transparent 74px,rgba(201,72,59,0.35) 74px 75.5px,transparent 75.5px)}}
+/* R12: bildirimsiz tarayıcı notu hata kırmızısı değil */
+#planner-view.axp .remind-s.info{color:var(--soft);font-size:17px;line-height:1.15}
+/* R23: "Takvime aktar" yanında ne olacağını anlatan kısa not */
+#planner-view.axp .ics-n{flex:1 1 180px;max-width:240px;font-size:12.5px;line-height:1.3;color:var(--soft)}
+/* R15: seçilmemiş türler de belirgin; seçili olan tik işaretiyle */
+#planner-view.axp .types span{border-color:rgba(26,42,92,0.55);background:rgba(255,255,255,0.45)}
+#planner-view.axp .types input:checked + span::before{content:"✓ "}
+/* R16: geri sayım kartının üstü üst menüye yapışıp kesilmesin */
+#planner-view.axp .count{margin-top:18px;align-self:start}
+@media (max-width: 1000px){
+  /* R17/R18: dar ekranda geri sayım kartı tek satırlık şerit, sayfanın en üstünde; etkinlik listesini aşağı itmez */
+  #planner-view.axp .p-head{gap:12px}
+  #planner-view.axp .count{order:-1;margin-top:0;max-width:none}
+  #planner-view.axp .count .tear{max-width:none;padding-top:0}
+  #planner-view.axp .count .tear-bind,#planner-view.axp .count .tear-off{display:none}
+  #planner-view.axp .count .tear-pg{border-top:1px solid #DCE2EC;border-radius:8px;padding:8px 12px;box-shadow:none;gap:0 12px}
+  #planner-view.axp .count .tear-pg .n{font-size:40px}
+  #planner-view.axp .count .tear-pg .u{font-size:19px}
+  #planner-view.axp .count .tear-pg b{font-size:13.5px;margin-top:0}
+  #planner-view.axp .count .tear-pg.empty{display:flex;flex-wrap:wrap;align-items:center;gap:0 12px}
+  #planner-view.axp .count .tear-pg.empty .n{font-size:28px}
+  #planner-view.axp .count .tear-pg.empty button{margin-top:0}
+  #planner-view.axp .p-sub{margin:4px 0 12px;font-size:19px}
+  #planner-view.axp .remind-n,#planner-view.axp .ics-n{display:none}
+  #planner-view.axp .p-tools{margin-bottom:12px}
+}
+/* R22: uzun başlık üzerine gelince/odakta sarılır */
+#planner-view.axp .ev.pi:hover,#planner-view.axp .ev.pi:focus-visible{white-space:normal;overflow:visible;z-index:5}
+/* R20: kaydırırken logo ve arama kısmen kesilmesin: üst çubuk opak, logo daralmaz */
+body.acx .ax-bar{background:#F6F7FB;flex-wrap:nowrap}
+body.acx .ax-brand{flex:none}
+body.acx .ax-brand img{flex:none}
+/* R19/R41/R71: hamburger menüsünde hesap, Yenilikler, dil (yalnızca dar ekranda) */
+body.acx .ax-side-m{display:none}
+@media (max-width: 1000px){
+  body.acx .ax-side-m{display:flex;flex-direction:column;gap:6px;margin:14px 0 0;padding:14px 4px 0;border-top:1px dashed #C9D1E1}
+  body.acx .ax-side-me{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:48px;padding:6px 10px;border:0;border-radius:10px;background:#EEF1F6;font:inherit;color:var(--navy);cursor:pointer;text-align:left}
+  body.acx .ax-side-me-n{font-size:15px;font-weight:700}
+  body.acx .ax-side-me small{font-size:12px;color:var(--soft)}
+  body.acx .ax-side-new{display:flex;align-items:center;min-height:44px;padding:0 10px;font-weight:600;color:var(--ink)}
+  body.acx .ax-side-lang{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:0 10px;font-weight:600;color:var(--ink)}
+  body.acx .ax-side-lang select{min-height:40px;border:1.5px solid #C9D1E1;border-radius:8px;background:#fff;font:inherit;padding:0 8px}
+}
+/* R70: telefon alt menüsünde altıncı düğme "Menü" (Defter, Planlayıcı, Sınav ve diğerleri) */
+@media (max-width:760px){body.acx .ax-bnav{grid-template-columns:repeat(6,1fr)}body.acx .ax-bnav button{font-size:10.5px}}
+/* R9: "bugünün saatleri"nde her saate plan ekleme düğmesi; saatteki etkinlik dokununca düzenlenir */
+#home-view.axd .hours li .h-add{order:9;margin-left:auto;flex:none;width:32px;height:32px;margin-top:-4px;border:1.5px dashed #B9C2D6;border-radius:6px;background:none;color:var(--blue);font:600 18px/1 "Caveat",cursive;cursor:pointer;opacity:.55;transition:opacity .2s}
+#home-view.axd .hours li:hover .h-add,#home-view.axd .hours li .h-add:focus-visible{opacity:1;border-style:solid}
+@media (hover: none){#home-view.axd .hours li .h-add{opacity:.9}}
+#home-view.axd .h-ev[data-eid]{cursor:pointer}
+/* R47/R67/R39: Acadia maskotu köşede ve küçük; "Sayfayı sil", alt ipucu ve soru kartının üstüne binmez.
+   Öneri balonu da maskotun hemen üstünde, içerik alanının dışında kalır. */
+@media (min-width:761px){
+  #axa-layer .axa-mas{bottom:10px}
+  #axa-layer .axa-mas svg{width:64px;height:64px;transform:translateX(18px)}
+  #axa-layer .axa-hint{right:14px;bottom:84px;max-width:240px}
+}
+/* R35: defter araç kutusundaki Kaydet */
+#notebook-view .case-r .nb-save{min-height:40px;padding:0 16px;border-radius:8px;font-weight:700;white-space:nowrap}
+/* R38: "sayfayı sil" diğer sayfa düğmelerinden ayrık, sağ uçta */
+#notebook-view .pages-bar #btn-page-delete{margin-left:auto}
+/* R45/R26: sarı notlar. Başlık büyük harfe çevrilmez ("file" → Türkçe kuralıyla "FİLE" oluyordu),
+   iki satıra sarılır; metin 6 satırda kesilmez, notun içinde kayar; not varsayılan biraz daha büyük. */
+#notebook-overlay-container .draggable-note{width:240px;min-height:200px;overflow:hidden;position:absolute}
+#notebook-overlay-container .draggable-note-title{text-transform:none;letter-spacing:0;font-size:.8rem;overflow-wrap:anywhere}
+#notebook-overlay-container .draggable-note-text{display:block;-webkit-line-clamp:unset;overflow:auto;overflow-wrap:anywhere;font-size:.78rem;min-height:0;flex:1 1 auto;padding-right:2px}
+/* R27: sağ alt köşe boyutlandırma tutamağı (parmakla da tutulabilecek kadar büyük) */
+#notebook-overlay-container .note-resize{position:absolute;right:0;bottom:0;width:28px;height:28px;cursor:nwse-resize;touch-action:none;z-index:3;
+  background:linear-gradient(135deg,transparent 0 55%,rgba(113,63,18,.45) 55% 60%,transparent 60% 70%,rgba(113,63,18,.45) 70% 75%,transparent 75%)}
+/* R28/R34: defter araç kutusu derli toplu. Araçların SVG'si kutunun üstüne taşıyordu
+   (margin-top:-14px, seçilince -12px yukarı) ve kutu ekranın büyük kısmını kaplıyordu.
+   Araçlar kutunun içinde kalır, kutu alçalır; kâğıda daha çok yer kalsın diye kaynak sütunu daralır. */
+#notebook-view.axn .case{align-items:center;gap:6px 12px;padding:6px 12px 6px 10px}
+#notebook-view.axn .tools{flex-wrap:wrap;align-items:center;gap:0}
+#notebook-view.axn .tl{width:44px;min-height:50px;justify-content:flex-end;overflow:visible}
+#notebook-view.axn .tl svg{height:38px;margin-top:0}
+#notebook-view.axn .tl:hover svg{transform:translateY(-2px)}
+#notebook-view.axn .tl.active svg{transform:translateY(-4px) rotate(-6deg)}
+#notebook-view.axn .tl span{font-size:14.5px}
+#notebook-view.axn .inks{padding-bottom:0;flex-wrap:wrap}
+#notebook-view.axn .case-r{padding-bottom:0}
+@media (min-width:1101px){#notebook-view.axn .desk-d{grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:20px}}
+@media (max-width:760px){
+  #notebook-view.axn .tl{width:38px;min-height:42px}
+  #notebook-view.axn .tl svg{height:30px}
+  #notebook-view.axn .tl span{display:none}
+  #notebook-view.axn .inks button{width:30px}
+}
+/* R69: telefonda kart/ipucu alt menünün ve üst çubuğun altında kalmasın (scrollIntoView bu alanı hesaba katar) */
+@media (max-width:760px){html{scroll-padding-top:72px;scroll-padding-bottom:calc(92px + env(safe-area-inset-bottom))}}
+/* R76: belge adı yerinde düzenlenir */
+.ax-fname-in{width:100%;min-height:36px;font:inherit;font-weight:700;font-size:15px;border:0;border-bottom:1.6px solid var(--blue,#2F6BFF);background:rgba(255,255,255,.7);padding:2px 4px;color:var(--navy,#0D1838);outline:none}
+/* R87/R43: Cornell kâğıdının özet bandı 820px'teydi; sayfa 760px olduğu için hiç görünmüyor,
+   Cornell seçmek düz çizgili kâğıttan farksız kalıyordu. Bant, Cornell şablonunun yatay
+   çizgisiyle (500px) aynı yerde. */
+#notebook-view.axn .p-cornell .paper::before{top:500px}
+/* R88/R89: sandbox önizlemesi gizlenince kod alanı genişler; tam ekranda iframe ekranı doldurur */
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-out-tabs .dv-out-sp{flex:1}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-grid.dv-noout{grid-template-columns:230px minmax(0,1fr)}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-grid.dv-noout .dv-out{display:none}
+@media (max-width: 1240px){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-grid.dv-noout{grid-template-columns:210px minmax(0,1fr)}}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-frame-w:fullscreen{background:#fff;display:flex}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-frame-w:fullscreen .dv-frame{width:100%!important;height:100%!important;max-width:none!important;border:0;transform:none!important}
+/* R82: Acadex Sunum'da sağ panelin kaydırma çubuğu ile Acadia yıldızı çakışmasın: yıldız içeri alınır */
+@media (min-width:761px){
+  body:has(#acadexsunum-view.active) #axa-layer .axa-mas{right:22px;bottom:16px}
+  body:has(#acadexsunum-view.active) #axa-layer .axa-mas svg{transform:none;width:56px;height:56px}
+  body:has(#acadexsunum-view.active) #axa-layer .axa-hint{right:28px;bottom:80px}
+}
+/* R78: panodaki özet (fotokopi kâğıdı) bulanık görünüyordu: yazı satırlarına SVG mürekkep
+   filtresi (url(#ink), yer değiştirme) uygulanıyordu. Yazı filtresiz, net. */
+:is(#feed-view.axb,#axb-layer) .bp-p-copy .bp-lines,:is(#feed-view.axb,#axb-layer) .bp-p-copy h3{filter:none}
+:is(#feed-view.axb,#axb-layer) .bp-p-copy{filter:none}
+/* R81: tablette "kâğıdı aç" takılıyordu: 900px'e max-height geçişi, döndürülmüş ve gölgeli kâğıt
+   her karede yeniden çiziliyordu. Dokunmatikte açılış anlık; kâğıt kendi katmanında. */
+@media (pointer:coarse){
+  :is(#feed-view.axb,#axb-layer) .bp-fold{transition:none}
+  :is(#feed-view.axb,#axb-layer) .bp-sheet{will-change:transform}
+}
+/* R80: "panomu süsle" açıkken Acadia yıldızı ve öneri balonu not alanının üstüne binmesin */
+body:has(#bp-deco:not([hidden])) #axa-layer .axa-mas,body:has(#bp-deco:not([hidden])) #axa-layer .axa-hint{display:none}
+/* R91: Ayarlar → Planım */
+#settings-view .axa-myplan{margin:0 0 22px;padding:16px 18px;background:#fff;border:1px solid #DCE2EE;border-radius:12px}
+#settings-view .axa-myplan .mp-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+#settings-view .axa-myplan .mp-h b{font-size:26px;color:#0D1838}
+#settings-view .axa-myplan .mp-h span{color:#6A7593;font-size:14.5px}
+#settings-view .axa-myplan .mp-q{margin:10px 0 6px;font-size:14.5px;color:#4B5675}
+#settings-view .axa-myplan .mp-bar{height:8px;border-radius:99px;background:#EEF1F6;overflow:hidden;margin-bottom:14px}
+#settings-view .axa-myplan .mp-bar i{display:block;height:100%;background:#2F6BFF;border-radius:inherit}
+#settings-view .axa-myplan .btn{text-decoration:none;display:inline-flex}
+#settings-view .axa-myplan h3{margin:18px 0 6px}
+#settings-view .axa-myplan .mp-ord{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+#settings-view .axa-myplan .mp-ord li{display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;align-items:center;font-size:14px;padding:6px 0;border-top:1px dashed #DCE2EE}
+#settings-view .axa-myplan .mp-ord small{grid-column:1 / -1;color:#6A7593}
+#settings-view .axa-myplan .st.paid{color:#1E8A55;font-weight:700}
+#settings-view .axa-myplan .st.failed,#settings-view .axa-myplan .st.cancelled{color:#C9483B}
