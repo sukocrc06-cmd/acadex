@@ -5969,6 +5969,63 @@ function splitInlineSteps(s: string): string[] {
  * Bu yuzden duzlestirme TEK CIKISTA: atiflar islendikten SONRA, kart
  * kurulmadan once. Oncesinde duzlestirmek atif sisteminin nesne icindeki
  * alanlari kullanma hakkini elinden alirdi. */
+/* KURTARMA BOS KABUK BIRAKIYOR (30.10.2026 olcumu).
+ *
+ * "Building IS ... Planlama Analysis2" kosusunda kesik JSON kurtarildi:
+ *   Window 2: JSON KESIKTI, kapatilip kurtarildi (7133 krk -> 5162 krk)
+ *   Window 2 ok: terms=8 points=9 quiz=5
+ * Pencere eskiden TAMAMEN duserdi, yani kurtarma dogru isi yapti. Ama
+ * closeTruncatedJson yarida kesilen nesneyi oldugu yerde KAPATIYOR:
+ *   {"term":"Outsourcing"          ->  {"term":"Outsourcing"}
+ * Sonuc: terim var, TANIM YOK. Kartta 15 kavramin 8'i bos kart olarak
+ * cizildi (End-user development, Outsourcing, RAD, JAD, Agile development,
+ * Work breakdown structure, System analysis, Application software packages).
+ *
+ * Bos kabuk ogrenciye hicbir sey anlatmiyor ve ekranda bosluk olarak
+ * gorunuyor — gostermektense dusurmek dogru. "Icerik kaybi" DEGIL: kaybolan
+ * sey zaten yoktu, yalnizca kabugu kalmisti.
+ *
+ * Grounding kapisi bunu yakalamiyor: o terimin KAYNAKTA gecip gecmedigine
+ * bakiyor, tanimin dolu olup olmadigina bakmiyor (olculen kosuda
+ * "terms 15 kept / 0 would-drop" yazdi). */
+function bosKabuklariAyikla(parsed: any): Record<string, number> {
+  const dusen: Record<string, number> = {}
+  const say = (ad: string, n: number) => { if (n > 0) dusen[ad] = n }
+  const dolu = (v: any) => String(v ?? '').trim().length > 0
+
+  if (Array.isArray(parsed?.key_terms)) {
+    const once = parsed.key_terms.length
+    parsed.key_terms = parsed.key_terms.filter(
+      (t: any) => t && typeof t === 'object' && dolu(t.term) && dolu(t.definition)
+    )
+    say('key_terms', once - parsed.key_terms.length)
+  }
+  if (Array.isArray(parsed?.quiz_questions)) {
+    const once = parsed.quiz_questions.length
+    /* Cevapsiz soru da bos kabuk: "KENDINI SINA" bolumu cevabi aciyor. */
+    parsed.quiz_questions = parsed.quiz_questions.filter(
+      (q: any) => q && typeof q === 'object' && dolu(q.question) && dolu(q.answer)
+    )
+    say('quiz_questions', once - parsed.quiz_questions.length)
+  }
+  if (Array.isArray(parsed?.sections)) {
+    const once = parsed.sections.length
+    // Baslıksiz bolum ciziliyor ama adi olmadigi icin gezinilemez.
+    parsed.sections = parsed.sections.filter(
+      (sec: any) => sec && typeof sec === 'object' && dolu(sec.heading)
+    )
+    say('sections', once - parsed.sections.length)
+  }
+  if (Array.isArray(parsed?.worked_examples)) {
+    const once = parsed.worked_examples.length
+    parsed.worked_examples = parsed.worked_examples.filter(
+      (w: any) => w && typeof w === 'object' && (dolu(w.title) || dolu(w.prompt) || dolu(w.question))
+    )
+    say('worked_examples', once - parsed.worked_examples.length)
+  }
+  return dusen
+}
+
 function duzMaddeMetni(raw: any): string {
   if (typeof raw === 'string') return raw
   if (raw == null) return ''
@@ -12558,7 +12615,33 @@ The example that used to sit here named a real-looking percentage, and a live ru
               const visionCleaned = (visionStripped ?? visionRaw).replace(/```json\s*|```/g, '').trim()
               // Gorsel gecis de model ciktisi: ayni LaTeX kacis sorunu burada
               // da var (09.10.2026'da kurtarma calismasi sirasinda gorundu).
-              const visionParsed = visionCleaned ? JSON.parse(repairLatexEscapes(visionCleaned)) : null
+              /* GORSEL GECIS DE KESIK JSON ALIYOR (30.10.2026 olcumu).
+                 "Building IS ... Planlama Analysis2" kosusunda:
+                   Long-doc visual analysis patch skipped: SyntaxError:
+                   Expected ',' or ']' after array element in JSON at
+                   position 2414
+                 Bu cagri callGroqJson'dan GECMIYOR, kendi JSON.parse'ini
+                 yapiyor — yani oradaki kurtarma buraya hic uygulanmiyordu ve
+                 butun gorsel katki (tablo, ek kavram, diyagram) dusuyordu.
+                 Ayni kurtarma: kapatip yeniden ayristir, tutmazsa null. */
+              const visionParsed = visionCleaned ? (() => {
+                try {
+                  return JSON.parse(repairLatexEscapes(visionCleaned))
+                } catch (gorselAyristirmaHatasi) {
+                  const kapali = closeTruncatedJson(visionCleaned)
+                  if (kapali) {
+                    try {
+                      const kurtarilan = JSON.parse(repairLatexEscapes(kapali))
+                      console.warn(
+                        `Gorsel gecis: JSON KESIKTI, kapatilip kurtarildi ` +
+                        `(${visionCleaned.length} krk -> ${kapali.length} krk)`
+                      )
+                      return kurtarilan
+                    } catch (_e) { /* kurtarma da tutmadi */ }
+                  }
+                  throw gorselAyristirmaHatasi
+                }
+              })() : null
 
               if (visionParsed && typeof visionParsed === 'object') {
                 const newTerms = Array.isArray(visionParsed.key_terms) ? visionParsed.key_terms : []
@@ -14017,6 +14100,19 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         lang
       )
       parsedContent.key_points = anchored.key_points
+      /* --- Bos kabuklar ayikliniyor — bkz. bosKabuklariAyikla. Kesik JSON
+         kurtarmasi terim/soru/bolum nesnelerini yarida kapatabiliyor. */
+      {
+        const kabuk = bosKabuklariAyikla(parsedContent)
+        const toplam = Object.values(kabuk).reduce((a, b) => a + b, 0)
+        if (toplam > 0) {
+          console.warn(
+            `Bos kabuk ayiklandi: ${Object.entries(kabuk).map(([k, v]) => `${k}=${v}`).join(', ')} ` +
+            `— tanimsiz/cevapsiz kayit ekranda bos cizilirdi`
+          )
+        }
+      }
+
       /* --- Maddeler duz metne indiriliyor — bkz. normalizeKeyPoints.
          Atiflar yukarida islendi, bundan sonra nesne sekli bilgi tasimiyor. */
       {

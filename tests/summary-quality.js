@@ -104,6 +104,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'JSON_GECERLI_KACIS', 'LATEX_IKI_HARFLI', 'repairLatexEscapes',
   // Kesik pencere JSON'u kurtarma (30.10.2026 olcumu).
   'closeTruncatedJson',
+  // Kurtarmanin biraktigi bos kabuklar (30.10.2026 olcumu).
+  'bosKabuklariAyikla',
   // Onbellek anahtari (30.10.2026).
   'SUMMARY_CACHE_ACIK', 'SUMMARY_CACHE_VERSION',
   // Anlatida ters bolunun satir sonuna donmesi (29.10.2026 olcumu).
@@ -5215,6 +5217,108 @@ test('ONCEKI KOSULARIN gercek degerleri bozulmadi', () => {
    kapattığını kilitliyor: yarım kapatmak en kötüsü olurdu — okuma kapalı
    yazma açık kalsa tablo büyümeye devam ederdi, tersi ise bayat kart
    servis etmeye. */
+/* KURTARMA BOŞ KABUK BIRAKIYOR
+   (30.10.2026 — "Building IS ... Planlama Analysis2" ÖLÇÜMÜ).
+
+   Kurtarma ÜRETİMDE İLK KEZ devreye girdi ve doğru işi yaptı:
+     Window 2: JSON KESIKTI, kapatilip kurtarildi (7133 krk -> 5162 krk)
+     Window 2 ok: terms=8 points=9 quiz=5
+   Pencere eskiden tamamen düşerdi (09:46'daki %54 kayıp o yüzdendi).
+
+   Ama closeTruncatedJson yarıda kesilen nesneyi olduğu yerde kapatıyor:
+     {"term":"Outsourcing"      ->  {"term":"Outsourcing"}
+   Kartta 15 kavramın 8'i TANIMSIZ çıktı ve ekranda boş kart olarak çizildi:
+   End-user development, Outsourcing, RAD, JAD, Agile development,
+   Work breakdown structure, System analysis, Application software packages.
+
+   Grounding kapısı bunu yakalamıyor — o terimin KAYNAKTA geçip geçmediğine
+   bakıyor, tanımın dolu olup olmadığına bakmıyor: aynı koşuda
+   "terms 15 kept / 0 would-drop" yazdı.
+
+   Aynı koşuda ikinci bulgu: görsel geçiş de kesik JSON aldı ve TAMAMEN
+   atlandı, çünkü o çağrı callGroqJson'dan geçmiyor, kendi JSON.parse'ını
+   yapıyor:
+     Long-doc visual analysis patch skipped: SyntaxError: Expected ',' or ']'
+     after array element in JSON at position 2414 */
+console.log('\nBOS KABUK AYIKLAMA\n');
+
+const KABUK_HAM = JSON.stringify({
+  summary: 'SDLC overview.',
+  key_terms: [
+    { term: 'Systems Analyst', definition: 'Anahtar kisi.' },
+    { term: 'Prototyping', definition: 'Deneysel sistem.' },
+    { term: 'Outsourcing', definition: 'Dis kaynak kullanimi.' }
+  ],
+  key_points: ['SDLC dort fazdan olusur'],
+  quiz_questions: [{ question: 'Kac faz var?', answer: 'Dort' }]
+}, null, 2);
+
+test('OLCULEN SEKIL: tanimsiz kavram dusuyor, dolu olan kaliyor', () => {
+  const kesik = KABUK_HAM.slice(0, KABUK_HAM.indexOf('"definition": "Dis kaynak') + 14);
+  const kapali = A.closeTruncatedJson(kesik);
+  assert.ok(kapali, 'kurtarma calismadi');
+  const o = JSON.parse(A.repairLatexEscapes(kapali));
+  // Kurtarma TANIMSIZ bir kabuk birakiyor — once onu dogrula.
+  assert.equal(o.key_terms.filter((t) => !String(t.definition || '').trim()).length, 1,
+    'test varsayimi degismis: kurtarma artik kabuk birakmiyor');
+  const dusen = A.bosKabuklariAyikla(o);
+  assert.deepEqual(dusen, { key_terms: 1 });
+  assert.equal(o.key_terms.length, 2);
+  assert.deepEqual(o.key_terms.map((t) => t.term), ['Systems Analyst', 'Prototyping']);
+});
+
+test('SAGLAM KARTA hic dokunulmuyor', () => {
+  const saglam = JSON.parse(KABUK_HAM);
+  assert.deepEqual(A.bosKabuklariAyikla(saglam), {});
+  assert.equal(saglam.key_terms.length, 3);
+  assert.equal(saglam.quiz_questions.length, 1);
+});
+
+test('CEVAPSIZ SORU ve BASLIKSIZ BOLUM de kabuk', () => {
+  /* "KENDINI SINA" bolumu cevabi aciyor; cevapsiz soru bos kart.
+     Baslıksiz bolum ciziliyor ama gezinilemiyor. */
+  const o = {
+    key_terms: [{ term: 'A', definition: 'tanim' }],
+    quiz_questions: [{ question: 'Soru?', answer: 'Cevap' }, { question: 'Yarim?' }, { answer: 'sadece cevap' }],
+    sections: [{ heading: 'Bolum', summary: 'x' }, { summary: 'basliksiz' }],
+    worked_examples: [{ title: 'Ornek' }, {}]
+  };
+  const dusen = A.bosKabuklariAyikla(o);
+  assert.deepEqual(dusen, { quiz_questions: 2, sections: 1, worked_examples: 1 });
+  assert.equal(o.quiz_questions.length, 1);
+  assert.equal(o.sections.length, 1);
+  assert.equal(o.worked_examples.length, 1);
+});
+
+test('bos/bozuk girdi dusurmuyor', () => {
+  assert.deepEqual(A.bosKabuklariAyikla(null), {});
+  assert.deepEqual(A.bosKabuklariAyikla({}), {});
+  assert.deepEqual(A.bosKabuklariAyikla({ key_terms: 'dizi degil' }), {});
+});
+
+test('ayiklama CIKISA bagli ve loglaniyor', () => {
+  assert.match(SRC, /const kabuk = bosKabuklariAyikla\(parsedContent\)/,
+    'bosKabuklariAyikla cagrilmiyor — olu kod');
+  assert.match(SRC, /Bos kabuk ayiklandi/, 'ayiklama loglanmiyor');
+  // normalizeKeyPoints'ten ONCE: ikisi de ayni cikis noktasinda.
+  const i = SRC.indexOf('const kabuk = bosKabuklariAyikla(parsedContent)');
+  const j = SRC.indexOf('const duz = normalizeKeyPoints(parsedContent.key_points)');
+  assert.ok(i > 0 && j > 0 && i < j, 'kabuk ayiklama madde duzlestirmeden once olmali');
+});
+
+test('GORSEL GECIS de kesik JSON kurtariyor', () => {
+  /* Bu cagri callGroqJson'dan GECMIYOR, kendi JSON.parse'ini yapiyor —
+     olculen kosuda butun gorsel katki (tablo, ek kavram) o yuzden dustu. */
+  const blok = SRC.slice(SRC.indexOf('const visionParsed = visionCleaned'),
+                         SRC.indexOf('const visionParsed = visionCleaned') + 1200);
+  assert.match(blok, /closeTruncatedJson\(visionCleaned\)/,
+    'gorsel gecis kurtarma yapmiyor');
+  assert.match(blok, /Gorsel gecis: JSON KESIKTI, kapatilip kurtarildi/,
+    'gorsel kurtarma loglanmiyor');
+  assert.match(blok, /throw gorselAyristirmaHatasi/,
+    'kurtarma tutmazsa ozgun hata firlatilmali');
+});
+
 console.log('\nONBELLEK ANAHTARI\n');
 
 test('ONBELLEK KAPALI ve anahtar TEK', () => {
