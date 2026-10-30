@@ -141,7 +141,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
   // Parcalar sirayla kosup butceyi dolduruyordu (30.10.2026 olcumu).
-  'OCR_ES_ZAMAN', 'tryOCRParcali',
+  'OCR_ES_ZAMAN', 'OCR_HIZ_BEKLEME_MS', 'tryOCRParcali',
   // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
   'ONBELLEK_OCR_MAX_KRK', 'ONBELLEK_OCR_SURUM', 'onbellektenOcrMetni',
   'KAPSAMA_ROZET_MIN_ORNEK',
@@ -6281,8 +6281,13 @@ test('grounding kapisi parallel modda ve kesik OCR\'da olcum moduna gecer', () =
  * kart "Diger" tipiyle cikti ve atif katmani komple sustu
  * ("Citation anchoring: pages=0 added=0") — kartta hic kaynakca yoktu. */
 test('OCR metni sayfa isareti tasiyor', () => {
+  /* 30.10.2026: sabit 3200 karakterlik dilim, bos-cevap korunmasi
+     eklenince govde buyudugu icin isaretleme satirini disarida birakti —
+     iddia dogruyken test dustu. Dilim artik fonksiyonun KENDI sinirinda. */
   const i = SRC.indexOf('async function tryOCRParcali(');
-  const govde = SRC.slice(i, i + 3200);
+  const sonu = SRC.indexOf('\nasync function tryOCR(', i);
+  assert.ok(sonu > i, 'tryOCRParcali govdesinin sonu bulunamadi');
+  const govde = SRC.slice(i, sonu);
   assert.ok(/--- SAYFA \$\{ilkSayfa \+ i\} ---/.test(govde),
     'OCR metnine sayfa isareti konmuyor — atif katmani susar, belge tipi "duz metin" olur');
   assert.ok(/isaretle\(r\.sayfalar, bas \+ 1\)/.test(govde),
@@ -6401,6 +6406,8 @@ function ocrSahnesi(opts) {
     await new Promise(r => setTimeout(r, o.gecikme || 20));
     durum.acik--;
     if (o.dusur && o.dusur(alt[0], durum)) throw new Error('sahte hata');
+    // Hiz siniri: yuzey 200 OK donuyor ama ParsedResults BOS.
+    if (o.bos && o.bos(alt[0], durum)) return { text: '', sayfalar: [], kesildi: false, sayfa: 0 };
     return { text: 'x', sayfalar: new Array(alt.length).fill('m'), kesildi: false, sayfa: alt.length };
   };
   return durum;
@@ -6464,6 +6471,69 @@ test('BUTCE dalgalar arasinda da denetleniyor', async () => {
   assert.ok(r.okunanSayfa > 0 && r.okunanSayfa < 29,
     `kismi okuma beklenirdi: ${r.okunanSayfa}`);
   assert.equal(r.toplamSayfa, 29, 'toplam sayfa hep gercek deger');
+});
+
+/* BOS CEVAP BASARI SAYILIYORDU (30.10.2026 — CANLI OLCUM).
+ *
+ * Paralel OCR yayina girdikten sonra iki kosu ILK denemede dustu:
+ *   Week 10 1. deneme: "31/31 sayfa, 0 parca, 0 karakter, 229ms" -> SCANNED_PDF
+ *   Week 9  1. deneme: "27/27 sayfa, 3 parca, 3347 karakter"
+ * Yani SIFIR sayfa okunmusken "31/31 sayfa" raporlaniyordu: kismi rozeti
+ * yanmiyor, hat belgenin tamamina sahip oldugunu saniyor ve Week 9'da 3.347
+ * karakterle devam edip vision 502 + draft 502 ile kart dusuyordu.
+ *
+ * Sebep `sayfaAdedi[k] = Math.max(r.sayfa, 0) || idx.length` ve bos cevapta
+ * `true` donmesiydi — kusur eski SIRALI kodda da vardi, paralellik onu acti.
+ * 229ms'de 11 istegin reddedilmesi ocr.space'in dokumante EDILMEYEN
+ * es zamanlilik sinirinin gercek oldugunu gosteriyor. */
+test('BOS CEVAP dusen parca sayiliyor, sayfa sayaci YALANLAMIYOR', async () => {
+  const d = ocrSahnesi({ sayfa: 31, gecikme: 5, bos: () => true });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  assert.equal(r.okunanSayfa, 0, `sifir sayfa okundu ama ${r.okunanSayfa} raporlandi`);
+  assert.equal(r.text, '', 'bos cevaptan metin uretilmis');
+  assert.equal(r.toplamSayfa, 31);
+  // Korunma ACILDI: ilk dalga (3) + tek tek bir tekrar deneme, sonra duruluyor.
+  assert.ok(d.cagri <= 4, `bos cevaba ragmen ${d.cagri} istek atilmis — korunma acilmamis`);
+});
+
+test('HIZ SINIRI gecicilyse kurtariliyor (Week 9 1. denemesi)', async () => {
+  // Ilk dalganin ucu bos doner, bekleme sonrasi yuzey duzelir.
+  let n = 0;
+  const d = ocrSahnesi({ sayfa: 31, gecikme: 5, bos: () => { n++; return n <= 3; } });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  assert.equal(r.okunanSayfa, 31, 'gecici hiz siniri kurtarilmiyor');
+  assert.ok(d.enCokAcik <= A.OCR_ES_ZAMAN);
+  // Dusen dalgadan sonra es zaman 1'e inmis olmali.
+  assert.equal(A.OCR_HIZ_BEKLEME_MS >= 1000, true,
+    'bekleme 1 sn altinda — hiz siniri serilestirmekle degil zamanla geciyor');
+});
+
+test('SAGLAM kosu bekleme ODEMIYOR', async () => {
+  const t0 = Date.now();
+  const d = ocrSahnesi({ sayfa: 31, gecikme: 1 });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  assert.equal(r.okunanSayfa, 31);
+  assert.ok(Date.now() - t0 < A.OCR_HIZ_BEKLEME_MS,
+    'dusen parca yokken de hiz siniri beklemesi odenmis');
+  assert.equal(d.cagri, 11, '31 sayfa 3er parca = 11 istek');
+});
+
+test('sayfa sayisi parcanin BOYUNU asamaz', async () => {
+  // Yuzey fazla sayfa bildirse bile sayac parcanin boyuyla sinirli.
+  ocrSahnesi({ sayfa: 31, gecikme: 1 });
+  const eski = global.tryOCR;
+  global.tryOCR = async (alt) => ({ text: 'x', sayfalar: new Array(alt.length).fill('m'), kesildi: false, sayfa: 99 });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  global.tryOCR = eski;
+  assert.equal(r.okunanSayfa, 31, `sayfa sayaci sismis: ${r.okunanSayfa}`);
+});
+
+test('BOS CEVAP SEBEBI loglaniyor', () => {
+  /* "0 parca, 0 karakter, 229ms" NEDEN oldugunu soylemiyordu. */
+  assert.match(SRC, /OCR yuzeyi BOS dondu: \$\{String\(sebep\)\.slice\(0, 200\)\}/,
+    'bos cevabin sebebi loglanmiyor — teshis mumkun degil');
+  assert.ok(!/apikey/i.test(SRC.slice(SRC.indexOf('OCR yuzeyi BOS dondu') - 400, SRC.indexOf('OCR yuzeyi BOS dondu'))),
+    'log anahtar basiyor olabilir');
 });
 
 test('KISA BELGE tek istekle okunuyor (bolme yok)', async () => {

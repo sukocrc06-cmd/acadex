@@ -15103,6 +15103,10 @@ const OCR_PARCA_BUTCE_MS = 60_000
  * KESINTISIZ ONEK; delikten sonraki sayfalarin metni yine karta giriyor,
  * rozet onu iddia etmiyor. Az soylemek, fazla soylemekten iyi. */
 const OCR_ES_ZAMAN = 3
+/* Dalgada parca dustukten sonraki bir kerelik bekleme — bkz. parcaOku
+   icindeki "BOS CEVAP BASARI DEGIL" notu. Hiz siniri serilestirmekle degil
+   zamanla geciyor. */
+const OCR_HIZ_BEKLEME_MS = 1_500
 
 async function tryOCRParcali(
   fileBytes: Uint8Array,
@@ -15157,8 +15161,34 @@ async function tryOCRParcali(
     }
     try {
       const r = await tryOCR(alt, apiKey)
-      metinler[k] = r.text.trim().length > 0 ? isaretle(r.sayfalar, bas + 1) : ''
-      sayfaAdedi[k] = Math.max(r.sayfa, 0) || idx.length
+      /* BOS CEVAP BASARI DEGIL (30.10.2026 olcumu).
+       *
+       * Eski hali `sayfaAdedi[k] = Math.max(r.sayfa, 0) || idx.length`
+       * yaziyordu: parca hic metin dondurmese bile sayfalari OKUNMUS
+       * sayiyordu ve `true` donuyordu. Kusur eski sirali kodda da vardi,
+       * ama orada tetiklenmiyordu; paralellik onu acti ve bedeli olculdu:
+       *   Week 10 1. deneme: 31/31 sayfa, 0 parca, 0 karakter, 229ms
+       *   Week 9  1. deneme: 27/27 sayfa, 3 parca, 3347 karakter
+       * Yani sifir sayfa okunmusken "31/31 sayfa" raporlandi, kismi rozeti
+       * yanmadi, hat belgenin tamamina sahip oldugunu sanip 3.347 karakterle
+       * devam etti ve kart vision 502 + draft 502 ile DUSTU. Ustelik bos
+       * cevap `true` dondugu icin tasarlanan korunma (tekrar deneme + es
+       * zamani 1'e dusurme) hic devreye girmedi.
+       *
+       * 229ms'de 11 istegin hepsinin reddedilmesi ocr.space'in dokumante
+       * EDILMEYEN es zamanlilik/patlama sinirinin gercek oldugunu gosteriyor
+       * (bkz. OCR_ES_ZAMAN notu). Artik bos cevap DUSEN parca sayiliyor:
+       * korunma aciliyor ve sayfa sayaci yalanlamiyor. */
+      const krk = r.text.trim().length
+      if (krk === 0 || r.sayfa <= 0) {
+        console.warn(
+          `OCR parcali: ${bas + 1}-${bas + idx.length}. sayfalar BOS dondu ` +
+          `(sayfa=${r.sayfa}, ${krk} krk${r.kesildi ? ', kesildi' : ''}) — dusen parca sayiliyor`
+        )
+        return false
+      }
+      metinler[k] = isaretle(r.sayfalar, bas + 1)
+      sayfaAdedi[k] = Math.min(r.sayfa, idx.length)
       return true
     } catch (err) {
       /* Bir parca duserse elimizdekini tutuyoruz: yarim metin, hic
@@ -15193,6 +15223,12 @@ async function tryOCRParcali(
        dusenleri TEK TEK bir kez daha deniyoruz. */
     const eskiEsZaman = esZaman
     esZaman = 1
+    /* Hiz siniri SERILESTIRMEKLE degil ZAMANLA geciyor: dusen parcalari
+       hemen tekrar denemek ayni duvara carpar. Bir kerelik kisa bekleme,
+       butceden sayilan ve olcuyle sinirli bir bedel. */
+    if (eskiEsZaman !== 1 && Date.now() - basladi + OCR_HIZ_BEKLEME_MS < butceMs) {
+      await new Promise((r) => setTimeout(r, OCR_HIZ_BEKLEME_MS))
+    }
     for (const d of dusenler) {
       if (Date.now() - basladi > butceMs) { durdu = true; break }
       if (await parcaOku(d)) continue
@@ -15267,6 +15303,17 @@ async function tryOCR(
       return { text, sayfalar, kesildi: true, sayfa: parcalar.length }
     }
     throw new Error(result.ErrorMessage?.[0] || 'OCR processing failed');
+  }
+  /* BOS CEVAP SEBEBINI SOYLEMELI (30.10.2026 olcumu). ParsedResults bos
+   * gelip IsErroredOnProcessing de yoksa eski kod sessizce bos metin
+   * donuyordu; log "0 parca, 0 karakter, 229ms" diyor ama NEDEN demiyordu.
+   * Teshis icin yuzeyin kendi alanlari basiliyor — anahtar YOK, yalnizca
+   * durum ve kisa mesaj. */
+  if (parcalar.length === 0) {
+    const sebep = result.ErrorMessage?.[0] || result.ErrorDetails ||
+      (typeof result.OCRExitCode === 'number' ? `OCRExitCode=${result.OCRExitCode}` : '') ||
+      `HTTP ${response.status}`
+    console.warn(`OCR yuzeyi BOS dondu: ${String(sebep).slice(0, 200)}`)
   }
   return { text, sayfalar, kesildi: false, sayfa: parcalar.length };
 }
