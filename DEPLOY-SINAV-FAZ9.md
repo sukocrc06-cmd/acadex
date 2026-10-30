@@ -44,6 +44,20 @@ Kullanıcı isteğiyle önce örnek platformlar incelendi, sonra öncelik sıras
   - Süresi kayıtlı olmayan eski sınavlarda rapor çıkmaz.
 - Migration yok.
 
+## 3. Sınav günü hazırlığı (Faz 10)
+
+- **Örnekler:**
+  - Khan Academy hazırlık yüzdesi = yetkin ya da usta beceri ÷ toplam beceri. [Khan Academy](https://support.khanacademy.org/hc/en-us/articles/48411237993357-How-is-my-mastery-percentage-calculated)
+  - Quizlet Learn sınav tarihine göre oturum kurar. ALEKS düzenli bilgi kontrolüyle eski konuları yeniden yoklar.
+- **Sınav salonunda başlığın altında:** takvimdeki en yakın (30 gün içi) sınav, sırasıyla eşleşirse gösterilir.
+  - Hazırlık yüzdesi: yetkin ya da usta olup tekrar zamanı gelmemiş konu ÷ görülen konu.
+  - Hazır, zayıf ve tekrar zamanı gelen konu sayıları; açık yanlış sayısı.
+  - Tempo: 7 gün ve altı her gün, 21 güne kadar haftada iki, sonrası haftada bir.
+  - Bugünün işleri: zamanı gelen yanlış varsa ikinci şans; zayıf ya da tekrar konusu varsa akıllı deneme; son 3 günde gerçek sınav provası.
+  - Az veri (3'ten az konu) uyarısı.
+- **Kod:** `exam-engine` → `examReadiness`; `acadex-ink` → `paintRdy`; `dashboard.html` → `[data-rdy]`. Migration yok.
+- **Test:** `tests/exam-readiness.js` (4); tarayıcı 1280 ve 390 px.
+
 ## Test
 
 - `tests/exam-timing.js` (5) ve `tests/exam-retry.js` (hatırlatma).

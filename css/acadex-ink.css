@@ -3808,6 +3808,19 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-ri-h .why.review{background:#FFF2D6;color:var(--amber)}
 :is(#exams-view.axs,#axs-layer) .sn-ri-h .why.new{background:#EEF3FF;color:#2C55C9}
 :is(#exams-view.axs,#axs-layer) .sn-ri-h .why.stretch{background:#E3F2EA;color:var(--green)}
+/* Faz 10: sınav günü hazırlığı */
+:is(#exams-view.axs,#axs-layer) .sn-rdy{margin:0 0 26px;padding:14px 18px;max-width:1180px;background:#FFFDF8;border:1.4px solid #E6E2D6;border-radius:8px;box-shadow:0 1px 0 #E1E5EE}
+:is(#exams-view.axs,#axs-layer) .sn-rdy[hidden]{display:none}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-h b{font-family:"Bricolage Grotesque",sans-serif;font-size:28px;color:var(--navy)}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-bar{height:10px;margin:6px 0 8px;border-radius:6px;background:#EEF0F5;overflow:hidden}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#2F6BFF,#1E9D6B)}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-s{margin:0 0 4px;font-size:14px;color:var(--ink)}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-n{margin:0 0 4px;font-size:12.5px;color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-t{margin:8px 0 6px;font-size:14px;color:var(--muted)}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-t small{color:var(--soft)}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-b{display:flex;flex-wrap:wrap;gap:8px}
+:is(#exams-view.axs,#axs-layer) .sn-rdy-b .btn,:is(#exams-view.axs,#axs-layer) .sn-rdy-b .sn-ghost{margin:0;min-height:42px}
 /* Faz 9: süre ve strateji */
 :is(#exams-view.axs,#axs-layer) .sn-ri-h .why.chg{background:#FCEDE4;color:#9A3F2C}
 :is(#exams-view.axs,#axs-layer) .sn-ri-h .tm{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--soft)}

@@ -1956,6 +1956,37 @@
     };
   }
 
+  /** FAZ 10: sınav günü hazırlığı. Khan Academy'deki gibi hazırlık yüzdesi
+   *  = yetkin ya da usta olup tekrar zamanı gelmemiş konu ÷ görülen konu.
+   *  Açık yanlışlar (hata defteri) ve sınava kalan güne göre bugünün işleri
+   *  (Quizlet Learn'ün sınav tarihine göre planı gibi):
+   *    - zamanı gelen yanlış varsa "ikinci şans"
+   *    - zayıf ya da tekrar zamanı gelen konu varsa "akıllı deneme"
+   *    - sınava 3 gün ve daha az kaldıysa "gerçek sınav provası"
+   *  deskExams: o dersin tamamlanmış sınavları; allExams: hata defteri için. */
+  function examReadiness(deskExams, allExams, daysLeft, opts) {
+    const now = opts && Number.isFinite(opts.now) ? opts.now : Date.now();
+    const ms = conceptMastery(deskExams || [], { now: now });
+    const ids = {};
+    (deskExams || []).forEach(e => { if (e && e.id != null) ids[e.id] = true; });
+    const st = mistakeStates(allExams || deskExams || [], { now: now });
+    const mist = Object.keys(st).map(k => st[k]).filter(m => ids[m.examId] && !m.won);
+    const dueMist = mist.filter(m => m.dueNow && MISTAKE_TYPES.indexOf(m.type) >= 0 && !m.chart);
+    const ready = ms.filter(c => c.level >= 2 && !c.due).length;
+    const weak = ms.filter(c => c.level === 0).length, due = ms.filter(c => c.due).length;
+    const pct = ms.length ? Math.round(ready * 100 / ms.length) : 0;
+    const d = Number.isFinite(daysLeft) ? daysLeft : null;
+    const tasks = [];
+    if (dueMist.length) tasks.push({ kind: 'second', count: Math.min(10, dueMist.length) });
+    if (weak + due) tasks.push({ kind: 'adaptive', weak: weak, due: due });
+    if (d !== null && d <= 3 && ms.length) tasks.push({ kind: 'sim' });
+    return {
+      pct: pct, ready: ready, total: ms.length, weak: weak, due: due, mistakes: mist.length, dueMistakes: dueMist.length,
+      enough: ms.length >= 3 && (deskExams || []).length >= 1, daysLeft: d,
+      cadence: d === null ? null : d <= 7 ? 'daily' : d <= 21 ? 'twice_weekly' : 'weekly', tasks: tasks
+    };
+  }
+
   /** Bir sınavın konu seviyelerini nasıl değiştirdiği: önceki sınavlarla
    *  ve bu sınav dahil hesaplanan seviyeler karşılaştırılır. */
   function masteryChanges(priorExams, exam, opts) {
@@ -2845,6 +2876,7 @@
     mistakeStates,
     mistakeReminder,
     timingReport,
+    examReadiness,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,

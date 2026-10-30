@@ -3932,7 +3932,49 @@ window.axNotify = function (title, opts) {
     var b = e.target.closest('[data-acx-go]'); if (!b) return;
     Promise.resolve(openBuild(b.getAttribute('data-acx-go'))).then(function () { var ad = $('#exam-adaptive'); if (ad) { ad.checked = true; ad.dispatchEvent(new Event('change', { bubbles: true })); } paintCover(); });
   });
-  var paintAll = function () { paintCal(); paintDesks(); paintReport(); paintErrs(); paintAcx(); };
+  /* ---------- FAZ 10: sınav günü hazırlığı ----------
+     Takvimdeki en yakın (30 gün içi) sınav, sırasıyla eşleşirse: hazırlık
+     yüzdesi (exam-engine examReadiness; Khan Academy'deki gibi hazır konu ÷
+     görülen konu), açık yanlışlar ve bugünün işleri (ikinci şans, akıllı
+     deneme, son 3 günde gerçek sınav provası). */
+  var rdyEl = $('[data-rdy]');
+  var deskForEvent = function (e) {
+    var ti = String(e.title || '').toLocaleLowerCase('tr-TR');
+    return desks().filter(function (d) {
+      var nm = String(d.name || '').toLocaleLowerCase('tr-TR'), code = d.code ? d.code.toLocaleLowerCase('tr-TR') : '';
+      return d.ex.length && ((nm && ti.indexOf(nm) === 0) || (code && ti.indexOf(code) >= 0));
+    })[0] || null;
+  };
+  var CAD = { daily: 'her gün kısa bir deneme', twice_weekly: 'haftada iki deneme', weekly: 'haftada bir deneme' };
+  var paintRdy = function () {
+    if (!rdyEl) return;
+    var E = ENG();
+    var ev = E && typeof E.examReadiness === 'function' ? EV.filter(function (e) { var n = e.event_date ? dayDiff(e.event_date) : -1; return n >= 0 && n <= 30 && deskForEvent(e); })[0] : null;
+    if (!ev) { rdyEl.hidden = true; rdyEl.innerHTML = ''; return; }
+    var d = deskForEvent(ev), n = dayDiff(ev.event_date), R = E.examReadiness(d.ex, EX, n);
+    var btn = function (t) {
+      if (t.kind === 'second') return '<button type="button" class="btn btn-dark" data-rdy-go="second" data-k="' + esc(d.key) + '">ikinci şans · ' + t.count + ' soru</button>';
+      if (t.kind === 'adaptive') return '<button type="button" class="sn-ghost" data-rdy-go="adaptive" data-k="' + esc(d.key) + '">akıllı deneme</button>';
+      return '<button type="button" class="sn-ghost" data-rdy-go="sim" data-k="' + esc(d.key) + '">gerçek sınav provası</button>';
+    };
+    rdyEl.innerHTML = '<div class="sn-rdy-h"><span class="sn-k">hazırlık · ' + esc(ev.title) + ' · ' + (n === 0 ? 'bugün' : n + ' gün kaldı') + '</span><b>%' + R.pct + '</b></div>' +
+      '<div class="sn-rdy-bar" role="img" aria-label="Hazırlık yüzde ' + R.pct + '"><i style="width:' + R.pct + '%"></i></div>' +
+      '<p class="sn-rdy-s">' + R.total + ' konudan ' + R.ready + ' tanesi hazır' + (R.weak ? ' · ' + R.weak + ' zayıf' : '') + (R.due ? ' · ' + R.due + ' tekrar zamanı' : '') + (R.mistakes ? ' · ' + R.mistakes + ' açık yanlış' : '') + '</p>' +
+      (R.enough ? '' : '<p class="sn-rdy-n">Az veri: birkaç deneme daha çözdükçe yüzde netleşir.</p>') +
+      (R.tasks.length ? '<p class="sn-rdy-t">bugün' + (R.cadence ? ' <small>(' + CAD[R.cadence] + ')</small>' : '') + '</p><div class="sn-rdy-b">' + R.tasks.map(btn).join('') + '</div>' : '<p class="sn-rdy-t">Bugün için iş yok; ' + (R.cadence ? CAD[R.cadence] : 'arada bir deneme') + ' yeter.</p>');
+    rdyEl.hidden = false;
+  };
+  if (rdyEl) rdyEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rdy-go]'); if (!b) return;
+    var k = b.getAttribute('data-k'), kind = b.getAttribute('data-rdy-go');
+    if (kind === 'second') { startSecond(k, b); return; }
+    Promise.resolve(openBuild(k)).then(function () {
+      var el = $(kind === 'sim' ? '#exam-simulation-toggle' : '#exam-adaptive');
+      if (el && !el.checked) { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }
+      paintCover();
+    });
+  });
+  var paintAll = function () { paintCal(); paintDesks(); paintReport(); paintErrs(); paintAcx(); paintRdy(); };
 
   /* ---------- dashboard.js'in sınav ekranı yerine ---------- */
   if (typeof loadExamsPlatform === 'function') {
