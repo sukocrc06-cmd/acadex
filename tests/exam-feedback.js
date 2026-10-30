@@ -31,7 +31,7 @@ const ANCHOR_NAMES = [
 ];
 
 const G = loadFromSource(GEN_PATH, [
-  'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'sourceUnitFor',
+  'TRUE_FALSE_OPTIONS', 'KEY_FIELDS', 'INTERNAL_FIELDS', 'GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'GEN_MAX_RETRIES', 'GROQ_PRIMARY_MODEL', 'GROQ_FALLBACK_MODEL', 'GROQ_SHORT_WAIT_MS', 'groqFailurePlan', 'sourceUnitFor',
   'GEN_TOKENS_BASE', 'GEN_TOKENS_PER_QUESTION', 'GEN_TOKENS_MAX', 'completionBudgetFor', 'salvageQuestionObjects', 'fixJsonEscapes', 'parseQuestionArray',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'normalizeAnswerText', 'parseLooseNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText', 'normalizeOptionRationales', 'normalizeRubric',
@@ -85,7 +85,23 @@ test('groqRetryDelayMs generate-exam ve grade-exam te birebir ayni', () => {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }
   }).outputText;
   const a = toJs(GEN_PATH), b = toJs(GRADE_PATH);
-  for (const name of ['GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs']) assert.equal(sliceDeclaration(a, name), sliceDeclaration(b, name), name);
+  for (const name of ['GROQ_RETRY_MAX_WAIT_MS', 'groqRetryDelayMs', 'GROQ_PRIMARY_MODEL', 'GROQ_FALLBACK_MODEL', 'GROQ_SHORT_WAIT_MS']) assert.equal(sliceDeclaration(a, name), sliceDeclaration(b, name), name);
+});
+
+test('Groq dakika sınırı: kısa beklemede beklenir, uzunsa yedek model (canlı test 30.10.2026: 4 soruluk sınav 1 soruyla geldi)', () => {
+  const P = G.GROQ_PRIMARY_MODEL, F = G.GROQ_FALLBACK_MODEL;
+  assert.notEqual(P, F);
+  assert.equal(G.groqFailurePlan(429, 5000, P, 0), 'wait', 'kısa bekleme');
+  assert.equal(G.groqFailurePlan(429, 30000, P, 0), 'fallback', 'uzun bekleme yerine küçük model');
+  assert.equal(G.groqFailurePlan(429, null, P, 0), 'fallback', 'süre okunamadı ya da 45 sn üstü');
+  assert.equal(G.groqFailurePlan(429, 5000, P, G.GEN_MAX_RETRIES), 'fallback', 'beklemeler bitti');
+  assert.equal(G.groqFailurePlan(429, 30000, F, 0), 'wait', 'yedek de doluysa bekler');
+  assert.equal(G.groqFailurePlan(429, null, F, 0), 'fail');
+  assert.equal(G.groqFailurePlan(500, null, P, 0), 'fail', '429 dışı hata yedeğe geçmez');
+  const gen = fs.readFileSync(path.join(__dirname, '..', GEN_PATH), 'utf8'), grade = fs.readFileSync(path.join(__dirname, '..', GRADE_PATH), 'utf8');
+  assert.match(gen, /return requestQuestions\(count, avoid, 0, forceGraph, needGraph, forceExpr, GROQ_FALLBACK_MODEL\)/);
+  assert.match(gen, /for \(const model of \[GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL\]\)[\s\S]{0,1800}if \(res\.status === 429\) continue/, 'ikinci şans da yedeğe geçer');
+  assert.match(grade, /return gradeBatch\(batch, 0, GROQ_FALLBACK_MODEL\)/, 'açık uçlu puanlama da yedeğe geçer');
 });
 
 test('groqRetryDelayMs: Groq mesaji ve retry-after basligi okunur; uzun bekleme ya da baska hata null', () => {

@@ -646,6 +646,12 @@ function parseCriteria(raw: unknown): CriterionVerdict[] | null {
 // Rubriği olmayan (eski) soru eskisi gibi bütüncül puanlanır.
 // ==========================================================================
 const GROQ_RETRY_MAX_WAIT_MS = 45_000
+// generate-exam ile aynı kural (30.10.2026): büyük modelin dakika kotası dolu
+// ve kısa beklemeyle açılmayacaksa küçük modelle puanlanır; puanlanmadan
+// kalan açık uçlu soru olmasın.
+const GROQ_PRIMARY_MODEL = 'openai/gpt-oss-120b'
+const GROQ_FALLBACK_MODEL = 'openai/gpt-oss-20b'
+const GROQ_SHORT_WAIT_MS = 10_000
 
 /** Groq 429 yanıtından beklenecek süre (ms); generate-exam'deki ile birebir
  *  aynı (tests/exam-feedback.js denetler). */
@@ -1441,7 +1447,7 @@ serve(async (req) => {
       const groqApiKey = Deno.env.get('GROQ_API_KEY')
       if (!groqApiKey) return json({ error: 'Groq API key not configured' }, 500)
 
-      const gradeBatch = async (batch: typeof classicToGrade, attempt = 0): Promise<ParsedGrade[] | null> => {
+      const gradeBatch = async (batch: typeof classicToGrade, attempt = 0, model = GROQ_PRIMARY_MODEL): Promise<ParsedGrade[] | null> => {
         // Only the truly per-request bits (language, how many questions, and
         // the student's own unique answers) go in the user message -- the
         // system message above stays fully static so it caches across every
@@ -1465,7 +1471,7 @@ ${JSON.stringify(batch.map(c => ({
             // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
             // grading call was failing with a decommissioned-model error, so
             // submitted exams could never actually be graded.
-            model: "openai/gpt-oss-120b",
+            model,
             // FAZ 2: 0 — aynı cevap iki kez gönderilse aynı kararlar çıksın.
             temperature: 0,
             // Bütçe verilmezse Groq büyük bir varsayılan çıktı payını 8.000
@@ -1481,11 +1487,16 @@ ${JSON.stringify(batch.map(c => ({
         })
         const groqData = await groqResponse.json().catch(() => ({}))
         if (!groqResponse.ok) {
-          const waitMs = attempt === 0 ? groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message) : null
+          const rawWait = groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message)
+          if (groqResponse.status === 429 && model === GROQ_PRIMARY_MODEL && (rawWait === null || rawWait > GROQ_SHORT_WAIT_MS || attempt > 0)) {
+            console.warn(`grade-exam: Groq hiz siniri (${model}); yedek model ${GROQ_FALLBACK_MODEL}`)
+            return gradeBatch(batch, 0, GROQ_FALLBACK_MODEL)
+          }
+          const waitMs = attempt === 0 ? rawWait : null
           if (waitMs !== null) {
             console.warn(`grade-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
             await new Promise(r => setTimeout(r, waitMs))
-            return gradeBatch(batch, attempt + 1)
+            return gradeBatch(batch, attempt + 1, model)
           }
           console.error("Groq AI grading failed: ", groqData)
           return null

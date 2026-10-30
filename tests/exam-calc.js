@@ -26,7 +26,7 @@ const EXPR = ['EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 
 
 const G = loadFromSource(GEN_PATH, ['calcFormulaKey', 
   ...EXPR, 'normalizeAnswerText', 'parseLooseNumber', 'answerNumber', 'cleanText',
-  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation',
+  'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation', 'stepsConfirmValue',
   'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, [...EXPR, 'parseLooseNumber', 'answerNumber', 'matchCommonError', 'teachingFields']);
 const E = require(path.join(__dirname, '..', 'js', 'exam-engine.js'));
@@ -299,6 +299,21 @@ test('calcFormulaKey: ayni formulu farkli sayilarla soran hesap sorusu tekrar sa
   assert.notEqual(G.calcFormulaKey(a), G.calcFormulaKey(c));
   assert.equal(G.calcFormulaKey({ type: 'multiple_choice', formula: 'x' }), null);
   assert.equal(G.calcFormulaKey({ type: 'calculation', formula: '' }), null, 'dogrulanmamis (formulsuz) soru denetlenmez');
+});
+
+test('calc_mismatch: formül ve son çözüm adımı aynıysa yalnızca cevap alanı yanlıştır (canlı log 30.10.2026, ITB101)', () => {
+  const q = () => ({ type: 'calculation', question: 'Talep Qd = 150 - 3P, arz Qs = 10 + 2P. P = 20 iken Qs - Qd kaçtır?',
+    variables: { P: 20, Qd_const: 150, Qd_slope: -3, Qs_const: 10, Qs_slope: 2 }, formula: 'Qs_const + Qs_slope*P - (Qd_const + Qd_slope*P)', correct_answer: 30,
+    solution_steps: ['Qs = 10 + 2·20 = 50', 'Qd = 150 − 3·20 = 90', 'Qs − Qd = 50 − 90 = −40'] });
+  const ok = q();
+  assert.equal(G.verifyCalculation(ok).ok, true);
+  assert.deepEqual([ok.correct_answer, ok.verified], [-40, true]);
+  const both = q(); both.solution_steps = ['Qs − Qd = 50 − 90 = −40, yani fark 30'];
+  assert.equal(G.verifyCalculation(both).reason, 'calc_mismatch', 'son adımda modelin cevabı da varsa belirsiz: atılır');
+  const none = q(); none.solution_steps = [];
+  assert.equal(G.verifyCalculation(none).reason, 'calc_mismatch', 'adım yoksa atılır');
+  const other = q(); other.solution_steps = ['Fark = 30'];
+  assert.equal(G.verifyCalculation(other).reason, 'calc_mismatch', 'adımlar modelin cevabını söylüyorsa atılır');
 });
 
 summary();

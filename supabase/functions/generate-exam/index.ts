@@ -501,6 +501,18 @@ function fillCalcPlaceholders(text: string, vars: Record<string, number>, lang: 
   })
 }
 
+/** Canlı log (30.10.2026, ITB101): "Qs − Qd" sorusunda formül ve modelin
+ *  son çözüm adımı −40 diyor, "correct_answer" alanı 30; doğru soru atıldı ve
+ *  sınav eksik kaldı. Son adımdaki sayılardan biri formülün değeriyse ve
+ *  modelin cevabı orada geçmiyorsa yanlış olan yalnızca cevap alanıdır. */
+function stepsConfirmValue(steps: unknown, value: number, modelAnswer: number): boolean {
+  const list = Array.isArray(steps) ? steps.map(s => String(s ?? '')).filter(s => s.trim()) : []
+  if (!list.length || !Number.isFinite(value)) return false
+  const nums = (list[list.length - 1].replace(/[−–]/g, '-').match(/-?\d+(?:[.,]\d+)*/g) || []).map(t => parseLooseNumber(t)).filter(x => Number.isFinite(x))
+  const near = (x: number, y: number) => Math.abs(x - y) <= Math.max(1e-9, Math.abs(y) * 0.005)
+  return nums.some(x => near(x, value)) && !nums.some(x => near(x, modelAnswer))
+}
+
 function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: string } {
   const vars = sanitizeVariables(q.variables)
   let formula = normalizeFormula(q.formula)
@@ -537,7 +549,10 @@ function verifyCalculation(q: Record<string, unknown>): { ok: boolean; reason?: 
   const allLiteral = names.every(literal)
   const tol = Number(q.tolerance_percent) || 2
   const modelAnswer = answerNumber(q.correct_answer)
-  if (Number.isFinite(modelAnswer) && !withinTolerance(modelAnswer, value, Math.max(tol, 1))) return { ok: false, reason: 'calc_mismatch' }
+  if (Number.isFinite(modelAnswer) && !withinTolerance(modelAnswer, value, Math.max(tol, 1))) {
+    if (!stepsConfirmValue(q.solution_steps, value, modelAnswer)) return { ok: false, reason: 'calc_mismatch' }
+    console.warn(`generate-exam: calc_mismatch kurtarildi: cevap ${modelAnswer} -> ${value} (formul ve son cozum adimi ayni)`)
+  }
   q.correct_answer = Math.round(value * 1e4) / 1e4
   q.variables = vars
   q.formula = formula
@@ -2419,6 +2434,20 @@ function normalizeRubric(raw: unknown): Array<{ criterion: string; points: numbe
 }
 
 const GROQ_RETRY_MAX_WAIT_MS = 45_000
+// Canlı test (30.10.2026, ITB101): tamamlama isteği dakikalık token sınırına
+// takıldı ("Used 7997, Requested 6429"), beklenecek süre 45 sn'yi aştı ve
+// 4 soruluk sınav 1 soruyla geldi. Groq sınırı model başınadır: büyük model
+// doluysa ve kısa beklemeyle açılmayacaksa küçük modele geçilir (çıktısı
+// yine aynı doğrulamadan geçer).
+const GROQ_PRIMARY_MODEL = 'openai/gpt-oss-120b'
+const GROQ_FALLBACK_MODEL = 'openai/gpt-oss-20b'
+const GROQ_SHORT_WAIT_MS = 10_000
+/** Groq hatasında ne yapılacak: beklemek, yedek modele geçmek ya da vazgeçmek. */
+function groqFailurePlan(status: number, waitMs: number | null, model: string, attempt: number): 'wait' | 'fallback' | 'fail' {
+  if (status === 429 && model === GROQ_PRIMARY_MODEL && (waitMs === null || waitMs > GROQ_SHORT_WAIT_MS || attempt >= GEN_MAX_RETRIES)) return 'fallback'
+  if (waitMs !== null && attempt < GEN_MAX_RETRIES) return 'wait'
+  return 'fail'
+}
 // Üretimde Groq hatası sonrası en fazla bu kadar yeniden deneme.
 const GEN_MAX_RETRIES = 2
 // Çıktı bütçesi: sabit pay (düşünme + sarmalayıcı) + soru başına pay.
@@ -3192,7 +3221,7 @@ function helpUserPrompt(q: Record<string, unknown>, kind: 'calc' | 'guide', lang
 async function requestHelpSteps(system: string, user: string): Promise<unknown[] | null> {
   const key = Deno.env.get('GROQ_API_KEY')
   if (!key) return null
-  for (const model of ['openai/gpt-oss-120b', 'openai/gpt-oss-20b']) {
+  for (const model of [GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL]) {
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -3448,23 +3477,28 @@ function acceptRetryQuestion(raw: unknown, src: RetrySource, lang: string, optio
 async function requestRetryQuestions(items: RetrySource[], lang: string, optionCount: number): Promise<unknown[]> {
   const key = Deno.env.get('GROQ_API_KEY')
   if (!key || !items.length) return []
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'openai/gpt-oss-120b', temperature: 0.8, reasoning_effort: 'low',
-      max_completion_tokens: Math.min(GEN_TOKENS_MAX, GEN_TOKENS_BASE + (GEN_TOKENS_PER_QUESTION + GEN_TOKENS_CALC_EXTRA) * items.length + GEN_TOKENS_GRAPH_EXTRA * 5 * items.filter(s => s.result.type === 'graph').length),
-      response_format: { type: 'json_object' },
-      messages: [{ role: 'system', content: STATIC_EXAM_INSTRUCTIONS }, { role: 'user', content: retryUserPrompt(items, lang, optionCount) }]
+  // Büyük modelin dakika kotası doluysa küçük model (sınav üretimiyle aynı kural).
+  for (const model of [GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL]) {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model, temperature: 0.8, reasoning_effort: 'low',
+        max_completion_tokens: Math.min(GEN_TOKENS_MAX, GEN_TOKENS_BASE + (GEN_TOKENS_PER_QUESTION + GEN_TOKENS_CALC_EXTRA) * items.length + GEN_TOKENS_GRAPH_EXTRA * 5 * items.filter(s => s.result.type === 'graph').length),
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'system', content: STATIC_EXAM_INSTRUCTIONS }, { role: 'user', content: retryUserPrompt(items, lang, optionCount) }]
+      })
     })
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    if (data?.error?.code === 'json_validate_failed') return salvageQuestionObjects(String(data.error.failed_generation ?? ''))
-    console.warn(`generate-exam ikinci sans: Groq ${res.status} ${String(data?.error?.message || '').slice(0, 200)}`)
-    return []
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      if (data?.error?.code === 'json_validate_failed') return salvageQuestionObjects(String(data.error.failed_generation ?? ''))
+      console.warn(`generate-exam ikinci sans: Groq ${model} ${res.status} ${String(data?.error?.message || '').slice(0, 200)}`)
+      if (res.status === 429) continue
+      return []
+    }
+    return parseQuestionArray(String(data.choices?.[0]?.message?.content ?? '')) || []
   }
-  return parseQuestionArray(String(data.choices?.[0]?.message?.content ?? '')) || []
+  return []
 }
 
 /** POST { retry: { items: [{ examId, questionId }] } } → yeni alıştırma sınavı. */
@@ -4035,7 +4069,7 @@ Additional variation seed: ${Date.now()}`
 
     let lastPromptTokens = 0, firstUserChars = 0
     // Tek bir üretim çağrısı. Başarısızsa { error } döner, istisna fırlatmaz.
-    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false, forceExpr = false): Promise<{ items?: unknown[]; error?: string }> => {
+    const requestQuestions = async (count: number, avoid: string[], attempt = 0, forceGraph = false, needGraph = false, forceExpr = false, model = GROQ_PRIMARY_MODEL): Promise<{ items?: unknown[]; error?: string }> => {
       const userContent = forceGraph ? buildGraphPrompt(avoid) : forceExpr ? buildExprPrompt(avoid) : buildUserPrompt(count, avoid, needGraph)
       // Groq TPM sınırı istemi VE ayrılan çıktı bütçesini birlikte sayar
       // (canlı test 25.10.2026: "Request too large … Requested 8262"). İlk
@@ -4055,7 +4089,7 @@ Additional variation seed: ${Date.now()}`
           // llama-3.3-70b-versatile was retired by Groq on 2026-08-16 — every
           // exam generation was failing with a decommissioned-model error,
           // which is why "Sınav Platformu" looked broken/nonexistent.
-          model: "openai/gpt-oss-120b",
+          model,
           temperature: 0.9,
           // 22.10.2026 (canlı test): gpt-oss akıl yürütme modeli; görünmeyen
           // düşünme tokenları çıktı bütçesini yiyince yanıt boş ya da tek
@@ -4084,17 +4118,22 @@ Additional variation seed: ${Date.now()}`
           const salvaged = salvageQuestionObjects(String(groqData.error.failed_generation ?? ''))
           console.warn(`generate-exam: Groq JSON dogrulamasi dustu; ${salvaged.length} soru kurtarildi`)
           if (salvaged.length > 0) return { items: salvaged }
-          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr)
+          if (attempt < GEN_MAX_RETRIES) return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr, model)
         }
         // FAZ 2 (canlı test): eksik sorular için yapılan ikinci istek
         // dakikalık token sınırına (TPM) takılıyordu. Groq'un söylediği süre
         // kısaysa bekleyip yeniden dene (kayan dakika penceresi yüzünden bir
         // bekleme her zaman yetmiyor; en fazla GEN_MAX_RETRIES kez).
-        const waitMs = attempt < GEN_MAX_RETRIES ? groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message) : null
-        if (waitMs !== null) {
+        const waitMs = groqRetryDelayMs(groqResponse.status, groqResponse.headers.get('retry-after'), groqData?.error?.message)
+        const plan = groqFailurePlan(groqResponse.status, waitMs, model, attempt)
+        if (plan === 'fallback') {
+          console.warn(`generate-exam: Groq hiz siniri (${model}${waitMs ? `, ${Math.round(waitMs / 1000)} sn` : ''}); yedek model ${GROQ_FALLBACK_MODEL}`)
+          return requestQuestions(count, avoid, 0, forceGraph, needGraph, forceExpr, GROQ_FALLBACK_MODEL)
+        }
+        if (plan === 'wait' && waitMs !== null) {
           console.warn(`generate-exam: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
           await new Promise(r => setTimeout(r, waitMs))
-          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr)
+          return requestQuestions(count, avoid, attempt + 1, forceGraph, needGraph, forceExpr, model)
         }
         console.error("Groq generation failed: ", groqData)
         return { error: groqData?.error?.message || groqData?.error?.code || `HTTP ${groqResponse.status}` }
@@ -4103,7 +4142,7 @@ Additional variation seed: ${Date.now()}`
       const rawContent = choice?.message?.content ?? ""
       const usage = groqData.usage || {}
       if (!lastPromptTokens && Number(usage.prompt_tokens) > 0) { lastPromptTokens = Number(usage.prompt_tokens); firstUserChars = userContent.length }
-      console.log(`generate-exam: groq finish=${choice?.finish_reason} istenen=${count} prompt=${usage.prompt_tokens} cikti=${usage.completion_tokens} butce=${budget}`)
+      console.log(`generate-exam: groq${model === GROQ_PRIMARY_MODEL ? '' : ' (yedek model)'} finish=${choice?.finish_reason} istenen=${count} prompt=${usage.prompt_tokens} cikti=${usage.completion_tokens} butce=${budget}`)
       let items = parseQuestionArray(rawContent)
       // Bütçede kesilen yanıt: tamamlanmış soru nesnelerini kurtar.
       if (!items && rawContent) {
