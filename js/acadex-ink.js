@@ -2698,6 +2698,33 @@ window.axNotify = function (title, opts) {
   var hoca = get('acadex.sinav.prof', {});
   var hidden = get('acadex.sinav.hidden', []);
   var done = get('acadex.sinav.errs.done', []);
+  /* 30.10.2026: "öğrendim" listesi sunucuda da (exam_mistakes_done); çan,
+     telefon hatırlatması ve hazırlık kartı da sayar. Tarayıcıdaki eski
+     kayıtlar ("sınavId:sıra") bir kez sunucuya aktarılır. Tablo yoksa
+     (migration çalışmadıysa) yalnızca tarayıcı kaydı kullanılır. */
+  var LEARN_SRV = null;
+  var learnedList = function () { var E = ENG(); return E && typeof E.learnedKeys === 'function' ? E.learnedKeys(EX, done, LEARN_SRV || []) : []; };
+  var learnRow = function (localId) {
+    var k = String(localId).lastIndexOf(':'), e = EX.filter(function (x) { return String(x.id) === String(localId).slice(0, k); })[0];
+    var r = e && (e.question_results || [])[Number(String(localId).slice(k + 1))];
+    return r && r.question_id != null && me() ? { user_id: me().id, exam_id: e.id, question_id: Number(r.question_id) } : null;
+  };
+  var learnSave = function (localId, on) {
+    var row = learnRow(localId);
+    if (!row || !sb() || LEARN_SRV === null) return;
+    var q = on ? sb().from('exam_mistakes_done').upsert([row], { onConflict: 'user_id,exam_id,question_id', ignoreDuplicates: true })
+      : sb().from('exam_mistakes_done').delete().eq('exam_id', row.exam_id).eq('question_id', row.question_id);
+    Promise.resolve(q).then(function (x) { if (x && x.error) console.warn('acadex-ink: öğrendim kaydı', x.error.message); });
+    LEARN_SRV = on ? LEARN_SRV.concat([row]) : LEARN_SRV.filter(function (x) { return !(String(x.exam_id) === String(row.exam_id) && Number(x.question_id) === row.question_id); });
+  };
+  var learnSync = function () {
+    if (LEARN_SRV === null || !sb()) return;
+    var have = {}; LEARN_SRV.forEach(function (x) { have[x.exam_id + ':' + x.question_id] = 1; });
+    var rows = done.map(learnRow).filter(function (x) { return x && !have[x.exam_id + ':' + x.question_id]; });
+    if (!rows.length) return;
+    Promise.resolve(sb().from('exam_mistakes_done').upsert(rows, { onConflict: 'user_id,exam_id,question_id', ignoreDuplicates: true }))
+      .then(function (x) { if (x && !x.error) LEARN_SRV = LEARN_SRV.concat(rows); });
+  };
   var cardById = function (id) { return cards().filter(function (c) { return String(c.id) === String(id); })[0] || null; };
   var keyOfCard = function (c) { return c.course_tag && String(c.course_tag).trim() ? 'c:' + String(c.course_tag).trim().toUpperCase() : 's:' + c.id; };
   var keyOfExam = function (e) {
@@ -2725,10 +2752,13 @@ window.axNotify = function (title, opts) {
     if (loading) return loading;
     loading = Promise.all([
       sb().from('exams').select('*, study_cards(course_tag, documents(file_name))').eq('user_id', me().id).not('completed_at', 'is', null).order('completed_at', { ascending: true }).limit(300),
-      sb().from('study_events').select('*').eq('user_id', me().id).eq('event_type', 'exam').order('event_date', { ascending: true })
+      sb().from('study_events').select('*').eq('user_id', me().id).eq('event_type', 'exam').order('event_date', { ascending: true }),
+      Promise.resolve(sb().from('exam_mistakes_done').select('exam_id, question_id')).then(function (x) { return x; }, function () { return { error: true }; })
     ]).then(function (r) {
+      LEARN_SRV = r[2] && !r[2].error && Array.isArray(r[2].data) ? r[2].data : null;
       if (r[0].error) console.warn('acadex-ink: sınavlar yüklenemedi', r[0].error); else { EX = (r[0].data || []).filter(function (e) { return e.completed_at; }); PEER = null; }
       if (r[1].error) console.warn('acadex-ink: takvim yüklenemedi', r[1].error); else EV = r[1].data || [];
+      learnSync();
     }).catch(function (e) { console.warn(e); }).then(function () { loading = null; paintAll(); });
     return loading;
   };
@@ -3914,7 +3944,8 @@ window.axNotify = function (title, opts) {
   var RETRY_SETS = {}, retryBusy = false;
   var paintErrs = function () {
     var groups = {}, total = 0, E = ENG();
-    var MS = E && typeof E.mistakeStates === 'function' ? E.mistakeStates(EX) : {};
+    var LRN = {}; learnedList().forEach(function (k) { LRN[k] = 1; });
+    var MS = E && typeof E.mistakeStates === 'function' ? E.mistakeStates(EX, { done: Object.keys(LRN) }) : {};
     RETRY_SETS = {};
     EX.slice().reverse().forEach(function (e) {
       var k = keyOfExam(e), isRetry = !!(e.scoring && Array.isArray(e.scoring.retry));
@@ -3923,7 +3954,7 @@ window.axNotify = function (title, opts) {
         if (r.concept) { (g.con[r.concept] = g.con[r.concept] || { t: 0, n: 0 }); g.con[r.concept].t += +r.score || 0; g.con[r.concept].n++; }
         if (isRetry) return;
         var id = e.id + ':' + i, st = MS[e.id + ':' + r.question_id] || null;
-        if ((+r.score || 0) >= 50 || done.indexOf(id) >= 0) return;
+        if ((+r.score || 0) >= 50 || done.indexOf(id) >= 0 || LRN[e.id + ':' + r.question_id]) return;
         if (st && st.won) { g.won++; return; }
         g.items.push({ id: id, r: r, st: st }); total++;
         if (st && st.dueNow && RETRY_OK[r.type] && g.due.length < 10) g.due.push({ examId: e.id, questionId: r.question_id });
@@ -3968,7 +3999,7 @@ window.axNotify = function (title, opts) {
   errsEl.addEventListener('click', function (e) {
     var s2 = e.target.closest('[data-second]'); if (s2) { startSecond(s2.getAttribute('data-second'), s2); return; }
     var d = e.target.closest('[data-done]');
-    if (d) { var id = d.getAttribute('data-done'); done.push(id); put('acadex.sinav.errs.done', done); paintErrs(); say('Defterden silindi.', function () { done = done.filter(function (x) { return x !== id; }); put('acadex.sinav.errs.done', done); paintErrs(); }); return; }
+    if (d) { var id = d.getAttribute('data-done'); done.push(id); put('acadex.sinav.errs.done', done); learnSave(id, true); paintErrs(); say('Defterden silindi.', function () { done = done.filter(function (x) { return x !== id; }); put('acadex.sinav.errs.done', done); learnSave(id, false); paintErrs(); }); return; }
     var p = e.target.closest('[data-practice]'); if (p) { practice(p.getAttribute('data-practice'), p.getAttribute('data-concept')); return; }
     var r = e.target.closest('[data-retry]'); if (r) openBuild(r.getAttribute('data-retry'));
   });
@@ -4033,7 +4064,7 @@ window.axNotify = function (title, opts) {
     var E = ENG();
     var ev = E && typeof E.examReadiness === 'function' ? EV.filter(function (e) { var n = e.event_date ? dayDiff(e.event_date) : -1; return n >= 0 && n <= 30 && deskForEvent(e); })[0] : null;
     if (!ev) { rdyEl.hidden = true; rdyEl.innerHTML = ''; return; }
-    var d = deskForEvent(ev), n = dayDiff(ev.event_date), R = E.examReadiness(d.ex, EX, n);
+    var d = deskForEvent(ev), n = dayDiff(ev.event_date), R = E.examReadiness(d.ex, EX, n, { done: learnedList() });
     var btn = function (t) {
       if (t.kind === 'second') return '<button type="button" class="btn btn-dark" data-rdy-go="second" data-k="' + esc(d.key) + '">ikinci şans · ' + t.count + ' soru</button>';
       if (t.kind === 'adaptive') return '<button type="button" class="sn-ghost" data-rdy-go="adaptive" data-k="' + esc(d.key) + '">akıllı deneme</button>';

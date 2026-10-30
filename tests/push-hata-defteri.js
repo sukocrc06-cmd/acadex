@@ -26,6 +26,7 @@ const { test, summary } = makeRunner();
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const MIG = 'supabase/migrations/20261030_push_hata_defteri.sql';
+const MIG_DONE = 'supabase/migrations/20261030c_hata_defteri_ogrendim.sql';
 const sql = read(MIG);
 const E = require(path.join(ROOT, 'js', 'exam-engine.js'));
 
@@ -39,12 +40,31 @@ test('kaynak: push_daily 20261029 sürümünün aynısı + hata defteri dalı; y
   assert.match(read('js/admin-app.js'), /mistakes: 'Hata defteri'/, 'yönetim paneli türü tanır');
 });
 
+test('"öğrendim" (30.10.2026): takvim, eski tarayıcı kaydı, hazırlık, çan ve salon kancaları', () => {
+  const ex = [{ id: 'e1', completed_at: '2026-10-20T10:00:00Z', question_results: [{ question_id: 5, score: 0 }, { question_id: 9, score: 20 }, { question_id: 2, score: 100 }] }];
+  assert.deepEqual(Object.keys(E.mistakeStates(ex)).sort(), ['e1:5', 'e1:9']);
+  assert.deepEqual(Object.keys(E.mistakeStates(ex, { done: ['e1:9'] })), ['e1:5']);
+  // eski kayıt sıra numarasıyla: "e1:1" → 2. sonuç → soru 9
+  assert.deepEqual(E.learnedKeys(ex, ['e1:1', 'yok:0', 'bozuk'], [{ exam_id: 'e2', question_id: 3 }]).sort(), ['e1:9', 'e2:3']);
+  const R = E.examReadiness(ex, ex, 5, { done: ['e1:5', 'e1:9'], now: Date.parse('2026-10-25T10:00:00Z') });
+  assert.equal(R.mistakes, 0, 'hazırlık kartı öğrenilenleri açık yanlış saymaz');
+  const dash = read('js/dashboard.js'), ink = read('js/acadex-ink.js'), mig = read(MIG_DONE);
+  assert.match(dash, /E\.mistakeReminder\(E\.mistakeStates\(exs, \{ done: learned \}\)/);
+  assert.match(ink, /learnSave\(id, true\)/);
+  assert.match(ink, /learnSave\(id, false\)/);
+  assert.match(ink, /E\.examReadiness\(d\.ex, EX, n, \{ done: learnedList\(\) \}\)/);
+  assert.match(mig, /with check \(user_id = auth\.uid\(\) and exists \(select 1 from public\.exams e where e\.id = exam_id and e\.user_id = auth\.uid\(\)\)\)/);
+  // exam_mistakes_due: önceki sürümün aynısı + öğrendim koşulu
+  const fn = (t) => t.slice(t.indexOf('create or replace function public.exam_mistakes_due'), t.indexOf('$$;', t.indexOf('create or replace function public.exam_mistakes_due')));
+  assert.equal(fn(mig).replace(/\n\s+and not exists \(select 1 from public\.exam_mistakes_done d\n[^\n]*\)/, ''), fn(sql));
+});
+
 // ---------------------------------------------------------------------------
 // Senaryo: JS ile aynı sınavlar
 // ---------------------------------------------------------------------------
 const D = 86400000, T0 = Date.parse('2026-10-20T09:00:00Z');
 const at = (d) => new Date(T0 + d * D).toISOString();
-const UID = 'aaaaaaaa-0000-0000-0000-000000000001';
+const UID = 'aaaaaaaa-0000-0000-0000-000000000001', OTHER = 'bbbbbbbb-0000-0000-0000-000000000002';
 const uuid = (n) => '00000000-0000-0000-0000-' + String(n).padStart(12, '0');
 const src = (n, day, scores, extra) => Object.assign({ id: uuid(n), completed_at: at(day), scoring: { option_count: 4 },
   question_results: scores.map((s, i) => ({ question_id: i + 1, type: 'multiple_choice', score: s })) }, extra || {});
@@ -86,7 +106,7 @@ test('davranış (gerçek Postgres): SQL takvimi JS ile aynı; push_daily günde
   const run = (s) => execSync(P + ' -d ax_mist', { input: s, stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
   execSync(P + ' -d postgres -c "drop database if exists ax_mist" -c "create database ax_mist"', { stdio: 'pipe' });
   try {
-    for (const f of ['tests/sql/web-push-stub.sql', 'supabase/migrations/20261028_canli_destek.sql', 'supabase/migrations/20261029_web_push.sql', MIG, MIG]) execSync(P + ' -d ax_mist -f ' + q(f), { stdio: 'pipe' });
+    for (const f of ['tests/sql/web-push-stub.sql', 'supabase/migrations/20261028_canli_destek.sql', 'supabase/migrations/20261029_web_push.sql', MIG, MIG, MIG_DONE, MIG_DONE]) execSync(P + ' -d ax_mist -f ' + q(f), { stdio: 'pipe' });
     run(`insert into auth.users values ('${UID}'); insert into profiles (id, full_name) values ('${UID}', 'Ayşe');`);
     // Her "şimdi" anında yalnızca o ana kadar biten sınavlar (JS ile aynı).
     for (const d of NOWS) {
@@ -120,7 +140,22 @@ update profiles set last_active_date = (now() at time zone 'Europe/Istanbul')::d
     // 6) study kapalı → hiçbiri
     run(`update profiles set last_active_date = (now() at time zone 'Europe/Istanbul')::date, notification_prefs = notification_prefs || '{"study":false}' where id = '${UID}';`);
     assert.equal(daily(), '');
-    // 7) yetki: istemci çağıramaz
+    // 7) "öğrendim": 2 yanlıştan biri işaretlenince bildirim 1 der; öğrenci yalnızca kendi sınavını işaretler
+    run(`update profiles set notification_prefs = jsonb_build_object('study_hour', extract(hour from now() at time zone 'Europe/Istanbul')::int) where id = '${UID}';
+insert into auth.users values ('${OTHER}');
+insert into public.exams (id, user_id, completed_at, scoring, question_results) values ('${uuid(77)}', '${OTHER}', now() - interval '30 hours', '{}', '[{"question_id":1,"score":0}]');
+grant select on public.exams to authenticated;`);
+    const myExam = run(`select id from public.exams where user_id = '${UID}' limit 1;`);
+    run(`set test.uid = '${UID}'; set role authenticated; insert into public.exam_mistakes_done (exam_id, question_id) values ('${myExam}', 2);`);
+    assert.equal(daily(), 'mistakes|Hata defterinde 1 yanlış tekrar zamanında');
+    assert.throws(() => run(`set test.uid = '${UID}'; set role authenticated; insert into public.exam_mistakes_done (exam_id, question_id) values ('${uuid(77)}', 1);`), /row-level security/, 'başkasının sınavı');
+    run(`insert into public.exam_mistakes_done (user_id, exam_id, question_id) values ('${OTHER}', '${uuid(77)}', 1);`);
+    assert.equal(run(`set test.uid = '${UID}'; set role authenticated; select count(*) from public.exam_mistakes_done;`), '1', 'yalnızca kendi satırları');
+    assert.throws(() => run(`set role anon; select * from public.exam_mistakes_done;`), /permission denied/);
+    // ikisi de öğrenildi → bildirim yok
+    run(`set test.uid = '${UID}'; set role authenticated; insert into public.exam_mistakes_done (exam_id, question_id) values ('${myExam}', 1);`);
+    assert.equal(daily(), '');
+    // 8) yetki: istemci çağıramaz
     assert.throws(() => run(`set role authenticated; select * from public.exam_mistakes_due('${UID}');`), /permission denied/);
   } finally {
     execSync(P + ' -d postgres -c "drop database if exists ax_mist"', { stdio: 'pipe' });

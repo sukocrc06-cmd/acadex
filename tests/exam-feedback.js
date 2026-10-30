@@ -102,6 +102,9 @@ test('Groq dakika sınırı: kısa beklemede beklenir, uzunsa yedek model (canl�
   assert.match(gen, /return requestQuestions\(count, avoid, 0, forceGraph, needGraph, forceExpr, GROQ_FALLBACK_MODEL\)/);
   assert.match(gen, /for \(const model of \[GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL\]\)[\s\S]{0,1800}if \(res\.status === 429\) continue/, 'ikinci şans da yedeğe geçer');
   assert.match(grade, /return gradeBatch\(batch, 0, GROQ_FALLBACK_MODEL\)/, 'açık uçlu puanlama da yedeğe geçer');
+  const appeal = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/exam-appeal/index.ts'), 'utf8');
+  assert.match(appeal, /return callGroq\(apiKey, system, user, \{ \.\.\.opts, model: APPEAL_FALLBACK_MODEL \}, 0\)/, 'itiraz da yedeğe geçer');
+  assert.match(appeal, /model: used\.model \}/, 'kayıtta gerçekten kullanılan model');
 });
 
 test('groqRetryDelayMs: Groq mesaji ve retry-after basligi okunur; uzun bekleme ya da baska hata null', () => {
