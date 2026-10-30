@@ -133,6 +133,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ANLATI_MATEMATIK_ADACIK_RE', 'anlatiLatexYumusat', 'onarAnlatiLatex',
   // Ayiracsiz LaTeX anlati disina da siziyordu (29.10.2026 olcumu).
   'YUM_SEMBOL', 'YUM_FONKSIYON', 'UST_RAKAM', 'ALT_RAKAM', 'YUM_DUZ_YAZI_ALANLARI',
+  // Alan adi elle sayilmak yerine agac ozyinelemeli geziliyor (30.10.2026).
+  'YUM_DOKUNULMAZ', 'yumusatAgac',
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
   // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
@@ -1360,6 +1362,37 @@ test('zaten tirnakli etiket iki kez tirnaklanmaz', () => {
   const r = A.repairMermaidLabels(already);
   assert.equal(r.repaired, 0);
   assert.equal(r.mermaid, already);
+});
+
+/* PARANTEZ TEK SORUN DEGILDI (30.10.2026 olcumu). Mermaid etiketi tirnaksiz
+   iken ':' ',' ';' '{' '}' '#' '&' ''' ve '\' de ayristiriciyi dusuruyor.
+   Olculen "Derivative Rules" diyagraminda dort etiket birden bozuktu. */
+test('tirnaksiz etikette BUTUN kirici karakterler yakalanir', () => {
+  const olculen = `flowchart TD
+A[Derivative Rules] --> B[Power Rule: d/dx x^n]
+A --> C[Product Rule u'v + uv']
+A --> D[Chain Rule, outer & inner]
+A --> E[Set {x : x > 0}]
+A --> F[Plain Label]`;
+  const r = A.repairMermaidLabels(olculen);
+  assert.equal(r.repaired, 4, 'dort etiket de onarilmali: ' + r.mermaid);
+  assert.match(r.mermaid, /B\["Power Rule: d\/dx x\^n"\]/);
+  assert.match(r.mermaid, /C\["Product Rule u'v \+ uv'"\]/);
+  assert.match(r.mermaid, /D\["Chain Rule, outer & inner"\]/);
+  assert.match(r.mermaid, /E\["Set \{x : x > 0\}"\]/);
+  // Kirici karakteri olmayan etiket tirnaklanmaz.
+  assert.match(r.mermaid, /F\[Plain Label\]/);
+  assert.match(r.mermaid, /A\[Derivative Rules\]/);
+  // Onarilmis kaynak gecerli sayilmali.
+  assert.ok(A.validateMermaid(olculen).ok);
+});
+
+test('SAGLAM diyagram etiket onarimindan etkilenmez', () => {
+  const saglam = `flowchart LR
+S[Start] --> M[Middle Step] --> E[End]`;
+  const r = A.repairMermaidLabels(saglam);
+  assert.equal(r.repaired, 0);
+  assert.equal(r.mermaid, saglam);
 });
 
 test('ok ve etiket onarimi ayni diyagramda birlikte calisir', () => {
@@ -4820,23 +4853,85 @@ test('IC ICE SUSLU frac: olculen hata (Week 9 kartı)', () => {
 
 test('ANLATI DISI ALANLAR gercekten baglanmis', () => {
   /* Yumusatma yalnizca summary'de kalirsa madde ve sorular ham kalir —
-     olculen hata tam buydu. */
-  for (const alan of [
-    'parsedContent.key_points = yumDizi(parsedContent.key_points)',
-    'q.question = yum(q.question)',
-    'sec.summary = yum(sec.summary)',
-    'kt.definition = yum(kt.definition)',
-    'w.final_answer = yum(w.final_answer)'
-  ]) assert.ok(SRC.includes(alan), 'baglanmamis: ' + alan);
+     olculen hata tam buydu.
+
+     30.10.2026: ilk hali alan adlarini ELLE sayiyordu (yumDizi, q.question,
+     sec.summary, kt.definition, w.final_answer). O liste eksik kaldi —
+     worked_example.problem_statement hic yumusatilmadi — ve yeni alan
+     eklendikce sessizce eksik kalmaya devam edecekti. Artik agac
+     ozyinelemeli geziliyor, bu yuzden iddia "su alanlar var" degil
+     "hicbir alan elle sayilmiyor". Alan kapsamasi asagidaki
+     'yumusatAgac OZYINELEMELI' testinde gercek veriyle olculuyor. */
+  const gezinti = /for \(const alan of Object\.keys\(parsedContent\)\)[\s\S]{0,400}?yumusatAgac\(parsedContent\[alan\], yum, alan\)/;
+  assert.match(SRC, gezinti, 'ozyinelemeli gezinti boru hattinda degil');
+  // Anlati alanlari bu dongude ATLANIYOR, cunku yukarida ters bolu
+  // onarimiyla birlikte islendiler; iki kez yumusatmak sayaci sisirirdi.
+  assert.ok(SRC.includes('if (YUM_DUZ_YAZI_ALANLARI.indexOf(alan as any) !== -1) continue'),
+    'anlati alanlari iki kez yumusatiliyor');
 });
 
 test('FORMUL ve MERMAID kaynagina DOKUNULMUYOR', () => {
   /* formulas[].latex gercek LaTeX (KaTeX dizecek), diagrams[].mermaid ise
-     LaTeX bile degil. Ikisini yumusatmak calisan tek seyi bozardi. */
-  const blok = SRC.slice(SRC.indexOf('const yumDizi = (a: any)'),
-                         SRC.indexOf('Ayiracsiz LaTeX duz yaziya cevrildi'));
-  assert.ok(!/formulas/.test(blok), 'formulas[].latex yumusatilmis');
-  assert.ok(!/mermaid/.test(blok), 'diagrams[].mermaid yumusatilmis');
+     LaTeX bile degil. Ikisini yumusatmak calisan tek seyi bozardi.
+
+     30.10.2026: eski hali 'const yumDizi' ile baslayan blogu dilimleyip
+     icinde 'formulas' arıyordu. Elle alan listesi kalkinca o capa kayboldu
+     ve dilim BOS dondu — test kendiliginden geciyordu. Korunma artik
+     calisan koda bagli: YUM_DOKUNULMAZ kumesi. */
+  const i = SRC.indexOf("const YUM_DOKUNULMAZ = new Set(['latex', 'mermaid', 'footnotes'])");
+  assert.ok(i > 0, 'YUM_DOKUNULMAZ kumesi kaynakta yok');
+  // Kume gercekten kapiyi kapatiyor olmali (vakum geciste bir daha dusmesin).
+  assert.ok(SRC.includes('if (anahtar !== undefined && YUM_DOKUNULMAZ.has(anahtar)) return deger'),
+    'dokunulmaz kontrolu yumusatAgac icinde degil');
+  assert.deepEqual([...A.YUM_DOKUNULMAZ].sort(), ['footnotes', 'latex', 'mermaid']);
+});
+
+/* ALAN ADI ELLE SAYILMIYOR (30.10.2026 olcumu). Yukaridaki liste eksikti:
+   worked_example.problem_statement hic yumusatilmiyordu ve kartta
+   "Find the maximum profit for the model \\mathbf{P(x) = -x^2 + 10x + 5}"
+   yaziyordu. Cozum alan adi eklemek degil — agaci ozyinelemeli gezmek. */
+test('yumusatAgac OZYINELEMELI: atlanan alan kalmaz', () => {
+  const yum = (t) => (typeof t === 'string' ? A.onarAnlatiLatex(t).metin : t);
+  const agac = {
+    worked_examples: [{
+      problem_statement: 'Find the maximum profit for the model \\mathbf{P(x) = -x^2 + 10x + 5}.',
+      steps: ['Set \\frac{dP}{dx} = 0'],
+      derin: { daha_derin: ['x \\to \\infty'] }
+    }]
+  };
+  const r = A.yumusatAgac(agac, yum);
+  const w = r.worked_examples[0];
+  assert.ok(!/\\mathbf/.test(w.problem_statement), 'problem_statement atlanmis: ' + w.problem_statement);
+  assert.ok(/P\(x\) = -x² \+ 10x \+ 5/.test(w.problem_statement), w.problem_statement);
+  assert.ok(!/\\frac/.test(w.steps[0]), 'dizi icindeki metin atlanmis');
+  assert.ok(r.worked_examples[0].derin.daha_derin[0].includes(String.fromCharCode(0x221E)),
+    'ic ice nesne atlanmis');
+});
+
+test('yumusatAgac DOKUNULMAZ anahtarlari gecer', () => {
+  const yum = () => 'BOZULDU';
+  const agac = {
+    formulas: [{ name: 'Power rule', latex: '\\frac{d}{dx}(x^n) = nx^{n-1}' }],
+    diagrams: [{ mermaid: 'flowchart TD\n A --> B' }],
+    sections: [{ summary: 'f(x) = x^2', footnotes: ['p. 12'] }]
+  };
+  const r = A.yumusatAgac(agac, yum);
+  assert.equal(r.formulas[0].latex, '\\frac{d}{dx}(x^n) = nx^{n-1}', 'latex yumusatilmis');
+  assert.equal(r.diagrams[0].mermaid, 'flowchart TD\n A --> B', 'mermaid yumusatilmis');
+  assert.deepEqual(r.sections[0].footnotes, ['p. 12'], 'footnotes yumusatilmis');
+  // Dokunulmaz OLMAYAN alan gercekten geziliyor olmali.
+  assert.equal(r.sections[0].summary, 'BOZULDU', 'duz yazi alani atlanmis');
+  // Ad listesi kodla ayni kalmali.
+  assert.deepEqual([...A.YUM_DOKUNULMAZ].sort(), ['footnotes', 'latex', 'mermaid']);
+});
+
+test('ANLATI DISI DONGU alan adi ELLE saymiyor', () => {
+  /* Eski hali YUM_DIGER_ALANLARI gibi sabit bir listeydi; her yeni alan
+     sessizce ham kaliyordu. Donguyu Object.keys uzerinde tut. */
+  assert.ok(/for \(const alan of Object\.keys\(parsedContent\)\)/.test(SRC),
+    'alan listesi hala elle sayiliyor');
+  assert.ok(/parsedContent\[alan\] = yumusatAgac\(parsedContent\[alan\], yum, alan\)/.test(SRC),
+    'ozyinelemeli yumusatma boru hattina baglanmamis');
 });
 
 console.log('\nMERMAID KACISLARI VE KESME ISARETI\n');
@@ -6337,6 +6432,44 @@ test('cift kacisli komut onariliyor, gercek satir sonu korunuyor', () => {
   ]);
   assert.equal(r.formulas[0].latex, 'y=\\beta_0+\\sum_{j=1}^k\\beta_jx_j + \\cdots');
   assert.equal(r.formulas[1].latex, 'a = b \\\\ c = d');
+});
+
+/* AYNI AD IKI NOTASYON (30.10.2026, "Week 8 Derivative" kosusu). formulaKey
+   LATEX'i karsilastiriyor; ayni kural iki ayri notasyonla yazilinca iki ayri
+   anahtar cikti ve kart 14 formulun dordunu tekrar gosterdi. */
+test('ayni ADLA iki notasyon tek formule iner', () => {
+  const r = A.sanitizeFormulas([
+    { name: 'Product Rule', latex: "\\frac{d}{dx}(u(x)v(x)) = u'v + uv'" },
+    { name: 'Quotient Rule', latex: "\\frac{d}{dx}\\left(\\frac{u}{v}\\right) = \\frac{u'v - uv'}{v^2}" },
+    { name: 'Product  rule', latex: "(uv)' = u'v + uv'" },
+    { name: 'Chain Rule', latex: "\\frac{d}{dx}(F(g(x))) = F'(g(x))g'(x)" },
+    { name: 'Quotient-Rule', latex: "\\left(\\frac{u}{v}\\right)' = \\frac{u'v - uv'}{v^2}" }
+  ]);
+  assert.equal(r.formulas.length, 3, JSON.stringify(r.formulas.map(f => f.name)));
+  assert.equal(r.duplicates, 2);
+  // Ilk gelen kalir (kaynak siralamasi korunur).
+  assert.deepEqual(r.formulas.map(f => f.name), ['Product Rule', 'Quotient Rule', 'Chain Rule']);
+});
+
+test('ad karsilastirmasi bosluk/noktalama/BUYUK-kucuk DISI', () => {
+  const r = A.sanitizeFormulas([
+    { name: 'Power rule', latex: 'y = x^n' },
+    { name: 'POWER_RULE', latex: 'f(x) = x^{n}' },
+    { name: 'Power  Rule:', latex: 'g(t) = t^n' }
+  ]);
+  assert.equal(r.formulas.length, 1, JSON.stringify(r.formulas.map(f => f.name)));
+  assert.equal(r.duplicates, 2);
+});
+
+test('ISIMSIZ formuller ad yuzunden birlestirilmez', () => {
+  // adKey bos kalinca kapi ACILMAZ; yoksa butun isimsizler tek formule inerdi.
+  const r = A.sanitizeFormulas([
+    { latex: 'y = mx + b' },
+    { latex: 'E = mc^2' },
+    { name: '', latex: 'a^2 + b^2 = c^2' }
+  ]);
+  assert.equal(r.formulas.length, 3, JSON.stringify(r.formulas));
+  assert.equal(r.duplicates, 0);
 });
 
 

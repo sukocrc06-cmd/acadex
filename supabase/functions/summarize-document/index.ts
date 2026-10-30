@@ -521,6 +521,35 @@ const YUM_DUZ_YAZI_ALANLARI = [
   'summary', 'summary_executive'
 ] as const
 
+/* ALAN ADI TAHMIN ETMEK KIRILGAN (30.10.2026 olcumu).
+ *
+ * Ilk surum alanlari ELLE sayiyordu: title, prompt, question, final_answer,
+ * steps. "Week 8 Derivative" kosusunda cozumlu orneklerin metni baska bir
+ * alanda geldi ve ham LaTeX ekrana cikti:
+ *   problem_statement: "Find the maximum profit for the model
+ *                       \\mathbf{P(x) = -x^2 + 10x + 5}."
+ * Log 38 alan yumusattigini yaziyordu; o alan listede olmadigi icin
+ * atlanmisti. Modelin alan adini bir daha degistirmesi an meselesi.
+ *
+ * Artik agac OZYINELEMELI geziliyor: her dize yumusatiliyor, listeye
+ * guvenilmiyor. Yalnizca DOKUNULMAZ anahtarlar atlaniyor:
+ *   latex      -> gercek LaTeX, KaTeX onu dizecek
+ *   mermaid    -> mermaid kaynagi, LaTeX bile degil
+ *   footnotes  -> kaynaktan BIREBIR alinti; yumusatmak alintiyi bozar
+ * Ucune dokunmak calisan tek seyleri bozardi. */
+const YUM_DOKUNULMAZ = new Set(['latex', 'mermaid', 'footnotes'])
+
+function yumusatAgac(deger: any, yum: (s: string) => string, anahtar?: string): any {
+  if (anahtar !== undefined && YUM_DOKUNULMAZ.has(anahtar)) return deger
+  if (typeof deger === 'string') return yum(deger)
+  if (Array.isArray(deger)) return deger.map((x: any) => yumusatAgac(x, yum, anahtar))
+  if (deger && typeof deger === 'object') {
+    for (const k of Object.keys(deger)) deger[k] = yumusatAgac(deger[k], yum, k)
+    return deger
+  }
+  return deger
+}
+
 function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } {
   const s = String(metin || '')
   // Erken cikis anlatiLatexYumusat'takiyle AYNI olmali, yoksa ic fonksiyon
@@ -4821,6 +4850,15 @@ function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ 
   const out: any[] = []
   const dropped: Array<{ name: string; reason: string }> = []
   const seen = new Set<string>()
+  /* AYNI AD IKI KEZ (30.10.2026 olcumu). formulaKey LATEX'i
+     karsilastiriyor; ayni kural iki ayri notasyonla yazilinca iki ayri
+     anahtar cikiyor ve kart ayni formulu iki kez gosteriyor. "Week 8
+     Derivative" kosusunda 14 formulden dordu kopyaydi:
+       Product Rule   : \frac{d}{dx}(u(x)v(x))=u'v+uv'   ve   (uv)'=u'v+uv'
+       Quotient Rule  : \frac{d}{dx}(\frac{u}{v})=...    ve   (u/v)'=...
+     Ad eslesmesi bunu yakaliyor: ayni derste ayni adla iki AYRI kural
+     olmasi beklenmez, ama ayni kuralin iki notasyonu siktir. */
+  const seenName = new Set<string>()
   let repaired = 0
   let duplicates = 0
   for (const f of list) {
@@ -4839,7 +4877,10 @@ function sanitizeFormulas(formulas: any[]): { formulas: any[]; dropped: Array<{ 
     }
     const key = formulaKey(v.latex)
     if (key && seen.has(key)) { duplicates++; continue }
+    const adKey = trNormalize(String(f?.name || '')).replace(/[^a-z0-9]+/g, '')
+    if (adKey && seenName.has(adKey)) { duplicates++; continue }
     if (key) seen.add(key)
+    if (adKey) seenName.add(adKey)
     if (v.latex !== original.trim()) repaired++
     out.push({ ...f, latex: v.latex })
   }
@@ -4916,7 +4957,20 @@ function repairMermaidArrows(src: string): { mermaid: string; repaired: number }
 // quote or bracket of its own. The lookahead skips `[[subroutine]]` and
 // `[(database)]`, whose second character is part of the SHAPE rather than the
 // label, and which quoting would corrupt.
-const MERMAID_UNQUOTED_PAREN_LABEL = /(^|[\s>|-])([A-Za-z_][\w-]*)\[(?!\[|\()([^\[\]"]*[()][^\[\]"]*)\]/g
+/* TIRNAKSIZ ETIKET YALNIZCA PARANTEZDE DEGIL (30.10.2026 olcumu).
+ *
+ * Desen yalnizca ( ya da ) tasiyan etiketi tirnakliyordu. "Week 8
+ * Derivative" kosusunda ilk diyagram EKRANA HIC cizilmedi ve numaralandirma
+ * "DIYAGRAM 2"de kaldi; saklanan kaynak:
+ *   A --> C[Product: u'v + uv']
+ *   A --> D[Quotient: \frac{u'v - uv'}{v^2}]
+ * Ikisinde de parantez YOK; kesme isareti, suslu parantez ve iki nokta var
+ * ve mermaid bunlari tirnaksiz ayristiramiyor. Dogrulayici "2 kept" dedi
+ * cunku bizim kontrolumuz gecti — ama tarayici cizemedi.
+ *
+ * Tetikleyici kume genisletildi. Tirnak ZATEN dislanmis durumda
+ * ([^\[\]"]*), yani elle tirnaklanmis etiket iki kez sarilmiyor. */
+const MERMAID_UNQUOTED_PAREN_LABEL = /(^|[\s>|-])([A-Za-z_][\w-]*)\[(?!\[|\()([^\[\]"]*['(){}:;,#&\\][^\[\]"]*)\]/g
 
 function repairMermaidLabels(src: string): { mermaid: string; repaired: number } {
   let repaired = 0
@@ -14074,46 +14128,20 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         }
       }
 
-      /* --- Ayni yumusatma ANLATI DISI duz yazi alanlarina da — bkz.
-         YUM_DUZ_YAZI_ALANLARI yanindaki olcum notu. formulas[].latex ve
-         diagrams[].mermaid BILEREK disarida. */
+      /* --- Ayni yumusatma ANLATI DISI butun duz yazi alanlarina — bkz.
+         yumusatAgac yanindaki olcum notu. Alan adi ELLE sayilmiyor: agac
+         ozyinelemeli geziliyor, yalnizca latex/mermaid/footnotes atlaniyor. */
       {
         let sayac = 0
-        const yum = (t: any): any => {
-          if (typeof t !== 'string' || t.indexOf('\\') === -1) return t
+        const yum = (t: string): string => {
+          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t))) return t
           const r = onarAnlatiLatex(t)
           if (r.yumusatilan > 0) sayac++
           return r.metin
         }
-        const yumDizi = (a: any) => Array.isArray(a) ? a.map(yum) : a
-        parsedContent.key_points = yumDizi(parsedContent.key_points)
-        for (const q of (Array.isArray(parsedContent.quiz_questions) ? parsedContent.quiz_questions : [])) {
-          if (!q || typeof q !== 'object') continue
-          q.question = yum(q.question)
-          q.answer = yum(q.answer)
-          q.options = yumDizi(q.options)
-        }
-        for (const sec of (Array.isArray(parsedContent.sections) ? parsedContent.sections : [])) {
-          if (!sec || typeof sec !== 'object') continue
-          sec.heading = yum(sec.heading)
-          sec.summary = yum(sec.summary)
-          sec.key_points = yumDizi(sec.key_points)
-        }
-        for (const kt of (Array.isArray(parsedContent.key_terms) ? parsedContent.key_terms : [])) {
-          if (!kt || typeof kt !== 'object') continue
-          kt.definition = yum(kt.definition)
-        }
-        for (const w of (Array.isArray(parsedContent.worked_examples) ? parsedContent.worked_examples : [])) {
-          if (!w || typeof w !== 'object') continue
-          w.title = yum(w.title)
-          w.prompt = yum(w.prompt)
-          w.question = yum(w.question)
-          w.final_answer = yum(w.final_answer)
-          w.steps = Array.isArray(w.steps)
-            ? w.steps.map((st: any) => (st && typeof st === 'object')
-              ? { ...st, text: yum(st.text), explanation: yum(st.explanation) }
-              : yum(st))
-            : w.steps
+        for (const alan of Object.keys(parsedContent)) {
+          if (YUM_DUZ_YAZI_ALANLARI.indexOf(alan as any) !== -1) continue  // yukarida islendi
+          parsedContent[alan] = yumusatAgac(parsedContent[alan], yum, alan)
         }
         if (sayac > 0) {
           console.log(`Ayiracsiz LaTeX duz yaziya cevrildi: ${sayac} alan (anlati disi)`)
@@ -14141,6 +14169,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         lang
       )
       parsedContent.key_points = anchored.key_points
+
       /* --- Bos kabuklar ayikliniyor — bkz. bosKabuklariAyikla. Kesik JSON
          kurtarmasi terim/soru/bolum nesnelerini yarida kapatabiliyor. */
       {
