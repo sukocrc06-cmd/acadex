@@ -5240,6 +5240,20 @@ const DERS_KODU_RE = /\b[A-Za-z]{2,}\d{1,4}\b/g
  * silinirdi. Bu yuzden uc sart birden: harfler TAMAMI BUYUK (ders kodlari
  * oyle yazilir, "about" degil), 3-5 harf (iki harfli "TL" disarida),
  * 2-4 rakam. Para/olcu kisaltmalari ayrica muaf: "USD 250" bir tutardir. */
+/* SLAYT ALTBILGISI: "planned.13-38" (30.10.2026 olcumu).
+ *
+ * Slayt destelerinin altbilgisi bolum-slayt numarasi tasiyor (13-38, 7-28)
+ * ve PDF cikariminda cumlenin sonuna YAPISIYOR:
+ *   "...to ensure that it operates as planned.13-38 --- SAYFA 39 ---"
+ * Jeton ".13" olarak okunuyor ve 0,13 diye OLCULEN bir deger sayiliyor.
+ * Bu belgede metrigin buldugu TEK sayi buydu (0/1, %0); payda 4'un altinda
+ * oldugu icin rozet yayinlanmadi, yani ogrenci gormedi — ama olcu yalan.
+ * Ayni kalip ekonometri destesinde de vardi: 7-13, 7-28, 7-38, 7-41.
+ *
+ * Kural DAR: kucuk harf + nokta + N-NN. "12-25 miles wide" gercek bir
+ * aralik ve oyle kalmali — onunde harf+nokta yok, onunde bosluk var. */
+const SLAYT_ALTBILGI_RE = /[a-zçğıöşü]\.(\d{1,2}-\d{1,3})(?![\d-])/g
+
 const KOD_DISI = new Set(['USD', 'EUR', 'TRY', 'GBP', 'CHF', 'JPY', 'KWH', 'RPM', 'BMI'])
 const DERS_KODU_BOSLUKLU_RE = /\b([A-Z]{3,5})\s(\d{2,4})\b/g
 
@@ -5282,6 +5296,9 @@ function distinctiveNumbers(text: string): number[] {
     .replace(ATIF_ETIKETI_RE, ' ')
     .replace(DERS_KODU_RE, ' ')
     .replace(DERS_KODU_BOSLUKLU_RE, (tam: string, kod: string) => KOD_DISI.has(String(kod)) ? tam : ' ')
+    /* Yalnizca NUMARA atiliyor, cumlenin son harfi ve noktasi kaliyor:
+       "planned.13-38" -> "planned." */
+    .replace(SLAYT_ALTBILGI_RE, (tam: string) => tam.slice(0, 2))
     .replace(SAYFA_ISARETI_RE, ' ')
   const out: number[] = []
   const gorulen = new Set<number>()
@@ -12328,7 +12345,7 @@ groups: sort the numbered sections S1..Sn into 3-6 topic groups, every number ex
           if (visualImages.length > 0) {
             const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
             const visualSystemPrompt = `You are an academic study assistant. You are shown page images of the figure/table pages of a lecture document. Their captions were already extracted as text; what you can see and the text cannot is the CONTENT of the graphic itself — the axis ranges, the plotted levels and turning points, the rows of a table, the boxes and arrows of a diagram. Identify exam-relevant content readable in these images that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
-Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"..."}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
+Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"...","key_points":["..."]}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
 Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables' and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.
 When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point. Do not attempt to output a series of numbers.
 PHRASE EVERY key_point AND quiz_question AS THE FACT, NEVER AS A DESCRIPTION OF THE FIGURE. Write "Negative priming produced a far more unfavourable impression than positive priming" — never "Figure 3.2 shows that...", "Table 1 lists...", "The chart demonstrates...". A student revising reads the finding, not the figure number, and a question that asks about "the cycle shown in Figure 3.3" is unanswerable once the figure is gone. Do not mention figure, table or slide numbers at all.
@@ -12492,14 +12509,42 @@ The example that used to sit here named a real-looking percentage, and a live ru
                   mergedKeyPoints.length = 0; mergedKeyPoints.push(...patchedPoints)
                   mergedQuiz.length = 0; mergedQuiz.push(...patchedQuiz)
                 }
-                if (newSections.length) {
+                /* MADDESIZ BOLUM EKLENMIYOR (30.10.2026, bes kartta ust uste).
+                 *
+                 * Gorsel gecisin bolum semasinda `key_points` alani HIC
+                 * yoktu, yani bu cagri tasarim geregi yalnizca baslik +
+                 * ozet uretiyordu. Sonuc: kartin son bolumu her seferinde
+                 * madde listesi olmadan ciziliyor, oteki butun bolumlerde
+                 * madde var. Olculen ornek:
+                 *   05  "System Analysis and Design Overview"  -> 0 madde
+                 *
+                 * Semaya key_points eklendi ama prompt garanti degil. Hala
+                 * maddesiz geliyorsa o bolum ATILIYOR ve bu KAYIP DEGIL:
+                 * ayni cagri `+N points` ile zaten icerigi veriyor. Bu
+                 * kartta gorsel gecis 4 madde ekledi ve o dort madde tam o
+                 * bolumun anlattigi seyi tasiyor; bolum yalnizca slaydi
+                 * tarif eden bir cumleydi. */
+                const maddeliBolumler = newSections.filter((sec: any) => {
+                  const m = Array.isArray(sec?.key_points)
+                    ? sec.key_points.filter((x: any) => String(x ?? '').trim()).length
+                    : 0
+                  return m > 0
+                })
+                const maddesizAtilan = newSections.length - maddeliBolumler.length
+                if (maddesizAtilan > 0) {
+                  console.log(
+                    `Gorsel yama: ${maddesizAtilan} bolum MADDESIZ geldi, eklenmedi ` +
+                    `(icerigi ayni cagrinin maddelerinde duruyor)`
+                  )
+                }
+                if (maddeliBolumler.length) {
                   const oncekiBolum = bestSections.length
-                  bestSections = dedupeBolumler(bestSections.concat(newSections))
-                  const birlesen = oncekiBolum + newSections.length - bestSections.length
+                  bestSections = dedupeBolumler(bestSections.concat(maddeliBolumler))
+                  const birlesen = oncekiBolum + maddeliBolumler.length - bestSections.length
                   if (birlesen > 0) {
                     console.log(
                       `Gorsel yama: ${birlesen} bolum metin pencereleriyle ayniydi, birlestirildi ` +
-                      `(${oncekiBolum} + ${newSections.length} -> ${bestSections.length})`
+                      `(${oncekiBolum} + ${maddeliBolumler.length} -> ${bestSections.length})`
                     )
                   }
                 }
@@ -12552,7 +12597,7 @@ The example that used to sit here named a real-looking percentage, and a live ru
                 }
 
                 visualAnalysisUsed = true
-                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${newSections.length} sections, +${newTables.length} tables, +${newDiagrams.length} diagrams (grafik alinmaz) from ${visualImages.length} sekil sayfasi`)
+                console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${maddeliBolumler.length} sections, +${newTables.length} tables, +${newDiagrams.length} diagrams (grafik alinmaz) from ${visualImages.length} sekil sayfasi`)
               }
             } else {
               console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)

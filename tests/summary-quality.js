@@ -112,7 +112,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
-  'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE',
+  'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE',
   // Maddeler veritabanina duz metin olarak gider (29.10.2026 olcumu).
   'duzMaddeMetni', 'normalizeKeyPoints',
   // Diyagram kopyasi (29.10.2026 olcumu).
@@ -920,8 +920,12 @@ test('bolum dedup: bos ve bozuk girdiler', () => {
 });
 
 test('gorsel yama bolumleri dedup EDILEREK ekleniyor', () => {
-  /* Tekrari ureten satir buydu: bestSections.concat(newSections). */
-  assert.ok(/bestSections = dedupeBolumler\(bestSections\.concat\(newSections\)\)/.test(SRC),
+  /* Tekrari ureten satir buydu: bestSections.concat(newSections).
+     30.10.2026: eklenen dizi `newSections` yerine `maddeliBolumler` oldu —
+     maddesiz bolumler artik suzuluyor (bkz. "MADDESIZ gorsel bolumu
+     EKLENMIYOR"). Iddianin NIYETI ayni: gorsel yama bolumleri dedup
+     EDILEREK eklenmeli, korlemesine degil. */
+  assert.ok(/bestSections = dedupeBolumler\(bestSections\.concat\(maddeliBolumler\)\)/.test(SRC),
     'gorsel yama hala dedup etmeden ekliyor');
   assert.ok(/let bestSections = dedupeBolumler\(windowResults\.flatMap/.test(SRC),
     'pencere bolumleri dedup edilmiyor');
@@ -5119,6 +5123,63 @@ test('ONCEKI KOSULARIN gercek degerleri bozulmadi', () => {
     ['obedience was 62.5%', 62.5],
     ['inventory turnover is 8.07 times', 8.07]
   ]) assert.ok(A.distinctiveNumbers(g).includes(bekle), g);
+});
+
+/* MADDESİZ BÖLÜM ve SLAYT ALTBİLGİSİ
+   (30.10.2026 — "Building IS (Design Implementation)" ÖLÇÜMÜ).
+
+   1) Kartın son bölümü beş karttır üst üste madde listesi olmadan
+      çiziliyordu, öteki bütün bölümlerde madde var. Sebep şemadaydı:
+      görsel geçişin sections şemasında `key_points` alanı HİÇ yoktu, yani
+      o çağrı tasarım gereği yalnızca başlık + özet üretiyordu.
+        Long-doc visual patch: ... +1 sections
+        05 "System Analysis and Design Overview" -> 0 madde
+      Şemaya key_points eklendi; hâlâ maddesiz gelen bölüm atılıyor ve bu
+      KAYIP DEĞİL — aynı çağrı `+4 points` ile içeriği zaten veriyor.
+
+   2) Kapsama kaybı 0.13 <- "operates as planned.13-38 --- SAYFA 39 ---"
+      Slayt altbilgisi (bölüm-slayt numarası) cümleye yapışmış; jeton
+      ".13" okunup 0,13 diye ölçülen değer sayılıyordu. Aynı kalıp
+      ekonometri destesinde de vardı (7-13, 7-28, 7-38, 7-41). */
+console.log('\nMADDESIZ BOLUM VE SLAYT ALTBILGISI\n');
+
+test('SLAYT ALTBILGISI sayi sayilmiyor', () => {
+  assert.deepEqual(
+    A.distinctiveNumbers('in to ensure that it operates as planned.13-38 --- SAYFA 39 --- Preparing'),
+    [], 'yapisik slayt altbilgisi olculen deger sayilmis');
+  // Yalnizca NUMARA atiliyor: cumlenin son harfi ve noktasi kalmali.
+  assert.ok(/planned\./.test('planned.13-38'.replace(A.SLAYT_ALTBILGI_RE, (t) => t.slice(0, 2))));
+});
+
+test('GERCEK ARALIK ve ondalik bozulmadi', () => {
+  /* Kural dar: kucuk harf + nokta + N-NN. "12-25 miles" onunde bosluk
+     tasiyor, oyle kalmali. */
+  assert.ok(A.distinctiveNumbers('increases by .07 tons. 7-13').includes(0.07));
+  for (const [g, bekle] of [
+    ['the rate fell from 62.5% to 41.3% overall', 62.5],
+    ['inventory turnover is 8.07 times', 8.07],
+    ['beginning inventory of $43,803 million', 43803]
+  ]) assert.ok(A.distinctiveNumbers(g).includes(bekle), g);
+});
+
+test('GORSEL GECIS semasinda artik key_points var', () => {
+  /* Alan hic yoksa model bolum maddesi URETEMEZ — bes kartlik tutarsizligin
+     sebebi buydu. */
+  assert.match(SRC, /"sections":\[\{"heading":"\.\.\.","summary":"\.\.\.","key_points":\["\.\.\."\]\}\]/,
+    'gorsel gecis sections semasina key_points eklenmemis');
+});
+
+test('MADDESIZ gorsel bolumu EKLENMIYOR', () => {
+  /* Prompt garanti degil; deterministik kapi duruyor. */
+  assert.match(SRC, /const maddeliBolumler = newSections\.filter/,
+    'maddesiz bolum suzgeci yok');
+  assert.match(SRC, /bestSections\.concat\(maddeliBolumler\)/,
+    'suzgecten gecmeyen bolum hala ekleniyor');
+  assert.match(SRC, /bolum MADDESIZ geldi, eklenmedi/,
+    'atilan bolum loglanmiyor — teshis edilemez');
+  // Ozet log satiri KABUL EDILEN sayiyi yazmali, ham sayiyi degil.
+  assert.match(SRC, /\+\$\{maddeliBolumler\.length\} sections/,
+    'log hala ham bolum sayisini yaziyor');
 });
 
 console.log('\nATIF ETIKETI VE POSTGRES KACISI\n');
