@@ -435,6 +435,9 @@ function normalizeFormula(raw: unknown): string {
   f = f.replace(/^\s*=/, '')
   const eq = f.indexOf('=')
   if (eq > 0 && f.indexOf('=', eq + 1) === -1 && /^\s*[A-Za-z_][A-Za-z0-9_ ]*$/.test(f.slice(0, eq))) f = f.slice(eq + 1)
+  // Canlı bulgu (30.10.2026): model formülü şablon yazımıyla verdi
+  // ("({a}-{c})/({b}+{d})"); formül okunamayınca soru doğrulanmadan alınıyordu.
+  f = f.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_m, k) => k)
   return f.replace(/[×·∙]/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/²/g, '^2').replace(/³/g, '^3').trim()
 }
 

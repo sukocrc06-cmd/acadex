@@ -342,6 +342,11 @@ test('hesap sorusu metninde şablon yer tutucusu kalmaz (canlı bulgu 30.10.2026
   const latex = G.fillCalcPlaceholders('$\\frac{a}{b}$ ve x^{n}, a = {a}', { a: 5, b: 2, n: 3 }, 'tr');
   assert.equal(latex, '$\\frac{a}{b}$ ve x^{n}, a = 5', 'LaTeX süslü parantezi yer tutucu değil');
   assert.equal(G.fillCalcPlaceholders('oran %{r*100}', { r: 0.04 }, 'tr'), 'oran %4');
+  // Aynı canlı denemede formül de şablon yazımıyla geldi ve soru doğrulanmadan alındı.
+  const live = G.validateQuestion({ type: 'calculation', question: 'Talep Qd = {a} - {b}P, arz Qs = {c} + {d}P. Denge fiyatı kaçtır?',
+    variables: { a: 100, b: 5, c: 20, d: 3 }, formula: '({a}-{c})/({b}+{d})', correct_answer: 10, solution_steps: ['(100-20)/(5+3) = 10'] }, ['calculation'], 'tr', 4, true);
+  assert.equal(live.ok, true, live.reason);
+  assert.deepEqual([live.question.question, live.question.formula, live.question.verified], ['Talep Qd = 100 - 5P, arz Qs = 20 + 3P. Denge fiyatı kaçtır?', '(a-c)/(b+d)', true]);
 });
 
 summary();
