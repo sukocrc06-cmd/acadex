@@ -11661,6 +11661,24 @@ Rules:
        * windowCompletionFloored zaten bu durumu GORUYOR ve uyariyordu; yorumu
        * da "dogru cozum pencereyi kucultmektir" diyordu. Artik kuculuyor.
        *
+       * GEREKCE ZAYIFLADI — SONRAKI OLCUM (30.10.2026). "Computer Network
+       * Security" belgesi ayni pencereyle uc kez kosuldu:
+       *   completion 2036 / max 2119 -> BOZUK JSON, pencere dustu
+       *   completion 1716 / max 2119 -> gecerli
+       *   completion 2177 / max 2119 -> GECERLI, tavani ASTI
+       * Tavani asan kosu basarili, altindaki basarisiz. Yani Gemini yolunda
+       * max_completion_tokens (maxOutputTokens) SIKI uygulanmiyor; tavan
+       * baglayici degil, tavsiye niteliginde. Hata tavan degil stokastik
+       * bozuk uretim (bkz. callGroqJson icindeki kurtarma notu).
+       *
+       * Bu blok YINE DE duruyor, iki sebeple: (1) GERCEK Groq yolunda tavan
+       * baglayicidir ve orada kesilme yasanir; (2) yalnizca cok dar bir
+       * bantta (tek pencere >= ~12.250 krk) devreye giriyor ve olculen
+       * saglikli uzunluklara hic dokunmuyor. Ama "ince kart" sorununu
+       * cozdugu KANITLANMADI: "Week3 Chp2" kartinin inceligi tek pencereye
+       * sigmasindan da kaynaklanabilir. Bir sonraki o banttaki belgede
+       * kartin gercekten zenginlestigi olculmeli.
+       *
        * Dongu KENDINI SINIRLIYOR: hedef %25 kuculuyor, pencere sayisi
        * artmazsa cikiliyor (bolunemeyen metinde sonsuz dongu yok) ve en
        * fazla dort tur deneniyor. Pencere tavanina ulasildiysa hic
