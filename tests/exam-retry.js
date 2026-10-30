@@ -30,7 +30,7 @@ const G = loadFromSource(GEN, [
   'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
-  'repairLatex', 'unverifiedAnswerConsistent', 'validateQuestion', 'shuffleInPlace',
+  'repairLatex', 'unverifiedAnswerConsistent', 'validateQuestion', 'CALC_PH', 'fillCalcPlaceholders', 'formatNumber', 'tidy', 'shuffleInPlace',
   'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers',
   'TEMPLATE_PH', 'formatNumber', 'templateMultipliers', 'tidy', 'renderTemplate', 'decimalsOf', 'significantDigits', 'makeVariant',
   'RETRY_MAX_ITEMS', 'RETRY_TYPES', 'retryCalcVariant', 'retryUserPrompt', 'retrySimilarity', 'acceptRetryQuestion']);
@@ -39,7 +39,7 @@ const G2 = loadFromSource(GEN, [...new Set([
   'fixJsonEscapes', 'parseQuestionArray', 'normalizeAnswerText', 'parseLooseNumber', 'answerNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
   'EXPR_MAX_LENGTH', 'EXPR_MAX_DEPTH', 'EXPR_CONSTS', 'EXPR_FUNCS', 'evaluateExpression', 'sanitizeVariables',
   'numberReadings', 'sameNumber', 'withinTolerance', 'templateMatches', 'normalizeFormula', 'DERIVED_FACTORS', 'TEMPLATE_DISPLAY_OPS', 'verifyCalculation', 'normalizeOptionRationales', 'normalizeRubric',
-  'repairLatex', 'unverifiedAnswerConsistent', 'validateQuestion', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput',
+  'repairLatex', 'unverifiedAnswerConsistent', 'validateQuestion', 'CALC_PH', 'fillCalcPlaceholders', 'formatNumber', 'tidy', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput',
   'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers',
   'CHART_FORMATS', 'CHART_SKILLS', 'seededRandom', 'TR_DIGIT_WORD', 'TR_TEN_WORD', 'TR_LETTER_NAME', 'trSpokenTail', 'trSuffix',
   'decimalsIn', 'chartVariant', 'pctChange', 'claimTruth', 'seriesWord', 'fmtPct', 'fmtNum', 'claimText', 'claimEvidence',

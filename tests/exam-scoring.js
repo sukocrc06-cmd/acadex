@@ -25,7 +25,7 @@ const G = loadFromSource(GEN_PATH, [
   'TRUE_FALSE_OPTIONS', 'ALLOWED_OPTION_COUNTS', 'ALLOWED_WRONG_PER_CORRECT', 'normalizeScoring',
   'EXPLANATION_MAX_CHARS', 'RATIONALE_MAX_CHARS', 'RUBRIC_MIN_ITEMS', 'RUBRIC_MAX_ITEMS',
   'normalizeAnswerText', 'parseLooseNumber', 'answerNumber', 'PLACEHOLDER_ANSWERS', 'isPlaceholderAnswer', 'cleanText',
-  'normalizeOptionRationales', 'normalizeRubric', 'repairLatex', 'validateQuestion', 'STATIC_EXAM_INSTRUCTIONS',
+  'normalizeOptionRationales', 'normalizeRubric', 'repairLatex', 'validateQuestion', 'CALC_PH', 'fillCalcPlaceholders', 'formatNumber', 'tidy', 'STATIC_EXAM_INSTRUCTIONS',
   'sameNumber', 'numberReadings', 'OPTION_NEAR_PERCENT', 'NUMERIC_OPTION', 'optionCanonical', 'hasAmbiguousOptions', 'MATH_INPUT_MAX', 'normalizeMathInput', 'STEP_KINDS', 'verifyLinearEquation', 'EXPR_SAMPLE_VALUES', 'EXPR_MIN_VALID_POINTS', 'EXPR_FORMS', 'exprSamplePoints', 'expressionsEquivalent', 'hasTopLevelSum', 'isExpandedForm', 'exprTokenCount', 'checkExpressionForm', 'verifyExpression', 'STANDARD_CONSTANTS', 'referencesName', 'inlineName', 'chartNumbers']);
 const R = loadFromSource(GRADE_PATH, ['computeFinalGrade', 'computeNetSummary', 'computeExamGrade', 'parseLooseNumber', 'answerNumber', 'decimalPlacesOf', 'gradeCalculationPrecise', 'gradeCalculation']);
 const G2 = loadFromSource(GEN_PATH, ['ALLOWED_DECIMAL_PLACES', 'normalizeDecimalPlaces']);
