@@ -8513,11 +8513,44 @@ var SBX = (function () {
   var pomTotal = function () { return (POM.phase === 'break' ? (POM.round % POM.setN === 0 ? POM.lng : POM.brk) : POM.focus) * 60; };
   var pomLeft = function () { if (POM.phase === 'idle') return POM.focus * 60; if (POM.paused) return POM.pausedLeft; return Math.max(0, (POM.endAt - Date.now()) / 1000); };
   var beep = function () {
+    /* iPad (30.10.2026, test paneli #95): ekran kilitlenince / uygulama değişince
+       Safari ses motorunu askıya alıyor ve kendiliğinden açmıyor; resume() denenir. */
     try { var A = window.AudioContext || window.webkitAudioContext; if (!A) return; var ac = beep.ac || (beep.ac = new A()), t = ac.currentTime;
+      if (ac.state !== 'running' && ac.resume) ac.resume().catch(function () {});
       [0, .22].forEach(function (d, i) { var o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = i ? 880 : 660; g.gain.setValueAtTime(.0001, t + d); g.gain.exponentialRampToValueAtTime(.18, t + d + .02); g.gain.exponentialRampToValueAtTime(.0001, t + d + .35); o.connect(g); g.connect(ac.destination); o.start(t + d); o.stop(t + d + .4); }); } catch (e) {}
   };
   var titleOrig = document.title, titleT = 0;
   var flashTitle = function (t) { if (!document.hidden) return; document.title = t; clearInterval(titleT); titleT = setInterval(function () { if (!document.hidden) { document.title = titleOrig; clearInterval(titleT); } }, 1000); };
+  /* TUR BİTTİ PENCERESİ (30.10.2026, test paneli #95: "iPad · Safari'de süre
+     bitiminde bildirim vermedi"). iPad Safari sekmesinde Notification hiç yok
+     (yalnızca Ana Ekrana eklenmiş Acadex'te var), ses motoru askıda kalabiliyor
+     ve say() yalnızca Study Lab açıkken görünüyor. Bu pencere hangi ekranda
+     olursan ol açılır ve "Tamam"a basılana kadar durur; kilitli ekrandan dönen
+     öğrenci onu görür. "Tamam" bir dokunuş olduğu için sesi iOS'ta da çalar. */
+  var pomAlert = function (title, body) {
+    try { if (navigator.vibrate) navigator.vibrate([260, 120, 260, 120, 260]); } catch (e) {}
+    var old = document.querySelector('.axl-pom-alert'); if (old) old.remove();
+    var d = document.createElement('div'); d.className = 'axl-pom-alert'; d.setAttribute('role', 'alertdialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-labelledby', 'axl-pa-t');
+    d.innerHTML = '<div class="axl-pa-box"><span class="axl-pa-ic" aria-hidden="true">⏰</span><h2 id="axl-pa-t" class="disp">' + X(title) + '</h2><p>' + X(body) + '</p><button type="button" class="btn btn-dark" data-pa-ok="">Tamam</button></div>';
+    document.body.appendChild(d);
+    var ok = d.querySelector('[data-pa-ok]');
+    ok.addEventListener('click', function () { beep(); d.remove(); });
+    d.addEventListener('keydown', function (e) { if (e.key === 'Escape') { d.remove(); } });
+    setTimeout(function () { try { ok.focus({ preventScroll: true }); } catch (e) {} }, 30);
+  };
+  /* Tur sürerken her dokunuşta askıya alınmış ses motoru uyandırılır; iOS yalnızca
+     kullanıcı hareketinde açmaya izin veriyor. */
+  document.addEventListener('pointerdown', function () {
+    if (POM.phase === 'idle' || !beep.ac || beep.ac.state === 'running' || !beep.ac.resume) return;
+    beep.ac.resume().catch(function () {});
+  }, true);
+  /* iPad/iPhone Safari sekmesi: bildirim için Ana Ekrana ekleme ipucu (bir kez) */
+  var pomIosIpucu = function () {
+    var ios = /iP(ad|hone|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!ios || 'Notification' in window || navigator.standalone || G(LK('iosipucu'), false)) return;
+    S(LK('iosipucu'), true);
+    say('iPad’de süre bitince bildirim almak için Acadex’i Paylaş → Ana Ekrana Ekle ile ekle. Eklemesen de Acadex açıkken tur bitince ses ve uyarı penceresi çıkar.');
+  };
   /* OS BILDIRIMI (29.10.2026, kullanici raporu: "25 dk bitince bildirim
      gelmiyor").
 
@@ -8570,9 +8603,10 @@ var SBX = (function () {
       flashTitle('🌼 Tur bitti · Acadex');
       pomNotify(POM.round + '. tur bitti · Acadex',
         long ? 'Uzun mola: ' + POM.lng + ' dk.' : POM.brk + ' dk mola; bitkini sula.');
+      pomAlert(POM.round + '. tur bitti', long ? 'Uzun mola: ' + POM.lng + ' dakika. Ayağa kalk, biraz dolaş.' : POM.brk + ' dakika mola; bitkini sula.');
       pomStart('break');
     } else {
-      beep(); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Mola bitti. Hazır olduğunda yeni turu başlat.', null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →'); flashTitle('⏰ Mola bitti · Acadex'); pomNotify('Mola bitti · Acadex', 'Hazır olduğunda yeni turu başlat.');
+      beep(); POM.phase = 'idle'; POM.paused = false; pomSave(); say('Mola bitti. Hazır olduğunda yeni turu başlat.', null, cur === 'pomodoro' ? null : 'studylab', 'saksıya git →'); flashTitle('⏰ Mola bitti · Acadex'); pomNotify('Mola bitti · Acadex', 'Hazır olduğunda yeni turu başlat.'); pomAlert('Mola bitti', 'Hazır olduğunda yeni turu başlat.');
     }
   };
   /* yarıda bırakılan tur: bitki solar, kuruyan saksı olarak tezgâha düşer */
@@ -8783,7 +8817,7 @@ var SBX = (function () {
     };
     Q('[data-pgo]', st).addEventListener('click', function () {
       touch();
-      if (POM.phase === 'idle') { POM.src = srcSel.value; POM.seed = seedOf(); pomIzinIste(); pomStart('focus'); beep(); return; }
+      if (POM.phase === 'idle') { POM.src = srcSel.value; POM.seed = seedOf(); pomIzinIste(); pomIosIpucu(); pomStart('focus'); beep(); return; }
       if (POM.paused) { POM.paused = false; POM.endAt = Date.now() + POM.pausedLeft * 1000; }
       else { POM.pausedLeft = pomLeft(); POM.paused = true; }
       pomSave(); pomTick();

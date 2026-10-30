@@ -133,4 +133,30 @@ test('flashTitle TEK BASINA yetmezdi (hatanin sebebi kayitli)', () => {
     'flashTitle davranisi degismis — teshis notu guncellenmeli');
 });
 
+/* #95 (30.10.2026, test paneli, iPad · Safari): "sure bitiminde bildirim
+   vermedi". iPad Safari sekmesinde Notification yok, ses motoru kilit
+   ekrandan sonra askida kaliyor, say() yalnizca Study Lab acikken gorunuyor.
+   Duzeltme: her iki dalda kalici "tur bitti" penceresi + ses motorunu
+   dokunusta uyandirma + iPad'e bir kerelik "Ana Ekrana ekle" ipucu. */
+test('#95 iki dalda da kalici uyari penceresi aciliyor', () => {
+  const blok = SRC.slice(SRC.indexOf('var pomComplete = function'), SRC.indexOf('var pomWilt = function'));
+  assert.equal((blok.match(/pomAlert\(/g) || []).length, 2, 'tur ve mola bitisinde pomAlert olmali');
+  const f = SRC.slice(SRC.indexOf('var pomAlert = function'), SRC.indexOf('var pomIosIpucu = function'));
+  assert.match(f, /role', 'alertdialog'/);
+  assert.match(f, /addEventListener\('click', function \(\) \{ beep\(\); d\.remove\(\); \}\)/, 'Tamam dokunusu sesi calmali (iOS kullanici hareketi)');
+});
+
+test('#95 askiya alinmis ses motoru uyandiriliyor', () => {
+  const b = SRC.slice(SRC.indexOf('var beep = function'), SRC.indexOf('var titleOrig'));
+  assert.match(b, /if \(ac\.state !== 'running' && ac\.resume\) ac\.resume\(\)/);
+  assert.match(SRC, /document\.addEventListener\('pointerdown', function \(\) \{\n\s+if \(POM\.phase === 'idle' \|\| !beep\.ac/);
+});
+
+test('#95 yeni kod pomNotify..pomStart araliginin DISINDA (bu dosyanin vm testi DOMsuz)', () => {
+  const a = SRC.indexOf('var pomNotify = function'), z = SRC.indexOf('var pomStart = function');
+  const ara = SRC.slice(a, z);
+  assert.ok(!/pomAlert|pomIosIpucu|document\.addEventListener/.test(ara));
+  assert.match(SRC, /pomIzinIste\(\); pomIosIpucu\(\); pomStart\('focus'\)/, 'ipucu odak baslatilirken gosterilmeli');
+});
+
 summary();

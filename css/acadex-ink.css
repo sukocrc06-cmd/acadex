@@ -9070,3 +9070,13 @@ body:has(#bp-deco:not([hidden])) #axa-layer .axa-mas,body:has(#bp-deco:not([hidd
 #settings-view .axa-myplan .mp-ord small{grid-column:1 / -1;color:#6A7593}
 #settings-view .axa-myplan .st.paid{color:#1E8A55;font-weight:700}
 #settings-view .axa-myplan .st.failed,#settings-view .axa-myplan .st.cancelled{color:#C9483B}
+/* #95 (30.10.2026): Pomodoro "tur bitti / mola bitti" penceresi; hangi ekranda olursan ol çıkar, Tamam'a basılana kadar durur */
+.axl-pom-alert{position:fixed;inset:0;z-index:100050;display:grid;place-items:center;padding:16px;background:rgba(13,24,56,.5)}
+.axl-pom-alert .axl-pa-box{width:min(380px,100%);padding:24px 22px 20px;text-align:center;background:#FFFDF8;border:1.5px solid #1A2A5C;border-radius:18px;box-shadow:5px 5px 0 #1A2A5C;color:#0D1838;font-family:'Instrument Sans',system-ui,sans-serif}
+.axl-pom-alert .axl-pa-ic{display:block;font-size:44px;line-height:1}
+.axl-pom-alert h2{margin:10px 0 6px;font:800 26px/1.15 'Bricolage Grotesque',system-ui,sans-serif}
+.axl-pom-alert p{margin:0 0 16px;font-size:16px;line-height:1.45;color:#3A4362}
+.axl-pom-alert .btn{min-width:140px;min-height:48px;border-radius:999px;font-weight:700}
+@media (prefers-reduced-motion:no-preference){.axl-pom-alert .axl-pa-box{animation:axlPa .35s cubic-bezier(.3,1.5,.5,1) both}}
+@keyframes axlPa{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+html.ax-dark .axl-pom-alert .axl-pa-box{box-shadow:5px 5px 0 #1A2A5C}
