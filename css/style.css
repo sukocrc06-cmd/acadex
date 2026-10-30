@@ -6151,7 +6151,11 @@ input:checked + .slider:before {
   color: var(--color-navy);
 }
 .exam-resume-banner .exam-resume-actions { display: flex; gap: 0.5rem; }
-.exam-resume-banner .btn { padding: 0.45rem 0.9rem; font-size: 0.8rem; min-height: unset; }
+.exam-resume-banner .btn { padding: 0.45rem 0.9rem; font-size: 0.8rem; min-height: unset; white-space: nowrap; }
+.exam-resume-banner .exam-resume-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; flex: 1 1 100%; }
+.exam-resume-banner:not(.multi) .exam-resume-title { flex: 1 1 100%; margin-bottom: -0.6rem; }
+.exam-resume-banner.multi { flex-direction: column; align-items: stretch; gap: 0.6rem; }
+.exam-resume-banner.multi .exam-resume-row + .exam-resume-row { border-top: 1px solid rgba(18, 110, 122, 0.2); padding-top: 0.6rem; }
 
 @media (max-width: 720px) {
   .exam-q-head { flex-direction: column; }

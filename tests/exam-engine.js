@@ -196,4 +196,13 @@ test('attach + discardDraft: cikista tarayici taslagi silinir', () => {
   E.destroy();
 });
 
+test('yarım sınavlar: salonda hepsi listelenir, yalnızca en yenisi değil (30.10.2026)', () => {
+  const dash = require('./_ts-extract.js').readSource('js/dashboard.js');
+  const fn = dash.slice(dash.indexOf('async function checkResumableExam()'), dash.indexOf('window.checkResumableExam = checkResumableExam'));
+  assert.match(fn, /resumable\.push\(\{ exam, draft, remaining \}\)/);
+  assert.doesNotMatch(fn, /setupScreen\.insertBefore\(banner, setupScreen\.firstChild\);\n\s+return;/, 'ilk taslakta durmaz');
+  assert.match(fn, /data-resume-row="\$\{i\}"/);
+  assert.match(fn, /E\.removeLocalDraft\(currentUser\.id, exam\.id\);\n\s+deleteExamDraftRemote\(exam\.id\);\n\s+row\.remove\(\)/, 'vazgeç yalnızca kendi satırını siler');
+});
+
 summary();
