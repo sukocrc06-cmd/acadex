@@ -46,7 +46,9 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: yrcdvcsowblzmkpbmkut
     steps:
-      - uses: actions/checkout@v4
+      # 30.10.2026: Node 20 eylem uyarıları; checkout v6 Node 24 ile çalışır,
+      # setup-cli v3 composite (koşucudaki Node 20+ ile CLI kurar).
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -60,7 +62,7 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         if: steps.token.outputs.ok == 'true'
         with:
           version: latest
