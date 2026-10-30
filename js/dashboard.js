@@ -13012,7 +13012,13 @@ async function gatherNotificationItems(lastCheck) {
         .order('completed_at', { ascending: false })
         .limit(60);
       if (!error && exs) {
-        const rem = E.mistakeReminder(E.mistakeStates(exs), Date.parse(lastCheck || 0) || 0, Date.now());
+        // 30.10.2026: "öğrendim" denen yanlışlar sayılmaz (sunucu + eski tarayıcı kaydı).
+        let srvDone = [];
+        try { const { data: dn, error: de } = await supabaseClient.from('exam_mistakes_done').select('exam_id, question_id'); if (!de && dn) srvDone = dn; } catch (_e) { /* tablo yoksa */ }
+        let localDone = [];
+        try { localDone = JSON.parse(localStorage.getItem('acadex.sinav.errs.done') || '[]') || []; } catch (_e) { /* yok */ }
+        const learned = typeof E.learnedKeys === 'function' ? E.learnedKeys(exs, localDone, srvDone) : [];
+        const rem = E.mistakeReminder(E.mistakeStates(exs, { done: learned }), Date.parse(lastCheck || 0) || 0, Date.now());
         if (rem.at) {
           items.push({
             time: new Date(rem.at).toISOString(),

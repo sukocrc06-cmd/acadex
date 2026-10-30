@@ -42,6 +42,10 @@ const REPORT_NOTE_MAX = 500
 const REPORT_CATEGORIES = ['wrong_key', 'ambiguous', 'off_source', 'typo', 'other']
 const APPEALABLE_TYPES = ['open_ended', 'fill_blank']
 const APPEAL_MODEL = 'openai/gpt-oss-120b'
+// 30.10.2026: generate-exam / grade-exam ile aynı kural; büyük modelin dakika
+// kotası dolu ve kısa beklemeyle açılmayacaksa itiraz küçük modelle puanlanır.
+const APPEAL_FALLBACK_MODEL = 'openai/gpt-oss-20b'
+const GROQ_SHORT_WAIT_MS = 10_000
 
 // Sabit sistem mesajları (istekten istek değişmez; Groq istem önbelleği için).
 const STATIC_APPEAL_INSTRUCTIONS = `
@@ -454,12 +458,13 @@ function lowerEffort(effort: string): string {
 }
 
 /** Groq çağrısı; 429'da söylenen süre kısaysa bir kez bekleyip yeniden dener. */
-async function callGroq(apiKey: string, system: string, user: string, opts: { effort: string; maxTokens: number }, attempt = 0): Promise<string | null> {
+async function callGroq(apiKey: string, system: string, user: string, opts: { effort: string; maxTokens: number; model?: string; meta?: { model: string } }, attempt = 0): Promise<string | null> {
+  const model = opts.model || APPEAL_MODEL
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: APPEAL_MODEL,
+      model,
       temperature: 0,
       // İtiraz "daha güçlü" puanlama: ilk puanlamada düşünme payı
       // varsayılandaydı, burada yüksek.
@@ -484,7 +489,12 @@ async function callGroq(apiKey: string, system: string, user: string, opts: { ef
       if (partial.trim()) return partial
       if (attempt === 0) return callGroq(apiKey, system, user, { effort: lowerEffort(opts.effort), maxTokens: opts.maxTokens + 1500 }, attempt + 1)
     }
-    const waitMs = attempt === 0 ? groqRetryDelayMs(res.status, res.headers.get('retry-after'), data?.error?.message) : null
+    const rawWait = groqRetryDelayMs(res.status, res.headers.get('retry-after'), data?.error?.message)
+    if (res.status === 429 && model === APPEAL_MODEL && (rawWait === null || rawWait > GROQ_SHORT_WAIT_MS || attempt > 0)) {
+      console.warn(`exam-appeal: Groq hiz siniri (${model}); yedek model ${APPEAL_FALLBACK_MODEL}`)
+      return callGroq(apiKey, system, user, { ...opts, model: APPEAL_FALLBACK_MODEL }, 0)
+    }
+    const waitMs = attempt === 0 ? rawWait : null
     if (waitMs !== null) {
       console.warn(`exam-appeal: Groq hiz siniri, ${Math.round(waitMs / 1000)} sn beklenip yeniden deneniyor`)
       await new Promise(r => setTimeout(r, waitMs))
@@ -494,7 +504,8 @@ async function callGroq(apiKey: string, system: string, user: string, opts: { ef
     return null
   }
   const choice = data.choices?.[0]
-  console.log(`exam-appeal: groq finish=${choice?.finish_reason} cikti=${data.usage?.completion_tokens}`)
+  if (opts.meta) opts.meta.model = model
+  console.log(`exam-appeal: groq${model === APPEAL_MODEL ? '' : ' (yedek model)'} finish=${choice?.finish_reason} cikti=${data.usage?.completion_tokens}`)
   return choice?.message?.content ?? null
 }
 
@@ -603,8 +614,9 @@ serve(async (req) => {
     const q = mergeQuestionWithKey(baseQ, keys)
 
     let outcome: AppealOutcome | null = null
+    const used = { model: APPEAL_MODEL }
     if (result.type === 'open_ended') {
-      const raw = await callGroq(groqApiKey, STATIC_APPEAL_INSTRUCTIONS, buildOpenAppealPrompt(q, result, v.reason, language), { effort: 'high', maxTokens: 5000 })
+      const raw = await callGroq(groqApiKey, STATIC_APPEAL_INSTRUCTIONS, buildOpenAppealPrompt(q, result, v.reason, language), { effort: 'high', maxTokens: 5000, meta: used })
       const g = raw ? (parseGradesResponse(raw) || [])[0] : null
       if (g) {
         const rubric = Array.isArray(q.rubric) && q.rubric.length ? q.rubric as RubricItem[] : null
@@ -613,7 +625,7 @@ serve(async (req) => {
         if (score !== null) outcome = { regradeScore: score, feedback: g.feedback, rubricResults: fromRubric ? fromRubric.items : null, note: g.feedback }
       }
     } else {
-      const raw = await callGroq(groqApiKey, STATIC_BLANK_APPEAL_INSTRUCTIONS, buildBlankAppealPrompt(q, result, v.reason, language), { effort: 'medium', maxTokens: 800 })
+      const raw = await callGroq(groqApiKey, STATIC_BLANK_APPEAL_INSTRUCTIONS, buildBlankAppealPrompt(q, result, v.reason, language), { effort: 'medium', maxTokens: 800, meta: used })
       const b = raw ? parseBlankVerdict(raw) : null
       if (b) outcome = { regradeScore: b.acceptable ? 100 : 0, feedback: '', rubricResults: null, note: b.note }
     }
@@ -632,7 +644,7 @@ serve(async (req) => {
       status: applied.accepted ? 'accepted' : 'rejected',
       new_score: applied.finalScore,
       resolved_at: nowIso,
-      details: { regrade_score: outcome.regradeScore, rubric_results: outcome.rubricResults, note: outcome.note, model: APPEAL_MODEL }
+      details: { regrade_score: outcome.regradeScore, rubric_results: outcome.rubricResults, note: outcome.note, model: used.model }
     }).eq('id', claimed.id)
     if (applied.accepted) {
       const { error: attemptError } = await serviceClient.from('question_attempts')
