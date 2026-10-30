@@ -1928,7 +1928,10 @@
    *  Sürenin yarıdan azı kayıtlıysa (eski sınav) null. */
   function timingReport(exam) {
     const rs = (exam && Array.isArray(exam.question_results) ? exam.question_results : []).filter(r => r && typeof r === 'object');
-    const timed = rs.filter(r => Number.isFinite(r.time_ms) && r.time_ms >= 0);
+    // Canlı test (30.10.2026): sekme baştan sona arka plandayken süreler 0
+    // geldi ve rapor "çok kısa sürede yanlış" dedi; süresi 0 olan soru
+    // kayıtlı sayılmaz.
+    const timed = rs.filter(r => Number.isFinite(r.time_ms) && r.time_ms > 0);
     if (!rs.length || timed.length * 2 < rs.length) return null;
     const secs = timed.map(r => r.time_ms / 1000).sort((a, b) => a - b);
     const mid = secs.length % 2 ? secs[(secs.length - 1) / 2] : (secs[secs.length / 2 - 1] + secs[secs.length / 2]) / 2;

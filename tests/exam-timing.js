@@ -68,6 +68,7 @@ test('timingReport: cevap değiştirme önerisi ve boş soru aceleye sayılmaz',
 test('timingReport: süresi kayıtlı olmayan eski sınav için rapor yok', () => {
   assert.equal(E.timingReport(ex([{ question_id: 1, score: 100 }, { question_id: 2, score: 0 }, row(3, 10, 100)])), null);
   assert.equal(E.timingReport(ex([])), null);
+  assert.equal(E.timingReport(ex([row(1, 0, 0), row(2, 0, 0), row(3, 0, 100)])), null, 'arka plandaki sekme: süreler 0');
   assert.equal(E.timingReport(null), null);
 });
 
