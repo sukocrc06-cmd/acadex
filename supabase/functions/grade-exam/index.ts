@@ -1103,6 +1103,32 @@ function applyHelp(results: Array<Record<string, unknown>>, questions: Record<st
   }
 }
 
+/** FAZ 9: süre ve strateji. Tarayıcının gönderdiği soru başına süre (ms),
+ *  ziyaret sayısı ve çoktan seçmeli / D-Y'de seçilen şıkların sırası.
+ *  Şık değiştirilmişse ilk seçim ile son cevap doğruluğuna göre sınıflanır
+ *  (UWorld'deki gibi): right_to_wrong, wrong_to_right, wrong_to_wrong,
+ *  right_to_right. Bozuk ya da eksik veri sessizce atlanır; puana etkisi yok. */
+const TIMING_MAX_MS = 6 * 3600_000
+function applyTiming(results: Array<Record<string, unknown>>, timing: unknown): void {
+  if (!timing || typeof timing !== 'object' || Array.isArray(timing)) return
+  const t = timing as Record<string, unknown>
+  for (const r of results) {
+    const raw = t[String(r.question_id)]
+    if (!raw || typeof raw !== 'object') continue
+    const e = raw as Record<string, unknown>
+    const ms = Number(e.ms)
+    if (Number.isFinite(ms) && ms >= 0) r.time_ms = Math.round(Math.min(ms, TIMING_MAX_MS))
+    const v = Number(e.v)
+    if (Number.isInteger(v) && v > 0) r.visits = Math.min(v, 500)
+    const picks = (Array.isArray(e.p) ? e.p : []).slice(0, 8).map(x => String(x ?? '').slice(0, 300)).filter(Boolean)
+    if ((r.type === 'multiple_choice' || r.type === 'true_false') && picks.length >= 2 && r.correct_answer != null) {
+      const firstOk = gradeChoice(picks[0], String(r.correct_answer))
+      const finalOk = r.is_correct === true
+      r.answer_change = firstOk ? (finalOk ? 'right_to_right' : 'right_to_wrong') : (finalOk ? 'wrong_to_right' : 'wrong_to_wrong')
+    }
+  }
+}
+
 /** Nihai not: puanlanamayan (score === null) sorular ortalamaya girmez. */
 function computeFinalGrade(results: Array<{ score: number | null }>): number | null {
   const scored = results.filter(r => typeof r.score === 'number') as Array<{ score: number }>
@@ -1157,7 +1183,7 @@ serve(async (req) => {
   try {
     if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
-    const { examId, answers, flags } = await req.json()
+    const { examId, answers, flags, timing } = await req.json()
     if (!examId || !answers || typeof answers !== 'object') return json({ error: 'Missing required parameters' }, 400)
 
     const authHeader = req.headers.get('Authorization')
@@ -1515,6 +1541,7 @@ ${JSON.stringify(batch.map(c => ({
 
     results.sort((a, b) => a.question_id - b.question_id)
     applyHelp(results, questions)
+    applyTiming(results, timing)
 
     const finalGrade = computeExamGrade(results, exam.scoring)
     if (finalGrade === null) {

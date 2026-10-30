@@ -3017,6 +3017,7 @@ window.axNotify = function (title, opts) {
   };
   var closeHall = function () {
     if (hall.hidden) return;
+    if (TIM) { timFlush(); TIM.cur = null; TIM.at = 0; timSave(); }
     engineOff(false);
     clearInterval(ticker); ticker = 0; hall.hidden = true; document.documentElement.style.overflow = ''; document.body.classList.remove('axs-hall-on'); mode = 'off'; EXM = null; resumeDraft = null;
     if (typeof stopExamTimer === 'function') stopExamTimer();
@@ -3200,8 +3201,45 @@ window.axNotify = function (title, opts) {
       if (it.sec) $$('.bb i', b).forEach(function (bi, k) { var l = $$('.sn-opt-b', it.sec)[k]; bi.classList.toggle('f', !!(it.ch && l && l.contains(it.ch))); });
     });
   };
+  /* ---------- FAZ 9: süre ve strateji ----------
+     Soru başına geçen süre (sekme gizliyken sayılmaz), ziyaret ve çoktan
+     seçmeli / D-Y'de seçilen şıkların sırası. Sayfa yenilense de sürsün diye
+     tarayıcıda saklanır; teslimde grade-exam'e gider (window.__examTiming). */
+  var TIM = null;
+  var timKey = function (id) { return 'acadex.sinav.tim.' + id; };
+  var timSave = function () { if (TIM) lsafe(function () { localStorage.setItem(timKey(TIM.id), JSON.stringify({ id: TIM.id, q: TIM.q })); }); };
+  var timFlush = function () {
+    if (!TIM || TIM.cur == null || !TIM.at) return;
+    var now = Date.now(), e = TIM.q[TIM.cur] = TIM.q[TIM.cur] || { ms: 0, v: 0, p: [] };
+    e.ms += Math.min(now - TIM.at, 3 * 3600e3); TIM.at = now;
+  };
+  var timStart = function (exam) {
+    var saved = lsafe(function () { return JSON.parse(localStorage.getItem(timKey(exam.id)) || 'null'); }, null);
+    TIM = { id: exam.id, q: saved && saved.id === exam.id && saved.q ? saved.q : {}, cur: null, at: 0 };
+  };
+  var timGo = function (qid) {
+    if (!TIM) return;
+    timFlush();
+    TIM.cur = String(qid); TIM.at = document.hidden ? 0 : Date.now();
+    var e = TIM.q[TIM.cur] = TIM.q[TIM.cur] || { ms: 0, v: 0, p: [] }; e.v++;
+    timSave();
+  };
+  var timPick = function (qid, val) {
+    if (!TIM) return;
+    var e = TIM.q[String(qid)] = TIM.q[String(qid)] || { ms: 0, v: 0, p: [] };
+    if (e.p[e.p.length - 1] !== val && e.p.length < 8) e.p.push(val);
+    timSave();
+  };
+  document.addEventListener('visibilitychange', function () { if (!TIM || TIM.cur == null) return; if (document.hidden) { timFlush(); TIM.at = 0; timSave(); } else TIM.at = Date.now(); });
+  window.__examTiming = function (examId) {
+    if (!TIM || String(TIM.id) !== String(examId)) return null;
+    timFlush(); timSave();
+    var out = {}; Object.keys(TIM.q).forEach(function (k) { var e = TIM.q[k]; out[k] = { ms: Math.round(e.ms), v: e.v, p: e.p.slice(0, 8) }; });
+    return out;
+  };
   var go = function (i, focus) {
     if (i < 0 || i >= QS.length) return; cur = i;
+    timGo(QS[i].id);
     $$('.sn-q', book).forEach(function (s) { s.hidden = +s.getAttribute('data-qi') !== i; });
     $('.sn-book-h .pg', book).textContent = 'sayfa ' + (i + 1) + ' / ' + QS.length;
     if (!reduce) { book.classList.remove('turn'); void book.offsetWidth; book.classList.add('turn'); }
@@ -3254,6 +3292,7 @@ window.axNotify = function (title, opts) {
       if (bdDlg.open) bdDlg.close();
       engineOff(false);
       EXM = exam; QS = exam.questions || []; cur = -1; started = 0; tabOut = 0; tabw.hidden = true; mode = 'exam';
+      timStart(exam);
       resumeDraft = (opts && opts.draft) || null;
       // dashboard.js'in submitExam'i bu değişkenden okuyor; "devam et" yolu
       // generateExam'den geçmediği için burada da kurulmalı.
@@ -3301,6 +3340,7 @@ window.axNotify = function (title, opts) {
   });
   book.addEventListener('change', function (e) {
     var r = e.target; if (r.type === 'radio') { $$('input[name="' + r.name + '"]', book).forEach(function (x) { x.closest('.sn-opt-b').setAttribute('aria-pressed', String(x.checked)); }); }
+    if (r.type === 'radio' && /^answer-q-/.test(r.name) && r.checked) timPick(r.name.slice(9), r.value);
     paintOpt();
     if (r.type === 'radio') { var b = opt.querySelector('[data-go="' + cur + '"] .bb i.f'); if (b) b.classList.add('new'); }
   });
@@ -3589,6 +3629,19 @@ window.axNotify = function (title, opts) {
       var label = keyOfExam(exam), code = label.indexOf('c:') === 0 ? label.slice(2) : null;
       /* FAZ 5.1: bu sınav konu seviyelerini nasıl değiştirdi */
       var mch = '';
+      /* FAZ 9: süre ve strateji */
+      var timingHtml = function (ex) {
+        var T = ENG() && typeof ENG().timingReport === 'function' ? ENG().timingReport(ex) : null;
+        if (!T) return '';
+        var qn = function (id) { for (var j = 0; j < rs.length; j++) if (String(rs[j].question_id) === String(id)) return j + 1; return id; };
+        var ch = T.changes, chN = ch.right_to_wrong + ch.wrong_to_right + ch.wrong_to_wrong + ch.right_to_right;
+        return '<section class="sn-tim" aria-label="Süre ve strateji"><h3 class="sn-k">süre ve strateji</h3><p class="sn-tim-s">' +
+          '<span>soru başına <b>' + T.avgSec + ' sn</b>' + (T.targetSec ? ' <small>hedef ' + T.targetSec + ' sn</small>' : '') + '</span>' +
+          (T.avgCorrectSec != null ? '<span>doğrularda <b>' + T.avgCorrectSec + ' sn</b></span>' : '') + (T.avgWrongSec != null ? '<span>yanlışlarda <b>' + T.avgWrongSec + ' sn</b></span>' : '') +
+          (chN ? '<span>şık değiştirme <b>' + chN + '</b><small>doğrudan yanlışa ' + ch.right_to_wrong + ' · yanlıştan doğruya ' + ch.wrong_to_right + '</small></span>' : '') + '</p>' +
+          (T.slowest.length ? '<p class="sn-tim-l">en uzun: ' + T.slowest.map(function (x) { return '<span class="' + (x.ok ? 'ok' : 'no') + '">' + qn(x.id) + '. soru ' + mmss(x.sec) + '</span>'; }).join('') + '</p>' : '') +
+          (T.tips.length ? '<ul>' + T.tips.map(function (t) { return '<li class="' + esc(t.k) + '">' + esc(t.text) + '</li>'; }).join('') + '</ul>' : '<p class="sn-tim-ok">Tempon dengeli; aceleyle ya da takılarak kaybettiğin soru görünmüyor.</p>') + '</section>';
+      };
       if (ENG() && typeof ENG().masteryChanges === 'function') {
         var tEx = new Date(exam.completed_at || Date.now()).getTime();
         var mc = ENG().masteryChanges(EX.filter(function (x) { return x.id !== exam.id && keyOfExam(x) === label && new Date(x.completed_at).getTime() < tEx; }), exam);
@@ -3602,14 +3655,15 @@ window.axNotify = function (title, opts) {
       var adPlan = exam.scoring && exam.scoring.adaptive && Array.isArray(exam.scoring.adaptive.plan) ? exam.scoring.adaptive.plan : null, adMap = {};
       if (adPlan && ENG() && typeof ENG().conceptKey === 'function') adPlan.forEach(function (x) { adMap[ENG().conceptKey(x.concept)] = x.reason; });
       var practice = wl.length && wl[0].a < 75 ? (code ? '<button type="button" class="sn-ghost" data-practice="' + esc(code) + '" data-concept="' + esc(wl[0].c) + '">“' + esc(wl[0].c) + '” konusundan yeni deneme</button>' : '<button type="button" class="sn-ghost" data-retry="' + esc(label) + '">bu belgeden yeni deneme</button>') : '';
+      lsafe(function () { localStorage.removeItem(timKey(exam.id)); });
       res.innerHTML = '<article class="sn-paper"><div class="sn-ph"><div><span class="sn-k">' + esc(course) + '</span><h2 class="disp">' + esc(exam.scoring && Array.isArray(exam.scoring.retry) ? 'ikinci şans' : (adPlan ? 'akıllı' : (TYPE[exam.exam_type] || 'deneme')) + ' deneme') + (exam.is_simulation ? ' · gerçek süre' : '') + '</h2><p>' + esc(dshort(exam.completed_at || new Date())) + ' · ' + rs.length + ' soru · ' + (exam.language === 'tr' ? 'Türkçe' : 'English') + ' · ' + verdict + '</p></div>' +
         '<div class="sn-score-w"><span class="sn-gz-res" data-acadia="" data-mood="' + (g >= 70 ? 'kutlama' : g >= 50 ? 'mutlu' : 'dusunuyor') + '" data-pose="' + (g >= 70 ? 'zipla' : 'dur') + '" data-size="92" data-costume="sinav" aria-hidden="true"></span><div class="sn-score ' + (g >= 70 ? 'ok' : g >= 50 ? 'mid' : 'lo') + '" role="img" aria-label="Puan ' + g + ' / 100"><svg viewBox="0 0 118 96" aria-hidden="true"><path pathLength="1" d="M60 6 C24 4 4 26 8 52 C12 80 50 94 82 86 C110 78 118 50 104 28 C94 12 74 6 52 10"/></svg><b>' + g + '</b><small>/ 100</small></div></div></div>' +
-        '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' + mch +
+        '<p class="sn-sum">' + netLine(exam) + '<span>doğru <b>' + cnt.ok + '</b></span><span>kısmen <b>' + cnt.half + '</b></span><span>yanlış <b>' + cnt.no + '</b></span>' + (cnt.blank ? '<span>boş <b>' + cnt.blank + '</b></span>' : '') + (el ? '<span>süre <b>' + mmss(el) + '</b></span>' : '') + '</p>' + mch + timingHtml(exam) +
         rs.map(function (r, i) {
           var k = r.score >= 80 ? 'ok' : r.score >= 50 ? 'half' : 'no', blank = !String(r.student_answer || '').trim();
           var steps = Array.isArray(r.solution_steps) && r.solution_steps.length ? '<div class="sn-model"><b>çözüm adımları</b><ol>' + r.solution_steps.map(function (s) { return '<li>' + rich(s) + '</li>'; }).join('') + '</ol></div>' : '';
           var unit = r.units ? ' ' + esc(r.units) : '';
-          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + (adPlan && r.concept && adMap[ENG().conceptKey(r.concept)] ? '<span class="why ' + esc(adMap[ENG().conceptKey(r.concept)]) + '">' + esc(AD_WHY[adMap[ENG().conceptKey(r.concept)]] || '') + '</span>' : '') + (exam.scoring && Array.isArray(exam.scoring.retry) ? '<span class="why review">hata defterinden</span>' : '') + (r.help_used ? '<span class="why help">' + (r.help_variant ? 'adım adım · yeni sayılarla' : 'adım adım · en çok ' + esc(String(r.help_cap || 50))) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
+          return '<div class="sn-ri" style="--i:' + i + '"><svg class="mk ' + k + '" viewBox="0 0 34 34" aria-hidden="true">' + MK[k] + '</svg><div class="sn-ri-h"><b>' + (i + 1) + '</b><span class="ty">' + esc(QT[r.type] || r.type || '') + '</span>' + (r.concept ? '<span class="cpt">' + esc(r.concept) + '</span>' : '') + (adPlan && r.concept && adMap[ENG().conceptKey(r.concept)] ? '<span class="why ' + esc(adMap[ENG().conceptKey(r.concept)]) + '">' + esc(AD_WHY[adMap[ENG().conceptKey(r.concept)]] || '') + '</span>' : '') + (exam.scoring && Array.isArray(exam.scoring.retry) ? '<span class="why review">hata defterinden</span>' : '') + (r.answer_change === 'right_to_wrong' ? '<span class="why chg">doğrudan yanlışa</span>' : r.answer_change === 'wrong_to_right' ? '<span class="why stretch">yanlıştan doğruya</span>' : '') + (typeof r.time_ms === 'number' ? '<span class="tm">' + mmss(r.time_ms / 1000) + '</span>' : '') + (r.help_used ? '<span class="why help">' + (r.help_variant ? 'adım adım · yeni sayılarla' : 'adım adım · en çok ' + esc(String(r.help_cap || 50))) + '</span>' : '') + '<span class="pt">' + (+r.score || 0) + '</span></div>' +
             '<p class="q">' + rich(r.question) + '</p>' + chartHtml(r, exam.language) + (r.type === 'graph' && ENG() && typeof ENG().graphResultHtml === 'function' ? ENG().graphResultHtml(r, exam.language) : '') + '<p class="yours' + (k === 'no' && !blank ? ' wrong' : '') + '">senin cevabın: <span>' + (blank ? 'boş bıraktın' : ansHtml(r, r.student_answer) + (r.student_answer && r.units ? unit : '')) + '</span></p>' +
             (r.type !== 'open_ended' && r.correct_answer != null && r.correct_answer !== '' && String(r.correct_answer).trim().toLowerCase() !== 'null' ? '<p class="right">doğrusu: ' + ansHtml(r, r.correct_answer) + (r.type === 'expression' && r.up_to_constant ? ' + C' : '') + unit + (r.decimal_places ? ' (virgülden sonra ' + esc(r.decimal_places) + ' basamak)' : r.tolerance_percent ? ' (±%' + esc(r.tolerance_percent) + ')' : '') + '</p>' : '') +
             (r.feedback ? '<p class="fb">' + rich(r.feedback) + '</p>' : '') + (r.help_raw_score != null ? '<p class="fb">Cevabın ' + esc(String(r.help_raw_score)) + ' puanlık; adım adım yardım kullandığın için ' + esc(String(r.help_cap || 50)) + ' sayıldı.</p>' : '') + teach(r, blank) + steps + '</div>';

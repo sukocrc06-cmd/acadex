@@ -1872,7 +1872,7 @@
       e.question_results.forEach(r => {
         if (!r || (+r.score || 0) >= 50) return;
         const id = e.id + ':' + r.question_id;
-        out[id] = { id: id, examId: e.id, questionId: Number(r.question_id), type: r.type, at: new Date(e.completed_at).getTime(), attempts: [] };
+        out[id] = { id: id, examId: e.id, questionId: Number(r.question_id), type: r.type, chart: !!r.chart, at: new Date(e.completed_at).getTime(), attempts: [] };
       });
     });
     list.forEach(e => {
@@ -1896,6 +1896,64 @@
       m.inDays = Math.max(0, Math.ceil((m.dueAt - now) / DAY_MS));
     });
     return out;
+  }
+
+  /** FAZ 9: zamanı gelen yanlış hatırlatması (bildirim çanı). İkinci şansa
+   *  uygun (grafik/çizim değil), zamanı gelmiş yanlışların sayısı; "zamanı
+   *  geldiği an" denenmişte bir sonraki tekrar günü, hiç denenmemişte sınavdan
+   *  1 gün sonra (sınavdan hemen sonra çan çalmasın). Yalnızca since'ten sonra
+   *  zamanı gelen varsa at dolu; aynı yanlış iki kez çaldırmaz. */
+  const MISTAKE_TYPES = ['multiple_choice', 'true_false', 'fill_blank', 'open_ended', 'calculation'];
+  function mistakeReminder(states, since, now) {
+    const t = Number.isFinite(now) ? now : Date.now(), from = Number.isFinite(since) ? since : 0;
+    let count = 0, at = null;
+    Object.keys(states || {}).forEach(id => {
+      const m = states[id];
+      if (!m || m.won || MISTAKE_TYPES.indexOf(m.type) < 0 || m.chart) return;
+      const ripe = m.attempts && m.attempts.length ? m.dueAt : m.at + DAY_MS;
+      if (ripe > t) return;
+      count++;
+      if (ripe > from && (at === null || ripe > at)) at = ripe;
+    });
+    return { count: count, at: at };
+  }
+
+  /** FAZ 9: süre ve strateji raporu (UWorld / Blueprint / BoardVitals'teki
+   *  gibi). grade-exam'in yazdığı time_ms ve answer_change'den:
+   *  - tempo: soru başına ortalama ve ortanca; gerçek sınav provasında hedef
+   *    (süre / soru sayısı) ile karşılaştırma
+   *  - aceleyle yanlış: ortancanın %40'ından (en az 8 sn) kısa sürede yanlış
+   *  - takılma: ortancanın 2 katından ve 60 sn'den uzun süren yanlış
+   *  - cevap değiştirme: doğrudan yanlışa / yanlıştan doğruya / yanlıştan yanlışa
+   *  Sürenin yarıdan azı kayıtlıysa (eski sınav) null. */
+  function timingReport(exam) {
+    const rs = (exam && Array.isArray(exam.question_results) ? exam.question_results : []).filter(r => r && typeof r === 'object');
+    const timed = rs.filter(r => Number.isFinite(r.time_ms) && r.time_ms >= 0);
+    if (!rs.length || timed.length * 2 < rs.length) return null;
+    const secs = timed.map(r => r.time_ms / 1000).sort((a, b) => a - b);
+    const mid = secs.length % 2 ? secs[(secs.length - 1) / 2] : (secs[secs.length / 2 - 1] + secs[secs.length / 2]) / 2;
+    const total = secs.reduce((a, b) => a + b, 0);
+    const avg = total / secs.length;
+    const n = Number(exam.question_count) || rs.length;
+    const target = exam.is_simulation && Number(exam.time_limit_seconds) > 0 ? Number(exam.time_limit_seconds) / n : null;
+    const ok = r => Number(r.score) >= 80, bad = r => !(Number(r.score) >= 50), blank = r => !String(r.student_answer == null ? '' : r.student_answer).trim();
+    const avgOf = list => list.length ? Math.round(list.reduce((a, r) => a + r.time_ms, 0) / list.length / 1000) : null;
+    const rushed = timed.filter(r => bad(r) && !blank(r) && r.time_ms / 1000 < Math.max(8, mid * 0.4)).map(r => r.question_id);
+    const stuck = timed.filter(r => bad(r) && r.time_ms / 1000 > Math.max(60, mid * 2)).map(r => r.question_id);
+    const changes = { right_to_wrong: 0, wrong_to_right: 0, wrong_to_wrong: 0, right_to_right: 0 };
+    rs.forEach(r => { if (Object.prototype.hasOwnProperty.call(changes, r.answer_change)) changes[r.answer_change]++; });
+    const slowest = timed.slice().sort((a, b) => b.time_ms - a.time_ms).slice(0, 3).map(r => ({ id: r.question_id, sec: Math.round(r.time_ms / 1000), ok: ok(r) }));
+    const tips = [];
+    if (target && avg > target * 1.1) tips.push({ k: 'pace', text: 'Soru başına ortalama ' + Math.round(avg) + ' sn harcadın; bu provada soru başına ' + Math.round(target) + ' sn düşüyordu. Takıldığın soruyu işaretleyip geç, sonra dön.' });
+    if (rushed.length >= 2 || (rushed.length === 1 && rs.length <= 5)) tips.push({ k: 'rush', text: rushed.length + ' soruyu çok kısa sürede cevaplayıp yanlış yaptın; soruyu ve şıkları sonuna kadar oku.' });
+    if (stuck.length) tips.push({ k: 'stuck', text: 'En uzun takıldığın ' + stuck.length + ' soru yine yanlış çıktı; bir soruya ayıracağın süreye sınır koy, gerisini sona bırak.' });
+    if (changes.right_to_wrong > changes.wrong_to_right) tips.push({ k: 'change', text: 'Cevap değiştirmek bu sefer kaybettirdi: doğrudan yanlışa ' + changes.right_to_wrong + ', yanlıştan doğruya ' + changes.wrong_to_right + '. Yeni bir gerekçen yoksa ilk cevabında kal.' });
+    else if (changes.wrong_to_right > changes.right_to_wrong) tips.push({ k: 'change-good', text: 'Cevap değiştirmek işine yaradı: yanlıştan doğruya ' + changes.wrong_to_right + '. Sona gözden geçirme payı bırakmaya devam et.' });
+    return {
+      totalSec: Math.round(total), avgSec: Math.round(avg), medianSec: Math.round(mid), targetSec: target ? Math.round(target) : null,
+      avgCorrectSec: avgOf(timed.filter(ok)), avgWrongSec: avgOf(timed.filter(r => bad(r) && !blank(r))),
+      rushed: rushed, stuck: stuck, changes: changes, slowest: slowest, blank: rs.filter(blank).length, tips: tips
+    };
   }
 
   /** Bir sınavın konu seviyelerini nasıl değiştirdiği: önceki sınavlarla
@@ -2785,6 +2843,8 @@
     MISTAKE_WIN,
     isRetryExam,
     mistakeStates,
+    mistakeReminder,
+    timingReport,
     // FAZ 3b: cebirsel ifade
     normalizeMathInput,
     exprToTex,
