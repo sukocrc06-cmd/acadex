@@ -108,6 +108,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'YOKLUK_IDDIASI',
   // Pencere cikis tavani serit butcesinden turetilir (09.10.2026).
   'WINDOW_COMPLETION_MIN', 'WINDOW_COMPLETION_MAX', 'WINDOW_COMPLETION_MARGIN',
+  // Pencere kucultme testi icin (oteki bildirimler listede zaten var).
+  'MAX_CHUNKS',
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
@@ -5141,6 +5143,111 @@ test('ONCEKI KOSULARIN gercek degerleri bozulmadi', () => {
       Slayt altbilgisi (bölüm-slayt numarası) cümleye yapışmış; jeton
       ".13" okunup 0,13 diye ölçülen değer sayılıyordu. Aynı kalıp
       ekonometri destesinde de vardı (7-13, 7-28, 7-38, 7-41). */
+/* PENCERE ÇOK BÜYÜKKEN ÇIKIŞ TAVANI TABANA ÇÖKÜYOR
+   (30.10.2026 — "Week3 Chp2" ÖLÇÜMÜ).
+
+   İki bütçe birbiriyle tutarsızdı:
+     WINDOW = 13.000 krk    -> bir pencerenin ne kadar büyük OLABİLECEĞİ
+     windowCompletionFor()  -> o pencereye TPM'den ne kadar çıkış kaldığı
+   İkincisi ~12.250 krk'tan sonra tabana çöküyor, birincisi 13.000'e kadar
+   tek pencereye izin veriyor. Aradaki bantta belge tek pencereye SIĞIYOR
+   ama modelin yazacak yeri yok. Ölçülen koşu:
+
+     Long-doc compact: 1 window(s), totalChars=12298
+     Pencere cikis tavani TABANA dayandi (2048): pencere 12298 krk ile cok
+       buyuk, model yazacak yer bulamayabilir
+     Window 1 token: prompt=3956 completion=2256 / max=2048
+
+   completion tavanı AŞTI (2256 > 2048), yani çıktı kesildi: 40 sayfalık
+   belgeden 2 bölüm ve 8 soru çıktı. Sağlıklı koşularda aynı satır 3047,
+   2824, 3452, 3737 yazıyor ve kartlar dolu.
+
+   Not: tahminci bu metinde kötümser — Groq promptu 3.956 token saydı,
+   bizim ÷3.2 tahmini 4.968 diyor (%25 fazla). Bölen küçültülemez, çünkü
+   başka bir ölçümde 3.2 isabetliydi (10.553 krk -> 3.248 gerçek). Doğru
+   çözüm pencereyi küçültmek; windowCompletionFloored bunu zaten görüyordu. */
+console.log('\nPENCERE KUCULTME: CIKIS TAVANI TABANDA\n');
+
+/* Testler kaynaktaki döngünün AYNISINI koşturuyor: index.ts'teki blok
+   serve() içinde kapalı olduğu için buraya birebir kopyalandı ve ayrı bir
+   iddia kaynakla eşleştiğini denetliyor. */
+const WIN_SEMA = 'x'.repeat(3600);
+const WIN_HEDEF = 13000;
+const winMetin = (n) => {
+  let s = '', i = 0;
+  while (s.length < n) s += `Paragraf ${i++} icin gercekcilik adina biraz daha uzun bir cumle yaziyoruz.\n\n`;
+  return s.slice(0, n);
+};
+const winEnUzun = (p) => p.reduce((u, x) => (x.length > u.length ? x : u), '');
+function winBol(metin) {
+  let w = A.splitIntoWindows(metin, WIN_HEDEF, A.MAX_CHUNKS);
+  const oncePencere = w.length;
+  const onceTavan = A.windowCompletionFor(WIN_SEMA, winEnUzun(w));
+  let hedef = WIN_HEDEF, tur = 0;
+  for (; tur < 4; tur++) {
+    if (w.length >= A.MAX_CHUNKS) break;
+    if (!A.windowCompletionFloored(WIN_SEMA, winEnUzun(w))) break;
+    hedef = Math.floor(hedef * 0.75);
+    const yeni = A.splitIntoWindows(metin, hedef, A.MAX_CHUNKS);
+    if (yeni.length <= w.length) break;
+    w = yeni;
+  }
+  return { oncePencere, onceTavan, sonraPencere: w.length, sonTavan: A.windowCompletionFor(WIN_SEMA, winEnUzun(w)), tur };
+}
+
+test('OLCULEN VAKA: 12.298 krk tek pencere BOLUNUYOR, tavan kurtuluyor', () => {
+  const r = winBol(winMetin(12298));
+  assert.equal(r.oncePencere, 1, 'olcumde tek pencereydi');
+  assert.equal(r.onceTavan, A.WINDOW_COMPLETION_MIN, 'olcumde tavan tabandaydi');
+  assert.ok(r.sonraPencere > 1, 'pencere bolunmedi');
+  assert.ok(r.sonTavan > A.WINDOW_COMPLETION_MIN,
+    `tavan hala tabanda: ${r.sonTavan}`);
+  assert.equal(r.tur, 1, 'bir tur yetmeliydi');
+});
+
+test('SAGLIKLI KOSULAR hic degismiyor', () => {
+  /* Olculen sağlıklı uzunluklar: 11.344 (tavan 2330), 14.472 (3607),
+     18.687 (2937). Hicbirinde dongu kosmamali. */
+  for (const n of [8655, 11344, 14472, 18687, 29650]) {
+    const r = winBol(winMetin(n));
+    assert.equal(r.tur, 0, `${n} krk icin dongu kosmus`);
+    assert.equal(r.sonraPencere, r.oncePencere, `${n} krk icin pencere sayisi degismis`);
+  }
+});
+
+test('BANT SINIRI SABITLERDEN turuyor, elle yazilmiyor', () => {
+  /* Taban sinirini sabitler belirliyor; biri degisirse bant kayar ve bu
+     test onu yakalar. */
+  const serit = Math.floor(A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY);
+  const sinir = (serit - A.WINDOW_COMPLETION_MARGIN - A.WINDOW_COMPLETION_MIN) * 3.2 - WIN_SEMA.length;
+  assert.ok(sinir > 12000 && sinir < 12500, `beklenmeyen bant siniri: ${sinir}`);
+  // Sinirin hemen altinda tavan tabanda DEGIL, hemen ustunde tabanda.
+  assert.ok(!A.windowCompletionFloored(WIN_SEMA, 'x'.repeat(Math.floor(sinir) - 50)));
+  assert.ok(A.windowCompletionFloored(WIN_SEMA, 'x'.repeat(Math.ceil(sinir) + 50)));
+});
+
+test('DONGU KENDINI SINIRLIYOR: bolunemeyen metinde sonsuz dongu yok', () => {
+  /* Tek paragraflik dev metin bolunemez; dongu ilk turda cikmali. */
+  const bolunemez = 'x'.repeat(13000);
+  const r = winBol(bolunemez);
+  assert.ok(r.tur <= 1, `dongu ${r.tur} tur dondu`);
+  assert.ok(r.sonraPencere >= 1);
+});
+
+test('yeniden bolme KAYNAKTA bagli ve loglaniyor', () => {
+  assert.match(SRC, /if \(windows\.length >= pencereTavani\) break/,
+    'pencere tavanina ulasildiginda cikilmiyor');
+  assert.match(SRC, /if \(!windowCompletionFloored\(compactWindowPrompt\(0, windows\.length\), enUzun\(windows\)\)\) break/,
+    'kucultme kosulu tavanin TABANDA olmasina bagli degil');
+  assert.match(SRC, /if \(yeni\.length <= windows\.length\) break/,
+    'bolunemeyen metin icin cikis yok — sonsuz dongu riski');
+  assert.match(SRC, /Pencere kucultuldu: cikis tavani tabanda kaldi/,
+    'kucultme loglanmiyor — bir dahaki sefere tahmin olur');
+  // EN UZUN pencereye bakilmali: splitIntoWindows dengeliyor ama ilk pencere
+  // her zaman en buyuk degil.
+  assert.match(SRC, /const enUzun = \(p: string\[\]\) =>/, 'en uzun pencere secilmiyor');
+});
+
 console.log('\nMADDESIZ BOLUM VE SLAYT ALTBILGISI\n');
 
 test('SLAYT ALTBILGISI sayi sayilmiyor', () => {

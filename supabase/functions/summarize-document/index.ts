@@ -11580,9 +11580,50 @@ Rules:
       // yalnizca maliyeti buyutur: 12 pencere (~156.000 krk) yerine belgenin
       // tamami okunur. README'deki "%28 kapsama" sorunu bu modda yok.
       const parallelGemini = geminiParallelActive()
-      const windows: string[] = splitIntoWindows(
-        extractedText, WINDOW, parallelGemini ? GEMINI_PARALLEL_MAX_WINDOWS : MAX_CHUNKS
-      )
+      const pencereTavani = parallelGemini ? GEMINI_PARALLEL_MAX_WINDOWS : MAX_CHUNKS
+      let windows: string[] = splitIntoWindows(extractedText, WINDOW, pencereTavani)
+
+      /* TAVAN TABANA DAYANIRSA PENCERE KUCULTULUYOR (30.10.2026 olcumu).
+       *
+       * Iki butce birbiriyle TUTARSIZDI:
+       *   WINDOW = 13.000 krk   -> bir pencerenin ne kadar buyuk OLABILECEGI
+       *   windowCompletionFor() -> o pencereye TPM'den ne kadar cikis kaldigi
+       * Ikinci butce ~11.500 krk'tan sonra tabana (WINDOW_COMPLETION_MIN)
+       * cokuyor, ama birincisi 13.000'e kadar tek pencereye izin veriyor.
+       * Yani arada bir aralik var: belge tek pencereye SIGIYOR ama modelin
+       * yazacak yeri yok.
+       *
+       * Olculdu — "Week3 Chp2", 12.298 krk, TEK pencere:
+       *   Pencere cikis tavani TABANA dayandi (2048): pencere 12298 krk ile
+       *   cok buyuk, model yazacak yer bulamayabilir
+       *   Window 1 token: prompt=3956 completion=2256 / max=2048
+       * completion tavanı ASTI, yani cikti kesildi; kart 40 sayfadan 2 bolum
+       * ve 8 soruyla cikti. Saglikli kosularda ayni log 3047, 2824, 3452,
+       * 3737 yaziyor ve kartlar dolu.
+       *
+       * windowCompletionFloored zaten bu durumu GORUYOR ve uyariyordu; yorumu
+       * da "dogru cozum pencereyi kucultmektir" diyordu. Artik kuculuyor.
+       *
+       * Dongu KENDINI SINIRLIYOR: hedef %25 kuculuyor, pencere sayisi
+       * artmazsa cikiliyor (bolunemeyen metinde sonsuz dongu yok) ve en
+       * fazla dort tur deneniyor. Pencere tavanina ulasildiysa hic
+       * denenmiyor — oradan sonra kucultmek kapsamayi dusururdu. */
+      {
+        const enUzun = (p: string[]) => p.reduce((u, w) => (w.length > u.length ? w : u), '')
+        let hedef = WINDOW
+        for (let tur = 0; tur < 4; tur++) {
+          if (windows.length >= pencereTavani) break
+          if (!windowCompletionFloored(compactWindowPrompt(0, windows.length), enUzun(windows))) break
+          hedef = Math.floor(hedef * 0.75)
+          const yeni = splitIntoWindows(extractedText, hedef, pencereTavani)
+          if (yeni.length <= windows.length) break
+          console.log(
+            `Pencere kucultuldu: cikis tavani tabanda kaldi, hedef ${hedef} krk ` +
+            `-> ${windows.length} pencere yerine ${yeni.length} pencere`
+          )
+          windows = yeni
+        }
+      }
       const windowedChars = windows.reduce((n, w) => n + w.length, 0)
       console.log(
         `Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}, ` +
