@@ -5229,6 +5229,20 @@ const CAG_YILI_RE = /\b\d{1,4}\s*(?:b\.?c\.?e\.?|b\.?c\.?|a\.?d\.?|c\.?e\.?|m\.?
  * daldan dusuyor — onlar da miktar degil. */
 const DERS_KODU_RE = /\b[A-Za-z]{2,}\d{1,4}\b/g
 
+/* BOSLUKLU DERS KODU: "BUS 110" (30.10.2026 olcumu).
+ *
+ * DERS_KODU_RE rakamin harflere YAPISIK olmasini istiyor (BUS211). Ayni
+ * belgenin ust bilgisi ise "BUS 110 - Ipek Mete" yaziyor ve 110 rozete
+ * miktar olarak girdi.
+ *
+ * Boslukluda kural DARALTILMAK ZORUNDA: "harf + bosluk + rakam" serbest
+ * kalsa "about 250", "yaklasik 250", "toplam 500" gibi GERCEK miktarlar da
+ * silinirdi. Bu yuzden uc sart birden: harfler TAMAMI BUYUK (ders kodlari
+ * oyle yazilir, "about" degil), 3-5 harf (iki harfli "TL" disarida),
+ * 2-4 rakam. Para/olcu kisaltmalari ayrica muaf: "USD 250" bir tutardir. */
+const KOD_DISI = new Set(['USD', 'EUR', 'TRY', 'GBP', 'CHF', 'JPY', 'KWH', 'RPM', 'BMI'])
+const DERS_KODU_BOSLUKLU_RE = /\b([A-Z]{3,5})\s(\d{2,4})\b/g
+
 /* ATIF ETIKETI SAYI DEGILDIR (29.10.2026 — iki bagimsiz olcum).
  *
  * "Chp 9 - Group Processes" kosusunda kapsama kayiplarinin baglami:
@@ -5247,8 +5261,18 @@ const DERS_KODU_RE = /\b[A-Za-z]{2,}\d{1,4}\b/g
  * gercek miktarlari da yutabilir. Onek sarti o riski sifirliyor.
  *
  * 'ek' ve 'bolum' listede YOK: "ek 5 birim" gercek bir miktardir. */
+/* ONUNDE RAKAM VARSA \b KIRILIYOR (30.10.2026 olcumu).
+ *
+ * Desen `\b` ile basliyordu. PDF cikariminda sayfa numarasi sozcuge
+ * yapisabiliyor ve "29Figure 2.2" oluyor: '9' ile 'F' ikisi de kelime
+ * karakteri, aralarinda SINIR YOK, yani `\bfigure` eslesmiyordu. Olculdu:
+ *   "Figure 2.2 Independent..."    -> elendi
+ *   "29Figure 2.2 Independent..."  -> ELENMEDI, rozete 2.2 olarak girdi
+ * Yerine "onunde HARF olmasin": rakam serbest, boylece yapisik sayfa
+ * numarasi engel degil, ama "configure 2.2" gibi sozcuk ici eslesme yine
+ * engelli. */
 const ATIF_ETIKETI_RE =
-  /\b(?:figure|fig|table|tablo|\u015fekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:\.\d+)*\b/gi
+  /(?<![A-Za-z])(?:figure|fig|table|tablo|\u015fekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:\.\d+)*\b/gi
 
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
@@ -5257,6 +5281,7 @@ function distinctiveNumbers(text: string): number[] {
     .replace(CAG_YILI_RE, ' ')
     .replace(ATIF_ETIKETI_RE, ' ')
     .replace(DERS_KODU_RE, ' ')
+    .replace(DERS_KODU_BOSLUKLU_RE, (tam: string, kod: string) => KOD_DISI.has(String(kod)) ? tam : ' ')
     .replace(SAYFA_ISARETI_RE, ' ')
   const out: number[] = []
   const gorulen = new Set<number>()
@@ -5269,8 +5294,20 @@ function distinctiveNumbers(text: string): number[] {
     if (birincil === undefined) continue
     const v = Math.abs(birincil)
     const kesirli = v !== Math.trunc(v)
+    /* YIL KURALI JETONUN NOKTALAMASINA TAKILIYORDU (30.10.2026 olcumu).
+     *
+     * SAYI_BELIRTECI (/\.?\d[\d.,]*​/) sondaki virgulu de yutuyor: "In the
+     * fall of 1936, a magazine" icin jeton "1936," oluyor ve /^\d{4}$/
+     * testi FALSE donuyor. Sonuc: yil kurali HIC calismiyor ve yil olculmus
+     * bir miktar sayiliyor. "Week3 Chp2" kartinda rozet ogrenciye %25 dedi;
+     * kayiplardan biri tam bu 1936'ydi. Daha onceki kosularda da gorulmustu
+     * ("BUS211 week3": kayip 2015, 2012).
+     *
+     * Sekil testi artik SADELESMIS jetonla. Deger (v) zaten dogru
+     * okunuyordu; kusur yalnizca sekil testindeydi. */
+    const sadeJeton = token.replace(/^[.,]+|[.,]+$/g, '')
     // Yil hicbir zaman ayracla yazilmaz: "1,800 dolar" bir tutar, "1800" bir yil.
-    const yil = !kesirli && v >= 1500 && v <= 2100 && /^\d{4}$/.test(token)
+    const yil = !kesirli && v >= 1500 && v <= 2100 && /^\d{4}$/.test(sadeJeton)
     if (yil || (!kesirli && v < 100)) continue
     if (gorulen.has(v)) continue
     gorulen.add(v)

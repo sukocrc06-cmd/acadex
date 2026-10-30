@@ -111,8 +111,13 @@ test('MOLA BITISI de bildirim gonderiyor', () => {
 
 test('ODAGI BASLAT dugmesi izin istiyor', () => {
   const blok = SRC.slice(SRC.indexOf("Q('[data-pgo]', st).addEventListener"), SRC.indexOf("Q('[data-pskip]', st).addEventListener"));
-  assert.match(blok, /pomIzinIste\(\);\s*pomStart\('focus'\)/,
-    'izin istegi odak baslatmadan ONCE ve ayni tiklamada olmali');
+  /* YAN YANA OLMA SARTI KALKTI (30.10.2026): 25843fb commit'i iPad icin
+     arasina pomIosIpucu() ekledi — mesru bir degisiklik. Onemli olan
+     komsuluk degil SIRA: izin, odak baslatilmadan once istenmeli. */
+  const i = blok.indexOf('pomIzinIste()');
+  const j = blok.indexOf("pomStart('focus')");
+  assert.ok(i > -1, 'izin istegi odagi baslat tiklamasinda yok');
+  assert.ok(j > -1 && i < j, 'izin istegi pomStart tan ONCE olmali');
 });
 
 test('ESKI SINYALLER KORUNDU: beep, sayfa ici bildirim, sekme basligi', () => {

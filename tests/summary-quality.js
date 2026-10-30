@@ -112,6 +112,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Sayisal kapsama olcusu (09.10.2026).
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
+  'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE',
   // Maddeler veritabanina duz metin olarak gider (29.10.2026 olcumu).
   'duzMaddeMetni', 'normalizeKeyPoints',
   // Diyagram kopyasi (29.10.2026 olcumu).
@@ -5042,6 +5043,82 @@ test('diyagram dedupe CIKISA baglanmis ve sayisi loglaniyor', () => {
   assert.match(SRC, /Diyagram kopyasi birlestirildi/, 'dusen diyagram loglanmiyor');
   assert.match(SRC, /diagrams \$\{Array\.isArray\(parsedContent\.diagrams\)/,
     'Near-duplicate merge satiri diyagram sayisini da yazmali');
+});
+
+/* ROZET %25 DEDİ, GERÇEK KAPSAMA %100'DÜ
+   (30.10.2026 — "Week3 Chp2" ÖLÇÜMÜ).
+
+   Log üç kaybın bağlamını verdi ve üçü de artefakt çıktı — ama üçü de
+   mevcut elemelerden AYRI AYRI sebeplerle kaçıyordu:
+
+     110  <- "--- SAYFA 2 --- BUS 110 - Ipek Mete"
+             ders kodu, ama BOŞLUKLU; DERS_KODU_RE yapışık rakam istiyor
+     1936 <- "In the fall of 1936, a magazine called the Literary Digest"
+             yıl, ama jeton "1936," (SAYI_BELIRTECI sondaki virgülü yutuyor)
+             ve yıl kuralı /^\d{4}$/ ile test ettiği için HİÇ çalışmıyordu
+     2.2  <- "--- SAYFA 29 --- 29Figure 2.2 Independent and Dependent"
+             şekil numarası, ama sayfa numarası sözcüğe yapışık: '9' ile 'F'
+             arasında kelime sınırı yok, `\bfigure` eşleşmiyordu
+
+   İkincisi en geniş etkili olanı: virgül/nokta ardından gelen HER yıl
+   bugüne kadar miktar sayılmış ("BUS211 week3" koşusunda da 2015 ve 2012
+   kayıp listesindeydi). */
+console.log('\nKAPSAMA ARTEFAKTLARI: YIL, BOSLUKLU KOD, YAPISIK SEKIL\n');
+
+test('OLCULEN UC KAYIP da elendi', () => {
+  const baglamlar = [
+    'o third parties!!! --- SAYFA 2 --- BUS 110 - Ipek Mete 2 Chapter 2 Methodology',
+    'ion = Misleading Results In the fall of 1936, a magazine called the Literary Digest p',
+    'low in notes --- SAYFA 29 --- 29Figure 2.2 Independent and Dependent Variables in'
+  ];
+  for (const b of baglamlar) {
+    assert.deepEqual(A.distinctiveNumbers(b), [], b.slice(0, 60));
+  }
+});
+
+test('YIL KURALI noktalamaya takilmiyor (en genis etkili kusur)', () => {
+  /* Jeton sondaki ayraci tasiyor: "1936," -> /^\d{4}$/ FALSE idi. */
+  for (const g of ['In the fall of 1936, a magazine', 'published in 2014.', 'between 1899 and 1946,', '1953 to 2001;']) {
+    assert.deepEqual(A.distinctiveNumbers(g), [], g);
+  }
+  // Ayracli YAZILAN ayni sayi hala TUTAR: "1,936" bir miktardir.
+  assert.ok(A.distinctiveNumbers('tutar 1,936 dolar').includes(1936),
+    'ayracli yazilan sayi yil sayilmamali');
+});
+
+test('BOSLUKLU DERS KODU elendi ama GERCEK MIKTARLAR duruyor', () => {
+  assert.deepEqual(A.distinctiveNumbers('BUS 110 - Ipek Mete'), []);
+  assert.deepEqual(A.distinctiveNumbers('CHEM 101 Introduction'), []);
+  /* Kural daraltilmak zorundaydi: serbest "harf + bosluk + rakam" olsa
+     asagidakilerin hepsi silinirdi. */
+  for (const [g, bekle] of [
+    ['about 250 participants', 250],
+    ['yaklasik 250 adet', 250],
+    ['toplam 500 TL odendi', 500],
+    ['USD 250 was paid', 250],
+    ['TL 500 odendi', 500]
+  ]) assert.ok(A.distinctiveNumbers(g).includes(bekle), g + ' -> ' + JSON.stringify(A.distinctiveNumbers(g)));
+  // Para birimleri muaf listesinde; iki harfliler zaten 3 harf alt sinirinin altinda.
+  assert.ok(A.KOD_DISI.has('USD') && !A.KOD_DISI.has('BUS'));
+});
+
+test('YAPISIK SAYFA NUMARASI sekil etiketini gizlemiyor', () => {
+  assert.deepEqual(A.distinctiveNumbers('29Figure 2.2 Independent'), []);
+  assert.deepEqual(A.distinctiveNumbers('Figure 2.2 Independent'), []);
+  /* Onunde HARF olmasin: sozcuk ici eslesme yine engelli, yoksa
+     "configure 2.2" gibi metinlerde gercek sayi silinirdi. */
+  assert.ok(A.distinctiveNumbers('you configure 2.2 volts').includes(2.2),
+    'sozcuk ici eslesme gercek sayiyi silmis');
+});
+
+test('ONCEKI KOSULARIN gercek degerleri bozulmadi', () => {
+  for (const [g, bekle] of [
+    ['beginning inventory of $43,803 million', 43803],
+    ['drifted backward every 1,460 years', 1460],
+    ['At 150 volts, the learner gave his first', 150],
+    ['obedience was 62.5%', 62.5],
+    ['inventory turnover is 8.07 times', 8.07]
+  ]) assert.ok(A.distinctiveNumbers(g).includes(bekle), g);
 });
 
 console.log('\nATIF ETIKETI VE POSTGRES KACISI\n');
