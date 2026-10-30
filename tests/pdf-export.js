@@ -55,6 +55,8 @@ const NEEDED = [
   'drawPdfTable', 'drawChartDataFallback', 'drawMermaidSourceFallback',
   // Belge adi kodsuz ve model aciklamasi ayiklanmis (28.10.2026, test raporu R40, R42).
   'axDocTitle', 'AI_META_SENTENCE_RE', 'stripAiMetaSentences',
+  // PDF etiketleri kartin dilinde (30.10.2026, R72).
+  'PDF_ETIKET', 'pdfEtiket',
   'drawPdfCard', 'appendStudyCardToDoc'
 ];
 const body = NEEDED.map(n => sliceDeclaration(SRC, n)).join('\n\n');
@@ -100,7 +102,10 @@ function render(card) {
 const FULL_CARD = {
   created_at: '2026-10-05T18:00:00Z',
   summary_style: 'standard',
-  summary_language: 'en',
+  // 'tr': bu dosyadaki iddialar Turkce bolum etiketlerini (OZET, ANAHTAR
+  // TERIMLER...) bekliyor. Etiketler 30.10.2026'dan beri kartin dilini
+  // izliyor (R72); Ingilizce kartin etiketleri en alttaki testte.
+  summary_language: 'tr',
   documentFileName: 'economy chapter 20.pdf',
   summary: 'Macroeconomics concerns output growth, unemployment and inflation. [1] The business cycle alternates between expansion and contraction. [2]',
   outline: {
@@ -840,6 +845,20 @@ test('Unicode font VARKEN Turkce bolum etiketleri ve metin PDF e eksiksiz basili
   }
   assert.ok(t.includes('İşsizlik oranı yükseldi'), 'ozet metnindeki Turkce harfler dustu');
   assert.ok(t.includes('ğ, ş ve ı'), 'Latin1 disi kucuk harfler dustu');
+});
+
+/* R72 (30.10.2026): "Ingilizce ders notlarindan olusan ozet PDF'te Turkceye
+   cevriliyor". Icerik cevrilmiyordu ama butun etiketler Turkceydi. */
+test('R72 Ingilizce kartin PDF etiketleri Ingilizce, Turkce kartinki Turkce', () => {
+  const doc = new jsPDF();
+  appendStudyCardToDoc(doc, { ...FULL_CARD, summary_language: 'en' }, false, null);
+  const t = pdfToText(doc);
+  for (const etiket of ['SUMMARY', 'KEY TERMS', 'SOURCES', 'Language: English']) {
+    assert.ok(t.includes(etiket), `"${etiket}" yok:\n${t.slice(0, 600)}`);
+  }
+  assert.ok(!/ANAHTAR TER|KAYNAKLAR|OZET|ÖZET/.test(t), 'Ingilizce kartta Turkce etiket kalmis');
+  assert.equal(pdfEtiket({ summary_language: 'tr' }).ozet, 'ÖZET');
+  assert.equal(pdfEtiket({}).ozet, 'ÖZET', 'dili bilinmeyen kart Turkce kalmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

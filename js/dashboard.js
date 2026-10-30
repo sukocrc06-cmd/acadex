@@ -1205,8 +1205,11 @@ function openSummaryStyleModal() {
   // Denetim Raporu, 2026-08-31 — UI SIMPLIFICATION: Format/Depth radios are
   // gone from this modal (see dashboard.html) — only language and the
   // visual yes/no question remain, so only those need resetting here.
-  const enRadio = document.querySelector('input[name="summary-language-choice"][value="en"]');
-  if (enRadio) enRadio.checked = true;
+  // R63 (30.10.2026): varsayılan özet/kart dili arayüz dili (eskiden hep English;
+  // acadex-ink.js bunun üstüne son seçimi koyar)
+  const uiLang = (localStorage.getItem('acadexUILang') || 'tr') === 'en' ? 'en' : 'tr';
+  const defRadio = document.querySelector(`input[name="summary-language-choice"][value="${uiLang}"]`);
+  if (defRadio) defRadio.checked = true;
   const noVisualsRadio = document.querySelector('input[name="want-visuals-choice"][value="no"]');
   if (noVisualsRadio) noVisualsRadio.checked = true; // Reset to "No" by default
 
@@ -2594,13 +2597,18 @@ window.jumpToFootnote = jumpToFootnote;
    Ayni kural sunucuda da uygulanmali (summarize-document); bu, kayitli eski
    ozetleri de temizler. */
 const AI_META_SENTENCE_RE = new RegExp(
-  String.raw`[^.!?\n]*(?:` +
+  String.raw`[^.!?\n\]]*(?:` + // "]" dahil degil: onceki cumlenin [1] atfi silinmesin
   String.raw`(?:the|this|these) (?:visible|provided|given|available|uploaded|supplied|extracted) (?:text|content|document|slides?|material|excerpts?|pages?|notes)\b[^.!?\n]*\b(?:does not|doesn't|do not|don't|did not|is not|isn't|are not|aren't|lacks?|only|cannot|can't|fails? to)\b` +
   String.raw`|\bas an ai\b|\bi (?:cannot|can't|do not have|don't have) (?:access|see|determine|verify)` +
   String.raw`|(?:görünen|sağlanan|verilen|yüklenen|mevcut) (?:metin|belge|içerik|slayt(?:lar)?|materyal|sayfa(?:lar)?)[^.!?\n]*(?:belirtilmemiş|belirtmiyor|yer almıyor|yer almamaktadır|içermiyor|içermemektedir|değinmiyor|açıklamıyor|bulunmuyor|bulunmamaktadır)` +
   String.raw`)[^.!?\n]*[.!?]?`, 'gi');
 function stripAiMetaSentences(text) {
-  return String(text || '').replace(AI_META_SENTENCE_RE, ' ').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').trim();
+  // Eslesme yoksa metne HIC dokunulmaz (madde girintileri, satir sonlari korunur).
+  const s = String(text || '');
+  AI_META_SENTENCE_RE.lastIndex = 0;
+  if (!AI_META_SENTENCE_RE.test(s)) return s;
+  AI_META_SENTENCE_RE.lastIndex = 0;
+  return s.replace(AI_META_SENTENCE_RE, '').replace(/(\S)[ \t]{2,}(\S)/g, '$1 $2').trim();
 }
 window.stripAiMetaSentences = stripAiMetaSentences;
 
@@ -14488,7 +14496,7 @@ const PDF_INK = {
   faint: [150, 158, 168],
 };
 
-function applyBrandedLayout(doc, unicodeReady, startPage) {
+function applyBrandedLayout(doc, unicodeReady, startPage, E) {
   const pageCount = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
@@ -14512,7 +14520,7 @@ function applyBrandedLayout(doc, unicodeReady, startPage) {
     pdfSetFont(doc, unicodeReady, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(128, 128, 128);
-    const footerText = pdfText(unicodeReady, `Sayfa ${i} / ${pageCount}`);
+    const footerText = pdfText(unicodeReady, `${(E && E.sayfa) || 'Sayfa'} ${i} / ${pageCount}`); // R73: kartin dilinde
     doc.text(footerText, pageWidth - margin - doc.getTextWidth(footerText), pageHeight - 12);
   }
 }
@@ -14548,7 +14556,7 @@ function buildPdfCoverPage(doc, unicodeReady, opts) {
   pdfSetFont(doc, unicodeReady, 'normal');
   doc.setFontSize(11);
   doc.setTextColor(206, 224, 240);
-  doc.text(pdfText(unicodeReady, opts.kind === 'bulk' ? 'Bilgi Kartı Raporu' : 'Bilgi Kartı'), centerX, 47, { align: 'center' });
+  doc.text(pdfText(unicodeReady, opts.kicker || (opts.kind === 'bulk' ? 'Bilgi Kartı Raporu' : 'Bilgi Kartı')), centerX, 47, { align: 'center' });
 
   doc.setDrawColor(...PDF_INK.teal);
   doc.setLineWidth(1.1);
@@ -15100,7 +15108,21 @@ function drawPdfCard(doc, state, opts) {
   return y + PDF_TYPE.sectionGap;
 }
 
+/* PDF ETIKETLERI KARTIN DILINDE (30.10.2026, test raporu R72: "Ingilizce ders
+   notlarindan olusan ozet PDF'te Turkceye cevriliyor"). Icerik hic
+   cevrilmiyordu; ama Ingilizce kartta kapak bilgisi ve butun bolum basliklari
+   Turkce basiliyordu (OZET, ANAHTAR TERIMLER, "Dil: Ingilizce"), PDF yari
+   Turkce gorunuyordu. Etiketler artik kartin summary_language'ina gore. */
+const PDF_ETIKET = {
+  tr: { ozet: 'ÖZET', iskelet: 'BELGE İSKELETİ', bolumler: 'BÖLÜM ÖZETLERİ', terimler: 'ANAHTAR TERİMLER', noktalar: 'ÖNEMLİ NOKTALAR', sorular: 'SINAV SORULARI', formuller: 'FORMÜLLER', ornekler: 'ÇÖZÜMLÜ ÖRNEKLER', tablolar: 'TABLOLAR', grafikler: 'GRAFİKLER', diyagramlar: 'DİYAGRAMLAR', bosluk: 'BOŞLUK DOLDURMA', kaynaklar: 'KAYNAKLAR', soru: 'S', cevap: 'C', sonuc: 'Sonuç', terimTesti: 'Terim testi — tanımdan terime', cevapAnahtari: 'Cevap anahtarı', stil: 'Stil', dil: 'Dil', olusturma: 'Oluşturulma', dilTr: 'Türkçe', dilEn: 'İngilizce', tarih: 'tr-TR', sayfa: 'Sayfa', sayfaKisa: 's.', kapak: 'Bilgi Kartı', uretildi: 'Acadex ile oluşturuldu' },
+  en: { ozet: 'SUMMARY', iskelet: 'DOCUMENT OUTLINE', bolumler: 'SECTION SUMMARIES', terimler: 'KEY TERMS', noktalar: 'KEY POINTS', sorular: 'EXAM QUESTIONS', formuller: 'FORMULAS', ornekler: 'WORKED EXAMPLES', tablolar: 'TABLES', grafikler: 'CHARTS', diyagramlar: 'DIAGRAMS', bosluk: 'FILL IN THE BLANKS', kaynaklar: 'SOURCES', soru: 'Q', cevap: 'A', sonuc: 'Result', terimTesti: 'Term quiz — definition to term', cevapAnahtari: 'Answer key', stil: 'Style', dil: 'Language', olusturma: 'Created', dilTr: 'Turkish', dilEn: 'English', tarih: 'en-GB', sayfa: 'Page', sayfaKisa: 'p.', kapak: 'Study Card', uretildi: 'Made with Acadex' }
+};
+function pdfEtiket(card) {
+  return PDF_ETIKET[card && card.summary_language === 'en' ? 'en' : 'tr'];
+}
+
 function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
+  const E = pdfEtiket(studyCard);
   /* 18mm: 10,5 puntoluk metinde 14mm kenar satiri 90+ karaktere cikariyor,
      okunabilir aralik 55-75. applyBrandedLayout ayni degeri kullanmali. */
   const margin = 18;
@@ -15146,7 +15168,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   } else if (studyCard.source_documents && studyCard.source_documents.length > 0) {
     titleStr = studyCard.source_documents.map(s => s.file_name).join(', ');
   } else {
-    titleStr = studyCard.documentFileName || 'Bilgi Kartı';
+    titleStr = studyCard.documentFileName ? axDocTitle(studyCard.documentFileName) : E.kapak; // R73: '.pdf' uzantisi basliga dusmesin
   }
 
   doc.splitTextToSize(safeText(titleStr), maxWidth).forEach(line => {
@@ -15161,9 +15183,9 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   doc.setFontSize(PDF_TYPE.smallSize);
   doc.setTextColor(128, 128, 128);
   const styleLabel = getStyleLabel(studyCard.summary_style);
-  const langLabel = studyCard.summary_language === 'tr' ? 'Türkçe' : 'İngilizce';
-  const createdDate = new Date(studyCard.created_at).toLocaleDateString('tr-TR');
-  doc.text(safeText(`Stil: ${styleLabel}  ·  Dil: ${langLabel}  ·  Oluşturulma: ${createdDate}`), margin, y);
+  const langLabel = studyCard.summary_language === 'tr' ? E.dilTr : E.dilEn;
+  const createdDate = new Date(studyCard.created_at).toLocaleDateString(E.tarih);
+  doc.text(safeText(`${E.stil}: ${styleLabel}  ·  ${E.dil}: ${langLabel}  ·  ${E.olusturma}: ${createdDate}`), margin, y);
   y += 8;
 
   doc.setDrawColor(230);
@@ -15184,7 +15206,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     const ozetParagraflari = summaryParagraphs(stripAiMetaSentences(studyCard.summary)); // R42: PDF'te de model aciklamasi yok
     const PARAGRAF_ARASI = 2.6;
     y = drawPdfCard(doc, cardState(), {
-      label: 'ÖZET',
+      label: E.ozet,
       accent: PDF_INK.teal,
       soft: PDF_INK.tealSoft,
       measure: (w) => {
@@ -15242,7 +15264,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     if (maddeler.length > 0) {
       const girinti = (lv) => (Math.min(3, Math.max(1, Number(lv) || 1)) - 1) * 5;
       y = drawPdfCard(doc, cardState(), {
-        label: 'BELGE İSKELETİ',
+        label: E.iskelet,
         accent: PDF_INK.navy,
         soft: PDF_INK.navySoft,
         measure: (w) => {
@@ -15317,7 +15339,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
     if (sections.length > 0) {
       y = drawPdfCard(doc, cardState(), {
-        label: 'BÖLÜM ÖZETLERİ',
+        label: E.bolumler,
         accent: PDF_INK.navy,
         soft: PDF_INK.navySoft,
         measure: (w) => {
@@ -15369,7 +15391,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   // 2. Key Terms — boxed card
   if (studyCard.key_terms && studyCard.key_terms.length > 0) {
     y = drawPdfCard(doc, cardState(), {
-      label: 'ANAHTAR TERİMLER',
+      label: E.terimler,
       accent: PDF_INK.navy,
       soft: PDF_INK.navySoft,
       measure: (w) => {
@@ -15401,7 +15423,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   // 3. Key Points — boxed card
   if (studyCard.key_points && studyCard.key_points.length > 0) {
     y = drawPdfCard(doc, cardState(), {
-      label: 'ÖNEMLİ NOKTALAR',
+      label: E.noktalar,
       accent: PDF_INK.teal,
       soft: PDF_INK.tealSoft,
       measure: (w) => {
@@ -15426,28 +15448,28 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
   // 4. Quiz Questions — boxed card
   if (studyCard.quiz_questions && studyCard.quiz_questions.length > 0) {
     y = drawPdfCard(doc, cardState(), {
-      label: 'SINAV SORULARI',
+      label: E.sorular,
       accent: PDF_INK.amberDark,
       soft: PDF_INK.amberSoft,
       measure: (w) => {
         let h = 0;
         studyCard.quiz_questions.forEach((q) => {
           pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize);
-          h += doc.splitTextToSize(safeText(`S: ${q.question}`), w).length * PDF_TYPE.headLead;
+          h += doc.splitTextToSize(safeText(`${E.soru}: ${q.question}`), w).length * PDF_TYPE.headLead;
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize);
-          h += doc.splitTextToSize(safeText(`C: ${q.answer}`), w).length * 5.5 + 3.5;
+          h += doc.splitTextToSize(safeText(`${E.cevap}: ${q.answer}`), w).length * 5.5 + 3.5;
         });
         return h;
       },
       render: (x, ry, w, allowBreak) => {
         studyCard.quiz_questions.forEach((q, idx) => {
           pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.headSize); doc.setTextColor(...PDF_INK.navy);
-          doc.splitTextToSize(safeText(`S${idx + 1}: ${q.question}`), w).forEach(line => {
+          doc.splitTextToSize(safeText(`${E.soru}${idx + 1}: ${q.question}`), w).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
             doc.text(line, x, ry); ry += PDF_TYPE.headLead;
           });
           pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
-          doc.splitTextToSize(safeText(`C: ${q.answer}`), w).forEach(line => {
+          doc.splitTextToSize(safeText(`${E.cevap}: ${q.answer}`), w).forEach(line => {
             if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
             doc.text(line, x, ry); ry += 5.5;
           });
@@ -15469,7 +15491,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     const formulas = studyCard.formulas.filter(f => f && (f.name || f.latex));
     if (formulas.length > 0) {
       y = drawPdfCard(doc, cardState(), {
-        label: 'FORMÜLLER',
+        label: E.formuller,
         accent: PDF_INK.teal,
         soft: PDF_INK.tealSoft,
         measure: (w) => {
@@ -15533,7 +15555,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     );
     if (examples.length > 0) {
       y = drawPdfCard(doc, cardState(), {
-        label: 'ÇÖZÜMLÜ ÖRNEKLER',
+        label: E.ornekler,
         accent: PDF_INK.amberDark,
         soft: PDF_INK.amberSoft,
         measure: (w) => {
@@ -15549,7 +15571,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
               h += 0.8;
             });
             pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize);
-            if (e.final_answer) h += doc.splitTextToSize(safeText(`Sonuç: ${e.final_answer}`), w).length * 5.2;
+            if (e.final_answer) h += doc.splitTextToSize(safeText(`${E.sonuc}: ${e.final_answer}`), w).length * 5.2;
             h += 5;
           });
           return h;
@@ -15592,7 +15614,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
             });
             if (e.final_answer) {
               pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.amberDark);
-              doc.splitTextToSize(safeText(`Sonuç: ${e.final_answer}`), w).forEach(line => {
+              doc.splitTextToSize(safeText(`${E.sonuc}: ${e.final_answer}`), w).forEach(line => {
                 if (allowBreak && ry > 270) { doc.addPage(); ry = 35; }
                 doc.text(line, x, ry); ry += 5.2;
               });
@@ -15617,7 +15639,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
   // 5. Tables Section
   if (Array.isArray(studyCard.tables) && studyCard.tables.length > 0) {
-    drawPlainSectionHeader('TABLOLAR', PDF_INK.navy);
+    drawPlainSectionHeader(E.tablolar, PDF_INK.navy);
 
     studyCard.tables.forEach((t, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
@@ -15633,7 +15655,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
   // 6. Charts Section
   if (Array.isArray(studyCard.charts) && studyCard.charts.length > 0) {
-    drawPlainSectionHeader('GRAFİKLER', PDF_INK.teal);
+    drawPlainSectionHeader(E.grafikler, PDF_INK.teal);
 
     studyCard.charts.forEach((c, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
@@ -15666,7 +15688,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
 
   // 7. Diagrams Section
   if (Array.isArray(studyCard.diagrams) && studyCard.diagrams.length > 0) {
-    drawPlainSectionHeader('DİYAGRAMLAR', PDF_INK.amberDark);
+    drawPlainSectionHeader(E.diyagramlar, PDF_INK.amberDark);
 
     studyCard.diagrams.forEach((d, idx) => {
       if (y > 260) { doc.addPage(); y = 35; }
@@ -15738,7 +15760,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     const SPLIT_H = 7;
     if (clozes.length > 0) {
       y = drawPdfCard(doc, cardState(), {
-        label: 'BOŞLUK DOLDURMA',
+        label: E.bosluk,
         accent: PDF_INK.teal,
         soft: PDF_INK.tealSoft,
         measure: (w) => {
@@ -15762,7 +15784,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
               ry += 2;
               if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
               pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.teal);
-              doc.text(safeText('Terim testi — tanımdan terime'), x, ry); ry += 5;
+              doc.text(safeText(E.terimTesti), x, ry); ry += 5;
               pdfSetFont(doc, unicodeReady, 'normal'); doc.setFontSize(PDF_TYPE.bodySize); doc.setTextColor(...PDF_INK.body);
             }
             doc.splitTextToSize(safeText(`${idx + 1}. ${c.prompt}`), w).forEach(line => {
@@ -15775,7 +15797,7 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
           ry += 2;
           if (allowBreak && ry > 265) { doc.addPage(); ry = 35; }
           pdfSetFont(doc, unicodeReady, 'bold'); doc.setFontSize(PDF_TYPE.smallSize); doc.setTextColor(...PDF_INK.teal);
-          doc.text(safeText('Cevap anahtarı'), x, ry); ry += 5;
+          doc.text(safeText(E.cevapAnahtari), x, ry); ry += 5;
 
           // Muted and smaller so the eye does not land on it while working
           // through the prompts above.
@@ -15809,11 +15831,11 @@ function appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets) {
     if (notes.length > 0) {
       const lineFor = (f, i) => {
         const id = f.id != null ? f.id : i + 1;
-        const page = typeof f.page === 'number' ? `  (s. ${f.page})` : '';
+        const page = typeof f.page === 'number' ? `  (${E.sayfaKisa} ${f.page})` : '';
         return `[${id}] ${f.reference}${page}`;
       };
       y = drawPdfCard(doc, cardState(), {
-        label: 'KAYNAKLAR',
+        label: E.kaynaklar,
         accent: PDF_INK.muted,
         soft: PDF_INK.navySoft,
         measure: (w) => {
@@ -15853,21 +15875,23 @@ async function exportStudyCardToPDF(studyCard) {
 
   let titleStr = 'Bilgi Kartı';
   if (studyCard.documents?.file_name) titleStr = axDocTitle(studyCard.documents.file_name);
-  else if (studyCard.documentFileName) titleStr = studyCard.documentFileName;
+  else if (studyCard.documentFileName) titleStr = axDocTitle(studyCard.documentFileName);
 
   const styleLabel = getStyleLabel(studyCard.summary_style);
-  const langLabel = studyCard.summary_language === 'tr' ? 'Türkçe' : 'İngilizce';
-  const createdDate = new Date(studyCard.created_at).toLocaleDateString('tr-TR');
+  const E = pdfEtiket(studyCard);
+  const langLabel = studyCard.summary_language === 'tr' ? E.dilTr : E.dilEn;
+  const createdDate = new Date(studyCard.created_at).toLocaleDateString(E.tarih);
 
   buildPdfCoverPage(doc, unicodeReady, {
     kind: 'single',
+    kicker: E.kapak,
     title: titleStr,
-    metaLines: [`Stil: ${styleLabel}  ·  Dil: ${langLabel}`, `Oluşturulma: ${createdDate}`],
-    footer: 'Acadex ile oluşturuldu',
+    metaLines: [`${E.stil}: ${styleLabel}  ·  ${E.dil}: ${langLabel}`, `${E.olusturma}: ${createdDate}`],
+    footer: E.uretildi,
   });
 
   appendStudyCardToDoc(doc, studyCard, unicodeReady, visualAssets);
-  applyBrandedLayout(doc, unicodeReady, 2); // skip the cover page (page 1) — it already carries its own full-page brand treatment
+  applyBrandedLayout(doc, unicodeReady, 2, E); // skip the cover page (page 1) — it already carries its own full-page brand treatment
 
   let docFileName = 'study-card';
   if (studyCard.documents?.file_name) {
@@ -15875,7 +15899,8 @@ async function exportStudyCardToPDF(studyCard) {
   } else if (studyCard.documentFileName) {
     docFileName = studyCard.documentFileName;
   }
-  doc.save(`${replaceTurkishChars(docFileName)}.pdf`);
+  // R73: dosya adi "x.pdf.pdf" olmasin
+  doc.save(`${replaceTurkishChars(docFileName.replace(/\.[a-z0-9]{2,5}$/i, ''))}.pdf`);
 }
 
 // ==========================================

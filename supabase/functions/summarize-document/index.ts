@@ -545,6 +545,29 @@ function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } 
   return { metin: out, yumusatilan }
 }
 
+/* MODELIN KENDI ACIKLAMALARI OZETE GIRMEZ (30.10.2026, test raporu R42/R63).
+   Ozetlerde ders icerigi olmayan cumleler kaliyordu: "The visible text does
+   not explicitly detail specific reasoning methods..." gibi. Yalnizca BELGENIN
+   KENDISINDEN soz eden ("gorunen/saglanan metin ... icermiyor") ya da modelin
+   kendinden soz ettigi ("as an AI", "I cannot ...") cumleler atilir.
+   js/dashboard.js'teki AI_META_SENTENCE_RE ile BIREBIR AYNI (eski kayitli
+   ozetleri o temizliyor); tests/ozet-meta-cumle.js iki kopyanin esitligini
+   kilitliyor. */
+const AI_META_SENTENCE_RE = new RegExp(
+  String.raw`[^.!?\n\]]*(?:` + // "]" dahil degil: onceki cumlenin [1] atfi silinmesin
+  String.raw`(?:the|this|these) (?:visible|provided|given|available|uploaded|supplied|extracted) (?:text|content|document|slides?|material|excerpts?|pages?|notes)\b[^.!?\n]*\b(?:does not|doesn't|do not|don't|did not|is not|isn't|are not|aren't|lacks?|only|cannot|can't|fails? to)\b` +
+  String.raw`|\bas an ai\b|\bi (?:cannot|can't|do not have|don't have) (?:access|see|determine|verify)` +
+  String.raw`|(?:görünen|sağlanan|verilen|yüklenen|mevcut) (?:metin|belge|içerik|slayt(?:lar)?|materyal|sayfa(?:lar)?)[^.!?\n]*(?:belirtilmemiş|belirtmiyor|yer almıyor|yer almamaktadır|içermiyor|içermemektedir|değinmiyor|açıklamıyor|bulunmuyor|bulunmamaktadır)` +
+  String.raw`)[^.!?\n]*[.!?]?`, 'gi');
+function stripAiMetaSentences(text: string): string {
+  // Eslesme yoksa metne HIC dokunulmaz (madde girintileri, satir sonlari korunur).
+  const s = String(text || '');
+  AI_META_SENTENCE_RE.lastIndex = 0;
+  if (!AI_META_SENTENCE_RE.test(s)) return s;
+  AI_META_SENTENCE_RE.lastIndex = 0;
+  return s.replace(AI_META_SENTENCE_RE, '').replace(/(\S)[ \t]{2,}(\S)/g, '$1 $2').trim();
+}
+
 function stripThinkBlock(raw: string): string | null {
   const match = raw.match(/<think>[\s\S]*?<\/think>/i)
   if (match) {
@@ -13895,6 +13918,24 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       )
     } else {
       console.log('Cloze kartlari: 0 uretildi')
+    }
+
+    // R42: modelin belge/kendisi hakkindaki aciklamalari kayittan once ayiklanir
+    {
+      let atilan = 0
+      const temizle = (t: unknown) => {
+        if (typeof t !== 'string' || !t) return t
+        const y = stripAiMetaSentences(t)
+        if (y !== t) atilan++
+        return y
+      }
+      parsedContent.summary = temizle(parsedContent.summary)
+      parsedContent.summary_executive = temizle(parsedContent.summary_executive)
+      if (Array.isArray(parsedContent.sections)) {
+        parsedContent.sections = parsedContent.sections.map((sec: any) =>
+          sec && typeof sec === 'object' ? { ...sec, summary: temizle(sec.summary) } : sec)
+      }
+      if (atilan) console.log(`R42: ${atilan} alanda model aciklamasi ayiklandi`)
     }
 
     const cardPayload: Record<string, unknown> = {
