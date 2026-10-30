@@ -22,6 +22,10 @@ const NAMES = [
     'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS',
     // birebir alinti (span seviyesi atif)
     'SENTENCE_ABBREV', 'splitSentences', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
+    // Aday uretimi satir yapisina saygi gosteriyor (30.10.2026 olcumu).
+    'alintiBloklari',
+    // Cogul eki atifi olduruyordu (30.10.2026 olcumu).
+    'ingTekil', 'tekilKume',
     'bestQuoteForClaim',
     'anchorClaimToPage', 'applyFootnoteRemap', 'anchorCitations',
     // chunk saklama (document_chunks)
@@ -514,5 +518,230 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
     'belgede olmayan sayi skoru dusurmedi — atif temkinli olmuyor');
   if (sayili) assert.equal(sayili.page, sayisiz.page, 'uydurma sayi iddiayi baska sayfaya tasidi');
 });
+
+/* ==========================================================================
+   ALINTI OCR COPUYLE GELIYORDU (30.10.2026 — "Week 8 Derivative" OLCUMU)
+
+   Kartin kaynakcasindaki 12 referansin 9'u OCR artigi tasiyordu. Sebep
+   alinti secmede degil ADAY URETMEDE: kaynakta cop ile temiz cumle ayri
+   satirlardaydi, ama splitSentences ilk isi olarak \s+ -> bosluk yapip
+   satir sonlarini siliyordu; noktalama tasimayan OCR satirlari tek bir
+   "cumle" halinde birlesiyordu.
+
+   Asagidaki sayfa govdeleri document_chunks'tan BIREBIR, iddialar da o
+   kartin gercek key_points'lerinden.
+   ========================================================================== */
+{
+  const A = loadAnchoring();
+
+  // document_chunks'tan birebir (Week 8, sayfa 5 ve 7).
+  const SAYFA5 = [
+    'Answer Set 2: Basic derivative rules',
+    'Power, Sum, and Constant Multiple Rules',
+    'ANSWER', 'Solutions', 'E)', '32-2-621/2', '20x3 - 6x', '2-3+21/2',
+    '→', '-30-1+岩*-1/2', '10g1+4ば3＝10z+小', 'Incorrect.',
+    '（ょり＝なな、', '-62-3-32-1/2',
+    'Key idea',
+    'Power rule: the exponent moves down, then',
+    'decreases by one.'
+  ].join('\n');
+  const SAYFA7 = [
+    'Answer Set 3: When two functions are multiplied', 'Product Rule', 'Solutions',
+    "f'(x) = 2x (3x - 5) + 3(x? + 1) = 9x2 - 10x + 3",
+    "g' (x) = 3x2 sin x + x3 cos x",
+    'P（2）＝22mz+2-4', 'Valid for x > O.', 'ANSWER', 'Key idea',
+    'A product-rule derivative has two terms',
+    'before simplification.'
+  ].join('\n');
+
+  const idf = A.buildAnchorIdf([
+    { terms: new Set(A.anchorTerms(SAYFA5)) },
+    { terms: new Set(A.anchorTerms(SAYFA7)) }
+  ]);
+
+  test('OLCULEN ALINTI artik OCR copu tasimiyor', () => {
+    const q5 = A.bestQuoteForClaim(
+      'The power rule dictates that the exponent moves down and decreases by one.', SAYFA5, idf);
+    assert.equal(q5, 'Power rule: the exponent moves down, then decreases by one.',
+      'alinti hala cop tasiyor ya da sarmalanmis cumle birlesmiyor: ' + q5);
+    const q7 = A.bestQuoteForClaim(
+      'A product-rule derivative always has two terms before simplification.', SAYFA7, idf);
+    assert.equal(q7, 'A product-rule derivative has two terms before simplification.', q7);
+    // CJK/tam genislik artigi kalmamali.
+    for (const q of [q5, q7]) {
+      assert.ok(!/[　-鿿＀-￯]/.test(q), 'alintida OCR artigi kaldi: ' + q);
+    }
+  });
+
+  test('SARMALANMIS cumle birlesiyor, SINIR bolunuyor', () => {
+    // Kucuk harfle devam eden satir ayni cumlenin parcasi.
+    assert.deepEqual(
+      A.alintiBloklari('Power rule: the exponent moves down, then\ndecreases by one.'),
+      ['Power rule: the exponent moves down, then decreases by one.']);
+    // Buyuk harfle baslayan satir YENI parca; cop satirlari da ayri kaliyor.
+    assert.deepEqual(
+      A.alintiBloklari('（ょり＝なな、\n-62-3-32-1/2\nKey idea\nPower rule: the exponent moves down.'),
+      ['（ょり＝なな、', '-62-3-32-1/2', 'Key idea', 'Power rule: the exponent moves down.']);
+    // Noktalama ile biten satir, devami kucuk harfli olsa bile sinirdir.
+    assert.deepEqual(
+      A.alintiBloklari('Rewrite roots and fractions as powers.\ndifferentiate term by term.'),
+      ['Rewrite roots and fractions as powers.', 'differentiate term by term.']);
+    // Tireyle bolunmus sozcuk BOSLUKSUZ birlesir.
+    assert.deepEqual(A.alintiBloklari('differen-\ntiable'), ['differentiable']);
+    // Bos girdi cokmez.
+    assert.deepEqual(A.alintiBloklari(''), []);
+    assert.deepEqual(A.alintiBloklari(null), []);
+  });
+
+  test('BILINEN SINIR: devami buyuk harfle baslayan sarma bolunuyor', () => {
+    /* Iki gercek belgede olculdu: ders kitabindaki bosluk-doldurma koku ve
+       slayttaki iki satirlik baslik. Ikisi de zayif alinti adayi (en az 2
+       eslesen terim + 0,3 skor kapisi), bu yuzden BILEREK kabul edildi.
+       Bu test kusuru savunmuyor, DAVRANISI sabitliyor: biri bu bolmeyi
+       duzeltmeye kalkarsa denenmis alternatifi (uzun-satir kurali) ve neden
+       reddedildigini alintiBloklari yanindaki notta bulsun. */
+    assert.deepEqual(
+      A.alintiBloklari('Classification of Receivables with Respect to The Nature of The\nTransaction'),
+      ['Classification of Receivables with Respect to The Nature of The', 'Transaction']);
+  });
+
+  test('alinti motoru generate-exam te de GUNCEL', () => {
+    /* Atif motoru iki dosyada birebir duruyor (bkz. tests/exam-feedback.js).
+       Yalnizca birini degistirmek sinav geri bildirimini eski davranista
+       birakirdi. */
+    const g = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');
+    assert.match(g, /function alintiBloklari\(body: string\): string\[\]/,
+      'generate-exam hala eski aday uretimini kullaniyor');
+    assert.match(g, /const adaylar = alintiBloklari\(body\)\.flatMap\(/,
+      'generate-exam te bestQuoteForClaim yeni adaylari kullanmiyor');
+  });
+}
+
+/* ==========================================================================
+   COGUL EKI ATIFI OLDURUYORDU (30.10.2026 — "Week 8 Derivative" OLCUMU)
+
+   Log: "Citation anchoring: pages=24 ... unanchored=2". Atifsiz kalan
+   maddelerden birinin kaynaktaki karsiligi NEREDEYSE BIREBIRDI:
+     madde   : "Decision mapping classifies expressions into sums, products,
+                quotients, or composites before differentiation."
+     sayfa 23: "Classify the expression first: sum, product, quotient, or
+                composite form."
+   Olculen eslesme 10 terimden 1 (yalnizca "decision"); alti kavram
+   Ingilizce cekim ekinde kayboluyordu.
+   ========================================================================== */
+{
+  const A = loadAnchoring();
+
+  test('ingTekil: cogul eslesiyor, TUZAKLAR korunuyor', () => {
+    for (const [cogul, tekil] of [
+      ['classifies', 'classify'], ['expressions', 'expression'], ['sums', 'sum'],
+      ['products', 'product'], ['quotients', 'quotient'], ['composites', 'composite'],
+      ['derivatives', 'derivative'], ['integrals', 'integral'], ['policies', 'policy'],
+      ['taxes', 'tax'], ['boxes', 'box'], ['slopes', 'slope']
+    ]) {
+      assert.equal(A.ingTekil(cogul), A.ingTekil(tekil), `${cogul} <-> ${tekil} eslesmiyor`);
+    }
+    // ss/us/is/os ile bitenler cogul DEGIL.
+    for (const w of ['class', 'focus', 'analysis', 'basis', 'business', 'chaos']) {
+      assert.equal(A.ingTekil(w), w, w + ' bozuldu');
+    }
+    // 4 karakterden kisa ve ingilizce harf disi karakter tasiyan sozcuk.
+    assert.equal(A.ingTekil('its'), 'its');
+    assert.equal(A.ingTekil('ölçüs'), 'ölçüs');
+    assert.equal(A.ingTekil(''), '');
+    assert.equal(A.ingTekil(null), '');
+  });
+
+  test('tekilKume OZGUN bicimi de tutuyor', () => {
+    // Tekil eklemek, var olan eslesmeyi kaybetmemeli.
+    const k = A.tekilKume(new Set(['products', 'class', 'decision']));
+    assert.ok(k.has('products') && k.has('product'), [...k].join(','));
+    assert.ok(k.has('class') && k.has('decision'));
+  });
+
+  // Week 8, sayfa 23 ve 21 — document_chunks'tan birebir.
+  const P23 = [
+    'Question Set 9: Which rule should I use?', 'Choosing the Correct Rule',
+    'Problems', 'Rule and derivative.', 'QUESTION', 'Hint',
+    'Classify the expression first: sum, product,', 'quotient, or composite form.',
+    'Decision map', 'sum → term by term', "product → u'v + uv'",
+    'quotient →', 'inside function → chain'
+  ].join('\n');
+  const P21 = [
+    'Question Set 11: Read the sign of the derivative',
+    'Increasing and Decreasing Intervals', 'QUESTION', 'Problems', 'Hint',
+    'After finding the critical points, test one', 'number from each interval.',
+    'Sign rule', '- to +: local minimum',
+    "f'(x) > 0 → f is increasing", "f' (x) < 0 → f is decreasing"
+  ].join('\n');
+  const idx = () => [
+    { page: 21, terms: new Set(A.anchorTerms(P21)), head: 'Increasing and Decreasing Intervals', body: P21 },
+    { page: 23, terms: new Set(A.anchorTerms(P23)), head: 'Choosing the Correct Rule', body: P23 }
+  ];
+  const IDDIA_B = 'Decision mapping classifies expressions into sums, products, quotients, or composites before differentiation.';
+
+  test('OLCULEN ATIFSIZ MADDE artik dogru sayfaya baglaniyor', () => {
+    const i = idx();
+    const idf = A.buildAnchorIdf(i);
+    const kapali = A.anchorClaimToPage(IDDIA_B, idx(), idf, false);
+    assert.equal(kapali, null, 'olcum degismis: madde cogul kurali olmadan da baglaniyor');
+    const acik = A.anchorClaimToPage(IDDIA_B, i, idf, true);
+    assert.ok(acik, 'cogul kurali acikken de atifsiz');
+    assert.equal(acik.page, 23);
+    assert.equal(acik.quote, 'Classify the expression first: sum, product, quotient, or composite form.',
+      'alinti kaynaktaki karsilik degil: ' + acik.quote);
+  });
+
+  test('AGIRLIK eslesen bicimden okunuyor', () => {
+    /* Ilk denemede eslesme tekil bicimle yapiliyor ama agirlik COGUL
+       bicimle araniyordu; idf tablosu sayfa terimlerinden (tekil) kurulu
+       oldugu icin `?? 0` donuyordu. Olculdu: eslesen terim sayisi artti,
+       skor ayni kaldi, madde YINE atifsiz. */
+    const i = idx();
+    const idf = A.buildAnchorIdf(i);
+    const h = A.anchorClaimToPage(IDDIA_B, i, idf, true);
+    assert.ok(h.score >= A.ANCHOR_MIN_SCORE,
+      `skor ${h.score} esigin (${A.ANCHOR_MIN_SCORE}) altinda — agirlik cozumlemesi bozuk`);
+    assert.ok(h.matched >= A.ANCHOR_MIN_TERMS, 'eslesen terim sayisi esigin altinda');
+  });
+
+  test('TURKCE KARTTA davranis BIREBIR ayni kaliyor', () => {
+    /* Ingilizce -s kurali Turkceye uygulandiginda olculen zarar gercek:
+       "kurs" -> "kur", "ders" -> "der", "ters" -> "ter". "kur" BASKA bir
+       Turkce sozcuk, yani ayni belgede ikisi varsa atif YANLIS sayfayi
+       gosterir. Bu yuzden kapi dile bagli. */
+    const SUM_SRC = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+    assert.match(SUM_SRC, /anchorClaimToPage\(text, pageIndex, idf, lang === 'en'\)/,
+      'cogul kurali dile bagli degil — Turkce kartta kurs/kur karismasi riski');
+    // Kapi KAPALIYKEN tekil kume hic kurulmuyor.
+    const i = idx();
+    A.anchorClaimToPage(IDDIA_B, i, A.buildAnchorIdf(i), false);
+    assert.ok(i.every(s => s.termsTekil === undefined),
+      'kapi kapaliyken tekil kume kurulmus — Turkce yol degismis');
+  });
+
+  test('tekil kume sayfa basina BIR KEZ kuruluyor', () => {
+    const i = idx();
+    const idf = A.buildAnchorIdf(i);
+    A.anchorClaimToPage(IDDIA_B, i, idf, true);
+    const once = i[1].termsTekil;
+    assert.ok(once instanceof Set, 'tekil kume saklanmiyor');
+    A.anchorClaimToPage('Another claim about products and quotients here.', i, idf, true);
+    assert.equal(i[1].termsTekil, once, 'tekil kume her madde icin yeniden kurulmus');
+  });
+
+  test('cogul kurali generate-exam te de GUNCEL', () => {
+    const g = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');
+    assert.match(g, /function ingTekil\(term: string\): string/, 'generate-exam te ingTekil yok');
+    assert.match(g, /tekil \? idf\.get\(ingTekil\(t\)\)/, 'generate-exam te agirlik cozumlemesi yok');
+    /* Sinav atfinin CAGRI YERI bilerek degismedi: bu tur bir davranis
+       degisikligi kendi olcumunu ister. */
+    assert.match(g, /const hit = anchorClaimToPage\(claim, index, idf\)\s*$/m,
+      'sinav atfi sessizce cogul kuraline gecmis — ayrica olculmeli');
+  });
+}
 
 summary().then(() => process.exit(process.exitCode || 0));

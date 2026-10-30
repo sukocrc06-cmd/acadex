@@ -594,6 +594,66 @@ test('review istegi ya da cevabi duserse TASLAK korunur, belge dusmez', () => {
     'bos review cevabi hala belgeyi dusuruyor');
 });
 
+/* 30.10.2026 — AYNI ILKENIN UCUNCU DELIGI. Review cevabi KESIK <think>
+   ile geldiginde ya da JSON'u bozuldugunda kod markFailed cagirip 502/500
+   donuyordu, yani saglam taslak elde dururken kart siliniyordu.
+
+   NEDEN TEORIK DEGIL: 18 canli review olculdu. 16'si ~78-123 token
+   (yalnizca quality_gate), is yapan IKI kosu 3037 ve 3616 token harcadi —
+   ilan edilen butce 850. qwen3 dusunmesini reasoning_tokens olarak degil
+   icerigin icinde <think> blogu olarak yaziyor, reviewCompletionFor ise
+   dusunme payini yalnizca gpt-oss/openai seritlerine ekliyor. Yani uretken
+   review'lar butceyi 3,5-4,3 kat asiyor ve bugun yalnizca saglayici tavani
+   siki uygulamadigi icin calisiyorlar. Tavan uygulanirsa cevap tam <think>
+   icinde kesilir ve kart silinirdi — hem de review'un soyleyecek SOZU
+   oldugu (pass=false, 4 duzeltme, yakalanan halusinasyon) kosularda. */
+test('KESIK <think> ya da bozuk JSON: taslaga donuluyor, kart silinmiyor', () => {
+  // Eski iki kapi kalkti.
+  assert.ok(!/Groq Review response was an unterminated <think>/.test(FN_SRC),
+    'kesik review <think> hala belgeyi dusuruyor');
+  /* TASLAK asamasindaki ayni kapi YERINDE kaliyor: taslagin kendisi
+     yarim <think> ise kurtarilacak bir sey yok, markFailed dogru. */
+  assert.match(FN_SRC, /Groq Draft response was an unterminated <think>[\s\S]{0,200}markFailed/,
+    'taslak asamasinin kapisi da kaldirilmis — belge sonsuza kadar asili kalir');
+  assert.ok(!/Failed to parse Groq final response as JSON[\s\S]{0,200}markFailed/.test(FN_SRC),
+    'bozuk review JSON u hala belgeyi dusuruyor');
+  // Taslaga donus yolu kurulu.
+  const i = FN_SRC.indexOf('let parsedContent = ayristir(rawFinalContent)');
+  assert.ok(i > 0, 'review ayristirmasi tek kapiya alinmamis');
+  const blok = FN_SRC.slice(i, i + 900);
+  assert.match(blok, /if \(!parsedContent && rawFinalContent !== rawContent\)/,
+    'review cevabi bozuksa taslak denenmiyor');
+  assert.match(blok, /skippedStages\.push\('review'\)/, 'atlanan asama rozetlenmiyor');
+  assert.match(blok, /rawFinalContent = rawContent/, 'taslaga donulmuyor');
+  // TASLAK da bozuksa gercek basarisizlik: markFailed DOGRU davranis.
+  assert.match(blok, /Taslak da ayristirilamadi[\s\S]{0,160}markFailed\(serviceClient, documentId\)/,
+    'taslak da bozukken belge dusurulmuyor — belge sonsuza kadar asili kalir');
+});
+
+test('review ayristirmasi KESIK JSON kurtarmasini da deniyor', () => {
+  const i = FN_SRC.indexOf('const ayristir = (ham: string)');
+  assert.ok(i > 0, 'ayristir yardimcisi yok');
+  const blok = FN_SRC.slice(i, i + 700);
+  assert.match(blok, /stripThinkBlock\(ham\)/, 'think blogu soyulmuyor');
+  assert.match(blok, /closeTruncatedJson\(temiz\)/,
+    'kesik JSON kurtarmasi denenmiyor — dort duzeltmeden sonra kesilen cevap cope gidiyor');
+  assert.match(blok, /repairLatexEscapes/, 'LaTeX kacis onarimi dusmus');
+});
+
+test('ICERIDEKI <think> ve BUTCE ASIMI olculuyor', () => {
+  /* REASONING_HEADROOM notu "gercek rakam her cagrida loglaniyor, veriden
+     ayarlanabilir" diyor; ama reasoning_tokens 18 kosunun hicbirinde
+     gelmedi — qwen seridinde o sayac kor. Asim da gorunmuyordu. */
+  assert.match(FN_SRC, /icerideki <think> \$\{thinkKrk\} krk/,
+    'inline <think> boyutu loglanmiyor — qwen seridinde dusunme maliyeti olculemez');
+  assert.match(FN_SRC, /BUTCE ASILDI \$\{\(harcanan \/ tierCompletion\)\.toFixed\(1\)\}x/,
+    'butce asimi loglanmiyor');
+  // Dusunme payi qwen e EKLENMEDI, bilerek.
+  assert.match(FN_SRC, /const thinks = id\.includes\('gpt-oss'\) \|\| id\.startsWith\('openai\/'\)/,
+    'reviewCompletionFor degismis — qwen e dusunme payi eklemek OTPM duvarina (1000) carpar ' +
+    've tahmin sisince review daha sik atlanir');
+});
+
 test('review deneme suresi kalan butceye uyuyor, taban 10 sn', () => {
   assert.ok(/const REVIEW_MIN_ATTEMPT_MS = 10_000/.test(FN_SRC));
   assert.ok(/Math\.min\(REVIEW_ATTEMPT_TIMEOUT_MS, Math\.max\(REVIEW_MIN_ATTEMPT_MS, budgetLeft\(\) - wait - REVIEW_TAIL_MS\)\)/.test(FN_SRC),

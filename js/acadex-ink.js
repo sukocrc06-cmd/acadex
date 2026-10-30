@@ -10156,9 +10156,23 @@ var SBX = (function () {
         (own ? '<div class="axr-secvis"><span class="hand">bu bölüme görsel:</span><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'diagram\')">diyagram</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'table\')">tablo</button><button type="button" class="axr-mini" onclick="generateSectionVisual(event, ' + i + ', \'chart\')">grafik</button></div>' : '') + '</div>', 'sec');
     });
     /* görseller */
-    var charts = arr(c.charts), dgs = arr(c.diagrams), tbls = arr(c.tables), fms = arr(c.formulas), exs = arr(c.worked_examples);
-    if (charts.length || dgs.length || tbls.length || fms.length || exs.length || arr(c.chat_attachments).length) {
-      h += ch('gorsel', 'Görseller', '<div class="axr-sech"><span class="axr-lbl mono">GÖRSELLER</span><h2 class="disp">Grafikler, diyagramlar ve tablolar</h2></div>' +
+    var charts = arr(c.charts), dgs = arr(c.diagrams), tbls = arr(c.tables), fms = arr(c.formulas), exs = arr(c.worked_examples), eks = arr(c.chat_attachments);
+    /* BAŞLIK NE OLDUĞUNU SÖYLEMELİ (30.10.2026 ölçümü). "Week 9 Integrals"
+       kartında grafik/diyagram/tablo YOKTU (log: diagrams=0, charts=0,
+       tables=0), yalnız 8 formül + 2 çözümlü örnek vardı; ekranda yine
+       "GÖRSELLER / Grafikler, diyagramlar ve tablolar" yazıp altında sadece
+       formül stüdyosu çıkıyordu. Bölüm zaten boşsa hiç çizilmiyor (alttaki
+       koşul), sorun boş bölüm değil YANLIŞ başlıktı. */
+    var gorVar = charts.length || dgs.length || tbls.length;
+    var gLbl = gorVar ? 'GÖRSELLER' : fms.length ? 'FORMÜLLER' : exs.length ? 'ÇÖZÜMLÜ ÖRNEKLER' : 'GÖRSELLER';
+    var gNav = gorVar ? 'Görseller' : fms.length ? 'Formüller' : exs.length ? 'Çözümlü örnekler' : 'Görseller';
+    var gAlt = gorVar ? 'Grafikler, diyagramlar ve tablolar'
+      : (fms.length && exs.length) ? 'Formüller ve çözümlü örnekler'
+      : fms.length ? 'Formüller'
+      : exs.length ? 'Çözümlü örnekler'
+      : 'Eklediğin görseller';
+    if (gorVar || fms.length || exs.length || eks.length) {
+      h += ch('gorsel', gNav, '<div class="axr-sech"><span class="axr-lbl mono">' + gLbl + '</span><h2 class="disp">' + gAlt + '</h2></div>' +
         (charts.length ? '<div class="axr-grid2">' + charts.map(chartCard).join('') + '</div>' : '') + dgs.map(diagCard).join('') + tbls.map(tableCard).join('') +
         (fms.length || exs.length ? '<div class="axr-studio"><h3 class="hand">formül stüdyosu</h3><div class="axr-grid2">' + fms.map(formulaCard).join('') + '</div>' + exs.map(exampleCard).join('') + '</div>' : '') + '<div data-imgslot=""></div>');
     }

@@ -26,7 +26,9 @@ const SUM_PATH = 'supabase/functions/summarize-document/index.ts';
 
 const ANCHOR_NAMES = [
   'ANCHOR_STOPWORDS', 'trNormalize', 'anchorTerms', 'SENTENCE_ABBREV', 'splitSentences',
-  'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS', 'bestQuoteForClaim',
+  'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS', 'alintiBloklari', 'bestQuoteForClaim',
+  // Cogul eki atifi olduruyordu (30.10.2026 olcumu).
+  'ingTekil', 'tekilKume',
   'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS', 'anchorClaimToPage'
 ];
 

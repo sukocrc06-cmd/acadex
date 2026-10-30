@@ -3088,6 +3088,90 @@ function dedupeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: string[] }
   return { diagrams: kept.map((k) => k.d), dropped }
 }
 
+/* AYNI BOLUM KARTA IKI KEZ GIRIYOR (30.10.2026 olcumu).
+ *
+ * "Week 9 Introduction to Integrals" kartinda 2. ve 4. bolum ayni seydi:
+ *   "Area Under a Curve and Riemann Sums"  (pencereden)
+ *   "Accumulation and Area"                (gorsel gecisten)
+ * Log sebebi soyluyor:
+ *   Long-doc visual patch: ... +1 sections
+ *   Near-duplicate merge: terms 15->15, points 13->11, quiz 10->8, diagrams 0
+ * Kopya birlestirme terim/madde/soru ve diyagrama bakiyor, BOLUMLERE hic
+ * bakmiyor. Ogrenci ayni konuyu kartta iki ayri bolum olarak goruyor.
+ *
+ * NEDEN GENEL DEDUPE YETMIYOR: olculdu, kopya ciftin govde ortusmesi 0,458
+ * — NEAR_DUP_THRESHOLD (0,7) bunu KACIRIYOR.
+ *
+ * IKI KOSUL, dedupeDiagrams ile ayni kalip. Olculen dort bolumun alti cifti:
+ *   baslik / govde
+ *   0,500 / 0,458   Area Under a Curve + Riemann  <->  Accumulation and Area  KOPYA
+ *   0,333 / 0,118   Bridge from Derivatives       <->  Basic Rules
+ *   0,000 / 0,294   Bridge from Derivatives       <->  Accumulation and Area
+ *   0,000 / 0,059   geri kalan uc cift            <= 0,059
+ * Kopya ile en yakin masum cift arasinda hem baslikta hem govdede acik
+ * mesafe var; esikler o araliga konuyor, kopyanin uzerine degil.
+ *
+ * BASLIKTA MIN TERIM 3 OLAMAZ. Olculen basliklarin terim sayilari 3,4,3,2:
+ * "Accumulation and Area" YALNIZCA 2 terim uretiyor, yani dedupeDiagrams'in
+ * kullandigi NEAR_DUP_MIN_TERMS (3) kapisi tam olculen kopyayi atlardi.
+ * Bolum basliklari kisa olmak zorunda, bu yuzden kendi tabani var.
+ *
+ * UZUNLUK TEK BASINA YANLIS BOLUMU SECIYOR. Olculen ciftte kopya olan
+ * (gorsel gecisten gelen) 298 karakter, dogru bolum 285 — yani "daha dolu
+ * olan kalsin" kurali dedupeDiagrams'ta oldugu gibi uygulanirsa kart
+ * belgenin kendi ana basligini atip mugalak olani tutar. Bolumun ogrenciye
+ * degeri MADDESINDE: olculen ciftte 3'e karsi 2. Once madde sayisi, esitlik
+ * halinde metin uzunlugu. */
+const BOLUM_BASLIK_ESIGI = 0.45
+const BOLUM_GOVDE_ESIGI = 0.4
+const BOLUM_BASLIK_MIN_TERIM = 2
+
+/** Bolumun govdesi: ozet + maddeler. Baslik AYRI olculuyor. */
+function bolumGovdeMetni(sec: any): string {
+  const kp = Array.isArray(sec?.key_points)
+    ? sec.key_points.map((x: any) => typeof x === 'string' ? x : String(x?.text || '')).join(' ')
+    : ''
+  return (String(sec?.summary || '') + ' ' + kp).trim()
+}
+
+function bolumMaddeSayisi(sec: any): number {
+  return Array.isArray(sec?.key_points) ? sec.key_points.length : 0
+}
+
+function dedupeSections(sections: any[]): { sections: any[]; dropped: string[] } {
+  const list = Array.isArray(sections) ? sections : []
+  type Tutulan = { sec: any; bas: Set<string>; gov: Set<string>; madde: number; uz: number }
+  const kept: Tutulan[] = []
+  const dropped: string[] = []
+  for (const sec of list) {
+    const govMetin = bolumGovdeMetni(sec)
+    const aday: Tutulan = {
+      sec,
+      bas: nearDupTermSet(String(sec?.heading || '')),
+      gov: nearDupTermSet(govMetin),
+      madde: bolumMaddeSayisi(sec),
+      uz: govMetin.length
+    }
+    let es = -1
+    for (let i = 0; i < kept.length; i++) {
+      if (aday.bas.size < BOLUM_BASLIK_MIN_TERIM || kept[i].bas.size < BOLUM_BASLIK_MIN_TERIM) continue
+      if (aday.gov.size < NEAR_DUP_MIN_TERMS || kept[i].gov.size < NEAR_DUP_MIN_TERMS) continue
+      if (kumeOrtusmesi(aday.bas, kept[i].bas) < BOLUM_BASLIK_ESIGI) continue
+      if (kumeOrtusmesi(aday.gov, kept[i].gov) < BOLUM_GOVDE_ESIGI) continue
+      es = i
+      break
+    }
+    if (es === -1) { kept.push(aday); continue }
+    // Once MADDE sayisi, esitlikte metin uzunlugu — bkz. yukaridaki olcum.
+    const adayDahaIyi = aday.madde > kept[es].madde ||
+      (aday.madde === kept[es].madde && aday.uz > kept[es].uz)
+    const dusen = adayDahaIyi ? kept[es].sec : sec
+    dropped.push(String(dusen?.heading || '(basliksiz)'))
+    if (adayDahaIyi) kept[es] = aday
+  }
+  return { sections: kept.map((k) => k.sec), dropped }
+}
+
 function dedupeNearDuplicates(
   items: any[],
   getText: (item: any) => string,
@@ -4253,7 +4337,7 @@ function anchorTerms(s: string): string[] {
     .filter(w => (w.length >= 4 || /^\d+\.\d+/.test(w)) && !ANCHOR_STOPWORDS.has(w))
 }
 
-type PageSegment = { page: number; terms: Set<string>; head: string; body: string }
+type PageSegment = { page: number; terms: Set<string>; head: string; body: string; termsTekil?: Set<string> }
 
 // Abbreviations whose trailing dot must NOT end a sentence. Without this a
 // Turkish academic page splits at "s. 42", "vb.", "Prof. Dr." and the quote
@@ -4291,6 +4375,69 @@ function splitSentences(text: string): string[] {
   return out.map(s => s.trim()).filter(s => s.length > 0)
 }
 
+/* ALINTI OCR COPUYLE BIRLIKTE GELIYORDU (30.10.2026 olcumu).
+ *
+ * "Week 8 Derivative" kartinin kaynakcasinda 12 referansin 9'u bu haldeydi:
+ *   [4] （ょり＝なな、 -62-3-32-1/2 Key idea Power rule: the exponent moves
+ *       down, then decreases by one.
+ *   [5] + 1) = 9x2 - 10x + 3 g' (x) = 3x2 sin x + ... ANSWER Key idea A
+ *       product-rule derivative has two terms before simplification.
+ * Ogrenci atifa bakinca kaynagin ne dedigini degil OCR'in artigini goruyor.
+ *
+ * SEBEP: kaynak metinde cop ile temiz cumle AYRI SATIRLARDA.
+ *   （ょり＝なな、
+ *   -62-3-32-1/2
+ *   Key idea
+ *   Power rule: the exponent moves down, then
+ *   decreases by one.
+ * Ama splitSentences ilk isi olarak \s+ -> bosluk yapiyor, yani satir
+ * sonlarini SILIYOR ve noktalama tasimayan OCR satirlari tek bir "cumle"
+ * halinde birlesiyor. Yani kusur alinti secmede degil, aday uretmede.
+ *
+ * COZUM: satirlari once METNE GORE birlestir, sonra cumlelere bol. Bir satir
+ * sonu SARMA sayilir (birlestirilir) ancak onceki satir cumle noktalamasiyla
+ * bitmiyorsa VE sonraki satir kucuk harfle basliyorsa (ya da onceki satir
+ * tire ile bolunmusse). Aksi halde sinirdir.
+ *
+ * OLCUM: 9 bozuk referansin 9'u temiz kaynak cumlesine dondu ve sarmalanmis
+ * cumleler dogru birlesti ("...the exponent moves down, then" + "decreases
+ * by one." ; "Critical candidates occur where f'(x)=0 or f'(x)" + "is
+ * undefined, as long as the original function is" + "defined there.").
+ *
+ * BILINEN SINIR, BILEREK KABUL: devami BUYUK harfle baslayan bir sarma
+ * yanlis bolunur. Iki gercek belgede olculdu — ders kitabindaki
+ * "...included in the U.S. ________ and in the" / "Japanese ________." ve
+ * slayttaki "...with Respect to The Nature of The" / "Transaction". Ikisi de
+ * BASLIK/bosluk-doldurma satiri, yani zaten zayif alinti adaylari:
+ * bestQuoteForClaim en az 2 eslesen terim ve 0,3 skor istiyor, eksik parca
+ * tam cumleye kaybeder.
+ *
+ * DENENEN ALTERNATIF REDDEDILDI: "onceki satir uzun ve harf agirlikliysa
+ * sarmadir" kurali olculdu; basligi duzeltiyor ama iki AYRI basligi
+ * ("...known as TRADE RECEIVABLES" + "Receivables and Types of Receivables")
+ * birlestiriyor ve bosluk-doldurma satirini alt cizgiler harf oranini
+ * dusurdugu icin yine kaciriyor. Bir hata sinifini baskasiyla takas ediyor,
+ * net kazanc yok. */
+function alintiBloklari(body: string): string[] {
+  const satirlar = String(body || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+  const out: string[] = []
+  for (const satir of satirlar) {
+    if (out.length === 0) { out.push(satir); continue }
+    const onceki = out[out.length - 1]
+    const noktalamaylaBitti = /[.!?\u2026:]$/.test(onceki)
+    const tireyleBolundu = /[-\u2010-\u2015]$/.test(onceki)
+    const kucukBasliyor = /^[a-z\u00e0-\u00f6\u00f8-\u00ff\u011f\u015f\u0131\u00f6\u00e7\u00fc]/.test(satir)
+    if (tireyleBolundu) {
+      out[out.length - 1] = onceki.replace(/[-\u2010-\u2015]$/, '') + satir
+    } else if (!noktalamaylaBitti && kucukBasliyor) {
+      out[out.length - 1] = onceki + ' ' + satir
+    } else {
+      out.push(satir)
+    }
+  }
+  return out
+}
+
 // A quote shorter than this carries no context; longer than this is a wall of
 // text in a tooltip.
 const QUOTE_MIN_CHARS = 25
@@ -4305,21 +4452,33 @@ const QUOTE_MAX_CHARS = 220
  * Returns null when no sentence matches well enough; the caller then falls
  * back to the page's heading line.
  */
-function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>): string | null {
+function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>, tekil = false): string | null {
   const claimTerms = [...new Set(anchorTerms(claim))]
   if (!claimTerms.length) return null
   const fallbackIdf = Math.log(2)
-  const totalWeight = claimTerms.reduce((a, t) => a + (idf.get(t) ?? fallbackIdf), 0)
+  /* AGIRLIK ESLESEN BICIMDEN OKUNUR. idf tablosu sayfa terimlerinden
+     kurulu, yani TEKIL bicimi tasiyor; "products" ile eslesen sey
+     "product". Agirligi cogul bicimle aramak `?? 0` dondurup eslesmeyi
+     skora HIC yansitmiyordu (olculdu: eslesen terim sayisi artti, skor
+     ayni kaldi, madde yine atifsiz). */
+  const agirlik = (t: string) => idf.get(t) ?? (tekil ? idf.get(ingTekil(t)) : undefined) ?? fallbackIdf
+  const totalWeight = claimTerms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
   let best: { text: string; score: number } | null = null
-  for (const raw of splitSentences(body)) {
+  /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
+     alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
+     cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
+  const adaylar = alintiBloklari(body).flatMap((blok) => splitSentences(blok))
+  for (const raw of adaylar) {
     if (raw.length < QUOTE_MIN_CHARS) continue
-    const sentTerms = new Set(anchorTerms(raw))
-    if (!sentTerms.size) continue
+    const hamTerms = new Set(anchorTerms(raw))
+    if (!hamTerms.size) continue
+    // Cogul eki — bkz. ingTekil. Yalnizca Ingilizce kartta aciliyor.
+    const sentTerms = tekil ? tekilKume(hamTerms) : hamTerms
     let w = 0, matched = 0
     for (const t of claimTerms) {
-      if (sentTerms.has(t)) { w += (idf.get(t) ?? fallbackIdf); matched++ }
+      if (sentTerms.has(t) || (tekil && sentTerms.has(ingTekil(t)))) { w += agirlik(t); matched++ }
     }
     if (matched < 2) continue
     // Normalising by the claim's own weight (not the sentence's) keeps a long
@@ -4644,6 +4803,53 @@ function buildAnchorIdf(pageIndex: PageSegment[]): Map<string, number> {
 
 // Precision-first thresholds: a missing citation is a small loss, a wrong one
 // costs the student's trust in every other citation on the card.
+/* COGUL EKI ATIFI OLDURUYORDU (30.10.2026 olcumu).
+ *
+ * "Week 8 Derivative" kartinda iki madde atifsiz kaldi
+ * ("Citation anchoring: ... unanchored=2"). Bunlardan birinin kaynaktaki
+ * karsiligi NEREDEYSE BIREBIR:
+ *   madde  : "Decision mapping classifies expressions into sums, products,
+ *             quotients, or composites before differentiation."
+ *   sayfa 23: "Classify the expression first: sum, product, quotient, or
+ *             composite form."
+ * Ama olculen eslesme 10 terimden 1: yalnizca "decision". Geri kalan ALTI
+ * kavram Ingilizce cekim ekinde kayboluyor — classifies/classify,
+ * expressions/expression, sums/sum, products/product, quotients/quotient,
+ * composites/composite.
+ *
+ * NEDEN nearDupStem KULLANILMIYOR: o 5 karakterlik sabit onek kesiyor ve
+ * yalnizca KOPYA TESPITI icin guvenli (bkz. NEAR_DUP_STEM_LEN notu). Atifta
+ * yanlis eslesme ogrenciyi YANLIS SAYFAYA gonderir, bu yuzden burada tek
+ * tek sayilan ve geri cevrilebilir bir cogul kurali var, onek kesme yok.
+ *
+ * YALNIZCA INGILIZCE, BILEREK. Turkce cogul -lar/-ler'dir; Ingilizce -s
+ * kurali Turkceye uygulandiginda olculen zarar gercek: "kurs" -> "kur",
+ * "ders" -> "der", "ters" -> "ter". "kur" BASKA bir Turkce sozcuk (dovizin
+ * kuru), yani ayni belgede ikisi varsa atif yanlis sayfayi gosterir. Bu
+ * yuzden kapi dile bagli: lang === 'en' disinda eslesme BUGUNKUYLE BIREBIR
+ * ayni kaliyor.
+ *
+ * Tuzaklar elenmis: ss/us/is/os ile bitenlere dokunulmuyor (class, focus,
+ * analysis, chaos), ingilizce harf disi karakter tasiyan sozcuge
+ * dokunulmuyor, 4 karakterden kisa sozcuge dokunulmuyor. */
+function ingTekil(term: string): string {
+  const t = String(term || '')
+  if (t.length < 4) return t
+  if (/[^a-z]/.test(t)) return t
+  if (/(ss|us|is|os)$/.test(t)) return t
+  if (/ies$/.test(t) && t.length > 4) return t.slice(0, -3) + 'y'
+  if (/(ch|sh|s|x|z)es$/.test(t)) return t.slice(0, -2)
+  if (/s$/.test(t)) return t.slice(0, -1)
+  return t
+}
+
+/** Kumenin tekil karsiligi. Ozgun bicim de kalir: eslesme kaybedilmez. */
+function tekilKume(terms: Set<string>): Set<string> {
+  const out = new Set<string>()
+  for (const t of terms) { out.add(t); out.add(ingTekil(t)) }
+  return out
+}
+
 const ANCHOR_MIN_SCORE = 0.42   // share of the claim's weighted vocabulary found on the page
 const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
 
@@ -4654,19 +4860,31 @@ const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
 function anchorClaimToPage(
   claim: string,
   pageIndex: PageSegment[],
-  idf: Map<string, number>
+  idf: Map<string, number>,
+  tekil = false
 ): { page: number; score: number; matched: number; head: string; quote: string | null } | null {
   if (!pageIndex.length) return null
   const terms = [...new Set(anchorTerms(claim))]
   if (terms.length === 0) return null
-  const totalWeight = terms.reduce((a, t) => a + (idf.get(t) ?? Math.log(pageIndex.length + 1)), 0)
+  // Agirlik ESLESEN bicimden okunur — bkz. bestQuoteForClaim icindeki not.
+  const agirlik = (t: string) =>
+    idf.get(t) ?? (tekil ? idf.get(ingTekil(t)) : undefined) ?? Math.log(pageIndex.length + 1)
+  const totalWeight = terms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
   let best: { seg: PageSegment; score: number; matched: number } | null = null
   for (const seg of pageIndex) {
+    /* Cogul eki — bkz. ingTekil. Tekil kume sayfa basina BIR KEZ uretilip
+       segmentte saklaniyor: her madde icin yeniden kurmak 24 sayfa x 14
+       madde demekti. */
+    let kume = seg.terms
+    if (tekil) {
+      if (!seg.termsTekil) seg.termsTekil = tekilKume(seg.terms)
+      kume = seg.termsTekil
+    }
     let w = 0, matched = 0
     for (const t of terms) {
-      if (seg.terms.has(t)) { w += (idf.get(t) ?? 0); matched++ }
+      if (kume.has(t) || (tekil && kume.has(ingTekil(t)))) { w += agirlik(t); matched++ }
     }
     if (matched === 0) continue
     const score = w / totalWeight
@@ -4683,7 +4901,7 @@ function anchorClaimToPage(
     head: best.seg.head,
     // Verbatim sentence from that page, so the student sees what the source
     // actually says rather than just a page number.
-    quote: bestQuoteForClaim(claim, best.seg.body, idf)
+    quote: bestQuoteForClaim(claim, best.seg.body, idf, tekil)
   }
 }
 
@@ -6973,7 +7191,7 @@ function anchorCitations(
     if (!text.trim()) continue
     if (/\[\d+\]/.test(text)) continue // already cited — leave it alone
 
-    const hit = anchorClaimToPage(text, pageIndex, idf)
+    const hit = anchorClaimToPage(text, pageIndex, idf, lang === 'en')
     if (!hit) { stats.skipped++; continue }
 
     const id = out.length + 1
@@ -13591,10 +13809,37 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
         const usage = attemptData?.usage
         const reasoned = Number(usage?.completion_tokens_details?.reasoning_tokens)
         if (usage) {
+          /* ICERIDEKI <think> OLCULUYOR (30.10.2026).
+           *
+           * Yukaridaki REASONING_HEADROOM notu "gercek rakam artik her
+           * cagrida loglaniyor, bu yuzden yorumdan degil veriden
+           * ayarlanabilir" diyor — ama o alan
+           * (completion_tokens_details.reasoning_tokens) 18 canli review'un
+           * HICBIRINDE gelmedi: serit hep qwen/qwen3.8-27b'ydi ve qwen
+           * dusunmesini ayri alan olarak degil ICERIGIN ICINDE <think>
+           * blogu olarak yaziyor (stripThinkBlock'un varlik sebebi). Yani
+           * sayac tam ihtiyac duyulan seride kordu.
+           *
+           * Olculen dagilim: 18 kosunun 16'si ~78-123 token (yalnizca
+           * quality_gate), is yapan ikisi 3037 ve 3616 token — ilan edilen
+           * butce 850. Asim 3,5-4,3 kat ve bugun yalnizca Groq
+           * max_completion_tokens'i siki uygulamadigi icin zararsiz.
+           * Butceyi buyutmek bu seritte cozum DEGIL: OTPM duvari 1000,
+           * clampCompletion geri kirpiyor ve tahmin sisince kapi review'u
+           * daha sik atliyor. Bu yuzden korunma ayristirma tarafinda
+           * (taslaga donus), burada ise yalnizca OLCUM var. */
+          const reviewIcerik = String(attemptData?.choices?.[0]?.message?.content ?? '')
+          const thinkEslesme = reviewIcerik.match(/<think>[\s\S]*?<\/think>/i)
+          const thinkKrk = thinkEslesme ? thinkEslesme[0].length : 0
+          const harcanan = Number(usage.completion_tokens)
           console.log(
             `Review token: completion=${usage.completion_tokens ?? '?'}` +
             `${Number.isFinite(reasoned) ? ` (reasoning=${reasoned}, icerik=${(usage.completion_tokens ?? 0) - reasoned})` : ''}` +
-            ` / butce=${tierCompletion} [${reviewLane}]`
+            `${thinkKrk > 0 ? ` (icerideki <think> ${thinkKrk} krk ~${Math.round(thinkKrk / 4)} token)` : ''}` +
+            ` / butce=${tierCompletion} [${reviewLane}]` +
+            (Number.isFinite(harcanan) && harcanan > tierCompletion
+              ? ` — BUTCE ASILDI ${(harcanan / tierCompletion).toFixed(1)}x (saglayici tavani uygulamadi)`
+              : '')
           )
         }
         // Record either way: a rejected call still consumed the minute's
@@ -13649,21 +13894,61 @@ ${String(draftObj.summary || '').slice(0, 1500)}`
     // ==========================================================================
     // STEP 3 — PARSE THE RESPONSE (defensive parsing of final reviewed output)
     // ==========================================================================
-    const reviewStripped = stripThinkBlock(rawFinalContent)
-    if (reviewStripped === null) {
-      console.error('Groq Review response was an unterminated <think> block (ran out of tokens while reasoning):', rawFinalContent)
-      await markFailed(serviceClient, documentId)
-      return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before finishing its review — please try again' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    /* BOZUK REVIEW CEVABI DA BELGEYI DUSURMEZ (30.10.2026 olcumu).
+     *
+     * Bu iki kapi (kesik <think> ve bozuk JSON) markFailed cagirip 502/500
+     * donuyordu, yani elde SAGLAM bir taslak varken ogrencinin butun karti
+     * siliniyordu. Ayni fonksiyonun yukarisinda bu ilke iki kez yazili:
+     * "REVIEW DUSERSE BELGE DUSMEZ" (istek dustugunde) ve "Bos review
+     * cevabi da taslagi silmez". Kesik cevap yolu o ilkenin DISINDA
+     * kalmisti.
+     *
+     * NEDEN TEORIK DEGIL: 18 canli review olculdu. 16'si ~90 token
+     * (yalnizca quality_gate), ama is yapan IKI kosu 3037 ve 3616 token
+     * harcadi — ilan edilen butce 850. qwen3 dusunmesini `reasoning_tokens`
+     * olarak DEGIL, icerigin icinde <think> blogu olarak yaziyor (bu yuzden
+     * stripThinkBlock var), ve reviewCompletionFor dusunme payini yalnizca
+     * gpt-oss/openai seritlerine ekliyor — qwen'e hic eklemiyor. Yani
+     * uretken review'lar butceyi 3,5-4,3 kat asiyor ve bugun yalnizca Groq
+     * max_completion_tokens'i SIKI uygulamadigi icin calisiyorlar. Sinir
+     * uygulanmaya baslarsa cevap tam <think> icinde kesilir, stripThinkBlock
+     * null doner ve kart silinir — hem de review'un soyleyecek SOZU oldugu
+     * (pass=false, 4 duzeltme, yakalanan halusinasyon) kosularda.
+     *
+     * Kesik JSON kurtarmasi da deneniyor: review dort duzeltmeden sonra
+     * kesilmisse closeTruncatedJson ucunu kurtarabilir (bkz. callGroqJson).
+     * Taslak da ayristirilamiyorsa gercek bir basarisizlik var, o zaman
+     * markFailed dogru davranis. */
+    const ayristir = (ham: string): any | null => {
+      const soyulan = stripThinkBlock(ham)
+      if (soyulan === null) return null
+      const temiz = soyulan.replace(/```json\s*|```/g, "").trim()
+      if (!temiz) return null
+      try {
+        return JSON.parse(repairLatexEscapes(temiz))
+      } catch (_e) {
+        const kapatilan = closeTruncatedJson(temiz)
+        if (!kapatilan) return null
+        try {
+          return JSON.parse(repairLatexEscapes(kapatilan))
+        } catch (_e2) {
+          return null
+        }
+      }
     }
-    const cleaned = reviewStripped.replace(/```json\s*|```/g, "").trim()
-    let parsedContent
-    try {
-      parsedContent = JSON.parse(repairLatexEscapes(cleaned))
-    } catch (parseError) {
-      console.error("Failed to parse Groq final response as JSON: ", rawFinalContent, parseError)
+
+    let parsedContent = ayristir(rawFinalContent)
+    if (!parsedContent && rawFinalContent !== rawContent) {
+      console.error(
+        'Review cevabi ayristirilamadi (kesik <think> ya da bozuk JSON) — TASLAGA donuluyor: ' +
+        String(rawFinalContent).slice(0, 400)
+      )
+      skippedStages.push('review')
+      rawFinalContent = rawContent
+      parsedContent = ayristir(rawFinalContent)
+    }
+    if (!parsedContent) {
+      console.error('Taslak da ayristirilamadi — belge dusuruluyor: ', String(rawFinalContent).slice(0, 400))
       await markFailed(serviceClient, documentId)
       return new Response(JSON.stringify({ error: 'AI returned invalid JSON formatting after review' }), {
         status: 500,
@@ -14101,10 +14386,23 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
           diyagramDedup.dropped.map((t) => `"${t}"`).join(' | ')
         )
       }
+      /* Bolumler de AYRI kural ile — bkz. dedupeSections yanindaki olcum
+         notu. Gorsel gecisin ekledigi bolum pencerenin bolumunu tekrar
+         ediyordu ve genel esik (0,7) 0,458'lik ortusmeyi kaciriyordu. */
+      const bolumSayisiOnce = Array.isArray(parsedContent.sections) ? parsedContent.sections.length : 0
+      const bolumDedup = dedupeSections(parsedContent.sections)
+      if (bolumDedup.dropped.length > 0) {
+        parsedContent.sections = bolumDedup.sections
+        console.log(
+          `Bolum kopyasi birlestirildi: ${bolumDedup.dropped.length} dustu — ` +
+          bolumDedup.dropped.map((t) => `"${t}"`).join(' | ')
+        )
+      }
       console.log(
         `Near-duplicate merge: terms ${beforeDedup.terms}→${parsedContent.key_terms.length}, ` +
         `points ${beforeDedup.points}→${parsedContent.key_points.length}, ` +
         `quiz ${beforeDedup.quiz}→${parsedContent.quiz_questions.length}, ` +
+        `sections ${bolumSayisiOnce}→${Array.isArray(parsedContent.sections) ? parsedContent.sections.length : 0}, ` +
         `diagrams ${Array.isArray(parsedContent.diagrams) ? parsedContent.diagrams.length : 0}`
       )
 
@@ -14778,6 +15076,34 @@ async function markFailed(client: any, documentId: string) {
 const OCR_PARCA_SAYFA = 3
 const OCR_PARCA_BUTCE_MS = 60_000
 
+/* PARCALAR SIRAYLA KOSUYORDU VE BELGE BITMIYORDU (30.10.2026 olcumu).
+ *
+ * Iki kosu, iki belge, ayni sonuc:
+ *   Week 8 (29 sayfa): 8 parca, 70300ms -> butce doldu, 24/29 sayfa
+ *   Week 9 (27 sayfa): 7 parca, 60555ms -> butce doldu, 21/27 sayfa
+ * Parca basina ~8,8 sn ve parcalar TEK TEK bekleniyordu; 29 sayfa 10 parca
+ * demek, yani 88 sn — 60 sn'lik butceye hicbir zaman sigmiyor. Bedeli
+ * yalnizca eksik sayfa degil: OCR hattin %74-76'sini yiyordu, Week 8'de
+ * gorsel gecis "butce 27685ms <= 35000ms" diye komple atlandi.
+ *
+ * NEDEN ILAC PARALELLIK: her parca ayri bir HTTP cagrisi ve bekleme
+ * ag gecikmesi; es zamanli uc cagri ile 10 parca 4 dalgaya iner
+ * (~35 sn). Butce buyutmek cozum DEGILDI: Supabase'in sert siniri ~150 sn
+ * ve kalan sureyi anlati yazari ile gorsel gecis paylasiyor.
+ *
+ * ES ZAMAN 3, DOKUMANTE SINIR OLMADIGI ICIN TEMKINLI. ocr.space ucretsiz
+ * katmani 500 istek/gun/IP, 1 MB dosya ve 3 sayfa/PDF yaziyor; es zamanli
+ * baglanti sinirini HIC yazmiyor. Bu yuzden sayi kucuk tutuldu ve hata
+ * halinde kendini kapatiyor: bir dalgada parca duserse es zaman 1'e iner
+ * (geri kalani sirayla okunur) ve dusen parcalar bir kez tekrar denenir.
+ *
+ * ROZETIN SOZU KORUNUYOR. Ekranda "yalnizca ilk N sayfa okunabildi"
+ * yaziyor (js/acadex-ink.js). Paralel kosuda ortada bir parca duserse
+ * okunan sayfalar kesintisiz olmaz, bu yuzden rozete giden sayi
+ * KESINTISIZ ONEK; delikten sonraki sayfalarin metni yine karta giriyor,
+ * rozet onu iddia etmiyor. Az soylemek, fazla soylemekten iyi. */
+const OCR_ES_ZAMAN = 3
+
 async function tryOCRParcali(
   fileBytes: Uint8Array,
   apiKey: string,
@@ -14812,39 +15138,92 @@ async function tryOCRParcali(
   }
 
   const basladi = Date.now()
-  const parcalar: string[] = []
-  let okunan = 0
-  for (let bas = 0; bas < toplam; bas += OCR_PARCA_SAYFA) {
-    const gecen = Date.now() - basladi
-    if (gecen > butceMs) {
-      console.warn(
-        `OCR parcali: butce doldu (${gecen}ms > ${butceMs}ms), ${okunan}/${toplam} sayfa okundu`
-      )
-      break
-    }
+  const parcaSayisi = Math.ceil(toplam / OCR_PARCA_SAYFA)
+  // Sonuc SIRASINA gore degil PARCA SIRASINA gore toplaniyor: sayfa
+  // isaretleri dogru kalsin ve metin belgenin sirasini izlesin.
+  const metinler: Array<string | null> = new Array(parcaSayisi).fill(null)
+  const sayfaAdedi: number[] = new Array(parcaSayisi).fill(0)
+  let esZaman = OCR_ES_ZAMAN
+
+  /** Tek parcayi okur. Hata firlatmaz; dusen parca null doner. */
+  const parcaOku = async (k: number): Promise<boolean> => {
+    const bas = k * OCR_PARCA_SAYFA
     const idx: number[] = []
     for (let i = bas; i < Math.min(bas + OCR_PARCA_SAYFA, toplam); i++) idx.push(i)
     const alt = await buildPdfSubsetBytes(fileBytes, idx)
     if (!alt) {
-      console.warn(`OCR parcali: ${bas + 1}-${bas + idx.length}. sayfalar icin mini-PDF uretilemedi, duruluyor`)
-      break
+      console.warn(`OCR parcali: ${bas + 1}-${bas + idx.length}. sayfalar icin mini-PDF uretilemedi`)
+      return false
     }
     try {
       const r = await tryOCR(alt, apiKey)
-      if (r.text.trim().length > 0) parcalar.push(isaretle(r.sayfalar, bas + 1))
-      okunan += Math.max(r.sayfa, 0) || idx.length
+      metinler[k] = r.text.trim().length > 0 ? isaretle(r.sayfalar, bas + 1) : ''
+      sayfaAdedi[k] = Math.max(r.sayfa, 0) || idx.length
+      return true
     } catch (err) {
       /* Bir parca duserse elimizdekini tutuyoruz: yarim metin, hic
          metinden iyidir ve eksiklik karta rozet olarak yaziliyor. */
-      console.warn(`OCR parcali: ${bas + 1}. sayfadan itibaren parca dustu (${err}), ${okunan}/${toplam} sayfa okundu`)
-      break
+      console.warn(`OCR parcali: ${bas + 1}. sayfadan itibaren parca dustu (${err})`)
+      return false
     }
   }
+
+  const okunanSayfaToplami = () => sayfaAdedi.reduce((a, b) => a + b, 0)
+
+  let k = 0
+  let durdu = false
+  while (k < parcaSayisi && !durdu) {
+    const gecen = Date.now() - basladi
+    if (gecen > butceMs) {
+      console.warn(
+        `OCR parcali: butce doldu (${gecen}ms > ${butceMs}ms), ` +
+        `${okunanSayfaToplami()}/${toplam} sayfa okundu`
+      )
+      break
+    }
+    const grup: number[] = []
+    for (let i = k; i < Math.min(k + esZaman, parcaSayisi); i++) grup.push(i)
+    k += grup.length
+    const sonuclar = await Promise.all(grup.map(parcaOku))
+    const dusenler = grup.filter((_g, i) => !sonuclar[i])
+    if (dusenler.length === 0) continue
+
+    /* Dalgada parca dustu. Sebebi bilmiyoruz — dokumante edilmemis bir es
+       zamanlilik siniri da olabilir — bu yuzden once es zamani kapatip
+       dusenleri TEK TEK bir kez daha deniyoruz. */
+    const eskiEsZaman = esZaman
+    esZaman = 1
+    for (const d of dusenler) {
+      if (Date.now() - basladi > butceMs) { durdu = true; break }
+      if (await parcaOku(d)) continue
+      // Sirayla da dusuyorsa sorun es zamanlilik degil: duruluyor.
+      durdu = true
+      break
+    }
+    if (eskiEsZaman !== 1) {
+      console.warn(
+        `OCR parcali: ${dusenler.length} parca dustu, es zaman ${eskiEsZaman} -> 1 ` +
+        `(geri kalani sirayla)`
+      )
+    }
+  }
+
+  /* Rozet "ilk N sayfa" diyor: KESINTISIZ onek sayiliyor. Delikten
+     sonraki sayfalarin metni karta giriyor, rozet onu iddia etmiyor. */
+  let onek = 0
+  for (let i = 0; i < parcaSayisi && metinler[i] !== null; i++) onek += sayfaAdedi[i]
+  const toplamOkunan = okunanSayfaToplami()
+  const parcalar = metinler.filter((m): m is string => m !== null && m.length > 0)
   console.log(
-    `OCR parcali: ${okunan}/${toplam} sayfa, ${parcalar.length} parca, ` +
-    `${parcalar.join('').length} karakter, ${Date.now() - basladi}ms`
+    `OCR parcali: ${toplamOkunan}/${toplam} sayfa, ${parcalar.length} parca, ` +
+    `${parcalar.join('').length} karakter, ${Date.now() - basladi}ms, es zaman ${OCR_ES_ZAMAN}` +
+    (onek !== toplamOkunan ? ` — ARADA DELIK VAR, rozete kesintisiz onek (${onek}) yaziliyor` : '')
   )
-  return { text: parcalar.join('\n\n'), okunanSayfa: Math.min(okunan, toplam), toplamSayfa: toplam }
+  return {
+    text: parcalar.join('\n\n'),
+    okunanSayfa: Math.min(onek, toplam),
+    toplamSayfa: toplam
+  }
 }
 
 async function tryOCR(

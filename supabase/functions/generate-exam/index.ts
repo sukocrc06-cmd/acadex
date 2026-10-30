@@ -2631,7 +2631,7 @@ function anchorTerms(s: string): string[] {
     .filter(w => (w.length >= 4 || /^\d+\.\d+/.test(w)) && !ANCHOR_STOPWORDS.has(w))
 }
 
-type PageSegment = { page: number; terms: Set<string>; head: string; body: string }
+type PageSegment = { page: number; terms: Set<string>; head: string; body: string; termsTekil?: Set<string> }
 
 // Abbreviations whose trailing dot must NOT end a sentence. Without this a
 // Turkish academic page splits at "s. 42", "vb.", "Prof. Dr." and the quote
@@ -2669,6 +2669,69 @@ function splitSentences(text: string): string[] {
   return out.map(s => s.trim()).filter(s => s.length > 0)
 }
 
+/* ALINTI OCR COPUYLE BIRLIKTE GELIYORDU (30.10.2026 olcumu).
+ *
+ * "Week 8 Derivative" kartinin kaynakcasinda 12 referansin 9'u bu haldeydi:
+ *   [4] （ょり＝なな、 -62-3-32-1/2 Key idea Power rule: the exponent moves
+ *       down, then decreases by one.
+ *   [5] + 1) = 9x2 - 10x + 3 g' (x) = 3x2 sin x + ... ANSWER Key idea A
+ *       product-rule derivative has two terms before simplification.
+ * Ogrenci atifa bakinca kaynagin ne dedigini degil OCR'in artigini goruyor.
+ *
+ * SEBEP: kaynak metinde cop ile temiz cumle AYRI SATIRLARDA.
+ *   （ょり＝なな、
+ *   -62-3-32-1/2
+ *   Key idea
+ *   Power rule: the exponent moves down, then
+ *   decreases by one.
+ * Ama splitSentences ilk isi olarak \s+ -> bosluk yapiyor, yani satir
+ * sonlarini SILIYOR ve noktalama tasimayan OCR satirlari tek bir "cumle"
+ * halinde birlesiyor. Yani kusur alinti secmede degil, aday uretmede.
+ *
+ * COZUM: satirlari once METNE GORE birlestir, sonra cumlelere bol. Bir satir
+ * sonu SARMA sayilir (birlestirilir) ancak onceki satir cumle noktalamasiyla
+ * bitmiyorsa VE sonraki satir kucuk harfle basliyorsa (ya da onceki satir
+ * tire ile bolunmusse). Aksi halde sinirdir.
+ *
+ * OLCUM: 9 bozuk referansin 9'u temiz kaynak cumlesine dondu ve sarmalanmis
+ * cumleler dogru birlesti ("...the exponent moves down, then" + "decreases
+ * by one." ; "Critical candidates occur where f'(x)=0 or f'(x)" + "is
+ * undefined, as long as the original function is" + "defined there.").
+ *
+ * BILINEN SINIR, BILEREK KABUL: devami BUYUK harfle baslayan bir sarma
+ * yanlis bolunur. Iki gercek belgede olculdu — ders kitabindaki
+ * "...included in the U.S. ________ and in the" / "Japanese ________." ve
+ * slayttaki "...with Respect to The Nature of The" / "Transaction". Ikisi de
+ * BASLIK/bosluk-doldurma satiri, yani zaten zayif alinti adaylari:
+ * bestQuoteForClaim en az 2 eslesen terim ve 0,3 skor istiyor, eksik parca
+ * tam cumleye kaybeder.
+ *
+ * DENENEN ALTERNATIF REDDEDILDI: "onceki satir uzun ve harf agirlikliysa
+ * sarmadir" kurali olculdu; basligi duzeltiyor ama iki AYRI basligi
+ * ("...known as TRADE RECEIVABLES" + "Receivables and Types of Receivables")
+ * birlestiriyor ve bosluk-doldurma satirini alt cizgiler harf oranini
+ * dusurdugu icin yine kaciriyor. Bir hata sinifini baskasiyla takas ediyor,
+ * net kazanc yok. */
+function alintiBloklari(body: string): string[] {
+  const satirlar = String(body || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+  const out: string[] = []
+  for (const satir of satirlar) {
+    if (out.length === 0) { out.push(satir); continue }
+    const onceki = out[out.length - 1]
+    const noktalamaylaBitti = /[.!?\u2026:]$/.test(onceki)
+    const tireyleBolundu = /[-\u2010-\u2015]$/.test(onceki)
+    const kucukBasliyor = /^[a-z\u00e0-\u00f6\u00f8-\u00ff\u011f\u015f\u0131\u00f6\u00e7\u00fc]/.test(satir)
+    if (tireyleBolundu) {
+      out[out.length - 1] = onceki.replace(/[-\u2010-\u2015]$/, '') + satir
+    } else if (!noktalamaylaBitti && kucukBasliyor) {
+      out[out.length - 1] = onceki + ' ' + satir
+    } else {
+      out.push(satir)
+    }
+  }
+  return out
+}
+
 // A quote shorter than this carries no context; longer than this is a wall of
 // text in a tooltip.
 const QUOTE_MIN_CHARS = 25
@@ -2683,21 +2746,33 @@ const QUOTE_MAX_CHARS = 220
  * Returns null when no sentence matches well enough; the caller then falls
  * back to the page's heading line.
  */
-function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>): string | null {
+function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>, tekil = false): string | null {
   const claimTerms = [...new Set(anchorTerms(claim))]
   if (!claimTerms.length) return null
   const fallbackIdf = Math.log(2)
-  const totalWeight = claimTerms.reduce((a, t) => a + (idf.get(t) ?? fallbackIdf), 0)
+  /* AGIRLIK ESLESEN BICIMDEN OKUNUR. idf tablosu sayfa terimlerinden
+     kurulu, yani TEKIL bicimi tasiyor; "products" ile eslesen sey
+     "product". Agirligi cogul bicimle aramak `?? 0` dondurup eslesmeyi
+     skora HIC yansitmiyordu (olculdu: eslesen terim sayisi artti, skor
+     ayni kaldi, madde yine atifsiz). */
+  const agirlik = (t: string) => idf.get(t) ?? (tekil ? idf.get(ingTekil(t)) : undefined) ?? fallbackIdf
+  const totalWeight = claimTerms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
   let best: { text: string; score: number } | null = null
-  for (const raw of splitSentences(body)) {
+  /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
+     alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
+     cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
+  const adaylar = alintiBloklari(body).flatMap((blok) => splitSentences(blok))
+  for (const raw of adaylar) {
     if (raw.length < QUOTE_MIN_CHARS) continue
-    const sentTerms = new Set(anchorTerms(raw))
-    if (!sentTerms.size) continue
+    const hamTerms = new Set(anchorTerms(raw))
+    if (!hamTerms.size) continue
+    // Cogul eki — bkz. ingTekil. Yalnizca Ingilizce kartta aciliyor.
+    const sentTerms = tekil ? tekilKume(hamTerms) : hamTerms
     let w = 0, matched = 0
     for (const t of claimTerms) {
-      if (sentTerms.has(t)) { w += (idf.get(t) ?? fallbackIdf); matched++ }
+      if (sentTerms.has(t) || (tekil && sentTerms.has(ingTekil(t)))) { w += agirlik(t); matched++ }
     }
     if (matched < 2) continue
     // Normalising by the claim's own weight (not the sentence's) keeps a long
@@ -2726,6 +2801,53 @@ function buildAnchorIdf(pageIndex: PageSegment[]): Map<string, number> {
 
 // Precision-first thresholds: a missing citation is a small loss, a wrong one
 // costs the student's trust in every other citation on the card.
+/* COGUL EKI ATIFI OLDURUYORDU (30.10.2026 olcumu).
+ *
+ * "Week 8 Derivative" kartinda iki madde atifsiz kaldi
+ * ("Citation anchoring: ... unanchored=2"). Bunlardan birinin kaynaktaki
+ * karsiligi NEREDEYSE BIREBIR:
+ *   madde  : "Decision mapping classifies expressions into sums, products,
+ *             quotients, or composites before differentiation."
+ *   sayfa 23: "Classify the expression first: sum, product, quotient, or
+ *             composite form."
+ * Ama olculen eslesme 10 terimden 1: yalnizca "decision". Geri kalan ALTI
+ * kavram Ingilizce cekim ekinde kayboluyor — classifies/classify,
+ * expressions/expression, sums/sum, products/product, quotients/quotient,
+ * composites/composite.
+ *
+ * NEDEN nearDupStem KULLANILMIYOR: o 5 karakterlik sabit onek kesiyor ve
+ * yalnizca KOPYA TESPITI icin guvenli (bkz. NEAR_DUP_STEM_LEN notu). Atifta
+ * yanlis eslesme ogrenciyi YANLIS SAYFAYA gonderir, bu yuzden burada tek
+ * tek sayilan ve geri cevrilebilir bir cogul kurali var, onek kesme yok.
+ *
+ * YALNIZCA INGILIZCE, BILEREK. Turkce cogul -lar/-ler'dir; Ingilizce -s
+ * kurali Turkceye uygulandiginda olculen zarar gercek: "kurs" -> "kur",
+ * "ders" -> "der", "ters" -> "ter". "kur" BASKA bir Turkce sozcuk (dovizin
+ * kuru), yani ayni belgede ikisi varsa atif yanlis sayfayi gosterir. Bu
+ * yuzden kapi dile bagli: lang === 'en' disinda eslesme BUGUNKUYLE BIREBIR
+ * ayni kaliyor.
+ *
+ * Tuzaklar elenmis: ss/us/is/os ile bitenlere dokunulmuyor (class, focus,
+ * analysis, chaos), ingilizce harf disi karakter tasiyan sozcuge
+ * dokunulmuyor, 4 karakterden kisa sozcuge dokunulmuyor. */
+function ingTekil(term: string): string {
+  const t = String(term || '')
+  if (t.length < 4) return t
+  if (/[^a-z]/.test(t)) return t
+  if (/(ss|us|is|os)$/.test(t)) return t
+  if (/ies$/.test(t) && t.length > 4) return t.slice(0, -3) + 'y'
+  if (/(ch|sh|s|x|z)es$/.test(t)) return t.slice(0, -2)
+  if (/s$/.test(t)) return t.slice(0, -1)
+  return t
+}
+
+/** Kumenin tekil karsiligi. Ozgun bicim de kalir: eslesme kaybedilmez. */
+function tekilKume(terms: Set<string>): Set<string> {
+  const out = new Set<string>()
+  for (const t of terms) { out.add(t); out.add(ingTekil(t)) }
+  return out
+}
+
 const ANCHOR_MIN_SCORE = 0.42   // share of the claim's weighted vocabulary found on the page
 const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
 
@@ -2736,19 +2858,31 @@ const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
 function anchorClaimToPage(
   claim: string,
   pageIndex: PageSegment[],
-  idf: Map<string, number>
+  idf: Map<string, number>,
+  tekil = false
 ): { page: number; score: number; matched: number; head: string; quote: string | null } | null {
   if (!pageIndex.length) return null
   const terms = [...new Set(anchorTerms(claim))]
   if (terms.length === 0) return null
-  const totalWeight = terms.reduce((a, t) => a + (idf.get(t) ?? Math.log(pageIndex.length + 1)), 0)
+  // Agirlik ESLESEN bicimden okunur — bkz. bestQuoteForClaim icindeki not.
+  const agirlik = (t: string) =>
+    idf.get(t) ?? (tekil ? idf.get(ingTekil(t)) : undefined) ?? Math.log(pageIndex.length + 1)
+  const totalWeight = terms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
   let best: { seg: PageSegment; score: number; matched: number } | null = null
   for (const seg of pageIndex) {
+    /* Cogul eki — bkz. ingTekil. Tekil kume sayfa basina BIR KEZ uretilip
+       segmentte saklaniyor: her madde icin yeniden kurmak 24 sayfa x 14
+       madde demekti. */
+    let kume = seg.terms
+    if (tekil) {
+      if (!seg.termsTekil) seg.termsTekil = tekilKume(seg.terms)
+      kume = seg.termsTekil
+    }
     let w = 0, matched = 0
     for (const t of terms) {
-      if (seg.terms.has(t)) { w += (idf.get(t) ?? 0); matched++ }
+      if (kume.has(t) || (tekil && kume.has(ingTekil(t)))) { w += agirlik(t); matched++ }
     }
     if (matched === 0) continue
     const score = w / totalWeight
@@ -2765,7 +2899,7 @@ function anchorClaimToPage(
     head: best.seg.head,
     // Verbatim sentence from that page, so the student sees what the source
     // actually says rather than just a page number.
-    quote: bestQuoteForClaim(claim, best.seg.body, idf)
+    quote: bestQuoteForClaim(claim, best.seg.body, idf, tekil)
   }
 }
 

@@ -3506,7 +3506,16 @@ function acikVurgu(seg) {
 const OZET_KISALTMA_RE = /(?:^|[\s(])(?:vs|e\.g|i\.e|etc|fig|eq|approx|no|vol|pp|cf|al|örn|bkz|vb|yy|[A-Z])\.$/i;
 
 function summaryParagraphs(summary, target = 600) {
-  const text = String(summary || '').replace(/\r/g, '').replace(/\\n/g, '\n').trim();
+  /* DUZ METIN "\n" KURTARMASI YALNIZ ESKI BICIME (30.10.2026 olcumu).
+     Kosulsuz replace, n ile baslayan HER LaTeX komutunu olduruyordu:
+     "$n \neq -1$" ekranda "$n" + satir sonu + "eq -1$" diye ciktı — KaTeX
+     dizmedi, ogrenci ham dolar isareti gordu. Olcum: 51 kartin 1 tanesinde
+     duz metin "\n" var (o da bu \neq), ve HIC KART eski bicimde degil
+     (duz "\n" tasiyip gercek satir sonu olmayan kart sayisi 0). Yani
+     kurtarmanin dokundugu tek metin, bozdugu metindi.
+     Gercek satir sonu varsa metin zaten paragrafli: kurtarma gereksiz. */
+  const ham = String(summary || '').replace(/\r/g, '');
+  const text = (ham.indexOf('\n') === -1 ? ham.replace(/\\n/g, '\n') : ham).trim();
   if (!text) return [];
   let paras = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   if (paras.length === 1 && paras[0].includes('\n')) {

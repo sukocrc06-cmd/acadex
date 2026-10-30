@@ -94,6 +94,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
+  // Bolum kopyasi genel esigin ALTINDA kaliyordu (30.10.2026 olcumu).
+  'BOLUM_BASLIK_ESIGI', 'BOLUM_GOVDE_ESIGI', 'BOLUM_BASLIK_MIN_TERIM',
+  'bolumGovdeMetni', 'bolumMaddeSayisi', 'dedupeSections',
   'dedupeBolumler',
   // Slayt destesi tespiti ve cikarim talimati (07.10.2026).
   'DECK_MIN_PAGES', 'DECK_MAX_CHARS_PER_PAGE', 'katalogdanDersEtiketi', 'DECK_PROMPT_CHARS',
@@ -137,6 +140,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'YUM_DOKUNULMAZ', 'yumusatAgac',
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
+  // Parcalar sirayla kosup butceyi dolduruyordu (30.10.2026 olcumu).
+  'OCR_ES_ZAMAN', 'tryOCRParcali',
   // OCR ciktisinin onbellekte tutulmasi (29.10.2026 olcumu).
   'ONBELLEK_OCR_MAX_KRK', 'ONBELLEK_OCR_SURUM', 'onbellektenOcrMetni',
   'KAPSAMA_ROZET_MIN_ORNEK',
@@ -5158,6 +5163,131 @@ test('diyagram dedupe CIKISA baglanmis ve sayisi loglaniyor', () => {
     'Near-duplicate merge satiri diyagram sayisini da yazmali');
 });
 
+
+console.log('\nBOLUM KOPYASI (WEEK 9 OLCUMU)\n');
+
+/* Week 9 Introduction to Integrals kartinin DORT bolumu, birebir.
+   2. ve 4. ayni sey: biri pencereden, oteki gorsel gecisten geldi. */
+const BOLUM_OLCUM = [
+  {
+    heading: 'Bridge from Derivatives to Integrals',
+    summary: 'Explains how integration reverses differentiation to calculate accumulated change rather than local rate of change.',
+    key_points: [
+      'Derivatives measure local change at a point.',
+      'Integrals reverse derivatives to find accumulated total change.',
+      "F'(x) = f(x) connects the two concepts."
+    ]
+  },
+  {
+    heading: 'Area Under a Curve and Riemann Sums',
+    summary: 'Describes the geometric interpretation of definite integrals as areas built from infinite thin rectangles.',
+    key_points: [
+      'Definite integrals give the area under positive curves.',
+      'Riemann sums approximate area using finite rectangles before taking a limit.',
+      'Limits of sums yield exact definite integrals.'
+    ]
+  },
+  {
+    heading: 'Basic Rules of Integration',
+    summary: 'Lists the fundamental calculation techniques including power rules, linearity, logarithms, exponentials, and trig functions.',
+    key_points: [
+      'Power rule increases exponent by one and divides by the new exponent.',
+      'Constants factor out of integrals.',
+      'Polynomials are integrated term by term.'
+    ]
+  },
+  {
+    heading: 'Accumulation and Area',
+    summary: 'Introduction to integrals through the concept of accumulation and the geometric interpretation of area under a curve.',
+    key_points: [
+      'Integration totalizes many small changes into a single accumulated result.',
+      'Rectangle approximations form the basis for understanding Riemann sums before reaching the exact integral.'
+    ]
+  }
+];
+
+test('OLCULEN KOPYA BOLUM dusuyor, oteki ucu kaliyor', () => {
+  const r = A.dedupeSections(BOLUM_OLCUM);
+  assert.equal(r.sections.length, 3, JSON.stringify(r.sections.map(s => s.heading)));
+  assert.deepEqual(r.dropped, ['Accumulation and Area']);
+  // Belgenin kendi ana basligi kalir, mugalak olan duser.
+  assert.deepEqual(r.sections.map(s => s.heading), [
+    'Bridge from Derivatives to Integrals',
+    'Area Under a Curve and Riemann Sums',
+    'Basic Rules of Integration'
+  ]);
+});
+
+test('UZUNLUK TEK BASINA YANLIS secerdi — madde sayisi onde', () => {
+  /* Olculen tuzak: kopya (gorsel gecisten) 298 krk, dogru bolum 285 krk.
+     dedupeDiagrams'in "daha dolu olan kalsin" kurali burada belgenin ana
+     basligini atardi. Madde sayisi 3'e 2 dogru tarafi gosteriyor. */
+  const dogru = BOLUM_OLCUM[1], kopya = BOLUM_OLCUM[3];
+  assert.ok(A.bolumGovdeMetni(kopya).length > A.bolumGovdeMetni(dogru).length,
+    'olcum degismis: kopya artik daha kisa, testin gerekcesi guncellenmeli');
+  assert.equal(A.bolumMaddeSayisi(dogru), 3);
+  assert.equal(A.bolumMaddeSayisi(kopya), 2);
+  // Sira tersine cevrilse de AYNI bolum kalmali.
+  const r = A.dedupeSections([kopya, dogru]);
+  assert.equal(r.sections.length, 1);
+  assert.equal(r.sections[0].heading, 'Area Under a Curve and Riemann Sums');
+});
+
+test('MASUM BOLUMLER birlestirilmiyor (olculen alti cift)', () => {
+  // Kopya cift disinda hicbir cift iki esigi birden gecmiyor.
+  for (let i = 0; i < BOLUM_OLCUM.length; i++) {
+    for (let j = i + 1; j < BOLUM_OLCUM.length; j++) {
+      const kopyaCifti = (i === 1 && j === 3);
+      const r = A.dedupeSections([BOLUM_OLCUM[i], BOLUM_OLCUM[j]]);
+      assert.equal(r.sections.length, kopyaCifti ? 1 : 2,
+        `${BOLUM_OLCUM[i].heading} <-> ${BOLUM_OLCUM[j].heading}`);
+    }
+  }
+});
+
+test('IKI KOSUL birden isteniyor: tek basina baslik ya da govde yetmez', () => {
+  // Ayni baslik ailesi, ayri icerik: birlestirilmemeli.
+  const a = { heading: 'Social Cognition: Automatic', summary: 'Fast, effortless, unconscious processing of social information.', key_points: ['Snap judgments happen without intent.', 'Heuristics drive automatic thought.'] };
+  const b = { heading: 'Social Cognition: Controlled', summary: 'Deliberate, effortful reasoning about other people and motives.', key_points: ['Controlled thought needs attention.', 'Effort can override a snap judgment.'] };
+  assert.equal(A.dedupeSections([a, b]).sections.length, 2, 'baslik ortusmesi TEK BASINA birlestirmis');
+  // Paralel yazilmis iki ayri bolum: govde ortusur, baslik ortusmez.
+  const c = { heading: 'Monetary Policy Tools', summary: 'The central bank changes the money supply using three standard instruments.', key_points: ['Open market operations move reserves.', 'The discount rate prices central bank lending.'] };
+  const d = { heading: 'Fiscal Policy Tools', summary: 'The government changes aggregate demand using two standard instruments.', key_points: ['Spending moves demand directly.', 'Taxes move disposable income.'] };
+  assert.equal(A.dedupeSections([c, d]).sections.length, 2, 'govde ortusmesi TEK BASINA birlestirmis');
+});
+
+test('KISA BASLIK atlanmiyor: baslik tabani 2 terim', () => {
+  /* Olculen basliklarin terim sayilari 3,4,3,2 — "Accumulation and Area"
+     2 terim uretiyor. dedupeDiagrams'in tabani (3) tam olculen kopyayi
+     atlardi, bu yuzden bolumun kendi tabani var. */
+  assert.equal(A.BOLUM_BASLIK_MIN_TERIM, 2);
+  assert.ok(A.nearDupTermSet('Accumulation and Area').size >= A.BOLUM_BASLIK_MIN_TERIM,
+    'olculen kopyanin basligi tabanin altinda kaliyor');
+  assert.ok(A.BOLUM_BASLIK_ESIGI < 0.5 && A.BOLUM_GOVDE_ESIGI <= 0.458,
+    'esikler olculen kopyanin (0,500 / 0,458) uzerine cikmis');
+  assert.ok(A.BOLUM_BASLIK_ESIGI > 0.333 && A.BOLUM_GOVDE_ESIGI > 0.294,
+    'esikler en yakin MASUM ciftin (0,333 / 0,294) altina inmis');
+});
+
+test('bozuk girdide cokmez', () => {
+  assert.deepEqual(A.dedupeSections(null).sections, []);
+  assert.deepEqual(A.dedupeSections([]).sections, []);
+  assert.equal(A.dedupeSections([{ heading: '' }, { heading: '' }]).sections.length, 2,
+    'basliksiz bolumler birlestirilmemeli');
+  assert.equal(A.bolumMaddeSayisi({}), 0);
+  assert.equal(A.bolumGovdeMetni(null), '');
+  // Nesne bicimli maddeler de govdeye giriyor.
+  assert.ok(A.bolumGovdeMetni({ summary: 'x', key_points: [{ text: 'madde metni' }] }).includes('madde metni'));
+});
+
+test('bolum dedupe CIKISA baglanmis ve sayisi loglaniyor', () => {
+  assert.match(SRC, /const bolumDedup = dedupeSections\(parsedContent\.sections\)/,
+    'dedupeSections cagrilmiyor — olu kod');
+  assert.match(SRC, /Bolum kopyasi birlestirildi/, 'dusen bolum loglanmiyor');
+  assert.match(SRC, /sections \$\{bolumSayisiOnce\}/,
+    'Near-duplicate merge satiri bolum sayisini da yazmali');
+});
+
 /* ROZET %25 DEDİ, GERÇEK KAPSAMA %100'DÜ
    (30.10.2026 — "Week3 Chp2" ÖLÇÜMÜ).
 
@@ -5543,6 +5673,37 @@ test('INK dugmesi HER KENDI KARTINDA cikiyor', () => {
     'dugme hala kismi kart kosuluna bagli');
   // yenileCikisi SILINMEDI: kismi rozetini hala o belirliyor.
   assert.match(ink, /var yenileCikisi = kismiKart \|\| !!kismiSebep;/);
+});
+
+test('GORSELLER BASLIGI ne oldugunu soyluyor', () => {
+  /* OLCULEN HATA (30.10.2026, Week 9 Integrals). Log: charts=0, tables=0,
+     diagrams=0 — kartta grafik/diyagram/tablo YOKTU, yalniz 8 formul +
+     2 cozumlu ornek vardi. Ekranda yine "GORSELLER / Grafikler,
+     diyagramlar ve tablolar" yaziyor, altinda sadece formul studyosu
+     cikiyordu. Bolum zaten bosken hic cizilmiyor; sorun YANLIS baslikti. */
+  const ink = jsOku('js/acadex-ink.js');
+  // Baslik artik sabit degil, uc degiskenden geliyor.
+  assert.match(ink, /var gorVar = charts\.length \|\| dgs\.length \|\| tbls\.length;/,
+    'gercek gorsel var mi kontrolu yok');
+  assert.match(ink, /h \+= ch\('gorsel', gNav, '<div class="axr-sech"><span class="axr-lbl mono">' \+ gLbl \+ '<\/span><h2 class="disp">' \+ gAlt \+ '<\/h2>/,
+    'baslik hala sabit yaziya bagli');
+  // Dort dalin hepsi kaynakta duruyor.
+  for (const yazi of ['Grafikler, diyagramlar ve tablolar', 'Formüller ve çözümlü örnekler',
+                      'Çözümlü örnekler', 'Eklediğin görseller']) {
+    assert.ok(ink.includes("'" + yazi + "'"), 'baslik dali yok: ' + yazi);
+  }
+  // Bolum bos ise hic cizilmiyor — eski koruma KALDIRILMADI.
+  assert.match(ink, /if \(gorVar \|\| fms\.length \|\| exs\.length \|\| eks\.length\) \{/,
+    'bos gorsel bolumu korumasi dusmus');
+});
+
+test('YENI BASLIK YAZILARI sozlukte var (EN arayuz)', () => {
+  /* Sozluk tam dize esliyor; eksik yazi Ingilizce arayuzde Turkce kalir. */
+  const sozluk = jsOku('js/i18n-en.js');
+  for (const yazi of ['Formüller ve çözümlü örnekler', 'Çözümlü örnekler', 'Eklediğin görseller',
+                      'Grafikler, diyagramlar ve tablolar', 'FORMÜLLER', 'ÇÖZÜMLÜ ÖRNEKLER', 'Görseller']) {
+    assert.ok(sozluk.includes('"' + yazi + '":'), 'sozlukte yok: ' + yazi);
+  }
 });
 
 console.log('\nKESIK JSON KURTARMA\n');
@@ -6197,8 +6358,14 @@ test('OCR parcali okuyor: tek istek yerine sayfa parcalari', () => {
     'cagiran hala tek-istek yolunda — belgenin %4\'u okunur');
   assert.ok(A.OCR_PARCA_SAYFA <= 3,
     `parca ${A.OCR_PARCA_SAYFA} sayfa — olculen plan siniri 3, ustune cikmak parcayi dusurur`);
+  /* 30.10.2026: sabit 2600 karakterlik dilim, parcalar paralelize
+     edilince (bkz. OCR_ES_ZAMAN) govde buyudugu icin butce kapisini
+     disarida biraktı — iddialar dogruyken test dusuyordu. Dilim artik
+     fonksiyonun KENDI sinirinda bitiyor. */
   const i = SRC.indexOf('async function tryOCRParcali(');
-  const govde = SRC.slice(i, i + 2600);
+  const son = SRC.indexOf('\nasync function tryOCR(', i);
+  assert.ok(son > i, 'tryOCRParcali govdesinin sonu bulunamadi');
+  const govde = SRC.slice(i, son);
   assert.ok(/buildPdfSubsetBytes\(fileBytes, idx\)/.test(govde),
     'mini-PDF uretimi mevcut yardimciyla yapilmiyor');
   assert.ok(/if \(gecen > butceMs\)/.test(govde),
@@ -6208,6 +6375,113 @@ test('OCR parcali okuyor: tek istek yerine sayfa parcalari', () => {
 });
 
 /* Rozet artik "plan sinirina takildi"yi degil GERCEK orani soyluyor. */
+/* PARCALAR SIRAYLA KOSUYORDU VE BELGE BITMIYORDU (30.10.2026 olcumu).
+ *
+ *   Week 8 (29 sayfa): 8 parca, 70300ms -> butce doldu, 24/29 sayfa
+ *   Week 9 (27 sayfa): 7 parca, 60555ms -> butce doldu, 21/27 sayfa
+ * Parca basina ~8,8 sn; 29 sayfa 10 parca = 88 sn, 60 sn butceye hicbir
+ * zaman sigmiyor. Ustelik OCR hattin %74-76'sini yiyordu ve Week 8'de
+ * gorsel gecis "butce 27685ms <= 35000ms" diye komple atlandi.
+ *
+ * Testler GERCEKTEN kosturuyor: PDFDocument / buildPdfSubsetBytes / tryOCR
+ * sahte, geri kalan canli kod. */
+function ocrSahnesi(opts) {
+  const o = opts || {};
+  const sayfa = o.sayfa || 29;
+  const durum = { cagri: 0, acik: 0, enCokAcik: 0 };
+  global.PDFDocument = { load: async () => ({ getPageCount: () => sayfa }) };
+  // Ilk sayfa indeksi baytlara gomuluyor: sahte tryOCR hangi parca oldugunu bilsin.
+  global.buildPdfSubsetBytes = async (_b, idx) => {
+    if (o.miniPdfYok) return null;
+    const u = new Uint8Array(idx.length); u[0] = idx[0]; return u;
+  };
+  global.tryOCR = async (alt) => {
+    durum.cagri++; durum.acik++;
+    durum.enCokAcik = Math.max(durum.enCokAcik, durum.acik);
+    await new Promise(r => setTimeout(r, o.gecikme || 20));
+    durum.acik--;
+    if (o.dusur && o.dusur(alt[0], durum)) throw new Error('sahte hata');
+    return { text: 'x', sayfalar: new Array(alt.length).fill('m'), kesildi: false, sayfa: alt.length };
+  };
+  return durum;
+}
+const ocrSayfalari = (metin) =>
+  (String(metin).match(/--- SAYFA (\d+) ---/g) || []).map(x => Number(x.match(/\d+/)[0]));
+
+test('OCR parcalari ES ZAMANLI kosuyor, sayfa sirasi korunuyor', async () => {
+  const d = ocrSahnesi({ sayfa: 29, gecikme: 50 });
+  const t0 = Date.now();
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  const sure = Date.now() - t0;
+  assert.equal(d.cagri, 10, '29 sayfa 3er parca = 10 istek');
+  assert.equal(d.enCokAcik, A.OCR_ES_ZAMAN, 'es zamanli istek sayisi sabitle uyusmuyor');
+  assert.equal(r.okunanSayfa, 29, 'butun sayfalar okunmali');
+  // 10 parca 4 dalga: sira ile 10x50=500ms, paralelde ~200ms.
+  assert.ok(sure < 350, `hala sirayla kosuyor gibi: ${sure}ms`);
+  // Metin SONUC sirasina gore degil SAYFA sirasina gore birlesmeli.
+  assert.deepEqual(ocrSayfalari(r.text), Array.from({ length: 29 }, (_v, i) => i + 1));
+});
+
+test('ES ZAMAN temkinli: dokumante sinir YOK', () => {
+  /* ocr.space ucretsiz katmani 500 istek/gun/IP, 1 MB dosya ve 3 sayfa/PDF
+     yaziyor; es zamanli baglanti sinirini HIC yazmiyor. Sayi kucuk
+     kalmali ve hata halinde kendini kapatmali. */
+  assert.ok(A.OCR_ES_ZAMAN >= 2 && A.OCR_ES_ZAMAN <= 3,
+    `es zaman ${A.OCR_ES_ZAMAN} — dokumante sinir olmadigi icin 2-3 arasinda kalmali`);
+  assert.match(SRC, /esZaman = 1/, 'hata halinde es zaman kapanmiyor');
+});
+
+test('DALGADA DUSEN parca tek tek tekrar deneniyor', async () => {
+  let birKez = false;
+  const d = ocrSahnesi({
+    sayfa: 29,
+    dusur: (ilkSayfa) => { if (ilkSayfa === 3 && !birKez) { birKez = true; return true; } return false; }
+  });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  assert.equal(r.okunanSayfa, 29, 'tekrar deneme kurtarmali');
+  assert.equal(d.cagri, 11, 'tam bir kez tekrar denenmeli');
+  assert.deepEqual(ocrSayfalari(r.text), Array.from({ length: 29 }, (_v, i) => i + 1));
+});
+
+test('KALICI HATA: delik aciliyor ama ROZET kesintisiz onek yaziyor', async () => {
+  /* Ekranda "yalnizca ilk N sayfa okunabildi" yaziyor
+     (js/acadex-ink.js). Paralel kosuda ortadaki parca duserse okunan
+     sayfalar kesintisiz olmaz; rozete giden sayi onek, metin ise
+     delikten sonraki sayfalari da tasiyor. Az soylemek esas. */
+  const d = ocrSahnesi({ sayfa: 29, dusur: (ilkSayfa) => ilkSayfa === 3 });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  assert.equal(d.cagri, 4, '3 parca dalga + 1 tekrar deneme, sonra duruluyor');
+  assert.equal(r.okunanSayfa, 3, 'rozet deligin otesini IDDIA ETMEMELI');
+  // Ama okunan metin atilmiyor: 7-9. sayfalar kartta.
+  assert.deepEqual(ocrSayfalari(r.text), [1, 2, 3, 7, 8, 9]);
+  assert.equal(r.toplamSayfa, 29);
+});
+
+test('BUTCE dalgalar arasinda da denetleniyor', async () => {
+  const d = ocrSahnesi({ sayfa: 29, gecikme: 120 });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k', 200);
+  assert.ok(d.cagri < 10, `butce dolmasina ragmen butun parcalar okundu: ${d.cagri}`);
+  assert.ok(r.okunanSayfa > 0 && r.okunanSayfa < 29,
+    `kismi okuma beklenirdi: ${r.okunanSayfa}`);
+  assert.equal(r.toplamSayfa, 29, 'toplam sayfa hep gercek deger');
+});
+
+test('KISA BELGE tek istekle okunuyor (bolme yok)', async () => {
+  const d = ocrSahnesi({ sayfa: 3 });
+  /* Bu yolda tryOCR mini-PDF DEGIL belgenin kendi baytlarini aliyor;
+     sahte tryOCR sayfa sayisini bayt uzunlugundan okudugu icin 3 bayt. */
+  const r = await A.tryOCRParcali(new Uint8Array(3), 'k');
+  assert.equal(d.cagri, 1, 'kisa belge bolunmus');
+  assert.deepEqual(ocrSayfalari(r.text), [1, 2, 3]);
+});
+
+test('mini-PDF uretilemezse cokmuyor', async () => {
+  ocrSahnesi({ sayfa: 29, miniPdfYok: true });
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  assert.equal(r.okunanSayfa, 0);
+  assert.equal(r.text, '');
+});
+
 test('kismi OCR rozeti okunan/toplam sayfaya bagli', () => {
   assert.ok(/if \(ocr\.okunanSayfa < ocr\.toplamSayfa\)/.test(SRC),
     'rozet kosulu okunan/toplam karsilastirmasina bagli degil');

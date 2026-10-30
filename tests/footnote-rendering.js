@@ -933,4 +933,33 @@ test('R42 modelin belge hakkindaki aciklamasi ozetten cikar, icerik cumlesi kali
   assert.ok(!/visible text/i.test(UI.formatSummaryText(t, [])), 'formatSummaryText filtreden gecmiyor');
 });
 
+test('LaTeX "\\neq" satir sonuna donmuyor, eski bicim yine kurtariliyor', () => {
+  /* OLCULEN HATA (30.10.2026, Week 9 Integrals karti). Anlatida
+     "for $n \neq -1$" vardi; veritabaninda ters bolu SAGLAMDI, ekranda
+     "$n" + satir sonu + "eq -1$" cikti. Sebep summaryParagraphs icindeki
+     kosulsuz replace(/\\n/g, '\n') — n ile baslayan her LaTeX komutunu
+     (\neq \nabla \nu \notin) satir sonuna ceviriyordu.
+     Olcum: 51 kartin hicbiri eski bicimde degil (duz "\n" tasiyip gercek
+     satir sonu olmayan kart yok), duz "\n" tasiyan TEK kart buydu. */
+  const modern = 'The power rule is $\\int x^n dx = \\frac{x^{n+1}}{n+1} + C$ for $n \\neq -1$.\n\nLinearity follows.';
+  const p = UI.summaryParagraphs(modern);
+  assert.equal(p.length, 2, JSON.stringify(p));
+  assert.ok(p[0].body.includes('$n \\neq -1$'), 'ters bolu dusmus: ' + p[0].body);
+  assert.ok(!/\n/.test(p[0].body), 'komut icinde satir sonu olusmus: ' + JSON.stringify(p[0].body));
+  // \nabla, \nu, \notin de ayni kapiya giriyor.
+  for (const k of ['\\nabla f', '\\nu_0', '\\notin A']) {
+    const r = UI.summaryParagraphs('Math: $' + k + '$ holds.\n\nNext.');
+    assert.ok(r[0].body.includes(k), k + ' bozulmus: ' + r[0].body);
+  }
+});
+
+test('ESKI BICIM ozet (gercek satir sonu yok) hala paragraflaniyor', () => {
+  // Kurtarma kaldirilmadi, yalnizca eski bicime daraltildi.
+  const eski = 'Ilk paragraf burada.\\n\\nIkinci paragraf burada.';
+  const p = UI.summaryParagraphs(eski);
+  assert.equal(p.length, 2, JSON.stringify(p));
+  assert.equal(p[0].body, 'Ilk paragraf burada.');
+  assert.equal(p[1].body, 'Ikinci paragraf burada.');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
