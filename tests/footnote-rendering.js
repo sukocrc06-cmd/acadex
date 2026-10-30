@@ -933,7 +933,13 @@ test('R42 modelin belge hakkindaki aciklamasi ozetten cikar, icerik cumlesi kali
   assert.ok(!/visible text/i.test(UI.formatSummaryText(t, [])), 'formatSummaryText filtreden gecmiyor');
 });
 
-test('LaTeX "\\neq" satir sonuna donmuyor, eski bicim yine kurtariliyor', () => {
+test('summaryParagraphs: LaTeX "\\neq" satir sonuna donmuyor (IKINCI kopya)', () => {
+  /* DIKKAT: kart ekraninin kullandigi yol BU DEGIL — bkz. asagidaki
+     "GERCEK CIZEN YOL" testi. formatSummaryText, summaryParagraphs'i
+     yalnizca metinde hic satir sonu YOKKEN cagiriyor, yani \neq tasiyan
+     Week 9 anlatisi buraya hic ugramiyor. Burasi ayni kusurun ikinci
+     kopyasi: duzeltildi ve sabitlendi, ama ekrandaki hatayi kapatan
+     degisiklik formatSummaryText icindeki split. */
   /* OLCULEN HATA (30.10.2026, Week 9 Integrals karti). Anlatida
      "for $n \neq -1$" vardi; veritabaninda ters bolu SAGLAMDI, ekranda
      "$n" + satir sonu + "eq -1$" cikti. Sebep summaryParagraphs icindeki
@@ -960,6 +966,54 @@ test('ESKI BICIM ozet (gercek satir sonu yok) hala paragraflaniyor', () => {
   assert.equal(p.length, 2, JSON.stringify(p));
   assert.equal(p[0].body, 'Ilk paragraf burada.');
   assert.equal(p[1].body, 'Ikinci paragraf burada.');
+});
+
+
+/* ==========================================================================
+   GERCEK CIZEN YOL: formatSummaryText (30.10.2026 OLCUMU)
+
+   CLAUDE.md Bolum 4'un dersi birebir tekrarlandi. Once summaryParagraphs
+   duzeltildi, ekranda HICBIR SEY degismedi — cunku kart ekrani
+   js/acadex-ink.js icindeki fmtS -> formatSummaryText yolundan geciyor ve
+   formatSummaryText summaryParagraphs'i YALNIZCA metinde hic satir sonu
+   yokken cagiriyor (`if (!/\n|\\n/.test(kaynak))`).
+
+   Ekrandaki kirilmanin yeri: `split(/\n|\\n/)` — duz metin "\n" satir sonu
+   sayiliyordu, yani n ile baslayan HER LaTeX komutu ikiye bolunuyordu.
+   Olculen: veritabaninda anlati "for \(n \neq -1\)" diye SAGLAM duruyor
+   (SQL ile dogrulandi), ekranda "\(n" + satir sonu + "eq -1\)" cikti.
+   ========================================================================== */
+
+test('GERCEK CIZEN YOL: formatSummaryText "\\neq" i bolmuyor', () => {
+  const gercek = 'The power rule dictates \\(\\int x^n dx = \\frac{x^{n+1}}{n+1} + C\\) for \\(n \\neq -1\\), term by term.\n\nTrig integrals reverse derivatives.';
+  const html = UI.formatSummaryText(gercek, []);
+  assert.ok(html.includes('\\(n \\neq -1\\)'), 'komut hala bolunuyor: ' + html.slice(0, 220));
+  assert.ok(!/\(n\s*<\/p>/.test(html), 'paragraf komutun ortasinda kapanmis');
+  // Gercek satir sonu paragraf olarak hala calisiyor.
+  assert.equal((html.match(/<p/g) || []).length, 2, 'paragraf bolme bozulmus');
+  // n ile baslayan oteki komutlar da saglam.
+  for (const k of ['\\nabla f', '\\nu_0', '\\notin A']) {
+    const h = UI.formatSummaryText('Math: \\(' + k + '\\) holds.\n\nNext.', []);
+    assert.ok(h.includes(k), k + ' bozulmus');
+  }
+});
+
+test('ESKI BICIM anlati (gercek satir sonu yok) hala paragraflaniyor', () => {
+  /* Kacis dizisi destegi KALDIRILMADI, eski bicime daraltildi. Olcum:
+     51 kartin hicbiri eski bicimde degil (duz "\n" tasiyip gercek satir
+     sonu olmayan kart sayisi 0), duz "\n" tasiyan TEK kart \neq'li
+     olandi — destegin dokundugu tek metin, bozdugu metindi. */
+  const eski = 'Ilk paragraf burada.\\n\\nIkinci paragraf burada.';
+  const html = UI.formatSummaryText(eski, []);
+  assert.ok(/Ilk paragraf burada\./.test(html) && /Ikinci paragraf burada\./.test(html), html);
+  assert.ok(!/\\n/.test(html), 'duz metin kacis dizisi ekranda kalmis: ' + html);
+  assert.equal((html.match(/<p/g) || []).length, 2, 'eski bicim artik paragraflanmiyor');
+});
+
+test('KOSUL kaynakta: duz "\\n" yalnizca gercek satir sonu YOKKEN bolunuyor', () => {
+  const satir = "const lines = String(kaynak).split(kaynak.indexOf('\\n') === -1 ? /\\\\n/ : /\\n/);";
+  assert.ok(DASH_SRC.includes(satir),
+    'formatSummaryText hala kosulsuz /\\n|\\\\n/ ile boluyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

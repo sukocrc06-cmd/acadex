@@ -2646,8 +2646,23 @@ function formatSummaryText(summary, footnotes) {
    * cagrida kendi kuruyor) oldugu icin satir basina cagrilmasi guvenli. */
   const guvenli = (t) => formatFootnoteMarkers(inlineMarkdownGuvenli(t), footnotes);
 
-  // Split on raw or escaped newline
-  const lines = String(kaynak).split(/\n|\\n/);
+  /* DUZ METIN "\n" SATIR SONU SAYILMAZ — GERCEK SATIR SONU VARSA
+     (30.10.2026 olcumu). Eski hali kosulsuz `split(/\n|\\n/)` yapiyordu,
+     yani n ile baslayan HER LaTeX komutunu ikiye boluyordu. Olculen hata
+     "Week 9 Integrals" kartinda: veritabaninda anlati `for \(n \neq -1\)`
+     diye SAGLAM duruyor, ekranda "\(n" + satir sonu + "eq -1\)" cikti —
+     KaTeX dizmedi, ogrenci ham ayirac gordu. Ayni kirilma \nabla, \nu ve
+     \notin icin de gecerliydi.
+     Kacis dizisi destegi KALDIRILMADI, eski bicime daraltildi: tek blok
+     gelen eski ozetler gercek satir sonu TASIMIYOR, onlarda "\n" hala
+     satir sonu. Olcum: 51 kartin hicbiri eski bicimde degil (duz "\n"
+     tasiyip gercek satir sonu olmayan kart sayisi 0), duz "\n" tasiyan tek
+     kart buydu — yani destegin dokundugu tek metin, bozdugu metindi.
+     NOT: ayni sinifin ikinci kopyasi summaryParagraphs icinde de vardi ve
+     orada da duzeltildi; ama bu kart ekraninin GERCEKTEN kullandigi yol
+     burasi (fmtS -> formatSummaryText), cunku yukaridaki summaryParagraphs
+     dali yalnizca metinde hic satir sonu YOKKEN calisiyor. */
+  const lines = String(kaynak).split(kaynak.indexOf('\n') === -1 ? /\\n/ : /\n/);
   
   let html = "";
   let insideList = false;
