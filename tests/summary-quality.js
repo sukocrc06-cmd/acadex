@@ -5167,7 +5167,10 @@ test('OLCULEN UC ANLATI PARCASI duz yaziya ceviriliyor', () => {
     ['the entry amount is calculated as \\text{Bad Debt Amount} = \\text{Required Balance} - \\text{Existing Balance}, yielding',
      'the entry amount is calculated as Bad Debt Amount = Required Balance - Existing Balance, yielding'],
     ['interest is computed using the formula Interest = Principal \\times Annual \\, Interest \\, Rate \\times Time.',
-     'interest is computed using the formula Interest = Principal x Annual Interest Rate x Time.'],
+     /* 31.10.2026: \times artik ASCII 'x' degil '\u00d7'. Gerekce IPPT kartinda
+        olculdu — "100x \u03b2\u2081" satirinda 'x' carpma isaretiydi ama ayni cumlede
+        x\u2081 DEGISKENI de geciyordu ve ogrenci ikisini ayirt edemiyordu. */
+     'interest is computed using the formula Interest = Principal \u00d7 Annual Interest Rate \u00d7 Time.'],
     ['via Amount \\, Due \\, at \\, Maturity = Face \\, Value \\, of \\, Note + Interest \\, for \\, the \\, Time \\, Period',
      'via Amount Due at Maturity = Face Value of Note + Interest for the Time Period']
   ];
@@ -8520,6 +8523,49 @@ test('kume esitligi DAR: olculen karsi ornekler birlesmiyor', () => {
 test('ESIK DEGISMEDI (metin olcusu gevsetilmedi)', () => {
   assert.equal(A.NEAR_DUP_THRESHOLD, 0.7, 'esik oynatilmis — 0.4-0.7 bandindaki ciftlerin cogu gercekten ayri');
   assert.equal(A.NEAR_DUP_STEM_LEN, 5);
+});
+
+
+/* KACIRILMIS OZEL KARAKTER + ASCII ISLETMEN (31.10.2026, IPPT kartinda olculdu)
+
+   1) Model LaTeX aliskanligiyla "\$" yaziyor ve ters bolu EKRANDA KALDI:
+        anlati:         "utility bills decrease by \$5.06"
+        key_points[12]: "...decrease by \$5.06 when temperature increases"
+   2) \times -> 'x' cevirisi okunamaz satir uretti:
+        "interpret β₁ as a 100x β₁ percent increase in y per unit ... x₁"
+      Buradaki 'x' carpma ama ayni cumlede x₁ DEGISKENI de var.
+        "setting H₀: β₃ = 0 against H_A: β₃ != 0"  ->  '!=' matematik degil.
+   Bu dosya zaten ∂, ∑, β, ŷ, ⋯ basiyor; ASCII karsiliklar tutarsiz taraftı. */
+test('kacirilmis \\$ ters bolusu ekranda kalmiyor', () => {
+  assert.equal(
+    A.onarAnlatiLatex('utility bills decrease by \\$5.06 when temperature increases').metin,
+    'utility bills decrease by $5.06 when temperature increases');
+  assert.equal(A.onarAnlatiLatex('The share is 45\\% of total').metin, 'The share is 45% of total');
+  assert.equal(A.onarAnlatiLatex('field sample\\_size and \\{a\\} braces').metin,
+    'field sample_size and {a} braces');
+});
+
+test('isletmenler ASCII degil Unicode', () => {
+  const olculen = [
+    ['interpret \\beta_1 as a 100\\times \\beta_1 percent increase in x_1',
+     'interpret \u03b2\u2081 as a 100\u00d7 \u03b2\u2081 percent increase in x\u2081'],
+    ['setting H_0: \\beta_3 = 0 against H_A: \\beta_3 \\neq 0',
+     'setting H\u2080: \u03b2\u2083 = 0 against H_A: \u03b2\u2083 \u2260 0'],
+    ['a \\cdot b, c \\div d, e \\pm f, g \\leq h, i \\geq j, k \\approx l',
+     'a \u00b7 b, c \u00f7 d, e \u00b1 f, g \u2264 h, i \u2265 j, k \u2248 l']
+  ];
+  for (const [girdi, bekle] of olculen) assert.equal(A.onarAnlatiLatex(girdi).metin, bekle, girdi);
+});
+
+test('PDF yolunda gomulu font YOKSA ASCII karsilik tablosu duruyor', () => {
+  /* js/dashboard.js icindeki LATEX_ASCII, DejaVu getirilemedigi durumda
+     kullaniliyor. Unicode isletmene gectigimiz icin o tablonun ilgili
+     girdileri yerinde kalmali — yoksa fontsuz PDF bos basar. */
+  const dash = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/dashboard.js'), 'utf8');
+  for (const anahtar of ['times:', 'cdot:', 'div:', 'pm:', 'neq:', 'leq:', 'geq:', 'approx:']) {
+    assert.ok(dash.includes(anahtar), 'LATEX_ASCII icinde ' + anahtar + ' yok');
+  }
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

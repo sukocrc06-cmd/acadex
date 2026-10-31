@@ -9729,6 +9729,29 @@ var SBX = (function () {
    * Yalnizca ONEKLI bicim eleniyor. Ciplak bolum numarasi disarida:
    * "3.5 Million dollars" gibi gercek bir miktari yutma riski var. */
   var ATIF_ETIKETI_RE = /\b(?:figure|fig|table|tablo|şekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:[.,]\d+)*/gi;
+  /* ANLAMLILIK DUZEYI BELGENIN OLGUSU DEGIL (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Rozetlerden biri "1%" gosteriyordu; kaynak cumle "the linear and
+   * quadratic terms are statistically significant at the 1% level" — her
+   * ekonometri slaytinda gecen kalip. Kartin GERCEK sayilari (484.12,
+   * -5.06, 67.11) geride kaliyordu. Ayni kusur 24.10.2026 notunda da
+   * yaziliydi ama o tur yalnizca ciplak ondaligi gormek eklenmisti; kalip
+   * cumlenin BASINDA gectigi icin yine ilk eslesme oluyordu.
+   *
+   * DAR: yuzde yalnizca ARDINDAN "level"/"significance"/"düzey" gelirse
+   * atiliyor. Ayni cumlede gecen gercek yuzde korunuyor — olculen cumle:
+   *   "...increases by 2.6%, which is statistically significant at the
+   *    1% level"  ->  2.6% KALIR, 1% DUSER.
+   * Cumleyi tamamen atlamak o yuzden yanlis olurdu.
+   *
+   * KONUM TEK BASINA YETMIYOR: ilk surum "d[uü]zey|seviye" de ariyordu ve
+   * gercek bir olguyu dusurdu (test bunu yakaladi):
+   *   "Issizlik orani 2023 yilinda %11,4 seviyesine yukseldi."
+   * Turkce'de ayirt edici sozcuk "anlamli/anlamlilik", "duzey" degil.
+   * O yuzden IKI kosul birden: yuzdenin HEMEN ARDINDAN duzey sozcugu VE
+   * cumlede anlamlilik gecmesi. */
+  var ANLAMLILIK_DUZEYI_RE = /^\s*[-,]?\s*(?:level\b|significance\b|d[uü]zey|seviye)/i;
+  var ANLAMLILIK_CUMLE_RE = /significan|anlaml/i;
   var findNumbers = function (card) {
     var src = latexAyiracSiyir([card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n '))
       .replace(ATIF_ETIKETI_RE, ' ');
@@ -9758,7 +9781,47 @@ var SBX = (function () {
      * ondalikta. Desen `-` ile basliyorsa isaret korunuyor. */
     var re = /(-?\d+(?:[.,]\d+)?\s?%|%\s?-?\d+(?:[.,]\d+)?|-?[$€₺]\s?-?\d+(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|-?\d+[.,]\d+|\b\dP\b)/i;
     sents.forEach(function (s) {
-      if (out.length >= 3) return; var m = s.match(re); if (!m) return; var tok = m[1].trim(), key = tok.toLowerCase(); if (seen[key]) return; seen[key] = 1;
+      if (out.length >= 3) return;
+      /* SONUC ARA TERIMDEN ONCE GELIR (31.10.2026, IPPT kartinda olculdu).
+       *
+       * Desen cumledeki ILK sayiyi aliyordu, oysa hesap cumlesinde olgu
+       * esitligin SAGINDA duruyor. Olculen uc cumle ve eski/yeni secim:
+       *   "...is -12.08 + 2(0.09)(39) = -5.06, meaning bills decrease"
+       *        eski: -12.08 (ara terim)      yeni: -5.06  (marjinal etki)
+       *   "...reaches a minimum at temp = -(-12.08)/(2 × 0.09) = 67.11"
+       *        eski: -12.08 (yine ayni sayi) yeni: 67.11  (donum noktasi)
+       *   "...the estimated equation is UtilityBill = 484.12 - 12.08temp"
+       *        eski: 484.12                  yeni: 484.12 (degismedi)
+       * Yani ayni kartta IKI rozet ayni -12.08'i gosteriyordu ve belgenin
+       * iki asil sonucu (-5.06, 67.11) hic gorunmuyordu.
+       *
+       * Kural: cumlede `=` varsa tarama SON esitlikten sonra basliyor;
+       * orada aday bulunmazsa cumlenin tamamina donuluyor (kayip yok).
+       *
+       * Desen ayrica GLOBAL kosuyor: bir aday atilirsa (anlamlilik duzeyi
+       * ya da zaten gosterilmis bir deger) sonraki aday deneniyor; eski
+       * surum tek `match` ile ilk eslesmeye mahkumdu. */
+      var esit = s.lastIndexOf('=');
+      var aday = null;
+      [esit >= 0 ? s.slice(esit + 1) : null, s].forEach(function (pencere) {
+        if (aday || pencere == null) return;
+        var g = new RegExp(re.source, 'gi'), m;
+        while ((m = g.exec(pencere)) !== null) {
+          var tk = m[1].trim();
+          var sonra = pencere.slice(m.index + m[0].length, m.index + m[0].length + 18);
+          if (/%/.test(tk) && ANLAMLILIK_DUZEYI_RE.test(sonra) && ANLAMLILIK_CUMLE_RE.test(s)) continue;
+          /* Ayni DEGER ikinci rozet olmaz. Anahtar jeton metni degil sayi:
+             "$-12.08" ile "-12.08" ayni olgudur, metin olarak degil. */
+          var d = parseFloat(tk.replace(/[^\d.,]/g, '').replace(',', '.'));
+          if (isNaN(d)) continue;
+          if (/^-/.test(tk) || /^[%$€₺]\s?-/.test(tk)) d = -d;
+          if (seen[d]) continue;
+          aday = { tok: tk, deger: d };
+          break;
+        }
+      });
+      if (!aday) return;
+      var tok = aday.tok; seen[aday.deger] = 1;
       /* ISARET BIRIMIN SOLUNDA DA OLUR (31.10.2026, IPPT kartinda olculdu).
        *
        * Ingilizce yazimda eksi para biriminden ONCE gelir: "-$5.06". Desen

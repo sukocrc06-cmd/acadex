@@ -482,14 +482,41 @@ function anlatiLatexYumusat(parca: string): string {
    * yazdiginda KaTeX satir sonu goruyordu). */
   t = t.replace(/\\\\(?=[A-Za-z'"`])/g, '\\')
   t = t.replace(/\\(['"`])/g, '$1')
+  /* KACIRILMIS OZEL KARAKTER (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Model LaTeX aliskanligiyla "\$" yaziyor ve ters bolu EKRANDA KALIYORDU:
+   *   anlati:         "meaning utility bills decrease by \$5.06"
+   *   key_points[12]: "...decrease by \$5.06 when temperature increases"
+   * LaTeX'te \$ zaten "dolar isareti" demek; ters bolu bilgi tasimiyor,
+   * yalnizca kacis. Ayni sinif: \% \& \# \_ \{ \}
+   *
+   * Hemen yukaridaki tirnak onarimiyla ayni gerekce: duz yazida noktalama
+   * onundeki ters bolu hicbir zaman kasitli degil. */
+  t = t.replace(/\\([$%&#_{}])/g, '$1')
 
   // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
   t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
-  t = t.replace(/\\(?:times|cdot)\b/g, 'x')
-  t = t.replace(/\\div\b/g, '/')
-  t = t.replace(/\\pm\b/g, '+/-')
-  t = t.replace(/\\(?:leq|le)\b/g, '<=').replace(/\\(?:geq|ge)\b/g, '>=')
-  t = t.replace(/\\neq\b/g, '!=').replace(/\\approx\b/g, '~')
+  /* ISLETMEN ASCII DEGIL UNICODE (31.10.2026, IPPT kartinda olculdu).
+   *
+   * \times -> 'x' cevirisi okunamaz bir satir uretti. Kartin 04. bolumu:
+   *   "Log-linear models interpret β₁ as a 100x β₁ percent increase"
+   * Buradaki 'x' CARPMA isareti ama ayni cumlede x₁ DEGISKENI de geciyor;
+   * ogrenci carpmayi degisken sanıyor. Ayni kartin 02. bolumu:
+   *   "Testing for interaction involves setting H₀: β₃ = 0 against
+   *    H_A: β₃ != 0"
+   * '!=' programlama yazimi, matematik degil.
+   *
+   * Bu dosya ZATEN unicode basiyor (∂, ∑, ∫, ∞, β, ŷ, ⋯ — bkz. YUM_SEMBOL
+   * ve YUM_AKSAN), yani ASCII karsiliklar tutarsiz kalan tarafti.
+   *
+   * PDF: DejaVu Sans gomulu ve bu isaretlerin hepsini cizebiliyor. Font
+   * getirilemezse js/dashboard.js icindeki pdfText ASCII'ye dusuruyor;
+   * ×, ÷, ± ayrica WinAnsi'de de var. */
+  t = t.replace(/\\times\b/g, '\u00d7').replace(/\\cdot\b/g, '\u00b7')
+  t = t.replace(/\\div\b/g, '\u00f7')
+  t = t.replace(/\\pm\b/g, '\u00b1').replace(/\\mp\b/g, '\u2213')
+  t = t.replace(/\\(?:leq|le)\b/g, '\u2264').replace(/\\(?:geq|ge)\b/g, '\u2265')
+  t = t.replace(/\\(?:neq|ne)\b/g, '\u2260').replace(/\\approx\b/g, '\u2248')
   t = t.replace(/\\(?:left|right|displaystyle)\b/g, '')
   // Ince bosluk komutlari: \, \; \! \quad \qquad \ (ters bolu + bosluk)
   t = t.replace(/\\(?:qquad|quad)\b/g, ' ').replace(/\\[,;!:> ]/g, ' ')
@@ -7689,8 +7716,36 @@ function anchorCitations(
   // number. The front end already renders `reference` both in the [n]
   // tooltip and in the "Kaynakça" list, so a real quote here upgrades both
   // with no UI change.
+  /* ETIKETTEKI MADDE IMI (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Kaynakcanin 17 girdisinden BESI slaytin madde imiyle basliyordu:
+   *   [1]  "• Qualitative explanatory variable (dummy variable) with ..."
+   *   [2]  "• The number of dummy variables needed is"
+   *   [3]  "• Regression intercepts are different if the variable is ..."
+   *   [9]  "• The relationship between the dependent variable and an ..."
+   *   [14] "• Contains two-way cross product terms y = β_0 + ..."
+   * Im slaytin BICIMI, alintinin parcasi degil; kaynakcada gurultu.
+   *
+   * Yalnizca `reference` temizleniyor. `quote` BIREBIR kaliyor, cunku o
+   * alan kaynak goruntuleyicide isaretlemek icin var ve orada metnin
+   * sayfadaki haliyle eslesmesi gerekiyor. */
+  /* TIRE EKSI ISARETI OLABILIR — kendi ilk surumum bunu bozdu, olculdu:
+       "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06 which means ..."
+     bastaki `-` madde imi sanilip silindi ve ALINTININ ANLAMI degisti
+     (12.08 pozitif okundu). Tire yalnizca ardindan BOSLUK gelirse im
+     sayiliyor; madde imi olarak kullanilan tireden sonra her zaman bosluk
+     var, isaretli sayidan sonra asla yok. Kursun imleri (• · ● …) kosulsuz
+     atiliyor, onlar sayi basinda hic gecmez. */
+  const ETIKET_IM_RE = /^(?:[\s\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]+|[\u2013\u2014*-]+(?=\s))+/
+  const etiketiTemizle = (s: string) =>
+    String(s || '')
+      .replace(ETIKET_IM_RE, '')
+      .replace(/[\s:;,]+$/, '')
+      .trim()
+
   const labelFor = (hit: { head: string; page: number; quote: string | null }) =>
-    hit.quote || hit.head || (lang === 'tr' ? `Sayfa ${hit.page}` : `Page ${hit.page}`)
+    etiketiTemizle(hit.quote || hit.head || '') ||
+    (lang === 'tr' ? `Sayfa ${hit.page}` : `Page ${hit.page}`)
 
   /* AYNI ALINTI UC AYRI DIPNOT OLUYORDU (30.10.2026 olcumu).
    *

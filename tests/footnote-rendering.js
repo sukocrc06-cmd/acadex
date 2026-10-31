@@ -1164,4 +1164,59 @@ test('ciplak LaTeX: renderMathInText yoluna BAGLI', () => {
   } finally { katexKaldir(); }
 });
 
+
+
+/* SONUC ARA TERIMDEN ONCE GELIR + ANLAMLILIK DUZEYI (31.10.2026)
+
+   Canli kartta rozetler sunlardi:  484,12 | 1% | $-12,08
+   Uc kusur birden:
+     - 1% anlamlilik duzeyi, belgenin olgusu degil,
+     - -12.08 hesabin ARA terimi; olgu esitligin sagindaki -5.06,
+     - ayni sayi iki rozette (metin anahtari "$-12.08" ile "-12.08" ayri
+       sanildigi icin).
+   Belgenin asil uc sonucu (484.12, -5.06, 67.11) hic gorunmuyordu. */
+test('rozet: ESITLIGIN SAGINDAKI sonuc seciliyor, ara terim degil', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'In the utility bill and temperature quadratic regression, the estimated equation is UtilityBill = 484.12 - 12.08temp + 0.09temp^2.',
+    'The marginal effect at a temperature of 40 (evaluated at 39) is -12.08 + 2(0.09)(39) = -5.06, meaning utility bills decrease.',
+    'The quadratic utility bill function reaches a minimum at temp = -(-12.08)/(2 x 0.09) = 67.11 degrees.'
+  ]));
+  assert.deepEqual(r, ['484.12', '-5.06', '67.11'],
+    'rozetler belgenin sonuclari degil ara terimleri gosteriyor: ' + JSON.stringify(r));
+});
+
+test('rozet: AYNI DEGER ikinci kez gosterilmiyor', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'The intermediate term is $-12.08 in the first step.',
+    'The same number appears again as -12.08 here.',
+    'A different fact is that the minimum is at 67.11 degrees.'
+  ]));
+  assert.equal(r.length, 3);
+  assert.ok(r[1] !== r[0], 'ayni deger iki rozette: ' + JSON.stringify(r));
+  assert.ok(/67[.,]11/.test(r[1]), 'ikinci rozet farkli bir olgu olmali: ' + JSON.stringify(r));
+});
+
+test('rozet: ANLAMLILIK duzeyi dusuyor, ayni cumledeki GERCEK yuzde kaliyor', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'In the log-linear model, energy consumption per capita increases by 2.6%, which is statistically significant at the 1% level.'
+  ]));
+  assert.equal(r[0], '2.6%', 'kalip yuzde secilmis ya da gercek yuzde de dusmus: ' + JSON.stringify(r));
+  const b = INK_ROZET.rozetler(rozetKarti([
+    'The linear and quadratic terms in the utility bill regression are statistically significant at the 1% level.'
+  ]));
+  assert.ok(!/^1%$/.test(b[0]), 'anlamlilik duzeyi hala rozet oluyor: ' + JSON.stringify(b));
+});
+
+test('rozet: TURKCE "%11,4 seviyesine" GERCEK olgu, dusmuyor', () => {
+  /* Konum kontrolu tek basina bunu dusurmustu — Turkce\'de ayirt edici
+     sozcuk "anlamli", "seviye" degil. */
+  INK_ROZET.dil('tr');
+  const r = INK_ROZET.rozetler(rozetKarti(['Issizlik orani 2023 yilinda %11,4 seviyesine yukseldi.']));
+  assert.equal(r[0], '%11,4');
+  const s = INK_ROZET.rozetler(rozetKarti(['Katsayi istatistiksel olarak %1 duzeyinde anlamli bulundu.']));
+  assert.ok(!/^%1$/.test(s[0]), 'turkce anlamlilik duzeyi rozet olmus: ' + JSON.stringify(s));
+});
 summary().then(() => process.exit(process.exitCode || 0));

@@ -1155,4 +1155,56 @@ test('ZATEN sirali kaynakcada hicbir sey degismiyor (gereksiz remap yok)', () =>
   assert.match(r.key_points[0], /\[1\]$/);
 });
 
+
+// --- kaynakca etiketindeki madde imi (31.10.2026) -------------------------
+/* ETIKETTEKI MADDE IMI
+
+   Canli kaynakcanin 17 girdisinden BESI slaytin madde imiyle basliyordu:
+     [1]  "• Qualitative explanatory variable (dummy variable) with ..."
+     [2]  "• The number of dummy variables needed is"
+     [3]  "• Regression intercepts are different if the variable is ..."
+     [9]  "• The relationship between the dependent variable and an ..."
+     [14] "• Contains two-way cross product terms y = β_0 + ..."
+   Im slaytin BICIMI, alintinin parcasi degil.
+
+   Kendi ilk surumum bunu bozdu: bastaki `-` de im sanilip silindi ve
+   "-12.08 + 2(0.09)39 = ..." alintisi "12.08 + ..." oldu — ALINTININ
+   ANLAMI degisti. Tire artik yalnizca ardindan bosluk gelirse im. */
+const IM_DOC = [
+  '--- SAYFA 1 ---',
+  'Giris slayti ve ders plani burada anlatiliyor.',
+  '',
+  '--- SAYFA 2 ---',
+  '\u2022 Kukla degisken sayisi duzey sayisinin bir eksigidir ve taban kategori dislanir.',
+  '',
+  '--- SAYFA 3 ---',
+  '-12.08 + 2(0.09)39 = -5.06 yani sicaklik 39 dereceden 40 dereceye cikarsa fatura azalir.'
+].join('\n');
+
+test('kaynakca etiketinde bastaki madde imi atiliyor', () => {
+  const idx = A.buildPageIndex(IM_DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Kukla degisken sayisi duzey sayisinin bir eksigidir ve taban kategori dislanir'],
+    [], idx, 'tr'
+  );
+  assert.equal(r.footnotes.length, 1, 'atif baglanmadi — fikstur eslesmiyor');
+  assert.ok(!/^[\s\u2022]/.test(r.footnotes[0].reference),
+    'etiket hala madde imiyle basliyor: ' + JSON.stringify(r.footnotes[0].reference));
+  assert.ok(/^Kukla degisken/.test(r.footnotes[0].reference), r.footnotes[0].reference);
+});
+
+test('ISARETLI SAYI ile baslayan alinti bozulmuyor (eksi im degildir)', () => {
+  const idx = A.buildPageIndex(IM_DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Sicaklik 39 dereceden 40 dereceye cikarsa fatura azalir yani marjinal etki eksidir'],
+    [], idx, 'tr'
+  );
+  assert.equal(r.footnotes.length, 1, 'atif baglanmadi — fikstur eslesmiyor');
+  const ref = r.footnotes[0].reference;
+  if (/12\.08/.test(ref)) {
+    assert.ok(/^-12\.08/.test(ref),
+      'bastaki eksi silinmis, alintinin anlami degisti: ' + JSON.stringify(ref));
+  }
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
