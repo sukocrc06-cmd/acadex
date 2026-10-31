@@ -9702,8 +9702,25 @@ var SBX = (function () {
      aciliyor: icinde \ ^ _ { olan, ya da tek bir sayiyi saran. "from $10
      to $12" gibi gercek para ifadesi bu iki kosula uymuyor, dokunulmuyor. */
   var latexAyiracSiyir = function (s) {
+    var ROZET_YUNAN_MAP = {
+      '\\alpha': '\u03b1', '\\beta': '\u03b2', '\\gamma': '\u03b3', '\\delta': '\u03b4',
+      '\\epsilon': '\u03b5', '\\varepsilon': '\u03b5', '\\theta': '\u03b8', '\\lambda': '\u03bb',
+      '\\mu': '\u03bc', '\\pi': '\u03c0', '\\rho': '\u03c1', '\\sigma': '\u03c3',
+      '\\tau': '\u03c4', '\\phi': '\u03c6', '\\omega': '\u03c9',
+      '\\Delta': '\u0394', '\\Sigma': '\u03a3', '\\Omega': '\u03a9',
+      '\\partial': '\u2202', '\\infty': '\u221e', '\\times': '\u00d7', '\\cdot': '\u00b7'
+    };
+    var ROZET_YUNAN = /\\(?:varepsilon|alpha|beta|gamma|delta|epsilon|theta|lambda|sigma|partial|infty|times|cdot|omega|Delta|Sigma|Omega|mu|pi|rho|tau|phi)(?![A-Za-z])/g;
     var ic = function (t) {
       return t.replace(/\^\s*\{?\\circ\}?/g, '°').replace(/\\%/g, '%').replace(/\\[,;: !]/g, ' ')
+        /* YUNAN HARFI SILINIP ALT SIMGE KALIYORDU (31.10.2026, kartta
+           olculdu). Rozet aciklamasi soyle cikti:
+             "In a log-log model, the slope coefficient _1 represents an
+              elasticity"
+           Asagidaki `\\[A-Za-z]+ -> ' '` kurali "\beta"yi siliyor, "_1"
+           geride kaliyor. Rozet aciklamasi KaTeX'ten gecmiyor (duz metin
+           kirpiliyor), o yuzden harfin karsiligi burada yazilmali. */
+        .replace(ROZET_YUNAN, function (m) { return ROZET_YUNAN_MAP[m] || m; })
         .replace(/\\[A-Za-z]+/g, ' ').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
     };
     return String(s || '')
@@ -9754,7 +9771,21 @@ var SBX = (function () {
   var ANLAMLILIK_CUMLE_RE = /significan|anlaml/i;
   var findNumbers = function (card) {
     var src = latexAyiracSiyir([card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n '))
-      .replace(ATIF_ETIKETI_RE, ' ');
+      .replace(ATIF_ETIKETI_RE, ' ')
+      /* CIPLAK ONDALIK ROZETTE DE KAYBOLUYORDU (31.10.2026, kartta olculdu).
+
+         Slayt destesi ondaligi bastaki sifir OLMADAN yaziyor (".07 tons").
+         Rozet deseni `-?\d+[.,]\d+` ile basliyor, yani ".07" hic eslesmiyor
+         ve cumledeki SONRAKI sayi kazaniyor. Olculen rozet:
+           "$1000"  <- "...increases by .07 tons on average when GDP per
+                         capita increases by $1000 US dollars"
+         Artis ADIMI rozete cikti, bulgu (.07 ton) gorunmedi.
+
+         Ayni duzeltme atif tarafinda da var (anchorTerms); burada da
+         tarama oncesi ciplak ondalik "0." ile tamamlaniyor. Onundeki
+         karakter HARF OLMAMALI — "s.42" gibi kisaltma aksi halde uydurma
+         bir sayi uretirdi. */
+      .replace(/(^|[\s(\[{=+*\/:;$\u2212-])[.,](\d)/g, '$10.$2');
     var sents = src.split(/(?<=[.!?])\s+|\n/), out = [], seen = {};
     /* EKSI ISARETI VE CIPLAK ONDALIKLAR (24.10.2026).
      *

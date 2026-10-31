@@ -3771,8 +3771,36 @@ function summaryParagraphs(summary, target = 600) {
  * bosluk, [ ya da satir sonu gelir — dokunulmuyor; display matematikte
  * mesru.
  */
+/* COK HARFLI AD HARF HARF DIZILIYORDU (31.10.2026, kartta olculdu).
+ *
+ * KaTeX matematik kipinde her harfi ayri bir degisken sayar ve aralarina
+ * carpim boslugu koyar. Model degisken adini duz yazdiginda kartin
+ * anlatisinda sonuc soyle gorunuyordu:
+ *   "U t i l i t y B i l l = 484.12 - 12.08 t e m p + 0.09 t e m p ^2"
+ * Dogrusu \text{UtilityBill}; model bunu her zaman yazmiyor.
+ *
+ * Uc harften uzun ve KOMUT OLMAYAN her ad \text{} icine aliniyor.
+ * Korumalar:
+ *   - ters bolu ile baslayan ad atlanir (\beta, \frac, \partial),
+ *   - latex icinde zaten \text varsa hic dokunulmaz (cift sarma yok),
+ *   - matematik fonksiyon adlari atlanir (log, exp, lim...); fonksiyonla
+ *     BASLAYAN ad da atlanir, aksi halde "lny" upright basilirdi. */
+const KATEX_FONKSIYON = new Set([
+  'sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'lg', 'exp', 'lim',
+  'min', 'max', 'sup', 'inf', 'det', 'deg', 'gcd', 'sinh', 'cosh', 'tanh',
+  'arcsin', 'arccos', 'arctan'
+]);
+function katexFonksiyonGibi(ad) {
+  const a = String(ad).toLowerCase();
+  if (KATEX_FONKSIYON.has(a)) return true;
+  for (const f of KATEX_FONKSIYON) if (f.length >= 2 && a.indexOf(f) === 0) return true;
+  return false;
+}
 function sadeKatexKomutu(latex) {
-  return String(latex == null ? '' : latex).replace(/\\\\(?=[A-Za-z])/g, '\\');
+  const s = String(latex == null ? '' : latex).replace(/\\\\(?=[A-Za-z])/g, '\\');
+  if (s.indexOf('\\text') !== -1) return s;
+  return s.replace(/(?<![\\A-Za-z])[A-Za-z]{3,}(?![A-Za-z])/g,
+    (ad) => katexFonksiyonGibi(ad) ? ad : '\\text{' + ad + '}');
 }
 
 function inlineMath(html) {

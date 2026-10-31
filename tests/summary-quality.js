@@ -135,7 +135,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Yuzdeye cevirme carpani hedef degil (31.10.2026 olcumu).
   'YUZDE_CEVRIM_RE',
   // Zincir ortasindaki ara hesap hedef degil (31.10.2026 olcumu).
-  'ARA_HESAP_ISLEM_RE', 'araHesabiAyikla',
+  'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND', 'araHesabiAyikla',
   // Sayinin ANLAMINI soyleyen cumle kurtarilir (31.10.2026 olcumu).
   'YORUM_ISARETCI_RE', 'YORUM_MIN_SOZCUK', 'YORUM_HARF_ORANI', 'YORUM_MAX',
   'YORUM_MAX_KRK', 'YORUM_TAM_CUMLE_RE', 'KURTARMA_BASLIK_ORANI', 'baslikGibi',
@@ -8713,9 +8713,41 @@ test('GERCEK katsayi elenmiyor: ayni sayi tek esitlikli satirdan hedefte', () =>
   assert.ok(!h.includes(7.02), JSON.stringify(h));
 });
 
-test('TEK esitlikli satir hic incelenmiyor', () => {
+/* TEK ESITLIKTE DE OPERAND ARA HESAPTIR (31.10.2026 olculdu).
+
+   Eski iddia "tek esitlikli satir hic incelenmez" idi. Kaynakta tek
+   esitlikli saf aritmetik de var ve orada da olgu SONUCTUR:
+     "the intercept for a split level is 20.43 + 19.84 = 40.27"
+   19.84 dort kosu boyunca kayip sayildi ve kapsama tavanini %96'da
+   tuttu; oysa ozetin yazmasi gereken sey 40.27. */
+test('tek esitlikte SOL taraftaki operandlar hedef degil, SONUC hedef', () => {
   const h = A.distinctiveNumbers('the intercept for a ranch is 20.43 + 23.53 = 43.96');
-  assert.deepEqual(h.slice().sort((x, y) => x - y), [20.43, 23.53, 43.96], JSON.stringify(h));
+  assert.deepEqual(h, [43.96], JSON.stringify(h));
+  const s = A.distinctiveNumbers('the intercept for a split level is 20.43 + 19.84 = 40.27');
+  assert.deepEqual(s, [40.27], JSON.stringify(s));
+});
+
+test('GERCEK katsayilar BASKA satirdan hedefte kaliyor', () => {
+  /* 20.43 ve 23.53 ev fiyati denkleminde geciyor ve o satirin solu harfli. */
+  const tam = [
+    '\u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split',
+    'the intercept for a ranch is 20.43 + 23.53 = 43.96',
+    'the intercept for a split level is 20.43 + 19.84 = 40.27'
+  ].join('\n');
+  const h = A.distinctiveNumbers(tam);
+  for (const v of [20.43, 0.045, 23.53, 18.84, 43.96, 40.27]) {
+    assert.ok(h.includes(v), v + ' hedeften dusmus: ' + JSON.stringify(h));
+  }
+  assert.ok(!h.includes(19.84), '19.84 hala hedefte: ' + JSON.stringify(h));
+});
+
+test('SOL TARAF HARFLIYSE dokunulmuyor', () => {
+  const a1 = A.distinctiveNumbers('UtilityBill = 484.12 \u2212 12.08temp + 0.09temp^2');
+  for (const v of [484.12, 12.08, 0.09]) assert.ok(a1.includes(v), v + ' dusmus: ' + JSON.stringify(a1));
+  /* Islem isareti yoksa da dokunulmuyor. */
+  assert.deepEqual(A.araHesabiAyikla('Observations = 34').elenen, []);
+  /* Tek operand yetmez: en az iki terim istenir. */
+  assert.deepEqual(A.araHesabiAyikla('toplam 5.5 = 5.5').elenen, []);
 });
 
 test('ORTADA ISLEM YOKSA dokunulmuyor (hipotez satiri)', () => {
@@ -8892,12 +8924,35 @@ test('tablo gecisi yalnizca PARALLEL modda ve butce varken kosuyor', () => {
     'kosul yok: only/shadow zaten PDF in tamamini gorsel gonderiyor, tekrar cagri bedava degil');
 });
 
-test('tablo gecisi AYNI mini-PDF i kullaniyor (yeni goruntu ucreti yok)', () => {
+/* IKI DILIM (31.10.2026 olculdu): tek cagri her kosuda tavana dayaniyordu
+   (completion=3228/3072, 3758/3072, 3772/3072) ve 12 tablonun 9'unu
+   getiriyordu. Tavani buyutmek 15 sn'lik dilime carpiyor, o yuzden IS
+   bolunuyor. */
+test('tablo gecisi sayfalari IKI dilime boluyor', () => {
   const kod = KAPSAMA_KOD;
-  const i = kod.indexOf('const tabloRes = await fetchWithRetry');
-  assert.ok(i > 0, 'tablo cagrisi yok');
-  assert.ok(kod.slice(i, i + 900).includes('content: visualUserContent'),
-    'tablo cagrisi kendi goruntusunu uretiyor; gorsel gecisin mini-PDF i yeniden kullanilmali');
+  assert.ok(/const dilimler = visualPlan\.indices\.length >= TABLO_DILIM_ESIGI/.test(kod),
+    'dilimleme yok');
+  assert.ok(/const TABLO_DILIM_ESIGI = \d+/.test(SRC), 'esik sabiti yok');
+});
+
+test('tablo gecisi yeni GORUNTU URETMIYOR, PDF ten dilim kesiyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const dilimPdf = dilimler.length === 1');
+  assert.ok(i > 0, 'dilim PDF i kurulmuyor');
+  const blok = kod.slice(i, i + 300);
+  assert.ok(blok.includes('visualImages[0]'),
+    'tek dilimde ilk gecisin mini-PDF i yeniden kullanilmali');
+  assert.ok(blok.includes('buildPdfSubsetBase64(fileBytes, dilim)'),
+    'dilim PDF ten kesilmeli (sayfa sayfa goruntu ucreti yok)');
+  assert.ok(!/extractVisualImagesForLongDoc/.test(blok), 'goruntu uretimine dusmus');
+});
+
+test('her dilim ONCESINDE butce denetleniyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('for (let di = 0; di < dilimler.length; di++)');
+  assert.ok(i > 0, 'dilim dongusu yok');
+  assert.ok(kod.slice(i, i + 400).includes('budgetLeft() < TABLO_GECIS_MIN_BUTCE_MS'),
+    'butce dolunca kalan dilim atlanmali');
 });
 
 test('tablo gecisi pacer a yaziliyor ve kesik JSON kurtariliyor', () => {
@@ -8911,7 +8966,7 @@ test('tablo gecisi pacer a yaziliyor ve kesik JSON kurtariliyor', () => {
 
 test('tablo gecisi mevcut tablolari EZMIYOR, birlestiriyor', () => {
   const kod = KAPSAMA_KOD;
-  const i = kod.indexOf('const tabloOnce = mergedTables.length');
+  const i = kod.indexOf('const yeniTablolar = (Array.isArray(tabloJson.tables)');
   assert.ok(i > 0, 'birlestirme yok');
   const blok = kod.slice(i, i + 1200);
   assert.ok(/dedupeByText\(\s*\[\.\.\.mergedTables, \.\.\.yeniTablolar\]/.test(blok),

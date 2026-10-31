@@ -1805,6 +1805,9 @@ const VISION_MAX_COMPLETION = 3072
 const TABLO_MAX_COMPLETION = VISION_MAX_COMPLETION
 /* Altinda tablo gecisi denenmez: kesik bir tablo hic tablodan kotudur. */
 const TABLO_GECIS_MIN_BUTCE_MS = 25000
+/* Bu kadar ya da daha fazla sayfa varsa is iki dilime bolunur. Altinda
+   bolmek anlamsiz: tek cagri zaten tavana dayanmaz. */
+const TABLO_DILIM_ESIGI = 6
 
 /* GUVEN ARALIGINDA DUSEN EKSI ISARETI (31.10.2026, kartta olculdu).
  *
@@ -6327,13 +6330,59 @@ function eksenCentikleriniAyikla(text: string): { metin: string; elenen: number[
  *   - tek esitlikli satir hic incelenmiyor: "intercept for a ranch is
  *     20.43 + 23.53 = 43.96" tamamen hedefte kaliyor. */
 const ARA_HESAP_ISLEM_RE = /[+\u2212\u00d7*\/-]/
+/* TEK ESITLIKTE DE OPERAND ARA HESAPTIR (31.10.2026 olculdu).
+ *
+ * Zincir kuralı >=2 esitlik istiyordu. Kaynakta tek esitlikli saf
+ * aritmetik de var ve orada da olgu SONUCTUR:
+ *   "the intercept for a ranch is 20.43 + 23.53 = 43.96"
+ *   "the intercept for a split level is 20.43 + 19.84 = 40.27"
+ * 19.84 dort kosu boyunca "kayip" sayildi ve kapsama tavanini %96'da
+ * tuttu. Oysa ozetin yazmasi gereken sey 40.27; 19.84 toplamanin bir
+ * terimi, ustelik slaytin KENDI yazim hatasi (katsayi 18.84).
+ *
+ * SOL TARAF SAF ARITMETIK OLMALI — harf iceriyorsa dokunulmuyor:
+ *   "UtilityBill = 484.12 - 12.08temp + 0.09temp^2"  sol "UtilityBill" -> ATLANIR
+ *   "temp = 67.11"                                   sol "temp"        -> ATLANIR
+ *   "Observations = 34"                              islem yok        -> ATLANIR
+ *   "20.43 + 23.53 = 43.96"                           sol saf          -> operand elenir
+ * Gercek katsayilar yine hedefte kaliyor, cunku mutlak degerle
+ * tekillestirme onlari BASKA satirdan buluyor: 20.43 ve 23.53 ev fiyati
+ * denkleminde geciyor ve o satirin solu harfli. 19.84 baska hicbir yerde
+ * gecmiyor — o yuzden duser.
+ *
+ * DENKLEM DUZ YAZININ ICINDE: sol tarafin TAMAMI aritmetik degil
+ * ("the intercept for a ranch is 20.43 + 23.53"). O yuzden solun
+ * ARITMETIK KUYRUGU aliniyor ve yalnizca orada en az IKI sayi ve bir
+ * islem isareti varsa eleme yapiliyor — bir toplamanin terimleri. */
+const ARA_HESAP_SAF_SOL_RE = /[\s\d.,()+\u2212*\/-]+$/
+const ARA_HESAP_MIN_OPERAND = 2
 
 function araHesabiAyikla(text: string): { metin: string; elenen: number[] } {
   const elenen: number[] = []
   const metin = String(text || '').split(/\r?\n/).map((satir) => {
     const ilk = satir.indexOf('=')
     const son = satir.lastIndexOf('=')
-    if (ilk < 0 || son <= ilk) return satir
+    if (ilk < 0) return satir
+    /* TEK ESITLIK: sol taraf saf aritmetikse operandlar ara hesaptir.
+       Bkz. ARA_HESAP_SAF_SOL_RE yanindaki olcum. */
+    if (son === ilk) {
+      const sol = satir.slice(0, ilk)
+      const kuyrukEs = sol.match(ARA_HESAP_SAF_SOL_RE)
+      const kuyruk = kuyrukEs ? kuyrukEs[0] : ''
+      if (!ARA_HESAP_ISLEM_RE.test(kuyruk)) return satir
+      const re2 = new RegExp(SAYI_BELIRTECI.source, 'g')
+      const bulunanlar: number[] = []
+      let m2: RegExpExecArray | null
+      while ((m2 = re2.exec(kuyruk)) !== null) {
+        const okuma = sayiOkumalari(m2[0])[0]
+        if (Number.isFinite(okuma)) bulunanlar.push(okuma)
+        if (m2[0].length === 0) re2.lastIndex++
+      }
+      if (bulunanlar.length < ARA_HESAP_MIN_OPERAND) return satir
+      for (const v of bulunanlar) elenen.push(v)
+      const kuyrukBas = sol.length - kuyruk.length
+      return satir.slice(0, kuyrukBas) + ' '.repeat(kuyruk.length) + satir.slice(ilk)
+    }
     const orta = satir.slice(ilk + 1, son)
     if (!ARA_HESAP_ISLEM_RE.test(orta) || !/\d/.test(orta)) return satir
     const re = new RegExp(SAYI_BELIRTECI.source, 'g')
@@ -14426,11 +14475,19 @@ The example that used to sit here named a real-looking percentage, and a live ru
                 console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${maddeliBolumler.length} sections, +${newTables.length} tables, +${newDiagrams.length} diagrams (grafik alinmaz) from ${visualImages.length} sekil sayfasi`)
               }
 
-            /* --- TABLO GECISI (ayri cagri) — bkz. TABLO_MAX_COMPLETION. */
-            /* `visionData` sarti: ilk gorsel cagri dustuyse model zaten
-               zorlanıyor demektir; ikinci cagri yalnizca bir dilim daha
-               yakar ve zaman asimi modeli koşunun geri kalani icin
-               dusurur (olculdu: review o yuzden hic kosmadi). */
+            /* --- TABLO GECISI (ayri cagri) — bkz. TABLO_MAX_COMPLETION.
+
+               IKI DILIM (31.10.2026 olculdu): tek cagri her kosuda tavana
+               dayaniyordu (completion=3228/3072, 3758/3072, 3772/3072) ve 12
+               tablonun 9'unu, diyagramlarin hicbirini getiremiyordu. Tavani
+               buyutmek 15 sn'lik dilime carpiyor (olculdu: review olmustu),
+               o yuzden IS bolunuyor: sayfalar iki yariya ayrilip her yari
+               kendi 3072'siyle kendi cagrisinda okunuyor. Maliyet bir
+               Gemini cagrisi ve ~4 sn.
+
+               `visionData` sarti: ilk gorsel cagri dustuyse model zaten
+               zorlaniyor; ek cagri yalnizca bir dilim daha yakar ve zaman
+               asimi modeli kosunun geri kalani icin dusurur. */
             if (parallelGemini && visionData && budgetLeft() > TABLO_GECIS_MIN_BUTCE_MS) {
               const tabloPrompt = `You are transcribing DATA OBJECTS from lecture slide images.
 Return ONLY tables and diagrams that are VISIBLE IN THE IMAGES as a table, matrix, worksheet, regression output or box-and-arrow figure.
@@ -14439,45 +14496,71 @@ Name each table so a student knows which slide it came from, e.g. \"Excel Output
 For a box-and-arrow or flow figure, emit a diagram with valid Mermaid instead; never emit a chart or a plot — a chart's lesson belongs in prose and is handled elsewhere.
 Respond ONLY with JSON in ${langLabel}: {"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
 Return empty arrays if the images contain no such object. Invent nothing: a cell you cannot read is omitted, never guessed.`
-              const tabloEst =
-                visualImages.length * VISION_TOKENS_PER_IMAGE +
-                Math.ceil(tabloPrompt.length / 3.2) +
-                Math.ceil(TABLO_MAX_COMPLETION * PACER_COMPLETION_FACTOR)
-              await tokenPacer.acquire(tabloEst, MODEL_FAST, TABLO_MAX_COMPLETION)
-              const tabloRes = await fetchWithRetry('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  model: MODEL_FAST,
-                  temperature: 0,
-                  ...reasoningParamsFor(MODEL_FAST),
-                  max_completion_tokens: TABLO_MAX_COMPLETION,
-                  response_format: { type: 'json_object' },
-                  messages: [
-                    { role: 'system', content: tabloPrompt },
-                    { role: 'user', content: visualUserContent }
-                  ]
-                })
-                /* Gorsel gecisin AYNI zaman asimi: zincir butcesi ayni
-                   hesaplansin, yani sigdigi olculmus dilimle kossun. */
-              }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
-              tokenPacer.observeHeaders(tabloRes.headers, MODEL_FAST)
-              const tabloData = tabloRes.ok ? await tabloRes.json() : null
-              tokenPacer.record(
-                Number(tabloData?.usage?.total_tokens) || tabloEst,
-                MODEL_FAST,
-                Number(tabloData?.usage?.completion_tokens) || TABLO_MAX_COMPLETION
-              )
-              if (!tabloData) {
-                console.warn(`Tablo gecisi: HTTP ${tabloRes.status} — tablo eklenmedi`)
-              } else {
-                /* Kesik JSON kurtarilir: tablo uzun, tavana dayanmasi
-                   beklenen bir hal (bkz. closeTruncatedJson). */
+              const yarim = Math.ceil(visualPlan.indices.length / 2)
+              const dilimler = visualPlan.indices.length >= TABLO_DILIM_ESIGI
+                ? [visualPlan.indices.slice(0, yarim), visualPlan.indices.slice(yarim)]
+                : [visualPlan.indices]
+              let tabloToplam = 0
+              let diyagramToplam = 0
+              let tabloHarcanan = 0
+              for (let di = 0; di < dilimler.length; di++) {
+                const dilim = dilimler[di]
+                if (!dilim.length) continue
+                if (budgetLeft() < TABLO_GECIS_MIN_BUTCE_MS) {
+                  console.warn(`Tablo gecisi: butce bitti, ${dilimler.length - di} dilim atlandi`)
+                  break
+                }
+                /* Tek dilimse ilk gecisin mini-PDF'i yeniden kullanilir;
+                   bolunduyse her dilim icin kendi alt-PDF'i kesilir. */
+                const dilimPdf = dilimler.length === 1
+                  ? visualImages[0]
+                  : await buildPdfSubsetBase64(fileBytes, dilim)
+                if (!dilimPdf) {
+                  console.warn(`Tablo gecisi: ${dilim.length} sayfalik mini-PDF uretilemedi, dilim atlandi`)
+                  continue
+                }
+                const dilimIcerik = [
+                  { type: 'text', text: 'Transcribe every table and box-and-arrow figure visible in these slide images.' },
+                  { type: 'image_url', image_url: { url: `data:application/pdf;base64,${dilimPdf}` } }
+                ]
+                const tabloEst =
+                  VISION_TOKENS_PER_IMAGE +
+                  Math.ceil(tabloPrompt.length / 3.2) +
+                  Math.ceil(TABLO_MAX_COMPLETION * PACER_COMPLETION_FACTOR)
+                await tokenPacer.acquire(tabloEst, MODEL_FAST, TABLO_MAX_COMPLETION)
+                const tabloRes = await fetchWithRetry('https://api.groq.com/openai/v1/chat/completions', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    model: MODEL_FAST,
+                    temperature: 0,
+                    ...reasoningParamsFor(MODEL_FAST),
+                    max_completion_tokens: TABLO_MAX_COMPLETION,
+                    response_format: { type: 'json_object' },
+                    messages: [
+                      { role: 'system', content: tabloPrompt },
+                      { role: 'user', content: dilimIcerik }
+                    ]
+                  })
+                  /* Gorsel gecisin AYNI zaman asimi: zincir butcesi ayni
+                     hesaplansin, yani sigdigi olculmus dilimle kossun. */
+                }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
+                tokenPacer.observeHeaders(tabloRes.headers, MODEL_FAST)
+                const tabloData = tabloRes.ok ? await tabloRes.json() : null
+                tokenPacer.record(
+                  Number(tabloData?.usage?.total_tokens) || tabloEst,
+                  MODEL_FAST,
+                  Number(tabloData?.usage?.completion_tokens) || TABLO_MAX_COMPLETION
+                )
+                if (!tabloData) {
+                  console.warn(`Tablo gecisi dilim ${di + 1}: HTTP ${tabloRes.status} — tablo eklenmedi`)
+                  continue
+                }
+                tabloHarcanan += Number(tabloData?.usage?.completion_tokens) || 0
                 const tabloHam = tabloData.choices?.[0]?.message?.content ?? ''
                 const tabloTemiz = (stripThinkBlock(tabloHam) ?? tabloHam)
                   .replace(/```json\s*|```/g, '').trim()
-                /* Ilk gorsel cagrinin kullandigi kurtarmanin aynisi. Tablo
-                   uzun, tavana dayanmasi beklenen bir hal. */
+                /* Ilk gorsel cagrinin kullandigi kurtarmanin aynisi. */
                 const tabloJson = (() => {
                   if (!tabloTemiz) return null
                   try { return JSON.parse(repairLatexEscapes(tabloTemiz)) } catch (_e) {
@@ -14486,7 +14569,7 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
                       try {
                         const k = JSON.parse(repairLatexEscapes(kapali))
                         console.warn(
-                          `Tablo gecisi: JSON KESIKTI, kapatilip kurtarildi ` +
+                          `Tablo gecisi dilim ${di + 1}: JSON KESIKTI, kapatilip kurtarildi ` +
                           `(${tabloTemiz.length} krk -> ${kapali.length} krk)`
                         )
                         return k
@@ -14496,47 +14579,47 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
                   }
                 })()
                 if (!tabloJson) {
-                  console.warn(`Tablo gecisi: JSON ayristirilamadi (${tabloHam.length} krk)`)
-                } else {
-                  const yeniTablolar = (Array.isArray(tabloJson.tables) ? tabloJson.tables : [])
-                    .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0)
-                  const yeniDiyagramlar = (Array.isArray(tabloJson.diagrams) ? tabloJson.diagrams : [])
-                    .filter((d: any) => d && d.title && d.mermaid)
-                  const tabloOnce = mergedTables.length
-                  const diyagramOnce = mergedDiagrams.length
-                  if (yeniTablolar.length) {
-                    const birlesik = dedupeByText(
-                      [...mergedTables, ...yeniTablolar], (t: any) => t?.title || ''
-                    ).slice(0, 12)
-                    mergedTables.length = 0; mergedTables.push(...birlesik)
-                  }
-                  if (yeniDiyagramlar.length) {
-                    const birlesik = dedupeByText(
-                      [...mergedDiagrams, ...yeniDiyagramlar], (d: any) => d?.title || ''
-                    ).slice(0, 8)
-                    mergedDiagrams.length = 0; mergedDiagrams.push(...birlesik)
-                  }
-                  if (yeniTablolar.length || yeniDiyagramlar.length) visualAnalysisUsed = true
-                  /* Dusen eksi isareti — bkz. guvenAraligiOnar. Butun
-                     tablolara uygulaniyor, yalnizca yeni gelenlere degil:
-                     kusur verinin kendisinde, kaynaginda degil. */
-                  const aralikOnarimi = guvenAraligiOnar(mergedTables)
-                  if (aralikOnarimi > 0) {
-                    console.log(
-                      `Guven araligi onarildi: ${aralikOnarimi} satirda Lower > Upper idi, ` +
-                      `isaret geri konuldu`
-                    )
-                  }
+                  console.warn(`Tablo gecisi dilim ${di + 1}: JSON ayristirilamadi (${tabloTemiz.length} krk)`)
+                  continue
+                }
+                const yeniTablolar = (Array.isArray(tabloJson.tables) ? tabloJson.tables : [])
+                  .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0)
+                const yeniDiyagramlar = (Array.isArray(tabloJson.diagrams) ? tabloJson.diagrams : [])
+                  .filter((d: any) => d && d.title && d.mermaid)
+                if (yeniTablolar.length) {
+                  const birlesik = dedupeByText(
+                    [...mergedTables, ...yeniTablolar], (t: any) => t?.title || ''
+                  ).slice(0, 12)
+                  mergedTables.length = 0; mergedTables.push(...birlesik)
+                }
+                if (yeniDiyagramlar.length) {
+                  const birlesik = dedupeByText(
+                    [...mergedDiagrams, ...yeniDiyagramlar], (d: any) => d?.title || ''
+                  ).slice(0, 8)
+                  mergedDiagrams.length = 0; mergedDiagrams.push(...birlesik)
+                }
+                tabloToplam += yeniTablolar.length
+                diyagramToplam += yeniDiyagramlar.length
+                if (yeniTablolar.length || yeniDiyagramlar.length) visualAnalysisUsed = true
+              }
+              if (tabloToplam || diyagramToplam) {
+                /* Dusen eksi isareti — bkz. guvenAraligiOnar. Butun tablolara
+                   uygulaniyor, yalnizca yeni gelenlere degil: kusur verinin
+                   kendisinde, kaynaginda degil. */
+                const aralikOnarimi = guvenAraligiOnar(mergedTables)
+                if (aralikOnarimi > 0) {
                   console.log(
-                    `Tablo gecisi: ${yeniTablolar.length} tablo, ${yeniDiyagramlar.length} diyagram dondu ` +
-                    `(${visualPlan.indices.length} sayfa) — tablo ${tabloOnce}->${mergedTables.length}, ` +
-                    `diyagram ${diyagramOnce}->${mergedDiagrams.length}` +
-                    (tabloData?.usage?.completion_tokens
-                      ? `, completion=${tabloData.usage.completion_tokens}/${TABLO_MAX_COMPLETION}`
-                      : '')
+                    `Guven araligi onarildi: ${aralikOnarimi} satirda Lower > Upper idi, ` +
+                    `isaret geri konuldu`
                   )
                 }
               }
+              console.log(
+                `Tablo gecisi: ${tabloToplam} tablo, ${diyagramToplam} diyagram dondu ` +
+                `(${dilimler.length} dilim, ${visualPlan.indices.length} sayfa) — ` +
+                `tablo -> ${mergedTables.length}, diyagram -> ${mergedDiagrams.length}` +
+                (tabloHarcanan ? `, completion=${tabloHarcanan}/${TABLO_MAX_COMPLETION * dilimler.length}` : '')
+              )
             }
             } else {
               console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
