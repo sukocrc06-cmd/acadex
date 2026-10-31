@@ -34,7 +34,9 @@ if (!globalThis.Deno) globalThis.Deno = { env: { get: () => undefined } };
 
 const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
-  'ANCHOR_STOPWORDS', 'trNormalize', 'anchorTerms',
+  'ANCHOR_STOPWORDS', 'trNormalize', 
+  // Uc harfli matematik adlari eleniyordu (30.10.2026 olcumu).
+  'ANCHOR_KISA_MATEMATIK', 'ANCHOR_UST_SIMGE', 'anchorTerms',
   // Reasoning parametrelerinin model ailesine gore turetilmesi.
   // DIKKAT: bu dosyada loadFromSource SADECE burada cagrilmali. Her cagri
   // 5.900 satirlik kaynagi senkron olarak transpile ediyor ve olay dongusunu
@@ -5163,6 +5165,64 @@ test('diyagram dedupe CIKISA baglanmis ve sayisi loglaniyor', () => {
     'Near-duplicate merge satiri diyagram sayisini da yazmali');
 });
 
+
+/* BOLUM SAYISI BELGEYI TEMSIL ETMIYORDU (30.10.2026 olcumu).
+ *
+ * Ayni 27 sayfalik "Week 9 Integrals" destesi uc kosuda 4, 3 ve 2 bolum
+ * verdi. Son kosuda ANLATI dort konu isliyordu — accumulation, area +
+ * Riemann, definite vs indefinite, basic rules — ama bolum listesi IKI
+ * taneydi.
+ *
+ * Teshis iki adimda yapildi:
+ *   1) SUZGEC MI? Hayir. bosKabuklariAyikla yalnizca BASLIKSIZ bolumu
+ *      atiyor ve attiginda "Bos kabuk ayiklandi" logunu basiyor; o kosuda
+ *      o log hic basmadi. Yani model gercekten 2 dondurdu.
+ *   2) PROMPT NE ISTIYOR? Hicbir sey. Semada "sections" duruyordu ama
+ *      key_terms/key_points/quiz/diagrams/formulas/worked_examples'in
+ *      hepsinin bir kural satiri varken bolumun yoktu.
+ * Tam-belge yolundaki prompt bunu zaten soyluyor ("2-8 items matching major
+ * outline level-1 topics"); eksik olan PENCERE yoluydu. */
+test('PENCERE PROMPTU bolum kotasi istiyor', () => {
+  assert.match(SRC, /const BOLUM_KOTASI = '(\d+)-(\d+)'/, 'bolum kotasi yok');
+  // Taban, anlatinin olculen granulerliginden (dort konu) asagi olmamali.
+  const m = SRC.match(/const BOLUM_KOTASI = '(\d+)-(\d+)'/);
+  assert.ok(Number(m[1]) >= 4, `taban ${m[1]} — olculen anlati dort konu isliyordu`);
+  /* KOTA AYRI SATIR DEGIL, TEK PENCERE SATIRININ ICINDE — olculdu: pencere
+     promptunun tavana payi 6 TOKENDI, 340 karakterlik ayri bir kural satiri
+     tahmini 7279'a cikariyor ve tavani (7200) asan pencere 429 alip hic
+     kosmuyor. Bkz. "TAVAN KORUNUYOR" testi ve DECK_PROMPT_CHARS notu. */
+  assert.match(SRC, /- This is the WHOLE document: give \$\{BOLUM_KOTASI\} 'sections', one per MAJOR topic \(not per slide\)/,
+    'kota tek-pencere satirina katlanmamis');
+  // PARCA dalinda bolum kurali OLMAMALI: dilim siniri bolum sinirina denk
+  // gelmez, kota uydurma bolum uretmeye zorlar.
+  assert.ok(!/sections.{0,40}\$\{BOLUM_KOTASI\}.{0,200}this part/s.test(SRC),
+    'parca dalina da bolum kotasi girmis');
+});
+
+test('BOLUM SAYISI loglaniyor (pencere ve birlesim)', () => {
+  /* Kusurun teshisi gecikti cunku bolum sayisi HICBIR satirda yoktu:
+     modelin 2 mi dondurdugu yoksa 8 dondurup 6'sinin mi suzuldugu ayirt
+     edilemiyordu. */
+  assert.match(SRC, /sections=\$\{nSections\}/, 'pencere logu bolum sayisi yazmiyor');
+  assert.match(SRC, /const nSections = \(result\.sections \|\| \[\]\)\.length/,
+    'pencere bolum sayaci yok');
+  assert.match(SRC, /sections=\$\{bestSections\.length\}/, 'birlesim logu bolum sayisi yazmiyor');
+});
+
+test('BOS KABUK ayiklayicisi bolumu SESSIZCE atmiyor', () => {
+  /* Teshisin birinci adimi bu loga dayandi: suzgec calisirsa gorunur
+     olmali, yoksa "model mi az dondurdu, biz mi attik" sorusu cevapsiz
+     kalir. */
+  const i = SRC.indexOf('function bosKabuklariAyikla(');
+  const govde = SRC.slice(i, SRC.indexOf('\nfunction duzMaddeMetni(', i));
+  assert.match(govde, /say\('sections', once - parsed\.sections\.length\)/,
+    'dusen bolum sayilmiyor');
+  assert.match(SRC, /Bos kabuk ayiklandi: \$\{Object\.entries\(kabuk\)/,
+    'dusen kabuklar loglanmiyor');
+  // Yalnizca BASLIKSIZ bolum atiliyor — maddesiz bolum degil.
+  assert.match(govde, /\(sec: any\) => sec && typeof sec === 'object' && dolu\(sec\.heading\)/,
+    'bolum suzgeci genislemis — maddesiz bolum de atiliyorsa sayi daha da duser');
+});
 
 console.log('\nBOLUM KOPYASI (WEEK 9 OLCUMU)\n');
 

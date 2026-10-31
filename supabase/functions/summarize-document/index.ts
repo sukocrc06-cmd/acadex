@@ -4330,11 +4330,53 @@ function trNormalize(s: string): string {
  * (modelin hesapladigi bir deger) iddianin toplam agirligini buyutup
  * skoru DUSURUR — yani yeni bir yanlis atif uretemez, ancak atifi daha
  * temkinli yapar ("yanlis atif, eksik atiftan kotudur"). */
+/* UC HARFLI MATEMATIK ADLARI ELENIYORDU (30.10.2026 olcumu).
+ *
+ * "Week 8 Derivative" kartinda bes madde atifsiz kaldi. Ikisinin sebebi
+ * esik DEGIL, terim cikarimiydi:
+ *   "The derivative of sin x is cos x."     -> cikan terim: derivative
+ *   "The derivative of tan x is sec^2 x."   -> cikan terim: derivative, sec²
+ * Yani cumlenin en bilgilendirici sozcukleri (sin, cos, tan) kayboluyor ve
+ * geriye tek terim kaliyor; ANCHOR_MIN_TERMS (3) kapisi maddeyi dusuruyor.
+ * Sebep asagidaki uzunluk suzgeci: trigonometrik ve logaritmik fonksiyon
+ * adlari TAM UC HARF.
+ *
+ * Esigi dusurmek cozum degildi, olculdu: "When f'(x) > 0, the function f is
+ * increasing." maddesinde terimler (function, increasing) hicbir sayfada
+ * BIRLIKTE gecmiyor, yani eslesen terim sayisi her halde 1 — taban 2'ye
+ * inse de baglanmaz. O madde kaynakta tamamen NOTASYONLA yazili
+ * ("f'(x) > 0 → f is increasing") ve sozcuk duzeyinde eslesmenin
+ * ulasamayacagi yerde; bilerek atifsiz kaliyor.
+ *
+ * Kisa ad listesi BELGEYE OZGU DEGIL: evrensel matematik gosterimi. Hicbiri
+ * ANCHOR_STOPWORDS'te degil (kontrol edildi). "sec"/"min"/"var" gunluk
+ * dilde baska anlam tasiyor ama bu listenin acildigi yer ders metni; iki
+ * teknik anlam arasindaki karisma kabul, bilgiyi tamamen atmak degil.
+ *
+ * UST SIMGE SOYULUYOR: "sec²" tek jeton olarak geliyordu ve kaynaktaki
+ * "sec" ile eslesmiyordu. Sondaki ust simge rakamlari atilinca hem listeye
+ * giriyor hem kaynagi buluyor. */
+const ANCHOR_KISA_MATEMATIK = new Set([
+  // trigonometri
+  'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+  // logaritma / us
+  'log', 'exp',
+  // limit ve ucdegerler
+  'lim', 'max', 'min',
+  // dogrusal cebir ve istatistik
+  'det', 'dim', 'var', 'cov'
+])
+
+/** Sondaki ust simge rakamlari: "sec²" -> "sec", "x³" -> "x". */
+const ANCHOR_UST_SIMGE = /[\u00b2\u00b3\u00b9\u2070\u2074-\u2079]+$/
+
 function anchorTerms(s: string): string[] {
   const parcalar = trNormalize(s).match(/\d+(?:[.,]\d+)+|[\p{L}\p{N}]+/gu) || []
   return parcalar
-    .map(w => /^\d+(?:[.,]\d+)+$/.test(w) ? w.replace(/,/g, '.') : w)
-    .filter(w => (w.length >= 4 || /^\d+\.\d+/.test(w)) && !ANCHOR_STOPWORDS.has(w))
+    .map(w => /^\d+(?:[.,]\d+)+$/.test(w) ? w.replace(/,/g, '.') : w.replace(ANCHOR_UST_SIMGE, ''))
+    .filter(w =>
+      (w.length >= 4 || /^\d+\.\d+/.test(w) || ANCHOR_KISA_MATEMATIK.has(w)) &&
+      !ANCHOR_STOPWORDS.has(w))
 }
 
 type PageSegment = { page: number; terms: Set<string>; head: string; body: string; termsTekil?: Set<string> }
@@ -7127,7 +7169,7 @@ function anchorCitations(
   lang: string
 ): { key_points: any[]; footnotes: any[]; idMap: Record<number, number>; stats: Record<string, number> } {
   const incoming = Array.isArray(existingFootnotes) ? existingFootnotes : []
-  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0 }
+  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0, paylasilan: 0 }
 
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
   const writeText = (raw: any, text: string) =>
@@ -7186,6 +7228,42 @@ function anchorCitations(
   const labelFor = (hit: { head: string; page: number; quote: string | null }) =>
     hit.quote || hit.head || (lang === 'tr' ? `Sayfa ${hit.page}` : `Page ${hit.page}`)
 
+  /* AYNI ALINTI UC AYRI DIPNOT OLUYORDU (30.10.2026 olcumu).
+   *
+   * "Week 9 Integrals" kartinin kaynakcasinda [3], [11] ve [12] BIREBIR
+   * ayni cumleydi (sayfa 6, "When the rectangles become very thin, the
+   * approximation approaches the exact area."). Ogrenci kaynakcada ayni
+   * cumleyi uc kez okuyor. Maddeler de ayni seyi soyluyordu:
+   *   [3]  "A Riemann sum approximates area using thin rectangles, and the
+   *         limit of this sum as rectangles become very thin is the
+   *         definite integral."
+   *   [11] "Rectangle approximation uses finite thin rectangles to estimate
+   *         area under a curve before exact integration."
+   *   [12] "Taking the limit of a Riemann sum as the number of rectangles
+   *         approaches infinity yields the exact definite integral."
+   * Ikisi gorsel gecisten geldi (log: "+9 points").
+   *
+   * NEDEN GENEL DEDUPE YETMIYOR: olculdu, uclunun kelime ortusmesi 0,455 /
+   * 0,545 / 0,364 — NEAR_DUP_THRESHOLD (0,7) hepsini kaciriyor. Esigi 0,35'e
+   * cekmek BUTUN kartlardaki butun maddeleri etkiler; olculen "masum" cift
+   * sayisi iki (0,125 ve 0,143), yani genel esigi oynatmak icin veri yok.
+   *
+   * AYNI ALINTI DAHA GUCLU BIR KANIT. Kelime ortusmesi tahmin yurutuyor;
+   * atif motorunun ayni (sayfa, cumle) ciftine baglamasi BELGENIN KENDI
+   * delili. Bu yuzden kapi iki kosullu — dedupeDiagrams/dedupeSections ile
+   * ayni kalip:
+   *   1) ayni sayfa + ayni alinti  VE
+   *   2) kelime ortusmesi >= AYNI_ALINTI_ORTUSME (0,35)
+   * Ikinci kosul "tek cumleden IKI AYRI olgu" halini koruyor: alt ve ust
+   * siniri anlatan iki madde ayni cumleye baglanabilir ama ortusmeleri
+   * dusuktur, o yuzden ikisi de kalir.
+   *
+   * ALINTISIZ ISABET BIRLESTIRILMEZ: alinti yoksa etiket sayfa basligina
+   * ya da "Sayfa N"e dusuyor; o kadar genel bir eslesmeyi kopya saymak
+   * ayni sayfadaki butun maddeleri tek dipnota indirirdi. */
+  const AYNI_ALINTI_ORTUSME = 0.35
+  const alintiKaydi = new Map<string, { id: number; terimler: Set<string> }>()
+
   for (let i = 0; i < points.length; i++) {
     const text = readText(points[i])
     if (!text.trim()) continue
@@ -7193,6 +7271,24 @@ function anchorCitations(
 
     const hit = anchorClaimToPage(text, pageIndex, idf, lang === 'en')
     if (!hit) { stats.skipped++; continue }
+
+    /* Ayni (sayfa, alinti) daha once gorulduyse YENI dipnot acilmaz:
+       var olan id yeniden kullanilir. */
+    if (hit.quote) {
+      const anahtar = `${hit.page}\u0000${hit.quote}`
+      const onceki = alintiKaydi.get(anahtar)
+      const terimler = nearDupTermSet(text)
+      if (onceki) {
+        const ortusme = kumeOrtusmesi(terimler, onceki.terimler)
+        if (ortusme >= AYNI_ALINTI_ORTUSME) {
+          points[i] = writeText(points[i], `${text.replace(/\s+$/, '')} [${onceki.id}]`)
+          stats.paylasilan = (stats.paylasilan || 0) + 1
+          continue
+        }
+      } else {
+        alintiKaydi.set(anahtar, { id: out.length + 1, terimler })
+      }
+    }
 
     const id = out.length + 1
     out.push({
@@ -11876,6 +11972,27 @@ In addition to the text below, you are shown images of this document's pages. Us
       const termQuota = (total: number) => wholeDocInOneWindow(total) ? '15-28' : '8-15'
       const pointQuota = (total: number) => wholeDocInOneWindow(total) ? '10-18' : '5-12'
       const quizQuota = (total: number) => wholeDocInOneWindow(total) ? '5-10' : '4-8'
+      /* BOLUM KOTASI YOKTU (30.10.2026 olcumu). Semada "sections" duruyordu
+         ama key_terms/key_points/quiz/diagrams/formulas/worked_examples'in
+         hepsinin bir kural satiri varken bolumun YOKTU; model bos biraktigi
+         gibi dolduruyordu. Olculen sonuc: ayni 27 sayfalik belge uc kosuda
+         4, 3 ve 2 bolum verdi, son kosuda ANLATI dort konu isliyordu
+         (accumulation / area+Riemann / definite vs indefinite / basic rules)
+         ama bolum listesi IKI taneydi. Tam-belge yolundaki prompt (bkz.
+         "Output \"sections\" as 2-8 items") bunu zaten soyluyor; eksik olan
+         pencere yoluydu.
+         AYRI KURAL SATIRI OLARAK EKLENEMEDI, OLCULDU: pencere promptunun
+         serit tavanina (7200 token) payi degisiklikten once 6 TOKENDI
+         (prompt 874 + deste talimati 135 = 1009 / 1015). 340 karakterlik bir
+         kural satiri tahmini 7279'a cikardi, yani tavani asan pencere 429
+         alip hic kosmazdi. DECK_PROMPT_CHARS yanindaki olcum notu da
+         "pay buyutulemez, talimat kisaltilir" diyor. Bu yuzden kota, zaten
+         "cover every section" diyen TEK PENCERE satirinin icine katlandi:
+         net maliyet ~5 token ve o satir boyle daha fazlasini soyluyor.
+         Parca (total > 1) dalinda bolum kurali YOK: orada her pencere
+         belgenin bir dilimini gorur, bolum basligi dilim sinirina
+         denk gelmez ve kota uydurma bolum uretmeye zorlardi. */
+      const BOLUM_KOTASI = '4-8'
 
       // Compact extraction prompt — keeps request under Groq limits
       // BIR KEZ hesaplanir. compactWindowPrompt pencere basina birkac kez
@@ -11914,7 +12031,7 @@ Respond ONLY with JSON. In every string, a backslash must be written TWICE ("\\\
 Rules:
 - Extract ${termQuota(total)} key_terms and ${pointQuota(total)} key_points when content allows; every number stated (result, count, constant, rating, tolerance, coded value) must reach a key_point, table or worked_example WITH its units — verbatim, never invented
 - ${quizQuota(total)} quiz_questions when content allows; if is_quantitative, at least half make the student calculate or read a number from ${scopeWord(total)} (the answer shows the result)${total === 1 ? `
-- This is the WHOLE document, not an excerpt: cover every section, and if it ends with a glossary or "review terms" list, every entry on that list must appear in key_terms
+- This is the WHOLE document: give ${BOLUM_KOTASI} 'sections', one per MAJOR topic (not per slide), and if it ends with a glossary or "review terms" list, every entry must appear in key_terms
 - Keep definitions to one sentence so the full set fits
 - A figure or table CAPTION is content: dates, ranges and quantities are often written out only there — carry them verbatim
 - Worked cases, named examples and boxed features ("in practice", "case study", applications) are testable material too; do not skip them as filler` : `
@@ -12420,7 +12537,15 @@ Rules:
             const nTerms = (result.key_terms || []).length
             const nPoints = (result.key_points || []).length
             const nQuiz = (result.quiz_questions || []).length
-            console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${nTerms} points=${nPoints} quiz=${nQuiz}`)
+            /* BOLUM SAYISI LOGDA YOKTU (30.10.2026 olcumu). Week 9 karti
+               27 sayfalik bir desteyi 2 bolumle temsil ediyordu, ama ne
+               pencere ne birlesim satiri bolum sayisi yaziyordu: modelin 2
+               mi dondurdugu yoksa 8 dondurup 6'sinin mi suzuldugu
+               AYIRT EDILEMIYORDU. Bos kabuk ayiklayici yalnizca basliksiz
+               bolumu atiyor ve attiginda kendi logunu basiyor; o log da
+               yoktu, yani model gercekten 2 dondurmus. */
+            const nSections = (result.sections || []).length
+            console.log(`Window ${wi + 1} ok [${windowLanes.get(wi) || '?'}]: terms=${nTerms} points=${nPoints} quiz=${nQuiz} sections=${nSections}`)
             // Pencerenin KENDI dilimine karsi: sayi burada kayboluyorsa sorun
             // cikarimda, birlesimde degil. Uc asamanin uc satiri (pencere,
             // birlesim, son kart) kaybin nerede oldugunu ayirt ediyor.
@@ -13160,7 +13285,7 @@ The example that used to sit here named a real-looking percentage, and a live ru
         cloze_cards: [] as any[]
       }
 
-      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
+      console.log(`Long-doc merge: terms=${mergedKeyTerms.length} points=${mergedKeyPoints.length} quiz=${mergedQuiz.length} sections=${bestSections.length} tables=${mergedTables.length} charts=${mergedCharts.length} diagrams=${mergedDiagrams.length} worked_examples=${mergedWorkedExamples.length} summaryLen=${(mergedDraft.summary || '').length}`)
       console.log(`Birlesim sayisal kapsama: ${formatCoverage(numericCoverage(extractedText, mergedDraft))}`)
       if (dusenPencereler.length > 0) {
         const kayipKrk = dusenPencereler.reduce((n, p) => n + (windows[p - 1]?.length || 0), 0)
@@ -14554,6 +14679,8 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         `kept=${anchored.stats.kept} demoted=${anchored.stats.demoted} ` +
         `added=${anchored.stats.added} quoted=${anchored.stats.quoted} ` +
         `unanchored=${anchored.stats.skipped}` +
+        // Ayni alintiyi paylasan madde sayisi — bkz. AYNI_ALINTI_ORTUSME.
+        (anchored.stats.paylasilan ? ` alinti-paylasan=${anchored.stats.paylasilan}` : '') +
         (atifIstenmedi
           ? ' — taslakta atif YOKTU (modelden istenmedi), tamami hesaplandi'
           : '')

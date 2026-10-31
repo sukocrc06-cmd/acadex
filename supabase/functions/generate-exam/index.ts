@@ -2624,11 +2624,53 @@ function trNormalize(s: string): string {
  * (modelin hesapladigi bir deger) iddianin toplam agirligini buyutup
  * skoru DUSURUR — yani yeni bir yanlis atif uretemez, ancak atifi daha
  * temkinli yapar ("yanlis atif, eksik atiftan kotudur"). */
+/* UC HARFLI MATEMATIK ADLARI ELENIYORDU (30.10.2026 olcumu).
+ *
+ * "Week 8 Derivative" kartinda bes madde atifsiz kaldi. Ikisinin sebebi
+ * esik DEGIL, terim cikarimiydi:
+ *   "The derivative of sin x is cos x."     -> cikan terim: derivative
+ *   "The derivative of tan x is sec^2 x."   -> cikan terim: derivative, sec²
+ * Yani cumlenin en bilgilendirici sozcukleri (sin, cos, tan) kayboluyor ve
+ * geriye tek terim kaliyor; ANCHOR_MIN_TERMS (3) kapisi maddeyi dusuruyor.
+ * Sebep asagidaki uzunluk suzgeci: trigonometrik ve logaritmik fonksiyon
+ * adlari TAM UC HARF.
+ *
+ * Esigi dusurmek cozum degildi, olculdu: "When f'(x) > 0, the function f is
+ * increasing." maddesinde terimler (function, increasing) hicbir sayfada
+ * BIRLIKTE gecmiyor, yani eslesen terim sayisi her halde 1 — taban 2'ye
+ * inse de baglanmaz. O madde kaynakta tamamen NOTASYONLA yazili
+ * ("f'(x) > 0 → f is increasing") ve sozcuk duzeyinde eslesmenin
+ * ulasamayacagi yerde; bilerek atifsiz kaliyor.
+ *
+ * Kisa ad listesi BELGEYE OZGU DEGIL: evrensel matematik gosterimi. Hicbiri
+ * ANCHOR_STOPWORDS'te degil (kontrol edildi). "sec"/"min"/"var" gunluk
+ * dilde baska anlam tasiyor ama bu listenin acildigi yer ders metni; iki
+ * teknik anlam arasindaki karisma kabul, bilgiyi tamamen atmak degil.
+ *
+ * UST SIMGE SOYULUYOR: "sec²" tek jeton olarak geliyordu ve kaynaktaki
+ * "sec" ile eslesmiyordu. Sondaki ust simge rakamlari atilinca hem listeye
+ * giriyor hem kaynagi buluyor. */
+const ANCHOR_KISA_MATEMATIK = new Set([
+  // trigonometri
+  'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+  // logaritma / us
+  'log', 'exp',
+  // limit ve ucdegerler
+  'lim', 'max', 'min',
+  // dogrusal cebir ve istatistik
+  'det', 'dim', 'var', 'cov'
+])
+
+/** Sondaki ust simge rakamlari: "sec²" -> "sec", "x³" -> "x". */
+const ANCHOR_UST_SIMGE = /[\u00b2\u00b3\u00b9\u2070\u2074-\u2079]+$/
+
 function anchorTerms(s: string): string[] {
   const parcalar = trNormalize(s).match(/\d+(?:[.,]\d+)+|[\p{L}\p{N}]+/gu) || []
   return parcalar
-    .map(w => /^\d+(?:[.,]\d+)+$/.test(w) ? w.replace(/,/g, '.') : w)
-    .filter(w => (w.length >= 4 || /^\d+\.\d+/.test(w)) && !ANCHOR_STOPWORDS.has(w))
+    .map(w => /^\d+(?:[.,]\d+)+$/.test(w) ? w.replace(/,/g, '.') : w.replace(ANCHOR_UST_SIMGE, ''))
+    .filter(w =>
+      (w.length >= 4 || /^\d+\.\d+/.test(w) || ANCHOR_KISA_MATEMATIK.has(w)) &&
+      !ANCHOR_STOPWORDS.has(w))
 }
 
 type PageSegment = { page: number; terms: Set<string>; head: string; body: string; termsTekil?: Set<string> }

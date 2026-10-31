@@ -18,7 +18,9 @@ const { loadFromSource, makeRunner } = require('./_ts-extract.js');
 // Cikarilacak bildirimler. Kaynakta biri yeniden adlandirilirsa test ACIK
 // HATA verir — sessizce eski bir kopyayi test etmeye devam etmez.
 const NAMES = [
-    'ANCHOR_STOPWORDS', 'trNormalize', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
+    'ANCHOR_STOPWORDS', 'trNormalize', 
+    // Uc harfli matematik adlari eleniyordu (30.10.2026 olcumu).
+    'ANCHOR_KISA_MATEMATIK', 'ANCHOR_UST_SIMGE', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
     'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS',
     // birebir alinti (span seviyesi atif)
     'SENTENCE_ABBREV', 'splitSentences', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
@@ -27,7 +29,11 @@ const NAMES = [
     // Cogul eki atifi olduruyordu (30.10.2026 olcumu).
     'ingTekil', 'tekilKume',
     'bestQuoteForClaim',
-    'anchorClaimToPage', 'applyFootnoteRemap', 'anchorCitations',
+    'anchorClaimToPage', 'applyFootnoteRemap',
+    // Ayni alintiyi paylasan maddeler tek dipnota iniyor (30.10.2026 olcumu).
+    'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN', 'nearDupStem',
+    'nearDupTermSet', 'kumeOrtusmesi',
+    'anchorCitations',
     // chunk saklama (document_chunks)
     'splitIntoChunks', 'CHUNK_STORE_SIZE', 'buildStorableChunks'
   ];
@@ -741,6 +747,178 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
        degisikligi kendi olcumunu ister. */
     assert.match(g, /const hit = anchorClaimToPage\(claim, index, idf\)\s*$/m,
       'sinav atfi sessizce cogul kuraline gecmis — ayrica olculmeli');
+  });
+}
+
+/* ==========================================================================
+   AYNI ALINTI UC AYRI DIPNOT OLUYORDU (30.10.2026 — "Week 9" OLCUMU)
+
+   Kaynakcada [3], [11] ve [12] BIREBIR ayni cumleydi (sayfa 6, "When the
+   rectangles become very thin, the approximation approaches the exact
+   area."); ogrenci ayni cumleyi uc kez okuyordu. Ikisi gorsel gecisten
+   gelmisti (log: "+9 points").
+
+   Genel dedupe yetmiyor: uclunun kelime ortusmesi 0,455 / 0,545 / 0,364,
+   NEAR_DUP_THRESHOLD ise 0,7. Esigi 0,35'e cekmek butun kartlardaki butun
+   maddeleri etkilerdi; olculen masum cift sayisi iki (0,125 / 0,143), yani
+   genel esigi oynatmak icin veri yok. Ayni alinti daha GUCLU bir kanit:
+   kelime ortusmesi tahmin, atif motorunun ayni (sayfa, cumle) ciftine
+   baglamasi belgenin kendi delili.
+   ========================================================================== */
+{
+  const A = loadAnchoring();
+  const KAYNAK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const SAYFA6 = [
+    'Rectangle Approximation',
+    '• Thin rectangles estimate the area.',
+    '• When the rectangles become very thin, the approximation approaches the exact area.'
+  ].join('\n');
+  const SAYFA12 = [
+    'Basic Rule 2: Constant Multiple', 'Constants stay outside',
+    '• A constant coefficient can stay in front of the integral.'
+  ].join('\n');
+  /* Dizin GERCEGE YAKIN tutuluyor: iki sayfalik dizinde idf dejenere
+     oluyor (her terim her sayfada -> agirlik 0) ve hicbir madde
+     baglanmiyor. Uretimdeki belge 27 sayfaydi. */
+  const DOLGU = {
+    2: 'Bridge from Derivatives to Integrals\nA derivative measures local change at one point.',
+    4: 'Area Under a Curve\nFor a positive function the definite integral represents the area under the curve.',
+    8: 'Definite vs Indefinite Integral\nIt gives an accumulated value over a chosen interval.',
+    13: 'Basic Rule 3: Sum and Difference\nWhen functions are added or subtracted, integrate each term separately.',
+    16: 'Trigonometric Integral Rules\nTrigonometric integrals reverse trigonometric derivatives.',
+    21: 'Special Rule: Logarithmic Integral\nRemember the absolute value in the general rule.'
+  };
+  const metin = [
+    ...Object.entries(DOLGU).map(([sf, g]) => `--- SAYFA ${sf} ---\n${g}`),
+    `--- SAYFA 6 ---\n${SAYFA6}`,
+    `--- SAYFA 12 ---\n${SAYFA12}`
+  ].join('\n\n');
+
+  test('AYNI ALINTIYA baglanan maddeler TEK dipnot paylasiyor', () => {
+    const idx = A.buildPageIndex(metin, 'SAYFA');
+    const maddeler = [
+      'A Riemann sum approximates area using thin rectangles, and the limit of this sum as rectangles become very thin is the definite integral.',
+      'Rectangle approximation uses finite thin rectangles to estimate area under a curve before exact integration.',
+      'Constant coefficients can be factored out to stay in front of the integral during evaluation.'
+    ];
+    const r = A.anchorCitations(maddeler.slice(), [], idx, 'en');
+    // Uc madde ama IKI dipnot: ilk ikisi ayni cumleye baglandi.
+    assert.equal(r.footnotes.length, 2, JSON.stringify(r.footnotes.map(f => f.reference)));
+    assert.equal(r.stats.paylasilan, 1, 'paylasim sayaci yanlis');
+    const im = r.key_points.map(k => (String(k).match(/\[(\d+)\]/) || [])[1]);
+    assert.equal(im[0], im[1], 'ayni cumleye baglanan iki madde ayri dipnot almis: ' + im);
+    assert.notEqual(im[2], im[0], 'ayri cumledeki madde birlestirilmis');
+    // Kaynakcada ayni (sayfa, alinti) ciftı iki kez gorunmemeli.
+    const anahtarlar = r.footnotes.map(f => f.page + '|' + f.reference);
+    assert.equal(new Set(anahtarlar).size, anahtarlar.length, 'kaynakcada kopya alinti kaldi');
+  });
+
+  test('TEK CUMLEDEN IKI AYRI OLGU birlestirilmiyor', () => {
+    /* Ikinci kosulun varlik sebebi: ayni cumleye baglanan iki madde
+       GERCEKTEN ayri seyler soyluyorsa (alt sinir / ust sinir) ikisi de
+       kalmali. Kelime ortusmesi 0,35'in altinda oldugu icin kapi acilmaz. */
+    const sayfa = '--- SAYFA 7 ---\nLimits of a Definite Integral\nThe lower limit is the starting point and the upper limit is the ending point of the interval.';
+    const idx = A.buildPageIndex(sayfa, 'SAYFA');
+    const maddeler = [
+      'The lower limit of a definite integral marks where accumulation starts.',
+      'The upper limit of a definite integral marks where accumulation ends.'
+    ];
+    const r = A.anchorCitations(maddeler.slice(), [], idx, 'en');
+    const im = r.key_points.map(k => (String(k).match(/\[(\d+)\]/) || [])[1]);
+    // Ikisi de atif almali; ayni cumleye dustuyse ortusme kapiyi acmamali.
+    if (im[0] && im[1] && im[0] === im[1]) {
+      const ort = A.kumeOrtusmesi(A.nearDupTermSet(maddeler[0]), A.nearDupTermSet(maddeler[1]));
+      assert.ok(ort >= 0.35,
+        `ortusme ${ort.toFixed(3)} esigin altindayken birlestirilmis — ikinci kosul calismiyor`);
+    }
+  });
+
+  test('ALINTISIZ isabet birlestirilmiyor', () => {
+    /* Alinti yoksa etiket sayfa basligina ya da "Sayfa N"e dusuyor; o kadar
+       genel bir eslesmeyi kopya saymak ayni sayfadaki BUTUN maddeleri tek
+       dipnota indirirdi. */
+    const i = KAYNAK.indexOf('const AYNI_ALINTI_ORTUSME');
+    assert.ok(i > 0, 'paylasim kapisi kaynakta yok');
+    const blok = KAYNAK.slice(i, i + 1400);
+    assert.match(blok, /if \(hit\.quote\) \{/, 'kapi alintinin varligina bagli degil');
+  });
+
+  test('paylasim sayaci LOGA baglanmis', () => {
+    assert.match(KAYNAK, /alinti-paylasan=\$\{anchored\.stats\.paylasilan\}/,
+      'paylasim loglanmiyor — kaynakca kisalmasi gorunmez');
+  });
+}
+
+/* ==========================================================================
+   UC HARFLI MATEMATIK ADLARI ELENIYORDU (30.10.2026 — "Week 8" OLCUMU)
+
+   Kartta bes madde atifsiz kaldi ("unanchored=5"). Ikisinin sebebi esik
+   DEGIL, terim cikarimiydi — anchorTerms 4 karakterden kisa her jetonu
+   atiyor, trigonometrik ve logaritmik fonksiyon adlari ise TAM UC HARF:
+     "The derivative of sin x is cos x."   -> cikan terim: derivative
+     "The derivative of tan x is sec^2 x." -> cikan terim: derivative, sec²
+   Tek terim kalinca ANCHOR_MIN_TERMS (3) maddeyi dusuruyordu.
+   ========================================================================== */
+{
+  const A = loadAnchoring();
+
+  test('anchorTerms UC HARFLI matematik adlarini tutuyor', () => {
+    const t = A.anchorTerms('The derivative of sin x is cos x.');
+    assert.deepEqual(t.sort(), ['cos', 'derivative', 'sin'], JSON.stringify(t));
+    // Ust simge soyuluyor: "sec²" kaynaktaki "sec" ile eslesmeli.
+    assert.ok(A.anchorTerms('derivative of tan x is sec² x').includes('sec'),
+      'ust simge soyulmuyor — kaynaktaki sec ile eslesmez');
+    assert.ok(A.anchorTerms('tan x').includes('tan'));
+    for (const ad of ['log', 'exp', 'lim', 'max', 'min', 'det', 'dim', 'var', 'cov', 'cot', 'csc'])
+      assert.ok(A.anchorTerms('the ' + ad + ' of it').includes(ad), ad + ' eleniyor');
+  });
+
+  test('UZUNLUK SUZGECI GENISLEMEDI: liste disi kisa sozcuk hala eleniyor', () => {
+    /* Taban 3'e indirilmedi; yalnizca sayili ad listesi muaf. Yoksa "one",
+       "two", "set", "use" gibi onlarca jeton atif kelime dagarcigini
+       sulandirirdi. */
+    for (const w of ['one', 'two', 'set', 'use', 'has', 'top', 'new'])
+      assert.deepEqual(A.anchorTerms(w), [], w + ' artik terim sayiliyor');
+    // Dort harf ve uzeri eskisi gibi geciyor.
+    assert.ok(A.anchorTerms('derivative').includes('derivative'));
+  });
+
+  test('OLCULEN ATIFSIZ TRIGONOMETRI MADDELERI dogru sayfaya baglaniyor', () => {
+    const P17 = [
+      'Question Set 8: Pay attention to signs', 'Trigonometric Derivatives',
+      'QUESTION', 'Hint', "Memorize sin→cos, cos→-sin, tan-→sec'.",
+      'Trig rules', '-sin x = cos x', '-cos x = - sin x', '-tan x = sec" x'
+    ].join('\n');
+    const P5 = 'Answer Set 2: Basic derivative rules\nKey idea\nPower rule: the exponent moves down, then\ndecreases by one.';
+    const P7 = 'Answer Set 3: When two functions are multiplied\nANSWER\nKey idea\nA product-rule derivative has two terms\nbefore simplification.';
+    const metin = `--- SAYFA 5 ---\n${P5}\n\n--- SAYFA 7 ---\n${P7}\n\n--- SAYFA 17 ---\n${P17}`;
+    const idx = A.buildPageIndex(metin, 'SAYFA');
+    const idf = A.buildAnchorIdf(idx);
+    for (const iddia of ['The derivative of sin x is cos x.', 'The derivative of tan x is sec² x.']) {
+      const h = A.anchorClaimToPage(iddia, idx, idf, true);
+      assert.ok(h, 'hala atifsiz: ' + iddia);
+      assert.equal(h.page, 17, `${iddia} -> sayfa ${h && h.page}`);
+    }
+  });
+
+  test('NOTASYONLA YAZILI madde BILEREK atifsiz kaliyor', () => {
+    /* "When f'(x) > 0, the function f is increasing." maddesinin terimleri
+       (function, increasing) olculen belgede hicbir sayfada BIRLIKTE
+       gecmiyor — kaynak ayni seyi notasyonla yaziyor ("f'(x) > 0 -> f is
+       increasing"). Taban 2'ye indirilse de eslesen terim sayisi 1 kalir,
+       yani esikle cozulmez. Bu test kusuru savunmuyor, SINIRI sabitliyor. */
+    const t = A.anchorTerms("When f'(x) > 0, the function f is increasing.");
+    assert.deepEqual(t.sort(), ['function', 'increasing'], JSON.stringify(t));
+    // Tek harfli degisken ve ciplak sayi terim DEGIL — oyle olmasi dogru.
+    assert.ok(!t.includes('f') && !t.includes('x') && !t.includes('0'));
+  });
+
+  test('matematik adlari generate-exam te de GUNCEL', () => {
+    const g = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');
+    assert.match(g, /const ANCHOR_KISA_MATEMATIK = new Set\(\[/, 'generate-exam te kisa ad listesi yok');
+    assert.match(g, /ANCHOR_KISA_MATEMATIK\.has\(w\)/, 'generate-exam te suzgec guncellenmemis');
   });
 }
 

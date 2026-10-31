@@ -25,7 +25,9 @@ const GRADE_PATH = 'supabase/functions/grade-exam/index.ts';
 const SUM_PATH = 'supabase/functions/summarize-document/index.ts';
 
 const ANCHOR_NAMES = [
-  'ANCHOR_STOPWORDS', 'trNormalize', 'anchorTerms', 'SENTENCE_ABBREV', 'splitSentences',
+  'ANCHOR_STOPWORDS', 'trNormalize', 
+  // Uc harfli matematik adlari eleniyordu (30.10.2026 olcumu).
+  'ANCHOR_KISA_MATEMATIK', 'ANCHOR_UST_SIMGE', 'anchorTerms', 'SENTENCE_ABBREV', 'splitSentences',
   'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS', 'alintiBloklari', 'bestQuoteForClaim',
   // Cogul eki atifi olduruyordu (30.10.2026 olcumu).
   'ingTekil', 'tekilKume',
