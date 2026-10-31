@@ -101,6 +101,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
   // Ayni baslik metin olcusunu beklemez (31.10.2026 olcumu).
   'nearDupAyniBaslik',
+  // Ayrik sayi kumesi birlesmeyi engeller (31.10.2026 olcumu).
+  'sayiKumesiAyrik',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
   // Bolum kopyasi genel esigin ALTINDA kaliyordu (30.10.2026 olcumu).
   'BOLUM_BASLIK_ESIGI', 'BOLUM_GOVDE_ESIGI', 'BOLUM_BASLIK_MIN_TERIM',
@@ -3757,10 +3759,15 @@ test('review ve critic de serit secebiliyor', () => {
     'review serit secmeli');
   assert.ok(/const reviewLane = reviewPlan\.lane/.test(SRC), 'review secilen seridi kullanmali');
   assert.ok(/const criticLane = pickLane/.test(SRC), 'critic de secmeli');
-  // Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali (vision haric —
-  // qwen tek gorme yetenekli model).
+  /* Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali — GORME
+     cagrilari haric, cunku qwen tek gorme yetenekli model. Bunlar iki
+     tane: gorsel gecis ve 31.10.2026'da eklenen TABLO GECISI (bkz.
+     TABLO_MAX_COMPLETION). Ikisi de ayni mini-PDF'i okur, ayni seridi
+     paylasir ve pacer'a ayri ayri yazilir. Sayi 2'den YUKARI cikiyorsa
+     muhtemelen gormeyle ilgisi olmayan bir cagri sabitlenmistir. */
   const pinned = [...SRC.matchAll(/model: MODEL_FAST/g)].length;
-  assert.equal(pinned, 1, `MODEL_FAST e sabit ${pinned} cagri var, sadece vision olmali`);
+  assert.equal(pinned, 2, `MODEL_FAST e sabit ${pinned} cagri var, sadece iki gorme cagrisi olmali`);
+  assert.ok(/TABLO_MAX_COMPLETION/.test(SRC), 'tablo gecisi kaybolmus');
 });
 
 test('dinamik serit secen cagrida sabit reasoning_effort yok', () => {
@@ -8710,6 +8717,151 @@ test('ORTADA ISLEM YOKSA dokunulmuyor (hipotez satiri)', () => {
   /* "H_0: β_1 = β_2 = 0" iki esitlikli ama orta bolge sade. */
   assert.deepEqual(A.araHesabiAyikla('H_0: \u03b2_1 = \u03b2_2 = 0').elenen, []);
   assert.deepEqual(A.araHesabiAyikla('x = y = 5').elenen, []);
+});
+
+
+/* AYRI SAYI AYRI OLGUDUR (31.10.2026, IPPT kartinda olculdu)
+
+   Kelime ortusmesi iki gercekten AYRI olguyu birlestiriyordu. Kartin kendi
+   iki maddesi (s.39 yorum slayti), ortusme 0.818 / esik 0.7:
+     "...Europe dummy coefficient ... 50.5% higher in Europe..."
+     "...North America dummy coefficient ... 56.6% higher in North America..."
+   Birlestiler, 56.6 karta hic girmedi ve kapsamada kayip sayildi. */
+const CIFT_A = 'In the log-linear model with dummy variables where the dependent variable is the natural log of energy per capita and South America is the omitted group, the Europe dummy coefficient indicates that energy consumption per capita is 50.5% higher in Europe than in South America, though this is statistically insignificant.';
+const CIFT_B = 'In the log-linear model with dummy variables where the dependent variable is the natural log of energy per capita and South America is the omitted group, the North America dummy coefficient indicates that energy consumption per capita is 56.6% higher in North America than in South America, though it is marginally significant.';
+
+test('AYRIK sayi kumesi birlesmeyi engelliyor', () => {
+  /* Metin olcusu gercekten esigin USTUNDE — koruma oradan gelmiyor. */
+  const sa = A.nearDupTermSet(CIFT_A), sb = A.nearDupTermSet(CIFT_B);
+  let pay = 0; for (const x of sb) if (sa.has(x)) pay++;
+  assert.ok(pay / Math.min(sa.size, sb.size) > A.NEAR_DUP_THRESHOLD,
+    'ortusme esigin altina dusmus; bu test artik sayi korumasini olcmuyor');
+  assert.equal(A.sayiKumesiAyrik(CIFT_A, CIFT_B), true);
+  assert.equal(A.dedupeNearDuplicates([CIFT_A, CIFT_B], (x) => x).length, 2,
+    'ayri iki olgu hala birlesiyor');
+});
+
+test('koruma DAR: sayisiz gercek kopyalar eskisi gibi birlesiyor', () => {
+  /* Olculen gercek kopyalar — ikisinde de ayirt edici sayi YOK. */
+  assert.equal(A.sayiKumesiAyrik('A Riemann sum approximates area using thin rectangles',
+    'Rectangle approximation estimates area under a curve'), false);
+  assert.equal(A.dedupeNearDuplicates([
+    'Talep esnekligi fiyat degisimine duyarliligi olcer',
+    'Esneklik, fiyat degisimine talebin duyarliligini olcer'
+  ], (x) => x).length, 1, 'sayisiz yakin kopya birlesmeyi birakmis');
+});
+
+test('AYNI sayiyi tasiyan iki ifade hala birlesebiliyor', () => {
+  assert.equal(A.sayiKumesiAyrik('the minimum occurs at 67.11 degrees',
+    'the function reaches its minimum at 67.11 degrees'), false);
+});
+
+test('TEK TARAF sayisizsa koruma calismiyor (eski davranis)', () => {
+  assert.equal(A.sayiKumesiAyrik('the minimum occurs at 67.11 degrees',
+    'the function reaches its minimum temperature'), false);
+});
+
+/* ORFAN DOLAR VE SAHTE ADACIK (31.10.2026, IPPT kartinda olculdu)
+
+   Model ayiraci yarim yaziyor; tek kalan $ ekranda duruyordu:
+     "...0.09temp²$ contains linear and quadratic terms"
+     "...= β̂₁ + 2β̂₂ x_j$. For the utility bill model"
+   Ustelik orfan $ ilerideki PARA isaretiyle eslesip sahte bir matematik
+   adacigi kuruyor ve arada kalan DUZ METIN korunuyordu. */
+test('orfan $ ekrandan kalkiyor, PARA duruyor', () => {
+  const r = A.onarAnlatiLatex('the model is \\beta_0 + 0.09temp^2$ and the bill falls by $5.06 at 40 degrees');
+  assert.equal(r.metin, 'the model is \u03b2\u2080 + 0.09temp\u00b2 and the bill falls by $5.06 at 40 degrees');
+});
+
+test('100$ gibi SONDAKI para isareti korunuyor', () => {
+  const r = A.onarAnlatiLatex('toplam maliyet 100$ olarak hesaplandi ve \\beta_1 katsayisi kullanildi');
+  assert.match(r.metin, /100\$ olarak/, r.metin);
+});
+
+test('GERCEK $...$ adacigina dokunulmuyor', () => {
+  const s = 'the estimated model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ contains terms';
+  assert.equal(A.onarAnlatiLatex(s).metin, s, 'ayiracli matematik bozulmus');
+});
+
+test('kurtarma: HESAP ve ANLAM ayni cumledeyken SON esitligin sagi aday', () => {
+  /* Harf orani 0.52 oldugu icin cumlenin tamami suzgecten gecemiyordu. */
+  const kaynak = [
+    'The marginal effect at a temperature of 80 (evaluated at 79) is',
+    '-12.08 + 2(0.09)79 = \u2212 12.08 + 14.22 = 2.14',
+    'which means that if temperature increases from 79 to 80 degrees then the utility bill increases by $2.14.'
+  ].join('\n');
+  const r = A.yorumCumleleriniKurtar(kaynak, [2.14, 14.22], []);
+  assert.deepEqual(r.kurtarilan, [2.14], 'kurtarilan: ' + JSON.stringify(r.kurtarilan));
+  assert.match(r.points[0], /which means that/, r.points[0]);
+});
+
+
+/* TABLO GECISI AYRI CAGRI (31.10.2026)
+
+   Kullanici ayni belgenin ESKI kartini gosterdi: 12 Excel regresyon
+   tablosu, 3 diyagram. Yeni kartlarda 1 tablo, 0 diyagram. Uc sebep:
+     1) GEMINI_MODE=parallel sayfalari METIN olarak gonderiyor; Excel
+        ciktisi slaytta RESIM, metinde hic yok (document_chunks'tan
+        dogrulandi: s.11 metni 0.452555/0.070379 tasimiyor),
+     2) telafi eden gorsel gecis 3072 cikis tavanini ALTI alanla
+        paylasiyor — 7 kolonlu 12 tablo tek basina birkac bin token,
+     3) o promptun tamami duz yaziya yonlendiriyor ("write that in WORDS
+        as a key_point", "NEVER AS A DESCRIPTION OF THE FIGURE") ve
+        modele tabloyu DOKMESINI soyleyen tek cumle yok.
+   Dort kosuda da "+0 tables" dondu. */
+test('tablo gecisi KENDI tavanina sahip ve gorsel gecisten buyuk', () => {
+  assert.ok(/const TABLO_MAX_COMPLETION = (\d+)/.test(SRC), 'tavan sabiti yok');
+  const tablo = Number(SRC.match(/const TABLO_MAX_COMPLETION = (\d+)/)[1]);
+  const gorsel = Number(SRC.match(/const VISION_MAX_COMPLETION = (\d+)/)[1]);
+  assert.ok(tablo > gorsel,
+    `tablo tavani (${tablo}) gorsel tavanindan (${gorsel}) buyuk olmali, yoksa dokum yine kesilir`);
+});
+
+test('tablo gecisi YALNIZCA tablo ve diyagram istiyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const tabloPrompt =');
+  assert.ok(i > 0, 'tablo promptu yok');
+  const prompt = kod.slice(i, i + 1400);
+  for (const sart of ['"tables"', '"diagrams"', 'TRANSCRIBE', 'Invent nothing']) {
+    assert.ok(prompt.includes(sart), 'tablo promptunda eksik: ' + sart);
+  }
+  /* Duz yazi alanlari ISTENMEMELI: butun tavan dokume gitsin. */
+  for (const olmaz of ['key_points', 'quiz_questions', 'key_terms', 'sections']) {
+    assert.ok(!prompt.includes(olmaz), 'tablo promptu duz yazi da istiyor: ' + olmaz);
+  }
+});
+
+test('tablo gecisi yalnizca PARALLEL modda ve butce varken kosuyor', () => {
+  const kod = KAPSAMA_KOD;
+  assert.ok(/if \(parallelGemini && budgetLeft\(\) > TABLO_GECIS_MIN_BUTCE_MS\)/.test(kod),
+    'kosul yok: only/shadow zaten PDF in tamamini gorsel gonderiyor, tekrar cagri bedava degil');
+});
+
+test('tablo gecisi AYNI mini-PDF i kullaniyor (yeni goruntu ucreti yok)', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const tabloRes = await fetchWithRetry');
+  assert.ok(i > 0, 'tablo cagrisi yok');
+  assert.ok(kod.slice(i, i + 900).includes('content: visualUserContent'),
+    'tablo cagrisi kendi goruntusunu uretiyor; gorsel gecisin mini-PDF i yeniden kullanilmali');
+});
+
+test('tablo gecisi pacer a yaziliyor ve kesik JSON kurtariliyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const tabloEst =');
+  const blok = kod.slice(i, i + 3000);
+  assert.ok(/tokenPacer\.acquire\(tabloEst/.test(blok), 'pacer dan izin alinmiyor');
+  assert.ok(/tokenPacer\.record\(/.test(blok), 'harcama pacer a yazilmiyor — review sonra 429 alir');
+  assert.ok(/closeTruncatedJson\(tabloTemiz\)/.test(blok), 'kesik tablo JSON u kurtarilmiyor');
+});
+
+test('tablo gecisi mevcut tablolari EZMIYOR, birlestiriyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const tabloOnce = mergedTables.length');
+  assert.ok(i > 0, 'birlestirme yok');
+  const blok = kod.slice(i, i + 1200);
+  assert.ok(/dedupeByText\(\s*\[\.\.\.mergedTables, \.\.\.yeniTablolar\]/.test(blok),
+    'yeni tablolar mevcutlarla birlestirilmeli');
+  assert.ok(/\.slice\(0, 12\)/.test(blok), 'tablo tavani 12 korunmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

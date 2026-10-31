@@ -2798,9 +2798,26 @@ function alintiBloklari(body: string): string[] {
     const noktalamaylaBitti = /[.!?\u2026:]$/.test(onceki)
     const tireyleBolundu = /[-\u2010-\u2015]$/.test(onceki)
     const kucukBasliyor = /^[a-z\u00e0-\u00f6\u00f8-\u00ff\u011f\u015f\u0131\u00f6\u00e7\u00fc]/.test(satir)
+    /* PARANTEZLE BASLAYAN SARMA (31.10.2026, IPPT kartinda olculdu).
+
+       Yukaridaki "bilinen sinir" notu kucuk harf sartini anlatiyor. Olculen
+       kayip tam oradan geldi: kaynak satiri
+         "consumption per capita goes up by"
+         "(0.026)100% or 2.6%.” This coefficient is"
+       Ikinci satir parantezle basladigi icin SINIR sayildi; cumle ortasindan
+       kesildi ve sayilar 21 karakterlik, harf orani 0.10 olan bir parcada
+       kaldi. O parca her suzgecten dusuyor, yani 0.026 ve 2.6 hicbir aday
+       cumlede gecmiyordu.
+
+       Parantez/yuzde CUMLE BASLATAMAZ, o yuzden sarma sayiliyor. CIPLAK
+       RAKAM bilerek disarida: grafik eksen centikleri ("0", "20", "40")
+       noktalamasiz bir baslik satirinin ardindan geliyor ve onlari
+       yapistirmak "Scatter Plots of this Relationship for Europe" gibi
+       calisan bir alinti etiketini coplestirirdi. */
+    const cumleBaslatamaz = /^[(\u00ab„%]/.test(satir)
     if (tireyleBolundu) {
       out[out.length - 1] = onceki.replace(/[-\u2010-\u2015]$/, '') + satir
-    } else if (!noktalamaylaBitti && kucukBasliyor) {
+    } else if (!noktalamaylaBitti && (kucukBasliyor || cumleBaslatamaz)) {
       out[out.length - 1] = onceki + ' ' + satir
     } else {
       out.push(satir)

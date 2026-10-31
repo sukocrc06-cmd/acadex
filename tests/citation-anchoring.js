@@ -1318,4 +1318,46 @@ test('sayi jetonu DOGRU sayfada artik var', () => {
     's.40 jetonlari arasinda 0.69 yok: ' + [...s40.terms].filter((x) => /\d/.test(x)).join(' '));
 });
 
+
+// --- parantezle baslayan sarma (31.10.2026) ------------------------------
+/* PARANTEZLE BASLAYAN SARMA
+
+   alintiBloklari sarmayi yalnizca KUCUK HARFLE devam ediyorsa birlestiriyor
+   (bkz. kaynaktaki "bilinen sinir" notu). Olculen kayip tam oradan:
+     "consumption per capita goes up by"
+     "(0.026)100% or 2.6%.” This coefficient is"
+   Ikinci satir parantezle basladigi icin SINIR sayiliyordu; cumle
+   ortasindan kesiliyor ve sayilar 21 karakterlik, harf orani 0.10 olan bir
+   parcada kaliyordu. O parca her suzgecten duser, yani 0.026 ve 2.6 hic
+   aday cumlede gecmiyordu. */
+test('PARANTEZLE baslayan satir sarma sayiliyor', () => {
+  const kaynak = [
+    'This slope coefficient on gdppc is',
+    'interpreted as, \u201con average, if GDP per',
+    'capita increases by $1000 then energy',
+    'consumption per capita goes up by',
+    '(0.026)100% or 2.6%.\u201d This coefficient is',
+    'statistically significant at the 1% level.'
+  ].join('\n');
+  const adaylar = A.alintiBloklari(kaynak).flatMap((b) => A.splitSentences(b));
+  const tasiyan = adaylar.filter((c) => c.includes('0.026') && c.includes('2.6'));
+  assert.equal(tasiyan.length, 1, 'sayilari tasiyan tam cumle yok: ' + JSON.stringify(adaylar));
+  assert.ok(/interpreted as/.test(tasiyan[0]), 'cumle hala kesik: ' + tasiyan[0]);
+  assert.ok(tasiyan[0].length <= A.QUOTE_MAX_CHARS, tasiyan[0].length);
+});
+
+test('CIPLAK RAKAMLA baslayan satir sarma DEGIL (eksen centikleri)', () => {
+  /* Grafik centikleri noktalamasiz bir baslik satirinin ardindan geliyor;
+     yapistirmak calisan bir alinti etiketini coplestirirdi. */
+  const kaynak = ['Scatter Plots of this Relationship for Europe', '0', '20', '40', '0 5 10 15 20'].join('\n');
+  const b = A.alintiBloklari(kaynak);
+  assert.equal(b[0], 'Scatter Plots of this Relationship for Europe',
+    'baslik centiklerle birlesmis: ' + JSON.stringify(b[0]));
+});
+
+test('KUCUK HARF sarmasi eskisi gibi birlesiyor (regresyon)', () => {
+  const b = A.alintiBloklari(['Power rule: the exponent moves down, then', 'decreases by one.'].join('\n'));
+  assert.equal(b.length, 1, JSON.stringify(b));
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

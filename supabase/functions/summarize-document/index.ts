@@ -382,7 +382,20 @@ function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } 
  *   \\times                  -> x        \\, \\; \\! \\quad -> bosluk
  *   \\frac{a}{b}             -> a/b
  * $...$ ve \\(...\\) ICI HIC ELLENMIYOR: orayi KaTeX dogru diziyor. */
-const ANLATI_MATEMATIK_ADACIK_RE = /\$[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
+/* SAHTE ADACIK (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Desen iki $ arasini kosulsuz matematik sayiyordu. Model ayiraci YARIM
+ * yazdiginda orfan $ ilerideki PARA isaretiyle eslesiyor ve arada kalan
+ * DUZ METIN matematik diye korunuyordu:
+ *   "...0.09temp^2$ and the bill falls by $5.06 at 40 degrees"
+ * Burada adacik "$ and the bill falls by $" oluyor; ne yumusatma ne de
+ * orfan temizligi o bolgeye dokunabiliyordu.
+ *
+ * Adacik artik ICERIGININ matematik oldugunu gostermeli: ters bolu,
+ * alt/ust simge, suslu parantez, esitlik ya da rakam. Olculen gercek
+ * adaciklar hepsi geciyor ($UtilityBill = 484.12...$, $H_0: \beta_2 = 0$,
+ * $2.6\%$); " and the bill falls by " hicbirini tasimiyor. */
+const ANLATI_MATEMATIK_ADACIK_RE = /\$(?=[^$\n]*[\\^_{}=\d])[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
 
 /* Komut siniri: \int ile \infty ayri komutlar, ve \int_{0} gibi hallerde
    ardindan '_' geliyor — '_' regex'te KELIME karakteri oldugu icin \b
@@ -586,6 +599,20 @@ function anlatiLatexYumusat(parca: string): string {
     })
     if (t === once) break
   }
+  /* ORFAN DOLAR (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Model ayiraci YARIM yaziyor ve tek kalan $ ekranda duruyordu:
+   *   "...UtilityBill = 484.12 - 12.08temp + 0.09temp²$ contains linear"
+   *   "...(∂ ŷ)/(∂ x_j) = β̂₁ + 2β̂₂ x_j$. For the utility bill model"
+   * Bu fonksiyon YALNIZCA ayirac disi parcalara uygulaniyor (bkz.
+   * onarAnlatiLatex), yani buradaki $ ya paradir ya da orfan ayirac.
+   *
+   * PARA KORUNUYOR: iki yanindan biri rakam olan $ atilmiyor —
+   * "$5.06", "$1000" (sagi rakam) ve "100$" (solu rakam) duruyor.
+   * Orfan ornekleri ikisine de uymuyor: "temp²$ " ve "x_j$.".
+   * SIRA: ust simge cevirisinden SONRA, yoksa "temp^2$" icindeki $'in
+   * solu rakam gorunur ve orfan atlanirdi. */
+  t = t.replace(/(?<!\d)\$(?!\d)/g, '')
   return t.replace(/[ \t]{2,}/g, ' ')
 }
 
@@ -1713,6 +1740,36 @@ const VISION_TOKENS_PER_IMAGE = 2048
 // pages this pass reads are where a table, chart or diagram is most likely to
 // live, and a Mermaid block or multi-row table needs the room.
 const VISION_MAX_COMPLETION = 3072
+/* TABLO GECISI AYRI CAGRI (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Kullanici ayni belgenin ESKI kartini gosterdi: 12 Excel regresyon
+ * tablosu, 3 diyagram. Yeni kartlarda 1 tablo, 0 diyagram. Teshis:
+ *
+ *  1) GEMINI_MODE=parallel sayfalari METIN olarak gonderiyor (bkz. o
+ *     moddaki not); Excel ciktisi slaytta RESIM, metinde hic yok —
+ *     document_chunks'tan dogrulandi: s.11 metni "...increases by .07
+ *     tons" diyor, 0.452555/0.070379 gecmiyor. Metin pencereleri o
+ *     tablolari hicbir kosulda uretemez.
+ *  2) Telafi eden gorsel gecis DOGRU sayfalari buluyor ("veri referansi
+ *     (10 aday)") ama 3072 cikis tavanini key_terms + key_points +
+ *     quiz + sections + tables + diagrams ile PAYLASIYOR. 7 kolonlu 12
+ *     tablo tek basina birkac bin token.
+ *  3) Ve o promptun tamami duz yaziya yonlendiriyor: "write that in
+ *     WORDS as a key_point", "PHRASE EVERY key_point AS THE FACT, NEVER
+ *     AS A DESCRIPTION OF THE FIGURE". Modele tabloyu DOKMESINI soyleyen
+ *     tek cumle yok. Dort kosuda da "+0 tables" dondu.
+ *
+ * Cozum tavani buyutmek DEGIL — tek cagri yine alti alana bolunurdu.
+ * Ayri bir cagri: yalnizca tables + diagrams ister, kendi tavani var,
+ * ve talimati "dok" diyor. Yalnizca parallel modunda kosar; only/shadow
+ * zaten PDF'in tamamini gorsel olarak gonderiyor.
+ *
+ * MALIYET: tek ek cagri, ayni mini-PDF (yeni goruntu ucreti yok), ~3-5
+ * sn. Olculen kosu 19 sn / 150 sn butce, yani yeri var. Butce dar ise
+ * atlanir ve kart eskisi gibi uretilir. */
+const TABLO_MAX_COMPLETION = 8192
+/* Altinda tablo gecisi denenmez: kesik bir tablo hic tablodan kotudur. */
+const TABLO_GECIS_MIN_BUTCE_MS = 25000
 const VISION_MAX_IMAGES = 2
 // The vision pass is an EXTRA call, and on this tier every extra call means a
 // full ~60s TokenPacer wait before it can start. The narrative writer runs
@@ -3136,6 +3193,40 @@ function nearDupKeysMatch(a: string, b: string): boolean {
  * katlanmaz (ikisi de 5 karakterden kisa, oldugu gibi kalir). "effects"/
  * "effect" katlanir. Bu sinir bilerek: kisa sozcukte cogul atmak
  * Turkce'de "kurs"->"kur" gibi anlam kaymasi uretir. */
+/* AYRI SAYI AYRI OLGUDUR (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Kelime ortusmesi iki GERCEKTEN AYRI olguyu birlestiriyordu. Olculen
+ * cift (kartin kendi maddeleri, s.39 yorum slayti):
+ *   A: "...the Europe dummy coefficient indicates that energy consumption
+ *       per capita is 50.5% higher in Europe than in South America..."
+ *   B: "...the North America dummy coefficient indicates that energy
+ *       consumption per capita is 56.6% higher in North America..."
+ * Ortusme 0.818, esik 0.7 — birlestiler, 56.6 karta hic girmedi ve
+ * sayisal kapsamada kayip sayildi. Iki cumle ayni kalibi paylasiyor,
+ * yalnizca BOLGE ve SAYI farkli; nicel bir belgede ayirt edici olan tam
+ * da bu.
+ *
+ * ESIK OYNATILMADI (olculdu: 0.4-0.7 bandindaki 8333 ciftin cogu gercekten
+ * ayri; Jaccard da reddedildi, gercek kopyalar 0.474/0.364 veriyor). Bunun
+ * yerine AYRI bir koruma: iki metnin de ayirt edici sayisi varsa ve
+ * kumeler AYRIKSA, bunlar ayni olgunun iki ifadesi olamaz.
+ *
+ * DAR: biri sayisiz ise koruma calismaz (eski davranis), cunku o zaman
+ * sayi bir sinyal tasimiyor. Olculen gercek kopyalar etkilenmiyor —
+ * Riemann toplami ucluSu ve "Interaction Effect(s)" ciftinde ayirt edici
+ * sayi YOK, ikisi de eskisi gibi birlesiyor.
+ *
+ * distinctiveNumbers kullaniliyor, ham rakam degil: tam sayi, yil, eksen
+ * centigi, ara hesap ve yuzde carpani zaten orada eleniyor. */
+function sayiKumesiAyrik(a: string, b: string): boolean {
+  const sa = new Set(distinctiveNumbers(a).map(Math.abs))
+  if (sa.size === 0) return false
+  const sb = new Set(distinctiveNumbers(b).map(Math.abs))
+  if (sb.size === 0) return false
+  for (const v of sa) if (sb.has(v)) return false
+  return true
+}
+
 function nearDupAyniBaslik(a: string, b: string): boolean {
   const na = gateNormalize(a)
   const nb = gateNormalize(b)
@@ -3326,7 +3417,7 @@ function dedupeNearDuplicates(
   getKey?: (item: any) => string
 ): any[] {
   const list = Array.isArray(items) ? items : []
-  type Kept = { item: any; terms: Set<string>; order: number; len: number; key: string }
+  type Kept = { item: any; terms: Set<string>; order: number; len: number; key: string; text: string }
   const kept: Kept[] = []
 
   for (let i = 0; i < list.length; i++) {
@@ -3335,7 +3426,7 @@ function dedupeNearDuplicates(
     const terms = nearDupTermSet(text)
     const key = getKey ? String(getKey(list[i]) || '') : ''
 
-    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length, key }); continue }
+    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length, key, text }); continue }
 
     let mergedInto = -1
     for (let k = 0; k < kept.length; k++) {
@@ -3345,6 +3436,8 @@ function dedupeNearDuplicates(
       if (!nearDupKeysMatch(key, other.key)) continue
       /* AYNI BASLIK metin olcusunu beklemez — bkz. nearDupAyniBaslik. */
       if (nearDupAyniBaslik(key, other.key)) { mergedInto = k; break }
+      /* AYRIK SAYI KUMESI birlesmeyi engeller — bkz. sayiKumesiAyrik. */
+      if (sayiKumesiAyrik(text, other.text)) continue
       let shared = 0
       for (const t of terms) if (other.terms.has(t)) shared++
       const overlap = shared / Math.min(terms.size, other.terms.size)
@@ -3352,11 +3445,11 @@ function dedupeNearDuplicates(
     }
 
     if (mergedInto === -1) {
-      kept.push({ item: list[i], terms, order: kept.length, len: text.length, key })
+      kept.push({ item: list[i], terms, order: kept.length, len: text.length, key, text })
     } else if (text.length > kept[mergedInto].len) {
       // Same idea, better stated — keep the fuller wording at the original
       // position so ordering stays stable.
-      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length, key }
+      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length, key, text }
     }
   }
 
@@ -4716,9 +4809,26 @@ function alintiBloklari(body: string): string[] {
     const noktalamaylaBitti = /[.!?\u2026:]$/.test(onceki)
     const tireyleBolundu = /[-\u2010-\u2015]$/.test(onceki)
     const kucukBasliyor = /^[a-z\u00e0-\u00f6\u00f8-\u00ff\u011f\u015f\u0131\u00f6\u00e7\u00fc]/.test(satir)
+    /* PARANTEZLE BASLAYAN SARMA (31.10.2026, IPPT kartinda olculdu).
+
+       Yukaridaki "bilinen sinir" notu kucuk harf sartini anlatiyor. Olculen
+       kayip tam oradan geldi: kaynak satiri
+         "consumption per capita goes up by"
+         "(0.026)100% or 2.6%.” This coefficient is"
+       Ikinci satir parantezle basladigi icin SINIR sayildi; cumle ortasindan
+       kesildi ve sayilar 21 karakterlik, harf orani 0.10 olan bir parcada
+       kaldi. O parca her suzgecten dusuyor, yani 0.026 ve 2.6 hicbir aday
+       cumlede gecmiyordu.
+
+       Parantez/yuzde CUMLE BASLATAMAZ, o yuzden sarma sayiliyor. CIPLAK
+       RAKAM bilerek disarida: grafik eksen centikleri ("0", "20", "40")
+       noktalamasiz bir baslik satirinin ardindan geliyor ve onlari
+       yapistirmak "Scatter Plots of this Relationship for Europe" gibi
+       calisan bir alinti etiketini coplestirirdi. */
+    const cumleBaslatamaz = /^[(\u00ab„%]/.test(satir)
     if (tireyleBolundu) {
       out[out.length - 1] = onceki.replace(/[-\u2010-\u2015]$/, '') + satir
-    } else if (!noktalamaylaBitti && kucukBasliyor) {
+    } else if (!noktalamaylaBitti && (kucukBasliyor || cumleBaslatamaz)) {
       out[out.length - 1] = onceki + ' ' + satir
     } else {
       out.push(satir)
@@ -6450,7 +6560,20 @@ function yorumCumleleriniKurtar(
   const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
   for (const blok of alintiBloklari(sourceText)) {
     for (const cumle of splitSentences(blok)) {
-      const kirpik = cumle.trim()
+      const tam = cumle.trim()
+      /* HESAP VE ANLAM AYNI CUMLEDE OLABILIR (31.10.2026 olculdu).
+         Kaynak satir yapisi yuzunden zincir ile yorumu bir blokta geliyor:
+           "-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14 which means that if
+            temperature increases from 79 to 80 degrees then the utility bill
+            increases by $2.14."
+         Harf orani 0.52, yani suzgec tamamini eliyordu ve 2.14 hic
+         kurtarilamiyordu. SON esitligin sagi ayri bir aday olarak da
+         deneniyor: orada sonuc VE anlami duruyor (108 krk, harf orani
+         yuksek). Kuyruk tek basina sayi ise ("= 67.11") sozcuk ve isaretci
+         suzgeclerinden gecemez. */
+      const esit = tam.lastIndexOf('=')
+      const kuyruk = esit >= 0 ? tam.slice(esit + 1).trim() : ''
+      for (const kirpik of (kuyruk && kuyruk !== tam ? [tam, kuyruk] : [tam])) {
       if (kirpik.length < QUOTE_MIN_CHARS || kirpik.length > QUOTE_MAX_CHARS) continue
       if (!YORUM_ISARETCI_RE.test(kirpik)) continue
       const harf = (kirpik.match(/\p{L}/gu) || []).length
@@ -6466,7 +6589,8 @@ function yorumCumleleriniKurtar(
         }
         if (m[0].length === 0) re.lastIndex++
       }
-      if (bulunan.size > 0) adaylar.push({ metin: kirpik, bulunan })
+      if (bulunan.size > 0) { adaylar.push({ metin: kirpik, bulunan }); break }
+      }
     }
   }
   /* Cok eksik sayi tasiyan once; esitlikte KISA olan, cunku madde olarak
@@ -14087,6 +14211,103 @@ The example that used to sit here named a real-looking percentage, and a live ru
                 visualAnalysisUsed = true
                 console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${maddeliBolumler.length} sections, +${newTables.length} tables, +${newDiagrams.length} diagrams (grafik alinmaz) from ${visualImages.length} sekil sayfasi`)
               }
+
+            /* --- TABLO GECISI (ayri cagri) — bkz. TABLO_MAX_COMPLETION. */
+            if (parallelGemini && budgetLeft() > TABLO_GECIS_MIN_BUTCE_MS) {
+              const tabloPrompt = `You are transcribing DATA OBJECTS from lecture slide images.
+Return ONLY tables and diagrams that are VISIBLE IN THE IMAGES as a table, matrix, worksheet, regression output or box-and-arrow figure.
+TRANSCRIBE, do not summarise: copy every column header and every row cell EXACTLY as printed, including all decimal places and negative signs. A regression output has one row per variable and columns such as Coefficients, Standard Error, t Stat, P-value.
+Name each table so a student knows which slide it came from, e.g. \"Excel Output: Log-Linear Model of Energy Consumption (Slide 38)\".
+For a box-and-arrow or flow figure, emit a diagram with valid Mermaid instead; never emit a chart or a plot — a chart's lesson belongs in prose and is handled elsewhere.
+Respond ONLY with JSON in ${langLabel}: {"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
+Return empty arrays if the images contain no such object. Invent nothing: a cell you cannot read is omitted, never guessed.`
+              const tabloEst =
+                visualImages.length * VISION_TOKENS_PER_IMAGE +
+                Math.ceil(tabloPrompt.length / 3.2) +
+                Math.ceil(TABLO_MAX_COMPLETION * PACER_COMPLETION_FACTOR)
+              await tokenPacer.acquire(tabloEst, MODEL_FAST, TABLO_MAX_COMPLETION)
+              const tabloRes = await fetchWithRetry('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: MODEL_FAST,
+                  temperature: 0,
+                  ...reasoningParamsFor(MODEL_FAST),
+                  max_completion_tokens: TABLO_MAX_COMPLETION,
+                  response_format: { type: 'json_object' },
+                  messages: [
+                    { role: 'system', content: tabloPrompt },
+                    { role: 'user', content: visualUserContent }
+                  ]
+                })
+              }, 0, Math.min(30000, Math.max(12000, budgetLeft() - 15000)))
+              tokenPacer.observeHeaders(tabloRes.headers, MODEL_FAST)
+              const tabloData = tabloRes.ok ? await tabloRes.json() : null
+              tokenPacer.record(
+                Number(tabloData?.usage?.total_tokens) || tabloEst,
+                MODEL_FAST,
+                Number(tabloData?.usage?.completion_tokens) || TABLO_MAX_COMPLETION
+              )
+              if (!tabloData) {
+                console.warn(`Tablo gecisi: HTTP ${tabloRes.status} — tablo eklenmedi`)
+              } else {
+                /* Kesik JSON kurtarilir: tablo uzun, tavana dayanmasi
+                   beklenen bir hal (bkz. closeTruncatedJson). */
+                const tabloHam = tabloData.choices?.[0]?.message?.content ?? ''
+                const tabloTemiz = (stripThinkBlock(tabloHam) ?? tabloHam)
+                  .replace(/```json\s*|```/g, '').trim()
+                /* Ilk gorsel cagrinin kullandigi kurtarmanin aynisi. Tablo
+                   uzun, tavana dayanmasi beklenen bir hal. */
+                const tabloJson = (() => {
+                  if (!tabloTemiz) return null
+                  try { return JSON.parse(repairLatexEscapes(tabloTemiz)) } catch (_e) {
+                    const kapali = closeTruncatedJson(tabloTemiz)
+                    if (kapali) {
+                      try {
+                        const k = JSON.parse(repairLatexEscapes(kapali))
+                        console.warn(
+                          `Tablo gecisi: JSON KESIKTI, kapatilip kurtarildi ` +
+                          `(${tabloTemiz.length} krk -> ${kapali.length} krk)`
+                        )
+                        return k
+                      } catch (_e2) { /* kurtarma da tutmadi */ }
+                    }
+                    return null
+                  }
+                })()
+                if (!tabloJson) {
+                  console.warn(`Tablo gecisi: JSON ayristirilamadi (${tabloHam.length} krk)`)
+                } else {
+                  const yeniTablolar = (Array.isArray(tabloJson.tables) ? tabloJson.tables : [])
+                    .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0)
+                  const yeniDiyagramlar = (Array.isArray(tabloJson.diagrams) ? tabloJson.diagrams : [])
+                    .filter((d: any) => d && d.title && d.mermaid)
+                  const tabloOnce = mergedTables.length
+                  const diyagramOnce = mergedDiagrams.length
+                  if (yeniTablolar.length) {
+                    const birlesik = dedupeByText(
+                      [...mergedTables, ...yeniTablolar], (t: any) => t?.title || ''
+                    ).slice(0, 12)
+                    mergedTables.length = 0; mergedTables.push(...birlesik)
+                  }
+                  if (yeniDiyagramlar.length) {
+                    const birlesik = dedupeByText(
+                      [...mergedDiagrams, ...yeniDiyagramlar], (d: any) => d?.title || ''
+                    ).slice(0, 8)
+                    mergedDiagrams.length = 0; mergedDiagrams.push(...birlesik)
+                  }
+                  if (yeniTablolar.length || yeniDiyagramlar.length) visualAnalysisUsed = true
+                  console.log(
+                    `Tablo gecisi: ${yeniTablolar.length} tablo, ${yeniDiyagramlar.length} diyagram dondu ` +
+                    `(${visualPlan.indices.length} sayfa) — tablo ${tabloOnce}->${mergedTables.length}, ` +
+                    `diyagram ${diyagramOnce}->${mergedDiagrams.length}` +
+                    (tabloData?.usage?.completion_tokens
+                      ? `, completion=${tabloData.usage.completion_tokens}/${TABLO_MAX_COMPLETION}`
+                      : '')
+                  )
+                }
+              }
+            }
             } else {
               console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
             }
