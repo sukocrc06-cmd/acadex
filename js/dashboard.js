@@ -3378,9 +3378,149 @@ function mathDelimRe() {
   return /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
 }
 
+/* CIPLAK LATEX — AYIRACSIZ KOMUT (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Model anlati ve maddelerde LaTeX komutunu AYIRAC KOYMADAN yaziyor. O
+ * metin mathDelimRe'ye hic takilmiyor, escapeHtml'den gecip ekrana HAM
+ * dusuyor. Ayni kartta olculen satirlar:
+ *   "the estimated equation is \hat{y} = 20.43 + 0.045Sqfeet + ..."
+ *   "The interaction regression model \hat{y} = \hat{B}_0 + ... allows"
+ *   "derived via partial differentiation as \frac{d \hat{y}}{d x_j} = ..."
+ * Ogrenci kartta duz metin "\hat{y}" goruyordu. Ayni kartin $...$ ile
+ * gelen maddeleri duzgun diziliyordu, yani kusur modelde DEGISKEN; o
+ * yuzden duzeltme render yolunda, promptta degil.
+ *
+ * Cozum: ayiracli bolgelerin DISINDA kalan metinde \komut gecen yeri
+ * bulup, cevresindeki matematik jetonlari boyunca IKI YANA genisleyip
+ * parcayi $...$ icine almak. Iki yana, cunku komut formulun ortasinda da
+ * gecer: "y = B_0 + B_1 x_j + \dots + e" — yalnizca saga genisletilse
+ * formulun ilk yarisi duz metin, ikinci yarisi dizilmis olurdu.
+ *
+ * Jeton testi DAR tutuldu: ters bolu ile baslayan, rakam iceren, operator
+ * iceren, ya da tek harf + alt/ust simge. "allows", "where", "calculate"
+ * gibi cok harfli sade sozcuk SINIRDIR; aksi halde cumlenin yarisi
+ * matematik fontuna duserdi. Noktalama ile biten jeton de sinir: oyle bir
+ * jeton icerilir ama genisleme orada durur, boylece "In example 2,
+ * \hat{y} = ..." icindeki "2," formule katilmaz.
+ *
+ * KaTeX 0.16.9'un unicode alt/ust simgeyi (B_0, x^2_j, ..., d) ve
+ * "\hat{B}_0" gibi karma yazimi sorunsuz dizdigi ayrica olculdu (gercek
+ * katex@0.16.9 ile), bu yuzden burada karakter donusturmesi YAPILMIYOR. */
+const LATEX_KOMUTLARI = (
+  'hat bar tilde vec dot ddot widehat overline underline prime circ ' +
+  'frac dfrac tfrac binom sqrt sum prod int oint lim limits ' +
+  'log ln lg exp sin cos tan sec csc cot arcsin arccos arctan sinh cosh tanh ' +
+  'max min sup inf det deg gcd bmod pmod ' +
+  'alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa ' +
+  'lambda mu nu xi rho sigma varsigma tau upsilon phi varphi chi psi omega ' +
+  'Gamma Delta Theta Lambda Xi Sigma Upsilon Phi Psi Omega ' +
+  'partial nabla infty cdot cdots ldots dots vdots ddots ' +
+  'times div pm mp ast star ' +
+  'leq geq neq ne le ge ll gg approx equiv propto sim simeq cong ' +
+  'rightarrow leftarrow Rightarrow Leftarrow leftrightarrow to mapsto ' +
+  'in notin subset supset subseteq supseteq cup cap emptyset ' +
+  'forall exists nexists neg land lor ' +
+  'left right big Big bigg Bigg ' +
+  'text textrm textit textbf mathrm mathbf mathit mathbb mathcal mathsf operatorname ' +
+  'quad qquad space hspace phantom ' +
+  'hbar ell Re Im aleph wp pi'
+).trim().split(/\s+/);
+/* `\n` TUZAGI (bkz. CLAUDE.md §4) — olculdu, ilk surum buna dustu.
+ *
+ * Duz metindeki 'ilk satir\nikinci satir' dizgesinde '\nikinci' IKI
+ * HARFTEN UZUN: yalnizca uzunluga bakan /\\[A-Za-z]{2,}/ onu komut sanip
+ * sardi ve KaTeX kirmizi dondu. 'C:\Users\test' de ayni sekilde.
+ *
+ * Bu yuzden ad BILINEN komut olmali ve ardindan HARF GELMEMELI: '\neq'
+ * komuttur, '\nikinci' degildir. Sinir sayesinde alternatif siralamasi
+ * onemsiz: '\int' once 'in' ile denense de ardindan 't' geldigi icin
+ * eslesmez, sonra 'int' tutar. */
+const LATEX_KOMUT_RE = new RegExp('\\\\(?:' + LATEX_KOMUTLARI.join('|') + ')(?![A-Za-z])');
+
+function latexJetonMu(t) {
+  if (!t) return false;
+  if (t.charAt(0) === '\\') return true;
+  if (/[\\^_{}=+\/*<>|\u2260\u2264\u2265\u22ef\u2202\u2211\u222b\u00b1\u00d7\u00f7\u2192\u2212]/.test(t)) return true;
+  if (/\d/.test(t)) return true;
+  return /^[A-Za-z\u00c0-\u024f\u0370-\u03ff][\u2080-\u209c\u00b2\u00b3\u00b9\u2070-\u207f'\u2032]*$/.test(t);
+}
+
+/* Jetonlar bosluga gore ayrilir ama SUSLU PARANTEZ icindeki bosluk
+   ayirmaz: "\frac{d \hat{y}}{d x_j}" tek jetondur. */
+function latexJetonlari(s) {
+  const out = [];
+  let i = 0;
+  const n = s.length;
+  while (i < n) {
+    while (i < n && /\s/.test(s.charAt(i))) i++;
+    if (i >= n) break;
+    const bas = i;
+    let derinlik = 0;
+    while (i < n) {
+      const ch = s.charAt(i);
+      if (ch === '{') derinlik++;
+      else if (ch === '}') derinlik = Math.max(0, derinlik - 1);
+      else if (derinlik === 0 && /\s/.test(ch)) break;
+      i++;
+    }
+    out.push({ bas, son: i, t: s.slice(bas, i) });
+  }
+  return out;
+}
+
+function ciplakLatexSarParca(s) {
+  if (!LATEX_KOMUT_RE.test(s)) return s;
+  const J = latexJetonlari(s);
+  if (!J.length) return s;
+  const mat = J.map((j) => latexJetonMu(j.t.replace(/[,.;:?!]+$/, '')));
+  const sinir = (x) => /[,.;:?!]$/.test(x);
+  const aralik = [];
+  J.forEach((j, i) => {
+    if (!LATEX_KOMUT_RE.test(j.t)) return;
+    let a = i, b = i;
+    while (a > 0 && mat[a - 1] && !sinir(J[a - 1].t)) a--;
+    while (b < J.length - 1 && mat[b + 1]) { b++; if (sinir(J[b].t)) break; }
+    const onceki = aralik[aralik.length - 1];
+    if (onceki && a <= onceki.b + 1) onceki.b = Math.max(onceki.b, b);
+    else aralik.push({ a, b });
+  });
+  let out = '', son = 0;
+  aralik.forEach((r) => {
+    const bas = J[r.a].bas;
+    let bit = J[r.b].son;
+    const kuyruk = s.slice(bas, bit).match(/[,.;:?!]+$/);
+    if (kuyruk) bit -= kuyruk[0].length;
+    const tex = s.slice(bas, bit);
+    /* Dengesiz suslu parantez KaTeX'i dusurur; oyle parca ham kalir. */
+    const ac = (tex.match(/\{/g) || []).length, kap = (tex.match(/\}/g) || []).length;
+    if (!tex || ac !== kap || bas < son) return;
+    /* Cumlede baska bir $ varsa ('-$5.06' gibi para) yalnizca O ARALIK
+       atlanir; parcanin tamamindan vazgecilmez, cunku olculen kartta
+       \frac'li cumlede ayni cumlede $5.06 geciyordu. */
+    if (tex.indexOf('$') !== -1 || s.charAt(bas - 1) === '$' || s.charAt(bit) === '$') return;
+    out += s.slice(son, bas) + '$' + tex + '$';
+    son = bit;
+  });
+  return out + s.slice(son);
+}
+
+/* Ayiracli bolgelere DOKUNMAZ: yalnizca aralarindaki duz metni sarar. */
+function ciplakLatexSar(text) {
+  const s = String(text == null ? '' : text);
+  if (!LATEX_KOMUT_RE.test(s)) return s;
+  const re = mathDelimRe();
+  let out = '', son = 0, m;
+  while ((m = re.exec(s)) !== null) {
+    out += ciplakLatexSarParca(s.slice(son, m.index)) + m[0];
+    son = m.index + m[0].length;
+  }
+  return out + ciplakLatexSarParca(s.slice(son));
+}
+window.ciplakLatexSar = ciplakLatexSar;
+
 function renderMathInText(text) {
   if (!text) return '';
-  const s = String(text);
+  const s = ciplakLatexSar(text);
   /* Kapanis $'inin ONUNDE bosluk olmadigi kontrol edilir. Eski desen
      sondaki \S icin AYRI bir karakter istiyordu; $1\%$ gibi KACISLA
      biten formulde o karakter kacisin icinde kaldigi icin eslesme

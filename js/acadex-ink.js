@@ -9756,15 +9756,27 @@ var SBX = (function () {
      * bilerek disarida: sayfa numarasi, yil, madde sirasi hep tam sayi ve
      * onlari almak kutulari coplestirir. Nicel bir belgede sinyal
      * ondalikta. Desen `-` ile basliyorsa isaret korunuyor. */
-    var re = /(-?\d+(?:[.,]\d+)?\s?%|%\s?-?\d+(?:[.,]\d+)?|[$€₺]\s?-?\d+(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|-?\d+[.,]\d+|\b\dP\b)/i;
+    var re = /(-?\d+(?:[.,]\d+)?\s?%|%\s?-?\d+(?:[.,]\d+)?|-?[$€₺]\s?-?\d+(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?\s?(?:milyon|milyar|bin|TL|USD|dolar|yıl|ay|gün|adım|aşama|faktör|kat)\b|-?\d+[.,]\d+|\b\dP\b)/i;
     sents.forEach(function (s) {
       if (out.length >= 3) return; var m = s.match(re); if (!m) return; var tok = m[1].trim(), key = tok.toLowerCase(); if (seen[key]) return; seen[key] = 1;
-      /* Isaret ayri tutuluyor: temizlik `-`i siliyor, o yuzden once okunur. */
+      /* ISARET BIRIMIN SOLUNDA DA OLUR (31.10.2026, IPPT kartinda olculdu).
+       *
+       * Ingilizce yazimda eksi para biriminden ONCE gelir: "-$5.06". Desen
+       * yalnizca `[$€₺]`den basliyordu, yani eslesen parca "$5.06" oluyor,
+       * `/^[%$€₺]\s?-/` kontrolu de bosa dusuyordu. Rozet marjinal etkiyi
+       * POZITIF gosteriyordu: "$5,06". Olculen cumle:
+       *   "...is -$5.06 at 40 degrees and $2.14 at 80 degrees."
+       * Yani fatura DUSERKEN kart artiyor gibi okunuyordu.
+       *
+       * Isaret artik govdeden ayriliyor ve pre/post GOVDEDEN uretiliyor;
+       * aksi halde "-$5.06" icin `post` jetonun tamami kalip rozette sayi
+       * iki kez yazilirdi ("-5,06-$5.06"). */
       var eksi = /^-/.test(tok) || /^[%$€₺]\s?-/.test(tok);
-      var num = parseFloat(tok.replace(/[^\d.,]/g, '').replace(',', '.')); if (isNaN(num)) return;
+      var govde = tok.replace(/^-\s?/, '').replace(/^([%$€₺])\s?-\s?/, '$1');
+      var num = parseFloat(govde.replace(/[^\d.,]/g, '').replace(',', '.')); if (isNaN(num)) return;
       if (eksi) num = -num;
-      var birim = tok.match(/^[%$€₺]/);
-      out.push({ v: num, raw: tok, pre: birim ? birim[0] : '', post: tok.replace(/^[%$€₺]\s?/, '').replace(/^-?\d+(?:[.,]\d+)?\s?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
+      var birim = govde.match(/^[%$€₺]/);
+      out.push({ v: num, raw: tok, pre: birim ? birim[0] : '', post: govde.replace(/^[%$€₺]\s?/, '').replace(/^\d+(?:[.,]\d+)?/, ''), dec: /[.,]\d/.test(tok), cap: cut(plain(s), 90) });
     });
     var secs = arr(card.sections).length, terms = arr(card.key_terms).length;
     if (out.length < 3 && secs) out.push({ v: secs, pre: '', post: ' bölüm', cap: 'belge bu kadar ana başlığa ayrılıyor' });
@@ -9772,17 +9784,32 @@ var SBX = (function () {
     if (out.length < 3) out.push({ v: Math.max(1, Math.round(R.words / 200)), pre: '~', post: ' dk', cap: 'tamamını okuma süresi' });
     return out.slice(0, 3);
   };
-  var counterHTML = function (n, i) { return '<div class="axr-num" style="--c:' + COL[i % COL.length] + '"><b class="disp" data-count="' + n.v + '" data-dec="' + (n.dec ? 1 : 0) + '" data-pre="' + X(n.pre || '') + '" data-post="' + X(n.post || '') + '">' + X((n.pre || '') + (n.dec ? n.v : Math.round(n.v)) + (n.post || '')) + '</b><span>' + X(n.cap) + '</span></div>'; };
+  /* ONDALIK AYIRACI KARTIN DILINDEN (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Rozet her zaman VIRGUL yaziyordu: ingilizce bir kartin tepesinde
+   * "484,12" gorunurken ayni kartin anlatisinda "484.12" yaziyordu —
+   * ayni sayi, iki bicim. Belirleyici ARAYUZ dili degil KARTIN dili,
+   * cunku sayi kartin kendi metninden geliyor; olculen kartta arayuz TR,
+   * ozet EN'di ve curLang() bu yuzden yanlis cevap verirdi.
+   *
+   * Isaret birimin SOLUNA yaziliyor: "-$5,06" dogru, "$-5,06" degil.
+   * `ara` sayacin ARA karesidir (tek ondalik), son kare tam degeri yazar. */
+  var sayiYaz = function (v, dec, pre, post, ara) {
+    var s = dec ? (ara ? Math.abs(v).toFixed(1) : String(Math.abs(v))) : String(Math.round(Math.abs(v)));
+    if (cardLang() !== 'en') s = s.replace('.', ',');
+    return (v < 0 ? '-' : '') + (pre || '') + s + (post || '');
+  };
+  var counterHTML = function (n, i) { return '<div class="axr-num" style="--c:' + COL[i % COL.length] + '"><b class="disp" data-count="' + n.v + '" data-dec="' + (n.dec ? 1 : 0) + '" data-pre="' + X(n.pre || '') + '" data-post="' + X(n.post || '') + '">' + X(sayiYaz(n.v, n.dec, n.pre, n.post, false)) + '</b><span>' + X(n.cap) + '</span></div>'; };
   var runCount = function (el) {
     if (el.dataset.ran) return; el.dataset.ran = '1'; var to = +el.dataset.count, dec = el.dataset.dec === '1', pre = el.dataset.pre, post = el.dataset.post;
     if (calm) return; var t0 = performance.now(), dur = 1100;
-    var step = function (t) { var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3), v = to * e; el.textContent = pre + (dec ? v.toFixed(1).replace('.', ',') : Math.round(v)) + post; if (k < 1) requestAnimationFrame(step); else el.textContent = pre + (dec ? String(to).replace('.', ',') : to) + post; };
+    var step = function (t) { var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3), v = to * e; el.textContent = sayiYaz(v, dec, pre, post, true); if (k < 1) requestAnimationFrame(step); else el.textContent = sayiYaz(to, dec, pre, post, false); };
     requestAnimationFrame(step);
   };
 
   /* ---------- el çizimi grafikler (SVG) ---------- */
   var wob = function (x1, y1, x2, y2, k) { var mx = (x1 + x2) / 2 + (Math.random() - .5) * k, my = (y1 + y2) / 2 + (Math.random() - .5) * k; return 'M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + x2.toFixed(1) + ' ' + y2.toFixed(1); };
-  var fmtV = function (v) { return Math.abs(v) >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0).replace('.', ',') + 'B' : (Math.round(v * 10) / 10).toString().replace('.', ','); };
+  var fmtV = function (v) { var en = cardLang() === 'en'; var s = Math.abs(v) >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + (en ? 'k' : 'B') : (Math.round(v * 10) / 10).toString(); return en ? s : s.replace('.', ','); };
   var chartSVG = function (c) {
     var type = String(c.type || 'bar').toLowerCase(), labels = arr(c.labels).map(String), data = arr(c.data).map(function (v) { return typeof v === 'object' && v ? +(v.value || v.y || 0) : +v || 0; });
     if (!data.length && Array.isArray(c.datasets) && c.datasets[0]) data = arr(c.datasets[0].data).map(function (v) { return +v || 0; });
