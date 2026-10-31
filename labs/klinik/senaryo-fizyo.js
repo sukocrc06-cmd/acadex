@@ -29,6 +29,49 @@
      Egzersiz kimlikleri Fizyo Lab'deki FZ_EX ile aynıdır (tests/medica.js denetler). */
   var PROG_YOK = null;
   var SONU = {
+    /* ---- 01.11.2026: aynı yakınma, farklı tanı (medica-veri.js → GRUP) ---- */
+    'fz-omuz-yirtik': { gozlem: 'Kol 90° abduksiyondan yavaşça indirilirken kontrolsüz biçimde düşüyor; hafif dokunuşta kol aşağı iniyor.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Negatif', false, 'Kolun kontrolsüz düşmesi pozitif bulgudur.'], ['Pozitif', true, 'Doğru.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['Rotator manşet (supraspinatus) tam kat yırtığı', true, 'Doğru.'], ['Biseps uzun baş tendonu', false, 'Bu kolun düşmesine yol açmaz.'], ['Ön glenohumeral bağlar', false, 'İnstabilitede korku bulgusu olur.']] },
+        { s: 'Hastaya önerin', secenek: [['Ortopedi değerlendirmesi ve görüntüleme; o zamana kadar ağrısız açıklıkta sarkaç ve yardımlı hareket', true, 'Doğru: tam kat yırtıkta cerrahi seçenek erken konuşulur, hareket kaybı önlenir.'], ['Ağırlıkla omuz kaldırma ile kası güçlendirmek', false, 'Yırtık tendon dirençli yükle büyüyebilir.'], ['Kolu askıda tamamen hareketsiz tutmak', false, 'Hareketsizlik donuk omuza yol açar.']] }
+      ],
+      program: { oner: ['pendulum', 'aaflex'], kacin: [['scaption', 'Dirençli scaption yırtık tendonu yükler.'], ['erband', 'Bantla direnç ortopedi kararından önce verilmez.']], en: 2 } },
+    'fz-omuz-inst': { gozlem: 'Kol 90° abduksiyon ve dış rotasyona götürülünce hasta “çıkacak” diye kasılıyor; humerus başına önden arkaya baskı yapınca korku geçiyor.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Pozitif', true, 'Doğru: korku ve yerine koymayla rahatlama.'], ['Negatif', false, 'Korku bulgusu tekrarlandı.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['Supraspinatus tendonu', false, 'Sıkışmada ağrı olur, korku değil.'], ['Ön glenohumeral instabilite (Bankart lezyonu olasılığı)', true, 'Doğru.'], ['Akromiyoklaviküler eklem', false, 'AC eklemde lokal ağrı olur.']] },
+        { s: 'Hastaya önerin', secenek: [['Rotator manşet ve kürek kemiği kaslarını güçlendirme; spora dönüş ölçütlere göre, tekrar çıkarsa ortopedi', true, 'Doğru: dinamik stabilizasyon ilk basamaktır.'], ['Omzu en uç noktaya kadar germek', false, 'Ön kapsülü germek instabiliteyi artırır.'], ['Hiç kullanmadan altı hafta askı', false, 'Uzun hareketsizlik gerekmez; kontrollü güçlendirme yapılır.']] }
+      ],
+      program: { oner: ['erband', 'irband', 'scaption'], kacin: [['pendulum', 'Sarkaç bu hastada gerekli değil; güçlendirme önceliklidir.']], en: 2 } },
+    'fz-menisk': { gozlem: 'Diz tam fleksiyondan ekstansiyona getirilirken iç rotasyonda medial eklem çizgisinde ağrılı “klik”.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Negatif', false, 'Ağrılı klik pozitif bulgudur.'], ['Değerlendirilemez', false, 'Test geçerli.'], ['Pozitif', true, 'Doğru.']] },
+        { s: 'Etkilenen yapı', secenek: [['Ön çapraz bağ', false, 'ÖÇB’de tibia öne kayar; klik ve kilitlenme menisküsü düşündürür.'], ['Medial menisküs', true, 'Doğru.'], ['Medial kollateral bağ', false, 'MKB valgus stresiyle değerlendirilir.']] },
+        { s: 'Hastaya önerin', secenek: [['Kilitlenme sürerse ortopedi ve MR; yoksa ödem kontrolü, kuadriseps güçlendirme ve kademeli yük', true, 'Doğru: gerçek kilitlenme cerrahi değerlendirme gerektirir.'], ['Ağrıya rağmen derin çömelmelerle dizi açmak', false, 'Derin fleksiyon yük altında yırtığı büyütebilir.'], ['Hemen maça dönmek', false, 'Ödem ve kilitlenme varken spora dönülmez.']] }
+      ],
+      program: { oner: ['quadset', 'slrEx', 'heelslide', 'minisquat'], kacin: [['squat', 'Ağırlıklı derin squat menisküsü sıkıştırır.'], ['lunge', 'Öne hamle erken dönemde menisküse yük bindirir.']], en: 3 } },
+    'fz-mkb': { gozlem: 'Diz 30° fleksiyonda dışarıdan valgus stresi verilince iç tarafta ağrı ve karşı dize göre belirgin açılma; tam ekstansiyonda açılma yok.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Pozitif', true, 'Doğru: 30°’de açılma.'], ['Negatif', false, 'İç tarafta açılma var.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['Medial kollateral bağ (izole, 2. derece)', true, 'Doğru: tam ekstansiyonda açılma yoksa çapraz bağlar ve kapsül sağlam.'], ['Lateral menisküs', false, 'Valgus stresi iç tarafı yükler.'], ['Patella tendonu', false, 'Ön dizdedir.']] },
+        { s: 'Hastaya önerin', secenek: [['Çoğu ameliyatsız iyileşir: menteşeli dizlikle koruma, erken hareket ve kuadriseps güçlendirme; 4–8 haftada spora dönüş', true, 'Doğru.'], ['Hemen bağ ameliyatı', false, 'İzole MKB yaralanması genellikle konservatif tedavi edilir.'], ['Dizi alçıda altı hafta tutmak', false, 'Uzun hareketsizlik sertlik yapar.']] }
+      ],
+      program: { oner: ['quadset', 'slrEx', 'heelslide', 'pump'], kacin: [['lunge', 'Öne hamle iç tarafa valgus yükü bindirir.'], ['squat', 'Ağırlıklı squat erken dönemde uygun değil.']], en: 3 } },
+    'fz-dequervain': { gozlem: 'Başparmak avuç içinde kapalı yumruk yapılıp bilek ulnara bükülünce radiyal stiloid üzerinde keskin ağrı.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Negatif', false, 'Tanıdık ağrı tekrarlandı; pozitif.'], ['Pozitif', true, 'Doğru.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['N. medianus (karpal tünel)', false, 'Uyuşma yok; ağrı başparmak tarafında.'], ['N. ulnaris', false, 'Ulnar taraf ve 4-5. parmaklar etkilenirdi.'], ['APL ve EPB tendonlarının kılıfı (1. ekstansör kompartman)', true, 'Doğru: De Quervain tenosinoviti.']] },
+        { s: 'Hastaya önerin', secenek: [['Başparmağı içine alan atel, bebeği kaldırırken bileği düz tutma; ağrı azalınca kontrollü güçlendirme', true, 'Doğru: yükü azaltmak ve tendonu dinlendirmek ilk basamaktır.'], ['Ağrı geçene kadar bileği zorlayan germeler', false, 'Ağrılı germe tenosinoviti artırır.'], ['Hemen cerrahi', false, 'Önce konservatif tedavi denenir.']] }
+      ],
+      program: { oner: ['wriststretch'], kacin: [['wristecc', 'Ağrılı dönemde dirençli bilek çalışması kılıfı tahriş eder.']], en: 1 } },
+    'fz-golfer': { gozlem: 'Bilek dirence karşı bükülüp önkol içe çevrilince medial epikondilde tanıdık ağrı; 4-5. parmaklarda uyuşma yok.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Pozitif', true, 'Doğru.'], ['Negatif', false, 'Tanıdık ağrı tekrarlandı; pozitif.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['Ortak ekstansör kökü (lateral)', false, 'Bu tenisçi dirseğidir; ağrı dışta olurdu.'], ['Ortak fleksör-pronatör tendon (medial)', true, 'Doğru.'], ['N. ulnaris', false, 'Uyuşma yok; yine de dirseğin iç yüzünde sinire dikkat edilir.']] },
+        { s: 'Hastaya önerin', secenek: [['Yük yönetimi (aletleri kavrama biçimi, mola), germe ve kademeli güçlendirme; birkaç ayda düzelme', true, 'Doğru.'], ['Kolu askıya alıp hiç kullanmamak', false, 'Tendon kontrollü yükle iyileşir.'], ['Her hafta kortizon iğnesi', false, 'Tekrarlayan iğne uzun dönemde tendonu zayıflatabilir.']] }
+      ],
+      program: { oner: ['wriststretch', 'wristecc'], kacin: [], en: 2 } },
     'fz-omuz': { gozlem: 'Kolu iç rotasyondayken pasif olarak tam fleksiyona kaldırınca omzun ön-dış yüzünde ağrı oluyor.',
       sorular: [
         { s: 'Test sonucu', secenek: [['Negatif', false, 'Kaldırırken tanıdık ağrısı tekrarlandı; bu pozitif bulgudur.'], ['Pozitif', true, 'Doğru: tanıdık ağrı tekrarlandı.'], ['Değerlendirilemez', false, 'Hasta işbirliği yaptı, test geçerli.']] },
@@ -370,6 +413,163 @@
           ['Hemen ağırlıkla squat ve koşu', false, 'Erken dönemde ağır yükleme uygun değildir.']
         ]),
         PROT('tda', 'Fizyo Lab’de total diz artroplastisi protokolünü aç; faz hedeflerini ve egzersiz geçiş ölçütlerini incele.')
+      ] },
+
+    /* ============ 01.11.2026: aynı yakınma, farklı tanı (GRUP: omuz, diz, bilek, dirsek) ============ */
+    { id: 'fz-omuz-yirtik', vaka: 'droparm', lab: 'fizyo', oda: 'fizyo', odaAd: 'Fizik tedavi polikliniği', baslik: 'Düştükten sonra kolunu kaldıramıyor',
+      hasta: { ad: 'Hüseyin Bey', hitap: 'Hüseyin Bey', yas: 64, cins: 'E', gorunum: 'yasli', kiyafet: '#5E8F4A', ifade: 'uzgun' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'İki hafta önce bahçede merdivenden kaydım, elimin üstüne düştüm. O günden beri kolumu yana kaldıramıyorum, geceleri de ağrıyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'yaralanmayı aydınlatan soruları seç', secenek: [
+          S('mek', 'Düşerken kolunuz nasıl yere geldi?', 'Kolum açıkken avucumun üstüne düştüm, omzuma vurdu.', 3, 'Mekanizma|Açık el üstüne düşme.'),
+          S('guc', 'Kolu kaldıramamak ağrıdan mı, yoksa kol mu gitmiyor?', 'Ağrı da var ama kol sanki gitmiyor; diğer elimle kaldırınca kalkıyor.', 3, 'Güç|Aktif kaldıramıyor, pasif hareket var.'),
+          S('gece', 'Gece ağrıyan tarafa yatabiliyor musunuz?', 'Hayır, o tarafa dönünce uyanıyorum.', 2, 'Gece ağrısı|Var.'),
+          S('once', 'Daha önce bu omuzda ağrı var mıydı?', 'Ara ara sızlardı, aldırmazdım.', 1),
+          S('torun', 'Torunlarınız size yardım ediyor mu?', 'Hafta sonları geliyorlar.', 0),
+          YARGI('hasta', 'Bu yaşta merdivene çıkılır mı?', 'Kendi bahçem, kendim budarım…', 'Yargılamak yerine düşme riskini birlikte konuşmak gerekir.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('aktif', 'Aktif ve pasif abduksiyonu karşılaştır', 'Aktif abduksiyon 60°’de kalıyor; pasif 160°’ye ulaşıyor.', 3),
+          E('atrofi', 'Kürek kemiği üstündeki kaslara bak', 'Supraspinöz çukurda hafif çöküklük.', 2),
+          E('dis', 'Dış rotasyon kuvvetini test et', 'Dış rotasyon kuvveti azalmış (3/5).', 2),
+          E('zorla', 'Kolu dirence karşı zorla kaldırt', 'Hüseyin Bey ağrıyla bağırıyor, kol düşüyor.', -3, { ifade: 'agri', geri: 'Yırtık şüphesinde zorlayıcı test ağrı ve hasar yapar; önce kontrollü testler.' })
+        ] },
+        K('Ön değerlendirme', 'Aktif kaldıramayan ama pasif hareketi tam olan omuzda hangi testi seçersin?', [
+          ['Kolu yandan yavaşça indirmesini isteyen test (drop arm)', true, 'Doğru: kol kontrolsüz düşüyorsa rotator manşette tam kat yırtık düşünülür.'],
+          ['Lachman testi', false, 'Lachman diz bağını değerlendirir.'],
+          ['Thompson testi', false, 'Thompson Aşil tendonunu değerlendirir.']
+        ]),
+        TEST('droparm', 'Fizyo Lab’de testi 3B modelde uygula; ardından ev programını kur ve hastaya bildir.')
+      ] },
+
+    { id: 'fz-omuz-inst', vaka: 'apprehension', lab: 'fizyo', oda: 'fizyo', odaAd: 'Spor fizyoterapisi', baslik: 'Smaçta omzu “yerinden oynuyor”',
+      hasta: { ad: 'Cem', hitap: 'Cem Bey', yas: 22, cins: 'E', gorunum: 'genc', kiyafet: '#2F6BFF', ifade: 'endise' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Voleybolda smaça kalkınca omzum sanki yerinden çıkacak gibi oluyor. Geçen sezon bir kez çıktı, acilde taktılar.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'instabiliteyi aydınlatan soruları seç', secenek: [
+          S('cikik', 'Omzunuz kaç kez çıktı, kendiliğinden mi yerine girdi?', 'Bir kez tamamen çıktı, acilde taktılar. Sonra iki kez “kayıp geri girdi”.', 3, 'Çıkık|1 tam çıkık + 2 subluksasyon.'),
+          S('poz', 'Hangi pozisyonda bu his geliyor?', 'Kolum yukarıda ve geride, smaça kalkarken.', 3, 'Pozisyon|Abduksiyon + dış rotasyon.'),
+          S('uyusma', 'Kolunuzda uyuşma ya da güçsüzlük oldu mu?', 'Çıktığı gün kolum biraz uyuştu, sonra geçti.', 2, 'Nörolojik|Çıkık sonrası geçici uyuşma.'),
+          S('mac', 'Sezonda kaç maç kaldı?', 'Altı maç var.', 1),
+          S('takim', 'Takımınız ligde kaçıncı?', 'Üçüncüyüz.', 0),
+          YARGI('hasta', 'Bu kadar sakatlıkla neden oynamaya devam ediyorsunuz?', 'Takımı bırakamam…', 'Sporcunun hedefini yargılamak değil, güvenli dönüşü planlamak gerekir.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('eha', 'Omuz hareket açıklığını ölç', 'Açıklıklar tam; uç dış rotasyonda tedirginlik.', 2, { ifade: 'endise' }),
+          E('kuvvet', 'Rotator manşet ve kürek kemiği kaslarını test et', 'Dış rotatörler 4/5; kürek kemiği kontrolü zayıf.', 3),
+          E('laks', 'Diğer omuzla gevşekliği karşılaştır', 'Diğer omuzda genel bağ gevşekliği yok.', 2),
+          E('cek', 'Omzu sertçe öne doğru zorla', 'Cem kolunu kasıp geri çekiyor; omuz kayacak gibi oluyor.', -3, { ifade: 'agri', geri: 'Kontrolsüz zorlamak çıkığa yol açabilir; testler kontrollü yapılır.' })
+        ] },
+        K('Ön değerlendirme', 'Yerinden çıkma hissini doğrulamak için hangi testi seçersin?', [
+          ['Kolu abduksiyon ve dış rotasyona götürüp korku tepkisini, sonra önden baskıyla rahatlamayı arayan test', true, 'Doğru: korku (apprehension) ve yerine koyma testi ön instabiliteyi değerlendirir.'],
+          ['Neer testi', false, 'Neer sıkışmayı değerlendirir.'],
+          ['Finkelstein testi', false, 'Finkelstein el bileğini değerlendirir.']
+        ]),
+        TEST('apprehension', 'Fizyo Lab’de testi 3B modelde uygula; ardından ev programını kur ve hastaya bildir.')
+      ] },
+
+    { id: 'fz-menisk', vaka: 'mcmurray', lab: 'fizyo', oda: 'fizyo', odaAd: 'Spor fizyoterapisi', baslik: 'Dönerken dizi kilitlendi',
+      hasta: { ad: 'Barış', hitap: 'Barış Bey', yas: 28, cins: 'E', gorunum: 'genc', kiyafet: '#D9472B', ifade: 'agri' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Halı sahada top sürerken ayağım yerdeyken döndüm, dizimin içinde bir şey takıldı. Ertesi gün şişti; ara ara kilitleniyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'yaralanan yapıyı ayırt eden soruları seç', secenek: [
+          S('kilit', 'Diziniz tam açılmayacak şekilde takılıp kalıyor mu?', 'Evet, bazen takılıyor, sallayınca açılıyor.', 3, 'Kilitlenme|Var, kendiliğinden açılıyor.'),
+          S('sislik', 'Şişlik ne zaman başladı?', 'Ertesi sabah, yavaş yavaş.', 3, 'Şişlik|Saatler içinde, yavaş (menisküs lehine).'),
+          S('bosluk', 'Diziniz boşa çıkıyor mu?', 'Pek değil; asıl sorun takılması.', 2, 'İnstabilite|Belirgin değil.'),
+          S('yer', 'Ağrıyı tam olarak nerede hissediyorsunuz?', 'Dizimin iç tarafında, eklem hizasında.', 2, 'Yer|Medial eklem çizgisi.'),
+          S('takim', 'Hangi mevkide oynuyorsunuz?', 'Orta saha.', 0),
+          YARGI('hasta', 'Isınmadan oynamışsınızdır yine.', 'Biraz ısındım aslında…', 'Suçlamak bilgi getirmez.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('palp', 'Eklem çizgisini palpe et', 'Medial eklem çizgisinde belirgin hassasiyet.', 3, { ifade: 'agri' }),
+          E('eha', 'Diz hareket açıklığını ölç', 'Ekstansiyonda 5° eksik, fleksiyon 120°’de ağrılı.', 2),
+          E('efuzyon', 'Diz eklemindeki sıvıya bak', 'Hafif efüzyon.', 2),
+          E('comel', 'Derin çömelip zıplamasını iste', 'Barış dizinin iç tarafını tutup oturuyor.', -3, { ifade: 'agri', geri: 'Yırtık şüphesinde yük altında derin fleksiyon zararlıdır.' })
+        ] },
+        K('Ön değerlendirme', 'Takılma ve eklem çizgisi hassasiyeti için hangi testi seçersin?', [
+          ['Dizi bükülü konumdan rotasyonla açarken eklem çizgisinde klik arayan test (McMurray)', true, 'Doğru: menisküs yırtığını değerlendirir.'],
+          ['Ön çekmece testi', false, 'Ön çekmece çapraz bağı değerlendirir; takılma menisküsü düşündürür.'],
+          ['Thomas testi', false, 'Thomas kalça fleksör kısalığını değerlendirir.']
+        ]),
+        TEST('mcmurray', 'Fizyo Lab’de testi 3B modelde uygula; ardından ev programını kur ve hastaya bildir.')
+      ] },
+
+    { id: 'fz-mkb', vaka: 'valgus', lab: 'fizyo', oda: 'fizyo', odaAd: 'Spor fizyoterapisi', baslik: 'Dizine dışarıdan çarptılar',
+      hasta: { ad: 'Gizem', hitap: 'Gizem Hanım', yas: 24, cins: 'K', gorunum: 'genc', kiyafet: '#7A4FA8', ifade: 'agri' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Basketbolda rakip dizimin dış tarafına çarptı, dizim içe büküldü. İç tarafı çok ağrıyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'yaralanan yapıyı ayırt eden soruları seç', secenek: [
+          S('mek', 'Çarpma dizin hangi tarafına geldi, diz nereye büküldü?', 'Dış tarafa çarptı, diz içe doğru büküldü.', 3, 'Mekanizma|Dıştan darbe, valgus.'),
+          S('pat', 'O anda “pat” sesi duydunuz mu, hemen şişti mi?', 'Ses duymadım; iç tarafı hafif şişti.', 3, 'Ses/şişlik|Pat sesi yok, lokal şişlik.'),
+          S('yuru', 'Basabiliyor, yürüyebiliyor musunuz?', 'Topallayarak yürüyorum.', 2, 'Yük|Topallayarak yürüyor.'),
+          S('kilit', 'Diziniz takılıyor mu?', 'Hayır.', 2, 'Kilitlenme|Yok.'),
+          S('lig', 'Hangi ligde oynuyorsunuz?', 'Üniversite ligi.', 0),
+          YARGI('hasta', 'Kızlar basketbolda bu kadar sert oynamamalı.', 'Ne alakası var…', 'Cinsiyetçi yorum güveni yıkar ve bilgi getirmez.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('palp', 'İç yan bağ boyunca palpe et', 'Medial femoral epikondil yakınında belirgin hassasiyet.', 3, { ifade: 'agri' }),
+          E('efuzyon', 'Eklem içi sıvıya bak', 'Belirgin efüzyon yok; ödem iç tarafta yüzeyel.', 2),
+          E('lachman', 'Ön çapraz bağı karşılaştırmalı kontrol et', 'Tibia öne kaymıyor; sert son his.', 2),
+          E('kos', 'Bir tur koşturup ağrıyı izle', 'Gizem iç tarafını tutup duruyor.', -3, { ifade: 'agri', geri: 'Akut bağ yaralanmasında koşu bağı zorlar.' })
+        ] },
+        K('Ön değerlendirme', 'İç taraf bağını doğrulamak için hangi testi seçersin?', [
+          ['Diz 30° bükülüyken dışarıdan iç tarafı açan stres testi (valgus)', true, 'Doğru: 30°’de açılma MKB’yi, tam ekstansiyonda da açılma ek yapıları düşündürür.'],
+          ['Pivot shift testi', false, 'Pivot shift ÖÇB rotasyonel instabilitesini değerlendirir.'],
+          ['Ober testi', false, 'Ober iliotibial bandı değerlendirir.']
+        ]),
+        TEST('valgus', 'Fizyo Lab’de testi 3B modelde uygula; ardından ev programını kur ve hastaya bildir.')
+      ] },
+
+    { id: 'fz-dequervain', vaka: 'finkelstein', lab: 'fizyo', oda: 'fizyo', odaAd: 'El rehabilitasyonu', baslik: 'Bebeği kucaklayınca başparmak dibinde ağrı',
+      hasta: { ad: 'Merve Hanım', hitap: 'Merve Hanım', yas: 31, cins: 'K', gorunum: 'yetiskin', kiyafet: '#9E5B7A' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Dört aylık bir bebeğim var. Onu kucaklarken sağ bileğimin başparmak tarafı bıçak gibi ağrıyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'yakınmayı ayırt eden soruları seç', secenek: [
+          S('yer', 'Ağrıyı tam olarak nerede hissediyorsunuz?', 'Bileğin başparmak tarafında, kemik çıkıntısının üstünde.', 3, 'Yer|Radiyal stiloid üzeri.'),
+          S('uyusma', 'Parmaklarınızda uyuşma ya da karıncalanma var mı?', 'Yok, sadece ağrı.', 3, 'Nörolojik|Uyuşma yok (karpal tünelden ayırır).'),
+          S('hareket', 'Hangi hareket ağrıyı artırıyor?', 'Bebeği koltuk altından kaldırırken, başparmağımı açınca.', 2, 'Provokasyon|Başparmak abduksiyonu ve kaldırma.'),
+          S('sure', 'Ne zamandır var?', 'Doğumdan bir ay sonra başladı.', 1),
+          S('isim', 'Bebeğinizin adı ne?', 'Nehir.', 0),
+          YARGI('hasta', 'Bebeği bu kadar çok kucağa almayın, şımarır.', 'Ama ağlıyor…', 'Ebeveynliği yargılamak yerine kucaklama tekniğini birlikte değiştirin.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('palp', 'Radiyal stiloid ve tendonları palpe et', 'Birinci ekstansör kompartman üstünde şişlik ve hassasiyet.', 3, { ifade: 'agri' }),
+          E('tinel', 'Bilekte medianus üstüne vur (Tinel)', 'Karıncalanma yok.', 2),
+          E('kavrama', 'Kavrama gücünü ölç', 'Ağrı nedeniyle sağda azalmış.', 1),
+          E('zorla', 'Başparmağı zorla bükerek ağrıyı “aç”', 'Merve Hanım elini çekiyor, gözleri doluyor.', -3, { ifade: 'agri', geri: 'Tenosinovitte zorlayıcı germe ağrıyı artırır.' })
+        ] },
+        K('Ön değerlendirme', 'Uyuşmasız, başparmak tarafında ağrı için hangi testi seçersin?', [
+          ['Başparmak avuçta yumruk yapılıp bileği ulnara büken test (Finkelstein)', true, 'Doğru: De Quervain tenosinovitini değerlendirir.'],
+          ['Phalen testi', false, 'Phalen karpal tüneli değerlendirir; uyuşma yok.'],
+          ['Speed testi', false, 'Speed biseps tendonunu değerlendirir.']
+        ]),
+        TEST('finkelstein', 'Fizyo Lab’de testi 3B modelde uygula; ardından ev programını kur ve hastaya bildir.')
+      ] },
+
+    { id: 'fz-golfer', vaka: 'golfer', lab: 'fizyo', oda: 'fizyo', odaAd: 'El ve üst ekstremite rehabilitasyonu', baslik: 'Rende kullanınca dirseğin içi ağrıyor',
+      hasta: { ad: 'Kadir Bey', hitap: 'Kadir Bey', yas: 52, cins: 'E', gorunum: 'yetiskin', kiyafet: '#6E5236' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Marangozum. İki aydır rendeyi, tornavidayı sıkınca sağ dirseğimin iç tarafı ağrıyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'yükleme ve tanıyı aydınlatan soruları seç', secenek: [
+          S('yer', 'Ağrıyı dirseğin neresinde hissediyorsunuz?', 'İç taraftaki kemik çıkıntısının hemen altında.', 3, 'Yer|Medial epikondil.'),
+          S('uyusma', 'Yüzük ve serçe parmağınızda uyuşma var mı?', 'Yok.', 3, 'Nörolojik|Ulnar uyuşma yok.'),
+          S('hareket', 'Hangi hareketler ağrıyı artırıyor?', 'Sıkıca kavrayıp bileğimi bükerken, tornavida çevirirken.', 2, 'Provokasyon|Kavrama, bilek fleksiyonu, pronasyon.'),
+          S('mola', 'Gün içinde ara veriyor musunuz?', 'Pek vermiyorum, iş çok.', 1),
+          S('agac', 'En sevdiğiniz ağaç türü ne?', 'Ceviz.', 0),
+          YARGI('hasta', 'Bu yaşta bu kadar ağır iş yapılmaz.', 'Ekmek parası…', 'Yükü yargılamak değil, yönetmek gerekir.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('palp', 'Medial epikondili palpe et', 'Medial epikondilin hemen distalinde nokta hassasiyeti.', 3, { ifade: 'agri' }),
+          E('ulnar', 'Dirseğin iç yüzünde sinire hafifçe vur', 'Karıncalanma yok.', 2),
+          E('kavrama', 'Ağrısız kavrama gücünü ölç', 'Sağda 22 kg, solda 34 kg.', 2, { deger: '22 / 34 kg' }),
+          E('manip', 'Dirseği sert manipüle et', 'Kadir Bey kolunu çekiyor.', -3, { ifade: 'agri', geri: 'Tendinopatide zorlayıcı manipülasyonun yeri yoktur.' })
+        ] },
+        K('Ön değerlendirme', 'Dirseğin iç tarafındaki ağrıyı doğrulamak için hangi testi seçersin?', [
+          ['Dirençli bilek fleksiyonu ve pronasyonda medial epikondil ağrısını arayan test', true, 'Doğru: fleksör-pronatör kökü yüklenir.'],
+          ['Cozen testi', false, 'Cozen lateral epikondili (tenisçi dirseği) değerlendirir.'],
+          ['Talar tilt testi', false, 'Talar tilt ayak bileğini değerlendirir.']
+        ]),
+        TEST('golfer', 'Fizyo Lab’de testi 3B modelde uygula; ardından ev programını kur ve hastaya bildir.')
       ] }
   ];
   L.forEach(function (x) { x.sonu = SONU[x.id] || null; });

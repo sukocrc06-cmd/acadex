@@ -22,6 +22,10 @@
      Doğru seçenek doğru ve anlaşılır olandır; terim yığını ve yanlış güvence ayrı ayrı geri bildirim alır. */
   var JARGON = 'Tıbbi olarak doğru ama hasta anlamaz. Terimleri gündelik dile çevir.';
   var SONU = {
+    'ana-ulnar': { sorular: [{ s: 'Tolga Bey soruyor: “Parmaklarım ne zaman düzelir?”', secenek: [
+      ['Dirseğinizin iç yüzünden geçen ve serçe-yüzük parmağa giden bir sinir uzun süre bükülü kalınca sıkışmış. Çoğu zaman dirseği bükülü tutmamak ve yaslanmamakla haftalar içinde düzelir; gece dirseği düz tutan bir atel yardımcı olur.', true, 'Doğru ve anlaşılır; nedeni ve korunmayı birlikte anlattın.'],
+      ['Kubital tünelde n. ulnaris kompresyon nöropatisi; intrinsik kaslarda parezi.', false, JARGON],
+      ['Hemen ameliyat olmazsanız eliniz pençe gibi kalır.', false, 'Yanlış ve korkutucu: ilk basamak korunma ve izlemdir; cerrahi kalıcı ya da ilerleyen olgularda düşünülür.']] }] },
     'ana-radial': { sorular: [{ s: 'Burak Bey soruyor: “Elim düzelecek mi, ne oldu bana?”', secenek: [
       ['N. radialis sulcus nervi radialis düzeyinde nöropraksi; ekstansör kompartman etkilenmiş.', false, JARGON],
       ['Kolunuzun arkasından geçen bir sinir uzun süre sıkışmış; bileği kaldıran kaslara giden sinyal geçici olarak kesilmiş. Çoğu zaman haftalar içinde düzelir; bu sürede bileği destekleyen atel ve egzersiz yapacağız.', true, 'Doğru ve anlaşılır; beklentiyi de gerçekçi kurdun.'],
@@ -307,11 +311,40 @@
           ['Basit kas ağrısı; ağrı kesiciyle eve', false, 'SpO₂ %89 ve hipersonorite acil müdahale gerektirir.']
         ]),
         MODEL('3B modelde kırılan yapıyı, yaralanabilecek organı ve sağ alt kaburgaların koruduğu organı bul.')
+      ] },
+
+    /* ------------------------------ 01.11.2026: aynı yakınma, farklı tanı (GRUP 'el': radial / ulnar) ------------------------------ */
+    { id: 'ana-ulnar', vaka: 'ulnar', lab: 'anatomi', oda: 'poliklinik', odaAd: 'Acil poliklinik', baslik: 'Dirsek üstünde uyuyakalma',
+      hasta: { ad: 'Tolga', hitap: 'Tolga Bey', yas: 30, cins: 'E', gorunum: 'yetiskin', kiyafet: '#2E3A5C', ifade: 'endise' }, mentor: DR,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Sabah uyandım, sağ elimin yüzük ve serçe parmağı uyuşuk. Parmaklarımı açıp kapamakta zorlanıyorum, düğme ilikleyemedim.' },
+        { tip: 'konus', kim: 'mentor', metin: 'Elde güçsüzlüğün hangi sinirden kaynaklandığını bulmaya çalış. Üç soru hakkın var.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'lezyon düzeyini düşündüren soruları seç', secenek: [
+          S('nasil', 'Nasıl uyudunuz, kolunuz hangi pozisyondaydı?', 'Kolumu başımın altına koyup dirseğim bükülü uyumuşum. Gündüz de masada hep dirseğime yaslanırım.', 3, 'Öykü|Uzun süre bükülü dirsek, dirseğe yaslanma.'),
+          S('his', 'Uyuşukluk tam olarak hangi parmaklarda?', 'Serçe parmağın tamamı ve yüzük parmağın serçeye bakan yarısı.', 3, 'Duyu|4. parmağın ulnar yarısı ve 5. parmak.'),
+          S('bilek', 'Bileğinizi yukarı kaldırabiliyor musunuz?', 'Evet, bileğim normal. Sorun parmaklarda.', 2, 'Motor|Bilek ekstansiyonu korunmuş.'),
+          S('ilac', 'Düzenli ilaç kullanıyor musunuz?', 'Hayır.', 0),
+          S('oyun', 'Bilgisayar oyunu oynar mısınız?', 'Akşamları biraz.', 0),
+          YARGI('hasta', 'Masa başında bu kadar oturmasanız olmaz mı?', 'İşim bu…', 'Yargılamak yerine ergonomiyi birlikte düzenleyin.')
+        ] },
+        { tip: 'eylem', baslik: 'Nörolojik muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('froment', 'Başparmak ve işaret parmağı arasında kâğıt tutmasını iste (Froment)', 'Kâğıdı tutarken başparmağın ucunu büküyor: addüktör pollicis zayıf.', 3),
+          E('tinel', 'Dirseğin iç yüzünde sinire hafifçe vur', 'Serçe parmağa doğru elektrik çarpması hissi.', 3, { ifade: 'agri' }),
+          E('bilek', 'Bilek ekstansiyonunu test et', 'Bilek ekstansiyonu tam ve güçlü.', 2),
+          E('patella', 'Patella refleksine bak', 'Normal. Üst ekstremite vakasında kararını değiştirmez.', 0)
+        ] },
+        K('Sinir hangi düzeyde ve hangi sinir?', [
+          ['N. ulnaris, dirsekte medial epikondilin arkasında (kubital tünel)', true, 'Doğru. Yüzük-serçe parmak uyuşması, el içi küçük kas güçsüzlüğü ve dirsekte pozitif Tinel bu düzeyi gösterir.'],
+          ['N. radialis, humerusun arkasında', false, 'Radial basıda bilek düşer ve uyuşma el sırtındadır; burada bilek normal.'],
+          ['N. medianus, el bileğinde', false, 'Medianus başparmak, işaret ve orta parmağı etkiler.']
+        ]),
+        MODEL('Şimdi 3B modelde sinirin dolandığı kemiği, siniri ve önkolda birlikte seyrettiği arteri bul.')
       ] }
   ];
   /* ilk plan (31.10.2026): yapıları bulduktan sonra öğrenci önce ekibe planı söyler, sonra hastaya anlatır.
      Taburcu sahnesinde hastaya söylenen, SON sorudaki (açıklama) seçimdir; plan sorusu bu yüzden başa eklenir. */
   var PLAN = {
+    'ana-ulnar': ['Dirseği uzun süre bükmemek ve yaslanmamak, gece dirseği düz tutan atel; birkaç hafta sonra kontrol, düzelmezse ENMG', 'Acil sinir ameliyatı', 'Bileği destekleyen atel yeterli', ['Doğru: kubital tünel basısında ilk basamak korunmadır; düzelme yoksa ENMG ve cerrahi değerlendirme.', 'Akut basıda cerrahi ilk basamak değildir.', 'Bilek ateli radial sinir basısı içindir; burada dirsek korunmalı.']],
     'ana-radial': ['Bileği nötral tutan atel, eklem açıklığı egzersizleri ve birkaç hafta içinde kontrol; düzelme yoksa elektrofizyolojik inceleme', 'Acil sinir onarımı ameliyatı', 'Hiçbir şey yapmadan taburcu, kendiliğinden geçer', ['Doğru: bası nöropraksisi çoğunlukla düzelir; atel ve egzersiz bileği korur, düzelme yoksa ENMG istenir.', 'Bası nöropraksisinde sinir kopuk değildir; cerrahi ilk basamak değildir.', 'Atel ve izlem olmadan bilek kontraktürü ve düşme riski artar.']],
     'ana-supra': ['Acil ortopedi: kapalı redüksiyon ve tel ile tespit; nabız, el dolaşımı ve kompartman bulgularını yakın izlem', 'Alçıya alıp ertesi gün kontrol', 'Ağrı kesici verip eve gönder', ['Doğru: nabzı zayıf yer değiştirmiş kırık acil redüksiyon ister; kompartman sendromu kaçırılmamalı.', 'Nabız zayıfken beklemek arter ve sinir hasarını kalıcı yapabilir.', 'Deformite ve nabız zayıflığı ayaktan izlenmez.']],
     'ana-gluteal': ['Olayı kayda geçir; nöroloji konsültasyonu, güç ve duyu izlemi, gerekirse ENMG; fizyoterapi ve düşme önlemi', 'Aynı bölgeye tekrar enjeksiyon yapıp ağrıyı geçir', 'Bir şey söylemeden taburcu et', ['Doğru: istenmeyen olay açıkça kaydedilir; sinir işlevi izlenir ve rehabilitasyon başlar.', 'Aynı bölgeye yeniden enjeksiyon siniri daha da zedeleyebilir.', 'Olayı gizlemek hasta güvenliği ve etik açısından yanlıştır.']],

@@ -56,9 +56,10 @@
     var q = '?medlab=1&medica=1';
     if (s.lab === 'anatomi') return '../anatomi/index.html' + q + '&vaka=' + encodeURIComponent(s.vaka);
     if (s.lab === 'fizyo') return '../fizyo/index.html' + q + '&fz=' + encodeURIComponent(hedef || '') + '&hasta=' + encodeURIComponent(s.hasta.hitap || s.hasta.ad);
-    if (s.lab === 'diyet') return '../diyet/index.html' + q + '&tab=' + (hedef === 'ep' ? 'ep' : 'vaka') + '&vaka=' + encodeURIComponent(s.vaka);
-    if (s.lab === 'odyoloji') return '../odyoloji/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka);
-    if (s.lab === 'dkt') return '../dkt/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka);
+    var ad = s.kimlik ? '&ad=' + encodeURIComponent(s.kimlik.ad) : '';   /* hastanedeki ad lab dosyasında da görünür */
+    if (s.lab === 'diyet') return '../diyet/index.html' + q + '&tab=' + (hedef === 'ep' ? 'ep' : 'vaka') + '&vaka=' + encodeURIComponent(s.vaka) + ad;
+    if (s.lab === 'odyoloji') return '../odyoloji/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka) + ad;
+    if (s.lab === 'dkt') return '../dkt/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka) + ad;
     return null;
   };
 
@@ -211,6 +212,206 @@
   V.labSonPuan = function (cerceve, sonuP, ipucu) {
     var p = cerceve != null ? Math.round(0.7 * cerceve + 0.3 * sonuP) : sonuP;
     return Math.max(0, Math.min(100, p - (ipucu || 0)));
+  };
+  /* =========================== her girişte farklı hastalar (01.11.2026) ===========================
+     1) Kimlik: aynı vaka her ziyarette başka ad ve görünümle gelir. Yaş ve cinsiyet lab hesaplarına
+        (Diyet: enerji, Odyoloji: prob boyu …) bağlı olduğundan değişmez. Ad, metinlerin içinde de
+        değişir; Türkçe ekler (Kerem’le, Aslı’nın) bozulmasın diye yeni ad, eskisiyle aynı son ünlü
+        ve aynı ses sonu taşıyan adlardan seçilir. Konsültasyon zincirindeki hasta her katta aynıdır.
+     2) Aynı yakınma, farklı tanı: bir yakınma grubunun her ziyarette yalnız bir üyesi gelir; bekleme
+        salonunda ve odada tanıyı ele vermeyen ortak yakınma görünür. */
+  /* kuşağa uygun adlar: çocuk (<13), genç (13–35), orta yaş (36–59), yaşlı (60+) */
+  var ISIM = {
+    E: { cocuk: ['Efe', 'Arda', 'Ege', 'Kerem', 'Alp', 'Doruk', 'Mert', 'Emir', 'Yusuf', 'Ömer', 'Aras', 'Kaan', 'Berk', 'Çınar', 'Deniz', 'Poyraz', 'Eymen', 'Miraç', 'Atlas', 'Can', 'Umut', 'Eren', 'Batu', 'Kuzey', 'Taha', 'Alper', 'Yiğit'],
+      genc: ['Burak', 'Emre', 'Onur', 'Cem', 'Barış', 'Kaan', 'Berk', 'Alper', 'Enes', 'Furkan', 'Umut', 'Kerem', 'Can', 'Tolga', 'Serkan', 'Mert', 'Arda', 'Okan', 'Sinan', 'Uğur', 'Yunus', 'Ozan', 'Batuhan', 'Eren', 'Selim', 'Oğuz', 'Doğukan', 'Burak'],
+      orta: ['Ahmet', 'Mehmet', 'Mustafa', 'Murat', 'Serkan', 'Kemal', 'Cem', 'Hakan', 'Erkan', 'Volkan', 'Okan', 'Taner', 'Selim', 'Sinan', 'Levent', 'Kadir', 'Tuncay', 'Ercan', 'Uğur', 'Onur', 'Halil', 'Orhan', 'Tolga', 'Ali', 'Hasan', 'Yusuf', 'Ömer', 'Barış'],
+      yasli: ['Osman', 'Hüseyin', 'Hasan', 'Recep', 'Halil', 'İbrahim', 'İsmail', 'Kemal', 'Necmi', 'Rıza', 'Nuri', 'Sami', 'Cengiz', 'Orhan', 'Mustafa', 'Ahmet', 'Mehmet', 'Ali', 'Kadir', 'Yunus', 'Hilmi', 'Şükrü', 'Bekir', 'Hamdi', 'Cemal', 'Remzi', 'Nihat'] },
+    K: { cocuk: ['Ela', 'Nehir', 'Ada', 'Mira', 'Defne', 'Zeynep', 'Elif', 'Azra', 'Eylül', 'Duru', 'Asel', 'Lina', 'Masal', 'Ecrin', 'Öykü', 'Nil', 'Ceren', 'Yağmur', 'İpek', 'Su', 'Lara', 'Nisa', 'Beren', 'Melis'],
+      genc: ['Büşra', 'Gizem', 'Merve', 'Esra', 'Selin', 'Ece', 'Aslı', 'Burcu', 'Tuğba', 'Seda', 'İpek', 'Nazlı', 'Duygu', 'Hande', 'Ebru', 'Elif', 'Zeynep', 'Defne', 'Melis', 'Ceren', 'Ezgi', 'Damla', 'Pınar', 'Yasemin', 'Sıla', 'Begüm', 'Cansu'],
+      orta: ['Aslı', 'Burcu', 'Sevgi', 'Derya', 'Özlem', 'Sibel', 'Pınar', 'Dilek', 'Serap', 'Filiz', 'Meltem', 'Sema', 'Yasemin', 'Hülya', 'Canan', 'Leyla', 'Nilgün', 'Nurten', 'Gülay', 'Ebru', 'Esra', 'Songül', 'Şule', 'Banu', 'Tülay', 'Arzu', 'Hande', 'Merve'],
+      yasli: ['Fatma', 'Ayşe', 'Emine', 'Hatice', 'Zehra', 'Nuriye', 'Saadet', 'Gönül', 'Ayten', 'Nermin', 'Melek', 'Songül', 'Gülay', 'Leyla', 'Hülya', 'Sevim', 'Necla', 'Şükran', 'Halime', 'Hacer', 'Naciye', 'Saniye', 'Türkan', 'Nurten', 'Güler', 'Nebahat', 'Kamile'] }
+  };
+  var UNLU = 'aıeioöuü', GRUP4 = { a: 'a', 'ı': 'a', e: 'e', i: 'e', o: 'o', u: 'o', 'ö': 'ö', 'ü': 'ö' };
+  /* ek uyumu imzası: son ünlünün 4'lü grubu + ünlüyle mi bitiyor + sert ünsüz mü (ç f h k p s ş t) */
+  V.imza = function (ad) {
+    var s = String(ad).toLocaleLowerCase('tr'), son = '', i;
+    for (i = s.length - 1; i >= 0; i--) if (UNLU.indexOf(s[i]) >= 0) { son = GRUP4[s[i]]; break; }
+    var c = s[s.length - 1];
+    return son + (UNLU.indexOf(c) >= 0 ? 'V' : 'C') + ('çfhkpsşt'.indexOf(c) >= 0 ? 'h' : '');
+  };
+  V.hash = function (t) { var h = 2166136261; t = String(t); for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  V.rng = function (seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+  var KORU = ['Deniz', 'Ece', 'Defne', 'Mert', 'Selin', 'Kaan', 'Arslan'];   /* mentor adları: metinde unvanla geçer, dokunulmaz */
+  var HARF = 'A-Za-zÇĞİÖŞÜçğıöşüâîû';
+  var adDegis = function (t, eski, yeni) {
+    return String(t).replace(new RegExp('(^|[^' + HARF + '.])(' + eski + ')(?![' + HARF + '])', 'g'), function (m, on) { return on + yeni; });
+  };
+  var derin = function (o, f) {
+    if (typeof o === 'string') return f(o);
+    if (Array.isArray(o)) return o.map(function (x) { return derin(x, f); });
+    if (o && typeof o === 'object') { var r = {}; Object.keys(o).forEach(function (k) { r[k] = k === 'mentor' ? o[k] : derin(o[k], f); }); return r; }
+    return o;
+  };
+  var TENLER = ['#F2C7A1', '#E8B48A', '#D49A6A', '#B97E52', '#8E5C3A'];
+  var SAC = { genc: ['#2E241C', '#5A3A22', '#8A5A2B', '#1E1A16', '#B07A3A', '#3A2A1E'], yasli: ['#C9C4BA', '#E2DED6', '#A8A39A', '#9C968C'] };
+  var KIYAFET = ['#3E6E9E', '#C8573A', '#2E8E7E', '#7A4FA8', '#E0A526', '#4E9A6A', '#9E5B7A', '#2F6BFF', '#6E5236', '#D9472B', '#5E8F4A', '#2E3A5C'];
+  /* anahtar: zincir kimliği (her katta aynı hasta) ya da senaryo kimliği */
+  V.kimlik = function (sen, tohum, anahtar) {
+    var h = sen.hasta, r = V.rng(V.hash(tohum + '|' + (anahtar || sen.id))), ilk = String(h.ad).replace(/^Bebek /, '').split(' ')[0];
+    var yas = parseInt(h.yas, 10) || 0, kus = /günlük/.test(String(h.yas)) || yas < 13 ? 'cocuk' : yas < 36 ? 'genc' : yas < 60 ? 'orta' : 'yasli';
+    var uygun = function (L) { return (L || []).filter(function (n, i, a) { return a.indexOf(n) === i && n !== ilk && KORU.indexOf(n) < 0 && V.imza(n) === V.imza(ilk); }); };
+    var I = ISIM[h.cins] || {}, havuz = uygun(I[kus]);
+    if (havuz.length < 2) havuz = uygun((I[kus] || []).concat(kus === 'cocuk' ? I.genc : kus === 'yasli' ? I.orta : kus === 'genc' ? I.orta : I.yasli));
+    var yeni = KORU.indexOf(ilk) >= 0 || !havuz.length ? ilk : havuz[Math.floor(r() * havuz.length)];
+    var yasli = h.gorunum === 'yasli';
+    return { eski: ilk, ad: yeni, ten: TENLER[Math.floor(r() * TENLER.length)], sac: (yasli ? SAC.yasli : SAC.genc)[Math.floor(r() * (yasli ? SAC.yasli : SAC.genc).length)],
+      kiyafet: KIYAFET[Math.floor(r() * KIYAFET.length)], gozluk: !yasli && h.gorunum !== 'cocuk' && r() < 0.25 };
+  };
+  V.kisisel = function (sen, tohum, anahtar) {
+    var k = V.kimlik(sen, tohum, anahtar), f = k.ad === k.eski ? function (t) { return t; } : function (t) { return adDegis(t, k.eski, k.ad); };
+    var o = derin(sen, f);
+    o.hasta = Object.assign({}, o.hasta, { ten: k.ten, sac: k.sac, kiyafet: k.kiyafet, gozluk: o.hasta.gozluk || k.gozluk });
+    o.kimlik = { eski: k.eski, ad: k.ad };
+    return o;
+  };
+  /* aynı yakınma, farklı tanı: her ziyarette grubun bir üyesi gelir */
+  V.GRUP = [
+    { id: 'omuz', yakinma: 'Kolunu kaldırınca omuz ağrısı', uyeler: ['fz-omuz', 'fz-omuz-yirtik', 'fz-omuz-inst'] },
+    { id: 'diz', yakinma: 'Sporda dizini burktu', uyeler: ['fz-lachman', 'fz-menisk', 'fz-mkb'] },
+    { id: 'bilek', yakinma: 'El bileğinde ağrı', uyeler: ['fz-karpal', 'fz-dequervain'] },
+    { id: 'dirsek', yakinma: 'Dirsek ağrısı', uyeler: ['fz-tenis', 'fz-golfer'] },
+    { id: 'el', yakinma: 'Uyanınca elini kullanamıyor', uyeler: ['ana-radial', 'ana-ulnar'] },
+    { id: 'iki-kulak', yakinma: 'İki kulakta duymakta zorlanıyor', uyeler: ['ody-v-presbi', 'ody-v-gurultu', 'ody-v-oto'] },
+    { id: 'tek-kulak', yakinma: 'Tek kulakta işitme kaybı ve çınlama', uyeler: ['ody-v-ani', 'ody-v-noroma'] },
+    { id: 'seker', yakinma: 'Şekeri yüksek, kilo vermek istiyor', uyeler: ['dyt-v-dm', 'dyt-v-gut-dm'] },
+    { id: 'cocuk-konusma', yakinma: 'Çocuğun konuşması anlaşılmıyor', uyeler: ['dkt-ssd', 'dkt-yarik'] }
+  ];
+  V.grupOf = function (id) { return V.GRUP.filter(function (g) { return g.uyeler.indexOf(id) >= 0; })[0] || null; };
+  /* ziyaret: görünen hastalar (kişiselleştirilmiş, katta karışık sırada) ve bu ziyarette gelmeyen grup üyeleri */
+  V.ziyaret = function (SEN, tohum) {
+    var r = V.rng(V.hash('ziyaret|' + tohum)), gizli = {};
+    V.GRUP.forEach(function (g) { var var_ = g.uyeler.filter(function (id) { return SEN[id]; }); if (!var_.length) return; var sec = var_[Math.floor(r() * var_.length)]; var_.forEach(function (id) { if (id !== sec) gizli[id] = 1; }); });
+    var out = {}, ids = Object.keys(SEN).filter(function (id) { return !gizli[id] && !/-taburcu$/.test(id); });
+    /* katta sıra her ziyarette değişir (Fisher–Yates, tohumlu) */
+    for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
+    ids.forEach(function (id) {
+      var z = V.zincir(id), g = V.grupOf(id), s = V.kisisel(SEN[id], tohum, z ? 'zincir:' + z.z.id : id);
+      if (g) { s.tani = s.baslik; s.baslik = g.yakinma; s.grup = g.id; }
+      out[id] = s;
+    });
+    return { sen: out, gizli: Object.keys(gizli) };
+  };
+  /* =========================== sistematik anamnez (bölüme göre) ===========================
+     Görüşmenin başına, senaryonun kendi sorularından önce eklenir. Senaryoda zaten sorulan klasik
+     soru (ilaç, aile, alkol …) tekrar sorulmaz. Yanıtlar hastanın profilinden gelir; profil yalnız
+     öykünün gerektirdiği yerlerde (PROFIL) yazılı, gerisi yaşa uygun nötr varsayılandır. */
+  V.PROFIL = {
+    'ana-supra': { sonyemek: 'Öğlen yemeğini yemişti, iki saat oldu.' },
+    'ana-pterion': { sonyemek: 'Maçtan önce sandviç yedim.' },
+    'ana-inme': { oz: 'Yüksek tansiyonu var; geçen yıl kalp ritim bozukluğu söylendi.', alis: '40 yıl sigara içti, beş yıl önce bıraktı.', sonyemek: 'Kahvaltıda bir yudum su verdik, öksürdü; başka bir şey yemedi.', soy: 'Annesi de inme geçirmişti.', alerji: 'Bildiğimiz bir alerjisi yok.' },
+    'ana-kalca': { oz: 'Tansiyonum var. Kemik erimesi dediler ama ilaç kullanmadım.', sonyemek: 'Sabah biraz çorba içtim.', alerji: 'Bilinen alerjim yok.' },
+    'ana-apandisit': { sonyemek: 'Dün akşamdan beri hiçbir şey yiyemedim.' },
+    'ana-kot': { alis: 'Günde bir paket sigara içiyorum.', sonyemek: 'İki saat önce öğle yemeği yedim.', alerji: 'Penisiline alerjim var.' },
+    'ana-ulnar': { oz: 'Bilinen bir hastalığım yok.' },
+    'fz-ocb': { onceki: 'Ameliyattan sonra hastanede birkaç egzersiz öğrettiler.', ilac: 'Ağrı kesici ve on gün kan sulandırıcı iğne.' },
+    'fz-tda': { onceki: 'Ameliyattan sonra hastanede yürüteçle yürüttüler.', ilac: 'Ağrı kesici, kan sulandırıcı ve tansiyon ilacı.', oz: 'Tansiyonum var, dizlerimde yıllardır kireçlenme vardı.' },
+    'fz-kalca': { onceki: 'Ameliyattan sonra serviste birkaç gün yürüttüler.', ilac: 'Tansiyon ilacı ve kemik erimesi için yeni bir ilaç.', oz: 'Tansiyon ve kemik erimesi.' },
+    'fz-asil': { onceki: 'Hiç tedavi almadım; sabahları biraz sertlik vardı.' },
+    'fz-omuz-yirtik': { oz: 'Şekerim var, hap kullanıyorum.', ilac: 'Şeker hapı.' },
+    'fz-karpal': { oz: 'Tiroidim az çalışıyor, ilaç kullanıyorum.', ilac: 'Tiroid ilacı.' },
+    'ody-v-presbi': { oz: 'Tansiyonum var.', ilac: 'Tansiyon ilacı.' },
+    'ody-v-kom': { kulakop: 'Sol kulağım çocukluğumdan beri akar; ameliyat olmadım.' },
+    'ody-v-ansd': { oz: 'Yenidoğan yoğun bakımda 7 gün kaldı, sarılık için kan değişimi yapıldı.', ototoks: 'Yoğun bakımda antibiyotik verildi.' },
+    'ody-v-noroma': { ototoks: 'Hayır, ilaç kullanmadım.' },
+    'dyt-v-onko': { oz: 'Over kanseri; kemoterapi alıyorum.', ilac: 'Sisplatinli kemoterapi ve bulantı ilacı.', alis: 'Kullanmıyorum.' },
+    'dyt-v-colyak': { ilac: 'Şimdilik ilaç kullanmıyorum.' },
+    'dyt-v-ped-osteo': { oz: 'Sol bacağında kemik iltihabı; damardan antibiyotik alıyor.', ilac: 'Damardan antibiyotik ve ateş düşürücü.' },
+    'dyt-e-peg': { oz: 'Dil kökü kanseri; radyoterapi alıyor.', alis: 'Yıllarca sigara içti, tanı alınca bıraktı.' },
+    'dyt-v-osteo': { oz: 'Kemik erimesi; menopoza 50 yaşında girdim.' },
+    'dkt-afazi': { oz: 'Üç hafta önce inme geçirdi; tansiyonu var.', ilac: 'Kan sulandırıcı ve tansiyon ilacı.', egitim: 'Emekli öğretmen; konuşmak onun için çok önemliydi.' },
+    'dkt-pd': { oz: 'Parkinson hastalığı, sekiz yıldır.', ilac: 'Parkinson ilaçları, günde dört kez.', egitim: 'Emekli terzi; torunlarıyla konuşmayı çok sever.' },
+    'dkt-disfaji': { oz: 'Sağ hemisfer inmesi, tansiyon ve kalp ritim bozukluğu.' },
+    'dkt-osman': { oz: 'Yüksek tansiyonu ve kalp ritim bozukluğu var.', ilac: 'Tansiyon ilacı; kan sulandırıcı yeni başlandı.', alerji: 'Bildiğimiz alerjisi yok.' },
+    'dkt-kerem': { gelisim: 'Yürümesi zamanında oldu ama ilk sözcüğünü iki yaşından sonra söyledi.', oz: 'İki taraflı işitme kaybı tanısı aldı.' },
+    'dkt-ykek': { egitim: 'Bilgisayar mühendisiyim; işte çok toplantıya giriyorum.' },
+    'dkt-nodul': { egitim: 'İlkokul öğretmeniyim; gün boyu konuşuyorum.' }
+  };
+  var VARS = {
+    oz: function (h) { return h.cocuk ? 'Sık hastalanmaz, bilinen bir hastalığı yok.' : 'Bildiğim başka bir hastalığım yok, ameliyat da olmadım.'; },
+    soy: function () { return 'Ailede bildiğim önemli bir hastalık yok.'; },
+    ilac: function (h) { return h.cocuk ? 'Düzenli kullandığı bir ilaç yok.' : 'Düzenli kullandığım bir ilaç yok.'; },
+    alerji: function (h) { return h.cocuk ? 'Bilinen bir alerjisi yok.' : 'Bilinen bir alerjim yok.'; },
+    alis: function () { return 'Sigara da alkol de kullanmıyorum.'; },
+    meslek: function (h) { return h.yas < 3 ? 'Evde bakıyoruz.' : h.yas < 7 ? 'Anaokuluna gidiyor.' : h.yas < 18 ? 'Okula gidiyor.' : h.yas < 26 ? 'Üniversitede okuyorum.' : h.yas < 65 ? 'Çalışıyorum; günüm çoğunlukla masa başında geçiyor.' : 'Emekliyim.'; },
+    sonyemek: function () { return 'Sabah kahvaltı ettim, sonra bir şey yemedim.'; },
+    agri: function (h) { return h.agri ? 'Şu an 7 civarı; hareket edince 8’e çıkıyor.' : 'Dinlenirken 3, zorlanınca 6 civarı.'; },
+    aktivite: function (h) { return h.yas >= 65 ? 'Evdeki işlerimi yaparken zorlanıyorum, yürüyüşe çıkamıyorum.' : 'İşimi yaparken zorlanıyorum; sporu şimdilik bıraktım.'; },
+    onceki: function () { return 'Bu yakınma için daha önce tedavi almadım.'; },
+    gurultu: function (h) { return h.cocuk ? 'Gürültülü bir ortamda kalmadı.' : 'Gürültülü bir yerde çalışmadım, kulaklıkla da yüksek sesle dinlemem.'; },
+    ototoks: function () { return 'Bildiğim böyle bir ilaç kullanmadım.'; },
+    kulakop: function (h) { return h.cocuk ? 'Kulak ameliyatı olmadı, sık iltihap da geçirmedi.' : 'Kulak ameliyatı olmadım, sık iltihap da geçirmedim.'; },
+    gelisim: function () { return 'İlk sözcüğünü bir yaş civarında söyledi, yürümesi de zamanında oldu.'; },
+    isitme: function (h) { return h.cocuk ? 'Yenidoğan taramasından geçti, sonra ölçülmedi.' : 'İşitmemde bir sorun fark etmedim.'; },
+    dil: function () { return 'Evde yalnız Türkçe konuşuyoruz.'; },
+    egitim: function () { return 'Lise mezunuyum; gündelik hayatta çok konuşurum.'; }
+  };
+  /* [id, soru (yetişkin), soru (çocuk/yakın), not başlığı, atlanacak senaryo soru kimlikleri] */
+  var ANM_ORTAK = [
+    ['oz', 'Daha önce geçirdiğiniz ya da süregen bir hastalığınız, ameliyatınız var mı?', 'Daha önce geçirdiği bir hastalık ya da ameliyat var mı?', 'Özgeçmiş', ['hastalik', 'ameliyat', 'tani', 'inme']],
+    ['soy', 'Ailenizde önemli bir hastalık var mı?', 'Ailede önemli bir hastalık var mı?', 'Soygeçmiş', ['aile']],
+    ['ilac', 'Düzenli kullandığınız ilaçlar var mı?', 'Düzenli kullandığı bir ilaç var mı?', 'İlaç', ['ilac']],
+    ['alerji', 'Bilinen bir ilaç ya da besin alerjiniz var mı?', 'Bilinen bir alerjisi var mı?', 'Alerji', ['alerji']],
+    ['alis', 'Sigara ya da alkol kullanıyor musunuz?', 'Sigara ya da alkol kullanıyor mu?', 'Alışkanlık', ['alkol', 'sigara']],
+    ['meslek', 'Ne iş yapıyorsunuz?', 'Okula ya da kreşe gidiyor mu?', 'Meslek / okul', ['meslek', 'is', 'emekli', 'okul', 'kres']]
+  ];
+  var ANM_BOLUM = {
+    tip: [['sonyemek', 'En son ne zaman yiyip içtiniz?', 'En son ne zaman yiyip içti?', 'Son yemek', ['aclik']]],
+    fizyo: [['agri', 'Ağrınızı 0 ile 10 arasında puanlasanız kaç verirsiniz?', null, 'Ağrı şiddeti', ['agri']],
+      ['aktivite', 'Bu yakınma günlük işlerinizi ve sporunuzu nasıl etkiliyor?', null, 'Günlük yaşam', ['spor', 'aktivite']],
+      ['onceki', 'Bu bölge için daha önce tedavi ya da fizyoterapi aldınız mı?', null, 'Önceki tedavi', ['once', 'egz', 'cerrah']]],
+    diyet: [['boykilo', 'Boyunuz ve kilonuz kaç?', 'Boyu ve kilosu kaç?', 'Boy-kilo', ['boykilo']]],
+    odyo: [['gurultu', 'Gürültülü ortamda çalıştınız mı, yüksek sesle müzik dinler misiniz?', 'Gürültülü bir ortamda kaldı mı?', 'Gürültü öyküsü', ['gurultu', 'koruyucu', 'kulaklik', 'is']],
+      ['ototoks', 'Kulağa zarar verebilen bir ilaç (bazı antibiyotikler, kemoterapi) kullandınız mı?', 'Kulağa zarar verebilen bir ilaç aldı mı?', 'Ototoksik ilaç', ['ilac']],
+      ['kulakop', 'Daha önce kulak ameliyatı ya da sık kulak iltihabı geçirdiniz mi?', 'Sık kulak iltihabı geçirdi mi, kulak ameliyatı oldu mu?', 'Kulak öyküsü', ['kulak', 'akinti', 'once']]],
+    dkt: [['gelisim', null, 'İlk sözcüklerini ve ilk adımlarını ne zaman attı?', 'Gelişim', ['gelisim']],
+      ['isitme', 'İşitmenizde bir sorun var mı?', 'İşitmesi hiç ölçüldü mü?', 'İşitme', ['kulak', 'cihaz', 'isitme']],
+      ['dil', null, 'Evde hangi dil ya da diller konuşuluyor?', 'Ev dili', ['dil']],
+      ['egitim', 'Eğitiminiz ve gündelik konuşma ihtiyacınız nasıl?', null, 'Eğitim / iletişim', ['egitim']]]
+  };
+  /* bölümün kritik soruları 2 puan, diğerleri 1 */
+  var ANM_KRITIK = { tip: ['oz', 'alerji', 'sonyemek'], fizyo: ['agri', 'oz'], diyet: ['boykilo', 'oz', 'ilac'], odyo: ['gurultu', 'ototoks', 'kulakop'], dkt: ['gelisim', 'isitme', 'oz'] };
+  V.anamnez = function (sen) {
+    var kat = V.katOf(sen.id); if (!kat || !sen.hasta) return null;
+    var h = sen.hasta, yas = parseInt(h.yas, 10) || 0, gunluk = /günlük/.test(String(h.yas)), cocuk = h.gorunum === 'cocuk' || gunluk;
+    var var_ = sen.adimlar.filter(function (a) { return a.tip === 'sor'; }).reduce(function (m, a) { a.secenek.forEach(function (o) { m[o.id] = 1; }); return m; }, {});
+    var kim = (cocuk || h.konusamaz) && sen.refakat ? 'refakat' : null;
+    var P = V.PROFIL[sen.id] || {}, ilk = String(h.ad).split(' ')[0];
+    var hh = { cocuk: cocuk, yas: gunluk ? 0 : yas, agri: h.ifade === 'agri' };
+    /* boy-kilo: senaryodaki tartı ve boy ölçümünden */
+    var olc = {}; sen.adimlar.forEach(function (a) { if (a.tip === 'eylem') a.secenek.forEach(function (o) { if (o.id === 'tarti' || o.id === 'boy') olc[o.id] = o.deger; }); });
+    var cevap = function (id) {
+      if (P[id]) return P[id];
+      if (id === 'boykilo') return olc.boy && olc.tarti ? (kim ? 'Boyu ' : 'Boyum ') + olc.boy + ', kilo' + (kim ? 'su ' : 'm ') + olc.tarti + ' civarı.' : null;
+      var t = VARS[id](hh); return kim && id === 'alis' ? 'Sigara da alkol de kullanmıyor.' : t;
+    };
+    var L = ANM_ORTAK.concat(ANM_BOLUM[kat.id] || []), kr = ANM_KRITIK[kat.id] || [], sec = [];
+    L.forEach(function (x) {
+      if (x[4].some(function (k) { return var_[k]; })) return;
+      var soru = kim || cocuk ? x[2] : x[1]; if (!soru) return;
+      if (kat.id === 'dkt' && ((x[0] === 'gelisim' || x[0] === 'dil') && !cocuk || x[0] === 'egitim' && cocuk)) return;
+      if ((gunluk && ['meslek', 'gurultu', 'kulakop'].indexOf(x[0]) >= 0) || (cocuk && x[0] === 'alis')) return;
+      var c = cevap(x[0]); if (!c) return;
+      sec.push({ id: 'anm-' + x[0], t: soru, cevap: c, puan: kr.indexOf(x[0]) >= 0 ? 2 : 1, not: x[3] + '|' + c, kim: kim });
+    });
+    if (!sec.length) return null;
+    return { tip: 'sor', baslik: 'Sistematik anamnez', yonerge: 'klasik soruları sor (' + kat.bolum.toLocaleLowerCase('tr') + ')', secenek: sec, ozet: 'Sistematik anamnez, gözden kaçan bir hastalığı ya da riski yakalamanın en güvenli yolu.', anamnez: true, ad: ilk };
+  };
+  /* anamnez adımını görüşmenin ilk sorusundan hemen önceye koyar */
+  V.anamnezEkle = function (sen) {
+    var a = V.anamnez(sen); if (!a) return sen;
+    var i = sen.adimlar.map(function (x) { return x.tip; }).indexOf('sor'); if (i < 0) return sen;
+    var ad = sen.adimlar.slice(); ad.splice(i, 0, a);
+    return Object.assign({}, sen, { adimlar: ad });
   };
   return V;
 });

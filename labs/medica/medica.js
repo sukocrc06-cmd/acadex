@@ -41,7 +41,12 @@
     lab: null                                     /* iç çerçevede açık lab */
   };
   var kaydet = function () { ls.set('gorulen', S.gorulen); ls.set('nobet', S.nobet); ls.set('defter', S.defter.slice(-40)); ls.set('sevk', S.sevk); };
-  var hastalar = function (kat) { return V.katHastalari(kat, K.SEN); };
+  /* her girişte farklı hastalar: ziyaret tohumu (süren nöbette nöbetin tohumu) → yeni ad ve görünüm,
+     yakınma gruplarından bu ziyarette gelen tanı, katta karışık sıra (medica-veri.js → ziyaret) */
+  var TOHUM = (S.nobet && S.nobet.tohum) || (Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+  var ZIY = V.ziyaret(K.SEN, TOHUM), SENV = ZIY.sen;
+  Object.keys(SENV).forEach(function (id) { K.SEN[id] = SENV[id]; });
+  var hastalar = function (kat) { return V.katHastalari(kat, SENV); };
 
   /* ---------------- ses: asansör "ding" ve sıra çağrısı (kullanıcı dokunuşundan sonra) ---------------- */
   var AC = null;
@@ -279,7 +284,7 @@
     var basla = function () {
       var k = S.bolum ? V.katBul(S.bolum) : null;
       if (!k) { tanitim(0); return; }
-      konus(panel, 'rehber', ad, V.TEKRAR(k), function (row) {
+      konus(panel, 'rehber', ad, V.TEKRAR(k) + ' Bugün poliklinikte yeni yüzler var.', function (row) {
         odak(dugme(row, 'Katıma çık →', 'pri', function () { asansor(k.id); }));
         dugme(row, 'Bölümümü değiştir', '', function () { tanitim(V.TANITIM.length - 1); });
         dugme(row, 'Tanıtımı yeniden dinle', '', function () { tanitim(0); });
@@ -317,7 +322,7 @@
     var g = S.gorulen[s.id], p = V.hastaPuan(g), no = V.sira(kat, L.indexOf(s)), h = s.hasta;
     var n = S.nobet, nb = n && n.kat === kat.id && n.triyaj && n.hastalar.some(function (x) { return x.id === s.id; }), tr = nb ? V.TRIYAJ_RENK[V.triyaj(s).renk] : null;
     var zr = V.zincir(s.id), sv = zr && zr.i > 0 && sevkAcik(s.id) && !g;
-    return '<li><button type="button" class="hk' + (g ? ' gor' : '') + (sv ? ' sevkli' : '') + '" data-sen="' + s.id + '"' + (tr ? ' style="--tr:' + tr.renk + '"' : '') + '><span class="no">' + (tr ? '<i class="tr" title="Triyaj: ' + tr.ad + '"></i>' : '') + no + '</span><span class="tx"><b>' + X(h.hitap || h.ad) + (h.yas != null ? ' <small>' + X(typeof h.yas === 'number' ? h.yas + ' yaş' : h.yas) + '</small>' : '') + '</b><span>' + X(s.baslik) + '</span><small>' + X(s.odaAd) + (zr ? ' · <em class="zn">' + (sv ? 'SEVK · ' + V.katOf(zr.z.zincir[zr.i - 1]).no + '. kattan' : 'konsültasyon hastası') + '</em>' : '') + '</small></span>' +
+    return '<li><button type="button" class="hk' + (g ? ' gor' : '') + (sv ? ' sevkli' : '') + '" data-sen="' + s.id + '"' + (tr ? ' style="--tr:' + tr.renk + '"' : '') + '><span class="no">' + (tr ? '<i class="tr" title="Triyaj: ' + tr.ad + '"></i>' : '') + no + '</span><span class="tx"><b>' + X(h.hitap || h.ad) + (h.yas != null ? ' <small>' + X(typeof h.yas === 'number' ? h.yas + ' yaş' : h.yas) + '</small>' : '') + '</b><span>' + X(s.baslik) + (g && s.tani && s.tani !== s.baslik ? ' <em class="tn">· ' + X(s.tani) + '</em>' : '') + '</span><small>' + X(s.odaAd) + (zr ? ' · <em class="zn">' + (sv ? 'SEVK · ' + V.katOf(zr.z.zincir[zr.i - 1]).no + '. kattan' : 'konsültasyon hastası') + '</em>' : '') + '</small></span>' +
       (g ? '<span class="st ' + (p >= 85 ? 'ok' : p >= 60 ? 'orta' : 'zay') + '">' + (p != null ? p : '✓') + '</span>' : '<span class="st bek">bekliyor</span>') + '</button></li>';
   };
 
@@ -356,7 +361,8 @@
   };
   var sahne = function (sen, nobetten) {
     S.aktif = { sen: sen, sahne: null, lab: null, nobet: nobetten };
-    var kn = V.konsultNotu(sen.id), oyna = kn ? Object.assign({}, sen, { adimlar: [{ tip: 'konus', kim: 'anlatici', metin: kn }].concat(sen.adimlar) }) : sen;
+    /* bölüme göre sistematik anamnez görüşmenin başına eklenir; konsültasyon notu en başta */
+    var kn = V.konsultNotu(sen.id), oyna = V.anamnezEkle(sen); if (kn) oyna = Object.assign({}, oyna, { adimlar: [{ tip: 'konus', kim: 'anlatici', metin: kn }].concat(oyna.adimlar) });
     K.open(oyna, {
       onSonuc: function (R) { S.aktif.sahne = R.puan; S.aktif.kacan = R.rows.filter(function (r) { return r.kacan.length; }).map(function (r) { return r.kacan[0]; }).slice(0, 2); kaydetHasta(); },
       onDevir: function (R, hedef) { if (S.aktif.sahne == null) { S.aktif.sahne = R.puan; kaydetHasta(); } labAc(sen, hedef); },
@@ -493,7 +499,7 @@
     var L = hastalar(kat).slice(), sec = [];
     var gorulmemis = L.filter(function (s) { return !S.gorulen[s.id]; }), havuz = gorulmemis.length >= Math.min(V.NOBET_HASTA, L.length) ? gorulmemis : L;
     havuz = havuz.slice(); while (sec.length < Math.min(V.NOBET_HASTA, L.length) && havuz.length) sec.push(havuz.splice(Math.floor(Math.random() * havuz.length), 1)[0]);
-    S.nobet = { kat: kat.id, basla: Date.now(), saat: V.NOBET_BASLA, i: 0, hastalar: sec.map(function (s) { return { id: s.id, sahne: null, lab: null }; }), triyaj: null, kod: V.kodPlan(kat.id, sec.length) };
+    S.nobet = { kat: kat.id, basla: Date.now(), saat: V.NOBET_BASLA, i: 0, hastalar: sec.map(function (s) { return { id: s.id, sahne: null, lab: null }; }), triyaj: null, kod: V.kodPlan(kat.id, sec.length), tohum: TOHUM };
     kaydet(); ekran('kat', kat.id); live('Nöbet başladı: ' + sec.length + ' hasta. Saat ' + V.saat(V.NOBET_BASLA));
     setTimeout(triyajMasasi, RM ? 0 : 500);
   };
