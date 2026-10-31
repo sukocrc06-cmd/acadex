@@ -1063,6 +1063,51 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
     assert.ok(A.QUOTE_SIRALAMA_BANDI <= 0.05, 'bant cok genis — kesinlik Dice yi ezmeye baslar');
   });
 
+
+  // --- kapanis tirnagi ve kapi (31.10.2026) --------------------------------
+  /* KAPANIS TIRNAGI CUMLEYI YUTUYORDU
+
+     Kaynak yorumu tirnak icinde veriyor ve nokta tirnagin ICINDE kaliyor:
+       “...is 50.5% higher in Europe than South America.” The North America
+       dummy variable coefficient is interpreted as “...56.6%...”
+     Desen yalnizca noktalama ariyordu, bolunmedigi icin 303 karakterlik TEK
+     cumle cikiyordu — alinti tavani 220, yani bu metinden hic alinti
+     secilemiyordu. Olculen: tirnak kaldirilinca ayni metin 143 ve 157
+     karakterlik iki cumleye boluniyor. */
+  test('cumle KAPANIS TIRNAGINDAN sonra boluniyor', () => {
+    const s = 'The Europe coefficient is interpreted as \u201con average energy per capita is 50.5% higher in Europe than South America.\u201d The North America coefficient is interpreted as \u201con average energy per capita is 56.6% higher in North America.\u201d';
+    const c = A.splitSentences(s);
+    assert.equal(c.length, 2, 'tirnak hala cumleyi yutuyor: ' + c.length + ' cumle, ' + s.length + ' krk');
+    for (const x of c) assert.ok(x.length <= A.QUOTE_MAX_CHARS, 'alinti tavanini asiyor: ' + x.length);
+  });
+
+  test('NOKTA hala sart — tirnak tek basina cumle bitirmez', () => {
+    assert.equal(A.splitSentences('he said \u201chi\u201d and then left the room quietly').length, 1);
+    assert.equal(A.splitSentences('bkz. s. 42 numarali madde burada anlatiliyor').length, 1);
+  });
+
+  /* KAPI EN IYI KAPSAMAYA BAKAR, SIRALAMA KAZANANINA DEGIL
+
+     Iki not "KAPI DEGISMEDI, yalnizca SIRALAMA" diyordu ama kod oyle
+     davranmiyordu: esik `best.score`a bakiyordu ve `best` kesinlik
+     tie-break'i ile degismis olabiliyordu. Olculen s.42:
+       kapsama 0.407  "The Europe dummy variable coefficient is ..."
+       kapsama 0.407  "The North America dummy variable coefficient is ..."
+       kapsama 0.256  "Neither of these are statistically significant ..."  <- dice birincisi
+     Esigi (0.3) gecen aday VARDI ama donen deger null oluyordu. */
+  test('esigi gecen aday varken SIRALAMA kazanani donuyor', () => {
+    const idx = A.buildPageIndex(TAM, 'SAYFA');
+    const q = A.bestQuoteForClaim(IDDIA, P42, A.buildAnchorIdf(idx), true);
+    assert.ok(q, 'sayfada esigi gecen aday varken null donuldu');
+    assert.match(q, /Neither of these are statistically/, q);
+  });
+
+  test('esigi gecen aday YOKSA hala null (kapi gevsemedi)', () => {
+    const idx = A.buildPageIndex(TAM, 'SAYFA');
+    /* Tek basina bu parca: kesinlik 1.000 ama kapsama 0.230 — kotu alinti. */
+    assert.equal(A.bestQuoteForClaim(IDDIA, 'America as the omitted group', A.buildAnchorIdf(idx), true), null);
+  });
+
   test('siralama generate-exam te de GUNCEL', () => {
     const g = require('node:fs').readFileSync(
       require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');

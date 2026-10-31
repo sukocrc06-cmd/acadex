@@ -130,6 +130,13 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'pencereCikisiDar',
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
+  // Yuzdeye cevirme carpani hedef degil (31.10.2026 olcumu).
+  'YUZDE_CEVRIM_RE',
+  // Zincir ortasindaki ara hesap hedef degil (31.10.2026 olcumu).
+  'ARA_HESAP_ISLEM_RE', 'araHesabiAyikla',
+  // Sayinin ANLAMINI soyleyen cumle kurtarilir (31.10.2026 olcumu).
+  'YORUM_ISARETCI_RE', 'YORUM_MIN_SOZCUK', 'YORUM_HARF_ORANI', 'YORUM_MAX',
+  'yorumCumleleriniKurtar',
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
   'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE',
@@ -6738,7 +6745,11 @@ test('canli deste: dort ozetin SIRASINI yeniden uretiyor', () => {
 
 test('log satiri: oran ve kayip ornekleri, fazlasi sayi olarak', () => {
   const satir = A.formatCoverage(A.numericCoverage(DESTE_SONUCLARI, {}));
-  assert.ok(/^0\/13 \(%0\) — kayip: 1000, 0\.07, 484\.12, 12\.08, 0\.09, 0\.026, 100, 2\.6 \+5$/.test(satir), satir);
+  /* 31.10.2026: hedef 13'ten 12'ye dustu ve listeden "100" cikti. Fikstur
+     "(0.026)100% or 2.6%" cumlesini tasiyor; oradaki 100 ondaligi yuzdeye
+     cevirme CARPANI, ders icerigi degil (bkz. YUZDE_CEVRIM_RE). Ayni
+     desen "β1100%" icindeki 1100'u de eliyor. */
+  assert.ok(/^0\/12 \(%0\) — kayip: 1000, 0\.07, 484\.12, 12\.08, 0\.09, 0\.026, 2\.6, 50\.5 \+4$/.test(satir), satir);
   assert.ok(/\+\d+$/.test(satir), `ornek sayisi asildiginda kalan sayi yazilmali: ${satir}`);
   assert.equal(A.formatCoverage(A.numericCoverage('yalnizca 3 ve 5', {})),
     'olculecek ayirt edici sayi yok');
@@ -8566,6 +8577,139 @@ test('PDF yolunda gomulu font YOKSA ASCII karsilik tablosu duruyor', () => {
   for (const anahtar of ['times:', 'cdot:', 'div:', 'pm:', 'neq:', 'leq:', 'geq:', 'approx:']) {
     assert.ok(dash.includes(anahtar), 'LATEX_ASCII icinde ' + anahtar + ' yok');
   }
+});
+
+
+/* YUZDEYE CEVIRME CARPANI HEDEF DEGIL (31.10.2026, IPPT kartinda olculdu)
+
+   Dort ayri kosuda ayni iki sayi hedefte kaldi ve ikisi de sayi degildi:
+     1100 <- "y increases by β1100%"          (β₁ ile 100% yan yana)
+     100  <- "goes up by (0.026)100% or 2.6%" (cevirme carpani)
+   Zitti yonde bozuyorlardi: 1100 dort kosunun dordunde "kayip" sayildi
+   (payda sisti), 100 ise ozet "(β₁)100%" yazdigi icin BEDAVA "kapsandi"
+   (pay sisti). En iyi kosu 25/30 (%83); ikisi cikinca 24/28 (%86). */
+test('yuzdeye cevirme carpani hedef sayilmiyor', () => {
+  assert.deepEqual(A.distinctiveNumbers('y increases by \u03b21100% on average'), []);
+  assert.deepEqual(
+    A.distinctiveNumbers('goes up by (0.026)100% or 2.6% in total'),
+    [0.026, 2.6],
+    'carpan hala hedefte ya da gercek sayilar dustu');
+});
+
+test('GERCEK yuzdeler hedefte kaliyor (desen dar)', () => {
+  /* Olculen karsi ornekler: hepsinde sayinin onunde BOSLUK var. */
+  assert.deepEqual(A.distinctiveNumbers('is 50.5% higher in Europe than South America'), [50.5]);
+  assert.deepEqual(A.distinctiveNumbers('goes up by .69% on average'), [0.69]);
+  assert.deepEqual(A.distinctiveNumbers('is 9.3% lower and 41.5% higher than base'), [9.3, 41.5]);
+  /* Parantez var ama ardindan yuzde YOK — dokunulmuyor. */
+  assert.ok(A.distinctiveNumbers('-12.08 + 2(0.09)39 = -5.06').includes(5.06));
+});
+
+
+/* SAYININ ANLAMINI SOYLEYEN CUMLE KURTARILIR (31.10.2026, IPPT kartinda
+   dort kosu boyunca olculdu)
+
+   tahminDenklemleriniKurtar DENKLEMLERI geri getiriyor; destenin son
+   slaytlarindaki sayilar ise denklemde degil YORUM CUMLESINDE duruyor ve
+   dort kosunun hicbirinde karta girmedi: 0.07 (s.11), 50.5/56.6 (s.39),
+   0.69 (s.40), 9.3/41.5 (s.42). Hepsi destenin sonunda, yani ikinci
+   pencerenin cikis tavaninin altinda. */
+const YORUM_KAYNAK = [
+  'Excel Example',
+  'On average, if GDP per capita increases by $1000 US dollars, energy consumption per capita increases by .07 tons. This is statistically significant at the 1% level.',
+  '',
+  'Empirical Example of the Log \u2013 Log Model',
+  'This slope coefficient on lngdppc is interpreted as, \u201con average, if GDP per capita increases by 1% then energy consumption per capita goes up by .69%.\u201d',
+  '',
+  'Empirical Example of the Log \u2013 Linear Model with Dummy Variables',
+  'The Europe dummy variable coefficient is interpreted as \u201con average energy consumption per capita is 9.3% lower in Europe than South America.\u201d The North America dummy variable coefficient is interpreted as \u201con average energy consumption per capita is 41.5% higher in North America than South America.\u201d'
+].join('\n');
+
+test('yorum cumlesi kurtariliyor: kayip sayilar maddeye donuyor', () => {
+  const r = A.yorumCumleleriniKurtar(YORUM_KAYNAK, [0.07, 0.69, 9.3, 41.5], []);
+  assert.deepEqual(r.kurtarilan.slice().sort((x, y) => x - y), [0.07, 0.69, 9.3, 41.5],
+    'kurtarilan: ' + JSON.stringify(r.kurtarilan));
+  assert.ok(r.points.length >= 3 && r.points.length <= A.YORUM_MAX, r.points.length);
+  for (const s of r.points) {
+    assert.ok(s.length <= A.QUOTE_MAX_CHARS, 'madde alinti tavanini asiyor: ' + s.length);
+    assert.ok(A.YORUM_ISARETCI_RE.test(s), 'isaretcisiz cumle gecmis: ' + s);
+  }
+});
+
+test('kurtarma suzgeci: BASLIK, HESAP SATIRI ve EKSEN gecmiyor', () => {
+  const tuzaklar = [
+    'Empirical Example of the Log \u2013 Log Model',
+    '-12.08 + 2(0.09)79 = \u2212 12.08 + 14.22 = 2.14',
+    '0 20 40 60 80 100 120 0 5 10 15 20',
+    'UtilityBill = 484.12 \u2212 12.08temp + 0.09temp^2'
+  ];
+  for (const s of tuzaklar) {
+    const r = A.yorumCumleleriniKurtar(s, [2.14, 484.12, 12.08, 100, 20], []);
+    assert.equal(r.points.length, 0, 'suzgecten gecmemeliydi: ' + s.slice(0, 50));
+  }
+});
+
+test('TASLAKTA zaten varsa tekrar madde eklenmiyor', () => {
+  const cumle = 'This slope coefficient on lngdppc is interpreted as, \u201con average, if GDP per capita increases by 1% then energy consumption per capita goes up by .69%.\u201d';
+  assert.equal(A.yorumCumleleriniKurtar(YORUM_KAYNAK, [0.69], [cumle]).points.length, 0);
+});
+
+test('kurtarma yalnizca EKSIK sayilar icin kosuyor', () => {
+  assert.deepEqual(A.yorumCumleleriniKurtar(YORUM_KAYNAK, [], []), { points: [], kurtarilan: [] });
+  assert.equal(A.yorumCumleleriniKurtar(YORUM_KAYNAK, [999.99], []).points.length, 0);
+});
+
+test('kurtarma boru hattina BAGLI (temizlikten once, atiftan once)', () => {
+  const kod = KAPSAMA_KOD;
+  /* lastIndexOf: ilk gecis fonksiyonun KENDI tanimi, aradigimiz CAGRI. */
+  const iKurtarma = kod.lastIndexOf('yorumCumleleriniKurtar(');
+  const iSanitize = kod.indexOf('sanitizeFormulas(parsedContent.formulas)');
+  const iAtif = kod.indexOf('const anchored = anchorCitations(');
+  assert.ok(iKurtarma > 0, 'kurtarma hic cagrilmiyor');
+  assert.ok(iKurtarma < iSanitize, 'kurtarma temizlikten SONRA kosuyor');
+  assert.ok(iKurtarma < iAtif, 'kurtarilan madde atif alamaz');
+  assert.ok(/parsedContent\.key_points = \[/.test(kod.slice(iKurtarma, iKurtarma + 600)),
+    'kurtarilan cumle maddeye eklenmiyor');
+});
+
+
+/* ARA HESAP SONUC DEGILDIR (31.10.2026, IPPT kartinda olculdu)
+
+   Kaynak hesabi zincir halinde yaziyor; ortadaki sayi mustahzar is:
+     "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06"   olgu: 5.06
+     "-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14"    olgu: 2.14
+   7.02 ve 14.22 hedefte duruyordu: kart sonucu dogru yazdigi halde
+   "kacirmis" sayiliyordu. */
+test('zincir ortasindaki ARA hesap hedef sayilmiyor, SONUC kaliyor', () => {
+  const a = A.distinctiveNumbers('-12.08 + 2(0.09)39 = \u2212 12.08 + 7.02 = \u2212 5.06');
+  assert.ok(a.includes(5.06), 'sonuc dusmus: ' + JSON.stringify(a));
+  assert.ok(!a.includes(7.02), 'ara hesap hala hedef: ' + JSON.stringify(a));
+  const b = A.distinctiveNumbers('-12.08 + 2(0.09)79 = \u2212 12.08 + 14.22 = 2.14');
+  assert.ok(b.includes(2.14) && !b.includes(14.22), JSON.stringify(b));
+});
+
+test('GERCEK katsayi elenmiyor: ayni sayi tek esitlikli satirdan hedefte', () => {
+  /* 12.08 zincirin ortasinda da geciyor ama quadratic denklem satirinda tek
+     esitlikle de var; mutlak degerle tekilleştirme sayesinde oradan kaliyor. */
+  const birlikte = [
+    'UtilityBill = 484.12 \u2212 12.08temp + 0.09temp^2',
+    '-12.08 + 2(0.09)39 = \u2212 12.08 + 7.02 = \u2212 5.06'
+  ].join('\n');
+  const h = A.distinctiveNumbers(birlikte);
+  assert.ok(h.includes(12.08), '12.08 elenmis: ' + JSON.stringify(h));
+  assert.ok(h.includes(484.12) && h.includes(0.09) && h.includes(5.06), JSON.stringify(h));
+  assert.ok(!h.includes(7.02), JSON.stringify(h));
+});
+
+test('TEK esitlikli satir hic incelenmiyor', () => {
+  const h = A.distinctiveNumbers('the intercept for a ranch is 20.43 + 23.53 = 43.96');
+  assert.deepEqual(h.slice().sort((x, y) => x - y), [20.43, 23.53, 43.96], JSON.stringify(h));
+});
+
+test('ORTADA ISLEM YOKSA dokunulmuyor (hipotez satiri)', () => {
+  /* "H_0: β_1 = β_2 = 0" iki esitlikli ama orta bolge sade. */
+  assert.deepEqual(A.araHesabiAyikla('H_0: \u03b2_1 = \u03b2_2 = 0').elenen, []);
+  assert.deepEqual(A.araHesabiAyikla('x = y = 5').elenen, []);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

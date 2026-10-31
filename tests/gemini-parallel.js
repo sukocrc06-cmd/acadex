@@ -28,7 +28,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
-  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE', 'SAYFA_ISARETI_RE', 'SAYI_BELIRTECI', 'sayiOkumalari',
+  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE', 'SAYFA_ISARETI_RE', 'YUZDE_CEVRIM_RE', 'ARA_HESAP_ISLEM_RE', 'araHesabiAyikla', 'SAYI_BELIRTECI', 'sayiOkumalari',
   // Grafik eksen centikleri hedeften duser (31.10.2026 olcumu).
   'EKSEN_MIN_UZUNLUK', 'eksenCentikleriniAyikla',
   'distinctiveNumbers',

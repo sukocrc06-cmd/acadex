@@ -4634,7 +4634,19 @@ function splitSentences(text: string): string[] {
   const rough = String(text || '')
     .replace(/\s+/g, ' ')
     .trim()
-    .split(/(?<=[.!?…])\s+/)
+    /* KAPANIS TIRNAGI CUMLEYI YUTUYORDU (31.10.2026, IPPT kartinda olculdu).
+       Desen yalnizca noktalama ariyordu; kaynak ise yorumu tirnak icinde
+       veriyor ve nokta tirnagin ICINDE kaliyor:
+         “...is 50.5% higher in Europe than South America.” The North
+         America dummy variable coefficient is interpreted as “...56.6%...”
+       Bolunmedigi icin 303 karakterlik TEK cumle cikiyordu — alinti tavani
+       220, yani bu metinden hic alinti secilemiyordu ve iki bolge yuzdesi
+       (50.5 / 56.6, ikinci tabloda 9.3 / 41.5) karta dort kosu boyunca hic
+       girmedi. Tirnak kaldirilinca ayni metin 143 ve 157 karakterlik iki
+       cumleye bolunuyor; ikisi de tavanin altinda.
+       Kapanis isareti ISTEGE BAGLI: noktanin kendisi hala sart, yani
+       tirnagin tek basina cumle bitirmesi mumkun degil. */
+    .split(/(?<=[.!?…][”’"'»)\]]?)\s+/)
   const out: string[] = []
   for (const piece of rough) {
     const prevNeedsMerge = out.length > 0 && (() => {
@@ -4747,6 +4759,7 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
   if (totalWeight <= 0) return null
 
   let best: { text: string; score: number; siralama: number; kesinlik: number } | null = null
+  let enIyiKapsama = 0
   /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
      alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
      cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
@@ -4823,8 +4836,30 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
       && Math.abs(siralama - best.siralama) <= QUOTE_SIRALAMA_BANDI
       && kesinlik > best.kesinlik
     if (!best || belirginUstunluk || yakinAmaDahaDerli) best = { text: raw, score, siralama, kesinlik }
+    if (score > enIyiKapsama) enIyiKapsama = score
   }
-  if (!best || best.score < 0.3) return null
+  /* KAPI EN IYI KAPSAMAYA BAKAR, SIRALAMA KAZANANINA DEGIL (31.10.2026,
+     olculdu).
+
+     Yukaridaki iki not "KAPI DEGISMEDI, yalnizca SIRALAMA" diyor — niyet
+     bu ama kod oyle davranmiyordu: esik `best.score`a bakiyor, `best` ise
+     kesinlik tie-break'i ile DEGISMIS olabiliyor. Yani siralama, hukmu
+     soyleyen kisa cumleyi hakli olarak one cikariyor, sonra kapi o kisa
+     cumlenin kapsamasina bakip ALINTININ TAMAMINI iptal ediyordu.
+
+     Olculen sayfa (s.42, iddia "neither regional dummy variable is
+     statistically different ... at the 10% level"):
+       kapsama 0.407  "The Europe dummy variable coefficient is ..."
+       kapsama 0.407  "The North America dummy variable coefficient is ..."
+       kapsama 0.256  "Neither of these are statistically significant ..."
+     Ucuncusu dice birincisi. Kapi 0.3; sayfada esigi GECEN aday vardi ama
+     donen deger null oldu ve dipnot etiketi sayfa basligina dustu.
+
+     Artik eligibility SAYFANIN EN IYI KAPSAMASI ile, gosterilen alinti
+     siralama ile belirleniyor: hangi iddianin alinti alacagi eskisi gibi,
+     degisen yalnizca hangisinin gosterildigi. Esigi gecen hicbir aday
+     yoksa (orn. tek basina "America as the omitted group") yine null. */
+  if (!best || enIyiKapsama < 0.3) return null
   return best.text.length > QUOTE_MAX_CHARS
     ? best.text.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
     : best.text
@@ -5817,6 +5852,30 @@ const SAYISAL_KAPSAMA_ORNEK = 8
 // Kayip sayinin iki yanindan basilan baglam uzunlugu — bkz. sayisalKayipBaglami.
 const SAYISAL_BAGLAM_KRK = 40
 
+/* YUZDEYE CEVIRME CARPANI OLGU DEGILDIR (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Dort ayri kosuda ayni iki sayi hedefte kaldi ve hicbir ozet onlari
+ * "kacirmiyordu" — zaten sayi degillerdi:
+ *   1100 <- "y increases by β1100%"        (β₁ ile 100% yan yana yazilmis)
+ *   100  <- "goes up by (0.026)100% or 2.6%" (ondaligi yuzdeye cevirme carpani)
+ * Ikisi de ders icerigi degil, notasyon. Ikisi ZITTI yonde bozuyordu:
+ *   1100 dort kosunun DORDUNDE de "kayip" sayildi — payda sisirdi,
+ *   100  ise ozet "(β₁)100%" yazdigi icin BEDAVA "kapsandi" — pay sisirdi.
+ * En iyi kosu 25/30 (%83); bu iki hedef cikinca ayni ozet 24/28 (%86).
+ *
+ * DESEN DAR: sayinin HEMEN onunde kapanan parantez ya da Yunan harfi,
+ * HEMEN ardinda yuzde isareti olmali. Olculen karsi ornekler korunuyor:
+ *   "or 2.6%"            onunde bosluk      -> hedef kaliyor
+ *   "is 50.5% higher"    onunde bosluk      -> hedef kaliyor
+ *   "at the 1% level"    onunde bosluk      -> hedef kaliyor
+ *   "by .69%"            onunde bosluk      -> hedef kaliyor
+ *   "2(0.09)39 = "       ardinda % yok      -> hedef kaliyor
+ *
+ * Bu, kapsama esigini GEVSETMEK degil: olcunun paydasindan olgu olmayani
+ * cikarmak. Kullanicinin kurali da boyle — "kapsamayi gevsetme, cikarimi
+ * duzelt; artefaktlar haric". */
+const YUZDE_CEVRIM_RE = /(?<=[)\u0370-\u03ff])\d[\d.,]*\s*%/g
+
 /** Bir sayi belirtecinin okumalari; ILK eleman birincil okuma.
  *
  *  Turkce ondalik virgul ("12,08", "%2,6") de okunur: ozet dili Turkce
@@ -6048,6 +6107,53 @@ function eksenCentikleriniAyikla(text: string): { metin: string; elenen: number[
   return { metin: out, elenen }
 }
 
+/* ARA HESAP SONUC DEGILDIR (31.10.2026, IPPT kartinda dort kosu boyunca
+   olculdu).
+ *
+ * Kaynak hesabi ZINCIR halinde yaziyor ve zincirin ortasindaki sayi
+ * mustahzar is, ogretilecek olgu degil:
+ *   "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06"   olgu: 5.06
+ *   "-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14"    olgu: 2.14
+ * 7.02 ve 14.22 hedefte duruyordu, yani kart sonucu dogru yazdigi halde
+ * "kacirmis" sayiliyordu. Ozetin bu sayilari yazmasi ISTENMEZ de: ara
+ * adimi tekrarlayan bir madde ogrenciye bilgi katmaz.
+ *
+ * KURAL: satirda EN AZ IKI esitlik varsa, ILK ile SON esitlik arasindaki
+ * bolge ara hesaptir. Sonuc son esitligin sagindadir ve DOKUNULMAZ.
+ *
+ * Mutlak degerle tekilleştirme sayesinde eleme GERCEK katsayiyi
+ * goturmuyor: 12.08 zincirin ortasinda da geciyor ama ayni sayi
+ * "UtilityBill = 484.12 − 12.08temp + 0.09temp^2" slaytinda tek esitlikli
+ * satirda da var, oradan hedef kaliyor. 7.02 ve 14.22 ise baska hicbir
+ * yerde gecmiyor — o yuzden duserler. Olculdu.
+ *
+ * IKI KORUMA:
+ *   - orta bolgede ISLEM isareti olmali (+ − × /): "H_0: β_1 = β_2 = 0"
+ *     gibi hipotez satirinda orta bolge sade, dokunulmuyor,
+ *   - tek esitlikli satir hic incelenmiyor: "intercept for a ranch is
+ *     20.43 + 23.53 = 43.96" tamamen hedefte kaliyor. */
+const ARA_HESAP_ISLEM_RE = /[+\u2212\u00d7*\/-]/
+
+function araHesabiAyikla(text: string): { metin: string; elenen: number[] } {
+  const elenen: number[] = []
+  const metin = String(text || '').split(/\r?\n/).map((satir) => {
+    const ilk = satir.indexOf('=')
+    const son = satir.lastIndexOf('=')
+    if (ilk < 0 || son <= ilk) return satir
+    const orta = satir.slice(ilk + 1, son)
+    if (!ARA_HESAP_ISLEM_RE.test(orta) || !/\d/.test(orta)) return satir
+    const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+    let m: RegExpExecArray | null
+    while ((m = re.exec(orta)) !== null) {
+      const okuma = sayiOkumalari(m[0])[0]
+      if (Number.isFinite(okuma)) elenen.push(okuma)
+      if (m[0].length === 0) re.lastIndex++
+    }
+    return satir.slice(0, ilk + 1) + ' '.repeat(orta.length) + satir.slice(son)
+  }).join('\n')
+  return { metin, elenen }
+}
+
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
     .replace(URL_BENZERI_RE, ' ')
@@ -6060,11 +6166,15 @@ function distinctiveNumbers(text: string): number[] {
        "planned.13-38" -> "planned." */
     .replace(SLAYT_ALTBILGI_RE, (tam: string) => tam.slice(0, 2))
     .replace(SAYFA_ISARETI_RE, ' ')
+    // Yuzdeye cevirme carpani — bkz. YUZDE_CEVRIM_RE yanindaki olcum.
+    .replace(YUZDE_CEVRIM_RE, ' ')
   // Grafik eksen centikleri — bkz. eksenCentikleriniAyikla yanindaki not.
   const eksensiz = eksenCentikleriniAyikla(temiz).metin
+  // Zincirin ortasindaki ara hesap — bkz. araHesabiAyikla yanindaki olcum.
+  const arasiz = araHesabiAyikla(eksensiz).metin
   const out: number[] = []
   const gorulen = new Set<number>()
-  for (const token of eksensiz.match(SAYI_BELIRTECI) || []) {
+  for (const token of arasiz.match(SAYI_BELIRTECI) || []) {
     // Ayracsiz 7+ hane olculmus bir deger degil, denklem nesnesinin bozuk
     // cikarimi: canli logda "kayip: 3210, 12010, 3152143210" — "x_1 x_2 x_3"
     // alt simgelerinin yan yana dizilmis hali. Kimlik/telefon da ayni sinif.
@@ -6279,6 +6389,101 @@ function tahminDenklemleriniKurtar(
     })
   }
   return { formulas, kurtarilan: [...kurtarilan] }
+}
+
+/* SAYININ ANLAMINI SOYLEYEN CUMLE KURTARILIR (31.10.2026, IPPT kartinda
+   dort kosu boyunca olculdu).
+ *
+ * tahminDenklemleriniKurtar DENKLEMLERI geri getiriyor, ama destenin son
+ * slaytlarindaki sayilar denklemde degil YORUM CUMLESINDE duruyor ve dort
+ * kosunun hicbirinde karta girmedi:
+ *   s.39  50.5 / 56.6  "...is interpreted as 'on average energy consumption
+ *                        per capita is 50.5% higher in Europe than South
+ *                        America.'"
+ *   s.42  9.3  / 41.5   ayni kalip, ikinci kukla tablosu
+ *   s.40  0.69          "...goes up by .69%."
+ *   s.11  0.07          "On average, if GDP per capita increases by $1000
+ *                        US dollars, energy consumption per capita
+ *                        increases by .07 tons."
+ * Dordu de destenin SONUNDA, yani ikinci pencerenin cikis tavaninin
+ * altinda kaliyor (log: "Window 2 token: completion=4057 / max=3460").
+ * Promptla cozulmez — pencere zaten tavana dayaniyor.
+ *
+ * KURTARILAN CUMLE MADDEYE EKLENIYOR, formule degil: bunlar bir kuralin
+ * notasyonu degil, bir sayinin ANLAMI. Madde olarak eklenince ucu bedava
+ * geliyor — bu blok temizlikten ONCE kostugu icin cumle (1) grounding
+ * kapisindan gecer (birebir kaynakta), (2) near-duplicate birlestirmede
+ * taslagin kendi parafrazi ile eslesirse birlesir, (3) atif baglamada
+ * sayfa numarasini alir.
+ *
+ * SUZGEC DAR tutuldu, cunku kaynak slayt destesi ve icinde baslik, eksen
+ * centigi ve mustahzar hesap satiri dolu:
+ *   - isaretci sart ("interpreted as", "on average", "means that"...):
+ *     baslik ("Empirical Example of the Log – Log Model") bunlarin
+ *     hicbirini tasimiyor,
+ *   - harf orani >= 0.6: "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06"
+ *     gibi hesap satiri ve eksen centigi dizisi bu esigin altinda,
+ *   - en az 8 sozcuk: iki kelimelik etiketler disarida,
+ *   - alinti uzunlugu sinirlari: madde olarak okunabilir kalmali. */
+const YORUM_ISARETCI_RE =
+  /interpreted as|on average|means that|which means|in other words|yorumlan|ortalama olarak|anlamina gel|demektir/i
+const YORUM_MIN_SOZCUK = 8
+const YORUM_HARF_ORANI = 0.6
+/* Tavan 4 degil 6: olculen destede yorum slaytlari SIMETRIK CIFT tasiyor
+   ("Avrupa %9.3 daha az" + "Kuzey Amerika %41.5 daha fazla"). Tavan 4'te
+   her slayttan yalnizca kisa olani geliyordu ve kart ciftin yarisini
+   gosteriyordu: 50.5 ve 9.3 girdi, 56.6 ile 41.5 sigmadi. */
+const YORUM_MAX = 6
+
+function yorumCumleleriniKurtar(
+  sourceText: string,
+  missing: number[],
+  mevcutMaddeler: any[]
+): { points: string[]; kurtarilan: number[] } {
+  const eksik = new Set(missing.map((v) => Math.abs(v)))
+  if (eksik.size === 0 || !sourceText) return { points: [], kurtarilan: [] }
+
+  const varOlan = (Array.isArray(mevcutMaddeler) ? mevcutMaddeler : [])
+    .map((p: any) => typeof p === 'string' ? p : String(p?.text || p?.point || ''))
+    .join(' \n ')
+
+  const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
+  for (const blok of alintiBloklari(sourceText)) {
+    for (const cumle of splitSentences(blok)) {
+      const kirpik = cumle.trim()
+      if (kirpik.length < QUOTE_MIN_CHARS || kirpik.length > QUOTE_MAX_CHARS) continue
+      if (!YORUM_ISARETCI_RE.test(kirpik)) continue
+      const harf = (kirpik.match(/\p{L}/gu) || []).length
+      if (harf / kirpik.length < YORUM_HARF_ORANI) continue
+      if ((kirpik.match(/\p{L}{2,}/gu) || []).length < YORUM_MIN_SOZCUK) continue
+      const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+      const bulunan = new Set<number>()
+      let m: RegExpExecArray | null
+      while ((m = re.exec(kirpik)) !== null) {
+        for (const okuma of sayiOkumalari(m[0])) {
+          const v = Math.abs(okuma)
+          if (eksik.has(v)) bulunan.add(v)
+        }
+        if (m[0].length === 0) re.lastIndex++
+      }
+      if (bulunan.size > 0) adaylar.push({ metin: kirpik, bulunan })
+    }
+  }
+  /* Cok eksik sayi tasiyan once; esitlikte KISA olan, cunku madde olarak
+     okunacak. (Denklem kurtarmasinda tersi: orada uzun olan daha tam.) */
+  adaylar.sort((a, b) => b.bulunan.size - a.bulunan.size || a.metin.length - b.metin.length)
+
+  const points: string[] = []
+  const kurtarilan = new Set<number>()
+  for (const aday of adaylar) {
+    if (points.length >= YORUM_MAX) break
+    const yeni = [...aday.bulunan].filter((v) => !kurtarilan.has(v))
+    if (yeni.length === 0) continue
+    if (varOlan.includes(aday.metin)) continue
+    yeni.forEach((v) => kurtarilan.add(v))
+    points.push(aday.metin)
+  }
+  return { points, kurtarilan: [...kurtarilan] }
 }
 
 function numericCoverage(
@@ -14954,6 +15159,31 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
               `Tahmin denklemi kurtarildi: ${kurtarma.formulas.length} denklem, ` +
               `${kurtarma.kurtarilan.length} sayi (${kurtarma.kurtarilan.join(', ')}) — ` +
               kurtarma.formulas.map((f: any) => `"${String(f.latex).slice(0, 140)}"`).join(' | ')
+            )
+          }
+        }
+      }
+
+      /* --- (a0b) Sayinin ANLAMINI soyleyen cumle kurtariliyor — bkz.
+         yorumCumleleriniKurtar yanindaki olcum notu. Denklem
+         kurtarmasindan SONRA, cunku eksik liste orada daralmis olabilir;
+         temizlikten ONCE, cunku kurtarilan madde grounding kapisindan,
+         near-duplicate birlestirmeden ve atif baglamadan gecsin. */
+      {
+        const kapsamaOrta = numericCoverage(extractedText, parsedContent)
+        if (kapsamaOrta.missing.length > 0) {
+          const y = yorumCumleleriniKurtar(
+            extractedText, kapsamaOrta.missing, parsedContent.key_points
+          )
+          if (y.points.length > 0) {
+            parsedContent.key_points = [
+              ...(Array.isArray(parsedContent.key_points) ? parsedContent.key_points : []),
+              ...y.points
+            ]
+            console.log(
+              `Yorum cumlesi kurtarildi: ${y.points.length} madde, ` +
+              `${y.kurtarilan.length} sayi (${y.kurtarilan.join(', ')}) — ` +
+              y.points.map((s: string) => `"${s.slice(0, 110)}"`).join(' | ')
             )
           }
         }
