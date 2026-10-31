@@ -247,7 +247,7 @@
   /* =========================== klinik vakalar =========================== */
   /* lab: [ad, değer, birim, alt, üst] ; durum hesaplanır. presc: hedef aralıklar. */
   var KISIT = { na: 'Sodyum kısıtlı', k: 'Potasyum kısıtlı', p: 'Fosfor kısıtlı', sivi: 'Sıvı kısıtlı', gluten: 'Glutensiz', laktoz: 'Laktoz azaltılmış', prokisit: 'Protein kısıtlı', kh: 'KH kontrollü (öğünlere dağıtılmış)', purin: 'Pürinden zengin besinler sınırlı (sakatat, kırmızı et, bazı deniz ürünleri)', yag: 'Doymuş yağ ve kolesterol azaltılmış' };
-  var ONERI = { ons: 'Oral nütrisyon desteği (ONS)', gece: 'Gece geç ara öğün', tiamin: 'Beslenme öncesi tiamin', demir: 'Demirden zengin + C vitaminiyle', dvit: 'D vitamini değerlendirmesi', sik: 'Az ve sık öğün', kilo: 'Haftada 0,5–1 kg kilo kaybı hedefi', aile: 'Aile temelli yaşam tarzı değişikliği (öğün düzeni, şekerli içecek, ekran süresi, hareket)', alkol: 'Alkol ve fruktozlu/şekerli içecekleri sınırlamak', ates: 'Ateşte sıvı alımını artırmak' };
+  var ONERI = { ons: 'Oral nütrisyon desteği (ONS)', gece: 'Gece geç ara öğün', tiamin: 'Beslenme öncesi tiamin', demir: 'Demirden zengin + C vitaminiyle', dvit: 'D vitamini değerlendirmesi', sik: 'Az ve sık öğün', kilo: 'Haftada 0,5–1 kg kilo kaybı hedefi', aile: 'Aile temelli yaşam tarzı değişikliği (öğün düzeni, şekerli içecek, ekran süresi, hareket)', alkol: 'Alkol ve fruktozlu/şekerli içecekleri sınırlamak', ates: 'Ateşte sıvı alımını artırmak', kalsiyum: 'Günde ≈1000–1200 mg kalsiyum (öncelik süt ürünleri)' };
   var AGIRLIK = { mevcut: 'Mevcut ağırlık', ideal: 'İdeal ağırlık (BKİ 22; çocukta yaşa göre medyan BKİ)', kuru: 'Kuru ağırlık (ödem/asit düşülmüş)', duzeltilmis: 'Düzeltilmiş ağırlık (obezite)' };
   var VK = [
     { id: 'v-dm', ad: 'Kemal', yas: 58, cins: 'E', cm: 172, kg: 92, baslik: 'Tip 2 diyabet ve obezite',
@@ -319,6 +319,27 @@
       ag: ['mevcut'], kcal: [1600, 1900], pro: [0.8, 1.2], kisit: { gerek: ['kh', 'purin'], yasak: ['prokisit'] }, oneri: { gerek: ['kilo', 'alkol'] },
       oncelik: ['Günlük ≈500 kcal enerji açığı, KH kontrolü ve pürin, fruktoz ve alkolün sınırlanması', 'Proteini tamamen kesmek', 'Açlık diyetiyle hızlı kilo kaybı', 'Glutensiz diyet'], dogru: 0,
       not: 'Rapordaki protokol Harris-Benedict: kadın 655,1 + 9,563 × 63 + 1,850 × 156 − 4,676 × 21 ≈ 1448 kcal; × 1,6 (hafif aktif) ≈ 2320 kcal; −500 kcal ≈ 1820 kcal. Mifflin ile ≈ 1340 × 1,6 − 500 ≈ 1640 kcal (o da kabul aralığında). BKİ 25,9 (pre-obez): haftada 0,5–1 kg kayıp hedeflenir; açlık ve çok hızlı kilo kaybı ürik asidi yükseltip atağı tetikleyebilir. ACR 2020 (koşullu öneriler): alkol, pürinden zengin besinler ve yüksek fruktozlu şurup sınırlanır, fazla kiloluda kilo kaybı önerilir. Protein normal tutulur (0,8–1,2 g/kg); sakatat ve kırmızı et yerine süt ürünleri, yumurta ve baklagil tercih edilir. Diyabet için KH öğünlere dağıtılır, şekerli içecekler kesilir.' }
+    ,
+    /* ---- 31.10.2026: Acadex Medica yeni vakaları (v-onko: Odyoloji'den gelen konsültasyon) ---- */
+    { id: 'v-dash', ad: 'Ahmet', yas: 52, cins: 'E', cm: 178, kg: 96, baslik: 'Hipertansiyon ve dislipidemi',
+      oyku: 'İki yıldır hipertansiyon ilacı kullanıyor; tansiyonu yine de 150/95 civarında. Dışarıda çok yemek yiyor, sofraya oturmadan tuz ekliyor, turşu ve hazır çorbayı seviyor. Sebze-meyve az. Masa başı iş, hafif aktif.',
+      lab: [['Total kolesterol', 248, 'mg/dL', 0, 199], ['LDL kolesterol', 168, 'mg/dL', 0, 129], ['Trigliserit', 190, 'mg/dL', 0, 149], ['HDL kolesterol', 38, 'mg/dL', 40, 999], ['Açlık kan şekeri', 104, 'mg/dL', 70, 99], ['Sodyum', 140, 'mmol/L', 136, 145], ['Potasyum', 4.2, 'mmol/L', 3.5, 5.1], ['Kreatinin', 1.0, 'mg/dL', 0.7, 1.2]],
+      ag: ['duzeltilmis', 'mevcut'], kcal: [1700, 2100], pro: [0.8, 1.2], kisit: { gerek: ['na', 'yag'], yasak: ['prokisit', 'k'] }, oneri: { gerek: ['kilo'] },
+      oncelik: ['DASH tipi beslenme: sodyum <2 g/gün (≈5 g tuz), sebze-meyve ve az yağlı süt ürünlerinden zengin, doymuş yağı azaltılmış; ≈500 kcal enerji açığı', 'Potasyum kısıtlaması', 'Protein kısıtlaması', 'Yalnızca sofra tuzunu kesmek, başka değişiklik gerekmez'], dogru: 0,
+      not: 'DASH diyeti ve sodyumun <2 g/gün (≈5 g tuz) altına indirilmesi kan basıncını ilaçla karşılaştırılabilir ölçüde düşürür (DASH-Sodium çalışması; ESH 2023). Gizli tuzun büyük kısmı ekmek, turşu, hazır çorba ve işlenmiş etten gelir. Böbrek işlevi normal olduğu için potasyumdan zengin sebze-meyve önerilir, kısıtlanmaz. BKİ 30,3 (obez): hesap düzeltilmiş ağırlıkla yapılabilir; Mifflin × 1,4 − 500 ≈ 1770–2050 kcal. Kilo kaybı hem kan basıncını hem lipitleri iyileştirir.' },
+    { id: 'v-onko', ad: 'Nurten', yas: 56, cins: 'K', cm: 162, kg: 54, baslik: 'Kemoterapi sırasında kilo kaybı',
+      oyku: 'Over kanseri; sisplatinli kemoterapinin 3. kürü. Odyolojiden yönlendirilmiş: "iştahı çok azalmış". Son bir ayda 58 kg\'dan 54 kg\'a düşmüş. Bulantı ve tat değişikliği var, ete karşı isteksiz. Gereksiniminin yaklaşık yarısını yiyor.',
+      lab: [['Albümin', 3.2, 'g/dL', 3.5, 5.2], ['CRP', 24, 'mg/L', 0, 5], ['Hemoglobin', 10.2, 'g/dL', 12, 15.5], ['Magnezyum', 1.5, 'mg/dL', 1.7, 2.4], ['Potasyum', 3.6, 'mmol/L', 3.5, 5.1], ['Kreatinin', 0.8, 'mg/dL', 0.5, 1.1]],
+      nrs: { durum: 3, siddet: 1, yas: 0 },
+      ag: ['mevcut'], kcal: [1350, 1650], pro: [1.0, 1.5], kisit: { gerek: [], yasak: ['prokisit', 'kh'] }, oneri: { gerek: ['ons', 'sik'] },
+      oncelik: ['Kilo kaybını durdurmak: 25–30 kcal/kg, 1,0–1,5 g/kg protein, az ve sık öğün ve ONS', 'Kanser hücrelerini "aç bırakmak" için şekeri ve enerjiyi kısmak', 'Protein kısıtlaması', 'İştah açılana kadar beklemek'], dogru: 0,
+      not: 'NRS-2002: 1 ayda %7 kayıp (3) + kanser (1) + 70 yaş altı (0) = 4 → beslenme riski var. ESPEN 2021 (kanser): enerji 25–30 kcal/kg, protein 1,0–1,5 g/kg; alım yetersizse önce diyet danışmanlığı ve ONS. "Şeker kanseri besler" diye enerji kısmak kanıta dayanmaz ve kaşeksiyi hızlandırır. Sisplatin magnezyum kaybettirir; düşük magnezyum hekimle paylaşılır. Albümin inflamasyonla (CRP yüksek) birlikte yorumlanır.' },
+    { id: 'v-osteo', ad: 'Gülay', yas: 61, cins: 'K', cm: 158, kg: 58, baslik: 'Menopoz sonrası osteoporoz',
+      oyku: 'Kemik yoğunluğu ölçümünde lomber T-skoru −2,8; endokrinoloji ilaç başlamış. Süt ve yoğurdu "şişkinlik yapıyor" diye bırakmış, güneşe az çıkıyor. Geçen kış buzda düşmüş. Hafif aktif.',
+      lab: [['D vitamini (25-OH)', 12, 'ng/mL', 30, 100], ['Kalsiyum', 9.1, 'mg/dL', 8.6, 10.2], ['Fosfor', 3.4, 'mg/dL', 2.5, 4.5], ['ALP', 88, 'U/L', 35, 104], ['Albümin', 4.1, 'g/dL', 3.5, 5.2], ['Kreatinin', 0.7, 'mg/dL', 0.5, 1.1]],
+      ag: ['mevcut'], kcal: [1400, 1700], pro: [1.0, 1.2], kisit: { gerek: [], yasak: ['prokisit'] }, oneri: { gerek: ['dvit', 'kalsiyum'] },
+      oncelik: ['Yeterli kalsiyum (≈1000–1200 mg/gün), D vitamini ve 1,0–1,2 g/kg protein; düşmeye karşı egzersiz', 'Kemiği korumak için proteini kısmak', 'Yalnızca kalsiyum tableti; beslenme değişikliği gereksiz', 'Enerji kısıtlamasıyla kilo verdirmek'], dogru: 0,
+      not: 'IOF/ESCEO: osteoporozlu yaşlı erişkinde protein 1,0–1,2 g/kg, kalsiyum ≈1000–1200 mg/gün (öncelik besin kaynakları), D vitamini eksikliği düzeltilir. Protein kemiğe zarar vermez; yetersiz alım kas ve kemik kaybını hızlandırır. Laktoz yakınmasında yoğurt, kefir, peynir ya da laktozsuz süt seçilebilir. Serum kalsiyumu normal olsa bile kemik kalsiyumu yetersiz olabilir. Mifflin × 1,4 ≈ 1540 kcal.' }
   ];
   var labDurum = function (l) { return l[1] < l[3] ? 'L' : l[1] > l[4] ? 'H' : 'N'; };
   var idealKg = function (cm) { return 22 * Math.pow(cm / 100, 2); };
@@ -391,7 +412,11 @@
       oyku: 'Son 20 gündür neredeyse hiç yemek yemiyor. BKİ 13,6. Beslenmeye başlanacak.',
       lab: [['Potasyum', 3.1, 'mmol/L', 3.5, 5.1], ['Fosfor', 2.0, 'mg/dL', 2.5, 4.5], ['Magnezyum', 1.5, 'mg/dL', 1.7, 2.4]],
       kcalKg: [4, 10], gerek: ['tiamin', 'elektrolit', 'kademeli'],
-      not: 'NICE CG32: BKİ <16, >10–15 gün çok az alım ve düşük K/P/Mg yüksek risktir; en çok 10 kcal/kg/gün ile başlanır, aşırı durumda (BKİ <14 ya da >15 gün açlık) 5 kcal/kg düşünülür. Beslenmeden önce ve ilk 10 gün tiamin, elektrolit replasmanı ve yakın izlem; enerji 4–7 günde kademeli artırılır.' }
+      not: 'NICE CG32: BKİ <16, >10–15 gün çok az alım ve düşük K/P/Mg yüksek risktir; en çok 10 kcal/kg/gün ile başlanır, aşırı durumda (BKİ <14 ya da >15 gün açlık) 5 kcal/kg düşünülür. Beslenmeden önce ve ilk 10 gün tiamin, elektrolit replasmanı ve yakın izlem; enerji 4–7 günde kademeli artırılır.' },
+    { id: 'e-peg', tip: 'enteral', ad: 'Kadir', yas: 64, cins: 'E', cm: 172, kg: 58, baslik: 'Baş-boyun kanseri, PEG ile evde beslenme',
+      oyku: 'Dil kökü kanseri nedeniyle radyoterapi alıyor; yutmak çok ağrılı, PEG takılmış. Son iki ayda 66 kg\'dan 58 kg\'a düşmüş. Diyabeti ve böbrek sorunu yok. Beslenme evde pompayla 20 saatte verilecek, 4 saat ara.',
+      kcal: [1450, 1750], pro: [1.2, 1.5], urun: ['yp', 'lif', 'std'], saat: 20,
+      not: 'ESPEN 2021 (kanser) ve ESPEN ev enteral beslenme kılavuzu: enerji 25–30 kcal/kg, protein 1,0–1,5 g/kg; radyoterapide kilo kaybını durdurmak için üst sınıra yakın protein hedeflenir. Standart ürünle hedef enerjiye ulaşınca protein ≈64 g kalır: yüksek proteinli ürün ya da protein modülü gerekir. Pompa hızı = günlük hacim ÷ beslenme saati (burada 20 saat).' }
   ];
   var REFEED = { tiamin: 'Beslenme öncesi tiamin ve B vitaminleri', elektrolit: 'K, P, Mg replasmanı ve günlük izlem', kademeli: 'Enerjiyi 4–7 günde kademeli artırmak', hizli: 'İlk gün tam gereksinimle başlamak' };
   /* f enteral: {kcal, pro (g), urun, ml, hiz, modul (g protein)} */

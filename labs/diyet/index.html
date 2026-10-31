@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>/* Acadex Medica: vakalar hastanede açılır; lab ?medica=1 ile yalnız hastanın dosyasını gösterir */if(/[?&]medica=1(&|$)/.test(location.search))document.documentElement.classList.add('axmd')</script>
 <title>Diyet Lab · Acadex MedLab</title>
 <meta name="theme-color" content="#2B3A1E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -218,6 +219,10 @@ button{cursor:pointer}
 .form-g .full{grid-column:1/-1}
 
 /* =========================== VAKA MASASI =========================== */
+/* vakalar ve enteral-parenteral Acadex Medica'ya taşındı: sekmeler yalnız hastaneden açılınca (?medica=1) görünür, liste yerine tek hasta */
+html:not(.axmd) .dl-tabs [data-tab="vaka"],html:not(.axmd) .dl-tabs [data-tab="ep"]{display:none}
+html.axmd .vk{grid-template-columns:minmax(0,1fr)!important}html.axmd #v-list,html.axmd #e-list{display:none!important}html.axmd .ep{grid-template-columns:minmax(0,1fr) 380px!important}
+@media (max-width:900px){html.axmd .ep{grid-template-columns:minmax(0,1fr)!important}}
 .vk{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;align-items:start}
 .vk-list{display:flex;flex-direction:column;gap:8px}
 .vk-list button{display:block;width:100%;padding:10px 12px;border:0;border-left:5px solid var(--line-2);border-radius:12px;background:var(--paper);text-align:left;box-shadow:0 10px 22px -18px rgba(60,40,20,.7)}

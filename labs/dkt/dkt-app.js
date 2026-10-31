@@ -38,7 +38,10 @@
   DK.core = { V: V, $: $, $$: $$, X: X, ls: ls, tr: tr, toast: toast, live: live, RM: RM, karne: karne, dudi: dudi, shuffle: shuffle };
 
   /* ---------------- sekmeler ---------------- */
-  var TABS = ['sesletim', 'ses', 'akicilik', 'yutma', 'dil', 'vaka'];
+  /* vaka masası Acadex Medica'da: yalnız ?medica=1 ile açılır (labs/medica) */
+  var MEDICA = /(?:\?|&)medica=1(?:&|$)/.test(location.search);
+  DK.core.MEDICA = MEDICA;
+  var TABS = MEDICA ? ['sesletim', 'ses', 'akicilik', 'yutma', 'dil', 'vaka'] : ['sesletim', 'ses', 'akicilik', 'yutma', 'dil'];
   var tab = null, inited = {};
   var setTab = function (k) {
     if (TABS.indexOf(k) < 0) k = 'sesletim';

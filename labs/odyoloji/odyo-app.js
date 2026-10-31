@@ -20,7 +20,10 @@
 
   /* ---------------- sekmeler ---------------- */
   var tab = 'kabin';
+  /* vaka masası Acadex Medica'da: yalnız ?medica=1 ile açılır (labs/medica) */
+  var MEDICA = /(?:\?|&)medica=1(?:&|$)/.test(location.search);
   var setTab = function (k) {
+    if (k === 'vaka' && !MEDICA) k = 'kabin';
     tab = k;
     $$('.ol-tabs [data-tab]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === k)); });
     $$('.ol-view').forEach(function (v) { v.classList.toggle('on', v.id === k); });
@@ -392,7 +395,10 @@
     var t = e.target.closest('[data-test]'); if (t && !t.disabled) { V.req.push(t.getAttribute('data-test')); saveCase(); paintCase(); bridgeSend(); return; }
     if (e.target.closest('#vk-close')) {
       var c = caseOf(V.id); if (V.tani == null || V.yon == null) { toast('Ön tanı ve yönlendirmeyi seç.'); return; }
-      V.res = A.gradeCase(c, V.req, V.tani, V.yon, OL.k2 && c.hasta ? OL.k2.olcum(c, V.req) : null); vdone[c.id] = V.res.puan; ls.set('vakaDone', vdone); saveCase(); paintVList(); paintCase(); bridgeSend(); return;
+      V.res = A.gradeCase(c, V.req, V.tani, V.yon, OL.k2 && c.hasta ? OL.k2.olcum(c, V.req) : null); vdone[c.id] = V.res.puan; ls.set('vakaDone', vdone); saveCase(); paintVList(); paintCase(); bridgeSend();
+      /* Acadex Medica: dosya kapanınca puan hastaneye */
+      if (MEDICA && W.parent !== W) { try { W.parent.postMessage({ src: 'axmedica', type: 'sonuc', lab: 'odyoloji', vaka: c.id, puan: V.res.puan, tamam: true }, location.origin); } catch (er) {} }
+      return;
     }
     if (e.target.closest('#vk-again')) { V.req = []; V.tani = null; V.yon = null; V.res = null; saveCase(); paintCase(); bridgeSend(); }
   });
@@ -492,6 +498,9 @@
   paintPts(); paintDev(); paintAg(); paintRule(); paintVList(); paintCase();
   var last = ls.get('pid', null); if (last && A.P[last]) { K.lv = A.P[last].seviye; pick(last); }
   var t0 = new URLSearchParams(location.search).get('tab') || ls.get('tab', 'kabin');
+  /* Acadex Medica: hastanın dosyası ?vaka=<id> ile doğrudan açılır */
+  var mv = MEDICA ? new URLSearchParams(location.search).get('vaka') : null;
+  if (mv && caseOf(mv)) { openCase(mv); t0 = 'vaka'; }
   if (['kabin', 'kulak', 'vaka'].indexOf(t0) >= 0) setTab(t0);
   bridgeSend();
 })();

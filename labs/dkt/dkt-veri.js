@@ -374,6 +374,113 @@
         ['ince', 'İnce sıvıya devam, pipetle hızlı içme', false]
       ],
       ozet: 'Öksürük refleksi olmadan ses tellerinin altına geçiş (PAS 8) sessiz aspirasyondur; yatak başı testte gözden kaçabilir, aletli değerlendirme gerekir. Kıvam ve postür düzenlemesi aletli bulguya göre yapılır; ağız bakımı aspirasyon pnömonisi riskini azaltır.'
+    },
+    /* ---- 31.10.2026: Acadex Medica yeni vakaları (osman: İnme zinciri, kerem: Odyoloji'den sevk) ---- */
+    {
+      id: 'osman', ad: 'Osman Bey', yas: '72 yaş', ikon: 'yetiskin', renk: '#D7E6F6',
+      sikayet: 'Sol yarıküre inmesiyle dün akşam yoğun bakıma yatırılmış. Ağızdan hiçbir şey verilmemiş; nöroloji "beslenme yolu kararı için yutma değerlendirmesi" istiyor.',
+      oyku: 'Bilinci açık, komutlara kısmen uyuyor; sağ yüzde ve kolda güçsüzlük var, konuşması çok az. Ağız içinde tükürük birikiyor. Kızı yanında.',
+      deg: [
+        ['yb', 'Yatak başı yutma taraması (önce bilinç ve postür, sonra kademeli su yutma)', true],
+        ['oral', 'Oral-motor ve kranial sinir muayenesi (dudak, dil, yumuşak damak, öksürük)', true],
+        ['alet', 'Gerekirse aletli değerlendirme planı (FEES)', true],
+        ['sst', 'Sesletim ve sesbilgisi testi', false],
+        ['grbas', 'GRBAS ile ses kalitesi derecelendirmesi', false],
+        ['pct', 'Konuşma örneğinde %TH', false]
+      ],
+      bulgu: 'Sağ dudak ve dil hareketleri zayıf, sağ yüz asimetrik. İstemli öksürük zayıf. Üç çay kaşığı suyun ilkinde yutma gecikiyor, ikincisinde ıslak ses ve öksürük. Tarama başarısız.',
+      tani: [
+        ['ofd', 'Orofaringeal disfaji (akut inme), ağızdan beslenme şu an güvenli değil', true],
+        ['ozof', 'Özofageal disfaji', false],
+        ['normal', 'Yutma normal, normal diyete geçilebilir', false],
+        ['kek', 'Edinilmiş nörojenik kekemelik', false]
+      ],
+      terapi: [
+        ['ng', 'Ağızdan beslenmeyi bekletip geçici tüple (NG) beslenmeyi ekibe önermek; diyetisyene konsültasyon', true],
+        ['agiz', 'Düzenli ağız bakımı, yatak başını 30–45° kaldırmak', true],
+        ['takip', 'Her gün yeniden değerlendirme; uygun olunca aletli değerlendirme ve kademeli oral deneme', true],
+        ['su', 'Susadığı için pipetle bol su vermek', false]
+      ],
+      ozet: 'İnmenin ilk saatlerinde ağızdan bir şey verilmeden önce yutma taraması yapılır. Islak ses ve öksürük taramanın başarısız olduğunu gösterir: oral alım bekletilir, beslenme geçici tüple sürdürülür ve diyetisyen enteral planı yapar. Yutma çoğu hastada ilk haftalarda düzelir; günlük yeniden değerlendirme şarttır.'
+    },
+    {
+      id: 'kerem', ad: 'Kerem', yas: '4 yaş', ikon: 'cocuk', renk: '#CFE9D9',
+      sikayet: 'Odyoloji polikliniğinden sevkle geldi: iki taraflı orta derece sensörinöral işitme kaybı saptanmış, işitme cihazları yeni takılmış. Yalnızca 10–15 sözcük kullanıyor.',
+      oyku: 'Tek çocuk. Oyun oynamayı seviyor, göz teması iyi. İstediğini işaret ederek ve çekiştirerek anlatıyor. Ailesi cihazı günde birkaç saat taktırabiliyor.',
+      deg: [
+        ['dilt', 'Alıcı ve ifade edici dil değerlendirmesi (standart test + dil örneği)', true],
+        ['cihaz', 'Cihazla işitsel algı ve günlük cihaz kullanım süresinin değerlendirilmesi', true],
+        ['etk', 'İletişim ve oyun becerilerinin gözlemi, aile görüşmesi', true],
+        ['vfss', 'Videofloroskopik yutma çalışması', false],
+        ['grbas', 'GRBAS ile ses kalitesi derecelendirmesi', false],
+        ['pct', 'Konuşma örneğinde %TH', false]
+      ],
+      bulgu: 'Alıcı dil yaklaşık 2 yaş, ifade edici dil yaklaşık 18 ay düzeyinde. Cihazla konuşma seslerine yanıt veriyor; cihaz günde ortalama 4 saat takılıyor. Oyun ve sosyal etkileşim yaşına uygun.',
+      tani: [
+        ['isd', 'İşitme kaybına bağlı dil ve konuşma gecikmesi', true],
+        ['otizm', 'Otizm spektrum bozukluğu', false],
+        ['cas', 'Çocukluk çağı konuşma apraksisi', false],
+        ['nor', 'Normal gelişim, izlem yeterli', false]
+      ],
+      terapi: [
+        ['avt', 'İşitsel-sözel temelli dil terapisi, aile koçluğu', true],
+        ['tamgun', 'Cihazın uyanık olduğu her saatte takılması için aile eğitimi; odyolojiyle düzenli iş birliği', true],
+        ['bekle', 'Cihaz alıştıktan bir yıl sonra terapiye başlamak', false],
+        ['lsvt', 'LSVT LOUD', false]
+      ],
+      ozet: 'Oyun ve sosyal etkileşim yaşına uygun, dil gerilemesi işitsel girdinin eksikliğine bağlı. Dil gelişimi için kritik dönemde cihaz tüm gün takılmalı ve aileyi merkeze alan işitsel-sözel terapi hemen başlamalıdır. Odyolog ile DKT uzmanı birlikte izler.'
+    },
+    {
+      id: 'yarik', ad: 'Mira', yas: '6 yaş', ikon: 'cocuk', renk: '#F6D9E4',
+      sikayet: 'Ailesi konuşmasının "burundan geldiğini", "p, b, s" seslerini çıkaramadığını, içerken sıvının burnundan geldiğini anlatıyor.',
+      oyku: 'Doğuştan yarık damak; 1 yaşında onarılmış. Sık orta kulak iltihabı geçirmiş. Okulda arkadaşları konuşmasını taklit ediyor, sınıfta konuşmak istemiyor.',
+      deg: [
+        ['rez', 'Rezonans değerlendirmesi (hipernazalite, nazal emisyon; ayna ve dinleme)', true],
+        ['sst', 'Sesletim testi: basınç gerektiren seslerde telafi edici üretimler', true],
+        ['isitme', 'İşitme değerlendirmesi (odyolojiye yönlendirme)', true],
+        ['vfss', 'Videofloroskopik yutma çalışması', false],
+        ['pct', 'Konuşma örneğinde %TH', false]
+      ],
+      bulgu: 'Orta derece hipernazalite ve "p, b, t, s" seslerinde nazal emisyon. "p" yerine gırtlaktan glottal durak üretiyor. Ayna testinde ünlülerde buğulanma var.',
+      tani: [
+        ['vpd', 'Velofaringeal yetmezlik ile birlikte yarık damağa bağlı konuşma bozukluğu', true],
+        ['fon', 'Konuşma sesi bozukluğu: fonolojik', false],
+        ['nodul', 'Vokal nodül', false],
+        ['kek', 'Gelişimsel kekemelik', false]
+      ],
+      terapi: [
+        ['ekip', 'Yarık damak ekibine (plastik cerrahi) velofaringeal görüntüleme için yönlendirme', true],
+        ['yer', 'Telafi edici üretimler (glottal durak) için doğru ağız içi yer öğretimi', true],
+        ['ufle', 'Yalnızca balon şişirme ve üfleme egzersizleri', false],
+        ['lid', 'Lidcombe Programı', false]
+      ],
+      ozet: 'Hipernazalite ve nazal emisyon yapısal bir sorunu (velofaringeal yetmezlik) düşündürür: terapi yapıyı düzeltmez, görüntüleme ve cerrahi değerlendirme gerekir. Glottal durak gibi telafi edici üretimler ise öğrenilmiş davranıştır ve terapiyle düzelir. Üfleme egzersizlerinin konuşmaya etkisi gösterilmemiştir.'
+    },
+    {
+      id: 'ykek', ad: 'Mert', yas: '24 yaş', ikon: 'yetiskin', renk: '#E4DDF6',
+      sikayet: 'Yazılım mühendisi; iş görüşmelerinde ve telefonda sözcük başında kilitlendiğini, adını söylerken zorlandığını anlatıyor.',
+      oyku: 'Kekemelik 4 yaşından beri var; çocukken kısa süre terapi almış. Telefonu açmamak için mesaj atıyor, restoranda istemediği yemeği sipariş ettiği oluyor. Yakında önemli bir iş görüşmesi var.',
+      deg: [
+        ['pct', 'Farklı ortamlardan konuşma örneği: %TH, blok süresi ve türü', true],
+        ['tutum', 'Kaçınma, kaygı ve yaşam kalitesi ölçeği (ör. OASES)', true],
+        ['eslik', 'Eşlik eden fiziksel davranışlar', true],
+        ['vfss', 'Videofloroskopik yutma çalışması', false],
+        ['sst', 'Çocuk sesletim testi', false]
+      ],
+      bulgu: 'Okuma ve monologda %TH ≈ 6, telefonda ≈ 12; çoğunlukla 2–3 saniyelik bloklar, göz kırpma ve baş hareketi. Kaçınma ve konuşma kaygısı yüksek.',
+      tani: [
+        ['yet', 'Erişkin gelişimsel kekemelik, yüksek kaçınma ve kaygı', true],
+        ['hiz', 'Hızlı-bozuk konuşma (cluttering)', false],
+        ['noro', 'Edinilmiş nörojenik kekemelik', false],
+        ['nor', 'Normal akıcısızlık', false]
+      ],
+      terapi: [
+        ['tek', 'Konuşmayı biçimlendirme ve kekemeliği değiştirme tekniklerinin birlikte kullanımı', true],
+        ['bdt', 'Kaçınma ve kaygıya yönelik bilişsel-davranışçı yaklaşım, gerçek ortam alıştırmaları (telefon, görüşme provası)', true],
+        ['sus', 'Takılınca susup cümleyi değiştirmeyi öğretmek', false],
+        ['min', 'Minimal çift terapisi', false]
+      ],
+      ozet: 'Erişkinde amaç kekemeliği tamamen yok etmek değil, akıcılığı artırmak ve kaçınmayı azaltmaktır. Sözcük değiştirme ve susma kısa vadede rahatlatır ama kaçınmayı besler. Teknik çalışmayla birlikte kaygıya yönelik yaklaşım ve gerçek ortam alıştırmaları güçlü sonuç verir.'
     }
   ];
 

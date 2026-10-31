@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DKT Lab · Acadex MedLab</title>
 <meta name="theme-color" content="#F6E7D5">
+<script>/* Acadex Medica: vakalar hastanede açılır; lab ?medica=1 ile yalnız hastanın dosyasını gösterir */if(/[?&]medica=1(&|$)/.test(location.search))document.documentElement.classList.add('axmd')</script>
 <script>/* MedLab köprüsü: iframe içinde (?medlab=1) labın kendi uyarı balonları sade kalır */if(window.parent!==window&&/[?&]medlab=1(&|$)/.test(location.search))document.documentElement.classList.add('axm-embed')</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -303,6 +304,9 @@ main{position:relative;z-index:1}
 .vig{padding:12px 14px;border-radius:14px;background:var(--lilac-s);font-size:14px;line-height:1.55;font-style:italic}
 
 /* =========================== VAKA MASASI =========================== */
+/* vakalar Acadex Medica'ya taşındı: sekme yalnız hastaneden açılınca (?medica=1) görünür, liste yerine tek hasta */
+html:not(.axmd) .tk-tabs [data-tab="vaka"]{display:none}
+html.axmd .vk{grid-template-columns:minmax(0,1fr)}html.axmd .vk-list{display:none}
 .vk{display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start}
 .vk-list{display:flex;flex-direction:column;gap:8px}
 .pc{display:flex;gap:10px;align-items:center;width:100%;padding:10px;border:1.5px solid var(--line);border-radius:16px;background:var(--paper);text-align:left;box-shadow:0 10px 22px -18px rgba(90,60,30,.6);transition:transform .2s var(--spring)}

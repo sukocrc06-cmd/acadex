@@ -14,6 +14,7 @@
   var S = function (id, t, cevap, puan, not, kim, geri) { return { id: id, t: t, cevap: cevap, puan: puan, not: not || null, kim: kim || null, geri: geri || null }; };
   var E = function (id, t, sonuc, puan, o) { return Object.assign({ id: id, t: t, sonuc: sonuc, puan: puan }, o || {}); };
   var K = function (soru, secenek) { return { tip: 'karar', baslik: 'Klinik akıl yürütme', soru: soru, secenek: secenek.map(function (x) { return { t: x[0], dogru: !!x[1], geri: x[2] }; }) }; };
+  var YARGI = function (kim, t, cevap, geri) { return S('yargi', t, cevap, -2, null, kim, geri || 'Suçlayıcı ya da küçümseyen soru güveni sarsar ve bilgi akışını keser.'); };
   var MODEL = function (metin) { return { tip: 'devir', metin: metin, dugme: '3B modelde yapıları bul', hedef: 'model' }; };
 
   return [
@@ -150,6 +151,119 @@
           ['Migren atağı; karanlık odada dinlendir', false, 'Travma sonrası bilinç bozulması acil görüntüleme gerektirir.']
         ]),
         MODEL('3B modelde darbenin geldiği kemik yapıyı ve kanayan arterin geldiği ana arteri bul.')
+      ] },
+
+    /* ============ 31.10.2026: Acadex Medica yeni hastaları (Osman Bey ve Fatma Hanım konsültasyon zincirlerinin ilk halkası) ============ */
+    /* ------------------------------ Sabah fark edilen inme ------------------------------ */
+    { id: 'ana-inme', vaka: 'inme', lab: 'anatomi', oda: 'acil', odaAd: 'Acil servis · inme alanı', baslik: 'Sabah fark edilen inme',
+      hasta: { ad: 'Osman Bey', hitap: 'Osman Bey', yas: 72, cins: 'E', gorunum: 'yasli', sac: '#C9C4BA', konusamaz: true, ifade: 'endise' }, refakat: { ad: 'Kızı Elif Hanım', cins: 'K', gorunum: 'yetiskin', kiyafet: '#7A4FA8' }, mentor: DR,
+      vital: { nabiz: 96, ta: '178/98', spo2: 95, ritim: 'duzensiz' },
+      adimlar: [
+        { tip: 'konus', kim: 'refakat', metin: 'Babam sabah kahvaltıda birden konuşamadı, sağ eli bardağı tutamadı. Su verdik, öksürdü.' },
+        { tip: 'konus', kim: 'mentor', metin: 'İnmede zaman beyindir. Önce en kritik bilgiyi al; üç soru hakkın var.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'tedavi kararını değiştirecek soruları seç', secenek: [
+          S('saat', 'En son ne zaman tamamen sağlıklı görüldü?', 'Dün gece 23.00’te yattı, iyiydi. Sabah 07.30’da böyle bulduk.', 3, 'Son iyi görülme|23.00; belirtiler 07.30’da fark edildi.', 'refakat'),
+          S('ilac', 'Kan sulandırıcı kullanıyor mu?', 'Hayır, sadece tansiyon ilacı. Ara ara da unutuyor.', 3, 'İlaç|Antikoagülan yok; antihipertansif düzensiz.', 'refakat'),
+          S('ritim', 'Daha önce kalp ritim bozukluğu söylendi mi?', 'Geçen yıl “kalbin düzensiz atıyor” dediler ama ilaç başlanmadı.', 3, 'Kalp|Bilinen düzensiz ritim, tedavisiz.', 'refakat'),
+          S('seker', 'Şekeri var mı, bugün ölçtünüz mü?', 'Şekeri yok; ambulansta 118 ölçtüler.', 2, 'Glukoz|118 mg/dL (hipoglisemi dışlandı).', 'refakat'),
+          S('meslek', 'Emekli olmadan önce ne iş yapıyordu?', 'Marangozdu.', 0, null, 'refakat'),
+          YARGI('refakat', 'Neden hemen getirmediniz, saatlerce beklemişsiniz?', 'Uyandığında böyleydi… gece olduğunu bilmiyorduk.', 'Suçlayıcı soru zaman kazandırmaz; son iyi görülme saatini tarafsız sor.')
+        ] },
+        { tip: 'eylem', baslik: 'Nörolojik muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('yuz', 'Yüz, kol ve konuşmaya bak (hızlı inme taraması)', 'Sağ ağız köşesi düşük, sağ kol yerçekimine karşı kalkmıyor; anlaşılır sözcük yok.', 3),
+          E('glukoz', 'Parmak ucu kan şekerini doğrula', 'Glukoz 118 mg/dL.', 2, { deger: '118 mg/dL' }),
+          E('monitor', 'Monitörü ve ritmi değerlendir', 'Nabız düzensiz, 96/dk; TA 178/98, SpO₂ %95.', 2, { anim: 'monitor' }),
+          E('su', 'Yutabiliyor mu diye bir bardak su ver', 'Osman Bey suyu yutarken boğuluyor gibi öksürüyor; SpO₂ düşüyor.', -3, { anim: 'monitor', vital: { spo2: 90, nabiz: 112 }, alarm: { spo2: true }, ifade: 'agri', geri: 'Yutma taraması yapılmadan ağızdan su verilmez; aspirasyon riski yüksek.' })
+        ] },
+        K('Bulgular hangi damar alanını düşündürür ve ilk adım ne olmalı?', [
+          ['Sol a. cerebri media alanı; acil beyin görüntülemesi ve inme ekibi, ağızdan hiçbir şey verilmeden yutma taraması', true, 'Doğru. Sağ yüz-kol güçsüzlüğü ve konuşamama sol (dominant) yarıküreyi gösterir. Kanama ayrımı için önce görüntüleme; yutma taraması DKT ile yapılır.'],
+          ['Sağ a. cerebri media alanı; hemen ağızdan aspirin verilir', false, 'Bulgular sağ tarafta: lezyon sol yarıkürede. Kanama dışlanmadan ve yutma değerlendirilmeden ağızdan ilaç verilmez.'],
+          ['Beyincik inmesi; yürüme testi yapılır', false, 'Afazi ve yüz-kol güçsüzlüğü kortikal bir tabloyu gösterir.']
+        ]),
+        MODEL('3B modelde emboli kaynağı arteri, etkilenen beyin bölümünü ve motor yolun indiği yapıyı bul.')
+      ] },
+
+    /* ------------------------------ Evde düşen yaşlı kadın ------------------------------ */
+    { id: 'ana-kalca', vaka: 'kalca', lab: 'anatomi', oda: 'acil', odaAd: 'Acil servis · travma', baslik: 'Evde düşen yaşlı kadın',
+      hasta: { ad: 'Fatma Hanım', hitap: 'Fatma Hanım', yas: 82, cins: 'K', gorunum: 'yasli', ifade: 'agri' }, refakat: { ad: 'Kızı Ayşe Hanım', cins: 'K', gorunum: 'yetiskin', kiyafet: '#2E8E7E' }, mentor: DR,
+      vital: { nabiz: 98, ta: '142/80', spo2: 96 },
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Mutfakta ayağım kaydı, yan düştüm. Kalkamıyorum kızım, kalçam çok ağrıyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'kırığı ve riskleri aydınlatan soruları seç', secenek: [
+          S('nasil', 'Düşmeden önce başınız döndü mü, bayıldınız mı?', 'Hayır, ayağım kaydı. Başımı da çarpmadım.', 3, 'Mekanizma|Mekanik düşme; senkop ve kafa travması yok.'),
+          S('ilac', 'Hangi ilaçları kullanıyorsunuz, kan sulandırıcı var mı?', 'Tansiyon ilacı. Kan sulandırıcı yok.', 3, 'İlaç|Antikoagülan yok (ameliyat zamanlaması için önemli).'),
+          S('once', 'Düşmeden önce evde kendi başınıza yürüyebiliyor muydunuz?', 'Bastonla yürürdüm, işlerimi kendim görürdüm.', 2, 'İşlev|Bastonla bağımsız.'),
+          S('kilo', 'Son aylarda iştahınız, kilonuz nasıl?', 'İki ayda epey zayıfladım, pek yiyemiyorum.', 2, 'Beslenme|2 ayda belirgin kilo kaybı.', null, 'Değerli: beslenme riski ameliyat sonrası iyileşmeyi etkiler; diyetisyene konsültasyon gerekebilir.'),
+          S('tv', 'En sevdiğiniz dizi hangisi?', 'Akşam haberlerini izlerim.', 0),
+          YARGI('hasta', 'Bu yaşta neden tek başınıza mutfağa giriyorsunuz?', 'Kendi evimde de mi oturacağım…', 'Bağımsızlığı yargılamak yerine düşme önleme planı birlikte kurulur.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('bacak', 'Bacakların boyuna ve duruşuna bak', 'Sağ bacak kısa ve dışa dönük (eksternal rotasyon).', 3, { ifade: 'agri' }),
+          E('nabiz', 'Ayak nabızlarını ve duyuyu kontrol et', 'A. dorsalis pedis nabzı alınıyor, duyu korunmuş.', 2),
+          E('agri', 'Ağrı kesici iste ve bacağı destekle', 'Analjezi yapıldı, bacak yastıkla desteklendi; Fatma Hanım biraz rahatladı.', 2, { ifade: 'rahat', vital: { nabiz: 88 } }),
+          E('yurut', 'Kırık var mı anlamak için ayağa kaldırıp yürüt', 'Fatma Hanım çığlık atıyor; ağrıyla nabzı yükseliyor.', -3, { ifade: 'agri', vital: { nabiz: 118 }, alarm: { nabiz: true }, geri: 'Kırık şüphesinde yük verdirilmez; önce görüntüleme.' })
+        ] },
+        K('Kısa ve dışa dönük bacakta en olası yaralanma ve en önemli risk nedir?', [
+          ['Collum femoris kırığı; femur başının kanlanmasının bozulması (avasküler nekroz)', true, 'Doğru. Femur başını besleyen a. circumflexa femoris medialis dalları kırıkta yırtılabilir; bu yüzden yaşlıda çoğunlukla protez yapılır.'],
+          ['Kalça çıkığı; hemen yerine oturtulur', false, 'Yaşlıda basit düşmede en sık neden kırıktır; görüntülemeden manipülasyon yapılmaz.'],
+          ['Kas zorlanması; dinlenme yeterli', false, 'Kısa ve dışa dönük bacak kırığın klasik bulgusudur.']
+        ]),
+        MODEL('3B modelde kırılan kemiği, eklem yuvasını taşıyan kemiği ve femur başını besleyen arteri bul.')
+      ] },
+
+    /* ------------------------------ Göç eden karın ağrısı ------------------------------ */
+    { id: 'ana-apandisit', vaka: 'apandisit', lab: 'anatomi', oda: 'poliklinik', odaAd: 'Acil cerrahi poliklinik', baslik: 'Göç eden karın ağrısı',
+      hasta: { ad: 'Can', hitap: 'Can Bey', yas: 19, cins: 'E', gorunum: 'genc', kiyafet: '#3E6E9E', ifade: 'agri' }, mentor: DR, vital: { nabiz: 104, ta: '122/76', spo2: 98, ates: 37.9 },
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Dün akşam göbeğimin etrafı ağrımaya başladı. Sabah ağrı sağ alta kaydı, yürürken daha kötü.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'ayırıcı tanıyı daraltan soruları seç', secenek: [
+          S('istah', 'İştahınız nasıl, bulantı ya da kusma oldu mu?', 'Hiç iştahım yok, bir kez kustum.', 3, 'Belirti|İştahsızlık, bir kez kusma.'),
+          S('gocme', 'Ağrı başladığı yerde mi kaldı, yer değiştirdi mi?', 'Göbekteydi, şimdi sağ alt tarafta. Öksürünce de batıyor.', 3, 'Ağrı|Göbek çevresinden sağ alt kadrana göç.'),
+          S('idrar', 'İdrar yaparken yanma ya da kan oldu mu?', 'Hayır, idrarım normal.', 2, 'Ayırıcı|Üriner yakınma yok.'),
+          S('ates', 'Ateşiniz oldu mu?', 'Sabah biraz üşüdüm.', 1),
+          S('spor', 'Hangi sporu yapıyorsunuz?', 'Basketbol.', 0),
+          YARGI('hasta', 'Dışarıda ne yediniz, yine abur cubur mu?', 'Normal yemek yedim…', 'Yargılamak yerine son yemeği ve kusma özelliğini tarafsız sor.')
+        ] },
+        { tip: 'eylem', baslik: 'Karın muayenesi', yonerge: 'gerekenleri yap', secenek: [
+          E('mcb', 'McBurney noktasında derin palpasyon', 'McBurney noktasında belirgin hassasiyet ve defans.', 3, { ifade: 'agri' }),
+          E('rebound', 'Geri bırakma (rebound) hassasiyetine bak', 'Elini çekince ağrı artıyor: periton irritasyonu.', 2, { ifade: 'agri' }),
+          E('ates', 'Ateşini ölç', 'Ateş 37,9 °C.', 1, { deger: '37,9 °C' }),
+          E('lavman', 'Kabızlık olabilir diye lavman öner', 'Lavman akut karında perforasyon riskini artırır; Can Bey endişeli.', -3, { ifade: 'endise', geri: 'Akut karın şüphesinde lavman ve laksatif verilmez.' })
+        ] },
+        K('Ağrının göbekten sağ alt kadrana göçünü nasıl açıklarsın?', [
+          ['Önce visseral ağrı (T10, göbek çevresi), iltihap pariyetal peritona ulaşınca lokal ağrı: akut apandisit düşünülür, cerrahi konsültasyon', true, 'Doğru. Visseral lifler ağrıyı orta hatta, pariyetal periton ise tam yerinde hissettirir.'],
+          ['Böbrek taşı; ağrı kesici verip eve gönder', false, 'İdrar yakınması yok, periton irritasyonu var.'],
+          ['Gastroenterit; bol sıvı yeterli', false, 'Göç eden ağrı, defans ve rebound akut karın bulgusudur.']
+        ]),
+        MODEL('3B modelde apendiksin bağlı olduğu bağırsağı, ona açılan ince bağırsağı ve McBurney noktasının referans kemiğini bul.')
+      ] },
+
+    /* ------------------------------ Motosiklet kazası ------------------------------ */
+    { id: 'ana-kot', vaka: 'kot', lab: 'anatomi', oda: 'acil', odaAd: 'Acil servis · kırmızı alan', baslik: 'Motosiklet kazası, göğüs travması',
+      hasta: { ad: 'Serkan', hitap: 'Serkan Bey', yas: 35, cins: 'E', gorunum: 'yetiskin', ifade: 'agri', maske: true }, mentor: DR, vital: { nabiz: 118, ta: '108/70', spo2: 89 },
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Motordan düştüm… sağ tarafım… nefes alınca bıçak gibi giriyor.' },
+        { tip: 'konus', kim: 'mentor', metin: 'Monitör alarm veriyor. Kısa sor, hızlı muayene et; üç soru hakkın var.' },
+        { tip: 'sor', baslik: 'Hızlı anamnez', hak: 3, yonerge: 'en kritik bilgileri al', secenek: [
+          S('carp', 'Neresi çarptı, kask var mıydı?', 'Sağ yanıma düştüm, kask vardı. Kafam iyi.', 3, 'Mekanizma|Sağ göğüs üstüne düşme; kask var.'),
+          S('nefes', 'Nefes darlığı giderek artıyor mu?', 'Evet, gittikçe zorlaşıyor.', 3, 'Solunum|Artan nefes darlığı.'),
+          S('karin', 'Karnınızda ağrı var mı?', 'Sağ üst tarafta da ağrı var.', 2, 'Karın|Sağ üst kadran ağrısı.'),
+          S('ilac', 'Düzenli ilaç kullanıyor musunuz?', 'Hayır.', 1),
+          S('is', 'Ne iş yapıyorsunuz?', 'Kuryeyim.', 0),
+          YARGI('hasta', 'Yine hız yaptınız herhalde?', 'Kaygan zemindi…', 'Travmada suçlayıcı soru vakit kaybettirir.')
+        ] },
+        { tip: 'eylem', baslik: 'Birincil bakı', yonerge: 'hayati olanları yap', secenek: [
+          E('dinle', 'İki akciğeri dinle ve perküsyon yap', 'Sağda solunum sesleri azalmış, perküsyonda hipersonorite.', 3),
+          E('o2', 'Yüksek akımlı oksijen ver', 'Maske ile oksijen başlandı; SpO₂ %93’e çıktı.', 3, { anim: 'monitor', vital: { spo2: 93 }, ifade: 'normal' }),
+          E('palp', 'Göğüs duvarını nazikçe palpe et', 'Sağ 6–9. kaburgalarda krepitasyon ve hassasiyet.', 2, { ifade: 'agri' }),
+          E('otur', 'Rahat nefes alsın diye yürüterek koridora çıkar', 'Serkan Bey baş dönmesiyle sendeliyor; SpO₂ düşüyor.', -3, { anim: 'monitor', vital: { spo2: 86, nabiz: 128 }, alarm: { spo2: true, nabiz: true }, ifade: 'endise', geri: 'Hemodinamisi bozulmaya yatkın travma hastası yürütülmez.' })
+        ] },
+        K('Sağda azalmış solunum sesi ve hipersonorite: en olası tablo ve ek risk?', [
+          ['Kaburga kırığına bağlı pnömotoraks; alt sağ kaburgalar nedeniyle karaciğer yaralanması da araştırılmalı', true, 'Doğru. Tansiyon bulguları (hipotansiyon, trakea kayması) gelişirse dekompresyon bekletilmez. Alt sağ kaburga kırıklarında karaciğer, solda dalak yaralanması akla gelir.'],
+          ['Kalp krizi; EKG yeterli', false, 'Mekanizma travma; akciğer bulguları göğüs duvarı ve plevrayı gösterir.'],
+          ['Basit kas ağrısı; ağrı kesiciyle eve', false, 'SpO₂ %89 ve hipersonorite acil müdahale gerektirir.']
+        ]),
+        MODEL('3B modelde kırılan yapıyı, yaralanabilecek organı ve sağ alt kaburgaların koruduğu organı bul.')
       ] }
   ];
 });

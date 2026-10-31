@@ -124,7 +124,10 @@
   var paintAntro = function () { paintAList(); paintRoom(); paintAForm(); };
 
   /* =========================== VAKA MASASI =========================== */
-  var V = { id: ls.get('vid', null), st: {} };
+  /* Acadex Medica: hastanın dosyası ?vaka=<id> ile gelir; puan hastaneye bildirilir */
+  var MV = C.MEDICA ? new URLSearchParams(location.search).get('vaka') : null;
+  var medica = function (id, puan) { if (!C.MEDICA || W.parent === W) return; try { W.parent.postMessage({ src: 'axmedica', type: 'sonuc', lab: 'diyet', vaka: id, puan: puan, tamam: true }, location.origin); } catch (e) {} };
+  var V = { id: MV && M.VK.some(function (v) { return v.id === MV; }) ? MV : ls.get('vid', null), st: {} };
   var vdone = ls.get('vakaDone', {});
   var vk = function () { return M.VK.filter(function (v) { return v.id === V.id; })[0]; };
   var vload = function () { V.st = V.id ? ls.get('vaka.' + V.id, { flags: {}, nrs: {}, kisit: {}, oneri: {} }) : {}; V.res = null; };
@@ -133,7 +136,7 @@
   var sahneDone = ls.get('sahneDone', {});
   var sahneVar = function (id) { return !!(W.AXKLINIK && W.AXKLINIK.SEN['dyt-' + id]); };
   var sahneBtn = function (id) {
-    if (!sahneVar(id)) return '';
+    if (C.MEDICA || !sahneVar(id)) return '';                                      /* hastanede görüşme zaten yapıldı */
     var p = sahneDone[id];
     return '<div class="sahne-cta"><button type="button" class="btn tom" data-sahne="' + id + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-6h6v6M12 7v4M10 9h4"/></svg>' + (p != null ? 'Görüşmeyi yeniden oyna' : 'Hastayı odada karşıla') + '</button>' +
       '<span class="sub">' + (p != null ? 'Klinik görüşme puanın: <b>' + p + '</b> / 100' : 'Animasyonlu odada anamnez al, muayene et, mentorla tartış; sonra reçeteyi burada yaz.') + '</span></div>';
@@ -233,7 +236,7 @@
       if (v.esit && !s.esit) { toast('BMH hesapçısında eşitliği seç.'); return; }
       if (v.ped && (s.pedZ == null || !s.pedS)) { toast('WHO yaşa göre BKİ z-skorunu ve sınıfını doldur.'); return; }
       V.res = M.vakaPuan(v, { flags: s.flags, nrs: s.nrs, ag: s.ag, kcal: +s.kcal, pro: +s.pro, kisit: s.kisit, oneri: s.oneri, oncelik: s.oncelik, esit: s.esit, pedZ: s.pedZ, pedS: s.pedS });
-      vdone[v.id] = V.res.puan; ls.set('vakaDone', vdone); paintCase(); DL.bridgeSend();
+      vdone[v.id] = V.res.puan; ls.set('vakaDone', vdone); paintCase(); DL.bridgeSend(); medica(v.id, V.res.puan);
       var k = $('#v-main .karne'); if (k && k.scrollIntoView) k.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'center' });
       return;
     }
@@ -267,7 +270,7 @@
   });
 
   /* =========================== ENTERAL & PARENTERAL =========================== */
-  var E = { id: ls.get('eid', M.EP[0].id), st: {} };
+  var E = { id: MV && M.EP.some(function (c) { return c.id === MV; }) ? MV : ls.get('eid', M.EP[0].id), st: {} };
   var edone = ls.get('epDone', {});
   var ec = function () { return M.EP.filter(function (c) { return c.id === E.id; })[0] || M.EP[0]; };
   var eload = function () { E.st = ls.get('ep.' + E.id, {}); E.res = null; };
@@ -373,7 +376,7 @@
     if (c.tip === 'tpn' && (!st.dexPct || !st.dexMl || !st.aaPct || !st.aaMl || !st.lipMl || !st.hiz)) { toast('Torbanın bütün bileşenlerini ve hızı doldur.'); return; }
     if (c.tip === 'refeed' && !st.kcal) { toast('1. gün enerjisini yaz.'); return; }
     E.res = M.epPuan(c, { kcal: +st.kcal, pro: +st.pro, urun: st.urun, ml: +st.ml, hiz: +st.hiz, modul: +st.modul || 0, dexPct: +st.dexPct, dexMl: +st.dexMl, aaPct: +st.aaPct, aaMl: +st.aaMl, lipMl: +st.lipMl, gerek: st.gerek });
-    edone[c.id] = E.res.puan; ls.set('epDone', edone); paintEP(); DL.bridgeSend();
+    edone[c.id] = E.res.puan; ls.set('epDone', edone); paintEP(); DL.bridgeSend(); medica(c.id, E.res.puan);
     var k = $('#e-form .karne'); if (k && k.scrollIntoView) k.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'center' });
   });
 

@@ -294,6 +294,7 @@
     else {
       s += '<ellipse cx="75" cy="76" rx="44" ry="40" fill="url(#otd)"/>';
       if (g === 'schwartze') s += '<ellipse cx="75" cy="76" rx="44" ry="40" fill="url(#ots)"/>';
+      if (g === 'buson') s += '<path d="M30 70 C34 40 70 26 104 36 C126 46 128 86 116 108 C100 126 58 128 40 112 C28 100 26 86 30 70 Z" fill="#8A5A22"/><path d="M46 64 C60 50 86 46 102 56" stroke="#C08A3E" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="70" cy="92" r="6" fill="#5E3A14"/><circle cx="96" cy="84" r="4" fill="#5E3A14"/>';
       if (g === 'perfor') s += '<ellipse cx="76" cy="80" rx="24" ry="20" fill="#7A2E2A"/><ellipse cx="76" cy="82" rx="16" ry="12" fill="#B4544B" opacity=".8"/><path d="M80 44 L76 60" stroke="#F3EDE6" stroke-width="4" stroke-linecap="round"/>';
       else s += '<path d="M80 44 L72 74" stroke="#F3EDE6" stroke-width="4" stroke-linecap="round"/><path d="M74 80 L98 110 L86 112 Z" fill="#FFFFFF" opacity=".85"/>';
     }

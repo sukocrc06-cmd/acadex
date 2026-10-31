@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>/* Acadex Medica: vakalar hastanede açılır; lab ?medica=1 ile yalnız hastanın vakasını gösterir */if(/[?&]medica=1(&|$)/.test(location.search))document.documentElement.classList.add('axmd')</script>
 <title>Acadex · Fizyo Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -549,6 +550,8 @@ input[type=range]{accent-color:var(--blue)}
 .modal .box{border-radius:18px}
 .mtabs button[aria-selected=true]{background:var(--navy)}
 .app:not([data-mode=vaka]) .sec[data-mode=vaka]{display:none}
+/* klinik vakalar Acadex Medica'ya taşındı: mod yalnız hastaneden açılınca (?medica=1) görünür, liste yerine tek vaka */
+html:not(.axmd) .modes button[data-mode=vaka]{display:none}html.axmd #caseList,html.axmd .sec[data-mode=vaka] .mini{display:none}
 
 /* kası çalıştır / sinyal düğmesi */
 .demo{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1.5px solid #CFDAFF;background:linear-gradient(180deg,#F5F8FF,#EAF0FF);border-radius:12px;padding:10px 12px;margin:-2px 0 12px;color:var(--navy);transition:transform .2s,box-shadow .2s}
@@ -3390,9 +3393,24 @@ const CASES = [
     ex: 'Femoral üçgende lateralden mediale sıra: n. femoralis, a. femoralis, v. femoralis. Giriş arterin nabzı üzerinden yapılır. Sinir hasarında diz ekstansiyonu zayıflar ve patella refleksi kaybolur.' },
   { id: 'pterion', ad: 'Şakağa darbe', tag: 'Baş ve boyun', txt: 'Futbol topu şakağına çarpan genç kısa süre bayılıp kendine geliyor; birkaç saat sonra bilinci yeniden bulanıklaşıyor.',
     steps: [['cranium', 'Darbenin aldığı kemik yapıyı bul.', 'Pterion; dört kemiğin birleştiği ince bölge.'], ['carotis', 'Kanayan arterin geldiği ana arteri bul.', 'Boyunda nabzı alınan büyük arter; dışı a. meningea media\'yı da verir.']],
-    ex: 'Pterion kırığında altından geçen a. meningea media yırtılır ve epidural hematom gelişir. Klasik tablo "lusid aralık"tır: kısa bilinç kaybı, ardından düzelme ve sonra hızlı kötüleşme.' }
+    ex: 'Pterion kırığında altından geçen a. meningea media yırtılır ve epidural hematom gelişir. Klasik tablo "lusid aralık"tır: kısa bilinç kaybı, ardından düzelme ve sonra hızlı kötüleşme.' },
+  { id: 'inme', ad: 'Sabah fark edilen inme', tag: 'Nöroanatomi', txt: '72 yaşında erkek, sabah sağ kol ve bacağını kıpırdatamıyor, konuşamıyor. Su verilince öksürüyor.',
+    steps: [['carotis', 'Emboli kaynağı olabilecek boyun arterini bul.', 'Boynun yan tarafında, m. sternocleidomastoideus\'un önünde nabzı alınan büyük arter.'], ['cerebrum', 'İnmenin etkilediği beyin bölümünü bul.', 'Kafatası boşluğunun büyük bölümünü dolduran iki yarıküre; sol yarıküre etkilenmiş.'], ['medulla', 'Güçsüzlüğü taşıyan motor yolun (kortikospinal yol) beyinden indiği yapıyı bul.', 'Omurga kanalının içinde uzanan sinir dokusu; yol beyin sapında karşı tarafa geçer.']],
+    ex: 'Sol a. cerebri media sulama alanında iskemik inme: sağ yüz ve kolda baskın güçsüzlük, dominant yarıkürede afazi. Kaynak sıklıkla a. carotis interna\'daki aterom plağıdır. Kortikospinal yol beyin sapında çaprazlaştığı için sol yarıküre hasarı sağ tarafta güçsüzlük yapar. Kortikobulbar yolların hasarı yutmayı da bozar; bu yüzden ağızdan bir şey verilmeden önce yutma taraması yapılır.' },
+  { id: 'kalca', ad: 'Evde düşen yaşlı kadın', tag: 'Alt ekstremite', txt: '82 yaşında kadın, mutfakta kayıp yan düşmüş. Ayağa kalkamıyor; sağ bacağı kısa ve dışa dönük duruyor.',
+    steps: [['femur', 'Kırılan kemiği bul.', 'Uyluğun tek kemiği; kırık başın hemen altındaki boyun (collum) bölgesinde.'], ['pelvis', 'Femur başının oturduğu eklem yuvasını taşıyan kemiği bul.', 'Asetabulum kalça kemiğindedir.'], ['a_femoralis', 'Femur başını besleyen dalları veren ana arteri bul.', 'Kasık bağının altında nabzı alınan arter; derin dalı a. circumflexa femoris medialis\'i verir.']],
+    ex: 'Collum femoris kırığında bacak kısalır ve dışa döner. Femur başını besleyen a. circumflexa femoris medialis kırıkta yırtılabilir; avasküler nekroz riski nedeniyle yer değiştirmiş boyun kırıklarında yaşlıda çoğunlukla protez yapılır. Ameliyat sonrası erken mobilizasyon ve beslenme desteği komplikasyonları azaltır.' },
+  { id: 'apandisit', ad: 'Göç eden karın ağrısı', tag: 'Abdomen', txt: '19 yaşında erkek. Ağrı dün akşam göbek çevresinde başlamış, sabah sağ alt kadrana yerleşmiş. Bulantısı ve 37,9 °C ateşi var.',
+    steps: [['colon', 'Apendiksin bağlı olduğu kalın bağırsak bölümünü bul.', 'Sağ alt kadrandaki çekum; kalın bağırsağın başlangıcı.'], ['tenue', 'Çekuma açılan ince bağırsak bölümünü bul.', 'İleum; ileoçekal valv ile çekuma açılır.'], ['pelvis', 'McBurney noktasının referans aldığı çıkıntıyı taşıyan kemiği bul.', 'Spina iliaca anterior superior: kalça kemiğinin ön üst çıkıntısı.']],
+    ex: 'Apendiks iltihabında ağrı önce göbek çevresinde hissedilir (visseral lifler, T10 dermatomu); iltihap pariyetal peritona ulaşınca sağ alt kadrana yerleşir. McBurney noktası, spina iliaca anterior superior ile göbeği birleştiren çizginin dış üçte birindedir.' },
+  { id: 'kot', ad: 'Motosiklet kazası, göğüs travması', tag: 'Toraks', txt: '35 yaşında erkek, motosikletten düşmüş. Sağ göğsünde nefes alınca artan ağrı, nefes darlığı; SpO₂ %89.',
+    steps: [['costae', 'Kırılan yapıyı bul.', 'Göğüs kafesini oluşturan yay biçimli kemikler.'], ['pulmo', 'Kırık uçların yaralayabileceği organı bul.', 'Göğüs boşluğunu dolduran, plevrayla sarılı organ.'], ['hepar', 'Sağ alt kaburgaların koruduğu, kanayabilecek organı bul.', 'Sağ üst kadranda, diyaframın altındaki en büyük organ.']],
+    ex: 'Kaburga kırığının ucu plevrayı delerse pnömotoraks gelişir: o tarafta solunum sesleri azalır, perküsyonda hipersonorite olur. Tansiyon pnömotoraks acildir ve hemen dekompresyon gerekir. Alt sağ kaburga kırıklarında karaciğer, alt sol kaburgalarda dalak yaralanması akla gelmelidir.' }
 ];
 const CASE = { run: false, c: null, i: 0, miss: 0 };
+/* Acadex Medica: hastanın vakası ?medica=1&vaka=<id> ile açılır, bitince puan hastaneye gider */
+const MEDICA = /[?&]medica=1(&|$)/.test(location.search);
+function medicaBildir(o) { if (!MEDICA || window.parent === window) return; try { window.parent.postMessage(Object.assign({ src: 'axmedica', type: 'sonuc', lab: 'fizyo', tamam: true }, o), location.origin); } catch (e) {} }
 function renderCases() {
   $('#caseList').innerHTML = CASES.map(c => { const done = LS.get('caseDone', []).includes(c.id); return `<button class="case ${CASE.c === c && CASE.run ? 'on' : ''}" data-case="${c.id}"><span class="tg">${esc(c.tag)}</span><b>${esc(c.ad)}</b><small>${c.steps.length} adım${done ? ' · çözdün ✓' : ''}</small></button>${window.AXKLINIK && AXKLINIK.SEN['ana-' + c.id] ? `<button class="case-sahne" data-sahne-case="${c.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-6h6v6M12 7v4M10 9h4"/></svg>Hastayı karşıla · sahnede başla</button>` : ''}`; }).join('');
 }
@@ -3417,7 +3435,7 @@ async function startCase(c) {
   stopDemo(); stopTour(); select(null);
   const syss = new Set(c.steps.map(s => sysOfSid(s[0]))); for (const s of syss) if (s && !loaded[s]) await withLoader(s);
   for (const s of syss) if (st.layers[s]) st.layers[s].on = true; renderLayers(); st.peel = 0; st.ghost = null; st.iso = null; applyVis(); renderStates();
-  Object.assign(CASE, { run: true, c, i: 0, miss: 0, sahne: false }); renderCases(); caseCard(); HOME();
+  Object.assign(CASE, { run: true, c, i: 0, miss: 0, hata: 0, sahne: false }); renderCases(); caseCard(); HOME();
 }
 function caseCard(fb) {
   const c = CASE.c, el = $('#casebar'); if (!c) return; el.classList.add('on');
@@ -3437,10 +3455,10 @@ function caseClick(h) {
   const sid = h.mesh.userData.sid;
   if (sid === s[0]) {
     selectMesh(h.mesh, { point: h.point }); pulse(); CASE.i++; CASE.miss = 0;
-    if (CASE.i >= CASE.c.steps.length) { CASE.run = false; const d = LS.get('caseDone', []); if (!d.includes(CASE.c.id)) { d.push(CASE.c.id); LS.set('caseDone', d); } renderCases(); caseCard(); if (CASE.sahne) { CASE.sahne = false; kapanis(CASE.c); } }
+    if (CASE.i >= CASE.c.steps.length) { CASE.run = false; medicaBildir({ vaka: CASE.c.id, puan: Math.max(0, 100 - 10 * (CASE.hata || 0)) }); const d = LS.get('caseDone', []); if (!d.includes(CASE.c.id)) { d.push(CASE.c.id); LS.set('caseDone', d); } renderCases(); caseCard(); if (CASE.sahne) { CASE.sahne = false; kapanis(CASE.c); } }
     else caseCard({ ok: true, t: 'Doğru: ' + S[s[0]].tr + ' (' + S[s[0]].la + ')' });
   } else {
-    CASE.miss++; caseCard({ ok: false, t: 'Bu ' + nameTR(h.mesh) + '. Tekrar dene.' });
+    CASE.miss++; CASE.hata = (CASE.hata || 0) + 1; caseCard({ ok: false, t: 'Bu ' + nameTR(h.mesh) + '. Tekrar dene.' });
     const el = $('#casebar'); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
   }
 }
@@ -5107,6 +5125,11 @@ function fzOverlay(r) {
   } catch (e) { console.error(e); $('#loadT').textContent = 'Model dosyaları bulunamadı. Bu dosya acadex tasarım\\fizyo klasöründe, anatomi klasörünün yanında açılmalı.'; return; }
   $('#loadBar').style.width = '100%'; setTimeout(() => $('#load').classList.add('done'), 250);
   renderLayers(); renderNotes(); setPins(); applyVis(); intro(); booted = true; renderTekrar(); renderCases(); renderHead(); fzBoot();
+  /* Acadex Medica: ?fz=test:<id> özel testi, ?fz=prot:<id> protokolü açar (labs/klinik/senaryo-fizyo.js) */
+  if (MEDICA) { const fz = (new URLSearchParams(location.search).get('fz') || '').split(':'), mc = CASES.find(c => c.id === new URLSearchParams(location.search).get('vaka'));
+    if (fz[0] === 'test' && FZ_TESTS.some(t => t.id === fz[1])) { const t = FZ_TESTS.find(x => x.id === fz[1]); setMode('test'); FZS.tBol = t.bolge; FZS.tQ = ''; renderTests(); fzTest(t.id); medicaBildir({ vaka: t.id }); }
+    else if (fz[0] === 'prot' && FZ_PROT.some(x => x.id === fz[1])) { setMode('egz'); FZS.prot = fz[1]; FZS.protFaz = 0; setTab('prot'); renderProt(); medicaBildir({ vaka: fz[1] }); }
+    else if (mc) { setMode('vaka'); await startCase(mc); } }
   window.__lab = { st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene };
   /* ===== MedLab köprüsü (27.10.2026) =====
      Lab, Acadex MedLab katmanında (iframe, ?medlab=1) açıldığında kendi Acadia'sını gizler;

@@ -270,3 +270,47 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 @keyframes dkt-wv{0%{opacity:0;transform:translateX(-6px)}30%{opacity:1}100%{opacity:0;transform:translateX(12px)}}
 @keyframes dkt-bub{0%,100%{transform:scale(1)}20%{transform:scale(1.08) rotate(-2deg)}40%{transform:scale(1)}}
 @keyframes dkt-card{0%,100%{transform:rotate(0)}50%{transform:rotate(-2.5deg)}}
+
+/* Acadex Medica kartı (31.10.2026): MedLab'in hastanesi, rafın en üstünde geniş kart */
+#medlab-view.axm .axm-lab-wide{grid-column:1/-1}
+#medlab-view.axm .axm-lab-wide .axm-labb{flex-direction:row;align-items:stretch;padding:0}
+#medlab-view.axm .axm-lab-wide .axm-cover{flex:0 0 56%;border-bottom:0;border-right:1.4px solid #E1E5EE}
+#medlab-view.axm .axm-lab-tx{display:flex;flex-direction:column;justify-content:center;padding:16px 8px 18px 0;min-width:0}
+#medlab-view.axm .axm-lab-wide .axm-lab-t{font-size:30px}
+#medlab-view.axm .axm-lab-cta{align-self:flex-start;margin:14px 18px 0;padding:10px 16px;border-radius:999px;background:#0D1838;color:#fff;font-weight:700;font-size:14.5px;transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+#medlab-view.axm button.axm-labb:hover .axm-lab-cta{transform:translateX(4px)}
+#medlab-view.axm .axm-cover-med{background:#E3EEF4}
+#medlab-view.axm .axm-med{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+#medlab-view.axm button.axm-labb:hover .axm-med,#medlab-view.axm button.axm-labb:focus-visible .axm-med{transform:scale(1.03)}
+#medlab-view.axm .axm-med g,#medlab-view.axm .axm-med rect,#medlab-view.axm .axm-med ellipse{transform-box:fill-box}
+#medlab-view.axm .axm-med .med-govde,#medlab-view.axm .axm-med .med-kol{transform-origin:50% 100%}
+#medlab-view.axm .axm-med .med-goz,#medlab-view.axm .axm-med .med-bub{transform-origin:50% 50%}
+#medlab-view.axm .axm-med .med-maske{transform-origin:50% 0}
+@media (prefers-reduced-motion:no-preference){
+#medlab-view.axm .axm-med .med-k1{animation:med-k1 6s ease-in-out infinite}
+#medlab-view.axm .axm-med .med-k2{animation:med-k2 6s ease-in-out infinite}
+#medlab-view.axm .axm-med .med-pen .p2{animation:med-pen 5s steps(1) infinite}#medlab-view.axm .axm-med .med-pen .p4{animation:med-pen 7s steps(1) -2s infinite}#medlab-view.axm .axm-med .med-pen .p5{animation:med-pen 6s steps(1) -4s infinite}#medlab-view.axm .axm-med .med-pen .p8{animation:med-pen 8s steps(1) -1s infinite}
+#medlab-view.axm .axm-med .med-sir{animation:med-sir .8s steps(2) infinite}
+#medlab-view.axm .axm-med .med-govde{animation:med-nefes 3.4s ease-in-out infinite}
+#medlab-view.axm .axm-med .med-kol{animation:med-kol 3s ease-in-out infinite}
+#medlab-view.axm .axm-med .med-goz{animation:med-goz 4.6s infinite}
+#medlab-view.axm .axm-med .med-maske{animation:med-maske 2.2s ease-in-out infinite}
+#medlab-view.axm .axm-med .med-bub{animation:med-bub 2.2s cubic-bezier(.3,1.5,.5,1) infinite}
+#medlab-view.axm .axm-med .med-bulut{animation:med-bulut 18s linear infinite alternate}
+}
+@keyframes med-k1{0%,20%,80%,100%{transform:none}35%,65%{transform:translateX(-30px)}}
+@keyframes med-k2{0%,20%,80%,100%{transform:none}35%,65%{transform:translateX(30px)}}
+@keyframes med-pen{0%{fill:#FFE9A8}50%{fill:#BFE0F5}}
+@keyframes med-sir{50%{fill:#E5544A}}
+@keyframes med-nefes{50%{transform:scaleY(1.02)}}
+@keyframes med-kol{50%{transform:translateY(-3px)}}
+@keyframes med-goz{0%,92%,100%{transform:none}95%{transform:scaleY(.12)}}
+@keyframes med-maske{0%,60%,100%{transform:none}70%,90%{transform:scaleY(1.08)}}
+@keyframes med-bub{0%,100%{transform:scale(1)}20%{transform:scale(1.07) rotate(-2deg)}40%{transform:scale(1)}}
+@keyframes med-bulut{to{transform:translateX(40px)}}
+@media (max-width:760px){
+  #medlab-view.axm .axm-lab-wide .axm-labb{flex-direction:column}
+  #medlab-view.axm .axm-lab-wide .axm-cover{flex:none;border-right:0;border-bottom:1.4px solid #E1E5EE}
+  #medlab-view.axm .axm-lab-tx{padding:0 0 18px}
+  #medlab-view.axm .axm-lab-wide .axm-lab-t{font-size:24px}
+}

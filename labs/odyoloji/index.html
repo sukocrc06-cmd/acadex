@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Caveat:wght@500;600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script>/* Acadex Medica: vakalar hastanede açılır; lab ?medica=1 ile yalnız hastanın dosyasını gösterir */if(/[?&]medica=1(&|$)/.test(location.search))document.documentElement.classList.add('axmd')</script>
 <script>/* MedLab köprüsü: iframe içinde (?medlab=1) labın kendi uyarı balonları sade kalır */if(window.parent!==window&&/[?&]medlab=1(&|$)/.test(location.search))document.documentElement.classList.add('axm-embed')</script>
 <style>
 /* =====================================================================
@@ -286,6 +287,9 @@ button{cursor:pointer}
 .ku-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:18px 22px;border-radius:14px;background:var(--paper);max-width:420px;text-align:center}
 
 /* =========================== VAKA MASASI =========================== */
+/* vakalar Acadex Medica'ya taşındı: sekme yalnız hastaneden açılınca (?medica=1) görünür, liste yerine tek hasta */
+html:not(.axmd) .ol-tabs [data-tab="vaka"]{display:none}
+html.axmd .vk{grid-template-columns:minmax(0,1fr)!important}html.axmd .vk-list{display:none!important}
 .vk{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;align-items:start}
 .vk-list{display:flex;flex-direction:column;gap:8px}
 .vk-list button{display:block;width:100%;padding:10px 12px;border:0;border-radius:12px;background:var(--paper);text-align:left;box-shadow:0 10px 24px -18px rgba(0,0,0,.8);border-left:5px solid var(--grid-2)}

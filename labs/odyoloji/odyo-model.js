@@ -119,6 +119,38 @@
     imm: { R: { tip: 'A', tepe: -5, uyum: 0.8, ecv: 1.4 }, L: { tip: 'A', tepe: 0, uyum: 0.85, ecv: 1.4 } },
     ans: { R: { tip: 'sensorinoral', derece: 'orta_ileri', konf: 'duz' }, L: { tip: 'sensorinoral', derece: 'orta_ileri', konf: 'duz' } } });
 
+  /* ---- 31.10.2026: Acadex Medica yeni hastaları (konsültasyon zincirleri: kerem → DKT, ototoks → Diyet) ---- */
+  add({ id: 'kerem', ad: 'Kerem', yas: 4, seviye: 2, kabin: true,
+    ozet: 'Konuşması gecikmiş, seslenince bazen dönen çocuk; yenidoğan taramasının kontrolüne gidilmemiş.',
+    acR: [45, 50, 50, 55, 60, 60, 65, 65], bcR: [40, 45, 50, 55, 55, 60],
+    acL: [45, 45, 50, 55, 55, 60, 65, 70], bcL: [40, 45, 45, 50, 55, 55],
+    srt: { R: 50, L: 50 }, sd: { R: 84, L: 88 },
+    imm: { R: { tip: 'A', tepe: -10, uyum: 0.5, ecv: 0.6 }, L: { tip: 'A', tepe: -15, uyum: 0.55, ecv: 0.6 } },
+    ans: { R: { tip: 'sensorinoral', derece: 'orta', konf: 'dusen' }, L: { tip: 'sensorinoral', derece: 'orta', konf: 'dusen' } } });
+  add({ id: 'buson', ad: 'Recep', yas: 66, seviye: 2, kabin: true,
+    ozet: 'Duştan sonra sağ kulağı aniden tıkanan, kulağını pamuklu çubukla temizleyen emekli.',
+    acR: [40, 40, 35, 35, 35, 40, 45, 45], bcR: [10, 10, 10, 15, 15, 15],
+    acL: [15, 10, 15, 15, 20, 25, 30, 35], bcL: [10, 10, 10, 15, 20, 20],
+    srt: { R: 35, L: 10 }, sd: { R: 96, L: 100 },
+    imm: { R: { tip: 'B', tepe: null, uyum: 0, ecv: 0.3 }, L: { tip: 'A', tepe: -10, uyum: 0.7, ecv: 1.3 } },
+    oto: { R: { g: 'buson', t: 'Sağ dış kulak yolu sertleşmiş kulak kiriyle (buşon) tamamen tıkalı; kulak zarı görülemiyor.' }, L: { g: 'normal', t: 'Dış kulak yolu açık, kulak zarı doğal; ışık refleksi seçiliyor.' } },
+    ans: { R: { tip: 'iletim', derece: 'hafif', konf: 'duz' }, L: { tip: 'normal', derece: 'normal', konf: 'duz' } } });
+  add({ id: 'ototoks', ad: 'Nurten', yas: 56, seviye: 2, kabin: true,
+    ozet: 'Sisplatinli kemoterapi alan, iki kulakta tiz çınlama ve kalabalıkta konuşmayı kaçırma tarifleyen kadın.',
+    acR: [10, 15, 15, 25, 40, 55, 65, 70], bcR: [10, 15, 15, 20, 35, 50],
+    acL: [10, 10, 15, 25, 40, 50, 60, 70], bcL: [5, 10, 15, 20, 35, 45],
+    srt: { R: 15, L: 15 }, sd: { R: 92, L: 92 },
+    imm: { R: { tip: 'A', tepe: -5, uyum: 0.7, ecv: 1.2 }, L: { tip: 'A', tepe: -10, uyum: 0.75, ecv: 1.3 } },
+    ans: { R: { tip: 'sensorinoral', derece: 'cok_hafif', konf: 'dusen' }, L: { tip: 'sensorinoral', derece: 'cok_hafif', konf: 'dusen' } } });
+  add({ id: 'perfor', ad: 'Burcu', yas: 27, seviye: 2, kabin: true,
+    ozet: 'Pamuklu çubukla kulak temizlerken kolu çarpılan, sol kulakta ağrı ve tıkanıklık tarifleyen genç kadın.',
+    acR: [10, 5, 10, 10, 10, 10, 15, 10], bcR: [5, 5, 5, 10, 5, 10],
+    acL: [30, 30, 25, 25, 20, 25, 25, 30], bcL: [5, 5, 5, 10, 5, 5],
+    srt: { R: 5, L: 25 }, sd: { R: 100, L: 100 },
+    imm: { R: { tip: 'A', tepe: -5, uyum: 0.75, ecv: 1.2 }, L: { tip: 'B', tepe: null, uyum: 0, ecv: 2.6 } },
+    oto: { R: { g: 'normal', t: 'Dış kulak yolu ve kulak zarı doğal.' }, L: { g: 'perfor', t: 'Sol kulak zarının arka-alt kadranında küçük, kenarları düzensiz taze perforasyon; kurumuş kan izi var.' } },
+    ans: { R: { tip: 'normal', derece: 'normal', konf: 'duz' }, L: { tip: 'iletim', derece: 'hafif', konf: 'duz' } } });
+
   /* ---------- etiketler ---------- */
   var TIP = { normal: 'Normal işitme', iletim: 'İletim tipi', sensorinoral: 'Sensörinöral', mikst: 'Mikst tip' };
   var DERECE = [ /* Clark (1981), SSO 500-1000-2000 Hz */
@@ -291,7 +323,44 @@
       gerekli: ['otoskopi', 'odyometri', 'timpanometri'], yararli: ['konusma'], gereksiz: ['abr'],
       tani: ['Kronik otitis media (perforasyonlu), mikst tip kayıp', 'Otoskleroz', 'Ani sensörinöral işitme kaybı', 'Presbiakuzi'], dogru: 0,
       yon: ['KBB: cerrahi değerlendirme (timpanoplasti), kulağı kuru tutma', 'Yalnızca işitme cihazı', 'Acil MR', 'Vestibüler rehabilitasyon'], dyon: 0,
-      not: 'Düz (B) timpanogram ama kulak yolu hacmi çok yüksek (4,2 ml): perforasyon. Uzun süren orta kulak hastalığı iç kulağı da etkileyince kayıp mikst tipe döner.' }
+      not: 'Düz (B) timpanogram ama kulak yolu hacmi çok yüksek (4,2 ml): perforasyon. Uzun süren orta kulak hastalığı iç kulağı da etkileyince kayıp mikst tipe döner.' },
+    /* ---- 31.10.2026: Acadex Medica yeni vakaları ---- */
+    { id: 'v-kerem', hasta: 'kerem', baslik: '4 yaşında çocuk: "hâlâ cümle kurmuyor"',
+      oyku: 'Annesi, Kerem\'in yalnızca 10–15 sözcük kullandığını, cümle kurmadığını, seslenince bazen döndüğünü söylüyor. Yenidoğan işitme taramasında "tekrar edilsin" denmiş ama kontrole gidilmemiş. Gebelikte annesi ateşli bir hastalık geçirmiş.',
+      sonuc: { otoskopi: 'Her iki dış kulak yolu açık, kulak zarları doğal; ışık refleksi seçiliyor.',
+        timpanometri: { R: 'A', L: 'A', ecv: { R: 0.6, L: 0.6 } }, refleks: 'Refleksler iki kulakta yükselmiş eşikte alınıyor, yüksek frekanslarda yok.',
+        oae: 'TEOAE iki kulakta yanıt yok.', abr: 'Dalga V iki kulakta 50–55 dB nHL\'ye kadar izlendi; latanslar koklear kayıpla uyumlu, interpik aralıklar normal.' },
+      gerekli: ['otoskopi', 'odyometri', 'timpanometri', 'oae'], yararli: ['refleks', 'abr', 'konusma'],
+      tani: ['Doğuştan iki taraflı sensörinöral işitme kaybı (orta derece)', 'Seröz otitis media', 'İşitsel nöropati spektrum bozukluğu', 'Yalancı (fonksiyonel) işitme kaybı'], dogru: 0,
+      yon: ['İki taraflı işitme cihazı, erken müdahale programı ve dil-konuşma terapisine yönlendirme', '6 ay sonra kontrol, şimdilik bir şey gerekmez', 'Ventilasyon tüpü', 'Yalnızca konuşma terapisi; işitme cihazı gereksiz'], dyon: 0,
+      not: 'Normal timpanogram (A) + iki kulakta OAE yokluğu + eşik ABR ile uyumlu orta derece kayıp: koklear (sensörinöral) kayıp. Dil gelişimi için işitsel girdi kritik dönemdedir; cihaz uygulaması gecikmemeli ve dil-konuşma terapisi birlikte başlamalıdır. Taramayı "geçemeyen" bebeğin kontrolü kaçırılmamalıdır.' },
+    { id: 'v-buson', hasta: 'buson', baslik: '66 yaşında erkek: duştan sonra sağ kulak tıkandı',
+      oyku: 'Banyodan sonra sağ kulağında ani tıkanıklık ve kendi sesini yankılı duyma. Kulaklarını her gün pamuklu çubukla temizliyor. Ağrı, akıntı ve baş dönmesi yok.',
+      sonuc: { otoskopi: 'Sağ dış kulak yolu sertleşmiş kulak kiriyle (buşon) tamamen tıkalı; kulak zarı görülemiyor. Sol kulak doğal.',
+        timpanometri: { R: 'B', L: 'A', ecv: { R: 0.3, L: 1.3 } }, refleks: 'Sağda ölçülemedi (prob kulak yolunu kapatamıyor); sol ipsi refleks alınıyor.',
+        oae: 'Sağda yanıt yok, solda yanıt var.', abr: 'Tanı için gerekmez.' },
+      gerekli: ['otoskopi', 'odyometri', 'timpanometri'], yararli: ['konusma'], gereksiz: ['abr'],
+      tani: ['Buşon (serumen tıkacı) ile iletim tipi kayıp', 'Otoskleroz', 'Ani sensörinöral işitme kaybı', 'Kronik otitis media'], dogru: 0,
+      yon: ['Buşonun temizlenmesi (KBB ya da aile hekimi), ardından kontrol odyometri; pamuklu çubuk kullanmama önerisi', 'Hemen işitme cihazı', 'Acil steroid tedavisi', 'Stapes cerrahisi'], dyon: 0,
+      not: 'Tip B timpanogram + DÜŞÜK kulak yolu hacmi (0,3 ml) = kulak yolu tıkalı. Otoskopi bu yüzden ölçümden önce yapılır. Buşon temizlenince iletim kaybı düzelir; kalıcı bir kayıp olup olmadığı kontrol odyogramla görülür.' },
+    { id: 'v-ototoks', hasta: 'ototoks', baslik: '56 yaşında kadın: kemoterapi sırasında işitme izlemi',
+      oyku: 'Over kanseri nedeniyle sisplatinli kemoterapinin 3. kürünü almış. Tedavi öncesi odyogramı normalmiş. Son haftalarda iki kulakta tiz çınlama ve kalabalıkta konuşmayı kaçırma başlamış. İştahı da çok azalmış.',
+      sonuc: { otoskopi: 'Her iki dış kulak yolu ve kulak zarı doğal.',
+        timpanometri: { R: 'A', L: 'A', ecv: { R: 1.2, L: 1.3 } }, refleks: 'Refleksler alçak frekanslarda alınıyor, 4 kHz\'de yükselmiş.',
+        oae: 'DPOAE 3 kHz üstünde iki kulakta belirgin azalmış (tedavi öncesine göre yeni).', abr: 'Tanı için öncelikli değil.' },
+      gerekli: ['otoskopi', 'odyometri', 'oae'], yararli: ['timpanometri', 'konusma'], gereksiz: ['abr'],
+      tani: ['Ototoksik (sisplatine bağlı) sensörinöral işitme kaybı', 'Presbiakuzi', 'Gürültüye bağlı işitme kaybı', 'Seröz otitis media'], dogru: 0,
+      yon: ['Onkoloji ekibine bildirim; her kür öncesi yüksek frekans odyometri ve OAE ile izlem', 'Kemoterapiyi kendi başına bırakmasını önermek', 'Stapes cerrahisi', 'Ventilasyon tüpü'], dyon: 0,
+      not: 'Sisplatin ototoksisitesi iki taraflı, simetrik ve yüksek frekanslardan başlar; SSO ilk aşamada neredeyse normal kalabilir, bu yüzden izlemde yüksek frekanslar ve OAE kullanılır. Tedavi kararı onkoloji ekibinindir; odyolog bulguyu zamanında bildirir.' },
+    { id: 'v-perfor', hasta: 'perfor', baslik: '27 yaşında kadın: kulak temizlerken keskin ağrı',
+      oyku: 'Dün pamuklu çubukla sol kulağını temizlerken kolu çarpılmış; keskin ağrı, birkaç damla kan ve ardından tıkanıklık. Baş dönmesi, bulantı ve yüzde güçsüzlük yok.',
+      sonuc: { otoskopi: 'Sol kulak zarının arka-alt kadranında küçük, kenarları düzensiz taze perforasyon; kurumuş kan izi var. Sağ kulak doğal.',
+        timpanometri: { R: 'A', L: 'B', ecv: { R: 1.2, L: 2.6 } }, refleks: 'Solda ölçülemedi (perforasyon); sağ ipsi refleks alınıyor.',
+        oae: 'Solda yanıt yok (iletim kaybı), sağda yanıt var.', abr: 'Tanı için gerekmez.' },
+      gerekli: ['otoskopi', 'odyometri', 'timpanometri'], yararli: ['konusma'], gereksiz: ['abr'],
+      tani: ['Travmatik kulak zarı perforasyonu, iletim tipi kayıp', 'Kronik otitis media', 'Otoskleroz', 'Ani sensörinöral işitme kaybı'], dogru: 0,
+      yon: ['KBB: kulağı kuru tutma, 4–8 haftada kendiliğinden kapanma izlemi; baş dönmesi ya da sensörinöral kayıp çıkarsa acil', 'Acil timpanoplasti', 'Hemen işitme cihazı', 'Kulağı damla ve suyla kendi kendine yıkama'], dyon: 0,
+      not: 'Tip B timpanogram + YÜKSEK hacim (2,6 ml) = perforasyon. Küçük travmatik perforasyonların çoğu birkaç haftada kendiliğinden kapanır; kulak kuru tutulur. Kemik yolu normal kalmalıdır; sensörinöral kayıp ya da baş dönmesi iç kulak yaralanmasını düşündürür ve acildir.' }
   ];
   /* ölçüm yapılabilen testler: istenince öğrenci kabinde kendisi ölçer */
   var MEASURABLE = ['konusma', 'timpanometri', 'refleks'];
