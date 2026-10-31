@@ -2816,6 +2816,21 @@ const EMPIRICAL_ANCHOR_RE = new RegExp([
 const MODEL_DEFINITION_RE =
   /\bpopulation regression\b|\bgeneral form\b|\bis specified as\b|\bpopulasyon regresyon\b/i
 
+/** Listeden n eleman, basa yiginmadan, esit aralikli secer. Ilk ve son
+ *  eleman her zaman girer; n listeden buyukse liste oldugu gibi doner. */
+function esitAralikSec<T>(liste: T[], n: number): T[] {
+  const a = Array.isArray(liste) ? liste : []
+  if (n <= 0) return []
+  if (a.length <= n) return a.slice()
+  if (n === 1) return [a[0]]
+  const out: T[] = []
+  for (let k = 0; k < n; k++) {
+    const idx = Math.round((k * (a.length - 1)) / (n - 1))
+    if (out.indexOf(a[idx]) === -1) out.push(a[idx])
+  }
+  return out
+}
+
 function selectVisualPages(
   pdfPageTexts: string[],
   nearBlankIndices: number[],
@@ -2890,7 +2905,21 @@ function selectVisualPages(
   }
 
   return {
-    indices: nearBlankIndices.slice(0, maxPages),
+    /* BASTAN DEGIL BELGEYE YAYARAK (31.10.2026, Kan kosusunda olculdu).
+
+       Yedek katman adaylarin BASINDAN maxPages kadarini aliyordu. Olculen
+       kosu (67 sayfalik Turkce deste, 40 aday):
+         Gorsel sayfa secimi: [0,1,3,6,7,13,14,15,17,18,23,24]
+       Hepsi destenin ilk ceyreginden. Plazma tablolari s.21 ve s.23'te
+       (indeks 20 ve 22) ve hicbiri gonderilmedi — tablo gecisi 0 tablo
+       dondurdu. Ayni belgenin 28.10 kosusunda (PDF'in tamami gorsel
+       gonderiliyordu) o UC tablo kartta vardi.
+
+       Yedek katmanin elinde siralama olcutu YOK — bunlar yalnizca "metni
+       bos sayfa". Oyleyse baslangici degil belgenin TAMAMINI ornekleyen
+       bir secim dogru olani: esit aralikli ornekleme. Ilk ve son aday
+       her zaman iceride. */
+    indices: esitAralikSec(nearBlankIndices, maxPages),
     reason: `sekil basligi yok, bos sayfa yedegi (${nearBlankIndices.length} aday)`
   }
 }
@@ -6894,6 +6923,114 @@ function yorumCumleleriniKurtar(
   return { points, kurtarilan: [...kurtarilan] }
 }
 
+/* DUZLESMIS METIN TABLOSU (31.10.2026, Kan kosusunda olculdu).
+ *
+ * 28.10 kartinda UC tablo vardi, bugun BIR. Eksik sayilar (100, 150,
+ * 200, 0.0001, 0.000001, 1.2) once "gorsel kayip" sanildi; sonra
+ * document_chunks sorgulandi ve METINDE olduklari gorundu (s.20-22):
+ *   Besinler / glikoz / amino asitler / lipidler (total) / kolesterol /
+ *   vitaminler / eser elementler /
+ *   %100 mg / %40 mg / %500 mg / %150-200 mg / %0,0001-2,5 mg / %0,001-0,3 mg
+ *   Atık ürünler / üre / kreatinin / ürik asit / bilurubin /
+ *   %34 mg / %1 mg / %5 mg / %0,2-1,2 mg
+ * PDF'in iki kolonlu tablosu DUZLESMIS: once butun etiketler, sonra
+ * butun degerler. Pencere modeli bunu duz yazi gibi okuyup atliyor.
+ *
+ * Ayni belgedeki PROTEIN tablosu markdown borusuyla geliyor
+ * ("| albumin | %4,5 g | ...") ve model onu tabloya cevirdi — yani
+ * cikarimda sorun yok, kusur bu DUZLESMIS sekilde.
+ *
+ * Sekil tanınabilir: N etiket satiri + N deger satiri. Modele yeniden
+ * sormak yerine kaynaktan kuruluyor — denklem ve yorum kurtarmasiyla ayni
+ * durus. Yalnizca EKSIK sayi tasiyan grup alinir, yani gurultu eklemez. */
+const TABLO_MIN_SATIR = 3
+const TABLO_MAX_KURTARMA = 3
+const TABLO_ETIKET_MAX_KRK = 48
+/** Tek basina bir deger: "%100 mg", "145 mM", "%0,2-1,2 mg", "1050-1060". */
+const TABLO_DEGER_RE = /^[%$\u20ac\u20ba]?\s*-?[\d.,]+(?:\s*[-\u2212\u2013]\s*[%]?[\d.,]+)?\s*[%]?\s*(?:\p{L}{1,8}(?:\/\p{L}{1,8})?)?$/u
+
+function tabloDegerSatiri(s: string): boolean {
+  const t = s.trim()
+  if (!t || t.length > 24 || t.indexOf('|') !== -1) return false
+  if (!/\d/.test(t)) return false
+  return TABLO_DEGER_RE.test(t)
+}
+
+function tabloEtiketSatiri(s: string): boolean {
+  const t = s.trim()
+  if (!t || t.length > TABLO_ETIKET_MAX_KRK || t.indexOf('|') !== -1) return false
+  if (tabloDegerSatiri(t)) return false
+  if (/[.!?:]$/.test(t)) return false
+  /* En az iki harf ve harf agirlikli olmali; "λ" gibi madde imi degil. */
+  const harf = (t.match(/\p{L}/gu) || []).length
+  return harf >= 2 && harf / t.length >= 0.5
+}
+
+function metinTablosuKurtar(
+  sourceText: string,
+  missing: number[],
+  mevcutTablolar: any[],
+  lang: string
+): { tables: any[]; kurtarilan: number[] } {
+  const eksik = new Set(missing.map((v) => Math.abs(v)))
+  if (eksik.size === 0 || !sourceText) return { tables: [], kurtarilan: [] }
+  const varOlan = (Array.isArray(mevcutTablolar) ? mevcutTablolar : [])
+    .map((t: any) => String(t?.title || '')).join(' \n ')
+  const satirlar = String(sourceText).split(/\r?\n/).map((x) => x.trim())
+  const basliklar = lang === 'tr' ? ['Bileşen', 'Miktar'] : ['Item', 'Value']
+  const tables: any[] = []
+  const kurtarilan = new Set<number>()
+
+  for (let i = 0; i < satirlar.length; i++) {
+    if (!tabloDegerSatiri(satirlar[i])) continue
+    let son = i
+    while (son + 1 < satirlar.length && tabloDegerSatiri(satirlar[son + 1])) son++
+    const degerler = satirlar.slice(i, son + 1)
+    i = son
+    if (degerler.length < TABLO_MIN_SATIR) continue
+    /* Deger dizisinin HEMEN ONUNDE ayni sayida etiket satiri aranir. */
+    const etiketler: string[] = []
+    let k = (i - degerler.length)
+    for (let j = k; j >= 0 && etiketler.length < degerler.length; j--) {
+      if (!tabloEtiketSatiri(satirlar[j])) break
+      etiketler.unshift(satirlar[j])
+    }
+    if (etiketler.length !== degerler.length) continue
+    /* Grup icinde eksik sayi var mi? */
+    const bulunan = new Set<number>()
+    for (const d of degerler) {
+      const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+      let m: RegExpExecArray | null
+      while ((m = re.exec(d)) !== null) {
+        for (const okuma of sayiOkumalari(m[0])) {
+          const v = Math.abs(okuma)
+          if (eksik.has(v) && !kurtarilan.has(v)) bulunan.add(v)
+        }
+        if (m[0].length === 0) re.lastIndex++
+      }
+    }
+    if (bulunan.size === 0) continue
+    /* Baslik: etiketlerden once gelen ilk satir, bulunursa ondan once
+       gelen BASLIK satiri da onune eklenir. */
+    const ustIdx = (i - degerler.length) - etiketler.length
+    const grup = ustIdx >= 0 ? satirlar[ustIdx] : ''
+    let baslik = grup && tabloEtiketSatiri(grup) ? grup : ''
+    for (let j = ustIdx - 1; j >= 0 && j >= ustIdx - DENKLEM_BASLIK_GERI; j--) {
+      if (satirlar[j] && baslikGibi(satirlar[j])) { baslik = baslik ? satirlar[j] + ' — ' + baslik : satirlar[j]; break }
+    }
+    if (!baslik) baslik = lang === 'tr' ? 'Tablo (metinden)' : 'Table (from text)'
+    if (varOlan.indexOf(baslik) !== -1) continue
+    bulunan.forEach((v) => kurtarilan.add(v))
+    tables.push({
+      title: baslik,
+      headers: basliklar.slice(),
+      rows: etiketler.map((e, idx) => [e, degerler[idx]])
+    })
+    if (tables.length >= TABLO_MAX_KURTARMA) break
+  }
+  return { tables, kurtarilan: [...kurtarilan] }
+}
+
 function numericCoverage(
   sourceText: string,
   output: unknown
@@ -8742,7 +8879,23 @@ const GEMINI_PARALLEL_CONCURRENCY = 4
 /** Paralel modda okunabilecek en fazla pencere (13.000 krk x 40 ~ 200+ sayfa). */
 const GEMINI_PARALLEL_MAX_WINDOWS = 40
 /** Gorsel gecise kesilip gonderilecek en fazla sayfa (tek mini-PDF). */
-const GEMINI_VISION_MAX_PAGES = 12
+/* 12 DEGIL 18 (31.10.2026, uc kosuda olculdu).
+ *
+ * Tablo gecisi iki dilime bolununce cikis tavani bagi KALKTI:
+ *   IPPT: completion=3653/6144   Kan: 743/6144   Week 8: 26/6144
+ * Yani yeni sinir token degil, GORULEN SAYFA sayisi. Olculen kayiplar:
+ *   IPPT  — tablolu slaytlar 11,13,15,17,19,27,28,38,39,41,42;
+ *           gonderilen 10 sayfanin icinde 13,15,17,19,39,42 YOK.
+ *   Kan   — plazma tablolari s.21 ve s.23; secim [0,1,3,...,24] ile
+ *           ikisi de disarida kaldi ve tablo gecisi 0 tablo dondurdu.
+ *           Ayni belgenin 28.10 kosusunda (PDF'in tamami gorsel
+ *           gidiyordu) o uc tablo kartta vardi.
+ *
+ * 18 sayfa, 2 dilimde 9'ar sayfa demek — dilim basina bugun 12 sayfayla
+ * harcanan token miktarindan fazlasini istemiyor. Mini-PDF ayni
+ * dosyadan kesiliyor, yani ek goruntu ucreti yok; artan tek sey
+ * istemdeki sayfa sayisi. */
+const GEMINI_VISION_MAX_PAGES = 18
 /** Groq'un dar cikis tavanlari Gemini'de gereksiz; JSON'un yarim kalmamasi icin taban. */
 const GEMINI_PARALLEL_MIN_OUTPUT = 8192
 
@@ -11932,6 +12085,29 @@ serve(async (req) => {
           }
         }
         extractedText = pptxText
+
+        /* SLAYTLARI RESIM OLAN PPTX (31.10.2026). parsePptxSlideXml metin
+         * kutusu arar; slayt tam sayfa bir goruntuyse metin kutusu YOKTUR ve
+         * pptxText bos cikar. Olculen kosu: Week 11 — "Extracted text is
+         * empty or blank" ve kosu bitti, ogrenci "no readable" gordu. Ayni
+         * gun taranmis PDF (Week 8) OCR'a dusup kurtulmustu; PPTX'te o yol
+         * yoktu. Simdi var — ve slayt numarasi ppt/slides/_rels'ten geldigi
+         * icin atiflar dogru slayta isaret ediyor. */
+        if (!pptxText.trim()) {
+          const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
+          if (ocrApiKey) {
+            const ocr = await pptxGorselOCR(zip, ocrApiKey)
+            if (ocr.text.trim().length >= 200) {
+              console.log(`PPTX gorsel OCR: ${ocr.okunan}/${ocr.toplam} slayt, ${ocr.text.length} karakter`)
+              extractedText = ocr.text
+              ocrKullanildi = true
+            } else {
+              console.warn(`PPTX gorsel OCR: ${ocr.okunan}/${ocr.toplam} slayt okundu, metin yetersiz (${ocr.text.trim().length} karakter)`)
+            }
+          } else {
+            console.warn("PPTX metinsiz ama OCR_SPACE_API_KEY yok — gorsel slaytlar okunamiyor")
+          }
+        }
       }
       else {
         // Fallback: try UTF-8 decoding
@@ -15700,6 +15876,24 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
          ONCE: eklenen denklem de validateLatex'ten ve ad kopyasi
          kapisindan gecsin. */
       {
+        /* OCR METNINDEN KURTARMA YAPILMAZ (31.10.2026, Week 8 kosusunda
+           olculdu).
+
+           Ayni dosyada 29.10.2026 notu zaten yazmis: "OCR matematigi bozuyor
+           ve olmayan sayi uretiyor", ve o yuzden sayisal kapsama ROZETI
+           yayinlanmiyor. Kurtarma bu dersi atlamisti: hedef listesi OCR
+           gurultusundan olustugu icin kaynaktan "denklem" diye cop
+           cekiyordu. Olculen kosu (29 sayfalik tarama, 3/21):
+             Tahmin denklemi kurtarildi: 1 denklem, 2 sayi (322, 3222) —
+             "Solutions f（2）=5（322-1）4.62=30で（3222-1）4"
+           Kartta bu, "FORMÜL Estimated equation" diye tam genislikte
+           Japonca parantezler ve "で" ile goruldu.
+
+           Kapsama OCR'da olculmuyorsa onu DUZELTMEYE calismak da anlamsiz:
+           ayni kapi, ayni gerekce. Log basilmaya devam ediyor. */
+        if (ocrKullanildi) {
+          console.log('Kurtarma atlandi: metin OCR\'dan geldi — OCR bozuk sayi uretiyor')
+        } else {
         const kapsamaOnce = numericCoverage(extractedText, parsedContent)
         if (kapsamaOnce.missing.length > 0) {
           const kurtarma = tahminDenklemleriniKurtar(
@@ -15717,6 +15911,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
             )
           }
         }
+        }
       }
 
       /* --- (a0b) Sayinin ANLAMINI soyleyen cumle kurtariliyor — bkz.
@@ -15725,6 +15920,24 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
          temizlikten ONCE, cunku kurtarilan madde grounding kapisindan,
          near-duplicate birlestirmeden ve atif baglamadan gecsin. */
       {
+        /* OCR METNINDEN KURTARMA YAPILMAZ (31.10.2026, Week 8 kosusunda
+           olculdu).
+
+           Ayni dosyada 29.10.2026 notu zaten yazmis: "OCR matematigi bozuyor
+           ve olmayan sayi uretiyor", ve o yuzden sayisal kapsama ROZETI
+           yayinlanmiyor. Kurtarma bu dersi atlamisti: hedef listesi OCR
+           gurultusundan olustugu icin kaynaktan "denklem" diye cop
+           cekiyordu. Olculen kosu (29 sayfalik tarama, 3/21):
+             Tahmin denklemi kurtarildi: 1 denklem, 2 sayi (322, 3222) —
+             "Solutions f（2）=5（322-1）4.62=30で（3222-1）4"
+           Kartta bu, "FORMÜL Estimated equation" diye tam genislikte
+           Japonca parantezler ve "で" ile goruldu.
+
+           Kapsama OCR'da olculmuyorsa onu DUZELTMEYE calismak da anlamsiz:
+           ayni kapi, ayni gerekce. Log basilmaya devam ediyor. */
+        if (ocrKullanildi) {
+          console.log('Kurtarma atlandi: metin OCR\'dan geldi — OCR bozuk sayi uretiyor')
+        } else {
         const kapsamaOrta = numericCoverage(extractedText, parsedContent)
         if (kapsamaOrta.missing.length > 0) {
           const y = yorumCumleleriniKurtar(
@@ -15741,6 +15954,27 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
               y.points.map((s: string) => `"${s.slice(0, 110)}"`).join(' | ')
             )
           }
+        /* --- (a0c) DUZLESMIS METIN TABLOSU — bkz. metinTablosuKurtar
+           yanindaki olcum notu. Oteki iki kurtarmadan SONRA: eksik liste
+           orada daralmis olabilir. */
+        const kapsamaSon = numericCoverage(extractedText, parsedContent)
+        if (kapsamaSon.missing.length > 0) {
+          const mt = metinTablosuKurtar(
+            extractedText, kapsamaSon.missing, parsedContent.tables, lang
+          )
+          if (mt.tables.length > 0) {
+            parsedContent.tables = [
+              ...(Array.isArray(parsedContent.tables) ? parsedContent.tables : []),
+              ...mt.tables
+            ].slice(0, 12)
+            console.log(
+              `Metin tablosu kurtarildi: ${mt.tables.length} tablo, ` +
+              `${mt.kurtarilan.length} sayi (${mt.kurtarilan.join(', ')}) — ` +
+              mt.tables.map((t: any) => `"${t.title}" (${t.rows.length} satir)`).join(' | ')
+            )
+          }
+        }
+        }
         }
       }
 
@@ -16845,15 +17079,125 @@ async function tryOCRParcali(
   }
 }
 
+/* SLAYTLARI RESIM OLAN PPTX (31.10.2026, Week 11 kosusunda olculdu).
+ *
+ * Olculen kosu:
+ *   Istek alindi: ... visuals=evet
+ *   Extracted text is empty or blank        <- ve kosu bitti
+ * Kullanici "no readable" hatasi gordu. Ayni gun taranmis bir PDF (Week 8)
+ * OCR'a dusup kurtuldu; PPTX'te o yol YOKTU — OCR yalnizca PDF icin
+ * cagriliyordu.
+ *
+ * SLAYT NUMARASI TAHMIN EDILMIYOR: ppt/media altindaki dosya adlari slayt
+ * sirasini VERMEZ (silinen slayt, yeniden kullanilan resim). Esleme
+ * ppt/slides/_rels/slideN.xml.rels icinden okunuyor; boylece atif
+ * "--- SLAYT N ---" isareti gercek slayta isaret eder. Resmi olmayan
+ * slayt atlanir.
+ *
+ * Slayt basina EN BUYUK resim aliniyor: slaytin kendisi tam sayfa bir
+ * goruntuyse en buyuk dosya odur; logo ve madde imi kucuk kalir. */
+const PPTX_OCR_MIN_BAYT = 20_000
+const PPTX_OCR_MAX_SLAYT = 20
+
+/** slideN.xml.rels icindeki media hedeflerini ppt/media/... yoluna cevirir. */
+function pptxRelsHedefleri(relsXml: string): string[] {
+  return (relsXml.match(/Target="[^"]*media\/[^"]+"/g) || [])
+    .map((x) => x.replace(/^Target="/, '').replace(/"$/, ''))
+    .map((x) => 'ppt/media/' + x.split('/').pop())
+    .filter((x) => /\.(png|jpe?g)$/i.test(x))
+}
+
+function pptxSlaytGorselleri(
+  relsHaritasi: Record<string, string>,
+  medyaBoyutlari: Record<string, number>
+): Array<{ slayt: number; yol: string }> {
+  const out: Array<{ slayt: number; yol: string }> = []
+  for (const relYol of Object.keys(relsHaritasi)) {
+    const m = relYol.match(/slide(\d+)\.xml\.rels$/)
+    if (!m) continue
+    const slayt = parseInt(m[1], 10)
+    const hedefler = pptxRelsHedefleri(relsHaritasi[relYol])
+    let enBuyuk = ''
+    let enBuyukBoyut = 0
+    for (const h of hedefler) {
+      const b = medyaBoyutlari[h] || 0
+      if (b > enBuyukBoyut) { enBuyukBoyut = b; enBuyuk = h }
+    }
+    if (enBuyuk && enBuyukBoyut >= PPTX_OCR_MIN_BAYT) out.push({ slayt, yol: enBuyuk })
+  }
+  return out.sort((a, b) => a.slayt - b.slayt).slice(0, PPTX_OCR_MAX_SLAYT)
+}
+
+/** Resim slaytlarini OCR'dan gecirip "--- SLAYT N ---" isaretli metin uretir.
+ *  Hata firlatmaz: okunamayan slayt atlanir, eldeki metin doner. */
+async function pptxGorselOCR(
+  zip: any,
+  apiKey: string,
+  butceMs: number = OCR_PARCA_BUTCE_MS
+): Promise<{ text: string; okunan: number; toplam: number }> {
+  const relsHaritasi: Record<string, string> = {}
+  for (const ad of Object.keys(zip.files)) {
+    if (/^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(ad)) {
+      relsHaritasi[ad] = await zip.files[ad].async('text')
+    }
+  }
+  const medyaBoyutlari: Record<string, number> = {}
+  const adaylar = new Set<string>()
+  for (const relYol of Object.keys(relsHaritasi)) {
+    for (const h of pptxRelsHedefleri(relsHaritasi[relYol])) adaylar.add(h)
+  }
+  for (const yol of adaylar) {
+    const dosya = zip.files[yol]
+    if (!dosya) continue
+    const bayt = await dosya.async('uint8array')
+    medyaBoyutlari[yol] = bayt.length
+  }
+  const secilen = pptxSlaytGorselleri(relsHaritasi, medyaBoyutlari)
+  if (secilen.length === 0) return { text: '', okunan: 0, toplam: 0 }
+
+  const basladi = Date.now()
+  const metinler: Array<string | null> = new Array(secilen.length).fill(null)
+  let sira = 0
+  const isci = async () => {
+    while (true) {
+      const k = sira++
+      if (k >= secilen.length) return
+      if (Date.now() - basladi > butceMs) return
+      try {
+        const bayt = await zip.files[secilen[k].yol].async('uint8array')
+        const png = /\.png$/i.test(secilen[k].yol)
+        const r = await tryOCR(bayt, apiKey, {
+          mime: png ? 'image/png' : 'image/jpeg',
+          filetype: png ? 'PNG' : 'JPG',
+          ad: png ? 'slayt.png' : 'slayt.jpg'
+        })
+        const m = (r.text || '').trim()
+        if (m) metinler[k] = `--- SLAYT ${secilen[k].slayt} ---\n${m}`
+      } catch (e) {
+        console.warn(`PPTX OCR: slayt ${secilen[k].slayt} okunamadi — ${String((e as any)?.message || e).slice(0, 120)}`)
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(OCR_ES_ZAMAN, secilen.length) }, () => isci())
+  )
+  const dolu = metinler.filter((m): m is string => !!m)
+  return { text: dolu.join('\n\n'), okunan: dolu.length, toplam: secilen.length }
+}
+
 async function tryOCR(
   fileBytes: Uint8Array,
-  apiKey: string
+  apiKey: string,
+  /* GORUNTU DE OKUNUR (31.10.2026): PPTX'in slaytlari resim oldugunda
+     OCR'a PDF degil PNG/JPG gidiyor. Varsayilan degismedi. */
+  tip: { mime: string; filetype: string; ad: string } =
+    { mime: 'application/pdf', filetype: 'PDF', ad: 'document.pdf' }
 ): Promise<{ text: string; sayfalar: string[]; kesildi: boolean; sayfa: number; durum?: number }> {
   const formData = new FormData();
-  const blob = new Blob([fileBytes], { type: 'application/pdf' });
-  formData.append('file', blob, 'document.pdf');
+  const blob = new Blob([fileBytes], { type: tip.mime });
+  formData.append('file', blob, tip.ad);
   formData.append('apikey', apiKey);
-  formData.append('filetype', 'PDF');
+  formData.append('filetype', tip.filetype);
   formData.append('OCREngine', '2');
   formData.append('isOverlayRequired', 'false');
 

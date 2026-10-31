@@ -134,6 +134,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Sayisal kapsama olcusu (09.10.2026).
   // Yuzdeye cevirme carpani hedef degil (31.10.2026 olcumu).
   'YUZDE_CEVRIM_RE',
+  // Yedek sayfa secimi belgeye yayiliyor (31.10.2026 olcumu).
+  'esitAralikSec', 'GEMINI_VISION_MAX_PAGES',
   // Zincir ortasindaki ara hesap hedef degil (31.10.2026 olcumu).
   'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND', 'araHesabiAyikla',
   // Sayinin ANLAMINI soyleyen cumle kurtarilir (31.10.2026 olcumu).
@@ -143,6 +145,11 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'YORUM_CUMLE_BASI', 'YORUM_YAPISIK_RE', 'yapisikParcalar',
   // Guven araligindaki dusen eksi isareti (31.10.2026 olcumu).
   'guvenAraligiOnar',
+  // Duzlesmis metin tablosu kaynaktan kuruluyor (31.10.2026 olcumu).
+  'TABLO_MIN_SATIR', 'TABLO_MAX_KURTARMA', 'TABLO_ETIKET_MAX_KRK', 'TABLO_DEGER_RE',
+  'tabloDegerSatiri', 'tabloEtiketSatiri', 'metinTablosuKurtar',
+  // Resim slaytlari OCR'a gidiyor, slayt numarasi _rels'ten (31.10.2026 olcumu).
+  'pptxRelsHedefleri', 'pptxSlaytGorselleri', 'PPTX_OCR_MIN_BAYT', 'PPTX_OCR_MAX_SLAYT',
   'kurtarmaSatirlari', 'yorumCumleleriniKurtar',
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
@@ -9189,6 +9196,267 @@ test('FORMUL KALINTISI atiliyor, gercek adacik korunuyor', () => {
   assert.match(a1.metin, /by \$5\.06/, 'para dusmus: ' + a1.metin);
   const ada = 'the model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ is quadratic';
   assert.equal(A.onarAnlatiLatex(ada).metin, ada, 'gercek adacik bozulmus');
+});
+
+
+/* BASTAN DEGIL BELGEYE YAYARAK (31.10.2026, Kan kosusunda olculdu)
+
+   Yedek katman adaylarin BASINDAN maxPages kadarini aliyordu. Olculen
+   kosu (67 sayfalik Turkce deste, 40 aday):
+     Gorsel sayfa secimi: [0,1,3,6,7,13,14,15,17,18,23,24]
+   Hepsi destenin ilk ceyreginden. Yedek katmanin elinde siralama olcutu
+   yok (bunlar yalnizca "metni bos sayfa"), oyleyse belgenin tamamini
+   ornekleyen secim dogru olani. */
+test('yedek sayfa secimi belgeye YAYILIYOR, basa yigilmiyor', () => {
+  const adaylar = [0, 1, 3, 6, 7, 13, 14, 15, 17, 18, 23, 24, 29, 33, 39, 45, 53, 60, 64, 65];
+  const sec = A.esitAralikSec(adaylar, 8);
+  assert.equal(sec.length, 8);
+  assert.equal(sec[0], 0, 'ilk aday her zaman girmeli');
+  assert.equal(sec[sec.length - 1], 65, 'son aday her zaman girmeli');
+  /* Bastan sekizi alsaydi en buyuk 15 olurdu. */
+  assert.ok(sec[sec.length - 1] > adaylar[7], 'secim hala basa yigili: ' + JSON.stringify(sec));
+  assert.deepEqual(sec.slice().sort((x, y) => x - y), sec, 'sira bozulmus');
+});
+
+test('esitAralikSec sinir halleri', () => {
+  assert.deepEqual(A.esitAralikSec([5, 9], 5), [5, 9], 'n listeden buyukse liste doner');
+  assert.deepEqual(A.esitAralikSec([5, 9, 11], 1), [5]);
+  assert.deepEqual(A.esitAralikSec([5, 9], 0), []);
+  assert.deepEqual(A.esitAralikSec([], 3), []);
+});
+
+test('yedek katman esitAralikSec kullaniyor', () => {
+  assert.ok(/indices: esitAralikSec\(nearBlankIndices, maxPages\)/.test(SRC),
+    'yedek katman hala bastan dilimliyor');
+});
+
+/* TABLO GECISI IKI DILIME BOLUNDUKTEN SONRA sinir token degil SAYFA.
+   Olculen completion degerleri: IPPT 3653/6144, Kan 743/6144,
+   Week 8 26/6144 — ucunde de tavanin yarisi bos. */
+test('gorsel sayfa tavani iki dilimle birlikte yukseltildi', () => {
+  assert.ok(A.GEMINI_VISION_MAX_PAGES >= 18,
+    'sayfa tavani hala dar: ' + A.GEMINI_VISION_MAX_PAGES);
+  assert.ok(/const TABLO_DILIM_ESIGI = \d+/.test(SRC), 'dilimleme olmadan tavan yukseltilmemeli');
+});
+
+/* OCR METNINDEN KURTARMA YAPILMAZ (31.10.2026, Week 8 kosusunda olculdu)
+
+   Dosyada 29.10 notu zaten "OCR matematigi bozuyor ve olmayan sayi
+   uretiyor" diyor ve sayisal kapsama ROZETI o yuzden yayinlanmiyor.
+   Kurtarma bu dersi atlamisti; olculen kosu (29 sayfalik tarama, 3/21):
+     Tahmin denklemi kurtarildi: 1 denklem, 2 sayi (322, 3222) —
+     "Solutions f（2）=5（322-1）4.62=30で（3222-1）4"
+   Kartta "FORMÜL Estimated equation" diye tam genislikte Japonca
+   parantezlerle goruldu. */
+test('kurtarma OCR metninde KOSMUYOR', () => {
+  const kod = KAPSAMA_KOD;
+  const iDenklem = kod.indexOf('tahminDenklemleriniKurtar(\n');
+  const iKapi = kod.indexOf('if (ocrKullanildi) {');
+  assert.ok(iKapi > 0, 'OCR kapisi yok');
+  assert.equal((kod.match(/if \(ocrKullanildi\) \{/g) || []).length, 2,
+    'iki kurtarma da OCR kapisinin arkasinda olmali');
+  /* Rozet kapisi ayni bayragi kullanmaya devam etmeli — ayni gerekce. */
+  assert.ok(/kapsama\.total >= KAPSAMA_ROZET_MIN_ORNEK && !ocrKullanildi/.test(SRC),
+    'rozet kapisi degismis');
+});
+
+/* ==========================================================================
+   RESIM SLAYTLARI OLAN PPTX (31.10.2026 olcumu)
+
+   Olculen kosu: Week 11 PPTX — "Extracted text is empty or blank" ve kosu
+   bitti; ogrenciye "no readable" dondu. parsePptxSlideXml metin kutusu arar,
+   slayt tam sayfa goruntuyse kutu YOKTUR. OCR yolu o gun yalnizca PDF icin
+   vardi.
+
+   En kritik yer SLAYT NUMARASI: ppt/media altindaki dosya adlari slayt
+   sirasini VERMEZ. Numara ppt/slides/_rels/slideN.xml.rels'ten okunuyor,
+   yoksa butun atiflar yanlis slayta isaret eder.
+   ========================================================================== */
+
+test('pptxRelsHedefleri media hedeflerini yola cevirir', () => {
+  const xml =
+    '<Relationships>' +
+    '<Relationship Id="rId1" Target="../media/image7.png"/>' +
+    '<Relationship Id="rId2" Target="../slideLayouts/slideLayout2.xml"/>' +
+    '<Relationship Id="rId3" Target="../media/image8.JPEG"/>' +
+    '<Relationship Id="rId4" Target="../media/audio1.wav"/>' +
+    '</Relationships>';
+  assert.deepEqual(A.pptxRelsHedefleri(xml), ['ppt/media/image7.png', 'ppt/media/image8.JPEG'],
+    'yalnizca png/jpg media hedefleri, ppt/media/ onekiyle');
+  assert.deepEqual(A.pptxRelsHedefleri('<Relationships/>'), []);
+});
+
+test('pptxSlaytGorselleri slayt numarasini _rels adindan alir', () => {
+  /* image dosya adlari slayt sirasiyla TERS: numara dosya adindan
+     tahmin edilirse atiflar kayar. */
+  const rels = {
+    'ppt/slides/_rels/slide3.xml.rels': '<R Target="../media/image1.png"/>',
+    'ppt/slides/_rels/slide1.xml.rels': '<R Target="../media/image9.png"/>'
+  };
+  const boyut = { 'ppt/media/image1.png': 400000, 'ppt/media/image9.png': 500000 };
+  assert.deepEqual(A.pptxSlaytGorselleri(rels, boyut), [
+    { slayt: 1, yol: 'ppt/media/image9.png' },
+    { slayt: 3, yol: 'ppt/media/image1.png' }
+  ], 'slayt numarasi rels dosya adindan, sira slayta gore');
+});
+
+test('pptxSlaytGorselleri slayt basina EN BUYUK resmi secer', () => {
+  /* Tam sayfa slayt goruntusu buyuk, logo kucuk: logo secilirse OCR bos doner. */
+  const rels = {
+    'ppt/slides/_rels/slide1.xml.rels':
+      '<R Target="../media/logo.png"/><R Target="../media/slayt.png"/>'
+  };
+  const sec = A.pptxSlaytGorselleri(rels, {
+    'ppt/media/logo.png': 21000,
+    'ppt/media/slayt.png': 350000
+  });
+  assert.deepEqual(sec, [{ slayt: 1, yol: 'ppt/media/slayt.png' }]);
+});
+
+test('pptxSlaytGorselleri kucuk resimleri ve resimsiz slayti atlar', () => {
+  const sec = A.pptxSlaytGorselleri({
+    'ppt/slides/_rels/slide1.xml.rels': '<R Target="../media/imi.png"/>',
+    'ppt/slides/_rels/slide2.xml.rels': '<R Target="../slideLayouts/x.xml"/>'
+  }, { 'ppt/media/imi.png': A.PPTX_OCR_MIN_BAYT - 1 });
+  assert.deepEqual(sec, [], 'madde imi boyutundaki resim OCR butcesini yemez');
+});
+
+test('pptxSlaytGorselleri ust sinira uyar', () => {
+  const rels = {};
+  const boyut = {};
+  for (let i = 1; i <= A.PPTX_OCR_MAX_SLAYT + 5; i++) {
+    rels['ppt/slides/_rels/slide' + i + '.xml.rels'] = '<R Target="../media/i' + i + '.png"/>';
+    boyut['ppt/media/i' + i + '.png'] = 100000;
+  }
+  const sec = A.pptxSlaytGorselleri(rels, boyut);
+  assert.equal(sec.length, A.PPTX_OCR_MAX_SLAYT);
+  assert.equal(sec[0].slayt, 1, 'sinir BASTAN kesiyor — ilk slaytlar en degerli');
+});
+
+test('PPTX metinsizse gorsel OCR yolu kosuyor', () => {
+  /* Kosu dusmek yerine OCR'a inmeli; cikarim yolundaki kapi kaybolmasin. */
+  assert.ok(/if \(!pptxText\.trim\(\)\) \{[\s\S]{0,400}pptxGorselOCR\(zip, ocrApiKey\)/.test(SRC),
+    'pptxText bos oldugunda pptxGorselOCR cagrilmiyor');
+  assert.ok(/pptxGorselOCR[\s\S]{0,900}ocrKullanildi = true/.test(SRC),
+    'PPTX OCR metni ocrKullanildi bayragini kaldirmiyor — rozet ve kurtarma kapilari yaniltir');
+  assert.ok(/--- SLAYT \${secilen\[k\]\.slayt} ---/.test(SRC),
+    'OCR metni slayt isareti tasimiyor — atif katmani susar');
+  assert.ok(/async function pptxGorselOCR\([\s\S]{0,600}ppt\\\/slides\\\/_rels\\\/slide/.test(SRC),
+    'slayt-resim eslemesi _rels yerine dosya adindan tahmin ediliyor');
+});
+
+/* ==========================================================================
+   DUZLESMIS METIN TABLOSU (31.10.2026, Kan belgesi kosusunda olculdu)
+
+   28.10 kartinda UC tablo vardi, 31.10 kosusunda BIR. Eksik sayilar once
+   "gorsel kayip" sanildi; document_chunks sorgulandi ve METINDE olduklari
+   gorundu (s.20-22). PDF'in iki kolonlu tablosu duzlesmis geliyor: once
+   butun etiketler, sonra butun degerler. Asagidaki metin o kosudaki
+   sekildir.
+   ========================================================================== */
+
+const KAN_TABLO_METNI = [
+  'Plazmada Bulunan Organik Maddeler',
+  'Besinler',
+  'glikoz',
+  'amino asitler',
+  'lipidler (total)',
+  'kolesterol',
+  '%100 mg',
+  '%40 mg',
+  '%500 mg',
+  '%150-200 mg'
+].join('\n');
+
+test('metinTablosuKurtar duzlesmis tabloyu kaynaktan kuruyor', () => {
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [100, 40, 500, 150, 200], [], 'tr');
+  assert.equal(r.tables.length, 1, 'tablo kurtarilmadi');
+  const tb = r.tables[0];
+  assert.deepEqual(tb.headers, ['Bileşen', 'Miktar'], 'basliklar dile bagli degil');
+  assert.deepEqual(tb.rows, [
+    ['glikoz', '%100 mg'],
+    ['amino asitler', '%40 mg'],
+    ['lipidler (total)', '%500 mg'],
+    ['kolesterol', '%150-200 mg']
+  ], 'etiket-deger eslemesi SIRAYA gore olmali');
+  assert.ok(/Besinler/.test(tb.title), 'baslik etiket grubunun ustunden gelmiyor: ' + tb.title);
+  for (const v of [100, 40, 500, 150, 200]) {
+    assert.ok(r.kurtarilan.includes(v), v + ' kurtarilan listesinde yok');
+  }
+});
+
+test('metinTablosuKurtar ingilizce basliklari kullanir', () => {
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [100, 40, 500], [], 'en');
+  assert.deepEqual(r.tables[0].headers, ['Item', 'Value']);
+});
+
+test('metinTablosuKurtar EKSIK sayi yoksa gurultu eklemiyor', () => {
+  /* En onemli kapi: kurtarma yalnizca kayip sayi tasiyan grubu alir. */
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [7777], [], 'tr');
+  assert.deepEqual(r.tables, [], 'eksik sayi tasimayan tablo karta ekleniyor');
+  assert.deepEqual(r.kurtarilan, []);
+  assert.deepEqual(A.metinTablosuKurtar(KAN_TABLO_METNI, [], [], 'tr').tables, [],
+    'eksik liste bos iken bile tarama yapiyor');
+});
+
+test('metinTablosuKurtar MEVCUT tabloyu tekrar etmiyor', () => {
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [100, 40, 500], [
+    { title: 'Plazmada Bulunan Organik Maddeler — Besinler' }
+  ], 'tr');
+  assert.deepEqual(r.tables, [], 'ayni baslikli tablo ikinci kez eklendi');
+});
+
+test('metinTablosuKurtar esit sayida etiket sarti', () => {
+  /* Etiket sayisi degerden AZSA esleme kayar: tablo hic kurulmamali. */
+  const eksikEtiket = ['Besinler', 'glikoz', '%100 mg', '%40 mg', '%500 mg'].join('\n');
+  assert.deepEqual(A.metinTablosuKurtar(eksikEtiket, [100, 40, 500], [], 'tr').tables, [],
+    'etiket/deger sayisi esit degilken tablo kuruldu — satirlar kayar');
+});
+
+test('metinTablosuKurtar TABLO_MIN_SATIR altinda durmuyor', () => {
+  const kisa = ['Besinler', 'glikoz', 'üre', '%100 mg', '%40 mg'].join('\n');
+  assert.equal(A.TABLO_MIN_SATIR, 3);
+  assert.deepEqual(A.metinTablosuKurtar(kisa, [100, 40], [], 'tr').tables, [],
+    'iki satirlik deger dizisi tablo sayildi');
+});
+
+test('tabloDegerSatiri / tabloEtiketSatiri ayirt ediyor', () => {
+  for (const d of ['%100 mg', '145 mM', '%0,2-1,2 mg', '1050-1060', '-3.5', '7,35-7,45']) {
+    assert.ok(A.tabloDegerSatiri(d), 'deger sayilmadi: ' + d);
+    assert.ok(!A.tabloEtiketSatiri(d), 'deger etiket sayildi: ' + d);
+  }
+  for (const e of ['glikoz', 'amino asitler', 'lipidler (total)', 'Atık ürünler']) {
+    assert.ok(A.tabloEtiketSatiri(e), 'etiket sayilmadi: ' + e);
+    assert.ok(!A.tabloDegerSatiri(e), 'etiket deger sayildi: ' + e);
+  }
+  /* Cumle ve markdown satiri ikisi de DISARIDA. */
+  assert.ok(!A.tabloEtiketSatiri('Kan plazmasinda su oraninin %90 oldugu bilinir.'),
+    'cumle etiket sayildi');
+  assert.ok(!A.tabloEtiketSatiri('| albumin | %4,5 g |'), 'markdown satiri etiket sayildi');
+  assert.ok(!A.tabloDegerSatiri('| albumin | %4,5 g |'), 'markdown satiri deger sayildi');
+  assert.ok(!A.tabloEtiketSatiri('λ'), 'tek harflik madde imi etiket sayildi');
+  assert.ok(!A.tabloDegerSatiri('mg'), 'rakamsiz satir deger sayildi');
+});
+
+test('metin tablosu kurtarmasi boru hattina bagli', () => {
+  /* OCR metninde kosmamali: Week 8'de OCR cikisindan japonca karakterli
+     cop formul uretilmisti — ayni gerekce oteki iki kurtarmayla ortak. */
+  const iA0c = SRC.indexOf('--- (a0c)');
+  assert.ok(iA0c > 0, '(a0c) blogu boru hattinda yok — metinTablosuKurtar cagrilmiyor');
+  const iCagri = SRC.indexOf('metinTablosuKurtar(', iA0c);
+  assert.ok(iCagri > 0, '(a0c) blogu fonksiyonu cagirmiyor');
+
+  /* OCR kapisinin ICINDE mi: pencere uzunlugu tahmin etmek yerine SUSLU
+     PARANTEZ dengesi sayiliyor — araya not eklenince test kirilmasin. */
+  const iKapi = SRC.indexOf("Kurtarma atlandi: metin OCR");
+  assert.ok(iKapi > 0 && iKapi < iA0c, 'OCR kapisi (a0c) blogundan once degil');
+  const iElse = SRC.indexOf('} else {', iKapi);
+  assert.ok(iElse > 0 && iElse < iA0c);
+  const arada = SRC.slice(iElse + 8, iCagri);
+  const derinlik = (arada.match(/\{/g) || []).length - (arada.match(/\}/g) || []).length;
+  assert.ok(derinlik > 0,
+    'metinTablosuKurtar OCR kapisinin DISINDA kaliyor (derinlik=' + derinlik + ') — ' +
+    'OCR metninden tablo kurmak cop uretir, bkz. Week 8 olcumu');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
