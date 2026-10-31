@@ -148,6 +148,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Tahmin edilen denklem karta hic girmiyordu (31.10.2026 olcumu).
   'SENTENCE_ABBREV', 'splitSentences', 'alintiBloklari', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
   'TAHMIN_DENKLEMI_LHS', 'tahminDenklemiAdli', 'TAHMIN_DENKLEMI_MIN_SAYI', 'TAHMIN_DENKLEMI_MAX',
+  'DENKLEM_BASLIK_MAX_KRK', 'DENKLEM_BASLIK_GERI', 'denklemBasligi',
   'tahminDenklemleriniKurtar',
   // Grafik eksen centikleri icerik sayiliyordu (31.10.2026 olcumu).
   'EKSEN_MIN_UZUNLUK', 'eksenCentikleriniAyikla',
@@ -5412,7 +5413,10 @@ test('OLCULEN TAHMIN DENKLEMI kurtariliyor, kismi bicimleri eklenmiyor', () => {
   const r = A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'en');
   assert.equal(r.formulas.length, 1, JSON.stringify(r.formulas.map(f => f.latex)));
   assert.equal(r.formulas[0].latex, 'ŷ = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split');
-  assert.equal(r.formulas[0].name, 'Estimated equation');
+  /* 31.10.2026: ad artik KAYNAKTAN geliyor (bkz. denklemBasligi). Bu
+     fixture'in ustunde "Coefficients (with 3 Levels)" basligi var; genel
+     ada dusme hali ayri testte ("KURTARILAN DENKLEMIN ADI") olculuyor. */
+  assert.equal(r.formulas[0].name, 'Coefficients (with 3 Levels)');
   // Ayni pasaj sekiz aday uretiyor; dort sayinin hepsi TEK denklemden geliyor.
   assert.deepEqual(r.kurtarilan.sort((a, b) => a - b), [0.045, 18.84, 20.43, 23.53]);
 });
@@ -5459,6 +5463,39 @@ test('OLCULEN ETKILESIM DENKLEMI TAM haliyle kurtariliyor', () => {
     'log hala 60 karakterde kirpiyor — denklem kesik gorunur');
 });
 
+test('KURTARILAN DENKLEMIN ADI kaynaktan geliyor', () => {
+  /* Ilk yazim her denkleme "Estimated equation" diyordu ve kartta modelin
+     kendi urettigi formullerin yaninda siritti: otekiler
+     "Estimated House Price Model with Three Levels" gibi adlar tasiyor.
+     Kaynakta denklemin ustunde zaten bir baslik var; ayirt edici isaret
+     BUYUK HARFLE BASLAYAN SOZCUK SAYISI (baslikta >= 2, tanitim
+     cumlesinde 1). */
+  const k1 = ['Interaction Term Worksheet', 'Suppose the estimated equation is',
+    '\u0177 = 18.30 + 98x_1 + 22.44x_2 + 16.38x_3 + 45x_1 x_2 + 32x_1 x_3',
+    'Visual Depiction of Interaction Terms'].join('\n');
+  const r1 = A.tahminDenklemleriniKurtar(k1, [18.3, 22.44, 16.38], [], 'en');
+  assert.equal(r1.formulas[0].name, 'Interaction Term Worksheet',
+    'baslik kaynaktan alinmamis: ' + r1.formulas[0].name);
+
+  const k2 = ['Interpreting the Dummy Variable', 'Coefficients (with 3 Levels)',
+    'Suppose the estimated equation is',
+    '\u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split'].join('\n');
+  const r2 = A.tahminDenklemleriniKurtar(k2, [20.43, 0.045, 23.53, 18.84], [], 'en');
+  assert.equal(r2.formulas[0].name, 'Coefficients (with 3 Levels)');
+
+  // Tanitim cumlesi ad OLMAZ (tek buyuk harfli sozcuk).
+  assert.equal(A.denklemBasligi(['Suppose the estimated equation is', 'y = 1 + 2'], 1), null);
+  // Baslik yoksa genel ada dusuluyor, dil secimi korunuyor.
+  const k3 = ['suppose the equation is', 'UtilityBill = 484.12 - 12.08temp'].join('\n');
+  assert.equal(A.tahminDenklemleriniKurtar(k3, [484.12, 12.08], [], 'en').formulas[0].name,
+    'Estimated equation');
+  assert.equal(A.tahminDenklemleriniKurtar(k3, [484.12, 12.08], [], 'tr').formulas[0].name,
+    'Tahmin edilen denklem');
+  // Cumle ile biten ve cok uzun satirlar baslik sayilmaz.
+  assert.equal(A.denklemBasligi(['This Is A Sentence.', 'y = 1 + 2'], 1), null);
+  assert.equal(A.denklemBasligi(['X'.repeat(A.DENKLEM_BASLIK_MAX_KRK + 5) + ' Y Z', 'y = 1 + 2'], 1), null);
+});
+
 test('TEK SAYILIK aday alinmiyor (baglamsiz parca)', () => {
   assert.equal(A.TAHMIN_DENKLEMI_MIN_SAYI, 2);
   const r = A.tahminDenklemleriniKurtar('y = 5 + 2x', [5], [], 'en');
@@ -5478,8 +5515,17 @@ test('KAYIP YOKSA hic dokunmuyor, UST SINIR var', () => {
 });
 
 test('dil secimi: TR kartta Turkce ad', () => {
-  const r = A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'tr');
-  assert.equal(r.formulas[0].name, 'Tahmin edilen denklem');
+  /* Dil secimi yalnizca BASLIK BULUNAMADIGINDA devreye giriyor; kaynakta
+     baslik varsa o kullanilir (dilden bagimsiz, cunku kaynagin kendi
+     dilindedir). */
+  const basliksiz = 'suppose the equation is\nUtilityBill = 484.12 - 12.08temp + 0.09temp^2';
+  assert.equal(A.tahminDenklemleriniKurtar(basliksiz, [484.12, 12.08], [], 'tr').formulas[0].name,
+    'Tahmin edilen denklem');
+  assert.equal(A.tahminDenklemleriniKurtar(basliksiz, [484.12, 12.08], [], 'en').formulas[0].name,
+    'Estimated equation');
+  // Baslik varsa dil fark etmez.
+  assert.equal(A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'tr').formulas[0].name,
+    'Coefficients (with 3 Levels)');
 });
 
 test('kurtarma TEMIZLIKTEN ONCE ve BORU HATTINA bagli', () => {

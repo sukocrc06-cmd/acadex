@@ -6038,6 +6038,37 @@ function tahminDenklemiAdli(cumle: string): boolean {
 const TAHMIN_DENKLEMI_MIN_SAYI = 2
 const TAHMIN_DENKLEMI_MAX = 3
 
+/* KURTARILAN DENKLEMIN ADI KAYNAKTAN GELIYOR (31.10.2026 olcumu).
+ *
+ * Ilk yazim her denkleme "Estimated equation" diyordu ve kartta modelin
+ * kendi urettigi formullerin yaninda sirittı: oteki formuller
+ * "Estimated House Price Model with Three Levels" gibi adlar ve degisken
+ * listeleri tasiyor, kurtarilan ise genel bir adla ve bos degisken
+ * listesiyle duruyordu.
+ *
+ * Kaynakta denklemin ustunde zaten bir baslik var:
+ *   "Interaction Term Worksheet"          <- baslik
+ *   "Suppose the estimated equation is"   <- cumle
+ *   "y-hat = 18.30 + 98x_1 + ..."         <- denklem
+ * Ayirt edici isaret BUYUK HARFLE BASLAYAN SOZCUK SAYISI: baslik satirinda
+ * en az iki tane var ("Interaction", "Term", "Worksheet"), tanitim
+ * cumlesinde bir tane ("Suppose"). Bu yuzden geriye dogru en fazla bes
+ * satir bakilip ilk "baslik gibi" satir ad olarak aliniyor; bulunamazsa
+ * eski genel ada dusuluyor. */
+const DENKLEM_BASLIK_MAX_KRK = 60
+const DENKLEM_BASLIK_GERI = 5
+
+function denklemBasligi(satirlar: string[], i: number): string | null {
+  for (let k = i - 1; k >= 0 && k >= i - DENKLEM_BASLIK_GERI; k--) {
+    const satir = satirlar[k].trim()
+    if (!satir || satir.length > DENKLEM_BASLIK_MAX_KRK) continue
+    if (/[.!?]$/.test(satir)) continue
+    const buyukler = (satir.match(/(?:^|\s)\p{Lu}/gu) || []).length
+    if (buyukler >= 2) return satir
+  }
+  return null
+}
+
 function tahminDenklemleriniKurtar(
   sourceText: string,
   missing: number[],
@@ -6050,7 +6081,8 @@ function tahminDenklemleriniKurtar(
   const varOlan = (Array.isArray(mevcutFormuller) ? mevcutFormuller : [])
     .map((f: any) => String(f?.latex || '')).join(' \n ')
 
-  const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
+  const satirlar = String(sourceText).split(/\r?\n/)
+  const adaylar: Array<{ metin: string; bulunan: Set<number>; baslik: string | null }> = []
   for (const blok of alintiBloklari(sourceText)) {
     for (const cumle of splitSentences(blok)) {
       if (!tahminDenklemiAdli(cumle)) continue
@@ -6065,7 +6097,16 @@ function tahminDenklemleriniKurtar(
         }
         if (m[0].length === 0) re.lastIndex++
       }
-      if (bulunan.size >= TAHMIN_DENKLEMI_MIN_SAYI) adaylar.push({ metin: cumle.trim(), bulunan })
+      if (bulunan.size >= TAHMIN_DENKLEMI_MIN_SAYI) {
+        const kirpik = cumle.trim()
+        // Denklemin kaynaktaki satir numarasi: adi onun ustunden alinacak.
+        const satirNo = satirlar.findIndex((l) => l.trim() === kirpik)
+        adaylar.push({
+          metin: kirpik,
+          bulunan,
+          baslik: satirNo > 0 ? denklemBasligi(satirlar, satirNo) : null
+        })
+      }
     }
   }
   adaylar.sort((a, b) => b.bulunan.size - a.bulunan.size || b.metin.length - a.metin.length)
@@ -6081,7 +6122,7 @@ function tahminDenklemleriniKurtar(
     if (varOlan.includes(aday.metin)) continue
     yeni.forEach((v) => kurtarilan.add(v))
     formulas.push({
-      name: formulas.length === 0 ? ad : `${ad} ${formulas.length + 1}`,
+      name: aday.baslik || (formulas.length === 0 ? ad : `${ad} ${formulas.length + 1}`),
       latex: aday.metin,
       variables: []
     })
