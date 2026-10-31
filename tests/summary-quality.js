@@ -139,6 +139,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Sayinin ANLAMINI soyleyen cumle kurtarilir (31.10.2026 olcumu).
   'YORUM_ISARETCI_RE', 'YORUM_MIN_SOZCUK', 'YORUM_HARF_ORANI', 'YORUM_MAX',
   'YORUM_MAX_KRK', 'YORUM_TAM_CUMLE_RE', 'KURTARMA_BASLIK_ORANI', 'baslikGibi',
+  // Yapisik cumleler ayri aday (31.10.2026 olcumu).
+  'YORUM_CUMLE_BASI', 'YORUM_YAPISIK_RE', 'yapisikParcalar',
   'kurtarmaSatirlari', 'yorumCumleleriniKurtar',
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
@@ -8979,6 +8981,57 @@ test('alintiBloklari DOKUNULMADAN kaldi (kurtarma kendi yolunu kullaniyor)', () 
     'kurtarma hala alintiBloklari kullaniyor');
   assert.ok(/for \(const blok of alintiBloklari\(sourceText\)\)/.test(kod),
     'denklem kurtarmasi alintiBloklari kullanmayi surdurmeli');
+});
+
+
+/* YAPISIK CUMLELER (31.10.2026, kartta olculdu)
+
+   Slayt basligi IKI satira bolunduyse kalan tek sozcuk baslik sayilmiyor
+   (baslikGibi en az uc sozcuk ister) ve kendinden sonrasini yutuyor.
+   Kaynak (s.38): "Empirical Example of the Log - Linear" / "Model" /
+   "The dependent variable is..." / "This slope coefficient on gdppc..."
+   Kartta cikan madde:
+     "Model The dependent variable is the natural log of energy per capita
+      This slope coefficient on gdppc is interpreted as, ..."
+   300 karakterlik blok butun suzgecleri geciyordu (noktayla bitiyor,
+   isaretci tasiyor). */
+test('yapisik blok AYRI adaylara boluniyor, yalnizca gercek cumle geciyor', () => {
+  const kaynak = [
+    'Empirical Example of the Log \u2013 Linear', 'Model',
+    'The dependent variable is the natural log of energy per capita',
+    'This slope coefficient on gdppc is',
+    'interpreted as, \u201con average, if GDP per capita increases by $1000 then energy',
+    'consumption per capita goes up by (0.026)100% or 2.6%.\u201d This coefficient is',
+    'statistically significant at the 1% level.'
+  ].join('\n');
+  const r = A.yorumCumleleriniKurtar(kaynak, [0.026, 2.6], []);
+  assert.equal(r.points.length, 1, JSON.stringify(r.points));
+  assert.ok(/^This slope coefficient on gdppc/.test(r.points[0]),
+    'madde hala baslik/onsoz onekiyle geliyor: ' + r.points[0]);
+  assert.ok(!/^Model /.test(r.points[0]) && !/natural log of energy per capita This/.test(r.points[0]),
+    'yapisik blok hala tek parca: ' + r.points[0]);
+});
+
+test('OZEL AD yapisik sanilmiyor (North America bolunmuyor)', () => {
+  const cumle = 'The North America dummy variable coefficient is interpreted as \u201con average energy consumption per capita is 56.6% higher in North America than South America.\u201d';
+  assert.deepEqual(A.yapisikParcalar(cumle), [cumle],
+    'ozel ad cumle basi sanilmis: ' + JSON.stringify(A.yapisikParcalar(cumle)));
+});
+
+test('yapisik ayirma KUCUK harfli devam sart (cumle basi sozcugu yetmez)', () => {
+  /* "in North America" -> North cumle basi listesinde yok; ayrica ardindan
+     gelen sozcuk de buyuk harfli. Iki koruma birden. */
+  assert.deepEqual(A.yapisikParcalar('the value is The Nature of The Transaction here').length, 1);
+  assert.equal(A.yapisikParcalar('per capita This slope coefficient is here').length, 2);
+});
+
+test('EN DAR aday ONCE denenir', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const adayMetinleri = [...yapisikParcalar(tam)]');
+  assert.ok(i > 0, 'aday listesi yapisik parcalarla baslamiyor');
+  const govde = kod.slice(i, i + 400);
+  assert.ok(govde.indexOf('adayMetinleri.push(kuyruk)') > 0, 'esitlik kuyrugu aday listesinde yok');
+  assert.ok(govde.indexOf('adayMetinleri.push(tam)') > 0, 'tam cumle yedegi yok');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

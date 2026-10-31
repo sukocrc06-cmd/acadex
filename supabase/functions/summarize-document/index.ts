@@ -6590,6 +6590,37 @@ const YORUM_MAX = 6
    orani, sozcuk sayisi ve tam cumle sartlari yerinde. */
 const YORUM_MAX_KRK = 300
 
+/* YAPISIK CUMLELER (31.10.2026, kartta olculdu).
+ *
+ * Slayt basligi IKI satira bolunduyse kalan tek sozcuk baslik sayilmiyor
+ * (baslikGibi en az uc sozcuk ister) ve kendinden sonrasini yutuyor.
+ * Olculen kaynak (s.38):
+ *   "Empirical Example of the Log - Linear"   <- baslik, dogru ayrildi
+ *   "Model"                                   <- tek sozcuk, baslik sayilmadi
+ *   "The dependent variable is the natural log of energy per capita"
+ *   "This slope coefficient on gdppc is ... (0.026)100% or 2.6%."
+ * Sonuc 300 karakterlik bir blok ve kartta soyle bir madde:
+ *   "Model The dependent variable is the natural log of energy per capita
+ *    This slope coefficient on gdppc is interpreted as, ..."
+ * Blok butun suzgecleri geciyor (noktayla bitiyor, isaretci tasiyor).
+ *
+ * COZUM metni BOLMEK degil, AYRI ADAYLAR uretmek: noktalama olmadan
+ * gelen bir CUMLE BASI sozcugu (The/This/It...) ardindan KUCUK harfli bir
+ * sozcuk geliyorsa orada yeni bir aday baslar. Noktalama yoksa parca tam
+ * cumle olmadigi icin zaten elenir; yalnizca sonuncu gecer.
+ *
+ * Buyuk harfle devam eden ozel ad bundan etkilenmiyor: "...higher in
+ * North America than..." -> "North" cumle basi listesinde yok, ustelik
+ * ardindan gelen "America" da buyuk harfli. */
+const YORUM_CUMLE_BASI = 'The|This|These|Those|That|It|We|When|If|For|Note|Using|Given|Each|Both|However|Therefore|Bu|Bunlar|Ayrica'
+const YORUM_YAPISIK_RE = new RegExp(`(?<=[\\p{L}\\p{N}])\\s+(?=(?:${YORUM_CUMLE_BASI})\\s+\\p{Ll})`, 'gu')
+
+/** Yapisik cumleleri ayri adaylara boler; bolme yoksa tek elemanli doner. */
+function yapisikParcalar(cumle: string): string[] {
+  if (!YORUM_YAPISIK_RE.test(cumle)) return [cumle]
+  return cumle.split(YORUM_YAPISIK_RE).map((x) => x.trim()).filter(Boolean)
+}
+
 /* KURTARMA KENDI SATIR BIRLESTIRMESINI YAPAR (31.10.2026, kartta olculdu).
  *
  * alintiBloklari sarmayi yalnizca kucuk harfle (ve parantezle) devam
@@ -6700,7 +6731,13 @@ function yorumCumleleriniKurtar(
          yani isaretci suzgecinden ONCE uygulanirsa aday elenir (olculdu:
          kurtarilan 0'a dustu). Temizlik ekleme aninda. */
       const kuyruk = esit >= 0 ? tam.slice(esit + 1).trim() : ''
-      for (const kirpik of (kuyruk && kuyruk !== tam ? [tam, kuyruk] : [tam])) {
+      /* SIRA: en dar aday ONCE. Yapisik blok da noktayla bitip isaretci
+         tasidigi icin tamami kabul edilebilirdi; parcalar once denenince
+         yalnizca gercek cumle geciyor. */
+      const adayMetinleri = [...yapisikParcalar(tam)]
+      if (kuyruk && kuyruk !== tam) adayMetinleri.push(kuyruk)
+      if (adayMetinleri.indexOf(tam) === -1) adayMetinleri.push(tam)
+      for (const kirpik of adayMetinleri) {
       if (kirpik.length < QUOTE_MIN_CHARS || kirpik.length > YORUM_MAX_KRK) continue
       if (!YORUM_ISARETCI_RE.test(kirpik)) continue
       if (!YORUM_TAM_CUMLE_RE.test(kirpik)) continue
