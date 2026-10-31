@@ -404,7 +404,11 @@ const YUM_SEMBOL: Array<[RegExp, string]> = [
   [/\\tau(?![a-zA-Z])/g, '\u03C4'], [/\\phi(?![a-zA-Z])/g, '\u03C6'],
   [/\\omega(?![a-zA-Z])/g, '\u03C9'],
   [/\\Delta(?![a-zA-Z])/g, '\u0394'], [/\\Sigma(?![a-zA-Z])/g, '\u03A3'],
-  [/\\Omega(?![a-zA-Z])/g, '\u03A9']
+  [/\\Omega(?![a-zA-Z])/g, '\u03A9'],
+  /* Uc nokta komutlari: IPPT kartinin anlatisinda ham cikti
+     ("β₂ x²_j + \dots + β_p x^p_j + ε"). \dots once gelmeli degil —
+     (?![a-zA-Z]) siniri siralamayi onemsiz kiliyor. */
+  [/\\(?:cdots|ldots|dots)(?![a-zA-Z])/g, '\u22EF']
 ]
 
 /* Fonksiyon adlari: komut isareti kalkar, ad kalir (\\sin x -> sin x). */
@@ -422,6 +426,13 @@ const ALT_RAKAM: Record<string, string> = {
   '5': '\u2085', '6': '\u2086', '7': '\u2087', '8': '\u2088', '9': '\u2089'
 }
 
+/* Aksan komutu -> birlesen Unicode isaret. Icerik ONCE sembol tablosundan
+   geciyor, o yuzden burada \beta degil β bekleniyor. */
+const YUM_AKSAN: Array<[string, string]> = [
+  ['widehat', '\u0302'], ['hat', '\u0302'],
+  ['overline', '\u0304'], ['bar', '\u0304'],
+  ['tilde', '\u0303'], ['vec', '\u20d7'], ['dot', '\u0307']
+]
 function anlatiLatexYumusat(parca: string): string {
   let t = String(parca || '')
   /* Erken cikis: ters bolu YA DA suslu alt/ust simge yoksa yapacak is yok.
@@ -463,6 +474,33 @@ function anlatiLatexYumusat(parca: string): string {
   // Sembol ve fonksiyon adlari (bkz. YUM_SEMBOL / YUM_FONKSIYON).
   for (const [re, yerine] of YUM_SEMBOL) t = t.replace(re, yerine)
   t = t.replace(YUM_FONKSIYON, '$1')
+  /* AKSAN KOMUTLARI (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Log "Ayiracsiz LaTeX duz yaziya cevrildi: 28 alan" diyordu ama ayni
+   * kartta IKI alanda ham kaldi:
+   *   worked_examples: "Given the estimated equation \hat{y} = 20.43 + ..."
+   *   quiz_questions:  "...estimates pie sales as \hat{y} = 300 - 30(Price)"
+   * yumusatAgac o alanlara UGRUYOR (ozyinelemeli, alan adi saymiyor);
+   * eksik olan KURALDI — aksan komutlari tabloda hic yoktu, oysa belgenin
+   * kendisi "ŷ" yaziyor.
+   *
+   * Birlesen isaret + NFC: "\hat{y}" -> "y" + U+0302 -> normalize -> "ŷ".
+   * Isaret ILK harften sonra konuyor, cunku birlesen isaret ancak kendinden
+   * once gelen harfe biniyor. Onceden birlesik karsiligi olmayan harfte
+   * (β̂) iki kod noktasi kaliyor; tarayici dogru ciziyor.
+   *
+   * SIRA: YUM_SEMBOL'den SONRA, cunku "\hat{\beta}" icindeki "\beta"
+   * once β'ya cevrilmis olmali. "\dots" yanlis eslesmez: desen komuttan
+   * hemen sonra SUSLU PARANTEZ istiyor. */
+  let aksanli = false
+  for (const [ad, isaret] of YUM_AKSAN) {
+    t = t.replace(new RegExp('\\\\' + ad + '\\s*\\{([^{}]{1,12})\\}', 'g'), (_m, ic) => {
+      aksanli = true
+      const s = String(ic)
+      return s.charAt(0) + isaret + s.slice(1)
+    })
+  }
+  if (aksanli) t = t.normalize('NFC')
   // Rakam alt/ust simgeleri.
   t = t.replace(/\^\{(\d+)\}|\^(\d)/g, (_m, suslu, tek) =>
     [...String(suslu ?? tek)].map((d) => UST_RAKAM[d] || d).join(''))
@@ -7532,7 +7570,7 @@ function anchorCitations(
   lang: string
 ): { key_points: any[]; footnotes: any[]; idMap: Record<number, number>; stats: Record<string, number> } {
   const incoming = Array.isArray(existingFootnotes) ? existingFootnotes : []
-  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0, paylasilan: 0 }
+  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0, paylasilan: 0, sirali: 0 }
 
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
   const writeText = (raw: any, text: string) =>
@@ -7666,6 +7704,53 @@ function anchorCitations(
     if (hit.quote) stats.quoted++
     points[i] = writeText(points[i], `${text.replace(/\s+$/, '')} [${id}]`)
     stats.added++
+  }
+
+  /* KAYNAKCA SAYFA SIRASINA GORE NUMARALANIYOR (31.10.2026, olculdu).
+   *
+   * Dipnotlar MADDE sirasina gore numaralaniyordu, maddeler ise belgenin
+   * sirasini izlemiyor. IPPT kosusunda (kept=0 added=20) kaynakca soyle
+   * cikti:
+   *   [1] s.4  [2] s.4  [3] s.28  [4] s.4  [5] s.28  [6] s.6  [7] s.29
+   *   [8] s.9  [9] s.30  [10] s.10 ... [16] s.11  [17] s.13  [18] s.19
+   * Liste belgede ileri geri ziplıyor; ogrenci kaynakcayi sayfa sirasiyla
+   * tarayamiyor, ayni sayfanin dipnotlari da dagiliyor.
+   *
+   * SIRA: once sayfaya gore diziliyor, numara ONDAN SONRA veriliyor.
+   * Sayfasi olmayan dipnot sona gidiyor (sonsuz sayilir), esitlikte
+   * mevcut sira korunuyor (kararli siralama + i kirici).
+   *
+   * Metindeki isaretler ikinci bir remap ile takip ediyor ve harita
+   * idMap ile BIRLESTIRILIYOR: cagiran anlatiyi `anchored.idMap` ile
+   * remap ediyor, iki asamayi ayri ayri uygulayamaz. Birlestirme
+   * yalnizca VAR OLAN anahtarlari gunceller — siraMap'in kendisi idMap'e
+   * eklenmez, cunku idMap'in anahtari modelin KENDI id'si; dense id'leri
+   * oraya koymak anlatidaki isareti iki kez cevirme riski demek. */
+  const siraliCift = out
+    .map((fn: any, i: number) => ({ fn, i }))
+    .sort((a, b) => {
+      const pa = typeof a.fn.page === 'number' ? a.fn.page : Number.POSITIVE_INFINITY
+      const pb = typeof b.fn.page === 'number' ? b.fn.page : Number.POSITIVE_INFINITY
+      return pa !== pb ? pa - pb : a.i - b.i
+    })
+  if (siraliCift.some((x, k) => x.fn.id !== k + 1)) {
+    const siraMap: Record<number, number> = {}
+    siraliCift.forEach((x, k) => { siraMap[Number(x.fn.id)] = k + 1 })
+    const yeni = siraliCift.map((x, k) => ({ ...x.fn, id: k + 1 }))
+    out.length = 0
+    for (const fn of yeni) out.push(fn)
+    for (let i = 0; i < points.length; i++) {
+      points[i] = writeText(points[i], applyFootnoteRemap(readText(points[i]), siraMap))
+    }
+    for (const k of Object.keys(idMap)) {
+      const n = Number(k)
+      if (siraMap[idMap[n]] != null) idMap[n] = siraMap[idMap[n]]
+    }
+    stats.sirali = out.length
+    console.log(
+      `Kaynakca sayfa sirasina dizildi: ${out.length} dipnot — ` +
+      `[${out.map((f: any) => f.page == null ? '-' : f.page).join(',')}]`
+    )
   }
 
   return { key_points: points, footnotes: out, idMap, stats }

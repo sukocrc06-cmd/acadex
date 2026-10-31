@@ -143,6 +143,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Ayiracsiz LaTeX anlati disina da siziyordu (29.10.2026 olcumu).
   'YUM_SEMBOL', 'YUM_FONKSIYON', 'UST_RAKAM', 'ALT_RAKAM', 'YUM_DUZ_YAZI_ALANLARI',
   // Alan adi elle sayilmak yerine agac ozyinelemeli geziliyor (30.10.2026).
+  // Aksan komutlari (31.10.2026 olcumu).
+  'YUM_AKSAN',
   'YUM_DOKUNULMAZ', 'yumusatAgac',
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   // Tahmin edilen denklem karta hic girmiyordu (31.10.2026 olcumu).
@@ -8371,6 +8373,61 @@ test('parti kapisi: sigmayan bekleme CAGRILMADAN atlaniyor', () => {
   const kapiSonu = blok.slice(blok.indexOf('kalanlariAtla('));
   assert.ok(/\n\s*break\n/.test(kapiSonu.slice(0, 400)),
     'kapi donguyu kirmiyor — sonraki parti yine bekler');
+});
+
+
+/* AKSAN KOMUTLARI (31.10.2026, IPPT kartinda olculdu)
+
+   Log "Ayiracsiz LaTeX duz yaziya cevrildi: 28 alan" diyordu ama ayni
+   kartin cozumlu ornegi ve 3. sorusu HAM cikti:
+     worked_examples: "Given the estimated equation \hat{y} = 20.43 + ..."
+     quiz_questions:  "...pie sales as \hat{y} = 300 - 30(Price) + 15(Holiday)"
+   yumusatAgac o alanlara ugruyor; eksik olan KURALDI. Belgenin kendi
+   yazimi "ŷ". */
+test('aksan: \\hat{y} belgenin kendi yazimina (ŷ) donuyor', () => {
+  const r = A.onarAnlatiLatex('Given the estimated equation \\hat{y} = 20.43 + 0.045Sqfeet, calculate.');
+  assert.ok(r.yumusatilan > 0, 'hic yumusatilmamis');
+  assert.equal(r.metin, 'Given the estimated equation \u0177 = 20.43 + 0.045Sqfeet, calculate.');
+  assert.ok(!/\\hat/.test(r.metin), 'ham komut kalmis: ' + r.metin);
+});
+
+test('aksan: \\hat{\\beta}_1 -> β̂₁ (SIRA sembol tablosundan sonra)', () => {
+  /* Icerik once YUM_SEMBOL'den gecmeli, yoksa isaret "\beta" dizgesinin
+     son harfine binerdi. */
+  const r = A.onarAnlatiLatex('Marginal effect is \\hat{\\beta}_1 + 2\\hat{\\beta}_2 x_j.');
+  assert.equal(r.metin, 'Marginal effect is \u03b2\u0302\u2081 + 2\u03b2\u0302\u2082 x_j.');
+});
+
+test('aksan: bar/overline/tilde/vec de cevriliyor', () => {
+  const r = A.onarAnlatiLatex('Let \\bar{x} be the mean, \\tilde{y} the median, \\vec{v} the vector.');
+  /* NFC onceden birlesik karsiligi OLANI birlestiriyor: y+tilde -> U+1EF9,
+     x+macron ve v+ok ise iki kod noktasi kaliyor (birlesigi yok). Ikisi de
+     tarayicida dogru ciziliyor; beklenti bu yuzden karisik yazili. */
+  assert.equal(r.metin, 'Let x\u0304 be the mean, \u1ef9 the median, v\u20d7 the vector.');
+});
+
+test('aksan: AYIRACLI matematige ve latex alanina dokunulmuyor', () => {
+  /* Ayiracli parca KaTeX'in isi; formulas[].latex ve footnotes dokunulmaz. */
+  const s = 'Kalmali: $\\hat{y} = \\beta_0$ icinde.';
+  assert.equal(A.onarAnlatiLatex(s).metin, s);
+  const kart = {
+    formulas: [{ latex: '\\hat{y} = \\hat{\\beta}_0' }],
+    footnotes: [{ reference: 'birebir alinti \\hat{y}' }],
+    worked_examples: [{ problem_statement: 'Given \\hat{y} = 2x.' }]
+  };
+  const yum = (x) => (typeof x === 'string' ? A.onarAnlatiLatex(x).metin : x);
+  const out = A.yumusatAgac(kart, yum);
+  assert.equal(out.formulas[0].latex, '\\hat{y} = \\hat{\\beta}_0', 'KaTeX kaynagi bozulmus');
+  assert.equal(out.footnotes[0].reference, 'birebir alinti \\hat{y}', 'alinti bozulmus');
+  assert.equal(out.worked_examples[0].problem_statement, 'Given \u0177 = 2x.');
+});
+
+test('aksan: \\dots yanlis eslesmiyor, uc nokta isaretine donuyor', () => {
+  /* Desen komuttan hemen sonra SUSLU PARANTEZ istiyor, o yuzden \dots
+     aksan koluna dusmez; ayri kural onu ⋯ yapiyor (ilk IPPT kartinin
+     anlatisinda ham cikmisti). */
+  const r = A.onarAnlatiLatex('form y = a + b x_j + \\dots + c x^p_j + e');
+  assert.equal(r.metin, 'form y = a + b x_j + \u22ef + c x^p_j + e');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

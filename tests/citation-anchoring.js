@@ -1072,4 +1072,87 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
   });
 }
 
+
+// --- kaynakca sayfa sirasi (31.10.2026) -----------------------------------
+/* KAYNAKCA SAYFA SIRASI
+
+   Dipnotlar MADDE sirasina gore numaralaniyordu. IPPT kosusunda
+   (kept=0 added=20) kaynakca belgede ileri geri ziplıyordu:
+     [1] s.4  [2] s.4  [3] s.28  [4] s.4  [5] s.28  [6] s.6  [7] s.29 ...
+   Artik once sayfaya gore diziliyor, numara ONDAN SONRA veriliyor. */
+test('kaynakca SAYFAYA gore diziliyor, numara ondan SONRA veriliyor', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Marjinal maliyet tutardir [1]', 'Esneklik katsayisi [2]'],
+    [{ id: 1, reference: 'Marjinal', page: 3 }, { id: 2, reference: 'Esneklik', page: 2 }],
+    idx, 'tr'
+  );
+  assert.deepEqual(r.footnotes.map((f) => f.page), [2, 3], 'sayfalar artan sirada olmali');
+  assert.deepEqual(r.footnotes.map((f) => f.id), [1, 2], 'numara siralamadan SONRA verilmeli');
+  assert.equal(r.footnotes[0].reference, 'Esneklik');
+  assert.equal(r.stats.sirali, 2);
+});
+
+test('siralama sonrasi METINDEKI isaretciler dipnotu takip ediyor', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Marjinal maliyet tutardir [1]', 'Esneklik katsayisi [2]'],
+    [{ id: 1, reference: 'Marjinal', page: 3 }, { id: 2, reference: 'Esneklik', page: 2 }],
+    idx, 'tr'
+  );
+  /* s.3'teki 'Marjinal' artik [2], s.2'deki 'Esneklik' [1]. */
+  assert.match(r.key_points[0], /\[2\]/, 'madde eski numarada kalmis: ' + r.key_points[0]);
+  assert.match(r.key_points[1], /\[1\]/, 'madde eski numarada kalmis: ' + r.key_points[1]);
+  for (const kp of r.key_points) {
+    const no = parseInt(String(kp).match(/\[(\d+)\]/)[1], 10);
+    const fn = r.footnotes.find((f) => f.id === no);
+    assert.ok(fn, 'isaretci [' + no + '] karsiligi olmayan dipnota bakiyor');
+  }
+});
+
+test('siralama idMap i BIRLESTIRIYOR: anlati da dogru numaraya gidiyor', () => {
+  /* Cagiran anlatiyi `anchored.idMap` ile remap ediyor; iki asamayi
+     (yogunlastirma + siralama) ayri ayri uygulayamaz. Model 5 ve 9
+     numaralarini kullandi, dense 1,2 oldu, siralama sonrasi takas edildi. */
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    [],
+    [{ id: 5, reference: 'Marjinal', page: 3 }, { id: 9, reference: 'Esneklik', page: 2 }],
+    idx, 'tr'
+  );
+  assert.equal(A.applyFootnoteRemap('Anlati [5] ve [9].', r.idMap), 'Anlati [2] ve [1].');
+});
+
+test('SAYFASIZ dipnot sona gidiyor, esitlikte sira korunuyor', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    [],
+    [
+      { id: 1, reference: 'Uydurma', page: 99 },   // null a dusurulur
+      { id: 2, reference: 'Ikinci sayfa', page: 2 },
+      { id: 3, reference: 'Ayni sayfa A', page: 3 },
+      { id: 4, reference: 'Ayni sayfa B', page: 3 }
+    ],
+    idx, 'tr'
+  );
+  assert.deepEqual(r.footnotes.map((f) => f.page), [2, 3, 3, null]);
+  assert.deepEqual(
+    r.footnotes.map((f) => f.reference),
+    ['Ikinci sayfa', 'Ayni sayfa A', 'Ayni sayfa B', 'Uydurma'],
+    'esit sayfada mevcut sira korunmali (kararli siralama)'
+  );
+});
+
+test('ZATEN sirali kaynakcada hicbir sey degismiyor (gereksiz remap yok)', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Esneklik katsayisi birden buyukse talep esnek kabul edilir',
+     'Marjinal maliyet uretimi bir birim artirmanin toplam maliyete ekledigi tutardir'],
+    [], idx, 'tr'
+  );
+  assert.deepEqual(r.footnotes.map((f) => f.page), [2, 3]);
+  assert.equal(r.stats.sirali, 0, 'sira bozuk degilken remap kosmamali');
+  assert.match(r.key_points[0], /\[1\]$/);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
