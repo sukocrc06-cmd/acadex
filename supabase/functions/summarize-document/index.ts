@@ -10663,11 +10663,18 @@ serve(async (req) => {
                 ocrKullanildi = true
                 extractedText = detectAndFormatPdfTables(ocr.text)
               } else {
-                throw new Error("SCANNED_PDF")
+                /* YUZEY DUSTUYSE MESAJ BASKA (31.10.2026 olcumu).
+                 * Hic metin gelmedi ve dusen parcalarin sebebi 5xx/429 ise
+                 * belgede bir sorun YOK: ocr.space kisa sure yanit vermedi.
+                 * Olculen kosu: Week 9, dort parca birden HTTP 503; AYNI
+                 * belge 90 sn once ve 80 sn sonra 27/27 sayfa okundu.
+                 * Ogrenciye "taranmis PDF, OCR yazilimiyla cevirin" demek
+                 * onu bos yere ugrastiriyordu — dogru tavsiye beklemek. */
+                throw new Error(ocr.yuzeyHatasi > 0 ? "OCR_SERVICE_DOWN" : "SCANNED_PDF")
               }
-            } catch (ocrErr) {
+            } catch (ocrErr: any) {
               console.error("OCR fallback failed: ", ocrErr)
-              throw new Error("SCANNED_PDF")
+              throw new Error(ocrErr?.message === "OCR_SERVICE_DOWN" ? "OCR_SERVICE_DOWN" : "SCANNED_PDF")
             }
           } else {
             console.warn("OCR_SPACE_API_KEY not configured. Falling back to scanned error.")
@@ -10734,6 +10741,9 @@ serve(async (req) => {
       let errorMsg = "Failed to extract readable content. The file could not be downloaded/opened (it may be corrupted, password-protected, or unreadable)."
       if (extractionError?.message === "SCANNED_PDF") {
         errorMsg = "This PDF appears to be a scanned image without selectable text. Please try a text-based PDF, or convert it using OCR software first."
+      } else if (extractionError?.message === "OCR_SERVICE_DOWN") {
+        // Belge okunabilir, servis o anda yanit vermedi — bkz. yukaridaki not.
+        errorMsg = "The text-recognition service did not respond just now (it returned a temporary error). Your file is fine — please try again in a few minutes."
       }
       return new Response(JSON.stringify({ error: errorMsg }), {
         status: 400,
@@ -15269,7 +15279,7 @@ async function tryOCRParcali(
   fileBytes: Uint8Array,
   apiKey: string,
   butceMs: number = OCR_PARCA_BUTCE_MS
-): Promise<{ text: string; okunanSayfa: number; toplamSayfa: number }> {
+): Promise<{ text: string; okunanSayfa: number; toplamSayfa: number; yuzeyHatasi: number }> {
   let toplam = 0
   try {
     toplam = (await PDFDocument.load(fileBytes, { ignoreEncryption: true })).getPageCount()
@@ -15294,7 +15304,8 @@ async function tryOCRParcali(
     return {
       text: isaretle(tek.sayfalar, 1),
       okunanSayfa: tek.sayfa,
-      toplamSayfa: toplam || tek.sayfa
+      toplamSayfa: toplam || tek.sayfa,
+      yuzeyHatasi: (typeof tek.durum === 'number' && (tek.durum >= 500 || tek.durum === 429)) ? 1 : 0
     }
   }
 
@@ -15305,6 +15316,8 @@ async function tryOCRParcali(
   const metinler: Array<string | null> = new Array(parcaSayisi).fill(null)
   const sayfaAdedi: number[] = new Array(parcaSayisi).fill(0)
   let esZaman = OCR_ES_ZAMAN
+  // Kac parca YUZEY hatasiyla dustu (5xx/429) — bkz. tryOCR icindeki not.
+  let yuzeyHatasi = 0
 
   /** Tek parcayi okur. Hata firlatmaz; dusen parca null doner. */
   const parcaOku = async (k: number): Promise<boolean> => {
@@ -15338,9 +15351,12 @@ async function tryOCRParcali(
        * korunma aciliyor ve sayfa sayaci yalanlamiyor. */
       const krk = r.text.trim().length
       if (krk === 0 || r.sayfa <= 0) {
+        // 5xx / 429: yuzeyin kendi sorunu, belgenin degil — bkz. tryOCR notu.
+        if (typeof r.durum === 'number' && (r.durum >= 500 || r.durum === 429)) yuzeyHatasi++
         console.warn(
           `OCR parcali: ${bas + 1}-${bas + idx.length}. sayfalar BOS dondu ` +
-          `(sayfa=${r.sayfa}, ${krk} krk${r.kesildi ? ', kesildi' : ''}) — dusen parca sayiliyor`
+          `(sayfa=${r.sayfa}, ${krk} krk${r.kesildi ? ', kesildi' : ''}` +
+          `${r.durum ? `, HTTP ${r.durum}` : ''}) — dusen parca sayiliyor`
         )
         return false
       }
@@ -15415,14 +15431,15 @@ async function tryOCRParcali(
   return {
     text: parcalar.join('\n\n'),
     okunanSayfa: Math.min(onek, toplam),
-    toplamSayfa: toplam
+    toplamSayfa: toplam,
+    yuzeyHatasi
   }
 }
 
 async function tryOCR(
   fileBytes: Uint8Array,
   apiKey: string
-): Promise<{ text: string; sayfalar: string[]; kesildi: boolean; sayfa: number }> {
+): Promise<{ text: string; sayfalar: string[]; kesildi: boolean; sayfa: number; durum?: number }> {
   const formData = new FormData();
   const blob = new Blob([fileBytes], { type: 'application/pdf' });
   formData.append('file', blob, 'document.pdf');
@@ -15471,6 +15488,14 @@ async function tryOCR(
       (typeof result.OCRExitCode === 'number' ? `OCRExitCode=${result.OCRExitCode}` : '') ||
       `HTTP ${response.status}`
     console.warn(`OCR yuzeyi BOS dondu: ${String(sebep).slice(0, 200)}`)
+    /* YUZEY DUSTU MU, BELGE MI OKUNAMIYOR (31.10.2026 olcumu).
+     * Sebep yalnizca loglaniyordu; cagiran ikisini ayirt edemedigi icin
+     * ogrenciye her halde "taranmis PDF, OCR yazilimiyla cevirin" diyordu.
+     * Olculen kosu: Week 9, dort parca birden "HTTP 503" — ocr.space kisa
+     * sure kapanmisti, belgede bir sorun YOKTU; ayni belge 90 saniye once
+     * ve 80 saniye sonra 27/27 sayfa okunmustu. Durum kodu artik yukari
+     * tasiniyor ki mesaj dogruyu soyleyebilsin. */
+    return { text, sayfalar, kesildi: false, sayfa: 0, durum: response.status }
   }
   return { text, sayfalar, kesildi: false, sayfa: parcalar.length };
 }

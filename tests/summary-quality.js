@@ -6643,6 +6643,73 @@ test('BOS CEVAP SEBEBI loglaniyor', () => {
     'log anahtar basiyor olabilir');
 });
 
+/* "TARANMIS PDF" DEMEK YANLISTI, SERVIS DUSMUSTU (31.10.2026 olcumu).
+ *
+ * Canli Week 9 kosusu:
+ *   OCR yuzeyi BOS dondu: HTTP 503   (dort parca birden)
+ *   OCR parcali: 0/27 sayfa, 0 parca, 0 karakter, 1637ms
+ *   -> SCANNED_PDF
+ * Ogrenciye "bu taranmis bir goruntu, once OCR yazilimiyla cevirin"
+ * deniyordu. Belgede sorun YOKTU: AYNI dosya 90 saniye once ve 80 saniye
+ * sonra 27/27 sayfa okundu. Dogru tavsiye beklemekti; sebep artik yukari
+ * tasiniyor ve mesaj ona gore seciliyor. */
+test('YUZEY 5xx/429 ise SCANNED_PDF degil SERVIS hatasi', async () => {
+  for (const durum of [503, 429, 500]) {
+    ocrSahnesi({ sayfa: 27, gecikme: 2 });
+    const eski = global.tryOCR;
+    global.tryOCR = async () => ({ text: '', sayfalar: [], kesildi: false, sayfa: 0, durum });
+    const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+    global.tryOCR = eski;
+    assert.equal(r.okunanSayfa, 0, `HTTP ${durum}: sayfa sayaci yalanliyor`);
+    assert.ok(r.yuzeyHatasi > 0, `HTTP ${durum} yuzey hatasi sayilmiyor`);
+  }
+});
+
+test('GERCEK TARAMA ve istek hatasi SCANNED_PDF kaliyor', async () => {
+  // Yuzey cevap verdi ama metin yok (durum alani gelmez) -> belge okunamiyor.
+  for (const durum of [undefined, 400, 404]) {
+    ocrSahnesi({ sayfa: 27, gecikme: 2 });
+    const eski = global.tryOCR;
+    global.tryOCR = async () => ({ text: '', sayfalar: [], kesildi: false, sayfa: 0, durum });
+    const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+    global.tryOCR = eski;
+    assert.equal(r.yuzeyHatasi, 0,
+      `HTTP ${durum}: yuzey hatasi sayilmis — ogrenciye bos yere "tekrar dene" denir`);
+  }
+});
+
+test('GECICI 5xx kart uretmeyi ENGELLEMIYOR', async () => {
+  /* Yuzey hatasi sayaci yalnizca HIC metin gelmediginde mesaji degistirir;
+     metin geldiyse kart normal uretilir. */
+  ocrSahnesi({ sayfa: 27, gecikme: 2 });
+  let n = 0;
+  const eski = global.tryOCR;
+  global.tryOCR = async (alt) => {
+    n++;
+    if (n <= 3) return { text: '', sayfalar: [], kesildi: false, sayfa: 0, durum: 503 };
+    return { text: 'm', sayfalar: new Array(alt.length).fill('m'), kesildi: false, sayfa: alt.length };
+  };
+  const r = await A.tryOCRParcali(new Uint8Array(1), 'k');
+  global.tryOCR = eski;
+  assert.equal(r.okunanSayfa, 27, 'gecici 503 kurtarilmiyor');
+  assert.ok(r.yuzeyHatasi > 0, 'yuzey hatasi kaydedilmemis');
+});
+
+test('MESAJ ve HATA SINIFI boru hattina baglanmis', () => {
+  assert.match(SRC, /throw new Error\(ocr\.yuzeyHatasi > 0 \? "OCR_SERVICE_DOWN" : "SCANNED_PDF"\)/,
+    'hata sinifi yuzey durumuna gore secilmiyor');
+  // catch blogu sinifi EZMEMELI.
+  assert.match(SRC, /ocrErr\?\.message === "OCR_SERVICE_DOWN" \? "OCR_SERVICE_DOWN" : "SCANNED_PDF"/,
+    'catch blogu servis hatasini SCANNED_PDF e ceviriyor');
+  assert.match(SRC, /extractionError\?\.message === "OCR_SERVICE_DOWN"/,
+    'yanit mesaji ayrilmamis');
+  assert.match(SRC, /Your file is fine/,
+    'mesaj hala dosyayi sucluyor');
+  // Taranmis belge mesaji KALDIRILMADI.
+  assert.match(SRC, /appears to be a scanned image without selectable text/,
+    'gercek taranmis belge mesaji dusmus');
+});
+
 test('KISA BELGE tek istekle okunuyor (bolme yok)', async () => {
   const d = ocrSahnesi({ sayfa: 3 });
   /* Bu yolda tryOCR mini-PDF DEGIL belgenin kendi baytlarini aliyor;
