@@ -9156,4 +9156,39 @@ test('onarim boru hattina BAGLI (tablo gecisinden sonra)', () => {
   assert.ok(iTablo > 0 && iTablo < i, 'onarim tablo gecisinden ONCE kosuyor');
 });
 
+
+/* CIFTIN YARISI KALIYORDU (31.10.2026, kartta olculdu)
+
+   Orfan $ kuralinin ilk surumu yalnizca BIR karaktere bakiyordu ve bir
+   ciftin yarisini silip otekini birakti. Kartta duran hal:
+     "For a variable with k levels, k-1$ dummy variables are required."
+   Model "$k-1$" yazmis; adacik sarti (\ ^ _ { } =) "k-1"de tutmuyor,
+   acilis $ atildi ama kapanis KALDI — onundeki "1" rakami yuzunden
+   "100$" gibi sondaki para isareti sanildi.
+   Ayirt edici sey onceki SOZCUK: "100" saf sayi -> para; "k-1" harf
+   tasiyor -> formul kalintisi. Ayrica tek regex bir ciftin ikisini
+   birden yakalayamiyor (acilis onundeki boslugu tuketiyor), o yuzden
+   isleme jeton bazinda. */
+test('CIFTIN IKI YANI birden atiliyor ($k-1$ -> k-1)', () => {
+  const r = A.onarAnlatiLatex('For a variable with k levels, $k-1$ dummy variables are required with \\beta_0 baseline.');
+  assert.match(r.metin, /k levels, k-1 dummy/, 'ciftin yarisi kalmis: ' + r.metin);
+  assert.ok(!/\$/.test(r.metin), 'hala $ var: ' + r.metin);
+});
+
+test('PARA uc bicimde de korunuyor', () => {
+  const a1 = A.onarAnlatiLatex('the bill falls by $5.06 and GDP rises by $1000 with \\beta_1 effect');
+  assert.match(a1.metin, /by \$5\.06 and GDP rises by \$1000/, a1.metin);
+  /* Turkce sondaki para isareti: onceki sozcuk saf sayi. */
+  const a2 = A.onarAnlatiLatex('toplam maliyet 100$ olarak hesaplandi ve \\beta_1 kullanildi');
+  assert.match(a2.metin, /100\$ olarak/, a2.metin);
+});
+
+test('FORMUL KALINTISI atiliyor, gercek adacik korunuyor', () => {
+  const a1 = A.onarAnlatiLatex('the model is \\beta_0 + 0.09temp^2$ and the bill falls by $5.06 here');
+  assert.match(a1.metin, /0\.09temp\u00b2 and/, 'orfan kalmis: ' + a1.metin);
+  assert.match(a1.metin, /by \$5\.06/, 'para dusmus: ' + a1.metin);
+  const ada = 'the model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ is quadratic';
+  assert.equal(A.onarAnlatiLatex(ada).metin, ada, 'gercek adacik bozulmus');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

@@ -626,7 +626,28 @@ function anlatiLatexYumusat(parca: string): string {
    * Orfan ornekleri ikisine de uymuyor: "temp²$ " ve "x_j$.".
    * SIRA: ust simge cevirisinden SONRA, yoksa "temp^2$" icindeki $'in
    * solu rakam gorunur ve orfan atlanirdi. */
-  t = t.replace(/(?<!\d)\$(?!\d)/g, '')
+  /* ONCEKI SOZCUGUN TAMAMI BAKILIR (31.10.2026, kartta olculdu).
+     Ilk surum yalnizca BIR karaktere bakiyordu ve bir ciftin yarisini
+     silip otekini birakti. Kartta duran hal:
+       "For a variable with k levels, k-1$ dummy variables are required."
+     Model "$k-1$" yazmis; adacik sarti (\ ^ _ { } =) "k-1"de tutmuyor,
+     metin yumusatiliyor, acilis $ atiliyor (onunde bosluk) ama kapanis
+     KALIYOR, cunku onundeki karakter "1" rakami ve kural onu "100$" gibi
+     sondaki para isareti sandi.
+     Ayirt edici sey onceki SOZCUK: "100" saf sayi -> para; "k-1" harf
+     tasiyor -> formul kalintisi. Bastaki para ($5.06, $1000) zaten ayri
+     kolda korunuyor: ardindan rakam gelen $ hic eslesmiyor. */
+  /* JETON BAZINDA: tek regex bir ciftin ikisini birden yakalayamiyor.
+     "$k-1$" uzerinde olculdu — acilis $ onundeki boslugu tuketiyor,
+     kapanisa sira gelmiyor ve yarim cift ekranda kaliyor. Bosluklara
+     bolunup her jeton kendi icinde isleniyor. */
+  t = t.split(/(\s+)/).map((jeton) => {
+    if (jeton.indexOf('$') === -1) return jeton
+    return jeton.replace(/\$(?!\d)/g, (m, off) => {
+      const onceki = jeton.slice(0, off)
+      return onceki !== '' && /^[\d.,]+$/.test(onceki) ? m : ''
+    })
+  }).join('')
   return t.replace(/[ \t]{2,}/g, ' ')
 }
 
