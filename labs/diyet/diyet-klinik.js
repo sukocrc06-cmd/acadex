@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   var DL = window.DL, C = DL && DL.core; if (!C) return;
-  var M = C.M, $ = C.$, $$ = C.$$, X = C.X, ls = C.ls, tr = C.tr, toast = C.toast, RM = C.RM, D = document;
+  var M = C.M, $ = C.$, $$ = C.$$, X = C.X, ls = C.ls, tr = C.tr, toast = C.toast, RM = C.RM, D = document, W = window;
   var NS = 'http://www.w3.org/2000/svg';
   var karne = function (title, puan, rows, not) {
     var col = puan >= 80 ? 'var(--ok)' : puan >= 50 ? 'var(--warn)' : 'var(--bad)';
@@ -129,6 +129,27 @@
   var vk = function () { return M.VK.filter(function (v) { return v.id === V.id; })[0]; };
   var vload = function () { V.st = V.id ? ls.get('vaka.' + V.id, { flags: {}, nrs: {}, kisit: {}, oneri: {} }) : {}; V.res = null; };
   var vsave = function () { if (V.id) ls.set('vaka.' + V.id, V.st); };
+  /* klinik sahne (labs/klinik): hastayı odada karşıla → görüşme → reçete formuna devir */
+  var sahneDone = ls.get('sahneDone', {});
+  var sahneVar = function (id) { return !!(W.AXKLINIK && W.AXKLINIK.SEN['dyt-' + id]); };
+  var sahneBtn = function (id) {
+    if (!sahneVar(id)) return '';
+    var p = sahneDone[id];
+    return '<div class="sahne-cta"><button type="button" class="btn tom" data-sahne="' + id + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-6h6v6M12 7v4M10 9h4"/></svg>' + (p != null ? 'Görüşmeyi yeniden oyna' : 'Hastayı odada karşıla') + '</button>' +
+      '<span class="sub">' + (p != null ? 'Klinik görüşme puanın: <b>' + p + '</b> / 100' : 'Animasyonlu odada anamnez al, muayene et, mentorla tartış; sonra reçeteyi burada yaz.') + '</span></div>';
+  };
+  var sahneAc = function (id) {
+    W.AXKLINIK.open('dyt-' + id, {
+      onSonuc: function (R) { sahneDone[id] = R.puan; ls.set('sahneDone', sahneDone); },
+      onDevir: function (R, hedef) {
+        if (hedef === 'ep') { paintEP(); var f = $('#e-form'); if (f && f.scrollIntoView) f.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); var i = f && f.querySelector('input,select'); if (i) i.focus({ preventScroll: true }); }
+        else { paintCase(); var rc = $('#v-main .recete'); if (rc && rc.scrollIntoView) rc.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); }
+        DL.bridgeSend();
+      },
+      onKapat: function () { if (C.tab() === 'ep') paintEP(); else paintCase(); }
+    });
+  };
+  D.addEventListener('click', function (e) { var b = e.target.closest('[data-sahne]'); if (b) sahneAc(b.getAttribute('data-sahne')); });
   var IPUCU = {
     'v-dm': 'Böbrek işlevi ve potasyum normal mi? Obez tip 2 diyabette ilk hedef nedir: kısıtlama mı, enerji dengesi mi?',
     'v-kbh': 'Hasta diyalize girmiyor. KDOQI 2020 diyaliz öncesi evre 3–5 için protein hakkında ne diyor? Hangi elektrolitler yüksek?',
@@ -159,7 +180,7 @@
     var v = vk(), m = $('#v-main');
     if (!v) { m.innerHTML = '<div class="folder" data-tab="DİYET POLİKLİNİĞİ"><h2>Bir dosya aç</h2><p class="oyku">Soldan bir vaka seç. Biyokimya fişinde anormal değerleri işaretle, gerekiyorsa tarama yap, sonra diyet reçetesini yaz: hangi ağırlık, kaç kcal, kaç gram protein, hangi kısıtlamalar ve öneriler. Değerlendir ile karneni al.</p></div>'; return; }
     var s = V.st, r = V.res, b = M.bki(v.kg, v.cm), ideal = M.idealOf(v), duz = M.duzKg(v), abn = r ? r.abn : null;
-    var h = '<div class="folder" data-tab="DİYET POLİKLİNİĞİ · ' + (M.VK.indexOf(v) + 1) + '"><h2>' + X(v.ad) + ', ' + v.yas + ' · ' + X(v.baslik) + '</h2><p class="oyku">' + X(v.oyku) + '</p>';
+    var h = '<div class="folder" data-tab="DİYET POLİKLİNİĞİ · ' + (M.VK.indexOf(v) + 1) + '"><h2>' + X(v.ad) + ', ' + v.yas + ' · ' + X(v.baslik) + '</h2><p class="oyku">' + X(v.oyku) + '</p>' + sahneBtn(v.id);
     h += '<p class="sub" style="margin:-6px 0 12px;color:#5A4A2A">Boy ' + v.cm + ' cm · Kilo ' + v.kg + ' kg · BKİ ' + tr(b, 1) + ' · İdeal ağırlık (' + (v.ped ? 'yaşa göre medyan BKİ' : 'BKİ 22') + ') ' + tr(ideal, 1) + ' kg' + (v.kuru ? ' · Ödemsiz ağırlık ' + v.kuru + ' kg' : '') + ' · Düzeltilmiş ağırlık ' + tr(duz, 1) + ' kg</p>';
     h += '<div class="vk-grid"><div><div class="fis" role="group" aria-label="Biyokimya fişi"><h4>BİYOKİMYA</h4><p>' + X(v.ad.toLocaleUpperCase('tr')) + ' · anormal değerleri işaretle</p>' +
       v.lab.map(function (l, i) {
@@ -293,7 +314,7 @@
   var paintEP = function () {
     paintEList();
     var c = ec(), st = E.st, dev = $('#e-dev'), form = $('#e-form'), r = E.res;
-    var head = '<div class="card" style="margin-bottom:14px"><span class="k">' + ({ enteral: 'enteral beslenme', tpn: 'parenteral beslenme', refeed: 'yeniden beslenme riski' })[c.tip] + '</span><h2>' + X(c.ad) + ', ' + c.yas + ' · ' + X(c.baslik) + '</h2><p class="sub" style="margin:0">' + X(c.oyku) + ' Boy ' + c.cm + ' cm, ağırlık ' + c.kg + ' kg.</p></div>';
+    var head = '<div class="card" style="margin-bottom:14px"><span class="k">' + ({ enteral: 'enteral beslenme', tpn: 'parenteral beslenme', refeed: 'yeniden beslenme riski' })[c.tip] + '</span><h2>' + X(c.ad) + ', ' + c.yas + ' · ' + X(c.baslik) + '</h2><p class="sub" style="margin:0">' + X(c.oyku) + ' Boy ' + c.cm + ' cm, ağırlık ' + c.kg + ' kg.</p>' + sahneBtn(c.id) + '</div>';
     if (c.tip === 'enteral') {
       dev.innerHTML = head + '<div class="device">' + pumpSVG(st) + '</div><div class="rule"><b>Hesap:</b> günlük hacim (ml) = hedef enerji ÷ ürünün kcal/ml değeri · pompa hızı = hacim ÷ ' + c.saat + ' saat · üründen gelen protein = hacim (L) × g/L. Eksik protein, protein modülüyle tamamlanabilir.</div>';
       form.innerHTML = '<div class="card"><span class="k">beslenme planı</span><h2>Hedef ve ürün</h2><div class="form-g">' +

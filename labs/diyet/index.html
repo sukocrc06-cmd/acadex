@@ -278,6 +278,10 @@ button{cursor:pointer}
 .src{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.5}
 .src summary{cursor:pointer;font-weight:700;color:var(--ink2)}
 
+/* ---------- klinik sahne çağrısı (labs/klinik) ---------- */
+.sahne-cta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:-2px 0 14px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.65);border:1.5px dashed #C9A77A}
+.sahne-cta .btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sahne-cta .sub{flex:1;min-width:200px;margin:0;font-size:13px}
 /* ---------- değişim tablosu ---------- */
 .dg{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;gap:16px;align-items:start}
 .dg h2{margin:2px 0 6px;font-family:'Bricolage Grotesque',sans-serif;font-size:20px}
@@ -508,6 +512,8 @@ button{cursor:pointer}
 <script src="data/besin.js"></script>
 <script src="data/who2007-bki.js"></script>
 <script src="diyet-model.js"></script>
+<script src="../klinik/klinik.js"></script>
+<script src="../klinik/senaryo-diyet.js"></script>
 <script src="diyet-ikon.js"></script>
 <script src="diyet-app.js"></script>
 <script src="diyet-klinik.js"></script>
