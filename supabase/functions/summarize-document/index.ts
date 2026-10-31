@@ -395,7 +395,21 @@ function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } 
  * alt/ust simge, suslu parantez, esitlik ya da rakam. Olculen gercek
  * adaciklar hepsi geciyor ($UtilityBill = 484.12...$, $H_0: \beta_2 = 0$,
  * $2.6\%$); " and the bill falls by " hicbirini tasimiyor. */
-const ANLATI_MATEMATIK_ADACIK_RE = /\$(?=[^$\n]*[\\^_{}=\d])[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
+/* RAKAM MATEMATIK ISARETI DEGIL (31.10.2026, kartta olculdu).
+ *
+ * Ilk surumum adacik icinde `\d` de kabul etti ve PARA tutari o sarti
+ * gecirdi. Kartta iki yerde sahte adacik kuruldu:
+ *   "$5.06. Setting the marginal effect to zero yields the turning point $"
+ *   "$1000 increase raises use by 2.6% and a direct $"
+ * Ikisi de duz yazi; korunduklari icin ne yumusatma ne orfan temizligi
+ * dokunabildi ve ikinci $ ("$x_j = ...") ekranda kaldi.
+ *
+ * Sart artik LaTeX YAPISI: ters bolu, alt/ust simge, suslu parantez ya da
+ * esitlik. Olculen gercek adaciklar geciyor ($UtilityBill = ...^2$,
+ * $H_0: \beta_2 = 0$, $2.6\%$); yukaridaki iki duz yazi hicbirini
+ * tasimiyor. Saf sayi adacigi ($0.69$) artik korunmuyor — zarari yok,
+ * yumusatma sayiya dokunmaz, yalnizca $ isaretleri kalkar. */
+const ANLATI_MATEMATIK_ADACIK_RE = /\$(?=[^$\n]*[\\^_{}=])[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
 
 /* Komut siniri: \int ile \infty ayri komutlar, ve \int_{0} gibi hallerde
    ardindan '_' geliyor — '_' regex'te KELIME karakteri oldugu icin \b
@@ -1767,7 +1781,28 @@ const VISION_MAX_COMPLETION = 3072
  * MALIYET: tek ek cagri, ayni mini-PDF (yeni goruntu ucreti yok), ~3-5
  * sn. Olculen kosu 19 sn / 150 sn butce, yani yeri var. Butce dar ise
  * atlanir ve kart eskisi gibi uretilir. */
-const TABLO_MAX_COMPLETION = 8192
+/* TAVAN 8192 DEGIL 3072 (31.10.2026, canli kosuda olculdu).
+ *
+ * Ilk surumum 8192 yazdi ve cagri dustu — ustelik zarar vererek:
+ *   Tablo gecisi: HTTP 502 — tablo eklenmedi
+ *   Gemini[gemini-3.5-flash-lite] paralel: zaman asimi (15000ms) — model
+ *     bu kosuda aday listesinden DUSURULDU
+ *   Groq Review API call failed (status 502) / review failed
+ *   Gemini paralel maliyet: 5 cagri, 52225ms   (onceki kosu: 6, 19330ms)
+ * Yani zaman asimi modeli BUTUN KOSU icin dusurdu (geminiZamanAsimiCentik
+ * tek centikte dusuruyor), review o yuzden hic kosmadi ve sure 19 sn'den
+ * 52 sn'ye cikti. Tablo da gelmedi.
+ *
+ * SEBEP: paralel modda bir cagrinin alabilecegi en buyuk dilim
+ * GEMINI_PARALLEL_MAX_CALL_MS = 15 sn ve bu TAVAN — gecilen timeout ne
+ * olursa olsun geminiParalelCagriButcesi onu 15 sn'ye kirpiyor. 8192
+ * token uretimi o dilime sigmiyor.
+ *
+ * 3072 ise SIGDIGI OLCULU: gorsel gecis ayni mini-PDF ile ayni dilimde
+ * yillardir tamamlaniyor (ayni kosuda +7 madde dondurdu). Ayri cagrinin
+ * degeri tavani BUYUTMEK degil, 3072'nin tamamini tabloya ayirmakti —
+ * paylasimda tabloya sifir kaliyordu. */
+const TABLO_MAX_COMPLETION = VISION_MAX_COMPLETION
 /* Altinda tablo gecisi denenmez: kesik bir tablo hic tablodan kotudur. */
 const TABLO_GECIS_MIN_BUTCE_MS = 25000
 const VISION_MAX_IMAGES = 2
@@ -6572,6 +6607,22 @@ function yorumCumleleriniKurtar(
          yuksek). Kuyruk tek basina sayi ise ("= 67.11") sozcuk ve isaretci
          suzgeclerinden gecemez. */
       const esit = tam.lastIndexOf('=')
+      /* KUYRUGUN BASI MADDE OLARAK OKUNMUYORDU (31.10.2026, kartta gorundu).
+         Kurtarilan madde soyle cikti:
+           "2.14 which means that if temperature increases from 79 to 80
+            degrees then the utility bill increases by $2.14."
+         Ciplak sayiyla basliyor ve ayni sayiyi sonunda tekrar ediyor.
+         Bastaki sayi, SONRASINDA ayni deger yine geciyorsa atiliyor — olgu
+         kaybi yok, gecmiyorsa dokunulmuyor. Ardindan gelen baglac da
+         atiliyor: "which means that if temperature..." -> "if temperature..." */
+      const kuyrugunBasi = (s: string): string => {
+        const m = s.match(/^(\.?\d[\d.,]*)\s+(\p{L}[\s\S]*)$/u)
+        const govde = m && m[2].includes(m[1]) ? m[2] : s
+        return govde.replace(/^(?:which\s+means\s+that|which\s+means|meaning\s+that|yani)\s+/i, '')
+      }
+      /* SUZGECLER HAM kuyruga bakar: temizlik "which means that"i atiyor,
+         yani isaretci suzgecinden ONCE uygulanirsa aday elenir (olculdu:
+         kurtarilan 0'a dustu). Temizlik ekleme aninda. */
       const kuyruk = esit >= 0 ? tam.slice(esit + 1).trim() : ''
       for (const kirpik of (kuyruk && kuyruk !== tam ? [tam, kuyruk] : [tam])) {
       if (kirpik.length < QUOTE_MIN_CHARS || kirpik.length > QUOTE_MAX_CHARS) continue
@@ -6589,7 +6640,7 @@ function yorumCumleleriniKurtar(
         }
         if (m[0].length === 0) re.lastIndex++
       }
-      if (bulunan.size > 0) { adaylar.push({ metin: kirpik, bulunan }); break }
+      if (bulunan.size > 0) { adaylar.push({ metin: kuyrugunBasi(kirpik), bulunan }); break }
       }
     }
   }
@@ -14213,7 +14264,11 @@ The example that used to sit here named a real-looking percentage, and a live ru
               }
 
             /* --- TABLO GECISI (ayri cagri) — bkz. TABLO_MAX_COMPLETION. */
-            if (parallelGemini && budgetLeft() > TABLO_GECIS_MIN_BUTCE_MS) {
+            /* `visionData` sarti: ilk gorsel cagri dustuyse model zaten
+               zorlanıyor demektir; ikinci cagri yalnizca bir dilim daha
+               yakar ve zaman asimi modeli koşunun geri kalani icin
+               dusurur (olculdu: review o yuzden hic kosmadi). */
+            if (parallelGemini && visionData && budgetLeft() > TABLO_GECIS_MIN_BUTCE_MS) {
               const tabloPrompt = `You are transcribing DATA OBJECTS from lecture slide images.
 Return ONLY tables and diagrams that are VISIBLE IN THE IMAGES as a table, matrix, worksheet, regression output or box-and-arrow figure.
 TRANSCRIBE, do not summarise: copy every column header and every row cell EXACTLY as printed, including all decimal places and negative signs. A regression output has one row per variable and columns such as Coefficients, Standard Error, t Stat, P-value.
@@ -14240,7 +14295,9 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
                     { role: 'user', content: visualUserContent }
                   ]
                 })
-              }, 0, Math.min(30000, Math.max(12000, budgetLeft() - 15000)))
+                /* Gorsel gecisin AYNI zaman asimi: zincir butcesi ayni
+                   hesaplansin, yani sigdigi olculmus dilimle kossun. */
+              }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
               tokenPacer.observeHeaders(tabloRes.headers, MODEL_FAST)
               const tabloData = tabloRes.ok ? await tabloRes.json() : null
               tokenPacer.record(

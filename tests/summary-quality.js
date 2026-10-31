@@ -8778,6 +8778,20 @@ test('100$ gibi SONDAKI para isareti korunuyor', () => {
   assert.match(r.metin, /100\$ olarak/, r.metin);
 });
 
+/* RAKAM MATEMATIK ISARETI DEGIL (31.10.2026, kartta olculdu).
+   Ilk surumum adacik sartina `\d` de koydu ve PARA tutari o sarti gecirdi;
+   kartta iki sahte adacik kuruldu ve korundugu icin ikinci $ ekranda kaldi:
+     "$5.06. Setting the marginal effect to zero yields the turning point $"
+     "$1000 increase raises use by 2.6% and a direct $" */
+test('PARA tutarlari sahte adacik kurmuyor', () => {
+  const r = A.onarAnlatiLatex(
+    'decreases the bill by $5.06. Setting the effect to zero yields the turning point $x_j = (-\\hat{\\beta}_1)/2\\hat{\\beta}_2 here');
+  assert.match(r.metin, /by \$5\.06\./, 'para tutari dusmus: ' + r.metin);
+  assert.ok(!/turning point \$x_j/.test(r.metin), 'orfan $ hala ekranda: ' + r.metin);
+  const p2 = A.onarAnlatiLatex('a $1000 increase raises use by 2.6% and a direct $1000 increase adds \\beta_1 tons');
+  assert.match(p2.metin, /\$1000 increase raises use by 2\.6% and a direct \$1000/, p2.metin);
+});
+
 test('GERCEK $...$ adacigina dokunulmuyor', () => {
   const s = 'the estimated model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ contains terms';
   assert.equal(A.onarAnlatiLatex(s).metin, s, 'ayiracli matematik bozulmus');
@@ -8792,7 +8806,29 @@ test('kurtarma: HESAP ve ANLAM ayni cumledeyken SON esitligin sagi aday', () => 
   ].join('\n');
   const r = A.yorumCumleleriniKurtar(kaynak, [2.14, 14.22], []);
   assert.deepEqual(r.kurtarilan, [2.14], 'kurtarilan: ' + JSON.stringify(r.kurtarilan));
-  assert.match(r.points[0], /which means that/, r.points[0]);
+  /* KUYRUGUN BASI TEMIZLENIR (31.10.2026, kartta gorundu). Madde
+     "2.14 which means that if temperature..." diye cikti: ciplak sayiyla
+     basliyor ve ayni sayiyi sonunda tekrar ediyor. */
+  assert.equal(r.points[0],
+    'if temperature increases from 79 to 80 degrees then the utility bill increases by $2.14.',
+    r.points[0]);
+});
+
+test('temizlik SUZGECLERDEN SONRA kosuyor (isaretci elenmemeli)', () => {
+  /* Ilk surumum temizligi suzgecten ONCE yapti: "which means that" atilinca
+     YORUM_ISARETCI_RE tutmadi ve kurtarilan 0'a dustu. */
+  const kod = KAPSAMA_KOD;
+  const iKuyruk = kod.indexOf("const kuyruk = esit >= 0 ? tam.slice(esit + 1).trim()");
+  assert.ok(iKuyruk > 0, 'kuyruk HAM alinmali, temizlenmis degil');
+  assert.ok(/adaylar\.push\(\{ metin: kuyrugunBasi\(kirpik\)/.test(kod),
+    'temizlik ekleme aninda uygulanmali');
+});
+
+test('bastaki sayi SONRADA GECMIYORSA atilmiyor (olgu kaybi yok)', () => {
+  const kaynak = 'The result is\n= 41.5 which means that energy use is higher in North America than elsewhere.';
+  const r = A.yorumCumleleriniKurtar(kaynak, [41.5], []);
+  assert.ok(r.points.length === 0 || /41\.5/.test(r.points[0]),
+    'sayi atilmis ve metinde tekrar gecmiyor: ' + JSON.stringify(r.points));
 });
 
 
@@ -8809,12 +8845,26 @@ test('kurtarma: HESAP ve ANLAM ayni cumledeyken SON esitligin sagi aday', () => 
         as a key_point", "NEVER AS A DESCRIPTION OF THE FIGURE") ve
         modele tabloyu DOKMESINI soyleyen tek cumle yok.
    Dort kosuda da "+0 tables" dondu. */
-test('tablo gecisi KENDI tavanina sahip ve gorsel gecisten buyuk', () => {
-  assert.ok(/const TABLO_MAX_COMPLETION = (\d+)/.test(SRC), 'tavan sabiti yok');
-  const tablo = Number(SRC.match(/const TABLO_MAX_COMPLETION = (\d+)/)[1]);
-  const gorsel = Number(SRC.match(/const VISION_MAX_COMPLETION = (\d+)/)[1]);
-  assert.ok(tablo > gorsel,
-    `tablo tavani (${tablo}) gorsel tavanindan (${gorsel}) buyuk olmali, yoksa dokum yine kesilir`);
+/* TAVAN BUYUTULMEZ — ILK SURUMUM BUNU YANLIS YAPTI (31.10.2026, canli).
+
+   8192 yazdim ve cagri 15 sn'lik dilime sigmayip dustu; ustelik zaman
+   asimi modeli BUTUN KOSU icin aday listesinden dusurdu, review hic
+   kosmadi ve sure 19 sn -> 52 sn cikti. Paralel modda bir cagrinin en
+   buyuk dilimi GEMINI_PARALLEL_MAX_CALL_MS = 15 sn ve bu bir TAVAN.
+   Ayri cagrinin degeri tavani buyutmek degil, var olan tavanin TAMAMINI
+   tabloya ayirmak. */
+test('tablo gecisi tavani gorsel gecisin OLCULMUS tavanini asmiyor', () => {
+  assert.ok(/const TABLO_MAX_COMPLETION = VISION_MAX_COMPLETION/.test(SRC),
+    'tablo tavani gorsel tavanindan bagimsiz yazilmis; 15 sn dilimine sigdigi olculmus deger o');
+  assert.ok(/const GEMINI_PARALLEL_MAX_CALL_MS = 15_000/.test(SRC),
+    'dilim tavani degismis — tablo tavani yeniden olculmeli');
+});
+
+test('ilk gorsel cagri dustuyse tablo cagrisi denenmiyor', () => {
+  /* Zaman asimi modeli kosunun geri kalani icin dusuruyor; ikinci cagri o
+     riski iki katina cikarirdi. */
+  assert.ok(/if \(parallelGemini && visionData && budgetLeft\(\) > TABLO_GECIS_MIN_BUTCE_MS\)/.test(SRC),
+    'tablo cagrisi ilk gorsel cagrinin basarisina bagli olmali');
 });
 
 test('tablo gecisi YALNIZCA tablo ve diyagram istiyor', () => {
@@ -8833,7 +8883,7 @@ test('tablo gecisi YALNIZCA tablo ve diyagram istiyor', () => {
 
 test('tablo gecisi yalnizca PARALLEL modda ve butce varken kosuyor', () => {
   const kod = KAPSAMA_KOD;
-  assert.ok(/if \(parallelGemini && budgetLeft\(\) > TABLO_GECIS_MIN_BUTCE_MS\)/.test(kod),
+  assert.ok(/if \(parallelGemini && visionData && budgetLeft\(\) > TABLO_GECIS_MIN_BUTCE_MS\)/.test(kod),
     'kosul yok: only/shadow zaten PDF in tamamini gorsel gonderiyor, tekrar cagri bedava degil');
 });
 
