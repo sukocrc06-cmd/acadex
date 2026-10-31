@@ -28,12 +28,14 @@ const UI = loadFromSource('js/dashboard.js', [
   'renderSuggestedTagChipHtml',
   // Formul degiskenlerinin matematik yolu (18.10.2026).
   'renderMathInText', 'renderMathSymbol', 'mathDelimRe',
+  // Para korumasi formulu yutuyordu (31.10.2026 olcumu).
+  'MATEMATIK_YAPISI_RE', 'paraGibi',
   // Formul kutusuna sigdirma (18.10.2026).
   'FORMUL_MIN_REM', 'sigdirFormulKutusu',
   // Anlati ve maddelerdeki $...$ (18.10.2026).
   'inlineMath', 'inlineMarkdown',
   // Cift ters bolu sadelestirmesi (20.10.2026).
-  'sadeKatexKomutu',
+  'KATEX_FONKSIYON', 'katexFonksiyonGibi', 'sadeKatexKomutu',
   // Ozet metninin KACIRAN yolu (24.10.2026) — depolanmis XSS duzeltmesi.
   // Ayiracsiz LaTeX komutu (31.10.2026).
   'LATEX_KOMUTLARI', 'LATEX_KOMUT_RE', 'latexJetonMu', 'latexJetonlari',
@@ -685,7 +687,13 @@ test('DOLAR davranisi degismedi: para hala formul sanilmaz', () => {
     assert.deepEqual(c, [], 'para KaTeX e gonderilmis');
     // Ters bolu kolunda para belirsizligi yok, o koruma dolara ozel kalmali.
     UI.inlineMath('\\(100 and 200\\)');
-    assert.deepEqual(c, ['100 and 200'], 'ters bolu kolu para korumasina takilmis');
+    /* 31.10.2026: govde artik BIREBIR karsilastirilmiyor. sadeKatexKomutu
+       cok harfli adi \text{} icine aliyor (bkz. KATEX_FONKSIYON yanindaki
+       olcum: "U t i l i t y B i l l" harf harf diziliyordu), yani "and"
+       de sariliyor. Testin iddiasi govdenin bicimi degil, ters bolu
+       kolunun para korumasina TAKILMAMASI. */
+    assert.equal(c.length, 1, 'ters bolu kolu para korumasina takilmis');
+    assert.ok(/100/.test(c[0]) && /200/.test(c[0]), 'govde kaybolmus: ' + c[0]);
   } finally { katexKaldir(); }
 });
 
@@ -1059,7 +1067,9 @@ const INK_ROZET = (() => {
     dil: (d) => { dil = d; },
     /* Rozetin GORUNEN metni: counterHTML'in <b> icerigi. */
     rozetler: (kart) => api.findNumbers(kart).map((n, i) =>
-      api.counterHTML(n, i).replace(/^[\s\S]*?>([^<]*)<\/b>[\s\S]*$/, '$1'))
+      api.counterHTML(n, i).replace(/^[\s\S]*?>([^<]*)<\/b>[\s\S]*$/, '$1')),
+    /* Rozetin altindaki aciklama (cap). */
+    aciklamalar: (kart) => api.findNumbers(kart).map((n) => String(n.cap || ''))
   };
 })();
 
@@ -1219,4 +1229,137 @@ test('rozet: TURKCE "%11,4 seviyesine" GERCEK olgu, dusmuyor', () => {
   const s = INK_ROZET.rozetler(rozetKarti(['Katsayi istatistiksel olarak %1 duzeyinde anlamli bulundu.']));
   assert.ok(!/^%1$/.test(s[0]), 'turkce anlamlilik duzeyi rozet olmus: ' + JSON.stringify(s));
 });
+
+/* ARAYA SOZCUK GIREN TURKCE SIRALAMA (31.10.2026, IPPT kartinda olculdu)
+
+   Ustteki test "%1 duzeyinde anlamli" siralamasini kiliyordu; orada
+   "duzey" HEMEN sayidan sonra geliyor. Canli kartta siralama baskaydi:
+     "... terimler %1 anlamlilik duzeyinde istatistiksel olarak anlamlidir."
+   Araya "anlamlilik" girdigi icin desen kaciriyor ve esik rozet oldu. */
+test('rozet: "%1 anlamlilik duzeyinde" rozet OLMUYOR', () => {
+  INK_ROZET.dil('tr');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'Utility bill ve sicaklik modelindeki lineer ve kuadratik terimler %1 anlamlilik duzeyinde istatistiksel olarak anlamlidir.',
+    'Sicaklik 39 dereceden 40 dereceye ciktiginda utility bill 5.06 dolar azalmaktadir.'
+  ]));
+  assert.ok(!r.some((x) => /^%1$/.test(x)),
+    'anlamlilik esigi rozet olmus: ' + JSON.stringify(r));
+  assert.ok(r.some((x) => /5[.,]06/.test(x)),
+    'esik dusunce yerine gelen GERCEK olgu yok: ' + JSON.stringify(r));
+});
+
+test('rozet: anlamlilik sozcugu YOKKEN yuzde rozet kaliyor', () => {
+  /* Kapi genisledi diye gercek yuzde olgusu dusmemeli. */
+  INK_ROZET.dil('tr');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'Enflasyon 2024 yilinda %1 anlamlilik olmadan yalnizca %64 duzeyine cikti.'
+  ]));
+  assert.ok(r.length > 0, 'rozet hic uretilmedi');
+});
+
+/* PARA KORUMASI FORMULU DE YUTUYORDU (31.10.2026, kartta olculdu)
+
+   Koruma `$`den sonra rakam+bosluk gorunce parcayi para sayip diziyi
+   atliyor. Model ise formulu SAYIYLA baslatti ve kartta DORT yerde ham
+   LaTeX kaldi (iki cozumlu ornek, S4 ve bir madde):
+     "UtilityBill = $484.12 - 12.08\text{temp} + 0.09\text{temp}^2$"
+   Icerik "484.12 " ile basliyor, kalip tutuyor; oysa icinde \text{...}
+   ve ^2 var — bu para degil. */
+test('SAYIYLA baslayan formul para sanilmiyor', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText(
+      'Given the model UtilityBill = $484.12 - 12.08\\text{temp} + 0.09\\text{temp}^2$, calculate.');
+    assert.ok(html.includes('<KTX>'), 'formul hala ham: ' + html);
+    assert.ok(!/\\text\{temp\}/.test(html.replace(/<KTX>[\s\S]*?<\/KTX>/g, '')),
+      'ayirac disinda ham LaTeX kalmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+test('GERCEK para hala korunuyor (dizilmiyor)', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText('the bill falls by $100 and then by $250 in winter');
+    assert.ok(!html.includes('<KTX>'), 'para formul diye dizilmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+test('paraGibi olcutu: LaTeX yapisi varsa para DEGIL', () => {
+  assert.equal(UI.paraGibi('100 and then by '), true);
+  assert.equal(UI.paraGibi('484.12 - 12.08\\text{temp} + 0.09\\text{temp}^2'), false);
+  assert.equal(UI.paraGibi('2.6\\%'), false);
+  /* Rakamla baslamayan icerik zaten para kaliba uymaz. */
+  assert.equal(UI.paraGibi('H_0: \\beta_2 = 0'), false);
+});
+
+
+/* COK HARFLI AD HARF HARF DIZILIYORDU (31.10.2026, kartta olculdu)
+
+   KaTeX matematik kipinde her harfi ayri degisken sayar. Kartin
+   anlatisinda sonuc:
+     "U t i l i t y B i l l = 484.12 - 12.08 t e m p + 0.09 t e m p ^2"
+   Dogrusu \text{UtilityBill}; model bunu her zaman yazmiyor. */
+test('cok harfli ad \\text{} icine aliniyor', () => {
+  assert.equal(
+    UI.sadeKatexKomutu('UtilityBill = 484.12 - 12.08temp + 0.09temp^2'),
+    '\\text{UtilityBill} = 484.12 - 12.08\\text{temp} + 0.09\\text{temp}^2');
+  assert.equal(
+    UI.sadeKatexKomutu('Sales = 300 - 30(Price) + 15(Holiday)'),
+    '\\text{Sales} = 300 - 30(\\text{Price}) + 15(\\text{Holiday})');
+});
+
+test('KOMUT ve ZATEN SARILMIS metne dokunulmuyor', () => {
+  const komutlu = 'y = \\beta_0 + \\beta_1 x_1 + \\varepsilon';
+  assert.equal(UI.sadeKatexKomutu(komutlu), komutlu, 'komut adi sarilmis');
+  const frac = '\\frac{\\partial \\hat{y}}{\\partial x_j} = \\hat{\\beta}_1 + 2\\hat{\\beta}_2 x_j';
+  assert.equal(UI.sadeKatexKomutu(frac), frac);
+  /* Icinde \text varsa hic dokunulmaz — cift sarma olmaz. */
+  const zaten = '484.12 - 12.08\\text{temp} + 0.09\\text{temp}^2';
+  assert.equal(UI.sadeKatexKomutu(zaten), zaten);
+});
+
+test('MATEMATIK FONKSIYONU sarilmiyor', () => {
+  for (const ad of ['log', 'exp', 'lim', 'sinh', 'arctan']) {
+    assert.equal(UI.katexFonksiyonGibi(ad), true, ad);
+  }
+  /* Fonksiyonla BASLAYAN ad da atlanir: "lny" upright basilmasin. */
+  assert.equal(UI.katexFonksiyonGibi('lny'), true);
+  assert.equal(UI.katexFonksiyonGibi('UtilityBill'), false);
+  assert.equal(UI.sadeKatexKomutu('\\ln y = \\beta_0'), '\\ln y = \\beta_0');
+});
+
+test('CIFT ters bolu sadelestirmesi KORUNDU (regresyon)', () => {
+  assert.equal(UI.sadeKatexKomutu('\\\\beta_0 + \\\\beta_1 x'), '\\beta_0 + \\beta_1 x');
+});
+
+/* CIPLAK ONDALIK ROZETTE DE KAYBOLUYORDU (31.10.2026, kartta olculdu)
+
+   Slayt destesi ".07 tons" yaziyor; rozet deseni `-?\d+[.,]\d+` ile
+   basliyor, yani ".07" hic eslesmiyor ve cumledeki SONRAKI sayi
+   kazaniyor. Olculen rozet "$1000" — artis ADIMI, bulgu degil. */
+test('rozet: CIPLAK ondalik secilebiliyor, artis adimi degil', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'In the energy use and GDP per capita Excel example, energy consumption per capita increases by .07 tons on average when GDP per capita increases by $1000 US dollars.'
+  ]));
+  assert.equal(r[0], '0.07', 'artis adimi hala rozet oluyor: ' + JSON.stringify(r));
+});
+
+test('rozet: SAYFA KISALTMASI uydurma sayi uretmiyor', () => {
+  INK_ROZET.dil('tr');
+  const r = INK_ROZET.rozetler(rozetKarti(['Bkz. s.42 numarali maddede anlatilan konu burada ele aliniyor.']));
+  assert.ok(!/0[.,]42/.test(r[0]), 'kisaltmadan sayi uydurulmus: ' + JSON.stringify(r));
+});
+
+/* YUNAN HARFI SILINIP ALT SIMGE KALIYORDU (31.10.2026, kartta olculdu)
+   Rozet aciklamasi: "the slope coefficient _1 represents an elasticity" */
+test('rozet aciklamasinda Yunan harfi KORUNUYOR', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.aciklamalar(rozetKarti([
+    'In a log-log model, the slope coefficient $\\beta_1$ represents an elasticity of 0.69 units.'
+  ]));
+  assert.ok(/\u03b2_1/.test(r[0]), 'harf silinmis, alt simge kalmis: ' + r[0]);
+  assert.ok(!/\s_1/.test(r[0]), 'yalin "_1" kalmis: ' + r[0]);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

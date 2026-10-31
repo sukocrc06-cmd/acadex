@@ -2716,7 +2716,19 @@ function splitSentences(text: string): string[] {
   const rough = String(text || '')
     .replace(/\s+/g, ' ')
     .trim()
-    .split(/(?<=[.!?…])\s+/)
+    /* KAPANIS TIRNAGI CUMLEYI YUTUYORDU (31.10.2026, IPPT kartinda olculdu).
+       Desen yalnizca noktalama ariyordu; kaynak ise yorumu tirnak icinde
+       veriyor ve nokta tirnagin ICINDE kaliyor:
+         “...is 50.5% higher in Europe than South America.” The North
+         America dummy variable coefficient is interpreted as “...56.6%...”
+       Bolunmedigi icin 303 karakterlik TEK cumle cikiyordu — alinti tavani
+       220, yani bu metinden hic alinti secilemiyordu ve iki bolge yuzdesi
+       (50.5 / 56.6, ikinci tabloda 9.3 / 41.5) karta dort kosu boyunca hic
+       girmedi. Tirnak kaldirilinca ayni metin 143 ve 157 karakterlik iki
+       cumleye bolunuyor; ikisi de tavanin altinda.
+       Kapanis isareti ISTEGE BAGLI: noktanin kendisi hala sart, yani
+       tirnagin tek basina cumle bitirmesi mumkun degil. */
+    .split(/(?<=[.!?…][”’"'»)\]]?)\s+/)
   const out: string[] = []
   for (const piece of rough) {
     const prevNeedsMerge = out.length > 0 && (() => {
@@ -2786,9 +2798,26 @@ function alintiBloklari(body: string): string[] {
     const noktalamaylaBitti = /[.!?\u2026:]$/.test(onceki)
     const tireyleBolundu = /[-\u2010-\u2015]$/.test(onceki)
     const kucukBasliyor = /^[a-z\u00e0-\u00f6\u00f8-\u00ff\u011f\u015f\u0131\u00f6\u00e7\u00fc]/.test(satir)
+    /* PARANTEZLE BASLAYAN SARMA (31.10.2026, IPPT kartinda olculdu).
+
+       Yukaridaki "bilinen sinir" notu kucuk harf sartini anlatiyor. Olculen
+       kayip tam oradan geldi: kaynak satiri
+         "consumption per capita goes up by"
+         "(0.026)100% or 2.6%.” This coefficient is"
+       Ikinci satir parantezle basladigi icin SINIR sayildi; cumle ortasindan
+       kesildi ve sayilar 21 karakterlik, harf orani 0.10 olan bir parcada
+       kaldi. O parca her suzgecten dusuyor, yani 0.026 ve 2.6 hicbir aday
+       cumlede gecmiyordu.
+
+       Parantez/yuzde CUMLE BASLATAMAZ, o yuzden sarma sayiliyor. CIPLAK
+       RAKAM bilerek disarida: grafik eksen centikleri ("0", "20", "40")
+       noktalamasiz bir baslik satirinin ardindan geliyor ve onlari
+       yapistirmak "Scatter Plots of this Relationship for Europe" gibi
+       calisan bir alinti etiketini coplestirirdi. */
+    const cumleBaslatamaz = /^[(\u00ab„%]/.test(satir)
     if (tireyleBolundu) {
       out[out.length - 1] = onceki.replace(/[-\u2010-\u2015]$/, '') + satir
-    } else if (!noktalamaylaBitti && kucukBasliyor) {
+    } else if (!noktalamaylaBitti && (kucukBasliyor || cumleBaslatamaz)) {
       out[out.length - 1] = onceki + ' ' + satir
     } else {
       out.push(satir)
@@ -2829,6 +2858,7 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
   if (totalWeight <= 0) return null
 
   let best: { text: string; score: number; siralama: number; kesinlik: number } | null = null
+  let enIyiKapsama = 0
   /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
      alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
      cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
@@ -2905,8 +2935,30 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
       && Math.abs(siralama - best.siralama) <= QUOTE_SIRALAMA_BANDI
       && kesinlik > best.kesinlik
     if (!best || belirginUstunluk || yakinAmaDahaDerli) best = { text: raw, score, siralama, kesinlik }
+    if (score > enIyiKapsama) enIyiKapsama = score
   }
-  if (!best || best.score < 0.3) return null
+  /* KAPI EN IYI KAPSAMAYA BAKAR, SIRALAMA KAZANANINA DEGIL (31.10.2026,
+     olculdu).
+
+     Yukaridaki iki not "KAPI DEGISMEDI, yalnizca SIRALAMA" diyor — niyet
+     bu ama kod oyle davranmiyordu: esik `best.score`a bakiyor, `best` ise
+     kesinlik tie-break'i ile DEGISMIS olabiliyor. Yani siralama, hukmu
+     soyleyen kisa cumleyi hakli olarak one cikariyor, sonra kapi o kisa
+     cumlenin kapsamasina bakip ALINTININ TAMAMINI iptal ediyordu.
+
+     Olculen sayfa (s.42, iddia "neither regional dummy variable is
+     statistically different ... at the 10% level"):
+       kapsama 0.407  "The Europe dummy variable coefficient is ..."
+       kapsama 0.407  "The North America dummy variable coefficient is ..."
+       kapsama 0.256  "Neither of these are statistically significant ..."
+     Ucuncusu dice birincisi. Kapi 0.3; sayfada esigi GECEN aday vardi ama
+     donen deger null oldu ve dipnot etiketi sayfa basligina dustu.
+
+     Artik eligibility SAYFANIN EN IYI KAPSAMASI ile, gosterilen alinti
+     siralama ile belirleniyor: hangi iddianin alinti alacagi eskisi gibi,
+     degisen yalnizca hangisinin gosterildigi. Esigi gecen hicbir aday
+     yoksa (orn. tek basina "America as the omitted group") yine null. */
+  if (!best || enIyiKapsama < 0.3) return null
   return best.text.length > QUOTE_MAX_CHARS
     ? best.text.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
     : best.text

@@ -101,6 +101,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
   // Ayni baslik metin olcusunu beklemez (31.10.2026 olcumu).
   'nearDupAyniBaslik',
+  // Ayrik sayi kumesi birlesmeyi engeller (31.10.2026 olcumu).
+  'sayiKumesiAyrik',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
   // Bolum kopyasi genel esigin ALTINDA kaliyordu (30.10.2026 olcumu).
   'BOLUM_BASLIK_ESIGI', 'BOLUM_GOVDE_ESIGI', 'BOLUM_BASLIK_MIN_TERIM',
@@ -130,6 +132,26 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'pencereCikisiDar',
   'windowCompletionFor', 'windowCompletionFloored',
   // Sayisal kapsama olcusu (09.10.2026).
+  // Yuzdeye cevirme carpani hedef degil (31.10.2026 olcumu).
+  'YUZDE_CEVRIM_RE',
+  // Yedek sayfa secimi belgeye yayiliyor (31.10.2026 olcumu).
+  'esitAralikSec', 'GEMINI_VISION_MAX_PAGES',
+  // Zincir ortasindaki ara hesap hedef degil (31.10.2026 olcumu).
+  'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND', 'araHesabiAyikla',
+  // Sayinin ANLAMINI soyleyen cumle kurtarilir (31.10.2026 olcumu).
+  'YORUM_ISARETCI_RE', 'YORUM_MIN_SOZCUK', 'YORUM_HARF_ORANI', 'YORUM_MAX',
+  'YORUM_MAX_KRK', 'YORUM_TAM_CUMLE_RE', 'KURTARMA_BASLIK_ORANI', 'baslikGibi',
+  // Yapisik cumleler ayri aday (31.10.2026 olcumu).
+  'YORUM_CUMLE_BASI', 'YORUM_YAPISIK_RE', 'yapisikParcalar',
+  // Guven araligindaki dusen eksi isareti (31.10.2026 olcumu).
+  'guvenAraligiOnar',
+  // Duzlesmis metin tablosu kaynaktan kuruluyor (31.10.2026 olcumu).
+  'TABLO_MIN_SATIR', 'TABLO_MAX_KURTARMA', 'TABLO_ETIKET_MAX_KRK', 'TABLO_DEGER_RE',
+  'tabloDegerSatiri', 'tabloEtiketSatiri', 'metinTablosuKurtar',
+  'TABLO_KUYRUK_MAX', 'tabloKuyrukSatiri',
+  // Resim slaytlari OCR'a gidiyor, slayt numarasi _rels'ten (31.10.2026 olcumu).
+  'pptxRelsHedefleri', 'pptxSlaytGorselleri', 'PPTX_OCR_MIN_BAYT', 'PPTX_OCR_MAX_SLAYT',
+  'kurtarmaSatirlari', 'yorumCumleleriniKurtar',
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
   'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE',
@@ -3122,8 +3144,10 @@ test('MADDE IPUCUSU kisaltiliyor ve atif isaretcisi atiliyor', () => {
   const blok = SRC.slice(i, i + 420);
   assert.match(blok, /\.slice\(0, 18\)/, 'madde sayisi sinirlandirilmamis');
   assert.match(blok, /\.slice\(0, 80\)/, 'madde metni kisaltilmamis');
-  assert.match(blok, /replace\(\/\\s\*\\\[\\d\+\\\]\/g, ''\)/,
-    'atif isaretcisi atilmamis — modele numara gosteriliyor');
+  /* COKLU ATIF DA SIYRILIYOR (31.10.2026, Week 11 olcumu): model
+     "[6, 9]" yazabiliyor, desen onu da tanimali. */
+  assert.ok(blok.includes(String.raw`replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '')`),
+    'atif isaretcisi atilmamis ya da coklu atif taninmiyor — modele numara gosteriliyor');
   assert.match(blok, /maddeMetni\(p\)/, 'nesne bicimli madde desteklenmiyor');
 });
 
@@ -3750,10 +3774,15 @@ test('review ve critic de serit secebiliyor', () => {
     'review serit secmeli');
   assert.ok(/const reviewLane = reviewPlan\.lane/.test(SRC), 'review secilen seridi kullanmali');
   assert.ok(/const criticLane = pickLane/.test(SRC), 'critic de secmeli');
-  // Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali (vision haric —
-  // qwen tek gorme yetenekli model).
+  /* Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali — GORME
+     cagrilari haric, cunku qwen tek gorme yetenekli model. Bunlar iki
+     tane: gorsel gecis ve 31.10.2026'da eklenen TABLO GECISI (bkz.
+     TABLO_MAX_COMPLETION). Ikisi de ayni mini-PDF'i okur, ayni seridi
+     paylasir ve pacer'a ayri ayri yazilir. Sayi 2'den YUKARI cikiyorsa
+     muhtemelen gormeyle ilgisi olmayan bir cagri sabitlenmistir. */
   const pinned = [...SRC.matchAll(/model: MODEL_FAST/g)].length;
-  assert.equal(pinned, 1, `MODEL_FAST e sabit ${pinned} cagri var, sadece vision olmali`);
+  assert.equal(pinned, 2, `MODEL_FAST e sabit ${pinned} cagri var, sadece iki gorme cagrisi olmali`);
+  assert.ok(/TABLO_MAX_COMPLETION/.test(SRC), 'tablo gecisi kaybolmus');
 });
 
 test('dinamik serit secen cagrida sabit reasoning_effort yok', () => {
@@ -6738,7 +6767,11 @@ test('canli deste: dort ozetin SIRASINI yeniden uretiyor', () => {
 
 test('log satiri: oran ve kayip ornekleri, fazlasi sayi olarak', () => {
   const satir = A.formatCoverage(A.numericCoverage(DESTE_SONUCLARI, {}));
-  assert.ok(/^0\/13 \(%0\) — kayip: 1000, 0\.07, 484\.12, 12\.08, 0\.09, 0\.026, 100, 2\.6 \+5$/.test(satir), satir);
+  /* 31.10.2026: hedef 13'ten 12'ye dustu ve listeden "100" cikti. Fikstur
+     "(0.026)100% or 2.6%" cumlesini tasiyor; oradaki 100 ondaligi yuzdeye
+     cevirme CARPANI, ders icerigi degil (bkz. YUZDE_CEVRIM_RE). Ayni
+     desen "β1100%" icindeki 1100'u de eliyor. */
+  assert.ok(/^0\/12 \(%0\) — kayip: 1000, 0\.07, 484\.12, 12\.08, 0\.09, 0\.026, 2\.6, 50\.5 \+4$/.test(satir), satir);
   assert.ok(/\+\d+$/.test(satir), `ornek sayisi asildiginda kalan sayi yazilmali: ${satir}`);
   assert.equal(A.formatCoverage(A.numericCoverage('yalnizca 3 ve 5', {})),
     'olculecek ayirt edici sayi yok');
@@ -8479,10 +8512,16 @@ test('kapi matematik OLMAYAN metne hala dokunmuyor', () => {
 });
 
 test('UC KAPI da ayni desende (biri geride kalirsa temizlik olu kod olur)', () => {
-  const DESEN = "indexOf('\\\\') === -1 && !/[\\^_][{\\d]/";
-  const kapilar = SRC.split(DESEN).length - 1;
+  /* $ DE KAPIDA (31.10.2026, Week 8 kartinda olculdu): yetim $ LaTeX
+     isareti tasimiyor, kapi onu da gecirmeli — yoksa jeton bazli $
+     temizligi hic kosmuyor. */
+  const DESEN = "indexOf('\\\\') === -1 && t.indexOf('$') === -1 && !/[\\^_][{\\d]/";
+  const DESEN_S = "indexOf('\\\\') === -1 && s.indexOf('$') === -1 && !/[\\^_][{\\d]/";
+  const kapilar = (SRC.split(DESEN).length - 1) + (SRC.split(DESEN_S).length - 1);
   assert.equal(kapilar, 3,
     'erken cikis kapisi 3 yerde ayni olmali (anlatiLatexYumusat, onarAnlatiLatex, agac gezintisi), bulunan: ' + kapilar);
+  assert.equal(SRC.split("indexOf('\\\\') === -1 && !/[\\^_][{\\d]/").length - 1, 0,
+    'bir kapi $ sartini almamis — geride kalan kapi temizligi olu kod yapar');
 });
 
 /* ANAHTAR VETO IKEN TETIKLEYICI DE OLMALI (31.10.2026, IPPT kartinda olculdu)
@@ -8566,6 +8605,983 @@ test('PDF yolunda gomulu font YOKSA ASCII karsilik tablosu duruyor', () => {
   for (const anahtar of ['times:', 'cdot:', 'div:', 'pm:', 'neq:', 'leq:', 'geq:', 'approx:']) {
     assert.ok(dash.includes(anahtar), 'LATEX_ASCII icinde ' + anahtar + ' yok');
   }
+});
+
+
+/* YUZDEYE CEVIRME CARPANI HEDEF DEGIL (31.10.2026, IPPT kartinda olculdu)
+
+   Dort ayri kosuda ayni iki sayi hedefte kaldi ve ikisi de sayi degildi:
+     1100 <- "y increases by β1100%"          (β₁ ile 100% yan yana)
+     100  <- "goes up by (0.026)100% or 2.6%" (cevirme carpani)
+   Zitti yonde bozuyorlardi: 1100 dort kosunun dordunde "kayip" sayildi
+   (payda sisti), 100 ise ozet "(β₁)100%" yazdigi icin BEDAVA "kapsandi"
+   (pay sisti). En iyi kosu 25/30 (%83); ikisi cikinca 24/28 (%86). */
+test('yuzdeye cevirme carpani hedef sayilmiyor', () => {
+  assert.deepEqual(A.distinctiveNumbers('y increases by \u03b21100% on average'), []);
+  assert.deepEqual(
+    A.distinctiveNumbers('goes up by (0.026)100% or 2.6% in total'),
+    [0.026, 2.6],
+    'carpan hala hedefte ya da gercek sayilar dustu');
+});
+
+test('GERCEK yuzdeler hedefte kaliyor (desen dar)', () => {
+  /* Olculen karsi ornekler: hepsinde sayinin onunde BOSLUK var. */
+  assert.deepEqual(A.distinctiveNumbers('is 50.5% higher in Europe than South America'), [50.5]);
+  assert.deepEqual(A.distinctiveNumbers('goes up by .69% on average'), [0.69]);
+  assert.deepEqual(A.distinctiveNumbers('is 9.3% lower and 41.5% higher than base'), [9.3, 41.5]);
+  /* Parantez var ama ardindan yuzde YOK — dokunulmuyor. */
+  assert.ok(A.distinctiveNumbers('-12.08 + 2(0.09)39 = -5.06').includes(5.06));
+});
+
+
+/* SAYININ ANLAMINI SOYLEYEN CUMLE KURTARILIR (31.10.2026, IPPT kartinda
+   dort kosu boyunca olculdu)
+
+   tahminDenklemleriniKurtar DENKLEMLERI geri getiriyor; destenin son
+   slaytlarindaki sayilar ise denklemde degil YORUM CUMLESINDE duruyor ve
+   dort kosunun hicbirinde karta girmedi: 0.07 (s.11), 50.5/56.6 (s.39),
+   0.69 (s.40), 9.3/41.5 (s.42). Hepsi destenin sonunda, yani ikinci
+   pencerenin cikis tavaninin altinda. */
+const YORUM_KAYNAK = [
+  'Excel Example',
+  'On average, if GDP per capita increases by $1000 US dollars, energy consumption per capita increases by .07 tons. This is statistically significant at the 1% level.',
+  '',
+  'Empirical Example of the Log \u2013 Log Model',
+  'This slope coefficient on lngdppc is interpreted as, \u201con average, if GDP per capita increases by 1% then energy consumption per capita goes up by .69%.\u201d',
+  '',
+  'Empirical Example of the Log \u2013 Linear Model with Dummy Variables',
+  'The Europe dummy variable coefficient is interpreted as \u201con average energy consumption per capita is 9.3% lower in Europe than South America.\u201d The North America dummy variable coefficient is interpreted as \u201con average energy consumption per capita is 41.5% higher in North America than South America.\u201d'
+].join('\n');
+
+test('yorum cumlesi kurtariliyor: kayip sayilar maddeye donuyor', () => {
+  const r = A.yorumCumleleriniKurtar(YORUM_KAYNAK, [0.07, 0.69, 9.3, 41.5], []);
+  assert.deepEqual(r.kurtarilan.slice().sort((x, y) => x - y), [0.07, 0.69, 9.3, 41.5],
+    'kurtarilan: ' + JSON.stringify(r.kurtarilan));
+  assert.ok(r.points.length >= 3 && r.points.length <= A.YORUM_MAX, r.points.length);
+  for (const s of r.points) {
+    assert.ok(s.length <= A.QUOTE_MAX_CHARS, 'madde alinti tavanini asiyor: ' + s.length);
+    assert.ok(A.YORUM_ISARETCI_RE.test(s), 'isaretcisiz cumle gecmis: ' + s);
+  }
+});
+
+test('kurtarma suzgeci: BASLIK, HESAP SATIRI ve EKSEN gecmiyor', () => {
+  const tuzaklar = [
+    'Empirical Example of the Log \u2013 Log Model',
+    '-12.08 + 2(0.09)79 = \u2212 12.08 + 14.22 = 2.14',
+    '0 20 40 60 80 100 120 0 5 10 15 20',
+    'UtilityBill = 484.12 \u2212 12.08temp + 0.09temp^2'
+  ];
+  for (const s of tuzaklar) {
+    const r = A.yorumCumleleriniKurtar(s, [2.14, 484.12, 12.08, 100, 20], []);
+    assert.equal(r.points.length, 0, 'suzgecten gecmemeliydi: ' + s.slice(0, 50));
+  }
+});
+
+test('TASLAKTA zaten varsa tekrar madde eklenmiyor', () => {
+  const cumle = 'This slope coefficient on lngdppc is interpreted as, \u201con average, if GDP per capita increases by 1% then energy consumption per capita goes up by .69%.\u201d';
+  assert.equal(A.yorumCumleleriniKurtar(YORUM_KAYNAK, [0.69], [cumle]).points.length, 0);
+});
+
+test('kurtarma yalnizca EKSIK sayilar icin kosuyor', () => {
+  assert.deepEqual(A.yorumCumleleriniKurtar(YORUM_KAYNAK, [], []), { points: [], kurtarilan: [] });
+  assert.equal(A.yorumCumleleriniKurtar(YORUM_KAYNAK, [999.99], []).points.length, 0);
+});
+
+test('kurtarma boru hattina BAGLI (temizlikten once, atiftan once)', () => {
+  const kod = KAPSAMA_KOD;
+  /* lastIndexOf: ilk gecis fonksiyonun KENDI tanimi, aradigimiz CAGRI. */
+  const iKurtarma = kod.lastIndexOf('yorumCumleleriniKurtar(');
+  const iSanitize = kod.indexOf('sanitizeFormulas(parsedContent.formulas)');
+  const iAtif = kod.indexOf('const anchored = anchorCitations(');
+  assert.ok(iKurtarma > 0, 'kurtarma hic cagrilmiyor');
+  assert.ok(iKurtarma < iSanitize, 'kurtarma temizlikten SONRA kosuyor');
+  assert.ok(iKurtarma < iAtif, 'kurtarilan madde atif alamaz');
+  assert.ok(/parsedContent\.key_points = \[/.test(kod.slice(iKurtarma, iKurtarma + 600)),
+    'kurtarilan cumle maddeye eklenmiyor');
+});
+
+
+/* ARA HESAP SONUC DEGILDIR (31.10.2026, IPPT kartinda olculdu)
+
+   Kaynak hesabi zincir halinde yaziyor; ortadaki sayi mustahzar is:
+     "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06"   olgu: 5.06
+     "-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14"    olgu: 2.14
+   7.02 ve 14.22 hedefte duruyordu: kart sonucu dogru yazdigi halde
+   "kacirmis" sayiliyordu. */
+test('zincir ortasindaki ARA hesap hedef sayilmiyor, SONUC kaliyor', () => {
+  const a = A.distinctiveNumbers('-12.08 + 2(0.09)39 = \u2212 12.08 + 7.02 = \u2212 5.06');
+  assert.ok(a.includes(5.06), 'sonuc dusmus: ' + JSON.stringify(a));
+  assert.ok(!a.includes(7.02), 'ara hesap hala hedef: ' + JSON.stringify(a));
+  const b = A.distinctiveNumbers('-12.08 + 2(0.09)79 = \u2212 12.08 + 14.22 = 2.14');
+  assert.ok(b.includes(2.14) && !b.includes(14.22), JSON.stringify(b));
+});
+
+test('GERCEK katsayi elenmiyor: ayni sayi tek esitlikli satirdan hedefte', () => {
+  /* 12.08 zincirin ortasinda da geciyor ama quadratic denklem satirinda tek
+     esitlikle de var; mutlak degerle tekilleştirme sayesinde oradan kaliyor. */
+  const birlikte = [
+    'UtilityBill = 484.12 \u2212 12.08temp + 0.09temp^2',
+    '-12.08 + 2(0.09)39 = \u2212 12.08 + 7.02 = \u2212 5.06'
+  ].join('\n');
+  const h = A.distinctiveNumbers(birlikte);
+  assert.ok(h.includes(12.08), '12.08 elenmis: ' + JSON.stringify(h));
+  assert.ok(h.includes(484.12) && h.includes(0.09) && h.includes(5.06), JSON.stringify(h));
+  assert.ok(!h.includes(7.02), JSON.stringify(h));
+});
+
+/* TEK ESITLIKTE DE OPERAND ARA HESAPTIR (31.10.2026 olculdu).
+
+   Eski iddia "tek esitlikli satir hic incelenmez" idi. Kaynakta tek
+   esitlikli saf aritmetik de var ve orada da olgu SONUCTUR:
+     "the intercept for a split level is 20.43 + 19.84 = 40.27"
+   19.84 dort kosu boyunca kayip sayildi ve kapsama tavanini %96'da
+   tuttu; oysa ozetin yazmasi gereken sey 40.27. */
+test('tek esitlikte SOL taraftaki operandlar hedef degil, SONUC hedef', () => {
+  const h = A.distinctiveNumbers('the intercept for a ranch is 20.43 + 23.53 = 43.96');
+  assert.deepEqual(h, [43.96], JSON.stringify(h));
+  const s = A.distinctiveNumbers('the intercept for a split level is 20.43 + 19.84 = 40.27');
+  assert.deepEqual(s, [40.27], JSON.stringify(s));
+});
+
+test('GERCEK katsayilar BASKA satirdan hedefte kaliyor', () => {
+  /* 20.43 ve 23.53 ev fiyati denkleminde geciyor ve o satirin solu harfli. */
+  const tam = [
+    '\u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split',
+    'the intercept for a ranch is 20.43 + 23.53 = 43.96',
+    'the intercept for a split level is 20.43 + 19.84 = 40.27'
+  ].join('\n');
+  const h = A.distinctiveNumbers(tam);
+  for (const v of [20.43, 0.045, 23.53, 18.84, 43.96, 40.27]) {
+    assert.ok(h.includes(v), v + ' hedeften dusmus: ' + JSON.stringify(h));
+  }
+  assert.ok(!h.includes(19.84), '19.84 hala hedefte: ' + JSON.stringify(h));
+});
+
+test('SOL TARAF HARFLIYSE dokunulmuyor', () => {
+  const a1 = A.distinctiveNumbers('UtilityBill = 484.12 \u2212 12.08temp + 0.09temp^2');
+  for (const v of [484.12, 12.08, 0.09]) assert.ok(a1.includes(v), v + ' dusmus: ' + JSON.stringify(a1));
+  /* Islem isareti yoksa da dokunulmuyor. */
+  assert.deepEqual(A.araHesabiAyikla('Observations = 34').elenen, []);
+  /* Tek operand yetmez: en az iki terim istenir. */
+  assert.deepEqual(A.araHesabiAyikla('toplam 5.5 = 5.5').elenen, []);
+});
+
+test('ORTADA ISLEM YOKSA dokunulmuyor (hipotez satiri)', () => {
+  /* "H_0: β_1 = β_2 = 0" iki esitlikli ama orta bolge sade. */
+  assert.deepEqual(A.araHesabiAyikla('H_0: \u03b2_1 = \u03b2_2 = 0').elenen, []);
+  assert.deepEqual(A.araHesabiAyikla('x = y = 5').elenen, []);
+});
+
+
+/* AYRI SAYI AYRI OLGUDUR (31.10.2026, IPPT kartinda olculdu)
+
+   Kelime ortusmesi iki gercekten AYRI olguyu birlestiriyordu. Kartin kendi
+   iki maddesi (s.39 yorum slayti), ortusme 0.818 / esik 0.7:
+     "...Europe dummy coefficient ... 50.5% higher in Europe..."
+     "...North America dummy coefficient ... 56.6% higher in North America..."
+   Birlestiler, 56.6 karta hic girmedi ve kapsamada kayip sayildi. */
+const CIFT_A = 'In the log-linear model with dummy variables where the dependent variable is the natural log of energy per capita and South America is the omitted group, the Europe dummy coefficient indicates that energy consumption per capita is 50.5% higher in Europe than in South America, though this is statistically insignificant.';
+const CIFT_B = 'In the log-linear model with dummy variables where the dependent variable is the natural log of energy per capita and South America is the omitted group, the North America dummy coefficient indicates that energy consumption per capita is 56.6% higher in North America than in South America, though it is marginally significant.';
+
+test('AYRIK sayi kumesi birlesmeyi engelliyor', () => {
+  /* Metin olcusu gercekten esigin USTUNDE — koruma oradan gelmiyor. */
+  const sa = A.nearDupTermSet(CIFT_A), sb = A.nearDupTermSet(CIFT_B);
+  let pay = 0; for (const x of sb) if (sa.has(x)) pay++;
+  assert.ok(pay / Math.min(sa.size, sb.size) > A.NEAR_DUP_THRESHOLD,
+    'ortusme esigin altina dusmus; bu test artik sayi korumasini olcmuyor');
+  assert.equal(A.sayiKumesiAyrik(CIFT_A, CIFT_B), true);
+  assert.equal(A.dedupeNearDuplicates([CIFT_A, CIFT_B], (x) => x).length, 2,
+    'ayri iki olgu hala birlesiyor');
+});
+
+test('koruma DAR: sayisiz gercek kopyalar eskisi gibi birlesiyor', () => {
+  /* Olculen gercek kopyalar — ikisinde de ayirt edici sayi YOK. */
+  assert.equal(A.sayiKumesiAyrik('A Riemann sum approximates area using thin rectangles',
+    'Rectangle approximation estimates area under a curve'), false);
+  assert.equal(A.dedupeNearDuplicates([
+    'Talep esnekligi fiyat degisimine duyarliligi olcer',
+    'Esneklik, fiyat degisimine talebin duyarliligini olcer'
+  ], (x) => x).length, 1, 'sayisiz yakin kopya birlesmeyi birakmis');
+});
+
+test('AYNI sayiyi tasiyan iki ifade hala birlesebiliyor', () => {
+  assert.equal(A.sayiKumesiAyrik('the minimum occurs at 67.11 degrees',
+    'the function reaches its minimum at 67.11 degrees'), false);
+});
+
+test('TEK TARAF sayisizsa koruma calismiyor (eski davranis)', () => {
+  assert.equal(A.sayiKumesiAyrik('the minimum occurs at 67.11 degrees',
+    'the function reaches its minimum temperature'), false);
+});
+
+/* ORFAN DOLAR VE SAHTE ADACIK (31.10.2026, IPPT kartinda olculdu)
+
+   Model ayiraci yarim yaziyor; tek kalan $ ekranda duruyordu:
+     "...0.09temp²$ contains linear and quadratic terms"
+     "...= β̂₁ + 2β̂₂ x_j$. For the utility bill model"
+   Ustelik orfan $ ilerideki PARA isaretiyle eslesip sahte bir matematik
+   adacigi kuruyor ve arada kalan DUZ METIN korunuyordu. */
+test('orfan $ ekrandan kalkiyor, PARA duruyor', () => {
+  const r = A.onarAnlatiLatex('the model is \\beta_0 + 0.09temp^2$ and the bill falls by $5.06 at 40 degrees');
+  assert.equal(r.metin, 'the model is \u03b2\u2080 + 0.09temp\u00b2 and the bill falls by $5.06 at 40 degrees');
+});
+
+test('100$ gibi SONDAKI para isareti korunuyor', () => {
+  const r = A.onarAnlatiLatex('toplam maliyet 100$ olarak hesaplandi ve \\beta_1 katsayisi kullanildi');
+  assert.match(r.metin, /100\$ olarak/, r.metin);
+});
+
+/* RAKAM MATEMATIK ISARETI DEGIL (31.10.2026, kartta olculdu).
+   Ilk surumum adacik sartina `\d` de koydu ve PARA tutari o sarti gecirdi;
+   kartta iki sahte adacik kuruldu ve korundugu icin ikinci $ ekranda kaldi:
+     "$5.06. Setting the marginal effect to zero yields the turning point $"
+     "$1000 increase raises use by 2.6% and a direct $" */
+test('PARA tutarlari sahte adacik kurmuyor', () => {
+  const r = A.onarAnlatiLatex(
+    'decreases the bill by $5.06. Setting the effect to zero yields the turning point $x_j = (-\\hat{\\beta}_1)/2\\hat{\\beta}_2 here');
+  assert.match(r.metin, /by \$5\.06\./, 'para tutari dusmus: ' + r.metin);
+  assert.ok(!/turning point \$x_j/.test(r.metin), 'orfan $ hala ekranda: ' + r.metin);
+  const p2 = A.onarAnlatiLatex('a $1000 increase raises use by 2.6% and a direct $1000 increase adds \\beta_1 tons');
+  assert.match(p2.metin, /\$1000 increase raises use by 2\.6% and a direct \$1000/, p2.metin);
+});
+
+test('GERCEK $...$ adacigina dokunulmuyor', () => {
+  const s = 'the estimated model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ contains terms';
+  assert.equal(A.onarAnlatiLatex(s).metin, s, 'ayiracli matematik bozulmus');
+});
+
+test('kurtarma: HESAP ve ANLAM ayni cumledeyken SON esitligin sagi aday', () => {
+  /* Harf orani 0.52 oldugu icin cumlenin tamami suzgecten gecemiyordu. */
+  const kaynak = [
+    'The marginal effect at a temperature of 80 (evaluated at 79) is',
+    '-12.08 + 2(0.09)79 = \u2212 12.08 + 14.22 = 2.14',
+    'which means that if temperature increases from 79 to 80 degrees then the utility bill increases by $2.14.'
+  ].join('\n');
+  const r = A.yorumCumleleriniKurtar(kaynak, [2.14, 14.22], []);
+  assert.deepEqual(r.kurtarilan, [2.14], 'kurtarilan: ' + JSON.stringify(r.kurtarilan));
+  /* KUYRUGUN BASI TEMIZLENIR (31.10.2026, kartta gorundu). Madde
+     "2.14 which means that if temperature..." diye cikti: ciplak sayiyla
+     basliyor ve ayni sayiyi sonunda tekrar ediyor. */
+  assert.equal(r.points[0],
+    'if temperature increases from 79 to 80 degrees then the utility bill increases by $2.14.',
+    r.points[0]);
+});
+
+test('temizlik SUZGECLERDEN SONRA kosuyor (isaretci elenmemeli)', () => {
+  /* Ilk surumum temizligi suzgecten ONCE yapti: "which means that" atilinca
+     YORUM_ISARETCI_RE tutmadi ve kurtarilan 0'a dustu. */
+  const kod = KAPSAMA_KOD;
+  const iKuyruk = kod.indexOf("const kuyruk = esit >= 0 ? tam.slice(esit + 1).trim()");
+  assert.ok(iKuyruk > 0, 'kuyruk HAM alinmali, temizlenmis degil');
+  assert.ok(/adaylar\.push\(\{ metin: kuyrugunBasi\(kirpik\)/.test(kod),
+    'temizlik ekleme aninda uygulanmali');
+});
+
+test('bastaki sayi SONRADA GECMIYORSA atilmiyor (olgu kaybi yok)', () => {
+  const kaynak = 'The result is\n= 41.5 which means that energy use is higher in North America than elsewhere.';
+  const r = A.yorumCumleleriniKurtar(kaynak, [41.5], []);
+  assert.ok(r.points.length === 0 || /41\.5/.test(r.points[0]),
+    'sayi atilmis ve metinde tekrar gecmiyor: ' + JSON.stringify(r.points));
+});
+
+
+/* TABLO GECISI AYRI CAGRI (31.10.2026)
+
+   Kullanici ayni belgenin ESKI kartini gosterdi: 12 Excel regresyon
+   tablosu, 3 diyagram. Yeni kartlarda 1 tablo, 0 diyagram. Uc sebep:
+     1) GEMINI_MODE=parallel sayfalari METIN olarak gonderiyor; Excel
+        ciktisi slaytta RESIM, metinde hic yok (document_chunks'tan
+        dogrulandi: s.11 metni 0.452555/0.070379 tasimiyor),
+     2) telafi eden gorsel gecis 3072 cikis tavanini ALTI alanla
+        paylasiyor — 7 kolonlu 12 tablo tek basina birkac bin token,
+     3) o promptun tamami duz yaziya yonlendiriyor ("write that in WORDS
+        as a key_point", "NEVER AS A DESCRIPTION OF THE FIGURE") ve
+        modele tabloyu DOKMESINI soyleyen tek cumle yok.
+   Dort kosuda da "+0 tables" dondu. */
+/* TAVAN BUYUTULMEZ — ILK SURUMUM BUNU YANLIS YAPTI (31.10.2026, canli).
+
+   8192 yazdim ve cagri 15 sn'lik dilime sigmayip dustu; ustelik zaman
+   asimi modeli BUTUN KOSU icin aday listesinden dusurdu, review hic
+   kosmadi ve sure 19 sn -> 52 sn cikti. Paralel modda bir cagrinin en
+   buyuk dilimi GEMINI_PARALLEL_MAX_CALL_MS = 15 sn ve bu bir TAVAN.
+   Ayri cagrinin degeri tavani buyutmek degil, var olan tavanin TAMAMINI
+   tabloya ayirmak. */
+test('tablo gecisi tavani gorsel gecisin OLCULMUS tavanini asmiyor', () => {
+  assert.ok(/const TABLO_MAX_COMPLETION = VISION_MAX_COMPLETION/.test(SRC),
+    'tablo tavani gorsel tavanindan bagimsiz yazilmis; 15 sn dilimine sigdigi olculmus deger o');
+  assert.ok(/const GEMINI_PARALLEL_MAX_CALL_MS = 15_000/.test(SRC),
+    'dilim tavani degismis — tablo tavani yeniden olculmeli');
+});
+
+test('ilk gorsel cagri dustuyse tablo cagrisi denenmiyor', () => {
+  /* Zaman asimi modeli kosunun geri kalani icin dusuruyor; ikinci cagri o
+     riski iki katina cikarirdi. */
+  assert.ok(/if \(parallelGemini && visionData && budgetLeft\(\) > TABLO_GECIS_MIN_BUTCE_MS\)/.test(SRC),
+    'tablo cagrisi ilk gorsel cagrinin basarisina bagli olmali');
+});
+
+test('tablo gecisi YALNIZCA tablo ve diyagram istiyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const tabloPrompt =');
+  assert.ok(i > 0, 'tablo promptu yok');
+  const prompt = kod.slice(i, i + 1400);
+  for (const sart of ['"tables"', '"diagrams"', 'TRANSCRIBE', 'Invent nothing']) {
+    assert.ok(prompt.includes(sart), 'tablo promptunda eksik: ' + sart);
+  }
+  /* Duz yazi alanlari ISTENMEMELI: butun tavan dokume gitsin. */
+  for (const olmaz of ['key_points', 'quiz_questions', 'key_terms', 'sections']) {
+    assert.ok(!prompt.includes(olmaz), 'tablo promptu duz yazi da istiyor: ' + olmaz);
+  }
+});
+
+test('tablo gecisi yalnizca PARALLEL modda ve butce varken kosuyor', () => {
+  const kod = KAPSAMA_KOD;
+  assert.ok(/if \(parallelGemini && visionData && budgetLeft\(\) > TABLO_GECIS_MIN_BUTCE_MS\)/.test(kod),
+    'kosul yok: only/shadow zaten PDF in tamamini gorsel gonderiyor, tekrar cagri bedava degil');
+});
+
+/* IKI DILIM (31.10.2026 olculdu): tek cagri her kosuda tavana dayaniyordu
+   (completion=3228/3072, 3758/3072, 3772/3072) ve 12 tablonun 9'unu
+   getiriyordu. Tavani buyutmek 15 sn'lik dilime carpiyor, o yuzden IS
+   bolunuyor. */
+test('tablo gecisi sayfalari IKI dilime boluyor', () => {
+  const kod = KAPSAMA_KOD;
+  assert.ok(/const dilimler = visualPlan\.indices\.length >= TABLO_DILIM_ESIGI/.test(kod),
+    'dilimleme yok');
+  assert.ok(/const TABLO_DILIM_ESIGI = \d+/.test(SRC), 'esik sabiti yok');
+});
+
+test('tablo gecisi yeni GORUNTU URETMIYOR, PDF ten dilim kesiyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const dilimPdf = dilimler.length === 1');
+  assert.ok(i > 0, 'dilim PDF i kurulmuyor');
+  const blok = kod.slice(i, i + 300);
+  assert.ok(blok.includes('visualImages[0]'),
+    'tek dilimde ilk gecisin mini-PDF i yeniden kullanilmali');
+  assert.ok(blok.includes('buildPdfSubsetBase64(fileBytes, dilim)'),
+    'dilim PDF ten kesilmeli (sayfa sayfa goruntu ucreti yok)');
+  assert.ok(!/extractVisualImagesForLongDoc/.test(blok), 'goruntu uretimine dusmus');
+});
+
+test('her dilim ONCESINDE butce denetleniyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('for (let di = 0; di < dilimler.length; di++)');
+  assert.ok(i > 0, 'dilim dongusu yok');
+  assert.ok(kod.slice(i, i + 400).includes('budgetLeft() < TABLO_GECIS_MIN_BUTCE_MS'),
+    'butce dolunca kalan dilim atlanmali');
+});
+
+test('tablo gecisi pacer a yaziliyor ve kesik JSON kurtariliyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const tabloEst =');
+  const blok = kod.slice(i, i + 3000);
+  assert.ok(/tokenPacer\.acquire\(tabloEst/.test(blok), 'pacer dan izin alinmiyor');
+  assert.ok(/tokenPacer\.record\(/.test(blok), 'harcama pacer a yazilmiyor — review sonra 429 alir');
+  assert.ok(/closeTruncatedJson\(tabloTemiz\)/.test(blok), 'kesik tablo JSON u kurtarilmiyor');
+});
+
+test('tablo gecisi mevcut tablolari EZMIYOR, birlestiriyor', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const yeniTablolar = (Array.isArray(tabloJson.tables)');
+  assert.ok(i > 0, 'birlestirme yok');
+  const blok = kod.slice(i, i + 1200);
+  assert.ok(/dedupeByText\(\s*\[\.\.\.mergedTables, \.\.\.yeniTablolar\]/.test(blok),
+    'yeni tablolar mevcutlarla birlestirilmeli');
+  assert.ok(/\.slice\(0, 12\)/.test(blok), 'tablo tavani 12 korunmali');
+});
+
+
+/* KURTARMA KENDI SATIR BIRLESTIRMESI (31.10.2026, kartta olculdu)
+
+   alintiBloklari ozel ad iki satira bolunduyse cumleyi ortadan kesiyor;
+   kartta iki kurtarilmis madde ve iki kaynakca girdisi KESIK cikti:
+     "...is 56.6% higher in North"    (devami: "America than South...")
+     "...in Europe than South"
+   O kuralı gevsetmek DENENDI ve GERI ALINDI (baslik satirini da yutuyor,
+   alinti secimini butun belgelerde etkiliyor — testler yakaladi). */
+const KURT_S39 = [
+  'Empirical Example of the Log \u2013 Linear Model with Dummy Variables',
+  'The dependent variable is the natural log of energy per capita with South',
+  'America as the omitted group',
+  'The Europe dummy variable coefficient is',
+  'interpreted as \u201con average energy consumption per',
+  'capita is 50.5% higher in Europe than South',
+  'America.\u201d The North America dummy variable',
+  'coefficient is interpreted as \u201con average energy',
+  'consumption per capita is 56.6% higher in North',
+  'America than South America.\u201d Europe is statistically',
+  'insignificant while North America is marginally',
+  'significant (significant at the 10% level).'
+].join('\n');
+
+test('OZEL AD iki satira bolunmusse kurtarilan madde KESIK degil', () => {
+  const r = A.yorumCumleleriniKurtar(KURT_S39, [50.5, 56.6], []);
+  assert.deepEqual(r.kurtarilan.slice().sort((x, y) => x - y), [50.5, 56.6],
+    'kurtarilan: ' + JSON.stringify(r.kurtarilan));
+  for (const s of r.points) {
+    assert.ok(A.YORUM_TAM_CUMLE_RE.test(s), 'madde yarim kalmis: ' + s);
+    assert.ok(!/higher in North$/.test(s) && !/than South$/.test(s), 'kesik: ' + s);
+  }
+  assert.ok(r.points.some((s) => /56\.6% higher in North America than South America/.test(s)),
+    'tam cumle yok: ' + JSON.stringify(r.points));
+});
+
+test('BASLIK satiri kendinden sonrasini yutmuyor', () => {
+  /* Ilk surum "noktalama yoksa birlestir" diyordu ve slayt basligi da
+     noktalama tasimiyor: baslik dort satiri yuttu, Avrupa cumlesi 220
+     tavanini asti ve 50.5 kurtarilamadi. */
+  assert.equal(A.baslikGibi('Empirical Example of the Log \u2013 Log Model'), true);
+  assert.equal(A.baslikGibi('Scatter Plots of this Relationship for Europe'), true);
+  assert.equal(A.baslikGibi('capita is 50.5% higher in Europe than South'), false);
+  assert.equal(A.baslikGibi('The marginal effect at a temperature of 80 (evaluated at 79) is'), false);
+  /* Uc sozcukten kisa parca baslik sayilmaz. */
+  assert.equal(A.baslikGibi('North America'), false);
+  const bloklar = A.kurtarmaSatirlari(['Empirical Example of the Log \u2013 Log Model', 'This slope coefficient is interpreted as, \u201cup by .69%.\u201d'].join('\n'));
+  assert.equal(bloklar.length, 2, 'baslik cumleye yapismis: ' + JSON.stringify(bloklar));
+});
+
+test('kurtarmanin KENDI uzunluk tavani var, alinti tavani 220 kaliyor', () => {
+  assert.ok(A.YORUM_MAX_KRK > A.QUOTE_MAX_CHARS,
+    'madde tavani alinti tavanindan buyuk olmali: ' + A.YORUM_MAX_KRK + ' vs ' + A.QUOTE_MAX_CHARS);
+  assert.equal(A.QUOTE_MAX_CHARS, 220, 'alinti tavani degismis — ipucu kutusuna sigmali');
+});
+
+test('alintiBloklari DOKUNULMADAN kaldi (kurtarma kendi yolunu kullaniyor)', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('function yorumCumleleriniKurtar(');
+  const govde = kod.slice(i, i + 2200);
+  assert.ok(/for \(const blok of kurtarmaSatirlari\(sourceText\)\)/.test(govde),
+    'kurtarma hala alintiBloklari kullaniyor');
+  assert.ok(/for \(const blok of alintiBloklari\(sourceText\)\)/.test(kod),
+    'denklem kurtarmasi alintiBloklari kullanmayi surdurmeli');
+});
+
+
+/* YAPISIK CUMLELER (31.10.2026, kartta olculdu)
+
+   Slayt basligi IKI satira bolunduyse kalan tek sozcuk baslik sayilmiyor
+   (baslikGibi en az uc sozcuk ister) ve kendinden sonrasini yutuyor.
+   Kaynak (s.38): "Empirical Example of the Log - Linear" / "Model" /
+   "The dependent variable is..." / "This slope coefficient on gdppc..."
+   Kartta cikan madde:
+     "Model The dependent variable is the natural log of energy per capita
+      This slope coefficient on gdppc is interpreted as, ..."
+   300 karakterlik blok butun suzgecleri geciyordu (noktayla bitiyor,
+   isaretci tasiyor). */
+test('yapisik blok AYRI adaylara boluniyor, yalnizca gercek cumle geciyor', () => {
+  const kaynak = [
+    'Empirical Example of the Log \u2013 Linear', 'Model',
+    'The dependent variable is the natural log of energy per capita',
+    'This slope coefficient on gdppc is',
+    'interpreted as, \u201con average, if GDP per capita increases by $1000 then energy',
+    'consumption per capita goes up by (0.026)100% or 2.6%.\u201d This coefficient is',
+    'statistically significant at the 1% level.'
+  ].join('\n');
+  const r = A.yorumCumleleriniKurtar(kaynak, [0.026, 2.6], []);
+  assert.equal(r.points.length, 1, JSON.stringify(r.points));
+  assert.ok(/^This slope coefficient on gdppc/.test(r.points[0]),
+    'madde hala baslik/onsoz onekiyle geliyor: ' + r.points[0]);
+  assert.ok(!/^Model /.test(r.points[0]) && !/natural log of energy per capita This/.test(r.points[0]),
+    'yapisik blok hala tek parca: ' + r.points[0]);
+});
+
+test('OZEL AD yapisik sanilmiyor (North America bolunmuyor)', () => {
+  const cumle = 'The North America dummy variable coefficient is interpreted as \u201con average energy consumption per capita is 56.6% higher in North America than South America.\u201d';
+  assert.deepEqual(A.yapisikParcalar(cumle), [cumle],
+    'ozel ad cumle basi sanilmis: ' + JSON.stringify(A.yapisikParcalar(cumle)));
+});
+
+test('yapisik ayirma KUCUK harfli devam sart (cumle basi sozcugu yetmez)', () => {
+  /* "in North America" -> North cumle basi listesinde yok; ayrica ardindan
+     gelen sozcuk de buyuk harfli. Iki koruma birden. */
+  assert.deepEqual(A.yapisikParcalar('the value is The Nature of The Transaction here').length, 1);
+  assert.equal(A.yapisikParcalar('per capita This slope coefficient is here').length, 2);
+});
+
+test('EN DAR aday ONCE denenir', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const adayMetinleri = [...yapisikParcalar(tam)]');
+  assert.ok(i > 0, 'aday listesi yapisik parcalarla baslamiyor');
+  const govde = kod.slice(i, i + 400);
+  assert.ok(govde.indexOf('adayMetinleri.push(kuyruk)') > 0, 'esitlik kuyrugu aday listesinde yok');
+  assert.ok(govde.indexOf('adayMetinleri.push(tam)') > 0, 'tam cumle yedegi yok');
+});
+
+
+/* GUVEN ARALIGINDA DUSEN EKSI ISARETI (31.10.2026, kartta olculdu)
+
+   Tablo gecisi 9 Excel ciktisini dokuyor; 9-11 haneli ondaliklarda
+   transkripsiyon gurultusu var. Kullanicinin ESKI kartiyla hucre hucre
+   karsilastirildi — 60 kadar sayisal hucrede uc hata:
+     s.11 P-value    0.070873131 -> 0.07073131    (basamak dustu)
+     s.19 Intercept  0.200177701 -> 0.20017701    (basamak dustu)
+     s.27 Lower 95% -1.378324931 -> 1.378324931   (ISARET dustu)
+   Ilk ikisi tespit edilemez; ucuncusu kanitlanabilir, cunku bir guven
+   araligi icin Lower <= Upper olmak zorunda. */
+const ARALIK_BASLIK = ['', 'Coefficients', 'Standard Error', 't Stat', 'P-value', 'Lower 95%', 'Upper 95%'];
+
+test('Lower > Upper olan satirda eksi isareti geri konuyor', () => {
+  const t5 = {
+    title: 'Utility Bill vs. Temperature - Simple Linear (Slide 7-27)',
+    headers: ARALIK_BASLIK.slice(),
+    rows: [
+      ['Intercept', '143.6228051', '25.99548403', '5.524913669', '0.000252809', '85.70125737', '201.5443528'],
+      ['Average_Monthly_Temperature', '-0.479884419', '0.403224653', '-1.190116762', '0.261487183', '1.378324931', '0.418556093']
+    ]
+  };
+  assert.equal(A.guvenAraligiOnar([t5]), 1);
+  assert.equal(t5.rows[1][5], '-1.378324931', 'isaret geri konmamis');
+  assert.equal(t5.rows[0][5], '85.70125737', 'dogru satira dokunulmus');
+});
+
+test('DOGRU tabloya hic dokunulmuyor', () => {
+  const t6 = {
+    title: 'Quadratic (Slide 7-28)',
+    headers: ARALIK_BASLIK.slice(),
+    rows: [
+      ['Intercept', '484.1075724', '36.95620571', '13.09949339', '3.63685E-07', '400.5068271', '567.7083177'],
+      ['Average_Monthly_Temperature', '-12.07603491', '1.233304506', '-9.791608524', '4.26261E-06', '-14.86596352', '-9.28610629']
+    ]
+  };
+  assert.equal(A.guvenAraligiOnar([t6]), 0);
+  assert.equal(t6.rows[1][5], '-14.86596352');
+});
+
+test('Lower/Upper kolonu olmayan tablo atlaniyor', () => {
+  const t1 = { title: 'Worksheet', headers: ['Case, i', 'yi', 'x1i'], rows: [['1', '1', '1'], ['2', '4', '8']] };
+  assert.equal(A.guvenAraligiOnar([t1]), 0);
+  assert.deepEqual(t1.rows[0], ['1', '1', '1']);
+});
+
+test('onarim TAHMIN DEGIL: katsayi araliga dusmuyorsa dokunulmuyor', () => {
+  /* Iki hucresi de yanlis okunmus bir satiri "onarmis" gibi gostermemek
+     icin katsayi da yeni araliga dusmeli. */
+  const tX = { title: 'Bozuk', headers: ['', 'Coefficients', 'Lower 95%', 'Upper 95%'], rows: [['x', '50', '9', '3']] };
+  assert.equal(A.guvenAraligiOnar([tX]), 0);
+  assert.deepEqual(tX.rows[0], ['x', '50', '9', '3']);
+  /* Isaret cevirmek siralamayi DUZELTMIYORSA da dokunulmuyor. */
+  const tY = { title: 'Bozuk2', headers: ['', 'Lower 95%', 'Upper 95%'], rows: [['x', '9', '-20']] };
+  assert.equal(A.guvenAraligiOnar([tY]), 0);
+});
+
+test('onarim boru hattina BAGLI (tablo gecisinden sonra)', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const aralikOnarimi = guvenAraligiOnar(mergedTables)');
+  assert.ok(i > 0, 'onarim cagrilmiyor');
+  const iTablo = kod.indexOf('const tabloRes = await fetchWithRetry');
+  assert.ok(iTablo > 0 && iTablo < i, 'onarim tablo gecisinden ONCE kosuyor');
+});
+
+
+/* CIFTIN YARISI KALIYORDU (31.10.2026, kartta olculdu)
+
+   Orfan $ kuralinin ilk surumu yalnizca BIR karaktere bakiyordu ve bir
+   ciftin yarisini silip otekini birakti. Kartta duran hal:
+     "For a variable with k levels, k-1$ dummy variables are required."
+   Model "$k-1$" yazmis; adacik sarti (\ ^ _ { } =) "k-1"de tutmuyor,
+   acilis $ atildi ama kapanis KALDI — onundeki "1" rakami yuzunden
+   "100$" gibi sondaki para isareti sanildi.
+   Ayirt edici sey onceki SOZCUK: "100" saf sayi -> para; "k-1" harf
+   tasiyor -> formul kalintisi. Ayrica tek regex bir ciftin ikisini
+   birden yakalayamiyor (acilis onundeki boslugu tuketiyor), o yuzden
+   isleme jeton bazinda. */
+test('CIFTIN IKI YANI birden atiliyor ($k-1$ -> k-1)', () => {
+  const r = A.onarAnlatiLatex('For a variable with k levels, $k-1$ dummy variables are required with \\beta_0 baseline.');
+  assert.match(r.metin, /k levels, k-1 dummy/, 'ciftin yarisi kalmis: ' + r.metin);
+  assert.ok(!/\$/.test(r.metin), 'hala $ var: ' + r.metin);
+});
+
+test('PARA uc bicimde de korunuyor', () => {
+  const a1 = A.onarAnlatiLatex('the bill falls by $5.06 and GDP rises by $1000 with \\beta_1 effect');
+  assert.match(a1.metin, /by \$5\.06 and GDP rises by \$1000/, a1.metin);
+  /* Turkce sondaki para isareti: onceki sozcuk saf sayi. */
+  const a2 = A.onarAnlatiLatex('toplam maliyet 100$ olarak hesaplandi ve \\beta_1 kullanildi');
+  assert.match(a2.metin, /100\$ olarak/, a2.metin);
+});
+
+test('FORMUL KALINTISI atiliyor, gercek adacik korunuyor', () => {
+  const a1 = A.onarAnlatiLatex('the model is \\beta_0 + 0.09temp^2$ and the bill falls by $5.06 here');
+  assert.match(a1.metin, /0\.09temp\u00b2 and/, 'orfan kalmis: ' + a1.metin);
+  assert.match(a1.metin, /by \$5\.06/, 'para dusmus: ' + a1.metin);
+  const ada = 'the model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ is quadratic';
+  assert.equal(A.onarAnlatiLatex(ada).metin, ada, 'gercek adacik bozulmus');
+});
+
+
+/* BASTAN DEGIL BELGEYE YAYARAK (31.10.2026, Kan kosusunda olculdu)
+
+   Yedek katman adaylarin BASINDAN maxPages kadarini aliyordu. Olculen
+   kosu (67 sayfalik Turkce deste, 40 aday):
+     Gorsel sayfa secimi: [0,1,3,6,7,13,14,15,17,18,23,24]
+   Hepsi destenin ilk ceyreginden. Yedek katmanin elinde siralama olcutu
+   yok (bunlar yalnizca "metni bos sayfa"), oyleyse belgenin tamamini
+   ornekleyen secim dogru olani. */
+test('yedek sayfa secimi belgeye YAYILIYOR, basa yigilmiyor', () => {
+  const adaylar = [0, 1, 3, 6, 7, 13, 14, 15, 17, 18, 23, 24, 29, 33, 39, 45, 53, 60, 64, 65];
+  const sec = A.esitAralikSec(adaylar, 8);
+  assert.equal(sec.length, 8);
+  assert.equal(sec[0], 0, 'ilk aday her zaman girmeli');
+  assert.equal(sec[sec.length - 1], 65, 'son aday her zaman girmeli');
+  /* Bastan sekizi alsaydi en buyuk 15 olurdu. */
+  assert.ok(sec[sec.length - 1] > adaylar[7], 'secim hala basa yigili: ' + JSON.stringify(sec));
+  assert.deepEqual(sec.slice().sort((x, y) => x - y), sec, 'sira bozulmus');
+});
+
+test('esitAralikSec sinir halleri', () => {
+  assert.deepEqual(A.esitAralikSec([5, 9], 5), [5, 9], 'n listeden buyukse liste doner');
+  assert.deepEqual(A.esitAralikSec([5, 9, 11], 1), [5]);
+  assert.deepEqual(A.esitAralikSec([5, 9], 0), []);
+  assert.deepEqual(A.esitAralikSec([], 3), []);
+});
+
+test('yedek katman esitAralikSec kullaniyor', () => {
+  assert.ok(/indices: esitAralikSec\(nearBlankIndices, maxPages\)/.test(SRC),
+    'yedek katman hala bastan dilimliyor');
+});
+
+/* TABLO GECISI IKI DILIME BOLUNDUKTEN SONRA sinir token degil SAYFA.
+   Olculen completion degerleri: IPPT 3653/6144, Kan 743/6144,
+   Week 8 26/6144 — ucunde de tavanin yarisi bos. */
+test('gorsel sayfa tavani iki dilimle birlikte yukseltildi', () => {
+  assert.ok(A.GEMINI_VISION_MAX_PAGES >= 18,
+    'sayfa tavani hala dar: ' + A.GEMINI_VISION_MAX_PAGES);
+  assert.ok(/const TABLO_DILIM_ESIGI = \d+/.test(SRC), 'dilimleme olmadan tavan yukseltilmemeli');
+});
+
+/* OCR METNINDEN KURTARMA YAPILMAZ (31.10.2026, Week 8 kosusunda olculdu)
+
+   Dosyada 29.10 notu zaten "OCR matematigi bozuyor ve olmayan sayi
+   uretiyor" diyor ve sayisal kapsama ROZETI o yuzden yayinlanmiyor.
+   Kurtarma bu dersi atlamisti; olculen kosu (29 sayfalik tarama, 3/21):
+     Tahmin denklemi kurtarildi: 1 denklem, 2 sayi (322, 3222) —
+     "Solutions f（2）=5（322-1）4.62=30で（3222-1）4"
+   Kartta "FORMÜL Estimated equation" diye tam genislikte Japonca
+   parantezlerle goruldu. */
+test('kurtarma OCR metninde KOSMUYOR', () => {
+  const kod = KAPSAMA_KOD;
+  const iDenklem = kod.indexOf('tahminDenklemleriniKurtar(\n');
+  const iKapi = kod.indexOf('if (ocrKullanildi) {');
+  assert.ok(iKapi > 0, 'OCR kapisi yok');
+  assert.equal((kod.match(/if \(ocrKullanildi\) \{/g) || []).length, 2,
+    'iki kurtarma da OCR kapisinin arkasinda olmali');
+  /* Rozet kapisi ayni bayragi kullanmaya devam etmeli — ayni gerekce. */
+  assert.ok(/kapsama\.total >= KAPSAMA_ROZET_MIN_ORNEK && !ocrKullanildi/.test(SRC),
+    'rozet kapisi degismis');
+});
+
+/* ==========================================================================
+   RESIM SLAYTLARI OLAN PPTX (31.10.2026 olcumu)
+
+   Olculen kosu: Week 11 PPTX — "Extracted text is empty or blank" ve kosu
+   bitti; ogrenciye "no readable" dondu. parsePptxSlideXml metin kutusu arar,
+   slayt tam sayfa goruntuyse kutu YOKTUR. OCR yolu o gun yalnizca PDF icin
+   vardi.
+
+   En kritik yer SLAYT NUMARASI: ppt/media altindaki dosya adlari slayt
+   sirasini VERMEZ. Numara ppt/slides/_rels/slideN.xml.rels'ten okunuyor,
+   yoksa butun atiflar yanlis slayta isaret eder.
+   ========================================================================== */
+
+test('pptxRelsHedefleri media hedeflerini yola cevirir', () => {
+  const xml =
+    '<Relationships>' +
+    '<Relationship Id="rId1" Target="../media/image7.png"/>' +
+    '<Relationship Id="rId2" Target="../slideLayouts/slideLayout2.xml"/>' +
+    '<Relationship Id="rId3" Target="../media/image8.JPEG"/>' +
+    '<Relationship Id="rId4" Target="../media/audio1.wav"/>' +
+    '</Relationships>';
+  assert.deepEqual(A.pptxRelsHedefleri(xml), ['ppt/media/image7.png', 'ppt/media/image8.JPEG'],
+    'yalnizca png/jpg media hedefleri, ppt/media/ onekiyle');
+  assert.deepEqual(A.pptxRelsHedefleri('<Relationships/>'), []);
+});
+
+test('pptxSlaytGorselleri slayt numarasini _rels adindan alir', () => {
+  /* image dosya adlari slayt sirasiyla TERS: numara dosya adindan
+     tahmin edilirse atiflar kayar. */
+  const rels = {
+    'ppt/slides/_rels/slide3.xml.rels': '<R Target="../media/image1.png"/>',
+    'ppt/slides/_rels/slide1.xml.rels': '<R Target="../media/image9.png"/>'
+  };
+  const boyut = { 'ppt/media/image1.png': 400000, 'ppt/media/image9.png': 500000 };
+  assert.deepEqual(A.pptxSlaytGorselleri(rels, boyut), [
+    { slayt: 1, yol: 'ppt/media/image9.png' },
+    { slayt: 3, yol: 'ppt/media/image1.png' }
+  ], 'slayt numarasi rels dosya adindan, sira slayta gore');
+});
+
+test('pptxSlaytGorselleri slayt basina EN BUYUK resmi secer', () => {
+  /* Tam sayfa slayt goruntusu buyuk, logo kucuk: logo secilirse OCR bos doner. */
+  const rels = {
+    'ppt/slides/_rels/slide1.xml.rels':
+      '<R Target="../media/logo.png"/><R Target="../media/slayt.png"/>'
+  };
+  const sec = A.pptxSlaytGorselleri(rels, {
+    'ppt/media/logo.png': 21000,
+    'ppt/media/slayt.png': 350000
+  });
+  assert.deepEqual(sec, [{ slayt: 1, yol: 'ppt/media/slayt.png' }]);
+});
+
+test('pptxSlaytGorselleri kucuk resimleri ve resimsiz slayti atlar', () => {
+  const sec = A.pptxSlaytGorselleri({
+    'ppt/slides/_rels/slide1.xml.rels': '<R Target="../media/imi.png"/>',
+    'ppt/slides/_rels/slide2.xml.rels': '<R Target="../slideLayouts/x.xml"/>'
+  }, { 'ppt/media/imi.png': A.PPTX_OCR_MIN_BAYT - 1 });
+  assert.deepEqual(sec, [], 'madde imi boyutundaki resim OCR butcesini yemez');
+});
+
+test('pptxSlaytGorselleri ust sinira uyar', () => {
+  const rels = {};
+  const boyut = {};
+  for (let i = 1; i <= A.PPTX_OCR_MAX_SLAYT + 5; i++) {
+    rels['ppt/slides/_rels/slide' + i + '.xml.rels'] = '<R Target="../media/i' + i + '.png"/>';
+    boyut['ppt/media/i' + i + '.png'] = 100000;
+  }
+  const sec = A.pptxSlaytGorselleri(rels, boyut);
+  assert.equal(sec.length, A.PPTX_OCR_MAX_SLAYT);
+  assert.equal(sec[0].slayt, 1, 'sinir BASTAN kesiyor — ilk slaytlar en degerli');
+});
+
+test('PPTX metinsizse gorsel OCR yolu kosuyor', () => {
+  /* Kosu dusmek yerine OCR'a inmeli; cikarim yolundaki kapi kaybolmasin. */
+  assert.ok(/if \(!pptxText\.trim\(\)\) \{[\s\S]{0,400}pptxGorselOCR\(zip, ocrApiKey\)/.test(SRC),
+    'pptxText bos oldugunda pptxGorselOCR cagrilmiyor');
+  assert.ok(/pptxGorselOCR[\s\S]{0,900}ocrKullanildi = true/.test(SRC),
+    'PPTX OCR metni ocrKullanildi bayragini kaldirmiyor — rozet ve kurtarma kapilari yaniltir');
+  assert.ok(/--- SLAYT \${secilen\[k\]\.slayt} ---/.test(SRC),
+    'OCR metni slayt isareti tasimiyor — atif katmani susar');
+  assert.ok(/async function pptxGorselOCR\([\s\S]{0,600}ppt\\\/slides\\\/_rels\\\/slide/.test(SRC),
+    'slayt-resim eslemesi _rels yerine dosya adindan tahmin ediliyor');
+});
+
+/* ==========================================================================
+   DUZLESMIS METIN TABLOSU (31.10.2026, Kan belgesi kosusunda olculdu)
+
+   28.10 kartinda UC tablo vardi, 31.10 kosusunda BIR. Eksik sayilar once
+   "gorsel kayip" sanildi; document_chunks sorgulandi ve METINDE olduklari
+   gorundu (s.20-22). PDF'in iki kolonlu tablosu duzlesmis geliyor: once
+   butun etiketler, sonra butun degerler. Asagidaki metin o kosudaki
+   sekildir.
+   ========================================================================== */
+
+const KAN_TABLO_METNI = [
+  'Plazmada Bulunan Organik Maddeler',
+  'Besinler',
+  'glikoz',
+  'amino asitler',
+  'lipidler (total)',
+  'kolesterol',
+  '%100 mg',
+  '%40 mg',
+  '%500 mg',
+  '%150-200 mg'
+].join('\n');
+
+test('metinTablosuKurtar duzlesmis tabloyu kaynaktan kuruyor', () => {
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [100, 40, 500, 150, 200], [], 'tr');
+  assert.equal(r.tables.length, 1, 'tablo kurtarilmadi');
+  const tb = r.tables[0];
+  assert.deepEqual(tb.headers, ['Bileşen', 'Miktar'], 'basliklar dile bagli degil');
+  assert.deepEqual(tb.rows, [
+    ['glikoz', '%100 mg'],
+    ['amino asitler', '%40 mg'],
+    ['lipidler (total)', '%500 mg'],
+    ['kolesterol', '%150-200 mg']
+  ], 'etiket-deger eslemesi SIRAYA gore olmali');
+  assert.ok(/Besinler/.test(tb.title), 'baslik etiket grubunun ustunden gelmiyor: ' + tb.title);
+  for (const v of [100, 40, 500, 150, 200]) {
+    assert.ok(r.kurtarilan.includes(v), v + ' kurtarilan listesinde yok');
+  }
+});
+
+test('metinTablosuKurtar ingilizce basliklari kullanir', () => {
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [100, 40, 500], [], 'en');
+  assert.deepEqual(r.tables[0].headers, ['Item', 'Value']);
+});
+
+test('metinTablosuKurtar EKSIK sayi yoksa gurultu eklemiyor', () => {
+  /* En onemli kapi: kurtarma yalnizca kayip sayi tasiyan grubu alir. */
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [7777], [], 'tr');
+  assert.deepEqual(r.tables, [], 'eksik sayi tasimayan tablo karta ekleniyor');
+  assert.deepEqual(r.kurtarilan, []);
+  assert.deepEqual(A.metinTablosuKurtar(KAN_TABLO_METNI, [], [], 'tr').tables, [],
+    'eksik liste bos iken bile tarama yapiyor');
+});
+
+test('metinTablosuKurtar MEVCUT tabloyu tekrar etmiyor', () => {
+  const r = A.metinTablosuKurtar(KAN_TABLO_METNI, [100, 40, 500], [
+    { title: 'Plazmada Bulunan Organik Maddeler — Besinler' }
+  ], 'tr');
+  assert.deepEqual(r.tables, [], 'ayni baslikli tablo ikinci kez eklendi');
+});
+
+test('metinTablosuKurtar esit sayida etiket sarti', () => {
+  /* Etiket sayisi degerden AZSA esleme kayar: tablo hic kurulmamali. */
+  const eksikEtiket = ['Besinler', 'glikoz', '%100 mg', '%40 mg', '%500 mg'].join('\n');
+  assert.deepEqual(A.metinTablosuKurtar(eksikEtiket, [100, 40, 500], [], 'tr').tables, [],
+    'etiket/deger sayisi esit degilken tablo kuruldu — satirlar kayar');
+});
+
+test('metinTablosuKurtar TABLO_MIN_SATIR altinda durmuyor', () => {
+  const kisa = ['Besinler', 'glikoz', 'üre', '%100 mg', '%40 mg'].join('\n');
+  assert.equal(A.TABLO_MIN_SATIR, 3);
+  assert.deepEqual(A.metinTablosuKurtar(kisa, [100, 40], [], 'tr').tables, [],
+    'iki satirlik deger dizisi tablo sayildi');
+});
+
+test('tabloDegerSatiri / tabloEtiketSatiri ayirt ediyor', () => {
+  for (const d of ['%100 mg', '145 mM', '%0,2-1,2 mg', '1050-1060', '-3.5', '7,35-7,45']) {
+    assert.ok(A.tabloDegerSatiri(d), 'deger sayilmadi: ' + d);
+    assert.ok(!A.tabloEtiketSatiri(d), 'deger etiket sayildi: ' + d);
+  }
+  for (const e of ['glikoz', 'amino asitler', 'lipidler (total)', 'Atık ürünler']) {
+    assert.ok(A.tabloEtiketSatiri(e), 'etiket sayilmadi: ' + e);
+    assert.ok(!A.tabloDegerSatiri(e), 'etiket deger sayildi: ' + e);
+  }
+  /* Cumle ve markdown satiri ikisi de DISARIDA. */
+  assert.ok(!A.tabloEtiketSatiri('Kan plazmasinda su oraninin %90 oldugu bilinir.'),
+    'cumle etiket sayildi');
+  assert.ok(!A.tabloEtiketSatiri('| albumin | %4,5 g |'), 'markdown satiri etiket sayildi');
+  assert.ok(!A.tabloDegerSatiri('| albumin | %4,5 g |'), 'markdown satiri deger sayildi');
+  assert.ok(!A.tabloEtiketSatiri('λ'), 'tek harflik madde imi etiket sayildi');
+  assert.ok(!A.tabloDegerSatiri('mg'), 'rakamsiz satir deger sayildi');
+});
+
+test('metin tablosu kurtarmasi boru hattina bagli', () => {
+  /* OCR metninde kosmamali: Week 8'de OCR cikisindan japonca karakterli
+     cop formul uretilmisti — ayni gerekce oteki iki kurtarmayla ortak. */
+  const iA0c = SRC.indexOf('--- (a0c)');
+  assert.ok(iA0c > 0, '(a0c) blogu boru hattinda yok — metinTablosuKurtar cagrilmiyor');
+  const iCagri = SRC.indexOf('metinTablosuKurtar(', iA0c);
+  assert.ok(iCagri > 0, '(a0c) blogu fonksiyonu cagirmiyor');
+
+  /* OCR kapisinin ICINDE mi: pencere uzunlugu tahmin etmek yerine SUSLU
+     PARANTEZ dengesi sayiliyor — araya not eklenince test kirilmasin. */
+  const iKapi = SRC.indexOf("Kurtarma atlandi: metin OCR");
+  assert.ok(iKapi > 0 && iKapi < iA0c, 'OCR kapisi (a0c) blogundan once degil');
+  const iElse = SRC.indexOf('} else {', iKapi);
+  assert.ok(iElse > 0 && iElse < iA0c);
+  const arada = SRC.slice(iElse + 8, iCagri);
+  const derinlik = (arada.match(/\{/g) || []).length - (arada.match(/\}/g) || []).length;
+  assert.ok(derinlik > 0,
+    'metinTablosuKurtar OCR kapisinin DISINDA kaliyor (derinlik=' + derinlik + ') — ' +
+    'OCR metninden tablo kurmak cop uretir, bkz. Week 8 olcumu');
+});
+
+/* ==========================================================================
+   YETIM $ AYIRACI (31.10.2026, Week 8 kartinda olculdu)
+
+   Kartin anlatisi okunmaz hale gelmisti. study_cards'tan cekilen HAM metin:
+     "... base-a$ logarithms \frac{d}{dx}(\log_a x) = \frac{1}{x \ln a},
+      natural exponentials ... and base-$a$ exponentials ... \ln a$."
+     "is positive (f'(x) > 0$) on an interval, the function is an increasing
+      function; if negative (f'(x) < 0$), it is a decreasing function."
+   Model "base-$a$" yazmak isterken ilkini "base-a$" diye yarim yazdi.
+   Ekranda goruldugu hal:
+     "base-a$ logarithms  d d x ( log a dx d (log a x) = 1 x ln a = xlna 1 ,"
+     "( f ′ ( x ) < 0 )onaninterval,thefunctionisanincreasingfunction"
+   KaTeX yetim 
+leri birbiriyle eslestirip arada kalan DUZ YAZIYI
+   matematik dizdi. Sunucu da ayni hatayi yapiyordu — uc ayri sebeple:
+     1) adacik deseni ayiracin KONUMUNA bakmiyordu,
+     2) para korumasi "0$)" jetonunu "100$" sandi,
+     3) erken cikis kapisi $ gormedigi icin temizligi hic calistirmadi.
+   ========================================================================== */
+
+test('yetim $ ayiraci duz yaziyi matematige cevirmiyor', () => {
+  const g1 = "base-a$ logarithms \\frac{d}{dx}(\\log_a x) = \\frac{1}{x \\ln a}, " +
+    "natural exponentials \\frac{d}{dx}(e^{g(x)}) = e^{g(x)} \\cdot g'(x), " +
+    "and base-$a$ exponentials \\frac{d}{dx}(a^x) = a^x \\ln a$.";
+  const c1 = A.onarAnlatiLatex(g1).metin;
+  assert.equal((c1.match(/\$/g) || []).length, 0, 'yetim $ kaldi: ' + c1);
+  assert.ok(/base-a logarithms/.test(c1), 'duz yazi matematikten kurtarilmadi: ' + c1);
+  assert.ok(/log_a x/.test(c1) && /ln a/.test(c1),
+    'LaTeX duz yaziya cevrilmemis: ' + c1);
+
+  const g2 = "is positive (f'(x) > 0$) on an interval, the function is an increasing " +
+    "function; if negative (f'(x) < 0$), it is a decreasing function.";
+  const c2 = A.onarAnlatiLatex(g2).metin;
+  assert.equal((c2.match(/\$/g) || []).length, 0, 'yetim $ kaldi: ' + c2);
+  assert.ok(/\(f'\(x\) > 0\) on an interval/.test(c2), 'metin bozuldu: ' + c2);
+});
+
+test('GERCEK adacik ve para isareti dokunulmadan kaliyor', () => {
+  /* Kapi acildi diye dogru olan bozulmamali — olculen gercek adaciklar. */
+  for (const dogru of [
+    "The marginal effect is $\\frac{\\partial \\hat{y}}{\\partial x_j} = \\hat{\\beta}_1 + 2\\hat{\\beta}_2 x_j$ at 40 degrees.",
+    "The model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ fits well.",
+    "Null hipotez $H_0: \\beta_2 = 0$ reddedilir ve etki $2.6\\%$ olur."
+  ]) {
+    assert.equal(A.onarAnlatiLatex(dogru).metin, dogru, 'gercek adacik bozuldu: ' + dogru);
+  }
+  /* Para iki yonde de duruyor: sozcugu bitiren $ ve basa gelen $. */
+  const para = "Fatura 100$ ve indirim $5.06 oldu.";
+  assert.equal(A.onarAnlatiLatex(para).metin, para, 'para isareti silindi');
+  assert.equal(A.anlatiLatexYumusat("Toplam 1000$. Indirim $12,50 oldu.").replace(/\s+/g, ' '),
+    "Toplam 1000$. Indirim $12,50 oldu.", 'noktalama oncesi para silindi');
+});
+
+test('acilis $ metne YAPISIK baslar, kapanis $ YAPISIK biter', () => {
+  /* Konum sarti deseninde durmali: yoksa yarim yazilan ayirac yine
+     ilerideki dogru ayiracla eslesir. */
+  const src = A.ANLATI_MATEMATIK_ADACIK_RE.source;
+  assert.ok(src.includes('\\$(?!\\s)'),
+    'acilis $ icin (?!\\s) sarti dusmus: ' + src);
+  assert.ok(src.includes('(?<!\\s)\\$'),
+    'kapanis $ icin (?<!\\s) sarti dusmus: ' + src);
+  /* Icerik sarti (LaTeX yapisi) kaldirilmamis olmali. */
+  assert.ok(src.includes('[\\\\^_{}=]'), 'adacik icerik sarti dusmus: ' + src);
+});
+
+/* ==========================================================================
+   GRUBUN KUYRUGUNDAKI TEK SATIR (31.10.2026, Kan kartinda olculdu)
+
+   Duzlesmis tablo kurtarmasi kapsamayi 23/33 -> 30/33 yapti ama iki sayi
+   hala kayipti. document_chunks'tan cekilen gercek kaynak:
+     ... bilurubin (hem)
+     %34 mg / %1 mg / %5 mg / %0,2-1,2 mg
+     Hormonlar %0,000001-0,05 mg      <- ETIKET ve DEGER AYNI SATIRDA
+   N etiket + N deger deseni burada tutmaz; satir grubun kuyrugu.
+   ========================================================================== */
+
+test('tabloKuyrukSatiri etiket + deger satirini ayristiriyor', () => {
+  assert.deepEqual(A.tabloKuyrukSatiri('Hormonlar %0,000001-0,05 mg'),
+    { etiket: 'Hormonlar', deger: '%0,000001-0,05 mg' });
+  assert.deepEqual(A.tabloKuyrukSatiri('Sodyum 145 mM'),
+    { etiket: 'Sodyum', deger: '145 mM' });
+  /* CUMLE DEGIL: birimi uzun olan ya da hic sayisi olmayan satir elenir. */
+  assert.equal(A.tabloKuyrukSatiri('Kanın viskozitesi 3,5 santipoise'), null,
+    'cumle kuyruk satiri sayildi');
+  assert.equal(A.tabloKuyrukSatiri('Bu konu genel olarak önemlidir'), null);
+  assert.equal(A.tabloKuyrukSatiri('| albumin | %4,5 g |'), null, 'markdown satiri gecti');
+});
+
+test('kuyruk satiri grubun tablosuna ekleniyor (Kan olcumu)', () => {
+  const KAYNAK = [
+    'Plazmada Bulunan Organik', 'Bileşenler', 'Atık ürünler',
+    'üre (protein)', 'kreatinin (kreatin)', 'ürik asit (nükleik asitler)', 'bilurubin (hem)',
+    '%34 mg', '%1 mg', '%5 mg', '%0,2-1,2 mg',
+    'Hormonlar %0,000001-0,05 mg'
+  ].join('\n');
+  const r = A.metinTablosuKurtar(KAYNAK, [0.2, 1.2, 0.000001, 0.05], [], 'tr');
+  assert.equal(r.tables.length, 1, 'tablo kurtarilmadi');
+  assert.deepEqual(r.tables[0].rows[4], ['Hormonlar', '%0,000001-0,05 mg'],
+    'kuyruk satiri tabloya eklenmedi: ' + JSON.stringify(r.tables[0].rows));
+  for (const v of [0.000001, 0.05]) {
+    assert.ok(r.kurtarilan.includes(v), v + ' kurtarilmadi');
+  }
+});
+
+test('kuyruk satiri EKSIK sayi tasimiyorsa eklenmiyor', () => {
+  /* Ayni kapi: kurtarma yalnizca kayip sayi tasiyan satiri alir. */
+  const KAYNAK = [
+    'Atık ürünler', 'üre', 'kreatinin', 'ürik asit',
+    '%34 mg', '%1 mg', '%5 mg', 'Hormonlar %0,000001-0,05 mg'
+  ].join('\n');
+  const r = A.metinTablosuKurtar(KAYNAK, [34, 1, 5], [], 'tr');
+  assert.equal(r.tables.length, 1);
+  assert.equal(r.tables[0].rows.length, 3,
+    'eksik sayi tasimayan kuyruk satiri eklendi: ' + JSON.stringify(r.tables[0].rows));
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

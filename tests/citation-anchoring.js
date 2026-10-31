@@ -1063,6 +1063,51 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
     assert.ok(A.QUOTE_SIRALAMA_BANDI <= 0.05, 'bant cok genis — kesinlik Dice yi ezmeye baslar');
   });
 
+
+  // --- kapanis tirnagi ve kapi (31.10.2026) --------------------------------
+  /* KAPANIS TIRNAGI CUMLEYI YUTUYORDU
+
+     Kaynak yorumu tirnak icinde veriyor ve nokta tirnagin ICINDE kaliyor:
+       “...is 50.5% higher in Europe than South America.” The North America
+       dummy variable coefficient is interpreted as “...56.6%...”
+     Desen yalnizca noktalama ariyordu, bolunmedigi icin 303 karakterlik TEK
+     cumle cikiyordu — alinti tavani 220, yani bu metinden hic alinti
+     secilemiyordu. Olculen: tirnak kaldirilinca ayni metin 143 ve 157
+     karakterlik iki cumleye boluniyor. */
+  test('cumle KAPANIS TIRNAGINDAN sonra boluniyor', () => {
+    const s = 'The Europe coefficient is interpreted as \u201con average energy per capita is 50.5% higher in Europe than South America.\u201d The North America coefficient is interpreted as \u201con average energy per capita is 56.6% higher in North America.\u201d';
+    const c = A.splitSentences(s);
+    assert.equal(c.length, 2, 'tirnak hala cumleyi yutuyor: ' + c.length + ' cumle, ' + s.length + ' krk');
+    for (const x of c) assert.ok(x.length <= A.QUOTE_MAX_CHARS, 'alinti tavanini asiyor: ' + x.length);
+  });
+
+  test('NOKTA hala sart — tirnak tek basina cumle bitirmez', () => {
+    assert.equal(A.splitSentences('he said \u201chi\u201d and then left the room quietly').length, 1);
+    assert.equal(A.splitSentences('bkz. s. 42 numarali madde burada anlatiliyor').length, 1);
+  });
+
+  /* KAPI EN IYI KAPSAMAYA BAKAR, SIRALAMA KAZANANINA DEGIL
+
+     Iki not "KAPI DEGISMEDI, yalnizca SIRALAMA" diyordu ama kod oyle
+     davranmiyordu: esik `best.score`a bakiyordu ve `best` kesinlik
+     tie-break'i ile degismis olabiliyordu. Olculen s.42:
+       kapsama 0.407  "The Europe dummy variable coefficient is ..."
+       kapsama 0.407  "The North America dummy variable coefficient is ..."
+       kapsama 0.256  "Neither of these are statistically significant ..."  <- dice birincisi
+     Esigi (0.3) gecen aday VARDI ama donen deger null oluyordu. */
+  test('esigi gecen aday varken SIRALAMA kazanani donuyor', () => {
+    const idx = A.buildPageIndex(TAM, 'SAYFA');
+    const q = A.bestQuoteForClaim(IDDIA, P42, A.buildAnchorIdf(idx), true);
+    assert.ok(q, 'sayfada esigi gecen aday varken null donuldu');
+    assert.match(q, /Neither of these are statistically/, q);
+  });
+
+  test('esigi gecen aday YOKSA hala null (kapi gevsemedi)', () => {
+    const idx = A.buildPageIndex(TAM, 'SAYFA');
+    /* Tek basina bu parca: kesinlik 1.000 ama kapsama 0.230 — kotu alinti. */
+    assert.equal(A.bestQuoteForClaim(IDDIA, 'America as the omitted group', A.buildAnchorIdf(idx), true), null);
+  });
+
   test('siralama generate-exam te de GUNCEL', () => {
     const g = require('node:fs').readFileSync(
       require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');
@@ -1271,6 +1316,119 @@ test('sayi jetonu DOGRU sayfada artik var', () => {
   assert.ok(s40, 'sayfa 40 dizinde yok');
   assert.ok([...s40.terms].some((x) => x === '0.69'),
     's.40 jetonlari arasinda 0.69 yok: ' + [...s40.terms].filter((x) => /\d/.test(x)).join(' '));
+});
+
+
+// --- parantezle baslayan sarma (31.10.2026) ------------------------------
+/* PARANTEZLE BASLAYAN SARMA
+
+   alintiBloklari sarmayi yalnizca KUCUK HARFLE devam ediyorsa birlestiriyor
+   (bkz. kaynaktaki "bilinen sinir" notu). Olculen kayip tam oradan:
+     "consumption per capita goes up by"
+     "(0.026)100% or 2.6%.” This coefficient is"
+   Ikinci satir parantezle basladigi icin SINIR sayiliyordu; cumle
+   ortasindan kesiliyor ve sayilar 21 karakterlik, harf orani 0.10 olan bir
+   parcada kaliyordu. O parca her suzgecten duser, yani 0.026 ve 2.6 hic
+   aday cumlede gecmiyordu. */
+test('PARANTEZLE baslayan satir sarma sayiliyor', () => {
+  const kaynak = [
+    'This slope coefficient on gdppc is',
+    'interpreted as, \u201con average, if GDP per',
+    'capita increases by $1000 then energy',
+    'consumption per capita goes up by',
+    '(0.026)100% or 2.6%.\u201d This coefficient is',
+    'statistically significant at the 1% level.'
+  ].join('\n');
+  const adaylar = A.alintiBloklari(kaynak).flatMap((b) => A.splitSentences(b));
+  const tasiyan = adaylar.filter((c) => c.includes('0.026') && c.includes('2.6'));
+  assert.equal(tasiyan.length, 1, 'sayilari tasiyan tam cumle yok: ' + JSON.stringify(adaylar));
+  assert.ok(/interpreted as/.test(tasiyan[0]), 'cumle hala kesik: ' + tasiyan[0]);
+  assert.ok(tasiyan[0].length <= A.QUOTE_MAX_CHARS, tasiyan[0].length);
+});
+
+test('CIPLAK RAKAMLA baslayan satir sarma DEGIL (eksen centikleri)', () => {
+  /* Grafik centikleri noktalamasiz bir baslik satirinin ardindan geliyor;
+     yapistirmak calisan bir alinti etiketini coplestirirdi. */
+  const kaynak = ['Scatter Plots of this Relationship for Europe', '0', '20', '40', '0 5 10 15 20'].join('\n');
+  const b = A.alintiBloklari(kaynak);
+  assert.equal(b[0], 'Scatter Plots of this Relationship for Europe',
+    'baslik centiklerle birlesmis: ' + JSON.stringify(b[0]));
+});
+
+test('KUCUK HARF sarmasi eskisi gibi birlesiyor (regresyon)', () => {
+  const b = A.alintiBloklari(['Power rule: the exponent moves down, then', 'decreases by one.'].join('\n'));
+  assert.equal(b.length, 1, JSON.stringify(b));
+});
+
+/* ==========================================================================
+   LAMBDA MADDE IMI (31.10.2026, Kan kartinda olculdu)
+
+   Kaynakcada yirmi atiftan sekizi "λ " ile basliyordu:
+     [1] λ Kalp ve damarlardan olusan kapali bir sistem ...
+     [3] λ Kanin viskozitesi: 3,5 – 5,4 santipoise
+     [10] λ %10'u ise organik ve inorganik maddelerden olusur.
+   Sunum sablonu madde imini Symbol yazi tipiyle koymus, PDF metnine λ
+   olarak dusmus. λ gercek bir sembol de oldugu icin kosulsuz atilmiyor.
+   ========================================================================== */
+
+test('lambda madde imi kaynakca etiketinden atiliyor', () => {
+  /* Desen anchorCitations ICINDE tanimli (atif katmaniyla ayni yerde
+     dursun diye), o yuzden kaynaktan diliniyor — ROZET_YUNAN testiyle
+     ayni yaklasim. Kaynak degisirse test ACIK hata verir. */
+  const SUM_SRC = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const satir = SUM_SRC.match(/const ETIKET_IM_RE = (\/.+\/[a-z]*)\s/);
+  assert.ok(satir, 'ETIKET_IM_RE kaynakta bulunamadi');
+  const son = satir[1].lastIndexOf('/');
+  const im = new RegExp(satir[1].slice(1, son), satir[1].slice(son + 1));
+  const temizle = (s) => String(s).replace(im, '')
+  assert.equal(temizle('\u03bb Kalp ve damarlardan olusan kapali bir sistem'),
+    'Kalp ve damarlardan olusan kapali bir sistem');
+  assert.equal(temizle("\u03bb %10'u ise organik ve inorganik maddelerden olusur."),
+    "%10'u ise organik ve inorganik maddelerden olusur.");
+  /* SEMBOL OLARAK KALIYOR: ardindan harf gelmiyorsa im degil. */
+  assert.equal(temizle('\u03bb = 500 nm dalga boyu'), '\u03bb = 500 nm dalga boyu');
+  assert.equal(temizle('\u03bb 500 nm'), '\u03bb 500 nm');
+  /* Eski imler ve isaretli sayi kurali bozulmamis olmali. */
+  assert.equal(temizle('\u2022 Madde imi'), 'Madde imi');
+  assert.equal(temizle('- Tireli madde'), 'Tireli madde');
+  assert.equal(temizle('-12.08 + 2(0.09)39 = -5.06'), '-12.08 + 2(0.09)39 = -5.06');
+});
+
+/* ==========================================================================
+   COKLU ATIF DA ATIFTIR (31.10.2026, Week 11 kartinda olculdu)
+
+   Kartta bir maddenin sonunda IKI atif isareti durdu:
+     "Roots and reciprocal terms should be rewritten as fractional or
+      negative powers before applying the power rule [6, 9]. [5]"
+   Model virgullu "[6, 9]" yazdi; "zaten atifli" kapisi tek sayi
+   bekledigi icin maddeyi atifsiz sandi ve uzerine [5] ekledi.
+   Log: Citation anchoring: pages=20 kept=9 added=1 — o tek ekleme buydu.
+   ========================================================================== */
+
+test('zaten COKLU atif tasiyan madde ikinci kez atif almiyor', () => {
+  const BELGE = [
+    "--- SAYFA 6 ---",
+    "Question 3: Root as Fractional Power. Rewrite the root as a fractional power before integrating.",
+    "--- SAYFA 9 ---",
+    "Answer 4 - Mixed Indefinite Integral. Reciprocal terms become negative powers before the power rule."
+  ].join('\n');
+  const idx = A.buildPageIndex(BELGE, 'SAYFA');
+  const r = A.anchorCitations(
+    [
+      "Roots and reciprocal terms should be rewritten as fractional or negative powers before applying the power rule [6, 9].",
+      "Reciprocal terms become negative powers before the power rule is applied"
+    ],
+    [], idx, 'en'
+  );
+  const metni = (x) => (typeof x === 'string' ? x : x.text);
+  const ilk = metni(r.key_points[0]);
+  assert.equal((ilk.match(/\[[\d,\s]+\]/g) || []).length, 1,
+    'coklu atifli maddeye ikinci atif eklendi: ' + ilk);
+  assert.ok(/\[6, 9\]/.test(ilk), "modelin kendi coklu atifi bozuldu: " + ilk);
+  /* Atifsiz madde yine atif almali — kapi fazla genis olmamali. */
+  assert.ok(/\[\d+\]/.test(metni(r.key_points[1])),
+    'atifsiz madde atif alamadi: ' + metni(r.key_points[1]));
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

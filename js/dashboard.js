@@ -3374,6 +3374,27 @@ function splitCalcChain(calc, maxLen = 46) {
  * yok. Yeni bir g bayrakli regex HER cagrida uretiliyor, cunku
  * renderMathInText exec dongusu kullaniyor ve paylasilan lastIndex iki
  * fonksiyon arasinda sessiz atlama yapar. */
+/* PARA KORUMASI FORMULU DE YUTUYORDU (31.10.2026, kartta olculdu).
+ *
+ * Koruma `$`den sonra rakam+bosluk gorunce parcayi para sayip diziyi
+ * atliyor. Model ise formulu SAYIYLA baslatiyor ve kartta dort yerde ham
+ * LaTeX kaldi (iki cozumlu ornek, S4 ve bir madde):
+ *   "UtilityBill = $484.12 - 12.08\text{temp} + 0.09\text{temp}^2$"
+ * Icerik "484.12 " ile basliyor, yani kalip tutuyor; oysa icinde
+ * `\text{...}` ve `^2` var — bu para degil, formul.
+ *
+ * Ayirt edici isaret LaTeX YAPISI: ters bolu, alt/ust simge, suslu
+ * parantez. Gercek para bunlari tasimaz ("$100 and then by $250" ->
+ * icerik "100 and then by "), o yuzden koruma orada aynen calisiyor.
+ * Ayni olcut sunucudaki ANLATI_MATEMATIK_ADACIK_RE ile birebir ayni
+ * mantik — iki taraf ayni seye "matematik" demeli. */
+const MATEMATIK_YAPISI_RE = /[\\^_{}]/;
+function paraGibi(icerik) {
+  const s = String(icerik == null ? '' : icerik);
+  return /^\d[\d.,]*\s/.test(s) && !MATEMATIK_YAPISI_RE.test(s);
+}
+window.paraGibi = paraGibi;
+
 function mathDelimRe() {
   return /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
 }
@@ -3532,7 +3553,7 @@ function renderMathInText(text) {
     const blok = m[3] != null;
     const latex = m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]);
     // Para bicimi formul degil: "$100 and $200". Yalnizca dolar kolunda.
-    if (m[1] != null && /^\d[\d.,]*\s/.test(latex)) continue;
+    if (m[1] != null && paraGibi(latex)) continue;
     out += escapeHtml(s.slice(son, m.index));
     let dizgi = null;
     if (window.katex) {
@@ -3750,8 +3771,36 @@ function summaryParagraphs(summary, target = 600) {
  * bosluk, [ ya da satir sonu gelir — dokunulmuyor; display matematikte
  * mesru.
  */
+/* COK HARFLI AD HARF HARF DIZILIYORDU (31.10.2026, kartta olculdu).
+ *
+ * KaTeX matematik kipinde her harfi ayri bir degisken sayar ve aralarina
+ * carpim boslugu koyar. Model degisken adini duz yazdiginda kartin
+ * anlatisinda sonuc soyle gorunuyordu:
+ *   "U t i l i t y B i l l = 484.12 - 12.08 t e m p + 0.09 t e m p ^2"
+ * Dogrusu \text{UtilityBill}; model bunu her zaman yazmiyor.
+ *
+ * Uc harften uzun ve KOMUT OLMAYAN her ad \text{} icine aliniyor.
+ * Korumalar:
+ *   - ters bolu ile baslayan ad atlanir (\beta, \frac, \partial),
+ *   - latex icinde zaten \text varsa hic dokunulmaz (cift sarma yok),
+ *   - matematik fonksiyon adlari atlanir (log, exp, lim...); fonksiyonla
+ *     BASLAYAN ad da atlanir, aksi halde "lny" upright basilirdi. */
+const KATEX_FONKSIYON = new Set([
+  'sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'lg', 'exp', 'lim',
+  'min', 'max', 'sup', 'inf', 'det', 'deg', 'gcd', 'sinh', 'cosh', 'tanh',
+  'arcsin', 'arccos', 'arctan'
+]);
+function katexFonksiyonGibi(ad) {
+  const a = String(ad).toLowerCase();
+  if (KATEX_FONKSIYON.has(a)) return true;
+  for (const f of KATEX_FONKSIYON) if (f.length >= 2 && a.indexOf(f) === 0) return true;
+  return false;
+}
 function sadeKatexKomutu(latex) {
-  return String(latex == null ? '' : latex).replace(/\\\\(?=[A-Za-z])/g, '\\');
+  const s = String(latex == null ? '' : latex).replace(/\\\\(?=[A-Za-z])/g, '\\');
+  if (s.indexOf('\\text') !== -1) return s;
+  return s.replace(/(?<![\\A-Za-z])[A-Za-z]{3,}(?![A-Za-z])/g,
+    (ad) => katexFonksiyonGibi(ad) ? ad : '\\text{' + ad + '}');
 }
 
 function inlineMath(html) {
@@ -3763,7 +3812,7 @@ function inlineMath(html) {
   // Desen notu icin bkz. mathDelimRe ve renderMathInText.
   return s.replace(mathDelimRe(), (match, dolar, paren, blokTex) => {
     const latex = dolar != null ? dolar : (paren != null ? paren : blokTex);
-    if (dolar != null && /^\d[\d.,]*\s/.test(dolar)) return match;
+    if (dolar != null && paraGibi(dolar)) return match;
     try {
       return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: blokTex != null, throwOnError: false });
     } catch (e) {

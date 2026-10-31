@@ -382,7 +382,59 @@ function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } 
  *   \\times                  -> x        \\, \\; \\! \\quad -> bosluk
  *   \\frac{a}{b}             -> a/b
  * $...$ ve \\(...\\) ICI HIC ELLENMIYOR: orayi KaTeX dogru diziyor. */
-const ANLATI_MATEMATIK_ADACIK_RE = /\$[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
+/* SAHTE ADACIK (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Desen iki $ arasini kosulsuz matematik sayiyordu. Model ayiraci YARIM
+ * yazdiginda orfan $ ilerideki PARA isaretiyle eslesiyor ve arada kalan
+ * DUZ METIN matematik diye korunuyordu:
+ *   "...0.09temp^2$ and the bill falls by $5.06 at 40 degrees"
+ * Burada adacik "$ and the bill falls by $" oluyor; ne yumusatma ne de
+ * orfan temizligi o bolgeye dokunabiliyordu.
+ *
+ * Adacik artik ICERIGININ matematik oldugunu gostermeli: ters bolu,
+ * alt/ust simge, suslu parantez, esitlik ya da rakam. Olculen gercek
+ * adaciklar hepsi geciyor ($UtilityBill = 484.12...$, $H_0: \beta_2 = 0$,
+ * $2.6\%$); " and the bill falls by " hicbirini tasimiyor. */
+/* RAKAM MATEMATIK ISARETI DEGIL (31.10.2026, kartta olculdu).
+ *
+ * Ilk surumum adacik icinde `\d` de kabul etti ve PARA tutari o sarti
+ * gecirdi. Kartta iki yerde sahte adacik kuruldu:
+ *   "$5.06. Setting the marginal effect to zero yields the turning point $"
+ *   "$1000 increase raises use by 2.6% and a direct $"
+ * Ikisi de duz yazi; korunduklari icin ne yumusatma ne orfan temizligi
+ * dokunabildi ve ikinci $ ("$x_j = ...") ekranda kaldi.
+ *
+ * Sart artik LaTeX YAPISI: ters bolu, alt/ust simge, suslu parantez ya da
+ * esitlik. Olculen gercek adaciklar geciyor ($UtilityBill = ...^2$,
+ * $H_0: \beta_2 = 0$, $2.6\%$); yukaridaki iki duz yazi hicbirini
+ * tasimiyor. Saf sayi adacigi ($0.69$) artik korunmuyor — zarari yok,
+ * yumusatma sayiya dokunmaz, yalnizca $ isaretleri kalkar. */
+/* AYIRAC KONUMU DA SART (31.10.2026, Week 8 kartinda olculdu).
+ *
+ * Icerik sarti LaTeX yapisi ariyor ve bu kalipta TUTUYOR — ama ayiraclar
+ * yanlis yerde. Modelin yazdigi ham metin:
+ *   "... base-a$ logarithms \frac{d}{dx}(\log_a x) = \frac{1}{x \ln a},
+ *    natural exponentials \frac{d}{dx}(e^{g(x)}) = ... and base-$a$ ..."
+ * Model "base-$a$" yazmak isterken ilkini "base-a$" diye yarim yazmis.
+ * Soldan eslestirme o yetim $ ile "base-$a$"in ilkini CIFT sayiyor;
+ * arada \frac'ler oldugu icin icerik sarti geciyor ve butun bolge
+ * "matematik" diye korunuyor. Ne yumusatma ne orfan temizligi
+ * dokunamiyor, KaTeX de ayni hatali esleri dizip duz yaziyi matematik
+ * yapiyor. Kartta goruldugu hal:
+ *   "base-a$ logarithms  d d x ( log a dx d (log a x) = 1 x ln a = xlna 1 ,"
+ * Ayni kalip ayni kartta ikinci kez:
+ *   "positive (f'(x) > 0$) on an interval, ... if negative (f'(x) < 0$)"
+ * -> "( f ′ ( x ) < 0 )onaninterval,thefunctionisanincreasingfunction"
+ *
+ * AYIRT EDICI SEY KONUM: acilis $ metne YAPISIK baslar, kapanis $ metne
+ * YAPISIK biter. "base-a$ " sagi bosluk oldugu icin acilis OLAMAZ.
+ * Boylece yetim kalir ve orfan temizligine dusuer; "base-$a$" dogru
+ * cift olarak kendi basina degerlendirilir.
+ *
+ * "$ x^2 $" gibi iki yani bosluklu adacik bilincli olarak DISARIDA:
+ * adacik sayilmayinca yumusatmaya giriyor, yani "x²" olup $ isaretleri
+ * dusuyor — metin kaybi yok, okunur sonuc ayni. */
+const ANLATI_MATEMATIK_ADACIK_RE = /\$(?!\s)(?=[^$\n]*[\\^_{}=])[^$\n]*(?<!\s)\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
 
 /* Komut siniri: \int ile \infty ayri komutlar, ve \int_{0} gibi hallerde
    ardindan '_' geliyor — '_' regex'te KELIME karakteri oldugu icin \b
@@ -460,7 +512,14 @@ function anlatiLatexYumusat(parca: string): string {
   /* Erken cikis: ters bolu YA DA suslu alt/ust simge yoksa yapacak is yok.
      Ikinci kosul sart — "nx^{n-1}" ters bolu tasimiyor ama suslu parantezi
      temizlenmeli (olculdu: tek basina gelen madde metinleri boyle). */
-  if (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t)) return t
+  /* $ DE KAPIYI ACAR (31.10.2026, Week 8 kartinda olculdu).
+     Kapi "LaTeX yoksa dokunma" diyordu; ama YETIM $ tek basina da zarar
+     veriyor ve LaTeX isareti tasimiyor. Olculen hal:
+       "positive (f'(x) > 0$) on an interval, ... if negative (f'(x) < 0$)"
+     Ne ters bolu ne suslu alt/ust simge var, kapi erken cikiyor ve
+     jeton bazli $ temizligi hic kosmuyordu. KaTeX iki yetim $'i
+     eslestirip arada kalan duz yaziyi matematik dizdi. */
+  if (t.indexOf('\\') === -1 && t.indexOf('$') === -1 && !/[\^_][{\d]/.test(t)) return t
 
   /* CIFT TERS BOLU VE KACIRILMIS KESME ISARETI (29.10.2026 olcumu).
    *
@@ -494,8 +553,23 @@ function anlatiLatexYumusat(parca: string): string {
    * onundeki ters bolu hicbir zaman kasitli degil. */
   t = t.replace(/\\([$%&#_{}])/g, '$1')
 
-  // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
-  t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
+  /* \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
+   *
+   * SOZCUK SINIRI KORUNUYOR (31.10.2026, IPPT kartinda olculdu).
+   * Komut cikarilirken boslugu yoktu ve iki sozcuk birbirine giriyordu.
+   * Modelin yazdigi: "Kuadratik regresyon modelinde\text{utility bill}"
+   * Veritabanina giden ve kartta goruldugu hal:
+   *   "Kuadratik regresyon modelindeutility bill tahmini"
+   * LaTeX'te bosluk dizgiden gelir, duz yazida gelmiyor — o yuzden
+   * burada ELLE konuyor. Yalnizca iki yan da SOZCUK karakteriyse:
+   * "2\text{kg}" -> "2 kg" dogru, "x\text{-ekseni}" -> "x-ekseni"
+   * bozulmadan kaliyor (icerik harf/rakamla baslamiyor). */
+  t = t.replace(/(\w?)\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}(\w?)/g,
+    (_m, sol, icerik, sag) => {
+      const bas = sol && /^[\w\u00c0-\u024f]/.test(icerik) ? sol + ' ' : sol
+      const son = sag && /[\w\u00c0-\u024f]$/.test(icerik) ? ' ' + sag : sag
+      return bas + icerik + son
+    })
   /* ISLETMEN ASCII DEGIL UNICODE (31.10.2026, IPPT kartinda olculdu).
    *
    * \times -> 'x' cevirisi okunamaz bir satir uretti. Kartin 04. bolumu:
@@ -586,6 +660,51 @@ function anlatiLatexYumusat(parca: string): string {
     })
     if (t === once) break
   }
+  /* ORFAN DOLAR (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Model ayiraci YARIM yaziyor ve tek kalan $ ekranda duruyordu:
+   *   "...UtilityBill = 484.12 - 12.08temp + 0.09temp²$ contains linear"
+   *   "...(∂ ŷ)/(∂ x_j) = β̂₁ + 2β̂₂ x_j$. For the utility bill model"
+   * Bu fonksiyon YALNIZCA ayirac disi parcalara uygulaniyor (bkz.
+   * onarAnlatiLatex), yani buradaki $ ya paradir ya da orfan ayirac.
+   *
+   * PARA KORUNUYOR: iki yanindan biri rakam olan $ atilmiyor —
+   * "$5.06", "$1000" (sagi rakam) ve "100$" (solu rakam) duruyor.
+   * Orfan ornekleri ikisine de uymuyor: "temp²$ " ve "x_j$.".
+   * SIRA: ust simge cevirisinden SONRA, yoksa "temp^2$" icindeki $'in
+   * solu rakam gorunur ve orfan atlanirdi. */
+  /* ONCEKI SOZCUGUN TAMAMI BAKILIR (31.10.2026, kartta olculdu).
+     Ilk surum yalnizca BIR karaktere bakiyordu ve bir ciftin yarisini
+     silip otekini birakti. Kartta duran hal:
+       "For a variable with k levels, k-1$ dummy variables are required."
+     Model "$k-1$" yazmis; adacik sarti (\ ^ _ { } =) "k-1"de tutmuyor,
+     metin yumusatiliyor, acilis $ atiliyor (onunde bosluk) ama kapanis
+     KALIYOR, cunku onundeki karakter "1" rakami ve kural onu "100$" gibi
+     sondaki para isareti sandi.
+     Ayirt edici sey onceki SOZCUK: "100" saf sayi -> para; "k-1" harf
+     tasiyor -> formul kalintisi. Bastaki para ($5.06, $1000) zaten ayri
+     kolda korunuyor: ardindan rakam gelen $ hic eslesmiyor. */
+  /* JETON BAZINDA: tek regex bir ciftin ikisini birden yakalayamiyor.
+     "$k-1$" uzerinde olculdu — acilis $ onundeki boslugu tuketiyor,
+     kapanisa sira gelmiyor ve yarim cift ekranda kaliyor. Bosluklara
+     bolunup her jeton kendi icinde isleniyor. */
+  /* PARA, JETONUN SONUNDA OLUR (31.10.2026, Week 8 kartinda olculdu).
+     Kural yalnizca onceki sozcuge bakiyordu ve "0$)" jetonunda "0" saf
+     sayi oldugu icin PARA sandi, yetim $ ekranda kaldi:
+       "positive (f'(x) > 0$) on an interval, ..."
+     KaTeX iki boyle $'i eslestirip arada kalan duz yaziyi matematik
+     dizdi: "( f ′ ( x ) < 0 )onaninterval,thefunctionisanincreasing".
+     Gercek para isareti sozcugu BITIRIR ("100$", "100$."); ardindan
+     parantez gelen $ para degil, formul kalintisidir. */
+  t = t.split(/(\s+)/).map((jeton) => {
+    if (jeton.indexOf('$') === -1) return jeton
+    return jeton.replace(/\$(?!\d)/g, (m, off) => {
+      const onceki = jeton.slice(0, off)
+      const sonrasi = jeton.slice(off + 1)
+      const paraKuyrugu = sonrasi === '' || /^[.,;:!?]+$/.test(sonrasi)
+      return onceki !== '' && /^[\d.,]+$/.test(onceki) && paraKuyrugu ? m : ''
+    })
+  }).join('')
   return t.replace(/[ \t]{2,}/g, ' ')
 }
 
@@ -641,7 +760,7 @@ function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } 
   const s = String(metin || '')
   // Erken cikis anlatiLatexYumusat'takiyle AYNI olmali, yoksa ic fonksiyon
   // hic cagrilmaz ve suslu alt/ust simge temizligi olu kod olur.
-  if (s.indexOf('\\') === -1 && !/[\^_][{\d]/.test(s)) return { metin: s, yumusatilan: 0 }
+  if (s.indexOf('\\') === -1 && s.indexOf('$') === -1 && !/[\^_][{\d]/.test(s)) return { metin: s, yumusatilan: 0 }
   let yumusatilan = 0
   let out = ''
   let son = 0
@@ -1713,6 +1832,109 @@ const VISION_TOKENS_PER_IMAGE = 2048
 // pages this pass reads are where a table, chart or diagram is most likely to
 // live, and a Mermaid block or multi-row table needs the room.
 const VISION_MAX_COMPLETION = 3072
+/* TABLO GECISI AYRI CAGRI (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Kullanici ayni belgenin ESKI kartini gosterdi: 12 Excel regresyon
+ * tablosu, 3 diyagram. Yeni kartlarda 1 tablo, 0 diyagram. Teshis:
+ *
+ *  1) GEMINI_MODE=parallel sayfalari METIN olarak gonderiyor (bkz. o
+ *     moddaki not); Excel ciktisi slaytta RESIM, metinde hic yok —
+ *     document_chunks'tan dogrulandi: s.11 metni "...increases by .07
+ *     tons" diyor, 0.452555/0.070379 gecmiyor. Metin pencereleri o
+ *     tablolari hicbir kosulda uretemez.
+ *  2) Telafi eden gorsel gecis DOGRU sayfalari buluyor ("veri referansi
+ *     (10 aday)") ama 3072 cikis tavanini key_terms + key_points +
+ *     quiz + sections + tables + diagrams ile PAYLASIYOR. 7 kolonlu 12
+ *     tablo tek basina birkac bin token.
+ *  3) Ve o promptun tamami duz yaziya yonlendiriyor: "write that in
+ *     WORDS as a key_point", "PHRASE EVERY key_point AS THE FACT, NEVER
+ *     AS A DESCRIPTION OF THE FIGURE". Modele tabloyu DOKMESINI soyleyen
+ *     tek cumle yok. Dort kosuda da "+0 tables" dondu.
+ *
+ * Cozum tavani buyutmek DEGIL — tek cagri yine alti alana bolunurdu.
+ * Ayri bir cagri: yalnizca tables + diagrams ister, kendi tavani var,
+ * ve talimati "dok" diyor. Yalnizca parallel modunda kosar; only/shadow
+ * zaten PDF'in tamamini gorsel olarak gonderiyor.
+ *
+ * MALIYET: tek ek cagri, ayni mini-PDF (yeni goruntu ucreti yok), ~3-5
+ * sn. Olculen kosu 19 sn / 150 sn butce, yani yeri var. Butce dar ise
+ * atlanir ve kart eskisi gibi uretilir. */
+/* TAVAN 8192 DEGIL 3072 (31.10.2026, canli kosuda olculdu).
+ *
+ * Ilk surumum 8192 yazdi ve cagri dustu — ustelik zarar vererek:
+ *   Tablo gecisi: HTTP 502 — tablo eklenmedi
+ *   Gemini[gemini-3.5-flash-lite] paralel: zaman asimi (15000ms) — model
+ *     bu kosuda aday listesinden DUSURULDU
+ *   Groq Review API call failed (status 502) / review failed
+ *   Gemini paralel maliyet: 5 cagri, 52225ms   (onceki kosu: 6, 19330ms)
+ * Yani zaman asimi modeli BUTUN KOSU icin dusurdu (geminiZamanAsimiCentik
+ * tek centikte dusuruyor), review o yuzden hic kosmadi ve sure 19 sn'den
+ * 52 sn'ye cikti. Tablo da gelmedi.
+ *
+ * SEBEP: paralel modda bir cagrinin alabilecegi en buyuk dilim
+ * GEMINI_PARALLEL_MAX_CALL_MS = 15 sn ve bu TAVAN — gecilen timeout ne
+ * olursa olsun geminiParalelCagriButcesi onu 15 sn'ye kirpiyor. 8192
+ * token uretimi o dilime sigmiyor.
+ *
+ * 3072 ise SIGDIGI OLCULU: gorsel gecis ayni mini-PDF ile ayni dilimde
+ * yillardir tamamlaniyor (ayni kosuda +7 madde dondurdu). Ayri cagrinin
+ * degeri tavani BUYUTMEK degil, 3072'nin tamamini tabloya ayirmakti —
+ * paylasimda tabloya sifir kaliyordu. */
+const TABLO_MAX_COMPLETION = VISION_MAX_COMPLETION
+/* Altinda tablo gecisi denenmez: kesik bir tablo hic tablodan kotudur. */
+const TABLO_GECIS_MIN_BUTCE_MS = 25000
+/* Bu kadar ya da daha fazla sayfa varsa is iki dilime bolunur. Altinda
+   bolmek anlamsiz: tek cagri zaten tavana dayanmaz. */
+const TABLO_DILIM_ESIGI = 6
+
+/* GUVEN ARALIGINDA DUSEN EKSI ISARETI (31.10.2026, kartta olculdu).
+ *
+ * Tablo gecisi 9 Excel ciktisini dokuyor ama 9-11 haneli ondaliklarda
+ * transkripsiyon gurultusu var. Kullanicinin eski kartiyla hucre hucre
+ * karsilastirildi — 60 kadar sayisal hucrede uc hata:
+ *   s.11 P-value    0.070873131 -> 0.07073131    (basamak dustu)
+ *   s.19 Intercept  0.200177701 -> 0.20017701    (basamak dustu)
+ *   s.27 Lower 95% -1.378324931 -> 1.378324931   (ISARET dustu)
+ *
+ * Ilk ikisi tespit edilemez. Ucuncusu KANITLANABILIR: bir guven araligi
+ * icin Lower <= Upper olmak ZORUNDA. Olculen satir:
+ *   katsayi -0.479884419, Lower 1.378324931, Upper 0.418556093
+ *   Lower > Upper  ->  imkansiz
+ *   isaret cevrilince  -1.378 < -0.4799 < 0.4186  ->  tutarli
+ * Yani onarim tahmin degil, aritmetik.
+ *
+ * DAR: yalnizca Lower > Upper iken ve isaret cevirmek siralamayi DUZELTEN
+ * tek hareketse yapiliyor. Katsayi kolonu varsa o da araliga dusmeli,
+ * yoksa dokunulmuyor — iki basamagi da yanlis okunmus bir satiri
+ * "onarmis" gibi gostermemek icin. */
+function guvenAraligiOnar(tables: any[]): number {
+  const sayi = (h: unknown) => {
+    const s = String(h ?? '').trim().replace(/\s+/g, '')
+    if (!/^[-\u2212+]?[\d.,]+(?:[eE][-+]?\d+)?$/.test(s)) return NaN
+    return parseFloat(s.replace(/\u2212/g, '-').replace(/,/g, '.'))
+  }
+  let onarilan = 0
+  for (const t of (Array.isArray(tables) ? tables : [])) {
+    const basliklar = (Array.isArray(t?.headers) ? t.headers : []).map((h: unknown) => String(h ?? '').toLowerCase())
+    const iAlt = basliklar.findIndex((h: string) => h.indexOf('lower') !== -1)
+    const iUst = basliklar.findIndex((h: string) => h.indexOf('upper') !== -1)
+    if (iAlt < 0 || iUst < 0) continue
+    const iKat = basliklar.findIndex((h: string) => h.indexOf('coefficient') !== -1)
+    for (const satir of (Array.isArray(t?.rows) ? t.rows : [])) {
+      if (!Array.isArray(satir)) continue
+      const alt = sayi(satir[iAlt]), ust = sayi(satir[iUst])
+      if (!Number.isFinite(alt) || !Number.isFinite(ust) || alt <= ust) continue
+      if (-alt > ust) continue
+      if (iKat >= 0) {
+        const kat = sayi(satir[iKat])
+        if (Number.isFinite(kat) && !(-alt <= kat && kat <= ust)) continue
+      }
+      satir[iAlt] = String(-alt)
+      onarilan++
+    }
+  }
+  return onarilan
+}
 const VISION_MAX_IMAGES = 2
 // The vision pass is an EXTRA call, and on this tier every extra call means a
 // full ~60s TokenPacer wait before it can start. The narrative writer runs
@@ -2651,6 +2873,21 @@ const EMPIRICAL_ANCHOR_RE = new RegExp([
 const MODEL_DEFINITION_RE =
   /\bpopulation regression\b|\bgeneral form\b|\bis specified as\b|\bpopulasyon regresyon\b/i
 
+/** Listeden n eleman, basa yiginmadan, esit aralikli secer. Ilk ve son
+ *  eleman her zaman girer; n listeden buyukse liste oldugu gibi doner. */
+function esitAralikSec<T>(liste: T[], n: number): T[] {
+  const a = Array.isArray(liste) ? liste : []
+  if (n <= 0) return []
+  if (a.length <= n) return a.slice()
+  if (n === 1) return [a[0]]
+  const out: T[] = []
+  for (let k = 0; k < n; k++) {
+    const idx = Math.round((k * (a.length - 1)) / (n - 1))
+    if (out.indexOf(a[idx]) === -1) out.push(a[idx])
+  }
+  return out
+}
+
 function selectVisualPages(
   pdfPageTexts: string[],
   nearBlankIndices: number[],
@@ -2725,7 +2962,21 @@ function selectVisualPages(
   }
 
   return {
-    indices: nearBlankIndices.slice(0, maxPages),
+    /* BASTAN DEGIL BELGEYE YAYARAK (31.10.2026, Kan kosusunda olculdu).
+
+       Yedek katman adaylarin BASINDAN maxPages kadarini aliyordu. Olculen
+       kosu (67 sayfalik Turkce deste, 40 aday):
+         Gorsel sayfa secimi: [0,1,3,6,7,13,14,15,17,18,23,24]
+       Hepsi destenin ilk ceyreginden. Plazma tablolari s.21 ve s.23'te
+       (indeks 20 ve 22) ve hicbiri gonderilmedi — tablo gecisi 0 tablo
+       dondurdu. Ayni belgenin 28.10 kosusunda (PDF'in tamami gorsel
+       gonderiliyordu) o UC tablo kartta vardi.
+
+       Yedek katmanin elinde siralama olcutu YOK — bunlar yalnizca "metni
+       bos sayfa". Oyleyse baslangici degil belgenin TAMAMINI ornekleyen
+       bir secim dogru olani: esit aralikli ornekleme. Ilk ve son aday
+       her zaman iceride. */
+    indices: esitAralikSec(nearBlankIndices, maxPages),
     reason: `sekil basligi yok, bos sayfa yedegi (${nearBlankIndices.length} aday)`
   }
 }
@@ -3136,6 +3387,40 @@ function nearDupKeysMatch(a: string, b: string): boolean {
  * katlanmaz (ikisi de 5 karakterden kisa, oldugu gibi kalir). "effects"/
  * "effect" katlanir. Bu sinir bilerek: kisa sozcukte cogul atmak
  * Turkce'de "kurs"->"kur" gibi anlam kaymasi uretir. */
+/* AYRI SAYI AYRI OLGUDUR (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Kelime ortusmesi iki GERCEKTEN AYRI olguyu birlestiriyordu. Olculen
+ * cift (kartin kendi maddeleri, s.39 yorum slayti):
+ *   A: "...the Europe dummy coefficient indicates that energy consumption
+ *       per capita is 50.5% higher in Europe than in South America..."
+ *   B: "...the North America dummy coefficient indicates that energy
+ *       consumption per capita is 56.6% higher in North America..."
+ * Ortusme 0.818, esik 0.7 — birlestiler, 56.6 karta hic girmedi ve
+ * sayisal kapsamada kayip sayildi. Iki cumle ayni kalibi paylasiyor,
+ * yalnizca BOLGE ve SAYI farkli; nicel bir belgede ayirt edici olan tam
+ * da bu.
+ *
+ * ESIK OYNATILMADI (olculdu: 0.4-0.7 bandindaki 8333 ciftin cogu gercekten
+ * ayri; Jaccard da reddedildi, gercek kopyalar 0.474/0.364 veriyor). Bunun
+ * yerine AYRI bir koruma: iki metnin de ayirt edici sayisi varsa ve
+ * kumeler AYRIKSA, bunlar ayni olgunun iki ifadesi olamaz.
+ *
+ * DAR: biri sayisiz ise koruma calismaz (eski davranis), cunku o zaman
+ * sayi bir sinyal tasimiyor. Olculen gercek kopyalar etkilenmiyor —
+ * Riemann toplami ucluSu ve "Interaction Effect(s)" ciftinde ayirt edici
+ * sayi YOK, ikisi de eskisi gibi birlesiyor.
+ *
+ * distinctiveNumbers kullaniliyor, ham rakam degil: tam sayi, yil, eksen
+ * centigi, ara hesap ve yuzde carpani zaten orada eleniyor. */
+function sayiKumesiAyrik(a: string, b: string): boolean {
+  const sa = new Set(distinctiveNumbers(a).map(Math.abs))
+  if (sa.size === 0) return false
+  const sb = new Set(distinctiveNumbers(b).map(Math.abs))
+  if (sb.size === 0) return false
+  for (const v of sa) if (sb.has(v)) return false
+  return true
+}
+
 function nearDupAyniBaslik(a: string, b: string): boolean {
   const na = gateNormalize(a)
   const nb = gateNormalize(b)
@@ -3326,7 +3611,7 @@ function dedupeNearDuplicates(
   getKey?: (item: any) => string
 ): any[] {
   const list = Array.isArray(items) ? items : []
-  type Kept = { item: any; terms: Set<string>; order: number; len: number; key: string }
+  type Kept = { item: any; terms: Set<string>; order: number; len: number; key: string; text: string }
   const kept: Kept[] = []
 
   for (let i = 0; i < list.length; i++) {
@@ -3335,7 +3620,7 @@ function dedupeNearDuplicates(
     const terms = nearDupTermSet(text)
     const key = getKey ? String(getKey(list[i]) || '') : ''
 
-    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length, key }); continue }
+    if (terms.size < NEAR_DUP_MIN_TERMS) { kept.push({ item: list[i], terms, order: kept.length, len: text.length, key, text }); continue }
 
     let mergedInto = -1
     for (let k = 0; k < kept.length; k++) {
@@ -3345,6 +3630,8 @@ function dedupeNearDuplicates(
       if (!nearDupKeysMatch(key, other.key)) continue
       /* AYNI BASLIK metin olcusunu beklemez — bkz. nearDupAyniBaslik. */
       if (nearDupAyniBaslik(key, other.key)) { mergedInto = k; break }
+      /* AYRIK SAYI KUMESI birlesmeyi engeller — bkz. sayiKumesiAyrik. */
+      if (sayiKumesiAyrik(text, other.text)) continue
       let shared = 0
       for (const t of terms) if (other.terms.has(t)) shared++
       const overlap = shared / Math.min(terms.size, other.terms.size)
@@ -3352,11 +3639,11 @@ function dedupeNearDuplicates(
     }
 
     if (mergedInto === -1) {
-      kept.push({ item: list[i], terms, order: kept.length, len: text.length, key })
+      kept.push({ item: list[i], terms, order: kept.length, len: text.length, key, text })
     } else if (text.length > kept[mergedInto].len) {
       // Same idea, better stated — keep the fuller wording at the original
       // position so ordering stays stable.
-      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length, key }
+      kept[mergedInto] = { item: list[i], terms, order: kept[mergedInto].order, len: text.length, key, text }
     }
   }
 
@@ -4634,7 +4921,19 @@ function splitSentences(text: string): string[] {
   const rough = String(text || '')
     .replace(/\s+/g, ' ')
     .trim()
-    .split(/(?<=[.!?…])\s+/)
+    /* KAPANIS TIRNAGI CUMLEYI YUTUYORDU (31.10.2026, IPPT kartinda olculdu).
+       Desen yalnizca noktalama ariyordu; kaynak ise yorumu tirnak icinde
+       veriyor ve nokta tirnagin ICINDE kaliyor:
+         “...is 50.5% higher in Europe than South America.” The North
+         America dummy variable coefficient is interpreted as “...56.6%...”
+       Bolunmedigi icin 303 karakterlik TEK cumle cikiyordu — alinti tavani
+       220, yani bu metinden hic alinti secilemiyordu ve iki bolge yuzdesi
+       (50.5 / 56.6, ikinci tabloda 9.3 / 41.5) karta dort kosu boyunca hic
+       girmedi. Tirnak kaldirilinca ayni metin 143 ve 157 karakterlik iki
+       cumleye bolunuyor; ikisi de tavanin altinda.
+       Kapanis isareti ISTEGE BAGLI: noktanin kendisi hala sart, yani
+       tirnagin tek basina cumle bitirmesi mumkun degil. */
+    .split(/(?<=[.!?…][”’"'»)\]]?)\s+/)
   const out: string[] = []
   for (const piece of rough) {
     const prevNeedsMerge = out.length > 0 && (() => {
@@ -4704,9 +5003,26 @@ function alintiBloklari(body: string): string[] {
     const noktalamaylaBitti = /[.!?\u2026:]$/.test(onceki)
     const tireyleBolundu = /[-\u2010-\u2015]$/.test(onceki)
     const kucukBasliyor = /^[a-z\u00e0-\u00f6\u00f8-\u00ff\u011f\u015f\u0131\u00f6\u00e7\u00fc]/.test(satir)
+    /* PARANTEZLE BASLAYAN SARMA (31.10.2026, IPPT kartinda olculdu).
+
+       Yukaridaki "bilinen sinir" notu kucuk harf sartini anlatiyor. Olculen
+       kayip tam oradan geldi: kaynak satiri
+         "consumption per capita goes up by"
+         "(0.026)100% or 2.6%.” This coefficient is"
+       Ikinci satir parantezle basladigi icin SINIR sayildi; cumle ortasindan
+       kesildi ve sayilar 21 karakterlik, harf orani 0.10 olan bir parcada
+       kaldi. O parca her suzgecten dusuyor, yani 0.026 ve 2.6 hicbir aday
+       cumlede gecmiyordu.
+
+       Parantez/yuzde CUMLE BASLATAMAZ, o yuzden sarma sayiliyor. CIPLAK
+       RAKAM bilerek disarida: grafik eksen centikleri ("0", "20", "40")
+       noktalamasiz bir baslik satirinin ardindan geliyor ve onlari
+       yapistirmak "Scatter Plots of this Relationship for Europe" gibi
+       calisan bir alinti etiketini coplestirirdi. */
+    const cumleBaslatamaz = /^[(\u00ab„%]/.test(satir)
     if (tireyleBolundu) {
       out[out.length - 1] = onceki.replace(/[-\u2010-\u2015]$/, '') + satir
-    } else if (!noktalamaylaBitti && kucukBasliyor) {
+    } else if (!noktalamaylaBitti && (kucukBasliyor || cumleBaslatamaz)) {
       out[out.length - 1] = onceki + ' ' + satir
     } else {
       out.push(satir)
@@ -4747,6 +5063,7 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
   if (totalWeight <= 0) return null
 
   let best: { text: string; score: number; siralama: number; kesinlik: number } | null = null
+  let enIyiKapsama = 0
   /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
      alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
      cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
@@ -4823,8 +5140,30 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
       && Math.abs(siralama - best.siralama) <= QUOTE_SIRALAMA_BANDI
       && kesinlik > best.kesinlik
     if (!best || belirginUstunluk || yakinAmaDahaDerli) best = { text: raw, score, siralama, kesinlik }
+    if (score > enIyiKapsama) enIyiKapsama = score
   }
-  if (!best || best.score < 0.3) return null
+  /* KAPI EN IYI KAPSAMAYA BAKAR, SIRALAMA KAZANANINA DEGIL (31.10.2026,
+     olculdu).
+
+     Yukaridaki iki not "KAPI DEGISMEDI, yalnizca SIRALAMA" diyor — niyet
+     bu ama kod oyle davranmiyordu: esik `best.score`a bakiyor, `best` ise
+     kesinlik tie-break'i ile DEGISMIS olabiliyor. Yani siralama, hukmu
+     soyleyen kisa cumleyi hakli olarak one cikariyor, sonra kapi o kisa
+     cumlenin kapsamasina bakip ALINTININ TAMAMINI iptal ediyordu.
+
+     Olculen sayfa (s.42, iddia "neither regional dummy variable is
+     statistically different ... at the 10% level"):
+       kapsama 0.407  "The Europe dummy variable coefficient is ..."
+       kapsama 0.407  "The North America dummy variable coefficient is ..."
+       kapsama 0.256  "Neither of these are statistically significant ..."
+     Ucuncusu dice birincisi. Kapi 0.3; sayfada esigi GECEN aday vardi ama
+     donen deger null oldu ve dipnot etiketi sayfa basligina dustu.
+
+     Artik eligibility SAYFANIN EN IYI KAPSAMASI ile, gosterilen alinti
+     siralama ile belirleniyor: hangi iddianin alinti alacagi eskisi gibi,
+     degisen yalnizca hangisinin gosterildigi. Esigi gecen hicbir aday
+     yoksa (orn. tek basina "America as the omitted group") yine null. */
+  if (!best || enIyiKapsama < 0.3) return null
   return best.text.length > QUOTE_MAX_CHARS
     ? best.text.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
     : best.text
@@ -5817,6 +6156,30 @@ const SAYISAL_KAPSAMA_ORNEK = 8
 // Kayip sayinin iki yanindan basilan baglam uzunlugu — bkz. sayisalKayipBaglami.
 const SAYISAL_BAGLAM_KRK = 40
 
+/* YUZDEYE CEVIRME CARPANI OLGU DEGILDIR (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Dort ayri kosuda ayni iki sayi hedefte kaldi ve hicbir ozet onlari
+ * "kacirmiyordu" — zaten sayi degillerdi:
+ *   1100 <- "y increases by β1100%"        (β₁ ile 100% yan yana yazilmis)
+ *   100  <- "goes up by (0.026)100% or 2.6%" (ondaligi yuzdeye cevirme carpani)
+ * Ikisi de ders icerigi degil, notasyon. Ikisi ZITTI yonde bozuyordu:
+ *   1100 dort kosunun DORDUNDE de "kayip" sayildi — payda sisirdi,
+ *   100  ise ozet "(β₁)100%" yazdigi icin BEDAVA "kapsandi" — pay sisirdi.
+ * En iyi kosu 25/30 (%83); bu iki hedef cikinca ayni ozet 24/28 (%86).
+ *
+ * DESEN DAR: sayinin HEMEN onunde kapanan parantez ya da Yunan harfi,
+ * HEMEN ardinda yuzde isareti olmali. Olculen karsi ornekler korunuyor:
+ *   "or 2.6%"            onunde bosluk      -> hedef kaliyor
+ *   "is 50.5% higher"    onunde bosluk      -> hedef kaliyor
+ *   "at the 1% level"    onunde bosluk      -> hedef kaliyor
+ *   "by .69%"            onunde bosluk      -> hedef kaliyor
+ *   "2(0.09)39 = "       ardinda % yok      -> hedef kaliyor
+ *
+ * Bu, kapsama esigini GEVSETMEK degil: olcunun paydasindan olgu olmayani
+ * cikarmak. Kullanicinin kurali da boyle — "kapsamayi gevsetme, cikarimi
+ * duzelt; artefaktlar haric". */
+const YUZDE_CEVRIM_RE = /(?<=[)\u0370-\u03ff])\d[\d.,]*\s*%/g
+
 /** Bir sayi belirtecinin okumalari; ILK eleman birincil okuma.
  *
  *  Turkce ondalik virgul ("12,08", "%2,6") de okunur: ozet dili Turkce
@@ -6048,6 +6411,99 @@ function eksenCentikleriniAyikla(text: string): { metin: string; elenen: number[
   return { metin: out, elenen }
 }
 
+/* ARA HESAP SONUC DEGILDIR (31.10.2026, IPPT kartinda dort kosu boyunca
+   olculdu).
+ *
+ * Kaynak hesabi ZINCIR halinde yaziyor ve zincirin ortasindaki sayi
+ * mustahzar is, ogretilecek olgu degil:
+ *   "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06"   olgu: 5.06
+ *   "-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14"    olgu: 2.14
+ * 7.02 ve 14.22 hedefte duruyordu, yani kart sonucu dogru yazdigi halde
+ * "kacirmis" sayiliyordu. Ozetin bu sayilari yazmasi ISTENMEZ de: ara
+ * adimi tekrarlayan bir madde ogrenciye bilgi katmaz.
+ *
+ * KURAL: satirda EN AZ IKI esitlik varsa, ILK ile SON esitlik arasindaki
+ * bolge ara hesaptir. Sonuc son esitligin sagindadir ve DOKUNULMAZ.
+ *
+ * Mutlak degerle tekilleştirme sayesinde eleme GERCEK katsayiyi
+ * goturmuyor: 12.08 zincirin ortasinda da geciyor ama ayni sayi
+ * "UtilityBill = 484.12 − 12.08temp + 0.09temp^2" slaytinda tek esitlikli
+ * satirda da var, oradan hedef kaliyor. 7.02 ve 14.22 ise baska hicbir
+ * yerde gecmiyor — o yuzden duserler. Olculdu.
+ *
+ * IKI KORUMA:
+ *   - orta bolgede ISLEM isareti olmali (+ − × /): "H_0: β_1 = β_2 = 0"
+ *     gibi hipotez satirinda orta bolge sade, dokunulmuyor,
+ *   - tek esitlikli satir hic incelenmiyor: "intercept for a ranch is
+ *     20.43 + 23.53 = 43.96" tamamen hedefte kaliyor. */
+const ARA_HESAP_ISLEM_RE = /[+\u2212\u00d7*\/-]/
+/* TEK ESITLIKTE DE OPERAND ARA HESAPTIR (31.10.2026 olculdu).
+ *
+ * Zincir kuralı >=2 esitlik istiyordu. Kaynakta tek esitlikli saf
+ * aritmetik de var ve orada da olgu SONUCTUR:
+ *   "the intercept for a ranch is 20.43 + 23.53 = 43.96"
+ *   "the intercept for a split level is 20.43 + 19.84 = 40.27"
+ * 19.84 dort kosu boyunca "kayip" sayildi ve kapsama tavanini %96'da
+ * tuttu. Oysa ozetin yazmasi gereken sey 40.27; 19.84 toplamanin bir
+ * terimi, ustelik slaytin KENDI yazim hatasi (katsayi 18.84).
+ *
+ * SOL TARAF SAF ARITMETIK OLMALI — harf iceriyorsa dokunulmuyor:
+ *   "UtilityBill = 484.12 - 12.08temp + 0.09temp^2"  sol "UtilityBill" -> ATLANIR
+ *   "temp = 67.11"                                   sol "temp"        -> ATLANIR
+ *   "Observations = 34"                              islem yok        -> ATLANIR
+ *   "20.43 + 23.53 = 43.96"                           sol saf          -> operand elenir
+ * Gercek katsayilar yine hedefte kaliyor, cunku mutlak degerle
+ * tekillestirme onlari BASKA satirdan buluyor: 20.43 ve 23.53 ev fiyati
+ * denkleminde geciyor ve o satirin solu harfli. 19.84 baska hicbir yerde
+ * gecmiyor — o yuzden duser.
+ *
+ * DENKLEM DUZ YAZININ ICINDE: sol tarafin TAMAMI aritmetik degil
+ * ("the intercept for a ranch is 20.43 + 23.53"). O yuzden solun
+ * ARITMETIK KUYRUGU aliniyor ve yalnizca orada en az IKI sayi ve bir
+ * islem isareti varsa eleme yapiliyor — bir toplamanin terimleri. */
+const ARA_HESAP_SAF_SOL_RE = /[\s\d.,()+\u2212*\/-]+$/
+const ARA_HESAP_MIN_OPERAND = 2
+
+function araHesabiAyikla(text: string): { metin: string; elenen: number[] } {
+  const elenen: number[] = []
+  const metin = String(text || '').split(/\r?\n/).map((satir) => {
+    const ilk = satir.indexOf('=')
+    const son = satir.lastIndexOf('=')
+    if (ilk < 0) return satir
+    /* TEK ESITLIK: sol taraf saf aritmetikse operandlar ara hesaptir.
+       Bkz. ARA_HESAP_SAF_SOL_RE yanindaki olcum. */
+    if (son === ilk) {
+      const sol = satir.slice(0, ilk)
+      const kuyrukEs = sol.match(ARA_HESAP_SAF_SOL_RE)
+      const kuyruk = kuyrukEs ? kuyrukEs[0] : ''
+      if (!ARA_HESAP_ISLEM_RE.test(kuyruk)) return satir
+      const re2 = new RegExp(SAYI_BELIRTECI.source, 'g')
+      const bulunanlar: number[] = []
+      let m2: RegExpExecArray | null
+      while ((m2 = re2.exec(kuyruk)) !== null) {
+        const okuma = sayiOkumalari(m2[0])[0]
+        if (Number.isFinite(okuma)) bulunanlar.push(okuma)
+        if (m2[0].length === 0) re2.lastIndex++
+      }
+      if (bulunanlar.length < ARA_HESAP_MIN_OPERAND) return satir
+      for (const v of bulunanlar) elenen.push(v)
+      const kuyrukBas = sol.length - kuyruk.length
+      return satir.slice(0, kuyrukBas) + ' '.repeat(kuyruk.length) + satir.slice(ilk)
+    }
+    const orta = satir.slice(ilk + 1, son)
+    if (!ARA_HESAP_ISLEM_RE.test(orta) || !/\d/.test(orta)) return satir
+    const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+    let m: RegExpExecArray | null
+    while ((m = re.exec(orta)) !== null) {
+      const okuma = sayiOkumalari(m[0])[0]
+      if (Number.isFinite(okuma)) elenen.push(okuma)
+      if (m[0].length === 0) re.lastIndex++
+    }
+    return satir.slice(0, ilk + 1) + ' '.repeat(orta.length) + satir.slice(son)
+  }).join('\n')
+  return { metin, elenen }
+}
+
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
     .replace(URL_BENZERI_RE, ' ')
@@ -6060,11 +6516,15 @@ function distinctiveNumbers(text: string): number[] {
        "planned.13-38" -> "planned." */
     .replace(SLAYT_ALTBILGI_RE, (tam: string) => tam.slice(0, 2))
     .replace(SAYFA_ISARETI_RE, ' ')
+    // Yuzdeye cevirme carpani — bkz. YUZDE_CEVRIM_RE yanindaki olcum.
+    .replace(YUZDE_CEVRIM_RE, ' ')
   // Grafik eksen centikleri — bkz. eksenCentikleriniAyikla yanindaki not.
   const eksensiz = eksenCentikleriniAyikla(temiz).metin
+  // Zincirin ortasindaki ara hesap — bkz. araHesabiAyikla yanindaki olcum.
+  const arasiz = araHesabiAyikla(eksensiz).metin
   const out: number[] = []
   const gorulen = new Set<number>()
-  for (const token of eksensiz.match(SAYI_BELIRTECI) || []) {
+  for (const token of arasiz.match(SAYI_BELIRTECI) || []) {
     // Ayracsiz 7+ hane olculmus bir deger degil, denklem nesnesinin bozuk
     // cikarimi: canli logda "kayip: 3210, 12010, 3152143210" — "x_1 x_2 x_3"
     // alt simgelerinin yan yana dizilmis hali. Kimlik/telefon da ayni sinif.
@@ -6279,6 +6739,398 @@ function tahminDenklemleriniKurtar(
     })
   }
   return { formulas, kurtarilan: [...kurtarilan] }
+}
+
+/* SAYININ ANLAMINI SOYLEYEN CUMLE KURTARILIR (31.10.2026, IPPT kartinda
+   dort kosu boyunca olculdu).
+ *
+ * tahminDenklemleriniKurtar DENKLEMLERI geri getiriyor, ama destenin son
+ * slaytlarindaki sayilar denklemde degil YORUM CUMLESINDE duruyor ve dort
+ * kosunun hicbirinde karta girmedi:
+ *   s.39  50.5 / 56.6  "...is interpreted as 'on average energy consumption
+ *                        per capita is 50.5% higher in Europe than South
+ *                        America.'"
+ *   s.42  9.3  / 41.5   ayni kalip, ikinci kukla tablosu
+ *   s.40  0.69          "...goes up by .69%."
+ *   s.11  0.07          "On average, if GDP per capita increases by $1000
+ *                        US dollars, energy consumption per capita
+ *                        increases by .07 tons."
+ * Dordu de destenin SONUNDA, yani ikinci pencerenin cikis tavaninin
+ * altinda kaliyor (log: "Window 2 token: completion=4057 / max=3460").
+ * Promptla cozulmez — pencere zaten tavana dayaniyor.
+ *
+ * KURTARILAN CUMLE MADDEYE EKLENIYOR, formule degil: bunlar bir kuralin
+ * notasyonu degil, bir sayinin ANLAMI. Madde olarak eklenince ucu bedava
+ * geliyor — bu blok temizlikten ONCE kostugu icin cumle (1) grounding
+ * kapisindan gecer (birebir kaynakta), (2) near-duplicate birlestirmede
+ * taslagin kendi parafrazi ile eslesirse birlesir, (3) atif baglamada
+ * sayfa numarasini alir.
+ *
+ * SUZGEC DAR tutuldu, cunku kaynak slayt destesi ve icinde baslik, eksen
+ * centigi ve mustahzar hesap satiri dolu:
+ *   - isaretci sart ("interpreted as", "on average", "means that"...):
+ *     baslik ("Empirical Example of the Log – Log Model") bunlarin
+ *     hicbirini tasimiyor,
+ *   - harf orani >= 0.6: "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06"
+ *     gibi hesap satiri ve eksen centigi dizisi bu esigin altinda,
+ *   - en az 8 sozcuk: iki kelimelik etiketler disarida,
+ *   - alinti uzunlugu sinirlari: madde olarak okunabilir kalmali. */
+const YORUM_ISARETCI_RE =
+  /interpreted as|on average|means that|which means|in other words|yorumlan|ortalama olarak|anlamina gel|demektir/i
+const YORUM_MIN_SOZCUK = 8
+const YORUM_HARF_ORANI = 0.6
+/* Tavan 4 degil 6: olculen destede yorum slaytlari SIMETRIK CIFT tasiyor
+   ("Avrupa %9.3 daha az" + "Kuzey Amerika %41.5 daha fazla"). Tavan 4'te
+   her slayttan yalnizca kisa olani geliyordu ve kart ciftin yarisini
+   gosteriyordu: 50.5 ve 9.3 girdi, 56.6 ile 41.5 sigmadi. */
+const YORUM_MAX = 6
+/* KURTARMANIN KENDI UZUNLUK TAVANI (31.10.2026 olculdu).
+
+   QUOTE_MAX_CHARS (220) ALINTI icin: dipnot etiketi bir ipucu kutusuna
+   sigmali. Kurtarilan sey ise MADDE ve kartin kendi maddeleri zaten
+   250-300 karakter. Olculen kayip: kaynakta "...with South America as the
+   omitted group" satirinin noktasi YOK, yani onsoz Avrupa cumlesine
+   yapisiyor ve blok 245 karaktere cikiyor — 220 tavani onu eledi ve 50.5
+   kurtarilamadi. 300 o cumleyi geciriyor, cop uretmiyor: isaretci, harf
+   orani, sozcuk sayisi ve tam cumle sartlari yerinde. */
+const YORUM_MAX_KRK = 300
+
+/* YAPISIK CUMLELER (31.10.2026, kartta olculdu).
+ *
+ * Slayt basligi IKI satira bolunduyse kalan tek sozcuk baslik sayilmiyor
+ * (baslikGibi en az uc sozcuk ister) ve kendinden sonrasini yutuyor.
+ * Olculen kaynak (s.38):
+ *   "Empirical Example of the Log - Linear"   <- baslik, dogru ayrildi
+ *   "Model"                                   <- tek sozcuk, baslik sayilmadi
+ *   "The dependent variable is the natural log of energy per capita"
+ *   "This slope coefficient on gdppc is ... (0.026)100% or 2.6%."
+ * Sonuc 300 karakterlik bir blok ve kartta soyle bir madde:
+ *   "Model The dependent variable is the natural log of energy per capita
+ *    This slope coefficient on gdppc is interpreted as, ..."
+ * Blok butun suzgecleri geciyor (noktayla bitiyor, isaretci tasiyor).
+ *
+ * COZUM metni BOLMEK degil, AYRI ADAYLAR uretmek: noktalama olmadan
+ * gelen bir CUMLE BASI sozcugu (The/This/It...) ardindan KUCUK harfli bir
+ * sozcuk geliyorsa orada yeni bir aday baslar. Noktalama yoksa parca tam
+ * cumle olmadigi icin zaten elenir; yalnizca sonuncu gecer.
+ *
+ * Buyuk harfle devam eden ozel ad bundan etkilenmiyor: "...higher in
+ * North America than..." -> "North" cumle basi listesinde yok, ustelik
+ * ardindan gelen "America" da buyuk harfli. */
+const YORUM_CUMLE_BASI = 'The|This|These|Those|That|It|We|When|If|For|Note|Using|Given|Each|Both|However|Therefore|Bu|Bunlar|Ayrica'
+const YORUM_YAPISIK_RE = new RegExp(`(?<=[\\p{L}\\p{N}])\\s+(?=(?:${YORUM_CUMLE_BASI})\\s+\\p{Ll})`, 'gu')
+
+/** Yapisik cumleleri ayri adaylara boler; bolme yoksa tek elemanli doner. */
+function yapisikParcalar(cumle: string): string[] {
+  if (!YORUM_YAPISIK_RE.test(cumle)) return [cumle]
+  return cumle.split(YORUM_YAPISIK_RE).map((x) => x.trim()).filter(Boolean)
+}
+
+/* KURTARMA KENDI SATIR BIRLESTIRMESINI YAPAR (31.10.2026, kartta olculdu).
+ *
+ * alintiBloklari sarmayi yalnizca kucuk harfle (ve parantezle) devam
+ * ediyorsa birlestiriyor; ozel ad iki satira bolunduyse cumle ortadan
+ * kesiliyor. Kartta iki kurtarilmis madde ve iki kaynakca girdisi bu
+ * yuzden KESIK cikti:
+ *   "...is 56.6% higher in North"     (devami: "America than South...")
+ *   "...in Europe than South"
+ * Olculen: 134 ve 129 karakterlik iki kesik aday, arada 9 karakterlik
+ * "America.”" parcasi.
+ *
+ * O kuralı GEVSETMEK denendi ve GERI ALINDI: "iki yani da buyuk harfle
+ * baslayan sozcuk" kuralı baslik satirini da yutuyor ("Empirical Example
+ * of the Log - Log Model" + "This slope coefficient...") ve alinti
+ * secimini butun belgelerde etkiliyor. Testler bunu yakaladi.
+ *
+ * Bunun yerine kurtarma KENDI birlestirmesini yapiyor: satirlar cumle
+ * noktalamasi gorulene kadar ekleniyor. Bunu yapabilmesinin sebebi
+ * suzgeclerinin alinti secimininkinden GUCLU olmasi — isaretci, harf
+ * orani, sozcuk sayisi ve TAM CUMLE sarti birlikte copu geciriyor.
+ * alintiBloklari DOKUNULMADAN kaliyor. */
+/* BASLIK SATIRI KENDINDEN SONRASINI YUTMAMALI (31.10.2026 olculdu).
+ *
+ * Ilk surum "noktalama yoksa birlestir" diyordu ve slayt basligi da
+ * noktalama tasimiyor. Olculen sonuc: "Empirical Example of the Log -
+ * Linear Model with Dummy Variables" basligi kendinden sonraki dort
+ * satiri yuttu, Avrupa cumlesi 220 karakterlik alinti tavanini asti ve
+ * 50.5 KURTARILAMADI; log-log cumlesi de "Empirical Example of the Log -
+ * Log Model" onekiyle geldi.
+ *
+ * Baslik testi BUYUK HARF ORANI: sozcuklerin yarisi ya da fazlasi buyuk
+ * harfle basliyorsa baslik sayilir ve birlestirme orada durur. Olculen
+ * degerler:
+ *   "Empirical Example of the Log - Linear Model with Dummy Variables" 0.70
+ *   "Empirical Example of the Log - Log Model"                        0.75
+ *   "Scatter Plots of this Relationship for Europe"                   0.57
+ *   "capita is 50.5% higher in Europe than South"                     0.25
+ *   "The Europe dummy variable coefficient is"                        0.33
+ *   "The marginal effect at a temperature of 80 (evaluated at 79) is"  0.09
+ * Ilk ucu baslik, son ucu cumle parcasi — esik 0.5 ikisini ayiriyor.
+ * En az uc sozcuk sart: iki sozcukluk bir parca baslik sayilmamali. */
+const KURTARMA_BASLIK_ORANI = 0.5
+function baslikGibi(satir: string): boolean {
+  const sozcukler = satir.match(/[\p{L}][\p{L}\p{N}'\u2019]*/gu) || []
+  if (sozcukler.length < 3) return false
+  const buyuk = sozcukler.filter((w) => /^\p{Lu}/u.test(w)).length
+  return buyuk / sozcukler.length >= KURTARMA_BASLIK_ORANI
+}
+
+function kurtarmaSatirlari(sourceText: string): string[] {
+  const out: string[] = []
+  for (const satir of String(sourceText || '').split(/\r?\n/).map((x) => x.trim())) {
+    if (!satir) continue
+    const onceki = out.length ? out[out.length - 1] : ''
+    if (onceki && !YORUM_TAM_CUMLE_RE.test(onceki) && !baslikGibi(onceki)) {
+      out[out.length - 1] = onceki + ' ' + satir
+    } else {
+      out.push(satir)
+    }
+  }
+  return out
+}
+
+/** Kurtarilan madde TAM CUMLE olmali: yarim kalan parca madde degil. */
+const YORUM_TAM_CUMLE_RE = /[.!?\u2026][\u201d\u2019"')\]]?$/
+
+function yorumCumleleriniKurtar(
+  sourceText: string,
+  missing: number[],
+  mevcutMaddeler: any[]
+): { points: string[]; kurtarilan: number[] } {
+  const eksik = new Set(missing.map((v) => Math.abs(v)))
+  if (eksik.size === 0 || !sourceText) return { points: [], kurtarilan: [] }
+
+  const varOlan = (Array.isArray(mevcutMaddeler) ? mevcutMaddeler : [])
+    .map((p: any) => typeof p === 'string' ? p : String(p?.text || p?.point || ''))
+    .join(' \n ')
+
+  const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
+  for (const blok of kurtarmaSatirlari(sourceText)) {
+    for (const cumle of splitSentences(blok)) {
+      const tam = cumle.trim()
+      /* HESAP VE ANLAM AYNI CUMLEDE OLABILIR (31.10.2026 olculdu).
+         Kaynak satir yapisi yuzunden zincir ile yorumu bir blokta geliyor:
+           "-12.08 + 2(0.09)79 = − 12.08 + 14.22 = 2.14 which means that if
+            temperature increases from 79 to 80 degrees then the utility bill
+            increases by $2.14."
+         Harf orani 0.52, yani suzgec tamamini eliyordu ve 2.14 hic
+         kurtarilamiyordu. SON esitligin sagi ayri bir aday olarak da
+         deneniyor: orada sonuc VE anlami duruyor (108 krk, harf orani
+         yuksek). Kuyruk tek basina sayi ise ("= 67.11") sozcuk ve isaretci
+         suzgeclerinden gecemez. */
+      const esit = tam.lastIndexOf('=')
+      /* KUYRUGUN BASI MADDE OLARAK OKUNMUYORDU (31.10.2026, kartta gorundu).
+         Kurtarilan madde soyle cikti:
+           "2.14 which means that if temperature increases from 79 to 80
+            degrees then the utility bill increases by $2.14."
+         Ciplak sayiyla basliyor ve ayni sayiyi sonunda tekrar ediyor.
+         Bastaki sayi, SONRASINDA ayni deger yine geciyorsa atiliyor — olgu
+         kaybi yok, gecmiyorsa dokunulmuyor. Ardindan gelen baglac da
+         atiliyor: "which means that if temperature..." -> "if temperature..." */
+      const kuyrugunBasi = (s: string): string => {
+        const m = s.match(/^(\.?\d[\d.,]*)\s+(\p{L}[\s\S]*)$/u)
+        const govde = m && m[2].includes(m[1]) ? m[2] : s
+        return govde.replace(/^(?:which\s+means\s+that|which\s+means|meaning\s+that|yani)\s+/i, '')
+      }
+      /* SUZGECLER HAM kuyruga bakar: temizlik "which means that"i atiyor,
+         yani isaretci suzgecinden ONCE uygulanirsa aday elenir (olculdu:
+         kurtarilan 0'a dustu). Temizlik ekleme aninda. */
+      const kuyruk = esit >= 0 ? tam.slice(esit + 1).trim() : ''
+      /* SIRA: en dar aday ONCE. Yapisik blok da noktayla bitip isaretci
+         tasidigi icin tamami kabul edilebilirdi; parcalar once denenince
+         yalnizca gercek cumle geciyor. */
+      const adayMetinleri = [...yapisikParcalar(tam)]
+      if (kuyruk && kuyruk !== tam) adayMetinleri.push(kuyruk)
+      if (adayMetinleri.indexOf(tam) === -1) adayMetinleri.push(tam)
+      for (const kirpik of adayMetinleri) {
+      if (kirpik.length < QUOTE_MIN_CHARS || kirpik.length > YORUM_MAX_KRK) continue
+      if (!YORUM_ISARETCI_RE.test(kirpik)) continue
+      if (!YORUM_TAM_CUMLE_RE.test(kirpik)) continue
+      const harf = (kirpik.match(/\p{L}/gu) || []).length
+      if (harf / kirpik.length < YORUM_HARF_ORANI) continue
+      if ((kirpik.match(/\p{L}{2,}/gu) || []).length < YORUM_MIN_SOZCUK) continue
+      const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+      const bulunan = new Set<number>()
+      let m: RegExpExecArray | null
+      while ((m = re.exec(kirpik)) !== null) {
+        for (const okuma of sayiOkumalari(m[0])) {
+          const v = Math.abs(okuma)
+          if (eksik.has(v)) bulunan.add(v)
+        }
+        if (m[0].length === 0) re.lastIndex++
+      }
+      if (bulunan.size > 0) { adaylar.push({ metin: kuyrugunBasi(kirpik), bulunan }); break }
+      }
+    }
+  }
+  /* Cok eksik sayi tasiyan once; esitlikte KISA olan, cunku madde olarak
+     okunacak. (Denklem kurtarmasinda tersi: orada uzun olan daha tam.) */
+  adaylar.sort((a, b) => b.bulunan.size - a.bulunan.size || a.metin.length - b.metin.length)
+
+  const points: string[] = []
+  const kurtarilan = new Set<number>()
+  for (const aday of adaylar) {
+    if (points.length >= YORUM_MAX) break
+    const yeni = [...aday.bulunan].filter((v) => !kurtarilan.has(v))
+    if (yeni.length === 0) continue
+    if (varOlan.includes(aday.metin)) continue
+    yeni.forEach((v) => kurtarilan.add(v))
+    points.push(aday.metin)
+  }
+  return { points, kurtarilan: [...kurtarilan] }
+}
+
+/* DUZLESMIS METIN TABLOSU (31.10.2026, Kan kosusunda olculdu).
+ *
+ * 28.10 kartinda UC tablo vardi, bugun BIR. Eksik sayilar (100, 150,
+ * 200, 0.0001, 0.000001, 1.2) once "gorsel kayip" sanildi; sonra
+ * document_chunks sorgulandi ve METINDE olduklari gorundu (s.20-22):
+ *   Besinler / glikoz / amino asitler / lipidler (total) / kolesterol /
+ *   vitaminler / eser elementler /
+ *   %100 mg / %40 mg / %500 mg / %150-200 mg / %0,0001-2,5 mg / %0,001-0,3 mg
+ *   Atık ürünler / üre / kreatinin / ürik asit / bilurubin /
+ *   %34 mg / %1 mg / %5 mg / %0,2-1,2 mg
+ * PDF'in iki kolonlu tablosu DUZLESMIS: once butun etiketler, sonra
+ * butun degerler. Pencere modeli bunu duz yazi gibi okuyup atliyor.
+ *
+ * Ayni belgedeki PROTEIN tablosu markdown borusuyla geliyor
+ * ("| albumin | %4,5 g | ...") ve model onu tabloya cevirdi — yani
+ * cikarimda sorun yok, kusur bu DUZLESMIS sekilde.
+ *
+ * Sekil tanınabilir: N etiket satiri + N deger satiri. Modele yeniden
+ * sormak yerine kaynaktan kuruluyor — denklem ve yorum kurtarmasiyla ayni
+ * durus. Yalnizca EKSIK sayi tasiyan grup alinir, yani gurultu eklemez. */
+const TABLO_MIN_SATIR = 3
+const TABLO_MAX_KURTARMA = 3
+const TABLO_ETIKET_MAX_KRK = 48
+/** Tek basina bir deger: "%100 mg", "145 mM", "%0,2-1,2 mg", "1050-1060". */
+const TABLO_DEGER_RE = /^[%$\u20ac\u20ba]?\s*-?[\d.,]+(?:\s*[-\u2212\u2013]\s*[%]?[\d.,]+)?\s*[%]?\s*(?:\p{L}{1,8}(?:\/\p{L}{1,8})?)?$/u
+
+function tabloDegerSatiri(s: string): boolean {
+  const t = s.trim()
+  if (!t || t.length > 24 || t.indexOf('|') !== -1) return false
+  if (!/\d/.test(t)) return false
+  return TABLO_DEGER_RE.test(t)
+}
+
+function tabloEtiketSatiri(s: string): boolean {
+  const t = s.trim()
+  if (!t || t.length > TABLO_ETIKET_MAX_KRK || t.indexOf('|') !== -1) return false
+  if (tabloDegerSatiri(t)) return false
+  if (/[.!?:]$/.test(t)) return false
+  /* En az iki harf ve harf agirlikli olmali; "λ" gibi madde imi degil. */
+  const harf = (t.match(/\p{L}/gu) || []).length
+  return harf >= 2 && harf / t.length >= 0.5
+}
+
+/* GRUBUN KUYRUGUNDAKI TEK SATIR (31.10.2026, Kan kartinda olculdu).
+ *
+ * Kurtarma 3 tablo getirdi ve kapsama 23/33 -> 30/33 oldu, ama iki sayi
+ * hala kayipti (0,000001 ve 0,05). Kaynaktaki hal:
+ *   ... bilurubin (hem)
+ *   %34 mg / %1 mg / %5 mg / %0,2-1,2 mg
+ *   Hormonlar %0,000001-0,05 mg        <- ETIKET ve DEGER AYNI SATIRDA
+ * Duzlesmis desen (N etiket + N deger) burada tutmuyor; satir grubun
+ * KUYRUGU. Yalnizca kurulan tablonun hemen ardinda aranir ve yine
+ * yalnizca eksik sayi tasiyorsa eklenir, yani gurultu eklemiyor. */
+const TABLO_KUYRUK_MAX = 3
+
+/** "Hormonlar %0,000001-0,05 mg" -> { etiket, deger }; degilse null. */
+function tabloKuyrukSatiri(s: string): { etiket: string; deger: string } | null {
+  const satir = String(s || '').trim()
+  if (!satir || satir.indexOf('|') !== -1) return null
+  /* Ilk SAYISAL jetondan ikiye bolunuyor: solu etiket, sagi deger olmali. */
+  const m = satir.match(/\s(?=[%$\u20ac\u20ba]?\s*-?\d)/)
+  if (!m || m.index === undefined) return null
+  const etiket = satir.slice(0, m.index)
+  const deger = satir.slice(m.index + 1)
+  if (!tabloEtiketSatiri(etiket) || !tabloDegerSatiri(deger)) return null
+  return { etiket, deger }
+}
+
+function metinTablosuKurtar(
+  sourceText: string,
+  missing: number[],
+  mevcutTablolar: any[],
+  lang: string
+): { tables: any[]; kurtarilan: number[] } {
+  const eksik = new Set(missing.map((v) => Math.abs(v)))
+  if (eksik.size === 0 || !sourceText) return { tables: [], kurtarilan: [] }
+  const varOlan = (Array.isArray(mevcutTablolar) ? mevcutTablolar : [])
+    .map((t: any) => String(t?.title || '')).join(' \n ')
+  const satirlar = String(sourceText).split(/\r?\n/).map((x) => x.trim())
+  const basliklar = lang === 'tr' ? ['Bileşen', 'Miktar'] : ['Item', 'Value']
+  const tables: any[] = []
+  const kurtarilan = new Set<number>()
+
+  for (let i = 0; i < satirlar.length; i++) {
+    if (!tabloDegerSatiri(satirlar[i])) continue
+    let son = i
+    while (son + 1 < satirlar.length && tabloDegerSatiri(satirlar[son + 1])) son++
+    const degerler = satirlar.slice(i, son + 1)
+    i = son
+    if (degerler.length < TABLO_MIN_SATIR) continue
+    /* Deger dizisinin HEMEN ONUNDE ayni sayida etiket satiri aranir. */
+    const etiketler: string[] = []
+    let k = (i - degerler.length)
+    for (let j = k; j >= 0 && etiketler.length < degerler.length; j--) {
+      if (!tabloEtiketSatiri(satirlar[j])) break
+      etiketler.unshift(satirlar[j])
+    }
+    if (etiketler.length !== degerler.length) continue
+    /* Grup icinde eksik sayi var mi? */
+    const bulunan = new Set<number>()
+    for (const d of degerler) {
+      const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+      let m: RegExpExecArray | null
+      while ((m = re.exec(d)) !== null) {
+        for (const okuma of sayiOkumalari(m[0])) {
+          const v = Math.abs(okuma)
+          if (eksik.has(v) && !kurtarilan.has(v)) bulunan.add(v)
+        }
+        if (m[0].length === 0) re.lastIndex++
+      }
+    }
+    if (bulunan.size === 0) continue
+    /* Baslik: etiketlerden once gelen ilk satir, bulunursa ondan once
+       gelen BASLIK satiri da onune eklenir. */
+    const ustIdx = (i - degerler.length) - etiketler.length
+    const grup = ustIdx >= 0 ? satirlar[ustIdx] : ''
+    let baslik = grup && tabloEtiketSatiri(grup) ? grup : ''
+    for (let j = ustIdx - 1; j >= 0 && j >= ustIdx - DENKLEM_BASLIK_GERI; j--) {
+      if (satirlar[j] && baslikGibi(satirlar[j])) { baslik = baslik ? satirlar[j] + ' — ' + baslik : satirlar[j]; break }
+    }
+    if (!baslik) baslik = lang === 'tr' ? 'Tablo (metinden)' : 'Table (from text)'
+    if (varOlan.indexOf(baslik) !== -1) continue
+    bulunan.forEach((v) => kurtarilan.add(v))
+    const satirlar2: string[][] = etiketler.map((e, idx) => [e, degerler[idx]])
+    /* Grubun hemen ardindaki "etiket + deger" tek satirlari ayni tabloya. */
+    for (let j = i + 1; j <= i + TABLO_KUYRUK_MAX && j < satirlar.length; j++) {
+      const k2 = tabloKuyrukSatiri(satirlar[j])
+      if (!k2) break
+      const re2 = new RegExp(SAYI_BELIRTECI.source, 'g')
+      const yeni2 = new Set<number>()
+      let m2: RegExpExecArray | null
+      while ((m2 = re2.exec(k2.deger)) !== null) {
+        for (const okuma of sayiOkumalari(m2[0])) {
+          const v = Math.abs(okuma)
+          if (eksik.has(v) && !kurtarilan.has(v)) yeni2.add(v)
+        }
+        if (m2[0].length === 0) re2.lastIndex++
+      }
+      if (yeni2.size === 0) break
+      yeni2.forEach((v) => kurtarilan.add(v))
+      satirlar2.push([k2.etiket, k2.deger])
+      i = j
+    }
+    tables.push({
+      title: baslik,
+      headers: basliklar.slice(),
+      rows: satirlar2
+    })
+    if (tables.length >= TABLO_MAX_KURTARMA) break
+  }
+  return { tables, kurtarilan: [...kurtarilan] }
 }
 
 function numericCoverage(
@@ -7759,7 +8611,17 @@ function anchorCitations(
      sayiliyor; madde imi olarak kullanilan tireden sonra her zaman bosluk
      var, isaretli sayidan sonra asla yok. Kursun imleri (• · ● …) kosulsuz
      atiliyor, onlar sayi basinda hic gecmez. */
-  const ETIKET_IM_RE = /^(?:[\s\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]+|[\u2013\u2014*-]+(?=\s))+/
+  /* LAMBDA MADDE IMI (31.10.2026, Kan kartinda olculdu).
+     Sunum sablonu madde imini Symbol yazi tipiyle koyuyor ve PDF metnine
+     "λ" olarak dusuyor. Kaynakcada yirmi atiftan sekizi boyle basladi:
+       [1] λ Kalp ve damarlardan olusan kapali bir sistem ...
+       [3] λ Kanin viskozitesi: 3,5 – 5,4 santipoise
+     λ GERCEK bir sembol de olabilir (dalga boyu), o yuzden kosulsuz
+     atilmiyor: ardindan RAKAM ya da "=" geliyorsa sembol sayiliyor
+     ("λ = 500 nm", "λ 500"); baska her sey im, cunku madde iminden
+     sonra ifade basliyor — harfle de ("λ Kalp") yuzdeyle de ("λ %10u
+     ise organik..."). Tire kuralindaki ayni durus. */
+  const ETIKET_IM_RE = /^(?:[\s\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]+|[\u2013\u2014*-]+(?=\s)|\u03bb(?=\s+[^\s\d=]))+/u
   const etiketiTemizle = (s: string) =>
     String(s || '')
       .replace(ETIKET_IM_RE, '')
@@ -7809,7 +8671,12 @@ function anchorCitations(
   for (let i = 0; i < points.length; i++) {
     const text = readText(points[i])
     if (!text.trim()) continue
-    if (/\[\d+\]/.test(text)) continue // already cited — leave it alone
+    /* COKLU ATIF DA ATIFTIR (31.10.2026, Week 11 kartinda olculdu).
+       Desen tek sayi bekliyordu; model virgullu yazdiginda "atifsiz"
+       sanildi ve UZERINE ikinci bir atif eklendi. Kartta duran hal:
+         "... before applying the power rule [6, 9]. [5]"
+       Log: kept=9 added=1 — eklenen o tek atif tam burasiydi. */
+    if (/\[\d+(?:\s*,\s*\d+)*\]/.test(text)) continue // already cited — leave it alone
 
     const hit = anchorClaimToPage(text, pageIndex, idf, lang === 'en')
     if (!hit) { stats.skipped++; continue }
@@ -8129,7 +8996,23 @@ const GEMINI_PARALLEL_CONCURRENCY = 4
 /** Paralel modda okunabilecek en fazla pencere (13.000 krk x 40 ~ 200+ sayfa). */
 const GEMINI_PARALLEL_MAX_WINDOWS = 40
 /** Gorsel gecise kesilip gonderilecek en fazla sayfa (tek mini-PDF). */
-const GEMINI_VISION_MAX_PAGES = 12
+/* 12 DEGIL 18 (31.10.2026, uc kosuda olculdu).
+ *
+ * Tablo gecisi iki dilime bolununce cikis tavani bagi KALKTI:
+ *   IPPT: completion=3653/6144   Kan: 743/6144   Week 8: 26/6144
+ * Yani yeni sinir token degil, GORULEN SAYFA sayisi. Olculen kayiplar:
+ *   IPPT  — tablolu slaytlar 11,13,15,17,19,27,28,38,39,41,42;
+ *           gonderilen 10 sayfanin icinde 13,15,17,19,39,42 YOK.
+ *   Kan   — plazma tablolari s.21 ve s.23; secim [0,1,3,...,24] ile
+ *           ikisi de disarida kaldi ve tablo gecisi 0 tablo dondurdu.
+ *           Ayni belgenin 28.10 kosusunda (PDF'in tamami gorsel
+ *           gidiyordu) o uc tablo kartta vardi.
+ *
+ * 18 sayfa, 2 dilimde 9'ar sayfa demek — dilim basina bugun 12 sayfayla
+ * harcanan token miktarindan fazlasini istemiyor. Mini-PDF ayni
+ * dosyadan kesiliyor, yani ek goruntu ucreti yok; artan tek sey
+ * istemdeki sayfa sayisi. */
+const GEMINI_VISION_MAX_PAGES = 18
 /** Groq'un dar cikis tavanlari Gemini'de gereksiz; JSON'un yarim kalmamasi icin taban. */
 const GEMINI_PARALLEL_MIN_OUTPUT = 8192
 
@@ -11319,6 +12202,29 @@ serve(async (req) => {
           }
         }
         extractedText = pptxText
+
+        /* SLAYTLARI RESIM OLAN PPTX (31.10.2026). parsePptxSlideXml metin
+         * kutusu arar; slayt tam sayfa bir goruntuyse metin kutusu YOKTUR ve
+         * pptxText bos cikar. Olculen kosu: Week 11 — "Extracted text is
+         * empty or blank" ve kosu bitti, ogrenci "no readable" gordu. Ayni
+         * gun taranmis PDF (Week 8) OCR'a dusup kurtulmustu; PPTX'te o yol
+         * yoktu. Simdi var — ve slayt numarasi ppt/slides/_rels'ten geldigi
+         * icin atiflar dogru slayta isaret ediyor. */
+        if (!pptxText.trim()) {
+          const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
+          if (ocrApiKey) {
+            const ocr = await pptxGorselOCR(zip, ocrApiKey)
+            if (ocr.text.trim().length >= 200) {
+              console.log(`PPTX gorsel OCR: ${ocr.okunan}/${ocr.toplam} slayt, ${ocr.text.length} karakter`)
+              extractedText = ocr.text
+              ocrKullanildi = true
+            } else {
+              console.warn(`PPTX gorsel OCR: ${ocr.okunan}/${ocr.toplam} slayt okundu, metin yetersiz (${ocr.text.trim().length} karakter)`)
+            }
+          } else {
+            console.warn("PPTX metinsiz ama OCR_SPACE_API_KEY yok — gorsel slaytlar okunamiyor")
+          }
+        }
       }
       else {
         // Fallback: try UTF-8 decoding
@@ -13595,7 +14501,7 @@ groups: sort the numbered sections S1..Sn into 3-6 topic groups, every number ex
                modele gosterilen sey iddia, numarasi degil. */
             const knownPointsHint = mergedKeyPoints
               .slice(0, 18)
-              .map((p: any) => maddeMetni(p).replace(/\s*\[\d+\]/g, '').trim().slice(0, 80))
+              .map((p: any) => maddeMetni(p).replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '').trim().slice(0, 80))
               .filter(Boolean)
               .map((t: string) => `- ${t}`)
               .join('\n')
@@ -13882,6 +14788,153 @@ The example that used to sit here named a real-looking percentage, and a live ru
                 visualAnalysisUsed = true
                 console.log(`Long-doc visual patch: +${newTerms.length} terms, +${newPoints.length} points, +${newQuiz.length} quiz, +${maddeliBolumler.length} sections, +${newTables.length} tables, +${newDiagrams.length} diagrams (grafik alinmaz) from ${visualImages.length} sekil sayfasi`)
               }
+
+            /* --- TABLO GECISI (ayri cagri) — bkz. TABLO_MAX_COMPLETION.
+
+               IKI DILIM (31.10.2026 olculdu): tek cagri her kosuda tavana
+               dayaniyordu (completion=3228/3072, 3758/3072, 3772/3072) ve 12
+               tablonun 9'unu, diyagramlarin hicbirini getiremiyordu. Tavani
+               buyutmek 15 sn'lik dilime carpiyor (olculdu: review olmustu),
+               o yuzden IS bolunuyor: sayfalar iki yariya ayrilip her yari
+               kendi 3072'siyle kendi cagrisinda okunuyor. Maliyet bir
+               Gemini cagrisi ve ~4 sn.
+
+               `visionData` sarti: ilk gorsel cagri dustuyse model zaten
+               zorlaniyor; ek cagri yalnizca bir dilim daha yakar ve zaman
+               asimi modeli kosunun geri kalani icin dusurur. */
+            if (parallelGemini && visionData && budgetLeft() > TABLO_GECIS_MIN_BUTCE_MS) {
+              const tabloPrompt = `You are transcribing DATA OBJECTS from lecture slide images.
+Return ONLY tables and diagrams that are VISIBLE IN THE IMAGES as a table, matrix, worksheet, regression output or box-and-arrow figure.
+TRANSCRIBE, do not summarise: copy every column header and every row cell EXACTLY as printed, including all decimal places and negative signs. A regression output has one row per variable and columns such as Coefficients, Standard Error, t Stat, P-value.
+Name each table so a student knows which slide it came from, e.g. \"Excel Output: Log-Linear Model of Energy Consumption (Slide 38)\".
+For a box-and-arrow or flow figure, emit a diagram with valid Mermaid instead; never emit a chart or a plot — a chart's lesson belongs in prose and is handled elsewhere.
+Respond ONLY with JSON in ${langLabel}: {"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
+Return empty arrays if the images contain no such object. Invent nothing: a cell you cannot read is omitted, never guessed.`
+              const yarim = Math.ceil(visualPlan.indices.length / 2)
+              const dilimler = visualPlan.indices.length >= TABLO_DILIM_ESIGI
+                ? [visualPlan.indices.slice(0, yarim), visualPlan.indices.slice(yarim)]
+                : [visualPlan.indices]
+              let tabloToplam = 0
+              let diyagramToplam = 0
+              let tabloHarcanan = 0
+              for (let di = 0; di < dilimler.length; di++) {
+                const dilim = dilimler[di]
+                if (!dilim.length) continue
+                if (budgetLeft() < TABLO_GECIS_MIN_BUTCE_MS) {
+                  console.warn(`Tablo gecisi: butce bitti, ${dilimler.length - di} dilim atlandi`)
+                  break
+                }
+                /* Tek dilimse ilk gecisin mini-PDF'i yeniden kullanilir;
+                   bolunduyse her dilim icin kendi alt-PDF'i kesilir. */
+                const dilimPdf = dilimler.length === 1
+                  ? visualImages[0]
+                  : await buildPdfSubsetBase64(fileBytes, dilim)
+                if (!dilimPdf) {
+                  console.warn(`Tablo gecisi: ${dilim.length} sayfalik mini-PDF uretilemedi, dilim atlandi`)
+                  continue
+                }
+                const dilimIcerik = [
+                  { type: 'text', text: 'Transcribe every table and box-and-arrow figure visible in these slide images.' },
+                  { type: 'image_url', image_url: { url: `data:application/pdf;base64,${dilimPdf}` } }
+                ]
+                const tabloEst =
+                  VISION_TOKENS_PER_IMAGE +
+                  Math.ceil(tabloPrompt.length / 3.2) +
+                  Math.ceil(TABLO_MAX_COMPLETION * PACER_COMPLETION_FACTOR)
+                await tokenPacer.acquire(tabloEst, MODEL_FAST, TABLO_MAX_COMPLETION)
+                const tabloRes = await fetchWithRetry('https://api.groq.com/openai/v1/chat/completions', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    model: MODEL_FAST,
+                    temperature: 0,
+                    ...reasoningParamsFor(MODEL_FAST),
+                    max_completion_tokens: TABLO_MAX_COMPLETION,
+                    response_format: { type: 'json_object' },
+                    messages: [
+                      { role: 'system', content: tabloPrompt },
+                      { role: 'user', content: dilimIcerik }
+                    ]
+                  })
+                  /* Gorsel gecisin AYNI zaman asimi: zincir butcesi ayni
+                     hesaplansin, yani sigdigi olculmus dilimle kossun. */
+                }, 0, Math.min(25000, Math.max(10000, budgetLeft() - 15000)))
+                tokenPacer.observeHeaders(tabloRes.headers, MODEL_FAST)
+                const tabloData = tabloRes.ok ? await tabloRes.json() : null
+                tokenPacer.record(
+                  Number(tabloData?.usage?.total_tokens) || tabloEst,
+                  MODEL_FAST,
+                  Number(tabloData?.usage?.completion_tokens) || TABLO_MAX_COMPLETION
+                )
+                if (!tabloData) {
+                  console.warn(`Tablo gecisi dilim ${di + 1}: HTTP ${tabloRes.status} — tablo eklenmedi`)
+                  continue
+                }
+                tabloHarcanan += Number(tabloData?.usage?.completion_tokens) || 0
+                const tabloHam = tabloData.choices?.[0]?.message?.content ?? ''
+                const tabloTemiz = (stripThinkBlock(tabloHam) ?? tabloHam)
+                  .replace(/```json\s*|```/g, '').trim()
+                /* Ilk gorsel cagrinin kullandigi kurtarmanin aynisi. */
+                const tabloJson = (() => {
+                  if (!tabloTemiz) return null
+                  try { return JSON.parse(repairLatexEscapes(tabloTemiz)) } catch (_e) {
+                    const kapali = closeTruncatedJson(tabloTemiz)
+                    if (kapali) {
+                      try {
+                        const k = JSON.parse(repairLatexEscapes(kapali))
+                        console.warn(
+                          `Tablo gecisi dilim ${di + 1}: JSON KESIKTI, kapatilip kurtarildi ` +
+                          `(${tabloTemiz.length} krk -> ${kapali.length} krk)`
+                        )
+                        return k
+                      } catch (_e2) { /* kurtarma da tutmadi */ }
+                    }
+                    return null
+                  }
+                })()
+                if (!tabloJson) {
+                  console.warn(`Tablo gecisi dilim ${di + 1}: JSON ayristirilamadi (${tabloTemiz.length} krk)`)
+                  continue
+                }
+                const yeniTablolar = (Array.isArray(tabloJson.tables) ? tabloJson.tables : [])
+                  .filter((t: any) => t && t.title && Array.isArray(t.rows) && t.rows.length > 0)
+                const yeniDiyagramlar = (Array.isArray(tabloJson.diagrams) ? tabloJson.diagrams : [])
+                  .filter((d: any) => d && d.title && d.mermaid)
+                if (yeniTablolar.length) {
+                  const birlesik = dedupeByText(
+                    [...mergedTables, ...yeniTablolar], (t: any) => t?.title || ''
+                  ).slice(0, 12)
+                  mergedTables.length = 0; mergedTables.push(...birlesik)
+                }
+                if (yeniDiyagramlar.length) {
+                  const birlesik = dedupeByText(
+                    [...mergedDiagrams, ...yeniDiyagramlar], (d: any) => d?.title || ''
+                  ).slice(0, 8)
+                  mergedDiagrams.length = 0; mergedDiagrams.push(...birlesik)
+                }
+                tabloToplam += yeniTablolar.length
+                diyagramToplam += yeniDiyagramlar.length
+                if (yeniTablolar.length || yeniDiyagramlar.length) visualAnalysisUsed = true
+              }
+              if (tabloToplam || diyagramToplam) {
+                /* Dusen eksi isareti — bkz. guvenAraligiOnar. Butun tablolara
+                   uygulaniyor, yalnizca yeni gelenlere degil: kusur verinin
+                   kendisinde, kaynaginda degil. */
+                const aralikOnarimi = guvenAraligiOnar(mergedTables)
+                if (aralikOnarimi > 0) {
+                  console.log(
+                    `Guven araligi onarildi: ${aralikOnarimi} satirda Lower > Upper idi, ` +
+                    `isaret geri konuldu`
+                  )
+                }
+              }
+              console.log(
+                `Tablo gecisi: ${tabloToplam} tablo, ${diyagramToplam} diyagram dondu ` +
+                `(${dilimler.length} dilim, ${visualPlan.indices.length} sayfa) — ` +
+                `tablo -> ${mergedTables.length}, diyagram -> ${mergedDiagrams.length}` +
+                (tabloHarcanan ? `, completion=${tabloHarcanan}/${TABLO_MAX_COMPLETION * dilimler.length}` : '')
+              )
+            }
             } else {
               console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
             }
@@ -14940,6 +15993,24 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
          ONCE: eklenen denklem de validateLatex'ten ve ad kopyasi
          kapisindan gecsin. */
       {
+        /* OCR METNINDEN KURTARMA YAPILMAZ (31.10.2026, Week 8 kosusunda
+           olculdu).
+
+           Ayni dosyada 29.10.2026 notu zaten yazmis: "OCR matematigi bozuyor
+           ve olmayan sayi uretiyor", ve o yuzden sayisal kapsama ROZETI
+           yayinlanmiyor. Kurtarma bu dersi atlamisti: hedef listesi OCR
+           gurultusundan olustugu icin kaynaktan "denklem" diye cop
+           cekiyordu. Olculen kosu (29 sayfalik tarama, 3/21):
+             Tahmin denklemi kurtarildi: 1 denklem, 2 sayi (322, 3222) —
+             "Solutions f（2）=5（322-1）4.62=30で（3222-1）4"
+           Kartta bu, "FORMÜL Estimated equation" diye tam genislikte
+           Japonca parantezler ve "で" ile goruldu.
+
+           Kapsama OCR'da olculmuyorsa onu DUZELTMEYE calismak da anlamsiz:
+           ayni kapi, ayni gerekce. Log basilmaya devam ediyor. */
+        if (ocrKullanildi) {
+          console.log('Kurtarma atlandi: metin OCR\'dan geldi — OCR bozuk sayi uretiyor')
+        } else {
         const kapsamaOnce = numericCoverage(extractedText, parsedContent)
         if (kapsamaOnce.missing.length > 0) {
           const kurtarma = tahminDenklemleriniKurtar(
@@ -14956,6 +16027,71 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
               kurtarma.formulas.map((f: any) => `"${String(f.latex).slice(0, 140)}"`).join(' | ')
             )
           }
+        }
+        }
+      }
+
+      /* --- (a0b) Sayinin ANLAMINI soyleyen cumle kurtariliyor — bkz.
+         yorumCumleleriniKurtar yanindaki olcum notu. Denklem
+         kurtarmasindan SONRA, cunku eksik liste orada daralmis olabilir;
+         temizlikten ONCE, cunku kurtarilan madde grounding kapisindan,
+         near-duplicate birlestirmeden ve atif baglamadan gecsin. */
+      {
+        /* OCR METNINDEN KURTARMA YAPILMAZ (31.10.2026, Week 8 kosusunda
+           olculdu).
+
+           Ayni dosyada 29.10.2026 notu zaten yazmis: "OCR matematigi bozuyor
+           ve olmayan sayi uretiyor", ve o yuzden sayisal kapsama ROZETI
+           yayinlanmiyor. Kurtarma bu dersi atlamisti: hedef listesi OCR
+           gurultusundan olustugu icin kaynaktan "denklem" diye cop
+           cekiyordu. Olculen kosu (29 sayfalik tarama, 3/21):
+             Tahmin denklemi kurtarildi: 1 denklem, 2 sayi (322, 3222) —
+             "Solutions f（2）=5（322-1）4.62=30で（3222-1）4"
+           Kartta bu, "FORMÜL Estimated equation" diye tam genislikte
+           Japonca parantezler ve "で" ile goruldu.
+
+           Kapsama OCR'da olculmuyorsa onu DUZELTMEYE calismak da anlamsiz:
+           ayni kapi, ayni gerekce. Log basilmaya devam ediyor. */
+        if (ocrKullanildi) {
+          console.log('Kurtarma atlandi: metin OCR\'dan geldi — OCR bozuk sayi uretiyor')
+        } else {
+        const kapsamaOrta = numericCoverage(extractedText, parsedContent)
+        if (kapsamaOrta.missing.length > 0) {
+          const y = yorumCumleleriniKurtar(
+            extractedText, kapsamaOrta.missing, parsedContent.key_points
+          )
+          if (y.points.length > 0) {
+            parsedContent.key_points = [
+              ...(Array.isArray(parsedContent.key_points) ? parsedContent.key_points : []),
+              ...y.points
+            ]
+            console.log(
+              `Yorum cumlesi kurtarildi: ${y.points.length} madde, ` +
+              `${y.kurtarilan.length} sayi (${y.kurtarilan.join(', ')}) — ` +
+              y.points.map((s: string) => `"${s.slice(0, 110)}"`).join(' | ')
+            )
+          }
+        /* --- (a0c) DUZLESMIS METIN TABLOSU — bkz. metinTablosuKurtar
+           yanindaki olcum notu. Oteki iki kurtarmadan SONRA: eksik liste
+           orada daralmis olabilir. */
+        const kapsamaSon = numericCoverage(extractedText, parsedContent)
+        if (kapsamaSon.missing.length > 0) {
+          const mt = metinTablosuKurtar(
+            extractedText, kapsamaSon.missing, parsedContent.tables, lang
+          )
+          if (mt.tables.length > 0) {
+            parsedContent.tables = [
+              ...(Array.isArray(parsedContent.tables) ? parsedContent.tables : []),
+              ...mt.tables
+            ].slice(0, 12)
+            console.log(
+              `Metin tablosu kurtarildi: ${mt.tables.length} tablo, ` +
+              `${mt.kurtarilan.length} sayi (${mt.kurtarilan.join(', ')}) — ` +
+              mt.tables.map((t: any) => `"${t.title}" (${t.rows.length} satir)`).join(' | ')
+            )
+          }
+        }
+        }
         }
       }
 
@@ -15221,7 +16357,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       {
         let sayac = 0
         const yum = (t: string): string => {
-          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t))) return t
+          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && t.indexOf('$') === -1 && !/[\^_][{\d]/.test(t))) return t
           const r = onarAnlatiLatex(t)
           if (r.yumusatilan > 0) sayac++
           return r.metin
@@ -16060,15 +17196,125 @@ async function tryOCRParcali(
   }
 }
 
+/* SLAYTLARI RESIM OLAN PPTX (31.10.2026, Week 11 kosusunda olculdu).
+ *
+ * Olculen kosu:
+ *   Istek alindi: ... visuals=evet
+ *   Extracted text is empty or blank        <- ve kosu bitti
+ * Kullanici "no readable" hatasi gordu. Ayni gun taranmis bir PDF (Week 8)
+ * OCR'a dusup kurtuldu; PPTX'te o yol YOKTU — OCR yalnizca PDF icin
+ * cagriliyordu.
+ *
+ * SLAYT NUMARASI TAHMIN EDILMIYOR: ppt/media altindaki dosya adlari slayt
+ * sirasini VERMEZ (silinen slayt, yeniden kullanilan resim). Esleme
+ * ppt/slides/_rels/slideN.xml.rels icinden okunuyor; boylece atif
+ * "--- SLAYT N ---" isareti gercek slayta isaret eder. Resmi olmayan
+ * slayt atlanir.
+ *
+ * Slayt basina EN BUYUK resim aliniyor: slaytin kendisi tam sayfa bir
+ * goruntuyse en buyuk dosya odur; logo ve madde imi kucuk kalir. */
+const PPTX_OCR_MIN_BAYT = 20_000
+const PPTX_OCR_MAX_SLAYT = 20
+
+/** slideN.xml.rels icindeki media hedeflerini ppt/media/... yoluna cevirir. */
+function pptxRelsHedefleri(relsXml: string): string[] {
+  return (relsXml.match(/Target="[^"]*media\/[^"]+"/g) || [])
+    .map((x) => x.replace(/^Target="/, '').replace(/"$/, ''))
+    .map((x) => 'ppt/media/' + x.split('/').pop())
+    .filter((x) => /\.(png|jpe?g)$/i.test(x))
+}
+
+function pptxSlaytGorselleri(
+  relsHaritasi: Record<string, string>,
+  medyaBoyutlari: Record<string, number>
+): Array<{ slayt: number; yol: string }> {
+  const out: Array<{ slayt: number; yol: string }> = []
+  for (const relYol of Object.keys(relsHaritasi)) {
+    const m = relYol.match(/slide(\d+)\.xml\.rels$/)
+    if (!m) continue
+    const slayt = parseInt(m[1], 10)
+    const hedefler = pptxRelsHedefleri(relsHaritasi[relYol])
+    let enBuyuk = ''
+    let enBuyukBoyut = 0
+    for (const h of hedefler) {
+      const b = medyaBoyutlari[h] || 0
+      if (b > enBuyukBoyut) { enBuyukBoyut = b; enBuyuk = h }
+    }
+    if (enBuyuk && enBuyukBoyut >= PPTX_OCR_MIN_BAYT) out.push({ slayt, yol: enBuyuk })
+  }
+  return out.sort((a, b) => a.slayt - b.slayt).slice(0, PPTX_OCR_MAX_SLAYT)
+}
+
+/** Resim slaytlarini OCR'dan gecirip "--- SLAYT N ---" isaretli metin uretir.
+ *  Hata firlatmaz: okunamayan slayt atlanir, eldeki metin doner. */
+async function pptxGorselOCR(
+  zip: any,
+  apiKey: string,
+  butceMs: number = OCR_PARCA_BUTCE_MS
+): Promise<{ text: string; okunan: number; toplam: number }> {
+  const relsHaritasi: Record<string, string> = {}
+  for (const ad of Object.keys(zip.files)) {
+    if (/^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(ad)) {
+      relsHaritasi[ad] = await zip.files[ad].async('text')
+    }
+  }
+  const medyaBoyutlari: Record<string, number> = {}
+  const adaylar = new Set<string>()
+  for (const relYol of Object.keys(relsHaritasi)) {
+    for (const h of pptxRelsHedefleri(relsHaritasi[relYol])) adaylar.add(h)
+  }
+  for (const yol of adaylar) {
+    const dosya = zip.files[yol]
+    if (!dosya) continue
+    const bayt = await dosya.async('uint8array')
+    medyaBoyutlari[yol] = bayt.length
+  }
+  const secilen = pptxSlaytGorselleri(relsHaritasi, medyaBoyutlari)
+  if (secilen.length === 0) return { text: '', okunan: 0, toplam: 0 }
+
+  const basladi = Date.now()
+  const metinler: Array<string | null> = new Array(secilen.length).fill(null)
+  let sira = 0
+  const isci = async () => {
+    while (true) {
+      const k = sira++
+      if (k >= secilen.length) return
+      if (Date.now() - basladi > butceMs) return
+      try {
+        const bayt = await zip.files[secilen[k].yol].async('uint8array')
+        const png = /\.png$/i.test(secilen[k].yol)
+        const r = await tryOCR(bayt, apiKey, {
+          mime: png ? 'image/png' : 'image/jpeg',
+          filetype: png ? 'PNG' : 'JPG',
+          ad: png ? 'slayt.png' : 'slayt.jpg'
+        })
+        const m = (r.text || '').trim()
+        if (m) metinler[k] = `--- SLAYT ${secilen[k].slayt} ---\n${m}`
+      } catch (e) {
+        console.warn(`PPTX OCR: slayt ${secilen[k].slayt} okunamadi — ${String((e as any)?.message || e).slice(0, 120)}`)
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(OCR_ES_ZAMAN, secilen.length) }, () => isci())
+  )
+  const dolu = metinler.filter((m): m is string => !!m)
+  return { text: dolu.join('\n\n'), okunan: dolu.length, toplam: secilen.length }
+}
+
 async function tryOCR(
   fileBytes: Uint8Array,
-  apiKey: string
+  apiKey: string,
+  /* GORUNTU DE OKUNUR (31.10.2026): PPTX'in slaytlari resim oldugunda
+     OCR'a PDF degil PNG/JPG gidiyor. Varsayilan degismedi. */
+  tip: { mime: string; filetype: string; ad: string } =
+    { mime: 'application/pdf', filetype: 'PDF', ad: 'document.pdf' }
 ): Promise<{ text: string; sayfalar: string[]; kesildi: boolean; sayfa: number; durum?: number }> {
   const formData = new FormData();
-  const blob = new Blob([fileBytes], { type: 'application/pdf' });
-  formData.append('file', blob, 'document.pdf');
+  const blob = new Blob([fileBytes], { type: tip.mime });
+  formData.append('file', blob, tip.ad);
   formData.append('apikey', apiKey);
-  formData.append('filetype', 'PDF');
+  formData.append('filetype', tip.filetype);
   formData.append('OCREngine', '2');
   formData.append('isOverlayRequired', 'false');
 
