@@ -24,6 +24,8 @@ const NAMES = [
     'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS',
     // birebir alinti (span seviyesi atif)
     'SENTENCE_ABBREV', 'splitSentences', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
+    // Yakin beraberlikte kesinlik karar verir (31.10.2026 olcumu).
+    'QUOTE_SIRALAMA_BANDI',
     // Aday uretimi satir yapisina saygi gosteriyor (30.10.2026 olcumu).
     'alintiBloklari',
     // Cogul eki atifi olduruyordu (30.10.2026 olcumu).
@@ -1015,15 +1017,58 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
        yoksa daha once alinti almayan iddialar alinti almaya baslar. */
     const i = KAYNAK.indexOf('function bestQuoteForClaim(');
     const govde = KAYNAK.slice(i, KAYNAK.indexOf('\n}', KAYNAK.indexOf('return best.text.length', i)));
-    assert.match(govde, /if \(!best \|\| siralama > best\.siralama\)/, 'siralama Dice ile yapilmiyor');
+    /* 31.10.2026: siralama Dice'a gectikten sonra YAKIN BERABERLIK kurali
+       eklendi (bkz. QUOTE_SIRALAMA_BANDI). Iddia artik tek satir degil, uc
+       parca: belirgin ustunluk, bant ici kesinlik tiebreak'i ve secim. */
+    assert.match(govde, /const belirginUstunluk = siralama > \(best\?\.siralama \?\? -1\) \+ QUOTE_SIRALAMA_BANDI/,
+      'belirgin ustunluk Dice ile olculmuyor');
+    assert.match(govde, /Math\.abs\(siralama - best\.siralama\) <= QUOTE_SIRALAMA_BANDI\s*\n\s*&& kesinlik > best\.kesinlik/,
+      'bant ici kesinlik tiebreak i yok');
+    assert.match(govde, /if \(!best \|\| belirginUstunluk \|\| yakinAmaDahaDerli\)/, 'secim kurali baglanmamis');
     assert.match(govde, /best\.score < 0\.3/, 'esik kapsamadan baska bir seye baglanmis');
     assert.match(govde, /const kesinlik = kendiAgirligi > 0 \? w \/ kendiAgirligi : 0/, 'kesinlik hesaplanmiyor');
+  });
+
+  test('OLCULEN [8]: yakin beraberlikte DERLI TOPLU olan secilir', () => {
+    /* Iddia ev fiyati denkleminin TAMAMINI alintiliyor (hem 23.53Ranch hem
+       18.84Split) ama hukmu 23.53 hakkinda. Sayfada neredeyse ayni iki
+       cumle var, yalnizca sayi farkli:
+         kaps=0,632 kes=0,917 dice=0,748  "...23.53 thousand..."  DOGRU
+         kaps=0,689 kes=0,857 dice=0,764  "...18.84 thousand..."  secilen
+       Dice farki 0,016 — berabere; yanlis olan yalnizca iddiadaki "Split"
+       sozcugunu de yakaladigi icin one geciyordu. */
+    const P10 = [
+      'Interpreting the Dummy Variable', 'Coefficients (with 3 Levels)',
+      'Suppose the estimated equation is',
+      '\u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split',
+      'With the same square feet, a', 'ranch will have an estimated',
+      'average price of 23.53 thousand', 'dollars more than a condo and',
+      'the intercept for a ranch is', '20.43 + 23.53 = 43.96',
+      'With the same square feet, a', 'ranch will have an estimated',
+      'average price of 18.84 thousand', 'dollars more than a condo and',
+      'the intercept for a split level is', '20.43 + 19.84 = 40.27'
+    ].join('\n');
+    const dolgu = ['Qualitative variables take zero or one.', 'Interaction effects change the slope.',
+      'Polynomial models capture curvature.', 'Quadratic models add a squared term.',
+      'Log models give elasticities.', 'Marginal effects use the partial derivative.']
+      .map((g, i) => `--- SAYFA ${i + 1} ---\n${g}`).join('\n\n');
+    const idx = A.buildPageIndex(`${dolgu}\n\n--- SAYFA 10 ---\n${P10}`, 'SAYFA');
+    const iddia = 'In the house price example equation \u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split, a ranch has an estimated average price of 23.53 thousand dollars more than a condo with the same square feet.';
+    const q = A.bestQuoteForClaim(iddia, P10, A.buildAnchorIdf(idx), true);
+    assert.ok(q, 'alinti uretilmiyor');
+    assert.match(q, /23\.53 thousand/, 'hala 18.84 cumlesi seciliyor: ' + q);
+    assert.ok(!/18\.84 thousand/.test(q), 'olculen kusur geri gelmis: ' + q);
+    // Bant SABITI olcumden turuyor: 0,016 ayrisan cifti yakalamali.
+    assert.ok(A.QUOTE_SIRALAMA_BANDI >= 0.016, 'bant olculen 0,016 farkini kapsamiyor');
+    assert.ok(A.QUOTE_SIRALAMA_BANDI <= 0.05, 'bant cok genis — kesinlik Dice yi ezmeye baslar');
   });
 
   test('siralama generate-exam te de GUNCEL', () => {
     const g = require('node:fs').readFileSync(
       require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');
-    assert.match(g, /siralama > best\.siralama/, 'generate-exam hala kapsamaya gore siraliyor');
+    assert.match(g, /const belirginUstunluk = siralama > \(best\?\.siralama \?\? -1\) \+ QUOTE_SIRALAMA_BANDI/,
+      'generate-exam hala kapsamaya gore siraliyor');
+    assert.match(g, /const QUOTE_SIRALAMA_BANDI = 0\.03/, 'generate-exam te bant sabiti yok');
   });
 }
 

@@ -2417,10 +2417,32 @@ async function callGroqJson(
     if (kapali) {
       try {
         const kurtarilan = JSON.parse(repairLatexEscapes(kapali))
+        /* KESILME NEYE MAL OLDU (31.10.2026 olcumu). Log yalnizca kac
+         * karakterin dustugunu yaziyordu; HANGI alanin gittigini
+         * soylemiyordu. Olculen kosu: "Window 2: JSON KESIKTI (12805 krk ->
+         * 9119 krk)" ve ayni pencere sections=0 dondu — kart 42 sayfalik
+         * belgeyi TEK bolumle temsil etti. Kaybin hangi alanda oldugunu
+         * bilmeden ne promptu ne semayi duzeltmek mumkun; JSON kesilmesi
+         * KUYRUGU goturur, yani sema sirasi dogrudan onem tasiyor.
+         * Bos/eksik ust duzey alanlar artik adlariyla basiliyor. */
+        /* KAYBOLAN ALAN BOS DEGIL, HIC YOK. Ilk yazim bos dizi/dize
+         * ariyordu ve olcumde hicbir sey bulamadi: kesilen alanlar
+         * ayristirilan nesnede ANAHTAR OLARAK BULUNMUYOR. Olculen kesim
+         * noktalari (ayni sema, ayni sira):
+         *   "tables" basinda  -> kaybolan: tables, diagrams, worked_examples
+         *   "sections" icinde -> kaybolan: sections, tables, diagrams,
+         *                                  worked_examples
+         * Kayip her zaman KUYRUK, yani semadaki SIRA neyin hayatta
+         * kalacagini belirliyor. Hayatta kalan son anahtar kesimin tam
+         * yerini soyluyor; cagiran taraf beklenen alanlari bildigi icin
+         * gerisini oradan cikarabiliyor. */
+        const kalanAlanlar = Object.keys(kurtarilan || {})
+        const sonAlan = kalanAlanlar[kalanAlanlar.length - 1]
         console.warn(
           `${opts.usageLabel || 'Groq'}: JSON KESIKTI, kapatilip kurtarildi ` +
-          `(${cleaned.length} krk -> ${kapali.length} krk) — ` +
-          `${String((ayristirmaHatasi as any)?.message || '').slice(0, 90)}`
+          `(${cleaned.length} krk -> ${kapali.length} krk)` +
+          (sonAlan ? ` — KUYRUK GITTI, son saglam alan "${sonAlan}" (kalan: ${kalanAlanlar.join(', ')})` : '') +
+          ` — ${String((ayristirmaHatasi as any)?.message || '').slice(0, 90)}`
         )
         return kurtarilan
       } catch (_kurtarmaHatasi) { /* kurtarma da tutmadi: ozgun hataya dus */ }
@@ -3924,6 +3946,57 @@ function stripIntroducedCitations(draftText: string, reviewText: string): string
   return cleaned
 }
 
+/* REVIEW UYDURMA SOZCUK URETTI (31.10.2026 olcumu).
+ *
+ * "IPPT Dummy" kartinin 30-saniyede metni su hale geldi:
+ *   "advanced regression techniques, focusing onekomconstruction and
+ *    interpretation of qualitative dummy variables"
+ * "onekomconstruction" bir sozcuk degil; "ekom" dizisi kaynak metnin
+ * HICBIR yerinde gecmiyor (SQL ile dogrulandi). Log "summary_executive
+ * guncellendi" diyor, yani review taslagin ozetini kendi yazdigiyla
+ * degistirdi ve o sirada bu jetonu uretti.
+ *
+ * Birlestirme ilkesi dosyada yazili: "Never let review's answer BE the
+ * final content". Diziler icin uygulanmis (uzunluk ve icerik kapisi var)
+ * ama ANLATI alanlari icin yalnizca uzunluk kapisi vardi; model bir
+ * sozcugu bozsa bile metin kabul ediliyordu.
+ *
+ * KAPI KOKE BAKIYOR, TAM ESLESMEYE DEGIL. Tam jeton karsilastirmasi fazla
+ * sikiydi: review mesru olarak kaynakta birebir bulunmayan bir cekim
+ * kullanabilir ("differentiation", kaynak "differentiate" diyorsa).
+ * Bu yuzden jeton, kaynak ya da taslaktaki bir sozcukle ilk
+ * UYDURMA_JETON_ONEK karakterini paylasiyorsa temelli sayiliyor:
+ *   "differentiation" -> "differen" ... kaynakta "differentiate" VAR  -> gecer
+ *   "onekomconstruction" -> "onekomco" ... hicbir sey yok             -> reddedilir
+ * Uzunluk tabani 12: kisa jetonlarda onek testi ayirt etmez ve bu sinif
+ * bozulma (iki-uc sozcugun yapismasi) zaten uzun jeton uretiyor. */
+const UYDURMA_JETON_MIN = 12
+const UYDURMA_JETON_ONEK = 8
+/** Kapinin acilmasi icin gereken en az kaynak metin. */
+const UYDURMA_KANIT_MIN = 200
+
+/** Metindeki harf jetonlarinin ilk ONEK karakteri. */
+function jetonOnekleri(text: string): Set<string> {
+  const out = new Set<string>()
+  for (const w of String(text || '').toLowerCase().match(/\p{L}+/gu) || []) {
+    if (w.length >= UYDURMA_JETON_ONEK) out.add(w.slice(0, UYDURMA_JETON_ONEK))
+  }
+  return out
+}
+
+/** Review'un uydurdugu, hicbir yere dayanmayan uzun jetonlar. */
+function temelsizUzunJetonlar(gelen: string, dayanaklar: string[]): string[] {
+  const onekler = new Set<string>()
+  for (const d of dayanaklar) for (const o of jetonOnekleri(d)) onekler.add(o)
+  const out: string[] = []
+  for (const w of String(gelen || '').match(/\p{L}+/gu) || []) {
+    if (w.length < UYDURMA_JETON_MIN) continue
+    if (onekler.has(w.toLowerCase().slice(0, UYDURMA_JETON_ONEK))) continue
+    if (!out.includes(w)) out.push(w)
+  }
+  return out
+}
+
 function mergeReviewOntoDraft(
   draftRaw: string,
   reviewRaw: string,
@@ -3988,6 +4061,17 @@ function mergeReviewOntoDraft(
       }
       const scrubbed = stripIntroducedCitations(draftText, incoming).trim()
       if (scrubbed.length < 40) continue
+      /* Uydurma sozcuk: taslak korunur — bkz. temelsizUzunJetonlar notu.
+         KANIT YOKSA UYDURMA DENMEZ: kaynak metin verilmemisse (kisa belge
+         yolu, testler, DOCX oncesi) elimizde temellendirme dayanagi yok ve
+         her yeni uzun sozcuk haksiz yere reddedilirdi. */
+      const temelsiz = sourceText.trim().length >= UYDURMA_KANIT_MIN
+        ? temelsizUzunJetonlar(scrubbed, [draftText, sourceText])
+        : []
+      if (temelsiz.length > 0) {
+        notes.push(`${field} KORUNDU (review uydurma jeton uretti: ${temelsiz.slice(0, 3).join(', ')})`)
+        continue
+      }
       if (scrubbed !== v.trim()) notes.push(`${field} uydurma (s. N) temizlendi`)
       if (scrubbed !== draftText) notes.push(`${field} guncellendi`)
       out[field] = scrubbed
@@ -4480,6 +4564,10 @@ function alintiBloklari(body: string): string[] {
   return out
 }
 
+/** Iki alinti adayi "berabere" sayilacak Dice farki — bkz. asagidaki
+ *  "YAKIN BERABERLIKTE KESINLIK" notu. Olculen cift 0,016 ile ayrisiyordu. */
+const QUOTE_SIRALAMA_BANDI = 0.03
+
 // A quote shorter than this carries no context; longer than this is a wall of
 // text in a tooltip.
 const QUOTE_MIN_CHARS = 25
@@ -4507,7 +4595,7 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
   const totalWeight = claimTerms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
-  let best: { text: string; score: number; siralama: number } | null = null
+  let best: { text: string; score: number; siralama: number; kesinlik: number } | null = null
   /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
      alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
      cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
@@ -4561,7 +4649,29 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
     const kendiAgirligi = [...hamTerms].reduce((a, t) => a + agirlik(t), 0)
     const kesinlik = kendiAgirligi > 0 ? w / kendiAgirligi : 0
     const siralama = (score + kesinlik) > 0 ? (2 * score * kesinlik) / (score + kesinlik) : 0
-    if (!best || siralama > best.siralama) best = { text: raw, score, siralama }
+    /* YAKIN BERABERLIKTE KESINLIK KARAR VERIR (31.10.2026 olcumu).
+     *
+     * "IPPT Dummy" kartinin [8] atfi: iddia ev fiyati denkleminin TAMAMINI
+     * alintiliyor (hem 23.53Ranch hem 18.84Split) ama hukmu 23.53 hakkinda.
+     * Sayfada birbirine cok benzeyen iki cumle var, yalnizca sayi farkli:
+     *   kaps=0,632 kes=0,917 dice=0,748  "...23.53 thousand dollars more..."  DOGRU
+     *   kaps=0,689 kes=0,857 dice=0,764  "...18.84 thousand dollars more..."  secilen
+     * Dice farki 0,016 — yani ikisi pratikte berabere; yanlis olan yalnizca
+     * iddiadaki "Split" sozcugunu de yakaladigi icin bir tus onde bitiyor.
+     * Kesinlik (cumlenin KENDI iceriginin ne kadari iddiaya ait) dogru
+     * olani gosteriyor: 0,917'ye 0,857.
+     *
+     * BANT DISINDA KESINLIK KULLANILMIYOR: tek basina kesinlik olculen
+     * "America as the omitted group" parcasini (kesinlik 1,000, kapsama
+     * 0,114) secerdi. Bant iki aday ZATEN iyi eslesmisken devreye giriyor
+     * ve aralarindan daha derli toplu olani aliyor. [14] olcumunde dogru
+     * cumle banttan acik ara onde (0,400'e 0,286), yani orada kural hic
+     * devreye girmiyor. */
+    const belirginUstunluk = siralama > (best?.siralama ?? -1) + QUOTE_SIRALAMA_BANDI
+    const yakinAmaDahaDerli = best !== null
+      && Math.abs(siralama - best.siralama) <= QUOTE_SIRALAMA_BANDI
+      && kesinlik > best.kesinlik
+    if (!best || belirginUstunluk || yakinAmaDahaDerli) best = { text: raw, score, siralama, kesinlik }
   }
   if (!best || best.score < 0.3) return null
   return best.text.length > QUOTE_MAX_CHARS
@@ -5896,6 +6006,14 @@ function coverageText(obj: unknown): string {
  * uretiyor ve hepsini almak karti slayt kirintisiyla doldurur:
  *   1) esittenin SOLU adlandirilmis olmali. "y-hat = 20.43 + ..." gecer;
  *      "20.43 + 23.53 = 43.96" ciplak aritmetiktir, formul olarak okunmaz.
+ *      ILK YAZIM BU KURALI DELDI (31.10.2026, canli kosu): desen yalnizca
+ *      "ilk karakter rakam/esit/bosluk olmasin" diyordu ve EKSI ISARETI o
+ *      sinavi geciyordu. Karta giren sey:
+ *        "-12.08 + 2(0.09)79 = - 12.08 + 14.22 = 2.14 which means that"
+ *      Yalnizca sonraki validateLatex adimi ($ kacagi) onu dusurdugu icin
+ *      ekranda gorunmedi — tasarim degil sans. Kural artik sol tarafta HARF
+ *      ISTIYOR ve iki haneli sayi KABUL ETMIYOR: "y-hat", "UtilityBill",
+ *      "x_1 x_2" gecer; "-12.08 + 2(0.09)79" ve "20.43 + 23.53" gecmez.
  *   2) aday en az IKI eksik sayi tasimali (tek sayilik parca baglamsiz).
  *   3) once en cok eksik sayi tasiyan, esitlikte en uzun aday; sonraki aday
  *      ancak en az iki YENI sayi getiriyorsa alinir. Boylece ayni
@@ -5907,7 +6025,16 @@ function coverageText(obj: unknown): string {
  * Eklenen latex sanitizeFormulas'tan geciyor: formulSozcukleriniSar ciplak
  * sozcukleri (Sqfeet, Ranch, Split) \text{} ile sariyor, validateLatex
  * dizilemeyecek olani zaten atiyor. */
-const TAHMIN_DENKLEMI_LHS = /^\s*[^=\d\s][^=]{0,40}=/
+const TAHMIN_DENKLEMI_LHS = /^\s*([^=]{1,40})=/
+
+/** Esittenin solu bir AD mi (y-hat, UtilityBill, x_1) yoksa aritmetik mi? */
+function tahminDenklemiAdli(cumle: string): boolean {
+  const m = TAHMIN_DENKLEMI_LHS.exec(String(cumle || ''))
+  if (!m) return false
+  const sol = m[1]
+  // Harf yoksa bu bir ad degil; iki haneli sayi varsa katsayidir, ad degil.
+  return /\p{L}/u.test(sol) && !/\d\d/.test(sol)
+}
 const TAHMIN_DENKLEMI_MIN_SAYI = 2
 const TAHMIN_DENKLEMI_MAX = 3
 
@@ -5926,7 +6053,7 @@ function tahminDenklemleriniKurtar(
   const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
   for (const blok of alintiBloklari(sourceText)) {
     for (const cumle of splitSentences(blok)) {
-      if (!TAHMIN_DENKLEMI_LHS.test(cumle)) continue
+      if (!tahminDenklemiAdli(cumle)) continue
       if (cumle.length > QUOTE_MAX_CHARS) continue
       const re = new RegExp(SAYI_BELIRTECI.source, 'g')
       const bulunan = new Set<number>()
@@ -12198,6 +12325,15 @@ In addition to the text below, you are shown images of this document's pages. Us
          belgenin bir dilimini gorur, bolum basligi dilim sinirina
          denk gelmez ve kota uydurma bolum uretmeye zorlardi. */
       const BOLUM_KOTASI = '4-8'
+      /* PARCA DALINA DA KOTA (31.10.2026 olcumu). Ilk yazimda kota yalnizca
+         TEK PENCERE dalina konmustu, gerekce "parca diliminde bolum sinirı
+         dilim sinirina denk gelmez, kota uydurma bolum uretir" idi. Veri
+         tersini soyledi: ayni 42 sayfalik belge iki kosuda parca basina
+         (2,3) ve (1,0) bolum verdi — ikinci kosuda kart 42 sayfayi TEK
+         bolumle temsil etti. Kotasiz birakmak uydurma bolumu engellemiyor,
+         yalnizca sayiyi ongorulemez yapiyor. Parca tabani daha dusuk:
+         bir dilim belgenin yarisini goruyor. */
+      const BOLUM_KOTASI_PARCA = '2-4'
 
       // Compact extraction prompt — keeps request under Groq limits
       // BIR KEZ hesaplanir. compactWindowPrompt pencere basina birkac kez
@@ -12240,7 +12376,9 @@ Rules:
 - Keep definitions to one sentence so the full set fits
 - A figure or table CAPTION is content: dates, ranges and quantities are often written out only there — carry them verbatim
 - Worked cases, named examples and boxed features ("in practice", "case study", applications) are testable material too; do not skip them as filler` : `
-- Captions and worked cases ("in practice", case studies) are testable: carry their dates, ranges and numbers into key_points and quiz_questions verbatim`}
+- Captions and worked cases ("in practice", case studies) are testable: carry their dates, ranges and numbers into key_points and quiz_questions verbatim
+- 'sections': ${BOLUM_KOTASI_PARCA} items, one per MAJOR topic of ${scopeWord(total)} (not one per slide)
+- If your answer must be shorter, cut 'tables'/'charts'/'diagrams' first — never 'sections' or 'key_points'`}
 - NEVER write meta text like "no draft provided" or "qualitative overview"
 - Use real topic names from the text (e.g. supervised learning, neural networks)
 - Ignore grading/attendance/admin text
@@ -14548,7 +14686,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
             console.log(
               `Tahmin denklemi kurtarildi: ${kurtarma.formulas.length} denklem, ` +
               `${kurtarma.kurtarilan.length} sayi (${kurtarma.kurtarilan.join(', ')}) — ` +
-              kurtarma.formulas.map((f: any) => `"${String(f.latex).slice(0, 60)}"`).join(' | ')
+              kurtarma.formulas.map((f: any) => `"${String(f.latex).slice(0, 140)}"`).join(' | ')
             )
           }
         }

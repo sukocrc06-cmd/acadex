@@ -2774,6 +2774,10 @@ function alintiBloklari(body: string): string[] {
   return out
 }
 
+/** Iki alinti adayi "berabere" sayilacak Dice farki — bkz. asagidaki
+ *  "YAKIN BERABERLIKTE KESINLIK" notu. Olculen cift 0,016 ile ayrisiyordu. */
+const QUOTE_SIRALAMA_BANDI = 0.03
+
 // A quote shorter than this carries no context; longer than this is a wall of
 // text in a tooltip.
 const QUOTE_MIN_CHARS = 25
@@ -2801,7 +2805,7 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
   const totalWeight = claimTerms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
-  let best: { text: string; score: number; siralama: number } | null = null
+  let best: { text: string; score: number; siralama: number; kesinlik: number } | null = null
   /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
      alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
      cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
@@ -2855,7 +2859,29 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
     const kendiAgirligi = [...hamTerms].reduce((a, t) => a + agirlik(t), 0)
     const kesinlik = kendiAgirligi > 0 ? w / kendiAgirligi : 0
     const siralama = (score + kesinlik) > 0 ? (2 * score * kesinlik) / (score + kesinlik) : 0
-    if (!best || siralama > best.siralama) best = { text: raw, score, siralama }
+    /* YAKIN BERABERLIKTE KESINLIK KARAR VERIR (31.10.2026 olcumu).
+     *
+     * "IPPT Dummy" kartinin [8] atfi: iddia ev fiyati denkleminin TAMAMINI
+     * alintiliyor (hem 23.53Ranch hem 18.84Split) ama hukmu 23.53 hakkinda.
+     * Sayfada birbirine cok benzeyen iki cumle var, yalnizca sayi farkli:
+     *   kaps=0,632 kes=0,917 dice=0,748  "...23.53 thousand dollars more..."  DOGRU
+     *   kaps=0,689 kes=0,857 dice=0,764  "...18.84 thousand dollars more..."  secilen
+     * Dice farki 0,016 — yani ikisi pratikte berabere; yanlis olan yalnizca
+     * iddiadaki "Split" sozcugunu de yakaladigi icin bir tus onde bitiyor.
+     * Kesinlik (cumlenin KENDI iceriginin ne kadari iddiaya ait) dogru
+     * olani gosteriyor: 0,917'ye 0,857.
+     *
+     * BANT DISINDA KESINLIK KULLANILMIYOR: tek basina kesinlik olculen
+     * "America as the omitted group" parcasini (kesinlik 1,000, kapsama
+     * 0,114) secerdi. Bant iki aday ZATEN iyi eslesmisken devreye giriyor
+     * ve aralarindan daha derli toplu olani aliyor. [14] olcumunde dogru
+     * cumle banttan acik ara onde (0,400'e 0,286), yani orada kural hic
+     * devreye girmiyor. */
+    const belirginUstunluk = siralama > (best?.siralama ?? -1) + QUOTE_SIRALAMA_BANDI
+    const yakinAmaDahaDerli = best !== null
+      && Math.abs(siralama - best.siralama) <= QUOTE_SIRALAMA_BANDI
+      && kesinlik > best.kesinlik
+    if (!best || belirginUstunluk || yakinAmaDahaDerli) best = { text: raw, score, siralama, kesinlik }
   }
   if (!best || best.score < 0.3) return null
   return best.text.length > QUOTE_MAX_CHARS

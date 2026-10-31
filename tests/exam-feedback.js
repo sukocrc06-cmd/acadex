@@ -29,6 +29,8 @@ const ANCHOR_NAMES = [
   // Uc harfli matematik adlari eleniyordu (30.10.2026 olcumu).
   'ANCHOR_KISA_MATEMATIK', 'ANCHOR_UST_SIMGE', 'anchorTerms', 'SENTENCE_ABBREV', 'splitSentences',
   'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS', 'alintiBloklari', 'bestQuoteForClaim',
+  // Yakin beraberlikte kesinlik karar verir (31.10.2026 olcumu).
+  'QUOTE_SIRALAMA_BANDI',
   // Cogul eki atifi olduruyordu (30.10.2026 olcumu).
   'ingTekil', 'tekilKume',
   'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS', 'anchorClaimToPage'

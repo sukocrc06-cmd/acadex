@@ -79,7 +79,11 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'VISION_TOKENS_PER_IMAGE', 'VISION_MAX_IMAGES', 'VISUAL_MIN_BUDGET_MS',
   // bosluk doldurma kartlari
   'clozeTermPattern', 'turkishIClasses', 'blankAllOccurrences',
-  'REVIEW_ARRAY_FIELDS', 'maddeMetni', 'applyCorrections', 'gateWorkedExampleArithmetic', 'NARRATIVE_MIN_KEEP_RATIO', 'sentezGruplariniUygula', 'INLINE_PAGE_CITE', 'stripIntroducedCitations', 'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
+  'REVIEW_ARRAY_FIELDS', 'maddeMetni', 'applyCorrections', 'gateWorkedExampleArithmetic', 'NARRATIVE_MIN_KEEP_RATIO', 'sentezGruplariniUygula', 'INLINE_PAGE_CITE', 'stripIntroducedCitations',
+  // Review uydurma sozcuk uretti (31.10.2026 olcumu).
+  'UYDURMA_JETON_MIN', 'UYDURMA_JETON_ONEK', 'UYDURMA_KANIT_MIN',
+  'jetonOnekleri', 'temelsizUzunJetonlar',
+  'mergeReviewOntoDraft', 'stripThinkBlock', 'buildClozeCards',
   // tekrarlayan ustbilgi/altbilgi temizligi
   'BOILERPLATE_MIN_PAGES', 'BOILERPLATE_PAGE_SHARE', 'BOILERPLATE_MAX_LINE_CHARS',
   'boilerplateKey', 'splitByPageMarkers', 'stripRepeatedBoilerplate',
@@ -143,7 +147,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   // Tahmin edilen denklem karta hic girmiyordu (31.10.2026 olcumu).
   'SENTENCE_ABBREV', 'splitSentences', 'alintiBloklari', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
-  'TAHMIN_DENKLEMI_LHS', 'TAHMIN_DENKLEMI_MIN_SAYI', 'TAHMIN_DENKLEMI_MAX',
+  'TAHMIN_DENKLEMI_LHS', 'tahminDenklemiAdli', 'TAHMIN_DENKLEMI_MIN_SAYI', 'TAHMIN_DENKLEMI_MAX',
   'tahminDenklemleriniKurtar',
   // Grafik eksen centikleri icerik sayiliyordu (31.10.2026 olcumu).
   'EKSEN_MIN_UZUNLUK', 'eksenCentikleriniAyikla',
@@ -2480,6 +2484,105 @@ test('tipik tek bolumluk belge tek pencereye sigar', () => {
 });
 
 console.log('\nREVIEW BIRLESTIRME (mergeReviewOntoDraft)\n');
+
+/* REVIEW UYDURMA SOZCUK URETTI (31.10.2026 olcumu).
+ *
+ * "IPPT Dummy" kartinin 30-saniyede metni:
+ *   "advanced regression techniques, focusing onekomconstruction and
+ *    interpretation of qualitative dummy variables"
+ * "ekom" dizisi kaynak metnin HICBIR yerinde gecmiyor (SQL ile dogrulandi).
+ * Log "summary_executive guncellendi" diyor: review taslagin ozetini kendi
+ * yazdigiyla degistirdi ve o sirada bu jetonu uretti. Diziler icin
+ * "review'un cevabi FINAL ICERIK olmasin" ilkesi uygulanmis, anlati
+ * alanlarinda yalnizca UZUNLUK kapisi vardi. */
+const UYD_KAYNAK = 'Qualitative explanatory variable with two or more levels. The number of dummy variables needed is the number of levels minus one. Polynomial regression models capture curvilinear relationships. We differentiate the function and interpret each coefficient. Multicollinearity inflates standard errors.';
+
+test('OLCULEN UYDURMA JETON yakalaniyor', () => {
+  const r = A.temelsizUzunJetonlar(
+    'focusing onekomconstruction and interpretation of qualitative dummy variables',
+    ['This deck covers dummy variables.', UYD_KAYNAK]);
+  assert.deepEqual(r, ['onekomconstruction'], JSON.stringify(r));
+});
+
+test('KOKE bakiyor, tam eslesmeye DEGIL', () => {
+  /* Tam jeton karsilastirmasi fazla sikiydi: review mesru olarak kaynakta
+     birebir bulunmayan bir cekim kullanabilir. Kaynak "differentiate"
+     diyorsa "differentiation" gecmeli. */
+  for (const iyi of [
+    'The model requires differentiation of the fitted curve.',
+    'Careful interpretation of each coefficient matters.',
+    'Multicollinearity inflates the standard errors.'
+  ]) assert.deepEqual(A.temelsizUzunJetonlar(iyi, [UYD_KAYNAK]), [], 'mesru cekim reddedildi: ' + iyi);
+  assert.equal(A.UYDURMA_JETON_ONEK, 8);
+  assert.ok(A.jetonOnekleri('differentiate').has('differen'));
+});
+
+test('KISA jetonlar kapiya girmiyor', () => {
+  /* Kisa jetonlarda onek testi ayirt etmez; ustelik bu sinif bozulma
+     (sozcuklerin yapismasi) zaten uzun jeton uretiyor. */
+  assert.equal(A.UYDURMA_JETON_MIN, 12);
+  assert.deepEqual(A.temelsizUzunJetonlar('The xqzb term is odd.', [UYD_KAYNAK]), []);
+  assert.deepEqual(A.temelsizUzunJetonlar('', [UYD_KAYNAK]), []);
+  assert.deepEqual(A.temelsizUzunJetonlar(null, [UYD_KAYNAK]), []);
+});
+
+test('UYDURMA JETONLU review REDDEDILIR, taslak korunur', () => {
+  const taslak = JSON.stringify({
+    summary: 'Dummy variables are coded as zero or one, and the number of dummies is the number of levels minus one across the whole deck.',
+    summary_executive: 'This deck covers dummy variables, interaction effects and polynomial regression models in detail.'
+  });
+  const review = JSON.stringify({
+    summary_executive: 'This document covers advanced regression techniques, focusing onekomconstruction and interpretation of qualitative dummy variables and polynomial models.'
+  });
+  const r = A.mergeReviewOntoDraft(taslak, review, UYD_KAYNAK);
+  const out = JSON.parse(r.merged);
+  assert.ok(!/onekomconstruction/.test(out.summary_executive),
+    'uydurma jeton karta girdi: ' + out.summary_executive);
+  assert.equal(out.summary_executive, JSON.parse(taslak).summary_executive, 'taslak korunmamis');
+  assert.ok(r.notes.some(n => /KORUNDU \(review uydurma jeton uretti/.test(n)),
+    'red loglanmamis: ' + JSON.stringify(r.notes));
+});
+
+test('KANIT YOKSA uydurma denmiyor', () => {
+  /* Kaynak metin verilmemisse (kisa belge yolu, DOCX oncesi, testler)
+     elimizde temellendirme dayanagi yok; her yeni uzun sozcugu reddetmek
+     mesru iyilestirmeyi de keser. Bu kosul dort mevcut testi dusurdugu
+     icin OLCUMLE eklendi. */
+  assert.equal(A.UYDURMA_KANIT_MIN, 200);
+  const taslak = JSON.stringify({
+    summary: 'Kisa taslak anlatimi burada duruyor ve yeterince uzun olmasi gerekiyor ki taban kontrolunu gecsin.',
+    summary_executive: 'Kisa taslak ozeti burada duruyor ve yeterince uzun olmasi gerekiyor ki taban gecsin.'
+  });
+  const review = JSON.stringify({
+    summary_executive: 'Duzeltilmis ozet: cok uzun ve kaynakta bulunmayan bir sozcuk olan multicollinearity burada geciyor.'
+  });
+  // sourceText YOK -> kapi acilmamali, review kabul edilmeli.
+  const r = A.mergeReviewOntoDraft(taslak, review);
+  assert.match(JSON.parse(r.merged).summary_executive, /Duzeltilmis ozet/,
+    'kanit yokken review reddedildi');
+  // Kaynak VERILIRSE ayni metin reddedilir.
+  const kaynak = 'Bu belge kukla degiskenler, etkilesim etkileri ve polinom regresyon modellerini anlatiyor. '.repeat(4);
+  const r2 = A.mergeReviewOntoDraft(taslak, review, kaynak);
+  assert.ok(!/multicollinearity/.test(JSON.parse(r2.merged).summary_executive),
+    'kaynak varken uydurma jeton gecti');
+});
+
+test('TEMIZ review hala KABUL EDILIYOR', () => {
+  /* Kapi yalnizca uydurma jetonu olani reddetmeli; iyilestirmeyi
+     engellememeli. */
+  const taslak = JSON.stringify({
+    summary: 'Dummy variables are coded as zero or one across the deck and the count is levels minus one.',
+    summary_executive: 'A short draft overview of the deck that is long enough to pass the floor check easily.'
+  });
+  const review = JSON.stringify({
+    summary_executive: 'This deck covers qualitative dummy variables, polynomial regression models and the interpretation of each coefficient in detail.'
+  });
+  const r = A.mergeReviewOntoDraft(taslak, review, UYD_KAYNAK);
+  const out = JSON.parse(r.merged);
+  assert.match(out.summary_executive, /qualitative dummy variables/, 'temiz review reddedildi');
+  assert.ok(r.notes.some(n => /summary_executive guncellendi/.test(n)), JSON.stringify(r.notes));
+});
+
 
 // 04.10.2026 canli run: review "tam JSON" dondurmesi istenirken 2500
 // tamamlama tokeniyle sinirliydi; sigdirmak icin icerigi kirpti.
@@ -5319,8 +5422,41 @@ test('CIPLAK ARITMETIK formul sayilmiyor', () => {
      okunmaz ve karta eklenirse slayt kirintisi gibi gorunur. */
   const r = A.tahminDenklemleriniKurtar('20.43 + 23.53 = 43.96', [20.43, 23.53, 43.96], [], 'en');
   assert.equal(r.formulas.length, 0, JSON.stringify(r.formulas));
-  assert.ok(!A.TAHMIN_DENKLEMI_LHS.test('20.43 + 23.53 = 43.96'));
-  assert.ok(A.TAHMIN_DENKLEMI_LHS.test('ŷ = 20.43 + 0.045Sqfeet'));
+  /* ILK YAZIM BU KURALI DELDI (31.10.2026 canli kosu). Desen yalnizca "ilk
+     karakter rakam/esit/bosluk olmasin" diyordu; EKSI ISARETI o sinavi
+     geciyordu ve karta su girdi:
+       "-12.08 + 2(0.09)79 = - 12.08 + 14.22 = 2.14 which means that"
+     Ekranda gorunmedi cunku sonraki validateLatex adimi onu $ kacagi
+     yuzunden dusurdu — tasarim degil SANS. Kural artik sol tarafta HARF
+     istiyor ve iki haneli sayi kabul etmiyor. */
+  for (const kotu of ['20.43 + 23.53 = 43.96', '2(0.09)39 = 7.02', '= 5',
+                      '-12.08 + 2(0.09)79 = 12.08 + 14.22 = 2.14 which means that'])
+    assert.ok(!A.tahminDenklemiAdli(kotu), 'OLCULEN kusur geri gelmis: ' + kotu.slice(0, 48));
+  // Olculen canli vaka kurtarmaya hic GIRMEMELI.
+  assert.equal(A.tahminDenklemleriniKurtar(
+    '-12.08 + 2(0.09)79 = 12.08 + 14.22 = 2.14 which means that if temperature increases',
+    [14.22, 2.14, 12.08], [], 'en').formulas.length, 0);
+  for (const iyi of ['UtilityBill = 484.12 - 12.08temp', 'x_1 x_2 = 5 + 3'])
+    assert.ok(A.tahminDenklemiAdli(iyi), 'reddedilmemeliydi: ' + iyi);
+});
+
+test('OLCULEN ETKILESIM DENKLEMI TAM haliyle kurtariliyor', () => {
+  /* Canli kosu bu denklemi kurtardi (s. 16-18) ve kaynakla BIREBIR ayni.
+     Logda KESIK gorunuyordu; sebebi log satirinin .slice(0,60) ile
+     kirpmasiydi, saklanan latex tamdi. Log payi genisletildi ki bir daha
+     yanlis alarm vermesin. */
+  const kaynak = [
+    'Interaction Term Worksheet',
+    'Suppose the estimated equation is',
+    '\u0177 = 18.30 + 98x_1 + 22.44x_2 + 16.38x_3 + 45x_1 x_2 + 32x_1 x_3',
+    'Visual Depiction of Interaction Terms'
+  ].join('\n');
+  const r = A.tahminDenklemleriniKurtar(kaynak, [18.3, 22.44, 16.38], [], 'en');
+  assert.equal(r.formulas.length, 1, JSON.stringify(r.formulas));
+  assert.ok(r.formulas[0].latex.endsWith('32x_1 x_3'),
+    'denklem kesik kurtarilmis: ' + r.formulas[0].latex);
+  assert.match(SRC, /String\(f\.latex\)\.slice\(0, 140\)/,
+    'log hala 60 karakterde kirpiyor — denklem kesik gorunur');
 });
 
 test('TEK SAYILIK aday alinmiyor (baglamsiz parca)', () => {
@@ -5420,6 +5556,74 @@ test('bos ve bozuk girdide cokmez', () => {
   assert.deepEqual(A.eksenCentikleriniAyikla('').elenen, []);
   assert.deepEqual(A.eksenCentikleriniAyikla(null).elenen, []);
   assert.deepEqual(A.eksenCentikleriniAyikla('hic sayi yok').elenen, []);
+});
+
+/* BIR BOLUMLUK KART (31.10.2026 olcumu).
+ *
+ * "IPPT Dummy" kartı 42 sayfalik bir desteyi TEK bolumle temsil etti.
+ * Log iki sebep gosterdi:
+ *   Window 1 ok: ... sections=1
+ *   Window 2 token: completion=3617 / max=3518
+ *   Window 2: JSON KESIKTI, kapatilip kurtarildi (12805 krk -> 9119 krk)
+ *   Window 2 ok: ... sections=0
+ * Yani (a) parca dalinda bolum kotasi YOKTU ve (b) pencere 2'nin JSON'u
+ * cikti tavanini asip kesildi. */
+test('PARCA DALINDA da bolum kotasi var', () => {
+  /* Ilk yazimda kota yalnizca TEK PENCERE dalina konmustu; gerekce
+     "parca diliminde bolum siniri dilim sinirina denk gelmez" idi. Veri
+     tersini soyledi: ayni 42 sayfalik belge iki kosuda parca basina (2,3)
+     ve (1,0) bolum verdi. Kotasiz birakmak uydurma bolumu engellemiyor,
+     yalnizca sayiyi ongorulemez yapiyor. */
+  assert.match(SRC, /const BOLUM_KOTASI_PARCA = '(\d+)-(\d+)'/, 'parca kotasi yok');
+  const m = SRC.match(/const BOLUM_KOTASI_PARCA = '(\d+)-(\d+)'/);
+  assert.ok(Number(m[1]) >= 2, `parca tabani ${m[1]} — tek bolumluk karta yine izin verir`);
+  // Tek pencere tabani PARCA tabanindan yuksek olmali: dilim belgenin yarisini gorur.
+  const t = SRC.match(/const BOLUM_KOTASI = '(\d+)-(\d+)'/);
+  assert.ok(Number(t[1]) > Number(m[1]), 'tek pencere ve parca tabani ayni — dilim farki yok sayilmis');
+  assert.match(SRC, /- 'sections': \$\{BOLUM_KOTASI_PARCA\} items, one per MAJOR topic of \$\{scopeWord\(total\)\}/,
+    'parca kotasi kural satirina baglanmamis ya da duz "this part" yaziyor');
+});
+
+test('KISALTMA ONCELIGI: once gorsel alanlar kesilir', () => {
+  /* JSON kesilmesi KUYRUGU goturuyor (asagida olculdu), yani modele neyi
+     once kisaltacagini soylemek dogrudan bolum/madde kurtariyor. */
+  assert.match(SRC, /cut 'tables'\/'charts'\/'diagrams' first — never 'sections' or 'key_points'/,
+    'kisaltma onceligi promptta yok');
+});
+
+test('PARCA KURALLARI prompt butcesini BUYUTMUYOR', () => {
+  /* Tek pencere dali daha uzun oldugu icin PROMPT_TOK onu olcer; parca
+     dalina eklenen satirlar tavan hesabina girmiyor. Bu test iliskiyi
+     korur: parca dali tek pencere dalini GECMEMELI. */
+  const t1 = pencerePromptu(1, '').length, t2 = pencerePromptu(2, '').length;
+  assert.ok(t1 > 0 && t2 > 0, 'sablon okunamadi');
+  assert.ok(t2 <= t1,
+    `parca dali (${t2} krk) tek pencere dalini (${t1} krk) gecti — tavan hesabi artik ONU olcer`);
+});
+
+test('KESILME KUYRUGU goturur, log son saglam alani yazar', () => {
+  /* Kaybolan alanlar BOS degil, ayristirilan nesnede HIC YOK. Ilk yazim
+     bos dizi/dize ariyordu ve olcumde hicbir sey bulamadi. */
+  const tam = JSON.stringify({
+    summary: 'x', key_terms: [{ term: 'a', definition: 'b' }], key_points: ['p'],
+    quiz_questions: [{ question: 'q', answer: 'a' }],
+    sections: [{ heading: 'h', summary: 's', key_points: ['k'] }],
+    tables: [{ title: 't', headers: ['h'], rows: [['r']] }],
+    diagrams: [{ title: 'd', mermaid: 'flowchart TD\n A --> B' }],
+    worked_examples: [{ title: 'w', problem_statement: 'p', steps: ['s'], final_answer: 'f' }]
+  }, null, 2);
+  const kes = tam.indexOf('"tables"') + 30;
+  const kapali = A.closeTruncatedJson(tam.slice(0, kes));
+  assert.ok(kapali, 'kesik JSON kurtarilamadi');
+  const r = JSON.parse(kapali);
+  const kaybolan = Object.keys(JSON.parse(tam)).filter(k => !(k in r));
+  assert.deepEqual(kaybolan, ['tables', 'diagrams', 'worked_examples'],
+    'kayip kuyrukta degil — sema sirasi varsayimi yanlis');
+  // sections kesimden ONCE oldugu icin hayatta.
+  assert.ok(Array.isArray(r.sections) && r.sections.length > 0, 'sections kaybolmus');
+  // Log son saglam alani yaziyor.
+  assert.match(SRC, /son saglam alan "\$\{sonAlan\}"/, 'log son saglam alani yazmiyor');
+  assert.ok(!/BOS KALAN/.test(SRC), 'bos-alan yaklasimi hala kaynakta — kaybolan alan bos degil YOK');
 });
 
 console.log('\nBOLUM KOPYASI (WEEK 9 OLCUMU)\n');
