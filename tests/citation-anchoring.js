@@ -1207,4 +1207,70 @@ test('ISARETLI SAYI ile baslayan alinti bozulmuyor (eksi im degildir)', () => {
   }
 });
 
+
+// --- ciplak ondalik nokta (31.10.2026) -----------------------------------
+/* CIPLAK ONDALIK NOKTA ATFI YANLIS SAYFAYA GOTURUYORDU
+
+   Slayt destesi ondaligi bastaki sifir OLMADAN yaziyor (".69%", ".07
+   tons"), model ozete "0.69%" yaziyor. Desen `\d+` ile basliyordu:
+   ".69" ilk dala uymuyor, ikinci dal "69"u yakaliyor, uzunluk suzgeci
+   (>=4) onu atiyor — sayi jetonu TAMAMEN kayboluyordu.
+
+   Canli kartta olculen hal (iddia: "a 1% increase in GDP per capita leads
+   to a 0.69% increase in energy consumption per capita"):
+     s.38 (Log – LINEAR ornegi): 1000  0.026  2.6
+     s.40 (Log – LOG ornegi)   : (SAYI JETONU YOK)
+   Ayirt edici kanit DOGRU sayfada hic yoktu. Kart [15]'i s.38'e, yani
+   "Empirical Example of the Log – Linear" basligina bagladi; .69% ise
+   s.40'taki log-log slaytindadir. Sayfa metinleri document_chunks'tan
+   birebir alindi. */
+const ONDALIK_DOC = [
+  '--- SAYFA 37 ---',
+  'Log – Linear Model',
+  'The population regression function is specified as ln y = \u03b2_0 + \u03b2_1 x_1 + \u03b5 and \u03b2_1 is interpreted as, "on average, if x1 increases by 1 unit then y increases by \u03b21100%"',
+  '',
+  '--- SAYFA 38 ---',
+  'Empirical Example of the Log – Linear Model',
+  'The dependent variable is the natural log of energy per capita',
+  'This slope coefficient on gdppc is interpreted as, "on average, if GDP per capita increases by $1000 US dollars then energy consumption per capita goes up by (0.026)100% or 2.6%." This coefficient is statistically significant at the 1% level.',
+  '',
+  '--- SAYFA 40 ---',
+  'In the log-log model \u03b2_1 is an elasticity.',
+  'Empirical Example of the Log – Log Model',
+  'The dependent variable is the natural log of energy per capita',
+  'This slope coefficient on lngdppc is interpreted as, "on average, if GDP per capita increases by 1% then energy consumption per capita goes up by .69%." This coefficient is statistically significant at the 1% level.'
+].join('\n');
+
+test('ciplak ondalik ".69" jetona donuyor, "0.69" ile ESLESIYOR', () => {
+  assert.deepEqual(A.anchorTerms('.69%'), ['0.69'], 'sayi jetonu hala kayboluyor');
+  assert.deepEqual(A.anchorTerms('0.69%'), ['0.69'], 'iki taraf ayni jetonu uretmeli');
+  assert.deepEqual(A.anchorTerms('by .07 tons'), ['0.07', 'tons']);
+});
+
+test('SAYFA KISALTMASI uydurma sayi uretmiyor (s.42 -> 0.42 DEGIL)', () => {
+  /* Onundeki karakter harf olmamali; aksi halde "s.42" bir sayi sanilirdi. */
+  assert.deepEqual(A.anchorTerms('s.42 sayfasi'), ['sayfasi']);
+  assert.ok(!A.anchorTerms('bkz.42 numarali madde').some((x) => /^0\./.test(x)));
+});
+
+test('OLCULEN [15]: log-log iddiasi artik LOG-LOG sayfasina baglaniyor', () => {
+  const idx = A.buildPageIndex(ONDALIK_DOC, 'SAYFA');
+  const idf = A.buildAnchorIdf(idx);
+  const iddia = 'In a log-log model relating energy consumption to GDP per capita, a 1% increase in GDP per capita leads to a 0.69% increase in energy consumption per capita, which is statistically significant at the 1% level.';
+  const hit = A.anchorClaimToPage(iddia, idx, idf, true);
+  assert.ok(hit, 'atif hic baglanmadi');
+  assert.equal(hit.page, 40,
+    'iddia hala log-linear sayfasina baglaniyor (secilen: ' + hit.page + ')');
+  assert.match(String(hit.quote || ''), /lngdppc|\.69/,
+    'alinti log-log slaytindan gelmeli: ' + JSON.stringify(hit.quote));
+});
+
+test('sayi jetonu DOGRU sayfada artik var', () => {
+  const idx = A.buildPageIndex(ONDALIK_DOC, 'SAYFA');
+  const s40 = idx.filter((x) => x.page === 40)[0];
+  assert.ok(s40, 'sayfa 40 dizinde yok');
+  assert.ok([...s40.terms].some((x) => x === '0.69'),
+    's.40 jetonlari arasinda 0.69 yok: ' + [...s40.terms].filter((x) => /\d/.test(x)).join(' '));
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

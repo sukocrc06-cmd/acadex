@@ -2665,7 +2665,30 @@ const ANCHOR_KISA_MATEMATIK = new Set([
 const ANCHOR_UST_SIMGE = /[\u00b2\u00b3\u00b9\u2070\u2074-\u2079]+$/
 
 function anchorTerms(s: string): string[] {
-  const parcalar = trNormalize(s).match(/\d+(?:[.,]\d+)+|[\p{L}\p{N}]+/gu) || []
+  /* CIPLAK ONDALIK NOKTA ATFI YANLIS SAYFAYA GOTURUYORDU (31.10.2026,
+     IPPT kartinda olculdu).
+
+     Slayt destesi ondaligi bastaki sifir OLMADAN yaziyor (".69%", ".07
+     tons"), model ise ozete "0.69%" diye yaziyor. Desen `\d+` ile
+     basliyordu, yani ".69" ilk dala hic uymuyor; ikinci dal "69"u
+     yakaliyor ve uzunluk suzgeci (>=4) onu atiyor. Sonuc: SAYI JETONU
+     TAMAMEN KAYBOLUYOR.
+
+     Olculen hal — iddia "a 1% increase in GDP per capita leads to a 0.69%
+     increase in energy consumption per capita":
+       s.38 (Log – LINEAR ornegi) jetonlari: 1000  0.026  2.6
+       s.40 (Log – LOG ornegi)    jetonlari: (SAYI JETONU YOK)
+     Yani ayirt edici kanit DOGRU sayfada hic yok, YANLIS sayfada uc tane
+     var. Kart da [15]'i s.38'e, "Empirical Example of the Log – Linear"
+     basligina bagladi; .69% ise s.40'taki log-log slaytinda.
+
+     Duzeltme jetonlasmadan ONCE: ciplak ondalik "0." ile tamamlaniyor,
+     boylece iki taraf ayni jetonu uretiyor. Onundeki karakter HARF
+     OLMAMALI — "s.42" gibi sayfa kisaltmasi aksi halde "0.42" diye
+     uydurma bir sayi uretirdi (olculdu, teste bagli). */
+  const parcalar = trNormalize(s)
+    .replace(/(^|[\s(\[{=+*\/:;$\u2212-])[.,](\d)/g, '$10.$2')
+    .match(/\d+(?:[.,]\d+)+|[\p{L}\p{N}]+/gu) || []
   return parcalar
     .map(w => /^\d+(?:[.,]\d+)+$/.test(w) ? w.replace(/,/g, '.') : w.replace(ANCHOR_UST_SIMGE, ''))
     .filter(w =>
