@@ -99,6 +99,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'NARRATIVE_DUP_MIN_CHARS', 'narrativeDupKey', 'dedupeNarrativeSentences',
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
+  // Ayni baslik metin olcusunu beklemez (31.10.2026 olcumu).
+  'nearDupAyniBaslik',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
   // Bolum kopyasi genel esigin ALTINDA kaliyordu (30.10.2026 olcumu).
   'BOLUM_BASLIK_ESIGI', 'BOLUM_GOVDE_ESIGI', 'BOLUM_BASLIK_MIN_TERIM',
@@ -8428,6 +8430,96 @@ test('aksan: \\dots yanlis eslesmiyor, uc nokta isaretine donuyor', () => {
      anlatisinda ham cikmisti). */
   const r = A.onarAnlatiLatex('form y = a + b x_j + \\dots + c x^p_j + e');
   assert.equal(r.metin, 'form y = a + b x_j + \u22ef + c x^p_j + e');
+});
+
+
+/* CIPLAK CARET KAPIDA TAKILIYORDU (31.10.2026, IPPT kartinda olculdu)
+
+   Kart ayni sayiyi IKI BICIMDE gosteriyordu:
+     anlati:          "0.09temp²"    <- icinde \komut da vardi, kapi acildi
+     key_points[9]:   "0.09temp^2"   <- ters bolu yok, kapi kapandi
+     worked_examples: "0.09temp^2"
+     quiz_questions:  "0.09temp^2"
+   Kapi ters bolu YA DA SUSLU alt/ust simge istiyordu; ciplak "^2" ikisine
+   de uymuyor, dolayisiyla hemen asagidaki UST_RAKAM kurali o metinlerde
+   HIC kosmuyordu. Kural vardi, kapi gecirmiyordu. */
+test('ciplak ^2 kapidan geciyor: ters bolu olmayan metin de yumusuyor', () => {
+  const olculen = [
+    ['the estimated equation is UtilityBill = 484.12 - 12.08temp + 0.09temp^2, with linear terms',
+     'the estimated equation is UtilityBill = 484.12 - 12.08temp + 0.09temp\u00b2, with linear terms'],
+    ['Given the utility bill model UtilityBill = 484.12 - 12.08temp + 0.09temp^2, calculate.',
+     'Given the utility bill model UtilityBill = 484.12 - 12.08temp + 0.09temp\u00b2, calculate.'],
+    ['What is the minimum for UtilityBill = 484.12 - 12.08temp + 0.09temp^2?',
+     'What is the minimum for UtilityBill = 484.12 - 12.08temp + 0.09temp\u00b2?']
+  ];
+  for (const [girdi, bekle] of olculen) {
+    const r = A.onarAnlatiLatex(girdi);
+    assert.ok(r.yumusatilan > 0, 'kapi hala kapali: ' + girdi.slice(0, 50));
+    assert.equal(r.metin, bekle);
+  }
+});
+
+test('ciplak _1 de geciyor, HARFLI ust simge bilerek disarida', () => {
+  assert.equal(
+    A.onarAnlatiLatex('y = beta_0 + beta_1 x_j + beta_2 x_j^2 + e').metin,
+    'y = beta\u2080 + beta\u2081 x_j + beta\u2082 x_j\u00b2 + e');
+  /* x^p: Unicode karsiligi eksik; yarim cevrilmis ifade okunmaz olurdu. */
+  const s = 'The polynomial term is x^p_j and the order is p.';
+  assert.equal(A.onarAnlatiLatex(s).metin, s);
+});
+
+test('kapi matematik OLMAYAN metne hala dokunmuyor', () => {
+  for (const s of [
+    'Plain prose with no math at all, nothing to soften here.',
+    'The price rose from $100 to $120 in 2024.'
+  ]) assert.equal(A.onarAnlatiLatex(s).metin, s, 'duz metin degistirilmis: ' + s);
+});
+
+test('UC KAPI da ayni desende (biri geride kalirsa temizlik olu kod olur)', () => {
+  const DESEN = "indexOf('\\\\') === -1 && !/[\\^_][{\\d]/";
+  const kapilar = SRC.split(DESEN).length - 1;
+  assert.equal(kapilar, 3,
+    'erken cikis kapisi 3 yerde ayni olmali (anlatiLatexYumusat, onarAnlatiLatex, agac gezintisi), bulunan: ' + kapilar);
+});
+
+/* ANAHTAR VETO IKEN TETIKLEYICI DE OLMALI (31.10.2026, IPPT kartinda olculdu)
+
+   Sozlukte ayni kavram iki kez durdu: "Interaction Effects" ve
+   "Interaction Effect". Olculen: metin ortusmesi 0.667, esik 0.7 — KIL
+   PAYI kaciriyor. Anahtar vetosu geciyordu ama veto yalnizca ENGELLER.
+
+   ESIK DUSURULMEDI; sinyal baska yerde: bir sozluk basligiyla anahtarlanir. */
+test('ayni BASLIKLI iki sozluk girdisi birlesiyor, dolu tanim kaliyor', () => {
+  const T = [
+    { term: 'Interaction Effects', definition: 'The product of two different independent variables, used in regression models to change the slope of a quantitative variable for various levels of a dummy variable.' },
+    { term: 'Interaction Effect', definition: 'An effect where the response to one independent variable varies at different levels of another independent variable.' }
+  ];
+  const metin = (x) => `${x.term} ${x.definition}`;
+  /* Metin olcusu gercekten esigin ALTINDA — birlesme anahtardan geliyor. */
+  const s0 = A.nearDupTermSet(metin(T[0])), s1 = A.nearDupTermSet(metin(T[1]));
+  let pay = 0; for (const x of s1) if (s0.has(x)) pay++;
+  assert.ok(pay / Math.min(s0.size, s1.size) < A.NEAR_DUP_THRESHOLD,
+    'metin olcusu esigi gecmis; bu test artik anahtari olcmuyor');
+  const out = A.dedupeNearDuplicates(T, metin, (x) => x.term);
+  assert.equal(out.length, 1, 'ayni kavram iki kart olarak kalmis');
+  assert.equal(out[0].term, 'Interaction Effects', 'dolu tanim degil kisa olan tutulmus');
+});
+
+test('kume esitligi DAR: olculen karsi ornekler birlesmiyor', () => {
+  /* Kaynak bolumun kendi sozlugunden, nearDupKeysMatch yorumundaki ciftler. */
+  assert.equal(A.nearDupAyniBaslik('Inflation', 'Deflation'), false);
+  assert.equal(A.nearDupAyniBaslik('Treasury bonds, notes, or bills', 'Corporate bonds'), false);
+  assert.equal(A.nearDupAyniBaslik('Log-Linear Model', 'Log-Log Model'), false);
+  assert.equal(A.nearDupAyniBaslik('Marginal Effect', 'Interaction Effect'), false);
+  assert.equal(A.nearDupAyniBaslik('Omitted Group', 'Omitted Category'), false);
+  assert.equal(A.nearDupAyniBaslik('Interaction Effects', 'Interaction Effect'), true);
+  /* Anahtarsiz cagri tetiklemez: key_points ve sorular eski yoldan gecer. */
+  assert.equal(A.nearDupAyniBaslik('', 'Interaction Effect'), false);
+});
+
+test('ESIK DEGISMEDI (metin olcusu gevsetilmedi)', () => {
+  assert.equal(A.NEAR_DUP_THRESHOLD, 0.7, 'esik oynatilmis — 0.4-0.7 bandindaki ciftlerin cogu gercekten ayri');
+  assert.equal(A.NEAR_DUP_STEM_LEN, 5);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

@@ -435,10 +435,32 @@ const YUM_AKSAN: Array<[string, string]> = [
 ]
 function anlatiLatexYumusat(parca: string): string {
   let t = String(parca || '')
+  /* CIPLAK CARET KAPIDA TAKILIYORDU (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Kapi ters bolu YA DA SUSLU alt/ust simge istiyordu. Model ise bazi
+   * alanlara ciplak yaziyor ve ayni kart ayni sayiyi IKI BICIMDE
+   * gosteriyordu:
+   *   anlati:          "0.09temp²"    <- icinde \komut da vardi, kapi acildi
+   *   key_points[9]:   "0.09temp^2"   <- ters bolu yok, kapi kapandi
+   *   worked_examples: "0.09temp^2"
+   *   quiz_questions:  "0.09temp^2"
+   * Yani hemen asagidaki UST_RAKAM/ALT_RAKAM kurallari o metinlerde HIC
+   * kosmuyordu — kural vardi, kapi gecirmiyordu.
+   *
+   * Kapi artik rakamli ciplak bicimi de geciriyor: ^2 -> ², _1 -> ₁.
+   * Harfli ust simge (x^p) bilerek disarida: Unicode karsiligi eksik ve
+   * yarim cevrilmis bir ifade okunmaz olurdu.
+   *
+   * UC YERDE AYNI OLMALI: anlatiLatexYumusat, onarAnlatiLatex ve agac
+   * gezintisindeki `yum`. Biri geride kalirsa ic fonksiyon hic cagrilmaz
+   * ve temizlik olu kod olur.
+   *
+   * Ikinci kosul ayrica sart — "nx^{n-1}" ters bolu tasimiyor ama suslu
+   * parantezi temizlenmeli (olculdu: tek basina gelen madde metinleri). */
   /* Erken cikis: ters bolu YA DA suslu alt/ust simge yoksa yapacak is yok.
      Ikinci kosul sart — "nx^{n-1}" ters bolu tasimiyor ama suslu parantezi
      temizlenmeli (olculdu: tek basina gelen madde metinleri boyle). */
-  if (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t)) return t
+  if (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t)) return t
 
   /* CIFT TERS BOLU VE KACIRILMIS KESME ISARETI (29.10.2026 olcumu).
    *
@@ -592,7 +614,7 @@ function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } 
   const s = String(metin || '')
   // Erken cikis anlatiLatexYumusat'takiyle AYNI olmali, yoksa ic fonksiyon
   // hic cagrilmaz ve suslu alt/ust simge temizligi olu kod olur.
-  if (s.indexOf('\\') === -1 && !/[\^_]\{/.test(s)) return { metin: s, yumusatilan: 0 }
+  if (s.indexOf('\\') === -1 && !/[\^_][{\d]/.test(s)) return { metin: s, yumusatilan: 0 }
   let yumusatilan = 0
   let out = ''
   let son = 0
@@ -3059,6 +3081,45 @@ function nearDupKeysMatch(a: string, b: string): boolean {
   return shared / Math.min(sa.size, sb.size) >= NEAR_DUP_KEY_OVERLAP
 }
 
+/* ANAHTAR VETO IKEN TETIKLEYICI DE OLMALI (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Kart sozlugunde ayni kavram IKI KEZ durdu:
+ *   "Interaction Effects" — "The product of two different independent
+ *                            variables, used ... for various levels of a
+ *                            dummy variable."
+ *   "Interaction Effect"  — "An effect where the response to one
+ *                            independent variable varies at different
+ *                            levels of another independent variable."
+ * Olculen degerler: metin ortusmesi 0.667, esik 0.7 — KIL PAYI kaciriyor.
+ * Anahtar vetosu geciyordu ama veto yalnizca ENGELLER, birlestirmez.
+ *
+ * ESIK DUSURULMEDI: 0.4-0.7 bandindaki ciftlerin cogu gercekten ayri
+ * (olculdu, 8333 cift). Dogru sinyal baska yerde: bir sozluk BASLIGIYLA
+ * anahtarlanir, ayni basligi tasiyan iki girdi ayni girdidir — tanimlar
+ * farkli yazilmis olsa bile.
+ *
+ * Tetikleyici DAR: anahtarlarin kok KUMELERI esit olmali. Kapsama
+ * (includes) ya da 0.8 ortusme YETMEZ, cunku onlar vetoyu gevsetmek icin
+ * yazildi. Ayni kartin 13 kavrami arasinda kume-esit tek cift bu oldu.
+ * Karsi ornekler (ayni dosyadaki olcumden): "Inflation" / "Deflation" ->
+ * {infla} / {defla} ayri; "Treasury bonds, notes, or bills" /
+ * "Corporate bonds" -> 4 jeton / 2 jeton, ayri.
+ *
+ * SINIR: kok 5 karaktere kirpiyor, yani "bonds"/"bond" gibi KISA cogul
+ * katlanmaz (ikisi de 5 karakterden kisa, oldugu gibi kalir). "effects"/
+ * "effect" katlanir. Bu sinir bilerek: kisa sozcukte cogul atmak
+ * Turkce'de "kurs"->"kur" gibi anlam kaymasi uretir. */
+function nearDupAyniBaslik(a: string, b: string): boolean {
+  const na = gateNormalize(a)
+  const nb = gateNormalize(b)
+  if (!na || !nb) return false
+  const sa = nearDupTermSet(na)
+  const sb = nearDupTermSet(nb)
+  if (!sa.size || sa.size !== sb.size) return false
+  for (const x of sa) if (!sb.has(x)) return false
+  return true
+}
+
 /**
  * Collapse near-duplicates, keeping the more informative wording (the longer
  * text) of each group rather than whichever happened to come first.
@@ -3255,6 +3316,8 @@ function dedupeNearDuplicates(
       if (other.terms.size < NEAR_DUP_MIN_TERMS) continue
       // Different head terms → different entries, whatever the prose says.
       if (!nearDupKeysMatch(key, other.key)) continue
+      /* AYNI BASLIK metin olcusunu beklemez — bkz. nearDupAyniBaslik. */
+      if (nearDupAyniBaslik(key, other.key)) { mergedInto = k; break }
       let shared = 0
       for (const t of terms) if (other.terms.has(t)) shared++
       const overlap = shared / Math.min(terms.size, other.terms.size)
@@ -15080,7 +15143,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       {
         let sayac = 0
         const yum = (t: string): string => {
-          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t))) return t
+          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t))) return t
           const r = onarAnlatiLatex(t)
           if (r.yumusatilan > 0) sayac++
           return r.metin
