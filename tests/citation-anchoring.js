@@ -1360,4 +1360,75 @@ test('KUCUK HARF sarmasi eskisi gibi birlesiyor (regresyon)', () => {
   assert.equal(b.length, 1, JSON.stringify(b));
 });
 
+/* ==========================================================================
+   LAMBDA MADDE IMI (31.10.2026, Kan kartinda olculdu)
+
+   Kaynakcada yirmi atiftan sekizi "λ " ile basliyordu:
+     [1] λ Kalp ve damarlardan olusan kapali bir sistem ...
+     [3] λ Kanin viskozitesi: 3,5 – 5,4 santipoise
+     [10] λ %10'u ise organik ve inorganik maddelerden olusur.
+   Sunum sablonu madde imini Symbol yazi tipiyle koymus, PDF metnine λ
+   olarak dusmus. λ gercek bir sembol de oldugu icin kosulsuz atilmiyor.
+   ========================================================================== */
+
+test('lambda madde imi kaynakca etiketinden atiliyor', () => {
+  /* Desen anchorCitations ICINDE tanimli (atif katmaniyla ayni yerde
+     dursun diye), o yuzden kaynaktan diliniyor — ROZET_YUNAN testiyle
+     ayni yaklasim. Kaynak degisirse test ACIK hata verir. */
+  const SUM_SRC = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  const satir = SUM_SRC.match(/const ETIKET_IM_RE = (\/.+\/[a-z]*)\s/);
+  assert.ok(satir, 'ETIKET_IM_RE kaynakta bulunamadi');
+  const son = satir[1].lastIndexOf('/');
+  const im = new RegExp(satir[1].slice(1, son), satir[1].slice(son + 1));
+  const temizle = (s) => String(s).replace(im, '')
+  assert.equal(temizle('\u03bb Kalp ve damarlardan olusan kapali bir sistem'),
+    'Kalp ve damarlardan olusan kapali bir sistem');
+  assert.equal(temizle("\u03bb %10'u ise organik ve inorganik maddelerden olusur."),
+    "%10'u ise organik ve inorganik maddelerden olusur.");
+  /* SEMBOL OLARAK KALIYOR: ardindan harf gelmiyorsa im degil. */
+  assert.equal(temizle('\u03bb = 500 nm dalga boyu'), '\u03bb = 500 nm dalga boyu');
+  assert.equal(temizle('\u03bb 500 nm'), '\u03bb 500 nm');
+  /* Eski imler ve isaretli sayi kurali bozulmamis olmali. */
+  assert.equal(temizle('\u2022 Madde imi'), 'Madde imi');
+  assert.equal(temizle('- Tireli madde'), 'Tireli madde');
+  assert.equal(temizle('-12.08 + 2(0.09)39 = -5.06'), '-12.08 + 2(0.09)39 = -5.06');
+});
+
+/* ==========================================================================
+   COKLU ATIF DA ATIFTIR (31.10.2026, Week 11 kartinda olculdu)
+
+   Kartta bir maddenin sonunda IKI atif isareti durdu:
+     "Roots and reciprocal terms should be rewritten as fractional or
+      negative powers before applying the power rule [6, 9]. [5]"
+   Model virgullu "[6, 9]" yazdi; "zaten atifli" kapisi tek sayi
+   bekledigi icin maddeyi atifsiz sandi ve uzerine [5] ekledi.
+   Log: Citation anchoring: pages=20 kept=9 added=1 — o tek ekleme buydu.
+   ========================================================================== */
+
+test('zaten COKLU atif tasiyan madde ikinci kez atif almiyor', () => {
+  const BELGE = [
+    "--- SAYFA 6 ---",
+    "Question 3: Root as Fractional Power. Rewrite the root as a fractional power before integrating.",
+    "--- SAYFA 9 ---",
+    "Answer 4 - Mixed Indefinite Integral. Reciprocal terms become negative powers before the power rule."
+  ].join('\n');
+  const idx = A.buildPageIndex(BELGE, 'SAYFA');
+  const r = A.anchorCitations(
+    [
+      "Roots and reciprocal terms should be rewritten as fractional or negative powers before applying the power rule [6, 9].",
+      "Reciprocal terms become negative powers before the power rule is applied"
+    ],
+    [], idx, 'en'
+  );
+  const metni = (x) => (typeof x === 'string' ? x : x.text);
+  const ilk = metni(r.key_points[0]);
+  assert.equal((ilk.match(/\[[\d,\s]+\]/g) || []).length, 1,
+    'coklu atifli maddeye ikinci atif eklendi: ' + ilk);
+  assert.ok(/\[6, 9\]/.test(ilk), "modelin kendi coklu atifi bozuldu: " + ilk);
+  /* Atifsiz madde yine atif almali — kapi fazla genis olmamali. */
+  assert.ok(/\[\d+\]/.test(metni(r.key_points[1])),
+    'atifsiz madde atif alamadi: ' + metni(r.key_points[1]));
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

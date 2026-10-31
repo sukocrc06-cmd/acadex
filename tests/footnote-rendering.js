@@ -1230,6 +1230,33 @@ test('rozet: TURKCE "%11,4 seviyesine" GERCEK olgu, dusmuyor', () => {
   assert.ok(!/^%1$/.test(s[0]), 'turkce anlamlilik duzeyi rozet olmus: ' + JSON.stringify(s));
 });
 
+/* ARAYA SOZCUK GIREN TURKCE SIRALAMA (31.10.2026, IPPT kartinda olculdu)
+
+   Ustteki test "%1 duzeyinde anlamli" siralamasini kiliyordu; orada
+   "duzey" HEMEN sayidan sonra geliyor. Canli kartta siralama baskaydi:
+     "... terimler %1 anlamlilik duzeyinde istatistiksel olarak anlamlidir."
+   Araya "anlamlilik" girdigi icin desen kaciriyor ve esik rozet oldu. */
+test('rozet: "%1 anlamlilik duzeyinde" rozet OLMUYOR', () => {
+  INK_ROZET.dil('tr');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'Utility bill ve sicaklik modelindeki lineer ve kuadratik terimler %1 anlamlilik duzeyinde istatistiksel olarak anlamlidir.',
+    'Sicaklik 39 dereceden 40 dereceye ciktiginda utility bill 5.06 dolar azalmaktadir.'
+  ]));
+  assert.ok(!r.some((x) => /^%1$/.test(x)),
+    'anlamlilik esigi rozet olmus: ' + JSON.stringify(r));
+  assert.ok(r.some((x) => /5[.,]06/.test(x)),
+    'esik dusunce yerine gelen GERCEK olgu yok: ' + JSON.stringify(r));
+});
+
+test('rozet: anlamlilik sozcugu YOKKEN yuzde rozet kaliyor', () => {
+  /* Kapi genisledi diye gercek yuzde olgusu dusmemeli. */
+  INK_ROZET.dil('tr');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'Enflasyon 2024 yilinda %1 anlamlilik olmadan yalnizca %64 duzeyine cikti.'
+  ]));
+  assert.ok(r.length > 0, 'rozet hic uretilmedi');
+});
+
 /* PARA KORUMASI FORMULU DE YUTUYORDU (31.10.2026, kartta olculdu)
 
    Koruma `$`den sonra rakam+bosluk gorunce parcayi para sayip diziyi

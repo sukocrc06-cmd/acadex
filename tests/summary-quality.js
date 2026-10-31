@@ -148,6 +148,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Duzlesmis metin tablosu kaynaktan kuruluyor (31.10.2026 olcumu).
   'TABLO_MIN_SATIR', 'TABLO_MAX_KURTARMA', 'TABLO_ETIKET_MAX_KRK', 'TABLO_DEGER_RE',
   'tabloDegerSatiri', 'tabloEtiketSatiri', 'metinTablosuKurtar',
+  'TABLO_KUYRUK_MAX', 'tabloKuyrukSatiri',
   // Resim slaytlari OCR'a gidiyor, slayt numarasi _rels'ten (31.10.2026 olcumu).
   'pptxRelsHedefleri', 'pptxSlaytGorselleri', 'PPTX_OCR_MIN_BAYT', 'PPTX_OCR_MAX_SLAYT',
   'kurtarmaSatirlari', 'yorumCumleleriniKurtar',
@@ -3143,8 +3144,10 @@ test('MADDE IPUCUSU kisaltiliyor ve atif isaretcisi atiliyor', () => {
   const blok = SRC.slice(i, i + 420);
   assert.match(blok, /\.slice\(0, 18\)/, 'madde sayisi sinirlandirilmamis');
   assert.match(blok, /\.slice\(0, 80\)/, 'madde metni kisaltilmamis');
-  assert.match(blok, /replace\(\/\\s\*\\\[\\d\+\\\]\/g, ''\)/,
-    'atif isaretcisi atilmamis — modele numara gosteriliyor');
+  /* COKLU ATIF DA SIYRILIYOR (31.10.2026, Week 11 olcumu): model
+     "[6, 9]" yazabiliyor, desen onu da tanimali. */
+  assert.ok(blok.includes(String.raw`replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '')`),
+    'atif isaretcisi atilmamis ya da coklu atif taninmiyor — modele numara gosteriliyor');
   assert.match(blok, /maddeMetni\(p\)/, 'nesne bicimli madde desteklenmiyor');
 });
 
@@ -8509,10 +8512,16 @@ test('kapi matematik OLMAYAN metne hala dokunmuyor', () => {
 });
 
 test('UC KAPI da ayni desende (biri geride kalirsa temizlik olu kod olur)', () => {
-  const DESEN = "indexOf('\\\\') === -1 && !/[\\^_][{\\d]/";
-  const kapilar = SRC.split(DESEN).length - 1;
+  /* $ DE KAPIDA (31.10.2026, Week 8 kartinda olculdu): yetim $ LaTeX
+     isareti tasimiyor, kapi onu da gecirmeli — yoksa jeton bazli $
+     temizligi hic kosmuyor. */
+  const DESEN = "indexOf('\\\\') === -1 && t.indexOf('$') === -1 && !/[\\^_][{\\d]/";
+  const DESEN_S = "indexOf('\\\\') === -1 && s.indexOf('$') === -1 && !/[\\^_][{\\d]/";
+  const kapilar = (SRC.split(DESEN).length - 1) + (SRC.split(DESEN_S).length - 1);
   assert.equal(kapilar, 3,
     'erken cikis kapisi 3 yerde ayni olmali (anlatiLatexYumusat, onarAnlatiLatex, agac gezintisi), bulunan: ' + kapilar);
+  assert.equal(SRC.split("indexOf('\\\\') === -1 && !/[\\^_][{\\d]/").length - 1, 0,
+    'bir kapi $ sartini almamis — geride kalan kapi temizligi olu kod yapar');
 });
 
 /* ANAHTAR VETO IKEN TETIKLEYICI DE OLMALI (31.10.2026, IPPT kartinda olculdu)
@@ -9457,6 +9466,122 @@ test('metin tablosu kurtarmasi boru hattina bagli', () => {
   assert.ok(derinlik > 0,
     'metinTablosuKurtar OCR kapisinin DISINDA kaliyor (derinlik=' + derinlik + ') — ' +
     'OCR metninden tablo kurmak cop uretir, bkz. Week 8 olcumu');
+});
+
+/* ==========================================================================
+   YETIM $ AYIRACI (31.10.2026, Week 8 kartinda olculdu)
+
+   Kartin anlatisi okunmaz hale gelmisti. study_cards'tan cekilen HAM metin:
+     "... base-a$ logarithms \frac{d}{dx}(\log_a x) = \frac{1}{x \ln a},
+      natural exponentials ... and base-$a$ exponentials ... \ln a$."
+     "is positive (f'(x) > 0$) on an interval, the function is an increasing
+      function; if negative (f'(x) < 0$), it is a decreasing function."
+   Model "base-$a$" yazmak isterken ilkini "base-a$" diye yarim yazdi.
+   Ekranda goruldugu hal:
+     "base-a$ logarithms  d d x ( log a dx d (log a x) = 1 x ln a = xlna 1 ,"
+     "( f ′ ( x ) < 0 )onaninterval,thefunctionisanincreasingfunction"
+   KaTeX yetim 
+leri birbiriyle eslestirip arada kalan DUZ YAZIYI
+   matematik dizdi. Sunucu da ayni hatayi yapiyordu — uc ayri sebeple:
+     1) adacik deseni ayiracin KONUMUNA bakmiyordu,
+     2) para korumasi "0$)" jetonunu "100$" sandi,
+     3) erken cikis kapisi $ gormedigi icin temizligi hic calistirmadi.
+   ========================================================================== */
+
+test('yetim $ ayiraci duz yaziyi matematige cevirmiyor', () => {
+  const g1 = "base-a$ logarithms \\frac{d}{dx}(\\log_a x) = \\frac{1}{x \\ln a}, " +
+    "natural exponentials \\frac{d}{dx}(e^{g(x)}) = e^{g(x)} \\cdot g'(x), " +
+    "and base-$a$ exponentials \\frac{d}{dx}(a^x) = a^x \\ln a$.";
+  const c1 = A.onarAnlatiLatex(g1).metin;
+  assert.equal((c1.match(/\$/g) || []).length, 0, 'yetim $ kaldi: ' + c1);
+  assert.ok(/base-a logarithms/.test(c1), 'duz yazi matematikten kurtarilmadi: ' + c1);
+  assert.ok(/log_a x/.test(c1) && /ln a/.test(c1),
+    'LaTeX duz yaziya cevrilmemis: ' + c1);
+
+  const g2 = "is positive (f'(x) > 0$) on an interval, the function is an increasing " +
+    "function; if negative (f'(x) < 0$), it is a decreasing function.";
+  const c2 = A.onarAnlatiLatex(g2).metin;
+  assert.equal((c2.match(/\$/g) || []).length, 0, 'yetim $ kaldi: ' + c2);
+  assert.ok(/\(f'\(x\) > 0\) on an interval/.test(c2), 'metin bozuldu: ' + c2);
+});
+
+test('GERCEK adacik ve para isareti dokunulmadan kaliyor', () => {
+  /* Kapi acildi diye dogru olan bozulmamali — olculen gercek adaciklar. */
+  for (const dogru of [
+    "The marginal effect is $\\frac{\\partial \\hat{y}}{\\partial x_j} = \\hat{\\beta}_1 + 2\\hat{\\beta}_2 x_j$ at 40 degrees.",
+    "The model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ fits well.",
+    "Null hipotez $H_0: \\beta_2 = 0$ reddedilir ve etki $2.6\\%$ olur."
+  ]) {
+    assert.equal(A.onarAnlatiLatex(dogru).metin, dogru, 'gercek adacik bozuldu: ' + dogru);
+  }
+  /* Para iki yonde de duruyor: sozcugu bitiren $ ve basa gelen $. */
+  const para = "Fatura 100$ ve indirim $5.06 oldu.";
+  assert.equal(A.onarAnlatiLatex(para).metin, para, 'para isareti silindi');
+  assert.equal(A.anlatiLatexYumusat("Toplam 1000$. Indirim $12,50 oldu.").replace(/\s+/g, ' '),
+    "Toplam 1000$. Indirim $12,50 oldu.", 'noktalama oncesi para silindi');
+});
+
+test('acilis $ metne YAPISIK baslar, kapanis $ YAPISIK biter', () => {
+  /* Konum sarti deseninde durmali: yoksa yarim yazilan ayirac yine
+     ilerideki dogru ayiracla eslesir. */
+  const src = A.ANLATI_MATEMATIK_ADACIK_RE.source;
+  assert.ok(src.includes('\\$(?!\\s)'),
+    'acilis $ icin (?!\\s) sarti dusmus: ' + src);
+  assert.ok(src.includes('(?<!\\s)\\$'),
+    'kapanis $ icin (?<!\\s) sarti dusmus: ' + src);
+  /* Icerik sarti (LaTeX yapisi) kaldirilmamis olmali. */
+  assert.ok(src.includes('[\\\\^_{}=]'), 'adacik icerik sarti dusmus: ' + src);
+});
+
+/* ==========================================================================
+   GRUBUN KUYRUGUNDAKI TEK SATIR (31.10.2026, Kan kartinda olculdu)
+
+   Duzlesmis tablo kurtarmasi kapsamayi 23/33 -> 30/33 yapti ama iki sayi
+   hala kayipti. document_chunks'tan cekilen gercek kaynak:
+     ... bilurubin (hem)
+     %34 mg / %1 mg / %5 mg / %0,2-1,2 mg
+     Hormonlar %0,000001-0,05 mg      <- ETIKET ve DEGER AYNI SATIRDA
+   N etiket + N deger deseni burada tutmaz; satir grubun kuyrugu.
+   ========================================================================== */
+
+test('tabloKuyrukSatiri etiket + deger satirini ayristiriyor', () => {
+  assert.deepEqual(A.tabloKuyrukSatiri('Hormonlar %0,000001-0,05 mg'),
+    { etiket: 'Hormonlar', deger: '%0,000001-0,05 mg' });
+  assert.deepEqual(A.tabloKuyrukSatiri('Sodyum 145 mM'),
+    { etiket: 'Sodyum', deger: '145 mM' });
+  /* CUMLE DEGIL: birimi uzun olan ya da hic sayisi olmayan satir elenir. */
+  assert.equal(A.tabloKuyrukSatiri('Kanın viskozitesi 3,5 santipoise'), null,
+    'cumle kuyruk satiri sayildi');
+  assert.equal(A.tabloKuyrukSatiri('Bu konu genel olarak önemlidir'), null);
+  assert.equal(A.tabloKuyrukSatiri('| albumin | %4,5 g |'), null, 'markdown satiri gecti');
+});
+
+test('kuyruk satiri grubun tablosuna ekleniyor (Kan olcumu)', () => {
+  const KAYNAK = [
+    'Plazmada Bulunan Organik', 'Bileşenler', 'Atık ürünler',
+    'üre (protein)', 'kreatinin (kreatin)', 'ürik asit (nükleik asitler)', 'bilurubin (hem)',
+    '%34 mg', '%1 mg', '%5 mg', '%0,2-1,2 mg',
+    'Hormonlar %0,000001-0,05 mg'
+  ].join('\n');
+  const r = A.metinTablosuKurtar(KAYNAK, [0.2, 1.2, 0.000001, 0.05], [], 'tr');
+  assert.equal(r.tables.length, 1, 'tablo kurtarilmadi');
+  assert.deepEqual(r.tables[0].rows[4], ['Hormonlar', '%0,000001-0,05 mg'],
+    'kuyruk satiri tabloya eklenmedi: ' + JSON.stringify(r.tables[0].rows));
+  for (const v of [0.000001, 0.05]) {
+    assert.ok(r.kurtarilan.includes(v), v + ' kurtarilmadi');
+  }
+});
+
+test('kuyruk satiri EKSIK sayi tasimiyorsa eklenmiyor', () => {
+  /* Ayni kapi: kurtarma yalnizca kayip sayi tasiyan satiri alir. */
+  const KAYNAK = [
+    'Atık ürünler', 'üre', 'kreatinin', 'ürik asit',
+    '%34 mg', '%1 mg', '%5 mg', 'Hormonlar %0,000001-0,05 mg'
+  ].join('\n');
+  const r = A.metinTablosuKurtar(KAYNAK, [34, 1, 5], [], 'tr');
+  assert.equal(r.tables.length, 1);
+  assert.equal(r.tables[0].rows.length, 3,
+    'eksik sayi tasimayan kuyruk satiri eklendi: ' + JSON.stringify(r.tables[0].rows));
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

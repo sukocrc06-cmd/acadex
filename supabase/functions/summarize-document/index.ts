@@ -409,7 +409,32 @@ function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } 
  * $H_0: \beta_2 = 0$, $2.6\%$); yukaridaki iki duz yazi hicbirini
  * tasimiyor. Saf sayi adacigi ($0.69$) artik korunmuyor — zarari yok,
  * yumusatma sayiya dokunmaz, yalnizca $ isaretleri kalkar. */
-const ANLATI_MATEMATIK_ADACIK_RE = /\$(?=[^$\n]*[\\^_{}=])[^$\n]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
+/* AYIRAC KONUMU DA SART (31.10.2026, Week 8 kartinda olculdu).
+ *
+ * Icerik sarti LaTeX yapisi ariyor ve bu kalipta TUTUYOR — ama ayiraclar
+ * yanlis yerde. Modelin yazdigi ham metin:
+ *   "... base-a$ logarithms \frac{d}{dx}(\log_a x) = \frac{1}{x \ln a},
+ *    natural exponentials \frac{d}{dx}(e^{g(x)}) = ... and base-$a$ ..."
+ * Model "base-$a$" yazmak isterken ilkini "base-a$" diye yarim yazmis.
+ * Soldan eslestirme o yetim $ ile "base-$a$"in ilkini CIFT sayiyor;
+ * arada \frac'ler oldugu icin icerik sarti geciyor ve butun bolge
+ * "matematik" diye korunuyor. Ne yumusatma ne orfan temizligi
+ * dokunamiyor, KaTeX de ayni hatali esleri dizip duz yaziyi matematik
+ * yapiyor. Kartta goruldugu hal:
+ *   "base-a$ logarithms  d d x ( log a dx d (log a x) = 1 x ln a = xlna 1 ,"
+ * Ayni kalip ayni kartta ikinci kez:
+ *   "positive (f'(x) > 0$) on an interval, ... if negative (f'(x) < 0$)"
+ * -> "( f ′ ( x ) < 0 )onaninterval,thefunctionisanincreasingfunction"
+ *
+ * AYIRT EDICI SEY KONUM: acilis $ metne YAPISIK baslar, kapanis $ metne
+ * YAPISIK biter. "base-a$ " sagi bosluk oldugu icin acilis OLAMAZ.
+ * Boylece yetim kalir ve orfan temizligine dusuer; "base-$a$" dogru
+ * cift olarak kendi basina degerlendirilir.
+ *
+ * "$ x^2 $" gibi iki yani bosluklu adacik bilincli olarak DISARIDA:
+ * adacik sayilmayinca yumusatmaya giriyor, yani "x²" olup $ isaretleri
+ * dusuyor — metin kaybi yok, okunur sonuc ayni. */
+const ANLATI_MATEMATIK_ADACIK_RE = /\$(?!\s)(?=[^$\n]*[\\^_{}=])[^$\n]*(?<!\s)\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
 
 /* Komut siniri: \int ile \infty ayri komutlar, ve \int_{0} gibi hallerde
    ardindan '_' geliyor — '_' regex'te KELIME karakteri oldugu icin \b
@@ -487,7 +512,14 @@ function anlatiLatexYumusat(parca: string): string {
   /* Erken cikis: ters bolu YA DA suslu alt/ust simge yoksa yapacak is yok.
      Ikinci kosul sart — "nx^{n-1}" ters bolu tasimiyor ama suslu parantezi
      temizlenmeli (olculdu: tek basina gelen madde metinleri boyle). */
-  if (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t)) return t
+  /* $ DE KAPIYI ACAR (31.10.2026, Week 8 kartinda olculdu).
+     Kapi "LaTeX yoksa dokunma" diyordu; ama YETIM $ tek basina da zarar
+     veriyor ve LaTeX isareti tasimiyor. Olculen hal:
+       "positive (f'(x) > 0$) on an interval, ... if negative (f'(x) < 0$)"
+     Ne ters bolu ne suslu alt/ust simge var, kapi erken cikiyor ve
+     jeton bazli $ temizligi hic kosmuyordu. KaTeX iki yetim $'i
+     eslestirip arada kalan duz yaziyi matematik dizdi. */
+  if (t.indexOf('\\') === -1 && t.indexOf('$') === -1 && !/[\^_][{\d]/.test(t)) return t
 
   /* CIFT TERS BOLU VE KACIRILMIS KESME ISARETI (29.10.2026 olcumu).
    *
@@ -521,8 +553,23 @@ function anlatiLatexYumusat(parca: string): string {
    * onundeki ters bolu hicbir zaman kasitli degil. */
   t = t.replace(/\\([$%&#_{}])/g, '$1')
 
-  // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
-  t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
+  /* \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
+   *
+   * SOZCUK SINIRI KORUNUYOR (31.10.2026, IPPT kartinda olculdu).
+   * Komut cikarilirken boslugu yoktu ve iki sozcuk birbirine giriyordu.
+   * Modelin yazdigi: "Kuadratik regresyon modelinde\text{utility bill}"
+   * Veritabanina giden ve kartta goruldugu hal:
+   *   "Kuadratik regresyon modelindeutility bill tahmini"
+   * LaTeX'te bosluk dizgiden gelir, duz yazida gelmiyor — o yuzden
+   * burada ELLE konuyor. Yalnizca iki yan da SOZCUK karakteriyse:
+   * "2\text{kg}" -> "2 kg" dogru, "x\text{-ekseni}" -> "x-ekseni"
+   * bozulmadan kaliyor (icerik harf/rakamla baslamiyor). */
+  t = t.replace(/(\w?)\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}(\w?)/g,
+    (_m, sol, icerik, sag) => {
+      const bas = sol && /^[\w\u00c0-\u024f]/.test(icerik) ? sol + ' ' : sol
+      const son = sag && /[\w\u00c0-\u024f]$/.test(icerik) ? ' ' + sag : sag
+      return bas + icerik + son
+    })
   /* ISLETMEN ASCII DEGIL UNICODE (31.10.2026, IPPT kartinda olculdu).
    *
    * \times -> 'x' cevirisi okunamaz bir satir uretti. Kartin 04. bolumu:
@@ -641,11 +688,21 @@ function anlatiLatexYumusat(parca: string): string {
      "$k-1$" uzerinde olculdu — acilis $ onundeki boslugu tuketiyor,
      kapanisa sira gelmiyor ve yarim cift ekranda kaliyor. Bosluklara
      bolunup her jeton kendi icinde isleniyor. */
+  /* PARA, JETONUN SONUNDA OLUR (31.10.2026, Week 8 kartinda olculdu).
+     Kural yalnizca onceki sozcuge bakiyordu ve "0$)" jetonunda "0" saf
+     sayi oldugu icin PARA sandi, yetim $ ekranda kaldi:
+       "positive (f'(x) > 0$) on an interval, ..."
+     KaTeX iki boyle $'i eslestirip arada kalan duz yaziyi matematik
+     dizdi: "( f ′ ( x ) < 0 )onaninterval,thefunctionisanincreasing".
+     Gercek para isareti sozcugu BITIRIR ("100$", "100$."); ardindan
+     parantez gelen $ para degil, formul kalintisidir. */
   t = t.split(/(\s+)/).map((jeton) => {
     if (jeton.indexOf('$') === -1) return jeton
     return jeton.replace(/\$(?!\d)/g, (m, off) => {
       const onceki = jeton.slice(0, off)
-      return onceki !== '' && /^[\d.,]+$/.test(onceki) ? m : ''
+      const sonrasi = jeton.slice(off + 1)
+      const paraKuyrugu = sonrasi === '' || /^[.,;:!?]+$/.test(sonrasi)
+      return onceki !== '' && /^[\d.,]+$/.test(onceki) && paraKuyrugu ? m : ''
     })
   }).join('')
   return t.replace(/[ \t]{2,}/g, ' ')
@@ -703,7 +760,7 @@ function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } 
   const s = String(metin || '')
   // Erken cikis anlatiLatexYumusat'takiyle AYNI olmali, yoksa ic fonksiyon
   // hic cagrilmaz ve suslu alt/ust simge temizligi olu kod olur.
-  if (s.indexOf('\\') === -1 && !/[\^_][{\d]/.test(s)) return { metin: s, yumusatilan: 0 }
+  if (s.indexOf('\\') === -1 && s.indexOf('$') === -1 && !/[\^_][{\d]/.test(s)) return { metin: s, yumusatilan: 0 }
   let yumusatilan = 0
   let out = ''
   let son = 0
@@ -6966,6 +7023,31 @@ function tabloEtiketSatiri(s: string): boolean {
   return harf >= 2 && harf / t.length >= 0.5
 }
 
+/* GRUBUN KUYRUGUNDAKI TEK SATIR (31.10.2026, Kan kartinda olculdu).
+ *
+ * Kurtarma 3 tablo getirdi ve kapsama 23/33 -> 30/33 oldu, ama iki sayi
+ * hala kayipti (0,000001 ve 0,05). Kaynaktaki hal:
+ *   ... bilurubin (hem)
+ *   %34 mg / %1 mg / %5 mg / %0,2-1,2 mg
+ *   Hormonlar %0,000001-0,05 mg        <- ETIKET ve DEGER AYNI SATIRDA
+ * Duzlesmis desen (N etiket + N deger) burada tutmuyor; satir grubun
+ * KUYRUGU. Yalnizca kurulan tablonun hemen ardinda aranir ve yine
+ * yalnizca eksik sayi tasiyorsa eklenir, yani gurultu eklemiyor. */
+const TABLO_KUYRUK_MAX = 3
+
+/** "Hormonlar %0,000001-0,05 mg" -> { etiket, deger }; degilse null. */
+function tabloKuyrukSatiri(s: string): { etiket: string; deger: string } | null {
+  const satir = String(s || '').trim()
+  if (!satir || satir.indexOf('|') !== -1) return null
+  /* Ilk SAYISAL jetondan ikiye bolunuyor: solu etiket, sagi deger olmali. */
+  const m = satir.match(/\s(?=[%$\u20ac\u20ba]?\s*-?\d)/)
+  if (!m || m.index === undefined) return null
+  const etiket = satir.slice(0, m.index)
+  const deger = satir.slice(m.index + 1)
+  if (!tabloEtiketSatiri(etiket) || !tabloDegerSatiri(deger)) return null
+  return { etiket, deger }
+}
+
 function metinTablosuKurtar(
   sourceText: string,
   missing: number[],
@@ -7021,10 +7103,30 @@ function metinTablosuKurtar(
     if (!baslik) baslik = lang === 'tr' ? 'Tablo (metinden)' : 'Table (from text)'
     if (varOlan.indexOf(baslik) !== -1) continue
     bulunan.forEach((v) => kurtarilan.add(v))
+    const satirlar2: string[][] = etiketler.map((e, idx) => [e, degerler[idx]])
+    /* Grubun hemen ardindaki "etiket + deger" tek satirlari ayni tabloya. */
+    for (let j = i + 1; j <= i + TABLO_KUYRUK_MAX && j < satirlar.length; j++) {
+      const k2 = tabloKuyrukSatiri(satirlar[j])
+      if (!k2) break
+      const re2 = new RegExp(SAYI_BELIRTECI.source, 'g')
+      const yeni2 = new Set<number>()
+      let m2: RegExpExecArray | null
+      while ((m2 = re2.exec(k2.deger)) !== null) {
+        for (const okuma of sayiOkumalari(m2[0])) {
+          const v = Math.abs(okuma)
+          if (eksik.has(v) && !kurtarilan.has(v)) yeni2.add(v)
+        }
+        if (m2[0].length === 0) re2.lastIndex++
+      }
+      if (yeni2.size === 0) break
+      yeni2.forEach((v) => kurtarilan.add(v))
+      satirlar2.push([k2.etiket, k2.deger])
+      i = j
+    }
     tables.push({
       title: baslik,
       headers: basliklar.slice(),
-      rows: etiketler.map((e, idx) => [e, degerler[idx]])
+      rows: satirlar2
     })
     if (tables.length >= TABLO_MAX_KURTARMA) break
   }
@@ -8509,7 +8611,17 @@ function anchorCitations(
      sayiliyor; madde imi olarak kullanilan tireden sonra her zaman bosluk
      var, isaretli sayidan sonra asla yok. Kursun imleri (• · ● …) kosulsuz
      atiliyor, onlar sayi basinda hic gecmez. */
-  const ETIKET_IM_RE = /^(?:[\s\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]+|[\u2013\u2014*-]+(?=\s))+/
+  /* LAMBDA MADDE IMI (31.10.2026, Kan kartinda olculdu).
+     Sunum sablonu madde imini Symbol yazi tipiyle koyuyor ve PDF metnine
+     "λ" olarak dusuyor. Kaynakcada yirmi atiftan sekizi boyle basladi:
+       [1] λ Kalp ve damarlardan olusan kapali bir sistem ...
+       [3] λ Kanin viskozitesi: 3,5 – 5,4 santipoise
+     λ GERCEK bir sembol de olabilir (dalga boyu), o yuzden kosulsuz
+     atilmiyor: ardindan RAKAM ya da "=" geliyorsa sembol sayiliyor
+     ("λ = 500 nm", "λ 500"); baska her sey im, cunku madde iminden
+     sonra ifade basliyor — harfle de ("λ Kalp") yuzdeyle de ("λ %10u
+     ise organik..."). Tire kuralindaki ayni durus. */
+  const ETIKET_IM_RE = /^(?:[\s\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]+|[\u2013\u2014*-]+(?=\s)|\u03bb(?=\s+[^\s\d=]))+/u
   const etiketiTemizle = (s: string) =>
     String(s || '')
       .replace(ETIKET_IM_RE, '')
@@ -8559,7 +8671,12 @@ function anchorCitations(
   for (let i = 0; i < points.length; i++) {
     const text = readText(points[i])
     if (!text.trim()) continue
-    if (/\[\d+\]/.test(text)) continue // already cited — leave it alone
+    /* COKLU ATIF DA ATIFTIR (31.10.2026, Week 11 kartinda olculdu).
+       Desen tek sayi bekliyordu; model virgullu yazdiginda "atifsiz"
+       sanildi ve UZERINE ikinci bir atif eklendi. Kartta duran hal:
+         "... before applying the power rule [6, 9]. [5]"
+       Log: kept=9 added=1 — eklenen o tek atif tam burasiydi. */
+    if (/\[\d+(?:\s*,\s*\d+)*\]/.test(text)) continue // already cited — leave it alone
 
     const hit = anchorClaimToPage(text, pageIndex, idf, lang === 'en')
     if (!hit) { stats.skipped++; continue }
@@ -14384,7 +14501,7 @@ groups: sort the numbered sections S1..Sn into 3-6 topic groups, every number ex
                modele gosterilen sey iddia, numarasi degil. */
             const knownPointsHint = mergedKeyPoints
               .slice(0, 18)
-              .map((p: any) => maddeMetni(p).replace(/\s*\[\d+\]/g, '').trim().slice(0, 80))
+              .map((p: any) => maddeMetni(p).replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '').trim().slice(0, 80))
               .filter(Boolean)
               .map((t: string) => `- ${t}`)
               .join('\n')
@@ -16240,7 +16357,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       {
         let sayac = 0
         const yum = (t: string): string => {
-          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t))) return t
+          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && t.indexOf('$') === -1 && !/[\^_][{\d]/.test(t))) return t
           const r = onarAnlatiLatex(t)
           if (r.yumusatilan > 0) sayac++
           return r.metin

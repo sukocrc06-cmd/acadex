@@ -9767,7 +9767,12 @@ var SBX = (function () {
    * Turkce'de ayirt edici sozcuk "anlamli/anlamlilik", "duzey" degil.
    * O yuzden IKI kosul birden: yuzdenin HEMEN ARDINDAN duzey sozcugu VE
    * cumlede anlamlilik gecmesi. */
-  var ANLAMLILIK_DUZEYI_RE = /^\s*[-,]?\s*(?:level\b|significance\b|d[uü]zey|seviye)/i;
+  /* TURKCE SIRALAMA (31.10.2026, IPPT kartinda olculdu): "%1 anlamlilik
+     duzeyinde" — araya bir sozcuk giriyor ve "duzey" artik HEMEN sonra
+     gelmiyor, desen kaciriyordu. Kartta rozet olarak duran hal:
+       %1  <- "... terimler %1 anlamlilik duzeyinde istatistiksel olarak
+               anlamlidir." Belgenin olgusu degil, esik. */
+  var ANLAMLILIK_DUZEYI_RE = /^\s*[-,]?\s*(?:level\b|significance\b|anlaml[ıi]l[ıi]k|d[uü]zey|seviye)/i;
   var ANLAMLILIK_CUMLE_RE = /significan|anlaml/i;
   var findNumbers = function (card) {
     var src = latexAyiracSiyir([card.summary_executive || ''].concat(arr(card.key_points).map(plain)).concat([plain(card.summary || '')]).join(' \n '))
@@ -10301,8 +10306,16 @@ var SBX = (function () {
     var terms = arr(c.key_terms), kp = arr(c.key_points);
     if (terms.length || kp.length || (c.concept_graph && arr(c.concept_graph.nodes).length)) {
       var hasNet = !!netData(c);
+      /* TANIM VAADI SADECE TANIM VARSA (31.10.2026, Week 11 kartinda olculdu).
+         Kartta ag 5 dugumle cizildi ama kavram karti HIC yoktu; veritabaninda
+         key_terms=0, concept_graph.nodes=5 ve dugumler yalnizca "label"
+         tasiyor. defOf tanimi key_terms'ten okudugu icin dokununca tanim
+         gelmiyordu — ipucu satiri ("dokununca tanimini gor") olmayan bir sey
+         vaat ediyordu. Ag kendi basina degerli (depends_on / causes
+         baglantilari), o yuzden ag duruyor, yalnizca VAAT duzeltiliyor. */
+      var netTanimVar = hasNet && arr(c.key_terms).length > 0;
       h += ch('kavram', 'Kavramlar', '<div class="axr-sech"><span class="axr-lbl mono">KAVRAMLAR</span><h2 class="disp">' + (hasNet ? 'Kavram ağı' : 'Akılda kalsın') + '</h2>' + (own ? '<button type="button" class="axr-mini" data-regen="key_terms">' + ICON.redo + 'kavramları yenile</button>' : '') + '</div>' +
-        (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca tanımını gör</p></div>' : '') +
+        (hasNet ? '<div class="axr-netw"><div class="axr-netbox" data-net=""></div><div class="axr-netinfo" data-netinfo="" hidden></div><p class="hand axr-tipline">düğümü sürükle, dokununca ' + (netTanimVar ? 'tanımını' : 'bağlantılarını') + ' gör</p></div>' : '') +
         (terms.length ? '<div class="axr-terms">' + terms.map(function (t, i) { return '<button type="button" class="axr-term" style="--r:' + ((i % 5) - 2) * .6 + 'deg" aria-pressed="false"><span class="f"><b>' + sym(plain(t.term)) + '</b><i class="hand">çevir</i></span><span class="b">' + math(plain(t.definition)) + '</span></button>'; }).join('') + '</div>' : '') +
         (kp.length ? (hasNet || terms.length ? '<h3 class="hand axr-h3">akılda kalsın</h3>' : '') + '<ul class="axr-kps big" data-prose="kp">' + kp.map(function (p) { var g = gorselKp(p); return '<li>' + g.tag + imath(typeof formatFootnoteMarkers === 'function' ? formatFootnoteMarkers(g.s, c.footnotes) : X(g.s)) + '</li>'; }).join('') + '</ul>' : ''));
     }
