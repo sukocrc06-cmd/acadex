@@ -23,11 +23,11 @@
   /* ---------------- sekmeler ---------------- */
   var tab = 'tabak';
   var setTab = function (k) {
-    if (['tabak', 'antro', 'vaka', 'ep'].indexOf(k) < 0) k = 'tabak';
+    if (['tabak', 'degisim', 'antro', 'vaka', 'ep'].indexOf(k) < 0) k = 'tabak';
     tab = k;
     $$('.dl-tabs [data-tab]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === k)); });
     $$('.dl-view').forEach(function (v) { v.classList.toggle('on', v.id === k); });
-    ls.set('tab', k); if (DL.klinik && DL.klinik.onTab) DL.klinik.onTab(k); bridgeSend();
+    ls.set('tab', k); if (DL.klinik && DL.klinik.onTab) DL.klinik.onTab(k); if (k === 'degisim' && DL.degisim) DL.degisim.paint(); bridgeSend();
   };
   $$('.dl-tabs [data-tab]').forEach(function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); }); });
   DL.core.setTab = setTab; DL.core.tab = function () { return tab; };
@@ -167,6 +167,8 @@
     var t = target(); $('#prof-d').textContent = t.d + (t.ad === 'Görev' ? '' : ' · ' + Math.round(t.kcal) + ' kcal/gün');
   };
   $('#prof').addEventListener('click', function (e) { var b = e.target.closest('[data-prof]'); if (!b || b.disabled) return; T.prof = b.getAttribute('data-prof'); ls.set('prof', T.prof); paintTabak(); bridgeSend(); });
+  /* değişim tablosu (diyet-degisim.js) tabağın menüsünü ve hedefini okur */
+  DL.core.menu = function () { return T.menu; }; DL.core.target = function () { return target(); };
   DL.setHedef = function (o) { /* antropometri / vaka masasından: {ad, d, cins, yas, kg, kcal} */
     T.ozel = o; T.prof = 'ozel'; ls.set('ozel', o); ls.set('prof', 'ozel'); paintTabak();
   };

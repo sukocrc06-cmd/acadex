@@ -278,14 +278,43 @@ button{cursor:pointer}
 .src{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.5}
 .src summary{cursor:pointer;font-weight:700;color:var(--ink2)}
 
+/* ---------- değişim tablosu ---------- */
+.dg{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;gap:16px;align-items:start}
+.dg h2{margin:2px 0 6px;font-family:'Bricolage Grotesque',sans-serif;font-size:20px}
+.dg-hf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0 8px}
+.dg-hf .fld:first-child{grid-column:1/-1}
+.dg .calc{margin:6px 0 10px;font-size:13px;line-height:1.5;color:var(--ink2)}
+.dg .calc.bad{color:var(--bad)}
+.dg .row{display:flex;align-items:center;gap:8px}
+.dg-scroll{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.dg-tab{min-width:640px}
+.dg-tab td small{display:block;color:var(--muted);font-size:11.5px;font-weight:500;line-height:1.3}
+.dg-tab input{width:58px;min-height:32px;padding:0 6px;border:1.5px solid var(--line-2);border-radius:8px;background:#fff;text-align:right;font-variant-numeric:tabular-nums}
+.dg-tab input.gun{border-color:var(--ink);font-weight:700}
+.dg-tab td.kal{font-size:12px;color:var(--muted);white-space:nowrap}
+.dg-tab td.kal.bad{color:var(--bad);font-weight:700}
+.dg-adim{margin:10px 0 0;padding-left:20px;font-size:13px;line-height:1.55;color:var(--ink2)}
+.dg-adim:empty{display:none}
+.dg-k{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.dg-menu{width:100%;border-collapse:collapse;font-size:13px}
+.dg-menu th,.dg-menu td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+.dg-menu th{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted);font-weight:500}
+.dg-menu td.n{text-align:right;font-variant-numeric:tabular-nums}
+.dg-menu tr.off td{color:var(--bad);font-weight:700}
 @media (max-width:1280px){
+  .dg{grid-template-columns:280px minmax(0,1fr)}
+  .dg-m{grid-column:1/-1}
   .tb{grid-template-columns:270px minmax(0,1fr)}
   .pano{position:static;grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
   .an,.ep{grid-template-columns:240px minmax(0,1fr)}
   .an>:last-child,.ep>:last-child{grid-column:1/-1}
 }
+@media (max-width:1180px){
+  .dl-pill{display:none}
+  .dl-tabs button{padding:0 11px;font-size:13px}
+}
 @media (max-width:900px){
-  .tb,.an,.ep,.vk{grid-template-columns:minmax(0,1fr)}
+  .tb,.an,.ep,.vk,.dg{grid-template-columns:minmax(0,1fr)}
   .kiler{position:static;max-height:420px}
   .pano{grid-template-columns:minmax(0,1fr)}
   .vk-list,.plist{flex-direction:row;overflow-x:auto;padding-bottom:4px}
@@ -318,6 +347,7 @@ button{cursor:pointer}
   </div>
   <nav class="dl-tabs" role="tablist" aria-label="Diyet Lab bölümleri">
     <button type="button" role="tab" id="t-tabak" aria-controls="tabak" aria-selected="true" data-tab="tabak"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/></svg>Tabak &amp; menü</button>
+    <button type="button" role="tab" id="t-degisim" aria-controls="degisim" aria-selected="false" data-tab="degisim"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M10 4v16"/></svg>Değişim</button>
     <button type="button" role="tab" id="t-antro" aria-controls="antro" aria-selected="false" data-tab="antro"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.2"/><path d="M12 8v7m-4-5h8M9 21l3-6 3 6"/></svg>Antropometri</button>
     <button type="button" role="tab" id="t-vaka" aria-controls="vaka" aria-selected="false" data-tab="vaka"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/><path d="M8 14h8M8 17h5"/></svg>Vaka masası</button>
     <button type="button" role="tab" id="t-ep" aria-controls="ep" aria-selected="false" data-tab="ep"><svg viewBox="0 0 24 24"><path d="M8 3h8v9a4 4 0 0 1-8 0z"/><path d="M12 16v5M10 21h4"/></svg>Enteral &amp; parenteral</button>
@@ -395,6 +425,38 @@ button{cursor:pointer}
   </div>
 </section>
 
+<!-- =========================== DEĞİŞİM TABLOSU (diyet-degisim.js) =========================== -->
+<section class="dl-view" id="degisim" role="tabpanel" aria-labelledby="t-degisim">
+  <div class="dg">
+    <div class="card dg-h">
+      <span class="k">1 · hedef</span><h2>Enerji ve makro dağılımı</h2>
+      <p class="sub" id="dg-src"></p>
+      <div class="dg-hf">
+        <label class="fld">Enerji (kcal/gün)<input id="dg-kcal" type="number" step="10" min="800" max="5000" inputmode="numeric"></label>
+        <label class="fld">Karbonhidrat (%)<input id="dg-kh" type="number" step="1" min="0" max="100" inputmode="numeric"></label>
+        <label class="fld">Protein (%)<input id="dg-pro" type="number" step="1" min="0" max="100" inputmode="numeric"></label>
+        <label class="fld">Yağ (%)<input id="dg-yag" type="number" step="1" min="0" max="100" inputmode="numeric"></label>
+      </div>
+      <p class="calc" id="dg-g"></p>
+      <div class="row"><button type="button" class="btn sm" id="dg-al">Tabaktaki hedefi al</button></div>
+    </div>
+    <div class="card dg-t">
+      <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><div><span class="k">2 · değişim tablosu</span><h2>Günlük değişim sayıları</h2></div>
+        <div class="row" style="gap:6px;flex-wrap:wrap"><button type="button" class="btn sm pri" id="dg-oto">Ekmek, et ve yağı hesapla</button><button type="button" class="btn sm" id="dg-sil">Temizle</button></div></div>
+      <p class="sub">Önce süt, sebze ve meyve (varsa kuru baklagil ve yağlı tohum) değişimlerini yaz. “Hesapla” kalan karbonhidratı ekmekle, proteini etle, yağı yağ grubuyla tamamlar ve adımları gösterir. Sonra her grubu öğünlere dağıt.</p>
+      <div class="dg-scroll"><table class="mtab dg-tab" id="dg-tab"></table></div>
+      <ol class="dg-adim" id="dg-adim"></ol>
+      <div id="dg-kontrol"></div>
+    </div>
+    <div class="card dg-m">
+      <span class="k">3 · tabakla karşılaştır</span><h2>Menünün değişim karşılığı</h2>
+      <p class="sub">Tabak &amp; menüde kurduğun günün besinleri değişime çevrilir (tarifler bileşenlerine ayrılır, yaklaşık). Planla farkı ±0,5 değişimi geçen gruplar işaretlenir.</p>
+      <div id="dg-menu"></div>
+      <div class="row" style="margin-top:10px"><button type="button" class="btn sm" id="dg-tabak">Tabak &amp; menüye git</button></div>
+    </div>
+  </div>
+</section>
+
 <!-- =========================== ANTROPOMETRİ =========================== -->
 <section class="dl-view" id="antro" role="tabpanel" aria-labelledby="t-antro">
   <div class="an">
@@ -419,7 +481,8 @@ button{cursor:pointer}
         <label class="fld">BKİ sınıfı<select id="f-bkiS"></select></label>
         <label class="fld">Bel çevresi riski<select id="f-belS"><option value="">seç…</option><option value="yok">Risk yok</option><option value="artmis">Artmış risk</option><option value="cok">Çok artmış risk</option></select></label>
         <label class="fld">Bel/kalça oranı<input id="f-bko" type="number" step="0.01" inputmode="decimal"></label>
-        <label class="fld">BMH, Mifflin-St Jeor (kcal)<input id="f-bmh" type="number" step="1" inputmode="numeric"></label>
+        <label class="fld">Formül seçimi<select id="f-formul"><option value="mifflin">Mifflin-St Jeor</option><option value="harris">Harris-Benedict</option></select><small>BMH ve BMH × PAL bu eşitlikle hesaplanır</small></label>
+        <label class="fld"><span id="f-bmh-l">BMH, Mifflin-St Jeor (kcal)</span><input id="f-bmh" type="number" step="1" inputmode="numeric"></label>
         <label class="fld">Günlük enerji, BMH × PAL (kcal)<input id="f-tee" type="number" step="1" inputmode="numeric"><small id="f-pal"></small></label>
       </div>
       <div class="row" style="margin-top:12px"><button type="button" class="btn pri" id="a-eval">Değerlendir</button><button type="button" class="btn" id="a-hedef">Tabakta hedef yap</button></div>
@@ -443,9 +506,11 @@ button{cursor:pointer}
 <p class="vh" id="live" aria-live="polite"></p>
 
 <script src="data/besin.js"></script>
+<script src="data/who2007-bki.js"></script>
 <script src="diyet-model.js"></script>
 <script src="diyet-ikon.js"></script>
 <script src="diyet-app.js"></script>
 <script src="diyet-klinik.js"></script>
+<script src="diyet-degisim.js"></script>
 </body>
 </html>

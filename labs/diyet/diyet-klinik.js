@@ -90,14 +90,16 @@
     $('#a-olc').innerHTML = cell('KİLO', o.kg, 'kg') + cell('BOY', o.cm, 'cm') + cell('BEL', o.bel, 'cm') + cell('KALÇA', o.kalca, 'cm');
     $('#f-bkiS').innerHTML = '<option value="">seç…</option>' + M.BKI.map(function (b) { return '<option value="' + b.k + '">' + X(b.t) + '</option>'; }).join('');
     FK.forEach(function (k) { var el = $('#f-' + k); el.value = f[k] != null ? f[k] : ''; });
+    var fm = f.formul === 'harris' ? 'harris' : 'mifflin'; $('#f-formul').value = fm; $('#f-bmh-l').textContent = 'BMH, ' + M.FORMUL[fm] + ' (kcal)';
     $('#f-pal').textContent = 'PAL ' + tr(h.pal, 1) + ' · ' + (M.PAL.filter(function (p) { return p.k === h.pal; })[0] || {}).t;
-    $('#a-rule').innerHTML = '<b>Formüller:</b> BKİ = kg / boy² (m) · bel/kalça = bel ÷ kalça · <b>Mifflin-St Jeor</b>: 10×kg + 6,25×cm − 5×yaş ' + (h.cins === 'E' ? '<b>+ 5</b> (erkek)' : '<b>− 161</b> (kadın)') + ' · günlük enerji = BMH × PAL.<br><b>WHO bel çevresi:</b> erkekte ≥94 cm artmış, ≥102 cm çok artmış risk; kadında ≥80 ve ≥88 cm. Bel/kalça: erkekte ≥0,90, kadında ≥0,85 yüksek.';
+    $('#a-rule').innerHTML = '<b>Formüller:</b> BKİ = kg / boy² (m) · bel/kalça = bel ÷ kalça · ' + (fm === 'harris' ? '<b>Harris-Benedict</b>: ' + (h.cins === 'E' ? '66,5 + 13,75×kg + 5,003×cm − 6,755×yaş (erkek)' : '655,1 + 9,563×kg + 1,850×cm − 4,676×yaş (kadın)') : '<b>Mifflin-St Jeor</b>: 10×kg + 6,25×cm − 5×yaş ' + (h.cins === 'E' ? '<b>+ 5</b> (erkek)' : '<b>− 161</b> (kadın)')) + ' · günlük enerji = BMH × PAL.<br><b>WHO bel çevresi:</b> erkekte ≥94 cm artmış, ≥102 cm çok artmış risk; kadında ≥80 ve ≥88 cm. Bel/kalça: erkekte ≥0,90, kadında ≥0,85 yüksek.';
     $$('.tool').forEach(function (t) { t.classList.remove('done'); });
     if (o.kg) $('#o-kg').classList.add('done'); if (o.cm) $('#o-cm').classList.add('done'); if (o.bel) $('#o-bel').classList.add('done'); if (o.kalca) $('#o-kalca').classList.add('done');
   };
   $('#a-clip').addEventListener('input', function (e) {
     var el = e.target; if (!el.id || el.id.indexOf('f-') !== 0) return; var k = el.id.slice(2);
     A.st.f = A.st.f || {}; A.st.f[k] = el.tagName === 'SELECT' ? el.value : (el.value === '' ? null : +el.value); asave(); DL.bridgeSend();
+    if (k === 'formul') { $('#a-karne').innerHTML = ''; paintAForm(); }
   });
   var olcSet = function (k, v, anim) { A.st.olc = A.st.olc || {}; A.st.olc[k] = v; asave(); paintRoom(anim); paintAForm(); DL.bridgeSend(); };
   $('#o-kg').onclick = function () { olcSet('kg', ah().kg, 'kg'); C.live('Tartı: ' + ah().kg + ' kg'); };
@@ -111,13 +113,13 @@
     var g = M.antroPuan(h, o, f); adone[h.id] = g.puan; ls.set('antroDone', adone); paintAList();
     var BS = {}; M.BKI.forEach(function (b) { BS[b.k] = b.t; }); var RS = { yok: 'risk yok', artmis: 'artmış risk', cok: 'çok artmış risk' };
     g.rows.forEach(function (r) { if (r.k === 'bkiS') r.dogru = BS[r.dogru]; if (r.k === 'belS') r.dogru = RS[r.dogru]; });
-    $('#a-karne').innerHTML = karne(h.ad + ' · antropometri karnesi', g.puan, g.rows, NOTE_A[h.id] + ' (Harris-Benedict ile BMH ≈ ' + g.T.harris + ' kcal; iki eşitlik arasındaki farka dikkat.)');
+    $('#a-karne').innerHTML = karne(h.ad + ' · antropometri karnesi', g.puan, g.rows, NOTE_A[h.id] + ' (Mifflin-St Jeor ile BMH ≈ ' + g.T.mifflin + ' kcal, Harris-Benedict ile ≈ ' + g.T.harris + ' kcal; Harris-Benedict güncel yetişkinlerde genellikle biraz yüksek tahmin eder.)');
     DL.bridgeSend();
   };
   $('#a-hedef').onclick = function () {
-    var h = ah(), T = M.antroTruth(h);
-    DL.setHedef({ ad: h.ad, d: h.ad + ', ' + h.yas + ' (antropometri) · BMH × PAL', cins: h.cins, yas: h.yas, kg: h.kg, kcal: T.tee });
-    toast(h.ad + ' için hedef ' + T.tee + ' kcal; tabakta menü planlayabilirsin.'); C.setTab('tabak');
+    var h = ah(), T = M.antroTruth(h), hb = (A.st.f || {}).formul === 'harris', E = hb ? T.teeH : T.tee;
+    DL.setHedef({ ad: h.ad, d: h.ad + ', ' + h.yas + ' (antropometri) · ' + M.FORMUL[hb ? 'harris' : 'mifflin'] + ' × PAL', cins: h.cins, yas: h.yas, kg: h.kg, kcal: E });
+    toast(h.ad + ' için hedef ' + E + ' kcal; tabakta menü planlayabilirsin.'); C.setTab('tabak');
   };
   var paintAntro = function () { paintAList(); paintRoom(); paintAForm(); };
 
@@ -134,19 +136,31 @@
     'v-colyak': 'Tedavinin temeli nedir ve ömür boyu mu? Fişteki hangi değerler emilim bozukluğunu düşündürüyor?',
     'v-siroz': 'Asitli hastada hangi ağırlık kullanılır? ESPEN sirozda proteini kısıtlamayı öneriyor mu?',
     'v-yasli': 'NRS-2002\'nin üç bileşenini ayrı ayrı puanla. Albümin akut fazda neden düşer?',
-    'v-gdm': 'Gebelikte KH için alt sınır var mı? Öğün düzeni kan şekerini nasıl etkiler?'
+    'v-gdm': 'Gebelikte KH için alt sınır var mı? Öğün düzeni kan şekerini nasıl etkiler?',
+    'v-ped-obez': 'Çocukta BKİ tek başına yorumlanmaz: WHO 2007 yaşa göre BKİ z-skorunu hesapla. Büyüme sürerken hedef kilo kaybı mı, kiloyu korumak mı? Çocukta hangi BMH eşitliği kullanılır?',
+    'v-ped-osteo': 'Ateş BMH\'yi her 1 °C için ne kadar artırır? Yatakta yatan çocukta aktivite katsayısı ne olmalı? Enfeksiyonda protein ve sıvı gereksinimi nasıl değişir?',
+    'v-nefrotik': 'KDIGO 2021 nefrotik sendromda proteini artırmayı mı öneriyor? Ödemli hastada hangi ağırlık kullanılır? Lipid profili ne söylüyor?',
+    'v-gut-dm': 'Ürik asidi yükselten beslenme etkenleri neler? Hızlı kilo kaybı gutta neden sakıncalı? −500 kcal açığı hangi eşitlikle hesaplanacak?'
   };
   var paintVList = function () {
     $('#v-list').innerHTML = M.VK.map(function (v, i) { return '<button type="button" data-v="' + v.id + '" aria-pressed="' + (v.id === V.id) + '" class="' + (vdone[v.id] != null ? 'done' : '') + '"><b>' + X(v.baslik) + '</b><small>Vaka ' + (i + 1) + ' · ' + X(v.ad) + ', ' + v.yas + (vdone[v.id] != null ? ' · puan ' + vdone[v.id] : '') + '</small></button>'; }).join('');
   };
   $('#v-list').addEventListener('click', function (e) { var b = e.target.closest('[data-v]'); if (!b) return; V.id = b.getAttribute('data-v'); ls.set('vid', V.id); vload(); paintCase(); DL.bridgeSend(); });
+  /* BMH hesapçısının sonucu (ateş kutusuna yazarken yalnızca bu satır güncellenir) */
+  var bmhText = function (v, s) {
+    var w = s.ag ? M.agirlik(v, s.ag) : v.kg, ates = s.ates != null ? +s.ates : 0, pal = s.pal ? +s.pal : 0;
+    if (!s.esit) return 'Eşitliği seç; hesap ağırlığı, ateş ve katsayıyla günlük enerjiyi gösteririm. Sonucu aşağıdaki enerji kutusuna kendin yaz.';
+    var bm = M.bmhHesap(s.esit, { kg: w, cm: v.cm, yas: v.yas, cins: v.cins }, 0), bmA = bm * M.atesKat(ates);
+    return 'BMH ≈ ' + Math.round(bm) + ' kcal' + (ates > 0 ? ' × ' + tr(M.atesKat(ates), 2) + ' (ateş) ≈ ' + Math.round(bmA) + ' kcal' : '') + (pal ? ' × ' + tr(pal, 1) + ' ≈ <b>' + Math.round(bmA * pal) + ' kcal/gün</b>' : '') +
+      ' · ağırlık ' + tr(w, 1) + ' kg' + (s.ag ? '' : ' (hesap ağırlığını seçmedin; mevcut ağırlık kullanıldı)');
+  };
   var paintCase = function () {
     paintVList();
     var v = vk(), m = $('#v-main');
     if (!v) { m.innerHTML = '<div class="folder" data-tab="DİYET POLİKLİNİĞİ"><h2>Bir dosya aç</h2><p class="oyku">Soldan bir vaka seç. Biyokimya fişinde anormal değerleri işaretle, gerekiyorsa tarama yap, sonra diyet reçetesini yaz: hangi ağırlık, kaç kcal, kaç gram protein, hangi kısıtlamalar ve öneriler. Değerlendir ile karneni al.</p></div>'; return; }
-    var s = V.st, r = V.res, b = M.bki(v.kg, v.cm), ideal = M.idealKg(v.cm), duz = M.duzKg(v), abn = r ? r.abn : null;
+    var s = V.st, r = V.res, b = M.bki(v.kg, v.cm), ideal = M.idealOf(v), duz = M.duzKg(v), abn = r ? r.abn : null;
     var h = '<div class="folder" data-tab="DİYET POLİKLİNİĞİ · ' + (M.VK.indexOf(v) + 1) + '"><h2>' + X(v.ad) + ', ' + v.yas + ' · ' + X(v.baslik) + '</h2><p class="oyku">' + X(v.oyku) + '</p>';
-    h += '<p class="sub" style="margin:-6px 0 12px;color:#5A4A2A">Boy ' + v.cm + ' cm · Kilo ' + v.kg + ' kg · BKİ ' + tr(b, 1) + ' · İdeal ağırlık (BKİ 22) ' + tr(ideal, 1) + ' kg · Düzeltilmiş ağırlık ' + tr(duz, 1) + ' kg</p>';
+    h += '<p class="sub" style="margin:-6px 0 12px;color:#5A4A2A">Boy ' + v.cm + ' cm · Kilo ' + v.kg + ' kg · BKİ ' + tr(b, 1) + ' · İdeal ağırlık (' + (v.ped ? 'yaşa göre medyan BKİ' : 'BKİ 22') + ') ' + tr(ideal, 1) + ' kg' + (v.kuru ? ' · Ödemsiz ağırlık ' + v.kuru + ' kg' : '') + ' · Düzeltilmiş ağırlık ' + tr(duz, 1) + ' kg</p>';
     h += '<div class="vk-grid"><div><div class="fis" role="group" aria-label="Biyokimya fişi"><h4>BİYOKİMYA</h4><p>' + X(v.ad.toLocaleUpperCase('tr')) + ' · anormal değerleri işaretle</p>' +
       v.lab.map(function (l, i) {
         var on = !!(s.flags && s.flags[i]), st = M.labDurum(l), cls = st === 'H' ? 'tH' : st === 'L' ? 'tL' : '', res = '';
@@ -161,7 +175,21 @@
     if (v.nrs) h += '<div class="sec" style="margin-top:0"><span class="k">NRS-2002 taraması</span><div class="grid3" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">' +
       ['durum', 'siddet', 'yas'].map(function (k) { return '<label class="fld">' + ({ durum: 'Beslenme durumu', siddet: 'Hastalık şiddeti', yas: 'Yaş' })[k] + '<select data-nrs="' + k + '"><option value="">seç…</option>' + M.NRS[k].map(function (t, i) { return '<option value="' + i + '"' + (s.nrs && String(s.nrs[k]) === String(i) ? ' selected' : '') + '>' + X(t) + '</option>'; }).join('') + '</select></label>'; }).join('') +
       '</div><p class="calc" id="nrs-t">Toplam: ' + (s.nrs && s.nrs.durum !== '' && s.nrs.siddet !== '' && s.nrs.yas !== '' && s.nrs.durum != null && s.nrs.siddet != null && s.nrs.yas != null ? (+s.nrs.durum + +s.nrs.siddet + +s.nrs.yas) + (+s.nrs.durum + +s.nrs.siddet + +s.nrs.yas >= 3 ? ' → beslenme riski var' : ' → haftalık yeniden tarama') : '—') + '</p></div>';
-    h += '<h3' + (v.nrs ? ' style="margin-top:14px"' : '') + '>Diyet reçetesi</h3><div class="grid3">' +
+    if (v.ped) {
+      var L = M.lmsAt(v.yas, v.cins);
+      h += '<div class="sec" style="margin-top:0"><span class="k">WHO 2007 · yaşa göre BKİ</span><p class="calc" style="margin:2px 0 8px">' + v.yas + ' yaş ' + (v.cins === 'E' ? 'erkek' : 'kız') + ': L ' + tr(L[0], 4) + ' · M ' + tr(L[1], 2) + ' · S ' + tr(L[2], 4) + '<br>z = ((BKİ ÷ M)<sup>L</sup> − 1) ÷ (L × S)</p><div class="grid3" style="grid-template-columns:repeat(2,minmax(0,1fr))">' +
+        '<label class="fld">BKİ z-skoru<input data-p="pedZ" type="number" step="0.01" inputmode="decimal" value="' + (s.pedZ != null ? s.pedZ : '') + '"></label>' +
+        '<label class="fld">Sınıf<select data-p="pedS"><option value="">seç…</option>' + M.PED.map(function (x) { return '<option value="' + x.k + '"' + (s.pedS === x.k ? ' selected' : '') + '>' + X(x.t) + '</option>'; }).join('') + '</select></label></div></div>';
+    }
+    /* BMH hesapçısı: eşitlik + ateş + aktivite */
+    var esit = s.esit || '', pal = s.pal || '';
+    var PALS = [[1.2, 'Yatak istirahati (1,2)'], [1.3, 'Yatakta, hafif hareketli (1,3)']].concat(M.PAL.map(function (p) { return [p.k, p.t]; }));
+    h += '<div class="sec"' + (v.ped ? '' : ' style="margin-top:0"') + '><span class="k">BMH hesapçısı</span><div class="grid3">' +
+      '<label class="fld">BMH eşitliği<select data-p="esit"><option value="">seç…</option>' + Object.keys(M.FORMUL).map(function (k) { return '<option value="' + k + '"' + (esit === k ? ' selected' : '') + '>' + X(M.FORMUL[k]) + '</option>'; }).join('') + '</select></label>' +
+      '<label class="fld">Ateş (37 °C üstü, °C)<input data-p="ates" type="number" min="0" max="4" step="0.5" inputmode="decimal" value="' + (s.ates != null ? s.ates : '') + '"></label>' +
+      '<label class="fld">Aktivite / hastalık katsayısı<select data-p="pal"><option value="">seç…</option>' + PALS.map(function (p) { return '<option value="' + p[0] + '"' + (String(pal) === String(p[0]) ? ' selected' : '') + '>' + X(p[1]) + '</option>'; }).join('') + '</select></label></div>' +
+      '<p class="calc" id="r-bmh">' + bmhText(v, s) + '</p></div>';
+    h += '<h3' + (v.nrs || v.ped ? ' style="margin-top:14px"' : '') + '>Diyet reçetesi</h3><div class="grid3">' +
       '<label class="fld">Hesap ağırlığı<select data-r="ag">' + opt(M.AGIRLIK, s.ag) + '</select><small>' + (w ? tr(w, 1) + ' kg' : '') + '</small></label>' +
       '<label class="fld">Enerji (kcal/gün)<input data-r="kcal" type="number" step="10" inputmode="numeric" value="' + (s.kcal || '') + '"><small id="r-kk">' + (w && s.kcal ? tr(s.kcal / w, 1) + ' kcal/kg' : '') + '</small></label>' +
       '<label class="fld">Protein (g/gün)<input data-r="pro" type="number" step="1" inputmode="numeric" value="' + (s.pro || '') + '"><small id="r-pk">' + (w && s.pro ? tr(s.pro / w, 2) + ' g/kg' : '') + '</small></label></div>';
@@ -181,7 +209,9 @@
       var v = vk(), s = V.st;
       if (!s.ag || !s.kcal || !s.pro) { toast('Ağırlık, enerji ve proteini doldur.'); return; }
       if (s.oncelik == null) { toast('Öncelikli hedefi seç.'); return; }
-      V.res = M.vakaPuan(v, { flags: s.flags, nrs: s.nrs, ag: s.ag, kcal: +s.kcal, pro: +s.pro, kisit: s.kisit, oneri: s.oneri, oncelik: s.oncelik });
+      if (v.esit && !s.esit) { toast('BMH hesapçısında eşitliği seç.'); return; }
+      if (v.ped && (s.pedZ == null || !s.pedS)) { toast('WHO yaşa göre BKİ z-skorunu ve sınıfını doldur.'); return; }
+      V.res = M.vakaPuan(v, { flags: s.flags, nrs: s.nrs, ag: s.ag, kcal: +s.kcal, pro: +s.pro, kisit: s.kisit, oneri: s.oneri, oncelik: s.oncelik, esit: s.esit, pedZ: s.pedZ, pedS: s.pedS });
       vdone[v.id] = V.res.puan; ls.set('vakaDone', vdone); paintCase(); DL.bridgeSend();
       var k = $('#v-main .karne'); if (k && k.scrollIntoView) k.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'center' });
       return;
@@ -199,10 +229,16 @@
     else if (t.name === 'onc') s.oncelik = +t.value;
     else if (t.hasAttribute('data-nrs')) { s.nrs = s.nrs || {}; s.nrs[t.getAttribute('data-nrs')] = t.value; vsave(); paintCase(); return; }
     else if (t.getAttribute('data-r') === 'ag') { s.ag = t.value; vsave(); paintCase(); return; }
+    else if (t.hasAttribute('data-p')) {
+      var pk = t.getAttribute('data-p'); if (t.tagName !== 'SELECT') return;           /* sayı kutuları 'input' olayında işlenir */
+      s[pk] = t.value === '' ? null : (pk === 'pal' ? +t.value : t.value); vsave(); $('#r-bmh').innerHTML = bmhText(vk(), s); DL.bridgeSend(); return;
+    }
     vsave(); DL.bridgeSend();
   });
   $('#v-main').addEventListener('input', function (e) {
-    var t = e.target, k = t.getAttribute('data-r'); if (k !== 'kcal' && k !== 'pro') return;
+    var t = e.target, pk = t.getAttribute('data-p');
+    if (pk === 'ates' || pk === 'pedZ') { V.st[pk] = t.value === '' ? null : +t.value; vsave(); if (pk === 'ates') $('#r-bmh').innerHTML = bmhText(vk(), V.st); return; }
+    var k = t.getAttribute('data-r'); if (k !== 'kcal' && k !== 'pro') return;
     V.st[k] = t.value === '' ? null : +t.value; vsave();
     var v = vk(), w = V.st.ag ? M.agirlik(v, V.st.ag) : null;
     if (k === 'kcal') $('#r-kk').textContent = w && V.st.kcal ? tr(V.st.kcal / w, 1) + ' kcal/kg' : '';
