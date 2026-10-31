@@ -8,6 +8,10 @@
        TÜBER mikro besin değerleri EFSA referanslarına dayanır; tablo değerleri burada EFSA'dan alındı.
      - WHO: sodyum < 2 g/gün (tuz < 5 g), doymuş yağ < %10 enerji, BKİ ve bel çevresi sınırları.
      - Mifflin-St Jeor (1990) ve Harris-Benedict (1919) bazal metabolizma eşitlikleri; FAO/WHO/UNU PAL.
+     - Schofield (1985) çocuk ve yetişkin BMH eşitlikleri (kcal); ateşte BMH her 1 °C için ≈ %13 artar (DuBois).
+     - WHO 2007 yaşa göre BKİ referansı (5–19 yaş, LMS; data/who2007-bki.js).
+     - Besin değişim listeleri: TÜBER 2022 değişim değerleri (süt 9/6/6, et 0/6/5, ekmek 15/2/0 g KH/protein/yağ …).
+     - KDIGO 2021 glomerüler hastalık (nefrotik sendrom), ACR 2020 gut kılavuzu, AAP 2023 çocukluk çağı obezitesi.
      - KDOQI 2020 (böbrek), ESPEN 2019 (karaciğer, yoğun bakım), ESPEN 2018/2022 (geriatri),
        NRS-2002 (Kondrup 2003), NICE CG32 (yeniden beslenme), ASPEN parenteral beslenme pratikleri.
    ========================================================================== */
@@ -22,13 +26,44 @@
   var PAL = [{ k: 1.4, t: 'Hareketsiz (1,4)' }, { k: 1.6, t: 'Hafif aktif (1,6)' }, { k: 1.8, t: 'Orta aktif (1,8)' }, { k: 2.0, t: 'Çok aktif (2,0)' }];
   var bmh = {
     mifflin: function (o) { return 10 * o.kg + 6.25 * o.cm - 5 * o.yas + (o.cins === 'E' ? 5 : -161); },
-    harris: function (o) { return o.cins === 'E' ? 66.5 + 13.75 * o.kg + 5.003 * o.cm - 6.755 * o.yas : 655.1 + 9.563 * o.kg + 1.850 * o.cm - 4.676 * o.yas; }
+    harris: function (o) { return o.cins === 'E' ? 66.5 + 13.75 * o.kg + 5.003 * o.cm - 6.755 * o.yas : 655.1 + 9.563 * o.kg + 1.850 * o.cm - 4.676 * o.yas; },
+    /* Schofield 1985, yalnızca ağırlık (kcal/gün). Yaş grupları: <3, 3–10, 10–18, 18–30, 30–60, >60 */
+    schofield: function (o) {
+      var E = o.cins === 'E', a = o.yas, c;
+      if (a < 3) c = E ? [59.512, -30.4] : [58.317, -31.1];
+      else if (a < 10) c = E ? [22.706, 504.3] : [20.315, 485.9];
+      else if (a < 18) c = E ? [17.686, 658.2] : [13.384, 692.6];
+      else if (a < 30) c = E ? [15.057, 692.2] : [14.818, 486.6];
+      else if (a < 60) c = E ? [11.472, 873.1] : [8.126, 845.6];
+      else c = E ? [11.711, 587.7] : [9.082, 658.5];
+      return c[0] * o.kg + c[1];
+    }
   };
+  var FORMUL = { mifflin: 'Mifflin-St Jeor', harris: 'Harris-Benedict', schofield: 'Schofield (çocuk ve yetişkin)' };
+  /* ateş: vücut sıcaklığı 37 °C üstündeki her derece için BMH × 1,13 */
+  var atesKat = function (derece) { var d = Math.max(0, (+derece || 0)); return Math.pow(1.13, d); };
+  var bmhHesap = function (formul, o, ates) { var f = bmh[formul] || bmh.mifflin; return f(o) * atesKat(ates); };
   var bki = function (kg, cm) { return kg / Math.pow(cm / 100, 2); };
   var BKI = [ /* WHO */
     { k: 'zayif', t: 'Zayıf (<18,5)', max: 18.5 }, { k: 'normal', t: 'Normal (18,5–24,9)', max: 25 }, { k: 'fazla', t: 'Hafif şişman / pre-obez (25–29,9)', max: 30 },
     { k: 'obez1', t: 'Obez sınıf I (30–34,9)', max: 35 }, { k: 'obez2', t: 'Obez sınıf II (35–39,9)', max: 40 }, { k: 'obez3', t: 'Obez sınıf III (≥40)', max: 999 }];
   var bkiSinif = function (v) { for (var i = 0; i < BKI.length; i++) if (v < BKI[i].max) return BKI[i].k; return 'obez3'; };
+  /* WHO 2007 yaşa göre BKİ (5–19 yaş). load() sırasında AXDB.whoBki okunur. */
+  var WHO = null;
+  var lmsAt = function (yas, cins) {
+    if (!WHO) return null;
+    var t = WHO[cins === 'E' ? 'E' : 'K']; if (!t) return null;
+    var m = (yas - WHO.bas) * 12; if (m < 0 || m > t.length - 1) return null;
+    var i = Math.floor(m), f = m - i, a = t[i], b = t[Math.min(i + 1, t.length - 1)];
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  };
+  var bkiZ = function (b, yas, cins) { var l = lmsAt(yas, cins); if (!l) return null; return (Math.pow(b / l[1], l[0]) - 1) / (l[0] * l[2]); };
+  var bkiAtZ = function (z, yas, cins) { var l = lmsAt(yas, cins); if (!l) return null; return l[1] * Math.pow(1 + l[0] * l[2] * z, 1 / l[0]); };
+  var ncdf = function (z) { var t = 1 / (1 + 0.2316419 * Math.abs(z)), d = 0.3989423 * Math.exp(-z * z / 2), p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
+  var PED = [ /* WHO 2007, 5–19 yaş */
+    { k: 'ciddi', t: 'Ciddi zayıf (z < −3)' }, { k: 'zayif', t: 'Zayıf (z < −2)' }, { k: 'normal', t: 'Normal (−2 ≤ z ≤ +1)' },
+    { k: 'fazla', t: 'Fazla kilolu (+1 < z ≤ +2)' }, { k: 'obez', t: 'Obez (z > +2)' }];
+  var pedSinif = function (z) { return z < -3 ? 'ciddi' : z < -2 ? 'zayif' : z <= 1 ? 'normal' : z <= 2 ? 'fazla' : 'obez'; };
   var belRisk = function (cins, bel) { var a = cins === 'E' ? [94, 102] : [80, 88]; return bel >= a[1] ? 'cok' : bel >= a[0] ? 'artmis' : 'yok'; };   /* WHO */
   var bkoRisk = function (cins, oran) { return oran >= (cins === 'E' ? 0.90 : 0.85) ? 'var' : 'yok'; };
   /* yetişkin referans hedefleri (gün). EFSA DRV (TÜBER 2022'nin dayanağı) ve WHO. */
@@ -57,6 +92,7 @@
   var DB = { besin: [], tarif: [], by: {} };
   var load = function (AXDB) {
     DB.besin = AXDB.besin || []; DB.tarif = AXDB.tarif || []; DB.by = {};
+    if (AXDB.whoBki) WHO = AXDB.whoBki;
     DB.besin.forEach(function (b) { DB.by[b.id] = b; });
     DB.tarif.forEach(function (t) {                                            /* tarif: bileşenlerden 1 porsiyonun değerleri */
       var n = {}, g = 0, bay = '';
@@ -106,6 +142,77 @@
     return { rows: rows, puan: Math.round(n / rows.length * 100) };
   };
 
+  /* =========================== besin değişim listeleri =========================== */
+  /* TÜBER 2022 değişim değerleri (1 değişim: g KH, g protein, g yağ). Enerji Atwater 4-4-9 ile hesaplanır
+     (sebzede bazı tablolar 25 kcal yazar; burada 6 × 4 + 1 × 4 = 28 kcal). */
+  var DEG = [
+    { k: 'sut', t: 'Süt', kh: 9, pro: 6, yag: 6, ol: '1 su bardağı süt (200 ml) · ¾ su bardağı yoğurt · 1,5 su bardağı ayran' },
+    { k: 'et', t: 'Et · tavuk · balık · yumurta · peynir', kh: 0, pro: 6, yag: 5, ol: '30 g pişmiş et (1 köfte) · 1 yumurta · 1 kibrit kutusu beyaz peynir' },
+    { k: 'ekmek', t: 'Ekmek · tahıl', kh: 15, pro: 2, yag: 0, ol: '1 ince dilim ekmek (25 g) · 3 yemek kaşığı pilav/makarna · 1 küçük kase çorba' },
+    { k: 'baklagil', t: 'Kuru baklagil', kh: 15, pro: 5, yag: 0, ol: '4 yemek kaşığı pişmiş kuru baklagil' },
+    { k: 'sebze', t: 'Sebze', kh: 6, pro: 1, yag: 0, ol: '1 su bardağı çiğ ya da ½ su bardağı pişmiş sebze' },
+    { k: 'meyve', t: 'Meyve', kh: 15, pro: 0, yag: 0, ol: '1 orta elma (150 g) · 1 küçük muz · 1 orta portakal' },
+    { k: 'yag', t: 'Yağ', kh: 0, pro: 0, yag: 5, ol: '1 tatlı kaşığı yağ (5 g) · 5 zeytin' },
+    { k: 'tohum', t: 'Yağlı tohum · kuruyemiş', kh: 0, pro: 2, yag: 5, ol: '2 ceviz içi · 10 fındık · 1 tatlı kaşığı tahin' }
+  ];
+  DEG.forEach(function (g) { g.kcal = g.kh * 4 + g.pro * 4 + g.yag * 9; });
+  var DEGK = {}; DEG.forEach(function (g) { DEGK[g.k] = g; });
+  /* c: {sut:2, et:5, …} → toplam g ve kcal */
+  var degisimToplam = function (c) {
+    var t = { kh: 0, pro: 0, yag: 0, kcal: 0 };
+    DEG.forEach(function (g) { var n = +(c && c[g.k]) || 0; t.kh += n * g.kh; t.pro += n * g.pro; t.yag += n * g.yag; t.kcal += n * g.kcal; });
+    t.e = t.kcal ? { kh: t.kh * 4 / t.kcal * 100, pro: t.pro * 4 / t.kcal * 100, yag: t.yag * 9 / t.kcal * 100 } : { kh: 0, pro: 0, yag: 0 };
+    return t;
+  };
+  /* hedef: {kcal, kh%, pro%, yag%} → g hedefleri */
+  var degisimHedef = function (h) { return { kcal: h.kcal, kh: h.kcal * h.kh / 100 / 4, pro: h.kcal * h.pro / 100 / 4, yag: h.kcal * h.yag / 100 / 9 }; };
+  var vr = function (v) { return String(v).replace('.', ','); };
+  var yarim = function (v) { return Math.max(0, Math.round(v * 2) / 2); };
+  /* klasik sıra: süt, sebze, meyve (ve varsa baklagil, tohum) öğrenciden → KH açığından ekmek, protein açığından et, yağ açığından yağ */
+  var degisimOtomatik = function (h, sabit) {
+    var G = degisimHedef(h), c = { sut: +sabit.sut || 0, sebze: +sabit.sebze || 0, meyve: +sabit.meyve || 0, baklagil: +sabit.baklagil || 0, tohum: +sabit.tohum || 0 };
+    var t0 = degisimToplam(c), adim = [];
+    c.ekmek = yarim((G.kh - t0.kh) / DEGK.ekmek.kh);
+    adim.push('KH: hedef ' + Math.round(G.kh) + ' g − süt/sebze/meyve/baklagil ' + Math.round(t0.kh) + ' g = ' + Math.round(G.kh - t0.kh) + ' g → ÷ 15 = ' + vr(c.ekmek) + ' ekmek değişimi');
+    var t1 = degisimToplam(c);
+    c.et = yarim((G.pro - t1.pro) / DEGK.et.pro);
+    adim.push('Protein: hedef ' + Math.round(G.pro) + ' g − şimdiye kadar ' + Math.round(t1.pro) + ' g = ' + Math.round(G.pro - t1.pro) + ' g → ÷ 6 = ' + vr(c.et) + ' et değişimi');
+    var t2 = degisimToplam(c);
+    c.yag = yarim((G.yag - t2.yag) / DEGK.yag.yag);
+    adim.push('Yağ: hedef ' + Math.round(G.yag) + ' g − şimdiye kadar ' + Math.round(t2.yag) + ' g = ' + Math.round(G.yag - t2.yag) + ' g → ÷ 5 = ' + vr(c.yag) + ' yağ değişimi');
+    return { c: c, adim: adim, G: G, T: degisimToplam(c) };
+  };
+  /* plan hedefe uyuyor mu: enerji ±%5, makrolar ±%10 (g) */
+  var degisimKontrol = function (h, c) {
+    var G = degisimHedef(h), T = degisimToplam(c), row = function (k, t, tol) { var v = T[k], g = G[k]; return { k: k, t: t, v: v, g: g, ok: g > 0 && Math.abs(v - g) <= g * tol }; };
+    var rows = [row('kcal', 'Enerji (±%5)', 0.05), row('kh', 'Karbonhidrat (±%10)', 0.10), row('pro', 'Protein (±%10)', 0.10), row('yag', 'Yağ (±%10)', 0.10)];
+    return { rows: rows, ok: rows.every(function (r) { return r.ok; }), T: T, G: G };
+  };
+  /* menüdeki besinleri değişime çevirir (yaklaşık): grup → besin ögesi / değişim değeri. Tarifler bileşenlerine ayrılır. */
+  var KAT2DEG = { sut: 'sut', et: 'et', tahil: 'ekmek', baklagil: 'baklagil', sebze: 'sebze', meyve: 'meyve', yag: 'yag', kuruyemis: 'tohum', seker: 'seker' };
+  var PEYNIR = { beyazpeynir: 1, kasar: 1, lor: 1 };
+  var menuDegisim = function (items) {
+    var c = {}, ek = { seker: 0, diger: 0 };
+    var addOne = function (id, g) {
+      var b = DB.by[id]; if (!b) return;
+      if (b.tarif) { var tg = b.tarif.reduce(function (a, x) { return a + x[1]; }, 0); b.tarif.forEach(function (x) { addOne(x[0], x[1] * g / tg); }); return; }
+      var k = KAT2DEG[b.kat], n = b.n, kh = (n.kh || 0) * g / 100, pr = (n.pro || 0) * g / 100, yg = (n.yag || 0) * g / 100;
+      if (!k) { ek.diger += (n.kcal || 0) * g / 100; return; }
+      if (k === 'seker') { ek.seker += kh / 15; return; }
+      if (PEYNIR[id]) k = 'et';                                                   /* peynir değişimde et grubundadır */
+      var d = DEGK[k], v;
+      if (k === 'et') v = pr / d.pro;
+      else if (k === 'yag' || k === 'tohum') v = yg / d.yag;
+      else if (k === 'sut') v = (kh / d.kh + pr / d.pro) / 2;
+      else v = kh / d.kh;
+      c[k] = (c[k] || 0) + v;
+    };
+    (items || []).forEach(function (it) { addOne(it.id, it.g); });
+    DEG.forEach(function (g) { c[g.k] = Math.round((c[g.k] || 0) * 10) / 10; });
+    c.seker = Math.round(ek.seker * 10) / 10; c.digerKcal = Math.round(ek.diger);
+    return c;
+  };
+
   /* =========================== antropometri hastaları =========================== */
   /* gerçek değerler; bel: WHO noktası (son kaburga ile iliak tepe arası orta nokta), gobek: göbek hizası ölçülürse */
   var AH = [
@@ -118,7 +225,7 @@
   ];
   var antroTruth = function (h) {
     var b = bki(h.kg, h.cm), m = bmh.mifflin(h), hb = bmh.harris(h);
-    return { bki: r1(b), bkiS: bkiSinif(b), bel: belRisk(h.cins, h.bel), bko: Math.round(h.bel / h.kalca * 100) / 100, bkoS: bkoRisk(h.cins, h.bel / h.kalca), mifflin: Math.round(m), harris: Math.round(hb), tee: Math.round(m * h.pal) };
+    return { bki: r1(b), bkiS: bkiSinif(b), bel: belRisk(h.cins, h.bel), bko: Math.round(h.bel / h.kalca * 100) / 100, bkoS: bkoRisk(h.cins, h.bel / h.kalca), mifflin: Math.round(m), harris: Math.round(hb), tee: Math.round(m * h.pal), teeH: Math.round(hb * h.pal) };
   };
   /* f: öğrencinin girdiği/seçtiği; olc: ölçüm kaydı {kg, cm, bel, belYer, kalca} */
   var antroPuan = function (h, olc, f) {
@@ -130,16 +237,18 @@
     add('bkiS', 'BKİ sınıfı', f.bkiS === T.bkiS, 10, T.bkiS);
     add('belS', 'Bel çevresi riski', f.belS === T.bel, 10, T.bel);
     add('bko', 'Bel/kalça oranı', f.bko != null && Math.abs(f.bko - T.bko) <= 0.02, 10, String(T.bko).replace('.', ','));
-    add('bmh', 'BMH (Mifflin-St Jeor)', f.bmh != null && Math.abs(f.bmh - T.mifflin) <= 20, 20, T.mifflin + ' kcal');
-    add('tee', 'Günlük enerji (BMH × PAL)', f.tee != null && Math.abs(f.tee - T.tee) <= 50, 15, T.tee + ' kcal');
+    /* formül seçimi: BMH ve BMH × PAL seçilen eşitliğe göre puanlanır */
+    var hb = f.formul === 'harris', B = hb ? T.harris : T.mifflin, E = hb ? T.teeH : T.tee;
+    add('bmh', 'BMH (' + FORMUL[hb ? 'harris' : 'mifflin'] + ')', f.bmh != null && Math.abs(f.bmh - B) <= 20, 20, B + ' kcal');
+    add('tee', 'Günlük enerji (BMH × PAL)', f.tee != null && Math.abs(f.tee - E) <= 50, 15, E + ' kcal');
     return { rows: rows, puan: p, T: T };
   };
 
   /* =========================== klinik vakalar =========================== */
   /* lab: [ad, değer, birim, alt, üst] ; durum hesaplanır. presc: hedef aralıklar. */
-  var KISIT = { na: 'Sodyum kısıtlı', k: 'Potasyum kısıtlı', p: 'Fosfor kısıtlı', sivi: 'Sıvı kısıtlı', gluten: 'Glutensiz', laktoz: 'Laktoz azaltılmış', prokisit: 'Protein kısıtlı', kh: 'KH kontrollü (öğünlere dağıtılmış)' };
-  var ONERI = { ons: 'Oral nütrisyon desteği (ONS)', gece: 'Gece geç ara öğün', tiamin: 'Beslenme öncesi tiamin', demir: 'Demirden zengin + C vitaminiyle', dvit: 'D vitamini değerlendirmesi', sik: 'Az ve sık öğün', kilo: 'Haftada 0,5–1 kg kilo kaybı hedefi' };
-  var AGIRLIK = { mevcut: 'Mevcut ağırlık', ideal: 'İdeal ağırlık (BKİ 22)', kuru: 'Kuru ağırlık (ödem/asit düşülmüş)', duzeltilmis: 'Düzeltilmiş ağırlık (obezite)' };
+  var KISIT = { na: 'Sodyum kısıtlı', k: 'Potasyum kısıtlı', p: 'Fosfor kısıtlı', sivi: 'Sıvı kısıtlı', gluten: 'Glutensiz', laktoz: 'Laktoz azaltılmış', prokisit: 'Protein kısıtlı', kh: 'KH kontrollü (öğünlere dağıtılmış)', purin: 'Pürinden zengin besinler sınırlı (sakatat, kırmızı et, bazı deniz ürünleri)', yag: 'Doymuş yağ ve kolesterol azaltılmış' };
+  var ONERI = { ons: 'Oral nütrisyon desteği (ONS)', gece: 'Gece geç ara öğün', tiamin: 'Beslenme öncesi tiamin', demir: 'Demirden zengin + C vitaminiyle', dvit: 'D vitamini değerlendirmesi', sik: 'Az ve sık öğün', kilo: 'Haftada 0,5–1 kg kilo kaybı hedefi', aile: 'Aile temelli yaşam tarzı değişikliği (öğün düzeni, şekerli içecek, ekran süresi, hareket)', alkol: 'Alkol ve fruktozlu/şekerli içecekleri sınırlamak', ates: 'Ateşte sıvı alımını artırmak' };
+  var AGIRLIK = { mevcut: 'Mevcut ağırlık', ideal: 'İdeal ağırlık (BKİ 22; çocukta yaşa göre medyan BKİ)', kuru: 'Kuru ağırlık (ödem/asit düşülmüş)', duzeltilmis: 'Düzeltilmiş ağırlık (obezite)' };
   var VK = [
     { id: 'v-dm', ad: 'Kemal', yas: 58, cins: 'E', cm: 172, kg: 92, baslik: 'Tip 2 diyabet ve obezite',
       oyku: '3 yıldır tip 2 diyabet; metformin kullanıyor. Masa başı iş, akşamları ekmek ve tatlı tüketimi fazla. Hedefi kilo vermek.',
@@ -184,22 +293,58 @@
       ag: ['mevcut'], kcal: [1950, 2450], pro: [1.1, 1.5], kisit: { gerek: ['kh'], yasak: ['prokisit'] }, oneri: { gerek: ['sik'] },
       oncelik: ['KH\'yi kesmeden (en az 175 g/gün) 3 ana + 2–3 ara öğüne dağıtmak', 'Karbonhidratı tamamen kesmek', 'Kilo vermek için enerji kısıtlamak', 'Protein kısıtlaması'], dogru: 0,
       not: 'Gebelik diyabetinde KH kesilmez: en az 175 g/gün KH, 3 ana ve 2–3 ara öğüne dağıtılır, posalı kaynaklar seçilir. Gebelikte kilo verme hedeflenmez. (IADPSG eşikleri: açlık ≥92, 1. saat ≥180, 2. saat ≥153 mg/dL.)' }
+    ,
+    /* ---- 31.10.2026: diyetisyen raporundaki olgular (pediatri, enfeksiyon, nefroloji, gut + diyabet) ---- */
+    { id: 'v-ped-obez', ad: 'Ece', yas: 10, cins: 'K', cm: 141, kg: 50, ped: true, esit: ['schofield'], baslik: 'Çocukluk çağı obezitesi',
+      oyku: 'Okul hemşiresi yönlendirmiş. Teneffüste kantinden simit ve poğaça, evde ekran başında cips ve gazlı içecek. Beden eğitimi dışında hareketi az. Annesi de fazla kilolu. Büyümesi sürüyor, ergenlik bulgusu yok.',
+      lab: [['Açlık kan şekeri', 94, 'mg/dL', 70, 99], ['Total kolesterol', 182, 'mg/dL', 0, 169], ['Trigliserit', 162, 'mg/dL', 0, 89], ['HDL kolesterol', 38, 'mg/dL', 45, 999], ['Hemoglobin', 12.6, 'g/dL', 11.5, 15.5]],
+      ag: ['mevcut', 'ideal'], kcal: [1600, 2000], pro: [0.9, 2.1], proG: [33, 70], kisit: { gerek: [], yasak: ['prokisit', 'sivi'] }, oneri: { gerek: ['aile'] },
+      oncelik: ['Büyüme sürerken kiloyu koruyup BKİ z-skorunu düşürmek; aile temelli yaşam tarzı değişikliği', 'Yetişkin gibi haftada 1 kg verdirecek sıkı enerji kısıtlaması', 'Karbonhidratı tamamen kesmek', 'Protein kısıtlaması'], dogru: 0,
+      not: 'WHO 2007: 10 yaş kızda BKİ 25,1 → z ≈ +2,5 (≈ 99. persentil), obez. Çocukta BMH için Schofield (10–18 yaş, kız: 13,384 × kg + 692,6 ≈ 1360 kcal) kullanılır; hareketsiz çocukta günlük harcama ≈ BMH × 1,5 ≈ 2040 kcal. Büyüme sürdüğü için sıkı kısıtlama yapılmaz: hafif bir enerji azaltımıyla kiloyu korumak bile boy uzadıkça BKİ z-skorunu düşürür. Protein, ideal ağırlığa (yaşa göre medyan BKİ ≈ 33 kg) göre en az ≈0,9 g/kg olmalıdır. AAP 2023: aile temelli, yoğun yaşam tarzı tedavisi (şekerli içecek, ekran süresi, öğün düzeni, hareket). Lipid değerleri çocuk sınırlarına göre yorumlanır (NHLBI: TG ≥90, HDL <45, total kolesterol ≥170 sınırda/yüksek).' },
+    { id: 'v-ped-osteo', ad: 'Ada', yas: 5, cins: 'K', cm: 108, kg: 15, ates: 1, ped: true, esit: ['schofield'], baslik: 'Osteomiyelit ve ateş',
+      oyku: 'Sol tibiada osteomiyelit tanısıyla yatıyor; damar yolundan antibiyotik başlanmış. Ateşi 38 °C. Yatak istirahatinde, iştahı azalmış; ağızdan besleniyor, yutma sorunu yok.',
+      lab: [['CRP', 86, 'mg/L', 0, 5], ['Sedimantasyon', 72, 'mm/saat', 0, 20], ['Lökosit', 15.8, '×10³/µL', 5, 14.5], ['Hemoglobin', 10.6, 'g/dL', 11.5, 15.5], ['Albümin', 3.4, 'g/dL', 3.5, 5.2], ['Sodyum', 137, 'mmol/L', 136, 145]],
+      ag: ['mevcut'], kcal: [1000, 1300], pro: [1.2, 2.0], kisit: { gerek: [], yasak: ['prokisit', 'sivi'] }, oneri: { gerek: ['sik', 'ates'] },
+      oncelik: ['Ateşe göre artırılmış enerji, yeterli protein ve sıvı; az ve sık öğün', 'Ateş geçene kadar yalnızca sıvı vermek', 'İştahsız diye enerjiyi azaltmak', 'Protein kısıtlaması'], dogru: 0,
+      not: 'Schofield (3–10 yaş, kız): 20,315 × 15 + 485,9 ≈ 790 kcal. Ateşte BMH her 1 °C için ≈ %13 artar (DuBois): 38 °C → 790 × 1,13 ≈ 895 kcal. Yatakta yatan çocukta aktivite/hastalık katsayısı ≈ 1,2–1,4 → ≈ 1070–1250 kcal. Enfeksiyonda protein gereksinimi artar (≈1,2–2,0 g/kg → 18–30 g). Ateşte sıvı kaybı arttığı için sıvı kısıtlanmaz, artırılır. WHO 2007: BKİ 12,9 → z ≈ −1,9; normal sınırın alt ucunda, zayıflık eşiğine çok yakın: haftalık tartı ile izlenmelidir. Albümin ve hemoglobin düşüklüğü akut inflamasyonla (CRP yüksek) birlikte yorumlanır.' },
+    { id: 'v-nefrotik', ad: 'Murat', yas: 43, cins: 'E', cm: 180, kg: 75, kuru: 71, esit: ['mifflin', 'harris'], baslik: 'Nefrotik sendrom',
+      oyku: 'İki aydır göz kapaklarında ve bacaklarında şişlik; 24 saatlik idrarda 6,2 g protein. Nefroloji tedaviye başlamış; ödemsiz ağırlığı yaklaşık 71 kg. Masa başı çalışıyor, çok hafif aktif. "Proteini idrarla kaybediyorum, bol et yiyeyim" diyor.',
+      lab: [['24 saatlik idrar proteini', 6.2, 'g/gün', 0, 0.15], ['Albümin', 2.2, 'g/dL', 3.5, 5.2], ['Total kolesterol', 312, 'mg/dL', 0, 199], ['LDL kolesterol', 214, 'mg/dL', 0, 129], ['Trigliserit', 236, 'mg/dL', 0, 149], ['Kreatinin', 1.0, 'mg/dL', 0.7, 1.2], ['eGFR', 89, 'mL/dk/1,73m²', 60, 999], ['Sodyum', 137, 'mmol/L', 136, 145], ['Potasyum', 4.3, 'mmol/L', 3.5, 5.1]],
+      ag: ['kuru'], kcal: [2100, 2500], pro: [0.8, 1.0], kisit: { gerek: ['na', 'yag'], yasak: [] }, oneri: { gerek: [] },
+      oncelik: ['Sodyum kısıtlaması (<2 g/gün), 0,8–1,0 g/kg protein, doymuş yağın azaltılması', 'Kaybı karşılamak için yüksek proteinli diyet (≥1,5 g/kg)', 'Çok düşük proteinli diyet (0,6 g/kg)', 'Glutensiz diyet'], dogru: 0,
+      not: 'KDIGO 2021 (glomerüler hastalıklar) uygulama önerileri: erişkin nefrotik sendromda protein 0,8–1,0 g/kg/gün; yüksek protein proteinüriyi artırır ve albümini yükseltmez. Ödem, kan basıncı ve proteinüri için sodyum <2,0 g/gün (≈5 g tuz). Kolesterol yüksekse doymuş yağ azaltılır; enerji ≈30–35 kcal/kg, yağ enerjinin <%30\'u. Ödemde hesap ödemsiz (kuru) ağırlıkla yapılır: Mifflin 71 kg ile ≈1625 kcal × 1,4 ≈ 2280 kcal. Sıvı kısıtlaması rutin değildir; hiponatremi ya da dirençli ödemde hekimle birlikte değerlendirilir.' },
+    { id: 'v-gut-dm', ad: 'Selin', yas: 21, cins: 'K', cm: 156, kg: 63, pal: 1.6, esit: ['harris', 'mifflin'], baslik: 'Gut ve tip 2 diyabet',
+      oyku: 'Ayak başparmağında tekrarlayan ağrılı şişlik nedeniyle gut tanısı almış; yeni tanı tip 2 diyabet. Haftada birkaç kez sakatat ve kırmızı et, her gün meyve suyu ve gazlı içecek tüketiyor. Hafif aktif; kilo vermek istiyor.',
+      lab: [['Ürik asit', 8.6, 'mg/dL', 2.4, 5.7], ['Açlık kan şekeri', 138, 'mg/dL', 70, 99], ['HbA1c', 7.2, '%', 4, 5.6], ['Trigliserit', 188, 'mg/dL', 0, 149], ['Kreatinin', 0.7, 'mg/dL', 0.5, 1.1], ['eGFR', 118, 'mL/dk/1,73m²', 60, 999]],
+      ag: ['mevcut'], kcal: [1600, 1900], pro: [0.8, 1.2], kisit: { gerek: ['kh', 'purin'], yasak: ['prokisit'] }, oneri: { gerek: ['kilo', 'alkol'] },
+      oncelik: ['Günlük ≈500 kcal enerji açığı, KH kontrolü ve pürin, fruktoz ve alkolün sınırlanması', 'Proteini tamamen kesmek', 'Açlık diyetiyle hızlı kilo kaybı', 'Glutensiz diyet'], dogru: 0,
+      not: 'Rapordaki protokol Harris-Benedict: kadın 655,1 + 9,563 × 63 + 1,850 × 156 − 4,676 × 21 ≈ 1448 kcal; × 1,6 (hafif aktif) ≈ 2320 kcal; −500 kcal ≈ 1820 kcal. Mifflin ile ≈ 1340 × 1,6 − 500 ≈ 1640 kcal (o da kabul aralığında). BKİ 25,9 (pre-obez): haftada 0,5–1 kg kayıp hedeflenir; açlık ve çok hızlı kilo kaybı ürik asidi yükseltip atağı tetikleyebilir. ACR 2020 (koşullu öneriler): alkol, pürinden zengin besinler ve yüksek fruktozlu şurup sınırlanır, fazla kiloluda kilo kaybı önerilir. Protein normal tutulur (0,8–1,2 g/kg); sakatat ve kırmızı et yerine süt ürünleri, yumurta ve baklagil tercih edilir. Diyabet için KH öğünlere dağıtılır, şekerli içecekler kesilir.' }
   ];
   var labDurum = function (l) { return l[1] < l[3] ? 'L' : l[1] > l[4] ? 'H' : 'N'; };
   var idealKg = function (cm) { return 22 * Math.pow(cm / 100, 2); };
-  var duzKg = function (v) { var i = idealKg(v.cm); return i + 0.25 * (v.kg - i); };
-  var agirlik = function (v, tip) { if (tip === 'ideal') return idealKg(v.cm); if (tip === 'duzeltilmis') return duzKg(v); if (tip === 'kuru') return v.id === 'v-siroz' ? 73 : v.id === 'v-hd' ? 70 : v.kg; return v.kg; };
-  /* f: {flags:{i:true}, nrs:{durum,siddet,yas}, ag, kcal, pro (g/gün), kisit:{k:true}, oneri:{k:true}, oncelik} */
+  /* çocukta ideal ağırlık: yaşa göre medyan BKİ (WHO 2007) × boy² */
+  var pedIdealKg = function (v) { var l = lmsAt(v.yas, v.cins); return l ? l[1] * Math.pow(v.cm / 100, 2) : null; };
+  var idealOf = function (v) { return (v.ped || v.yas < 19) && pedIdealKg(v) ? pedIdealKg(v) : idealKg(v.cm); };
+  var duzKg = function (v) { var i = idealOf(v); return i + 0.25 * (v.kg - i); };
+  var agirlik = function (v, tip) { if (tip === 'ideal') return idealOf(v); if (tip === 'duzeltilmis') return duzKg(v); if (tip === 'kuru') return v.kuru || (v.id === 'v-siroz' ? 73 : v.id === 'v-hd' ? 70 : v.kg); return v.kg; };
+  /* vaka için pediatrik BKİ değerlendirmesi */
+  var pedTruth = function (v) { var b = bki(v.kg, v.cm), z = bkiZ(b, v.yas, v.cins); return z == null ? null : { bki: r1(b), z: Math.round(z * 100) / 100, p: Math.round(ncdf(z) * 1000) / 10, s: pedSinif(z), lms: lmsAt(v.yas, v.cins) }; };
+  /* f: {flags:{i:true}, nrs:{durum,siddet,yas}, ag, kcal, pro (g/gün), kisit:{k:true}, oneri:{k:true}, oncelik, esit, pedZ, pedS} */
   var vakaPuan = function (v, f) {
     var rows = [], p = 0, tot = 0, add = function (t, ok, w, dogru) { rows.push({ t: t, ok: ok, dogru: dogru }); tot += w; if (ok) p += w; };
     var abn = v.lab.map(function (l, i) { return labDurum(l) !== 'N' ? i : -1; }).filter(function (i) { return i >= 0; });
     var fl = f.flags || {}, hit = abn.filter(function (i) { return fl[i]; }).length, fp = Object.keys(fl).filter(function (i) { return fl[i] && abn.indexOf(+i) < 0; }).length;
     add('Anormal laboratuvar değerleri (' + hit + '/' + abn.length + (fp ? ', ' + fp + ' fazladan' : '') + ')', hit === abn.length && fp === 0, 15, v.lab.filter(function (l) { return labDurum(l) !== 'N'; }).map(function (l) { return l[0]; }).join(', '));
     if (v.nrs) { var n = v.nrs, tot2 = n.durum + n.siddet + n.yas, s = f.nrs || {}; add('NRS-2002 puanı', (+s.durum + +s.siddet + +s.yas) === tot2 && +s.durum === n.durum && +s.siddet === n.siddet && +s.yas === n.yas, 10, tot2 + ' (durum ' + n.durum + ' + şiddet ' + n.siddet + ' + yaş ' + n.yas + ')'); }
+    if (v.ped) { var P = pedTruth(v), PS = {}; PED.forEach(function (x) { PS[x.k] = x.t; });
+      if (P) { add('WHO 2007 BKİ z-skoru', f.pedZ != null && f.pedZ !== '' && Math.abs(+f.pedZ - P.z) <= 0.15, 10, String(P.z).replace('.', ',') + ' (≈ ' + String(P.p).replace('.', ',') + '. persentil)');
+        add('Yaşa göre BKİ sınıfı', f.pedS === P.s, 10, PS[P.s]); } }
+    if (v.esit) add('BMH eşitliği', v.esit.indexOf(f.esit) >= 0, 10, v.esit.map(function (k) { return FORMUL[k]; }).join(' ya da '));
     add('Hesapta kullanılan ağırlık', v.ag.indexOf(f.ag) >= 0, 10, v.ag.map(function (a) { return AGIRLIK[a]; }).join(' ya da '));
     add('Enerji (kcal/gün)', f.kcal >= v.kcal[0] && f.kcal <= v.kcal[1], 15, v.kcal[0] + '–' + v.kcal[1] + ' kcal');
     var w = agirlik(v, v.ag[0]), pk = f.pro / w;
-    add('Protein (g/kg)', pk >= v.pro[0] - 0.05 && pk <= v.pro[1] + 0.05, 15, String(v.pro[0]).replace('.', ',') + '–' + String(v.pro[1]).replace('.', ',') + ' g/kg (' + Math.round(v.pro[0] * w) + '–' + Math.round(v.pro[1] * w) + ' g)');
+    if (v.proG) add('Protein (g/gün)', f.pro >= v.proG[0] && f.pro <= v.proG[1], 15, v.proG[0] + '–' + v.proG[1] + ' g');
+    else add('Protein (g/kg)', pk >= v.pro[0] - 0.05 && pk <= v.pro[1] + 0.05, 15, String(v.pro[0]).replace('.', ',') + '–' + String(v.pro[1]).replace('.', ',') + ' g/kg (' + Math.round(v.pro[0] * w) + '–' + Math.round(v.pro[1] * w) + ' g)');
     var ks = f.kisit || {}, miss = v.kisit.gerek.filter(function (k) { return !ks[k]; }), bad = v.kisit.yasak.filter(function (k) { return ks[k]; });
     add('Kısıtlamalar', !miss.length && !bad.length, 15, (v.kisit.gerek.map(function (k) { return KISIT[k]; }).join(', ') || 'özel kısıtlama yok') + (bad.length ? ' · yanlış: ' + bad.map(function (k) { return KISIT[k]; }).join(', ') : ''));
     var on = f.oneri || {}, om = v.oneri.gerek.filter(function (k) { return !on[k]; });
@@ -279,6 +424,8 @@
   };
 
   return { PAL: PAL, bmh: bmh, bki: bki, BKI: BKI, bkiSinif: bkiSinif, belRisk: belRisk, bkoRisk: bkoRisk, hedef: hedef, NUT: NUT,
+    FORMUL: FORMUL, atesKat: atesKat, bmhHesap: bmhHesap, lmsAt: lmsAt, bkiZ: bkiZ, bkiAtZ: bkiAtZ, ncdf: ncdf, PED: PED, pedSinif: pedSinif, pedTruth: pedTruth, pedIdealKg: pedIdealKg, idealOf: idealOf,
+    DEG: DEG, degisimToplam: degisimToplam, degisimHedef: degisimHedef, degisimOtomatik: degisimOtomatik, degisimKontrol: degisimKontrol, menuDegisim: menuDegisim,
     DB: DB, load: load, analiz: analiz, durum: durum, GOREV: GOREV, KR_T: KR_T, gorevPuan: gorevPuan,
     AH: AH, antroTruth: antroTruth, antroPuan: antroPuan,
     VK: VK, KISIT: KISIT, ONERI: ONERI, AGIRLIK: AGIRLIK, labDurum: labDurum, idealKg: idealKg, duzKg: duzKg, agirlik: agirlik, vakaPuan: vakaPuan, NRS: NRS,

@@ -625,6 +625,9 @@ input[type=range]{accent-color:var(--blue)}
 .case.on{border-color:var(--blue);background:var(--blue-s)}
 .case .tg{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
 .case b{font:700 15px var(--disp)}.case small{color:var(--ink3);font-size:12.5px}
+.case-sahne{display:flex;align-items:center;gap:6px;margin:-4px 0 4px;min-height:36px;padding:6px 12px;border:1.5px dashed #D9472B;border-radius:10px;background:#FFF5F2;color:#A33A22;font:700 13px var(--disp,inherit);text-align:left;cursor:pointer}
+.case-sahne:hover{background:#FFE9E3}
+.case-sahne svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .casebar{position:absolute;right:12px;top:12px;z-index:7;width:min(340px,calc(100% - 24px));background:#FFFDF7;color:var(--navy);border-radius:14px 12px 15px 11px;border:1.5px solid #E4DCC8;box-shadow:3px 4px 0 rgba(0,0,0,.18),0 24px 40px -24px rgba(0,0,0,.7);padding:14px 16px;transform:translateX(calc(100% + 30px)) rotate(2deg);transition:transform .5s cubic-bezier(.2,1.2,.3,1);max-height:calc(100% - 24px);overflow:auto}
 .casebar.on{transform:translateX(0) rotate(.6deg)}
 .casebar .cs-h{display:flex;align-items:center}.casebar .cs-h .x{margin-left:auto}
@@ -1438,6 +1441,8 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
   </div></div>
 </div>
 </div></div>
+<!-- Acadex Klinik: animasyonlu vaka sahnesi (labs/klinik). Varsa yüklenir; sayfanın kopyası onsuz da çalışır (sahne düğmesi görünmez). -->
+<script>(function () { var y = ['../klinik/klinik.js', '../klinik/senaryo-anatomi.js'], i = 0; var n = function () { if (i >= y.length) { window.dispatchEvent(new Event('axklinik:hazir')); return; } var s = document.createElement('script'); s.src = y[i++]; s.onload = n; s.onerror = function () {}; document.head.appendChild(s); }; n(); })();</script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script>/* ===== Anatomi verisi: yapı kartları (Gray's Anatomy, 1918 bölümlerine bağlı) ===== */
 const LAYERS = {
@@ -3389,14 +3394,30 @@ const CASES = [
 ];
 const CASE = { run: false, c: null, i: 0, miss: 0 };
 function renderCases() {
-  $('#caseList').innerHTML = CASES.map(c => { const done = LS.get('caseDone', []).includes(c.id); return `<button class="case ${CASE.c === c && CASE.run ? 'on' : ''}" data-case="${c.id}"><span class="tg">${esc(c.tag)}</span><b>${esc(c.ad)}</b><small>${c.steps.length} adım${done ? ' · çözdün ✓' : ''}</small></button>`; }).join('');
+  $('#caseList').innerHTML = CASES.map(c => { const done = LS.get('caseDone', []).includes(c.id); return `<button class="case ${CASE.c === c && CASE.run ? 'on' : ''}" data-case="${c.id}"><span class="tg">${esc(c.tag)}</span><b>${esc(c.ad)}</b><small>${c.steps.length} adım${done ? ' · çözdün ✓' : ''}</small></button>${window.AXKLINIK && AXKLINIK.SEN['ana-' + c.id] ? `<button class="case-sahne" data-sahne-case="${c.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-6h6v6M12 7v4M10 9h4"/></svg>Hastayı karşıla · sahnede başla</button>` : ''}`; }).join('');
 }
 $('#caseList').addEventListener('click', e => { const b = e.target.closest('[data-case]'); if (b) startCase(CASES.find(c => c.id === b.dataset.case)); });
+window.addEventListener('axklinik:hazir', () => renderCases());
+if (window.AXKLINIK) renderCases();
+/* klinik sahne: anamnez → muayene → karar → 3B modelde yapıları bul → kapanış */
+$('#caseList').addEventListener('click', e => {
+  const b = e.target.closest('[data-sahne-case]'); if (!b || !window.AXKLINIK) return;
+  const c = CASES.find(x => x.id === b.dataset.sahneCase);
+  AXKLINIK.open('ana-' + c.id, { onDevir: async () => { await startCase(c); CASE.sahne = true; } });
+});
+function kapanis(c) {
+  const base = window.AXKLINIK && AXKLINIK.SEN['ana-' + c.id]; if (!base) return;
+  const kim = base.hasta.konusamaz && base.refakat ? 'refakat' : 'hasta';
+  setTimeout(() => AXKLINIK.open(Object.assign({}, base, { adimlar: [
+    { tip: 'konus', kim: 'mentor', metin: 'Yapıların hepsini buldun. ' + c.ex },
+    { tip: 'konus', kim, metin: kim === 'refakat' ? 'Çok teşekkür ederiz, hemen ilgilendiniz.' : 'Teşekkür ederim, şimdi ne olduğunu anladım.' },
+    { tip: 'devir', metin: 'Vaka tamamlandı. Yapıları kartlarına ekleyip tekrar edebilirsin.', dugme: 'Kapat' }] })), 700);
+}
 async function startCase(c) {
   stopDemo(); stopTour(); select(null);
   const syss = new Set(c.steps.map(s => sysOfSid(s[0]))); for (const s of syss) if (s && !loaded[s]) await withLoader(s);
   for (const s of syss) if (st.layers[s]) st.layers[s].on = true; renderLayers(); st.peel = 0; st.ghost = null; st.iso = null; applyVis(); renderStates();
-  Object.assign(CASE, { run: true, c, i: 0, miss: 0 }); renderCases(); caseCard(); HOME();
+  Object.assign(CASE, { run: true, c, i: 0, miss: 0, sahne: false }); renderCases(); caseCard(); HOME();
 }
 function caseCard(fb) {
   const c = CASE.c, el = $('#casebar'); if (!c) return; el.classList.add('on');
@@ -3416,7 +3437,7 @@ function caseClick(h) {
   const sid = h.mesh.userData.sid;
   if (sid === s[0]) {
     selectMesh(h.mesh, { point: h.point }); pulse(); CASE.i++; CASE.miss = 0;
-    if (CASE.i >= CASE.c.steps.length) { CASE.run = false; const d = LS.get('caseDone', []); if (!d.includes(CASE.c.id)) { d.push(CASE.c.id); LS.set('caseDone', d); } renderCases(); caseCard(); }
+    if (CASE.i >= CASE.c.steps.length) { CASE.run = false; const d = LS.get('caseDone', []); if (!d.includes(CASE.c.id)) { d.push(CASE.c.id); LS.set('caseDone', d); } renderCases(); caseCard(); if (CASE.sahne) { CASE.sahne = false; kapanis(CASE.c); } }
     else caseCard({ ok: true, t: 'Doğru: ' + S[s[0]].tr + ' (' + S[s[0]].la + ')' });
   } else {
     CASE.miss++; caseCard({ ok: false, t: 'Bu ' + nameTR(h.mesh) + '. Tekrar dene.' });
