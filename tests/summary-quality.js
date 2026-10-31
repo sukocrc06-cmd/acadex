@@ -141,6 +141,12 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Alan adi elle sayilmak yerine agac ozyinelemeli geziliyor (30.10.2026).
   'YUM_DOKUNULMAZ', 'yumusatAgac',
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
+  // Tahmin edilen denklem karta hic girmiyordu (31.10.2026 olcumu).
+  'SENTENCE_ABBREV', 'splitSentences', 'alintiBloklari', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
+  'TAHMIN_DENKLEMI_LHS', 'TAHMIN_DENKLEMI_MIN_SAYI', 'TAHMIN_DENKLEMI_MAX',
+  'tahminDenklemleriniKurtar',
+  // Grafik eksen centikleri icerik sayiliyordu (31.10.2026 olcumu).
+  'EKSEN_MIN_UZUNLUK', 'eksenCentikleriniAyikla',
   'OCR_PARCA_SAYFA', 'OCR_PARCA_BUTCE_MS',
   // Parcalar sirayla kosup butceyi dolduruyordu (30.10.2026 olcumu).
   'OCR_ES_ZAMAN', 'OCR_HIZ_BEKLEME_MS', 'tryOCRParcali',
@@ -5269,6 +5275,151 @@ test('BOS KABUK ayiklayicisi bolumu SESSIZCE atmiyor', () => {
   // Yalnizca BASLIKSIZ bolum atiliyor — maddesiz bolum degil.
   assert.match(govde, /\(sec: any\) => sec && typeof sec === 'object' && dolu\(sec\.heading\)/,
     'bolum suzgeci genislemis — maddesiz bolum de atiliyorsa sayi daha da duser');
+});
+
+/* TAHMIN EDILEN DENKLEM KARTA HIC GIRMIYORDU (31.10.2026 olcumu).
+ *
+ * "IPPT Dummy" kartinda sayisal kapsama %49 ve kayiplarin en buyuk kumesi
+ * TEK pasajdan geliyordu (s. 9-10): "Suppose the estimated equation is
+ * y-hat = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split". Formul
+ * studyosundaki dokuz formulun HEPSI genel model bicimiydi.
+ *
+ * Kaybin sebebi boru hatti DEGIL: metin document_chunks'ta birebir saglam
+ * ve pencere promptu zaten "estimated equations with their numbers" diyor.
+ * Pencere 1 cikti tavaninin YARISINI kullanmis (completion=1805/max=3673)
+ * — model kurali yok saydi. Prompta kural eklemek de secenek degil:
+ * tavana pay 6 token (bkz. BOLUM_KOTASI notu). Bu yuzden kurtarma
+ * DETERMINISTIK. */
+const KURT_SAYFA = [
+  'Interpreting the Dummy Variable', 'Coefficients (with 3 Levels)',
+  'Suppose the estimated equation is',
+  'ŷ = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split',
+  'For a condo:Ranch = Split = 0',
+  'ŷ = 20.43 + 0.045Sqfeet',
+  'For a ranch:Split = 0',
+  'ŷ = 20.43 + 0.045Sqfeet + 23.53',
+  'With the same square feet, a', 'ranch will have an estimated',
+  'average price of 23.53 thousand', 'dollars more than a condo and',
+  'the intercept for a ranch is', '20.43 + 23.53 = 43.96',
+  'the intercept for a split level is', '20.43 + 19.84 = 40.27'
+].join('\n');
+const KURT_KAYIP = [20.43, 0.045, 23.53, 18.84, 43.96, 19.84, 40.27];
+
+test('OLCULEN TAHMIN DENKLEMI kurtariliyor, kismi bicimleri eklenmiyor', () => {
+  const r = A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'en');
+  assert.equal(r.formulas.length, 1, JSON.stringify(r.formulas.map(f => f.latex)));
+  assert.equal(r.formulas[0].latex, 'ŷ = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split');
+  assert.equal(r.formulas[0].name, 'Estimated equation');
+  // Ayni pasaj sekiz aday uretiyor; dort sayinin hepsi TEK denklemden geliyor.
+  assert.deepEqual(r.kurtarilan.sort((a, b) => a - b), [0.045, 18.84, 20.43, 23.53]);
+});
+
+test('CIPLAK ARITMETIK formul sayilmiyor', () => {
+  /* "20.43 + 23.53 = 43.96" esittenin solunda SAYI tasiyor; formul olarak
+     okunmaz ve karta eklenirse slayt kirintisi gibi gorunur. */
+  const r = A.tahminDenklemleriniKurtar('20.43 + 23.53 = 43.96', [20.43, 23.53, 43.96], [], 'en');
+  assert.equal(r.formulas.length, 0, JSON.stringify(r.formulas));
+  assert.ok(!A.TAHMIN_DENKLEMI_LHS.test('20.43 + 23.53 = 43.96'));
+  assert.ok(A.TAHMIN_DENKLEMI_LHS.test('ŷ = 20.43 + 0.045Sqfeet'));
+});
+
+test('TEK SAYILIK aday alinmiyor (baglamsiz parca)', () => {
+  assert.equal(A.TAHMIN_DENKLEMI_MIN_SAYI, 2);
+  const r = A.tahminDenklemleriniKurtar('y = 5 + 2x', [5], [], 'en');
+  assert.equal(r.formulas.length, 0, 'tek eksik sayi tasiyan denklem eklenmis');
+});
+
+test('ZATEN VAR OLAN denklem tekrar eklenmiyor', () => {
+  const mevcut = [{ name: 'X', latex: 'ŷ = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split' }];
+  const r = A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, mevcut, 'en');
+  assert.ok(!r.formulas.some(f => f.latex === mevcut[0].latex), 'kopya denklem eklendi');
+});
+
+test('KAYIP YOKSA hic dokunmuyor, UST SINIR var', () => {
+  assert.deepEqual(A.tahminDenklemleriniKurtar(KURT_SAYFA, [], [], 'en').formulas, []);
+  assert.deepEqual(A.tahminDenklemleriniKurtar('', KURT_KAYIP, [], 'en').formulas, []);
+  assert.ok(A.TAHMIN_DENKLEMI_MAX <= 3, 'ust sinir yok — kart denklemle dolabilir');
+});
+
+test('dil secimi: TR kartta Turkce ad', () => {
+  const r = A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'tr');
+  assert.equal(r.formulas[0].name, 'Tahmin edilen denklem');
+});
+
+test('kurtarma TEMIZLIKTEN ONCE ve BORU HATTINA bagli', () => {
+  /* Eklenen denklem de validateLatex'ten ve ad kopyasi kapisindan gecmeli,
+     yoksa dizilemeyen bir latex karta girer. */
+  const i = SRC.indexOf('const kurtarma = tahminDenklemleriniKurtar(');
+  assert.ok(i > 0, 'kurtarma cagrilmiyor — olu kod');
+  assert.ok(i < SRC.indexOf('const sanitized = sanitizeFormulas(parsedContent.formulas)'),
+    'kurtarma formul temizliginden SONRA cagriliyor');
+  assert.match(SRC, /Tahmin denklemi kurtarildi: \$\{kurtarma\.formulas\.length\} denklem/,
+    'kurtarma loglanmiyor');
+});
+
+/* GRAFIK EKSENI ICERIK SAYILIYORDU (31.10.2026 olcumu).
+ *
+ * "IPPT Dummy" kartinda kapsama %49 ve kayip listesinin yarisi serpme
+ * grafigin EKSEN CENTIKLERIYDI (s. 26-28): y ekseni $60,00...$160,00,
+ * x ekseni 35...95. Bunlar cizelge cizgisi, ders icerigi degil.
+ * Kullanici kurali: kapsama dusukse metrik degil cikarim duzeltilir —
+ * ARTEFAKT HARIC. Ders kodu, atif etiketi ve slayt altbilgisi ayni
+ * gerekceyle zaten eleniyor. */
+const EKSEN_SAYFA = [
+  'Empirical Example of the Quadratic Effect:', 'Utility Bill vs. Temperature',
+  '$60,00', '$70,00', '$80,00', '$90,00', '$100,00', '$110,00',
+  '$120,00', '$130,00', '$140,00', '$150,00', '$160,00',
+  '35 45 55 65 75 85 95', 'Average Bill',
+  'Utility Bill vs. Temperature – Quadratic Regression',
+  'UtilityBill = 484.12 − 12.08temp + 0.09temp^2'
+].join('\n');
+
+test('OLCULEN EKSEN hedeften duser, GERCEK sayilar kalir', () => {
+  // HEAD'de hedef 10 sayiydi: 100..160 + 484.12, 12.08, 0.09.
+  const hedef = A.distinctiveNumbers(EKSEN_SAYFA);
+  assert.deepEqual(hedef.slice().sort((x, y) => x - y), [0.09, 12.08, 484.12],
+    'eksen centigi hala hedef sayiliyor ya da gercek sayi elendi: ' + hedef.join(', '));
+  const r = A.eksenCentikleriniAyikla(EKSEN_SAYFA);
+  for (const v of [100, 110, 120, 130, 140, 150, 160, 35, 45, 95])
+    assert.ok(r.elenen.includes(v), v + ' elenmemis');
+  // Denklemin sayilari ELENMEMELI.
+  for (const v of [484.12, 12.08, 0.09]) assert.ok(!r.elenen.includes(v), v + ' yanlis elendi');
+});
+
+test('DUZ YAZIDAKI sayi listesi korunuyor', () => {
+  /* "100, 110 and 120" — aradaki "and" zinciri kiriyor; ustelik uc
+     elemanli. Taban bes oldugu icin mesru listeler guvende. */
+  const prose = 'The sample sizes were 100, 110 and 120 respectively, and the intercept was 484.12.';
+  assert.equal(A.eksenCentikleriniAyikla(prose).elenen.length, 0, 'duz yazi elendi');
+  const h = A.distinctiveNumbers(prose);
+  for (const v of [100, 110, 120, 484.12]) assert.ok(h.includes(v), v + ' kaybolmus');
+});
+
+test('UC KOSUL birden isteniyor', () => {
+  assert.equal(A.EKSEN_MIN_UZUNLUK, 5);
+  // 1) Uzunluk: dort elemanli dizi ELENMEZ, bes elemanli elenir.
+  assert.equal(A.eksenCentikleriniAyikla('100, 110, 120, 130').elenen.length, 0);
+  assert.ok(A.eksenCentikleriniAyikla('100 110 120 130 140').elenen.length > 0);
+  // 2) Harf: aralarinda harf olan dizi cetvel degildir.
+  assert.equal(A.eksenCentikleriniAyikla('100 ve 110 ve 120 ve 130 ve 140').elenen.length, 0);
+  // 3) Sabit fark: duzensiz dizi elenmez.
+  assert.equal(A.eksenCentikleriniAyikla('100 110 125 130 140').elenen.length, 0);
+  // Ayni sayinin tekrari (fark 0) cetvel sayilmaz.
+  assert.equal(A.eksenCentikleriniAyikla('100 100 100 100 100').elenen.length, 0);
+});
+
+test('metin UZUNLUGU korunuyor (oteki elemeler kaymaz)', () => {
+  /* Elenen aralik bosluga cevriliyor, silinmiyor: distinctiveNumbers bu
+     adimdan sonra SLAYT_ALTBILGI_RE gibi konuma duyarli elemeler de
+     uyguluyor. */
+  const r = A.eksenCentikleriniAyikla(EKSEN_SAYFA);
+  assert.equal(r.metin.length, EKSEN_SAYFA.length, 'metin uzunlugu degismis');
+});
+
+test('bos ve bozuk girdide cokmez', () => {
+  assert.deepEqual(A.eksenCentikleriniAyikla('').elenen, []);
+  assert.deepEqual(A.eksenCentikleriniAyikla(null).elenen, []);
+  assert.deepEqual(A.eksenCentikleriniAyikla('hic sayi yok').elenen, []);
 });
 
 console.log('\nBOLUM KOPYASI (WEEK 9 OLCUMU)\n');

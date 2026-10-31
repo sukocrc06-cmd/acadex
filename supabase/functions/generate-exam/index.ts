@@ -2801,7 +2801,7 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
   const totalWeight = claimTerms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
-  let best: { text: string; score: number } | null = null
+  let best: { text: string; score: number; siralama: number } | null = null
   /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
      alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
      cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
@@ -2820,7 +2820,42 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
     // Normalising by the claim's own weight (not the sentence's) keeps a long
     // rambling sentence from winning just by containing more words.
     const score = w / totalWeight
-    if (!best || score > best.score) best = { text: raw, score }
+    /* IDDIAYI TASIYAN CUMLE SIRALAMADA GERIDEYDI (31.10.2026 olcumu).
+     *
+     * "IPPT Dummy" kartinin [14] atfi:
+     *   madde  : "...neither regional dummy variable is statistically
+     *             different from South America at the 10% level."
+     *   alinti : "The Europe dummy variable coefficient is interpreted as
+     *             'on average energy consumption per capita is 9.3% lower
+     *             in Europe than South America.'"
+     * Sayfa DOGRUYDU (s. 42) ve o sayfada iddiayi birebir tasiyan cumle de
+     * vardi: "Neither of these are statistically significant at the 10%
+     * level." Ama siralama yalnizca KAPSAMAYA (iddianin kelime
+     * dagarciginin ne kadarini aciklıyor) bakiyordu ve dogru cumle KISA
+     * oldugu icin kapsamada one cikmiyordu. Olculen uc aday:
+     *   kapsama  kesinlik  dice
+     *   0,229    0,323     0,268   "...9.3% lower in Europe..."
+     *   0,229    0,380     0,286   "...41.5% higher in North America..."
+     *   0,260    0,872     0,400   "Neither of these are statistically..."
+     * Kesinlik (cumlenin KENDI iceriginin ne kadari iddiaya ait) ikisini
+     * acik ara ayiriyor: 0,872'ye 0,32. Iddianin ad obeklerini yankilayan
+     * uzun cumle yuksek kapsama aliyor, iddianin HUKMUNU soyleyen kisa
+     * cumle ise yuksek kesinlik.
+     *
+     * KESINLIK TEK BASINA KULLANILMIYOR: olculen "America as the omitted
+     * group" parcasi kesinlik 1,000 aliyor ama kapsamasi 0,114 — kotu bir
+     * alinti. Dice ikisini dengeleyip dogru cumleyi birinci yapiyor
+     * (0,400'e 0,286).
+     *
+     * KAPI DEGISMEDI, yalnizca SIRALAMA: asagidaki esik hala KAPSAMAYA
+     * bakiyor (best.score < 0.3). Yani hangi iddianin alinti alacagi
+     * aynen eskisi gibi; degisen, ayni sayfadaki adaylar arasindan
+     * hangisinin gosterildigi. Boylece kotu bir alintiyi iyisiyle
+     * degistiriyor, yeni alinti URETMIYOR. */
+    const kendiAgirligi = [...hamTerms].reduce((a, t) => a + agirlik(t), 0)
+    const kesinlik = kendiAgirligi > 0 ? w / kendiAgirligi : 0
+    const siralama = (score + kesinlik) > 0 ? (2 * score * kesinlik) / (score + kesinlik) : 0
+    if (!best || siralama > best.siralama) best = { text: raw, score, siralama }
   }
   if (!best || best.score < 0.3) return null
   return best.text.length > QUOTE_MAX_CHARS

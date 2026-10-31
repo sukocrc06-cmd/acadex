@@ -4507,7 +4507,7 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
   const totalWeight = claimTerms.reduce((a, t) => a + agirlik(t), 0)
   if (totalWeight <= 0) return null
 
-  let best: { text: string; score: number } | null = null
+  let best: { text: string; score: number; siralama: number } | null = null
   /* Adaylar SATIR YAPISINA saygi gostererek uretiliyor — bkz.
      alintiBloklari yanindaki olcum notu. Dogrudan splitSentences(body)
      cagrilirsa OCR'in cop satirlari temiz cumleye yapisik geliyor. */
@@ -4526,7 +4526,42 @@ function bestQuoteForClaim(claim: string, body: string, idf: Map<string, number>
     // Normalising by the claim's own weight (not the sentence's) keeps a long
     // rambling sentence from winning just by containing more words.
     const score = w / totalWeight
-    if (!best || score > best.score) best = { text: raw, score }
+    /* IDDIAYI TASIYAN CUMLE SIRALAMADA GERIDEYDI (31.10.2026 olcumu).
+     *
+     * "IPPT Dummy" kartinin [14] atfi:
+     *   madde  : "...neither regional dummy variable is statistically
+     *             different from South America at the 10% level."
+     *   alinti : "The Europe dummy variable coefficient is interpreted as
+     *             'on average energy consumption per capita is 9.3% lower
+     *             in Europe than South America.'"
+     * Sayfa DOGRUYDU (s. 42) ve o sayfada iddiayi birebir tasiyan cumle de
+     * vardi: "Neither of these are statistically significant at the 10%
+     * level." Ama siralama yalnizca KAPSAMAYA (iddianin kelime
+     * dagarciginin ne kadarini aciklıyor) bakiyordu ve dogru cumle KISA
+     * oldugu icin kapsamada one cikmiyordu. Olculen uc aday:
+     *   kapsama  kesinlik  dice
+     *   0,229    0,323     0,268   "...9.3% lower in Europe..."
+     *   0,229    0,380     0,286   "...41.5% higher in North America..."
+     *   0,260    0,872     0,400   "Neither of these are statistically..."
+     * Kesinlik (cumlenin KENDI iceriginin ne kadari iddiaya ait) ikisini
+     * acik ara ayiriyor: 0,872'ye 0,32. Iddianin ad obeklerini yankilayan
+     * uzun cumle yuksek kapsama aliyor, iddianin HUKMUNU soyleyen kisa
+     * cumle ise yuksek kesinlik.
+     *
+     * KESINLIK TEK BASINA KULLANILMIYOR: olculen "America as the omitted
+     * group" parcasi kesinlik 1,000 aliyor ama kapsamasi 0,114 — kotu bir
+     * alinti. Dice ikisini dengeleyip dogru cumleyi birinci yapiyor
+     * (0,400'e 0,286).
+     *
+     * KAPI DEGISMEDI, yalnizca SIRALAMA: asagidaki esik hala KAPSAMAYA
+     * bakiyor (best.score < 0.3). Yani hangi iddianin alinti alacagi
+     * aynen eskisi gibi; degisen, ayni sayfadaki adaylar arasindan
+     * hangisinin gosterildigi. Boylece kotu bir alintiyi iyisiyle
+     * degistiriyor, yeni alinti URETMIYOR. */
+    const kendiAgirligi = [...hamTerms].reduce((a, t) => a + agirlik(t), 0)
+    const kesinlik = kendiAgirligi > 0 ? w / kendiAgirligi : 0
+    const siralama = (score + kesinlik) > 0 ? (2 * score * kesinlik) / (score + kesinlik) : 0
+    if (!best || siralama > best.siralama) best = { text: raw, score, siralama }
   }
   if (!best || best.score < 0.3) return null
   return best.text.length > QUOTE_MAX_CHARS
@@ -5681,6 +5716,77 @@ const DERS_KODU_BOSLUKLU_RE = /\b([A-Z]{3,5})\s(\d{2,4})\b/g
 const ATIF_ETIKETI_RE =
   /(?<![A-Za-z])(?:figure|fig|table|tablo|\u015fekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:\.\d+)*\b/gi
 
+/* GRAFIK EKSENI ICERIK SAYILMIYOR (31.10.2026 olcumu).
+ *
+ * "IPPT Dummy" kartinda sayisal kapsama %49 ve kayip listesinin yarisi
+ * SERPME GRAFIGIN EKSEN CENTIKLERIYDI (s. 26-28):
+ *   $60,00 $70,00 $80,00 $90,00 $100,00 $110,00 $120,00 $130,00 $140,00
+ *   $150,00 $160,00
+ *   35 45 55 65 75 85 95
+ * Bunlar cizelge cizgisi, ders icerigi degil; karta girmeleri gerekmiyor ve
+ * girmedikleri icin metrigi dusuruyorlardi. Kullanici kurali net: kapsama
+ * dusukse metrik degil cikarim duzeltilir — ARTEFAKT HARIC. Ders kodu
+ * (BUS211), atif etiketi (Figure 9.4) ve slayt altbilgisi (planned.13-38)
+ * ayni gerekceyle zaten eleniyor; eksen centigi onlarin dorduncusu.
+ *
+ * 100'un altindaki tam sayilar asagida ZATEN eleniyor, yani x ekseni
+ * (35...95) ve y ekseninin alt yarisi (60...90) kendiliginden disarida
+ * kaliyordu; olculen kalinti tam olarak 100,110,120,130,140,150,160 idi.
+ *
+ * IMZA: ardi ardina gelen EN AZ BES sayi jetonu, aralarinda HIC HARF yok ve
+ * ortak fark SABIT. Uc kosul birden isteniyor cunku:
+ *   - harf yoksa bu bir cumle degil, bir cetvel;
+ *   - sabit fark cizelge cizgisinin tanimi;
+ *   - bes taban olcumle secildi (olculen eksen yedi degerli). Dort, duz
+ *     yazidaki "100, 110, 120, 130" gibi mesru bir listeyi de yakalardi;
+ *     bes ile o risk pratikte kalmiyor ve olculen vaka hala yakalaniyor. */
+const EKSEN_MIN_UZUNLUK = 5
+
+function eksenCentikleriniAyikla(text: string): { metin: string; elenen: number[] } {
+  const metin = String(text || '')
+  if (!metin) return { metin, elenen: [] }
+  type Jeton = { bas: number; son: number; deger: number }
+  const jetonlar: Jeton[] = []
+  const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+  let m: RegExpExecArray | null
+  while ((m = re.exec(metin)) !== null) {
+    const okuma = sayiOkumalari(m[0])[0]
+    if (okuma !== undefined) jetonlar.push({ bas: m.index, son: m.index + m[0].length, deger: okuma })
+    if (m[0].length === 0) re.lastIndex++
+  }
+
+  const elenen: number[] = []
+  const araliklar: Array<[number, number]> = []
+  let i = 0
+  while (i < jetonlar.length) {
+    // Aradaki metinde harf olmadigi surece zinciri uzat.
+    let j = i
+    while (j + 1 < jetonlar.length &&
+           !/\p{L}/u.test(metin.slice(jetonlar[j].son, jetonlar[j + 1].bas))) j++
+    // Zincir icinde ortak farki SABIT olan en uzun parcalari ayikla.
+    let a = i
+    while (a < j) {
+      const fark = jetonlar[a + 1].deger - jetonlar[a].deger
+      let b = a + 1
+      while (b < j && jetonlar[b + 1].deger - jetonlar[b].deger === fark) b++
+      if (fark !== 0 && (b - a + 1) >= EKSEN_MIN_UZUNLUK) {
+        araliklar.push([jetonlar[a].bas, jetonlar[b].son])
+        for (let k = a; k <= b; k++) elenen.push(Math.abs(jetonlar[k].deger))
+        a = b + 1
+      } else {
+        a = a + 1
+      }
+    }
+    i = j + 1
+  }
+  if (araliklar.length === 0) return { metin, elenen: [] }
+  // Araliklar bosluga cevriliyor: metnin uzunlugu korunur, oteki
+  // elemelerin (SLAYT_ALTBILGI_RE gibi) konumlari kaymaz.
+  let out = metin
+  for (const [bas, son] of araliklar) out = out.slice(0, bas) + ' '.repeat(son - bas) + out.slice(son)
+  return { metin: out, elenen }
+}
+
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
     .replace(URL_BENZERI_RE, ' ')
@@ -5693,9 +5799,11 @@ function distinctiveNumbers(text: string): number[] {
        "planned.13-38" -> "planned." */
     .replace(SLAYT_ALTBILGI_RE, (tam: string) => tam.slice(0, 2))
     .replace(SAYFA_ISARETI_RE, ' ')
+  // Grafik eksen centikleri — bkz. eksenCentikleriniAyikla yanindaki not.
+  const eksensiz = eksenCentikleriniAyikla(temiz).metin
   const out: number[] = []
   const gorulen = new Set<number>()
-  for (const token of temiz.match(SAYI_BELIRTECI) || []) {
+  for (const token of eksensiz.match(SAYI_BELIRTECI) || []) {
     // Ayracsiz 7+ hane olculmus bir deger degil, denklem nesnesinin bozuk
     // cikarimi: canli logda "kayip: 3210, 12010, 3152143210" — "x_1 x_2 x_3"
     // alt simgelerinin yan yana dizilmis hali. Kimlik/telefon da ayni sinif.
@@ -5765,6 +5873,93 @@ function coverageText(obj: unknown): string {
   } catch {
     return ''
   }
+}
+
+/* TAHMIN EDILEN DENKLEM KARTA HIC GIRMIYORDU (31.10.2026 olcumu).
+ *
+ * "IPPT Dummy" kartinda sayisal kapsama %49 ve kayiplarin en buyuk kumesi
+ * TEK bir pasajdan geliyordu (s. 9-10):
+ *   "Suppose the estimated equation is
+ *    y-hat = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split"
+ * Kartin formul studyosunda dokuz formul var ama HEPSI genel model bicimi;
+ * tek bir TAHMIN EDILMIS denklem yok. Kaybin sebebi boru hatti degil:
+ * metin document_chunks'ta birebir saglam duruyor ve pencere promptu zaten
+ * "estimated equations with their numbers" diyor. Pencere 1 cikti tavaninin
+ * YARISINI kullanmis (completion=1805 / max=3673), yani yer varken
+ * uretmemis — model kurali yok saydi. Prompta kural EKLEMEK de secenek
+ * degil: pencere promptunun serit tavanina payi 6 token (bkz. BOLUM_KOTASI
+ * notu).
+ *
+ * Bu yuzden kurtarma DETERMINISTIK ve kapsama olcerinin zaten urettigi
+ * sinyale dayaniyor: eksik sayilari tasiyan kaynak denklemi bul, formul
+ * olarak ekle. Kurallar olculerek daraltildi — ayni pasaj sekiz aday
+ * uretiyor ve hepsini almak karti slayt kirintisiyla doldurur:
+ *   1) esittenin SOLU adlandirilmis olmali. "y-hat = 20.43 + ..." gecer;
+ *      "20.43 + 23.53 = 43.96" ciplak aritmetiktir, formul olarak okunmaz.
+ *   2) aday en az IKI eksik sayi tasimali (tek sayilik parca baglamsiz).
+ *   3) once en cok eksik sayi tasiyan, esitlikte en uzun aday; sonraki aday
+ *      ancak en az iki YENI sayi getiriyorsa alinir. Boylece ayni
+ *      denklemin kismi bicimleri ("y-hat = 20.43 + 0.045Sqfeet") kendi
+ *      basina eklenmiyor.
+ * Olculen sonuc: dort aday -> BIR eklenen, 7 eksik sayinin 4'u kurtarildi,
+ * kart kapsamasi 19/39 (%49) -> 23/39 (%59).
+ *
+ * Eklenen latex sanitizeFormulas'tan geciyor: formulSozcukleriniSar ciplak
+ * sozcukleri (Sqfeet, Ranch, Split) \text{} ile sariyor, validateLatex
+ * dizilemeyecek olani zaten atiyor. */
+const TAHMIN_DENKLEMI_LHS = /^\s*[^=\d\s][^=]{0,40}=/
+const TAHMIN_DENKLEMI_MIN_SAYI = 2
+const TAHMIN_DENKLEMI_MAX = 3
+
+function tahminDenklemleriniKurtar(
+  sourceText: string,
+  missing: number[],
+  mevcutFormuller: any[],
+  lang: string
+): { formulas: any[]; kurtarilan: number[] } {
+  const eksik = new Set(missing.map((v) => Math.abs(v)))
+  if (eksik.size === 0 || !sourceText) return { formulas: [], kurtarilan: [] }
+
+  const varOlan = (Array.isArray(mevcutFormuller) ? mevcutFormuller : [])
+    .map((f: any) => String(f?.latex || '')).join(' \n ')
+
+  const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
+  for (const blok of alintiBloklari(sourceText)) {
+    for (const cumle of splitSentences(blok)) {
+      if (!TAHMIN_DENKLEMI_LHS.test(cumle)) continue
+      if (cumle.length > QUOTE_MAX_CHARS) continue
+      const re = new RegExp(SAYI_BELIRTECI.source, 'g')
+      const bulunan = new Set<number>()
+      let m: RegExpExecArray | null
+      while ((m = re.exec(cumle)) !== null) {
+        for (const okuma of sayiOkumalari(m[0])) {
+          const v = Math.abs(okuma)
+          if (eksik.has(v)) bulunan.add(v)
+        }
+        if (m[0].length === 0) re.lastIndex++
+      }
+      if (bulunan.size >= TAHMIN_DENKLEMI_MIN_SAYI) adaylar.push({ metin: cumle.trim(), bulunan })
+    }
+  }
+  adaylar.sort((a, b) => b.bulunan.size - a.bulunan.size || b.metin.length - a.metin.length)
+
+  const formulas: any[] = []
+  const kurtarilan = new Set<number>()
+  const ad = lang === 'tr' ? 'Tahmin edilen denklem' : 'Estimated equation'
+  for (const aday of adaylar) {
+    if (formulas.length >= TAHMIN_DENKLEMI_MAX) break
+    const yeni = [...aday.bulunan].filter((v) => !kurtarilan.has(v))
+    if (yeni.length < TAHMIN_DENKLEMI_MIN_SAYI) continue
+    // Ayni denklem formul listesinde zaten varsa tekrar eklenmez.
+    if (varOlan.includes(aday.metin)) continue
+    yeni.forEach((v) => kurtarilan.add(v))
+    formulas.push({
+      name: formulas.length === 0 ? ad : `${ad} ${formulas.length + 1}`,
+      latex: aday.metin,
+      variables: []
+    })
+  }
+  return { formulas, kurtarilan: [...kurtarilan] }
 }
 
 function numericCoverage(
@@ -14335,6 +14530,30 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     // for why this is computed rather than prompted.
     // ==========================================================================
     {
+      /* --- (a0) Eksik sayilari tasiyan TAHMIN DENKLEMI kurtariliyor —
+         bkz. tahminDenklemleriniKurtar yanindaki olcum notu. Temizlikten
+         ONCE: eklenen denklem de validateLatex'ten ve ad kopyasi
+         kapisindan gecsin. */
+      {
+        const kapsamaOnce = numericCoverage(extractedText, parsedContent)
+        if (kapsamaOnce.missing.length > 0) {
+          const kurtarma = tahminDenklemleriniKurtar(
+            extractedText, kapsamaOnce.missing, parsedContent.formulas, lang
+          )
+          if (kurtarma.formulas.length > 0) {
+            parsedContent.formulas = [
+              ...(Array.isArray(parsedContent.formulas) ? parsedContent.formulas : []),
+              ...kurtarma.formulas
+            ]
+            console.log(
+              `Tahmin denklemi kurtarildi: ${kurtarma.formulas.length} denklem, ` +
+              `${kurtarma.kurtarilan.length} sayi (${kurtarma.kurtarilan.join(', ')}) — ` +
+              kurtarma.formulas.map((f: any) => `"${String(f.latex).slice(0, 60)}"`).join(' | ')
+            )
+          }
+        }
+      }
+
       // --- (a) Formulas: repair what is over-wrapped, drop what cannot render
       const sanitized = sanitizeFormulas(parsedContent.formulas)
       parsedContent.formulas = sanitized.formulas

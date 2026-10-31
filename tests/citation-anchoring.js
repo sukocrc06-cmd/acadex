@@ -797,9 +797,17 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
 
   test('AYNI ALINTIYA baglanan maddeler TEK dipnot paylasiyor', () => {
     const idx = A.buildPageIndex(metin, 'SAYFA');
+    /* 31.10.2026: ilk hali Riemann ciftini kullaniyordu. Alinti siralamasi
+       Dice'a gecince (bkz. bestQuoteForClaim icindeki "IDDIAYI TASIYAN
+       CUMLE" notu) o cift artik AYRI ve daha isabetli alinti aliyor —
+       "Rectangle approximation..." maddesi "Thin rectangles estimate the
+       area." cumlesini, oteki "When the rectangles become very thin..."
+       cumlesini buluyor. Bu bir IYILESME: kaynakcada ayni cumle degil, iki
+       dogru cumle duruyor. Paylasim kapisi degismedi, yalnizca daha az
+       tetikleniyor; asagidaki cift GERCEKTEN ayni cumleye dusuyor. */
     const maddeler = [
-      'A Riemann sum approximates area using thin rectangles, and the limit of this sum as rectangles become very thin is the definite integral.',
-      'Rectangle approximation uses finite thin rectangles to estimate area under a curve before exact integration.',
+      'Thin rectangles are used to estimate the area under the curve.',
+      'The area under a curve is estimated with thin rectangles.',
       'Constant coefficients can be factored out to stay in front of the integral during evaluation.'
     ];
     const r = A.anchorCitations(maddeler.slice(), [], idx, 'en');
@@ -919,6 +927,103 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
       require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');
     assert.match(g, /const ANCHOR_KISA_MATEMATIK = new Set\(\[/, 'generate-exam te kisa ad listesi yok');
     assert.match(g, /ANCHOR_KISA_MATEMATIK\.has\(w\)/, 'generate-exam te suzgec guncellenmemis');
+  });
+}
+
+/* ==========================================================================
+   IDDIAYI TASIYAN CUMLE SIRALAMADA GERIDEYDI (31.10.2026 — "IPPT" OLCUMU)
+
+   Kartin [14] atfi:
+     madde  : "...neither regional dummy variable is statistically different
+               from South America at the 10% level."
+     alinti : "The Europe dummy variable coefficient is interpreted as 'on
+               average energy consumption per capita is 9.3% lower in Europe
+               than South America.'"
+   Sayfa DOGRUYDU (s. 42) ve o sayfada iddiayi birebir tasiyan cumle de
+   vardi. Siralama yalnizca KAPSAMAYA bakiyordu; iddianin ad obeklerini
+   yankilayan uzun cumle kazaniyor, HUKMUNU soyleyen kisa cumle kaybediyordu.
+   ========================================================================== */
+{
+  const A = loadAnchoring();
+  // Belgenin 42. sayfasi, document_chunks'tan birebir.
+  const P42 = [
+    'Empirical Example of the Log – Linear Model with', 'Dummy Variables',
+    'The dependent variable is the natural log of energy per capita with South',
+    'America as the omitted group',
+    'The Europe dummy variable coefficient is',
+    'interpreted as “on average energy consumption per',
+    'capita is 9.3% lower in Europe than South America.”',
+    'The North America dummy variable coefficient is',
+    'interpreted as “on average energy consumption per',
+    'capita is 41.5% higher in North America than South',
+    'America.” Neither of these are statistically',
+    'significant at the 10% level.'
+  ].join('\n');
+  const P39 = [
+    'Empirical Example of the Log – Linear Model with', 'Dummy Variables',
+    'The dependent variable is the natural log of energy per capita with South',
+    'America as the omitted group',
+    'The Europe dummy variable coefficient is',
+    'interpreted as “on average energy consumption per',
+    'capita is 50.5% higher in Europe than South',
+    'America.” Europe is statistically',
+    'insignificant while North America is marginally',
+    'significant (significant at the 10% level).'
+  ].join('\n');
+  const IDDIA = 'When adding dummy variables for Europe and North America with South America as the omitted group, neither regional dummy variable is statistically different from South America at the 10% level.';
+  const KAYNAK = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  /* Dizin GERCEGE YAKIN: iki sayfalik dizinde ortak terimlerin idf'i sifira
+     iniyor ve kapsama esigin altinda kaliyor. Gercek belge 42 sayfaydi, yani
+     "dummy"/"Europe"/"statistically" birkac sayfada geciyor. Dolgu sayfalari
+     bu kelime dagarcigini TASIMIYOR. */
+  const DOLGU = [
+    'Qualitative Independent Variables\nA dummy variable takes the value zero or one.',
+    'Interaction Effects\nThe product of two explanatory terms changes the slope.',
+    'Polynomial Regression\nA squared term fits a curved scatter plot.',
+    'Quadratic Marginal Effect\nThe partial derivative gives the instantaneous rate of change.',
+    'Utility Bill Example\nThe fitted equation has a linear and a squared temperature term.',
+    'Log Linear Model\nThe slope is read as a percentage change.',
+    'Log Log Model\nThe slope is read as an elasticity.',
+    'Common Mistakes\nDo not forget to omit one category.'
+  ].map((g, i) => `--- SAYFA ${i + 1} ---\n${g}`).join('\n\n');
+  const TAM = `${DOLGU}\n\n--- SAYFA 39 ---\n${P39}\n\n--- SAYFA 42 ---\n${P42}`;
+
+  test('OLCULEN ATIF: iddianin HUKMUNU soyleyen cumle secilir', () => {
+    const idx = A.buildPageIndex(TAM, 'SAYFA');
+    const idf = A.buildAnchorIdf(idx);
+    const q = A.bestQuoteForClaim(IDDIA, P42, idf, true);
+    assert.ok(q, 'alinti uretilmiyor');
+    assert.match(q, /Neither of these are statistically/,
+      'hala ad obeklerini yankilayan cumle seciliyor: ' + q);
+    assert.ok(!/9\.3% lower/.test(q), 'olculen yanlis alinti geri gelmis: ' + q);
+  });
+
+  test('KESINLIK TEK BASINA KULLANILMIYOR', () => {
+    /* Olculen "America as the omitted group" parcasi kesinlik 1,000 aliyor
+       ama kapsamasi 0,114 — kotu bir alinti. Dice ikisini dengeliyor. */
+    const idx = A.buildPageIndex(TAM, 'SAYFA');
+    const q = A.bestQuoteForClaim(IDDIA, P42, A.buildAnchorIdf(idx), true);
+    assert.ok(!/^America as the omitted group/.test(q),
+      'kesinligi en yuksek ama kapsamasi dusuk parca secilmis: ' + q);
+    assert.ok(q.length >= A.QUOTE_MIN_CHARS);
+  });
+
+  test('KAPI DEGISMEDI: esik hala KAPSAMAYA bakiyor', () => {
+    /* Degisen sey hangi iddianin alinti ALDIGI degil, ayni sayfadaki
+       adaylar arasindan hangisinin GOSTERILDIGI. Esik kapsamada kalmali,
+       yoksa daha once alinti almayan iddialar alinti almaya baslar. */
+    const i = KAYNAK.indexOf('function bestQuoteForClaim(');
+    const govde = KAYNAK.slice(i, KAYNAK.indexOf('\n}', KAYNAK.indexOf('return best.text.length', i)));
+    assert.match(govde, /if \(!best \|\| siralama > best\.siralama\)/, 'siralama Dice ile yapilmiyor');
+    assert.match(govde, /best\.score < 0\.3/, 'esik kapsamadan baska bir seye baglanmis');
+    assert.match(govde, /const kesinlik = kendiAgirligi > 0 \? w \/ kendiAgirligi : 0/, 'kesinlik hesaplanmiyor');
+  });
+
+  test('siralama generate-exam te de GUNCEL', () => {
+    const g = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '..', 'supabase/functions/generate-exam/index.ts'), 'utf8');
+    assert.match(g, /siralama > best\.siralama/, 'generate-exam hala kapsamaya gore siraliyor');
   });
 }
 
