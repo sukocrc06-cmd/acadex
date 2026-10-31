@@ -1,6 +1,6 @@
 /* ==========================================================================
    ACADEX KLİNİK · Diyet Lab senaryoları (labs/klinik/senaryo-diyet.js), 31.10.2026
-   Diyet Lab vaka masasındaki 11 vaka ve enteral/parenteral'deki 3 vaka için sahne akışı.
+   Diyet Lab vaka masasındaki 14 vaka ve enteral/parenteral'deki 4 vaka için sahne akışı.
    Klinik veriler (öykü, biyokimya, ağırlık) diyet-model.js'teki vakalarla aynıdır; sahnede
    yalnızca görüşme dili, muayene ve mentor geri bildirimi eklenir. Reçete puanı yine
    vakaPuan / epPuan ile Diyet Lab formunda verilir (devir hedefi: 'recete' | 'ep').
@@ -356,6 +356,93 @@
         ['En çok 10 kcal/kg (aşırı riskte ≈5); tiamin, elektrolit replasmanı ve günlük izlem', 'Doğru (NICE CG32). Enerji 4–7 günde kademeli artırılır.'],
         [['Hemen 30 kcal/kg ile tam gereksinim', 'Hipofosfatemi, aritmi ve kalp yetmezliği riski.'], ['Elektrolitler düzelene kadar hiç besleme', 'Beslenme ertelenmez; düşük enerjiyle, replasmanla birlikte başlanır.']]),
       devir('Başlangıç enerjisini ve önlemleri seç.', true)
+    ] }); })();
+
+
+  /* ============ 31.10.2026: Acadex Medica yeni hastaları (Nurten Hanım: Odyoloji'den konsültasyon) ============ */
+  /* ------------------------------ Ahmet Bey · DASH ------------------------------ */
+  (function () { var v = vk('v-dash'); L.push({ id: 'dyt-v-dash', vaka: v.id, lab: 'diyet', oda: 'diyet', odaAd: 'Kardiyoloji diyet polikliniği', baslik: v.baslik,
+    hasta: hasta(v, { hitap: 'Ahmet Bey', kiyafet: '#4E7AA8' }), mentor: DYT, vital: { nabiz: 82, ta: '152/96', spo2: 98 },
+    adimlar: [
+      { tip: 'konus', kim: 'hasta', metin: 'Tansiyon ilacımı içiyorum ama yine 150’lerde. Doktor “tuzu kes” dedi; ben zaten tuzluğu sofradan kaldırdım.' },
+      sor([
+        ['besin', 'Sabah simit ve peynir, öğlen dışarıda döner ya da pide, akşam turşulu yemek. Hazır çorbayı da severim.', 3, 'Gizli tuz|Simit, peynir, turşu, hazır çorba, dışarıda yemek.'],
+        ['ilac', 'Tansiyon ilacı ve kolesterol için yeni bir hap.', 2, 'İlaç|Antihipertansif + statin.'],
+        ['aktivite', 'Masa başındayım, akşamları biraz yürürüm.', 2, 'Aktivite|Hafif aktif.'],
+        ['kilo', 'Beş yılda on kilo aldım.', 2, 'Ağırlık|5 yılda +10 kg.'],
+        ['sebze', 'Pek yemem; meyveyi de unutuyorum.', 3, 'Sebze-meyve|Çok az.', null, null, 'Günde kaç porsiyon sebze ve meyve yiyorsunuz?'],
+        ['aile', 'Babam da tansiyondan felç geçirdi.', 1]
+      ], 4, ['Tuzu kesmediğiniz için mi tansiyonunuz düşmüyor?', 'Ama ben tuzluğu kaldırdım…', 'Suçlamak yerine gizli tuz kaynaklarını birlikte bulmak davranışı değiştirir.']),
+      muayene(v, [{ id: 'bel', t: 'Bel çevresini ölç', anim: 'hasta', sonuc: 'Bel çevresi 108 cm.', deger: '108 cm', puan: 2 }, { id: 'ta', t: 'Kan basıncını ölç', anim: 'monitor', sonuc: 'TA 152/96 mmHg.', deger: '152/96', puan: 1 }]),
+      karar('Tuzluğu kaldırmasına rağmen tansiyonu neden düşmüyor olabilir, ilk öneri ne olmalı?',
+        ['Tuzun çoğu ekmek, peynir, turşu ve hazır gıdalardan gelir: DASH tipi beslenme, sodyum <2 g/gün (≈5 g tuz) ve kilo kaybı', 'Doğru. Gizli tuz kaynakları ve sebze-meyve-süt ürünlerinden zengin DASH, kan basıncını belirgin düşürür.'],
+        [['Potasyumu kısıtlamak', 'Böbrek işlevi normal; potasyumdan zengin besinler DASH’ın bir parçasıdır.'], ['Yalnızca ilaç dozunu artırmak, beslenme değişmez', 'Beslenme değişikliği ilacın etkisini artırır.']]),
+      devir('Reçeteyi yaz: enerji açığı, kısıtlamalar ve öneriler.')
+    ] }); })();
+
+  /* ------------------------------ Nurten Hanım · kemoterapi ------------------------------ */
+  (function () { var v = vk('v-onko'); L.push({ id: 'dyt-v-onko', vaka: v.id, lab: 'diyet', oda: 'diyet', odaAd: 'Onkoloji diyet polikliniği', baslik: v.baslik,
+    hasta: hasta(v, { hitap: 'Nurten Hanım', kiyafet: '#9E5B7A', ifade: 'uzgun' }), mentor: DYT, vital: { nabiz: 92, ta: '108/68', spo2: 97 },
+    adimlar: [
+      { tip: 'konus', kim: 'anlatici', metin: 'Odyoloji polikliniğinden konsültasyon: “Sisplatin alıyor, iştahı çok azalmış, kilo kaybı var.”' },
+      { tip: 'konus', kim: 'hasta', metin: 'Yemeklerin tadı metal gibi geliyor. Eti görünce midem bulanıyor. Bir de şekerin kanseri büyüttüğünü okudum.' },
+      sor([
+        ['kilo', 'Bir ay önce 58 kiloydum, şimdi 54.', 3, 'Ağırlık|1 ayda 58 → 54 kg (≈%7).'],
+        ['istah', 'Tabağımın yarısını ancak bitiriyorum.', 3, 'Alım|Gereksinimin ≈yarısı.'],
+        ['besin', 'Sabah biraz ekmek, öğlen yoğurt, akşam çorba. Et hiç yiyemiyorum.', 2, 'Beslenme|Protein düşük.'],
+        ['bulanti', 'Kürden sonraki üç gün çok kötü, sonra biraz düzeliyor.', 2, 'Bulantı|Kür sonrası 3 gün yoğun.', null, null, 'Bulantı ne zaman artıyor, ne zaman azalıyor?'],
+        ['aile', 'Annemde de şeker vardı.', 0]
+      ], 3, ['Kemoterapide kilo vermek normal, neden dert ediyorsunuz?', 'Bilmiyorum, normal sanıyordum…', 'Kilo kaybı “normal” sayılmaz; tedavinin başarısını ve dayanıklılığı etkiler.']),
+      muayene(v, [{ id: 'kas', t: 'El kavrama gücü ve kol çevresi', anim: 'hasta', sonuc: 'Kavrama gücü düşük; üst orta kol çevresi 23 cm.', puan: 2 }]),
+      karar('“Şeker kanseri besler, enerjiyi keselim mi?” sorusuna yanıtın ne olur?',
+        ['Hayır; kilo kaybını durdurmak öncelik: 25–30 kcal/kg, 1,0–1,5 g/kg protein, az ve sık öğün ve ONS', 'Doğru (ESPEN 2021). Enerji kısıtlaması kaşeksiyi hızlandırır; tat değişikliğine göre protein kaynağı (yumurta, süt ürünü, baklagil) seçilir.'],
+        [['Evet, şeker ve karbonhidrat tamamen kesilsin', 'Kanıta dayanmaz; enerji açığı kas kaybını hızlandırır.'], ['İştahı açılana kadar beklenir', 'Bekleme malnütrisyonu derinleştirir.']]),
+      devir('NRS-2002’yi puanla ve reçeteyi yaz: enerji, protein, ONS ve öğün düzeni.')
+    ] }); })();
+
+  /* ------------------------------ Gülay Hanım · osteoporoz ------------------------------ */
+  (function () { var v = vk('v-osteo'); L.push({ id: 'dyt-v-osteo', vaka: v.id, lab: 'diyet', oda: 'diyet', odaAd: 'Diyet polikliniği', baslik: v.baslik,
+    hasta: hasta(v, { hitap: 'Gülay Hanım', kiyafet: '#5E8F4A', gozluk: true }), mentor: DYT,
+    adimlar: [
+      { tip: 'konus', kim: 'hasta', metin: 'Kemik erimesi çıktı. Komşum “et yeme, kemiği eritir” dedi; sütü zaten şişkinlik yaptığı için bıraktım.' },
+      sor([
+        ['besin', 'Kahvaltıda zeytin ve çay, öğlen sebze yemeği, akşam çorba. Süt ve yoğurt yok.', 3, 'Kalsiyum|Süt ürünü yok.'],
+        ['gunes', 'Pek dışarı çıkmam; çıkınca da kapalıyım.', 3, 'D vitamini|Güneş teması az.', null, null, 'Güneşe ne kadar çıkıyorsunuz?'],
+        ['dusme', 'Geçen kış buzda düştüm; kırık yoktu.', 2, 'Düşme|Geçen kış düşme.', null, null, 'Son bir yılda düştünüz mü?'],
+        ['ilac', 'Doktor haftada bir içilen bir kemik ilacı başladı.', 2, 'İlaç|Osteoporoz tedavisi başlanmış.'],
+        ['aile', 'Annemin de kalçası kırılmıştı.', 1],
+        ['tv', 'Akşamları dizi izlerim.', 0, null, null, null, 'Akşamları neler yaparsınız?']
+      ], 4, ['Süt içmezseniz kemikleriniz nasıl iyileşsin?', 'Ama dokunuyor…', 'Laktoz yakınmasında seçenekleri birlikte bulmak, azarlamaktan etkilidir.']),
+      muayene(v),
+      karar('“Et yemek kemiği eritir mi, proteini kısalım mı?”',
+        ['Hayır; 1,0–1,2 g/kg protein, ≈1000–1200 mg/gün kalsiyum ve D vitamini kemiği ve kası korur', 'Doğru (IOF/ESCEO). Yoğurt, kefir, peynir ya da laktozsuz süt kalsiyum açığını kapatır.'],
+        [['Evet, protein kemikten kalsiyum çeker; kısalım', 'Yeterli protein kemik ve kas sağlığı için gereklidir.'], ['Kalsiyum tableti yeterli, beslenme değişmez', 'Öncelik besin kaynaklarıdır; D vitamini eksikliği de düzeltilmelidir.']]),
+      devir('Reçeteyi yaz: enerji, protein ve öneriler (kalsiyum, D vitamini).')
+    ] }); })();
+
+  /* ------------------------------ Kadir Bey · PEG ------------------------------ */
+  (function () { var c = ep('e-peg'); L.push({ id: 'dyt-e-peg', vaka: c.id, lab: 'diyet', oda: 'diyet', odaAd: 'Evde beslenme polikliniği', baslik: c.baslik,
+    hasta: { ad: c.ad, hitap: 'Kadir Bey', yas: c.yas, cins: c.cins, gorunum: 'yetiskin', konusamaz: true, kiyafet: '#6E5236', ifade: 'uzgun' }, refakat: { ad: 'Eşi Hülya Hanım', cins: 'K', gorunum: 'yetiskin', kiyafet: '#C8573A' }, mentor: DYT,
+    adimlar: [
+      { tip: 'konus', kim: 'anlatici', metin: 'Radyoterapi sürüyor. Kadir Bey’in yutması çok ağrılı; karnındaki PEG ile evde beslenecek.' },
+      { tip: 'konus', kim: 'refakat', metin: 'Doktor makineyle 20 saat vereceğiz dedi. Ne kadar, hangi mamayı vereceğimizi bilmiyoruz.' },
+      sor([
+        ['kilo', 'İki ay önce 66 kiloydu, şimdi 58. Boyu 1,72.', 3, 'Ağırlık|2 ayda 66 → 58 kg (≈%12).', null, 'refakat', 'Kilosu ne kadar değişti, boyu kaç?'],
+        ['ilac', 'Şekeri, böbreği yok. Ağrı kesici ve mide koruyucu kullanıyor.', 3, 'Öykü|Diyabet ve böbrek sorunu yok.', null, 'refakat', 'Şeker ya da böbrek hastalığı var mı?'],
+        ['bagirsak', 'İki gündür kabız.', 2, 'Bağırsak|Kabızlık.', null, 'refakat', 'Bağırsak alışkanlığı nasıl?'],
+        ['ev', 'Gece makinenin sesinden uyuyamıyoruz, 4 saat ara veriyoruz.', 1, null, null, 'refakat', 'Evde düzeniniz nasıl, ne zaman ara veriyorsunuz?'],
+        ['aile', 'Babası da sigara içerdi.', 0, null, null, 'refakat']
+      ], 3),
+      { tip: 'eylem', baslik: 'PEG ve hazırlık', yonerge: 'beslemeye başlamadan', secenek: [
+        { id: 'peg', t: 'PEG çevresini ve tüp işaretini kontrol et', anim: 'hasta', sonuc: 'Stoma temiz, kızarıklık yok; tüp işareti 3 cm’de.', puan: 3, geri: 'Her beslenmeden önce stoma ve tüp konumu kontrol edilir.' },
+        { id: 'yatak', t: 'Beslenme sırasında başın yüksek tutulmasını anlat', anim: 'mentor', sonuc: 'Eşi gece yatağın baş tarafını kaldıracak.', puan: 2 },
+        { id: 'yika', t: 'Tüpün su ile yıkanmasını göster', anim: 'mentor', sonuc: 'Her beslenme ve ilaçtan sonra 30 ml su ile yıkama gösterildi.', puan: 2 },
+        { id: 'ilac', t: 'Bütün ilaçları ezip mamaya karıştırmalarını söyle', anim: 'mentor', sonuc: 'Mamaya karışan ilaçlar tüpü tıkayabilir ve etkileşir.', puan: -3, geri: 'İlaçlar mamaya karıştırılmaz; ayrı verilip tüp yıkanır.' }
+      ] },
+      karar('Standart 1,0 kcal/ml ürünle hedef enerjiye ulaşınca protein yeterli olur mu?',
+        ['Hayır; ≈1600 ml standart ürün ≈64 g protein verir, hedef 70–87 g: yüksek proteinli ürün ya da protein modülü gerekir', 'Doğru. Radyoterapide kilo kaybını durdurmak için protein hedefin üst kısmına yakın tutulur.'],
+        [['Evet, enerji yeterliyse protein de yeterlidir', 'Enerji ve protein ayrı hedeflerdir.'], ['Protein kısıtlanmalı, böbreği yormasın', 'Böbrek işlevi normal; kısıtlama gerekmez.']]),
+      devir('Hedef enerji ve proteini hesapla, ürünü seç ve 20 saatlik pompa hızını belirle.', true)
     ] }); })();
 
   return L;

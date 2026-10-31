@@ -77,7 +77,7 @@ test('antropometri: kusursuz form 100; bel ölçüm noktası ve BKİ yanılgıs�
   const hakan = M.antroTruth(M.AH.find((h) => h.id === 'a-hakan')); assert.equal(hakan.bel, 'cok'); assert.equal(hakan.bkoS, 'var');
 });
 test('vaka masası: anahtarlar kılavuzlarla aynı; kusursuz reçete 100; yaygın yanılgılar yakalanır', () => {
-  assert.equal(M.VK.length, 11);
+  assert.equal(M.VK.length, 14);   /* 31.10.2026: Acadex Medica için v-dash, v-onko, v-osteo */
   const ideal = (v) => {
     const w = M.agirlik(v, v.ag[0]), abn = {}; v.lab.forEach((l, i) => { if (M.labDurum(l) !== 'N') abn[i] = true; });
     const kisit = {}; v.kisit.gerek.forEach((k) => { kisit[k] = true; }); const oneri = {}; v.oneri.gerek.forEach((k) => { oneri[k] = true; });

@@ -1,6 +1,6 @@
 /* ==========================================================================
    ACADEX KLİNİK · Odyoloji Lab senaryoları (labs/klinik/senaryo-odyoloji.js), 31.10.2026
-   Odyoloji Lab vaka masasındaki 9 vaka (odyo-model.js → CASES) için Acadex Medica sahnesi:
+   Odyoloji Lab vaka masasındaki 13 vaka (odyo-model.js → CASES) için Acadex Medica sahnesi:
    karşılama → anamnez → kulak muayenesi (otoskopi, diyapazon) → ölçüm planı kararı →
    vaka masasına devir (hedef 'vaka': test iste, kabinde ölç, tanı ve yönlendirme).
    Öykü ve otoskopi bulgusu vaka dosyasıyla AYNIDIR (tests/medica.js denetler).
@@ -265,6 +265,116 @@
           ['Otoskopiyle başla; hava ve kemik yolu odyometrisi (maskeleme ile), timpanometride kulak yolu hacmine dikkat; problar temiz ve hijyenik', true, 'Doğru. Perforasyonda timpanogram düz çıkar ama kulak yolu hacmi yüksektir; kemik yolu iç kulağın da etkilenip etkilenmediğini gösterir.'],
           ['Akıntılı kulakta hiçbir ölçüm yapılmaz', false, 'Hijyen kurallarına uyularak ölçüm yapılabilir; tedavi planı için kaybın tipi gerekir.'],
           ['Yalnızca sağ kulak ölçülür', false, 'Yakınma sol kulakta; iki kulak da ölçülmelidir.']
+        ]),
+        MASA('Vaka masasında testleri iste, timpanometriyi kabinde ölç; tanı ve yönlendirmeyi yaz.')
+      ] },
+
+    /* ============ 31.10.2026: Acadex Medica yeni hastaları (Kerem → DKT, Nurten Hanım → Diyet konsültasyonu) ============ */
+    /* ------------------------------ Konuşma gecikmesi olan çocuk ------------------------------ */
+    { id: 'ody-v-kerem', vaka: 'v-kerem', lab: 'odyoloji', oda: 'odyo', odaAd: 'Çocuk odyolojisi', baslik: '4 yaşında çocuk: "hâlâ cümle kurmuyor"',
+      hasta: { ad: 'Kerem', hitap: 'Kerem', yas: 4, cins: 'E', gorunum: 'cocuk', sac: '#2E241C', kiyafet: '#E0A526' }, refakat: { ad: 'Annesi Seda Hanım', cins: 'K', gorunum: 'yetiskin', kiyafet: '#6A4FA8', ifade: 'endise' }, mentor: ODY,
+      adimlar: [
+        { tip: 'konus', kim: 'refakat', metin: 'Kerem dört yaşında ama on, on beş kelime söylüyor. Arkadan seslenince bazen dönüyor, bazen hiç dönmüyor.' },
+        { tip: 'konus', kim: 'mentor', metin: 'Konuşma gecikmesinde ilk soru işitmedir. Doğumdan bugüne öyküyü topla; üç soru hakkın var.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'işitme kaybı risklerini aydınlatan soruları seç', secenek: [
+          S('tarama', 'Yenidoğan işitme taramasının sonucu neydi?', '“Tekrar edilsin” dediler, sonra pandemi oldu, gidemedik.', 3, 'Tarama|Yenidoğan taraması geçilemedi, kontrol yapılmamış.', 'refakat'),
+          S('gebelik', 'Gebelikte geçirdiğiniz bir hastalık oldu mu?', 'Üçüncü ayda ateşli bir hastalık geçirdim, ne olduğunu bilmiyoruz.', 3, 'Gebelik|1. trimesterde ateşli hastalık (konjenital enfeksiyon?).', 'refakat'),
+          S('tepki', 'Hangi seslere tepki veriyor, hangilerine vermiyor?', 'Kapı zili, köpek havlaması duyuyor gibi; fısıltıya hiç dönmüyor.', 2, 'Davranış|Yüksek seslere yanıt var, kısık sese yok.', 'refakat'),
+          S('kulak', 'Sık kulak iltihabı geçirdi mi?', 'Hayır, hiç kulak ağrısı olmadı.', 2, 'Orta kulak|Sık otit öyküsü yok.', 'refakat'),
+          S('kres', 'Kreşe gidiyor mu?', 'Henüz değil.', 0, null, 'refakat'),
+          YARGI('refakat', 'Kontrole neden götürmediniz?', 'Biz de çok pişmanız…', 'Geçmişi suçlamak yerine bugünden sonraki planı birlikte kurmak güven yaratır.')
+        ] },
+        { tip: 'eylem', baslik: 'Kulak muayenesi', yonerge: 'gerekenleri yap', secenek: [
+          E('oyun', 'Kerem’le oyun kurarak işbirliğini sağla', 'Kerem kulaklıktan gelen sesi duyunca kovaya top atmayı öğrendi.', 2, { geri: 'Bu yaşta oyun odyometrisi güvenilir eşik almayı sağlar.' }),
+          E('otoskopi', 'Otoskopla iki kulağa bak', 'Her iki dış kulak yolu açık, kulak zarları doğal; ışık refleksi seçiliyor.', 3),
+          E('fisilti', 'Arkasından fısıltıyla adını söyle', 'Kerem dönmüyor; normal sesle ikinci denemede dönüyor.', 2),
+          E('zorla', 'Kıpırdamasın diye kollarını tutup kulaklığı tak', 'Kerem ağlıyor ve kulaklığı fırlatıyor.', -2, { geri: 'Zorlamak işbirliğini bozar ve ölçümü güvenilmez kılar.' })
+        ] },
+        K('Kulak zarları doğal görünüyor. Bu çocukta ölçüm planı ne olmalı?', [
+          ['Yaşa uygun (oyun) saf ses odyometrisi, timpanometri ve OAE; gerekirse eşik ABR ile doğrulama', true, 'Doğru. Normal zar orta kulak sorununu dışlamaz ama azaltır; timpanometri orta kulağı, OAE kokleayı, odyometri kaybın derecesini gösterir.'],
+          ['Zar normal olduğuna göre işitme normaldir; doğrudan konuşma terapisine yönlendir', false, 'Normal kulak zarı iç kulak kaybını dışlamaz. Konuşma gecikmesinde önce işitme ölçülür.'],
+          ['Yalnızca bir yıl sonra kontrol', false, 'Dil gelişiminin kritik döneminde bekleme kayıp yaratır.']
+        ]),
+        MASA('Vaka masasında testleri iste; timpanometriyi kabinde ölç, sonra tanı ve yönlendirmeyi yaz. Gerekirse DKT katına konsültasyon iste.')
+      ] },
+
+    /* ------------------------------ Tıkanan kulak ------------------------------ */
+    { id: 'ody-v-buson', vaka: 'v-buson', lab: 'odyoloji', oda: 'odyo', odaAd: 'Odyoloji polikliniği', baslik: '66 yaşında erkek: duştan sonra sağ kulak tıkandı',
+      hasta: { ad: 'Recep Bey', hitap: 'Recep Bey', yas: 66, cins: 'E', gorunum: 'yasli', kiyafet: '#5E8F4A' }, mentor: ODY,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Dün duştan çıktım, sağ kulağım birden tıkandı. Kendi sesim kafamın içinde yankılanıyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'acil durumu ayırt eden soruları seç', secenek: [
+          S('cubuk', 'Kulaklarınızı nasıl temizliyorsunuz?', 'Her gün pamuklu çubukla, iyice içine kadar.', 3, 'Alışkanlık|Her gün pamuklu çubuk.'),
+          S('ani', 'Tıkanmayla birlikte çınlama ya da baş dönmesi oldu mu?', 'Hayır, sadece tıkalı gibi.', 3, 'Eşlik eden|Çınlama ve baş dönmesi yok.'),
+          S('agri', 'Ağrı, akıntı ya da ateş var mı?', 'Yok.', 2, 'Enfeksiyon|Ağrı, akıntı, ateş yok.'),
+          S('sol', 'Sol kulağınızda sorun var mı?', 'Yok, solla iyi duyuyorum.', 1),
+          S('torun', 'Kaç torununuz var?', 'Beş.', 0),
+          YARGI('hasta', 'Pamuklu çubuk kullanılmaz, bunu herkes bilir!', 'Bilmiyordum…', 'Azarlamak yerine nedenini açıklamak davranışı değiştirir.')
+        ] },
+        { tip: 'eylem', baslik: 'Kulak muayenesi', yonerge: 'gerekenleri yap', secenek: [
+          E('otoskopi', 'Otoskopla iki kulağa bak', 'Sağ dış kulak yolu sertleşmiş kulak kiriyle (buşon) tamamen tıkalı; kulak zarı görülemiyor. Sol kulak doğal.', 3),
+          E('diyapazon', 'Diyapazonla Rinne ve Weber yap', 'Weber sağa (tıkalı kulağa) lateralize; sağda Rinne negatif, solda pozitif.', 2),
+          E('prob', 'Timpanometri probunu sağ kulağa yerleştirmeyi dene', 'Prob kulak yolunu kapatamıyor; cihaz hacmi çok düşük gösteriyor.', 1),
+          E('kurdan', 'Kulak kirini kendin kürdanla çıkarmayı dene', 'Recep Bey irkiliyor; kulak yolu kanamaya başlıyor.', -3, { ifade: 'agri', geri: 'Tıkacı temizlemek uygun alet ve deneyim ister; odyolog yönlendirir.' })
+        ] },
+        K('Kulak yolu tamamen tıkalı. Ölçümü nasıl planlarsın?', [
+          ['Otoskopi bulgusunu kaydet, iki kulağın hava-kemik yolunu ve timpanometriyi ölç; kulak yolu açıldıktan sonra kontrol ölçümü planla', true, 'Doğru. Şimdiki ölçüm tıkacın etkisini gösterir; kalıcı bir kayıp olup olmadığını temizlik sonrası odyogram söyler.'],
+          ['Hemen işitme cihazı kalıbı al', false, 'Tıkalı kulak yolundan kalıp alınmaz; önce neden ortadan kaldırılır.'],
+          ['Ölçüme gerek yok, eve gönder', false, 'Kaybın tipi kayıt altına alınmalı ve kulak yolu açıldıktan sonra karşılaştırılmalıdır.']
+        ]),
+        MASA('Vaka masasında testleri iste, timpanometriyi kabinde ölç; tanı ve yönlendirmeyi yaz.')
+      ] },
+
+    /* ------------------------------ Ototoksisite izlemi ------------------------------ */
+    { id: 'ody-v-ototoks', vaka: 'v-ototoks', lab: 'odyoloji', oda: 'odyo', odaAd: 'Onkoloji işitme izlemi', baslik: '56 yaşında kadın: kemoterapi sırasında işitme izlemi',
+      hasta: { ad: 'Nurten Hanım', hitap: 'Nurten Hanım', yas: 56, cins: 'K', gorunum: 'yetiskin', kiyafet: '#9E5B7A', ifade: 'uzgun' }, mentor: ODY,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Kemoterapinin üçüncü kürünü aldım. Kulaklarımda tiz bir çınlama başladı, kalabalıkta konuşulanları kaçırıyorum.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'izlem için gereken bilgileri topla', secenek: [
+          S('ilac', 'Hangi kemoterapi ilacını alıyorsunuz?', 'Sisplatin dediler; üç haftada bir.', 3, 'İlaç|Sisplatin, 3 haftada bir, 3. kür.'),
+          S('once', 'Tedaviden önce işitme testi yapılmış mıydı?', 'Evet, başlamadan önce yaptılar, normalmiş.', 3, 'Bazal|Tedavi öncesi odyogram normal.'),
+          S('cinlama', 'Çınlama ne zaman başladı, tek mi iki kulakta mı?', 'İkinci kürden sonra, iki kulakta.', 2, 'Belirti|2. kürden sonra iki taraflı çınlama.'),
+          S('istah', 'Genel olarak nasılsınız, yemek yiyebiliyor musunuz?', 'İştahım hiç yok, bir ayda dört kilo verdim.', 2, 'Genel|İştahsızlık, 1 ayda 4 kg kayıp.', null, 'İyi soru: işitme dışı bir sorun yakaladın; ekip içi konsültasyon (diyetisyen) gerekebilir.'),
+          S('cocuk', 'Çocuklarınız ne iş yapıyor?', 'Biri öğretmen, biri mühendis.', 0),
+          YARGI('hasta', 'Bu ilaçları almasanız daha iyi olmaz mı?', 'Ama doktorum gerekli dedi…', 'Tedavi kararı onkoloji ekibinindir; odyolog bulguyu paylaşır, ilacı sorgulatmaz.')
+        ] },
+        { tip: 'eylem', baslik: 'Kulak muayenesi', yonerge: 'gerekenleri yap', secenek: [
+          E('otoskopi', 'Otoskopla iki kulağa bak', 'Her iki dış kulak yolu ve kulak zarı doğal.', 3),
+          E('dosya', 'Tedavi öncesi odyogramı dosyadan aç', 'Bazal odyogram iki kulakta 8 kHz’e kadar 20 dB ve daha iyi.', 3),
+          E('diyapazon', 'Diyapazonla Rinne ve Weber yap', 'Rinne iki kulakta pozitif, Weber ortada.', 1),
+          E('yuksek', 'Konuşmanı anlasın diye bağırarak konuş', 'Nurten Hanım irkiliyor, kulaklarını kapatıyor.', -2, { ifade: 'endise', geri: 'Bağırmak yüksek frekans kaybında anlaşılırlığı artırmaz; yüzünü görerek, net ve yavaş konuş.' })
+        ] },
+        K('İzlem planı ne olmalı?', [
+          ['Saf ses odyometrisini 8 kHz’e kadar ölç, OAE ile bazal kayıtla karşılaştır; bulguyu onkoloji ekibiyle paylaş', true, 'Doğru. Bu tablo yüksek frekanslardan başladığı için izlemde yüksek frekanslar ve OAE duyarlıdır; karşılaştırma bazal kayıtla yapılır.'],
+          ['Yalnızca 500–2000 Hz ölç, ortalama normalse sorun yok', false, 'Konuşma frekanslarının ortalaması ilk değişiklikleri gizleyebilir.'],
+          ['Hastaya ilacı bırakmasını öner', false, 'İlaç kararı onkoloji ekibinindir.']
+        ]),
+        MASA('Vaka masasında testleri iste; timpanometriyi kabinde ölç, sonra tanı ve yönlendirmeyi yaz. Kilo kaybı için Diyet katına konsültasyon gerekebilir.')
+      ] },
+
+    /* ------------------------------ Travmatik perforasyon ------------------------------ */
+    { id: 'ody-v-perfor', vaka: 'v-perfor', lab: 'odyoloji', oda: 'odyo', odaAd: 'Odyoloji polikliniği', baslik: '27 yaşında kadın: kulak temizlerken keskin ağrı',
+      hasta: { ad: 'Burcu Hanım', hitap: 'Burcu Hanım', yas: 27, cins: 'K', gorunum: 'genc', kiyafet: '#2F6BFF', ifade: 'agri' }, mentor: ODY,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Dün kulağımı pamuklu çubukla temizlerken kolum çarpıldı. Keskin bir ağrı, birkaç damla kan… şimdi sol kulağım tıkalı.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'iç kulak yaralanmasını ayırt eden soruları seç', secenek: [
+          S('donme', 'Baş dönmesi, bulantı ya da kusma oldu mu?', 'Hayır, hiç olmadı.', 3, 'Vestibüler|Baş dönmesi, bulantı yok.'),
+          S('cinlama', 'Çınlama ya da sesleri bozuk duyma var mı?', 'Hafif uğultu var, o kadar.', 3, 'İşitsel|Hafif uğultu.'),
+          S('yuz', 'Yüzünüzde güçsüzlük, gözünüzü kapatmada zorluk var mı?', 'Hayır.', 2, 'Fasiyal|Yüz siniri işlevi normal.'),
+          S('su', 'Kulağınıza su kaçtı mı?', 'Duş alırken biraz girmiş olabilir.', 2, 'Enfeksiyon riski|Kulağa su teması.'),
+          S('is', 'Ne iş yapıyorsunuz?', 'Muhasebeci.', 0),
+          YARGI('hasta', 'Bu kadar dikkatsiz olmasaydınız…', 'Kaza oldu işte…', 'Yaralanmadan sonra yargı değil, güvence ve doğru bilgi gerekir.')
+        ] },
+        { tip: 'eylem', baslik: 'Kulak muayenesi', yonerge: 'gerekenleri yap', secenek: [
+          E('otoskopi', 'Otoskopla iki kulağa bak', 'Sol kulak zarının arka-alt kadranında küçük, kenarları düzensiz taze perforasyon; kurumuş kan izi var. Sağ kulak doğal.', 3),
+          E('diyapazon', 'Diyapazonla Rinne ve Weber yap', 'Weber sola (yaralı kulağa) lateralize; solda Rinne negatif, sağda pozitif.', 3),
+          E('nistagmus', 'Spontan nistagmusa bak', 'Nistagmus yok.', 1),
+          E('yika', 'Kanı temizlemek için kulağı suyla yıka', 'Burcu Hanım baş dönmesinden yakınıyor; perforasyondan orta kulağa su kaçtı.', -3, { ifade: 'agri', geri: 'Perforasyonda kulak yıkanmaz; kulak kuru tutulur.' })
+        ] },
+        K('Ölçüm planı ne olmalı?', [
+          ['Hava ve kemik yolu odyometrisi (kemik yolunun korunup korunmadığı kritik) ve timpanometri; kulağı kuru tutma önerisi', true, 'Doğru. Kemik yolu normal ve Weber yaralı kulağa gidiyorsa kayıp orta kulak düzeyindedir; kemik yolunda kayıp iç kulak yaralanmasını düşündürür ve acildir.'],
+          ['Yalnızca hava yolu ölçümü yeterli', false, 'Kemik yolu ölçülmeden iç kulak yaralanması dışlanamaz.'],
+          ['Hiç ölçmeden kendiliğinden geçer de', false, 'Kaybın tipi ve iç kulak durumu kayıt altına alınmalıdır.']
         ]),
         MASA('Vaka masasında testleri iste, timpanometriyi kabinde ölç; tanı ve yönlendirmeyi yaz.')
       ] }

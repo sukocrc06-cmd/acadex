@@ -35,10 +35,12 @@
     gorulen: ls.get('gorulen', {}),               /* senaryo kimliği → {sahne, lab, t} */
     nobet: ls.get('nobet', null),                 /* süren nöbet */
     defter: ls.get('defter', []),                 /* biten nöbetler */
+    sevk: ls.get('sevk', {}),                     /* konsültasyon: zincir → {acik: açılan son halka, sec: {i: seçilen kat}} */
+    olay: null,                                   /* açık olay penceresi: 'triyaj' | 'kod' | 'sevk' (Acadia bağlamı için) */
     aktif: null,                                  /* odadaki / lab'daki hasta: {sen, sahne, lab} */
     lab: null                                     /* iç çerçevede açık lab */
   };
-  var kaydet = function () { ls.set('gorulen', S.gorulen); ls.set('nobet', S.nobet); ls.set('defter', S.defter.slice(-40)); };
+  var kaydet = function () { ls.set('gorulen', S.gorulen); ls.set('nobet', S.nobet); ls.set('defter', S.defter.slice(-40)); ls.set('sevk', S.sevk); };
   var hastalar = function (kat) { return V.katHastalari(kat, K.SEN); };
 
   /* ---------------- ses: asansör "ding" ve sıra çağrısı (kullanıcı dokunuşundan sonra) ---------------- */
@@ -105,20 +107,58 @@
   };
   var defs = function () { return '<defs><linearGradient id="celik" x1="0" x2="1"><stop offset="0" stop-color="#C9D1DC"/><stop offset=".5" stop-color="#E8EDF3"/><stop offset="1" stop-color="#BCC6D2"/></linearGradient><linearGradient id="duvar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F3F7F9"/><stop offset="1" stop-color="#E3EBF0"/></linearGradient><linearGradient id="cam" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#CFE8F7"/><stop offset="1" stop-color="#A9D2EC"/></linearGradient></defs>'; };
 
+  /* ---------- canlı hastane: gökyüzü (vakit), yürüyen personel, sedye ---------- */
+  var vakitDk = function () { if (S.nobet) return S.nobet.saat; var d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  var gokDefs = function () { return '<defs><linearGradient id="gokG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--gok1)"/><stop offset="1" style="stop-color:var(--gok2)"/></linearGradient></defs>'; };
+  /* pencere ya da cam kapı ardındaki gökyüzü: güneş/ay, yıldız, bulut, şehir silueti */
+  var gok = function (x, y, w, h) {
+    var s = '<g class="gok-k"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="url(#gokG)"/>';
+    s += '<g class="yildiz" fill="#FFF7D6">' + [[.12, .18], [.3, .08], [.52, .22], [.7, .1], [.86, .3], [.42, .36], [.2, .42]].map(function (p, i) { return '<circle cx="' + (x + p[0] * w).toFixed(1) + '" cy="' + (y + p[1] * h).toFixed(1) + '" r="' + (i % 3 ? 1.4 : 2) + '" style="animation-delay:-' + (i * 0.7) + 's"/>'; }).join('') + '</g>';
+    s += '<circle class="gunes" cx="' + (x + w * 0.76) + '" cy="' + (y + h * 0.3) + '" r="' + Math.min(w, h) * 0.12 + '" fill="#FFE07A"/>';
+    s += '<g class="ay"><circle cx="' + (x + w * 0.72) + '" cy="' + (y + h * 0.26) + '" r="' + Math.min(w, h) * 0.1 + '" fill="#F3EFE0"/><circle cx="' + (x + w * 0.72 + Math.min(w, h) * 0.05) + '" cy="' + (y + h * 0.23) + '" r="' + Math.min(w, h) * 0.09 + '" fill="var(--gok1)"/></g>';
+    s += '<g class="bulut" fill="#FFFFFF" opacity=".85"><ellipse cx="' + (x + w * 0.25) + '" cy="' + (y + h * 0.3) + '" rx="' + w * 0.12 + '" ry="' + h * 0.06 + '"/><ellipse cx="' + (x + w * 0.33) + '" cy="' + (y + h * 0.26) + '" rx="' + w * 0.08 + '" ry="' + h * 0.07 + '"/></g>';
+    var b = y + h, sil = 'M' + x + ' ' + b; [[0, .3], [.12, .3], [.12, .18], [.24, .18], [.24, .38], [.36, .38], [.36, .12], [.46, .12], [.46, .28], [.6, .28], [.6, .2], [.74, .2], [.74, .34], [.86, .34], [.86, .16], [1, .16]].forEach(function (p) { sil += ' L' + (x + p[0] * w).toFixed(1) + ' ' + (b - p[1] * h).toFixed(1); });
+    s += '<path class="sehir" d="' + sil + ' L' + (x + w) + ' ' + b + 'Z"/>';
+    s += '<g class="pencereler" fill="#FFE7A0">' + [[.05, .2], [.16, .1], [.28, .26], [.4, .06], [.5, .18], [.64, .12], [.78, .24], [.9, .08]].map(function (p) { return '<rect x="' + (x + p[0] * w).toFixed(1) + '" y="' + (b - p[1] * h - 4).toFixed(1) + '" width="4" height="4"/>'; }).join('') + '</g></g>';
+    return s;
+  };
+  /* koridorda yürüyen personel: hemşire (mavi forma), doktor (önlük), sedye iten hasta bakıcı */
+  var yuruyen = function (o) {
+    var k = K.kisi({ x: 0, y: 0, cins: o.cins, ten: o.ten, sac: o.sac, kiyafet: o.kiyafet, rol: o.rol, ic: o.ic, flip: o.flip, gorunum: 'yetiskin' });
+    return '<g class="yuru ' + o.cls + '" aria-hidden="true"><g transform="translate(0 ' + o.y + ') scale(' + o.sc + ')"><g class="adim">' + k + '</g></g></g>';
+  };
+  var sedye = function (o) {
+    var h = K.yatan({ x: 0, y: 0, ifade: 'normal', ortu: '#9CC6E8', sac: '#5A3A22' });
+    return '<g class="yuru ' + o.cls + '" aria-hidden="true"><g transform="translate(0 ' + o.y + ') scale(' + o.sc + ')"><g class="adim">' +
+      K.kisi({ x: -60, y: 0, cins: 'E', kiyafet: '#3E8E7E', sac: '#2E241C' }) +
+      '<g transform="translate(0 -60)"><rect x="-20" y="0" width="480" height="18" rx="6" fill="#F1F4FA" stroke="#C7CFDD" stroke-width="3"/><rect x="-26" y="-40" width="10" height="70" rx="4" fill="#9AA6BC"/><path d="M40 18 L60 58 M400 18 L380 58" stroke="#9AA6BC" stroke-width="6"/><circle cx="60" cy="62" r="7" fill="#38425C"/><circle cx="380" cy="62" r="7" fill="#38425C"/>' +
+      '<g transform="translate(40 2)">' + h + '</g></g><rect x="-42" y="-160" width="24" height="10" rx="4" fill="#9AA6BC"/></g></g></g>';
+  };
+  var canliLobi = function () {
+    return yuruyen({ cls: 'y-hem', y: 442, sc: 0.6, cins: 'K', kiyafet: '#5E9BD8', sac: '#5A3A22' }) +
+      yuruyen({ cls: 'y-dr ters', y: 442, sc: 0.6, cins: 'E', rol: 'mentor', ic: '#7FA6E0', flip: true, sac: '#2E241C', ten: '#D49A6A' });
+  };
+  var canliKat = function (kat, servis) {
+    return yuruyen({ cls: 'y-hem', y: 436, sc: 0.58, cins: 'K', kiyafet: kat.renk, sac: '#2E241C', ten: '#E8B48A' }) +
+      yuruyen({ cls: 'y-dr ters', y: 436, sc: 0.58, cins: 'E', rol: 'mentor', ic: '#7FA6E0', flip: true, sac: '#5A3A22' }) +
+      (servis ? sedye({ cls: 'y-sedye', y: 552, sc: 0.42 }) : '');
+  };
+
   /* ---------- giriş (lobi) ---------- */
   var lobiSVG = function () {
-    var s = '<svg class="sahne" viewBox="0 0 1000 560" role="img" aria-label="Acadex Medica giriş holü: danışma, kat yönlendirme panosu, asansör ve rehber cerrah">' + defs();
+    var s = '<svg class="sahne" data-vakit="' + V.vakit(vakitDk()) + '" viewBox="0 0 1000 560" role="img" aria-label="Acadex Medica giriş holü: danışma, kat yönlendirme panosu, asansör ve rehber cerrah">' + defs() + gokDefs();
     s += '<rect width="1000" height="430" fill="url(#duvar)"/>' + tavan() + zemin();
     /* yön bulma şeritleri: girişten asansöre giden renkli çizgiler */
     s += '<g class="serit" fill="none" stroke-linecap="round">' + V.KAT.map(function (k, i) { var d = 'M150 ' + (548 - i * 9) + ' C 420 ' + (548 - i * 9) + ', 700 ' + (500 - i * 7) + ', 900 ' + (440 + i * 2); return '<path d="' + d + '" stroke="' + k.renk + '" stroke-width="6" opacity=".75"/><path class="nabiz" style="animation-delay:-' + (i * 0.5) + 's" d="' + d + '" stroke="#fff" stroke-width="4" pathLength="100"/>'; }).join('') + '</g>';
     /* giriş: otomatik cam kapı */
-    s += '<g><rect x="34" y="118" width="232" height="312" rx="4" fill="#8D98A8"/><rect x="44" y="128" width="212" height="302" fill="url(#cam)"/>' +
+    s += '<g><rect x="34" y="118" width="232" height="312" rx="4" fill="#8D98A8"/>' + gok(44, 128, 212, 302) + '<rect x="44" y="128" width="212" height="302" fill="url(#cam)" opacity=".28"/>' +
       '<g class="kapi1"><rect x="44" y="128" width="106" height="302" fill="#DDEFFA" opacity=".85" stroke="#9FB6C8" stroke-width="3"/><path d="M60 150 L110 230" stroke="#fff" stroke-width="5" opacity=".6"/></g>' +
       '<g class="kapi2"><rect x="150" y="128" width="106" height="302" fill="#DDEFFA" opacity=".85" stroke="#9FB6C8" stroke-width="3"/><path d="M166 150 L216 230" stroke="#fff" stroke-width="5" opacity=".6"/></g>' +
       '<rect x="34" y="96" width="232" height="26" rx="4" fill="#0D1838"/><text x="150" y="114" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#9FE1CB" letter-spacing="3">GİRİŞ · ACİL</text></g>';
     /* tabela */
     s += '<g transform="translate(330 46)"><rect width="300" height="74" rx="12" fill="#0D1838"/><g transform="translate(40 37)"><rect x="-18" y="-6" width="36" height="12" rx="3" fill="#E5544A"/><rect x="-6" y="-18" width="12" height="36" rx="3" fill="#E5544A"/></g>' +
       '<text x="74" y="34" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="28" font-weight="800" fill="#fff">Acadex Medica</text><text x="76" y="56" font-family="JetBrains Mono,monospace" font-size="11" fill="#9FE1CB" letter-spacing="2">EĞİTİM HASTANESİ</text></g>';
+    s += canliLobi();
     /* danışma bankosu */
     s += '<g><rect x="320" y="318" width="320" height="112" rx="10" fill="#FFFFFF" stroke="#C7CFDD" stroke-width="3"/><rect x="320" y="318" width="320" height="18" rx="8" fill="#2E9C86"/>' +
       '<text x="388" y="392" text-anchor="middle" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="20" font-weight="800" fill="#0D1838">Danışma</text>' +
@@ -129,6 +169,7 @@
     s += asansorKapi(846, 176, 'G');
     s += bitki(296, 430, .9) + bitki(990, 430, .8);
     s += cerrah({ x: 520, y: 520, sc: 1.05, cls: 'gelis' });
+    s += '<rect class="vakit-ton" width="1000" height="560" pointer-events="none"/>';
     return s + '</svg>';
   };
 
@@ -137,7 +178,7 @@
   var katSVG = function (kat) {
     var L = hastalar(kat), otur = L.filter(function (s) { return !V.yatan(s); }), yat = L.filter(V.yatan);
     var sirada = siradaki(kat);
-    var s = '<svg class="sahne" viewBox="0 0 1000 560" role="group" aria-label="' + X(kat.no + '. kat bekleme salonu: ' + kat.ad) + '">' + defs();
+    var s = '<svg class="sahne" data-vakit="' + V.vakit(vakitDk()) + '" viewBox="0 0 1000 560" role="group" aria-label="' + X(kat.no + '. kat bekleme salonu: ' + kat.ad) + '">' + defs() + gokDefs();
     s += '<rect width="1000" height="430" fill="url(#duvar)"/><rect y="300" width="1000" height="130" fill="' + kat.acik + '"/><rect y="292" width="1000" height="10" fill="' + kat.renk + '"/>' + tavan() + zemin();
     s += '<path d="M0 520 H1000" stroke="' + kat.renk + '" stroke-width="8" opacity=".7"/>';
     /* kat tabelası */
@@ -148,6 +189,8 @@
       '<text class="pano-no" x="18" y="72" font-family="JetBrains Mono,monospace" font-size="38" font-weight="700" fill="#FFB547">' + (sirada ? V.sira(kat, L.indexOf(sirada)) : '—') + '</text>' +
       '<text x="150" y="58" font-family="JetBrains Mono,monospace" font-size="15" fill="#7FE0C2">→ ODA ' + ((sirada ? L.indexOf(sirada) % 3 : 0) + 1) + '</text><text x="150" y="80" font-family="JetBrains Mono,monospace" font-size="11" fill="#9AA6BC">' + L.length + ' hasta</text>' +
       '<circle class="pano-led" cx="250" cy="22" r="5" fill="#7FE0C2"/></g>';
+    /* pencere: dışarısı saate göre (sabah, gündüz, akşam, gece) */
+    s += '<g><rect x="404" y="150" width="252" height="118" rx="6" fill="#FFFFFF"/>' + gok(412, 158, 236, 102) + '<path d="M530 158 v102 M412 209 h236" stroke="#FFFFFF" stroke-width="6"/><rect x="404" y="150" width="252" height="118" rx="6" fill="none" stroke="#C7CFDD" stroke-width="3"/><rect x="396" y="266" width="268" height="10" rx="4" fill="#DCE2EA"/></g>';
     /* oda kapıları */
     [0, 1, 2].forEach(function (i) {
       var x = 700 + i * 98;
@@ -157,22 +200,29 @@
     });
     /* servis kapısı: yatan hastalar */
     if (yat.length) s += '<g class="servis" data-servis tabindex="0" role="button" aria-label="Servis: ' + yat.length + ' yatan hasta"><rect x="40" y="138" width="190" height="56" rx="10" fill="#FFFFFF" stroke="' + kat.renk + '" stroke-width="3"/><path d="M56 178 h34 v-10 h18 a9 9 0 0 1 9 9 v12 M56 166 v24 M117 178 v12" stroke="#0D1838" stroke-width="3.6" fill="none" stroke-linecap="round"/><circle cx="68" cy="170" r="5.5" fill="#0D1838"/><text x="128" y="162" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="' + kat.renk + '">SERVİS →</text><text x="128" y="182" font-family="Instrument Sans,sans-serif" font-size="13" font-weight="700" fill="#0D1838">' + yat.length + ' yatan hasta</text></g>';
+    /* koridorda yürüyen personel (bankın arkasından geçer) */
+    s += canliKat(kat, false);
     /* banklar ve oturan hastalar */
     var gor = otur.slice(0, KOLTUK.length);
     s += '<g><rect x="40" y="378" width="640" height="16" rx="6" fill="#4E5E86"/><rect x="40" y="282" width="640" height="90" rx="12" fill="#5D6E98"/>' + KOLTUK.map(function (x) { return '<rect x="' + (x - 6) + '" y="394" width="10" height="40" fill="#3B4A6E"/>'; }).join('') + '</g>';
+    var nb = S.nobet && S.nobet.kat === kat.id && S.nobet.triyaj ? S.nobet.hastalar.map(function (x) { return x.id; }) : [];
     gor.forEach(function (sen, i) {
       var x = KOLTUK[i], no = V.sira(kat, L.indexOf(sen)), g = S.gorulen[sen.id], h = Object.assign({}, sen.hasta, { poz: 'otur', x: x, y: 500 });
+      var trR = nb.indexOf(sen.id) >= 0 ? V.TRIYAJ_RENK[V.triyaj(sen).renk].renk : null, zr = V.zincir(sen.id), svk = zr && zr.i > 0 && sevkAcik(sen.id) && !g;
       var ad = sen.hasta.hitap || sen.hasta.ad;
       s += '<g class="hb' + (g ? ' gor' : '') + (sirada === sen ? ' sirada' : '') + '" data-sen="' + sen.id + '" tabindex="0" role="button" aria-label="' + X('Sıra ' + no + ': ' + ad + ', ' + sen.baslik + (g ? ', görüldü' : '') + '. Odaya çağır') + '">' +
         '<g class="hb-k"><g transform="translate(' + x + ' 500) scale(.8) translate(' + (-x) + ' -500)">' + K.kisi(h) + '</g></g>' +
-        '<g transform="translate(' + (x + 6) + ' ' + (sen.hasta.gorunum === 'cocuk' ? 288 : 212) + ')"><rect x="-26" y="-16" width="52" height="24" rx="6" fill="' + (g ? '#2E8E5B' : '#FFFFFF') + '" stroke="' + kat.renk + '" stroke-width="2.5"/><text x="0" y="1" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="' + (g ? '#fff' : '#0D1838') + '">' + (g ? '✓ ' : '') + no + '</text></g></g>';
+        '<g transform="translate(' + (x + 6) + ' ' + (sen.hasta.gorunum === 'cocuk' ? 288 : 212) + ')"><rect x="-26" y="-16" width="52" height="24" rx="6" fill="' + (g ? '#2E8E5B' : '#FFFFFF') + '" stroke="' + kat.renk + '" stroke-width="2.5"/><text x="0" y="1" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="' + (g ? '#fff' : '#0D1838') + '">' + (g ? '✓ ' : '') + no + '</text>' +
+        (trR ? '<circle cx="-26" cy="-16" r="7" fill="' + trR + '" stroke="#fff" stroke-width="2"/>' : '') + (svk ? '<g class="svk"><rect x="-24" y="-40" width="48" height="18" rx="9" fill="#0D1838"/><text x="0" y="-27" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="700" fill="#FFB547">SEVK</text></g>' : '') + '</g></g>';
     });
     if (otur.length > gor.length) s += '<g transform="translate(360 548)"><text text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" fill="#46506A">+' + (otur.length - gor.length) + ' hasta daha listede</text></g>';
     /* katın sorumlusu kapının yanında */
     s += '<g data-who="kat-mentor">' + K.kisi({ x: 958, y: 520, rol: 'mentor', cins: kat.mcins || 'K', ic: kat.renk, flip: true }) + '</g>';
+    if (yat.length) s += sedye({ cls: 'y-sedye', y: 556, sc: 0.42 });
+    s += '<rect class="vakit-ton" width="1000" height="560" pointer-events="none"/>';
     return s + '</svg>';
   };
-  var siradaki = function (kat) { var L = hastalar(kat); return L.filter(function (s) { return !S.gorulen[s.id]; })[0] || L[0] || null; };
+  var siradaki = function (kat) { var L = hastalar(kat), sv = sevkBekleyen(kat); return sv[0] || L.filter(function (s) { return !S.gorulen[s.id]; })[0] || L[0] || null; };
 
   /* =========================== konuşma paneli =========================== */
   var yaz = null;
@@ -196,6 +246,7 @@
     var nb = $('#md-nob');
     if (n) { var o = V.nobetOzet(n), kk = V.katBul(n.kat); nb.hidden = false; nb.innerHTML = '<span class="nb-dot"></span>Nöbet · ' + X(kk.ad) + ' · ' + o.gorulen + '/' + o.toplam + ' · ' + V.saat(n.saat); }
     else nb.hidden = true;
+    saatCiz();
     bridge();
   };
 
@@ -256,7 +307,7 @@
     nobetKutu(kat);
     var panel = $('[data-panel]', m), kmAd = kat.mentor;
     if (S.nobet && S.nobet.kat === kat.id) nobetSiradaki(panel);
-    else konus(panel, 'mentor', kmAd, kat.kars + (gor === L.length ? ' Bu kattaki bütün hastaları gördün; istersen nöbet tutabilir ya da yeniden görüşebilirsin.' : ' ' + (L.length - gor) + ' hasta seni bekliyor.'), function (row) {
+    else konus(panel, 'mentor', kmAd, (sevkBekleyen(kat).length ? 'Konsültasyon var: ' + sevkBekleyen(kat).map(function (s) { return s.hasta.hitap || s.hasta.ad; }).join(', ') + ' başka kattan sevkle geldi. ' : '') + kat.kars + (gor === L.length ? ' Bu kattaki bütün hastaları gördün; istersen nöbet tutabilir ya da yeniden görüşebilirsin.' : ' ' + (L.length - gor) + ' hasta seni bekliyor.'), function (row) {
       var sr = siradaki(kat);
       if (sr) odak(dugme(row, 'Sıradakini çağır · ' + V.sira(kat, L.indexOf(sr)), 'pri', function () { cagir(sr); }));
       if (!S.nobet) dugme(row, 'Nöbete başla', '', function () { nobetBasla(kat); });
@@ -264,7 +315,9 @@
   };
   var hastaKart = function (kat, L, s) {
     var g = S.gorulen[s.id], p = V.hastaPuan(g), no = V.sira(kat, L.indexOf(s)), h = s.hasta;
-    return '<li><button type="button" class="hk' + (g ? ' gor' : '') + '" data-sen="' + s.id + '"><span class="no">' + no + '</span><span class="tx"><b>' + X(h.hitap || h.ad) + (h.yas != null ? ' <small>' + X(typeof h.yas === 'number' ? h.yas + ' yaş' : h.yas) + '</small>' : '') + '</b><span>' + X(s.baslik) + '</span><small>' + X(s.odaAd) + '</small></span>' +
+    var n = S.nobet, nb = n && n.kat === kat.id && n.triyaj && n.hastalar.some(function (x) { return x.id === s.id; }), tr = nb ? V.TRIYAJ_RENK[V.triyaj(s).renk] : null;
+    var zr = V.zincir(s.id), sv = zr && zr.i > 0 && sevkAcik(s.id) && !g;
+    return '<li><button type="button" class="hk' + (g ? ' gor' : '') + (sv ? ' sevkli' : '') + '" data-sen="' + s.id + '"' + (tr ? ' style="--tr:' + tr.renk + '"' : '') + '><span class="no">' + (tr ? '<i class="tr" title="Triyaj: ' + tr.ad + '"></i>' : '') + no + '</span><span class="tx"><b>' + X(h.hitap || h.ad) + (h.yas != null ? ' <small>' + X(typeof h.yas === 'number' ? h.yas + ' yaş' : h.yas) + '</small>' : '') + '</b><span>' + X(s.baslik) + '</span><small>' + X(s.odaAd) + (zr ? ' · <em class="zn">' + (sv ? 'SEVK · ' + V.katOf(zr.z.zincir[zr.i - 1]).no + '. kattan' : 'konsültasyon hastası') + '</em>' : '') + '</small></span>' +
       (g ? '<span class="st ' + (p >= 85 ? 'ok' : p >= 60 ? 'orta' : 'zay') + '">' + (p != null ? p : '✓') + '</span>' : '<span class="st bek">bekliyor</span>') + '</button></li>';
   };
 
@@ -303,7 +356,8 @@
   };
   var sahne = function (sen, nobetten) {
     S.aktif = { sen: sen, sahne: null, lab: null, nobet: nobetten };
-    K.open(sen, {
+    var kn = V.konsultNotu(sen.id), oyna = kn ? Object.assign({}, sen, { adimlar: [{ tip: 'konus', kim: 'anlatici', metin: kn }].concat(sen.adimlar) }) : sen;
+    K.open(oyna, {
       onSonuc: function (R) { S.aktif.sahne = R.puan; S.aktif.kacan = R.rows.filter(function (r) { return r.kacan.length; }).map(function (r) { return r.kacan[0]; }).slice(0, 2); kaydetHasta(); },
       onDevir: function (R, hedef) { if (S.aktif.sahne == null) { S.aktif.sahne = R.puan; kaydetHasta(); } labAc(sen, hedef); },
       onKapat: function () { bitir(false); }
@@ -355,7 +409,12 @@
     if (a && a.nobet && S.nobet && tamam !== false && a.sahne != null) { S.nobet.i++; S.nobet.saat += V.NOBET_DK; kaydet(); }
     var kat = S.kat;
     ekran('kat', kat);
-    if (a && a.nobet && S.nobet && S.nobet.i >= S.nobet.hastalar.length) nobetBitir();
+    var sonra = function () {
+      var n = S.nobet;
+      if (a && a.nobet && n && n.i >= n.hastalar.length) { nobetBitir(); return; }
+      if (a && a.nobet && n && n.kod && !n.kod.bitti && n.i === n.kod.i) setTimeout(kodBasla, RM ? 0 : 700);
+    };
+    if (a && tamam !== false && a.sahne != null && V.sevkSoru(a.sen.id)) sevkSor(a.sen.id, sonra); else sonra();
   };
 
   /* =========================== nöbet =========================== */
@@ -363,8 +422,9 @@
     var L = hastalar(kat).slice(), sec = [];
     var gorulmemis = L.filter(function (s) { return !S.gorulen[s.id]; }), havuz = gorulmemis.length >= Math.min(V.NOBET_HASTA, L.length) ? gorulmemis : L;
     havuz = havuz.slice(); while (sec.length < Math.min(V.NOBET_HASTA, L.length) && havuz.length) sec.push(havuz.splice(Math.floor(Math.random() * havuz.length), 1)[0]);
-    S.nobet = { kat: kat.id, basla: Date.now(), saat: V.NOBET_BASLA, i: 0, hastalar: sec.map(function (s) { return { id: s.id, sahne: null, lab: null }; }) };
-    kaydet(); ekran('kat', kat.id); toast('Nöbet başladı: ' + sec.length + ' hasta. Saat ' + V.saat(V.NOBET_BASLA));
+    S.nobet = { kat: kat.id, basla: Date.now(), saat: V.NOBET_BASLA, i: 0, hastalar: sec.map(function (s) { return { id: s.id, sahne: null, lab: null }; }), triyaj: null, kod: V.kodPlan(kat.id, sec.length) };
+    kaydet(); ekran('kat', kat.id); live('Nöbet başladı: ' + sec.length + ' hasta. Saat ' + V.saat(V.NOBET_BASLA));
+    setTimeout(triyajMasasi, RM ? 0 : 500);
   };
   var nobetKutu = function (kat) {
     var el = $('[data-nk]'), n = S.nobet; if (!el) return;
@@ -377,9 +437,18 @@
   var nobetSiradaki = function (panel) {
     var n = S.nobet, sen = K.SEN[n.hastalar[n.i] && n.hastalar[n.i].id], kat = V.katBul(n.kat);
     if (!sen) { nobetBitir(); return; }
+    if (n.triyaj === null) {
+      konus(panel, 'mentor', kat.mentor, 'Nöbet başlıyor, saat ' + V.saat(n.saat) + '. ' + n.hastalar.length + ' hasta geldi. Önce triyaj masasına bak: kimi önce göreceğimize birlikte karar verelim.', function (row) { odak(dugme(row, 'Triyaj masasını aç →', 'pri', triyajMasasi)); dugme(row, 'Nöbeti bitir', '', function () { nobetBitir(); }); });
+      return;
+    }
+    if (n.kod && !n.kod.bitti && n.i === n.kod.i && n.i > 0) {
+      konus(panel, 'mentor', kat.mentor, 'Bir dakika! Hoparlörden kod anonsu geliyor…', function (row) { odak(dugme(row, 'Olay yerine koş →', 'pri', kodBasla)); });
+      return;
+    }
     konus(panel, 'mentor', kat.mentor, (n.i === 0 ? 'Nöbet başladı, saat ' + V.saat(n.saat) + '. ' : 'Saat ' + V.saat(n.saat) + '. ') + 'Sıradaki hasta: ' + (sen.hasta.hitap || sen.hasta.ad) + ', ' + sen.baslik.toLocaleLowerCase('tr') + '.', function (row) {
       odak(dugme(row, 'Hastayı çağır →', 'pri', function () { cagir(sen, true); }));
       dugme(row, 'Nöbeti bitir', '', function () { nobetBitir(); });
+      if (n.triyaj && !n.triyaj.atlandi) { var tr = V.TRIYAJ_RENK[V.triyaj(sen).renk]; row.insertAdjacentHTML('beforeend', '<span class="md-tr" style="--tr:' + tr.renk + '"><i></i>triyaj: ' + tr.ad.toLocaleLowerCase('tr') + '</span>'); }
     });
   };
   var nobetBitir = function () {
@@ -395,6 +464,8 @@
     var satir = n.hastalar.map(function (h) { var s = K.SEN[h.id]; if (!s) return ''; var p = V.hastaPuan(h); return '<tr><td><b>' + X(s.hasta.hitap || s.hasta.ad) + '</b><small>' + X(s.baslik) + '</small>' + (h.kacan && h.kacan.length ? '<small class="kc">kaçan: ' + X(h.kacan.join('; ')) + '</small>' : '') + '</td><td class="n">' + (h.sahne != null ? h.sahne : '—') + '</td><td class="n">' + (h.lab != null ? h.lab : '—') + '</td><td class="n"><b>' + (p != null ? p : 'görülmedi') + '</b></td></tr>'; }).join('');
     modal('<div class="md-karne">' + damga(o.ort) + '<span class="k">nöbet karnesi · ' + X(kat.ad) + '</span><h2 id="md-mt">' + o.gorulen + ' / ' + o.toplam + ' hasta · ortalama ' + o.ort + '</h2><p class="sub">' + V.saat(V.NOBET_BASLA) + ' – ' + V.saat(n.saat) + ' · ' + new Date(n.bitis || Date.now()).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + '</p>' +
       '<div class="tw"><table><thead><tr><th>Hasta</th><th class="n">Görüşme</th><th class="n">Lab</th><th class="n">Puan</th></tr></thead><tbody>' + satir + '</tbody></table></div>' +
+      ((n.triyaj || n.kod) ? '<div class="md-ek">' + (n.triyaj ? '<div><span class="k">triyaj masası</span><b>' + (n.triyaj.atlandi ? 'atlandı' : n.triyaj.dogru + ' / ' + n.triyaj.toplam + ' doğru') + '</b><small>' + (n.triyaj.atlandi ? '—' : n.triyaj.puan) + '</small></div>' : '') +
+        (n.kod ? '<div style="--kr:' + V.KOD[n.kod.tip].renk + '"><span class="k">acil kod</span><b>' + X(V.KOD[n.kod.tip].ad) + '</b><small>' + (n.kod.puan != null ? n.kod.puan + ' · ' + (n.kod.hata || 0) + ' hata' : 'gerçekleşmedi') + '</small></div>' : '') + '</div>' : '') +
       '<p class="not">Görüşme puanı odadaki anamnez, muayene ve karardan; lab puanı ' + X(kat.labAd) + ' formundan gelir. Kaçan sorular bir sonraki nöbette ilk bakman gereken yerlerdir.</p>' +
       '<div class="md-row"><button type="button" class="md-btn pri" data-kapat>Tamam</button><button type="button" class="md-btn" data-defter>Bütün nöbetler</button></div></div>');
   };
@@ -408,14 +479,182 @@
     md.addEventListener('click', function (e) { var b = e.target.closest('[data-nb]'); if (b) { kapatModal(); karne(S.defter[+b.getAttribute('data-nb')]); } });
   };
 
+  /* =========================== canlı hastane: saat, vakit ve anonslar =========================== */
+  var VAKIT_AD = { sabah: 'sabah', gunduz: 'gündüz', aksam: 'akşam', gece: 'gece' };
+  var saatCiz = function () {
+    var el = $('#md-saat'); if (!el) return;
+    var dk = vakitDk(), v = V.vakit(dk);
+    el.innerHTML = (v === 'gece' || v === 'aksam' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15A8 8 0 0 1 9 4a8 8 0 1 0 11 11z"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>') +
+      '<b class="mono">' + V.saat(dk) + '</b><span>' + VAKIT_AD[v] + (S.nobet ? ' · nöbet' : '') + '</span>';
+    el.setAttribute('aria-label', 'Hastane saati ' + V.saat(dk) + ', ' + VAKIT_AD[v]);
+    var sv = $('#md-main .sahne'); if (sv) sv.setAttribute('data-vakit', v);
+  };
+  setInterval(saatCiz, 30000);
+  var anonsT = null;
+  var anons = function (metin, kod) {
+    var k = $('#md-main .md-sahne-k'); if (!k) return;
+    var el = $('.md-anons', k);
+    if (!el) { el = D.createElement('div'); el.className = 'md-anons'; el.setAttribute('aria-hidden', 'true'); k.appendChild(el); }
+    el.className = 'md-anons' + (kod ? ' kod' : '');
+    el.innerHTML = '<i><svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></i><span>' + X(metin) + '</span>';
+    void el.offsetWidth; el.classList.add('on');
+    if (AC || kod) { bip(784, 0.5, 0); bip(622, 0.7, 0.32); }
+    clearTimeout(anons.h); anons.h = setTimeout(function () { el.classList.remove('on'); }, kod ? 5200 : 6500);
+  };
+  var anonsPlanla = function () {
+    clearTimeout(anonsT);
+    anonsT = setTimeout(function () {
+      if ((S.ekran === 'kat' || S.ekran === 'lobi') && !S.aktif && !S.olay && !$('.md-modal') && !(K.acik && K.acik()) && !D.hidden) {
+        var L = V.ANONS.genel.concat(S.kat ? V.ANONS[S.kat] || [] : V.ANONS.tip);
+        anons(L[Math.floor(Math.random() * L.length)]);
+      }
+      anonsPlanla();
+    }, (RM ? 60 : 24) * 1000 + Math.random() * 18000);
+  };
+
+  /* =========================== triyaj masası (nöbet başında) =========================== */
+  var triyajMasasi = function () {
+    var n = S.nobet; if (!n) return;
+    var sec = {}, ids = n.hastalar.map(function (h) { return h.id; });
+    S.olay = 'triyaj'; bridge();
+    var kart = function (id) {
+      var s = K.SEN[id], h = s.hasta, ib = V.ilkBakis(s);
+      return '<li class="ty-k" data-ty="' + id + '"><div class="ty-u"><b>' + X(h.hitap || h.ad) + ' <small>' + X(typeof h.yas === 'number' ? h.yas + ' yaş' : h.yas) + '</small></b><span>' + X(s.baslik) + '</span><small class="ty-v">' + X(ib.gelis) + ' · ' + X(ib.vital) + '</small></div>' +
+        '<div class="ty-r" role="radiogroup" aria-label="' + X((h.hitap || h.ad) + ' için triyaj rengi') + '">' + Object.keys(V.TRIYAJ_RENK).map(function (r) { var R = V.TRIYAJ_RENK[r]; return '<button type="button" role="radio" aria-checked="false" data-renk="' + r + '" style="--tr:' + R.renk + '"><i></i>' + R.ad + '</button>'; }).join('') + '</div><p class="ty-g" hidden></p></li>';
+    };
+    var md = modal('<div class="md-triyaj"><span class="k">nöbet başı · triyaj masası</span><h2 id="md-mt">Kimi önce görelim?</h2><p class="sub">Hastaları renklendir: <b style="color:#D9362B">kırmızı</b> hemen, <b style="color:#B98200">sarı</b> kısa sürede, <b style="color:#2E9C5B">yeşil</b> bekleyebilir. Sıra buna göre kurulur.</p>' +
+      '<ol class="ty-l">' + ids.map(kart).join('') + '</ol><div class="md-row"><button type="button" class="md-btn pri" data-ty-bitir disabled>Sırayı kur</button><button type="button" class="md-btn" data-ty-gec>Triyajı atla</button></div></div>', { kapatma: true });
+    var bitirB = $('[data-ty-bitir]', md);
+    md.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-renk]');
+      if (b && !md.classList.contains('bitti')) {
+        var li = b.closest('[data-ty]'); sec[li.getAttribute('data-ty')] = b.getAttribute('data-renk');
+        $$('[data-renk]', li).forEach(function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
+        bitirB.disabled = Object.keys(sec).length < ids.length; return;
+      }
+      if (e.target.closest('[data-ty-bitir]')) {
+        if (md.classList.contains('bitti')) { kapatModal(); S.olay = null; ekran('kat', S.kat); return; }
+        var R = V.triyajPuan(ids, sec, K.SEN); md.classList.add('bitti');
+        R.satir.forEach(function (r) {
+          var li = $('[data-ty="' + r.id + '"]', md), g = $('.ty-g', li), D0 = V.TRIYAJ_RENK[r.dogru];
+          li.classList.add(r.ok ? 'ok' : 'no'); $$('[data-renk]', li).forEach(function (x) { x.disabled = true; if (x.getAttribute('data-renk') === r.dogru) x.classList.add('dogru'); });
+          g.hidden = false; g.innerHTML = (r.ok ? '✓ ' : '✗ ') + '<b style="color:' + D0.renk + '">' + D0.ad + '</b> · ' + X(r.neden) + (r.eksikTriyaj ? ' <em>Düşük önceliklendirme en riskli hatadır.</em>' : '');
+        });
+        n.triyaj = { puan: R.puan, dogru: R.dogru, toplam: R.toplam, sec: sec };
+        var sira = V.triyajSira(ids, K.SEN); n.hastalar.sort(function (a, b) { return sira.indexOf(a.id) - sira.indexOf(b.id); });
+        kaydet();
+        $('h2', md).textContent = R.dogru + ' / ' + R.toplam + ' doğru triyaj';
+        $('.sub', md).textContent = 'Sıra kırmızı → sarı → yeşil olarak kuruldu. Gerekçeleri oku, sonra nöbete başla.';
+        bitirB.textContent = 'Nöbete başla →'; $('[data-ty-gec]', md).hidden = true; odak(bitirB);
+        live('Triyaj puanı ' + R.puan + '.');
+        return;
+      }
+      if (e.target.closest('[data-ty-gec]')) { n.triyaj = { puan: 0, dogru: 0, toplam: ids.length, atlandi: true }; var sr = V.triyajSira(ids, K.SEN); n.hastalar.sort(function (a, b) { return sr.indexOf(a.id) - sr.indexOf(b.id); }); kaydet(); kapatModal(); S.olay = null; ekran('kat', S.kat); }
+    });
+    odak($('[data-renk]', md));
+  };
+
+  /* =========================== acil kod (nöbette süreli olay) =========================== */
+  var kodBasla = function () {
+    var n = S.nobet; if (!n || !n.kod || n.kod.bitti) return;
+    var KD = V.KOD[n.kod.tip], kat = V.katBul(n.kat), dogru = KD.adimlar.slice(), karisik = dogru.slice();
+    var guv = 0; do { karisik.sort(function () { return Math.random() - 0.5; }); guv++; } while (karisik.join() === dogru.join() && guv < 9);
+    var hata = 0, adim = 0, kalan = KD.sure, bitti = false;
+    S.olay = 'kod'; bridge();
+    var ov = D.createElement('div'); ov.className = 'md-kod'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-labelledby', 'md-kod-t'); ov.style.setProperty('--kr', KD.renk);
+    ov.innerHTML = '<div class="kd-isik" aria-hidden="true"><i></i><i></i></div><div class="kd-k"><div class="kd-u"><span class="kd-rozet">' + X(KD.ad.toLocaleUpperCase('tr')) + '</span><h2 id="md-kod-t">' + X(KD.ad) + ' · ' + kat.no + '. kat</h2>' +
+      '<svg class="kd-sure" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" fill="none" stroke="#E3E8EE" stroke-width="5"/><circle class="kd-hal" cx="22" cy="22" r="19" fill="none" stroke="var(--kr)" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" transform="rotate(-90 22 22)"/><text x="22" y="27" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#0D1838">' + kalan + '</text></svg></div>' +
+      '<p class="kd-olay">' + X(KD.olay) + '</p><p class="kd-yon"><b>Doğru sırayla</b> adımlara dokun. Yanlış adım süre ve puan kaybettirir.</p>' +
+      '<ol class="kd-sira" aria-label="Seçtiğin sıra"></ol><div class="kd-ad">' + karisik.map(function (t) { return '<button type="button" data-kd="' + X(t) + '">' + X(t) + '</button>'; }).join('') + '</div><p class="kd-fb" aria-live="polite"></p>' +
+      '<div class="md-row"><button type="button" class="md-btn" data-kd-ekip>Ekip devralsın</button></div></div>';
+    D.body.appendChild(ov);
+    if (!RM) { [0, 0.45, 0.9, 1.35].forEach(function (g, i) { bip(i % 2 ? 660 : 880, 0.38, g); }); }
+    live(KD.ad + '! ' + kat.no + '. kat. ' + KD.olay);
+    var tx = $('.kd-sure text', ov), hal = $('.kd-hal', ov);
+    var sonuc = function (sureBitti) {
+      if (bitti) return; bitti = true; clearInterval(ov.t);
+      var p = V.kodPuan(hata, sureBitti); n.kod.puan = p; n.kod.hata = hata; n.kod.kalan = kalan; n.kod.bitti = true; kaydet();
+      ov.classList.add('bitti');
+      $('.kd-k', ov).innerHTML = '<span class="k">' + X(KD.ad) + ' · sonuç</span><h2 id="md-kod-t">' + (sureBitti ? 'Süre doldu, ekip devraldı' : 'Olay yönetildi') + '</h2>' + damga(p) +
+        '<p class="sub">' + hata + ' yanlış adım · ' + (sureBitti ? 'süre doldu' : kalan + ' saniye kala bitti') + '</p><h3>Doğru sıra</h3><ol class="kd-dogru">' + dogru.map(function (t) { return '<li>' + X(t) + '</li>'; }).join('') + '</ol><p class="not">' + X(KD.not) + '</p>' +
+        '<div class="md-row"><button type="button" class="md-btn pri" data-kd-kapat>Nöbete dön →</button></div>';
+      odak($('[data-kd-kapat]', ov));
+    };
+    ov.t = setInterval(function () { kalan--; tx.textContent = Math.max(0, kalan); hal.style.strokeDashoffset = String(100 - Math.max(0, kalan) / KD.sure * 100); if (kalan <= 10) ov.classList.add('az'); if (kalan <= 0) sonuc(true); }, 1000);
+    ov.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-kd]');
+      if (b && !bitti && !b.disabled) {
+        var t = b.getAttribute('data-kd'), fb = $('.kd-fb', ov);
+        if (t === dogru[adim]) {
+          adim++; b.disabled = true; b.classList.add('ok');
+          var li = D.createElement('li'); li.textContent = t; $('.kd-sira', ov).appendChild(li);
+          fb.className = 'kd-fb ok'; fb.textContent = 'Doğru. ' + (adim < dogru.length ? 'Sıradaki adım?' : '');
+          if (adim >= dogru.length) setTimeout(function () { sonuc(false); }, 350);
+        } else {
+          hata++; kalan = Math.max(1, kalan - 3); b.classList.remove('salla'); void b.offsetWidth; b.classList.add('salla');
+          fb.className = 'kd-fb no'; fb.textContent = 'Henüz değil: önce “' + dogru[adim].split(/[;:(]/)[0].trim() + '…” gibi bir adım gelmeli.';
+        }
+        return;
+      }
+      if (e.target.closest('[data-kd-ekip]')) { kalan = 0; sonuc(true); return; }
+      if (e.target.closest('[data-kd-kapat]')) { ov.remove(); S.olay = null; ekran('kat', S.kat); }
+    });
+    odak($('[data-kd]', ov));
+  };
+
+  /* =========================== konsültasyon / sevk =========================== */
+  var sevkDurum = function (zid) { return S.sevk[zid] || (S.sevk[zid] = { acik: 0, sec: {} }); };
+  /* zincirde bu halkaya sevk edildi mi (ilk halka her zaman açık) */
+  var sevkAcik = function (id) { var r = V.zincir(id); return !r || r.i === 0 || sevkDurum(r.z.id).acik >= r.i; };
+  var sevkBekleyen = function (kat) { return hastalar(kat).filter(function (s) { var r = V.zincir(s.id); return r && r.i > 0 && sevkAcik(s.id) && !S.gorulen[s.id]; }); };
+  var sevkSor = function (id, sonra) {
+    var q = V.sevkSoru(id); if (!q) { if (sonra) sonra(); return false; }
+    var dz = sevkDurum(q.z.id); if (dz.sec[q.i] != null) { if (sonra) sonra(); return false; }
+    var s = K.SEN[id], hedef = V.katBul(q.hedef);
+    S.olay = 'sevk'; bridge();
+    var md = modal('<div class="md-sevk"><span class="k">konsültasyon · ' + X(q.z.ad) + '</span><h2 id="md-mt">' + X(s.hasta.hitap || s.hasta.ad) + ' için hangi bölüme sevk edersin?</h2><p class="sub">Hastanın bugünkü sorunlarını düşün: başka bir meslektaşın değerlendirmesi gerekiyor mu?</p>' +
+      '<div class="md-asn-b sv-b">' + q.secenek.map(function (k) { var K0 = k === 'yok' ? null : V.katBul(k); return '<button type="button" data-sv="' + k + '" style="--kc:' + (K0 ? K0.renk : '#6A7593') + '"><b>' + (K0 ? K0.no : '—') + '</b><span>' + (K0 ? X(K0.ad) + '<small>' + X(K0.bolum) + '</small>' : 'Sevk gerekmez<small>taburcu, poliklinik kontrolü</small>') + '</span></button>'; }).join('') + '</div><p class="sv-g" hidden></p><div class="md-row" data-sv-row hidden></div></div>', { kapatma: true });
+    md.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-sv]'); if (!b || dz.sec[q.i] != null) return;
+      var k = b.getAttribute('data-sv'), ok = k === q.hedef;
+      dz.sec[q.i] = k; dz.acik = Math.max(dz.acik, q.i + 1); kaydet();
+      $$('[data-sv]', md).forEach(function (x) { x.disabled = true; if (x.getAttribute('data-sv') === q.hedef) x.classList.add('dogru'); else if (x === b) x.classList.add('yanlis'); });
+      var g = $('.sv-g', md); g.hidden = false; g.className = 'sv-g ' + (ok ? 'ok' : 'no');
+      g.innerHTML = (ok ? '<b>Doğru sevk.</b> ' : '<b>Doğru bölüm: ' + hedef.no + '. kat, ' + X(hedef.ad.toLocaleLowerCase('tr')) + '.</b> ') + X(q.neden) + ' ' + X(K.SEN[q.sonraki].hasta.hitap || K.SEN[q.sonraki].hasta.ad) + ' ' + hedef.no + '. katta konsültasyon notuyla seni bekliyor.';
+      var row = $('[data-sv-row]', md); row.hidden = false;
+      var bb = dugme(row, hedef.no + '. kata git →', 'pri', function () { kapatModal(true); S.olay = null; if (S.nobet && S.nobet.kat === S.kat) { toast('Sevkli hasta ' + hedef.no + '. katta. Nöbet bitince görebilirsin.'); if (sonra) sonra(); return; } asansor(hedef.id); });
+      dugme(row, 'Burada kal', '', function () { kapatModal(); S.olay = null; if (sonra) sonra(); else ekran('kat', S.kat); });
+      odak(bb); live(ok ? 'Doğru sevk.' : 'Sevk yanlış; doğru bölüm ' + hedef.ad + '.');
+    });
+    odak($('[data-sv]', md));
+    return true;
+  };
+  var konsultPanel = function () {
+    var html = '<div class="md-kons"><span class="k">konsültasyonlar</span><h2 id="md-mt">Katlar arası hastalar</h2><p class="sub">Aynı hasta birden çok bölümde görülür. Bir halkayı bitirince doğru bölüme sevk et; sevk ettiğin kat hastayı konsültasyon notuyla karşılar.</p>' +
+      V.KONSULT.map(function (z) {
+        var dz = sevkDurum(z.id);
+        return '<section class="kn"><h3>' + X(z.ad) + '</h3><ol class="kn-z">' + z.zincir.map(function (id, i) {
+          var s = K.SEN[id], k = V.katOf(id), g = S.gorulen[id], p = g ? V.hastaPuan(g) : null, acik = i === 0 || dz.acik >= i, sv = dz.sec[i - 1];
+          var durum = g ? 'görüldü' + (p != null ? ' · ' + p : '') : acik ? (i ? 'sevk edildi, bekliyor' : 'bekliyor') : 'henüz sevk edilmedi';
+          return (i ? '<li class="kn-ok' + (sv != null ? (sv === k.id ? ' ok' : ' no') : '') + '" aria-hidden="true">' + (sv != null ? (sv === k.id ? '✓ sevk' : '✗ sevk') : '→') + '</li>' : '') +
+            '<li class="kn-h' + (g ? ' gor' : acik ? ' acik' : '') + '" style="--kc:' + k.renk + '"><button type="button" data-kn-kat="' + k.id + '"' + (acik ? '' : ' disabled') + '><b>' + k.no + '</b><span>' + X(s.baslik) + '<small>' + X(k.ad) + ' · ' + durum + '</small></span></button></li>';
+        }).join('') + '</ol></section>';
+      }).join('') + '<div class="md-row"><button type="button" class="md-btn pri" data-kapat>Kapat</button></div></div>';
+    var md = modal(html);
+    md.addEventListener('click', function (e) { var b = e.target.closest('[data-kn-kat]'); if (!b || b.disabled) return; kapatModal(); var k = b.getAttribute('data-kn-kat'); if (k !== S.kat || S.ekran !== 'kat') asansor(k); });
+  };
+
   /* =========================== kalıcı pencere =========================== */
   var modalOnce = null;
-  var modal = function (html) {
+  /* o.kapatma: karar penceresi (triyaj, sevk) dışına tıklayarak ya da Esc ile kapanmaz */
+  var modal = function (html, o) {
     kapatModal(true);
+    var zor = !!(o && o.kapatma);
     var w = D.createElement('div'); w.className = 'md-modal'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-labelledby', 'md-mt');
-    w.innerHTML = '<div class="md-mk"><button type="button" class="md-x" data-kapat aria-label="Kapat">×</button>' + html + '</div>';
+    if (zor) w.setAttribute('data-zorunlu', '');
+    w.innerHTML = '<div class="md-mk">' + (zor ? '' : '<button type="button" class="md-x" data-kapat aria-label="Kapat">×</button>') + html + '</div>';
     modalOnce = D.activeElement; D.body.appendChild(w);
-    w.addEventListener('click', function (e) { if (e.target === w || e.target.closest('[data-kapat]')) kapatModal(); if (e.target.closest('[data-defter]')) { kapatModal(); defter(); } });
+    w.addEventListener('click', function (e) { if ((e.target === w && !zor) || e.target.closest('[data-kapat]')) kapatModal(); if (e.target.closest('[data-defter]')) { kapatModal(); defter(); } });
     odak($('button:not([data-kapat])', w) || $('[data-kapat]', w));
     return w;
   };
@@ -432,10 +671,11 @@
   });
   D.addEventListener('keydown', function (e) {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.sahne [data-sen], .sahne [data-servis]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-    if (e.key === 'Escape' && $('.md-modal') && !(K.acik && K.acik())) kapatModal();
+    if (e.key === 'Escape' && $('.md-modal') && !$('.md-modal[data-zorunlu]') && !(K.acik && K.acik())) kapatModal();
   });
   $('#md-asn').addEventListener('click', panelAsansor);
   $('#md-def').addEventListener('click', defter);
+  $('#md-kon').addEventListener('click', konsultPanel);
   $('#md-nob').addEventListener('click', function () { if (S.nobet) { if (S.ekran !== 'kat' || S.kat !== S.nobet.kat) asansor(S.nobet.kat); } });
   $('#md-mu-geri').addEventListener('click', function () { bitir(true); });
   D.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#md-muayene').hidden && !$('.md-modal')) { /* lab açıkken Esc lab'ın kendi penceresine kalır */ } });
@@ -446,6 +686,9 @@
   var ic = function () { var f = $('#md-muayene iframe'); return S.lab && f && f.contentWindow ? f.contentWindow : null; };
   var ctx = function () {
     var k = S.kat ? V.katBul(S.kat) : null, a = S.aktif;
+    if (S.olay === 'triyaj') return { sel: { key: 'medica.triyaj', title: 'Triyaj masası', la: 'Nöbet başı', rows: [['Renkler', 'kırmızı hemen, sarı kısa sürede, yeşil bekleyebilir']], about: 'öğrenci Acadex Medica nöbetinin başında hastaları triyaj rengine göre önceliklendiriyor; bu puanlanıyor. Hangi hastanın hangi renk olduğunu söyleme; triyajın genel ilkelerini (havayolu, solunum, dolaşım, bilinç, ağrı) anlatabilirsin.' }, chips: [['triyaj', 'Triyaj nasıl yapılır?']] };
+    if (S.olay === 'kod') return { sel: { key: 'medica.kod', title: 'Acil kod', la: 'Süreli olay', rows: [['Kod', S.nobet && S.nobet.kod ? V.KOD[S.nobet.kod.tip].ad : '']], about: 'öğrenci Acadex Medica nöbetinde süreli bir acil kod olayını yönetiyor; adımları doğru sırayla seçmesi puanlanıyor. Sırayı doğrudan söyleme.' }, chips: [] };
+    if (S.olay === 'sevk') return { sel: { key: 'medica.sevk', title: 'Konsültasyon', la: 'Sevk kararı', rows: [], about: 'öğrenci Acadex Medica’da bir hastayı başka bölüme sevk edip etmeyeceğine karar veriyor; bu puanlanıyor. Doğru bölümü söyleme; ekip çalışması ve konsültasyon ilkelerini anlatabilirsin.' }, chips: [] };
     if (a && K.acik && K.acik()) {
       var s = a.sen;
       return { sel: { key: 'medica.sahne.' + s.id, title: (s.odaAd || '') + ' · ' + (s.hasta.hitap || s.hasta.ad), la: 'Hasta görüşmesi', rows: [['Yakınma', s.baslik], ['Oda', s.odaAd]],
@@ -456,7 +699,7 @@
       var L = hastalar(k);
       return { sel: { key: 'medica.kat.' + k.id, title: k.no + '. kat · ' + k.ad, la: 'Bekleme salonu', rows: [['Bölüm', k.bolum], ['Hastalar', L.map(function (s) { return (s.hasta.hitap || s.hasta.ad) + ' (' + s.baslik + ')' + (S.gorulen[s.id] ? ' ✓' : ''); }).join('; ')], ['Nöbet', S.nobet ? 'sürüyor, ' + V.nobetOzet(S.nobet).gorulen + '/' + S.nobet.hastalar.length : 'yok']],
         about: 'öğrenci Acadex Medica eğitim hastanesinin ' + k.ad + ' katında, bekleme salonunda. Hastaları seçip görüşüyor, ardından ' + k.labAd + '’de vakayı tamamlıyor.' },
-        chips: [['kat', 'Bu katta kimler bekliyor?'], ['nobet', 'Nöbet modu nasıl çalışır?']] };
+        chips: [['kat', 'Bu katta kimler bekliyor?'], ['nobet', 'Nöbet modu nasıl çalışır?'], ['konsult', 'Konsültasyon nasıl işler?']] };
     }
     return { sel: { key: 'medica.lobi', title: 'Giriş holü', la: 'Acadex Medica', rows: [['Bölümün', S.bolum ? V.katBul(S.bolum).bolum : 'seçilmedi']], about: 'öğrenci Acadex Medica eğitim hastanesinin giriş holünde; rehber cerrah hastaneyi tanıtıyor ve öğrencinin bölümüne göre kat seçiliyor.' },
       chips: [['katlar', 'Hangi katta ne var?'], ['nobet', 'Nöbet modu nasıl çalışır?']] };
@@ -465,12 +708,14 @@
   var cevap = function (kind) {
     var k = S.kat ? V.katBul(S.kat) : null;
     if (kind === 'katlar') return V.KAT.map(function (x) { return x.no + '. kat: ' + x.ad + ' (' + x.bolum + ', devir ' + x.labAd + ', ' + hastalar(x).length + ' hasta)'; }).join('. ') + '. Asansörle istediğin kata geçebilirsin.';
-    if (kind === 'nobet') return 'Nöbet modunda katın hastalarından ' + V.NOBET_HASTA + ' kişi sırayla gelir. Her hastayla görüşür, ardından lab’da vakayı tamamlarsın; nöbet saati her hastada ' + V.NOBET_DK + ' dakika ilerler. Nöbet bitince görüşme ve lab puanlarınla nöbet karnesi çıkar; bütün nöbetlerin “Nöbet karnesi”nde birikir.';
+    if (kind === 'nobet') return 'Nöbet modunda katın hastalarından ' + V.NOBET_HASTA + ' kişi gelir; önce triyaj masasında onları önceliklendirirsin, sıra buna göre kurulur. Nöbet sırasında bir kez süreli bir acil kod olayı çıkabilir. Her hastayla görüşür, ardından lab’da vakayı tamamlarsın; nöbet saati her hastada ' + V.NOBET_DK + ' dakika ilerler. Nöbet bitince görüşme ve lab puanlarınla nöbet karnesi çıkar; bütün nöbetlerin “Nöbet karnesi”nde birikir.';
     if (kind === 'kat' && k) { var L = hastalar(k); return k.ad + ' katında ' + L.length + ' hasta var: ' + L.map(function (s) { return (s.hasta.hitap || s.hasta.ad) + ', ' + s.baslik.toLocaleLowerCase('tr') + (S.gorulen[s.id] ? ' (görüldü)' : ''); }).join('; ') + '.'; }
+    if (kind === 'triyaj') return 'Triyajda önce yaşamı tehdit eden durum aranır: havayolu, solunum (SpO₂, nefes darlığı), dolaşım (nabız, tansiyon, kanama), bilinç ve zamana bağlı tablolar (inme, kafa travması). Bunlar kırmızıdır. Stabil ama kısa sürede bakılması gereken ağrılı ya da ilerleyebilecek durumlar sarı, planlı ve stabil başvurular yeşildir. Düşük önceliklendirme en riskli hatadır.';
+    if (kind === 'konsult') return 'Konsültasyon zincirlerinde aynı hasta birden çok bölümde görülür. Bir halkayı bitirince hangi meslektaşın değerlendirmesi gerektiğine karar verip sevk edersin; sevk ettiğin kat hastayı konsültasyon notuyla karşılar. Zincirleri üst çubuktaki “Konsültasyon” düğmesinden izleyebilirsin.';
     if (kind === 'gorusme') return K.GENEL.iyi + ' Açık uçlu başla, sonra yakınmayı daraltan sorular sor. ' + K.GENEL.kotu + ' ' + K.GENEL.bos;
     return null;
   };
-  var siniflandir = function (q) { if (/kat(ta|lar)|ne var/.test(q)) return S.ekran === 'kat' && /bekli|kim/.test(q) ? 'kat' : 'katlar'; if (/nöbet|nobet/.test(q)) return 'nobet'; if (/kim|bekli/.test(q)) return 'kat'; if (/anamnez|görüşme/.test(q)) return 'gorusme'; return null; };
+  var siniflandir = function (q) { if (/triyaj|öncelik/.test(q)) return 'triyaj'; if (/konsült|konsult|sevk/.test(q)) return 'konsult'; if (/kat(ta|lar)|ne var/.test(q)) return S.ekran === 'kat' && /bekli|kim/.test(q) ? 'kat' : 'katlar'; if (/nöbet|nobet/.test(q)) return 'nobet'; if (/kim|bekli/.test(q)) return 'kat'; if (/anamnez|görüşme/.test(q)) return 'gorusme'; return null; };
   W.addEventListener('message', function (e) {
     if (e.origin !== ORG) return;
     var d = e.data; if (!d) return;
@@ -495,5 +740,7 @@
   /* =========================== başlat =========================== */
   var q = new URLSearchParams(location.search), h0 = (location.hash || '').slice(1), k0 = q.get('kat') || h0;
   if (k0 && V.katBul(k0)) ekran('kat', k0); else ekran('lobi');
-  W.AXMEDICA_APP = { S: S, ekran: ekran, asansor: asansor, cagir: cagir, nobetBasla: nobetBasla, nobetBitir: nobetBitir, defter: defter, labSonuc: labSonuc, bitir: bitir, ctx: ctx };
+  anonsPlanla();
+  W.AXMEDICA_APP = { S: S, ekran: ekran, asansor: asansor, cagir: cagir, nobetBasla: nobetBasla, nobetBitir: nobetBitir, defter: defter, labSonuc: labSonuc, bitir: bitir, ctx: ctx,
+    triyajMasasi: triyajMasasi, kodBasla: kodBasla, sevkSor: sevkSor, konsultPanel: konsultPanel, anons: anons, saatCiz: saatCiz };
 })();

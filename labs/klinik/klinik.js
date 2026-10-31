@@ -147,6 +147,13 @@
     '.axk .glow{animation:axk-glow 1.2s ease-in-out 3}',
     '@keyframes axk-glow{50%{filter:drop-shadow(0 0 12px #FFD45A) brightness(1.08)}}',
     '.axk .ecg{stroke-dasharray:420;animation:axk-ecg 1.6s linear infinite}',
+    '.axk-mon2{position:absolute;right:1.6%;top:3%;width:clamp(118px,19%,190px);z-index:1;filter:drop-shadow(0 10px 14px rgba(13,24,56,.35));pointer-events:none}',
+    '.axk-mon2 svg{display:block;width:100%;height:auto}',
+    '.axk .mon-al .mon-dis{animation:axk-mal .8s steps(2) infinite}',
+    '@keyframes axk-mal{50%{stroke:#FF6B5A}}',
+    '.axk .mon-uyari{animation:axk-blink .8s steps(2) infinite}',
+    '.axk-ses[aria-pressed="true"]{background:#2E8E5B}',
+    '@media (max-width:700px){.axk-mon2{right:auto;left:50%;transform:translateX(-50%);top:2%;width:clamp(96px,26%,150px)}}',
     '@keyframes axk-ecg{from{stroke-dashoffset:420}to{stroke-dashoffset:0}}',
     '.axk .alarm{animation:axk-al .7s steps(2) infinite}',
     '@keyframes axk-al{50%{fill:#FF6B5A}}',
@@ -158,15 +165,33 @@
     '@keyframes axk-sway{50%{transform:rotate(2deg)}}',
     '.axk .gest{animation:axk-gest .9s ease-in-out 2 alternate;transform-box:fill-box;transform-origin:15% 10%}',
     '@keyframes axk-gest{to{transform:rotate(-18deg)}}',
-    '.axk-pop{position:absolute;left:50%;top:14px;transform:translateX(-50%);padding:10px 16px;border-radius:12px;background:#FFFDF8;border:2px solid #0D1838;box-shadow:0 14px 28px -14px rgba(0,0,0,.5);font-weight:700;font-size:15px;max-width:min(90%,520px);text-align:center;animation:axk-pop .35s ease both}',
+    '.axk-pop{position:absolute;z-index:3;left:50%;top:14px;transform:translateX(-50%);padding:10px 16px;border-radius:12px;background:#FFFDF8;border:2px solid #0D1838;box-shadow:0 14px 28px -14px rgba(0,0,0,.5);font-weight:700;font-size:15px;max-width:min(90%,520px);text-align:center;animation:axk-pop .35s ease both}',
     '.axk-pop small{display:block;font-weight:500;color:#46506A;font-size:13px;margin-top:2px}',
     '@media (max-width:900px){.axk-body{grid-template-columns:minmax(0,1fr)}.axk-side{display:none}.axk-side.on{display:block;position:absolute;inset:auto 0 0 0;max-height:60%;z-index:3;border-top:3px solid #0D1838}.axk-steps{display:none}.axk-panel{max-height:none;flex:1}.axk-scene{flex:none;min-height:0;aspect-ratio:1000/560}}',
-    '@media (min-width:901px){.axk-nb{display:none}}',
+    '@media (min-width:901px){.axk-nb:not(.axk-ses){display:none}}',
     '@media (prefers-reduced-motion:reduce){.axk,.axk *{animation:none!important;transition:none!important}}'
   ].join('\n');
 
   /* ----------------------------- karakterler ----------------------------- */
   var TEN = ['#F2C7A1', '#E8B48A', '#D49A6A', '#B97E52'];
+  /* yüz ifadeleri (ayakta/oturan figür): kaş + ağız (+ ter damlası / yanak) */
+  var KAS = function (d, w) { return '<path d="' + d + '" stroke="#0D1838" stroke-width="' + (w || 2.4) + '" fill="none" stroke-linecap="round"/>'; };
+  var AGIZ = function (d, dolu) { return '<path class="mouth" d="' + d + '" stroke="#7A2E22" stroke-width="3" fill="' + (dolu ? '#B5463A' : 'none') + '" stroke-linecap="round"/>'; };
+  var YUZ = {
+    normal: KAS('M-20 -304 q8 -4 14 -1 M20 -304 q-8 -4 -14 -1') + AGIZ('M-10 -274 q10 9 20 0', true),
+    agri: KAS('M-20 -304 l12 4 M20 -304 l-12 4', 2.6) + AGIZ('M-9 -270 q9 -6 18 0') + '<path d="M-30 -312 l-6 3 M-30 -292 l-7 -1" stroke="#0D1838" stroke-width="1.6" stroke-linecap="round" opacity=".6"/><path d="M31 -322 q5 8 0 11 q-5 -3 0 -11z" fill="#7DB7E8"/>',
+    uzgun: KAS('M-20 -302 l12 -3 M20 -302 l-12 -3') + AGIZ('M-9 -270 q9 -6 18 0'),
+    endise: KAS('M-21 -307 q6 -6 13 -3 M21 -307 q-6 -6 -13 -3') + AGIZ('M-8 -272 q4 -4 8 0 q4 4 8 0') + '<path d="M28 -318 q4 7 0 10 q-4 -3 0 -10z" fill="#7DB7E8" opacity=".85"/>',
+    rahat: KAS('M-20 -306 q8 -6 14 -2 M20 -306 q-8 -6 -14 -2') + AGIZ('M-12 -276 q12 13 24 0 z', true) + '<ellipse cx="-22" cy="-280" rx="6" ry="3.6" fill="#E8826F" opacity=".5"/><ellipse cx="22" cy="-280" rx="6" ry="3.6" fill="#E8826F" opacity=".5"/>'
+  };
+  /* yatan figür (yan görünüş): kaş + ağız */
+  var YUZY = {
+    normal: '<path class="mouth" d="M24 -14 q5 3 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
+    agri: '<path d="M13 -40 l10 4" stroke="#0D1838" stroke-width="2.4" stroke-linecap="round"/><path class="mouth" d="M24 -12 q5 -4 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M4 -52 q4 7 0 10 q-4 -3 0 -10z" fill="#7DB7E8"/>',
+    uzgun: '<path d="M14 -37 l10 -3" stroke="#0D1838" stroke-width="2.2" stroke-linecap="round"/><path class="mouth" d="M24 -12 q5 -4 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
+    endise: '<path d="M13 -41 q5 -4 11 -1" stroke="#0D1838" stroke-width="2.2" fill="none" stroke-linecap="round"/><path class="mouth" d="M23 -13 q2.5 -3 5 0 q2.5 3 5 0" stroke="#7A2E22" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
+    rahat: '<path d="M13 -41 q6 -5 12 -1" stroke="#0D1838" stroke-width="2.2" fill="none" stroke-linecap="round"/><path class="mouth" d="M22 -16 q6 7 12 0 z" stroke="#7A2E22" stroke-width="2.4" fill="#B5463A" stroke-linecap="round"/>'
+  };
   var kisi = function (o) {
     /* ayakta / oturan figür; ayaklar (0,0), yetişkin ≈ 300 birim */
     var g = o.gorunum || 'yetiskin', k = o.cins === 'K', sc = g === 'cocuk' ? (o.yas && o.yas < 7 ? 0.58 : 0.72) : g === 'genc' ? 0.95 : 1;
@@ -197,13 +222,11 @@
     var gy = -292;
     if (ifade === 'uyku') s += '<path d="M-19 ' + gy + ' q7 5 14 0 M5 ' + gy + ' q7 5 14 0" stroke="#0D1838" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
     else s += '<g class="blink"><ellipse cx="-12" cy="' + gy + '" rx="3.6" ry="4.6" fill="#0D1838"/><ellipse cx="12" cy="' + gy + '" rx="3.6" ry="4.6" fill="#0D1838"/></g>';
-    if (ifade === 'agri') s += '<path d="M-20 -304 l12 4 M20 -304 l-12 4" stroke="#0D1838" stroke-width="2.6" stroke-linecap="round"/>';
-    else if (ifade === 'uzgun') s += '<path d="M-20 -302 l12 -3 M20 -302 l-12 -3" stroke="#0D1838" stroke-width="2.4" stroke-linecap="round"/>';
-    else s += '<path d="M-20 -304 q8 -4 14 -1 M20 -304 q-8 -4 -14 -1" stroke="#0D1838" stroke-width="2.4" fill="none" stroke-linecap="round"/>';
     if (o.gozluk || g === 'yasli') s += '<g fill="none" stroke="#2E3A5C" stroke-width="2.2"><circle cx="-12" cy="' + gy + '" r="9"/><circle cx="12" cy="' + gy + '" r="9"/><path d="M-3 ' + gy + ' h6"/></g>';
     s += '<ellipse cx="-22" cy="-280" rx="5" ry="3" fill="#E89A8A" opacity=".45"/><ellipse cx="22" cy="-280" rx="5" ry="3" fill="#E89A8A" opacity=".45"/>';
-    var mth = ifade === 'agri' || ifade === 'uzgun' ? 'M-9 -270 q9 -6 18 0' : ifade === 'uyku' ? 'M-6 -272 h12' : 'M-10 -274 q10 9 20 0';
-    s += '<path class="mouth" d="' + mth + '" stroke="#7A2E22" stroke-width="3" fill="' + (ifade === 'normal' ? '#B5463A' : 'none') + '" stroke-linecap="round"/>';
+    /* kaş + ağız: her ifade ayrı katman; sahnede ifadeYap() yalnızca görünürlüğü değiştirir (CSS gerektirmez) */
+    if (ifade === 'uyku') s += '<path d="M-20 -304 q8 -4 14 -1 M20 -304 q-8 -4 -14 -1" stroke="#0D1838" stroke-width="2.4" fill="none" stroke-linecap="round"/><path class="mouth" d="M-6 -272 h12" stroke="#7A2E22" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    else Object.keys(YUZ).forEach(function (k) { s += '<g data-yz="' + k + '"' + (k === (YUZ[ifade] ? ifade : 'normal') ? '' : ' display="none"') + '>' + YUZ[k] + '</g>'; });
     if (doktor && o.maske) s += '<path d="M-26 -286 h52 v20 c0 12 -52 12 -52 0 z" fill="' + o.maske + '"/>';
     s += '</g></g>';
     return s;
@@ -215,7 +238,8 @@
     s += '<ellipse cx="0" cy="-6" rx="46" ry="16" fill="#FFFFFF" stroke="#DCE2EC" stroke-width="2"/>';                 /* yastık */
     s += '<ellipse cx="6" cy="-26" rx="30" ry="27" fill="' + ten + '"/><path d="M-22 -36 C-18 -62 26 -64 34 -40 C20 -50 0 -50 -22 -36 Z" fill="' + sac + '"/>';
     s += (o.ifade === 'uyku' || o.uyutuldu) ? '<path d="M14 -30 q6 4 12 0" stroke="#0D1838" stroke-width="2.4" fill="none" stroke-linecap="round"/>' : '<g class="blink"><ellipse cx="20" cy="-30" rx="3" ry="4" fill="#0D1838"/></g>';
-    s += '<path class="mouth" d="M24 -14 q5 3 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
+    if (o.ifade === 'uyku' || o.uyutuldu) s += YUZY.normal;
+    else { var yi = YUZY[o.ifade] ? o.ifade : 'normal'; Object.keys(YUZY).forEach(function (k) { s += '<g data-yz="' + k + '"' + (k === yi ? '' : ' display="none"') + '>' + YUZY[k] + '</g>'; }); }
     if (o.ng) s += '<path d="M34 -24 C46 -22 48 -8 60 2 C90 24 120 40 150 40" stroke="#E7B14A" stroke-width="3" fill="none"/>';
     if (o.maske) s += '<path d="M20 -20 h22 v14 h-22z" fill="#9FD8D0" opacity=".8"/>';
     s += '<g class="breath"><path d="M36 -12 C60 -50 120 -46 170 -40 L420 -36 C440 -36 446 -6 430 0 L36 0 Z" fill="' + (o.ortu || '#9CC6E8') + '"/><path d="M60 -30 C120 -38 260 -34 420 -30" stroke="rgba(255,255,255,.55)" stroke-width="3" fill="none"/></g>';
@@ -237,8 +261,10 @@
   };
   var sandalye = function (x, y) { return '<g><rect x="' + (x - 54) + '" y="' + (y - 236) + '" width="14" height="124" rx="6" fill="#4E5E86"/><rect x="' + (x - 54) + '" y="' + (y - 118) + '" width="110" height="12" rx="5" fill="#4E5E86"/><rect x="' + (x - 48) + '" y="' + (y - 106) + '" width="8" height="106" fill="#3A4566"/><rect x="' + (x + 42) + '" y="' + (y - 106) + '" width="8" height="106" fill="#3A4566"/></g>'; };
   var monitor = function (x, y, id) {
-    return '<g id="' + id + '"><rect x="' + x + '" y="' + y + '" width="190" height="122" rx="10" fill="#1D2438" stroke="#38425C" stroke-width="4"/><rect x="' + (x + 8) + '" y="' + (y + 8) + '" width="174" height="106" rx="4" fill="#0B1222"/>' +
-      '<path class="ecg" d="M' + (x + 12) + ' ' + (y + 40) + ' h30 l6 -10 l6 20 l6 -34 l6 30 l6 -6 h40 l6 -10 l6 20 l6 -34 l6 30 l6 -6 h32" stroke="#4BE08A" stroke-width="2.4" fill="none"/>' +
+    return '<g id="' + id + '"><rect class="mon-dis" x="' + x + '" y="' + y + '" width="190" height="122" rx="10" fill="#1D2438" stroke="#38425C" stroke-width="4"/><rect x="' + (x + 8) + '" y="' + (y + 8) + '" width="174" height="106" rx="4" fill="#0B1222"/>' +
+      '<path class="mon-ekg" data-x="' + (x + 12) + '" data-y="' + (y + 34) + '" d="M' + (x + 12) + ' ' + (y + 34) + ' h166" stroke="#4BE08A" stroke-width="2.2" fill="none" stroke-linejoin="round"/>' +
+      '<path class="mon-ple" data-x="' + (x + 12) + '" data-y="' + (y + 64) + '" d="M' + (x + 12) + ' ' + (y + 64) + ' h166" stroke="#66C7FF" stroke-width="1.8" fill="none" stroke-linejoin="round"/>' +
+      '<text class="mon-uyari" x="' + (x + 176) + '" y="' + (y + 20) + '" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="10" font-weight="700" fill="#FF6B5A" display="none">⚠ ALARM</text>' +
       '<text x="' + (x + 14) + '" y="' + (y + 78) + '" font-family="JetBrains Mono,monospace" font-size="11" fill="#4BE08A">NABIZ</text><text data-v="nabiz" x="' + (x + 14) + '" y="' + (y + 104) + '" font-family="JetBrains Mono,monospace" font-size="24" font-weight="700" fill="#4BE08A">—</text>' +
       '<text x="' + (x + 74) + '" y="' + (y + 78) + '" font-family="JetBrains Mono,monospace" font-size="11" fill="#FFD45A">TA</text><text data-v="ta" x="' + (x + 74) + '" y="' + (y + 104) + '" font-family="JetBrains Mono,monospace" font-size="17" font-weight="700" fill="#FFD45A">—</text>' +
       '<text x="' + (x + 140) + '" y="' + (y + 78) + '" font-family="JetBrains Mono,monospace" font-size="11" fill="#66C7FF">SpO₂</text><text data-v="spo2" x="' + (x + 140) + '" y="' + (y + 104) + '" font-family="JetBrains Mono,monospace" font-size="20" font-weight="700" fill="#66C7FF">—</text></g>';
@@ -304,7 +330,7 @@
     var asamalar = []; sen.adimlar.forEach(function (a) { var n = a.baslik && a.tip !== 'devir' ? a.baslik : ADIM_AD[a.tip]; if (n && asamalar.indexOf(n) < 0) asamalar.push(n); });
     ov.innerHTML = '<div class="axk-top"><div class="t"><b>' + X(sen.odaAd || '') + ' · ' + X(sen.hasta.hitap || sen.hasta.ad) + '</b><small>' + X(sen.baslik) + '</small></div>' +
       '<div class="axk-steps">' + asamalar.map(function (n) { return '<span data-as="' + X(n) + '">' + X(n) + '</span>'; }).join('') + '</div>' +
-      '<button type="button" class="axk-nb" data-k="not">Dosya</button><button type="button" class="axk-x" data-k="x" aria-label="Sahneyi kapat">×</button></div>' +
+      ((sen.vital || sen.oda === 'acil' || sen.oda === 'ameliyathane') ? '<button type="button" class="axk-nb axk-ses" data-k="ses" aria-pressed="false" aria-label="Monitör sesi">Ses</button>' : '') + '<button type="button" class="axk-nb" data-k="not">Dosya</button><button type="button" class="axk-x" data-k="x" aria-label="Sahneyi kapat">×</button></div>' +
       '<div class="axk-body"><div class="axk-stage"><div class="axk-scene">' + sahneSVG(sen) + '</div><div class="axk-panel" aria-live="polite"></div></div>' +
       '<aside class="axk-side" aria-label="Hasta dosyası"><span class="k">hasta dosyası</span><h3>' + X(sen.hasta.ad) + ', ' + X(sen.hasta.yas) + '</h3><ul data-notlar><li class="empty" style="background:none;border:0;padding:0">Görüşmede öğrendiklerin burada birikir.</li></ul></aside></div>';
     D.body.appendChild(ov);
@@ -319,13 +345,79 @@
       notlar.push([b, t]);
       $('[data-notlar]').innerHTML = notlar.map(function (n) { return '<li><b>' + X(n[0]) + '</b>' + X(n[1]) + '</li>'; }).join('');
     };
-    /* monitör */
+    /* ---------- canlı monitör: akan EKG ve SpO₂ dalgası, eşik alarmı, isteğe bağlı ses ---------- */
     var vit = Object.assign({}, sen.vital || {});
+    /* odada duvar monitörü yoksa (poliklinik, bölüm odaları) vital bulgusu olan hastaya taşınabilir monitör */
+    if (sen.vital && !ov.querySelector('#axk-mon')) { var mk = D.createElement('div'); mk.className = 'axk-mon2'; mk.setAttribute('aria-hidden', 'true'); mk.innerHTML = '<svg viewBox="0 0 190 122">' + monitor(0, 0, 'axk-mon') + '</svg>'; scene.appendChild(mk); }
+    var MON = { el: ov.querySelector('#axk-mon'), ses: false, son: 0, faz: 0, pfaz: 0, i: 0, ekg: [], ple: [], rr: 1, al: false, alT: 0, jit: { nabiz: 0, spo2: 0 }, ek: 0 };
+    try { MON.ses = W.localStorage.getItem('axk.ses') === '1'; } catch (e) {}
+    var esik = function () { var sys = parseInt(String(vit.ta || ''), 10); return { nabiz: vit.nabiz != null && (vit.nabiz > 120 || vit.nabiz < 50), spo2: vit.spo2 != null && vit.spo2 < 92, ta: !!sys && (sys >= 180 || sys < 90) }; };
     var vitalYaz = function (alarm) {
-      var mon = ov.querySelector('#axk-mon'); if (!mon) return;
-      ['nabiz', 'ta', 'spo2'].forEach(function (k) { var t = mon.querySelector('[data-v="' + k + '"]'); if (t) { t.textContent = vit[k] != null ? vit[k] + (k === 'spo2' ? '%' : '') : '—'; t.classList.toggle('alarm', !!(alarm && alarm[k])); } });
+      var mon = MON.el; if (!mon) return;
+      var a = esik(); alarm = alarm || {}; MON.al = false;
+      ['nabiz', 'ta', 'spo2'].forEach(function (k) {
+        var t = mon.querySelector('[data-v="' + k + '"]'), on = !!(alarm[k] || a[k]); if (on) MON.al = true;
+        var v = vit[k]; if (v != null && k === 'nabiz') v = Math.round(v + MON.ek + MON.jit.nabiz); if (v != null && k === 'spo2') v = Math.min(100, Math.round(v + MON.jit.spo2));
+        if (t) { t.textContent = v != null ? v + (k === 'spo2' ? '%' : '') : '—'; t.classList.toggle('alarm', on); }
+      });
+      mon.classList.toggle('mon-al', MON.al);
+      var u = mon.querySelector('.mon-uyari'); if (u) u.setAttribute('display', MON.al ? 'inline' : 'none');
     };
     vitalYaz();
+    /* EKG biçimi (faz 0..1): P, QRS, T; düzensiz ritimde P yok */
+    var ekgY = function (f, duz) {
+      var g = function (m, s, a) { return a * Math.exp(-Math.pow((f - m) / s, 2)); };
+      return (duz ? 0 : g(0.16, 0.025, 0.12)) + g(0.30, 0.008, -0.12) + g(0.32, 0.009, 1) + g(0.345, 0.01, -0.28) + g(0.56, 0.05, 0.26) + (duz ? (Math.random() - 0.5) * 0.05 : 0);
+    };
+    var pleY = function (f) { var x = (f + 1 - 0.38) % 1; return Math.exp(-Math.pow((x - 0.18) / 0.1, 2)) + 0.35 * Math.exp(-Math.pow((x - 0.45) / 0.08, 2)); };
+    var BIP = null;
+    var bip = function (fr, sure, kaz) { if (!MON.ses || RM) return; try { BIP = BIP || new (W.AudioContext || W.webkitAudioContext)(); var t = BIP.currentTime, o = BIP.createOscillator(), g = BIP.createGain(); o.frequency.value = fr; g.gain.setValueAtTime(kaz || 0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + sure); o.connect(g); g.connect(BIP.destination); o.start(t); o.stop(t + sure + 0.02); } catch (e) {} };
+    var NW = 166, BOS = 9;
+    var monCiz = function (ts) {
+      if (!MON.el || !ov.parentNode) return;
+      MON.raf = W.requestAnimationFrame(monCiz);
+      if (ts - MON.son < 33) return;
+      var dt = MON.son ? Math.min(0.1, (ts - MON.son) / 1000) : 0.033; MON.son = ts;
+      var hr = vit.nabiz ? vit.nabiz + MON.ek : 0, duz = vit.ritim === 'duzensiz', n = Math.max(1, Math.round(dt * 42));
+      for (var j = 0; j < n; j++) {
+        var per = hr ? (60 / hr) * MON.rr : 1, onceki = MON.faz;
+        MON.faz += (dt / n) / per;
+        if (onceki < 0.32 && MON.faz >= 0.32 && hr) bip(vit.spo2 ? 520 + (vit.spo2 - 85) * 22 : 880, 0.06);
+        if (MON.faz >= 1) { MON.faz -= 1; MON.rr = duz ? 0.7 + Math.random() * 0.6 : 1; }
+        MON.ekg[MON.i] = hr ? ekgY(MON.faz, duz) : 0; MON.ple[MON.i] = hr && vit.spo2 ? pleY(MON.faz) * (vit.spo2 < 92 ? 0.55 : 1) : 0;
+        MON.i = (MON.i + 1) % NW;
+      }
+      var yol = function (el, buf, amp) {
+        var x0 = +el.getAttribute('data-x'), y0 = +el.getAttribute('data-y'), d = '', kalem = false;
+        for (var k = 0; k < NW; k++) { var bosta = ((k - MON.i + NW) % NW) < BOS; if (bosta || buf[k] == null) { kalem = false; continue; } d += (kalem ? 'L' : 'M') + (x0 + k) + ' ' + (y0 - buf[k] * amp).toFixed(1) + ' '; kalem = true; }
+        el.setAttribute('d', d || 'M' + x0 + ' ' + y0);
+      };
+      var e = MON.el.querySelector('.mon-ekg'), p = MON.el.querySelector('.mon-ple');
+      if (e) yol(e, MON.ekg, 22); if (p) yol(p, MON.ple, 10);
+      if (MON.al && ts - MON.alT > 1600) { MON.alT = ts; bip(988, 0.18, 0.07); setTimeout(function () { bip(784, 0.22, 0.07); }, 200); }
+    };
+    if (MON.el && !RM) MON.raf = W.requestAnimationFrame(monCiz);
+    else if (MON.el) { for (var q0 = 0; q0 < NW; q0++) { MON.faz = (q0 / 42) / (vit.nabiz ? 60 / vit.nabiz : 1) % 1; MON.ekg[q0] = vit.nabiz ? ekgY(MON.faz) : 0; MON.ple[q0] = vit.spo2 ? pleY(MON.faz) : 0; } MON.i = NW - 1; monCiz(1000); W.cancelAnimationFrame(MON.raf); }
+    /* sayılar gerçek monitördeki gibi hafifçe oynar (taban değer değişmez) */
+    MON.jt = setInterval(function () { if (vit.nabiz != null) MON.jit.nabiz = Math.round((Math.random() - 0.5) * 3); if (vit.spo2 != null) MON.jit.spo2 = vit.spo2 >= 99 ? -Math.round(Math.random()) : Math.round((Math.random() - 0.5) * 2); vitalYaz(MON.sonAlarm); }, 2600);
+
+    /* ---------- hastanın yüz ifadesi: muayene ve karara göre değişir ---------- */
+    var IF = { taban: (sen.hasta && sen.hasta.ifade) || 'normal', t: null };
+    var ifadeYap = function (k, sure) {
+      var hg = ov.querySelector('[data-who="hasta"]'); if (!hg || !hg.querySelector('[data-yz="' + k + '"]')) return;
+      Array.prototype.forEach.call(hg.querySelectorAll('[data-yz]'), function (g) { if (g.getAttribute('data-yz') === k) g.removeAttribute('display'); else g.setAttribute('display', 'none'); });
+      hg.setAttribute('data-ifade', k);
+      clearTimeout(IF.t);
+      if (sure) IF.t = setTimeout(function () { ifadeYap(IF.taban); if (MON.ek) { MON.ek = 0; vitalYaz(MON.sonAlarm); } }, RM ? sure / 2 : sure);
+    };
+    /* seçenek: o.ifade açıkça verilir; yoksa zararlı eylem endişe, “ağrı/bağır/ağla” geçen sonuç ağrı yüzü yapar */
+    var tepki = function (o, metin) {
+      var k = o.ifade || (o.puan < 0 ? 'endise' : /ağrı|acı|bağır|çığlık|ağla|irkil/i.test(metin || '') ? 'agri' : null);
+      if (!k) return;
+      if (k === 'rahat' || k === 'normal') { IF.taban = k; ifadeYap(k); return; }
+      if (k === 'agri' && vit.nabiz != null && !o.vital) { MON.ek = 6; vitalYaz(MON.sonAlarm); }
+      ifadeYap(k, 3200);
+    };
     var konusan = function (kim, on) { var g = ov.querySelector('[data-who="' + kim + '"]'); if (g) g.classList.toggle('talk', !!on); };
     var KIM = { hasta: sen.hasta.hitap || sen.hasta.ad, mentor: (sen.mentor.unvan ? sen.mentor.unvan + ' ' : '') + sen.mentor.ad, refakat: sen.refakat ? sen.refakat.ad : 'Refakatçi', sen: 'Sen', anlatici: 'Sahne' };
     /* konuşma balonu: daktilo efekti; tıklayınca tamamlanır */
@@ -386,12 +478,14 @@
           if (a.tip === 'sor') {
             soyle('sen', o.t, function () {
               setTimeout(function () {
+                if (o.ifade || o.puan < 0) ifadeYap(o.ifade || 'uzgun', 3400);
                 soyle(o.kim || (sen.hasta.konusamaz && sen.refakat ? 'refakat' : 'hasta'), o.cevap, function () { if (o.not || o.puan > 0) not(o.not ? o.not.split('|')[0] : 'Anamnez', o.not ? (o.not.split('|')[1] || o.cevap) : o.cevap); son(); });
               }, RM ? 0 : 260);
             });
           } else {
             if (o.anim && ANIM[o.anim]) ANIM[o.anim](o); else ANIM.hasta();
-            if (o.vital) { Object.assign(vit, o.vital); vitalYaz(o.alarm); }
+            if (o.vital) { Object.assign(vit, o.vital); MON.sonAlarm = o.alarm; vitalYaz(o.alarm); }
+            tepki(o, o.sonuc);
             popup(o.t, o.deger || '');
             soyle(o.kim || 'anlatici', o.sonuc, function () { not(o.t, o.sonuc); son(); });
           }
@@ -416,7 +510,8 @@
           var b = e.target.closest('[data-c]'); if (!b || S.sec[S.i] != null) return;
           var i = +b.getAttribute('data-c'), o = a.secenek[i]; S.sec[S.i] = i;
           Array.prototype.forEach.call(w.querySelectorAll('[data-c]'), function (x, j) { x.disabled = true; if (a.secenek[j].dogru) x.classList.add('ok'); else if (j === i) x.classList.add('no'); });
-          if (o.vital) { Object.assign(vit, o.vital); vitalYaz(o.alarm); }
+          if (o.vital) { Object.assign(vit, o.vital); MON.sonAlarm = o.alarm; vitalYaz(o.alarm); }
+          if (sen.oda !== 'ameliyathane' || sen.hasta.uyanik) ifadeYap(o.dogru ? 'rahat' : 'endise', 3000);
           ANIM.mentor();
           var f = D.createElement('p'); f.className = 'axk-fb ' + (o.dogru ? 'ok' : 'no'); f.innerHTML = '<b>' + X(KIM.mentor) + ':</b> ' + X(o.geri || (o.dogru ? 'Doğru.' : 'Bu seçenek uygun değil.')); panel.appendChild(f);
           devam().onclick = git;
@@ -444,7 +539,7 @@
       soyle('mentor', a.metin, kutu);
     };
     var kapat = function (sessiz) {
-      clearInterval(S.yaz); clearTimeout(S.pt);
+      clearInterval(S.yaz); clearTimeout(S.pt); clearInterval(MON.jt); clearTimeout(IF.t); if (MON.raf) W.cancelAnimationFrame(MON.raf);
       D.removeEventListener('keydown', key, true);
       if (ov.parentNode) ov.parentNode.removeChild(ov);
       ACIK = null;
@@ -462,6 +557,8 @@
     D.addEventListener('keydown', key, true);
     ov.querySelector('[data-k="x"]').onclick = function () { kapat(); };
     ov.querySelector('[data-k="not"]').onclick = function () { $('.axk-side').classList.toggle('on'); };
+    var sb = ov.querySelector('[data-k="ses"]');
+    if (sb) { var sesCiz = function () { sb.setAttribute('aria-pressed', MON.ses ? 'true' : 'false'); sb.textContent = MON.ses ? 'Ses açık' : 'Ses'; }; sesCiz(); sb.onclick = function () { MON.ses = !MON.ses; try { W.localStorage.setItem('axk.ses', MON.ses ? '1' : '0'); } catch (e) {} sesCiz(); if (MON.ses) bip(880, 0.08); }; }
     ACIK = { kapat: kapat, sen: sen };
     setTimeout(git, RM ? 0 : 500);
     setTimeout(function () { try { ov.querySelector('[data-k="x"]').focus({ preventScroll: true }); } catch (e) {} }, 40);

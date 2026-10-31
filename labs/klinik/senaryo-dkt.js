@@ -185,6 +185,116 @@
           ['Pipetle içirirseniz daha güvenli olur', false, 'Pipet sıvının hızını ve miktarını kontrol etmeyi zorlaştırabilir; değerlendirmeden önerilmez.']
         ]),
         MASA('Vaka masasında değerlendirmeleri seç, aletli bulguları oku; tanısal izlenimini ve terapi planını yaz.')
+      ] },
+
+    /* ============ 31.10.2026: Acadex Medica yeni hastaları (Osman Bey: inme zinciri, Kerem: Odyoloji'den sevk) ============ */
+    /* ------------------------------ İnme sonrası yoğun bakımda yutma taraması ------------------------------ */
+    { id: 'dkt-osman', vaka: 'osman', lab: 'dkt', oda: 'acil', odaAd: 'Nöroloji yoğun bakım', baslik: 'İnmenin ertesi günü: “ağızdan verelim mi?”',
+      hasta: { ad: 'Osman Bey', hitap: 'Osman Bey', yas: '72 yaş', cins: 'E', gorunum: 'yasli', sac: '#C9C4BA', konusamaz: true, ifade: 'endise' }, refakat: { ad: 'Kızı Elif Hanım', cins: 'K', gorunum: 'yetiskin', kiyafet: '#7A4FA8', ifade: 'uzgun' }, mentor: DKT, vital: { nabiz: 88, ta: '154/88', spo2: 96 },
+      adimlar: [
+        { tip: 'konus', kim: 'refakat', metin: 'Babam dünden beri hiçbir şey yemedi, içmedi. Ağzı kurudu. Biraz su versem olmaz mı?' },
+        { tip: 'konus', kim: 'mentor', metin: 'Acil servis yutma taramasını bize bıraktı. Önce güvenle başlayabilir miyiz, onu anlamamız gerek.' },
+        { tip: 'sor', baslik: 'Görüşme', hak: 3, yonerge: 'taramaya başlamadan gereken bilgileri topla', secenek: [
+          S('bilinc', 'Bugün ne kadar uyanık, sorulara gözünü açıp yanıt veriyor mu?', 'Sabahtan beri gözleri açık; başını sallayarak yanıt veriyor.', 3, 'Bilinç|Uyanık, basit komutlara uyuyor.', 'refakat'),
+          S('tukuruk', 'Tükürüğünü yutabiliyor mu, ağzından akıyor mu?', 'Sağ ağız köşesinden tükürük akıyor, mendille siliyoruz.', 3, 'Salya|Sağ ağız köşesinden salya.', 'refakat'),
+          S('ates', 'Ateşi ya da öksürüğü oldu mu?', 'Ateşi yok, öksürmedi.', 2, 'Solunum|Ateş ve öksürük yok.', 'refakat'),
+          S('dis', 'Takma dişi var mı?', 'Üst protezi var, çıkarıldı.', 1, null, 'refakat'),
+          S('memleket', 'Nerelisiniz?', 'Kastamonulu.', 0, null, 'refakat'),
+          YARGI('refakat', 'Siz ona bir şey verdiniz mi gizlice?', 'Hayır, vermedik…', 'Aileyi suçlamak yerine neden beklediğimizi açıklamak iş birliğini artırır.')
+        ] },
+        { tip: 'eylem', baslik: 'Yatak başı tarama', yonerge: 'güvenli sırayla yap', secenek: [
+          E('postur', 'Yatak başını dik konuma getir', 'Osman Bey dik oturuyor; başı ortada.', 2),
+          E('oral', 'Dudak, dil, yumuşak damak ve istemli öksürüğü değerlendir', 'Sağ dudak ve dil hareketi zayıf; istemli öksürük zayıf.', 3),
+          E('kasik', 'Çay kaşığıyla üç kez az su dene, sesini dinle', 'İlk kaşıkta yutma gecikiyor; ikinci kaşıktan sonra ıslak ses ve öksürük.', 3, { ifade: 'endise' }),
+          E('bardak', 'Bir bardak suyu yudum yudum içir', 'Monitör alarm veriyor: öksürük nöbeti, SpO₂ düşüyor.', -3, { anim: 'monitor', vital: { spo2: 90, nabiz: 108 }, alarm: { spo2: true }, ifade: 'agri', geri: 'Tarama küçük miktarla başlar; bardaktan içirmek aspirasyon riskidir.' })
+        ] },
+        K('Güvenlik', 'Kızı soruyor: “Su ve çorba versek olmaz mı?”', [
+          ['Şimdilik ağızdan verilmez; ekiple geçici tüple beslenme önerilir, ağız bakımı yapılır ve her gün yeniden değerlendirilir', true, 'Doğru. Islak ses ve öksürük taramanın başarısız olduğunu gösterir. Beslenme kesintiye uğramamalı: diyetisyen enteral planı yapar.'],
+          ['Yoğurt gibi koyu şeyler verilebilir', false, 'Aletli değerlendirme yapılmadan kıvam seçilmez.'],
+          ['Pipetle küçük yudumlar olur', false, 'Pipet sıvı hızını kontrolü zorlaştırabilir; değerlendirmeden önerilmez.']
+        ]),
+        MASA('Vaka masasında değerlendirmeleri seç, bulguları oku; tanısal izlenimini ve planını yaz. Sonra Diyet katına konsültasyon iste.')
+      ] },
+
+    /* ------------------------------ İşitme kaybına bağlı dil gecikmesi ------------------------------ */
+    { id: 'dkt-kerem', vaka: 'kerem', lab: 'dkt', oda: 'dkt', odaAd: 'Çocuk dil ve konuşma odası', baslik: 'Yeni işitme cihazlı, 15 sözcüklü çocuk',
+      hasta: { ad: 'Kerem', hitap: 'Kerem', yas: '4 yaş', cins: 'E', gorunum: 'cocuk', sac: '#2E241C', kiyafet: '#E0A526' }, refakat: { ad: 'Annesi Seda Hanım', cins: 'K', gorunum: 'yetiskin', kiyafet: '#6A4FA8' }, mentor: DKT,
+      adimlar: [
+        { tip: 'konus', kim: 'refakat', metin: 'Odyoloji’de işitme kaybı dediler, cihazlar geçen hafta takıldı. Şimdi konuşmaya başlar mı?' },
+        { tip: 'sor', baslik: 'Görüşme', hak: 3, yonerge: 'dil gelişimini ve cihaz kullanımını aydınlatan soruları seç', secenek: [
+          S('cihaz', 'Cihazları günde kaç saat takıyor?', 'Dört saat kadar; sonra çıkarıp atıyor.', 3, 'Cihaz|Günde ≈4 saat.', 'refakat'),
+          S('anlama', 'Söylediklerinizi anlıyor mu, basit yönergeleri yapıyor mu?', '“Ayakkabını getir” deyince getiriyor, iki adımlıları karıştırıyor.', 3, 'Anlama|Tek adımlı yönergeler.', 'refakat'),
+          S('iletisim', 'İsteklerini nasıl anlatıyor?', 'İşaret ediyor, elimden çekiyor; bazen sinirleniyor.', 2, 'İfade|Jest ve işaret ağırlıklı.', 'refakat'),
+          S('oyun', 'Başka çocuklarla nasıl oynuyor?', 'Kuzenleriyle oynuyor, sırasını bekliyor.', 2, 'Sosyal|Oyun ve sosyal etkileşim yaşına uygun.', 'refakat'),
+          S('tv', 'Ekran süresi ne kadar?', 'Akşamları bir saat.', 1, null, 'refakat'),
+          YARGI('refakat', 'Siz evde onunla yeterince konuşmuyor musunuz?', 'Konuşuyoruz ama duymuyordu ki…', 'Aileyi suçlamak değil, terapinin merkezine koymak gerekir.')
+        ] },
+        { tip: 'eylem', baslik: 'Gözlem', yonerge: 'gerekenleri yap', secenek: [
+          E('oyun', 'Oyuncakla serbest oyun içinde iletişimini gözle', 'Göz teması iyi; ortak dikkat kuruyor; “araba”, “ver”, “anne” diyor.', 3),
+          E('ses', 'Arkasından adını normal sesle söyle (cihaz takılıyken)', 'Cihazla adına dönüyor.', 2, { ifade: 'rahat' }),
+          E('cihaz', 'Cihazların çalıştığını ve pilini kontrol et', 'Sol cihazın pili zayıf; değiştirildi.', 2),
+          E('tekrar', 'Sözcükleri doğru söyleyene kadar tekrar ettir', 'Kerem sıkılıyor, ağlıyor ve oyunu bırakıyor.', -2, { ifade: 'uzgun', geri: 'Zorla tekrar ettirmek iletişim isteğini azaltır; model ol ve genişlet.' })
+        ] },
+        K('Aile', 'Annesi soruyor: “Cihaza alışsın, terapiye bir yıl sonra mı başlayalım?”', [
+          ['Hayır; cihaz uyanık olunan her saatte takılmalı ve aileyi merkeze alan dil terapisi hemen başlamalı, odyolojiyle birlikte izlenmeli', true, 'Doğru. Dil gelişiminin kritik dönemindeyiz; işitsel girdi ne kadar erken ve uzun olursa dil o kadar hızlı ilerler.'],
+          ['Evet, önce bir yıl cihaza alışsın', false, 'Bekleme kritik dönemi kaçırır.'],
+          ['Cihaz yetmez, hemen işaret dili dışında her şey bırakılsın', false, 'Karar aileyle, işitsel ilerlemeye ve ailenin tercihine göre verilir; tek yol dayatılmaz.']
+        ]),
+        MASA('Vaka masasında değerlendirmeleri seç, bulguları oku; tanısal izlenimini ve terapi planını yaz.')
+      ] },
+
+    /* ------------------------------ Yarık damak ------------------------------ */
+    { id: 'dkt-yarik', vaka: 'yarik', lab: 'dkt', oda: 'dkt', odaAd: 'Çocuk dil ve konuşma odası', baslik: '“Konuşması burnundan geliyor”',
+      hasta: { ad: 'Mira', hitap: 'Mira', yas: '6 yaş', cins: 'K', gorunum: 'cocuk', sac: '#5A3A22', kiyafet: '#D9472B', ifade: 'uzgun' }, refakat: { ad: 'Babası', cins: 'E', gorunum: 'yetiskin', kiyafet: '#4E7AA8' }, mentor: DKT,
+      adimlar: [
+        { tip: 'konus', kim: 'refakat', metin: 'Mira’nın konuşması burnundan geliyor gibi. Sınıfta çocuklar taklit ediyor, artık parmak kaldırmak istemiyor.' },
+        { tip: 'sor', baslik: 'Görüşme', hak: 3, yonerge: 'yapısal nedeni aydınlatan soruları seç', secenek: [
+          S('ameliyat', 'Doğumda bir sorun oldu mu, ameliyat geçirdi mi?', 'Damağı yarıktı; bir yaşında kapattılar.', 3, 'Öykü|Yarık damak, 1 yaşında onarım.', 'refakat'),
+          S('burun', 'Su içerken burnundan geldiği oluyor mu?', 'Evet, özellikle hızlı içince.', 3, 'Nazal geri kaçış|Sıvıda burundan geliş.', 'refakat'),
+          S('kulak', 'Sık kulak iltihabı geçirdi mi, işitmesi ölçüldü mü?', 'Çok geçirdi; iki yıldır ölçtürmedik.', 2, 'Kulak|Sık otit; güncel işitme ölçümü yok.', 'refakat'),
+          S('okul', 'Okulda konuşmak konusunda nasıl hissediyor?', 'Utanıyor, sınıfta susuyor.', 2, 'Psikososyal|Utanma, konuşmadan kaçınma.', 'refakat'),
+          S('renk', 'En sevdiği renk ne?', 'Mor.', 0, null, 'refakat'),
+          YARGI('refakat', 'Ameliyat geç mi yapıldı, siz mi ertelediniz?', 'Doktorların dediği zaman yapıldı…', 'Geçmiş kararları sorgulamak yerine bugünkü değerlendirmeye odaklan.')
+        ] },
+        { tip: 'eylem', baslik: 'Gözlem', yonerge: 'gerekenleri yap', secenek: [
+          E('ayna', 'Burnun altına ayna tutup “papa, baba” dedir', 'Ayna her hecede buğulanıyor: nazal emisyon.', 3),
+          E('dinle', 'Ünlüleri burun açık-kapalı söylet ve dinle', 'Burun kapatılınca ses belirgin değişiyor: hipernazalite.', 3),
+          E('ses', 'Basınçlı sesleri içeren cümle söylet', '“p” yerine gırtlaktan bir durak sesi çıkarıyor.', 2),
+          E('ufle', 'Balon şişirtip “bunu her gün yap” de', 'Mira balonu şişiremiyor, üzülüyor.', -2, { ifade: 'uzgun', geri: 'Üfleme egzersizlerinin konuşmadaki nazaliteyi düzelttiği gösterilmemiştir.' })
+        ] },
+        K('Aile', 'Babası soruyor: “Terapi yaparsak burundan konuşma tamamen geçer mi?”', [
+          ['Burundan kaçan hava yapısal bir sorunu düşündürüyor; damak ekibine görüntüleme için yönlendireceğiz. Yanlış öğrenilmiş sesleri ise terapide düzeltebiliriz', true, 'Doğru. Yapı terapiyle değişmez; hangi sorunun yapısal, hangisinin öğrenilmiş olduğunu ayırmak aileye gerçekçi bir beklenti verir.'],
+          ['Evet, düzenli üfleme egzersizleriyle geçer', false, 'Kanıt yok; yapısal yetmezlik terapiyle kapanmaz.'],
+          ['Büyüyünce kendiliğinden düzelir', false, 'Bekleme psikososyal etkileri ve telafi edici alışkanlıkları artırır.']
+        ]),
+        MASA('Vaka masasında değerlendirmeleri seç, bulguları oku; tanısal izlenimini ve terapi planını yaz.')
+      ] },
+
+    /* ------------------------------ Erişkin kekemelik ------------------------------ */
+    { id: 'dkt-ykek', vaka: 'ykek', lab: 'dkt', oda: 'dkt', odaAd: 'Erişkin akıcılık polikliniği', baslik: 'İş görüşmesinden önce kilitlenen genç',
+      hasta: { ad: 'Mert', hitap: 'Mert Bey', yas: '24 yaş', cins: 'E', gorunum: 'genc', kiyafet: '#2E3A5C', ifade: 'endise' }, mentor: DKT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Gelecek ay çok istediğim bir iş görüşmesi var. Adımı söylerken bile takılıyorum; telefon çalınca açmıyorum.' },
+        { tip: 'sor', baslik: 'Görüşme', hak: 3, yonerge: 'akıcılığı ve yaşam etkisini aydınlatan soruları seç', secenek: [
+          S('kacin', 'Takılmamak için kaçındığınız durumlar ya da sözcükler var mı?', 'Telefonu açmıyorum, restoranda söylenmesi kolay yemeği sipariş ediyorum.', 3, 'Kaçınma|Telefon, sipariş; sözcük değiştirme.'),
+          S('baslangic', 'Takılmalar ne zaman başladı, daha önce terapi aldınız mı?', '4 yaşında başlamış; ilkokulda biraz terapi aldım.', 3, 'Öykü|4 yaşından beri; çocuklukta kısa terapi.'),
+          S('his', 'Takıldığınız anda neler hissediyorsunuz?', 'Boğazım kilitleniyor, yüzüm kızarıyor, gözlerimi kırpıyorum.', 2, 'Eşlik eden|Blok, göz kırpma, utanç.'),
+          S('ilac', 'Düzenli ilaç kullanıyor musunuz?', 'Hayır.', 1),
+          S('dizi', 'Hangi dizileri izliyorsunuz?', 'Bilim kurgu.', 0),
+          YARGI('hasta', 'Biraz sakin olsanız takılmazsınız aslında.', 'Keşke o kadar kolay olsa…', 'Kekemelik bir kaygı sorunu değildir; “sakin ol” önerisi suçlayıcıdır.')
+        ] },
+        { tip: 'eylem', baslik: 'Gözlem', yonerge: 'gerekenleri yap', secenek: [
+          E('okuma', 'Bir paragraf okutup takılmaları say', 'Okumada %TH ≈ 6; 2–3 saniyelik bloklar.', 3),
+          E('telefon', 'Rol yapma: telefonla randevu alma', 'Telefonda %TH ≈ 12; göz kırpma ve baş hareketi artıyor.', 3, { ifade: 'endise' }),
+          E('olcek', 'Kaçınma ve yaşam kalitesi ölçeğini doldurt', 'Kaçınma ve konuşma kaygısı yüksek düzeyde.', 2),
+          E('tamamla', 'Takıldığı sözcükleri onun yerine tamamla', 'Mert susuyor, gözlerini kaçırıyor.', -2, { ifade: 'uzgun', geri: 'Sözcüğü tamamlamak iyi niyetli olsa da kişinin söz hakkını elinden alır.' })
+        ] },
+        K('Hedef', 'Mert soruyor: “Görüşmeye kadar kekemeliğimi tamamen bitirebilir miyiz?”', [
+          ['Amaç kekemeliği sıfırlamak değil; akıcılığı artıran teknikler ve kaçınmayı azaltan gerçek ortam provalarıyla görüşmede rahat konuşmak', true, 'Doğru. Gerçekçi hedef güven verir; teknik çalışma ile kaygıya yönelik yaklaşım birlikte en iyi sonucu verir.'],
+          ['Evet, bir ayda tamamen geçer', false, 'Erişkinde gerçekçi olmayan vaat başarısızlık hissini artırır.'],
+          ['Takılınca susup sözcüğü değiştirmeyi öğrenmek yeterli', false, 'Sözcük değiştirmek kaçınmayı besler.']
+        ]),
+        MASA('Vaka masasında değerlendirmeleri seç, bulguları oku; tanısal izlenimini ve terapi planını yaz.')
       ] }
   ];
 });

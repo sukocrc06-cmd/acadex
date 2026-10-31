@@ -85,8 +85,9 @@ test('puanlama: kusursuz odyogram %100; maskesiz gölge eğri ayrı yakalanır',
   assert.ok(gol.length >= 8, 'gölge noktaları: ' + gol.length);
   assert.ok(gol.every((r) => r.ear === 'L'));
 });
-test('vaka masası: 9 vaka; doğru cevaplar listede; puan gerekli/gereksiz testleri ayırır', () => {
-  assert.equal(A.CASES.length, 9);
+test('vaka masası: 13 vaka; doğru cevaplar listede; puan gerekli/gereksiz testleri ayırır', () => {
+  /* 31.10.2026: Acadex Medica için 4 yeni vaka (v-kerem, v-buson, v-ototoks, v-perfor) */
+  assert.equal(A.CASES.length, 13);
   for (const c of A.CASES) {
     assert.ok(c.tani[c.dogru] && c.yon[c.dyon] && c.not, c.id);
     for (const t of (c.gerekli || []).concat(c.yararli || [], c.gereksiz || [])) assert.ok(A.TESTS[t], c.id + ' bilinmeyen test ' + t);

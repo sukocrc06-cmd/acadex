@@ -185,6 +185,115 @@
           ['Ağrı geçene kadar ayağı tamamen hareketsiz bırak', false, 'Erken kontrollü hareket ve yük verme iyileşmeyi hızlandırır.']
         ]),
         PROT('ank', 'Fizyo Lab’de ayak bileği lateral burkulması protokolünü aç; faz hedeflerini ve denge egzersizlerini incele.')
+      ] },
+
+    /* ============ 31.10.2026: Acadex Medica yeni hastaları ============ */
+    /* ------------------------------ Kalça kırığından 6 hafta sonra (Fatma Hanım zinciri) ------------------------------ */
+    { id: 'fz-kalca', vaka: 'trendelenburg', lab: 'fizyo', oda: 'fizyo', odaAd: 'Geriatrik rehabilitasyon', baslik: 'Kalça protezinden 6 hafta sonra yalpalama',
+      hasta: { ad: 'Fatma Hanım', hitap: 'Fatma Hanım', yas: 82, cins: 'K', gorunum: 'yasli', ifade: 'endise' }, refakat: { ad: 'Kızı Ayşe Hanım', cins: 'K', gorunum: 'yetiskin', kiyafet: '#2E8E7E' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'refakat', metin: 'Ameliyattan sonra diyetisyenin dediklerini yaptık, kilosunu da toparladı. Ama annem yürürken iki yana sallanıyor, düşecek diye korkuyorum.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'yürüme bozukluğunu ve düşme riskini aydınlatan soruları seç', secenek: [
+          S('ameliyat', 'Ameliyatta ne yapıldı, cerrahınız bir kısıtlama verdi mi?', 'Sağ kalçaya protez taktılar. Tam yük verebilirsin dediler.', 3, 'Cerrahi|Sağ parsiyel protez, tam yük serbest.'),
+          S('dusme', 'Ameliyattan sonra düştünüz mü ya da düşer gibi oldunuz mu?', 'Banyoda iki kez tutundum, düşmedim.', 3, 'Düşme|Ameliyat sonrası 2 kez düşme eşiği.'),
+          S('yardimci', 'Evde neyle yürüyorsunuz?', 'Yürüteçle; bazen bırakıyorum.', 2, 'Yardımcı cihaz|Yürüteç, düzensiz kullanım.'),
+          S('agri', 'Ağrınız ne düzeyde?', 'Pek ağrım yok, yorgunluk var.', 1),
+          S('torun', 'Torunlarınız sık geliyor mu?', 'Hafta sonları geliyorlar.', 0),
+          YARGI('hasta', 'Yürüteci bırakmanız sorumsuzluk değil mi?', 'Ben de kendi başıma yürümek istiyorum…', 'Bağımsızlık isteği değerlidir; güvenli yürüyüş hedefi birlikte konur.')
+        ] },
+        { tip: 'eylem', baslik: 'Değerlendirme', yonerge: 'gerekenleri yap', secenek: [
+          E('yuru', 'Yürüyüşünü gözle', 'Sağ bacak üzerinde dururken sol leğen kemiği aşağı düşüyor, gövdesini sağa eğiyor.', 3),
+          E('kuvvet', 'Kalça abduktör kuvvetini test et', 'Sağ kalça abduksiyonu 3/5, sol 4/5.', 3),
+          E('tug', 'Kalk ve yürü testi (Timed Up and Go)', '18 saniye: düşme riski yüksek.', 2, { deger: '18 sn' }),
+          E('merdiven', 'Yardımsız merdiven inip çıkmasını iste', 'Fatma Hanım ilk basamakta dengesini kaybediyor; tutup oturtuyorsun.', -3, { ifade: 'endise', geri: 'Düşme riski yüksek hastada değerlendirme güvenli ortamda, destekle yapılır.' })
+        ] },
+        K('Değerlendirme', 'Gözlediğin yürüyüş örüntüsünü doğrulamak için hangi testi seçersin?', [
+          ['Tek ayak üstünde leğen düzeyini izleyen test (Trendelenburg)', true, 'Doğru. Bu yürüyüş kalça abduktörlerinin (gluteus medius) yetersizliğini düşündürür; test bunu doğrular ve rehabilitasyon hedefini belirler.'],
+          ['Lachman testi', false, 'Lachman diz ön çapraz bağını değerlendirir.'],
+          ['Phalen testi', false, 'Phalen el bileği karpal tünelini değerlendirir.']
+        ]),
+        TEST('trendelenburg', 'Fizyo Lab’de testi 3B modelde uygula; hangi kasın, hangi sinirin sorumlu olduğunu incele.')
+      ] },
+
+    /* ------------------------------ Lateral epikondilit ------------------------------ */
+    { id: 'fz-tenis', vaka: 'cozen', lab: 'fizyo', oda: 'fizyo', odaAd: 'El ve üst ekstremite rehabilitasyonu', baslik: 'Fare tutunca dirsek dışında ağrı',
+      hasta: { ad: 'Aslı Hanım', hitap: 'Aslı Hanım', yas: 41, cins: 'K', gorunum: 'yetiskin', kiyafet: '#C8573A' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Grafik tasarımcıyım. İki aydır sağ dirseğimin dışı ağrıyor; çaydanlığı kaldırırken, fareyi tutarken batıyor.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'yükleme ve tanıyı aydınlatan soruları seç', secenek: [
+          S('kavrama', 'Hangi hareketler ağrıyı artırıyor?', 'Bir şey kavrayıp kaldırınca, bileğimi geriye bükünce.', 3, 'Provokasyon|Kavrama ve bilek ekstansiyonuyla.'),
+          S('is', 'Günde kaç saat bilgisayar başındasınız, mola veriyor musunuz?', 'On saat; mola pek vermiyorum.', 3, 'Yük|Günde 10 saat, molasız tekrarlı iş.'),
+          S('uyusma', 'Elinizde uyuşma ya da karıncalanma var mı?', 'Yok.', 2, 'Nörolojik|Uyuşma yok (sinir basısı daha az olası).'),
+          S('boyun', 'Boyun ağrınız var mı?', 'Arada tutulma oluyor ama ağrı dirsekte.', 1),
+          S('hobi', 'Hafta sonu ne yaparsınız?', 'Yürüyüş.', 0),
+          YARGI('hasta', 'Bu kadar çalışırsanız olur tabii, neden durmuyorsunuz?', 'Mecburum…', 'İş koşulunu yargılamak yerine ergonomi ve yük yönetimi birlikte planlanır.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('palp', 'Lateral epikondili palpe et', 'Lateral epikondilin hemen distalinde nokta hassasiyeti.', 3, { ifade: 'agri' }),
+          E('kavrama', 'Ağrısız kavrama gücünü ölç', 'Sağda ağrısız kavrama 14 kg, solda 26 kg.', 2, { deger: '14 / 26 kg' }),
+          E('bilek', 'Dirsek ve bilek eklem hareket açıklığına bak', 'Eklem açıklıkları tam.', 2),
+          E('manip', 'Dirseği hızlı ve sert manipüle et', 'Aslı Hanım ağrıyla kolunu çekiyor.', -3, { ifade: 'agri', geri: 'Tendinopatide zorlayıcı manipülasyonun yeri yoktur.' })
+        ] },
+        K('Ön değerlendirme', 'Bulguları doğrulamak için hangi provokasyon testini seçersin?', [
+          ['Dirençli bilek ekstansiyonunda lateral epikondil ağrısını arayan test (Cozen)', true, 'Doğru. Ekstansör kas kökü (özellikle ECRB) yüklenince ağrı tekrar oluşur.'],
+          ['Thompson testi', false, 'Thompson Aşil tendonunu değerlendirir.'],
+          ['Düz bacak kaldırma testi', false, 'Lomber kök basısını değerlendirir.']
+        ]),
+        TEST('cozen', 'Fizyo Lab’de testi 3B modelde uygula; hangi tendonun yüklendiğini gör.')
+      ] },
+
+    /* ------------------------------ Aşil tendonu ------------------------------ */
+    { id: 'fz-asil', vaka: 'thompson', lab: 'fizyo', oda: 'fizyo', odaAd: 'Spor fizyoterapisi', baslik: 'Halı sahada “biri tekme attı sandım”',
+      hasta: { ad: 'Mehmet Bey', hitap: 'Mehmet Bey', yas: 45, cins: 'E', gorunum: 'yetiskin', kiyafet: '#2E8E7E', ifade: 'agri' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Dün akşam halı sahada ileri fırladım, topuğumun üstüne biri tekme attı sandım. Arkama baktım, kimse yok.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'en önemli soruları seç', secenek: [
+          S('ses', 'O anda bir ses duydunuz mu, hemen basabildiniz mi?', '“Pat” diye bir ses geldi. Topallayarak çıktım, parmak ucuma kalkamıyorum.', 3, 'Mekanizma|Ani itiş, “pat” sesi, parmak ucuna kalkamama.'),
+          S('ilac', 'Son zamanlarda antibiyotik ya da kortizon kullandınız mı?', 'Geçen ay idrar yolu için bir antibiyotik içtim; adını bilmiyorum.', 3, 'Risk|Yakın zamanda antibiyotik (florokinolon?) kullanımı.', null, 'Önemli: bazı antibiyotikler (florokinolonlar) ve kortikosteroidler tendon yırtığı riskini artırır.'),
+          S('once', 'Daha önce o bölgede ağrınız var mıydı?', 'Sabahları biraz sertlik olurdu.', 2, 'Öncesi|Önceden sabah sertliği (tendinopati?).'),
+          S('isinma', 'Maçtan önce ısındınız mı?', 'Pek değil.', 1),
+          S('takim', 'Hangi takımı tutuyorsunuz?', 'Söylemesem daha iyi.', 0),
+          YARGI('hasta', 'Bu yaşta halı saha mı olur?', 'Spor yapmayalım mı yani…', 'Aktif kalmak değerli; amaç güvenli dönüş planıdır.')
+        ] },
+        { tip: 'eylem', baslik: 'Muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('bak', 'Yüzüstü yatırıp iki ayağın duruşuna bak', 'Sağ ayak, solun aksine yerçekimiyle daha dik sarkıyor.', 3),
+          E('palp', 'Tendon boyunca palpe et', 'Topuğun 4–5 cm üstünde belirgin çukurluk.', 3, { ifade: 'agri' }),
+          E('ucu', 'Tek ayak parmak ucuna kalkmasını iste', 'Sağda kalkamıyor.', 1),
+          E('germe', 'Ağrı geçsin diye baldırı zorla ger', 'Mehmet Bey ağrıyla bağırıyor; yırtık uzayabilir.', -3, { ifade: 'agri', geri: 'Tam kat yırtık şüphesinde germe yapılmaz.' })
+        ] },
+        K('Ön değerlendirme', 'Tam kat yırtık şüphesini doğrulamak için hangi testi seçersin, sonra ne yaparsın?', [
+          ['Baldır sıkılınca ayağın plantar fleksiyonunu izleyen test (Thompson); aynı gün ortopedi değerlendirmesi', true, 'Doğru. Plantar fleksiyon olmuyorsa tendon tam kopmuştur; cerrahi ya da fonksiyonel ateli içeren tedavi kararı erken verilmelidir.'],
+          ['Lachman testi; dizi bantla', false, 'Lachman ön çapraz bağ testidir; yakınma topukta.'],
+          ['Ağrı kesici ve bir hafta sonra kontrol', false, 'Tam kat yırtık zaman kaybına gelmez.']
+        ]),
+        TEST('thompson', 'Fizyo Lab’de testi 3B modelde uygula; baldır kasları ile Aşil tendonunun ilişkisini incele.')
+      ] },
+
+    /* ------------------------------ Total diz protezi ------------------------------ */
+    { id: 'fz-tda', vaka: 'tda', lab: 'fizyo', oda: 'fizyo', odaAd: 'Ortopedik rehabilitasyon', baslik: 'Diz protezinden 10 gün sonra',
+      hasta: { ad: 'Nuriye Hanım', hitap: 'Nuriye Hanım', yas: 70, cins: 'K', gorunum: 'yasli', ifade: 'endise' }, refakat: { ad: 'Eşi Ali Bey', cins: 'E', gorunum: 'yasli', kiyafet: '#4E7AA8' }, mentor: FZT,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'On gün önce sol dizime protez taktılar. Dizimi bükmekten korkuyorum, açılır mı diye.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'rehabilitasyonu yönlendiren soruları seç', secenek: [
+          S('yara', 'Yaranızda kızarıklık, akıntı ya da ateş var mı?', 'Yok, dikişler dün alındı.', 3, 'Yara|Temiz, dikişler alındı; enfeksiyon bulgusu yok.'),
+          S('baldir', 'Baldırınızda şişlik, kızarıklık ya da ani ağrı oldu mu?', 'Hayır, olmadı.', 3, 'Tromboz|Derin ven trombozu bulgusu yok.', null, 'Önemli: artroplasti sonrası DVT erken dönemin en tehlikeli komplikasyonlarından biridir.'),
+          S('egz', 'Evde hangi egzersizleri yapıyorsunuz?', 'Hastanede ayak bileği pompası öğrettiler, onu yapıyorum.', 2, 'Egzersiz|Yalnız ayak bileği pompası.'),
+          S('agri', 'Ağrı kesicinizi egzersizden önce alıyor musunuz?', 'Hayır, ağrıdıkça alıyorum.', 2, 'Ağrı|Analjezik zamanlaması uygun değil.'),
+          S('yemek', 'Hastanenin yemekleri nasıldı?', 'Tuzsuzdu.', 0),
+          YARGI('hasta', 'Korkunuz abartılı değil mi?', 'Bilmiyorum, öyle mi…', 'Hareket korkusu (kinezyofobi) gerçektir; açıklama ve kademeli egzersizle azalır.')
+        ] },
+        { tip: 'eylem', baslik: 'Değerlendirme', yonerge: 'gerekenleri yap', secenek: [
+          E('eha', 'Gonyometreyle diz fleksiyon ve ekstansiyonunu ölç', 'Fleksiyon 75°, ekstansiyonda −10° eksik.', 3, { ifade: 'agri', deger: '75° / −10°' }),
+          E('quad', 'Kuadriseps kasılmasını ve düz bacak kaldırmayı değerlendir', 'Kuadriseps kasılması zayıf; düz bacak kaldırırken diz bükülüyor (ekstansör gecikmesi).', 3),
+          E('sis', 'Diz çevresi ödemine bak', 'Hafif ödem; ısı artışı yok.', 2),
+          E('zorla', 'Dizi bir seferde 120°’ye zorla bük', 'Nuriye Hanım ağlamaya başlıyor; kas savunması artıyor.', -3, { ifade: 'agri', geri: 'Zorlayıcı germe ağrı ve savunmayı artırır; açıklık kademeli kazanılır.' })
+        ] },
+        K('Plan', 'İlk iki haftanın rehabilitasyon önceliği ne olmalı?', [
+          ['Tam ekstansiyonu kazanmak, kuadriseps aktivasyonu, ödem kontrolü ve kademeli fleksiyon; analjeziyi egzersizden önce planlamak', true, 'Doğru. Ekstansiyon eksikliği yürüyüşü bozar; kuadriseps aktivasyonu ve kontrollü açıklık çalışması erken dönemin temelidir.'],
+          ['Protez sağlam olsun diye 6 hafta dizi hareket ettirmemek', false, 'Hareketsizlik yapışıklık ve tromboz riskini artırır.'],
+          ['Hemen ağırlıkla squat ve koşu', false, 'Erken dönemde ağır yükleme uygun değildir.']
+        ]),
+        PROT('tda', 'Fizyo Lab’de total diz artroplastisi protokolünü aç; faz hedeflerini ve egzersiz geçiş ölçütlerini incele.')
       ] }
   ];
 });

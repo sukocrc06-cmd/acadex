@@ -198,19 +198,126 @@ body.md-labda{overflow:hidden}
 .toast.on{opacity:1}
 .md-not{max-width:1320px;margin:0 auto;padding:0 18px 30px;color:var(--muted);font-size:12.5px;text-align:center}
 
+/* ---------- canlı hastane (31.10.2026): vakit, yürüyen personel, anons ---------- */
+.md-saat{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;background:#F3F6F9;border:1px solid var(--line);font-size:12.5px;color:var(--ink2);white-space:nowrap}
+.md-saat svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.md-saat b{font-size:13.5px;color:var(--ink)}
+.sahne{--gok1:#9ED3F2;--gok2:#D6EEFA}
+.sahne[data-vakit="sabah"]{--gok1:#FFD3A1;--gok2:#BFE3F7}
+.sahne[data-vakit="aksam"]{--gok1:#F2955F;--gok2:#7A5FB0}
+.sahne[data-vakit="gece"]{--gok1:#0F1A3D;--gok2:#2B3F78}
+.sahne .sehir{fill:#8FA3BE}.sahne[data-vakit="aksam"] .sehir{fill:#5B4B7E}.sahne[data-vakit="gece"] .sehir{fill:#1A2550}
+.sahne .yildiz,.sahne .ay,.sahne .pencereler{opacity:0;transition:opacity 1.2s}
+.sahne[data-vakit="gece"] .yildiz,.sahne[data-vakit="gece"] .ay,.sahne[data-vakit="gece"] .pencereler,.sahne[data-vakit="aksam"] .pencereler{opacity:1}
+.sahne[data-vakit="gece"] .gunes,.sahne[data-vakit="gece"] .bulut{opacity:0}
+.sahne[data-vakit="sabah"] .gunes{transform:translateY(22px)}
+.sahne[data-vakit="aksam"] .gunes{fill:#FF9F5A;transform:translateY(28px)}
+.sahne .yildiz circle{animation:yildiz 3s ease-in-out infinite}
+@keyframes yildiz{50%{opacity:.35}}
+.sahne .bulut{animation:bulut 40s linear infinite}
+@keyframes bulut{from{transform:translateX(-30px)}to{transform:translateX(60px)}}
+.sahne .vakit-ton{fill:transparent;transition:fill 1.2s}
+.sahne[data-vakit="aksam"] .vakit-ton{fill:rgba(160,80,40,.06)}
+.sahne[data-vakit="gece"] .vakit-ton{fill:rgba(18,28,72,.14)}
+.sahne[data-vakit="gece"] .isik{opacity:.6;animation:none}
+.sahne .yuru{pointer-events:none}
+.sahne .yuru .adim{animation:adim .55s ease-in-out infinite alternate}
+@keyframes adim{to{transform:translateY(-6px)}}
+.sahne .y-hem{animation:yuruG 26s linear infinite;animation-delay:-4s}
+.sahne .y-dr{animation:yuruT 34s linear infinite;animation-delay:-20s}
+.sahne .y-sedye{animation:sedyeG 46s linear infinite;animation-delay:-8s}
+@keyframes yuruG{0%{transform:translateX(-140px)}62%,100%{transform:translateX(1140px)}}
+@keyframes yuruT{0%,30%{transform:translateX(1140px)}100%{transform:translateX(-140px)}}
+@keyframes sedyeG{0%{transform:translateX(-260px)}45%,100%{transform:translateX(1180px)}}
+.sahne .svk{animation:nb 1.2s ease-in-out infinite}
+.md-anons{position:absolute;left:50%;top:10px;z-index:3;display:flex;align-items:center;gap:10px;max-width:min(92%,640px);padding:8px 16px 8px 8px;border-radius:999px;background:rgba(13,24,56,.92);color:#fff;font-size:14px;font-weight:600;box-shadow:0 12px 26px -14px rgba(0,0,0,.6);transform:translate(-50%,-140%);opacity:0;transition:transform .5s var(--spring),opacity .4s;pointer-events:none}
+.md-anons.on{transform:translate(-50%,0);opacity:1}
+.md-anons i{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#7FE0C2;flex:none}
+.md-anons i svg{width:18px;height:18px;fill:#0D1838;stroke:#0D1838;stroke-width:1.6;stroke-linecap:round}
+.md-anons i svg path+path{fill:none}
+.md-anons.kod{background:#C9483B}.md-anons.kod i{background:#fff;animation:nb .6s steps(2) infinite}
+
+/* ---------- triyaj masası ---------- */
+.ty-l{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.ty-k{padding:12px;border:1.5px solid var(--line);border-radius:14px;background:#FAFBFC}
+.ty-k.ok{border-color:var(--ok);background:#F1FAF4}.ty-k.no{border-color:var(--bad);background:#FDF3F1}
+.ty-u{display:grid;gap:2px}.ty-u b{font-size:15px}.ty-u b small{font-weight:500;color:var(--muted)}.ty-u span{font-size:13.5px;color:var(--ink2)}
+.ty-v{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted)}
+.ty-r{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ty-r button{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 12px;border:1.5px solid var(--line);border-radius:999px;background:#fff;font-weight:700;font-size:13px}
+.ty-r button i{width:12px;height:12px;border-radius:50%;background:var(--tr)}
+.ty-r button[aria-checked="true"]{border-color:var(--tr);background:#FFF;box-shadow:0 0 0 2px var(--tr) inset}
+.ty-r button.dogru{outline:2.5px dashed var(--tr);outline-offset:2px}
+.ty-g{margin:8px 0 0;font-size:13px;line-height:1.5;color:var(--ink2)}.ty-g em{display:block;color:var(--bad);font-style:normal;font-weight:700}
+.hk .no{position:relative}.hk .no .tr{position:absolute;left:-5px;top:-5px;width:12px;height:12px;border-radius:50%;background:var(--tr);border:2px solid #fff}
+.hk.sevkli{border-color:#0D1838;box-shadow:3px 3px 0 #FFB547}
+.hk .zn{font-style:normal;font-weight:700;color:#8A5A00}
+.md-tr{display:inline-flex;align-items:center;gap:6px;padding:0 12px;min-height:34px;border-radius:999px;background:#F3F6F9;font-size:12.5px;font-weight:700;color:var(--ink2);align-self:center}
+.md-tr i{width:10px;height:10px;border-radius:50%;background:var(--tr)}
+.md-ek{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:12px}
+.md-ek>div{display:grid;gap:2px;padding:10px 12px;border-radius:12px;background:#F7F9FB;border-left:5px solid var(--kr,#2E9C86)}
+.md-ek b{font-size:15px}.md-ek small{font-family:'JetBrains Mono',monospace;color:var(--muted)}
+
+/* ---------- acil kod ---------- */
+.md-kod{position:fixed;inset:0;z-index:9700;display:grid;place-items:center;padding:16px;background:rgba(40,8,8,.62);animation:in .2s ease both}
+.kd-isik{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.kd-isik i{position:absolute;top:-30%;width:60%;height:160%;background:radial-gradient(closest-side,rgba(47,107,255,.55),transparent);animation:siren 1.1s ease-in-out infinite alternate}
+.kd-isik i:first-child{left:-20%}.kd-isik i:last-child{right:-20%;animation-delay:-.55s;background:radial-gradient(closest-side,rgba(229,84,74,.55),transparent)}
+@keyframes siren{from{opacity:.15}to{opacity:.9}}
+.kd-k{position:relative;width:min(640px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:20px 20px 16px;border-radius:18px;background:#fff;border-top:8px solid var(--kr);box-shadow:0 30px 60px -20px rgba(0,0,0,.7)}
+.kd-u{display:flex;align-items:center;gap:12px}
+.kd-u h2{margin:4px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-size:22px;flex:1}
+.kd-rozet{display:inline-block;padding:4px 10px;border-radius:6px;background:var(--kr);color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.1em;animation:nb .7s steps(2) infinite}
+.kd-sure{width:58px;height:58px;flex:none}.kd-hal{transition:stroke-dashoffset 1s linear}
+.md-kod.az .kd-sure{animation:nb .5s steps(2) infinite}
+.kd-olay{margin:12px 0 0;font-size:15.5px;line-height:1.5;font-weight:600}
+.kd-yon{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.kd-sira{margin:10px 0 0;padding-left:22px;display:grid;gap:4px;font-size:13.5px;color:var(--ok);font-weight:700}
+.kd-sira:empty{display:none}
+.kd-ad{display:grid;gap:8px;margin-top:10px}
+.kd-ad button{text-align:left;min-height:46px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-weight:600;font-size:14px}
+.kd-ad button:hover:not(:disabled){border-color:var(--kr)}
+.kd-ad button.ok{opacity:.45;border-style:dashed}
+.kd-ad button.salla{animation:salla .4s}
+@keyframes salla{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.kd-fb{min-height:1.4em;margin:8px 0 0;font-size:13.5px}.kd-fb.ok{color:var(--ok)}.kd-fb.no{color:var(--bad)}
+.md-kod.bitti .kd-k{border-top-color:var(--ok)}.md-kod.bitti .kd-isik{display:none}
+.kd-k .damga{right:20px;top:16px}
+.kd-dogru{padding-left:22px;display:grid;gap:4px;font-size:14px}
+.kd-k h3{margin:16px 0 6px;font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.kd-k .not{font-size:13.5px;line-height:1.5;color:var(--ink2)}
+
+/* ---------- konsültasyon ---------- */
+.sv-b button.dogru{border-color:var(--ok);box-shadow:3px 3px 0 var(--ok)}.sv-b button.yanlis{border-color:var(--bad);opacity:.7}
+.sv-b button:disabled{cursor:default}
+.sv-g{margin:12px 0 0;padding:10px 12px;border-radius:10px;font-size:14px;line-height:1.5}.sv-g.ok{background:#E3F4EA}.sv-g.no{background:#FBE9E6}
+.kn{margin-top:14px;padding:12px;border-radius:14px;background:#F7F9FB}
+.kn h3{margin:0 0 8px}
+.kn-z{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.kn-h button{display:flex;align-items:center;gap:8px;max-width:240px;padding:6px 10px 6px 6px;border:1.5px solid var(--line);border-radius:12px;background:#fff;text-align:left}
+.kn-h button:disabled{opacity:.55;cursor:default;border-style:dashed}
+.kn-h b{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--kc);color:#fff;font-family:'JetBrains Mono',monospace;flex:none}
+.kn-h span{display:grid;font-weight:700;font-size:13px;line-height:1.3}.kn-h small{font-weight:500;color:var(--muted);font-size:11.5px}
+.kn-h.gor button{border-color:var(--ok)}.kn-h.acik button{border-color:var(--kc);box-shadow:2px 2px 0 var(--kc)}
+.kn-ok{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--muted)}.kn-ok.ok{color:var(--ok)}.kn-ok.no{color:var(--bad)}
+
+@media (max-width:1180px){.md-tb span,.md-saat span{display:none}.md-tb{padding:0 11px}}
+@media (max-width:980px){.md-top{flex-wrap:wrap}.md-nob{order:5;flex:1 1 100%;justify-content:center}.md-yer{min-width:0;flex:0 1 auto}}
 @media (max-width:980px){.md-ekran.kat{grid-template-columns:minmax(0,1fr)}.md-liste{position:static;max-height:none}}
 @media (max-width:760px){
   .md-top{flex-wrap:wrap;gap:8px;padding:8px 12px}
   .md-logo small{display:none}.md-logo b{font-size:16px}
   .md-top-r{margin-left:auto}.md-tb span{display:none}.md-tb{padding:0 10px}
-  .md-yer{order:3;flex:1 1 auto}.md-nob{order:4;flex:1 1 100%;justify-content:center}
+  .md-yer{order:3;flex:1 1 auto}.md-nob{order:5;flex:1 1 100%;justify-content:center}.md-saat{order:4;padding:6px 9px}.md-saat span{display:none}
+  .md-anons{font-size:12.5px;top:6px;padding:6px 12px 6px 6px}.md-anons i{width:24px;height:24px}
+  .kd-u h2{font-size:18px}.kd-sure{width:48px;height:48px}.kn-h button{max-width:none}
   .md-ekran{padding:14px 12px 30px}
   .md-say p{font-size:15px}
   .md-row .md-btn{flex:1 1 auto}
   .md-mk{padding:18px 16px 14px}.md-mk h2{font-size:20px;padding-right:84px}.damga{width:70px;height:70px;right:44px}.damga b{font-size:21px}
   .md-mu-top{padding:6px 10px;gap:8px}.md-mu-top .md-btn{padding:0 10px;font-size:13px}
 }
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.sahne .yuru{display:none}}
 </style>
 </head>
 <body>
@@ -218,8 +325,10 @@ body.md-labda{overflow:hidden}
   <div class="md-logo"><i aria-hidden="true"></i><span><b>Acadex Medica</b><small>eğitim hastanesi</small></span></div>
   <span class="md-yer" id="md-yer"></span>
   <button type="button" class="md-nob" id="md-nob" hidden></button>
+  <span class="md-saat" id="md-saat" role="img"></span>
   <div class="md-top-r">
     <button type="button" class="md-tb" id="md-asn" aria-label="Asansör: kat seç"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M8.5 9l-1.5 2h3zM15.5 13l1.5-2h-3z"/></svg><span>Asansör</span></button>
+    <button type="button" class="md-tb" id="md-kon" aria-label="Konsültasyonlar"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.2 7.4 10.6 16M16.8 7.4 13.4 16M7.5 6h9"/></svg><span>Konsültasyon</span></button>
     <button type="button" class="md-tb" id="md-def" aria-label="Nöbet karnesi"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Nöbet karnesi</span></button>
   </div>
 </header>

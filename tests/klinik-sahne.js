@@ -41,7 +41,7 @@ const kusursuz = (s) => {
 
 test('motor: şema denetimi bütün senaryolarda temiz', () => {
   const all = DYT.concat(ANA);
-  assert.equal(all.length, 19);
+  assert.equal(all.length, 27);   /* 31.10.2026: Acadex Medica için Diyet +4, Anatomi +4 */
   for (const s of all) assert.deepEqual(K.denetle(s), [], s.id);
   assert.equal(new Set(all.map((s) => s.id)).size, all.length, 'benzersiz id');
 });
