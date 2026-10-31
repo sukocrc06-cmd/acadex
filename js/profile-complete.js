@@ -49,7 +49,7 @@
       '<span class="k">hoş geldin</span><h2 id="pcx-t">Profilini tamamla</h2>' +
       '<p class="s">' + (via ? via + ' ile girdin. ' : '') + 'Acadex\'i bölümüne göre hazırlamamız için iki bilgi lazım; bir kez sorarız.</p>' +
       '<label class="f">Ad soyad<input name="ad" type="text" autocomplete="name" maxlength="80" required value="' + esc(p.full_name || '') + '"></label>' +
-      '<label class="f">Bölüm<select name="bolum" required><option value="">bölümünü seç</option>' + DEPTS.map(function (d) { return '<option value="' + d[0] + '"' + (p.department === d[0] ? ' selected' : '') + '>' + d[1] + '</option>'; }).join('') + '</select></label>' +
+      '<label class="f">Bölüm<select name="bolum" required>' + (window.AX_BOLUM ? window.AX_BOLUM.options(p.department || '', 'bölümünü seç') : '<option value="">bölümünü seç</option>' + DEPTS.map(function (d) { return '<option value="' + d[0] + '"' + (p.department === d[0] ? ' selected' : '') + '>' + d[1] + '</option>'; }).join('')) + '</select></label>' +
       '<label class="f">Öğrenci numarası<input name="no" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off" placeholder="6–12 rakam" required value="' + esc(/^oauth-/.test(String(p.student_number || '')) ? '' : (p.student_number || '')) + '"></label>' +
       '<label class="ok"><input type="checkbox" name="kvkk"><span><a href="legal.html#privacy" target="_blank" rel="noopener">KVKK aydınlatma metnini</a> ve <a href="legal.html#terms" target="_blank" rel="noopener">kullanım şartlarını</a> okudum, kabul ediyorum.</span></label>' +
       '<p class="err" role="alert" hidden></p>' +

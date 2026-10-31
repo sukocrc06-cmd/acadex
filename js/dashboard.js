@@ -313,7 +313,7 @@ async function checkSessionAndLoadProfile() {
       
       const badgeClass = getDepartmentColorClass(profile.department);
       const shortName = getDepartmentShortName(profile.department);
-      deptEl.innerHTML = `${translateDepartment(profile.department)} <span class="dept-badge ${badgeClass}">${shortName}</span>`;
+      deptEl.innerHTML = `${translateDepartment(profile.department)} ${shortName ? `<span class="dept-badge ${badgeClass}">${shortName}</span>` : ''}`;
       const sideMeD = document.querySelector('[data-side-me-d]');
       if (sideMeD && profile.department) sideMeD.textContent = translateDepartment(profile.department);
 
@@ -5818,6 +5818,10 @@ window.toggleCardVote = toggleCardVote;
 
 function getDepartmentColorClass(dept) {
   if (!dept) return '';
+  /* tam eşleşme önce: "International Trade and Business" içindeki "business" İşletme sanılmasın */
+  const EXACT = { 'Management Information Systems': 'dept-mis', 'Business Administration': 'dept-ba', 'International Trade and Business': 'dept-itb', 'Banking and Finance': 'dept-bf' };
+  if (EXACT[dept]) return EXACT[dept];
+  if (window.AX_BOLUM && window.AX_BOLUM.valid(dept)) return '';
   const d = dept.toLowerCase();
   if (d.includes('information') || d.includes('mis')) return 'dept-mis';
   if (d.includes('administration') || d.includes('business')) return 'dept-ba';
@@ -5828,6 +5832,9 @@ function getDepartmentColorClass(dept) {
 
 function getDepartmentShortName(dept) {
   if (!dept) return '';
+  /* tüm fakülteler: js/acadex-bolumler.js */
+  const s = window.AX_BOLUM ? window.AX_BOLUM.short(dept) : null;
+  if (s != null) return s;
   const d = dept.toLowerCase();
   if (d.includes('information') || d.includes('mis')) return 'MIS';
   if (d.includes('administration') || d.includes('business')) return 'BA';
@@ -8889,7 +8896,7 @@ async function saveProfileSettings(event) {
     if (deptEl) {
       const badgeClass = getDepartmentColorClass(department);
       const shortName = getDepartmentShortName(department);
-      deptEl.innerHTML = `${translateDepartment(department)} <span class="dept-badge ${badgeClass}">${shortName}</span>`;
+      deptEl.innerHTML = `${translateDepartment(department)} ${shortName ? `<span class="dept-badge ${badgeClass}">${shortName}</span>` : ''}`;
     }
     if (welcomeGreeting) {
       welcomeGreeting.textContent = `Welcome back, ${fullName.split(' ')[0]}!`;

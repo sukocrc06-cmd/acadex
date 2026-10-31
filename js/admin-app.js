@@ -16,6 +16,8 @@
   var AGO = function (d) { if (!d) return '—'; var s = (Date.now() - new Date(d).getTime()) / 1000; if (s < 60) return 'az önce'; if (s < 3600) return Math.floor(s / 60) + ' dk önce'; if (s < 86400) return Math.floor(s / 3600) + ' sa önce'; if (s < 86400 * 30) return Math.floor(s / 86400) + ' gün önce'; return DT(d); };
   var SIZE = function (b) { b = Number(b || 0); return b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; };
   var DEPTS = { 'Management Information Systems': 'Yönetim Bilişim Sistemleri', 'Business Administration': 'İşletme', 'International Trade and Business': 'Uluslararası Ticaret', 'Banking and Finance': 'Bankacılık ve Finans' };
+  /* tüm fakülteler: js/acadex-bolumler.js (yüklenmediyse eski 4 bölüm) */
+  if (window.AX_BOLUM) window.AX_BOLUM.all().forEach(function (d) { if (!DEPTS[d]) DEPTS[d] = window.AX_BOLUM.tr(d); });
   var dept = function (d) { return d ? (DEPTS[d] || d) : 'seçilmedi'; };
   var ini = function (n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toLocaleUpperCase('tr') || '?'; };
   var av = function (u) { return '<span class="av">' + X(ini(u.full_name || u.email)) + (u.avatar_url && /^https?:/.test(u.avatar_url) ? '<img src="' + X(u.avatar_url) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '</span>'; };

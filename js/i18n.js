@@ -742,6 +742,8 @@ function translateDepartment(dept) {
   if (!dept) return '';
   const currentLang = localStorage.getItem('acadexUILang') || 'tr';
   if (currentLang === 'tr') {
+    /* tüm fakülteler: js/acadex-bolumler.js */
+    if (window.AX_BOLUM && window.AX_BOLUM.valid(dept)) return window.AX_BOLUM.tr(dept);
     if (dept === 'Management Information Systems') return 'Yönetim Bilişim Sistemleri';
     if (dept === 'Business Administration') return 'İşletme';
     if (dept === 'International Trade and Business') return 'Uluslararası Ticaret ve İşletmecilik';
