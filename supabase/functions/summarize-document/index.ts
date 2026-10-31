@@ -6579,6 +6579,82 @@ const YORUM_HARF_ORANI = 0.6
    her slayttan yalnizca kisa olani geliyordu ve kart ciftin yarisini
    gosteriyordu: 50.5 ve 9.3 girdi, 56.6 ile 41.5 sigmadi. */
 const YORUM_MAX = 6
+/* KURTARMANIN KENDI UZUNLUK TAVANI (31.10.2026 olculdu).
+
+   QUOTE_MAX_CHARS (220) ALINTI icin: dipnot etiketi bir ipucu kutusuna
+   sigmali. Kurtarilan sey ise MADDE ve kartin kendi maddeleri zaten
+   250-300 karakter. Olculen kayip: kaynakta "...with South America as the
+   omitted group" satirinin noktasi YOK, yani onsoz Avrupa cumlesine
+   yapisiyor ve blok 245 karaktere cikiyor — 220 tavani onu eledi ve 50.5
+   kurtarilamadi. 300 o cumleyi geciriyor, cop uretmiyor: isaretci, harf
+   orani, sozcuk sayisi ve tam cumle sartlari yerinde. */
+const YORUM_MAX_KRK = 300
+
+/* KURTARMA KENDI SATIR BIRLESTIRMESINI YAPAR (31.10.2026, kartta olculdu).
+ *
+ * alintiBloklari sarmayi yalnizca kucuk harfle (ve parantezle) devam
+ * ediyorsa birlestiriyor; ozel ad iki satira bolunduyse cumle ortadan
+ * kesiliyor. Kartta iki kurtarilmis madde ve iki kaynakca girdisi bu
+ * yuzden KESIK cikti:
+ *   "...is 56.6% higher in North"     (devami: "America than South...")
+ *   "...in Europe than South"
+ * Olculen: 134 ve 129 karakterlik iki kesik aday, arada 9 karakterlik
+ * "America.”" parcasi.
+ *
+ * O kuralı GEVSETMEK denendi ve GERI ALINDI: "iki yani da buyuk harfle
+ * baslayan sozcuk" kuralı baslik satirini da yutuyor ("Empirical Example
+ * of the Log - Log Model" + "This slope coefficient...") ve alinti
+ * secimini butun belgelerde etkiliyor. Testler bunu yakaladi.
+ *
+ * Bunun yerine kurtarma KENDI birlestirmesini yapiyor: satirlar cumle
+ * noktalamasi gorulene kadar ekleniyor. Bunu yapabilmesinin sebebi
+ * suzgeclerinin alinti secimininkinden GUCLU olmasi — isaretci, harf
+ * orani, sozcuk sayisi ve TAM CUMLE sarti birlikte copu geciriyor.
+ * alintiBloklari DOKUNULMADAN kaliyor. */
+/* BASLIK SATIRI KENDINDEN SONRASINI YUTMAMALI (31.10.2026 olculdu).
+ *
+ * Ilk surum "noktalama yoksa birlestir" diyordu ve slayt basligi da
+ * noktalama tasimiyor. Olculen sonuc: "Empirical Example of the Log -
+ * Linear Model with Dummy Variables" basligi kendinden sonraki dort
+ * satiri yuttu, Avrupa cumlesi 220 karakterlik alinti tavanini asti ve
+ * 50.5 KURTARILAMADI; log-log cumlesi de "Empirical Example of the Log -
+ * Log Model" onekiyle geldi.
+ *
+ * Baslik testi BUYUK HARF ORANI: sozcuklerin yarisi ya da fazlasi buyuk
+ * harfle basliyorsa baslik sayilir ve birlestirme orada durur. Olculen
+ * degerler:
+ *   "Empirical Example of the Log - Linear Model with Dummy Variables" 0.70
+ *   "Empirical Example of the Log - Log Model"                        0.75
+ *   "Scatter Plots of this Relationship for Europe"                   0.57
+ *   "capita is 50.5% higher in Europe than South"                     0.25
+ *   "The Europe dummy variable coefficient is"                        0.33
+ *   "The marginal effect at a temperature of 80 (evaluated at 79) is"  0.09
+ * Ilk ucu baslik, son ucu cumle parcasi — esik 0.5 ikisini ayiriyor.
+ * En az uc sozcuk sart: iki sozcukluk bir parca baslik sayilmamali. */
+const KURTARMA_BASLIK_ORANI = 0.5
+function baslikGibi(satir: string): boolean {
+  const sozcukler = satir.match(/[\p{L}][\p{L}\p{N}'\u2019]*/gu) || []
+  if (sozcukler.length < 3) return false
+  const buyuk = sozcukler.filter((w) => /^\p{Lu}/u.test(w)).length
+  return buyuk / sozcukler.length >= KURTARMA_BASLIK_ORANI
+}
+
+function kurtarmaSatirlari(sourceText: string): string[] {
+  const out: string[] = []
+  for (const satir of String(sourceText || '').split(/\r?\n/).map((x) => x.trim())) {
+    if (!satir) continue
+    const onceki = out.length ? out[out.length - 1] : ''
+    if (onceki && !YORUM_TAM_CUMLE_RE.test(onceki) && !baslikGibi(onceki)) {
+      out[out.length - 1] = onceki + ' ' + satir
+    } else {
+      out.push(satir)
+    }
+  }
+  return out
+}
+
+/** Kurtarilan madde TAM CUMLE olmali: yarim kalan parca madde degil. */
+const YORUM_TAM_CUMLE_RE = /[.!?\u2026][\u201d\u2019"')\]]?$/
 
 function yorumCumleleriniKurtar(
   sourceText: string,
@@ -6593,7 +6669,7 @@ function yorumCumleleriniKurtar(
     .join(' \n ')
 
   const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
-  for (const blok of alintiBloklari(sourceText)) {
+  for (const blok of kurtarmaSatirlari(sourceText)) {
     for (const cumle of splitSentences(blok)) {
       const tam = cumle.trim()
       /* HESAP VE ANLAM AYNI CUMLEDE OLABILIR (31.10.2026 olculdu).
@@ -6625,8 +6701,9 @@ function yorumCumleleriniKurtar(
          kurtarilan 0'a dustu). Temizlik ekleme aninda. */
       const kuyruk = esit >= 0 ? tam.slice(esit + 1).trim() : ''
       for (const kirpik of (kuyruk && kuyruk !== tam ? [tam, kuyruk] : [tam])) {
-      if (kirpik.length < QUOTE_MIN_CHARS || kirpik.length > QUOTE_MAX_CHARS) continue
+      if (kirpik.length < QUOTE_MIN_CHARS || kirpik.length > YORUM_MAX_KRK) continue
       if (!YORUM_ISARETCI_RE.test(kirpik)) continue
+      if (!YORUM_TAM_CUMLE_RE.test(kirpik)) continue
       const harf = (kirpik.match(/\p{L}/gu) || []).length
       if (harf / kirpik.length < YORUM_HARF_ORANI) continue
       if ((kirpik.match(/\p{L}{2,}/gu) || []).length < YORUM_MIN_SOZCUK) continue

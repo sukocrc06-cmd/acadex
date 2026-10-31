@@ -28,6 +28,8 @@ const UI = loadFromSource('js/dashboard.js', [
   'renderSuggestedTagChipHtml',
   // Formul degiskenlerinin matematik yolu (18.10.2026).
   'renderMathInText', 'renderMathSymbol', 'mathDelimRe',
+  // Para korumasi formulu yutuyordu (31.10.2026 olcumu).
+  'MATEMATIK_YAPISI_RE', 'paraGibi',
   // Formul kutusuna sigdirma (18.10.2026).
   'FORMUL_MIN_REM', 'sigdirFormulKutusu',
   // Anlati ve maddelerdeki $...$ (18.10.2026).
@@ -1219,4 +1221,40 @@ test('rozet: TURKCE "%11,4 seviyesine" GERCEK olgu, dusmuyor', () => {
   const s = INK_ROZET.rozetler(rozetKarti(['Katsayi istatistiksel olarak %1 duzeyinde anlamli bulundu.']));
   assert.ok(!/^%1$/.test(s[0]), 'turkce anlamlilik duzeyi rozet olmus: ' + JSON.stringify(s));
 });
+
+/* PARA KORUMASI FORMULU DE YUTUYORDU (31.10.2026, kartta olculdu)
+
+   Koruma `$`den sonra rakam+bosluk gorunce parcayi para sayip diziyi
+   atliyor. Model ise formulu SAYIYLA baslatti ve kartta DORT yerde ham
+   LaTeX kaldi (iki cozumlu ornek, S4 ve bir madde):
+     "UtilityBill = $484.12 - 12.08\text{temp} + 0.09\text{temp}^2$"
+   Icerik "484.12 " ile basliyor, kalip tutuyor; oysa icinde \text{...}
+   ve ^2 var — bu para degil. */
+test('SAYIYLA baslayan formul para sanilmiyor', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText(
+      'Given the model UtilityBill = $484.12 - 12.08\\text{temp} + 0.09\\text{temp}^2$, calculate.');
+    assert.ok(html.includes('<KTX>'), 'formul hala ham: ' + html);
+    assert.ok(!/\\text\{temp\}/.test(html.replace(/<KTX>[\s\S]*?<\/KTX>/g, '')),
+      'ayirac disinda ham LaTeX kalmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+test('GERCEK para hala korunuyor (dizilmiyor)', () => {
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText('the bill falls by $100 and then by $250 in winter');
+    assert.ok(!html.includes('<KTX>'), 'para formul diye dizilmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+test('paraGibi olcutu: LaTeX yapisi varsa para DEGIL', () => {
+  assert.equal(UI.paraGibi('100 and then by '), true);
+  assert.equal(UI.paraGibi('484.12 - 12.08\\text{temp} + 0.09\\text{temp}^2'), false);
+  assert.equal(UI.paraGibi('2.6\\%'), false);
+  /* Rakamla baslamayan icerik zaten para kaliba uymaz. */
+  assert.equal(UI.paraGibi('H_0: \\beta_2 = 0'), false);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

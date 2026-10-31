@@ -138,7 +138,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'ARA_HESAP_ISLEM_RE', 'araHesabiAyikla',
   // Sayinin ANLAMINI soyleyen cumle kurtarilir (31.10.2026 olcumu).
   'YORUM_ISARETCI_RE', 'YORUM_MIN_SOZCUK', 'YORUM_HARF_ORANI', 'YORUM_MAX',
-  'yorumCumleleriniKurtar',
+  'YORUM_MAX_KRK', 'YORUM_TAM_CUMLE_RE', 'KURTARMA_BASLIK_ORANI', 'baslikGibi',
+  'kurtarmaSatirlari', 'yorumCumleleriniKurtar',
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
   'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE',
@@ -8912,6 +8913,72 @@ test('tablo gecisi mevcut tablolari EZMIYOR, birlestiriyor', () => {
   assert.ok(/dedupeByText\(\s*\[\.\.\.mergedTables, \.\.\.yeniTablolar\]/.test(blok),
     'yeni tablolar mevcutlarla birlestirilmeli');
   assert.ok(/\.slice\(0, 12\)/.test(blok), 'tablo tavani 12 korunmali');
+});
+
+
+/* KURTARMA KENDI SATIR BIRLESTIRMESI (31.10.2026, kartta olculdu)
+
+   alintiBloklari ozel ad iki satira bolunduyse cumleyi ortadan kesiyor;
+   kartta iki kurtarilmis madde ve iki kaynakca girdisi KESIK cikti:
+     "...is 56.6% higher in North"    (devami: "America than South...")
+     "...in Europe than South"
+   O kuralı gevsetmek DENENDI ve GERI ALINDI (baslik satirini da yutuyor,
+   alinti secimini butun belgelerde etkiliyor — testler yakaladi). */
+const KURT_S39 = [
+  'Empirical Example of the Log \u2013 Linear Model with Dummy Variables',
+  'The dependent variable is the natural log of energy per capita with South',
+  'America as the omitted group',
+  'The Europe dummy variable coefficient is',
+  'interpreted as \u201con average energy consumption per',
+  'capita is 50.5% higher in Europe than South',
+  'America.\u201d The North America dummy variable',
+  'coefficient is interpreted as \u201con average energy',
+  'consumption per capita is 56.6% higher in North',
+  'America than South America.\u201d Europe is statistically',
+  'insignificant while North America is marginally',
+  'significant (significant at the 10% level).'
+].join('\n');
+
+test('OZEL AD iki satira bolunmusse kurtarilan madde KESIK degil', () => {
+  const r = A.yorumCumleleriniKurtar(KURT_S39, [50.5, 56.6], []);
+  assert.deepEqual(r.kurtarilan.slice().sort((x, y) => x - y), [50.5, 56.6],
+    'kurtarilan: ' + JSON.stringify(r.kurtarilan));
+  for (const s of r.points) {
+    assert.ok(A.YORUM_TAM_CUMLE_RE.test(s), 'madde yarim kalmis: ' + s);
+    assert.ok(!/higher in North$/.test(s) && !/than South$/.test(s), 'kesik: ' + s);
+  }
+  assert.ok(r.points.some((s) => /56\.6% higher in North America than South America/.test(s)),
+    'tam cumle yok: ' + JSON.stringify(r.points));
+});
+
+test('BASLIK satiri kendinden sonrasini yutmuyor', () => {
+  /* Ilk surum "noktalama yoksa birlestir" diyordu ve slayt basligi da
+     noktalama tasimiyor: baslik dort satiri yuttu, Avrupa cumlesi 220
+     tavanini asti ve 50.5 kurtarilamadi. */
+  assert.equal(A.baslikGibi('Empirical Example of the Log \u2013 Log Model'), true);
+  assert.equal(A.baslikGibi('Scatter Plots of this Relationship for Europe'), true);
+  assert.equal(A.baslikGibi('capita is 50.5% higher in Europe than South'), false);
+  assert.equal(A.baslikGibi('The marginal effect at a temperature of 80 (evaluated at 79) is'), false);
+  /* Uc sozcukten kisa parca baslik sayilmaz. */
+  assert.equal(A.baslikGibi('North America'), false);
+  const bloklar = A.kurtarmaSatirlari(['Empirical Example of the Log \u2013 Log Model', 'This slope coefficient is interpreted as, \u201cup by .69%.\u201d'].join('\n'));
+  assert.equal(bloklar.length, 2, 'baslik cumleye yapismis: ' + JSON.stringify(bloklar));
+});
+
+test('kurtarmanin KENDI uzunluk tavani var, alinti tavani 220 kaliyor', () => {
+  assert.ok(A.YORUM_MAX_KRK > A.QUOTE_MAX_CHARS,
+    'madde tavani alinti tavanindan buyuk olmali: ' + A.YORUM_MAX_KRK + ' vs ' + A.QUOTE_MAX_CHARS);
+  assert.equal(A.QUOTE_MAX_CHARS, 220, 'alinti tavani degismis — ipucu kutusuna sigmali');
+});
+
+test('alintiBloklari DOKUNULMADAN kaldi (kurtarma kendi yolunu kullaniyor)', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('function yorumCumleleriniKurtar(');
+  const govde = kod.slice(i, i + 2200);
+  assert.ok(/for \(const blok of kurtarmaSatirlari\(sourceText\)\)/.test(govde),
+    'kurtarma hala alintiBloklari kullaniyor');
+  assert.ok(/for \(const blok of alintiBloklari\(sourceText\)\)/.test(kod),
+    'denklem kurtarmasi alintiBloklari kullanmayi surdurmeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

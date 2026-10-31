@@ -3374,6 +3374,27 @@ function splitCalcChain(calc, maxLen = 46) {
  * yok. Yeni bir g bayrakli regex HER cagrida uretiliyor, cunku
  * renderMathInText exec dongusu kullaniyor ve paylasilan lastIndex iki
  * fonksiyon arasinda sessiz atlama yapar. */
+/* PARA KORUMASI FORMULU DE YUTUYORDU (31.10.2026, kartta olculdu).
+ *
+ * Koruma `$`den sonra rakam+bosluk gorunce parcayi para sayip diziyi
+ * atliyor. Model ise formulu SAYIYLA baslatiyor ve kartta dort yerde ham
+ * LaTeX kaldi (iki cozumlu ornek, S4 ve bir madde):
+ *   "UtilityBill = $484.12 - 12.08\text{temp} + 0.09\text{temp}^2$"
+ * Icerik "484.12 " ile basliyor, yani kalip tutuyor; oysa icinde
+ * `\text{...}` ve `^2` var — bu para degil, formul.
+ *
+ * Ayirt edici isaret LaTeX YAPISI: ters bolu, alt/ust simge, suslu
+ * parantez. Gercek para bunlari tasimaz ("$100 and then by $250" ->
+ * icerik "100 and then by "), o yuzden koruma orada aynen calisiyor.
+ * Ayni olcut sunucudaki ANLATI_MATEMATIK_ADACIK_RE ile birebir ayni
+ * mantik — iki taraf ayni seye "matematik" demeli. */
+const MATEMATIK_YAPISI_RE = /[\\^_{}]/;
+function paraGibi(icerik) {
+  const s = String(icerik == null ? '' : icerik);
+  return /^\d[\d.,]*\s/.test(s) && !MATEMATIK_YAPISI_RE.test(s);
+}
+window.paraGibi = paraGibi;
+
 function mathDelimRe() {
   return /\$(?=\S)((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
 }
@@ -3532,7 +3553,7 @@ function renderMathInText(text) {
     const blok = m[3] != null;
     const latex = m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]);
     // Para bicimi formul degil: "$100 and $200". Yalnizca dolar kolunda.
-    if (m[1] != null && /^\d[\d.,]*\s/.test(latex)) continue;
+    if (m[1] != null && paraGibi(latex)) continue;
     out += escapeHtml(s.slice(son, m.index));
     let dizgi = null;
     if (window.katex) {
@@ -3763,7 +3784,7 @@ function inlineMath(html) {
   // Desen notu icin bkz. mathDelimRe ve renderMathInText.
   return s.replace(mathDelimRe(), (match, dolar, paren, blokTex) => {
     const latex = dolar != null ? dolar : (paren != null ? paren : blokTex);
-    if (dolar != null && /^\d[\d.,]*\s/.test(dolar)) return match;
+    if (dolar != null && paraGibi(dolar)) return match;
     try {
       return window.katex.renderToString(sadeKatexKomutu(latex), { displayMode: blokTex != null, throwOnError: false });
     } catch (e) {
