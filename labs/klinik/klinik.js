@@ -468,6 +468,8 @@
     return ACIK;
   };
 
+  /* Acadex Medica bekleme salonu ve giriş aynı çizim dilini kullanır (labs/medica/medica.js) */
+  api.kisi = kisi; api.yatan = yatan; api.TEN = TEN;
   api.open = open;
   api.acik = function () { return ACIK; };
   api.ODALAR = Object.keys(ODA);

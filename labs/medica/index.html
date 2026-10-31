@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Acadex Medica · eğitim hastanesi</title>
+<meta name="theme-color" content="#F3F7F9">
+<script>/* MedLab köprüsü: iframe içinde (?medlab=1) */if(window.parent!==window&&/[?&]medlab=1(&|$)/.test(location.search))document.documentElement.classList.add('axm-embed')</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Caveat:wght@600;700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   ACADEX MEDICA · görsel sistem "eğitim hastanesi" (31.10.2026)
+   Duvar: açık gri-mavi, zemin: hastane karosu, yön bulma: her katın rengi
+   Rehber: maskeli, ameliyata hazır cerrah · Asansör: çelik kapılar, kat göstergesi
+   ===================================================================== */
+:root{--ink:#0D1838;--ink2:#46506A;--muted:#6A7593;--paper:#FFFFFF;--bg:#EEF2F5;--line:#DCE2EA;--mint:#2E9C86;--mint-s:#E2F4EF;--ok:#2E8E5B;--warn:#B9821F;--bad:#C9483B;--r:16px;--ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.4,.5,1)}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Instrument Sans',system-ui,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:'JetBrains Mono',monospace}
+.sub{margin:2px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+
+/* ---------- üst çubuk ---------- */
+.md-top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px;padding:10px 18px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);box-shadow:0 3px 0 var(--mint)}
+.md-logo{display:flex;align-items:center;gap:10px;flex:none}
+.md-logo i{position:relative;width:34px;height:34px;border-radius:10px;background:var(--ink);flex:none}
+.md-logo i::before,.md-logo i::after{content:"";position:absolute;background:#E5544A;border-radius:2px}
+.md-logo i::before{left:14px;top:7px;width:6px;height:20px}.md-logo i::after{left:7px;top:14px;width:20px;height:6px}
+.md-logo b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:800;line-height:1.05}
+.md-logo small{display:block;font-family:'Caveat',cursive;font-size:16px;color:var(--mint);line-height:1}
+.md-yer{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:#F3F6F9;border:1px solid var(--line);font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.md-yer i{width:10px;height:10px;border-radius:3px;flex:none}
+.md-nob{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1.5px solid #E5544A;background:#FFF3F1;color:#A8332A;font-size:12.5px;font-weight:700;white-space:nowrap}
+.md-nob[hidden]{display:none}
+.nb-dot{width:8px;height:8px;border-radius:50%;background:#E5544A;flex:none;animation:nb 1.4s ease-in-out infinite}
+@keyframes nb{50%{opacity:.25}}
+.md-top-r{margin-left:auto;display:flex;gap:8px;flex:none}
+.md-tb{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-weight:700;font-size:13.5px}
+.md-tb:hover{border-color:var(--ink)}
+.md-tb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- ekranlar ---------- */
+.md-ekran{max-width:1320px;margin:0 auto;padding:22px 18px 40px;animation:in .45s var(--ease) both}
+@keyframes in{from{opacity:0;transform:translateY(8px)}}
+.md-sahne-k{position:relative;border-radius:var(--r);overflow:hidden;background:#E3EBF0;border:1px solid var(--line);box-shadow:0 24px 50px -36px rgba(13,24,56,.6)}
+.sahne{display:block;width:100%;height:auto}
+.md-panel{margin-top:14px;padding:16px 18px;border-radius:var(--r);background:#fff;border:1px solid var(--line);box-shadow:0 14px 30px -26px rgba(13,24,56,.5);min-height:120px}
+.md-say .who{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;color:#fff;background:var(--mint)}
+.md-say .who.mentor{background:var(--kc,#2F6BFF)}
+.md-say p{margin:8px 0 0;font-size:16px;line-height:1.55;min-height:3.1em;cursor:pointer}
+.md-say .cur{display:inline-block;width:8px;height:1em;background:var(--ink);vertical-align:-2px;margin-left:2px;animation:nb .8s steps(2) infinite}
+.md-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.md-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border:1.5px solid var(--ink);border-radius:999px;background:#fff;font-weight:700;font-size:14.5px;transition:transform .15s var(--ease),background .2s}
+.md-btn:hover{transform:translateY(-1px)}
+.md-btn.pri{background:var(--ink);color:#fff}
+.md-row.bolum{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.md-btn.kat{justify-content:flex-start;border-radius:14px;border-color:var(--line);padding:0 14px 0 8px;min-height:52px}
+.md-btn.kat b{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;color:#fff;font-family:'JetBrains Mono',monospace;flex:none}
+.md-btn.kat.sec{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.md-btn.kat:hover{border-color:var(--ink)}
+
+/* giriş sahnesi: kapılar açılır, cerrah yürür, maske konuşurken kabarır */
+.sahne .kapi1,.sahne .kapi2{transition:transform 1s var(--ease)}
+.sahne.acik .kapi1{transform:translateX(-96px)}.sahne.acik .kapi2{transform:translateX(96px)}
+.sahne .cerrah .govde{transition:transform 1.25s cubic-bezier(.4,0,.2,1),opacity .4s}
+.sahne .cerrah.gelis .govde{transform:translateX(-380px);opacity:0}
+.sahne.geldi .cerrah.gelis .govde{transform:none;opacity:1}
+.sahne .nefes{animation:nefes 3.6s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
+@keyframes nefes{50%{transform:scaleY(1.015)}}
+.sahne .goz{animation:goz 4.6s infinite;transform-box:fill-box;transform-origin:center}
+@keyframes goz{0%,93%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.sahne .kolL,.sahne .kolR{transform-box:fill-box;transform-origin:50% 100%;animation:kol 3s ease-in-out infinite}
+.sahne .kolR{animation-delay:-1.5s}
+@keyframes kol{50%{transform:rotate(-3deg) translateY(-2px)}}
+.sahne.konusuyor .maske{animation:maske .32s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 0}
+@keyframes maske{to{transform:scaleY(1.07)}}
+.sahne .serit .nabiz{stroke-dasharray:6 94;stroke-dashoffset:100;opacity:.9;animation:serit 3s linear infinite}
+@keyframes serit{to{stroke-dashoffset:0}}
+.sahne .isik{animation:isik 5s ease-in-out infinite}
+@keyframes isik{50%{opacity:.22}}
+.sahne .sway{animation:sway 6s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
+@keyframes sway{50%{transform:rotate(1.5deg)}}
+.sahne .asn{cursor:pointer}.sahne .asn:hover rect:first-child{fill:#9FAABA}
+.sahne .asn-btn{animation:nb 1.6s ease-in-out infinite}
+.sahne .ekr{animation:ekr 3s ease-in-out infinite}
+@keyframes ekr{50%{fill:#A8EAD4}}
+
+/* kat: bekleme salonu */
+.md-ekran.kat{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+.sahne .hb{cursor:pointer;outline:none}
+.sahne .hb .hb-k{transition:transform .3s var(--spring),filter .2s,opacity .9s}
+.sahne .hb:hover .hb-k,.sahne .hb:focus-visible .hb-k{transform:translateY(-6px);filter:drop-shadow(0 0 0 #0D1838) drop-shadow(0 6px 10px rgba(13,24,56,.25))}
+.sahne .hb:focus-visible rect{stroke-width:4}
+.sahne .hb.gor .hb-k{opacity:.62}
+.sahne .hb.sirada>g:last-child rect{animation:bilet 1.4s ease-in-out infinite}
+@keyframes bilet{50%{fill:#FFF3D2}}
+.sahne .hb.kalk .hb-k{transform:translate(220px,-12px)!important;opacity:0;transition:transform .9s ease-in,opacity .9s ease-in}
+.sahne .pano-no.flas{animation:flas .25s steps(2) 6}
+@keyframes flas{50%{fill:#0D1838}}
+.sahne .pano-led,.sahne .oda-led{animation:nb 2s ease-in-out infinite}
+.sahne .servis{cursor:pointer}.sahne .servis:hover rect{fill:var(--ka)}
+.sahne [data-who="kat-mentor"] .blink,.sahne .kisi .blink{animation:goz 5s infinite;transform-box:fill-box;transform-origin:center}
+.sahne .kisi .breath{animation:nefes 4s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
+.md-liste{position:sticky;top:86px;max-height:calc(100vh - 106px);overflow:auto;padding:16px;border-radius:var(--r);background:#fff;border:1px solid var(--line);border-top:8px solid var(--kc);box-shadow:0 14px 30px -26px rgba(13,24,56,.5)}
+.md-liste h2{margin:2px 0 0;font-family:'Bricolage Grotesque',sans-serif;font-size:22px;letter-spacing:-.01em}
+.md-liste h3{margin:16px 0 8px;font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.md-hl{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hk{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;text-align:left;transition:border-color .2s,transform .15s}
+.hk:hover{border-color:var(--kc);transform:translateX(2px)}
+.hk .no{display:grid;place-items:center;min-width:46px;height:34px;border-radius:8px;background:var(--ka);color:var(--ink);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;flex:none;border:1.5px solid var(--kc)}
+.hk .tx{display:grid;gap:1px;min-width:0;flex:1}
+.hk .tx b{font-size:14.5px}.hk .tx b small{font-weight:500;color:var(--muted)}
+.hk .tx span{font-size:13px;color:var(--ink2);line-height:1.35}
+.hk .tx>small{font-size:11.5px;color:var(--muted)}
+.hk .st{flex:none;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700}
+.hk .st.bek{background:#F3F6F9;color:var(--muted)}.hk .st.ok{background:#E3F4EA;color:var(--ok)}.hk .st.orta{background:#FFF4DC;color:#8A5A00}.hk .st.zay{background:#FBE9E6;color:var(--bad)}
+.hk.gor .no{background:#E3F4EA;border-color:var(--ok)}
+.md-nobet-k{margin-top:12px;padding:12px;border-radius:12px;background:#F7F9FB;border:1px dashed var(--line);display:grid;gap:8px}
+.md-nobet-k small{color:var(--muted);font-size:12.5px;line-height:1.4}
+.md-nobet-k .nk-u{display:flex;align-items:center;gap:8px}.md-nobet-k .nk-u .mono{margin-left:auto;font-weight:700;font-size:18px}
+.md-nobet-k p{margin:0;font-size:13px;color:var(--ink2)}
+.nk-b{display:flex;gap:6px}.nk-b span{flex:1;height:8px;border-radius:4px;background:#DCE2EA}.nk-b span.ok{background:var(--ok)}.nk-b span.su{background:#E5544A;animation:nb 1.2s infinite}
+
+/* ---------- asansör geçişi ---------- */
+.md-asansor{position:fixed;inset:0;z-index:8000;pointer-events:none}
+.md-asansor[hidden]{display:none}
+.md-asansor .kp{position:absolute;top:0;bottom:0;width:50.5%;background:linear-gradient(90deg,#BCC6D2,#E8EDF3 45%,#C9D1DC);transition:transform .6s cubic-bezier(.6,0,.3,1);box-shadow:inset 0 0 0 1px #9AA6B8}
+.md-asansor .kp::after{content:"";position:absolute;top:0;bottom:0;width:2px;background:#8D98A8}
+.md-asansor .kL{left:0;transform:translateX(-101%)}.md-asansor .kL::after{right:0}
+.md-asansor .kR{right:0;transform:translateX(101%)}.md-asansor .kR::after{left:0}
+.md-asansor.kapan .kL,.md-asansor.kapan .kR{transform:none}
+.md-asansor.kapan.acil .kL{transform:translateX(-101%)}.md-asansor.kapan.acil .kR{transform:translateX(101%)}
+.md-asansor .gosterge{position:absolute;left:50%;top:18%;z-index:2;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:14px 26px;border-radius:14px;background:#0D1838;color:#FFB547;font-family:'JetBrains Mono',monospace;box-shadow:0 20px 40px -20px rgba(0,0,0,.7);opacity:0;transition:opacity .3s}
+.md-asansor.kapan .gosterge{opacity:1}.md-asansor.kapan.acil .gosterge{opacity:0}
+.md-asansor .gosterge b{font-size:56px;line-height:1;min-width:1.2ch;text-align:center}
+.md-asansor .gosterge i{font-style:normal;font-size:34px;color:#7FE0C2}
+.md-asansor .gosterge small{position:absolute;left:0;right:0;top:100%;margin-top:10px;text-align:center;font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:15px;color:#0D1838;white-space:nowrap}
+.md-asansor .kp{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.18) 0 2px,transparent 2px 7px),linear-gradient(90deg,#BCC6D2,#E8EDF3 45%,#C9D1DC)}
+.md-asansor.tik .gosterge b{animation:tik .4s var(--spring)}
+@keyframes tik{from{transform:translateY(10px);opacity:.3}}
+
+/* ---------- lab (iç çerçeve) ---------- */
+.md-muayene{position:fixed;inset:0;z-index:7000;display:flex;flex-direction:column;background:#fff}
+.md-muayene[hidden]{display:none}
+.md-mu-top{display:flex;align-items:center;gap:12px;padding:8px 14px;background:#0D1838;color:#fff}
+.md-mu-top .md-btn{border-color:rgba(255,255,255,.4);background:transparent;color:#fff;min-height:40px}
+.md-mu-top .md-btn.pri{background:#7FE0C2;color:#0D1838;border-color:#7FE0C2}
+.md-mu-top b{display:block;font-family:'Bricolage Grotesque',sans-serif;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.md-mu-top small{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#BFC9DD}
+.md-mu-s{width:8px;height:8px;border-radius:50%;background:#FFB547;animation:nb 1.4s infinite}.md-mu-s.ok{background:#7FE0C2;animation:none}
+.md-mu-top .t{min-width:0;flex:1}
+.md-muayene iframe{flex:1;width:100%;border:0}
+.md-mu-yuk{position:absolute;left:0;right:0;top:56px;bottom:0;display:grid;place-items:center;background:#fff;font-family:'Caveat',cursive;font-size:26px;color:var(--ink2)}
+.md-mu-yuk[hidden]{display:none}
+body.md-labda{overflow:hidden}
+
+/* ---------- pencere, karne ---------- */
+.md-modal{position:fixed;inset:0;z-index:9500;display:grid;place-items:center;padding:16px;background:rgba(13,24,56,.55);animation:in .25s ease both}
+.md-mk{position:relative;width:min(640px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px 22px 18px;border-radius:18px;background:#fff;box-shadow:0 30px 60px -30px rgba(0,0,0,.6)}
+.md-mk h2{margin:4px 0 2px;font-family:'Bricolage Grotesque',sans-serif;font-size:24px;letter-spacing:-.01em;padding-right:100px}
+.md-mk h3{margin:18px 0 8px;font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
+.md-x{position:absolute;right:12px;top:12px;width:40px;height:40px;border:0;border-radius:10px;background:#F3F6F9;font-size:22px;z-index:2}
+.md-asn-panel{padding:4px 4px 6px;border-radius:14px}
+.md-asn-b{display:grid;gap:8px;margin-top:12px}
+.md-asn-b button{display:flex;align-items:center;gap:12px;padding:8px 12px;border:1.5px solid var(--line);border-radius:14px;background:linear-gradient(90deg,#F7F9FB,#fff);text-align:left}
+.md-asn-b button:hover,.md-asn-b button[aria-current]{border-color:var(--kc)}
+.md-asn-b b{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:var(--kc);color:#fff;font-family:'JetBrains Mono',monospace;font-size:20px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.2),0 0 0 4px #E3E8EE;flex:none}
+.md-asn-b span{display:grid;font-weight:700;font-size:15px}.md-asn-b small{font-weight:500;color:var(--muted);font-size:12.5px}
+.md-karne{position:relative}
+.damga{position:absolute;right:46px;top:-4px;width:86px;height:86px;border-radius:50%;border:3px solid currentColor;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-12deg);font-family:'JetBrains Mono',monospace;animation:damga .45s var(--spring) .15s both}
+.damga b{font-size:26px;line-height:1}.damga small{font-size:9px;letter-spacing:.1em}
+@keyframes damga{from{transform:rotate(-12deg) scale(1.8);opacity:0}}
+.tw{overflow-x:auto;margin-top:12px}
+.md-karne table{width:100%;border-collapse:collapse;font-size:13.5px}
+.md-karne th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px;border-bottom:1.5px solid var(--line)}
+.md-karne td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.md-karne td small{display:block;color:var(--muted);font-size:12px}.md-karne td small.kc{color:var(--bad)}
+.md-karne .n{text-align:right;white-space:nowrap}
+.md-karne .not{margin:12px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink2)}
+.md-katlar{display:grid;gap:8px;margin-top:12px}
+.md-katlar .kd{position:relative;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:#F7F9FB;overflow:hidden}
+.md-katlar .kd b{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--kc);color:#fff;font-family:'JetBrains Mono',monospace;flex:none;z-index:1}
+.md-katlar .kd span{display:grid;font-weight:700;font-size:14px;z-index:1}.md-katlar .kd small{font-weight:500;color:var(--muted);font-size:12px}
+.md-katlar .kd i{position:absolute;left:0;bottom:0;height:4px;background:var(--kc)}
+.md-def{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.md-def button{display:flex;align-items:center;gap:12px;width:100%;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;text-align:left}
+.md-def .dt{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);min-width:64px}
+.md-def span:not(.dt){display:grid;flex:1;font-weight:700;font-size:14px}.md-def small{font-weight:500;color:var(--muted);font-size:12px}
+.md-def b{font-family:'JetBrains Mono',monospace;font-size:18px}
+
+.toast{position:fixed;left:50%;bottom:22px;z-index:9800;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;box-shadow:0 12px 30px -12px rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:opacity .25s;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1}
+.md-not{max-width:1320px;margin:0 auto;padding:0 18px 30px;color:var(--muted);font-size:12.5px;text-align:center}
+
+@media (max-width:980px){.md-ekran.kat{grid-template-columns:minmax(0,1fr)}.md-liste{position:static;max-height:none}}
+@media (max-width:760px){
+  .md-top{flex-wrap:wrap;gap:8px;padding:8px 12px}
+  .md-logo small{display:none}.md-logo b{font-size:16px}
+  .md-top-r{margin-left:auto}.md-tb span{display:none}.md-tb{padding:0 10px}
+  .md-yer{order:3;flex:1 1 auto}.md-nob{order:4;flex:1 1 100%;justify-content:center}
+  .md-ekran{padding:14px 12px 30px}
+  .md-say p{font-size:15px}
+  .md-row .md-btn{flex:1 1 auto}
+  .md-mk{padding:18px 16px 14px}.md-mk h2{font-size:20px;padding-right:84px}.damga{width:70px;height:70px;right:44px}.damga b{font-size:21px}
+  .md-mu-top{padding:6px 10px;gap:8px}.md-mu-top .md-btn{padding:0 10px;font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="md-top">
+  <div class="md-logo"><i aria-hidden="true"></i><span><b>Acadex Medica</b><small>eğitim hastanesi</small></span></div>
+  <span class="md-yer" id="md-yer"></span>
+  <button type="button" class="md-nob" id="md-nob" hidden></button>
+  <div class="md-top-r">
+    <button type="button" class="md-tb" id="md-asn" aria-label="Asansör: kat seç"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M8.5 9l-1.5 2h3zM15.5 13l1.5-2h-3z"/></svg><span>Asansör</span></button>
+    <button type="button" class="md-tb" id="md-def" aria-label="Nöbet karnesi"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Nöbet karnesi</span></button>
+  </div>
+</header>
+<main id="md-main" class="md-ekran"></main>
+<p class="md-not">Acadex Medica eğitim amaçlıdır; hastalar ve vakalar kurgusaldır, tanı ya da tedavi önerisi değildir.</p>
+
+<div class="md-asansor" id="md-asansor" hidden aria-hidden="true"><div class="kp kL"></div><div class="kp kR"></div><div class="gosterge"><i>▲</i><b>G</b><small></small></div></div>
+
+<div class="md-muayene" id="md-muayene" hidden role="dialog" aria-modal="true" aria-labelledby="md-mu-t">
+  <div class="md-mu-top">
+    <button type="button" class="md-btn" id="md-mu-geri">← Bekleme salonuna dön</button>
+    <div class="t"><b id="md-mu-t">Muayene</b><small><span class="md-mu-s" id="md-mu-s"></span><span id="md-mu-d">lab sonucu bekleniyor</span></small></div>
+  </div>
+  <iframe title="Lab: vaka formu" allow="fullscreen; microphone" allowfullscreen></iframe>
+  <div class="md-mu-yuk" hidden>dosya hazırlanıyor…</div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<p class="vh" id="live" aria-live="polite"></p>
+
+<script src="../diyet/data/who2007-bki.js"></script>
+<script src="../diyet/diyet-model.js"></script>
+<script>if (window.AXDIYET) window.AXDIYET.load(window.AXDB || {});</script>
+<script src="../klinik/klinik.js"></script>
+<script src="../klinik/senaryo-anatomi.js"></script>
+<script src="../klinik/senaryo-fizyo.js"></script>
+<script src="../klinik/senaryo-odyoloji.js"></script>
+<script src="../klinik/senaryo-diyet.js"></script>
+<script src="../klinik/senaryo-dkt.js"></script>
+<script src="medica-veri.js"></script>
+<script src="medica.js"></script>
+</body>
+</html>

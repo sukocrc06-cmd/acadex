@@ -6,7 +6,10 @@
 (function () {
   'use strict';
   var DK = window.DK, C = DK.core, V = C.V, $ = C.$, $$ = C.$$, X = C.X;
-  var S = { id: C.ls.get('vk.id', V.VAKA[0].id), st: 0, sel: { deg: {}, tani: null, terapi: {} }, sc: {}, done: C.ls.get('vk.done', {}) };
+  /* Acadex Medica: hastanın dosyası ?vaka=<id> ile gelir; karne sonucu hastaneye bildirilir */
+  var MV = C.MEDICA ? new URLSearchParams(location.search).get('vaka') : null;
+  var S = { id: MV && V.VAKA.some(function (v) { return v.id === MV; }) ? MV : C.ls.get('vk.id', V.VAKA[0].id), st: 0, sel: { deg: {}, tani: null, terapi: {} }, sc: {}, done: C.ls.get('vk.done', {}) };
+  var medica = function (pct) { if (!C.MEDICA || window.parent === window) return; try { window.parent.postMessage({ src: 'axmedica', type: 'sonuc', lab: 'dkt', vaka: S.id, puan: pct, tamam: true }, location.origin); } catch (e) {} };
   var vaka = function () { return V.VAKA.filter(function (v) { return v.id === S.id; })[0] || V.VAKA[0]; };
   var av = function (v, sz) {
     var kid = v.ikon === 'cocuk';
@@ -55,8 +58,9 @@
     if (S.st > 2) {
       var sd = scoreMulti(v.deg, S.sel.deg), stn = v.tani.filter(function (o) { return o[2]; })[0][0] === S.sel.tani ? 1 : 0, sr = scoreMulti(v.terapi, S.sel.terapi), pct = Math.round((sd + stn + sr) / 3 * 100);
       if (S.done[v.id] !== pct) { S.done[v.id] = pct; C.ls.set('vk.done', S.done); paintList(); }
+      if (S.bildirildi !== v.id) { S.bildirildi = v.id; medica(pct); }
       h += C.karne(pct, v.ad + ' · vaka karnesi', [[sd >= 0.99, 'Değerlendirme: %' + Math.round(sd * 100)], [!!stn, 'Tanısal izlenim: ' + (stn ? 'doğru' : 'doğrusu "' + X(v.tani.filter(function (o) { return o[2]; })[0][1]) + '"')], [sr >= 0.99, 'Terapi: %' + Math.round(sr * 100)]], '<b>Neden?</b> ' + X(v.ozet));
-      h += '<div class="row" style="margin-top:12px"><button type="button" class="btn" data-go="0">Vakayı baştan çöz</button>' + (nextId() ? '<button type="button" class="btn pri" data-next="1">Sıradaki vaka</button>' : '') + '</div>';
+      h += '<div class="row" style="margin-top:12px"><button type="button" class="btn" data-go="0">Vakayı baştan çöz</button>' + (nextId() && !C.MEDICA ? '<button type="button" class="btn pri" data-next="1">Sıradaki vaka</button>' : '') + '</div>';
     }
     h += '</div>';
     $('#vk-main').innerHTML = h;
@@ -80,7 +84,7 @@
         if (g === 1 && !Object.keys(S.sel.deg).some(function (k) { return S.sel.deg[k]; })) { C.toast('En az bir değerlendirme seç.'); return; }
         if (g === 2 && !S.sel.tani) { C.toast('Bir tanısal izlenim seç.'); return; }
         if (g === 3 && !Object.keys(S.sel.terapi).some(function (k) { return S.sel.terapi[k]; })) { C.toast('En az bir terapi yaklaşımı seç.'); return; }
-        if (g === 0) { S.sel = { deg: {}, tani: null, terapi: {} }; }
+        if (g === 0) { S.sel = { deg: {}, tani: null, terapi: {} }; S.bildirildi = null; }
         S.st = g; paint(); DK.bridgeSend();
       });
     },

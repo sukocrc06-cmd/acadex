@@ -22,8 +22,11 @@
 
   /* ---------------- sekmeler ---------------- */
   var tab = 'tabak';
+  /* vaka masası ve enteral-parenteral Acadex Medica'da: yalnız ?medica=1 ile açılır (labs/medica) */
+  var MEDICA = /(?:\?|&)medica=1(?:&|$)/.test(location.search);
+  DL.core.MEDICA = MEDICA;
   var setTab = function (k) {
-    if (['tabak', 'degisim', 'antro', 'vaka', 'ep'].indexOf(k) < 0) k = 'tabak';
+    if (['tabak', 'degisim', 'antro', 'vaka', 'ep'].indexOf(k) < 0 || (!MEDICA && (k === 'vaka' || k === 'ep'))) k = 'tabak';
     tab = k;
     $$('.dl-tabs [data-tab]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === k)); });
     $$('.dl-view').forEach(function (v) { v.classList.toggle('on', v.id === k); });
