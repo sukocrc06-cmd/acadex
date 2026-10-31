@@ -55,7 +55,7 @@
   V.devirAdres = function (s, hedef) {
     var q = '?medlab=1&medica=1';
     if (s.lab === 'anatomi') return '../anatomi/index.html' + q + '&vaka=' + encodeURIComponent(s.vaka);
-    if (s.lab === 'fizyo') return '../fizyo/index.html' + q + '&fz=' + encodeURIComponent(hedef || '');
+    if (s.lab === 'fizyo') return '../fizyo/index.html' + q + '&fz=' + encodeURIComponent(hedef || '') + '&hasta=' + encodeURIComponent(s.hasta.hitap || s.hasta.ad);
     if (s.lab === 'diyet') return '../diyet/index.html' + q + '&tab=' + (hedef === 'ep' ? 'ep' : 'vaka') + '&vaka=' + encodeURIComponent(s.vaka);
     if (s.lab === 'odyoloji') return '../odyoloji/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka);
     if (s.lab === 'dkt') return '../dkt/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka);
@@ -184,6 +184,33 @@
     odyo: ['Ody. Ece, yenidoğan taramasına.', 'Kabin 2 kalibrasyonda, lütfen kabin 1’i kullanınız.'],
     diyet: ['Dyt. Selin, dahiliye servisine.', 'Öğle yemeği servisleri başladı; diyet tepsileri kontrol edilsin.'],
     dkt: ['DKT Defne, nöroloji servisine yutma değerlendirmesi.', 'Çocuk oyun terapisi odası hazır.']
+  };
+  /* =========================== lab sonrası: hastaya bildir ve cerrah ipucu ===========================
+     Anatomi ve Fizyo'da lab işi bitince öğrenci bulguyu yorumlar, hastaya anlatır (senaryo.sonu);
+     Fizyo'da Fizyo Lab'de kurduğu ev programını hastaya verir. Rehber cerrah ipucu kademeye göre puan düşürür. */
+  V.IPUCU_CEZA = [5, 10, 20];   /* 1: sözel ipucu, 2: bölgeyi göster, 3: yapıyı göster */
+  V.ipucuCeza = function (kademe) { return V.IPUCU_CEZA[Math.max(1, Math.min(3, kademe)) - 1]; };
+  /* ev programı: items = Fizyo Lab'de programa eklenen egzersiz kimlikleri */
+  V.programPuan = function (pr, items) {
+    if (!pr) return null; items = items || [];
+    var kacinId = pr.kacin.map(function (k) { return k[0]; }), yanlis = items.filter(function (i) { return kacinId.indexOf(i) >= 0; });
+    if (pr.bos) return { puan: !items.length ? 100 : yanlis.length ? 0 : 50, hit: [], eksik: [], yanlis: yanlis, bos: true };
+    var hit = items.filter(function (i) { return pr.oner.indexOf(i) >= 0; }), eksik = pr.oner.filter(function (i) { return items.indexOf(i) < 0; });
+    var p = Math.round(Math.min(1, hit.length / Math.max(1, pr.en)) * 100) - 25 * yanlis.length;
+    return { puan: Math.max(0, Math.min(100, p)), hit: hit, eksik: eksik, yanlis: yanlis };
+  };
+  /* cevap: {sorular: [seçilen indeks], program: [kimlik]} → her soru 1 birim, program 1,5 birim */
+  V.sonuPuan = function (sonu, cevap) {
+    cevap = cevap || {}; var rows = [], top = 0, ag = 0;
+    (sonu.sorular || []).forEach(function (q, i) { var c = (cevap.sorular || [])[i], o = q.secenek[c], ok = !!(o && o[1]); rows.push({ t: q.s, ok: ok, secim: o ? o[0] : null, dogru: q.secenek.filter(function (x) { return x[1]; })[0][0], geri: o ? o[2] : 'Yanıt verilmedi.' }); top += ok ? 100 : 0; ag += 1; });
+    var pp = V.programPuan(sonu.program, cevap.program);
+    if (pp) { top += pp.puan * 1.5; ag += 1.5; }
+    return { rows: rows, program: pp, puan: ag ? Math.round(top / ag) : 0 };
+  };
+  /* son lab puanı: Anatomi'de modelde bulma (iç çerçeve puanı) %70 + hastaya anlatma %30; Fizyo'da bildirim formu; ipucu cezası düşülür */
+  V.labSonPuan = function (cerceve, sonuP, ipucu) {
+    var p = cerceve != null ? Math.round(0.7 * cerceve + 0.3 * sonuP) : sonuP;
+    return Math.max(0, Math.min(100, p - (ipucu || 0)));
   };
   return V;
 });

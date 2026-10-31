@@ -22,7 +22,83 @@
   var PROT = function (id, metin) { return { tip: 'devir', metin: metin, dugme: 'Protokolü aç', hedef: 'prot:' + id }; };
   var YARGI = function (kim, t, cevap, geri) { return S('yargi', t, cevap, -2, null, kim, geri || 'Suçlayıcı ya da küçümseyen soru güveni sarsar ve bilgi akışını keser.'); };
 
-  return [
+  /* ---------- lab sonrası: hastaya bildir (Acadex Medica, 31.10.2026) ----------
+     gozlem: testi uygulayınca bu hastada görülen; sorular: [{s, secenek:[[metin, doğru, geri]]}];
+     program: Fizyo Lab'de kurulan ev programının anahtarı (oner: önerilen egzersiz kimlikleri, kacin: bu
+     dönemde verilmemesi gerekenler, en: en az kaç önerilen; bos: doğru cevap “şimdilik program verme”).
+     Egzersiz kimlikleri Fizyo Lab'deki FZ_EX ile aynıdır (tests/medica.js denetler). */
+  var PROG_YOK = null;
+  var SONU = {
+    'fz-omuz': { gozlem: 'Kolu iç rotasyondayken pasif olarak tam fleksiyona kaldırınca omzun ön-dış yüzünde ağrı oluyor.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Negatif', false, 'Kaldırırken tanıdık ağrısı tekrarlandı; bu pozitif bulgudur.'], ['Pozitif', true, 'Doğru: tanıdık ağrı tekrarlandı.'], ['Değerlendirilemez', false, 'Hasta işbirliği yaptı, test geçerli.']] },
+        { s: 'Ağrının kaynağı olarak en olası yapı', secenek: [['Supraspinatus tendonu ve subakromiyal bursa', true, 'Doğru: akromiyon altında sıkışan yapılar.'], ['Ön çapraz bağ', false, 'Diz bağıdır.'], ['N. medianus', false, 'Elde uyuşma yapar; omuz ağrısını açıklamaz.']] },
+        { s: 'Hastaya önerin', secenek: [['Kolu askıya alıp altı hafta hareketsiz tutmak', false, 'Hareketsizlik omuzda sertliğe (donuk omuz) yol açabilir.'], ['Ağrıyı artıran baş üstü işleri bir süre azaltıp rotator manşet ve kürek kemiği kaslarını güçlendirmek', true, 'Doğru: yük yönetimi ve egzersiz ilk basamaktır.'], ['Hemen cerrahi', false, 'Önce konservatif tedavi denenir.']] }
+      ],
+      program: { oner: ['erband', 'irband', 'scaption', 'pendulum', 'aaflex'], kacin: [['triceps', 'Baş üstü yükleme bu dönemde sıkışma ağrısını artırır.']], en: 2 } },
+    'fz-lachman': { gozlem: 'Diz 20–30° bükülüyken tibia öne belirgin kayıyor; son his yumuşak ve sağlam tarafa göre fazla.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Pozitif', true, 'Doğru: öne kayma artmış, son his yumuşak.'], ['Negatif', false, 'Sağlam tarafa göre fazla kayma pozitif bulgudur.'], ['Değerlendirilemez', false, 'Kas savunması yoktu; test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['Medial menisküs', false, 'Menisküs için McMurray ya da Thessaly kullanılır.'], ['Ön çapraz bağ', true, 'Doğru.'], ['Patella tendonu', false, 'Öne kaymayı açıklamaz.']] },
+        { s: 'Hastaya önerin', secenek: [['Ortopedi değerlendirmesi; o zamana kadar ödem kontrolü, tam ekstansiyon ve kuadriseps aktivasyonu', true, 'Doğru: ameliyat öncesi “prehabilitasyon” sonucu iyileştirir.'], ['Ağrı geçince maça dön', false, 'Bağı yırtık dizde dönüş hareketleri menisküse de zarar verir.'], ['Dizi iki ay alçıda tutmak', false, 'Uzun hareketsizlik kas kaybı ve sertlik yapar.']] }
+      ],
+      program: { oner: ['quadset', 'slrEx', 'heelslide', 'pump'], kacin: [['squat', 'Ağırlıklı squat bağı yırtık, şiş dizde erken.'], ['lunge', 'Öne hamle instabil dizde erken dönemde riskli.']], en: 2 } },
+    'fz-ocb': {
+      sorular: [
+        { s: 'Ameliyattan 10 gün sonra hangi fazdasın?', secenek: [['Faz 2 · Erken kuvvet', false, 'Faz 2 genellikle 2. haftadan sonra, ölçütler sağlanınca başlar.'], ['Faz 1 · Koruma (0–2. hafta)', true, 'Doğru.'], ['Faz 4 · Koşuya hazırlık', false, 'Koşu aylar sonra, ölçütlere göre başlar.']] },
+        { s: 'Bir sonraki faza geçme ölçütü', secenek: [['Ağrının tamamen geçmesi', false, 'Ağrı tek başına ölçüt değildir.'], ['Tam ekstansiyon, ≥90° fleksiyon, ekstansiyon gecikmesi olmadan düz bacak kaldırma ve az ödem', true, 'Doğru: zamana değil ölçütlere göre ilerlenir.'], ['Yalnızca takvim: 2 hafta dolunca', false, 'Takvim yol göstericidir; geçişi ölçütler belirler.']] }
+      ],
+      program: { oner: ['quadset', 'slrEx', 'heelslide', 'pump', 'tke'], kacin: [['hamcurl', 'Hamstring grefti alınan hastada erken dirençli hamstring çalışması greft yerini zorlar.'], ['squat', 'Ağırlıklı squat Faz 3 egzersizidir.'], ['lunge', 'Öne hamle Faz 3 egzersizidir.']], en: 3 } },
+    'fz-karpal': { gozlem: 'Bilekler tam fleksiyonda tutulunca 40. saniyede başparmak, işaret ve orta parmakta uyuşma başlıyor.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Pozitif', true, 'Doğru: 60 saniye içinde medianus alanında uyuşma.'], ['Negatif', false, 'Uyuşma medianus alanında tekrarlandı; pozitif.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['N. ulnaris', false, 'Ulnar sinir yüzük ve serçe parmakta uyuşma yapar.'], ['N. radialis', false, 'Radial sinir el sırtında duyu ve bilek ekstansiyonunu etkiler.'], ['N. medianus (karpal tünelde)', true, 'Doğru.']] },
+        { s: 'Hastaya önerin', secenek: [['Gece bileği nötral tutan atel, sinir kaydırma egzersizleri ve iş ergonomisi; kas erimesi varsa hekime', true, 'Doğru: hafif-orta olguda konservatif tedavi ilk basamaktır.'], ['Hemen ameliyat', false, 'Kas erimesi ya da ağır bulgu yoksa önce konservatif tedavi.'], ['Bileği bütün gün tam bükülü tutmak', false, 'Fleksiyon tüneldeki basıncı artırır.']] }
+      ],
+      program: PROG_YOK },
+    'fz-bel': { gozlem: 'Sırtüstü düz bacak 40°’ye kaldırılınca diz altına yayılan tanıdık ağrı; ayak bileğini yukarı bükünce artıyor.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Negatif', false, 'Dizin altına yayılan tanıdık ağrı pozitif bulgudur.'], ['Pozitif', true, 'Doğru: 30–70° arasında radiküler ağrı.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['Lomber sinir kökü (L5/S1)', true, 'Doğru.'], ['Kalça eklemi', false, 'Kalça ağrısı dizin altına yayılmaz.'], ['Hamstring kası yalnızca', false, 'Dorsifleksiyonla artış nöral gerginliği gösterir.']] },
+        { s: 'Hastaya önerin', secenek: [['Ağrı geçene kadar yatak istirahati', false, 'Yatak istirahati iyileşmeyi geciktirir.'], ['Aktif kalmak, ağrının izin verdiği hareketler; idrar-dışkı kaçırma ya da kasıkta uyuşma olursa hemen acile', true, 'Doğru: kırmızı bayraklar anlatılır, hareket önerilir.'], ['Ağır kaldırmaya hemen dönmek', false, 'Yük kademeli artırılır.']] }
+      ],
+      program: { oner: ['bridge'], kacin: [['hamstretch', 'Siyatik ağrısında hamstring germe sinir gerginliğini artırıp ağrıyı alevlendirebilir.']], en: 1 } },
+    'fz-ayak': {
+      sorular: [
+        { s: 'Elif hangi fazda?', secenek: [['Faz 1 · Akut (0–3. gün)', true, 'Doğru: yaralanma yeni; ödem ve ağrı kontrolü.'], ['Faz 2 · Hareket ve kuvvet', false, 'Akut dönem geçince başlar.'], ['Faz 3 · Spora dönüş', false, 'Haftalar sonra, ölçütlere göre.']] },
+        { s: 'İlk günlerin hedefi', secenek: [['Koşuyla ayak bileğini “açmak”', false, 'Akut dönemde yük ağrıya göre ve kademeli.'], ['Koruma, elevasyon, ödem kontrolü ve ağrısız hareket; tolere edildiği kadar yük', true, 'Doğru.'], ['Tam hareketsizlik, iki hafta alçı', false, 'Derece I–II burkulmada uzun hareketsizlik önerilmez.']] }
+      ],
+      program: { oner: ['pump'], kacin: [['balance', 'Tek ayak denge Faz 2’de başlanır.'], ['calfraise', 'Topuk kaldırma Faz 2 egzersizidir.']], en: 1 } },
+    'fz-kalca': { gozlem: 'Sağ bacak üzerinde dururken sol leğen kemiği aşağı düşüyor; gövdesini sağa eğerek dengeliyor.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Pozitif', true, 'Doğru: karşı taraf pelvis düşüyor.'], ['Negatif', false, 'Pelvis düşmesi pozitif bulgudur.'], ['Değerlendirilemez', false, 'Destekle güvenli uygulandı, test geçerli.']] },
+        { s: 'Zayıf olan yapı', secenek: [['M. gluteus medius (n. gluteus superior)', true, 'Doğru: tek ayak dururken pelvisi dengeleyen kas.'], ['M. quadriceps femoris', false, 'Diz ekstansörüdür; pelvisi yanlardan dengelemez.'], ['Aşil tendonu', false, 'Ayak bileğiyle ilgilidir.']] },
+        { s: 'Hastaya önerin', secenek: [['Yürüteci bırakıp hemen merdiven çalışması', false, 'Düşme riski yüksek; yardımcı cihaz bırakılmaz.'], ['Kalça abduktör güçlendirmesi, destekli denge, yürüteçle güvenli yürüme ve evde düşme önlemleri', true, 'Doğru.'], ['Yatak istirahati', false, 'Hareketsizlik kas kaybını ve düşme riskini artırır.']] }
+      ],
+      program: { oner: ['abdside', 'clam', 'bridge', 'balance'], kacin: [['squat', 'Ağırlıklı squat 82 yaşında, protezin 6. haftasında uygun değil.'], ['lunge', 'Öne hamle düşme riski yüksek hastada güvenli değil.']], en: 2 } },
+    'fz-tenis': { gozlem: 'Bilek dirence karşı geriye bükülürken lateral epikondilde keskin, tanıdık ağrı.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Pozitif', true, 'Doğru.'], ['Negatif', false, 'Tanıdık ağrı tekrarlandı; pozitif.'], ['Değerlendirilemez', false, 'Test geçerli.']] },
+        { s: 'Etkilenen yapı', secenek: [['Ortak fleksör-pronatör tendon (medial)', false, 'Bu golfçü dirseğidir; ağrı içte olurdu.'], ['Ortak ekstansör kökü, özellikle ECRB tendonu (lateral)', true, 'Doğru.'], ['N. ulnaris', false, 'Uyuşma yok.']] },
+        { s: 'Hastaya önerin', secenek: [['Yük yönetimi (mola, ergonomik fare), eksantrik bilek egzersizi; birkaç ayda düzelme beklenir', true, 'Doğru.'], ['Kolu tamamen kullanmamak', false, 'Tendon kontrollü yükle iyileşir.'], ['Ağrı geçene kadar her hafta kortizon iğnesi', false, 'Tekrarlayan iğne uzun dönemde sonucu kötüleştirebilir.']] }
+      ],
+      program: { oner: ['wristecc', 'wriststretch'], kacin: [], en: 2 } },
+    'fz-asil': { gozlem: 'Yüzüstü yatarken baldırı sıkınca sağ ayakta plantar fleksiyon olmuyor; solda oluyor.',
+      sorular: [
+        { s: 'Test sonucu', secenek: [['Negatif', false, 'Plantar fleksiyonun olmaması pozitif bulgudur.'], ['Değerlendirilemez', false, 'Test geçerli.'], ['Pozitif', true, 'Doğru: tam kat yırtık düşündürür.']] },
+        { s: 'Etkilenen yapı', secenek: [['Aşil tendonu', true, 'Doğru.'], ['Lig. talofibulare anterius', false, 'Ayak bileği burkulmasında yaralanır.'], ['Ön çapraz bağ', false, 'Diz bağıdır.']] },
+        { s: 'Hastaya önerin', secenek: [['Aynı gün ortopedi; ayak ucu aşağıda (ekin) atel ya da botla korunma, yük kararı hekimle', true, 'Doğru: tedavi (cerrahi ya da fonksiyonel bot) erken planlanmalı.'], ['Germe egzersizleriyle tendonu açmak', false, 'Yırtık uçlar ayrılır.'], ['Bir hafta dinlenip tekrar maça çıkmak', false, 'Tam kat yırtık kendiliğinden işlev kazanmaz.']] }
+      ],
+      program: { bos: true, oner: [], kacin: [['calfstretch', 'Yırtık tendonda germe yırtık uçları ayırır.'], ['calfraise', 'Topuk kaldırma yırtık tendona yük bindirir.']], en: 0 } },
+    'fz-tda': {
+      sorular: [
+        { s: 'Ameliyattan 10 gün sonra hangi fazdasın?', secenek: [['Faz 2 · Hareket ve kuvvet', false, 'Genellikle 2. haftadan sonra.'], ['Faz 3 · Fonksiyon', false, '6. haftadan sonra.'], ['Faz 1 · Erken dönem (0–2. hafta)', true, 'Doğru.']] },
+        { s: 'Bu dönemin en önemli hedefi', secenek: [['Tam ekstansiyon, 0–90° hareket, yürüteçle bağımsız yürüme, ödem ve tromboz kontrolü', true, 'Doğru.'], ['Koşuya dönüş', false, 'Bu dönemin hedefi değil.'], ['Dizi korumak için hareket ettirmemek', false, 'Hareketsizlik yapışıklık ve tromboz riskini artırır.']] }
+      ],
+      program: { oner: ['pump', 'quadset', 'slrEx', 'heelslide', 'tke'], kacin: [['squat', 'Ağırlıklı squat Faz 3 egzersizidir.'], ['lunge', 'Öne hamle Faz 3 egzersizidir.']], en: 3 } }
+  };
+
+  var L = [
     /* ------------------------------ Subakromiyal sıkışma ------------------------------ */
     { id: 'fz-omuz', vaka: 'neer', lab: 'fizyo', oda: 'fizyo', odaAd: 'Fizik tedavi polikliniği', baslik: 'Kolunu kaldırınca omuz ağrısı',
       hasta: { ad: 'Nilgün Hanım', hitap: 'Nilgün Hanım', yas: 52, cins: 'K', gorunum: 'yetiskin', kiyafet: '#7A4FA8' }, mentor: FZT,
@@ -296,4 +372,6 @@
         PROT('tda', 'Fizyo Lab’de total diz artroplastisi protokolünü aç; faz hedeflerini ve egzersiz geçiş ölçütlerini incele.')
       ] }
   ];
+  L.forEach(function (x) { x.sonu = SONU[x.id] || null; });
+  return L;
 });

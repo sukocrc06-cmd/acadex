@@ -366,9 +366,76 @@
   };
   var kaydetHasta = function () {
     var a = S.aktif; if (!a) return;
-    var o = S.gorulen[a.sen.id] || {}; o.sahne = a.sahne; if (a.lab != null) o.lab = a.lab; o.t = Date.now(); S.gorulen[a.sen.id] = o;
-    if (S.nobet && a.nobet) { var h = S.nobet.hastalar.filter(function (x) { return x.id === a.sen.id; })[0]; if (h) { h.sahne = a.sahne; if (a.lab != null) h.lab = a.lab; if (a.kacan) h.kacan = a.kacan; } }
+    var o = S.gorulen[a.sen.id] || {}; o.sahne = a.sahne; if (a.lab != null) o.lab = a.lab; if (a.ipucu) o.ipucu = a.ipucu; o.t = Date.now(); S.gorulen[a.sen.id] = o;
+    if (S.nobet && a.nobet) { var h = S.nobet.hastalar.filter(function (x) { return x.id === a.sen.id; })[0]; if (h) { h.sahne = a.sahne; if (a.lab != null) h.lab = a.lab; if (a.kacan) h.kacan = a.kacan; if (a.ipucu) h.ipucu = a.ipucu; } }
     kaydet();
+  };
+
+  /* ---------- lab sonrası: bulguyu yorumla, hastaya bildir, taburcu (Anatomi + Fizyo) ---------- */
+  var bildirHazir = function (metin) {
+    var b = $('#md-mu-bildir'); if (!b) return;
+    b.hidden = false; b.disabled = false; b.classList.add('pri'); if (metin) $('#md-mu-d').textContent = metin;
+  };
+  var ipucuYaz = function () {
+    var a = S.aktif, el = $('#md-mu-ip'); if (!el || !a) return;
+    el.hidden = !a.ipucu; el.textContent = 'cerraha danıştın · −' + a.ipucu;
+  };
+  var sonuFormu = function () {
+    var a = S.aktif; if (!a || !a.sen.sonu) return;
+    var sen = a.sen, so = sen.sonu, h = sen.hasta, kat = V.katBul(S.kat) || V.katOf(sen.id), cevap = { sorular: [], program: (a.program || []).map(function (x) { return x.id; }) };
+    S.olay = 'bildir'; bridge();
+    var prog = function () {
+      if (!so.program) return '';
+      var L = a.program || [];
+      return '<section class="sf-pr"><h3>Ev programı</h3>' + (L.length ? '<ol class="sf-ex">' + L.map(function (x) { return '<li><b>' + X(x.ad) + '</b><small>' + (x.set ? x.set + ' set × ' + x.tekrar + ' tekrar' + (x.tut ? ' · ' + X(x.tut) + ' tut' : '') : '') + '</small></li>'; }).join('') + '</ol>'
+        : '<p class="sf-bos">Fizyo Lab’de hastanın programına egzersiz eklemedin.</p>') + '<p class="sub">Programı değiştirmek için lab’a dön: Egzersiz sekmesinde “+ Programa ekle”.</p><div class="md-row"><button type="button" class="md-btn" data-sf-lab>← Lab’a dön</button></div></section>';
+    };
+    var md = modal('<div class="md-sonu"><span class="k">hastaya bildir · ' + X(kat.labAd) + '</span><h2 id="md-mt">' + X(h.hitap || h.ad) + ': bulguyu yorumla ve anlat</h2>' +
+      (so.gozlem ? '<p class="sf-goz"><b>Testi uyguladın.</b> ' + X(so.gozlem) + '</p>' : '') +
+      so.sorular.map(function (q, i) { return '<fieldset class="sf-q" data-sq="' + i + '"><legend>' + X(q.s) + '</legend><div class="sf-o" role="radiogroup">' + q.secenek.map(function (o, j) { return '<button type="button" role="radio" aria-checked="false" data-so="' + j + '">' + X(o[0]) + '</button>'; }).join('') + '</div><p class="sf-g" hidden></p></fieldset>'; }).join('') +
+      prog() + '<div class="sf-son" hidden></div><div class="md-row" data-sf-row><button type="button" class="md-btn pri" data-sf-gonder disabled>Hastaya bildir →</button></div></div>', { kapatma: true });
+    var gonder = $('[data-sf-gonder]', md);
+    md.addEventListener('click', function (e) {
+      if (md.classList.contains('bitti')) return;
+      var o = e.target.closest('[data-so]');
+      if (o) { var fs = o.closest('[data-sq]'), i = +fs.getAttribute('data-sq'); cevap.sorular[i] = +o.getAttribute('data-so'); $$('[data-so]', fs).forEach(function (x) { x.setAttribute('aria-checked', x === o ? 'true' : 'false'); }); gonder.disabled = so.sorular.some(function (q, k) { return cevap.sorular[k] == null; }); return; }
+      if (e.target.closest('[data-sf-lab]')) { kapatModal(true); S.olay = null; return; }
+      if (!e.target.closest('[data-sf-gonder]')) return;
+      var R = V.sonuPuan(so, cevap), son = V.labSonPuan(a.cerceve, R.puan, a.ipucu || 0);
+      a.sonuR = R; a.cevap = cevap; a.labSon = son; md.classList.add('bitti');
+      R.rows.forEach(function (r, i) {
+        var fs = $('[data-sq="' + i + '"]', md), q = so.sorular[i];
+        fs.classList.add(r.ok ? 'ok' : 'no');
+        $$('[data-so]', fs).forEach(function (x, j) { x.disabled = true; if (q.secenek[j][1]) x.classList.add('dogru'); });
+        var g = $('.sf-g', fs); g.hidden = false; g.textContent = (r.ok ? '✓ ' : '✗ ') + r.geri;
+      });
+      var pr = R.program, ad = function (id) { return (a.exAd && a.exAd[id]) || id; }, kac = so.program ? so.program.kacin : [];
+      var ph = !pr ? '' : '<li><b>Ev programı · ' + pr.puan + '</b>' + (pr.bos ? (a.program && a.program.length ? ' Bu hasta ortopedi görmeden egzersiz almamalı.' : ' Doğru: önce ortopedi; şimdilik egzersiz verilmez.') :
+        (pr.hit.length ? ' Yerinde: ' + pr.hit.map(ad).join(', ') + '.' : '') + (pr.eksik.length && pr.hit.length < so.program.en ? ' Eklenebilirdi: ' + pr.eksik.map(ad).join(', ') + '.' : '')) +
+        pr.yanlis.map(function (id) { var k = kac.filter(function (x) { return x[0] === id; })[0]; return ' <em>' + X(ad(id)) + ': ' + X(k ? k[1] : 'bu dönemde uygun değil') + '</em>'; }).join('') + '</li>';
+      var sn = $('.sf-son', md); sn.hidden = false;
+      sn.innerHTML = damga(son) + '<span class="k">lab puanı</span><ul>' + (a.cerceve != null ? '<li><b>Modelde bulma · ' + a.cerceve + '</b> (%70)</li><li><b>Hastaya anlatım · ' + R.puan + '</b> (%30)</li>' : '<li><b>Bildirim formu · ' + R.puan + '</b></li>') + ph +
+        (a.ipucu ? '<li><b>Rehber cerrah · −' + a.ipucu + '</b> (' + a.ipucuN + ' ipucu)</li>' : '') + '</ul>';
+      var row = $('[data-sf-row]', md); row.innerHTML = '';
+      odak(dugme(row, 'Hastanın yanına dön →', 'pri', function () { kapatModal(true); S.olay = null; labKapat(); taburcu(); }));
+      live('Lab puanı ' + son + '.');
+    });
+    odak($('[data-so]', md));
+  };
+  /* taburcu sahnesi: öğrenci anlatır, hasta tepki verir, teşekkür edip çıkar */
+  var taburcu = function () {
+    var a = S.aktif; if (!a) return;
+    var sen = a.sen, so = sen.sonu, R = a.sonuR, h = sen.hasta, iyi = R.puan >= 70, kim = h.konusamaz && sen.refakat ? 'refakat' : 'hasta', yat = V.yatan(sen);
+    var son = so.sorular.length - 1, sec = so.sorular[son].secenek[a.cevap.sorular[son]], dogru = so.sorular[son].secenek.filter(function (x) { return x[1]; })[0];
+    var L = [{ tip: 'konus', kim: 'anlatici', metin: 'Odaya döndün. ' + (h.hitap || h.ad) + (kim === 'refakat' ? ' ve yakını' : '') + ' seni bekliyor.' }, { tip: 'konus', kim: 'sen', metin: sec[0] }];
+    if (a.program && a.program.length) L.push({ tip: 'konus', kim: 'sen', metin: 'Evde yapacağınız egzersizler: ' + a.program.map(function (x) { return x.ad + (x.set ? ' (' + x.set + '×' + x.tekrar + ')' : ''); }).join(', ') + '. Ağrı belirgin artarsa durup bize haber verin.' });
+    if (iyi) L.push({ tip: 'konus', kim: kim, ifade: 'rahat', metin: kim === 'refakat' ? 'Şimdi ne olduğunu anladık, içimiz rahatladı. Çok teşekkür ederiz.' : 'Şimdi ne olduğunu anladım, içim rahatladı. Çok teşekkür ederim.' });
+    else L.push({ tip: 'konus', kim: kim, ifade: 'endise', metin: 'Tam anlayamadım… Bu ne demek oluyor, ne yapacağız?' }, { tip: 'konus', kim: 'mentor', metin: 'Ben toparlayayım: ' + dogru[0] });
+    L.push({ tip: 'konus', kim: 'mentor', metin: 'Lab puanın ' + a.labSon + (a.ipucu ? ' (rehber cerraha danıştığın için −' + a.ipucu + ')' : '') + '. ' + (iyi ? 'Hastayla iyi bir kapanış yaptın.' : 'Bir sonraki hastada önce bulguyu, sonra hastanın anlayacağı dili düşün.') });
+    L.push(yat ? { tip: 'konus', kim: 'anlatici', metin: (h.hitap || h.ad) + ' servise alınıyor.' } : { tip: 'konus', kim: 'anlatici', anim: 'cik', metin: (h.hitap || h.ad) + ' teşekkür edip odadan çıkıyor.' });
+    L.push({ tip: 'devir', metin: 'Hasta dosyası kapandı.', dugme: 'Bekleme salonuna dön' });
+    var kapan = false, bitis = function () { if (kapan) return; kapan = true; a.lab = a.labSon; kaydetHasta(); bitir(true); };
+    K.open(Object.assign({}, sen, { id: sen.id + '-taburcu', hasta: Object.assign({}, h, { ifade: iyi ? h.ifade : 'endise' }), adimlar: L }), { onDevir: bitis, onKapat: bitis });
   };
 
   /* ---------- lab devri: iç çerçeve ---------- */
@@ -376,8 +443,10 @@
     var ov = $('#md-muayene'), fr = $('iframe', ov), url = V.devirAdres(sen, hedef), kat = V.katBul(S.kat);
     if (!url) { bitir(true); return; }
     S.lab = sen.lab;
+    if (S.aktif) Object.assign(S.aktif, { ipucu: 0, ipucuN: 0, cerceve: null, program: [], exAd: null, labSon: null });
     $('#md-mu-t').textContent = (sen.hasta.hitap || sen.hasta.ad) + ' · ' + kat.labAd;
-    $('#md-mu-d').textContent = 'lab sonucu bekleniyor';
+    $('#md-mu-d').textContent = !sen.sonu ? 'lab sonucu bekleniyor' : sen.lab === 'anatomi' ? 'yapıları modelde bul, sonra hastaya bildir' : String(hedef).indexOf('prot:') === 0 ? 'protokolü incele, Egzersiz sekmesinde ev programını kur, sonra hastaya bildir' : 'testi uygula, Egzersiz sekmesinde ev programını kur, sonra hastaya bildir';
+    var bb = $('#md-mu-bildir'); bb.hidden = !sen.sonu; bb.disabled = true; bb.classList.remove('pri'); ipucuYaz();
     $('#md-mu-s').className = 'md-mu-s';
     ov.hidden = false; D.body.classList.add('md-labda');
     $('.md-mu-yuk', ov).hidden = false;
@@ -389,11 +458,13 @@
   var labKapat = function () {
     var ov = $('#md-muayene'), fr = $('iframe', ov);
     ov.hidden = true; D.body.classList.remove('md-labda'); fr.removeAttribute('src'); try { fr.src = 'about:blank'; } catch (e) {}
+    var bb = $('#md-mu-bildir'); if (bb) bb.hidden = true;
     S.lab = null;
   };
   /* lab'dan gelen sonuç: {src:'axmedica', type:'sonuc', puan?:0..100, tamam:true} */
   var labSonuc = function (d) {
     if (!S.aktif) return;
+    if (S.aktif.sen.sonu) { if (typeof d.puan === 'number') S.aktif.cerceve = Math.round(d.puan); bildirHazir('yapıların hepsini buldun · şimdi hastaya bildir'); toast('Yapıları buldun. Şimdi hastaya bildir.'); return; }
     if (typeof d.puan === 'number') S.aktif.lab = Math.round(d.puan);
     kaydetHasta();
     var p = V.hastaPuan(S.gorulen[S.aktif.sen.id]);
@@ -461,7 +532,7 @@
   var damga = function (p) { var c = p >= 85 ? '#2E8E5B' : p >= 60 ? '#B9821F' : '#C9483B', l = p >= 85 ? 'ÇOK İYİ' : p >= 60 ? 'GELİŞİYOR' : 'TEKRAR'; return '<div class="damga" style="color:' + c + '"><b>' + p + '</b><small>' + l + '</small></div>'; };
   var karne = function (n) {
     var o = V.nobetOzet(n), kat = V.katBul(n.kat);
-    var satir = n.hastalar.map(function (h) { var s = K.SEN[h.id]; if (!s) return ''; var p = V.hastaPuan(h); return '<tr><td><b>' + X(s.hasta.hitap || s.hasta.ad) + '</b><small>' + X(s.baslik) + '</small>' + (h.kacan && h.kacan.length ? '<small class="kc">kaçan: ' + X(h.kacan.join('; ')) + '</small>' : '') + '</td><td class="n">' + (h.sahne != null ? h.sahne : '—') + '</td><td class="n">' + (h.lab != null ? h.lab : '—') + '</td><td class="n"><b>' + (p != null ? p : 'görülmedi') + '</b></td></tr>'; }).join('');
+    var satir = n.hastalar.map(function (h) { var s = K.SEN[h.id]; if (!s) return ''; var p = V.hastaPuan(h); return '<tr><td><b>' + X(s.hasta.hitap || s.hasta.ad) + '</b><small>' + X(s.baslik) + '</small>' + (h.kacan && h.kacan.length ? '<small class="kc">kaçan: ' + X(h.kacan.join('; ')) + '</small>' : '') + (h.ipucu ? '<small>rehber cerraha danıştın (−' + h.ipucu + ')</small>' : '') + '</td><td class="n">' + (h.sahne != null ? h.sahne : '—') + '</td><td class="n">' + (h.lab != null ? h.lab : '—') + '</td><td class="n"><b>' + (p != null ? p : 'görülmedi') + '</b></td></tr>'; }).join('');
     modal('<div class="md-karne">' + damga(o.ort) + '<span class="k">nöbet karnesi · ' + X(kat.ad) + '</span><h2 id="md-mt">' + o.gorulen + ' / ' + o.toplam + ' hasta · ortalama ' + o.ort + '</h2><p class="sub">' + V.saat(V.NOBET_BASLA) + ' – ' + V.saat(n.saat) + ' · ' + new Date(n.bitis || Date.now()).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + '</p>' +
       '<div class="tw"><table><thead><tr><th>Hasta</th><th class="n">Görüşme</th><th class="n">Lab</th><th class="n">Puan</th></tr></thead><tbody>' + satir + '</tbody></table></div>' +
       ((n.triyaj || n.kod) ? '<div class="md-ek">' + (n.triyaj ? '<div><span class="k">triyaj masası</span><b>' + (n.triyaj.atlandi ? 'atlandı' : n.triyaj.dogru + ' / ' + n.triyaj.toplam + ' doğru') + '</b><small>' + (n.triyaj.atlandi ? '—' : n.triyaj.puan) + '</small></div>' : '') +
@@ -678,6 +749,7 @@
   $('#md-kon').addEventListener('click', konsultPanel);
   $('#md-nob').addEventListener('click', function () { if (S.nobet) { if (S.ekran !== 'kat' || S.kat !== S.nobet.kat) asansor(S.nobet.kat); } });
   $('#md-mu-geri').addEventListener('click', function () { bitir(true); });
+  $('#md-mu-bildir').addEventListener('click', sonuFormu);
   D.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('#md-muayene').hidden && !$('.md-modal')) { /* lab açıkken Esc lab'ın kendi penceresine kalır */ } });
 
   /* =========================== Acadia köprüsü ve iç çerçeve aktarımı =========================== */
@@ -688,6 +760,7 @@
     var k = S.kat ? V.katBul(S.kat) : null, a = S.aktif;
     if (S.olay === 'triyaj') return { sel: { key: 'medica.triyaj', title: 'Triyaj masası', la: 'Nöbet başı', rows: [['Renkler', 'kırmızı hemen, sarı kısa sürede, yeşil bekleyebilir']], about: 'öğrenci Acadex Medica nöbetinin başında hastaları triyaj rengine göre önceliklendiriyor; bu puanlanıyor. Hangi hastanın hangi renk olduğunu söyleme; triyajın genel ilkelerini (havayolu, solunum, dolaşım, bilinç, ağrı) anlatabilirsin.' }, chips: [['triyaj', 'Triyaj nasıl yapılır?']] };
     if (S.olay === 'kod') return { sel: { key: 'medica.kod', title: 'Acil kod', la: 'Süreli olay', rows: [['Kod', S.nobet && S.nobet.kod ? V.KOD[S.nobet.kod.tip].ad : '']], about: 'öğrenci Acadex Medica nöbetinde süreli bir acil kod olayını yönetiyor; adımları doğru sırayla seçmesi puanlanıyor. Sırayı doğrudan söyleme.' }, chips: [] };
+    if (S.olay === 'bildir') return { sel: { key: 'medica.bildir', title: 'Hastaya bildir', la: 'Bulgu formu', rows: [], about: 'öğrenci Acadex Medica’da lab bulgusunu yorumlayıp hastaya anlatacağı açıklamayı seçiyor; bu puanlanıyor. Doğru seçeneği söyleme; hastayla anlaşılır iletişimin ilkelerini anlatabilirsin.' }, chips: [] };
     if (S.olay === 'sevk') return { sel: { key: 'medica.sevk', title: 'Konsültasyon', la: 'Sevk kararı', rows: [], about: 'öğrenci Acadex Medica’da bir hastayı başka bölüme sevk edip etmeyeceğine karar veriyor; bu puanlanıyor. Doğru bölümü söyleme; ekip çalışması ve konsültasyon ilkelerini anlatabilirsin.' }, chips: [] };
     if (a && K.acik && K.acik()) {
       var s = a.sen;
@@ -723,6 +796,11 @@
     /* iç çerçevedeki lab: sonuç ve Acadia bağlamı */
     if (f && e.source === f.contentWindow) {
       if (d.src === 'axmedica' && d.type === 'sonuc') { labSonuc(d); return; }
+      if (d.src === 'axmedica' && S.aktif) {
+        if (d.type === 'ipucu') { var c = V.ipucuCeza(+d.kademe || 1); S.aktif.ipucu = (S.aktif.ipucu || 0) + c; S.aktif.ipucuN = (S.aktif.ipucuN || 0) + 1; ipucuYaz(); return; }
+        if (d.type === 'program' && Array.isArray(d.items)) { S.aktif.program = d.items.slice(0, 12).map(function (x) { return { id: String(x.id), ad: String(x.ad || x.id), set: +x.set || null, tekrar: +x.tekrar || null, tut: x.tut ? String(x.tut) : '' }; }); return; }
+        if (d.type === 'hazir') { if (d.exAd && typeof d.exAd === 'object') S.aktif.exAd = d.exAd; if (S.aktif.sen.sonu) bildirHazir(); return; }
+      }
       if (d.src === 'axlab' && EMB) { var m = JSON.parse(JSON.stringify(d)); if (m.sel && m.sel.title) m.sel.title = (V.katBul(S.kat) || { labAd: '' }).labAd + ' · ' + m.sel.title; ust(m); }
       return;
     }
@@ -742,5 +820,5 @@
   if (k0 && V.katBul(k0)) ekran('kat', k0); else ekran('lobi');
   anonsPlanla();
   W.AXMEDICA_APP = { S: S, ekran: ekran, asansor: asansor, cagir: cagir, nobetBasla: nobetBasla, nobetBitir: nobetBitir, defter: defter, labSonuc: labSonuc, bitir: bitir, ctx: ctx,
-    triyajMasasi: triyajMasasi, kodBasla: kodBasla, sevkSor: sevkSor, konsultPanel: konsultPanel, anons: anons, saatCiz: saatCiz };
+    labAc: labAc, sonuFormu: sonuFormu, taburcu: taburcu, triyajMasasi: triyajMasasi, kodBasla: kodBasla, sevkSor: sevkSor, konsultPanel: konsultPanel, anons: anons, saatCiz: saatCiz };
 })();

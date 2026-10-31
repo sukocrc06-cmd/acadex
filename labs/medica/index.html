@@ -287,6 +287,27 @@ body.md-labda{overflow:hidden}
 .kd-k h3{margin:16px 0 6px;font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2)}
 .kd-k .not{font-size:13.5px;line-height:1.5;color:var(--ink2)}
 
+/* ---------- lab sonrası: hastaya bildir ---------- */
+.md-mu-top #md-mu-bildir{flex:none}.md-mu-top #md-mu-bildir:disabled{opacity:.45;cursor:default}
+.md-mu-ip{margin-left:6px;padding:1px 8px;border-radius:999px;background:rgba(255,181,71,.2);color:#FFD08A;font-weight:700}
+.md-mu-ip[hidden]{display:none}
+.sf-goz{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:#F3F7F9;font-size:14.5px;line-height:1.5}
+.sf-q{margin:14px 0 0;padding:0;border:0}
+.sf-q legend{padding:0;font-weight:700;font-size:15px;margin-bottom:6px}
+.sf-o{display:grid;gap:6px}
+.sf-o button{text-align:left;min-height:44px;padding:9px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-size:14px;line-height:1.4}
+.sf-o button[aria-checked="true"]{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.sf-o button.dogru{border-color:var(--ok);background:#F1FAF4}
+.sf-o button:disabled{cursor:default}
+.sf-q.no .sf-o button[aria-checked="true"]:not(.dogru){border-color:var(--bad);box-shadow:3px 3px 0 var(--bad)}
+.sf-g{margin:6px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink2)}.sf-q.ok .sf-g{color:var(--ok)}.sf-q.no .sf-g{color:var(--bad)}
+.sf-pr{margin-top:16px;padding:12px;border-radius:14px;background:#F7F9FB}
+.sf-pr h3{margin:0 0 6px}
+.sf-ex{margin:0;padding-left:20px;display:grid;gap:4px;font-size:14px}.sf-ex small{display:block;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11.5px}
+.sf-bos{margin:0;font-weight:700;color:#8A5A00}
+.sf-son{position:relative;margin-top:16px;padding:14px 120px 14px 14px;border-radius:14px;background:#fff;border:1.5px solid var(--line);min-height:110px}
+.sf-son ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px;font-size:13.5px;line-height:1.5}.sf-son em{display:block;font-style:normal;color:var(--bad)}
+.sf-son .damga{right:16px;top:14px}
 /* ---------- konsültasyon ---------- */
 .sv-b button.dogru{border-color:var(--ok);box-shadow:3px 3px 0 var(--ok)}.sv-b button.yanlis{border-color:var(--bad);opacity:.7}
 .sv-b button:disabled{cursor:default}
@@ -315,7 +336,8 @@ body.md-labda{overflow:hidden}
   .md-say p{font-size:15px}
   .md-row .md-btn{flex:1 1 auto}
   .md-mk{padding:18px 16px 14px}.md-mk h2{font-size:20px;padding-right:84px}.damga{width:70px;height:70px;right:44px}.damga b{font-size:21px}
-  .md-mu-top{padding:6px 10px;gap:8px}.md-mu-top .md-btn{padding:0 10px;font-size:13px}
+  .md-mu-top{padding:6px 10px;gap:8px;flex-wrap:wrap}.md-mu-top .md-btn{padding:0 10px;font-size:13px}.md-mu-top .t{order:-1;flex:1 1 100%}.md-mu-top .md-btn{flex:1 1 auto}
+  .sf-son{padding-right:14px;padding-top:96px}.sf-son .damga{left:14px;right:auto}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.sahne .yuru{display:none}}
 </style>
@@ -340,7 +362,8 @@ body.md-labda{overflow:hidden}
 <div class="md-muayene" id="md-muayene" hidden role="dialog" aria-modal="true" aria-labelledby="md-mu-t">
   <div class="md-mu-top">
     <button type="button" class="md-btn" id="md-mu-geri">← Bekleme salonuna dön</button>
-    <div class="t"><b id="md-mu-t">Muayene</b><small><span class="md-mu-s" id="md-mu-s"></span><span id="md-mu-d">lab sonucu bekleniyor</span></small></div>
+    <div class="t"><b id="md-mu-t">Muayene</b><small><span class="md-mu-s" id="md-mu-s"></span><span id="md-mu-d">lab sonucu bekleniyor</span><span class="md-mu-ip" id="md-mu-ip" hidden></span></small></div>
+    <button type="button" class="md-btn" id="md-mu-bildir" hidden disabled>Hastaya bildir →</button>
   </div>
   <iframe title="Lab: vaka formu" allow="fullscreen; microphone" allowfullscreen></iframe>
   <div class="md-mu-yuk" hidden>dosya hazırlanıyor…</div>
