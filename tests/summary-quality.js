@@ -141,6 +141,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'YORUM_MAX_KRK', 'YORUM_TAM_CUMLE_RE', 'KURTARMA_BASLIK_ORANI', 'baslikGibi',
   // Yapisik cumleler ayri aday (31.10.2026 olcumu).
   'YORUM_CUMLE_BASI', 'YORUM_YAPISIK_RE', 'yapisikParcalar',
+  // Guven araligindaki dusen eksi isareti (31.10.2026 olcumu).
+  'guvenAraligiOnar',
   'kurtarmaSatirlari', 'yorumCumleleriniKurtar',
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
   'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
@@ -9032,6 +9034,71 @@ test('EN DAR aday ONCE denenir', () => {
   const govde = kod.slice(i, i + 400);
   assert.ok(govde.indexOf('adayMetinleri.push(kuyruk)') > 0, 'esitlik kuyrugu aday listesinde yok');
   assert.ok(govde.indexOf('adayMetinleri.push(tam)') > 0, 'tam cumle yedegi yok');
+});
+
+
+/* GUVEN ARALIGINDA DUSEN EKSI ISARETI (31.10.2026, kartta olculdu)
+
+   Tablo gecisi 9 Excel ciktisini dokuyor; 9-11 haneli ondaliklarda
+   transkripsiyon gurultusu var. Kullanicinin ESKI kartiyla hucre hucre
+   karsilastirildi — 60 kadar sayisal hucrede uc hata:
+     s.11 P-value    0.070873131 -> 0.07073131    (basamak dustu)
+     s.19 Intercept  0.200177701 -> 0.20017701    (basamak dustu)
+     s.27 Lower 95% -1.378324931 -> 1.378324931   (ISARET dustu)
+   Ilk ikisi tespit edilemez; ucuncusu kanitlanabilir, cunku bir guven
+   araligi icin Lower <= Upper olmak zorunda. */
+const ARALIK_BASLIK = ['', 'Coefficients', 'Standard Error', 't Stat', 'P-value', 'Lower 95%', 'Upper 95%'];
+
+test('Lower > Upper olan satirda eksi isareti geri konuyor', () => {
+  const t5 = {
+    title: 'Utility Bill vs. Temperature - Simple Linear (Slide 7-27)',
+    headers: ARALIK_BASLIK.slice(),
+    rows: [
+      ['Intercept', '143.6228051', '25.99548403', '5.524913669', '0.000252809', '85.70125737', '201.5443528'],
+      ['Average_Monthly_Temperature', '-0.479884419', '0.403224653', '-1.190116762', '0.261487183', '1.378324931', '0.418556093']
+    ]
+  };
+  assert.equal(A.guvenAraligiOnar([t5]), 1);
+  assert.equal(t5.rows[1][5], '-1.378324931', 'isaret geri konmamis');
+  assert.equal(t5.rows[0][5], '85.70125737', 'dogru satira dokunulmus');
+});
+
+test('DOGRU tabloya hic dokunulmuyor', () => {
+  const t6 = {
+    title: 'Quadratic (Slide 7-28)',
+    headers: ARALIK_BASLIK.slice(),
+    rows: [
+      ['Intercept', '484.1075724', '36.95620571', '13.09949339', '3.63685E-07', '400.5068271', '567.7083177'],
+      ['Average_Monthly_Temperature', '-12.07603491', '1.233304506', '-9.791608524', '4.26261E-06', '-14.86596352', '-9.28610629']
+    ]
+  };
+  assert.equal(A.guvenAraligiOnar([t6]), 0);
+  assert.equal(t6.rows[1][5], '-14.86596352');
+});
+
+test('Lower/Upper kolonu olmayan tablo atlaniyor', () => {
+  const t1 = { title: 'Worksheet', headers: ['Case, i', 'yi', 'x1i'], rows: [['1', '1', '1'], ['2', '4', '8']] };
+  assert.equal(A.guvenAraligiOnar([t1]), 0);
+  assert.deepEqual(t1.rows[0], ['1', '1', '1']);
+});
+
+test('onarim TAHMIN DEGIL: katsayi araliga dusmuyorsa dokunulmuyor', () => {
+  /* Iki hucresi de yanlis okunmus bir satiri "onarmis" gibi gostermemek
+     icin katsayi da yeni araliga dusmeli. */
+  const tX = { title: 'Bozuk', headers: ['', 'Coefficients', 'Lower 95%', 'Upper 95%'], rows: [['x', '50', '9', '3']] };
+  assert.equal(A.guvenAraligiOnar([tX]), 0);
+  assert.deepEqual(tX.rows[0], ['x', '50', '9', '3']);
+  /* Isaret cevirmek siralamayi DUZELTMIYORSA da dokunulmuyor. */
+  const tY = { title: 'Bozuk2', headers: ['', 'Lower 95%', 'Upper 95%'], rows: [['x', '9', '-20']] };
+  assert.equal(A.guvenAraligiOnar([tY]), 0);
+});
+
+test('onarim boru hattina BAGLI (tablo gecisinden sonra)', () => {
+  const kod = KAPSAMA_KOD;
+  const i = kod.indexOf('const aralikOnarimi = guvenAraligiOnar(mergedTables)');
+  assert.ok(i > 0, 'onarim cagrilmiyor');
+  const iTablo = kod.indexOf('const tabloRes = await fetchWithRetry');
+  assert.ok(iTablo > 0 && iTablo < i, 'onarim tablo gecisinden ONCE kosuyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

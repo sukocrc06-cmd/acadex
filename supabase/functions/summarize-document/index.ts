@@ -1805,6 +1805,55 @@ const VISION_MAX_COMPLETION = 3072
 const TABLO_MAX_COMPLETION = VISION_MAX_COMPLETION
 /* Altinda tablo gecisi denenmez: kesik bir tablo hic tablodan kotudur. */
 const TABLO_GECIS_MIN_BUTCE_MS = 25000
+
+/* GUVEN ARALIGINDA DUSEN EKSI ISARETI (31.10.2026, kartta olculdu).
+ *
+ * Tablo gecisi 9 Excel ciktisini dokuyor ama 9-11 haneli ondaliklarda
+ * transkripsiyon gurultusu var. Kullanicinin eski kartiyla hucre hucre
+ * karsilastirildi — 60 kadar sayisal hucrede uc hata:
+ *   s.11 P-value    0.070873131 -> 0.07073131    (basamak dustu)
+ *   s.19 Intercept  0.200177701 -> 0.20017701    (basamak dustu)
+ *   s.27 Lower 95% -1.378324931 -> 1.378324931   (ISARET dustu)
+ *
+ * Ilk ikisi tespit edilemez. Ucuncusu KANITLANABILIR: bir guven araligi
+ * icin Lower <= Upper olmak ZORUNDA. Olculen satir:
+ *   katsayi -0.479884419, Lower 1.378324931, Upper 0.418556093
+ *   Lower > Upper  ->  imkansiz
+ *   isaret cevrilince  -1.378 < -0.4799 < 0.4186  ->  tutarli
+ * Yani onarim tahmin degil, aritmetik.
+ *
+ * DAR: yalnizca Lower > Upper iken ve isaret cevirmek siralamayi DUZELTEN
+ * tek hareketse yapiliyor. Katsayi kolonu varsa o da araliga dusmeli,
+ * yoksa dokunulmuyor — iki basamagi da yanlis okunmus bir satiri
+ * "onarmis" gibi gostermemek icin. */
+function guvenAraligiOnar(tables: any[]): number {
+  const sayi = (h: unknown) => {
+    const s = String(h ?? '').trim().replace(/\s+/g, '')
+    if (!/^[-\u2212+]?[\d.,]+(?:[eE][-+]?\d+)?$/.test(s)) return NaN
+    return parseFloat(s.replace(/\u2212/g, '-').replace(/,/g, '.'))
+  }
+  let onarilan = 0
+  for (const t of (Array.isArray(tables) ? tables : [])) {
+    const basliklar = (Array.isArray(t?.headers) ? t.headers : []).map((h: unknown) => String(h ?? '').toLowerCase())
+    const iAlt = basliklar.findIndex((h: string) => h.indexOf('lower') !== -1)
+    const iUst = basliklar.findIndex((h: string) => h.indexOf('upper') !== -1)
+    if (iAlt < 0 || iUst < 0) continue
+    const iKat = basliklar.findIndex((h: string) => h.indexOf('coefficient') !== -1)
+    for (const satir of (Array.isArray(t?.rows) ? t.rows : [])) {
+      if (!Array.isArray(satir)) continue
+      const alt = sayi(satir[iAlt]), ust = sayi(satir[iUst])
+      if (!Number.isFinite(alt) || !Number.isFinite(ust) || alt <= ust) continue
+      if (-alt > ust) continue
+      if (iKat >= 0) {
+        const kat = sayi(satir[iKat])
+        if (Number.isFinite(kat) && !(-alt <= kat && kat <= ust)) continue
+      }
+      satir[iAlt] = String(-alt)
+      onarilan++
+    }
+  }
+  return onarilan
+}
 const VISION_MAX_IMAGES = 2
 // The vision pass is an EXTRA call, and on this tier every extra call means a
 // full ~60s TokenPacer wait before it can start. The narrative writer runs
@@ -14468,6 +14517,16 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
                     mergedDiagrams.length = 0; mergedDiagrams.push(...birlesik)
                   }
                   if (yeniTablolar.length || yeniDiyagramlar.length) visualAnalysisUsed = true
+                  /* Dusen eksi isareti — bkz. guvenAraligiOnar. Butun
+                     tablolara uygulaniyor, yalnizca yeni gelenlere degil:
+                     kusur verinin kendisinde, kaynaginda degil. */
+                  const aralikOnarimi = guvenAraligiOnar(mergedTables)
+                  if (aralikOnarimi > 0) {
+                    console.log(
+                      `Guven araligi onarildi: ${aralikOnarimi} satirda Lower > Upper idi, ` +
+                      `isaret geri konuldu`
+                    )
+                  }
                   console.log(
                     `Tablo gecisi: ${yeniTablolar.length} tablo, ${yeniDiyagramlar.length} diyagram dondu ` +
                     `(${visualPlan.indices.length} sayfa) — tablo ${tabloOnce}->${mergedTables.length}, ` +
