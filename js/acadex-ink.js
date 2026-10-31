@@ -4482,7 +4482,7 @@ var SBX = (function () {
     pr = Object.assign({}, pr || {}); pr.full_name = window.axNm ? window.axNm(pr.full_name) : pr.full_name; pr.bio = window.axNm ? window.axNm(pr.bio) : pr.bio;
     var img = pr.avatar_url && /^https?:/.test(pr.avatar_url) ? pr.avatar_url : '';
     var cover = pr.banner_url && /^https?:/.test(pr.banner_url) ? pr.banner_url : '';
-    return { cover: cover, n: pr.full_name || (isMe ? 'Sen' : 'Bir öğrenci'), s: isMe ? 'sen' : (DEPT[pr.department] || pr.department || ''), c: COLORS[hash(pr.id) % COLORS.length], i: ini(pr.full_name), img: img, dept: deptKey(pr.department), id: pr.id, gh: pr.github_url || '', li: pr.linkedin_url || '', web: pr.website_url || '', bio: pr.bio || '' };
+    return { cover: cover, n: pr.full_name || (isMe ? 'Sen' : 'Bir öğrenci'), s: isMe ? 'sen' : (DEPT[pr.department] || (window.AX_BOLUM ? window.AX_BOLUM.tr(pr.department) : pr.department) || ''), c: COLORS[hash(pr.id) % COLORS.length], i: ini(pr.full_name), img: img, dept: deptKey(pr.department), id: pr.id, gh: pr.github_url || '', li: pr.linkedin_url || '', web: pr.website_url || '', bio: pr.bio || '' };
   };
   var setMe = function () { var u = me(), p = myProf(); PPL.me = person(Object.assign({ id: u && u.id }, p), true); PPL.me.c = '#E6EEFF'; };
   setMe();
