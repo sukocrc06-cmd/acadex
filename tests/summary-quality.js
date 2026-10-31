@@ -2979,6 +2979,53 @@ test('gorsel prompt u goz karari tahmini kelimeye yonlendiriyor', () => {
   assert.ok(/relative words/.test(vis), 'goz karari degerler icin kelime alternatifi onerilmeli');
 });
 
+/* GORSEL GECIS TASLAKTAKI MADDELERI YENIDEN IFADE EDIYORDU (31.10.2026).
+ *
+ * Promptta knownTermsHint vardi ama yalnizca KAVRAMLARI listeliyor;
+ * maddeler icin hicbir ipucu yoktu. Olculen kosu: gorsel gecis +5 madde
+ * ekledi, dordu taslaktaki bir maddenin parafraziydi ve dordu de atifsiz
+ * kaldi (Riemann 0,545; sabit-C 0,556).
+ *
+ * KOPYA BIRLESTIRME BUNU COZEMEZ, OLCULDU: 51 kartta 8.333 madde ciftinin
+ * dagilimi cikarildi; 0,4-0,7 bandindaki 18 ciftin 16'si GERCEKTEN AYRI
+ * (log-linear vs log-log modeli, yerel maksimum vs yerel minimum, Asch'in
+ * iki ayri istatistigi, Prototyping vs System analysis). Esigi o banda
+ * cekmek gercek icerik silerdi. Bu yuzden duzeltme KAYNAKTA: madde hic
+ * uretilmesin. */
+test('GORSEL PROMPT taslaktaki maddeleri listeliyor', () => {
+  assert.match(SRC, /const knownPointsHint = mergedKeyPoints/, 'madde ipucu yok');
+  const vis = promptLiterals(SRC).find(p => /visualSystemPrompt/.test(p));
+  assert.ok(/knownPointsHint/.test(vis), 'ipucu prompta baglanmamis');
+  assert.ok(/Do not restate any of them/.test(vis), 'tekrar etmeme kurali yok');
+  // Kavram ipucusu KALDIRILMADI: iki ipucu ayri isler.
+  assert.ok(/knownTermsHint/.test(vis), 'kavram ipucusu dusmus');
+});
+
+test('MADDE IPUCUSU kisaltiliyor ve atif isaretcisi atiliyor', () => {
+  /* Maddelerin tamami ~1.800 krk, gorsel cagri tahminine ~560 token
+     eklerdi. Ilk 80 karakter konuyu tanitmaya yetiyor. */
+  const i = SRC.indexOf('const knownPointsHint = mergedKeyPoints');
+  const blok = SRC.slice(i, i + 420);
+  assert.match(blok, /\.slice\(0, 18\)/, 'madde sayisi sinirlandirilmamis');
+  assert.match(blok, /\.slice\(0, 80\)/, 'madde metni kisaltilmamis');
+  assert.match(blok, /replace\(\/\\s\*\\\[\\d\+\\\]\/g, ''\)/,
+    'atif isaretcisi atilmamis — modele numara gosteriliyor');
+  assert.match(blok, /maddeMetni\(p\)/, 'nesne bicimli madde desteklenmiyor');
+});
+
+test('GORSEL CAGRI tahmini serit tavanina SIGIYOR', () => {
+  /* Pencere promptunun payi 6 tokendi; gorsel cagrinin payi genis ve bu
+     test onu koruyor. Canli olcum: ipucu oncesi "Gorsel cagri butcesi:
+     ~4788 token". */
+  const vis = promptLiterals(SRC).find(p => /visualSystemPrompt/.test(p));
+  const ipucu = 18 * 83;                       // 18 madde x (tire + 80 krk + \n)
+  const uzunluk = vis.length + ipucu + 300;    // + kavram ipucusu payi
+  const tahmin = A.VISION_TOKENS_PER_IMAGE +
+    Math.ceil(uzunluk / 3.2) + Math.ceil(3072 * A.PACER_COMPLETION_FACTOR);
+  const tavan = Math.floor(A.DEFAULT_TPM_LIMIT * A.PACER_SAFETY);
+  assert.ok(tahmin <= tavan, `gorsel cagri ${tahmin} token > ${tavan} tavani`);
+});
+
 console.log('\nOTPM — CIKTI TOKEN KOVASI\n');
 
 /* 04.10.2026 canli hata:

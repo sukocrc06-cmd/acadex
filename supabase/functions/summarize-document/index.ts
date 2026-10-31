@@ -12961,7 +12961,37 @@ groups: sort the numbered sections S1..Sn into 3-6 topic groups, every number ex
 
           if (visualImages.length > 0) {
             const knownTermsHint = mergedKeyTerms.slice(0, 25).map((t: any) => t.term).filter(Boolean).join(', ')
+            /* GORSEL GECIS TASLAKTAKI MADDELERI YENIDEN IFADE EDIYORDU
+               (31.10.2026 olcumu).
+               Promptta `knownTermsHint` vardi ama yalnizca KAVRAMLARI
+               listeliyor ("do not repeat terms already listed above");
+               maddeler icin hicbir ipucu yoktu. Olculen sonuc: gorsel gecis
+               +5 madde ekledi, dordu taslakta zaten olan bir maddenin
+               parafraziydi ve dordu de atifsiz kaldi:
+                 "Riemann sums approximate area using thin rectangles..."  vs
+                 "Taking the limit of a Riemann sum as the number of
+                  rectangles approaches infinity..."              (0,545)
+                 "The constant of integration (+ C) accounts for..."       vs
+                 "Adding a constant to a function shifts its graph..."     (0,556)
+               Kopya birlestirme bunlari YAKALAYAMAZ: 51 kartin 8.333 madde
+               ciftinin dagilimi olculdu, 0,4-0,7 bandindaki 18 ciftin 16'si
+               GERCEKTEN AYRI (log-linear vs log-log modeli, yerel maksimum
+               vs minimum, Asch'in iki ayri istatistigi). Esigi o banda
+               cekmek gercek icerik silerdi. Dogru yer kaynak: madde hic
+               uretilmesin.
+               MADDELER KISALTILIYOR: tamami ~1.800 krk, yani gorsel cagri
+               tahminine ~560 token. Ilk 80 karakter konuyu tanitmaya yetiyor
+               ve maliyet ucte bire iniyor. Atif isaretcileri atiliyor;
+               modele gosterilen sey iddia, numarasi degil. */
+            const knownPointsHint = mergedKeyPoints
+              .slice(0, 18)
+              .map((p: any) => maddeMetni(p).replace(/\s*\[\d+\]/g, '').trim().slice(0, 80))
+              .filter(Boolean)
+              .map((t: string) => `- ${t}`)
+              .join('\n')
             const visualSystemPrompt = `You are an academic study assistant. You are shown page images of the figure/table pages of a lecture document. Their captions were already extracted as text; what you can see and the text cannot is the CONTENT of the graphic itself — the axis ranges, the plotted levels and turning points, the rows of a table, the boxes and arrows of a diagram. Identify exam-relevant content readable in these images that is NOT already covered by these already-known terms: ${knownTermsHint || '(none yet)'}.
+The draft ALREADY STATES the key_points below. Do not restate any of them, not even reworded, reordered or generalised — a point that repeats one of these is worse than no point, because the card then shows the same fact twice. Add a key_point only for something these do not already say:
+${knownPointsHint || '- (none yet)'}
 Respond ONLY with JSON in ${langLabel}: {"key_terms":[{"term":"...","definition":"..."}],"key_points":["..."],"quiz_questions":[{"question":"...","answer":"..."}],"sections":[{"heading":"...","summary":"...","key_points":["..."]}],"tables":[{"title":"...","headers":["..."],"rows":[["..."]]}],"diagrams":[{"title":"...","mermaid":"...","description":"..."}]}
 Rules: only include content actually visible in the images; return empty arrays for any field with nothing new; do not repeat terms already listed above. Reconstruct any table you can read as 'tables' and any flowchart/framework/process image as a Mermaid 'diagrams' entry. Never invent one that isn't visibly there.
 When a chart's shape carries the lesson — where it peaks, when it falls, which period is highest — write that in WORDS as a key_point. Do not attempt to output a series of numbers.
