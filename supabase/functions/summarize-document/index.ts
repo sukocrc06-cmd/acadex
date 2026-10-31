@@ -404,7 +404,11 @@ const YUM_SEMBOL: Array<[RegExp, string]> = [
   [/\\tau(?![a-zA-Z])/g, '\u03C4'], [/\\phi(?![a-zA-Z])/g, '\u03C6'],
   [/\\omega(?![a-zA-Z])/g, '\u03C9'],
   [/\\Delta(?![a-zA-Z])/g, '\u0394'], [/\\Sigma(?![a-zA-Z])/g, '\u03A3'],
-  [/\\Omega(?![a-zA-Z])/g, '\u03A9']
+  [/\\Omega(?![a-zA-Z])/g, '\u03A9'],
+  /* Uc nokta komutlari: IPPT kartinin anlatisinda ham cikti
+     ("β₂ x²_j + \dots + β_p x^p_j + ε"). \dots once gelmeli degil —
+     (?![a-zA-Z]) siniri siralamayi onemsiz kiliyor. */
+  [/\\(?:cdots|ldots|dots)(?![a-zA-Z])/g, '\u22EF']
 ]
 
 /* Fonksiyon adlari: komut isareti kalkar, ad kalir (\\sin x -> sin x). */
@@ -422,12 +426,41 @@ const ALT_RAKAM: Record<string, string> = {
   '5': '\u2085', '6': '\u2086', '7': '\u2087', '8': '\u2088', '9': '\u2089'
 }
 
+/* Aksan komutu -> birlesen Unicode isaret. Icerik ONCE sembol tablosundan
+   geciyor, o yuzden burada \beta degil β bekleniyor. */
+const YUM_AKSAN: Array<[string, string]> = [
+  ['widehat', '\u0302'], ['hat', '\u0302'],
+  ['overline', '\u0304'], ['bar', '\u0304'],
+  ['tilde', '\u0303'], ['vec', '\u20d7'], ['dot', '\u0307']
+]
 function anlatiLatexYumusat(parca: string): string {
   let t = String(parca || '')
+  /* CIPLAK CARET KAPIDA TAKILIYORDU (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Kapi ters bolu YA DA SUSLU alt/ust simge istiyordu. Model ise bazi
+   * alanlara ciplak yaziyor ve ayni kart ayni sayiyi IKI BICIMDE
+   * gosteriyordu:
+   *   anlati:          "0.09temp²"    <- icinde \komut da vardi, kapi acildi
+   *   key_points[9]:   "0.09temp^2"   <- ters bolu yok, kapi kapandi
+   *   worked_examples: "0.09temp^2"
+   *   quiz_questions:  "0.09temp^2"
+   * Yani hemen asagidaki UST_RAKAM/ALT_RAKAM kurallari o metinlerde HIC
+   * kosmuyordu — kural vardi, kapi gecirmiyordu.
+   *
+   * Kapi artik rakamli ciplak bicimi de geciriyor: ^2 -> ², _1 -> ₁.
+   * Harfli ust simge (x^p) bilerek disarida: Unicode karsiligi eksik ve
+   * yarim cevrilmis bir ifade okunmaz olurdu.
+   *
+   * UC YERDE AYNI OLMALI: anlatiLatexYumusat, onarAnlatiLatex ve agac
+   * gezintisindeki `yum`. Biri geride kalirsa ic fonksiyon hic cagrilmaz
+   * ve temizlik olu kod olur.
+   *
+   * Ikinci kosul ayrica sart — "nx^{n-1}" ters bolu tasimiyor ama suslu
+   * parantezi temizlenmeli (olculdu: tek basina gelen madde metinleri). */
   /* Erken cikis: ters bolu YA DA suslu alt/ust simge yoksa yapacak is yok.
      Ikinci kosul sart — "nx^{n-1}" ters bolu tasimiyor ama suslu parantezi
      temizlenmeli (olculdu: tek basina gelen madde metinleri boyle). */
-  if (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t)) return t
+  if (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t)) return t
 
   /* CIFT TERS BOLU VE KACIRILMIS KESME ISARETI (29.10.2026 olcumu).
    *
@@ -449,20 +482,74 @@ function anlatiLatexYumusat(parca: string): string {
    * yazdiginda KaTeX satir sonu goruyordu). */
   t = t.replace(/\\\\(?=[A-Za-z'"`])/g, '\\')
   t = t.replace(/\\(['"`])/g, '$1')
+  /* KACIRILMIS OZEL KARAKTER (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Model LaTeX aliskanligiyla "\$" yaziyor ve ters bolu EKRANDA KALIYORDU:
+   *   anlati:         "meaning utility bills decrease by \$5.06"
+   *   key_points[12]: "...decrease by \$5.06 when temperature increases"
+   * LaTeX'te \$ zaten "dolar isareti" demek; ters bolu bilgi tasimiyor,
+   * yalnizca kacis. Ayni sinif: \% \& \# \_ \{ \}
+   *
+   * Hemen yukaridaki tirnak onarimiyla ayni gerekce: duz yazida noktalama
+   * onundeki ters bolu hicbir zaman kasitli degil. */
+  t = t.replace(/\\([$%&#_{}])/g, '$1')
 
   // \text{...} / \mathrm{...} / \mathbf{...}: yalnizca icerigi kalir.
   t = t.replace(/\\(?:text|textrm|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
-  t = t.replace(/\\(?:times|cdot)\b/g, 'x')
-  t = t.replace(/\\div\b/g, '/')
-  t = t.replace(/\\pm\b/g, '+/-')
-  t = t.replace(/\\(?:leq|le)\b/g, '<=').replace(/\\(?:geq|ge)\b/g, '>=')
-  t = t.replace(/\\neq\b/g, '!=').replace(/\\approx\b/g, '~')
+  /* ISLETMEN ASCII DEGIL UNICODE (31.10.2026, IPPT kartinda olculdu).
+   *
+   * \times -> 'x' cevirisi okunamaz bir satir uretti. Kartin 04. bolumu:
+   *   "Log-linear models interpret β₁ as a 100x β₁ percent increase"
+   * Buradaki 'x' CARPMA isareti ama ayni cumlede x₁ DEGISKENI de geciyor;
+   * ogrenci carpmayi degisken sanıyor. Ayni kartin 02. bolumu:
+   *   "Testing for interaction involves setting H₀: β₃ = 0 against
+   *    H_A: β₃ != 0"
+   * '!=' programlama yazimi, matematik degil.
+   *
+   * Bu dosya ZATEN unicode basiyor (∂, ∑, ∫, ∞, β, ŷ, ⋯ — bkz. YUM_SEMBOL
+   * ve YUM_AKSAN), yani ASCII karsiliklar tutarsiz kalan tarafti.
+   *
+   * PDF: DejaVu Sans gomulu ve bu isaretlerin hepsini cizebiliyor. Font
+   * getirilemezse js/dashboard.js icindeki pdfText ASCII'ye dusuruyor;
+   * ×, ÷, ± ayrica WinAnsi'de de var. */
+  t = t.replace(/\\times\b/g, '\u00d7').replace(/\\cdot\b/g, '\u00b7')
+  t = t.replace(/\\div\b/g, '\u00f7')
+  t = t.replace(/\\pm\b/g, '\u00b1').replace(/\\mp\b/g, '\u2213')
+  t = t.replace(/\\(?:leq|le)\b/g, '\u2264').replace(/\\(?:geq|ge)\b/g, '\u2265')
+  t = t.replace(/\\(?:neq|ne)\b/g, '\u2260').replace(/\\approx\b/g, '\u2248')
   t = t.replace(/\\(?:left|right|displaystyle)\b/g, '')
   // Ince bosluk komutlari: \, \; \! \quad \qquad \ (ters bolu + bosluk)
   t = t.replace(/\\(?:qquad|quad)\b/g, ' ').replace(/\\[,;!:> ]/g, ' ')
   // Sembol ve fonksiyon adlari (bkz. YUM_SEMBOL / YUM_FONKSIYON).
   for (const [re, yerine] of YUM_SEMBOL) t = t.replace(re, yerine)
   t = t.replace(YUM_FONKSIYON, '$1')
+  /* AKSAN KOMUTLARI (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Log "Ayiracsiz LaTeX duz yaziya cevrildi: 28 alan" diyordu ama ayni
+   * kartta IKI alanda ham kaldi:
+   *   worked_examples: "Given the estimated equation \hat{y} = 20.43 + ..."
+   *   quiz_questions:  "...estimates pie sales as \hat{y} = 300 - 30(Price)"
+   * yumusatAgac o alanlara UGRUYOR (ozyinelemeli, alan adi saymiyor);
+   * eksik olan KURALDI — aksan komutlari tabloda hic yoktu, oysa belgenin
+   * kendisi "ŷ" yaziyor.
+   *
+   * Birlesen isaret + NFC: "\hat{y}" -> "y" + U+0302 -> normalize -> "ŷ".
+   * Isaret ILK harften sonra konuyor, cunku birlesen isaret ancak kendinden
+   * once gelen harfe biniyor. Onceden birlesik karsiligi olmayan harfte
+   * (β̂) iki kod noktasi kaliyor; tarayici dogru ciziyor.
+   *
+   * SIRA: YUM_SEMBOL'den SONRA, cunku "\hat{\beta}" icindeki "\beta"
+   * once β'ya cevrilmis olmali. "\dots" yanlis eslesmez: desen komuttan
+   * hemen sonra SUSLU PARANTEZ istiyor. */
+  let aksanli = false
+  for (const [ad, isaret] of YUM_AKSAN) {
+    t = t.replace(new RegExp('\\\\' + ad + '\\s*\\{([^{}]{1,12})\\}', 'g'), (_m, ic) => {
+      aksanli = true
+      const s = String(ic)
+      return s.charAt(0) + isaret + s.slice(1)
+    })
+  }
+  if (aksanli) t = t.normalize('NFC')
   // Rakam alt/ust simgeleri.
   t = t.replace(/\^\{(\d+)\}|\^(\d)/g, (_m, suslu, tek) =>
     [...String(suslu ?? tek)].map((d) => UST_RAKAM[d] || d).join(''))
@@ -554,7 +641,7 @@ function onarAnlatiLatex(metin: string): { metin: string; yumusatilan: number } 
   const s = String(metin || '')
   // Erken cikis anlatiLatexYumusat'takiyle AYNI olmali, yoksa ic fonksiyon
   // hic cagrilmaz ve suslu alt/ust simge temizligi olu kod olur.
-  if (s.indexOf('\\') === -1 && !/[\^_]\{/.test(s)) return { metin: s, yumusatilan: 0 }
+  if (s.indexOf('\\') === -1 && !/[\^_][{\d]/.test(s)) return { metin: s, yumusatilan: 0 }
   let yumusatilan = 0
   let out = ''
   let son = 0
@@ -3021,6 +3108,45 @@ function nearDupKeysMatch(a: string, b: string): boolean {
   return shared / Math.min(sa.size, sb.size) >= NEAR_DUP_KEY_OVERLAP
 }
 
+/* ANAHTAR VETO IKEN TETIKLEYICI DE OLMALI (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Kart sozlugunde ayni kavram IKI KEZ durdu:
+ *   "Interaction Effects" — "The product of two different independent
+ *                            variables, used ... for various levels of a
+ *                            dummy variable."
+ *   "Interaction Effect"  — "An effect where the response to one
+ *                            independent variable varies at different
+ *                            levels of another independent variable."
+ * Olculen degerler: metin ortusmesi 0.667, esik 0.7 — KIL PAYI kaciriyor.
+ * Anahtar vetosu geciyordu ama veto yalnizca ENGELLER, birlestirmez.
+ *
+ * ESIK DUSURULMEDI: 0.4-0.7 bandindaki ciftlerin cogu gercekten ayri
+ * (olculdu, 8333 cift). Dogru sinyal baska yerde: bir sozluk BASLIGIYLA
+ * anahtarlanir, ayni basligi tasiyan iki girdi ayni girdidir — tanimlar
+ * farkli yazilmis olsa bile.
+ *
+ * Tetikleyici DAR: anahtarlarin kok KUMELERI esit olmali. Kapsama
+ * (includes) ya da 0.8 ortusme YETMEZ, cunku onlar vetoyu gevsetmek icin
+ * yazildi. Ayni kartin 13 kavrami arasinda kume-esit tek cift bu oldu.
+ * Karsi ornekler (ayni dosyadaki olcumden): "Inflation" / "Deflation" ->
+ * {infla} / {defla} ayri; "Treasury bonds, notes, or bills" /
+ * "Corporate bonds" -> 4 jeton / 2 jeton, ayri.
+ *
+ * SINIR: kok 5 karaktere kirpiyor, yani "bonds"/"bond" gibi KISA cogul
+ * katlanmaz (ikisi de 5 karakterden kisa, oldugu gibi kalir). "effects"/
+ * "effect" katlanir. Bu sinir bilerek: kisa sozcukte cogul atmak
+ * Turkce'de "kurs"->"kur" gibi anlam kaymasi uretir. */
+function nearDupAyniBaslik(a: string, b: string): boolean {
+  const na = gateNormalize(a)
+  const nb = gateNormalize(b)
+  if (!na || !nb) return false
+  const sa = nearDupTermSet(na)
+  const sb = nearDupTermSet(nb)
+  if (!sa.size || sa.size !== sb.size) return false
+  for (const x of sa) if (!sb.has(x)) return false
+  return true
+}
+
 /**
  * Collapse near-duplicates, keeping the more informative wording (the longer
  * text) of each group rather than whichever happened to come first.
@@ -3217,6 +3343,8 @@ function dedupeNearDuplicates(
       if (other.terms.size < NEAR_DUP_MIN_TERMS) continue
       // Different head terms → different entries, whatever the prose says.
       if (!nearDupKeysMatch(key, other.key)) continue
+      /* AYNI BASLIK metin olcusunu beklemez — bkz. nearDupAyniBaslik. */
+      if (nearDupAyniBaslik(key, other.key)) { mergedInto = k; break }
       let shared = 0
       for (const t of terms) if (other.terms.has(t)) shared++
       const overlap = shared / Math.min(terms.size, other.terms.size)
@@ -6038,6 +6166,37 @@ function tahminDenklemiAdli(cumle: string): boolean {
 const TAHMIN_DENKLEMI_MIN_SAYI = 2
 const TAHMIN_DENKLEMI_MAX = 3
 
+/* KURTARILAN DENKLEMIN ADI KAYNAKTAN GELIYOR (31.10.2026 olcumu).
+ *
+ * Ilk yazim her denkleme "Estimated equation" diyordu ve kartta modelin
+ * kendi urettigi formullerin yaninda sirittı: oteki formuller
+ * "Estimated House Price Model with Three Levels" gibi adlar ve degisken
+ * listeleri tasiyor, kurtarilan ise genel bir adla ve bos degisken
+ * listesiyle duruyordu.
+ *
+ * Kaynakta denklemin ustunde zaten bir baslik var:
+ *   "Interaction Term Worksheet"          <- baslik
+ *   "Suppose the estimated equation is"   <- cumle
+ *   "y-hat = 18.30 + 98x_1 + ..."         <- denklem
+ * Ayirt edici isaret BUYUK HARFLE BASLAYAN SOZCUK SAYISI: baslik satirinda
+ * en az iki tane var ("Interaction", "Term", "Worksheet"), tanitim
+ * cumlesinde bir tane ("Suppose"). Bu yuzden geriye dogru en fazla bes
+ * satir bakilip ilk "baslik gibi" satir ad olarak aliniyor; bulunamazsa
+ * eski genel ada dusuluyor. */
+const DENKLEM_BASLIK_MAX_KRK = 60
+const DENKLEM_BASLIK_GERI = 5
+
+function denklemBasligi(satirlar: string[], i: number): string | null {
+  for (let k = i - 1; k >= 0 && k >= i - DENKLEM_BASLIK_GERI; k--) {
+    const satir = satirlar[k].trim()
+    if (!satir || satir.length > DENKLEM_BASLIK_MAX_KRK) continue
+    if (/[.!?]$/.test(satir)) continue
+    const buyukler = (satir.match(/(?:^|\s)\p{Lu}/gu) || []).length
+    if (buyukler >= 2) return satir
+  }
+  return null
+}
+
 function tahminDenklemleriniKurtar(
   sourceText: string,
   missing: number[],
@@ -6050,7 +6209,8 @@ function tahminDenklemleriniKurtar(
   const varOlan = (Array.isArray(mevcutFormuller) ? mevcutFormuller : [])
     .map((f: any) => String(f?.latex || '')).join(' \n ')
 
-  const adaylar: Array<{ metin: string; bulunan: Set<number> }> = []
+  const satirlar = String(sourceText).split(/\r?\n/)
+  const adaylar: Array<{ metin: string; bulunan: Set<number>; baslik: string | null }> = []
   for (const blok of alintiBloklari(sourceText)) {
     for (const cumle of splitSentences(blok)) {
       if (!tahminDenklemiAdli(cumle)) continue
@@ -6065,7 +6225,16 @@ function tahminDenklemleriniKurtar(
         }
         if (m[0].length === 0) re.lastIndex++
       }
-      if (bulunan.size >= TAHMIN_DENKLEMI_MIN_SAYI) adaylar.push({ metin: cumle.trim(), bulunan })
+      if (bulunan.size >= TAHMIN_DENKLEMI_MIN_SAYI) {
+        const kirpik = cumle.trim()
+        // Denklemin kaynaktaki satir numarasi: adi onun ustunden alinacak.
+        const satirNo = satirlar.findIndex((l) => l.trim() === kirpik)
+        adaylar.push({
+          metin: kirpik,
+          bulunan,
+          baslik: satirNo > 0 ? denklemBasligi(satirlar, satirNo) : null
+        })
+      }
     }
   }
   adaylar.sort((a, b) => b.bulunan.size - a.bulunan.size || b.metin.length - a.metin.length)
@@ -6081,7 +6250,7 @@ function tahminDenklemleriniKurtar(
     if (varOlan.includes(aday.metin)) continue
     yeni.forEach((v) => kurtarilan.add(v))
     formulas.push({
-      name: formulas.length === 0 ? ad : `${ad} ${formulas.length + 1}`,
+      name: aday.baslik || (formulas.length === 0 ? ad : `${ad} ${formulas.length + 1}`),
       latex: aday.metin,
       variables: []
     })
@@ -7491,7 +7660,7 @@ function anchorCitations(
   lang: string
 ): { key_points: any[]; footnotes: any[]; idMap: Record<number, number>; stats: Record<string, number> } {
   const incoming = Array.isArray(existingFootnotes) ? existingFootnotes : []
-  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0, paylasilan: 0 }
+  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0, paylasilan: 0, sirali: 0 }
 
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
   const writeText = (raw: any, text: string) =>
@@ -7547,8 +7716,36 @@ function anchorCitations(
   // number. The front end already renders `reference` both in the [n]
   // tooltip and in the "Kaynakça" list, so a real quote here upgrades both
   // with no UI change.
+  /* ETIKETTEKI MADDE IMI (31.10.2026, IPPT kartinda olculdu).
+   *
+   * Kaynakcanin 17 girdisinden BESI slaytin madde imiyle basliyordu:
+   *   [1]  "• Qualitative explanatory variable (dummy variable) with ..."
+   *   [2]  "• The number of dummy variables needed is"
+   *   [3]  "• Regression intercepts are different if the variable is ..."
+   *   [9]  "• The relationship between the dependent variable and an ..."
+   *   [14] "• Contains two-way cross product terms y = β_0 + ..."
+   * Im slaytin BICIMI, alintinin parcasi degil; kaynakcada gurultu.
+   *
+   * Yalnizca `reference` temizleniyor. `quote` BIREBIR kaliyor, cunku o
+   * alan kaynak goruntuleyicide isaretlemek icin var ve orada metnin
+   * sayfadaki haliyle eslesmesi gerekiyor. */
+  /* TIRE EKSI ISARETI OLABILIR — kendi ilk surumum bunu bozdu, olculdu:
+       "-12.08 + 2(0.09)39 = − 12.08 + 7.02 = − 5.06 which means ..."
+     bastaki `-` madde imi sanilip silindi ve ALINTININ ANLAMI degisti
+     (12.08 pozitif okundu). Tire yalnizca ardindan BOSLUK gelirse im
+     sayiliyor; madde imi olarak kullanilan tireden sonra her zaman bosluk
+     var, isaretli sayidan sonra asla yok. Kursun imleri (• · ● …) kosulsuz
+     atiliyor, onlar sayi basinda hic gecmez. */
+  const ETIKET_IM_RE = /^(?:[\s\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]+|[\u2013\u2014*-]+(?=\s))+/
+  const etiketiTemizle = (s: string) =>
+    String(s || '')
+      .replace(ETIKET_IM_RE, '')
+      .replace(/[\s:;,]+$/, '')
+      .trim()
+
   const labelFor = (hit: { head: string; page: number; quote: string | null }) =>
-    hit.quote || hit.head || (lang === 'tr' ? `Sayfa ${hit.page}` : `Page ${hit.page}`)
+    etiketiTemizle(hit.quote || hit.head || '') ||
+    (lang === 'tr' ? `Sayfa ${hit.page}` : `Page ${hit.page}`)
 
   /* AYNI ALINTI UC AYRI DIPNOT OLUYORDU (30.10.2026 olcumu).
    *
@@ -7625,6 +7822,53 @@ function anchorCitations(
     if (hit.quote) stats.quoted++
     points[i] = writeText(points[i], `${text.replace(/\s+$/, '')} [${id}]`)
     stats.added++
+  }
+
+  /* KAYNAKCA SAYFA SIRASINA GORE NUMARALANIYOR (31.10.2026, olculdu).
+   *
+   * Dipnotlar MADDE sirasina gore numaralaniyordu, maddeler ise belgenin
+   * sirasini izlemiyor. IPPT kosusunda (kept=0 added=20) kaynakca soyle
+   * cikti:
+   *   [1] s.4  [2] s.4  [3] s.28  [4] s.4  [5] s.28  [6] s.6  [7] s.29
+   *   [8] s.9  [9] s.30  [10] s.10 ... [16] s.11  [17] s.13  [18] s.19
+   * Liste belgede ileri geri ziplıyor; ogrenci kaynakcayi sayfa sirasiyla
+   * tarayamiyor, ayni sayfanin dipnotlari da dagiliyor.
+   *
+   * SIRA: once sayfaya gore diziliyor, numara ONDAN SONRA veriliyor.
+   * Sayfasi olmayan dipnot sona gidiyor (sonsuz sayilir), esitlikte
+   * mevcut sira korunuyor (kararli siralama + i kirici).
+   *
+   * Metindeki isaretler ikinci bir remap ile takip ediyor ve harita
+   * idMap ile BIRLESTIRILIYOR: cagiran anlatiyi `anchored.idMap` ile
+   * remap ediyor, iki asamayi ayri ayri uygulayamaz. Birlestirme
+   * yalnizca VAR OLAN anahtarlari gunceller — siraMap'in kendisi idMap'e
+   * eklenmez, cunku idMap'in anahtari modelin KENDI id'si; dense id'leri
+   * oraya koymak anlatidaki isareti iki kez cevirme riski demek. */
+  const siraliCift = out
+    .map((fn: any, i: number) => ({ fn, i }))
+    .sort((a, b) => {
+      const pa = typeof a.fn.page === 'number' ? a.fn.page : Number.POSITIVE_INFINITY
+      const pb = typeof b.fn.page === 'number' ? b.fn.page : Number.POSITIVE_INFINITY
+      return pa !== pb ? pa - pb : a.i - b.i
+    })
+  if (siraliCift.some((x, k) => x.fn.id !== k + 1)) {
+    const siraMap: Record<number, number> = {}
+    siraliCift.forEach((x, k) => { siraMap[Number(x.fn.id)] = k + 1 })
+    const yeni = siraliCift.map((x, k) => ({ ...x.fn, id: k + 1 }))
+    out.length = 0
+    for (const fn of yeni) out.push(fn)
+    for (let i = 0; i < points.length; i++) {
+      points[i] = writeText(points[i], applyFootnoteRemap(readText(points[i]), siraMap))
+    }
+    for (const k of Object.keys(idMap)) {
+      const n = Number(k)
+      if (siraMap[idMap[n]] != null) idMap[n] = siraMap[idMap[n]]
+    }
+    stats.sirali = out.length
+    console.log(
+      `Kaynakca sayfa sirasina dizildi: ${out.length} dipnot — ` +
+      `[${out.map((f: any) => f.page == null ? '-' : f.page).join(',')}]`
+    )
   }
 
   return { key_points: points, footnotes: out, idMap, stats }
@@ -14954,7 +15198,7 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       {
         let sayac = 0
         const yum = (t: string): string => {
-          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && !/[\^_]\{/.test(t))) return t
+          if (typeof t !== 'string' || (t.indexOf('\\') === -1 && !/[\^_][{\d]/.test(t))) return t
           const r = onarAnlatiLatex(t)
           if (r.yumusatilan > 0) sayac++
           return r.metin

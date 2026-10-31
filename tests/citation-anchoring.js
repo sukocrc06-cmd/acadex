@@ -1072,4 +1072,139 @@ test('belgede OLMAYAN ondalik skoru DUSURUR — yeni yanlis atif uretemez', () =
   });
 }
 
+
+// --- kaynakca sayfa sirasi (31.10.2026) -----------------------------------
+/* KAYNAKCA SAYFA SIRASI
+
+   Dipnotlar MADDE sirasina gore numaralaniyordu. IPPT kosusunda
+   (kept=0 added=20) kaynakca belgede ileri geri ziplıyordu:
+     [1] s.4  [2] s.4  [3] s.28  [4] s.4  [5] s.28  [6] s.6  [7] s.29 ...
+   Artik once sayfaya gore diziliyor, numara ONDAN SONRA veriliyor. */
+test('kaynakca SAYFAYA gore diziliyor, numara ondan SONRA veriliyor', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Marjinal maliyet tutardir [1]', 'Esneklik katsayisi [2]'],
+    [{ id: 1, reference: 'Marjinal', page: 3 }, { id: 2, reference: 'Esneklik', page: 2 }],
+    idx, 'tr'
+  );
+  assert.deepEqual(r.footnotes.map((f) => f.page), [2, 3], 'sayfalar artan sirada olmali');
+  assert.deepEqual(r.footnotes.map((f) => f.id), [1, 2], 'numara siralamadan SONRA verilmeli');
+  assert.equal(r.footnotes[0].reference, 'Esneklik');
+  assert.equal(r.stats.sirali, 2);
+});
+
+test('siralama sonrasi METINDEKI isaretciler dipnotu takip ediyor', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Marjinal maliyet tutardir [1]', 'Esneklik katsayisi [2]'],
+    [{ id: 1, reference: 'Marjinal', page: 3 }, { id: 2, reference: 'Esneklik', page: 2 }],
+    idx, 'tr'
+  );
+  /* s.3'teki 'Marjinal' artik [2], s.2'deki 'Esneklik' [1]. */
+  assert.match(r.key_points[0], /\[2\]/, 'madde eski numarada kalmis: ' + r.key_points[0]);
+  assert.match(r.key_points[1], /\[1\]/, 'madde eski numarada kalmis: ' + r.key_points[1]);
+  for (const kp of r.key_points) {
+    const no = parseInt(String(kp).match(/\[(\d+)\]/)[1], 10);
+    const fn = r.footnotes.find((f) => f.id === no);
+    assert.ok(fn, 'isaretci [' + no + '] karsiligi olmayan dipnota bakiyor');
+  }
+});
+
+test('siralama idMap i BIRLESTIRIYOR: anlati da dogru numaraya gidiyor', () => {
+  /* Cagiran anlatiyi `anchored.idMap` ile remap ediyor; iki asamayi
+     (yogunlastirma + siralama) ayri ayri uygulayamaz. Model 5 ve 9
+     numaralarini kullandi, dense 1,2 oldu, siralama sonrasi takas edildi. */
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    [],
+    [{ id: 5, reference: 'Marjinal', page: 3 }, { id: 9, reference: 'Esneklik', page: 2 }],
+    idx, 'tr'
+  );
+  assert.equal(A.applyFootnoteRemap('Anlati [5] ve [9].', r.idMap), 'Anlati [2] ve [1].');
+});
+
+test('SAYFASIZ dipnot sona gidiyor, esitlikte sira korunuyor', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    [],
+    [
+      { id: 1, reference: 'Uydurma', page: 99 },   // null a dusurulur
+      { id: 2, reference: 'Ikinci sayfa', page: 2 },
+      { id: 3, reference: 'Ayni sayfa A', page: 3 },
+      { id: 4, reference: 'Ayni sayfa B', page: 3 }
+    ],
+    idx, 'tr'
+  );
+  assert.deepEqual(r.footnotes.map((f) => f.page), [2, 3, 3, null]);
+  assert.deepEqual(
+    r.footnotes.map((f) => f.reference),
+    ['Ikinci sayfa', 'Ayni sayfa A', 'Ayni sayfa B', 'Uydurma'],
+    'esit sayfada mevcut sira korunmali (kararli siralama)'
+  );
+});
+
+test('ZATEN sirali kaynakcada hicbir sey degismiyor (gereksiz remap yok)', () => {
+  const idx = A.buildPageIndex(DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Esneklik katsayisi birden buyukse talep esnek kabul edilir',
+     'Marjinal maliyet uretimi bir birim artirmanin toplam maliyete ekledigi tutardir'],
+    [], idx, 'tr'
+  );
+  assert.deepEqual(r.footnotes.map((f) => f.page), [2, 3]);
+  assert.equal(r.stats.sirali, 0, 'sira bozuk degilken remap kosmamali');
+  assert.match(r.key_points[0], /\[1\]$/);
+});
+
+
+// --- kaynakca etiketindeki madde imi (31.10.2026) -------------------------
+/* ETIKETTEKI MADDE IMI
+
+   Canli kaynakcanin 17 girdisinden BESI slaytin madde imiyle basliyordu:
+     [1]  "• Qualitative explanatory variable (dummy variable) with ..."
+     [2]  "• The number of dummy variables needed is"
+     [3]  "• Regression intercepts are different if the variable is ..."
+     [9]  "• The relationship between the dependent variable and an ..."
+     [14] "• Contains two-way cross product terms y = β_0 + ..."
+   Im slaytin BICIMI, alintinin parcasi degil.
+
+   Kendi ilk surumum bunu bozdu: bastaki `-` de im sanilip silindi ve
+   "-12.08 + 2(0.09)39 = ..." alintisi "12.08 + ..." oldu — ALINTININ
+   ANLAMI degisti. Tire artik yalnizca ardindan bosluk gelirse im. */
+const IM_DOC = [
+  '--- SAYFA 1 ---',
+  'Giris slayti ve ders plani burada anlatiliyor.',
+  '',
+  '--- SAYFA 2 ---',
+  '\u2022 Kukla degisken sayisi duzey sayisinin bir eksigidir ve taban kategori dislanir.',
+  '',
+  '--- SAYFA 3 ---',
+  '-12.08 + 2(0.09)39 = -5.06 yani sicaklik 39 dereceden 40 dereceye cikarsa fatura azalir.'
+].join('\n');
+
+test('kaynakca etiketinde bastaki madde imi atiliyor', () => {
+  const idx = A.buildPageIndex(IM_DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Kukla degisken sayisi duzey sayisinin bir eksigidir ve taban kategori dislanir'],
+    [], idx, 'tr'
+  );
+  assert.equal(r.footnotes.length, 1, 'atif baglanmadi — fikstur eslesmiyor');
+  assert.ok(!/^[\s\u2022]/.test(r.footnotes[0].reference),
+    'etiket hala madde imiyle basliyor: ' + JSON.stringify(r.footnotes[0].reference));
+  assert.ok(/^Kukla degisken/.test(r.footnotes[0].reference), r.footnotes[0].reference);
+});
+
+test('ISARETLI SAYI ile baslayan alinti bozulmuyor (eksi im degildir)', () => {
+  const idx = A.buildPageIndex(IM_DOC, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Sicaklik 39 dereceden 40 dereceye cikarsa fatura azalir yani marjinal etki eksidir'],
+    [], idx, 'tr'
+  );
+  assert.equal(r.footnotes.length, 1, 'atif baglanmadi — fikstur eslesmiyor');
+  const ref = r.footnotes[0].reference;
+  if (/12\.08/.test(ref)) {
+    assert.ok(/^-12\.08/.test(ref),
+      'bastaki eksi silinmis, alintinin anlami degisti: ' + JSON.stringify(ref));
+  }
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

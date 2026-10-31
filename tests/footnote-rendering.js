@@ -35,6 +35,9 @@ const UI = loadFromSource('js/dashboard.js', [
   // Cift ters bolu sadelestirmesi (20.10.2026).
   'sadeKatexKomutu',
   // Ozet metninin KACIRAN yolu (24.10.2026) — depolanmis XSS duzeltmesi.
+  // Ayiracsiz LaTeX komutu (31.10.2026).
+  'LATEX_KOMUTLARI', 'LATEX_KOMUT_RE', 'latexJetonMu', 'latexJetonlari',
+  'ciplakLatexSarParca', 'ciplakLatexSar',
   'inlineMarkdownGuvenli', 'summaryParagraphs', 'OZET_KISALTMA_RE', 'AI_META_SENTENCE_RE', 'stripAiMetaSentences', 'formatSummaryText'
 ]);
 
@@ -1016,4 +1019,204 @@ test('KOSUL kaynakta: duz "\\n" yalnizca gercek satir sonu YOKKEN bolunuyor', ()
     'formatSummaryText hala kosulsuz /\\n|\\\\n/ ile boluyor');
 });
 
+
+/* ==========================================================================
+   AYIRACSIZ LATEX KOMUTU + SAYI ROZETI (31.10.2026, IPPT kartinda olculdu)
+
+   Ayni canli kartta uc ayri kusur olculdu:
+
+   1) Model bazi maddelerde LaTeX'i ayiracsiz yaziyor ve o metin ekrana HAM
+      dusuyordu: "the estimated equation is \hat{y} = 20.43 + ...". Ayni
+      kartin $...$ ile gelen maddeleri duzgun diziliyordu.
+   2) Rozet ingilizce kartta "484,12" yaziyordu, ayni kartin anlatisinda
+      "484.12" geciyordu.
+   3) Rozet "-$5.06" icin "$5,06" yaziyordu: ISARET kaybolmustu, cunku
+      desen `[$]`den basliyor, eksi ise solunda kaliyordu.
+
+   Rozet testleri bu kez SAHTE degil GERCEK fonksiyonla kosuyor:
+   findNumbers + counterHTML kaynaktan dilimlenip calistiriliyor. Eski
+   sayiSec yardimcisi mantigi KOPYALIYORDU, bu yuzden (3) numarali kusuru
+   goremedi.
+   ========================================================================== */
+const INK_ROZET = (() => {
+  const src = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8').replace(/\r\n/g, '\n');
+  const a = src.indexOf('  var latexAyiracSiyir = function (s) {');
+  const b = src.indexOf('  var runCount = function (el) {');
+  if (a < 0 || b < 0 || b < a) throw new Error('acadex-ink rozet blogu bulunamadi — yeniden adlandirilmis olabilir');
+  let dil = 'en';
+  const f = new Function('arr', 'plain', 'cut', 'X', 'COL', 'R', 'cardLang',
+    src.slice(a, b) + '\n return { findNumbers, counterHTML, sayiYaz };');
+  const api = f(
+    (x) => (Array.isArray(x) ? x : []),
+    (x) => String(x == null ? '' : x),
+    (x, n) => String(x).slice(0, n),
+    (x) => String(x),
+    ['#111'],
+    { words: 900, card: null },
+    () => dil);
+  return {
+    dil: (d) => { dil = d; },
+    /* Rozetin GORUNEN metni: counterHTML'in <b> icerigi. */
+    rozetler: (kart) => api.findNumbers(kart).map((n, i) =>
+      api.counterHTML(n, i).replace(/^[\s\S]*?>([^<]*)<\/b>[\s\S]*$/, '$1'))
+  };
+})();
+
+function rozetKarti(maddeler) {
+  return { summary_executive: '', key_points: maddeler, summary: '', sections: [], key_terms: [] };
+}
+
+test('rozet: "-$5.06" isaretini koruyor ve birimi solunda yaziyor', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'The marginal effect of temperature on utility bills at 40 degrees is -$5.06, and at 80 degrees is $2.14.'
+  ]));
+  assert.equal(r[0], '-$5.06',
+    'olculen canli hal "$5,06" idi: fatura DUSERKEN rozet artiyor gibi okunuyordu. Gelen: ' + r[0]);
+});
+
+test('rozet: ondalik ayiraci KARTIN dilinden geliyor', () => {
+  const kart = rozetKarti([
+    'In the quadratic utility bill example, the estimated equation is UtilityBill = 484.12 - 12.08temp + 0.09temp^2.'
+  ]);
+  INK_ROZET.dil('en');
+  assert.equal(INK_ROZET.rozetler(kart)[0], '484.12',
+    'ingilizce kartta rozet virgul yaziyor, govdede nokta var — ayni sayi iki bicimde');
+  INK_ROZET.dil('tr');
+  assert.equal(INK_ROZET.rozetler(kart)[0], '484,12', 'turkce kart bozulmus');
+});
+
+test('rozet: TURKCE para/yuzde davranisi bozulmadi (regresyon)', () => {
+  INK_ROZET.dil('tr');
+  assert.equal(INK_ROZET.rozetler(rozetKarti(['Issizlik orani 2023 yilinda %11,4 seviyesine yukseldi.']))[0], '%11,4');
+  assert.equal(INK_ROZET.rozetler(rozetKarti(['Toplam maliyet 1,5 milyon TL olarak hesaplandi.']))[0], '1,5 milyon');
+});
+
+test('ciplak LaTeX: olculen YEDI satirin hepsi $...$ icine aliniyor', () => {
+  /* Kaynak: 31.10.2026 IPPT kartinin anlati, madde, bolum ve soru metinleri. */
+  const vakalar = [
+    'the estimated equation is \\hat{y} = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split, where a ranch style house',
+    'The interaction regression model \\hat{y} = \\hat{\u03b2}\u2080 + \\hat{\u03b2}\u2081 x\u2081 + \\hat{\u03b2}\u2082 x\u2082 allows the relationship',
+    'derived via partial differentiation as \\frac{\u2202 \\hat{y}}{\u2202 x_j} = \\hat{\u03b2}\u2081 + 2\\hat{\u03b2}\u2082 x_j, yielding -$5.06 at 40 degrees',
+    'takes the form y = \u03b2\u2080 + \u03b2\u2081 x_j + \u03b2\u2082 x\u00b2_j + \\dots + \u03b2_p x^p_j + \u03b5, where quadratic models',
+    'Given the estimated equation \\hat{y} = 20.43 + 0.045Sqfeet + 18.84Split, calculate the intercept',
+    'For a condo with the estimated equation \\hat{y} = 20.43 + 0.045Sqfeet + 23.53Ranch, the predicted price',
+    'How is the marginal effect calculated with equation \\hat{y} = \\hat{\u03b2}\u2080 + \\hat{\u03b2}\u2081 x_j?'
+  ];
+  for (const s of vakalar) {
+    const w = UI.ciplakLatexSar(s);
+    assert.ok(w !== s, 'ayiracsiz komut ham kalmis: ' + s.slice(0, 55));
+    assert.ok(/\$[^$]*\\[A-Za-z]/.test(w), 'komut ayirac ICINDE degil: ' + w);
+  }
+});
+
+test('ciplak LaTeX: sinir SADE SOZCUK ve noktalama — cumle matematige dusmez', () => {
+  const w = UI.ciplakLatexSar('The model \\hat{y} = 2x_1 + 3x_2 allows the slope to change.');
+  assert.ok(/^The model /.test(w), 'sol sinir kaymis: ' + w);
+  assert.ok(/ allows the slope to change\.$/.test(w), 'sag sinir kaymis: ' + w);
+
+  const v = UI.ciplakLatexSar('Given \\hat{y} = 20.43 + 18.84Split, calculate the intercept.');
+  assert.ok(/18\.84Split\$, calculate/.test(v), 'virgul formulun ICINDE kalmis: ' + v);
+
+  const u = UI.ciplakLatexSar('What is \\hat{\u03b2}\u2081 x_j?');
+  assert.ok(/x_j\$\?$/.test(u), 'soru isareti formule katilmis: ' + u);
+});
+
+test('ciplak LaTeX: formulun ORTASINDAKI komut iki yana genisliyor', () => {
+  /* Yalnizca saga genisletilse formulun ilk yarisi duz metin, ikinci
+     yarisi dizilmis olurdu — ayni satirda iki ayri tipografi. */
+  const w = UI.ciplakLatexSar('the form y = a + b x_j + \\dots + c x^p_j + e, where');
+  assert.ok(/the form \$y = a/.test(w), 'sola genislemedi: ' + w);
+});
+
+test('ciplak LaTeX: `\\n` TUZAGI — duz metin kacisi komut sayilmiyor', () => {
+  /* CLAUDE.md §4. Ilk surum /\\\\[A-Za-z]{2,}/ kullaniyordu ve
+     'satir\\nikinci' iki harften uzun oldugu icin sarilip KaTeX'te
+     kirmizi donuyordu — olculdu. */
+  const w = UI.ciplakLatexSar('ilk satir\\nikinci satir ve \\neq ile biten bir sey.');
+  assert.ok(!/\$satir/.test(w), 'duz metin kacisi komut sanilmis: ' + w);
+  assert.ok(w.includes('$\\neq$'), 'gercek komut sarilmamis: ' + w);
+  assert.equal(UI.ciplakLatexSar('Dosya yolu C:\\Users\\test gibi.'), 'Dosya yolu C:\\Users\\test gibi.');
+});
+
+test('ciplak LaTeX: ZATEN ayiracli metne dokunulmuyor', () => {
+  for (const s of [
+    'The t-test tests $H_0: \\beta_2 = 0$ versus $H_1: \\beta_2 \\neq 0$ today.',
+    'Minimum at \\(temp = \\frac{-\\hat{\\beta}_1}{2\\hat{\\beta}_2}\\) degrees.'
+  ]) assert.equal(UI.ciplakLatexSar(s), s, 'ayiracli metin degistirilmis');
+});
+
+test('ciplak LaTeX: dengesiz suslu parantez HAM birakiliyor', () => {
+  const s = 'bozuk \\frac{a}{b and more';
+  assert.equal(UI.ciplakLatexSar(s), s, 'dengesiz parca KaTeX e gonderilmis');
+});
+
+test('ciplak LaTeX: renderMathInText yoluna BAGLI', () => {
+  assert.ok(DASH_SRC.includes('const s = ciplakLatexSar(text);'),
+    'renderMathInText hala String(text) ile basliyor — duzeltme ekrana hic ulasmaz');
+  const c = sahteKatexKur();
+  try {
+    const html = UI.renderMathInText('the equation is \\hat{y} = 20.43 + 18.84Split, where');
+    assert.ok(html.includes('<KTX>'), 'ayiracsiz komut dizilmemis: ' + html);
+    assert.ok(!/&#x5c;|\\hat/.test(html.replace(/<KTX>[\s\S]*?<\/KTX>/g, '')),
+      'ayirac disinda ham komut kalmis: ' + html);
+  } finally { katexKaldir(); }
+});
+
+
+
+/* SONUC ARA TERIMDEN ONCE GELIR + ANLAMLILIK DUZEYI (31.10.2026)
+
+   Canli kartta rozetler sunlardi:  484,12 | 1% | $-12,08
+   Uc kusur birden:
+     - 1% anlamlilik duzeyi, belgenin olgusu degil,
+     - -12.08 hesabin ARA terimi; olgu esitligin sagindaki -5.06,
+     - ayni sayi iki rozette (metin anahtari "$-12.08" ile "-12.08" ayri
+       sanildigi icin).
+   Belgenin asil uc sonucu (484.12, -5.06, 67.11) hic gorunmuyordu. */
+test('rozet: ESITLIGIN SAGINDAKI sonuc seciliyor, ara terim degil', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'In the utility bill and temperature quadratic regression, the estimated equation is UtilityBill = 484.12 - 12.08temp + 0.09temp^2.',
+    'The marginal effect at a temperature of 40 (evaluated at 39) is -12.08 + 2(0.09)(39) = -5.06, meaning utility bills decrease.',
+    'The quadratic utility bill function reaches a minimum at temp = -(-12.08)/(2 x 0.09) = 67.11 degrees.'
+  ]));
+  assert.deepEqual(r, ['484.12', '-5.06', '67.11'],
+    'rozetler belgenin sonuclari degil ara terimleri gosteriyor: ' + JSON.stringify(r));
+});
+
+test('rozet: AYNI DEGER ikinci kez gosterilmiyor', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'The intermediate term is $-12.08 in the first step.',
+    'The same number appears again as -12.08 here.',
+    'A different fact is that the minimum is at 67.11 degrees.'
+  ]));
+  assert.equal(r.length, 3);
+  assert.ok(r[1] !== r[0], 'ayni deger iki rozette: ' + JSON.stringify(r));
+  assert.ok(/67[.,]11/.test(r[1]), 'ikinci rozet farkli bir olgu olmali: ' + JSON.stringify(r));
+});
+
+test('rozet: ANLAMLILIK duzeyi dusuyor, ayni cumledeki GERCEK yuzde kaliyor', () => {
+  INK_ROZET.dil('en');
+  const r = INK_ROZET.rozetler(rozetKarti([
+    'In the log-linear model, energy consumption per capita increases by 2.6%, which is statistically significant at the 1% level.'
+  ]));
+  assert.equal(r[0], '2.6%', 'kalip yuzde secilmis ya da gercek yuzde de dusmus: ' + JSON.stringify(r));
+  const b = INK_ROZET.rozetler(rozetKarti([
+    'The linear and quadratic terms in the utility bill regression are statistically significant at the 1% level.'
+  ]));
+  assert.ok(!/^1%$/.test(b[0]), 'anlamlilik duzeyi hala rozet oluyor: ' + JSON.stringify(b));
+});
+
+test('rozet: TURKCE "%11,4 seviyesine" GERCEK olgu, dusmuyor', () => {
+  /* Konum kontrolu tek basina bunu dusurmustu — Turkce\'de ayirt edici
+     sozcuk "anlamli", "seviye" degil. */
+  INK_ROZET.dil('tr');
+  const r = INK_ROZET.rozetler(rozetKarti(['Issizlik orani 2023 yilinda %11,4 seviyesine yukseldi.']));
+  assert.equal(r[0], '%11,4');
+  const s = INK_ROZET.rozetler(rozetKarti(['Katsayi istatistiksel olarak %1 duzeyinde anlamli bulundu.']));
+  assert.ok(!/^%1$/.test(s[0]), 'turkce anlamlilik duzeyi rozet olmus: ' + JSON.stringify(s));
+});
 summary().then(() => process.exit(process.exitCode || 0));

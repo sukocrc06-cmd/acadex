@@ -99,6 +99,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'NARRATIVE_DUP_MIN_CHARS', 'narrativeDupKey', 'dedupeNarrativeSentences',
   'NEAR_DUP_THRESHOLD', 'NEAR_DUP_MIN_TERMS', 'NEAR_DUP_STEM_LEN',
   'NEAR_DUP_KEY_OVERLAP', 'nearDupKeysMatch',
+  // Ayni baslik metin olcusunu beklemez (31.10.2026 olcumu).
+  'nearDupAyniBaslik',
   'nearDupStem', 'nearDupTermSet', 'dedupeNearDuplicates',
   // Bolum kopyasi genel esigin ALTINDA kaliyordu (30.10.2026 olcumu).
   'BOLUM_BASLIK_ESIGI', 'BOLUM_GOVDE_ESIGI', 'BOLUM_BASLIK_MIN_TERIM',
@@ -143,11 +145,14 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Ayiracsiz LaTeX anlati disina da siziyordu (29.10.2026 olcumu).
   'YUM_SEMBOL', 'YUM_FONKSIYON', 'UST_RAKAM', 'ALT_RAKAM', 'YUM_DUZ_YAZI_ALANLARI',
   // Alan adi elle sayilmak yerine agac ozyinelemeli geziliyor (30.10.2026).
+  // Aksan komutlari (31.10.2026 olcumu).
+  'YUM_AKSAN',
   'YUM_DOKUNULMAZ', 'yumusatAgac',
   'FORMUL_SOZCUK_ESIK', 'FORMUL_KORUNAN_SARMAL', 'formulSozcukleriniSar', 'distinctiveNumbers', 'outputNumbers', 'yakinDegerVar',
   // Tahmin edilen denklem karta hic girmiyordu (31.10.2026 olcumu).
   'SENTENCE_ABBREV', 'splitSentences', 'alintiBloklari', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
   'TAHMIN_DENKLEMI_LHS', 'tahminDenklemiAdli', 'TAHMIN_DENKLEMI_MIN_SAYI', 'TAHMIN_DENKLEMI_MAX',
+  'DENKLEM_BASLIK_MAX_KRK', 'DENKLEM_BASLIK_GERI', 'denklemBasligi',
   'tahminDenklemleriniKurtar',
   // Grafik eksen centikleri icerik sayiliyordu (31.10.2026 olcumu).
   'EKSEN_MIN_UZUNLUK', 'eksenCentikleriniAyikla',
@@ -5162,7 +5167,10 @@ test('OLCULEN UC ANLATI PARCASI duz yaziya ceviriliyor', () => {
     ['the entry amount is calculated as \\text{Bad Debt Amount} = \\text{Required Balance} - \\text{Existing Balance}, yielding',
      'the entry amount is calculated as Bad Debt Amount = Required Balance - Existing Balance, yielding'],
     ['interest is computed using the formula Interest = Principal \\times Annual \\, Interest \\, Rate \\times Time.',
-     'interest is computed using the formula Interest = Principal x Annual Interest Rate x Time.'],
+     /* 31.10.2026: \times artik ASCII 'x' degil '\u00d7'. Gerekce IPPT kartinda
+        olculdu — "100x \u03b2\u2081" satirinda 'x' carpma isaretiydi ama ayni cumlede
+        x\u2081 DEGISKENI de geciyordu ve ogrenci ikisini ayirt edemiyordu. */
+     'interest is computed using the formula Interest = Principal \u00d7 Annual Interest Rate \u00d7 Time.'],
     ['via Amount \\, Due \\, at \\, Maturity = Face \\, Value \\, of \\, Note + Interest \\, for \\, the \\, Time \\, Period',
      'via Amount Due at Maturity = Face Value of Note + Interest for the Time Period']
   ];
@@ -5412,7 +5420,10 @@ test('OLCULEN TAHMIN DENKLEMI kurtariliyor, kismi bicimleri eklenmiyor', () => {
   const r = A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'en');
   assert.equal(r.formulas.length, 1, JSON.stringify(r.formulas.map(f => f.latex)));
   assert.equal(r.formulas[0].latex, 'ŷ = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split');
-  assert.equal(r.formulas[0].name, 'Estimated equation');
+  /* 31.10.2026: ad artik KAYNAKTAN geliyor (bkz. denklemBasligi). Bu
+     fixture'in ustunde "Coefficients (with 3 Levels)" basligi var; genel
+     ada dusme hali ayri testte ("KURTARILAN DENKLEMIN ADI") olculuyor. */
+  assert.equal(r.formulas[0].name, 'Coefficients (with 3 Levels)');
   // Ayni pasaj sekiz aday uretiyor; dort sayinin hepsi TEK denklemden geliyor.
   assert.deepEqual(r.kurtarilan.sort((a, b) => a - b), [0.045, 18.84, 20.43, 23.53]);
 });
@@ -5459,6 +5470,39 @@ test('OLCULEN ETKILESIM DENKLEMI TAM haliyle kurtariliyor', () => {
     'log hala 60 karakterde kirpiyor — denklem kesik gorunur');
 });
 
+test('KURTARILAN DENKLEMIN ADI kaynaktan geliyor', () => {
+  /* Ilk yazim her denkleme "Estimated equation" diyordu ve kartta modelin
+     kendi urettigi formullerin yaninda siritti: otekiler
+     "Estimated House Price Model with Three Levels" gibi adlar tasiyor.
+     Kaynakta denklemin ustunde zaten bir baslik var; ayirt edici isaret
+     BUYUK HARFLE BASLAYAN SOZCUK SAYISI (baslikta >= 2, tanitim
+     cumlesinde 1). */
+  const k1 = ['Interaction Term Worksheet', 'Suppose the estimated equation is',
+    '\u0177 = 18.30 + 98x_1 + 22.44x_2 + 16.38x_3 + 45x_1 x_2 + 32x_1 x_3',
+    'Visual Depiction of Interaction Terms'].join('\n');
+  const r1 = A.tahminDenklemleriniKurtar(k1, [18.3, 22.44, 16.38], [], 'en');
+  assert.equal(r1.formulas[0].name, 'Interaction Term Worksheet',
+    'baslik kaynaktan alinmamis: ' + r1.formulas[0].name);
+
+  const k2 = ['Interpreting the Dummy Variable', 'Coefficients (with 3 Levels)',
+    'Suppose the estimated equation is',
+    '\u0177 = 20.43 + 0.045Sqfeet + 23.53Ranch + 18.84Split'].join('\n');
+  const r2 = A.tahminDenklemleriniKurtar(k2, [20.43, 0.045, 23.53, 18.84], [], 'en');
+  assert.equal(r2.formulas[0].name, 'Coefficients (with 3 Levels)');
+
+  // Tanitim cumlesi ad OLMAZ (tek buyuk harfli sozcuk).
+  assert.equal(A.denklemBasligi(['Suppose the estimated equation is', 'y = 1 + 2'], 1), null);
+  // Baslik yoksa genel ada dusuluyor, dil secimi korunuyor.
+  const k3 = ['suppose the equation is', 'UtilityBill = 484.12 - 12.08temp'].join('\n');
+  assert.equal(A.tahminDenklemleriniKurtar(k3, [484.12, 12.08], [], 'en').formulas[0].name,
+    'Estimated equation');
+  assert.equal(A.tahminDenklemleriniKurtar(k3, [484.12, 12.08], [], 'tr').formulas[0].name,
+    'Tahmin edilen denklem');
+  // Cumle ile biten ve cok uzun satirlar baslik sayilmaz.
+  assert.equal(A.denklemBasligi(['This Is A Sentence.', 'y = 1 + 2'], 1), null);
+  assert.equal(A.denklemBasligi(['X'.repeat(A.DENKLEM_BASLIK_MAX_KRK + 5) + ' Y Z', 'y = 1 + 2'], 1), null);
+});
+
 test('TEK SAYILIK aday alinmiyor (baglamsiz parca)', () => {
   assert.equal(A.TAHMIN_DENKLEMI_MIN_SAYI, 2);
   const r = A.tahminDenklemleriniKurtar('y = 5 + 2x', [5], [], 'en');
@@ -5478,8 +5522,17 @@ test('KAYIP YOKSA hic dokunmuyor, UST SINIR var', () => {
 });
 
 test('dil secimi: TR kartta Turkce ad', () => {
-  const r = A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'tr');
-  assert.equal(r.formulas[0].name, 'Tahmin edilen denklem');
+  /* Dil secimi yalnizca BASLIK BULUNAMADIGINDA devreye giriyor; kaynakta
+     baslik varsa o kullanilir (dilden bagimsiz, cunku kaynagin kendi
+     dilindedir). */
+  const basliksiz = 'suppose the equation is\nUtilityBill = 484.12 - 12.08temp + 0.09temp^2';
+  assert.equal(A.tahminDenklemleriniKurtar(basliksiz, [484.12, 12.08], [], 'tr').formulas[0].name,
+    'Tahmin edilen denklem');
+  assert.equal(A.tahminDenklemleriniKurtar(basliksiz, [484.12, 12.08], [], 'en').formulas[0].name,
+    'Estimated equation');
+  // Baslik varsa dil fark etmez.
+  assert.equal(A.tahminDenklemleriniKurtar(KURT_SAYFA, KURT_KAYIP, [], 'tr').formulas[0].name,
+    'Coefficients (with 3 Levels)');
 });
 
 test('kurtarma TEMIZLIKTEN ONCE ve BORU HATTINA bagli', () => {
@@ -8325,6 +8378,194 @@ test('parti kapisi: sigmayan bekleme CAGRILMADAN atlaniyor', () => {
   const kapiSonu = blok.slice(blok.indexOf('kalanlariAtla('));
   assert.ok(/\n\s*break\n/.test(kapiSonu.slice(0, 400)),
     'kapi donguyu kirmiyor — sonraki parti yine bekler');
+});
+
+
+/* AKSAN KOMUTLARI (31.10.2026, IPPT kartinda olculdu)
+
+   Log "Ayiracsiz LaTeX duz yaziya cevrildi: 28 alan" diyordu ama ayni
+   kartin cozumlu ornegi ve 3. sorusu HAM cikti:
+     worked_examples: "Given the estimated equation \hat{y} = 20.43 + ..."
+     quiz_questions:  "...pie sales as \hat{y} = 300 - 30(Price) + 15(Holiday)"
+   yumusatAgac o alanlara ugruyor; eksik olan KURALDI. Belgenin kendi
+   yazimi "ŷ". */
+test('aksan: \\hat{y} belgenin kendi yazimina (ŷ) donuyor', () => {
+  const r = A.onarAnlatiLatex('Given the estimated equation \\hat{y} = 20.43 + 0.045Sqfeet, calculate.');
+  assert.ok(r.yumusatilan > 0, 'hic yumusatilmamis');
+  assert.equal(r.metin, 'Given the estimated equation \u0177 = 20.43 + 0.045Sqfeet, calculate.');
+  assert.ok(!/\\hat/.test(r.metin), 'ham komut kalmis: ' + r.metin);
+});
+
+test('aksan: \\hat{\\beta}_1 -> β̂₁ (SIRA sembol tablosundan sonra)', () => {
+  /* Icerik once YUM_SEMBOL'den gecmeli, yoksa isaret "\beta" dizgesinin
+     son harfine binerdi. */
+  const r = A.onarAnlatiLatex('Marginal effect is \\hat{\\beta}_1 + 2\\hat{\\beta}_2 x_j.');
+  assert.equal(r.metin, 'Marginal effect is \u03b2\u0302\u2081 + 2\u03b2\u0302\u2082 x_j.');
+});
+
+test('aksan: bar/overline/tilde/vec de cevriliyor', () => {
+  const r = A.onarAnlatiLatex('Let \\bar{x} be the mean, \\tilde{y} the median, \\vec{v} the vector.');
+  /* NFC onceden birlesik karsiligi OLANI birlestiriyor: y+tilde -> U+1EF9,
+     x+macron ve v+ok ise iki kod noktasi kaliyor (birlesigi yok). Ikisi de
+     tarayicida dogru ciziliyor; beklenti bu yuzden karisik yazili. */
+  assert.equal(r.metin, 'Let x\u0304 be the mean, \u1ef9 the median, v\u20d7 the vector.');
+});
+
+test('aksan: AYIRACLI matematige ve latex alanina dokunulmuyor', () => {
+  /* Ayiracli parca KaTeX'in isi; formulas[].latex ve footnotes dokunulmaz. */
+  const s = 'Kalmali: $\\hat{y} = \\beta_0$ icinde.';
+  assert.equal(A.onarAnlatiLatex(s).metin, s);
+  const kart = {
+    formulas: [{ latex: '\\hat{y} = \\hat{\\beta}_0' }],
+    footnotes: [{ reference: 'birebir alinti \\hat{y}' }],
+    worked_examples: [{ problem_statement: 'Given \\hat{y} = 2x.' }]
+  };
+  const yum = (x) => (typeof x === 'string' ? A.onarAnlatiLatex(x).metin : x);
+  const out = A.yumusatAgac(kart, yum);
+  assert.equal(out.formulas[0].latex, '\\hat{y} = \\hat{\\beta}_0', 'KaTeX kaynagi bozulmus');
+  assert.equal(out.footnotes[0].reference, 'birebir alinti \\hat{y}', 'alinti bozulmus');
+  assert.equal(out.worked_examples[0].problem_statement, 'Given \u0177 = 2x.');
+});
+
+test('aksan: \\dots yanlis eslesmiyor, uc nokta isaretine donuyor', () => {
+  /* Desen komuttan hemen sonra SUSLU PARANTEZ istiyor, o yuzden \dots
+     aksan koluna dusmez; ayri kural onu ⋯ yapiyor (ilk IPPT kartinin
+     anlatisinda ham cikmisti). */
+  const r = A.onarAnlatiLatex('form y = a + b x_j + \\dots + c x^p_j + e');
+  assert.equal(r.metin, 'form y = a + b x_j + \u22ef + c x^p_j + e');
+});
+
+
+/* CIPLAK CARET KAPIDA TAKILIYORDU (31.10.2026, IPPT kartinda olculdu)
+
+   Kart ayni sayiyi IKI BICIMDE gosteriyordu:
+     anlati:          "0.09temp²"    <- icinde \komut da vardi, kapi acildi
+     key_points[9]:   "0.09temp^2"   <- ters bolu yok, kapi kapandi
+     worked_examples: "0.09temp^2"
+     quiz_questions:  "0.09temp^2"
+   Kapi ters bolu YA DA SUSLU alt/ust simge istiyordu; ciplak "^2" ikisine
+   de uymuyor, dolayisiyla hemen asagidaki UST_RAKAM kurali o metinlerde
+   HIC kosmuyordu. Kural vardi, kapi gecirmiyordu. */
+test('ciplak ^2 kapidan geciyor: ters bolu olmayan metin de yumusuyor', () => {
+  const olculen = [
+    ['the estimated equation is UtilityBill = 484.12 - 12.08temp + 0.09temp^2, with linear terms',
+     'the estimated equation is UtilityBill = 484.12 - 12.08temp + 0.09temp\u00b2, with linear terms'],
+    ['Given the utility bill model UtilityBill = 484.12 - 12.08temp + 0.09temp^2, calculate.',
+     'Given the utility bill model UtilityBill = 484.12 - 12.08temp + 0.09temp\u00b2, calculate.'],
+    ['What is the minimum for UtilityBill = 484.12 - 12.08temp + 0.09temp^2?',
+     'What is the minimum for UtilityBill = 484.12 - 12.08temp + 0.09temp\u00b2?']
+  ];
+  for (const [girdi, bekle] of olculen) {
+    const r = A.onarAnlatiLatex(girdi);
+    assert.ok(r.yumusatilan > 0, 'kapi hala kapali: ' + girdi.slice(0, 50));
+    assert.equal(r.metin, bekle);
+  }
+});
+
+test('ciplak _1 de geciyor, HARFLI ust simge bilerek disarida', () => {
+  assert.equal(
+    A.onarAnlatiLatex('y = beta_0 + beta_1 x_j + beta_2 x_j^2 + e').metin,
+    'y = beta\u2080 + beta\u2081 x_j + beta\u2082 x_j\u00b2 + e');
+  /* x^p: Unicode karsiligi eksik; yarim cevrilmis ifade okunmaz olurdu. */
+  const s = 'The polynomial term is x^p_j and the order is p.';
+  assert.equal(A.onarAnlatiLatex(s).metin, s);
+});
+
+test('kapi matematik OLMAYAN metne hala dokunmuyor', () => {
+  for (const s of [
+    'Plain prose with no math at all, nothing to soften here.',
+    'The price rose from $100 to $120 in 2024.'
+  ]) assert.equal(A.onarAnlatiLatex(s).metin, s, 'duz metin degistirilmis: ' + s);
+});
+
+test('UC KAPI da ayni desende (biri geride kalirsa temizlik olu kod olur)', () => {
+  const DESEN = "indexOf('\\\\') === -1 && !/[\\^_][{\\d]/";
+  const kapilar = SRC.split(DESEN).length - 1;
+  assert.equal(kapilar, 3,
+    'erken cikis kapisi 3 yerde ayni olmali (anlatiLatexYumusat, onarAnlatiLatex, agac gezintisi), bulunan: ' + kapilar);
+});
+
+/* ANAHTAR VETO IKEN TETIKLEYICI DE OLMALI (31.10.2026, IPPT kartinda olculdu)
+
+   Sozlukte ayni kavram iki kez durdu: "Interaction Effects" ve
+   "Interaction Effect". Olculen: metin ortusmesi 0.667, esik 0.7 — KIL
+   PAYI kaciriyor. Anahtar vetosu geciyordu ama veto yalnizca ENGELLER.
+
+   ESIK DUSURULMEDI; sinyal baska yerde: bir sozluk basligiyla anahtarlanir. */
+test('ayni BASLIKLI iki sozluk girdisi birlesiyor, dolu tanim kaliyor', () => {
+  const T = [
+    { term: 'Interaction Effects', definition: 'The product of two different independent variables, used in regression models to change the slope of a quantitative variable for various levels of a dummy variable.' },
+    { term: 'Interaction Effect', definition: 'An effect where the response to one independent variable varies at different levels of another independent variable.' }
+  ];
+  const metin = (x) => `${x.term} ${x.definition}`;
+  /* Metin olcusu gercekten esigin ALTINDA — birlesme anahtardan geliyor. */
+  const s0 = A.nearDupTermSet(metin(T[0])), s1 = A.nearDupTermSet(metin(T[1]));
+  let pay = 0; for (const x of s1) if (s0.has(x)) pay++;
+  assert.ok(pay / Math.min(s0.size, s1.size) < A.NEAR_DUP_THRESHOLD,
+    'metin olcusu esigi gecmis; bu test artik anahtari olcmuyor');
+  const out = A.dedupeNearDuplicates(T, metin, (x) => x.term);
+  assert.equal(out.length, 1, 'ayni kavram iki kart olarak kalmis');
+  assert.equal(out[0].term, 'Interaction Effects', 'dolu tanim degil kisa olan tutulmus');
+});
+
+test('kume esitligi DAR: olculen karsi ornekler birlesmiyor', () => {
+  /* Kaynak bolumun kendi sozlugunden, nearDupKeysMatch yorumundaki ciftler. */
+  assert.equal(A.nearDupAyniBaslik('Inflation', 'Deflation'), false);
+  assert.equal(A.nearDupAyniBaslik('Treasury bonds, notes, or bills', 'Corporate bonds'), false);
+  assert.equal(A.nearDupAyniBaslik('Log-Linear Model', 'Log-Log Model'), false);
+  assert.equal(A.nearDupAyniBaslik('Marginal Effect', 'Interaction Effect'), false);
+  assert.equal(A.nearDupAyniBaslik('Omitted Group', 'Omitted Category'), false);
+  assert.equal(A.nearDupAyniBaslik('Interaction Effects', 'Interaction Effect'), true);
+  /* Anahtarsiz cagri tetiklemez: key_points ve sorular eski yoldan gecer. */
+  assert.equal(A.nearDupAyniBaslik('', 'Interaction Effect'), false);
+});
+
+test('ESIK DEGISMEDI (metin olcusu gevsetilmedi)', () => {
+  assert.equal(A.NEAR_DUP_THRESHOLD, 0.7, 'esik oynatilmis — 0.4-0.7 bandindaki ciftlerin cogu gercekten ayri');
+  assert.equal(A.NEAR_DUP_STEM_LEN, 5);
+});
+
+
+/* KACIRILMIS OZEL KARAKTER + ASCII ISLETMEN (31.10.2026, IPPT kartinda olculdu)
+
+   1) Model LaTeX aliskanligiyla "\$" yaziyor ve ters bolu EKRANDA KALDI:
+        anlati:         "utility bills decrease by \$5.06"
+        key_points[12]: "...decrease by \$5.06 when temperature increases"
+   2) \times -> 'x' cevirisi okunamaz satir uretti:
+        "interpret β₁ as a 100x β₁ percent increase in y per unit ... x₁"
+      Buradaki 'x' carpma ama ayni cumlede x₁ DEGISKENI de var.
+        "setting H₀: β₃ = 0 against H_A: β₃ != 0"  ->  '!=' matematik degil.
+   Bu dosya zaten ∂, ∑, β, ŷ, ⋯ basiyor; ASCII karsiliklar tutarsiz taraftı. */
+test('kacirilmis \\$ ters bolusu ekranda kalmiyor', () => {
+  assert.equal(
+    A.onarAnlatiLatex('utility bills decrease by \\$5.06 when temperature increases').metin,
+    'utility bills decrease by $5.06 when temperature increases');
+  assert.equal(A.onarAnlatiLatex('The share is 45\\% of total').metin, 'The share is 45% of total');
+  assert.equal(A.onarAnlatiLatex('field sample\\_size and \\{a\\} braces').metin,
+    'field sample_size and {a} braces');
+});
+
+test('isletmenler ASCII degil Unicode', () => {
+  const olculen = [
+    ['interpret \\beta_1 as a 100\\times \\beta_1 percent increase in x_1',
+     'interpret \u03b2\u2081 as a 100\u00d7 \u03b2\u2081 percent increase in x\u2081'],
+    ['setting H_0: \\beta_3 = 0 against H_A: \\beta_3 \\neq 0',
+     'setting H\u2080: \u03b2\u2083 = 0 against H_A: \u03b2\u2083 \u2260 0'],
+    ['a \\cdot b, c \\div d, e \\pm f, g \\leq h, i \\geq j, k \\approx l',
+     'a \u00b7 b, c \u00f7 d, e \u00b1 f, g \u2264 h, i \u2265 j, k \u2248 l']
+  ];
+  for (const [girdi, bekle] of olculen) assert.equal(A.onarAnlatiLatex(girdi).metin, bekle, girdi);
+});
+
+test('PDF yolunda gomulu font YOKSA ASCII karsilik tablosu duruyor', () => {
+  /* js/dashboard.js icindeki LATEX_ASCII, DejaVu getirilemedigi durumda
+     kullaniliyor. Unicode isletmene gectigimiz icin o tablonun ilgili
+     girdileri yerinde kalmali — yoksa fontsuz PDF bos basar. */
+  const dash = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'js/dashboard.js'), 'utf8');
+  for (const anahtar of ['times:', 'cdot:', 'div:', 'pm:', 'neq:', 'leq:', 'geq:', 'approx:']) {
+    assert.ok(dash.includes(anahtar), 'LATEX_ASCII icinde ' + anahtar + ' yok');
+  }
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
