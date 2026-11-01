@@ -1903,6 +1903,34 @@ const VISION_MAX_COMPLETION = 3072
 const TABLO_MAX_COMPLETION = VISION_MAX_COMPLETION
 /* Altinda tablo gecisi denenmez: kesik bir tablo hic tablodan kotudur. */
 const TABLO_GECIS_MIN_BUTCE_MS = 25000
+
+/* OCR METNI YERINE SAYFA TRANSKRIPSIYONU (01.11.2026, Week 8/11 olcumu).
+ *
+ * OCR matematigi bozuyor ve olmayan sayi uretiyor:
+ *   "f（a） = 「a2， × <1 122-1,2≥1"   -> hedef: 122, 1.2, 213, 521...
+ *   "J（302-40+5） da=が8-202 +50+C"   -> hedef: 203, 302, 202, 372...
+ * Bu yuzden OCR belgelerinde hem sayisal kapsama olculemiyor hem atif
+ * alintilari bozuk cikiyor ("Memorize sin→cos, cos→-sin, tan-→sec'.").
+ * Oysa model sayfalarin KENDISINI okuyor ve dogru kart uretiyor
+ * (grounding %100, 12 formul, optimizasyon sonuclari dogru).
+ *
+ * Bu gecis sayfalari bir kez daha gonderip DUZ METIN transkripsiyonu
+ * istiyor. Donen metin KARTI DEGISTIRMIYOR — kart zaten iyi; yalnizca
+ * OLCUM ve ATIF tarafinda OCR metninin yerine geciyor.
+ *
+ * DAR KAPILAR (olculmus sebeplerle):
+ *  - yalnizca ocrKullanildi: normal belgelerde metin katmani zaten dogru,
+ *    ek cagri bosa token olur,
+ *  - sayfa sayisi 8 ile sinirli ve completion 3072: gecen oturumda 8192
+ *    denemesi GEMINI_PARALLEL_MAX_CALL_MS (15 sn) tavanina carpip modeli
+ *    kosu boyunca dusurmustu,
+ *  - butce kapisi tablo gecisiyle ayni esikte; transkript tablo
+ *    gecisinden SONRA kosuyor, yani tablolar once pay aliyor,
+ *  - dusen cagri sessiz: metin gelmezse OCR metni oldugu gibi kaliyor. */
+const TRANSKRIPT_MAX_SAYFA = 8
+const TRANSKRIPT_MAX_COMPLETION = 3072
+const TRANSKRIPT_MIN_BUTCE_MS = 25000
+const TRANSKRIPT_MIN_KRK = 400
 /* Bu kadar ya da daha fazla sayfa varsa is iki dilime bolunur. Altinda
    bolmek anlamsiz: tek cagri zaten tavana dayanmaz. */
 const TABLO_DILIM_ESIGI = 6
@@ -12196,6 +12224,12 @@ serve(async (req) => {
        yayinlanmayacagini belirliyor — bkz. KAPSAMA_ROZET_MIN_ORNEK yanindaki
        kullanim. OCR matematigi bozuyor ve hayalet sayi uretiyor. */
     let ocrKullanildi = false
+    /* OLCUM METNI (01.11.2026): sayisal kapsama ve atif dizini normalde
+       extractedText uzerinden kurulur. OCR belgelerinde o metin olmayan
+       sayi uretiyor; transkript gecisi basarili olursa burayi doldurur ve
+       OLCUM tarafi onu kullanir. Kart uretimi her halde extractedText ile
+       kosar — bkz. TRANSKRIPT_MAX_SAYFA yanindaki not. */
+    let olcumMetni: string | null = null
     /* Dosyanin sha256'si iki yerde lazim: OCR onbellegi (asagida) ve ozet
        onbellegi anahtari. Bir kez hesaplaniyor. */
     let dosyaHash: string | null = null
@@ -12291,7 +12325,11 @@ serve(async (req) => {
                   console.log(`OCR succeeded! ${ocr.toplamSayfa} sayfa, ${ocrTextLen} karakter.`)
                 }
                 ocrKullanildi = true
-                extractedText = detectAndFormatPdfTables(ocr.text)
+                const ocrNorm = ocrMetniniNormalize(ocr.text)
+                if (ocrNorm.duzeltilen > 0) {
+                  console.log(`OCR metni normalize edildi: ${ocrNorm.duzeltilen} tam genislik/CJK karakter`)
+                }
+                extractedText = detectAndFormatPdfTables(ocrNorm.metin)
               } else {
                 /* YUZEY DUSTUYSE MESAJ BASKA (31.10.2026 olcumu).
                  * Hic metin gelmedi ve dusen parcalarin sebebi 5xx/429 ise
@@ -12369,12 +12407,29 @@ serve(async (req) => {
          * yoktu. Simdi var — ve slayt numarasi ppt/slides/_rels'ten geldigi
          * icin atiflar dogru slayta isaret ediyor. */
         if (!pptxText.trim()) {
+          /* OCR'DAN ONCE DOSYANIN KENDI METNI — bkz. pptxYardimciMetin. */
+          const yard = await pptxYardimciMetin(zip)
+          console.log(
+            `PPTX yardimci metin: ${yard.not} not slaydi, ${yard.grafik} grafik ` +
+            `(${yard.deger} deger), ${yard.metin.length} karakter`
+          )
+          if (yard.metin.length >= 200) {
+            extractedText = yard.metin
+            pptxText = yard.metin
+          }
+        }
+
+        if (!pptxText.trim()) {
           const ocrApiKey = Deno.env.get('OCR_SPACE_API_KEY')
           if (ocrApiKey) {
             const ocr = await pptxGorselOCR(zip, ocrApiKey)
             if (ocr.text.trim().length >= 200) {
               console.log(`PPTX gorsel OCR: ${ocr.okunan}/${ocr.toplam} slayt, ${ocr.text.length} karakter`)
-              extractedText = ocr.text
+              const pptxNorm = ocrMetniniNormalize(ocr.text)
+              if (pptxNorm.duzeltilen > 0) {
+                console.log(`PPTX OCR metni normalize edildi: ${pptxNorm.duzeltilen} tam genislik/CJK karakter`)
+              }
+              extractedText = pptxNorm.metin
               ocrKullanildi = true
             } else {
               console.warn(`PPTX gorsel OCR: ${ocr.okunan}/${ocr.toplam} slayt okundu, metin yetersiz (${ocr.text.trim().length} karakter)`)
@@ -15093,6 +15148,97 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
                 (tabloHarcanan ? `, completion=${tabloHarcanan}/${TABLO_MAX_COMPLETION * dilimler.length}` : '')
               )
             }
+
+            /* --- SAYFA TRANSKRIPSIYONU (yalnizca OCR belgelerinde) ---
+               bkz. TRANSKRIPT_MAX_SAYFA yanindaki olcum notu. Kart burada
+               DEGISMIYOR; donen metin olcum ve atif icin saklaniyor. */
+            if (ocrKullanildi && parallelGemini && visionData &&
+                budgetLeft() > TRANSKRIPT_MIN_BUTCE_MS) {
+              try {
+                const trSayfalar = visualPlan.indices.slice(0, TRANSKRIPT_MAX_SAYFA)
+                const trPdf = trSayfalar.length === visualPlan.indices.length
+                  ? visualImages[0]
+                  : await buildPdfSubsetBase64(fileBytes, trSayfalar)
+                if (!trPdf) {
+                  console.warn('Transkript gecisi: mini-PDF uretilemedi, atlandi')
+                } else {
+                  const trPrompt = `You are transcribing lecture slide images to PLAIN TEXT.
+Copy what is printed, line by line, in reading order. Keep every number, exponent and sign exactly as shown: write x^2 for a squared term, not x2.
+Do not summarise, explain or add anything that is not printed on the slide.
+Separate slides with a line containing only --- PAGE n --- where n is the page number given for that image.
+Respond ONLY with JSON: {"pages":[{"page":<number>,"text":"..."}]}`
+                  const trIcerik = [
+                    { type: 'text', text: `Transcribe these slide images to plain text. The images are pages ${trSayfalar.map((i: number) => i + 1).join(', ')} of the document.` },
+                    { type: 'image_url', image_url: { url: `data:application/pdf;base64,${trPdf}` } }
+                  ]
+                  const trEst =
+                    VISION_TOKENS_PER_IMAGE +
+                    Math.ceil(trPrompt.length / 3.2) +
+                    Math.ceil(TRANSKRIPT_MAX_COMPLETION * PACER_COMPLETION_FACTOR)
+                  await tokenPacer.acquire(trEst, MODEL_FAST, TRANSKRIPT_MAX_COMPLETION)
+                  const trRes = await fetchWithRetry('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${groqApiKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      model: MODEL_FAST,
+                      temperature: 0,
+                      ...reasoningParamsFor(MODEL_FAST),
+                      max_completion_tokens: TRANSKRIPT_MAX_COMPLETION,
+                      response_format: { type: 'json_object' },
+                      messages: [
+                        { role: 'system', content: trPrompt },
+                        { role: 'user', content: trIcerik }
+                      ]
+                    })
+                  })
+                  if (!trRes.ok) {
+                    console.warn(`Transkript gecisi: HTTP ${trRes.status}, atlandi`)
+                  } else {
+                    const trJson = await trRes.json()
+                    const trHam = trJson?.choices?.[0]?.message?.content || ''
+                    const trTemiz = (stripThinkBlock(trHam) ?? trHam)
+                      .replace(/\u0060\u0060\u0060json\s*|\u0060\u0060\u0060/g, '').trim()
+                    /* Tablo gecisinin kullandigi kesik-JSON kurtarmasinin aynisi. */
+                    const trObj = (() => {
+                      if (!trTemiz) return null
+                      try { return JSON.parse(repairLatexEscapes(trTemiz)) } catch (_e) {
+                        const kapali = closeTruncatedJson(trTemiz)
+                        if (kapali) {
+                          try { return JSON.parse(repairLatexEscapes(kapali)) } catch (_e2) { /* tutmadi */ }
+                        }
+                        return null
+                      }
+                    })()
+                    const trSayfaListesi = Array.isArray(trObj?.pages) ? trObj.pages : []
+                    const parcalar: string[] = []
+                    for (const s of trSayfaListesi) {
+                      const metin = String(s?.text || '').trim()
+                      if (!metin) continue
+                      const no = Number(s?.page)
+                      const sayfaNo = Number.isFinite(no) && no > 0 ? no : parcalar.length + 1
+                      parcalar.push(`--- SAYFA ${sayfaNo} ---\n${metin}`)
+                    }
+                    const trMetin = parcalar.join('\n\n').trim()
+                    const trHarcanan = trJson?.usage?.completion_tokens || 0
+                    if (trMetin.length >= TRANSKRIPT_MIN_KRK) {
+                      olcumMetni = trMetin
+                      console.log(
+                        `Transkript gecisi: ${parcalar.length}/${trSayfalar.length} sayfa, ` +
+                        `${trMetin.length} karakter, completion=${trHarcanan}/${TRANSKRIPT_MAX_COMPLETION} — ` +
+                        `olcum ve atif OCR metni yerine bunu kullaniyor`
+                      )
+                    } else {
+                      console.warn(
+                        `Transkript gecisi: metin yetersiz (${trMetin.length} karakter, ` +
+                        `${parcalar.length} sayfa) — OCR metni kaliyor`
+                      )
+                    }
+                  }
+                }
+              } catch (trErr) {
+                console.warn('Transkript gecisi atlandi:', trErr)
+              }
+            }
             } else {
               console.warn(`Long-doc visual patch call returned non-ok status: ${visionRes.status}`)
             }
@@ -16553,7 +16699,11 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       }
 
       // --- (d) Citations, computed from the page index (see above)
-      const pageIndex = buildPageIndex(extractedText, pageMarkerLabel)
+      /* ATIF DIZINI DE TRANSKRIPTTEN (01.11.2026): OCR metninden gelen
+         alintilar bozuk okunuyordu — "Memorize sin→cos, cos→-sin,
+         tan-→sec'." gibi. Transkript varsa dizin ondan kuruluyor;
+         yoksa davranis degismiyor. */
+      const pageIndex = buildPageIndex(olcumMetni || extractedText, pageMarkerLabel)
       const anchored = anchorCitations(
         Array.isArray(parsedContent.key_points) ? parsedContent.key_points : [],
         Array.isArray(parsedContent.footnotes) ? parsedContent.footnotes : [],
@@ -16741,10 +16891,34 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     // qualityMeta cardPayload.quality_meta ile AYNI nesne — burada eklenen
     // alan insert'e giriyor.
     {
-      const kapsama = numericCoverage(extractedText, cardPayload)
-      console.log(`Son kart sayisal kapsama: ${formatCoverage(kapsama)}`)
+      const kapsama = numericCoverage(olcumMetni || extractedText, cardPayload)
+      /* OCR'DA BU OLCU GECERSIZ (01.11.2026, Week 8/11 kosularinda olculdu).
+       *
+       * Log "Son kart sayisal kapsama: 0/21 (%0)" diyordu ve bu KARTIN
+       * kalitesi gibi okunuyordu. Degildi: ayni kosuda grounding %100,
+       * 12 formul, 19 atif ve optimizasyon sonuclari dogruydu
+       * (max profit 30, max revenue 50, max area 18, min cost 4).
+       * Gecersiz olan OLCUNUN KENDISI — hedef liste OCR metninden
+       * cikariliyor ve OCR olmayan sayi uretiyor:
+       *   "f（a） = 「a2， × <1 122-1,2≥1"  -> hedef: 122, 1.2, 213, 521...
+       *   "J（302-40+5） da=が8-202 +50+C"  -> hedef: 203, 302, 202, 372...
+       * Bu sayilar belgede YOK; kartin onlari icermemesi DOGRU davranis.
+       *
+       * ESIKLE AYIRT EDILEMEDI (olculdu): bozukluk karakter oraniyla
+       * yakalanmiyor — Week 8'de tam genislik %1,8, Week 11'de %0,2 ve
+       * "122-1,2" tamami ASCII. Sinyal oranda degil SEBEPTE: metin
+       * OCR'dan geldiyse olcu guvenilmez. Olcum yine yapiliyor (teshis
+       * icin degerli) ama yuzde YAZILMIYOR. */
+      if (ocrKullanildi) {
+        console.log(
+          `Sayisal kapsama OLCULEMEZ (OCR): hedef liste OCR metninden kuruluyor — ` +
+          `ham sayac ${kapsama.kept}/${kapsama.total}, rozet ve kurtarma kapali`
+        )
+      } else {
+        console.log(`Son kart sayisal kapsama: ${formatCoverage(kapsama)}`)
+      }
       if (kapsama.missing.length > 0) {
-        const baglam = sayisalKayipBaglami(extractedText, kapsama.missing)
+        const baglam = sayisalKayipBaglami(olcumMetni || extractedText, kapsama.missing)
         if (baglam) console.log(`Sayisal kapsama kayiplari nerede: ${baglam}`)
       }
       /* KUCUK ORNEKLEMDEN YUZDE CIKMAZ (28.10.2026 — olculmus).
@@ -17386,6 +17560,57 @@ const PPTX_OCR_MIN_BAYT = 20_000
 const PPTX_OCR_MAX_SLAYT = 20
 
 /** slideN.xml.rels icindeki media hedeflerini ppt/media/... yoluna cevirir. */
+/* SLAYT METNI BOSSA PPTX'IN OTEKI PARCALARI (01.11.2026).
+ *
+ * Cikarim yalnizca ppt/slides/slideN.xml okuyordu; bos cikarsa dogrudan
+ * ppt/media OCR'ina iniyordu. Ama PPTX iki yerde daha GERCEK metin tasiyor:
+ *   ppt/notesSlides/notesSlideN.xml  — konusmaci notlari
+ *   ppt/charts/chartN.xml            — grafik etiketleri ve SAYILARI (<c:v>)
+ * Bunlar OCR degil, dosyanin kendi metni: okunursa sayilar DOGRU gelir.
+ * Olculen iki belgede (Week 11) OCR matematigi bozuyordu; burada bozulma
+ * yok. Bulunmazsa log "0" der ve OCR yolu eskisi gibi devreye girer —
+ * sifir da bir bulgudur, hangi parcanin olmadigini soyler. */
+async function pptxYardimciMetin(zip: any): Promise<{
+  metin: string; not: number; grafik: number; deger: number
+}> {
+  const parcalar: string[] = []
+  let not = 0
+  let grafik = 0
+  let deger = 0
+
+  const notAdlari = Object.keys(zip.files)
+    .filter((ad) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(ad))
+    .sort((a, b) => parseInt(a.replace(/\D/g, ''), 10) - parseInt(b.replace(/\D/g, ''), 10))
+  for (const ad of notAdlari) {
+    const xml = await zip.files[ad].async('text')
+    const metin = parsePptxSlideXml(xml)
+    if (!metin) continue
+    const m = ad.match(/notesSlide(\d+)\.xml$/)
+    const n = m ? parseInt(m[1], 10) : parcalar.length + 1
+    parcalar.push(`--- SLAYT ${n} ---\n${metin}`)
+    not++
+  }
+
+  /* Grafikler: <c:tx> basliklari ve <c:v> degerleri. Slayt numarasi
+     chart dosyasindan okunamiyor, o yuzden isaret konmuyor — sayilar
+     hedef listeye ve atif dizinine girsin diye metnin sonuna ekleniyor. */
+  const grafikAdlari = Object.keys(zip.files)
+    .filter((ad) => /^ppt\/charts\/chart\d+\.xml$/.test(ad))
+    .sort()
+  const grafikParcalari: string[] = []
+  for (const ad of grafikAdlari) {
+    const xml = await zip.files[ad].async('text')
+    const metinler = [...xml.matchAll(/<c:v>([^<]*)<\/c:v>/g)].map((m) => decodeXmlEntities(m[1]).trim())
+    if (metinler.length === 0) continue
+    grafik++
+    deger += metinler.length
+    grafikParcalari.push(metinler.join(' '))
+  }
+  if (grafikParcalari.length > 0) parcalar.push(grafikParcalari.join('\n'))
+
+  return { metin: parcalar.join('\n\n').trim(), not, grafik, deger }
+}
+
 function pptxRelsHedefleri(relsXml: string): string[] {
   return (relsXml.match(/Target="[^"]*media\/[^"]+"/g) || [])
     .map((x) => x.replace(/^Target="/, '').replace(/"$/, ''))
@@ -17469,6 +17694,39 @@ async function pptxGorselOCR(
   )
   const dolu = metinler.filter((m): m is string => !!m)
   return { text: dolu.join('\n\n'), okunan: dolu.length, toplam: secilen.length }
+}
+
+/* OCR TAM GENISLIK KARAKTER URETIYOR (01.11.2026, olculdu).
+ *
+ * document_chunks'tan sayilan gercek oranlar:
+ *   Week 8  : 10650 karakter, 193 tam genislik (%1,8), 48 CJK (%0,45)
+ *   Week 11 :  4661 karakter,  10 tam genislik (%0,2),  3 CJK (%0,06)
+ * Oran kucuk ama ZARARI yerel: tam tam ortasina dustugu sozcuk ve formul
+ * okunamaz hale geliyor ve atif eslesmesi o satiri kaciriyor:
+ *   "Differentiable or not? f（a） = 「a2， × <1 122-1,2≥1"
+ *   "J（302-40+5） da=が8-202 +50+C dx"
+ *
+ * NFKC KULLANILMIYOR: o normalizasyon ust simgeyi de duzlestirir
+ * ("x²" -> "x2") ve OCR'da zaten kit olan us bilgisini tamamen siler.
+ * Bunun yerine YALNIZCA tam genislik ASCII blogu (U+FF01–U+FF5E) kendi
+ * ASCII karsiligina kaydiriliyor (sabit 0xFEE0 fark), ideografik bosluk ve
+ * CJK karakterleri BOSLUGA cevriliyor — silinmiyor, cunku silmek iki
+ * sozcugu birbirine yapistirir ve atif eslesmesini daha da bozar.
+ *
+ * Bu, bozuk SAYIYI duzeltmez ("122-1,2" tamami ASCII); duzelttigi sey
+ * metnin OKUNABILIRLIGI ve sayfa dizini eslesmesidir. */
+function ocrMetniniNormalize(s: string): { metin: string; duzeltilen: number } {
+  const giris = String(s || '')
+  let duzeltilen = 0
+  const metin = giris
+    .replace(/[\uff01-\uff5e]/g, (ch) => {
+      duzeltilen++
+      return String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+    })
+    .replace(/[\u3000\u300c\u300d\u300e\u300f]/g, () => { duzeltilen++; return ' ' })
+    .replace(/[\u3040-\u30ff\u4e00-\u9fff]+/g, () => { duzeltilen++; return ' ' })
+    .replace(/[ \t]{2,}/g, ' ')
+  return { metin, duzeltilen }
 }
 
 async function tryOCR(
