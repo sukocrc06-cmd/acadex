@@ -19253,7 +19253,7 @@ function getShapeInnerHtml(id, type, color, flippedX, flippedY) {
   if (type === 'rectangle') {
     contentHtml = `<div style="width: 100%; height: 100%; border: 3px solid ${color}; box-sizing: border-box; background: transparent;"></div>`;
   }
-  else if (type === 'circle') {
+  else if (type === 'circle' || type === 'ellipse') { // 02.11.2026: zihin haritasi sablonu 'ellipse' yaziyordu, hic cizilmiyordu
     contentHtml = `<div style="width: 100%; height: 100%; border: 3px solid ${color}; border-radius: 50%; box-sizing: border-box; background: transparent;"></div>`;
   }
   else if (type === 'line') {
@@ -20102,7 +20102,7 @@ async function selectNotebookTemplate(templateType) {
     });
     starterElements.push({
       type: 'text', id: `text-${Date.now()}-sub4`, left: 560, top: 470, width: 120, height: 30, color: '#BE185D', fontSize: '14px',
-      content: '<div style="text-align:center;">Sub-topic 4</div>'
+      content: '<div style="text-align:center;">' + (trT ? 'Alt konu 4' : 'Sub-topic 4') + '</div>'
     });
     starterElements.push({
       type: 'shape', id: `line-${Date.now()}-4`, left: 460, top: 345, width: 110, height: 115, color: '#CBD5E1',
