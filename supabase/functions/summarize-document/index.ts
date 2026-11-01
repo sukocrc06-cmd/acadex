@@ -434,7 +434,22 @@ function onarAnlatiTersBolusu(metin: string): { metin: string; onarim: number } 
  * "$ x^2 $" gibi iki yani bosluklu adacik bilincli olarak DISARIDA:
  * adacik sayilmayinca yumusatmaya giriyor, yani "x²" olup $ isaretleri
  * dusuyor — metin kaybi yok, okunur sonuc ayni. */
-const ANLATI_MATEMATIK_ADACIK_RE = /\$(?!\s)(?=[^$\n]*[\\^_{}=])[^$\n]*(?<!\s)\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
+/* KACIS YAPI DEGIL (31.10.2026, IPPT kartinda olculdu).
+ *
+ * Icerik sarti ters boluyu kosulsuz "LaTeX yapisi" sayiyordu; ama \$ \%
+ * \& gibi KACISLAR yapi degil, yalnizca bir noktalama isaretini korur.
+ * Modelin yazdigi ham metin:
+ *   "... is -5.06$, meaning an increase from 39 to 40 degrees decreases
+ *    the utility bill by \$5.06, whereas at a temperature of 80 ..."
+ * Yetim "-5.06$" acilis sayildi ve kapanis olarak \$'in dolari eslesti;
+ * aradaki ters bolu icerik sartini gecirdigi icin butun duz yazi
+ * "matematik" diye korundu. Kartta "\$5.06" ham kaldi.
+ *
+ * Sart artik KOMUT: ters boluyu harf izlemeli (\frac, \beta, \ln).
+ * "$2.6\%$" gibi yalnizca kacis tasiyan adacik artik adacik sayilmiyor;
+ * zarari yok, yumusatmaya girip "2.6%" oluyor — metin kaybi degil,
+ * KaTeX'e ihtiyaci olmayan okunur bir sonuc. */
+const ANLATI_MATEMATIK_ADACIK_RE = /\$(?!\s)(?=[^$\n]*(?:\\[A-Za-z]|[\^_{}=]))[^$\n]*(?<!\s)\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]/g
 
 /* Komut siniri: \int ile \infty ayri komutlar, ve \int_{0} gibi hallerde
    ardindan '_' geliyor — '_' regex'te KELIME karakteri oldugu icin \b
@@ -698,7 +713,12 @@ function anlatiLatexYumusat(parca: string): string {
      parantez gelen $ para degil, formul kalintisidir. */
   t = t.split(/(\s+)/).map((jeton) => {
     if (jeton.indexOf('$') === -1) return jeton
-    return jeton.replace(/\$(?!\d)/g, (m, off) => {
+    /* YUZDE PARA DEGIL (31.10.2026, IPPT kartinda olculdu).
+       Basa gelen $ korumasi "$2.6" jetonunu para sandi ve "$2.6\%$"
+       adacigindan geriye "$2.6%" kaldi. Ayni jetonda yuzde isareti varsa
+       o jeton para tutari degildir; "$5.06" ve "$1000" etkilenmiyor. */
+    const yuzdeli = /%/.test(jeton)
+    return jeton.replace(yuzdeli ? /\$/g : /\$(?!\d)/g, (m, off) => {
       const onceki = jeton.slice(0, off)
       const sonrasi = jeton.slice(off + 1)
       const paraKuyrugu = sonrasi === '' || /^[.,;:!?]+$/.test(sonrasi)
@@ -3519,6 +3539,62 @@ function dedupeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: string[] }
     if (aday.uz > kept[es].uz) kept[es] = aday
   }
   return { diagrams: kept.map((k) => k.d), dropped }
+}
+
+/* AYNI TABLO KARTA IKI KEZ GIRIYOR (31.10.2026, Kan kartinda olculdu).
+ *
+ * Diyagramlarin dedupe katmani vardi, TABLOLARIN YOKTU. Kan kartinda ayni
+ * 15 satirlik tablo iki kez listelendi:
+ *   TABLO 5  "Insan hematopoietik buyume faktorleri"
+ *   TABLO 6  "Insan hematopoetik buyume faktorleri (Slide 9)"
+ * Biri pencereden, oteki gorsel gecisten geldi. Ogrenci ayni tabloyu iki
+ * kez okuyor ve ikisi "tablo -> 6" sinirindan iki yer yiyor.
+ *
+ * BASLIGA GUVENILMIYOR: tek harf farki ("hematopoietik"/"hematopoetik") ve
+ * "(Slide 9)" eki basligi ayri gosteriyor. Olculen baslik ortusmesi bu
+ * ciftte 0,75 — yani baslik sarti tek basina da gecerdi, ama ayni belgede
+ * "Plazmada Bulunan Organik Bilesenler" ile "Plazma Inorganik Bilesenleri"
+ * de 0,5 ortusuyor ve onlar AYRI tablolar. Bu yuzden karar SATIRLARDAN
+ * veriliyor: hucre metinleri ortusmeli. Satir kumesi ayrik oldugu surece
+ * benzer baslikli iki tablo ikisi de kaliyor.
+ *
+ * DAHA DOLU OLAN KALIR: gorsel gecisten gelen kopya genelde daha fazla
+ * satir tasiyor (IFN-γ, IL-* satirlari), dedupeDiagrams ile ayni durus. */
+const TABLO_SATIR_ESIGI = 0.6
+const TABLO_DEDUP_MIN_HUCRE = 4
+
+/** Tablonun butun hucreleri tek metin: baslik ve basliklar DISARIDA. */
+function tabloHucreMetni(tb: any): string {
+  const satirlar = Array.isArray(tb?.rows) ? tb.rows : []
+  const out: string[] = []
+  for (const satir of satirlar) {
+    if (Array.isArray(satir)) for (const h of satir) out.push(String(h == null ? '' : h))
+    else out.push(String(satir == null ? '' : satir))
+  }
+  return out.join(' ')
+}
+
+function dedupeTables(tables: any[]): { tables: any[]; dropped: string[] } {
+  const list = Array.isArray(tables) ? tables : []
+  type Tutulan = { tb: any; huc: Set<string>; uz: number }
+  const kept: Tutulan[] = []
+  const dropped: string[] = []
+  for (const tb of list) {
+    const hucMetin = tabloHucreMetni(tb)
+    const aday: Tutulan = { tb, huc: nearDupTermSet(hucMetin), uz: hucMetin.length }
+    let es = -1
+    for (let i = 0; i < kept.length; i++) {
+      if (aday.huc.size < TABLO_DEDUP_MIN_HUCRE || kept[i].huc.size < TABLO_DEDUP_MIN_HUCRE) continue
+      if (kumeOrtusmesi(aday.huc, kept[i].huc) < TABLO_SATIR_ESIGI) continue
+      es = i
+      break
+    }
+    if (es === -1) { kept.push(aday); continue }
+    const dusen = aday.uz > kept[es].uz ? kept[es].tb : tb
+    dropped.push(String(dusen?.title || '(isimsiz)'))
+    if (aday.uz > kept[es].uz) kept[es] = aday
+  }
+  return { tables: kept.map((k) => k.tb), dropped }
 }
 
 /* AYNI BOLUM KARTA IKI KEZ GIRIYOR (30.10.2026 olcumu).
@@ -7091,21 +7167,24 @@ function metinTablosuKurtar(
         if (m[0].length === 0) re.lastIndex++
       }
     }
-    if (bulunan.size === 0) continue
-    /* Baslik: etiketlerden once gelen ilk satir, bulunursa ondan once
-       gelen BASLIK satiri da onune eklenir. */
-    const ustIdx = (i - degerler.length) - etiketler.length
-    const grup = ustIdx >= 0 ? satirlar[ustIdx] : ''
-    let baslik = grup && tabloEtiketSatiri(grup) ? grup : ''
-    for (let j = ustIdx - 1; j >= 0 && j >= ustIdx - DENKLEM_BASLIK_GERI; j--) {
-      if (satirlar[j] && baslikGibi(satirlar[j])) { baslik = baslik ? satirlar[j] + ' — ' + baslik : satirlar[j]; break }
-    }
-    if (!baslik) baslik = lang === 'tr' ? 'Tablo (metinden)' : 'Table (from text)'
-    if (varOlan.indexOf(baslik) !== -1) continue
-    bulunan.forEach((v) => kurtarilan.add(v))
-    const satirlar2: string[][] = etiketler.map((e, idx) => [e, degerler[idx]])
-    /* Grubun hemen ardindaki "etiket + deger" tek satirlari ayni tabloya. */
-    for (let j = i + 1; j <= i + TABLO_KUYRUK_MAX && j < satirlar.length; j++) {
+    /* KUYRUK TEK BASINA DA KURTARIR (31.10.2026, Kan ikinci kosumunda olculdu).
+       Ilk surum grup eksik sayi tasimiyorsa hemen atliyordu ve kuyruguna
+       hic bakmiyordu. Olculen kosu: model "Atik urunler" tablosunu zaten
+       uretmisti (34, 1, 5, 0.2, 1.2 artik eksik degil), bu yuzden grup
+       atlandi ve HEMEN ARDINDAKI "Hormonlar %0,000001-0,05 mg" satiri da
+       onunla birlikte kacti:
+         Son kart sayisal kapsama: 29/33 (%88) — kayip: 0.01, 1000,
+           0.000001, 0.05
+       Kuyruk artik grup kapisindan ONCE hesaplaniyor; grup bos ama kuyruk
+       dolu ise tablo grubuyla birlikte kuruluyor, boylece sayi baglamini
+       (hangi tablonun satiri oldugunu) kaybetmiyor. */
+    /* BASLIK GRUP SONUNDAN HESAPLANIR: kuyruk dongusu i'yi ilerletirse
+       ustIdx kayiyor ve baslik "Atik urunler" yerine ilk ETIKET satiri
+       ("ure (protein)") oluyor — olculdu. */
+    const grupSonu = i
+    const kuyruk: Array<{ etiket: string; deger: string }> = []
+    const kuyrukBulunan = new Set<number>()
+    for (let j = grupSonu + 1; j <= grupSonu + TABLO_KUYRUK_MAX && j < satirlar.length; j++) {
       const k2 = tabloKuyrukSatiri(satirlar[j])
       if (!k2) break
       const re2 = new RegExp(SAYI_BELIRTECI.source, 'g')
@@ -7119,10 +7198,25 @@ function metinTablosuKurtar(
         if (m2[0].length === 0) re2.lastIndex++
       }
       if (yeni2.size === 0) break
-      yeni2.forEach((v) => kurtarilan.add(v))
-      satirlar2.push([k2.etiket, k2.deger])
-      i = j
+      yeni2.forEach((v) => kuyrukBulunan.add(v))
+      kuyruk.push(k2)
     }
+    if (bulunan.size === 0 && kuyrukBulunan.size === 0) continue
+    /* Baslik: etiketlerden once gelen ilk satir, bulunursa ondan once
+       gelen BASLIK satiri da onune eklenir. */
+    const ustIdx = (grupSonu - degerler.length) - etiketler.length
+    const grup = ustIdx >= 0 ? satirlar[ustIdx] : ''
+    let baslik = grup && tabloEtiketSatiri(grup) ? grup : ''
+    for (let j = ustIdx - 1; j >= 0 && j >= ustIdx - DENKLEM_BASLIK_GERI; j--) {
+      if (satirlar[j] && baslikGibi(satirlar[j])) { baslik = baslik ? satirlar[j] + ' — ' + baslik : satirlar[j]; break }
+    }
+    if (!baslik) baslik = lang === 'tr' ? 'Tablo (metinden)' : 'Table (from text)'
+    if (varOlan.indexOf(baslik) !== -1) continue
+    bulunan.forEach((v) => kurtarilan.add(v))
+    kuyrukBulunan.forEach((v) => kurtarilan.add(v))
+    const satirlar2: string[][] = etiketler.map((e, idx) => [e, degerler[idx]])
+    for (const k2 of kuyruk) satirlar2.push([k2.etiket, k2.deger])
+    i = grupSonu + kuyruk.length
     tables.push({
       title: baslik,
       headers: basliklar.slice(),
@@ -16309,6 +16403,17 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         console.log(
           `Diyagram kopyasi birlestirildi: ${diyagramDedup.dropped.length} dustu — ` +
           diyagramDedup.dropped.map((t) => `"${t}"`).join(' | ')
+        )
+      }
+      /* Tablolar da AYRI kural ile — bkz. dedupeTables yanindaki olcum notu.
+         Karar BASLIKTAN degil HUCRELERDEN veriliyor; ayni tablonun iki
+         kopyasi arasinda baslik tek harf oynuyor. */
+      const tabloDedup = dedupeTables(parsedContent.tables)
+      if (tabloDedup.dropped.length > 0) {
+        parsedContent.tables = tabloDedup.tables
+        console.log(
+          `Tablo kopyasi birlestirildi: ${tabloDedup.dropped.length} dustu — ` +
+          tabloDedup.dropped.map((t: string) => `"${t}"`).join(' | ')
         )
       }
       /* Bolumler de AYRI kural ile — bkz. dedupeSections yanindaki olcum

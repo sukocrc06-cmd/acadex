@@ -160,6 +160,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Diyagram kopyasi (29.10.2026 olcumu).
   'DIYAGRAM_BASLIK_ESIGI', 'DIYAGRAM_DUGUM_ESIGI', 'diagramDugumMetni',
   'kumeOrtusmesi', 'dedupeDiagrams',
+  // Tablo kopyasi (31.10.2026 olcumu).
+  'TABLO_SATIR_ESIGI', 'TABLO_DEDUP_MIN_HUCRE', 'tabloHucreMetni', 'dedupeTables',
   // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
   'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
@@ -4999,9 +5001,17 @@ test('KACIRILMIS KESME ISARETI duz yazida temizleniyor', () => {
     'others' + KESME + ' behaviors affect one' + KESME + 's actions');
   // Cift ters bolu ayni sinif: model \\\\frac yazdiginda tek ters boluya iniyor.
   assert.equal(y('oran ' + K + K + 'frac{a}{b} kadar'), 'oran a/b kadar');
-  // AYIRACLI matematikte ters bolu + kesme AKSANDIR, dokunulmuyor.
-  const ayiracli = 'ayiracli $x' + K + KESME + '$ korunur';
-  assert.equal(y(ayiracli), ayiracli);
+  /* AYIRACTA YALNIZCA KACIS VARSA ADACIK DEGIL (31.10.2026 olcumu).
+     Icerik sarti artik KOMUT istiyor (ters boluyu harf izlemeli), cunku
+     $ gibi kacislar IPPT kartinda sahte adacik kurup duz yaziyi yutuyordu
+     — bkz. ANLATI_MATEMATIK_ADACIK_RE yanindaki olcum notu.
+     Sonuc metin kaybi DEGIL: adacik yumusatmaya girip "x'" oluyor,
+     yani kesme isareti dogru kaliyor, yalnizca $ ayiraclari dusuyor.
+     Ayiracta GERCEK komut varsa dokunulmuyor (alttaki satir). */
+  assert.equal(y('ayiracli $x' + K + KESME + '$ korunur'),
+    'ayiracli x' + KESME + ' korunur');
+  const komutlu = 'ayiracli $x' + K + 'hat{y}$ korunur';
+  assert.equal(y(komutlu), komutlu, 'komut tasiyan adacik bozuldu');
 });
 
 test('integral/toplam/sonsuz ve fonksiyon adlari', () => {
@@ -9510,10 +9520,16 @@ test('GERCEK adacik ve para isareti dokunulmadan kaliyor', () => {
   for (const dogru of [
     "The marginal effect is $\\frac{\\partial \\hat{y}}{\\partial x_j} = \\hat{\\beta}_1 + 2\\hat{\\beta}_2 x_j$ at 40 degrees.",
     "The model $UtilityBill = 484.12 - 12.08temp + 0.09temp^2$ fits well.",
-    "Null hipotez $H_0: \\beta_2 = 0$ reddedilir ve etki $2.6\\%$ olur."
+    "Null hipotez $H_0: \\beta_2 = 0$ reddedilir."
   ]) {
     assert.equal(A.onarAnlatiLatex(dogru).metin, dogru, 'gercek adacik bozuldu: ' + dogru);
   }
+  /* "$2.6\\%$" ARTIK ADACIK DEGIL (31.10.2026): icerik sarti komut
+     istiyor, kacis yetmiyor. Adacik sayilmayinca yumusatmaya giriyor ve
+     "2.6%" oluyor — metin kaybi yok, KaTeX'e ihtiyaci olmayan okunur
+     sonuc. Bkz. ANLATI_MATEMATIK_ADACIK_RE yanindaki olcum notu. */
+  assert.equal(A.onarAnlatiLatex('Etki $2.6\\%$ olur.').metin, 'Etki 2.6% olur.',
+    'yalnizca kacis tasiyan adacik duz yaziya cevrilmiyor');
   /* Para iki yonde de duruyor: sozcugu bitiren $ ve basa gelen $. */
   const para = "Fatura 100$ ve indirim $5.06 oldu.";
   assert.equal(A.onarAnlatiLatex(para).metin, para, 'para isareti silindi');
@@ -9530,7 +9546,10 @@ test('acilis $ metne YAPISIK baslar, kapanis $ YAPISIK biter', () => {
   assert.ok(src.includes('(?<!\\s)\\$'),
     'kapanis $ icin (?<!\\s) sarti dusmus: ' + src);
   /* Icerik sarti (LaTeX yapisi) kaldirilmamis olmali. */
-  assert.ok(src.includes('[\\\\^_{}=]'), 'adacik icerik sarti dusmus: ' + src);
+  /* Icerik sarti KOMUT istiyor: ters boluyu harf izlemeli. Kacislar
+     (\$ \% \&) yapi sayilmiyor — IPPT kartinda sahte adacik kuruyorlardi. */
+  assert.ok(src.includes('(?:\\\\[A-Za-z]|[\\^_{}=])'),
+    'adacik icerik sarti dusmus: ' + src);
 });
 
 /* ==========================================================================
@@ -9582,6 +9601,176 @@ test('kuyruk satiri EKSIK sayi tasimiyorsa eklenmiyor', () => {
   assert.equal(r.tables.length, 1);
   assert.equal(r.tables[0].rows.length, 3,
     'eksik sayi tasimayan kuyruk satiri eklendi: ' + JSON.stringify(r.tables[0].rows));
+});
+
+/* ==========================================================================
+   AYNI TABLO KARTA IKI KEZ GIRIYOR (31.10.2026, Kan kartinda olculdu)
+
+   Diyagramlarin dedupe katmani vardi, TABLOLARIN YOKTU — kaynakta hic
+   dedupeTables cagrisi yoktu. Kan kartinda ayni 15 satirlik tablo iki kez:
+     TABLO 5  "Insan hematopoietik buyume faktorleri"
+     TABLO 6  "Insan hematopoetik buyume faktorleri (Slide 9)"
+   Baslik tek harf oynuyor ("hematopoietik"/"hematopoetik") ve "(Slide 9)"
+   eki var, o yuzden karar HUCRELERDEN veriliyor.
+   ========================================================================== */
+
+const buyumeTablosu = (ad, sonSatir, ekSatir) => ({
+  title: ad,
+  headers: ['Adı', 'Hücresel kaynağı', 'Üretilen hücre tipleri'],
+  rows: [
+    ['SCF (Kök hücre faktörü)', 'Fibroblast, endotel', 'Nötrofil, monosit, eozinofil, megakaryosit, eritrosit'],
+    ['G-CSF (Granülosit-koloni uyarıcı faktör)', 'Monosit, fibroblast, endotel', 'Nötrofil'],
+    ['M-CSF (Monosit-koloni uyarıcı faktör)', 'Monosit, makrofaj, fibroblast, endotel', 'Monosit, makrofaj'],
+    ['Eritropoetin', 'Böbrek, karaciğer Kupfer hücreleri', 'Eritrosit'],
+    ['Trombopoietin', 'Karaciğer, böbrek', 'Trombosit'],
+    [sonSatir, 'T lenfosit', 'Lenfosit, nötrofil, monosit, makrofaj']
+  ].concat(ekSatir ? [['IL-1 (İnterlökin-1)', 'Monosit, makrofaj, endotel', 'Nötrofil, bazofil, eritrosit']] : [])
+});
+
+test('ayni tablonun iki kopyasi birlesiyor, DOLU olan kaliyor', () => {
+  const r = A.dedupeTables([
+    buyumeTablosu('İnsan hematopoietik büyüme faktörleri', 'IFN-y (İnterferon- y)', false),
+    buyumeTablosu('İnsan hematopoetik büyüme faktörleri (Slide 9)', 'IFN-γ (İnterferon- γ)', true)
+  ]);
+  assert.equal(r.tables.length, 1, 'ikiz tablo birlesmedi: ' + JSON.stringify(r.dropped));
+  assert.equal(r.tables[0].rows.length, 7, 'eksik kopya tutuldu — dolu olan kalmaliydi');
+  assert.equal(r.dropped.length, 1);
+});
+
+test('AYRI tablolar benzer baslikla bile ikisi de kaliyor', () => {
+  /* Kan kartindaki gercek cift: baslik ortusmesi var, satirlar AYRIK. */
+  const r = A.dedupeTables([
+    { title: 'Plazmada Bulunan Organik Bileşenler ve Oranları', headers: ['Bileşen', 'Oran'],
+      rows: [['Proteinler', '%7,3 g'], ['Albumin', '%4,5 g'], ['Globulin', '%2,5 g'], ['Fibrinojen', '%0,3 g']] },
+    { title: 'Plazma İnorganik Bileşenleri ve Elektrolitler', headers: ['İnorganik Madde', 'Miktar'],
+      rows: [['Sodyum', '145 mM'], ['Potasyum', '4 mM'], ['Kalsiyum', '2.5 mM'], ['Klor', '103 mM']] },
+    { title: 'Gazlar', headers: ['Bileşen', 'Miktar'],
+      rows: [['karbondioksit', '%2 ml'], ['oksijen', '%0,2 ml'], ['nitrojen', '%0,9 ml']] }
+  ]);
+  assert.equal(r.tables.length, 3, 'ayri tablolar birlestirildi: ' + JSON.stringify(r.dropped));
+  assert.deepEqual(r.dropped, []);
+});
+
+test('tabloHucreMetni basligi ve basliklari KATMIYOR', () => {
+  /* Karar hucrelerden verilmeli; baslik tek harf oynuyor. */
+  const m = A.tabloHucreMetni({
+    title: 'Gazlar', headers: ['Bileşen', 'Miktar'],
+    rows: [['oksijen', '%0,2 ml']]
+  });
+  assert.ok(!/Gazlar/.test(m), 'baslik hucre metnine karismis: ' + m);
+  assert.ok(!/Bileşen/.test(m), 'kolon basligi hucre metnine karismis: ' + m);
+  assert.ok(/oksijen/.test(m) && /0,2/.test(m), 'hucreler eksik: ' + m);
+});
+
+test('cok az hucreli tablo dedupe EDILMIYOR', () => {
+  /* Iki satirlik iki tablo yanlislikla birlesmemeli. */
+  const r = A.dedupeTables([
+    { title: 'Myeloid Seri', headers: ['Tip', 'Oran'], rows: [['Lökositler', '%75'], ['Eritrositler', '%25']] },
+    { title: 'EPO Kaynak', headers: ['Organ', 'Oran'], rows: [['Böbrekler', '%90'], ['Karaciğer', '%10']] }
+  ]);
+  assert.equal(r.tables.length, 2, 'kucuk tablolar birlestirildi');
+});
+
+test('tablo dedupe boru hattina bagli', () => {
+  assert.ok(/const tabloDedup = dedupeTables\(parsedContent\.tables\)/.test(SRC),
+    'dedupeTables boru hattinda cagrilmiyor — olu kod');
+  assert.ok(/Tablo kopyasi birlestirildi/.test(SRC), 'dusen tablo loglanmiyor');
+  /* Diyagram dedupe ile AYNI yerde olmali: ikisi de gorsel gecisten
+     gelen kopyayi temizliyor. */
+  assert.ok(SRC.indexOf('dedupeTables(parsedContent.tables)') >
+    SRC.indexOf('dedupeDiagrams(parsedContent.diagrams)'),
+    'tablo dedupe diyagram dedupe ile ayni blokta degil');
+});
+
+/* ==========================================================================
+   KACIS YAPI DEGIL (31.10.2026, IPPT kartinda olculdu)
+
+   study_cards'tan cekilen ham metin:
+     "... is -5.06$, meaning an increase from 39 to 40 degrees decreases
+      the utility bill by \$5.06, whereas at a temperature of 80 it is
+      $2.14. ... yielding the formula $x_j = \frac{-\hat{\beta}_1}{...}$"
+   Yetim "-5.06$" acilis sayildi, kapanis olarak \
+in dolari eslesti ve
+   aradaki ters bolu icerik sartini gecirdigi icin butun duz yazi
+   "matematik" diye korundu. Kartta "\$5.06" ham kaldi.
+   Sart artik KOMUT: ters boluyu harf izlemeli.
+   ========================================================================== */
+
+test('kacisli dolar sahte adacik kurmuyor, gercek adacik duruyor', () => {
+  const g = "is -5.06$, meaning an increase from 39 to 40 degrees decreases the " +
+    "utility bill by \\$5.06, whereas at a temperature of 80 it is $2.14. " +
+    "A quadratic function reaches a minimum when set to zero, yielding the " +
+    "formula $x_j = \\frac{-\\hat{\\beta}_1}{2\\hat{\\beta}_2}$ .";
+  const c = A.onarAnlatiLatex(g).metin;
+  assert.ok(!/\\\$/.test(c), 'kacisli dolar ham kaldi: ' + c);
+  assert.ok(/is -5\.06, meaning/.test(c), 'yetim dolar atilmadi: ' + c);
+  assert.ok(/by \$5\.06, whereas/.test(c), 'para isareti bozuldu: ' + c);
+  assert.ok(/it is \$2\.14\./.test(c), 'ikinci para isareti bozuldu: ' + c);
+  /* Gercek adacik dokunulmamis olmali: ayiraclari ve LaTeX'i duruyor. */
+  const adacik = c.slice(c.indexOf('formula ') + 8);
+  assert.ok(/^[$]x_j = ./.test(adacik), "gercek adacik acilisi bozuldu: " + adacik);
+  assert.ok(adacik.indexOf("\\frac") !== -1 && adacik.indexOf("\\hat") !== -1,
+    "gercek adacik yumusatildi: " + adacik);
+  assert.equal((c.match(/[$]/g) || []).length, 4,
+    "ayirac sayisi beklenmedik (2 para + 1 adacik cifti): " + c);
+});
+
+test('icerik sarti KOMUT istiyor (kacis yetmiyor)', () => {
+  const src = A.ANLATI_MATEMATIK_ADACIK_RE.source;
+  assert.ok(src.includes('\\\\[A-Za-z]'),
+    'ters bolu icin komut sarti dusmus: ' + src);
+});
+
+test('yuzdeli jetonda dolar para sayilmiyor', () => {
+  /* "$2.6" basa gelen para korumasina takiliyordu. */
+  assert.equal(A.anlatiLatexYumusat('Etki $2.6% olur.'), 'Etki 2.6% olur.');
+  /* Gercek para iki yonde de duruyor. */
+  assert.equal(A.anlatiLatexYumusat('Fatura 100$ ve indirim $5.06 oldu.'),
+    'Fatura 100$ ve indirim $5.06 oldu.');
+});
+
+/* ==========================================================================
+   KUYRUK TEK BASINA DA KURTARIR (31.10.2026, Kan ikinci kosumunda olculdu)
+
+   Ilk surum grup eksik sayi tasimiyorsa hemen atliyor ve kuyruguna hic
+   bakmiyordu. Olculen kosu: model "Atik urunler" tablosunu zaten uretmisti
+   (34, 1, 5, 0.2, 1.2 artik eksik degil), bu yuzden grup atlandi ve hemen
+   ardindaki "Hormonlar %0,000001-0,05 mg" satiri da onunla birlikte kacti:
+     Son kart sayisal kapsama: 29/33 (%88) — kayip: 0.01, 1000, 0.000001, 0.05
+   ========================================================================== */
+
+const KAN_ATIK = [
+  'Plazmada Bulunan Organik', 'Bileşenler', 'Atık ürünler',
+  'üre (protein)', 'kreatinin (kreatin)', 'ürik asit (nükleik asitler)', 'bilurubin (hem)',
+  '%34 mg', '%1 mg', '%5 mg', '%0,2-1,2 mg',
+  'Hormonlar %0,000001-0,05 mg'
+].join('\n');
+
+test('grup eksik sayi tasimasa da KUYRUK kurtariliyor', () => {
+  const r = A.metinTablosuKurtar(KAN_ATIK, [0.000001, 0.05], [], 'tr');
+  assert.equal(r.tables.length, 1, 'kuyruk tek basina tablo kurtarmadi');
+  const rows = r.tables[0].rows;
+  assert.deepEqual(rows[rows.length - 1], ['Hormonlar', '%0,000001-0,05 mg'],
+    'kuyruk satiri eklenmedi: ' + JSON.stringify(rows));
+  for (const v of [0.000001, 0.05]) {
+    assert.ok(r.kurtarilan.includes(v), v + ' kurtarilmadi');
+  }
+});
+
+test('kuyruk eklenirken BASLIK kaymiyor', () => {
+  /* Kuyruk dongusu i'yi ilerletirse ustIdx kayiyor ve baslik ilk ETIKET
+     satiri ("ure (protein)") oluyor — olculdu. */
+  const r = A.metinTablosuKurtar(KAN_ATIK, [0.000001, 0.05], [], 'tr');
+  assert.ok(/Atık ürünler/.test(r.tables[0].title),
+    'baslik kaydi: ' + r.tables[0].title);
+  assert.ok(!/üre \(protein\)/.test(r.tables[0].title),
+    'baslik ilk etiket satiri olmus: ' + r.tables[0].title);
+});
+
+test('grup ve kuyruk IKISI DE bos ise gurultu eklenmiyor', () => {
+  const r = A.metinTablosuKurtar(KAN_ATIK, [7777], [], 'tr');
+  assert.deepEqual(r.tables, [], 'eksik sayi yokken tablo kuruldu');
+  assert.deepEqual(r.kurtarilan, []);
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
