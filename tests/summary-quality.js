@@ -165,6 +165,11 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'TABLO_SAYI_ESIGI',
   // Sozlukte parantezli ek (01.11.2026 olcumu).
   'sozlukAnahtari', 'dedupeKeyTerms',
+  // OCR metni normalize ediliyor, olcu OCR'da gecersiz sayiliyor (01.11.2026).
+  'ocrMetniniNormalize',
+  'pptxYardimciMetin', 'parsePptxSlideXml', 'decodeXmlEntities',
+  'TRANSKRIPT_MAX_SAYFA', 'TRANSKRIPT_MAX_COMPLETION', 'TRANSKRIPT_MIN_BUTCE_MS',
+  'TRANSKRIPT_MIN_KRK',
   // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
   'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
@@ -3782,11 +3787,14 @@ test('review ve critic de serit secebiliyor', () => {
   /* Hicbir yerde MODEL_FAST e sabitlenmis cagri kalmamali — GORME
      cagrilari haric, cunku qwen tek gorme yetenekli model. Bunlar iki
      tane: gorsel gecis ve 31.10.2026'da eklenen TABLO GECISI (bkz.
-     TABLO_MAX_COMPLETION). Ikisi de ayni mini-PDF'i okur, ayni seridi
-     paylasir ve pacer'a ayri ayri yazilir. Sayi 2'den YUKARI cikiyorsa
+     TABLO_MAX_COMPLETION), ve 01.11.2026'da eklenen TRANSKRIPT GECISI
+     (bkz. TRANSKRIPT_MAX_SAYFA) — o da ayni mini-PDF'i okuyan bir GORME
+     cagrisi, yalnizca OCR belgelerinde kosuyor. Ucu de ayni seridi
+     paylasir ve pacer'a ayri ayri yazilir. Sayi 3'ten YUKARI cikiyorsa
      muhtemelen gormeyle ilgisi olmayan bir cagri sabitlenmistir. */
   const pinned = [...SRC.matchAll(/model: MODEL_FAST/g)].length;
-  assert.equal(pinned, 2, `MODEL_FAST e sabit ${pinned} cagri var, sadece iki gorme cagrisi olmali`);
+  assert.equal(pinned, 3, `MODEL_FAST e sabit ${pinned} cagri var, sadece uc gorme cagrisi olmali`);
+  assert.ok(/TRANSKRIPT_MAX_COMPLETION/.test(SRC), 'transkript gecisi kaybolmus');
   assert.ok(/TABLO_MAX_COMPLETION/.test(SRC), 'tablo gecisi kaybolmus');
 });
 
@@ -6746,12 +6754,17 @@ test('bos girdiler guvenli', () => {
 test('teshis SON KART logunun yanina baglanmis', () => {
   /* Yorum blogu da ayni cumleyi tasiyor (olculen kosu oraya yazili),
      o yuzden CAGRIYA baglaniyor. */
-  const i = SRC.indexOf('console.log(`Son kart sayisal kapsama:');
-  assert.ok(i > -1, 'son kart kapsama logu kaybolmus');
-  const blok = SRC.slice(i, i + 420);
+  const i = SRC.indexOf('const kapsama = numericCoverage(olcumMetni || extractedText, cardPayload)');
+  assert.ok(i > -1, 'son kart kapsama olcumu kaybolmus');
+  const blok = SRC.slice(i, i + 1900);
+  assert.ok(/console\.log\(`Son kart sayisal kapsama:/.test(blok),
+    'OCR disi yol icin son kart logu kaybolmus');
   assert.ok(/kapsama\.missing\.length > 0/.test(blok),
     'baglam kayip yokken de basiliyor — her kosuda bos satir');
-  assert.ok(/sayisalKayipBaglami\(extractedText, kapsama\.missing\)/.test(blok),
+  /* 01.11.2026: olcum metni OCR belgelerinde transkripte dusuyor — baglam
+     da AYNI metinden okunmali, yoksa kayip sayinin yeri baska metinde
+     aranir. Bkz. TRANSKRIPT_MAX_SAYFA. */
+  assert.ok(/sayisalKayipBaglami\(olcumMetni \|\| extractedText, kapsama\.missing\)/.test(blok),
     'baglam KAYNAK metinle cagrilmiyor');
   assert.ok(/Sayisal kapsama kayiplari nerede/.test(blok), 'log satiri yok');
 });
@@ -6810,7 +6823,7 @@ test('uc asamada da LOGLANIYOR: pencere, birlesim, son kart', () => {
     'pencere kendi dilimine karsi olculmuyor');
   assert.ok(/Birlesim sayisal kapsama: \$\{formatCoverage\(numericCoverage\(extractedText, mergedDraft\)\)\}/.test(KAPSAMA_KOD),
     'birlesim olculmuyor');
-  assert.ok(/numericCoverage\(extractedText, cardPayload\)/.test(KAPSAMA_KOD),
+  assert.ok(/numericCoverage\(olcumMetni \|\| extractedText, cardPayload\)/.test(KAPSAMA_KOD),
     'son kart olculmuyor');
 });
 
@@ -7274,7 +7287,7 @@ test('distinctiveNumbers: bozuk 10 kuvveti hedef degildir, mantis kalir', () => 
 });
 
 test('son kart olcusu INSERT\'TEN ONCE ve quality_meta\'ya yaziliyor', () => {
-  const olcu = KAPSAMA_KOD.indexOf('numericCoverage(extractedText, cardPayload)');
+  const olcu = KAPSAMA_KOD.indexOf('numericCoverage(olcumMetni || extractedText, cardPayload)');
   const insert = KAPSAMA_KOD.indexOf(".from('study_cards').insert(cardPayload)");
   const payload = KAPSAMA_KOD.indexOf('const cardPayload');
   assert.ok(payload > -1 && olcu > payload, 'olcu cardPayload kurulmadan once');
@@ -9275,7 +9288,10 @@ test('kurtarma OCR metninde KOSMUYOR', () => {
   const iDenklem = kod.indexOf('tahminDenklemleriniKurtar(\n');
   const iKapi = kod.indexOf('if (ocrKullanildi) {');
   assert.ok(iKapi > 0, 'OCR kapisi yok');
-  assert.equal((kod.match(/if \(ocrKullanildi\) \{/g) || []).length, 2,
+  /* 01.11.2026: ucuncu kapi kurtarma DEGIL, kapsama LOGU icin — OCR'da
+     yuzde yazilmiyor, sebebi yaziliyor (bkz. "OLCULEMEZ (OCR)"). Kurtarma
+     kapilari yine iki tane; asagidaki iki kontrol onlari kilitliyor. */
+  assert.equal((kod.match(/if \(ocrKullanildi\) \{/g) || []).length, 3,
     'iki kurtarma da OCR kapisinin arkasinda olmali');
   /* Rozet kapisi ayni bayragi kullanmaya devam etmeli — ayni gerekce. */
   assert.ok(/kapsama\.total >= KAPSAMA_ROZET_MIN_ORNEK && !ocrKullanildi/.test(SRC),
@@ -9869,6 +9885,169 @@ test('sozlukAnahtari parantezi soyuyor, adi bozmuyor', () => {
   assert.equal(A.sozlukAnahtari('Viskozite'), 'viskozite');
   /* Tamami parantezli ad bos anahtar uretmemeli — cagiran yedege dusuyor. */
   assert.equal(A.sozlukAnahtari('(EPO)'), '');
+});
+
+/* ==========================================================================
+   OCR TAM GENISLIK KARAKTER URETIYOR (01.11.2026, Week 8/11 olculdu)
+
+   document_chunks'tan sayilan gercek oranlar:
+     Week 8  : 10650 karakter, 193 tam genislik (%1,8), 48 CJK (%0,45)
+     Week 11 :  4661 karakter,  10 tam genislik (%0,2),  3 CJK (%0,06)
+   Oran kucuk, zarar yerel: dustugu formul okunamaz hale geliyor.
+   ========================================================================== */
+
+test('OCR tam genislik karakterleri ASCII ye cevriliyor', () => {
+  /* Week 8 ve Week 11 loglarindan alinmis GERCEK satirlar. */
+  const r1 = A.ocrMetniniNormalize('Differentiable or not? f（a） = 「a2， × <1 122-1,2≥1 Check continuity.');
+  assert.ok(/f\(a\) =/.test(r1.metin), 'tam genislik parantez cevrilmedi: ' + r1.metin);
+  assert.ok(!/[\uff01-\uff5e]/.test(r1.metin), 'tam genislik karakter kaldi: ' + r1.metin);
+  assert.ok(r1.duzeltilen >= 4, 'sayac dusuk: ' + r1.duzeltilen);
+
+  const r2 = A.ocrMetniniNormalize('J（302-40+5） da=が8-202 +50+C dx');
+  assert.ok(/J\(302-40\+5\)/.test(r2.metin), 'parantez cevrilmedi: ' + r2.metin);
+  assert.ok(!/[\u3040-\u30ff\u4e00-\u9fff]/.test(r2.metin), 'CJK karakter kaldi: ' + r2.metin);
+  /* CJK SILINMIYOR, BOSLUGA cevriliyor: silmek iki sozcugu yapistirir. */
+  assert.ok(/da= 8-202/.test(r2.metin), 'CJK silinip sozcukler yapismis: ' + r2.metin);
+});
+
+test('temiz ASCII satiri ve UST SIMGE bozulmuyor', () => {
+  /* NFKC kullanilmiyor: o "x²" -> "x2" yapar ve us bilgisini siler. */
+  const g = 'f(x) = x^2 + 1, x >= 1 ve alan 18 m²';
+  const r = A.ocrMetniniNormalize(g);
+  assert.equal(r.metin, g, 'temiz satir degistirildi: ' + r.metin);
+  assert.equal(r.duzeltilen, 0);
+  assert.ok(/m²/.test(r.metin), 'ust simge duzlestirildi');
+});
+
+test('OCR normalizasyonu her iki cikarim yolunda da kosuyor', () => {
+  assert.ok(/ocrMetniniNormalize\(ocr\.text\)/.test(SRC), 'OCR cikisi normalize edilmiyor');
+  assert.equal(SRC.split('ocrMetniniNormalize(ocr.text)').length - 1, 2,
+    'normalizasyon iki yolda da olmali (PDF OCR ve PPTX gorsel OCR)');
+  assert.ok(/detectAndFormatPdfTables\(ocrNorm\.metin\)/.test(SRC),
+    'PDF yolu normalize edilmis metni kullanmiyor');
+});
+
+/* ==========================================================================
+   OCR'DA SAYISAL KAPSAMA OLCULEMEZ (01.11.2026, Week 8/11 olculdu)
+
+   Log "Son kart sayisal kapsama: 0/21 (%0)" diyordu ve KARTIN kalitesi
+   gibi okunuyordu. Degildi: ayni kosuda grounding %100, 12 formul, 19 atif
+   ve optimizasyon sonuclari dogruydu. Gecersiz olan OLCUNUN KENDISI.
+   Esikle ayirt edilemedi: "122-1,2" tamami ASCII.
+   ========================================================================== */
+
+test('OCR metninde kapsama YUZDESI yazilmiyor, sebebi yaziliyor', () => {
+  assert.ok(/Sayisal kapsama OLCULEMEZ \(OCR\)/.test(SRC),
+    'OCR icin ayri log yok — yanilitici yuzde duruyor');
+  /* Olcum yine YAPILIYOR: ham sayac teshis icin basiliyor. */
+  assert.ok(/ham sayac \$\{kapsama\.kept\}\/\$\{kapsama\.total\}/.test(SRC),
+    'ham sayac basilmiyor — teshis kayboluyor');
+  /* Normal belgelerde eski log aynen duruyor. */
+  assert.ok(/Son kart sayisal kapsama: \$\{formatCoverage\(kapsama\)\}/.test(SRC),
+    'OCR disi yol icin eski log kaybolmus');
+  assert.ok(/if \(ocrKullanildi\) \{[\s\S]{0,200}OLCULEMEZ/.test(SRC),
+    'kapi ocrKullanildi degil');
+});
+
+/* ==========================================================================
+   OCR METNI YERINE SAYFA TRANSKRIPSIYONU (01.11.2026)
+
+   Model sayfalarin KENDISINI okuyup dogru kart uretiyor; bozuk olan OCR
+   metni ve o metin yalnizca OLCUM ile ATIF tarafinda kullaniliyor.
+   Transkript gecisi orayi degistiriyor, KARTI degistirmiyor.
+   ========================================================================== */
+
+test('transkript gecisi DAR kapilarla kosuyor', () => {
+  assert.ok(/ocrKullanildi && parallelGemini && visionData &&\s*\n\s*budgetLeft\(\) > TRANSKRIPT_MIN_BUTCE_MS/.test(SRC),
+    'transkript kapisi eksik — normal belgelerde bosa token yakar');
+  assert.equal(A.TRANSKRIPT_MAX_SAYFA, 8);
+  assert.equal(A.TRANSKRIPT_MAX_COMPLETION, 3072,
+    'completion 3072 ustune cikmamali: 8192 denemesi 15 sn tavanina carpip modeli dusurmustu');
+  assert.equal(A.TRANSKRIPT_MIN_BUTCE_MS, 25000);
+  assert.equal(A.TRANSKRIPT_MIN_KRK, 400);
+});
+
+test('transkript KARTI degistirmiyor, yalnizca olcum ve atifi', () => {
+  /* En kritik sinir: kart extractedText ile uretilmeye devam etmeli. */
+  assert.ok(/olcumMetni = trMetin/.test(SRC), 'transkript olcumMetni ye yazilmiyor');
+  assert.ok(/numericCoverage\(olcumMetni \|\| extractedText, cardPayload\)/.test(SRC),
+    'kapsama transkripti kullanmiyor');
+  assert.ok(/buildPageIndex\(olcumMetni \|\| extractedText, pageMarkerLabel\)/.test(SRC),
+    'atif dizini transkripti kullanmiyor');
+  /* Pencere/kart uretimi extractedText ile kalmali. */
+  assert.ok(!/olcumMetni \|\| extractedText, MAX_CHUNKS/.test(SRC),
+    'kart uretimi transkripte baglanmis — kapsam disi');
+});
+
+test('transkript dusen cagride SESSIZ kaliyor', () => {
+  assert.ok(/Transkript gecisi: metin yetersiz/.test(SRC), 'yetersiz metin dalı yok');
+  assert.ok(/Transkript gecisi atlandi/.test(SRC), 'istisna dalı yok');
+  assert.ok(/OCR metni kaliyor/.test(SRC), 'yedek davranis belirtilmemis');
+});
+
+/* ==========================================================================
+   SLAYT METNI BOSSA PPTX'IN OTEKI PARCALARI (01.11.2026)
+
+   Cikarim yalnizca ppt/slides/slideN.xml okuyordu; bos cikarsa dogrudan
+   ppt/media OCR'ina iniyordu ve OCR matematigi bozuyordu:
+     "J（302-40+5） da=が8-202 +50+C dx"
+   Ama PPTX iki yerde daha GERCEK metin tasiyor: notesSlides (konusmaci
+   notlari) ve charts (grafik etiketleri ve SAYILARI). Bunlar dosyanin
+   kendi metni, OCR degil.
+   ========================================================================== */
+
+/** JSZip yerine test sahtesi: yalnizca files[ad].async("text") kullaniliyor. */
+const sahteZip = (icerik) => ({
+  files: Object.fromEntries(Object.entries(icerik).map(([ad, metin]) => [
+    ad, { async: async () => metin }
+  ]))
+});
+
+test('PPTX notlari ve grafik degerleri okunuyor', async () => {
+  const zip = sahteZip({
+    'ppt/slides/slide1.xml': '<p:sld></p:sld>',
+    'ppt/notesSlides/notesSlide2.xml':
+      '<p:notes><a:t>Integrate term by term, then add +C.</a:t></p:notes>',
+    'ppt/notesSlides/notesSlide1.xml':
+      '<p:notes><a:t>The power rule raises the exponent by one.</a:t></p:notes>',
+    'ppt/charts/chart1.xml':
+      '<c:chart><c:v>12.5</c:v><c:v>18.3</c:v><c:v>Revenue</c:v></c:chart>'
+  });
+  const r = await A.pptxYardimciMetin(zip);
+  assert.equal(r.not, 2, 'not slaytlari okunmadi');
+  assert.equal(r.grafik, 1, 'grafik okunmadi');
+  assert.equal(r.deger, 3, 'grafik degerleri sayilmadi');
+  /* SLAYT NUMARASI dosya adindan: notesSlide1 once gelmeli, notesSlide2 sonra. */
+  assert.ok(r.metin.indexOf('--- SLAYT 1 ---') < r.metin.indexOf('--- SLAYT 2 ---'),
+    'not slaytlari sirasiz: ' + r.metin);
+  assert.ok(/power rule/.test(r.metin) && /term by term/.test(r.metin),
+    'not metni eksik: ' + r.metin);
+  /* Grafik SAYILARI metne girmeli — hedef listeye ve atif dizinine. */
+  assert.ok(/12\.5/.test(r.metin) && /18\.3/.test(r.metin), 'grafik degerleri metinde yok: ' + r.metin);
+});
+
+test('not ve grafik YOKSA sifir doner (OCR yolu eskisi gibi)', async () => {
+  /* Sifir da bir bulgudur: hangi parcanin olmadigini soyler. */
+  const r = await A.pptxYardimciMetin(sahteZip({
+    'ppt/slides/slide1.xml': '<p:sld></p:sld>',
+    'ppt/media/image1.png': 'ikili'
+  }));
+  assert.equal(r.not, 0);
+  assert.equal(r.grafik, 0);
+  assert.equal(r.deger, 0);
+  assert.equal(r.metin, '');
+});
+
+test('yardimci metin OCR DAN ONCE deneniyor', () => {
+  const iYard = SRC.indexOf('const yard = await pptxYardimciMetin(zip)');
+  const iOcr = SRC.indexOf('const ocr = await pptxGorselOCR(zip, ocrApiKey)');
+  assert.ok(iYard > 0, 'pptxYardimciMetin cagrilmiyor — olu kod');
+  assert.ok(iOcr > 0, 'PPTX OCR yolu kaybolmus');
+  assert.ok(iYard < iOcr, 'yardimci metin OCR dan SONRA deneniyor');
+  /* Yetersiz metin OCR yolunu kapatmamali. */
+  assert.ok(/if \(yard\.metin\.length >= 200\)/.test(SRC),
+    'kisa yardimci metin icin esik yok');
+  assert.ok(/PPTX yardimci metin: /.test(SRC), 'sayac loglanmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
