@@ -1498,6 +1498,152 @@
     } finally { btn.disabled = false; }
   };
 
+  /* =====================================================================
+     14) SOL PANEL: kartlar ipte mandalla asılı, özet ipi çekilince inen stor perde
+     (02.11.2026). Kart ve özet mantığı acadex-ink.js'te kalır; burada yalnızca sahne,
+     perde, okuma rahatlığı ve katlanabilir panel var. Karttaki düğmeler perdeye taşındı:
+     perdedeki düğmeler etkin kartın kendi düğmelerine basar (paylaş, görüntüle, deftere ekle).
+     ===================================================================== */
+  var src = $('aside.src'), deskD = $('.desk-d'), sum = $('[data-sumcard]'), cardsUl = $('#notebook-sidebar-list');
+  if (src && deskD && sum && cardsUl) (function () {
+    src.classList.add('dp-src');
+    /* --- katlanabilir panel --- */
+    var colB = D.createElement('button');
+    colB.type = 'button'; colB.className = 'dp-src-col'; colB.setAttribute('aria-expanded', 'true'); colB.setAttribute('aria-controls', 'dp-src-body');
+    colB.setAttribute('aria-label', 'Kart panelini kapat'); colB.title = 'Kart panelini kapat: defter genişler';
+    colB.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6 L8.5 12 L14.5 18"/></svg>';
+    var tab = D.createElement('button');
+    tab.type = 'button'; tab.className = 'dp-src-tab'; tab.setAttribute('aria-label', 'Kart panelini aç'); tab.title = 'Kart panelini aç';
+    tab.innerHTML = '<i class="dp-st-cord" aria-hidden="true"></i><span>kartlar · özet</span>';
+    var fold = src.querySelector('.folder') || src; fold.appendChild(colB); src.appendChild(tab);
+    var setOff = function (off, anim) {
+      deskD.classList.toggle('dp-src-off', off); src.classList.toggle('dp-off', off);
+      colB.setAttribute('aria-expanded', String(!off)); store.set('srcOff', off ? '1' : '0');
+      if (anim !== false && typeof resizeCanvasToDisplaySize === 'function') setTimeout(resizeCanvasToDisplaySize, RM ? 30 : 480);
+    };
+    colB.addEventListener('click', function () { setOff(true); try { tab.focus({ preventScroll: true }); } catch (e) {} });
+    tab.addEventListener('click', function () { setOff(false); try { colB.focus({ preventScroll: true }); } catch (e) {} });
+    if (store.get('srcOff') === '1') setOff(true, false);
+
+    /* --- kartlar ipte: sallanma sırası --- */
+    var tagCards = function () { $$('.kc', cardsUl).forEach(function (li, i) { li.style.setProperty('--i', i % 7); }); syncActs(); };
+    if ('MutationObserver' in W) new MutationObserver(tagCards).observe(cardsUl, { childList: true });
+
+    /* --- stor perde --- */
+    sum.classList.add('dp-roll');
+    var rod = D.createElement('div'); rod.className = 'dp-rod'; rod.setAttribute('aria-hidden', 'true'); rod.innerHTML = '<i class="l"></i><i class="r"></i>';
+    var pw = D.createElement('div'); pw.className = 'dp-pw'; pw.id = 'dp-sum-paper';
+    var paper = D.createElement('div'); paper.className = 'dp-paper';
+    Array.prototype.slice.call(sum.childNodes).forEach(function (n) { if (!(n.classList && n.classList.contains('staple'))) paper.appendChild(n); });
+    var stp = sum.querySelector('.staple'); if (stp) stp.remove();
+    var acts = D.createElement('div'); acts.className = 'dp-sumacts';
+    acts.innerHTML =
+      '<button type="button" data-sa="view" title="Kartı büyük aç">görüntüle</button>' +
+      '<button type="button" data-sa="add" class="pri" title="Özeti deftere not olarak as">deftere ekle</button>' +
+      '<label class="dp-sa-share" title="Bölüm akışında paylaş"><input type="checkbox" data-sa="share"><i aria-hidden="true"></i><span>paylaş</span></label>' +
+      '<span class="dp-sa-fs" role="group" aria-label="Yazı boyutu"><button type="button" data-sa="fs-" aria-label="Yazıyı küçült">A−</button><button type="button" data-sa="fs+" aria-label="Yazıyı büyüt">A+</button></span>' +
+      '<button type="button" data-sa="del" class="del" aria-label="Kartı sil" title="Kartı sil">sil</button>';
+    var head = paper.querySelector('.sum-h'); if (head) head.parentNode.insertBefore(acts, head.nextSibling); else paper.insertBefore(acts, paper.firstChild);
+    var prog = D.createElement('i'); prog.className = 'dp-prog'; prog.setAttribute('aria-hidden', 'true');
+    var mark = D.createElement('span'); mark.className = 'dp-mark'; mark.hidden = true; mark.textContent = 'kaldığın yer';
+    paper.appendChild(prog); paper.appendChild(mark);
+    pw.appendChild(paper);
+    var hem = D.createElement('div'); hem.className = 'dp-hem'; hem.setAttribute('aria-hidden', 'true');
+    var cord = D.createElement('button');
+    cord.type = 'button'; cord.className = 'dp-cord'; cord.setAttribute('aria-controls', 'dp-sum-paper'); cord.setAttribute('aria-expanded', 'true');
+    cord.setAttribute('aria-label', 'Özet perdesini sar'); cord.title = 'İpi çek: özet perdesi sarılır / iner';
+    cord.innerHTML = '<i class="dp-cord-l" aria-hidden="true"></i><b class="dp-bead" aria-hidden="true"></b>';
+    sum.appendChild(rod); sum.appendChild(pw); sum.appendChild(hem); sum.appendChild(cord);
+    var body = sum.querySelector('[data-sum]');
+
+    var isUp = function () { return sum.classList.contains('dp-up'); };
+    var setUp = function (up) {
+      sum.classList.toggle('dp-up', up);
+      cord.setAttribute('aria-expanded', String(!up)); cord.setAttribute('aria-label', up ? 'Özet perdesini indir' : 'Özet perdesini sar');
+      sset('sumUp', up ? '1' : '0');
+      sum.classList.remove('dp-moving'); void sum.offsetWidth; sum.classList.add('dp-moving');
+      setTimeout(function () { sum.classList.remove('dp-moving'); }, 800);
+    };
+    var pull = function () {
+      cord.classList.remove('dp-pulled'); void cord.offsetWidth; cord.classList.add('dp-pulled');
+      setTimeout(function () { cord.classList.remove('dp-pulled'); }, 700);
+      setUp(!isUp());
+    };
+    /* ip gerçekten çekilir: boncuğu aşağı sürükleyip bırak (dokunmatikte de) */
+    var drag = null, swallow = false;
+    cord.addEventListener('pointerdown', function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      drag = { id: e.pointerId, y: e.clientY, dy: 0 }; cord.classList.add('dp-grab');
+      var mv = function (ev) { if (!drag || ev.pointerId !== drag.id) return; drag.dy = Math.max(0, Math.min(60, ev.clientY - drag.y)); cord.style.setProperty('--pull', drag.dy + 'px'); };
+      var up = function (ev) {
+        if (!drag || ev.pointerId !== drag.id) return;
+        W.removeEventListener('pointermove', mv); W.removeEventListener('pointerup', up); W.removeEventListener('pointercancel', up);
+        cord.classList.remove('dp-grab'); cord.style.removeProperty('--pull');
+        if (drag.dy > 22) { swallow = true; setTimeout(function () { swallow = false; }, 400); pull(); }
+        drag = null;
+      };
+      W.addEventListener('pointermove', mv); W.addEventListener('pointerup', up); W.addEventListener('pointercancel', up);
+    });
+    cord.addEventListener('click', function () { if (swallow) { swallow = false; return; } pull(); });
+    if (sget('sumUp') === '1') { sum.classList.add('dp-up'); cord.setAttribute('aria-expanded', 'false'); cord.setAttribute('aria-label', 'Özet perdesini indir'); }
+
+    /* --- okuma rahatlığı: yazı boyutu, ilerleme, ayraç (kart başına kaldığın yer) --- */
+    var fs = Math.max(14, Math.min(22, +store.get('ozetFs') || 16));
+    var paintFs = function () { body.style.setProperty('--dp-fs', fs + 'px'); };
+    paintFs();
+    var activeId = function () { var li = cardsUl.querySelector('.kc.is-on'); return li ? li.getAttribute('data-card') : ''; };
+    var posMap = function () { return lsafe(function () { return JSON.parse(store.get('ozetPos') || '{}'); }, {}) || {}; };
+    var savePos = function () {
+      var id = activeId(); if (!id) return;
+      var m = posMap(); m[id] = Math.round(body.scrollTop); var ks = Object.keys(m); if (ks.length > 40) delete m[ks[0]];
+      store.set('ozetPos', JSON.stringify(m));
+    };
+    var paintProg = function () {
+      var max = body.scrollHeight - body.clientHeight;
+      prog.style.transform = 'scaleY(' + (max > 4 ? Math.min(1, body.scrollTop / max) : 1) + ')';
+    };
+    var posT = null;
+    body.addEventListener('scroll', function () { paintProg(); clearTimeout(posT); posT = setTimeout(savePos, 300); mark.hidden = true; }, { passive: true });
+    var restore = function () {
+      var p = +posMap()[activeId()] || 0;
+      body.scrollTop = p; paintProg();
+      mark.hidden = !(p > 60);
+      if (!mark.hidden) setTimeout(function () { mark.hidden = true; }, 3200);
+    };
+    /* --- perdedeki düğmeler etkin kartın düğmelerine basar --- */
+    function syncActs() {
+      var li = cardsUl.querySelector('.kc.is-on'), sw = li && li.querySelector('input[type="checkbox"]');
+      acts.querySelector('[data-sa="share"]').checked = !!(sw && sw.checked);
+      acts.classList.toggle('dp-none', !li);
+    }
+    acts.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-sa]'); if (!b) return;
+      var k = b.getAttribute('data-sa'), li = cardsUl.querySelector('.kc.is-on');
+      if (k === 'fs-' || k === 'fs+') { fs = Math.max(14, Math.min(22, fs + (k === 'fs+' ? 1 : -1))); store.set('ozetFs', String(fs)); paintFs(); paintProg(); return; }
+      if (!li) return;
+      if (k === 'share') { e.preventDefault(); var sw = li.querySelector('input[type="checkbox"]'); if (sw) { sw.click(); setTimeout(syncActs, 60); } return; }
+      var map = { view: '.btn-view-summary', add: '[data-add]', del: '.kc-del' }, t = li.querySelector(map[k]);
+      if (!t) return;
+      if (k === 'add') { t.click(); b.textContent = 'eklendi ✓'; b.disabled = true; setTimeout(function () { b.textContent = 'deftere ekle'; b.disabled = false; }, 1800); }
+      else t.click();
+    });
+    /* --- kart değişince: perde iner (sarılıysa) ya da yeni yaprak gibi yeniden açılır --- */
+    var lastId = null;
+    var onCard = function () {
+      var id = activeId(); syncActs();
+      if (id === lastId) return; lastId = id;
+      if (isUp()) setUp(false);
+      else if (!RM) { sum.classList.remove('dp-swap'); void sum.offsetWidth; sum.classList.add('dp-swap'); setTimeout(function () { sum.classList.remove('dp-swap'); }, 750); }
+      setTimeout(restore, 30);
+    };
+    var nameEl = sum.querySelector('[data-sum-n]');
+    if ('MutationObserver' in W) {
+      if (nameEl) new MutationObserver(onCard).observe(nameEl, { childList: true, characterData: true, subtree: true });
+      new MutationObserver(function () { syncActs(); if (activeId() !== lastId) onCard(); }).observe(cardsUl, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    }
+    tagCards(); setTimeout(function () { lastId = activeId(); restore(); }, 400);
+  })();
+
   /* test ve diğer modüller için küçük bir kapı */
   W.AXDefterPlus = { recognize: recognize, goPage: goPage, openOverview: openOverview, openGallery: openGallery, renderPage: renderPage, applyOrder: applyOrder, setPageMeta: setPageMeta, metaOf: metaOf, state: state, enterFocus: enterFocus, exitFocus: exitFocus, pomo: pomo, showCover: showCover, setRuler: setRuler, ruler: ruler, makeDeco: makeDeco, exportPdf: exportPdf, sortByCourse: sortByCourse };
   if (lsafe(function () { return pages().length; }, 0)) { var p0 = cur(); state.meta = Object.assign({}, metaOf(p0)); paintMeta(); paintTabs(); }

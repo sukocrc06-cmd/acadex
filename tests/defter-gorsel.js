@@ -158,4 +158,21 @@ test('İngilizce arayüz: yeni yazılar sözlükte', () => {
   for (const k of ['kement', 'cetvel', 'çıkartma', 'tüm sayfalar', 'yeni sayfa · şablon seç', 'odaktan çık', 'PDF oluştur', 'defteri aç', 'zaman çizelgesi']) assert.match(d, new RegExp('\\n"' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '": "'), k);
 });
 
+test('sol panel: kartlar ipte, özet ipi çekilince inen perde; panel katlanır', () => {
+  assert.match(js, /src\.classList\.add\('dp-src'\)/); assert.match(js, /sum\.classList\.add\('dp-roll'\)/);
+  /* kart ve özet mantığı acadex-ink.js'te kalır: perde düğmeleri etkin kartın kendi düğmelerine basar */
+  assert.match(js, /var map = \{ view: '\.btn-view-summary', add: '\[data-add\]', del: '\.kc-del' \}/);
+  assert.match(js, /var sw = li\.querySelector\('input\[type="checkbox"\]'\); if \(sw\) \{ sw\.click\(\);/);
+  assert.match(css, /\.dp-src \.kc-ic,#notebook-view\.axn \.dp-src \.kc-del,#notebook-view\.axn \.dp-src \.kc-n small,#notebook-view\.axn \.dp-src \.kc-row\{display:none!important\}/, 'düğmeler kartta gizli ama DOM\'da (testler ve sürükleme çalışır)');
+  /* ip: tıklayınca da, aşağı çekip bırakınca da; sürüklemeden sonra gelen tıklama ikinci kez çevirmez */
+  assert.match(js, /if \(drag\.dy > 22\) \{ swallow = true;/); assert.match(js, /cord\.addEventListener\('click', function \(\) \{ if \(swallow\) \{ swallow = false; return; \} pull\(\); \}\)/);
+  assert.match(js, /cord\.setAttribute\('aria-expanded', String\(!up\)\)/);
+  assert.match(css, /\.dp-roll\.dp-up \.dp-pw\{grid-template-rows:0fr\}/);
+  /* okuma: yazı boyutu ve kart başına kaldığın yer hatırlanır */
+  assert.match(js, /store\.set\('ozetFs', String\(fs\)\)/); assert.match(js, /store\.set\('ozetPos', JSON\.stringify\(m\)\)/);
+  /* katlanınca tuval yeniden boyutlanır (çizim kaybolmaz), seçim hatırlanır */
+  assert.match(js, /store\.set\('srcOff', off \? '1' : '0'\)/); assert.match(js, /setTimeout\(resizeCanvasToDisplaySize, RM \? 30 : 480\)/);
+  assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{#notebook-view\.axn \.dp-src \.kc,#notebook-view\.axn \.dp-pw/);
+});
+
 summary();

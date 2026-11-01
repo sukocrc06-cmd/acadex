@@ -4712,7 +4712,20 @@ window.AX_EN = {
 "akıllı şekil kapalı": "smart shapes off",
 "akıllı şekil açık: çizdiğin daire, çizgi, ok ve kareler düzelir": "smart shapes on: circles, lines, arrows and squares you draw are tidied up",
 "cetvel: kenarı boyunca çiz · döndürmek için uçtaki düğme, fare tekerleği ya da ok tuşları": "ruler: draw along its edge · rotate with the end knob, mouse wheel or arrow keys",
-"çift dokun, yaz": "double-tap to write"
+"çift dokun, yaz": "double-tap to write",
+"görüntüle": "view",
+"deftere ekle": "add to notebook",
+"kaldığın yer": "where you left off",
+"kartlar · özet": "cards · summary",
+"Kart panelini kapat": "Close the card panel",
+"Kart panelini kapat: defter genişler": "Close the card panel: the notebook widens",
+"Kart panelini aç": "Open the card panel",
+"Özet perdesini sar": "Roll up the summary",
+"Özet perdesini indir": "Roll down the summary",
+"İpi çek: özet perdesi sarılır / iner": "Pull the cord: the summary rolls up / down",
+"Kartı büyük aç": "Open the card full size",
+"Özeti deftere not olarak as": "Pin the summary to the notebook as a note",
+"eklendi ✓": "added ✓"
 },
 "h": {
 "<b>bugün</b> yeni bir seriye başla.": "<b>today</b> start a new streak.",
