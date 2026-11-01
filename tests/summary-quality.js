@@ -161,6 +161,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'DIYAGRAM_BASLIK_ESIGI', 'DIYAGRAM_DUGUM_ESIGI', 'diagramDugumMetni',
   'kumeOrtusmesi', 'dedupeDiagrams',
   'DIYAGRAM_DUGUM_TEK_BASINA',
+  'diagramDugumMetni',
   'PPTX_YARDIMCI_TEK_BASINA',
   // Tablo kopyasi (31.10.2026 olcumu).
   'TABLO_SATIR_ESIGI', 'TABLO_DEDUP_MIN_HUCRE', 'tabloHucreMetni', 'dedupeTables',
@@ -173,6 +174,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'TRANSKRIPT_MAX_SAYFA', 'TRANSKRIPT_MAX_COMPLETION', 'TRANSKRIPT_MIN_BUTCE_MS',
   'TRANSKRIPT_MIN_KRK',
   'TRANSKRIPT_MIN_SAYFA_ORANI',
+  'transkriptiOcrIleBirlestir',
   // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
   'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
@@ -9977,7 +9979,10 @@ test('transkript gecisi DAR kapilarla kosuyor', () => {
 
 test('transkript KARTI degistirmiyor, yalnizca olcum ve atifi', () => {
   /* En kritik sinir: kart extractedText ile uretilmeye devam etmeli. */
-  assert.ok(/olcumMetni = trMetin/.test(SRC), 'transkript olcumMetni ye yazilmiyor');
+  /* 01.11.2026: transkript OCR metniyle BIRLESTIRILIP yaziliyor — tek
+     basina yazilinca sayfa dizini 29'dan 6'ya dusuyor ve 15 atif 2'ye
+     iniyordu. Bkz. transkriptiOcrIleBirlestir. */
+  assert.ok(/olcumMetni = birlesik\.metin/.test(SRC), 'transkript olcumMetni ye yazilmiyor');
   assert.ok(/numericCoverage\(olcumMetni \|\| extractedText, cardPayload\)/.test(SRC),
     'kapsama transkripti kullanmiyor');
   assert.ok(/buildPageIndex\(olcumMetni \|\| extractedText, pageMarkerLabel\)/.test(SRC),
@@ -10068,16 +10073,36 @@ test('yardimci metin OCR DAN ONCE deneniyor', () => {
    baslik kapisi NEAR_DUP_MIN_TERMS (3) istiyor ve baslik iki terim.
    ========================================================================== */
 
-const akisDiyagrami = (ad, aciklama) => ({
+/* CIPLAK DUGUM ADLARI: study_cards'tan cekilen GERCEK mermaid'ler.
+   Ikisi ayni diyagram ama dugum ID'leri farkli ("derivative" / "f_0") ve
+   "model", "test", "interpret" ETIKETSIZ — eski desen onlari hic gormuyordu. */
+const AKIS_D2 = 'graph LR\nmodel --> derivative["f\'(x) = 0"] --> test --> interpret';
+const AKIS_D3 = 'graph LR\n    model --> f_0["f\'(x) = 0"]\n    f_0 --> test\n    test --> interpret';
+
+const akisDiyagrami = (ad, aciklama, mermaid) => ({
   title: ad,
-  mermaid: 'graph TD; A[model] --> B[f(x) = 0]; B --> C[test]; C --> D[interpret]',
+  mermaid: mermaid || AKIS_D2,
   description: aciklama
+});
+
+test('diagramDugumMetni ciplak dugum adlarini da okuyor', () => {
+  const m = A.diagramDugumMetni({ mermaid: AKIS_D2 });
+  for (const ad of ['model', 'test', 'interpret']) {
+    assert.ok(new RegExp(ad).test(m), ad + ' dugumu okunmadi: ' + m);
+  }
+  /* Etiket aliniyor, etiketli dugumun ID'si ATILIYOR. */
+  assert.ok(/f'\(x\) = 0/.test(m), 'etiket okunmadi: ' + m);
+  assert.ok(!/derivative/.test(m), 'etiketli dugumun id si atilmamis: ' + m);
+  const m3 = A.diagramDugumMetni({ mermaid: AKIS_D3 });
+  assert.ok(!/f_0\[/.test(m3), 'id etiketle birlikte alinmis: ' + m3);
+  /* Baslik satiri dugum degil. */
+  assert.ok(!/\bgraph\b/.test(m) && !/\bLR\b/.test(m), 'baslik satiri dugum sayilmis: ' + m);
 });
 
 test('iki sozcukluk baslikli ikiz diyagram DUGUMLERDEN birlesiyor', () => {
   const r = A.dedupeDiagrams([
-    akisDiyagrami('Optimization flow', 'Flowchart showing the steps.'),
-    akisDiyagrami('Optimization flow (Slide 30)', 'Optimization flow diagram showing steps from model to interpret.')
+    akisDiyagrami('Optimization flow', 'Flowchart showing the optimization workflow.', AKIS_D2),
+    akisDiyagrami('Optimization flow (Slide 30)', 'Flowchart showing the optimization steps.', AKIS_D3)
   ]);
   assert.equal(r.diagrams.length, 1,
     'ikiz diyagram birlesmedi: ' + JSON.stringify(r.dropped));
@@ -10164,6 +10189,72 @@ test('transkript kabul kapisi SAYFA SAYISINA da bakiyor', () => {
     'sayfa orani kapisi yok — 1/8 lik cevap kabul edilir');
   assert.ok(/trMetin\.length >= TRANSKRIPT_MIN_KRK && yeterSayfa/.test(SRC),
     'iki sart birlikte uygulanmali');
+});
+
+/* ==========================================================================
+   TRANSKRIPT OCR'IN TAMAMININ YERINE GECMEZ (01.11.2026, Week 8 olcumu)
+
+   Transkript gecisi DOGRU metin uretti — kayip sayilar artik gercek:
+     "two positive numbers whose product is 100", "400 ft of fencing"
+   Ama yalnizca 6 sayfayi kapsiyor ve olcum metninin TAMAMININ yerine
+   geciyordu. Olculen bedel:
+     once : Citation anchoring: pages=29 added=15 quoted=15 unanchored=3
+     sonra: Citation anchoring: pages=6  added=2  quoted=1  unanchored=17
+   ========================================================================== */
+
+test('transkript okunan sayfayi, OCR geri kalanini veriyor', () => {
+  const OCR = [
+    '--- SAYFA 1 ---', 'f(a) = a2, × <1 122-1,2≥1 bozuk OCR satiri',
+    '--- SAYFA 2 ---', 'Power rule: the exponent moves down, then decreases by one.',
+    '--- SAYFA 3 ---', 'J(302-40+5) da= 8-202 +50+C bozuk OCR satiri'
+  ].join('\n');
+  const TR = [
+    '--- SAYFA 1 ---', 'Differentiable or not? f(x) = x^2 for x < 1 and 2x - 1 for x >= 1.',
+    '--- SAYFA 3 ---', 'Find two positive numbers whose product is 100 and whose sum is a minimum.'
+  ].join('\n');
+  const r = A.transkriptiOcrIleBirlestir(OCR, TR, 'SAYFA');
+  assert.equal(r.transkriptSayfa, 2, 'transkript sayfalari sayilmadi');
+  assert.equal(r.ocrSayfa, 1, 'OCR sayfalari sayilmadi');
+  /* Sayfa 1 ve 3 transkriptten, sayfa 2 OCR dan. */
+  assert.ok(/f\(x\) = x\^2/.test(r.metin), 'transkript sayfasi alinmadi');
+  assert.ok(/product is 100/.test(r.metin), 'ikinci transkript sayfasi alinmadi');
+  assert.ok(/exponent moves down/.test(r.metin), 'OCR sayfasi KAYBOLDU — dizin daralir');
+  /* Transkriptin okudugu sayfanin BOZUK OCR hali artik yok. */
+  assert.ok(!/122-1,2/.test(r.metin), 'transkript sayfasinin OCR hali duruyor');
+  assert.ok(!/8-202/.test(r.metin), 'ucuncu sayfanin OCR hali duruyor');
+  /* Sayfa SIRASI korunuyor: dizin sirali kurulmali. */
+  assert.ok(r.metin.indexOf('--- SAYFA 1 ---') < r.metin.indexOf('--- SAYFA 2 ---'));
+  assert.ok(r.metin.indexOf('--- SAYFA 2 ---') < r.metin.indexOf('--- SAYFA 3 ---'));
+});
+
+test('transkript sayfa isareti tasimiyorsa OCR metni KORUNUYOR', () => {
+  /* Birlestirme yapilamiyorsa transkripti tek basina kullanmak dizini
+     daraltir — o yuzden OCR metni oldugu gibi kaliyor. */
+  const OCR = '--- SAYFA 1 ---\nbirinci sayfa\n\n--- SAYFA 2 ---\nikinci sayfa';
+  const r = A.transkriptiOcrIleBirlestir(OCR, 'isaretsiz duz transkript metni', 'SAYFA');
+  assert.equal(r.metin, OCR, 'isaretsiz transkript OCR metnini ezdi');
+  assert.equal(r.transkriptSayfa, 0);
+  assert.equal(r.ocrSayfa, 2);
+});
+
+test('SLAYT isaretli belgede de birlesiyor', () => {
+  /* PPTX yolu "SLAYT" kullaniyor; birlestirme etikete bagli olmamali. */
+  const r = A.transkriptiOcrIleBirlestir(
+    '--- SLAYT 1 ---\nbozuk\n\n--- SLAYT 2 ---\nikinci',
+    '--- SLAYT 1 ---\ntemiz transkript',
+    'SLAYT'
+  );
+  assert.equal(r.transkriptSayfa, 1);
+  assert.equal(r.ocrSayfa, 1);
+  assert.ok(/temiz transkript/.test(r.metin) && /ikinci/.test(r.metin));
+});
+
+test('transkript BIRLESIK metni olcum metnine yaziyor', () => {
+  assert.ok(/const birlesik = transkriptiOcrIleBirlestir\(\s*\n\s*extractedText, trMetin, pageMarkerLabel\s*\n\s*\)/.test(SRC),
+    'birlestirme cagrilmiyor — transkript tek basina dizini daraltir');
+  assert.ok(/olcumMetni = birlesik\.metin/.test(SRC), 'olcum metni birlesik degil');
+  assert.ok(/transkript \+ \$\{birlesik\.ocrSayfa\} OCR sayfasi/.test(SRC),
+    'kac sayfanin nereden geldigi loglanmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

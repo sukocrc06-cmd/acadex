@@ -3592,13 +3592,38 @@ const DIYAGRAM_DUGUM_ESIGI = 0.5
 const DIYAGRAM_DUGUM_TEK_BASINA = 0.9
 
 /** Mermaid dugum etiketleri: A[Metin], B("Metin"), C{Metin}. Ok bicimi ve
- *  yon anahtar sozcukleri disarida — ayni diyagram farkli ok yazabilir. */
+ *  yon anahtar sozcukleri disarida — ayni diyagram farkli ok yazabilir.
+ *
+ *  CIPLAK DUGUM ADLARI DA SAYILIYOR (01.11.2026, Week 8'de olculdu).
+ *  Desen yalnizca parantezli etiketi goruyordu; etiketsiz dugumler
+ *  ("model --> test --> interpret") hic sayilmiyordu. Kartta ayni diyagram
+ *  iki kez durdu ve dugum kumesi neredeyse bos oldugu icin dedupe
+ *  karsilastirmaya bile giremedi. study_cards'tan cekilen ham mermaid:
+ *    D2: graph LR\nmodel --> derivative["f'(x) = 0"] --> test --> interpret
+ *    D3: graph LR\n    model --> f_0["f'(x) = 0"]\n    f_0 --> test ...
+ *
+ *  ETIKETLI DUGUMUN ID'SI ATILIYOR: ayni diyagramin iki kopyasi ayni
+ *  dugume farkli id veriyor ("derivative" / "f_0") ve id anlam tasimiyor.
+ *  Anlam etiketlerde ve CIPLAK adlarda; ikisi aliniyor, id atiliyor. */
 function diagramDugumMetni(d: any): string {
   const src = String(d?.mermaid || '')
   const out: string[] = []
-  const re = /[[({]\s*"?([^\])}"|]+)"?\s*[\])}]/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(src)) !== null) out.push(m[1].trim())
+  /* Etiketli dugum: id atilir, etiket alinir. */
+  /* TIRNAKLI ETIKET TAM ALINIYOR: "f'(x) = 0" icindeki parantez eski
+     desende etiketi kesiyordu ("f'(x" kaliyordu). */
+  let kalan = src.replace(
+    /([A-Za-z_][\w]*)?\s*[[({]\s*(?:"([^"]*)"|([^\])}|]+))\s*[\])}]/g,
+    (_m, _id, tirnakli, duz) => {
+      out.push(String(tirnakli !== undefined ? tirnakli : duz).trim())
+      return ' '
+    }
+  )
+  /* Baslik satiri ("graph LR", "flowchart TD") dugum degil. */
+  kalan = kalan.replace(/^\s*(?:graph|flowchart)\s+\w+\s*$/gim, ' ')
+  for (const parca of kalan.split(/-\.?-+>|==+>|---+|--|;|\n/)) {
+    const ad = parca.trim()
+    if (ad && /^[A-Za-z_][\w]*$/.test(ad)) out.push(ad)
+  }
   return out.join(' ')
 }
 
@@ -15310,11 +15335,17 @@ Respond ONLY with JSON: {"pages":[{"page":<page number as given>,"text":"<everyt
                     const yeterSayfa =
                       parcalar.length >= Math.ceil(trSayfalar.length * TRANSKRIPT_MIN_SAYFA_ORANI)
                     if (trMetin.length >= TRANSKRIPT_MIN_KRK && yeterSayfa) {
-                      olcumMetni = trMetin
+                      /* OCR metninin TAMAMININ yerine gecmiyor: okunan sayfa
+                         transkriptten, okunmayan sayfa OCR'dan — bkz.
+                         transkriptiOcrIleBirlestir yanindaki olcum notu. */
+                      const birlesik = transkriptiOcrIleBirlestir(
+                        extractedText, trMetin, pageMarkerLabel
+                      )
+                      olcumMetni = birlesik.metin
                       console.log(
                         `Transkript gecisi: ${parcalar.length}/${trSayfalar.length} sayfa, ` +
                         `${trMetin.length} karakter, completion=${trHarcanan}/${TRANSKRIPT_MAX_COMPLETION} — ` +
-                        `olcum ve atif OCR metni yerine bunu kullaniyor`
+                        `olcum metni ${birlesik.transkriptSayfa} transkript + ${birlesik.ocrSayfa} OCR sayfasi`
                       )
                     } else {
                       console.warn(
@@ -17804,6 +17835,65 @@ async function pptxGorselOCR(
  *
  * Bu, bozuk SAYIYI duzeltmez ("122-1,2" tamami ASCII); duzelttigi sey
  * metnin OKUNABILIRLIGI ve sayfa dizini eslesmesidir. */
+/* TRANSKRIPT OCR'IN TAMAMININ YERINE GECMEZ (01.11.2026, Week 8'de
+ * olculdu — kendi regresyonum).
+ *
+ * Transkript gecisi dogru metin uretti (6/6 sayfa, 2919 karakter; kayip
+ * sayilar artik GERCEK: "product is 100", "400 ft of fencing"). Ama
+ * yalnizca 6 sayfayi kapsiyor ve olcum metninin TAMAMININ yerine geciyordu.
+ * Olculen bedel:
+ *   once : Citation anchoring: pages=29 kept=0 added=15 quoted=15 unanchored=3
+ *   sonra: Citation anchoring: pages=6  kept=0 added=2  quoted=1  unanchored=17
+ * Yani 15 atif 2'ye dustu: 29 sayfalik dizin 6 sayfaya indi.
+ *
+ * Dogru davranis BIRLESTIRME: transkriptin okudugu sayfa transkriptten,
+ * okumadigi sayfa OCR metninden geliyor. Iki metin de ayni sayfa isaretini
+ * tasiyor, o yuzden birlestirme sayfa numarasi uzerinden yapilabiliyor. */
+function transkriptiOcrIleBirlestir(
+  ocrMetni: string,
+  transkript: string,
+  pageMarkerLabel: string
+): { metin: string; transkriptSayfa: number; ocrSayfa: number } {
+  const isaret = new RegExp(`^---\\s*${pageMarkerLabel}\\s+(\\d+)\\s*---\\s*$`, 'im')
+  /** Metni "--- ISARET N ---" bloklarina ayirir. */
+  const bloklar = (metin: string): Map<number, string> => {
+    const harita = new Map<number, string>()
+    const satirlar = String(metin || '').split(/\r?\n/)
+    let suAnki: number | null = null
+    let tampon: string[] = []
+    const yaz = () => {
+      if (suAnki === null) return
+      const govde = tampon.join('\n').trim()
+      if (govde) harita.set(suAnki, govde)
+    }
+    for (const satir of satirlar) {
+      const m = satir.match(isaret)
+      if (m) { yaz(); suAnki = parseInt(m[1], 10); tampon = []; continue }
+      if (suAnki !== null) tampon.push(satir)
+    }
+    yaz()
+    return harita
+  }
+  const ocrBloklar = bloklar(ocrMetni)
+  const trBloklar = bloklar(transkript)
+  /* Hicbiri sayfa isareti tasimiyorsa birlestirme yapilamaz: transkript
+     tek basina kalirsa dizin daralir, o yuzden OCR metni korunuyor. */
+  if (trBloklar.size === 0) {
+    return { metin: ocrMetni, transkriptSayfa: 0, ocrSayfa: ocrBloklar.size }
+  }
+  const sayfalar = [...new Set([...ocrBloklar.keys(), ...trBloklar.keys()])].sort((a, b) => a - b)
+  const parcalar: string[] = []
+  let transkriptSayfa = 0
+  let ocrSayfa = 0
+  for (const no of sayfalar) {
+    const tr = trBloklar.get(no)
+    if (tr) { transkriptSayfa++; parcalar.push(`--- ${pageMarkerLabel} ${no} ---\n${tr}`); continue }
+    const oc = ocrBloklar.get(no)
+    if (oc) { ocrSayfa++; parcalar.push(`--- ${pageMarkerLabel} ${no} ---\n${oc}`) }
+  }
+  return { metin: parcalar.join('\n\n'), transkriptSayfa, ocrSayfa }
+}
+
 function ocrMetniniNormalize(s: string): { metin: string; duzeltilen: number } {
   const giris = String(s || '')
   let duzeltilen = 0
