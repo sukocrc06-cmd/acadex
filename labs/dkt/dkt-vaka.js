@@ -8,6 +8,9 @@
   var DK = window.DK, C = DK.core, V = C.V, $ = C.$, $$ = C.$$, X = C.X;
   /* Acadex Medica: hastanın dosyası ?vaka=<id> ile gelir; karne sonucu hastaneye bildirilir */
   var MV = C.MEDICA ? new URLSearchParams(location.search).get('vaka') : null;
+  /* Acadex Medica her ziyarette hastaya yeni ad verir (?ad=): unvan (Bey/Hanım) korunur */
+  var MAD = C.MEDICA ? new URLSearchParams(location.search).get('ad') : null;
+  if (MV && MAD) V.VAKA.forEach(function (v) { if (v.id === MV) v.ad = MAD.slice(0, 30) + (/ (Bey|Hanım)$/.test(v.ad) ? ' ' + v.ad.split(' ').pop() : ''); });
   var S = { id: MV && V.VAKA.some(function (v) { return v.id === MV; }) ? MV : C.ls.get('vk.id', V.VAKA[0].id), st: 0, sel: { deg: {}, tani: null, terapi: {} }, sc: {}, done: C.ls.get('vk.done', {}) };
   var medica = function (pct) { if (!C.MEDICA || window.parent === window) return; try { window.parent.postMessage({ src: 'axmedica', type: 'sonuc', lab: 'dkt', vaka: S.id, puan: pct, tamam: true }, location.origin); } catch (e) {} };
   var vaka = function () { return V.VAKA.filter(function (v) { return v.id === S.id; })[0] || V.VAKA[0]; };

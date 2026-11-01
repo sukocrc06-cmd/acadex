@@ -126,6 +126,9 @@
   /* =========================== VAKA MASASI =========================== */
   /* Acadex Medica: hastanın dosyası ?vaka=<id> ile gelir; puan hastaneye bildirilir */
   var MV = C.MEDICA ? new URLSearchParams(location.search).get('vaka') : null;
+  /* Acadex Medica her ziyarette hastaya yeni ad verir (?ad=): dosya da aynı adı göstersin */
+  var MAD = C.MEDICA ? new URLSearchParams(location.search).get('ad') : null;
+  if (MV && MAD) M.VK.concat(M.EP).forEach(function (v) { if (v.id === MV) v.ad = MAD.slice(0, 30); });
   var medica = function (id, puan) { if (!C.MEDICA || W.parent === W) return; try { W.parent.postMessage({ src: 'axmedica', type: 'sonuc', lab: 'diyet', vaka: id, puan: puan, tamam: true }, location.origin); } catch (e) {} };
   var V = { id: MV && M.VK.some(function (v) { return v.id === MV; }) ? MV : ls.get('vid', null), st: {} };
   var vdone = ls.get('vakaDone', {});

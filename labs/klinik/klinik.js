@@ -145,6 +145,8 @@
     '.axk .walk{animation:axk-walk 1.3s cubic-bezier(.2,.8,.2,1) both}',
     '@keyframes axk-walk{from{transform:translateX(-260px);opacity:0}to{transform:none;opacity:1}}',
     '.axk .glow{animation:axk-glow 1.2s ease-in-out 3}',
+    '.axk .cik{animation:axk-cik 1.8s ease-in forwards}',
+    '@keyframes axk-cik{30%{transform:translateY(-6px)}to{transform:translateX(-520px);opacity:0}}',
     '@keyframes axk-glow{50%{filter:drop-shadow(0 0 12px #FFD45A) brightness(1.08)}}',
     '.axk .ecg{stroke-dasharray:420;animation:axk-ecg 1.6s linear infinite}',
     '.axk-mon2{position:absolute;right:1.6%;top:3%;width:clamp(118px,19%,190px);z-index:1;filter:drop-shadow(0 10px 14px rgba(13,24,56,.35));pointer-events:none}',
@@ -444,14 +446,16 @@
       boy: function () { parlat('#axk-boy'); },
       monitor: function () { parlat('#axk-mon'); },
       mentor: function () { var g = ov.querySelector('[data-who="mentor"] .kolL'); if (g) { g.classList.remove('gest'); void g.getBoundingClientRect(); g.classList.add('gest'); } },
-      hasta: function () { parlat('[data-who="hasta"]'); }
+      hasta: function () { parlat('[data-who="hasta"]'); },
+      /* taburcu: hasta (ve yakını) kapıya yürüyüp çıkar */
+      cik: function () { ['hasta', 'refakat'].forEach(function (k) { var g = ov.querySelector('[data-who="' + k + '"]'); if (g) g.classList.add('cik'); }); }
     };
     var git = function () {
       S.i++;
       var a = sen.adimlar[S.i];
       if (!a) return;
       var n = a.baslik && a.tip !== 'devir' ? a.baslik : ADIM_AD[a.tip]; if (n) asama(n);
-      if (a.tip === 'konus') { soyle(a.kim, a.metin, function () { devam().onclick = git; }); if (a.anim && ANIM[a.anim]) ANIM[a.anim](a); }
+      if (a.tip === 'konus') { if (a.ifade) { IF.taban = a.ifade; ifadeYap(a.ifade); } soyle(a.kim, a.metin, function () { devam().onclick = git; }); if (a.anim && ANIM[a.anim]) ANIM[a.anim](a); }
       else if (a.tip === 'sor' || a.tip === 'eylem') secimAdim(a);
       else if (a.tip === 'karar') kararAdim(a);
       else if (a.tip === 'devir') devirAdim(a);

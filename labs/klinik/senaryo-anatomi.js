@@ -17,7 +17,54 @@
   var YARGI = function (kim, t, cevap, geri) { return S('yargi', t, cevap, -2, null, kim, geri || 'Suçlayıcı ya da küçümseyen soru güveni sarsar ve bilgi akışını keser.'); };
   var MODEL = function (metin) { return { tip: 'devir', metin: metin, dugme: '3B modelde yapıları bul', hedef: 'model' }; };
 
-  return [
+  /* ---------- lab sonrası: hastaya bildir (Acadex Medica, 31.10.2026) ----------
+     3B modelde yapıları bulduktan sonra öğrenci hastaya (ya da yakınına) ne olduğunu anlatır.
+     Doğru seçenek doğru ve anlaşılır olandır; terim yığını ve yanlış güvence ayrı ayrı geri bildirim alır. */
+  var JARGON = 'Tıbbi olarak doğru ama hasta anlamaz. Terimleri gündelik dile çevir.';
+  var SONU = {
+    'ana-ulnar': { sorular: [{ s: 'Tolga Bey soruyor: “Parmaklarım ne zaman düzelir?”', secenek: [
+      ['Dirseğinizin iç yüzünden geçen ve serçe-yüzük parmağa giden bir sinir uzun süre bükülü kalınca sıkışmış. Çoğu zaman dirseği bükülü tutmamak ve yaslanmamakla haftalar içinde düzelir; gece dirseği düz tutan bir atel yardımcı olur.', true, 'Doğru ve anlaşılır; nedeni ve korunmayı birlikte anlattın.'],
+      ['Kubital tünelde n. ulnaris kompresyon nöropatisi; intrinsik kaslarda parezi.', false, JARGON],
+      ['Hemen ameliyat olmazsanız eliniz pençe gibi kalır.', false, 'Yanlış ve korkutucu: ilk basamak korunma ve izlemdir; cerrahi kalıcı ya da ilerleyen olgularda düşünülür.']] }] },
+    'ana-radial': { sorular: [{ s: 'Burak Bey soruyor: “Elim düzelecek mi, ne oldu bana?”', secenek: [
+      ['N. radialis sulcus nervi radialis düzeyinde nöropraksi; ekstansör kompartman etkilenmiş.', false, JARGON],
+      ['Kolunuzun arkasından geçen bir sinir uzun süre sıkışmış; bileği kaldıran kaslara giden sinyal geçici olarak kesilmiş. Çoğu zaman haftalar içinde düzelir; bu sürede bileği destekleyen atel ve egzersiz yapacağız.', true, 'Doğru ve anlaşılır; beklentiyi de gerçekçi kurdun.'],
+      ['Kalıcı felç oldu, yapılacak bir şey yok.', false, 'Yanlış ve korkutucu: bası sonrası sinir hasarı çoğunlukla düzelir.']] }] },
+    'ana-supra': { sorular: [{ s: 'Annesi soruyor: “Neden hemen ameliyata alıyorsunuz?”', secenek: [
+      ['Kırık kemiğin ucu, kola kan götüren damara ve bir sinire bastırıyor; elinin nabzı zayıf. Kemiği hemen yerine oturtup sabitlemek damarı ve eli korumak için gerekli.', true, 'Doğru: aciliyetin nedenini anlaşılır anlattın.'],
+      ['Gartland tip 3 suprakondiler kırık, a. brachialis kompresyonu ve Volkmann riski var.', false, JARGON],
+      ['Acele yok, yarın sabah da olur.', false, 'Nabız zayıfken beklemek kalıcı hasar riskidir.']] }] },
+    'ana-gluteal': { sorular: [{ s: 'Sevgi Hanım soruyor: “İğne yanlış yere mi yapıldı?”', secenek: [
+      ['Hayır, sizin sinirleriniz hassas, o kadar.', false, 'Olayı örtmek güveni bozar. İstenmeyen olaylar açık ve dürüst anlatılır.'],
+      ['N. ischiadicus’ta enjeksiyona bağlı nöropati gelişmiş; gluteal bölgenin iç-alt kadranı riskli.', false, JARGON],
+      ['Kalçanın iç-alt bölümünden bacağa inen büyük bir sinir geçiyor; iğne ona yakın yapılmış ve siniri etkilemiş. Bunu kayda geçiriyoruz; nöroloji ile birlikte güç ve hissi düzenli izleyeceğiz.', true, 'Doğru: dürüst, anlaşılır ve bir plan içeriyor.']] }] },
+    'ana-femoral': { sorular: [{ s: 'Ahmet Bey soruyor: “İşlemden sonra neden bacağımı oynatmamalıyım?”', secenek: [
+      ['Kateter kasıktaki büyük atardamardan girdi. Delik kapanana kadar bacağınızı düz tutarsanız kanama olmaz. Hemen yanındaki sinir ve toplardamarı da kontrol edeceğiz.', true, 'Doğru ve anlaşılır.'],
+      ['Önemli değil, hemen kalkıp yürüyebilirsiniz.', false, 'Giriş yerinde kanama ve hematom riski vardır.'],
+      ['A. femoralis ponksiyonu sonrası hemostaz için ekstremite immobilizasyonu gerekir.', false, JARGON]] }] },
+    'ana-pterion': { sorular: [{ s: 'Antrenörü soruyor: “Bayılıp kendine gelmişti, şimdi ne oldu?”', secenek: [
+      ['Biraz baş ağrısı; sabaha geçer, eve götürebilirsiniz.', false, 'Yanlış güvence: bilinç yeniden bozuldu, bu acildir.'],
+      ['Şakaktaki ince kemiğin altında beyin zarına giden bir damar var; darbeyle yırtılmış ve kafatası içinde kanama yapmış. Hemen ameliyatla kan boşaltılacak; ne kadar erken olursa o kadar iyi. Ailesine haber verelim.', true, 'Doğru: durumu, aciliyeti ve sonraki adımı anlattın.'],
+      ['Pterion kırığına bağlı a. meningea media kaynaklı epidural hematom.', false, JARGON]] }] },
+    'ana-inme': { sorular: [{ s: 'Kızı Elif Hanım soruyor: “Babama ne oldu?”', secenek: [
+      ['Beynin sol tarafına giden bir damar tıkanmış; o bölge sağ kolu, bacağı ve konuşmayı yönetiyor. Tedavi ve rehabilitasyonla iyileşme olabilir. Yutması da etkilendiği için şimdilik ağızdan bir şey vermeyeceğiz.', true, 'Doğru: neden, beklenti ve güvenlik uyarısı bir arada.'],
+      ['Sol a. cerebri media sulama alanında iskemik infarkt.', false, JARGON],
+      ['Beyin kanaması oldu, artık yapılacak bir şey yok.', false, 'Yanlış: görüntüleme iskemik inmeyi gösteriyor; umut kırıcı ve hatalı.']] }] },
+    'ana-kalca': { sorular: [{ s: 'Fatma Hanım soruyor: “Kemiğim kaynar mı kızım?”', secenek: [
+      ['Collum femoris kırığı; caput femoris’in kanlanması bozulabilir, artroplasti planlanıyor.', false, JARGON],
+      ['Yaşlılarda kırık kaynamaz, bundan sonra yatakta kalacaksınız.', false, 'Yanlış ve umut kırıcı: ameliyattan sonra erken ayağa kalkmak hedeftir.'],
+      ['Uyluk kemiğinin kalçaya yakın boyun kısmı kırılmış. Bu bölgenin kanlanması kolay bozulduğu için çoğu zaman protezle onarılır. Ameliyattan sonra erken ayağa kalkmanız ve iyi beslenmeniz iyileşmeyi hızlandırır.', true, 'Doğru: tedaviyi ve sizin de katkınızı anlattın.']] }] },
+    'ana-apandisit': { sorular: [{ s: 'Can Bey soruyor: “Ameliyat şart mı?”', secenek: [
+      ['Kalın bağırsağın başlangıcındaki apandis iltihaplanmış. Patlamadan önce ameliyatla alınması gerekiyor; çoğu zaman kapalı yöntemle yapılır ve birkaç günde toparlanırsınız.', true, 'Doğru ve anlaşılır.'],
+      ['Gaz sancısı; ağrı kesici alıp eve gidin.', false, 'Periton irritasyonu olan hastada yanlış güvence tehlikelidir.'],
+      ['Akut apandisit, McBurney hassasiyeti ve rebound pozitif; apendektomi endikasyonu var.', false, JARGON]] }] },
+    'ana-kot': { sorular: [{ s: 'Serkan Bey soruyor: “Göğsüme ne oldu, neden nefes alamıyorum?”', secenek: [
+      ['Sağ hemopnömotoraks, toraks tüpü endikasyonu ve olası hepatik laserasyon.', false, JARGON],
+      ['Kaburgalarınız kırılmış; biri akciğer zarını delip göğüs boşluğuna hava kaçırmış, akciğeriniz tam açılamıyor. Göğsünüze küçük bir tüp takıp havayı boşaltacağız. Karaciğerinizi de görüntülemeyle kontrol edeceğiz.', true, 'Doğru: ne olduğunu ve ne yapılacağını anlattın.'],
+      ['Basit kas ağrısı, nefes egzersizi yaparsınız geçer.', false, 'SpO₂ %89 ve hipersonorite acil müdahale gerektirir.']] }] }
+  };
+
+  var L = [
     /* ------------------------------ Cumartesi gecesi felci ------------------------------ */
     { id: 'ana-radial', vaka: 'radial', lab: 'anatomi', oda: 'poliklinik', odaAd: 'Acil poliklinik', baslik: 'Cumartesi gecesi felci',
       hasta: { ad: 'Burak', hitap: 'Burak Bey', yas: 24, cins: 'E', gorunum: 'genc', kiyafet: '#3E6E9E', ifade: 'uzgun' }, mentor: DR,
@@ -264,6 +311,52 @@
           ['Basit kas ağrısı; ağrı kesiciyle eve', false, 'SpO₂ %89 ve hipersonorite acil müdahale gerektirir.']
         ]),
         MODEL('3B modelde kırılan yapıyı, yaralanabilecek organı ve sağ alt kaburgaların koruduğu organı bul.')
+      ] },
+
+    /* ------------------------------ 01.11.2026: aynı yakınma, farklı tanı (GRUP 'el': radial / ulnar) ------------------------------ */
+    { id: 'ana-ulnar', vaka: 'ulnar', lab: 'anatomi', oda: 'poliklinik', odaAd: 'Acil poliklinik', baslik: 'Dirsek üstünde uyuyakalma',
+      hasta: { ad: 'Tolga', hitap: 'Tolga Bey', yas: 30, cins: 'E', gorunum: 'yetiskin', kiyafet: '#2E3A5C', ifade: 'endise' }, mentor: DR,
+      adimlar: [
+        { tip: 'konus', kim: 'hasta', metin: 'Sabah uyandım, sağ elimin yüzük ve serçe parmağı uyuşuk. Parmaklarımı açıp kapamakta zorlanıyorum, düğme ilikleyemedim.' },
+        { tip: 'konus', kim: 'mentor', metin: 'Elde güçsüzlüğün hangi sinirden kaynaklandığını bulmaya çalış. Üç soru hakkın var.' },
+        { tip: 'sor', baslik: 'Anamnez', hak: 3, yonerge: 'lezyon düzeyini düşündüren soruları seç', secenek: [
+          S('nasil', 'Nasıl uyudunuz, kolunuz hangi pozisyondaydı?', 'Kolumu başımın altına koyup dirseğim bükülü uyumuşum. Gündüz de masada hep dirseğime yaslanırım.', 3, 'Öykü|Uzun süre bükülü dirsek, dirseğe yaslanma.'),
+          S('his', 'Uyuşukluk tam olarak hangi parmaklarda?', 'Serçe parmağın tamamı ve yüzük parmağın serçeye bakan yarısı.', 3, 'Duyu|4. parmağın ulnar yarısı ve 5. parmak.'),
+          S('bilek', 'Bileğinizi yukarı kaldırabiliyor musunuz?', 'Evet, bileğim normal. Sorun parmaklarda.', 2, 'Motor|Bilek ekstansiyonu korunmuş.'),
+          S('ilac', 'Düzenli ilaç kullanıyor musunuz?', 'Hayır.', 0),
+          S('oyun', 'Bilgisayar oyunu oynar mısınız?', 'Akşamları biraz.', 0),
+          YARGI('hasta', 'Masa başında bu kadar oturmasanız olmaz mı?', 'İşim bu…', 'Yargılamak yerine ergonomiyi birlikte düzenleyin.')
+        ] },
+        { tip: 'eylem', baslik: 'Nörolojik muayene', yonerge: 'gerekenleri yap', secenek: [
+          E('froment', 'Başparmak ve işaret parmağı arasında kâğıt tutmasını iste (Froment)', 'Kâğıdı tutarken başparmağın ucunu büküyor: addüktör pollicis zayıf.', 3),
+          E('tinel', 'Dirseğin iç yüzünde sinire hafifçe vur', 'Serçe parmağa doğru elektrik çarpması hissi.', 3, { ifade: 'agri' }),
+          E('bilek', 'Bilek ekstansiyonunu test et', 'Bilek ekstansiyonu tam ve güçlü.', 2),
+          E('patella', 'Patella refleksine bak', 'Normal. Üst ekstremite vakasında kararını değiştirmez.', 0)
+        ] },
+        K('Sinir hangi düzeyde ve hangi sinir?', [
+          ['N. ulnaris, dirsekte medial epikondilin arkasında (kubital tünel)', true, 'Doğru. Yüzük-serçe parmak uyuşması, el içi küçük kas güçsüzlüğü ve dirsekte pozitif Tinel bu düzeyi gösterir.'],
+          ['N. radialis, humerusun arkasında', false, 'Radial basıda bilek düşer ve uyuşma el sırtındadır; burada bilek normal.'],
+          ['N. medianus, el bileğinde', false, 'Medianus başparmak, işaret ve orta parmağı etkiler.']
+        ]),
+        MODEL('Şimdi 3B modelde sinirin dolandığı kemiği, siniri ve önkolda birlikte seyrettiği arteri bul.')
       ] }
   ];
+  /* ilk plan (31.10.2026): yapıları bulduktan sonra öğrenci önce ekibe planı söyler, sonra hastaya anlatır.
+     Taburcu sahnesinde hastaya söylenen, SON sorudaki (açıklama) seçimdir; plan sorusu bu yüzden başa eklenir. */
+  var PLAN = {
+    'ana-ulnar': ['Dirseği uzun süre bükmemek ve yaslanmamak, gece dirseği düz tutan atel; birkaç hafta sonra kontrol, düzelmezse ENMG', 'Acil sinir ameliyatı', 'Bileği destekleyen atel yeterli', ['Doğru: kubital tünel basısında ilk basamak korunmadır; düzelme yoksa ENMG ve cerrahi değerlendirme.', 'Akut basıda cerrahi ilk basamak değildir.', 'Bilek ateli radial sinir basısı içindir; burada dirsek korunmalı.']],
+    'ana-radial': ['Bileği nötral tutan atel, eklem açıklığı egzersizleri ve birkaç hafta içinde kontrol; düzelme yoksa elektrofizyolojik inceleme', 'Acil sinir onarımı ameliyatı', 'Hiçbir şey yapmadan taburcu, kendiliğinden geçer', ['Doğru: bası nöropraksisi çoğunlukla düzelir; atel ve egzersiz bileği korur, düzelme yoksa ENMG istenir.', 'Bası nöropraksisinde sinir kopuk değildir; cerrahi ilk basamak değildir.', 'Atel ve izlem olmadan bilek kontraktürü ve düşme riski artar.']],
+    'ana-supra': ['Acil ortopedi: kapalı redüksiyon ve tel ile tespit; nabız, el dolaşımı ve kompartman bulgularını yakın izlem', 'Alçıya alıp ertesi gün kontrol', 'Ağrı kesici verip eve gönder', ['Doğru: nabzı zayıf yer değiştirmiş kırık acil redüksiyon ister; kompartman sendromu kaçırılmamalı.', 'Nabız zayıfken beklemek arter ve sinir hasarını kalıcı yapabilir.', 'Deformite ve nabız zayıflığı ayaktan izlenmez.']],
+    'ana-gluteal': ['Olayı kayda geçir; nöroloji konsültasyonu, güç ve duyu izlemi, gerekirse ENMG; fizyoterapi ve düşme önlemi', 'Aynı bölgeye tekrar enjeksiyon yapıp ağrıyı geçir', 'Bir şey söylemeden taburcu et', ['Doğru: istenmeyen olay açıkça kaydedilir; sinir işlevi izlenir ve rehabilitasyon başlar.', 'Aynı bölgeye yeniden enjeksiyon siniri daha da zedeleyebilir.', 'Olayı gizlemek hasta güvenliği ve etik açısından yanlıştır.']],
+    'ana-femoral': ['Nabızla arteri bul, girişi kasık bağının altından yap; işlem sonrası kanama, hematom ve bacak nabızlarını izle', 'Girişi kasık bağının üstünden yap, daha kolay', 'Nabzın medialinden, ven üzerinden gir', ['Doğru: kasık bağının altında arter femur başı üzerinde bastırılabilir; işlem sonrası hematom ve distal nabız izlenir.', 'Bağın üstünden giriş bastırılamayan retroperitoneal kanama riskidir.', 'Arterin medialinde ven bulunur; yanlış damara girilir.']],
+    'ana-pterion': ['Acil BT ve beyin cerrahisi; bilinç ve pupillerin sık izlemi, ağızdan bir şey verilmez', 'Gözlemde tut, sabah BT çek', 'Ağrı kesici verip eve gönder', ['Doğru: lusid aralık sonrası kötüleşme epidural hematomu düşündürür; dakikalar önemlidir.', 'Epidural hematom saatler içinde ölümcül olabilir; beklenmez.', 'Bilinci bozulan travma hastası eve gönderilmez.']],
+    'ana-inme': ['Acil beyin görüntülemesi ve inme ekibi; kanama yoksa zaman penceresine göre damar açıcı tedavi; ağızdan bir şey vermeden yutma taraması (DKT)', 'Önce ağızdan aspirin ver, görüntüleme bekleyebilir', 'Tansiyonu hemen normale indir, sonra eve gönder', ['Doğru: önce kanama dışlanır; tedavi kararı zamana bağlıdır. Yutma taraması yapılmadan ağızdan bir şey verilmez.', 'Kanama dışlanmadan ve yutma değerlendirilmeden ağızdan ilaç verilmez.', 'Akut inmede kan basıncı hızla düşürülmez; hasta yatırılır.']],
+    'ana-kalca': ['Ağrı kontrolü, kalça grafisi; ortopedi ile 24–48 saat içinde ameliyat; beslenme taraması ve erken mobilizasyon planı', 'Yatak istirahati, ameliyat gerekmez', 'Ağrı geçince ayağa kaldırıp eve gönder', ['Doğru: yaşlıda kalça kırığında erken cerrahi ve erken mobilizasyon komplikasyonları azaltır; beslenme riski de taranır.', 'Uzun yatak istirahati bası yarası, tromboz ve pnömoni riskidir.', 'Kırık şüphesinde yük verdirilmez.']],
+    'ana-apandisit': ['Ağızdan bir şey verme, damar yolu ve sıvı; kan tetkikleri ve görüntüleme; genel cerrahi konsültasyonu', 'Lavman yapıp eve gönder', 'Antibiyotik reçete edip ayaktan izle', ['Doğru: akut karın şüphesinde ameliyat olasılığına göre hazırlık yapılır, cerrah değerlendirir.', 'Lavman akut karında perforasyon riskini artırır.', 'Cerrahi değerlendirme olmadan ayaktan izlem uygun değildir.']],
+    'ana-kot': ['Oksijen ve monitör; acil akciğer grafisi ya da ultrason, pnömotoraksta göğüs tüpü; karın içi kanama için değerlendirme', 'Kaburgaları sıkı bandajla sar', 'Ağrı kesiciyle eve gönder', ['Doğru: pnömotoraks tüple boşaltılır; alt sağ kaburga kırığında karaciğer yaralanması da araştırılır.', 'Sıkı bandaj solunumu kısıtlar ve pnömoni riskini artırır.', 'SpO₂ %89 olan travma hastası eve gönderilmez.']]
+  };
+  /* doğru seçenek hep başta durmasın: sırayı vakaya göre sabit biçimde döndür */
+  var planSoru = function (p, k) { var o = [[p[0], true, p[3][0]], [p[1], false, p[3][1]], [p[2], false, p[3][2]]]; k = k % 3; return { s: 'Ekip soruyor: “İlk plan ne?”', secenek: o.slice(k).concat(o.slice(0, k)) }; };
+  L.forEach(function (x) { var so = SONU[x.id] || null; if (so && PLAN[x.id]) so = Object.assign({}, so, { sorular: [planSoru(PLAN[x.id], x.id.length)].concat(so.sorular) }); x.sonu = so; });
+  return L;
 });

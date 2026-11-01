@@ -3405,12 +3405,17 @@ const CASES = [
     ex: 'Apendiks iltihabında ağrı önce göbek çevresinde hissedilir (visseral lifler, T10 dermatomu); iltihap pariyetal peritona ulaşınca sağ alt kadrana yerleşir. McBurney noktası, spina iliaca anterior superior ile göbeği birleştiren çizginin dış üçte birindedir.' },
   { id: 'kot', ad: 'Motosiklet kazası, göğüs travması', tag: 'Toraks', txt: '35 yaşında erkek, motosikletten düşmüş. Sağ göğsünde nefes alınca artan ağrı, nefes darlığı; SpO₂ %89.',
     steps: [['costae', 'Kırılan yapıyı bul.', 'Göğüs kafesini oluşturan yay biçimli kemikler.'], ['pulmo', 'Kırık uçların yaralayabileceği organı bul.', 'Göğüs boşluğunu dolduran, plevrayla sarılı organ.'], ['hepar', 'Sağ alt kaburgaların koruduğu, kanayabilecek organı bul.', 'Sağ üst kadranda, diyaframın altındaki en büyük organ.']],
-    ex: 'Kaburga kırığının ucu plevrayı delerse pnömotoraks gelişir: o tarafta solunum sesleri azalır, perküsyonda hipersonorite olur. Tansiyon pnömotoraks acildir ve hemen dekompresyon gerekir. Alt sağ kaburga kırıklarında karaciğer, alt sol kaburgalarda dalak yaralanması akla gelmelidir.' }
+    ex: 'Kaburga kırığının ucu plevrayı delerse pnömotoraks gelişir: o tarafta solunum sesleri azalır, perküsyonda hipersonorite olur. Tansiyon pnömotoraks acildir ve hemen dekompresyon gerekir. Alt sağ kaburga kırıklarında karaciğer, alt sol kaburgalarda dalak yaralanması akla gelmelidir.' },
+  { id: 'ulnar', ad: 'Dirsek üstünde uyuyakalma', tag: 'Üst ekstremite', txt: '30 yaşında erkek, gece dirseği bükülü uyumuş. Sabah yüzük ve serçe parmağı uyuşuk; parmaklarını açıp kapamakta zorlanıyor.',
+    steps: [['humerus', 'Sinirin arkasından dolandığı kemiği bul.', 'Kol kemiği; sinir iç tarafındaki epikondilin arkasından geçer (\"komik kemik\").'], ['n_ulnaris', 'Basıya uğrayan siniri bul.', 'Medial epikondilin arkasından önkola, yüzük ve serçe parmağa inen sinir.'], ['a_ulnaris', 'Bu sinirin önkolda birlikte seyrettiği arteri bul.', 'Önkolun serçe parmak tarafında, sinirin yanında seyreden arter.']],
+    ex: 'N. ulnaris dirsekte medial epikondilin arkasındaki oluktan (kubital tünel) geçer; dirsek uzun süre bükülü kalınca ya da dirseğe yaslanınca sıkışır. Yüzük ve serçe parmakta uyuşma, el içi küçük kaslarda güçsüzlük yapar; ilerlerse pençe el gelişir. Radial sinir basısında ise bilek düşer, parmak uyuşması el sırtındadır.' }
 ];
 const CASE = { run: false, c: null, i: 0, miss: 0 };
 /* Acadex Medica: hastanın vakası ?medica=1&vaka=<id> ile açılır, bitince puan hastaneye gider */
 const MEDICA = /[?&]medica=1(&|$)/.test(location.search);
 function medicaBildir(o) { if (!MEDICA || window.parent === window) return; try { window.parent.postMessage(Object.assign({ src: 'axmedica', type: 'sonuc', lab: 'fizyo', tamam: true }, o), location.origin); } catch (e) {} }
+/* hastanede kurulan ev programı hastaya gider: öğrencinin kendi kayıtlı programına dokunulmaz */
+function medicaProg() { medicaBildir({ type: 'program', tamam: false, items: FZS.prog.items.map(i => { const e = FZ_EX.find(x => x.id === i.id) || {}; return { id: i.id, ad: e.ad || i.id, set: i.set, tekrar: i.tekrar, tut: i.tut }; }) }); }
 function renderCases() {
   $('#caseList').innerHTML = CASES.map(c => { const done = LS.get('caseDone', []).includes(c.id); return `<button class="case ${CASE.c === c && CASE.run ? 'on' : ''}" data-case="${c.id}"><span class="tg">${esc(c.tag)}</span><b>${esc(c.ad)}</b><small>${c.steps.length} adım${done ? ' · çözdün ✓' : ''}</small></button>${window.AXKLINIK && AXKLINIK.SEN['ana-' + c.id] ? `<button class="case-sahne" data-sahne-case="${c.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-6h6v6M12 7v4M10 9h4"/></svg>Hastayı karşıla · sahnede başla</button>` : ''}`; }).join('');
 }
@@ -4777,7 +4782,7 @@ function exCard() {
     <div><dt>İlerletme</dt><dd>${esc(e.ileri)}</dd></div><div><dt>Geriletme</dt><dd>${esc(e.geri)}</dd></div>
     <div><dt>Hedef kaslar</dt><dd><div class="parts">${e.la.map(la => `<button class="chip" data-fzla="${esc(la)}">${esc(TR[la] ? shortTR(TR[la].t) : la)}</button>`).join('')}</div></dd></div></dl>`;
 }
-const saveProg = () => LS.set('fzProg', FZS.prog);
+const saveProg = () => { if (MEDICA) { medicaProg(); return; } LS.set('fzProg', FZS.prog); };
 function addEx(id) {
   if (inProg(id)) { FZS.prog.items = FZS.prog.items.filter(i => i.id !== id); toast('Programdan çıkarıldı.'); }
   else { const e = FZ_EX.find(x => x.id === id); FZS.prog.items.push({ id, set: e.doz.set, tekrar: e.doz.tekrar, tut: e.doz.tut, yuk: e.doz.yuk, not: '' }); toast(e.ad + ' programa eklendi.', 'Programı gör', () => { setTab('prog'); $('#fzProg').scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }
@@ -5126,9 +5131,12 @@ function fzOverlay(r) {
   $('#loadBar').style.width = '100%'; setTimeout(() => $('#load').classList.add('done'), 250);
   renderLayers(); renderNotes(); setPins(); applyVis(); intro(); booted = true; renderTekrar(); renderCases(); renderHead(); fzBoot();
   /* Acadex Medica: ?fz=test:<id> özel testi, ?fz=prot:<id> protokolü açar (labs/klinik/senaryo-fizyo.js) */
-  if (MEDICA) { const fz = (new URLSearchParams(location.search).get('fz') || '').split(':'), mc = CASES.find(c => c.id === new URLSearchParams(location.search).get('vaka'));
-    if (fz[0] === 'test' && FZ_TESTS.some(t => t.id === fz[1])) { const t = FZ_TESTS.find(x => x.id === fz[1]); setMode('test'); FZS.tBol = t.bolge; FZS.tQ = ''; renderTests(); fzTest(t.id); medicaBildir({ vaka: t.id }); }
-    else if (fz[0] === 'prot' && FZ_PROT.some(x => x.id === fz[1])) { setMode('egz'); FZS.prot = fz[1]; FZS.protFaz = 0; setTab('prot'); renderProt(); medicaBildir({ vaka: fz[1] }); }
+  if (MEDICA) { const qs = new URLSearchParams(location.search), fz = (qs.get('fz') || '').split(':'), mc = CASES.find(c => c.id === qs.get('vaka'));
+    /* hastanın ev programı boş başlar; “Hastaya bildir” Acadex Medica'nın üst çubuğunda */
+    FZS.prog = { hasta: qs.get('hasta') || '', tani: '', hedef: '', sik: 'Haftada 3 gün', items: [] }; renderProg(); renderEx(); renderHead();
+    const exAd = {}; FZ_EX.forEach(e => { exAd[e.id] = e.ad; });
+    if (fz[0] === 'test' && FZ_TESTS.some(t => t.id === fz[1])) { const t = FZ_TESTS.find(x => x.id === fz[1]); setMode('test'); FZS.tBol = t.bolge; FZS.tQ = ''; renderTests(); fzTest(t.id); medicaBildir({ vaka: t.id, type: 'hazir', tamam: false, exAd }); }
+    else if (fz[0] === 'prot' && FZ_PROT.some(x => x.id === fz[1])) { setMode('egz'); FZS.prot = fz[1]; FZS.protFaz = 0; setTab('prot'); renderProt(); medicaBildir({ vaka: fz[1], type: 'hazir', tamam: false, exAd }); }
     else if (mc) { setMode('vaka'); await startCase(mc); } }
   window.__lab = { st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene };
   /* ===== MedLab köprüsü (27.10.2026) =====

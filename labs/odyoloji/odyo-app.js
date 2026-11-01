@@ -500,6 +500,9 @@
   var t0 = new URLSearchParams(location.search).get('tab') || ls.get('tab', 'kabin');
   /* Acadex Medica: hastanın dosyası ?vaka=<id> ile doğrudan açılır */
   var mv = MEDICA ? new URLSearchParams(location.search).get('vaka') : null;
+  /* Acadex Medica hastaya her ziyarette yeni ad verir (?ad=): kabin ve dosya aynı adı göstersin */
+  var mad = MEDICA ? new URLSearchParams(location.search).get('ad') : null;
+  if (mv && mad && caseOf(mv) && A.P[caseOf(mv).hasta]) A.P[caseOf(mv).hasta].ad = mad.slice(0, 30);
   if (mv && caseOf(mv)) { openCase(mv); t0 = 'vaka'; }
   if (['kabin', 'kulak', 'vaka'].indexOf(t0) >= 0) setTab(t0);
   bridgeSend();

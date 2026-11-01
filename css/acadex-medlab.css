@@ -314,3 +314,32 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
   #medlab-view.axm .axm-lab-tx{padding:0 0 18px}
   #medlab-view.axm .axm-lab-wide .axm-lab-t{font-size:24px}
 }
+
+/* ---------- canlı lab kartları (01.11.2026): her kapakta lab'in kendi işi ---------- */
+#medlab-view .axm-canli .ca-kat{letter-spacing:.06em}
+@media (prefers-reduced-motion:no-preference){
+  #medlab-view .canli-ana .ca-don{animation:ca-don 4s linear infinite;transform-box:fill-box;transform-origin:50% 50%}
+  #medlab-view .canli-ana .ca-tara{animation:ca-tara 2.6s ease-in-out infinite}
+  #medlab-view .canli-ana .ca-hal{animation:ca-hal 2.6s ease-out infinite;transform-box:fill-box;transform-origin:center}
+  #medlab-view .canli-fiz .cf-squat{animation:cf-squat 2.2s ease-in-out infinite}
+  #medlab-view .canli-fiz .cf-bacak{animation:cf-bacak 2.2s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 0}
+  #medlab-view .canli-ody .co-led{animation:co-led 1.4s steps(2) infinite}
+  #medlab-view .canli-ody .co-dial{animation:co-dial 5.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+  #medlab-view .canli-ody .co-bar{animation:co-bar 1.4s ease-out infinite;transform-box:fill-box;transform-origin:0 50%}
+  #medlab-view .canli-dyt .cd-buhar path{animation:cd-buhar 3s ease-in-out infinite}
+  #medlab-view .canli-dyt .cd-buhar path:nth-child(2){animation-delay:-1s}#medlab-view .canli-dyt .cd-buhar path:nth-child(3){animation-delay:-2s}
+  #medlab-view .canli-dyt .cd-kcal{animation:cd-kcal 3.6s ease-out infinite}
+  #medlab-view .canli-dkt .ck-bar rect{animation:ck-bar .9s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 50%}
+  #medlab-view button.axm-labb:hover .axm-canli *{animation-duration:.8s}
+}
+@keyframes ca-don{0%{transform:scaleX(1)}25%{transform:scaleX(.15)}50%{transform:scaleX(-1)}75%{transform:scaleX(.15)}100%{transform:scaleX(1)}}
+@keyframes ca-tara{0%,100%{transform:translateY(0);opacity:.2}50%{transform:translateY(140px);opacity:1}}
+@keyframes ca-hal{from{transform:scale(.6);opacity:1}to{transform:scale(1.25);opacity:0}}
+@keyframes cf-squat{0%,100%{transform:translateY(0)}50%{transform:translateY(22px)}}
+@keyframes cf-bacak{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.6)}}
+@keyframes co-led{50%{fill:#FFB547}}
+@keyframes co-dial{0%,100%{transform:rotate(-60deg)}50%{transform:rotate(80deg)}}
+@keyframes co-bar{from{transform:scaleX(.05)}to{transform:scaleX(1)}}
+@keyframes cd-buhar{0%{transform:translateY(8px);opacity:0}40%{opacity:.9}100%{transform:translateY(-22px);opacity:0}}
+@keyframes cd-kcal{0%{transform:translateY(10px);opacity:0}25%,70%{opacity:1}100%{transform:translateY(-20px);opacity:0}}
+@keyframes ck-bar{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
