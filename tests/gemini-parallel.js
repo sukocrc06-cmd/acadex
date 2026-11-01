@@ -54,6 +54,9 @@ function stubFetch(responses) {
     calls.push({ url, body: JSON.parse(options.body) });
     const next = queue.shift();
     if (!next) throw new Error('kukla fetch: beklenenden fazla cagri');
+    /* ZAMAN ASIMI TAKLIDI (01.11.2026): gercek kosuda fetch ABORT ile
+       FIRLATIYOR, status dondurmuyor — yedek yolu testi bunu gerektiriyor. */
+    if (next.throws) throw next.throws;
     return {
       ok: next.status >= 200 && next.status < 300,
       status: next.status,
@@ -232,15 +235,48 @@ test('groqViaGemini: gunluk kotada siradaki aday denenir', async () => {
 });
 
 /* Hepsi kotadaysa yine de gecerli JSON ve 4xx donmeli. */
-test('groqViaGemini: butun adaylar kotadaysa gecerli JSON doner', async () => {
+/* YEDEK YOLU: "CEVAP YOK" ISE GROQ DENENIR (01.11.2026, uc kosuda olculdu)
+
+   Eski surum bu halde 502 donduruyordu ve o 502 dogrudan cagirana gidiyordu,
+   yani fetchWithRetry'nin GERCEK Groq kolu hic denenmiyordu:
+     Gemini paralel: cagri butcesi doldu (15000ms, caginin zaman asimi 40000ms)
+       — kalan Gemini adaylari denenmiyor, Groq'a birakiliyor
+     Window 1 attempt 1 failed: Groq API error (502): {"error":{"message":
+       "Gemini paralel: hicbir model cevap vermedi (0: zaman asimi (15000ms))"}}
+     EKSIK BELGE: 2/2 pencere dustu [1,2] — 11138 karakter karta hic girmedi
+   Ogrenci kartta "eksik ozet: 2/2 pencere dustu" gordu. null artik
+   "ben yapamadim, sen dene" demek. */
+test('groqViaGemini: butun adaylar kotadaysa NULL doner (Groq denenebilsin)', async () => {
   G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
   stubFetch(Array.from({ length: 12 }, () => ({ status: 429, text: 'Quota exceeded for GenerateRequestsPerDay' })));
   try {
     const res = await quiet(() => G.groqViaGemini(groqBody(), 0, 5000));
-    assert.ok(res.status >= 400);
-    const data = await res.json();
-    assert.ok(data.error.message.length > 0);
+    assert.equal(res, null,
+      'cevap YOK halinde null donmeli — 502 cagiranin Groq kolunu kapatiyor');
   } finally { restoreFetch(); G.geminiKotaOlu.clear(); }
+});
+
+test('groqViaGemini: zaman asiminda da NULL doner', async () => {
+  /* Olculen hal tam buydu: zincir butcesi doldu, hicbir model cevap vermedi. */
+  G.geminiKotaOlu.clear(); G.geminiSorunlu.clear();
+  stubFetch(Array.from({ length: 12 }, () => ({ throws: new Error('zaman asimi (15000ms)') })));
+  try {
+    const res = await quiet(() => G.groqViaGemini(groqBody(), 0, 5000));
+    assert.equal(res, null, 'zaman asiminda null donmeli');
+  } finally { restoreFetch(); G.geminiKotaOlu.clear(); G.geminiSorunlu.clear(); }
+});
+
+test('fetchWithRetry NULL gelince GERCEK Groq yoluna geciyor', () => {
+  /* Kaynak kontrolu: yakalama null dondugunde asagidaki Groq dongusune
+     DUSMELI, erken return etmemeli. */
+  const SRC = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/const geminiCevabi = await groqViaGemini\(options, maxRetries, timeoutMs\)/.test(SRC),
+    'yakalama sonucu bir degiskene alinmali — dogrudan return Groq kolunu kapatiyor');
+  assert.ok(/if \(geminiCevabi\) return geminiCevabi/.test(SRC),
+    'yalnizca GERCEK cevap dondurulmeli');
+  assert.ok(!/if \(geminiDiriAdayVar\(\)\) return groqViaGemini/.test(SRC),
+    'eski dogrudan-return yolu geri gelmis — yedek yolu yine kopar');
 });
 
 test('groqViaGemini: cikti tavani finish_reason=length olarak isaretlenir', async () => {

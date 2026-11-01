@@ -161,6 +161,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'DIYAGRAM_BASLIK_ESIGI', 'DIYAGRAM_DUGUM_ESIGI', 'diagramDugumMetni',
   'kumeOrtusmesi', 'dedupeDiagrams',
   'DIYAGRAM_DUGUM_TEK_BASINA',
+  'DIYAGRAM_DUGUM_MIN_TERIM',
   'diagramDugumMetni',
   'PPTX_YARDIMCI_TEK_BASINA',
   // Tablo kopyasi (31.10.2026 olcumu).
@@ -10255,6 +10256,54 @@ test('transkript BIRLESIK metni olcum metnine yaziyor', () => {
   assert.ok(/olcumMetni = birlesik\.metin/.test(SRC), 'olcum metni birlesik degil');
   assert.ok(/transkript \+ \$\{birlesik\.ocrSayfa\} OCR sayfasi/.test(SRC),
     'kac sayfanin nereden geldigi loglanmiyor');
+});
+
+/* ==========================================================================
+   BASLIK TAMAMEN FARKLI OLABILIYOR (01.11.2026, Week 8 olcumu)
+
+   Ayni diyagram iki slaytta bambaska adla geldi:
+     DIYAGRAM 4  "Sign rule (Slide 23)"
+     DIYAGRAM 6  "Extremum pattern (Slide 27/28)"
+   Dugumleri BIREBIR ayni. Baslik terim kumeleri hic ortusmuyor, o yuzden
+   ne normal yol ne de kisa-baslik kolu birlestirmiyordu.
+   ========================================================================== */
+
+test('dugumleri BIREBIR ayni diyagramlar baslik farkli olsa da birlesiyor', () => {
+  const isaret = (ad) => ({
+    title: ad,
+    mermaid: 'graph LR\n    neg["-"] --> zero["0"]\n    zero --> pos["+"]\n    pos --> sonuc["- to +: local minimum"]',
+    description: 'Sign chart for a local minimum.'
+  });
+  const r = A.dedupeDiagrams([
+    isaret('Sign rule (Slide 23)'),
+    isaret('Extremum pattern (Slide 27/28)')
+  ]);
+  assert.equal(r.diagrams.length, 1,
+    'dugumleri ayni diyagramlar birlesmedi: ' + JSON.stringify(r.dropped));
+});
+
+test('AZ dugumlu diyagramlar tesadufen birlesmiyor', () => {
+  /* Iki-terimlik kumelerde 0,9 kolay saglanir; min terim kapisi korur. */
+  assert.equal(A.DIYAGRAM_DUGUM_MIN_TERIM, 3);
+  const r = A.dedupeDiagrams([
+    { title: 'Giris akisi', mermaid: 'graph LR\n    a --> b', description: 'Iki dugum.' },
+    { title: 'Cikis akisi', mermaid: 'graph LR\n    a --> b', description: 'Iki dugum.' }
+  ]);
+  assert.equal(r.diagrams.length, 2,
+    'az dugumlu ayri diyagramlar birlestirildi: ' + JSON.stringify(r.dropped));
+});
+
+test('dugumleri AYRIK diyagramlar baslik benzese de ayri kaliyor', () => {
+  const r = A.dedupeDiagrams([
+    { title: 'Sign rule (Slide 23)',
+      mermaid: 'graph LR\n    neg["-"] --> zero["0"]\n    zero --> pos["+"]\n    pos --> m["- to +: local minimum"]',
+      description: 'Minimum.' },
+    { title: 'Sign rule (Slide 25)',
+      mermaid: 'graph LR\n    artı["+"] --> sifir["0"]\n    sifir --> eksi["-"]\n    eksi --> mx["+ to -: local maximum"]',
+      description: 'Maximum.' }
+  ]);
+  assert.equal(r.diagrams.length, 2,
+    'minimum ve maximum isaret tablolari birlestirildi — ayri olgular');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
