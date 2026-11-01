@@ -162,6 +162,9 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'kumeOrtusmesi', 'dedupeDiagrams',
   // Tablo kopyasi (31.10.2026 olcumu).
   'TABLO_SATIR_ESIGI', 'TABLO_DEDUP_MIN_HUCRE', 'tabloHucreMetni', 'dedupeTables',
+  'TABLO_SAYI_ESIGI',
+  // Sozlukte parantezli ek (01.11.2026 olcumu).
+  'sozlukAnahtari', 'dedupeKeyTerms',
   // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
   'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
@@ -9771,6 +9774,101 @@ test('grup ve kuyruk IKISI DE bos ise gurultu eklenmiyor', () => {
   const r = A.metinTablosuKurtar(KAN_ATIK, [7777], [], 'tr');
   assert.deepEqual(r.tables, [], 'eksik sayi yokken tablo kuruldu');
   assert.deepEqual(r.kurtarilan, []);
+});
+
+/* ==========================================================================
+   EXCEL CIKTILARI KOPYA DEGIL (01.11.2026, IPPT kartinda olculdu)
+
+   Tablo dedupe ilk surumu yalnizca hucre METNINE bakiyordu ve kendi
+   regresyonunu uretti:
+     Tablo kopyasi birlestirildi: 3 dustu — "Excel Example (Slide 3)" |
+       "Excel Example (Slide 4)" | "Utility Bill vs. Temperature (Slide 5)"
+   Bunlar kopya DEGILDI. Her slaytin "Regression Statistics" tablosu ayni
+   etiketleri tasiyor ama sayilari farkli — onceki kosuda 12 tablo vardi,
+   bu kosuda 9 kaldi, yani VERI KAYBI.
+   ========================================================================== */
+
+const regStat = (ad, mr, rsq, adj, se) => ({
+  title: ad,
+  headers: ['Regression Statistics', ''],
+  rows: [
+    ['Multiple R', String(mr)], ['R Square', String(rsq)],
+    ['Adjusted R Square', String(adj)], ['Standard Error', String(se)],
+    ['Observations', '34']
+  ]
+});
+
+test('ayni etiketli AYRI Excel tablolari ikisi de kaliyor', () => {
+  const r = A.dedupeTables([
+    regStat('Excel Example (Slide 1)', 0.452555095, 0.204806114, 0.179956305, 3.483165891),
+    regStat('Excel Example (Slide 3)', 0.523549316, 0.274103886, 0.201514275, 3.43707683),
+    regStat('Excel Example (Slide 4)', 0.549335386, 0.301769367, 0.177085325, 3.48925786)
+  ]);
+  assert.equal(r.tables.length, 3,
+    'ayni etiketli ayri tablolar birlestirildi: ' + JSON.stringify(r.dropped));
+  assert.deepEqual(r.dropped, []);
+});
+
+test('ayni tablonun GERCEK kopyasi yine dusuyor', () => {
+  /* Sayilar birebir ayni: ortusme 1,0 — birlesmeli. */
+  const a = regStat('Excel Example (Slide 1)', 0.452555095, 0.204806114, 0.179956305, 3.483165891);
+  const b = regStat('Excel Example Regression Statistics (Slide 1)', 0.452555095, 0.204806114, 0.179956305, 3.483165891);
+  b.rows = b.rows.concat([['F', '8.24175809']]);
+  const r = A.dedupeTables([a, b]);
+  assert.equal(r.tables.length, 1, 'gercek kopya birlesmedi');
+  assert.equal(r.tables[0].rows.length, 6, 'dolu kopya tutulmadi');
+});
+
+test('SAYI tasimayan tablolarda olcut hucre metnine kaliyor', () => {
+  /* Hematopoietik buyume faktorleri cifti: hucreler metin, sayi yok. */
+  const r = A.dedupeTables([
+    buyumeTablosu('İnsan hematopoietik büyüme faktörleri', 'IFN-y (İnterferon- y)', false),
+    buyumeTablosu('İnsan hematopoetik büyüme faktörleri (Slide 9)', 'IFN-γ (İnterferon- γ)', true)
+  ]);
+  assert.equal(r.tables.length, 1, 'sayisiz ikiz tablo birlesmedi');
+});
+
+test('sayi ortusmesi esigi kaynakta duruyor', () => {
+  assert.equal(A.TABLO_SAYI_ESIGI, 0.6);
+  assert.ok(/aday\.say\.size > 0 && kept\[i\]\.say\.size > 0/.test(SRC),
+    'sayi sarti yalnizca IKI tablo da sayi tasidiginda uygulanmali');
+});
+
+/* ==========================================================================
+   PARANTEZLI EK AYNI KAVRAM (01.11.2026, IPPT Turkce kartinda olculdu)
+
+   Sozlukte ayni kavram iki kez durdu:
+     "Etkilesim Terimi (Interaction Effect)"  ve  "Etkilesim Terimi"
+   Anahtar term'in TAMAMI oldugu icin ikisi ayri goruldu.
+   ========================================================================== */
+
+test('parantezli ek ayri kavram sayilmiyor, DOLU kayit kaliyor', () => {
+  const r = A.dedupeKeyTerms([
+    { term: 'Etkileşim Terimi (Interaction Effect)',
+      definition: 'İki farklı bağımsız değişkenin çarpımı olup, nicel bir değişkenin eğimini değiştirir.' },
+    { term: 'Etkileşim Terimi',
+      definition: 'İki bağımsız değişkenin çarpımıdır.' }
+  ]);
+  assert.equal(r.length, 1, 'parantezli ikiz kavram birlesmedi: ' + JSON.stringify(r.map((x) => x.term)));
+  assert.equal(r[0].term, 'Etkileşim Terimi (Interaction Effect)',
+    'dolu kayit yerine kisa olani tutuldu: ' + r[0].term);
+});
+
+test('parantez icerigi AYIRT EDICI ise kavramlar ayri kaliyor', () => {
+  /* Kapi fazla genis olmamali: ad parantezsiz halde de farkliysa ayri. */
+  const r = A.dedupeKeyTerms([
+    { term: 'Vitamin B12 (kobalamin)', definition: 'DNA sentezi icin gerekli.' },
+    { term: 'Vitamin B6 (piridoksin)', definition: 'Eritropoez icin gerekli.' }
+  ]);
+  assert.equal(r.length, 2, 'ayri vitaminler birlestirildi');
+});
+
+test('sozlukAnahtari parantezi soyuyor, adi bozmuyor', () => {
+  assert.equal(A.sozlukAnahtari('Etkileşim Terimi (Interaction Effect)'), 'etkileşim terimi');
+  assert.equal(A.sozlukAnahtari('Nitel Açıklayıcı Değişken (Dummy Değişken)'), 'nitel açıklayıcı değişken');
+  assert.equal(A.sozlukAnahtari('Viskozite'), 'viskozite');
+  /* Tamami parantezli ad bos anahtar uretmemeli — cagiran yedege dusuyor. */
+  assert.equal(A.sozlukAnahtari('(EPO)'), '');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

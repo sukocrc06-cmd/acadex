@@ -49,7 +49,7 @@ const NAMES = [
   'geminiAkisDurumu', 'geminiSseBlogunuIsle', 'geminiAkisiTuket',
   'geminiAkisIstegi', 'geminiAkisSonucu', 'geminiAkisiDevamEttir',
   'closeTruncatedJson', 'LATEX_IKI_HARFLI', 'repairLatexEscapes', 'geminiAkisOlcumu', 'onbellegeYazilabilir', 'onbellekKayitTuru', 'onbellekUzerineYaz', 'kismiKayitSebebi', 'maddeMetni',
-  'dedupeByText', 'dedupeKeyTerms', 'normalizeForDedup', 'NEAR_DUP_THRESHOLD'
+  'dedupeByText', 'sozlukAnahtari', 'dedupeKeyTerms', 'normalizeForDedup', 'NEAR_DUP_THRESHOLD'
 ];
 
 // Deno global'i: cikarilan kod Deno.env.get cagiriyor. Node'da yok, kukla.

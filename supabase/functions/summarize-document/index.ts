@@ -3187,14 +3187,36 @@ function maddeMetni(p: any): string {
  * Artik dizge girdi {term, definition:''} olarak normalize ediliyor ve
  * gercekten atilan kayit SAYILIP loglaniyor. Tanimsiz terim karta girebilir;
  * cloze uretimi onlari zaten atliyor, sessiz kaybetmek daha kotu. */
+/* PARANTEZLI EK AYNI KAVRAM (01.11.2026, IPPT Turkce kartinda olculdu).
+ *
+ * Sozlukte ayni kavram iki kez durdu:
+ *   "Etkilesim Terimi (Interaction Effect)"
+ *   "Etkilesim Terimi"
+ * Anahtar term'in tamami oldugu icin ikisi ayri goruldu. Parantez icindeki
+ * ek genellikle cevirisi ya da esanlami — kavramin kendisi degil.
+ * Anahtar artik parantezsiz; DAHA DOLU kayit kaliyor (parantezli ad
+ * ogrenciye Ingilizce karsiligi da veriyor), sira bozulmuyor —
+ * dedupeDiagrams/dedupeTables ile ayni durus. */
+function sozlukAnahtari(ad: string): string {
+  return String(ad || '')
+    .replace(/\s*[([][^)\]]*[)\]]\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
 function dedupeKeyTerms(terms: any[]): any[] {
   const seen = new Map<string, any>()
   let atilan = 0
   for (const t of terms) {
     const kayit = typeof t === 'string' ? { term: t, definition: '' } : t
     if (!kayit || !kayit.term) { if (t != null) atilan++; continue }
-    const key = String(kayit.term).trim().toLowerCase()
-    if (!seen.has(key)) seen.set(key, kayit)
+    const key = sozlukAnahtari(kayit.term) || String(kayit.term).trim().toLowerCase()
+    const onceki = seen.get(key)
+    if (!onceki) { seen.set(key, kayit); continue }
+    const dolu = (x: any) =>
+      String(x?.term || '').length + String(x?.definition || '').length
+    if (dolu(kayit) > dolu(onceki)) seen.set(key, kayit)
   }
   if (atilan > 0) {
     console.warn(`dedupeKeyTerms: ${atilan} kayit 'term' alani olmadigi icin atildi`)
@@ -3562,6 +3584,27 @@ function dedupeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: string[] }
  * satir tasiyor (IFN-γ, IL-* satirlari), dedupeDiagrams ile ayni durus. */
 const TABLO_SATIR_ESIGI = 0.6
 const TABLO_DEDUP_MIN_HUCRE = 4
+/* SAYILAR DA ORTUSMELI (01.11.2026, IPPT kartinda olculdu — kendi
+ * regresyonum).
+ *
+ * Ilk surum yalnizca hucre METNINE bakiyordu ve Excel ciktilarini birbirine
+ * karistirdi. Olculen kosu:
+ *   Tablo kopyasi birlestirildi: 3 dustu — "Excel Example (Slide 3)" |
+ *     "Excel Example (Slide 4)" | "Utility Bill vs. Temperature (Slide 5)"
+ * Bunlar KOPYA DEGILDI. Her slaytin "Regression Statistics" tablosu ayni
+ * ETIKETLERI tasiyor (Multiple R, R Square, Adjusted R Square, Standard
+ * Error, Observations) ama SAYILARI farkli:
+ *   Slide 1: 0.452555095 / 0.204806114 / 3.483165891 / 34
+ *   Slide 3: 0.523549316 / 0.274103886 / 3.43707683  / 34
+ * Metin ortusmesi 1'e yakin, demek ki metin tek basina karar veremiyor.
+ *
+ * sayiKumesiAyrik YETMEDI: "Observations 34" ikisinde de var, yani kumeler
+ * tam ayrik degil. Olcut ORAN: paylasilan sayi / en kucuk kume. Slide 1 ile
+ * Slide 3 arasinda 1/5 = 0,2; gercek kopyada sayilar birebir ayni, yani 1,0.
+ * Sayi tasimayan tablolarda (hematopoietik buyume faktorleri) olcut
+ * uygulanamiyor ve karar hucre metnine kaliyor — o cift zaten dogru
+ * birlesiyordu. */
+const TABLO_SAYI_ESIGI = 0.6
 
 /** Tablonun butun hucreleri tek metin: baslik ve basliklar DISARIDA. */
 function tabloHucreMetni(tb: any): string {
@@ -3576,16 +3619,24 @@ function tabloHucreMetni(tb: any): string {
 
 function dedupeTables(tables: any[]): { tables: any[]; dropped: string[] } {
   const list = Array.isArray(tables) ? tables : []
-  type Tutulan = { tb: any; huc: Set<string>; uz: number }
+  type Tutulan = { tb: any; huc: Set<string>; say: Set<string>; uz: number }
   const kept: Tutulan[] = []
   const dropped: string[] = []
   for (const tb of list) {
     const hucMetin = tabloHucreMetni(tb)
-    const aday: Tutulan = { tb, huc: nearDupTermSet(hucMetin), uz: hucMetin.length }
+    const aday: Tutulan = {
+      tb,
+      huc: nearDupTermSet(hucMetin),
+      say: new Set(distinctiveNumbers(hucMetin).map((v: number) => String(Math.abs(v)))),
+      uz: hucMetin.length
+    }
     let es = -1
     for (let i = 0; i < kept.length; i++) {
       if (aday.huc.size < TABLO_DEDUP_MIN_HUCRE || kept[i].huc.size < TABLO_DEDUP_MIN_HUCRE) continue
       if (kumeOrtusmesi(aday.huc, kept[i].huc) < TABLO_SATIR_ESIGI) continue
+      /* Iki tablo da sayi tasiyorsa sayilar da ortusmeli — bkz. ustteki not. */
+      if (aday.say.size > 0 && kept[i].say.size > 0 &&
+          kumeOrtusmesi(aday.say, kept[i].say) < TABLO_SAYI_ESIGI) continue
       es = i
       break
     }
@@ -8716,9 +8767,22 @@ function anchorCitations(
      sonra ifade basliyor — harfle de ("λ Kalp") yuzdeyle de ("λ %10u
      ise organik..."). Tire kuralindaki ayni durus. */
   const ETIKET_IM_RE = /^(?:[\s\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]+|[\u2013\u2014*-]+(?=\s)|\u03bb(?=\s+[^\s\d=]))+/u
+  /* MARKDOWN TABLO SATIRI ETIKET OLABILIYOR (01.11.2026, Kan kartinda
+     olculdu). Alinti motoru belgedeki tablo satirini sectiginde kaynakca
+     girdisi boru isaretleriyle doluydu:
+       [9] | • albumin | %4,5 g | •plazma elemanlarini baglama |
+     Satirin KENDISI dogru ve okunur bir kaynak; atilmasi atfi kaybettirir.
+     O yuzden atilmiyor, TEMIZLENIYOR: bastaki/sondaki boru, hucre
+     aralarindaki madde imi ve ikili bosluk gidiyor. Hucre siniri olarak
+     boru DURUYOR — "albumin | %4,5 g | plazma elemanlarini baglama"
+     ogrencinin belgede gordugu hizalamayi koruyor. */
   const etiketiTemizle = (s: string) =>
     String(s || '')
+      .replace(/^[|\s]+/, '')
+      .replace(/[|\s]+$/, '')
       .replace(ETIKET_IM_RE, '')
+      .replace(/\|\s*[\u2022\u00b7\u25cf\u25aa\u25e6\u2023\u2043]\s*/g, '| ')
+      .replace(/[ \t]{2,}/g, ' ')
       .replace(/[\s:;,]+$/, '')
       .trim()
 

@@ -1431,4 +1431,34 @@ test('zaten COKLU atif tasiyan madde ikinci kez atif almiyor', () => {
     'atifsiz madde atif alamadi: ' + metni(r.key_points[1]));
 });
 
+/* ==========================================================================
+   MARKDOWN TABLO SATIRI ETIKET OLABILIYOR (01.11.2026, Kan kartinda olculdu)
+
+   Alinti motoru belgedeki tablo satirini sectiginde kaynakca girdisi boru
+   isaretleriyle doluydu:
+     [9] | • albumin | %4,5 g | •plazma elemanlarini baglama |
+   Satirin kendisi dogru bir kaynak, o yuzden atilmiyor; temizleniyor.
+   ========================================================================== */
+
+test('kaynakca etiketinde markdown borusu ve ic madde imi temizleniyor', () => {
+  const BELGE = [
+    '--- SAYFA 21 ---',
+    '| • albumin | %4,5 g | •plazma elemanlarını bağlama |',
+    '--- SAYFA 23 ---',
+    'Plazma inorganik bileşenler sodyum ve klor içerir.'
+  ].join('\n');
+  const idx = A.buildPageIndex(BELGE, 'SAYFA');
+  const r = A.anchorCitations(
+    ['Albumin plazma elemanlarını bağlama görevi yapar ve %4,5 g oranındadır'],
+    [], idx, 'tr'
+  );
+  const ref = String((r.footnotes[0] || {}).reference || '');
+  assert.ok(ref.length > 0, 'dipnot uretilmedi');
+  assert.ok(!/^\|/.test(ref), 'bastaki boru atilmadi: ' + ref);
+  assert.ok(!/\|\s*$/.test(ref), 'sondaki boru atilmadi: ' + ref);
+  assert.ok(!/[\u2022]/.test(ref), 'ic madde imi kaldi: ' + ref);
+  /* Hucre siniri olarak boru DURUYOR — belgedeki hizalama korunuyor. */
+  assert.ok(/albumin/.test(ref) && /4,5/.test(ref), 'icerik kaybi: ' + ref);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
