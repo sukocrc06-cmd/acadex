@@ -6201,7 +6201,17 @@ test('ONBELLEK ACIK ve anahtar TEK', () => {
      olmadigi icin kazanc kullanicilar arasinda ortak.
      Kalite isine DONULURSE bu satir false'a cekilmez, SUMMARY_CACHE_VERSION
      artirilir ('c2' -> 'c3'); olcum yolu zaten yenile=true ile acik
-     (bkz. 'YENIDEN OZETLEME ACIK ve MODALSIZ'). */
+     (bkz. 'YENIDEN OZETLEME ACIK ve MODALSIZ').
+
+     CANLIDA OLCULDU (01.11.2026, Chp8 - Conformity.pdf, 78 sayfa, ayni
+     dosya iki kez yuklendi, ayni ayarlar en:standard:medium:v:c2):
+       15:18:36 Istek alindi: documentId=b867f3de…
+       15:18:59 summary_cache yazildi [TAM]: 2 satir
+       15:19:31 Istek alindi: documentId=4cb5ef76…
+       15:19:33 CACHE ISABETI [DOSYA]: 796cbdaf0c519615be… — 2131ms, model cagrisi yok
+     Fonksiyon suresi 22,5 sn -> 2,13 sn. Tek kosu IKI satir yazdi (dosya
+     hash'i + 't' onekli metin hash'i), iki kartin summary md5'i ayni:
+     d6fe0fdd0b53a45f58c65ce6f2ced57e — yani kart uretilmedi, SERVIS EDILDI. */
   assert.equal(A.SUMMARY_CACHE_ACIK, true, 'onbellek kapali kalmis');
   // Surum ve mantik SILINMEDI: geri kapatmak da tek satir olmali.
   assert.equal(typeof A.SUMMARY_CACHE_VERSION, 'string');
