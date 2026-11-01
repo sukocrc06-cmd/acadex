@@ -343,3 +343,42 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 @keyframes cd-buhar{0%{transform:translateY(8px);opacity:0}40%{opacity:.9}100%{transform:translateY(-22px);opacity:0}}
 @keyframes cd-kcal{0%{transform:translateY(10px);opacity:0}25%,70%{opacity:1}100%{transform:translateY(-20px);opacity:0}}
 @keyframes ck-bar{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
+
+/* ---------- Eczacılık ve Hemşirelik kapakları (01.11.2026) ---------- */
+#medlab-view.axm .axm-cover-ecz{background:#F7F4FB}#medlab-view.axm .axm-cover-hem{background:#F4F8FC}
+#medlab-view.axm .axm-ecz,#medlab-view.axm .axm-hem{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+#medlab-view.axm button.axm-labb:hover .axm-ecz,#medlab-view.axm button.axm-labb:focus-visible .axm-ecz,#medlab-view.axm button.axm-labb:hover .axm-hem,#medlab-view.axm button.axm-labb:focus-visible .axm-hem{transform:scale(1.04)}
+#medlab-view.axm .axm-ecz g,#medlab-view.axm .axm-hem g{transform-box:fill-box}
+@media (prefers-reduced-motion:no-preference){
+  #medlab-view.axm .axm-ecz .ecz-tok{transform-origin:50% 100%;animation:ecz-tok 1.6s ease-in-out infinite}
+  #medlab-view.axm .axm-ecz .ecz-arti{transform-origin:50% 50%;animation:ecz-arti 2.6s ease-in-out infinite}
+  #medlab-view.axm .axm-ecz .ecz-goz{transform-origin:50% 50%;animation:med-goz 4.2s ease-in-out infinite}
+  #medlab-view .canli-ecz .ce-tara{animation:ce-tara 2.8s ease-in-out infinite}
+  #medlab-view .canli-ecz .ce-onay{transform-origin:50% 50%;animation:ce-onay 2.8s ease-out infinite}
+  #medlab-view .canli-ecz .ce-hap{animation:ce-hap 2.2s ease-in infinite}
+  #medlab-view.axm .axm-hem .hem-kalp{transform-origin:50% 60%;animation:hem-atim 1s ease-in-out infinite}
+  #medlab-view.axm .axm-hem .hem-nefes{transform-origin:50% 100%;animation:med-nefes 3.4s ease-in-out infinite}
+  #medlab-view .canli-hem .ch-ekg{stroke-dasharray:100;animation:ch-ekg 2s linear infinite}
+}
+@keyframes ecz-tok{0%,100%{transform:rotate(0)}50%{transform:rotate(-12deg) translateY(8px)}}
+@keyframes ecz-arti{0%,100%{filter:none}50%{filter:drop-shadow(0 0 10px rgba(31,155,98,.8))}}
+@keyframes ce-tara{0%,100%{transform:translateY(0);opacity:.2}50%{transform:translateY(70px);opacity:1}}
+@keyframes ce-onay{0%,55%{transform:scale(0);opacity:0}70%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes ce-hap{0%{transform:translateY(-40px);opacity:0}20%{opacity:1}70%{transform:translateY(50px);opacity:1}100%{transform:translateY(60px);opacity:0}}
+@keyframes hem-atim{0%,100%{transform:scale(1)}15%{transform:scale(1.07)}30%{transform:scale(1)}45%{transform:scale(1.04)}}
+@keyframes ch-ekg{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+
+/* ---------- 3B kampüs girişi (01.11.2026): labs/kampus/index.html iframe'i; liste görünümünde lab kartları ---------- */
+#medlab-view.axm .axm-kampus{display:none;margin:4px 0 18px}
+#medlab-view.axm.axm-3b .axm-kampus{display:block}
+#medlab-view.axm.axm-3b .axm-tray,#medlab-view.axm.axm-3b .axm-cite{display:none}
+#medlab-view.axm .axm-kampus-bar,#medlab-view.axm .axm-liste-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+#medlab-view.axm .axm-kampus-bar .hand,#medlab-view.axm .axm-liste-bar .hand{font-size:20px;color:#46506A}
+#medlab-view.axm .axm-kampus-gec{min-height:40px;padding:0 14px;border:1.5px solid #0D1838;border-radius:999px;background:#fff;font:700 13.5px 'Instrument Sans',system-ui,sans-serif;color:#0D1838;cursor:pointer}
+#medlab-view.axm .axm-kampus-gec:hover{background:#0D1838;color:#fff}
+#medlab-view.axm .axm-kampus-k{position:relative}
+#medlab-view.axm .axm-kampus-fr{display:block;width:100%;height:860px;border:0;background:transparent}
+#medlab-view.axm .axm-kampus-on{position:absolute;inset:0 0 auto;height:min(560px,70vw);display:grid;place-items:center;border-radius:22px;background:url(../labs/kampus/kampus-onizleme.webp) center/cover no-repeat,#DCE8F1}
+#medlab-view.axm .axm-kampus-on[hidden]{display:none}
+#medlab-view.axm .axm-kampus-on span{padding:8px 16px;border-radius:999px;background:rgba(255,255,255,.88);font-size:20px;color:#0D1838}
+@media (max-width:760px){#medlab-view.axm .axm-kampus-fr{height:1100px}#medlab-view.axm .axm-kampus-on{height:110vw}}

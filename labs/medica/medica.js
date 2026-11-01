@@ -169,8 +169,8 @@
       '<text x="388" y="392" text-anchor="middle" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="20" font-weight="800" fill="#0D1838">Danışma</text>' +
       '<rect x="560" y="276" width="56" height="42" rx="4" fill="#2E3A5C"/><rect x="565" y="281" width="46" height="30" rx="2" fill="#7FE0C2" class="ekr"/><rect x="584" y="311" width="8" height="8" fill="#2E3A5C"/></g>';
     /* kat panosu */
-    s += '<g transform="translate(668 132)"><rect width="150" height="196" rx="10" fill="#FFFFFF" stroke="#C7CFDD" stroke-width="3"/><text x="14" y="26" font-family="JetBrains Mono,monospace" font-size="12" font-weight="700" fill="#46506A" letter-spacing="2">KATLAR</text>' +
-      V.KAT.slice().reverse().map(function (k, i) { return '<g transform="translate(12 ' + (40 + i * 30) + ')"><rect width="24" height="22" rx="5" fill="' + k.renk + '"/><text x="12" y="16" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#fff">' + k.no + '</text><text x="32" y="16" font-size="11.5" font-weight="700" fill="#0D1838" font-family="Instrument Sans,sans-serif">' + X(k.ad.length > 15 ? k.ad.slice(0, 14) + '…' : k.ad) + '</text></g>'; }).join('') + '</g>';
+    var ph = V.KAT.length > 5 ? 22 : 30; s += '<g transform="translate(668 ' + (V.KAT.length > 5 ? 112 : 132) + ')"><rect width="150" height="' + (52 + V.KAT.length * ph) + '" rx="10" fill="#FFFFFF" stroke="#C7CFDD" stroke-width="3"/><text x="14" y="26" font-family="JetBrains Mono,monospace" font-size="12" font-weight="700" fill="#46506A" letter-spacing="2">KATLAR</text>' +
+      V.KAT.slice().reverse().map(function (k, i) { return '<g transform="translate(12 ' + (40 + i * ph) + ')"><rect width="24" height="' + (ph - 4) + '" rx="5" fill="' + k.renk + '"/><text x="12" y="' + (ph - 8) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#fff">' + k.no + '</text><text x="32" y="' + (ph - 8) + '" font-size="11.5" font-weight="700" fill="#0D1838" font-family="Instrument Sans,sans-serif">' + X(k.ad.length > 15 ? k.ad.slice(0, 14) + '…' : k.ad) + '</text></g>'; }).join('') + '</g>';
     s += asansorKapi(846, 176, 'G');
     s += bitki(296, 430, .9) + bitki(990, 430, .8);
     s += cerrah({ x: 520, y: 520, sc: 1.05, cls: 'gelis' });
@@ -634,14 +634,14 @@
   /* =========================== acil kod (nöbette süreli olay) =========================== */
   var kodBasla = function () {
     var n = S.nobet; if (!n || !n.kod || n.kod.bitti) return;
-    var KD = V.KOD[n.kod.tip], kat = V.katBul(n.kat), dogru = KD.adimlar.slice(), karisik = dogru.slice();
+    var KD = V.KOD[n.kod.tip], kat = V.katBul(n.kat), KA = V.kodAdim(n.kod.tip, n.kat), dogru = KA.adimlar.slice(), karisik = dogru.slice();
     var guv = 0; do { karisik.sort(function () { return Math.random() - 0.5; }); guv++; } while (karisik.join() === dogru.join() && guv < 9);
     var hata = 0, adim = 0, kalan = KD.sure, bitti = false;
     S.olay = 'kod'; bridge();
     var ov = D.createElement('div'); ov.className = 'md-kod'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-labelledby', 'md-kod-t'); ov.style.setProperty('--kr', KD.renk);
     ov.innerHTML = '<div class="kd-isik" aria-hidden="true"><i></i><i></i></div><div class="kd-k"><div class="kd-u"><span class="kd-rozet">' + X(KD.ad.toLocaleUpperCase('tr')) + '</span><h2 id="md-kod-t">' + X(KD.ad) + ' · ' + kat.no + '. kat</h2>' +
       '<svg class="kd-sure" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" fill="none" stroke="#E3E8EE" stroke-width="5"/><circle class="kd-hal" cx="22" cy="22" r="19" fill="none" stroke="var(--kr)" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" transform="rotate(-90 22 22)"/><text x="22" y="27" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#0D1838">' + kalan + '</text></svg></div>' +
-      '<p class="kd-olay">' + X(KD.olay) + '</p><p class="kd-yon"><b>Doğru sırayla</b> adımlara dokun. Yanlış adım süre ve puan kaybettirir.</p>' +
+      (KA.rol ? '<p class="kd-rol"><b>Rolün:</b> ' + X(KA.rol) + '</p>' : '') + '<p class="kd-olay">' + X(KD.olay) + '</p><p class="kd-yon"><b>Doğru sırayla</b> adımlara dokun. Yanlış adım süre ve puan kaybettirir.</p>' +
       '<ol class="kd-sira" aria-label="Seçtiğin sıra"></ol><div class="kd-ad">' + karisik.map(function (t) { return '<button type="button" data-kd="' + X(t) + '">' + X(t) + '</button>'; }).join('') + '</div><p class="kd-fb" aria-live="polite"></p>' +
       '<div class="md-row"><button type="button" class="md-btn" data-kd-ekip>Ekip devralsın</button></div></div>';
     D.body.appendChild(ov);
@@ -653,7 +653,7 @@
       var p = V.kodPuan(hata, sureBitti); n.kod.puan = p; n.kod.hata = hata; n.kod.kalan = kalan; n.kod.bitti = true; kaydet();
       ov.classList.add('bitti');
       $('.kd-k', ov).innerHTML = '<span class="k">' + X(KD.ad) + ' · sonuç</span><h2 id="md-kod-t">' + (sureBitti ? 'Süre doldu, ekip devraldı' : 'Olay yönetildi') + '</h2>' + damga(p) +
-        '<p class="sub">' + hata + ' yanlış adım · ' + (sureBitti ? 'süre doldu' : kalan + ' saniye kala bitti') + '</p><h3>Doğru sıra</h3><ol class="kd-dogru">' + dogru.map(function (t) { return '<li>' + X(t) + '</li>'; }).join('') + '</ol><p class="not">' + X(KD.not) + '</p>' +
+        '<p class="sub">' + hata + ' yanlış adım · ' + (sureBitti ? 'süre doldu' : kalan + ' saniye kala bitti') + '</p><h3>Doğru sıra</h3><ol class="kd-dogru">' + dogru.map(function (t) { return '<li>' + X(t) + '</li>'; }).join('') + '</ol><p class="not">' + X(KA.not) + '</p>' +
         '<div class="md-row"><button type="button" class="md-btn pri" data-kd-kapat>Nöbete dön →</button></div>';
       odak($('[data-kd-kapat]', ov));
     };
