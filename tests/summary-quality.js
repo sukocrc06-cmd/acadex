@@ -6193,9 +6193,17 @@ test('GORSEL GECIS de kesik JSON kurtariyor', () => {
 
 console.log('\nONBELLEK ANAHTARI\n');
 
-test('ONBELLEK KAPALI ve anahtar TEK', () => {
-  assert.equal(A.SUMMARY_CACHE_ACIK, false, 'onbellek acik kalmis');
-  // Surum ve mantik SILINMEDI: geri acmak tek satir olmali.
+test('ONBELLEK ACIK ve anahtar TEK', () => {
+  /* 01.11.2026: 30.10'da kalite calismasi icin kapatilmisti; o kosul bitti
+     (hat dort belgede temiz) ve summary_cache 0 satirdi, yani bayat kart
+     riski yoktu. Acik olmasi urun tarafinda dogrudan maliyet dusuruyor:
+     ayni dosyanin ikinci ozeti model cagrisi yapmiyor ve anahtarda user_id
+     olmadigi icin kazanc kullanicilar arasinda ortak.
+     Kalite isine DONULURSE bu satir false'a cekilmez, SUMMARY_CACHE_VERSION
+     artirilir ('c2' -> 'c3'); olcum yolu zaten yenile=true ile acik
+     (bkz. 'YENIDEN OZETLEME ACIK ve MODALSIZ'). */
+  assert.equal(A.SUMMARY_CACHE_ACIK, true, 'onbellek kapali kalmis');
+  // Surum ve mantik SILINMEDI: geri kapatmak da tek satir olmali.
   assert.equal(typeof A.SUMMARY_CACHE_VERSION, 'string');
   assert.match(A.SUMMARY_CACHE_VERSION, /^c\d+$/);
 });
@@ -6238,8 +6246,9 @@ test('YENIDEN OZETLEME ACIK ve MODALSIZ', () => {
 });
 
 test('INK dugmesi HER KENDI KARTINDA cikiyor', () => {
-  /* Onbellek kapaliyken cache_kismi hic yazilmiyor, yani eski kosul
-     (yenileCikisi) dugmeyi neredeyse hep gizlerdi. */
+  /* 01.11.2026: onbellek acildi, yani cache_kismi yeniden yazilabiliyor ve
+     eski kosul (yenileCikisi) dugmeyi tekrar gizlemeye baslardi. Dugme o
+     kosuldan koparildigi icin davranis degismiyor. */
   const ink = jsOku('js/acadex-ink.js');
   assert.match(ink, /if \(window\.YENIDEN_OZETLE_ACIK && own && c\.document_id\) \{/,
     'dugme hala kismi kart kosuluna bagli');

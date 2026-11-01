@@ -17537,23 +17537,35 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
    Surum artarsa butun satirlar gecersiz olur — kasitli: bir sonraki okuma
    yeni hattan geciyor. "yeniden ozetle" su an kapali oldugu icin
    (YENIDEN_OZETLE_ACIK) kullanicinin baska bir tazeleme yolu da yok. */
-/* ONBELLEK DONDURULDU (30.10.2026, Berkay'in karari).
+/* ONBELLEK ACIK (01.11.2026, Berkay'in karari).
  *
- * Su an ozet KALITESI uzerinde calisiliyor ve ayni belgeyi tekrar tekrar
- * ozetleyip ilerlemeyi gormek gerekiyor. Onbellek bunu imkansiz kiliyordu:
- * anahtarin cekirdegi sha256(fileBytes), yani ayni dosya hat ne kadar
- * iyilesse de eski satiri getiriyor (bkz. SURUM 'c2' notu).
+ * 30.10'da ozet KALITESI uzerinde calisildigi icin donduruldu: anahtarin
+ * cekirdegi sha256(fileBytes), yani ayni dosya hat ne kadar iyilesse de
+ * eski satiri getiriyordu. O kosul bitti — hat dort test belgesinde temiz
+ * ve acik bir kusur kalmadi.
  *
- * Kapali oldugunda: okuma yok, yazma yok. Her kosu sifirdan.
+ * SIMDI ACMANIN BAYAT KART RISKI YOK: summary_cache 01.11.2026'da 0 satir
+ * olculdu. Bugunden sonra yazilan her satir bugunun hattindan cikiyor.
  *
- * BEDELI BILINCLI:
- *  - Ayni dosyanin ikinci ozeti yine tam ucreti odiyor (~15-90 sn + kota).
- *  - OCR metni de bu tabloda duruyordu (bkz. onbellektenOcrMetni), yani
- *    taranmis belgeler her kosuda yeniden OCR'a gidiyor (olculen: 47-50 sn).
+ * KAZANC:
+ *  - Ayni dosyanin ikinci ozeti model cagrisi YAPMIYOR (~2 sn).
+ *  - Anahtarda user_id YOK: ayni dosyayi yukleyen ikinci kullanici da
+ *    bedava alir. Gizlilik acisindan guvenli, cunku anahtar icerik
+ *    hash'i — baskasinin kartini almanin tek yolu ayni icerige sahip olmak.
+ *  - OCR metni de bu tabloda (bkz. onbellektenOcrMetni): taranmis belgeler
+ *    her kosuda yeniden OCR'a gitmiyor (olculen: 47-50 sn).
  *
- * Kalite yeterince yukseldiginde tek satir: true. Surum ('c2') ve butun
- * okuma/yazma mantigi oldugu gibi duruyor, silinmedi. */
-const SUMMARY_CACHE_ACIK = false
+ * OLCUM YOLU KAPANMADI: istek yenile=true gonderdiginde onbellek OKUMASI
+ * tumden atlanir (bkz. onbellegiAtla); yazma etkilenmez. Istemcide
+ * "Yeniden ozetle" zaten bunu gonderiyor (js/dashboard.js:1453), normal
+ * yol yenile=false (js/dashboard.js:14161). Kalite olcumu sifirdan kosar.
+ *
+ * HAT IYILESTIGINDE NE YAPILIR: satir silinmez, SUMMARY_CACHE_VERSION
+ * 'c2' -> 'c3' yapilir; surum anahtarin parcasi oldugu icin butun eski
+ * satirlar bir kerede gecersizlesir. Kalite isine donuldugunde bu surum
+ * ARTIRILMALI, yoksa iyilestirme onbellekli belgelere HIC ulasmaz.
+ * Teste bagli: tests/summary-quality.js -> 'ONBELLEK ACIK ve anahtar TEK' */
+const SUMMARY_CACHE_ACIK = true
 
 const SUMMARY_CACHE_VERSION = 'c2'
 
