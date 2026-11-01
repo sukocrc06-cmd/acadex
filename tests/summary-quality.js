@@ -8218,7 +8218,49 @@ test('DOLGU cumle hicbir capa tasimaz', () => {
 
 test('KAPI SU AN ELEMIYOR: kart aynen doner', () => {
   /* Olcum modu. Bayrak true olana kadar kart DEGISMEMELI; aksi halde
-     yanlis olcu sessizce icerik siler. */
+     yanlis olcu sessizce icerik siler.
+
+     ====================================================================
+     URETIM OLCUMU YAPILDI (01.11.2026) — KARAR: BAYRAK false KALIYOR.
+     ====================================================================
+     Bir ustteki test "kurali veriye bakip koyarken bu alan kaynak olacak"
+     diyor. O veri birikti ve okundu: quality_meta.dolgu_adayi tasiyan
+     16 kart, toplam 257 key_point.
+
+       isaretlenen aday : 152 / 257  (%59)
+       valf acilir      : 13 kart (atilan > floor(toplam/3)) → hicbir sey gitmez
+       gercekten elenir :  3 kart → 13 madde silinirdi
+                           8a31b139 (6/18), ad851a57 (4/17), 9c775da6 (3/12)
+
+     O UC KARTTAN CIKAN 12 ORNEGIN HICBIRI DOLGU DEGIL. Canlidan, birebir:
+       "Aggregate output (Y) equals aggregate income in any period."
+       "Higher interest rates reduce planned investment, shifting the AE
+        curve left and lowering e..."
+       "Olgun eritrositlerde cekirdek, mitokondri, ribozom ve golgi
+        bulunmaz; protein sentezleyeme..."
+       "Eritrositlerin cift-icbukey (bikonkav) disk morfolojisi, yuksek
+        yuzey alani/hacim orani sa..."
+       "Hem sentezi mitokondride ALA sentaz enzimi ile baslar..."
+       "Diyagram: Eritropoez sureci Proeritroblast -> Basofilik
+        Eritroblast -> Polikromatofilik Er..."
+       "Androjenler, tiroid hormonlari ve glukokortikoidler eritrosit
+        yapimini artirirken; ostroje..."
+       "ESH degerini artiran faktorler rulo formasyonu, anemi ve artmis
+        fibrinojen/globulin orani..."
+     12/12 yanlis pozitif. Ikisi de belirgin desen:
+       (a) TURKCE maddeler — capa sozlugu Turkce morfolojiyi tanimiyor;
+       (b) "Diyagram:" / "Diyagram/Gorsel:" onekli, gorselden tureyen
+           maddeler — bunlar yapisi geregi capasiz gorunuyor.
+
+     %59'u dolgu ilan eden bir kural, dolguyu degil KENDI KOR NOKTALARINI
+     olcuyor. Belgeye sadakat ilkesi (CLAUDE.md): kayip gercek icerikse
+     metrige dokunulmaz, cikarim duzeltilir — burada cikarim "bu madde
+     dolgudur" ve yanlis.
+
+     BAYRAGI true YAPMADAN ONCE sirayla: (1) Turkce capa sozlugu, (2)
+     "Diyagram:" onekli maddeler icin ayri kural, (3) olcumu bu 16 kartta
+     yeniden kos ve yanlis pozitif sifira insin. Bunlar yapilmadan bayrak
+     cevrilirse 3 kartta 13 gercek madde sessizce silinir. */
   assert.equal(YOG.YOGUNLUK_KAPISI_ELIYOR, false);
   const points = [
     'Logarithmic transformations help linearize power-law relationships',
