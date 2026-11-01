@@ -12,7 +12,9 @@
     fizyo: { t: 'Fizyo Lab', src: 'labs/fizyo/index.html' }, /* 3B veriyi ../anatomi/data/ yolundan paylaşır */
     odyoloji: { t: 'Odyoloji Lab', src: 'labs/odyoloji/index.html' }, /* kabin, 3B kulak (data/ax-kulak.js), vaka masası */
     diyet: { t: 'Diyet Lab', src: 'labs/diyet/index.html' }, /* tabak & menü (data/besin.js, USDA SR28), antropometri, vaka, enteral/parenteral */
-    dkt: { t: 'DKT Lab', src: 'labs/dkt/index.html' } /* terapi odası: sesletim, ses laboratuvarı (mikrofon), akıcılık, yutma, dil/afazi, vaka */
+    dkt: { t: 'DKT Lab', src: 'labs/dkt/index.html' }, /* terapi odası: sesletim, ses laboratuvarı (mikrofon), akıcılık, yutma, dil/afazi, vaka */
+    eczacilik: { t: 'Eczacılık Lab', src: 'labs/eczacilik/index.html' }, /* mahalle eczanesi: tezgâh, doz, etkileşim, majistral, vaka */
+    hemsirelik: { t: 'Hemşirelik Lab', src: 'labs/hemsirelik/index.html' } /* servis: vital/NEWS2, beceri, ilaç uygulama, vardiya, vaka */
   };
   window.AX_MEDLABS = LABS;
 

@@ -343,3 +343,27 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 @keyframes cd-buhar{0%{transform:translateY(8px);opacity:0}40%{opacity:.9}100%{transform:translateY(-22px);opacity:0}}
 @keyframes cd-kcal{0%{transform:translateY(10px);opacity:0}25%,70%{opacity:1}100%{transform:translateY(-20px);opacity:0}}
 @keyframes ck-bar{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
+
+/* ---------- Eczacılık ve Hemşirelik kapakları (01.11.2026) ---------- */
+#medlab-view.axm .axm-cover-ecz{background:#F7F4FB}#medlab-view.axm .axm-cover-hem{background:#F4F8FC}
+#medlab-view.axm .axm-ecz,#medlab-view.axm .axm-hem{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
+#medlab-view.axm button.axm-labb:hover .axm-ecz,#medlab-view.axm button.axm-labb:focus-visible .axm-ecz,#medlab-view.axm button.axm-labb:hover .axm-hem,#medlab-view.axm button.axm-labb:focus-visible .axm-hem{transform:scale(1.04)}
+#medlab-view.axm .axm-ecz g,#medlab-view.axm .axm-hem g{transform-box:fill-box}
+@media (prefers-reduced-motion:no-preference){
+  #medlab-view.axm .axm-ecz .ecz-tok{transform-origin:50% 100%;animation:ecz-tok 1.6s ease-in-out infinite}
+  #medlab-view.axm .axm-ecz .ecz-arti{transform-origin:50% 50%;animation:ecz-arti 2.6s ease-in-out infinite}
+  #medlab-view.axm .axm-ecz .ecz-goz{transform-origin:50% 50%;animation:med-goz 4.2s ease-in-out infinite}
+  #medlab-view .canli-ecz .ce-tara{animation:ce-tara 2.8s ease-in-out infinite}
+  #medlab-view .canli-ecz .ce-onay{transform-origin:50% 50%;animation:ce-onay 2.8s ease-out infinite}
+  #medlab-view .canli-ecz .ce-hap{animation:ce-hap 2.2s ease-in infinite}
+  #medlab-view.axm .axm-hem .hem-kalp{transform-origin:50% 60%;animation:hem-atim 1s ease-in-out infinite}
+  #medlab-view.axm .axm-hem .hem-nefes{transform-origin:50% 100%;animation:med-nefes 3.4s ease-in-out infinite}
+  #medlab-view .canli-hem .ch-ekg{stroke-dasharray:100;animation:ch-ekg 2s linear infinite}
+}
+@keyframes ecz-tok{0%,100%{transform:rotate(0)}50%{transform:rotate(-12deg) translateY(8px)}}
+@keyframes ecz-arti{0%,100%{filter:none}50%{filter:drop-shadow(0 0 10px rgba(31,155,98,.8))}}
+@keyframes ce-tara{0%,100%{transform:translateY(0);opacity:.2}50%{transform:translateY(70px);opacity:1}}
+@keyframes ce-onay{0%,55%{transform:scale(0);opacity:0}70%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes ce-hap{0%{transform:translateY(-40px);opacity:0}20%{opacity:1}70%{transform:translateY(50px);opacity:1}100%{transform:translateY(60px);opacity:0}}
+@keyframes hem-atim{0%,100%{transform:scale(1)}15%{transform:scale(1.07)}30%{transform:scale(1)}45%{transform:scale(1.04)}}
+@keyframes ch-ekg{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}

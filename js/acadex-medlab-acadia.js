@@ -14,8 +14,8 @@
   'use strict';
   var W = window, D = document;
   var lsafe = function (fn, fb) { try { return fn(); } catch (e) { return fb; } };
-  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab', diyet: 'Diyet Lab', dkt: 'DKT Lab', finans: 'Acadex Finans', sirket: 'Acadex Şirket', medica: 'Acadex Medica' };
-  var KITLE = { odyoloji: 'odyoloji/sağlık bilimleri öğrencisine', diyet: 'beslenme ve diyetetik öğrencisine', dkt: 'dil ve konuşma terapisi öğrencisine', finans: 'işletme, iktisat, muhasebe ve uluslararası ticaret öğrencisine', sirket: 'işletme ve yönetim öğrencisine', medica: 'sağlık bilimleri öğrencisine' };   /* about yollayan lablar */
+  var NAMES = { anatomi: 'Anatomi Lab', fizyo: 'Fizyo Lab', odyoloji: 'Odyoloji Lab', diyet: 'Diyet Lab', dkt: 'DKT Lab', eczacilik: 'Eczacılık Lab', hemsirelik: 'Hemşirelik Lab', finans: 'Acadex Finans', sirket: 'Acadex Şirket', medica: 'Acadex Medica' };
+  var KITLE = { odyoloji: 'odyoloji/sağlık bilimleri öğrencisine', diyet: 'beslenme ve diyetetik öğrencisine', dkt: 'dil ve konuşma terapisi öğrencisine', eczacilik: 'eczacılık öğrencisine', hemsirelik: 'hemşirelik öğrencisine', finans: 'işletme, iktisat, muhasebe ve uluslararası ticaret öğrencisine', sirket: 'işletme ve yönetim öğrencisine', medica: 'sağlık bilimleri öğrencisine' };   /* about yollayan lablar */
   var KEY = function (k) { return 'acadex.labchat.' + k; };
   var MAX = 40;
   var $ = function (id) { return D.getElementById(id); };

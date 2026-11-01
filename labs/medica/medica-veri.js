@@ -2,7 +2,7 @@
    ACADEX MEDICA · hastane verisi (labs/medica/medica-veri.js), 31.10.2026
    Katlar (bölümler), rehber cerrahın tanıtım konuşması ve lab bağlantıları.
    Hastalar ayrı tutulmaz: her kat, labs/klinik/senaryo-*.js'teki senaryoları
-   kimlik önekine göre toplar (ana-, fz-, ody-, dyt-, dkt-). Böylece vaka verisi
+   kimlik önekine göre toplar (ana-, fz-, ody-, dyt-, dkt-, ecz-, hem-). Böylece vaka verisi
    tek yerde kalır; lab'daki vaka ile sahnedeki hasta ayrışmaz.
    ========================================================================== */
 (function (root, factory) {
@@ -28,7 +28,12 @@
     { id: 'diyet', no: 4, ad: 'Beslenme ve diyet', bolum: 'Beslenme ve diyetetik', renk: '#D9822B', acik: '#FCEEDF', onek: 'dyt-', lab: 'diyet', labAd: 'Diyet Lab',
       mentor: 'Dyt. Selin', mcins: 'K', kars: 'Beslenme katı. Polikliniğe gelenler ve serviste yatanlar var. Görüşmeden sonra Diyet Lab’de reçeteyi ya da enteral-parenteral planı yazarsın.' },
     { id: 'dkt', no: 5, ad: 'Dil ve konuşma terapisi', bolum: 'Dil ve konuşma terapisi', renk: '#E0705A', acik: '#FBE6E1', onek: 'dkt-', lab: 'dkt', labAd: 'DKT Lab',
-      mentor: 'DKT Defne', mcins: 'K', kars: 'Dil ve konuşma terapisi katı. Aileyle ve hastayla görüş, kısa gözlem yap; sonra vaka masasında değerlendirmeyi, tanısal izlenimi ve terapi planını seç.' }
+      mentor: 'DKT Defne', mcins: 'K', kars: 'Dil ve konuşma terapisi katı. Aileyle ve hastayla görüş, kısa gözlem yap; sonra vaka masasında değerlendirmeyi, tanısal izlenimi ve terapi planını seç.' },
+    /* 01.11.2026: Eczacılık ve Hemşirelik */
+    { id: 'ecz', no: 6, ad: 'Hastane eczanesi', bolum: 'Eczacılık', renk: '#7A4FA8', acik: '#EFE8F9', onek: 'ecz-', lab: 'eczacilik', labAd: 'Eczacılık Lab',
+      mentor: 'Ecz. Tolga', mcins: 'E', kars: 'Hastane eczanesi katı. Hastalar reçeteleri ve ilaç sorularıyla geliyor. İlaç öyküsünü al, sorunu yakala; sonra Eczacılık Lab vaka masasında müdahaleni ve danışmanlığını yaz.' },
+    { id: 'hem', no: 7, ad: 'Dahiliye servisi', bolum: 'Hemşirelik', renk: '#3B7DD8', acik: '#E7F0FC', onek: 'hem-', lab: 'hemsirelik', labAd: 'Hemşirelik Lab',
+      mentor: 'Hem. Sevgi', mcins: 'K', kars: 'Dahiliye servisi. Yatan hastaların başında vital bulguları ölç, kötüleşmeyi erken yakala, önceliklendir; sonra Hemşirelik Lab vaka masasında hemşirelik tanını ve girişimlerini yaz.' }
   ];
 
   /* giriş: ilk ziyaret tanıtımı (maskeli rehber cerrah) */
@@ -46,7 +51,7 @@
   V.NOBET_BASLA = 8 * 60;    /* nöbet 08:00'de başlar */
 
   /* yatan hastalar bekleme salonunda oturmaz, serviste görülür */
-  V.yatan = function (s) { return !!(s && (s.hasta.poz === 'yat' || s.oda === 'acil' || s.oda === 'ameliyathane')); };
+  V.yatan = function (s) { return !!(s && (s.hasta.poz === 'yat' || s.oda === 'acil' || s.oda === 'ameliyathane' || s.oda === 'servis')); };
   V.katBul = function (id) { return V.KAT.filter(function (k) { return k.id === id; })[0] || null; };
   V.katHastalari = function (kat, SEN) { return Object.keys(SEN).filter(function (id) { return id.indexOf(kat.onek) === 0; }).map(function (id) { return SEN[id]; }); };
   V.sira = function (kat, i) { return String(kat.no * 100 + i + 1); };
@@ -60,6 +65,8 @@
     if (s.lab === 'diyet') return '../diyet/index.html' + q + '&tab=' + (hedef === 'ep' ? 'ep' : 'vaka') + '&vaka=' + encodeURIComponent(s.vaka) + ad;
     if (s.lab === 'odyoloji') return '../odyoloji/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka) + ad;
     if (s.lab === 'dkt') return '../dkt/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka) + ad;
+    if (s.lab === 'eczacilik') return '../eczacilik/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka) + ad;
+    if (s.lab === 'hemsirelik') return '../hemsirelik/index.html' + q + '&tab=vaka&vaka=' + encodeURIComponent(s.vaka) + ad;
     return null;
   };
 
@@ -94,7 +101,15 @@
     'dyt-v-ped-osteo': ['sari', 'Ateşli kemik enfeksiyonu olan çocuk, alım azalmış.'],
     'dyt-v-onko': ['sari', 'Kemoterapi sırasında bir ayda %7 kilo kaybı.'],
     'dkt-disfaji': ['sari', 'Öksürüksüz aspirasyon şüphesi ve ateş: aspirasyon pnömonisi riski.'],
-    'dkt-osman': ['sari', 'Akut inme, ağızdan alım yok: yutma taraması geciktirilmemeli.']
+    'dkt-osman': ['sari', 'Akut inme, ağızdan alım yok: yutma taraması geciktirilmemeli.'],
+    'ecz-serotonin': ['sari', 'İki serotonerjik ilaç, ateş ve taşikardi: serotonin sendromu şüphesi.'],
+    'ecz-lityum': ['sari', 'Lityum kullanırken bulantı ve titreme: toksisite dışlanmalı.'],
+    'ecz-varfarin': ['sari', 'INR hedefin üstünde ve diş eti kanaması: kanama riski.'],
+    'hem-pnomoni': ['kirmizi', 'SpO₂ %91 oksijenle, solunum 26/dk: NEWS2 yüksek, solunum yetmezliği gelişiyor.'],
+    'hem-sepsis': ['kirmizi', 'Hipotansiyon, taşikardi, ateş ve yeni konfüzyon: sepsis şüphesi, ilk saat kritik.'],
+    'hem-transf': ['kirmizi', 'Transfüzyon sırasında ateş, titreme, bel ağrısı ve hipotansiyon: akut reaksiyon.'],
+    'hem-hipogl': ['sari', 'Kan şekeri 52 mg/dL: hipoglisemi hızla ağırlaşabilir.'],
+    'hem-kky': ['sari', 'Bir günde 2 kg artış ve ortopne: sıvı yüklenmesi.']
   };
   V.triyaj = function (s) {
     var t = s && V.TRIYAJ[s.id]; if (t) return { renk: t[0], neden: t[1] };
@@ -133,7 +148,23 @@
       adimlar: ['Havayolu, solunum ve dolaşımı değerlendir; yardım çağır, ilacı durdur', 'Uyluk dış yüzüne kas içi adrenalin uygula', 'Sırtüstü yatır, bacaklarını kaldır (solunum zorsa yarı oturur)', 'Yüksek akımlı oksijen; damar yolu ve sıvı', '5 dakikada düzelme yoksa adrenalini tekrarla'],
       not: 'Anafilakside ilk ve en önemli ilaç kas içi adrenalindir; antihistaminik ve steroid onu geciktirmemelidir (ERC 2021).' }
   };
-  V.KOD_KAT = { tip: ['mavi', 'anafilaksi'], fizyo: ['dusme', 'mavi'], odyo: ['mavi', 'dusme'], diyet: ['hipo', 'bogulma'], dkt: ['bogulma', 'mavi'] };
+  V.KOD_KAT = { tip: ['mavi', 'anafilaksi'], fizyo: ['dusme', 'mavi'], odyo: ['mavi', 'dusme'], diyet: ['hipo', 'bogulma'], dkt: ['bogulma', 'mavi'], ecz: ['anafilaksi', 'mavi'], hem: ['mavi', 'anafilaksi', 'dusme'] };
+  /* acil kod rolleri (01.11.2026): eczane katında eczacı acil ilaçları hazırlar, serviste hemşire ilk müdahaleyi yapar.
+     Rolü olmayan katta genel adımlar (V.KOD) kullanılır. Kaynak: ERC 2021 ileri yaşam desteği ve anafilaksi. */
+  V.KOD_ROL = {
+    ecz: { rol: 'Eczacı · acil ilaçlar',
+      mavi: { adimlar: ['Kod Mavi anonsunu duyunca acil ilaç çantasıyla olay yerine git', 'Adrenalin 1 mg’ı (1 mg/10 ml) enjektöre hazırla ve etiketle', 'Ekip liderinin istemini yüksek sesle tekrar et (kapalı döngü iletişim)', 'Şoklanabilir ritim için 3. şoktan sonra verilecek amiodaron 300 mg’ı hazırla', 'Verilen ilaçları, dozları ve saatleri kayda geçir', 'Kod sonrası acil arabasındaki eksikleri tamamla, son kullanma tarihlerini kontrol et'],
+        not: 'Kardiyak arrestte adrenalin 1 mg 3–5 dakikada bir; şoklanabilir ritimde 3. şoktan sonra amiodaron 300 mg (ERC 2021). Eczacı ilaçları hazırlar, kapalı döngü iletişimle doğrular ve kayıt tutar.' },
+      anafilaksi: { adimlar: ['Şüpheli ilacın durdurulması için ekibi uyar, tetikleyiciyi belirle', 'IM adrenalin dozunu hesapla: yetişkin 0,5 mg = 1 mg/ml ampulden 0,5 ml', 'Uygun enjektör ve iğneyi hazırla, etiketle, uygulayacak hemşireye teslim et', '5 dakika sonra düzelme yoksa ikinci doz için hazır bulundur', 'Advers ilaç reaksiyonu bildirimini yap, alerjiyi kayda geçir'],
+        not: 'Anafilakside yetişkine IM adrenalin 0,5 mg (1 mg/ml’den 0,5 ml) uyluk dış yüzüne; yanıt yoksa 5 dakikada bir tekrarlanır (ERC 2021). Antihistaminik ve steroid adrenalini geciktirmemelidir.' } },
+    hem: { rol: 'Hemşire · ilk müdahale',
+      mavi: { adimlar: ['Yanıtı ve solunumu kontrol et (en çok 10 saniye)', 'Yardım çağır, Kod Mavi ver, acil arabası ve defibrilatör iste', 'Göğüs kompresyonuna başla: 30:2, dakikada 100–120, 5–6 cm', 'Defibrilatör pedlerini yerleştir, ritim analizine izin ver', 'Damar yolu aç, istemdeki ilaçları uygula, kompresyonu sürdür', 'Olay saatlerini ve uygulamaları kaydet'],
+        not: 'Serviste arresti çoğu zaman ilk hemşire fark eder: erken tanı, yardım çağırma ve kesintisiz kaliteli kompresyon ilk dakikalarda hayat kurtarır (ERC 2021).' },
+      anafilaksi: { adimlar: ['Şüpheli ilacı ya da infüzyonu hemen durdur, yardım çağır', 'Havayolu, solunum ve dolaşımı değerlendir; hekime haber ver', 'İstemle uyluk dış yüzüne IM adrenalin uygula', 'Sırtüstü yatır, bacaklarını kaldır (solunum zorsa yarı oturur)', 'Yüksek akışlı oksijen ver, damar yolu aç, vital bulguları sık izle', 'Alerjiyi dosyaya ve bilekliğe işaretle, uygulamaları kaydet'],
+        not: 'Anafilakside ilk iş tetikleyiciyi durdurmak, ilk ilaç IM adrenalindir (ERC 2021). Alerjinin kayda ve bilekliğe işlenmesi tekrarını önler.' } }
+  };
+  /* kat için kod adımları: rol varsa role özgü, yoksa genel */
+  V.kodAdim = function (tip, katId) { var r = V.KOD_ROL[katId], k = V.KOD[tip]; return r && r[tip] ? { adimlar: r[tip].adimlar, not: r[tip].not, rol: r.rol } : { adimlar: k.adimlar, not: k.not, rol: null }; };
   /* nöbet planı: iki ve daha çok hastalı nöbette bir kez, hastalar arasında (rnd testte sabitlenir) */
   V.kodPlan = function (katId, hastaSay, rnd) {
     rnd = rnd || Math.random; if (hastaSay < 2) return null;
@@ -184,7 +215,9 @@
     fizyo: ['Fzt. Mert, hidroterapi havuzuna.', 'Grup egzersizi saat 15.00’te spor salonunda.'],
     odyo: ['Ody. Ece, yenidoğan taramasına.', 'Kabin 2 kalibrasyonda, lütfen kabin 1’i kullanınız.'],
     diyet: ['Dyt. Selin, dahiliye servisine.', 'Öğle yemeği servisleri başladı; diyet tepsileri kontrol edilsin.'],
-    dkt: ['DKT Defne, nöroloji servisine yutma değerlendirmesi.', 'Çocuk oyun terapisi odası hazır.']
+    dkt: ['DKT Defne, nöroloji servisine yutma değerlendirmesi.', 'Çocuk oyun terapisi odası hazır.'],
+    ecz: ['Ecz. Tolga, acil servise antidot talebi.', 'Steril hazırlama ünitesinde kemoterapi hazırlığı başladı.'],
+    hem: ['Hem. Sevgi, 712 numaralı odaya.', 'Saat 14.00 ilaç turu başlıyor; ilaç arabaları hazırlansın.']
   };
   /* =========================== lab sonrası: hastaya bildir ve cerrah ipucu ===========================
      Anatomi ve Fizyo'da lab işi bitince öğrenci bulguyu yorumlar, hastaya anlatır (senaryo.sonu);
@@ -241,7 +274,7 @@
   };
   V.hash = function (t) { var h = 2166136261; t = String(t); for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
   V.rng = function (seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
-  var KORU = ['Deniz', 'Ece', 'Defne', 'Mert', 'Selin', 'Kaan', 'Arslan'];   /* mentor adları: metinde unvanla geçer, dokunulmaz */
+  var KORU = ['Deniz', 'Ece', 'Defne', 'Mert', 'Selin', 'Kaan', 'Arslan', 'Tolga', 'Sevgi'];   /* mentor adları: metinde unvanla geçer, dokunulmaz */
   var HARF = 'A-Za-zÇĞİÖŞÜçğıöşüâîû';
   var adDegis = function (t, eski, yeni) {
     return String(t).replace(new RegExp('(^|[^' + HARF + '.])(' + eski + ')(?![' + HARF + '])', 'g'), function (m, on) { return on + yeni; });
@@ -328,6 +361,22 @@
     'dyt-v-ped-osteo': { oz: 'Sol bacağında kemik iltihabı; damardan antibiyotik alıyor.', ilac: 'Damardan antibiyotik ve ateş düşürücü.' },
     'dyt-e-peg': { oz: 'Dil kökü kanseri; radyoterapi alıyor.', alis: 'Yıllarca sigara içti, tanı alınca bıraktı.' },
     'dyt-v-osteo': { oz: 'Kemik erimesi; menopoza 50 yaşında girdim.' },
+    'ecz-klaritro': { oz: 'Tansiyonum ve kolesterolüm var.', otc: 'Hayır, reçetesiz bir şey almıyorum.' },
+    'ecz-varfarin': { oz: 'Kalp ritim bozukluğu ve tansiyon.', bobrek: 'Böbreklerim iyi dediler.' },
+    'ecz-pediatri': { oz: 'Sağlıklı bir çocuk, sık hastalanmaz.', ilac: 'Düzenli ilacı yok; dün bir grip şurubu verdim.' },
+    'ecz-penisilin': { oz: 'Bilinen bir hastalığım yok.', gebelik: 'Hayır, gebe değilim.' },
+    'ecz-tiroid': { oz: 'Tiroidim az çalışıyor; gebeliğim sırasında anlaşıldı.', gebelik: 'Evet, 20 haftalık gebeyim.', otc: 'Gebelik vitamini kullanıyorum.' },
+    'ecz-serotonin': { oz: 'Depresyon ve tansiyon.', otc: 'Hayır.' },
+    'ecz-lityum': { oz: 'Bipolar bozukluk; yıllardır tedavi görüyorum.', alis: 'Sigara içiyorum, alkol kullanmıyorum.', otc: 'Bel ağrısı için naproksen aldım.' },
+    'ecz-anafilaksi': { oz: 'Başka hastalığım yok.', alerji: 'Arı alerjim var; dün öğrendim.' },
+    'hem-pnomoni': { oz: 'Tansiyonum var.', ilac: 'Tansiyon ilacı; burada antibiyotik veriyorlar.', alis: 'Kırk yıl sigara içtim, beş yıl önce bıraktım.' },
+    'hem-postop': { oz: 'Safra kesesi taşı vardı; dün ameliyat oldum.' },
+    'hem-sepsis': { oz: 'Şeker hastası; tansiyonu da var.', ilac: 'Şeker hapı ve tansiyon ilacı.' },
+    'hem-hipogl': { oz: 'Yirmi yıldır şekerim var.', ilac: 'İnsülin, sabah ve akşam.' },
+    'hem-dusme': { oz: 'Kalçam kırık, ameliyat bekliyorum; tansiyonum var.', ilac: 'Tansiyon ilacı ve idrar söktürücü.' },
+    'hem-basi': { oz: 'İnme geçirdim, yataktan kalkamıyorum.', ilac: 'Kan sulandırıcı ve tansiyon ilacı.' },
+    'hem-transf': { oz: 'Kansızlığım var, nedeni araştırılıyor.' },
+    'hem-kky': { oz: 'Kalp yetmezliği ve tansiyon.' },
     'dkt-afazi': { oz: 'Üç hafta önce inme geçirdi; tansiyonu var.', ilac: 'Kan sulandırıcı ve tansiyon ilacı.', egitim: 'Emekli öğretmen; konuşmak onun için çok önemliydi.' },
     'dkt-pd': { oz: 'Parkinson hastalığı, sekiz yıldır.', ilac: 'Parkinson ilaçları, günde dört kez.', egitim: 'Emekli terzi; torunlarıyla konuşmayı çok sever.' },
     'dkt-disfaji': { oz: 'Sağ hemisfer inmesi, tansiyon ve kalp ritim bozukluğu.' },
@@ -353,7 +402,13 @@
     gelisim: function () { return 'İlk sözcüğünü bir yaş civarında söyledi, yürümesi de zamanında oldu.'; },
     isitme: function (h) { return h.cocuk ? 'Yenidoğan taramasından geçti, sonra ölçülmedi.' : 'İşitmemde bir sorun fark etmedim.'; },
     dil: function () { return 'Evde yalnız Türkçe konuşuyoruz.'; },
-    egitim: function () { return 'Lise mezunuyum; gündelik hayatta çok konuşurum.'; }
+    egitim: function () { return 'Lise mezunuyum; gündelik hayatta çok konuşurum.'; },
+    otc: function (h) { return h.cocuk ? 'Başka bir şey vermiyoruz.' : 'Reçetesiz bir ilaç ya da bitkisel ürün kullanmıyorum.'; },
+    bobrek: function () { return 'Böbrek ya da karaciğer hastalığım yok.'; },
+    gebelik: function () { return 'Hayır, gebe değilim, emzirmiyorum.'; },
+    bosaltim: function () { return 'İdrarım normal, bağırsaklarım da çalışıyor.'; },
+    dusmeoyku: function () { return 'Hayır, düşmedim.'; },
+    uyku: function () { return 'Hastanede biraz zor uyuyorum ama idare ediyor.'; }
   };
   /* [id, soru (yetişkin), soru (çocuk/yakın), not başlığı, atlanacak senaryo soru kimlikleri] */
   var ANM_ORTAK = [
@@ -376,10 +431,17 @@
     dkt: [['gelisim', null, 'İlk sözcüklerini ve ilk adımlarını ne zaman attı?', 'Gelişim', ['gelisim']],
       ['isitme', 'İşitmenizde bir sorun var mı?', 'İşitmesi hiç ölçüldü mü?', 'İşitme', ['kulak', 'cihaz', 'isitme']],
       ['dil', null, 'Evde hangi dil ya da diller konuşuluyor?', 'Ev dili', ['dil']],
-      ['egitim', 'Eğitiminiz ve gündelik konuşma ihtiyacınız nasıl?', null, 'Eğitim / iletişim', ['egitim']]]
+      ['egitim', 'Eğitiminiz ve gündelik konuşma ihtiyacınız nasıl?', null, 'Eğitim / iletişim', ['egitim']]],
+    ecz: [['otc', 'Reçetesiz aldığınız ilaç, vitamin ya da bitkisel ürün var mı?', 'Reçetesiz ilaç, vitamin ya da bitkisel ürün veriyor musunuz?', 'Reçetesiz / bitkisel', ['otc', 'diger']],
+      ['bobrek', 'Böbrek ya da karaciğer hastalığınız var mı?', null, 'Böbrek-karaciğer', ['bobrek', 'kreatinin']],
+      ['gebelik', 'Gebelik ya da emzirme durumunuz var mı?', null, 'Gebelik / emzirme', ['gebelik', 'saat']]],
+    hem: [['agri', 'Ağrınızı 0 ile 10 arasında puanlasanız kaç verirsiniz?', null, 'Ağrı', ['agri']],
+      ['bosaltim', 'İdrar ve bağırsak alışkanlığınızda değişiklik var mı?', null, 'Boşaltım', ['idrar', 'bosaltim', 'inkontinans', 'gaz']],
+      ['dusmeoyku', 'Son bir yılda düştünüz mü?', null, 'Düşme öyküsü', ['dusmeoyku']],
+      ['uyku', 'Geceleri nasıl uyuyorsunuz?', null, 'Uyku', ['uyku']]]
   };
   /* bölümün kritik soruları 2 puan, diğerleri 1 */
-  var ANM_KRITIK = { tip: ['oz', 'alerji', 'sonyemek'], fizyo: ['agri', 'oz'], diyet: ['boykilo', 'oz', 'ilac'], odyo: ['gurultu', 'ototoks', 'kulakop'], dkt: ['gelisim', 'isitme', 'oz'] };
+  var ANM_KRITIK = { tip: ['oz', 'alerji', 'sonyemek'], fizyo: ['agri', 'oz'], diyet: ['boykilo', 'oz', 'ilac'], odyo: ['gurultu', 'ototoks', 'kulakop'], dkt: ['gelisim', 'isitme', 'oz'], ecz: ['ilac', 'alerji', 'otc', 'gebelik'], hem: ['alerji', 'agri', 'oz', 'dusmeoyku'] };
   V.anamnez = function (sen) {
     var kat = V.katOf(sen.id); if (!kat || !sen.hasta) return null;
     var h = sen.hasta, yas = parseInt(h.yas, 10) || 0, gunluk = /günlük/.test(String(h.yas)), cocuk = h.gorunum === 'cocuk' || gunluk;
@@ -400,6 +462,7 @@
       var soru = kim || cocuk ? x[2] : x[1]; if (!soru) return;
       if (kat.id === 'dkt' && ((x[0] === 'gelisim' || x[0] === 'dil') && !cocuk || x[0] === 'egitim' && cocuk)) return;
       if ((gunluk && ['meslek', 'gurultu', 'kulakop'].indexOf(x[0]) >= 0) || (cocuk && x[0] === 'alis')) return;
+      if (x[0] === 'gebelik' && !(h.cins === 'K' && yas >= 15 && yas <= 50)) return;
       var c = cevap(x[0]); if (!c) return;
       sec.push({ id: 'anm-' + x[0], t: soru, cevap: c, puan: kr.indexOf(x[0]) >= 0 ? 2 : 1, not: x[3] + '|' + c, kim: kim });
     });

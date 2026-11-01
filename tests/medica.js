@@ -18,6 +18,9 @@
    31.10.2026 (3. tur): Anatomi ve Fizyo'da lab işi bitince sonuç hastaya döner: bulgu formu
    ("Hastaya bildir"), Fizyo Lab'de kurulan ev programı, taburcu sahnesi. Lab'da maskeli rehber
    cerrah üç kademeli ipucu verir (5/10/20 puan).
+   01.11.2026: 6. kat hastane eczanesi (Eczacılık Lab) ve 7. kat dahiliye servisi (Hemşirelik Lab):
+   her biri 8 hasta, bölüme göre anamnez, acil kodda role özgü adımlar (eczacı acil ilaç, hemşire ilk
+   müdahale), lab'a devir ve sonucun hastaneye dönmesi. Lab'ların kendi testleri: tests/eczacilik-hemsirelik.js.
 
    Calistirma:  node tests/medica.js
    ========================================================================== */
@@ -38,7 +41,8 @@ const K = require(path.join(ROOT, 'labs/klinik/klinik.js'));
 const MV = require(path.join(ROOT, 'labs/medica/medica-veri.js'));
 const SEN = {};
 [require(path.join(ROOT, 'labs/klinik/senaryo-anatomi.js')), require(path.join(ROOT, 'labs/klinik/senaryo-fizyo.js')), require(path.join(ROOT, 'labs/klinik/senaryo-odyoloji.js')),
-  require(path.join(ROOT, 'labs/klinik/senaryo-diyet.js'))(M), require(path.join(ROOT, 'labs/klinik/senaryo-dkt.js'))].forEach((L) => L.forEach((s) => { assert.ok(!SEN[s.id], 'yinelenen ' + s.id); SEN[s.id] = s; }));
+  require(path.join(ROOT, 'labs/klinik/senaryo-diyet.js'))(M), require(path.join(ROOT, 'labs/klinik/senaryo-dkt.js')),
+  require(path.join(ROOT, 'labs/klinik/senaryo-eczacilik.js')), require(path.join(ROOT, 'labs/klinik/senaryo-hemsirelik.js'))].forEach((L) => L.forEach((s) => { assert.ok(!SEN[s.id], 'yinelenen ' + s.id); SEN[s.id] = s; }));
 const kusursuz = (s) => {
   const sec = {};
   s.adimlar.forEach((a, i) => {
@@ -52,12 +56,14 @@ const veri = (p, ad) => { const c = { window: {} }; vm.runInNewContext(read(p), 
 const ODY = require(path.join(ROOT, 'labs/odyoloji/odyo-model.js'));
 const DKT = veri('labs/dkt/dkt-veri.js', 'AXDKT');
 
-test('katlar: beş bölüm, her biri senaryolarını önekle toplar; toplam 67 hasta', () => {
-  assert.deepEqual(MV.KAT.map((k) => k.id), ['tip', 'fizyo', 'odyo', 'diyet', 'dkt']);
-  assert.deepEqual(MV.KAT.map((k) => k.no), [1, 2, 3, 4, 5]);
+test('katlar: yedi bölüm, her biri senaryolarını önekle toplar; toplam 83 hasta', () => {
+  assert.deepEqual(MV.KAT.map((k) => k.id), ['tip', 'fizyo', 'odyo', 'diyet', 'dkt', 'ecz', 'hem']);
+  assert.deepEqual(MV.KAT.map((k) => k.no), [1, 2, 3, 4, 5, 6, 7]);
   const say = Object.fromEntries(MV.KAT.map((k) => [k.id, MV.katHastalari(k, SEN).length]));
-  assert.deepEqual(say, { tip: 10, fizyo: 16, odyo: 13, diyet: 18, dkt: 10 });   /* 01.11.2026: +6 Fizyo, +1 Anatomi (yakınma grupları) */
-  assert.equal(Object.keys(SEN).length, 67);
+  assert.deepEqual(say, { tip: 10, fizyo: 16, odyo: 13, diyet: 18, dkt: 10, ecz: 8, hem: 8 });   /* 01.11.2026: +6 Fizyo, +1 Anatomi; Eczacılık ve Hemşirelik katları */
+  assert.equal(Object.keys(SEN).length, 83);
+  assert.equal(MV.katBul('ecz').lab, 'eczacilik'); assert.equal(MV.katBul('hem').lab, 'hemsirelik');
+  assert.ok(SEN['hem-pnomoni'].oda === 'servis' && MV.yatan(SEN['hem-pnomoni']), 'servis hastası yatakta');
   for (const k of MV.KAT) for (const s of MV.katHastalari(k, SEN)) assert.equal(s.lab, k.lab, s.id + ' doğru kata');
 });
 
@@ -139,6 +145,13 @@ test('triyaj: renkler, gerekçe, puan ve sıra; düşük önceliklendirme işare
 test('acil kod: kat başına olaylar, plan ve puan', () => {
   for (const k of MV.KAT) for (const t of MV.KOD_KAT[k.id]) { const K0 = MV.KOD[t]; assert.ok(K0 && K0.adimlar.length >= 4 && K0.sure >= 30 && K0.not, k.id + ' ' + t); }
   assert.match(MV.KOD.mavi.adimlar[2], /30:2/); assert.match(MV.KOD.hipo.adimlar[1], /15 g/);
+  /* role özgü adımlar: eczacı acil ilaçları hazırlar, hemşire ilk müdahaleyi yapar; rolü olmayan kat genel adımları alır */
+  assert.equal(MV.kodAdim('mavi', 'tip').rol, null); assert.deepEqual(MV.kodAdim('mavi', 'tip').adimlar, MV.KOD.mavi.adimlar);
+  assert.match(MV.kodAdim('mavi', 'ecz').rol, /Eczacı/); assert.ok(MV.kodAdim('mavi', 'ecz').adimlar.some((a) => /Adrenalin 1 mg/.test(a)));
+  assert.ok(MV.kodAdim('anafilaksi', 'ecz').adimlar.some((a) => /0,5 mg/.test(a)), 'eczacı IM adrenalin dozunu hesaplar');
+  assert.match(MV.kodAdim('mavi', 'hem').rol, /Hemşire/); assert.match(MV.kodAdim('mavi', 'hem').adimlar[2], /30:2/);
+  for (const k of ['ecz', 'hem']) for (const t of Object.keys(MV.KOD_ROL[k]).filter((x) => x !== 'rol')) { const a = MV.kodAdim(t, k); assert.ok(a.adimlar.length >= 5 && a.not, k + ' ' + t); }
+  assert.match(read('labs/medica/medica.js'), /KA = V\.kodAdim\(n\.kod\.tip, n\.kat\)/);
   assert.equal(MV.kodPlan('tip', 1), null, 'tek hastalı nöbette kod yok');
   const p = MV.kodPlan('diyet', 4, () => 0.99); assert.ok(MV.KOD_KAT.diyet.includes(p.tip)); assert.ok(p.i >= 1 && p.i <= 3, 'hastalar arasında');
   assert.equal(MV.kodPuan(0, false), 100); assert.equal(MV.kodPuan(2, false), 70); assert.equal(MV.kodPuan(1, true), 55); assert.equal(MV.kodPuan(9, true), 0);
@@ -287,12 +300,16 @@ test('devir adresleri: her lab hastanın vakasını ?medica=1 ile açar', () => 
   assert.equal(MV.devirAdres(SEN['dyt-e-inme'], 'ep'), '../diyet/index.html?medlab=1&medica=1&tab=ep&vaka=e-inme');
   assert.equal(MV.devirAdres(SEN['ody-v-ome'], 'vaka'), '../odyoloji/index.html?medlab=1&medica=1&tab=vaka&vaka=v-ome');
   assert.equal(MV.devirAdres(SEN['dkt-pd'], 'vaka'), '../dkt/index.html?medlab=1&medica=1&tab=vaka&vaka=pd');
+  assert.equal(MV.devirAdres(SEN['ecz-klaritro'], 'vaka'), '../eczacilik/index.html?medlab=1&medica=1&tab=vaka&vaka=klaritro');
+  assert.equal(MV.devirAdres(SEN['hem-sepsis'], 'vaka'), '../hemsirelik/index.html?medlab=1&medica=1&tab=vaka&vaka=sepsis');
   for (const s of Object.values(SEN)) assert.ok(MV.devirAdres(s, s.adimlar[s.adimlar.length - 1].hedef), s.id);
 });
 
 test('lab’lar: vaka sekmesi yalnız ?medica=1 ile görünür, sonuç hastaneye bildirilir', () => {
   const axmd = /if\(\/\[\?&\]medica=1\(&\|\$\)\/\.test\(location\.search\)\)document\.documentElement\.classList\.add\('axmd'\)/;
-  for (const p of ['labs/anatomi/index.html', 'labs/fizyo/index.html', 'labs/diyet/index.html', 'labs/odyoloji/index.html', 'labs/dkt/index.html']) assert.match(read(p), axmd, p);
+  for (const p of ['labs/anatomi/index.html', 'labs/fizyo/index.html', 'labs/diyet/index.html', 'labs/odyoloji/index.html', 'labs/dkt/index.html', 'labs/eczacilik/index.html', 'labs/hemsirelik/index.html']) assert.match(read(p), axmd, p);
+  assert.match(read('labs/eczacilik/index.html'), /html:not\(\.axmd\) \.ec-tabs \[data-tab="vaka"\]\{display:none\}/);
+  assert.match(read('labs/hemsirelik/index.html'), /html:not\(\.axmd\) \.hm-tabs \[data-tab="vaka"\]\{display:none\}/);
   assert.match(read('labs/anatomi/index.html'), /html:not\(\.axmd\) \.modes button\[data-mode=vaka\]\{display:none\}/);
   assert.match(read('labs/diyet/index.html'), /html:not\(\.axmd\) \.dl-tabs \[data-tab="vaka"\],html:not\(\.axmd\) \.dl-tabs \[data-tab="ep"\]\{display:none\}/);
   assert.match(read('labs/odyoloji/index.html'), /html:not\(\.axmd\) \.ol-tabs \[data-tab="vaka"\]\{display:none\}/);
@@ -302,7 +319,7 @@ test('lab’lar: vaka sekmesi yalnız ?medica=1 ile görünür, sonuç hastaneye
   assert.match(read('labs/odyoloji/odyo-app.js'), /if \(k === 'vaka' && !MEDICA\) k = 'kabin';/);
   assert.match(read('labs/dkt/dkt-app.js'), /var TABS = MEDICA \? \[[^\]]+'vaka'\] : \['sesletim', 'ses', 'akicilik', 'yutma', 'dil'\];/);
   /* sonuç bildirimi */
-  for (const [p, lab] of [['labs/diyet/diyet-klinik.js', 'diyet'], ['labs/odyoloji/odyo-app.js', 'odyoloji'], ['labs/dkt/dkt-vaka.js', 'dkt'], ['labs/anatomi/index.html', 'anatomi'], ['labs/fizyo/index.html', 'fizyo']]) {
+  for (const [p, lab] of [['labs/diyet/diyet-klinik.js', 'diyet'], ['labs/odyoloji/odyo-app.js', 'odyoloji'], ['labs/dkt/dkt-vaka.js', 'dkt'], ['labs/eczacilik/ecz-vaka.js', 'eczacilik'], ['labs/hemsirelik/hem-vaka.js', 'hemsirelik'], ['labs/anatomi/index.html', 'anatomi'], ['labs/fizyo/index.html', 'fizyo']]) {
     const s = read(p); assert.match(s, /src: 'axmedica', type: 'sonuc', lab: '/, p); assert.ok(s.includes("lab: '" + lab + "'"), p);
   }
   assert.match(read('labs/diyet/diyet-klinik.js'), /if \(C\.MEDICA \|\| !sahneVar\(id\)\) return '';/, 'hastanede görüşme tekrar sorulmaz');
@@ -323,6 +340,7 @@ test('hastane sayfası: betik sırası, rehber cerrah, asansör, erişilebilirli
   const h = read('labs/medica/index.html'), at = (f) => h.indexOf('src="' + f + '"');
   assert.ok(at('../diyet/diyet-model.js') < at('../klinik/klinik.js'));
   assert.ok(at('../klinik/klinik.js') < at('../klinik/senaryo-diyet.js') && at('../klinik/senaryo-dkt.js') < at('medica-veri.js') && at('medica-veri.js') < at('medica.js'));
+  assert.ok(at('../klinik/klinik.js') < at('../klinik/senaryo-eczacilik.js') && at('../klinik/senaryo-hemsirelik.js') < at('medica-veri.js'), 'yeni katların senaryoları');
   assert.match(h, /<iframe title="Lab: vaka formu" allow="fullscreen; microphone" allowfullscreen><\/iframe>/, 'DKT ses laboratuvarı mikrofonu');
   assert.match(h, /@media \(prefers-reduced-motion:reduce\)/);
   const js = read('labs/medica/medica.js');
@@ -341,7 +359,8 @@ test('MedLab: hastane kartı, lab kaydı ve Acadia köprüsü', () => {
   for (const t of ['Klinik vakalar Acadex Medica’da', 'Hastalar Acadex Medica’da', 'Hastalar ve enteral-parenteral plan Acadex Medica’da']) assert.ok(d.includes(t), t);
   assert.match(read('js/acadex-medlab.js'), /medica: \{ t: 'Acadex Medica', src: 'labs\/medica\/index\.html' \}/);
   /* canlı lab kartları (01.11.2026): her lab kapağında lab'in kendi işi; hareket azaltmada durur */
-  for (const k of ['ana', 'fiz', 'ody', 'dyt', 'dkt']) assert.match(d, new RegExp('<g class="axm-canli canli-' + k + '" aria-hidden="true">'), 'canlı katman: ' + k);
+  for (const k of ['ana', 'fiz', 'ody', 'dyt', 'dkt', 'ecz', 'hem']) assert.match(d, new RegExp('<g class="axm-canli canli-' + k + '" aria-hidden="true">'), 'canlı katman: ' + k);
+  for (const k of ['eczacilik', 'hemsirelik']) { assert.ok(d.includes('data-medlab-open="' + k + '"'), 'kart ' + k); assert.match(read('js/acadex-medlab.js'), new RegExp(k + ": \\{ t: '[^']+', src: 'labs/" + k + "/index\\.html' \\}")); assert.ok(read('js/acadex-medlab-acadia.js').includes(k + ": '"), 'Acadia adı ' + k); }
   assert.match(read('css/acadex-medlab.css'), /@media \(prefers-reduced-motion:no-preference\)\{\n  #medlab-view \.canli-ana \.ca-don/);
   const a = read('js/acadex-medlab-acadia.js');
   assert.match(a, /medica: 'Acadex Medica'/); assert.match(a, /medica: 'sağlık bilimleri öğrencisine'/);
