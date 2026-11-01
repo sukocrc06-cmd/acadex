@@ -50,7 +50,7 @@
     /* ?medlab=1: lab kendi Acadia'sını gizler, sitenin Acadia'sıyla köprü kurar (js/acadex-medlab-acadia.js); yeni sekme köprüsüz açılır */
     var fsrc = L.src + '?medlab=1';
     if (frame.getAttribute('src') !== fsrc) { if (loadEl) { loadEl.classList.remove('out'); loadEl.hidden = false; } frame.setAttribute('src', fsrc); }
-    run.hidden = false; document.body.classList.add('axm-open');
+    run.hidden = false; document.body.classList.add('axm-open'); kampusMesaj({ type: 'gorunur', v: false });
     grow(lastBtn, false);
     if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook(k, frame); });
     setTimeout(function () { lsafe(function () { frame.focus(); }); }, 60);
@@ -58,11 +58,45 @@
   };
   var close = function (now) {
     if (run.hidden) return;
-    cur = null;
+    cur = null; kampusMesaj({ type: 'gorunur', v: true }); kampusMesaj({ type: 'geri' });
     if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook(null, frame); });
     var b = lastBtn, fin = function () { run.hidden = true; document.body.classList.remove('axm-open'); if (b && now !== true) lsafe(function () { b.focus(); }); };
     if (now !== true && sec.classList.contains('active')) grow(b, true, fin); else { clearTimeout(grow.t); run.classList.remove('axm-grow'); if (run.style) run.style.clipPath = ''; fin(); }
   };
+
+  /* ---------------- 3B kampüs (01.11.2026): MedLab'in girişi labs/kampus/index.html ----------------
+     Kampüs ayrı sayfada (kendi three.js importmap'i) iframe'de çalışır; yalnız MedLab açıkken yüklenir,
+     başka panele geçince boşaltılır (WebGL belleği serbest kalır). Binaya girilince kampüs {type:'ac'}
+     gönderir, lab bu katmanda açılır; katman kapanınca kampüse 'geri' gider. Zayıf cihaz ya da "2B"
+     seçimi liste görünümüne (lab kartları) geçirir. */
+  var kmp = sec.querySelector('[data-medlab-kampus]'), kfr = kmp && kmp.querySelector('[data-kampus-frame]'), kon = kmp && kmp.querySelector('[data-kampus-on]');
+  var kListe = sec.querySelector('[data-kampus-liste]'), KG = 'axKampusGrafik', KSRC = 'labs/kampus/index.html';
+  var mod3b = !!kfr && lsafe(function () { return localStorage.getItem(KG); }, null) !== '2b';
+  var kampusMesaj = function (m) { if (!kfr || !kfr.getAttribute('src')) return; m.src = 'axhost-kampus'; lsafe(function () { kfr.contentWindow.postMessage(m, location.origin); }); };
+  var kampusAc = function () { if (!kfr || !mod3b || kfr.getAttribute('src') === KSRC) return; if (kon) kon.hidden = false; kfr.setAttribute('src', KSRC); };
+  var kampusBosalt = function () { if (!kfr || !kfr.getAttribute('src')) return; kfr.removeAttribute('src'); lsafe(function () { kfr.contentWindow.location.replace('about:blank'); }); };
+  var kampusMod = function (m, kalici) {
+    mod3b = m === '3b' && !!kfr;
+    sec.classList.toggle('axm-3b', mod3b); if (kListe) kListe.hidden = mod3b || !kfr;
+    if (kalici) lsafe(function () { localStorage.setItem(KG, mod3b ? 'oto' : '2b'); });
+    if (mod3b) { if (sec.classList.contains('active')) kampusAc(); } else kampusBosalt();
+  };
+  window.axMedLabKampus = kampusMod;
+  if (kfr) {
+    kampusMod(mod3b ? '3b' : 'liste');
+    sec.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-kampus-mod]'); if (b) kampusMod(b.getAttribute('data-kampus-mod'), true); });
+    if (window.addEventListener) window.addEventListener('message', function (e) {
+      if (e.origin !== location.origin || !kfr.contentWindow || e.source !== kfr.contentWindow) return;
+      var d = e.data; if (!d || d.src !== 'axkampus') return;
+      if (d.type === 'hazir' && kon) kon.hidden = true;
+      if (d.type === 'boy' && d.h > 0) kfr.style.height = Math.max(320, Math.min(2400, Math.round(d.h))) + 'px';
+      if (d.type === 'ac' && LABS[d.lab]) { lastBtn = kfr; open(d.lab); }
+      if (d.type === '2b') kampusMod('liste', !!d.kalici);
+    });
+    if (sec.classList.contains('active')) kampusAc();
+    /* kampüs ekrandan çıkınca ya da lab katmanı açıkken çizim durur */
+    if (typeof IntersectionObserver === 'function') new IntersectionObserver(function (es) { kampusMesaj({ type: 'gorunur', v: es.some(function (x) { return x.isIntersecting; }) && run.hidden }); }).observe(kfr);
+  }
 
   /* monitördeki nabız: her birkaç vuruşta 68–78 arasında oynar */
   var bpm = sec.querySelector('[data-medlab-bpm]');
@@ -82,7 +116,7 @@
     var origSwitch = switchDashboardView;
     switchDashboardView = function (v) {
       var side = document.getElementById('side-medlab'); if (side) side.classList.toggle('active', v === 'medlab');
-      if (v !== 'medlab') close(true);
+      if (v !== 'medlab') { close(true); kampusBosalt(); } else setTimeout(kampusAc, 0);
       if (v === 'medlab' && !document.querySelector('.dashboard-view-section.active')) {
         sec.classList.add('active'); lsafe(function () { currentActiveTab = 'medlab'; });
         Array.prototype.forEach.call(document.querySelectorAll('.sidebar-item.active'), function (x) { if (x !== side) x.classList.remove('active'); });
