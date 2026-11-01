@@ -15368,6 +15368,7 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
                   const trPrompt = `You are transcribing lecture slide images to PLAIN TEXT.
 You are given ${trSayfalar.length} page images. Return ONE object per page image, ${trSayfalar.length} objects in total, in the same order.
 For each page, copy what is printed, line by line, in reading order. Keep every number, exponent and sign exactly as shown: write x^2 for a squared term, not x2.
+Write PLAIN TEXT, never LaTeX commands: "sin x" not "\\sin x", "ln x" not "\\ln x", "a/b" not "\\frac{a}{b}".
 Do not summarise, explain or add anything that is not printed on the page. A page you cannot read gets an empty text, never a guess.
 Respond ONLY with JSON: {"pages":[{"page":<page number as given>,"text":"<everything printed on that page>"}]}`
                   const trIcerik = [
@@ -16922,6 +16923,44 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         lang
       )
       parsedContent.key_points = anchored.key_points
+
+      /* ETIKET YUMUSATILIR, ALINTI HAM KALIR (01.11.2026, Week 8'de olculdu).
+       *
+       * Ayiracsiz LaTeX yumusatmasi footnotes'i bilincli atliyor (ham alinti
+       * kaynak goruntuleyicide sayfadaki haliyle eslesmeli) ve bu katman
+       * yumusatmadan SONRA kosuyor — yani yeni uretilen dipnotlar hic
+       * yumusatilmiyordu. Kartin kaynakcasinda goruldugu hal:
+       *   [4] Product rule f(x) = (x^2 + 1)(3x - 5) g(x) = x^3 \sin x
+       *       h(x) = e^x(2x + 1) p(x) = (x^2 - 4)(\ln x)
+       * Ogrenci "\sin" ve "\ln" okuyor.
+       *
+       * Dipnot IKI alan tasiyor ve amaclari ayri: "quote" dogrulanabilir ham
+       * alinti, "reference" ekranda gosterilen etiket. Yumusatma yalnizca
+       * ETIKETE uygulaniyor; quote dokunulmadan kaliyor, yani kaynaktaki
+       * isaretleme bozulmuyor. anchorCitations saf kaldi: yumusatma orada
+       * degil BORU HATTINDA — oraya baglamak testin bagimlilik zincirini
+       * sisiriyordu ve on bir testi birden dusurdu. */
+      if (Array.isArray(parsedContent.footnotes)) {
+        let etiketYumusatilan = 0
+        for (const fn of parsedContent.footnotes) {
+          const ham = String(fn?.reference || '')
+          if (!ham) continue
+          /* On filtre YOK: onarAnlatiLatex kendi erken cikisini zaten yapiyor
+             ve burada ikinci bir kapi acmak "UC KAPI da ayni desende" testini
+             dusuruyordu — dogru da yapiyordu, cunku o kapi bir yerde
+             guncellenip burada kalirsa sessizce ayrisirdi. */
+          const yumusak = onarAnlatiLatex(ham)
+          if (yumusak.yumusatilan > 0 && yumusak.metin) {
+            fn.reference = yumusak.metin
+            etiketYumusatilan++
+          }
+        }
+        if (etiketYumusatilan > 0) {
+          console.log(
+            `Kaynakca etiketi duz yaziya cevrildi: ${etiketYumusatilan} dipnot (alinti ham kaldi)`
+          )
+        }
+      }
 
       /* --- Bos kabuklar ayikliniyor — bkz. bosKabuklariAyikla. Kesik JSON
          kurtarmasi terim/soru/bolum nesnelerini yarida kapatabiliyor. */

@@ -1461,4 +1461,33 @@ test('kaynakca etiketinde markdown borusu ve ic madde imi temizleniyor', () => {
   assert.ok(/albumin/.test(ref) && /4,5/.test(ref), 'icerik kaybi: ' + ref);
 });
 
+/* ==========================================================================
+   ETIKET YUMUSATILIR, ALINTI HAM KALIR (01.11.2026, Week 8 kartinda olculdu)
+
+   Ayiracsiz LaTeX yumusatmasi footnotes i bilincli atliyor ve atif katmani
+   yumusatmadan SONRA kosuyor — yeni uretilen dipnotlar hic yumusatilmiyordu.
+   Kartin kaynakcasinda goruldugu hal:
+     [4] Product rule f(x) = (x^2 + 1)(3x - 5) g(x) = x^3 \sin x
+         h(x) = e^x(2x + 1) p(x) = (x^2 - 4)(\ln x)
+   ========================================================================== */
+
+test('kaynakca etiketi BORU HATTINDA yumusatiliyor, alinti ham kaliyor', () => {
+  /* anchorCitations SAF kaldi: yumusatma oraya baglanirsa testin
+     bagimlilik zinciri sisiyor ve on bir test birden dusuyor. Kontrol
+     kaynak uzerinden: etiket yumusatiliyor, quote dokunulmuyor. */
+  const SUM_SRC = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/fn\.reference = yumusak\.metin/.test(SUM_SRC),
+    'dipnot etiketi yumusatilmiyor — kaynakcada ham LaTeX kaliyor');
+  assert.ok(!/fn\.quote = /.test(SUM_SRC),
+    'quote da degistirilmis — kaynak goruntuleyicide isaretleme bozulur');
+  assert.ok(/Kaynakca etiketi duz yaziya cevrildi/.test(SUM_SRC), 'sayac loglanmiyor');
+  /* Yumusatma ATIF katmanindan SONRA olmali: yeni uretilen dipnotlar da
+     gecsin diye. */
+  const iAtif = SUM_SRC.indexOf('parsedContent.key_points = anchored.key_points');
+  const iYum = SUM_SRC.indexOf('fn.reference = yumusak.metin');
+  assert.ok(iAtif > 0 && iYum > iAtif,
+    'etiket yumusatmasi atif katmanindan ONCE — yeni dipnotlar atlanir');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
