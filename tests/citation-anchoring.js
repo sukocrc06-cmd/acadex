@@ -21,6 +21,12 @@ const NAMES = [
     'ANCHOR_STOPWORDS', 'trNormalize', 
     // Uc harfli matematik adlari eleniyordu (30.10.2026 olcumu).
     'ANCHOR_KISA_MATEMATIK', 'ANCHOR_UST_SIMGE', 'anchorTerms', 'splitByPageMarkers', 'buildPageIndex',
+  // Dil-bagimsiz sayi capasi (01.11.2026 olcumu).
+  'CAPA_MIN_SAYI', 'CAPA_NADIR_ESIK', 'sayiCapasi', 'distinctiveNumbers', 'eksenCentikleriniAyikla', 'EKSEN_MIN_UZUNLUK',
+  'SAYI_BELIRTECI', 'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE',
+  'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE',
+  'SLAYT_ALTBILGI_RE', 'SAYFA_ISARETI_RE', 'YUZDE_CEVRIM_RE', 'araHesabiAyikla',
+  'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND',
     'buildAnchorIdf', 'ANCHOR_MIN_SCORE', 'ANCHOR_MIN_TERMS',
     // birebir alinti (span seviyesi atif)
     'SENTENCE_ABBREV', 'splitSentences', 'QUOTE_MIN_CHARS', 'QUOTE_MAX_CHARS',
@@ -1488,6 +1494,76 @@ test('kaynakca etiketi BORU HATTINDA yumusatiliyor, alinti ham kaliyor', () => {
   const iYum = SUM_SRC.indexOf('fn.reference = yumusak.metin');
   assert.ok(iAtif > 0 && iYum > iAtif,
     'etiket yumusatmasi atif katmanindan ONCE — yeni dipnotlar atlanir');
+});
+
+/* ==========================================================================
+   KART DILI BELGE DILINDEN FARKLI OLABILIYOR (01.11.2026 olculdu)
+
+   Eslesme KELIME ortusmesine bakiyor; kart Turkce, belge Ingilizce olunca
+   hicbir terim tutmuyor. Ayni belge, ayni gun, 75 saniye arayla:
+     IPPT Ingilizce : added=19 quoted=19 unanchored=2
+     IPPT Turkce    : added=3  quoted=3  unanchored=15
+   Kan belgesinde (Turkce belge + Turkce kart) added=23 — kusur dilin
+   kendisi degil BELGE DILI ile KART DILI arasindaki fark.
+   ========================================================================== */
+
+/* IPPT belgesinin gercek sayfalari (Ingilizce). */
+const IPPT_EN = [
+  '--- SAYFA 29 ---',
+  '-12.08 + 2(0.09)39 = - 12.08 + 7.02 = - 5.06 which means that if temperature',
+  'increases from 39 to 40 degrees then the utility bill decreases by $5.06.',
+  '--- SAYFA 38 ---',
+  'This slope coefficient on gdppc is interpreted as, "on average, if GDP per capita',
+  'increases by $1000 then energy consumption per capita goes up by (0.026)100% or 2.6%."',
+  '--- SAYFA 41 ---',
+  'This slope coefficient on lngdppc is interpreted as, "on average, if GDP per capita',
+  'increases by 1% then energy consumption per capita goes up by .69%."'
+].join('\n');
+
+test('TURKCE madde INGILIZCE sayfaya sayi capasiyla baglaniyor', () => {
+  const idx = A.buildPageIndex(IPPT_EN, 'SAYFA');
+  /* Kelime yolu bos donmeli (caprazdil), capa tutmali. */
+  const tr = 'Log-lineer modelde GDP per capita 1000 dolar arttiginda enerji tuketimi (0.026)100% yani %2.6 artar';
+  const kelime = A.anchorClaimToPage(tr, idx, A.buildAnchorIdf(idx), false);
+  const capa = A.sayiCapasi(tr, idx);
+  assert.ok(capa, 'sayi capasi baglamadi');
+  assert.equal(capa.page, 38, 'yanlis sayfaya baglandi: ' + capa.page);
+  assert.ok(capa.quote && /1000/.test(capa.quote),
+    'alinti hedef sayiyi tasimiyor: ' + capa.quote);
+  /* Kelime yolu zayif kaldigi icin bu kola dustuk — not olarak. */
+  if (kelime) assert.ok(kelime.page === 38 || capa.page === 38);
+});
+
+test('NADIR sayi TEK basina yeter, siradan sayi yetmez', () => {
+  const idx = A.buildPageIndex(IPPT_EN, 'SAYFA');
+  assert.equal(A.CAPA_MIN_SAYI, 2);
+  assert.equal(A.CAPA_NADIR_ESIK, 100);
+  /* 484.12 gibi ondalikli sayi her sayfada gecmez — tek basina yeter. */
+  const nadir = A.sayiCapasi('Fatura tahmini 5.06 dolar azaliyor', idx);
+  assert.ok(nadir, 'ondalikli nadir sayi baglanmadi');
+  assert.equal(nadir.page, 29);
+  /* Tek ve SIRADAN sayi baglanmamali: yanlis atif atifsizliktan kotudur. */
+  assert.equal(A.sayiCapasi('Model 39 derecede test edilir', idx), null,
+    'tek siradan sayi (39) atif uretti — yanlis atif riski');
+});
+
+test('sayisiz madde capaya DUSMUYOR', () => {
+  const idx = A.buildPageIndex(IPPT_EN, 'SAYFA');
+  assert.equal(A.sayiCapasi('Dummy degiskenler kategorik bilgiyi modele tasir', idx), null,
+    'sayi tasimayan madde capa uretti');
+  assert.equal(A.sayiCapasi('', idx), null);
+  assert.equal(A.sayiCapasi('1000 ve 2.6', []), null, 'bos dizinde capa uretti');
+});
+
+test('capa YALNIZCA kelime yolu bos donunce deneniyor', () => {
+  const SUM_SRC = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'supabase/functions/summarize-document/index.ts'), 'utf8');
+  assert.ok(/let hit = anchorClaimToPage\(text, pageIndex, idf, lang === .en.\)/.test(SUM_SRC),
+    'kelime yolu hala once denenmeli');
+  assert.ok(/if \(!hit\) \{\s*\n\s*hit = sayiCapasi\(text, pageIndex\)/.test(SUM_SRC),
+    'capa kelime yolundan ONCE calisiyor — mevcut davranisi degistirir');
+  assert.ok(/sayi-capasi=\$\{anchored\.stats\.capa\}/.test(SUM_SRC),
+    'capa sayaci loglanmiyor — caprazdil kosuda gorulemez');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

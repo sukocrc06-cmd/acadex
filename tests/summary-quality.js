@@ -6762,7 +6762,7 @@ test('teshis SON KART logunun yanina baglanmis', () => {
      o yuzden CAGRIYA baglaniyor. */
   const i = SRC.indexOf('const kapsama = numericCoverage(olcumMetni || extractedText, cardPayload)');
   assert.ok(i > -1, 'son kart kapsama olcumu kaybolmus');
-  const blok = SRC.slice(i, i + 1900);
+  const blok = SRC.slice(i, i + 3200);
   assert.ok(/console\.log\(`Son kart sayisal kapsama:/.test(blok),
     'OCR disi yol icin son kart logu kaybolmus');
   assert.ok(/kapsama\.missing\.length > 0/.test(blok),
@@ -9294,10 +9294,12 @@ test('kurtarma OCR metninde KOSMUYOR', () => {
   const iDenklem = kod.indexOf('tahminDenklemleriniKurtar(\n');
   const iKapi = kod.indexOf('if (ocrKullanildi) {');
   assert.ok(iKapi > 0, 'OCR kapisi yok');
-  /* 01.11.2026: ucuncu kapi kurtarma DEGIL, kapsama LOGU icin — OCR'da
-     yuzde yazilmiyor, sebebi yaziliyor (bkz. "OLCULEMEZ (OCR)"). Kurtarma
-     kapilari yine iki tane; asagidaki iki kontrol onlari kilitliyor. */
-  assert.equal((kod.match(/if \(ocrKullanildi\) \{/g) || []).length, 3,
+  /* 01.11.2026 (ikinci tur): kurtarma kapilari artik ocrKullanildi ile
+     DEGIL guvenilir alanla kapili. Transkript gecisi okudugu sayfalarda
+     dogru metin uretiyor ve kayip sayilar orada gercek ("product is 100",
+     "400 ft of fencing"); eski kapi hepsini birden kapatiyordu. Kalan tek
+     ocrKullanildi kapisi kapsama LOGU icin. */
+  assert.equal((kod.match(/if \(ocrKullanildi\) \{/g) || []).length, 1,
     'iki kurtarma da OCR kapisinin arkasinda olmali');
   /* Rozet kapisi ayni bayragi kullanmaya devam etmeli — ayni gerekce. */
   assert.ok(/kapsama\.total >= KAPSAMA_ROZET_MIN_ORNEK && !ocrKullanildi/.test(SRC),
@@ -10338,6 +10340,103 @@ test('gonderilen resimler BOYUTA gore seciliyor', () => {
   assert.ok(/gorselAdaylari\.sort\(\(a, b\) => b\.boyut - a\.boyut\)/.test(SRC),
     'resimler boyuta gore siralanmiyor — logo gonderilebilir');
   assert.ok(/Gorme siniri: /.test(SRC), 'kirpma loglanmiyor');
+});
+
+/* ==========================================================================
+   GUVENILIR ALAN: OCR BELGESINDE DE OLCU VE KURTARMA (01.11.2026, Week 8)
+
+   Transkript gecisi okudugu sayfalarda DOGRU metin uretiyor — kayip sayilar
+   orada gercek:
+     Sayisal kapsama kayiplari nerede: 100 <- "two positive numbers whose
+       product is 100" | 400 <- "a farmer has 400 ft of fencing"
+   Eski kapi "metin OCR dan geldi" diye hepsini birden kapatiyordu: ne olcu
+   yayinlaniyordu ne de bu sayilar kurtarilabiliyordu.
+   ========================================================================== */
+
+test('kurtarma OCR da GUVENILIR ALANDAN besleniyor', () => {
+  /* Kaynak kontrolu: kurtarma uc cagriyi da ayni kaynaktan almali. */
+  assert.ok(/const kurtarmaKaynagi = ocrKullanildi \? guvenilirMetin : extractedText/.test(SRC),
+    'kurtarma kaynagi guvenilir alana baglanmamis');
+  for (const cagri of [
+    'numericCoverage(kurtarmaKaynagi, parsedContent)',
+    'tahminDenklemleriniKurtar(\n            kurtarmaKaynagi,',
+    'yorumCumleleriniKurtar(\n            kurtarmaKaynagi,',
+    'metinTablosuKurtar(\n            kurtarmaKaynagi,'
+  ]) {
+    assert.ok(SRC.includes(cagri),
+      'kurtarma hala extractedText ten besleniyor: ' + cagri);
+  }
+  /* extractedText ile kurtarma KALMAMALI — OCR gurultusu hedefe girer. */
+  assert.ok(!/tahminDenklemleriniKurtar\(\s*\n\s*extractedText,/.test(SRC),
+    'denklem kurtarmasi hala ham metinden');
+  assert.ok(!/metinTablosuKurtar\(\s*\n\s*extractedText,/.test(SRC),
+    'tablo kurtarmasi hala ham metinden');
+});
+
+test('guvenilir alan YOKSA kurtarma eskisi gibi atlaniyor', () => {
+  /* OCR belgesinde transkript dusmusse davranis degismemeli. */
+  assert.ok(/if \(!kurtarmaKaynagi\) \{/.test(SRC),
+    'guvenilir alan yoklugunda kapi yok');
+  assert.ok(/guvenilir alan yok — OCR bozuk sayi uretiyor/.test(SRC),
+    'atlama sebebi loglanmiyor');
+});
+
+test('OCR da kapsama GUVENILIR ALANDAN olculup KAPSAMI yaziliyor', () => {
+  assert.ok(/const guvenKapsama = numericCoverage\(guvenilirMetin, cardPayload\)/.test(SRC),
+    'guvenilir alan kapsamasi olculmuyor');
+  /* Olcu yayinlanirken KAPSAMI soylenmeli: transkript belgenin tamamini
+     okumuyor, o yuzden "belgenin %100 u" iddiasi tasinmamali. */
+  assert.ok(/guvenilir alan, \$\{guvenilirSayfa\} sayfa/.test(SRC),
+    'kac sayfanin olculdugu yazilmiyor');
+  assert.ok(/belgenin tamami OCR, bu olcu okunan sayfalar icin/.test(SRC),
+    'olcunun kapsami belirtilmiyor — yanilitici okunur');
+  /* Guvenilir alan yoksa eski dogru davranis duruyor. */
+  assert.ok(/Sayisal kapsama OLCULEMEZ \(OCR\)/.test(SRC),
+    'guvenilir alan yoklugunda OLCULEMEZ logu kaybolmus');
+});
+
+test('guvenilir metin YALNIZCA transkript sayfalarindan kuruluyor', () => {
+  /* Birlesik metin (transkript + OCR) sayfa dizini icin; hedef liste ve
+     kurtarma icin OCR sayfalari KARISMAMALI. */
+  assert.ok(/guvenilirMetin = trMetin/.test(SRC),
+    'guvenilir metin birlesik metne baglanmis — OCR gurultusu hedefe girer');
+  assert.ok(/guvenilirSayfa = birlesik\.transkriptSayfa/.test(SRC),
+    'guvenilir sayfa sayaci yok');
+  /* Sayfa dizini yine BIRLESIK metinden: 29 sayfa korunmali. */
+  assert.ok(/buildPageIndex\(olcumMetni \|\| extractedText, pageMarkerLabel\)/.test(SRC),
+    'sayfa dizini guvenilir alana baglanmis — dizin 29 dan 6 ya duser');
+});
+
+/* ==========================================================================
+   BOS KART SEBEBINI SOYLEMELI (01.11.2026, Week 11 kosusunda olculdu)
+
+   Mesaj yalnizca "bos kaldi, tekrar deneyin" diyordu; kullaniciya genel bir
+   "hata" gibi goruluyordu. Olculen kosuda sebep loglarda belliydi:
+     Vision model call returned non-ok status: 400 (Too many images)
+     Gemini paralel: hicbir model cevap vermedi (zaman asimi)
+     HOTFIX: refusing to save empty/meta study card
+   ========================================================================== */
+
+test('bos kart hatasi SEBEP tasiyor', () => {
+  const i = SRC.indexOf('const bosKartSebebi');
+  assert.ok(i > 0, 'bos kart sebebi toplanmiyor');
+  const blok = SRC.slice(i, i + 1400);
+  /* Uc sinyal: OCR, atlanan asama, meta cevap. */
+  assert.ok(/if \(ocrKullanildi\) bosKartSebebi\.push/.test(blok),
+    'OCR sinyali mesaja girmiyor');
+  assert.ok(/skippedStages\.length > 0/.test(blok),
+    'atlanan asamalar mesaja girmiyor');
+  assert.ok(/if \(isMeta\) bosKartSebebi\.push/.test(blok),
+    'meta cevap sinyali mesaja girmiyor');
+  /* Sebep LOGA da girmeli: teshis kaybolmasin. */
+  assert.ok(/sebep: bosKartSebebi/.test(blok), 'sebep loglanmiyor');
+  /* Iki dil: kullanici kendi dilinde okumali. */
+  assert.ok(/lang === 'tr'/.test(blok), 'mesaj tek dilde kalmis');
+  assert.ok(/Özet içeriği boş kaldı/.test(blok) && /came back empty/.test(blok),
+    'iki dilli mesaj eksik');
+  /* Belge yine failed isaretlenmeli — davranis degismedi. */
+  assert.ok(/await markFailed\(serviceClient, documentId\)/.test(blok),
+    'belge failed isaretlenmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

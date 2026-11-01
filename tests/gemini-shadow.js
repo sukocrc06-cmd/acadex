@@ -620,7 +620,9 @@ test('citation anchoring logu atif ISTENMEDIGI hali soyluyor', () => {
   assert.ok(src.includes('const atifIstenmedi ='),
     'log kept=0 halini ayirt etmiyor — ayni yanlis teshis tekrar edilir');
   const i = src.indexOf('const atifIstenmedi =');
-  const blok = src.slice(i, i + 700);
+  /* 01.11.2026: araya dil-bagimsiz sayi capasi sayaci girdi, pencere
+     buyutuldu — bkz. sayiCapasi. */
+  const blok = src.slice(i, i + 1200);
   assert.ok(/kept === 0 && anchored\.stats\.demoted === 0/.test(blok),
     'ayrim demoted ile birlikte yapilmali: dizi dolu olup sayfalari hatali olsaydi demoted artardi');
   assert.ok(/atif YOKTU/.test(blok), 'log metni durumu yazmiyor');

@@ -5815,6 +5815,70 @@ const ANCHOR_MIN_TERMS = 3      // distinct matched content terms
  * Best page for a single claim, or null when no page matches it well enough.
  * Score = matched idf weight / total idf weight of the claim's own terms.
  */
+/* KART DILI BELGE DILINDEN FARKLI OLABILIYOR (01.11.2026 olculdu).
+ *
+ * Eslesme KELIME ortusmesine bakiyor; kart Turkce, belge Ingilizce olunca
+ * hicbir terim tutmuyor. Ayni belge, ayni gun, 75 saniye arayla:
+ *   IPPT Ingilizce : added=19 quoted=19 unanchored=2
+ *   IPPT Turkce    : added=3  quoted=3  unanchored=15
+ * Turkce kartta 18 maddeden 15'i atifsiz kaldi. Kan belgesinde (Turkce
+ * belge + Turkce kart) added=23, yani kusur dilin kendisi degil
+ * BELGE DILI ile KART DILI arasindaki fark.
+ *
+ * SAYILAR CEVRILMIYOR. "GDP per capita $1000 arttiginda enerji tuketimi
+ * %2.6 artar" cumlesi hangi dilde yazilirsa yazilsin 1000 ve 2.6 tasir;
+ * kaynak sayfasi da ayni sayilari tasiyor. Bu kol yalnizca kelime yolu
+ * BOS dondugunde devreye giriyor, yani mevcut davranisi degistirmiyor.
+ *
+ * YANLIS ATIF ATIFSIZLIKTAN KOTUDUR, o yuzden iki kapi var: en az iki sayi
+ * eslesmeli, ya da TEK sayi eslesecekse o sayi NADIR olmali (ondalikli ya
+ * da >= 100). "5" ya da "2" her sayfada gecer; "484.12" gecmez. */
+const CAPA_MIN_SAYI = 2
+const CAPA_NADIR_ESIK = 100
+
+/** Dil-bagimsiz capa: maddenin sayilarini sayfalarda arar. */
+function sayiCapasi(
+  claim: string,
+  pageIndex: PageSegment[]
+): { page: number; score: number; matched: number; head: string; quote: string | null } | null {
+  if (!pageIndex.length) return null
+  const hedef = [...new Set(distinctiveNumbers(claim).map(Math.abs))]
+  if (hedef.length === 0) return null
+  const nadir = (v: number) => !Number.isInteger(v) || v >= CAPA_NADIR_ESIK
+
+  let best: { seg: PageSegment; bulunan: number[] } | null = null
+  for (const seg of pageIndex) {
+    const sayfaSayilari = new Set(distinctiveNumbers(seg.body).map(Math.abs))
+    if (sayfaSayilari.size === 0) continue
+    const bulunan = hedef.filter((v) => sayfaSayilari.has(v))
+    if (bulunan.length === 0) continue
+    /* Strictly-greater: esitlikte EN ERKEN sayfa kaliyor — konu orada
+       tanitiliyor, anchorClaimToPage ile ayni durus. */
+    if (!best || bulunan.length > best.bulunan.length) best = { seg, bulunan }
+  }
+  if (!best) return null
+  const yeter = best.bulunan.length >= CAPA_MIN_SAYI || best.bulunan.some(nadir)
+  if (!yeter) return null
+
+  /* Alinti: o sayfada hedef sayiyi GERCEKTEN tasiyan ilk cumle. Kelime
+     ortusmesine bakan bestQuoteForClaim burada ise yaramaz — zaten
+     caprazdil oldugu icin bu kola dustuk. */
+  let quote: string | null = null
+  for (const cumle of splitSentences(best.seg.body)) {
+    const c = cumle.trim()
+    if (!c) continue
+    const cumleSayilari = new Set(distinctiveNumbers(c).map(Math.abs))
+    if (best.bulunan.some((v) => cumleSayilari.has(v))) { quote = c; break }
+  }
+  return {
+    page: best.seg.page,
+    score: best.bulunan.length / hedef.length,
+    matched: best.bulunan.length,
+    head: best.seg.head,
+    quote
+  }
+}
+
 function anchorClaimToPage(
   claim: string,
   pageIndex: PageSegment[],
@@ -8834,7 +8898,8 @@ function anchorCitations(
   lang: string
 ): { key_points: any[]; footnotes: any[]; idMap: Record<number, number>; stats: Record<string, number> } {
   const incoming = Array.isArray(existingFootnotes) ? existingFootnotes : []
-  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0, paylasilan: 0, sirali: 0 }
+  /* capa: dil-bagimsiz sayi capasindan gelen atif sayisi — bkz. sayiCapasi. */
+  const stats = { kept: 0, demoted: 0, added: 0, skipped: 0, quoted: 0, paylasilan: 0, sirali: 0, capa: 0 }
 
   const readText = (raw: any) => typeof raw === 'string' ? raw : String(raw?.text || raw?.point || '')
   const writeText = (raw: any, text: string) =>
@@ -8990,7 +9055,13 @@ function anchorCitations(
        Log: kept=9 added=1 — eklenen o tek atif tam burasiydi. */
     if (/\[\d+(?:\s*,\s*\d+)*\]/.test(text)) continue // already cited — leave it alone
 
-    const hit = anchorClaimToPage(text, pageIndex, idf, lang === 'en')
+    /* Kelime yolu BOS dondurduyse dil-bagimsiz sayi capasi — bkz.
+       sayiCapasi yanindaki olcum notu (Turkce kart + Ingilizce belge). */
+    let hit = anchorClaimToPage(text, pageIndex, idf, lang === 'en')
+    if (!hit) {
+      hit = sayiCapasi(text, pageIndex)
+      if (hit) stats.capa = (stats.capa || 0) + 1
+    }
     if (!hit) { stats.skipped++; continue }
 
     /* Ayni (sayfa, alinti) daha once gorulduyse YENI dipnot acilmaz:
@@ -12378,6 +12449,13 @@ serve(async (req) => {
        OLCUM tarafi onu kullanir. Kart uretimi her halde extractedText ile
        kosar — bkz. TRANSKRIPT_MAX_SAYFA yanindaki not. */
     let olcumMetni: string | null = null
+    /* GUVENILIR ALAN (01.11.2026): transkript gecisinin GERCEKTEN okudugu
+       sayfalar. olcumMetni birlesik (transkript + OCR) ve sayfa dizini
+       icin dogru; ama sayisal HEDEF listesi OCR gurultusunden kurulunca
+       olcu gecersiz oluyor. Hedef liste ve kurtarma artik yalnizca bu
+       alandan besleniyor — bkz. transkriptiOcrIleBirlestir yanindaki not. */
+    let guvenilirMetin: string | null = null
+    let guvenilirSayfa = 0
     /* Dosyanin sha256'si iki yerde lazim: OCR onbellegi (asagida) ve ozet
        onbellegi anahtari. Bir kez hesaplaniyor. */
     let dosyaHash: string | null = null
@@ -15434,6 +15512,11 @@ Respond ONLY with JSON: {"pages":[{"page":<page number as given>,"text":"<everyt
                         extractedText, trMetin, pageMarkerLabel
                       )
                       olcumMetni = birlesik.metin
+                      /* Hedef liste ve kurtarma icin YALNIZCA transkript
+                         sayfalari: OCR'in uydurdugu sayi ("122", "203")
+                         hedefe girmesin. */
+                      guvenilirMetin = trMetin
+                      guvenilirSayfa = birlesik.transkriptSayfa
                       console.log(
                         `Transkript gecisi: ${parcalar.length}/${trSayfalar.length} sayfa, ` +
                         `${trMetin.length} karakter, completion=${trHarcanan}/${TRANSKRIPT_MAX_COMPLETION} — ` +
@@ -16473,10 +16556,30 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
       const isEmpty = !hasExtractions && sum.trim().length < 80
       // If meta but we have real terms/points, strip meta summary is still bad — fail only if no extractions
       if (isEmpty || (isMeta && !hasExtractions)) {
-        console.error('HOTFIX: refusing to save empty/meta study card', { isMeta, isEmpty, terms: terms.length, points: points.length, quiz: quiz.length, sumLen: sum.length })
+        /* BOS KART SEBEBINI SOYLEMELI (01.11.2026, Week 11'de olculdu).
+         *
+         * Mesaj yalnizca "bos kaldi, tekrar deneyin" diyordu ve kullaniciya
+         * genel bir "hata" gibi goruluyordu. Olculen kosuda sebep bellidir
+         * ve loglarda duruyor:
+         *   Vision model call returned non-ok status: 400 (Too many images)
+         *   Gemini paralel: hicbir model cevap vermedi (zaman asimi)
+         *   HOTFIX: refusing to save empty/meta study card
+         * Hangi asamanin dustugunu mesaja koymak, kullanicinin "tekrar
+         * dene" ile "bu belge okunamiyor" arasini ayirmasini sagliyor —
+         * taranmis PDF mesajindaki ayni ders (bkz. OCR_SERVICE_DOWN). */
+        const bosKartSebebi: string[] = []
+        if (ocrKullanildi) bosKartSebebi.push(lang === 'tr' ? 'belge taranmis (OCR)' : 'scanned document (OCR)')
+        if (Array.isArray(skippedStages) && skippedStages.length > 0) {
+          bosKartSebebi.push((lang === 'tr' ? 'atlanan asama: ' : 'skipped: ') + skippedStages.join(', '))
+        }
+        if (isMeta) bosKartSebebi.push(lang === 'tr' ? 'model icerik yerine aciklama dondu' : 'model returned a meta answer')
+        const sebepMetni = bosKartSebebi.length ? ` (${bosKartSebebi.join('; ')})` : ''
+        console.error('HOTFIX: refusing to save empty/meta study card', { isMeta, isEmpty, terms: terms.length, points: points.length, quiz: quiz.length, sumLen: sum.length, sebep: bosKartSebebi })
         await markFailed(serviceClient, documentId)
         return new Response(JSON.stringify({
-          error: 'Özet içeriği boş kaldı. Lütfen tekrar deneyin. / Summary was empty — please retry.'
+          error: (lang === 'tr'
+            ? `Özet içeriği boş kaldı${sebepMetni}. Lütfen tekrar deneyin.`
+            : `Summary came back empty${sebepMetni} — please retry.`)
         }), {
           status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -16524,13 +16627,23 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
 
            Kapsama OCR'da olculmuyorsa onu DUZELTMEYE calismak da anlamsiz:
            ayni kapi, ayni gerekce. Log basilmaya devam ediyor. */
-        if (ocrKullanildi) {
-          console.log('Kurtarma atlandi: metin OCR\'dan geldi — OCR bozuk sayi uretiyor')
+        /* GUVENILIR ALAN VARSA KURTARMA KOSAR (01.11.2026, Week 8'de
+           olculdu). Yukaridaki gerekce OCR metni icin gecerli; ama
+           transkript gecisi okudugu sayfalarda DOGRU metin uretiyor ve
+           kayip sayilar orada gercek:
+             Sayisal kapsama kayiplari nerede: 100 <- "two positive numbers
+               whose product is 100" | 400 <- "a farmer has 400 ft of fencing"
+           Bu sayilar kurtarilabilirdi ama kapi hepsini birden kapatiyordu.
+           Kurtarma artik GUVENILIR ALANDAN besleniyor; o alan yoksa
+           davranis degismiyor. */
+        const kurtarmaKaynagi = ocrKullanildi ? guvenilirMetin : extractedText
+        if (!kurtarmaKaynagi) {
+          console.log('Kurtarma atlandi: metin OCR\'dan geldi ve guvenilir alan yok — OCR bozuk sayi uretiyor')
         } else {
-        const kapsamaOnce = numericCoverage(extractedText, parsedContent)
+        const kapsamaOnce = numericCoverage(kurtarmaKaynagi, parsedContent)
         if (kapsamaOnce.missing.length > 0) {
           const kurtarma = tahminDenklemleriniKurtar(
-            extractedText, kapsamaOnce.missing, parsedContent.formulas, lang
+            kurtarmaKaynagi, kapsamaOnce.missing, parsedContent.formulas, lang
           )
           if (kurtarma.formulas.length > 0) {
             parsedContent.formulas = [
@@ -16568,13 +16681,23 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
 
            Kapsama OCR'da olculmuyorsa onu DUZELTMEYE calismak da anlamsiz:
            ayni kapi, ayni gerekce. Log basilmaya devam ediyor. */
-        if (ocrKullanildi) {
-          console.log('Kurtarma atlandi: metin OCR\'dan geldi — OCR bozuk sayi uretiyor')
+        /* GUVENILIR ALAN VARSA KURTARMA KOSAR (01.11.2026, Week 8'de
+           olculdu). Yukaridaki gerekce OCR metni icin gecerli; ama
+           transkript gecisi okudugu sayfalarda DOGRU metin uretiyor ve
+           kayip sayilar orada gercek:
+             Sayisal kapsama kayiplari nerede: 100 <- "two positive numbers
+               whose product is 100" | 400 <- "a farmer has 400 ft of fencing"
+           Bu sayilar kurtarilabilirdi ama kapi hepsini birden kapatiyordu.
+           Kurtarma artik GUVENILIR ALANDAN besleniyor; o alan yoksa
+           davranis degismiyor. */
+        const kurtarmaKaynagi = ocrKullanildi ? guvenilirMetin : extractedText
+        if (!kurtarmaKaynagi) {
+          console.log('Kurtarma atlandi: metin OCR\'dan geldi ve guvenilir alan yok — OCR bozuk sayi uretiyor')
         } else {
-        const kapsamaOrta = numericCoverage(extractedText, parsedContent)
+        const kapsamaOrta = numericCoverage(kurtarmaKaynagi, parsedContent)
         if (kapsamaOrta.missing.length > 0) {
           const y = yorumCumleleriniKurtar(
-            extractedText, kapsamaOrta.missing, parsedContent.key_points
+            kurtarmaKaynagi, kapsamaOrta.missing, parsedContent.key_points
           )
           if (y.points.length > 0) {
             parsedContent.key_points = [
@@ -16590,10 +16713,10 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         /* --- (a0c) DUZLESMIS METIN TABLOSU — bkz. metinTablosuKurtar
            yanindaki olcum notu. Oteki iki kurtarmadan SONRA: eksik liste
            orada daralmis olabilir. */
-        const kapsamaSon = numericCoverage(extractedText, parsedContent)
+        const kapsamaSon = numericCoverage(kurtarmaKaynagi, parsedContent)
         if (kapsamaSon.missing.length > 0) {
           const mt = metinTablosuKurtar(
-            extractedText, kapsamaSon.missing, parsedContent.tables, lang
+            kurtarmaKaynagi, kapsamaSon.missing, parsedContent.tables, lang
           )
           if (mt.tables.length > 0) {
             parsedContent.tables = [
@@ -17050,6 +17173,9 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         `unanchored=${anchored.stats.skipped}` +
         // Ayni alintiyi paylasan madde sayisi — bkz. AYNI_ALINTI_ORTUSME.
         (anchored.stats.paylasilan ? ` alinti-paylasan=${anchored.stats.paylasilan}` : '') +
+        /* Kac atif dil-bagimsiz sayi capasindan geldi — caprazdil
+           belgelerde bu sayac sifirdan buyuk olmali. */
+        (anchored.stats.capa ? ` sayi-capasi=${anchored.stats.capa}` : '') +
         (atifIstenmedi
           ? ' — taslakta atif YOKTU (modelden istenmedi), tamami hesaplandi'
           : '')
@@ -17159,7 +17285,19 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
        * "122-1,2" tamami ASCII. Sinyal oranda degil SEBEPTE: metin
        * OCR'dan geldiyse olcu guvenilmez. Olcum yine yapiliyor (teshis
        * icin degerli) ama yuzde YAZILMIYOR. */
-      if (ocrKullanildi) {
+      if (ocrKullanildi && guvenilirMetin) {
+        /* GUVENILIR ALANDA OLCU GECERLI (01.11.2026, Week 8'de olculdu).
+         * Transkript gecisi dogru metin uretiyor — kayip sayilar gercek
+         * ("product is 100", "400 ft of fencing"), OCR'in uydurdugu
+         * "122"/"203" degil. O yuzden OCR belgelerinde de bir olcu
+         * yayinlanabiliyor; yalnizca KAPSAMI soyleniyor, cunku transkript
+         * belgenin tamamini degil bir bolumunu okuyor. */
+        const guvenKapsama = numericCoverage(guvenilirMetin, cardPayload)
+        console.log(
+          `Son kart sayisal kapsama (guvenilir alan, ${guvenilirSayfa} sayfa): ` +
+          `${formatCoverage(guvenKapsama)} — belgenin tamami OCR, bu olcu okunan sayfalar icin`
+        )
+      } else if (ocrKullanildi) {
         console.log(
           `Sayisal kapsama OLCULEMEZ (OCR): hedef liste OCR metninden kuruluyor — ` +
           `ham sayac ${kapsama.kept}/${kapsama.total}, rozet ve kurtarma kapali`
