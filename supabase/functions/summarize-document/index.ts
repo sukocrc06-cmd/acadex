@@ -5885,6 +5885,19 @@ function sayiCapasi(
     const cumleSayilari = new Set(distinctiveNumbers(c).map(Math.abs))
     if (best.bulunan.some((v) => cumleSayilari.has(v))) { quote = c; break }
   }
+  /* ALINTI DA KIRPILIYOR (01.11.2026, IPPT Turkce kartinda olculdu).
+     splitSentences matematik notasyonunda cumle sinirini bulamiyor ve
+     paragrafin tamami tek "cumle" olarak donuyor. Kaynakcada goruldugu hal:
+       [5] Utility Bill vs. Temperature – Quadratic Regression Interpretation
+           UtilityBill = 484.12 − 12.08temp + 0.09temp^2 The marginal effect
+           is ∂utilitybill = -12.08 + 2(0.09)temp ∂temp The marginal effect
+           at a temperature of 40 (evaluated at 39) is ... (400+ karakter)
+     Ogrencinin kaynakcada okudugu sey kisa bir alinti olmali. Kelime
+     yolundaki bestQuoteForClaim ayni siniri zaten uyguluyor
+     (QUOTE_MAX_CHARS); bu kol da ayni olcuyu kullaniyor. */
+  if (quote && quote.length > QUOTE_MAX_CHARS) {
+    quote = quote.slice(0, QUOTE_MAX_CHARS).replace(/\s+\S*$/, '') + '…'
+  }
   return {
     page: best.seg.page,
     score: best.bulunan.length / hedef.length,

@@ -1566,4 +1566,51 @@ test('capa YALNIZCA kelime yolu bos donunce deneniyor', () => {
     'capa sayaci loglanmiyor — caprazdil kosuda gorulemez');
 });
 
+/* ==========================================================================
+   ALINTI DA KIRPILIYOR (01.11.2026, IPPT Turkce kartinda olculdu)
+
+   splitSentences matematik notasyonunda cumle sinirini bulamiyor ve
+   paragrafin tamami tek "cumle" olarak donuyor. Kaynakcada goruldugu hal:
+     [5] Utility Bill vs. Temperature – Quadratic Regression Interpretation
+         UtilityBill = 484.12 − 12.08temp + 0.09temp^2 The marginal effect
+         is ∂utilitybill = -12.08 + 2(0.09)temp ... (400+ karakter)
+   Kelime yolundaki bestQuoteForClaim ayni siniri zaten uyguluyor.
+   ========================================================================== */
+
+test('sayi capasinin alintisi QUOTE_MAX_CHARS ile sinirli', () => {
+  /* Matematik notasyonlu, cumle sinirsiz uzun paragraf — gercek s.29 hali. */
+  const UZUN = [
+    '--- SAYFA 29 ---',
+    'Utility Bill vs. Temperature – Quadratic Regression Interpretation ' +
+    'UtilityBill = 484.12 − 12.08temp + 0.09temp^2 The marginal effect is ' +
+    '∂utilitybill = -12.08 + 2(0.09)temp ∂temp The marginal effect at a ' +
+    'temperature of 40 (evaluated at 39) is -12.08 + 2(0.09)39 = − 12.08 + ' +
+    '7.02 = − 5.06 which means that if temperature increases from 39 to 40 ' +
+    'degrees then the utility bill decreases by 5.06 dollars and at 80 it is 2.14'
+  ].join('\n');
+  const idx = A.buildPageIndex(UZUN, 'SAYFA');
+  const hit = A.sayiCapasi('Sicaklik 39 dan 40 dereceye ciktiginda fatura 5.06 dolar azalir, 484.12 modeli', idx);
+  assert.ok(hit, 'capa baglamadi');
+  assert.ok(hit.quote, 'alinti uretilmedi');
+  assert.ok(hit.quote.length <= A.QUOTE_MAX_CHARS + 1,
+    'alinti kirpilmamis (' + hit.quote.length + ' karakter): ' + hit.quote.slice(0, 80));
+  assert.ok(/…$/.test(hit.quote), 'kirpma isareti yok: ' + hit.quote.slice(-30));
+  /* Kirpma SOZCUK sinirinda: kesme isaretinden once tam bir sozcuk
+     bitiyor, yarim hece kalmiyor (replace(/\s+\S*$/)). */
+  assert.ok(/[A-Za-z0-9)]…$/.test(hit.quote),
+    'kirpma sozcuk ortasinda: ' + hit.quote.slice(-30));
+});
+
+test('KISA alinti kirpilmadan kaliyor', () => {
+  const KISA = [
+    '--- SAYFA 30 ---',
+    'Using the utility bill example, the function reaches a minimum at 67.11 degrees.'
+  ].join('\n');
+  const idx = A.buildPageIndex(KISA, 'SAYFA');
+  const hit = A.sayiCapasi('Minimum sicaklik noktasi 67.11 derecedir', idx);
+  assert.ok(hit && hit.quote, 'capa baglamadi');
+  assert.ok(!/…$/.test(hit.quote), 'kisa alinti gereksiz kirpildi: ' + hit.quote);
+  assert.ok(/67\.11/.test(hit.quote), 'hedef sayi alintida yok: ' + hit.quote);
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
