@@ -176,6 +176,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'TRANSKRIPT_MIN_KRK',
   'TRANSKRIPT_MIN_SAYFA_ORANI',
   'transkriptiOcrIleBirlestir',
+  'sayiYogunSayfalar',
   // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
   'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
@@ -10437,6 +10438,77 @@ test('bos kart hatasi SEBEP tasiyor', () => {
   /* Belge yine failed isaretlenmeli — davranis degismedi. */
   assert.ok(/await markFailed\(serviceClient, documentId\)/.test(blok),
     'belge failed isaretlenmiyor');
+});
+
+/* ==========================================================================
+   ISLETMENDEN SONRA GELEN $ PARA DEGIL (01.11.2026, Week 8 kartinda olculdu)
+
+   Jeton sonundaki $ "100$" gibi para sayiliyordu ve yetim ayirac kaliyordu:
+     "where f'(x) > 0$ indicates an increasing function and
+      f'(x) < 0$ a decreasing one"
+   Ayirt edici sey sayinin SOLUNDAKI karakter: isletmen geliyorsa ifadenin
+   parcasidir, sozcuk geliyorsa paradir.
+   ========================================================================== */
+
+test('isletmenden sonra gelen yetim $ atiliyor', () => {
+  const g = "where f'(x) > 0$ indicates an increasing function and " +
+    "f'(x) < 0$ a decreasing one, and $f'(c) = 0$ marks a critical point.";
+  const c = A.onarAnlatiLatex(g).metin;
+  assert.ok(/> 0 indicates/.test(c), "yetim $ atilmadi: " + c);
+  assert.ok(/< 0 a decreasing/.test(c), "ikinci yetim $ atilmadi: " + c);
+  /* GERCEK adacik dokunulmadan kaliyor. */
+  assert.ok(c.includes("$f'(c) = 0$"), "gercek adacik bozuldu: " + c);
+  assert.equal((c.match(/\$/g) || []).length, 2, "ayirac sayisi beklenmedik: " + c);
+});
+
+test('SOZCUKTEN sonra gelen $ para olarak kaliyor', () => {
+  /* Kol fazla genis olmamali: ayni cumlede LaTeX olsa bile para para. */
+  const r = A.onarAnlatiLatex('toplam maliyet 100$ olarak hesaplandi ve \\beta_1 kullanildi');
+  assert.match(r.metin, /100\$ olarak/, r.metin);
+  const r2 = A.onarAnlatiLatex('Fatura 100$ odendi ve indirim $5.06 oldu.');
+  assert.equal(r2.metin, 'Fatura 100$ odendi ve indirim $5.06 oldu.');
+});
+
+/* ==========================================================================
+   TRANSKRIPT SAYILARIN OLDUGU SAYFAYI OKUMALI (01.11.2026 olculdu)
+
+   Ilk surum gorsel sayfa planini kullaniyordu; o plan AMACI BASKA —
+   "bos sayfa yedegi" diyerek metninde en az sayi olan sayfalari seciyor.
+   Olculen kosu:
+     Transkript gecisi: 4/6 sayfa, 1523 karakter
+     Son kart sayisal kapsama (guvenilir alan, 4 sayfa):
+       olculecek ayirt edici sayi yok
+   Transkript dogru metin verdi ama okudugu dort sayfada hic sayi yoktu.
+   ========================================================================== */
+
+test('sayiYogunSayfalar sayi tasiyan sayfalari seciyor', () => {
+  const BELGE = [
+    '--- SAYFA 1 ---', 'Differentiability requires one clear slope.',
+    '--- SAYFA 2 ---', 'Corners and cusps prevent differentiability.',
+    /* distinctiveNumbers ara hesaplari (x = 5) bilincli eliyor — olculdu;
+       sayfalara ONUN ayirt edici saydigi sayilar konuyor. */
+    '--- SAYFA 28 ---', 'Find two positive numbers whose product is 100.',
+    '--- SAYFA 29 ---', 'A farmer has 400 ft of fencing and the bill is 484.12 dollars.'
+  ].join('\n');
+  const sec = A.sayiYogunSayfalar(BELGE, 'SAYFA', 2);
+  /* PDF indeksi 0-tabanli: sayfa 28 ve 29 -> 27 ve 28. */
+  assert.deepEqual(sec, [27, 28],
+    'sayi tasiyan sayfalar secilmedi: ' + JSON.stringify(sec));
+});
+
+test('sayiYogunSayfalar sayisiz belgede BOS doner (yedege dusulur)', () => {
+  const BELGE = '--- SAYFA 1 ---\nDifferentiability and continuity.\n\n--- SAYFA 2 ---\nCorners and cusps.';
+  assert.deepEqual(A.sayiYogunSayfalar(BELGE, 'SAYFA', 6), [],
+    'sayisiz belgede secim uretti — gorsel plan yedegi devreye girmeli');
+  assert.deepEqual(A.sayiYogunSayfalar('', 'SAYFA', 6), []);
+});
+
+test('transkript sayfa secimi AMACA bagli', () => {
+  assert.ok(/const sayiliSayfalar = sayiYogunSayfalar\(/.test(SRC),
+    'transkript hala gorsel plandan besleniyor');
+  assert.ok(/sayiliSayfalar\.length > 0\s*\n\s*\? sayiliSayfalar\s*\n\s*: visualPlan\.indices\.slice\(0, TRANSKRIPT_MAX_SAYFA\)/.test(SRC),
+    'sayi bulunamazsa gorsel plan yedegi yok');
+  assert.ok(/Transkript sayfa secimi: /.test(SRC), 'secim loglanmiyor');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

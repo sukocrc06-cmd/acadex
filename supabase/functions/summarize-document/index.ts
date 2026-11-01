@@ -719,6 +719,21 @@ function anlatiLatexYumusat(parca: string): string {
      dizdi: "( f ′ ( x ) < 0 )onaninterval,thefunctionisanincreasing".
      Gercek para isareti sozcugu BITIRIR ("100$", "100$."); ardindan
      parantez gelen $ para degil, formul kalintisidir. */
+  /* ISLETMENDEN SONRA GELEN $ PARA DEGIL (01.11.2026, Week 8'de olculdu).
+     Jeton sonundaki $ "100$" gibi para sayiliyordu ve yetim ayirac
+     korunuyordu. Kartta duran hal:
+       "where f'(x) > 0$ indicates an increasing function and
+        f'(x) < 0$ a decreasing one"
+     Ayirt edici sey sayinin SOLUNDAKI karakter: karsilastirma ya da
+     aritmetik isletmeni geliyorsa ("> 0$", "= 0$", "+ 5$") o sayi bir
+     ifadenin parcasidir, para tutari degil. Sozcuk geliyorsa paradir
+     ("maliyet 100$"). Bu kol $'i atiyor, sayiyi birakiyor.
+     Gercek adaciklar etkilenmiyor: onlar bu fonksiyona hic girmiyor
+     (bkz. onarAnlatiLatex — yalnizca adacik DISI parcalar yumusatiliyor). */
+  t = t.replace(
+    /([<>=+\u2212\u2265\u2264\u2260])(\s*-?[\d.,]+)\$(?=\s|$|[.,;:!?)\]])/g,
+    '$1$2'
+  )
   t = t.split(/(\s+)/).map((jeton) => {
     if (jeton.indexOf('$') === -1) return jeton
     /* YUZDE PARA DEGIL (31.10.2026, IPPT kartinda olculdu).
@@ -15436,7 +15451,19 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
             if (ocrKullanildi && parallelGemini && visionData &&
                 budgetLeft() > TRANSKRIPT_MIN_BUTCE_MS) {
               try {
-                const trSayfalar = visualPlan.indices.slice(0, TRANSKRIPT_MAX_SAYFA)
+                /* Sayi tasiyan sayfalar — bkz. sayiYogunSayfalar yanindaki
+                   olcum notu. Hic sayi yoksa eski plana dusuluyor, cunku
+                   transkript atif alintilarini da iyilestiriyor. */
+                const sayiliSayfalar = sayiYogunSayfalar(
+                  extractedText, pageMarkerLabel, TRANSKRIPT_MAX_SAYFA
+                )
+                const trSayfalar = sayiliSayfalar.length > 0
+                  ? sayiliSayfalar
+                  : visualPlan.indices.slice(0, TRANSKRIPT_MAX_SAYFA)
+                console.log(
+                  `Transkript sayfa secimi: [${trSayfalar.map((i: number) => i + 1).join(',')}] — ` +
+                  (sayiliSayfalar.length > 0 ? 'sayi yogunluguna gore' : 'gorsel plan yedegi')
+                )
                 const trPdf = trSayfalar.length === visualPlan.indices.length
                   ? visualImages[0]
                   : await buildPdfSubsetBase64(fileBytes, trSayfalar)
@@ -18117,6 +18144,45 @@ async function pptxGorselOCR(
  * Dogru davranis BIRLESTIRME: transkriptin okudugu sayfa transkriptten,
  * okumadigi sayfa OCR metninden geliyor. Iki metin de ayni sayfa isaretini
  * tasiyor, o yuzden birlestirme sayfa numarasi uzerinden yapilabiliyor. */
+/* TRANSKRIPT SAYILARIN OLDUGU SAYFAYI OKUMALI (01.11.2026 olculdu).
+ *
+ * Ilk surum gorsel sayfa planini kullaniyordu; ama o plan AMACI BASKA —
+ * "sekil basligi yok, bos sayfa yedegi" diyerek metninde en az sayi olan
+ * sayfalari seciyor. Transkriptin amaci ise tam tersi: sayisal kapsamayi
+ * olcebilmek ve kurtarmayi besleyebilmek. Olculen kosu:
+ *   Transkript gecisi: 4/6 sayfa, 1523 karakter
+ *   Son kart sayisal kapsama (guvenilir alan, 4 sayfa):
+ *     olculecek ayirt edici sayi yok
+ * Yani transkript calisti, dogru metin verdi — ama okudugu dort sayfada
+ * hic sayi yoktu. Week 8'in sayilari s.20 ve s.27-29'da (30, 50, 18, 4);
+ * plan s.1/3/4/6'yi secmisti.
+ *
+ * Secim artik OCR metninin KENDISINDEN: hangi sayfa daha cok ayirt edici
+ * sayi tasiyorsa o okunuyor. OCR sayilari bozuk olabilir ama bir sayfada
+ * SAYI OLDUGUNU dogru soyler; transkript de o sayfayi dogru okur. */
+function sayiYogunSayfalar(
+  metin: string,
+  pageMarkerLabel: string,
+  adet: number
+): number[] {
+  const isaret = new RegExp(`^---\\s*${pageMarkerLabel}\\s+(\\d+)\\s*---\\s*$`, 'im')
+  const satirlar = String(metin || '').split(/\r?\n/)
+  const sayfalar: Array<{ no: number; govde: string[] }> = []
+  for (const satir of satirlar) {
+    const m = satir.match(isaret)
+    if (m) { sayfalar.push({ no: parseInt(m[1], 10), govde: [] }); continue }
+    if (sayfalar.length) sayfalar[sayfalar.length - 1].govde.push(satir)
+  }
+  const puanli = sayfalar
+    .map((s) => ({ no: s.no, puan: distinctiveNumbers(s.govde.join('\n')).length }))
+    .filter((s) => s.puan > 0)
+  /* Cok sayi tasiyan once; esitlikte EN ERKEN sayfa (konu orada tanitiliyor,
+     anchorClaimToPage ile ayni durus). */
+  puanli.sort((a, b) => b.puan - a.puan || a.no - b.no)
+  /* PDF indeksi 0-tabanli, sayfa isareti 1-tabanli. */
+  return puanli.slice(0, adet).map((s) => s.no - 1).filter((i) => i >= 0).sort((a, b) => a - b)
+}
+
 function transkriptiOcrIleBirlestir(
   ocrMetni: string,
   transkript: string,
