@@ -1289,7 +1289,8 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .faq::details-content{transition:none}
 }
 </style>
-<link rel="stylesheet" href="css/acadex-medlab-film.css">
+<link rel="stylesheet" href="css/acadex-kampus-tur.css">
+<link rel="stylesheet" href="css/acadex-kampus-tur-maskot.css">
 </head>
 <body>
 <div data-acx-root="" style="font-family: 'Instrument Sans', system-ui, sans-serif; color: #0D1838; font-size: 17px; line-height: 1.6; background: #EEF1F6">
@@ -1696,29 +1697,237 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 </div>
 </section>
 
-<!-- ===== TRY IT: three playable flashcards (no sign-up) ===== -->
-<section id="medlab" class="mf" data-mf="" aria-labelledby="mf-t">
-<div class="mf-track">
-<div class="mf-stage">
-<div class="mf-copy">
-<span class="mf-eyb"><i aria-hidden="true"></i>Acadex MedLab · tıp öğrencileri için</span>
-<h2 class="mf-h" id="mf-t">Kadavranın yerine değil,<br><u>tekrarına.</u></h2>
-<ol class="mf-rail" aria-hidden="true"><li class="on" style="--c:#E0645A"><span><i></i></span><b>kaslar</b></li><li style="--c:#E0645A"><span><i></i></span><b>soyma</b></li><li style="--c:#EDE4D0"><span><i></i></span><b>iskelet</b></li><li style="--c:#D8304A"><span><i></i></span><b>damar · sinir</b></li><li style="--c:#FFD86B"><span><i></i></span><b>spot</b></li></ol>
-<div class="mf-steps">
-<div class="mf-step on"><span class="k">1 · kaslar</span><h3>Gerçek 3B insan modeli</h3><p>Anatomi Lab’de vücut katman katman açılır. Modeli döndür, yakınlaş, bir yapıya dokun: adı, Latincesi ve yeri karşında.</p></div>
-<div class="mf-step" aria-hidden="true"><span class="k">2 · kas soyma</span><h3>Yüzeyden derine soy</h3><p>Kaslar yüzeyelden derine doğru kalkar; altındaki kemikler ve kasların bağlandığı yerler görünür olur.</p></div>
-<div class="mf-step" aria-hidden="true"><span class="k">3 · iskelet ve organlar</span><h3>Her yapının bir kartı var</h3><p>Origo, insersiyo, inervasyon, kan desteği ve klinik not; kaynağıyla birlikte. Kurul yoluyla bölge bölge ilerlersin.</p></div>
-<div class="mf-step" aria-hidden="true"><span class="k">4 · damar ve sinir</span><h3>Seyrini modelde izle</h3><p>Bir siniri ya da arteri sorduğunda Acadia cevabı yazmakla kalmaz, seyrini modelde ışıklandırır.</p></div>
-<div class="mf-step" aria-hidden="true"><span class="k">5 · spot ve klinik</span><h3>Spot sınava hazır ol</h3><p>İğne bir yapıya konur, sen adını yazarsın; karnen ve kaçırdıkların tekrar destende. Klinik vakalar ve Fizyo Lab’de eklem ölçümü, OSCE provası da burada.</p><a class="mf-go" href="register.html">MedLab’e gir <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+<!-- ===== ACADEX MEDLAB SAĞLIK KAMPÜSÜ TURU (css/acadex-kampus-tur.css, js/acadex-kampus-tur.js) ===== -->
+<section id="medlab" class="kt" data-kt="" aria-labelledby="kt-t">
+<div class="kt-intro">
+<span class="kt-eyb"><i aria-hidden="true"></i>Acadex MedLab · sağlık bilimleri kampüsü</span>
+<h2 class="kt-h" id="kt-t">Sekiz lab, bir hastane.<br><u>Bölümün hangisi?</u></h2>
+<p class="kt-lead">Tıptan hemşireliğe, diyetetikten odyolojiye: her bölümün kendi laboratuvarı ve maskotu var. Klinik vakaların hepsi Acadex Medica eğitim hastanesinde seni bekliyor.</p>
+<div class="kt-sec"><b>Bölümün ne? Seni durağına götüreyim.</b><ul class="kt-chips"><li><button type="button" data-kt-bolum="ana" aria-pressed="false" style="--c:#C9483B"><i></i>Tıp</button></li><li><button type="button" data-kt-bolum="fiz" aria-pressed="false" style="--c:#1E8A55"><i></i>Fizyoterapi</button></li><li><button type="button" data-kt-bolum="ody" aria-pressed="false" style="--c:#D68A1E"><i></i>Odyoloji</button></li><li><button type="button" data-kt-bolum="dyt" aria-pressed="false" style="--c:#D9472B"><i></i>Beslenme ve diyetetik</button></li><li><button type="button" data-kt-bolum="dkt" aria-pressed="false" style="--c:#E0705A"><i></i>Dil ve konuşma terapisi</button></li><li><button type="button" data-kt-bolum="ecz" aria-pressed="false" style="--c:#7A4FA8"><i></i>Eczacılık</button></li><li><button type="button" data-kt-bolum="hem" aria-pressed="false" style="--c:#3B7DD8"><i></i>Hemşirelik</button></li><li><button type="button" data-kt-bolum="hepsi" aria-pressed="false" style="--c:#0D1838"><i></i>Hepsini gez</button></li></ul></div>
 </div>
-
+<div class="kt-track">
+<div class="kt-stage">
+<div class="kt-sts">
+<article class="kt-st kt-giris" data-st="giris" data-ad="Kampüs girişi" data-renk="#2E9C86" data-reh="Kampüse hoş geldin! Aşağı kaydır, rehber cerrahla lab lab yürüyelim." style="--c:#2E9C86"><div class="kt-tx"><span class="k">Başlangıç · Kampüs girişi</span><h3>Kampüse hoş geldin</h3><span class="for">rehberin: Op. Dr. Kaan Arslan</span><p>Acadex Medica’nın nöbetçi cerrahı seni karşılıyor. Sağlık kampüsünde her bölümün kendi laboratuvarı var; aşağı kaydır, birlikte yürüyelim.</p><ul><li>sekiz durak</li><li>bölümüne göre lab</li><li>tek hastane</li></ul></div></article>
+<article class="kt-st" data-st="ana" data-ad="Anatomi" data-renk="#C9483B" data-reh="İskelet dostumuz kaslarını soyuyor: Anatomi Lab tıp öğrencileri için." style="--c:#C9483B"><span class="kt-cv" role="img" aria-label="Acadex iskelet maskotu, anatomi tablosunu çubukla gösterip el sallıyor"><svg class="axm-ana" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<rect width="864" height="352" fill="#EEF1F5"/>
+<path d="M0 300H864" stroke="#D8DEE8" stroke-width="3"/>
+<g class="ana-poster">
+<rect x="74" y="34" width="210" height="262" rx="8" fill="#FFFDF8" stroke="#0D1838" stroke-width="5"/>
+<rect x="150" y="22" width="60" height="22" rx="4" fill="#FFD86B" opacity=".9"/>
+<text x="96" y="70" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="20" font-weight="800" fill="#C9483B">ANATOMİ</text>
+<path d="M96 80h52" stroke="#C9483B" stroke-width="4" stroke-linecap="round"/>
+<g transform="translate(180 96)">
+<circle cx="0" cy="12" r="15" fill="#F7F1E3" stroke="#0D1838" stroke-width="3"/>
+<g class="ana-mus"><path d="M-30 34h60l-6 70h-48z" fill="#E07A6A" stroke="#0D1838" stroke-width="3"/><path d="M-30 36l-14 66M30 36l14 66" stroke="#E07A6A" stroke-width="12" stroke-linecap="round"/><path d="M-20 104l-4 74M20 104l4 74" stroke="#E07A6A" stroke-width="14" stroke-linecap="round"/><path d="M-14 48c8 6 20 6 28 0M-16 64c10 6 22 6 32 0" stroke="#B9473A" stroke-width="2.4" fill="none"/></g>
+<g class="ana-bone"><path d="M0 30v76" stroke="#0D1838" stroke-width="4"/><path d="M-22 42c10-6 34-6 44 0M-24 56c12-6 36-6 48 0M-22 70c10-6 34-6 44 0M-18 84c8-5 28-5 36 0" stroke="#0D1838" stroke-width="3" fill="none"/><path d="M-30 36l-14 66M30 36l14 66M-16 108l-6 70M16 108l6 70" stroke="#0D1838" stroke-width="4" stroke-linecap="round"/><path d="M-20 104c8 10 32 10 40 0" stroke="#0D1838" stroke-width="4" fill="none"/></g>
+</g>
+</g>
+<g class="ana-sk">
+<ellipse class="ana-sh" cx="610" cy="330" rx="76" ry="9" fill="#0D1838" opacity=".1"/>
+<g class="ana-body">
+<g stroke="#0D1838" stroke-width="5" stroke-linecap="round" fill="none">
+<path d="M594 274 L586 322 M626 274 L634 322"/>
+</g>
+<g fill="#F7F1E3" stroke="#0D1838" stroke-width="4"><ellipse cx="582" cy="326" rx="16" ry="7"/><ellipse cx="638" cy="326" rx="16" ry="7"/></g>
+<path d="M584 252c8-10 44-10 52 0l-6 20c-8 6-32 6-40 0z" fill="#F7F1E3" stroke="#0D1838" stroke-width="4" stroke-linejoin="round"/>
+<path d="M610 168v86" stroke="#0D1838" stroke-width="6" stroke-linecap="round"/>
+<g fill="none" stroke="#0D1838" stroke-width="4" stroke-linecap="round"><path d="M580 186c10-8 50-8 60 0"/><path d="M576 202c12-8 56-8 68 0"/><path d="M578 218c12-8 52-8 64 0"/><path d="M584 234c10-6 42-6 52 0"/></g>
+<g class="ana-arm-l"><rect x="502" y="98" width="160" height="160" fill="none"/><path d="M582 178 L548 214 L520 196" stroke="#0D1838" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="518" cy="194" r="7" fill="#F7F1E3" stroke="#0D1838" stroke-width="3"/><path class="ana-stick" d="M518 194 L300 150" stroke="#B98552" stroke-width="5" stroke-linecap="round"/></g>
+<g class="ana-arm-r"><rect x="558" y="98" width="160" height="160" fill="none"/><path d="M638 178 L676 150 L690 108" stroke="#0D1838" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><g fill="#F7F1E3" stroke="#0D1838" stroke-width="3"><circle cx="690" cy="102" r="9"/></g><path d="M684 92l-4-8M692 90l0-9M699 93l4-7" stroke="#0D1838" stroke-width="3" stroke-linecap="round"/></g>
+<g class="ana-head">
+<circle cx="610" cy="110" r="52" fill="#F7F1E3" stroke="#0D1838" stroke-width="5"/>
+<ellipse cx="590" cy="76" rx="14" ry="6" fill="#fff" opacity=".7" transform="rotate(-25 590 76)"/>
+<g class="ana-eyes"><ellipse cx="590" cy="110" rx="13" ry="15" fill="#0D1838"/><ellipse cx="630" cy="110" rx="13" ry="15" fill="#0D1838"/><circle cx="594" cy="105" r="4" fill="#fff"/><circle cx="634" cy="105" r="4" fill="#fff"/></g>
+<path d="M610 124l-6 10h12z" fill="#0D1838"/>
+<g class="ana-jaw"><path d="M582 146c4 18 52 18 56 0" fill="#F7F1E3" stroke="#0D1838" stroke-width="4"/><path d="M594 150v8M604 151v9M614 151v9M624 150v8" stroke="#0D1838" stroke-width="2.4"/></g>
+<path d="M590 144h40" stroke="#0D1838" stroke-width="3" stroke-dasharray="4 4"/>
+</g>
+</g>
+</g>
+<g class="axm-canli canli-ana" aria-hidden="true"><ellipse cx="772" cy="312" rx="60" ry="12" fill="#0D1838" opacity=".12"/><ellipse cx="772" cy="306" rx="54" ry="11" fill="#DCE6F5" stroke="#9FB6D8" stroke-width="3"/><ellipse class="ca-hal" cx="772" cy="306" rx="54" ry="11" fill="none" stroke="#2F6BFF" stroke-width="2.5"/><g class="ca-don"><g fill="#E07A6A" opacity=".85"><circle cx="772" cy="178" r="13"/><path d="M754 196h36l-4 52h-28z"/><path d="M754 198l-10 44M790 198l10 44" stroke="#E07A6A" stroke-width="8" stroke-linecap="round"/><path d="M762 248l-3 52M782 248l3 52" stroke="#E07A6A" stroke-width="9" stroke-linecap="round"/></g><path d="M772 192v60M760 206c6-4 18-4 24 0M760 218c6-4 18-4 24 0" stroke="#0D1838" stroke-width="2" fill="none" opacity=".5"/></g><rect class="ca-tara" x="736" y="160" width="72" height="4" rx="2" fill="#7FE0C2"/><text x="772" y="342" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#2F6BFF" class="ca-kat">deri · kas · kemik</text></g></svg></span><div class="kt-tx"><span class="k">Durak 1 · Anatomi Lab</span><h3>Katman katman insan</h3><span class="for">tıp öğrencileri için</span><p>Gerçek 3B insan modelinde kası soy, kemiği, damarı ve siniri gör. Her yapının bir kartı var: origo, insersiyo, inervasyon ve klinik not.</p><ul><li>3B atlas</li><li>kurul yolu</li><li>spot sınav</li></ul></div></article>
+<article class="kt-st" data-st="fiz" data-ad="Fizyo" data-renk="#1E8A55" data-reh="Diz eklemi bükülüyor, gonyometre açıyı okuyor: Fizyo Lab." style="--c:#1E8A55"><span class="kt-cv" role="img" aria-label="Acadex diz eklemi maskotu dizini büküyor, gonyometre eklem hareket açıklığını ölçüyor"><svg class="axm-fiz" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<rect width="864" height="352" fill="#EEF5F1"/>
+<path d="M0 312H864" stroke="#D3E3D9" stroke-width="3"/>
+<g transform="translate(480 168)">
+<path d="M0 0 L-30 -128" stroke="#2E8E5B" stroke-width="6" stroke-linecap="round" opacity=".55"/>
+<path d="M-118 0 A118 118 0 0 0 118 0" fill="rgba(46,142,91,.07)" stroke="#2E8E5B" stroke-width="3" stroke-dasharray="3 7"/>
+<g class="fiz-low"><rect x="-170" y="-170" width="340" height="340" fill="none"/>
+<path d="M-18 30 L-12 138 M14 30 L10 138" stroke="#0D1838" stroke-width="5" stroke-linecap="round"/>
+<path d="M-26 28 C-28 70 -24 110 -16 140 L14 140 C20 110 24 70 22 28 Z" fill="#F7F1E3" stroke="#0D1838" stroke-width="5" stroke-linejoin="round"/>
+<path d="M-24 138 C-26 156 30 160 56 154 C62 150 58 140 44 138 Z" fill="#F7F1E3" stroke="#0D1838" stroke-width="5" stroke-linejoin="round"/>
+<path d="M0 0 L0 150" stroke="#D9472B" stroke-width="6" stroke-linecap="round"/>
+<circle cx="0" cy="150" r="7" fill="#D9472B"/>
+</g>
+<path d="M-34 -128 C-40 -90 -36 -50 -28 -18 L20 -18 C24 -50 20 -96 14 -128 Z" fill="#F7F1E3" stroke="#0D1838" stroke-width="5" stroke-linejoin="round"/>
+<ellipse cx="-10" cy="-132" rx="34" ry="16" fill="#F7F1E3" stroke="#0D1838" stroke-width="5"/>
+<g class="fiz-knee">
+<circle r="50" fill="#FFFDF8" stroke="#0D1838" stroke-width="5"/>
+<path d="M-48 -14 C-20 -22 20 -22 48 -14 M-49 12 C-20 4 20 4 49 12" stroke="#2F6BFF" stroke-width="5" fill="none"/>
+<g class="fiz-eyes" fill="#0D1838"><ellipse cx="-16" cy="-2" rx="6" ry="8"/><ellipse cx="16" cy="-2" rx="6" ry="8"/></g>
+<g fill="#F5A3A3" opacity=".85"><ellipse cx="-30" cy="14" rx="8" ry="5"/><ellipse cx="30" cy="14" rx="8" ry="5"/></g>
+<path d="M-10 18 Q0 28 10 18" fill="none" stroke="#0D1838" stroke-width="4" stroke-linecap="round"/>
+<path class="fiz-sweat" d="M40 -40 c-6 8 -6 14 0 14 c6 0 6 -6 0 -14z" fill="#9CCBFF" stroke="#0D1838" stroke-width="2"/>
+</g>
+</g>
+<g transform="translate(650 64)">
+<rect width="164" height="96" rx="14" fill="#152018" stroke="#0D1838" stroke-width="5"/>
+<text x="16" y="26" font-family="JetBrains Mono,monospace" font-size="13" fill="#7FB89A" letter-spacing="2">DİZ FLEKSİYON</text>
+<g font-family="JetBrains Mono,monospace" font-size="38" font-weight="700" fill="#7CF0B0" text-anchor="end">
+<text class="fiz-d fiz-d0" x="146" y="78">0°</text><text class="fiz-d fiz-d1" x="146" y="78">30°</text><text class="fiz-d fiz-d2" x="146" y="78">60°</text><text class="fiz-d fiz-d3" x="146" y="78">90°</text><text class="fiz-d fiz-d4" x="146" y="78">110°</text>
+</g>
+</g>
+<g transform="translate(118 112)" fill="none" stroke="#0D1838" stroke-width="4" stroke-linecap="round">
+<rect x="-46" y="-40" width="92" height="120" rx="10" fill="#FFFDF8"/><path d="M-28 -16h56M-28 4h56M-28 24h36"/><path d="M-28 48l10 10 20-24" stroke="#2E8E5B" stroke-width="5"/>
+</g>
+<g class="axm-canli canli-fiz" aria-hidden="true"><rect x="170" y="318" width="150" height="10" rx="5" fill="#5E8F4A" opacity=".75"/><g class="cf-squat"><circle cx="245" cy="214" r="13" fill="#F2C7A1" stroke="#0D1838" stroke-width="3"/><path d="M245 228v42" stroke="#1E8A55" stroke-width="16" stroke-linecap="round"/><path class="cf-kol" d="M245 238l30 4M245 238l-30 4" stroke="#F2C7A1" stroke-width="7" stroke-linecap="round"/><path class="cf-bacak" d="M240 270l-10 26l4 22M250 270l10 26l-4 22" stroke="#2E3A5C" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><text x="245" y="190" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#1E8A55" class="cf-say">3 × 12</text></g></svg></span><div class="kt-tx"><span class="k">Durak 2 · Fizyo Lab</span><h3>Eklemi ölç, testi uygula</h3><span class="for">fizyoterapi öğrencileri için</span><p>Eklem hareket açıklığını 3B modelde gonyometreyle ölç, özel testleri uygula, egzersiz programı kur ve OSCE provası yap.</p><ul><li>gonyometre</li><li>özel testler</li><li>OSCE provası</li></ul></div></article>
+<article class="kt-st" data-st="ody" data-ad="Odyoloji" data-renk="#D68A1E" data-reh="Kulak dostumuz ses dalgalarını dinliyor: Odyoloji Lab." style="--c:#D68A1E"><span class="kt-cv" role="img" aria-label="Acadex kulak maskotu, odyogramdan gelen ses dalgalarını dinliyor"><svg class="axm-ody" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<defs><pattern id="ody-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#E7E1D4" stroke-width="1"/></pattern></defs>
+<rect width="864" height="352" fill="#F6F2E9"/><rect width="864" height="352" fill="url(#ody-grid)"/>
+<g class="ody-gram" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M48 64H300M48 64V300M48 300H300" stroke="#C9C0AE" stroke-width="2"/>
+<path d="M48 110H300M48 160H300M48 210H300M48 260H300" stroke="#E2DACB" stroke-width="1.5" stroke-dasharray="4 6"/>
+<path d="M76 98 L124 104 L172 116 L220 160 L268 214" stroke="#D9485F" stroke-width="3"/>
+<g stroke="#D9485F" stroke-width="3"><circle cx="76" cy="98" r="8"/><circle cx="124" cy="104" r="8"/><circle cx="172" cy="116" r="8"/><circle cx="220" cy="160" r="8"/><circle cx="268" cy="214" r="8"/></g>
+<path d="M76 92 L124 96 L172 104 L220 124 L268 150" stroke="#2F6BFF" stroke-width="3" opacity=".75"/>
+<g stroke="#2F6BFF" stroke-width="3" opacity=".75"><path d="M69 85l14 14M83 85l-14 14M117 89l14 14M131 89l-14 14M165 97l14 14M179 97l-14 14M213 117l14 14M227 117l-14 14M261 143l14 14M275 143l-14 14"/></g>
+</g>
+<g class="ody-waves" fill="none" stroke="#D68A1E" stroke-width="5" stroke-linecap="round">
+<path class="ody-w w1" d="M372 140 Q388 176 372 212"/>
+<path class="ody-w w2" d="M398 124 Q422 176 398 228"/>
+<path class="ody-w w3" d="M424 108 Q456 176 424 244"/>
+</g>
+<g class="ody-ear" transform="translate(500 50)">
+<g class="ody-body">
+<ellipse cx="96" cy="262" rx="70" ry="9" fill="#0D1838" opacity=".08" class="ody-shadow"/>
+<g class="ody-arm"><path d="M24 150 C6 146 -6 134 -12 118" fill="none" stroke="#0D1838" stroke-width="5" stroke-linecap="round"/><circle cx="-14" cy="110" r="10" fill="#FFD9C4" stroke="#0D1838" stroke-width="4"/></g>
+<g class="ody-arm2"><path d="M174 160 C188 168 194 182 192 196" fill="none" stroke="#0D1838" stroke-width="5" stroke-linecap="round"/><circle cx="191" cy="203" r="9" fill="#FFD9C4" stroke="#0D1838" stroke-width="4"/></g>
+<path d="M96 14 C156 10 192 58 188 116 C185 156 166 174 150 190 C135 205 134 222 125 240 C114 262 82 268 66 248 C54 232 62 214 55 200 C30 174 12 140 12 102 C12 48 46 16 96 14 Z" fill="#FFD9C4" stroke="#0D1838" stroke-width="5" stroke-linejoin="round"/>
+<path d="M52 62 C84 34 140 38 160 80 C170 102 166 124 152 140" fill="none" stroke="#E79E86" stroke-width="7" stroke-linecap="round"/>
+<path d="M52 62 C84 34 140 38 160 80 C170 102 166 124 152 140" fill="none" stroke="#0D1838" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+<g class="ody-eyes" fill="#0D1838"><ellipse cx="74" cy="112" rx="9" ry="12"/><ellipse cx="122" cy="112" rx="9" ry="12"/></g>
+<g fill="#fff"><circle cx="77" cy="107" r="3.4"/><circle cx="125" cy="107" r="3.4"/></g>
+<g fill="#F29C94" opacity=".8"><ellipse cx="58" cy="138" rx="11" ry="7"/><ellipse cx="140" cy="138" rx="11" ry="7"/></g>
+<path class="ody-mouth" d="M86 140 Q98 154 110 140" fill="none" stroke="#0D1838" stroke-width="4.5" stroke-linecap="round"/>
+</g>
+</g>
+<g transform="translate(-232 -14)"><g class="ody-note" fill="#D68A1E" stroke="#D68A1E"><path d="M712 112 V70 l26 -8 v40" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="704" cy="114" rx="10" ry="8"/><ellipse cx="730" cy="104" rx="10" ry="8"/></g></g>
+<g class="axm-canli canli-ody" aria-hidden="true"><rect x="40" y="276" width="170" height="56" rx="8" fill="#2E3A5C"/><rect x="50" y="286" width="62" height="22" rx="3" fill="#0B1222"/><text class="co-db" x="81" y="302" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#FFB547">40 dB</text><circle class="co-led" cx="132" cy="297" r="7" fill="#7FE0C2"/><g class="co-dial"><circle cx="176" cy="304" r="16" fill="#C9D1DC" stroke="#0D1838" stroke-width="2.5"/><path d="M176 304v-12" stroke="#0D1838" stroke-width="3" stroke-linecap="round"/></g><rect x="50" y="314" width="70" height="8" rx="3" fill="#46506A"/><rect class="co-bar" x="50" y="314" width="70" height="8" rx="3" fill="#7FE0C2"/></g></svg></span><div class="kt-tx"><span class="k">Durak 3 · Odyoloji Lab</span><h3>Sanal kabinde odyogram</h3><span class="for">odyoloji öğrencileri için</span><p>Sanal kabinde saf ses eşiklerini kendin ölç, maskelemeyi doğru yap; timpanogramı yorumla, 3B kulakta işitme yolunu izle.</p><ul><li>saf ses ve maskeleme</li><li>timpanometri</li><li>3B kulak</li></ul></div></article>
+<article class="kt-st" data-st="dyt" data-ad="Diyet" data-renk="#D9472B" data-reh="Domates zıplıyor, terazi ölçüyor: Diyet Lab beslenme öğrencileri için." style="--c:#D9472B"><span class="kt-cv" role="img" aria-label="Acadex domates maskotu, kesme tahtasındaki tabak ve mutfak terazisinin yanında"><svg class="axm-dyt" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<rect width="864" height="352" fill="#F4F1EB"/>
+<path d="M0 70 C160 40 240 120 420 90 S700 30 864 80" fill="none" stroke="#E2DACB" stroke-width="2"/>
+<path d="M0 300 C200 260 380 320 560 280 S780 250 864 270" fill="none" stroke="#E7E0D3" stroke-width="2"/>
+<g class="dyt-ring" transform="translate(96 92)"><circle r="44" fill="#FFFDF8" stroke="#E7E0D3" stroke-width="2"/><circle r="34" fill="none" stroke="#EFE9DD" stroke-width="10"/><circle class="dyt-arc" r="34" fill="none" stroke="#5E7A2A" stroke-width="10" stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="70" transform="rotate(-90)"/><text y="5" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="17" font-weight="700" fill="#0D1838">1800</text></g>
+<rect x="70" y="236" width="560" height="84" rx="42" fill="#B98552" stroke="#0D1838" stroke-width="5"/>
+<path d="M110 262 H560 M130 282 H590 M120 300 H540" stroke="#A0703F" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+<circle cx="600" cy="262" r="9" fill="#6E4A26"/>
+<g class="dyt-plate">
+<ellipse cx="300" cy="246" rx="170" ry="58" fill="#FFFFFF" stroke="#0D1838" stroke-width="5"/>
+<ellipse cx="300" cy="242" rx="128" ry="40" fill="none" stroke="#2F4FA8" stroke-width="3" stroke-dasharray="3 9" opacity=".6"/>
+<path d="M210 236c0-16 18-26 40-26s40 10 40 26c0 4-3 6-6 6v10h-68v-10c-3 0-6-2-6-6z" fill="#E7B14A" stroke="#0D1838" stroke-width="4" stroke-linejoin="round"/>
+<path d="M232 226l6 7M250 223l6 7M268 226l6 7" stroke="#A8701E" stroke-width="3" stroke-linecap="round"/>
+<ellipse cx="335" cy="240" rx="34" ry="20" fill="#FFFDF7" stroke="#0D1838" stroke-width="4"/><circle cx="335" cy="240" r="11" fill="#F2B233" stroke="#0D1838" stroke-width="3"/>
+<g stroke="#0D1838" stroke-width="3"><circle cx="384" cy="256" r="13" fill="#A9CF7A"/><circle cx="402" cy="246" r="13" fill="#A9CF7A"/></g>
+<circle cx="268" cy="266" r="14" fill="#D9472B" stroke="#0D1838" stroke-width="3"/>
+</g>
+<g class="dyt-steam" fill="none" stroke="#C9CED8" stroke-width="4" stroke-linecap="round"><path d="M250 196c-6-8 6-14 0-24"/><path d="M276 192c-6-8 6-14 0-24"/></g>
+<g class="dyt-tom">
+<ellipse class="dyt-shadow" cx="650" cy="300" rx="62" ry="10" fill="#0D1838" opacity=".12"/>
+<g class="dyt-body">
+<path d="M594 238 l-26 -18" stroke="#0D1838" stroke-width="6" stroke-linecap="round"/><circle cx="564" cy="216" r="9" fill="#D9472B" stroke="#0D1838" stroke-width="4"/>
+<path d="M706 240 l22 -26" stroke="#0D1838" stroke-width="6" stroke-linecap="round"/>
+<g class="dyt-fork"><path d="M732 210 v-46 M724 166 v14 c0 6 16 6 16 0 v-14 M732 166 v12" stroke="#0D1838" stroke-width="5" stroke-linecap="round" fill="none"/></g>
+<ellipse cx="626" cy="296" rx="16" ry="8" fill="#0D1838"/><ellipse cx="674" cy="296" rx="16" ry="8" fill="#0D1838"/>
+<circle cx="650" cy="222" r="74" fill="#D9472B" stroke="#0D1838" stroke-width="5"/>
+<ellipse cx="616" cy="182" rx="20" ry="10" fill="#FFFFFF" opacity=".45" transform="rotate(-30 616 182)"/>
+<g class="dyt-eyes" fill="#0D1838"><ellipse cx="628" cy="220" rx="8" ry="11"/><ellipse cx="672" cy="220" rx="8" ry="11"/></g>
+<g fill="#FFFFFF"><circle cx="631" cy="215" r="3"/><circle cx="675" cy="215" r="3"/></g>
+<g fill="#F5A3A3" opacity=".85"><ellipse cx="610" cy="244" rx="11" ry="7"/><ellipse cx="690" cy="244" rx="11" ry="7"/></g>
+<path d="M636 248 Q650 262 664 248" fill="none" stroke="#0D1838" stroke-width="5" stroke-linecap="round"/>
+<g class="dyt-leaf"><path d="M650 150 l-16 -14 m16 14 l16 -14 m-16 14 v-18 m0 18 l-24 2 m24 -2 l24 2" stroke="#4E7A2A" stroke-width="7" stroke-linecap="round"/></g>
+</g>
+</g>
+<g transform="translate(770 236)"><rect x="-56" y="20" width="112" height="44" rx="12" fill="#FBF5E8" stroke="#0D1838" stroke-width="5"/><path d="M-40 20 a40 40 0 0 1 80 0" fill="#FFFDF7" stroke="#0D1838" stroke-width="5"/><g class="dyt-needle"><path d="M0 20 V-12" stroke="#D9472B" stroke-width="5" stroke-linecap="round"/></g><circle cx="0" cy="20" r="6" fill="#0D1838"/><rect x="-30" y="34" width="60" height="18" rx="4" fill="#151A10"/><text x="24" y="48" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#FFB547">150g</text></g>
+<g class="axm-canli canli-dyt" aria-hidden="true"><g class="cd-buhar" fill="none" stroke="#B8C2D3" stroke-width="4" stroke-linecap="round"><path d="M250 186c-10 -12 10 -20 0 -34"/><path d="M290 180c-10 -12 10 -20 0 -34"/><path d="M330 186c-10 -12 10 -20 0 -34"/></g><g class="cd-kcal" font-family="JetBrains Mono,monospace" font-size="15" font-weight="700" fill="#D9472B"><text x="420" y="168">+120 kcal</text></g></g></svg></span><div class="kt-tx"><span class="k">Durak 4 · Diyet Lab</span><h3>Tabaktan reçeteye</h3><span class="for">beslenme ve diyetetik öğrencileri için</span><p>Kilerden seç, terazide tart, tabağını kur; enerji ve besin ögesi panosu anında dolsun. Besin değişim tablosu ve antropometri de burada.</p><ul><li>tabak analizi</li><li>değişim tablosu</li><li>antropometri</li></ul></div></article>
+<article class="kt-st" data-st="dkt" data-ad="DKT" data-renk="#E0705A" data-reh="Dudi “ba-ba” diyor: DKT Lab dil ve konuşma terapisi için." style="--c:#E0705A"><span class="kt-cv" role="img" aria-label="Acadex konuşan dudak maskotu Dudi, terapi odasında resimli kartların yanında &#x27;ba-ba&#x27; diyor"><svg class="axm-dkt" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<rect width="864" height="352" fill="#FBF4EA"/>
+<g fill="#E0705A" opacity=".10"><circle cx="40" cy="40" r="5"/><circle cx="120" cy="80" r="5"/><circle cx="200" cy="30" r="5"/><circle cx="420" cy="50" r="5"/><circle cx="520" cy="96" r="5"/><circle cx="620" cy="36" r="5"/><circle cx="780" cy="70" r="5"/><circle cx="830" cy="150" r="5"/></g>
+<g><rect x="0" y="292" width="216" height="60" fill="#F4C9A8"/><rect x="216" y="292" width="216" height="60" fill="#BFE3D2"/><rect x="432" y="292" width="216" height="60" fill="#F9DE8F"/><rect x="648" y="292" width="216" height="60" fill="#C9DDF6"/><path d="M0 292H864" stroke="#E7D7C2" stroke-width="3"/></g>
+<g class="dkt-easel"><path d="M120 300 L170 120 L220 300 M170 120 V300" stroke="#B48354" stroke-width="7" stroke-linecap="round" fill="none"/>
+<g class="dkt-c1"><rect x="96" y="128" width="96" height="112" rx="10" fill="#FFFDF8" stroke="#0D1838" stroke-width="5"/><circle cx="144" cy="172" r="24" fill="#F9DE8F" stroke="#0D1838" stroke-width="4"/><path d="M122 168c14 8 30 8 44 0" stroke="#E0705A" stroke-width="4" fill="none"/><text x="144" y="226" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="20" font-weight="800" fill="#A8412B" text-anchor="middle">top</text></g>
+<g class="dkt-c2"><rect x="212" y="150" width="96" height="112" rx="10" fill="#FFFDF8" stroke="#0D1838" stroke-width="5"/><path d="M236 216 L246 176 L258 194 L270 194 L282 176 L292 216 Z" fill="#BFE3D2" stroke="#0D1838" stroke-width="4" stroke-linejoin="round"/><circle cx="254" cy="202" r="3" fill="#0D1838"/><circle cx="274" cy="202" r="3" fill="#0D1838"/><text x="260" y="250" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="20" font-weight="800" fill="#1F7A5C" text-anchor="middle">kedi</text></g></g>
+<g class="dkt-mir"><ellipse cx="380" cy="150" rx="46" ry="60" fill="#EAF2FC" stroke="#B48354" stroke-width="8"/><path d="M356 120 C364 108 376 104 388 106" stroke="#fff" stroke-width="6" stroke-linecap="round" fill="none"/></g>
+<g class="dkt-dudi">
+<ellipse class="dkt-sh" cx="600" cy="300" rx="80" ry="11" fill="#0D1838" opacity=".12"/>
+<g class="dkt-body">
+<path d="M548 278 v18 M652 278 v18" stroke="#0D1838" stroke-width="8" stroke-linecap="round"/>
+<path d="M528 210 l-30 -20 M672 210 l26 -36" stroke="#0D1838" stroke-width="7" stroke-linecap="round"/><circle cx="494" cy="188" r="10" fill="#F4C9A8" stroke="#0D1838" stroke-width="4"/><circle cx="700" cy="170" r="10" fill="#F4C9A8" stroke="#0D1838" stroke-width="4"/>
+<circle cx="600" cy="200" r="88" fill="#F4C9A8" stroke="#0D1838" stroke-width="6"/>
+<ellipse cx="562" cy="148" rx="22" ry="10" fill="#fff" opacity=".45" transform="rotate(-28 562 148)"/>
+<g class="dkt-eyes" fill="#0D1838"><ellipse cx="570" cy="176" rx="9" ry="12"/><ellipse cx="630" cy="176" rx="9" ry="12"/></g>
+<g fill="#fff"><circle cx="573" cy="171" r="3.4"/><circle cx="633" cy="171" r="3.4"/></g>
+<g fill="#F2A08F" opacity=".8"><ellipse cx="548" cy="214" rx="12" ry="7"/><ellipse cx="652" cy="214" rx="12" ry="7"/></g>
+<g class="dkt-mouth"><path d="M556 226 C574 206 626 206 644 226 C626 262 574 262 556 226 Z" fill="#E0705A" stroke="#0D1838" stroke-width="5"/><path d="M576 238 C590 232 610 232 624 238" stroke="#F9C6B8" stroke-width="6" fill="none" stroke-linecap="round"/></g>
+</g></g>
+<g class="dkt-wv" fill="none" stroke="#E0705A" stroke-width="6" stroke-linecap="round"><path d="M710 214 q10 18 0 36"/><path d="M732 204 q18 30 0 60"/></g>
+<g class="dkt-bub"><rect x="696" y="104" width="132" height="64" rx="22" fill="#FFFDF8" stroke="#0D1838" stroke-width="5"/><path d="M714 166 l-12 20 l28 -18" fill="#FFFDF8" stroke="#0D1838" stroke-width="5" stroke-linejoin="round"/><text x="762" y="146" font-family="Caveat,cursive" font-size="34" font-weight="700" fill="#A8412B" text-anchor="middle">ba-ba!</text></g>
+<g class="axm-canli canli-dkt" aria-hidden="true"><rect x="706" y="214" width="132" height="84" rx="10" fill="#FFFFFF" stroke="#0D1838" stroke-width="3"/><g class="ck-bar" fill="#E0705A"><rect x="718" y="226" width="10" height="60" rx="4" style="animation-delay:-0.00s"/><rect x="734" y="226" width="10" height="60" rx="4" style="animation-delay:-0.13s"/><rect x="750" y="226" width="10" height="60" rx="4" style="animation-delay:-0.26s"/><rect x="766" y="226" width="10" height="60" rx="4" style="animation-delay:-0.39s"/><rect x="782" y="226" width="10" height="60" rx="4" style="animation-delay:-0.52s"/><rect x="798" y="226" width="10" height="60" rx="4" style="animation-delay:-0.65s"/><rect x="814" y="226" width="10" height="60" rx="4" style="animation-delay:-0.78s"/></g><text x="772" y="318" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#E0705A">ses dalgası</text></g></svg></span><div class="kt-tx"><span class="k">Durak 5 · DKT Lab</span><h3>Terapi odası</h3><span class="for">dil ve konuşma terapisi öğrencileri için</span><p>Sesletimi değerlendir, mikrofonla canlı ses ölçümü yap; akıcılık, yutma, dil gelişimi ve afazi masalarında çalış.</p><ul><li>sesletim</li><li>canlı ses ölçümü</li><li>yutma ve afazi</li></ul></div></article>
+<article class="kt-st" data-st="ecz" data-ad="Eczacılık" data-renk="#7A4FA8" data-reh="Havancık ilaç eziyor: Eczacılık Lab." style="--c:#7A4FA8"><span class="kt-cv" role="img" aria-label="Acadex havan maskotu Havancık, ilaç rafları önündeki eczane tezgâhında havanda ilaç eziyor"><svg class="axm-ecz" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<rect width="864" height="352" fill="#F7F4FB"/>
+<rect x="430" y="26" width="410" height="230" rx="8" fill="#EEE7F8" stroke="#D5C8E6" stroke-width="4"/>
+<g><rect x="430" y="96" width="410" height="9" fill="#C29A6A"/><rect x="430" y="170" width="410" height="9" fill="#C29A6A"/><rect x="430" y="244" width="410" height="9" fill="#C29A6A"/>
+<g stroke="#0D1838" stroke-width="2.4"><rect x="446" y="52" width="46" height="44" rx="4" fill="#E7EEF7"/><rect x="500" y="58" width="40" height="38" rx="4" fill="#F7D9D2"/><rect x="548" y="48" width="52" height="48" rx="4" fill="#E1F0E6"/><rect x="608" y="56" width="42" height="40" rx="4" fill="#FCE4C7"/><rect x="658" y="50" width="48" height="46" rx="4" fill="#E6E1F7"/><rect x="714" y="60" width="38" height="36" rx="4" fill="#FFF1D6"/><rect x="760" y="52" width="66" height="44" rx="4" fill="#F3D9E4"/>
+<rect x="446" y="128" width="54" height="42" rx="4" fill="#FFF1D6"/><rect x="508" y="132" width="40" height="38" rx="4" fill="#DCEFF7"/><rect x="556" y="124" width="46" height="46" rx="4" fill="#F7D9D2"/><rect x="610" y="130" width="58" height="40" rx="4" fill="#E7EEF7"/><rect x="676" y="126" width="44" height="44" rx="4" fill="#E1F0E6"/><rect x="728" y="134" width="40" height="36" rx="4" fill="#FCE4C7"/><rect x="776" y="128" width="50" height="42" rx="4" fill="#E6E1F7"/>
+<rect x="446" y="202" width="44" height="42" rx="4" fill="#E6E1F7"/><rect x="498" y="206" width="56" height="38" rx="4" fill="#E1F0E6"/><rect x="562" y="200" width="42" height="44" rx="4" fill="#FFF1D6"/><rect x="612" y="204" width="50" height="40" rx="4" fill="#DCEFF7"/><rect x="670" y="198" width="44" height="46" rx="4" fill="#F7D9D2"/><rect x="722" y="206" width="48" height="38" rx="4" fill="#E7EEF7"/><rect x="778" y="202" width="48" height="42" rx="4" fill="#FCE4C7"/></g></g>
+<g class="ecz-arti" transform="translate(360 70)"><rect x="-14" y="-38" width="28" height="76" rx="6" fill="#1F9B62"/><rect x="-38" y="-14" width="76" height="28" rx="6" fill="#1F9B62"/></g>
+<rect x="0" y="268" width="864" height="84" fill="#D6B48A"/><rect x="0" y="262" width="864" height="14" fill="#C29A6A"/><path d="M0 276H864" stroke="#8A6640" stroke-width="3"/>
+<g class="ecz-recete"><rect x="60" y="120" width="150" height="150" rx="6" fill="#FFFFFE" stroke="#0D1838" stroke-width="4"/><rect x="60" y="120" width="10" height="150" fill="#E8E3D8"/><text x="92" y="160" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="34" font-weight="800" fill="#7A4FA8">℞</text><path d="M92 186h96M92 208h96M92 230h62" stroke="#46506A" stroke-width="5" stroke-linecap="round"/></g>
+<g class="ecz-havan"><ellipse class="ecz-sh" cx="300" cy="266" rx="74" ry="10" fill="#0D1838" opacity=".14"/>
+<g class="ecz-tok"><rect x="318" y="96" width="24" height="118" rx="12" fill="#C99A6B" stroke="#0D1838" stroke-width="5" transform="rotate(26 330 155)"/></g>
+<path d="M226 182 H374 C374 236 342 264 300 264 C258 264 226 236 226 182 Z" fill="#EDE6F8" stroke="#0D1838" stroke-width="6"/><rect x="216" y="170" width="168" height="22" rx="11" fill="#7A4FA8" stroke="#0D1838" stroke-width="5"/>
+<g class="ecz-goz" fill="#0D1838"><ellipse cx="276" cy="216" rx="7" ry="9"/><ellipse cx="324" cy="216" rx="7" ry="9"/></g><path d="M284 238 C294 246 306 246 316 238" stroke="#0D1838" stroke-width="5" fill="none" stroke-linecap="round"/><g fill="#F2A5C0" opacity=".8"><ellipse cx="258" cy="232" rx="10" ry="5"/><ellipse cx="342" cy="232" rx="10" ry="5"/></g></g>
+<g class="axm-canli canli-ecz" aria-hidden="true"><g class="ce-tara"><rect x="64" y="176" width="142" height="4" rx="2" fill="#1F9B62"/></g><g class="ce-onay"><circle cx="196" cy="128" r="20" fill="#1F9B62" stroke="#0D1838" stroke-width="3"/><path d="M186 128l7 7 13-14" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g><g class="ce-hap"><ellipse cx="300" cy="120" rx="12" ry="7" fill="#F7A9A0" stroke="#0D1838" stroke-width="2.5"/></g><text class="ca-kat" x="135" y="300" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#583A80">etkileşim taraması</text></g></svg></span><div class="kt-tx"><span class="k">Durak 6 · Eczacılık Lab</span><h3>Reçeteden majistrale</h3><span class="for">eczacılık öğrencileri için</span><p>Reçete tezgâhında ilacı karşıla, doz hesabını yap, etkileşim ağında riskleri yakala ve majistral laboratuvarında hazırla.</p><ul><li>reçete tezgâhı</li><li>doz hesabı</li><li>etkileşim ağı</li></ul></div></article>
+<article class="kt-st" data-st="hem" data-ad="Hemşirelik" data-renk="#3B7DD8" data-reh="Nabız monitörü izliyor: Hemşirelik Lab." style="--c:#3B7DD8"><span class="kt-cv" role="img" aria-label="Acadex kalp maskotu Nabız, hemşire şapkasıyla yatakta yatan hastanın monitörünü izliyor"><svg class="axm-hem" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<rect width="864" height="352" fill="#F4F8FC"/>
+<g stroke="#DCE6F2" stroke-width="2"><path d="M0 60H864M0 120H864M0 180H864M120 0V250M240 0V250M360 0V250M480 0V250M600 0V250M720 0V250"/></g>
+<path d="M0 214H864" stroke="#7FA9DD" stroke-width="12"/><rect y="250" width="864" height="102" fill="#DCE7F3"/>
+<g><rect x="80" y="232" width="380" height="20" rx="8" fill="#F1F4FA" stroke="#9AA6BC" stroke-width="4"/><rect x="72" y="176" width="14" height="110" rx="6" fill="#9AA6BC"/><rect x="452" y="200" width="14" height="86" rx="6" fill="#9AA6BC"/><circle cx="110" cy="300" r="12" fill="#46506A"/><circle cx="420" cy="300" r="12" fill="#46506A"/>
+<ellipse cx="140" cy="222" rx="46" ry="14" fill="#fff" stroke="#DCE2EC" stroke-width="3"/><ellipse cx="146" cy="202" rx="28" ry="26" fill="#E8B48A"/><path d="M120 194 C124 170 162 168 170 188 C158 180 136 180 120 194 Z" fill="#B9B4A8"/><path d="M152 200 q6 4 12 0" stroke="#0D1838" stroke-width="3" fill="none"/>
+<g class="hem-nefes"><path d="M172 214 C200 184 260 186 310 190 L440 194 C456 194 460 226 446 230 L172 232 Z" fill="#9CC6E8"/></g></g>
+<g transform="translate(540 40)"><rect width="230" height="150" rx="14" fill="#1D2438" stroke="#38425C" stroke-width="5"/><rect x="12" y="12" width="206" height="126" rx="6" fill="#0B1222"/><path d="M115 150 v60" stroke="#9AA6BC" stroke-width="8"/>
+<text x="26" y="104" font-family="JetBrains Mono,monospace" font-size="12" fill="#4BE08A">NABIZ</text><text x="26" y="128" font-family="JetBrains Mono,monospace" font-size="24" font-weight="700" fill="#4BE08A">78</text><text x="96" y="104" font-family="JetBrains Mono,monospace" font-size="12" fill="#66C7FF">SpO₂</text><text x="96" y="128" font-family="JetBrains Mono,monospace" font-size="24" font-weight="700" fill="#66C7FF">97</text><text x="160" y="104" font-family="JetBrains Mono,monospace" font-size="12" fill="#FFD45A">NEWS2</text><text class="ch-skor" x="166" y="128" font-family="JetBrains Mono,monospace" font-size="24" font-weight="700" fill="#FFD45A">1</text></g>
+<g class="hem-nbz"><ellipse cx="700" cy="306" rx="58" ry="9" fill="#0D1838" opacity=".14"/><g class="hem-kalp"><path d="M700 300 C660 274 640 252 640 228 C640 210 654 196 671 196 C684 196 694 203 700 214 C706 203 716 196 729 196 C746 196 760 210 760 228 C760 252 740 274 700 300 Z" fill="#F7A9A0" stroke="#0D1838" stroke-width="5"/></g><path d="M664 202 L672 178 H728 L736 202 Z" fill="#fff" stroke="#0D1838" stroke-width="4"/><rect x="694" y="182" width="12" height="16" fill="#C9483B"/><rect x="690" y="186" width="20" height="8" fill="#C9483B"/>
+<g fill="#0D1838"><ellipse cx="686" cy="236" rx="6" ry="8"/><ellipse cx="714" cy="236" rx="6" ry="8"/></g><path d="M690 254 C696 260 704 260 710 254" stroke="#0D1838" stroke-width="4" fill="none" stroke-linecap="round"/></g>
+<g class="axm-canli canli-hem" aria-hidden="true"><g transform="translate(552 52)"><path class="ch-ekg" d="M0 40 H40 L50 18 L60 62 L70 30 L78 40 H120 L130 18 L140 62 L150 30 L158 40 H206" stroke="#4BE08A" stroke-width="3" fill="none" stroke-linejoin="round" pathLength="100"/></g><text class="ca-kat" x="655" y="236" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#24569E"> </text></g></svg></span><div class="kt-tx"><span class="k">Durak 7 · Hemşirelik Lab</span><h3>Hasta başında</h3><span class="for">hemşirelik öğrencileri için</span><p>Servis koridorunda hasta başında vital bulguları al, NEWS2 skorunu hesapla; beceri istasyonlarında ve ilaç uygulamasında pratik yap.</p><ul><li>vital bulgu ve NEWS2</li><li>beceri istasyonları</li><li>ilaç uygulama</li></ul></div></article>
+<article class="kt-st kt-son" data-st="med" data-ad="Acadex Medica" data-renk="#2E9C86" data-reh="Kapılar açılıyor: bütün vakalar Acadex Medica’da. Hazırsan gir!" style="--c:#2E9C86"><span class="kt-cv" role="img" aria-label="Acadex Medica eğitim hastanesi: kapıda maskeli, ameliyata hazır rehber cerrah, eldivenli elleri havada"><svg class="axm-med" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<rect width="864" height="352" fill="#E3EEF4"/>
+<g class="med-bulut" fill="#fff" opacity=".8"><ellipse cx="120" cy="54" rx="46" ry="14"/><ellipse cx="150" cy="46" rx="30" ry="14"/><ellipse cx="700" cy="40" rx="40" ry="12"/></g>
+<rect x="0" y="300" width="864" height="52" fill="#CBD5DE"/><path d="M0 300H864" stroke="#9AA6B8" stroke-width="3"/>
+<g class="med-bina"><rect x="236" y="64" width="400" height="236" rx="6" fill="#FFFFFF" stroke="#0D1838" stroke-width="5"/>
+<rect x="236" y="64" width="400" height="44" rx="6" fill="#0D1838"/><g transform="translate(270 86)"><rect x="-13" y="-4.5" width="26" height="9" rx="2" fill="#E5544A"/><rect x="-4.5" y="-13" width="9" height="26" rx="2" fill="#E5544A"/></g>
+<text x="296" y="95" font-family="Bricolage Grotesque,system-ui,sans-serif" font-size="25" font-weight="800" fill="#fff">ACADEX MEDICA</text>
+<g class="med-pen">
+<rect x="262" y="126" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="334" y="126" width="54" height="40" rx="3" fill="#FFE9A8" class="p2"/><rect x="484" y="126" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="556" y="126" width="54" height="40" rx="3" fill="#FFE9A8" class="p4"/>
+<rect x="262" y="184" width="54" height="40" rx="3" fill="#FFE9A8" class="p5"/><rect x="334" y="184" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="484" y="184" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="556" y="184" width="54" height="40" rx="3" fill="#FFE9A8" class="p8"/></g>
+<g><rect x="400" y="122" width="72" height="20" rx="4" fill="#2E9C86"/><text x="436" y="136" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#fff">ACİL</text></g>
+<rect x="398" y="186" width="76" height="114" fill="#8D98A8"/><g class="med-k1"><rect x="402" y="190" width="34" height="110" fill="#DDEFFA" stroke="#9FB6C8" stroke-width="2"/></g><g class="med-k2"><rect x="436" y="190" width="34" height="110" fill="#DDEFFA" stroke="#9FB6C8" stroke-width="2"/></g></g>
+<g class="med-amb"><rect x="56" y="232" width="150" height="62" rx="10" fill="#FFFFFF" stroke="#0D1838" stroke-width="4"/><rect x="150" y="242" width="44" height="26" rx="4" fill="#BFE0F5"/><rect x="74" y="250" width="56" height="10" fill="#E5544A"/><rect x="97" y="238" width="10" height="34" fill="#E5544A"/><circle cx="90" cy="296" r="13" fill="#0D1838"/><circle cx="174" cy="296" r="13" fill="#0D1838"/><rect class="med-sir" x="110" y="222" width="22" height="10" rx="3" fill="#2F6BFF"/></g>
+<g class="med-cerrah" transform="translate(744 318) scale(.84)">
+<ellipse cx="0" cy="0" rx="62" ry="9" fill="#0D1838" opacity=".13"/>
+<rect x="-30" y="-132" width="25" height="122" rx="10" fill="#2F7F6E"/><rect x="5" y="-132" width="25" height="122" rx="10" fill="#2F7F6E"/>
+<rect x="-38" y="-14" width="35" height="13" rx="6" fill="#F4F6F9" stroke="#C7CFDD" stroke-width="2"/><rect x="2" y="-14" width="35" height="13" rx="6" fill="#F4F6F9" stroke="#C7CFDD" stroke-width="2"/>
+<g class="med-govde"><path d="M-46 -226 C-48 -246 48 -246 46 -226 L50 -120 C50 -110 -50 -110 -50 -120 Z" fill="#3E9A86"/><path d="M-16 -241 L0 -204 L16 -241" fill="#2F7F6E"/></g>
+<g class="med-kol"><path d="M-42 -224 L-56 -204" stroke="#3E9A86" stroke-width="24" stroke-linecap="round"/><path d="M-56 -204 L-72 -186 L-66 -240" stroke="#E8B48A" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/><ellipse cx="-65" cy="-258" rx="12" ry="15" fill="#8FC3EE"/><path d="M-74 -270 v-14 M-67 -273 v-16 M-60 -272 v-15 M-54 -266 v-11" stroke="#8FC3EE" stroke-width="5" stroke-linecap="round"/>
+<path d="M42 -224 L56 -204" stroke="#3E9A86" stroke-width="24" stroke-linecap="round"/><path d="M56 -204 L72 -186 L66 -240" stroke="#E8B48A" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/><ellipse cx="65" cy="-258" rx="12" ry="15" fill="#8FC3EE"/><path d="M74 -270 v-14 M67 -273 v-16 M60 -272 v-15 M54 -266 v-11" stroke="#8FC3EE" stroke-width="5" stroke-linecap="round"/></g>
+<rect x="-9" y="-254" width="18" height="16" fill="#E8B48A"/>
+<g class="med-bas"><ellipse cx="0" cy="-284" rx="32" ry="36" fill="#E8B48A"/><path d="M-35 -292 C-38 -332 38 -332 35 -292 C22 -300 -22 -300 -35 -292 Z" fill="#3E9A86"/>
+<g class="med-goz"><ellipse cx="-11" cy="-286" rx="3.6" ry="4.6" fill="#0D1838"/><ellipse cx="11" cy="-286" rx="3.6" ry="4.6" fill="#0D1838"/></g>
+<g class="med-maske"><path d="M-28 -278 Q0 -284 28 -278 L26 -257 Q0 -244 -26 -257 Z" fill="#A6DDD5" stroke="#7FC1B7" stroke-width="1.6"/><path d="M-25 -271 Q0 -275 25 -271 M-25 -264 Q0 -267 25 -264" stroke="#7FC1B7" stroke-width="1.5" fill="none"/></g></g></g>
+<g class="med-bub"><rect x="560" y="186" width="104" height="44" rx="16" fill="#FFFDF8" stroke="#0D1838" stroke-width="4"/><path d="M652 228 l18 14 l-4 -18" fill="#FFFDF8" stroke="#0D1838" stroke-width="4" stroke-linejoin="round"/><text x="612" y="215" font-family="Caveat,cursive" font-size="25" font-weight="700" fill="#2E9C86" text-anchor="middle">hoş geldin!</text></g>
+</svg></span><div class="kt-tx"><span class="k">Durak 8 · Acadex Medica</span><h3>Hepsi bir hastanede buluşur</h3><span class="for">bütün klinik vakalar burada</span><p>Bütün klinik vakalar eğitim hastanesinde: bölümünün katına asansörle çık, bekleme salonundan hastanı çağır, odada görüş, sonra lab’da vakayı tamamla. Nöbet tut, karneni topla.</p><ul><li>bölüm katları</li><li>hasta görüşmesi</li><li>nöbet karnesi</li></ul><a class="kt-go" href="register.html">MedLab’e gir <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></article>
 </div>
-<div class="mf-view"><canvas role="img" aria-label="Anatomi Lab’in 3B insan modeli: kaslar soyulur, iskelet, organlar, damarlar ve sinirler görünür, sonunda göğüs kafesine yaklaşılır."></canvas>
-<div class="mf-pins" aria-hidden="true"><svg class="mf-lines"></svg></div>
-<span class="mf-load" aria-hidden="true">model yükleniyor</span>
-<span class="mf-credit">3B model: Z-Anatomy · BodyParts3D (DBCLS) · CC BY-SA 4.0</span>
-</div>
-<a class="mf-skip" href="#gizlilik">bölümü geç ↓</a>
+<ol class="kt-rail" aria-label="Kampüs durakları"><li style="--c:#2E9C86"><a href="#medlab" data-kt-git="0" aria-label="Kampüs girişi durağına git"><i></i><span>giriş</span></a></li><li style="--c:#C9483B"><a href="#medlab" data-kt-git="1" aria-label="Anatomi Lab durağına git"><i></i><span>Anatomi</span></a></li><li style="--c:#1E8A55"><a href="#medlab" data-kt-git="2" aria-label="Fizyo Lab durağına git"><i></i><span>Fizyo</span></a></li><li style="--c:#D68A1E"><a href="#medlab" data-kt-git="3" aria-label="Odyoloji Lab durağına git"><i></i><span>Odyoloji</span></a></li><li style="--c:#D9472B"><a href="#medlab" data-kt-git="4" aria-label="Diyet Lab durağına git"><i></i><span>Diyet</span></a></li><li style="--c:#E0705A"><a href="#medlab" data-kt-git="5" aria-label="DKT Lab durağına git"><i></i><span>DKT</span></a></li><li style="--c:#7A4FA8"><a href="#medlab" data-kt-git="6" aria-label="Eczacılık Lab durağına git"><i></i><span>Eczacılık</span></a></li><li style="--c:#3B7DD8"><a href="#medlab" data-kt-git="7" aria-label="Hemşirelik Lab durağına git"><i></i><span>Hemşirelik</span></a></li><li style="--c:#2E9C86"><a href="#medlab" data-kt-git="8" aria-label="Acadex Medica durağına git"><i></i><span>Medica</span></a></li></ol>
+<a class="kt-skip" href="#gizlilik">bölümü geç ↓</a>
 </div>
 </div>
 </section>
@@ -3605,7 +3814,7 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 <script src="js/acadia-kit.js"></script>
 <script src="js/acadia-rehber.js"></script>
 <link rel="stylesheet" href="css/acadex-destek.css">
-<script src="js/acadex-medlab-film.js"></script>
+<script src="js/acadex-kampus-tur.js"></script>
 <script src="js/acadex-push.js"></script>
 <script src="js/acadex-destek.js"></script>
 </body>
