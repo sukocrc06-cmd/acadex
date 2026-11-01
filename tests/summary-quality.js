@@ -8278,11 +8278,62 @@ test('KAYNAK YOKSA olcum yapilmaz', () => {
   assert.equal(r.stats.dropped, 0);
 });
 
+test('VALF olcum modunda da hesaplanir ama kart DEGISMEZ (01.11.2026)', () => {
+  /* valfAcildi artik karta yaziliyor (quality_meta.dolgu_adayi.valf).
+     Eskiden valf kontrolu YOGUNLUK_KAPISI_ELIYOR erken donusunun ALTINDAYDI,
+     yani bayrak false iken hep false kalirdi. Olcum modunda zararsizdi cunku
+     kimse okumuyordu; alan karta yazilinca YANILTICI olurdu — "valf acilmadi"
+     satiri "demek ki maddeler gercekten silindi" diye okunur, oysa bayrak
+     false iken hicbir sey silinmez.
+     Bu testin isi iki seyi AYNI ANDA kilitlemek: valf her modda hesaplanir,
+     kart yalnizca bayrak true iken degisir. Ikincisi kritik — valfi yukari
+     tasirken kazara budama acmak bu dosyadaki en pahali hata olurdu. */
+  const dolgu = 'Logarithmic transformations help linearize power-law relationships';
+  const somut = 'A categorical variable with k levels requires k - 1 dummies';
+  // 2 maddenin 1'i aday: 1 > floor(2/3)=0, yani valf kosulu saglanir.
+  const r = YOG.applyDensityGate([dolgu, somut], KAYNAK);
+  assert.equal(r.stats.dropped, 1, 'aday isaretlenmedi');
+  assert.equal(r.stats.valfAcildi, true, 'valf olcum modunda hesaplanmiyor');
+  assert.equal(r.key_points.length, 2, 'OLCUM MODUNDA KART DEGISTI — budama acilmis');
+  assert.equal(YOG.YOGUNLUK_KAPISI_ELIYOR, false, 'bayrak acilmis — bu testin onculu degisti');
+
+  /* VALFIN KORUMADIGI ORAN. Yukaridaki durumda valf de aciliyor (1 > 0), yani
+     kartin degismemesi tek basina "budama kapali" demeye yetmez — valf de ayni
+     sonucu verirdi. Bu yuzden valfin DEVREYE GIRMEDIGI bir oran gerekiyor:
+     4 maddenin 1'i aday ise 1 > floor(4/3)=1 YANLIS, valf susar. Budama
+     kazara acilmis olsa kart 3'e duserdi; olcum modunda 4 kalmali. */
+  const somutlar = [
+    'A categorical variable with k levels requires k - 1 dummies',
+    'The quadratic model reaches a turning point at x = 3',
+    'Elasticity measures a 2 percent response in quantity'
+  ];
+  const r4 = YOG.applyDensityGate([dolgu].concat(somutlar), KAYNAK);
+  assert.equal(r4.stats.dropped, 1, 'somut sayilan maddeler aday isaretlendi: ' +
+    JSON.stringify(r4.stats.droppedPoints));
+  assert.equal(r4.stats.valfAcildi, false, 'valf bu oranda acilmamali (1 > floor(4/3) degil)');
+  assert.equal(r4.key_points.length, 4,
+    'VALF KORUMAZKEN KART BUDANDI — olcum modu bozulmus, icerik sessizce siliniyor');
+});
+
 test('olcum KARTA da yaziliyor', () => {
   /* Loglar birkac gunde kayboluyor, kart kaliyor. Kurali veriye bakip
-     koyarken bu alan kaynak olacak. */
+     koyarken bu alan kaynak olacak.
+
+     01.11.2026: valf ve kapi modu da yaziliyor. O gun 16 kartlik uretim
+     analizi yapilirken valf esigi (atilan > floor(toplam/3)) ELLE
+     hesaplanmak zorunda kalindi, cunku veride yoktu. Uc durum artik
+     veriden okunuyor:
+       eliyor=false              -> kapi olcum modunda, hicbir sey silinmedi
+       eliyor=true,  valf=true   -> olcum guvenilmez sayildi, silinmedi
+       eliyor=true,  valf=false  -> aday maddeler gercekten karttan cikti */
   assert.ok(/qualityMeta\.dolgu_adayi = yogunlukOlcumu/.test(SRC),
     'olcum quality_meta ye yazilmiyor');
+  assert.ok(/valf: yogunluk\.stats\.valfAcildi/.test(SRC),
+    'valf durumu karta yazilmiyor — veriden "silindi mi" sorusu cevaplanamaz');
+  assert.ok(/eliyor: YOGUNLUK_KAPISI_ELIYOR/.test(SRC),
+    'kapi modu karta yazilmiyor — valf tek basina yaniltici');
+  assert.ok(/valf: boolean; eliyor: boolean/.test(SRC),
+    'yogunlukOlcumu tipi iki alani tasimiyor');
 });
 
 

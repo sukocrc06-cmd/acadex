@@ -8675,19 +8675,29 @@ function applyDensityGate(
   stats.dropped = atilan.length
   stats.droppedPoints = atilan.map(p => oku(p).slice(0, 90))
   stats.kept = tutulan.length
-  if (!YOGUNLUK_KAPISI_ELIYOR) {
-    stats.kept = points.length
-    return { key_points: points, stats }
-  }
 
   /* VALF: ucte birden fazlasi gidecekse hicbiri gitmesin. Boyle bir oran,
      maddelerin dolgu oldugunu degil OLCUMUN yanlis oldugunu gosterir —
      ornegin kaynak metin cok kisa cikmistir ve terim capasi hic
-     kurulamamistir. */
-  if (atilan.length > Math.floor(points.length / 3)) {
-    stats.valfAcildi = true
+     kurulamamistir.
+
+     VALF OLCUM MODUNDA DA HESAPLANIR (01.11.2026). Eskiden bu kontrol
+     YOGUNLUK_KAPISI_ELIYOR erken donusunun ALTINDA kaliyordu, yani bayrak
+     false iken valfAcildi hep false olurdu. Olcum modunda bu zararsizdi
+     (kimse okumuyordu) ama alan karta yazilmaya baslayinca YANILTICI olur:
+     "valf acilmadi" satiri "demek ki maddeler gercekten silindi" diye
+     okunur. Oysa bayrak false iken hicbir sey silinmiyor.
+     Karar: valf kosulu her modda hesaplanir, kart yalnizca bayrak true iken
+     degisir. Hesap kartin icerigine dokunmuyor, yalnizca olcumu dogru
+     yapiyor — "bayrak cevrilse bu kart icerik kaybeder miydi" sorusunun
+     cevabi artik veride duruyor. */
+  if (atilan.length > Math.floor(points.length / 3)) stats.valfAcildi = true
+
+  if (!YOGUNLUK_KAPISI_ELIYOR) {
+    stats.kept = points.length
     return { key_points: points, stats }
   }
+  if (stats.valfAcildi) return { key_points: points, stats }
 
   return { key_points: tutulan, stats }
 }
@@ -13335,7 +13345,7 @@ ${styleInstruction}`
     const geminiTani: { geciciDustu?: boolean; hepsiDustu?: boolean; kota429?: boolean } = {}
     /* Yogunluk kapisinin OLCUM modundaki bulgusu; kapi eledigi gun bu
        alan karari degil gecmisi tutacak. */
-    let yogunlukOlcumu: { dropped: number; toplam: number; ornekler: string[] } | null = null
+    let yogunlukOlcumu: { dropped: number; toplam: number; valf: boolean; eliyor: boolean; ornekler: string[] } | null = null
     let visualAnalysisUsed = false
 
     // ==========================================================================
@@ -16914,8 +16924,27 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
         visionNotes.join('\n')
       )
       parsedContent.key_points = yogunluk.key_points
+      /* VALF DURUMU DA KARTA YAZILIYOR (01.11.2026).
+         Eskiden valfAcildi yalnizca console.warn'a gidiyordu, karta degil.
+         Sonuc: veriye bakan biri "21/27" gibi bir satirda maddelerin
+         GERCEKTEN silindigini mi yoksa valfin kurtardigini mi bilemiyordu.
+         01.11 uretim analizinde valf esigi (atilan > floor(toplam/3)) 16 kart
+         icin ELLE hesaplanmak zorunda kalindi; loglar o gun yoktu, kart vardi.
+         YOGUNLUK_KAPISI_ELIYOR false oldugu surece hicbir sey silinmiyor ve
+         valf yalnizca bilgi; bayrak cevrildiginde ise bu alan "bu kart icerik
+         kaybetti mi" sorusunun TEK dogru cevabi olur:
+           eliyor = false             -> kapi olcum modunda, HICBIR SEY silinmedi
+           eliyor = true,  valf = true -> olcum guvenilmez sayildi, silinmedi
+           eliyor = true,  valf = false -> aday maddeler gercekten karttan cikti
+         Teste bagli: tests/summary-quality.js -> 'olcum KARTA da yaziliyor' */
       yogunlukOlcumu = yogunluk.stats.dropped > 0
-        ? { dropped: yogunluk.stats.dropped, toplam: yogunluk.stats.toplam, ornekler: yogunluk.stats.droppedPoints.slice(0, 5) }
+        ? {
+            dropped: yogunluk.stats.dropped,
+            toplam: yogunluk.stats.toplam,
+            valf: yogunluk.stats.valfAcildi,
+            eliyor: YOGUNLUK_KAPISI_ELIYOR,
+            ornekler: yogunluk.stats.droppedPoints.slice(0, 5)
+          }
         : null
       if (yogunluk.stats.valfAcildi) {
         console.warn(
