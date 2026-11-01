@@ -160,6 +160,8 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   // Diyagram kopyasi (29.10.2026 olcumu).
   'DIYAGRAM_BASLIK_ESIGI', 'DIYAGRAM_DUGUM_ESIGI', 'diagramDugumMetni',
   'kumeOrtusmesi', 'dedupeDiagrams',
+  'DIYAGRAM_DUGUM_TEK_BASINA',
+  'PPTX_YARDIMCI_TEK_BASINA',
   // Tablo kopyasi (31.10.2026 olcumu).
   'TABLO_SATIR_ESIGI', 'TABLO_DEDUP_MIN_HUCRE', 'tabloHucreMetni', 'dedupeTables',
   'TABLO_SAYI_ESIGI',
@@ -170,6 +172,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'pptxYardimciMetin', 'parsePptxSlideXml', 'decodeXmlEntities',
   'TRANSKRIPT_MAX_SAYFA', 'TRANSKRIPT_MAX_COMPLETION', 'TRANSKRIPT_MIN_BUTCE_MS',
   'TRANSKRIPT_MIN_KRK',
+  'TRANSKRIPT_MIN_SAYFA_ORANI',
   // Chunk yazimi Postgres kacisinda dusuyordu (29.10.2026 olcumu).
   'pgGuvenliMetin',
   // Anlatidaki ham LaTeX ve formuldeki ciplak sozcuk (29.10.2026 olcumu).
@@ -9375,7 +9378,7 @@ test('PPTX metinsizse gorsel OCR yolu kosuyor', () => {
   /* Kosu dusmek yerine OCR'a inmeli; cikarim yolundaki kapi kaybolmasin. */
   assert.ok(/if \(!pptxText\.trim\(\)\) \{[\s\S]{0,400}pptxGorselOCR\(zip, ocrApiKey\)/.test(SRC),
     'pptxText bos oldugunda pptxGorselOCR cagrilmiyor');
-  assert.ok(/pptxGorselOCR[\s\S]{0,900}ocrKullanildi = true/.test(SRC),
+  assert.ok(/pptxGorselOCR[\s\S]{0,2200}ocrKullanildi = true/.test(SRC),
     'PPTX OCR metni ocrKullanildi bayragini kaldirmiyor — rozet ve kurtarma kapilari yaniltir');
   assert.ok(/--- SLAYT \${secilen\[k\]\.slayt} ---/.test(SRC),
     'OCR metni slayt isareti tasimiyor — atif katmani susar');
@@ -9960,9 +9963,14 @@ test('OCR metninde kapsama YUZDESI yazilmiyor, sebebi yaziliyor', () => {
 test('transkript gecisi DAR kapilarla kosuyor', () => {
   assert.ok(/ocrKullanildi && parallelGemini && visionData &&\s*\n\s*budgetLeft\(\) > TRANSKRIPT_MIN_BUTCE_MS/.test(SRC),
     'transkript kapisi eksik — normal belgelerde bosa token yakar');
-  assert.equal(A.TRANSKRIPT_MAX_SAYFA, 8);
-  assert.equal(A.TRANSKRIPT_MAX_COMPLETION, 3072,
-    'completion 3072 ustune cikmamali: 8192 denemesi 15 sn tavanina carpip modeli dusurmustu');
+  /* 01.11.2026 olcumu: 8 sayfa / 3072 ile model TEK sayfa dondurdu
+     (288 karakter). Sayfa 6, completion 4096 — sayfa basina 512 yerine
+     ~680 token. 8192 DENENMIYOR: 15 sn tavanina carpiyor. */
+  assert.equal(A.TRANSKRIPT_MAX_SAYFA, 6);
+  assert.equal(A.TRANSKRIPT_MAX_COMPLETION, 4096,
+    'completion 4096 ustune cikmamali: 8192 denemesi 15 sn tavanina carpip modeli dusurmustu');
+  assert.equal(A.TRANSKRIPT_MIN_SAYFA_ORANI, 0.5,
+    'kac sayfa donmesi gerektigi kilitli olmali — 1/8 lik cevap kabul edilmisti');
   assert.equal(A.TRANSKRIPT_MIN_BUTCE_MS, 25000);
   assert.equal(A.TRANSKRIPT_MIN_KRK, 400);
 });
@@ -10045,9 +10053,117 @@ test('yardimci metin OCR DAN ONCE deneniyor', () => {
   assert.ok(iOcr > 0, 'PPTX OCR yolu kaybolmus');
   assert.ok(iYard < iOcr, 'yardimci metin OCR dan SONRA deneniyor');
   /* Yetersiz metin OCR yolunu kapatmamali. */
-  assert.ok(/if \(yard\.metin\.length >= 200\)/.test(SRC),
+  assert.ok(/if \(yard\.metin\.length >= PPTX_YARDIMCI_TEK_BASINA\)/.test(SRC),
     'kisa yardimci metin icin esik yok');
   assert.ok(/PPTX yardimci metin: /.test(SRC), 'sayac loglanmiyor');
+});
+
+/* ==========================================================================
+   IKI SOZCUKLUK BASLIK KARSILASTIRILAMIYORDU (01.11.2026, Week 8 olcumu)
+
+   Kartta ayni diyagram iki kez durdu:
+     DIYAGRAM 1  "Optimization flow"
+     DIYAGRAM 2  "Optimization flow (Slide 30)"
+   Dugumleri BIREBIR ayni (model / f'(x) = 0 / test / interpret), ama
+   baslik kapisi NEAR_DUP_MIN_TERMS (3) istiyor ve baslik iki terim.
+   ========================================================================== */
+
+const akisDiyagrami = (ad, aciklama) => ({
+  title: ad,
+  mermaid: 'graph TD; A[model] --> B[f(x) = 0]; B --> C[test]; C --> D[interpret]',
+  description: aciklama
+});
+
+test('iki sozcukluk baslikli ikiz diyagram DUGUMLERDEN birlesiyor', () => {
+  const r = A.dedupeDiagrams([
+    akisDiyagrami('Optimization flow', 'Flowchart showing the steps.'),
+    akisDiyagrami('Optimization flow (Slide 30)', 'Optimization flow diagram showing steps from model to interpret.')
+  ]);
+  assert.equal(r.diagrams.length, 1,
+    'ikiz diyagram birlesmedi: ' + JSON.stringify(r.dropped));
+  /* DOLULUK olcutu DUGUM metni (dedupeDiagrams in kendi kurali); iki
+     kopyanin dugumleri birebir ayni oldugu icin olcu esit ve sira
+     korunuyor — kalan diyagram dugumlerini tasimali. */
+  assert.ok(/model/.test(r.diagrams[0].mermaid) && /interpret/.test(r.diagrams[0].mermaid),
+    'kalan diyagram dugumlerini kaybetmis: ' + r.diagrams[0].mermaid);
+});
+
+test('dugumleri AYRIK iki kisa baslikli diyagram ikisi de kaliyor', () => {
+  /* Kol fazla genis olmamali: 0,9 esigi ayri diyagrami korumali. */
+  const r = A.dedupeDiagrams([
+    akisDiyagrami('Optimization flow', 'Akis.'),
+    { title: 'Decision map',
+      mermaid: 'graph TD; A[sum] --> B[term by term]; C[product] --> D[u v + u v]',
+      description: 'Rule selection map.' }
+  ]);
+  assert.equal(r.diagrams.length, 2, 'ayri diyagramlar birlestirildi');
+  assert.equal(A.DIYAGRAM_DUGUM_TEK_BASINA, 0.9);
+});
+
+/* ==========================================================================
+   YARDIMCI METIN OCR'IN YERINE GECMEZ (01.11.2026, Week 11 olcumu)
+
+   Ilk surumum "yardimci metin 200 karakteri gecerse OCR i atla" diyordu.
+   Olculen kosu:
+     PPTX yardimci metin: 48 not slaydi, 0 grafik (0 deger), 988 karakter
+   48 not slaydi var ama not basina ~20 karakter — notlar pratikte BOS.
+   988 esigi gectigi icin 5000 karakterlik OCR yolu kapandi ve kart coktu:
+     Grounding gate: score=0% terms 0 kept / 3 dropped   (onceki kosu %100)
+     Citation anchoring: pages=48  (bes atif da "Sayfa 48")
+   ========================================================================== */
+
+test('yardimci metin TEK BASINA yeterli degilse OCR kosuyor', () => {
+  assert.equal(A.PPTX_YARDIMCI_TEK_BASINA, 3000,
+    '988 karakterlik bos notlar esigi gecmemeli');
+  assert.ok(/if \(yard\.metin\.length >= PPTX_YARDIMCI_TEK_BASINA\)/.test(SRC),
+    'esik sabit yerine ham sayi kullaniliyor');
+  /* Esigi gecmeyen metin ATILMIYOR, OCR ile karsilastirilmak uzere saklaniyor. */
+  assert.ok(/pptxYardimci = yard\.metin/.test(SRC),
+    'kisa yardimci metin saklanmiyor — OCR ile karsilastirilamaz');
+});
+
+test('OCR ile yardimci metinden UZUN olan kazaniyor', () => {
+  assert.ok(/!!pptxYardimci &&\s*\n\s*pptxYardimci\.length > pptxNorm\.metin\.length/.test(SRC),
+    'uzunluk karsilastirmasi yok');
+  /* Yardimci metin secilirse OCR bayragi DUSMELI: metin artik OCR degil,
+     yani kurtarma ve rozet kapilari dogru calissin. */
+  /* Secim TEK yerde: ilk surumum yardimci metni atayip hemen ardindan
+     OCR metniyle kosulsuz eziyordu — test onu yakaladi. */
+  assert.ok(/if \(yardimciKazandi\) \{\s*\n\s*extractedText = pptxYardimci as string\s*\n\s*ocrKullanildi = false\s*\n\s*\} else \{\s*\n\s*extractedText = pptxNorm\.metin\s*\n\s*ocrKullanildi = true/.test(SRC),
+    'metin secimi tek bir if/else de olmali — yoksa biri otekini eziyor');
+  assert.ok(/PPTX yardimci metin OCR.dan uzun/.test(SRC), 'secim loglanmiyor');
+  assert.ok(/OCR metni kaliyor/.test(SRC), 'oteki dal loglanmiyor');
+});
+
+/* ==========================================================================
+   TRANSKRIPT PROMPTU: CELISKILI IKI TALIMAT (01.11.2026, Week 8 olcumu)
+
+   Olculen kosu:
+     Transkript gecisi: metin yetersiz (288 karakter, 1 sayfa) — OCR metni kaliyor
+   Sekiz sayfa istendi, bir sayfa geldi. Prompt hem "--- PAGE n --- satiriyla
+   ayir" hem de JSON {"pages":[...]} istiyordu; model ikisini birlestirip
+   tek kayitta birakti.
+   ========================================================================== */
+
+test('transkript promptu TEK bicim istiyor', () => {
+  const i = SRC.indexOf("You are transcribing lecture slide images to PLAIN TEXT");
+  assert.ok(i > 0, 'transkript promptu kaybolmus');
+  const blok = SRC.slice(i, i + 900);
+  assert.ok(!/--- PAGE n ---/.test(blok),
+    'celiskili isaret talimati hala promptta: JSON zaten sayfayi ayiriyor');
+  assert.ok(/ONE object per page image/.test(blok),
+    'sayfa basina bir kayit istegi yok — model hepsini tek kayitta birakiyor');
+  assert.ok(/\$\{trSayfalar\.length\} objects in total/.test(blok),
+    'kac kayit beklendigi soylenmiyor');
+  /* Uydurma yasagi durmali. */
+  assert.ok(/never a guess/.test(blok), 'uydurma yasagi dusmus');
+});
+
+test('transkript kabul kapisi SAYFA SAYISINA da bakiyor', () => {
+  assert.ok(/parcalar\.length >= Math\.ceil\(trSayfalar\.length \* TRANSKRIPT_MIN_SAYFA_ORANI\)/.test(SRC),
+    'sayfa orani kapisi yok — 1/8 lik cevap kabul edilir');
+  assert.ok(/trMetin\.length >= TRANSKRIPT_MIN_KRK && yeterSayfa/.test(SRC),
+    'iki sart birlikte uygulanmali');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));

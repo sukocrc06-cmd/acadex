@@ -1927,10 +1927,44 @@ const TABLO_GECIS_MIN_BUTCE_MS = 25000
  *  - butce kapisi tablo gecisiyle ayni esikte; transkript tablo
  *    gecisinden SONRA kosuyor, yani tablolar once pay aliyor,
  *  - dusen cagri sessiz: metin gelmezse OCR metni oldugu gibi kaliyor. */
-const TRANSKRIPT_MAX_SAYFA = 8
-const TRANSKRIPT_MAX_COMPLETION = 3072
+/* ILK SURUM BIR SAYFA DONDURDU (01.11.2026, Week 8'de olculdu).
+ *   Transkript gecisi: metin yetersiz (288 karakter, 1 sayfa) — OCR metni kaliyor
+ * Sekiz sayfa istendi, bir sayfa geldi. Sebep CELISKILI IKI TALIMAT:
+ * prompt hem "slaytlari --- PAGE n --- satiriyla ayir" hem de JSON
+ * {"pages":[...]} istiyordu; model ikisini birlestirmeye calisip tek
+ * kayitta birakti. Isaret talimati kaldirildi — JSON sayfayi zaten ayiriyor.
+ * Sayfa sayisi 6'ya indi ve completion 4096'ya cikti: sayfa basina 512
+ * yerine ~680 token. 8192 DENENMIYOR, gecen oturumda 15 sn tavanina
+ * carpip modeli kosu boyunca dusurmustu. */
+const TRANSKRIPT_MAX_SAYFA = 6
+const TRANSKRIPT_MAX_COMPLETION = 4096
 const TRANSKRIPT_MIN_BUTCE_MS = 25000
 const TRANSKRIPT_MIN_KRK = 400
+/* Kac sayfa donmeli: istenenin en az yarisi. 1/8'lik cevap kabul
+   edilmemeliydi; 400 karakter esigi tek basina bunu soylemiyordu. */
+const TRANSKRIPT_MIN_SAYFA_ORANI = 0.5
+
+/* YARDIMCI METIN OCR'IN YERINE GECMEZ (01.11.2026, Week 11'de olculdu —
+ * kendi regresyonum).
+ *
+ * Ilk surum "yardimci metin 200 karakteri gecerse OCR'i atla" diyordu.
+ * Olculen kosu:
+ *   PPTX yardimci metin: 48 not slaydi, 0 grafik (0 deger), 988 karakter
+ * 48 not slaydi var ama not basina ~20 karakter — notlar pratikte BOS.
+ * 988 karakter esigi gectigi icin 5000 karakterlik OCR yolu kapandi ve
+ * kart coktu:
+ *   Grounding gate: score=0% terms 0 kept / 3 dropped  (onceki kosu %100)
+ *   Citation anchoring: pages=48   (bes atif da "Sayfa 48")
+ *   kart 3 bolum / 5 kavram / 5 soru  ->  2 bolum / 3 kavram / 2 soru
+ * Grounding ABORTED korumasi kartin tamamen bosalmasini engelledi, yani
+ * zarar sinirli kaldi — ama bilgi kaybi gercek.
+ *
+ * Esik yukseltmek yetmez: hangi sayinin dogru oldugunu bilemeyiz. Dogru
+ * olcut KARSILASTIRMA: yardimci metin tek basina yeterince zenginse
+ * (PPTX_YARDIMCI_TEK_BASINA) OCR hic kosmaz; degilse OCR da kosar ve
+ * UZUN olan kazanir. Notlari zengin bir sunumda OCR'a hic inilmez,
+ * notlari bos bir sunumda OCR metni korunur. */
+const PPTX_YARDIMCI_TEK_BASINA = 3000
 /* Bu kadar ya da daha fazla sayfa varsa is iki dilime bolunur. Altinda
    bolmek anlamsiz: tek cagri zaten tavana dayanmaz. */
 const TABLO_DILIM_ESIGI = 6
@@ -3540,6 +3574,22 @@ function nearDupAyniBaslik(a: string, b: string): boolean {
  * SILMEKTEN iyidir. Sinirda kalmasi kabul; kaybetmemek esas. */
 const DIYAGRAM_BASLIK_ESIGI = NEAR_DUP_THRESHOLD
 const DIYAGRAM_DUGUM_ESIGI = 0.5
+/* IKI SOZCUKLUK BASLIK KARSILASTIRILAMIYORDU (01.11.2026, Week 8'de olculdu).
+ *
+ * Kartta ayni diyagram iki kez durdu:
+ *   DIYAGRAM 1  "Optimization flow"
+ *   DIYAGRAM 2  "Optimization flow (Slide 30)"
+ * Dugumleri BIREBIR ayni: model / f'(x) = 0 / test / interpret.
+ * Birlesmedi cunku baslik kapisi NEAR_DUP_MIN_TERMS (3) istiyor ve
+ * "Optimization flow" yalnizca IKI terim — kapi daha karsilastirmaya
+ * sira gelmeden atliyor.
+ *
+ * Esigi dusurmek butun near-duplicate katmanini etkiler; burada gereken
+ * dar bir kol: baslik karsilastirilamayacak kadar kisaysa karar DUGUMLERE
+ * kaliyor, ama daha yuksek esikle. Dort dugumu birebir ayni olan iki
+ * diyagram ayni diyagramdir; yarisi ortusen iki diyagram olmayabilir, o
+ * yuzden bu kol 0,9 istiyor. */
+const DIYAGRAM_DUGUM_TEK_BASINA = 0.9
 
 /** Mermaid dugum etiketleri: A[Metin], B("Metin"), C{Metin}. Ok bicimi ve
  *  yon anahtar sozcukleri disarida — ayni diyagram farkli ok yazabilir. */
@@ -3574,9 +3624,17 @@ function dedupeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: string[] }
     }
     let es = -1
     for (let i = 0; i < kept.length; i++) {
-      if (aday.bas.size < NEAR_DUP_MIN_TERMS || kept[i].bas.size < NEAR_DUP_MIN_TERMS) continue
+      const dugOrtusme = kumeOrtusmesi(aday.dug, kept[i].dug)
+      /* Baslik karsilastirilamayacak kadar kisa: karar DUGUMLERE kaliyor —
+         bkz. DIYAGRAM_DUGUM_TEK_BASINA yanindaki olcum notu. */
+      if (aday.bas.size < NEAR_DUP_MIN_TERMS || kept[i].bas.size < NEAR_DUP_MIN_TERMS) {
+        if (aday.dug.size === 0 || kept[i].dug.size === 0) continue
+        if (dugOrtusme < DIYAGRAM_DUGUM_TEK_BASINA) continue
+        es = i
+        break
+      }
       if (kumeOrtusmesi(aday.bas, kept[i].bas) < DIYAGRAM_BASLIK_ESIGI) continue
-      if (kumeOrtusmesi(aday.dug, kept[i].dug) < DIYAGRAM_DUGUM_ESIGI) continue
+      if (dugOrtusme < DIYAGRAM_DUGUM_ESIGI) continue
       es = i
       break
     }
@@ -12383,6 +12441,9 @@ serve(async (req) => {
         })
 
         let pptxText = ""
+        /* Slayt metni bossa toplanan not/grafik metni; OCR ile
+           karsilastirilip uzun olan seciliyor. */
+        let pptxYardimci: string | null = null
         for (const slidePath of slideFiles) {
           // Use the slide's real numeric filename (slideN.xml), not the loop
           // index — slides can be non-contiguous if some were deleted, so
@@ -12407,15 +12468,20 @@ serve(async (req) => {
          * yoktu. Simdi var — ve slayt numarasi ppt/slides/_rels'ten geldigi
          * icin atiflar dogru slayta isaret ediyor. */
         if (!pptxText.trim()) {
-          /* OCR'DAN ONCE DOSYANIN KENDI METNI — bkz. pptxYardimciMetin. */
+          /* OCR'DAN ONCE DOSYANIN KENDI METNI — bkz. pptxYardimciMetin.
+             Yeterince zengin degilse OCR da kosar ve UZUN olan kazanir;
+             bkz. PPTX_YARDIMCI_TEK_BASINA yanindaki olcum notu. */
           const yard = await pptxYardimciMetin(zip)
           console.log(
             `PPTX yardimci metin: ${yard.not} not slaydi, ${yard.grafik} grafik ` +
             `(${yard.deger} deger), ${yard.metin.length} karakter`
           )
-          if (yard.metin.length >= 200) {
+          if (yard.metin.length >= PPTX_YARDIMCI_TEK_BASINA) {
+            console.log('PPTX yardimci metin tek basina yeterli — OCR atlandi')
             extractedText = yard.metin
             pptxText = yard.metin
+          } else if (yard.metin.length > 0) {
+            pptxYardimci = yard.metin
           }
         }
 
@@ -12429,8 +12495,29 @@ serve(async (req) => {
               if (pptxNorm.duzeltilen > 0) {
                 console.log(`PPTX OCR metni normalize edildi: ${pptxNorm.duzeltilen} tam genislik/CJK karakter`)
               }
-              extractedText = pptxNorm.metin
-              ocrKullanildi = true
+              /* UZUN OLAN KAZANIR: notlar bossa OCR, notlar zenginse notlar.
+                 Secim TEK yerde yapiliyor — ilk surumum yardimci metni
+                 atayip hemen ardindan OCR metniyle koşulsuz eziyordu, testi
+                 bu yuzden dustu. */
+              const yardimciKazandi = !!pptxYardimci &&
+                pptxYardimci.length > pptxNorm.metin.length
+              if (pptxYardimci) {
+                console.log(
+                  yardimciKazandi
+                    ? `PPTX yardimci metin OCR'dan uzun (${pptxYardimci.length} > ` +
+                      `${pptxNorm.metin.length}) — yardimci metin kullaniliyor`
+                    : `PPTX yardimci metin kisa (${pptxYardimci.length} <= ` +
+                      `${pptxNorm.metin.length}) — OCR metni kaliyor`
+                )
+              }
+              if (yardimciKazandi) {
+                extractedText = pptxYardimci as string
+                ocrKullanildi = false
+              } else {
+                extractedText = pptxNorm.metin
+                ocrKullanildi = true
+              }
+              pptxYardimci = null
             } else {
               console.warn(`PPTX gorsel OCR: ${ocr.okunan}/${ocr.toplam} slayt okundu, metin yetersiz (${ocr.text.trim().length} karakter)`)
             }
@@ -15163,10 +15250,10 @@ Return empty arrays if the images contain no such object. Invent nothing: a cell
                   console.warn('Transkript gecisi: mini-PDF uretilemedi, atlandi')
                 } else {
                   const trPrompt = `You are transcribing lecture slide images to PLAIN TEXT.
-Copy what is printed, line by line, in reading order. Keep every number, exponent and sign exactly as shown: write x^2 for a squared term, not x2.
-Do not summarise, explain or add anything that is not printed on the slide.
-Separate slides with a line containing only --- PAGE n --- where n is the page number given for that image.
-Respond ONLY with JSON: {"pages":[{"page":<number>,"text":"..."}]}`
+You are given ${trSayfalar.length} page images. Return ONE object per page image, ${trSayfalar.length} objects in total, in the same order.
+For each page, copy what is printed, line by line, in reading order. Keep every number, exponent and sign exactly as shown: write x^2 for a squared term, not x2.
+Do not summarise, explain or add anything that is not printed on the page. A page you cannot read gets an empty text, never a guess.
+Respond ONLY with JSON: {"pages":[{"page":<page number as given>,"text":"<everything printed on that page>"}]}`
                   const trIcerik = [
                     { type: 'text', text: `Transcribe these slide images to plain text. The images are pages ${trSayfalar.map((i: number) => i + 1).join(', ')} of the document.` },
                     { type: 'image_url', image_url: { url: `data:application/pdf;base64,${trPdf}` } }
@@ -15220,7 +15307,9 @@ Respond ONLY with JSON: {"pages":[{"page":<number>,"text":"..."}]}`
                     }
                     const trMetin = parcalar.join('\n\n').trim()
                     const trHarcanan = trJson?.usage?.completion_tokens || 0
-                    if (trMetin.length >= TRANSKRIPT_MIN_KRK) {
+                    const yeterSayfa =
+                      parcalar.length >= Math.ceil(trSayfalar.length * TRANSKRIPT_MIN_SAYFA_ORANI)
+                    if (trMetin.length >= TRANSKRIPT_MIN_KRK && yeterSayfa) {
                       olcumMetni = trMetin
                       console.log(
                         `Transkript gecisi: ${parcalar.length}/${trSayfalar.length} sayfa, ` +
