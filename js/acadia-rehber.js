@@ -18,7 +18,7 @@
     { q: '#alanlar', pose: 'dusun', mood: 'dusunuyor', y: 52, t: 'Ezberden değil, anlamaktan yanayım.' },
     { q: '#yontemler', pose: 'isaret', mood: 'mutlu', y: 38, t: 'Pomodoro, aralıklı tekrar, Feynman… hepsi tek masada.' },
     { q: '#akis', pose: 'dur', mood: 'odakli', y: 48, t: 'Her derse ona uyan tekniği öneririm.' },
-    { q: '#medlab', pose: 'isaret', mood: 'mutlu', y: 40, costume: 'medlab', t: 'Stetoskobumu taktım; MedLab’i birlikte gezelim.' },
+    { q: '#medlab', pose: 'isaret', mood: 'mutlu', y: 40, costume: 'medlab', t: 'Stetoskobumu taktım; sağlık kampüsünü birlikte gezelim.' },
     { q: '#gizlilik', pose: 'dur', mood: 'odakli', y: 46, t: 'Notların sende kalır; kimseye göstermem.' },
     { q: '#soru', pose: 'dusun', mood: 'dusunuyor', y: 42, t: 'Aklına takılan bir şey mi var? Sor, cevaplayalım.' },
     { q: '#kayit', pose: 'zipla', mood: 'kutlama', y: 38, t: 'Hazırsan başlayalım!' }
@@ -31,7 +31,7 @@
   g.appendChild(host); D.body.appendChild(g); D.body.appendChild(live);
   K.mount();
 
-  /* bölümler kendi anlatımlarını yaptırabilir (ör. MedLab filmi: js/acadex-medlab-film.js) */
+  /* bölümler kendi anlatımlarını yaptırabilir (ör. MedLab kampüs turu: js/acadex-kampus-tur.js) */
   var api = W.acadiaRehber = { at: '', say: function (text, mood, pose) {
     if (mood) host.dataset.mood = mood; if (pose) host.dataset.pose = pose; host.__acdV = -1; K.mount();
     if (!calm) { host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop'); }
@@ -45,7 +45,7 @@
     api.at = s.el ? s.el.id : '';
     host.__acdV = -1; K.mount();
     g.style.setProperty('--gy', s.y + 'vh');
-    g.classList.toggle('on-dark', !!(s.el && (s.el.classList.contains('dk') || s.el.classList.contains('mf'))));
+    g.classList.toggle('on-dark', !!(s.el && (s.el.classList.contains('dk'))));
     if (!calm) { host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop'); }
     K.say(host, s.t, narrow() ? 3800 : 0);
     live.textContent = s.t;

@@ -1,0 +1,95 @@
+/* ==========================================================================
+   LANDING · ACADEX MEDLAB SAĞLIK KAMPÜSÜ TURU (css/acadex-kampus-tur.css + js/acadex-kampus-tur.js)
+   index.html → section#medlab.kt. Varsayılan (kısa mod): giriş + bölüm seçici + maskotlu
+   durak kartları alt alta. .kt-pin (JS, geniş ekran, hareket serbest): sahne sabitlenir,
+   rehber cerrah kampüs yolunda yürür, duraklar sırayla açılır.
+   Maskot hareketleri: css/acadex-kampus-tur-maskot.css.
+   ========================================================================== */
+.kt{position:relative;background:linear-gradient(180deg,#F3F8F5 0,#EAF3EF 100%);color:#0D1838;--kt-c:#2E9C86}
+.kt-intro{max-width:1180px;margin:0 auto;padding:96px 24px 30px}
+.kt-eyb{display:inline-flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#2E7D6B}
+.kt-eyb i{width:8px;height:8px;border-radius:50%;background:#D9472B;box-shadow:0 0 0 4px rgba(217,71,43,.16)}
+.kt-h{margin:14px 0 0;max-width:820px;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:clamp(36px,4.6vw,62px);line-height:1.02;letter-spacing:-.025em;font-weight:800}
+.kt-h u{text-decoration:none;background:linear-gradient(transparent 68%,rgba(46,156,134,.35) 68%,rgba(46,156,134,.35) 90%,transparent 90%)}
+.kt-lead{margin:16px 0 0;max-width:660px;font-size:18px;line-height:1.6;color:#46506A}
+.kt-sec{margin:26px 0 0}
+.kt-sec b{display:block;font-family:'Caveat',cursive;font-size:26px;font-weight:600;color:#0D1838;margin-bottom:8px}
+.kt-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.kt-chips button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:1.5px solid #CBD6D1;border-radius:999px;background:#fff;color:#0D1838;font:inherit;font-weight:600;font-size:15px;cursor:pointer;transition:transform .2s cubic-bezier(.3,1.5,.5,1),border-color .2s,background .2s}
+.kt-chips button i{width:10px;height:10px;border-radius:50%;background:var(--c,#2E9C86)}
+.kt-chips button:hover{transform:translateY(-2px);border-color:#0D1838}
+.kt-chips button[aria-pressed="true"]{background:#0D1838;border-color:#0D1838;color:#fff}
+.kt-chips button:focus-visible,.kt-rail a:focus-visible,.kt-go:focus-visible,.kt-skip:focus-visible{outline:3px solid #FFB547;outline-offset:3px}
+
+/* ---------------- kısa mod: kartlar ---------------- */
+.kt-track{position:relative}
+.kt-stage{position:relative;max-width:1180px;margin:0 auto;padding:10px 24px 70px}
+.kt-sts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.kt-st{position:relative;display:flex;flex-direction:column;background:#FFFDF8;border-radius:16px;overflow:hidden;border-top:6px solid var(--c);box-shadow:0 1px 0 #fff inset,0 20px 40px -28px rgba(13,24,56,.45)}
+.kt-st.kt-giris,.kt-st.kt-son{grid-column:1/-1}
+.kt-cv{display:block;aspect-ratio:864/352;background:#F6F1E6;overflow:hidden}
+.kt-cv svg{display:block;width:100%;height:100%}
+.kt-tx{padding:18px 20px 22px}
+.kt-tx .k{font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--c)}
+.kt-tx h3{margin:6px 0 2px;font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:clamp(22px,2.2vw,30px);line-height:1.1;letter-spacing:-.015em}
+.kt-tx .for{display:block;font-family:'Caveat',cursive;font-size:22px;color:#46506A;line-height:1.1}
+.kt-tx p{margin:10px 0 0;font-size:16px;line-height:1.55;color:#46506A}
+.kt-tx ul{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0;padding:0;list-style:none}
+.kt-tx li{padding:5px 11px;border-radius:999px;background:color-mix(in srgb,var(--c) 12%,#fff);color:color-mix(in srgb,var(--c) 70%,#0D1838);font-size:13px;font-weight:700}
+.kt-sen .kt-tx::before{content:"senin bölümün";display:table;margin-bottom:8px;padding:4px 10px;border-radius:999px;background:#0D1838;color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.kt-go{display:inline-flex;align-items:center;gap:10px;margin-top:16px;padding:14px 22px;border-radius:999px;background:#2F6BFF;color:#fff;font-weight:700;font-size:15px;text-decoration:none;box-shadow:0 14px 24px -14px rgba(47,107,255,.9)}
+.kt-go:hover{background:#1F55E0}
+.kt-rail{display:none}
+.kt-skip{display:block;width:max-content;margin:18px auto 0;color:#46506A;font-size:14px}
+.kt-cred{display:block;margin-top:12px;color:#6A7593;font-size:12.5px}
+
+/* ---------------- sabitlenmiş tur ---------------- */
+.kt.kt-pin .kt-track{height:calc(var(--kt-n,9) * 75vh + 100vh)}
+.kt.kt-pin .kt-stage{position:sticky;top:0;height:100vh;height:100svh;max-width:none;margin:0;padding:0;overflow:hidden}
+.kt-world{position:absolute;inset:0;z-index:0;overflow:hidden}
+.kt-sky{position:absolute;inset:0;background:linear-gradient(180deg,#BFE3F5 0,#E3F1F4 58%,#F3F8F5 78%)}
+.kt-world svg{position:absolute;left:0;bottom:0;height:100%;will-change:transform}
+.kt-cloud{animation:kt-cloud var(--d,20s) ease-in-out infinite alternate}
+@keyframes kt-cloud{to{transform:translateX(60px)}}
+.kt-lamp{animation:kt-lamp 3s ease-in-out infinite}
+@keyframes kt-lamp{50%{opacity:.6}}
+.kt-door rect{transform-box:fill-box;transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+.kt-final .kt-dl{transform:translateX(-100%)}
+.kt-final .kt-dr{transform:translateX(100%)}
+
+.kt-walker{position:absolute;z-index:2;left:calc(var(--kt-wx,.36) * 100%);bottom:calc(118px * var(--kt-s,1));height:calc(270px * var(--kt-s,1));aspect-ratio:160/350;transform:translateX(-50%);transition:left .7s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.kt-walker svg{display:block;width:100%;height:100%;transition:transform .25s}
+.kt-walker.kt-back svg{transform:scaleX(-1)}
+.kt-walker g{transform-box:fill-box}
+.kt-leg,.kt-arm{transform-origin:50% 4px}
+.kt-walk .kt-leg-f{animation:kt-step .5s ease-in-out infinite alternate}
+.kt-walk .kt-leg-b{animation:kt-step .5s ease-in-out infinite alternate-reverse}
+.kt-walk .kt-arm-f{animation:kt-step .5s ease-in-out infinite alternate-reverse}
+.kt-walk .kt-arm-b{animation:kt-step .5s ease-in-out infinite alternate}
+.kt-walk .kt-w-body{animation:kt-bob .25s ease-in-out infinite alternate}
+@keyframes kt-step{from{transform:rotate(-18deg)}to{transform:rotate(18deg)}}
+@keyframes kt-bob{to{transform:translateY(-5px)}}
+.kt-eye{transform-origin:50% 50%;animation:kt-blink 4.6s infinite}
+@keyframes kt-blink{0%,93%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+.kt-mask{animation:kt-mask 3.4s ease-in-out infinite}
+@keyframes kt-mask{50%{transform:translateY(1.5px)}}
+
+.kt.kt-pin .kt-sts{display:block;position:absolute;inset:0;z-index:3;pointer-events:none}
+.kt.kt-pin .kt-st{position:absolute;inset:0;display:block;background:none;border:0;border-radius:0;box-shadow:none;overflow:visible}
+.kt.kt-pin .kt-tx{position:absolute;left:clamp(96px,7vw,128px);top:clamp(80px,13vh,120px);width:min(430px,38vw);padding:20px 22px 22px;border-radius:16px;background:rgba(255,253,248,.94);border-left:6px solid var(--c);box-shadow:0 26px 50px -30px rgba(13,24,56,.55);opacity:0;transform:translateY(22px);transition:opacity .45s ease,transform .6s cubic-bezier(.2,.8,.2,1);pointer-events:auto}
+.kt.kt-pin .kt-cv{position:absolute;right:clamp(170px,13vw,220px);top:clamp(70px,11vh,110px);width:min(470px,34vw);border-radius:14px;border:4px solid var(--c);box-shadow:0 26px 50px -26px rgba(13,24,56,.6);opacity:0;transform:translateY(-14px) scale(.9) rotate(-1.5deg);transform-origin:50% 100%;transition:opacity .4s ease,transform .7s cubic-bezier(.3,1.4,.5,1)}
+.kt.kt-pin .kt-st.on .kt-tx{opacity:1;transform:none}
+.kt.kt-pin .kt-st.on .kt-cv{opacity:1;transform:none}
+.kt.kt-pin .kt-st:not(.on) *{animation-play-state:paused!important}
+.kt.kt-pin .kt-st:not(.on) .kt-tx,.kt.kt-pin .kt-st:not(.on) .kt-tx *{pointer-events:none}
+.kt.kt-pin .kt-rail{display:flex;position:absolute;z-index:4;left:50%;bottom:clamp(12px,2.4vh,22px);transform:translateX(-50%);gap:4px;margin:0;padding:6px;list-style:none;border-radius:999px;background:rgba(255,253,248,.95);box-shadow:0 12px 26px -16px rgba(13,24,56,.6)}
+.kt-rail a{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 10px;border-radius:999px;color:#46506A;font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap}
+.kt-rail a i{width:10px;height:10px;border-radius:50%;background:#CBD6D1;flex:none;transition:background .3s,transform .3s}
+.kt-rail li.done a i{background:var(--c)}
+.kt-rail li.on a{background:#0D1838;color:#fff}
+.kt-rail li.on a i{background:var(--c);transform:scale(1.25)}
+.kt-rail li:not(.on) a span{display:none}
+.kt.kt-pin .kt-skip{position:absolute;z-index:4;right:18px;bottom:18px;margin:0;padding:8px 12px;border-radius:999px;background:rgba(255,253,248,.9);text-decoration:none}
+@media (max-width:1100px){.kt.kt-pin .kt-cv{right:24px;width:min(400px,36vw)}.kt.kt-pin .kt-tx{width:min(400px,44vw)}}
+@media (max-width:760px){.kt-sts{grid-template-columns:minmax(0,1fr)}.kt-intro{padding:64px 16px 20px}.kt-stage{padding:6px 16px 50px}}
+@media (prefers-reduced-motion:reduce){.kt *,.kt *::before,.kt *::after{animation:none!important;transition:none!important}}
