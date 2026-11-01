@@ -70,8 +70,16 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2,
      Artik denenecek diri model kalmadiysa yakalama hic yapilmiyor ve cagri
      GERCEK Groq'a gidiyor — kart ucuz yoldan da olsa cikiyor. */
   if (url === GROQ_CHAT_URL && geminiParallelActive()) {
-    if (geminiDiriAdayVar()) return groqViaGemini(options, maxRetries, timeoutMs)
-    console.warn('Gemini paralel: diri aday model kalmadi — cagri GERCEK Groq yoluna birakiliyor')
+    if (geminiDiriAdayVar()) {
+      /* YEDEK YOLU KOPUKTU (01.11.2026): yakalama "cevap yok" dedigi halde
+         502 donduruyordu ve asagidaki GERCEK Groq kolu hic denenmiyordu —
+         bkz. groqViaGemini sonundaki olcum notu. null artik "sen dene"
+         demek. */
+      const geminiCevabi = await groqViaGemini(options, maxRetries, timeoutMs)
+      if (geminiCevabi) return geminiCevabi
+    } else {
+      console.warn('Gemini paralel: diri aday model kalmadi — cagri GERCEK Groq yoluna birakiliyor')
+    }
   }
   let lastRateLimitedResponse: Response | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -3590,6 +3598,23 @@ const DIYAGRAM_DUGUM_ESIGI = 0.5
  * diyagram ayni diyagramdir; yarisi ortusen iki diyagram olmayabilir, o
  * yuzden bu kol 0,9 istiyor. */
 const DIYAGRAM_DUGUM_TEK_BASINA = 0.9
+/* BASLIK TAMAMEN FARKLI OLABILIYOR (01.11.2026, Week 8'de olculdu).
+ *
+ * Kol ilk surumde yalnizca KISA baslik icin aciliyordu. Ama ayni diyagram
+ * iki slaytta bambaska adla gelebiliyor; olculen cift:
+ *   DIYAGRAM 4  "Sign rule (Slide 23)"
+ *   DIYAGRAM 6  "Extremum pattern (Slide 27/28)"
+ * Dugumleri BIREBIR ayni: "- / 0 / + / - to +: local minimum".
+ * Baslik terim kumeleri hic ortusmuyor ({sign,rule,slide,23} ve
+ * {extremum,pattern,slide,27,28}), o yuzden normal yol birlestirmiyor ve
+ * kisa-baslik kolu da acilmiyor (ikisi de ucten fazla terim).
+ *
+ * Dort dugumu birebir ayni olan iki diyagram, basliklari ne olursa olsun
+ * ayni diyagramdir. Kol artik BASLIKTAN BAGIMSIZ: dugum ortusmesi 0,9'u
+ * geciyorsa baslik hic sorulmuyor. Yanlis pozitife karsi iki kapi var —
+ * 0,9 esigi ve en az DIYAGRAM_DUGUM_MIN_TERIM ayirt edici terim, cunku
+ * iki-terimlik kumelerde 0,9 kolay tesadufen saglanir. */
+const DIYAGRAM_DUGUM_MIN_TERIM = 3
 
 /** Mermaid dugum etiketleri: A[Metin], B("Metin"), C{Metin}. Ok bicimi ve
  *  yon anahtar sozcukleri disarida — ayni diyagram farkli ok yazabilir.
@@ -3650,14 +3675,15 @@ function dedupeDiagrams(diagrams: any[]): { diagrams: any[]; dropped: string[] }
     let es = -1
     for (let i = 0; i < kept.length; i++) {
       const dugOrtusme = kumeOrtusmesi(aday.dug, kept[i].dug)
-      /* Baslik karsilastirilamayacak kadar kisa: karar DUGUMLERE kaliyor —
-         bkz. DIYAGRAM_DUGUM_TEK_BASINA yanindaki olcum notu. */
-      if (aday.bas.size < NEAR_DUP_MIN_TERMS || kept[i].bas.size < NEAR_DUP_MIN_TERMS) {
-        if (aday.dug.size === 0 || kept[i].dug.size === 0) continue
-        if (dugOrtusme < DIYAGRAM_DUGUM_TEK_BASINA) continue
+      /* DUGUMLER BIREBIR ISE BASLIK SORULMAZ — bkz. ustteki iki olcum notu
+         (kisa baslik ve "baslik tamamen farkli" halleri). */
+      if (aday.dug.size >= DIYAGRAM_DUGUM_MIN_TERIM &&
+          kept[i].dug.size >= DIYAGRAM_DUGUM_MIN_TERIM &&
+          dugOrtusme >= DIYAGRAM_DUGUM_TEK_BASINA) {
         es = i
         break
       }
+      if (aday.bas.size < NEAR_DUP_MIN_TERMS || kept[i].bas.size < NEAR_DUP_MIN_TERMS) continue
       if (kumeOrtusmesi(aday.bas, kept[i].bas) < DIYAGRAM_BASLIK_ESIGI) continue
       if (dugOrtusme < DIYAGRAM_DUGUM_ESIGI) continue
       es = i
@@ -9535,7 +9561,10 @@ function openAiContentToGeminiParts(content: unknown): any[] {
  * Groq'un bicimiyle (choices[0].message.content + usage) geri verir. Cagiran
  * kodun hicbir satiri hangi saglayicinin cevap verdigini bilmez.
  */
-async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs: number): Promise<Response> {
+/** Gemini yakalamasi. HICBIR model gercek bir cevap vermediyse null doner
+ *  ve cagiran GERCEK Groq yoluna gecer — bkz. fetchWithRetry icindeki
+ *  "YEDEK YOLU KOPUKTU" notu. */
+async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs: number): Promise<Response | null> {
   const apiKey = Deno.env.get('GEMINI_API_KEY') || ''
   let req: any
   try {
@@ -9697,10 +9726,29 @@ async function groqViaGemini(options: RequestInit, maxRetries: number, timeoutMs
       return geminiHataCevabi(res.status, `Gemini ${res.status} (${model})`, lastBody)
     }
   }
-  return new Response(
-    JSON.stringify({ error: { message: `Gemini paralel: hicbir model cevap vermedi (${lastStatus}: ${lastBody.slice(0, 200)})` } }),
-    { status: lastStatus >= 400 ? lastStatus : 502 }
+  /* YEDEK YOLU KOPUKTU (01.11.2026, uc kosuda olculdu).
+   *
+   * Burasi "hicbir Gemini modeli cevap vermedi" hali: zaman asimi ya da
+   * zincir butcesinin dolmasi. Eski surum 502 donduruyordu ve o 502
+   * dogrudan cagirana gidiyordu, yani fetchWithRetry'nin GERCEK Groq kolu
+   * hic denenmiyordu. Olculen bedel:
+   *   Gemini paralel: cagri butcesi doldu (15000ms, caginin zaman asimi 40000ms)
+   *     — kalan Gemini adaylari denenmiyor, Groq'a birakiliyor
+   *   Window 1 attempt 1 failed: Groq API error (502): {"error":{"message":
+   *     "Gemini paralel: hicbir model cevap vermedi (0: zaman asimi (15000ms))"}}
+   *   EKSIK BELGE: 2/2 pencere dustu [1,2] — 11138 karakter (belgenin %100'i)
+   *     karta hic girmedi
+   * Log "Groq'a birakiliyor" diyordu ama birakilmiyordu; ogrenci kartta
+   * "eksik ozet: 2/2 pencere dustu" gordu.
+   *
+   * GERCEK HATA CEVABI YUKARIDA DONUYOR (400, kota, vb.) — onlar Groq'ta
+   * da ayni sekilde dusecegi icin yeniden denenmiyor. Buraya yalnizca
+   * "cevap YOK" hali dusuyor ve o halde Groq denenmeye deger. */
+  console.warn(
+    `Gemini paralel: hicbir model cevap vermedi (${lastStatus}: ${lastBody.slice(0, 160)}) — ` +
+    `cagri GERCEK Groq yoluna birakiliyor`
   )
+  return null
 }
 
 /* only modunda butun istek Gemini'nin: 120 sn butce, geriye kapilar ve
