@@ -851,7 +851,7 @@ const INK_SRC = require('node:fs').readFileSync(
   require('node:path').join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
 
 test('CANLI arayuz kalite uyarilarini okuyor', () => {
-  for (const alan of ['missing_windows', 'gemini_partial', 'skipped_stages', 'numeric_coverage']) {
+  for (const alan of ['missing_windows', 'gemini_partial', 'skipped_stages', 'numeric_coverage', 'issues']) {
     assert.ok(INK_SRC.includes('qm.' + alan),
       `acadex-ink ${alan} okumuyor — uyari ekranda gorunmez`);
   }
@@ -865,6 +865,39 @@ test('uyari varken "kalite kontrolunden gecti" BASTIRILIYOR', () => {
   /* Asil kusur ikisinin BIRLIKTE gorunmesiydi: eksik kart + yesil onay. */
   assert.ok(/qm\.pass !== false && qm\.grounded && !uyarilar\.length/.test(INK_SRC),
     'olumlu rozet uyari varken de basiliyor');
+});
+
+test('CRITIC UYARILARI ekranda (01.11.2026)', () => {
+  /* OLCULEN KUSUR. quality_meta.issues critic'in bulduklarini tutuyor ve
+     01.11.2026'ya kadar HIC okunmuyordu — js/acadex-ink.js'te de
+     js/dashboard.js'te de sifir atif.
+
+     Canli veritabaninda olculdu (107 kart): 8 kartta issues dolu ve
+     YEDISI yine pass:true, grounded:true. Yani critic kaynakta OLMAYAN
+     icerigi buluyor —
+       "Hallucination: 'lowballing' ve 'kalicilik illuzyonu' terimleri..."
+       "'Human Development Index (HDI)' and 'GNI' ... not present in the
+        visible source text"
+       "Draft contains specific hematopoiesis timeline details ... not
+        present in the provided source text"
+     — kaydediyor, ve kart yesil "kalite kontrolunden gecti" rozetiyle
+     cikiyordu. Dordunde hic uyari rozeti de yoktu, cunku sayisal kapsama
+     esigini (total>=4 && kept/total<0.7) geciyorlardi: 87/92, 87/92,
+     28/39, 25/33.
+
+     Belgeye sadakat ilkesi (CLAUDE.md, kullanicinin acik talimati):
+     kaynakta olmayan bir sey karta girdiyse ogrenci bunu GORMELI.
+     Duzeltme uyarilar listesine ekliyor; yesil rozet !uyarilar.length
+     kosuluna bagli oldugu icin kendiliginden bastiriliyor (bir ustteki
+     test o kosulu kilitliyor). */
+  assert.ok(/arr\(qm\.issues\)/.test(INK_SRC),
+    'issues okunmuyor — critic uyarisi ekranda gorunmez');
+  assert.ok(/uyarilar\.push\(kritikEt\)/.test(INK_SRC),
+    'critic uyarisi uyarilar listesine girmiyor — yesil rozet bastirilmaz');
+  /* Ayrinti title'da: critic ingilizce ve uzun yaziyor, rozet sayiyi soyler. */
+  assert.ok(/uyariBaslik\[u\]/.test(INK_SRC), 'ayrinti title ile verilmiyor');
+  assert.ok(/title="' \+ X\(t\) \+ '"/.test(INK_SRC),
+    'title kacislanmadan yaziliyor — critic metni HTML tasiyabilir');
 });
 
 test('uyari rozetinin CSS i var', () => {

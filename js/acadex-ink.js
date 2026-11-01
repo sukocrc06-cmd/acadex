@@ -10246,7 +10246,38 @@ var SBX = (function () {
     if (nc && nc.total >= 4 && nc.kept / nc.total < 0.7) {
       uyarilar.push('sayısal kapsama %' + Math.round((nc.kept / nc.total) * 100));
     }
-    var uyariChip = uyarilar.map(function (u) { return chip(u, 'warn'); }).join('');
+    /* CRITIC UYARILARI EKRANDA (01.11.2026).
+     *
+     * quality_meta.issues critic'in bulduklarini tutuyor ve bugune kadar HIC
+     * okunmuyordu — ne burada ne js/dashboard.js'te (ikisinde de 0 atif).
+     * OLCULEN (01.11.2026, 107 kart): 8 kartta dolu ve 7'si yine pass:true,
+     * grounded:true. Yani critic kaynakta OLMAYAN icerik tespit ediyor
+     * ("Hallucination: 'lowballing'...", "not present in the provided source
+     * text", "'HDI' ve 'GNI' ... not present in the visible source") ve kart
+     * yesil "kalite kontrolunden gecti" rozetiyle cikiyordu. Dordunde hic
+     * uyari rozeti de yoktu, cunku sayisal kapsama esigini gecmiyorlardi
+     * (87/92 ve 25/33 gibi).
+     *
+     * Belgeye sadakat ilkesi (CLAUDE.md, kullanicinin acik talimati):
+     * kaynakta olmayan bir sey karta girdiyse ogrenci bunu GORMELI.
+     *
+     * uyarilar'a eklemek yeterli — "kalite kontrolunden gecti" rozeti
+     * !uyarilar.length kosuluna bagli, yani kendiliginden bastiriliyor.
+     * "kaynaga bagli" rozeti kaliyor: o dar anlamda grounding kapisini
+     * anlatiyor (24.10 karari, bkz. yukarisi).
+     * Metnin tamami rozetin title'inda; critic ingilizce yaziyor, o yuzden
+     * rozet sayiyi soyluyor, ayrintiyi ustune gelince veriyor. */
+    var uyariBaslik = {};
+    var kritik = arr(qm.issues).filter(function (x) { return x && String(x).trim(); });
+    if (kritik.length) {
+      var kritikEt = 'critic uyarısı: ' + kritik.length + ' madde';
+      uyarilar.push(kritikEt);
+      uyariBaslik[kritikEt] = kritik.map(function (x) { return String(x).trim(); }).join(' • ');
+    }
+    var uyariChip = uyarilar.map(function (u) {
+      var t = uyariBaslik[u];
+      return t ? '<span class="axr-chip warn" title="' + X(t) + '">' + X(u) + '</span>' : chip(u, 'warn');
+    }).join('');
     /* DUGME ARTIK HER KENDI KARTINDA (30.10.2026, Berkay'in karari).
        Once yalnizca KISMI kartta cikiyordu (yenileCikisi) — mantigi "kurtarma
        yolu" olmasiydi. Simdi summary_cache donduruldu (index.ts ->
@@ -10256,7 +10287,14 @@ var SBX = (function () {
          2) amac degisti: artik ayni belgeyi tekrar ozetleyip hattaki
             ilerlemeyi olcmek icin gerekiyor.
        yenileCikisi degiskeni KALDIRILMADI: kismi kart rozetini hala o
-       belirliyor ve onbellek geri acildiginda kosul yine daraltilabilir. */
+       belirliyor ve onbellek geri acildiginda kosul yine daraltilabilir.
+
+       01.11.2026: ONBELLEK GERI ACILDI (SUMMARY_CACHE_ACIK=true), yani
+       yukaridaki (1) artik gecerli degil — cache_kismi tekrar yazilabiliyor.
+       Dugme yine de her kartta kaliyor, cunku (2) hala gecerli: ayni belgeyi
+       olcmek icin "yeniden ozetle" gerekiyor ve yalnizca o yenile=true
+       gonderip onbellek OKUMASINI atliyor; normal "Ozetle" artik onbellekten
+       donuyor (olculen: 2131 ms, model cagrisi yok). */
     if (window.YENIDEN_OZETLE_ACIK && own && c.document_id) {
       uyariChip += '<button type="button" class="axr-chip' + (yenileCikisi ? ' warn' : '') +
         ' hand" data-yenile="' + X(c.document_id) +
