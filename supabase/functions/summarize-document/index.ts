@@ -2025,6 +2025,23 @@ function guvenAraligiOnar(tables: any[]): number {
   }
   return onarilan
 }
+/* GORME SINIRI DOCX/PPTX YOLLARINDA ATLANIYORDU (01.11.2026, Week 11'de
+ * olculdu).
+ *
+ * Bu sabit PDF yolunda uygulaniyordu ama DOCX ve PPTX yollari kendi
+ * "slice(0, 8)"ini kullaniyordu. Yuzey ucten fazlasini reddediyor, yani
+ * gorsel analiz o iki yolda HIC kosmuyordu:
+ *   Found 48 media files in PPTX. Processing top 8...
+ *   Vision model call returned non-ok status: 400. Falling back to text-only.
+ *     Body: {"error":{"message":"Too many images provided.  This model
+ *     supports up to 3 images","type":"invalid_request_error"}}
+ * Ardindan text-only yol da Gemini zaman asimina takildi ve kart BOS cikti:
+ *   HOTFIX: refusing to save empty/meta study card
+ *     { isEmpty: true, terms: 0, points: 0, quiz: 0, sumLen: 0 }
+ * Ogrenci hic kart alamadi.
+ *
+ * PDF yolu etkilenmemisti: orada tek bir mini-PDF gidiyor, yani yuzeye gore
+ * TEK resim. Sinir yalnizca resim resim gonderen yollarda delinmisti. */
 const VISION_MAX_IMAGES = 2
 // The vision pass is an EXTRA call, and on this tier every extra call means a
 // full ~60s TokenPacer wait before it can start. The narrative writer runs
@@ -13487,15 +13504,28 @@ ${styleInstruction}`
             const cappedMediaFiles = mediaFiles.slice(0, 8)
             console.log(`Found ${mediaFiles.length} media files in DOCX. Processing top ${cappedMediaFiles.length}...`)
 
+            /* EN BUYUK resimler gonderiliyor, ilk gelenler degil: tam
+               sayfa slayt goruntusu buyuk, logo ve madde imi kucuk kalir —
+               pptxSlaytGorselleri'ndeki ayni olcut. Sayi VISION_MAX_IMAGES
+               ile sinirli; bkz. o sabitin yanindaki olcum notu. */
+            const gorselAdaylari: Array<{ b64: string; boyut: number }> = []
             for (const mediaPath of cappedMediaFiles) {
               try {
                 const imgBytes = await zip.files[mediaPath].async("uint8array")
                 if (imgBytes && imgBytes.byteLength > 0) {
-                  base64Images.push(bytesToBase64(imgBytes))
+                  gorselAdaylari.push({ b64: bytesToBase64(imgBytes), boyut: imgBytes.byteLength })
                 }
               } catch (mediaErr) {
-                console.error(`Failed to extract DOCX media image ${mediaPath}:`, mediaErr)
+                console.error(`Failed to extract media image ${mediaPath}:`, mediaErr)
               }
+            }
+            gorselAdaylari.sort((a, b) => b.boyut - a.boyut)
+            for (const aday of gorselAdaylari.slice(0, VISION_MAX_IMAGES)) base64Images.push(aday.b64)
+            if (gorselAdaylari.length > VISION_MAX_IMAGES) {
+              console.log(
+                `Gorme siniri: ${gorselAdaylari.length} resimden en buyuk ` +
+                `${VISION_MAX_IMAGES} tanesi gonderiliyor (yuzey tavani)`
+              )
             }
 
             if (base64Images.length > 0) {
@@ -13524,15 +13554,28 @@ ${styleInstruction}`
             const cappedMediaFiles = mediaFiles.slice(0, 8)
             console.log(`Found ${mediaFiles.length} media files in PPTX. Processing top ${cappedMediaFiles.length}...`)
 
+            /* EN BUYUK resimler gonderiliyor, ilk gelenler degil: tam
+               sayfa slayt goruntusu buyuk, logo ve madde imi kucuk kalir —
+               pptxSlaytGorselleri'ndeki ayni olcut. Sayi VISION_MAX_IMAGES
+               ile sinirli; bkz. o sabitin yanindaki olcum notu. */
+            const gorselAdaylari: Array<{ b64: string; boyut: number }> = []
             for (const mediaPath of cappedMediaFiles) {
               try {
                 const imgBytes = await zip.files[mediaPath].async("uint8array")
                 if (imgBytes && imgBytes.byteLength > 0) {
-                  base64Images.push(bytesToBase64(imgBytes))
+                  gorselAdaylari.push({ b64: bytesToBase64(imgBytes), boyut: imgBytes.byteLength })
                 }
               } catch (mediaErr) {
                 console.error(`Failed to extract media image ${mediaPath}:`, mediaErr)
               }
+            }
+            gorselAdaylari.sort((a, b) => b.boyut - a.boyut)
+            for (const aday of gorselAdaylari.slice(0, VISION_MAX_IMAGES)) base64Images.push(aday.b64)
+            if (gorselAdaylari.length > VISION_MAX_IMAGES) {
+              console.log(
+                `Gorme siniri: ${gorselAdaylari.length} resimden en buyuk ` +
+                `${VISION_MAX_IMAGES} tanesi gonderiliyor (yuzey tavani)`
+              )
             }
 
             if (base64Images.length > 0) {

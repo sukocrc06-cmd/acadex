@@ -10306,4 +10306,38 @@ test('dugumleri AYRIK diyagramlar baslik benzese de ayri kaliyor', () => {
     'minimum ve maximum isaret tablolari birlestirildi — ayri olgular');
 });
 
+/* ==========================================================================
+   GORME SINIRI DOCX/PPTX YOLLARINDA ATLANIYORDU (01.11.2026, Week 11 olcumu)
+
+   Sabit PDF yolunda uygulaniyordu ama DOCX ve PPTX kendi "slice(0, 8)"ini
+   kullaniyordu. Yuzey ucten fazlasini reddediyor:
+     Found 48 media files in PPTX. Processing top 8...
+     Vision model call returned non-ok status: 400. Body: {"error":{"message":
+       "Too many images provided.  This model supports up to 3 images"}}
+   Gorsel analiz o iki yolda HIC kosmadi; text-only yol da Gemini zaman
+   asimina takildi ve kart bos cikti:
+     HOTFIX: refusing to save empty/meta study card
+       { isEmpty: true, terms: 0, points: 0, quiz: 0, sumLen: 0 }
+   ========================================================================== */
+
+test('DOCX ve PPTX yollari gorme sinirini uyguluyor', () => {
+  /* Iki yol da ayni sabite bagli olmali — biri geride kalirsa yuzey 400 verir. */
+  const kullanim = SRC.split('gorselAdaylari.slice(0, VISION_MAX_IMAGES)').length - 1;
+  assert.equal(kullanim, 2,
+    'gorme siniri iki yolda da uygulanmali (DOCX ve PPTX), bulunan: ' + kullanim);
+  assert.ok(A.VISION_MAX_IMAGES <= 3,
+    'yuzey en fazla 3 resim aliyor, sabit ' + A.VISION_MAX_IMAGES);
+  /* Dogrudan push KALMAMALI: o yol sinirsiz resim gonderiyordu. */
+  assert.ok(!/base64Images\.push\(bytesToBase64\(imgBytes\)\)/.test(SRC),
+    'sinirsiz push yolu geri gelmis — yuzey yine 400 verir');
+});
+
+test('gonderilen resimler BOYUTA gore seciliyor', () => {
+  /* Ilk uc dosya degil en buyuk ucu: tam sayfa slayt goruntusu buyuk,
+     logo ve madde imi kucuk kalir. */
+  assert.ok(/gorselAdaylari\.sort\(\(a, b\) => b\.boyut - a\.boyut\)/.test(SRC),
+    'resimler boyuta gore siralanmiyor — logo gonderilebilir');
+  assert.ok(/Gorme siniri: /.test(SRC), 'kirpma loglanmiyor');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));
