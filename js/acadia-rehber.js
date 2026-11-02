@@ -83,7 +83,14 @@
       var dx = dest.x - from.x, dy = dest.y - from.y, dist = Math.hypot(dx, dy);
       if (dist < 6) { setSide(s.side); arrive(); return; }
       /* yay: aradaki noktanın yukarısından (kenar değişiyorsa daha geniş) */
-      ctrl = { x: from.x + dx / 2 + (Math.abs(dx) > VW * 0.3 ? 0 : (s.side === 'l' ? 1 : -1) * VW * 0.12), y: Math.min(from.y, dest.y) - 80 - Math.abs(dx) * 0.18 };
+      /* EKRANDA KALAN YAY (02.11.2026): sol duraklar üstte; yukarı kavis Acadia'yı ekranın
+         üstünden dışarı taşıyordu. Yer varsa yukarı, yoksa aşağı kavis; tepe noktası
+         menünün altında ve ekranın içinde kalır. */
+      var top = 76, bot = VH - GH - 24, lift = 60 + Math.abs(dx) * 0.12, cxp = from.x + dx / 2 + (Math.abs(dx) > VW * 0.3 ? 0 : (s.side === 'l' ? 1 : -1) * VW * 0.12);
+      var cy = Math.min(from.y, dest.y) - lift;
+      if (0.25 * from.y + 0.5 * cy + 0.25 * dest.y < top) cy = Math.max(from.y, dest.y) + lift;
+      cy = Math.max(2 * top - 0.5 * (from.y + dest.y), Math.min(2 * bot - 0.5 * (from.y + dest.y), cy));
+      ctrl = { x: cxp, y: cy };
       dur = Math.min(2100, 900 + dist * 1.1); t0 = performance.now(); flying = true;
       hush(); clearTimeout(sayT); g.classList.add('acd-flying');
       host.classList.remove('acd-hop');
@@ -94,13 +101,13 @@
       flying = false; g.classList.remove('acd-flying');
       if (!stop) return;
       host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop');
-      for (var i = 0; i < 14; i++) burst(1);
+      for (var i = 0; i < 5; i++) burst(1);
       var s = stop; sayT = setTimeout(function () { if (stop === s && !flying) K.say(host, s.t, 0); }, 120);
     };
     var emit = function (x, y, n, fast) {
-      for (var i = 0; i < n; i++) parts.push({ x: x + (Math.random() - .5) * 10, y: y + (Math.random() - .5) * 10, vx: (Math.random() - .5) * .6 - vx * .04, vy: (Math.random() - .5) * .6 - vy * .04 + .15, life: 0, max: (fast ? 38 : 60) + Math.random() * 30, r: 1 + Math.random() * (fast ? 2.6 : 2), star: Math.random() < .22 });
+      for (var i = 0; i < n; i++) parts.push({ x: x + (Math.random() - .5) * 6, y: y + (Math.random() - .5) * 6, vx: (Math.random() - .5) * .3, vy: (Math.random() - .5) * .3 + .08, life: 0, max: (fast ? 34 : 54) + Math.random() * 24, r: .6 + Math.random() * .8, star: Math.random() < .12 });
     };
-    var burst = function () { var c = center(), a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2.2; parts.push({ x: c.x, y: c.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 40 + Math.random() * 20, r: 1.4 + Math.random() * 2, star: Math.random() < .4 }); };
+    var burst = function () { var c = center(), a = Math.random() * Math.PI * 2, sp = .5 + Math.random() * 1.1; parts.push({ x: c.x, y: c.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 46 + Math.random() * 20, r: .7 + Math.random() * .8, star: Math.random() < .3 }); };
     var center = function () { return { x: pos.x + GW * 0.5, y: pos.y + GH * 0.42 }; };
     var drawStar = function (x, y, r) { cx.beginPath(); for (var i = 0; i < 8; i++) { var a = i * Math.PI / 4, rr = i % 2 ? r * .35 : r * 1.9; cx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } cx.closePath(); cx.fill(); };
     var frame = function (now) {
@@ -118,29 +125,31 @@
       g.style.transform = 'translate3d(' + pos.x.toFixed(1) + 'px,' + pos.y.toFixed(1) + 'px,0) rotate(' + bank.toFixed(1) + 'deg)';
       var c = center();
       if (!g.classList.contains('away') && D.visibilityState === 'visible') {
-        if (sp > .8) { emit(c.x, c.y, Math.min(5, Math.ceil(sp / 3)), true); ribbon.push({ x: c.x, y: c.y, a: 1 }); }
-        else if (now > nextSpark) { emit(c.x + (Math.random() - .5) * GW * .7, c.y + (Math.random() - .5) * GH * .6, 1, false); nextSpark = now + 260 + Math.random() * 380; }
+        if (sp > .8) { ribbon.push({ x: c.x, y: c.y, a: 1 }); if (now > nextSpark) { emit(c.x, c.y, 1, true); nextSpark = now + 70; } }
+        else if (now > nextSpark) { emit(c.x + (Math.random() - .5) * GW * .6, c.y + (Math.random() - .5) * GH * .5, 1, false); nextSpark = now + 700 + Math.random() * 600; }
       }
       cx.clearRect(0, 0, VW, VH);
       cx.globalCompositeOperation = 'lighter';
       /* kuyruk: incelerek sönen altın şerit */
-      for (var i = ribbon.length - 1; i >= 0; i--) { ribbon[i].a -= dt / 520; if (ribbon[i].a <= 0) ribbon.splice(i, 1); }
-      if (ribbon.length > 34) ribbon.splice(0, ribbon.length - 34);
-      for (var j = 1; j < ribbon.length; j++) {
-        var p0 = ribbon[j - 1], p1 = ribbon[j], f = j / ribbon.length, a = Math.min(p0.a, p1.a);
-        cx.strokeStyle = 'rgba(255,' + Math.round(196 + 40 * f) + ',' + Math.round(90 + 80 * f) + ',' + (a * .55 * f).toFixed(3) + ')';
-        cx.lineWidth = 2 + 16 * f * a; cx.lineCap = 'round';
+      for (var i = ribbon.length - 1; i >= 0; i--) { ribbon[i].a -= dt / 900; if (ribbon[i].a <= 0) ribbon.splice(i, 1); }
+      if (ribbon.length > 48) ribbon.splice(0, ribbon.length - 48);
+      /* ince, sakin bir altın çizgi: uca doğru incelir ve söner; altında çok hafif bir parıltı */
+      cx.lineCap = 'round'; cx.lineJoin = 'round';
+      for (var pass = 0; pass < 2; pass++) for (var j = 1; j < ribbon.length; j++) {
+        var p0 = ribbon[j - 1], p1 = ribbon[j], f = j / ribbon.length, a = Math.min(p0.a, p1.a) * f;
+        cx.strokeStyle = pass ? 'rgba(242,184,64,' + (a * .8).toFixed(3) + ')' : 'rgba(255,200,90,' + (a * .14).toFixed(3) + ')';
+        cx.lineWidth = pass ? .6 + 1.4 * a : 3 + 4 * a;
         cx.beginPath(); cx.moveTo(p0.x, p0.y); cx.lineTo(p1.x, p1.y); cx.stroke();
       }
       for (var q = parts.length - 1; q >= 0; q--) {
         var P = parts[q]; P.life += dt / 16.7; P.x += P.vx * dt / 16.7; P.y += P.vy * dt / 16.7; P.vx *= .985; P.vy *= .985;
         var L = 1 - P.life / P.max; if (L <= 0) { parts.splice(q, 1); continue; }
         var gr = cx.createRadialGradient(P.x, P.y, 0, P.x, P.y, P.r * 4);
-        gr.addColorStop(0, 'rgba(255,250,225,' + (L * .95).toFixed(3) + ')'); gr.addColorStop(.35, 'rgba(255,214,107,' + (L * .7).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(255,181,71,0)');
+        gr.addColorStop(0, 'rgba(255,250,225,' + (L * .8).toFixed(3) + ')'); gr.addColorStop(.35, 'rgba(255,214,107,' + (L * .4).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(255,181,71,0)');
         cx.fillStyle = gr; cx.beginPath(); cx.arc(P.x, P.y, P.r * 4, 0, Math.PI * 2); cx.fill();
         if (P.star) { cx.fillStyle = 'rgba(255,244,200,' + (L * .9).toFixed(3) + ')'; drawStar(P.x, P.y, P.r * L + .4); }
       }
-      if (parts.length > 260) parts.splice(0, parts.length - 260);
+      if (parts.length > 120) parts.splice(0, parts.length - 120);
       cx.globalCompositeOperation = 'source-over';
       start();
     };

@@ -105,6 +105,10 @@ test('landing rehberi: yıldız gibi kenardan kenara süzülür, altın iz bıra
   assert.match(reh, /hush\(\);/, 'uçarken balon kapanır, varınca konuşur');
   assert.match(reh, /host\.classList\.toggle\('say-r', sd === 'l'\)/, 'solda balon sayfanın içine doğru açılır');
   assert.match(css, /#acd-trail\{position:fixed;inset:0;width:100vw;height:100vh;z-index:45;pointer-events:none\}/);
-  assert.match(reh, /if \(parts\.length > 260\)/, 'pırıltı sayısı sınırlı');
+  assert.match(reh, /if \(parts\.length > 120\)/, 'pırıltı sayısı sınırlı');
+  /* yay ekranın içinde: kenar değiştirirken yukarı kavis Acadia'yı ekranın üstünden dışarı taşıyordu */
+  assert.match(reh, /if \(0\.25 \* from\.y \+ 0\.5 \* cy \+ 0\.25 \* dest\.y < top\) cy = Math\.max\(from\.y, dest\.y\) \+ lift;/);
+  assert.match(reh, /cy = Math\.max\(2 \* top - 0\.5 \* \(from\.y \+ dest\.y\), Math\.min\(2 \* bot - 0\.5 \* \(from\.y \+ dest\.y\), cy\)\);/);
+  assert.match(reh, /cx\.lineWidth = pass \? \.6 \+ 1\.4 \* a : 3 \+ 4 \* a;/, 'iz ince: en fazla 2 px çizgi, 7 px hafif parıltı');
 });
 summary();
