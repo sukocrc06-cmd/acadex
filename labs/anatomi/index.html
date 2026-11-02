@@ -551,6 +551,7 @@ input[type=range]{accent-color:var(--blue)}
 .mtabs button[aria-selected=true]{background:var(--navy)}
 .app:not([data-mode=vaka]) .sec[data-mode=vaka]{display:none}
 .app:not([data-mode=sistem]) .sec[data-mode=sistem]{display:none}
+.app:not([data-mode=izole]) .sec[data-mode=izole]{display:none}
 /* klinik vakalar Acadex Medica'ya taşındı: mod yalnız hastaneden açılınca (?medica=1) görünür, liste yerine tek vaka */
 html:not(.axmd) .modes button[data-mode=vaka]{display:none}html.axmd #caseList,html.axmd .sec[data-mode=vaka] .mini{display:none}
 
@@ -678,7 +679,7 @@ html:not(.axmd) .modes button[data-mode=vaka]{display:none}html.axmd #caseList,h
 .modes{background:#F3F0E7;border:0;padding:4px;gap:4px}
 .modes button{border-radius:10px;color:#4B5675}
 .modes button[data-mode=atlas]{--mc:#2F6BFF;--md:#1E4CC4}.modes button[data-mode=kurul]{--mc:#1E8A55;--md:#14663E}
-.modes button[data-mode=spot]{--mc:#D9662B;--md:#A6481A}.modes button[data-mode=sistem]{--mc:#C42232;--md:#8E1823}.modes button[data-mode=vaka]{--mc:#6A4FA8;--md:#4E3A80}
+.modes button[data-mode=spot]{--mc:#D9662B;--md:#A6481A}.modes button[data-mode=sistem]{--mc:#C42232;--md:#8E1823}.modes button[data-mode=izole]{--mc:#0E8A8A;--md:#0A6464}.modes button[data-mode=vaka]{--mc:#6A4FA8;--md:#4E3A80}
 .modes button::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mc);margin-right:7px;vertical-align:1px}
 .modes button:hover{background:#fff}
 .modes button[aria-selected=true]{background:var(--mc);color:#fff;box-shadow:0 3px 0 var(--md)}
@@ -1075,6 +1076,7 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
       <button role="tab" data-mode="spot" aria-selected="false">Spot sınav</button>
       <button role="tab" data-mode="vaka" aria-selected="false">Klinik vaka</button>
       <button role="tab" data-mode="sistem" aria-selected="false">Sistemler</button>
+      <button role="tab" data-mode="izole" aria-selected="false">İzole</button>
     </nav>
     <div class="srch">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5" stroke-linecap="round"/></svg>
@@ -1145,6 +1147,8 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
       </section>
       <!-- SİSTEMLER (satır içi betik): modüller, radyoloji, diseksiyon, test -->
       <section class="sec" data-mode="sistem" data-tab="sistem" id="sistemPane" aria-live="polite"><p class="mini">Sistem modülleri yükleniyor…</p></section>
+      <!-- İZOLE (02.11.2026): kurul yapı setleri, organ grupları, kemik boyama ve izole quiz -->
+      <section class="sec" data-mode="izole" data-tab="izole" id="izolePane" aria-live="polite"><p class="mini">Kurul setleri yükleniyor…</p></section>
       <!-- SPOT -->
       <section class="sec" data-mode="spot" data-tab="spot">
         <h3>Pratik (spot) sınav <span class="hn">iğneye bak</span></h3>
@@ -2024,7 +2028,7 @@ function applyVis(opt = {}) {
   const sp = st.spot && st.spot.run ? st.spot : null;
   endFade(); fadeOK = !!opt.fade && !matchMedia('(prefers-reduced-motion: reduce)').matches;
   const selGroup = st.sel ? new Set(selMeshes()) : null;
-  insShown = st.selMesh ? insFor(st.selMesh) : [];
+  insShown = typeof window.__axInsGoster === 'function' && window.__axInsGoster() ? window.__axInsGoster() : st.selMesh ? insFor(st.selMesh) : [];   /* izole kemik boyamasında kemiğin bütün origo-insersiyo alanları */
   const insSet = new Set(insShown);
   for (const m of meshesAll) {
     const u = m.userData; const L = st.layers[u.layer];
@@ -2449,7 +2453,7 @@ const zoomBy = k => { const d = camera.position.clone().sub(controls.target); ca
 $('#zin').addEventListener('click', () => zoomBy(.72)); $('#zout').addEventListener('click', () => zoomBy(1 / .72)); $('#zreset').addEventListener('click', HOME);
 function renderStates() {
   const out = [];
-  if (st.iso) out.push(['İzole: ' + (st.sel ? cardTitle() : 'seçim'), 'iso']);
+  if (st.iso) out.push(['İzole: ' + (st.sel ? cardTitle() : window.__axSistem && window.__axSistem.IZ.on ? window.__axSistem.IZ.ad : 'seçim'), 'iso']);
   if (st.ghost) out.push([st.ghostWhy || 'Hayalet görünüm', 'ghost']);
   const hid = [...st.hidden].length; if (hid) out.push([hid + ' yapı gizli', 'hid']);
   if (st.clip.on) out.push(['Kesit: ' + { x: 'sagital', y: 'aksiyel', z: 'koronal' }[st.clip.ax], 'clip']);
@@ -2458,6 +2462,7 @@ function renderStates() {
 }
 $('#states').addEventListener('click', e => {
   const k = e.target.dataset.st; if (!k) return;
+  if ((k === 'iso' || k === 'all' || k === 'ghost') && typeof window.__axIzoleKapat === 'function' && window.__axIzoleKapat() && k !== 'all') return;   /* İzole modunun çubuğu da kapansın */
   if (k === 'iso' || k === 'all') st.iso = null; if (k === 'ghost' || k === 'all') { st.ghost = null; st.ghostWhy = ''; } if (k === 'hid' || k === 'all') { st.hidden.clear(); st.peeled = []; }
   if (k === 'clip' || k === 'all') { st.clip.on = false; $('#clipOn').checked = false; clipUI(); }
   if (k === 'peel' || k === 'all') st.peel = 0;
@@ -2512,7 +2517,7 @@ $('#card').addEventListener('click', async e => {
   if (a.dataset.a === 'signal') { runSignal(); return; }
   if (a.dataset.a === 'ins') { await withLoader('insersiyo'); applyVis(); renderCard(); return; }
   if (a.dataset.a === 'odak') { const list = st.selMesh ? [st.selMesh] : ms; frame(list, { dir: dirFor(list), k: 1.35 }); }
-  if (a.dataset.a === 'iso') { st.iso = st.iso ? null : new Set(ms); if (st.iso) frame(ms, { dir: dirFor(ms) }); }
+  if (a.dataset.a === 'iso') { if (!st.iso && typeof window.__axIzole === 'function') { window.__axIzole(st.selMesh && st.selMesh.userData.sys === 'iskelet' ? [st.selMesh] : ms, cardTitle()); return; } st.iso = st.iso ? null : new Set(ms); if (st.iso) frame(ms, { dir: dirFor(ms) }); }   /* İzole görünüm (Sistemler betiği): boyama, parçalar, quiz */
   if (a.dataset.a === 'ghost') { if (st.ghost && st.ghostWhy.startsWith('Hayalet')) { st.ghost = null; st.ghostWhy = ''; } else { st.ghost = new Set(ms.concat(insShown)); st.ghostWhy = 'Hayalet: ' + cardTitle(); } }
   if (a.dataset.a === 'hide') { ms.forEach(m => st.hidden.add(m.name)); const t = cardTitle(); st.sel = null; st.selMesh = null; toast(t + ' gizlendi.'); }
   applyVis(); renderStates(); renderCard(); renderAcadia(); renderSelChip();
@@ -2833,7 +2838,7 @@ $('#res').addEventListener('click', e => {
 function stopSpot() { if (st.spot && st.spot.run) { st.spot.run = false; clearInterval(spTimer); $('#spotbar').classList.remove('on'); } st.spot = null; $('#res').classList.remove('on'); applyVis(); setPins(); }
 
 /* ===================== mod ve sekmeler ===================== */
-const TABS = { sistem: [['sistem', 'Sistem'], ['yapi', 'Yapı']], atlas: [['yapi', 'Yapı'], ['katman', 'Katmanlar'], ['kesit', 'Kesit'], ['not', 'Notlar']], kurul: [['kurul', 'Kurul yolu'], ['yapi', 'Yapı']], spot: [['spot', 'Spot sınav'], ['yanlis', 'Tekrar']], vaka: [['vaka', 'Vakalar'], ['yapi', 'Yapı']] };
+const TABS = { izole: [['izole', 'Kurul setleri'], ['yapi', 'Yapı']], sistem: [['sistem', 'Sistem'], ['yapi', 'Yapı']], atlas: [['yapi', 'Yapı'], ['katman', 'Katmanlar'], ['kesit', 'Kesit'], ['not', 'Notlar']], kurul: [['kurul', 'Kurul yolu'], ['yapi', 'Yapı']], spot: [['spot', 'Spot sınav'], ['yanlis', 'Tekrar']], vaka: [['vaka', 'Vakalar'], ['yapi', 'Yapı']] };
 function setMode(m) {
   if (st.spot && m !== 'spot') stopSpot();
   if (m !== st.mode) { stopDemo(); if (SIG.on) stopSignal(); if (TOUR.on) stopTour(); if (st.heat && m !== 'kurul') setHeat(false); if (EXP.on) setExplode(false); if (m !== 'vaka') { CASE.run = false; CASE.c = null; $('#casebar').classList.remove('on'); } if (st.sel) select(null); st.iso = null; if (st.ghost && !st.ghostWhy.startsWith('Bölge')) { st.ghost = null; st.ghostWhy = ''; } applyVis(); renderStates(); }
@@ -3630,10 +3635,10 @@ renderTabs();
       if (n === 2) { frame(ms, { dir: dirFor(ms), k: 3.2 }); return 'Kamerayı o bölgeye çevirdim; aradığın yapı bu çerçevenin içinde. Üstündeki katmanları saydamlaştırman gerekebilir.'; }
       select(sid, { frame: true, mesh: ms.find(m => m.userData.side === 'L') || ms[0] }); pulse();
       return 'Bu ' + S[sid].tr + ' (' + S[sid].la + '). Parlayan yapıya şimdi sen dokun.'; } }); }
-  window.__lab = { st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene,
+  window.__lab = { camTo, st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene,
     /* 02.11.2026: sistem modülleri, radyoloji ve diseksiyon (Sistemler betiği) için */
     THREE, body, frame, camTo, dirFor, FRAME_HOOKS, anim, toast, nameTR, trOf, renderLayers, renderStates, renderCard, pulse, loaded, outFr, outline, HOME, setSides, clipUI, sphereOf, ensureFor, LS, TIME, MEDICA, medicaBildir, medicaCerrah, esc, renderer,
-    kameraTut: () => { userMoved = true; } };   /* programla çerçevelenen görünüm, panel yeniden boyutlanınca başa dönmesin */
+    kameraTut: () => { userMoved = true; }, lms: () => LMS, cardTitle };   /* programla çerçevelenen görünüm, panel yeniden boyutlanınca başa dönmesin */
   window.dispatchEvent(new Event('axlab:hazir'));
   /* ===== MedLab köprüsü (27.10.2026) =====
      Lab, Acadex MedLab katmanında (iframe, ?medlab=1) açıldığında kendi Acadia'sını gizler;
@@ -4038,6 +4043,8 @@ async function gorevBaslat(baslik, adimlar, ex, bitince) {
   gorevDur(); animDur();
   for (const a of adimlar) { a.ms = await bulYukle(a.ad); }
   const tum = adimlar.flatMap(a => a.ms); katmanAc(tum);
+  /* hedefler kas değilse kaslar kapanır: kalp, beyin ya da organ kasların altında kalmasın */
+  if (!tum.some(m => m.userData.layer === 'kas') && st.layers.kas.on) { st.layers.kas.on = false; L.renderLayers(); }
   st.peel = 0; L.applyVis();
   A.gorev = { baslik, adimlar, ex, i: 0, kacan: 0, hata: 0, bitince };
   gorevCiz(); cerceve(solTaraf(adimlar[0].ms).concat(...adimlar.slice(1).map(a => solTaraf(a.ms))), 1.9);
@@ -4189,7 +4196,7 @@ function testTik(h) {
 }
 
 /* =========================== TIKLAMA KANCASI =========================== */
-W.__axTik = h => { if (st.mode !== 'sistem' && !A.gorev) return false; if (A.gorev) return gorevTik(h); if (A.sek === 'radyoloji') return radTik(h); if (A.sek === 'test') return testTik(h); return false; };
+W.__axTik = (h, e) => { if (IZ.on && !A.gorev) return izTik(h, e); if (st.mode !== 'sistem' && !A.gorev) return false; if (A.gorev) return gorevTik(h); if (A.sek === 'radyoloji') return radTik(h); if (A.sek === 'test') return testTik(h); return false; };
 
 /* =========================== PANEL =========================== */
 const MODUL_UI = {
@@ -4297,7 +4304,7 @@ css.textContent = `
 .ax-nokta{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:0}
 .ax-ekg{position:absolute;right:12px;top:60px;z-index:6;padding:6px 8px 8px;border-radius:10px;background:#06130E;border:1px solid #1E3A2E;color:#3BE38A;font-family:'JetBrains Mono',monospace;font-size:10.5px}
 .ax-ekg span{display:block;margin-bottom:4px;white-space:nowrap}.vp .ax-ekg canvas{position:static;inset:auto;display:block;width:240px;height:60px;cursor:default}
-.ax-gorev{position:absolute;right:12px;top:64px;z-index:7;width:min(340px,calc(100% - 24px));padding:12px 14px;border-radius:14px;background:#fff;border:2px solid #0D1838;box-shadow:5px 5px 0 #0D1838;font-size:13.5px}
+.ax-gorev{position:absolute;right:12px;bottom:12px;z-index:7;width:min(340px,calc(100% - 24px));padding:12px 14px;border-radius:14px;background:#fff;border:2px solid #0D1838;box-shadow:5px 5px 0 #0D1838;font-size:13.5px}
 .ax-gorev h3{margin:4px 0}.ax-gorev ol{margin:6px 0;padding-left:20px}.ax-gorev li.d{color:#2E8E5B}.ax-gorev li.c{font-weight:700}
 .ax-gorev .cs-h{display:flex;justify-content:space-between;align-items:center}.ax-gorev .x{border:0;background:#F3F6F9;border-radius:8px;width:30px;height:30px;font-size:18px;cursor:pointer}
 .fb2.ok{color:#2E8E5B}.fb2.bad{color:#C9483B}
@@ -4333,7 +4340,239 @@ if (vakaQ && vakaQ.startsWith('cep:')) {
       vurgu(solTaraf(a.ms), '#FFD24A'); cerceve(solTaraf(a.ms), 2.2); return 'Parlayan yapı aradığın yapı. Şimdi sen dokun.'; } });
   }
 }
-W.__axSistem = { A, SIS, bul, sisSec, kalpAtim, loblar, nefes, peristaltizm, radyolojiSoru, diseksiyonAdim, testSoru, gorevBaslat, RAD, DS, TS, tekrarKaydet, vadesi };
+/* =========================== İZOLE GÖRÜNÜM (02.11.2026) ===========================
+   Öğrenci geri bildirimi: "Bir yapıyı izole edip yalnız ona bakabilmek; üstündeki yapılara basınca
+   adı çıksın; larinksin izole yapısı; kurullara göre ayrılmış bölüm; humerusu izole edince üstündeki
+   yapılar boyalı gelsin, basınca adı çıksın; o mantıkla quiz."
+     • Her yapı: yapı kartındaki "İzole et" ya da İzole modundaki listeden; yalnız o kalır.
+     • Organ grupları: larinks, kalp, göz, kulak, beyin sapı… bütün parçalarıyla; parçalara ayır.
+     • Kemik boyama: kemik çıkıntıları (sarı nokta), kas başlangıç alanları (turuncu), yapışma
+       alanları (mavi); dokununca adı ve hangi kasın yapıştığı.
+     • İzole quiz: bul / adlandır / buraya hangi kas yapışır; yanlışlar aralıklı tekrara.
+     • Kurul setleri: her kurulun organ grupları ve kemikleri. */
+const GRUP = {
+  larinks: { ad: 'Larinks', r: /^(Thyroid cartilage|Cricoid cartilage|Arytenoid cartilage|Epiglottis|Hyoid bone|Posterior crico-arytenoid muscle|Lateral crico-arytenoid muscle|Transverse arytenoid muscle|Ary-epiglottic part of oblique arytenoid muscle|External part of thyro-arytenoid muscle|Thyro-epiglottic part of thyro-arytenoid muscle|Oblique part of cricothyroid muscle|Straight part of cricothyroid muscle|Thyrohyoid muscle)$/ },
+  kalp: { ad: 'Kalp', r: /^((Right|Left) (atrium|ventricle)|Pulmonary trunk|Right coronary artery|Left coronary artery|Circumflex artery of heart|Anterior interventricular artery|Coronary sinus|Great cardiac vein|Middle cardiac vein)$|leaflet|papillary muscle of (right|left) ventricle/ },
+  goz: { ad: 'Göz ve göz kasları', r: /^(Cornea|Iris|Lens|Retina|Sclera|Anterior chamber of eyeball|Anterior segment of eyeball|Posterior segment of eyeball|Optic nerve \(II\)|Lateral rectus muscle|Medial rectus muscle|Superior rectus muscle|Inferior rectus muscle|Inferior oblique muscle|Levator palpebrae superioris|Lacrimal gland|Central retinal artery)$/ },
+  kulak: { ad: 'Kulak', r: /^(Malleus|Incus|Stapes|Cochlea|Vestibule|Tympanic membrane|Auditory tube|Cochlear nerve|Vestibular nerve|Vestibulocochlear nerve \(VIII\))$/ },
+  beyinsapi: { ad: 'Beyin sapı ve kranial sinirler', r: /^(Midbrain|Pons|Medulla oblongata|Pyramid of medulla oblongata|Oculomotor nerve \(III\)|Trochlear nerve \(IV\)|Trigeminal nerve \(V\)|Abducens nerve \(VI\)|Facial nerve \(VII\)|Vestibulocochlear nerve \(VIII\)|Glossopharyngeal nerve \(IX\)|Vagus nerve \(X\)|Accessory nerve \(XI\)|Hypoglossal nerve \(XII\)|Fourth ventricle|Aqueduct of midbrain)$/ },
+  bazal: { ad: 'Bazal ganglionlar ve limbik yapılar', r: /^(Caudate nucleus|Putamen|Globus pallidus|Thalamus|Hypothalamus|Amygdaloid body|Hippocampus|Corpus callosum|Lateral ventricle|Third ventricle)$/ },
+  willis: { ad: 'Willis poligonu', r: /^(Internal carotid artery|Anterior cerebral artery|Anterior communicating artery|Middle cerebral artery \(M1-segment\)|Posterior communicating artery|Posterior cerebral artery|Basilar artery|Vertebral artery)$/ },
+  akciger: { ad: 'Akciğerler ve diyafram', r: /lobe of (right|left) lung$|^(Pleura|Trachea|Diaphragm)$/ },
+  karaciger: { ad: 'Karaciğer ve safra yolları', r: /segment of liver|^(Gallbladder|Hepatic portal vein|Proper hepatic artery|Common hepatic artery|Duodenum)$/ },
+  bobrek: { ad: 'Böbrek ve böbreküstü', r: /^(Kidney|Renal pelvis|Suprarenal gland|Left renal artery|Right renal artery|Left renal vein|Right renal vein|Intrarenal arteries of left kidney|Intrarenal arteries of right kidney)$/ },
+  pleksus: { ad: 'Brakiyal pleksus', r: /brachial plexus|^(Musculocutaneous|Axillary|Radial|Median|Ulnar) nerve$/ },
+  omuz: { ad: 'Omuz eklemi ve rotator manşet', r: /^(Scapula|Humerus|Clavicle|Supraspinatus muscle|Infraspinatus muscle|Teres minor muscle|Subscapularis muscle|Teres major muscle)$/ },
+  elbilegi: { ad: 'El bileği ve el kemikleri', r: /^((Scaphoid|Lunate|Triquetrum|Pisiform|Trapezium|Trapezoid|Capitate|Hamate) bone|(First|Second|Third|Fourth|Fifth) metacarpal bone)$/ },
+  diz: { ad: 'Diz eklemi', r: /^(Femur|Tibia|Fibula|Patella|Lateral patellar retinaculum|Medial patellar retinaculum|Iliotibial tract)$/ },
+  ayak: { ad: 'Ayak bileği ve tarsal kemikler', r: /^(Talus|Calcaneus|Navicular bone|Cuboid bone|(Intermediate|Lateral|Medial) cuneiform bone|(First|Second|Third|Fourth|Fifth) metatarsal bone|Calcaneal tendon)$/ },
+  kafatasi: { ad: 'Kafatası kemikleri', r: /^(Frontal bone|Parietal bone|Occipital bone|Temporal bone|Sphenoid bone|Ethmoid bone|Maxilla|Mandible|Zygomatic bone|Nasal bone|Lacrimal bone|Palatine bone|Vomer|Inferior nasal concha bone)$/ },
+  pelvis: { ad: 'Pelvis kemikleri', r: /^(Hip bone|Sacrum|Coccyx)$/ },
+  hipofiz: { ad: 'Hipofiz ve hipotalamus', r: /^(Adenohypophysis|Neurohypophysis|Hypothalamus|Optic chiasm|Pineal gland)$/ },
+  tiroit: { ad: 'Tiroit ve paratiroitler', r: /^(Thyroid gland|Superior parathyroid gland|Inferior parathyroid gland|Thyroid cartilage|Trachea)$/ },
+  tukuruk: { ad: 'Tükürük bezleri ve dil', r: /^(Parotid gland|Submandibular gland|Sublingual gland|Tongue)$/ }
+};
+/* kurul yapı setleri: Dönem 1–2 kurullarının anatomi konuları (organ grubu + boyanabilir kemikler) */
+const KURULLAR = [
+  { id: 'ust', ad: 'Hareket sistemi · üst ekstremite', d: 'Dönem 1', g: ['omuz', 'elbilegi', 'pleksus'], b: ['Clavicle', 'Scapula', 'Humerus', 'Radius', 'Ulna'] },
+  { id: 'alt', ad: 'Hareket sistemi · alt ekstremite', d: 'Dönem 1', g: ['diz', 'ayak', 'pelvis'], b: ['Hip bone', 'Femur', 'Tibia', 'Fibula', 'Patella', 'Calcaneus'] },
+  { id: 'bas', ad: 'Baş ve boyun', d: 'Dönem 1–2', g: ['kafatasi', 'larinks', 'tukuruk', 'goz', 'kulak'], b: ['Mandible', 'Temporal bone', 'Sphenoid bone', 'Occipital bone', 'Hyoid bone', 'Atlas (C1)', 'Axis (C2)'] },
+  { id: 'toraks', ad: 'Toraks · dolaşım ve solunum', d: 'Dönem 2', g: ['kalp', 'akciger'], b: ['Manubrium of sternum', 'Body of sternum', 'First rib', 'Vertebra T12'] },
+  { id: 'abdomen', ad: 'Abdomen ve pelvis', d: 'Dönem 2', g: ['karaciger', 'bobrek', 'pelvis'], b: ['Sacrum', 'Vertebra L5', 'Hip bone'] },
+  { id: 'noro', ad: 'Nöroanatomi', d: 'Dönem 2', g: ['beyinsapi', 'bazal', 'willis', 'hipofiz'], b: ['Occipital bone', 'Sphenoid bone'] },
+  { id: 'endo', ad: 'Endokrin', d: 'Dönem 2', g: ['hipofiz', 'tiroit'], b: [] }
+];
+const IZ = { on: false, ms: [], ad: '', tip: 'yapi', boya: false, komsu: false, ayir: false, ins: [], lm: [], lmG: null, quiz: null, ok: 0, n: 0, acik: LS.get('kurulAcik', 'ust') };
+const TEK = new Set(['omuz', 'elbilegi', 'diz', 'ayak', 'pleksus', 'goz', 'kulak']);   /* ekstremite ve duyu organlarında tek taraf (sol) yeter */
+async function grupMesh(k) { await yukle(['iskelet', 'kas', ...SYS_ICIN]); const r = GRUP[k].r; let ms = L.meshesAll.filter(m => m.userData.sys !== 'insersiyo' && r.test(taban(m.name))); if (TEK.has(k)) { const l = ms.filter(m => m.userData.side !== 'R'); if (l.length) ms = l; } return ms; }
+async function kemikMesh(ad) { const ms = await bulYukle(ad); const l = ms.filter(m => m.userData.side === 'L'); return l.length ? [l[0]] : ms.slice(0, 1); }
+const parcaAdi = m => (m.userData.sys === 'insersiyo' ? insAdi(m) : L.nameTR(m));
+function insKas(m) { const b = m.userData.ins && m.userData.ins.base; if (!b) return null; return L.meshesAll.find(x => x.userData.sys === 'kas' && taban(x.name) === b) || null; }
+function insAdi(m) { const k = insKas(m), ad = k ? L.nameTR(k) : (m.userData.ins ? m.userData.ins.base : m.name); return (m.userData.ins && m.userData.ins.t === 'o' ? 'Başlangıç (origo): ' : 'Yapışma (insersiyo): ') + ad; }
+const lmAdi = l => l.la || l.n;
+
+function izCubuk() {
+  let el = $('#axIz');
+  if (!IZ.on) { if (el) el.remove(); return; }
+  if (!el) { el = D.createElement('div'); el.id = 'axIz'; el.className = 'ax-iz'; el.setAttribute('role', 'region'); el.setAttribute('aria-label', 'İzole görünüm'); $('#vp').appendChild(el); }
+  const q = IZ.quiz;
+  el.innerHTML = '<div class="ax-iz-u"><span class="k">izole · ' + esc(IZ.tip === 'kemik' ? 'kemik' : IZ.tip === 'grup' ? 'organ grubu' : 'yapı') + '</span><b>' + esc(IZ.ad) + '</b><button class="x" data-iz="cik" aria-label="İzole görünümden çık">×</button></div>' +
+    '<div class="ax-btns"><button class="btn sm" data-iz="komsu" aria-pressed="' + IZ.komsu + '">Komşuları göster</button>' + (IZ.ms.length > 1 ? '<button class="btn sm" data-iz="ayir" aria-pressed="' + IZ.ayir + '">Parçalara ayır</button>' : '') +
+    (IZ.tip === 'kemik' ? '<button class="btn sm" data-iz="boya" aria-pressed="' + IZ.boya + '">Üstünü boya</button>' : '') + '<button class="btn sm pri" data-iz="quiz">' + (q ? 'Sonraki soru' : 'Quiz') + '</button><button class="btn sm" data-iz="don" aria-pressed="' + !!IZ.don + '">Döndür</button></div>' +
+    (IZ.boya ? '<p class="ax-lej"><i style="background:#FFD24A"></i>kemik çıkıntısı <i style="background:#FF6B2C"></i>kas başlangıcı <i style="background:#2F86FF"></i>yapışma yeri</p>' : '<p class="mini" style="margin:6px 0 0">Bir parçaya dokun: adı çıkar.' + (IZ.tip === 'kemik' ? ' “Üstünü boya” ile çıkıntılar ve kas yapışma yerleri görünür.' : '') + '</p>') +
+    (IZ.etiket ? '<p class="ax-iz-ad">' + IZ.etiket + '</p>' : '') +
+    (q ? '<div class="ax-soru"><span class="k">izole quiz · ' + IZ.ok + '/' + IZ.n + '</span><p>' + q.soru + '</p>' + (q.sec ? '<div class="ax-sec">' + q.sec.map(x => '<button class="btn sm" data-izsec="' + esc(x) + '"' + (q.cevap != null ? ' disabled' : '') + '>' + esc(x) + '</button>').join('') + '</div>' : '') + (q.cevap != null ? '<p class="fb2 ' + (q.cevap ? 'ok' : 'bad') + '">' + (q.cevap ? 'Doğru' : 'Doğrusu: ' + esc(q.dogru)) + '</p>' : '') + '</div>' : '');
+}
+async function izole(ms, ad, tip) {
+  ms = (ms || []).filter(Boolean); if (!ms.length) return;
+  izoleKapat(true); animDur(); gorevDur(); radyolojiKapat(); vurgu(null); L.select(null);
+  Object.assign(IZ, { on: true, ms, ad: ad || L.nameTR(ms[0]), tip: tip || (ms.length === 1 && ms[0].userData.sys === 'iskelet' ? 'kemik' : ms.length > 1 ? 'grup' : 'yapi'), boya: false, komsu: false, ayir: false, quiz: null, etiket: '', ok: 0, n: 0 });
+  katmanAc(ms); st.iso = new Set(ms); st.ghost = null; st.ghostWhy = ''; L.applyVis(); L.renderStates(); cerceveIz(ms);
+  { const vp = $('#vp'); if (vp && vp.getBoundingClientRect().top < 0) vp.scrollIntoView({ block: 'start', behavior: RM.matches ? 'auto' : 'smooth' }); }
+  if (IZ.tip === 'kemik') await boya(true);
+  izCubuk();
+}
+/* geniş ekranda izole çubuğu görünümün solunu kaplar: yapı sağdaki boş alana ortalanır */
+function cerceveIz(ms) {
+  const vp = $('#vp'), w = vp ? vp.clientWidth : 0, sp = L.sphereOf(ms); if (!sp) return;
+  if (matchMedia('(max-width:760px)').matches || !L.camTo) return cerceve(ms, 1.5);   /* telefonda çubuk altta */
+  L.kameraTut(); const cam = L.camera, kay = (Math.min(360, w - 24) + 12) / 2 + 6, gw = w - kay * 2;
+  const dir = L.dirFor(ms).clone().normalize(), yy = sp.radius / Math.sin(cam.fov * Math.PI / 360);
+  const dist = Math.min(5, Math.max(.22, yy * 1.15 * Math.max(1, (vp.clientHeight / gw) * .8)));
+  const sag = new THREE.Vector3().crossVectors(cam.up, dir).normalize(), gen = 2 * dist * Math.tan(cam.fov * Math.PI / 360) * (w / vp.clientHeight);
+  const hedef = sp.center.clone().addScaledVector(sag, -kay / w * gen);
+  L.camTo(hedef.clone().addScaledVector(dir, dist), hedef);
+}
+W.__axIzole = (ms, ad) => izole(ms, ad);
+W.__axIzoleKapat = () => { if (!IZ.on) return false; izoleKapat(); return true; };
+function izoleKapat(sessiz) {
+  if (!IZ.on) return; ayir(false); boya(false); donDur();
+  IZ.on = false; IZ.quiz = null; st.iso = null; st.ghost = null; st.ghostWhy = ''; vurgu(null); L.applyVis(); L.renderStates(); izCubuk();
+  if (!sessiz) ciz2();
+}
+function komsu(on) {
+  IZ.komsu = on;
+  if (on) { st.iso = null; st.ghost = new Set(IZ.ms.concat(IZ.boya ? IZ.ins : [])); st.ghostWhy = 'İzole: ' + IZ.ad; } else { st.ghost = null; st.ghostWhy = ''; st.iso = new Set(IZ.ms); }
+  L.applyVis(); L.renderStates(); izCubuk();
+}
+/* parçalara ayır: her parça grup merkezinden dışa doğru kayar (patlatılmış görünüm) */
+function ayir(on) {
+  if (on === IZ.ayir) return; IZ.ayir = on; if (!IZ.ms.length) return;
+  const c = L.sphereOf(IZ.ms).center, r = L.sphereOf(IZ.ms).radius;
+  IZ.ms.forEach(m => { if (!m.userData._iz0) m.userData._iz0 = m.position.clone(); const mc = L.sphereOf([m]).center.sub(c); m.userData._izD = mc.lengthSq() > 1e-8 ? mc.normalize().multiplyScalar(r * .45) : new THREE.Vector3(); });
+  const a0 = on ? 0 : 1, a1 = on ? 1 : 0;
+  L.anim(RM.matches ? 1 : 650, e => { const k = a0 + (a1 - a0) * e; IZ.ms.forEach(m => m.position.copy(m.userData._iz0).addScaledVector(m.userData._izD, k)); L.need(); }, () => { if (!on) IZ.ms.forEach(m => { m.position.copy(m.userData._iz0); delete m.userData._iz0; }); });
+}
+/* yavaş dönme: hedefin çevresinde kamera döner */
+function donDur() { if (IZ.donH) { L.FRAME_HOOKS.delete(IZ.donH); IZ.donH = null; } IZ.don = false; }
+function don(on) {
+  donDur(); if (!on || RM.matches) { izCubuk(); return; } IZ.don = true;
+  IZ.donH = kanca(() => { const t = L.controls.target, p = L.camera.position.clone().sub(t); p.applyAxisAngle(new THREE.Vector3(0, 1, 0), .012); L.camera.position.copy(t).add(p); L.camera.lookAt(t); return true; });
+  L.FRAME_HOOKS.add(IZ.donH); L.need(); izCubuk();
+}
+L.controls.addEventListener('start', () => { if (IZ.don) { donDur(); izCubuk(); } });
+/* kemik boyama: origo-insersiyo alanları (lab verisi) + kemik çıkıntıları (meta noktaları) */
+W.__axInsGoster = () => (IZ.on && IZ.boya ? IZ.ins : null);
+async function boya(on) {
+  if (!on) { IZ.boya = false; if (IZ.lmG) { L.scene.remove(IZ.lmG); IZ.lmG.traverse(o => { if (o.geometry) o.geometry.dispose(); }); IZ.lmG = null; } IZ.lm = []; IZ.ins = []; L.applyVis(); return; }
+  const b = IZ.ms[0]; if (!b || b.userData.sys !== 'iskelet') return;
+  await L.withLoader('insersiyo');
+  /* alanın noktalarının çoğu (%60) kemik yüzeyine 4 mm'den yakınsa ve komşu kemiğe daha yakın değilse o kemiğindir
+     (aynı taraf). Kemik noktaları 4 mm'lik ızgaraya dağıtılır. Merkez noktaya bakmak uzun şerit alanları kaçırıyordu;
+     komşu kemik karşılaştırması olmadan eklem çevresindeki alanlar (ör. biseps uzun başı → humerus) yanlış kemiğe düşüyordu */
+  const E = .004, hk = (x, y, z) => Math.floor(x / E) + ',' + Math.floor(y / E) + ',' + Math.floor(z / E);
+  const izgara = k => { if (k.userData._izG) return k.userData._izG; const P = k.geometry.attributes.position.array, G0 = new Set(); for (let i = 0; i < P.length; i += 3) G0.add(hk(P[i] + k.position.x, P[i + 1] + k.position.y, P[i + 2] + k.position.z)); return (k.userData._izG = G0); };
+  const yakin = (G0, x, y, z) => { const a = Math.floor(x / E), c = Math.floor(y / E), d = Math.floor(z / E); for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) if (G0.has((a + i) + ',' + (c + j) + ',' + (d + k))) return true; return false; };
+  const oran = (G0, m) => { const Q = m.geometry.attributes.position.array, n = Q.length / 3, ad = Math.max(1, Math.floor(n / 40)); let ic = 0, top = 0; for (let i = 0; i < n; i += ad) { top++; if (yakin(G0, Q[i * 3] + m.position.x, Q[i * 3 + 1] + m.position.y, Q[i * 3 + 2] + m.position.z)) ic++; } return top ? ic / top : 0; };
+  const kutu = new THREE.Box3().setFromObject(b).expandByScalar(.01), Gb = izgara(b);
+  const komsu = L.meshesAll.filter(k => k !== b && k.userData.sys === 'iskelet' && (!b.userData.side || !k.userData.side || k.userData.side === b.userData.side) && kutu.intersectsBox(new THREE.Box3().setFromObject(k)));
+  IZ.ins = L.meshesAll.filter(m => {
+    if (m.userData.sys !== 'insersiyo' || !m.userData.ins) return false; if (b.userData.side && m.userData.ins.side && m.userData.ins.side !== b.userData.side) return false;
+    const mb = new THREE.Box3().setFromObject(m); if (!kutu.intersectsBox(mb)) return false;
+    const o = oran(Gb, m); if (o < .6) return false;
+    return !komsu.some(k => new THREE.Box3().setFromObject(k).expandByScalar(.005).intersectsBox(mb) && oran(izgara(k), m) > o);
+  });
+  /* kemik çıkıntıları: sol tarafta yoksa karşı taraftan aynalanır (lab'ın etiketleriyle aynı) */
+  const lms = L.lms(); let lm = lms.filter(l => l.b === b.name);
+  if (!lm.length) { const ayna = b.name.replace(/\.l$/, '.__').replace(/\.r$/, '.l').replace(/\.__$/, '.r'); lm = lms.filter(l => l.b === ayna).map(l => Object.assign({}, l, { p: [-l.p[0], l.p[1], l.p[2]] })); }
+  lm = lm.filter(l => lmAdi(l) && taban(l.b) !== lmAdi(l) && !/^(Corpus|Facies|Margo)\b/.test(lmAdi(l)) || /^(Facies articularis)/.test(lmAdi(l)));
+  const G = new THREE.Group(), geo = new THREE.SphereGeometry(.0042, 14, 10);
+  IZ.lm = lm.map(l => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#FFD24A', depthTest: true })); m.position.set(l.p[0], l.p[1], l.p[2]); m.userData.lm = l; m.renderOrder = 3; G.add(m); return m; });
+  const ring = new THREE.Mesh(new THREE.SphereGeometry(.0062, 14, 10), new THREE.MeshBasicMaterial({ color: '#0D1838', transparent: true, opacity: .35, depthWrite: false })); ring.visible = false; G.add(ring); IZ.halka = ring;
+  L.scene.add(G); IZ.lmG = G; IZ.boya = true; L.applyVis(); L.need();
+}
+const ray = new THREE.Raycaster();
+function lmTik(e) {
+  if (!IZ.lm.length || !e) return null; const r = L.renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), L.camera);
+  const h = ray.intersectObjects(IZ.lm, false)[0]; if (h) return h.object;
+  /* parmakla dokunuşta küçük nokta zor tutturulur: ekranda 22 px yakınlıktaki en yakın nokta */
+  let en = null, ed = 22 * 22; const v = new THREE.Vector3();
+  IZ.lm.forEach(m => { v.copy(m.position).project(L.camera); const x = (v.x + 1) / 2 * r.width + r.left, y = (1 - v.y) / 2 * r.height + r.top, d = (x - e.clientX) ** 2 + (y - e.clientY) ** 2; if (d < ed && v.z < 1) { ed = d; en = m; } });
+  return en;
+}
+function lmVurgu(m) { if (!IZ.halka) return; IZ.halka.visible = !!m; if (m) IZ.halka.position.copy(m.position); L.need(); }
+/* izole quiz */
+function izSoru() {
+  const sec4 = (dogru, havuz) => [dogru, ...[...new Set(havuz.filter(x => x !== dogru))].sort(() => Math.random() - .5).slice(0, 3)].sort(() => Math.random() - .5);
+  lmVurgu(null); vurgu(null); IZ.etiket = '';
+  const tipler = [];
+  if (IZ.ms.length > 3) tipler.push('parcaBul', 'parcaAd');
+  if (IZ.boya && IZ.lm.length >= 4) tipler.push('lmBul', 'lmAd');
+  if (IZ.boya && IZ.ins.length >= 4) tipler.push('insKas');
+  if (!tipler.length) { if (IZ.tip === 'kemik' && !IZ.boya) { IZ.etiket = 'Quiz için önce “Üstünü boya”yı aç.'; izCubuk(); return; } IZ.etiket = 'Bu izole görünümde soru üretecek kadar parça yok; bir organ grubu ya da kemik seç.'; izCubuk(); return; }
+  const t = tipler[Math.floor(Math.random() * tipler.length)];
+  if (t === 'parcaBul' || t === 'parcaAd') {
+    const adlar = [...new Set(IZ.ms.map(parcaAdi))], m = IZ.ms[Math.floor(Math.random() * IZ.ms.length)], ad = parcaAdi(m);
+    if (t === 'parcaBul') IZ.quiz = { t, hedef: m, dogru: ad, soru: '<b>Bul:</b> ' + esc(ad) };
+    else { IZ.quiz = { t, hedef: m, dogru: ad, soru: '<b>İşaretli parça hangisi?</b>', sec: sec4(ad, adlar) }; vurgu([m], '#FFB547'); }
+  } else if (t === 'lmBul' || t === 'lmAd') {
+    const m = IZ.lm[Math.floor(Math.random() * IZ.lm.length)], ad = lmAdi(m.userData.lm);
+    if (t === 'lmBul') IZ.quiz = { t, hedef: m, dogru: ad, soru: '<b>Kemikte bul:</b> ' + esc(ad) };
+    else { IZ.quiz = { t, hedef: m, dogru: ad, soru: '<b>Halkadaki çıkıntının adı ne?</b>', sec: sec4(ad, IZ.lm.map(x => lmAdi(x.userData.lm))) }; lmVurgu(m); }
+  } else {
+    const m = IZ.ins[Math.floor(Math.random() * IZ.ins.length)], k = insKas(m), ad = k ? L.nameTR(k) : m.userData.ins.base;
+    IZ.quiz = { t, hedef: m, dogru: ad, soru: '<b>Parlayan ' + (m.userData.ins.t === 'o' ? 'başlangıç (origo)' : 'yapışma (insersiyo)') + ' alanı hangi kasa ait?</b>', sec: sec4(ad, IZ.ins.map(x => { const kk = insKas(x); return kk ? L.nameTR(kk) : x.userData.ins.base; })) };
+    vurgu([m], '#FFD24A');
+  }
+  izCubuk();
+}
+function izCevap(ok) { const q = IZ.quiz; q.cevap = ok; IZ.n++; if (ok) IZ.ok++; tekrarKaydet('izole:' + q.dogru, 'izole', ok); if (q.t.startsWith('lm')) lmVurgu(q.hedef); else vurgu([q.hedef], ok ? '#3BE38A' : '#FF5A4A'); izCubuk(); }
+/* dokunma: önce kemik çıkıntısı noktaları, sonra parçalar */
+function izTik(h, e) {
+  if (!IZ.on) return false;
+  const lm = IZ.boya ? lmTik(e) : null, q = IZ.quiz && IZ.quiz.cevap == null ? IZ.quiz : null;
+  if (q && q.t === 'lmBul') { if (!lm && !h) return true; izCevap(lm === q.hedef); if (lm && lm !== q.hedef) IZ.etiket = 'Dokunduğun: ' + esc(lmAdi(lm.userData.lm)); izCubuk(); return true; }
+  if (q && q.t === 'parcaBul') { if (!h) return true; const ok = h.mesh === q.hedef || parcaAdi(h.mesh) === q.dogru; izCevap(ok); if (!ok) { IZ.etiket = 'Dokunduğun: ' + esc(parcaAdi(h.mesh)); izCubuk(); } return true; }
+  if (lm) { lmVurgu(lm); const l = lm.userData.lm; IZ.etiket = '<b>' + esc(lmAdi(l)) + '</b>' + (l.n && l.n !== l.la ? ' <small>' + esc(l.n) + '</small>' : ''); izCubuk(); return true; }
+  if (!h) return true;
+  lmVurgu(null);
+  if (h.mesh.userData.sys === 'insersiyo') { vurgu([h.mesh], '#FFD24A'); IZ.etiket = '<b>' + esc(insAdi(h.mesh)) + '</b>'; izCubuk(); return true; }
+  vurgu([h.mesh], '#7FE0E8'); IZ.etiket = '<b>' + esc(L.nameTR(h.mesh)) + '</b>' + (h.mesh.userData.la ? ' <small>' + esc(h.mesh.userData.la) + '</small>' : ''); izCubuk();
+  return true;
+}
+D.addEventListener('click', async e => {
+  const b = e.target.closest('[data-iz],[data-izsec]'); if (!b) return;
+  if (b.dataset.izsec) { izCevap(b.dataset.izsec === IZ.quiz.dogru); return; }
+  const a = b.dataset.iz;
+  if (a === 'cik') izoleKapat();
+  else if (a === 'komsu') komsu(!IZ.komsu);
+  else if (a === 'ayir') { ayir(!IZ.ayir); izCubuk(); }
+  else if (a === 'boya') { await boya(!IZ.boya); if (!IZ.boya) IZ.quiz = null; izCubuk(); }
+  else if (a === 'quiz') izSoru();
+  else if (a === 'don') don(!IZ.don);
+});
+/* İzole modu paneli: kurul setleri */
+function ciz2() {
+  const el = $('#izolePane'); if (!el) return;
+  el.innerHTML = '<h3>Kurul setleri <span class="hn">izole et, boya, sor</span></h3><p class="mini">Bir organ grubunu ya da kemiği seç: yalnız o kalır. Atlas’ta herhangi bir yapının kartındaki “İzole et” de aynı görünümü açar.</p>' +
+    KURULLAR.map(k => '<div class="ax-kur' + (IZ.acik === k.id ? ' on' : '') + '"><button class="ax-kur-b" data-kur="' + k.id + '" aria-expanded="' + (IZ.acik === k.id) + '"><b>' + esc(k.ad) + '</b><small>' + esc(k.d) + '</small></button>' +
+      (IZ.acik === k.id ? '<div class="ax-kur-i">' + (k.g.length ? '<span class="k">organ grupları</span><div class="ax-btns">' + k.g.map(g => '<button class="btn sm" data-izg="' + g + '">' + esc(GRUP[g].ad) + '</button>').join('') + '</div>' : '') +
+        (k.b.length ? '<span class="k">kemikler · üstü boyalı</span><div class="ax-btns">' + k.b.map(x => '<button class="btn sm" data-izk="' + esc(x) + '">' + esc(KEMIK_TR[x] || x) + '</button>').join('') + '</div>' : '') + '</div>' : '') + '</div>').join('');
+}
+const KEMIK_TR = { Clavicle: 'Klavikula', Scapula: 'Skapula', Humerus: 'Humerus', Radius: 'Radius', Ulna: 'Ulna', 'Hip bone': 'Kalça kemiği (os coxae)', Femur: 'Femur', Tibia: 'Tibia', Fibula: 'Fibula', Patella: 'Patella', Calcaneus: 'Kalkaneus', Mandible: 'Mandibula', 'Temporal bone': 'Temporal kemik', 'Sphenoid bone': 'Sfenoid kemik', 'Occipital bone': 'Oksipital kemik', 'Hyoid bone': 'Hiyoid kemik', 'Atlas (C1)': 'Atlas (C1)', 'Axis (C2)': 'Aksis (C2)', 'Manubrium of sternum': 'Manubrium sterni', 'Body of sternum': 'Corpus sterni', 'First rib': '1. kaburga', 'Vertebra T12': 'T12 omuru', Sacrum: 'Sakrum', 'Vertebra L5': 'L5 omuru' };
+$('#izolePane') && $('#izolePane').addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.kur) { IZ.acik = IZ.acik === t.dataset.kur ? null : t.dataset.kur; LS.set('kurulAcik', IZ.acik); ciz2(); return; }
+  if (t.dataset.izg) { const ms = await grupMesh(t.dataset.izg); return izole(ms, GRUP[t.dataset.izg].ad, 'grup'); }
+  if (t.dataset.izk) { const ms = await kemikMesh(t.dataset.izk); return izole(ms, KEMIK_TR[t.dataset.izk] || t.dataset.izk, 'kemik'); }
+});
+ciz2();
+const izCss = D.createElement('style');
+izCss.textContent = `
+.ax-iz{position:absolute;left:12px;top:60px;z-index:8;width:min(360px,calc(100% - 24px));max-height:calc(100% - 80px);overflow:auto;padding:12px 14px;border-radius:14px;background:#fff;border:2px solid #0E8A8A;box-shadow:5px 5px 0 #0E8A8A;font-size:13.5px}
+.ax-iz-u{display:flex;align-items:center;gap:8px}.ax-iz-u b{font-size:16px;flex:1}.ax-iz-u .k{display:block;width:100%}.ax-iz-u{flex-wrap:wrap}
+.ax-iz .x{border:0;background:#F3F6F9;border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer}
+.ax-iz .btn[aria-pressed=true]{background:#0E8A8A;color:#fff;border-color:#0E8A8A}
+.ax-lej{margin:6px 0 0;font-size:12px;color:#46506A}.ax-lej i{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px 0 8px;vertical-align:0}.ax-lej i:first-child{margin-left:0}
+.ax-iz-ad{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:#E1F3F3;font-size:14px}.ax-iz-ad small{color:#46506A;font-style:italic}
+.ax-iz .k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6A7593}
+.ax-kur{border:1.5px solid var(--line,#DCE2EA);border-radius:12px;margin:6px 0;background:#fff}.ax-kur.on{border-color:#0E8A8A}
+.ax-kur-b{display:grid;width:100%;text-align:left;padding:9px 11px;border:0;background:none;cursor:pointer}.ax-kur-b small{color:#6A7593;font-size:11.5px}
+.ax-kur-i{padding:0 10px 10px}.ax-kur-i .k{display:block;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6A7593}
+@media (max-width:760px){.ax-iz{top:auto;bottom:8px;left:8px;right:8px;width:auto;max-height:44%;padding:9px 11px;font-size:12.5px;box-shadow:3px 3px 0 #0E8A8A}.ax-iz-u b{font-size:14.5px}.ax-iz .mini{display:none}.ax-iz .x{width:30px;height:30px}}`;
+D.head.appendChild(izCss);
+W.__axSistem = { IZ, GRUP, KURULLAR, izole, izoleKapat, izSoru, boya, grupMesh, kemikMesh, A, SIS, bul, sisSec, kalpAtim, loblar, nefes, peristaltizm, radyolojiSoru, diseksiyonAdim, testSoru, gorevBaslat, RAD, DS, TS, tekrarKaydet, vadesi };
 </script>
 </body>
 </html>

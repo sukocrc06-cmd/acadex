@@ -110,7 +110,7 @@ test('Medica: katalog sırayla yüklenir; asansörde ara katlar; ara katta üç 
 test('Anatomi Lab: Sistemler modu, tıklama kancası, API ve modül dosyası en sonda', () => {
   const h = read('labs/anatomi/index.html');
   assert.match(h, /<button role="tab" data-mode="sistem" aria-selected="false">Sistemler<\/button>/);
-  assert.match(h, /const TABS = \{ sistem: \[\['sistem', 'Sistem'\], \['yapi', 'Yapı'\]\]/);
+  assert.match(h, /const TABS = \{ izole: \[\['izole', 'Kurul setleri'\], \['yapi', 'Yapı'\]\], sistem: \[\['sistem', 'Sistem'\], \['yapi', 'Yapı'\]\]/);
   assert.match(h, /<section class="sec" data-mode="sistem" data-tab="sistem" id="sistemPane"/);
   assert.match(h, /if \(typeof window\.__axTik === 'function' && window\.__axTik\(h, e\)\) return;/);
   assert.match(h, /window\.dispatchEvent\(new Event\('axlab:hazir'\)\);/);
@@ -138,6 +138,28 @@ test('Sistem modülleri: 8 sistem, her yapı modelde var, Medica vakası ve ista
   /* hareket azaltma ve 30 kare sınırı */
   assert.match(j, /const kanca = fn => \{ let son = 0; return now => \{ if \(now - son < 33\) return false;/);
   assert.match(j, /RM\.matches \? \.3 : faz\(now\)/);
+});
+
+test('İzole görünüm: her organ grubu modelde parça bulur, kurul kemikleri var, dokunma ve boyama kancaları bağlı', () => {
+  const h = read('labs/anatomi/index.html'), j = h.slice(h.indexOf('<script type="module">/* ===== SİSTEMLER'));
+  const g = j.slice(j.indexOf('const GRUP = {'), j.indexOf('/* kurul yapı setleri'));
+  const GRUP = eval('(' + g.replace('const GRUP = ', '').replace(/;\s*$/, '') + ')');
+  const adlar = [...MODEL];
+  for (const [k, v] of Object.entries(GRUP)) { const n = new Set(adlar.filter((x) => v.r.test(x))).size; assert.ok(n >= 3, k + ' grubunda modelde yalnız ' + n + ' parça'); }
+  const kb = j.slice(j.indexOf('const KURULLAR = ['), j.indexOf('const IZ = {'));
+  const K = eval(kb.replace('const KURULLAR = ', '').replace(/;\s*$/, ''));
+  assert.ok(K.length >= 6);
+  for (const k of K) { k.g.forEach((x) => assert.ok(GRUP[x], k.id + ': grup yok ' + x)); k.b.forEach((x) => assert.ok(modeldeVar(x), k.id + ': kemik yok ' + x)); }
+  /* kart "İzole et" yalnız o yapıyı bırakır; kemikte boyama verisi lab'ın görünürlüğüne girer */
+  assert.match(h, /window\.__axIzole\(st\.selMesh && st\.selMesh\.userData\.sys === 'iskelet' \? \[st\.selMesh\] : ms, cardTitle\(\)\)/);
+  assert.match(h, /insShown = typeof window\.__axInsGoster === 'function' && window\.__axInsGoster\(\)/);
+  assert.match(h, /<button role="tab" data-mode="izole" aria-selected="false">İzole<\/button>/);
+  assert.match(j, /W\.__axTik = \(h, e\) => \{ if \(IZ\.on && !A\.gorev\) return izTik\(h, e\);/);
+  /* çıkıntı noktaları karşı taraftan aynalanır, parmakla dokunuşa 22 px tolerans; quiz yanlışları tekrara */
+  assert.match(j, /p: \[-l\.p\[0\], l\.p\[1\], l\.p\[2\]\]/);
+  assert.match(j, /ed = 22 \* 22/);
+  assert.match(j, /tekrarKaydet\('izole:' \+ q\.dogru, 'izole', ok\)/);
+  ['parcaBul', 'parcaAd', 'lmBul', 'lmAd', 'insKas'].forEach((x) => assert.match(j, new RegExp("tipler\\.push\\([^)]*'" + x + "'")));
 });
 
 summary();
