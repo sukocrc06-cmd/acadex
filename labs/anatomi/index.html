@@ -550,6 +550,7 @@ input[type=range]{accent-color:var(--blue)}
 .modal .box{border-radius:18px}
 .mtabs button[aria-selected=true]{background:var(--navy)}
 .app:not([data-mode=vaka]) .sec[data-mode=vaka]{display:none}
+.app:not([data-mode=sistem]) .sec[data-mode=sistem]{display:none}
 /* klinik vakalar Acadex Medica'ya taşındı: mod yalnız hastaneden açılınca (?medica=1) görünür, liste yerine tek vaka */
 html:not(.axmd) .modes button[data-mode=vaka]{display:none}html.axmd #caseList,html.axmd .sec[data-mode=vaka] .mini{display:none}
 
@@ -677,7 +678,7 @@ html:not(.axmd) .modes button[data-mode=vaka]{display:none}html.axmd #caseList,h
 .modes{background:#F3F0E7;border:0;padding:4px;gap:4px}
 .modes button{border-radius:10px;color:#4B5675}
 .modes button[data-mode=atlas]{--mc:#2F6BFF;--md:#1E4CC4}.modes button[data-mode=kurul]{--mc:#1E8A55;--md:#14663E}
-.modes button[data-mode=spot]{--mc:#D9662B;--md:#A6481A}.modes button[data-mode=vaka]{--mc:#6A4FA8;--md:#4E3A80}
+.modes button[data-mode=spot]{--mc:#D9662B;--md:#A6481A}.modes button[data-mode=sistem]{--mc:#C42232;--md:#8E1823}.modes button[data-mode=vaka]{--mc:#6A4FA8;--md:#4E3A80}
 .modes button::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mc);margin-right:7px;vertical-align:1px}
 .modes button:hover{background:#fff}
 .modes button[aria-selected=true]{background:var(--mc);color:#fff;box-shadow:0 3px 0 var(--md)}
@@ -1073,6 +1074,7 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
       <button role="tab" data-mode="kurul" aria-selected="false">Kurul yolu</button>
       <button role="tab" data-mode="spot" aria-selected="false">Spot sınav</button>
       <button role="tab" data-mode="vaka" aria-selected="false">Klinik vaka</button>
+      <button role="tab" data-mode="sistem" aria-selected="false">Sistemler</button>
     </nav>
     <div class="srch">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5" stroke-linecap="round"/></svg>
@@ -1141,6 +1143,8 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
         <p class="mini" style="margin:0 0 10px">Bir vaka seç; hikâyeyi oku, ilgili yapıları modelde sırayla bul. İki yanlıştan sonra ipucu gelir.</p>
         <div id="caseList" class="cases"></div>
       </section>
+      <!-- SİSTEMLER (satır içi betik): modüller, radyoloji, diseksiyon, test -->
+      <section class="sec" data-mode="sistem" data-tab="sistem" id="sistemPane" aria-live="polite"><p class="mini">Sistem modülleri yükleniyor…</p></section>
       <!-- SPOT -->
       <section class="sec" data-mode="spot" data-tab="spot">
         <h3>Pratik (spot) sınav <span class="hn">iğneye bak</span></h3>
@@ -2236,6 +2240,7 @@ function hideTip() { $('#tip').style.display = 'none'; }
 function click(e) {
   if (st.spot && st.spot.run) return;
   const h = gpuPick(e.clientX, e.clientY);
+  if (typeof window.__axTik === 'function' && window.__axTik(h, e)) return;   /* Sistemler betiğinin görevleri */
   if (st.mode === 'vaka' && CASE.run) { caseClick(h); return; }
   if (st.tool === 'not') { if (h) openNote(h, e); return; }
   if (st.tool === 'soy') { if (h && h.mesh.userData.sys === 'kas') { st.hidden.add(h.mesh.name); st.peeled.push(h.mesh.name); toast(nameTR(h.mesh) + ' soyuldu.', 'Geri al', undoPeel); applyVis({ fade: true }); } else if (h) toast('Soy aracı yalnızca kaslarda çalışır.'); return; }
@@ -2828,7 +2833,7 @@ $('#res').addEventListener('click', e => {
 function stopSpot() { if (st.spot && st.spot.run) { st.spot.run = false; clearInterval(spTimer); $('#spotbar').classList.remove('on'); } st.spot = null; $('#res').classList.remove('on'); applyVis(); setPins(); }
 
 /* ===================== mod ve sekmeler ===================== */
-const TABS = { atlas: [['yapi', 'Yapı'], ['katman', 'Katmanlar'], ['kesit', 'Kesit'], ['not', 'Notlar']], kurul: [['kurul', 'Kurul yolu'], ['yapi', 'Yapı']], spot: [['spot', 'Spot sınav'], ['yanlis', 'Tekrar']], vaka: [['vaka', 'Vakalar'], ['yapi', 'Yapı']] };
+const TABS = { sistem: [['sistem', 'Sistem'], ['yapi', 'Yapı']], atlas: [['yapi', 'Yapı'], ['katman', 'Katmanlar'], ['kesit', 'Kesit'], ['not', 'Notlar']], kurul: [['kurul', 'Kurul yolu'], ['yapi', 'Yapı']], spot: [['spot', 'Spot sınav'], ['yanlis', 'Tekrar']], vaka: [['vaka', 'Vakalar'], ['yapi', 'Yapı']] };
 function setMode(m) {
   if (st.spot && m !== 'spot') stopSpot();
   if (m !== st.mode) { stopDemo(); if (SIG.on) stopSignal(); if (TOUR.on) stopTour(); if (st.heat && m !== 'kurul') setHeat(false); if (EXP.on) setExplode(false); if (m !== 'vaka') { CASE.run = false; CASE.c = null; $('#casebar').classList.remove('on'); } if (st.sel) select(null); st.iso = null; if (st.ghost && !st.ghostWhy.startsWith('Bölge')) { st.ghost = null; st.ghostWhy = ''; } applyVis(); renderStates(); }
@@ -3617,7 +3622,7 @@ renderTabs();
   renderLayers(); renderNotes(); setPins(); applyVis(); intro(); booted = true; renderTekrar(); renderCases(); renderHead();
   if (MEDICA) { const mc = CASES.find(c => c.id === new URLSearchParams(location.search).get('vaka')); if (mc) { setMode('vaka'); await startCase(mc); }
     /* rehber cerrah: 1) sözel ipucu 2) kamerayı bölgeye çevir 3) yapıyı seçip adını söyle (labs/medica/medica-cerrah.js) */
-    medicaCerrah({ lab: 'anatomi', anahtar: () => CASE.run && CASE.c ? CASE.c.id + ':' + CASE.i : null, kademe: async n => {
+    if (mc) medicaCerrah({ lab: 'anatomi', anahtar: () => CASE.run && CASE.c ? CASE.c.id + ':' + CASE.i : null, kademe: async n => {
       if (!CASE.run || !CASE.c) return null; const s = CASE.c.steps[CASE.i], sid = s[0];
       if (n === 1) return 'İpucu: ' + s[2];
       const ms = await ensureFor(sid); if (!ms.length) return 'Bu yapı modelde ayrı işaretli değil; ' + S[sid].tr + ' adını arama kutusuna yazabilirsin.';
@@ -3625,7 +3630,11 @@ renderTabs();
       if (n === 2) { frame(ms, { dir: dirFor(ms), k: 3.2 }); return 'Kamerayı o bölgeye çevirdim; aradığın yapı bu çerçevenin içinde. Üstündeki katmanları saydamlaştırman gerekebilir.'; }
       select(sid, { frame: true, mesh: ms.find(m => m.userData.side === 'L') || ms[0] }); pulse();
       return 'Bu ' + S[sid].tr + ' (' + S[sid].la + '). Parlayan yapıya şimdi sen dokun.'; } }); }
-  window.__lab = { st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene };
+  window.__lab = { st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene,
+    /* 02.11.2026: sistem modülleri, radyoloji ve diseksiyon (Sistemler betiği) için */
+    THREE, body, frame, camTo, dirFor, FRAME_HOOKS, anim, toast, nameTR, trOf, renderLayers, renderStates, renderCard, pulse, loaded, outFr, outline, HOME, setSides, clipUI, sphereOf, ensureFor, LS, TIME, MEDICA, medicaBildir, medicaCerrah, esc, renderer,
+    kameraTut: () => { userMoved = true; } };   /* programla çerçevelenen görünüm, panel yeniden boyutlanınca başa dönmesin */
+  window.dispatchEvent(new Event('axlab:hazir'));
   /* ===== MedLab köprüsü (27.10.2026) =====
      Lab, Acadex MedLab katmanında (iframe, ?medlab=1) açıldığında kendi Acadia'sını gizler;
      sorular sitenin tek Acadia'sından gelir. Lab bağlamı (seçili yapı, kart satırları, hazır sorular,
@@ -3694,6 +3703,637 @@ renderTabs();
     send();
   })();
 })();
+</script>
+<script type="module">/* ===== SİSTEMLER (02.11.2026): tek dosya kuralı gereği satır içi; lab modülünden sonra çalışır ===== */
+/* ==========================================================================
+   ACADEX ANATOMİ LAB · SİSTEMLER (bu dosyanın sonundaki satır içi betik), 02.11.2026
+   Tıbbın sistemlerine göre ayrı bölümler; Acadex Medica'daki anatomi ara katlarıyla
+   (A1–A8) eşleşir:
+     • Modül: sistemin animasyonlu anlatımı. Kalp (atım, kapaklar, EKG, kanı takip et),
+       beyin (loblar, işlev haritası, motor-duyu yolu, Willis ve inme alanları),
+       solunum (soluk alıp verme, havanın yolu), sindirim (peristaltizm, besinin yolu,
+       karaciğer segmentleri), böbrek (idrarın yolu, nefron), endokrin (hormon eksenleri),
+       kas-iskelet (refleks arkı, kası çalıştır).
+     • Radyoloji: kesitte yapıyı bul ve işaretli yapıyı adlandır (BT penceresi, radyolojik yön).
+     • Diseksiyon: katman katman aç, her katmanda yapıyı adlandır.
+     • Test ve tekrar: sisteme göre yapı soruları, aralıklı tekrar (SM-2), yanlışlar tekrar kutusuna.
+   Medica'dan: ?medica=1&vaka=cep:<hastalık> → vakadaki yapıları bul (puan hastaneye);
+               ?istasyon=modul|radyoloji|diseksiyon&sistem=<id> → ara kat istasyonu.
+   Lab iç değişkenlerine window.__lab üzerinden erişir; tıklamaları window.__axTik ile alır.
+   Hareket azaltma tercihinde animasyonlar adım adım (statik) gösterilir.
+   ========================================================================== */
+const W = window, D = document, $ = (s, r) => (r || D).querySelector(s), $$ = (s, r) => [...(r || D).querySelectorAll(s)];
+const L = await new Promise(r => { if (W.__lab && W.__lab.THREE) r(W.__lab); else W.addEventListener('axlab:hazir', () => r(W.__lab), { once: true }); });
+const { THREE, st } = L;
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const Q = new URLSearchParams(location.search);
+const LS = { get: (k, d) => { try { const v = localStorage.getItem('axSis.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem('axSis.' + k, JSON.stringify(v)); } catch (e) { /* depolama kapalı */ } } };
+
+/* ---------------- yapı bulma: "Ad" (iki taraf), "sid:<S anahtarı>" ---------------- */
+const taban = n => String(n).replace(/\.(r|l|o\d*[rl]?|e\d*[rl]?)$/, '').trim();
+const SYS_ICIN = ['organ', 'damar', 'sinir'];
+async function yukle(syslar) { for (const s of syslar) if (!L.loaded[s]) await L.withLoader(s); }
+function bul(ad) {
+  if (ad.startsWith('sid:')) return (L.bySid.get(ad.slice(4)) || []).slice();
+  return L.meshesAll.filter(m => m.userData.sys !== 'insersiyo' && (m.name === ad || taban(m.name) === ad));
+}
+async function bulYukle(ad) { let ms = bul(ad); if (!ms.length) { await yukle(SYS_ICIN); ms = bul(ad); } return ms; }
+const solTaraf = ms => { const l = ms.filter(m => m.userData.side === 'L'); return l.length ? l : ms; };
+const eslesir = (m, ad) => !!m && (ad.startsWith('sid:') ? m.userData.sid === ad.slice(4) : (m.name === ad || taban(m.name) === ad));
+function katmanAc(ms) { let ch = false; ms.forEach(m => { const ly = m.userData.layer; if (ly && st.layers[ly] && !st.layers[ly].on) { st.layers[ly].on = true; ch = true; } }); if (ch) L.renderLayers(); }
+function hayalet(ms, neden) { st.ghost = ms && ms.length ? new Set(ms) : null; st.ghostWhy = ms && ms.length ? neden : ''; L.applyVis(); L.renderStates(); }
+function vurgu(ms, renk) { L.outFr.enabled = !!(ms && ms.length); L.outFr.visibleEdgeColor.set(renk || '#FFD24A'); L.outFr.hiddenEdgeColor.set(renk || '#FFD24A'); L.outFr.selectedObjects = (ms || []).filter(m => m.visible); L.need(); }
+function cerceve(ms, k) { if (!ms.length) return; L.kameraTut(); L.frame(ms, { dir: L.dirFor(ms), k: k || 1.6 }); }
+
+/* ---------------- sistemler ---------------- */
+/* yapi: [3B ad, Türkçe ad, ne işe yarar] — test, radyoloji ve diseksiyon soruları buradan */
+const SIS = {
+  kv: { ad: 'Kalp ve damar', etiket: 'A1', renk: '#C42232', yuk: ['damar'], katman: ['damar'], modul: 'kalp',
+    odak: ['Left ventricle', 'Right ventricle', 'Left atrium', 'Right atrium', 'Pulmonary trunk', 'Ascending aorta'],
+    yapi: [['Right atrium', 'Sağ atriyum', 'Vena kavalardan gelen kirli kanı toplar.'], ['Right ventricle', 'Sağ ventrikül', 'Kanı pulmoner artere, akciğerlere pompalar.'], ['Left atrium', 'Sol atriyum', 'Akciğer venlerinden temiz kanı alır.'], ['Left ventricle', 'Sol ventrikül', 'Kanı aorta, bütün vücuda pompalar; duvarı en kalın boşluktur.'],
+      ['Septal leaflet of right atrioventricular valve', 'Triküspit kapak (septal yaprakçık)', 'Sağ atriyum ile sağ ventrikül arasındaki kapak.'], ['Posterior leaflet of left atrioventricular valve', 'Mitral kapak (arka yaprakçık)', 'Sol atriyum ile sol ventrikül arasındaki kapak.'], ['Right coronary leaflet', 'Aort kapağı (sağ koroner yaprakçık)', 'Sol ventrikül çıkışındaki yarım ay kapak; arkasından sağ koroner arter çıkar.'],
+      ['Pulmonary trunk', 'Pulmoner gövde', 'Sağ ventrikülden çıkan, akciğerlere giden ana arter.'], ['Ascending aorta', 'Çıkan aort', 'Sol ventrikülden çıkan ilk aort bölümü; koronerler buradan çıkar.'], ['Aortic arch', 'Aort kavsi', 'Baş-boyun ve kol arterlerini verir.'], ['Superior vena cava', 'Üst ana toplardamar', 'Baş, boyun ve kollardan dönen kanı sağ atriyuma getirir.'],
+      ['Right coronary artery', 'Sağ koroner arter', 'Sağ kalbi ve çoğunlukla alt duvarı besler.'], ['Anterior interventricular artery', 'Sol ön inen arter (LAD)', 'Sol ventrikül ön duvarını ve septumu besler.'], ['Circumflex artery of heart', 'Sirkumfleks arter', 'Sol ventrikülün yan duvarını besler.'], ['Coronary sinus', 'Koroner sinüs', 'Kalbin kendi venöz kanını sağ atriyuma döker.'], ['Brachiocephalic trunk', 'Brakiyosefalik gövde', 'Aort kavsinin ilk dalı; sağ karotis ve sağ subklavyayı verir.']] },
+  noro: { ad: 'Beyin ve sinir', etiket: 'A2', renk: '#B8862B', yuk: ['sinir', 'damar'], katman: ['sinir'], modul: 'beyin',
+    odak: ['Precentral gyrus', 'Postcentral gyrus', 'Superior frontal gyrus', 'Middle temporal gyrus', 'Lateral occipital gyrus (Middle occipital gyrus*)'],
+    yapi: [['Precentral gyrus', 'Precentral girus (birincil motor korteks)', 'İstemli hareketi başlatır; vücudun karşı yarısını yönetir.'], ['Postcentral gyrus', 'Postcentral girus (birincil duyu korteksi)', 'Dokunma, ağrı ve pozisyon duyusunun bilince ulaştığı yer.'],
+      ['Opercular part of inferior frontal gyrus', 'Broca alanı (alt frontal girus)', 'Konuşmanın motor planlaması; hasarında motor afazi.'], ['Superior temporal gyrus (Lateral part)', 'Üst temporal girus (Wernicke bölgesini içerir)', 'İşitme ve dili anlama; arka bölümü hasarında duyusal afazi.'],
+      ['Hippocampus', 'Hipokampus', 'Yeni bellek oluşumu; fokal nöbetlerin sık kaynağı.'], ['Thalamus', 'Talamus', 'Duyuların kortekse giden aktarma istasyonu.'], ['Hypothalamus', 'Hipotalamus', 'Isı, açlık, susuzluk ve hipofiz hormonlarını yönetir.'], ['Caudate nucleus', 'Kaudat çekirdek', 'Bazal ganglionun parçası; hareketin seçilmesi.'], ['Putamen', 'Putamen', 'Bazal ganglion; Parkinson’da dopamin eksikliği.'],
+      ['Corpus callosum', 'Korpus kallozum', 'İki yarıküreyi birleştiren beyaz cevher.'], ['Midbrain', 'Orta beyin', 'Substantia nigra, okülomotor çekirdekler.'], ['Pons', 'Pons', 'Beyin sapı; yüz, çiğneme ve göz hareketleri çekirdekleri.'], ['Medulla oblongata', 'Medulla oblongata', 'Solunum ve dolaşım merkezleri; piramitler burada çaprazlaşır.'],
+      ['Optic chiasm', 'Optik kiazma', 'Nazal retina lifleri burada çaprazlaşır.'], ['Facial nerve (VII)', 'Fasiyal sinir (VII)', 'Mimik kasları; tat ve gözyaşı.'], ['Vagus nerve (X)', 'Vagus siniri (X)', 'Kalp, akciğer ve sindirim kanalının parasempatik siniri.'], ['Middle cerebral artery (M1-segment)', 'Orta serebral arter', 'Yarıkürenin dış yüzünü besler; inmenin en sık yeri.'], ['Basilar artery', 'Baziler arter', 'Beyin sapı ve arka dolaşım.'], ['Lateral corticospinal tract', 'Lateral kortikospinal yol', 'İstemli hareketi omuriliğe taşır.']] },
+  sol: { ad: 'Solunum', etiket: 'A3', renk: '#2F7FB8', yuk: ['organ', 'damar'], katman: ['organ'], modul: 'solunum',
+    odak: ['Superior lobe of right lung', 'Inferior lobe of right lung', 'Superior lobe of left lung', 'Inferior lobe of left lung', 'Trachea'],
+    yapi: [['Trachea', 'Trakea', 'Larinksten karinaya uzanan ana hava yolu.'], ['Superior lobe of right lung', 'Sağ akciğer üst lob', 'Tüberküloz ve sigaraya bağlı amfizemin sık yeri.'], ['Middle lobe of right lung', 'Sağ akciğer orta lob', 'Yalnız sağda bulunur; sağ kalp kenarına komşu.'], ['Inferior lobe of right lung', 'Sağ akciğer alt lob', 'Aspirasyonun en sık gittiği lob.'],
+      ['Superior lobe of left lung', 'Sol akciğer üst lob', 'Lingula da bu lobun parçasıdır.'], ['Inferior lobe of left lung', 'Sol akciğer alt lob', 'Sol diyafram kubbesine oturur.'], ['Pleura', 'Plevra', 'Akciğeri saran seröz zar; arası pnömotoraksta havayla dolar.'], ['Diaphragm', 'Diyafram', 'Ana soluk alma kası; kasılınca aşağı iner.'],
+      ['Epiglottis', 'Epiglot', 'Yutarken larinks girişini kapatır.'], ['Thyroid cartilage', 'Tiroit kıkırdağı', 'Larinksin en büyük kıkırdağı; ses tellerini korur.'], ['Cricoid cartilage', 'Krikoid kıkırdak', 'Larinksin tek tam halka kıkırdağı.'], ['Pulmonary trunk', 'Pulmoner gövde', 'Kirli kanı akciğerlere götürür.'], ['Right superior pulmonary vein', 'Sağ üst pulmoner ven', 'Temiz kanı sol atriyuma getirir.'], ['External intercostal muscles', 'Dış interkostal kaslar', 'Soluk alırken kaburgaları kaldırır.']] },
+  sind: { ad: 'Sindirim', etiket: 'A4', renk: '#C9711E', yuk: ['organ', 'damar'], katman: ['organ'], modul: 'sindirim',
+    odak: ['Stomach', 'Liver', 'Transverse colon', 'Ascending colon', 'Descending colon'],
+    yapi: [['Tongue', 'Dil', 'Çiğneme, yutma ve tat.'], ['Parotid gland', 'Parotis bezi', 'En büyük tükürük bezi; amilaz salgılar.'], ['Oropharynx', 'Orofarenks', 'Yutma yolunun ağız arkasındaki bölümü.'], ['Stomach', 'Mide', 'Asit ve pepsinle proteinin sindirimine başlar.'], ['Duodenum', 'Duodenum', 'Safra ve pankreas salgısının döküldüğü C biçimli bölüm.'],
+      ['Liver', 'Karaciğer', 'Safra üretimi, glukoz deposu, ilaç metabolizması.'], ['Gallbladder', 'Safra kesesi', 'Safrayı depolar ve yoğunlaştırır.'], ['Pancreas', 'Pankreas', 'Sindirim enzimleri ve insülin-glukagon.'], ['Vermiform appendix', 'Apendiks', 'Çekumdan uzanan kör uç; apandisitte iltihaplanır.'], ['Ascending colon', 'Çıkan kolon', 'Su emilimi başlar; sağ kolon.'],
+      ['Transverse colon', 'Transvers kolon', 'Karnı soldan sağa geçen kolon.'], ['Descending colon', 'İnen kolon', 'Sol taraftan aşağı iner.'], ['Sigmoid colon', 'Sigmoid kolon', 'S biçimli; volvulusun en sık yeri.'], ['Greater omentum', 'Büyük omentum', 'Mideden sarkan yağlı periton katlantısı.'], ['Coeliac trunk', 'Çölyak gövde', 'Mide, karaciğer ve dalağı besleyen ilk dal.'], ['Superior mesenteric artery', 'Süperior mezenterik arter', 'İnce bağırsak ve sağ kolonu besler.'], ['Hepatic portal vein', 'Kapı veni', 'Bağırsak kanını karaciğere götürür.']] },
+  uro: { ad: 'Böbrek, idrar yolu ve üreme', etiket: 'A5', renk: '#7A4FA8', yuk: ['organ', 'damar'], katman: ['organ'], modul: 'bobrek',
+    odak: ['Kidney', 'Urinary bladder', 'Renal pelvis'],
+    yapi: [['Kidney', 'Böbrek', 'Kanı süzer, idrarı oluşturur; sıvı-elektrolit ve asit-baz dengesi.'], ['Renal pelvis', 'Böbrek pelvisi', 'İdrarın toplandığı huni; üretere devam eder.'], ['Urinary bladder', 'Mesane', 'İdrarı depolar; dolunca göbeğe doğru yükselir.'], ['Prostate', 'Prostat', 'Üretrayı çevreleyen bez; BPH ve kanser.'],
+      ['Testis', 'Testis', 'Sperm ve testosteron üretimi.'], ['Epididymis', 'Epididim', 'Spermlerin olgunlaştığı kanal.'], ['Seminal gland', 'Seminal bez', 'Semen sıvısının çoğunu üretir.'], ['Left renal artery', 'Sol böbrek arteri', 'Aorttan böbreğe giden dal.'], ['Left renal vein', 'Sol böbrek veni', 'Aortun önünden geçip inferior vena kavaya açılır.'], ['Suprarenal gland', 'Böbreküstü bezi', 'Kortizol, aldosteron ve adrenalin.']] },
+  kas: { ad: 'Kas ve iskelet', etiket: 'A6', renk: '#1E8A55', yuk: ['sinir'], katman: ['kas', 'iskelet'], modul: 'kas',
+    odak: ['sid:quadriceps', 'sid:femur', 'sid:patella'],
+    yapi: [['sid:quadriceps', 'Kuadriseps femoris', 'Dizi düzeltir; patella refleksinin kası.'], ['sid:hamstring', 'Hamstring kasları', 'Dizi büker, kalçayı geri götürür.'], ['sid:gastrocnemius', 'Gastroknemius', 'Ayağı plantar fleksiyona getirir; Aşil tendonuna katılır.'], ['Tibialis anterior muscle', 'Tibialis anterior', 'Ayağı yukarı kaldırır (dorsifleksiyon).'],
+      ['sid:biceps', 'Biceps brachii', 'Dirseği büker, önkolu supinasyona getirir.'], ['sid:triceps', 'Triceps brachii', 'Dirseği düzeltir.'], ['sid:deltoideus', 'Deltoid', 'Kolu yana kaldırır (15° sonrası).'], ['Supraspinatus muscle', 'Supraspinatus', 'Abdüksiyonu başlatır; rotator manşetin en sık yırtılan kası.'],
+      ['Femoral nerve', 'Femoral sinir', 'Kuadrisepsi innerve eder (L2–L4).'], ['Sciatic nerve', 'Siyatik sinir', 'Vücudun en kalın siniri; uyluk arkası ve diz altı.'], ['Median nerve', 'Median sinir', 'Karpal tünelden geçer; tenar kaslar.'], ['Radial nerve', 'Radial sinir', 'Bilek ve parmak ekstansörleri.'],
+      ['sid:femur', 'Femur', 'Vücudun en uzun kemiği.'], ['sid:tibia', 'Tibia', 'Bacağın yük taşıyan kemiği.'], ['sid:humerus', 'Humerus', 'Kol kemiği.'], ['sid:pelvis', 'Pelvis kemiği', 'Gövdenin yükünü bacaklara aktarır.']] },
+  end: { ad: 'Endokrin', etiket: 'A7', renk: '#D6457A', yuk: ['organ', 'sinir'], katman: ['organ'], modul: 'endokrin',
+    odak: ['Thyroid gland', 'Adenohypophysis', 'Suprarenal gland', 'Pancreas'],
+    yapi: [['Hypothalamus', 'Hipotalamus', 'Salgılatıcı hormonlarla hipofizi yönetir.'], ['Adenohypophysis', 'Ön hipofiz', 'TSH, ACTH, FSH-LH, GH ve prolaktin salgılar.'], ['Neurohypophysis', 'Arka hipofiz', 'ADH ve oksitosini depolayıp salar.'], ['Pineal gland', 'Epifiz', 'Melatonin; gece-gündüz ritmi.'],
+      ['Thyroid gland', 'Tiroit bezi', 'T4 ve T3: metabolizma hızı.'], ['Superior parathyroid gland', 'Üst paratiroit', 'PTH: kan kalsiyumunu yükseltir.'], ['Inferior parathyroid gland', 'Alt paratiroit', 'PTH; adenomun sık olduğu bez.'], ['Suprarenal gland', 'Böbreküstü bezi', 'Korteks: kortizol-aldosteron; medulla: adrenalin.'], ['Pancreas', 'Pankreas (adacıklar)', 'İnsülin ve glukagon.'], ['Testis', 'Testis', 'Testosteron.']] },
+  bb: { ad: 'Baş-boyun ve duyu', etiket: 'A8', renk: '#2E9C86', yuk: ['organ', 'sinir', 'damar'], katman: ['organ', 'sinir'], modul: 'bas',
+    odak: ['Parotid gland', 'Tongue', 'Epiglottis', 'Thyroid cartilage'],
+    yapi: [['Parotid gland', 'Parotis bezi', 'Fasiyal sinir içinden geçer.'], ['Submandibular gland', 'Submandibular bez', 'Tükürüğün çoğunu üretir.'], ['Tongue', 'Dil', 'Hipoglossal sinirle hareket eder.'], ['Soft palate', 'Yumuşak damak', 'Yutarken nazofarenksi kapatır.'], ['Uvula of palate', 'Uvula', 'Peritonsiller apsede karşı tarafa itilir.'],
+      ['Epiglottis', 'Epiglot', 'Larinks girişini örter.'], ['Nasopharynx', 'Nazofarenks', 'Östaki borusunun açıldığı bölüm.'], ['Mucosa of nasal cavity', 'Burun mukozası', 'Havayı ısıtır, nemlendirir; Kiesselbach alanı.'], ['Tympanic membrane', 'Kulak zarı', 'Ses titreşimini kemikçiklere aktarır.'], ['Auditory tube', 'Östaki borusu', 'Orta kulağı havalandırır.'],
+      ['Cornea', 'Kornea', 'Gözün ön saydam tabakası.'], ['Lens', 'Lens', 'Uyumla odaklama.'], ['Iris', 'İris', 'Pupillayı daraltıp genişletir.'], ['Optic nerve (II)', 'Optik sinir', 'Görme bilgisini taşır.'], ['Sternocleidomastoid muscle', 'Sternokleidomastoid kas', 'Boynun ön ve arka üçgenini ayırır.'], ['Facial artery', 'Fasiyal arter', 'Yüzü besler; mandibula kenarında nabzı alınır.']] }
+};
+const SIS_ID = Object.keys(SIS);
+const sisOfHid = h => ({ kv: 'kv', no: 'noro', so: 'sol', si: 'sind', ur: 'uro', ka: 'kas', en: 'end', bb: 'bb' })[String(h).split('-')[0]] || null;
+
+/* ---------------- durum ve temizlik ---------------- */
+const A = { sis: LS.get('sis', 'kv'), sek: 'modul', anim: null, yol: null, gorev: null, ekg: null, pair: new Map() };
+function animDur() {
+  if (A.anim) { A.anim.dur(); A.anim = null; }
+  yolDur(); renkGeri(); ekgKapat(); bilgi(null);
+}
+function hepsiniDurdur() { animDur(); gorevDur(); radyolojiKapat(); vurgu(null); if (st.ghostWhy && /^(Sistem|Yol|Radyoloji|Diseksiyon|Görev)/.test(st.ghostWhy)) hayalet(null); }
+
+/* mesh başına geçici renk (applyVis materyali pair'den seçtiği için pair kopyalanır) */
+function renkVer(ms, renk) {
+  const c = new THREE.Color(renk);
+  ms.forEach(m => { if (!A.pair.has(m)) A.pair.set(m, m.userData.pair); const p0 = A.pair.get(m), nm = p0.normal.clone(); nm.onBeforeCompile = p0.normal.onBeforeCompile; nm.customProgramCacheKey = p0.normal.customProgramCacheKey; nm.color = c.clone(); m.userData.pair = Object.assign({}, p0, { normal: nm }); });
+  L.applyVis();
+}
+function renkGeri() { if (!A.pair.size) return; A.pair.forEach((p, m) => { m.userData.pair = p; }); A.pair.clear(); L.applyVis(); }
+
+/* ---------------- ölçek animasyonu yardımcıları ---------------- */
+function olcekHazir(ms) { return ms.map(m => { const b = new THREE.Box3().setFromObject(m), c = b.getCenter(new THREE.Vector3()); return { m, c, p0: m.position.clone(), s0: m.scale.clone() }; }); }
+function olcekle(o, sx, sy, sz, merkez) { const c = merkez || o.c; o.m.scale.set(sx, sy == null ? sx : sy, sz == null ? sx : sz); o.m.position.set(c.x * (1 - o.m.scale.x), c.y * (1 - o.m.scale.y), c.z * (1 - o.m.scale.z)); }
+function olcekGeri(L0) { L0.forEach(o => { o.m.position.copy(o.p0); o.m.scale.copy(o.s0); }); L.need(); }
+
+/* animasyon kancası saniyede ~30 kare çizer (zayıf cihazda ağır son işlemle 60 kare gereksiz) */
+const kanca = fn => { let son = 0; return now => { if (now - son < 33) return false; son = now; return fn(now); }; };
+/* ---------------- yol: sırayla vurgulanan yapılar ---------------- */
+async function yolBaslat(adimlar, ad, o) {
+  yolDur(); o = o || {};
+  const tum = []; for (const a of adimlar) { a.ms = []; for (const n of [].concat(a.y)) a.ms = a.ms.concat(await bulYukle(n)); tum.push(...a.ms); }
+  katmanAc(tum); if (o.hayalet !== false) hayalet(tum.concat(o.ek || []), 'Yol: ' + ad);
+  if (o.akis) { L.FLOW.value = 1; const f = $('#flowOn'); if (f) f.checked = true; }
+  cerceve(tum, o.k || 1.5);
+  A.yol = { i: 0, adimlar, ad, t: 0 };
+  const adim = () => {
+    if (!A.yol) return; const a = adimlar[A.yol.i];
+    vurgu(a.ms, a.renk || o.renk || '#FFD24A'); L.pulse();
+    bilgi('<b>' + (A.yol.i + 1) + '/' + adimlar.length + ' · ' + esc(a.t) + '</b>' + (a.d ? '<br>' + esc(a.d) : ''), ad);
+    A.yol.i++; if (A.yol.i < adimlar.length) A.yol.t = setTimeout(adim, RM.matches ? 2600 : (o.sure || 2200)); else A.yol.t = setTimeout(() => { if (o.son) bilgi(o.son, ad); vurgu(null); A.yol = null; ciz(); }, 2400);
+    ciz();
+  };
+  adim();
+}
+function yolDur() { if (A.yol) { clearTimeout(A.yol.t); A.yol = null; vurgu(null); } }
+
+/* ---------------- model üstü bilgi kutusu ---------------- */
+function bilgi(html, baslik) {
+  let el = $('#axSisBilgi');
+  if (!html) { if (el) el.hidden = true; return; }
+  if (!el) { el = D.createElement('div'); el.id = 'axSisBilgi'; el.className = 'ax-sis-bilgi'; el.setAttribute('role', 'status'); $('#vp').appendChild(el); }
+  el.hidden = false; el.innerHTML = (baslik ? '<span class="k">' + esc(baslik) + '</span>' : '') + '<p>' + html + '</p>';
+}
+
+/* =========================== MODÜLLER =========================== */
+/* ---- kalp: atım, kapaklar, EKG ---- */
+const RITIM = { normal: { ad: 'Sinüs ritmi', hiz: 72 }, tasi: { ad: 'Sinüs taşikardisi', hiz: 128 }, af: { ad: 'Atriyal fibrilasyon', hiz: 110 } };
+async function kalpAtim(ritim) {
+  animDur(); ritim = ritim || 'normal';
+  const ad = ['Right atrium', 'Left atrium', 'Right ventricle', 'Left ventricle', 'Inferior papillary muscle of right ventricle', 'Anterior papillary muscle of right ventricle', 'Septal papillary muscle of right ventricle', 'Inferior papillary muscle of left ventricle'];
+  const av = ['Inferior leaflet of right atrioventricular valve', 'Septal leaflet of right atrioventricular valve', 'Posterior leaflet of left atrioventricular valve'];
+  const sl = ['Left coronary leaflet', 'Non-coronary leaflet', 'Right coronary leaflet', 'Anterior semilunar leaflet of pulmonary valve', 'Left semilunar leaflet of pulmonary valve', 'Right semilunar leaflet of pulmonary valve'];
+  await yukle(['damar']);
+  const g = n => n.flatMap(x => bul(x));
+  const atr = olcekHazir(g(['Right atrium', 'Left atrium'])), ven = olcekHazir(g(ad.slice(2))), avL = olcekHazir(g(av)), slL = olcekHazir(g(sl));
+  const tum = [...atr, ...ven, ...avL, ...slL].map(o => o.m).concat(g(['Pulmonary trunk', 'Ascending aorta', 'Aortic arch', 'Superior vena cava', 'Right coronary artery', 'Anterior interventricular artery', 'Circumflex artery of heart', 'Left coronary artery']));
+  katmanAc(tum); hayalet(tum, 'Sistem: kalp'); cerceve(tum, 1.25);
+  if (L.EXP && L.EXP.on) L.setExplode(false);
+  const R = RITIM[ritim]; let T = 60 / R.hiz, t0 = performance.now() / 1000, sonFaz = 0;
+  ekgAc(R.ad + ' · ' + R.hiz + '/dk');
+  const faz = (now) => { let p = (now / 1000 - t0) / T; if (p >= 1) { t0 += T; if (ritim === 'af') T = 60 / (80 + Math.random() * 70); p = (now / 1000 - t0) / T; } return Math.max(0, Math.min(.999, p)); };
+  const h = kanca(now => {
+    const p = RM.matches ? .3 : faz(now);
+    const a = ritim === 'af' ? .015 * Math.sin(now / 38) : (p < .12 ? Math.sin(Math.PI * p / .12) : 0);
+    const v = p >= .16 && p < .5 ? Math.sin(Math.PI * (p - .16) / .34) : 0;
+    atr.forEach(o => olcekle(o, 1 - .07 * a));
+    ven.forEach(o => olcekle(o, 1 - .085 * v, 1 - .06 * v, 1 - .085 * v));
+    const sistol = p >= .16 && p < .5;
+    avL.forEach(o => olcekle(o, sistol ? 1 : .72));
+    slL.forEach(o => olcekle(o, sistol ? .7 : 1));
+    ekgCiz(p, ritim, p < sonFaz); sonFaz = p;
+    return true;
+  });
+  L.FRAME_HOOKS.add(h); L.need();
+  A.anim = { ad: 'kalp', dur: () => { L.FRAME_HOOKS.delete(h); olcekGeri([...atr, ...ven, ...avL, ...slL]); } };
+  bilgi('Atriyumlar kasılır (P dalgası), sonra ventriküller (QRS). Ventrikül sistolünde atriyoventriküler kapaklar kapanır (S1), aort ve pulmoner kapaklar açılır; diyastolde tersi olur (S2).' + (ritim === 'af' ? ' AF’de atriyumlar düzenli kasılmaz, titrer; ventrikül yanıtı düzensizdir.' : ''), R.ad);
+  ciz();
+}
+/* EKG şeridi: model köşesinde, atımla eşzamanlı */
+function ekgAc(etiket) {
+  ekgKapat();
+  const k = D.createElement('div'); k.className = 'ax-ekg'; k.setAttribute('aria-hidden', 'true');
+  k.innerHTML = '<span>' + esc(etiket) + '</span><canvas width="300" height="74"></canvas>'; $('#vp').appendChild(k);
+  A.ekg = { k, c: k.querySelector('canvas'), x: 0, y: 37, hist: [] };
+}
+function ekgKapat() { if (A.ekg) { A.ekg.k.remove(); A.ekg = null; } }
+function ekgDeger(p, ritim) {
+  const g = (m, s, a) => a * Math.exp(-Math.pow((p - m) / s, 2));
+  let y = 0;
+  if (ritim !== 'af') y += g(.07, .022, 7); else y += 1.6 * Math.sin(p * 90) * .6;
+  y += g(.155, .006, -6) + g(.17, .009, 34) + g(.185, .007, -9) + g(.42, .045, 9);
+  return y;
+}
+function ekgCiz(p, ritim) {
+  const E = A.ekg; if (!E) return; const c = E.c, x = c.getContext('2d'), w = c.width, h = c.height;
+  const nx = (E.x + 2) % w, y = h / 2 + 8 - ekgDeger(p, ritim);
+  x.fillStyle = '#06130E'; x.fillRect(nx, 0, 12, h);
+  x.strokeStyle = '#3BE38A'; x.lineWidth = 2; x.beginPath(); x.moveTo(nx < E.x ? 0 : E.x, nx < E.x ? y : E.y); x.lineTo(nx, y); x.stroke();
+  E.x = nx; E.y = y;
+}
+/* kanı takip et */
+const KAN = [
+  { y: ['Superior vena cava', 'Inferior vena cava (thoracic part)'], t: 'Vena kavalar', d: 'Vücuttan dönen oksijeni az kan sağ atriyuma gelir.', renk: '#7FA8FF' },
+  { y: 'Right atrium', t: 'Sağ atriyum', d: 'Kan burada toplanır.', renk: '#7FA8FF' },
+  { y: ['Septal leaflet of right atrioventricular valve', 'Inferior leaflet of right atrioventricular valve'], t: 'Triküspit kapak', d: 'Diyastolde açılır, kan sağ ventriküle geçer.', renk: '#7FA8FF' },
+  { y: 'Right ventricle', t: 'Sağ ventrikül', d: 'Kasılınca kanı pulmoner kapaktan iter.', renk: '#7FA8FF' },
+  { y: ['Anterior semilunar leaflet of pulmonary valve', 'Left semilunar leaflet of pulmonary valve', 'Right semilunar leaflet of pulmonary valve'], t: 'Pulmoner kapak', d: 'Sistolde açılır.', renk: '#7FA8FF' },
+  { y: 'Pulmonary trunk', t: 'Pulmoner gövde', d: 'Kan akciğerlere gider; alveollerde oksijen alır.', renk: '#7FA8FF' },
+  { y: ['Right superior pulmonary vein', 'Right inferior pulmonary vein', 'Left superior pulmonary vein', 'Left inferior pulmonary vein'], t: 'Pulmoner venler', d: 'Oksijenlenmiş kan sol atriyuma döner.', renk: '#FF7A6B' },
+  { y: 'Left atrium', t: 'Sol atriyum', d: 'Temiz kan burada toplanır.', renk: '#FF7A6B' },
+  { y: 'Posterior leaflet of left atrioventricular valve', t: 'Mitral kapak', d: 'Diyastolde açılır.', renk: '#FF7A6B' },
+  { y: 'Left ventricle', t: 'Sol ventrikül', d: 'En güçlü boşluk: kanı bütün vücuda pompalar.', renk: '#FF7A6B' },
+  { y: ['Left coronary leaflet', 'Non-coronary leaflet', 'Right coronary leaflet'], t: 'Aort kapağı', d: 'Sistolde açılır; arkasındaki sinüslerden koronerler çıkar.', renk: '#FF7A6B' },
+  { y: ['Ascending aorta', 'Aortic arch'], t: 'Aort', d: 'Kan bütün vücuda dağılır.', renk: '#FF7A6B' }
+];
+/* ---- beyin: loblar, işlev, yollar, Willis ---- */
+const LOB = {
+  frontal: { ad: 'Frontal lob', renk: '#3E7BFA', r: /frontal|Precentral|Orbital gyri|Straight gyrus|Paracentral|frontopolar/i, d: 'Planlama, karar, istemli hareket (precentral girus) ve konuşma üretimi (Broca).' },
+  parietal: { ad: 'Parietal lob', renk: '#E0A21B', r: /Postcentral|Supramarginal|Angular|parietal|Precuneus/i, d: 'Duyu (postcentral girus), mekânsal algı ve okuma-yazma (angular girus).' },
+  temporal: { ad: 'Temporal lob', renk: '#2E9C5B', r: /temporal|Temporal pole|occipitotemporal|Hippocampus|Amygdal/i, d: 'İşitme, dili anlama (Wernicke), bellek (hipokampus).' },
+  oksipital: { ad: 'Oksipital lob', renk: '#C44BB0', r: /occipital|Lingual|Cuneus|Occipital pole/i, d: 'Görme.' },
+  limbik: { ad: 'Limbik ve insula', renk: '#E0705A', r: /Cingulate|Insula/i, d: 'Duygu, motivasyon, iç organ duyusu.' }
+};
+const ISLEV = [['Precentral gyrus', 'Motor korteks', 'İstemli hareket; karşı taraf'], ['Postcentral gyrus', 'Duyu korteksi', 'Dokunma, ağrı, pozisyon'], ['Opercular part of inferior frontal gyrus', 'Broca alanı', 'Konuşma üretimi (sol)'], ['Superior temporal gyrus (Lateral part)', 'İşitme ve Wernicke', 'Dili anlama (sol, arka)'], ['Lingual gyrus', 'Görme korteksi', 'Görme alanı (karşı taraf)'], ['Hippocampus', 'Hipokampus', 'Yeni bellek']];
+const INME = {
+  mca: { ad: 'Orta serebral arter (MCA)', a: ['Middle cerebral artery (M1-segment)', 'Middle cerebral artery (M3-segment)', 'Insular branches of middle cerebral artery (M2)'], r: /Precentral|Postcentral|inferior frontal|Middle frontal|Supramarginal|Angular|Superior temporal|Middle temporal|Insula/i, d: 'Karşı tarafta yüz ve kolda belirgin güçsüzlük ve duyu kaybı; sol yarıkürede afazi, sağda ihmal.' },
+  aca: { ad: 'Anterior serebral arter (ACA)', a: ['Anterior cerebral artery', 'Anterior communicating artery'], r: /Superior frontal|Paracentral|Cingulate|Precuneus|Straight gyrus|frontopolar/i, d: 'Karşı tarafta bacakta belirgin güçsüzlük; davranış değişikliği ve idrar kaçırma.' },
+  pca: { ad: 'Posterior serebral arter (PCA)', a: ['Posterior cerebral artery', 'Basilar artery'], r: /occipital|Lingual|Cuneus|Occipital pole|occipitotemporal/i, d: 'Karşı tarafta homonim hemianopsi (makula korunabilir); bellek bozukluğu.' }
+};
+async function beyinHazir() { await yukle(['sinir']); st.layers.sinir.on = true; L.renderLayers(); return L.meshesAll.filter(m => m.userData.sys === 'sinir' && /gyrus|Gyrus|pole|Insula|Cuneus|Precuneus|lobule|Hippocampus/.test(m.name)); }
+async function loblar() {
+  animDur(); const gy = await beyinHazir(); if (!gy.length) return;
+  Object.values(LOB).forEach(l => renkVer(gy.filter(m => l.r.test(m.name)), l.renk));
+  hayalet(gy, 'Sistem: beyin lobları'); cerceve(gy, 1.15);
+  bilgi(Object.values(LOB).map(l => '<i class="ax-nokta" style="background:' + l.renk + '"></i><b>' + esc(l.ad) + ':</b> ' + esc(l.d)).join('<br>'), 'Beyin lobları');
+  A.anim = { ad: 'lob', dur: () => {} }; ciz();
+}
+async function inmeAlani(k) {
+  animDur(); const gy = await beyinHazir(); await yukle(['damar']); const I = INME[k];
+  const art = I.a.flatMap(n => bul(n)), alan = gy.filter(m => I.r.test(m.name) && (m.userData.side === 'L' || !m.userData.side));
+  renkVer(alan, '#D9362B'); katmanAc(art); hayalet(gy.concat(art), 'Sistem: inme alanı'); vurgu(art, '#FF5A4A'); cerceve(gy, 1.15);
+  bilgi('<b>' + esc(I.ad) + ' tıkanırsa (sol yarıküre):</b> ' + esc(I.d), 'İnme alanı');
+  A.anim = { ad: 'inme', dur: () => vurgu(null) }; ciz();
+}
+const MOTOR = [{ y: 'Precentral gyrus', t: 'Motor korteks', d: 'Hareket emri precentral girustaki üst motor nöronlarda başlar.' }, { y: 'Midbrain', t: 'Orta beyin (serebral pedinkül)', d: 'Lifler iç kapsülden geçip beyin sapına iner.' }, { y: 'Pons', t: 'Pons', d: 'Lifler pons içinde demetler hâlinde ilerler.' },
+  { y: 'Pyramid of medulla oblongata', t: 'Medulla piramidi', d: 'Liflerin %85–90’ı burada karşı tarafa çaprazlaşır: bu yüzden sol beyin sağ vücudu yönetir.' }, { y: 'Lateral corticospinal tract', t: 'Lateral kortikospinal yol', d: 'Omurilikte karşı tarafın yan kolonunda iner.' },
+  { y: 'Anterior horn of spinal cord', t: 'Ön boynuz', d: 'Alt motor nöronla sinaps; buradan sonrası alt motor nörondur.' }, { y: 'Anterior root of spinal nerve', t: 'Ön kök', d: 'Motor lifler omurilikten çıkar.' }, { y: 'Sciatic nerve', t: 'Periferik sinir', d: 'Emir kasa ulaşır.' }];
+const DUYU = [{ y: 'Sciatic nerve', t: 'Periferik sinir', d: 'Ağrı ve ısı bilgisi duyu liflerinde yükselir.' }, { y: 'Posterior root of spinal nerve', t: 'Arka kök', d: 'Hücre gövdesi arka kök ganglionundadır.' }, { y: 'Posterior horn of spinal cord', t: 'Arka boynuz', d: 'İkinci nöronla sinaps; lif hemen karşı tarafa geçer.' },
+  { y: 'Lateral spinothalamic tract', t: 'Lateral spinotalamik yol', d: 'Karşı tarafta yükselir: omurilik yarı kesisinde ağrı-ısı kaybı karşı taraftadır.' }, { y: 'Thalamus', t: 'Talamus', d: 'Üçüncü nöron; duyu kortekse aktarılır.' }, { y: 'Postcentral gyrus', t: 'Duyu korteksi', d: 'Bilinçli algı.' }];
+/* ---- solunum: soluk alıp verme ---- */
+async function nefes(hiz) {
+  animDur(); await yukle(['organ']);
+  const ak = ['Superior lobe of right lung', 'Middle lobe of right lung', 'Inferior lobe of right lung', 'Superior lobe of left lung', 'Inferior lobe of left lung', 'Pleura'].flatMap(n => bul(n));
+  const dy = bul('Diaphragm'), tr = bul('Trachea');
+  katmanAc(ak.concat(tr)); hayalet(ak.concat(dy, tr), 'Sistem: solunum'); cerceve(ak, 1.35);
+  const merkez = L.sphereOf(ak).center, akO = olcekHazir(ak), dyO = olcekHazir(dy), T = 60 / (hiz || 14), t0 = performance.now() / 1000;
+  const h = kanca(now => {
+    const p = RM.matches ? .35 : ((now / 1000 - t0) % T) / T, b = p < .4 ? Math.sin(Math.PI / 2 * p / .4) : Math.cos(Math.PI / 2 * (p - .4) / .6);
+    akO.forEach(o => olcekle(o, 1 + .04 * b, 1 + .03 * b, 1 + .045 * b, merkez));
+    dyO.forEach(o => { o.m.scale.copy(o.s0); o.m.position.set(o.p0.x, o.p0.y - .022 * b, o.p0.z); });
+    return true;
+  });
+  L.FRAME_HOOKS.add(h); L.need();
+  A.anim = { ad: 'nefes', dur: () => { L.FRAME_HOOKS.delete(h); olcekGeri([...akO, ...dyO]); } };
+  bilgi('Soluk alırken diyafram kasılıp aşağı iner, dış interkostal kaslar kaburgaları kaldırır; göğüs hacmi artar, basınç düşer ve hava girer. Soluk verme istirahatte pasiftir: akciğerin elastik geri çekilmesi.' + (hiz > 20 ? ' Takipnede (' + hiz + '/dk) solunum işi artar.' : ''), 'Soluk alıp verme · ' + (hiz || 14) + '/dk');
+  ciz();
+}
+const HAVA = [{ y: 'Mucosa of nasal cavity', t: 'Burun boşluğu', d: 'Hava ısınır, nemlenir, süzülür.' }, { y: 'Nasopharynx', t: 'Nazofarenks', d: '' }, { y: 'Oropharynx', t: 'Orofarenks', d: 'Yutma ve solunum yolu kesişir.' }, { y: 'Epiglottis', t: 'Epiglot', d: 'Yutarken larinksi kapatır, solurken açıktır.' },
+  { y: ['Thyroid cartilage', 'Cricoid cartilage'], t: 'Larinks', d: 'Ses telleri; havayolunun en dar yeri (erişkinde glottis).' }, { y: 'Trachea', t: 'Trakea', d: 'Karinada sağ ve sol ana bronşa ayrılır; sağ bronş daha dik ve geniştir.' },
+  { y: ['Superior lobe of right lung', 'Middle lobe of right lung', 'Inferior lobe of right lung'], t: 'Sağ akciğer (3 lob)', d: '' }, { y: ['Superior lobe of left lung', 'Inferior lobe of left lung'], t: 'Sol akciğer (2 lob)', d: 'Alveollerde gaz değişimi: O₂ kana, CO₂ havaya.' }];
+/* ---- sindirim: peristaltizm ve besinin yolu ---- */
+const GIS = [{ y: 'Tongue', t: 'Ağız ve dil', d: 'Çiğneme; tükürük amilazı nişastayı parçalamaya başlar.' }, { y: 'Oropharynx', t: 'Yutak', d: 'Yutma refleksi; epiglot havayolunu kapatır.' }, { y: 'Laryngopharynx', t: 'Özofagusa giriş', d: 'Özofagus peristaltizmle lokmayı mideye iletir (modelde özofagus yok).' },
+  { y: 'Stomach', t: 'Mide', d: 'Asit ve pepsin; kimus oluşur.' }, { y: 'Duodenum', t: 'Duodenum', d: 'Safra yağı emülsiyonlar, pankreas enzimleri sindirimi tamamlar.' }, { y: ['Vermiform appendix', 'Ascending colon'], t: 'Çekum ve çıkan kolon', d: 'İnce bağırsakta besin emilir; kolonda su emilimi başlar.' },
+  { y: 'Transverse colon', t: 'Transvers kolon', d: '' }, { y: 'Descending colon', t: 'İnen kolon', d: '' }, { y: 'Sigmoid colon', t: 'Sigmoid kolon', d: 'Dışkı rektumda depolanır.' }];
+async function peristaltizm() {
+  animDur(); await yukle(['organ']);
+  const sira = GIS.map(a => [].concat(a.y).flatMap(n => bul(n))), tum = sira.flat(), O = sira.map(ms => olcekHazir(ms));
+  katmanAc(tum); hayalet(tum.concat(bul('Liver'), bul('Pancreas'), bul('Gallbladder')), 'Sistem: sindirim'); cerceve(tum, 1.3);
+  const T = 7, t0 = performance.now() / 1000, n = O.length;
+  const h = kanca(now => {
+    const u = RM.matches ? 0 : ((now / 1000 - t0) % T) / T;
+    O.forEach((L0, k) => { const w = Math.max(0, Math.sin(2 * Math.PI * (u - k / n))); L0.forEach(o => olcekle(o, 1 - .05 * Math.pow(w, 3))); });
+    return true;
+  });
+  L.FRAME_HOOKS.add(h); L.need();
+  A.anim = { ad: 'peristaltizm', dur: () => { L.FRAME_HOOKS.delete(h); O.forEach(olcekGeri); } };
+  bilgi('Düz kasın halka biçimli kasılma dalgası (peristaltizm) içeriği ağızdan anüse doğru iter. Mideden sonra her bölüm hem sindirir hem emer; kolon suyu geri alır.', 'Peristaltizm');
+  ciz();
+}
+const SEGMENT = { 'Posterior segment of liver (I)': '#8E5CC9', 'Left posterior lateral segment of liver (II)': '#3E7BFA', 'Left anterior lateral segment of liver (III)': '#2EA0D6', 'Left medial segment of liver (IV)': '#2E9C5B', 'Anterior medial segment of liver (V)': '#E0A21B', 'Anterior lateral segment of liver (VI)': '#E0705A', 'Posterior lateral segment of liver (VII)': '#C44BB0', 'Posterior medial segment of liver (VIII)': '#D9362B' };
+async function karacigerSegment() {
+  animDur(); await yukle(['organ']); const ms = [];
+  Object.entries(SEGMENT).forEach(([n, c]) => { const x = bul(n); renkVer(x, c); ms.push(...x); });
+  const lv = bul('Liver'); lv.forEach(m => st.hidden.add(m.name));
+  katmanAc(ms); hayalet(ms.concat(bul('Gallbladder'), bul('Hepatic portal vein')), 'Sistem: karaciğer'); cerceve(ms, 1.3);
+  bilgi('Couinaud sınıflaması karaciğeri portal ven ve hepatik ven dallarına göre 8 segmente ayırır; cerrahi rezeksiyon segment sınırlarına göre yapılır. I kaudat lob, II–III sol lateral, IV sol medial, V–VIII sağ lob.', 'Karaciğer segmentleri');
+  A.anim = { ad: 'segment', dur: () => { lv.forEach(m => st.hidden.delete(m.name)); L.applyVis(); } }; ciz();
+}
+/* ---- böbrek ---- */
+const IDRAR = [{ y: ['Left renal artery', 'Right renal artery'], t: 'Böbrek arterleri', d: 'Kalp debisinin yaklaşık beşte biri böbreklere gelir.', renk: '#FF7A6B' }, { y: 'Kidney', t: 'Böbrek (nefronlar)', d: 'Her böbrekte yaklaşık bir milyon nefron kanı süzer.' },
+  { y: 'Renal pelvis', t: 'Böbrek pelvisi', d: 'İdrar kalikslerden pelviste toplanır.' }, { y: 'Urinary bladder', t: 'Üreter → mesane', d: 'Üreter peristaltizmle idrarı mesaneye taşır (modelde üreter yok); mesane depolar.' }, { y: 'Prostate', t: 'Üretra (erkekte prostat içinden)', d: 'İşeme refleksi: detrüsör kasılır, sfinkterler gevşer.' }];
+const NEFRON_SVG = '<svg class="ax-nefron" viewBox="0 0 320 170" role="img" aria-label="Nefronda süzme, geri emilim ve salgı">' +
+  '<path id="axNf" d="M40 40 C70 20 90 60 110 40 C130 20 150 40 150 60 L150 140 C150 160 180 160 180 140 L180 60 C180 30 220 30 230 50 C240 70 260 60 270 40 L270 150" fill="none" stroke="#C9B9E9" stroke-width="10" stroke-linecap="round"/>' +
+  '<circle cx="40" cy="40" r="20" fill="#F6C7C1" stroke="#C42232" stroke-width="3"/><text x="40" y="78" text-anchor="middle" font-size="10" fill="#46506A">glomerül</text>' +
+  '<text x="96" y="16" font-size="10" fill="#46506A">proksimal tübül</text><text x="112" y="166" font-size="10" fill="#46506A">Henle kulpu</text><text x="196" y="26" font-size="10" fill="#46506A">distal tübül</text><text x="276" y="160" font-size="10" fill="#46506A">toplayıcı</text>' +
+  '<g class="ax-nf-dot"><circle r="4" fill="#7A4FA8"><animateMotion dur="5s" repeatCount="indefinite"><mpath href="#axNf"/></animateMotion></circle><circle r="4" fill="#7A4FA8"><animateMotion dur="5s" begin="1.6s" repeatCount="indefinite"><mpath href="#axNf"/></animateMotion></circle><circle r="4" fill="#7A4FA8"><animateMotion dur="5s" begin="3.2s" repeatCount="indefinite"><mpath href="#axNf"/></animateMotion></circle></g></svg>' +
+  '<ul class="ax-mini-l"><li><b>Glomerül:</b> kan süzülür (günde ~180 L); protein ve hücre geçmez.</li><li><b>Proksimal tübül:</b> glukoz, aminoasit ve sodyumun çoğu geri emilir.</li><li><b>Henle kulpu:</b> medullada yoğunlaştırma; loop diüretikleri burada etkili.</li><li><b>Distal tübül ve toplayıcı:</b> aldosteron (Na↑ K↓) ve ADH (su) ince ayarı.</li></ul>';
+/* ---- endokrin eksenleri ---- */
+const EKSEN = {
+  hpt: { ad: 'Hipotalamus–hipofiz–tiroit', y: [['Hypothalamus', 'Hipotalamus', 'TRH'], ['Adenohypophysis', 'Ön hipofiz', 'TSH'], ['Thyroid gland', 'Tiroit', 'T4/T3']], geri: 'T4 ve T3 hem hipotalamusu hem hipofizi baskılar. Primer hipotiroidide T4 düşer, TSH yükselir.' },
+  hpa: { ad: 'Hipotalamus–hipofiz–adrenal', y: [['Hypothalamus', 'Hipotalamus', 'CRH'], ['Adenohypophysis', 'Ön hipofiz', 'ACTH'], ['Suprarenal gland', 'Böbreküstü korteksi', 'Kortizol']], geri: 'Kortizol CRH ve ACTH’yi baskılar. Uzun süre kortizon kullanan hastada eksen baskılanır; ilaç birden kesilirse adrenal kriz gelişebilir.' },
+  hpg: { ad: 'Hipotalamus–hipofiz–gonad', y: [['Hypothalamus', 'Hipotalamus', 'GnRH'], ['Adenohypophysis', 'Ön hipofiz', 'FSH, LH'], ['Testis', 'Testis', 'Testosteron']], geri: 'Testosteron GnRH ve LH’yi baskılar. Dışarıdan anabolik steroid kullanımı testisleri küçültür.' },
+  pth: { ad: 'Paratiroit–kalsiyum', y: [['Superior parathyroid gland', 'Paratiroitler', 'PTH'], ['Kidney', 'Böbrek', 'Aktif D vitamini, Ca geri emilimi'], ['sid:femur', 'Kemik', 'Ca serbestleşir']], geri: 'Yükselen kalsiyum PTH salgısını baskılar. Primer hiperparatiroidide bu baskı kalkar: Ca ve PTH birlikte yüksektir.' },
+  ins: { ad: 'Pankreas–karaciğer', y: [['Pancreas', 'Pankreas adacıkları', 'İnsülin / glukagon'], ['Liver', 'Karaciğer', 'Glikojen depolar ya da glukoz üretir']], geri: 'Kan şekeri yükselince insülin, düşünce glukagon salınır. Tip 1 diyabette insülin yoktur: karaciğer keton üretir.' }
+};
+function eksenSvg(E) {
+  const n = E.y.length, w = 300, xs = E.y.map((_, i) => 24 + i * ((w - 48) / Math.max(1, n - 1)));
+  return '<svg class="ax-eksen" viewBox="0 0 300 120" role="img" aria-label="' + esc(E.ad) + ' ekseni">' + E.y.map((y, i) => '<g><circle cx="' + xs[i] + '" cy="40" r="20" fill="#FBE4EE" stroke="#D6457A" stroke-width="3"/><text x="' + xs[i] + '" y="44" text-anchor="middle" font-size="9" font-weight="700" fill="#0D1838">' + esc(y[1].split(' ')[0]) + '</text><text x="' + xs[i] + '" y="76" text-anchor="middle" font-size="9" fill="#46506A">' + esc(y[2]) + '</text></g>' + (i < n - 1 ? '<path class="ax-ok" d="M' + (xs[i] + 22) + ' 40 H' + (xs[i + 1] - 24) + '" stroke="#D6457A" stroke-width="3" marker-end="url(#axOk)"/>' : '')).join('') +
+    '<path class="ax-geri" d="M' + xs[n - 1] + ' 62 C' + xs[n - 1] + ' 110 ' + xs[0] + ' 110 ' + xs[0] + ' 62" fill="none" stroke="#2E5C9E" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#axOk2)"/><text x="150" y="114" text-anchor="middle" font-size="9" fill="#2E5C9E">negatif geri bildirim</text>' +
+    '<defs><marker id="axOk" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#D6457A"/></marker><marker id="axOk2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2E5C9E"/></marker></defs></svg>';
+}
+/* ---- kas-iskelet: patella refleksi ---- */
+const REFLEKS = [{ y: 'sid:patella', t: 'Patellar tendona vurulur', d: 'Kuadriseps aniden gerilir.' }, { y: 'sid:quadriceps', t: 'Kas iğciği', d: 'Gerilmeyi algılayan reseptör Ia liflerini uyarır.' }, { y: 'Femoral nerve', t: 'Femoral sinir (duyu lifi)', d: 'Uyarı L3–L4 köklerine taşınır.' },
+  { y: 'Posterior root of spinal nerve', t: 'Arka kök', d: '' }, { y: 'Anterior horn of spinal cord', t: 'Ön boynuz', d: 'Tek sinapslı refleks: alfa motor nöron uyarılır.' }, { y: 'Femoral nerve', t: 'Femoral sinir (motor lif)', d: '' }, { y: 'sid:quadriceps', t: 'Kuadriseps kasılır', d: 'Diz düzelir. Refleks yokluğu alt motor nöron, artışı üst motor nöron lezyonu düşündürür.' }];
+
+/* =========================== MEDICA VAKASI: yapıları bul =========================== */
+function cepYukle(sis) {
+  return new Promise(res => {
+    const ekle = (src, f) => { const s = D.createElement('script'); s.src = src; s.onload = f; s.onerror = f; D.head.appendChild(s); };
+    if (W.AXCEP && W.AXCEP.liste(sis).length) return res(W.AXCEP);
+    ekle('../klinik/cep/cep.js', () => ekle('../klinik/cep/' + sis + '.js', () => res(W.AXCEP || null)));
+  });
+}
+async function gorevBaslat(baslik, adimlar, ex, bitince) {
+  gorevDur(); animDur();
+  for (const a of adimlar) { a.ms = await bulYukle(a.ad); }
+  const tum = adimlar.flatMap(a => a.ms); katmanAc(tum);
+  st.peel = 0; L.applyVis();
+  A.gorev = { baslik, adimlar, ex, i: 0, kacan: 0, hata: 0, bitince };
+  gorevCiz(); cerceve(solTaraf(adimlar[0].ms).concat(...adimlar.slice(1).map(a => solTaraf(a.ms))), 1.9);
+}
+function gorevDur() { A.gorev = null; const el = $('#axGorev'); if (el) el.remove(); }
+function gorevCiz(fb) {
+  const G = A.gorev; if (!G) return; let el = $('#axGorev');
+  if (!el) { el = D.createElement('div'); el.id = 'axGorev'; el.className = 'ax-gorev'; el.setAttribute('role', 'region'); el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-label', 'Vaka görevi'); $('#vp').appendChild(el); }
+  if (G.i >= G.adimlar.length) {
+    const puan = Math.max(0, 100 - 12 * G.hata - 4 * G.kacan);
+    el.innerHTML = '<span class="k">görev tamam · ' + puan + ' puan</span><h3>' + esc(G.baslik) + '</h3><p>' + esc(G.ex || '') + '</p><div class="row"><button class="btn sm pri" data-gv="kapat">Kapat</button></div>';
+    if (G.bitince) G.bitince(puan); return;
+  }
+  const a = G.adimlar[G.i];
+  el.innerHTML = '<div class="cs-h"><span class="k">' + esc(G.baslik) + '</span><button class="x" data-gv="kapat" aria-label="Görevi kapat">×</button></div>' +
+    '<ol>' + G.adimlar.map((x, i) => '<li class="' + (i < G.i ? 'd' : i === G.i ? 'c' : '') + '">' + (i < G.i ? '<b>' + esc(x.tr || x.gorev) + '</b>' : esc(x.gorev)) + '</li>').join('') + '</ol>' +
+    '<p class="ask2"><b>Modelde dokun:</b> ' + esc(a.gorev) + '</p>' + (G.kacan >= 2 && a.ipucu ? '<p class="hint2">İpucu: ' + esc(a.ipucu) + '</p>' : '') + (fb ? '<p class="fb2 ' + (fb.ok ? 'ok' : 'bad') + '">' + esc(fb.t) + '</p>' : '') +
+    '<div class="row"><button class="btn sm" data-gv="goster">Göster (puan düşer)</button></div>';
+}
+D.addEventListener('click', e => {
+  const b = e.target.closest('[data-gv]'); if (!b) return;
+  if (b.dataset.gv === 'kapat') { gorevDur(); hayalet(null); vurgu(null); }
+  if (b.dataset.gv === 'goster' && A.gorev) { const a = A.gorev.adimlar[A.gorev.i]; if (a.ms.length) { katmanAc(a.ms); L.selectMesh(solTaraf(a.ms)[0]); L.pulse(); cerceve(solTaraf(a.ms), 2.2); } A.gorev.hata++; A.gorev.i++; A.gorev.kacan = 0; gorevCiz({ ok: false, t: 'Gösterildi: ' + (a.tr || a.ad) }); }
+});
+function gorevTik(h) {
+  const G = A.gorev; if (!G || G.i >= G.adimlar.length) return false;
+  const a = G.adimlar[G.i]; if (!h) return true;
+  if (eslesir(h.mesh, a.ad)) { L.selectMesh(h.mesh, { point: h.point }); L.pulse(); G.i++; G.kacan = 0; tekrarKaydet(a.ad, G.sis || A.sis, true); gorevCiz({ ok: true, t: 'Doğru: ' + (a.tr || L.nameTR(h.mesh)) }); }
+  else { G.kacan++; G.hata += G.kacan >= 3 ? 1 : 0; gorevCiz({ ok: false, t: 'Bu ' + L.nameTR(h.mesh) + '. ' + (G.kacan >= 2 ? 'İpucuna bak.' : 'Tekrar dene.') }); }
+  return true;
+}
+
+/* =========================== RADYOLOJİ: kesit ↔ görüntü =========================== */
+const RAD = { on: false, bt: true, soru: null, puan: 0, n: 0, saved: null };
+const ARALIK = { x: [-.3, .3], y: [.02, 1.72], z: [-.14, .16] };
+function radyolojiAc() {
+  if (RAD.on) return; RAD.on = true;
+  RAD.saved = { up: L.camera.up.clone(), bg: L.scene.background, clip: Object.assign({}, st.clip), lay: JSON.parse(JSON.stringify(st.layers)), peel: st.peel };
+  ['iskelet', 'kas', 'organ', 'damar', 'sinir'].forEach(k => { if (st.layers[k]) { st.layers[k].on = !!(k === 'iskelet' || k === 'kas' || L.loaded[k]); st.layers[k].op = 1; } }); L.renderLayers();
+  st.peel = 0; btUygula();
+}
+function btUygula() { const c = L.renderer.domElement; c.style.filter = RAD.on && RAD.bt ? 'grayscale(1) contrast(1.45) brightness(1.08)' : ''; L.scene.background = RAD.on && RAD.bt ? new THREE.Color('#05070A') : (RAD.saved ? RAD.saved.bg : L.scene.background); L.need(); }
+function radyolojiKapat() {
+  if (!RAD.on) return; RAD.on = false; RAD.soru = null; const s = RAD.saved;
+  L.renderer.domElement.style.filter = ''; L.scene.background = s.bg; L.camera.up.copy(s.up); L.controls.enabled = true;
+  Object.assign(st.clip, s.clip); const cb = $('#clipOn'); if (cb) cb.checked = st.clip.on; L.setSides(); L.clipUI();
+  Object.keys(s.lay).forEach(k => Object.assign(st.layers[k], s.lay[k])); L.renderLayers(); st.peel = s.peel; L.applyVis(); L.renderStates(); L.HOME();
+}
+/* düzlem: aksiyel (ayak tarafından bakış, hastanın sağı ekranın solunda), koronal (önden), sagital (soldan) */
+function kesitKur(ax, c) {
+  const rng = ARALIK[ax], v = Math.max(-100, Math.min(100, ((ax === 'x' ? c.x : ax === 'y' ? c.y : c.z) - rng[0]) / (rng[1] - rng[0]) * 200 - 100));
+  st.clip.on = true; st.clip.ax = ax; st.clip.v = v; st.clip.flip = ax === 'y'; const cb = $('#clipOn'); if (cb) cb.checked = true; const cv = $('#clipV'); if (cv) cv.value = Math.round(v);
+  L.setSides(); L.clipUI(); L.renderStates();
+  L.kameraTut(); const d = .62, cam = L.camera, tgt = c.clone();
+  if (ax === 'y') { cam.up.set(0, 0, 1); cam.position.set(c.x, c.y - d, c.z + .0001); }
+  else if (ax === 'z') { cam.up.set(0, 1, 0); cam.position.set(c.x, c.y, c.z + d); st.clip.flip = false; }
+  else { cam.up.set(0, 1, 0); cam.position.set(c.x + d, c.y, c.z); st.clip.flip = true; }
+  L.controls.target.copy(tgt); cam.lookAt(tgt); cam.updateMatrixWorld(); L.controls.update(); L.need();
+}
+async function radyolojiSoru() {
+  radyolojiAc(); const S0 = SIS[A.sis]; await yukle(S0.yuk);
+  ['organ', 'damar', 'sinir'].forEach(k => { if (L.loaded[k]) st.layers[k].on = true; }); L.renderLayers(); L.applyVis();
+  const aday = []; for (const y of S0.yapi) { const ms = bul(y[0]); if (ms.length) aday.push({ y, ms }); }
+  if (!aday.length) return;
+  const h = aday[Math.floor(Math.random() * aday.length)], ms = solTaraf(h.ms), c = L.sphereOf(ms).center;
+  const ax = /gyrus|Corpus callosum|Thalamus|Hypothalamus|Midbrain|Pons|Medulla|hypophysis|Pineal/.test(h.y[0]) ? (Math.random() < .5 ? 'x' : 'z') : (Math.random() < .7 ? 'y' : 'z');
+  kesitKur(ax, c);
+  const tip = Math.random() < .5 ? 'bul' : 'ad';
+  RAD.soru = { tip, h, ax };
+  if (tip === 'ad') {
+    vurgu(ms, '#FFB547');
+    const yanlis = aday.filter(x => x !== h).sort(() => Math.random() - .5).slice(0, 3).map(x => x.y[1]);
+    RAD.soru.sec = [h.y[1], ...yanlis].sort(() => Math.random() - .5);
+  } else vurgu(null);
+  ciz();
+}
+function radCevap(ok, metin) {
+  RAD.n++; if (ok) RAD.puan++;
+  tekrarKaydet(RAD.soru.h.y[0], A.sis, ok);
+  RAD.soru.cevap = { ok, metin }; vurgu(solTaraf(RAD.soru.h.ms), ok ? '#3BE38A' : '#FF5A4A'); ciz();
+  if (W.__lab.MEDICA && RAD.n >= 6) L.medicaBildir({ vaka: 'radyoloji:' + A.sis, puan: Math.round(RAD.puan / RAD.n * 100) });
+}
+function radTik(h) {
+  if (!RAD.on || !RAD.soru || RAD.soru.tip !== 'bul' || RAD.soru.cevap) return false;
+  if (!h) return true;
+  const ok = eslesir(h.mesh, RAD.soru.h.y[0]);
+  radCevap(ok, ok ? 'Doğru: ' + RAD.soru.h.y[1] : 'Bu ' + L.nameTR(h.mesh) + '. Aradığın: ' + RAD.soru.h.y[1]);
+  return true;
+}
+
+/* =========================== DİSEKSİYON SALONU =========================== */
+const DIS = [
+  { ad: 'Yüzeyel kaslar', peel: 0, kat: { kas: 1, iskelet: 1 }, ly: 'kas', d: 'Deri ve yüzeyel fasya kaldırıldı; yüzeyel kas tabakası görünüyor.' },
+  { ad: 'Orta tabaka', peel: 40, kat: { kas: 1, iskelet: 1 }, ly: 'kas', d: 'Yüzeyel kaslar kaldırıldı; orta tabaka.' },
+  { ad: 'Derin kaslar', peel: 72, kat: { kas: 1, iskelet: 1 }, ly: 'kas', d: 'Kemiğe yakın derin kaslar.' },
+  { ad: 'Damar ve sinirler', peel: 100, kat: { iskelet: 1, damar: 1, sinir: 1 }, ly: ['damar', 'sinir'], d: 'Kaslar alındı; nörovasküler demetler ortaya çıktı.' },
+  { ad: 'İç organlar', peel: 100, kat: { iskelet: 1, organ: 1 }, ly: 'organ', d: 'Boşluklar açıldı; organlar yerinde.' }
+];
+const DS = { on: false, i: 0, soru: null, puan: 0, n: 0 };
+async function diseksiyonAdim(i) {
+  animDur(); radyolojiKapat(); DS.on = true; DS.i = i; const A0 = DIS[i], S0 = SIS[A.sis];
+  if (A0.kat.damar || A0.kat.sinir || A0.kat.organ) await yukle(['organ', 'damar', 'sinir'].filter(k => A0.kat[k]));
+  Object.keys(st.layers).forEach(k => { st.layers[k].on = !!A0.kat[k] && (k === 'iskelet' || k === 'kas' || L.loaded[k]); st.layers[k].op = 1; }); L.renderLayers();
+  const pe = $('#peel'); if (pe) { pe.value = A0.peel; pe.dispatchEvent(new Event('input', { bubbles: true })); } else { st.peel = A0.peel; }
+  hayalet(null); L.applyVis();
+  const od = []; for (const n of S0.odak) od.push(...await bulYukle(n));
+  const merkez = od.length ? L.sphereOf(od).center : new THREE.Vector3(0, 1, 0);
+  const ly = [].concat(A0.ly);
+  const aday = L.meshesAll.filter(m => m.visible && ly.includes(m.userData.layer) && m.material && !m.material.transparent && m.userData.sys !== 'insersiyo' && L.sphereOf([m]).center.distanceTo(merkez) < .3);
+  DS.aday = aday; if (od.length) cerceve(od, 2.2);
+  diseksiyonSoru(); ciz();
+}
+function diseksiyonSoru() {
+  const L0 = DS.aday || []; if (L0.length < 4) { DS.soru = null; return; }
+  const ad = new Map(); L0.forEach(m => { const n = L.nameTR(m); if (!ad.has(n)) ad.set(n, m); });
+  const ad2 = [...ad.entries()]; if (ad2.length < 4) { DS.soru = null; return; }
+  const sec = ad2.sort(() => Math.random() - .5).slice(0, 4), dogru = sec[0];
+  DS.soru = { m: dogru[1], dogru: dogru[0], sec: sec.map(x => x[0]).sort(() => Math.random() - .5) };
+  vurgu([dogru[1]], '#FFB547');
+}
+
+/* =========================== TEST VE ARALIKLI TEKRAR =========================== */
+const gun = 864e5;
+function tekrarKaydet(ad, sis, ok) {
+  const K = LS.get('kart', {}), k = K[ad] || { sis, int: 0, ef: 2.5, due: 0, n: 0, y: 0 };
+  k.n++; if (!ok) k.y++;
+  if (ok) { k.int = k.int < 1 ? 1 : k.int < 3 ? 3 : Math.round(k.int * k.ef); k.ef = Math.min(2.8, k.ef + .05); }
+  else { k.int = 0; k.ef = Math.max(1.3, k.ef - .2); }
+  k.due = Date.now() + (k.int || .02) * gun; k.sis = sis; K[ad] = k; LS.set('kart', K);
+}
+const vadesi = sis => { const K = LS.get('kart', {}); return Object.entries(K).filter(([, k]) => k.sis === sis && k.due <= Date.now()).map(([a]) => a); };
+const TS = { soru: null, n: 0, ok: 0 };
+async function testSoru() {
+  animDur(); radyolojiKapat(); const S0 = SIS[A.sis]; await yukle(S0.yuk);
+  const vade = vadesi(A.sis), havuz = S0.yapi.filter(y => bul(y[0]).length);
+  if (havuz.length < 4) return;
+  const y = (vade.length && Math.random() < .7 ? havuz.find(x => x[0] === vade[Math.floor(Math.random() * vade.length)]) : null) || havuz[Math.floor(Math.random() * havuz.length)];
+  const ms = solTaraf(bul(y[0])), tip = ['ad', 'bul', 'islev'][Math.floor(Math.random() * 3)];
+  katmanAc(ms); hayalet(null); L.select(null);
+  const yan = havuz.filter(x => x !== y).sort(() => Math.random() - .5).slice(0, 3);
+  TS.soru = { y, ms, tip, sec: tip === 'islev' ? [y, ...yan].sort(() => Math.random() - .5).map(x => x[2]) : [y, ...yan].sort(() => Math.random() - .5).map(x => x[1]) };
+  if (tip !== 'bul') { vurgu(ms, '#FFB547'); cerceve(ms, 2); } else { vurgu(null); cerceve(SIS[A.sis].odak.flatMap(n => bul(n)), 1.6); }
+  ciz();
+}
+function testCevap(ok) { TS.n++; if (ok) TS.ok++; tekrarKaydet(TS.soru.y[0], A.sis, ok); TS.soru.cevap = ok; vurgu(TS.soru.ms, ok ? '#3BE38A' : '#FF5A4A'); if (!ok) { const y = st.yanlis; if (Array.isArray(y) && TS.soru.y[0].startsWith('sid:')) { const sid = TS.soru.y[0].slice(4); if (!y.includes(sid)) { y.push(sid); L.LS.set('yanlis', y); } } } ciz(); }
+function testTik(h) {
+  if (!TS.soru || TS.soru.tip !== 'bul' || TS.soru.cevap != null) return false; if (!h) return true;
+  testCevap(eslesir(h.mesh, TS.soru.y[0])); if (!TS.soru.cevap) bilgi('Dokunduğun: ' + esc(L.nameTR(h.mesh)) + '. Aranan: ' + esc(TS.soru.y[1])); return true;
+}
+
+/* =========================== TIKLAMA KANCASI =========================== */
+W.__axTik = h => { if (st.mode !== 'sistem' && !A.gorev) return false; if (A.gorev) return gorevTik(h); if (A.sek === 'radyoloji') return radTik(h); if (A.sek === 'test') return testTik(h); return false; };
+
+/* =========================== PANEL =========================== */
+const MODUL_UI = {
+  kalp: () => '<h3>Kalp <span class="hn">atım ve dolaşım</span></h3><div class="ax-btns">' + Object.entries(RITIM).map(([k, r]) => '<button class="btn sm" data-a="atim" data-r="' + k + '">' + esc(r.ad) + '</button>').join('') + '<button class="btn sm pri" data-a="kan">Kanı takip et</button><button class="btn sm" data-a="koroner">Koronerler</button></div>',
+  beyin: () => '<h3>Beyin <span class="hn">loblar, yollar, inme</span></h3><div class="ax-btns"><button class="btn sm" data-a="lob">Lobları renklendir</button><button class="btn sm" data-a="islev">İşlev haritası</button><button class="btn sm pri" data-a="motor">Motor yol</button><button class="btn sm" data-a="duyu">Ağrı-ısı yolu</button></div><h3 style="margin-top:12px">Willis ve inme alanları</h3><div class="ax-btns">' + Object.entries(INME).map(([k, I]) => '<button class="btn sm" data-a="inme" data-k="' + k + '">' + esc(I.ad.split(' (')[0]) + '</button>').join('') + '<button class="btn sm" data-a="willis">Willis poligonu</button></div>',
+  solunum: () => '<h3>Solunum <span class="hn">mekanik ve yol</span></h3><div class="ax-btns"><button class="btn sm pri" data-a="nefes" data-h="14">Soluk alıp verme (14/dk)</button><button class="btn sm" data-a="nefes" data-h="30">Takipne (30/dk)</button><button class="btn sm" data-a="hava">Havanın yolu</button><button class="btn sm" data-a="gaz">Gaz değişimi</button></div>',
+  sindirim: () => '<h3>Sindirim <span class="hn">hareket ve bezler</span></h3><div class="ax-btns"><button class="btn sm pri" data-a="peri">Peristaltizm</button><button class="btn sm" data-a="besin">Besinin yolu</button><button class="btn sm" data-a="segment">Karaciğer segmentleri</button><button class="btn sm" data-a="bez">Sindirim bezleri</button></div>',
+  bobrek: () => '<h3>Böbrek ve idrar yolu</h3><div class="ax-btns"><button class="btn sm pri" data-a="idrar">İdrarın yolu</button><button class="btn sm" data-a="nefron">Nefron</button></div>' + (A.nefron ? NEFRON_SVG : ''),
+  endokrin: () => '<h3>Endokrin <span class="hn">hormon eksenleri</span></h3><div class="ax-btns">' + Object.entries(EKSEN).map(([k, E]) => '<button class="btn sm' + (A.eksen === k ? ' pri' : '') + '" data-a="eksen" data-k="' + k + '">' + esc(E.ad) + '</button>').join('') + '</div>' + (A.eksen ? eksenSvg(EKSEN[A.eksen]) + '<p class="mini">' + esc(EKSEN[A.eksen].geri) + '</p>' : ''),
+  kas: () => '<h3>Kas-iskelet <span class="hn">refleks ve hareket</span></h3><div class="ax-btns"><button class="btn sm pri" data-a="refleks">Patella refleks arkı</button><button class="btn sm" data-a="calis" data-s="quadriceps">Kuadrisepsi çalıştır</button><button class="btn sm" data-a="calis" data-s="biceps">Bicepsi çalıştır</button><button class="btn sm" data-a="calis" data-s="gastrocnemius">Baldırı çalıştır</button></div>',
+  bas: () => '<h3>Baş-boyun ve duyu <span class="hn">gezinti</span></h3><div class="ax-btns"><button class="btn sm pri" data-a="gez">Yapıları sırayla gez</button><button class="btn sm" data-a="hava">Havanın yolu</button></div>'
+};
+function ciz() {
+  const el = $('#sistemPane'); if (!el) return; const S0 = SIS[A.sis];
+  const vade = vadesi(A.sis).length;
+  let h = '<h3>Sistem seç <span class="hn">Medica ara katı</span></h3><div class="ax-sis">' + SIS_ID.map(k => '<button data-sis="' + k + '" aria-pressed="' + (k === A.sis) + '" style="--sc:' + SIS[k].renk + '"><b>' + SIS[k].etiket + '</b>' + esc(SIS[k].ad) + '</button>').join('') + '</div>' +
+    '<div class="seg2 ax-sek" role="tablist">' + [['modul', 'Modül'], ['radyoloji', 'Radyoloji'], ['diseksiyon', 'Diseksiyon'], ['test', 'Test' + (vade ? ' · ' + vade : '')]].map(([k, t]) => '<button role="tab" data-sek="' + k + '" aria-pressed="' + (A.sek === k) + '">' + t + '</button>').join('') + '</div>';
+  if (A.sek === 'modul') {
+    h += MODUL_UI[S0.modul]();
+    if (A.anim || A.yol) h += '<div class="row"><button class="btn sm" data-a="dur">Durdur</button></div>';
+    h += '<h3 style="margin-top:12px">Yapılar</h3><ul class="ax-yapi">' + S0.yapi.map(y => '<li><button data-git="' + esc(y[0]) + '"><b>' + esc(y[1]) + '</b><small>' + esc(y[2]) + '</small></button></li>').join('') + '</ul>';
+  } else if (A.sek === 'radyoloji') {
+    h += '<h3>Radyoloji odası <span class="hn">kesit ↔ görüntü</span></h3><p class="mini">Model, BT penceresinde kesite alınır. Aksiyel kesitte ayak tarafından bakarsın: hastanın sağı ekranın solundadır, ön taraf yukarıda.</p>' +
+      '<div class="ax-btns"><button class="btn sm pri" data-a="radyeni">' + (RAD.soru ? 'Sonraki kesit' : 'Kesite başla') + '</button><button class="btn sm" data-a="bt" aria-pressed="' + RAD.bt + '">' + (RAD.bt ? 'Anatomik renk' : 'BT penceresi') + '</button>' + (RAD.on ? '<button class="btn sm" data-a="radkapat">Odadan çık</button>' : '') + '</div>';
+    if (RAD.soru) {
+      const s = RAD.soru, dz = { x: 'sagital', y: 'aksiyel', z: 'koronal' }[s.ax];
+      h += '<div class="ax-soru"><span class="k">' + dz + ' kesit · ' + RAD.puan + '/' + RAD.n + '</span>' + (s.tip === 'bul' ? '<p><b>Bu kesitte bul:</b> ' + esc(s.h.y[1]) + '</p>' : '<p><b>İşaretli yapı hangisi?</b></p><div class="ax-sec">' + s.sec.map(x => '<button class="btn sm" data-radsec="' + esc(x) + '"' + (s.cevap ? ' disabled' : '') + '>' + esc(x) + '</button>').join('') + '</div>') +
+        (s.cevap ? '<p class="fb2 ' + (s.cevap.ok ? 'ok' : 'bad') + '">' + esc(s.cevap.metin) + '</p><p class="mini">' + esc(s.h.y[2]) + '</p>' : '') + '</div>';
+    }
+  } else if (A.sek === 'diseksiyon') {
+    h += '<h3>Diseksiyon salonu <span class="hn">katman katman</span></h3><p class="mini">' + esc(S0.ad) + ' bölgesinde yüzeyden derine in. Her katmanda işaretlenen yapıyı adlandır.</p><ol class="ax-dis">' + DIS.map((x, i) => '<li><button data-dis="' + i + '" aria-pressed="' + (DS.on && DS.i === i) + '">' + (i + 1) + '. ' + esc(x.ad) + '</button></li>').join('') + '</ol>';
+    if (DS.on) { h += '<p class="mini">' + esc(DIS[DS.i].d) + '</p>'; const s = DS.soru; if (s) h += '<div class="ax-soru"><span class="k">işaretli yapı · ' + DS.puan + '/' + DS.n + '</span><div class="ax-sec">' + s.sec.map(x => '<button class="btn sm" data-dissec="' + esc(x) + '"' + (s.cevap != null ? ' disabled' : '') + '>' + esc(x) + '</button>').join('') + '</div>' + (s.cevap != null ? '<p class="fb2 ' + (s.cevap ? 'ok' : 'bad') + '">' + (s.cevap ? 'Doğru' : 'Doğrusu: ' + esc(s.dogru)) + '</p><button class="btn sm pri" data-a="disyeni">Sonraki yapı</button>' + (DS.i < DIS.length - 1 ? ' <button class="btn sm" data-dis="' + (DS.i + 1) + '">Bir katman in →</button>' : '') : '') + '</div>'; else h += '<p class="mini">Bu katmanda bölgede yeterli ayrı yapı yok; bir sonraki katmana geç.</p>'; }
+  } else {
+    h += '<h3>Test ve tekrar <span class="hn">aralıklı tekrar</span></h3><p class="mini">' + (vade ? vade + ' yapının tekrar zamanı geldi; sorular önce bunlardan gelir.' : 'Tekrar zamanı gelen yapı yok; yeni sorular gelir.') + ' Yanlışlar tekrar kutusuna düşer.</p><div class="ax-btns"><button class="btn sm pri" data-a="testyeni">' + (TS.soru ? 'Sonraki soru' : 'Teste başla') + '</button></div>';
+    if (TS.soru) {
+      const s = TS.soru, soru = s.tip === 'bul' ? '<b>Modelde bul:</b> ' + esc(s.y[1]) : s.tip === 'ad' ? '<b>İşaretli yapı hangisi?</b>' : '<b>İşaretli yapının görevi hangisi?</b>';
+      h += '<div class="ax-soru"><span class="k">' + TS.ok + '/' + TS.n + '</span><p>' + soru + '</p>' + (s.tip !== 'bul' ? '<div class="ax-sec">' + s.sec.map(x => '<button class="btn sm" data-tsec="' + esc(x) + '"' + (s.cevap != null ? ' disabled' : '') + '>' + esc(x) + '</button>').join('') + '</div>' : '') +
+        (s.cevap != null ? '<p class="fb2 ' + (s.cevap ? 'ok' : 'bad') + '">' + (s.cevap ? 'Doğru' : 'Doğrusu: ' + esc(s.y[1])) + ' · ' + esc(s.y[2]) + '</p>' : '') + '</div>';
+    }
+  }
+  el.innerHTML = h;
+}
+async function sisSec(k) { if (!SIS[k]) return; hepsiniDurdur(); DS.on = false; TS.soru = null; A.sis = k; A.eksen = null; A.nefron = false; LS.set('sis', k); const S0 = SIS[k]; await yukle(S0.yuk); S0.katman.forEach(l => { if (st.layers[l]) st.layers[l].on = true; }); L.renderLayers(); const od = []; for (const n of S0.odak) od.push(...await bulYukle(n)); if (od.length) cerceve(od, 1.6); ciz(); }
+$('#sistemPane') && $('#sistemPane').addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.sis) return sisSec(t.dataset.sis);
+  if (t.dataset.sek) { const yeni = t.dataset.sek; if (yeni !== 'radyoloji') radyolojiKapat(); if (yeni !== 'diseksiyon') DS.on = false; if (yeni !== 'test') TS.soru = null; animDur(); vurgu(null); A.sek = yeni; ciz(); if (yeni === 'radyoloji') radyolojiSoru(); return; }
+  if (t.dataset.git) { const ms = await bulYukle(t.dataset.git); if (ms.length) { katmanAc(ms); L.selectMesh(solTaraf(ms)[0]); cerceve(solTaraf(ms), 2.2); L.pulse(); } return; }
+  if (t.dataset.radsec) { radCevap(t.dataset.radsec === RAD.soru.h.y[1], (t.dataset.radsec === RAD.soru.h.y[1] ? 'Doğru: ' : 'Doğrusu: ') + RAD.soru.h.y[1]); return; }
+  if (t.dataset.dis) { await diseksiyonAdim(+t.dataset.dis); return; }
+  if (t.dataset.dissec) { const s = DS.soru; s.cevap = t.dataset.dissec === s.dogru; DS.n++; if (s.cevap) DS.puan++; vurgu([s.m], s.cevap ? '#3BE38A' : '#FF5A4A'); ciz(); return; }
+  if (t.dataset.tsec) { const s = TS.soru, ok = s.tip === 'islev' ? t.dataset.tsec === s.y[2] : t.dataset.tsec === s.y[1]; testCevap(ok); return; }
+  const a = t.dataset.a; if (!a) return;
+  if (a === 'dur') { animDur(); hayalet(null); ciz(); return; }
+  if (a === 'atim') return kalpAtim(t.dataset.r);
+  if (a === 'kan') { animDur(); return yolBaslat(KAN, 'Kanı takip et', { akis: true, k: 1.3, son: 'Sağ kalp kirli kanı akciğerlere (küçük dolaşım), sol kalp temiz kanı vücuda (büyük dolaşım) pompalar.' }); }
+  if (a === 'koroner') { animDur(); return yolBaslat([{ y: 'Left coronary artery', t: 'Sol ana koroner', d: 'Aort kökünden çıkar.' }, { y: 'Anterior interventricular artery', t: 'Sol ön inen (LAD)', d: 'Ön duvar ve septum; tıkanmasında V1–V4’te ST yükselir.' }, { y: 'Circumflex artery of heart', t: 'Sirkumfleks', d: 'Yan duvar.' }, { y: 'Right coronary artery', t: 'Sağ koroner', d: 'Sağ ventrikül ve çoğunlukla alt duvar (D2, D3, aVF); SA ve AV düğümü besler.' }, { y: 'Coronary sinus', t: 'Koroner sinüs', d: 'Kalbin venöz kanı sağ atriyuma döner.', renk: '#7FA8FF' }], 'Koroner arterler', { akis: true, ek: bul('Left ventricle').concat(bul('Right ventricle')) }); }
+  if (a === 'lob') return loblar();
+  if (a === 'islev') { animDur(); await beyinHazir(); return yolBaslat(ISLEV.map(x => ({ y: x[0], t: x[1], d: x[2] })), 'Beyin işlev haritası', { renk: '#FFB547' }); }
+  if (a === 'motor') { animDur(); await yukle(['sinir']); return yolBaslat(MOTOR, 'Motor yol (kortikospinal)', { akis: true, renk: '#FF7A6B' }); }
+  if (a === 'duyu') { animDur(); await yukle(['sinir']); return yolBaslat(DUYU, 'Ağrı-ısı yolu (spinotalamik)', { akis: true, renk: '#7FA8FF' }); }
+  if (a === 'inme') return inmeAlani(t.dataset.k);
+  if (a === 'willis') { animDur(); await yukle(['damar']); return yolBaslat([{ y: 'Internal carotid artery', t: 'İç karotis arterleri', d: 'Ön dolaşım.' }, { y: 'Anterior cerebral artery', t: 'Anterior serebral arterler' }, { y: 'Anterior communicating artery', t: 'Ön iletişim arteri', d: 'Anevrizmanın en sık yeri.' }, { y: 'Middle cerebral artery (M1-segment)', t: 'Orta serebral arterler' }, { y: 'Posterior communicating artery', t: 'Arka iletişim arterleri' }, { y: 'Posterior cerebral artery', t: 'Posterior serebral arterler' }, { y: ['Basilar artery', 'Vertebral artery'], t: 'Baziler ve vertebral arterler', d: 'Arka dolaşım.' }], 'Willis poligonu', { akis: true, renk: '#FF7A6B', k: 1.2 }); }
+  if (a === 'nefes') return nefes(+t.dataset.h);
+  if (a === 'hava') { animDur(); return yolBaslat(HAVA, 'Havanın yolu', { renk: '#7FE0E8' }); }
+  if (a === 'gaz') { animDur(); await yukle(['damar']); return yolBaslat([{ y: 'Pulmonary trunk', t: 'Pulmoner arter', d: 'Oksijeni az kan akciğere gelir.', renk: '#7FA8FF' }, { y: ['Superior lobar artery of right lung', 'Inferior lobar artery of right lung'], t: 'Lob arterleri', renk: '#7FA8FF' }, { y: ['Inferior lobe of right lung', 'Superior lobe of right lung'], t: 'Alveol-kapiller zar', d: 'O₂ kana, CO₂ alveole geçer; difüzyon.' }, { y: ['Right superior pulmonary vein', 'Right inferior pulmonary vein'], t: 'Pulmoner venler', d: 'Oksijenlenmiş kan sol atriyuma döner.', renk: '#FF7A6B' }], 'Gaz değişimi', { akis: true }); }
+  if (a === 'peri') return peristaltizm();
+  if (a === 'besin') { animDur(); return yolBaslat(GIS, 'Besinin yolu', { renk: '#FFB547' }); }
+  if (a === 'segment') return karacigerSegment();
+  if (a === 'bez') { animDur(); return yolBaslat([{ y: ['Parotid gland', 'Submandibular gland', 'Sublingual gland'], t: 'Tükürük bezleri', d: 'Amilaz; nişasta sindirimi başlar.' }, { y: 'Liver', t: 'Karaciğer', d: 'Safra üretir: yağların emülsiyonu.' }, { y: 'Gallbladder', t: 'Safra kesesi', d: 'Yağlı yemekte kasılır (CCK).' }, { y: 'Pancreas', t: 'Pankreas', d: 'Lipaz, amilaz, tripsin; bikarbonat asidi nötralize eder.' }], 'Sindirim bezleri', { renk: '#FFB547' }); }
+  if (a === 'idrar') { animDur(); await yukle(['damar']); return yolBaslat(IDRAR, 'İdrarın yolu', { akis: true, renk: '#C9A6FF' }); }
+  if (a === 'nefron') { A.nefron = !A.nefron; ciz(); return; }
+  if (a === 'eksen') { animDur(); A.eksen = t.dataset.k; const E = EKSEN[A.eksen]; ciz(); return yolBaslat(E.y.map(y => ({ y: y[0], t: y[1] + ' → ' + y[2] })), E.ad, { renk: '#FF8AC0', son: esc(E.geri) }); }
+  if (a === 'refleks') { animDur(); await yukle(['sinir']); return yolBaslat(REFLEKS, 'Patella refleks arkı', { akis: true, renk: '#FFD24A' }); }
+  if (a === 'calis') { animDur(); const ms = L.bySid.get(t.dataset.s) || []; if (ms.length) { L.select(t.dataset.s, { frame: true }); setTimeout(() => L.runDemo && L.runDemo(), 400); } return; }
+  if (a === 'gez') { animDur(); return yolBaslat(SIS.bb.yapi.slice(0, 12).map(y => ({ y: y[0], t: y[1], d: y[2] })), 'Baş-boyun gezintisi', { renk: '#7FE0E8', hayalet: false }); }
+  if (a === 'radyeni') return radyolojiSoru();
+  if (a === 'bt') { RAD.bt = !RAD.bt; btUygula(); ciz(); return; }
+  if (a === 'radkapat') { radyolojiKapat(); RAD.soru = null; ciz(); return; }
+  if (a === 'disyeni') { diseksiyonSoru(); ciz(); return; }
+  if (a === 'testyeni') return testSoru();
+});
+
+/* mod değişimi: Sistemler'e girince çiz, çıkınca her şeyi durdur */
+new MutationObserver(() => { const m = $('#app').dataset.mode; if (m === 'sistem') ciz(); else { hepsiniDurdur(); DS.on = false; } }).observe($('#app'), { attributes: true, attributeFilter: ['data-mode'] });
+
+/* stil */
+const css = D.createElement('style');
+css.textContent = `
+.ax-sis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.ax-sis button{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1.5px solid var(--line,#DCE2EA);border-radius:12px;background:#fff;font-weight:700;font-size:12.5px;text-align:left;cursor:pointer;line-height:1.2}
+.ax-sis button b{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--sc);color:#fff;font-size:11px}
+.ax-sis button[aria-pressed=true]{border-color:var(--sc);box-shadow:inset 0 0 0 1px var(--sc)}
+.ax-sek{margin:12px 0 4px;display:flex;flex-wrap:wrap}
+.ax-btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.ax-yapi{list-style:none;margin:0;padding:0;display:grid;gap:4px;max-height:260px;overflow:auto}
+.ax-yapi button{display:grid;width:100%;text-align:left;padding:6px 8px;border:1px solid var(--line,#DCE2EA);border-radius:10px;background:#fff;cursor:pointer}
+.ax-yapi small{color:#6A7593;font-size:11.5px;line-height:1.35}
+.ax-soru{margin-top:10px;padding:10px;border:1.5px dashed #C9D3E0;border-radius:12px;background:#FAFBFD}
+.ax-soru .k,.ax-sis-bilgi .k,.ax-gorev .k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#6A7593}
+.ax-sec{display:grid;gap:6px;margin-top:8px}.ax-sec .btn{justify-content:flex-start;text-align:left;white-space:normal;height:auto;min-height:36px}
+.ax-dis{list-style:none;margin:6px 0;padding:0;display:grid;gap:5px}.ax-dis button{width:100%;text-align:left;padding:7px 10px;border:1.5px solid var(--line,#DCE2EA);border-radius:10px;background:#fff;font-weight:700;cursor:pointer}.ax-dis button[aria-pressed=true]{border-color:#C42232;background:#FBE5E7}
+.ax-sis-bilgi{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;z-index:6;width:max-content;max-width:min(460px,calc(100% - 24px));padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.95);border:1.5px solid #0D1838;box-shadow:3px 3px 0 #0D1838;font-size:13px;line-height:1.45}
+.ax-sis-bilgi p{margin:4px 0 0}.ax-sis-bilgi[hidden]{display:none}
+.ax-nokta{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:0}
+.ax-ekg{position:absolute;right:12px;top:60px;z-index:6;padding:6px 8px 8px;border-radius:10px;background:#06130E;border:1px solid #1E3A2E;color:#3BE38A;font-family:'JetBrains Mono',monospace;font-size:10.5px}
+.ax-ekg span{display:block;margin-bottom:4px;white-space:nowrap}.vp .ax-ekg canvas{position:static;inset:auto;display:block;width:240px;height:60px;cursor:default}
+.ax-gorev{position:absolute;right:12px;top:64px;z-index:7;width:min(340px,calc(100% - 24px));padding:12px 14px;border-radius:14px;background:#fff;border:2px solid #0D1838;box-shadow:5px 5px 0 #0D1838;font-size:13.5px}
+.ax-gorev h3{margin:4px 0}.ax-gorev ol{margin:6px 0;padding-left:20px}.ax-gorev li.d{color:#2E8E5B}.ax-gorev li.c{font-weight:700}
+.ax-gorev .cs-h{display:flex;justify-content:space-between;align-items:center}.ax-gorev .x{border:0;background:#F3F6F9;border-radius:8px;width:30px;height:30px;font-size:18px;cursor:pointer}
+.fb2.ok{color:#2E8E5B}.fb2.bad{color:#C9483B}
+.ax-nefron,.ax-eksen{display:block;width:100%;max-width:320px;margin:8px 0}
+.ax-mini-l{margin:0;padding-left:18px;font-size:12px;color:#46506A;display:grid;gap:3px}
+@media (max-width:760px){.ax-ekg{top:auto;bottom:12px;right:12px}.vp .ax-ekg canvas{width:180px;height:46px}.ax-sis-bilgi{bottom:84px}.ax-gorev{top:auto;bottom:12px;left:12px;right:12px;width:auto}}
+@media (prefers-reduced-motion:reduce){.ax-nf-dot{display:none}}`;
+D.head.appendChild(css);
+
+/* =========================== açılış: Medica bağlantıları =========================== */
+ciz();
+const istasyon = Q.get('istasyon'), sisQ = Q.get('sistem'), vakaQ = Q.get('vaka');
+const modaGec = () => { const b = $('.modes button[data-mode="sistem"]'); if (b) b.click(); };
+if (istasyon && SIS[sisQ]) {
+  modaGec(); await sisSec(sisQ); A.sek = istasyon === 'radyoloji' ? 'radyoloji' : istasyon === 'diseksiyon' ? 'diseksiyon' : 'modul'; ciz();
+  if (A.sek === 'radyoloji') radyolojiSoru(); else if (A.sek === 'diseksiyon') diseksiyonAdim(0);
+}
+if (vakaQ && vakaQ.startsWith('cep:')) {
+  const hid = vakaQ.slice(4), sis = sisOfHid(hid), C = sis && await cepYukle(sis), an = C && C.anatomi(hid);
+  if (an) {
+    modaGec(); A.sis = sis; ciz();
+    await gorevBaslat(an.ad, an.yapilar.map(y => ({ ad: y.ad, gorev: y.gorev, ipucu: y.ipucu })), an.ex, puan => {
+      L.medicaBildir({ vaka: vakaQ, puan });
+      const b = D.createElement('span'); b.hidden = true; D.body.appendChild(b);
+    });
+    A.gorev.sis = sis;
+    /* rehber cerrah ipuçları: 1) sözel 2) bölge 3) yapı */
+    if (L.medicaCerrah) L.medicaCerrah({ lab: 'anatomi', anahtar: () => A.gorev && A.gorev.i < A.gorev.adimlar.length ? hid + ':' + A.gorev.i : null, kademe: async n => {
+      const G = A.gorev; if (!G || G.i >= G.adimlar.length) return null; const a = G.adimlar[G.i];
+      if (n === 1) return 'İpucu: ' + (a.ipucu || a.gorev);
+      if (!a.ms.length) return 'Bu yapı modelde ayrı işaretli değil.';
+      katmanAc(a.ms); if (n === 2) { cerceve(solTaraf(a.ms), 3); return 'Kamerayı o bölgeye çevirdim; aradığın yapı bu çerçevede.'; }
+      vurgu(solTaraf(a.ms), '#FFD24A'); cerceve(solTaraf(a.ms), 2.2); return 'Parlayan yapı aradığın yapı. Şimdi sen dokun.'; } });
+  }
+}
+W.__axSistem = { A, SIS, bul, sisSec, kalpAtim, loblar, nefes, peristaltizm, radyolojiSoru, diseksiyonAdim, testSoru, gorevBaslat, RAD, DS, TS, tekrarKaydet, vadesi };
 </script>
 </body>
 </html>

@@ -172,6 +172,11 @@ body.md-labda{overflow:hidden}
 .md-asn-b button:hover,.md-asn-b button[aria-current]{border-color:var(--kc)}
 .md-asn-b b{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:var(--kc);color:#fff;font-family:'JetBrains Mono',monospace;font-size:20px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.2),0 0 0 4px #E3E8EE;flex:none}
 .md-asn-b span{display:grid;font-weight:700;font-size:15px}.md-asn-b small{font-weight:500;color:var(--muted);font-size:12.5px}
+/* 02.11.2026: anatomi ara katları (A1–A8) ve istasyonları */
+.md-asn-ara-t{margin:16px 0 0;font-size:15px}.md-asn-ara-t small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:2px}
+.md-asn-ara{grid-template-columns:repeat(2,minmax(0,1fr))}.md-asn-ara b{font-size:15px;width:40px;height:40px}
+@media (max-width:560px){.md-asn-ara{grid-template-columns:1fr}}
+.md-btn.ist{border-style:dashed}
 .md-karne{position:relative}
 .damga{position:absolute;right:46px;top:-4px;width:86px;height:86px;border-radius:50%;border:3px solid currentColor;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-12deg);font-family:'JetBrains Mono',monospace;animation:damga .45s var(--spring) .15s both}
 .damga b{font-size:26px;line-height:1}.damga small{font-size:9px;letter-spacing:.1em}
@@ -385,6 +390,15 @@ body.md-labda{overflow:hidden}
 <script src="../klinik/senaryo-dkt.js"></script>
 <script src="../klinik/senaryo-eczacilik.js"></script>
 <script src="../klinik/senaryo-hemsirelik.js"></script>
+<script src="../klinik/cep/cep.js"></script>
+<script src="../klinik/cep/kv.js"></script>
+<script src="../klinik/cep/noro.js"></script>
+<script src="../klinik/cep/sol.js"></script>
+<script src="../klinik/cep/sind.js"></script>
+<script src="../klinik/cep/uro.js"></script>
+<script src="../klinik/cep/kas.js"></script>
+<script src="../klinik/cep/end.js"></script>
+<script src="../klinik/cep/bb.js"></script>
 <script src="medica-veri.js"></script>
 <script src="medica.js"></script>
 </body>

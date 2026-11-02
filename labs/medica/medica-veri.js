@@ -52,9 +52,18 @@
 
   /* yatan hastalar bekleme salonunda oturmaz, serviste görülür */
   V.yatan = function (s) { return !!(s && (s.hasta.poz === 'yat' || s.oda === 'acil' || s.oda === 'ameliyathane' || s.oda === 'servis')); };
-  V.katBul = function (id) { return V.KAT.filter(function (k) { return k.id === id; })[0] || null; };
+  /* 02.11.2026: anatomi ara katları (A1–A8, 1. katın üstü) ÇEP vaka bankasından (labs/klinik/cep/) gelir */
+  var CEP = typeof AXCEP !== 'undefined' ? AXCEP : null;   /* labs/klinik/cep/cep.js (önce yüklenir) */
+  V.ARAKAT = (CEP && CEP.SISTEM ? CEP.SISTEM : []).map(function (s) {
+    return { id: 'ak-' + s.id, no: 1, ara: true, etiket: s.etiket, sistem: s.id, ad: s.ad, bolum: 'Tıp · anatomi ara katı', renk: s.renk, acik: s.acik, onek: 'ak-' + s.id + '-',
+      lab: 'anatomi', labAd: 'Anatomi Lab', mentor: s.mentor.unvan + ' ' + s.mentor.ad, mcins: s.mentor.cins, kars: s.kars };
+  });
+  V.tumKat = function () { return V.KAT.concat(V.ARAKAT); };
+  V.katBul = function (id) { return V.tumKat().filter(function (k) { return k.id === id; })[0] || null; };
+  /* ekranda kat adı: "3. kat" ya da "A2 ara kat" */
+  V.katEtiket = function (k) { return k ? (k.ara ? k.etiket + ' ara kat' : k.no + '. kat') : ''; };
   V.katHastalari = function (kat, SEN) { return Object.keys(SEN).filter(function (id) { return id.indexOf(kat.onek) === 0; }).map(function (id) { return SEN[id]; }); };
-  V.sira = function (kat, i) { return String(kat.no * 100 + i + 1); };
+  V.sira = function (kat, i) { return kat.ara ? kat.etiket + '·' + (i < 9 ? '0' : '') + (i + 1) : String(kat.no * 100 + i + 1); };
 
   /* lab devir adresi (labs/medica/ altından göreli). hedef: 'model' | 'recete' | 'ep' | 'vaka' | 'test:<id>' | 'prot:<id>' */
   V.devirAdres = function (s, hedef) {
@@ -112,7 +121,7 @@
     'hem-kky': ['sari', 'Bir günde 2 kg artış ve ortopne: sıvı yüklenmesi.']
   };
   V.triyaj = function (s) {
-    var t = s && V.TRIYAJ[s.id]; if (t) return { renk: t[0], neden: t[1] };
+    var t = s && (V.TRIYAJ[s.id] || s.triyaj); if (t) return { renk: t[0], neden: t[1] };
     return { renk: 'yesil', neden: 'Genel durumu iyi, vital bulguları stabil: planlı poliklinik başvurusu.' };
   };
   /* triyaj kartında öğrencinin gördüğü ilk bilgi: geliş, yaş, yakınma ve varsa vital bulgular */
@@ -192,7 +201,7 @@
   /* senaryonun zincirdeki yeri: {z, i} ya da null */
   V.zincir = function (id) { for (var a = 0; a < V.KONSULT.length; a++) { var i = V.KONSULT[a].zincir.indexOf(id); if (i >= 0) return { z: V.KONSULT[a], i: i }; } return null; };
   /* senaryo kimliğinden kat */
-  V.katOf = function (id) { return V.KAT.filter(function (k) { return id.indexOf(k.onek) === 0; })[0] || null; };
+  V.katOf = function (id) { return V.tumKat().filter(function (k) { return id.indexOf(k.onek) === 0; })[0] || null; };
   /* sevk sorusu: doğru kat bir sonraki halkanın katı; seçenekler diğer katlar + “sevk gerekmez” */
   V.sevkSoru = function (id) {
     var r = V.zincir(id); if (!r || r.i >= r.z.zincir.length - 1) return null;
@@ -274,7 +283,7 @@
   };
   V.hash = function (t) { var h = 2166136261; t = String(t); for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
   V.rng = function (seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
-  var KORU = ['Deniz', 'Ece', 'Defne', 'Mert', 'Selin', 'Kaan', 'Arslan', 'Tolga', 'Sevgi'];   /* mentor adları: metinde unvanla geçer, dokunulmaz */
+  var KORU = ['Deniz', 'Ece', 'Defne', 'Mert', 'Selin', 'Kaan', 'Arslan', 'Tolga', 'Sevgi', 'Arda', 'Nil', 'Cem'];   /* mentor adları: metinde unvanla geçer, dokunulmaz */
   var HARF = 'A-Za-zÇĞİÖŞÜçğıöşüâîû';
   var adDegis = function (t, eski, yeni) {
     return String(t).replace(new RegExp('(^|[^' + HARF + '.])(' + eski + ')(?![' + HARF + '])', 'g'), function (m, on) { return on + yeni; });
@@ -456,7 +465,8 @@
       if (id === 'boykilo') return olc.boy && olc.tarti ? (kim ? 'Boyu ' : 'Boyum ') + olc.boy + ', kilo' + (kim ? 'su ' : 'm ') + olc.tarti + ' civarı.' : null;
       var t = VARS[id](hh); return kim && id === 'alis' ? 'Sigara da alkol de kullanmıyor.' : t;
     };
-    var L = ANM_ORTAK.concat(ANM_BOLUM[kat.id] || []), kr = ANM_KRITIK[kat.id] || [], sec = [];
+    var kid = kat.ara ? 'tip' : kat.id;   /* ara katlar tıp bölümünün sistematik anamnezini kullanır */
+    var L = ANM_ORTAK.concat(ANM_BOLUM[kid] || []), kr = ANM_KRITIK[kid] || [], sec = [];
     L.forEach(function (x) {
       if (x[4].some(function (k) { return var_[k]; })) return;
       var soru = kim || cocuk ? x[2] : x[1]; if (!soru) return;
@@ -476,5 +486,24 @@
     var ad = sen.adimlar.slice(); ad.splice(i, 0, a);
     return Object.assign({}, sen, { adimlar: ad });
   };
+  /* =========================== ÇEP vaka bankası: ara kat hastaları (02.11.2026) ===========================
+     Her ziyarette her ara kata AXCEP'ten tohumlu yeni hastalar gelir: aynı hastalık, farklı hasta (yaş, cinsiyet,
+     eşlik eden hastalık, vital, tetkik değeri, tipik/atipik başvuru, ÇEP düzeyi). Ad kuşağa göre seçilir. */
+  V.CEP_HASTA = 6;
+  V.cepAd = function (cins, yas, r) {
+    var kus = yas < 13 ? 'cocuk' : yas < 36 ? 'genc' : yas < 60 ? 'orta' : 'yasli', L = ((ISIM[cins] || {})[kus] || []).filter(function (n) { return KORU.indexOf(n) < 0; });
+    return L.length ? L[Math.floor(r() * L.length)] : null;
+  };
+  V.cepZiyaret = function (tohum) {
+    var out = {}; if (!CEP) return out;
+    V.ARAKAT.forEach(function (k) {
+      CEP.ziyaret(k.sistem, tohum, V.CEP_HASTA, { onek: k.onek, adSec: V.cepAd }).forEach(function (sen) {
+        if (sen.profil) V.PROFIL[sen.id] = sen.profil;
+        out[sen.id] = sen;
+      });
+    });
+    return out;
+  };
   return V;
+
 });
