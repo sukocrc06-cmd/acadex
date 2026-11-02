@@ -91,4 +91,20 @@ test('stil: maskot hareketleri hareket azaltmada durur', () => {
   for (const k of ['acd-bob', 'acd-blink', 'acd-wave', 'acd-jump', 'acd-hop']) assert.match(blk, new RegExp('animation:' + k + '\\b'), k + ' korumasız');
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.acd-guide\{transition:opacity \.3s;transform:none\}/);
 });
+test('landing rehberi: yıldız gibi kenardan kenara süzülür, altın iz bırakır (02.11.2026)', () => {
+  const reh = read('js/acadia-rehber.js'), css = read('css/acadia-kit.css');
+  /* her durak bir kenarda; sağ ve sol ikisi de kullanılır */
+  const sides = [...reh.matchAll(/\{ q: '[^']+', side: '([lr])'/g)].map((m) => m[1]);
+  assert.equal(sides.length, 10); assert.ok(sides.includes('l') && sides.includes('r'));
+  /* landing'in .in görünme animasyonu (upIn) transform'u ezip Acadia'yı köşeye çakıyordu */
+  assert.match(css, /\.acd-guide\.acd-fly\{left:0;top:0;right:auto;transition:opacity \.5s;will-change:transform;animation:none!important\}/);
+  assert.match(reh, /if \(calm\) return;/, 'hareket azaltmada uçuş ve iz yok');
+  assert.match(reh, /var want = !narrow\(\);/, 'telefonda eski sabit yerinde');
+  assert.match(reh, /cv\.hidden = true;/);
+  assert.match(reh, /\.pkt-dock/, 'soldaki paket ipine çarpmaz');
+  assert.match(reh, /hush\(\);/, 'uçarken balon kapanır, varınca konuşur');
+  assert.match(reh, /host\.classList\.toggle\('say-r', sd === 'l'\)/, 'solda balon sayfanın içine doğru açılır');
+  assert.match(css, /#acd-trail\{position:fixed;inset:0;width:100vw;height:100vh;z-index:45;pointer-events:none\}/);
+  assert.match(reh, /if \(parts\.length > 260\)/, 'pırıltı sayısı sınırlı');
+});
 summary();

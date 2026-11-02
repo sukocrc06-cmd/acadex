@@ -123,4 +123,16 @@
   .acd-guide .acd-gh{width:76px}
   .acd-guide .acd-say{font-size:16px;min-width:150px;max-width:200px}
 }
+/* yıldız uçuşu (js/acadia-rehber.js, 02.11.2026): konum ve yatış JS'ten, iz #acd-trail tuvalinde */
+#acd-trail{position:fixed;inset:0;width:100vw;height:100vh;z-index:45;pointer-events:none}
+#acd-trail[hidden]{display:none}
+.acd-guide.acd-fly{left:0;top:0;right:auto;transition:opacity .5s;will-change:transform;animation:none!important}
+.acd-guide.acd-fly.away{opacity:0}
+.acd-guide::before{content:"";position:absolute;left:50%;top:42%;width:150%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:-1;
+ background:radial-gradient(circle,rgba(255,226,140,.55) 0,rgba(255,206,92,.26) 32%,rgba(255,181,71,0) 68%);opacity:.75}
+.acd-guide.acd-flying::before{opacity:1;width:175%}
+@media (prefers-reduced-motion:no-preference){.acd-guide::before{animation:acd-halo 3.2s ease-in-out infinite;transition:width .5s,opacity .5s}}
+@keyframes acd-halo{0%,100%{transform:translate(-50%,-50%) scale(.92)}50%{transform:translate(-50%,-50%) scale(1.08)}}
+.acd-guide.acd-flying .acd-say{opacity:0!important}
+.acd-guide.acd-fly .acd-gh.say-r .acd-say{left:84%;bottom:58%;font-size:19px}
 @media (prefers-reduced-motion:reduce){.acd-guide{transition:opacity .3s;transform:none}.acd-guide.away{transform:none}}
