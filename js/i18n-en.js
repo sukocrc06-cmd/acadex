@@ -4725,7 +4725,11 @@ window.AX_EN = {
 "İpi çek: özet perdesi sarılır / iner": "Pull the cord: the summary rolls up / down",
 "Kartı büyük aç": "Open the card full size",
 "Özeti deftere not olarak as": "Pin the summary to the notebook as a note",
-"eklendi ✓": "added ✓"
+"eklendi ✓": "added ✓",
+"hazır ✓": "ready ✓",
+"rozetler rafa diziliyor…": "lining up your badges…",
+"henüz kazanılmadı": "not earned yet",
+"hedef tamam; rozet bir sonraki işleminde rafına gelir": "goal reached; the badge lands on your shelf with your next action"
 },
 "h": {
 "<b>bugün</b> yeni bir seriye başla.": "<b>today</b> start a new streak.",
