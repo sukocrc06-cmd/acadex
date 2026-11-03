@@ -4729,7 +4729,7 @@ var SBX = (function () {
   var liveUrl = function (p) {
     var u = String((p.links && (p.links.vercel || p.links.url)) || '').trim(); if (!u) return '';
     if (/^\/\//.test(u)) u = 'https:' + u; else if (!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
-    u = u.replace(/^http:\/\//i, 'https://'); try { return new URL(u).href; } catch (e) { return ''; }
+    u = u.replace(/^http:\/\//i, 'https://'); try { var lu = new URL(u); /* 03.11.2026: Acadex'in kendi adresi canlı önizlemede açılmaz (allow-same-origin ile kum havuzu etkisiz kalırdı) */ return lu.origin === location.origin ? '' : lu.href; } catch (e) { return ''; }
   };
   var shotUrl = function (u) { return 'https://s.wordpress.com/mshots/v1/' + encodeURIComponent(u) + '?w=1200&h=750'; };
   /* ---------- canlı önizleme: site çerçeve içinde açılmaya izin veriyor mu? ---------- */
@@ -5374,20 +5374,22 @@ var SBX = (function () {
   var readBuf = function (f) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.readAsArrayBuffer(f); }); };
   var ingest = function (items, label) {
     /* items: [{path, file}] */
-    var skipped = 0, total = 0, files = {}, chain = Promise.resolve();
+    var skipped = 0, big = [], total = 0, files = {}, chain = Promise.resolve();
     var zips = items.filter(function (it) { return /\.zip$/i.test(it.path); });
     if (zips.length === 1 && items.length === 1) return readBuf(zips[0].file).then(unzip).then(function (fs) { finish(fs.files, fs.skipped, zips[0].path.replace(/\.zip$/i, '')); }).catch(function (e) { say('Zip açılamadı: ' + e.message); });
     items.forEach(function (it) {
       if (!TEXT_EXT.test(it.path)) { skipped++; return; }
-      chain = chain.then(function () { if (total + it.file.size > 2 * 1048576) { skipped++; return; } total += it.file.size; return readText(it.file).then(function (t) { if (t != null) files[it.path] = t; }); });
+      chain = chain.then(function () { if (total + it.file.size > 2 * 1048576) { skipped++; big.push(it.path.split('/').pop()); return; } total += it.file.size; return readText(it.file).then(function (t) { if (t != null) files[it.path] = t; }); });
     });
-    chain.then(function () { finish(files, skipped, label); });
+    chain.then(function () { finish(files, skipped, label, big); });
   };
-  var finish = function (files, skipped, label) {
-    var ks = Object.keys(files); if (!ks.length) { say('Okunabilir bir kod ya da metin dosyası bulamadım' + (skipped ? ' (' + skipped + ' dosya atlandı).' : '.')); return; }
+  var finish = function (files, skipped, label, big) {
+    /* 03.11.2026: 2 MB sınırı ayrı söylenir; büyük bir .txt için "okunabilir dosya bulamadım" yanıltıcıydı */
+    var bigTxt = big && big.length ? ' 2 MB sınırını aşan: ' + big.slice(0, 3).join(', ') + (big.length > 3 ? ' ve ' + (big.length - 3) + ' dosya daha' : '') + '.' : '';
+    var ks = Object.keys(files); if (!ks.length) { say(big && big.length && big.length === skipped ? 'Dosya çok büyük: bir projede toplam 2 MB\'a kadar kod ve metin olabilir.' + bigTxt : 'Okunabilir bir kod ya da metin dosyası bulamadım' + (skipped ? ' (' + skipped + ' dosya atlandı).' : '.') + bigTxt); return; }
     var first = ks[0].split('/')[0]; if (ks.length > 1 && ks.every(function (k) { return k.indexOf(first + '/') === 0; })) { var nf = {}; ks.forEach(function (k) { nf[k.slice(first.length + 1)] = files[k]; }); files = nf; label = label || first; }
     var pr = addProject(label || 'Yüklenen proje', files, '', '', 'yüklendi');
-    openProject(pr.id); say(Object.keys(files).length + ' dosya şemaya yerleşti' + (skipped ? '; ' + skipped + ' dosya (görsel/ikili ya da çok büyük) atlandı.' : '.'));
+    openProject(pr.id); say(Object.keys(files).length + ' dosya şemaya yerleşti' + (skipped ? '; ' + skipped + ' dosya (görsel/ikili ya da çok büyük) atlandı.' : '.') + bigTxt);
   };
   inF.addEventListener('change', function () { var it = Array.prototype.map.call(inF.files, function (f) { return { path: f.name, file: f }; }); inF.value = ''; if (it.length) ingest(it, it.length === 1 ? it[0].path.replace(/\.[^.]+$/, '') : 'Yüklenen proje'); });
   inD.addEventListener('change', function () { var it = Array.prototype.map.call(inD.files, function (f) { return { path: f.webkitRelativePath || f.name, file: f }; }); inD.value = ''; if (it.length) ingest(it, ''); });
@@ -5502,7 +5504,8 @@ var SBX = (function () {
     var wrap = p ? schEl.querySelector('[data-node="' + CSS.escape(p) + '"]').parentNode : null, inp = document.createElement('input');
     inp.className = 'dv-renin'; inp.value = initial != null ? initial : p; inp.setAttribute('aria-label', p ? 'Yeni dosya adı' : 'Yeni dosyanın adı');
     if (wrap) wrap.replaceWith(inp); else schEl.insertBefore(inp, schEl.children[1] || null);
-    inp.focus(); inp.setSelectionRange(0, (inp.value.lastIndexOf('.') > 0 ? inp.value.lastIndexOf('.') : inp.value.length));
+    /* 03.11.2026: yeni dosyada uzantıyı da öğrenci seçer ("yeni.js" yazınca "yeni.js.js" oluyordu); yeniden adlandırmada yalnız ad seçili */
+    inp.focus(); inp.setSelectionRange(0, (p && inp.value.lastIndexOf('.') > 0 ? inp.value.lastIndexOf('.') : inp.value.length));
     var done = false, fin = function (ok) { if (done) return; done = true; var v = inp.value.trim().replace(/^\/+/, '').replace(/\\/g, '/'); if (ok && v) cb(v); else renderSchema(); };
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); fin(true); } else if (e.key === 'Escape') { e.preventDefault(); fin(false); } });
     inp.addEventListener('blur', function () { fin(true); });
@@ -5518,7 +5521,7 @@ var SBX = (function () {
       { l: 'sil', danger: true, f: function () { var txt = P.files[p]; delete P.files[p]; P.open = P.open.filter(function (x) { return x !== p; }); if (P.cur === p) P.cur = P.open[0] || paths(P)[0] || ''; dirty(); renderSchema(); renderTabs(); loadEditor(); refreshPreview(false); say(p + ' şemadan silindi.', function () { P.files[p] = txt; dirty(); renderSchema(); refreshPreview(false); }); } }
     ]); }
   });
-  Q('[data-addf]').addEventListener('click', function () { renameInline(null, function (v) { if (P.files.hasOwnProperty(v)) { say('Bu adda bir dosya zaten var.'); renderSchema(); return; } P.files[v] = ''; dirty(); renderSchema(); openFile(v); ta.focus(); }, 'yeni.js'); });
+  Q('[data-addf]').addEventListener('click', function () { renameInline(null, function (v) { if (!/\.[a-z0-9]+$/i.test(base(v))) v += '.js'; if (P.files.hasOwnProperty(v)) { say('Bu adda bir dosya zaten var.'); renderSchema(); return; } P.files[v] = ''; dirty(); renderSchema(); openFile(v); ta.focus(); }, 'yeni.js'); });
 
   /* tabs */
   var renderTabs = function () {
