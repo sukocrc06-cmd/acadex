@@ -1,0 +1,65 @@
+/* ==========================================================================
+   ACADEX · CANLI MASA TAKVİMİ (css/acadex-takvim.css + js/acadex-takvim.js), 03.11.2026
+   ========================================================================== */
+/* mevsim penceresi */
+#planner-view.axp .tk-win{position:relative;width:132px;height:58px;margin-left:10px;border-radius:10px;overflow:hidden;box-shadow:inset 0 0 0 2px #fff,0 0 0 1.5px #DCE2EC,0 8px 12px -10px rgba(13,24,56,.5)}
+#planner-view.axp .tk-win svg{display:block;width:100%;height:100%}
+#planner-view.axp .tk-win span{position:absolute;left:8px;top:5px;font-family:'Caveat',cursive;font-weight:700;font-size:16px;color:rgba(26,42,92,.7)}
+#planner-view.axp .tk-win::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:rgba(255,255,255,.85);box-shadow:0 0 0 .5px rgba(13,24,56,.06)}
+@media (prefers-reduced-motion:no-preference){
+ #planner-view.axp .tk-win .flake{animation:tk-snow 4.6s linear infinite;animation-delay:var(--dl)}
+ #planner-view.axp .tk-win .leaf{animation:tk-leaf 5.4s ease-in infinite;animation-delay:var(--dl);transform-box:fill-box;transform-origin:center}
+ #planner-view.axp .tk-win .flower{animation:tk-sway 3s ease-in-out infinite;animation-delay:var(--dl);transform-box:fill-box;transform-origin:50% 100%}
+ #planner-view.axp .tk-win .bfly{animation:tk-fly 6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+ #planner-view.axp .tk-win .sun{animation:tk-spin 18s linear infinite;transform-origin:92px 20px}
+ #planner-view.axp .tk-win .wave{animation:tk-wave 3s linear infinite}
+}
+@keyframes tk-snow{0%{transform:translate(0,0)}100%{transform:translate(var(--dx),66px)}}
+@keyframes tk-leaf{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(var(--dx),62px) rotate(260deg);opacity:.2}}
+@keyframes tk-sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+@keyframes tk-fly{0%,100%{transform:translate(0,0) scaleX(1)}25%{transform:translate(-26px,-4px) scaleX(.7)}50%{transform:translate(-40px,6px) scaleX(1)}75%{transform:translate(-14px,2px) scaleX(.7)}}
+@keyframes tk-spin{to{transform:rotate(360deg)}}
+@keyframes tk-wave{to{transform:translateX(-20px)}}
+
+/* bugün: keçeli kalem halkası */
+#planner-view.axp .day.is-today .dn{background:none;color:var(--blue)}
+#planner-view.axp .tk-today{position:absolute;left:-3px;top:-4px;width:54px;height:44px;z-index:1;pointer-events:none;overflow:visible}
+#planner-view.axp .tk-today path{fill:none;stroke:#2F6BFF;stroke-width:2.6;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:0;opacity:.85}
+#planner-view.axp .tk-tl{position:absolute;left:44px;top:8px;z-index:1;font-family:'Caveat',cursive;font-weight:700;font-style:normal;font-size:16px;color:#2F6BFF;transform:rotate(-6deg);pointer-events:none}
+#planner-view.axp .day.exam .tk-tl{display:none}
+@media (prefers-reduced-motion:no-preference){#planner-view.axp .tk-today path{animation:tk-draw 1s cubic-bezier(.5,0,.3,1) .3s both}#planner-view.axp .tk-tl{animation:tk-fade .5s ease 1.1s both}}
+@keyframes tk-draw{from{stroke-dashoffset:100}}
+@keyframes tk-fade{from{opacity:0;transform:rotate(-6deg) translateY(4px)}}
+
+/* bu hafta fosforlu şerit, geçmiş günler soluk + kurşun kalem çizgisi */
+#planner-view.axp .day.tk-week::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:rgba(255,217,102,.75);pointer-events:none}
+#planner-view.axp .day.tk-past:not(.out){background:rgba(244,246,250,.65)}
+#planner-view.axp .day.tk-past .dn{color:#A3AEC6}
+#planner-view.axp .day.tk-past:not(.out) .dn::after{content:"";position:absolute;left:-3px;right:-3px;top:50%;height:1.6px;background:rgba(106,117,147,.55);transform:rotate(-14deg);border-radius:2px}
+#planner-view.axp .day.tk-past .pi:not(.done){filter:saturate(.7)}
+
+/* notlar: türe göre kâğıt, ataş, bant; tamamlanana damga */
+#planner-view.axp .pi.odev{background:#FFF1B8}
+#planner-view.axp .pi.odev::before,#planner-view.axp .pi.calisma::before{opacity:0}
+#planner-view.axp .tk-dec{position:absolute;pointer-events:none}
+#planner-view.axp .tk-clip{right:12px;top:-9px;width:10px;height:24px;border:2px solid #8C96AA;border-radius:6px;border-bottom-color:transparent;transform:rotate(8deg)}
+#planner-view.axp .tk-clip::after{content:"";position:absolute;left:1px;top:4px;width:4px;height:14px;border:2px solid #8C96AA;border-top:0;border-radius:0 0 4px 4px}
+#planner-view.axp .tk-tape{left:50%;top:-7px;width:38px;height:13px;margin-left:-19px;background:rgba(244,167,185,.75);transform:rotate(-4deg);clip-path:polygon(0 0,100% 0,96% 50%,100% 100%,0 100%,4% 50%)}
+#planner-view.axp .tk-ok{position:absolute;right:6px;bottom:6px;padding:1px 5px;border:2px solid #1E8A55;border-radius:5px;color:#1E8A55;font:800 9.5px/1.2 'Inter',system-ui,sans-serif;font-style:normal;letter-spacing:.04em;text-transform:uppercase;transform:rotate(-10deg);opacity:.8;pointer-events:none}
+#planner-view.axp .pi.done{opacity:.85}
+
+/* sınav günü geri sayımı */
+#planner-view.axp .tk-cd{position:absolute;right:6px;top:7px;z-index:1;padding:1px 7px;border-radius:999px;background:#C9483B;color:#fff;font:700 10.5px/1.5 'Inter',system-ui,sans-serif;font-style:normal;pointer-events:none;box-shadow:0 3px 5px -3px rgba(201,72,59,.8)}
+#planner-view.axp .day.exam:hover .plus{opacity:0}
+@media (prefers-reduced-motion:no-preference){#planner-view.axp .tk-cd{animation:tk-beat 2.6s ease-in-out infinite}}
+@keyframes tk-beat{0%,85%,100%{transform:scale(1)}90%{transform:scale(1.12)}}
+
+/* ay çevrilince: notlar sırayla düşer, spiral sallanır */
+@media (prefers-reduced-motion:no-preference){
+ #planner-view.axp .pi.tk-in{animation:tk-drop .6s cubic-bezier(.3,1.4,.5,1) both;animation-delay:calc(.35s + var(--di,0s))}
+ #planner-view.axp .wall.tk-sway .rings{animation:tk-rings .8s ease-in-out}
+}
+@keyframes tk-drop{0%{opacity:0;transform:translateY(-22px) rotate(calc(var(--r,0deg) - 8deg))}70%{opacity:1;transform:translateY(2px) rotate(calc(var(--r,0deg) + 2deg))}100%{transform:rotate(var(--r,0deg))}}
+@keyframes tk-rings{25%{transform:translateY(-3px) skewX(-6deg)}55%{transform:translateY(1px) skewX(4deg)}}
+@media (max-width:700px){#planner-view.axp .tk-win{display:none}#planner-view.axp .tk-tl{display:none}#planner-view.axp .tk-cd{right:2px;top:30px;font-size:9px;padding:0 4px}#planner-view.axp .tk-today{width:42px;height:36px;left:-4px;top:-3px}}
+@media (prefers-reduced-motion:reduce){#planner-view.axp .tk-win *,#planner-view.axp .tk-today path,#planner-view.axp .tk-tl,#planner-view.axp .tk-cd,#planner-view.axp .pi.tk-in{animation:none!important}}
