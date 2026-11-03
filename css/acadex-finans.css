@@ -134,3 +134,49 @@
   #finans-view.axf .axf-tower{max-width:200px;margin:0 auto;order:2}
   #finans-view.axf .axf-ft small{font-size:12px}
 }
+
+/* ---------- gözlemevi: Acadex İstatistik (labs/istatistik/), 03.11.2026 ----------
+   Gece göğünde dokuz yıldız bir çan eğrisi çizer; her yıldız bir istasyon.
+   Düğmenin üzerine gelince yıldızı parlar. Koyu temada gök yeniden ters çevrilir (gece kalır). */
+#finans-view.axf .axf-obs{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:28px;align-items:start;margin:40px 0 0;padding:26px;border-radius:18px;background:linear-gradient(160deg,#0F1C40,#1B2C5C);color:#E4E9FA;box-shadow:0 30px 60px -40px rgba(8,16,40,.9)}
+#finans-view.axf .axf-sky svg{display:block;width:100%;height:auto;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+#finans-view.axf .axf-obs .eyb{color:#FFD86B}
+#finans-view.axf .axf-obs h2{margin:0;font-size:clamp(24px,2.4vw,32px);font-weight:800;letter-spacing:-.02em;color:#fff}
+#finans-view.axf .axf-obs .axf-sub{color:#C9D2EE}
+#finans-view.axf .axf-stars{list-style:none;margin:14px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+#finans-view.axf .axf-st{display:flex;align-items:center;gap:12px;width:100%;height:100%;padding:10px 14px;border:1.5px solid rgba(255,255,255,.14);border-left:6px solid var(--cc);border-radius:12px;background:rgba(255,255,255,.05);text-align:left;font:inherit;color:#E4E9FA;cursor:pointer;transition:transform .18s cubic-bezier(.2,.8,.2,1),background .2s,box-shadow .2s}
+#finans-view.axf .axf-st:hover{transform:translateY(-2px);background:rgba(255,255,255,.1);box-shadow:0 10px 24px -14px var(--cc)}
+#finans-view.axf .axf-st:focus-visible{outline:3px solid #FFD86B;outline-offset:3px}
+#finans-view.axf .axf-sn{flex:none;padding:3px 7px;border-radius:5px;background:var(--cc);color:#0B1430;font-size:11px;font-weight:700;white-space:nowrap}
+#finans-view.axf .axf-st .axf-ft b{color:#fff;font-size:16px}
+#finans-view.axf .axf-st .axf-ft small{color:#AEB8DC}
+#finans-view.axf .axf-st .lm-tag{position:static;order:2;flex:none}
+#finans-view.axf .axf-st .axf-go{order:3}
+#finans-view.axf .axf-st:hover .axf-go{transform:translateX(4px)}
+#finans-view.axf .axf-cl{stroke:rgba(255,243,196,.4);stroke-width:1.4;fill:none}
+#finans-view.axf .axf-sk{transform-box:fill-box;transform-origin:center;transition:transform .3s cubic-bezier(.3,1.5,.5,1),filter .3s}
+#finans-view.axf .axf-obs:has([data-sn="1"]:is(:hover,:focus-visible)) [data-s="1"],
+#finans-view.axf .axf-obs:has([data-sn="2"]:is(:hover,:focus-visible)) [data-s="2"],
+#finans-view.axf .axf-obs:has([data-sn="3"]:is(:hover,:focus-visible)) [data-s="3"],
+#finans-view.axf .axf-obs:has([data-sn="4"]:is(:hover,:focus-visible)) [data-s="4"],
+#finans-view.axf .axf-obs:has([data-sn="5"]:is(:hover,:focus-visible)) [data-s="5"],
+#finans-view.axf .axf-obs:has([data-sn="6"]:is(:hover,:focus-visible)) [data-s="6"],
+#finans-view.axf .axf-obs:has([data-sn="7"]:is(:hover,:focus-visible)) [data-s="7"],
+#finans-view.axf .axf-obs:has([data-sn="8"]:is(:hover,:focus-visible)) [data-s="8"],
+#finans-view.axf .axf-obs:has([data-sn="9"]:is(:hover,:focus-visible)) [data-s="9"]{transform:scale(1.7);filter:drop-shadow(0 0 6px #FFD86B)}
+@media (prefers-reduced-motion:no-preference){
+  #finans-view.axf .axf-stars>li{animation:axf-drop .6s cubic-bezier(.2,1.3,.4,1) both;animation-delay:calc(var(--i) * 50ms)}
+  #finans-view.axf .axf-cl{stroke-dasharray:60;stroke-dashoffset:60;animation:axf-cl .5s ease-out forwards;animation-delay:calc(.3s + var(--i) * .12s)}
+  #finans-view.axf .axf-sk path{animation:axf-tw 3.2s ease-in-out infinite;animation-delay:calc(var(--i) * .35s);transform-box:fill-box;transform-origin:center}
+  #finans-view.axf .axf-bgst circle:nth-child(3n){animation:axf-tw 4s ease-in-out infinite}
+  #finans-view.axf .axf-scope{animation:axf-scope 7s ease-in-out infinite;transform-origin:30px 18px}
+}
+@keyframes axf-cl{to{stroke-dashoffset:0}}
+@keyframes axf-tw{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes axf-scope{0%,100%{transform:rotate(0)}50%{transform:rotate(-14deg)}}
+html.ax-dark #finans-view.axf .axf-obs{filter:invert(1) hue-rotate(180deg)}
+@media (max-width:860px){
+  #finans-view.axf .axf-obs{grid-template-columns:minmax(0,1fr);padding:18px 14px}
+  #finans-view.axf .axf-sky{max-width:260px;margin:0 auto;order:2}
+  #finans-view.axf .axf-stars{grid-template-columns:minmax(0,1fr)}
+}

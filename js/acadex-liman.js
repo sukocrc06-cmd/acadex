@@ -20,15 +20,15 @@
   var logOf = function () { return lsafe(function () { var o = JSON.parse(localStorage.getItem('acadex.finans.log') || 'null'); return o && o.tabs ? o : { tabs: {} }; }, { tabs: {} }); };
   var seenGet = function () { return lsafe(function () { return JSON.parse(localStorage.getItem('acadex.liman.seen') || 'null'); }, null); };
   var seenSet = function (a) { try { localStorage.setItem('acadex.liman.seen', JSON.stringify(a)); } catch (e) {} };
-  /* panel anahtarı (zaman, sirket-sim) → defter anahtarı (finans.zaman, sirket.sim) */
-  var logKey = function (k) { return /^sirket-/.test(k) ? 'sirket.' + k.slice(7) : 'finans.' + k; };
+  /* panel anahtarı (zaman, sirket-sim, istat-galton) → defter anahtarı (finans.zaman, sirket.sim, istat.galton) */
+  var logKey = function (k) { return /^sirket-/.test(k) ? 'sirket.' + k.slice(7) : /^istat-/.test(k) ? 'istat.' + k.slice(6) : 'finans.' + k; };
   var stations = function () {
     var seen = {}, out = [];
     Array.prototype.forEach.call(sec.querySelectorAll('[data-finans-open]'), function (b) {
       if (panel.contains(b)) return;
       var k = b.getAttribute('data-finans-open'); if (seen[k]) return; seen[k] = 1;
       var li = b.closest('li'), cc = (li && li.style.getPropertyValue('--cc')) || '#2F6FB0';
-      var name = /^sirket-/.test(k) ? (W.AX_SIRKET || {})[k.slice(7)] : (W.AX_FINANS || {})[k];
+      var name = /^sirket-/.test(k) ? (W.AX_SIRKET || {})[k.slice(7)] : /^istat-/.test(k) ? (W.AX_ISTAT || {})[k.slice(6)] : (W.AX_FINANS || {})[k];
       out.push({ k: k, b: b, cc: cc.trim(), name: name || k, kat: /^sirket-/.test(k) });
     });
     return out;
@@ -42,14 +42,14 @@
   yard.parentNode.insertBefore(panel, yard);
 
   var shipSvg = function (st, log, fresh) {
-    /* güverte: 15 yuva, 3 sıra × 5; alttan yukarı dolar */
-    var cols = 5, w = 38, h = 22, x0 = 62, yb = 86, s = '';
+    /* güverte: her istasyon bir yuva; 15'e kadar 3 sıra × 5, daha fazlasında 4 sıra (24 istasyon: 6 × 4); alttan yukarı dolar */
+    var cols = st.length <= 15 ? 5 : Math.ceil(st.length / 4), rows = Math.ceil(st.length / cols), w = cols <= 5 ? 38 : Math.floor(204 / cols) - 3, h = rows <= 3 ? 22 : 16, x0 = cols <= 5 ? 62 : 52, yb = 86, s = '';
     st.forEach(function (o, i) {
       var r = log.tabs[logKey(o.k)], col = i % cols, row = Math.floor(i / cols), x = x0 + col * (w + 3), y = yb - (row + 1) * (h + 2);
       if (!r || !r.v) { s += '<rect class="lm-slot" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="2"/>'; return; }
       var ok = r.best != null && r.best >= 85, nw = fresh.indexOf(o.k) > -1;
       s += '<g class="lm-box' + (nw ? ' lm-new' : '') + '" style="--d:' + (fresh.indexOf(o.k) * 0.25) + 's"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="2" fill="' + esc(o.cc) + '" stroke="#0D1838" stroke-width="1.4"/>' +
-        '<path d="M' + (x + 7) + ' ' + (y + 3) + ' V' + (y + h - 3) + ' M' + (x + 15) + ' ' + (y + 3) + ' V' + (y + h - 3) + ' M' + (x + 23) + ' ' + (y + 3) + ' V' + (y + h - 3) + ' M' + (x + 31) + ' ' + (y + 3) + ' V' + (y + h - 3) + '" stroke="rgba(0,0,0,.22)" stroke-width="1.2"/>' +
+        '<path d="' + [0.18, 0.39, 0.6, 0.81].map(function (q) { return 'M' + (x + Math.round(w * q)) + ' ' + (y + 3) + ' V' + (y + h - 3); }).join(' ') + '" stroke="rgba(0,0,0,.22)" stroke-width="1.2"/>' +
         (ok ? '<circle cx="' + (x + w - 7) + '" cy="' + (y + 7) + '" r="6" fill="#FFFDF8" stroke="#1E8A55" stroke-width="1.6"/><path d="M' + (x + w - 10) + ' ' + (y + 7) + ' l2 2.4 l4 -4.6" fill="none" stroke="#1E8A55" stroke-width="1.8" stroke-linecap="round"/>' : '') + '</g>';
     });
     return '<svg class="lm-ship" viewBox="0 0 330 130" role="img" aria-label="Gemi: ' + st.filter(function (o) { var r = log.tabs[logKey(o.k)]; return r && r.v; }).length + ' / ' + st.length + ' konteyner yüklü">' +

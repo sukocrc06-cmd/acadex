@@ -1,6 +1,7 @@
 /* ================= ACADEX FİNANS: finans, muhasebe ve uluslararası ticaret istasyonları ================= */
 /* Görünüm dashboard.html → #finans-view; stiller css/acadex-finans.css.
-   Sekiz istasyon tek sayfada: labs/finans/index.html (?hub=1&tab=<istasyon>). Karttan açılınca
+   Sekiz istasyon tek sayfada: labs/finans/index.html (?hub=1&tab=<istasyon>); şirket katları labs/sirket/,
+   istatistik gözlemevi labs/istatistik/. Karttan açılınca
    tam ekran katmandaki iframe'e yüklenir; iframe zaten yüklüyse sayfa yeniden yüklenmez,
    istasyon postMessage ile değişir. Sitenin Acadia'sı MedLab köprüsünü kullanır
    (js/acadex-medlab-acadia.js → axMedLabHook('finans')). */
@@ -14,9 +15,13 @@
   /* genel müdürlük (29.10.2026): şirket yönetimi katları ayrı lab'da (labs/sirket/), aynı katmanda açılır; anahtar 'sirket-<kat>' */
   var SK = { terazi: 'Bilanço terazisi', tablolar: 'Üç tablo ve nakit', maliyet: 'Maliyet ve başabaş', yatirim: 'Yatırım kararı', strateji: 'Strateji masası', org: 'Organizasyon', sim: 'Şirketi yönet' };
   window.AX_SIRKET = SK;
-  var labOf = function (k) { return /^sirket-/.test(k) ? 'sirket' : 'finans'; };
+  /* gözlemevi (03.11.2026): istatistik istasyonları ayrı lab'da (labs/istatistik/), aynı katmanda açılır; anahtar 'istat-<istasyon>' */
+  var IST = { betimsel: 'Veri masası', olasilik: 'Zar ve para atölyesi', dagilim: 'Dağılım galerisi', galton: 'Galton ve merkezî limit', guven: 'Güven aralığı', hipotez: 'Hipotez mahkemesi', kikare: 'Ki-kare ve ANOVA', regresyon: 'Regresyon atölyesi', bolum: 'Bölüm köşeleri' };
+  window.AX_ISTAT = IST;
+  var labOf = function (k) { return /^sirket-/.test(k) ? 'sirket' : /^istat-/.test(k) ? 'istat' : 'finans'; };
   var info = function (k) {
     if (labOf(k) === 'sirket') { var t = k.slice(7); return SK[t] ? { lab: 'sirket', tab: t, src: 'labs/sirket/index.html', name: 'Acadex Şirket · ' + SK[t] } : null; }
+    if (labOf(k) === 'istat') { var u = k.slice(6); return IST[u] ? { lab: 'istat', tab: u, src: 'labs/istatistik/index.html', name: 'Acadex İstatistik · ' + IST[u] } : null; }
     return ST[k] ? { lab: 'finans', tab: k, src: SRC, name: 'Acadex Finans · ' + ST[k] } : null;
   };
   var curLab = null;
