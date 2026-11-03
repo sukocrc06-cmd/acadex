@@ -160,6 +160,7 @@
     if (st && !inited[k] && st.init) { inited[k] = true; st.init(); }
     if (st && st.show) st.show();
     ls.set(LAB === 'finans' ? 'tab' : LAB + '.tab', k); bridgeSend();
+    if (FN.logVisit) FN.logVisit(k);
   };
   $$('.pt-tabs [data-tab]').forEach(function (b) {
     b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); try { W.scrollTo({ top: 0 }); } catch (e) {} });
@@ -197,6 +198,29 @@
       post({ type: 'ack', id: d.id }); post({ type: 'reply', id: d.id, text: text });
     });
   }
+
+  /* ---------------- liman defteri: istasyon ilerlemesi (03.11.2026) ----------------
+     Acadex Finans panelindeki "liman defteri" bunu okur (js/acadex-liman.js).
+     Bu tarayıcıda tutulur (acadex.finans.log); ağ isteği yok. Anahtar: <lab>.<istasyon>.
+     v: açılış, sec: istasyonda geçen süre, n: karne sayısı, best/lastP: en iyi ve son karne yüzdesi. */
+  var logGet = function () { var o = ls.get('log', null); return o && o.tabs ? o : { tabs: {} }; };
+  var logPut = function (o) { ls.set('log', o); post({ type: 'progress' }); };
+  var logRow = function (o, k) { var key = LAB + '.' + k; return o.tabs[key] || (o.tabs[key] = { v: 0, sec: 0, n: 0, best: null, lastP: null, at: 0 }); };
+  FN.logVisit = function (k) { var o = logGet(), r = logRow(o, k); r.v++; r.at = Date.now(); o.last = LAB + '.' + k; logPut(o); };
+  var baseKarne = karne;
+  FN.core.karne = function (p) {
+    var k = tab; if (k && isFinite(p)) {
+      var o = logGet(), r = logRow(o, k), now = Date.now();
+      /* aynı sonuç ekran tazelenince yeniden çizilir: 20 sn içinde aynı yüzde tekrar sayılmaz */
+      if (!(r.lastP === Math.round(p) && now - (r.kAt || 0) < 20000)) { r.n++; r.kAt = now; }
+      r.lastP = Math.round(p); r.best = Math.max(r.best == null ? 0 : r.best, Math.round(p)); r.at = now; logPut(o);
+    }
+    return baseKarne.apply(this, arguments);
+  };
+  setInterval(function () {
+    if (D.hidden || !tab) return;
+    var o = logGet(); logRow(o, tab).sec += 15; ls.set('log', o);
+  }, 15000);
 
   /* ---------------- başlat (index.html sonunda) ---------------- */
   FN.core.start = function () {

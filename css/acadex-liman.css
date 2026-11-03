@@ -1,0 +1,41 @@
+/* ==========================================================================
+   ACADEX FİNANS · LİMAN DEFTERİ (css/acadex-liman.css + js/acadex-liman.js), 03.11.2026
+   ========================================================================== */
+#finans-view .lm-board{display:grid;grid-template-columns:minmax(260px,1.05fr) minmax(0,1fr);gap:22px 28px;align-items:center;margin:0 0 28px;padding:18px 20px;border-radius:16px;background:#FFFDF8;box-shadow:0 0 0 1.5px #E1E5EE,0 20px 30px -24px rgba(13,24,56,.5)}
+#finans-view .lm-ship{display:block;width:100%;height:auto;border-radius:12px}
+#finans-view .lm-slot{fill:rgba(255,255,255,.35);stroke:#7FA3C8;stroke-width:1.3;stroke-dasharray:3 3}
+#finans-view .lm-r h2{margin:2px 0 10px;font-size:clamp(22px,2.2vw,30px);letter-spacing:-.02em;color:#0D1838}
+#finans-view .lm-r .eyb{font-size:19px;color:#2F6FB0}
+#finans-view .lm-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:0;list-style:none}
+#finans-view .lm-stats li{display:flex;flex-direction:column;padding:8px 12px;border-radius:10px;background:#F2F5FA}
+#finans-view .lm-stats b{font:800 20px 'Bricolage Grotesque',system-ui,sans-serif;color:#0D1838}
+#finans-view .lm-stats span{font-size:12.5px;color:#6A7593}
+#finans-view .lm-acts{display:flex;flex-wrap:wrap;gap:8px}
+#finans-view .lm-go,#finans-view .lm-next{min-height:44px;padding:0 16px;border:0;border-radius:999px;font:600 14px 'Inter',system-ui,sans-serif;cursor:pointer;text-align:left}
+#finans-view .lm-go{background:#0D1838;color:#fff}
+#finans-view .lm-go:hover{background:#1A2A5C}
+#finans-view .lm-next{background:#EAF2FA;color:#0D1838;box-shadow:inset 0 0 0 1.5px #B8D0E8}
+#finans-view .lm-go:focus-visible,#finans-view .lm-next:focus-visible{outline:2.5px solid #2F6BFF;outline-offset:2px}
+#finans-view .lm-all{font-size:20px;color:#1E8A55}
+#finans-view .lm-note{margin:10px 0 0;font-size:12px;color:#8A93AB}
+/* kart etiketleri */
+#finans-view .axf-box,#finans-view .axf-fl{position:relative}
+#finans-view .lm-tag{position:absolute;left:10px;top:10px;z-index:2;padding:2px 9px;border-radius:999px;font:700 11.5px/1.5 'JetBrains Mono',monospace;background:#FFFDF8;color:#4B5675;box-shadow:0 0 0 1.5px #D7DCE6;pointer-events:none}
+#finans-view .axf-fl .lm-tag{left:auto;top:50%;right:12px;transform:translateY(-50%)}
+#finans-view .lm-tag.is-new{background:#FFF1B8;color:#7A5A00;box-shadow:none}
+#finans-view .lm-tag.is-ok{background:#1E8A55;color:#fff;box-shadow:none}
+#finans-view .lm-tag.is-try{background:#FDECE6;color:#B4511F;box-shadow:none}
+#finans-view .lm-tag.is-open{background:#EAF2FA;color:#2F6FB0;box-shadow:none}
+/* hareket */
+@media (prefers-reduced-motion:no-preference){
+ #finans-view .lm-float{animation:lm-bob 4.5s ease-in-out infinite;transform-origin:164px 100px}
+ #finans-view .lm-wv rect{animation:lm-wv 3s linear infinite}
+ #finans-view .lm-box.lm-new{animation:lm-drop 1.1s cubic-bezier(.3,1.2,.5,1) both;animation-delay:var(--d,0s)}
+ #finans-view .lm-board.lm-load .lm-hook{animation:lm-hook 1.1s ease-in-out}
+}
+@keyframes lm-bob{0%,100%{transform:translateY(0) rotate(-.4deg)}50%{transform:translateY(2px) rotate(.4deg)}}
+@keyframes lm-wv{to{transform:translateX(-30px)}}
+@keyframes lm-drop{0%{transform:translateY(-70px);opacity:0}35%{opacity:1}70%{transform:translateY(3px)}100%{transform:none}}
+@keyframes lm-hook{40%{transform:translateY(30px)}}
+@media (max-width:860px){#finans-view .lm-board{grid-template-columns:1fr;padding:14px}}
+@media (prefers-reduced-motion:reduce){#finans-view .lm-board *{animation:none!important}}
