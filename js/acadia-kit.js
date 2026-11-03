@@ -197,8 +197,25 @@
 
   /* ---------- stüdyo: "Acadia'nı giydir" ---------- */
   var studio = null;
+  var SCENE_BG = {
+    sade: '',
+    gece: '<svg class="acd-st-bg" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="200" height="200" fill="#1A2A5C"/><circle cx="160" cy="40" r="16" fill="#FFF3C4"/><circle cx="167" cy="35" r="14" fill="#1A2A5C"/>' +
+      [[20, 30], [50, 60], [90, 20], [120, 70], [30, 110], [180, 120], [140, 150], [70, 140], [110, 110]].map(function (p, i) { return '<circle class="tw" cx="' + p[0] + '" cy="' + p[1] + '" r="' + (i % 3 ? 1.4 : 2.2) + '" fill="#FFF6D6" style="animation-delay:' + (i * 0.3) + 's"/>'; }).join('') +
+      '<path d="M0 178 C40 168 80 176 120 170 C150 166 180 172 200 168 V200 H0 Z" fill="#0D1838"/></svg>',
+    kutuphane: '<svg class="acd-st-bg" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="200" height="200" fill="#F3E6D0"/>' +
+      [30, 82, 134].map(function (y) { var b = '<rect x="0" y="' + (y + 34) + '" width="200" height="6" fill="#A9824F"/>'; for (var x = 6, i = 0; x < 196; i++) { var w = 8 + (i * 7) % 7, h = 24 + (i * 11) % 10; b += '<rect x="' + x + '" y="' + (y + 34 - h) + '" width="' + w + '" height="' + h + '" fill="' + ['#C9483B', '#2F6FB0', '#1E8A55', '#E0A526', '#6B4FB3', '#0D5C8C'][i % 6] + '" opacity=".75"/>'; x += w + 2; } return b; }).join('') +
+      '<rect y="178" width="200" height="22" fill="#8E6638"/></svg>',
+    kampus: '<svg class="acd-st-bg" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="200" height="200" fill="#DCEFF8"/><circle cx="40" cy="38" r="14" fill="#FFE27A"/>' +
+      '<path d="M108 80 L150 58 L192 80 Z" fill="#C9483B"/><rect x="114" y="80" width="72" height="80" fill="#FFFDF8" stroke="#1A2A5C" stroke-width="2"/>' + [126, 146, 166].map(function (x) { return '<rect x="' + x + '" y="92" width="10" height="16" fill="#9CCBFF"/><rect x="' + x + '" y="118" width="10" height="16" fill="#9CCBFF"/>'; }).join('') +
+      '<circle class="tree" cx="34" cy="132" r="22" fill="#3E8E5B"/><rect x="31" y="146" width="6" height="18" fill="#8E6638"/><path d="M0 162 H200 V200 H0 Z" fill="#9BD3A8"/></svg>'
+  };
   var openStudio = function () {
-    var draft = clean(STYLE), prevMood = 'mutlu', prevPose = 'selam';
+    var draft = clean(STYLE), prevMood = 'mutlu', prevPose = 'selam', wear = '';
+    /* CANLI SAHNE (03.11.2026): önizlemede Acadia süzülür; arka plan seçilir (bu cihazda hatırlanır);
+       bir parça takınca pırıltı, zarla rastgele kombin. */
+    var SCENES = [['sade', 'sade'], ['gece', 'gece'], ['kutuphane', 'kütüphane'], ['kampus', 'kampüs']];
+    var scene = lsafe(function () { return localStorage.getItem('acadex.acadia.sahne'); }, null) || 'sade';
+    if (!SCENES.some(function (x) { return x[0] === scene; })) scene = 'sade';
     if (!studio) {
       studio = D.createElement('dialog'); studio.className = 'acd-studio'; studio.setAttribute('aria-labelledby', 'acd-st-t');
       D.body.appendChild(studio);
@@ -208,7 +225,11 @@
     var render = function () {
       studio.innerHTML = '<form method="dialog" class="acd-st-f">' +
         '<header><span class="hand">maskot stüdyosu</span><h2 id="acd-st-t" class="disp">Acadia’nı giydir</h2><p>seçtiklerin her yerde görünür: sağ altta, panellerde ve sohbette.</p></header>' +
-        '<div class="acd-st-grid"><div class="acd-st-prev"><div class="acd-st-stage" data-st-stage="">' + svg({ mood: prevMood, pose: prevPose, renk: draft.renk, bas: draft.bas, goz: draft.goz, boyun: draft.boyun }) + '</div>' +
+        '<div class="acd-st-grid"><div class="acd-st-prev"><div class="acd-st-stage acd-sc-' + scene + (wear ? ' acd-wear acd-w-' + wear : '') + '" data-st-stage="">' + SCENE_BG[scene] +
+        '<span class="acd-st-fly">' + svg({ mood: prevMood, pose: prevPose, renk: draft.renk, bas: draft.bas, goz: draft.goz, boyun: draft.boyun }) + '</span><i class="acd-st-shadow" aria-hidden="true"></i>' +
+        (wear ? '<span class="acd-st-spark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>' : '') +
+        '<button type="button" class="acd-st-dice" data-dice="" aria-label="Rastgele kombin" title="Rastgele kombin"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="15.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/><circle cx="8.5" cy="15.5" r="1.5"/><circle cx="12" cy="12" r="1.5"/></svg></button></div>' +
+        '<div class="acd-st-moods acd-st-scenes" role="radiogroup" aria-label="Sahne">' + SCENES.map(function (x) { return '<button type="button" role="radio" data-scene="' + x[0] + '" aria-checked="' + (x[0] === scene) + '">' + X(x[1]) + '</button>'; }).join('') + '</div>' +
         '<div class="acd-st-moods" role="group" aria-label="İfadeyi dene">' + MOODS.map(function (m) { return '<button type="button" data-try="' + m[0] + '" aria-pressed="' + (m[0] === prevMood) + '">' + X(m[1]) + '</button>'; }).join('') + '</div>' +
         '<div class="acd-st-moods" role="group" aria-label="Pozu dene">' + [['selam', 'el sallar'], ['isaret', 'gösterir'], ['oku', 'okur'], ['zipla', 'zıplar'], ['dusun', 'düşünür'], ['dur', 'durur']].map(function (p) { return '<button type="button" data-pose="' + p[0] + '" aria-pressed="' + (p[0] === prevPose) + '">' + X(p[1]) + '</button>'; }).join('') + '</div></div>' +
         '<div class="acd-st-opts">' +
@@ -225,11 +246,18 @@
     render();
     studio.onclick = function (e) {
       var t = e.target.closest('button, input'); if (!t) return;
-      if (t.hasAttribute('data-try')) { prevMood = t.getAttribute('data-try'); render(); return; }
-      if (t.hasAttribute('data-pose')) { prevPose = t.getAttribute('data-pose'); render(); return; }
-      if (t.hasAttribute('data-slot')) { draft[t.getAttribute('data-slot')] = t.getAttribute('data-val'); if (t.getAttribute('data-slot') === 'ifade') prevMood = draft.ifade; render(); var f = studio.querySelector('[data-slot="' + t.getAttribute('data-slot') + '"][data-val="' + t.getAttribute('data-val') + '"]'); if (f) f.focus(); return; }
+      if (t.hasAttribute('data-scene')) { scene = t.getAttribute('data-scene'); wear = ''; try { localStorage.setItem('acadex.acadia.sahne', scene); } catch (er) {} render(); var sf = studio.querySelector('[data-scene="' + scene + '"]'); if (sf) sf.focus(); return; }
+      if (t.hasAttribute('data-dice')) {
+        var pick = function (a) { return a[Math.floor(Math.random() * a.length)]; };
+        draft.renk = pick(Object.keys(COLORS)); ['bas', 'goz', 'boyun'].forEach(function (k) { draft[k] = pick(SLOTS[k])[0]; });
+        prevMood = pick(MOODS)[0]; wear = 'zar'; render(); wear = '';
+        var db = studio.querySelector('[data-dice]'); if (db) db.focus(); return;
+      }
+      if (t.hasAttribute('data-try')) { prevMood = t.getAttribute('data-try'); wear = ''; render(); return; }
+      if (t.hasAttribute('data-pose')) { prevPose = t.getAttribute('data-pose'); wear = ''; render(); return; }
+      if (t.hasAttribute('data-slot')) { draft[t.getAttribute('data-slot')] = t.getAttribute('data-val'); if (t.getAttribute('data-slot') === 'ifade') prevMood = draft.ifade; wear = t.getAttribute('data-slot'); render(); wear = ''; var f = studio.querySelector('[data-slot="' + t.getAttribute('data-slot') + '"][data-val="' + t.getAttribute('data-val') + '"]'); if (f) f.focus(); return; }
       if (t.hasAttribute('data-kostum')) { draft.kostum = t.checked; return; }
-      if (t.hasAttribute('data-reset')) { draft = clean(DEF); render(); return; }
+      if (t.hasAttribute('data-reset')) { draft = clean(DEF); wear = 'zar'; render(); wear = ''; return; }
       if (t.hasAttribute('data-cancel')) { studio.close(); }
     };
     studio.onsubmit = function (e) {

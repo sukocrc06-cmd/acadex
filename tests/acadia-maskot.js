@@ -111,4 +111,14 @@ test('landing rehberi: yıldız gibi kenardan kenara süzülür, altın iz bıra
   assert.match(reh, /cy = Math\.max\(2 \* top - 0\.5 \* \(from\.y \+ dest\.y\), Math\.min\(2 \* bot - 0\.5 \* \(from\.y \+ dest\.y\), cy\)\);/);
   assert.match(reh, /cx\.lineWidth = pass \? \.6 \+ 1\.4 \* a : 3 \+ 4 \* a;/, 'iz ince: en fazla 2 px çizgi, 7 px hafif parıltı');
 });
+test('stüdyo canlı sahne: arka plan, süzülme, takınca pırıltı, zar (03.11.2026)', () => {
+  const k = read('js/acadia-kit.js'), css = read('css/acadia-kit.css');
+  for (const sc of ['sade', 'gece', 'kutuphane', 'kampus']) assert.match(k, new RegExp("\\['" + sc + "', '"), sc);
+  assert.match(k, /localStorage\.setItem\('acadex\.acadia\.sahne', scene\)/, 'sahne bu cihazda hatırlanır');
+  assert.match(k, /wear = t\.getAttribute\('data-slot'\); render\(\); wear = '';/, 'pırıltı yalnızca takılan an');
+  assert.match(k, /draft\.renk = pick\(Object\.keys\(COLORS\)\); \['bas', 'goz', 'boyun'\]\.forEach/);
+  assert.match(k, /aria-label="Rastgele kombin"/); assert.match(k, /role="radiogroup" aria-label="Sahne"/);
+  const blk = css.slice(css.indexOf('.acd-st-stage{position:relative'), css.indexOf('@keyframes acd-st-float'));
+  assert.match(blk, /@media \(prefers-reduced-motion:no-preference\)\{\n  \.acd-st-fly\{animation:acd-st-float/, 'süzülme hareket serbestken');
+});
 summary();

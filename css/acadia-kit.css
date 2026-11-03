@@ -59,6 +59,40 @@
 .acd-st-prev{position:sticky;top:0;align-self:start}
 .acd-st-stage{display:grid;place-items:center;aspect-ratio:1;padding:18px;border-radius:16px;background:radial-gradient(circle at 50% 45%,#FFFFFF,#EEF1F8 70%);border:1.5px dashed #C9D1E1}
 .acd-st-stage .acd{width:86%}
+.acd-st-stage{position:relative;overflow:hidden;isolation:isolate}
+.acd-st-bg{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
+.acd-st-stage.acd-sc-gece,.acd-st-stage.acd-sc-kutuphane,.acd-st-stage.acd-sc-kampus{border-style:solid;border-color:#1A2A5C}
+.acd-st-fly{position:relative;display:grid;place-items:center;width:86%}
+.acd-st-stage .acd-st-fly .acd{width:100%}
+.acd-st-shadow{position:absolute;left:50%;bottom:8%;width:46%;height:7%;margin-left:-23%;border-radius:50%;background:radial-gradient(closest-side,rgba(13,24,56,.28),transparent);z-index:0}
+.acd-sc-gece .acd-st-shadow{background:radial-gradient(closest-side,rgba(255,236,170,.35),transparent)}
+.acd-sc-gece .acd-st-fly{filter:drop-shadow(0 0 16px rgba(255,226,140,.45))}
+.acd-st-dice{position:absolute;right:10px;top:10px;z-index:2;width:40px;height:40px;border:1.5px solid #1A2A5C;border-radius:12px;background:#FFFDF8;box-shadow:2px 3px 0 #1A2A5C;cursor:pointer;display:grid;place-items:center}
+.acd-st-dice svg{width:22px;height:22px;fill:none;stroke:#1A2A5C;stroke-width:1.8}
+.acd-st-dice circle{fill:#1A2A5C;stroke:none}
+.acd-st-dice:focus-visible{outline:3px solid #2F6BFF;outline-offset:2px}
+.acd-st-spark{position:absolute;left:50%;top:46%;width:0;height:0;z-index:3;pointer-events:none}
+.acd-st-spark i{position:absolute;width:8px;height:8px;margin:-4px;border-radius:50%;background:#FFE27A;box-shadow:0 0 8px #FFD34D;opacity:0}
+.acd-st-scenes button[aria-checked="true"]{background:#1A2A5C;color:#fff;border-color:#1A2A5C}
+@media (prefers-reduced-motion:no-preference){
+  .acd-st-fly{animation:acd-st-float 4.2s ease-in-out infinite}
+  .acd-st-shadow{animation:acd-st-sh 4.2s ease-in-out infinite}
+  .acd-st-bg .tw{animation:acd-twinkle 2.4s ease-in-out infinite}
+  .acd-st-bg .tree{animation:acd-st-tree 5s ease-in-out infinite;transform-origin:34px 160px}
+  .acd-wear .acd-st-fly{animation:acd-st-wear .7s cubic-bezier(.3,1.6,.5,1),acd-st-float 4.2s ease-in-out .7s infinite}
+  .acd-w-zar .acd-st-fly{animation:acd-st-spin .8s cubic-bezier(.3,1.3,.5,1),acd-st-float 4.2s ease-in-out .8s infinite}
+  .acd-w-zar .acd-st-dice{animation:acd-st-roll .6s cubic-bezier(.3,1.4,.5,1)}
+  .acd-st-spark i{animation:acd-st-sp .9s ease-out forwards}
+  .acd-st-spark i:nth-child(1){--x:-70px;--y:-40px}.acd-st-spark i:nth-child(2){--x:-30px;--y:-80px;animation-delay:.04s}.acd-st-spark i:nth-child(3){--x:30px;--y:-84px;animation-delay:.08s}.acd-st-spark i:nth-child(4){--x:72px;--y:-36px;animation-delay:.02s}
+  .acd-st-spark i:nth-child(5){--x:76px;--y:30px;animation-delay:.06s}.acd-st-spark i:nth-child(6){--x:-74px;--y:34px;animation-delay:.1s}.acd-st-spark i:nth-child(7){--x:0px;--y:-96px;animation-delay:.12s}.acd-st-spark i:nth-child(8){--x:10px;--y:80px;animation-delay:.05s}
+}
+@keyframes acd-st-float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
+@keyframes acd-st-sh{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.78);opacity:.6}}
+@keyframes acd-st-wear{0%{transform:scale(1)}35%{transform:scale(1.12) rotate(-6deg)}70%{transform:scale(.96) rotate(3deg)}100%{transform:scale(1)}}
+@keyframes acd-st-spin{0%{transform:rotate(0) scale(.8)}60%{transform:rotate(380deg) scale(1.08)}100%{transform:rotate(360deg) scale(1)}}
+@keyframes acd-st-roll{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes acd-st-tree{50%{transform:rotate(3deg)}}
+@keyframes acd-st-sp{0%{opacity:1;transform:translate(0,0) scale(.4)}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(1.1)}}
 .acd-st-moods{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .acd-st-moods button{min-height:34px;padding:0 10px;border:1px solid #C9D1E1;border-radius:999px;background:#fff;font:inherit;font-size:13px;color:#1A2A5C;cursor:pointer}
 .acd-st-moods button[aria-pressed="true"]{background:#1A2A5C;color:#fff;border-color:#1A2A5C}
