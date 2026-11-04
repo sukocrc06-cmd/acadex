@@ -28,7 +28,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
-  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE', 'SAYFA_ISARETI_RE', 'YUZDE_CEVRIM_RE', 'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND', 'araHesabiAyikla', 'SAYI_BELIRTECI', 'sayiOkumalari',
+  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'BOLUK_ONDALIK_RE', 'BANT_ETIKETI_RE', 'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE', 'SAYFA_ISARETI_RE', 'YUZDE_CEVRIM_RE', 'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND', 'araHesabiAyikla', 'SAYI_BELIRTECI', 'sayiOkumalari',
   // Grafik eksen centikleri hedeften duser (31.10.2026 olcumu).
   'EKSEN_MIN_UZUNLUK', 'eksenCentikleriniAyikla',
   'distinctiveNumbers',
@@ -392,6 +392,60 @@ test('distinctiveNumbers: URL ve dosya adi icindeki sayilar hedef degildir', () 
   const metin = 'Leaders controlled resources for 5,000 to 20,000 people.';
   const hedef = G.distinctiveNumbers(metin);
   assert.ok(hedef.includes(5000) && hedef.includes(20000), `gelen: ${hedef.join(', ')}`);
+});
+
+/* BOLUNMUS ONDALIK ve BANT ETIKETI (04.11.2026 olcumu).
+
+   Kosu: 2-Eritrositler -3 (1).pdf, canli log
+     "Son kart sayisal kapsama: 21/31 (%68) — kayip: 0.4, 600, 110, 2.1, 2.2,
+      2.6, 4.5, 6.25 +2"
+   Kayiplar incelendi ve IKI SINIFA ayrildi (belgeye sadakat ilkesi: artefakt
+   ise metrik duzeltilir, gercek icerikse cikarim duzeltilir):
+
+   ARTEFAKT (metrik duzeltildi):
+     0.4            <- "Erkek: ~ 5 .4 milyon/mm3"   PDF ondaligi bosluklu
+                       birakmis; jeton ".4" olup 0.4 okunuyordu. Iki yonlu
+                       hata: hayalet hedef uretiyor VE gercek 5.4'u kaciriyor.
+     2.1 2.2 2.6    <- "Band 2.1, 2.2, 2.3 ve 2.6"  eritrosit zar proteini
+                       ADI, olculen miktar degil.
+   GERCEK ICERIK (metrige dokunulmadi, kapsama aciginda kaliyor):
+     600            <- "600- 900 g Hb"
+     110            <- "MCV 110 uzerine cikarsa folat/B12 eksikligi"
+
+   Bu test iki onarimi ve UC regresyon korumasini birlikte tutuyor. */
+test('distinctiveNumbers: bolunmus ondalik ONARILIR, bant etiketi ELENIR', () => {
+  // ONARIM: 5.4 geri geliyor, hayalet 0.4 gidiyor.
+  assert.deepEqual(
+    G.distinctiveNumbers('normal sayısı Erkek: ~ 5 .4 milyon/mm3 Kadın: ~ 4,8milyon/mm3'),
+    [5.4, 4.8], 'bolunmus ondalik onarilmiyor');
+
+  // ELEME: etiket listenin DEVAMINI da yutmali, yoksa 2.2/2.3/2.6 hedef kalir.
+  assert.deepEqual(
+    G.distinctiveNumbers('band 2: spektrinin iki zinciri • Band 2.1, 2.2, 2.3 ve 2.6 :ankirin'),
+    [], 'bant etiketleri hedef sayiliyor');
+
+  /* KORUMA 1: lookbehind. "husband" icindeki "band" eslesmemeli. */
+  assert.deepEqual(G.distinctiveNumbers('her husband 2.5 kg aldi'), [2.5],
+    'sozcuk ici eslesme gercek sayiyi yedi');
+
+  /* KORUMA 2: noktayla BASLAYAN gercek degerler. SAYI_BELIRTECI bastaki
+     noktayi bilerek kabul ediyor (".07 tons", ".69%" Amerikan istatistik
+     gelenegi; referans destenin alti sonucundan ikisi tam bu bicimde).
+     Onarim bunlari bozmamali. */
+  assert.deepEqual(G.distinctiveNumbers('slaytta .07 tons ve .69% yaziyor'), [0.07, 0.69],
+    'nokta onekli gercek degerler kayboldu');
+
+  /* KORUMA 3: gercek icerik kaybi artefakt sayilmamali — 600/900 ve 110
+     olcude KALMALI, yoksa kapsama acigi suslenmis olur. */
+  const hb = G.distinctiveNumbers('Erişkin bir erkekte yaklaşık 600- 900 g Hb bulunur.');
+  assert.ok(hb.includes(600) && hb.includes(900), `gelen: ${hb.join(', ')}`);
+  const mcv = G.distinctiveNumbers('hacmi:80-100 fl) 110 üzerine çıkarsa folat');
+  assert.ok(mcv.includes(110), `gelen: ${mcv.join(', ')}`);
+
+  /* KORUMA 4: satir sonu birlestirilmemeli — "Tablo 5\n.4" sayfa kirilmasi
+     olabilir, birlestirmek uydurma sayi uretir. */
+  assert.ok(!G.distinctiveNumbers('Tablo 5\n.4 oranini gosterir').includes(5.4),
+    'satir sonu uzerinden ondalik birlestirildi');
 });
 
 /* ---------------------------------------------------------------------------

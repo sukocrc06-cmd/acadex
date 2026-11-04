@@ -153,7 +153,7 @@ const A = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'pptxRelsHedefleri', 'pptxSlaytGorselleri', 'PPTX_OCR_MIN_BAYT', 'PPTX_OCR_MAX_SLAYT',
   'kurtarmaSatirlari', 'yorumCumleleriniKurtar',
   'SAYFA_ISARETI_RE', 'SAYISAL_KAPSAMA_TOLERANS', 'SAYI_BELIRTECI', 'SAYISAL_KAPSAMA_ORNEK',
-  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE',
+  'sayiOkumalari', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'BOLUK_ONDALIK_RE', 'BANT_ETIKETI_RE',
   'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE',
   // Maddeler veritabanina duz metin olarak gider (29.10.2026 olcumu).
   'duzMaddeMetni', 'normalizeKeyPoints',

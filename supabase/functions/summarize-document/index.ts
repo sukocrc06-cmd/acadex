@@ -6713,6 +6713,40 @@ const DERS_KODU_BOSLUKLU_RE = /\b([A-Z]{3,5})\s(\d{2,4})\b/g
 const ATIF_ETIKETI_RE =
   /(?<![A-Za-z])(?:figure|fig|table|tablo|\u015fekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:\.\d+)*\b/gi
 
+/* BOLUNMUS ONDALIK ONARIMI (04.11.2026 olcumu, 2-Eritrositler -3 (1).pdf).
+ *
+ * Canli log: "Son kart sayisal kapsama: 21/31 (%68) — kayip: 0.4, 600, 110,
+ * 2.1, 2.2, 2.6, 4.5, 6.25 +2". Kayiplarin ilki ARTEFAKTTI: PDF metninde
+ * "Erkek: ~ 5 .4 milyon/mm3" yaziyor — cikarim ondaligi bosluklu birakmis.
+ * SAYI_BELIRTECI bastaki noktayi da kabul ettigi icin (bkz. yanindaki not,
+ * ".07 tons" gercek bir bicim) jeton ".4" oluyor ve 0.4 okunuyordu.
+ *
+ * Yerelde olculdu: distinctiveNumbers("~ 5 .4 milyon/mm3 Kadin: ~ 4,8milyon")
+ *   ONCE  -> [0.4, 4.8]      0.4 HAYALET, 5.4 ise hic sayilmamis
+ *   SONRA -> [5.4, 4.8]
+ * Yani iki yonlu hata: olcu hem var olmayan bir hedef uyduruyor hem gercek
+ * olguyu kaciriyordu. ONARIM, ELEME DEGIL: 5.4 gercek bir olgu ve kartta
+ * gectigi icin kept sayilmali.
+ *
+ * BOSLUK/SEKME ile sinirli, SATIR SONU DAHIL DEGIL: "Tablo 5\n.4" gibi bir
+ * sayfa kirilmasini birlestirmek yanlis sayi uretirdi (olculdu, birlesmiyor). */
+const BOLUK_ONDALIK_RE = /(\d)[ \t]+(?=\.\d)/g
+
+/* BANT ETIKETI (04.11.2026 olcumu, ayni kosu).
+ *
+ * Ayni logdaki 2.1 / 2.2 / 2.6 kayiplari da artefakt: kaynak "Band 2: spektrinin
+ * iki zinciri • Band 2.1, 2.2, 2.3 ve 2.6 :ankirin" diyor — bunlar eritrosit zar
+ * proteinlerinin ADI, olculen bir miktar degil. ATIF_ETIKETI_RE figure/table/
+ * sekil kaliplarini zaten eliyor (olculdu: "Figure 6.2 The Cheating Pyramid"
+ * -> []), ama "band" o listede yoktu.
+ *
+ * LISTE DEVAMINI DA YUTUYOR: etiket yalnizca ILK sayinin onunde duruyor,
+ * geri kalani ", 2.2, 2.3 ve 2.6" diye devam ediyor. Sadece "band\s*\d+"
+ * elenirse 2.2/2.3/2.6 hedef olarak kalirdi.
+ * ATIF_ETIKETI_RE ile ayni lookbehind: "husband 2.5 kg" eslesmiyor (olculdu). */
+const BANT_ETIKETI_RE =
+  /(?<![A-Za-z])(?:band|bant)\s*\.?\s*\d+(?:\.\d+)*(?:\s*(?:,|ve|and|&|\/)\s*\d+(?:\.\d+)*)*/gi
+
 /* GRAFIK EKSENI ICERIK SAYILMIYOR (31.10.2026 olcumu).
  *
  * "IPPT Dummy" kartinda sayisal kapsama %49 ve kayip listesinin yarisi
@@ -6879,10 +6913,14 @@ function araHesabiAyikla(text: string): { metin: string; elenen: number[] } {
 
 function distinctiveNumbers(text: string): number[] {
   const temiz = String(text || '')
+    // Once ONARIM: bolunmus ondalik birlesmeli ki geri kalan kurallar dogru
+    // sayiyi gorsun (bkz. BOLUK_ONDALIK_RE).
+    .replace(BOLUK_ONDALIK_RE, '$1')
     .replace(URL_BENZERI_RE, ' ')
     .replace(BOZUK_US_RE, '$1 ')
     .replace(CAG_YILI_RE, ' ')
     .replace(ATIF_ETIKETI_RE, ' ')
+    .replace(BANT_ETIKETI_RE, ' ')
     .replace(DERS_KODU_RE, ' ')
     .replace(DERS_KODU_BOSLUKLU_RE, (tam: string, kod: string) => KOD_DISI.has(String(kod)) ? tam : ' ')
     /* Yalnizca NUMARA atiliyor, cumlenin son harfi ve noktasi kaliyor:
