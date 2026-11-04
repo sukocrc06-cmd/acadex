@@ -74,7 +74,7 @@ test('widget: anahtar tarayıcıda üretilir; görüşme sürerken düzenli çek
 test('admin: Canlı destek sekmesi, rozet, nabız ve bildirim', () => {
   assert.match(adm, /\{ k: 'support', t: 'Canlı destek', badge: 'support_unread' \}/);
   assert.match(adm, /VIEWS\.support = async function \(m\)/);
-  assert.match(adm, /setInterval\(function \(\) \{ if \(ME\) supPulse\(\); \}, 15000\);/);
+  assert.match(adm, /setInterval\(function \(\) \{ if \(ME && !FIN_ONLY\(\)\) supPulse\(\); \}, 15000\);/);
   assert.match(adm, /new Notification\('Acadex · canlı destek'/);
   assert.match(adm, /o\.support_unread = SUP\.unread; COUNTS = o;/);
 });

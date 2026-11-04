@@ -100,18 +100,21 @@
       var s = await sb.auth.getSession();
       if (!s.data || !s.data.session) { var q = new URLSearchParams(location.hash.slice(1) + '&' + location.search.slice(1)); loginView(q.get('error_description') ? q.get('error_description').replace(/\+/g, ' ') : ''); return; }
       var who = await rpc('admin_whoami');
-      if (!who || !who.is_admin) { notAdminView(who || {}); return; }
+      if (!who || !(who.is_admin || who.is_finance)) { notAdminView(who || {}); return; }
       ME = who; start();
     } catch (e) { gate('<h2 class="disp">Bir sorun çıktı</h2><p class="err">' + X(errMsg(e)) + '</p><div class="acts-g"><button type="button" class="btn blue" id="g-retry">Tekrar dene</button> <button type="button" class="lnk" id="g-out">çıkış yap</button></div>'); $('#g-retry').addEventListener('click', boot); $('#g-out').addEventListener('click', signOut); }
   };
 
   /* =========================== panel iskeleti =========================== */
   var ME = null, CUR = 'overview', COUNTS = {}, TEST = null;
+  /* finans rolü (yönetici değil): yalnız Finans + Acadex ekibi (salt okunur); yetki veritabanında, bu yalnız görünüm */
+  var FIN_ONLY = function () { return !!(ME && !ME.is_admin && ME.is_finance); };
+  var FIN_NAV = { finans: 1, ekip: 1 };
   var IC = {
     overview: '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.7 2.5 3 5.2"/>',
     reports: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
-    plans: '<path d="M4 6h16v12H4zM4 10h16M8 15h3"/>',
+    finans: '<path d="M4 19h16M6 16V10M10 16V6M14 16v-4M18 16V8"/><path d="M5 7.5l5-3 4 4 5-3.5"/>',
     content: '<path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"/>',
     support: '<path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19c0 1.5-2 2.5-5 2.5h-1"/>',
     push: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>',
@@ -124,15 +127,16 @@
   };
   var NAV = [
     { g: 'MASA' }, { k: 'overview', t: 'Genel bakış' },
-    { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' }, { k: 'plans', t: 'Planlar ve kota', soon: true },
+    { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' },
     { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'support', t: 'Canlı destek', badge: 'support_unread' }, { k: 'push', t: 'Bildirimler' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
-    { g: 'ACADEX' }, { k: 'ekip', t: 'Acadex ekibi' },
+    { g: 'ACADEX' }, { k: 'finans', t: 'Finans' }, { k: 'ekip', t: 'Acadex ekibi' },
     { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
-  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', plans: 'Planlar ve kota', content: 'İçerik', support: 'Canlı destek', push: 'Telefon bildirimleri', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
+  var TITLES = { overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', finans: 'Finans', content: 'İçerik', support: 'Canlı destek', push: 'Telefon bildirimleri', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
   var paintNav = function () {
-    $('#nav').innerHTML = NAV.map(function (n) {
+    var fo = FIN_ONLY();
+    $('#nav').innerHTML = NAV.filter(function (n, i) { return !fo || (n.k ? FIN_NAV[n.k] : NAV[i + 1] && FIN_NAV[NAV[i + 1].k]); }).map(function (n) {
       if (n.g) return '<div class="grp">' + n.g + '</div>';
       var c = n.badge && COUNTS[n.badge] ? '<span class="badge">' + NF(COUNTS[n.badge]) + '</span>' : n.soon ? '<span class="soon">yakında</span>' : '';
       return '<button type="button" data-go="' + n.k + '"' + (n.k === CUR ? ' aria-current="page"' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true">' + IC[n.k] + '</svg>' + X(n.t) + c + '</button>';
@@ -140,6 +144,8 @@
   };
   var main = function () { return $('#adm-main'); };
   var go = function (k, push) {
+    if (k === 'plans') k = 'finans';
+    if (FIN_ONLY() && !FIN_NAV[k]) k = 'finans';
     if (!VIEWS[k]) k = 'overview'; CUR = k; paintNav(); closeDrawer();
     $('#page-t').textContent = TITLES[k]; $('#crumb').textContent = TITLES[k].toLocaleUpperCase('tr'); document.title = 'Acadex · ' + TITLES[k]; supTitle();
     if (push !== false) history.replaceState(null, '', '#' + k);
@@ -152,6 +158,8 @@
   var SETTINGS_CACHE = null;
   var start = function () {
     $('#gate').hidden = true; $('#app').hidden = false; $('#me-name').textContent = ME.name || ME.email || 'yönetici';
+    document.body.classList.toggle('fin-only', FIN_ONLY());
+    if (FIN_ONLY()) { paintNav(); go((location.hash || '#finans').slice(1), false); return; }
     rpc('admin_settings').then(function (s) { SETTINGS_CACHE = s.settings || {}; $('#maint-pill').hidden = !(SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); }, function () {});
     refreshCounts(); supPulse();
     go((location.hash || '#overview').slice(1), false);
@@ -728,13 +736,6 @@
     $$('[data-user]', box).forEach(function (b) { b.addEventListener('click', function () { userDetail(b.getAttribute('data-user')); }); });
   };
 
-  /* ---------- planlar (yakında) ---------- */
-  VIEWS.plans = async function (m) {
-    var s = await rpc('admin_settings');
-    m.innerHTML = '<div class="card ink soon-card"><span class="hand">yakında</span><h2 class="disp" style="font-size:24px;margin:6px 0">Planlar ve kota</h2><p class="muted" style="max-width:520px;margin:0 auto 18px">Lite/premium sınırlarını düzenleme, öğrenci bazında kota verme ve sınıra yaklaşanları görme buraya gelecek. Şimdilik mevcut sınırlar:</p>' +
-      '<div class="tbl-w" style="max-width:560px;margin:0 auto;text-align:left"><table><thead><tr><th>Plan</th><th>Aylık sayfa</th><th>Belge başına en çok</th><th>Görsel analiz</th></tr></thead><tbody>' + (s.plans || []).map(function (p) { return '<tr><td><b>' + X(p.plan) + '</b></td><td>' + NF(p.monthly_pages) + '</td><td>' + NF(p.max_pages_per_doc) + '</td><td>' + (p.visual_analysis ? 'var' : 'yok') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
-  };
-
   /* ---------- içerik ---------- */
   var CK = 'documents', CQ = '', COFF = 0;
   VIEWS.content = async function (m) {
@@ -793,7 +794,7 @@
       var sw = document.getElementById('sup-on'); if (sw) sw.checked = SUP.online;
     } catch (e) { /* tablo henüz yoksa sessiz */ }
   };
-  setInterval(function () { if (ME) supPulse(); }, 15000);
+  setInterval(function () { if (ME && !FIN_ONLY()) supPulse(); }, 15000);
   var supWhen = function (d) { if (!d) return ''; var x = new Date(d), s = (Date.now() - x) / 1000; if (s < 60) return 'şimdi'; if (s < 3600) return Math.floor(s / 60) + ' dk'; if (s < 86400) return Math.floor(s / 3600) + ' sa'; return DT(d); };
   var supList = async function () {
     var box = document.getElementById('sup-list'); if (!box) return;
@@ -1057,7 +1058,11 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   };
 
+  /* Finans bölümü ayrı dosyada (js/admin-finans.js): ortak yardımcılar */
+  window.AXADM = { VIEWS: VIEWS, rpc: rpc, sb: sb, X: X, NF: NF, DT: DT, AGO: AGO, toast: toast, errMsg: errMsg, openDrawer: openDrawer, closeDrawer: closeDrawer, confirmBox: confirmBox, csv: csv, $: $, $$: $$, me: function () { return ME; }, finOnly: FIN_ONLY, go: function (k) { go(k); } };
+
   /* oturum değişince (Google dönüşü, çıkış) yeniden başla */
   if (sb) sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') loginView(); });
-  boot();
+  /* sayfadaki diğer betikler (admin-finans.js) yüklendikten sonra başla */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
