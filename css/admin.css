@@ -363,3 +363,57 @@ tr:last-child td{border-bottom:0}
 .ek-legend{justify-content:center;margin-top:18px}
 .ek-legend i.dash{background:transparent;border:1.5px dashed var(--muted)}
 @media (max-width:860px){.ek-board>.ek-tn{min-width:0;width:100%}.ek-advrow .ek-node{min-width:0;width:100%}}
+
+/* ---------- organizasyon şeması: kurucu kolları (04.11.2026) ----------
+   Yönetim en üstte; finans yanında, yönetime doğrudan bağlı. Altında her kurucunun kolu:
+   kurucu kartı → kolun yatay çizgisi → birimleri. Kurucunun koluna gelince öteki kollar solar. */
+.ek-ctools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin:-8px 0 14px}
+.ek-ctools .muted{margin-right:auto;font-size:12.5px}
+.ek-chart-in{background:var(--card,#FFFDF8)}
+.ek-wide{min-width:1040px}
+.ek-hq{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:start;gap:0}
+.ek-hq>.ek-board{margin-top:24px}
+.ek-branch.r2::before{display:none}
+.ek-staff{display:flex;gap:12px;align-items:center}
+.ek-stf{position:relative;display:flex;align-items:flex-start;gap:10px;padding-left:46px;margin-top:22px}
+.ek-stf::before{content:'';position:absolute;left:0;top:30px;width:44px;border-top:2px dashed var(--tc)}
+.ek-stf .ek-branch{width:200px}
+.ek-stl{position:absolute;left:46px;top:-20px;font-size:10px;letter-spacing:.08em;color:var(--tc);white-space:nowrap;font-weight:700}
+.ek-lanes{display:grid;column-gap:0;position:relative;padding-top:24px;margin-top:0}
+.ek-lane{position:relative;margin:0 6px;padding:14px 8px 16px;border-radius:16px;background:var(--lt);transition:opacity .25s,filter .25s}
+.ek-lane::before{content:'';position:absolute;top:-24px;left:50%;width:2px;height:24px;background:var(--line2)}
+.ek-lane::after{content:'';position:absolute;top:-24px;height:2px;background:var(--line2);left:-6px;right:-6px}
+.ek-lane:first-child::after{left:50%}.ek-lane:last-child::after{right:50%}.ek-lane:only-child::after{display:none}
+.ek-lhead{display:flex;flex-direction:column;align-items:center;gap:6px}
+.ek-lhead .ek-node{width:auto;min-width:230px;padding:10px 14px;border-left-width:6px;box-shadow:0 0 0 3px var(--lr)}
+.ek-lcount{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--lc);font-weight:700}
+.ek-lane .ek-row{margin:22px 10px 0;border-top-color:var(--lc)}
+.ek-lane .ek-row{position:relative;display:grid;justify-content:center;align-items:start;gap:22px 14px}
+.ek-lane .ek-row::before{content:'';position:absolute;top:-22px;left:50%;width:2px;height:20px;background:var(--lc)}
+.ek-lane .ek-branch::before{background:var(--lc)}
+.ek-lane .ek-branch{width:176px}
+.ek-lanes:has(.ek-lane:hover) .ek-lane:not(:hover),.ek-lanes:has(.ek-lane:focus-within) .ek-lane:not(:focus-within){opacity:.38;filter:grayscale(.7)}
+.ek-lane:hover,.ek-lane:focus-within{background:var(--lt2)}
+/* doluluk çubuğu */
+.ek-fill{display:flex;gap:1px;height:7px;margin:7px 4px 2px;padding:1px;border-radius:4px;background:#fff;overflow:hidden}
+.ek-fill i{display:block;min-width:4px;border-radius:2px}
+.ek-fill .f{background:#1E8A55}.ek-fill .c{background:#E0A526}.ek-fill .o{background:#D5DBE5}.ek-fill .e{flex:1;background:repeating-linear-gradient(90deg,#D5DBE5 0 4px,transparent 4px 7px)}
+.ek-fs{font-size:10.5px!important;opacity:.95}
+.ek-tn.dash .ek-fill{box-shadow:inset 0 0 0 1px var(--line2)}
+.ek-kol{background:var(--bg,#F3F1EA);color:var(--ink2)}
+/* telefon: dikey ağaç */
+.ek-tree{display:none}
+.ek-tl{margin-bottom:10px;border:1.5px solid var(--line2);border-left:6px solid var(--lc);border-radius:12px;background:#fff}
+.ek-tl>summary{display:flex;align-items:baseline;gap:8px;min-height:44px;padding:10px 12px;cursor:pointer;font-size:15px}
+.ek-tl>summary small{color:var(--muted);font-size:12px}
+.ek-tt{margin:0 10px 8px;border:1px solid var(--line2);border-radius:10px;background:var(--card,#FFFDF8)}
+.ek-tt>summary{display:grid;grid-template-columns:auto minmax(0,1fr) 70px;gap:8px;align-items:center;min-height:44px;padding:8px 10px;cursor:pointer;font-size:14px}
+.ek-tt>summary .ek-fs{display:none}
+.ek-tt .ek-fill{margin:0}
+.ek-ttp{display:flex;flex-direction:column;gap:6px;padding:0 10px 10px}
+.ek-ttp .lnk{align-self:flex-start;font-size:12.5px}
+@media (max-width:760px){.ek-wide{display:none}.ek-tree{display:block}.ek-chart{overflow-x:visible;padding:16px 12px}.ek-ctools .muted{display:none}}
+/* görsel alınırken (PNG/PDF) ekran boyutundan bağımsız geniş şema */
+.ek-shot .ek-wide{display:block!important}.ek-shot .ek-tree{display:none!important}
+.ek-shot .ek-lane{opacity:1!important;filter:none!important}
+.ek-trb{display:block;margin-bottom:10px}

@@ -76,4 +76,28 @@ test('davranış (gerçek Postgres): eski kurulum üstüne iki kez çalışır, 
     execSync(P + ' -d postgres -c "drop database if exists ax_ekip"', { stdio: 'pipe' });
   }
 });
+test('şema (04.11.2026): her birim bir kurucunun kolunda; finans yönetime doğrudan bağlı; tasarım ile pazarlama ortada yan yana', () => {
+  const vm = require('node:vm');
+  const blk = ek.slice(ek.indexOf('  var EK_LANE = '), ek.indexOf('  /* doluluk: dolu'));
+  const F1 = { id: 'f1', full_name: 'Şükrü Çerçi', status: 'aktif' }, F2 = { id: 'f2', full_name: 'Serhat Arslan', status: 'aktif' };
+  const T = (id, name, sort, coordinator, extra) => Object.assign({ id, name, sort, coordinator, is_board: false, is_advisory: false }, extra || {});
+  const teams = [T('b', 'Yönetim', 10, '', { is_board: true }), T('u', 'Ürün ve Yazılım', 20, 'Lider: Şükrü Çerçi'), T('t', 'Test Birimi', 30, 'Koordinatör: Şevval Aksakal'),
+    T('d', 'Tasarım', 40, 'Koordinasyon : Şükrü Çerçi'), T('f', 'Finans ve İş Modeli', 50, 'Koordinasyon: Serhat Arslan'), T('p', 'Pazarlama', 60, 'Koordinasyon: Serhat Arslan'),
+    T('a', 'Akademik İçerik Kurulu', 70, 'Kuruluş ve koordinasyon: SERHAT ARSLAN'), T('h', 'Hukuk ve KVKK', 80, 'Serhat Arslan'), T('k', 'Kullanıcı Destek', 90, 'şevval aksakal'),
+    T('v', 'Veri ve Analitik', 100, 'Şükrü Çerçi'), T('g', 'Digital Marketing', 120, 'Şükrü Çerçi'), T('x', 'Danışma', 200, '', { is_advisory: true })];
+  const ctx = { EK: { teams, people: [F1, F2] }, ekOpen: (p) => p.status === 'acik', ekOf: (id) => (id === 'b' ? [F1, F2] : []) };
+  vm.runInNewContext(blk + ';this.o = { ekFounderOf, ekIsStaff, ekLaneTeams, ekTint };', ctx);
+  const o = ctx.o, fs = [F1, F2], by = (n) => teams.find((t) => t.name === n);
+  assert.equal(o.ekFounderOf(by('Pazarlama'), fs), F2); assert.equal(o.ekFounderOf(by('Akademik İçerik Kurulu'), fs), F2, 'büyük/küçük harf fark etmez');
+  assert.equal(o.ekFounderOf(by('Test Birimi'), fs), F1, 'kurucu adı geçmeyen birim ilk kurucunun kolunda');
+  assert.equal(o.ekIsStaff(by('Finans ve İş Modeli')), true); assert.equal(o.ekIsStaff(by('Pazarlama')), false);
+  const left = o.ekLaneTeams(F1, 0, 2, fs, 3).map((t) => t.name), right = o.ekLaneTeams(F2, 1, 2, fs, 2).map((t) => t.name);
+  assert.equal(left[2], 'Tasarım', 'Tasarım soldaki kolun ilk satırının sonunda: ' + left); assert.equal(right[0], 'Pazarlama');
+  assert.ok(!left.concat(right).includes('Finans ve İş Modeli'), 'finans kollarda değil');
+  assert.equal(left.length + right.length, 9);
+  assert.match(o.ekTint('#2F6BFF'), /--lt:rgba\(47,107,255,\.05\)/);
+  const css = read('css/admin.css'); assert.doesNotMatch(css.slice(css.indexOf('kurucu kolları')), /color-mix/, 'html2canvas color-mix okuyamaz');
+  assert.match(ek, /html2canvas\/1\.4\.1\/html2canvas\.min\.js/); assert.match(ek, /jspdf\/2\.5\.1\/jspdf\.umd\.min\.js/);
+  assert.match(css, /@media \(max-width:760px\)\{\.ek-wide\{display:none\}\.ek-tree\{display:block\}/, 'telefonda dikey ağaç');
+});
 summary();
