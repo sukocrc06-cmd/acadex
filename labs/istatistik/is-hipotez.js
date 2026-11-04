@@ -55,7 +55,7 @@
       ['Karar kuralı', (S.tail === 'cift' ? '|' + (o.dist) + '| > ' + f(Math.abs(o.crit), 3) : (o.dist) + (S.tail === 'sol' ? ' < ' : ' > ') + f(o.crit, 3)) + '  ya da  p < α'],
       ['Sonuç', 'p = ' + IS.p(o.p) + (o.rej ? ' < ' : ' ≥ ') + n2(S.a) + ' → ' + (o.rej ? 'H₀ reddedilir. ' + c.h1[S.tail] + ' yönünde anlamlı kanıt var.' : 'H₀ reddedilemez. Kanıt yetersiz; bu, H₀’ın doğru olduğunu kanıtlamaz.')]
     ];
-    C.$('[data-steps]', root).innerHTML = '<ol class="hp-steps">' + steps.map(function (s, i) { return '<li style="--d:' + (i * 0.08) + 's"><b>' + s[0] + '</b><span>' + X(s[1]) + '</span></li>'; }).join('') + '</ol>';
+    IS.steps(C.$('[data-steps]', root), steps.map(function (s) { return { t: s[0], x: s[1] }; }), 'beş adımda test');
     var vd = C.$('[data-verdict]', root);
     vd.innerHTML = '<span class="verdict' + (anim ? ' in' : '') + '" style="color:' + (o.rej ? 'var(--bad)' : 'var(--ok)') + '">' + (o.rej ? 'H₀ REDDEDİLDİ' : 'H₀ REDDEDİLEMEDİ') + '</span><span class="lbl">p = ' + IS.p(o.p) + '</span>';
     var xs = c.kind === 't1' ? { x: [['=T.DAĞ(' + n2(o.stat) + ';' + o.df + ';DOĞRU)', 'sol kuyruk p'], ['=T.DAĞ.SAĞK(' + n2(o.stat) + ';' + o.df + ')', 'sağ kuyruk p'], ['=T.DAĞ.2K(MUTLAK(' + n2(o.stat) + ');' + o.df + ')', 'çift yönlü p']], r: [['t.test(x, mu = ' + v.mu0 + ', alternative = "' + ({ sol: 'less', sag: 'greater', cift: 'two.sided' })[S.tail] + '")', 'ham veriden'], ['pt(' + f(o.stat, 3).replace(',', '.') + ', ' + o.df + ')', 'sol kuyruk p']] }
@@ -100,10 +100,12 @@
     { q: '“H₀ reddedilemedi” sonucunun doğru yorumu?', o: ['H₀’a karşı yeterli kanıt bulunamadı', 'H₀ kanıtlandı', 'H₁ kesinlikle yanlış', 'test hatalı yapıldı'], a: 0, n: 'Delil yetersizliğinden beraat, masumiyetin kanıtı değildir.' }
   ];
 
+  IS.bank.hipotez = QS;
+
   FN.st.hipotez = {
     init: function () {
       root = C.$('#hipotez');
-      root.innerHTML = IS.head({ k: 'istasyon 6 · hipotez testi', title: 'Hipotez mahkemesi', sub: 'H₀ sanık sandalyesinde ve <b>masum varsayılıyor</b>. Veri delildir. Test istatistiği tokmak gibi eğriye iner; kırmızı ret bölgesine düşerse H₀ reddedilir.', weeks: ['İst II · 1–2. hafta: hipotez testinin mantığı', '3. hafta: tek örneklem t', '4. hafta: iki örneklem t, oran z', '5. hafta: hata türleri ve güç'] }) +
+      root.innerHTML = IS.head({ key: 'hipotez', k: 'istasyon 6 · hipotez testi', title: 'Hipotez mahkemesi', sub: 'H₀ sanık sandalyesinde ve <b>masum varsayılıyor</b>. Veri delildir. Test istatistiği tokmak gibi eğriye iner; kırmızı ret bölgesine düşerse H₀ reddedilir.', weeks: ['İst II · 1–2. hafta: hipotez testinin mantığı', '3. hafta: tek örneklem t', '4. hafta: iki örneklem t, oran z', '5. hafta: hata türleri ve güç'] }) +
         '<div class="seg" data-case style="margin-bottom:14px"></div>' +
         '<div class="grid gside"><div class="card box" style="--cc:#FF8A7A"><h2>Dava dosyası</h2><p class="sub" data-story style="font-size:14px;color:var(--ink2)"></p><div data-hsl></div>' +
         '<p class="lbl" style="margin:10px 0 4px">alternatif hipotez yönü</p><div class="seg" data-tail></div><p class="lbl" style="margin:10px 0 4px">anlamlılık düzeyi α</p><div class="seg" data-alpha></div></div>' +

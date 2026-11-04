@@ -90,10 +90,12 @@
     { q: '10 kişilik sınıftan 3 kişilik bir komite (sırasız) kaç farklı şekilde seçilir?', o: ['120', '720', '30', '1000'], a: 0, n: 'C(10,3) = 10!/(3!·7!) = 120. Excel: =KOMBİNASYON(10;3).' }
   ];
 
+  IS.bank.olasilik = QS;
+
   FN.st.olasilik = {
     init: function () {
       root = C.$('#olasilik');
-      root.innerHTML = IS.head({ k: 'istasyon 2 · olasılık', title: 'Zar ve para atölyesi', sub: 'Az atışta göreli frekans zıplar; atış arttıkça gerçek olasılığa yerleşir (büyük sayılar yasası). Sonra koşullu olasılığı bir ağaçta, Bayes teoremini bin kişilik bir kalabalıkta gör.', weeks: ['İst I · 5. hafta: olasılık kavramı', '6. hafta: koşullu olasılık ve Bayes', '7. hafta: sayma (permütasyon, kombinasyon)'] }) +
+      root.innerHTML = IS.head({ key: 'olasilik', k: 'istasyon 2 · olasılık', title: 'Zar ve para atölyesi', sub: 'Az atışta göreli frekans zıplar; atış arttıkça gerçek olasılığa yerleşir (büyük sayılar yasası). Sonra koşullu olasılığı bir ağaçta, Bayes teoremini bin kişilik bir kalabalıkta gör.', weeks: ['İst I · 5. hafta: olasılık kavramı', '6. hafta: koşullu olasılık ve Bayes', '7. hafta: sayma (permütasyon, kombinasyon)'] }) +
         '<div class="seg" data-seg style="margin-bottom:14px"></div>' +
         '<div data-sub="bsy"><div class="grid gside"><div class="card box" style="--cc:#F4A7B9"><h2>Büyük sayılar</h2><div class="seg" data-kind></div><div class="ol-fig" data-bsy-fig></div>' +
         '<div class="row"><button type="button" class="btn sm pri" data-run="1">1 at</button><button type="button" class="btn sm" data-run="10">10</button><button type="button" class="btn sm" data-run="100">100</button><button type="button" class="btn sm" data-run="1000">1000</button><button type="button" class="btn sm" data-run="0">sıfırla</button></div><div class="kpis" data-bsy-k></div></div>' +

@@ -26,7 +26,7 @@ const app = read('labs/finans/fn-app.js'), js = read('js/acadex-liman.js'), css 
 test('sayfaya bağlı; finans panelinden sonra yüklenir', () => {
   assert.match(html, /<link rel="stylesheet" href="css\/acadex-liman\.css">/);
   assert.match(html, /<script src="js\/acadex-finans\.js"><\/script>\n<script src="js\/acadex-liman\.js"><\/script>/);
-  assert.equal(new Set([...html.matchAll(/data-finans-open="([a-z-]+)"/g)].map((m) => m[1])).size, 24);
+  assert.equal(new Set([...html.matchAll(/data-finans-open="([a-z-]+)"/g)].map((m) => m[1])).size, 29); // 04.11.2026: istatistik v2 (+4 istasyon, +yol şeridi)
 });
 
 test('lab defteri: açılış, süre ve karne; tekrar çizilen karne bir kez sayılır', () => {
@@ -51,7 +51,7 @@ test('pano: anahtar eşlemesi, devam ve öneri mevcut açma düğmesiyle', () =>
   const logKey = new Function('return ' + js.slice(js.indexOf('function (k) { return /^sirket-/'), js.indexOf(';\n', js.indexOf('var logKey'))))();
   assert.equal(logKey('zaman'), 'finans.zaman'); assert.equal(logKey('sirket-sim'), 'sirket.sim');
   assert.match(js, /class="lm-go" data-finans-open="/); assert.match(js, /class="lm-next" data-finans-open="/);
-  assert.match(js, /if \(panel\.contains\(b\)\) return;/, 'panodaki düğmeler istasyon sayılmaz');
+  assert.match(js, /if \(panel\.contains\(b\) \|\| b\.hasAttribute\('data-lm-skip'\)\) return;/, 'panodaki düğmeler ve yol şeridi istasyon sayılmaz');
   assert.match(js, /d\.src === 'axlab' && d\.type === 'progress'/);
 });
 

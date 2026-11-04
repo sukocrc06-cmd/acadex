@@ -43,6 +43,13 @@
       '<span class="lbl" style="display:block;margin-top:12px">oran için (p̂ = ' + f(K.ph, 2) + ', n = ' + K.pn + ')</span><div class="big" style="font-size:28px">[' + f(K.ph - pe, 3) + ' ; ' + f(K.ph + pe, 3) + ']</div>' +
       '<div class="formula">p̂ ± z·√(p̂(1 − p̂)/n) = ' + f(K.ph, 3) + ' ± <b>' + f(pe, 3) + '</b> → anketlerdeki “±%' + f(pe * 100, 1) + ' hata payı”</div>' +
       '<span class="lbl" style="display:block;margin-top:12px">hata payı en fazla ' + f(K.E, 1) + ' olsun (σ ≈ ' + f(K.Es, 1) + ')</span><div class="big" style="font-size:28px">n ≥ ' + C.nf(need) + '</div><div class="formula">n = (z·σ / E)² = (' + f(z, 3) + ' · ' + f(K.Es, 1) + ' / ' + f(K.E, 1) + ')² = ' + f(Math.pow(z * K.Es / K.E, 2), 1) + ' → yukarı yuvarla</div>';
+    IS.steps(C.$('[data-gst]', root), [
+      { t: 'α ve kritik değer', x: 'α = ' + C.nf(a, 2) + ' → ' + (K.sig ? 'z' : 't') + ' = ' + f(c, 3) + (K.sig ? '' : ' (sd = ' + (K.n - 1) + ')') },
+      { t: 'standart hata', x: (K.sig ? 'σ' : 's') + '/√n = ' + f(K.s, 2) + ' / √' + K.n + ' = ' + f(K.s / Math.sqrt(K.n), 4) },
+      { t: 'hata payı (margin of error)', x: 'E = ' + f(c, 3) + ' · ' + f(K.s / Math.sqrt(K.n), 4) + ' = ' + f(e, 3) },
+      { t: 'aralık', x: f(K.m, 2) + ' − ' + f(e, 3) + ' = ' + f(K.m - e, 2) + '   ve   ' + f(K.m, 2) + ' + ' + f(e, 3) + ' = ' + f(K.m + e, 2) },
+      { t: 'yorum', x: 'Bu yöntemle kurulan aralıkların %' + K.lv + '’i gerçek μ’yü kapsar.' }
+    ], 'ortalama için aralık, adım adım');
     C.$('[data-gcode]', root).innerHTML = IS.code({ x: [['=GÜVENİLİRLİK.' + (K.sig ? 'NORM' : 'T') + '(' + C.nf(a, 2) + ';' + C.nf(K.s, 2) + ';' + K.n + ')', 'hata payı = ' + f(e, 3)], ['=' + C.nf(K.m, 2) + '-GÜVENİLİRLİK.T(0,05;' + C.nf(K.s, 2) + ';' + K.n + ')', 'alt sınır (%95, t)'], ['=T.TERS.2K(' + C.nf(a, 2) + ';' + (K.n - 1) + ')', 'kritik t']],
       r: [['t.test(x, conf.level = ' + K.lv / 100 + ')$conf.int', 'ham veriden'], [K.m + ' + c(-1, 1) * qt(' + (1 - a / 2) + ', ' + (K.n - 1) + ') * ' + K.s + ' / sqrt(' + K.n + ')', 'özet değerlerden'], ['prop.test(' + Math.round(K.ph * K.pn) + ', ' + K.pn + ', correct = FALSE)$conf.int', 'oran (Wilson tipi; elle hesap Wald)']] });
   };
@@ -55,11 +62,13 @@
     { q: 'Bir ankette n = 1000, p̂ = 0,50. %95 hata payı yaklaşık kaçtır?', o: ['±%3,1', '±%1', '±%5', '±%10'], a: 0, n: '1,96 · √(0,25/1000) ≈ 0,031.' }
   ];
 
+  IS.bank.guven = QS;
+
   FN.st.guven = {
     init: function () {
       root = C.$('#guven');
       var sl = function (k, lab, min, max, st, v) { return '<label class="sl"><span>' + lab + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + st + '" value="' + v + '" data-k="' + k + '"><output data-ko="' + k + '">' + f(v, st < 1 ? 2 : 0) + '</output></label>'; };
-      root.innerHTML = IS.head({ k: 'istasyon 5 · tahmin', title: 'Güven aralığı yağmuru', sub: 'Gerçek ortalamayı (μ = 20 saat/hafta) bu kez biliyoruz. Her örneklem bir aralık kurar ve gökten düşer. Kırmızılar μ’yü kaçıranlar: %95 güvende yüzde birkaç tane kırmızı <b>olması gerekir</b>.', weeks: ['İst I · 11. hafta: nokta ve aralık tahmini', '12. hafta: ortalama için z ve t aralığı', '13. hafta: oran için aralık, örneklem büyüklüğü'] }) +
+      root.innerHTML = IS.head({ key: 'guven', k: 'istasyon 5 · tahmin', title: 'Güven aralığı yağmuru', sub: 'Gerçek ortalamayı (μ = 20 saat/hafta) bu kez biliyoruz. Her örneklem bir aralık kurar ve gökten düşer. Kırmızılar μ’yü kaçıranlar: %95 güvende yüzde birkaç tane kırmızı <b>olması gerekir</b>.', weeks: ['İst I · 11. hafta: nokta ve aralık tahmini', '12. hafta: ortalama için z ve t aralığı', '13. hafta: oran için aralık, örneklem büyüklüğü'] }) +
         '<div class="grid gside"><div class="card box" style="--cc:#FFB36B"><h2>Gökyüzü ayarı</h2><p class="sub">Ana kütle: haftalık çalışma saati, μ = 20, σ = 6.</p>' +
         '<label class="sl"><span>örneklem büyüklüğü n</span><input type="range" min="3" max="100" step="1" value="10" data-rn><output data-rno>10</output></label>' +
         '<p class="lbl" style="margin:8px 0 4px">güven düzeyi</p><div class="seg" data-lv></div><p class="lbl" style="margin:10px 0 4px">yöntem</p><div class="seg" data-me></div>' +
@@ -70,7 +79,7 @@
         sl('m', 'örneklem ortalaması x̄', 0, 200, 0.1, K.m) + sl('s', 'standart sapma s (ya da σ)', 0.5, 50, 0.1, K.s) + sl('n', 'n', 2, 500, 1, K.n) +
         '<div class="seg" data-klv style="margin:6px 0"></div><label class="row lbl" style="margin:6px 0"><input type="checkbox" data-sig style="width:auto"> σ biliniyor (z kullan)</label>' +
         sl('ph', 'oran p̂', 0.01, 0.99, 0.01, K.ph) + sl('pn', 'anket n', 30, 3000, 10, K.pn) + sl('E', 'istenen hata payı E', 0.5, 10, 0.5, K.E) + sl('Es', 'tahmini σ', 1, 40, 1, K.Es) + '</div>' +
-        '<div class="card box" style="--cc:#FFB36B"><div data-cr></div><div data-gcode></div></div></div>' +
+        '<div class="card box" style="--cc:#FFB36B"><div data-cr></div><div data-gst></div><div data-gcode></div></div></div>' +
         '<div style="margin-top:18px">' + IS.quizCard() + '</div>';
       C.$('[data-rn]', root).addEventListener('input', function (e) { R.n = +e.target.value; C.$('[data-rno]', root).textContent = R.n; R.iv = []; rain(); });
       IS.seg(C.$('[data-lv]', root), [['90', '%90'], ['95', '%95'], ['99', '%99']], '95', function (k) { R.lv = +k; R.iv = []; rain(); });

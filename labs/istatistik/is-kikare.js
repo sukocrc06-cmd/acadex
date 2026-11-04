@@ -90,11 +90,13 @@
     { q: 'ANOVA H₀’ı reddedildi. Hangi grupların farklı olduğunu nasıl anlarsın?', o: ['çoklu karşılaştırma (Tukey vb.)', 'F’ye bakarak', 'yeniden ANOVA yaparak', 'ki-kare ile'], a: 0, n: 'ANOVA “en az biri farklı” der; hangisi olduğunu post-hoc testler söyler.' }
   ];
 
+  IS.bank.kikare = QS;
+
   FN.st.kikare = {
     init: function () {
       root = C.$('#kikare');
       var sl = function (k, lab, min, max, st) { return '<label class="sl"><span>' + lab + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + st + '" value="' + A[k] + '" data-ak="' + k + '"><output data-ako="' + k + '">' + A[k] + '</output></label>'; };
-      root.innerHTML = IS.head({ k: 'istasyon 7 · kategorik veri ve varyans analizi', title: 'Ki-kare ve ANOVA tezgâhı', sub: 'Gözlenenle beklenen arasındaki fark tesadüf mü? Tabloyu değiştir, katkıları gör. ANOVA’da iki güç halat çeker: gruplar arası fark ve grup içi yayılım.', weeks: ['İst II · 6. hafta: ki-kare uyum iyiliği', '7. hafta: ki-kare bağımsızlık', '8–9. hafta: tek yönlü ANOVA'] }) +
+      root.innerHTML = IS.head({ key: 'kikare', k: 'istasyon 7 · kategorik veri ve varyans analizi', title: 'Ki-kare ve ANOVA tezgâhı', sub: 'Gözlenenle beklenen arasındaki fark tesadüf mü? Tabloyu değiştir, katkıları gör. ANOVA’da iki güç halat çeker: gruplar arası fark ve grup içi yayılım.', weeks: ['İst II · 6. hafta: ki-kare uyum iyiliği', '7. hafta: ki-kare bağımsızlık', '8–9. hafta: tek yönlü ANOVA'] }) +
         '<div class="seg" data-seg style="margin-bottom:14px"></div>' +
         '<div data-sub="bag"><div class="grid g2"><div class="card box" style="--cc:#C7A6FF"><h2>Çapraz tablo</h2><p class="sub">Hücreleri değiştir. Her hücrede G gözlenen, B bağımsızlık olsaydı beklenen sayı.</p><div class="tbl-w" data-ktab></div><div data-kbar></div></div><div class="card box" style="--cc:#C7A6FF" data-kres></div></div></div>' +
         '<div data-sub="uyum" hidden><div class="grid g2"><div class="card box" style="--cc:#C7A6FF"><h2>Zar adil mi?</h2><p class="sub">60 atışın sonucunu gir. Adil zarda her yüz 10 kez beklenir.</p><div class="kk-dice" data-uin></div><div data-ubar></div></div><div class="card box" style="--cc:#C7A6FF" data-ures></div></div></div>' +

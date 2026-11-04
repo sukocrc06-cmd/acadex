@@ -117,10 +117,12 @@
     { q: 'Pratikte MLT’yi kullanmak için sık söylenen örneklem eşiği nedir?', o: ['n ≥ 30', 'n ≥ 3', 'n ≥ 1000', 'n tek sayı olmalı'], a: 0, n: 'Kaba bir kural; ana kütle çok çarpıksa daha büyük n gerekir. Yukarıda üstel dağılımla dene.' }
   ];
 
+  IS.bank.galton = QS;
+
   FN.st.galton = {
     init: function () {
       root = C.$('#galton');
-      root.innerHTML = IS.head({ k: 'istasyon 4 · örnekleme dağılımı', title: 'Galton tahtası ve merkezî limit', sub: 'Her bilye 12 çiviye çarpar; her çarpışmada sağa ya da sola sapar. Tek bilye rastgele, binlercesi bir <b>çan eğrisi</b> çizer. Sonra çarpık bir ana kütleden örneklem al: ortalamalar yine normale koşar.', weeks: ['İst I · 10. hafta: örnekleme dağılımı', '11. hafta: merkezî limit teoremi, standart hata'] }) +
+      root.innerHTML = IS.head({ key: 'galton', k: 'istasyon 4 · örnekleme dağılımı', title: 'Galton tahtası ve merkezî limit', sub: 'Her bilye 12 çiviye çarpar; her çarpışmada sağa ya da sola sapar. Tek bilye rastgele, binlercesi bir <b>çan eğrisi</b> çizer. Sonra çarpık bir ana kütleden örneklem al: ortalamalar yine normale koşar.', weeks: ['İst I · 10. hafta: örnekleme dağılımı', '11. hafta: merkezî limit teoremi, standart hata'] }) +
         '<div class="grid gside"><div class="card box" style="--cc:#9DB8FF"><h2>Galton tahtası</h2><p class="sub">Yeşil kesikli çizgi binom dağılımının beklediği yükseklik.</p>' +
         '<div class="row"><button type="button" class="btn sm pri" data-drop="1">1 bilye</button><button type="button" class="btn sm" data-drop="50">50</button><button type="button" class="btn sm" data-drop="500">500</button><button type="button" class="btn sm" data-drop="0">boşalt</button></div>' +
         '<label class="sl"><span>tahta eğimi: sağa sapma olasılığı p</span><input type="range" min="0.1" max="0.9" step="0.05" value="0.5" data-gp><output data-gpo>0,50</output></label><div class="kpis" data-gk></div>' +

@@ -17,46 +17,62 @@
 <header class="pt-top">
   <div class="pt-brand"><svg class="ob-mark" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="21" fill="#15244F"/><path d="M8 34a14 14 0 0128 0z" fill="#E9EEF9" stroke="#0B1430" stroke-width="1.6"/><path d="M20 21.5h4V34h-4z" fill="#0B1430"/><path d="M23 24l10-12" stroke="#FFD86B" stroke-width="3" stroke-linecap="round"/><circle cx="34" cy="10" r="2.2" fill="#FFD86B"/><circle cx="12" cy="12" r="1.2" fill="#fff"/><circle cx="17" cy="7" r=".9" fill="#fff"/></svg><span><b>Acadex İstatistik</b><small>gözlemevi</small></span></div>
   <nav class="pt-tabs" role="tablist" aria-label="İstasyonlar">
-    <button type="button" role="tab" data-tab="betimsel" style="--cc:#FFD86B"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Veri masası<span class="wk">1–4</span></button>
-    <button type="button" role="tab" data-tab="olasilik" style="--cc:#F4A7B9"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Olasılık<span class="wk">5–7</span></button>
-    <button type="button" role="tab" data-tab="dagilim" style="--cc:#7FE0C2"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Dağılımlar<span class="wk">7–10</span></button>
-    <button type="button" role="tab" data-tab="galton" style="--cc:#9DB8FF"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Galton · MLT<span class="wk">10–11</span></button>
-    <button type="button" role="tab" data-tab="guven" style="--cc:#FFB36B"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Güven aralığı<span class="wk">11–13</span></button>
-    <button type="button" role="tab" data-tab="hipotez" style="--cc:#FF8A7A"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Hipotez<span class="wk">1–5</span></button>
-    <button type="button" role="tab" data-tab="kikare" style="--cc:#C7A6FF"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Ki-kare · ANOVA<span class="wk">6–9</span></button>
-    <button type="button" role="tab" data-tab="regresyon" style="--cc:#6FD3F0"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Regresyon<span class="wk">10–13</span></button>
-    <button type="button" role="tab" data-tab="bolum" style="--cc:#B6E37A"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Bölüm köşeleri<span class="wk"></span></button>
+    <button type="button" role="tab" data-tab="yol" style="--cc:#FFF3C4"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Yol haritası<span class="wk">28★</span></button>
+    <button type="button" role="tab" data-tab="grafik" style="--cc:#FFE08A"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Veri ve grafik<span class="wk">I · 1–4, 6</span></button>
+    <button type="button" role="tab" data-tab="betimsel" style="--cc:#FFD86B"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Veri masası<span class="wk">I · 5–8</span></button>
+    <button type="button" role="tab" data-tab="indeks" style="--cc:#FFB36B"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>İndeksler<span class="wk">I · 10</span></button>
+    <button type="button" role="tab" data-tab="olasilik" style="--cc:#F4A7B9"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Olasılık<span class="wk">II · 1</span></button>
+    <button type="button" role="tab" data-tab="dagilim" style="--cc:#7FE0C2"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Dağılımlar<span class="wk">I · 11–12</span></button>
+    <button type="button" role="tab" data-tab="galton" style="--cc:#9DB8FF"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Galton · MLT<span class="wk">I · 13</span></button>
+    <button type="button" role="tab" data-tab="guven" style="--cc:#FFC48A"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Güven aralığı<span class="wk">I · 14</span></button>
+    <button type="button" role="tab" data-tab="hipotez" style="--cc:#FF8A7A"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Hipotez<span class="wk">II · 4, 6</span></button>
+    <button type="button" role="tab" data-tab="ikili" style="--cc:#FF9FB0"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>İki anakütle<span class="wk">II · 3, 5, 14</span></button>
+    <button type="button" role="tab" data-tab="kikare" style="--cc:#C7A6FF"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Ki-kare · ANOVA<span class="wk">II · 2, 7</span></button>
+    <button type="button" role="tab" data-tab="regresyon" style="--cc:#6FD3F0"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Regresyon<span class="wk">II · 10</span></button>
+    <button type="button" role="tab" data-tab="coklu" style="--cc:#8FE3F5"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Çoklu · öngörü<span class="wk">II · 11–13</span></button>
+    <button type="button" role="tab" data-tab="bolum" style="--cc:#B6E37A"><svg class="st" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z"/></svg>Bölüm köşeleri<span class="wk">II · 8</span></button>
   </nav>
   <div class="pt-right"><span class="pt-pill mono">Excel + R karşılıklarıyla</span></div>
 </header>
 <main>
+  <section class="pt-view" id="yol" role="tabpanel" aria-label="Yol haritası"></section>
+  <section class="pt-view" id="grafik" role="tabpanel" aria-label="Veri ve grafik atölyesi"></section>
   <section class="pt-view" id="betimsel" role="tabpanel" aria-label="Veri masası (betimsel istatistik)"></section>
+  <section class="pt-view" id="indeks" role="tabpanel" aria-label="Oranlar ve indeksler"></section>
   <section class="pt-view" id="olasilik" role="tabpanel" aria-label="Olasılık ve Bayes"></section>
   <section class="pt-view" id="dagilim" role="tabpanel" aria-label="Dağılım galerisi"></section>
   <section class="pt-view" id="galton" role="tabpanel" aria-label="Galton tahtası ve merkezî limit"></section>
   <section class="pt-view" id="guven" role="tabpanel" aria-label="Güven aralığı"></section>
   <section class="pt-view" id="hipotez" role="tabpanel" aria-label="Hipotez mahkemesi"></section>
+  <section class="pt-view" id="ikili" role="tabpanel" aria-label="İki anakütle ve parametrik olmayan testler"></section>
   <section class="pt-view" id="kikare" role="tabpanel" aria-label="Ki-kare ve ANOVA"></section>
   <section class="pt-view" id="regresyon" role="tabpanel" aria-label="Korelasyon ve regresyon"></section>
+  <section class="pt-view" id="coklu" role="tabpanel" aria-label="Çoklu regresyon ve öngörü"></section>
   <section class="pt-view" id="bolum" role="tabpanel" aria-label="Bölüm köşeleri"></section>
-  <p class="pt-note">Veri setleri ders amaçlı kurgusaldır. Formüller Türkçe Excel (Microsoft 365) ve R adlarıyla verilir; çeyrekler Excel DÖRTTEBİRLİK.DHL / R quantile (tip 7), varyans örneklem (n − 1) tanımıyladır.</p>
+  <p class="pt-note">Veri setleri ders amaçlı kurgusaldır. Formüller Türkçe Excel (Microsoft 365) ve R adlarıyla verilir; haftalar AYBÜ BUS201/BUS202 ders bilgi paketine göredir; çeyrekler Excel DÖRTTEBİRLİK.DHL / R quantile (tip 7), varyans örneklem (n − 1) tanımıyladır.</p>
 </main>
 <div class="ob-hz" aria-hidden="true"><svg viewBox="0 0 1200 46" preserveAspectRatio="none"><path d="M0 30 C120 18 220 26 340 20 S560 30 700 22 S960 14 1080 24 1200 22 1200 22V46H0z" fill="#0A1228"/><g transform="translate(1040 4)"><path d="M0 34a22 22 0 0144 0z" fill="#1E2E5E" stroke="#3A4C86" stroke-width="1.2"/><path class="ob-slit" d="M19 13h6v21h-6z" fill="#FFD86B"/><rect x="-4" y="34" width="52" height="8" fill="#1E2E5E"/></g></svg></div>
 <div class="toast" id="toast" role="status"></div>
 <div class="vh" id="live" aria-live="polite"></div>
-<script>window.FN_CONF = {"lab": "istat", "brand": "Acadex İstatistik", "tabs": ["betimsel", "olasilik", "dagilim", "galton", "guven", "hipotez", "kikare", "regresyon", "bolum"], "names": {"betimsel": "Veri masası (betimsel istatistik)", "olasilik": "Olasılık ve Bayes", "dagilim": "Dağılım galerisi", "galton": "Galton tahtası ve merkezî limit", "guven": "Güven aralığı", "hipotez": "Hipotez mahkemesi", "kikare": "Ki-kare ve ANOVA", "regresyon": "Korelasyon ve regresyon", "bolum": "Bölüm köşeleri"}};</script>
+<script>window.FN_CONF = {"lab": "istat", "brand": "Acadex İstatistik", "tabs": ["yol", "grafik", "betimsel", "indeks", "olasilik", "dagilim", "galton", "guven", "hipotez", "ikili", "kikare", "regresyon", "coklu", "bolum"], "names": {"yol": "Yol haritası", "grafik": "Veri ve grafik atölyesi", "betimsel": "Veri masası (betimsel istatistik)", "indeks": "Oranlar ve indeksler", "olasilik": "Olasılık ve Bayes", "dagilim": "Dağılım galerisi", "galton": "Galton tahtası ve merkezî limit", "guven": "Güven aralığı", "hipotez": "Hipotez mahkemesi", "ikili": "İki anakütle ve parametrik olmayan testler", "kikare": "Ki-kare ve ANOVA", "regresyon": "Korelasyon ve regresyon", "coklu": "Çoklu regresyon ve öngörü", "bolum": "Bölüm köşeleri"}};</script>
 <script src="is-mat.js"></script>
 <script src="../finans/fn-app.js"></script>
 <script src="is-app.js"></script>
+<script src="is-terim.js"></script>
+<script src="is-grafik.js"></script>
 <script src="is-betimsel.js"></script>
+<script src="is-indeks.js"></script>
 <script src="is-olasilik.js"></script>
 <script src="is-dagilim.js"></script>
 <script src="is-galton.js"></script>
 <script src="is-guven.js"></script>
 <script src="is-hipotez.js"></script>
+<script src="is-ikili.js"></script>
 <script src="is-kikare.js"></script>
 <script src="is-regresyon.js"></script>
+<script src="is-coklu.js"></script>
 <script src="is-bolum.js"></script>
+<script src="is-yol.js"></script>
 <script>FN.core.start();</script>
 </body>
 </html>

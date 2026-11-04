@@ -99,10 +99,12 @@
     { q: '12 aylık hareketli ortalama aylık bir seride neyi büyük ölçüde siler?', o: ['mevsimsel dalgalanmayı', 'trendi', 'tüm bilgiyi', 'aykırı değerleri yaratır'], a: 0, n: 'Bir tam mevsim döngüsünün ortalaması, mevsim etkisini dengeler; trend kalır.' }
   ];
 
+  IS.bank.bolum = QS;
+
   FN.st.bolum = {
     init: function () {
       root = C.$('#bolum');
-      root.innerHTML = IS.head({ k: 'istasyon 9 · bölümüne özel', title: 'Bölüm köşeleri', sub: 'Aynı istatistik, dört farklı bölümün dilinde: iktisatta enflasyon endeksi, işletmede üretim hattı, sosyolojide anket örneklemi, sağlıkta tanı testi.', weeks: ['iktisat: endeks sayıları, zaman serisi', 'işletme: kalite kontrol', 'sosyoloji: örnekleme yöntemleri', 'sağlık: tanı testi, ROC'] }) +
+      root.innerHTML = IS.head({ key: 'bolum', k: 'istasyon 9 · bölümüne özel', title: 'Bölüm köşeleri', sub: 'Aynı istatistik, dört farklı bölümün dilinde: iktisatta enflasyon endeksi, işletmede üretim hattı, sosyolojide anket örneklemi, sağlıkta tanı testi.', weeks: ['iktisat: endeks sayıları, zaman serisi', 'işletme: kalite kontrol', 'sosyoloji: örnekleme yöntemleri', 'sağlık: tanı testi, ROC'] }) +
         '<div class="seg" data-seg style="margin-bottom:14px"></div>' +
         '<div data-sub="iktisat"><div class="grid g2"><div class="card box" style="--cc:#B6E37A"><h2>Öğrenci sepeti endeksi</h2><p class="sub">Yeni fiyatları (p₁) değiştir. Miktarlar: q₀ geçen yıl, q₁ bu yıl.</p><div class="tbl-w" data-bk></div><div data-bx></div></div>' +
         '<div class="card box" style="--cc:#B6E37A"><h2>Zaman serisi</h2><p class="sub">Bir kafenin 36 aylık satış endeksi: trend + mevsim + gürültü.</p><div class="seg" data-w></div><div data-ts></div>' +

@@ -58,7 +58,16 @@
       : S.k === 'aykiri' ? 'Sağ alttaki tek yıldız doğruyu tek başına büküyor. Onu sürükleyip öbürlerinin hizasına getir; r’nin nasıl sıçradığını izle.'
       : S.k === 'rastgele' ? 'Ayakkabı numarası ile not arasında ilişki beklemeyiz; küçük bir r tesadüften de çıkabilir.'
       : 'Korelasyon nedensellik değildir. Çok çalışan öğrencinin notu yüksek; ama arada motivasyon gibi üçüncü bir değişken olabilir.';
-    C.$('[data-rk]', root).innerHTML = h + IS.tip(tip, 'r = ' + f(r.r, 2));
+    C.$('[data-rk]', root).innerHTML = h + IS.tip(tip, 'r = ' + f(r.r, 2)) + '<div data-rst></div>';
+    var X0 = xs(), Y0 = ys(), sxx = 0, sxy = 0, syy = 0; X0.forEach(function (x, i) { sxx += (x - r.mx) * (x - r.mx); sxy += (x - r.mx) * (Y0[i] - r.my); syy += (Y0[i] - r.my) * (Y0[i] - r.my); });
+    IS.steps(C.$('[data-rst]', root), [
+      { t: 'ortalamalar', x: 'x̄ = ' + f(r.mx, 3) + '   ȳ = ' + f(r.my, 3) },
+      { t: 'Sxx = Σ(x − x̄)²', x: 'Sxx = ' + f(sxx, 3) },
+      { t: 'Sxy = Σ(x − x̄)(y − ȳ)', x: 'Sxy = ' + f(sxy, 3) },
+      { t: 'eğim (slope)', x: 'b₁ = Sxy / Sxx = ' + f(sxy, 3) + ' / ' + f(sxx, 3) + ' = ' + f(r.b1, 4) },
+      { t: 'kesişim (intercept)', x: 'b₀ = ȳ − b₁x̄ = ' + f(r.my, 3) + ' − ' + f(r.b1, 4) + ' · ' + f(r.mx, 3) + ' = ' + f(r.b0, 3) },
+      { t: 'korelasyon', x: 'r = Sxy / √(Sxx · Syy) = ' + f(sxy, 3) + ' / √(' + f(sxx, 3) + ' · ' + f(syy, 3) + ') = ' + f(r.r, 4) }
+    ], 'en küçük kareler, adım adım');
   };
   var load = function (k) { S.k = k; S.p = SETS[k].p.map(function (q) { return q.slice(); }); var r = M.linreg(xs(), ys()); S.ol = [[1, 50], [9, 50]]; draw(); FN.bridgeSend(); };
 
@@ -70,10 +79,12 @@
     { q: 'r ≈ 0 çıktı. Hangisi kesin söylenebilir?', o: ['doğrusal ilişki zayıf; eğrisel ilişki olabilir', 'hiçbir ilişki yoktur', 'değişkenler bağımsızdır', 'veri yanlış girilmiştir'], a: 0, n: 'Eğrisel örnekte r ≈ 0 ama ilişki çok güçlü.' }
   ];
 
+  IS.bank.regresyon = QS;
+
   FN.st.regresyon = {
     init: function () {
       root = C.$('#regresyon');
-      root.innerHTML = IS.head({ k: 'istasyon 8 · korelasyon ve regresyon', title: 'Regresyon atölyesi', sub: 'Her yıldız bir öğrenci. Mavi çizgi en küçük kareler doğrusu; sarı kareler kalıntıların karesi. Bir yıldızı sürükle, boş yere tıklayıp yeni yıldız ekle: doğru, karelerin toplam alanını en küçük tutacak şekilde yeniden oturur.', weeks: ['İst II · 10. hafta: serpilme ve korelasyon', '11–12. hafta: basit doğrusal regresyon', '13. hafta: R², tahmin, varsayımlar'] }) +
+      root.innerHTML = IS.head({ key: 'regresyon', k: 'istasyon 8 · korelasyon ve regresyon', title: 'Regresyon atölyesi', sub: 'Her yıldız bir öğrenci. Mavi çizgi en küçük kareler doğrusu; sarı kareler kalıntıların karesi. Bir yıldızı sürükle, boş yere tıklayıp yeni yıldız ekle: doğru, karelerin toplam alanını en küçük tutacak şekilde yeniden oturur.', weeks: ['İst II · 10. hafta: serpilme ve korelasyon', '11–12. hafta: basit doğrusal regresyon', '13. hafta: R², tahmin, varsayımlar'] }) +
         '<div class="seg" data-sets style="margin-bottom:14px"></div>' +
         '<div class="grid g2"><div class="card box" style="--cc:#6FD3F0"><div class="row" style="justify-content:space-between"><h2 data-rt></h2><div class="row"><label class="row lbl"><input type="checkbox" data-sq checked style="width:auto"> kalıntı kareleri</label><label class="row lbl"><input type="checkbox" data-own style="width:auto"> kendi doğrumu çizeyim</label></div></div>' +
         '<div class="stage"><svg class="rg-svg svgdrag" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="serpilme diyagramı ve regresyon doğrusu"></svg></div>' +

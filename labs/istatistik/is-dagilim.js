@@ -110,10 +110,12 @@
     { q: 't dağılımı ile standart normal arasındaki fark hangisi?', o: ['t’nin kuyrukları daha kalındır; sd arttıkça fark kaybolur', 't hep sağa çarpıktır', 't’nin ortalaması 1’dir', 't yalnız kesikli verilerde kullanılır'], a: 0, n: 'σ tahmin edildiği için belirsizlik artar; t daha basık ve kuyruklu, sd → ∞ iken normale döner.' }
   ];
 
+  IS.bank.dagilim = QS;
+
   FN.st.dagilim = {
     init: function () {
       root = C.$('#dagilim');
-      root.innerHTML = IS.head({ k: 'istasyon 3 · olasılık dağılımları', title: 'Dağılım galerisi', sub: 'Sürgüleri oynat, eğrinin biçimi değişsin. İki sınır sürgüsü arasındaki <b>alan</b>, o aralığa düşme olasılığıdır; z tablosunun canlı hâli.', weeks: ['İst I · 7. hafta: rastlantı değişkeni', '8–9. hafta: binom, Poisson', '9–10. hafta: normal, z, t, ki-kare'] }) +
+      root.innerHTML = IS.head({ key: 'dagilim', k: 'istasyon 3 · olasılık dağılımları', title: 'Dağılım galerisi', sub: 'Sürgüleri oynat, eğrinin biçimi değişsin. İki sınır sürgüsü arasındaki <b>alan</b>, o aralığa düşme olasılığıdır; z tablosunun canlı hâli.', weeks: ['İst I · 7. hafta: rastlantı değişkeni', '8–9. hafta: binom, Poisson', '9–10. hafta: normal, z, t, ki-kare'] }) +
         '<div class="seg" data-dist style="margin-bottom:14px"></div>' +
         '<div class="grid gside"><div class="card box" style="--cc:#7FE0C2"><h2 data-dt></h2><p class="sub" data-desc></p><div data-params></div></div>' +
         '<div class="card box" style="--cc:#7FE0C2"><div data-ch></div><div data-pr></div><div data-code></div></div></div>' +

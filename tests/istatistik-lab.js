@@ -25,7 +25,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g,
 const { test, summary } = makeRunner();
 const M = require('../labs/istatistik/is-mat.js');
 const near = (a, b, e, m) => assert.ok(Math.abs(a - b) <= e, (m || '') + ' ' + a + ' ≠ ' + b);
-const ST = ['betimsel', 'olasilik', 'dagilim', 'galton', 'guven', 'hipotez', 'kikare', 'regresyon', 'bolum'];
+const ST = ['betimsel', 'grafik', 'olasilik', 'dagilim', 'galton', 'guven', 'hipotez', 'kikare', 'indeks', 'ikili', 'regresyon', 'coklu', 'bolum'];
 const src = (k) => read('labs/istatistik/is-' + k + '.js');
 /* kaynak dosyadan bir fonksiyon bloğunu çıkarıp verilen bağlamla çalıştır */
 const slice = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + 1); assert.ok(i > -1 && j > i, 'blok bulunamadı: ' + a); return s.slice(i, j); };
@@ -77,15 +77,42 @@ test('ki-kare, güven aralığı ve fiyat endeksi hesapları', () => {
 test('Excel formülleri yalnızca gerçek Türkçe Excel işlevleri; eksi işareti ASCII', () => {
   const OK = new Set(['ORTALAMA', 'ORTANCA', 'ENÇOK_OLAN.TEK', 'VAR.S', 'STDSAPMA.S', 'DÖRTTEBİRLİK.DHL', 'ÇARPIKLIK', 'SIKLIK', 'KOMBİNASYON', 'PERMÜTASYON', 'ÇARPINIM', 'RASTGELEARADA', 'EĞER', 'S_SAYI_ÜRET',
     'BİNOM.DAĞ', 'POISSON.DAĞ', 'NORM.DAĞ', 'NORM.S.DAĞ', 'NORM.TERS', 'NORM.S.TERS', 'T.DAĞ', 'T.DAĞ.SAĞK', 'T.DAĞ.2K', 'T.TERS.2K', 'T.TEST', 'MUTLAK', 'KİKARE.DAĞ', 'KİKARE.TERS.SAĞK', 'KİKARE.DAĞ.SAĞK', 'KİKARE.TEST', 'F.DAĞ.SAĞK',
-    'KAREKÖK', 'SAY', 'RASTGELEDİZİ', 'GÜVENİLİRLİK.NORM', 'GÜVENİLİRLİK.T', 'EĞİM', 'KESMENOKTASI', 'KORELASYON', 'RKARE', 'TAHMİN.DOĞRUSAL', 'TOPLA.ÇARPIM', 'EĞİLİM', 'İNDİS', 'AL', 'SIRALAÖLÇÜT']);
+    'KAREKÖK', 'SAY', 'RASTGELEDİZİ', 'GÜVENİLİRLİK.NORM', 'GÜVENİLİRLİK.T', 'EĞİM', 'KESMENOKTASI', 'KORELASYON', 'RKARE', 'TAHMİN.DOĞRUSAL', 'TOPLA.ÇARPIM', 'EĞİLİM', 'İNDİS', 'AL', 'SIRALAÖLÇÜT',
+    /* v2 (04.11.2026): grafik, indeks, iki anakütle, çoklu regresyon ve öngörü */
+    'BASIKLIK', 'YÜZDEBİRLİK.DHL', 'GEOORT', 'HARORT', 'TOPKARE', 'EĞERSAY', 'SIRA.ORT', 'DOT', 'TAHMİN.ETS', 'STANDARTLAŞTIRMA']);
   const all = ST.map(src).join('\n'), seen = new Set();
   for (const m of all.matchAll(/\['=([^']*)'/g)) for (const f of m[1].matchAll(/([A-ZÇĞİÖŞÜ_][A-ZÇĞİÖŞÜ0-9_.]*)\(/g)) { seen.add(f[1]); assert.ok(OK.has(f[1]), 'bilinmeyen Excel işlevi: ' + f[1]); }
-  assert.ok(seen.size >= 25, 'en az 25 farklı işlev öğretiliyor: ' + seen.size);
+  /* formül kartındaki Excel sütunu da aynı listeden */
+  const w = { FN: {} }; new Function('window', read('labs/istatistik/is-terim.js'))(w);
+  for (const k in w.FN.is.SHEET) w.FN.is.SHEET[k].forEach((r) => { for (const f of String(r[2] || '').matchAll(/([A-ZÇĞİÖŞÜ_][A-ZÇĞİÖŞÜ0-9_.]*)\(/g)) assert.ok(OK.has(f[1]), 'formül kartında bilinmeyen Excel işlevi: ' + f[1]); });
+  assert.ok(seen.size >= 45, 'en az 45 farklı işlev öğretiliyor: ' + seen.size);
   assert.match(read('labs/istatistik/is-app.js'), /String\(q\[0\]\)\.replace\(\/−\/g, '-'\)/, 'Türkçe eksi (−) koda düz eksi olarak yazılır');
   ST.forEach((k) => assert.match(src(k), /IS\.code\(/, k + ': Excel/R kutusu var'));
 });
 
-test('lab kabuğu: dokuz istasyon, ortak çekirdek, ağ isteği yok, hareket azaltma', () => {
+test('ders planı (v2): 28 hafta AYBÜ BUS201/202, her hafta var olan istasyona bağlı; TR+EN terimler; formül kartı', () => {
+  const win = { FN: {} }; new Function('window', read('labs/istatistik/is-terim.js'))(win);
+  const IS = win.FN.is, html = read('labs/istatistik/index.html');
+  assert.equal(IS.WEEKS.length, 28);
+  assert.deepEqual([...new Set(IS.WEEKS.map((w) => w.c))], ['BUS201', 'BUS202']);
+  IS.WEEKS.forEach((w, i) => {
+    assert.equal(w.w, i % 14 + 1, 'hafta sırası');
+    assert.ok(w.tr && w.en, 'hafta ' + (i + 1) + ': TR ve EN başlık');
+    if (w.exam) assert.ok(IS.EXAMS[w.exam], w.exam + ' sınav tanımı var');
+    else assert.ok(ST.includes(w.s), 'hafta ' + (i + 1) + ' bilinmeyen istasyon: ' + w.s);
+  });
+  assert.equal(IS.WEEKS.filter((w) => w.exam).length, 2, 'iki vize');
+  ST.forEach((k) => {
+    assert.ok(IS.EN[k], k + ': İngilizce ad');
+    assert.ok(Array.isArray(IS.GLOSS[k]) && IS.GLOSS[k].length >= 3, k + ': en az 3 terim');
+    IS.GLOSS[k].forEach((g) => assert.ok(g[0] && g[1], k + ': terim çifti eksik'));
+    assert.match(html, new RegExp('data-tab="' + k + '"'));
+  });
+  assert.ok(Object.keys(IS.SHEET).length >= 8, 'formül kartları');
+  Object.keys(IS.SHEET).forEach((k) => IS.SHEET[k].forEach((r) => assert.ok(r[0] && r[1], k + ': formül satırı eksik')));
+});
+
+test('lab kabuğu: on üç istasyon + 28 yıldızlı yol, ortak çekirdek, ağ isteği yok, hareket azaltma', () => {
   const html = read('labs/istatistik/index.html');
   ST.forEach((k) => {
     assert.match(html, new RegExp('<section class="pt-view" id="' + k + '"'));
@@ -98,7 +125,11 @@ test('lab kabuğu: dokuz istasyon, ortak çekirdek, ağ isteği yok, hareket aza
   assert.ok(html.indexOf('window.FN_CONF') < html.indexOf('<script src="../finans/fn-app.js">'));
   assert.ok(html.indexOf('is-mat.js') < html.indexOf('is-app.js'));
   assert.match(html, /"lab": "istat"/);
-  const all = ['mat', 'app'].concat(ST).map((f) => read('labs/istatistik/is-' + f + '.js')).join('\n');
+  /* yol: 28 haftalık harita ve vize/final provası; sınav yok, karne çekirdek defterine yazılır */
+  assert.match(html, /<section class="pt-view" id="yol"/); assert.match(html, /data-tab="yol"/);
+  assert.ok(html.indexOf('is-terim.js') < html.indexOf('is-betimsel.js') && html.lastIndexOf('<script src="is-') === html.indexOf('<script src="is-yol.js">'), 'terim önce, yol en son yüklenir');
+  assert.match(read('labs/istatistik/is-yol.js'), /FN\.st\.yol = \{/);
+  const all = ['mat', 'app', 'terim', 'yol'].concat(ST).map((f) => read('labs/istatistik/is-' + f + '.js')).join('\n');
   assert.doesNotMatch(all, /fetch\(|XMLHttpRequest|supabase|localStorage/, 'lab ağ isteği yapmaz, defteri çekirdek yazar');
   const css = read('labs/istatistik/is-style.css');
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\*\{animation-duration:\.01ms!important/);
@@ -109,12 +140,13 @@ test('lab kabuğu: dokuz istasyon, ortak çekirdek, ağ isteği yok, hareket aza
 test('hub: gözlemevi düğmeleri, açılış anahtarı, liman defteri, Acadia köprüsü', () => {
   const html = read('dashboard.html'), fin = read('js/acadex-finans.js'), lim = read('js/acadex-liman.js'), aca = read('js/acadex-medlab-acadia.js');
   ST.forEach((k) => assert.match(html, new RegExp('class="axf-st" data-finans-open="istat-' + k + '"')));
-  assert.equal(new Set([...html.matchAll(/data-finans-open="([a-z-]+)"/g)].map((m) => m[1])).size, 24);
+  assert.equal(new Set([...html.matchAll(/data-finans-open="([a-z-]+)"/g)].map((m) => m[1])).size, 29);
+  assert.match(html, /class="axf-yol" data-finans-open="istat-yol" data-lm-skip/, 'yol şeridi istasyon sayılmaz');
   assert.match(fin, /if \(labOf\(k\) === 'istat'\) \{ var u = k\.slice\(6\); return IST\[u\] \? \{ lab: 'istat', tab: u, src: 'labs\/istatistik\/index\.html'/);
   ST.forEach((k) => assert.match(fin, new RegExp('\\b' + k + ": '")));
   const logKey = new Function('return ' + lim.slice(lim.indexOf('function (k) { return /^sirket-/'), lim.indexOf(';\n', lim.indexOf('var logKey'))))();
   assert.equal(logKey('istat-galton'), 'istat.galton'); assert.equal(logKey('sirket-sim'), 'sirket.sim'); assert.equal(logKey('zaman'), 'finans.zaman');
-  assert.match(lim, /cols = st\.length <= 15 \? 5 : Math\.ceil\(st\.length \/ 4\)/, 'gemi 24 yuvaya büyür');
+  assert.match(lim, /cols = st\.length <= 15 \? 5 : Math\.ceil\(st\.length \/ 4\)/, 'gemi istasyon sayısına göre büyür');
   assert.match(aca, /istat: 'Acadex İstatistik'/); assert.match(aca, /lab === 'istat' \?/);
   assert.match(read('css/acadex-finans.css'), /html\.ax-dark #finans-view\.axf \.axf-obs\{filter:invert\(1\) hue-rotate\(180deg\)\}/, 'koyu temada gök gece kalır');
 });

@@ -16,7 +16,7 @@
   var SK = { terazi: 'Bilanço terazisi', tablolar: 'Üç tablo ve nakit', maliyet: 'Maliyet ve başabaş', yatirim: 'Yatırım kararı', strateji: 'Strateji masası', org: 'Organizasyon', sim: 'Şirketi yönet' };
   window.AX_SIRKET = SK;
   /* gözlemevi (03.11.2026): istatistik istasyonları ayrı lab'da (labs/istatistik/), aynı katmanda açılır; anahtar 'istat-<istasyon>' */
-  var IST = { betimsel: 'Veri masası', olasilik: 'Zar ve para atölyesi', dagilim: 'Dağılım galerisi', galton: 'Galton ve merkezî limit', guven: 'Güven aralığı', hipotez: 'Hipotez mahkemesi', kikare: 'Ki-kare ve ANOVA', regresyon: 'Regresyon atölyesi', bolum: 'Bölüm köşeleri' };
+  var IST = { yol: '28 yıldızlı yol', grafik: 'Veri ve grafik atölyesi', indeks: 'Oranlar ve indeksler', ikili: 'İki anakütle ve parametriksiz', coklu: 'Çoklu regresyon ve öngörü', betimsel: 'Veri masası', olasilik: 'Zar ve para atölyesi', dagilim: 'Dağılım galerisi', galton: 'Galton ve merkezî limit', guven: 'Güven aralığı', hipotez: 'Hipotez mahkemesi', kikare: 'Ki-kare ve ANOVA', regresyon: 'Regresyon atölyesi', bolum: 'Bölüm köşeleri' };
   window.AX_ISTAT = IST;
   var labOf = function (k) { return /^sirket-/.test(k) ? 'sirket' : /^istat-/.test(k) ? 'istat' : 'finans'; };
   var info = function (k) {

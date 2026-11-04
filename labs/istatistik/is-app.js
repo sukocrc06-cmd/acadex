@@ -10,7 +10,7 @@
 (function () {
   'use strict';
   var FN = window.FN, C = FN.core, X = C.X, nf = C.nf;
-  var IS = FN.is = {};
+  var IS = FN.is = FN.is || {};
   IS.M = window.ISM;
   IS.f = function (v, n) { return nf(v, n == null ? 2 : n); };
   IS.p = function (v) { return v < 0.0001 ? '< 0,0001' : nf(v, 4); };
@@ -23,11 +23,58 @@
     pts.forEach(function (p, k) { s += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + (k % 3 ? 2.4 : 3.4) + '" style="--d:' + (k * 0.4) + 's"/>'; });
     return '<svg class="ob-cons" viewBox="0 0 200 96" aria-hidden="true">' + s + '</svg>';
   };
+  /* başlık: o.key verilirse haftalar AYBÜ BUS201/202 planından (is-terim.js), İngilizce ad,
+     formül kartı düğmesi ve İngilizce terim sözlüğü eklenir */
   IS.head = function (o) {
     var seed = 0; for (var i = 0; i < o.title.length; i++) seed = seed * 31 + o.title.charCodeAt(i) | 0;
-    return '<header class="ob-head"><div><span class="k">' + X(o.k) + '</span><h1>' + X(o.title) + '</h1><p>' + o.sub + '</p>' +
-      '<div class="ob-wk">' + (o.weeks || []).map(function (w) { return '<span>' + X(w) + '</span>'; }).join('') + '</div></div>' + cons(seed) + '</header>';
+    var wk = o.key && IS.WEEKS ? IS.WEEKS.filter(function (w) { return w.s === o.key; }).map(function (w) { return w.c + ' · ' + w.w + '. hafta: ' + w.tr.toLocaleLowerCase('tr'); }) : [];
+    if (!wk.length) wk = o.weeks || [];
+    var gl = o.key && IS.GLOSS && IS.GLOSS[o.key], en = o.key && IS.EN && IS.EN[o.key];
+    return '<header class="ob-head"><div><span class="k">' + X(o.k) + '</span><h1>' + X(o.title) + (en ? ' <span class="ob-en">' + X(en) + '</span>' : '') + '</h1><p>' + o.sub + '</p>' +
+      '<div class="ob-wk">' + wk.map(function (w) { return '<span>' + X(w) + '</span>'; }).join('') + '</div>' +
+      (o.key ? '<div class="ob-tools">' + (IS.SHEET && IS.SHEET[o.key] ? '<button type="button" class="ob-tb" data-sheet="' + o.key + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg>formül kartı</button>' : '') +
+        (gl ? '<details class="ob-gl"><summary>İngilizce terimler · ' + gl.length + '</summary><dl>' + gl.map(function (g) { return '<div><dt>' + X(g[0]) + '</dt><dd>' + X(g[1]) + (g[2] ? '<small>' + X(g[2]) + '</small>' : '') + '</dd></div>'; }).join('') + '</dl></details>' : '') + '</div>' : '') +
+      '</div>' + cons(seed) + '</header>';
   };
+  /* terim çifti: "medyan (median)" */
+  IS.en = function (tr, en) { return X(tr) + ' <span class="en">' + X(en) + '</span>'; };
+  /* soru bankası: istasyonlar yüklenirken sorularını bırakır; sınav provası buradan çeker */
+  IS.bank = {};
+
+  /* ---------- adım adım çözüm ----------
+     steps = [{ t: 'adım adı', f: 'formül (html, sayılar <b>…</b> içinde)', r: 'sonuç' }]
+     "sonraki adım" bir satır açar; sayılar sırayla yerine oturur. */
+  IS.steps = function (box, steps, title) {
+    /* ilerleme kutuda saklanır: sürgü oynayınca çözüm yeniden çizilir ama kaldığın adım korunur */
+    steps = steps.map(function (s) { return { t: s.t, r: s.r, f: s.f != null ? s.f : X(s.x).replace(/(−?\d[\d.,]*)/g, '<b>$1</b>') }; });
+    var n = Math.min(box.__stp || 0, steps.length);
+    var draw = function (anim) {
+      box.__stp = n;
+      box.innerHTML = '<div class="stp"><div class="stp-h"><b>' + X(title || 'adım adım çözüm') + '</b><span class="lbl">' + n + ' / ' + steps.length + '</span></div><ol>' +
+        steps.slice(0, n).map(function (s, i) { return '<li class="' + (anim && i === n - 1 ? 'in' : '') + '"><span class="stp-t">' + X(s.t) + '</span><span class="stp-f">' + s.f.replace(/<b>/g, '<b class="stp-n" style="--k:VAR">').replace(/VAR/g, function () { return (Math.random() * 0.3 + 0.15).toFixed(2) + 's'; }) + '</span>' + (s.r ? '<span class="stp-r">= ' + s.r + '</span>' : '') + '</li>'; }).join('') + '</ol>' +
+        '<div class="row"><button type="button" class="btn sm pri" data-sn' + (n >= steps.length ? ' disabled' : '') + '>' + (n ? 'sonraki adım' : 'çözüme başla') + '</button><button type="button" class="btn sm" data-sa' + (n >= steps.length ? ' disabled' : '') + '>hepsini göster</button>' + (n ? '<button type="button" class="btn sm" data-s0>baştan</button>' : '') + '</div></div>';
+      var b = box.querySelector('[data-sn]'); b.onclick = function () { n++; draw(true); var nb = box.querySelector('[data-sn]'); if (nb && !nb.disabled) nb.focus(); };
+      box.querySelector('[data-sa]').onclick = function () { n = steps.length; draw(false); };
+      var z = box.querySelector('[data-s0]'); if (z) z.onclick = function () { n = 0; draw(false); };
+    };
+    draw(false);
+  };
+
+  /* ---------- formül kartı yazdırma ---------- */
+  IS.print = function (keys) {
+    var old = document.querySelector('.sheet-print'); if (old) old.remove();
+    var el = document.createElement('div'); el.className = 'sheet-print';
+    el.innerHTML = '<h1>Acadex İstatistik · formül kartı</h1><p class="sp-sub">AYBÜ BUS201 / BUS202 · Excel (Türkçe) ve R karşılıklarıyla</p>' + keys.map(function (k) {
+      var rows = (IS.SHEET || {})[k] || []; if (!rows.length) return '';
+      return '<section><h2>' + X((FN.NAMES || {})[k] || k) + ' <small>' + X((IS.EN || {})[k] || '') + '</small></h2><table><thead><tr><th>ölçü</th><th>formül</th><th>Excel</th><th>R</th></tr></thead><tbody>' +
+        rows.map(function (r) { return '<tr><td>' + X(r[0]) + '</td><td class="m">' + X(r[1]) + '</td><td class="m">' + X(r[2]) + '</td><td class="m">' + X(r[3]) + '</td></tr>'; }).join('') + '</tbody></table></section>';
+    }).join('');
+    document.body.appendChild(el); document.body.classList.add('printing');
+    var done = function () { document.body.classList.remove('printing'); el.remove(); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    try { window.print(); } catch (e) { done(); }
+  };
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-sheet]'); if (b) IS.print(b.getAttribute('data-sheet').split(',')); });
   IS.tip = function (txt, ekran) { return C.tip(txt, ekran || 'σ'); };
 
   /* Excel / R kutusu: rows = { x: [[formül, not]], r: [[kod, not]] } */
@@ -78,7 +125,7 @@
     };
     draw();
   };
-  IS.quizCard = function (title) { return '<div class="card box" style="--cc:var(--star)"><h2>Kısa sınav</h2><p class="sub">Beş soru; %85 ve üstü karne liman defterinde onaylanır.</p><div data-quiz></div></div>'; };
+  IS.quizCard = function (title) { return '<div class="card box" style="--cc:var(--star)"><h2>Kısa sınav</h2><p class="sub">Kısa sorular; %85 ve üstü karne liman defterinde onaylanır ve yol haritasında yıldızı yakar.</p><div data-quiz></div></div>'; };
   IS.seg = function (box, items, cur, on) {
     box.innerHTML = items.map(function (it) { return '<button type="button" data-sg="' + it[0] + '" aria-pressed="' + (it[0] === cur) + '">' + X(it[1]) + '</button>'; }).join('');
     C.$$('[data-sg]', box).forEach(function (b) { b.onclick = function () { C.$$('[data-sg]', box).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); on(b.getAttribute('data-sg')); }; });

@@ -32,6 +32,12 @@
     for (var i = 0; i < n; i++) t += Math.pow((a[i] - m) / s, 3);
     return n / ((n - 1) * (n - 2)) * t;
   };
+  /* örneklem basıklığı, fazlalık (Excel BASIKLIK): normal dağılımda 0 */
+  M.kurt = function (a) {
+    var n = a.length; if (n < 4) return NaN; var m = M.mean(a), s = M.sd(a), t = 0;
+    for (var i = 0; i < n; i++) t += Math.pow((a[i] - m) / s, 4);
+    return n * (n + 1) / ((n - 1) * (n - 2) * (n - 3)) * t - 3 * (n - 1) * (n - 1) / ((n - 2) * (n - 3));
+  };
   M.box = function (a) {
     var q1 = M.quantile(a, 0.25), q3 = M.quantile(a, 0.75), iqr = q3 - q1, lo = q1 - 1.5 * iqr, hi = q3 + 1.5 * iqr;
     var inn = a.filter(function (v) { return v >= lo && v <= hi; });
@@ -137,6 +143,39 @@
     return { n: n, b0: b0, b1: b1, r: r, r2: r * r, sse: sse, sst: syy, mx: mx, my: my };
   };
   M.sse = function (xs, ys, b0, b1) { var s = 0; for (var i = 0; i < xs.length; i++) { var e = ys[i] - (b0 + b1 * xs[i]); s += e * e; } return s; };
+
+  /* sıralar (rank): eşit değerlere ortalama sıra verilir (Excel SIRA.ORT, R rank) */
+  M.rank = function (a) {
+    var idx = a.map(function (v, i) { return [v, i]; }).sort(function (x, y) { return x[0] - y[0]; }), r = new Array(a.length);
+    for (var i = 0; i < idx.length;) { var j = i; while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++; var av = (i + j) / 2 + 1; for (var k = i; k <= j; k++) r[idx[k][1]] = av; i = j + 1; }
+    return r;
+  };
+  M.corr = function (x, y) { return M.linreg(x, y).r; };
+  /* Welch serbestlik derecesi */
+  M.welchDf = function (s1, n1, s2, n2) { var a = s1 * s1 / n1, b = s2 * s2 / n2; return (a + b) * (a + b) / (a * a / (n1 - 1) + b * b / (n2 - 1)); };
+
+  /* çoklu regresyon (en küçük kareler): X satırları [x1, x2, …] (sabit terim eklenir) */
+  var invert = function (A) {
+    var n = A.length, a = A.map(function (r, i) { return r.concat(A.map(function (_, j) { return i === j ? 1 : 0; })); });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(a[r][c]) > Math.abs(a[p][c])) p = r;
+      var t = a[c]; a[c] = a[p]; a[p] = t; var d = a[c][c]; if (Math.abs(d) < 1e-12) return null;
+      for (var j = 0; j < 2 * n; j++) a[c][j] /= d;
+      for (r = 0; r < n; r++) if (r !== c) { var fct = a[r][c]; for (j = 0; j < 2 * n; j++) a[r][j] -= fct * a[c][j]; }
+    }
+    return a.map(function (r) { return r.slice(n); });
+  };
+  M.invert = invert;
+  M.ols = function (Xr, y) {
+    var X = Xr.map(function (r) { return [1].concat(r); }), n = X.length, k = X[0].length;
+    var XtX = [], Xty = []; for (var i = 0; i < k; i++) { XtX.push([]); var s = 0; for (var j = 0; j < k; j++) { var q = 0; for (var r = 0; r < n; r++) q += X[r][i] * X[r][j]; XtX[i].push(q); } for (r = 0; r < n; r++) s += X[r][i] * y[r]; Xty.push(s); }
+    var inv = invert(XtX); if (!inv) return null;
+    var b = inv.map(function (row) { return row.reduce(function (a, v, j) { return a + v * Xty[j]; }, 0); });
+    var my = M.mean(y), sse = 0, sst = 0; y.forEach(function (v, r) { var yh = X[r].reduce(function (a, x, j) { return a + x * b[j]; }, 0), e = v - yh; sse += e * e; sst += (v - my) * (v - my); });
+    var df = n - k, s2 = sse / df, se = inv.map(function (row, j) { return Math.sqrt(s2 * row[j]); }), t = b.map(function (v, j) { return v / se[j]; });
+    var r2 = 1 - sse / sst, p = k - 1, F = ((sst - sse) / p) / s2;
+    return { b: b, se: se, t: t, p: t.map(function (v) { return 2 * (1 - M.tCdf(Math.abs(v), df)); }), r2: r2, adj: 1 - (1 - r2) * (n - 1) / df, F: F, pF: p ? 1 - M.fCdf(F, p, df) : NaN, s: Math.sqrt(s2), df: df, n: n, sse: sse, sst: sst };
+  };
 
   /* ---------- rastgele ---------- */
   M.randn = function (rnd) { rnd = rnd || Math.random; var u = 0, v = 0; while (u === 0) u = rnd(); v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
