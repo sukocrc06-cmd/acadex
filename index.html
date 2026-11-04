@@ -901,26 +901,6 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .note-duo .note-page{padding:44px 44px 36px 76px}
 .note-duo .note-page p{font-size:17.5px;line-height:1.7}
 .note-duo .note-page:first-child{rotate:-.6deg}
-/* EKIP NOTLARI (04.11.2026). Vitrin notlari (.note-duo) iki kisi icin
-   tasarlanmis; ekibin tamami ayni boyda kart alsa sayfa bir not duvarina
-   donerdi. Bu yuzden kompakt varyant: kisi basi TEK ozgun satir, ayni kagit
-   dili (.nb-page kirmizi kenar cizgisini kullaniyor, o yuzden sol dolgu
-   cizginin disinda). data-nf YOK: [data-nf] animasyonu vitrin notlarinin
-   sirasina gore surulyor, buraya karismasin. */
-.note-team{max-width:1220px;margin:0 auto;padding:0 28px 110px;box-sizing:border-box}
-.note-team-h{margin:0 0 6px;font-size:24px;font-weight:700;letter-spacing:-.02em;color:#1A2A5C}
-.note-team-s{margin:0 0 34px;color:#5B6787;font-size:15.5px}
-.ntm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;align-items:start}
-.ntm{padding:22px 24px 18px 58px}
-.ntm .eyb{margin:0 0 8px}
-.ntm p{margin:0 0 16px;font-size:16px;line-height:1.66;color:#2A3657}
-.ntm-sig{display:block;font-size:27px;line-height:1.05}
-.ntm-role{display:block;margin-top:3px;font-size:12.5px;color:#5B6787;letter-spacing:.01em}
-.ntm:nth-child(3n+1){rotate:-.45deg}
-.ntm:nth-child(3n){rotate:.4deg}
-@media (max-width:1000px){.ntm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:960px){.ntm{padding:18px 18px 14px 38px}}
-@media (max-width:640px){.ntm-grid{grid-template-columns:1fr;gap:18px}.note-team{padding:0 20px 80px}.ntm{rotate:none}}
 .note-test{rotate:.8deg}
 .nt-li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-items:start}
 .nt-li p{margin-bottom:16px}
@@ -2111,50 +2091,85 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <span class="nt-sticky nb-hand" aria-hidden="true">Daha iyi bir Acadex, daha iyi bir öğrenme yolculuğu mümkün! ♡</span>
 <svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
 </figure>
+<figure class="nb-page note-page note-own" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile nt-star" viewBox="0 0 64 44" aria-hidden="true"><path d="M22 6 L26 17 L38 17 L28 24 L32 36 L22 29 L12 36 L16 24 L6 17 L18 17 Z"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Kurucu ortaktan not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="10" r="4"></circle><circle cx="22" cy="11" r="3.4"></circle><path d="M3 26 C3 20 6.5 17 11 17 C15.5 17 19 20 19 26"></path><path d="M18 18.5 C19.2 17.6 20.5 17.2 22 17.2 C26 17.2 29 19.8 29 25"></path></svg><p>Acadex iki kişinin ortak kararıyla başladı: bu iş bir öğrenci projesi olarak kalmasın, gerçekten kurulsun. Şirketleşmeyi, sözleşmeleri ve hukuki tarafı ben yürütüyorum.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M19 4 C25 5 28 9 28 13 L20 21 L11 12 L19 4 Z"></path><circle cx="20.5" cy="11.5" r="2.4"></circle><path d="M11 12 L6 13 L3 17 L9 18 M20 21 L19 26 L15 29 L14 23"></path><path d="M9 23 C7 24 5 26 4 28 C6 27 8 25 9 23"></path></svg><p>Üniversiteler ve kurumlarla görüşüyorum; kampüs iş birlikleri, hibe ve yatırım başvuruları bu masadan geçiyor. Amaç Acadex&#39;in yarın da ayakta olması.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 C10 4 7 8.5 7 13 C7 17 9.5 19 11 21.5 V24 H21 V21.5 C22.5 19 25 17 25 13 C25 8.5 22 4 16 4 Z"></path><path d="M12 28 H20"></path><path d="M14 16 L16 13 L18 16"></path></svg><p>Bütçeyi tek bir soruyla okuyorum: harcadığımız her lira öğrencinin eline geçen bir şeye dönüşüyor mu?</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Serhat Arslan<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Kurucu Ortak · İş Geliştirme, Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">Sağlam bir zemin, uzun bir yol demek. ★</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
+</figure>
+<figure class="nb-page note-page note-test" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile" viewBox="0 0 64 44" aria-hidden="true"><circle cx="22" cy="24" r="15"></circle><path d="M16 21 v1.5 M28 21 v1.5"></path><path d="M15 28 C19 33 25 33 29 28"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Yapay zekâ tarafından not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="15" cy="17" r="11"></circle><circle cx="15" cy="17" r="6"></circle><circle cx="15" cy="17" r="1.6"></circle><path d="M15 17 L27 5 M23 5 H27 V9"></path></svg><p>Özet, sınav ve sohbet akışlarında hangi modelin ne zaman çalışacağına karar veriyorum. Ama asıl iş model seçmek değil, çıktısını ölçmek.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="7" width="20" height="13" rx="2"></rect><path d="M3 24 H29 L27 21 H5 Z"></path></svg><p>Her kartın dayandığı sayfayı takip ediyoruz: belge parçalanıyor, kaynak eşleştiriliyor, atıf kuruluyor. Kartta gördüğün cümlenin bir yeri var.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 C10 4 7 8.5 7 13 C7 17 9.5 19 11 21.5 V24 H21 V21.5 C22.5 19 25 17 25 13 C25 8.5 22 4 16 4 Z"></path><path d="M12 28 H20"></path><path d="M14 16 L16 13 L18 16"></path></svg><p>Doğruluk, süre ve maliyet — üçünü birlikte ölçüyorum. Bir iyileştirme ancak sayıyla kanıtlanırsa yayına giriyor.</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Berkay Arslanargün<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Makine Öğrenmesi ve Yazılım, Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">Modelin dediği değil, belgenin yazdığı. ✓</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
+</figure>
+<figure class="nb-page note-page note-own" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile nt-star" viewBox="0 0 64 44" aria-hidden="true"><path d="M22 6 L26 17 L38 17 L28 24 L32 36 L22 29 L12 36 L16 24 L6 17 L18 17 Z"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Yapay zekâ desteğinden not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5 C24 5 29 10 29 15.5 C29 21 24 26 16 26 C14 26 12 25.6 10.5 25 L4 28 L6 22 C4 20 3 18 3 15.5 C3 10 8 5 16 5 Z"></path><path d="M10.5 15.5 h.1 M16 15.5 h.1 M21.5 15.5 h.1"></path></svg><p>Acadia&#39;nın cevaplarını, özetleri ve sunum çıktılarını düzenli olarak okuyorum. Sana ulaşan metin, önce bir insanın gözünden geçiyor.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 C10 4 7 8.5 7 13 C7 17 9.5 19 11 21.5 V24 H21 V21.5 C22.5 19 25 17 25 13 C25 8.5 22 4 16 4 Z"></path><path d="M12 28 H20"></path><path d="M14 16 L16 13 L18 16"></path></svg><p>Tuhaf bulduğum her örneği kayda geçiriyorum; istem ve kalite kuralları o kayıtlara bakılarak düzeltiliyor.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="7" width="20" height="13" rx="2"></rect><path d="M3 24 H29 L27 21 H5 Z"></path></svg><p>Yapay zekâ servislerinin kesinti ve limit kayıtlarını takip ediyorum ki sınav haftasında sistem seni yarı yolda bırakmasın.</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Hasan Taha Buru<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Yapay Zekâ Destek, Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">İyi çıktı, kontrol edilmiş çıktıdır. ♢</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
+</figure>
+<figure class="nb-page note-page note-test" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile" viewBox="0 0 64 44" aria-hidden="true"><circle cx="22" cy="24" r="15"></circle><path d="M16 21 v1.5 M28 21 v1.5"></path><path d="M15 28 C19 33 25 33 29 28"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Tasarımdan not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 C10 4 7 8.5 7 13 C7 17 9.5 19 11 21.5 V24 H21 V21.5 C22.5 19 25 17 25 13 C25 8.5 22 4 16 4 Z"></path><path d="M12 28 H20"></path><path d="M14 16 L16 13 L18 16"></path></svg><p>Bir ekranı kullanmak için açıklamaya ihtiyaç duyuyorsan, tasarım işini yapmamış demektir. Acadex&#39;te hedefim bu.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="10" r="4"></circle><circle cx="22" cy="11" r="3.4"></circle><path d="M3 26 C3 20 6.5 17 11 17 C15.5 17 19 20 19 26"></path><path d="M18 18.5 C19.2 17.6 20.5 17.2 22 17.2 C26 17.2 29 19.8 29 25"></path></svg><p>Renk, yazı tipi, ikon ve Acadia — hepsi tek bir dilin parçası olsun istiyorum ki nereye gidersen git kendini kaybolmuş hissetme.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="7" width="20" height="13" rx="2"></rect><path d="M3 24 H29 L27 21 H5 Z"></path></svg><p>Telefon, tablet ve bilgisayar için ayrı ayrı tasarlıyorum; kontrastı, yazı boyutunu ve dokunma alanlarını tek tek kontrol ediyorum.</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Mina<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Ürün Tasarımcısı (UI/UX), Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">Anlaşılmayan tasarım, tasarım değildir. ✎</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
+</figure>
+<figure class="nb-page note-page note-own" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile nt-star" viewBox="0 0 64 44" aria-hidden="true"><path d="M22 6 L26 17 L38 17 L28 24 L32 36 L22 29 L12 36 L16 24 L6 17 L18 17 Z"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Test biriminden not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="7" width="20" height="13" rx="2"></rect><path d="M3 24 H29 L27 21 H5 Z"></path></svg><p>Özetleri, kartları ve sınavları kendi bölümümün ders notlarıyla deniyorum. Gerçek ders içeriğinde tutmayan bir çıktı sana ulaşmadan geri dönüyor.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="15" cy="17" r="11"></circle><circle cx="15" cy="17" r="6"></circle><circle cx="15" cy="17" r="1.6"></circle><path d="M15 17 L27 5 M23 5 H27 V9"></path></svg><p>Bulduğum hatayı adım adım ve ekran görüntüsüyle yazıyorum; düzeltildikten sonra aynı senaryoyu bir kez daha koşuyorum.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5 C24 5 29 10 29 15.5 C29 21 24 26 16 26 C14 26 12 25.6 10.5 25 L4 28 L6 22 C4 20 3 18 3 15.5 C3 10 8 5 16 5 Z"></path><path d="M10.5 15.5 h.1 M16 15.5 h.1 M21.5 15.5 h.1"></path></svg><p>Çalışıp çalışmadığı kadar anlaşılır olup olmadığına da bakıyorum — bir öğrenci gözüyle.</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Cemre Kuzu<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Test Uzmanı, Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">Önce bende çalışsın, sonra sende. ✓</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
+</figure>
+<figure class="nb-page note-page note-test" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile" viewBox="0 0 64 44" aria-hidden="true"><circle cx="22" cy="24" r="15"></circle><path d="M16 21 v1.5 M28 21 v1.5"></path><path d="M15 28 C19 33 25 33 29 28"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Test biriminden not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="7" width="20" height="13" rx="2"></rect><path d="M3 24 H29 L27 21 H5 Z"></path></svg><p>Telefon, tablet, bilgisayar — üçünde aynı şekilde çalışmayan bir özelliği bitmiş saymıyoruz.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="15" cy="17" r="11"></circle><circle cx="15" cy="17" r="6"></circle><circle cx="15" cy="17" r="1.6"></circle><path d="M15 17 L27 5 M23 5 H27 V9"></path></svg><p>Senaryoları tek tek uyguluyorum; bir hata düzeldi denince kapatmıyorum, yeniden deneyip kapatıyorum.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="11" cy="10" r="4"></circle><circle cx="22" cy="11" r="3.4"></circle><path d="M3 26 C3 20 6.5 17 11 17 C15.5 17 19 20 19 26"></path><path d="M18 18.5 C19.2 17.6 20.5 17.2 22 17.2 C26 17.2 29 19.8 29 25"></path></svg><p>Kullanıcı gözüyle bakıp &quot;burası kafa karıştırıyor&quot; diyebilmek de işin parçası. Ben söylüyorum ki sen söylemek zorunda kalma.</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Asude Yıldız<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Test Uzmanı, Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">Üç ekranda da çalışmıyorsa bitmemiştir. ♡</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
+</figure>
+<figure class="nb-page note-page note-own" data-nf="">
+<i class="tape tape-l" aria-hidden="true"></i><i class="tape tape-r" aria-hidden="true"></i>
+<svg class="nt-smile nt-star" viewBox="0 0 64 44" aria-hidden="true"><path d="M22 6 L26 17 L38 17 L28 24 L32 36 L22 29 L12 36 L16 24 L6 17 L18 17 Z"></path><path d="M44 10 L52 4 M46 20 L57 18 M44 30 L53 34"></path></svg>
+<div class="mono note-eyebrow eyb">Finans ve iş modelinden not</div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 C10 4 7 8.5 7 13 C7 17 9.5 19 11 21.5 V24 H21 V21.5 C22.5 19 25 17 25 13 C25 8.5 22 4 16 4 Z"></path><path d="M12 28 H20"></path><path d="M14 16 L16 13 L18 16"></path></svg><p>Öğrencinin bütçesi bizim için bir varsayım değil, hesabın başladığı yer. Paketleri ona göre kuruyoruz.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><circle cx="15" cy="17" r="11"></circle><circle cx="15" cy="17" r="6"></circle><circle cx="15" cy="17" r="1.6"></circle><path d="M15 17 L27 5 M23 5 H27 V9"></path></svg><p>Kullanıcı başına yapay zekâ ve altyapı giderini tek tek hesaplıyorum; fiyat bir tahminle değil, bir tabloyla belirleniyor.</p></div>
+<div class="nt-li"><svg class="nt-ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M19 4 C25 5 28 9 28 13 L20 21 L11 12 L19 4 Z"></path><circle cx="20.5" cy="11.5" r="2.4"></circle><path d="M11 12 L6 13 L3 17 L9 18 M20 21 L19 26 L15 29 L14 23"></path><path d="M9 23 C7 24 5 26 4 28 C6 27 8 25 9 23"></path></svg><p>Hibe ve yarışma başvurularının finansal bölümleri benden çıkıyor — Acadex&#39;in ücretsiz kalabilen tarafı buna bağlı.</p></div>
+<div class="note-sign"><span class="nb-hand note-sig">Sudegül Kurt<svg class="nt-heart" viewBox="0 0 40 30" aria-hidden="true"><path d="M14 26 C6 20 2 15 4 10 C6 5 12 5 14 10 C16 5 22 5 24 10 C26 15 22 20 14 26 Z"></path><path d="M30 8 L36 4 M31 15 L38 15"></path></svg></span><span class="note-role">Finans ve İş Modeli, Acadex</span></div>
+<span class="nt-sticky nb-hand" aria-hidden="true">Fiyat bir tahmin değil, bir hesap. ★</span>
+<svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
+</figure>
 </div>
 
-<!-- ===== TEAM NOTES: ekibin geri kalani (kompakt) ===== -->
-<div class="note-team">
-<h3 class="disp note-team-h">Acadex&#39;i kuran ekip</h3>
-<p class="note-team-s">Her satır, o işi fiilen yapan kişinin kendi cümlesi.</p>
-<div class="ntm-grid">
-<figure class="nb-page ntm">
-<div class="mono note-eyebrow eyb">Kurucu ortaktan not</div>
-<p>Acadex&#39;i bir öğrenci projesinden kurumsal bir yapıya taşıyorum. Her adımda tek ölçütüm var: bunun öğrencinin eline geçen karşılığı ne?</p>
-<div class="note-sign"><span class="nb-hand ntm-sig">Serhat Arslan</span><span class="ntm-role">Kurucu Ortak · Kurumsal İlişkiler ve İş Geliştirme</span></div>
-</figure>
-<figure class="nb-page ntm">
-<div class="mono note-eyebrow eyb">Makine öğrenmesinden not</div>
-<p>Modelin ne söylediğine değil, belgenin ne yazdığına bakıyorum. Kartta gördüğün her satırın dayandığı bir sayfa var.</p>
-<div class="note-sign"><span class="nb-hand ntm-sig">Berkay Arslanargün</span><span class="ntm-role">Makine Öğrenmesi ve Yazılım Geliştirme</span></div>
-</figure>
-<figure class="nb-page ntm">
-<div class="mono note-eyebrow eyb">Yapay zekâ desteğinden not</div>
-<p>Acadia&#39;nın cevaplarını ve özet çıktılarını düzenli olarak tek tek okuyorum. Sana ulaşan metin, önce bir insanın gözünden geçiyor.</p>
-<div class="note-sign"><span class="nb-hand ntm-sig">Hasan Taha Buru</span><span class="ntm-role">Yapay Zekâ Destek</span></div>
-</figure>
-<figure class="nb-page ntm">
-<div class="mono note-eyebrow eyb">Tasarımdan not</div>
-<p>Bir ekranı kullanmak için açıklamaya ihtiyaç duyuyorsan, tasarım işini yapmamış demektir. Acadia da bu yüzden var.</p>
-<div class="note-sign"><span class="nb-hand ntm-sig">Mina</span><span class="ntm-role">Ürün Tasarımcısı (UI/UX)</span></div>
-</figure>
-<figure class="nb-page ntm">
-<div class="mono note-eyebrow eyb">Test biriminden not</div>
-<p>Özetleri kendi bölümümün ders notlarıyla deniyorum. Bende tutmayan bir çıktı sana ulaşmadan geri dönüyor.</p>
-<div class="note-sign"><span class="nb-hand ntm-sig">Cemre Kuzu</span><span class="ntm-role">Test Uzmanı</span></div>
-</figure>
-<figure class="nb-page ntm">
-<div class="mono note-eyebrow eyb">Test biriminden not</div>
-<p>Telefon, tablet ve bilgisayar — üçünde aynı şekilde çalışmayan bir özelliği bitmiş saymıyoruz.</p>
-<div class="note-sign"><span class="nb-hand ntm-sig">Asude Yıldız</span><span class="ntm-role">Test Uzmanı</span></div>
-</figure>
-<figure class="nb-page ntm">
-<div class="mono note-eyebrow eyb">Finans ve iş modelinden not</div>
-<p>Öğrencinin bütçesi bizim için bir varsayım değil, hesabın başladığı yer. Fiyatı ona göre kuruyoruz.</p>
-<div class="note-sign"><span class="nb-hand ntm-sig">Sudegül Kurt</span><span class="ntm-role">Finans ve İş Modeli Sorumlusu</span></div>
-</figure>
-</div>
-</div>
 </section>
 
 <!-- ===== CTA (dark) ===== -->
