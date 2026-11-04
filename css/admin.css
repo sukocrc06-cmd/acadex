@@ -364,9 +364,9 @@ tr:last-child td{border-bottom:0}
 .ek-legend i.dash{background:transparent;border:1.5px dashed var(--muted)}
 @media (max-width:860px){.ek-board>.ek-tn{min-width:0;width:100%}.ek-advrow .ek-node{min-width:0;width:100%}}
 
-/* ---------- organizasyon şeması: kurucu kolları (04.11.2026) ----------
-   Yönetim en üstte; finans yanında, yönetime doğrudan bağlı. Altında her kurucunun kolu:
-   kurucu kartı → kolun yatay çizgisi → birimleri. Kurucunun koluna gelince öteki kollar solar. */
+/* ---------- organizasyon şeması (04.11.2026) ----------
+   Yönetim kutusunun içinde iki kurucu eşit; bütün birimler yönetime bağlı, finans yanında.
+   Birimin rozeti koordinasyonu yürüten kurucuyu gösterir; kurucunun üstüne gelince onun birimleri öne çıkar. */
 .ek-ctools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin:-8px 0 14px}
 .ek-ctools .muted{margin-right:auto;font-size:12.5px}
 .ek-chart-in{background:var(--card,#FFFDF8)}
@@ -379,21 +379,28 @@ tr:last-child td{border-bottom:0}
 .ek-stf::before{content:'';position:absolute;left:0;top:30px;width:44px;border-top:2px dashed var(--tc)}
 .ek-stf .ek-branch{width:200px}
 .ek-stl{position:absolute;left:46px;top:-20px;font-size:10px;letter-spacing:.08em;color:var(--tc);white-space:nowrap;font-weight:700}
-.ek-lanes{display:grid;column-gap:0;position:relative;padding-top:24px;margin-top:0}
-.ek-lane{position:relative;margin:0 6px;padding:14px 8px 16px;border-radius:16px;background:var(--lt);transition:opacity .25s,filter .25s}
-.ek-lane::before{content:'';position:absolute;top:-24px;left:50%;width:2px;height:24px;background:var(--line2)}
-.ek-lane::after{content:'';position:absolute;top:-24px;height:2px;background:var(--line2);left:-6px;right:-6px}
-.ek-lane:first-child::after{left:50%}.ek-lane:last-child::after{right:50%}.ek-lane:only-child::after{display:none}
-.ek-lhead{display:flex;flex-direction:column;align-items:center;gap:6px}
-.ek-lhead .ek-node{width:auto;min-width:230px;padding:10px 14px;border-left-width:6px;box-shadow:0 0 0 3px var(--lr)}
-.ek-lcount{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--lc);font-weight:700}
-.ek-lane .ek-row{margin:22px 10px 0;border-top-color:var(--lc)}
-.ek-lane .ek-row{position:relative;display:grid;justify-content:center;align-items:start;gap:22px 14px}
-.ek-lane .ek-row::before{content:'';position:absolute;top:-22px;left:50%;width:2px;height:20px;background:var(--lc)}
-.ek-lane .ek-branch::before{background:var(--lc)}
-.ek-lane .ek-branch{width:176px}
-.ek-lanes:has(.ek-lane:hover) .ek-lane:not(:hover),.ek-lanes:has(.ek-lane:focus-within) .ek-lane:not(:focus-within){opacity:.38;filter:grayscale(.7)}
-.ek-lane:hover,.ek-lane:focus-within{background:var(--lt2)}
+.ek-boardx{padding:12px 16px 14px;border:2px solid var(--tc);border-radius:16px;background:#fff}
+.ek-boardx>.ek-tn{display:block;margin:0 auto 12px}
+.ek-boardx .ek-top{position:relative;gap:18px}
+.ek-fnd{display:flex;flex-direction:column;align-items:center;gap:4px;border-radius:12px;transition:opacity .25s,filter .25s}
+.ek-fnd .ek-node{max-width:300px;border-left-width:6px;box-shadow:0 0 0 3px transparent;transition:box-shadow .2s}
+.ek-fnd:hover .ek-node,.ek-fnd:focus-within .ek-node{box-shadow:0 0 0 3px var(--fc)}
+.ek-fcount{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;color:var(--fc)}
+.ek-flatw{display:flex;flex-direction:column;align-items:center;gap:28px}
+.ek-flat{position:relative;display:grid;justify-content:start;align-items:start;gap:22px 14px;width:max-content;margin:0 auto;padding-top:20px}
+.ek-flat.ek-more::after{content:'';position:absolute;left:-2px;top:-2px;bottom:-30px;width:2px;background:var(--line2)}
+.ek-flat+.ek-flat{margin-top:0}
+.ek-flat .ek-branch{width:176px;transition:opacity .25s,filter .25s}
+.ek-fb{position:absolute;top:-9px;right:-7px;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--fc);color:#fff;font:800 10px/1 'Instrument Sans',system-ui,sans-serif;border:2px solid #fff;box-shadow:0 2px 6px -2px rgba(0,0,0,.4)}
+.ek-tn{position:relative}
+.ek-tt .ek-fb{position:static;display:inline-grid;width:22px;height:22px;font-size:9px;vertical-align:middle;margin-left:4px}
+/* kurucu vurgusu: kurucunun üstüne gelince onun birimleri öne çıkar */
+.ek-chart:has(.ek-fnd[data-fi="0"]:is(:hover,:focus-within)) .ek-branch:not([data-fi="0"]),
+.ek-chart:has(.ek-fnd[data-fi="1"]:is(:hover,:focus-within)) .ek-branch:not([data-fi="1"]),
+.ek-chart:has(.ek-fnd[data-fi="2"]:is(:hover,:focus-within)) .ek-branch:not([data-fi="2"]),
+.ek-chart:has(.ek-fnd[data-fi="0"]:is(:hover,:focus-within)) .ek-fnd:not([data-fi="0"]),
+.ek-chart:has(.ek-fnd[data-fi="1"]:is(:hover,:focus-within)) .ek-fnd:not([data-fi="1"]),
+.ek-chart:has(.ek-fnd[data-fi="2"]:is(:hover,:focus-within)) .ek-fnd:not([data-fi="2"]){opacity:.35;filter:grayscale(.7)}
 /* doluluk çubuğu */
 .ek-fill{display:flex;gap:1px;height:7px;margin:7px 4px 2px;padding:1px;border-radius:4px;background:#fff;overflow:hidden}
 .ek-fill i{display:block;min-width:4px;border-radius:2px}
@@ -412,8 +419,9 @@ tr:last-child td{border-bottom:0}
 .ek-tt .ek-fill{margin:0}
 .ek-ttp{display:flex;flex-direction:column;gap:6px;padding:0 10px 10px}
 .ek-ttp .lnk{align-self:flex-start;font-size:12.5px}
+.ek-legend{flex-wrap:wrap;gap:6px 14px}
 @media (max-width:760px){.ek-wide{display:none}.ek-tree{display:block}.ek-chart{overflow-x:visible;padding:16px 12px}.ek-ctools .muted{display:none}}
 /* görsel alınırken (PNG/PDF) ekran boyutundan bağımsız geniş şema */
 .ek-shot .ek-wide{display:block!important}.ek-shot .ek-tree{display:none!important}
-.ek-shot .ek-lane{opacity:1!important;filter:none!important}
+.ek-shot .ek-branch,.ek-shot .ek-fnd{opacity:1!important;filter:none!important}
 .ek-trb{display:block;margin-bottom:10px}

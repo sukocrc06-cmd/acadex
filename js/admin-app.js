@@ -343,17 +343,18 @@
       }).join('') + '</tbody></table></div></div>';
   };
   /* ---------- organizasyon şeması (04.11.2026) ----------
-     Kurucu ortaklar eşit statüde; her birim bir kurucunun kolunda durur:
+     Bütün birimler doğrudan Yönetim / Proje Sahibi'ne bağlı. Kurucu ortaklar yönetim kutusunun
+     içinde eşit ve yan yana; gövde çizgisi ikisinin tam ortasından iner. Her birim kutusunda
+     koordinasyonu yürüten kurucunun rozeti (ŞÇ / SA) durur; kurucunun üstüne gelince onun
+     birimleri öne çıkar. Rozet şöyle bulunur:
        - kol, birimin "lider / koordinasyon" metninde geçen kurucu adından bulunur
          (ör. "Koordinasyon: Serhat Arslan"). Kurucu adı geçmeyen birimler (ör. koordinatörü
          Şevval olan Test Birimi) ilk kurucunun koluna düşer; başka kola almak için
-         koordinasyon metnine o kurucunun adını eklemek yeter ("… · Serhat Arslan kolu").
+         koordinasyon metnine o kurucunun adını eklemek yeter ("… · Serhat Arslan").
        - Finans birimleri kolların dışında, yönetime doğrudan bağlı ayrı bir kutu.
-       - Tasarım ile Pazarlama, iki kolun buluştuğu ortada yan yana durur.
+       - Tasarım ile Pazarlama yan yana durur (iki kurucunun birimlerinin buluştuğu yer).
      Veritabanında değişiklik yok; her şey mevcut alanlardan türetilir. */
   var EK_LANE = ['#2F6BFF', '#E0892A', '#12A3A3', '#8A5CF6'];
-  /* kol rengi tonları: color-mix yerine rgba (PNG/PDF çizici html2canvas color-mix okuyamıyor) */
-  var ekTint = function (hex) { var h = String(hex).replace('#', ''), n = parseInt(h.length === 3 ? h.replace(/./g, '$&$&') : h, 16), c = [n >> 16 & 255, n >> 8 & 255, n & 255].join(','); return '--lc:' + hex + ';--lt:rgba(' + c + ',.05);--lt2:rgba(' + c + ',.1);--lr:rgba(' + c + ',.18)'; };
   var ekNorm = function (s) { return String(s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim(); };
   var ekIsStaff = function (t) { return /finans/i.test(t.name || ''); };
   var ekFounders = function () {
@@ -366,16 +367,15 @@
   };
   /* iki kolun birbirine bakan uçlarında durması istenen birim çifti: soldaki kolda sona, sağdakinde başa */
   var EK_PAIR = [/tasar/i, /pazarlama/i];
-  /* kol başına sütun sayısı: toplam birim 6'yı aşınca kollar iki satıra iner, her kol kendi
-     birim sayısının yarısı kadar sütun alır. Çiftin elemanı soldaki kolda İLK satırın sonuna,
-     sağdaki kolda ilk satırın başına konur; böylece ikisi ortada yan yana durur. */
-  var ekLaneTeams = function (f, k, n, fs, cols) {
-    var pair = function (t) { return EK_PAIR.some(function (r) { return r.test(t.name); }); };
+  /* çiftin elemanları (Tasarım, Pazarlama) aynı kurucuda ise sonda birlikte, ayrı kurucularda ise
+     soldakinde sonda, sağdakinde başta durur; böylece hep yan yana gelir */
+  var ekPair = function (t) { return EK_PAIR.some(function (r) { return r.test(t.name); }); };
+  var ekLaneTeams = function (f, k, n, fs) {
     var ts = EK.teams.filter(function (t) { return !t.is_board && !t.is_advisory && !ekIsStaff(t) && ekFounderOf(t, fs) === f; })
       .sort(function (a, b) { return (a.sort - b.sort) || a.name.localeCompare(b.name, 'tr'); });
-    var pr = ts.filter(pair)[0]; if (!pr || n < 2) return ts;
-    var rest = ts.filter(function (t) { return t !== pr; }), at = k === 0 ? Math.min(cols, ts.length) - 1 : k === n - 1 ? 0 : -1;
-    if (at < 0) return ts; rest.splice(at, 0, pr); return rest;
+    var pr = ts.filter(ekPair), rest = ts.filter(function (t) { return !ekPair(t); });
+    if (!pr.length) return ts;
+    return k === n - 1 && n > 1 ? pr.concat(rest) : rest.concat(pr);
   };
   /* doluluk: dolu (aktif, yeni, yarı zamanlı) / aday / açık */
   var ekFill = function (ps) {
@@ -385,39 +385,49 @@
       '<small class="ek-fs">' + [f ? f + ' dolu' : '', c ? c + ' aday' : '', o ? o + ' açık' : ''].filter(Boolean).join(' · ') + '</small>';
   };
   var ekNode = function (p, c) { return '<button type="button" class="ek-node' + (ekOpen(p) || p.status === 'aday' ? ' dash' : '') + '" data-ekp="' + X(p.id) + '" style="--tc:' + X(c) + '">' + ekAv(p, c) + '<span><b>' + X(ekOpen(p) ? 'açık' : p.full_name) + (p.status === 'aday' ? ' <i class="ek-tag">aday</i>' : '') + '</b><small>' + X(ekOpen(p) ? (p.title || p.full_name) : (p.title || '')) + '</small></span></button>'; };
-  var ekBranch = function (t, r2) {
+  var ekBadge = function (t, fs) {
+    var f = ekFounderOf(t, fs), k = fs.indexOf(f); if (!f) return '';
+    return '<span class="ek-fb" style="--fc:' + EK_LANE[k % EK_LANE.length] + '" title="' + X('koordinasyon: ' + f.full_name) + '">' + X(ini(f.full_name)) + '</span>';
+  };
+  var ekBranch = function (t, r2, fs) {
     var ps = ekOf(t.id), lead = ps.filter(function (p) { return p.is_lead; })[0], others = ps.filter(function (p) { return p !== lead; });
     var dash = (t.state && t.state !== 'kuruldu') || !ps.some(function (p) { return !ekOpen(p); });
-    return '<div class="ek-branch' + (r2 ? ' r2' : '') + '" style="--tc:' + X(t.color) + '"><button type="button" class="ek-tn' + (dash ? ' dash' : '') + '" data-ekt="' + X(t.id) + '"><b>' + X(t.name) + '</b><small>' + X(t.coordinator || '') + '</small>' + (t.state && t.state !== 'kuruldu' ? '<small class="ek-st">' + ETS[t.state] + '</small>' : '') + ekFill(ps) + '</button>' +
+    var fi = fs ? fs.indexOf(ekFounderOf(t, fs)) : -1;
+    return '<div class="ek-branch' + (r2 ? ' r2' : '') + '" data-fi="' + fi + '" style="--tc:' + X(t.color) + '"><button type="button" class="ek-tn' + (dash ? ' dash' : '') + '" data-ekt="' + X(t.id) + '">' + (fs ? ekBadge(t, fs) : '') + '<b>' + X(t.name) + '</b><small>' + X(t.coordinator || '') + '</small>' + (t.state && t.state !== 'kuruldu' ? '<small class="ek-st">' + ETS[t.state] + '</small>' : '') + ekFill(ps) + '</button>' +
       (lead ? ekNode(lead, t.color) : '') + (others.length ? '<div class="ek-sub">' + others.map(function (p) { return ekNode(p, t.color); }).join('') + '</div>' : '') +
       (!ps.length ? '<button type="button" class="ek-open" data-ekadd="' + X(t.id) + '">+ kişi ekle</button>' : '') + '</div>';
   };
   var ekChart = function () {
     var board = EK.teams.filter(function (t) { return t.is_board; })[0], adv = EK.teams.filter(function (t) { return t.is_advisory && !t.is_board; });
     var fs = ekFounders(), staff = EK.teams.filter(function (t) { return !t.is_board && !t.is_advisory && ekIsStaff(t); });
-    var cnt = fs.map(function (f) { return EK.teams.filter(function (t) { return !t.is_board && !t.is_advisory && !ekIsStaff(t) && ekFounderOf(t, fs) === f; }).length; });
-    var rows = cnt.reduce(function (a, b) { return a + b; }, 0) > 6 ? 2 : 1;
-    var lanes = fs.map(function (f, k) { var cols = Math.max(1, Math.ceil(cnt[k] / rows)); return { f: f, cols: cols, ts: ekLaneTeams(f, k, fs.length, fs, cols), c: EK_LANE[k % EK_LANE.length] }; });
+    /* sıra: önce ilk kurucunun birimleri (çiftin elemanı sonda), sonra ikincininkiler (çiftin elemanı başta) */
+    var units = [];
+    fs.forEach(function (f, k) { units = units.concat(ekLaneTeams(f, k, fs.length, fs)); });
+    var n = units.length, cols = n > 6 ? Math.ceil(n / 2) : Math.max(1, n);
+    /* Tasarım ile Pazarlama satır sonunda bölünmesin: bölünüyorsa çift bir sıra sola kayar */
+    var pi = units.map(ekPair).indexOf(true);
+    if (pi > 0 && pi + 1 < n && ekPair(units[pi + 1]) && Math.floor(pi / cols) !== Math.floor((pi + 1) / cols)) units.splice(pi + 1, 0, units.splice(pi - 1, 1)[0]);
     var noTeam = EK.people.filter(function (p) { return !p.team_id || !ekTeam(p.team_id); });
-    var head = board ? '<div class="ek-hq"><span></span><div class="ek-board" style="--tc:' + X(board.color) + '"><button type="button" class="ek-tn" data-ekt="' + X(board.id) + '"><b>' + X(board.name) + '</b>' + (board.coordinator ? '<small>' + X(board.coordinator) + '</small>' : '') + '</button></div>' +
-      '<div class="ek-staff">' + staff.map(function (t) { return '<div class="ek-stf" style="--tc:' + X(t.color) + '"><span class="ek-stl mono">doğrudan yönetime bağlı</span>' + ekBranch(t, true) + '</div>'; }).join('') + '</div></div>' : '<p class="muted">Şemanın tepesi için bir birimi "yönetim" olarak işaretle.</p>';
-    var tree = '<div class="ek-lanes" style="grid-template-columns:' + lanes.map(function (l) { return l.cols + 'fr'; }).join(' ') + '">' + lanes.map(function (l, k) {
-      var np = l.ts.reduce(function (a, t) { return a + ekOf(t.id).filter(function (p) { return !ekOpen(p) && p.status !== 'ayrildi'; }).length; }, 0);
-      return '<section class="ek-lane" style="' + ekTint(l.c) + '" aria-label="' + X(l.f.full_name) + ' kolu"><div class="ek-lhead">' + ekNode(l.f, l.c) + '<span class="ek-lcount">' + l.ts.length + ' birim · ' + np + ' kişi</span></div>' +
-        '<div class="ek-row" style="grid-template-columns:repeat(' + l.cols + ',176px)">' + l.ts.map(function (t, i) { return ekBranch(t, i >= l.cols); }).join('') + '</div></section>';
-    }).join('') + '</div>';
-    /* telefonda: kurucu → birim → kişi sırasıyla açılır kapanır ağaç */
-    var mob = '<div class="ek-tree">' + (board ? '<button type="button" class="ek-tn ek-trb" style="--tc:' + X(board.color) + '" data-ekt="' + X(board.id) + '"><b>' + X(board.name) + '</b><small>' + X(board.coordinator || '') + '</small></button>' : '') + (staff.length ? '<details open class="ek-tl" style="--lc:' + X(staff[0].color) + '"><summary><b>Yönetime doğrudan bağlı</b><small>' + staff.length + ' birim</small></summary>' + staff.map(function (t) { return ekTreeTeam(t); }).join('') + '</details>' : '') +
-      lanes.map(function (l) { return '<details open class="ek-tl" style="--lc:' + l.c + '"><summary><b>' + X(l.f.full_name) + '</b><small>' + l.ts.length + ' birim</small></summary>' + l.ts.map(function (t) { return ekTreeTeam(t); }).join('') + '</details>'; }).join('') + '</div>';
-    return '<div class="card ek-chart"><div class="ek-ctools"><span class="muted">Kurucunun koluna gelince yalnız onun birimleri öne çıkar.</span><button type="button" class="btn ghost sm" data-ekx="png">PNG indir</button><button type="button" class="btn ghost sm" data-ekx="pdf">PDF indir</button></div>' +
-      '<div class="ek-chart-in"><div class="ek-wide">' + head + (lanes.length ? '<div class="ek-stem"></div>' + tree : '') + '</div>' + mob +
+    var fnodes = fs.map(function (f, k) { return '<span class="ek-fnd" data-fi="' + k + '" style="--fc:' + EK_LANE[k % EK_LANE.length] + '">' + ekNode(f, EK_LANE[k % EK_LANE.length]) + '<small class="ek-fcount">' + units.filter(function (t) { return ekFounderOf(t, fs) === f; }).length + ' birimin koordinasyonu</small></span>'; }).join('');
+    var head = board ? '<div class="ek-hq"><span></span><div class="ek-board ek-boardx" style="--tc:' + X(board.color) + '"><button type="button" class="ek-tn" data-ekt="' + X(board.id) + '"><b>' + X(board.name) + '</b>' + (board.coordinator ? '<small>' + X(board.coordinator) + '</small>' : '') + '</button><div class="ek-top">' + fnodes + '</div></div>' +
+      '<div class="ek-staff">' + staff.map(function (t) { return '<div class="ek-stf" style="--tc:' + X(t.color) + '"><span class="ek-stl mono">doğrudan yönetime bağlı</span>' + ekBranch(t, true, fs) + '</div>'; }).join('') + '</div></div>' : '<p class="muted">Şemanın tepesi için bir birimi "yönetim" olarak işaretle.</p>';
+    /* satırlar aynı sütun sayısında; soldaki dikey çizgi alt satırın yatay çizgisini üsttekine bağlar */
+    var rowsHtml = '<div class="ek-flatw">'; for (var r = 0; r < n; r += cols) rowsHtml += '<div class="ek-row ek-flat' + (r + cols < n ? ' ek-more' : '') + '" style="grid-template-columns:repeat(' + cols + ',176px)">' + units.slice(r, r + cols).map(function (t) { return ekBranch(t, false, fs); }).join('') + '</div>';
+    rowsHtml += '</div>';
+    /* telefonda: yönetim → birim → kişi sırasıyla açılır kapanır ağaç */
+    var mob = '<div class="ek-tree">' + (board ? '<button type="button" class="ek-tn ek-trb" style="--tc:' + X(board.color) + '" data-ekt="' + X(board.id) + '"><b>' + X(board.name) + '</b><small>' + X(fs.map(function (f) { return f.full_name; }).join(' · ')) + '</small></button>' : '') +
+      (staff.length ? '<details open class="ek-tl" style="--lc:' + X(staff[0].color) + '"><summary><b>Yönetime doğrudan bağlı</b><small>' + staff.length + ' birim</small></summary>' + staff.map(function (t) { return ekTreeTeam(t, fs); }).join('') + '</details>' : '') +
+      '<details open class="ek-tl" style="--lc:' + X(board ? board.color : '#1A2A5C') + '"><summary><b>Birimler</b><small>' + n + ' birim · hepsi yönetime bağlı</small></summary>' + units.map(function (t) { return ekTreeTeam(t, fs); }).join('') + '</details></div>';
+    return '<div class="card ek-chart"><div class="ek-ctools"><span class="muted">Bütün birimler yönetime bağlı. Rozet, birimin koordinasyonunu yürüten kurucuyu gösterir; kurucunun üstüne gelince onun birimleri öne çıkar.</span><button type="button" class="btn ghost sm" data-ekx="png">PNG indir</button><button type="button" class="btn ghost sm" data-ekx="pdf">PDF indir</button></div>' +
+      '<div class="ek-chart-in"><div class="ek-wide">' + head + (n ? '<div class="ek-stem"></div>' + rowsHtml : '') + '</div>' + mob +
       (adv.length ? '<div class="ek-adv">' + adv.map(function (t) { return '<div class="ek-advrow" style="--tc:' + X(t.color) + '"><button type="button" class="mono ek-advt" data-ekt="' + X(t.id) + '">' + X(t.name.toLocaleUpperCase('tr')) + '</button>' + ekOf(t.id).map(function (p) { return ekNode(p, t.color); }).join('') + '</div>'; }).join('') + '</div>' : '') +
       (noTeam.length ? '<div class="ek-loose"><span class="mono">BİRİMİ YOK</span>' + noTeam.map(function (p) { return ekNode(p, '#5B6B8C'); }).join('') + '</div>' : '') +
-      '<div class="legend ek-legend"><span><i style="background:var(--ink)"></i>dolu rol</span><span><i class="dash"></i>açık / aday / kurulacak</span><span><i style="background:#1E8A55"></i>dolu</span><span><i style="background:#E0A526"></i>aday</span><span><i style="background:#D5DBE5"></i>açık</span></div></div></div>';
+      '<div class="legend ek-legend"><span><i style="background:var(--ink)"></i>dolu rol</span><span><i class="dash"></i>açık / aday / kurulacak</span><span><i style="background:#1E8A55"></i>dolu</span><span><i style="background:#E0A526"></i>aday</span><span><i style="background:#D5DBE5"></i>açık</span>' +
+      fs.map(function (f, k) { return '<span><i style="background:' + EK_LANE[k % EK_LANE.length] + ';border-radius:50%"></i>' + X(ini(f.full_name)) + ' = ' + X(f.full_name) + ' koordinasyonu</span>'; }).join('') + '</div></div></div>';
   };
-  var ekTreeTeam = function (t) {
+  var ekTreeTeam = function (t, fs) {
     var ps = ekOf(t.id);
-    return '<details class="ek-tt" style="--tc:' + X(t.color) + '"><summary><span class="ek-dot"></span><b>' + X(t.name) + '</b>' + ekFill(ps) + '</summary><div class="ek-ttp">' + (ps.length ? ps.map(function (p) { return ekNode(p, t.color); }).join('') : '<button type="button" class="ek-open" data-ekadd="' + X(t.id) + '">+ kişi ekle</button>') + '<button type="button" class="lnk" data-ekt="' + X(t.id) + '">birimin görev kartı →</button></div></details>';
+    return '<details class="ek-tt" style="--tc:' + X(t.color) + '"><summary><span class="ek-dot"></span><b>' + X(t.name) + (fs ? ' ' + ekBadge(t, fs) : '') + '</b>' + ekFill(ps) + '</summary><div class="ek-ttp">' + (ps.length ? ps.map(function (p) { return ekNode(p, t.color); }).join('') : '<button type="button" class="ek-open" data-ekadd="' + X(t.id) + '">+ kişi ekle</button>') + '<button type="button" class="lnk" data-ekt="' + X(t.id) + '">birimin görev kartı →</button></div></details>';
   };
   /* PNG / PDF: html2canvas ve jsPDF yalnız gerektiğinde cdnjs'den yüklenir */
   var ekLibs = {};

@@ -76,7 +76,7 @@ test('davranış (gerçek Postgres): eski kurulum üstüne iki kez çalışır, 
     execSync(P + ' -d postgres -c "drop database if exists ax_ekip"', { stdio: 'pipe' });
   }
 });
-test('şema (04.11.2026): her birim bir kurucunun kolunda; finans yönetime doğrudan bağlı; tasarım ile pazarlama ortada yan yana', () => {
+test('şema (04.11.2026): bütün birimler yönetime bağlı, rozet koordinatör kurucuyu gösterir; finans yanda; tasarım ile pazarlama yan yana', () => {
   const vm = require('node:vm');
   const blk = ek.slice(ek.indexOf('  var EK_LANE = '), ek.indexOf('  /* doluluk: dolu'));
   const F1 = { id: 'f1', full_name: 'Şükrü Çerçi', status: 'aktif' }, F2 = { id: 'f2', full_name: 'Serhat Arslan', status: 'aktif' };
@@ -86,18 +86,25 @@ test('şema (04.11.2026): her birim bir kurucunun kolunda; finans yönetime doğ
     T('a', 'Akademik İçerik Kurulu', 70, 'Kuruluş ve koordinasyon: SERHAT ARSLAN'), T('h', 'Hukuk ve KVKK', 80, 'Serhat Arslan'), T('k', 'Kullanıcı Destek', 90, 'şevval aksakal'),
     T('v', 'Veri ve Analitik', 100, 'Şükrü Çerçi'), T('g', 'Digital Marketing', 120, 'Şükrü Çerçi'), T('x', 'Danışma', 200, '', { is_advisory: true })];
   const ctx = { EK: { teams, people: [F1, F2] }, ekOpen: (p) => p.status === 'acik', ekOf: (id) => (id === 'b' ? [F1, F2] : []) };
-  vm.runInNewContext(blk + ';this.o = { ekFounderOf, ekIsStaff, ekLaneTeams, ekTint };', ctx);
+  vm.runInNewContext(blk + ';this.o = { ekFounderOf, ekIsStaff, ekLaneTeams };', ctx);
   const o = ctx.o, fs = [F1, F2], by = (n) => teams.find((t) => t.name === n);
   assert.equal(o.ekFounderOf(by('Pazarlama'), fs), F2); assert.equal(o.ekFounderOf(by('Akademik İçerik Kurulu'), fs), F2, 'büyük/küçük harf fark etmez');
   assert.equal(o.ekFounderOf(by('Test Birimi'), fs), F1, 'kurucu adı geçmeyen birim ilk kurucunun kolunda');
   assert.equal(o.ekIsStaff(by('Finans ve İş Modeli')), true); assert.equal(o.ekIsStaff(by('Pazarlama')), false);
-  const left = o.ekLaneTeams(F1, 0, 2, fs, 3).map((t) => t.name), right = o.ekLaneTeams(F2, 1, 2, fs, 2).map((t) => t.name);
-  assert.equal(left[2], 'Tasarım', 'Tasarım soldaki kolun ilk satırının sonunda: ' + left); assert.equal(right[0], 'Pazarlama');
+  const left = o.ekLaneTeams(F1, 0, 2, fs).map((t) => t.name), right = o.ekLaneTeams(F2, 1, 2, fs).map((t) => t.name);
+  assert.equal(left[left.length - 1], 'Tasarım', 'Tasarım ilk kurucunun birimlerinin sonunda: ' + left); assert.equal(right[0], 'Pazarlama');
+  /* ikisi aynı kurucudaysa birlikte sonda */
+  by('Pazarlama').coordinator = 'Koordinasyon: Şükrü Çerçi';
+  const both = o.ekLaneTeams(F1, 0, 2, fs).map((t) => t.name); assert.deepEqual(both.slice(-2), ['Tasarım', 'Pazarlama'], String(both));
+  by('Pazarlama').coordinator = 'Koordinasyon: Serhat Arslan';
   assert.ok(!left.concat(right).includes('Finans ve İş Modeli'), 'finans kollarda değil');
   assert.equal(left.length + right.length, 9);
-  assert.match(o.ekTint('#2F6BFF'), /--lt:rgba\(47,107,255,\.05\)/);
-  const css = read('css/admin.css'); assert.doesNotMatch(css.slice(css.indexOf('kurucu kolları')), /color-mix/, 'html2canvas color-mix okuyamaz');
+  const css = read('css/admin.css'); assert.doesNotMatch(css.slice(css.indexOf('organizasyon şeması (04.11.2026)')), /color-mix/, 'html2canvas color-mix okuyamaz');
   assert.match(ek, /html2canvas\/1\.4\.1\/html2canvas\.min\.js/); assert.match(ek, /jspdf\/2\.5\.1\/jspdf\.umd\.min\.js/);
+  /* tek gövde: birimler kurucu kartlarının değil yönetim kutusunun altında; kurucular yönetim kutusunun içinde */
+  assert.match(ek, /class="ek-board ek-boardx"[\s\S]{0,300}<div class="ek-top">' \+ fnodes/);
+  assert.match(ek, /'<div class="ek-row ek-flat' \+ \(r \+ cols < n \? ' ek-more' : ''\)/, 'satırlar soldaki çizgiyle bağlı'); assert.doesNotMatch(ek, /ek-lane/);
+  assert.match(ek, /Math\.floor\(pi \/ cols\) !== Math\.floor\(\(pi \+ 1\) \/ cols\)\) units\.splice\(pi \+ 1, 0, units\.splice\(pi - 1, 1\)\[0\]\)/, 'çift satır sonunda bölünmez');
   assert.match(css, /@media \(max-width:760px\)\{\.ek-wide\{display:none\}\.ek-tree\{display:block\}/, 'telefonda dikey ağaç');
 });
 summary();
