@@ -170,3 +170,7 @@ table.fin-edit{min-width:520px}
 table.fin-kota{min-width:0}
 .fin-kota .in.sm{width:84px;min-width:0}
 .fin-kota th,.fin-kota td{padding-left:8px;padding-right:8px}
+/* yeni hesap: geçici şifre bir kez (05.11.2026) */
+.fin-pass{margin-top:14px;padding:14px 16px;border:1.5px solid var(--green);border-radius:12px;background:var(--green-l);display:flex;flex-direction:column;gap:10px;font-size:13.5px}
+.fin-pw{font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:.06em;padding:4px 10px;border-radius:8px;background:#fff;border:1px dashed var(--green);user-select:all}
+.fin-pwnote{margin:0;color:#8A5A00;background:var(--warn-l);border-radius:8px;padding:8px 10px}

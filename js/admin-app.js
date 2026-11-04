@@ -53,6 +53,21 @@
     });
   };
 
+  var pwChangeView = function (who) {
+    gate('<h2 class="disp">Kendi şifreni belirle</h2><p>Hoş geldin' + (who.name ? ', <b>' + X(who.name) + '</b>' : '') + '. Hesabın geçici bir şifreyle açıldı; devam etmeden önce yalnız senin bildiğin bir şifre belirle.</p>' +
+'<form id="g-pw" novalidate><label class="fld">Yeni şifre<input class="in" type="password" name="p" autocomplete="new-password" minlength="10" required><small>En az 10 karakter; harf ve rakam karışık olsun.</small></label><label class="fld">Yeni şifre (tekrar)<input class="in" type="password" name="p2" autocomplete="new-password" required></label><button class="btn blue" type="submit">Şifremi kaydet</button><button type="button" class="lnk" id="g-out">çıkış yap</button></form>');
+    $('#g-out').addEventListener('click', signOut);
+    $('#g-pw').addEventListener('submit', async function (e) {
+      e.preventDefault(); var p = this.p.value, b = $('button[type=submit]', this);
+      if (p.length < 10 || !/[A-Za-zÇĞİÖŞÜçğıöşü]/.test(p) || !/\d/.test(p)) { showErr(gateBody, 'Şifre en az 10 karakter olmalı ve harf ile rakam içermeli.'); return; }
+      if (p !== this.p2.value) { showErr(gateBody, 'İki şifre aynı değil.'); return; }
+      b.disabled = true; b.textContent = 'kaydediliyor…';
+      var r = await sb.auth.updateUser({ password: p, data: { must_change_password: false } });
+      if (r.error) { b.disabled = false; b.textContent = 'Şifremi kaydet'; showErr(gateBody, /same|different/i.test(r.error.message) ? 'Geçici şifreden farklı bir şifre seç.' : errMsg(r.error)); return; }
+      toast('Şifren kaydedildi.'); boot();
+    });
+  };
+
   var notAdminView = function (who) {
     gate('<h2 class="disp">Bu sayfa yöneticiler için</h2><p><b>' + X(who.email || who.name || '') + '</b> hesabının yönetici yetkisi yok. Yetki yalnızca veritabanından verilebilir.</p><div class="acts-g" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn blue" href="dashboard.html">Öğrenci paneline git</a><button type="button" class="btn ghost" id="g-out">Başka hesapla gir</button></div>');
     $('#g-out').addEventListener('click', signOut);
@@ -101,6 +116,8 @@
       if (!s.data || !s.data.session) { var q = new URLSearchParams(location.hash.slice(1) + '&' + location.search.slice(1)); loginView(q.get('error_description') ? q.get('error_description').replace(/\+/g, ' ') : ''); return; }
       var who = await rpc('admin_whoami');
       if (!who || !(who.is_admin || who.is_finance)) { notAdminView(who || {}); return; }
+      /* yöneticinin açtığı hesap: ilk girişte geçici şifre değiştirilir (staff-create-account) */
+      var u = await sb.auth.getUser(); if (u.data && u.data.user && u.data.user.user_metadata && u.data.user.user_metadata.must_change_password) { pwChangeView(who); return; }
       ME = who; start();
     } catch (e) { gate('<h2 class="disp">Bir sorun çıktı</h2><p class="err">' + X(errMsg(e)) + '</p><div class="acts-g"><button type="button" class="btn blue" id="g-retry">Tekrar dene</button> <button type="button" class="lnk" id="g-out">çıkış yap</button></div>'); $('#g-retry').addEventListener('click', boot); $('#g-out').addEventListener('click', signOut); }
   };

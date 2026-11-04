@@ -155,4 +155,24 @@ test('davranış: öğrenci giremez, finans rolü panoyu görür ama rol veremez
     execSync(P + ' -d postgres -c "drop database if exists ' + db + '"', { stdio: 'pipe' });
   }
 });
+test('hesap açma (05.11.2026): yalnız sunucuda, yönetici şartı, şifre saklanmaz, ilk girişte değişir', () => {
+  const fn = read('supabase/functions/staff-create-account/index.ts');
+  assert.match(fn, /if \(!me\?\.is_admin\) return json\(\{ error: 'Yetki yok/);
+  assert.match(fn, /email_confirm: true/);
+  assert.match(fn, /must_change_password: true/);
+  // davet ve rol çağıranın oturumuyla: yetki ve denetim kaydı veritabanından geçer
+  assert.match(fn, /userClient\.rpc\('admin_invite_add'/); assert.match(fn, /userClient\.rpc\('fin_set_staff'/);
+  assert.doesNotMatch(fn, /details: \{[^}]*password/, 'şifre kayda yazılmaz');
+  assert.doesNotMatch(fn, /console\.(log|error)\([^)]*password/, 'şifre loga yazılmaz');
+  assert.match(fn, /crypto\.getRandomValues/); assert.doesNotMatch(fn, /Math\.random/);
+  // tarayıcı: gizli anahtar yok, işlev adıyla çağrılır, şifre bir kez gösterilir
+  assert.doesNotMatch(fin + adm, /service_role|SERVICE_ROLE/);
+  assert.match(fin, /sb\.functions\.invoke\('staff-create-account'/);
+  assert.match(fin, /Bu şifre bir daha gösterilmez\./);
+  assert.match(fin, /d\.password = null;/);
+  // ilk giriş: geçici şifre değişmeden panel açılmaz
+  const boot = adm.slice(adm.indexOf('var boot = async function'), adm.indexOf('ME = who; start();'));
+  assert.match(boot, /must_change_password\) \{ pwChangeView\(who\); return; \}/);
+  assert.match(adm, /sb\.auth\.updateUser\(\{ password: p, data: \{ must_change_password: false \} \}\)/);
+});
 summary();

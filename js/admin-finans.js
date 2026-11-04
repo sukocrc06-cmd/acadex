@@ -117,7 +117,7 @@
       '<div class="legend"><span><i style="background:#2F6BFF"></i>sayfa</span><span><i style="background:#E8B53A"></i>belge</span></div></div>' +
       '<div class="card"><h2>Satış kırılımı</h2><p class="sub">Plan × süre · tüm zamanlar</p>' + ((o.by_period || []).length ? '<div class="tbl-w"><table><thead><tr><th>Plan</th><th>Süre</th><th>Adet</th><th>Tutar</th></tr></thead><tbody>' + o.by_period.map(function (r) { return '<tr><td>' + X(PLAN[r.plan] || r.plan) + '</td><td>' + X(PER[r.period] || r.period) + '</td><td>' + NF(r.n) + '</td><td>' + TL(r.kurus) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty"><span class="hand">henüz satış yok</span>ilk ödemeyle burada görünür</div>') + '</div></div>' +
       (isAdmin() ? '<div class="card" id="fin-access" style="margin-top:16px"><h2>Finans erişimi</h2><p class="sub">Yalnız yöneticiler görür. Finans rolündeki kişi bu paneli ve Acadex ekibini (salt okunur) görür; öğrenci listesine, belgelere ve destek mesajlarına erişemez.</p><div id="fin-staff" class="muted">yükleniyor…</div>' +
-        '<form id="fin-staff-f" class="fin-inline" novalidate><label class="fld grow">E-posta (Acadex hesabı)<input class="in" type="email" name="e" placeholder="ornek@gmail.com" required></label><button class="btn blue sm" type="submit">Finans rolü ver</button></form></div>' : '');
+        '<form id="fin-staff-f" class="fin-inline" novalidate><label class="fld grow">E-posta<input class="in" type="email" name="e" placeholder="ornek@gmail.com" required></label><label class="fld">Ad soyad (hesabı yoksa)<input class="in" name="n" maxlength="80" placeholder="Sudegül Kurt"></label><button class="btn blue sm" type="submit">Finans rolü ver</button></form><p class="muted" style="margin:8px 0 0;font-size:12.5px">Hesabı yoksa sorulur: hesap e-postası onaylı açılır, geçici şifre yalnız sana bir kez gösterilir, kişi ilk girişte kendi şifresini belirler.</p><div id="fin-newacc"></div></div>' : '');
     if (isAdmin()) staffBox(box);
   };
   var staffBox = async function (box) {
@@ -127,7 +127,38 @@
       catch (e) { el.textContent = errMsg(e); }
     };
     el.onclick = async function (e) { var b = e.target.closest('[data-rm]'); if (!b || !A.confirmBox(b.getAttribute('data-rm') + ' için finans erişimi kaldırılsın mı?')) return; try { await rpc('fin_set_staff', { p_email: b.getAttribute('data-rm'), p_on: false }); toast('Erişim kaldırıldı.'); paint(); } catch (er) { toast(errMsg(er), true); } };
-    f.onsubmit = async function (e) { e.preventDefault(); var v = f.e.value.trim(); if (!/^\S+@\S+\.\S+$/.test(v)) { toast('Geçerli bir e-posta yaz.', true); return; } var b = $('button', f); b.disabled = true; try { var r = await rpc('fin_set_staff', { p_email: v, p_on: true }); toast((r.name || v) + ' artık Finans panelini kullanabilir.'); f.reset(); paint(); } catch (er) { toast(errMsg(er), true); } b.disabled = false; };
+    var newAcc = async function (email, fullName) {
+      /* hesap yalnız sunucuda açılır (supabase/functions/staff-create-account); şifre yanıtta bir kez gelir, saklanmaz */
+      var r = await sb.functions.invoke('staff-create-account', { body: { email: email, full_name: fullName } });
+      var d = r.data || {};
+      if (r.error) { var m = d.error; try { if (!m && r.error.context && r.error.context.json) m = (await r.error.context.json()).error; } catch (er) {} throw new Error(m || r.error.message || 'Hesap açılamadı'); }
+      if (d.error) throw new Error(d.error);
+      return d;
+    };
+    var showPass = function (d) {
+      var box2 = $('#fin-newacc', box); if (!box2) return;
+      box2.innerHTML = '<div class="fin-pass" role="status"><div><b>' + X(d.name || d.email) + '</b> için hesap açıldı ve finans rolü verildi.</div>' +
+        '<dl class="kv"><dt>Giriş adresi</dt><dd><span class="mono">' + X(location.origin + location.pathname) + '</span></dd><dt>E-posta</dt><dd class="mono">' + X(d.email) + '</dd><dt>Geçici şifre</dt><dd><code class="fin-pw" id="fin-pw">' + X(d.password) + '</code> <button type="button" class="btn sm ghost" id="fin-pwc">kopyala</button></dd></dl>' +
+        '<p class="fin-pwnote"><b>Bu şifre bir daha gösterilmez.</b> Kişiye yüz yüze ya da güvenli bir kanaldan ilet; ilk girişte kendi şifresini belirlemesi istenecek.</p><button type="button" class="lnk" id="fin-pwx">gizle</button></div>';
+      $('#fin-pwc', box2).onclick = function () { var t = d.password; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('Şifre kopyalandı.'); }, function () { var rg = document.createRange(); rg.selectNodeContents($('#fin-pw', box2)); var sl = getSelection(); sl.removeAllRanges(); sl.addRange(rg); toast('Şifre seçildi; Ctrl+C ile kopyala.'); }); };
+      $('#fin-pwx', box2).onclick = function () { box2.innerHTML = ''; d.password = null; };
+    };
+    f.onsubmit = async function (e) {
+      e.preventDefault(); var v = f.e.value.trim().toLowerCase(), nm = f.n.value.trim();
+      if (!/^\S+@\S+\.\S+$/.test(v)) { toast('Geçerli bir e-posta yaz.', true); return; }
+      var b = $('button', f); b.disabled = true;
+      try {
+        var r = await rpc('fin_set_staff', { p_email: v, p_on: true }); toast((r.name || v) + ' artık Finans panelini kullanabilir.'); f.reset(); paint();
+      } catch (er) {
+        if (!/kayıtlı bir Acadex hesabı yok/i.test(String(er && er.message))) { toast(errMsg(er), true); b.disabled = false; return; }
+        if (!A.confirmBox(v + ' adresiyle Acadex hesabı yok.\n\nHesap açılsın mı? E-posta onaylı sayılır, geçici bir şifre üretilip yalnız sana bir kez gösterilir ve finans rolü verilir.')) { b.disabled = false; return; }
+        b.textContent = 'hesap açılıyor…';
+        try { var d = await newAcc(v, nm); if (d.password) showPass(d); else toast((d.name || v) + ' zaten vardı; finans rolü verildi.'); f.reset(); paint(); }
+        catch (er2) { toast(errMsg(er2), true); }
+        b.textContent = 'Finans rolü ver';
+      }
+      b.disabled = false;
+    };
     paint();
   };
 
