@@ -914,8 +914,34 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .note-duo .note-sign{margin-top:auto;padding-top:22px}
 
 .nt-sticky{position:absolute;right:26px;bottom:40px;width:150px;padding:10px 12px;box-sizing:border-box;font-size:19px;line-height:1.15;color:#2F6BFF;text-align:center;background:#F3F7FF;border:1.6px dashed #9DB8FF;border-radius:6px;transform:rotate(-7deg);box-shadow:0 10px 18px -14px rgba(13,24,56,0.45)}
-@media (max-width: 960px){.note-duo{grid-template-columns:minmax(0,1fr);max-width:780px;gap:56px}.note-test{margin-top:0}}
+/* 04.11.2026: .note-duo artik yatay ray (asagiya bakin); buradaki
+   grid-template-columns ve max-width ETKISIZ, .note-test{margin-top:0}
+   korundugu icin satir birakildi. */
+@media (max-width: 960px){.note-test{margin-top:0}}
 @media (max-width: 760px){.note-duo .note-page{padding:30px 22px 26px 40px}.note-duo .note-page p{font-size:16.5px}.nt-li{grid-template-columns:22px minmax(0,1fr);gap:10px}.nt-ic{width:22px;height:22px}.nt-smile{right:16px;top:18px;width:46px}.note-test .note-sign,.note-own .note-sign{padding-right:0}.nt-sticky{position:relative;right:auto;bottom:auto;display:block;margin:18px 0 0 auto;width:170px}}
+/* ===== EKIP NOTLARI YATAY RAY (04.11.2026) =====
+   Dokuz not alt alta dizilince sayfa uzayip gidiyordu; ray hepsini yan yana
+   tutuyor. .note-wrap ile .note-duo AYNI eleman ve perspective orada, bu
+   yuzden overflow'u yalnizca X'te aciyoruz.
+   DOLGU TESADUF DEGIL: .tape top:-14px ile kartin ustune, .dd-ring
+   right:-38px / bottom:-30px ile sagina ve altina tasiyor — dolgu bunlari
+   kirpilmaktan koruyor. Dikeyi hidden tutuyoruz ki tasmalar ikinci bir
+   dikey kaydirma cubugu uretmesin. */
+.note-duo{max-width:none;display:flex;flex-wrap:nowrap;align-items:stretch;gap:48px;
+  overflow-x:auto;overflow-y:hidden;padding:100px 48px 110px;
+  scroll-snap-type:x proximity;scroll-padding:0 48px;-webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;scrollbar-color:rgba(120,82,40,.28) transparent;overscroll-behavior-x:contain}
+.note-duo .note-page{flex:0 0 min(560px, 84vw);scroll-snap-align:center}
+.note-duo::-webkit-scrollbar{height:10px}
+.note-duo::-webkit-scrollbar-track{background:transparent}
+.note-duo::-webkit-scrollbar-thumb{background:rgba(120,82,40,.26);border-radius:99px}
+.note-duo::-webkit-scrollbar-thumb:hover{background:rgba(120,82,40,.42)}
+@media (max-width: 960px){.note-duo{gap:34px;padding:76px 24px 92px;scroll-padding:0 24px}
+  .note-duo .note-page{flex:0 0 min(520px, 88vw)}}
+@media (max-width: 640px){.note-duo{gap:26px;padding:64px 18px 84px;scroll-padding:0 18px}
+  .note-duo .note-page{flex:0 0 90vw}}
+/* Kaydirma istemeyen kullanici: ray yine calisir, sadece yapismaz. */
+@media (prefers-reduced-motion: reduce){.note-duo{scroll-snap-type:none;scroll-behavior:auto}}
 
 /* ================= TRY IT: mini flashcard deck ================= */
 .tq{display:none}
