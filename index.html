@@ -901,6 +901,26 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 .note-duo .note-page{padding:44px 44px 36px 76px}
 .note-duo .note-page p{font-size:17.5px;line-height:1.7}
 .note-duo .note-page:first-child{rotate:-.6deg}
+/* EKIP NOTLARI (04.11.2026). Vitrin notlari (.note-duo) iki kisi icin
+   tasarlanmis; ekibin tamami ayni boyda kart alsa sayfa bir not duvarina
+   donerdi. Bu yuzden kompakt varyant: kisi basi TEK ozgun satir, ayni kagit
+   dili (.nb-page kirmizi kenar cizgisini kullaniyor, o yuzden sol dolgu
+   cizginin disinda). data-nf YOK: [data-nf] animasyonu vitrin notlarinin
+   sirasina gore surulyor, buraya karismasin. */
+.note-team{max-width:1220px;margin:0 auto;padding:0 28px 110px;box-sizing:border-box}
+.note-team-h{margin:0 0 6px;font-size:24px;font-weight:700;letter-spacing:-.02em;color:#1A2A5C}
+.note-team-s{margin:0 0 34px;color:#5B6787;font-size:15.5px}
+.ntm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;align-items:start}
+.ntm{padding:22px 24px 18px 58px}
+.ntm .eyb{margin:0 0 8px}
+.ntm p{margin:0 0 16px;font-size:16px;line-height:1.66;color:#2A3657}
+.ntm-sig{display:block;font-size:27px;line-height:1.05}
+.ntm-role{display:block;margin-top:3px;font-size:12.5px;color:#5B6787;letter-spacing:.01em}
+.ntm:nth-child(3n+1){rotate:-.45deg}
+.ntm:nth-child(3n){rotate:.4deg}
+@media (max-width:1000px){.ntm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:960px){.ntm{padding:18px 18px 14px 38px}}
+@media (max-width:640px){.ntm-grid{grid-template-columns:1fr;gap:18px}.note-team{padding:0 20px 80px}.ntm{rotate:none}}
 .note-test{rotate:.8deg}
 .nt-li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:14px;align-items:start}
 .nt-li p{margin-bottom:16px}
@@ -2091,6 +2111,49 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <span class="nt-sticky nb-hand" aria-hidden="true">Daha iyi bir Acadex, daha iyi bir öğrenme yolculuğu mümkün! ♡</span>
 <svg class="dd-ring" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 10 C90 9 111 32 110 60 C109 90 86 111 58 110 C30 109 9 88 10 60 C11 33 31 12 56 11"></path><path d="M64 16 C92 20 106 44 103 66" class="t"></path></svg>
 </figure>
+</div>
+
+<!-- ===== TEAM NOTES: ekibin geri kalani (kompakt) ===== -->
+<div class="note-team">
+<h3 class="disp note-team-h">Acadex&#39;i kuran ekip</h3>
+<p class="note-team-s">Her satır, o işi fiilen yapan kişinin kendi cümlesi.</p>
+<div class="ntm-grid">
+<figure class="nb-page ntm">
+<div class="mono note-eyebrow eyb">Kurucu ortaktan not</div>
+<p>Acadex&#39;i bir öğrenci projesinden kurumsal bir yapıya taşıyorum. Her adımda tek ölçütüm var: bunun öğrencinin eline geçen karşılığı ne?</p>
+<div class="note-sign"><span class="nb-hand ntm-sig">Serhat Arslan</span><span class="ntm-role">Kurucu Ortak · Kurumsal İlişkiler ve İş Geliştirme</span></div>
+</figure>
+<figure class="nb-page ntm">
+<div class="mono note-eyebrow eyb">Makine öğrenmesinden not</div>
+<p>Modelin ne söylediğine değil, belgenin ne yazdığına bakıyorum. Kartta gördüğün her satırın dayandığı bir sayfa var.</p>
+<div class="note-sign"><span class="nb-hand ntm-sig">Berkay Arslanargün</span><span class="ntm-role">Makine Öğrenmesi ve Yazılım Geliştirme</span></div>
+</figure>
+<figure class="nb-page ntm">
+<div class="mono note-eyebrow eyb">Yapay zekâ desteğinden not</div>
+<p>Acadia&#39;nın cevaplarını ve özet çıktılarını düzenli olarak tek tek okuyorum. Sana ulaşan metin, önce bir insanın gözünden geçiyor.</p>
+<div class="note-sign"><span class="nb-hand ntm-sig">Hasan Taha Buru</span><span class="ntm-role">Yapay Zekâ Destek</span></div>
+</figure>
+<figure class="nb-page ntm">
+<div class="mono note-eyebrow eyb">Tasarımdan not</div>
+<p>Bir ekranı kullanmak için açıklamaya ihtiyaç duyuyorsan, tasarım işini yapmamış demektir. Acadia da bu yüzden var.</p>
+<div class="note-sign"><span class="nb-hand ntm-sig">Mina</span><span class="ntm-role">Ürün Tasarımcısı (UI/UX)</span></div>
+</figure>
+<figure class="nb-page ntm">
+<div class="mono note-eyebrow eyb">Test biriminden not</div>
+<p>Özetleri kendi bölümümün ders notlarıyla deniyorum. Bende tutmayan bir çıktı sana ulaşmadan geri dönüyor.</p>
+<div class="note-sign"><span class="nb-hand ntm-sig">Cemre Kuzu</span><span class="ntm-role">Test Uzmanı</span></div>
+</figure>
+<figure class="nb-page ntm">
+<div class="mono note-eyebrow eyb">Test biriminden not</div>
+<p>Telefon, tablet ve bilgisayar — üçünde aynı şekilde çalışmayan bir özelliği bitmiş saymıyoruz.</p>
+<div class="note-sign"><span class="nb-hand ntm-sig">Asude Yıldız</span><span class="ntm-role">Test Uzmanı</span></div>
+</figure>
+<figure class="nb-page ntm">
+<div class="mono note-eyebrow eyb">Finans ve iş modelinden not</div>
+<p>Öğrencinin bütçesi bizim için bir varsayım değil, hesabın başladığı yer. Fiyatı ona göre kuruyoruz.</p>
+<div class="note-sign"><span class="nb-hand ntm-sig">Sudegül Kurt</span><span class="ntm-role">Finans ve İş Modeli Sorumlusu</span></div>
+</figure>
+</div>
 </div>
 </section>
 
