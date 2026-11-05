@@ -75,21 +75,150 @@
       '<path d="M-6 10 Q0 16 6 10" fill="none" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/>' + (KOSTUM[kos] || '') + '</g></svg>';
   }
   var ACADIA = '';
-  var ac, balon, metinEl, zaman, sozler = [];
+  /* ---------- gezgin Acadia: başlıklara konar, kaydırmayı izler, dokununca yardım menüsü ---------- */
+  var ac, balon, metinEl, zaman, menu, ax = 0, ay = 0, durgun = 0;
+  var dar = function () { return W.innerWidth < 760; };
+  var boy = function () { return dar() ? 50 : 74; };
+  function konum(x, y, hizli) {
+    var b = boy(); x = Math.max(6, Math.min(W.innerWidth - b - 6, x)); y = Math.max(70, Math.min(W.innerHeight - b - 6, y));
+    if (Math.abs(x - ax) > 4) ac.classList.toggle('ters', x < ax);
+    var uzak = Math.hypot(x - ax, y - ay) > 40;
+    ax = x; ay = y; ac.classList.toggle('sol', x < Math.min(320, W.innerWidth * .45));
+    if (uzak && !hizli && !sakin) { ac.classList.add('ucuyor'); clearTimeout(ac._u); ac._u = setTimeout(function () { ac.classList.remove('ucuyor'); }, 900); }
+    ac.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)'; durgun = Date.now();
+  }
+  function ev() { var b = boy(); konum(W.innerWidth - b - (dar() ? 8 : 18), W.innerHeight - b - (dar() ? 8 : 16)); }
+  function kon() {
+    if (!ac || sakin || ac.classList.contains('mesgul')) return;
+    if (dar()) return ev();
+    var b = boy(), en = null, ed = 1e9, hedefY = W.innerHeight * .34;
+    D.querySelectorAll('.kah h1, .bolum-b h2, .alis-u h3, .hoca-ust, .sonraki b').forEach(function (h) {
+      var r = h.getBoundingClientRect(); if (r.top < 96 || r.top > W.innerHeight * .62 || r.width < 40) return;
+      var d = Math.abs(r.top - hedefY); if (d < ed) { ed = d; en = r; }
+    });
+    if (!en) return ev();
+    var x = en.right + 8 + b > W.innerWidth - 8 ? en.right - b : en.right + 8;
+    konum(x, en.top - b * .62);
+  }
   function acadiaKur() {
     ac = D.createElement('div'); ac.className = 'acadia';
-    ac.innerHTML = '<div class="balon" role="status" aria-live="polite"><span></span><button type="button" aria-label="Kapat">×</button></div><button type="button" aria-label="Acadia: ipucu">' + acadiaSvg(D.body.dataset.panel || 'hub') + '</button>';
-    D.body.appendChild(ac); balon = ac.querySelector('.balon'); metinEl = balon.querySelector('span');
+    ac.innerHTML = '<div class="balon" role="status" aria-live="polite"><span></span><button type="button" aria-label="Kapat">×</button></div>' +
+      '<div class="acadia-menu" role="menu" aria-label="Acadia yardım" hidden>' +
+        '<button type="button" role="menuitem" data-ym="ipucu"><b>💡</b> Bu soruda ipucu</button>' +
+        '<button type="button" role="menuitem" data-ym="sayfa"><b>📖</b> Bu sayfada ne yapıyorum?</button>' +
+        '<button type="button" role="menuitem" data-ym="defter"><b>📒</b> Defterim</button>' +
+        '<button type="button" role="menuitem" data-ym="kelime"><b>🔤</b> Kelime açıkla</button></div>' +
+      '<button type="button" class="acadia-d" aria-label="Acadia: yardım menüsü" aria-haspopup="menu" aria-expanded="false">' + acadiaSvg(D.body.dataset.panel || 'hub') + '</button>';
+    D.body.appendChild(ac); balon = ac.querySelector('.balon'); metinEl = balon.querySelector('span'); menu = ac.querySelector('.acadia-menu');
+    var dug = ac.querySelector('.acadia-d');
     balon.querySelector('button').onclick = function () { balon.classList.remove('acik'); };
-    ac.querySelector('button[aria-label^=Acadia]').onclick = function () {
-      var ip = D.body.dataset.ipucu ? D.body.dataset.ipucu.split('|') : ['Merhaba!'];
-      soyle(ip[Math.floor(Math.random() * ip.length)], 6000); tepki('sevin', true);
-    };
+    dug.onclick = function () { var ac_ = menu.hidden; menuAc(ac_); if (ac_) tepki('sevin', true); };
+    menu.addEventListener('click', function (e) { var b = e.target.closest('[data-ym]'); if (!b) return; menuAc(false); YARDIM[b.dataset.ym](); });
+    D.addEventListener('keydown', function (e) { if (e.key === 'Escape') { menuAc(false); kartKapat(); } });
+    D.addEventListener('pointerdown', function (e) { if (!menu.hidden && !ac.contains(e.target)) menuAc(false); });
+    ev();
+    /* kaydırırken uçar, durunca en yakın başlığa konar; boşta etrafına bakınır */
+    var t = null;
+    W.addEventListener('scroll', function () { if (sakin) return; ac.classList.add('ucuyor'); clearTimeout(t); t = setTimeout(function () { ac.classList.remove('ucuyor'); kon(); }, 420); }, { passive: true });
+    W.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(kon, 200); });
+    setTimeout(kon, 900);
+    if (!sakin) setInterval(function () { if (Date.now() - durgun > 7000 && !ac.classList.contains('mesgul')) { ac.classList.remove('bakin'); void ac.offsetWidth; ac.classList.add('bakin'); durgun = Date.now(); } }, 2500);
     /* bölüme girince bir kez konuşur */
     var g = 'IntersectionObserver' in W ? new IntersectionObserver(function (es) {
       es.forEach(function (e) { if (e.isIntersecting) { soyle(e.target.dataset.acadia, 5200); g.unobserve(e.target); } });
     }, { threshold: .35 }) : null;
     D.querySelectorAll('[data-acadia]').forEach(function (el) { if (g) g.observe(el); });
+    kelimeKur();
+  }
+  function menuAc(on) { if (!menu) return; menu.hidden = !on; ac.classList.toggle('mesgul', on); ac.querySelector('.acadia-d').setAttribute('aria-expanded', on); if (on) { balon.classList.remove('acik'); menu.querySelector('button').focus({ preventScroll: true }); } }
+
+  /* yardım menüsü */
+  var PANEL_ANLAT = {
+    vocab: 'Kahvaltı durağı: sabah destesi aralıklı tekrarla çalışır, sonra kalıp, kelime ailesi ve akademik karşılık soruları. Defne Hoca kelimeyle cümle kurdurur.',
+    listening: 'Otobüs durağı: dikte, saat-tarih-sayı, ship mi sheep mi, kayıt ofisi diyaloğu. Defne Hoca cümle okur, sen yazarsın.',
+    reading: 'Kütüphane durağı: önce göz gezdir, sonra ana fikir. Defne Hoca metinle ilgili açık uçlu soru sorar; takılırsan bana bas.',
+    speaking: 'Kafe durağı: konu kartı, vurgu, doğal geçişler, gölge okuma. Defne Hoca seninle beş turluk sohbet eder.',
+    writing: 'Yurt odası durağı: kırmızı kalemli düzeltme, bağlaçlar, paragraf sırası, tez cümlesi. Defne Hoca ile cümle cümle paragraf yazarsınız.',
+    '': 'Defterin ana sayfası: beş durak, haftalık seri takvimi ve şu an hangi panelin sırası olduğu.'
+  };
+  function gorunurMu(el) { var r = el.getBoundingClientRect(); return r.bottom > 80 && r.top < W.innerHeight - 40; }
+  var YARDIM = {
+    ipucu: function () {
+      var hb = [].slice.call(D.querySelectorAll('#hoca [data-ipucu]')).filter(function (b) { return gorunurMu(b) && !b.disabled; })[0];
+      if (hb) { hb.click(); soyle('Hocaya çaktırmadan söyledim; yukarıdaki fısıltıya bak.', 4000); return; }
+      var t = [].slice.call(D.querySelectorAll('[data-dogru]')).filter(gorunurMu)[0];
+      if (t && !t.dataset.elendi) {
+        var yanlis = [].slice.call(t.querySelectorAll('.sec button')).filter(function (b) { return !b.disabled && +b.dataset.k !== +t.dataset.dogru; });
+        if (yanlis.length > 1) { var b = yanlis[Math.floor(Math.random() * yanlis.length)]; b.disabled = true; b.classList.add('elendi'); t.dataset.elendi = 1; konBuraya(b); soyle('Bir şıkkı eledim: “' + b.textContent + '” değil.', 4500); return; }
+      }
+      var ip = D.body.dataset.ipucu ? D.body.dataset.ipucu.split('|') : ['Önce soruyu kendi cümlenle söyle; cevap çoğu zaman oradan çıkar.'];
+      soyle(ip[Math.floor(Math.random() * ip.length)], 6000);
+    },
+    sayfa: function () {
+      var nerede = [['#hoca', 'Şu an Defne Hoca’nın bölümündesin.'], ['#calis', 'Şu an alıştırmalardasın; bitenlerin yanına tik düşer.'], ['.sahne', 'Şu an kaydırmalı gösterimdesin; kaydırdıkça adımlar ilerler.'], ['#hafta', 'Şu an haftalık takvimdesin.']].filter(function (x) { var e = D.querySelector(x[0]); return e && gorunurMu(e); })[0];
+      soyle((PANEL_ANLAT[D.body.dataset.panel || ''] || '') + (nerede ? ' ' + nerede[1] : ''), 9000);
+    },
+    defter: function () {
+      var p = D.body.dataset.panel, h = ls.al('hoca', {}), g = gunluk(), seri = 0, c = new Date(); c.setHours(0, 0, 0, 0); if (!g[gunAnahtar(c)]) c.setDate(c.getDate() - 1);
+      while (g[gunAnahtar(c)]) { seri++; c.setDate(c.getDate() - 1); }
+      var m = p ? p.charAt(0).toUpperCase() + p.slice(1) + ': ' + Object.keys(bitenler(p)).length + '/4 alıştırma, Defne Hoca oturumu ' + (h[p] ? 'tamam' : 'henüz yok') + '. ' : PANEL.map(function (x) { return x.ad + ' ' + Object.keys(bitenler(x.id)).length + '/4'; }).join(' · ') + '. ';
+      soyle(m + (seri ? seri + ' günlük serin var.' : 'Bugün bir alıştırma bitirirsen seri başlar.'), 8000);
+    },
+    kelime: function () { soyle('Sayfada bir İngilizce kelimeyi seç (bilgisayarda çift tıkla, telefonda basılı tut). Anlamını, okunuşunu getiririm, istersen desteye eklerim.', 7000); }
+  };
+  function konBuraya(el) { if (sakin || dar()) return; var r = el.getBoundingClientRect(), b = boy(); konum(r.right + 6, r.top - b * .5); }
+
+  /* seçili kelime: anlamı, okunuşu, sesi; desteye ekle (acx.ing.desteEk, Vocab sayfası yüklenince alır) */
+  var cip = null, kart = null, sozlukYerel = {};
+  function sozlukEkle(liste) { (liste || []).forEach(function (k) { if (k && k.kelime) sozlukYerel[String(k.kelime).toLowerCase()] = k; }); }
+  function secim() {
+    var s = W.getSelection && W.getSelection(); if (!s || s.isCollapsed || !s.rangeCount) return null;
+    var t = String(s).trim().replace(/[.,;:!?“”"()]+$/g, '').replace(/^[“”"(]+/, '');
+    if (!/^[A-Za-z][A-Za-z'’-]*( [A-Za-z'’-]+){0,2}$/.test(t) || t.length > 32) return null;
+    var n = s.anchorNode && (s.anchorNode.nodeType === 1 ? s.anchorNode : s.anchorNode.parentElement);
+    if (!n || n.closest('textarea,input,.acadia,.kelime-kart,.ust')) return null;
+    return { t: t, r: s.getRangeAt(0).getBoundingClientRect() };
+  }
+  function kelimeKur() {
+    var bak = function () { setTimeout(function () { var s = secim(); cipGoster(s); }, 30); };
+    D.addEventListener('mouseup', bak); D.addEventListener('touchend', bak); D.addEventListener('keyup', function (e) { if (e.shiftKey) bak(); });
+    D.addEventListener('selectionchange', function () { if (cip && !secim()) cipGoster(null); });
+    W.addEventListener('scroll', function () { if (cip) cipGoster(null); }, { passive: true });
+  }
+  function cipGoster(s) {
+    if (!s) { if (cip) { cip.remove(); cip = null; } return; }
+    if (!cip) { cip = D.createElement('button'); cip.type = 'button'; cip.className = 'kelime-cip'; D.body.appendChild(cip); }
+    cip.innerHTML = '<span class="el">Acadia:</span> “' + esc(s.t) + '” ne demek?';
+    var x = Math.max(8, Math.min(W.innerWidth - 230, s.r.left + s.r.width / 2 - 100)), y = s.r.bottom + 8 > W.innerHeight - 60 ? s.r.top - 46 : s.r.bottom + 8;
+    cip.style.left = x + 'px'; cip.style.top = y + 'px';
+    cip.onmousedown = function (e) { e.preventDefault(); };
+    cip.onclick = function () { var r = s.r; try { W.getSelection().removeAllRanges(); } catch (e) {} cipGoster(null); kelimeAc(s.t, r); };
+  }
+  function kartKapat() { if (kart) { kart.remove(); kart = null; } if (ac) ac.classList.remove('mesgul'); }
+  async function kelimeAc(t, r) {
+    kartKapat(); var k = t.toLowerCase().replace(/’/g, "'");
+    ac.classList.add('mesgul');
+    if (!dar() && !sakin) konum(r.right + 10, r.top - boy() * .7);
+    kart = D.createElement('div'); kart.className = 'kelime-kart kagit'; kart.setAttribute('role', 'dialog'); kart.setAttribute('aria-label', t + ' kelimesi');
+    var x = Math.max(8, Math.min(W.innerWidth - 300, r.left - 20)), y = r.bottom + 10 + 230 > W.innerHeight ? Math.max(76, r.top - 240) : r.bottom + 10;
+    kart.style.left = x + 'px'; kart.style.top = y + 'px';
+    kart.innerHTML = '<button type="button" class="x" aria-label="Kapat">×</button><b lang="en">' + esc(t) + '</b><p class="el">Acadia bakıyor…</p>';
+    D.body.appendChild(kart); kart.querySelector('.x').onclick = kartKapat;
+    var v = sozlukYerel[k] || null;
+    if (!v) { var j = await yz('sozluk', { kelime: k }, 12000); v = j && j.veri; }
+    if (!kart) return;
+    var ek = ls.al('desteEk', []) || [], varMi = ek.some(function (x) { return x[0] === k; }) || !!sozlukYerel[k] && D.body.dataset.panel === 'vocab';
+    kart.innerHTML = '<button type="button" class="x" aria-label="Kapat">×</button><b lang="en">' + esc(t) + '</b>' + (v && v.okunus ? ' <span class="mono">' + esc(v.okunus) + (v.tur ? ' · ' + esc(v.tur) : '') + '</span>' : '') +
+      (v && v.anlam_tr ? '<p class="anlam">' + esc(v.anlam_tr) + '</p>' + (v.ornek ? '<p class="ornek" lang="en">' + esc(v.ornek) + '</p>' : '') + (v.ornek_tr ? '<p class="ornek-tr">' + esc(v.ornek_tr) + '</p>' : '') : '<p class="say">Anlamını şu an getiremedim; bağlantı gelince yine dene.</p>') +
+      '<div class="dugmeler" style="gap:6px"><button type="button" class="btn sm" data-k="dinle">▶ dinle</button>' + (v && v.anlam_tr ? '<button type="button" class="btn sm ana" data-k="ekle"' + (varMi ? ' disabled' : '') + '>' + (varMi ? 'destende var' : '+ desteye ekle') + '</button>' : '') + '</div>';
+    kart.querySelector('.x').onclick = kartKapat;
+    kart.querySelector('[data-k=dinle]').onclick = function () { ses(t, .85); };
+    var eb = kart.querySelector('[data-k=ekle]');
+    if (eb) eb.onclick = function () {
+      var e2 = ls.al('desteEk', []) || []; if (!e2.some(function (x) { return x[0] === k; })) e2.push([k, (v.okunus || '') + (v.tur ? ' · ' + v.tur : ''), v.anlam_tr, v.ornek || '']); ls.yaz('desteEk', e2);
+      eb.disabled = true; eb.textContent = 'desteye eklendi'; tepki('sevin'); soyle('Kahvaltıda karşına çıkacak.', 3000);
+      if (W.ACX_DESTE_YENILE) W.ACX_DESTE_YENILE();
+    };
   }
   function soyle(t, ms) {
     if (!balon || !t) return; metinEl.textContent = t; balon.classList.add('acik');
@@ -122,16 +251,34 @@
   }
 
   /* ---------- çoktan seçmeli set ---------- */
+  /* şıkları her turda karıştır (Doğru/Yanlış/Verilmemiş sırası sabit kalır) */
+  function karistir(s) {
+    if (s.sec.indexOf('Not Given') > -1 || s.sabit) return s;
+    var sira = s.sec.map(function (_, k) { return k; }).sort(function () { return Math.random() - .5; });
+    return Object.assign({}, s, { sec: sira.map(function (k) { return s.sec[k]; }), d: sira.indexOf(s.d) });
+  }
   function test(el, sorular, o) {
-    o = o || {}; var i = 0, dogru = 0;
+    o = o || {}; var i = 0, dogru = 0, tur = sorular.map(karistir);
+    function yeniTur(liste) { sorular = liste || sorular; tur = sorular.map(karistir); i = 0; dogru = 0; ciz(); }
+    async function yeniSorular(btn) {
+      btn.disabled = true; btn.textContent = 'Defne Hoca hazırlıyor…';
+      var v = await icerik('test', o.panel + ':' + o.id);
+      if (v && Array.isArray(v.sorular) && v.sorular.length) {
+        var parca = el.closest('.alis') && el.closest('.alis').querySelector('.parca');
+        if (v.parca && parca) parca.textContent = String(v.parca);
+        yeniTur(v.sorular.map(function (q) { return { soru: temizHtml(q.soru), sec: q.sec.map(String), d: +q.d, neden: temizHtml(q.neden), dinle: q.dinle ? String(q.dinle) : '', ust: q.ust ? esc(q.ust) : '', yan: !!q.yan }; }));
+        soyle('Yeni sorular geldi; bunları daha önce görmedin.', 3200);
+      } else { soyle('Şu an yeni soru getiremedim; aynı soruları karıştırıp açtım.', 3600); yeniTur(); }
+    }
     function ciz() {
-      if (i >= sorular.length) {
-        el.innerHTML = '<p class="el" style="font-size:26px;margin:4px 0 8px;color:var(--c)">' + dogru + ' / ' + sorular.length + (dogru === sorular.length ? ' — tam isabet.' : dogru >= sorular.length / 2 ? ' — fena değil, bir tur daha?' : ' — bir tur daha dönelim.') + '</p><button class="btn sm" type="button">Baştan</button>';
-        el.querySelector('button').onclick = function () { i = 0; dogru = 0; ciz(); };
-        if (o.panel && dogru >= Math.ceil(sorular.length * .6)) { bitir(o.panel, o.id); sevin(); soyle(o.tebrik || 'Bunu deftere işledim.', 4000); }
+      if (i >= tur.length) {
+        el.innerHTML = '<p class="el" style="font-size:26px;margin:4px 0 8px;color:var(--c)">' + dogru + ' / ' + tur.length + (dogru === tur.length ? ' — tam isabet.' : dogru >= tur.length / 2 ? ' — fena değil, bir tur daha?' : ' — bir tur daha dönelim.') + '</p><div class="dugmeler" style="gap:8px">' + (o.panel && o.id && !o.yeniYok ? '<button class="btn sm ana" type="button" data-yeni>Yeni sorular</button>' : '') + '<button class="btn sm" type="button" data-bastan>Aynı sorular, karışık</button></div>';
+        el.querySelector('[data-bastan]').onclick = function () { yeniTur(); };
+        var yb = el.querySelector('[data-yeni]'); if (yb) yb.onclick = function () { yeniSorular(yb); };
+        if (o.panel && dogru >= Math.ceil(tur.length * .6)) { bitir(o.panel, o.id); sevin(); soyle(o.tebrik || 'Bunu deftere işledim.', 4000); }
         return;
       }
-      var s = sorular[i];
+      var s = tur[i]; el.dataset.dogru = s.d;   /* Acadia'nın "bir yanlışı ele" ipucu için */
       el.innerHTML = (s.ust ? '<div class="say" style="margin-bottom:8px">' + s.ust + '</div>' : '') + '<p style="margin:0 0 12px;font-size:18px">' + s.soru + '</p>' +
         (s.dinle ? '<p style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" data-dinle>▶ Dinle</button><button class="btn sm" type="button" data-yavas>Yavaş</button>' + (sesVar ? '' : '<span class="say">Tarayıcın sesli okumuyor: <i>' + esc(s.dinle) + '</i></span>') + '</p>' : '') +
         '<div class="sec' + (s.yan ? ' yan' : '') + '">' + s.sec.map(function (x, k) { return '<button type="button" data-k="' + k + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
@@ -146,6 +293,7 @@
           (ok ? sevin : uz)();
           var sn = el.querySelector('[data-sonra]'); sn.hidden = false; sn.focus({ preventScroll: true });
           sn.onclick = function () { i++; ciz(); };
+          delete el.dataset.dogru;
         };
       });
     }
@@ -328,7 +476,29 @@
   /* kapı açıldığında (assets/kapi.js 'acx:acik') hub'ın kapağı oynar */
   function kapiSonra(fn) { if (!H.classList.contains('kapi')) fn(); else D.addEventListener('acx:acik', fn, { once: true }); }
 
-  W.ACX = { esc: esc, ls: ls, sakin: sakin, girisler: girisler, soyle: soyle, sevin: function () { tepki('sevin'); }, uz: function () { tepki('uz'); }, test: test, bitir: bitir, bitenler: bitenler, sayac: sayac, ses: ses, sesVar: sesVar, acadiaSvg: acadiaSvg, sesCal: sesCal, gunluk: gunluk, sesAcik: function () { return sesAcik; }, odul: odul, gunlukEkle: function (panel) { var g = ls.al('gunluk', {}), k = gunAnahtar(new Date()); g[k] = g[k] || {}; g[k][panel] = 1; ls.yaz('gunluk', g); } };
+
+  /* ---------- yapay zekâ ve içerik havuzu (supabase/functions/ingilizce-hoca) ---------- */
+  var yzKapali = false;
+  async function yz(mod, veri, ms) {
+    if (yzKapali) return null;
+    var url, anahtar, sb;
+    try { url = SUPABASE_URL; anahtar = SUPABASE_ANON_KEY; sb = supabaseClient; } catch (e) { return null; }
+    try {
+      var s = await sb.auth.getSession(), tok = s && s.data && s.data.session && s.data.session.access_token; if (!tok) return null;
+      var ac = new AbortController(), zaman = setTimeout(function () { ac.abort(); }, ms || 9000);
+      var r = await fetch(url + '/functions/v1/ingilizce-hoca', { method: 'POST', signal: ac.signal, headers: { Authorization: 'Bearer ' + tok, apikey: anahtar, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ mod: mod }, veri)) });
+      clearTimeout(zaman);
+      if (r.status === 404) { yzKapali = true; return null; }   /* fonksiyon yayında değil: bu oturumda bir daha denenmez */
+      if (!r.ok) return null;
+      var j = await r.json(); return j && typeof j === 'object' && !j.error ? j : null;
+    } catch (e) { return null; }
+  }
+  /* havuzdan görülmemiş içerik; yoksa fonksiyon üretir (okuma metni 20 sn'yi bulabilir) */
+  async function icerik(tur, alt) { var j = await yz('icerik', { tur: tur, alt: alt || '' }, 30000); return j && j.veri && typeof j.veri === 'object' ? j.veri : null; }
+  /* yapay zekâ metninde yalnız <b>, <i>, <u> kalır */
+  function temizHtml(t) { return esc(t).replace(/&lt;(\/?)(b|i|u)&gt;/g, '<$1$2>'); }
+
+  W.ACX = { esc: esc, ls: ls, sakin: sakin, girisler: girisler, soyle: soyle, sevin: function () { tepki('sevin'); }, uz: function () { tepki('uz'); }, test: test, bitir: bitir, bitenler: bitenler, sayac: sayac, ses: ses, sesVar: sesVar, acadiaSvg: acadiaSvg, sesCal: sesCal, gunluk: gunluk, sesAcik: function () { return sesAcik; }, odul: odul, yz: yz, icerik: icerik, temizHtml: temizHtml, sozlukEkle: sozlukEkle, gunlukEkle: function (panel) { var g = ls.al('gunluk', {}), k = gunAnahtar(new Date()); g[k] = g[k] || {}; g[k][panel] = 1; ls.yaz('gunluk', g); } };
   function sevin() { tepki('sevin'); } function uz() { tepki('uz'); }
 
   function basla() { sesDugmesi(); acadiaCiz(); karalamalar(); girisler(); sahneKur(); acadiaKur(); sayac(); parallax(); simdi(); hafta(); kapiSonra(kapak); }

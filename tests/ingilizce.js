@@ -177,13 +177,75 @@ test('ingilizce-hoca fonksiyonu: JWT zorunlu, yalnız beş mod, veri tabanına y
   const f = read('supabase/functions/ingilizce-hoca/index.ts');
   assert.match(f, /const \{ data: \{ user \}, error \} = await sb\.auth\.getUser\(\)/);
   for (const m of ['degerlendir', 'kelime', 'sohbet', 'yazi', 'nasil']) assert.match(f, new RegExp('\\n  ' + m + ': \\(b\\) =>'));
-  assert.doesNotMatch(f, /\.from\(|\.insert\(|\.update\(|\.rpc\(/);
+  /* değerlendirme modları hiçbir şey yazmaz; yazma yalnız içerik havuzuna (ing_icerik, ing_gorulen) */
+  assert.deepEqual([...new Set([...f.matchAll(/\.from\('([a-z_]+)'\)/g)].map((m) => m[1]))].sort(), ['ing_gorulen', 'ing_icerik']);
+  assert.doesNotMatch(f, /\.update\(|\.delete\(|\.upsert\(/);
   assert.match(f, /if \(b\.mod !== 'nasil' && !\/\^\(dogru\|kismen\|yanlis\)\$\/\.test\(out\.sonuc\)\)/);
-  const j = read('ingilizce/assets/hoca.js');
-  assert.match(j, /if \(r\.status === 404\) \{ yzKapali = true; return null; \}/, 'fonksiyon yayında değilse yerel ölçüt');
-  assert.match(j, /setTimeout\(function \(\) \{ ac\.abort\(\); \}, 9000\)/);
+  const j = read('ingilizce/assets/hoca.js'), ij = read('ingilizce/assets/ing.js');
+  assert.match(ij, /if \(r\.status === 404\) \{ yzKapali = true; return null; \}/, 'fonksiyon yayında değilse yerel ölçüt');
+  assert.match(ij, /setTimeout\(function \(\) \{ ac\.abort\(\); \}, ms \|\| 9000\)/);
+  assert.match(j, /function yz\(mod, veri, ms\) \{ return W\.ACX && W\.ACX\.yz \? W\.ACX\.yz\(mod, veri, ms\) : Promise\.resolve\(null\); \}/);
   /* ürün kuralı: gerçek öğretmen sistemi yok */
   for (const src of [f, j]) assert.doesNotMatch(src, /öğretmene ilet|is_teacher|assignment|my_classes/i);
+});
+
+/* sınırsız içerik (05.11.2026): yapay zekâ üretir, ortak havuzda birikir, herkes görmediğini alır */
+test('havuz SQL: RLS, okuma herkese, yazma yok; ing_icerik_al çağıranın görmediğini verir ve işaretler', () => {
+  const q = read('supabase/migrations/20261105_ingilizce_icerik_havuzu.sql');
+  assert.match(q, /alter table public\.ing_icerik enable row level security;/); assert.match(q, /alter table public\.ing_gorulen enable row level security;/);
+  assert.match(q, /create policy ing_icerik_oku on public\.ing_icerik for select to authenticated using \(true\);/);
+  assert.doesNotMatch(q, /on public\.ing_icerik for (insert|update|delete|all)/, 'istemci havuza yazamaz');
+  assert.match(q, /not exists \(select 1 from ing_gorulen g where g\.user_id = v_uid and g\.icerik_id = i\.id\)/);
+  assert.match(q, /insert into ing_gorulen \(user_id, icerik_id\) values \(v_uid, v_id\) on conflict do nothing;/);
+  assert.match(q, /grant execute on function public\.ing_icerik_al\(text, text, text\) to authenticated;/);
+  assert.match(q, /create unique index if not exists ing_icerik_sozluk_tek on public\.ing_icerik \(alt\) where tur = 'sozluk';/);
+});
+test('fonksiyon: içerik önce havuzdan; yoksa üret, doğrula, service role ile yaz; günlük sınır', () => {
+  const f = read('supabase/functions/ingilizce-hoca/index.ts');
+  assert.match(f, /const \{ data: hazir, error: e1 \} = await sb\.rpc\('ing_icerik_al'/);
+  assert.match(f, /if \(await gunlukDoldu\(admin, uid\)\) return json\(\{ error: 'limit' \}, 429\)/);
+  assert.match(f, /if \(!v \|\| !DOGRULA\[tur\]\(v, alt\)\) return json\(\{ error: 'Unparseable' \}, 502\)/);
+  assert.match(f, /const GUNLUK_URETIM = 30/);
+  for (const t of ['okuma', 'dikte', 'kelime', 'deste', 'sohbet', 'yazi_konu', 'test']) { assert.match(f, new RegExp('\\n  ' + t + ': \\(')); }
+  /* sayfadaki her alıştırma kimliğinin üretim tarifi var (okuma hızı soruları sabit metne bağlı: yeniYok) */
+  assert.match(read('ingilizce/reading.html'), /\], \{ panel: P, id: 'hiz', yeniYok: true,/);
+  for (const s of ['vocab', 'listening', 'reading', 'speaking', 'writing']) {
+    const h = read(`ingilizce/${s}.html`);
+    for (const m of h.matchAll(/\{ panel: P, id: '([a-z]+)'/g)) if (m[1] !== 'deste' && m[1] !== 'hiz') assert.match(f, new RegExp(`'${s}:${m[1]}': '`), `${s}:${m[1]} tarifi`);
+  }
+});
+test('ACX.test: şıklar karışır (True/False/Not Given hariç), "Yeni sorular" havuzdan gelir; yapay zekâ metninde yalnız b/i/u', () => {
+  const j = read('ingilizce/assets/ing.js');
+  const ctx = { console }; vm.createContext(ctx);
+  vm.runInContext(j.match(/var esc = function[^\n]+/)[0] + '\n' + j.match(/  function karistir\(s\) \{[\s\S]*?\n  \}/)[0] + '\n' + j.match(/  function temizHtml\(t\) \{[^\n]+/)[0] + '\nthis.k = karistir; this.t = temizHtml;', ctx);
+  for (let n = 0; n < 20; n++) { const r = ctx.k({ sec: ['a', 'b', 'c', 'd'], d: 2 }); assert.equal(r.sec[r.d], 'c'); }
+  assert.deepEqual([...ctx.k({ sec: ['True', 'False', 'Not Given'], d: 1 }).sec], ['True', 'False', 'Not Given']);
+  assert.equal(ctx.t('<b>ok</b><img src=x onerror=alert(1)><u>u</u>'), '<b>ok</b>&lt;img src=x onerror=alert(1)&gt;<u>u</u>');
+  assert.match(j, /var v = await icerik\('test', o\.panel \+ ':' \+ o\.id\);/);
+  assert.match(j, /async function icerik\(tur, alt\) \{ var j = await yz\('icerik', \{ tur: tur, alt: alt \|\| '' \}, 30000\);/);
+});
+test('hoca oturumları: ilk tur sayfadaki set, sonrakiler havuzdan (Reading, Listening, Vocab, Speaking); Writing yeni konu', () => {
+  const j = read('ingilizce/assets/hoca.js');
+  assert.match(j, /if \(!o\.yeniGetir \|\| !gordu\(\)\) return false;/);
+  for (const [s, t] of [['reading', 'okuma'], ['listening', 'dikte'], ['vocab', 'kelime'], ['speaking', 'sohbet']]) assert.match(read(`ingilizce/${s}.html`), new RegExp(`await ACX\\.icerik\\('${t}'\\)`));
+  assert.match(j, /var v = await W\.ACX\.icerik\('yazi_konu'\);/);
+  assert.match(read('ingilizce/vocab.html'), /var v = await ACX\.icerik\('deste'\)/);
+});
+test('gezgin Acadia: menü (ipucu, sayfa, defter, kelime), başlığa konma, seçili kelime kartı ve desteye ekleme', () => {
+  const j = read('ingilizce/assets/ing.js');
+  for (const k of ['ipucu', 'sayfa', 'defter', 'kelime']) assert.match(j, new RegExp('data-ym="' + k + '"'));
+  assert.match(j, /D\.querySelectorAll\('\.kah h1, \.bolum-b h2, \.alis-u h3, \.hoca-ust, \.sonraki b'\)/);
+  assert.match(j, /if \(!n \|\| n\.closest\('textarea,input,\.acadia,\.kelime-kart,\.ust'\)\) return null;/, 'yazı alanında seçim kart açmaz');
+  assert.match(j, /var j = await yz\('sozluk', \{ kelime: k \}, 12000\);/);
+  assert.match(j, /ls\.yaz\('desteEk', e2\)/); assert.match(read('ingilizce/vocab.html'), /window\.ACX_DESTE_YENILE = function/);
+  /* "bir şıkkı ele" ipucu doğru şıkkı asla elemez */
+  assert.match(j, /return !b\.disabled && \+b\.dataset\.k !== \+t\.dataset\.dogru;/);
+});
+test('hoca 2.5B: gradyanlı hacim, göz ve baş takibi, hareket azaltılınca takip yok', () => {
+  const j = read('ingilizce/assets/hoca.js');
+  for (const id of ['dh-ten', 'dh-sac', 'dh-ceket', 'dh-iris', 'dh-golge']) assert.match(j, new RegExp('id="' + id + '"'));
+  assert.match(j, /<g class="bas"><g class="bas-takip">/); assert.match(j, /class="bebek"/);
+  assert.match(j, /if \(!sakin\) \{\n      if \(W\.matchMedia\('\(pointer:fine\)'\)\.matches\)/);
 });
 
 summary();

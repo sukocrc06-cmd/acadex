@@ -172,7 +172,7 @@ body{--c:#B07F00}
           <div class="sahnek" id="dk" tabindex="0" role="button" aria-label="Kartı çevir"><div class="kart" id="dkk"><div class="yuz"></div><div class="yuz arka"></div></div></div>
           <div class="dugme3" id="dk3"><button class="btn" type="button" data-n="0">Bilmiyordum<small>10 dk sonra</small></button><button class="btn" type="button" data-n="1">Zorlandım<small>yarın</small></button><button class="btn ana" type="button" data-n="2" style="background:var(--vocab);color:var(--ink)">Biliyordum<small>aralık uzar</small></button></div>
         </div>
-        <div class="kutular"><div>bugün kalan <b id="dk-k">0</b></div><div>öğrenilen <b id="dk-o">0</b></div><div>sıradaki <b id="dk-s">—</b></div><button class="btn sm" type="button" id="dk-dinle">▶ Dinle</button></div>
+        <div class="kutular"><div>bugün kalan <b id="dk-k">0</b></div><div>öğrenilen <b id="dk-o">0</b></div><div>sıradaki <b id="dk-s">—</b></div><button class="btn sm" type="button" id="dk-dinle">▶ Dinle</button><button class="btn sm ana" type="button" id="dk-yeni" style="background:var(--vocab);color:var(--ink)">+ 10 yeni kelime</button></div>
       </div>
     </article>
     <article class="kagit alis" data-id="kalip" data-gir="yukari"><span class="bant"></span>
@@ -215,7 +215,11 @@ body{--c:#B07F00}
   HOCA.soruTuru(document.getElementById('hoca-oturum'), {
     panel: 'vocab', baslik: 'kelimeyle cümle · 5 kelime',
     giris_en: "Hi, I'm Defne. Let's use your new words. I give you a word, you make a sentence.", giris_tr: 'Kendi hayatından bir cümle kur; örneğimi kopyalama, hemen anlarım.',
-    sorular: K.map(function (k) { return { tip: 'kelime', kelime: k[0], anlam: k[1], ornek: k[2], ipucu: k[3], soru_en: 'Make a sentence with “' + k[0] + '”.', soru_tr: k[1] }; })
+    sorular: K.map(function (k) { return { tip: 'kelime', kelime: k[0], anlam: k[1], ornek: k[2], ipucu: k[3], soru_en: 'Make a sentence with “' + k[0] + '”.', soru_tr: k[1] }; }),
+    yeniGetir: async function () {
+      var v = await ACX.icerik('kelime'); if (!v || !Array.isArray(v.kelimeler)) return null;
+      return { sorular: v.kelimeler.map(function (k) { var w = String(k.kelime); return { tip: 'kelime', kelime: w, anlam: String(k.anlam_tr), ornek: String(k.ornek), ipucu: k.ipucu.map(String), soru_en: 'Make a sentence with “' + w + '”.', soru_tr: String(k.anlam_tr) }; }) };
+    }
   });
 })();
 </script>
@@ -236,6 +240,10 @@ body{--c:#B07F00}
     ['approach', '/əˈprəʊtʃ/ · noun', 'yaklaşım', 'We need a different approach to the problem.'],
     ['outcome', '/ˈaʊtkʌm/ · noun', 'sonuç', 'Nobody could predict the outcome of the vote.']
   ];
+  /* desteye sonradan gelenler: havuzdan "10 yeni kelime" ve sayfalarda Acadia'nın "desteye ekle"si (acx.ing.desteEk) */
+  function ekleriAl() { (ACX.ls.al('desteEk', []) || []).forEach(function (k) { if (Array.isArray(k) && k[0] && !KELIME.some(function (x) { return x[0] === k[0]; })) KELIME.push(k.slice(0, 4)); }); }
+  ekleriAl();
+  ACX.sozlukEkle(KELIME.map(function (k) { var o = String(k[1] || '').split(' · '); return { kelime: k[0], okunus: o[0], tur: o[1] || '', anlam_tr: k[2], ornek: k[3] }; }));
   var ARALIK = [10 * 60e3, 864e5, 3 * 864e5, 7 * 864e5, 14 * 864e5];
   var durum = ACX.ls.al('deste', {}), simdi = Date.now(), sira = [], cur = null, oturum = 0;
   KELIME.forEach(function (k) { if (!durum[k[0]]) durum[k[0]] = { kutu: 0, vade: 0 }; });
@@ -245,7 +253,7 @@ body{--c:#B07F00}
     tazele();
     D.getElementById('dk-k').textContent = sira.length;
     D.getElementById('dk-o').textContent = KELIME.filter(function (k) { return durum[k[0]].kutu >= 2; }).length + ' / ' + KELIME.length;
-    var gelecek = KELIME.map(function (k) { return durum[k[0]].vade; }).filter(function (v) { return v > simdi; }).sort()[0];
+    var gelecek = KELIME.map(function (k) { return durum[k[0]].vade; }).filter(function (v) { return v > simdi; }).sort(function (a, b) { return a - b; })[0];
     D.getElementById('dk-s').textContent = sira.length ? 'şimdi' : gelecek ? zaman(gelecek - simdi) : '—';
     kart.classList.remove('don'); dug.style.visibility = 'hidden';
     if (!sira.length) {
@@ -269,6 +277,19 @@ body{--c:#B07F00}
     else { d.kutu = Math.min(4, d.kutu + 1); d.vade = Date.now() + ARALIK[Math.max(1, d.kutu)]; ACX.sevin(); }
     oturum++; ACX.ls.yaz('deste', durum); goster();
   });
+  D.getElementById('dk-yeni').onclick = async function () {
+    var b = this; b.disabled = true; b.textContent = 'getiriliyor…';
+    var v = await ACX.icerik('deste'), n = 0;
+    if (v && Array.isArray(v.kelimeler)) {
+      var ek = ACX.ls.al('desteEk', []) || [];
+      v.kelimeler.forEach(function (k) { var w = String(k.kelime || '').toLowerCase(); if (!w || KELIME.some(function (x) { return x[0] === w; })) return; var kart = [w, String(k.okunus || '') + (k.tur ? ' · ' + k.tur : ''), String(k.anlam_tr || ''), String(k.ornek || '')]; KELIME.push(kart); ek.push(kart); durum[w] = { kutu: 0, vade: 0 }; n++; });
+      ACX.ls.yaz('desteEk', ek); ACX.ls.yaz('deste', durum);
+    }
+    b.disabled = false; b.textContent = '+ 10 yeni kelime';
+    ACX.soyle(n ? n + ' yeni kart desteye girdi.' : 'Şu an yeni kelime getiremedim; biraz sonra tekrar dene.', 3800); if (n) { ACX.sevin(); goster(); }
+  };
+  /* başka bölümde "desteye ekle"ye basılırsa deste hemen güncellenir */
+  window.ACX_DESTE_YENILE = function () { ekleriAl(); KELIME.forEach(function (k) { if (!durum[k[0]]) durum[k[0]] = { kutu: 0, vade: 0 }; }); goster(); };
   D.getElementById('dk-dinle').onclick = function () { if (cur) ACX.ses(kart.classList.contains('don') ? cur[3] : cur[0], .9); };
   goster();
 

@@ -11,7 +11,14 @@
 //   sohbet      {gecmis[], soru, cevap, tur, toplam} → {sonuc, tepki_en, duzeltme, tr_not, sonraki_soru}
 //   yazi        {gorev, adim, onceki[], cumle}     → {sonuc, tepki_en, notlar:[{parca, not_tr, oneri}]}
 //   nasil       {tr}                               → {oneriler:[{en, not_tr}]}
+//   icerik      {tur, alt}                         → {id, veri, kaynak:'havuz'|'yeni'}
+//   sozluk      {kelime}                           → {veri:{kelime, okunus, tur, anlam_tr, ornek}}
 // sonuc her zaman 'dogru' | 'kismen' | 'yanlis'.
+//
+// İçerik havuzu (05.11.2026, migrations/20261105_ingilizce_icerik_havuzu.sql):
+// önce ing_icerik_al() ile çağıranın görmediği hazır içerik verilir; yoksa Groq
+// yenisini üretir, şekli doğrulanır, service role ile havuza yazılır. Öğrenci
+// başına günde en çok GUNLUK_URETIM yeni üretim (ücretsiz katman kotası).
 //
 // İstemci bu fonksiyon yoksa (404) ya da 9 sn'de dönmezse yerel ölçüte düşer;
 // yayınlamak zorunlu değil. Yayın: Supabase panelinden elle (CLAUDE.md §5),
@@ -66,6 +73,70 @@ Turkish: ${kis(b.tr, 200)}
 Return {"oneriler":[{"en":"natural English phrase","not_tr":"when to use it, max 10 Turkish words"}]} with 2 or 3 options.`,
 }
 
+
+/* ---------------- içerik havuzu ---------------- */
+const GUNLUK_URETIM = 30
+const KONU = ['campus food', 'sleep and memory', 'part-time jobs', 'social media habits', 'learning languages', 'city transport', 'climate and cities', 'online shopping', 'friendship at university', 'music and focus', 'coffee culture', 'remote work', 'exam stress', 'volunteering', 'sports and health', 'artificial intelligence in daily life', 'saving money as a student', 'travel on a budget', 'libraries today', 'street food around the world', 'smartphones and attention', 'renting a flat', 'public speaking', 'team projects', 'internships', 'museums', 'recycling', 'video games and learning', 'walking cities', 'tea and coffee history', 'digital privacy', 'electric scooters', 'night owls and early birds', 'second-hand clothes', 'podcasts', 'cooking at home', 'noise and concentration', 'gap years', 'board games', 'urban gardens']
+const rastgele = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
+const harfler = () => Array.from({ length: 3 }, () => rastgele('abcdefghilmnoprstw'.split(''))).join(', ')
+const TEST: Record<string, string> = {
+  'writing:hata': '5 items. "soru": an English sentence with exactly ONE common grammar error made by Turkish learners, the wrong part wrapped in <u></u>. "sec": the same sentence split into 4 consecutive segments. "d": index of the segment with the error. "neden": Turkish explanation with the correct form in <b></b>.',
+  'writing:baglac': '5 items. "soru": one or two sentences with a blank "____" for a linking word. "sec": 4 linkers (one correct). "yan": true. "neden": Turkish, why.',
+  'listening:sayi': '5 items. "dinle": an English sentence containing a time, date, price, number or room code. "soru": a Turkish question about it. "sec": 4 close options written as numbers (e.g. 09:45, £8.50, 13 Mart, B204). "yan": true. "neden": Turkish.',
+  'listening:cift': '5 items. "dinle": a short sentence containing one word of an English minimal pair (ship/sheep, live/leave, full/fool, bad/bed, walk/work, thirty/thirteen …). "soru": "Hangi kelime?". "sec": the 2 words. "yan": true. "neden": Turkish note on the sound.',
+  'listening:diyalog': '3 items about ONE dialogue. Every item has the same "dinle": a 5-7 line dialogue (about 90 words) at a campus office or service, lines start with "Student:" / "Officer:" or similar. "soru": Turkish question. "sec": 4 Turkish options. "neden": Turkish with the English evidence in <b></b>.',
+  'reading:anafikir': '3 items. "ust": "paragraf 1", "paragraf 2", "paragraf 3". "soru": "<i>" + an English paragraph of 50-70 words + "</i>" (three different topics). "sec": 4 Turkish options, one is the main idea, others are details or wrong. "neden": Turkish.',
+  'reading:tfng': 'Also return "parca": an English passage of 70-90 words. 4 items: "soru": a statement about the passage. "sec": ["True","False","Not Given"]. "yan": true. Use each answer at least once. "neden": Turkish with evidence.',
+  'reading:baglam': '5 items. "soru": an English sentence where one less common word is in <b></b> and the context makes its meaning clear. "sec": 4 Turkish meanings. "yan": true. "neden": Turkish, which clue in the sentence.',
+  'vocab:kalip': '5 items. "soru": a sentence with "____" for a verb in a collocation (make/do/take/have/give/pay/catch …). "sec": 4 verbs. "yan": true. "neden": Turkish with the collocation in <b></b>.',
+  'vocab:aile': '5 items. "soru": a sentence with "____". "sec": 4 forms of the same word family (noun/verb/adjective/adverb). "yan": true. "neden": Turkish, which form and why.',
+  'vocab:es': '5 items. "soru": a sentence with an informal word or phrase in <b></b>. "sec": 4 more academic alternatives, one fits best. "yan": true. "neden": Turkish.',
+  'speaking:vurgu': '5 items. "soru": "<b>word</b>" (add "(isim)" or "(fiil)" when stress changes with the part of speech). "dinle": the word or a short sentence with it. "sec": 3 or 4 spellings with the stressed syllable in capitals, e.g. "pho-TO-gra-pher". "neden": Turkish.',
+  'speaking:gecis': '5 items. "soru": a Turkish description of a moment in a speaking exam (need time, did not understand, forgot a word, changing topic, finishing). "sec": 4 English phrases, one natural and polite. "neden": Turkish.',
+}
+const URET: Record<string, (alt: string, sev: string) => string> = {
+  okuma: (_a, sev) => `Write an original ${sev} reading text for Turkish university students about "${rastgele(KONU)}" (a specific, surprising angle).
+Return {"baslik":"title","paragraflar":["3 paragraphs, 45-70 words each"],"sorular":[5 x {"soru_en":"open question","soru_tr":"Turkish translation","paragraf":0-2,"fosfor":"exact phrase of 3-8 words copied from that paragraph that contains the answer","ornek":"short model answer","anahtar":[{"ad_tr":"Turkish label of a key idea","kelimeler":["5-8 lowercase English words or stems a correct answer would contain, with synonyms"]}],"ipucu":["3 Turkish hints, each more specific; the third nearly gives the answer"]}]}
+Use 1-2 "anahtar" groups per question; every group is required for a fully correct answer.`,
+  dikte: (_a, sev) => `Return {"cumleler":[4 natural ${sev} English sentences of 8-14 words about "${rastgele(KONU)}" and campus life; at least one contains a number, time or date]}.`,
+  kelime: (_a, sev) => `Choose 5 useful academic words (${sev}) starting with these letters: ${harfler()}, ${harfler()}.
+Return {"kelimeler":[5 x {"kelime":"word","anlam_tr":"Turkish meaning","ornek":"teacher's example sentence","ipucu":["Turkish: the pattern or collocation","Turkish: an idea for the student's own sentence","Turkish: a sentence skeleton with blanks"]}]}`,
+  deste: (_a, sev) => `Choose 10 useful ${sev} academic words starting with these letters: ${harfler()}, ${harfler()}, ${harfler()}.
+Return {"kelimeler":[10 x {"kelime":"word","okunus":"/IPA/","tur":"noun|verb|adj|adv","anlam_tr":"Turkish meaning","ornek":"natural example sentence"}]}`,
+  sohbet: () => `Theme: "${rastgele(KONU)}". Return {"sorular":[5 friendly IELTS Part 1 then Part 3 style questions, short, from easy to deeper],"ipucu":[5 Turkish tips, each with an English sentence starter in quotes]}`,
+  yazi_konu: () => `Return {"konular":[3 short opinion questions for a one-paragraph student essay, each about a different everyday topic like "${rastgele(KONU)}"]}`,
+  test: (alt) => `Create a multiple-choice exercise for Turkish university students (B1-B2). Topic flavour: "${rastgele(KONU)}".
+${TEST[alt]}
+Return {"sorular":[{"soru":"…","sec":["…"],"d":0,"neden":"…"}]${alt === 'reading:tfng' ? ',"parca":"…"' : ''}}. Only <b>, <i>, <u> tags are allowed. Vary the position of the correct option.`,
+}
+const metin = (x: unknown, n = 600) => typeof x === 'string' && x.trim().length > 0 && x.length <= n
+const dizi = (x: unknown, min: number, max = 20) => Array.isArray(x) && x.length >= min && x.length <= max
+const DOGRULA: Record<string, (v: any, alt: string) => boolean> = {
+  okuma: (v) => metin(v.baslik, 120) && dizi(v.paragraflar, 3, 3) && v.paragraflar.every((p: unknown) => metin(p, 700)) && dizi(v.sorular, 4, 6) && v.sorular.every((q: any) => metin(q.soru_en, 200) && metin(q.ornek, 300) && dizi(q.anahtar, 1, 3) && q.anahtar.every((a: any) => metin(a.ad_tr, 80) && dizi(a.kelimeler, 1, 12)) && dizi(q.ipucu, 3, 3)),
+  dikte: (v) => dizi(v.cumleler, 4, 6) && v.cumleler.every((c: unknown) => metin(c, 160)),
+  kelime: (v) => dizi(v.kelimeler, 5, 6) && v.kelimeler.every((k: any) => metin(k.kelime, 30) && metin(k.anlam_tr, 80) && metin(k.ornek, 200) && dizi(k.ipucu, 3, 3)),
+  deste: (v) => dizi(v.kelimeler, 8, 12) && v.kelimeler.every((k: any) => metin(k.kelime, 30) && metin(k.anlam_tr, 80) && metin(k.ornek, 200)),
+  sohbet: (v) => dizi(v.sorular, 5, 6) && v.sorular.every((q: unknown) => metin(q, 200)) && dizi(v.ipucu, 5, 6),
+  yazi_konu: (v) => dizi(v.konular, 3, 5) && v.konular.every((q: unknown) => metin(q, 160)),
+  test: (v, alt) => dizi(v.sorular, 3, 6) && v.sorular.every((q: any) => metin(q.soru, 900) && dizi(q.sec, 2, 5) && q.sec.every((x: unknown) => metin(x, 200)) && Number.isInteger(q.d) && q.d >= 0 && q.d < q.sec.length && metin(q.neden, 500)) && (alt !== 'reading:tfng' || metin(v.parca, 900)),
+}
+async function groqJson(key: string, sistem: string, istem: string, tok = 2400) {
+  const run = async (model: string) => {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, temperature: 0.9, max_completion_tokens: tok, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: sistem }, { role: 'user', content: istem }] }) })
+    let d: any = null; try { d = await r.json() } catch (_e) { d = null }
+    return { r, d }
+  }
+  let { r, d } = await run('openai/gpt-oss-120b')
+  if (!r.ok) ({ r, d } = await run('openai/gpt-oss-20b'))
+  if (!r.ok) return null
+  try { return JSON.parse(d?.choices?.[0]?.message?.content || '') } catch (_e) { return null }
+}
+const URETICI = `You write original English-learning material for Acadex, a study app for Turkish university students. Natural, modern, inclusive English; no real people, brands or copyrighted text. Always reply with ONLY one JSON object.`
+async function gunlukDoldu(admin: any, uid: string) {
+  const { count } = await admin.from('ing_icerik').select('id', { count: 'exact', head: true }).eq('olusturan', uid).gte('created_at', new Date(Date.now() - 864e5).toISOString())
+  return (count ?? 0) >= GUNLUK_URETIM
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -77,6 +148,7 @@ serve(async (req) => {
     if (error || !user) return json({ error: 'Unauthorized user token' }, 401)
 
     const b = await req.json().catch(() => null)
+    if (b && (b.mod === 'icerik' || b.mod === 'sozluk')) return await icerik(b, sb, user.id)
     const istem = b && ISTEM[String(b.mod)]
     if (!istem) return json({ error: 'Unknown mod' }, 400)
     const key = Deno.env.get('GROQ_API_KEY')
@@ -110,3 +182,34 @@ serve(async (req) => {
     return json({ error: 'Internal error' }, 500)
   }
 })
+
+async function icerik(b: any, sb: any, uid: string) {
+  const key = Deno.env.get('GROQ_API_KEY')
+  const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
+  if (b.mod === 'sozluk') {
+    const k = String(b.kelime ?? '').toLowerCase().trim()
+    if (!/^[a-z][a-z' -]{1,30}$/.test(k)) return json({ error: 'Bad word' }, 400)
+    const { data: var_ } = await sb.from('ing_icerik').select('veri').eq('tur', 'sozluk').eq('alt', k).maybeSingle()
+    if (var_?.veri) return json({ veri: var_.veri, kaynak: 'havuz' })
+    if (!key) return json({ error: 'Groq API key not configured' }, 500)
+    if (await gunlukDoldu(admin, uid)) return json({ error: 'limit' }, 429)
+    const v = await groqJson(key, URETICI, `Dictionary card for the English word or phrase "${k}" for a Turkish B1-B2 learner. Return {"kelime":"${k}","okunus":"/IPA/","tur":"noun|verb|adj|adv|phrase","anlam_tr":"most common Turkish meaning(s), short","ornek":"natural example sentence","ornek_tr":"Turkish translation of the example"}. If it is not English, set "anlam_tr" to "".`, 400)
+    if (!v || !metin(v.anlam_tr, 120) || !metin(v.ornek, 200)) return json({ error: 'Unparseable' }, 502)
+    const veri = { kelime: k, okunus: String(v.okunus ?? '').slice(0, 40), tur: String(v.tur ?? '').slice(0, 12), anlam_tr: v.anlam_tr, ornek: v.ornek, ornek_tr: String(v.ornek_tr ?? '').slice(0, 220) }
+    await admin.from('ing_icerik').insert({ tur: 'sozluk', alt: k, veri, olusturan: uid })
+    return json({ veri, kaynak: 'yeni' })
+  }
+  const tur = String(b.tur ?? ''), alt = tur === 'test' ? String(b.alt ?? '') : '', sev = 'B1-B2'
+  if (!URET[tur] || (tur === 'test' && !TEST[alt])) return json({ error: 'Unknown content' }, 400)
+  const { data: hazir, error: e1 } = await sb.rpc('ing_icerik_al', { p_tur: tur, p_alt: alt, p_seviye: sev })
+  if (e1) { console.error('ing_icerik_al:', e1); return json({ error: 'Pool unavailable' }, 503) }
+  if (Array.isArray(hazir) && hazir[0]) return json({ id: hazir[0].id, veri: hazir[0].veri, kaynak: 'havuz' })
+  if (!key) return json({ error: 'Groq API key not configured' }, 500)
+  if (await gunlukDoldu(admin, uid)) return json({ error: 'limit' }, 429)
+  const v = await groqJson(key, URETICI, URET[tur](alt, sev), tur === 'okuma' || alt === 'listening:diyalog' ? 3200 : 2400)
+  if (!v || !DOGRULA[tur](v, alt)) return json({ error: 'Unparseable' }, 502)
+  const { data: yeni, error: e2 } = await admin.from('ing_icerik').insert({ tur, alt, seviye: sev, veri: v, olusturan: uid }).select('id').single()
+  if (e2 || !yeni) { console.error('ing_icerik insert:', e2); return json({ veri: v, kaynak: 'yeni' }) }
+  await admin.from('ing_gorulen').insert({ user_id: uid, icerik_id: yeni.id })
+  return json({ id: yeni.id, veri: v, kaynak: 'yeni' })
+}

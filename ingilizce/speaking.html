@@ -192,6 +192,7 @@ body{--c:var(--speaking)}
     giris_en: "Hi, I'm Defne. Let's have a short chat. Five questions, no stress.", giris_tr: 'Mikrofona basıp konuş ya da yaz. Her cevaptan sonra kısa bir not düşerim; beşinci sorudan sonra karnen çıkar.',
     ilk_tr: 'Ne okuyorsun, neden seçtin?',
     sorular: ["Let's start easy. What are you studying, and why did you choose it?", 'Do you prefer studying alone or with friends? Why?', 'Tell me about a place on campus you really like.', 'How do you usually relax after a long day?', 'Some people say university should be free for everyone. What do you think?'],
+    yeniGetir: async function () { var v = await ACX.icerik('sohbet'); return v && Array.isArray(v.sorular) ? { sorular: v.sorular.map(String), ipucu: (v.ipucu || []).map(String) } : null; },
     ipucu: ['Başlangıç: “I’m studying … because …”', '“I prefer … because … For example, …”', '“My favourite place is … I usually go there to …”', '“After a long day, I usually … It helps me …”', '“I think … because … On the other hand, …”']
   });
 })();

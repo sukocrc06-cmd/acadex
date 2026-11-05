@@ -191,6 +191,18 @@ body{--c:var(--reading)}
   var mk = document.querySelector('.metin-kart');
   HOCA.soruTuru(document.getElementById('hoca-oturum'), {
     panel: 'reading', baslik: 'okuma · 5 soru', metin: mk, metinYazi: mk.innerText,
+    /* yeni tur: havuzdan görülmemiş metin; kart yeniden yazılır, fosforlu kısımlar işaretlenir */
+    yeniGetir: async function () {
+      var v = await ACX.icerik('okuma'); if (!v || !Array.isArray(v.paragraflar) || !Array.isArray(v.sorular)) return null;
+      /* her fosforlu ifade bir kez sarılır; aynı ifadeyi soran sorular aynı işareti paylaşır */
+      var e = ACX.esc, fid = {}, ps = v.paragraflar.map(function (p, k) { var t = e(p); v.sorular.forEach(function (q, j) { var f = q.fosfor ? e(q.fosfor) : ''; if (q.paragraf !== k || !f) return; if (fid[f]) { q._f = fid[f]; return; } if (t.indexOf(f) > -1) { fid[f] = 'y' + j; q._f = 'y' + j; t = t.replace(f, '<span data-f="y' + j + '">' + f + '</span>'); } }); return '<p style="font:400 16.5px/1.65 Georgia,serif">' + t + '</p>'; });
+      mk.innerHTML = '<span class="etiket" lang="tr">yeni metin · ' + v.paragraflar.length + ' paragraf · B1–B2</span><h3 style="font:700 24px Georgia,serif;margin:6px 0 10px">' + e(v.baslik) + '</h3>' + ps.join('');
+      mk.classList.remove('gir'); void mk.offsetWidth; mk.classList.add('gir');
+      return { metinYazi: mk.innerText, sorular: v.sorular.map(function (q, j) {
+        return { soru_en: String(q.soru_en), soru_tr: String(q.soru_tr || ''), paragraf: Math.max(0, Math.min(2, +q.paragraf || 0)), fosfor: q._f || '', ornek: String(q.ornek), dogru_tr: 'Metindeki fikri yakaladın.',
+          kural: { g: q.anahtar.map(function (a) { return { ad: String(a.ad_tr), t: a.kelimeler.map(String) }; }) }, ipucu: q.ipucu.map(String).slice(0, 3) };
+      }) };
+    },
     giris_en: "Hi, I'm Defne. Read the text once, then I'll ask you five questions.", giris_tr: 'Önce metni bir kez oku. Sonra beş soru soracağım; kendi cümlenle cevapla, kelimesi kelimesine aynısı gerekmez.',
     sorular: [
       { soru_en: 'According to the text, why do people procrastinate?', soru_tr: 'Metne göre insanlar işleri neden erteliyor?', paragraf: 0, fosfor: 'f1',
@@ -255,7 +267,7 @@ body{--c:var(--reading)}
       ACX.test(D.getElementById('t-hiz'), [
         { soru: 'Araştırmaya göre en güçlü arkadaşlıklar kimler arasında kuruldu?', sec: ['Benzer hobileri olanlar', 'Odaları birbirine en yakın olanlar', 'Aynı bölümde okuyanlar', 'Aynı şehirden gelenler'], d: 1, neden: '“between people whose doors were closest to each other”.' },
         { soru: 'Metin yeni öğrencilere ne öneriyor?', sec: ['Mükemmel grubu beklemelerini', 'Aynı yüzleri sık göreceği yerler seçmelerini', 'Yurtta kalmalarını', 'Ortak ilgi alanı aramalarını'], d: 1, neden: '“choose places where they will see the same faces again and again”.' }
-      ], { panel: P, id: 'hiz', tebrik: wpm + ' kelime/dk, deftere yazdım.' });
+      ], { panel: P, id: 'hiz', yeniYok: true, tebrik: wpm + ' kelime/dk, deftere yazdım.' });
     };
   };
 })();

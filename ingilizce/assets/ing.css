@@ -473,3 +473,37 @@ svg.hoca .buhar{stroke-dasharray:5 7;animation:buhar2 2.6s linear infinite}
 .oneri small{color:var(--ink3)}
 .dinliyor .hoca-kis svg{filter:drop-shadow(0 0 0 transparent)}
 @media (prefers-reduced-motion:reduce){svg.hoca *{animation:none!important}.gizli-acadia,.fisilti{transition:none}}
+/* 2.5B hoca: katman eğimi, takip */
+.hoca-kis{transform:perspective(900px) rotateY(var(--ry,0deg)) rotateX(var(--rx,0deg));transition:transform .5s var(--ease);transform-style:preserve-3d}
+svg.hoca .bebek{transition:transform .25s var(--ease)}
+svg.hoca .bas-takip,svg.hoca .govde{transform-box:view-box;transform-origin:151px 170px;transition:transform .4s var(--ease)}
+svg.hoca[data-bak=sag] .bebek{transform:translate(2.6px,-.4px)!important}
+.tahta{transform:perspective(600px) rotateY(14deg) rotate(-2deg);transform-origin:100% 50%;box-shadow:6px 6px 0 rgba(26,42,92,.55),0 14px 22px rgba(26,42,92,.18)}
+.tahta::before{content:"";position:absolute;left:0;right:0;bottom:-7px;height:7px;background:#8B5E36;border-top:2px solid #6E4626}
+
+/* ---------- gezgin Acadia (05.11.2026) ---------- */
+.acadia{left:0;top:0;right:auto!important;bottom:auto!important;display:block;width:74px;height:74px;transition:transform .9s cubic-bezier(.45,.05,.25,1);will-change:transform}
+.acadia .acadia-d{display:block;width:74px;height:74px}
+.acadia.ters .acadia-d svg{transform:scaleX(-1)}
+.acadia.ucuyor .acadia-d{animation:ucus .45s ease-in-out infinite}
+@keyframes ucus{50%{transform:translateY(-7px) rotate(-9deg)}}
+.acadia.bakin .acadia-d svg{animation:bakin 1.6s ease-in-out}
+@keyframes bakin{20%{transform:scaleX(-1)}45%{transform:scaleX(-1) translateY(-4px)}60%{transform:none}80%{transform:translateY(-6px) rotate(6deg)}}
+.acadia .balon{position:absolute;right:calc(100% + 4px);bottom:56%;margin:0;width:max-content;max-width:min(280px,calc(100vw - 100px))}
+.acadia.sol .balon,.acadia.sol .acadia-menu{right:auto;left:calc(100% + 4px)}
+.acadia.sol .balon{border-radius:16px 16px 16px 4px;transform-origin:0 100%}
+.acadia-menu{position:absolute;right:calc(100% + 4px);bottom:12%;display:grid;gap:2px;padding:7px;width:248px;background:#fff;border:2px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);pointer-events:auto;animation:soz .25s var(--ease)}
+.acadia-menu[hidden]{display:none}
+.acadia .acadia-menu button{width:auto;height:auto;filter:none;display:flex;gap:8px;align-items:center;text-align:left;padding:9px 10px;border:0;border-radius:9px;background:none;font:600 14.5px var(--body);color:var(--ink)}
+.acadia .acadia-menu button:hover,.acadia .acadia-menu button:focus-visible{background:var(--kagit3)}
+.acadia .acadia-menu b{font-size:16px}
+@media (max-width:760px){.acadia,.acadia .acadia-d{width:50px;height:50px}.acadia .balon,.acadia .acadia-menu,.acadia.sol .balon,.acadia.sol .acadia-menu{right:0;left:auto;bottom:calc(100% + 6px)}}
+@media (prefers-reduced-motion:reduce){.acadia{transition:none}}
+.sec button.elendi{opacity:.35;text-decoration:line-through}
+.kelime-cip{position:fixed;z-index:65;max-width:calc(100vw - 16px);padding:7px 13px;border:2px solid var(--ink);border-radius:999px;background:var(--postit);box-shadow:2px 2px 0 var(--ink);font:600 14px var(--body);color:var(--ink);animation:soz .25s var(--ease)}
+.kelime-cip .el{color:var(--mavi);font-size:17px}
+.kelime-kart{position:fixed;z-index:66;width:min(300px,calc(100vw - 16px));padding:14px 16px 12px;font-size:15px;animation:soz .3s var(--ease)}
+.kelime-kart b{font:800 23px var(--disp)}.kelime-kart .mono{font-size:12.5px;color:var(--ink3)}
+.kelime-kart .x{position:absolute;right:8px;top:6px;width:30px;height:30px;border:0;background:none;font-size:20px;color:var(--ink3)}
+.kelime-kart .anlam{margin:6px 0 4px;font-weight:700}.kelime-kart .ornek{margin:0;color:var(--ink2);font-style:italic}.kelime-kart .ornek-tr{margin:2px 0 8px;font:600 17px var(--hand);color:var(--ink3)}
+.kelime-kart .el{color:var(--mavi);font-size:20px;margin:6px 0}
