@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="tr" class="kapi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Writing · Acadex English</title>
+<meta name="description" content="Essay'indeki her kırmızı işaretin yanında kısa bir açıklama: ne yanlış, neden yanlış, nasıl düzelir.">
+<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="stylesheet" href="assets/ing.css">
+<style>
+body{--c:var(--writing)}
+/* kahraman çizimi: gece masası */
+.masa{position:relative;aspect-ratio:13/10.5}
+.masa svg{width:100%;height:100%;overflow:visible}
+.masa .buhar path{fill:none;stroke:#8A93AE;stroke-width:3;stroke-linecap:round;stroke-dasharray:6 10;animation:buhar 3.2s linear infinite}
+.masa .buhar path:nth-child(2){animation-delay:-1.1s}.masa .buhar path:nth-child(3){animation-delay:-2s}
+@keyframes buhar{to{stroke-dashoffset:-64}}
+.masa .isik{animation:titre 6s ease-in-out infinite;transform-origin:center}
+@keyframes titre{50%{opacity:.82}53%{opacity:.7}55%{opacity:.85}}
+.masa .yildiz{animation:tw 2.8s ease-in-out infinite}.masa .yildiz:nth-of-type(2n){animation-delay:-1.3s}
+@keyframes tw{50%{opacity:.25}}
+.masa .kalem{transform-box:fill-box;transform-origin:10% 90%;animation:yaz 2.4s ease-in-out infinite}
+@keyframes yaz{0%,100%{transform:rotate(0) translate(0,0)}25%{transform:rotate(-3deg) translate(-6px,2px)}50%{transform:rotate(1deg) translate(4px,-1px)}75%{transform:rotate(-2deg) translate(-2px,3px)}}
+.masa .not{position:absolute;right:-6px;top:6%;--r:6deg;width:150px;font-size:21px;padding:12px 12px 14px}
+
+/* essay kâğıdı */
+.essay{padding:26px 26px 22px 64px;background-color:#FFFDF8;background-image:linear-gradient(90deg,transparent 46px,var(--marj) 46px,var(--marj) 48px,transparent 48px),repeating-linear-gradient(transparent 0 41px,#D6E0F0 41px 42px);background-position:0 0,0 18px;min-height:420px}
+.essay .bas{display:flex;justify-content:space-between;align-items:center;font:500 12.5px var(--mono);color:var(--ink3);margin:-6px 0 14px}
+.essay p{margin:0;font:400 19px/42px var(--body);color:#2A3350}
+.hata{position:relative;white-space:nowrap}
+.hata svg{position:absolute;left:-7px;top:2px;width:calc(100% + 14px);height:38px;overflow:visible;pointer-events:none}
+.hata ellipse{fill:none;stroke:var(--kirmizi);stroke-width:2.4;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset .8s var(--ease)}
+.hata .no{position:absolute;right:-12px;top:-8px;width:20px;height:20px;border-radius:50%;background:var(--kirmizi);color:#fff;font:700 12px/20px var(--mono);text-align:center;opacity:0;transform:scale(.4);transition:all .35s var(--yay)}
+.hata s{text-decoration-color:transparent;text-decoration-thickness:2px;transition:text-decoration-color .4s}
+.hata ins{position:absolute;left:0;bottom:24px;text-decoration:none;font:600 22px/1 var(--hand);color:var(--mavi);white-space:nowrap;opacity:0;transform:translateY(6px) rotate(-3deg);transition:opacity .5s,transform .5s var(--ease)}
+.a1 .hata ellipse{stroke-dashoffset:0}.a1 .hata:nth-of-type(2) ellipse{transition-delay:.15s}.a1 .hata:nth-of-type(3) ellipse{transition-delay:.3s}.a1 .hata:nth-of-type(4) ellipse{transition-delay:.45s}
+.a1 .hata .no{opacity:1;transform:none}
+.a3 .hata ellipse{stroke-dashoffset:1;transition-delay:0s!important}
+.a3 .hata s{text-decoration-color:var(--kirmizi)}.a3 .hata .no{opacity:0;transform:scale(.4)}
+.a3 .hata ins{opacity:1;transform:rotate(-3deg)}
+.kenar{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
+.kenar li{font:600 20px/1.15 var(--hand);color:var(--kirmizi);opacity:0;transform:translateX(-8px);transition:all .45s var(--ease)}
+.kenar li b{font:700 12px var(--mono);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--kirmizi);color:#fff;margin-right:6px;vertical-align:2px}
+.a2 .kenar li{opacity:1;transform:none}.a2 .kenar li:nth-child(2){transition-delay:.12s}.a2 .kenar li:nth-child(3){transition-delay:.24s}.a2 .kenar li:nth-child(4){transition-delay:.36s}
+.puan{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;margin-top:16px;padding-top:14px;border-top:2px dashed var(--cizgi);opacity:0;transform:translateY(10px);transition:all .5s var(--ease)}
+.a3 .puan{opacity:1;transform:none}
+.olcut{display:grid;gap:6px}
+.olcut div{display:grid;grid-template-columns:118px 1fr 30px;gap:8px;align-items:center;font-size:13.5px;color:var(--ink2)}
+.olcut i{height:9px;border:1.5px solid var(--ink);border-radius:6px;background:var(--kagit3);overflow:hidden;position:relative}
+.olcut i::after{content:"";position:absolute;inset:0;width:0;background:var(--writing);transition:width 1s var(--ease) .3s}
+.a3 .olcut i::after{width:var(--w)}
+.olcut b{font:500 13px var(--mono)}
+.puan .damga{font-size:14px;line-height:1.25;text-align:center;transform:rotate(-10deg) scale(1.6);opacity:0;transition:transform .35s var(--yay) .7s,opacity .2s .7s}
+.a3 .puan .damga{transform:rotate(-10deg);opacity:.9}
+.essay .el.bilgi{position:absolute;right:16px;bottom:-34px;font-size:19px;color:var(--ink3)}
+@media (max-width:860px){.essay{padding:18px 14px 16px 40px;background-image:linear-gradient(90deg,transparent 28px,var(--marj) 28px,var(--marj) 30px,transparent 30px),repeating-linear-gradient(transparent 0 37px,#D6E0F0 37px 38px);min-height:0}.essay p{font-size:16px;line-height:38px}.hata svg{height:32px}.hata ins{font-size:18px;bottom:20px}.kenar{grid-template-columns:1fr}.puan{grid-template-columns:1fr;gap:8px}.puan .damga{order:-1;justify-self:end;font-size:12px;margin-right:6px}.olcut div{grid-template-columns:96px 1fr 28px}.kenar li{font-size:17.5px}.olcut div{grid-template-columns:92px 1fr 28px;font-size:12.5px}.masa .not{width:124px;font-size:18px;right:0}}
+
+/* paragraf sırala */
+.sira{display:grid;gap:10px}
+.sira button{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:12px 14px;border:2px solid var(--ink);border-radius:12px;background:#fff;box-shadow:2px 2px 0 var(--ink);font-size:16px;transition:transform .2s var(--ease),background .2s,opacity .2s}
+.sira button b{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:2px dashed var(--ink3);font:700 13px var(--mono);color:transparent}
+.sira button.secili{background:var(--kagit3)}
+.sira button.secili b{border:2px solid var(--ink);background:var(--writing);color:#fff}
+.sira button.dogru{background:#DDF2E3}.sira button.yanlis{background:#FBE0DA}
+</style>
+</head>
+<body data-panel="writing" data-ipucu="Bir essay'de en çok puanı tez cümlesi kazandırır; ilk 2 cümleye özen.|'Very' yerine daha net bir sıfat: very big → substantial.|Paragraf başına tek fikir. İkinci fikir geldiyse yeni paragraf.|Kanıt yoksa iddia yumuşat: 'proves' değil 'suggests'.">
+<a class="gizli" href="#calis">Alıştırmalara geç</a>
+<header class="ust"><div class="wrap">
+  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <nav class="sekme" aria-label="Beceriler">
+    <a href="vocab.html" style="--t:var(--vocab)"><i></i>Vocab</a>
+    <a href="listening.html" style="--t:var(--listening)"><i></i>Listening</a>
+    <a href="reading.html" style="--t:var(--reading)"><i></i>Reading</a>
+    <a href="speaking.html" style="--t:var(--speaking)"><i></i>Speaking</a>
+    <a href="writing.html" style="--t:var(--writing)" aria-current="page"><i></i>Writing</a>
+  </nav>
+</div></header>
+
+<main>
+<section class="kah"><div class="wrap">
+  <div>
+    <span class="yer" data-gir="yukari"><span class="saat">21:40</span><span class="el">yurt odası, masa lambası</span></span>
+    <h1 class="disp" data-gir="yukari" style="--d:.08s">Essay kırmızıyla döndü. <span class="alt">Neden?<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M2 7 C 25 2, 60 9, 98 4"/></svg></span></h1>
+    <p class="giris" data-gir="yukari" style="--d:.16s">Kâğıtta “weak argument” yazıyor ve o kadar. Burada her işaretin yanında kısa bir not var: neresi yanlış, neden yanlış, nasıl düzelir.</p>
+    <div class="dugmeler" data-gir="yukari" style="--d:.24s">
+      <a class="btn ana" href="#calis">Alıştırmaya geç</a>
+      <span class="not-ok">ya da kaydır, kâğıt düzelsin<svg viewBox="0 0 46 30" aria-hidden="true"><path d="M3 6 C 16 4, 30 10, 34 25 M27 19 l7 7 l5 -9"/></svg></span>
+    </div>
+  </div>
+  <div class="masa" data-gir="dus" style="--r:1deg;--d:.1s">
+    <svg viewBox="0 0 520 420" role="img" aria-label="Gece, masa lambasının altında essay kâğıdı, kırmızı kalem ve buharı tüten çay">
+      <defs><filter id="el-ciz"><feTurbulence baseFrequency=".03" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="2.6"/></filter></defs>
+      <g filter="url(#el-ciz)" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+        <rect x="290" y="16" width="200" height="150" rx="6" fill="#22325F"/>
+        <path d="M390 16 V166 M290 91 H490" fill="none" stroke-width="2.5"/>
+        <path d="M452 44 a20 20 0 1 0 14 34 a16 16 0 1 1 -14 -34 z" fill="#FFE8A3" stroke-width="2"/>
+        <circle class="yildiz" cx="318" cy="40" r="2.4" fill="#FFE8A3" stroke="none"/><circle class="yildiz" cx="352" cy="66" r="1.8" fill="#FFE8A3" stroke="none"/><circle class="yildiz" cx="420" cy="122" r="2" fill="#FFE8A3" stroke="none"/><circle class="yildiz" cx="330" cy="138" r="1.6" fill="#FFE8A3" stroke="none"/>
+        <path class="isik" d="M118 92 L40 330 H280 Z" fill="#FFE27A" opacity=".38" stroke="none"/>
+        <path d="M20 330 H510" stroke-width="3.5"/>
+        <path d="M60 330 l10 -26 h40 l10 26" fill="#E9DFC7"/>
+        <path d="M90 304 L130 190 L106 120" fill="none" stroke-width="5"/>
+        <circle cx="130" cy="190" r="6" fill="#F5EFE2"/>
+        <path d="M70 120 L142 120 L126 78 L86 78 Z" fill="#C93B2B" transform="rotate(-18 106 100)"/>
+        <g transform="rotate(-6 250 290)"><rect x="160" y="236" width="190" height="92" rx="3" fill="#FFFDF8"/>
+          <path d="M176 258 H330 M176 274 H314 M176 290 H326 M176 306 H270" stroke="#9FB0D3" stroke-width="2"/>
+          <ellipse cx="236" cy="274" rx="22" ry="9" fill="none" stroke="#C93B2B" stroke-width="2.4"/>
+          <path d="M290 300 q8 -10 16 0 q8 10 16 0" fill="none" stroke="#C93B2B" stroke-width="2.2"/></g>
+        <g class="kalem"><path d="M318 318 L392 262 L400 270 L326 326 Z" fill="#C93B2B"/><path d="M318 318 L312 330 L326 326" fill="#F5EFE2"/></g>
+        <path d="M410 284 h52 v34 a14 14 0 0 1 -14 14 h-24 a14 14 0 0 1 -14 -14 z" fill="#F5EFE2"/>
+        <path d="M462 294 a10 10 0 0 1 0 20" fill="none"/>
+        <g class="buhar"><path d="M424 274 c-6 -12 6 -18 0 -30 c-6 -12 6 -18 0 -28"/><path d="M438 274 c-6 -12 6 -18 0 -30 c-6 -12 6 -18 0 -28"/><path d="M452 274 c-6 -12 6 -18 0 -30 c-6 -12 6 -18 0 -28"/></g>
+      </g>
+    </svg>
+    <div class="postit not el" data-gir="bant" style="--d:.7s">teslim: yarın 09:00 <br>(yine)</div>
+  </div>
+</div></section>
+
+<section class="sahne" data-adim="4" aria-label="Bir paragrafın düzeltilmesi, adım adım" data-acadia="Yavaş kaydır; kırmızı kalem tek tek çalışacak.">
+  <div class="yapis wrap">
+    <div>
+      <span class="etiket">aynı paragraf, dört adım</span>
+      <ol class="adimlar" style="margin-top:12px">
+        <li><div><b>Taslak</b><span>Vize sabahı aceleyle yazılmış bir paragraf. İlk bakışta fena durmuyor.</span></div></li>
+        <li><div><b>Kırmızı kalem</b><span>Dört yer işaretlendi. Hepsi sık yapılan, hepsi puan kaybettiren hatalar.</span></div></li>
+        <li><div><b>Kenar notları</b><span>Her işaretin yanında neden yanlış olduğu yazıyor. Kural ezberi yok, sebep var.</span></div></li>
+        <li><div><b>Temize çekme</b><span>Düzeltilmiş hali ve dört ölçütte tahmini band. Aynı fikir, yarım band yukarıda.</span></div></li>
+      </ol>
+      <div class="cubuk" aria-hidden="true"><i></i></div>
+    </div>
+    <div class="kagit essay">
+      <div class="bas"><span>Essay · Part-time jobs</span><span>paragraf 2 / 4</span></div>
+      <p>Nowadays, many students <span class="hata"><s>is</s><ins>are</ins><svg viewBox="0 0 40 30" preserveAspectRatio="none" aria-hidden="true"><ellipse pathLength="1" cx="20" cy="15" rx="19" ry="12"/></svg><span class="no">1</span></span> working part-time<span class="hata"><s>. Because</s><ins>because</ins><svg viewBox="0 0 40 30" preserveAspectRatio="none" aria-hidden="true"><ellipse pathLength="1" cx="20" cy="15" rx="19" ry="12"/></svg><span class="no">2</span></span> they need money. As a result, they cannot focus on lessons. This situation <span class="hata"><s>makes a big effect</s><ins>has a significant effect</ins><svg viewBox="0 0 40 30" preserveAspectRatio="none" aria-hidden="true"><ellipse pathLength="1" cx="20" cy="15" rx="19" ry="12"/></svg><span class="no">3</span></span> on their grades. <span class="hata"><s>Everybody knows that</s><ins>Studies suggest that</ins><svg viewBox="0 0 40 30" preserveAspectRatio="none" aria-hidden="true"><ellipse pathLength="1" cx="20" cy="15" rx="19" ry="12"/></svg><span class="no">4</span></span> long working hours are bad for students.</p>
+      <ul class="kenar">
+        <li><b>1</b>özne çoğul (students) → are</li>
+        <li><b>2</b>“Because …” tek başına cümle olmaz, öncekine bağla</li>
+        <li><b>3</b>make değil: <u>have</u> an effect</li>
+        <li><b>4</b>“herkes bilir” kanıt değil; kaynağa yasla</li>
+      </ul>
+      <div class="puan">
+        <div class="olcut">
+          <div>Task response<i style="--w:60%"></i><b>6.0</b></div>
+          <div>Coherence<i style="--w:65%"></i><b>6.5</b></div>
+          <div>Lexical<i style="--w:65%"></i><b>6.5</b></div>
+          <div>Grammar<i style="--w:65%"></i><b>6.5</b></div>
+        </div>
+        <span class="damga">band<br>5.5 → 6.5</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bolum"><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">panelde ne var?</span><h2 class="disp">Hocanın yazmaya vakit bulamadığı kısım.</h2><p>Kırmızı kalemin yaptığını yapıyor, üstüne bir de açıklıyor. Sonra aynı hatayı bir daha yapmaman için kısa bir alıştırma veriyor.</p></div>
+  <div class="notlar">
+    <div class="postit" data-gir="dus" style="--d:0s"><span class="el">01</span><h3>Kenar notu, kural listesi değil</h3><p>Her düzeltmenin yanında iki satır Türkçe açıklama. “Neden?” sorusu cevapsız kalmıyor.</p></div>
+    <div class="postit" data-gir="dus" style="--d:.12s"><span class="el">02</span><h3>Dört ölçüt, tek bakış</h3><p>IELTS'in dört ölçütüne göre tahmini band. Puanı hangi ölçütte kaçırdığını görürsün.</p></div>
+    <div class="postit" data-gir="dus" style="--d:.24s"><span class="el">03</span><h3>Bağlaç kutusu</h3><p>However, whereas, as a result… Ezber listesi değil, kendi cümlende denediğin kalıplar.</p></div>
+  </div>
+</div></section>
+
+<section class="bolum" id="calis" data-acadia="Dört alıştırma var. Bitirdiklerini deftere işliyorum."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">bu akşamlık</span><h2 class="disp">On beş dakikalık masa başı.</h2><p>Sırası önemli değil. Bitirdiğin alıştırmanın yanına tik düşer, sayfayı kapatsan da kalır. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
+  <div class="calis">
+    <article class="kagit alis" data-id="hata" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 5 soru</span><h3>Hatayı yakala</h3><p>Cümledeki yanlış parçaya dokun.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-hata"></div>
+    </article>
+    <article class="kagit alis" data-id="baglac" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 2 · 5 soru</span><h3>Doğru bağlaç</h3><p>Boşluğa anlamı bozmayan bağlacı koy.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-baglac"></div>
+    </article>
+    <article class="kagit alis" data-id="sira" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 3</span><h3>Paragrafı sırala</h3><p>Cümlelere paragrafta gelecekleri sırayla dokun: konu cümlesi, destek, örnek, sonuç.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div class="sira" id="sira"></div>
+      <div class="geri" id="sira-geri"></div>
+      <div class="alt-satir"><button class="btn sm" type="button" id="sira-sil">Temizle</button><button class="btn sm ana" type="button" id="sira-kontrol" disabled>Kontrol et</button></div>
+    </article>
+    <article class="kagit alis" data-id="tez" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 4 · serbest</span><h3>Tez cümleni yaz</h3><p><b>Konu:</b> <i>Some people think university education should be free for everyone. Do you agree or disagree?</i></p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <label class="gizli" for="tez">Tez cümlen</label>
+      <textarea id="tez" rows="3" placeholder="In my view, …"></textarea>
+      <ul class="kontrol" id="tez-k">
+        <li data-k="uzun">15–40 kelime</li>
+        <li data-k="taraf">Tarafını açıkça söylüyor (agree, disagree, should, I believe…)</li>
+        <li data-k="neden">En az iki gerekçeye yer açıyor (because, since, and, as well as…)</li>
+        <li data-k="konu">Konudan kopmuyor (university, education, free, tuition…)</li>
+        <li data-k="very">“very”, “thing”, “a lot” gibi boş kelimeler yok</li>
+      </ul>
+      <div class="alt-satir"><span class="say">Bu liste cümlenin yapısına bakar, fikrin doğruluğunu ölçmez.</span><button class="btn sm ana" type="button" id="tez-isle" disabled>Deftere işle</button></div>
+    </article>
+  </div>
+</div></section>
+
+<section class="sonraki"><div class="wrap">
+  <a class="kagit" href="index.html" data-gir="yukari"><div><small>günün son sayfası</small><b>Günü kapattın. Deftere dön.</b><span class="el">yarın 07:40'ta kahvaltıda on kelimeyle başlıyoruz</span></div><span class="ok" aria-hidden="true">→</span></a>
+</div></section>
+</main>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English</span><span>Taslak, kırmızı kalem, temize çekme.</span></div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../js/supabase-config.js"></script>
+<script src="../js/acadex-erisim.js"></script>
+<script src="assets/kapi.js"></script>
+<script src="assets/ing.js"></script>
+<script>
+(function () {
+  'use strict';
+  var P = 'writing';
+  ACX.test(document.getElementById('t-hata'), [
+    { soru: 'The number of international students <u>have</u> increased since 2015.', sec: ['The number of', 'have', 'increased', 'since 2015'], d: 1, neden: 'Özne “the number”, tekil: <b>has</b> increased. “A number of students” olsaydı <i>have</i> doğru olurdu.' },
+    { soru: 'Despite of the high cost, many families choose private schools.', sec: ['Despite of', 'the high cost', 'many families', 'choose'], d: 0, neden: '“Despite” yanına “of” almaz: <b>Despite the high cost</b>. “In spite of” ise “of” ile kullanılır.' },
+    { soru: 'This research gives an important informations about sleep.', sec: ['This research', 'gives', 'an important informations', 'about sleep'], d: 2, neden: '“Information” sayılamaz; çoğul ve “an” almaz: <b>important information</b>.' },
+    { soru: 'If the government will invest in public transport, traffic would decrease.', sec: ['If the government will invest', 'in public transport', 'traffic', 'would decrease'], d: 0, neden: 'Koşul kısmında “will” olmaz. İkinci tip: <b>If the government invested</b>, traffic would decrease.' },
+    { soru: 'Online learning is more cheaper than traditional classes.', sec: ['Online learning', 'is more cheaper', 'than', 'traditional classes'], d: 1, neden: 'Kısa sıfat zaten -er alıyor; “more” fazla: <b>cheaper</b>.' }
+  ], { panel: P, id: 'hata', tebrik: 'Hatayı yakalama gözü açıldı. Deftere işledim.' });
+
+  ACX.test(document.getElementById('t-baglac'), [
+    { soru: 'Public transport is cheap. ____, it is often crowded and late.', sec: ['Therefore', 'However', 'Moreover', 'For example'], d: 1, yan: 1, neden: 'İkinci cümle birincinin tersini söylüyor: zıtlık → <b>However</b>.' },
+    { soru: 'The rent in the city centre has doubled. ____, many students now live in the suburbs.', sec: ['As a result', 'Although', 'In contrast', 'Whereas'], d: 0, yan: 1, neden: 'Kira arttı → öğrenciler taşındı. Sebep-sonuç: <b>As a result</b>.' },
+    { soru: '____ online courses are flexible, they require strong self-discipline.', sec: ['Because', 'Although', 'Therefore', 'In addition'], d: 1, yan: 1, neden: 'Tek cümle içinde iki zıt fikir: <b>Although</b> + yan cümle.' },
+    { soru: 'Exercise improves mood. ____, it helps students sleep better.', sec: ['However', 'Otherwise', 'Moreover', 'Instead'], d: 2, yan: 1, neden: 'Aynı yönde ikinci bir fayda ekleniyor: <b>Moreover</b>.' },
+    { soru: 'Some students prefer group study, ____ others work better alone.', sec: ['whereas', 'therefore', 'so that', 'because'], d: 0, yan: 1, neden: 'İki grubu karşılaştırıyor: <b>whereas</b> (virgülden sonra, küçük harfle).' }
+  ], { panel: P, id: 'baglac', tebrik: 'Bağlaçlar yerine oturdu.' });
+
+  /* paragraf sırala */
+  var CUMLE = [
+    { t: 'Part-time work can teach students skills that a classroom rarely offers.', ad: 'konu cümlesi' },
+    { t: 'For instance, managing a café shift requires quick decisions and clear communication.', ad: 'örnek' },
+    { t: 'Employers increasingly value these practical abilities alongside academic grades.', ad: 'destek' },
+    { t: 'Therefore, a few hours of work each week may be an investment rather than a distraction.', ad: 'sonuç' }
+  ];
+  var DOGRU = [0, 2, 1, 3], kutu = document.getElementById('sira'), secim = [];
+  var karisik = [1, 3, 0, 2];
+  function siraCiz() {
+    kutu.innerHTML = karisik.map(function (k) { var n = secim.indexOf(k); return '<button type="button" data-k="' + k + '" class="' + (n > -1 ? 'secili' : '') + '"><b>' + (n > -1 ? n + 1 : '') + '</b><span>' + CUMLE[k].t + '</span></button>'; }).join('');
+    kutu.querySelectorAll('button').forEach(function (b) { b.onclick = function () { var k = +b.dataset.k, n = secim.indexOf(k); if (n > -1) secim.splice(n, 1); else secim.push(k); siraCiz(); }; });
+    document.getElementById('sira-kontrol').disabled = secim.length !== 4;
+  }
+  siraCiz();
+  document.getElementById('sira-sil').onclick = function () { secim = []; siraCiz(); document.getElementById('sira-geri').classList.remove('acik'); };
+  document.getElementById('sira-kontrol').onclick = function () {
+    var ok = secim.every(function (k, i) { return k === DOGRU[i]; });
+    kutu.querySelectorAll('button').forEach(function (b) { var k = +b.dataset.k; b.classList.add(secim.indexOf(k) === DOGRU.indexOf(k) ? 'dogru' : 'yanlis'); });
+    var g = document.getElementById('sira-geri');
+    g.innerHTML = ok ? '<span class="el">Tam oturdu. </span>Konu cümlesi iddiayı koyuyor, destek genelliyor, örnek somutlaştırıyor, “Therefore” bağlıyor.'
+      : '<span class="el">Yaklaştın. </span>Doğru sıra: ' + DOGRU.map(function (k) { return CUMLE[k].ad; }).join(' → ') + '. İpucu: “For instance” bir şeyi örnekler, önce o şeyin söylenmesi gerekir.';
+    g.classList.add('acik');
+    if (ok) { ACX.bitir(P, 'sira'); ACX.sevin(); ACX.soyle('Paragraf iskeleti tamam.', 3500); } else ACX.uz();
+  };
+
+  /* tez cümlesi: yapısal kontrol listesi */
+  var tez = document.getElementById('tez'), isle = document.getElementById('tez-isle');
+  var KUR = {
+    uzun: function (s, n) { return n >= 15 && n <= 40; },
+    taraf: function (s) { return /\b(agree|disagree|should|should not|shouldn't|i believe|in my (view|opinion)|i would argue|it is (better|essential|unfair|reasonable))\b/i.test(s); },
+    neden: function (s) { return (s.match(/\b(because|since|as well as|due to|and|while|given that)\b/gi) || []).length >= 2 || /\b(first|firstly)\b[\s\S]*\b(second|secondly)\b/i.test(s); },
+    konu: function (s) { return /\b(universit|education|tuition|free|fees?|higher education|degree)/i.test(s); },
+    very: function (s, n) { return n > 0 && !/\b(very|thing|things|a lot|lots of)\b/i.test(s); }
+  };
+  tez.addEventListener('input', function () {
+    var s = tez.value.trim(), n = s ? s.split(/\s+/).length : 0, kac = 0;
+    document.querySelectorAll('#tez-k li').forEach(function (li) { var ok = KUR[li.dataset.k](s, n); li.classList.toggle('ok', ok); if (ok) kac++; });
+    isle.disabled = kac < 4;
+  });
+  isle.onclick = function () { ACX.bitir(P, 'tez'); ACX.sevin(); ACX.soyle("Tez cümlen hazır. Essay'in yarısı bu cümle.", 4500); };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="tr" class="kapi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Acadex English</title>
+<meta name="description" content="Kahvaltıda kelime, otobüste dinleme, kütüphanede okuma, kafede konuşma, akşam bir paragraf. Üniversite öğrencisinin gününe dağılmış İngilizce.">
+<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="stylesheet" href="assets/ing.css">
+<style>
+body{--c:var(--mavi)}
+/* defter kapağı */
+.kapak{position:relative;width:100%;aspect-ratio:1/1.12;max-width:440px;margin-left:auto;perspective:1400px}
+.kapak .cilt{position:absolute;inset:0 34px 0 0;border:3px solid var(--ink);border-radius:10px 18px 18px 10px;background:#22356E;box-shadow:6px 6px 0 var(--ink);transform-origin:0 50%;animation:ac2 1.1s var(--ease) .2s both;overflow:hidden}
+@keyframes ac2{from{transform:rotateY(-24deg) translateX(-10px)}}
+.kapak .cilt::before{content:"";position:absolute;left:22px;top:0;bottom:0;width:3px;background:rgba(255,255,255,.18)}
+.kapak .lastik{position:absolute;top:-4px;bottom:-4px;right:46px;width:12px;background:var(--speaking);border:2px solid var(--ink);border-radius:4px}
+.kapak .etk{position:absolute;left:52px;right:70px;top:18%;padding:16px 18px;background:var(--kagit2);border:2px solid var(--ink);border-radius:6px;transform:rotate(-2deg)}
+.kapak .etk small{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.kapak .etk b{display:block;font:800 30px/1 var(--disp);letter-spacing:-.03em;margin:4px 0}
+.kapak .etk .el{font-size:24px;color:var(--mavi)}
+.kapak .cikartma{position:absolute;display:grid;place-items:center;border:2.5px solid var(--ink);font:800 14px var(--disp);text-align:center;line-height:1.05}
+.kapak .c1{left:58px;bottom:16%;width:96px;height:96px;border-radius:50%;background:var(--postit);transform:rotate(-12deg);animation:dondur 14s linear infinite}
+@keyframes dondur{to{transform:rotate(348deg)}}
+.kapak .c2{right:84px;bottom:9%;padding:8px 12px;border-radius:8px;background:var(--postit3);transform:rotate(6deg);font:600 20px var(--hand)}
+.kapak .ayr{position:absolute;right:0;width:46px;height:15%;border:2.5px solid var(--ink);border-left:0;border-radius:0 10px 10px 0;display:grid;place-items:center;text-decoration:none;transition:width .25s var(--ease)}
+.kapak .ayr span{writing-mode:vertical-rl;transform:rotate(180deg);font:700 12.5px var(--body);color:var(--ink)}
+.kapak .ayr:hover,.kapak .ayr:focus-visible{width:58px}
+.kapak .acadia2{position:absolute;right:56px;top:-26px;width:74px;transform:rotate(14deg)}
+@media (max-width:860px){.kapak{margin:0 auto;max-width:360px}.kapak .etk b{font-size:25px}}
+
+/* günün rotası */
+.gok{position:relative;border:2.5px solid var(--ink);border-radius:18px;overflow:hidden;aspect-ratio:16/10;box-shadow:var(--golge);background:var(--g1);transition:background .8s var(--ease)}
+.gok::after{content:"";position:absolute;inset:auto 0 0;height:26%;background:var(--zemin,#6C9B6E);border-top:2.5px solid var(--ink);transition:background .8s}
+.gok .gunes{position:absolute;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;border:2.5px solid var(--ink);background:var(--gr,#FFD86B);left:calc(8% + var(--p,0) * 84%);top:calc(64% - sin(var(--p,0) * 180deg) * 46%);transition:background .6s}
+.gok .bina{position:absolute;left:0;right:0;bottom:24%;height:30%;z-index:1}
+.gok .bina svg{width:100%;height:100%}
+.gok .kart2{position:absolute;left:5%;right:5%;bottom:6%;z-index:2;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 16px}
+.gok .kart2 .saat{background:var(--ink);color:var(--kagit);padding:4px 9px;border-radius:7px;font:500 14px var(--mono)}
+.gok .kart2 b{display:block;font:800 22px/1.1 var(--disp);letter-spacing:-.02em}
+.gok .kart2 span.el{font-size:19px;color:var(--ink2)}
+.gok .kart2 a{white-space:nowrap}
+.a0{--g1:#F9D7A8;--gr:#FFC56B}.a1{--g1:#BFE0EA;--gr:#FFD86B}.a2{--g1:#A9D3F0;--gr:#FFE58A}.a3{--g1:#F2B48C;--gr:#FF9F5B}.a4{--g1:#2A3A6E;--gr:#F5EFE2;--zemin:#3D5A48}
+.a4 .gok .gunes{box-shadow:inset -14px -4px 0 #2A3A6E}
+@media (max-width:860px){.gok{aspect-ratio:4/5}.gok .kart2{grid-template-columns:1fr;gap:6px}.gok .kart2 .saat{justify-self:start}}
+
+/* defterin */
+.defter{display:grid;grid-template-columns:repeat(5,1fr);gap:18px}
+.defter a{display:flex;flex-direction:column;gap:6px;padding:18px 16px 16px;text-decoration:none;border-top:10px solid var(--t);transition:transform .2s var(--ease),box-shadow .2s}
+.defter a:hover{transform:translate(-2px,-3px) rotate(-.6deg);box-shadow:6px 7px 0 var(--ink)}
+.defter small{font:500 12px var(--mono);color:var(--ink3)}
+.defter b{font:800 23px/1.1 var(--disp);letter-spacing:-.02em}
+.defter .el{font-size:19px;color:var(--ink2)}
+.defter .cubuk{margin-top:auto}
+.defter .cubuk i{background:var(--t);width:calc(var(--d,0) * 100%);transition:width 1s var(--ease)}
+@media (max-width:980px){.defter{grid-template-columns:repeat(2,1fr)}.defter a:last-child{grid-column:1/-1}}
+@media (max-width:520px){.defter{grid-template-columns:1fr}}
+.mektup{max-width:680px;margin:0 auto;padding:30px 32px;background-color:#FFFDF8;background-image:repeating-linear-gradient(transparent 0 33px,#D6E0F0 33px 34px);font-size:18px;line-height:34px;transform:rotate(-.6deg)}
+.mektup p{margin:0 0 0}
+.mektup .el{font-size:26px;color:var(--mavi)}
+</style>
+</head>
+<body data-panel="" data-ipucu="Hepsini aynı gün yapmak zorunda değilsin; bir durak bile seri sayılır.|Günün rotası sabah kelimeyle başlar, akşam bir paragrafla biter.|Kaldığın yeri defter hatırlıyor; sayfayı kapatman sorun değil.">
+<header class="ust"><div class="wrap">
+  <a class="marka" href="index.html" aria-current="page"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <nav class="sekme" aria-label="Beceriler">
+    <a href="vocab.html" style="--t:var(--vocab)"><i></i>Vocab</a>
+    <a href="listening.html" style="--t:var(--listening)"><i></i>Listening</a>
+    <a href="reading.html" style="--t:var(--reading)"><i></i>Reading</a>
+    <a href="speaking.html" style="--t:var(--speaking)"><i></i>Speaking</a>
+    <a href="writing.html" style="--t:var(--writing)"><i></i>Writing</a>
+  </nav>
+</div></header>
+
+<main>
+<section class="kah"><div class="wrap">
+  <div>
+    <span class="yer" data-gir="yukari"><span class="saat">güz 2026</span><span class="el">dönem defteri</span></span>
+    <h1 class="disp" data-gir="yukari" style="--d:.08s">İngilizce, gününün <span class="alt">arasına<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M2 6 C 30 2, 64 9, 98 5"/></svg></span> sıkışsın.</h1>
+    <p class="giris" data-gir="yukari" style="--d:.16s">Ayrı bir çalışma saati açmana gerek yok. Kahvaltıda kelime, otobüste dinleme, kütüphanede okuma, kafede konuşma, akşam bir paragraf. Her durak on beş dakika.</p>
+    <div class="dugmeler" data-gir="yukari" style="--d:.24s">
+      <a class="btn ana" href="vocab.html">Sabahtan başla</a>
+      <a class="btn" href="#rota">Günü gör</a>
+    </div>
+  </div>
+  <div class="kapak" data-gir="dus" style="--r:2deg;--d:.1s">
+    <div class="cilt">
+      <div class="etk"><small>ad · bölüm · dönem</small><b>English</b><span class="el">hazırlıktan C1'e, sınava kadar</span></div>
+      <div class="cikartma c1">B1<br>→ B2</div>
+      <div class="cikartma c2">dokunma, benim!</div>
+    </div>
+    <span class="lastik" aria-hidden="true"></span>
+    <a class="ayr" href="vocab.html" style="top:8%;background:var(--vocab)"><span>Vocab</span></a>
+    <a class="ayr" href="listening.html" style="top:25%;background:#7FD3CF"><span>Listening</span></a>
+    <a class="ayr" href="reading.html" style="top:42%;background:#9ED4AE"><span>Reading</span></a>
+    <a class="ayr" href="speaking.html" style="top:59%;background:#F4A487"><span>Speaking</span></a>
+    <a class="ayr" href="writing.html" style="top:76%;background:#EE9A8F"><span>Writing</span></a>
+    <svg class="acadia2" viewBox="-62 -62 124 124" aria-hidden="true"><path d="M0 -52 C7 -19 19 -7 52 0 C19 7 7 19 0 52 C-7 19 -19 7 -52 0 C-19 -7 -7 -19 0 -52 Z" fill="#FFD86B" stroke="#1A2A5C" stroke-width="4" stroke-linejoin="round"/><ellipse cx="-17" cy="11" rx="6" ry="3.5" fill="#F29C94"/><ellipse cx="17" cy="11" rx="6" ry="3.5" fill="#F29C94"/><ellipse cx="-10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="#1A2A5C" stroke-width="2.5"/><circle cx="-9" cy="-3" r="3.6" fill="#1A2A5C"/><ellipse cx="10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="#1A2A5C" stroke-width="2.5"/><circle cx="11" cy="-3" r="3.6" fill="#1A2A5C"/><path d="M-6 10 Q0 16 6 10" fill="none" stroke="#1A2A5C" stroke-width="3" stroke-linecap="round"/></svg>
+  </div>
+</div></section>
+
+<section class="sahne" id="rota" data-adim="5" aria-label="Günün rotası: beş durak" data-acadia="Kaydır; güneş ilerledikçe günün durakları geçiyor.">
+  <div class="yapis wrap">
+    <div>
+      <span class="etiket">günün rotası</span>
+      <ol class="adimlar" style="margin-top:12px">
+        <li><div><b>07:40 · Vocab</b><span>Kahvaltıda on kart. Vakti gelenler gelir, gerisi bekler.</span></div></li>
+        <li><div><b>08:15 · Listening</b><span>Otobüste bir bölüm. Takıldığın kelimeye dokun.</span></div></li>
+        <li><div><b>10:00 · Reading</b><span>Kütüphanede bir makale. Önce göz gezdir, sonra işaretle.</span></div></li>
+        <li><div><b>17:00 · Speaking</b><span>Kafede iki dakika konuş, kendini dinle.</span></div></li>
+        <li><div><b>21:40 · Writing</b><span>Yurt odasında bir paragraf. Kırmızı kalem açıklamalı.</span></div></li>
+      </ol>
+    </div>
+    <div class="gok">
+      <div class="gunes" aria-hidden="true"></div>
+      <div class="bina" aria-hidden="true"><svg viewBox="0 0 600 120" preserveAspectRatio="none"><path d="M0 120 V70 h60 V40 h50 V80 h40 V20 h70 V60 h50 V50 h60 V90 h40 V30 h80 V70 h50 V55 h100 V120 Z" fill="#E7DCC3" stroke="#1A2A5C" stroke-width="3"/><path d="M168 36 h10 v10 h-10z M190 36 h10 v10 h-10z M168 58 h10 v10 h-10z M418 46 h10 v10 h-10z M440 46 h10 v10 h-10z M440 68 h10 v10 h-10z" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2"/></svg></div>
+      <div class="kagit kart2" id="durak"></div>
+    </div>
+  </div>
+</section>
+
+<section class="bolum"><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">defterin</span><h2 class="disp">Nerede kaldın?</h2><p>Her panelde dört alıştırma var. Bitirdiğin alıştırmalar bu tarayıcıda kayıtlı kalır.</p></div>
+  <div class="defter" id="defter"></div>
+</div></section>
+
+<section class="bolum" style="padding-top:0"><div class="wrap">
+  <div class="kagit mektup" data-gir="yukari">
+    <p class="el">Neden böyle?</p>
+    <p>Hafta sonu üç saat oturup İngilizce çalışmak kâğıt üstünde iyi duruyor ama pek tutmuyor. Gün içine dağılmış kısa duraklar daha kolay alışkanlığa dönüşüyor. Panellerin hepsi aynı mantıkla kurulu: önce kısa bir gösterim, sonra on beş dakikalık alıştırma.</p>
+    <p class="el" style="text-align:right">— Acadex</p>
+  </div>
+</div></section>
+</main>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English · <a href="../index.html">Acadex ana sayfa</a></span><span>Kahvaltıdan yurt odasına.</span></div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../js/supabase-config.js"></script>
+<script src="../js/acadex-erisim.js"></script>
+<script src="assets/kapi.js"></script>
+<script src="assets/ing.js"></script>
+<script>
+(function () {
+  'use strict';
+  var D = document;
+  var PANEL = [
+    { id: 'vocab', ad: 'Vocab', yer: 'kahvaltı', saat: '07:40', not: 'çay demlenene kadar on kelime', t: 'var(--vocab)' },
+    { id: 'listening', ad: 'Listening', yer: 'kampüs otobüsü', saat: '08:15', not: 'kulaklık takılı, yol yirmi dakika', t: 'var(--listening)' },
+    { id: 'reading', ad: 'Reading', yer: 'kütüphane', saat: '10:00', not: 'on sayfa PDF, hepsini çevirme', t: 'var(--reading)' },
+    { id: 'speaking', ad: 'Speaking', yer: 'kampüs kafesi', saat: '17:00', not: 'bir dakika hazırlık, iki dakika konuşma', t: 'var(--speaking)' },
+    { id: 'writing', ad: 'Writing', yer: 'yurt odası', saat: '21:40', not: 'kırmızı kalem, açıklamalı', t: 'var(--writing)' }
+  ];
+  var kac = function (p) { return Object.keys(ACX.bitenler(p.id)).length; };
+  var durak = D.getElementById('durak');
+  function durakCiz(i) { var p = PANEL[i]; durak.innerHTML = '<span class="saat">' + p.saat + '</span><div><b>' + p.ad + ' · ' + p.yer + '</b><span class="el">' + p.not + ' · ' + kac(p) + '/4</span></div><a class="btn sm ana" href="' + p.id + '.html" style="background:' + p.t + ';color:' + (p.id === 'vocab' ? 'var(--ink)' : '#fff') + '">Aç →</a>'; }
+  D.querySelector('.sahne').addEventListener('adim', function (e) { durakCiz(e.detail); });
+  durakCiz(+(D.querySelector('.sahne').dataset.a || 0));
+  D.getElementById('defter').innerHTML = PANEL.map(function (p, i) {
+    var n = kac(p);
+    return '<a class="kagit" href="' + p.id + '.html" style="--t:' + p.t + ';--r:' + (i % 2 ? 1 : -1) * .8 + 'deg" data-gir="dus"><small>' + p.saat + ' · ' + p.yer + '</small><b>' + p.ad + '</b><span class="el">' + (n === 4 ? 'hepsi bitti' : n ? n + ' alıştırma bitti' : 'henüz açılmadı') + '</span><div class="cubuk" aria-label="' + n + ' / 4"><i style="--d:' + n / 4 + '"></i></div></a>';
+  }).join('');
+  ACX.girisler(D.getElementById('defter'));
+})();
+</script>
+</body>
+</html>

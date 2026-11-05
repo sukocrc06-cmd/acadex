@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="tr" class="kapi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Listening · Acadex English</title>
+<meta name="description" content="Kampüse giden otobüste bir bölüm dinle. Takıldığın kelimeye dokun, anlamı çıksın; hız senin elinde.">
+<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="stylesheet" href="assets/ing.css">
+<style>
+body{--c:var(--listening)}
+/* kahraman: otobüs penceresi */
+.cam{position:relative;aspect-ratio:13/10.5}
+.cam .pencere{position:absolute;inset:6% 4% 22% 4%;border:3px solid var(--ink);border-radius:26px;overflow:hidden;background:#CFE7E3;box-shadow:var(--golge)}
+.cam .sehir{position:absolute;left:0;bottom:0;height:78%;width:200%;display:flex;animation:akis 16s linear infinite}
+.cam .sehir svg{width:50%;height:100%;flex:none}
+.cam .yakin{height:42%;animation-duration:7s}
+@keyframes akis{to{transform:translateX(-50%)}}
+.cam .tutamak{position:absolute;top:-2%;left:62%;width:46px;height:96px;transform-origin:50% 0;animation:sallan 3.4s ease-in-out infinite}
+@keyframes sallan{50%{transform:rotate(7deg)}}
+.cam .telefon{position:absolute;left:8%;bottom:2%;width:42%;padding:14px 14px 12px;transform:rotate(-5deg)}
+.cam .durak{position:absolute;right:5%;bottom:8%;--r:5deg;width:42%;font-size:20px;padding:12px 14px}
+.dalga{display:flex;align-items:center;gap:3px;height:46px}
+.dalga i{flex:1;background:var(--listening);border-radius:3px;height:calc(var(--h) * 1%);transform-origin:center;animation:ses 1.1s ease-in-out infinite;animation-delay:var(--g)}
+@keyframes ses{50%{transform:scaleY(.35)}}
+.oynat{display:flex;align-items:center;gap:10px;margin-top:8px;font:500 12px var(--mono);color:var(--ink3)}
+.oynat b{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--listening);color:#fff;border:2px solid var(--ink);font-size:13px}
+.oynat .hat{flex:1;height:5px;border-radius:5px;background:var(--kagit3);overflow:hidden}.oynat .hat i{display:block;height:100%;width:38%;background:var(--ink)}
+
+/* sahne: hat + telefon */
+.hatcizgi{position:relative;margin:4px 6px 30px;height:60px}
+.hatcizgi .yol{position:absolute;left:0;right:0;top:28px;height:6px;border-radius:6px;background:repeating-linear-gradient(90deg,var(--ink) 0 14px,transparent 14px 22px)}
+.hatcizgi .dolu{position:absolute;left:0;top:28px;height:6px;border-radius:6px;background:var(--listening);width:calc(var(--p,0) * 100%)}
+.hatcizgi .d{position:absolute;top:18px;width:26px;height:26px;margin-left:-13px;border-radius:50%;background:var(--kagit2);border:3px solid var(--ink)}
+.hatcizgi .d span{position:absolute;top:30px;left:50%;transform:translateX(-50%);white-space:nowrap;font:600 18px var(--hand);color:var(--ink2)}
+.hatcizgi .otobus{position:absolute;top:-14px;left:calc(var(--p,0) * 100%);width:58px;margin-left:-29px;transition:left .1s linear}
+.a1 .d.d1,.a0 .d.d0,.a2 .d.d2,.a3 .d.d3{background:var(--listening)}
+.tel{max-width:430px;margin-inline:auto;padding:20px 20px 18px;min-height:360px}
+.tel .ust2{display:flex;justify-content:space-between;font:500 12.5px var(--mono);color:var(--ink3);margin-bottom:12px}
+.yazi{position:static;font:600 22px/1.5 var(--body);margin:16px 0 0;min-height:170px}
+.yazi .k{position:relative;border-radius:5px;padding:0 2px;transition:background .3s,color .3s,filter .4s}
+.a0:not(.a1) .yazi{filter:blur(6px);opacity:.5}
+.yazi{transition:filter .5s,opacity .5s}
+.a1 .yazi .k{animation:okunan 6s steps(1) infinite;animation-delay:calc(var(--i) * .38s)}
+@keyframes okunan{0%{background:var(--listening);color:#fff}6%,100%{background:transparent;color:inherit}}
+.a2 .yazi .k{animation:none}
+.a2 .yazi .k.hedef{background:var(--fosfor);box-shadow:0 0 0 2px var(--ink)}
+.kart-anlam{position:absolute;left:18px;right:18px;bottom:14px;padding:12px 14px;font-size:15.5px;opacity:0;transform:translateY(8px);transition:all .4s var(--yay);pointer-events:none}
+.kart-anlam b{font:800 18px var(--disp)}.kart-anlam .el{font-size:20px;color:var(--listening)}
+.a2:not(.a3) .kart-anlam{opacity:1;transform:none}.a2:not(.a3) .hiz{opacity:0}
+.hiz{display:flex;gap:8px;margin-top:16px;opacity:.35;transition:opacity .4s}
+.hiz span{padding:5px 11px;border:2px solid var(--ink);border-radius:20px;font:500 13px var(--mono);background:#fff}
+.a3 .hiz{opacity:1}.a3 .hiz span.sec{background:var(--listening);color:#fff;animation:zip .5s var(--yay)}
+.a3 .yazi .tekrar{background:color-mix(in srgb,var(--listening) 20%,transparent);border-radius:0;text-decoration:underline wavy var(--listening);text-underline-offset:5px}
+@media (max-width:860px){.tel{min-height:0}.yazi{font-size:18px;min-height:150px}.hatcizgi .d span{font-size:15px}.cam .durak{font-size:17px;width:46%}.cam .telefon{width:50%}}
+
+/* dikte */
+.dikte-s{display:grid;gap:10px}
+.fark{margin-top:10px;font-size:16.5px;line-height:1.8}
+.fark span{padding:1px 4px;border-radius:4px}
+.fark .ok{background:#DDF2E3}.fark .yok{background:#FBE0DA;text-decoration:line-through;text-decoration-color:var(--kirmizi)}
+.fark .ek{background:var(--fosfor)}
+</style>
+</head>
+<body data-panel="listening" data-ipucu="İlk dinleyişte yazıya bakma; sadece kim, ne, nerede.|Rakamlarda 'teen' vurguyu taşır: thirTEEN, ama THIRty.|Takıldığın cümleyi üç kez dinle, sonra yazıyla karşılaştır.|Kelime kaçırınca durma; cümlenin geri kalanı çoğu zaman anlamı verir.">
+<a class="gizli" href="#calis">Alıştırmalara geç</a>
+<header class="ust"><div class="wrap">
+  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <nav class="sekme" aria-label="Beceriler">
+    <a href="vocab.html" style="--t:var(--vocab)"><i></i>Vocab</a>
+    <a href="listening.html" style="--t:var(--listening)" aria-current="page"><i></i>Listening</a>
+    <a href="reading.html" style="--t:var(--reading)"><i></i>Reading</a>
+    <a href="speaking.html" style="--t:var(--speaking)"><i></i>Speaking</a>
+    <a href="writing.html" style="--t:var(--writing)"><i></i>Writing</a>
+  </nav>
+</div></header>
+
+<main>
+<section class="kah"><div class="wrap">
+  <div>
+    <span class="yer" data-gir="yukari"><span class="saat">08:15</span><span class="el">kampüs otobüsü, arka koltuk</span></span>
+    <h1 class="disp" data-gir="yukari" style="--d:.08s">Yol yirmi dakika. <span class="alt">Kulaklık<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M2 6 C 30 9, 62 2, 98 6"/></svg></span> takılı.</h1>
+    <p class="giris" data-gir="yukari" style="--d:.16s">Kampüse varana kadar kısa bir bölüm biter. Kaçırdığın kelimeye dokunursun, anlamı çıkar. Hızlı geldiyse yavaşlatırsın.</p>
+    <div class="dugmeler" data-gir="yukari" style="--d:.24s">
+      <a class="btn ana" href="#calis">Dinlemeye başla</a>
+      <span class="not-ok">aşağıda otobüs yola çıkıyor<svg viewBox="0 0 46 30" aria-hidden="true"><path d="M3 6 C 16 4, 30 10, 34 25 M27 19 l7 7 l5 -9"/></svg></span>
+    </div>
+  </div>
+  <div class="cam" data-gir="dus" style="--r:-1deg;--d:.1s" role="img" aria-label="Otobüs penceresinden akan şehir, elde telefon ve dinlenen bölüm">
+    <div class="pencere">
+      <div class="sehir" aria-hidden="true">
+        <svg viewBox="0 0 400 200" preserveAspectRatio="none"><path d="M0 200 V120 h40 V80 h30 V130 h26 V60 h44 V110 h30 V90 h36 V140 h28 V70 h40 V120 h34 V100 h40 V130 h52 V200 Z" fill="#9CC8C2" stroke="#1A2A5C" stroke-width="2.5"/><path d="M110 76 h8 v8 h-8z M126 76 h8 v8 h-8z M110 92 h8 v8 h-8z M280 86 h8 v8 h-8z M296 86 h8 v8 h-8z" fill="#F5EFE2"/></svg>
+        <svg viewBox="0 0 400 200" preserveAspectRatio="none"><path d="M0 200 V120 h40 V80 h30 V130 h26 V60 h44 V110 h30 V90 h36 V140 h28 V70 h40 V120 h34 V100 h40 V130 h52 V200 Z" fill="#9CC8C2" stroke="#1A2A5C" stroke-width="2.5"/><path d="M110 76 h8 v8 h-8z M126 76 h8 v8 h-8z M110 92 h8 v8 h-8z M280 86 h8 v8 h-8z M296 86 h8 v8 h-8z" fill="#F5EFE2"/></svg>
+      </div>
+      <div class="sehir yakin" aria-hidden="true">
+        <svg viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0 100 V70 q20 -30 40 0 q20 -40 46 0 h60 q14 -26 30 0 h70 q24 -44 50 0 h44 q16 -30 34 0 h26 V100 Z" fill="#5FA79D" stroke="#1A2A5C" stroke-width="2.5"/><path d="M220 70 v-40 h6 v40" fill="#1A2A5C"/><circle cx="223" cy="26" r="8" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2.5"/></svg>
+        <svg viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0 100 V70 q20 -30 40 0 q20 -40 46 0 h60 q14 -26 30 0 h70 q24 -44 50 0 h44 q16 -30 34 0 h26 V100 Z" fill="#5FA79D" stroke="#1A2A5C" stroke-width="2.5"/><path d="M220 70 v-40 h6 v40" fill="#1A2A5C"/><circle cx="223" cy="26" r="8" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2.5"/></svg>
+      </div>
+    </div>
+    <svg class="tutamak" viewBox="0 0 46 96" aria-hidden="true"><path d="M23 0 V52" stroke="#1A2A5C" stroke-width="4"/><path d="M8 52 h30 l-4 34 a11 11 0 0 1 -22 0 z" fill="#E0D6BF" stroke="#1A2A5C" stroke-width="3.5" stroke-linejoin="round"/><path d="M15 62 h16 l-3 22 a5 5 0 0 1 -10 0 z" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="2.5"/></svg>
+    <div class="kagit telefon">
+      <div class="say">Campus Talk · bölüm 12</div>
+      <div class="dalga" aria-hidden="true"></div>
+      <div class="oynat"><b>❚❚</b><span class="hat"><i></i></span><span>04:10</span></div>
+    </div>
+    <div class="postit durak el" data-gir="bant" style="--d:.7s">3 durak kaldı.<br>bölüm de bitiyor.</div>
+  </div>
+</div></section>
+
+<section class="sahne" data-adim="4" aria-label="Bir bölümü dinlemenin dört adımı" data-acadia="Kaydırdıkça otobüs ilerliyor; her durakta bir adım.">
+  <div class="yapis wrap">
+    <div>
+      <span class="etiket">kızılay → kampüs, dört durak</span>
+      <ol class="adimlar" style="margin-top:12px">
+        <li><div><b>Önce sadece dinle</b><span>Yazı kapalı. Kim konuşuyor, ne istiyor? İlk turda bu kadarı yeter.</span></div></li>
+        <li><div><b>Altyazı akar</b><span>İkinci turda yazı açılır, okunan kelime işaretlenir. Kulak ile göz aynı yerde.</span></div></li>
+        <li><div><b>Kelimeye dokun</b><span>Takıldığın kelimeye dokununca anlamı ve örnek cümle çıkar; kelime destene girer.</span></div></li>
+        <li><div><b>Yavaşlat, tekrarla</b><span>Hızlı geçen cümleyi 0.75× ile tekrar dinle. Üçüncüde oturur.</span></div></li>
+      </ol>
+    </div>
+    <div>
+      <div class="hatcizgi" aria-hidden="true">
+        <div class="yol"></div><div class="dolu"></div>
+        <div class="d d0" style="left:0%"><span>Kızılay</span></div><div class="d d1" style="left:33%"><span>Sıhhiye</span></div><div class="d d2" style="left:66%"><span>Tandoğan</span></div><div class="d d3" style="left:100%"><span>Kampüs</span></div>
+        <svg class="otobus" viewBox="0 0 58 34"><rect x="2" y="2" width="54" height="24" rx="6" fill="#0F8582" stroke="#1A2A5C" stroke-width="3"/><path d="M8 8 h10 v8 h-10z M22 8 h10 v8 h-10z M36 8 h12 v8 h-12z" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="2"/><circle cx="14" cy="28" r="5" fill="#1A2A5C"/><circle cx="44" cy="28" r="5" fill="#1A2A5C"/></svg>
+      </div>
+      <div class="kagit tel">
+        <div class="ust2"><span>● Campus Talk · Ep. 12</span><span>B1–B2</span></div>
+        <div class="dalga" aria-hidden="true"></div>
+        <p class="yazi" id="yazi"></p>
+        <div class="hiz" aria-hidden="true"><span>1.25×</span><span>1×</span><span class="sec">0.75×</span><span>↻ cümleyi tekrarla</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bolum"><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">panelde ne var?</span><h2 class="disp">Kulağı yazıdan önce çalıştırır.</h2><p>Altyazıyla izlemek kolay ama kulağı tembelleştiriyor. Burada sıra hep aynı: önce dinle, sonra bak, sonra bir daha dinle.</p></div>
+  <div class="notlar">
+    <div class="postit" data-gir="dus"><span class="el">01</span><h3>Kampüsün kendi konuşmaları</h3><p>Ders anonsu, kayıt ofisi, proje grubu sohbeti. Sınavda çıkan türden, gündelik hızda.</p></div>
+    <div class="postit" data-gir="dus" style="--d:.12s"><span class="el">02</span><h3>Kelime çantası</h3><p>Dokunduğun kelimeler Vocab destesine düşer. Kahvaltıda karşına yine çıkar.</p></div>
+    <div class="postit" data-gir="dus" style="--d:.24s"><span class="el">03</span><h3>Not alma kalıbı</h3><p>IELTS form doldurma ve YDS diyalog sorularındaki gibi: tarih, saat, isim, sayı.</p></div>
+  </div>
+</div></section>
+
+<section class="bolum" id="calis" data-acadia="Sesi aç. Her soruda ▶ ile dinle, gerekirse yavaşlat."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">otobüslük</span><h2 class="disp">Dört kısa dinleme.</h2><p>Sesler tarayıcının İngilizce sesiyle okunur, kulaklıkla daha iyi. Bitirdiklerin işaretli kalır. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
+  <div class="calis">
+    <article class="kagit alis" data-id="dikte" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 4 cümle</span><h3>Dikte</h3><p>Dinle, duyduğunu yaz. Noktalama ve büyük harf önemli değil.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div class="dikte-s" id="dikte"></div>
+    </article>
+    <article class="kagit alis" data-id="sayi" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 2 · 5 soru</span><h3>Saat, tarih, sayı</h3><p>Form doldururken kaçan şeyler hep bunlar.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-sayi"></div>
+    </article>
+    <article class="kagit alis" data-id="cift" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 3 · 5 soru</span><h3>Hangisini duydun?</h3><p>Ship mi sheep mi? Tek sesin değiştirdiği kelimeler.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-cift"></div>
+    </article>
+    <article class="kagit alis" data-id="diyalog" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 4 · 3 soru</span><h3>Kayıt ofisinde</h3><p>Kısa bir konuşma. Her soruda aynı kaydı dinleyebilirsin.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-diyalog"></div>
+    </article>
+  </div>
+</div></section>
+
+<section class="sonraki"><div class="wrap">
+  <a class="kagit" href="reading.html" data-gir="yukari"><div><small>sonraki durak · 10:00</small><b>Kütüphane: Reading</b><span class="el">otobüsten in, bir makale seni bekliyor</span></div><span class="ok" aria-hidden="true">→</span></a>
+</div></section>
+</main>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English</span><span>Önce kulak, sonra yazı.</span></div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../js/supabase-config.js"></script>
+<script src="../js/acadex-erisim.js"></script>
+<script src="assets/kapi.js"></script>
+<script src="assets/ing.js"></script>
+<script>
+(function () {
+  'use strict';
+  var P = 'listening', D = document;
+  /* dalga çubukları */
+  D.querySelectorAll('.dalga').forEach(function (d) {
+    var h = ''; for (var i = 0; i < 34; i++) { var v = 25 + Math.round(70 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * .37))); h += '<i style="--h:' + v + ';--g:' + (-(i % 9) * .12).toFixed(2) + 's"></i>'; }
+    d.innerHTML = h;
+  });
+  /* sahne metni */
+  var cumle = 'Okay, so the deadline for the group project is next Friday, but the draft is due on Tuesday.'.split(' ');
+  D.getElementById('yazi').innerHTML = cumle.map(function (w, i) { var c = w === 'deadline' ? ' hedef' : ''; return '<span class="k' + c + '" style="--i:' + i + '">' + w + '</span>'; }).join(' ') +
+    '<span class="kagit kart-anlam"><b>deadline</b> <span class="mono" style="font-size:12px;color:var(--ink3)">/ˈdedlaɪn/ · noun</span><br>son teslim tarihi <span class="el">— kelime destene eklendi</span></span>';
+  var kel = D.querySelectorAll('#yazi .k'); for (var i = 8; i < 18; i++) if (kel[i]) kel[i].classList.add('tekrar-p');
+  D.querySelector('.sahne').addEventListener('adim', function (e) {
+    D.querySelectorAll('#yazi .k').forEach(function (k, i) { k.classList.toggle('tekrar', e.detail === 3 && i >= 9); });
+  });
+
+  /* dikte */
+  var DIKTE = ['The library is open until midnight during exam week.', 'Please submit your essay before the end of the month.', 'Our seminar has been moved to the second floor.', 'I usually take the bus because parking is expensive.'];
+  var norm = function (s) { return s.toLowerCase().replace(/[^a-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean); };
+  var dogruSay = 0, kutu = D.getElementById('dikte');
+  kutu.innerHTML = DIKTE.map(function (c, i) {
+    return '<div class="kagit" style="padding:14px;box-shadow:2px 2px 0 var(--ink)"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="say">' + (i + 1) + '.</span><button class="btn sm" type="button" data-c="' + i + '">▶ Dinle</button><button class="btn sm" type="button" data-y="' + i + '">Yavaş</button>' +
+      (ACX.sesVar ? '' : '<span class="say">Ses yok: <i>' + ACX.esc(c) + '</i></span>') + '</div><label class="gizli" for="d' + i + '">Cümle ' + (i + 1) + '</label><input type="text" id="d' + i + '" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="duyduğunu yaz…"><div class="fark" id="f' + i + '"></div><div style="margin-top:8px"><button class="btn sm ana" type="button" data-k="' + i + '">Kontrol</button></div></div>';
+  }).join('');
+  kutu.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.c) ACX.ses(DIKTE[+b.dataset.c], .95);
+    if (b.dataset.y) ACX.ses(DIKTE[+b.dataset.y], .68);
+    if (b.dataset.k) {
+      var i = +b.dataset.k, a = norm(DIKTE[i]), y = norm(D.getElementById('d' + i).value), j = 0, out = [], isabet = 0;
+      a.forEach(function (w) { var k = y.indexOf(w, j); if (k > -1 && k - j < 3) { y.slice(j, k).forEach(function (x) { out.push('<span class="ek">' + ACX.esc(x) + '</span>'); }); out.push('<span class="ok">' + w + '</span>'); isabet++; j = k + 1; } else out.push('<span class="yok">' + w + '</span>'); });
+      y.slice(j).forEach(function (x) { out.push('<span class="ek">' + ACX.esc(x) + '</span>'); });
+      var oran = isabet / a.length, f = D.getElementById('f' + i);
+      f.innerHTML = out.join(' ') + '<br><span class="el" style="font-size:20px;color:var(--c)">' + Math.round(oran * 100) + '% ' + (oran === 1 ? '— kusursuz.' : oran >= .8 ? '— çok yakın.' : '— bir kez daha dinle.') + '</span> <span class="say">yeşil: doğru · çizili: kaçan · sarı: fazladan</span>';
+      if (oran >= .8 && !b.dataset.sayildi) { b.dataset.sayildi = 1; dogruSay++; ACX.sevin(); } else if (oran < .8) ACX.uz();
+      if (dogruSay >= 3) { if (ACX.bitir(P, 'dikte')) ACX.soyle('Dikte tamam; kulağın ısındı.', 3500); }
+    }
+  });
+  kutu.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id && e.target.id[0] === 'd') kutu.querySelector('[data-k="' + e.target.id.slice(1) + '"]').click(); });
+
+  ACX.test(D.getElementById('t-sayi'), [
+    { soru: 'Kütüphane kaçta kapanıyor?', dinle: 'During the holiday, the library closes at a quarter to ten.', sec: ['09:15', '09:45', '10:15', '10:45'], d: 1, yan: 1, neden: '“A quarter to ten” = ona çeyrek var: <b>09:45</b>.' },
+    { soru: 'Kaç öğrenci kayıt oldu?', dinle: 'So far, fifty students have registered for the workshop.', sec: ['15', '50', '115', '500'], d: 1, yan: 1, neden: '<b>FIFty</b>: vurgu başta. “fifTEEN” olsaydı vurgu sonda olurdu.' },
+    { soru: 'Son başvuru tarihi?', dinle: 'Applications must reach us by the thirteenth of March.', sec: ['3 Mart', '13 Mart', '30 Mart', '13 Mayıs'], d: 1, yan: 1, neden: '<b>the thirteenth of March</b> → 13 Mart.' },
+    { soru: 'Bilet ne kadar?', dinle: 'A student ticket costs eight pounds fifty.', sec: ['£8.15', '£8.50', '£18.50', '£80.50'], d: 1, yan: 1, neden: '“Eight pounds fifty” = <b>£8.50</b>; İngilizler kuruşu sondan söyler.' },
+    { soru: 'Oda numarası?', dinle: 'The meeting is in room B two zero four.', sec: ['B204', 'B240', 'D204', 'B2004'], d: 0, yan: 1, neden: 'Sıfır çoğu zaman “oh” ya da “zero” diye tek tek okunur: <b>B204</b>.' }
+  ], { panel: P, id: 'sayi', tebrik: 'Rakamlar artık kaçmıyor.' });
+
+  ACX.test(D.getElementById('t-cift'), [
+    { soru: 'Hangi kelime?', dinle: 'Can you see the ship over there?', sec: ['ship', 'sheep'], d: 0, yan: 1, neden: '<b>ship</b> kısa /ɪ/; sheep uzun /iː/.' },
+    { soru: 'Hangi kelime?', dinle: 'Please leave your bag here.', sec: ['live', 'leave'], d: 1, yan: 1, neden: '<b>leave</b> uzun /iː/: “liiv”.' },
+    { soru: 'Hangi kelime?', dinle: 'The cup is full.', sec: ['full', 'fool'], d: 0, yan: 1, neden: '<b>full</b> kısa /ʊ/; fool uzun /uː/.' },
+    { soru: 'Hangi kelime?', dinle: 'That was a bad decision.', sec: ['bed', 'bad'], d: 1, yan: 1, neden: '<b>bad</b> /æ/: ağız daha açık, “e” ile “a” arası.' },
+    { soru: 'Hangi kelime?', dinle: 'I bought it last week.', sec: ['bought', 'boat'], d: 0, yan: 1, neden: '<b>bought</b> /ɔː/; boat /əʊ/ kayan bir ses.' }
+  ], { panel: P, id: 'cift', tebrik: 'Kulağın inceliyor.' });
+
+  var DIY = 'Student: Hi, I missed the registration deadline for the spring term. Is it too late? Officer: Not completely. You can still register online until Thursday, but there is a late fee of twenty pounds. Student: Twenty pounds? Okay. And do I need my advisor’s signature? Officer: Only if you take more than six courses.';
+  ACX.test(D.getElementById('t-diyalog'), [
+    { soru: 'Öğrencinin sorunu ne?', dinle: DIY, hiz: 1, sec: ['Kayıt tarihini kaçırmış', 'Ders notunu öğrenemiyor', 'Danışmanını bulamıyor', 'Harcını yatırmış ama görünmüyor'], d: 0, neden: '“I missed the registration deadline” → kayıt tarihini kaçırmış.' },
+    { soru: 'Kayıt için son gün?', dinle: DIY, hiz: 1, sec: ['Salı', 'Çarşamba', 'Perşembe', 'Cuma'], d: 2, yan: 1, neden: '“until <b>Thursday</b>”.' },
+    { soru: 'Danışman imzası ne zaman gerekiyor?', dinle: DIY, hiz: 1, sec: ['Her zaman', 'Geç kayıtta', 'Altıdan fazla derste', 'Yalnızca yüz yüze kayıtta'], d: 2, neden: '“Only if you take <b>more than six courses</b>.”' }
+  ], { panel: P, id: 'diyalog', tebrik: 'Kayıt ofisini atlattın.' });
+})();
+</script>
+</body>
+</html>

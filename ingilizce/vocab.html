@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="tr" class="kapi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Vocab · Acadex English</title>
+<meta name="description" content="Kahvaltıda on kelime. Unutmak üzereyken karşına yeniden çıkan bir deste, kalıplar ve kelime aileleri.">
+<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="stylesheet" href="assets/ing.css">
+<style>
+body{--c:#B07F00}
+.yer .el{color:#B07F00}
+.sofra{position:relative;aspect-ratio:13/10.5}
+.sofra svg{width:100%;height:100%;overflow:visible}
+.sofra .buhar path{fill:none;stroke:#8A93AE;stroke-width:3;stroke-linecap:round;stroke-dasharray:6 10;animation:buhar 3s linear infinite}
+.sofra .buhar path:nth-child(2){animation-delay:-1.4s}
+@keyframes buhar{to{stroke-dashoffset:-64}}
+.sofra .deste{position:absolute;left:44%;top:2%;width:40%;aspect-ratio:1.45;perspective:900px}
+.kart{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .8s var(--ease)}
+.kart .yuz{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:2.5px solid var(--ink);border-radius:14px;background:var(--postit);display:grid;place-items:center;align-content:center;padding:14px;text-align:center;box-shadow:4px 4px 0 var(--ink)}
+.kart .arka{transform:rotateY(180deg);background:#fff}
+.kart.don{transform:rotateY(180deg)}
+.kart .yuz b{font:800 clamp(28px,4vw,44px)/1 var(--disp);letter-spacing:-.03em}
+.kart .yuz small{font:500 13px var(--mono);color:var(--ink3);margin-top:6px}
+.kart .yuz .tr{font:800 24px var(--disp)}
+.kart .yuz .ornek{font-size:14.5px;color:var(--ink2);margin-top:6px;font-style:italic}
+.sofra .deste .alt1,.sofra .deste .alt2{position:absolute;inset:0;border:2.5px solid var(--ink);border-radius:14px;background:#FFF3C4}
+.sofra .deste .alt1{transform:rotate(-5deg) translate(-8px,6px)}.sofra .deste .alt2{transform:rotate(4deg) translate(8px,8px);background:#FFE9A0}
+.sofra .deste .kart{animation:kendi 6s var(--ease) infinite}
+@keyframes kendi{0%,35%{transform:rotateY(0)}45%,85%{transform:rotateY(180deg)}95%,100%{transform:rotateY(360deg)}}
+.sofra .not{position:absolute;right:0;bottom:6%;--r:5deg;width:150px;font-size:20px;padding:12px 14px;background:var(--postit2)}
+
+/* sahne */
+.sahne-s{position:relative;min-height:440px}
+.sahne-s .deste2{position:absolute;left:50%;top:10px;width:min(360px,80%);aspect-ratio:1.5;transform:translateX(-50%);perspective:1000px;transition:transform .6s var(--ease),top .6s var(--ease),width .6s var(--ease)}
+.a1 .deste2 .kart{transform:rotateY(180deg)}
+.a2 .deste2{top:-10px;width:min(240px,56%);transform:translateX(-50%) rotate(-3deg)}
+.a3 .deste2{opacity:0;transform:translateX(-50%) translateY(-30px)}
+.egri{position:absolute;left:0;right:0;bottom:0;padding:16px 18px 12px;opacity:0;transform:translateY(16px);transition:all .5s var(--ease)}
+.a2 .egri{opacity:1;transform:none}.a3 .egri{opacity:0;transform:translateY(16px)}
+.egri svg{width:100%;height:auto}
+.egri .unut{fill:none;stroke:var(--ink3);stroke-width:2.5;stroke-dasharray:6 6}
+.egri .tekrar{fill:none;stroke:#B07F00;stroke-width:3.5;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset 1.6s var(--ease) .3s}
+.a2 .egri .tekrar{stroke-dashoffset:0}
+.egri text{font:600 17px var(--hand);fill:var(--ink2)}
+.egri .nok{fill:#B07F00;stroke:var(--ink);stroke-width:2}
+.yelpaze{position:absolute;inset:20px 0 0;display:grid;place-items:center;pointer-events:none}
+.yelpaze .k{position:absolute;width:min(190px,44%);aspect-ratio:1.4;border:2.5px solid var(--ink);border-radius:12px;background:#fff;box-shadow:3px 3px 0 var(--ink);display:grid;place-items:center;align-content:center;text-align:center;transform:rotate(0) translate(0,0);opacity:0;transition:transform .7s var(--yay),opacity .3s}
+.yelpaze .k b{font:800 22px var(--disp)}.yelpaze .k small{font:600 18px var(--hand);color:#B07F00}
+.a3 .yelpaze .k{opacity:1;transform:rotate(var(--r)) translate(var(--x),var(--y))}
+.a3 .yelpaze .k:nth-child(2){transition-delay:.06s}.a3 .yelpaze .k:nth-child(3){transition-delay:.12s}.a3 .yelpaze .k:nth-child(4){transition-delay:.18s}
+@media (max-width:860px){.sahne-s{min-height:380px}.yelpaze .k b{font-size:18px}.yelpaze .k small{font-size:15px}.egri text{font-size:20px}}
+
+/* çalışan deste */
+.cdeste{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:24px;align-items:start}
+.cdeste .sahnek{position:relative;aspect-ratio:1.6;perspective:1100px;cursor:pointer}
+.cdeste .yuz{background:var(--postit)}
+.cdeste .arka{background:#fff}
+.cdeste .arka .tr{font:800 28px var(--disp)}
+.cdeste .dugme3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.cdeste .dugme3 .btn{flex-direction:column;gap:0;font-size:15px;line-height:1.2}.cdeste .dugme3 small{font:500 11.5px var(--mono);opacity:.8}
+.kutular{display:grid;gap:8px}
+.kutular div{display:flex;justify-content:space-between;padding:10px 12px;border:2px solid var(--ink);border-radius:10px;background:#fff;font-size:15px}
+.kutular b{font:500 15px var(--mono)}
+@media (max-width:760px){.cdeste{grid-template-columns:1fr}.kutular{grid-template-columns:repeat(3,1fr)}.kutular div{flex-direction:column;align-items:center;font-size:13px}}
+</style>
+</head>
+<body data-panel="vocab" data-ipucu="Kelimeyi tek başına değil, yanındaki kelimeyle öğren: make a decision, do research.|'Biliyordum' dürüst olsun; destede yalan söylemek sınavda geri döner.|Bir kelimenin ailesini öğrenince dört kelime kazanırsın: economy, economic, economical, economically.|Yeni kelimeyi bugün bir cümlede kullan, yarın hatırla.">
+<a class="gizli" href="#calis">Alıştırmalara geç</a>
+<header class="ust"><div class="wrap">
+  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <nav class="sekme" aria-label="Beceriler">
+    <a href="vocab.html" style="--t:var(--vocab)" aria-current="page"><i></i>Vocab</a>
+    <a href="listening.html" style="--t:var(--listening)"><i></i>Listening</a>
+    <a href="reading.html" style="--t:var(--reading)"><i></i>Reading</a>
+    <a href="speaking.html" style="--t:var(--speaking)"><i></i>Speaking</a>
+    <a href="writing.html" style="--t:var(--writing)"><i></i>Writing</a>
+  </nav>
+</div></header>
+
+<main>
+<section class="kah"><div class="wrap">
+  <div>
+    <span class="yer" data-gir="yukari"><span class="saat">07:40</span><span class="el">kahvaltı, ince belli bardak</span></span>
+    <h1 class="disp" data-gir="yukari" style="--d:.08s">Çay demlenene kadar <span class="alt" style="color:#B07F00">on<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M2 6 C 30 2, 66 9, 98 5" style="stroke:#E3A80F"/></svg></span> kelime.</h1>
+    <p class="giris" data-gir="yukari" style="--d:.16s">Kelimeyi bir kez görmek yetmiyor; unutmak üzereyken bir daha görmek gerekiyor. Hangi kartın ne zaman döneceğini sen değil, deste hatırlar.</p>
+    <div class="dugmeler" data-gir="yukari" style="--d:.24s">
+      <a class="btn ana" href="#calis" style="background:var(--vocab);color:var(--ink)">Desteyi aç</a>
+      <span class="not-ok">kart aşağıda dönüyor<svg viewBox="0 0 46 30" aria-hidden="true"><path d="M3 6 C 16 4, 30 10, 34 25 M27 19 l7 7 l5 -9"/></svg></span>
+    </div>
+  </div>
+  <div class="sofra" data-gir="dus" style="--r:-1deg;--d:.1s">
+    <svg viewBox="0 0 520 420" role="img" aria-label="Kahvaltı masası: çay bardağı, simit ve kelime kartları">
+      <defs><filter id="el-ciz"><feTurbulence baseFrequency=".03" numOctaves="2" seed="2"/><feDisplacementMap in="SourceGraphic" scale="2.4"/></filter></defs>
+      <g filter="url(#el-ciz)" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M10 300 Q260 270 510 300 L500 410 H20 Z" fill="#E9C9A0"/>
+        <path d="M60 340 Q150 330 240 345 M300 360 Q400 350 480 362" fill="none" stroke="#C9A57A" stroke-width="2"/>
+        <ellipse cx="90" cy="318" rx="56" ry="12" fill="#F5EFE2"/>
+        <path d="M66 316 C 60 270, 74 250, 70 220 H112 C 108 250, 122 270, 116 316 Z" fill="#C2462F" fill-opacity=".85"/>
+        <path d="M70 220 H112" stroke-width="3.5"/>
+        <g class="buhar"><path d="M82 208 c-6 -12 6 -18 0 -30 c-6 -12 6 -18 0 -28"/><path d="M100 208 c-6 -12 6 -18 0 -30 c-6 -12 6 -18 0 -28"/></g>
+        <ellipse cx="420" cy="320" rx="70" ry="30" fill="#D49A55"/>
+        <ellipse cx="420" cy="320" rx="30" ry="12" fill="#E9C9A0"/>
+        <path d="M368 306 l6 -4 M384 298 l6 -3 M440 294 l7 2 M462 302 l6 4 M372 336 l7 2 M466 334 l6 -3" stroke="#F5EFE2" stroke-width="3"/>
+        <ellipse cx="250" cy="372" rx="60" ry="14" fill="#F5EFE2"/>
+        <path d="M222 366 q14 -14 34 -6 q14 -12 26 4" fill="#FFD86B"/>
+      </g>
+    </svg>
+    <div class="deste" aria-hidden="true"><span class="alt1"></span><span class="alt2"></span>
+      <div class="kart"><div class="yuz"><b>thrive</b><small>/θraɪv/ · verb</small></div><div class="yuz arka"><span class="tr">gelişmek, serpilmek</span><span class="ornek">Plants thrive in sunny rooms.</span></div></div>
+    </div>
+    <div class="postit not el" data-gir="bant" style="--d:.7s">dün 7/10<br>bugün 10/10?</div>
+  </div>
+</div></section>
+
+<section class="sahne" data-adim="4" aria-label="Bir kelime kartının yolculuğu" data-acadia="Kaydır; kart dönüyor, sonra takvime giriyor.">
+  <div class="yapis wrap">
+    <div>
+      <span class="etiket">bir kartın haftası</span>
+      <ol class="adimlar" style="margin-top:12px">
+        <li><div><b>Ön yüz</b><span>Sadece kelime ve okunuşu. Anlamını hatırlamaya çalış, sonra çevir.</span></div></li>
+        <li><div><b>Arka yüz</b><span>Türkçesi ve gerçek bir cümle. Kelime tek başına değil, kullanıldığı yerle gelir.</span></div></li>
+        <li><div><b>Unutma eğrisi</b><span>Bir günde yarısı gider. Doğru anda yapılan her tekrar eğriyi yukarı iter.</span></div></li>
+        <li><div><b>Haftanın destesi</b><span>Bildiğin kart iki hafta sonra döner, zorlandığın kart yarın. Destenin takvimi sende değil.</span></div></li>
+      </ol>
+    </div>
+    <div class="sahne-s">
+      <div class="deste2"><div class="kart"><div class="yuz"><b>thrive</b><small>/θraɪv/ · verb</small></div><div class="yuz arka"><span class="tr">gelişmek, serpilmek</span><span class="ornek">Small businesses thrive near universities.</span></div></div></div>
+      <div class="kagit egri" aria-hidden="true">
+        <svg viewBox="0 0 520 200">
+          <path d="M30 170 H500 M30 20 V170" stroke="#1A2A5C" stroke-width="2.5"/>
+          <path class="unut" d="M30 30 C 70 120, 140 150, 500 162"/>
+          <path class="tekrar" pathLength="1" d="M30 30 C 50 70, 70 85, 90 90 L90 34 C 130 66, 160 76, 200 80 L200 30 C 270 52, 320 58, 360 60 L360 28 C 420 40, 460 44, 500 46"/>
+          <circle class="nok" cx="90" cy="34" r="6"/><circle class="nok" cx="200" cy="30" r="6"/><circle class="nok" cx="360" cy="28" r="6"/>
+          <text x="96" y="190">1. gün</text><text x="206" y="190">3. gün</text><text x="366" y="190">7. gün</text>
+          <text x="330" y="150" fill="#6B7390">tekrarsız</text><text x="420" y="74">tekrarlı</text>
+        </svg>
+      </div>
+      <div class="yelpaze" aria-hidden="true">
+        <div class="k" style="--r:-6deg;--x:-56%;--y:-58%"><b>thrive</b><small>2 hafta sonra</small></div>
+        <div class="k" style="--r:4deg;--x:56%;--y:-62%"><b>reluctant</b><small>5 gün sonra</small></div>
+        <div class="k" style="--r:-3deg;--x:-54%;--y:60%"><b>obtain</b><small>2 gün sonra</small></div>
+        <div class="k" style="--r:7deg;--x:58%;--y:56%;background:var(--postit2)"><b>adequate</b><small>yarın tekrar</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bolum"><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">panelde ne var?</span><h2 class="disp">Liste ezberi değil, deste.</h2><p>Word listesini baştan sona okumak ikinci gün işe yaramıyor. Deste her sabah sadece o gün sorulması gereken kartları önüne koyar.</p></div>
+  <div class="notlar">
+    <div class="postit" data-gir="dus"><span class="el">01</span><h3>Akademik kelime listesi</h3><p>YDS, YÖKDİL ve IELTS metinlerinde en sık geçen kelimeler; sınavına göre sıralı.</p></div>
+    <div class="postit" data-gir="dus" style="--d:.12s"><span class="el">02</span><h3>Kalıbıyla birlikte</h3><p>“Decision” değil, “make a decision”. Kart kelimeyi yanındaki kelimeyle verir.</p></div>
+    <div class="postit" data-gir="dus" style="--d:.24s"><span class="el">03</span><h3>Diğer panellerden gelenler</h3><p>Listening'de dokunduğun, Reading'de takıldığın kelime buraya düşer.</p></div>
+  </div>
+</div></section>
+
+<section class="bolum" id="calis" data-acadia="Önce deste, sonra kalıplar. Dürüst cevap ver, deste ona göre ayarlanır."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">kahvaltılık</span><h2 class="disp">Bugünün kartları.</h2><p>Desten bu tarayıcıda kalır; yarın açınca sadece vakti gelen kartlar gelir. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
+  <div class="calis">
+    <article class="kagit alis" data-id="deste" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 10 kart</span><h3>Sabah destesi</h3><p>Karta dokun, çevir. Sonra dürüstçe işaretle.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div class="cdeste">
+        <div>
+          <div class="sahnek" id="dk" tabindex="0" role="button" aria-label="Kartı çevir"><div class="kart" id="dkk"><div class="yuz"></div><div class="yuz arka"></div></div></div>
+          <div class="dugme3" id="dk3"><button class="btn" type="button" data-n="0">Bilmiyordum<small>10 dk sonra</small></button><button class="btn" type="button" data-n="1">Zorlandım<small>yarın</small></button><button class="btn ana" type="button" data-n="2" style="background:var(--vocab);color:var(--ink)">Biliyordum<small>aralık uzar</small></button></div>
+        </div>
+        <div class="kutular"><div>bugün kalan <b id="dk-k">0</b></div><div>öğrenilen <b id="dk-o">0</b></div><div>sıradaki <b id="dk-s">—</b></div><button class="btn sm" type="button" id="dk-dinle">▶ Dinle</button></div>
+      </div>
+    </article>
+    <article class="kagit alis" data-id="kalip" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 2 · 5 soru</span><h3>Make mi, do mu?</h3><p>İngilizcenin “öyle denir” kısmı.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-kalip"></div>
+    </article>
+    <article class="kagit alis" data-id="aile" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 3 · 5 soru</span><h3>Kelime ailesi</h3><p>Aynı kök, doğru ek.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-aile"></div>
+    </article>
+    <article class="kagit alis" data-id="es" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 4 · 5 soru</span><h3>Akademik karşılığı</h3><p>Paraphrase sorularının yarısı bu: günlük kelimenin resmi hali.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div id="t-es"></div>
+    </article>
+  </div>
+</div></section>
+
+<section class="sonraki"><div class="wrap">
+  <a class="kagit" href="listening.html" data-gir="yukari"><div><small>sonraki durak · 08:15</small><b>Otobüs: Listening</b><span class="el">bardağı bırak, kulaklığı tak</span></div><span class="ok" aria-hidden="true">→</span></a>
+</div></section>
+</main>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English</span><span>Unutmak üzereyken bir daha.</span></div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../js/supabase-config.js"></script>
+<script src="../js/acadex-erisim.js"></script>
+<script src="assets/kapi.js"></script>
+<script src="assets/ing.js"></script>
+<script>
+(function () {
+  'use strict';
+  var P = 'vocab', D = document;
+  /* aralıklı tekrar: kutu sistemi (0: 10 dk, 1: 1 gün, sonra 3, 7, 14 gün) */
+  var KELIME = [
+    ['thrive', '/θraɪv/ · verb', 'gelişmek, serpilmek', 'Small businesses thrive near universities.'],
+    ['reluctant', '/rɪˈlʌktənt/ · adj', 'isteksiz, gönülsüz', 'She was reluctant to change her major.'],
+    ['obtain', '/əbˈteɪn/ · verb', 'elde etmek', 'You must obtain a permit before the trip.'],
+    ['adequate', '/ˈædɪkwət/ · adj', 'yeterli', 'The library does not have adequate study space.'],
+    ['significant', '/sɪɡˈnɪfɪkənt/ · adj', 'önemli, kayda değer', 'There was a significant rise in rent.'],
+    ['assume', '/əˈsjuːm/ · verb', 'varsaymak', 'Don’t assume everyone has read the article.'],
+    ['decline', '/dɪˈklaɪn/ · verb / noun', 'azalmak; düşüş', 'Car sales declined last year.'],
+    ['evidence', '/ˈevɪdəns/ · noun', 'kanıt', 'There is little evidence for this claim.'],
+    ['approach', '/əˈprəʊtʃ/ · noun', 'yaklaşım', 'We need a different approach to the problem.'],
+    ['outcome', '/ˈaʊtkʌm/ · noun', 'sonuç', 'Nobody could predict the outcome of the vote.']
+  ];
+  var ARALIK = [10 * 60e3, 864e5, 3 * 864e5, 7 * 864e5, 14 * 864e5];
+  var durum = ACX.ls.al('deste', {}), simdi = Date.now(), sira = [], cur = null, oturum = 0;
+  KELIME.forEach(function (k) { if (!durum[k[0]]) durum[k[0]] = { kutu: 0, vade: 0 }; });
+  function tazele() { simdi = Date.now(); sira = KELIME.filter(function (k) { return durum[k[0]].vade <= simdi; }); }
+  var kart = D.getElementById('dkk'), sahnek = D.getElementById('dk'), dug = D.getElementById('dk3');
+  function goster() {
+    tazele();
+    D.getElementById('dk-k').textContent = sira.length;
+    D.getElementById('dk-o').textContent = KELIME.filter(function (k) { return durum[k[0]].kutu >= 2; }).length + ' / ' + KELIME.length;
+    var gelecek = KELIME.map(function (k) { return durum[k[0]].vade; }).filter(function (v) { return v > simdi; }).sort()[0];
+    D.getElementById('dk-s').textContent = sira.length ? 'şimdi' : gelecek ? zaman(gelecek - simdi) : '—';
+    kart.classList.remove('don'); dug.style.visibility = 'hidden';
+    if (!sira.length) {
+      cur = null;
+      kart.querySelector('.yuz').innerHTML = '<b style="font-size:30px">Bugünlük bitti.</b><small>sıradaki kart ' + D.getElementById('dk-s').textContent + ' sonra</small>';
+      if (oturum) { ACX.bitir(P, 'deste'); ACX.sevin(); ACX.soyle('Deste temiz. Yarın sadece vakti gelenler.', 4200); }
+      return;
+    }
+    cur = sira[0];
+    kart.querySelector('.yuz').innerHTML = '<b>' + cur[0] + '</b><small>' + cur[1] + '</small><small style="margin-top:14px">dokun, çevir</small>';
+    var c = cur; setTimeout(function () { if (cur === c) kart.querySelector('.arka').innerHTML = '<span class="tr">' + c[2] + '</span><span class="ornek">' + c[3] + '</span>'; }, 300);   /* arka yüz, kart geri dönerken değişmesin */
+  }
+  function zaman(ms) { var dk = Math.round(ms / 60e3); return dk < 60 ? dk + ' dk' : dk < 1440 ? Math.round(dk / 60) + ' sa' : Math.round(dk / 1440) + ' gün'; }
+  function cevir() { if (!cur) return; kart.classList.toggle('don'); if (kart.classList.contains('don')) dug.style.visibility = 'visible'; }
+  sahnek.addEventListener('click', cevir);
+  sahnek.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cevir(); } });
+  dug.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !cur) return; var n = +b.dataset.n, d = durum[cur[0]];
+    if (n === 0) { d.kutu = 0; d.vade = Date.now() + ARALIK[0]; ACX.uz(); }
+    else if (n === 1) { d.kutu = Math.max(1, d.kutu); d.vade = Date.now() + ARALIK[1]; }
+    else { d.kutu = Math.min(4, d.kutu + 1); d.vade = Date.now() + ARALIK[Math.max(1, d.kutu)]; ACX.sevin(); }
+    oturum++; ACX.ls.yaz('deste', durum); goster();
+  });
+  D.getElementById('dk-dinle').onclick = function () { if (cur) ACX.ses(kart.classList.contains('don') ? cur[3] : cur[0], .9); };
+  goster();
+
+  ACX.test(D.getElementById('t-kalip'), [
+    { soru: 'I need to ____ a decision about my internship by Friday.', sec: ['do', 'make', 'take', 'have'], d: 1, yan: 1, neden: '<b>make a decision</b>. (İngiliz İngilizcesinde “take a decision” da duyulur ama sınavda make güvenli.)' },
+    { soru: 'Our group has to ____ research on renewable energy.', sec: ['make', 'do', 'take', 'give'], d: 1, yan: 1, neden: '<b>do research</b>: iş, görev, ödev → do.' },
+    { soru: 'Could you ____ a photo of the whiteboard?', sec: ['take', 'make', 'do', 'get'], d: 0, yan: 1, neden: '<b>take a photo</b>.' },
+    { soru: 'Smoking can ____ a serious effect on your health.', sec: ['make', 'do', 'have', 'take'], d: 2, yan: 1, neden: '<b>have an effect on</b>. Writing panelindeki hatayı hatırla.' },
+    { soru: 'Try not to ____ the same mistake in the final exam.', sec: ['do', 'make', 'have', 'take'], d: 1, yan: 1, neden: '<b>make a mistake</b>.' }
+  ], { panel: P, id: 'kalip', tebrik: 'Kalıplar yerinde.' });
+
+  ACX.test(D.getElementById('t-aile'), [
+    { soru: 'The country’s ____ grew by 3% last year.', sec: ['economy', 'economic', 'economical', 'economically'], d: 0, yan: 1, neden: 'Fiilin öznesi bir isim: <b>economy</b>.' },
+    { soru: 'This car is very ____; it uses little fuel.', sec: ['economy', 'economic', 'economical', 'economically'], d: 2, yan: 1, neden: '<b>economical</b> = tutumlu, az harcayan. “Economic” ekonomiyle ilgili demek.' },
+    { soru: 'The decision was ____ wise but politically risky.', sec: ['economy', 'economic', 'economical', 'economically'], d: 3, yan: 1, neden: 'Sıfatı (wise) niteliyor → zarf: <b>economically</b>.' },
+    { soru: 'Her ____ to the project was impressive.', sec: ['contribute', 'contribution', 'contributor', 'contributive'], d: 1, yan: 1, neden: '“Her … to” → isim, ve bir eylem anlatıyor: <b>contribution</b>.' },
+    { soru: 'The results are not ____ with the earlier study.', sec: ['consist', 'consistent', 'consistently', 'consistency'], d: 1, yan: 1, neden: '“are not … with” → sıfat: <b>consistent</b> (tutarlı).' }
+  ], { panel: P, id: 'aile', tebrik: 'Kökten dallara.' });
+
+  ACX.test(D.getElementById('t-es'), [
+    { soru: 'The study <b>shows</b> that sleep improves memory.', sec: ['demonstrates', 'watches', 'appears', 'looks'], d: 0, yan: 1, neden: '<b>demonstrates</b> (ortaya koyar). Show’un akademik karşılığı.' },
+    { soru: 'Prices went up <b>a lot</b> in 2024.', sec: ['substantially', 'very', 'many', 'highly'], d: 0, yan: 1, neden: '<b>substantially / considerably</b>. “A lot” essay’de zayıf durur.' },
+    { soru: 'We need to <b>find out</b> why the project failed.', sec: ['discover', 'determine', 'see', 'locate'], d: 1, yan: 1, neden: '<b>determine</b>: araştırarak saptamak. Discover tesadüfen bulmaya daha yakın.' },
+    { soru: 'The government should <b>deal with</b> unemployment.', sec: ['address', 'manage to', 'handle with', 'cope'], d: 0, yan: 1, neden: '<b>address</b> a problem: akademik metinlerin favorisi.' },
+    { soru: 'The number of visitors <b>went down</b> after 2020.', sec: ['declined', 'fell down', 'reduced', 'lowered'], d: 0, yan: 1, neden: '<b>declined</b>: nesnesiz kullanılır. Reduce ve lower bir şeyi azaltmak için nesne ister.' }
+  ], { panel: P, id: 'es', tebrik: "Essay'in kelime puanı yükseldi." });
+})();
+</script>
+</body>
+</html>
