@@ -20,6 +20,18 @@ function getMsg(key, defaultVal) {
 // beta: izinsiz hesap oturumdan çıkarılıp girişe döner. Hata olursa
 // öğrenci kilitlenmesin diye yine çalışma masası.
 // ==========================================
+// ACADEX ENGLISH (05.11.2026): ingilizce/ kilit kartındaki giriş bağlantısı
+// login.html?sonra=ingilizce ile gelir; girişten sonra (Google dönüşü dahil,
+// o dönüş login.html'e parametresiz düşer) panel yerine oraya dönülür.
+// Yalnız listedeki hedefler kabul edilir (açık yönlendirme yok).
+const SONRA_HEDEF = { ingilizce: 'ingilizce/' };
+(function () {
+  try { const s = new URLSearchParams(window.location.search).get('sonra'); if (s && SONRA_HEDEF[s]) sessionStorage.setItem('acadex.sonra', s); } catch (e) { /* gizli pencere */ }
+})();
+function sonraHedef() {
+  try { const s = sessionStorage.getItem('acadex.sonra'); sessionStorage.removeItem('acadex.sonra'); return SONRA_HEDEF[s] || null; } catch (e) { return null; }
+}
+
 async function getPostLoginDestination(userId) {
   try {
     // Kapalı beta (js/acadex-erisim.js): izinsiz hesap oturumdan çıkarılır.
@@ -27,7 +39,7 @@ async function getPostLoginDestination(userId) {
       const acc = await window.acadexAccess.check(userId);
       if (!acc.ok) { await supabaseClient.auth.signOut(); return 'login.html?erisim=yok'; }
     }
-    return 'dashboard.html';
+    return sonraHedef() || 'dashboard.html';
   } catch (e) {
     console.error('getPostLoginDestination error:', e);
     return 'dashboard.html';

@@ -15,14 +15,17 @@
   /* supabase-config.js CDN olmadan hata verirse supabaseClient tanımsız kalır (TDZ); typeof bile fırlatır */
   function istemci() { try { return supabaseClient; } catch (e) { return null; } }
   function kilit(baslik, metin, giris) {
-    H.classList.add('kapi');
+    iz(false); H.classList.add('kapi');
     if (!kilitEl) { kilitEl = D.createElement('div'); kilitEl.id = 'kilit'; kilitEl.setAttribute('role', 'dialog'); kilitEl.setAttribute('aria-modal', 'true'); kilitEl.setAttribute('aria-labelledby', 'kilit-b'); D.body.appendChild(kilitEl); }
     kilitEl.innerHTML = '<div class="kagit"><span class="bant"></span>' + YILDIZ + '<h1 id="kilit-b"></h1><p></p><div class="dugmeler">' +
-      (giris ? '<a class="btn ana" href="../login.html">Acadex hesabınla giriş yap</a>' : '') + '<a class="btn" href="../index.html">Ana sayfaya dön</a></div></div>';
+      (giris ? '<a class="btn ana" href="../login.html?sonra=ingilizce">Acadex hesabınla giriş yap</a>' : '') + '<a class="btn" href="../index.html">Ana sayfaya dön</a></div></div>';
     kilitEl.querySelector('h1').textContent = baslik; kilitEl.querySelector('p').textContent = metin;
     var a = kilitEl.querySelector('a'); if (a) a.focus({ preventScroll: true });
   }
-  function ac() { if (kilitEl) { kilitEl.remove(); kilitEl = null; } H.classList.remove('kapi'); }
+  /* doğrulanınca 30 dk'lık iz: sonraki sayfa ilk boyamada açık gelir (sayfa çevirme geçişi boş kâğıt göstermesin);
+     kapı yine arkada denetler, oturum yoksa kilitler */
+  function iz(var_) { try { if (var_) sessionStorage.setItem('acx.kapi', String(Date.now())); else sessionStorage.removeItem('acx.kapi'); } catch (e) {} }
+  function ac() { if (kilitEl) { kilitEl.remove(); kilitEl = null; } iz(true); var once = H.classList.contains('kapi'); H.classList.remove('kapi'); if (once) D.dispatchEvent(new Event('acx:acik')); }
   var KAPALI = ['Bu bölüm hesabı olanlara açık', 'Acadex English şu an yalnızca açık bir Acadex hesabıyla görülebiliyor. Yeni kayıt alınmıyor; hesabın varsa giriş yapıp buraya dönebilirsin.'];
 
   async function denetle() {
@@ -31,6 +34,7 @@
     try {
       var r = await sb.auth.getSession(), u = r && r.data && r.data.session && r.data.session.user;
       if (!u) { kilit(KAPALI[0], KAPALI[1], true); return; }
+      var md = u.user_metadata || {}; window.ACX_AD = String(md.full_name || md.name || '').trim().split(/\s+/)[0] || ''; try { sessionStorage.setItem('acx.ad', window.ACX_AD); } catch (x) {}   /* kapakta “Defterin hazır, Ayşe.” */
       if (window.acadexAccess) {
         var e = await window.acadexAccess.check(u.id);
         if (!e.ok) { kilit('Hesabın henüz açılmadı', 'Acadex şu an geliştirme aşamasında ve yalnızca izin verilen hesaplar girebiliyor.', false); return; }

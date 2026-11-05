@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<script>/* kapı: son 30 dk içinde doğrulandıysa açık başla (assets/kapi.js yine denetler) */try{if(Date.now()-(+sessionStorage.getItem('acx.kapi')||0)<18e5)document.documentElement.classList.remove('kapi')}catch(e){}</script>
 <title>Acadex English</title>
 <meta name="description" content="Kahvaltıda kelime, otobüste dinleme, kütüphanede okuma, kafede konuşma, akşam bir paragraf. Üniversite öğrencisinin gününe dağılmış İngilizce.">
 <link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
@@ -61,7 +62,7 @@ body{--c:var(--mavi)}
 .mektup .el{font-size:26px;color:var(--mavi)}
 </style>
 </head>
-<body data-panel="" data-ipucu="Hepsini aynı gün yapmak zorunda değilsin; bir durak bile seri sayılır.|Günün rotası sabah kelimeyle başlar, akşam bir paragrafla biter.|Kaldığın yeri defter hatırlıyor; sayfayı kapatman sorun değil.">
+<body data-panel="" data-sayfa="hub" data-ipucu="Hepsini aynı gün yapmak zorunda değilsin; bir durak bile seri sayılır.|Günün rotası sabah kelimeyle başlar, akşam bir paragrafla biter.|Kaldığın yeri defter hatırlıyor; sayfayı kapatman sorun değil.">
 <header class="ust"><div class="wrap">
   <a class="marka" href="index.html" aria-current="page"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
   <nav class="sekme" aria-label="Beceriler">
@@ -83,6 +84,7 @@ body{--c:var(--mavi)}
       <a class="btn ana" href="vocab.html">Sabahtan başla</a>
       <a class="btn" href="#rota">Günü gör</a>
     </div>
+    <div class="postit simdi" id="simdi" data-gir="bant" style="--d:.4s" aria-live="polite"></div>
   </div>
   <div class="kapak" data-gir="dus" style="--r:2deg;--d:.1s">
     <div class="cilt">
@@ -119,6 +121,11 @@ body{--c:var(--mavi)}
     </div>
   </div>
 </section>
+
+<section class="bolum" id="hafta" data-yirtik><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">bu hafta</span><h2 class="disp">Seri kâğıtta görünür.</h2><p>Bir alıştırma bitirdiğin her gün takvime o panelin rengiyle mürekkep damlar. <span class="mono" data-seri style="color:var(--c)"></span></p></div>
+  <div class="kagit takvim" data-gir="yukari"></div>
+</div></section>
 
 <section class="bolum"><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">defterin</span><h2 class="disp">Nerede kaldın?</h2><p>Her panelde dört alıştırma var. Bitirdiğin alıştırmalar bu tarayıcıda kayıtlı kalır.</p></div>
