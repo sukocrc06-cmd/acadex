@@ -141,6 +141,11 @@ body{--c:var(--speaking)}
   </div>
 </div></section>
 
+<section class="bolum" id="hoca" data-acadia="Hocanın yanındayım. Takılırsan bana bas, çaktırmadan söylerim."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">Defne Hoca'yla</span><h2 class="disp">Hocayla beş dakikalık sohbet.</h2><p>Hoca sorar, sen mikrofonla ya da yazarak cevaplarsın. Her cevaptan sonra kısa bir not, sonunda akıcılık, kelime ve dilbilgisi karnesi.</p></div>
+  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
+</div></section>
+
 <section class="bolum" id="calis" data-acadia="Mikrofon izni istenirse kayıt yalnız bu sayfada, senin cihazında kalır."><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">kafelik</span><h2 class="disp">Çay soğumadan dört tur.</h2><p>Kulaklıkla çalışmak daha rahat. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
   <div class="calis">
@@ -178,6 +183,19 @@ body{--c:var(--speaking)}
 <script src="../js/acadex-erisim.js"></script>
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
+<script src="assets/hoca.js"></script>
+<script>
+(function () {
+  'use strict';
+  HOCA.sohbet(document.getElementById('hoca-oturum'), {
+    panel: 'speaking', baslik: 'sohbet · 5 tur', tur: 5,
+    giris_en: "Hi, I'm Defne. Let's have a short chat. Five questions, no stress.", giris_tr: 'Mikrofona basıp konuş ya da yaz. Her cevaptan sonra kısa bir not düşerim; beşinci sorudan sonra karnen çıkar.',
+    ilk_tr: 'Ne okuyorsun, neden seçtin?',
+    sorular: ["Let's start easy. What are you studying, and why did you choose it?", 'Do you prefer studying alone or with friends? Why?', 'Tell me about a place on campus you really like.', 'How do you usually relax after a long day?', 'Some people say university should be free for everyone. What do you think?'],
+    ipucu: ['Başlangıç: “I’m studying … because …”', '“I prefer … because … For example, …”', '“My favourite place is … I usually go there to …”', '“After a long day, I usually … It helps me …”', '“I think … because … On the other hand, …”']
+  });
+})();
+</script>
 <script>
 (function () {
   'use strict';

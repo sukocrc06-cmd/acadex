@@ -157,6 +157,11 @@ body{--c:#B07F00}
   </div>
 </div></section>
 
+<section class="bolum" id="hoca" data-acadia="Hocanın yanındayım. Takılırsan bana bas, çaktırmadan söylerim."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">Defne Hoca'yla</span><h2 class="disp">Kelimeyi bilmek yetmez, kullanınca seninle kalır.</h2><p>Hoca destedeki kelimelerden birini verir, sen onunla bir cümle kurarsın. Acadia kalıbı fısıldar.</p></div>
+  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
+</div></section>
+
 <section class="bolum" id="calis" data-acadia="Önce deste, sonra kalıplar. Dürüst cevap ver, deste ona göre ayarlanır."><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">kahvaltılık</span><h2 class="disp">Bugünün kartları.</h2><p>Desten bu tarayıcıda kalır; yarın açınca sadece vakti gelen kartlar gelir. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
   <div class="calis">
@@ -196,6 +201,24 @@ body{--c:#B07F00}
 <script src="../js/acadex-erisim.js"></script>
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
+<script src="assets/hoca.js"></script>
+<script>
+(function () {
+  'use strict';
+  var K = [
+    ['thrive', 'gelişmek, serpilmek', 'Small businesses thrive near universities.', ['Kalıp: “thrive in + yer” ya da “thrive on + şey”.', 'Kim ya da ne gelişiyor? Bir öğrenci, bir şirket, bir bitki…', 'İskelet: “Students thrive when they …”']],
+    ['reluctant', 'isteksiz, gönülsüz', 'She was reluctant to change her major.', ['Kalıp: “be reluctant to + fiil”.', 'Neyi yapmak istemiyorsun? Erken kalkmak, sunum yapmak…', 'İskelet: “I was reluctant to … because …”']],
+    ['significant', 'önemli, kayda değer', 'There was a significant rise in rent this year.', ['Kalıp: “a significant increase / difference / role”.', 'Bir değişikliği anlat: fiyat, not, sayı…', 'İskelet: “There was a significant … in …”']],
+    ['evidence', 'kanıt', 'There is little evidence that the diet works.', ['Kalıp: “evidence that … / evidence of …” (sayılamaz).', '“an evidence” deme; “some evidence” ya da “evidence”.', 'İskelet: “There is strong evidence that …”']],
+    ['approach', 'yaklaşım', 'We need a new approach to studying for finals.', ['Kalıp: “an approach to + isim / -ing”.', 'Bir problemi nasıl çözüyorsun?', 'İskelet: “My approach to … is to …”']]
+  ];
+  HOCA.soruTuru(document.getElementById('hoca-oturum'), {
+    panel: 'vocab', baslik: 'kelimeyle cümle · 5 kelime',
+    giris_en: "Hi, I'm Defne. Let's use your new words. I give you a word, you make a sentence.", giris_tr: 'Kendi hayatından bir cümle kur; örneğimi kopyalama, hemen anlarım.',
+    sorular: K.map(function (k) { return { tip: 'kelime', kelime: k[0], anlam: k[1], ornek: k[2], ipucu: k[3], soru_en: 'Make a sentence with “' + k[0] + '”.', soru_tr: k[1] }; })
+  });
+})();
+</script>
 <script>
 (function () {
   'use strict';

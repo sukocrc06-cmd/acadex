@@ -145,6 +145,11 @@ body{--c:var(--listening)}
   </div>
 </div></section>
 
+<section class="bolum" id="hoca" data-acadia="Hocanın yanındayım. Takılırsan bana bas, çaktırmadan söylerim."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">Defne Hoca'yla</span><h2 class="disp">Hoca okuyor, sen yazıyorsun.</h2><p>Dört cümle, hocanın sesiyle. Kaçırdığın kelimeleri tahtaya yazar; Acadia kelime sayısını ve baş harfleri fısıldar.</p></div>
+  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
+</div></section>
+
 <section class="bolum" id="calis" data-acadia="Sesi aç. Her soruda ▶ ile dinle, gerekirse yavaşlat."><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">otobüslük</span><h2 class="disp">Dört kısa dinleme.</h2><p>Sesler tarayıcının İngilizce sesiyle okunur, kulaklıkla daha iyi. Bitirdiklerin işaretli kalır. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
   <div class="calis">
@@ -178,6 +183,21 @@ body{--c:var(--listening)}
 <script src="../js/acadex-erisim.js"></script>
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
+<script src="assets/hoca.js"></script>
+<script>
+(function () {
+  'use strict';
+  var CUMLE = ['The seminar has been moved to Thursday afternoon.', 'Could you send me the slides before the lecture?', 'Most of the students live within walking distance of campus.', 'If you miss the deadline, you will lose ten percent of the grade.'];
+  HOCA.soruTuru(document.getElementById('hoca-oturum'), {
+    panel: 'listening', baslik: 'dikte · 4 cümle',
+    giris_en: "Hi, I'm Defne. I'll read four sentences. Write exactly what you hear.", giris_tr: 'Her cümleyi istediğin kadar tekrar okuturum, yavaş da okuyabilirim. Noktalama önemli değil.',
+    sorular: CUMLE.map(function (c) {
+      var k = c.replace(/[.,?]/g, '').split(' ');
+      return { tip: 'dikte', dikte: c, ipucu: [k.length + ' kelime var; ilk kelime “' + k[0] + '”.', 'Baş harfler: ' + k.map(function (w) { return w[0] + '_'.repeat(Math.min(4, w.length - 1)); }).join(' '), 'Orta kısım: “' + k.slice(Math.floor(k.length / 3), Math.floor(k.length / 3) + 3).join(' ') + '”'] };
+    })
+  });
+})();
+</script>
 <script>
 (function () {
   'use strict';

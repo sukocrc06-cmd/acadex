@@ -196,6 +196,8 @@
       else if (tur === 'yanlis') { ton(240, 150, 0, .2, 'triangle', .4); }
       else if (tur === 'bitti') { hisirti(0, .09, 700, .9); ton(523, 0, .06, .5, 'sine', .25); ton(659, 0, .12, .5, 'sine', .22); ton(784, 0, .18, .6, 'sine', .22); }
       else if (tur === 'sayfa') { hisirti(0, .28, 1800, .35); }
+      else if (tur === 'kismen') { ton(660, 0, 0, .14, 'sine', .3); ton(587, 0, .1, .2, 'sine', .25); }
+      else if (tur === 'tebesir') { hisirti(0, .07, 4200, .25); hisirti(.09, .05, 3800, .2); }
     } catch (e) { /* ses yok */ }
   }
   function titre(desen) { try { if (sesAcik && navigator.vibrate && W.matchMedia('(pointer:coarse)').matches) navigator.vibrate(desen); } catch (e) {} }
@@ -326,7 +328,7 @@
   /* kapı açıldığında (assets/kapi.js 'acx:acik') hub'ın kapağı oynar */
   function kapiSonra(fn) { if (!H.classList.contains('kapi')) fn(); else D.addEventListener('acx:acik', fn, { once: true }); }
 
-  W.ACX = { esc: esc, ls: ls, sakin: sakin, girisler: girisler, soyle: soyle, sevin: function () { tepki('sevin'); }, uz: function () { tepki('uz'); }, test: test, bitir: bitir, bitenler: bitenler, sayac: sayac, ses: ses, sesVar: sesVar, acadiaSvg: acadiaSvg, sesCal: sesCal, gunluk: gunluk };
+  W.ACX = { esc: esc, ls: ls, sakin: sakin, girisler: girisler, soyle: soyle, sevin: function () { tepki('sevin'); }, uz: function () { tepki('uz'); }, test: test, bitir: bitir, bitenler: bitenler, sayac: sayac, ses: ses, sesVar: sesVar, acadiaSvg: acadiaSvg, sesCal: sesCal, gunluk: gunluk, sesAcik: function () { return sesAcik; }, odul: odul, gunlukEkle: function (panel) { var g = ls.al('gunluk', {}), k = gunAnahtar(new Date()); g[k] = g[k] || {}; g[k][panel] = 1; ls.yaz('gunluk', g); } };
   function sevin() { tepki('sevin'); } function uz() { tepki('uz'); }
 
   function basla() { sesDugmesi(); acadiaCiz(); karalamalar(); girisler(); sahneKur(); acadiaKur(); sayac(); parallax(); simdi(); hafta(); kapiSonra(kapak); }

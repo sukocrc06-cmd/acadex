@@ -130,4 +130,60 @@ test('ing.js gunluk(): gunluk kaydı ve bitti damgaları birleşir', () => {
   assert.deepEqual(g, { '2026-11-03': { vocab: 1 }, '2026-11-05': { writing: 1 } });
 });
 
+/* Defne Hoca (05.11.2026): Acadex'in kendi karakteri; yerel ölçüt + isteğe bağlı yapay zekâ */
+function hocaYukle() {
+  const ctx = { window: null, document: { body: { dataset: {} } }, console, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout };
+  ctx.window = ctx; vm.createContext(ctx); vm.runInContext(read('ingilizce/assets/hoca.js'), ctx); return ctx.HOCA;
+}
+for (const s of ['reading', 'listening', 'vocab', 'speaking', 'writing']) {
+  test(`${s}: hoca bölümü alıştırmalardan önce, hoca.js ing.js'ten sonra`, () => {
+    const h = read(`ingilizce/${s}.html`);
+    const i = h.indexOf('<section class="bolum" id="hoca"'), c = h.indexOf('<section class="bolum" id="calis"');
+    assert.ok(i > 0 && i < c);
+    assert.ok(h.indexOf('<script src="assets/hoca.js">') > h.indexOf('<script src="assets/ing.js">'));
+    assert.match(h, /<div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"><\/div><\/div>/);
+  });
+}
+test('HOCA.degerlendir: doğru / kısmen / yanlış, ters cevap ve "less, not more"', () => {
+  const H = hocaYukle();
+  const k1 = { g: [{ ad: 'duygu', t: ['feeling', 'anxiety', 'unpleasant'] }, { ad: 'kaçmak', t: ['avoid', 'escape'] }] };
+  assert.equal(H.degerlendir('To avoid unpleasant feelings.', k1).sonuc, 'dogru');
+  const r = H.degerlendir('Because they feel anxiety.', k1); assert.equal(r.sonuc, 'kismen'); assert.deepEqual([...r.eksik], ['kaçmak']);
+  assert.equal(H.degerlendir('They are lazy.', k1).sonuc, 'yanlis');
+  const k5 = { yanlis: ['more'], g: [{ ad: 'az', t: ['less', 'fewer'] }] };
+  assert.equal(H.degerlendir('More.', k5).sonuc, 'yanlis'); assert.ok(H.degerlendir('More.', k5).ters);
+  assert.equal(H.degerlendir('Less, not more.', k5).sonuc, 'dogru');
+  assert.equal(H.degerlendir('One small step', { herhangi: true, g: [{ ad: 'a', t: ['small'] }, { ad: 'b', t: ['kind'] }] }).sonuc, 'dogru');
+  /* isteğe bağlı grup (z:false) eksikse yine doğru */
+  assert.equal(H.degerlendir('It is emotional.', { g: [{ ad: 'duygu', t: ['emotion'] }, { ad: 'telefon', t: ['phone'], z: false }] }).sonuc, 'dogru');
+});
+test('HOCA.gramer, dikte, kelime ve cümle denetimi', () => {
+  const H = hocaYukle();
+  const g = (s) => [...H.gramer(s)].map((x) => x.oneri);
+  assert.deepEqual(g('People is busy and I am agree.'), ['people are', 'I agree']);
+  assert.deepEqual(g('She likes tea. Does she go there?'), [], 'soru ve doğru çekim yakalanmaz');
+  assert.ok(g('She go to school.').includes('fiil + s'));
+  const d = H.dikteDegerlendir('the seminar has moved to thursday', 'The seminar has been moved to Thursday afternoon.');
+  assert.equal(d.sonuc, 'kismen'); assert.deepEqual([...d.kacan], ['been', 'afternoon']);
+  const s = { kelime: 'thrive', ornek: 'Small businesses thrive near universities.' };
+  assert.equal(H.kelimeDegerlendir('I thrive.', s).sonuc, 'kismen');
+  assert.equal(H.kelimeDegerlendir('Students thrive when they sleep well before exams.', s).sonuc, 'dogru');
+  assert.equal(H.kelimeDegerlendir('Small businesses thrive near universities.', s).sonuc, 'kismen', 'örneği kopyalamak');
+  assert.equal(H.kelimeDegerlendir('I like my new university a lot.', s).sonuc, 'yanlis');
+  assert.equal(H.cumleDenetle('Because students are adults.', null).sonuc, 'kismen', '“Because …” tek başına cümle değil');
+  assert.equal(H.cumleDenetle('I believe attendance should not be compulsory.', { r: /should/ }).sonuc, 'dogru');
+});
+test('ingilizce-hoca fonksiyonu: JWT zorunlu, yalnız beş mod, veri tabanına yazmaz, karar doğrulanır', () => {
+  const f = read('supabase/functions/ingilizce-hoca/index.ts');
+  assert.match(f, /const \{ data: \{ user \}, error \} = await sb\.auth\.getUser\(\)/);
+  for (const m of ['degerlendir', 'kelime', 'sohbet', 'yazi', 'nasil']) assert.match(f, new RegExp('\\n  ' + m + ': \\(b\\) =>'));
+  assert.doesNotMatch(f, /\.from\(|\.insert\(|\.update\(|\.rpc\(/);
+  assert.match(f, /if \(b\.mod !== 'nasil' && !\/\^\(dogru\|kismen\|yanlis\)\$\/\.test\(out\.sonuc\)\)/);
+  const j = read('ingilizce/assets/hoca.js');
+  assert.match(j, /if \(r\.status === 404\) \{ yzKapali = true; return null; \}/, 'fonksiyon yayında değilse yerel ölçüt');
+  assert.match(j, /setTimeout\(function \(\) \{ ac\.abort\(\); \}, 9000\)/);
+  /* ürün kuralı: gerçek öğretmen sistemi yok */
+  for (const src of [f, j]) assert.doesNotMatch(src, /öğretmene ilet|is_teacher|assignment|my_classes/i);
+});
+
 summary();

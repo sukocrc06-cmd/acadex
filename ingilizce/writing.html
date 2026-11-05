@@ -161,6 +161,11 @@ body{--c:var(--writing)}
   </div>
 </div></section>
 
+<section class="bolum" id="hoca" data-acadia="Hocanın yanındayım. Takılırsan bana bas, çaktırmadan söylerim."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">Defne Hoca'yla</span><h2 class="disp">Bir paragrafı birlikte yazalım.</h2><p>Cümle cümle ilerliyoruz: konu cümlesi, gerekçe, örnek, ikinci gerekçe, sonuç. Hoca her cümleye kenar notu düşer, sonunda bir cümleyi birlikte yeniden yazarsınız.</p></div>
+  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
+</div></section>
+
 <section class="bolum" id="calis" data-acadia="Dört alıştırma var. Bitirdiklerini deftere işliyorum."><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">bu akşamlık</span><h2 class="disp">On beş dakikalık masa başı.</h2><p>Sırası önemli değil. Bitirdiğin alıştırmanın yanına tik düşer, sayfayı kapatsan da kalır. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
   <div class="calis">
@@ -205,6 +210,17 @@ body{--c:var(--writing)}
 <script src="../js/acadex-erisim.js"></script>
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
+<script src="assets/hoca.js"></script>
+<script>
+(function () {
+  'use strict';
+  HOCA.yazi(document.getElementById('hoca-oturum'), {
+    panel: 'writing', baslik: 'birlikte yazma · 5 cümle',
+    konular: ['Should attendance be compulsory at university?', 'Is it better to live in a dorm or at home while studying?', 'Should universities record every lecture?'],
+    giris_en: "Hi, I'm Defne. Let's write one paragraph together, sentence by sentence.", giris_tr: 'Beş cümle yazacağız. Her cümleden sonra kenara not düşerim; sonunda en çok notu olan cümleyi birlikte yeniden yazarız. Takılırsan Acadia Türkçeden İngilizceye yardım eder.'
+  });
+})();
+</script>
 <script>
 (function () {
   'use strict';

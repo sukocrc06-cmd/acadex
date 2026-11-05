@@ -141,6 +141,15 @@ body{--c:var(--reading)}
   </div>
 </div></section>
 
+<section class="bolum" id="hoca" data-acadia="Hocanın yanındayım. Takılırsan bana bas, çaktırmadan söylerim."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">Defne Hoca'yla</span><h2 class="disp">Hoca soruyor, Acadia fısıldıyor.</h2><p>Metni oku, hocanın sorularını kendi cümlenle cevapla. Takılırsan Acadia'dan fısıltı al; ama her fısıltı yarım yıldız götürür.</p></div>
+  <div class="kagit metin-kart" data-gir="yukari" lang="en" style="padding:22px 24px;margin-bottom:22px;background:#FFFDF8"><span class="etiket" lang="tr">metin · 3 paragraf · B2</span><h3 style="font:700 24px Georgia,serif;margin:6px 0 10px">Why We Put Things Off</h3>
+<p style="font:400 16.5px/1.65 Georgia,serif">Most students think procrastination is a time-management problem. Psychologists disagree. According to recent research, people delay tasks mainly <span data-f="f1">to avoid unpleasant feelings</span>, such as boredom, anxiety or the fear of doing badly. In other words, procrastination is an emotional problem rather than a planning one.</p>
+<p style="font:400 16.5px/1.65 Georgia,serif">This explains why a detailed schedule rarely helps on its own. When we open a difficult assignment, <span data-f="f2">our mood drops</span>, and checking our phone gives us a quick escape. The relief lasts only a few minutes, but <span data-f="f3">the brain remembers it, so the habit grows stronger</span> each time.</p>
+<p style="font:400 16.5px/1.65 Georgia,serif">Researchers suggest two simple strategies. First, <span data-f="f4">make the first step very small</span>, for example writing only the title of an essay. Second, be kind to yourself after a delay: students who forgave themselves for procrastinating before one exam <span data-f="f5">procrastinated less</span> before the next one.</p></div>
+  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
+</div></section>
+
 <section class="bolum" id="calis" data-acadia="Dört metin. Önce göz gezdir, sonra soruya geç."><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">kütüphanelik</span><h2 class="disp">Bir kahve soğumadan.</h2><p>Kısa metinler, gerçek soru tipleri. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
   <div class="calis">
@@ -175,6 +184,39 @@ body{--c:var(--reading)}
 <script src="../js/acadex-erisim.js"></script>
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
+<script src="assets/hoca.js"></script>
+<script>
+(function () {
+  'use strict';
+  var mk = document.querySelector('.metin-kart');
+  HOCA.soruTuru(document.getElementById('hoca-oturum'), {
+    panel: 'reading', baslik: 'okuma · 5 soru', metin: mk, metinYazi: mk.innerText,
+    giris_en: "Hi, I'm Defne. Read the text once, then I'll ask you five questions.", giris_tr: 'Önce metni bir kez oku. Sonra beş soru soracağım; kendi cümlenle cevapla, kelimesi kelimesine aynısı gerekmez.',
+    sorular: [
+      { soru_en: 'According to the text, why do people procrastinate?', soru_tr: 'Metne göre insanlar işleri neden erteliyor?', paragraf: 0, fosfor: 'f1',
+        kural: { g: [{ ad: 'olumsuz duygular', t: ['feeling', 'emotion', 'mood', 'anxiety', 'anxious', 'bored', 'fear', 'unpleasant', 'stress', 'negative'] }, { ad: 'onlardan kaçmak', t: ['avoid', 'escape', 'run away', 'get away', 'not to feel', 'not feel'] }] },
+        ornek: 'To avoid unpleasant feelings such as boredom or anxiety.', dogru_tr: 'Erteleme, hoş olmayan bir duygudan kaçmanın yolu.',
+        ipucu: ['1. paragrafa bak; “mainly” kelimesinden sonrası önemli.', 'Fosforlu kısım: “to avoid …”', 'Cevap “To avoid unpleasant feelings…” diye başlıyor.'] },
+      { soru_en: "Why doesn't a detailed schedule solve the problem?", soru_tr: 'Ayrıntılı bir program sorunu neden tek başına çözmüyor?', paragraf: 1, fosfor: 'f2',
+        kural: { g: [{ ad: 'sorunun duygusal olması', t: ['emotion', 'emotional', 'feeling', 'mood', 'not a planning', 'not about time', 'not time'] }, { ad: 'telefona kaçış', t: ['phone', 'escape', 'relief', 'distract'], z: false }] },
+        ornek: 'Because the real problem is emotional, not planning: our mood drops and we escape to our phones.', dogru_tr: 'Program planı çözer, ama sorun planlama değil duygu.',
+        ipucu: ['1. paragrafın son cümlesiyle 2. paragrafın başını birlikte oku.', '“an emotional problem rather than a planning one”', '“Because the problem is emotional…”'] },
+      { soru_en: 'What happens in the brain after we check our phone?', soru_tr: 'Telefona baktıktan sonra beyinde ne oluyor?', paragraf: 1, fosfor: 'f3',
+        kural: { g: [{ ad: 'beynin rahatlamayı hatırlaması', t: ['remember', 'memor', 'learn', 'record', 'store'] }, { ad: 'alışkanlığın güçlenmesi', t: ['habit', 'stronger', 'strong', 'repeat', 'again', 'addict'] }] },
+        ornek: 'It remembers the relief, so the habit gets stronger.', dogru_tr: 'Kısa rahatlama hatırlanıyor, alışkanlık güçleniyor.',
+        ipucu: ['2. paragrafın son cümlesi.', '“the brain remembers it, so …”', '“It remembers the relief, so the habit…”'] },
+      { soru_en: 'Name one strategy the researchers suggest.', soru_tr: 'Araştırmacıların önerdiği yöntemlerden birini söyle.', paragraf: 2, fosfor: 'f4',
+        kural: { herhangi: true, g: [{ ad: 'ilk adımı küçültmek', t: ['small', 'tiny', 'first step', 'title', 'start', 'begin'] }, { ad: 'kendine nazik olmak', t: ['kind', 'forgive', 'forgave', 'not blame', 'gentle'] }] },
+        ornek: 'Make the first step very small, like writing only the title.', dogru_tr: 'İki yöntemden birini buldun.',
+        ipucu: ['3. paragraf “First, …” ile başlıyor.', '“make the first step very small”', '“Make the first step…”'] },
+      { soru_en: 'Did students who forgave themselves procrastinate more or less before the next exam?', soru_tr: 'Kendini affeden öğrenciler bir sonraki sınavdan önce daha mı çok, daha mı az erteledi?', paragraf: 2, fosfor: 'f5',
+        kural: { yanlis: ['more'], g: [{ ad: 'daha az ertelemeleri', t: ['less', 'fewer', 'not as much', 'decreas', 'reduc'] }] },
+        ornek: 'Less. They procrastinated less before the next exam.', dogru_tr: 'Kendini affetmek bir sonraki ertelemeyi azaltıyor.',
+        ipucu: ['3. paragrafın son cümlesi.', '“… procrastinated ___ before the next one”', 'Metin “less” diyor.'] }
+    ]
+  });
+})();
+</script>
 <script>
 (function () {
   'use strict';
