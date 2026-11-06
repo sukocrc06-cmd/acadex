@@ -196,6 +196,9 @@
     $('.axt-go', todayEl).textContent = it.nopom ? 'git' : 'başla';
   };
   var mountToday = function () {
+    /* 06.11.2026: kart Bugün'den kalktı (aynı iş karşılama alanında "Tekrara başla"); yerinde panel ızgarası var
+       (js/acadex-panel-izgara.js). Hesaplama AcxPlus.today() için duruyor, yalnız kart çizilmiyor. */
+    if (window.__axPanelIzgara) return false;
     var home = document.getElementById('home-view'), grid = home && $('.grid', home);
     if (!grid) return false;
     if (!todayEl || !document.contains(todayEl)) {

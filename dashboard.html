@@ -67,6 +67,7 @@
 <link rel="stylesheet" href="css/acadex-kaynak-masa.css">
 <link rel="stylesheet" href="css/acadex-liman.css">
 <link rel="stylesheet" href="css/acadia-kit.css">
+<link rel="stylesheet" href="css/acadex-panel-izgara.css">
 <link rel="stylesheet" href="css/acadex-kartoteks.css">
 <link rel="stylesheet" href="css/acadex-medlab.css">
 <link rel="stylesheet" href="css/acadex-finans.css">
@@ -139,37 +140,57 @@
     <aside class="sidebar ax-side" id="nav-menu">
       <nav aria-label="Ana menü">
         <ul class="sidebar-nav"><li class="sidebar-item active" id="side-home"><a href="#home" onclick="switchDashboardView('home')"><svg viewBox="0 0 24 24"><path d="M4 11.5 L12 4.5 L20 11.5"/><path d="M6.5 10 V19.5 H17.5 V10"/><path d="M10.5 19.5 V14.5 H13.5 V19.5"/></svg><span class="lbl">Bugün</span></a></li></ul>
-        <h4>çalış</h4>
-        <ul class="sidebar-nav">
-          <li class="sidebar-item" id="side-planner"><a href="#planner" onclick="switchDashboardView('planner')"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M8 3.5 V7.5 M16 3.5 V7.5 M4 10 H20"/><path d="M8 14 L10 16 L14 12.5"/></svg><span class="lbl">Çalışma planlayıcı</span></a></li>
-          <li class="sidebar-item" id="side-notebook"><a href="#notebook" onclick="switchDashboardView('notebook')"><svg viewBox="0 0 24 24"><path d="M6 4 H17 C18 4 19 5 19 6 V20 H7 C6 20 5 19 5 18 V5 C5 4.5 5.5 4 6 4 Z"/><path d="M9 8.5 H15 M9 12 H15"/></svg><span class="lbl">Çalışma defteri</span></a></li>
-          <li class="sidebar-item" id="side-cards"><a href="#cards" onclick="switchDashboardView('cards')"><svg viewBox="0 0 24 24"><rect x="3.5" y="7" width="13" height="10" rx="1.5"/><path d="M7 4.5 H19 C19.8 4.5 20.5 5.2 20.5 6 V14"/></svg><span class="lbl">Bilgi kartları</span></a></li>
-          <li class="sidebar-item" id="side-sourcehub"><a href="#sourcehub" onclick="switchDashboardView('sourcehub')"><svg viewBox="0 0 24 24"><path d="M4 5.5 C7 4.5 10 5 12 6.5 C14 5 17 4.5 20 5.5 V18.5 C17 17.5 14 18 12 19.5 C10 18 7 17.5 4 18.5 Z"/><path d="M12 6.5 V19.5"/></svg><span class="lbl">Kaynakla çalış</span></a></li>
-          <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
-          <li class="sidebar-item" id="side-medlab"><a href="#medlab" onclick="switchDashboardView('medlab')"><svg viewBox="0 0 24 24"><path d="M6 3.5 V9 C6 12.3 8.2 14.5 11 14.5 C13.8 14.5 16 12.3 16 9 V3.5"/><path d="M11 14.5 V16.5 C11 18.7 12.8 20.5 15 20.5 C17.2 20.5 18.5 18.9 18.5 17 V14.8"/><circle cx="18.5" cy="12.8" r="2"/></svg><span class="lbl">Acadex MedLab</span></a></li>
-          <li class="sidebar-item" id="side-finans"><a href="#finans" onclick="switchDashboardView('finans')"><svg viewBox="0 0 24 24"><path d="M3 15h18l-2.5 5h-13z"/><path d="M5 15v-5h6v5M11 15v-3.5h6V15"/><path d="M14 11.5V4M14 4h5"/></svg><span class="lbl">Acadex Finans</span></a></li>
-          <!-- R70 (28.10.2026): telefonda alt menüde olan Acadia geniş ekranın menüsünde de olsun -->
-          <li class="sidebar-item" id="side-acadia"><a href="#acadia" onclick="event.preventDefault();if(typeof window.toggleAcadiaPanel==='function')window.toggleAcadiaPanel()"><svg viewBox="0 0 24 24"><path d="M12 3 L13.8 10.2 L21 12 L13.8 13.8 L12 21 L10.2 13.8 L3 12 L10.2 10.2 Z"/></svg><span class="lbl">Acadia</span></a></li>
-        </ul>
-        <h4>belgeler</h4>
-        <ul class="sidebar-nav">
-          <li class="sidebar-item" id="side-docs"><a href="#docs" onclick="switchDashboardView('docs')"><svg viewBox="0 0 24 24"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/><path d="M9.5 12.5 H16 M9.5 16 H14"/></svg><span class="lbl">Belgelerim</span></a></li>
-          <li class="sidebar-item" id="side-feed"><a href="#feed" onclick="switchDashboardView('feed')"><svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="3"/><circle cx="16.5" cy="9.5" r="2.4"/><path d="M3.5 19 C4 15.5 6 14 8 14 C10 14 12 15.5 12.5 19"/><path d="M13.5 16 C14.2 14.6 15.2 14 16.5 14 C18.2 14 19.6 15.3 20 18"/></svg><span class="lbl">Bölüm akışı</span></a></li>
-          <li class="sidebar-item" id="side-acadexsunum"><a href="#acadexsunum" onclick="switchDashboardView('acadexsunum')"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M12 16 V19.5 M8.5 20 H15.5"/></svg><span class="lbl">Acadex sunum</span></a></li>
-        </ul>
-        <h4>ölç</h4>
-        <ul class="sidebar-nav">
-          <li class="sidebar-item" id="side-exams"><a href="#exams" onclick="switchDashboardView('exams')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L20.5 8 L12 12.5 L3.5 8 Z"/><path d="M3.5 12 L12 16.5 L20.5 12"/><path d="M3.5 16 L12 20.5 L20.5 16"/></svg><span class="lbl">Sınav platformu</span></a></li>
-        </ul>
+        <!-- 06.11.2026 · sade menü: 4 grup başlığı; açık görünümün grubu kendiliğinden açılır, aynı anda tek grup.
+             Bütün paneller ayrıca Bugün sayfasındaki "panellerin" ızgarasında (js/acadex-panel-izgara.js). Dar menüde (nav-c) gruplar düz listelenir. -->
+        <div class="ax-grp" data-grp="calis">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-calis"><svg viewBox="0 0 24 24"><path d="M5 19.5 L5.8 15.6 L15.6 5.8 C16.4 5 17.6 5 18.4 5.8 C19.2 6.6 19.2 7.8 18.4 8.6 L8.6 18.4 Z"/><path d="M14.2 7.2 L17 10"/></svg><span class="lbl">Çalış</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>çalış</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-calis">
+            <li class="sidebar-item" id="side-planner"><a href="#planner" onclick="switchDashboardView('planner')"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M8 3.5 V7.5 M16 3.5 V7.5 M4 10 H20"/><path d="M8 14 L10 16 L14 12.5"/></svg><span class="lbl">Çalışma planlayıcı</span></a></li>
+            <li class="sidebar-item" id="side-notebook"><a href="#notebook" onclick="switchDashboardView('notebook')"><svg viewBox="0 0 24 24"><path d="M6 4 H17 C18 4 19 5 19 6 V20 H7 C6 20 5 19 5 18 V5 C5 4.5 5.5 4 6 4 Z"/><path d="M9 8.5 H15 M9 12 H15"/></svg><span class="lbl">Çalışma defteri</span></a></li>
+            <li class="sidebar-item" id="side-cards"><a href="#cards" onclick="switchDashboardView('cards')"><svg viewBox="0 0 24 24"><rect x="3.5" y="7" width="13" height="10" rx="1.5"/><path d="M7 4.5 H19 C19.8 4.5 20.5 5.2 20.5 6 V14"/></svg><span class="lbl">Bilgi kartları</span></a></li>
+            <li class="sidebar-item" id="side-sourcehub"><a href="#sourcehub" onclick="switchDashboardView('sourcehub')"><svg viewBox="0 0 24 24"><path d="M4 5.5 C7 4.5 10 5 12 6.5 C14 5 17 4.5 20 5.5 V18.5 C17 17.5 14 18 12 19.5 C10 18 7 17.5 4 18.5 Z"/><path d="M12 6.5 V19.5"/></svg><span class="lbl">Kaynakla çalış</span></a></li>
+            <!-- R70 (28.10.2026): telefonda alt menüde olan Acadia geniş ekranın menüsünde de olsun -->
+            <li class="sidebar-item" id="side-acadia"><a href="#acadia" onclick="event.preventDefault();if(typeof window.toggleAcadiaPanel==='function')window.toggleAcadiaPanel()"><svg viewBox="0 0 24 24"><path d="M12 3 L13.8 10.2 L21 12 L13.8 13.8 L12 21 L10.2 13.8 L3 12 L10.2 10.2 Z"/></svg><span class="lbl">Acadia</span></a></li>
+          </ul>
+        </div>
+        <div class="ax-grp" data-grp="lab">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-lab"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.2 20.5 6.3 20.5 H17.7 C18.8 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.6 14.5 H16.4"/></svg><span class="lbl">Laboratuvarlar</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>laboratuvarlar</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-lab">
+            <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
+            <li class="sidebar-item" id="side-medlab"><a href="#medlab" onclick="switchDashboardView('medlab')"><svg viewBox="0 0 24 24"><path d="M6 3.5 V9 C6 12.3 8.2 14.5 11 14.5 C13.8 14.5 16 12.3 16 9 V3.5"/><path d="M11 14.5 V16.5 C11 18.7 12.8 20.5 15 20.5 C17.2 20.5 18.5 18.9 18.5 17 V14.8"/><circle cx="18.5" cy="12.8" r="2"/></svg><span class="lbl">Acadex MedLab</span></a></li>
+            <li class="sidebar-item" id="side-finans"><a href="#finans" onclick="switchDashboardView('finans')"><svg viewBox="0 0 24 24"><path d="M3 15h18l-2.5 5h-13z"/><path d="M5 15v-5h6v5M11 15v-3.5h6V15"/><path d="M14 11.5V4M14 4h5"/></svg><span class="lbl">Acadex Finans</span></a></li>
+          </ul>
+        </div>
+        <div class="ax-grp" data-grp="belge">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-belge"><svg viewBox="0 0 24 24"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/><path d="M9.5 12.5 H16 M9.5 16 H14"/></svg><span class="lbl">Belgeler</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>belgeler</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-belge">
+            <li class="sidebar-item" id="side-docs"><a href="#docs" onclick="switchDashboardView('docs')"><svg viewBox="0 0 24 24"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/><path d="M9.5 12.5 H16 M9.5 16 H14"/></svg><span class="lbl">Belgelerim</span></a></li>
+            <li class="sidebar-item" id="side-feed"><a href="#feed" onclick="switchDashboardView('feed')"><svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="3"/><circle cx="16.5" cy="9.5" r="2.4"/><path d="M3.5 19 C4 15.5 6 14 8 14 C10 14 12 15.5 12.5 19"/><path d="M13.5 16 C14.2 14.6 15.2 14 16.5 14 C18.2 14 19.6 15.3 20 18"/></svg><span class="lbl">Bölüm akışı</span></a></li>
+            <li class="sidebar-item" id="side-acadexsunum"><a href="#acadexsunum" onclick="switchDashboardView('acadexsunum')"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M12 16 V19.5 M8.5 20 H15.5"/></svg><span class="lbl">Acadex sunum</span></a></li>
+          </ul>
+        </div>
+        <div class="ax-grp" data-grp="olc">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-olc"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/></svg><span class="lbl">Ölç</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>ölç</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-olc">
+            <li class="sidebar-item" id="side-exams"><a href="#exams" onclick="switchDashboardView('exams')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L20.5 8 L12 12.5 L3.5 8 Z"/><path d="M3.5 12 L12 16.5 L20.5 12"/><path d="M3.5 16 L12 20.5 L20.5 16"/></svg><span class="lbl">Sınav platformu</span></a></li>
+          </ul>
+        </div>
         <div class="sep" aria-hidden="true"></div>
         <ul class="sidebar-nav">
           <li class="sidebar-item" id="side-settings"><a href="#settings" onclick="switchDashboardView('settings')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5 V6 M12 18 V20.5 M3.5 12 H6 M18 12 H20.5 M6 6 L7.7 7.7 M16.3 16.3 L18 18 M6 18 L7.7 16.3 M16.3 7.7 L18 6"/></svg><span class="lbl">Ayarlar</span></a></li>
         </ul>
-        <h4>proje</h4>
-        <ul class="sidebar-nav team">
-          <li class="sidebar-item" id="side-sandbox-interaction"><a href="#sandbox-interaction" onclick="switchDashboardView('sandbox-interaction')"><svg viewBox="0 0 24 24"><path d="M5 7.5 C5 5.6 6.6 4.5 8.5 4.5 H15.5 C17.4 4.5 19 5.6 19 7.5 V13 C19 14.9 17.4 16 15.5 16 H10 L6 19.5 V16 C5.4 15.6 5 14.6 5 13 Z"/></svg><span class="lbl">Sandbox etkileşim paneli</span></a></li>
-          <li class="sidebar-item" id="side-sandbox"><a href="#sandbox" onclick="switchDashboardView('sandbox')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L19.5 7.5 V16.5 L12 20.5 L4.5 16.5 V7.5 Z"/><path d="M4.5 7.5 L12 11.5 L19.5 7.5 M12 11.5 V20.5"/></svg><span class="lbl">Geliştirici sandbox</span></a></li>
-        </ul>
+        <div class="ax-grp" data-grp="proje">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-proje"><svg viewBox="0 0 24 24"><path d="M8.5 8 L4.5 12 L8.5 16 M15.5 8 L19.5 12 L15.5 16 M13.5 5.5 L10.5 18.5"/></svg><span class="lbl">Proje</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>proje</h4>
+          <ul class="sidebar-nav team ax-grp-ul" id="ax-grp-proje">
+            <li class="sidebar-item" id="side-sandbox-interaction"><a href="#sandbox-interaction" onclick="switchDashboardView('sandbox-interaction')"><svg viewBox="0 0 24 24"><path d="M5 7.5 C5 5.6 6.6 4.5 8.5 4.5 H15.5 C17.4 4.5 19 5.6 19 7.5 V13 C19 14.9 17.4 16 15.5 16 H10 L6 19.5 V16 C5.4 15.6 5 14.6 5 13 Z"/></svg><span class="lbl">Sandbox etkileşim paneli</span></a></li>
+            <li class="sidebar-item" id="side-sandbox"><a href="#sandbox" onclick="switchDashboardView('sandbox')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L19.5 7.5 V16.5 L12 20.5 L4.5 16.5 V7.5 Z"/><path d="M4.5 7.5 L12 11.5 L19.5 7.5 M12 11.5 V20.5"/></svg><span class="lbl">Geliştirici sandbox</span></a></li>
+          </ul>
+        </div>
         <!-- R19/R41/R71 (28.10.2026): dar ekranda üst çubukta gizlenen Yenilikler, dil ve hesap bilgisi hamburger menüsünde -->
         <div class="ax-side-m">
           <button type="button" class="ax-side-me" onclick="switchDashboardView('settings')"><span class="ax-side-me-n" data-side-me-n="">Hesabım</span><small data-side-me-d="">profil ve ayarlar</small></button>
@@ -3092,6 +3113,7 @@
 <script src="js/acadex-medlab-acadia.js"></script>
 <script src="js/acadia-yerinde.js"></script>
   <script src="js/avatar-studio.js"></script>
+  <script src="js/acadex-panel-izgara.js"></script>
   <script src="js/acadex-plus.js"></script>
   <script src="js/acadex-bolumler.js"></script>
   <script src="js/profile-complete.js"></script>

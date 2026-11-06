@@ -1,0 +1,151 @@
+/* ==========================================================================
+   ACADEX · SADE MENÜ + PANEL IZGARASI (06.11.2026)
+   - Sol menü: Bugün + 4 grup (Çalış · Laboratuvarlar · Belgeler · Ölç) ve Proje.
+     Açık görünümün grubu kendiliğinden açılır; aynı anda tek grup açık.
+     Dar menüde (html.nav-c) ve tanıtım turunda (html.ax-grp-hepsi) her şey düz listelenir.
+   - Bugün sayfası: "bugünün tek işi" kartının yerinde logolu, üzerine gelince canlanan panel kartları.
+   JS: js/acadex-panel-izgara.js
+   ========================================================================== */
+
+/* ---------------- menü grupları ---------------- */
+body.acx .ax-side .ax-grp{position:relative}
+body.acx .ax-side .ax-grp-b{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:42px;margin:2px 0 0;padding:8px 10px;border:0;border-radius:6px;background:none;color:var(--navy,#1A2A5C);font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer;transition:background-color .15s}
+body.acx .ax-side .ax-grp-b svg{width:20px;height:20px;flex:none;fill:none;stroke:#33478A;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+body.acx .ax-side .ax-grp-b .lbl{flex:1;min-width:0}
+body.acx .ax-side .ax-grp-b:hover{background:#EEF1F6}
+body.acx .ax-side .ax-grp-b:focus-visible{outline:2px solid var(--blue,#2F6BFF);outline-offset:2px}
+body.acx .ax-side .ax-grp-n{min-width:22px;padding:1px 7px;border-radius:999px;background:#EEF1F6;color:#4B5675;font-size:12px;font-weight:600;line-height:18px;text-align:center}
+body.acx .ax-side .ax-grp-b svg.ax-grp-c{width:16px;height:16px;stroke:#6A7593;transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+body.acx .ax-side .ax-grp.acik > .ax-grp-b svg.ax-grp-c{transform:rotate(90deg)}
+body.acx .ax-side .ax-grp.aktif > .ax-grp-b svg:first-child{stroke:var(--blue,#2F6BFF)}
+body.acx .ax-side .ax-grp.aktif:not(.acik) > .ax-grp-b .ax-grp-n{background:#E6EEFF;color:#2F6BFF}
+body.acx .ax-side .ax-grp.tek > .ax-grp-b .ax-grp-n,body.acx .ax-side .ax-grp.tek > .ax-grp-b .ax-grp-c{display:none}
+/* grup açıkken elemanlar girintili, sol kenarda ince çizgi */
+html.ax-grp-on body.acx .ax-side .ax-grp > h4{display:none}
+html.ax-grp-on body.acx .ax-side .ax-grp-ul{display:none;margin:0 0 4px 19px;padding:0 0 0 8px;border-left:1.5px solid #DCE2EE}
+html.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul{display:block}
+html.ax-grp-on body.acx .ax-side .ax-grp.tek > .ax-grp-ul{display:none}
+html.ax-grp-on body.acx .ax-side .ax-grp-ul .sidebar-item a{min-height:38px;font-size:14.5px}
+html.ax-grp-on body.acx .ax-side .ax-grp-ul .sidebar-item.active a::after{left:40px;width:calc(100% - 56px)}
+html.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul .sidebar-item:not(.ax-lab-off){animation:axGrpIn .24s cubic-bezier(.2,.8,.2,1) both}
+html.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul .sidebar-item:nth-child(2){animation-delay:.03s}
+html.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul .sidebar-item:nth-child(3){animation-delay:.06s}
+html.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul .sidebar-item:nth-child(4){animation-delay:.09s}
+html.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul .sidebar-item:nth-child(n+5){animation-delay:.12s}
+@keyframes axGrpIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+/* dar menü ve tanıtım turu: gruplar yok, her şey görünür (eski düzen) */
+html.nav-c body.acx .ax-side .ax-grp-b,html.ax-grp-hepsi body.acx .ax-side .ax-grp-b{display:none}
+html.nav-c body.acx .ax-side .ax-grp > h4,html.ax-grp-hepsi body.acx .ax-side .ax-grp > h4{display:block}
+html.nav-c body.acx .ax-side .ax-grp-ul,html.ax-grp-hepsi body.acx .ax-side .ax-grp-ul,
+html.nav-c body.acx .ax-side .ax-grp.tek > .ax-grp-ul,html.ax-grp-hepsi body.acx .ax-side .ax-grp.tek > .ax-grp-ul{display:block;visibility:visible;margin:0;padding:0;border:0}
+/* telefonda menü çekmece olarak açılır; dar menü ayarı orada geçerli değil, gruplar kalır */
+@media (max-width: 1000px){html.nav-c body.acx .ax-side .ax-grp-b{display:flex}html.nav-c body.acx .ax-side .ax-grp > h4{display:none}
+  html.nav-c.ax-grp-on body.acx .ax-side .ax-grp-ul{display:none;margin:0 0 4px 19px;padding:0 0 0 8px;border-left:1.5px solid #DCE2EE}
+  html.nav-c.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul{display:block}
+  html.nav-c.ax-grp-on body.acx .ax-side .ax-grp.tek > .ax-grp-ul{display:none}}
+/* menü kısaldı: Paketim kartı da sadeleşir */
+html.ax-grp-on body.acx .ax-side .pkd-note{display:none}
+
+/* ---------------- Bugün: panel ızgarası ---------------- */
+#home-view .ax-pg{margin:26px 32px 0;padding:18px 22px 20px;background:#FFFFFF;border:1px solid #E1E5EE;border-radius:8px;box-shadow:0 1px 0 #E1E5EE,0 18px 30px -28px rgba(13,24,56,.5)}
+#home-view .ax-pg-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+#home-view .ax-pg-k{margin:0;font-family:var(--hand,'Caveat',cursive);font-weight:600;font-size:25px;line-height:1.1;color:#2F6BFF;transform:rotate(-1.5deg);transform-origin:0 100%}
+#home-view .ax-pg-s{margin:0;font-size:14px;color:#6A7593}
+#home-view .ax-pg-l{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+#home-view .ax-pg-l > li{min-width:0}
+#home-view .ax-pg-t{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;height:100%;min-height:132px;padding:12px 14px 13px;border:1px solid #E1E5EE;border-radius:8px;background:#FAFBFD;color:#1A2A5C;font:inherit;text-align:left;cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,border-color .2s,background-color .2s}
+#home-view .ax-pg-t:hover,#home-view .ax-pg-t:focus-visible{transform:translateY(-2px);background:#FFFFFF;border-color:#B9C8F0;box-shadow:0 10px 22px -14px rgba(13,24,56,.45)}
+#home-view .ax-pg-t:focus-visible{outline:2px solid #2F6BFF;outline-offset:2px}
+#home-view .ax-pg-t:active{transform:translateY(0)}
+#home-view .ax-pg-i{display:flex;align-items:center;justify-content:center;width:52px;height:52px;margin:0 0 7px;border-radius:12px;background:var(--pg-bg,#EEF3FF)}
+#home-view .ax-pg-i svg{width:40px;height:40px;overflow:visible;fill:none;stroke:#1A2A5C;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#home-view .ax-pg-t b{font-size:15px;font-weight:700;line-height:1.25}
+#home-view .ax-pg-t small{font-size:13px;line-height:1.3;color:#5B6787}
+#home-view .ax-pg-t[data-g="lab"]{--pg-bg:#E7F8F1}
+#home-view .ax-pg-t[data-g="belge"]{--pg-bg:#FFF4DC}
+#home-view .ax-pg-t[data-g="olc"]{--pg-bg:#FDE9E6}
+@media (max-width: 1320px){#home-view .ax-pg-l{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width: 1000px){#home-view .ax-pg{margin:20px 14px 0;padding:14px 14px 16px}}
+@media (max-width: 760px){#home-view .ax-pg-l{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width: 540px){#home-view .ax-pg-l{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#home-view .ax-pg-t{min-height:118px;padding:10px 12px}#home-view .ax-pg-i{width:46px;height:46px}#home-view .ax-pg-i svg{width:36px;height:36px}}
+html.ax-dark #home-view .ax-pg-i svg{filter:invert(1) hue-rotate(180deg)}
+
+/* giriş: kartlar sırayla belirir (bir kez) */
+#home-view .ax-pg.giris .ax-pg-l > li{animation:axPgIn .42s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 35ms)}
+@keyframes axPgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---- ikon hareketleri: yalnız üzerine gelince / odakta ---- */
+.ax-pg-i .p{transform-box:fill-box}
+/* planlayıcı: halkalar zıplar, onay işareti çizilir */
+.ax-pg-i .chk{stroke-dasharray:24;stroke-dashoffset:0}
+.ax-pg-t:hover .ic-plan .chk,.ax-pg-t:focus-visible .ic-plan .chk{animation:pgDraw .55s ease-out both}
+.ax-pg-t:hover .ic-plan .hal,.ax-pg-t:focus-visible .ic-plan .hal{animation:pgHop .5s ease-in-out}
+@keyframes pgDraw{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
+@keyframes pgHop{50%{transform:translateY(-3px)}}
+/* defter: kalem yazar, son satır uzar */
+.ic-defter .kalem{transform-origin:20% 80%}
+.ax-pg-t:hover .ic-defter .kalem,.ax-pg-t:focus-visible .ic-defter .kalem{animation:pgYaz .9s ease-in-out}
+.ax-pg-t:hover .ic-defter .sat,.ax-pg-t:focus-visible .ic-defter .sat{animation:pgSat .9s ease-in-out both}
+@keyframes pgYaz{0%,100%{transform:none}25%{transform:translate(-5px,1px) rotate(-6deg)}50%{transform:translate(-1px,0)}75%{transform:translate(-6px,1px) rotate(-4deg)}}
+@keyframes pgSat{from{transform:scaleX(.3)}to{transform:scaleX(1)}}
+.ic-defter .sat{transform-origin:0 50%}
+/* kartlar: öndeki kart döner, arkadaki kayar */
+.ic-kart .on{transform-origin:50% 50%}
+.ax-pg-t:hover .ic-kart .on,.ax-pg-t:focus-visible .ic-kart .on{animation:pgCevir .7s cubic-bezier(.4,0,.2,1)}
+.ax-pg-t:hover .ic-kart .arka,.ax-pg-t:focus-visible .ic-kart .arka{animation:pgKay .7s ease-in-out}
+@keyframes pgCevir{0%{transform:scaleX(1)}50%{transform:scaleX(0)}100%{transform:scaleX(1)}}
+@keyframes pgKay{50%{transform:translate(-3px,-2px) rotate(-4deg)}}
+/* kaynak: kitabın sayfası çevrilir */
+.ic-kaynak .sayfa{transform-origin:0% 50%}
+.ax-pg-t:hover .ic-kaynak .sayfa,.ax-pg-t:focus-visible .ic-kaynak .sayfa{animation:pgSayfa .8s cubic-bezier(.4,0,.2,1)}
+@keyframes pgSayfa{0%{transform:scaleX(1)}50%{transform:scaleX(-.2) skewY(-4deg)}100%{transform:scaleX(-1);opacity:0}}
+/* Acadia: yıldız döner, küçük yıldız parlar */
+.ic-acadia .yil,.ic-acadia .kck{transform-origin:50% 50%}
+.ax-pg-t:hover .ic-acadia .yil,.ax-pg-t:focus-visible .ic-acadia .yil{animation:pgDon .8s cubic-bezier(.3,1.4,.5,1)}
+.ax-pg-t:hover .ic-acadia .kck,.ax-pg-t:focus-visible .ic-acadia .kck{animation:pgParla .8s ease-in-out}
+@keyframes pgDon{from{transform:rotate(0) scale(.85)}to{transform:rotate(90deg) scale(1)}}
+@keyframes pgParla{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.2;transform:scale(1.6)}}
+/* Study Lab: kabarcıklar yükselir */
+.ic-study .kab{opacity:0}
+.ax-pg-t:hover .ic-study .kab,.ax-pg-t:focus-visible .ic-study .kab{animation:pgKab 1.1s ease-out infinite}
+.ax-pg-t:hover .ic-study .kab.k2,.ax-pg-t:focus-visible .ic-study .kab.k2{animation-delay:.35s}
+.ax-pg-t:hover .ic-study .kab.k3,.ax-pg-t:focus-visible .ic-study .kab.k3{animation-delay:.7s}
+@keyframes pgKab{0%{opacity:0;transform:translateY(0)}30%{opacity:1}100%{opacity:0;transform:translateY(-12px)}}
+/* MedLab: kalp atar, EKG çizilir */
+.ic-med .kalp{transform-origin:50% 60%}
+.ic-med .ekg{stroke-dasharray:44;stroke-dashoffset:0}
+.ax-pg-t:hover .ic-med .kalp,.ax-pg-t:focus-visible .ic-med .kalp{animation:pgAtis .9s ease-in-out}
+.ax-pg-t:hover .ic-med .ekg,.ax-pg-t:focus-visible .ic-med .ekg{animation:pgEkg .9s linear both}
+@keyframes pgAtis{0%,40%,100%{transform:scale(1)}15%{transform:scale(1.12)}55%{transform:scale(1.08)}}
+@keyframes pgEkg{from{stroke-dashoffset:44}to{stroke-dashoffset:0}}
+/* Finans: sütunlar büyür */
+.ic-fin .bar{transform-origin:50% 100%}
+.ax-pg-t:hover .ic-fin .bar,.ax-pg-t:focus-visible .ic-fin .bar{animation:pgBar .7s cubic-bezier(.3,1.3,.5,1) both}
+.ax-pg-t:hover .ic-fin .b2,.ax-pg-t:focus-visible .ic-fin .b2{animation-delay:.08s}
+.ax-pg-t:hover .ic-fin .b3,.ax-pg-t:focus-visible .ic-fin .b3{animation-delay:.16s}
+@keyframes pgBar{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
+/* Belgelerim: tarama çubuğu iner */
+.ic-belge .tara{opacity:0}
+.ax-pg-t:hover .ic-belge .tara,.ax-pg-t:focus-visible .ic-belge .tara{animation:pgTara .9s ease-in-out}
+@keyframes pgTara{0%{opacity:0;transform:translateY(0)}20%{opacity:.9}80%{opacity:.9}100%{opacity:0;transform:translateY(16px)}}
+/* Bölüm akışı: kişiler sırayla zıplar */
+.ax-pg-t:hover .ic-akis .ks,.ax-pg-t:focus-visible .ic-akis .ks{animation:pgHop .45s ease-in-out}
+.ax-pg-t:hover .ic-akis .ks.s2,.ax-pg-t:focus-visible .ic-akis .ks.s2{animation-delay:.12s}
+.ax-pg-t:hover .ic-akis .ks.s3,.ax-pg-t:focus-visible .ic-akis .ks.s3{animation-delay:.24s}
+/* sunum: perdedeki sütunlar değişir */
+.ic-sunum .sb{transform-origin:50% 100%}
+.ax-pg-t:hover .ic-sunum .sb,.ax-pg-t:focus-visible .ic-sunum .sb{animation:pgSlayt .9s ease-in-out}
+.ax-pg-t:hover .ic-sunum .sb.s2,.ax-pg-t:focus-visible .ic-sunum .sb.s2{animation-direction:reverse}
+@keyframes pgSlayt{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.35)}}
+/* sınav: işaretler sırayla atılır, pano hafif eğilir */
+.ic-sinav .pano{transform-origin:50% 0}
+.ax-pg-t:hover .ic-sinav .chk,.ax-pg-t:focus-visible .ic-sinav .chk{animation:pgDraw .4s ease-out both}
+.ax-pg-t:hover .ic-sinav .chk.c2,.ax-pg-t:focus-visible .ic-sinav .chk.c2{animation-delay:.25s}
+.ax-pg-t:hover .ic-sinav .pano,.ax-pg-t:focus-visible .ic-sinav .pano{animation:pgEgil .7s ease-in-out}
+@keyframes pgEgil{50%{transform:rotate(-4deg)}}
+
+@media (prefers-reduced-motion: reduce){
+  #home-view .ax-pg.giris .ax-pg-l > li,.ax-pg-t *,html.ax-grp-on body.acx .ax-side .ax-grp.acik > .ax-grp-ul .sidebar-item{animation:none!important}
+  #home-view .ax-pg-t,body.acx .ax-side .ax-grp-b svg.ax-grp-c{transition:none}
+  #home-view .ax-pg-t:hover,#home-view .ax-pg-t:focus-visible{transform:none}
+}
