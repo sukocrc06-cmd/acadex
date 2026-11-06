@@ -13,7 +13,7 @@
 /* =====================================================================
    ACADEX MEDICA · görsel sistem "eğitim hastanesi" (31.10.2026)
    Duvar: açık gri-mavi, zemin: hastane karosu, yön bulma: her katın rengi
-   Rehber: maskeli, ameliyata hazır cerrah · Asansör: çelik kapılar, kat göstergesi
+   Rehber: Uzm. Dr. Ela Altındağ (beyaz önlük, steteskop) · Asansör: çelik kapılar, kat göstergesi
    ===================================================================== */
 :root{--ink:#0D1838;--ink2:#46506A;--muted:#6A7593;--paper:#FFFFFF;--bg:#EEF2F5;--line:#DCE2EA;--mint:#2E9C86;--mint-s:#E2F4EF;--ok:#2E8E5B;--warn:#B9821F;--bad:#C9483B;--r:16px;--ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.4,.5,1)}
 *{box-sizing:border-box}
@@ -65,21 +65,24 @@ button{font:inherit;color:inherit;cursor:pointer}
 .md-btn.kat.sec{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
 .md-btn.kat:hover{border-color:var(--ink)}
 
-/* giriş sahnesi: kapılar açılır, cerrah yürür, maske konuşurken kabarır */
+/* giriş sahnesi: kapılar açılır, Dr. Ela yürüyerek gelir, el sallar, konuşurken ağzı oynar */
 .sahne .kapi1,.sahne .kapi2{transition:transform 1s var(--ease)}
 .sahne.acik .kapi1{transform:translateX(-96px)}.sahne.acik .kapi2{transform:translateX(96px)}
-.sahne .cerrah .govde{transition:transform 1.25s cubic-bezier(.4,0,.2,1),opacity .4s}
-.sahne .cerrah.gelis .govde{transform:translateX(-380px);opacity:0}
-.sahne.geldi .cerrah.gelis .govde{transform:none;opacity:1}
-.sahne .nefes{animation:nefes 3.6s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
+.sahne .dr .dr-govde{transition:transform 1.25s cubic-bezier(.4,0,.2,1),opacity .4s}
+.sahne .dr.gelis .dr-govde{transform:translateX(-380px);opacity:0}
+.sahne.geldi .dr.gelis .dr-govde{transform:none;opacity:1}
+.sahne .dr-nefes{animation:nefes 3.6s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
 @keyframes nefes{50%{transform:scaleY(1.015)}}
-.sahne .goz{animation:goz 4.6s infinite;transform-box:fill-box;transform-origin:center}
+.sahne .dr-goz{animation:goz 4.6s infinite;transform-box:fill-box;transform-origin:center}
 @keyframes goz{0%,93%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
-.sahne .kolL,.sahne .kolR{transform-box:fill-box;transform-origin:50% 100%;animation:kol 3s ease-in-out infinite}
-.sahne .kolR{animation-delay:-1.5s}
-@keyframes kol{50%{transform:rotate(-3deg) translateY(-2px)}}
-.sahne.konusuyor .maske{animation:maske .32s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 0}
-@keyframes maske{to{transform:scaleY(1.07)}}
+.sahne .dr-salla{animation:salla 2.4s ease-in-out infinite}
+@keyframes salla{0%,60%,100%{transform:rotate(0)}10%,30%,50%{transform:rotate(-14deg)}20%,40%{transform:rotate(10deg)}}
+.sahne .dr-at{animation:at 3.2s ease-in-out infinite}
+@keyframes at{50%{transform:rotate(6deg)}}
+.sahne .dr-bas{animation:bas 6s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
+@keyframes bas{0%,70%,100%{transform:none}80%,90%{transform:rotate(-3deg)}}
+.sahne.konusuyor .dr-agiz{animation:agiz .26s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 0}
+@keyframes agiz{to{transform:scaleY(1.6)}}
 .sahne .serit .nabiz{stroke-dasharray:6 94;stroke-dashoffset:100;opacity:.9;animation:serit 3s linear infinite}
 @keyframes serit{to{stroke-dashoffset:0}}
 .sahne .isik{animation:isik 5s ease-in-out infinite}

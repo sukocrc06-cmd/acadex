@@ -1,6 +1,6 @@
 /* ==========================================================================
    ACADEX MEDICA · hastane verisi (labs/medica/medica-veri.js), 31.10.2026
-   Katlar (bölümler), rehber cerrahın tanıtım konuşması ve lab bağlantıları.
+   Katlar (bölümler), rehber hekimin tanıtım konuşması ve lab bağlantıları.
    Hastalar ayrı tutulmaz: her kat, labs/klinik/senaryo-*.js'teki senaryoları
    kimlik önekine göre toplar (ana-, fz-, ody-, dyt-, dkt-, ecz-, hem-). Böylece vaka verisi
    tek yerde kalır; lab'daki vaka ile sahnedeki hasta ayrışmaz.
@@ -13,8 +13,8 @@
   var V = {};
 
   V.HASTANE = 'Acadex Medica';
-  /* rehber: ameliyata hazırlanan nöbetçi cerrah (maske, bone, steril eldiven) */
-  V.REHBER = { ad: 'Kaan Arslan', unvan: 'Op. Dr.', brans: 'genel cerrahi' };
+  /* rehber (06.11.2026): nöbetçi acil hekimi; beyaz önlük, steteskop, yaka kartı */
+  V.REHBER = { ad: 'Ela Altındağ', unvan: 'Uzm. Dr.', brans: 'acil tıp' };
 
   /* katlar: no (asansör), ad, bolum (öğrencinin bölümü), renk (yön bulma şeridi), onek (senaryo kimliği),
      lab (devir sayfası), mentor (katın sorumlusu), kars (kat karşılaması) */
@@ -36,9 +36,9 @@
       mentor: 'Hem. Sevgi', mcins: 'K', kars: 'Dahiliye servisi. Yatan hastaların başında vital bulguları ölç, kötüleşmeyi erken yakala, önceliklendir; sonra Hemşirelik Lab vaka masasında hemşirelik tanını ve girişimlerini yaz.' }
   ];
 
-  /* giriş: ilk ziyaret tanıtımı (maskeli rehber cerrah) */
+  /* giriş: ilk ziyaret tanıtımı (rehber hekim) */
   V.TANITIM = [
-    'Acadex Medica’ya hoş geldin! Ben Op. Dr. Kaan Arslan, bugünün nöbetçi cerrahıyım. Maskeyi kusura bakma, birazdan ameliyata gireceğim.',
+    'Acadex Medica’ya hoş geldin! Ben Uzm. Dr. Ela Altındağ, bugünün nöbetçi acil hekimiyim. İlk gününde seni ben gezdireceğim; takıldığın yerde bana sorabilirsin.',
     'Burası sağlık bilimleri öğrencileri için kurulmuş bir eğitim hastanesi. Her katta bir bölüm var; hastalar bekleme salonunda sıra numaralarıyla seni bekliyor.',
     'Hastayı odaya çağırırsın: anamnez alır, muayene eder, sorumlu meslektaşınla kararını tartışırsın. Sonra ilgili lab’da reçeteyi, testi ya da 3B modeli tamamlarsın.',
     'İstersen nöbet tut: hastalar sırayla gelir, nöbet bitince karnen çıkar. Asansörle istediğin kata geçebilirsin.',
@@ -228,9 +228,9 @@
     ecz: ['Ecz. Tolga, acil servise antidot talebi.', 'Steril hazırlama ünitesinde kemoterapi hazırlığı başladı.'],
     hem: ['Hem. Sevgi, 712 numaralı odaya.', 'Saat 14.00 ilaç turu başlıyor; ilaç arabaları hazırlansın.']
   };
-  /* =========================== lab sonrası: hastaya bildir ve cerrah ipucu ===========================
+  /* =========================== lab sonrası: hastaya bildir ve rehber hekim ipucu ===========================
      Anatomi ve Fizyo'da lab işi bitince öğrenci bulguyu yorumlar, hastaya anlatır (senaryo.sonu);
-     Fizyo'da Fizyo Lab'de kurduğu ev programını hastaya verir. Rehber cerrah ipucu kademeye göre puan düşürür. */
+     Fizyo'da Fizyo Lab'de kurduğu ev programını hastaya verir. Rehber hekim ipucu kademeye göre puan düşürür. */
   V.IPUCU_CEZA = [5, 10, 20];   /* 1: sözel ipucu, 2: bölgeyi göster, 3: yapıyı göster */
   V.ipucuCeza = function (kademe) { return V.IPUCU_CEZA[Math.max(1, Math.min(3, kademe)) - 1]; };
   /* ev programı: items = Fizyo Lab'de programa eklenen egzersiz kimlikleri */
