@@ -3174,28 +3174,28 @@ const CASES = [
   { id: 'radial', ad: 'Cumartesi gecesi felci', tag: 'Üst ekstremite', txt: '24 yaşında erkek, kolunu sandalye arkasına asarak uyuyakalmış. Sabah bileğini kaldıramıyor (düşük el); el sırtında his azalmış.',
     steps: [['humerus', 'Sinirin sıkıştığı kemiği bul.', 'Kol bölgesindeki uzun kemik; arka yüzünde sulcus nervi radialis var.'], ['n_radialis', 'Hasarlanan siniri bul.', 'Humerusun arka yüzünde spiral oluk boyunca dolanan sinir.'], ['brachioradialis', 'Bu sinirin innerve ettiği, önkolun lateralindeki kası bul.', 'Dirseğin hemen altında, önkolun başparmak tarafında.']],
     ex: 'N. radialis sulcus nervi radialis düzeyinde sıkışmış. Bilek ve parmak ekstansörleri çalışmadığı için düşük el gelişir. Triceps dalları genellikle bu düzeyin üstünden çıktığı için dirsek ekstansiyonu çoğu zaman korunur.' },
-  { id: 'supra', ad: 'Suprakondiler humerus kırığı', tag: 'Üst ekstremite', txt: '7 yaşında çocuk, açık eli üzerine düşmüş. Dirsek şiş ve deforme; radial nabız zayıf alınıyor.',
+  { id: 'supra', lez: [{ tip: 'kirik', sid: 'humerus', taraf: 'R', P: [.5, .16], n: [0, 1, .2], tr: [0, .01, -.05], rotY: 0, not: 'Ekstansiyon tipi suprakondiler kırık: distal parça arkaya yer değiştirmiş.' }], ad: 'Suprakondiler humerus kırığı', tag: 'Üst ekstremite', txt: '7 yaşında çocuk, açık eli üzerine düşmüş. Dirsek şiş ve deforme; radial nabız zayıf alınıyor.',
     steps: [['humerus', 'Kırılan kemiği bul.', 'Dirseğin hemen üstündeki distal uç.'], ['a_brachialis', 'Kırık uçlarının sıkıştırabileceği arteri bul.', 'Kolun ön-medialinde, kubital çukura inen ana arter.'], ['n_medianus', 'Aynı bölgede risk altındaki siniri bul.', 'Arterin hemen medialinde seyreden sinir.']],
     ex: 'Çocuklarda en sık dirsek kırığıdır. Proksimal fragman öne kayarak a. brachialis ve n. medianus\'u gerebilir. Nabız kaybı ve önkolda artan ağrı kompartman sendromu (Volkmann iskemik kontraktürü) açısından acil uyarıdır.' },
-  { id: 'gluteal', ad: 'Yanlış yerden kalça iğnesi', tag: 'Alt ekstremite', txt: 'Kalçanın iç-alt çeyreğinden kas içi enjeksiyon yapılan hastada bacağın arkasından ayağa yayılan ağrı ve ayakta güçsüzlük gelişiyor.',
+  { id: 'gluteal', lez: [{ tip: 'isaret', sid: 'gluteus', taraf: 'R', ad: /maximus/i, ham: [.8, .28, .02], r: .008, renk: '#C9483B', not: 'Yanlış enjeksiyon noktası: iç-alt çeyrek.' }], ad: 'Yanlış yerden kalça iğnesi', tag: 'Alt ekstremite', txt: 'Kalçanın iç-alt çeyreğinden kas içi enjeksiyon yapılan hastada bacağın arkasından ayağa yayılan ağrı ve ayakta güçsüzlük gelişiyor.',
     steps: [['gluteus', 'Enjeksiyonun yapıldığı kası bul.', 'Kalçanın en yüzeyel, en büyük kası.'], ['n_ischiadicus', 'Zarar gören siniri bul.', 'Kalçanın derininden uyluk arkasına inen vücudun en kalın siniri.'], ['hamstring', 'Bu sinirin uylukta innerve ettiği kas grubunu bul.', 'Uyluğun arka yüzündeki kaslar.']],
     ex: 'N. ischiadicus gluteal bölgenin iç-alt çeyreğinden geçer. Bu yüzden enjeksiyon dış-üst çeyreğe (ya da ventrogluteal bölgeye) yapılır. Hasarında diz fleksiyonu zayıflar ve dizin altındaki tüm kaslar etkilenir.' },
   { id: 'femoral', ad: 'Femoral kateter girişi', tag: 'Alt ekstremite', txt: 'Anjiyografi için kasıktan kateter girilecek. Doğru noktayı bulmak için yapıları sırasıyla tanı.',
     steps: [['a_femoralis', 'Kateterin girileceği arteri bul.', 'Kasık bağının hemen altında nabzı alınan arter.'], ['n_femoralis', 'Arterin lateralindeki siniri bul.', 'Lateralden mediale sıra: sinir, arter, ven (NAV).'], ['quadriceps', 'Bu sinirin hasarında güçsüzleşen kası bul.', 'Uyluğun ön yüzündeki büyük kas grubu.']],
     ex: 'Femoral üçgende lateralden mediale sıra: n. femoralis, a. femoralis, v. femoralis. Giriş arterin nabzı üzerinden yapılır. Sinir hasarında diz ekstansiyonu zayıflar ve patella refleksi kaybolur.' },
-  { id: 'pterion', ad: 'Şakağa darbe', tag: 'Baş ve boyun', txt: 'Futbol topu şakağına çarpan genç kısa süre bayılıp kendine geliyor; birkaç saat sonra bilinci yeniden bulanıklaşıyor.',
+  { id: 'pterion', lez: [{ tip: 'isaret', sid: 'cranium', ham: [.03, .6, .64], r: .012, renk: '#C9483B', not: 'Sağ pterion bölgesinde kırık hattı.' }], ad: 'Şakağa darbe', tag: 'Baş ve boyun', txt: 'Futbol topu şakağına çarpan genç kısa süre bayılıp kendine geliyor; birkaç saat sonra bilinci yeniden bulanıklaşıyor.',
     steps: [['cranium', 'Darbenin aldığı kemik yapıyı bul.', 'Pterion; dört kemiğin birleştiği ince bölge.'], ['carotis', 'Kanayan arterin geldiği ana arteri bul.', 'Boyunda nabzı alınan büyük arter; dışı a. meningea media\'yı da verir.']],
     ex: 'Pterion kırığında altından geçen a. meningea media yırtılır ve epidural hematom gelişir. Klasik tablo "lusid aralık"tır: kısa bilinç kaybı, ardından düzelme ve sonra hızlı kötüleşme.' },
-  { id: 'inme', ad: 'Sabah fark edilen inme', tag: 'Nöroanatomi', txt: '72 yaşında erkek, sabah sağ kol ve bacağını kıpırdatamıyor, konuşamıyor. Su verilince öksürüyor.',
+  { id: 'inme', lez: [{ tip: 'isaret', sid: 'cerebrum', ham: [.78, .58, .5], r: .03, renk: '#7A1E2B', not: 'Sol hemisferde iskemik alan (a. cerebri media sulama alanı).' }], ad: 'Sabah fark edilen inme', tag: 'Nöroanatomi', txt: '72 yaşında erkek, sabah sağ kol ve bacağını kıpırdatamıyor, konuşamıyor. Su verilince öksürüyor.',
     steps: [['carotis', 'Emboli kaynağı olabilecek boyun arterini bul.', 'Boynun yan tarafında, m. sternocleidomastoideus\'un önünde nabzı alınan büyük arter.'], ['cerebrum', 'İnmenin etkilediği beyin bölümünü bul.', 'Kafatası boşluğunun büyük bölümünü dolduran iki yarıküre; sol yarıküre etkilenmiş.'], ['medulla', 'Güçsüzlüğü taşıyan motor yolun (kortikospinal yol) beyinden indiği yapıyı bul.', 'Omurga kanalının içinde uzanan sinir dokusu; yol beyin sapında karşı tarafa geçer.']],
     ex: 'Sol a. cerebri media sulama alanında iskemik inme: sağ yüz ve kolda baskın güçsüzlük, dominant yarıkürede afazi. Kaynak sıklıkla a. carotis interna\'daki aterom plağıdır. Kortikospinal yol beyin sapında çaprazlaştığı için sol yarıküre hasarı sağ tarafta güçsüzlük yapar. Kortikobulbar yolların hasarı yutmayı da bozar; bu yüzden ağızdan bir şey verilmeden önce yutma taraması yapılır.' },
-  { id: 'kalca', ad: 'Evde düşen yaşlı kadın', tag: 'Alt ekstremite', txt: '82 yaşında kadın, mutfakta kayıp yan düşmüş. Ayağa kalkamıyor; sağ bacağı kısa ve dışa dönük duruyor.',
+  { id: 'kalca', lez: [{ tip: 'kirik', sid: 'femur', taraf: 'R', P: [.6, .914], n: [.85, .53, 0], tr: [0, .03, 0], rotY: 18, not: 'Collum femoris kırığı: distal parça yukarı kaymış ve dışa dönmüş (bacak kısa, dışa dönük).' }], ad: 'Evde düşen yaşlı kadın', tag: 'Alt ekstremite', txt: '82 yaşında kadın, mutfakta kayıp yan düşmüş. Ayağa kalkamıyor; sağ bacağı kısa ve dışa dönük duruyor.',
     steps: [['femur', 'Kırılan kemiği bul.', 'Uyluğun tek kemiği; kırık başın hemen altındaki boyun (collum) bölgesinde.'], ['pelvis', 'Femur başının oturduğu eklem yuvasını taşıyan kemiği bul.', 'Asetabulum kalça kemiğindedir.'], ['a_femoralis', 'Femur başını besleyen dalları veren ana arteri bul.', 'Kasık bağının altında nabzı alınan arter; derin dalı a. circumflexa femoris medialis\'i verir.']],
     ex: 'Collum femoris kırığında bacak kısalır ve dışa döner. Femur başını besleyen a. circumflexa femoris medialis kırıkta yırtılabilir; avasküler nekroz riski nedeniyle yer değiştirmiş boyun kırıklarında yaşlıda çoğunlukla protez yapılır. Ameliyat sonrası erken mobilizasyon ve beslenme desteği komplikasyonları azaltır.' },
-  { id: 'apandisit', ad: 'Göç eden karın ağrısı', tag: 'Abdomen', txt: '19 yaşında erkek. Ağrı dün akşam göbek çevresinde başlamış, sabah sağ alt kadrana yerleşmiş. Bulantısı ve 37,9 °C ateşi var.',
+  { id: 'apandisit', lez: [{ tip: 'isaret', sid: 'colon', ham: [.13, .5, .6], r: .016, renk: '#E5544A', not: 'Çekumdan sarkan iltihaplı apendiks.' }], ad: 'Göç eden karın ağrısı', tag: 'Abdomen', txt: '19 yaşında erkek. Ağrı dün akşam göbek çevresinde başlamış, sabah sağ alt kadrana yerleşmiş. Bulantısı ve 37,9 °C ateşi var.',
     steps: [['colon', 'Apendiksin bağlı olduğu kalın bağırsak bölümünü bul.', 'Sağ alt kadrandaki çekum; kalın bağırsağın başlangıcı.'], ['tenue', 'Çekuma açılan ince bağırsak bölümünü bul.', 'İleum; ileoçekal valv ile çekuma açılır.'], ['pelvis', 'McBurney noktasının referans aldığı çıkıntıyı taşıyan kemiği bul.', 'Spina iliaca anterior superior: kalça kemiğinin ön üst çıkıntısı.']],
     ex: 'Apendiks iltihabında ağrı önce göbek çevresinde hissedilir (visseral lifler, T10 dermatomu); iltihap pariyetal peritona ulaşınca sağ alt kadrana yerleşir. McBurney noktası, spina iliaca anterior superior ile göbeği birleştiren çizginin dış üçte birindedir.' },
-  { id: 'kot', ad: 'Motosiklet kazası, göğüs travması', tag: 'Toraks', txt: '35 yaşında erkek, motosikletten düşmüş. Sağ göğsünde nefes alınca artan ağrı, nefes darlığı; SpO₂ %89.',
+  { id: 'kot', lez: [{ tip: 'kirik', sid: 'costae', taraf: 'R', ad: /^(Seventh|Eighth) rib\.r$/, P: [.1, .5, .62], n: [0, 0, 1], tr: [-.06, -.04, 0], rotY: 0, not: 'Sağ 7. ve 8. kaburgada lateral kırık; parçalar içe çökmüş.' }], ad: 'Motosiklet kazası, göğüs travması', tag: 'Toraks', txt: '35 yaşında erkek, motosikletten düşmüş. Sağ göğsünde nefes alınca artan ağrı, nefes darlığı; SpO₂ %89.',
     steps: [['costae', 'Kırılan yapıyı bul.', 'Göğüs kafesini oluşturan yay biçimli kemikler.'], ['pulmo', 'Kırık uçların yaralayabileceği organı bul.', 'Göğüs boşluğunu dolduran, plevrayla sarılı organ.'], ['hepar', 'Sağ alt kaburgaların koruduğu, kanayabilecek organı bul.', 'Sağ üst kadranda, diyaframın altındaki en büyük organ.']],
     ex: 'Kaburga kırığının ucu plevrayı delerse pnömotoraks gelişir: o tarafta solunum sesleri azalır, perküsyonda hipersonorite olur. Tansiyon pnömotoraks acildir ve hemen dekompresyon gerekir. Alt sağ kaburga kırıklarında karaciğer, alt sol kaburgalarda dalak yaralanması akla gelmelidir.' },
   { id: 'ulnar', ad: 'Dirsek üstünde uyuyakalma', tag: 'Üst ekstremite', txt: '30 yaşında erkek, gece dirseği bükülü uyumuş. Sabah yüzük ve serçe parmağı uyuşuk; parmaklarını açıp kapamakta zorlanıyor.',
@@ -3206,7 +3206,7 @@ const CASE = { run: false, c: null, i: 0, miss: 0 };
 /* Acadex Medica: hastanın vakası ?medica=1&vaka=<id> ile açılır, bitince puan hastaneye gider */
 const MEDICA = /[?&]medica=1(&|$)/.test(location.search);
 function medicaBildir(o) { if (!MEDICA || window.parent === window) return; try { window.parent.postMessage(Object.assign({ src: 'axmedica', type: 'sonuc', lab: 'anatomi', tamam: true }, o), location.origin); } catch (e) {} }
-function medicaCerrah(o) { if (!MEDICA || window.parent === window) return; const sc = document.createElement('script'); sc.src = '../medica/medica-cerrah.js'; sc.onload = () => { if (window.AXCERRAH) window.AXCERRAH.kur(o); }; sc.onerror = () => {}; document.head.appendChild(sc); }
+function medicaCerrah(o) { if (window.AXCERRAH) { window.AXCERRAH.kur(o); return; } if (document.querySelector('script[data-axc]')) return; const sc = document.createElement('script'); sc.dataset.axc = '1'; sc.src = '../medica/medica-cerrah.js'; sc.onload = () => { if (window.AXCERRAH) window.AXCERRAH.kur(o); }; sc.onerror = () => {}; document.head.appendChild(sc); }
 function renderCases() {
   $('#caseList').innerHTML = CASES.map(c => { const done = LS.get('caseDone', []).includes(c.id); return `<button class="case ${CASE.c === c && CASE.run ? 'on' : ''}" data-case="${c.id}"><span class="tg">${esc(c.tag)}</span><b>${esc(c.ad)}</b><small>${c.steps.length} adım${done ? ' · çözdün ✓' : ''}</small></button>${window.AXKLINIK && AXKLINIK.SEN['ana-' + c.id] ? `<button class="case-sahne" data-sahne-case="${c.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V6l8-3 8 3v14"/><path d="M9 20v-6h6v6M12 7v4M10 9h4"/></svg>Hastayı karşıla · sahnede başla</button>` : ''}`; }).join('');
 }
@@ -3232,6 +3232,8 @@ async function startCase(c) {
   const syss = new Set(c.steps.map(s => sysOfSid(s[0]))); for (const s of syss) if (s && !loaded[s]) await withLoader(s);
   for (const s of syss) if (st.layers[s]) st.layers[s].on = true; renderLayers(); st.peel = 0; st.ghost = null; st.iso = null; applyVis(); renderStates();
   Object.assign(CASE, { run: true, c, i: 0, miss: 0, hata: 0, sahne: false }); renderCases(); caseCard(); HOME();
+  /* 06.11.2026: hastanın lezyonu modelde, adımın sistemi, Dr. Ela ipucu merdiveni (Medica dışında da) */
+  await vkLezyon(c); await vkAdim(c.steps[0][0]); vkRehber();
 }
 function caseCard(fb) {
   const c = CASE.c, el = $('#casebar'); if (!c) return; el.classList.add('on');
@@ -3243,14 +3245,15 @@ function caseCard(fb) {
 }
 $('#casebar').addEventListener('click', e => {
   const b = e.target.closest('[data-cs]'); if (!b) return;
-  if (b.dataset.cs === 'close') { CASE.run = false; CASE.c = null; $('#casebar').classList.remove('on'); renderCases(); select(null); }
+  if (b.dataset.cs === 'close') { CASE.run = false; CASE.c = null; $('#casebar').classList.remove('on'); renderCases(); select(null); vkLezKaldir(); vkKatmanGeri(); }
   if (b.dataset.cs === 'cards') { const cards = LS.get('cards', []); CASE.c.steps.forEach(s => { if (!cards.some(x => x.sid === s[0])) cards.push({ sid: s[0], int: 1, ef: 2.5, due: tomorrow9() }); }); LS.set('cards', cards); renderTekrar(); toast('Vakadaki yapılar Acadex kartlarına eklendi.'); }
 });
 function caseClick(h) {
   const s = CASE.c.steps[CASE.i]; if (!h) return;
   const sid = h.mesh.userData.sid;
   if (sid === s[0]) {
-    selectMesh(h.mesh, { point: h.point }); pulse(); CASE.i++; CASE.miss = 0;
+    selectMesh(h.mesh, { point: h.point }); pulse(); CASE.i++; CASE.miss = 0; vkHale(null);
+    if (CASE.i < CASE.c.steps.length) setTimeout(() => { if (CASE.run) vkAdim(CASE.c.steps[CASE.i][0]); }, 1400); else setTimeout(vkKatmanGeri, 1600);
     if (CASE.i >= CASE.c.steps.length) { CASE.run = false; medicaBildir({ vaka: CASE.c.id, puan: Math.max(0, 100 - 10 * (CASE.hata || 0)) }); const d = LS.get('caseDone', []); if (!d.includes(CASE.c.id)) { d.push(CASE.c.id); LS.set('caseDone', d); } renderCases(); caseCard(); if (CASE.sahne) { CASE.sahne = false; kapanis(CASE.c); } }
     else caseCard({ ok: true, t: 'Doğru: ' + S[s[0]].tr + ' (' + S[s[0]].la + ')' });
   } else {
@@ -3258,6 +3261,157 @@ function caseClick(h) {
     const el = $('#casebar'); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
   }
 }
+
+/* ===================== vakaya göre model + yaklaşarak ipucu (06.11.2026) =====================
+   1) Hasta modelde: vakadaki lezyon gerçekten çizilir. "kirik": kemiğin üçgenleri kırık düzlemiyle ikiye
+      ayrılır, hareketli parça vakadaki gibi yer değiştirir (ör. collum femoris: kısalma + dış rotasyon);
+      kırık hattında kırmızı halka. "isaret": iltihaplı apendiks, enjeksiyon noktası, iskemik alan gibi
+      yapının üstünde kırmızı odak. Vaka kapanınca model eski haline döner.
+   2) Her adımda yalnız gereken sistem görünür (iskelet bağlam olarak saydam kalır).
+   3) İpucu merdiveni (Dr. Ela, 5/10/20 puan): bölgeye geniş plan → yakın plan + üst katmanlar saydam +
+      alan ışıldar → Dr. Ela soru sorarak götürür; her doğru cevap bir adım yaklaşır, sonunda yapı parlar,
+      dokunan öğrencidir. Yalnız vaka modunda; hareket azaltmada kamera geçişi anlıktır (camTo). */
+const VK = { lez: [], ek: [], katman: null, hale: null, iv: null };
+const vkKutu = m => { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox.clone(); if (m.position.lengthSq()) b.translate(m.position); return b; };
+/* üçgenleri düzlemin iki yanına ayır (ağırlık merkezine göre); kırık kenarı doğal olarak pürüzlü çıkar */
+function vkBol(g, P, n) {
+  const pos = g.attributes.position, nor = g.attributes.normal, idx = g.index, A = [[], []], B = [[], []];
+  const T = idx ? idx.count / 3 : pos.count / 3, at = k => idx ? idx.getX(k) : k;
+  for (let t = 0; t < T; t++) {
+    const a = at(3 * t), b = at(3 * t + 1), c = at(3 * t + 2);
+    const d = ((pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3 - P.x) * n.x + ((pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3 - P.y) * n.y + ((pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3 - P.z) * n.z;
+    const H = d > 0 ? A : B;
+    for (const k of [a, b, c]) { H[0].push(pos.getX(k), pos.getY(k), pos.getZ(k)); if (nor) H[1].push(nor.getX(k), nor.getY(k), nor.getZ(k)); }
+  }
+  const mk = h => { const q = new THREE.BufferGeometry(); q.setAttribute('position', new THREE.Float32BufferAttribute(h[0], 3)); if (h[1].length) q.setAttribute('normal', new THREE.Float32BufferAttribute(h[1], 3)); q.computeBoundingBox(); q.computeBoundingSphere(); return q; };
+  return { A: mk(A), B: mk(B), nA: A[0].length, nB: B[0].length };
+}
+const vkHedef = (L, ms) => ms.filter(m => (!L.taraf || m.userData.side === L.taraf) && (!L.ad || L.ad.test(m.name)));
+async function vkLezyon(c) {
+  vkLezKaldir();
+  for (const L of c.lez || []) {
+    const ms = vkHedef(L, await ensureFor(L.sid)); if (!ms.length) continue;
+    if (L.tip === 'kirik') for (const m of ms) {
+      const b = vkKutu(m), w = b.max.x - b.min.x, h = b.max.y - b.min.y, dz = b.max.z - b.min.z, mx = (b.min.x + b.max.x) / 2 < 0 ? 1 : -1;
+      const lat = mx > 0 ? b.min.x : b.max.x;
+      const P = new THREE.Vector3(lat + mx * L.P[0] * w, b.min.y + L.P[1] * h, b.min.z + (L.P[2] != null ? L.P[2] : .5) * dz).sub(m.position);
+      const n = new THREE.Vector3(mx * L.n[0], L.n[1], L.n[2]).normalize();
+      const g0 = m.geometry, k = vkBol(g0, P, n); if (!k.nA || !k.nB) continue;
+      /* hareketli parça (düzlemin alt/uzak yanı): dikey eksen etrafında dönme + kayma, geometriye işlenir */
+      const th = THREE.MathUtils.degToRad(L.rotY || 0) * (m.userData.side === 'R' ? -1 : 1);
+      const M = new THREE.Matrix4().makeTranslation(-mx * (L.tr[0] || 0) * h, (L.tr[1] || 0) * h, (L.tr[2] || 0) * h)
+        .multiply(new THREE.Matrix4().makeTranslation(P.x, 0, P.z)).multiply(new THREE.Matrix4().makeRotationY(th)).multiply(new THREE.Matrix4().makeTranslation(-P.x, 0, -P.z));
+      k.B.applyMatrix4(M); k.B.computeBoundingBox(); k.B.computeBoundingSphere();
+      /* seçilebilir asıl mesh büyük parçayı taşır; küçük parça onun çocuğu (görünürlük, malzeme ve seçim onu izler) */
+      const buyuk = k.nA >= k.nB ? k.A : k.B, kucuk = buyuk === k.A ? k.B : k.A;
+      m.geometry = buyuk; const fr = new THREE.Mesh(kucuk, m.material); fr.userData.vkParca = true;
+      fr.onBeforeRender = function (rnd, sc, cam, geo, mat) { if (scene.overrideMaterial && m.onBeforeRender) m.onBeforeRender(rnd, sc, cam, geo, mat); else this.material = m.material; };
+      m.add(fr);
+      const halka = new THREE.Mesh(new THREE.TorusGeometry(Math.max(w, dz) * .42, Math.max(w, dz) * .05, 8, 28), new THREE.MeshBasicMaterial({ color: 0xE5544A, transparent: true, opacity: .75, depthTest: false }));
+      halka.position.copy(P); halka.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n); halka.renderOrder = 5; halka.userData.vkNabiz = true; halka.raycast = () => {}; m.add(halka);
+      VK.lez.push({ m, g0, ek: [fr, halka], sid: L.sid, odak: halka, r: Math.max(w, h * .25, dz) * .9 });
+    }
+    if (L.tip === 'isaret') {
+      const m = ms[0], b = new THREE.Box3(); ms.forEach(x => b.union(vkKutu(x)));
+      const P = new THREE.Vector3(b.min.x + L.ham[0] * (b.max.x - b.min.x), b.min.y + L.ham[1] * (b.max.y - b.min.y), b.min.z + L.ham[2] * (b.max.z - b.min.z)).sub(m.position);
+      const col = new THREE.Color(L.renk || '#E5544A');
+      const od = new THREE.Mesh(new THREE.SphereGeometry(L.r, 20, 14), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .85, depthTest: false }));
+      const ha = new THREE.Mesh(new THREE.SphereGeometry(L.r * 2.1, 20, 14), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .25, depthWrite: false, depthTest: false }));
+      od.position.copy(P); ha.position.copy(P); od.renderOrder = ha.renderOrder = 5; ha.userData.vkNabiz = true; od.raycast = ha.raycast = () => {};
+      m.add(od); m.add(ha); VK.lez.push({ m, g0: null, ek: [od, ha], sid: L.sid, odak: od, r: Math.max(L.r * 5, .05) });
+    }
+  }
+  if (VK.lez.length && !RM.matches) VK.iv = setInterval(() => { if (document.hidden) return; const t = performance.now() / 1000, k = .5 + .5 * Math.sin(t * 3.2); VK.lez.forEach(l => l.ek.forEach(e => { if (e.userData.vkNabiz) e.material.opacity = .2 + .55 * k; })); if (VK.hale) VK.hale.material.opacity = VK.hale.userData.yogun ? .06 + .12 * k : .06 + .1 * k; need(); }, 90);
+  need();
+}
+function vkLezKaldir() {
+  clearInterval(VK.iv); VK.iv = null;
+  VK.lez.forEach(l => { l.ek.forEach(e => { l.m.remove(e); e.geometry.dispose(); if (e.userData.vkParca !== true) e.material.dispose(); }); if (l.g0) { const g = l.m.geometry; l.m.geometry = l.g0; g.dispose(); } });
+  VK.lez = []; vkHale(null); need();
+}
+/* adımın sistemi: yalnız o katman; kemik değilse iskelet saydam bağlam olarak kalır */
+async function vkAdim(sid) {
+  const ms = await ensureFor(sid), hedef = (ms[0] && ms[0].userData.layer) || sysOfSid(sid);
+  if (!VK.katman) VK.katman = JSON.parse(JSON.stringify(st.layers));
+  for (const k of Object.keys(st.layers)) {
+    const L = st.layers[k];
+    if (k === hedef) { L.on = true; L.op = 1; }
+    else if (k === 'iskelet') { L.on = true; L.op = hedef === 'iskelet' ? 1 : .32; }
+    else if (hedef === 'kasek' && k === 'kas') { L.on = true; L.op = .15; }
+    else L.on = false;
+  }
+  st.ghost = null; st.iso = null; st.peel = 0; vkHale(null); renderLayers(); applyVis();
+}
+function vkKatmanGeri() { if (VK.katman) { Object.assign(st.layers, VK.katman); VK.katman = null; renderLayers(); applyVis(); } }
+/* hedefin çevresinde ışıldayan küre: geniş (alan) ya da dar (yapının kendisi) */
+function vkHale(ms, dar) {
+  if (VK.hale) { scene.remove(VK.hale); VK.hale.geometry.dispose(); VK.hale.material.dispose(); VK.hale = null; }
+  if (VK.parla) { VK.parla = null; outFr.visibleEdgeColor.set('#B98CFF'); outFr.enabled = st.friend.on && !!st.friend.sel; outFr.selectedObjects = outFr.enabled ? (bySid.get(st.friend.sel) || []).filter(m => m.visible) : []; }
+  if (!ms || !ms.length) return;
+  if (dar) { outFr.enabled = true; outFr.visibleEdgeColor.set('#FFD24A'); outFr.selectedObjects = ms.filter(m => m.visible); VK.parla = ms; }
+  const sp = sphereOf(ms); if (!sp) return;
+  const h = new THREE.Mesh(new THREE.SphereGeometry(sp.radius * (dar ? 1.35 : 1.7), 28, 20), new THREE.MeshBasicMaterial({ color: dar ? 0xFFD45A : 0x7FE0C2, transparent: true, opacity: dar ? .14 : .12, depthWrite: false }));
+  h.position.copy(sp.center); h.renderOrder = 6; h.raycast = () => {}; h.userData.yogun = !!dar; scene.add(h); VK.hale = h;
+  if (!VK.iv && !RM.matches) VK.iv = setInterval(() => { if (document.hidden || !VK.hale) return; const k = .5 + .5 * Math.sin(performance.now() / 1000 * 3.2); VK.hale.material.opacity = VK.hale.userData.yogun ? .06 + .12 * k : .06 + .1 * k; need(); }, 90);
+  need();
+}
+/* vaka kartı görünümün sağını kapladığı için hedef ekranın sol-orta bölümüne yerleşecek biçimde çerçevelenir */
+function vkFrame(ms, k, odak) {
+  const sp = odak || sphereOf(ms); if (!sp) return;
+  const dir = (dirFor(ms) || new THREE.Vector3(0, .08, 1)).clone().normalize();
+  const dist = Math.min(5, Math.max(.22, sp.radius / Math.sin(camera.fov * Math.PI / 360) * k));
+  const bar = $('#casebar'), kayik = bar && bar.classList.contains('on') && innerWidth > 900 ? .22 : 0;
+  const sag = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(-1);
+  const off = sag.multiplyScalar(dist * Math.tan(camera.fov * Math.PI / 360) * camera.aspect * kayik);
+  const tgt = sp.center.clone().add(off);
+  camTo(tgt.clone().add(dir.multiplyScalar(dist)), tgt);
+}
+/* lezyon bu adımın yapısındaysa son yaklaşma kırık/odak noktasına yapılır */
+function vkOdak(sid) { const l = VK.lez.find(x => x.sid === sid); if (!l) return null; l.m.updateMatrixWorld(true); return { center: l.odak.getWorldPosition(new THREE.Vector3()), radius: l.r }; }
+/* hastanın tarafı: lezyon o yapıdaysa yalnız o taraf gösterilir (ör. sağ femur) */
+function vkTaraf(sid, ms) { const L = (CASE.c && CASE.c.lez || []).find(x => x.sid === sid && x.taraf); const t = L ? ms.filter(m => m.userData.side === L.taraf && (!L.ad || L.ad.test(m.name))) : []; return t.length ? t : ms; }
+/* bölge ve sistem adları (soru sorarak götürme) */
+const VK_BOLGE = ['Baş ve boyun', 'Göğüs', 'Karın, pelvis ve kalça', 'Kol ve el (üst ekstremite)', 'Uyluk, bacak ve ayak (alt ekstremite)'];
+function vkBolge(ms) { const tek = ms.filter(m => m.userData.side === 'R'); const c = sphereOf(tek.length ? tek : ms).center; if (c.y > 1.45 || (Math.abs(c.x) < .06 && c.y > 1.33)) return 0; if (Math.abs(c.x) > .15 && c.y > .75) return 3; if (c.y < .82) return 4; if (c.y < 1.15) return 2; return 1; }
+const VK_SIS = { iskelet: 'Kemik', kas: 'Kas', kasek: 'Kas', damar: 'Damar', sinir: 'Sinir', organ: 'Organ' };
+function vkSecenek(dogru, hepsi, n = 3) {
+  const d = hepsi.filter(x => x !== dogru); for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+  const sec = d.slice(0, n - 1).concat([dogru]); for (let i = sec.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [sec[i], sec[j]] = [sec[j], sec[i]]; }
+  return { sec, dogru: sec.indexOf(dogru) };
+}
+function vkKomsu(sid, ms, n = 2) {
+  const c = sphereOf(ms).center, gor = new Map();
+  for (const m of meshesAll) { const x = m.userData.sid; if (!x || x === sid || !S[x] || m.userData.sys === 'insersiyo' || gor.has(x)) continue; const s0 = sphereOf([m]); if (s0) gor.set(x, s0.center.distanceTo(c)); }
+  return [...gor.entries()].sort((a, b) => a[1] - b[1]).slice(0, n).map(e => S[e[0]].tr);
+}
+/* Dr. Ela'nın ipucu merdiveni; kademe 3 soru listesi döndürür (labs/medica/medica-cerrah.js → sorgula) */
+async function vkIpucu(n) {
+  if (!CASE.run || !CASE.c) return null; const s = CASE.c.steps[CASE.i], sid = s[0];
+  const ms = await ensureFor(sid); if (!ms.length) return 'Bu yapı modelde ayrı işaretli değil; ' + S[sid].tr + ' adını arama kutusuna yazabilirsin.';
+  const ly = ms[0].userData.layer; if (ly && st.layers[ly] && !st.layers[ly].on) { st.layers[ly].on = true; renderLayers(); applyVis(); }
+  const hs = vkTaraf(sid, ms);
+  if (n === 1) { vkFrame(hs, 3.2); return 'İpucu: ' + s[2] + ' Kamerayı önce o bölgeye çevirdim; geniş plandan bak.'; }
+  if (n === 2) {
+    for (const k of Object.keys(st.layers)) if (k !== ly && st.layers[k].on) st.layers[k].op = k === 'iskelet' ? .25 : .15;
+    renderLayers(); applyVis(); vkHale(hs, false); const o = vkOdak(sid); vkFrame(hs, o ? 2.2 : 1.25, o);
+    return 'Yaklaştım: üstteki katmanları saydamlaştırdım, aradığın yapı ışıldayan alanın içinde. Şimdi dokun.';
+  }
+  const bol = vkBolge(ms), sis = VK_SIS[ly] || 'Kemik';
+  const kom = vkKomsu(sid, ms), q1 = vkSecenek(sis, ['Kemik', 'Kas', 'Damar', 'Sinir', 'Organ']), q2 = vkSecenek(VK_BOLGE[bol], VK_BOLGE), q3 = vkSecenek(S[sid].tr, kom.length >= 2 ? kom.concat([S[sid].tr]) : kom.concat([S[sid].tr, 'Hiçbiri']));
+  return { metin: 'Birlikte bulalım; üç soru soracağım, doğru cevapladıkça modele yaklaşırız.', son: 'İşte orada: parlayan yapıya şimdi sen dokun.',
+    sorular: [
+      { s: 'Aradığımız yapı ne tür bir doku?', sec: q1.sec, dogru: q1.dogru, ok: 'Evet, ' + sis.toLocaleLowerCase('tr') + '. Diğer sistemleri kapattım.', yanlis: 'Görevi yeniden oku: “' + s[1] + '” Hangi dokuyu arıyoruz?',
+        sonra: () => { for (const k of Object.keys(st.layers)) { if (k === ly) { st.layers[k].on = true; st.layers[k].op = 1; } else if (k === 'iskelet') { st.layers[k].on = true; st.layers[k].op = ly === 'iskelet' ? 1 : .25; } else st.layers[k].on = false; } renderLayers(); applyVis(); HOME(); } },
+      { s: 'Vücudun hangi bölgesinde?', sec: q2.sec, dogru: q2.dogru, ok: 'Doğru bölge; oraya yaklaşıyorum.', yanlis: 'Vakayı düşün: ' + CASE.c.txt.split('.')[0] + '. Sorun nerede?',
+        sonra: () => { vkHale(hs, false); vkFrame(hs, 1.8); } },
+      { s: 'Bu bölgedeki şu yapılardan hangisini arıyoruz?', sec: q3.sec, dogru: q3.dogru, ok: 'Evet, ' + S[sid].tr + ' (' + S[sid].la + ').', yanlis: 'O yapı da bu bölgede ama görevle ilgisi yok. İpucu: ' + s[2],
+        sonra: () => { vkHale(hs, true); const o = vkOdak(sid); vkFrame(hs, o ? 1.6 : .95, o); pulse(); } }
+    ] };
+}
+const VK_ETIKET = ['İpucu + bölgeye bak', 'Yakına git', 'Dr. Ela ile bul'];
+/* Medica'da ipucu cezası hastanedeki vakaya yazılır; bu yüzden orada rehber yalnız o vakanın adımlarında konuşur */
+const VK_MEDICA_VAKA = MEDICA ? new URLSearchParams(location.search).get('vaka') : null;
+function vkRehber() { medicaCerrah({ lab: 'anatomi', anahtar: () => CASE.run && CASE.c && (!MEDICA || CASE.c.id === VK_MEDICA_VAKA) ? CASE.c.id + ':' + CASE.i : null, kademe: vkIpucu, etiket: VK_ETIKET }); }
 
 /* ===================== v5: aydınlık laboratuvar ===================== */
 (() => {
@@ -3626,19 +3780,11 @@ renderTabs();
   $('#loadBar').style.width = '100%'; setTimeout(() => $('#load').classList.add('done'), 250);
   renderLayers(); renderNotes(); setPins(); applyVis(); intro(); booted = true; renderTekrar(); renderCases(); renderHead();
   if (MEDICA) { const mc = CASES.find(c => c.id === new URLSearchParams(location.search).get('vaka')); if (mc) { setMode('vaka'); await startCase(mc); }
-    /* rehber cerrah: 1) sözel ipucu 2) kamerayı bölgeye çevir 3) yapıyı seçip adını söyle (labs/medica/medica-cerrah.js) */
-    if (mc) medicaCerrah({ lab: 'anatomi', anahtar: () => CASE.run && CASE.c ? CASE.c.id + ':' + CASE.i : null, kademe: async n => {
-      if (!CASE.run || !CASE.c) return null; const s = CASE.c.steps[CASE.i], sid = s[0];
-      if (n === 1) return 'İpucu: ' + s[2];
-      const ms = await ensureFor(sid); if (!ms.length) return 'Bu yapı modelde ayrı işaretli değil; ' + S[sid].tr + ' adını arama kutusuna yazabilirsin.';
-      const ly = ms[0].userData.layer; if (ly && st.layers[ly] && !st.layers[ly].on) { st.layers[ly].on = true; renderLayers(); applyVis(); }
-      if (n === 2) { frame(ms, { dir: dirFor(ms), k: 3.2 }); return 'Kamerayı o bölgeye çevirdim; aradığın yapı bu çerçevenin içinde. Üstündeki katmanları saydamlaştırman gerekebilir.'; }
-      select(sid, { frame: true, mesh: ms.find(m => m.userData.side === 'L') || ms[0] }); pulse();
-      return 'Bu ' + S[sid].tr + ' (' + S[sid].la + '). Parlayan yapıya şimdi sen dokun.'; } }); }
+    /* Dr. Ela ipucu merdiveni startCase içinde kurulur (vkRehber · vkIpucu, 06.11.2026) */ }
   window.__lab = { camTo, st, S, TR, DIM, searchIndex: () => SIDX, pickSearch, select, selectMesh, goSid, setMode, meshesAll, byName, bySid, camera, controls, loadSys, withLoader, applyVis, startSpot, judge, friend, need, gpuPick, setQuality, drawLabels, setLabelsOn, runDemo, stopDemo, runSignal, setExplode, startTour, stopTour, startCase, caseClick, setHeat, CASE, TOUR, DEMO, EXP, FLOW, REV, recordSpot, renderTekrar, scene,
     /* 02.11.2026: sistem modülleri, radyoloji ve diseksiyon (Sistemler betiği) için */
     THREE, body, frame, camTo, dirFor, FRAME_HOOKS, anim, toast, nameTR, trOf, renderLayers, renderStates, renderCard, pulse, loaded, outFr, outline, HOME, setSides, clipUI, sphereOf, ensureFor, LS, TIME, MEDICA, medicaBildir, medicaCerrah, esc, renderer,
-    kameraTut: () => { userMoved = true; }, lms: () => LMS, cardTitle };   /* programla çerçevelenen görünüm, panel yeniden boyutlanınca başa dönmesin */
+    kameraTut: () => { userMoved = true; }, lms: () => LMS, cardTitle, VK, vkIpucu, vkLezyon, vkLezKaldir, vkAdim, CASES };   /* programla çerçevelenen görünüm, panel yeniden boyutlanınca başa dönmesin */
   window.dispatchEvent(new Event('axlab:hazir'));
   /* ===== MedLab köprüsü (27.10.2026) =====
      Lab, Acadex MedLab katmanında (iframe, ?medlab=1) açıldığında kendi Acadia'sını gizler;

@@ -125,7 +125,7 @@ test('yeni hastalar: her kata 4, lab’da karşılığı var', () => {
     diyet: ['dyt-v-dash', 'dyt-v-onko', 'dyt-v-osteo', 'dyt-e-peg'], dkt: ['dkt-osman', 'dkt-kerem', 'dkt-yarik', 'dkt-ykek'] };
   for (const [kat, ids] of Object.entries(yeni)) for (const id of ids) { assert.ok(SEN[id], id); assert.equal(MV.katOf(id).id, kat, id); }
   const ana = read('labs/anatomi/index.html');
-  for (const v of ['inme', 'kalca', 'apandisit', 'kot']) assert.match(ana, new RegExp("\\{ id: '" + v + "', ad: "), 'Anatomi CASES ' + v);
+  for (const v of ['inme', 'kalca', 'apandisit', 'kot']) assert.match(ana, new RegExp("\\{ id: '" + v + "',[^\\n]*? ad: "), 'Anatomi CASES ' + v);
   assert.ok(M.VK.some((v) => v.id === 'v-onko') && M.EP.some((c) => c.id === 'e-peg'));
   assert.ok(ODY.P.buson.oto.R.g === 'buson' && /g === 'buson'/.test(read('labs/odyoloji/odyo-kabin2.js')), 'otoskopta buşon çizimi');
 });
@@ -231,12 +231,11 @@ test('lab’lar: Fizyo açılınca “tamamlandı” demez, ev programı hastaya
   const fz = read('labs/fizyo/index.html'), an = read('labs/anatomi/index.html'), c = read('labs/medica/medica-cerrah.js'), js = read('labs/medica/medica.js');
   assert.match(fz, /medicaBildir\(\{ vaka: t\.id, type: 'hazir', tamam: false, exAd \}\)/);
   assert.match(fz, /const saveProg = \(\) => \{ if \(MEDICA\) \{ medicaProg\(\); return; \} LS\.set\('fzProg', FZS\.prog\); \};/, 'öğrencinin kendi programı ezilmez');
-  assert.match(an, /sc\.src = '\.\.\/medica\/medica-cerrah\.js'/); assert.match(an, /function medicaCerrah\(o\) \{ if \(!MEDICA \|\| window\.parent === window\) return;/);
+  assert.match(an, /sc\.src = '\.\.\/medica\/medica-cerrah\.js'/); assert.match(an, /function medicaCerrah\(o\) \{ if \(window\.AXCERRAH\) \{ window\.AXCERRAH\.kur\(o\); return; \}/, '06.11.2026: Dr. Ela tek başına Anatomi Lab’da da');
   assert.ok(!/medicaCerrah/.test(fz), 'rehber cerrah yalnız Anatomi vakalarında (01.11.2026 seçimi)');
   /* Anatomi: önce ekibe ilk plan, sonra hastaya anlatım (taburcuda son sorudaki seçim söylenir) */
   for (const s of Object.values(SEN).filter((x) => x.lab === 'anatomi')) { assert.equal(s.sonu.sorular.length, 2, s.id); assert.match(s.sonu.sorular[0].s, /İlk plan/, s.id); }
-  assert.match(an, /if \(n === 2\) \{ frame\(ms, \{ dir: dirFor\(ms\), k: 3\.2 \}\);/, '2. kademe bölgeyi gösterir');
-  assert.match(an, /return 'Bu ' \+ S\[sid\]\.tr \+ ' \(' \+ S\[sid\]\.la \+ '\)\. Parlayan yapıya şimdi sen dokun\.';/, '3. kademe yapıyı söyler, öğrenci dokunur');
+  assert.match(an, /kademe: vkIpucu, etiket: VK_ETIKET/, 'kademeler tests/anatomi-vaka.js içinde sınanır');
   assert.match(c, /class="axc-agiz"/); assert.match(c, /<b>Uzm\. Dr\. Ela Altındağ<\/b>/); assert.match(c, /type: 'ipucu', lab: o\.lab, kademe: n, ceza: CEZA\[n - 1\]/); assert.match(c, /e\.key === 'Escape'/);
   assert.match(js, /if \(S\.aktif\.sen\.sonu\) \{ if \(typeof d\.puan === 'number'\) S\.aktif\.cerceve = Math\.round\(d\.puan\); bildirHazir\(/);
   assert.match(js, /if \(d\.type === 'program' && Array\.isArray\(d\.items\)\) \{ S\.aktif\.program = d\.items\.slice\(0, 12\)/);

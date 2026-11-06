@@ -56,6 +56,8 @@
     '.axc-r{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}',
     '.axc-r button{min-height:40px;padding:0 14px;border:1.5px solid #0D1838;border-radius:999px;background:#fff;color:#0D1838;font:700 13.5px "Instrument Sans",system-ui,sans-serif;cursor:pointer}',
     '.axc-r button.pri{background:#0D1838;color:#fff}.axc-r button:disabled{opacity:.45;cursor:default}',
+    '.axc-r button.ok{background:#E3F4EA;border-color:#1E8A55;opacity:1}.axc-r button.no{background:#FDECEA;border-color:#C9483B}.axc-r.soru button{flex:1 1 100%;text-align:left;padding:8px 14px;min-height:42px;line-height:1.3}',
+    '.axc-sn{display:block;margin-top:8px;font:700 11px "JetBrains Mono",monospace;letter-spacing:.1em;color:#2E9C86}',
     '.axc-p.konus .axc-agiz{animation:axc-m .26s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 0}',
     '@keyframes axc-m{to{transform:scaleY(1.6)}}',
     '.axc-at{animation:axc-at 3.2s ease-in-out infinite;transform-box:view-box;transform-origin:0 0}',
@@ -85,9 +87,10 @@
       S.yaz = setInterval(function () { i += 2; t.innerHTML = X(metin.slice(0, i)) + '<span class="cur"></span>'; if (i >= metin.length) bit(); }, 18);
       t.onclick = bit;
     };
-    var bildir = function (n) { try { W.parent.postMessage({ src: 'axmedica', type: 'ipucu', lab: o.lab, kademe: n, ceza: CEZA[n - 1] }, location.origin); } catch (e) {} };
+    var bildir = function (n) { if (W.parent === W) return; try { W.parent.postMessage({ src: 'axmedica', type: 'ipucu', lab: o.lab, kademe: n, ceza: CEZA[n - 1] }, location.origin); } catch (e) {} };
     var dugmeler = function () {
       var k = S.kademe, ak = o.anahtar();
+      r.className = 'axc-r';
       Array.prototype.forEach.call(p.querySelectorAll('.axc-k span'), function (s, i) { s.classList.toggle('on', i < k); });
       r.innerHTML = (ak && k < 3 ? '<button type="button" class="pri" data-axc="ver">' + (o.etiket || ETIKET)[k] + ' (−' + CEZA[k] + ')</button>' : '') + '<button type="button" data-axc="kapat">' + (k ? 'Tamam, deneyeyim' : 'Kendim bulacağım') + '</button>';
     };
@@ -106,8 +109,42 @@
       if (x.getAttribute('data-axc') === 'kapat') { kapat(); return; }
       if (o.anahtar() !== S.anahtar) { ac(); return; }
       var n = S.kademe + 1; x.disabled = true;
-      Promise.resolve(o.kademe(n)).then(function (metin) { if (!metin) { dugmeler(); return; } S.kademe = n; bildir(n); soyle(metin); dugmeler(); });
+      Promise.resolve(o.kademe(n)).then(function (cv) {
+        if (!cv) { dugmeler(); return; }
+        S.kademe = n; bildir(n);
+        if (typeof cv === 'object' && cv.sorular && cv.sorular.length) { sorgula(cv); return; }
+        soyle(typeof cv === 'object' ? cv.metin : cv); dugmeler();
+      });
     });
+    /* 06.11.2026 · soru sorarak götürme: kademe {metin, sorular:[{s, sec:[…], dogru, ok, yanlis, sonra()}], son}
+       döndürürse Dr. Ela soruları sırayla sorar; her doğru cevap modeli bir adım yaklaştırır (sonra), yanlışta
+       açıklama yapar ve aynı soruyu bekler. En sonda "son" metni söylenir; bulmak yine öğrencinin dokunuşudur. */
+    var sorgula = function (cv) {
+      var i = 0, ak = S.anahtar;
+      var sor = function () {
+        if (o.anahtar() !== ak) { dugmeler(); return; }
+        var q = cv.sorular[i];
+        soyle((i === 0 && cv.metin ? cv.metin + ' ' : '') + q.s);
+        r.className = 'axc-r soru';
+        r.innerHTML = q.sec.map(function (t, j) { return '<button type="button" data-sq="' + j + '">' + X(t) + '</button>'; }).join('') + '<span class="axc-sn">soru ' + (i + 1) + ' / ' + cv.sorular.length + '</span>';
+      };
+      if (S.cev) r.removeEventListener('click', S.cev);
+      r.addEventListener('click', S.cev = function cev(e) {
+        var x = e.target.closest('[data-sq]'); if (!x || x.disabled) return;
+        var q = cv.sorular[i], j = +x.getAttribute('data-sq');
+        if (j !== q.dogru) { x.classList.add('no'); x.disabled = true; soyle(q.yanlis || 'Tekrar düşün.'); return; }
+        x.classList.add('ok'); Array.prototype.forEach.call(r.querySelectorAll('[data-sq]'), function (y) { y.disabled = true; });
+        try { if (q.sonra) q.sonra(); } catch (er) {}
+        soyle(q.ok || 'Doğru.');
+        setTimeout(function () {
+          i++;
+          if (i < cv.sorular.length) { sor(); return; }
+          r.removeEventListener('click', cev); S.cev = null; r.className = 'axc-r';
+          if (cv.son) soyle(cv.son); dugmeler();
+        }, RM ? 300 : 1500);
+      });
+      sor();
+    };
     D.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !p.hidden) kapat(); });
     return { ac: ac, kapat: kapat, durum: S };
   };
