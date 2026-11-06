@@ -170,7 +170,31 @@
     '.axk-pop{position:absolute;z-index:3;left:50%;top:14px;transform:translateX(-50%);padding:10px 16px;border-radius:12px;background:#FFFDF8;border:2px solid #0D1838;box-shadow:0 14px 28px -14px rgba(0,0,0,.5);font-weight:700;font-size:15px;max-width:min(90%,520px);text-align:center;animation:axk-pop .35s ease both}',
     '.axk-pop small{display:block;font-weight:500;color:#46506A;font-size:13px;margin-top:2px}',
     '@media (max-width:900px){.axk-body{grid-template-columns:minmax(0,1fr)}.axk-side{display:none}.axk-side.on{display:block;position:absolute;inset:auto 0 0 0;max-height:60%;z-index:3;border-top:3px solid #0D1838}.axk-steps{display:none}.axk-panel{max-height:none;flex:1}.axk-scene{flex:none;min-height:0;aspect-ratio:1000/560}}',
-    '@media (min-width:901px){.axk-nb:not(.axk-ses){display:none}}',
+    '@media (min-width:901px){.axk-nb:not(.axk-ses):not(.axk-on){display:none}}',
+    /* 06.11.2026: canlı fizyoloji, müdahale, elle muayene, serbest soru, sinematik kamera */
+    '.axk-nb.axk-on{background:#2E9C86}.axk-nb.axk-on:hover{background:#38B39A}.axk-nb[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #7FE0C2}',
+    '.axk-vb{position:absolute;left:10px;top:10px;z-index:3;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100% - 20px);pointer-events:none}',
+    '.axk-vb span{padding:4px 9px;border-radius:999px;background:rgba(11,18,34,.82);color:#E4ECFF;font:700 12px "JetBrains Mono",monospace}',
+    '.axk-vb .nw{background:#2E8E5B}.axk-vb .nw.o{background:#C98A1E}.axk-vb .nw.y{background:#C9483B;animation:axk-nwp 1.2s ease-in-out infinite}',
+    '@keyframes axk-nwp{50%{box-shadow:0 0 0 6px rgba(201,72,59,.25)}}',
+    '.axk-kriz{position:absolute;left:50%;top:52px;z-index:4;transform:translateX(-50%);max-width:min(92%,520px);padding:10px 16px;border-radius:12px;background:#C9483B;color:#fff;font-weight:700;font-size:14px;box-shadow:0 14px 30px -12px rgba(0,0,0,.6);animation:axk-kz .9s ease-in-out infinite alternate;text-align:center}',
+    '@keyframes axk-kz{to{transform:translateX(-50%) scale(1.03)}}',
+    '.axk-mud{position:absolute;left:10px;bottom:10px;z-index:3;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100% - 20px)}',
+    '.axk-mud b{flex-basis:100%;font:700 11px "JetBrains Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}',
+    '.axk-mud button{min-height:36px;padding:0 12px;border:2px solid #0D1838;border-radius:999px;background:#fff;color:#0D1838;font:700 13px "Instrument Sans",system-ui,sans-serif;cursor:pointer;box-shadow:2px 2px 0 #0D1838}',
+    '.axk-mud button:disabled{opacity:.55;cursor:default;box-shadow:none}.axk-mud button.ok{background:#E3F4EA;border-color:#1E8A55}.axk-mud button.no{background:#FDECEA;border-color:#C9483B}',
+    '.axk-trend{margin:10px 0 0;padding:10px;border-radius:12px;background:#0B1222;color:#C9D2E4}.axk-trend svg{display:block;width:100%;height:84px}.axk-trend small{font:700 10.5px "JetBrains Mono",monospace;letter-spacing:.1em;color:#8FA0C4}',
+    '.axk-serbest{display:flex;gap:6px;margin-top:10px;align-items:center}',
+    '.axk-serbest input{flex:1;min-width:0;min-height:42px;padding:0 12px;border:1.5px solid #9AA6BC;border-radius:12px;font:15px "Instrument Sans",system-ui,sans-serif;background:#fff;color:#0D1838}',
+    '.axk-serbest input:focus{outline:none;border-color:#2F6BFF;box-shadow:0 0 0 3px rgba(47,107,255,.18)}',
+    '.axk-serbest button{min-height:42px;padding:0 14px;border:1.5px solid #0D1838;border-radius:12px;background:#0D1838;color:#fff;font-weight:700;cursor:pointer}',
+    '.axk-serbest button.mik{background:#fff;color:#0D1838;padding:0 10px}.axk-serbest button.mik.on{background:#C9483B;border-color:#C9483B;color:#fff;animation:axk-nwp 1s infinite}',
+    '.axk-serbest-n{margin:4px 0 0;font-size:12px;color:#6A7593}',
+    '.axk-scene svg.room{transition:transform .9s cubic-bezier(.3,.7,.2,1)}',
+    '.axk-scene svg.room.kamera{animation:axk-kam 1.8s cubic-bezier(.25,.7,.2,1) both}',
+    '@keyframes axk-kam{from{transform:scale(1.32) translate(-9%,3%);filter:blur(3px)}60%{filter:none}to{transform:none}}',
+    '@media (max-width:700px){.axk-top{flex-wrap:wrap;gap:6px;padding:8px 10px}.axk-top .t{flex:1 1 calc(100% - 50px)}.axk-top .axk-x{order:1}.axk-top .axk-nb{order:2;min-height:34px;padding:0 10px;font-size:13px}.axk-vb{gap:4px}.axk-vb span{font-size:10.5px;padding:3px 7px}.axk-mud button{min-height:32px;font-size:12px;padding:0 9px}.axk-kriz{top:40px;font-size:12.5px}}',
+    '@media (prefers-reduced-motion:reduce){.axk-scene svg.room{transition:none!important;animation:none!important;transform:none!important}.axk-kriz,.axk-vb .nw.y{animation:none}}',
     '@media (prefers-reduced-motion:reduce){.axk,.axk *{animation:none!important;transition:none!important}}'
   ].join('\n');
 
@@ -337,13 +361,15 @@
     var asamalar = []; sen.adimlar.forEach(function (a) { var n = a.baslik && a.tip !== 'devir' ? a.baslik : ADIM_AD[a.tip]; if (n && asamalar.indexOf(n) < 0) asamalar.push(n); });
     ov.innerHTML = '<div class="axk-top"><div class="t"><b>' + X(sen.odaAd || '') + ' · ' + X(sen.hasta.hitap || sen.hasta.ad) + '</b><small>' + X(sen.baslik) + '</small></div>' +
       '<div class="axk-steps">' + asamalar.map(function (n) { return '<span data-as="' + X(n) + '">' + X(n) + '</span>'; }).join('') + '</div>' +
-      ((sen.vital || sen.oda === 'acil' || sen.oda === 'ameliyathane' || sen.oda === 'servis') ? '<button type="button" class="axk-nb axk-ses" data-k="ses" aria-pressed="false" aria-label="Monitör sesi">Ses</button>' : '') + '<button type="button" class="axk-nb" data-k="not">Dosya</button><button type="button" class="axk-x" data-k="x" aria-label="Sahneyi kapat">×</button></div>' +
+      ((sen.vital || sen.oda === 'acil' || sen.oda === 'ameliyathane' || sen.oda === 'servis') ? '<button type="button" class="axk-nb axk-ses" data-k="ses" aria-pressed="false" aria-label="Monitör sesi">Ses</button>' : '') + (W.AXMUAYENE && W.AXFIZ ? '<button type="button" class="axk-nb axk-on" data-k="pe">Elle muayene</button>' : '') + (W.speechSynthesis ? '<button type="button" class="axk-nb axk-ses" data-k="tts" aria-pressed="false">Sesli</button>' : '') + '<button type="button" class="axk-nb" data-k="not">Dosya</button><button type="button" class="axk-x" data-k="x" aria-label="Sahneyi kapat">×</button></div>' +
       '<div class="axk-body"><div class="axk-stage"><div class="axk-scene">' + sahneSVG(sen) + '</div><div class="axk-panel" aria-live="polite"></div></div>' +
-      '<aside class="axk-side" aria-label="Hasta dosyası"><span class="k">hasta dosyası</span><h3>' + X(sen.hasta.ad) + ', ' + X(sen.hasta.yas) + '</h3><ul data-notlar><li class="empty" style="background:none;border:0;padding:0">Görüşmede öğrendiklerin burada birikir.</li></ul></aside></div>';
+      '<aside class="axk-side" aria-label="Hasta dosyası"><span class="k">hasta dosyası</span><h3>' + X(sen.hasta.ad) + ', ' + X(sen.hasta.yas) + '</h3><ul data-notlar><li class="empty" style="background:none;border:0;padding:0">Görüşmede öğrendiklerin burada birikir.</li></ul><div data-trend></div></aside></div>';
     D.body.appendChild(ov);
     var $ = function (q) { return ov.querySelector(q); };
     var panel = $('.axk-panel'), scene = $('.axk-scene');
     scene.style.background = 'linear-gradient(180deg,' + (DUVAR[sen.oda] || '#E3DCCD') + ' 0 76.8%,#BFAF93 76.8% 100%)';
+    /* sinematik giriş: kamera kapıdan odaya süzülür */
+    if (!RM) { var svr = scene.querySelector('svg.room'); if (svr) { svr.classList.add('kamera'); setTimeout(function () { svr.classList.remove('kamera'); }, 1900); } }
     /* dar ekranda sahneyi karakterlere yaklaştır */
     if (W.innerWidth < 700) { var vb = YAKIN[sen.oda] || [90, 80, 720, 430], sv = scene.querySelector('svg.room'); sv.setAttribute('viewBox', vb.join(' ')); scene.style.aspectRatio = vb[2] + '/' + vb[3]; }
     var S = { i: -1, sec: {}, yaz: null };
@@ -408,6 +434,55 @@
     /* sayılar gerçek monitördeki gibi hafifçe oynar (taban değer değişmez) */
     MON.jt = setInterval(function () { if (vit.nabiz != null) MON.jit.nabiz = Math.round((Math.random() - 0.5) * 3); if (vit.spo2 != null) MON.jit.spo2 = vit.spo2 >= 99 ? -Math.round(Math.random()) : Math.round((Math.random() - 0.5) * 2); vitalYaz(MON.sonAlarm); }, 2600);
 
+    /* ---------- canlı fizyoloji (06.11.2026, labs/klinik/klinik-fizyoloji.js): vitaller zamanla akar ----------
+       Tedavisiz hasta örüntüsüne göre kötüleşir; doğru karar ve endikasyonlu müdahale düzeltir. Solunum, ateş ve
+       NEWS2 sahnede, son 3 dakikanın eğrisi hasta dosyasında. Kritik eşikte uyarı; puan ayrı: "hasta güvenliği". */
+    var FZ = W.AXFIZ && sen.vital ? W.AXFIZ.kur(vit) : null, FZT = [], FZK = { son: 0 };
+    var fzSenk = function () { var v = W.AXFIZ.vital(FZ); vit.nabiz = v.nabiz; vit.ta = v.ta; vit.spo2 = v.spo2; vit.solunum = v.solunum; vit.ates = v.ates; };
+    var fzCiz = function () {
+      if (!FZ) return;
+      var vb = scene.querySelector('.axk-vb'); if (!vb) { vb = D.createElement('div'); vb.className = 'axk-vb'; vb.setAttribute('aria-hidden', 'true'); scene.appendChild(vb); }
+      var p = W.AXFIZ.news2(FZ), rk = W.AXFIZ.risk(p);
+      vb.innerHTML = '<span>SS ' + Math.round(FZ.rr) + '/dk</span><span>Ateş ' + (Math.round(FZ.ates * 10) / 10).toLocaleString('tr-TR') + ' °C</span><span class="nw' + (p >= 7 ? ' y' : p >= 5 ? ' o' : '') + '">NEWS2 ' + p + (rk !== 'yok' ? ' · ' + rk + ' risk' : '') + '</span>';
+      var kr = W.AXFIZ.kritik(FZ), kz = scene.querySelector('.axk-kriz');
+      if (kr && !kz) {
+        kz = D.createElement('div'); kz.className = 'axk-kriz'; kz.setAttribute('role', 'alert'); scene.appendChild(kz);
+      }
+      if (kr) kz.textContent = 'Hasta kötüleşiyor: ' + [FZ.spo2 != null && FZ.spo2 < 90 ? 'SpO₂ %' + Math.round(FZ.spo2) : '', FZ.sys != null && FZ.sys < 90 ? 'TA ' + Math.round(FZ.sys) + '/' + Math.round(FZ.dia) : '', FZ.hr > 130 ? 'nabız ' + Math.round(FZ.hr) : ''].filter(Boolean).join(' · ') + ' — hemen müdahale et.';
+      else if (kz) kz.remove();
+    };
+    var fzTrend = function () {
+      var el = ov.querySelector('[data-trend]'); if (!el || !FZ || FZT.length < 2) return;
+      var Wd = 260, Hd = 84, n = FZT.length, x = function (i) { return (i / Math.max(1, 89)) * Wd; };
+      var yol = function (k, lo, hi) { return FZT.map(function (r, i) { var v = r[k]; if (v == null) return ''; return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + (Hd - 4 - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (Hd - 8)).toFixed(1); }).join(' '); };
+      el.innerHTML = '<div class="axk-trend"><small>VİTAL SEYRİ · SON ' + Math.round(n * 2 / 60 * 10) / 10 + ' DK</small><svg viewBox="0 0 ' + Wd + ' ' + Hd + '" aria-label="Vital seyri"><path d="' + yol('hr', 40, 170) + '" stroke="#4BE08A" stroke-width="2" fill="none"/><path d="' + yol('spo2', 78, 100) + '" stroke="#66C7FF" stroke-width="2" fill="none"/><path d="' + yol('sys', 60, 200) + '" stroke="#FFD45A" stroke-width="2" fill="none"/></svg>' +
+        '<small style="color:#4BE08A">nabız</small> <small style="color:#66C7FF">SpO₂</small> <small style="color:#FFD45A">sistolik TA</small></div>';
+    };
+    if (FZ) {
+      FZK.iv = setInterval(function () {
+        if (!ov.parentNode) return;
+        W.AXFIZ.ilerle(FZ, 1); fzSenk(); vitalYaz(MON.sonAlarm); fzCiz();
+        if (++FZK.son % 2 === 0) { FZT.push({ hr: FZ.hr, spo2: FZ.spo2, sys: FZ.sys }); if (FZT.length > 90) FZT.shift(); fzTrend(); }
+      }, 1000);
+      fzCiz();
+      /* müdahale çubuğu: acil, servis, ameliyathane ya da riskli hasta */
+      if (/^(acil|servis|ameliyathane)$/.test(sen.oda) || W.AXFIZ.news2(FZ) >= 3) {
+        var mb = D.createElement('div'); mb.className = 'axk-mud'; mb.innerHTML = '<b>müdahale</b>' + W.AXFIZ.MUDAHALE.map(function (m) { return '<button type="button" data-mud="' + m.k + '" title="' + X(m.uzun) + '">' + X(m.ad) + '</button>'; }).join('');
+        scene.appendChild(mb);
+        mb.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-mud]'); if (!b || b.disabled) return;
+          var k = b.getAttribute('data-mud'), m = W.AXFIZ.MUDAHALE.filter(function (x) { return x.k === k; })[0];
+          var r = W.AXFIZ.uygula(FZ, k, { agri: IF.taban === 'agri' || MON.ek > 0 || /ağrı|agri/i.test((sen.hasta && sen.hasta.ifade) || '') });
+          if (r.uygun === null) { popup(m.ad, r.mesaj); return; }
+          b.disabled = true; b.classList.add(r.uygun ? 'ok' : 'no');
+          popup(m.ad, r.uygun ? 'uygun' : 'gereksiz'); not('Müdahale · ' + m.ad, r.mesaj);
+          var f = D.createElement('p'); f.className = 'axk-fb ' + (r.uygun ? 'ok' : 'no'); f.innerHTML = '<b>' + X(KIM.mentor) + ':</b> ' + X(r.mesaj); panel.appendChild(f);
+          if (r.uygun && !r.notr) setTimeout(function () { ifadeYap('rahat', 2600); }, 1400);
+          fzSenk(); vitalYaz(MON.sonAlarm); fzCiz();
+        });
+      }
+    }
+
     /* ---------- hastanın yüz ifadesi: muayene ve karara göre değişir ---------- */
     var IF = { taban: (sen.hasta && sen.hasta.ifade) || 'normal', t: null };
     var ifadeYap = function (k, sure) {
@@ -426,6 +501,29 @@
       ifadeYap(k, 3200);
     };
     var konusan = function (kim, on) { var g = ov.querySelector('[data-who="' + kim + '"]'); if (g) g.classList.toggle('talk', !!on); };
+    /* sinematik kamera: konuşana hafifçe yaklaş (geniş ekranda; hareket azaltmada yok) */
+    var MU = null, TTS = { on: false };
+    try { TTS.on = W.localStorage.getItem('axk.tts') === '1'; } catch (e) {}
+    var kamera = function (kim) {
+      var sv = scene.querySelector('svg.room'); if (!sv || RM || W.innerWidth < 900) return;
+      var g = kim && ov.querySelector('[data-who="' + kim + '"]'), b = null;
+      try { b = g && g.getBBox(); } catch (e) {}
+      if (!b || !b.width) { sv.style.transform = ''; return; }
+      sv.style.transformOrigin = ((b.x + b.width / 2) / 10).toFixed(1) + '% ' + ((b.y + b.height * 0.3) / 5.6).toFixed(1) + '%';
+      sv.style.transform = 'scale(1.07)';
+    };
+    /* sesli sahne: konuşan karakter Türkçe sesle okunur (tarayıcının kendi sesi; kadın/erkek, yaşa göre ton) */
+    var sesliOku = function (kim, metin) {
+      if (!TTS.on || !W.speechSynthesis || !W.SpeechSynthesisUtterance || kim === 'anlatici' || kim === 'sen') return;
+      try {
+        W.speechSynthesis.cancel();
+        var u = new W.SpeechSynthesisUtterance(metin), kk = kim === 'mentor' ? sen.mentor : kim === 'refakat' ? (sen.refakat || {}) : sen.hasta;
+        u.lang = 'tr-TR'; u.rate = 1.02;
+        u.pitch = (kk.cins === 'E' ? 0.85 : 1.15) + (kk.gorunum === 'cocuk' ? 0.35 : kk.gorunum === 'yasli' ? -0.15 : 0);
+        var vs = W.speechSynthesis.getVoices().filter(function (v) { return /^tr/i.test(v.lang); }); if (vs.length) u.voice = vs[0];
+        W.speechSynthesis.speak(u);
+      } catch (e) {}
+    };
     var KIM = { hasta: sen.hasta.hitap || sen.hasta.ad, mentor: (sen.mentor.unvan ? sen.mentor.unvan + ' ' : '') + sen.mentor.ad, refakat: sen.refakat ? sen.refakat.ad : 'Refakatçi', sen: 'Sen', anlatici: 'Sahne' };
     /* konuşma balonu: daktilo efekti; tıklayınca tamamlanır */
     var soyle = function (kim, metin, sonra) {
@@ -435,7 +533,7 @@
       panel.innerHTML = ''; panel.appendChild(box);
       var p = box.querySelector('p'), i = 0, bitti = false;
       var bitir = function () { if (bitti) return; bitti = true; clearInterval(S.yaz); p.textContent = metin; konusan(kim, false); if (sonra) sonra(); };
-      konusan(kim, true);
+      konusan(kim, true); kamera(kim === 'hasta' || kim === 'mentor' || kim === 'refakat' ? kim : null); sesliOku(kim, metin);
       if (RM) { bitir(); return box; }
       S.yaz = setInterval(function () { i += 2; p.innerHTML = X(metin.slice(0, i)) + '<span class="cur"></span>'; if (i >= metin.length) bitir(); }, 22);
       box.addEventListener('click', bitir);
@@ -475,7 +573,63 @@
         var r = D.createElement('div'); r.className = 'axk-row'; r.innerHTML = '<button type="button" class="axk-btn' + ((a.hak && kalan() <= 0) || kullan.length === a.secenek.length ? ' pri' : '') + '" data-k="bitti">' + (kullan.length ? 'Yeterli, devam' : 'Atla') + '</button>'; box.appendChild(r);
         return box;
       };
-      var liste = function () { var w = D.createElement('div'); panel.appendChild(ciz(w)); w.addEventListener('click', tik); };
+      var liste = function () { var w = D.createElement('div'); panel.appendChild(ciz(w)); w.addEventListener('click', tik); if (a.tip === 'sor') serbest(w); };
+      /* serbest soru (06.11.2026): öğrenci kendi sorusunu yazar ya da söyler. Yapay zekâ hasta (opt.aiSor, Medica
+         köprüsü) senaryoya sadık cevap verir ve sorunun hangi hazır soruya denk geldiğini söyler; yoksa ya da yanıt
+         gecikirse yerel eşleme (AXFIZ.eslestir). Denk gelen hazır soru kullanılmış sayılır: puanlama değişmez. */
+      var serbest = function (w) {
+        if (!W.AXFIZ) return;
+        var dolu = a.hak && kalan() <= 0;
+        var f = D.createElement('form'); f.className = 'axk-serbest'; f.setAttribute('novalidate', '');
+        var SR = W.SpeechRecognition || W.webkitSpeechRecognition;
+        f.innerHTML = '<input type="text" maxlength="240" autocomplete="off" aria-label="Kendi sorunu yaz" placeholder="' + (dolu ? 'Soru hakkın doldu' : 'Kendi sorunu yaz… (ör. Ağrı nasıl başladı?)') + '"' + (dolu ? ' disabled' : '') + '>' +
+          (SR && !dolu ? '<button type="button" class="mik" aria-label="Sesle sor" title="Sesle sor">Mikrofon</button>' : '') + '<button type="submit"' + (dolu ? ' disabled' : '') + '>Sor</button>';
+        w.appendChild(f);
+        var nt = D.createElement('p'); nt.className = 'axk-serbest-n'; nt.textContent = opt.aiSor ? 'Hasta senin sorunu anlayıp kendi sözleriyle cevaplar; denk gelen soru hakkından düşer.' : 'Sorun hazır sorularla eşlenir; denk gelen soru hakkından düşer.'; w.appendChild(nt);
+        var inp = f.querySelector('input');
+        var mik = f.querySelector('.mik');
+        if (mik) mik.onclick = function () {
+          if (S.tanima) { try { S.tanima.stop(); } catch (e) {} return; }
+          try {
+            var t = new SR(); t.lang = 'tr-TR'; t.interimResults = true; t.maxAlternatives = 1; S.tanima = t; mik.classList.add('on'); mik.textContent = 'Dinliyorum';
+            t.onresult = function (ev) { var r = ev.results[ev.results.length - 1]; inp.value = r[0].transcript; if (r.isFinal) { try { t.stop(); } catch (e) {} f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit')); } };
+            t.onend = t.onerror = function () { S.tanima = null; mik.classList.remove('on'); mik.textContent = 'Mikrofon'; };
+            t.start();
+          } catch (e) { S.tanima = null; mik.classList.remove('on'); }
+        };
+        f.onsubmit = function (ev) {
+          ev.preventDefault(); var q = inp.value.trim(); if (q.length < 3 || dolu) return;
+          inp.disabled = true; Array.prototype.forEach.call(f.querySelectorAll('button'), function (b) { b.disabled = true; });
+          S.serbest = S.serbest || { n: 0, isabet: 0, acik: 0, yon: 0, gecmis: [] }; var SS = S.serbest; SS.n++;
+          var tur = W.AXFIZ.soruTuru(q); if (tur === 'acik') SS.acik++; else if (tur === 'yonlendirici') SS.yon++;
+          var acikSec = a.secenek.filter(function (o) { return kullan.indexOf(o.id) < 0; });
+          var yerel = W.AXFIZ.eslestir(q, acikSec);
+          soyle('sen', q, function () {
+            var bitti = false, cevapla = function (r) {
+              if (bitti) return; bitti = true; clearTimeout(zt);
+              var id = r && r.eslesen && r.eslesen.filter(function (x) { return acikSec.some(function (o) { return o.id === x; }); })[0];
+              if (!id && !(r && r.cevap) && yerel) id = yerel.id;
+              var o = id && a.secenek.filter(function (x) { return x.id === id; })[0];
+              var cevap = (r && r.cevap) || (o ? o.cevap : 'Bunu tam anlayamadım; başka türlü sorar mısınız?');
+              SS.gecmis.push({ q: q, a: cevap });
+              var kim = (o && o.kim) || (sen.hasta.konusamaz && sen.refakat ? 'refakat' : 'hasta');
+              if (o) { SS.isabet++; kullan.push(o.id); if (o.ifade || o.puan < 0) ifadeYap(o.ifade || 'uzgun', 3400); }
+              soyle(kim, cevap, function () {
+                if (o && (o.not || o.puan > 0)) not(o.not ? o.not.split('|')[0] : 'Anamnez', o.not ? (o.not.split('|')[1] || o.cevap) : o.cevap);
+                else if (!o && r && r.cevap) not('Serbest soru', q + ' → ' + r.cevap);
+                if (o) { var fb = o.geri || (o.puan >= 2 ? GENEL.iyi : o.puan < 0 ? GENEL.kotu : (o.puan > 0 ? '' : GENEL.bos)); if (fb) { var p2 = D.createElement('p'); p2.className = 'axk-fb ' + (o.puan >= 2 ? 'ok' : o.puan < 0 ? 'no' : ''); p2.innerHTML = '<b>' + X(KIM.mentor) + ':</b> ' + X(fb); panel.appendChild(p2); } }
+                liste();
+              });
+            };
+            var zt = setTimeout(function () { cevapla(null); }, 9000);
+            if (opt.aiSor) {
+              Promise.resolve(opt.aiSor({ hasta: { ad: sen.hasta.ad, hitap: sen.hasta.hitap, yas: sen.hasta.yas, cins: sen.hasta.cins }, baslik: sen.baslik, oda: sen.odaAd || sen.oda,
+                secenek: a.secenek.map(function (o) { return { id: o.id, t: o.t, cevap: o.cevap, acik: kullan.indexOf(o.id) < 0 }; }), soru: q, gecmis: SS.gecmis.slice(-6) }))
+                .then(function (r) { cevapla(r && (r.cevap || r.eslesen) ? r : null); }, function () { cevapla(null); });
+            } else setTimeout(function () { cevapla(null); }, RM ? 0 : 500);
+          });
+        };
+      };
       var tik = function (e) {
         var b = e.target.closest('[data-o]'); if (b && !b.disabled) {
           var o = a.secenek.filter(function (x) { return x.id === b.getAttribute('data-o'); })[0]; kullan.push(o.id);
@@ -493,7 +647,7 @@
             });
           } else {
             if (o.anim && ANIM[o.anim]) ANIM[o.anim](o); else ANIM.hasta();
-            if (o.vital) { Object.assign(vit, o.vital); MON.sonAlarm = o.alarm; vitalYaz(o.alarm); }
+            if (o.vital) { Object.assign(vit, o.vital); if (FZ) { W.AXFIZ.ayarla(FZ, o.vital); fzCiz(); } MON.sonAlarm = o.alarm; vitalYaz(o.alarm); }
             tepki(o, o.sonuc);
             popup(o.t, o.deger || '');
             soyle(o.kim || 'anlatici', o.sonuc, function () { not(o.t, o.sonuc); son(); });
@@ -519,7 +673,8 @@
           var b = e.target.closest('[data-c]'); if (!b || S.sec[S.i] != null) return;
           var i = +b.getAttribute('data-c'), o = a.secenek[i]; S.sec[S.i] = i;
           Array.prototype.forEach.call(w.querySelectorAll('[data-c]'), function (x, j) { x.disabled = true; if (a.secenek[j].dogru) x.classList.add('ok'); else if (j === i) x.classList.add('no'); });
-          if (o.vital) { Object.assign(vit, o.vital); MON.sonAlarm = o.alarm; vitalYaz(o.alarm); }
+          if (o.vital) { Object.assign(vit, o.vital); if (FZ) W.AXFIZ.ayarla(FZ, o.vital); MON.sonAlarm = o.alarm; vitalYaz(o.alarm); }
+          if (FZ) { W.AXFIZ.karar(FZ, !!o.dogru); fzCiz(); }
           if (sen.oda !== 'ameliyathane' || sen.hasta.uyanik) ifadeYap(o.dogru ? 'rahat' : 'endise', 3000);
           ANIM.mentor();
           var f = D.createElement('p'); f.className = 'axk-fb ' + (o.dogru ? 'ok' : 'no'); f.innerHTML = '<b>' + X(KIM.mentor) + ':</b> ' + X(o.geri || (o.dogru ? 'Doğru.' : 'Bu seçenek uygun değil.')); panel.appendChild(f);
@@ -535,6 +690,9 @@
         var w = D.createElement('div'); w.className = 'axk-karne';
         w.innerHTML = '<div style="display:flex;align-items:baseline;gap:10px"><span class="p">' + R.puan + '</span><small>/ 100 · klinik görüşme puanı</small></div><ul style="margin:6px 0 0;padding-left:18px">' +
           R.rows.map(function (r) { return '<li>' + (r.ok ? '✓ ' : '• ') + X(r.t) + ': ' + r.got + ' / ' + r.max + (r.kacan.length ? ' <small>(kaçan: ' + X(r.kacan.slice(0, 3).join('; ')) + ')</small>' : '') + '</li>'; }).join('') + '</ul>';
+        if (FZ) { R.guvenlik = W.AXFIZ.guvenlik(FZ); R.fizyo = { uygun: FZ.uygun, uygunsuz: FZ.uygunsuz, kritikSn: Math.round(FZ.kritikSn), news2: W.AXFIZ.news2(FZ) };
+          w.innerHTML += '<p style="margin:8px 0 0"><b>Hasta güvenliği: ' + R.guvenlik + ' / 100</b> <small>· uygun müdahale ' + FZ.uygun + ', gereksiz ' + FZ.uygunsuz + (FZ.kritikSn ? ', kritikte ' + Math.round(FZ.kritikSn) + ' sn' : '') + ' · son NEWS2 ' + R.fizyo.news2 + '</small></p>'; }
+        if (S.serbest && S.serbest.n) { var sb0 = S.serbest; w.innerHTML += '<p style="margin:6px 0 0"><b>İletişim:</b> <small>kendi sorduğun ' + sb0.n + ' sorudan ' + sb0.isabet + ' tanesi hedefi buldu; ' + sb0.acik + ' açık uçlu' + (sb0.yon ? ', ' + sb0.yon + ' yönlendirici' : '') + '. ' + (sb0.acik >= Math.ceil(sb0.n / 3) ? 'Açık uçlu başlangıçlar hastayı konuşturur, iyi.' : 'Görüşmeyi “Anlatır mısınız…”, “Nasıl başladı?” gibi açık uçlu sorularla aç.') + '</small></p>'; }
         panel.appendChild(w);
         var r = D.createElement('div'); r.className = 'axk-row';
         r.innerHTML = '<button type="button" class="axk-btn" data-k="tekrar">Baştan oyna</button><button type="button" class="axk-btn pri" data-k="devir">' + X(a.dugme || 'Devam') + '</button>';
@@ -548,7 +706,7 @@
       soyle('mentor', a.metin, kutu);
     };
     var kapat = function (sessiz) {
-      clearInterval(S.yaz); clearTimeout(S.pt); clearInterval(MON.jt); clearTimeout(IF.t); if (MON.raf) W.cancelAnimationFrame(MON.raf);
+      clearInterval(S.yaz); clearTimeout(S.pt); clearInterval(MON.jt); clearTimeout(IF.t); if (MON.raf) W.cancelAnimationFrame(MON.raf); clearInterval(FZK && FZK.iv); if (MU) MU.kapat(); if (S.tanima) try { S.tanima.abort(); } catch (e) {} if (W.speechSynthesis) W.speechSynthesis.cancel();
       D.removeEventListener('keydown', key, true);
       if (ov.parentNode) ov.parentNode.removeChild(ov);
       ACIK = null;
@@ -566,6 +724,20 @@
     D.addEventListener('keydown', key, true);
     ov.querySelector('[data-k="x"]').onclick = function () { kapat(); };
     ov.querySelector('[data-k="not"]').onclick = function () { $('.axk-side').classList.toggle('on'); };
+    var peb = ov.querySelector('[data-k="pe"]');
+    if (peb) peb.onclick = function () {
+      if (MU) { MU.kapat(); return; }
+      var stage = $('.axk-stage'); peb.setAttribute('aria-pressed', 'true');
+      MU = W.AXMUAYENE.ac(stage, {
+        bulgu: W.AXFIZ.bulgular(sen), ten: sen.hasta.ten || TEN[0], cins: sen.hasta.cins,
+        hr: function () { return (vit.nabiz || 80) + MON.ek; }, rr: function () { return vit.solunum || (FZ ? FZ.rr : 16); },
+        onDinle: function (z, r) { not('Oskültasyon · ' + W.AXFIZ.BOLGE[z], r.metin); },
+        onPalpe: function (z, r) { if (/^(sag|sol|epi)/.test(z)) not('Palpasyon · ' + W.AXFIZ.BOLGE[z], r.metin); if (r.agri) { ifadeYap('agri', 2600); MON.ek = r.siddet > 1 ? 14 : 8; vitalYaz(MON.sonAlarm); } },
+        onKapat: function () { MU = null; peb.setAttribute('aria-pressed', 'false'); try { peb.focus({ preventScroll: true }); } catch (e) {} }
+      });
+    };
+    var ttb = ov.querySelector('[data-k="tts"]');
+    if (ttb) { var ttCiz = function () { ttb.setAttribute('aria-pressed', TTS.on ? 'true' : 'false'); ttb.textContent = TTS.on ? 'Sesli açık' : 'Sesli'; }; ttCiz(); ttb.onclick = function () { TTS.on = !TTS.on; try { W.localStorage.setItem('axk.tts', TTS.on ? '1' : '0'); } catch (e) {} if (!TTS.on && W.speechSynthesis) W.speechSynthesis.cancel(); ttCiz(); }; }
     var sb = ov.querySelector('[data-k="ses"]');
     if (sb) { var sesCiz = function () { sb.setAttribute('aria-pressed', MON.ses ? 'true' : 'false'); sb.textContent = MON.ses ? 'Ses açık' : 'Ses'; }; sesCiz(); sb.onclick = function () { MON.ses = !MON.ses; try { W.localStorage.setItem('axk.ses', MON.ses ? '1' : '0'); } catch (e) {} sesCiz(); if (MON.ses) bip(880, 0.08); }; }
     ACIK = { kapat: kapat, sen: sen };

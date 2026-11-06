@@ -62,6 +62,32 @@
     } catch (e) {}
   };
   var ding = function () { bip(1318, 0.6); bip(1046, 0.9, 0.18); };
+  /* ortam sesi (06.11.2026): uzak hastane uğultusu (filtreli gürültü), arada uzak monitör bipi; anonslar sesli okunur.
+     Yalnız düğmeyle açılır, tercih saklanır; hareket azaltma tercihinden bağımsızdır (ses, hareket değil). */
+  var ORT = { on: false, n: null, g: null, iv: null };
+  try { ORT.on = ls.get('ortam', false) === true; } catch (e) {}
+  var ortam = function (ac) {
+    ORT.on = ac; try { ls.set('ortam', ac); } catch (e) {}
+    var b = $('#md-ort'); if (b) b.setAttribute('aria-pressed', String(ac));
+    try {
+      if (ac) {
+        AC = AC || new (W.AudioContext || W.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume();
+        if (!ORT.n) {
+          var buf = AC.createBuffer(1, AC.sampleRate * 4, AC.sampleRate), d = buf.getChannelData(0), son = 0;
+          for (var i = 0; i < d.length; i++) { son = (son + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = son * 3.2; }
+          var src = AC.createBufferSource(); src.buffer = buf; src.loop = true;
+          var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
+          ORT.g = AC.createGain(); ORT.g.gain.value = 0; src.connect(lp); lp.connect(ORT.g); ORT.g.connect(AC.destination); src.start(); ORT.n = src;
+        }
+        ORT.g.gain.setTargetAtTime(0.05, AC.currentTime, 0.6);
+        clearInterval(ORT.iv); ORT.iv = setInterval(function () { if (!D.hidden && Math.random() < 0.35) { var t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = 960; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.012, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 0.15); } }, 2300);
+      } else { if (ORT.g && AC) ORT.g.gain.setTargetAtTime(0, AC.currentTime, 0.3); clearInterval(ORT.iv); if (W.speechSynthesis) W.speechSynthesis.cancel(); }
+    } catch (e) {}
+  };
+  var anonsOku = function (metin) {
+    if (!ORT.on || !W.speechSynthesis || !W.SpeechSynthesisUtterance) return;
+    try { var u = new W.SpeechSynthesisUtterance(metin), vs = W.speechSynthesis.getVoices().filter(function (v) { return /^tr/i.test(v.lang); }); u.lang = 'tr-TR'; u.rate = 0.95; u.pitch = 1.05; u.volume = 0.8; if (vs.length) u.voice = vs[0]; W.speechSynthesis.speak(u); } catch (e) {}
+  };
 
   /* =========================== çizim =========================== */
   /* rehber hekim Uzm. Dr. Ela Altındağ (06.11.2026): beyaz önlük, altında yeşil forma, boynunda steteskop,
@@ -353,7 +379,7 @@
     var from = S.ekran === 'lobi' ? 0 : (V.katBul(S.kat) || { no: 0 }).no, to = katId ? V.katBul(katId).no : 0;
     var git = function () { ekran(katId ? 'kat' : 'lobi', katId); if (sonra) sonra(); };
     if (RM) { git(); live((to ? to + '. kat' : 'Giriş holü') + '.'); return; }
-    ov.hidden = false; g.textContent = from || 'G'; ok.textContent = to > from ? '▲' : to < from ? '▼' : '•'; ov.className = 'md-asansor';
+    ov.hidden = false; g.textContent = from || 'G'; ok.textContent = to > from ? '▲' : to < from ? '▼' : '•'; ov.className = 'md-asansor ' + (to < from ? 'asagi' : 'yukari');
     $('.gosterge small', ov).textContent = katId ? (V.katBul(katId).ara ? V.katBul(katId).etiket + ' ara kat · ' : '') + V.katBul(katId).ad : 'Giriş holü';
     requestAnimationFrame(function () { ov.classList.add('kapan'); });
     setTimeout(function () {
@@ -371,6 +397,9 @@
     bip(880, 0.25); bip(660, 0.35, 0.22);
     var pano = $('.pano-no'); if (pano) { pano.textContent = no; pano.classList.remove('flas'); void pano.getBoundingClientRect(); pano.classList.add('flas'); }
     var hb = $('.sahne [data-sen="' + sen.id + '"]'); if (hb) hb.classList.add('kalk');
+    /* sinematik: kamera çağrılan hastaya yaklaşır, sahne odaya geçer (klinik.js kapıdan içeri süzülür) */
+    var sh = $('#md-main .sahne');
+    if (sh && hb && !RM) { try { var bb = hb.getBBox(), vb = sh.viewBox.baseVal; sh.style.transformOrigin = ((bb.x + bb.width / 2 - vb.x) / vb.width * 100).toFixed(1) + '% ' + ((bb.y + bb.height / 2 - vb.y) / vb.height * 100).toFixed(1) + '%'; } catch (e) {} setTimeout(function () { sh.classList.add('yaklas'); }, 350); setTimeout(function () { sh.classList.remove('yaklas'); }, 2600); }
     live('Sıra ' + no + ', ' + (sen.hasta.hitap || sen.hasta.ad) + ' odaya çağrıldı.');
     setTimeout(function () { sahne(sen, !!nobetten); }, RM ? 0 : 900);
   };
@@ -381,7 +410,8 @@
     K.open(oyna, {
       onSonuc: function (R) { S.aktif.sahne = R.puan; S.aktif.kacan = R.rows.filter(function (r) { return r.kacan.length; }).map(function (r) { return r.kacan[0]; }).slice(0, 2); kaydetHasta(); },
       onDevir: function (R, hedef) { if (S.aktif.sahne == null) { S.aktif.sahne = R.puan; kaydetHasta(); } labAc(sen, hedef); },
-      onKapat: function () { bitir(false); }
+      onKapat: function () { bitir(false); },
+      aiSor: EMB ? aiSor : null
     });
     bridge();
   };
@@ -610,6 +640,7 @@
     el.innerHTML = '<i><svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></i><span>' + X(metin) + '</span>';
     void el.offsetWidth; el.classList.add('on');
     if (AC || kod) { bip(784, 0.5, 0); bip(622, 0.7, 0.32); }
+    setTimeout(function () { anonsOku(metin); }, RM ? 0 : 1100);
     clearTimeout(anons.h); anons.h = setTimeout(function () { el.classList.remove('on'); }, kod ? 5200 : 6500);
   };
   var anonsPlanla = function () {
@@ -786,6 +817,8 @@
   });
   $('#md-asn').addEventListener('click', panelAsansor);
   $('#md-def').addEventListener('click', defter);
+  $('#md-ort').addEventListener('click', function () { ortam(!ORT.on); toast(ORT.on ? 'Ortam sesi açık: anonslar sesli okunur.' : 'Ortam sesi kapalı.'); });
+  if (ORT.on) { var ortB = $('#md-ort'); if (ortB) ortB.setAttribute('aria-pressed', 'true'); D.addEventListener('pointerdown', function ilk() { D.removeEventListener('pointerdown', ilk); if (ORT.on) ortam(true); }); }
   $('#md-kon').addEventListener('click', konsultPanel);
   $('#md-nob').addEventListener('click', function () { if (S.nobet) { if (S.ekran !== 'kat' || S.kat !== S.nobet.kat) asansor(S.nobet.kat); } });
   $('#md-mu-geri').addEventListener('click', function () { bitir(true); });
@@ -795,6 +828,9 @@
   /* =========================== Acadia köprüsü ve iç çerçeve aktarımı =========================== */
   var EMB = W.parent !== W && /(?:\?|&)medlab=1(?:&|$)/.test(location.search), ORG = location.origin;
   var ust = function (m) { if (!EMB) return; m.src = 'axlab'; m.lab = 'medica'; try { W.parent.postMessage(m, ORG); } catch (e) {} };
+  /* yapay zekâ hasta: serbest soru üst sayfaya (MedLab) gider, oradan sunucuya; 8,5 sn'de gelmezse klinik yerel eşlemeye döner */
+  var AIQ = {}, aiSeq = 0;
+  var aiSor = function (req) { return new Promise(function (res) { var id = 'h' + (++aiSeq); AIQ[id] = res; setTimeout(function () { if (AIQ[id]) { delete AIQ[id]; res(null); } }, 8500); ust({ type: 'ai-hasta', id: id, req: req }); }); };
   var ic = function () { var f = $('#md-muayene iframe'); return S.lab && f && f.contentWindow ? f.contentWindow : null; };
   var ctx = function () {
     var k = S.kat ? V.katBul(S.kat) : null, a = S.aktif;
@@ -846,6 +882,7 @@
     }
     /* üst sayfa (MedLab Acadia köprüsü) */
     if (!EMB || e.source !== W.parent || d.src !== 'axhost') return;
+    if (d.type === 'ai-hasta-cevap') { var cb = AIQ[d.id]; if (cb) { delete AIQ[d.id]; cb(d.hata ? null : { cevap: d.cevap, eslesen: d.eslesen }); } return; }
     var i = ic();
     if (i) { try { i.postMessage(d, ORG); } catch (er) {} return; }
     if (d.type === 'hello') { bridge(); return; }

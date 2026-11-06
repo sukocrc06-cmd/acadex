@@ -146,6 +146,17 @@ button{font:inherit;color:inherit;cursor:pointer}
 .md-asansor .gosterge small{position:absolute;left:0;right:0;top:100%;margin-top:10px;text-align:center;font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:15px;color:#0D1838;white-space:nowrap}
 .md-asansor .kp{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.18) 0 2px,transparent 2px 7px),linear-gradient(90deg,#BCC6D2,#E8EDF3 45%,#C9D1DC)}
 .md-asansor.tik .gosterge b{animation:tik .4s var(--spring)}
+/* sinematik (06.11.2026): asansör yolculuğu (kat ışıkları akar, kabin hafif sarsılır), kameranın hastaya yaklaşması, ortam sesi düğmesi */
+.md-asansor .akis{position:absolute;top:0;bottom:0;left:calc(50% - 5px);width:10px;z-index:1;opacity:0;filter:blur(1.5px);background:repeating-linear-gradient(180deg,transparent 0 46vh,rgba(255,236,170,.95) 46vh 52vh,transparent 52vh 92vh);transition:opacity .4s}
+.md-asansor.kapan:not(.acil) .akis{opacity:1;animation:akis-y 1.04s linear infinite}
+.md-asansor.asagi.kapan:not(.acil) .akis{animation-name:akis-a}
+@keyframes akis-y{from{background-position:0 0}to{background-position:0 92vh}}@keyframes akis-a{from{background-position:0 92vh}to{background-position:0 0}}
+.md-asansor.kapan:not(.acil) .kp{animation:kabin .52s ease-in-out infinite}
+@keyframes kabin{50%{transform:translateY(1.5px)}}
+.md-asansor.kapan:not(.acil) .kL,.md-asansor.kapan:not(.acil) .kR{transform:none}
+.sahne{transition:transform .9s cubic-bezier(.5,0,.3,1),filter .9s}
+.sahne.yaklas{transform:scale(1.65);filter:brightness(1.08) blur(1px)}
+.md-tb[aria-pressed="true"]{background:#E2F4EF;border-color:#2E9C86}
 @keyframes tik{from{transform:translateY(10px);opacity:.3}}
 
 /* ---------- lab (iç çerçeve) ---------- */
@@ -361,13 +372,14 @@ body.md-labda{overflow:hidden}
   <div class="md-top-r">
     <button type="button" class="md-tb" id="md-asn" aria-label="Asansör: kat seç"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M8.5 9l-1.5 2h3zM15.5 13l1.5-2h-3z"/></svg><span>Asansör</span></button>
     <button type="button" class="md-tb" id="md-kon" aria-label="Konsültasyonlar"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.2 7.4 10.6 16M16.8 7.4 13.4 16M7.5 6h9"/></svg><span>Konsültasyon</span></button>
+    <button type="button" class="md-tb" id="md-ort" aria-pressed="false" aria-label="Ortam sesi ve sesli anons"><svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg><span>Ortam sesi</span></button>
     <button type="button" class="md-tb" id="md-def" aria-label="Nöbet karnesi"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Nöbet karnesi</span></button>
   </div>
 </header>
 <main id="md-main" class="md-ekran"></main>
 <p class="md-not">Acadex Medica eğitim amaçlıdır; hastalar ve vakalar kurgusaldır, tanı ya da tedavi önerisi değildir.</p>
 
-<div class="md-asansor" id="md-asansor" hidden aria-hidden="true"><div class="kp kL"></div><div class="kp kR"></div><div class="gosterge"><i>▲</i><b>G</b><small></small></div></div>
+<div class="md-asansor" id="md-asansor" hidden aria-hidden="true"><i class="akis"></i><div class="kp kL"></div><div class="kp kR"></div><div class="gosterge"><i>▲</i><b>G</b><small></small></div></div>
 
 <div class="md-muayene" id="md-muayene" hidden role="dialog" aria-modal="true" aria-labelledby="md-mu-t">
   <div class="md-mu-top">
@@ -385,6 +397,8 @@ body.md-labda{overflow:hidden}
 <script src="../diyet/data/who2007-bki.js"></script>
 <script src="../diyet/diyet-model.js"></script>
 <script>if (window.AXDIYET) window.AXDIYET.load(window.AXDB || {});</script>
+<script src="../klinik/klinik-fizyoloji.js"></script>
+<script src="../klinik/klinik-muayene.js"></script>
 <script src="../klinik/klinik.js"></script>
 <script src="../klinik/senaryo-anatomi.js"></script>
 <script src="../klinik/senaryo-fizyo.js"></script>

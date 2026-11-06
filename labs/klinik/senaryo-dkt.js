@@ -161,7 +161,7 @@
       ] },
 
     /* ------------------------------ Disfaji ------------------------------ */
-    { id: 'dkt-disfaji', vaka: 'disfaji', lab: 'dkt', oda: 'acil', odaAd: 'Nöroloji servisi', baslik: 'İnme sonrası su içerken öksürük',
+    { id: 'dkt-disfaji', muayene: { akciger: { sag: 'ral', sol: 'normal' } }, vaka: 'disfaji', lab: 'dkt', oda: 'acil', odaAd: 'Nöroloji servisi', baslik: 'İnme sonrası su içerken öksürük',
       hasta: { ad: 'Necmi Bey', hitap: 'Necmi Bey', yas: '78 yaş', cins: 'E', gorunum: 'yasli', sac: '#C9C4BA' }, refakat: { ad: 'Hemşire Aylin', cins: 'K', gorunum: 'yetiskin', kiyafet: '#5E9BD8' }, mentor: DKT, vital: { nabiz: 92, ta: '138/82', spo2: 95 },
       adimlar: [
         { tip: 'konus', kim: 'refakat', metin: 'Su içerken öksürüyor. Yemekten sonra sesi gurultulu oluyor. İki gündür de hafif ateşi var.' },
