@@ -498,7 +498,7 @@
   /* yapay zekâ metninde yalnız <b>, <i>, <u> kalır */
   function temizHtml(t) { return esc(t).replace(/&lt;(\/?)(b|i|u)&gt;/g, '<$1$2>'); }
 
-  W.ACX = { esc: esc, ls: ls, sakin: sakin, girisler: girisler, soyle: soyle, sevin: function () { tepki('sevin'); }, uz: function () { tepki('uz'); }, test: test, bitir: bitir, bitenler: bitenler, sayac: sayac, ses: ses, sesVar: sesVar, acadiaSvg: acadiaSvg, sesCal: sesCal, gunluk: gunluk, sesAcik: function () { return sesAcik; }, odul: odul, yz: yz, icerik: icerik, temizHtml: temizHtml, sozlukEkle: sozlukEkle, gunlukEkle: function (panel) { var g = ls.al('gunluk', {}), k = gunAnahtar(new Date()); g[k] = g[k] || {}; g[k][panel] = 1; ls.yaz('gunluk', g); } };
+  W.ACX = { esc: esc, ls: ls, sakin: sakin, girisler: girisler, soyle: soyle, sevin: function () { tepki('sevin'); }, uz: function () { tepki('uz'); }, test: test, bitir: bitir, bitenler: bitenler, sayac: sayac, ses: ses, sesVar: sesVar, acadiaSvg: acadiaSvg, sesCal: sesCal, gunluk: gunluk, sesAcik: function () { return sesAcik; }, odul: odul, yz: yz, icerik: icerik, temizHtml: temizHtml, sozlukEkle: sozlukEkle, kelimeAc: kelimeAc, gunlukEkle: function (panel) { var g = ls.al('gunluk', {}), k = gunAnahtar(new Date()); g[k] = g[k] || {}; g[k][panel] = 1; ls.yaz('gunluk', g); } };
   function sevin() { tepki('sevin'); } function uz() { tepki('uz'); }
 
   function basla() { sesDugmesi(); acadiaCiz(); karalamalar(); girisler(); sahneKur(); acadiaKur(); sayac(); parallax(); simdi(); hafta(); kapiSonra(kapak); }

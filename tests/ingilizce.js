@@ -338,7 +338,7 @@ test('fonksiyon: sinav modu ölçek dışı puanı reddeder; havuzda sinav tür�
   assert.match(f, /if \(b && b\.mod === 'sinav'\) return await sinavPuan\(b\)/);
   assert.match(f, /if \(!isFinite\(x\) \|\| x < 0 \|\| x > O\.max\) return json\(\{ error: 'Bad score' \}, 502\)/);
   for (const a of ['kolay:isinma', 'kolay:gorus', 'orta:part1', 'orta:part2', 'zor:tekrar', 'zor:mulakat']) assert.ok(f.includes(`'${a}': '`), a);
-  assert.match(f, /alt = tur === 'test' \|\| tur === 'sinav' \|\| tur === 'konusma' \? String\(b\.alt \?\? ''\) : ''/);
+  assert.match(f, /alt = tur === 'test' \|\| tur === 'sinav' \|\| tur === 'konusma' \|\| tur === 'dinle' \? String\(b\.alt \?\? ''\) : ''/);
   assert.match(f, /\(tur === 'sinav' && !SINAV_ALT\[alt\]\)/);
   const m = read('supabase/migrations/20261107_ingilizce_sinav.sql');
   assert.match(m, /check \(tur in \('okuma', 'dikte', 'kelime', 'sohbet', 'yazi_konu', 'test', 'deste', 'sozluk', 'sinav'\)\)/);
@@ -487,7 +487,7 @@ test('atölye sayfası ve fonksiyon: bölüm, betik sırası; konusma havuzu ve 
   assert.match(f, /if \(b && b\.mod === 'etkinlik'\) return await etkinlikTur\(b\)/);
   assert.match(f, /\(tur === 'konusma' && !konusmaAlt\(alt\)\)/);
   for (const t of ['munazara', 'rol', 'hikaye', 'roportaj', 'taboo']) assert.ok(f.includes(`tip === '${t}'`), t);
-  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma'\)\)/);
+  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma', 'dinle'\)\)/);
   const j = read('ingilizce/assets/konusma.js');
   assert.match(j, /A\.icerik\('konusma', etk \+ ':' \+ durum\.kat \+ ':' \+ durum\.sev\)/);
   assert.match(j, /if \(liste\.length && g\.length < liste\.length\) return yerelSec\(anahtar, liste\)\.veri;/, 'önce görülmemiş yerel, sonra havuz');
@@ -636,6 +636,78 @@ test('hub sayfası: sahne sırası, hub.js ing.js sonrası, şimdiki durak rota 
   assert.match(c, /\.ac-kitap\{--ac:clamp\(0,calc\(var\(--p,0\) \* 6\),1\)/);
   assert.match(j, /var tk = el\.querySelector\('\.takvim'\)|serit-iz/);
   assert.match(read('ingilizce/assets/ing.js'), /var tk = el\.querySelector\('\.takvim'\); if \(tk\) tk\.innerHTML = hucre;/);
+});
+
+
+/* dinleme stüdyosu (07.11.2026): banka, hizalama, kulak haritası, günün bölümü, havuz doğrulaması */
+function dinleYukle() {
+  const ctx = { window: null, console, Math, Date, Object, JSON }; ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(read('ingilizce/assets/dinle-banka.js'), ctx); vm.runInContext(read('ingilizce/assets/dinle.js'), ctx);
+  return { D: ctx.DINLE, B: ctx.DINLE_BANKA };
+}
+test('dinle: her kategoride A, B ve C bandından bölüm; harita dışı bölümler havuz doğrulamasından geçer', () => {
+  const { D, B } = dinleYukle();
+  assert.equal(B.KAT.length, 8);
+  for (const k of B.KAT) {
+    const sev = B.BOLUM.filter((b) => b.kat === k.id).map((b) => b.sev[0]);
+    for (const band of 'ABC') assert.ok(sev.includes(band), k.id + ' ' + band);
+  }
+  assert.equal(new Set(B.BOLUM.map((b) => b.id)).size, B.BOLUM.length, 'id tekil');
+  for (const b of B.BOLUM) if (!b.harita) assert.ok(D.dogrula(b), b.id);
+  assert.ok(B.BOLUM.filter((b) => b.harita).length >= 2);
+  assert.ok(B.NIYET.length >= 10 && B.NIYET.every((n) => n.d < n.sec.length && n.neden));
+});
+test('dinle: her not cevabı metinde geçer; harita harfleri haritada; niyet satırı var', () => {
+  const { D, B } = dinleYukle();
+  for (const b of B.BOLUM) {
+    const tum = ' ' + D.norm(b.s.map((x) => x[1]).join(' ')).join(' ') + ' ';
+    for (const q of b.q) {
+      if (q.t === 'not') assert.ok(q.c.some((c) => tum.includes(' ' + D.norm(c).join(' ') + ' ') || /^[\d.,]+$/.test(c.replace(/,/g, ''))), b.id + ': ' + q.c[0]);
+      if (q.t === 'harita') { assert.ok(b.harita); for (const y of q.yer) assert.ok(b.harita.harf[y[1]], b.id + ' ' + y[0]); assert.equal(new Set(q.yer.map((y) => y[1])).size, q.yer.length, 'harf tekrar etmez'); }
+      if (q.t === 'sec') assert.ok(q.d >= 0 && q.d < q.sec.length);
+      if (q.t === 'esle') assert.ok(q.d.length === q.sol.length && q.d.every((x) => x < q.sag.length));
+    }
+    for (const n of b.n || []) assert.ok(b.s[n.s], b.id + ' niyet');
+  }
+});
+test('dinle: hizalama (havent = haven’t, 14th = fourteenth, ek kelime üstü çizili), kulak kategorisi', () => {
+  const { D } = dinleYukle();
+  let k = D.karsilastir('Okay, the presentation is on the fourteenth.', 'okay the presentation is on 14');
+  assert.equal(k.isabet, 6); assert.equal(k.toplam, 7); assert.deepEqual(JSON.parse(JSON.stringify(k.kacan)), [{ w: 'the', i: 5 }]);
+  k = D.karsilastir('We still haven’t chosen.', 'we still havent really chosen'); assert.equal(k.oran, 1); assert.deepEqual(JSON.parse(JSON.stringify(k.ek)), ['really']);
+  assert.equal(D.cevapDogru({ t: 'not', c: ['5000', '5,000'] }, '5,000'), true);
+  assert.equal(D.cevapDogru({ t: 'not', c: ['3', 'three'] }, 'Three '), true);
+  assert.equal(D.cevapDogru({ t: 'not', c: ['fridge'] }, 'the fridge'), false, 'fazla kelime yanlış');
+  const kat = (w, ilk) => D.kategori(w, ilk);
+  assert.deepEqual([kat('fourteenth,'), kat('haven’t'), kat('Ghent'), kat('Okay', true), kat('the'), kat('presentation'), kat('chosen'), kat('rested'), kat('room')], ['sayi', 'kisalt', 'ozel', 'icerik', 'islev', 'uzun', 'icerik', 'ek', 'icerik']);
+});
+test('dinle: günün bölümü aynı gün sabit, görülmemiş öncelikli, seviyeye en yakın; radyo serisi', () => {
+  const { D, B } = dinleYukle();
+  const a = D.gunSec('2026-11-07', 'B1', B.BOLUM, {}), b = D.gunSec('2026-11-07', 'B1', B.BOLUM, {});
+  assert.equal(a.id, b.id); assert.equal(a.sev, 'B1');
+  assert.equal(D.gunSec('2026-11-07', 'C2', B.BOLUM, {}).sev, 'C1', 'C2 yoksa C1');
+  assert.equal(D.yakin('A1', ['A2', 'B1']), 'A2'); assert.equal(D.yakin('B2', ['B1', 'C1']), 'B1', 'eşitse alttaki');
+  const gor = {}; B.BOLUM.filter((x) => x.sev === 'B1').slice(0, -1).forEach((x) => { gor[x.id] = 1; });
+  assert.ok(!gor[D.gunSec('2026-11-07', 'B1', B.BOLUM, gor).id], 'görülmemiş kalan seçilir');
+  const r = { '2026-11-07': { ok: 1 }, '2026-11-06': { ok: 1 }, '2026-11-04': { ok: 1 } };
+  assert.equal(D.seri(r, new Date(2026, 10, 7, 9).getTime()), 2); assert.equal(D.seri(r, new Date(2026, 10, 8, 9).getTime()), 2, 'bugün henüz yoksa dünden sayar');
+});
+test('dinle sayfası: eski dört alıştırma kalktı, stüdyo ve hoca dikte duruyor; sunucu ve migration dinle türünü tanır', () => {
+  const h = read('ingilizce/listening.html');
+  assert.match(h, /<div class="calis dn" id="dinle-app"><\/div>/); assert.match(h, /id="hoca-oturum"/);
+  assert.doesNotMatch(h, /id="t-sayi"|id="t-cift"|id="t-diyalog"|<div class="dikte-s"/);
+  const sira = ['assets/ing.js', 'assets/hoca.js', 'assets/dinle-banka.js', 'assets/dinle.js'].map((x) => h.indexOf('<script src="' + x + '">'));
+  assert.ok(sira.every((x, i) => x > 0 && (i === 0 || x > sira[i - 1])));
+  assert.match(h, /DINLE\.kur\(document\.getElementById\('dinle-app'\)\)/);
+  const j = read('ingilizce/assets/dinle.js');
+  assert.match(j, /var gizle = o\.sinav && o\.sinavBitti !== true \|\| o\.sekme === 'dikte';/, 'dikte ve sınavda metin gizli');
+  assert.match(j, /A\.icerik\('dinle', st\.kat \+ ':' \+ st\.sev\)/);
+  assert.match(j, /var ep = r && tum\(\)\.filter\(function \(b\) \{ return b\.id === r\.id; \}\)\[0\] \|\| gunSec/, 'dinlenince radyo başka bölüme atlamaz');
+  assert.match(read('ingilizce/assets/ing.js'), /kelimeAc: kelimeAc/);
+  const t = read('supabase/functions/ingilizce-hoca/index.ts');
+  assert.match(t, /tur === 'konusma' \|\| tur === 'dinle' \? String\(b\.alt/); assert.match(t, /\(tur === 'dinle' && !dinleAlt\(alt\)\)/); assert.match(t, /  dinle: \(v\) => DINLE_DOGRULA\(v\),/);
+  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma', 'dinle'\)\);/);
+  assert.match(read('ingilizce/assets/ing.css'), /\.sahne\{position:relative;height:calc\(var\(--adim,4\) \* 85vh \+ 30vh\);overflow-x:clip\}/);
 });
 
 summary();

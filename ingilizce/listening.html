@@ -154,26 +154,9 @@ body{--c:var(--listening)}
   <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
 </div></section>
 
-<section class="bolum" id="calis" data-acadia="Sesi aç. Her soruda ▶ ile dinle, gerekirse yavaşlat."><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">otobüslük</span><h2 class="disp">Dört kısa dinleme.</h2><p>Sesler tarayıcının İngilizce sesiyle okunur, kulaklıkla daha iyi. Bitirdiklerin işaretli kalır. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
-  <div class="calis">
-    <article class="kagit alis" data-id="dikte" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 4 cümle</span><h3>Dikte</h3><p>Dinle, duyduğunu yaz. Noktalama ve büyük harf önemli değil.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div class="dikte-s" id="dikte"></div>
-    </article>
-    <article class="kagit alis" data-id="sayi" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 2 · 5 soru</span><h3>Saat, tarih, sayı</h3><p>Form doldururken kaçan şeyler hep bunlar.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-sayi"></div>
-    </article>
-    <article class="kagit alis" data-id="cift" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 3 · 5 soru</span><h3>Hangisini duydun?</h3><p>Ship mi sheep mi? Tek sesin değiştirdiği kelimeler.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-cift"></div>
-    </article>
-    <article class="kagit alis" data-id="diyalog" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 4 · 3 soru</span><h3>Kayıt ofisinde</h3><p>Kısa bir konuşma. Her soruda aynı kaydı dinleyebilirsin.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-diyalog"></div>
-    </article>
-  </div>
+<section class="bolum" id="calis" data-acadia="Sesi aç. Kategori ve seviye seç; metni kör, bulanık ya da açık dinleyebilirsin."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">dinleme stüdyosu</span><h2 class="disp">Her gün başka bir kayıt.</h2><p>Sekiz kategori, altı seviye; sınav tipi sorular, cümle cümle dikte, gölge okuma. Sesler tarayıcının İngilizce sesleriyle, konuşmacıya göre ayrı okunur. <span class="mono" data-sayac style="color:var(--c)"></span></p></div>
+  <div class="calis dn" id="dinle-app"></div>
 </div></section>
 
 <section class="sonraki"><div class="wrap">
@@ -188,6 +171,8 @@ body{--c:var(--listening)}
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
 <script src="assets/hoca.js"></script>
+<script src="assets/dinle-banka.js"></script>
+<script src="assets/dinle.js"></script>
 <script>
 (function () {
   'use strict';
@@ -222,53 +207,8 @@ body{--c:var(--listening)}
     D.querySelectorAll('#yazi .k').forEach(function (k, i) { k.classList.toggle('tekrar', e.detail === 3 && i >= 9); });
   });
 
-  /* dikte */
-  var DIKTE = ['The library is open until midnight during exam week.', 'Please submit your essay before the end of the month.', 'Our seminar has been moved to the second floor.', 'I usually take the bus because parking is expensive.'];
-  var norm = function (s) { return s.toLowerCase().replace(/[^a-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean); };
-  var dogruSay = 0, kutu = D.getElementById('dikte');
-  kutu.innerHTML = DIKTE.map(function (c, i) {
-    return '<div class="kagit" style="padding:14px;box-shadow:2px 2px 0 var(--ink)"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="say">' + (i + 1) + '.</span><button class="btn sm" type="button" data-c="' + i + '">▶ Dinle</button><button class="btn sm" type="button" data-y="' + i + '">Yavaş</button>' +
-      (ACX.sesVar ? '' : '<span class="say">Ses yok: <i>' + ACX.esc(c) + '</i></span>') + '</div><label class="gizli" for="d' + i + '">Cümle ' + (i + 1) + '</label><input type="text" id="d' + i + '" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="duyduğunu yaz…"><div class="fark" id="f' + i + '"></div><div style="margin-top:8px"><button class="btn sm ana" type="button" data-k="' + i + '">Kontrol</button></div></div>';
-  }).join('');
-  kutu.addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.c) ACX.ses(DIKTE[+b.dataset.c], .95);
-    if (b.dataset.y) ACX.ses(DIKTE[+b.dataset.y], .68);
-    if (b.dataset.k) {
-      var i = +b.dataset.k, a = norm(DIKTE[i]), y = norm(D.getElementById('d' + i).value), j = 0, out = [], isabet = 0;
-      a.forEach(function (w) { var k = y.indexOf(w, j); if (k > -1 && k - j < 3) { y.slice(j, k).forEach(function (x) { out.push('<span class="ek">' + ACX.esc(x) + '</span>'); }); out.push('<span class="ok">' + w + '</span>'); isabet++; j = k + 1; } else out.push('<span class="yok">' + w + '</span>'); });
-      y.slice(j).forEach(function (x) { out.push('<span class="ek">' + ACX.esc(x) + '</span>'); });
-      var oran = isabet / a.length, f = D.getElementById('f' + i);
-      f.innerHTML = out.join(' ') + '<br><span class="el" style="font-size:20px;color:var(--c)">' + Math.round(oran * 100) + '% ' + (oran === 1 ? '— kusursuz.' : oran >= .8 ? '— çok yakın.' : '— bir kez daha dinle.') + '</span> <span class="say">yeşil: doğru · çizili: kaçan · sarı: fazladan</span>';
-      if (oran >= .8 && !b.dataset.sayildi) { b.dataset.sayildi = 1; dogruSay++; ACX.sevin(); } else if (oran < .8) ACX.uz();
-      if (dogruSay >= 3) { if (ACX.bitir(P, 'dikte')) ACX.soyle('Dikte tamam; kulağın ısındı.', 3500); }
-    }
-  });
-  kutu.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id && e.target.id[0] === 'd') kutu.querySelector('[data-k="' + e.target.id.slice(1) + '"]').click(); });
-
-  ACX.test(D.getElementById('t-sayi'), [
-    { soru: 'Kütüphane kaçta kapanıyor?', dinle: 'During the holiday, the library closes at a quarter to ten.', sec: ['09:15', '09:45', '10:15', '10:45'], d: 1, yan: 1, neden: '“A quarter to ten” = ona çeyrek var: <b>09:45</b>.' },
-    { soru: 'Kaç öğrenci kayıt oldu?', dinle: 'So far, fifty students have registered for the workshop.', sec: ['15', '50', '115', '500'], d: 1, yan: 1, neden: '<b>FIFty</b>: vurgu başta. “fifTEEN” olsaydı vurgu sonda olurdu.' },
-    { soru: 'Son başvuru tarihi?', dinle: 'Applications must reach us by the thirteenth of March.', sec: ['3 Mart', '13 Mart', '30 Mart', '13 Mayıs'], d: 1, yan: 1, neden: '<b>the thirteenth of March</b> → 13 Mart.' },
-    { soru: 'Bilet ne kadar?', dinle: 'A student ticket costs eight pounds fifty.', sec: ['£8.15', '£8.50', '£18.50', '£80.50'], d: 1, yan: 1, neden: '“Eight pounds fifty” = <b>£8.50</b>; İngilizler kuruşu sondan söyler.' },
-    { soru: 'Oda numarası?', dinle: 'The meeting is in room B two zero four.', sec: ['B204', 'B240', 'D204', 'B2004'], d: 0, yan: 1, neden: 'Sıfır çoğu zaman “oh” ya da “zero” diye tek tek okunur: <b>B204</b>.' }
-  ], { panel: P, id: 'sayi', tebrik: 'Rakamlar artık kaçmıyor.' });
-
-  ACX.test(D.getElementById('t-cift'), [
-    { soru: 'Hangi kelime?', dinle: 'Can you see the ship over there?', sec: ['ship', 'sheep'], d: 0, yan: 1, neden: '<b>ship</b> kısa /ɪ/; sheep uzun /iː/.' },
-    { soru: 'Hangi kelime?', dinle: 'Please leave your bag here.', sec: ['live', 'leave'], d: 1, yan: 1, neden: '<b>leave</b> uzun /iː/: “liiv”.' },
-    { soru: 'Hangi kelime?', dinle: 'The cup is full.', sec: ['full', 'fool'], d: 0, yan: 1, neden: '<b>full</b> kısa /ʊ/; fool uzun /uː/.' },
-    { soru: 'Hangi kelime?', dinle: 'That was a bad decision.', sec: ['bed', 'bad'], d: 1, yan: 1, neden: '<b>bad</b> /æ/: ağız daha açık, “e” ile “a” arası.' },
-    { soru: 'Hangi kelime?', dinle: 'I bought it last week.', sec: ['bought', 'boat'], d: 0, yan: 1, neden: '<b>bought</b> /ɔː/; boat /əʊ/ kayan bir ses.' }
-  ], { panel: P, id: 'cift', tebrik: 'Kulağın inceliyor.' });
-
-  var DIY = 'Student: Hi, I missed the registration deadline for the spring term. Is it too late? Officer: Not completely. You can still register online until Thursday, but there is a late fee of twenty pounds. Student: Twenty pounds? Okay. And do I need my advisor’s signature? Officer: Only if you take more than six courses.';
-  ACX.test(D.getElementById('t-diyalog'), [
-    { soru: 'Öğrencinin sorunu ne?', dinle: DIY, hiz: 1, sec: ['Kayıt tarihini kaçırmış', 'Ders notunu öğrenemiyor', 'Danışmanını bulamıyor', 'Harcını yatırmış ama görünmüyor'], d: 0, neden: '“I missed the registration deadline” → kayıt tarihini kaçırmış.' },
-    { soru: 'Kayıt için son gün?', dinle: DIY, hiz: 1, sec: ['Salı', 'Çarşamba', 'Perşembe', 'Cuma'], d: 2, yan: 1, neden: '“until <b>Thursday</b>”.' },
-    { soru: 'Danışman imzası ne zaman gerekiyor?', dinle: DIY, hiz: 1, sec: ['Her zaman', 'Geç kayıtta', 'Altıdan fazla derste', 'Yalnızca yüz yüze kayıtta'], d: 2, neden: '“Only if you take <b>more than six courses</b>.”' }
-  ], { panel: P, id: 'diyalog', tebrik: 'Kayıt ofisini atlattın.' });
 })();
 </script>
+<script>DINLE.kur(document.getElementById('dinle-app'));</script>
 </body>
 </html>
