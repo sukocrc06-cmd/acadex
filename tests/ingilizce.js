@@ -111,6 +111,27 @@ test('landing: #dert bölümü Soru sor ile Kayıt arasında, ekip notları ve a
   assert.match(read('js/acadex-dert.js'), /aria-pressed/);
 });
 
+/* 08.11.2026 sahneler canlı: Fark satır satır, Yöntemler mini demolar, yüzen öğeler sade (css/acadex-sahne-canli.css, js/acadex-sahne-canli.js) */
+test('landing: sahne katmanı bağlı; ana betiğin değişkenlerine yazmaz, yalnız okur', () => {
+  const h = read('index.html'), js = read('js/acadex-sahne-canli.js'), css = read('css/acadex-sahne-canli.css');
+  assert.match(h, /<link rel="stylesheet" href="css\/acadex-sahne-canli.css">/);
+  assert.match(h, /<script src="js\/acadex-sahne-canli.js"><\/script>/);
+  assert.match(js, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(js, /setProperty\('--(a|b|c|f|x)'/, 'ana betiğin --a/--b/--c/--f/--x değişkenlerine yazılmaz');
+  assert.match(js, /setProperty\('--fq'/);
+  assert.match(css, /\.js \.ba-rows\.fk > \.ba-row\{opacity:1/, 'fk varken satırlar görünür; ilerlemeyi --fq sürer');
+  assert.doesNotMatch(css, /(^|[^-\w])\.(on|ust)\b(?![-\w])\s*[{,]/m, 'çakışan çıplak sınıf yok');
+});
+test('yüzen öğeler: telefonda ip çocuğu yok, Acadia balonu masaüstünde 4,5 sn, telefonda hiç', () => {
+  assert.match(read('css/acadex-sahne-canli.css'), /@media \(max-width:760px\)\{\.pkt-dock,\.pkt-bub\{display:none !important\}\}/);
+  const r = read('js/acadia-rehber.js');
+  assert.match(r, /if \(!narrow\(\)\) K\.say\(host, s\.t, 4500\)/);
+  assert.match(r, /if \(!narrow\(\)\) K\.say\(host, text, 4500\)/);
+  assert.doesNotMatch(r, /narrow\(\) \? 3800 : 0/);
+  assert.doesNotMatch(r, /K\.say\(host, s\.t, 0\)|K\.say\(host, STOPS\[cur\]\.t, 3800\)/, 'uçuşta da balon kalıcı değil, telefona geçince balon yok');
+  assert.match(read('index.html'), /<a href="#paketler">Paketler<\/a>/, 'paketler menüden açılır');
+});
+
 /* 07.11.2026 Acadingo: masa kartı "şu anki durak" (dashboard.html, js/acadingo-kart.js) */
 test('dashboard: Acadingo kartı yarım genişlik, rozetlerden sonra, saatlerden önce', () => {
   const d = read('dashboard.html'), k = d.indexOf('data-acg-kart'), w = d.indexOf('id="home-weak-topics-card"'), s = d.indexOf('<section class="card sched land"');
