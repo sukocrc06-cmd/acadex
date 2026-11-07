@@ -356,5 +356,56 @@
         { t: 'sec', soru: 'What do supporters of “foreignising” translation believe?', sec: ['It respects the original culture.', 'It is easier for readers.', 'It is faster to produce.', 'It removes cultural references.'], d: 0 }] }
   ];
 
-  window.OKU_BANKA = { KAT: KAT, ROL: ROL, MAKALE: M };
+  /* gazete köşeleri: deyim, kampüs ilanları, mevsim notu, karikatür altyazısı (hepsi okuma malzemesi) */
+  var DEYIM = [
+    ['break the ice', 'buzları kırmak, ilk gerginliği atmak', 'A quick game helped the new students break the ice.'],
+    ['hit the books', 'derslere gömülmek', 'Exams start Monday, so I have to hit the books this weekend.'],
+    ['a piece of cake', 'çocuk oyuncağı', 'The first quiz was a piece of cake.'],
+    ['burn the midnight oil', 'gece yarılarına kadar çalışmak', 'She burned the midnight oil to finish her essay.'],
+    ['on the same page', 'aynı fikirde, aynı noktada', 'Before we start, let’s make sure we are on the same page.'],
+    ['under the weather', 'keyifsiz, hafif hasta', 'I’m a bit under the weather, so I’ll study from home.'],
+    ['learn the ropes', 'işin inceliklerini öğrenmek', 'It takes a few weeks to learn the ropes in a new lab.'],
+    ['cut corners', 'işi baştan savma yapmak', 'Don’t cut corners on your references.'],
+    ['get the hang of it', 'alışmak, işi kapmak', 'Note-taking is hard at first, but you’ll get the hang of it.'],
+    ['the ball is in your court', 'top sende, karar senin', 'I sent my draft; now the ball is in your court.'],
+    ['call it a day', 'günü bitirmek', 'We’ve done enough; let’s call it a day.'],
+    ['in a nutshell', 'özetle', 'In a nutshell, sleep helps memory.'],
+    ['a blessing in disguise', 'kötü görünen ama iyi çıkan şey', 'Missing the bus was a blessing in disguise; I met my study group.'],
+    ['beat around the bush', 'lafı dolandırmak', 'Stop beating around the bush and tell me your score.'],
+    ['once in a blue moon', 'kırk yılda bir', 'Our professor cancels class once in a blue moon.'],
+    ['pull yourself together', 'kendini toparlamak', 'Take a breath and pull yourself together before the exam.'],
+    ['through thick and thin', 'iyi günde kötü günde', 'Our study group stayed together through thick and thin.'],
+    ['speak of the devil', 'iti an çomağı hazırla', 'Speak of the devil, here comes Can!'],
+    ['when pigs fly', 'balık kavağa çıkınca', 'He’ll finish early when pigs fly.'],
+    ['go the extra mile', 'fazlasını yapmak', 'She always goes the extra mile in her projects.']
+  ];
+  var ILAN = [
+    ['LOST', 'Blue umbrella near the library entrance. If found, please leave it at the front desk.'],
+    ['FOR SALE', 'Second-hand economics textbook, 4th edition, a few notes in pencil. Cheap!'],
+    ['WANTED', 'Flatmate for a two-bedroom flat, ten minutes from campus. Non-smoker preferred.'],
+    ['CLUB', 'Debate society meets every Wednesday at 6 p.m. in Room 204. Beginners welcome.'],
+    ['FREE', 'Yoga on the lawn, Friday mornings at 8. Bring a mat and a friend.'],
+    ['FOUND', 'Black notebook full of chemistry formulas, left in the canteen. Ask at security.'],
+    ['VOLUNTEERS', 'The repair café needs helpers on Saturday. No experience necessary.'],
+    ['EVENT', 'Open-mic night at the student café, Thursday 8 p.m. Poems, songs and jokes in English.'],
+    ['TUTOR', 'Need help with statistics? Final-year student offers sessions in the library.'],
+    ['SWAP', 'Will swap my Monday seminar for a Tuesday one. Message me on the course page.'],
+    ['NOTICE', 'The library will close early on Sunday for maintenance. Plan your study time.'],
+    ['RUNNING', 'Campus running club: 5 km every Tuesday at sunset. All speeds welcome.']
+  ];
+  var MEVSIM = {
+    kis: ['Winter', 'Short days, long library nights. Wrap up warm and keep a flask of tea in your bag.', '❄'],
+    ilkbahar: ['Spring', 'Blossom on the trees and windows open in lecture halls. A good time to study outside.', '❀'],
+    yaz: ['Summer', 'Long evenings, quiet corridors and summer schools. Drink water and find some shade.', '☀'],
+    sonbahar: ['Autumn', 'Crisp mornings, falling leaves and the first exams. Take an umbrella, just in case.', '🍂']
+  };
+  var KARIKATUR = [
+    ['“I only read the headlines.”', '“That’s called skimming. You’re practically an expert.”'],
+    ['“Is there a word for being tired of reading?”', '“Yes. Monday.”'],
+    ['“My essay has a strong conclusion.”', '“Great. Does it have an introduction?”'],
+    ['“I highlighted the whole page.”', '“So… what’s important?”'],
+    ['“Not given?”', '“Not given. Like my free time.”']
+  ];
+
+  window.OKU_BANKA = { KAT: KAT, ROL: ROL, MAKALE: M, DEYIM: DEYIM, ILAN: ILAN, MEVSIM: MEVSIM, KARIKATUR: KARIKATUR };
 })();

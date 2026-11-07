@@ -774,7 +774,7 @@ test('reading sayfası: eski dört alıştırma kalktı, masa ve hoca duruyor; s
 test('gazete: katlı kâğıt açılır, dönen manşet hareket azaltılınca atlanır, masada gazete modu', () => {
   const j = read('ingilizce/assets/oku.js'), c = read('ingilizce/assets/ing.css');
   assert.match(j, /function manset\(m, bitti\) \{\n      if \(A\.sakin\) \{ bitti\(\); return; \}/);
-  assert.match(j, /if \(gz\) manset\(gz, function \(\) \{ yukle\(gz, true\);/, 'manşetten sonra makale gazete modunda açılır');
+  assert.match(j, /if \(gm\) manset\(gm, function \(\) \{ gazeteAc\(gm, b\.dataset\.gun \|\| bugun\(\)\); \}\);/, 'manşetten sonra ekrana tam sayfa gazete gelir');
   assert.match(j, /b\.hasAttribute\('data-gz-ac'\)/);
   assert.match(c, /\.ok-gazete\.acik \.ok-gz-sar\{grid-template-rows:1fr\}/); assert.match(c, /@keyframes gzDon\{0%\{transform:scale\(\.04\) rotate\(-1440deg\)/);
   assert.match(c, /\.ok-gazete\.acik \.ok-gz-kagit\{animation:none\}/, 'açıkken kıpırdamaz, düğmeye basılabilir');
@@ -799,6 +799,23 @@ test('Acadia arkadaş: göz bebekleri izler, 45 sn boşta uyur, görev ilk kez b
   assert.match(c, /html\[data-isik=sabah\] \.aks-sabah,html\[data-isik=ogle\] \.aks-ogle,html\[data-isik=aksam\] \.aks-aksam,html\[data-isik=gece\] \.aks-gece\{display:inline\}/);
   assert.match(j, /function arkadasKur\(\) \{\n    if \(!ac \|\| sakin\) return;/);
   assert.match(j, /dunyaKur\(\); acadiaKur\(\); arkadasKur\(\);/);
+});
+
+
+test('gazete okuyucusu: üç sayfa, köşeler, ortak fosfor, sorular yalnız o günün sayısını işaretler, arşiv', () => {
+  const j = read('ingilizce/assets/oku.js'), c = read('ingilizce/assets/ing.css'), bk = read('ingilizce/assets/oku-banka.js');
+  assert.match(j, /<section class="gz-s aktif" data-s="0">/); assert.match(j, /data-s="1"><header class="gz-ic-bas"><b>The Campus Gazette<\/b><span>Page 2 · Puzzle Corner/); assert.match(j, /Page 3 · Words &amp; Notes/);
+  assert.match(j, /var gzC = \{ kok: null, sayfa: null, kenar: null, get m\(\) \{ return gz\.m; \}/, 'gazete ve masa aynı st.fos kaydını kullanır');
+  assert.match(j, /soruKontrol\(gz\.el\.querySelector\('\.gz-s\[data-s="1"\]'\), gzC\.sayfa, gz\.gun\)/);
+  assert.match(j, /if \(gun\) \{ st\.gazete\[gun\] = \{ id: m\.id, ok: 1 \}; kaydet\(\); gazeteCiz\(\); if \(gun === bugun\(\)\) A\.bitir\(P, 'gazete'\); \}/, 'arşivden okunan eski sayı bugünün görevini doldurmaz');
+  assert.match(j, /D\.addEventListener\('keydown', gzTus\)/); assert.match(j, /D\.removeEventListener\('keydown', gzTus\)/);
+  assert.match(j, /function arsivHtml\(\) \{/);
+  for (const k of ['DEYIM', 'ILAN', 'MEVSIM', 'KARIKATUR']) assert.match(bk, new RegExp(k + ': ' + k));
+  const ctx = { console, Math, Date, Object, JSON, Set }; ctx.window = ctx; vm.createContext(ctx); vm.runInContext(bk, ctx);
+  const B = ctx.OKU_BANKA; assert.ok(B.DEYIM.length >= 20 && B.DEYIM.every((d) => d.length === 3 && d[2].toLowerCase().includes(d[0].split(' ')[1] || d[0])));
+  assert.deepEqual(Object.keys(B.MEVSIM).sort(), ['ilkbahar', 'kis', 'sonbahar', 'yaz']);
+  assert.match(c, /@keyframes gzCevir\{0%\{transform:rotateY\(0\)/); assert.match(c, /html\.gz-acik\{overflow:hidden\}/);
+  assert.match(c, /@media \(prefers-reduced-motion:reduce\)\{\.gz-okur,\.gz-kitap,\.gz-s,\.gz-kose\{animation:none!important/);
 });
 
 summary();
