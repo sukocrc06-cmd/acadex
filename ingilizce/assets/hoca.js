@@ -140,11 +140,21 @@
     function soyle(en, tr, o) {
       o = o || {};
       if (konusuyor) konusuyor();
-      enEl.innerHTML = o.gizli ? '<span class="dinle-isaret">🔊 dinle…</span>' : esc(en); trEl.textContent = tr || ''; trEl.hidden = !tr;
+      /* karaoke altyazı: kelimeler sesle birlikte yanar (onboundary; yoksa tahmini zamanlama) */
+      var kelimeler = [], kar = !o.gizli && en && sesVar && sesAcik() && !sakin;
+      if (o.gizli) enEl.innerHTML = '<span class="dinle-isaret">🔊 dinle…</span>';
+      else if (kar) { var poz = 0; enEl.innerHTML = String(en).split(/(\s+)/).map(function (w) { var bas = poz; poz += w.length; if (!w.trim()) return w; kelimeler.push(bas); return '<span class="kw">' + esc(w) + '</span>'; }).join(''); enEl.classList.add('karaoke'); }
+      else { enEl.innerHTML = esc(en); enEl.classList.remove('karaoke'); }
+      var kw = enEl.querySelectorAll('.kw'), simdiki = -1;
+      var yak = function (i) { if (i === simdiki || i >= kw.length) return; for (var j = 0; j < kw.length; j++) { kw[j].classList.toggle('kw-gecti', j < i); kw[j].classList.toggle('kw-simdi', j === i); } simdiki = i; };
+      trEl.textContent = tr || ''; trEl.hidden = !tr;
       soz.classList.remove('yeni'); void soz.offsetWidth; soz.classList.add('yeni');
       return new Promise(function (bitti) {
         var dongu = null, son = false;
-        var kapat = function () { if (son) return; son = true; clearInterval(dongu); konusuyor = null; svg.dataset.agiz = agizIfade[durum.ifade] || 'kapali'; bitti(); };
+        var tahminZ = null, sinirGeldi = false;
+        var kapat = function () { if (son) return; son = true; clearInterval(dongu); clearTimeout(tahminZ); konusuyor = null; svg.dataset.agiz = agizIfade[durum.ifade] || 'kapali'; yak(kw.length); enEl.classList.remove('karaoke'); bitti(); };
+        /* boundary olayı gelmeyen seslerde kelime uzunluğuna göre tahmini ilerleme */
+        var tahmin = function (hiz) { var t = 0, ms = 60000 / (165 * hiz); [].forEach.call(kw, function (k, i) { var w = k.textContent.replace(/[^a-z0-9']/gi, '').length; t += ms * (0.55 + Math.min(w, 12) / 9) + (/[,.;:!?]$/.test(k.textContent) ? ms * .6 : 0); setTimeout(function () { if (!son && !sinirGeldi) yak(i + 1); }, t); }); };
         konusuyor = kapat;
         if (!sakin) dongu = setInterval(function () { svg.dataset.agiz = rasgele(['acik', 'o', 'kapali', 'acik']); }, 120);
         var tahmini = Math.max(1200, String(en).split(/\s+/).length * 330 / (o.hiz || .95));
@@ -152,7 +162,13 @@
           try {
             speechSynthesis.cancel();
             var u = new SpeechSynthesisUtterance(en); u.lang = 'en-GB'; var v = hocaSesi(); if (v) u.voice = v; u.rate = o.hiz || .95; u.pitch = 1.08;
-            u.onend = kapat; u.onerror = kapat; speechSynthesis.speak(u);
+            u.onend = kapat; u.onerror = kapat;
+            if (kw.length) {
+              u.onboundary = function (e) { if (e.name && e.name !== 'word') return; sinirGeldi = true; var i = 0; while (i + 1 < kelimeler.length && kelimeler[i + 1] <= e.charIndex) i++; yak(i); };
+              u.onstart = function () { if (simdiki < 0) yak(0); };
+              tahminZ = setTimeout(function () { if (!sinirGeldi && !son) { yak(0); tahmin(o.hiz || .95); } }, 600);
+            }
+            speechSynthesis.speak(u);
             setTimeout(kapat, tahmini * 2.2 + 1500);   /* bazı tarayıcılar onend göndermez */
           } catch (e) { setTimeout(kapat, tahmini); }
         } else setTimeout(kapat, Math.min(tahmini, 2600));

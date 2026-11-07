@@ -380,4 +380,43 @@ test('canlı dalga, dinleyen hoca, sahne ve sinematik: hareket azaltılınca kap
   assert.match(c, /@media \(prefers-reduced-motion:reduce\)\{\.sv-perde,\.sv-perde \*,\.sv-rapor-kart\.zarftan/);
 });
 
+/* Speaking 3. tur (07.11.2026): karaoke altyazı, konuşma zaman şeridi, ikinci şans, hedef ve sınav tarihi planı */
+test('zaman şeridi: konuşma / sessizlik / uzun duraksama blokları, 10 sn hız, hız düşüşü notu', () => {
+  const { S } = sinavYukle();
+  const x = [];
+  for (let i = 0; i < 40; i++) x.push([1, Math.round(i * 0.5)]);          /* 10 sn, 20 kelime → 120 k/dk */
+  for (let i = 0; i < 16; i++) x.push([0, 20]);                             /* 4 sn duraksama */
+  for (let i = 0; i < 24; i++) x.push([(i + 1) % 2, 20 + Math.round(i * 0.2)]);   /* yavaşlama */
+  x.push([1, 25]);
+  const h = S.seritCiz({ serit: x });
+  assert.match(h, /<i class="k" style="flex:40"/);
+  assert.match(h, /<i class="d" style="flex:16" title="uzun duraksama · 4\.0 sn"><b>4 sn<\/b><\/i>/);
+  assert.match(h, /hız 120 · \d+ k\/dk/);
+  assert.match(h, /Hız 120 → \d+ kelime\/dk düştü/);
+  assert.equal(S.seritCiz({ serit: null }), '');
+});
+test('hedef planı: tam sınav yoksa önce tam sınav; son günlerde prova; zayıf kritere göre bölüm pratiği; tarih geçince uyarı', () => {
+  const { S } = sinavYukle();
+  const gun = 864e5, simdi = new Date(2026, 10, 7, 12).getTime(), tarih = (d) => { const t = new Date(simdi + d * gun); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); };
+  const hd = (d) => ({ puan: 7, tarih: tarih(d) });
+  assert.equal(S.planOneri('orta', hd(20), [], simdi).mod, 'sinav');
+  const g = [{ t: simdi - gun, lv: 'orta', genel: 6, k: { akici: 6.5, kelime: 5.5, dogru: 6, telaffuz: 6.5 }, kismi: false }];
+  const p1 = S.planOneri('orta', hd(20), g, simdi);
+  assert.deepEqual([p1.mod, p1.tek, p1.kalan, p1.bugun], ['pratik', 'part3', 20, false], 'kelime zayıf → Part 3');
+  assert.equal(S.planOneri('orta', hd(2), g, simdi).etiket, 'Tam prova');
+  const eski = [{ ...g[0], t: simdi - 5 * gun }];
+  assert.equal(S.planOneri('orta', hd(20), eski, simdi).mod, 'sinav', '4 günden eski tam sınav → yeni tam sınav');
+  assert.equal(S.planOneri('orta', hd(-1), g, simdi).mod, null);
+  assert.equal(S.planOneri('zor', hd(20), [{ t: simdi, lv: 'zor', genel: 4, k: { tekrar: 3, akici: 4.5, kelime: 4, telaffuz: 4 } }], simdi).tek, 'tekrar');
+});
+test('karaoke altyazı ve ikinci şans: kelimeler sesle yanar, boundary yoksa tahmin; ikinci deneme ilkiyle karşılaştırılır', () => {
+  const j = read('ingilizce/assets/hoca.js'), sv = read('ingilizce/assets/sinav.js');
+  assert.match(j, /u\.onboundary = function \(e\) \{ if \(e\.name && e\.name !== 'word'\) return; sinirGeldi = true;/);
+  assert.match(j, /tahminZ = setTimeout\(function \(\) \{ if \(!sinirGeldi && !son\) \{ yak\(0\); tahmin\(o\.hiz \|\| \.95\); \} \}, 600\)/);
+  assert.match(j, /var kelimeler = \[\], kar = !o\.gizli && en && sesVar && sesAcik\(\) && !sakin;/, 'gizli cümle (dinle-tekrarla) ve hareket azaltma: karaoke yok');
+  assert.match(sv, /var a2 = Object\.assign\(\{\}, c\.adim, \{ giris: '', giris_tr: '' \}\); c2 = await adimSor\(a2, 0, 1\)/);
+  assert.match(sv, /k1 = kriterYerel\(lv, \[c1\]\), k2 = kriterYerel\(lv, \[c2\]\)/);
+  assert.match(sv, /'<button type="button" class="btn sm" data-ikinci>İkinci şans<\/button>/);
+});
+
 summary();

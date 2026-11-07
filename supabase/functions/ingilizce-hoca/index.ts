@@ -13,7 +13,9 @@
 //   nasil       {tr}                               → {oneriler:[{en, not_tr}]}
 //   icerik      {tur, alt}                         → {id, veri, kaynak:'havuz'|'yeni'}
 //   sozluk      {kelime}                           → {veri:{kelime, okunus, tur, anlam_tr, ornek}}
-// sonuc her zaman 'dogru' | 'kismen' | 'yanlis'.
+//   sinav       {seviye, cevaplar[]}               → {kriterler, ozet_tr, duzeltmeler[]}  (07.11.2026, speaking sınavı)
+//   sinav_model {seviye, bolum, soru, cevap, sn}   → {model_en, notlar[]}                  (07.11.2026, model cevap)
+// sonuc (ilk dört modda) her zaman 'dogru' | 'kismen' | 'yanlis'.
 //
 // İçerik havuzu (05.11.2026, migrations/20261105_ingilizce_icerik_havuzu.sql):
 // önce ing_icerik_al() ile çağıranın görmediği hazır içerik verilir; yoksa Groq
