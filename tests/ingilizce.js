@@ -117,7 +117,7 @@ test('ing.js: görsel ve hareket katmanı (ışık, ses, ödül, parallax, karal
   for (const p of ['vocab', 'listening', 'reading', 'speaking', 'writing', 'hub']) assert.match(j, new RegExp('\\n    ' + p + ": '<g class=\"kos\">"));
   /* hub: kapak kapıdan sonra, şimdiki durak ve takvim kutuları */
   const h = read('ingilizce/index.html');
-  assert.match(h, /<body data-panel="" data-sayfa="hub"/); assert.match(h, /id="simdi"/); assert.match(h, /<section class="bolum" id="hafta" data-yirtik>/);
+  assert.match(h, /<body data-panel="" data-sayfa="hub"/); assert.match(h, /id="simdi"/); assert.match(h, /<section class="serit-sahne" id="hafta" data-yirtik>/);
   assert.match(j, /kapiSonra\(kapak\)/);
 });
 
@@ -598,6 +598,44 @@ test('vocab sayfası: eski sabit deste kalktı, kişisel deste #calis içinde; b
   const j = read('ingilizce/assets/kelime.js');
   assert.match(j, /YENI_GUNLUK = 10/); assert.match(j, /tohum: Math\.floor\(Math\.random\(\) \* 4294967295\)/, 'öğrenciye özel sıra');
   assert.match(read('supabase/functions/ingilizce-hoca/index.ts'), /const sev = tur === 'deste' && \/\^\(A1\|A2\|B1\|B2\|C1\|C2\)\$\/\.test/);
+});
+
+
+/* hub (07.11.2026): defter açılış sahnesi, beceri puanı/ağacı/radar, harita, yatay şerit, kalem çizgisi */
+function hubYukle() { const ctx = { window: null, console, Math, Date, Object }; ctx.window = ctx; vm.createContext(ctx); vm.runInContext(read('ingilizce/assets/hub.js'), ctx); return ctx.HUB; }
+test('hub: beceri puanı yalnız kayıtlardan; boş tarayıcıda hepsi 0, ağaç tohum', () => {
+  const H = hubYukle(), s = H.beceriler({}, new Date(2026, 10, 7).getTime());
+  assert.deepEqual(JSON.parse(JSON.stringify(H.BECERI.map((b) => s[b.id].puan))), [0, 0, 0, 0, 0]);
+  for (const b of H.BECERI) { const d = H.agac(b.id, s[b.id]); assert.equal(d.length, 5); assert.equal(H.rozet(d), 'tohum'); }
+});
+test('hub: ortak 60 + özel 40; özel verisi olmayan beceri 100e ölçeklenir; 14 gün dışı etkin sayılmaz', () => {
+  const H = hubYukle(), simdi = new Date(2026, 10, 7, 12).getTime(), N = Date.now();
+  const v = { bitti: { reading: { a: N, b: N, c: N, d: N } }, hoca: { reading: N }, hocaTur: { reading: 3 }, gunluk: { '2026-11-07': { reading: 1 }, '2026-11-06': { reading: 1 }, '2026-10-01': { reading: 1 } } };
+  const s = H.beceriler(v, simdi);
+  /* 25 + 10 + 5 + 2/7*20 = 45.71 → /60*100 = 76 */
+  assert.equal(s.reading.puan, 76); assert.equal(s.reading.gun, 3); assert.equal(s.reading.etkin, 2);
+  const d = H.agac('reading', s.reading); assert.deepEqual(JSON.parse(JSON.stringify(d.map((x) => x.acik))), [true, true, true, true, false]); assert.equal(H.rozet(d), 'gelişiyor');
+  /* vocab: seviye C2 (20) + 30 çiçek (20) = özel 40 */
+  const kart = {}; for (let i = 0; i < 30; i++) kart['w' + i] = { iv: 30, son: N };
+  const k = H.beceriler({ kelime: { sev: 'C2', kart } }, simdi).vocab; assert.equal(k.puan, 40); assert.equal(k.cicek, 30);
+  /* speaking: kısmi (pratik) sınav sayılmaz; orta 9/9 → 20 */
+  assert.equal(H.beceriler({ spGecmis: [{ lv: 'orta', genel: 9, kismi: true }] }, simdi).speaking.puan, 0);
+  assert.equal(H.beceriler({ spGecmis: [{ lv: 'orta', genel: 9, kismi: false }] }, simdi).speaking.puan, 20);
+});
+test('hub: radar köşeleri üstten saat yönünde, puanla ölçekli', () => {
+  const H = hubYukle(), n = H.radarNokta([100, 0, 0, 0, 0], 100, 0, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(n[0])), [0, -100]); assert.ok(Math.hypot(n[1][0], n[1][1]) < 5, 'sıfır puan merkeze yakın');
+});
+test('hub sayfası: sahne sırası, hub.js ing.js sonrası, şimdiki durak rota sahnesine bağlı', () => {
+  const h = read('ingilizce/index.html'), c = read('ingilizce/assets/ing.css'), j = read('ingilizce/assets/hub.js');
+  const sira = ['<section class="kah">', 'id="ac" data-adim="6"', 'id="beceri"', 'id="rota"', 'id="hafta"'].map((x) => h.indexOf(x));
+  assert.ok(sira.every((x, i) => x > 0 && (i === 0 || x > sira[i - 1])), 'kapak → defter → radar → harita → şerit');
+  assert.ok(h.indexOf('assets/hub.js') > h.indexOf('assets/ing.js'));
+  assert.match(h, /D\.getElementById\('rota'\)\.addEventListener\('adim'/, 'ilk .sahne artık defter sahnesi');
+  assert.doesNotMatch(c, /\.ac-kapak \.on\b/, '.on sınıfı içindekiler li.on ile çakışır');
+  assert.match(c, /\.ac-kitap\{--ac:clamp\(0,calc\(var\(--p,0\) \* 6\),1\)/);
+  assert.match(j, /var tk = el\.querySelector\('\.takvim'\)|serit-iz/);
+  assert.match(read('ingilizce/assets/ing.js'), /var tk = el\.querySelector\('\.takvim'\); if \(tk\) tk\.innerHTML = hucre;/);
 });
 
 summary();

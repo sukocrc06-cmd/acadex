@@ -469,7 +469,7 @@
     }
     var seri = 0, c = new Date(bugun); if (!g[gunAnahtar(c)]) c.setDate(c.getDate() - 1);
     while (g[gunAnahtar(c)]) { seri++; c.setDate(c.getDate() - 1); }
-    el.querySelector('.takvim').innerHTML = hucre;
+    var tk = el.querySelector('.takvim'); if (tk) tk.innerHTML = hucre;   /* hub'da yatay şerit hub.js'te */
     el.querySelector('[data-seri]').textContent = seri ? seri + ' günlük seri' : 'seri bugün başlıyor';
   }
 
