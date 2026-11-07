@@ -18,6 +18,7 @@
 //   etkinlik    {tip, seviye, kategori, …}         → {yanit_en} | {tahmin}                  (07.11.2026, konuşma atölyesi)
 //   icerik tur 'konusma', alt 'etkinlik:kategori:seviye' (A1–C2) → atölye içeriği
 //   icerik tur 'dinle', alt 'kategori:seviye' (A1–C2) → dinleme stüdyosu bölümü (DINLE_DOGRULA = assets/dinle.js dogrula)
+//   icerik tur 'oku', alt 'kategori:seviye' (A1–C2) → okuma masası makalesi (OKU_DOGRULA = assets/oku.js dogrula)
 // sonuc (ilk dört modda) her zaman 'dogru' | 'kismen' | 'yanlis'.
 //
 // İçerik havuzu (05.11.2026, migrations/20261105_ingilizce_icerik_havuzu.sql):
@@ -146,6 +147,35 @@ const DINLE_DOGRULA = (v: any) => {
     : x.t === 'esle' ? metin(x.soru, 200) && Array.isArray(x.sol) && Array.isArray(x.sag) && Array.isArray(x.d) && x.d.length === x.sol.length && x.sag.length >= x.sol.length && x.d.every((y: unknown) => Number.isInteger(y) && (y as number) >= 0 && (y as number) < x.sag.length)
     : false) && (v.n === undefined || Array.isArray(v.n) && v.n.every((x: any) => Number.isInteger(x.s) && x.s < s.length && metin(x.soru, 200) && Array.isArray(x.sec) && Number.isInteger(x.d) && x.d < x.sec.length))
 }
+/* okuma masası (assets/oku.js): kategori:seviye → bir makale + IELTS Academic soruları */
+const OKU_ROL = ['giris', 'arka', 'iddia', 'ornek', 'veri', 'karsi', 'sonuc']
+const OKU_URET = (alt: string) => { const d = dinleAlt(alt)!; return `Write an original short article for Turkish university students (do not copy any published text). Topic area: ${d.kat}. Level: ${KONUSMA_SEV[d.sev]}. Theme flavour: "${rastgele(KONU)}".
+Use ${d.sev[0] === 'A' ? '3 paragraphs of 30-50 words' : d.sev[0] === 'B' ? '4 paragraphs of 50-75 words' : '4 paragraphs of 65-90 words'}; include concrete numbers, names or dates that can be scanned for.
+Return {"b":"English title","tr":"Turkish title","p":["paragraphs"],"g":[one role per paragraph from: giris, arka, iddia, ornek, veri, karsi, sonuc],
+"ana":{"sec":["3 one-sentence main-idea options"],"d":index of the correct one},
+"tara":[2 x {"soru":"a scanning question about one number, name or date","c":["the answer exactly as written in the text, one or two words"]}],
+"q":[4-5 IELTS Academic questions, mixed types:
+ {"t":"tfng","m":"statement","d":"T" or "F" or "NG","p":paragraph index that proves T or F, null for NG} (2-3 of these, at least one NG),
+ {"t":"baslik","basliklar":[one heading per paragraph plus 2 distractors, shuffled],"d":[for each paragraph, the index of its heading]} (only when there are 4 paragraphs),
+ {"t":"paragraf","m":"Which paragraph mentions …?","d":paragraph index},
+ {"t":"tamam","on":"sentence start","son":"sentence end","c":["one or two words copied exactly from the text"]},
+ {"t":"sec","soru":"question","sec":["4 options"],"d":index}]}
+Vary the position of correct options.` }
+const OKU_DOGRULA = (v: any) => {
+  const p = v.p
+  if (!metin(v.b, 100) || !dizi(p, 3, 6) || !p.every((x: unknown) => metin(x, 900)) || !Array.isArray(v.g) || v.g.length !== p.length || !v.g.every((r: string) => OKU_ROL.includes(r))) return false
+  const nrm = (s: string) => s.toLowerCase().replace(/[’‘`]/g, "'").replace(/[–—]/g, '-').replace(/[^a-z0-9'\- ]/g, ' ').split(/\s+/).filter(Boolean).map((w) => w.replace(/'s$/, '').replace(/^[-']+|[-']+$/g, '')).filter(Boolean).join(' ')
+  const tum = ' ' + nrm(p.join(' ')) + ' ', gecer = (c: string) => tum.includes(' ' + nrm(c) + ' ')
+  if (!v.ana || !dizi(v.ana.sec, 3, 4) || !Number.isInteger(v.ana.d) || v.ana.d >= v.ana.sec.length) return false
+  if (!dizi(v.tara, 1, 3) || !v.tara.every((t: any) => metin(t.soru, 200) && dizi(t.c, 1, 3) && t.c.every((c: unknown) => metin(c, 40)) && t.c.some(gecer))) return false
+  return dizi(v.q, 3, 7) && v.q.every((q: any) =>
+    q.t === 'tfng' ? metin(q.m, 240) && ['T', 'F', 'NG'].includes(q.d) && (q.d === 'NG' ? q.p == null : Number.isInteger(q.p) && q.p < p.length)
+    : q.t === 'baslik' ? dizi(q.basliklar, p.length + 1, 8) && q.basliklar.every((b: unknown) => metin(b, 120)) && Array.isArray(q.d) && q.d.length === p.length && q.d.every((x: unknown) => Number.isInteger(x) && (x as number) < q.basliklar.length) && new Set(q.d).size === q.d.length
+    : q.t === 'paragraf' ? metin(q.m, 200) && Number.isInteger(q.d) && q.d < p.length
+    : q.t === 'tamam' ? metin(q.on, 200) && typeof (q.son ?? '') === 'string' && dizi(q.c, 1, 3) && q.c.every((c: string) => metin(c, 30) && nrm(c).split(' ').length <= 2) && q.c.some(gecer)
+    : q.t === 'sec' ? metin(q.soru, 240) && dizi(q.sec, 3, 5) && Number.isInteger(q.d) && q.d < q.sec.length
+    : false)
+}
 const URET: Record<string, (alt: string, sev: string) => string> = {
   okuma: (_a, sev) => `Write an original ${sev} reading text for Turkish university students about "${rastgele(KONU)}" (a specific, surprising angle).
 Return {"baslik":"title","paragraflar":["3 paragraphs, 45-70 words each"],"sorular":[5 x {"soru_en":"open question","soru_tr":"Turkish translation","paragraf":0-2,"fosfor":"exact phrase of 3-8 words copied from that paragraph that contains the answer","ornek":"short model answer","anahtar":[{"ad_tr":"Turkish label of a key idea","kelimeler":["5-8 lowercase English words or stems a correct answer would contain, with synonyms"]}],"ipucu":["3 Turkish hints, each more specific; the third nearly gives the answer"]}]}
@@ -159,6 +189,7 @@ Return {"kelimeler":[10 x {"kelime":"word","okunus":"/IPA/","tur":"noun|verb|adj
   konusma: (alt) => { const k = konusmaAlt(alt)!; return `Original speaking-practice material for Turkish university students. Category: ${k.kat}. Level: ${KONUSMA_SEV[k.sev]}. Be specific and surprising; avoid the most obvious topic. Theme flavour: "${rastgele(KONU)}".
 ${KONUSMA_URET[k.etk]}` },
   dinle: (alt) => DINLE_URET(alt),
+  oku: (alt) => OKU_URET(alt),
   sinav: (alt) => `Original speaking exam material (do not copy any official test). Theme flavour: "${rastgele(KONU)}".
 ${SINAV_ALT[alt]}`,
   yazi_konu: () => `Return {"konular":[3 short opinion questions for a one-paragraph student essay, each about a different everyday topic like "${rastgele(KONU)}"]}`,
@@ -194,6 +225,7 @@ const DOGRULA: Record<string, (v: any, alt: string) => boolean> = {
     return false
   },
   dinle: (v) => DINLE_DOGRULA(v),
+  oku: (v) => OKU_DOGRULA(v),
   yazi_konu: (v) => dizi(v.konular, 3, 5) && v.konular.every((q: unknown) => metin(q, 160)),
   test: (v, alt) => dizi(v.sorular, 3, 6) && v.sorular.every((q: any) => metin(q.soru, 900) && dizi(q.sec, 2, 5) && q.sec.every((x: unknown) => metin(x, 200)) && Number.isInteger(q.d) && q.d >= 0 && q.d < q.sec.length && metin(q.neden, 500)) && (alt !== 'reading:tfng' || metin(v.parca, 900)),
 }
@@ -279,16 +311,16 @@ async function icerik(b: any, sb: any, uid: string) {
     await admin.from('ing_icerik').insert({ tur: 'sozluk', alt: k, veri, olusturan: uid })
     return json({ veri, kaynak: 'yeni' })
   }
-  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' || tur === 'konusma' || tur === 'dinle' ? String(b.alt ?? '') : ''
+  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' || tur === 'konusma' || tur === 'dinle' || tur === 'oku' ? String(b.alt ?? '') : ''
   /* deste: alt = öğrencinin seviyesi (assets/kelime.js); havuz seviyeye göre ayrılır */
   const sev = tur === 'deste' && /^(A1|A2|B1|B2|C1|C2)$/.test(String(b.alt ?? '')) ? String(b.alt) : 'B1-B2'
-  if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt]) || (tur === 'konusma' && !konusmaAlt(alt)) || (tur === 'dinle' && !dinleAlt(alt))) return json({ error: 'Unknown content' }, 400)
+  if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt]) || (tur === 'konusma' && !konusmaAlt(alt)) || ((tur === 'dinle' || tur === 'oku') && !dinleAlt(alt))) return json({ error: 'Unknown content' }, 400)
   const { data: hazir, error: e1 } = await sb.rpc('ing_icerik_al', { p_tur: tur, p_alt: alt, p_seviye: sev })
   if (e1) { console.error('ing_icerik_al:', e1); return json({ error: 'Pool unavailable' }, 503) }
   if (Array.isArray(hazir) && hazir[0]) return json({ id: hazir[0].id, veri: hazir[0].veri, kaynak: 'havuz' })
   if (!key) return json({ error: 'Groq API key not configured' }, 500)
   if (await gunlukDoldu(admin, uid)) return json({ error: 'limit' }, 429)
-  const v = await groqJson(key, URETICI, URET[tur](alt, sev), tur === 'okuma' || tur === 'dinle' || alt === 'listening:diyalog' ? 3200 : 2400)
+  const v = await groqJson(key, URETICI, URET[tur](alt, sev), tur === 'okuma' || tur === 'dinle' || tur === 'oku' || alt === 'listening:diyalog' ? 3200 : 2400)
   if (!v || !DOGRULA[tur](v, alt)) return json({ error: 'Unparseable' }, 502)
   const { data: yeni, error: e2 } = await admin.from('ing_icerik').insert({ tur, alt, seviye: sev, veri: v, olusturan: uid }).select('id').single()
   if (e2 || !yeni) { console.error('ing_icerik insert:', e2); return json({ veri: v, kaynak: 'yeni' }) }

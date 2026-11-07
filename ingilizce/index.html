@@ -165,7 +165,7 @@ body{--c:var(--mavi)}
     { id: 'speaking', ad: 'Speaking', yer: 'kampüs kafesi', saat: '17:00', not: 'bir dakika hazırlık, iki dakika konuşma', t: 'var(--speaking)' },
     { id: 'writing', ad: 'Writing', yer: 'yurt odası', saat: '21:40', not: 'kırmızı kalem, açıklamalı', t: 'var(--writing)' }
   ];
-  var kac = function (p) { return Object.keys(ACX.bitenler(p.id)).length; };
+  var kac = function (p) { return Math.min(4, Object.keys(ACX.bitenler(p.id)).length); };   /* eski alıştırma kimlikleri yenileriyle birlikte sayılmasın */
   var durak = D.getElementById('durak');
   function durakCiz(i) { var p = PANEL[i]; durak.innerHTML = '<span class="saat">' + p.saat + '</span><div><b>' + p.ad + ' · ' + p.yer + '</b><span class="el">' + p.not + ' · ' + kac(p) + '/4</span></div><a class="btn sm ana" href="' + p.id + '.html" style="background:' + p.t + ';color:' + (p.id === 'vocab' ? 'var(--ink)' : '#fff') + '">Aç →</a>'; }
   D.getElementById('rota').addEventListener('adim', function (e) { durakCiz(e.detail); });

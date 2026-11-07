@@ -208,7 +208,7 @@ test('fonksiyon: içerik önce havuzdan; yoksa üret, doğrula, service role ile
   assert.match(f, /const GUNLUK_URETIM = 30/);
   for (const t of ['okuma', 'dikte', 'kelime', 'deste', 'sohbet', 'yazi_konu', 'test']) { assert.match(f, new RegExp('\\n  ' + t + ': \\(')); }
   /* sayfadaki her alıştırma kimliğinin üretim tarifi var (okuma hızı soruları sabit metne bağlı: yeniYok) */
-  assert.match(read('ingilizce/reading.html'), /\], \{ panel: P, id: 'hiz', yeniYok: true,/);
+  assert.doesNotMatch(read('ingilizce/reading.html'), /id: 'hiz', yeniYok/, 'okuma hızı artık okuma masasında (assets/oku.js), makaleye bağlı');
   for (const s of ['vocab', 'listening', 'reading', 'speaking', 'writing']) {
     const h = read(`ingilizce/${s}.html`);
     for (const m of h.matchAll(/\{ panel: P, id: '([a-z]+)'/g)) if (m[1] !== 'deste' && m[1] !== 'hiz') assert.match(f, new RegExp(`'${s}:${m[1]}': '`), `${s}:${m[1]} tarifi`);
@@ -338,7 +338,7 @@ test('fonksiyon: sinav modu ölçek dışı puanı reddeder; havuzda sinav tür�
   assert.match(f, /if \(b && b\.mod === 'sinav'\) return await sinavPuan\(b\)/);
   assert.match(f, /if \(!isFinite\(x\) \|\| x < 0 \|\| x > O\.max\) return json\(\{ error: 'Bad score' \}, 502\)/);
   for (const a of ['kolay:isinma', 'kolay:gorus', 'orta:part1', 'orta:part2', 'zor:tekrar', 'zor:mulakat']) assert.ok(f.includes(`'${a}': '`), a);
-  assert.match(f, /alt = tur === 'test' \|\| tur === 'sinav' \|\| tur === 'konusma' \|\| tur === 'dinle' \? String\(b\.alt \?\? ''\) : ''/);
+  assert.match(f, /alt = tur === 'test' \|\| tur === 'sinav' \|\| tur === 'konusma' \|\| tur === 'dinle' \|\| tur === 'oku' \? String\(b\.alt \?\? ''\) : ''/);
   assert.match(f, /\(tur === 'sinav' && !SINAV_ALT\[alt\]\)/);
   const m = read('supabase/migrations/20261107_ingilizce_sinav.sql');
   assert.match(m, /check \(tur in \('okuma', 'dikte', 'kelime', 'sohbet', 'yazi_konu', 'test', 'deste', 'sozluk', 'sinav'\)\)/);
@@ -487,7 +487,7 @@ test('atölye sayfası ve fonksiyon: bölüm, betik sırası; konusma havuzu ve 
   assert.match(f, /if \(b && b\.mod === 'etkinlik'\) return await etkinlikTur\(b\)/);
   assert.match(f, /\(tur === 'konusma' && !konusmaAlt\(alt\)\)/);
   for (const t of ['munazara', 'rol', 'hikaye', 'roportaj', 'taboo']) assert.ok(f.includes(`tip === '${t}'`), t);
-  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma', 'dinle'\)\)/);
+  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma', 'dinle', 'oku'\)\)/);
   const j = read('ingilizce/assets/konusma.js');
   assert.match(j, /A\.icerik\('konusma', etk \+ ':' \+ durum\.kat \+ ':' \+ durum\.sev\)/);
   assert.match(j, /if \(liste\.length && g\.length < liste\.length\) return yerelSec\(anahtar, liste\)\.veri;/, 'önce görülmemiş yerel, sonra havuz');
@@ -705,9 +705,68 @@ test('dinle sayfası: eski dört alıştırma kalktı, stüdyo ve hoca dikte dur
   assert.match(j, /var ep = r && tum\(\)\.filter\(function \(b\) \{ return b\.id === r\.id; \}\)\[0\] \|\| gunSec/, 'dinlenince radyo başka bölüme atlamaz');
   assert.match(read('ingilizce/assets/ing.js'), /kelimeAc: kelimeAc/);
   const t = read('supabase/functions/ingilizce-hoca/index.ts');
-  assert.match(t, /tur === 'konusma' \|\| tur === 'dinle' \? String\(b\.alt/); assert.match(t, /\(tur === 'dinle' && !dinleAlt\(alt\)\)/); assert.match(t, /  dinle: \(v\) => DINLE_DOGRULA\(v\),/);
-  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma', 'dinle'\)\);/);
+  assert.match(t, /tur === 'konusma' \|\| tur === 'dinle' \|\| tur === 'oku' \? String\(b\.alt/); assert.match(t, /\(\(tur === 'dinle' \|\| tur === 'oku'\) && !dinleAlt\(alt\)\)/); assert.match(t, /  dinle: \(v\) => DINLE_DOGRULA\(v\),/);
+  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma', 'dinle', 'oku'\)\);/);
   assert.match(read('ingilizce/assets/ing.css'), /\.sahne\{position:relative;height:calc\(var\(--adim,4\) \* 85vh \+ 30vh\);overflow-x:clip\}/);
+});
+
+
+/* okuma masası (07.11.2026): banka, tarama, fosfor, hız, günün makalesi, havuz doğrulaması */
+function okuYukle() {
+  const ctx = { window: null, console, Math, Date, Object, JSON, Set }; ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(read('ingilizce/assets/oku-banka.js'), ctx); vm.runInContext(read('ingilizce/assets/oku.js'), ctx);
+  return { O: ctx.OKU, B: ctx.OKU_BANKA };
+}
+test('oku: her kategoride A, B ve C bandından makale; hepsi havuz doğrulamasından geçer; roller tanımlı', () => {
+  const { O, B } = okuYukle();
+  assert.equal(B.KAT.length, 8);
+  for (const k of B.KAT) { const s = B.MAKALE.filter((m) => m.kat === k.id).map((m) => m.sev[0]); for (const band of 'ABC') assert.ok(s.includes(band), k.id + ' ' + band); }
+  assert.equal(new Set(B.MAKALE.map((m) => m.id)).size, B.MAKALE.length);
+  for (const m of B.MAKALE) {
+    assert.ok(O.dogrula(m), m.id);
+    for (const r of m.g) assert.ok(B.ROL[r], m.id + ' rol ' + r);
+    assert.ok(m.q.some((q) => q.t === 'tfng' && q.d === 'NG'), m.id + ' en az bir NOT GIVEN');
+  }
+  assert.equal(O.dogrula(Object.assign({}, B.MAKALE[0], { tara: [{ soru: 'x?', c: ['uydurma'] }] })), false, 'tarama cevabı metinde geçmeli');
+});
+test('oku: tarama dokunuşu, tamamlama, normalizasyon (FitzGerald’s, gut–brain), hız yardımcıları', () => {
+  const { O } = okuYukle();
+  assert.equal(O.taraDogru({ c: ['eight hundred'] }, 'hundred,'), true); assert.equal(O.taraDogru({ c: ['2009'] }, '2010'), false);
+  assert.equal(O.tamamDogru({ c: ['good enough'] }, ' Good  enough '), true); assert.equal(O.tamamDogru({ c: ['fun'] }, 'fun fun'), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(O.norm('FitzGerald’s gut–brain axis.'))), ['fitzgerald', 'gut-brain', 'axis']);
+  assert.equal(O.wpmHesap(300, 60000), 300); assert.equal(O.wpmHesap(150, 30000), 300);
+  assert.equal(O.odak('reading'), 2); assert.equal(O.odak('a'), 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(O.obekle(['a', 'b', 'c', 'd'], 3))), ['a b c', 'd']);
+});
+test('oku: fosfor aralıkları birleşir ve sıralanır; not korunur', () => {
+  const { O } = okuYukle();
+  let l = O.fosEkle([], { p: 1, a: 7, b: 3 }); assert.deepEqual(JSON.parse(JSON.stringify(l)), [{ p: 1, a: 3, b: 7, not: '' }]);
+  l[0].not = 'kanıt'; l = O.fosEkle(l, { p: 1, a: 8, b: 10 }); assert.deepEqual(JSON.parse(JSON.stringify(l)), [{ p: 1, a: 3, b: 10, not: 'kanıt' }], 'bitişik aralık birleşir');
+  l = O.fosEkle(l, { p: 0, a: 2, b: 2 }); assert.equal(l.length, 2); assert.equal(l[0].p, 0);
+});
+test('oku: günün makalesi aynı gün sabit, seviyeye en yakın; okuma serisi; süre tahmini', () => {
+  const { O, B } = okuYukle();
+  const a = O.gunSec('2026-11-07', 'B2', B.MAKALE, {}); assert.equal(a.id, O.gunSec('2026-11-07', 'B2', B.MAKALE, {}).id); assert.equal(a.sev, 'B2');
+  assert.equal(O.gunSec('2026-11-07', 'A1', B.MAKALE, {}).sev, 'A2');
+  const g = { '2026-11-06': { ok: 1 }, '2026-11-05': { ok: 1 }, '2026-11-07': { ok: 0 } };
+  assert.equal(O.seri(g, new Date(2026, 10, 7, 10).getTime()), 2);
+  const m = { p: ['one two three', 'four five'] }; assert.equal(O.sayKelime(m), 5); assert.equal(O.sure({ p: [Array(400).fill('w').join(' ')] }, 200), 2);
+});
+test('reading sayfası: eski dört alıştırma kalktı, masa ve hoca duruyor; sunucu oku türünü tanır; eski kimlikler 4/4 üstüne çıkmaz', () => {
+  const h = read('ingilizce/reading.html');
+  assert.match(h, /<div class="calis okm" id="oku-app"><\/div>/); assert.match(h, /id="hoca"/);
+  assert.doesNotMatch(h, /id="t-ana"|id="t-tfng"|id="t-baglam"|id="t-hiz"|\.parca\{/);
+  const sira = ['assets/ing.js', 'assets/hoca.js', 'assets/kelime-banka.js', 'assets/oku-banka.js', 'assets/oku.js'].map((x) => h.indexOf('<script src="' + x + '">'));
+  assert.ok(sira.every((x, i) => x > 0 && (i === 0 || x > sira[i - 1])));
+  assert.match(h, /OKU\.kur\(document\.getElementById\('oku-app'\)\)/);
+  const j = read('ingilizce/assets/oku.js');
+  assert.match(j, /A\.icerik\('oku', st\.kat \+ ':' \+ st\.sev\)/);
+  assert.match(j, /if \(tr\.aktif != null\) \{ taraDokun\(k\); return; \}/, 'tarama sırasında dokunuş cevaptır');
+  assert.doesNotMatch(j, /\(\?<=/, 'lookbehind yok');
+  const t = read('supabase/functions/ingilizce-hoca/index.ts');
+  assert.match(t, /  oku: \(v\) => OKU_DOGRULA\(v\),/); assert.match(t, /  oku: \(alt\) => OKU_URET\(alt\),/);
+  assert.match(read('ingilizce/index.html'), /var kac = function \(p\) \{ return Math\.min\(4, Object\.keys/);
+  assert.match(read('ingilizce/assets/ing.css'), /\.ok-p:has\(\.ok-pop\)\{z-index:8\}/, 'not kutusu sonraki paragrafın altında kalmasın');
 });
 
 summary();

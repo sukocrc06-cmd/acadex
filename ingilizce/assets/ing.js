@@ -161,7 +161,7 @@
     defter: function () {
       var p = D.body.dataset.panel, h = ls.al('hoca', {}), g = gunluk(), seri = 0, c = new Date(); c.setHours(0, 0, 0, 0); if (!g[gunAnahtar(c)]) c.setDate(c.getDate() - 1);
       while (g[gunAnahtar(c)]) { seri++; c.setDate(c.getDate() - 1); }
-      var m = p ? p.charAt(0).toUpperCase() + p.slice(1) + ': ' + Object.keys(bitenler(p)).length + '/4 alıştırma, Defne Hoca oturumu ' + (h[p] ? 'tamam' : 'henüz yok') + '. ' : PANEL.map(function (x) { return x.ad + ' ' + Object.keys(bitenler(x.id)).length + '/4'; }).join(' · ') + '. ';
+      var m = p ? p.charAt(0).toUpperCase() + p.slice(1) + ': ' + Math.min(4, Object.keys(bitenler(p)).length) + '/4 alıştırma, Defne Hoca oturumu ' + (h[p] ? 'tamam' : 'henüz yok') + '. ' : PANEL.map(function (x) { return x.ad + ' ' + Math.min(4, Object.keys(bitenler(x.id)).length) + '/4'; }).join(' · ') + '. ';
       soyle(m + (seri ? seri + ' günlük serin var.' : 'Bugün bir alıştırma bitirirsen seri başlar.'), 8000);
     },
     kelime: function () { soyle('Sayfada bir İngilizce kelimeyi seç (bilgisayarda çift tıkla, telefonda basılı tut). Anlamını, okunuşunu getiririm, istersen desteye eklerim.', 7000); }
