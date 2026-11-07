@@ -156,7 +156,7 @@
     cevaplar.forEach(function (c) {
       var o = c.olcum, w = Math.max(.4, c.adim.sure / 60), az = o.kelime < 5 ? .35 : 1, uz = .55 + .45 * sinir(o.kelime / Math.max(15, c.adim.sure * 1.4));   /* kısa cevap dil aralığını gösteremez */
       if (c.adim.tip === 'tekrar') { ekle('tekrar', o.isabet, 1); ekle('telaffuz', (o.guven || .6) * .4 + o.isabet * .6, .5); return; }
-      ekle('akici', az * uz * (sinir((o.wpm - 40) / 80) * .45 + (1 - sinir(o.dolgu / Math.max(1, o.kelime) * 8)) * .25 + o.doluluk * .3), w);
+      ekle('akici', az * uz * (sinir((o.wpm - 40) / 80) * .45 + (1 - sinir(o.dolgu / Math.max(1, o.kelime) * 8)) * .25 + o.doluluk * .3) * (c.duraks ? 1 - sinir(c.duraks / 5) * .25 : 1), w);
       ekle('kelime', az * uz * (sinir((o.cesit - .35) / .35) * .4 + sinir(o.uzun / .18) * .3 + sinir(o.bag / Math.max(1, o.kelime / 25)) * .3), w);
       ekle('dogru', az * uz * ((1 - sinir(o.gram.length / Math.max(1, o.kelime / 20))) * .6 + sinir(o.yan / Math.max(1, o.kelime / 30)) * .4), w);
       ekle('telaffuz', az * (o.guven ? sinir((o.guven - .5) / .4) : .6) * .7 + o.doluluk * .3, w * .8);
@@ -196,6 +196,96 @@
     r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { aktif = false; guncelle(null); } };
     try { r.start(); } catch (e) { return null; }
     return { dur: function () { aktif = false; return new Promise(function (ok) { bitince = function () { ok({ metin: (son.join(' ') + ' ' + gecici).trim(), guven: guv.length ? guv.reduce(function (a, b) { return a + b; }, 0) / guv.length : 0 }); }; try { r.stop(); } catch (e) { bitince(); } setTimeout(function () { if (bitince) bitince(); bitince = null; }, 1500); }); } };
+  }
+
+  /* ---------- canlı ses seviyesi (Web Audio): dalga, halka, duraksama ---------- */
+  var actx = null;
+  function seviyeOlcer() {
+    var C = W.AudioContext || W.webkitAudioContext; if (!akis || !C) return null;
+    var src, an;
+    try { actx = actx || new C(); if (actx.state === 'suspended') actx.resume(); src = actx.createMediaStreamSource(akis); an = actx.createAnalyser(); an.fftSize = 512; src.connect(an); } catch (e) { return null; }
+    var buf = new Uint8Array(an.fftSize);
+    return { oku: function () { an.getByteTimeDomainData(buf); var t = 0; for (var i = 0; i < buf.length; i++) { var v = (buf[i] - 128) / 128; t += v * v; } return Math.min(1, Math.sqrt(t / buf.length) * 5); }, kapat: function () { try { src.disconnect(); } catch (e) {} } };
+  }
+  var SESSIZ = .07, DURAKSAMA = 2.5;   /* bu seviyenin altı sessizlik; 2,5 sn ve üstü "uzun duraksama" */
+
+  /* ---------- renkli transkript ---------- */
+  var BAGLAC = /\b(because|however|although|therefore|moreover|furthermore|whereas|while|which|so|but|also|actually|finally|firstly|first|then|besides|instead|unless|since|for example|for instance|on the other hand|in my opinion|as a result|in addition|to be honest|i mean)\b/gi;
+  var SIRADAN = /^(something|everything|anything|sometimes|probably|tomorrow|yesterday|children|favourite|favorite|important|different|interesting|students|everyone|somebody|everybody|beautiful|wonderful|together|actually|because|although|therefore|whenever|nowadays|basically)$/;
+  function guclu(w) { w = w.toLowerCase(); return w.replace(/(ies|s)$/, '').length >= 8 && !SIRADAN.test(w) && !SIRADAN.test(w.replace(/s$/, '')); }   /* çoğul eki uzunluk sayılmaz */
+  function renkle(metin, isaret) {
+    var t = String(metin || ''), r = [];
+    var ekle = function (re, cls, oncelik, baslik) { var m; re.lastIndex = 0; while ((m = re.exec(t))) { if (!m[0]) { re.lastIndex++; continue; } r.push({ s: m.index, e: m.index + m[0].length, c: cls, o: oncelik, b: baslik || '' }); } };
+    (isaret || []).forEach(function (g) {
+      var parca = String(g.parca || '').trim(); if (!parca || parca.length > 80) return;
+      var i = t.toLowerCase().indexOf(parca.toLowerCase()); if (i > -1) r.push({ s: i, e: i + parca.length, c: 't-hata', o: 4, b: (g.tr || '') + (g.oneri ? ' → ' + g.oneri : '') });
+    });
+    ekle(new RegExp(DOLGU.source, 'gi'), 't-dolgu', 3, 'dolgu sesi');
+    ekle(new RegExp(BAGLAC.source, 'gi'), 't-bag', 2, 'bağlaç');
+    var gm, gre = /\b[a-z]{8,}\b/gi; while ((gm = gre.exec(t))) if (guclu(gm[0])) r.push({ s: gm.index, e: gm.index + gm[0].length, c: 't-guclu', o: 1, b: 'güçlü kelime' });
+    r.sort(function (a, b) { return a.s - b.s || b.o - a.o; });
+    var secili = [];
+    r.forEach(function (x) { var cak = secili.filter(function (y) { return x.s < y.e && y.s < x.e; }); if (!cak.length) secili.push(x); else if (cak.every(function (y) { return y.o < x.o; })) { secili = secili.filter(function (y) { return cak.indexOf(y) < 0; }); secili.push(x); } });
+    secili.sort(function (a, b) { return a.s - b.s; });
+    var out = '', k = 0;
+    secili.forEach(function (x) { out += esc(t.slice(k, x.s)) + '<span class="' + x.c + '"' + (x.b ? ' title="' + esc(x.b) + '"' : '') + '>' + esc(t.slice(x.s, x.e)) + '</span>'; k = x.e; });
+    return out + esc(t.slice(k));
+  }
+  var RENK_ANAHTAR = '<div class="t-anahtar"><span class="t-bag">bağlaç</span><span class="t-guclu">güçlü kelime</span><span class="t-dolgu">um / uh</span><span class="t-hata">düzeltilecek</span></div>';
+
+  /* ---------- model cevap: bir üst seviye örnek, seninkiyle yan yana ---------- */
+  var HEDEF = { kolay: 'B1+ (iyi bir hazırlık atlama cevabı)', orta: 'band 7–8', zor: '5–6 puan' };
+  var ISKELET = {
+    isinma: ['Well, I’m from …, a … city in …', 'What I like most is …, because …', 'For example, …'],
+    resim: ['In this picture, I can see … in a …', 'On the left, … is …-ing, while on the right …', 'It looks like … because …', 'I think they feel … since …'],
+    gorus: ['In my opinion, … because …', 'For example, when I …, I …', 'On the other hand, some people think …', 'So overall, I believe …'],
+    part1: ['Well, to be honest, …', 'The main reason is that …', 'For instance, last week I …'],
+    part2: ['I’d like to talk about …, which …', 'It was / is … and I usually …', 'What I remember most is …', 'The reason it matters to me is that …', 'So that’s why …'],
+    part3: ['It depends. On the one hand, …', 'On the other hand, …', 'A good example of this is …', 'So in general, I’d say …'],
+    mulakat: ['That’s a good question. Personally, …', 'The main reason is …', 'For example, in my case …', 'So, if I had to choose, I’d …']
+  };
+  var modelBellek = A.ls.al('spModel', {});
+  async function modelGetir(c, lv) {
+    var anahtar = lv + '|' + c.adim.soru; if (modelBellek[anahtar]) return modelBellek[anahtar];
+    var v = await A.yz('sinav_model', { seviye: lv, bolum: c.adim.b, soru: c.adim.soru, cevap: String(c.metin || '').slice(0, 1500), sn: c.adim.sure }, 25000);
+    if (!v || typeof v.model_en !== 'string' || !v.model_en.trim()) return null;
+    var m = { model_en: v.model_en, notlar: Array.isArray(v.notlar) ? v.notlar.map(String).slice(0, 3) : [] };
+    modelBellek[anahtar] = m; var ks = Object.keys(modelBellek); if (ks.length > 40) delete modelBellek[ks[0]]; A.ls.yaz('spModel', modelBellek); return m;
+  }
+  function eksikler(senin, model) {   /* modelde olup seninkinde olmayan bağlaç ve güçlü kelimeler */
+    var sn = ' ' + HOCA.norm(senin).trim() + ' ', out = [], gor = {};
+    var ek = function (w) { var k = w.toLowerCase(); if (gor[k] || sn.indexOf(' ' + HOCA.norm(k).trim() + ' ') > -1) return; gor[k] = 1; out.push(w); };
+    (String(model).match(new RegExp(BAGLAC.source, 'gi')) || []).forEach(ek);
+    (String(model).match(/\b[a-z]{8,}\b/gi) || []).filter(guclu).forEach(ek);
+    return out.slice(0, 8);
+  }
+  function modelIsaretle(model, eks) {
+    var html = renkle(model, []);
+    if (!eks.length) return html;
+    var re = new RegExp('(<span class="t-(?:bag|guclu)"[^>]*>)(' + eks.map(function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')(</span>)', 'gi');
+    return html.replace(re, function (_, a, w, z) { return a.replace('class="', 'class="t-yeni ') + w + z; });
+  }
+  async function modelAc(li, c, lv) {
+    var kutu = li.querySelector('.rp-model'), dug = li.querySelector('[data-model]');
+    if (!kutu.hidden && kutu.dataset.dolu) { kutu.hidden = true; dug.setAttribute('aria-expanded', 'false'); return; }
+    kutu.hidden = false; dug.setAttribute('aria-expanded', 'true');
+    if (kutu.dataset.dolu) return;
+    kutu.innerHTML = '<p class="el" style="font-size:20px;margin:6px 0">Defne Hoca örnek cevap yazıyor…</p>';
+    var m = await modelGetir(c, lv);
+    if (!m) {
+      var isk = ISKELET[c.adim.b] || ISKELET.part1;
+      kutu.innerHTML = '<div class="rp-yanyana"><div><span class="etiket">senin cevabın</span><p lang="en">' + (c.metin ? renkle(c.metin, c.olcum.gram) : '<span class="say">(algılanmadı)</span>') + '</p></div><div class="rp-ornek"><span class="etiket">yapı örneği</span><ol lang="en">' + isk.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol></div></div>' +
+        '<p class="say">Tam model cevap yapay zekâ bağlanınca gelir; şimdilik ' + esc(HEDEF[lv]) + ' bir cevabın iskeleti. Boşlukları kendi fikrinle doldurup sesli dene.</p>';
+      kutu.dataset.dolu = 1; return;
+    }
+    var eks = eksikler(c.metin, m.model_en);
+    kutu.innerHTML = '<div class="rp-yanyana"><div><span class="etiket">senin cevabın</span><p lang="en">' + (c.metin ? renkle(c.metin, c.olcum.gram) : '<span class="say">(algılanmadı)</span>') + '</p></div>' +
+      '<div class="rp-ornek"><span class="etiket">örnek · ' + esc(HEDEF[lv]) + '</span><p lang="en">' + modelIsaretle(m.model_en, eks) + '</p></div></div>' +
+      (eks.length ? '<p class="rp-eks"><b>Örnekte olup seninkinde olmayanlar:</b> ' + eks.map(function (w) { return '<span class="t-yeni" lang="en">' + esc(w) + '</span>'; }).join(' ') + '</p>' : '') +
+      (m.notlar.length ? '<ul class="rp-not">' + m.notlar.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '') +
+      '<div class="alt-satir" style="margin-top:8px"><span class="say">Örnek tek doğru değil; fikir senin, kalıpları al.</span><button type="button" class="btn sm" data-oku>🔊 Hoca okusun</button></div>';
+    kutu.dataset.dolu = 1;
+    kutu.querySelector('[data-oku]').onclick = function () { h.soyle(m.model_en, '', { hiz: SEV[lv].hiz }); };
   }
 
   /* ---------- arayüz ---------- */
@@ -246,7 +336,7 @@
       (a.tip === 'resim' ? '<div class="sv-resim"><svg viewBox="0 0 400 240" role="img" aria-label="Anlatılacak resim: ' + esc(a.resim.ad) + '">' + RESIM[a.resim.ciz] + '</svg></div>' : '') +
       (a.tip === 'kart' ? '<div class="sv-kart" lang="en"><b>' + esc(a.kart.kart) + '</b><span>You should say:</span><ul>' + a.kart.maddeler.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul></div>' : '') +
       '<p class="sv-soru" lang="en">' + (soruGor ? esc(a.soru) : '<span class="say">🔊 cümleyi dinle, sonra tekrarla</span>') + '</p>' +
-      '<div class="sv-orta"><div class="sv-saat" style="--k:1"><b>–</b><small>hazır ol</small></div><div class="sv-canli" aria-live="off"></div></div>' +
+      '<div class="sv-orta"><div class="sv-saat" style="--k:1"><b>–</b><small>hazır ol</small></div><div class="sv-sag"><div class="sv-dalga yok" aria-hidden="true">' + new Array(28).join('<i></i>') + '<i></i><span class="sv-dur">duraksama</span></div><div class="sv-canli" aria-live="off"></div></div></div>' +
       '<textarea class="sv-yaz" rows="3" lang="en" placeholder="' + (SR ? 'mikrofon yoksa buraya yaz…' : 'cevabını yaz…') + '"' + (SR && durum.mod === 'sinav' ? ' hidden' : '') + '></textarea>' +
       '<div class="ipucu-kutu" hidden></div>' +
       '<div class="alt-satir sv-dug">' + (kural('ipucu') && IPUCU[a.b] ? '<button type="button" class="btn sm acadia-btn" data-ipucu>Acadia ipucu</button>' : '') + (tekrarHak ? '<button type="button" class="btn sm" data-tk>Soruyu tekrar et</button>' : '') + '<button type="button" class="btn sm" data-cik>Çık</button><button type="button" class="btn sm ana" data-bitti disabled>Bitirdim</button></div>';
@@ -280,17 +370,47 @@
     var kayit = kaydet(), srYok = !SR, t0 = Date.now();
     var dinleyici = SR ? dinle(function (m) { if (m === null) { srYok = true; yaz.hidden = false; canli.textContent = 'Mikrofon izni yok; yazarak devam et.'; return; } canli.textContent = durum.mod === 'pratik' ? m : (m ? '• • • konuşuyorsun' : ''); }) : null;
     if (!dinleyici) { srYok = true; yaz.hidden = false; yaz.focus({ preventScroll: true }); }
+    var olcer = seviyeOlcer(), dalga = p.querySelector('.sv-dalga'), cubuk = dalga.querySelectorAll('i'), saatEl = p.querySelector('.sv-saat');
+    var sonSes = 0, ilkSes = 0, sessizBas = t0, duraks = 0, duraksSn = 0, kas = false, saatBakti = false, sonOnay = Date.now(), raf = 0, gecmis = [];
+    if (olcer) dalga.classList.remove('yok');
+    yaz.addEventListener('input', function () { sonSes = Date.now(); if (!ilkSes) ilkSes = sonSes; });
+    var ciz = function () {
+      var now = Date.now(), lvl = olcer ? olcer.oku() : 0;
+      if (olcer) {
+        gecmis.push(lvl); if (gecmis.length > cubuk.length) gecmis.shift();
+        for (var j = 0; j < cubuk.length; j++) cubuk[j].style.setProperty('--h', (gecmis[gecmis.length - cubuk.length + j] || 0).toFixed(3));
+        saatEl.style.setProperty('--ses', lvl.toFixed(3));
+        if (lvl > SESSIZ) { if (!ilkSes) ilkSes = now; if (now - sessizBas > DURAKSAMA * 1000 && sonSes) { duraks++; duraksSn += (now - sessizBas) / 1000; } sonSes = now; sessizBas = now; }
+      } else if (now - sonSes < 400) sessizBas = now;
+      var sessiz = (now - Math.max(sonSes, t0)) / 1000;
+      dalga.classList.toggle('duruyor', sessiz > DURAKSAMA && (sonSes > 0 || sessiz > 4));
+      dinleyenHoca(now, sessiz);
+      raf = requestAnimationFrame(ciz);
+    };
+    var dinleyenHoca = function (now, sessiz) {   /* konuşurken başını sallar, not alır; uzun sessizlikte kaşını kaldırır; süre azalınca saate bakar */
+      if (A.sakin) return;
+      var kalan = a.sure - (now - t0) / 1000;
+      if (!saatBakti && kalan < a.sure * .2 && kalan > 1) { saatBakti = true; h.svg.dataset.bak = 'saat'; setTimeout(function () { if (h.svg.dataset.bak === 'saat') delete h.svg.dataset.bak; }, 1400); }
+      if (sessiz > 4 && !kas) { kas = true; h.ifade('kas'); }
+      else if (sessiz < 1 && kas) { kas = false; h.ifade('normal'); }
+      if (sessiz < 1 && now - sonOnay > 3200 + Math.random() * 2600) {
+        sonOnay = now; h.svg.classList.remove('onay'); void h.svg.getBoundingClientRect(); h.svg.classList.add('onay');
+        if (durum.mod === 'sinav' && Math.random() < .5) { h.kol('tikla'); setTimeout(function () { h.kol('masa'); }, 1500); }
+      }
+    };
+    raf = requestAnimationFrame(ciz);
     await new Promise(function (ok) {
       var iv = setInterval(function () { var k = a.sure - (Date.now() - t0) / 1000; halka(p, k, a.sure, 'konuşma'); if (k <= 0) bitir(); }, 200);
       var bitir = function () { clearInterval(iv); sonlandir = null; ok(); }; sonlandir = bitir; bdug.onclick = bitir;
     });
+    cancelAnimationFrame(raf); if (olcer) olcer.kapat(); h.svg.classList.remove('onay'); delete h.svg.dataset.bak; if (kas) h.ifade('normal'); h.kol('masa');
     var sn = (Date.now() - t0) / 1000; bdug.disabled = true; kok.classList.remove('kayitta'); kayitEl.hidden = true;
     var sonuc = dinleyici ? await dinleyici.dur() : { metin: '', guven: 0 };
     var ses = await kayit.dur();
     var metin = (sonuc.metin || '').trim(); if ((!metin || srYok) && yaz.value.trim()) metin = yaz.value.trim();
     if (a.tip === 'kart' && a.sure && sn >= a.sure - .5) await h.soyle('Thank you.', '', { hiz: s.hiz });
     if (cik) return null;
-    return { adim: a, metin: metin, sn: sn, ses: ses, guven: sonuc.guven, ipucu: ipucu };
+    return { adim: a, metin: metin, sn: sn, ses: ses, guven: sonuc.guven, ipucu: ipucu, gecikme: ilkSes ? (ilkSes - t0) / 1000 : null, duraks: olcer ? duraks : null };
   }
 
   async function baslat() {
@@ -301,6 +421,7 @@
     var p = kok.querySelector('.sv-panel'); p.innerHTML = '<p class="el" style="font-size:22px">Defne Hoca soruları hazırlıyor…</p>';
     if (SR || W.MediaRecorder) await mikrofon();
     var plan = await planKur(durum.lv, durum.mod, durum.mod === 'pratik' ? durum.tek : null), cevaplar = [];
+    if (durum.mod === 'sinav') await perde('giris');
     for (var i = 0; i < plan.length && !durum.iptal; i++) {
       var c = await adimSor(plan[i], i, plan.length); if (!c) break;
       c.olcum = olc(c, c.adim); cevaplar.push(c);
@@ -308,15 +429,27 @@
     }
     durum.calisiyor = false; kok.classList.remove('calisiyor', 'kayitta'); D.body.classList.remove('sinavda');
     if (!cevaplar.length) { secimCiz(); karsila(); return; }
+    if (durum.mod === 'sinav' && !durum.iptal) await perde('cikis');
     await rapor(cevaplar);
-    secimCiz(); gelisimCiz();
+    secimCiz(); gelisimCiz(true);
+  }
+  /* sınav giriş ve çıkış sahnesi */
+  function perde(tur) {
+    var oda = kok.querySelector('.sv-oda'), el = D.createElement('div');
+    el.className = 'sv-perde ' + tur; el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = tur === 'giris' ? '<span class="damga">sınav başladı</span><small>' + esc(SEV[durum.lv].tarz) + ' · ' + new Date().toLocaleTimeString('tr', { hour: '2-digit', minute: '2-digit' }) + '</small>'
+      : '<div class="zarf"><i class="k1"></i><i class="k2"></i><i class="k3"></i><span class="kapak2"></span><span class="govde2"></span></div><small>Süre doldu · kâğıtlar toplanıyor</small>';
+    oda.appendChild(el);
+    if (tur === 'cikis') { h.kol('tikla'); h.soyle('Time is up. Please stop there. Thank you.', kural('tr') ? 'Süre doldu; teşekkürler.' : '', { hiz: SEV[durum.lv].hiz }); }
+    else if (A.sesCal) A.sesCal('tebesir');
+    return bekle(A.sakin ? 400 : tur === 'giris' ? 1700 : 2300).then(function () { el.classList.add('git'); h.kol('masa'); return bekle(A.sakin ? 0 : 350); }).then(function () { el.remove(); });
   }
   function pratikGeri(c, sonrakiVar) {
     var p = kok.querySelector('.sv-panel'), o = c.olcum, g = o.gram[0];
     var r = o.kelime < 5 ? 'yanlis' : (o.gram.length || o.doluluk < .5 || (c.adim.tip === 'tekrar' && o.isabet < .9)) ? 'kismen' : 'dogru';
     h.tepki(r);
     var not = c.adim.tip === 'tekrar' ? (o.isabet === 1 ? 'Cümleyi eksiksiz tekrarladın.' : 'Kaçan kelimeler: ' + o.kacan.join(', ')) : o.kelime < 5 ? 'Çok kısa kaldı; bir neden ve bir örnek ekle.' : g ? g.tr + ' (' + g.parca + ' → ' + g.oneri + ')' : o.doluluk < .5 ? 'Süreyi daha iyi kullan; cevabı bir örnekle uzat.' : 'Akıcı ve yeterince uzun bir cevap.';
-    p.innerHTML = '<span class="etiket">geri bildirim</span><p class="sv-metin" lang="en">' + (c.metin ? esc(c.metin) : '<span class="say">(cevap algılanmadı)</span>') + '</p>' +
+    p.innerHTML = '<span class="etiket">geri bildirim</span><p class="sv-metin" lang="en">' + (c.metin ? renkle(c.metin, o.gram) : '<span class="say">(cevap algılanmadı)</span>') + '</p>' +
       (c.adim.tip === 'tekrar' ? '<p class="say" lang="en">Hedef: ' + esc(c.adim.hedef) + '</p>' : '') +
       '<div class="sv-cip">' + cipler(c) + '</div><div class="geri acik hoca-geri ' + r + '">' + esc(not) + '</div>' + (c.ses ? '<audio controls src="' + c.ses + '"></audio>' : '') +
       '<div class="alt-satir"><button type="button" class="btn sm" data-g="dur">Bitir ve rapor</button><button type="button" class="btn sm" data-g="tekrar">Tekrar dene</button>' + (sonrakiVar ? '<button type="button" class="btn sm ana" data-g="devam">Sonraki</button>' : '<button type="button" class="btn sm ana" data-g="dur">Raporu gör</button>') + '</div>';
@@ -326,7 +459,7 @@
   }
   function cipler(c) {
     var o = c.olcum;
-    return (c.adim.tip === 'tekrar' ? '<span>%' + Math.round(o.isabet * 100) + ' doğru</span>' : '<span>' + o.sn + ' sn</span><span>' + o.kelime + ' kelime</span><span>' + (o.sn > 4 ? o.wpm + ' kelime/dk' : '–') + '</span>' + (o.dolgu ? '<span>“um” × ' + o.dolgu + '</span>' : '') + (o.gram.length ? '<span>' + o.gram.length + ' düzeltme</span>' : '') + (c.ipucu ? '<span>ipucu alındı</span>' : ''));
+    return (c.adim.tip === 'tekrar' ? '<span>%' + Math.round(o.isabet * 100) + ' doğru</span>' : '<span>' + o.sn + ' sn</span><span>' + o.kelime + ' kelime</span><span>' + (o.sn > 4 ? o.wpm + ' kelime/dk' : '–') + '</span>' + (o.dolgu ? '<span>“um” × ' + o.dolgu + '</span>' : '') + (o.gram.length ? '<span>' + o.gram.length + ' düzeltme</span>' : '') + (c.gecikme != null && c.gecikme >= 3 ? '<span>ilk söz ' + Math.round(c.gecikme) + ' sn</span>' : '') + (c.duraks ? '<span>uzun duraksama × ' + c.duraks + '</span>' : '') + (c.ipucu ? '<span>ipucu alındı</span>' : ''));
   }
 
   async function rapor(cevaplar) {
@@ -348,14 +481,19 @@
     var g = A.ls.al('spGecmis', []); g.push({ t: Date.now(), lv: lv, mod: durum.mod, genel: genel, k: k, kismi: durum.mod === 'pratik' }); A.ls.yaz('spGecmis', g.slice(-60));
     A.gunlukEkle('speaking');
     var max = lv === 'kolay' ? O.max : O.max;
-    yer.innerHTML = '<div class="kagit sv-rapor-kart"><div class="rp-ust"><div><span class="etiket">Acadex sınav raporu · ' + esc(s.tarz) + ' · ' + (durum.mod === 'pratik' ? 'pratik' : 'tam sınav') + '</span><h3>Tahmini sonuç</h3><p class="say">Bu bir resmî sınav sonucu değildir; konuşmandan yapılan tahmindir' + (ai ? ' (ölçüm + yapay zekâ)' : ' (yerel ölçüm)') + '.</p></div>' +
-      '<div class="rp-genel"><b>' + O.yaz(genel) + '</b><small>' + (lv === 'kolay' ? '/ 20' : lv === 'orta' ? 'band' : '/ 6') + '</small>' + (gecti !== null ? '<span class="damga ' + (gecti ? 'gecti' : 'kaldi') + '">' + (gecti ? 'geçti' : 'kaldı') + '</span>' : '') + '</div></div>' +
-      '<div class="rp-kriter">' + Object.keys(k).map(function (id) { return '<div class="kb"><span>' + esc(ad(id)) + '</span><i style="--w:' + Math.round(k[id] / max * 100) + '%"></i><b>' + O.yaz(k[id]) + '</b></div>'; }).join('') + '</div>' +
+    yer.innerHTML = '<div class="kagit sv-rapor-kart' + (A.sakin ? '' : ' zarftan') + '"><div class="rp-ust"><div><span class="etiket">Acadex sınav raporu · ' + esc(s.tarz) + ' · ' + (durum.mod === 'pratik' ? 'pratik' : 'tam sınav') + '</span><h3>Tahmini sonuç</h3><p class="say">Bu bir resmî sınav sonucu değildir; konuşmandan yapılan tahmindir' + (ai ? ' (ölçüm + yapay zekâ)' : ' (yerel ölçüm)') + '.</p></div>' +
+      '<div class="rp-genel"><b data-sayac="' + genel + '">' + O.yaz(A.sakin ? genel : 0) + '</b><small>' + (lv === 'kolay' ? '/ 20' : lv === 'orta' ? 'band' : '/ 6') + '</small>' + (gecti !== null ? '<span class="damga ' + (gecti ? 'gecti' : 'kaldi') + '">' + (gecti ? 'geçti' : 'kaldı') + '</span>' : '') + '</div></div>' +
+      '<div class="rp-kriter">' + Object.keys(k).map(function (id, i) { return '<div class="kb" style="--d:' + (.5 + i * .18).toFixed(2) + 's"><span>' + esc(ad(id)) + '</span><i style="--w:' + Math.round(k[id] / max * 100) + '%"></i><b>' + O.yaz(k[id]) + '</b></div>'; }).join('') + '</div>' +
       '<p class="rp-ozet"><span class="el">Defne Hoca:</span> ' + esc(ozet) + '</p>' +
       (duz.length ? '<h4>Kendi cümlelerinden</h4><ul class="rp-duz">' + duz.map(function (d) { return '<li><span class="eski" lang="en">' + esc(d.orijinal) + '</span>' + (d.daha_iyi ? '<span class="yeni" lang="en">→ ' + esc(d.daha_iyi) + '</span>' : '') + '<small>' + esc(d.not_tr) + '</small></li>'; }).join('') + '</ul>' : '') +
-      '<h4>Cevapların</h4><ol class="rp-cevap">' + cevaplar.map(function (c) { return '<li><p class="soru" lang="en">' + esc(c.adim.tip === 'tekrar' ? c.adim.hedef : c.adim.soru) + '</p><p class="metin" lang="en">' + (c.metin ? esc(c.metin) : '<span class="say">(algılanmadı)</span>') + '</p><div class="sv-cip">' + cipler(c) + '</div>' + (c.ses ? '<audio controls preload="none" src="' + c.ses + '"></audio>' : '') + '</li>'; }).join('') + '</ol>' +
+      '<div class="alt-satir rp-cevap-u"><h4>Cevapların</h4>' + RENK_ANAHTAR + '</div><ol class="rp-cevap">' + cevaplar.map(function (c, i) {
+        var isaret = c.olcum.gram.concat(duz.filter(function (d) { return d.orijinal && String(d.orijinal).length < 60; }).map(function (d) { return { parca: d.orijinal, tr: d.not_tr, oneri: d.daha_iyi }; }));
+        return '<li data-i="' + i + '"><p class="soru" lang="en">' + esc(c.adim.tip === 'tekrar' ? c.adim.hedef : c.adim.soru) + '</p><p class="metin" lang="en">' + (c.metin ? renkle(c.metin, isaret) : '<span class="say">(algılanmadı)</span>') + '</p><div class="sv-cip">' + cipler(c) + '</div>' +
+          '<div class="rp-ara">' + (c.ses ? '<audio controls preload="none" src="' + c.ses + '"></audio>' : '') + (c.adim.tip !== 'tekrar' ? '<button type="button" class="btn sm" data-model aria-expanded="false">Model cevapla karşılaştır</button>' : '') + '</div><div class="rp-model" hidden></div></li>'; }).join('') + '</ol>' +
       '<div class="alt-satir"><span class="say">Ses kayıtları yalnız bu sekmede durur; sayfayı kapatınca silinir.</span><button type="button" class="btn sm ana" data-yeni>Yeni ' + (durum.mod === 'sinav' ? 'sınav' : 'pratik') + '</button></div></div>';
     yer.querySelector('[data-yeni]').onclick = function () { kok.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    yer.querySelectorAll('[data-model]').forEach(function (b) { b.onclick = function () { var li = b.closest('li'); modelAc(li, cevaplar[+li.dataset.i], lv); }; });
+    sayacCalis(yer.querySelector('[data-sayac]'), genel, O, gecti);
     yer.scrollIntoView({ behavior: A.sakin ? 'auto' : 'smooth', block: 'start' });
     var iyi = lv === 'kolay' ? genel >= 15 : lv === 'orta' ? genel >= 7 : genel >= 5;
     h.tepki(iyi ? 'dogru' : genel >= (lv === 'kolay' ? 12 : lv === 'orta' ? 5.5 : 3.5) ? 'kismen' : 'yanlis');
@@ -363,8 +501,17 @@
     if (durum.mod === 'sinav' && A.bitir) { var hb = A.ls.al('hoca', {}); if (!hb.speaking) { hb.speaking = Date.now(); A.ls.yaz('hoca', hb); } }
   }
 
+  /* rapor sinematiği: puan sayaç gibi yükselir, damga sonunda vurulur */
+  function sayacCalis(el, hedef, O, gecti) {
+    if (!el) return;
+    if (A.sakin) { el.textContent = O.yaz(hedef); return; }
+    var t0 = 0, sure = 1300;
+    var adim = function (t) { if (!t0) t0 = t; var x = Math.min(1, (t - t0) / sure), e = 1 - Math.pow(1 - x, 3), v = hedef * e; el.textContent = O.yaz(O.gmax === 20 ? Math.round(v) : Math.round(v * 2) / 2); if (x < 1) requestAnimationFrame(adim); else { el.classList.add('vurdu'); if (A.sesCal) A.sesCal(gecti === false ? 'kismen' : 'dogru'); if (gecti && A.sevin) A.sevin(); } };
+    setTimeout(function () { requestAnimationFrame(adim); }, 350);
+  }
+
   /* ---------- gelişim grafiği ---------- */
-  function gelisimCiz() {
+  function gelisimCiz(yeni) {
     var el = kok.querySelector('.sv-gelisim'), lv = durum.lv, s = SEV[lv], O = OLCEK[lv];
     var g = A.ls.al('spGecmis', []).filter(function (x) { return x.lv === lv; }).slice(-10);
     if (!g.length) { el.innerHTML = '<span class="etiket">gelişim · ' + esc(s.ad) + '</span><p class="say" style="margin:6px 0 0">İlk denemenden sonra puanların burada çizilecek.</p>'; return; }
@@ -373,11 +520,12 @@
     var son3 = g.slice(-3), ort = {}; son3.forEach(function (x) { Object.keys(x.k || {}).forEach(function (a) { ort[a] = (ort[a] || 0) + x.k[a] / son3.length; }); });
     var zayif = Object.keys(ort).sort(function (a, b) { return ort[a] - ort[b]; })[0], zad = zayif ? (s.kriter.filter(function (q) { return q[0] === zayif; })[0] || [0, zayif])[1] : '';
     var esik = lv === 'kolay' ? 15 : lv === 'orta' ? 7 : 5, sonIki = sinavlar.slice(-2), hazir = sonIki.length === 2 && sonIki.every(function (x) { return x.genel >= esik; });
+    el.classList.toggle('ciz', !!yeni && !A.sakin);
     el.innerHTML = '<div class="alt-satir" style="margin:0 0 6px"><span class="etiket">gelişim · ' + esc(s.ad) + ' · son ' + g.length + ' deneme</span><span class="say">● sınav ○ pratik</span></div>' +
       '<svg class="sv-grafik" viewBox="0 0 ' + Wd + ' ' + Hd + '" role="img" aria-label="Puan geçmişi">' + [0, .5, 1].map(function (f) { var y = ys(gm * f); return '<path d="M' + pad + ' ' + y + ' H' + (Wd - pad) + '" stroke="var(--cizgi)" stroke-dasharray="4 5"/><text x="4" y="' + (y + 4) + '" font-size="11" fill="var(--ink3)">' + O.yaz(gm * f).replace('.0', '') + '</text>'; }).join('') +
-      '<path d="' + yol + '" fill="none" stroke="var(--sv)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' + g.map(function (x, i) { return '<circle cx="' + xs(i) + '" cy="' + ys(x.genel) + '" r="6" fill="' + (x.kismi ? '#fff' : 'var(--sv)') + '" stroke="var(--ink)" stroke-width="2"><title>' + new Date(x.t).toLocaleDateString('tr') + ' · ' + O.yaz(x.genel) + (x.kismi ? ' (pratik)' : '') + '</title></circle>'; }).join('') + '</svg>' +
+      '<path class="sv-cizgi" pathLength="1" d="' + yol + '" fill="none" stroke="var(--sv)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' + g.map(function (x, i) { return '<circle style="--d:' + (i / Math.max(1, g.length - 1) * 1.1).toFixed(2) + 's" cx="' + xs(i) + '" cy="' + ys(x.genel) + '" r="6" fill="' + (x.kismi ? '#fff' : 'var(--sv)') + '" stroke="var(--ink)" stroke-width="2"><title>' + new Date(x.t).toLocaleDateString('tr') + ' · ' + O.yaz(x.genel) + (x.kismi ? ' (pratik)' : '') + '</title></circle>'; }).join('') + '</svg>' +
       '<p class="say" style="margin:6px 0 0">' + (zad ? 'Son denemelerde en zayıf kriter: <b>' + esc(zad) + '</b>. ' : '') + (hazir ? (lv === 'zor' ? 'Son iki sınavın çok iyi; bu seviyede ustalaştın.' : 'Son iki sınavın eşiği geçti; <b>' + esc(SEV[lv === 'kolay' ? 'orta' : 'zor'].ad) + '</b> seviyesine hazırsın.') : '') + '</p>';
   }
 
-  W.SINAV = { kur: kur, SEV: SEV, olc: olc, kriterYerel: kriterYerel, OLCEK: OLCEK, planKur: planKur, sayfaUyarla: sayfaUyarla, duzeltmeYerel: duzeltmeYerel };
+  W.SINAV = { kur: kur, renkle: renkle, eksikler: eksikler, ISKELET: ISKELET, SEV: SEV, olc: olc, kriterYerel: kriterYerel, OLCEK: OLCEK, planKur: planKur, sayfaUyarla: sayfaUyarla, duzeltmeYerel: duzeltmeYerel };
 })();

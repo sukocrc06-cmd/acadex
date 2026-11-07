@@ -168,6 +168,7 @@ serve(async (req) => {
     const b = await req.json().catch(() => null)
     if (b && (b.mod === 'icerik' || b.mod === 'sozluk')) return await icerik(b, sb, user.id)
     if (b && b.mod === 'sinav') return await sinavPuan(b)
+    if (b && b.mod === 'sinav_model') return await sinavModel(b)
     const istem = b && ISTEM[String(b.mod)]
     if (!istem) return json({ error: 'Unknown mod' }, 400)
     const key = Deno.env.get('GROQ_API_KEY')
@@ -256,4 +257,22 @@ Return {"kriterler":{${O.kriter.map((k) => `"${k}":number`).join(',')}},"ozet_tr
   for (const k of O.kriter) { const x = Number(v.kriterler[k]); if (!isFinite(x) || x < 0 || x > O.max) return json({ error: 'Bad score' }, 502); kriterler[k] = x }
   const duzeltmeler = (Array.isArray(v.duzeltmeler) ? v.duzeltmeler : []).slice(0, 5).filter((d: any) => metin(d?.orijinal, 400)).map((d: any) => ({ orijinal: kis(d.orijinal, 300), daha_iyi: kis(d.daha_iyi, 300), not_tr: kis(d.not_tr, 160) }))
   return json({ kriterler, ozet_tr: kis(v.ozet_tr, 400), duzeltmeler })
+}
+
+/* model cevap: aynı soruya bir üst seviye örnek; öğrencinin fikrinden yola çıkar */
+const MODEL_HEDEF: Record<string, string> = { kolay: 'a strong B1+ answer for a preparatory-school placement interview', orta: 'an IELTS-style band 7-8 answer', zor: 'a TOEFL-style answer that would score 5-6' }
+async function sinavModel(b: any) {
+  const key = Deno.env.get('GROQ_API_KEY')
+  if (!key) return json({ error: 'Groq API key not configured' }, 500)
+  const lv = String(b.seviye ?? ''), hedef = MODEL_HEDEF[lv], soru = kis(b.soru, 400)
+  if (!hedef || !soru.trim()) return json({ error: 'Bad input' }, 400)
+  const sn = Math.max(15, Math.min(150, Number(b.sn) || 45)), kelime = Math.round(sn * 2.1)
+  const istem = `Mode: model answer for a speaking practice question (original, natural spoken English).
+Part: ${kis(b.bolum, 20)}. Question: ${soru}
+Student's answer (speech-to-text): ${kis(b.cevap, 1500) || '(no answer)'}
+Write ${hedef}, about ${kelime} words, as the student would say it aloud. Keep the student's own idea and opinion if they had one, but improve structure, linking words and vocabulary. No headings, no lists.
+Return {"model_en":"the answer","notlar":["up to 3 short Turkish notes: what the model does better than the student's answer, each max 15 words"]}`
+  const v = await groqJson(key, KARAKTER.replace(/Judge fairly:[^\n]*\n/, ''), istem, 900, 0.6)
+  if (!v || !metin(v.model_en, 1600)) return json({ error: 'Unparseable' }, 502)
+  return json({ model_en: kis(v.model_en, 1600), notlar: (Array.isArray(v.notlar) ? v.notlar : []).filter((n: unknown) => metin(n, 200)).slice(0, 3) })
 }

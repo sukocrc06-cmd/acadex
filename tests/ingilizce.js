@@ -256,7 +256,7 @@ function sinavYukle(icerik) {
   const ctx = { window: null, document: { body: { dataset: {} } }, console, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, Promise };
   ctx.window = ctx; vm.createContext(ctx);
   vm.runInContext(read('ingilizce/assets/hoca.js'), ctx);
-  ctx.ACX = { esc: (x) => String(x), ls: { al: (k, v) => (k in depo ? depo[k] : v), yaz: (k, v) => { depo[k] = v; } }, icerik: icerik || null, yz: async () => null, gunlukEkle() {} };
+  ctx.ACX = { esc: (x) => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), ls: { al: (k, v) => (k in depo ? depo[k] : v), yaz: (k, v) => { depo[k] = v; } }, icerik: icerik || null, yz: async () => null, gunlukEkle() {} };
   vm.runInContext(read('ingilizce/assets/sinav-banka.js'), ctx);
   vm.runInContext(read('ingilizce/assets/sinav.js'), ctx);
   return { S: ctx.SINAV, B: ctx.SINAV_BANKA, depo };
@@ -342,6 +342,42 @@ test('fonksiyon: sinav modu ölçek dışı puanı reddeder; havuzda sinav tür�
   assert.match(f, /\(tur === 'sinav' && !SINAV_ALT\[alt\]\)/);
   const m = read('supabase/migrations/20261107_ingilizce_sinav.sql');
   assert.match(m, /check \(tur in \('okuma', 'dikte', 'kelime', 'sohbet', 'yazi_konu', 'test', 'deste', 'sozluk', 'sinav'\)\)/);
+});
+
+/* Speaking geliştirme (07.11.2026): canlı ses dalgası, dinleyen hoca, sınav giriş/çıkış sahnesi,
+   rapor sinematiği, renkli transkript, model cevap karşılaştırma */
+test('renkli transkript: bağlaç, güçlü kelime, dolgu ve düzeltme işaretlenir; HTML kaçar', () => {
+  const { S } = sinavYukle();
+  const h = S.renkle('Um, I think it is very important because cities are expensive, however <b>parks</b> are beneficial.', [{ parca: 'very important', tr: 'daha güçlü kelime', oneri: 'crucial' }]);
+  assert.match(h, /<span class="t-dolgu"[^>]*>Um<\/span>/);
+  assert.match(h, /<span class="t-hata" title="daha güçlü kelime → crucial">very important<\/span>/);
+  assert.match(h, /<span class="t-bag"[^>]*>because<\/span>/); assert.match(h, /<span class="t-bag"[^>]*>however<\/span>/);
+  assert.match(h, /<span class="t-guclu"[^>]*>expensive<\/span>/); assert.match(h, /<span class="t-guclu"[^>]*>beneficial<\/span>/);
+  assert.doesNotMatch(h, /<b>/, 'öğrenci metni kaçar'); assert.match(h, /&lt;b&gt;/);
+  assert.doesNotMatch(h, /t-guclu"[^>]*>important</, 'işaretli düzeltmenin içi ikinci kez boyanmaz');
+});
+test('model cevap: eksik kalıplar bulunur; yapay zekâ yoksa yapı iskeleti, her bölüm için', () => {
+  const { S } = sinavYukle();
+  const e = [...S.eksikler('I like parks because they are nice.', 'On the other hand, parks are essential because they reduce pollution; for example, ...')];
+  assert.ok(e.includes('On the other hand') && e.includes('essential') && e.includes('pollution') && e.includes('for example'));
+  assert.ok(!e.includes('because'), 'zaten kullandığı bağlaç sayılmaz');
+  for (const b of ['isinma', 'resim', 'gorus', 'part1', 'part2', 'part3', 'mulakat']) assert.ok(S.ISKELET[b].length >= 3, b);
+  const j = read('ingilizce/assets/sinav.js');
+  assert.match(j, /A\.yz\('sinav_model', \{ seviye: lv, bolum: c\.adim\.b, soru: c\.adim\.soru/);
+  assert.match(j, /A\.ls\.yaz\('spModel', modelBellek\)/, 'aynı soru için ikinci istek yok');
+  const f = read('supabase/functions/ingilizce-hoca/index.ts');
+  assert.match(f, /if \(b && b\.mod === 'sinav_model'\) return await sinavModel\(b\)/);
+  assert.match(f, /if \(!v \|\| !metin\(v\.model_en, 1600\)\) return json\(\{ error: 'Unparseable' \}, 502\)/);
+});
+test('canlı dalga, dinleyen hoca, sahne ve sinematik: hareket azaltılınca kapalı', () => {
+  const j = read('ingilizce/assets/sinav.js'), c = read('ingilizce/assets/ing.css');
+  assert.match(j, /actx\.createMediaStreamSource\(akis\); an = actx\.createAnalyser\(\)/);
+  assert.match(j, /var dinleyenHoca = function \(now, sessiz\) \{[^\n]*\n      if \(A\.sakin\) return;/);
+  assert.match(j, /if \(durum\.mod === 'sinav'\) await perde\('giris'\)/);
+  assert.match(j, /if \(durum\.mod === 'sinav' && !durum\.iptal\) await perde\('cikis'\)/);
+  assert.match(j, /if \(A\.sakin\) \{ el\.textContent = O\.yaz\(hedef\); return; \}/);
+  assert.match(j, /duraks: olcer \? duraks : null/);
+  assert.match(c, /@media \(prefers-reduced-motion:reduce\)\{\.sv-perde,\.sv-perde \*,\.sv-rapor-kart\.zarftan/);
 });
 
 summary();

@@ -586,3 +586,63 @@ svg.hoca .gz{display:none}svg.hoca.gozetmen .gz{display:inline}svg.hoca.gozetmen
 .sv-panel{scroll-margin-top:84px}
 .sv-saat small{font-size:9.5px;letter-spacing:0;max-width:64px;text-align:center}
 .sv-grafik{max-width:760px;margin:0 auto}
+/* speaking · canlı ses dalgası ve duraksama */
+.sv-sag{display:grid;gap:8px;min-width:0}
+.sv-dalga{position:relative;display:flex;align-items:center;gap:3px;height:42px;padding:0 8px;border:2px solid var(--ink);border-radius:10px;background:#fff;overflow:hidden}
+.sv-dalga.yok{display:none}
+.sv-dalga i{flex:1;min-width:2px;height:calc(3px + var(--h,0)*34px);max-height:36px;border-radius:3px;background:var(--sv);opacity:calc(.35 + var(--h,0)*1.3);transition:height .08s linear}
+.sv-dur{position:absolute;right:6px;top:50%;translate:0 -50%;padding:2px 8px;border-radius:999px;background:var(--postit);border:1.5px solid var(--ink);font:600 11.5px var(--mono);opacity:0;transition:opacity .2s}
+.sv-dalga.duruyor .sv-dur{opacity:1;animation:yanson 1s steps(2) infinite}
+.sv-dalga.duruyor i{background:var(--ink3)}
+.simulator.kayitta .sv-saat{transform:scale(calc(1 + var(--ses,0)*.07));box-shadow:0 0 0 calc(var(--ses,0)*12px) color-mix(in srgb,var(--sv) 22%,transparent);transition:transform .08s,box-shadow .08s}
+/* dinleyen hoca */
+svg.hoca.onay .bas{animation:onay .75s ease-in-out}
+@keyframes onay{30%{translate:0 3.5px}65%{translate:0 -1px}}
+svg.hoca[data-bak=saat] .bas{transform:rotate(-9deg) translate(-3px,4px)}
+/* sınav giriş / çıkış sahnesi */
+.sv-perde{position:absolute;inset:0;z-index:6;display:grid;place-items:center;align-content:center;gap:12px;border-radius:16px;background:radial-gradient(ellipse at 50% 40%,rgba(26,42,92,.35),rgba(26,42,92,.78));animation:perdeAc .35s ease-out both;transition:opacity .35s}
+.sv-perde.git{opacity:0}
+.sv-perde small{font:600 13px var(--mono);color:#fff;letter-spacing:.06em;text-transform:uppercase;animation:soz .4s .6s both}
+.sv-perde .damga{font-size:clamp(22px,4vw,34px);padding:8px 22px;background:var(--kagit2);mix-blend-mode:normal;animation:damgaVur .5s var(--yay) .25s both}
+@keyframes perdeAc{from{opacity:0}}
+@keyframes damgaVur{0%{opacity:0;transform:scale(2.4) rotate(-22deg)}70%{opacity:1;transform:scale(.94) rotate(-6deg)}100%{opacity:1;transform:scale(1) rotate(-8deg)}}
+.zarf{position:relative;width:150px;height:104px}
+.zarf .govde2,.zarf .kapak2{position:absolute;left:0;right:0;bottom:0;height:76px;background:#E8D7B4;border:2.5px solid var(--ink);border-radius:6px}
+.zarf .govde2{z-index:2;clip-path:polygon(0 0,50% 55%,100% 0,100% 100%,0 100%)}
+.zarf .kapak2{z-index:3;height:44px;bottom:32px;border-radius:6px 6px 0 0;background:#DCC79E;clip-path:polygon(0 100%,50% 0,100% 100%);transform-origin:50% 100%;transform:rotateX(180deg);animation:kapakKapan .4s ease-in 1.5s forwards;border:0}
+.zarf i{position:absolute;left:18px;right:18px;height:62px;background:#fff;border:2px solid var(--ink);border-radius:3px;z-index:1;background-image:repeating-linear-gradient(transparent 0 9px,#D6E0F0 9px 10px);animation:kagitGir .55s var(--ease) both}
+.zarf .k1{animation-delay:.15s;rotate:-4deg}.zarf .k2{animation-delay:.45s;rotate:3deg}.zarf .k3{animation-delay:.75s}
+@keyframes kagitGir{from{transform:translateY(-120px);opacity:0}to{transform:translateY(8px);opacity:1}}
+@keyframes kapakKapan{to{transform:rotateX(0)}}
+/* rapor sinematiği */
+.sv-rapor-kart.zarftan{animation:zarftan .8s var(--ease) both}
+@keyframes zarftan{from{opacity:0;transform:translateY(60px) scale(.96);clip-path:inset(0 0 70% 0 round 14px)}to{clip-path:inset(0 0 0 0 round 0)}}
+.rp-kriter .kb i::after{animation:dol 1s var(--ease) var(--d,0s) both}
+.zarftan .rp-kriter .kb b{animation:soz .4s var(--ease) calc(var(--d,0s) + .7s) both}
+.zarftan .rp-genel .damga{opacity:0}
+.rp-genel b.vurdu~.damga{animation:damgaVur .5s var(--yay) both}
+.rp-genel b.vurdu{animation:sekme .4s var(--yay)}
+@keyframes sekme{40%{transform:scale(1.18)}}
+.sv-gelisim.ciz .sv-cizgi{stroke-dasharray:1;stroke-dashoffset:1;animation:ciz 1.3s var(--ease) .2s forwards}
+.sv-gelisim.ciz circle{transform-box:fill-box;transform-origin:center;animation:noktaGel .35s var(--yay) calc(var(--d,0s) + .2s) both}
+@keyframes ciz{to{stroke-dashoffset:0}}
+@keyframes noktaGel{from{transform:scale(0)}}
+/* renkli transkript */
+.t-bag{background:#DDF2E3;border-radius:4px;padding:0 2px;box-shadow:inset 0 -2px 0 var(--reading)}
+.t-guclu{background:linear-gradient(transparent 55%,var(--fosfor) 55%)}
+.t-dolgu{color:var(--ink3);background:#ECE8E0;border-radius:4px;padding:0 3px;font-style:italic}
+.t-hata{text-decoration:underline wavy var(--kirmizi) 1.5px;text-underline-offset:4px;cursor:help}
+.t-yeni{outline:2px dashed var(--mavi);outline-offset:1px;border-radius:4px}
+.t-anahtar{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:13px}
+.rp-cevap-u{margin:18px 0 8px}.rp-cevap-u h4{margin:0}
+.rp-ara{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:6px}.rp-ara audio{margin:0}
+/* model cevap */
+.rp-model{margin-top:10px;padding:12px;border:2px dashed var(--cizgi);border-radius:12px;background:#FFFDF8;animation:soz .35s var(--ease)}
+.rp-yanyana{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.rp-yanyana p{margin:4px 0 0;line-height:1.6}
+.rp-ornek{padding-left:14px;border-left:3px solid var(--sv)}
+.rp-ornek ol{margin:6px 0 0;padding-left:20px;line-height:1.6}
+.rp-eks{margin:10px 0 0;font-size:14.5px;line-height:1.9}.rp-eks .t-yeni{display:inline-block;margin:0 2px;padding:0 5px;background:#fff}
+.rp-not{margin:8px 0 0;padding-left:20px;font:600 17px var(--hand);color:var(--ink2)}
+@media (max-width:620px){.rp-yanyana{grid-template-columns:1fr}.rp-ornek{padding:10px 0 0;border-left:0;border-top:3px solid var(--sv)}}
+@media (prefers-reduced-motion:reduce){.sv-perde,.sv-perde *,.sv-rapor-kart.zarftan,.sv-gelisim.ciz *,svg.hoca.onay .bas{animation:none!important}.sv-gelisim.ciz .sv-cizgi{stroke-dashoffset:0}.zarf .kapak2{transform:none}}
