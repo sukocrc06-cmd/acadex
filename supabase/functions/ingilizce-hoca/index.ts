@@ -94,6 +94,15 @@ const TEST: Record<string, string> = {
   'speaking:vurgu': '5 items. "soru": "<b>word</b>" (add "(isim)" or "(fiil)" when stress changes with the part of speech). "dinle": the word or a short sentence with it. "sec": 3 or 4 spellings with the stressed syllable in capitals, e.g. "pho-TO-gra-pher". "neden": Turkish.',
   'speaking:gecis': '5 items. "soru": a Turkish description of a moment in a speaking exam (need time, did not understand, forgot a word, changing topic, finishing). "sec": 4 English phrases, one natural and polite. "neden": Turkish.',
 }
+/* speaking sınav simülatörü (assets/sinav.js): seviye:bölüm */
+const SINAV_ALT: Record<string, string> = {
+  'kolay:isinma': 'Preparatory-school placement interview, warm-up. Return {"sorular":[4 short, friendly personal questions (A2-B1) about daily life, hometown, studies or hobbies]}',
+  'kolay:gorus': 'Preparatory-school placement interview, opinion part (B1). Return {"sorular":[3 x {"soru":"a simple opinion question about student or daily life","takip":"one short follow-up question that pushes for a reason or the other side"}]}',
+  'orta:part1': 'IELTS-style Part 1. Return {"konu":"a familiar everyday topic, 1-3 words, e.g. your hometown","sorular":[4 short personal questions on that topic, from present to past/future]}',
+  'orta:part2': 'IELTS-style Part 2 cue card and Part 3. Return {"kart":"Describe … (one sentence)","maddeler":["4 prompts; the last starts with \"and explain\""],"kapanis":"one short rounding-off question","part3":[4 abstract discussion questions related to the card, getting deeper]}',
+  'zor:tekrar': 'TOEFL-style Listen and Repeat. Return {"baglam":"a campus situation, 2-4 words, e.g. a library orientation","cumleler":[7 sentences an announcer could say in that situation; sentence 1 has 3-4 words and each next one is longer; sentence 7 has 13-16 words]}',
+  'zor:mulakat': 'TOEFL-style academic interview (a researcher interviews a student, no preparation time). Return {"konu":"study topic, 2-3 words","sorular":[4 questions; the first welcomes the student and asks about personal experience, then opinion, then a debatable issue, then a hypothetical or future question]}',
+}
 const URET: Record<string, (alt: string, sev: string) => string> = {
   okuma: (_a, sev) => `Write an original ${sev} reading text for Turkish university students about "${rastgele(KONU)}" (a specific, surprising angle).
 Return {"baslik":"title","paragraflar":["3 paragraphs, 45-70 words each"],"sorular":[5 x {"soru_en":"open question","soru_tr":"Turkish translation","paragraf":0-2,"fosfor":"exact phrase of 3-8 words copied from that paragraph that contains the answer","ornek":"short model answer","anahtar":[{"ad_tr":"Turkish label of a key idea","kelimeler":["5-8 lowercase English words or stems a correct answer would contain, with synonyms"]}],"ipucu":["3 Turkish hints, each more specific; the third nearly gives the answer"]}]}
@@ -104,6 +113,8 @@ Return {"kelimeler":[5 x {"kelime":"word","anlam_tr":"Turkish meaning","ornek":"
   deste: (_a, sev) => `Choose 10 useful ${sev} academic words starting with these letters: ${harfler()}, ${harfler()}, ${harfler()}.
 Return {"kelimeler":[10 x {"kelime":"word","okunus":"/IPA/","tur":"noun|verb|adj|adv","anlam_tr":"Turkish meaning","ornek":"natural example sentence"}]}`,
   sohbet: () => `Theme: "${rastgele(KONU)}". Return {"sorular":[5 friendly IELTS Part 1 then Part 3 style questions, short, from easy to deeper],"ipucu":[5 Turkish tips, each with an English sentence starter in quotes]}`,
+  sinav: (alt) => `Original speaking exam material (do not copy any official test). Theme flavour: "${rastgele(KONU)}".
+${SINAV_ALT[alt]}`,
   yazi_konu: () => `Return {"konular":[3 short opinion questions for a one-paragraph student essay, each about a different everyday topic like "${rastgele(KONU)}"]}`,
   test: (alt) => `Create a multiple-choice exercise for Turkish university students (B1-B2). Topic flavour: "${rastgele(KONU)}".
 ${TEST[alt]}
@@ -117,12 +128,19 @@ const DOGRULA: Record<string, (v: any, alt: string) => boolean> = {
   kelime: (v) => dizi(v.kelimeler, 5, 6) && v.kelimeler.every((k: any) => metin(k.kelime, 30) && metin(k.anlam_tr, 80) && metin(k.ornek, 200) && dizi(k.ipucu, 3, 3)),
   deste: (v) => dizi(v.kelimeler, 8, 12) && v.kelimeler.every((k: any) => metin(k.kelime, 30) && metin(k.anlam_tr, 80) && metin(k.ornek, 200)),
   sohbet: (v) => dizi(v.sorular, 5, 6) && v.sorular.every((q: unknown) => metin(q, 200)) && dizi(v.ipucu, 5, 6),
+  sinav: (v, alt) => alt === 'kolay:isinma' ? dizi(v.sorular, 3, 6) && v.sorular.every((q: unknown) => metin(q, 160))
+    : alt === 'kolay:gorus' ? dizi(v.sorular, 1, 4) && v.sorular.every((q: any) => metin(q.soru, 200) && metin(q.takip, 200))
+    : alt === 'orta:part1' ? metin(v.konu, 40) && dizi(v.sorular, 4, 5) && v.sorular.every((q: unknown) => metin(q, 200))
+    : alt === 'orta:part2' ? metin(v.kart, 160) && dizi(v.maddeler, 4, 4) && v.maddeler.every((q: unknown) => metin(q, 120)) && metin(v.kapanis, 160) && dizi(v.part3, 4, 5) && v.part3.every((q: unknown) => metin(q, 200))
+    : alt === 'zor:tekrar' ? metin(v.baglam, 60) && dizi(v.cumleler, 7, 7) && v.cumleler.every((c: unknown) => metin(c, 140))
+    : alt === 'zor:mulakat' ? metin(v.konu, 60) && dizi(v.sorular, 4, 4) && v.sorular.every((q: unknown) => metin(q, 260))
+    : false,
   yazi_konu: (v) => dizi(v.konular, 3, 5) && v.konular.every((q: unknown) => metin(q, 160)),
   test: (v, alt) => dizi(v.sorular, 3, 6) && v.sorular.every((q: any) => metin(q.soru, 900) && dizi(q.sec, 2, 5) && q.sec.every((x: unknown) => metin(x, 200)) && Number.isInteger(q.d) && q.d >= 0 && q.d < q.sec.length && metin(q.neden, 500)) && (alt !== 'reading:tfng' || metin(v.parca, 900)),
 }
-async function groqJson(key: string, sistem: string, istem: string, tok = 2400) {
+async function groqJson(key: string, sistem: string, istem: string, tok = 2400, temp = 0.9) {
   const run = async (model: string) => {
-    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, temperature: 0.9, max_completion_tokens: tok, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: sistem }, { role: 'user', content: istem }] }) })
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, temperature: temp, max_completion_tokens: tok, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: sistem }, { role: 'user', content: istem }] }) })
     let d: any = null; try { d = await r.json() } catch (_e) { d = null }
     return { r, d }
   }
@@ -149,6 +167,7 @@ serve(async (req) => {
 
     const b = await req.json().catch(() => null)
     if (b && (b.mod === 'icerik' || b.mod === 'sozluk')) return await icerik(b, sb, user.id)
+    if (b && b.mod === 'sinav') return await sinavPuan(b)
     const istem = b && ISTEM[String(b.mod)]
     if (!istem) return json({ error: 'Unknown mod' }, 400)
     const key = Deno.env.get('GROQ_API_KEY')
@@ -199,8 +218,8 @@ async function icerik(b: any, sb: any, uid: string) {
     await admin.from('ing_icerik').insert({ tur: 'sozluk', alt: k, veri, olusturan: uid })
     return json({ veri, kaynak: 'yeni' })
   }
-  const tur = String(b.tur ?? ''), alt = tur === 'test' ? String(b.alt ?? '') : '', sev = 'B1-B2'
-  if (!URET[tur] || (tur === 'test' && !TEST[alt])) return json({ error: 'Unknown content' }, 400)
+  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' ? String(b.alt ?? '') : '', sev = 'B1-B2'
+  if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt])) return json({ error: 'Unknown content' }, 400)
   const { data: hazir, error: e1 } = await sb.rpc('ing_icerik_al', { p_tur: tur, p_alt: alt, p_seviye: sev })
   if (e1) { console.error('ing_icerik_al:', e1); return json({ error: 'Pool unavailable' }, 503) }
   if (Array.isArray(hazir) && hazir[0]) return json({ id: hazir[0].id, veri: hazir[0].veri, kaynak: 'havuz' })
@@ -212,4 +231,29 @@ async function icerik(b: any, sb: any, uid: string) {
   if (e2 || !yeni) { console.error('ing_icerik insert:', e2); return json({ veri: v, kaynak: 'yeni' }) }
   await admin.from('ing_gorulen').insert({ user_id: uid, icerik_id: yeni.id })
   return json({ id: yeni.id, veri: v, kaynak: 'yeni' })
+}
+
+/* speaking sınav simülatörü: bütün cevaplar tek istekte; kriter puanı seviyenin ölçeğinde, "tahmini" */
+const SINAV_OLCEK: Record<string, { kriter: string[], max: number, tarif: string }> = {
+  kolay: { kriter: ['gorev', 'akici', 'dogru', 'kelime', 'telaffuz'], max: 4, tarif: 'Preparatory-school placement interview (pass level about B1). Each criterion is an integer 0-4: gorev = answers the question with relevant detail, akici = fluency, dogru = grammatical accuracy, kelime = vocabulary range, telaffuz = intelligibility judged only from the transcript (be moderate).' },
+  orta: { kriter: ['akici', 'kelime', 'dogru', 'telaffuz'], max: 9, tarif: 'IELTS-style speaking descriptors. Each criterion is a band 1-9 in steps of 0.5: akici = fluency and coherence, kelime = lexical resource, dogru = grammatical range and accuracy, telaffuz = pronunciation (judge only from the transcript, be moderate).' },
+  zor: { kriter: ['tekrar', 'akici', 'kelime', 'telaffuz'], max: 6, tarif: 'TOEFL iBT (2026) style speaking. Each criterion is 1-6 in steps of 0.5: tekrar = accuracy of the repeated sentences (REPEAT items) against their targets, akici = fluency in the interview, kelime = language use, telaffuz = intelligibility (judge only from the transcript, be moderate).' },
+}
+async function sinavPuan(b: any) {
+  const key = Deno.env.get('GROQ_API_KEY')
+  if (!key) return json({ error: 'Groq API key not configured' }, 500)
+  const lv = String(b.seviye ?? ''), O = SINAV_OLCEK[lv]
+  if (!O || !Array.isArray(b.cevaplar) || !b.cevaplar.length) return json({ error: 'Bad input' }, 400)
+  const cev = b.cevaplar.slice(0, 20).map((c: any) => ({ part: kis(c?.bolum, 20), question: kis(c?.soru, 300), answer: kis(c?.cevap, 1500), seconds: Number(c?.sn) || 0 }))
+  const istem = `Mode: speaking exam evaluation (an estimate for practice, not an official score).
+${O.tarif}
+Answers come from speech-to-text, so ignore punctuation and capitalisation. Empty or very short answers must lower the scores.
+Answers: ${JSON.stringify(cev)}
+Return {"kriterler":{${O.kriter.map((k) => `"${k}":number`).join(',')}},"ozet_tr":"2 Turkish sentences: the strongest point and the one thing to work on next","duzeltmeler":[up to 5 x {"orijinal":"exact sentence or phrase the student said","daha_iyi":"a natural corrected or upgraded version","not_tr":"short Turkish reason, max 15 words"}]}`
+  const v = await groqJson(key, KARAKTER.replace(/Judge fairly:[^\n]*\n/, ''), istem, 1400, 0.2)
+  if (!v || typeof v !== 'object' || !v.kriterler) return json({ error: 'Unparseable' }, 502)
+  const kriterler: Record<string, number> = {}
+  for (const k of O.kriter) { const x = Number(v.kriterler[k]); if (!isFinite(x) || x < 0 || x > O.max) return json({ error: 'Bad score' }, 502); kriterler[k] = x }
+  const duzeltmeler = (Array.isArray(v.duzeltmeler) ? v.duzeltmeler : []).slice(0, 5).filter((d: any) => metin(d?.orijinal, 400)).map((d: any) => ({ orijinal: kis(d.orijinal, 300), daha_iyi: kis(d.daha_iyi, 300), not_tr: kis(d.not_tr, 160) }))
+  return json({ kriterler, ozet_tr: kis(v.ozet_tr, 400), duzeltmeler })
 }

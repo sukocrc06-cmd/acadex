@@ -141,9 +141,11 @@ body{--c:var(--speaking)}
   </div>
 </div></section>
 
-<section class="bolum" id="hoca" data-acadia="Hocanın yanındayım. Takılırsan bana bas, çaktırmadan söylerim."><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">Defne Hoca'yla</span><h2 class="disp">Hocayla beş dakikalık sohbet.</h2><p>Hoca sorar, sen mikrofonla ya da yazarak cevaplarsın. Her cevaptan sonra kısa bir not, sonunda akıcılık, kelime ve dilbilgisi karnesi.</p></div>
-  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
+<section class="bolum" id="hoca" data-acadia="Pratikte yanındayım; sınav modunda gözetmen beni dışarı çıkarıyor."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">sınav odası</span><h2 class="disp">Üç sınav, tek oda, Defne Hoca gözetmen.</h2><p>Kolay: hazırlık atlama mülakatı. Orta: IELTS tarzı üç bölüm. Zor: TOEFL tarzı dinle-tekrarla ve mülakat. Pratikte bölüm bölüm çalış, sınav modunda baştan sona gir; sonunda kriter kriter tahmini puan, kayıtların ve kendi cümlelerinden düzeltmeler.</p></div>
+  <div class="kagit hoca-kart simulator" id="sinav-oda" data-gir="yukari"></div>
+  <details class="serbest" data-gir="yukari"><summary class="btn sm">Serbest sohbet · puan yok, beş soru</summary>
+  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div></details>
 </div></section>
 
 <section class="bolum" id="calis" data-acadia="Mikrofon izni istenirse kayıt yalnız bu sayfada, senin cihazında kalır."><div class="wrap">
@@ -184,9 +186,12 @@ body{--c:var(--speaking)}
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
 <script src="assets/hoca.js"></script>
+<script src="assets/sinav-banka.js"></script>
+<script src="assets/sinav.js"></script>
 <script>
 (function () {
   'use strict';
+  SINAV.kur(document.getElementById('sinav-oda'));
   HOCA.sohbet(document.getElementById('hoca-oturum'), {
     panel: 'speaking', baslik: 'sohbet · 5 tur', tur: 5,
     giris_en: "Hi, I'm Defne. Let's have a short chat. Five questions, no stress.", giris_tr: 'Mikrofona basıp konuş ya da yaz. Her cevaptan sonra kısa bir not düşerim; beşinci sorudan sonra karnen çıkar.',

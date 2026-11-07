@@ -248,4 +248,100 @@ test('hoca 2.5B: gradyanlı hacim, göz ve baş takibi, hareket azaltılınca ta
   assert.match(j, /if \(!sakin\) \{\n      if \(W\.matchMedia\('\(pointer:fine\)'\)\.matches\)/);
 });
 
+/* Speaking sınav simülatörü (07.11.2026): kolay = hazırlık atlama mülakatı, orta = IELTS tarzı,
+   zor = TOEFL iBT 2026 tarzı; pratik + sınav modu; puan yerel ölçüm + isteğe bağlı yapay zekâ,
+   her zaman "tahmini". Resmî sınav adı yalnız "tarzı" ile geçer. */
+function sinavYukle(icerik) {
+  const depo = {};
+  const ctx = { window: null, document: { body: { dataset: {} } }, console, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, Promise };
+  ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(read('ingilizce/assets/hoca.js'), ctx);
+  ctx.ACX = { esc: (x) => String(x), ls: { al: (k, v) => (k in depo ? depo[k] : v), yaz: (k, v) => { depo[k] = v; } }, icerik: icerik || null, yz: async () => null, gunlukEkle() {} };
+  vm.runInContext(read('ingilizce/assets/sinav-banka.js'), ctx);
+  vm.runInContext(read('ingilizce/assets/sinav.js'), ctx);
+  return { S: ctx.SINAV, B: ctx.SINAV_BANKA, depo };
+}
+test('speaking: sınav odası #hoca içinde, betik sırası, serbest sohbet korunur', () => {
+  const h = read('ingilizce/speaking.html');
+  const i = h.indexOf('<section class="bolum" id="hoca"'), c = h.indexOf('<section class="bolum" id="calis"');
+  assert.ok(h.indexOf('id="sinav-oda"') > i && h.indexOf('id="sinav-oda"') < c);
+  const sira = ['assets/ing.js', 'assets/hoca.js', 'assets/sinav-banka.js', 'assets/sinav.js'].map((x) => h.indexOf('<script src="' + x + '">'));
+  assert.ok(sira.every((x, k) => x > 0 && (k === 0 || x > sira[k - 1])), 'sıra: ' + sira);
+  assert.match(h, /SINAV\.kur\(document\.getElementById\('sinav-oda'\)\)/);
+  assert.match(h, /<details class="serbest"/);
+});
+test('soru bankası: seviye başına yeterli ve biçimi doğru; dinle-tekrarla cümleleri uzar', () => {
+  const { B } = sinavYukle();
+  assert.ok(B.kolay.isinma.length >= 12 && B.kolay.gorus.length >= 8 && B.kolay.resim.length >= 4);
+  assert.ok(B.orta.part1.length >= 8 && B.orta.part2.length >= 10);
+  for (const k of B.orta.part2) { assert.equal(k.maddeler.length, 4); assert.match(k.maddeler[3], /^and explain/); assert.equal(k.part3.length, 4); }
+  for (const t of B.zor.tekrar) { assert.equal(t.cumleler.length, 7); const n = t.cumleler.map((c) => c.split(' ').length); assert.ok(n.every((x, i) => !i || x >= n[i - 1]), t.baglam + ': ' + n); assert.ok(n[6] >= 12); }
+  for (const m of B.zor.mulakat) assert.equal(m.sorular.length, 4);
+});
+test('plan: kolay ısınma → resim → görüş + takip; orta Part 1 → 2 (1 dk + 2 dk) → 3; zor 7 tekrar + 4 × 45 sn', async () => {
+  const { S } = sinavYukle();
+  const k = await S.planKur('kolay', 'sinav');
+  assert.deepEqual([...new Set(k.map((a) => a.b))], ['isinma', 'resim', 'gorus']);
+  assert.ok(k.find((a) => a.tip === 'resim').sure === 60 && k.filter((a) => a.b === 'gorus').length === 2);
+  const o = await S.planKur('orta', 'sinav');
+  const kart = o.find((a) => a.tip === 'kart');
+  assert.deepEqual([kart.hazirlik, kart.sure], [60, 120]);
+  assert.deepEqual([...new Set(o.map((a) => a.b))], ['part1', 'part2', 'part3']);
+  const z = await S.planKur('zor', 'sinav');
+  assert.equal(z.filter((a) => a.tip === 'tekrar').length, 7);
+  assert.deepEqual(JSON.parse(JSON.stringify(z.filter((a) => a.b === 'mulakat').map((a) => [a.sure, a.hazirlik || 0]))), [[45, 0], [45, 0], [45, 0], [45, 0]]);
+  const p = await S.planKur('orta', 'pratik', 'part3');
+  assert.ok(p.length === 4 && p.every((a) => a.b === 'part3'), 'pratik tek bölüm');
+});
+test('plan: havuz seti geçerliyse kullanılır, bozuksa bankaya düşer; yalnız altı bölüm havuzdan istenir', async () => {
+  const istenen = [];
+  const { S } = sinavYukle(async (tur, alt) => { istenen.push(tur + '/' + alt); return alt === 'zor:mulakat' ? { konu: 'campus food', sorular: ['q1?', 'q2?', 'q3?', 'q4?'] } : alt === 'zor:tekrar' ? { baglam: 'x', cumleler: ['a'] } : null; });
+  const z = await S.planKur('zor', 'sinav');
+  assert.deepEqual([...z.filter((a) => a.b === 'mulakat').map((a) => a.soru)], ['q1?', 'q2?', 'q3?', 'q4?']);
+  assert.equal(z.filter((a) => a.tip === 'tekrar').length, 7, 'bozuk havuz → banka');
+  await S.planKur('orta', 'sinav'); await S.planKur('kolay', 'sinav');
+  assert.deepEqual(istenen.sort(), ['sinav/kolay:gorus', 'sinav/kolay:isinma', 'sinav/orta:part1', 'sinav/orta:part2', 'sinav/zor:mulakat', 'sinav/zor:tekrar']);
+});
+test('ölçüm ve yerel puan: dolu, bağlaçlı cevap boş cevaptan yüksek; ölçekler 20 / band 9 / 6', () => {
+  const { S } = sinavYukle();
+  const a = { b: 'part3', tip: 'soru', soru: 'Should cities spend more money on public spaces?', sure: 45 };
+  const iyi = 'Well, I think cities should spend more money on public spaces because parks and squares make people healthier. For example, in my hometown the new park is always full, although it was quite expensive. However, the money should also go to transport.';
+  const c1 = { adim: a, metin: iyi, sn: 42, guven: .9 }; c1.olcum = S.olc(c1, a);
+  const c2 = { adim: a, metin: 'um yes', sn: 6, guven: .5 }; c2.olcum = S.olc(c2, a);
+  assert.ok(c1.olcum.wpm > 50 && c1.olcum.bag >= 4 && c1.olcum.yan >= 2);
+  assert.equal(c2.olcum.dolgu, 1);
+  const y1 = S.kriterYerel('orta', [c1]), y2 = S.kriterYerel('orta', [c2]);
+  for (const k of ['akici', 'kelime', 'dogru', 'telaffuz']) assert.ok(y1[k] > y2[k], k);
+  const O = S.OLCEK;
+  assert.equal(O.kolay.genel({ a: 4, b: 4, c: 4, d: 4, e: 4 }), 20);
+  assert.equal(O.orta.cevir(1), 9); assert.equal(O.orta.cevir(0), 2.5); assert.equal(O.orta.genel({ a: 6, b: 6.5, c: 7, d: 6 }), 6.5);
+  assert.equal(O.zor.cevir(1), 6); assert.equal(O.zor.cevir(0), 1);
+  const t = { b: 'tekrar', tip: 'tekrar', hedef: 'The library is on your left.', soru: '', sure: 9 };
+  const c3 = { adim: t, metin: 'the library is on the left', sn: 4 }; c3.olcum = S.olc(c3, t);
+  assert.ok(c3.olcum.isabet > .6 && c3.olcum.isabet < 1); assert.deepEqual([...c3.olcum.kacan], ['your']);
+});
+test('sinav.js: seviye kuralları, rapor "tahmini" ve resmî değil, kayıt cihazda; geçmiş grafiği', () => {
+  const j = read('ingilizce/assets/sinav.js');
+  assert.match(j, /kural: \{ ipucu: \{ pratik: true, sinav: true \}, tekrar: \{ pratik: 9, sinav: 9 \}/, 'kolay: her şey serbest');
+  assert.match(j, /kural: \{ ipucu: \{ pratik: true, sinav: false \}, tekrar: \{ pratik: 9, sinav: 1 \}/, 'orta: sınavda bir tekrar');
+  assert.match(j, /kural: \{ ipucu: \{ pratik: false, sinav: false \}, tekrar: \{ pratik: 9, sinav: 0 \}/, 'zor: ipucu yok');
+  assert.match(j, /Bu bir resmî sınav sonucu değildir/);
+  assert.match(j, /Ses kayıtları yalnız bu sekmede durur/);
+  assert.match(j, /A\.ls\.yaz\('spGecmis', g\.slice\(-60\)\)/);
+  assert.match(j, /A\.yz\('sinav', \{ seviye: lv/);
+  assert.doesNotMatch(j, /\(\?<[=!]/, 'lookbehind yok (eski Safari)');
+  assert.match(read('ingilizce/assets/hoca.js'), /<g class="gz">/);
+  assert.match(read('ingilizce/assets/ing.css'), /svg\.hoca\.gozetmen \.gz\{display:inline\}svg\.hoca\.gozetmen \.kupa\{display:none\}/);
+});
+test('fonksiyon: sinav modu ölçek dışı puanı reddeder; havuzda sinav türü altı bölümle; migration tur kısıtını genişletir', () => {
+  const f = read('supabase/functions/ingilizce-hoca/index.ts');
+  assert.match(f, /if \(b && b\.mod === 'sinav'\) return await sinavPuan\(b\)/);
+  assert.match(f, /if \(!isFinite\(x\) \|\| x < 0 \|\| x > O\.max\) return json\(\{ error: 'Bad score' \}, 502\)/);
+  for (const a of ['kolay:isinma', 'kolay:gorus', 'orta:part1', 'orta:part2', 'zor:tekrar', 'zor:mulakat']) assert.ok(f.includes(`'${a}': '`), a);
+  assert.match(f, /alt = tur === 'test' \|\| tur === 'sinav' \? String\(b\.alt \?\? ''\) : ''/);
+  assert.match(f, /\(tur === 'sinav' && !SINAV_ALT\[alt\]\)/);
+  const m = read('supabase/migrations/20261107_ingilizce_sinav.sql');
+  assert.match(m, /check \(tur in \('okuma', 'dikte', 'kelime', 'sohbet', 'yazi_konu', 'test', 'deste', 'sozluk', 'sinav'\)\)/);
+});
+
 summary();
