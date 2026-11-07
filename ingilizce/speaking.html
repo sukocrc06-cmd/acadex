@@ -148,6 +148,11 @@ body{--c:var(--speaking)}
   <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div></details>
 </div></section>
 
+<section class="bolum" id="atolye" data-acadia="Bir kitap çek: kategori, seviye, sonra etkinlik. Her turda yeni içerik."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">konuşma atölyesi</span><h2 class="disp">Raftan bir kitap çek, konuşmaya başla.</h2><p>On dört kategori, A1’den C2’ye altı seviye, yedi etkinlik: tek dakika, münazara, anlat-buldur, rol yapma, grafik, hikâye zinciri ve röportaj. Konular ders kitaplarının seviye sırasına göre seçildi; her turda yeni içerik gelir.</p></div>
+  <div class="atolye" id="konusma-atolye" data-gir="yukari"></div>
+</div></section>
+
 <section class="bolum" id="calis" data-acadia="Mikrofon izni istenirse kayıt yalnız bu sayfada, senin cihazında kalır."><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">kafelik</span><h2 class="disp">Çay soğumadan dört tur.</h2><p>Kulaklıkla çalışmak daha rahat. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
   <div class="calis">
@@ -188,10 +193,13 @@ body{--c:var(--speaking)}
 <script src="assets/hoca.js"></script>
 <script src="assets/sinav-banka.js"></script>
 <script src="assets/sinav.js"></script>
+<script src="assets/konusma-banka.js"></script>
+<script src="assets/konusma.js"></script>
 <script>
 (function () {
   'use strict';
   SINAV.kur(document.getElementById('sinav-oda'));
+  KONUSMA.kur(document.getElementById('konusma-atolye'));
   HOCA.sohbet(document.getElementById('hoca-oturum'), {
     panel: 'speaking', baslik: 'sohbet · 5 tur', tur: 5,
     giris_en: "Hi, I'm Defne. Let's have a short chat. Five questions, no stress.", giris_tr: 'Mikrofona basıp konuş ya da yaz. Her cevaptan sonra kısa bir not düşerim; beşinci sorudan sonra karnen çıkar.',

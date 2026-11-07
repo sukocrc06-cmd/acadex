@@ -15,6 +15,8 @@
 //   sozluk      {kelime}                           → {veri:{kelime, okunus, tur, anlam_tr, ornek}}
 //   sinav       {seviye, cevaplar[]}               → {kriterler, ozet_tr, duzeltmeler[]}  (07.11.2026, speaking sınavı)
 //   sinav_model {seviye, bolum, soru, cevap, sn}   → {model_en, notlar[]}                  (07.11.2026, model cevap)
+//   etkinlik    {tip, seviye, kategori, …}         → {yanit_en} | {tahmin}                  (07.11.2026, konuşma atölyesi)
+//   icerik tur 'konusma', alt 'etkinlik:kategori:seviye' (A1–C2) → atölye içeriği
 // sonuc (ilk dört modda) her zaman 'dogru' | 'kismen' | 'yanlis'.
 //
 // İçerik havuzu (05.11.2026, migrations/20261105_ingilizce_icerik_havuzu.sql):
@@ -105,6 +107,20 @@ const SINAV_ALT: Record<string, string> = {
   'zor:tekrar': 'TOEFL-style Listen and Repeat. Return {"baglam":"a campus situation, 2-4 words, e.g. a library orientation","cumleler":[7 sentences an announcer could say in that situation; sentence 1 has 3-4 words and each next one is longer; sentence 7 has 13-16 words]}',
   'zor:mulakat': 'TOEFL-style academic interview (a researcher interviews a student, no preparation time). Return {"konu":"study topic, 2-3 words","sorular":[4 questions; the first welcomes the student and asks about personal experience, then opinion, then a debatable issue, then a hypothetical or future question]}',
 }
+/* konuşma atölyesi (assets/konusma.js): etkinlik:kategori:seviye */
+const KONUSMA_KAT: Record<string, string> = { spor: 'sport', kultur: 'culture and the arts', egitim: 'education', bilim: 'science and physics', teknoloji: 'technology', saglik: 'health and lifestyle', cevre: 'the environment and nature', is: 'work and money', seyahat: 'travel', yemek: 'food and cooking', medya: 'media and social media', psikoloji: 'psychology and relationships', toplum: 'history and society', sehir: 'cities and homes' }
+const KONUSMA_RE = /^(dakika|munazara|taboo|rol|grafik|hikaye|roportaj):([a-z]+):(A1|A2|B1|B2|C1|C2)$/
+const KONUSMA_SEV: Record<string, string> = { A1: 'CEFR A1: very simple words, present tense, short sentences', A2: 'CEFR A2: everyday vocabulary, simple past and future', B1: 'CEFR B1: familiar topics, opinions with reasons', B2: 'CEFR B2: abstract topics, pros and cons, wider vocabulary', C1: 'CEFR C1: complex, nuanced topics and sophisticated vocabulary', C2: 'CEFR C2: highly abstract, academic and philosophical depth' }
+const konusmaAlt = (alt: string) => { const m = KONUSMA_RE.exec(alt); return m && KONUSMA_KAT[m[2]] ? { etk: m[1], kat: KONUSMA_KAT[m[2]], sev: m[3] } : null }
+const KONUSMA_URET: Record<string, string> = {
+  dakika: 'A speaking topic for a one-minute talk. Return {"baslik":"short English title","tr":"Turkish title","soru":"one open question to talk about","kelimeler":[6 useful English words for this topic at this level]}',
+  munazara: 'A debate statement. Return {"iddia":"one clear, debatable statement","tr":"Turkish translation","lehte":[2 short arguments for],"aleyhte":[2 short arguments against]}',
+  taboo: 'Taboo cards. Return {"kartlar":[5 x {"kelime":"a word or short phrase students at this level know","yasak":[4 words most people would use to describe it]}]}',
+  rol: 'A role-play for a student and an app tutor. Return {"baslik":"short English title","tr":"Turkish title","sen":"the student’s role and situation, one sentence","sen_tr":"Turkish translation","hoca":"the tutor’s role, 2-4 words","acilis":"the tutor’s first line","replikler":[5 natural next lines of the tutor, in a plausible order],"hedefler":[3 x ["Turkish task for the student, short",[4-6 lowercase English keywords or short phrases that show the task was done]]],"kaliplar":[4 useful English phrases for the student]}',
+  grafik: 'A chart template (numbers are generated later). Return {"baslik":"chart title","birim":"unit, e.g. % or hours","tip":"sutun or cizgi","etiketler":[4-7 short category or time labels],"aralik":[minimum value, maximum value],"egilim":"artis, azalis or karisik"}',
+  hikaye: 'A story opening. Return {"bas":"one or two sentences that start an intriguing story"}',
+  roportaj: 'An expert persona for an interview where the student asks the questions. Return {"kim":"the expert, e.g. a beekeeper","kim_tr":"Turkish","giris":"a friendly first-person greeting with name and job","cevaplar":[6 x [[3-5 lowercase keywords of a likely question],"a short first-person answer"]],"genel":"a polite answer for unexpected questions"}',
+}
 const URET: Record<string, (alt: string, sev: string) => string> = {
   okuma: (_a, sev) => `Write an original ${sev} reading text for Turkish university students about "${rastgele(KONU)}" (a specific, surprising angle).
 Return {"baslik":"title","paragraflar":["3 paragraphs, 45-70 words each"],"sorular":[5 x {"soru_en":"open question","soru_tr":"Turkish translation","paragraf":0-2,"fosfor":"exact phrase of 3-8 words copied from that paragraph that contains the answer","ornek":"short model answer","anahtar":[{"ad_tr":"Turkish label of a key idea","kelimeler":["5-8 lowercase English words or stems a correct answer would contain, with synonyms"]}],"ipucu":["3 Turkish hints, each more specific; the third nearly gives the answer"]}]}
@@ -115,6 +131,8 @@ Return {"kelimeler":[5 x {"kelime":"word","anlam_tr":"Turkish meaning","ornek":"
   deste: (_a, sev) => `Choose 10 useful ${sev} academic words starting with these letters: ${harfler()}, ${harfler()}, ${harfler()}.
 Return {"kelimeler":[10 x {"kelime":"word","okunus":"/IPA/","tur":"noun|verb|adj|adv","anlam_tr":"Turkish meaning","ornek":"natural example sentence"}]}`,
   sohbet: () => `Theme: "${rastgele(KONU)}". Return {"sorular":[5 friendly IELTS Part 1 then Part 3 style questions, short, from easy to deeper],"ipucu":[5 Turkish tips, each with an English sentence starter in quotes]}`,
+  konusma: (alt) => { const k = konusmaAlt(alt)!; return `Original speaking-practice material for Turkish university students. Category: ${k.kat}. Level: ${KONUSMA_SEV[k.sev]}. Be specific and surprising; avoid the most obvious topic. Theme flavour: "${rastgele(KONU)}".
+${KONUSMA_URET[k.etk]}` },
   sinav: (alt) => `Original speaking exam material (do not copy any official test). Theme flavour: "${rastgele(KONU)}".
 ${SINAV_ALT[alt]}`,
   yazi_konu: () => `Return {"konular":[3 short opinion questions for a one-paragraph student essay, each about a different everyday topic like "${rastgele(KONU)}"]}`,
@@ -137,6 +155,18 @@ const DOGRULA: Record<string, (v: any, alt: string) => boolean> = {
     : alt === 'zor:tekrar' ? metin(v.baglam, 60) && dizi(v.cumleler, 7, 7) && v.cumleler.every((c: unknown) => metin(c, 140))
     : alt === 'zor:mulakat' ? metin(v.konu, 60) && dizi(v.sorular, 4, 4) && v.sorular.every((q: unknown) => metin(q, 260))
     : false,
+  konusma: (v, alt) => {
+    const k = konusmaAlt(alt); if (!k) return false
+    const str = (x: unknown, n = 300) => metin(x, n), strs = (x: unknown, a: number, b: number, n = 200) => dizi(x, a, b) && (x as unknown[]).every((y) => metin(y, n))
+    if (k.etk === 'dakika') return str(v.baslik, 100) && str(v.soru, 240) && strs(v.kelimeler, 4, 10, 40)
+    if (k.etk === 'munazara') return str(v.iddia, 200) && strs(v.lehte, 2, 4) && strs(v.aleyhte, 2, 4)
+    if (k.etk === 'taboo') return dizi(v.kartlar, 3, 8) && v.kartlar.every((c: any) => metin(c.kelime, 40) && strs(c.yasak, 3, 5, 30))
+    if (k.etk === 'rol') return str(v.sen, 240) && str(v.hoca, 60) && str(v.acilis, 240) && strs(v.replikler, 3, 7, 240) && dizi(v.hedefler, 2, 4) && v.hedefler.every((h: any) => Array.isArray(h) && metin(h[0], 80) && strs(h[1], 2, 8, 40)) && strs(v.kaliplar, 2, 6, 120)
+    if (k.etk === 'grafik') return str(v.baslik, 120) && str(v.birim, 30) && strs(v.etiketler, 3, 8, 20) && dizi(v.aralik, 2, 2) && isFinite(+v.aralik[0]) && isFinite(+v.aralik[1]) && +v.aralik[1] > +v.aralik[0]
+    if (k.etk === 'hikaye') return str(v.bas, 300)
+    if (k.etk === 'roportaj') return str(v.kim, 60) && str(v.giris, 300) && dizi(v.cevaplar, 3, 8) && v.cevaplar.every((c: any) => Array.isArray(c) && strs(c[0], 1, 6, 30) && metin(c[1], 300)) && str(v.genel, 300)
+    return false
+  },
   yazi_konu: (v) => dizi(v.konular, 3, 5) && v.konular.every((q: unknown) => metin(q, 160)),
   test: (v, alt) => dizi(v.sorular, 3, 6) && v.sorular.every((q: any) => metin(q.soru, 900) && dizi(q.sec, 2, 5) && q.sec.every((x: unknown) => metin(x, 200)) && Number.isInteger(q.d) && q.d >= 0 && q.d < q.sec.length && metin(q.neden, 500)) && (alt !== 'reading:tfng' || metin(v.parca, 900)),
 }
@@ -171,6 +201,7 @@ serve(async (req) => {
     if (b && (b.mod === 'icerik' || b.mod === 'sozluk')) return await icerik(b, sb, user.id)
     if (b && b.mod === 'sinav') return await sinavPuan(b)
     if (b && b.mod === 'sinav_model') return await sinavModel(b)
+    if (b && b.mod === 'etkinlik') return await etkinlikTur(b)
     const istem = b && ISTEM[String(b.mod)]
     if (!istem) return json({ error: 'Unknown mod' }, 400)
     const key = Deno.env.get('GROQ_API_KEY')
@@ -221,8 +252,8 @@ async function icerik(b: any, sb: any, uid: string) {
     await admin.from('ing_icerik').insert({ tur: 'sozluk', alt: k, veri, olusturan: uid })
     return json({ veri, kaynak: 'yeni' })
   }
-  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' ? String(b.alt ?? '') : '', sev = 'B1-B2'
-  if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt])) return json({ error: 'Unknown content' }, 400)
+  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' || tur === 'konusma' ? String(b.alt ?? '') : '', sev = 'B1-B2'
+  if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt]) || (tur === 'konusma' && !konusmaAlt(alt))) return json({ error: 'Unknown content' }, 400)
   const { data: hazir, error: e1 } = await sb.rpc('ing_icerik_al', { p_tur: tur, p_alt: alt, p_seviye: sev })
   if (e1) { console.error('ing_icerik_al:', e1); return json({ error: 'Pool unavailable' }, 503) }
   if (Array.isArray(hazir) && hazir[0]) return json({ id: hazir[0].id, veri: hazir[0].veri, kaynak: 'havuz' })
@@ -277,4 +308,36 @@ Return {"model_en":"the answer","notlar":["up to 3 short Turkish notes: what the
   const v = await groqJson(key, KARAKTER.replace(/Judge fairly:[^\n]*\n/, ''), istem, 900, 0.6)
   if (!v || !metin(v.model_en, 1600)) return json({ error: 'Unparseable' }, 502)
   return json({ model_en: kis(v.model_en, 1600), notlar: (Array.isArray(v.notlar) ? v.notlar : []).filter((n: unknown) => metin(n, 200)).slice(0, 3) })
+}
+
+/* konuşma atölyesi: hocanın tur içi cevabı (münazara, rol, hikâye, röportaj) ya da anlat-buldur tahmini */
+const ETKINLIK_SEV: Record<string, string> = { A1: 'very simple A1 English', A2: 'simple A2 English', B1: 'clear B1 English', B2: 'natural B2 English', C1: 'rich C1 English', C2: 'sophisticated C2 English' }
+async function etkinlikTur(b: any) {
+  const key = Deno.env.get('GROQ_API_KEY')
+  if (!key) return json({ error: 'Groq API key not configured' }, 500)
+  const tip = String(b.tip ?? ''), dil = ETKINLIK_SEV[String(b.seviye)] || 'clear B1 English'
+  const gecmis = JSON.stringify((Array.isArray(b.gecmis) ? b.gecmis : []).slice(-8).map((x: any) => ({ who: x?.rol === 'hoca' ? 'tutor' : 'student', text: kis(x?.metin, 500) })))
+  let istem = ''
+  if (tip === 'munazara') istem = `Mode: debate. You argue ${b.hoca_taraf === 'for' ? 'FOR' : 'AGAINST'} this statement: "${kis(b.iddia, 200)}".
+Conversation: ${gecmis}
+Reply to the student's last point directly (quote or paraphrase it), then give one new counter-argument. 2-3 sentences, ${dil}. Stay polite and a little challenging.
+Return {"yanit_en":"…"}`
+  else if (tip === 'rol') istem = `Mode: role-play. Scenario: ${kis(b.senaryo?.baslik, 100)}. The student: ${kis(b.senaryo?.sen, 200)}. You are: ${kis(b.senaryo?.hoca, 60)}.
+Tasks the student has not done yet (do not mention them directly, but give natural chances): ${JSON.stringify((Array.isArray(b.hedefler_kalan) ? b.hedefler_kalan : []).slice(0, 4).map((x: unknown) => kis(x, 80)))}
+Conversation: ${gecmis}
+Stay in character and reply naturally to the student's last line. 1-2 sentences, ${dil}.
+Return {"yanit_en":"…"}`
+  else if (tip === 'hikaye') istem = `Mode: story chain. Story so far: "${kis(b.hikaye, 2500)}"
+Continue the story with 1-2 sentences that add a twist and make it easy for the student to continue using the word "${kis(b.sonraki_kelime, 30)}" (do not use that word yourself). Keep the same tense. ${dil}.
+Return {"yanit_en":"…"}`
+  else if (tip === 'roportaj') istem = `Mode: interview. You are ${kis(b.persona?.kim, 60)}. You introduced yourself as: "${kis(b.persona?.giris, 300)}".
+Conversation: ${gecmis}
+Answer the student's last question in character, with one concrete detail. If it is not a question, kindly ask them to ask a question. 1-3 sentences, ${dil}.
+Return {"yanit_en":"…"}`
+  else if (tip === 'taboo') istem = `Mode: taboo guessing game, category ${kis(b.kategori, 40)}. A student describes a word without saying it: "${kis(b.aciklama, 800)}"
+Guess the single most likely English word or short phrase. Return {"tahmin":"…"}`
+  else return json({ error: 'Unknown tip' }, 400)
+  const v = await groqJson(key, KARAKTER.replace(/Judge fairly:[^\n]*\n/, ''), istem, 400, tip === 'taboo' ? 0.2 : 0.7)
+  if (tip === 'taboo') return v && metin(v.tahmin, 60) ? json({ tahmin: kis(v.tahmin, 60) }) : json({ error: 'Unparseable' }, 502)
+  return v && metin(v.yanit_en, 600) ? json({ yanit_en: kis(v.yanit_en, 600) }) : json({ error: 'Unparseable' }, 502)
 }

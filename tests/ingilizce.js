@@ -338,7 +338,7 @@ test('fonksiyon: sinav modu ölçek dışı puanı reddeder; havuzda sinav tür�
   assert.match(f, /if \(b && b\.mod === 'sinav'\) return await sinavPuan\(b\)/);
   assert.match(f, /if \(!isFinite\(x\) \|\| x < 0 \|\| x > O\.max\) return json\(\{ error: 'Bad score' \}, 502\)/);
   for (const a of ['kolay:isinma', 'kolay:gorus', 'orta:part1', 'orta:part2', 'zor:tekrar', 'zor:mulakat']) assert.ok(f.includes(`'${a}': '`), a);
-  assert.match(f, /alt = tur === 'test' \|\| tur === 'sinav' \? String\(b\.alt \?\? ''\) : ''/);
+  assert.match(f, /alt = tur === 'test' \|\| tur === 'sinav' \|\| tur === 'konusma' \? String\(b\.alt \?\? ''\) : ''/);
   assert.match(f, /\(tur === 'sinav' && !SINAV_ALT\[alt\]\)/);
   const m = read('supabase/migrations/20261107_ingilizce_sinav.sql');
   assert.match(m, /check \(tur in \('okuma', 'dikte', 'kelime', 'sohbet', 'yazi_konu', 'test', 'deste', 'sozluk', 'sinav'\)\)/);
@@ -417,6 +417,80 @@ test('karaoke altyazı ve ikinci şans: kelimeler sesle yanar, boundary yoksa ta
   assert.match(sv, /var a2 = Object\.assign\(\{\}, c\.adim, \{ giris: '', giris_tr: '' \}\); c2 = await adimSor\(a2, 0, 1\)/);
   assert.match(sv, /k1 = kriterYerel\(lv, \[c1\]\), k2 = kriterYerel\(lv, \[c2\]\)/);
   assert.match(sv, /'<button type="button" class="btn sm" data-ikinci>İkinci şans<\/button>/);
+});
+
+/* Konuşma atölyesi (07.11.2026): 14 kategori × A1–C2 × 7 etkinlik; yerel banka + havuz */
+function atolyeYukle() {
+  const depo = {};
+  const ctx = { window: null, document: { body: { dataset: {} } }, console, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, Promise };
+  ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(read('ingilizce/assets/hoca.js'), ctx);
+  ctx.ACX = { esc: (x) => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), ls: { al: (k, v) => (k in depo ? depo[k] : v), yaz: (k, v) => { depo[k] = v; } }, icerik: null, yz: async () => null, gunlukEkle() {} };
+  for (const f of ['sinav-banka', 'sinav', 'konusma-banka', 'konusma']) vm.runInContext(read(`ingilizce/assets/${f}.js`), ctx);
+  return { K: ctx.KONUSMA, B: ctx.KONUSMA_BANKA };
+}
+test('atölye bankası: 14 kategori, her biri A1–C2 için konu ve kelime, yedi etkinliğin içeriği', () => {
+  const { B } = atolyeYukle();
+  assert.equal(B.kategoriler.length, 14);
+  assert.deepEqual(B.seviyeler.map((s) => s[0]).join(','), 'A1,A2,B1,B2,C1,C2');
+  const kelimeler = new Set();
+  for (const k of B.kategoriler) {
+    for (const sv of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']) {
+      const c = k.seviye[sv]; assert.ok(c && c.konular.length >= 2 && c.kelimeler.length >= 6, k.id + ' ' + sv);
+      for (const t of c.konular) { assert.equal(t.length, 3); assert.ok(t.every((x) => typeof x === 'string' && x.length > 2)); }
+    }
+    assert.ok(k.munazara.length >= 3 && k.munazara.every((m) => m.iddia && m.lehte.length >= 2 && m.aleyhte.length >= 2), k.id + ' münazara');
+    assert.ok(k.taboo.length >= 6 && k.taboo.every((t) => t[1].length === 4 && /^(A1|A2|B1|B2)$/.test(t[2])), k.id + ' taboo');
+    assert.ok(k.rol.replikler.length >= 4 && k.rol.hedefler.length === 3 && k.rol.kaliplar.length >= 3, k.id + ' rol');
+    assert.ok(k.grafik.length >= 1 && k.grafik.every((g) => g.etiketler.length >= 4 && g.aralik[1] > g.aralik[0]), k.id + ' grafik');
+    assert.ok(k.hikaye.length >= 2 && k.roportaj.cevaplar.length >= 6, k.id + ' hikâye/röportaj');
+    k.taboo.forEach((t) => kelimeler.add(t[0]));
+  }
+  assert.ok(kelimeler.size >= 80, 'anlat-buldur kartı sayısı: ' + kelimeler.size);
+});
+test('atölye: seviye kilidi, seviyeye en yakın içerik, üretilen grafik verisi ve örnek anlatım', () => {
+  const { K } = atolyeYukle();
+  assert.deepEqual(K.ETK.map((e) => e.id).join(','), 'dakika,munazara,taboo,rol,grafik,hikaye,roportaj');
+  assert.equal(K.ETK.find((e) => e.id === 'munazara').min, 'A2');
+  const m = [{ sev: 'A2' }, { sev: 'B1' }, { sev: 'C1' }];
+  assert.deepEqual([...K.yakinSev(m, (x) => x.sev, 'B2')].map((x) => x.sev), ['A2', 'B1'], 'B2: altındaki en yakın iki seviye');
+  assert.deepEqual([...K.yakinSev(m, (x) => x.sev, 'C2')].map((x) => x.sev), ['C1']);
+  assert.deepEqual([...K.yakinSev(m, (x) => x.sev, 'A1')].map((x) => x.sev), ['A2', 'B1'], 'altı yoksa en yakın üst');
+  const g = { baslik: 'Test', birim: '%', tip: 'cizgi', etiketler: ['a', 'b', 'c', 'd', 'e', 'f'], aralik: [10, 60], egilim: 'artis' };
+  for (let i = 0; i < 20; i++) { const v = K.veriUret(g); assert.equal(v.length, 6); assert.ok(v[5] > v[0], 'artış: ' + v); assert.ok(v.every((x) => x >= 9 && x <= 60)); }
+  const d = K.veriUret({ ...g, egilim: 'azalis', aralik: [1.5, 7] }); assert.ok(d[0] > d[5] && d.some((x) => !Number.isInteger(x)), 'küçük aralıkta ondalık');
+  const ma = K.modelAnlatim(g, [10, 20, 30, 40, 50, 60]);
+  assert.match(ma, /^The chart shows test\. Overall, the figures rose from 10 to 60 %\. The highest figure was for f, at 60 %, while the lowest was a, with only 10\./);
+});
+test('atölye: soru tipi ve soru dilbilgisi (röportaj), yasaklı kelime yakalama (anlat-buldur)', () => {
+  const { K } = atolyeYukle();
+  assert.equal(K.soruTuru('Why did you start running'), 'wh');
+  assert.equal(K.soruTuru('Have you ever been injured'), 'yn');
+  assert.equal(K.soruTuru('Could you tell me how you train'), 'dolayli');
+  assert.equal(K.soruTuru('I like running'), '');
+  assert.match(K.soruHatasi('Why you started running')[0], /Yardımcı fiil eksik/);
+  assert.match(K.soruHatasi('Does he likes it')[0], /yalın/);
+  assert.equal(K.soruHatasi('What do you eat before a race'), null);
+  assert.ok(K.icerir('You kick the ball into the net', 'ball'));
+  assert.ok(K.icerir('We play football every week', 'football'));
+  assert.ok(!K.icerir('It is a big round thing', 'ball'));
+  assert.ok(K.icerir('How much does it cost?', 'how much'));
+});
+test('atölye sayfası ve fonksiyon: bölüm, betik sırası; konusma havuzu ve etkinlik modu; migration', () => {
+  const h = read('ingilizce/speaking.html');
+  assert.ok(h.indexOf('id="atolye"') > h.indexOf('id="hoca"') && h.indexOf('id="atolye"') < h.indexOf('id="calis"'));
+  const sira = ['assets/sinav.js', 'assets/konusma-banka.js', 'assets/konusma.js'].map((x) => h.indexOf('<script src="' + x + '">'));
+  assert.ok(sira.every((x, i) => x > 0 && (i === 0 || x > sira[i - 1])));
+  assert.match(h, /KONUSMA\.kur\(document\.getElementById\('konusma-atolye'\)\)/);
+  const f = read('supabase/functions/ingilizce-hoca/index.ts');
+  assert.match(f, /const KONUSMA_RE = \/\^\(dakika\|munazara\|taboo\|rol\|grafik\|hikaye\|roportaj\):\(\[a-z\]\+\):\(A1\|A2\|B1\|B2\|C1\|C2\)\$\//);
+  assert.match(f, /if \(b && b\.mod === 'etkinlik'\) return await etkinlikTur\(b\)/);
+  assert.match(f, /\(tur === 'konusma' && !konusmaAlt\(alt\)\)/);
+  for (const t of ['munazara', 'rol', 'hikaye', 'roportaj', 'taboo']) assert.ok(f.includes(`tip === '${t}'`), t);
+  assert.match(read('supabase/migrations/20261107b_ingilizce_konusma.sql'), /'sinav', 'konusma'\)\)/);
+  const j = read('ingilizce/assets/konusma.js');
+  assert.match(j, /A\.icerik\('konusma', etk \+ ':' \+ durum\.kat \+ ':' \+ durum\.sev\)/);
+  assert.match(j, /if \(liste\.length && g\.length < liste\.length\) return yerelSec\(anahtar, liste\)\.veri;/, 'önce görülmemiş yerel, sonra havuz');
 });
 
 summary();

@@ -634,5 +634,5 @@
       '<p class="say" style="margin:6px 0 0">' + (zad ? 'Son denemelerde en zayıf kriter: <b>' + esc(zad) + '</b>. ' : '') + (hazir ? (lv === 'zor' ? 'Son iki sınavın çok iyi; bu seviyede ustalaştın.' : 'Son iki sınavın eşiği geçti; <b>' + esc(SEV[lv === 'kolay' ? 'orta' : 'zor'].ad) + '</b> seviyesine hazırsın.') : '') + '</p>';
   }
 
-  W.SINAV = { kur: kur, seritCiz: seritCiz, planOneri: planOneri, karsilastir: karsilastir, renkle: renkle, eksikler: eksikler, ISKELET: ISKELET, SEV: SEV, olc: olc, kriterYerel: kriterYerel, OLCEK: OLCEK, planKur: planKur, sayfaUyarla: sayfaUyarla, duzeltmeYerel: duzeltmeYerel };
+  W.SINAV = { kur: kur, mikrofon: mikrofon, kaydet: kaydet, dinle: dinle, seviyeOlcer: seviyeOlcer, DOLGU: DOLGU, seritCiz: seritCiz, planOneri: planOneri, karsilastir: karsilastir, renkle: renkle, eksikler: eksikler, ISKELET: ISKELET, SEV: SEV, olc: olc, kriterYerel: kriterYerel, OLCEK: OLCEK, planKur: planKur, sayfaUyarla: sayfaUyarla, duzeltmeYerel: duzeltmeYerel };
 })();
