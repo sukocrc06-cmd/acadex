@@ -769,4 +769,36 @@ test('reading sayfası: eski dört alıştırma kalktı, masa ve hoca duruyor; s
   assert.match(read('ingilizce/assets/ing.css'), /\.ok-p:has\(\.ok-pop\)\{z-index:8\}/, 'not kutusu sonraki paragrafın altında kalmasın');
 });
 
+
+/* hareket katmanı (07.11.2026): gazete, panel dünyaları, Acadia arkadaş */
+test('gazete: katlı kâğıt açılır, dönen manşet hareket azaltılınca atlanır, masada gazete modu', () => {
+  const j = read('ingilizce/assets/oku.js'), c = read('ingilizce/assets/ing.css');
+  assert.match(j, /function manset\(m, bitti\) \{\n      if \(A\.sakin\) \{ bitti\(\); return; \}/);
+  assert.match(j, /if \(gz\) manset\(gz, function \(\) \{ yukle\(gz, true\);/, 'manşetten sonra makale gazete modunda açılır');
+  assert.match(j, /b\.hasAttribute\('data-gz-ac'\)/);
+  assert.match(c, /\.ok-gazete\.acik \.ok-gz-sar\{grid-template-rows:1fr\}/); assert.match(c, /@keyframes gzDon\{0%\{transform:scale\(\.04\) rotate\(-1440deg\)/);
+  assert.match(c, /\.ok-gazete\.acik \.ok-gz-kagit\{animation:none\}/, 'açıkken kıpırdamaz, düğmeye basılabilir');
+});
+test('panel dünyaları: beş panelin sahnesi, yazarken kısılır, sekme gizliyken durur, hareket azaltılınca yok', () => {
+  const j = read('ingilizce/assets/ing.js'), c = read('ingilizce/assets/ing.css');
+  for (const p of ['vocab', 'listening', 'reading', 'speaking', 'writing']) assert.match(j, new RegExp('\\n    ' + p + ': \\{\\n      sol: \''));
+  assert.match(j, /if \(e\.target\.matches && e\.target\.matches\('input,textarea,select'\)\) dunya\.classList\.add\('kis'\)/);
+  assert.match(j, /dunya\.classList\.toggle\('dur', D\.hidden\)/);
+  assert.match(j, /D\.body\.insertBefore\(dunya, D\.body\.firstChild\); D\.body\.classList\.add\('dunyali'\);\n    if \(sakin\) return;/);
+  assert.match(c, /\.dunya\.kis \*,\.dunya\.dur \*\{animation-play-state:paused!important\}/);
+  assert.match(c, /@media \(prefers-reduced-motion:reduce\)\{\.dunya \*\{animation:none!important\}/);
+  assert.match(c, /@media \(max-width:1300px\)\{\.dy-sol,\.dy-sag\{display:none\}/, 'dar ekranda kenar sahneleri metnin üstüne binmez');
+  assert.match(j, /clipPath id="dy-cam"/, 'otobüs camındaki şehir camın dışına taşmaz');
+});
+test('Acadia arkadaş: göz bebekleri izler, 45 sn boşta uyur, görev ilk kez bitince dans, saate göre aksesuar', () => {
+  const j = read('ingilizce/assets/ing.js'), c = read('ingilizce/assets/ing.css');
+  assert.match(j, /<g class="bebek">/); assert.match(c, /\.acadia \.bebek\{transform:translate\(var\(--gx,0\),var\(--gy,0\)\)/);
+  assert.match(j, /Date\.now\(\) - sonHareket > 45000/);
+  assert.match(j, /if \(el && yeni\) odul\(el\);\n    if \(yeni\) dans\(\);/);
+  for (const z of ['sabah', 'ogle', 'aksam', 'gece']) assert.match(j, new RegExp('<g class="aks aks-' + z + '">'));
+  assert.match(c, /html\[data-isik=sabah\] \.aks-sabah,html\[data-isik=ogle\] \.aks-ogle,html\[data-isik=aksam\] \.aks-aksam,html\[data-isik=gece\] \.aks-gece\{display:inline\}/);
+  assert.match(j, /function arkadasKur\(\) \{\n    if \(!ac \|\| sakin\) return;/);
+  assert.match(j, /dunyaKur\(\); acadiaKur\(\); arkadasKur\(\);/);
+});
+
 summary();

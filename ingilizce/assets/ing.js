@@ -71,9 +71,15 @@
   function acadiaSvg(kos) {
     return '<svg viewBox="-62 -70 132 132" aria-hidden="true"><g class="gov"><path d="M0 -52 C7 -19 19 -7 52 0 C19 7 7 19 0 52 C-7 19 -19 7 -52 0 C-19 -7 -7 -19 0 -52 Z" fill="#FFD86B" stroke="' + INK + '" stroke-width="4" stroke-linejoin="round"/>' +
       '<ellipse cx="-17" cy="11" rx="6" ry="3.5" fill="#F29C94"/><ellipse cx="17" cy="11" rx="6" ry="3.5" fill="#F29C94"/>' +
-      '<g class="kirp" style="transform-origin:0 -4px"><ellipse cx="-10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="' + INK + '" stroke-width="2.5"/><circle cx="-9" cy="-3" r="3.6" fill="' + INK + '"/><ellipse cx="10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="' + INK + '" stroke-width="2.5"/><circle cx="11" cy="-3" r="3.6" fill="' + INK + '"/></g>' +
-      '<path d="M-6 10 Q0 16 6 10" fill="none" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/>' + (KOSTUM[kos] || '') + '</g></svg>';
+      '<g class="kirp" style="transform-origin:0 -4px"><ellipse cx="-10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="' + INK + '" stroke-width="2.5"/><ellipse cx="10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="' + INK + '" stroke-width="2.5"/><g class="bebek"><circle cx="-9" cy="-3" r="3.6" fill="' + INK + '"/><circle cx="11" cy="-3" r="3.6" fill="' + INK + '"/></g></g>' +
+      '<path d="M-6 10 Q0 16 6 10" fill="none" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/>' + (KOSTUM[kos] || '') + AKSESUAR + '</g></svg>';
   }
+  /* saate göre aksesuar (html[data-isik]): sabah papyon, öğle yaka rozeti, akşam atkı, gece mum */
+  var AKSESUAR = '<g class="aks aks-sabah"><path d="M-9 26 l-9 -6 v12 z M9 26 l9 -6 v12 z" fill="#DD5A36" stroke="' + INK + '" stroke-width="2.2" stroke-linejoin="round"/><circle cx="0" cy="26" r="3.6" fill="#DD5A36" stroke="' + INK + '" stroke-width="2.2"/></g>' +
+    '<g class="aks aks-ogle"><circle cx="20" cy="24" r="7" fill="#fff" stroke="' + INK + '" stroke-width="2.2"/><path d="M20 19.5 l1.4 3 3.2 .3 -2.4 2.1 .7 3.1 -2.9 -1.6 -2.9 1.6 .7 -3.1 -2.4 -2.1 3.2 -.3z" fill="#E3A80F"/></g>' +
+    '<g class="aks aks-aksam"><path d="M-22 18 q22 12 44 0 l2 7 q-24 13 -48 0 z" fill="#C93B2B" stroke="' + INK + '" stroke-width="2.2" stroke-linejoin="round"/><path d="M14 24 l5 18 l6 -2 l-4 -16" fill="#C93B2B" stroke="' + INK + '" stroke-width="2.2" stroke-linejoin="round"/></g>' +
+    '<g class="aks aks-gece"><rect x="-58" y="14" width="10" height="18" rx="2" fill="#F5EFE2" stroke="' + INK + '" stroke-width="2.2"/><path class="alev" d="M-53 13 c-4 -5 0 -9 0 -12 c3 4 4 8 0 12z" fill="#FFB547" stroke="' + INK + '" stroke-width="1.5"/></g>' +
+    '<g class="zzz"><text x="30" y="-40">z</text><text x="40" y="-52">z</text><text x="50" y="-64">Z</text></g>';
   var ACADIA = '';
   /* ---------- gezgin Acadia: başlıklara konar, kaydırmayı izler, dokununca yardım menüsü ---------- */
   var ac, balon, metinEl, zaman, menu, ax = 0, ay = 0, durgun = 0;
@@ -236,6 +242,7 @@
     var g = ls.al('gunluk', {}), gun = gunAnahtar(new Date()); g[gun] = g[gun] || {}; g[gun][panel] = 1; ls.yaz('gunluk', g);   /* haftalık seri takvimi */
     var el = D.querySelector('.alis[data-id="' + id + '"]'); if (el) el.classList.add('bitti');
     if (el && yeni) odul(el);
+    if (yeni) dans();   /* görev ilk kez bitince Acadia dans eder */
     var tamamOnce = D.querySelector('.rozet');
     sayac();
     if (yeni && !tamamOnce && D.querySelector('.rozet')) { soyle('Bu sayfa tamam. Defterine rozet yapıştırdım.', 5000); }
@@ -498,9 +505,77 @@
   /* yapay zekâ metninde yalnız <b>, <i>, <u> kalır */
   function temizHtml(t) { return esc(t).replace(/&lt;(\/?)(b|i|u)&gt;/g, '<$1$2>'); }
 
+  /* ---------- her panelin kendi dünyası: kenarlarda hep canlı, sakin; yazarken kısılır ---------- */
+  var DUNYA = {
+    vocab: {
+      sol: '<svg viewBox="0 0 160 260"><g class="buharlar"><path class="buh b1" d="M70 96 c-10 -16 10 -24 0 -42"/><path class="buh b2" d="M86 96 c-10 -16 10 -24 0 -42"/></g><path d="M58 104 h40 c-2 10 -8 16 -8 28 c0 12 6 18 8 30 h-40 c2 -12 8 -18 8 -30 c0 -12 -6 -18 -8 -28z" fill="#C2462F" fill-opacity=".75" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round"/><ellipse cx="78" cy="168" rx="34" ry="7" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="3"/><ellipse cx="80" cy="222" rx="54" ry="16" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="3"/><ellipse cx="80" cy="214" rx="34" ry="12" fill="none" stroke="#C98B3A" stroke-width="10"/><g fill="#1A2A5C"><circle cx="64" cy="209" r="1.5"/><circle cx="90" cy="206" r="1.5"/><circle cx="98" cy="218" r="1.5"/><circle cx="70" cy="222" r="1.5"/></g></svg>',
+      sag: '<svg viewBox="0 0 160 260"><rect x="20" y="20" width="120" height="150" rx="6" fill="#BFE0EA" stroke="#1A2A5C" stroke-width="3"/><circle class="gunes2" cx="104" cy="58" r="16" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2.5"/><path d="M80 20 v150 M20 95 h120" stroke="#1A2A5C" stroke-width="3"/><path class="perde" d="M14 14 h40 c-6 40 6 90 -4 160 h-36z" fill="#F4A487" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round"/></svg>',
+      ucan: ['apple', 'bread', 'tea', 'honey', 'olive', 'egg', 'cheese', 'jam']
+    },
+    listening: {
+      sol: '<svg viewBox="0 0 160 260"><defs><clipPath id="dy-cam"><rect x="12" y="40" width="136" height="150" rx="22"/></clipPath></defs><rect x="12" y="40" width="136" height="150" rx="22" fill="#A9D3F0" stroke="#1A2A5C" stroke-width="4"/><g clip-path="url(#dy-cam)"><g class="sehir s1"><path d="M0 190 V130 h20 V110 h18 V140 h16 V96 h22 V128 h18 V118 h20 V150 h16 V104 h24 V136 h20 V122 h22 V140 h18 V112 h22 V190z M320 190 V130 h20 V110 h18 V140 h16 V96 h22 V128 h18 V118 h20 V150 h16 V104 h24 V136 h20 V122 h22 V140 h18 V112 h22 V190z" fill="#7FA7D9" stroke="#1A2A5C" stroke-width="2"/></g><g class="sehir s2"><path d="M0 190 V160 h30 V150 h40 V166 h30 V156 h40 V170 h20 V162 h40 V190z M200 190 V160 h30 V150 h40 V166 h30 V156 h40 V170 h20 V162 h40 V190z" fill="#4E7FB8" stroke="#1A2A5C" stroke-width="2"/></g></g><rect x="12" y="40" width="136" height="150" rx="22" fill="none" stroke="#1A2A5C" stroke-width="10" stroke-opacity=".9"/></svg>',
+      sag: '<svg viewBox="0 0 160 260"><path d="M10 10 H150" stroke="#8A93AE" stroke-width="6" stroke-linecap="round"/><g class="tutamak"><path d="M80 12 V70" stroke="#1A2A5C" stroke-width="3"/><path d="M80 70 c-16 0 -22 24 0 30 c22 -6 16 -30 0 -30z" fill="#FFD86B" stroke="#1A2A5C" stroke-width="3"/></g><g class="nota"><text x="34" y="190">♪</text><text x="104" y="220">♫</text><text x="64" y="240">♪</text></g></svg>'
+    },
+    reading: {
+      sol: '<svg viewBox="0 0 160 300"><rect x="10" y="10" width="140" height="280" fill="#8A5A3B" stroke="#1A2A5C" stroke-width="3"/>' + [0, 1, 2, 3].map(function (r) { var y = 20 + r * 68, x = 18, h = ''; ['#C93B2B', '#2D5BD3', '#2C7A4B', '#E3A80F', '#8A5CC2', '#DD5A36', '#0F8582', '#F5EFE2'].forEach(function (c, i) { var w = 10 + (i * 7 + r * 5) % 9; if (x + w > 142) return; h += '<rect x="' + x + '" y="' + (y + (i % 3) * 3) + '" width="' + w + '" height="' + (56 - (i % 3) * 3) + '" fill="' + c + '" stroke="#1A2A5C" stroke-width="1.5"/>'; x += w + 2; }); return h + '<rect x="14" y="' + (y + 56) + '" width="132" height="6" fill="#5E3A24"/>'; }).join('') + '</svg>',
+      sag: '<svg viewBox="0 0 160 260"><path class="isin" d="M150 0 L60 260 L160 260z" fill="#FFE9A8" fill-opacity=".35"/><g class="toz2"><circle cx="110" cy="80" r="2"/><circle cx="130" cy="140" r="1.6"/><circle cx="96" cy="180" r="2.2"/><circle cx="140" cy="60" r="1.4"/><circle cx="118" cy="220" r="1.8"/></g><g transform="translate(80 210)"><path d="M-46 0 L0 10 L46 0 V-30 L0 -20 L-46 -30z" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round"/><path class="sayfa2" d="M0 -20 L44 -30 V0 L0 10z" fill="#FFFDF8" stroke="#1A2A5C" stroke-width="2.5" stroke-linejoin="round"/></g></svg>'
+    },
+    speaking: {
+      sol: '<svg viewBox="0 0 160 260"><g class="buharlar"><path class="buh b1" d="M66 120 c-10 -16 10 -24 0 -42"/><path class="buh b2" d="M84 120 c-10 -16 10 -24 0 -42"/></g><path d="M44 128 h64 v40 a32 32 0 0 1 -64 0z" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="3.5" stroke-linejoin="round"/><path d="M108 138 a14 14 0 0 1 0 28" fill="none" stroke="#1A2A5C" stroke-width="3.5"/><ellipse cx="76" cy="208" rx="54" ry="10" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="3"/><path d="M50 128 h52" stroke="#7A4A2A" stroke-width="5"/></svg>',
+      sag: '<svg viewBox="0 0 160 260"><g class="bitki"><path d="M80 230 C78 180 82 150 80 110" stroke="#2C7A4B" stroke-width="4" fill="none"/><path class="yap y1" d="M80 160 c-30 -6 -44 -30 -40 -46 c22 4 40 22 40 46z" fill="#4E9A5B" stroke="#1A2A5C" stroke-width="2.5"/><path class="yap y2" d="M80 140 c30 -6 44 -30 40 -46 c-22 4 -40 22 -40 46z" fill="#4E9A5B" stroke="#1A2A5C" stroke-width="2.5"/><path class="yap y3" d="M80 112 c-18 -10 -22 -32 -14 -44 c14 10 18 26 14 44z" fill="#3E8A4B" stroke="#1A2A5C" stroke-width="2.5"/></g><path d="M50 228 h60 l-8 28 h-44z" fill="#DD5A36" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round"/></svg>',
+      balon: ['hi!', 'really?', 'no way!', 'cool', 'cheers', 'I agree', 'well…', 'nice!']
+    },
+    writing: {
+      sol: '<svg viewBox="0 0 160 260"><circle class="lamba-isik" cx="96" cy="130" r="60" fill="#FFE9A8" fill-opacity=".5"/><path d="M40 240 h80 M80 240 V170 L110 120" stroke="#1A2A5C" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M90 96 l44 20 l-16 26 l-40 -22z" fill="#2D5BD3" stroke="#1A2A5C" stroke-width="3" stroke-linejoin="round"/><rect x="34" y="236" width="92" height="10" rx="3" fill="#8A5A3B" stroke="#1A2A5C" stroke-width="2.5"/></svg>',
+      sag: '<svg viewBox="0 0 160 260"><rect x="20" y="20" width="120" height="160" rx="6" fill="#22356E" stroke="#1A2A5C" stroke-width="3"/><circle cx="104" cy="60" r="16" fill="#F5EFE2"/><circle cx="112" cy="54" r="14" fill="#22356E"/><g class="yildiz"><circle cx="44" cy="46" r="2"/><circle cx="70" cy="90" r="1.6"/><circle cx="120" cy="120" r="2"/><circle cx="50" cy="140" r="1.5"/><circle cx="90" cy="34" r="1.4"/></g><path d="M80 20 v160 M20 100 h120" stroke="#1A2A5C" stroke-width="3"/></svg>',
+      ucak: true
+    }
+  };
+  var dunya = null;
+  function dunyaKur() {
+    var p = D.body.dataset.panel, d = DUNYA[p]; if (!d) return;
+    dunya = D.createElement('div'); dunya.className = 'dunya dunya-' + p; dunya.setAttribute('aria-hidden', 'true');
+    dunya.innerHTML = '<div class="dy-sol">' + d.sol + '</div><div class="dy-sag">' + d.sag + '</div>' + (d.ucak ? '<svg class="dy-ucak" viewBox="0 0 60 30"><path d="M2 14 L58 2 L22 20 Z M22 20 L30 28 L36 12" fill="#fff" stroke="#1A2A5C" stroke-width="2.5" stroke-linejoin="round"/></svg>' : '');
+    D.body.insertBefore(dunya, D.body.firstChild); D.body.classList.add('dunyali');
+    if (sakin) return;
+    /* yazarken, sınavda ve sekme gizliyken kısılır */
+    D.addEventListener('focusin', function (e) { if (e.target.matches && e.target.matches('input,textarea,select')) dunya.classList.add('kis'); });
+    D.addEventListener('focusout', function () { setTimeout(function () { var a = D.activeElement; if (!(a && a.matches && a.matches('input,textarea,select'))) dunya.classList.remove('kis'); }, 50); });
+    D.addEventListener('visibilitychange', function () { dunya.classList.toggle('dur', D.hidden); });
+    var kelime = d.ucan || d.balon; if (!kelime) return;
+    var i = 0;
+    setInterval(function () {
+      if (D.hidden || dunya.classList.contains('kis') || D.body.classList.contains('sinavda')) return;
+      var b = D.createElement('span'); b.className = d.balon ? 'dy-balon' : 'dy-harf';
+      b.textContent = kelime[i++ % kelime.length]; b.style.setProperty('--x', (i % 2 ? 4 + (i * 13) % 8 : 88 - (i * 11) % 8) + '%');
+      dunya.appendChild(b); setTimeout(function () { b.remove(); }, 7000);
+    }, 4200);
+  }
+
+  /* ---------- Acadia arkadaş: gözleriyle izler, uzun durunca uyuklar, başarıda dans eder ---------- */
+  var sonHareket = Date.now();
+  function bakis(x, y) {
+    if (!ac) return; var r = ac.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height * .45, dx = x - cx, dy = y - cy, l = Math.hypot(dx, dy) || 1, k = Math.min(1, l / 220) * 2.4;
+    ac.style.setProperty('--gx', (dx / l * k * (ac.classList.contains('ters') ? -1 : 1)).toFixed(2) + 'px'); ac.style.setProperty('--gy', (dy / l * k).toFixed(2) + 'px');
+  }
+  function uyan() {
+    sonHareket = Date.now();
+    if (ac && ac.classList.contains('uyku')) { ac.classList.remove('uyku'); ac.classList.remove('uyandi'); void ac.offsetWidth; ac.classList.add('uyandi'); setTimeout(function () { ac.classList.remove('uyandi'); }, 900); }
+  }
+  function arkadasKur() {
+    if (!ac || sakin) return;
+    var bekle = false, sx = 0, sy = 0;
+    if (W.matchMedia('(pointer:fine)').matches) W.addEventListener('pointermove', function (e) { sx = e.clientX; sy = e.clientY; uyan(); if (!bekle) { bekle = true; requestAnimationFrame(function () { bekle = false; bakis(sx, sy); }); } }, { passive: true });
+    D.addEventListener('pointerdown', function (e) { bakis(e.clientX, e.clientY); uyan(); }, { passive: true });
+    D.addEventListener('keydown', uyan); W.addEventListener('scroll', function () { uyan(); bakis(W.innerWidth * .45, W.innerHeight * .45); }, { passive: true });
+    D.addEventListener('focusin', function (e) { var r = e.target.getBoundingClientRect && e.target.getBoundingClientRect(); if (r && r.width) bakis(r.left + r.width / 2, r.top + r.height / 2); });
+    setInterval(function () { if (Date.now() - sonHareket > 45000 && !ac.classList.contains('mesgul') && !ac.classList.contains('uyku')) ac.classList.add('uyku'); }, 5000);
+  }
+  function dans() { if (!ac || sakin) return; ac.classList.remove('dans'); void ac.offsetWidth; ac.classList.add('dans'); setTimeout(function () { ac.classList.remove('dans'); }, 1800); }
+
   W.ACX = { esc: esc, ls: ls, sakin: sakin, girisler: girisler, soyle: soyle, sevin: function () { tepki('sevin'); }, uz: function () { tepki('uz'); }, test: test, bitir: bitir, bitenler: bitenler, sayac: sayac, ses: ses, sesVar: sesVar, acadiaSvg: acadiaSvg, sesCal: sesCal, gunluk: gunluk, sesAcik: function () { return sesAcik; }, odul: odul, yz: yz, icerik: icerik, temizHtml: temizHtml, sozlukEkle: sozlukEkle, kelimeAc: kelimeAc, gunlukEkle: function (panel) { var g = ls.al('gunluk', {}), k = gunAnahtar(new Date()); g[k] = g[k] || {}; g[k][panel] = 1; ls.yaz('gunluk', g); } };
   function sevin() { tepki('sevin'); } function uz() { tepki('uz'); }
 
-  function basla() { sesDugmesi(); acadiaCiz(); karalamalar(); girisler(); sahneKur(); acadiaKur(); sayac(); parallax(); simdi(); hafta(); kapiSonra(kapak); }
+  function basla() { sesDugmesi(); acadiaCiz(); karalamalar(); girisler(); sahneKur(); dunyaKur(); acadiaKur(); arkadasKur(); sayac(); parallax(); simdi(); hafta(); kapiSonra(kapak); }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', basla); else basla();
 })();
