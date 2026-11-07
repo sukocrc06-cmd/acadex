@@ -61,13 +61,6 @@ body{--c:var(--writing)}
 .essay .el.bilgi{position:absolute;right:16px;bottom:-34px;font-size:19px;color:var(--ink3)}
 @media (max-width:860px){.essay{padding:18px 14px 16px 40px;background-image:linear-gradient(90deg,transparent 28px,var(--marj) 28px,var(--marj) 30px,transparent 30px),repeating-linear-gradient(transparent 0 37px,#D6E0F0 37px 38px);min-height:0}.essay p{font-size:16px;line-height:38px}.hata svg{height:32px}.hata ins{font-size:18px;bottom:20px}.kenar{grid-template-columns:1fr}.puan{grid-template-columns:1fr;gap:8px}.puan .damga{order:-1;justify-self:end;font-size:12px;margin-right:6px}.olcut div{grid-template-columns:96px 1fr 28px}.kenar li{font-size:17.5px}.olcut div{grid-template-columns:92px 1fr 28px;font-size:12.5px}.masa .not{width:124px;font-size:18px;right:0}}
 
-/* paragraf sırala */
-.sira{display:grid;gap:10px}
-.sira button{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:12px 14px;border:2px solid var(--ink);border-radius:12px;background:#fff;box-shadow:2px 2px 0 var(--ink);font-size:16px;transition:transform .2s var(--ease),background .2s,opacity .2s}
-.sira button b{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:2px dashed var(--ink3);font:700 13px var(--mono);color:transparent}
-.sira button.secili{background:var(--kagit3)}
-.sira button.secili b{border:2px solid var(--ink);background:var(--writing);color:#fff}
-.sira button.dogru{background:#DDF2E3}.sira button.yanlis{background:#FBE0DA}
 </style>
 </head>
 <body data-panel="writing" data-ipucu="Bir essay'de en çok puanı tez cümlesi kazandırır; ilk 2 cümleye özen.|'Very' yerine daha net bir sıfat: very big → substantial.|Paragraf başına tek fikir. İkinci fikir geldiyse yeni paragraf.|Kanıt yoksa iddia yumuşat: 'proves' değil 'suggests'.">
@@ -170,37 +163,9 @@ body{--c:var(--writing)}
   <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
 </div></section>
 
-<section class="bolum" id="calis" data-acadia="Dört alıştırma var. Bitirdiklerini deftere işliyorum."><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">bu akşamlık</span><h2 class="disp">On beş dakikalık masa başı.</h2><p>Sırası önemli değil. Bitirdiğin alıştırmanın yanına tik düşer, sayfayı kapatsan da kalır. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
-  <div class="calis">
-    <article class="kagit alis" data-id="hata" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 5 soru</span><h3>Hatayı yakala</h3><p>Cümledeki yanlış parçaya dokun.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-hata"></div>
-    </article>
-    <article class="kagit alis" data-id="baglac" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 2 · 5 soru</span><h3>Doğru bağlaç</h3><p>Boşluğa anlamı bozmayan bağlacı koy.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-baglac"></div>
-    </article>
-    <article class="kagit alis" data-id="sira" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 3</span><h3>Paragrafı sırala</h3><p>Cümlelere paragrafta gelecekleri sırayla dokun: konu cümlesi, destek, örnek, sonuç.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div class="sira" id="sira"></div>
-      <div class="geri" id="sira-geri"></div>
-      <div class="alt-satir"><button class="btn sm" type="button" id="sira-sil">Temizle</button><button class="btn sm ana" type="button" id="sira-kontrol" disabled>Kontrol et</button></div>
-    </article>
-    <article class="kagit alis" data-id="tez" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 4 · serbest</span><h3>Tez cümleni yaz</h3><p><b>Konu:</b> <i>Some people think university education should be free for everyone. Do you agree or disagree?</i></p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <label class="gizli" for="tez">Tez cümlen</label>
-      <textarea id="tez" rows="3" placeholder="In my view, …"></textarea>
-      <ul class="kontrol" id="tez-k">
-        <li data-k="uzun">15–40 kelime</li>
-        <li data-k="taraf">Tarafını açıkça söylüyor (agree, disagree, should, I believe…)</li>
-        <li data-k="neden">En az iki gerekçeye yer açıyor (because, since, and, as well as…)</li>
-        <li data-k="konu">Konudan kopmuyor (university, education, free, tuition…)</li>
-        <li data-k="very">“very”, “thing”, “a lot” gibi boş kelimeler yok</li>
-      </ul>
-      <div class="alt-satir"><span class="say">Bu liste cümlenin yapısına bakar, fikrin doğruluğunu ölçmez.</span><button class="btn sm ana" type="button" id="tez-isle" disabled>Deftere işle</button></div>
-    </article>
-  </div>
+<section class="bolum" id="calis" data-acadia="Görevini seç, yaz; kırmızı kalem tek tek işaretler. Günün sayfasını unutma."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">yazma masası</span><h2 class="disp">Taslak, kırmızı kalem, temize çekme.</h2><p>Sekiz kategori, yedi tür, altı seviye. Yazarken kelime, cümle ve bağlaç göstergeleri canlı; teslimde dört IELTS ölçütünde tahmini band ve satır satır düzeltme. <span class="mono" data-sayac style="color:var(--c)"></span></p></div>
+  <div class="calis yz" id="yaz-app"></div>
 </div></section>
 
 <section class="sonraki"><div class="wrap">
@@ -215,6 +180,9 @@ body{--c:var(--writing)}
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
 <script src="assets/hoca.js"></script>
+<script src="assets/kelime-banka.js"></script>
+<script src="assets/yaz-banka.js"></script>
+<script src="assets/yaz.js"></script>
 <script>
 (function () {
   'use strict';
@@ -225,68 +193,6 @@ body{--c:var(--writing)}
   });
 })();
 </script>
-<script>
-(function () {
-  'use strict';
-  var P = 'writing';
-  ACX.test(document.getElementById('t-hata'), [
-    { soru: 'The number of international students <u>have</u> increased since 2015.', sec: ['The number of', 'have', 'increased', 'since 2015'], d: 1, neden: 'Özne “the number”, tekil: <b>has</b> increased. “A number of students” olsaydı <i>have</i> doğru olurdu.' },
-    { soru: 'Despite of the high cost, many families choose private schools.', sec: ['Despite of', 'the high cost', 'many families', 'choose'], d: 0, neden: '“Despite” yanına “of” almaz: <b>Despite the high cost</b>. “In spite of” ise “of” ile kullanılır.' },
-    { soru: 'This research gives an important informations about sleep.', sec: ['This research', 'gives', 'an important informations', 'about sleep'], d: 2, neden: '“Information” sayılamaz; çoğul ve “an” almaz: <b>important information</b>.' },
-    { soru: 'If the government will invest in public transport, traffic would decrease.', sec: ['If the government will invest', 'in public transport', 'traffic', 'would decrease'], d: 0, neden: 'Koşul kısmında “will” olmaz. İkinci tip: <b>If the government invested</b>, traffic would decrease.' },
-    { soru: 'Online learning is more cheaper than traditional classes.', sec: ['Online learning', 'is more cheaper', 'than', 'traditional classes'], d: 1, neden: 'Kısa sıfat zaten -er alıyor; “more” fazla: <b>cheaper</b>.' }
-  ], { panel: P, id: 'hata', tebrik: 'Hatayı yakalama gözü açıldı. Deftere işledim.' });
-
-  ACX.test(document.getElementById('t-baglac'), [
-    { soru: 'Public transport is cheap. ____, it is often crowded and late.', sec: ['Therefore', 'However', 'Moreover', 'For example'], d: 1, yan: 1, neden: 'İkinci cümle birincinin tersini söylüyor: zıtlık → <b>However</b>.' },
-    { soru: 'The rent in the city centre has doubled. ____, many students now live in the suburbs.', sec: ['As a result', 'Although', 'In contrast', 'Whereas'], d: 0, yan: 1, neden: 'Kira arttı → öğrenciler taşındı. Sebep-sonuç: <b>As a result</b>.' },
-    { soru: '____ online courses are flexible, they require strong self-discipline.', sec: ['Because', 'Although', 'Therefore', 'In addition'], d: 1, yan: 1, neden: 'Tek cümle içinde iki zıt fikir: <b>Although</b> + yan cümle.' },
-    { soru: 'Exercise improves mood. ____, it helps students sleep better.', sec: ['However', 'Otherwise', 'Moreover', 'Instead'], d: 2, yan: 1, neden: 'Aynı yönde ikinci bir fayda ekleniyor: <b>Moreover</b>.' },
-    { soru: 'Some students prefer group study, ____ others work better alone.', sec: ['whereas', 'therefore', 'so that', 'because'], d: 0, yan: 1, neden: 'İki grubu karşılaştırıyor: <b>whereas</b> (virgülden sonra, küçük harfle).' }
-  ], { panel: P, id: 'baglac', tebrik: 'Bağlaçlar yerine oturdu.' });
-
-  /* paragraf sırala */
-  var CUMLE = [
-    { t: 'Part-time work can teach students skills that a classroom rarely offers.', ad: 'konu cümlesi' },
-    { t: 'For instance, managing a café shift requires quick decisions and clear communication.', ad: 'örnek' },
-    { t: 'Employers increasingly value these practical abilities alongside academic grades.', ad: 'destek' },
-    { t: 'Therefore, a few hours of work each week may be an investment rather than a distraction.', ad: 'sonuç' }
-  ];
-  var DOGRU = [0, 2, 1, 3], kutu = document.getElementById('sira'), secim = [];
-  var karisik = [1, 3, 0, 2];
-  function siraCiz() {
-    kutu.innerHTML = karisik.map(function (k) { var n = secim.indexOf(k); return '<button type="button" data-k="' + k + '" class="' + (n > -1 ? 'secili' : '') + '"><b>' + (n > -1 ? n + 1 : '') + '</b><span>' + CUMLE[k].t + '</span></button>'; }).join('');
-    kutu.querySelectorAll('button').forEach(function (b) { b.onclick = function () { var k = +b.dataset.k, n = secim.indexOf(k); if (n > -1) secim.splice(n, 1); else secim.push(k); siraCiz(); }; });
-    document.getElementById('sira-kontrol').disabled = secim.length !== 4;
-  }
-  siraCiz();
-  document.getElementById('sira-sil').onclick = function () { secim = []; siraCiz(); document.getElementById('sira-geri').classList.remove('acik'); };
-  document.getElementById('sira-kontrol').onclick = function () {
-    var ok = secim.every(function (k, i) { return k === DOGRU[i]; });
-    kutu.querySelectorAll('button').forEach(function (b) { var k = +b.dataset.k; b.classList.add(secim.indexOf(k) === DOGRU.indexOf(k) ? 'dogru' : 'yanlis'); });
-    var g = document.getElementById('sira-geri');
-    g.innerHTML = ok ? '<span class="el">Tam oturdu. </span>Konu cümlesi iddiayı koyuyor, destek genelliyor, örnek somutlaştırıyor, “Therefore” bağlıyor.'
-      : '<span class="el">Yaklaştın. </span>Doğru sıra: ' + DOGRU.map(function (k) { return CUMLE[k].ad; }).join(' → ') + '. İpucu: “For instance” bir şeyi örnekler, önce o şeyin söylenmesi gerekir.';
-    g.classList.add('acik');
-    if (ok) { ACX.bitir(P, 'sira'); ACX.sevin(); ACX.soyle('Paragraf iskeleti tamam.', 3500); } else ACX.uz();
-  };
-
-  /* tez cümlesi: yapısal kontrol listesi */
-  var tez = document.getElementById('tez'), isle = document.getElementById('tez-isle');
-  var KUR = {
-    uzun: function (s, n) { return n >= 15 && n <= 40; },
-    taraf: function (s) { return /\b(agree|disagree|should|should not|shouldn't|i believe|in my (view|opinion)|i would argue|it is (better|essential|unfair|reasonable))\b/i.test(s); },
-    neden: function (s) { return (s.match(/\b(because|since|as well as|due to|and|while|given that)\b/gi) || []).length >= 2 || /\b(first|firstly)\b[\s\S]*\b(second|secondly)\b/i.test(s); },
-    konu: function (s) { return /\b(universit|education|tuition|free|fees?|higher education|degree)/i.test(s); },
-    very: function (s, n) { return n > 0 && !/\b(very|thing|things|a lot|lots of)\b/i.test(s); }
-  };
-  tez.addEventListener('input', function () {
-    var s = tez.value.trim(), n = s ? s.split(/\s+/).length : 0, kac = 0;
-    document.querySelectorAll('#tez-k li').forEach(function (li) { var ok = KUR[li.dataset.k](s, n); li.classList.toggle('ok', ok); if (ok) kac++; });
-    isle.disabled = kac < 4;
-  });
-  isle.onclick = function () { ACX.bitir(P, 'tez'); ACX.sevin(); ACX.soyle("Tez cümlen hazır. Essay'in yarısı bu cümle.", 4500); };
-})();
-</script>
+<script>YAZ.kur(document.getElementById('yaz-app'));</script>
 </body>
 </html>

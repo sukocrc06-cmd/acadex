@@ -15,6 +15,8 @@
 //   sozluk      {kelime}                           → {veri:{kelime, okunus, tur, anlam_tr, ornek}}
 //   sinav       {seviye, cevaplar[]}               → {kriterler, ozet_tr, duzeltmeler[]}  (07.11.2026, speaking sınavı)
 //   sinav_model {seviye, bolum, soru, cevap, sn}   → {model_en, notlar[]}                  (07.11.2026, model cevap)
+//   kompozisyon {gorev, tur, sev, metin}           → {band{tr,cc,lr,gra}, duzeltmeler[{parca,oneri,tur,not_tr}], yorum_tr}  (yazma masası)
+//   icerik tur 'yaz', alt 'kategori:seviye' → {gorevler[3]} (yazma masası görev havuzu)
 //   etkinlik    {tip, seviye, kategori, …}         → {yanit_en} | {tahmin}                  (07.11.2026, konuşma atölyesi)
 //   icerik tur 'konusma', alt 'etkinlik:kategori:seviye' (A1–C2) → atölye içeriği
 //   icerik tur 'dinle', alt 'kategori:seviye' (A1–C2) → dinleme stüdyosu bölümü (DINLE_DOGRULA = assets/dinle.js dogrula)
@@ -176,6 +178,11 @@ const OKU_DOGRULA = (v: any) => {
     : q.t === 'sec' ? metin(q.soru, 240) && dizi(q.sec, 3, 5) && Number.isInteger(q.d) && q.d < q.sec.length
     : false)
 }
+/* yazma masası (assets/yaz.js): kategori:seviye → üç yazma görevi */
+const YAZ_URET = (alt: string) => { const d = dinleAlt(alt)!; return `Create 3 original writing tasks for Turkish university students. Topic area: ${d.kat}. Level: ${KONUSMA_SEV[d.sev]}. Theme flavour: "${rastgele(KONU)}".
+Use three different types from: eposta (email), paragraf, gorus (opinion piece), task2 (IELTS essay question), inceleme (review), hikaye (story).
+Return {"gorevler":[3 x {"tur":"one of the types above","en":"the task in English, 1-3 sentences","tr":"Turkish translation","maddeler":[3-4 short English points the writer should cover],"kelimeler":[4 useful English words or phrases]}]}` }
+const YAZ_DOGRULA = (v: any) => dizi(v.gorevler, 2, 4) && v.gorevler.every((g: any) => ['eposta', 'paragraf', 'gorus', 'task2', 'inceleme', 'hikaye'].includes(g.tur) && metin(g.en, 500) && metin(g.tr, 500) && dizi(g.maddeler, 2, 5) && g.maddeler.every((m: unknown) => metin(m, 100)) && dizi(g.kelimeler, 2, 6) && g.kelimeler.every((m: unknown) => metin(m, 40)))
 const URET: Record<string, (alt: string, sev: string) => string> = {
   okuma: (_a, sev) => `Write an original ${sev} reading text for Turkish university students about "${rastgele(KONU)}" (a specific, surprising angle).
 Return {"baslik":"title","paragraflar":["3 paragraphs, 45-70 words each"],"sorular":[5 x {"soru_en":"open question","soru_tr":"Turkish translation","paragraf":0-2,"fosfor":"exact phrase of 3-8 words copied from that paragraph that contains the answer","ornek":"short model answer","anahtar":[{"ad_tr":"Turkish label of a key idea","kelimeler":["5-8 lowercase English words or stems a correct answer would contain, with synonyms"]}],"ipucu":["3 Turkish hints, each more specific; the third nearly gives the answer"]}]}
@@ -190,6 +197,7 @@ Return {"kelimeler":[10 x {"kelime":"word","okunus":"/IPA/","tur":"noun|verb|adj
 ${KONUSMA_URET[k.etk]}` },
   dinle: (alt) => DINLE_URET(alt),
   oku: (alt) => OKU_URET(alt),
+  yaz: (alt) => YAZ_URET(alt),
   sinav: (alt) => `Original speaking exam material (do not copy any official test). Theme flavour: "${rastgele(KONU)}".
 ${SINAV_ALT[alt]}`,
   yazi_konu: () => `Return {"konular":[3 short opinion questions for a one-paragraph student essay, each about a different everyday topic like "${rastgele(KONU)}"]}`,
@@ -226,6 +234,7 @@ const DOGRULA: Record<string, (v: any, alt: string) => boolean> = {
   },
   dinle: (v) => DINLE_DOGRULA(v),
   oku: (v) => OKU_DOGRULA(v),
+  yaz: (v) => YAZ_DOGRULA(v),
   yazi_konu: (v) => dizi(v.konular, 3, 5) && v.konular.every((q: unknown) => metin(q, 160)),
   test: (v, alt) => dizi(v.sorular, 3, 6) && v.sorular.every((q: any) => metin(q.soru, 900) && dizi(q.sec, 2, 5) && q.sec.every((x: unknown) => metin(x, 200)) && Number.isInteger(q.d) && q.d >= 0 && q.d < q.sec.length && metin(q.neden, 500)) && (alt !== 'reading:tfng' || metin(v.parca, 900)),
 }
@@ -261,6 +270,7 @@ serve(async (req) => {
     if (b && b.mod === 'sinav') return await sinavPuan(b)
     if (b && b.mod === 'sinav_model') return await sinavModel(b)
     if (b && b.mod === 'etkinlik') return await etkinlikTur(b)
+    if (b && b.mod === 'kompozisyon') return await kompozisyon(b)
     const istem = b && ISTEM[String(b.mod)]
     if (!istem) return json({ error: 'Unknown mod' }, 400)
     const key = Deno.env.get('GROQ_API_KEY')
@@ -311,10 +321,10 @@ async function icerik(b: any, sb: any, uid: string) {
     await admin.from('ing_icerik').insert({ tur: 'sozluk', alt: k, veri, olusturan: uid })
     return json({ veri, kaynak: 'yeni' })
   }
-  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' || tur === 'konusma' || tur === 'dinle' || tur === 'oku' ? String(b.alt ?? '') : ''
+  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' || tur === 'konusma' || tur === 'dinle' || tur === 'oku' || tur === 'yaz' ? String(b.alt ?? '') : ''
   /* deste: alt = öğrencinin seviyesi (assets/kelime.js); havuz seviyeye göre ayrılır */
   const sev = tur === 'deste' && /^(A1|A2|B1|B2|C1|C2)$/.test(String(b.alt ?? '')) ? String(b.alt) : 'B1-B2'
-  if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt]) || (tur === 'konusma' && !konusmaAlt(alt)) || ((tur === 'dinle' || tur === 'oku') && !dinleAlt(alt))) return json({ error: 'Unknown content' }, 400)
+  if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt]) || (tur === 'konusma' && !konusmaAlt(alt)) || ((tur === 'dinle' || tur === 'oku' || tur === 'yaz') && !dinleAlt(alt))) return json({ error: 'Unknown content' }, 400)
   const { data: hazir, error: e1 } = await sb.rpc('ing_icerik_al', { p_tur: tur, p_alt: alt, p_seviye: sev })
   if (e1) { console.error('ing_icerik_al:', e1); return json({ error: 'Pool unavailable' }, 503) }
   if (Array.isArray(hazir) && hazir[0]) return json({ id: hazir[0].id, veri: hazir[0].veri, kaynak: 'havuz' })
@@ -369,6 +379,29 @@ Return {"model_en":"the answer","notlar":["up to 3 short Turkish notes: what the
   const v = await groqJson(key, KARAKTER.replace(/Judge fairly:[^\n]*\n/, ''), istem, 900, 0.6)
   if (!v || !metin(v.model_en, 1600)) return json({ error: 'Unparseable' }, 502)
   return json({ model_en: kis(v.model_en, 1600), notlar: (Array.isArray(v.notlar) ? v.notlar : []).filter((n: unknown) => metin(n, 200)).slice(0, 3) })
+}
+
+/* yazma masası: kırmızı kalem (IELTS dört ölçüt, tahmini band + cümle içi düzeltmeler). Puan "tahmini"dir. */
+const YAZ_TUR: Record<string, string> = { eposta: 'an email', paragraf: 'a paragraph', gorus: 'an opinion piece', task1: 'an IELTS Academic Writing Task 1 chart description', task2: 'an IELTS Writing Task 2 essay', inceleme: 'a review', hikaye: 'a short story' }
+async function kompozisyon(b: any) {
+  const key = Deno.env.get('GROQ_API_KEY')
+  if (!key) return json({ error: 'Groq API key not configured' }, 500)
+  const metin_ = kis(b.metin, 4000), tur = YAZ_TUR[String(b.tur)] || 'a short text', sev = /^(A1|A2|B1|B2|C1|C2)$/.test(String(b.sev)) ? String(b.sev) : 'B1'
+  if (metin_.trim().split(/\s+/).length < 8) return json({ error: 'Too short' }, 400)
+  const istem = `Mode: marking a student's writing like a careful IELTS examiner (estimate only, not an official score).
+Task (${tur}, target level ${sev}): ${kis(b.gorev, 600)}
+Student text: """${metin_}"""
+Give band estimates 1-9 in steps of 0.5 for: tr = task response / achievement, cc = coherence and cohesion, lr = lexical resource, gra = grammatical range and accuracy.
+List up to 12 corrections. "parca" must be copied EXACTLY from the student text (a short span, 1-8 words); "oneri" is the corrected span; "tur" is one of gramer, kelime, yazim, noktalama, uslup; "not_tr" is a short Turkish explanation (max 14 words).
+Return {"band":{"tr":0,"cc":0,"lr":0,"gra":0},"duzeltmeler":[{"parca":"…","oneri":"…","tur":"gramer","not_tr":"…"}],"yorum_tr":"two Turkish sentences: the biggest strength and the one thing to fix first"}`
+  const v = await groqJson(key, KARAKTER.replace(/Judge fairly:[^\n]*\n/, ''), istem, 1600, 0.2)
+  const ok = (x: unknown) => typeof x === 'number' || (typeof x === 'string' && x !== '')
+  if (!v || !v.band || !['tr', 'cc', 'lr', 'gra'].every((k) => ok(v.band[k]) && +v.band[k] >= 1 && +v.band[k] <= 9)) return json({ error: 'Unparseable' }, 502)
+  const band: Record<string, number> = {}; for (const k of ['tr', 'cc', 'lr', 'gra']) band[k] = Math.round(+v.band[k] * 2) / 2
+  const TURLER = ['gramer', 'kelime', 'yazim', 'noktalama', 'uslup']
+  const duz = (Array.isArray(v.duzeltmeler) ? v.duzeltmeler : []).filter((d: any) => metin(d?.parca, 120) && metin_.includes(d.parca) && typeof d?.oneri === 'string' && d.oneri.length <= 160 && d.oneri !== d.parca)
+    .slice(0, 12).map((d: any) => ({ parca: d.parca, oneri: d.oneri, tur: TURLER.includes(d.tur) ? d.tur : 'gramer', not_tr: kis(d.not_tr, 160) }))
+  return json({ band, duzeltmeler: duz, yorum_tr: kis(v.yorum_tr, 400) })
 }
 
 /* konuşma atölyesi: hocanın tur içi cevabı (münazara, rol, hikâye, röportaj) ya da anlat-buldur tahmini */

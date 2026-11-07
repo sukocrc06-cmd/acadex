@@ -203,10 +203,10 @@
       var tarih = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       /* katlı gazete: üst yarıda manşet (seçilen küpür) ya da "küpürünü seç"; açınca alt yarıda küpür panosu */
       $('#ok-gazete').innerHTML = '<div class="ok-gz-kagit">' +
-        '<div class="ok-gz-yari ust"><div class="ok-gz-ust"><span>No. ' + Math.max(1, Object.keys(st.gazete).length) + '</span><b>The Campus Gazette</b><span>' + (m ? esc(katAd(m.kat)) + ' · ' + m.sev : 'seviye ' + st.sev) + '</span></div>' +
+        '<div class="ok-gz-yari gy-ust"><div class="ok-gz-ust"><span>No. ' + Math.max(1, Object.keys(st.gazete).length) + '</span><b>The Campus Gazette</b><span>' + (m ? esc(katAd(m.kat)) + ' · ' + m.sev : 'seviye ' + st.sev) + '</span></div>' +
           '<div class="ok-gz-tarih"><span>' + tarih + '</span><span>günün makalesi</span><span>' + (n ? n + ' günlük seri' : 'seri bugün başlar') + '</span></div>' +
           (m ? '<h4 lang="en">' + esc(m.b) + '</h4><p class="ok-gz-alt-b" lang="en">' + esc(m.tr || '') + '</p>' : '<h4>Bugünün haberini sen seç ✂</h4><p class="ok-gz-alt-b">Gazeteyi aç, bir küpür kes; o konu bugünün sayısı olur.</p>') + '</div>' +
-        '<div class="ok-gz-sar"><div class="ok-gz-yari alt"><div class="ok-pano-bas"><b>Today’s clippings</b><span>' + kup.length + ' konu · ' + esc(st.sev) + '</span></div>' +
+        '<div class="ok-gz-sar"><div class="ok-gz-yari gy-alt"><div class="ok-pano-bas"><b>Today’s clippings</b><span>' + kup.length + ' konu · ' + esc(st.sev) + '</span></div>' +
           '<div class="ok-pano' + (karistir ? ' karis' : '') + '">' + kup.map(function (x, i) {
             var sec = m && m.id === x.id;
             return '<button type="button" class="ok-kupur' + (sec ? ' secili' : '') + (st.gor[x.id] && !sec ? ' gordu' : '') + '" data-kupur="' + esc(x.id) + '" style="--r:' + [-2.5, 1.8, 2.2, -1.6][i % 4] + 'deg;--kd:' + (i * 70) + 'ms">' +
