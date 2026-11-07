@@ -11,7 +11,7 @@
 //   sohbet      {gecmis[], soru, cevap, tur, toplam} → {sonuc, tepki_en, duzeltme, tr_not, sonraki_soru}
 //   yazi        {gorev, adim, onceki[], cumle}     → {sonuc, tepki_en, notlar:[{parca, not_tr, oneri}]}
 //   nasil       {tr}                               → {oneriler:[{en, not_tr}]}
-//   icerik      {tur, alt}                         → {id, veri, kaynak:'havuz'|'yeni'}
+//   icerik      {tur, alt}                         → {id, veri, kaynak:'havuz'|'yeni'}  (deste: alt = A1–C2 seviye)
 //   sozluk      {kelime}                           → {veri:{kelime, okunus, tur, anlam_tr, ornek}}
 //   sinav       {seviye, cevaplar[]}               → {kriterler, ozet_tr, duzeltmeler[]}  (07.11.2026, speaking sınavı)
 //   sinav_model {seviye, bolum, soru, cevap, sn}   → {model_en, notlar[]}                  (07.11.2026, model cevap)
@@ -128,7 +128,7 @@ Use 1-2 "anahtar" groups per question; every group is required for a fully corre
   dikte: (_a, sev) => `Return {"cumleler":[4 natural ${sev} English sentences of 8-14 words about "${rastgele(KONU)}" and campus life; at least one contains a number, time or date]}.`,
   kelime: (_a, sev) => `Choose 5 useful academic words (${sev}) starting with these letters: ${harfler()}, ${harfler()}.
 Return {"kelimeler":[5 x {"kelime":"word","anlam_tr":"Turkish meaning","ornek":"teacher's example sentence","ipucu":["Turkish: the pattern or collocation","Turkish: an idea for the student's own sentence","Turkish: a sentence skeleton with blanks"]}]}`,
-  deste: (_a, sev) => `Choose 10 useful ${sev} academic words starting with these letters: ${harfler()}, ${harfler()}, ${harfler()}.
+  deste: (_a, sev) => `Choose 10 useful ${sev.length === 2 ? 'CEFR ' + sev + ' level' : sev} words (avoid the most common ones at that level) starting with these letters: ${harfler()}, ${harfler()}, ${harfler()}.
 Return {"kelimeler":[10 x {"kelime":"word","okunus":"/IPA/","tur":"noun|verb|adj|adv","anlam_tr":"Turkish meaning","ornek":"natural example sentence"}]}`,
   sohbet: () => `Theme: "${rastgele(KONU)}". Return {"sorular":[5 friendly IELTS Part 1 then Part 3 style questions, short, from easy to deeper],"ipucu":[5 Turkish tips, each with an English sentence starter in quotes]}`,
   konusma: (alt) => { const k = konusmaAlt(alt)!; return `Original speaking-practice material for Turkish university students. Category: ${k.kat}. Level: ${KONUSMA_SEV[k.sev]}. Be specific and surprising; avoid the most obvious topic. Theme flavour: "${rastgele(KONU)}".
@@ -252,7 +252,9 @@ async function icerik(b: any, sb: any, uid: string) {
     await admin.from('ing_icerik').insert({ tur: 'sozluk', alt: k, veri, olusturan: uid })
     return json({ veri, kaynak: 'yeni' })
   }
-  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' || tur === 'konusma' ? String(b.alt ?? '') : '', sev = 'B1-B2'
+  const tur = String(b.tur ?? ''), alt = tur === 'test' || tur === 'sinav' || tur === 'konusma' ? String(b.alt ?? '') : ''
+  /* deste: alt = öğrencinin seviyesi (assets/kelime.js); havuz seviyeye göre ayrılır */
+  const sev = tur === 'deste' && /^(A1|A2|B1|B2|C1|C2)$/.test(String(b.alt ?? '')) ? String(b.alt) : 'B1-B2'
   if (!URET[tur] || (tur === 'test' && !TEST[alt]) || (tur === 'sinav' && !SINAV_ALT[alt]) || (tur === 'konusma' && !konusmaAlt(alt))) return json({ error: 'Unknown content' }, 400)
   const { data: hazir, error: e1 } = await sb.rpc('ing_icerik_al', { p_tur: tur, p_alt: alt, p_seviye: sev })
   if (e1) { console.error('ing_icerik_al:', e1); return json({ error: 'Pool unavailable' }, 503) }

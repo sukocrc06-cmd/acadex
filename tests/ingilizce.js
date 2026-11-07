@@ -229,7 +229,7 @@ test('hoca oturumları: ilk tur sayfadaki set, sonrakiler havuzdan (Reading, Lis
   assert.match(j, /if \(!o\.yeniGetir \|\| !gordu\(\)\) return false;/);
   for (const [s, t] of [['reading', 'okuma'], ['listening', 'dikte'], ['vocab', 'kelime'], ['speaking', 'sohbet']]) assert.match(read(`ingilizce/${s}.html`), new RegExp(`await ACX\\.icerik\\('${t}'\\)`));
   assert.match(j, /var v = await W\.ACX\.icerik\('yazi_konu'\);/);
-  assert.match(read('ingilizce/vocab.html'), /var v = await ACX\.icerik\('deste'\)/);
+  assert.match(read('ingilizce/assets/kelime.js'), /var v = await A\.icerik\('deste', st\.sev \|\| 'B1'\)/);
 });
 test('gezgin Acadia: menü (ipucu, sayfa, defter, kelime), başlığa konma, seçili kelime kartı ve desteye ekleme', () => {
   const j = read('ingilizce/assets/ing.js');
@@ -237,7 +237,7 @@ test('gezgin Acadia: menü (ipucu, sayfa, defter, kelime), başlığa konma, se�
   assert.match(j, /D\.querySelectorAll\('\.kah h1, \.bolum-b h2, \.alis-u h3, \.hoca-ust, \.sonraki b'\)/);
   assert.match(j, /if \(!n \|\| n\.closest\('textarea,input,\.acadia,\.kelime-kart,\.ust'\)\) return null;/, 'yazı alanında seçim kart açmaz');
   assert.match(j, /var j = await yz\('sozluk', \{ kelime: k \}, 12000\);/);
-  assert.match(j, /ls\.yaz\('desteEk', e2\)/); assert.match(read('ingilizce/vocab.html'), /window\.ACX_DESTE_YENILE = function/);
+  assert.match(j, /ls\.yaz\('desteEk', e2\)/); assert.match(read('ingilizce/assets/kelime.js'), /W\.ACX_DESTE_YENILE = function/);
   /* "bir şıkkı ele" ipucu doğru şıkkı asla elemez */
   assert.match(j, /return !b\.disabled && \+b\.dataset\.k !== \+t\.dataset\.dogru;/);
 });
@@ -545,6 +545,59 @@ test('çay sayfası: eski dört alıştırma kalktı, #calis içinde günlük se
   assert.match(h, /CAY\.kur\(D\.getElementById\('cay-gun'\)\)/);
   assert.match(read('ingilizce/assets/cay.js'), /if \(gun\.en\[i\] >= GECER\) A\.bitir\(P, 'cay-' \+ an \+ '-' \+ i\)/, 'en az %40 alan tur günlük sayaca ve mühüre girer');
   assert.match(read('ingilizce/assets/cay.js'), /if \(ilk\) \{ gun\.puan\[i\] = puan; seviyeGuncelle\(v, puan\); \}/, 'seviyeyi yalnız ilk deneme oynatır');
+});
+
+/* Kişisel deste (07.11.2026): seviye testi, kişisel havuz, aralıklı tekrar, oyunlar, bahçe */
+function kelimeYukle() {
+  const ctx = { window: null, document: { body: { dataset: {} }, addEventListener() {} }, console, Math, Date };
+  ctx.window = ctx; vm.createContext(ctx);
+  ctx.ACX = { esc: (x) => String(x), ls: { al: (k, v) => v, yaz() {} } };
+  for (const f of ['kelime-banka', 'kelime']) vm.runInContext(read(`ingilizce/assets/${f}.js`), ctx);
+  return { K: ctx.KELIME, B: ctx.KELIME_BANKA };
+}
+test('kelime havuzu: her seviyede 60 benzersiz kelime, dört alan, örnekte kelime geçer; sahte kelimeler havuzda yok', () => {
+  const { K, B } = kelimeYukle();
+  const tum = new Set();
+  for (const sv of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']) {
+    assert.equal(B.sev[sv].length, 60, sv);
+    for (const s of B.sev[sv]) { const p = s.split('|'); assert.equal(p.length, 4, s); assert.match(p[1], /^(n|v|adj|adv|phr)$/, s); assert.ok(!tum.has(p[0]), 'tekrar: ' + p[0]); tum.add(p[0]); assert.ok(new RegExp(p[0].slice(0, Math.max(3, p[0].length - 3)), 'i').test(p[3]), 'örnekte yok: ' + p[0]); }
+  }
+  assert.equal(Object.keys(K.BANKA).length, 360);
+  assert.ok(B.sahte.length >= 16 && B.sahte.every((w) => !tum.has(w)));
+});
+test('aralıklı tekrar: Tekrar 10 dk; İyi 1 → 3 → aralık × kolaylık; Kolay daha uzun; Zor kolaylığı düşürür; evreler', () => {
+  const { K } = kelimeYukle();
+  const t0 = new Date(2026, 10, 7, 12).getTime();
+  let c = { n: 0, iv: 0, ef: 2.5, d: 0, hata: 0, son: 0 };
+  const iyi1 = K.hesapla(c, 2, t0); assert.equal(iyi1.iv, 1);
+  const iyi2 = K.hesapla(iyi1, 2, t0); assert.equal(iyi2.iv, 3);
+  const iyi3 = K.hesapla(iyi2, 2, t0); assert.equal(iyi3.iv, 8);
+  assert.ok(K.hesapla(iyi2, 3, t0).iv > iyi3.iv, 'kolay daha uzun');
+  const zor = K.hesapla(iyi2, 1, t0); assert.ok(zor.ef < iyi2.ef && zor.iv >= 1);
+  const unut = K.hesapla(iyi3, 0, t0); assert.deepEqual([unut.iv, unut.n, unut.hata, unut.d - t0], [0, 0, 1, 600000]);
+  assert.equal(K.evre({ son: 0 }), 'tohum'); assert.equal(K.evre({ son: 1, iv: 1 }), 'filiz'); assert.equal(K.evre({ son: 1, iv: 8 }), 'yaprak'); assert.equal(K.evre({ son: 1, iv: 21 }), 'cicek');
+});
+test('seviye testi: uydurma kelimeye “biliyorum” tahmini düşürür; seviye ilk %70 altı bant; güvenilirlik eşiği', () => {
+  const { K } = kelimeYukle();
+  const og = [], cv = [];
+  const ekle = (sev, n, bil) => { for (let i = 0; i < n; i++) { og.push({ k: sev + i, sev }); cv.push(i < bil ? 1 : 0); } };
+  ekle('A1', 5, 5); ekle('A2', 5, 5); ekle('B1', 5, 4); ekle('B2', 5, 2); ekle('C1', 5, 1); ekle('C2', 5, 0);
+  for (let i = 0; i < 10; i++) { og.push({ k: 's' + i, sahte: true }); cv.push(0); }
+  const r = K.testSonuc(og, cv);
+  assert.equal(r.sev, 'B2'); assert.ok(r.guvenilir); assert.equal(r.tahmin, Math.round((600 + 900 + 1500 * .8 + 2000 * .4 + 2500 * .2) / 50) * 50);
+  const cv2 = cv.slice(); for (let i = 30; i < 34; i++) cv2[i] = 1;   /* 4/10 sahte "biliyorum" */
+  const r2 = K.testSonuc(og, cv2); assert.ok(!r2.guvenilir && r2.tahmin < r.tahmin && r2.sahteBil === 4);
+});
+test('vocab sayfası: eski sabit deste kalktı, kişisel deste #calis içinde; betik sırası', () => {
+  const h = read('ingilizce/vocab.html');
+  assert.match(h, /<article class="kagit alis kel-alis" data-id="deste"/);
+  assert.doesNotMatch(h, /id="dkk"|var KELIME = \[/);
+  const sira = ['assets/hoca.js', 'assets/kelime-banka.js', 'assets/kelime.js'].map((x) => h.indexOf('<script src="' + x + '">'));
+  assert.ok(sira.every((x, i) => x > 0 && (i === 0 || x > sira[i - 1])));
+  assert.match(h, /KELIME\.kur\(D\.getElementById\('kelime-app'\)\)/);
+  const j = read('ingilizce/assets/kelime.js');
+  assert.match(j, /YENI_GUNLUK = 10/); assert.match(j, /tohum: Math\.floor\(Math\.random\(\) \* 4294967295\)/, 'öğrenciye özel sıra');
+  assert.match(read('supabase/functions/ingilizce-hoca/index.ts'), /const sev = tur === 'deste' && \/\^\(A1\|A2\|B1\|B2\|C1\|C2\)\$\/\.test/);
 });
 
 summary();
