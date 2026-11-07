@@ -49,7 +49,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .marka{display:flex;align-items:center;gap:9px;text-decoration:none;align-self:center;flex:none}
 .marka img{width:30px;height:30px;border-radius:8px;border:2px solid var(--ink)}
 .marka b{font:800 19px var(--disp);letter-spacing:-.02em}
-.marka .el{font-size:23px;color:var(--c);transform:rotate(-5deg) translateY(2px);margin-left:-2px}
+.marka .el{font-size:19px;color:var(--c);transform:rotate(-5deg) translateY(3px);margin-left:-2px;white-space:nowrap}
 .sekme{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none;padding-top:8px}
 .sekme::-webkit-scrollbar{display:none}
 .sekme a{--t:var(--ink3);position:relative;display:flex;align-items:center;gap:7px;padding:8px 13px 9px;border:2px solid var(--ink);border-bottom:0;border-radius:10px 10px 0 0;background:var(--kagit3);text-decoration:none;font:600 14.5px var(--body);color:var(--ink2);transform:translateY(4px);transition:transform .25s var(--ease),background .25s;white-space:nowrap}

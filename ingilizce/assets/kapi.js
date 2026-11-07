@@ -26,7 +26,7 @@
      kapı yine arkada denetler, oturum yoksa kilitler */
   function iz(var_) { try { if (var_) sessionStorage.setItem('acx.kapi', String(Date.now())); else sessionStorage.removeItem('acx.kapi'); } catch (e) {} }
   function ac() { if (kilitEl) { kilitEl.remove(); kilitEl = null; } iz(true); var once = H.classList.contains('kapi'); H.classList.remove('kapi'); if (once) D.dispatchEvent(new Event('acx:acik')); }
-  var KAPALI = ['Bu bölüm hesabı olanlara açık', 'Acadex English şu an yalnızca açık bir Acadex hesabıyla görülebiliyor. Yeni kayıt alınmıyor; hesabın varsa giriş yapıp buraya dönebilirsin.'];
+  var KAPALI = ['Bu bölüm hesabı olanlara açık', 'Acadingo şu an yalnızca açık bir Acadex hesabıyla görülebiliyor. Yeni kayıt alınmıyor; hesabın varsa giriş yapıp buraya dönebilirsin.'];
 
   async function denetle() {
     var sb = istemci();

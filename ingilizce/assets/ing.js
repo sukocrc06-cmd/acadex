@@ -447,7 +447,7 @@
     var yer = D.body.dataset.sayfa === 'hub'; if (!yer || sakin) return;
     var once = ls.al('kapakGordu', 0), sure = once ? 650 : 1500, adx = W.ACX_AD || (function () { try { return sessionStorage.getItem('acx.ad') || ''; } catch (e) { return ''; } })(), ad = adx ? ', ' + adx : '';
     var o = D.createElement('div'); o.className = 'kapak-ac' + (once ? ' kisa' : ''); o.style.setProperty('--sure', sure + 'ms'); o.setAttribute('aria-hidden', 'true');
-    o.innerHTML = '<div class="ic"><span class="el">' + gunTr(new Date()) + '</span><b>Defterin hazır' + esc(ad) + '.</b></div><div class="on"><div class="etk"><small>dönem defteri</small><b>English</b><span class="el">Acadex</span></div><span class="lastik"></span></div>';
+    o.innerHTML = '<div class="ic"><span class="el">' + gunTr(new Date()) + '</span><b>Defterin hazır' + esc(ad) + '.</b></div><div class="on"><div class="etk"><small>dönem defteri</small><b>Acadingo</b><span class="el">by Acadex</span></div><span class="lastik"></span></div>';
     D.body.appendChild(o); ls.yaz('kapakGordu', 1); sesCal('sayfa');
     var kapat = function () { o.classList.add('bitti'); setTimeout(function () { o.remove(); }, 450); };
     o.addEventListener('click', kapat); setTimeout(kapat, sure + (once ? 150 : 700));

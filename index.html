@@ -1338,6 +1338,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 </style>
 <link rel="stylesheet" href="css/acadex-kampus-tur.css">
 <link rel="stylesheet" href="css/acadex-kampus-tur-maskot.css">
+<link rel="stylesheet" href="css/acadingo-tanitim.css">
 </head>
 <body>
 <div data-acx-root="" style="font-family: 'Instrument Sans', system-ui, sans-serif; color: #0D1838; font-size: 17px; line-height: 1.6; background: #EEF1F6">
@@ -1355,7 +1356,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="#alanlar" data-sec="alanlar">Neden Acadex</a>
 <a href="#yontemler" data-sec="yontemler">Yöntemler</a>
 <a href="#medlab" data-sec="medlab">MedLab</a>
-<a href="ingilizce/">English</a>
+<a href="#acadingo" data-sec="acadingo">Acadingo</a>
 <a href="#gizlilik" data-sec="gizlilik">Gizlilik</a>
 <a href="#soru" data-sec="soru">Soru sor</a>
 <a href="#paketler">Paketler</a>
@@ -1379,7 +1380,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="#alanlar" style="color: #C5CFE6; text-decoration: none">Neden Acadex</a>
 <a href="#yontemler" style="color: #C5CFE6; text-decoration: none">Yöntemler</a>
 <a href="#medlab" style="color: #C5CFE6; text-decoration: none">MedLab</a>
-<a href="ingilizce/" style="color: #C5CFE6; text-decoration: none">English</a>
+<a href="#acadingo" style="color: #C5CFE6; text-decoration: none">Acadingo</a>
 <a href="#gizlilik" style="color: #C5CFE6; text-decoration: none">Gizlilik</a>
 <a href="#soru" style="color: #C5CFE6; text-decoration: none">Soru sor</a>
 <a href="#paketler" style="color: #C5CFE6; text-decoration: none">Paketler</a>
@@ -1981,6 +1982,94 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 </div>
 </section>
 
+<!-- ===== ACADINGO · BİR GÜNÜN BEŞ DURAĞI (css/acadingo-tanitim.css, js/acadingo-tanitim.js) ===== -->
+<section id="acadingo" class="acg" data-acg data-a="0" aria-labelledby="acg-t">
+<div class="acg-intro">
+<span class="acg-eyb"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2"/><path d="M8 13q4 4 8 0" fill="none" stroke="#1A2A5C" stroke-width="2" stroke-linecap="round"/></svg>Acadingo · by Acadex</span>
+<h2 class="acg-h" id="acg-t">İngilizce, <u>günün içinde</u> öğrenilir.</h2>
+<p class="acg-lead">Acadingo bir ders listesi değil, bir gün. Kahvaltıda kelime, otobüste dinleme, kütüphanede okuma, kafede konuşma, gece yurtta yazma. Kaydır, Acadia'yla bir günü birlikte geçirin.</p>
+<span class="acg-not" aria-hidden="true">aşağı kaydır, gün başlasın ↓</span>
+</div>
+<div class="acg-track">
+<div class="acg-stage">
+<div class="acg-gok" aria-hidden="true"><div class="acg-yildiz"></div><div class="acg-gunes"></div></div>
+<ol class="acg-saat" aria-label="Günün durakları">
+<li style="--c:#E3A80F"><button type="button"><b>07:40</b><span>Vocab</span></button></li>
+<li style="--c:#0F8582"><button type="button"><b>08:15</b><span>Listening</span></button></li>
+<li style="--c:#2C7A4B"><button type="button"><b>10:00</b><span>Reading</span></button></li>
+<li style="--c:#DD5A36"><button type="button"><b>17:00</b><span>Speaking</span></button></li>
+<li style="--c:#C93B2B"><button type="button"><b>21:40</b><span>Writing</span></button></li>
+</ol>
+<div class="acg-orta">
+<div class="acg-yol" aria-hidden="true">
+<svg viewBox="0 0 600 330">
+<path class="zemin" d="M40 280 C 130 280 110 140 210 160 S 320 300 400 220 S 470 70 560 80"/>
+<path class="serit" d="M40 280 C 130 280 110 140 210 160 S 320 300 400 220 S 470 70 560 80"/>
+<path class="iz" pathLength="1" d="M40 280 C 130 280 110 140 210 160 S 320 300 400 220 S 470 70 560 80"/>
+<g class="durak"><circle r="12" fill="#E3A80F"/><text y="-22">kahvaltı</text></g>
+<g class="durak"><circle r="12" fill="#0F8582"/><text y="-22">otobüs</text></g>
+<g class="durak"><circle r="12" fill="#2C7A4B"/><text y="-22">kütüphane</text></g>
+<g class="durak"><circle r="12" fill="#DD5A36"/><text y="-22">kafe</text></g>
+<g class="durak"><circle r="12" fill="#C93B2B"/><text y="-22">yurt</text></g>
+<g class="acadia-y" transform="translate(40 250)"><g class="gov">
+<rect x="-14" y="-6" width="28" height="34" rx="12" fill="#C93B2B" stroke="#1A2A5C" stroke-width="3"/>
+<circle cy="-18" r="15" fill="#F6D7B0" stroke="#1A2A5C" stroke-width="3"/>
+<path d="M-15 -22 q15 -16 30 0 q-6 -4 -15 -3 q-9 -1 -15 3z" fill="#1A2A5C"/>
+<circle cx="-5" cy="-17" r="2.2" fill="#1A2A5C"/><circle cx="5" cy="-17" r="2.2" fill="#1A2A5C"/>
+<path d="M-4 -10 q4 3 8 0" fill="none" stroke="#1A2A5C" stroke-width="2" stroke-linecap="round"/>
+<rect x="8" y="0" width="12" height="16" rx="3" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2.5"/>
+</g></g>
+</svg>
+</div>
+<div class="acg-kartlar">
+<article class="acg-kart" style="--c:#E3A80F">
+<svg class="sahne" viewBox="0 0 150 110" aria-hidden="true"><rect x="10" y="78" width="130" height="10" rx="5" fill="#E7DCC3" stroke="#1A2A5C" stroke-width="3"/><path d="M40 40h50v26a18 18 0 0 1-18 18h-14a18 18 0 0 1-18-18z" fill="#fff" stroke="#1A2A5C" stroke-width="3"/><path d="M90 48h8a9 9 0 0 1 0 18h-8" fill="none" stroke="#1A2A5C" stroke-width="3"/><path d="M55 30q-5-8 0-16M70 30q-5-8 0-16" fill="none" stroke="#E3A80F" stroke-width="3" stroke-linecap="round"/><rect x="104" y="30" width="34" height="44" rx="4" fill="#FFD86B" stroke="#1A2A5C" stroke-width="3"/><text x="121" y="57" text-anchor="middle" font-family="Bricolage Grotesque" font-weight="800" font-size="13" fill="#1A2A5C">cup</text></svg>
+<span class="mono">07:40 · kahvaltı · Vocab</span>
+<h3>Kelimeyle güne başla.</h3>
+<p>Çay demlenirken beş kelime: kartı çevir, sesini dinle, cümlede gör. Unuttuğun kelime yarın tekrar karşına çıkar.</p>
+<span class="el">"a steaming cup of tea"</span>
+</article>
+<article class="acg-kart" style="--c:#0F8582">
+<svg class="sahne" viewBox="0 0 150 110" aria-hidden="true"><rect x="12" y="30" width="126" height="54" rx="12" fill="#0F8582" stroke="#1A2A5C" stroke-width="3"/><rect x="24" y="40" width="26" height="20" rx="3" fill="#D9ECF6" stroke="#1A2A5C" stroke-width="2.5"/><rect x="58" y="40" width="26" height="20" rx="3" fill="#D9ECF6" stroke="#1A2A5C" stroke-width="2.5"/><rect x="92" y="40" width="34" height="20" rx="3" fill="#D9ECF6" stroke="#1A2A5C" stroke-width="2.5"/><circle cx="40" cy="88" r="10" fill="#1A2A5C"/><circle cx="110" cy="88" r="10" fill="#1A2A5C"/><path d="M58 18q8-10 16 0M52 14q14-18 28 0" fill="none" stroke="#0F8582" stroke-width="3" stroke-linecap="round"/></svg>
+<span class="mono">08:15 · otobüs · Listening</span>
+<h3>Yolda kulağın açık.</h3>
+<p>Kampüs duyurusu, bir podcast, kafede iki kişi. Önce boşluk doldur, sonra cümleyi tekrar et; hız senin elinde.</p>
+<span class="el">"the next stop is Main Library"</span>
+</article>
+<article class="acg-kart" style="--c:#2C7A4B">
+<svg class="sahne" viewBox="0 0 150 110" aria-hidden="true"><rect x="16" y="84" width="118" height="8" fill="#1A2A5C"/><rect x="24" y="30" width="16" height="54" fill="#2C7A4B" stroke="#1A2A5C" stroke-width="3"/><rect x="40" y="40" width="14" height="44" fill="#FFD86B" stroke="#1A2A5C" stroke-width="3"/><rect x="54" y="24" width="18" height="60" fill="#C93B2B" stroke="#1A2A5C" stroke-width="3"/><rect x="80" y="46" width="52" height="38" rx="3" fill="#fff" stroke="#1A2A5C" stroke-width="3"/><path d="M86 56h40M86 64h40M86 72h28" stroke="#2C7A4B" stroke-width="3"/></svg>
+<span class="mono">10:00 · kütüphane · Reading</span>
+<h3>Gazeteyi aç, oku.</h3>
+<p>Konusunu küpürden seçtiğin bir gazete: sayfa çevirir, bilmediğin kelimeye dokunursun, sonunda üç soru.</p>
+<span class="el">"campus news, page 2"</span>
+</article>
+<article class="acg-kart" style="--c:#DD5A36">
+<svg class="sahne" viewBox="0 0 150 110" aria-hidden="true"><path d="M14 22h70a10 10 0 0 1 10 10v20a10 10 0 0 1-10 10H40l-14 12v-12h-12a10 10 0 0 1-10-10V32a10 10 0 0 1 10-10z" fill="#DD5A36" stroke="#1A2A5C" stroke-width="3"/><path d="M66 48h70a10 10 0 0 1 10 10v16a10 10 0 0 1-10 10h-12v12l-14-12H66a10 10 0 0 1-10-10V58a10 10 0 0 1 10-10z" fill="#fff" stroke="#1A2A5C" stroke-width="3"/><path d="M24 40h50M76 64h56" stroke="#1A2A5C" stroke-width="3" stroke-linecap="round"/></svg>
+<span class="mono">17:00 · kafe · Speaking</span>
+<h3>Sesli söyle.</h3>
+<p>Kahve siparişi, tanışma, fikrini savunma. Konuşursun, Acadingo dinler; telaffuz ve akıcılık için sana tek bir ipucu verir.</p>
+<span class="el">"could I get a flat white?"</span>
+</article>
+<article class="acg-kart" style="--c:#C93B2B">
+<svg class="sahne" viewBox="0 0 150 110" aria-hidden="true"><rect x="10" y="80" width="130" height="8" fill="#1A2A5C"/><rect x="30" y="50" width="70" height="30" rx="3" fill="#fff" stroke="#1A2A5C" stroke-width="3"/><path d="M38 60h44M38 68h30" stroke="#C93B2B" stroke-width="3"/><path d="M116 80V40l-12-14h24z" fill="#FFD86B" stroke="#1A2A5C" stroke-width="3"/><path d="M98 72l18-18" stroke="#C93B2B" stroke-width="5" stroke-linecap="round"/><circle cx="130" cy="16" r="9" fill="#F5EFE2" stroke="#1A2A5C" stroke-width="2.5"/></svg>
+<span class="mono">21:40 · yurt odası · Writing</span>
+<h3>Günü yaz, kalem düzeltsin.</h3>
+<p>Kısa bir günlük ya da IELTS görevi. Kırmızı kalem hataları işaretler, banda göre ne kadar yaklaştığını gösterir.</p>
+<span class="el">"today I finally understood…"</span>
+</article>
+</div>
+</div>
+<div class="acg-alt" aria-hidden="true"><div class="acg-cubuk"><i></i></div></div>
+</div>
+</div>
+<div class="acg-son">
+<span class="acg-renkler" aria-hidden="true"><i style="background:#E3A80F"></i><i style="background:#0F8582"></i><i style="background:#2C7A4B"></i><i style="background:#DD5A36"></i><i style="background:#C93B2B"></i></span>
+<h3>Senin günün de beş durak.</h3>
+<a class="acg-btn" href="ingilizce/">Acadingo'yu aç <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+<small>Acadex hesabınla açılır · kurulum yok</small>
+</div>
+</section>
+
 <section id="gizlilik" style="background: #FFFFFF">
 <div style="max-width: 1240px; margin: 0 auto; padding: 130px 28px">
 <div class="gz-row">
@@ -2275,7 +2364,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="legal.html#privacy" style="color: #B4C0DA; text-decoration: none">KVKK</a>
 <a href="legal.html#privacy" style="color: #B4C0DA; text-decoration: none">Gizlilik</a>
 <a href="legal.html#terms" style="color: #B4C0DA; text-decoration: none">Koşullar</a>
-<a href="ingilizce/" style="color: #B4C0DA; text-decoration: none">Acadex English</a>
+<a href="ingilizce/" style="color: #B4C0DA; text-decoration: none">Acadingo</a>
 <a href="changelog.html" style="color: #B4C0DA; text-decoration: none">Yenilikler</a>
 <a href="login.html?portal=admin" style="color: #B4C0DA; text-decoration: none">Yönetim girişi</a>
 <a href="#soru" style="color: #B4C0DA; text-decoration: none">Bize soru sor</a>
@@ -3954,6 +4043,7 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 <script src="js/acadia-rehber.js"></script>
 <link rel="stylesheet" href="css/acadex-destek.css">
 <script src="js/acadex-kampus-tur.js"></script>
+<script src="js/acadingo-tanitim.js"></script>
 <script src="js/acadex-push.js"></script>
 <script src="js/acadex-destek.js"></script>
 </body>

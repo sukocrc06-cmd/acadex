@@ -9080,3 +9080,30 @@ body:has(#bp-deco:not([hidden])) #axa-layer .axa-mas,body:has(#bp-deco:not([hidd
 @media (prefers-reduced-motion:no-preference){.axl-pom-alert .axl-pa-box{animation:axlPa .35s cubic-bezier(.3,1.5,.5,1) both}}
 @keyframes axlPa{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
 html.ax-dark .axl-pom-alert .axl-pa-box{box-shadow:5px 5px 0 #1A2A5C}
+
+/* ==========================================================================
+   ACADINGO · masa kartı (dashboard.html .acg-kart, js/acadingo-kart.js), 07.11.2026
+   ========================================================================== */
+#home-view.axd .acg-kart{--ac:#E3A80F;display:flex;flex-direction:column;gap:14px;border-top:6px solid var(--ac);transition:border-color .4s}
+#home-view.axd .acg-kart .card-h{margin-bottom:0}
+#home-view.axd .acg-k-ust{display:flex;align-items:center;gap:14px}
+#home-view.axd .acg-k-acadia{width:46px;height:68px;flex:none;animation:acgKSek 2.6s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes acgKSek{50%{transform:translateY(-3px) rotate(-3deg)}}
+#home-view.axd .acg-k-simdi{display:grid;gap:2px;min-width:0}
+#home-view.axd .acg-k-mono{font:500 12.5px "JetBrains Mono",ui-monospace,monospace;color:#6A7593;letter-spacing:.02em}
+#home-view.axd .acg-k-ad{font:800 26px/1.05 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.02em;color:var(--ink)}
+#home-view.axd .acg-k-ad span{font-weight:600;color:var(--ac);filter:brightness(.82)}
+#home-view.axd .acg-k-sekmeler{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+#home-view.axd .acg-k-sek{position:relative;display:grid;gap:1px;padding:8px 6px 9px;min-height:52px;border:1.4px solid #C9D1E1;border-top:5px solid var(--c);border-radius:6px 8px 7px 8px;background:#fff;color:var(--navy);text-decoration:none;transition:transform .2s,box-shadow .2s}
+#home-view.axd .acg-k-sek:hover,#home-view.axd .acg-k-sek:focus-visible{transform:translateY(-2px);box-shadow:0 8px 14px -10px rgba(13,24,56,.5)}
+#home-view.axd .acg-k-sek small{font:500 10.5px "JetBrains Mono",ui-monospace,monospace;color:#8A93AB}
+#home-view.axd .acg-k-sek b{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#home-view.axd .acg-k-sek i{position:absolute;right:5px;top:4px;font-style:normal;font-weight:800;font-size:13px;color:var(--c);filter:brightness(.8)}
+#home-view.axd .acg-k-sek.ok{background:color-mix(in srgb,var(--c) 14%,#fff)}
+#home-view.axd .acg-k-sek.sira{border-color:var(--c);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 35%,transparent)}
+#home-view.axd .acg-k-alt{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto}
+#home-view.axd .acg-k-ozet{font:600 19px Caveat,"Segoe Print",cursive;color:#6A7593}
+#home-view.axd .acg-k-btn{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:8px;background:var(--ink);color:#fff;font-size:14.5px;font-weight:700;text-decoration:none;transition:transform .2s,background .2s}
+#home-view.axd .acg-k-btn:hover,#home-view.axd .acg-k-btn:focus-visible{transform:translateY(-1px);background:var(--ac);color:#fff}
+@media (max-width:480px){#home-view.axd .acg-k-sekmeler{gap:4px}#home-view.axd .acg-k-sek{padding:7px 3px 8px}#home-view.axd .acg-k-sek b{font-size:10.5px;letter-spacing:-.02em}#home-view.axd .acg-k-sek small{font-size:9.5px}#home-view.axd .acg-k-sek i{right:3px}}
+@media (prefers-reduced-motion:reduce){#home-view.axd .acg-k-acadia{animation:none}}

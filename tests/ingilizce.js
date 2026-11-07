@@ -67,12 +67,56 @@ test('kapi.js: oturum yok → kilit ve giriş bağlantısı; izinsiz → kilit; 
   r = await kos(true, true, true); assert.ok(r.kilitli, 'Supabase yoksa açık kapı yok');
 });
 
-test('landing: English bağlantısı üst menü, yapışkan menü ve alt menüde', () => {
+test('landing: Acadingo bağlantısı üst menü, yapışkan menü ve alt menüde', () => {
   const h = read('index.html');
-  assert.match(h, /<a href="#medlab" data-sec="medlab">MedLab<\/a>\n<a href="ingilizce\/">English<\/a>/);
-  assert.match(h, /<a href="ingilizce\/" style="color: #C5CFE6; text-decoration: none">English<\/a>/);
-  assert.match(h, /<a href="ingilizce\/" style="color: #B4C0DA; text-decoration: none">Acadex English<\/a>/);
-  assert.doesNotMatch(read('dashboard.html'), /ingilizce\//, 'panelde değil');
+  assert.match(h, /<a href="#medlab" data-sec="medlab">MedLab<\/a>\n<a href="#acadingo" data-sec="acadingo">Acadingo<\/a>/);
+  assert.match(h, /<a href="#acadingo" style="color: #C5CFE6; text-decoration: none">Acadingo<\/a>/);
+  assert.match(h, /<a href="ingilizce\/" style="color: #B4C0DA; text-decoration: none">Acadingo<\/a>/);
+  assert.doesNotMatch(h, /Acadex English|>English<\/a>/, 'eski ad kalmadı');
+});
+
+/* 07.11.2026 Acadingo: tanıtım sahnesi "bir günün beş durağı" (css/acadingo-tanitim.css, js/acadingo-tanitim.js) */
+test('landing: #acadingo sahnesi MedLab ile Gizlilik arasında, beş durak ve panele giden buton', () => {
+  const h = read('index.html'), i = h.indexOf('<section id="acadingo"'), m = h.indexOf('<section id="medlab"'), g = h.indexOf('<section id="gizlilik"');
+  assert.ok(m > 0 && m < i && i < g, 'sıra: medlab < acadingo < gizlilik');
+  const sec = h.slice(i, g);
+  assert.equal((sec.match(/<article class="acg-kart"/g) || []).length, 5);
+  ['07:40', '08:15', '10:00', '17:00', '21:40'].forEach(t => assert.ok(sec.includes('<b>' + t + '</b>'), t));
+  assert.match(sec, /<a class="acg-btn" href="ingilizce\/">Acadingo'yu aç/);
+  assert.match(h, /<link rel="stylesheet" href="css\/acadingo-tanitim.css">/);
+  assert.match(h, /<script src="js\/acadingo-tanitim.js"><\/script>/);
+  const css = read('css/acadingo-tanitim.css');
+  assert.match(css, /\.acg-stage\{position:sticky/);
+  assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{[\s\S]*\.acg-stage\{position:relative/, 'hareket azaltılınca sabitleme yok');
+  assert.doesNotMatch(css, /(^|[^-\w])\.(on|ust)\b(?![-\w])\s*[{,]/m, 'çakışan çıplak sınıf yok');
+  const js = read('js/acadingo-tanitim.js');
+  assert.match(js, /getPointAtLength/);
+  assert.match(js, /Math\.floor\(p \* N\)/);
+});
+
+/* 07.11.2026 Acadingo: masa kartı "şu anki durak" (dashboard.html, js/acadingo-kart.js) */
+test('dashboard: Acadingo kartı yarım genişlik, rozetlerden sonra, saatlerden önce', () => {
+  const d = read('dashboard.html'), k = d.indexOf('data-acg-kart'), w = d.indexOf('id="home-weak-topics-card"'), s = d.indexOf('<section class="card sched land"');
+  assert.ok(w < k && k < s);
+  assert.match(d, /<section class="card c-6 land acg-kart" data-acg-kart/);
+  assert.match(d, /<a class="acg-k-btn" data-acg-git href="ingilizce\/">Acadingo'ya git →<\/a>/);
+  assert.match(d, /<script src="js\/acadingo-kart.js"><\/script>/);
+  assert.match(read('css/acadex-ink.css'), /#home-view\.axd \.acg-kart\{/);
+});
+test('dashboard kartı: saat dilimleri ing.js simdi ile aynı', () => {
+  const k = read('js/acadingo-kart.js'), g = read('ingilizce/assets/ing.js');
+  assert.match(k, /dk < 510 \? 0 : dk < 600 \? 1 : dk < 840 \? 2 : dk < 1140 \? 3 : 4/);
+  [510, 600, 840, 1140].forEach(n => assert.ok(g.includes('dk < ' + n), 'ing.js ' + n));
+  assert.match(k, /'acx\.ing\.' \+ k/);
+});
+test('ad: her görünen yerde Acadingo, adres ingilizce/ aynı', () => {
+  ['index', 'vocab', 'listening', 'reading', 'speaking', 'writing'].forEach(f => {
+    const h = read('ingilizce/' + f + '.html');
+    assert.match(h, /<b>Acadingo<\/b><span class="el">by Acadex<\/span>/, f);
+    assert.match(h, /<title>[^<]*Acadingo[^<]*<\/title>/, f);
+    assert.doesNotMatch(h, /Acadex English|Acadex · English/, f);
+  });
+  assert.doesNotMatch(read('ingilizce/assets/kapi.js'), /Acadex English/);
 });
 
 /* auth.js: ?sonra=ingilizce → girişten sonra panel değil ingilizce/ (Google dönüşü sessionStorage ile) */
