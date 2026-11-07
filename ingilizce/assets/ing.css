@@ -1633,3 +1633,31 @@ html.gz-acik{overflow:hidden}
 .ok-arsiv-g small{font:500 10px var(--mono);color:var(--ink3)}
 .ok-arsiv-g b{font:700 12.5px/1.15 Georgia,serif;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .ok-arsiv-g .damga{position:absolute;right:-4px;bottom:6px;padding:1px 6px;border:2px solid var(--reading);color:var(--reading);font:800 10px var(--mono);font-style:normal;transform:rotate(-14deg);background:rgba(255,255,255,.6)}
+
+/* küpür panosu (oku.js gazeteCiz / kupurKes): günün konuları gazeteden kesilmiş küpürler */
+.ok-pano-bas{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--ink);padding-bottom:4px;margin-bottom:10px}
+.ok-pano-bas b{font:900 italic 17px Georgia,serif}
+.ok-pano-bas span{font:500 10.5px var(--mono);color:var(--ink3);text-transform:uppercase}
+.ok-pano{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px;padding:4px 2px 8px}
+.ok-kupur{position:relative;display:grid;gap:3px;align-content:start;padding:12px 11px 12px;text-align:left;background:#FBF7EC;background-image:radial-gradient(rgba(60,45,20,.07) 1px,transparent 1.3px);background-size:4px 4px;border:0;color:#1F2A44;font-family:Georgia,serif;
+  clip-path:polygon(0 3%,6% 0,14% 2%,22% 0,31% 3%,40% 0,49% 2%,58% 0,67% 3%,76% 0,85% 2%,93% 0,100% 3%,98% 14%,100% 27%,97% 40%,100% 53%,98% 66%,100% 79%,97% 91%,100% 100%,90% 97%,80% 100%,70% 97%,60% 100%,50% 97%,40% 100%,30% 97%,20% 100%,10% 97%,0 100%,2% 88%,0 75%,3% 62%,0 49%,2% 36%,0 23%,3% 12%);
+  filter:drop-shadow(0 0 0 transparent);transform:rotate(var(--r));transition:transform .25s var(--ease),background-color .25s;cursor:pointer;animation:kupurGel .5s var(--yay) backwards;animation-delay:var(--kd)}
+.ok-pano{filter:drop-shadow(2px 3px 0 rgba(26,42,92,.55))}
+.ok-kupur:hover,.ok-kupur:focus-visible{transform:rotate(0) translateY(-4px) scale(1.03);background-color:#FFFDF6}
+.ok-kupur small{font:600 10px var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--ink3)}
+.ok-kupur b{font:900 15px/1.12 Georgia,serif}
+.ok-kupur>span[lang]{font-size:12px;line-height:1.35;color:#4A5470;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ok-kupur .bant{position:absolute;top:-2px;left:50%;width:46px;height:14px;margin-left:-23px;background:rgba(255,229,122,.75);transform:rotate(-4deg)}
+.ok-kupur.secili{background-color:#FFF6D6}
+.ok-kupur.gordu b::after{content:" ✓";color:var(--reading);font-size:12px}
+.ok-kupur .damga{position:absolute;right:6px;bottom:6px;padding:1px 6px;border:2px solid var(--speaking);color:var(--speaking);font:800 10px var(--mono);font-style:normal;transform:rotate(-12deg);background:rgba(255,255,255,.7)}
+.ok-kupur .makas{position:absolute;left:2px;top:0;font-size:18px;opacity:0;pointer-events:none}
+.ok-kupur.kesiliyor{animation:kupurKalk .75s var(--ease) forwards}
+.ok-kupur.kesiliyor .makas{animation:makas .6s linear forwards}
+@keyframes makas{0%{opacity:1;transform:translate(0,-6px) rotate(90deg)}100%{opacity:1;transform:translate(calc(100% + 120px),-6px) rotate(90deg)}}
+@keyframes kupurKalk{0%,55%{transform:rotate(var(--r))}100%{transform:translateY(-26px) rotate(-6deg) scale(1.08)}}
+@keyframes kupurGel{from{transform:translateY(-14px) rotate(calc(var(--r) * -3)) scale(.9);opacity:0}}
+.ok-pano.karis .ok-kupur{animation:kupurKaris .55s var(--yay) backwards;animation-delay:var(--kd)}
+@keyframes kupurKaris{0%{transform:translateX(-30px) rotate(-12deg);opacity:0}100%{transform:rotate(var(--r))}}
+@media (max-width:420px){.ok-pano{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.ok-kupur,.ok-kupur.kesiliyor,.ok-pano.karis .ok-kupur{animation:none}}

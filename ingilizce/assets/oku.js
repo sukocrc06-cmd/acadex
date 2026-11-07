@@ -69,7 +69,22 @@
     });
   }
 
-  var OKU = { norm: norm, sayKelime: sayKelime, sure: sure, tamamDogru: tamamDogru, taraDogru: taraDogru, wpmHesap: wpmHesap, odak: odak, obekle: obekle, yakin: yakin, gunSec: gunSec, seri: seri, fosEkle: fosEkle, dogrula: dogrula };
+  /* günün küpürleri: seviyeye en yakın makalelerden, her biri ayrı kategoriden; görülmemişler önce.
+     tur (Başka küpürler sayacı) değişince aynı gün başka konular gelir; aynı gün + aynı tur hep aynı set. */
+  function kupurSec(gun, sev, liste, gor, tur, n) {
+    n = n || 4; gor = gor || {};
+    var kats = liste.map(function (m) { return m.kat; }).filter(function (k, i, a) { return a.indexOf(k) === i; });
+    var t = tohum('kupur:' + gun + ':' + sev), sira = kats.slice().sort(function (a, b) { return tohum(a + t) - tohum(b + t); });
+    var bas = ((tur || 0) * n) % Math.max(1, sira.length), secilen = [];
+    for (var i = 0; i < sira.length && secilen.length < n; i++) {
+      var kat = sira[(bas + i) % sira.length], ad = liste.filter(function (m) { return m.kat === kat; });
+      var hedef = yakin(sev, ad.map(function (m) { return m.sev; })), uy = ad.filter(function (m) { return m.sev === hedef; });
+      var yeni = uy.filter(function (m) { return !gor[m.id]; }); if (yeni.length) uy = yeni;
+      if (uy.length) secilen.push(uy[tohum(gun + kat + (tur || 0)) % uy.length]);
+    }
+    return secilen;
+  }
+  var OKU = { kupurSec: kupurSec, norm: norm, sayKelime: sayKelime, sure: sure, tamamDogru: tamamDogru, taraDogru: taraDogru, wpmHesap: wpmHesap, odak: odak, obekle: obekle, yakin: yakin, gunSec: gunSec, seri: seri, fosEkle: fosEkle, dogrula: dogrula };
   W.OKU = OKU;
 
   /* ====================================================================== ekran */
@@ -179,20 +194,36 @@
     var bekle = false; W.addEventListener('scroll', function () { if (!bekle) { bekle = true; W.requestAnimationFrame(function () { bekle = false; ilerle(); }); } }, { passive: true });
 
     /* ---------- kütüphane, gazete ---------- */
-    function gazeteCiz() {
+    function gazeteCiz(karistir) {
       var g = st.gazete[bugun()], n = seri(st.gazete, Date.now());
-      var m = g && tum().filter(function (x) { return x.id === g.id; })[0] || gunSec(bugun(), st.sev, tum(), st.gor);
-      if (!g) { st.gazete[bugun()] = { id: m.id, ok: 0 }; kaydet(); g = st.gazete[bugun()]; }
+      var m = g && tum().filter(function (x) { return x.id === g.id; })[0];
+      var kup = kupurSec(bugun(), st.sev, tum(), st.gor, st.kupur && st.kupur.gun === bugun() ? st.kupur.tur : 0);
+      if (m && !kup.some(function (x) { return x.id === m.id; })) kup = [m].concat(kup.slice(0, 3));   /* seçtiğin küpür panoda kalır */
       var acik = $('#ok-gazete').classList.contains('acik');
       var tarih = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      /* katlı gazete: üst yarı görünür; "aç" ile alt yarı 3B iner */
+      /* katlı gazete: üst yarıda manşet (seçilen küpür) ya da "küpürünü seç"; açınca alt yarıda küpür panosu */
       $('#ok-gazete').innerHTML = '<div class="ok-gz-kagit">' +
-        '<div class="ok-gz-yari ust"><div class="ok-gz-ust"><span>No. ' + Object.keys(st.gazete).length + '</span><b>The Campus Gazette</b><span>' + esc(katAd(m.kat)) + ' · ' + m.sev + '</span></div>' +
+        '<div class="ok-gz-yari ust"><div class="ok-gz-ust"><span>No. ' + Math.max(1, Object.keys(st.gazete).length) + '</span><b>The Campus Gazette</b><span>' + (m ? esc(katAd(m.kat)) + ' · ' + m.sev : 'seviye ' + st.sev) + '</span></div>' +
           '<div class="ok-gz-tarih"><span>' + tarih + '</span><span>günün makalesi</span><span>' + (n ? n + ' günlük seri' : 'seri bugün başlar') + '</span></div>' +
-          '<h4 lang="en">' + esc(m.b) + '</h4><p class="ok-gz-alt-b" lang="en">' + esc(m.tr || '') + '</p></div>' +
-        '<div class="ok-gz-sar"><div class="ok-gz-yari alt"><div class="ok-gz-sutun" lang="en"><p>' + esc(m.p[0]) + '</p><p>' + esc((m.p[1] || '').split(' ').slice(0, 26).join(' ')) + '…</p></div>' +
-          '<div class="alt-satir"><button type="button" class="btn ana sm" data-gazete="' + esc(m.id) + '" data-gun="' + bugun() + '">' + (g.ok ? '✓ okundu · gazeteyi aç' : '📰 Gazeteyi oku') + '</button><button type="button" class="btn sm" data-masa="' + esc(m.id) + '">masada aç</button></div><span class="ok-gz-ilan">ADVERT · Office hours are free. Use them.</span></div></div>' +
-        '</div><button type="button" class="ok-gz-ac" data-gz-ac aria-expanded="' + acik + '">' + (acik ? 'Gazeteyi katla ⤴' : 'Gazeteyi aç ⤵') + '</button>' + arsivHtml();
+          (m ? '<h4 lang="en">' + esc(m.b) + '</h4><p class="ok-gz-alt-b" lang="en">' + esc(m.tr || '') + '</p>' : '<h4>Bugünün haberini sen seç ✂</h4><p class="ok-gz-alt-b">Gazeteyi aç, bir küpür kes; o konu bugünün sayısı olur.</p>') + '</div>' +
+        '<div class="ok-gz-sar"><div class="ok-gz-yari alt"><div class="ok-pano-bas"><b>Today’s clippings</b><span>' + kup.length + ' konu · ' + esc(st.sev) + '</span></div>' +
+          '<div class="ok-pano' + (karistir ? ' karis' : '') + '">' + kup.map(function (x, i) {
+            var sec = m && m.id === x.id;
+            return '<button type="button" class="ok-kupur' + (sec ? ' secili' : '') + (st.gor[x.id] && !sec ? ' gordu' : '') + '" data-kupur="' + esc(x.id) + '" style="--r:' + [-2.5, 1.8, 2.2, -1.6][i % 4] + 'deg;--kd:' + (i * 70) + 'ms">' +
+              '<span class="bant" aria-hidden="true"></span><small>' + (BK.KAT.filter(function (k) { return k.id === x.kat; })[0] || {}).ik + ' ' + esc(katAd(x.kat)) + ' · ' + x.sev + '</small><b lang="en">' + esc(x.b) + '</b><span lang="en">' + esc(x.p[0].split(' ').slice(0, 14).join(' ')) + '…</span>' +
+              (sec ? '<i class="damga">' + (g.ok ? 'OKUNDU' : 'SEÇİLDİ') + '</i>' : '') + '<span class="makas" aria-hidden="true">✂</span></button>';
+          }).join('') + '</div>' +
+          '<div class="alt-satir"><button type="button" class="btn sm" data-kupur-yeni>✂ Başka küpürler</button>' + (m ? '<button type="button" class="btn ana sm" data-gazete="' + esc(m.id) + '" data-gun="' + bugun() + '">' + (g.ok ? '✓ okundu · gazeteyi aç' : '📰 Gazeteyi oku') + '</button><button type="button" class="btn sm" data-masa="' + esc(m.id) + '">masada aç</button>' : '') + '</div></div></div>' +
+        '</div><button type="button" class="ok-gz-ac" data-gz-ac aria-expanded="' + acik + '">' + (acik ? 'Gazeteyi katla ⤴' : m ? 'Gazeteyi aç ⤵' : 'Küpürleri gör ⤵') + '</button>' + arsivHtml();
+    }
+    /* küpür kes: makas kenarda gezer, küpür kalkar, manşet döner, gazete açılır */
+    function kupurKes(b) {
+      var m = tum().filter(function (x) { return x.id === b.dataset.kupur; })[0]; if (!m) return;
+      var g = st.gazete[bugun()];
+      if (!g || g.id !== m.id) { st.gazete[bugun()] = { id: m.id, ok: g && g.ok ? 1 : 0 };   /* bugün bir sayıyı bitirdiysen seri ve görev korunur */ kaydet(); }
+      var ac = function () { gazeteCiz(); manset(m, function () { gazeteAc(m, bugun()); }); };
+      if (A.sakin) { ac(); return; }
+      b.classList.add('kesiliyor'); A.sesCal('tebesir'); setTimeout(ac, 750);
     }
     /* arşiv: önceki günlerin sayıları yığın halinde; okunanlar damgalı */
     function arsivHtml() {
@@ -512,6 +543,8 @@
       if (b.dataset.kat) { st.kat = b.dataset.kat; kaydet(); listeCiz(); return; }
       if (b.dataset.mk) { var mk = tum().filter(function (x) { return x.id === b.dataset.mk; })[0]; if (mk) { yukle(mk); masa.scrollIntoView({ behavior: A.sakin ? 'auto' : 'smooth', block: 'start' }); } return; }
       if (b.hasAttribute('data-yeni')) { yeniGetir(b); return; }
+      if (b.dataset.kupur) { kupurKes(b); return; }
+      if (b.hasAttribute('data-kupur-yeni')) { var ku = st.kupur && st.kupur.gun === bugun() ? st.kupur.tur : 0; st.kupur = { gun: bugun(), tur: ku + 1 }; kaydet(); gazeteCiz(true); A.sesCal('sayfa'); return; }
       if (b.hasAttribute('data-gz-ac')) { var gk = $('#ok-gazete'), ac2 = !gk.classList.contains('acik'); gk.classList.toggle('acik', ac2); b.setAttribute('aria-expanded', ac2); b.textContent = ac2 ? 'Gazeteyi katla ⤴' : 'Gazeteyi aç ⤵'; A.sesCal('sayfa'); return; }
       if (b.dataset.gazete) { var gm = tum().filter(function (x) { return x.id === b.dataset.gazete; })[0]; if (gm) manset(gm, function () { gazeteAc(gm, b.dataset.gun || bugun()); }); return; }
       if (b.dataset.masa) { var mm = tum().filter(function (x) { return x.id === b.dataset.masa; })[0]; if (mm) { yukle(mm, true); masa.scrollIntoView({ behavior: A.sakin ? 'auto' : 'smooth', block: 'start' }); } return; }

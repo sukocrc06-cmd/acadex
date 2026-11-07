@@ -818,4 +818,20 @@ test('gazete okuyucusu: üç sayfa, köşeler, ortak fosfor, sorular yalnız o g
   assert.match(c, /@media \(prefers-reduced-motion:reduce\)\{\.gz-okur,\.gz-kitap,\.gz-s,\.gz-kose\{animation:none!important/);
 });
 
+
+test('küpür panosu: dört ayrı kategori, seviyeye en yakın; aynı gün aynı set, "Başka küpürler" konuları değiştirir', () => {
+  const { O, B } = okuYukle();
+  const a = O.kupurSec('2026-11-07', 'B1', B.MAKALE, {}, 0), a2 = O.kupurSec('2026-11-07', 'B1', B.MAKALE, {}, 0), b = O.kupurSec('2026-11-07', 'B1', B.MAKALE, {}, 1);
+  assert.equal(a.length, 4); assert.equal(new Set(a.map((m) => m.kat)).size, 4, 'her küpür ayrı konu');
+  assert.deepEqual(a.map((m) => m.id), a2.map((m) => m.id));
+  assert.equal(b.filter((m) => a.some((x) => x.kat === m.kat)).length, 0, 'yeni tur başka kategoriler getirir');
+  for (const m of a.concat(b)) assert.ok(['A2', 'B1'].includes(m.sev), m.id + ' seviyeye yakın');
+  assert.notDeepEqual(O.kupurSec('2026-11-08', 'B1', B.MAKALE, {}, 0).map((m) => m.kat), a.map((m) => m.kat), 'ertesi gün başka sıra');
+  const c1 = O.kupurSec('2026-11-07', 'C2', B.MAKALE, {}, 0); assert.ok(c1.every((m) => m.sev === 'C1'));
+  const j = read('ingilizce/assets/oku.js');
+  assert.match(j, /st\.gazete\[bugun\(\)\] = \{ id: m\.id, ok: g && g\.ok \? 1 : 0 \};/, 'konu değişince bugünün tamamı kaybolmaz');
+  assert.match(j, /if \(b\.dataset\.kupur\) \{ kupurKes\(b\); return; \}/);
+  assert.match(read('ingilizce/assets/ing.css'), /animation:kupurGel \.5s var\(--yay\) backwards;/, 'animasyon bitince hover çalışır');
+});
+
 summary();
