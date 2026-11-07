@@ -793,3 +793,42 @@ svg.hoca[data-bak=saat] .bas{transform:rotate(-9deg) translate(-3px,4px)}
 @media (max-width:620px){.ak-raf{height:170px}.kitap{width:calc(var(--kw) * .85)}.kitap span{font-size:12.5px}.ak-sev small{display:none}.ak-rol{grid-template-columns:1fr}.ak-masa{padding:14px}}
 @media (prefers-reduced-motion:reduce){.kitap,.ak-taboo,.ak-grafik rect,.ak-grafik .gr-cizgi,.ak-puan,.ak-oda.kayitta .sv-saat{animation:none!important;transition:none}.ak-grafik .gr-cizgi{stroke-dashoffset:0}}
 .kitap.uzun span{font-size:12px;letter-spacing:0}@media (max-width:620px){.kitap.uzun span{font-size:10.5px}}
+
+/* ==========================================================================
+   Çay soğumadan dört tur (assets/cay.js): günlük set, otomatik seviye
+   ========================================================================== */
+.cay-gun{display:grid;grid-template-columns:1.2fr 1fr auto;gap:18px;align-items:center;padding:16px 20px}
+.cay-tarih b{display:block;font:800 22px var(--disp);text-transform:capitalize;margin:2px 0}.cay-tarih small,.cay-seviye small{color:var(--ink3);font-size:13.5px}
+.cay-sv{display:flex;align-items:baseline;gap:8px;margin:2px 0 4px}.cay-sv b{font:800 30px/1 var(--disp);color:var(--c)}.cay-sv span{font:600 14px var(--body);color:var(--ink2)}
+.cay-sv-bar{height:10px;max-width:220px;border:1.5px solid var(--ink);border-radius:6px;background:var(--kagit3);overflow:hidden;margin-bottom:4px}
+.cay-sv-bar i{display:block;height:100%;width:var(--w);background:var(--c);animation:dol 1s var(--ease)}
+.cay-bardak{display:grid;justify-items:center;gap:0;min-width:84px}
+.cay-bardak svg{width:56px;height:64px;overflow:visible}
+.cay-bardak .cam{fill:rgba(255,255,255,.6);stroke:var(--ink);stroke-width:2.5;stroke-linejoin:round}
+.cay-bardak .cay{fill:#B8461B;opacity:.9;transition:d .6s}
+.cay-bardak .tabak{stroke:var(--ink);stroke-width:3;stroke-linecap:round}
+.cay-bardak .buhar{fill:none;stroke:var(--ink3);stroke-width:2;stroke-linecap:round;stroke-dasharray:4 4;animation:buhar2 2.4s linear infinite}
+.cay-bardak.bitti .buhar{display:none}
+.cay-bardak b{font:700 15px var(--mono)}.cay-bardak small{font:500 11px var(--mono);color:var(--ink3)}
+.cay-turlar{display:grid;gap:22px}
+.cay-govde{margin-top:10px}
+.cay-ust2{margin-bottom:6px}.cay-adim{font:500 12px var(--mono);color:var(--ink3);letter-spacing:.06em}
+.cay-kelime{font-size:20px;margin:4px 0 8px}.cay-kelime b{font-weight:700}
+.cay-kelime .bag{color:var(--c);font-weight:800;margin:0 1px}
+.cay-durum{font-size:17px;font-weight:600;margin:4px 0 8px}
+.cay-sec{display:grid;gap:8px;margin:6px 0}
+.cay-sec button{min-height:46px;padding:8px 14px;text-align:left;border:2px solid var(--ink);border-radius:12px;background:#fff;font:500 16px var(--body);color:var(--ink);cursor:pointer;transition:transform .15s var(--ease),background .2s}
+.cay-sec button:hover:not([disabled]){transform:translateX(3px)}
+.cay-sec button.ok{background:#DDF2E3;border-color:var(--reading)}.cay-sec button.yok{background:#FBE0DA;border-color:var(--kirmizi)}
+.cay-not{min-height:20px;margin-top:6px;font-size:15px}.cay-not .ok{color:var(--reading)}.cay-not .yok{color:var(--kirmizi)}
+.cay-not .fark{line-height:1.9}.cay-not .fark span{padding:1px 4px;border-radius:4px}.cay-not .fark .ok{background:#DDF2E3}.cay-not .fark .yok{background:#FBE0DA;text-decoration:line-through}
+.cay-yaz{display:flex;gap:8px;align-items:flex-end;margin-top:8px}.cay-yaz textarea{flex:1;padding:10px 12px;border:2px solid var(--ink);border-radius:10px;background:#FFFDF8;font:400 16px var(--body);resize:vertical}
+.cay-al .btn.kayitta{background:var(--kirmizi);color:#fff;animation:nabiz2 1.2s infinite}
+.cay-canli{min-height:18px;margin:6px 0 0;color:var(--ink2);font-style:italic}
+.cay-metin{margin:6px 0;padding:8px 12px;border-left:4px solid var(--c);background:#fff;border-radius:0 10px 10px 0;line-height:1.6}
+.cay-ifade{display:grid;gap:2px;padding:12px 14px;border:2px solid var(--ink);border-radius:10px;background:var(--postit);box-shadow:3px 3px 0 var(--ink);transform:rotate(-.6deg);margin-bottom:8px}
+.cay-ifade b{font:800 20px var(--disp)}.cay-ifade span{font:600 17px var(--hand);color:var(--ink2)}.cay-ifade p{margin:4px 0 0}
+.cay-sonuc{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;border:2px dashed var(--cizgi);border-radius:12px;background:#fff}
+.cay-sonuc b{font:800 28px var(--disp);color:var(--c)}.cay-sonuc span{flex:1;color:var(--ink2)}
+@media (max-width:760px){.cay-gun{grid-template-columns:1fr auto;gap:12px}.cay-tarih{grid-column:1/-1}}
+@media (prefers-reduced-motion:reduce){.cay-bardak .buhar,.cay-al .btn.kayitta{animation:none}}

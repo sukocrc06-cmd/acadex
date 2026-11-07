@@ -493,4 +493,58 @@ test('atölye sayfası ve fonksiyon: bölüm, betik sırası; konusma havuzu ve 
   assert.match(j, /if \(liste\.length && g\.length < liste\.length\) return yerelSec\(anahtar, liste\)\.veri;/, 'önce görülmemiş yerel, sonra havuz');
 });
 
+/* Çay soğumadan dört tur (07.11.2026): her gün yeni set, dört aile, otomatik seviye */
+function cayYukle(depoIlk) {
+  const depo = Object.assign({}, depoIlk || {});
+  const ctx = { window: null, document: { body: { dataset: {} } }, console, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, Promise, Math, Date };
+  ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(read('ingilizce/assets/hoca.js'), ctx);
+  ctx.ACX = { esc: (x) => String(x), ls: { al: (k, v) => (k in depo ? depo[k] : v), yaz: (k, v) => { depo[k] = JSON.parse(JSON.stringify(v)); } }, icerik: null, yz: async () => null, gunlukEkle() {} };
+  for (const f of ['sinav-banka', 'sinav', 'konusma-banka', 'cay-banka', 'cay']) vm.runInContext(read(`ingilizce/assets/${f}.js`), ctx);
+  return { C: ctx.CAY, B: ctx.CAY_BANKA, depo };
+}
+test('çay: banka her seviyede yeterli; vurgu indeksleri geçerli; tür ailelerinin hepsinin koşucusu var', () => {
+  const { C, B } = cayYukle();
+  for (const sv of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']) {
+    const c = B.sev[sv];
+    assert.ok(c.vurgu.length >= 6 && c.vurgu.every((v) => v[2] >= 0 && v[2] < v[1].length && v[1].join('').toLowerCase() === v[0].replace(/[^a-z]/gi, '').toLowerCase().slice(0, v[1].join('').length)), sv + ' vurgu');
+    assert.ok(c.golge.length >= 6 && c.baglanti.length >= 3 && c.ifade.length >= 6 && c.kalip.length >= 3 && c.uzat.length >= 3, sv);
+    assert.ok(c.baglanti.every((x) => x.includes('‿')), sv + ' bağlantı işareti');
+  }
+  assert.ok(B.ciftler.length >= 20 && B.tonlama.length >= 12 && B.gecis.length >= 12 && B.tekerleme.length >= 10);
+  for (const a of C.AILE) for (const t of a.turler) assert.equal(typeof C.KOS[t], 'function', t);
+  assert.deepEqual(C.AILE.map((a) => a.id).join(','), 'telaffuz,akicilik,dinle,kalip');
+});
+test('çay: aynı gün aynı set, ertesi gün farklı; her gün dört aile birer kez; 12 günde bütün türler', () => {
+  const { C } = cayYukle();
+  const p1 = C.gunPlani('2026-11-07', 'B1'), p1b = C.gunPlani('2026-11-07', 'B1'), p2 = C.gunPlani('2026-11-08', 'B1');
+  assert.deepEqual(p1.map((p) => p.tur), p1b.map((p) => p.tur));
+  assert.notDeepEqual(p1.map((p) => p.aile.id + p.tur), p2.map((p) => p.aile.id + p.tur));
+  const gor = new Set();
+  for (let d = 1; d <= 12; d++) { const p = C.gunPlani('2026-12-' + String(d).padStart(2, '0'), 'B1'); assert.equal(new Set(p.map((x) => x.aile.id)).size, 4); p.forEach((x) => gor.add(x.tur)); }
+  assert.equal(gor.size, 13, [...gor].join(','));
+  const r1 = C.tohum('a'), r2 = C.tohum('a'); assert.equal(r1(), r2());
+});
+test('çay: otomatik seviye: başlangıç atölye seviyesinden; gün içinde sabit, başarı ertesi günü değiştirir', () => {
+  const { C, depo } = cayYukle({ 'akSev': 'B2' });
+  const v = C.veriAl(new Date(2026, 10, 7, 10));
+  assert.equal(v.gunler['2026-11-07'].sev, 'B2');
+  for (let i = 0; i < 4; i++) C.seviyeGuncelle(v, 1);
+  assert.equal(v.gunler['2026-11-07'].sev, 'B2', 'gün içinde değişmez');
+  assert.ok(v.sev >= 3.85 && v.sev < 4, 'yarın C1’e yakın: ' + v.sev);
+  C.seviyeGuncelle(v, 1); depo.cay = v;
+  assert.equal(C.veriAl(new Date(2026, 10, 8, 9)).gunler['2026-11-08'].sev, 'C1');
+  const d = { sev: 0.1, gunler: {} }; C.seviyeGuncelle(d, 0); assert.equal(d.sev, 0, 'A1’in altına inmez');
+});
+test('çay sayfası: eski dört alıştırma kalktı, #calis içinde günlük set; betik sırası', () => {
+  const h = read('ingilizce/speaking.html');
+  assert.match(h, /<div class="calis cay" id="cay-gun"><\/div>/);
+  assert.doesNotMatch(h, /id="t-vurgu"|id="t-gecis"|id="golge"|id="kart-bas"/);
+  const sira = ['assets/konusma-banka.js', 'assets/cay-banka.js', 'assets/cay.js'].map((x) => h.indexOf('<script src="' + x + '">'));
+  assert.ok(sira.every((x, i) => x > 0 && (i === 0 || x > sira[i - 1])));
+  assert.match(h, /CAY\.kur\(D\.getElementById\('cay-gun'\)\)/);
+  assert.match(read('ingilizce/assets/cay.js'), /if \(gun\.en\[i\] >= GECER\) A\.bitir\(P, 'cay-' \+ an \+ '-' \+ i\)/, 'en az %40 alan tur günlük sayaca ve mühüre girer');
+  assert.match(read('ingilizce/assets/cay.js'), /if \(ilk\) \{ gun\.puan\[i\] = puan; seviyeGuncelle\(v, puan\); \}/, 'seviyeyi yalnız ilk deneme oynatır');
+});
+
 summary();

@@ -45,25 +45,17 @@
   /* ---------- seviyeye göre sayfa ---------- */
   var SAYFA = {
     kolay: { adim: [['Isınma', 'Adın, memleketin, bölümün: kısa ve rahat cevaplar. Hoca yavaş konuşur.'], ['Resim anlatma', 'Resimde ne görüyorsun, insanlar ne yapıyor? Bir dakika.'], ['Görüş sorusu', 'Fikrini söyle, bir neden ve örnek ver; takip sorusu gelir.'], ['Sonuç', '/20 puan ve geçti-kaldı tahmini; her cevabının kaydı.']],
-      konu: ['mülakat · görüş sorusu', 'Should students have a part-time job while they are studying?', ['kısa bir cevap ver', 'bir neden ekle', 'bir örnek ver', 'takip sorusuna hazır ol']],
-      rozet: { gecis: 'Mülakatta takılınca', kart: 'Görüş sorusuna hazırlık', vurgu: 'Anlaşılır konuşma', golge: 'Telaffuz' }, sira: ['gecis', 'kart', 'vurgu', 'golge'] },
+      konu: ['mülakat · görüş sorusu', 'Should students have a part-time job while they are studying?', ['kısa bir cevap ver', 'bir neden ekle', 'bir örnek ver', 'takip sorusuna hazır ol']] },
     orta: { adim: [['Part 1', 'Kendin hakkında kısa sorular; 4–5 dakika.'], ['Part 2 hazırlık', 'Konu kartı ve bir dakika not; cümle değil kelime yaz.'], ['Part 2 konuşma', 'Bir-iki dakika kesintisiz anlat; hoca 2. dakikada durdurur.'], ['Part 3 ve band', 'Soyut tartışma; sonunda dört kriterde tahmini band.']],
-      konu: ['konu kartı · part 2', 'Describe a place on campus where you like to spend time.', ['where it is', 'what you do there', 'who you go there with', 'and explain why you like it']],
-      rozet: { kart: 'IELTS Part 2 provası', gecis: 'Part 1–3 akıcılık', vurgu: 'Telaffuz kriteri', golge: 'Telaffuz' }, sira: ['kart', 'gecis', 'vurgu', 'golge'] },
+      konu: ['konu kartı · part 2', 'Describe a place on campus where you like to spend time.', ['where it is', 'what you do there', 'who you go there with', 'and explain why you like it']] },
     zor: { adim: [['Listen & Repeat', 'Yedi cümle, her biri bir kez. Duyduğun gibi tekrarla.'], ['Cümleler uzar', 'İlk cümle üç kelime, son cümle on beş kelime. Ritmi tut.'], ['Interview', 'Dört soru, her biri 45 saniye; hazırlık süresi yok.'], ['1–6 puan', 'Doğruluk, akıcılık, dil kullanımı ve anlaşılırlık; tahmini puan.']],
-      konu: ['interview · 45 saniye', 'Do you prefer studying in the morning or at night? Why?', ['hazırlık süresi yok', 'hemen başla', 'bir neden ve bir örnek', '45 saniyeyi doldur']],
-      rozet: { golge: 'TOEFL Listen & Repeat hazırlığı', gecis: 'Interview: hazırlıksız başlama', vurgu: 'Anlaşılırlık', kart: 'Uzun cevap pratiği' }, sira: ['golge', 'gecis', 'vurgu', 'kart'] }
+      konu: ['interview · 45 saniye', 'Do you prefer studying in the morning or at night? Why?', ['hazırlık süresi yok', 'hemen başla', 'bir neden ve bir örnek', '45 saniyeyi doldur']] }
   };
   function sayfaUyarla(lv) {
     var s = SAYFA[lv]; D.body.dataset.seviye = lv;
     D.querySelectorAll('.sahne .adimlar li').forEach(function (li, i) { if (s.adim[i]) li.innerHTML = '<div><b>' + esc(s.adim[i][0]) + '</b><span>' + esc(s.adim[i][1]) + '</span></div>'; });
     var k = D.querySelector('.sahne .konu');
     if (k) { k.querySelector('.etiket').textContent = s.konu[0]; k.querySelector('h3').textContent = s.konu[1]; var ul = k.querySelector('ul'); ul.innerHTML = s.konu[2].map(function (x) { return '<li>' + esc(x) + '</li>'; }).join(''); ul.lang = lv === 'orta' ? 'en' : 'tr'; }
-    D.querySelectorAll('#calis .alis').forEach(function (a) {
-      var r = a.querySelector('.sv-rozet'); if (!r) { r = D.createElement('span'); r.className = 'sv-rozet'; a.querySelector('.alis-u div').prepend(r); }
-      r.textContent = s.rozet[a.dataset.id] || ''; r.hidden = !s.rozet[a.dataset.id];
-      a.style.order = s.sira.indexOf(a.dataset.id) < 0 ? 9 : s.sira.indexOf(a.dataset.id);
-    });
   }
 
   /* ---------- resim sahneleri (kolay · resim anlatma) ---------- */
