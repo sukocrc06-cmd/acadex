@@ -94,6 +94,23 @@ test('landing: #acadingo sahnesi MedLab ile Gizlilik arasında, beş durak ve pa
   assert.match(js, /Math\.floor\(p \* N\)/);
 });
 
+/* 08.11.2026 "Derdini seç": tanıtım sayfasındaki ekip notlarının yerine (css/acadex-dert.css, js/acadex-dert.js) */
+test('landing: #dert bölümü Soru sor ile Kayıt arasında, ekip notları ve alt satırdaki ekip adları kalktı', () => {
+  const h = read('index.html'), s = h.indexOf('<section id="soru"'), d = h.indexOf('<section id="dert"'), k = h.indexOf('<section id="kayit"');
+  assert.ok(s > 0 && s < d && d < k, 'sıra: soru < dert < kayit');
+  const sec = h.slice(d, k);
+  const c = (sec.match(/data-drt-c="([a-z]+)"/g) || []).map(x => x.slice(12, -1)), kk = (sec.match(/data-drt-k="([a-z]+)"/g) || []).map(x => x.slice(12, -1));
+  assert.equal(c.length, 6); assert.deepEqual(c, kk, 'her derdin bir cevabı');
+  assert.equal((sec.match(/<article class="drt-k"[^>]*hidden>/g) || []).length, 5, 'betik yokken ilk cevap açık');
+  assert.match(sec, /href="ingilizce\/">Acadingo'yu aç/);
+  assert.doesNotMatch(h, /class="note-sec"|data-nf=""|Test koordinatöründen not|Kurucu ortaktan not/);
+  assert.match(h, /<div class="fsig"><span>© 2026 Acadex<\/span>/);
+  assert.match(h, /<link rel="stylesheet" href="css\/acadex-dert.css">/);
+  assert.match(h, /<script src="js\/acadex-dert.js"><\/script>/);
+  assert.doesNotMatch(read('css/acadex-dert.css'), /(^|[^-\w])\.(on|ust)\b(?![-\w])\s*[{,]/m, 'çakışan çıplak sınıf yok');
+  assert.match(read('js/acadex-dert.js'), /aria-pressed/);
+});
+
 /* 07.11.2026 Acadingo: masa kartı "şu anki durak" (dashboard.html, js/acadingo-kart.js) */
 test('dashboard: Acadingo kartı yarım genişlik, rozetlerden sonra, saatlerden önce', () => {
   const d = read('dashboard.html'), k = d.indexOf('data-acg-kart'), w = d.indexOf('id="home-weak-topics-card"'), s = d.indexOf('<section class="card sched land"');
