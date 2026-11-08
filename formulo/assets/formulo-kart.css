@@ -1,0 +1,72 @@
+/* ==========================================================================
+   FORMULO · ana sayfa kartı (formulo/assets/formulo-kart.css, js: formulo-kart.js), 08.11.2026
+   Beyaz Acadex kartının içinde küçük bir defter paftası (kareli kâğıt, mürekkep). Önek fok-.
+   ========================================================================== */
+@font-face{font-family:'LM Roman';font-display:swap;font-style:normal;src:url(fonts/lm-regular.woff) format('woff')}
+@font-face{font-family:'LM Roman';font-display:swap;font-style:italic;src:url(fonts/lm-italic.woff) format('woff')}
+@font-face{font-family:'LM Math';font-display:swap;src:url(fonts/lm-math.woff) format('woff')}
+.fok{--fok-c:#FFD86B;--bp:#FAF7F0;--bp2:#FFFFFF;--teb:#1E2A44;--sol:#5E677A;--math:'LM Roman','LM Math','Cambria Math','Times New Roman',serif;display:flex;flex-direction:column;gap:12px}
+.fok .card-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.fok-baslik{display:flex;align-items:baseline;gap:8px;margin:0;font:800 20px 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;color:#0D1838}
+.fok-baslik i{font-style:normal;color:#E3A80F}
+.fok-baslik small{font:600 16px Caveat,cursive;color:#2F6BFF;letter-spacing:0}
+.fok-seri{font:500 12px 'JetBrains Mono',monospace;color:#6A7593;white-space:nowrap}
+.fok-pafta{position:relative;overflow:hidden;border-radius:6px;color:var(--teb);padding:14px 16px 12px;background-color:var(--bp);
+  background-image:linear-gradient(rgba(30,42,68,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(30,42,68,.06) 1px,transparent 1px);background-size:16px 16px;border:1px solid rgba(30,42,68,.12);border-top:3px solid var(--fok-c);transition:border-color .4s}
+.fok-pafta::after{content:none}
+.fok-ust{display:flex;justify-content:space-between;align-items:center;gap:8px;font:500 11px 'JetBrains Mono',monospace;color:var(--sol);letter-spacing:.06em;text-transform:uppercase}
+.fok-ust b{color:var(--teb);font-weight:500}
+.fok-f{position:relative;z-index:1;margin:8px 0 2px;font:30px/1.45 var(--math);white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.fok-f i{font-style:italic}.fok-f b{font-weight:400}
+.fok-f sup,.fok-f sub{font-size:.62em;line-height:0}
+.fok-f .fv{border-bottom:1.5px dotted rgba(14,111,124,.6)}
+.fok-f .fr{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 .12em;font-size:.86em;line-height:1.2}
+.fok-f .fr>span{padding:0 .2em;align-self:stretch;text-align:center}.fok-f .fr>span:first-child{border-bottom:1.5px solid currentColor}
+.fok-f .sq>span{border-top:1.5px solid currentColor;padding:0 .12em}
+.fok-f .op{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;line-height:1}
+.fok-f .op b{font-family:'LM Math',var(--math);font-size:1.4em}
+.fok-f .op sup{order:-1;font-size:.5em}.fok-f .op sub{font-size:.5em}
+.fok-f.fok-yaz{animation:fokYaz 1.1s cubic-bezier(.5,0,.2,1) both}
+@keyframes fokYaz{from{clip-path:inset(-20px 100% -20px 0)}to{clip-path:inset(-20px 0 -20px 0)}}
+.fok-ad{position:relative;z-index:1;margin:0;font:600 19px/1.1 Caveat,cursive;color:#0E6F7C}
+.fok-sema{position:relative;display:block;width:100%;height:44px;margin-top:4px;opacity:.75;pointer-events:none}
+.fok-sema *{fill:none;stroke-linecap:round}
+.fok-sema .e{stroke:var(--teb);stroke-width:2;stroke-dasharray:300;stroke-dashoffset:300;animation:fokCiz 1.6s .5s ease forwards}
+.fok-sema .t{stroke:var(--fok-c);stroke-width:1.8}
+.fok-sema .q{fill:rgba(255,216,107,.3)}
+.fok-sema .n{fill:var(--fok-c);stroke:var(--teb);stroke-width:1.5}
+@keyframes fokCiz{to{stroke-dashoffset:0}}
+.fok-dug{display:flex;flex-wrap:wrap;gap:8px}
+.fok-dug button{min-height:40px;padding:0 14px;border-radius:8px;border:1.4px solid #C9D1E1;background:#fff;color:#0D1838;font:600 14px 'Instrument Sans',sans-serif;cursor:pointer;transition:border-color .2s,transform .15s}
+.fok-dug button:hover{border-color:#0D1838;transform:translateY(-1px)}
+.fok-dug .fok-ana{background:#0D1838;color:#fff;border-color:#0D1838}
+.fok-dene{padding:10px 12px;border:1.4px dashed #9EC3E8;border-radius:8px;background:#F4F8FD}
+.fok-dene-s{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0 0 8px;font-size:14px;color:#33405F}
+.fok-dene-s b{font:italic 16px var(--math);color:#0D1838}
+.fok-dene-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fok-dene-f label{display:flex;align-items:center;gap:6px;font-size:14px}
+.fok-dene-f label b{font:italic 17px var(--math)}
+.fok-dene-f input{width:110px;min-height:40px;padding:0 10px;border:1.4px solid #C9D1E1;border-radius:6px;font:500 15px 'JetBrains Mono',monospace}
+.fok-dene-f em{font-style:normal;font:500 12px 'JetBrains Mono',monospace;color:#6A7593}
+.fok-dene-f button{min-height:40px;padding:0 14px;border-radius:6px;border:0;background:#0D1838;color:#fff;font-weight:700;cursor:pointer}
+.fok-dene-c{margin:8px 0 0;font-size:14px;font-weight:600}
+.fok-ok{color:#1E8A55}.fok-no{color:#C9483B}
+.fok-son{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1.4px solid #E1E5EE;border-radius:8px;text-decoration:none;color:#0D1838;transition:border-color .2s,background .2s}
+.fok-son:hover{border-color:#0D1838;background:#FAFBFE}
+.fok-son>i{width:10px;align-self:stretch;border-radius:4px;background:var(--c)}
+.fok-son>span{display:grid;gap:1px;min-width:0;flex:1}
+.fok-son small{font:500 11px 'JetBrains Mono',monospace;color:#6A7593;text-transform:uppercase;letter-spacing:.06em}
+.fok-son b{font-size:14.5px}
+.fok-son span span{font-size:13px;color:#4B5675;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fok-son em{font-style:normal;font-weight:700}
+.fok-son-bos{font-size:14px;color:#4B5675}
+.fok-git{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:10px;background:#1E2A44;color:#fff;font:700 15.5px 'Instrument Sans',sans-serif;text-decoration:none;position:relative;overflow:hidden;transition:transform .2s}
+.fok-git::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(190,225,255,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(190,225,255,.18) 1px,transparent 1px);background-size:12px 12px;opacity:.6}
+.fok-git span{position:relative}
+.fok-git:hover{transform:translateY(-1px)}
+@media (prefers-reduced-motion:reduce){.fok-f.fok-yaz,.fok-sema .e{animation:none;stroke-dashoffset:0}}
+#home-view.axd .fok.card.land,.fok.card{border-top:6px solid var(--fok-c);transition:border-color .4s}
+.fok .card-h{margin-bottom:0}
+.fok .hd i{font-style:normal;color:#C98A00}
+.fok-baska{all:unset;cursor:pointer;color:#0E6F7C;font:500 11px 'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase;padding:6px 0}
+#home-view .fok a.fok-git,.fok a.fok-git{color:#fff}#home-view .fok a.fok-son,.fok a.fok-son{color:#0D1838}

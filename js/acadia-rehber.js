@@ -22,6 +22,8 @@
     { q: '#alanlar', side: 'l', pose: 'dusun', mood: 'dusunuyor', y: 22, t: 'Ezberden değil, anlamaktan yanayım.' },
     { q: '#yontemler', side: 'r', pose: 'isaret', mood: 'mutlu', y: 38, t: 'Pomodoro, aralıklı tekrar, Feynman… hepsi tek masada.' },
     { q: '#akis', side: 'l', pose: 'dur', mood: 'odakli', y: 20, t: 'Her derse ona uyan tekniği öneririm.' },
+    /* 08.11.2026 Formulo: tahtada Profesör Acadia anlatır; rehber o sırada kenara çekilir (css/acadex-formulo.css) */
+    { q: '#formulo', side: 'r', pose: 'isaret', mood: 'odakli', y: 30, sakla: true, t: 'Formulo tahtasına geçtim; kaydır, ders başlasın.' },
     { q: '#medlab', side: 'r', pose: 'isaret', mood: 'mutlu', y: 40, costume: 'medlab', t: 'Stetoskobumu taktım; sağlık kampüsünü birlikte gezelim.' },
     { q: '#gizlilik', side: 'l', pose: 'dur', mood: 'odakli', y: 20, t: 'Notların sende kalır; kimseye göstermem.' },
     { q: '#soru', side: 'r', pose: 'dusun', mood: 'dusunuyor', y: 42, t: 'Aklına takılan bir şey mi var? Sor, cevaplayalım.' },
@@ -51,6 +53,7 @@
     g.style.setProperty('--gy', s.y + 'vh');
     g.classList.toggle('on-dark', !!(s.el && (s.el.classList.contains('dk'))));
     live.textContent = s.t;
+    g.classList.toggle('fmu-sakla', !!s.sakla); if (s.sakla) return;
     if (fly.on) { fly.to(s); return; }
     if (!calm) { host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop'); }
     if (!narrow()) K.say(host, s.t, 4500);   /* 08.11.2026: balon bölüm değişince kısa süre; telefonda yok */

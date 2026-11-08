@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="tr" class="kapi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<script>/* kapı: son 30 dk içinde doğrulandıysa açık başla (assets/kapi.js yine denetler) */try{if(Date.now()-(+sessionStorage.getItem('acx.kapi')||0)<18e5)document.documentElement.classList.remove('kapi')}catch(e){}</script>
+<title>Formulo · by Acadex</title>
+<meta name="description" content="Formulo: mühendislik ortak derslerinin canlı formül kartları, Profesör Acadia'nın tahtada anlatımı ve sınırsız soru havuzu.">
+<meta name="theme-color" content="#FAF7F0">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
+<link rel="stylesheet" href="../css/acadia-kit.css">
+<link rel="stylesheet" href="assets/formulo.css">
+<link rel="stylesheet" href="assets/formulo-hoca.css">
+</head>
+<body>
+<header class="fo-ust" id="fo-ust">
+  <a class="fo-marka" href="#/" aria-label="Formulo · by Acadex">
+    <img src="assets/acadex-logo.png" alt="">
+    <svg class="fo-logo" viewBox="0 0 132 34" aria-hidden="true"><text x="0" y="27">Formul<tspan class="o">o</tspan></text></svg>
+    <span class="fo-by">by Acadex</span>
+  </a>
+  <nav class="fo-nav" aria-label="Formulo">
+    <a href="#/" data-fo-masa>Masa</a>
+    <a href="#/deste" data-fo-deste><span>Deste</span><b>0</b></a>
+    <a class="fo-acadex" href="../dashboard.html">← Acadex</a>
+  </nav>
+  <div class="fo-dil" role="group" aria-label="Dil / Language">
+    <button type="button" data-fo-dil="tr" aria-pressed="true">TR</button>
+    <button type="button" data-fo-dil="en" aria-pressed="false">EN</button>
+  </div>
+</header>
+<main id="fo-app" aria-live="polite"></main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="../js/supabase-config.js"></script>
+<script src="../js/acadex-erisim.js"></script>
+<script src="assets/kapi.js"></script>
+<script src="assets/formulo-veri.js"></script>
+<script src="assets/formulo-veri-ek.js"></script>
+<script src="../js/acadia-kit.js"></script>
+<script src="assets/formulo-lab.js"></script>
+<script src="assets/formulo-uret.js"></script>
+<script src="assets/formulo-tanitim.js"></script>
+<script src="assets/formulo-sahne.js"></script>
+<script src="assets/formulo-soru.js"></script>
+<script src="assets/formulo-sor.js"></script>
+<script src="assets/formulo.js"></script>
+</body>
+</html>

@@ -1339,6 +1339,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <link rel="stylesheet" href="css/acadex-kampus-tur.css">
 <link rel="stylesheet" href="css/acadex-kampus-tur-maskot.css">
 <link rel="stylesheet" href="css/acadingo-tanitim.css">
+<link rel="stylesheet" href="css/acadex-formulo.css">
 <link rel="stylesheet" href="css/acadex-dert.css">
 <link rel="stylesheet" href="css/acadex-sahne-canli.css">
 </head>
@@ -1357,6 +1358,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="#nasil" data-sec="nasil">Nasıl çalışır</a>
 <a href="#alanlar" data-sec="alanlar">Neden Acadex</a>
 <a href="#yontemler" data-sec="yontemler">Yöntemler</a>
+<a href="#formulo" data-sec="formulo">Formulo</a>
 <a href="#medlab" data-sec="medlab">MedLab</a>
 <a href="#acadingo" data-sec="acadingo">Acadingo</a>
 <a href="#gizlilik" data-sec="gizlilik">Gizlilik</a>
@@ -1381,6 +1383,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="#nasil" style="color: #C5CFE6; text-decoration: none">Nasıl çalışır</a>
 <a href="#alanlar" style="color: #C5CFE6; text-decoration: none">Neden Acadex</a>
 <a href="#yontemler" style="color: #C5CFE6; text-decoration: none">Yöntemler</a>
+<a href="#formulo" style="color: #C5CFE6; text-decoration: none">Formulo</a>
 <a href="#medlab" style="color: #C5CFE6; text-decoration: none">MedLab</a>
 <a href="#acadingo" style="color: #C5CFE6; text-decoration: none">Acadingo</a>
 <a href="#gizlilik" style="color: #C5CFE6; text-decoration: none">Gizlilik</a>
@@ -1746,6 +1749,53 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <span class="fl-loop nb-hand" aria-hidden="true">sonuçlar → daha iyi öneri</span>
 <span class="fl-who nb-hand" aria-hidden="true">1–2 senden,<br>3–4 Acadex'ten,<br>5 birlikte.</span>
 </div>
+</div>
+</section>
+
+<!-- ===== FORMULO: mühendislik formül atölyesi tanıtımı (css/acadex-formulo.css, js/acadex-formulo.js) ===== -->
+<section id="formulo" class="fmu" data-fmu data-a="0" aria-labelledby="fmu-t">
+<div class="fmu-intro">
+<span class="fmu-eyb"><b aria-hidden="true">∫</b>Formulo · mühendislik formül atölyesi</span>
+<h2 class="fmu-h" id="fmu-t">Formüller, <u>tahtada canlanır.</u></h2>
+<p class="fmu-lead">Calculus'tan sayısal yöntemlere sekiz ortak ders, 219 formül. Profesör Acadia her formülü tahtaya yazar, şeklini çizer, sonra seninle bir soru çözer.</p>
+<span class="fmu-not" aria-hidden="true">kaydır, ders başlasın ↓</span>
+</div>
+<div class="fmu-track">
+<div class="fmu-stage">
+<ol class="fmu-plan" aria-label="Bir formülün dersi">
+<li style="--c:#D99A00"><button type="button"><b>1</b><span>Yazar</span></button><p>Formül tebeşirle yazılır; her harfin ne olduğunu Acadia söyler.</p></li>
+<li style="--c:#2A9BB5"><button type="button"><b>2</b><span>Çizer</span></button><p>Şekli çizgi çizgi çizilir: top fırlar, menzil ölçülür.</p></li>
+<li style="--c:#2FA36B"><button type="button"><b>3</b><span>Kaydırırsın</span></button><p>Değeri kaydır; şekil ve sonuç anında değişir. Şu an kaydırma çubuğu sensin.</p></li>
+<li style="--c:#E07035"><button type="button"><b>4</b><span>Sorar</span></button><p>Ara soruda durur, cevabını bekler. Soru havuzunda binlerce soru var.</p></li>
+<li style="--c:#C9529E"><button type="button"><b>5</b><span>Cevaplar</span></button><p>Takıldığın yeri sor; istersen cevabı söylemeden ipucu verir.</p></li>
+</ol>
+<div class="fmu-tahta" aria-hidden="true">
+<div class="fmu-f" data-fmu-f><i>R</i> = <span class="fmu-fr"><span><i class="fmu-tv">v</i><sub>0</sub><sup>2</sup> sin 2<i class="fmu-tt">θ</i></span><span><i class="fmu-tg">g</i></span></span></div>
+<svg class="fmu-sekil" viewBox="0 0 400 176">
+<line class="fmu-zemin" x1="14" y1="150" x2="390" y2="150"/>
+<path class="fmu-iz" data-fmu-iz d="M34 150"/>
+<line class="fmu-ok" data-fmu-ok x1="34" y1="150" x2="66" y2="118"/>
+<path class="fmu-acy" data-fmu-acy d="M64 150"/>
+<text class="fmu-th-et" data-fmu-aci>θ</text>
+<path class="fmu-olcu" data-fmu-olcu d="M34 162"/>
+<line class="fmu-gok" x1="370" y1="24" x2="370" y2="62"/><text class="fmu-g-et" x="378" y="50">g</text>
+<circle class="fmu-top" data-fmu-top cx="34" cy="150" r="7"/>
+</svg>
+<div class="fmu-kay"><span class="fmu-sem fmu-tt">θ</span><span class="fmu-ray"><i data-fmu-ray></i></span><b data-fmu-th>45°</b><span class="fmu-sem fmu-sem-r">R</span><b class="fmu-r"><span data-fmu-r>40,8</span> m</b></div>
+<div class="fmu-soru"><small>ara soru</small><p>v₀ iki katına çıkarsa R ne olur?</p><div class="fmu-sik"><span>× 2</span><span class="fmu-dog">× 4</span><span>× ½</span><span>değişmez</span></div></div>
+<div class="fmu-sohbet"><p class="fmu-sen">menzil 45°'de neden en büyük?</p><p class="fmu-ac">İpucu: sin 2θ en çok kaç olabilir? Hangi açıda bu değere ulaşır?</p></div>
+<div class="fmu-alt"><span class="fmu-acd" data-fmu-acd></span><p class="fmu-balon" data-fmu-balon></p></div>
+</div>
+<div class="fmu-cubuk" aria-hidden="true"><i></i></div>
+</div>
+</div>
+<div class="fmu-son">
+<ul class="fmu-dersler" aria-label="Formulo dersleri">
+<li style="--c:#2A9BB5">Calculus I</li><li style="--c:#6C7FE0">Calculus II</li><li style="--c:#D99A00">Fizik I</li><li style="--c:#E07035">Fizik II</li><li style="--c:#2FA36B">Lineer Cebir</li><li style="--c:#C9529E">Diferansiyel Denklemler</li><li style="--c:#7FA52B">Olasılık ve İstatistik</li><li style="--c:#D9644F">Sayısal Yöntemler</li>
+</ul>
+<h3>Sekiz ders, binlerce soru, tek tahta.</h3>
+<a class="fmu-btn" href="formulo/">Formulo'yu aç <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+<small>Acadex hesabınla açılır · kurulum yok</small>
 </div>
 </section>
 
@@ -2326,6 +2376,7 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="legal.html#privacy" style="color: #B4C0DA; text-decoration: none">Gizlilik</a>
 <a href="legal.html#terms" style="color: #B4C0DA; text-decoration: none">Koşullar</a>
 <a href="ingilizce/" style="color: #B4C0DA; text-decoration: none">Acadingo</a>
+<a href="formulo/" style="color: #B4C0DA; text-decoration: none">Formulo</a>
 <a href="changelog.html" style="color: #B4C0DA; text-decoration: none">Yenilikler</a>
 <a href="login.html?portal=admin" style="color: #B4C0DA; text-decoration: none">Yönetim girişi</a>
 <a href="#soru" style="color: #B4C0DA; text-decoration: none">Bize soru sor</a>
@@ -4005,6 +4056,7 @@ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded'
 <link rel="stylesheet" href="css/acadex-destek.css">
 <script src="js/acadex-kampus-tur.js"></script>
 <script src="js/acadingo-tanitim.js"></script>
+<script src="js/acadex-formulo.js"></script>
 <script src="js/acadex-dert.js"></script>
 <script src="js/acadex-sahne-canli.js"></script>
 <script src="js/acadex-push.js"></script>

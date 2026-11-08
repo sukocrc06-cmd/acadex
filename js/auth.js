@@ -23,8 +23,9 @@ function getMsg(key, defaultVal) {
 // ACADEX ENGLISH (05.11.2026): ingilizce/ kilit kartındaki giriş bağlantısı
 // login.html?sonra=ingilizce ile gelir; girişten sonra (Google dönüşü dahil,
 // o dönüş login.html'e parametresiz düşer) panel yerine oraya dönülür.
+// FORMULO (08.11.2026): formulo/ kapısı da aynı yolu kullanır (?sonra=formulo).
 // Yalnız listedeki hedefler kabul edilir (açık yönlendirme yok).
-const SONRA_HEDEF = { ingilizce: 'ingilizce/' };
+const SONRA_HEDEF = { ingilizce: 'ingilizce/', formulo: 'formulo/' };
 (function () {
   try { const s = new URLSearchParams(window.location.search).get('sonra'); if (s && SONRA_HEDEF[s]) sessionStorage.setItem('acadex.sonra', s); } catch (e) { /* gizli pencere */ }
 })();
