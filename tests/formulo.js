@@ -135,6 +135,10 @@ test('08.11.2026: panel menüsünde Formulo satırı Ölç’ün altında; tanı
   const d = read('dashboard.html'), olc = d.indexOf('<div class="ax-grp" data-grp="olc">'), fo = d.indexOf('id="side-formulo"'), sep = d.indexOf('<div class="sep" aria-hidden="true"></div>');
   assert.ok(olc > 0 && olc < fo && fo < sep, 'Ölç grubundan sonra, ayraçtan önce');
   assert.match(d, /<ul class="sidebar-nav ax-formulo"><li class="sidebar-item" id="side-formulo"><a href="formulo\/">/);
+  /* menü tıklaması yalnız panel içi (#…) bağlantılarda engellenir; yoksa Formulo'ya gidilmiyordu */
+  const ink = read('js/acadex-ink.js');
+  assert.match(ink, /\$\$\('\.ax-side \.sidebar-item a\[href\^="#"\]'\)\.forEach\(function \(a\) \{ a\.addEventListener\('click', function \(e\) \{ e\.preventDefault\(\); \}\); \}\);/);
+  assert.doesNotMatch(ink, /\$\$\('\.ax-side \.sidebar-item a'\)\.forEach\(function \(a\) \{ a\.addEventListener\('click'/);
   const h = read('index.html');
   assert.match(h, /<nav class="auth-sabit" aria-label="Hesap"><a class="as-g" href="login\.html">Giriş yap<\/a><a class="as-k" href="register\.html">Kayıt ol<\/a><\/nav>/);
   assert.match(h, /\.auth-sabit\{position:fixed;top:10px;/);

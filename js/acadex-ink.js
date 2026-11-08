@@ -119,7 +119,8 @@ window.axNotify = function (title, opts) {
     switchDashboardView = function (v) { markNav(v); return origSwitch.apply(this, arguments); };
     window.switchDashboardView = switchDashboardView;
   }
-  $$('.ax-side .sidebar-item a').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); }); });
+  /* yalnız panel içi (#…) bağlantılar; Formulo gibi ayrı sayfaya giden bağlantı (href="formulo/") normal açılır (08.11.2026) */
+  $$('.ax-side .sidebar-item a[href^="#"]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); }); });
   markNav('home');
   /* "/" ile ara */
   document.addEventListener('keydown', function (e) {
