@@ -69,11 +69,12 @@ test('dashboard: Formulo kartı Acadingo\'dan sonra, saatlerden önce; bağlant�
   assert.match(read('formulo/assets/formulo-kart.css'), /@font-face\{font-family:'LM Roman'[^}]*fonts\/lm-regular\.woff/);
 });
 
-test('landing: #formulo sahnesi #akis ile MedLab arasında, menülerde ve altta bağlantı', () => {
+test('landing: #formulo sahnesi #akis ile MedLab arasında; üst menülerde yok (08.11.2026), altta bağlantı', () => {
   const h = read('index.html'), a = h.indexOf('<section id="akis"'), f = h.indexOf('<section id="formulo"'), m = h.indexOf('<section id="medlab"');
   assert.ok(a > 0 && a < f && f < m, 'sıra: akis < formulo < medlab');
-  assert.match(h, /<a href="#formulo" data-sec="formulo">Formulo<\/a>\n<a href="#medlab" data-sec="medlab">MedLab<\/a>\n<a href="#acadingo"/);
-  assert.match(h, /<a href="#formulo" style="color: #C5CFE6; text-decoration: none">Formulo<\/a>/);
+  /* 08.11.2026 kararı: Formulo tanıtım sayfasında yalnız kaydırınca gelen sahnede; üstteki iki menüde bağlantısı yok */
+  assert.doesNotMatch(h, /<a href="#formulo"/);
+  assert.match(h, /<a href="#yontemler" data-sec="yontemler">Yöntemler<\/a>\n<a href="#medlab" data-sec="medlab">MedLab<\/a>/);
   assert.match(h, /<a href="formulo\/" style="color: #B4C0DA; text-decoration: none">Formulo<\/a>/);
   const sec = h.slice(f, m);
   assert.equal((sec.match(/<li style="--c:#[0-9A-F]{6}"><button type="button">/g) || []).length, 5, 'beş adım');
@@ -128,6 +129,20 @@ test('üreticiler: her biri 60 denemede sonlu cevap ya da geçerli şık, ipucu 
       assert.ok(q.ip.length === 2 && q.cozum.length >= 1, g.id);
     }
   });
+});
+
+test('08.11.2026: panel menüsünde Formulo satırı Ölç’ün altında; tanıtımda Giriş/Kayıt sağ üstte sabit', () => {
+  const d = read('dashboard.html'), olc = d.indexOf('<div class="ax-grp" data-grp="olc">'), fo = d.indexOf('id="side-formulo"'), sep = d.indexOf('<div class="sep" aria-hidden="true"></div>');
+  assert.ok(olc > 0 && olc < fo && fo < sep, 'Ölç grubundan sonra, ayraçtan önce');
+  assert.match(d, /<ul class="sidebar-nav ax-formulo"><li class="sidebar-item" id="side-formulo"><a href="formulo\/">/);
+  const h = read('index.html');
+  assert.match(h, /<nav class="auth-sabit" aria-label="Hesap"><a class="as-g" href="login\.html">Giriş yap<\/a><a class="as-k" href="register\.html">Kayıt ol<\/a><\/nav>/);
+  assert.match(h, /\.auth-sabit\{position:fixed;top:10px;/);
+  assert.match(h, /<div class="hauth" aria-hidden="true"/, 'kahraman başlığındaki eşler yer tutar, görünmez');
+  assert.match(h, /\.hauth\{visibility:hidden\}/);
+  const snav = h.slice(h.indexOf('<nav class="snav"'), h.indexOf('</nav>', h.indexOf('<nav class="snav"')));
+  assert.doesNotMatch(snav, /register\.html/, 'kaydırma çubuğunda ikinci "Kayıt ol" yok');
+  assert.ok(h.indexOf('class="auth-sabit"') < h.indexOf('<nav class="snav"'));
 });
 
 summary();

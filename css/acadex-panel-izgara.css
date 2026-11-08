@@ -149,3 +149,6 @@ html.ax-dark #home-view .ax-pg-i svg{filter:invert(1) hue-rotate(180deg)}
   #home-view .ax-pg-t,body.acx .ax-side .ax-grp-b svg.ax-grp-c{transition:none}
   #home-view .ax-pg-t:hover,#home-view .ax-pg-t:focus-visible{transform:none}
 }
+
+/* 08.11.2026 · Formulo satırı (Ölç grubunun altında, ayrı sayfa) grup satırlarıyla aynı ağırlıkta */
+html.ax-grp-on body.acx .ax-side .ax-formulo .sidebar-item a{font-weight:600}

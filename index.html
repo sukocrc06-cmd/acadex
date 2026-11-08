@@ -1335,6 +1335,18 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
 .faq::details-content{transition:none}
 }
+/* 08.11.2026 · sağ üstte sabit Giriş yap / Kayıt ol (kahraman başlığı ve kaydırma çubuğundaki eşleri yer tutar, görünmez) */
+.auth-sabit{position:fixed;top:10px;right:max(16px,calc((100vw - 1240px) / 2 + 28px));z-index:60;display:flex;gap:8px;align-items:center}
+.auth-sabit a{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box;padding:10px 18px;border-radius:999px;font-weight:600;font-size:14.5px;text-decoration:none;white-space:nowrap;transition:background .2s,box-shadow .2s,transform .2s}
+.auth-sabit .as-g{color:#0D1838;background:rgba(255,255,255,.94);border:1px solid #D6DCE8;box-shadow:0 6px 18px -12px rgba(13,24,56,.5)}
+.auth-sabit .as-g:hover{background:#FFFFFF;color:#0D1838}
+.auth-sabit .as-k{color:#FFFFFF;background:#2F6BFF;border:1px solid #2F6BFF;box-shadow:0 8px 20px -10px rgba(47,107,255,.8)}
+.auth-sabit .as-k:hover{background:#1F5FD6;color:#FFFFFF}
+.auth-sabit a:focus-visible{outline:2px solid #5B8CFF;outline-offset:3px}
+.hauth{visibility:hidden}
+.snav-yer{flex:none;width:210px}
+@media (max-width: 760px){.auth-sabit{top:8px;right:12px;gap:6px}.auth-sabit a{min-height:40px;padding:8px 13px;font-size:13.5px}.snav-yer{width:170px}}
+@media (prefers-reduced-motion: reduce){.auth-sabit a{transition:none}}
 </style>
 <link rel="stylesheet" href="css/acadex-kampus-tur.css">
 <link rel="stylesheet" href="css/acadex-kampus-tur-maskot.css">
@@ -1348,6 +1360,8 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 
 <!-- ===== SMART MENU + READING PROGRESS (shown by script) ===== -->
 <div class="rprog" aria-hidden="true"><i data-pg=""></i><b class="rp-pen"><svg viewBox="0 0 40 10"><rect x="0" y="1" width="27" height="8" rx="1.5" fill="#2F6BFF"></rect><rect x="0" y="1" width="5" height="8" rx="1.5" fill="#F2B8B0"></rect><rect x="4" y="1" width="2" height="8" fill="#B9C2D6"></rect><path d="M27 1 L37 5 L27 9 Z" fill="#F1D6A8"></path><path d="M34 3.8 L38 5 L34 6.2 Z" fill="#1A2A5C"></path></svg></b></div>
+<!-- 08.11.2026 · Giriş yap / Kayıt ol: sayfanın başından sonuna sağ üstte sabit -->
+<nav class="auth-sabit" aria-label="Hesap"><a class="as-g" href="login.html">Giriş yap</a><a class="as-k" href="register.html">Kayıt ol</a></nav>
 <nav class="snav" data-snav="" aria-label="Bölüm menüsü">
 <div class="snav-in">
 <a href="#top" aria-label="Acadex ana sayfa" style="display: flex; align-items: center; gap: 10px; min-height: 44px; text-decoration: none; color: #0D1838">
@@ -1358,14 +1372,13 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="#nasil" data-sec="nasil">Nasıl çalışır</a>
 <a href="#alanlar" data-sec="alanlar">Neden Acadex</a>
 <a href="#yontemler" data-sec="yontemler">Yöntemler</a>
-<a href="#formulo" data-sec="formulo">Formulo</a>
 <a href="#medlab" data-sec="medlab">MedLab</a>
 <a href="#acadingo" data-sec="acadingo">Acadingo</a>
 <a href="#gizlilik" data-sec="gizlilik">Gizlilik</a>
 <a href="#soru" data-sec="soru">Soru sor</a>
 <a href="#paketler">Paketler</a>
 </div>
-<a href="register.html" style="color: #FFFFFF; background: #0D1838; text-decoration: none; font-weight: 600; font-size: 14px; padding: 10px 18px; border-radius: 999px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center">Kayıt ol</a>
+<span class="snav-yer" aria-hidden="true"></span>
 </div>
 </nav>
 
@@ -1383,14 +1396,13 @@ transform:translateY(calc(var(--hp,0) * 90px))}
 <a href="#nasil" style="color: #C5CFE6; text-decoration: none">Nasıl çalışır</a>
 <a href="#alanlar" style="color: #C5CFE6; text-decoration: none">Neden Acadex</a>
 <a href="#yontemler" style="color: #C5CFE6; text-decoration: none">Yöntemler</a>
-<a href="#formulo" style="color: #C5CFE6; text-decoration: none">Formulo</a>
 <a href="#medlab" style="color: #C5CFE6; text-decoration: none">MedLab</a>
 <a href="#acadingo" style="color: #C5CFE6; text-decoration: none">Acadingo</a>
 <a href="#gizlilik" style="color: #C5CFE6; text-decoration: none">Gizlilik</a>
 <a href="#soru" style="color: #C5CFE6; text-decoration: none">Soru sor</a>
 <a href="#paketler" style="color: #C5CFE6; text-decoration: none">Paketler</a>
 </nav>
-<div style="display: flex; gap: 8px; align-items: center">
+<div class="hauth" aria-hidden="true" style="display: flex; gap: 8px; align-items: center">
 <a href="login.html" style="color: #F1F4FA; text-decoration: none; font-weight: 600; font-size: 15px; padding: 10px 14px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center">Giriş yap</a>
 <a href="register.html" style="color: #F1F4FA; background: transparent; border: 1px solid #34437A; text-decoration: none; font-weight: 600; font-size: 15px; padding: 10px 18px; border-radius: 999px; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center">Kayıt ol</a>
 </div>
