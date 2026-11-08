@@ -9,7 +9,7 @@
   var D = W.document, FO = W.FORMULO;
   var SAKIN = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function al(k, v) { try { var x = localStorage.getItem('formulo.' + k); return x ? JSON.parse(x) : v; } catch (e) { return v; } }
-  function koy(k, v) { try { localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } }
+  function koy(k, v) { try { localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } if (W.FOBULUT) W.FOBULUT.degisti(k); }   /* hesaba kayıt: formulo-bulut.js */
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   function sayi(n) {
     if (!isFinite(n)) return '—';
@@ -80,6 +80,7 @@
     }
     function seriYaz() { var s = al('seri', { n: 0 }); el.querySelector('[data-fok-seri]').textContent = s.n ? s.n + ' gün seri' : 'seri başlat'; }
     sonYaz(); seriYaz();
+    D.addEventListener('formulo:bulut', function () { sonYaz(); seriYaz(); });   /* başka cihazdaki ilerleme geldi */
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
 })(window);

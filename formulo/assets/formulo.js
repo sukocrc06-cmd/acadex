@@ -10,7 +10,7 @@
   var D = W.document, FO = W.FORMULO, LAB = W.FOLAB;
   var SAKIN = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function al(k, v) { try { var x = localStorage.getItem('formulo.' + k); return x ? JSON.parse(x) : v; } catch (e) { return v; } }
-  function koy(k, v) { try { localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } }
+  function koy(k, v) { try { localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } if (W.FOBULUT) W.FOBULUT.degisti(k); }   /* hesaba kayıt: formulo-bulut.js */
   var dil = al('dil', 'tr'), deste = al('deste', []);
   var Y = {
     tr: { anlat: 'Acadia anlatsın', sekF: 'Formüller', sekS: 'Soru havuzu', sekA: 'Acadia’ya sor', masa: 'Masa', deste: 'Deste', formul: 'formül', lab: 'lab', geri: '← Masa', kitap: 'Kaynak kitaplar', konular: 'Konular', hepsi: 'Hepsi', labAc: 'Labda aç', dene: 'Kendini dene', kontrol: 'Kontrol et', yeni: 'Yeni soru', vazgec: 'Kapat', dogru: 'Doğru!', yanlis: 'Olmadı. Doğrusu', cevap: 'Cevabın', ekle: 'Desteye ekle', cikar: 'Desteden çıkar', bos: 'Destende henüz kart yok. Bir formülün yıldızına dokun.', labBos: 'Bir formülde "Labda aç"a dokun ya da aşağıdan bir lab seç.', lablar: 'Lablar', degisken: 'değişkene dokun: anlamı ve birimi', sonuc: 'sonuç', tablo: 'tablo', kapat: 'Kapat',
@@ -270,10 +270,17 @@
   }
 
   function kur() {
+    deste = al('deste', []);   /* hesaptaki kayıt bu betik yüklenirken birleşmiş olabilir */
     D.querySelectorAll('[data-fo-dil]').forEach(function (b) { b.addEventListener('click', function () { dil = b.getAttribute('data-fo-dil'); koy('dil', dil); goster(); }); });
     D.addEventListener('keydown', function (e) { if (e.key === 'Escape') D.body.classList.remove('fo-sheet'); });
     D.addEventListener('pointerdown', function (e) { if (D.body.classList.contains('fo-sheet') && !e.target.closest('[data-fo-lab],[data-lab]')) D.body.classList.remove('fo-sheet'); });
     W.addEventListener('hashchange', goster);
+    /* hesaptaki kayıt yerelle birleşince (formulo-bulut.js) deste sayacı ve açık görünüm tazelenir */
+    D.addEventListener('formulo:bulut', function () {
+      deste = al('deste', []); ust();
+      D.querySelectorAll('.fo-kart[data-f]').forEach(function (c) { var y = c.querySelector('[data-yildiz]'); if (!y) return; var on = deste.indexOf(c.getAttribute('data-f')) > -1; y.setAttribute('aria-pressed', on); y.setAttribute('aria-label', t(on ? 'cikar' : 'ekle')); y.title = t(on ? 'cikar' : 'ekle'); });
+      if ((location.hash || '').replace(/^#\/?/, '') === 'deste') goster();   /* deste görünümü baştan çizilir; ders sayfası yerinde kalır */
+    });
     goster();
   }
   W.FORMULO_APP = { sayi: sayi, dil: function () { return dil; }, esc: esc, ad: ad, sembol: sembol, formulBul: formulBul, dersBul: dersBul };

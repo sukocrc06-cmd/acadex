@@ -10,7 +10,7 @@
   var D = W.document, FO = W.FORMULO;
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   function al(k, v) { try { var x = localStorage.getItem('formulo.' + k); return x ? JSON.parse(x) : v; } catch (e) { return v; } }
-  function koy(k, v) { try { localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } }
+  function koy(k, v) { try { localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } if (W.FOBULUT) W.FOBULUT.degisti(k); }   /* hesaba kayıt: formulo-bulut.js */
   function A() { return W.FORMULO_APP; }
   function dil() { return (A() && A().dil()) || 'tr'; }
   function sayi(n) { return A() ? A().sayi(n) : String(+(+n).toPrecision(4)); }

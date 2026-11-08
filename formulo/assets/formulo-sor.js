@@ -1,9 +1,11 @@
 /* ==========================================================================
    FORMULO · "Acadia'ya sor" (formulo/assets/formulo-sor.js), 08.11.2026
-   Tasarım sürümü: yanıtları yerel formül bilgisinden üretir (anahtar sözcük puanı,
-   niyet: nedir / hesapla / örnek; "v0=20" gibi değerleri okur ve hesaplar).
-   İpucu modunda sonucu söylemez, yol gösterir. Entegrasyonda aynı bağlam
-   (ders, formül, değerler) Acadex yapay zekâsına (formulo-hoca) gider. Önek fa-.
+   Kesin işler yerelde: "v0=20 th=45 için menzil" hesabı, örnek soru, ipucu modunda
+   sonucu kontrol (anahtar sözcük puanı + niyet: nedir / hesapla / örnek).
+   Serbest sorular (kavram, neden, nasıl) 08.11.2026'dan beri Acadex yapay zekâsına
+   gider: supabase/functions/formulo-hoca, bağlam = ders + en yakın formüller + son
+   formül ve değerler + ipucu modu + son 6 mesaj. 9 sn'de cevap yoksa ya da fonksiyon
+   yoksa yerel cevaba düşer. Önek fa-.
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -16,12 +18,12 @@
   function sembol(f, key) { var t = D.createElement('div'); t.innerHTML = f.h || ''; var e = t.querySelector('[data-v="' + key + '"]'); return e ? e.innerHTML : esc(key); }
   function sembolMetin(f, key) { var t = D.createElement('div'); t.innerHTML = f.h || ''; var e = t.querySelector('[data-v="' + key + '"]'); return e ? e.textContent : key; }
   var Y = {
-    tr: { bant: 'Tasarım sürümü: yanıtlar Formulo’nun formül bilgisinden geliyor. Siteye eklenince Acadex yapay zekâsı yanıtlayacak.', yer: 'Acadia’ya sor: “menzil nedir?”, “v0=20 th=45 için menzil”…', gonder: 'Gönder', ipucuMod: 'İpucu modu', ipucuAcik: 'Sonucu söylemem, yol gösteririm.',
+    tr: { bant: 'Profesör Acadia bu dersin formül defterini biliyor. Hesapları Formulo kesin yapar; yapay zekâ yanıtları yanlış olabilir, kartla karşılaştır.', ai: 'yapay zekâ', yedek: 'Bağlantı yavaş; formül defterinden cevaplıyorum.', yer: 'Acadia’ya sor: “menzil nedir?”, “v0=20 th=45 için menzil”…', gonder: 'Gönder', ipucuMod: 'İpucu modu', ipucuAcik: 'Sonucu söylemem, yol gösteririm.',
       selam: 'Merhaba! Bu dersin formüllerini biliyorum. Bir formülü sor, değer ver hesaplayayım ya da örnek soru iste.', bulamadim: 'Bunu formül defterinde bulamadım. Şunlardan birini dene:',
       nedir: 'Bu formül şunu verir:', degiskenler: 'Değişkenler', hesap: 'Verdiğin değerlerle:', eksik: 'Şu değerler eksikti, kartın varsayılanlarını kullandım:', ipYol: 'Önce değerleri yerine koy. İlk satır şöyle olur:', ipSon: 'Sonucu bulunca bana yaz, kontrol edeyim.', kontrolOk: 'Doğru! Sonuç gerçekten', kontrolNo: 'Tam olmadı. İpucu: birimleri ve işlem sırasını kontrol et. Beklenen büyüklük',
       ornek: 'Sana bir soru:', cevapGor: 'Cevabı göster', anlat: 'Acadia anlatsın', karta: 'Karta git', baska: 'Benzer formüller:',
       oneri: function (f1, f2) { return [f1 ? ad(f1) + ' nedir?' : null, f2 ? ad(f2) + ' nasıl hesaplanır?' : null, 'Bana örnek bir soru ver', f2 ? ornekDeger(f2) : null].filter(Boolean); } },
-    en: { bant: 'Design build: answers come from Formulo’s own formula notes. Once integrated, Acadex AI will answer.', yer: 'Ask Acadia: “what is range?”, “range for v0=20 th=45”…', gonder: 'Send', ipucuMod: 'Hint mode', ipucuAcik: 'I won’t give the answer, I’ll guide you.',
+    en: { bant: 'Professor Acadia knows this course’s formula notes. Formulo does the exact math; AI answers can be wrong, so check against the card.', ai: 'AI', yedek: 'Slow connection; answering from the formula notes.', yer: 'Ask Acadia: “what is range?”, “range for v0=20 th=45”…', gonder: 'Send', ipucuMod: 'Hint mode', ipucuAcik: 'I won’t give the answer, I’ll guide you.',
       selam: 'Hi! I know this course’s formulas. Ask about one, give values to compute, or ask for a practice question.', bulamadim: 'I couldn’t find that in the formula notes. Try one of these:',
       nedir: 'This formula gives:', degiskenler: 'Variables', hesap: 'With your values:', eksik: 'These were missing, so I used the card defaults:', ipYol: 'First substitute the values. The first line looks like:', ipSon: 'Tell me your result and I’ll check it.', kontrolOk: 'Correct! The result is indeed', kontrolNo: 'Not quite. Hint: check units and order of operations. Expected size',
       ornek: 'Here’s one for you:', cevapGor: 'Show answer', anlat: 'Let Acadia explain', karta: 'Go to card', baska: 'Related formulas:',
@@ -112,6 +114,46 @@
     return nedirYanit(f, bul.slice(1, 3));
   }
 
+  /* ---------- yapay zekâ (formulo-hoca) ---------- */
+  /* kesin cevabı olan sorular yerelde kalır: sonuç kontrolü, örnek soru, değerli hesap */
+  function yerelMi(soru, ders, durum) {
+    var s = soru.trim();
+    if (durum.bekleyen && /^-?[0-9]+(?:[.,][0-9]+)?\s*\S*$/.test(s)) return true;
+    var n = niyet(s); if (n === 'ornek') return true;
+    if (n === 'hesap') { var bul = ara(s, ders); if (bul.length && bul[0].f.o) return true; if (!bul.length && durum.son && Object.keys(degerOku(s, durum.son.f)).length) return true; }
+    return false;
+  }
+  function duzMetin(html) { var t = D.createElement('div'); t.innerHTML = html || ''; return t.textContent.replace(/\s+/g, ' ').trim(); }
+  function baglam(f) {
+    return { id: f.id, ad: ad(f), formul: duzMetin(f.h),
+      aciklama: ((f.anl || []).map(ad).join(' ') + (f.not ? ' ' + ad(f.not) : '')).slice(0, 380),
+      cikti: f.o ? ad(f.o) + (f.o.u ? ' [' + f.o.u + ']' : '') : '',
+      degiskenler: f.v ? Object.keys(f.v).map(function (k) { return sembolMetin(f, k) + ' = ' + ad(f.v[k]) + (f.v[k].u ? ' [' + f.v[k].u + ']' : ''); }) : [] };
+  }
+  function istemci() { try { return supabaseClient; } catch (e) { return null; } }
+  function aiSor(soru, d, ipucu, durum) {
+    var sb = istemci(); if (!sb || !sb.functions || W.FORMULO_AI === false) return Promise.resolve(null);
+    var fs = ara(soru, d.id).map(function (x) { return x.f; });
+    if (durum.son && fs.indexOf(durum.son.f) < 0) fs.push(durum.son.f);
+    var body = { soru: soru, dil: dil(), ipucu: !!ipucu, ders: { id: d.id, kod: d.kod, ad: ad(d) }, formuller: fs.slice(0, 5).map(baglam),
+      son: durum.son ? { id: durum.son.f.id, degerler: durum.son.v || {} } : null, gecmis: (durum.gecmis || []).slice(-6) };
+    var zaman = new Promise(function (r) { setTimeout(function () { r(null); }, 9000); });
+    var cagri = sb.functions.invoke('formulo-hoca', { body: body }).then(function (r) { return r && !r.error && r.data && r.data.cevap ? r.data : null; }, function () { return null; });
+    return Promise.race([cagri, zaman]);
+  }
+  function aiHTML(o, durum) {
+    var satir = String(o.cevap).split(/\n+/), h = '', liste = [];
+    function bol(x) { return esc(x).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'); }
+    function bosalt() { if (liste.length) { h += '<ul class="fa-v">' + liste.map(function (x) { return '<li>' + bol(x) + '</li>'; }).join('') + '</ul>'; liste = []; } }
+    satir.forEach(function (x) { x = x.trim(); if (!x) return; var m = x.match(/^(?:[-•*]|\d+[.)])\s+(.*)$/); if (m) liste.push(m[1]); else { bosalt(); h += '<p>' + bol(x) + '</p>'; } });
+    bosalt();
+    var f = o.formul_id && FO.formuller.filter(function (x) { return x.id === o.formul_id; })[0];
+    if (f) { h += formulKutusu(f); if (!durum.son || durum.son.f !== f) { var v = {}; if (f.v) Object.keys(f.v).forEach(function (k) { v[k] = f.v[k].val; }); durum.son = { f: f, v: v }; } }
+    if (o.oneriler && o.oneriler.length) h += '<div class="fa-oneri">' + o.oneriler.map(function (x) { return '<button type="button" data-fa-oneri="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>';
+    if (f) h += eylemler(f);
+    return h + '<p class="fa-kaynak">' + esc(T('ai')) + '</p>';
+  }
+
   /* ---------- panel ---------- */
   function panelHTML(d) {
     var hs = FO.formuller.filter(function (f) { return f.d === d.id; }), cal = hs.filter(function (f) { return f.o && f.bag; });
@@ -126,7 +168,14 @@
     function sor(metin) {
       ekle('fa-sen', '<p>' + esc(metin) + '</p>');
       var yaz = ekle('fa-ac fa-yaziyor', '<p class="fa-nokta"><i></i><i></i><i></i></p>');
-      setTimeout(function () { yaz.classList.remove('fa-yaziyor'); yaz.querySelector('.fa-b').innerHTML = yanitla(metin, d.id, ip.checked, durum) || ''; }, 380);
+      var bitir = function (html) { yaz.classList.remove('fa-yaziyor'); yaz.querySelector('.fa-b').innerHTML = html || ''; yaz.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+      durum.gecmis = durum.gecmis || [];
+      if (yerelMi(metin, d.id, durum)) { setTimeout(function () { bitir(yanitla(metin, d.id, ip.checked, durum)); }, 380); return; }
+      var ipucu = ip.checked;
+      aiSor(metin, d, ipucu, durum).then(function (o) {
+        if (o) { durum.gecmis.push({ rol: 'ogrenci', metin: metin }, { rol: 'acadia', metin: String(o.cevap).slice(0, 500) }); bitir(aiHTML(o, durum)); }
+        else bitir(yanitla(metin, d.id, ipucu, durum));
+      });
     }
     form.addEventListener('submit', function (e) { e.preventDefault(); var s = inp.value.trim(); if (!s) return; inp.value = ''; sor(s); });
     ip.addEventListener('change', function () { if (ip.checked) ekle('fa-ac', '<p>' + esc(T('ipucuAcik')) + '</p>'); });
@@ -135,5 +184,5 @@
       var a = e.target.closest('[data-fa-anlat]'); if (a && W.FORMULO_SAHNE) { var f = FO.formuller.filter(function (x) { return x.id === a.getAttribute('data-fa-anlat'); })[0]; W.FORMULO_SAHNE.ac(f, durum.son && durum.son.f === f ? durum.son.v : null); }
     });
   }
-  W.FORMULO_SOR = { panelHTML: panelHTML, panelKur: panelKur, yanitla: yanitla, ara: ara };
+  W.FORMULO_SOR = { panelHTML: panelHTML, panelKur: panelKur, yanitla: yanitla, ara: ara, yerelMi: yerelMi, aiHTML: aiHTML, baglam: baglam };
 })(window);
