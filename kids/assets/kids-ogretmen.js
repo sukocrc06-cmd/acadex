@@ -12,7 +12,7 @@
    ========================================================================== */
 (function (W) {
   'use strict';
-  var D = W.document, C = W.KIDS_CIZ, V = W.KIDS_VERI, B = W.KIDS_BULUT, kok, sinifI = 0, ornekGoster = true, BU = null, TOK = null;
+  var D = W.document, C = W.KIDS_CIZ, V = W.KIDS_VERI, B = W.KIDS_BULUT, kok, sinifI = 0, ornekGoster = true, BU = null, TOK = null, konuSec = null;
   function okul() { return BU || V.OKUL; }
   function gunKonu(sinif, d) { if (!BU) return V.gunKonu(sinif.id, d); var g = V.gunAnahtar(d); return sinif.plan && g in sinif.plan ? sinif.plan[g] : ''; }
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -46,13 +46,16 @@
     var b = new Date(), g = new Date(ts), fark = Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()) - new Date(g.getFullYear(), g.getMonth(), g.getDate())) / 864e5);
     return fark <= 0 ? 'Bugün' : fark === 1 ? 'Dün' : fark + ' gün önce';
   }
-  function renkBul(id) { return V.RENK.filter(function (r) { return r.id === id; })[0]; }
-  function ozet(sinif) {
+  function renkBul(id) { return V.ogeBul(id); }
+  /* zorlanılan kelimelerden yalnız seçili konununkiler */
+  function konuZor(z, konu) { var p = W.KIDS_KONU && W.KIDS_KONU.al(konu), ids = {}; if (!p) return z || {}; p.ogeler(V.BANT.yildiz).forEach(function (o) { ids[o.id] = 1; }); var r = {}; Object.keys(z || {}).forEach(function (k) { if (ids[k]) r[k] = z[k]; }); return r; }
+  function ozet(sinif, konu) {
+    konu = konu || 'colours';
     var ks = sinif.ogr.map(function (o) { return kayit(sinif, o); }), hafta0 = V.hafta()[0].getTime();
     var oynayan = ks.filter(function (k) { return k.son >= hafta0; }).length, giren = ks.filter(function (k) { return k.son; });
-    var top = giren.reduce(function (t, k) { return t + yildizSay(k, 'colours'); }, 0), zor = {};
-    ks.forEach(function (k) { Object.keys(k.zor).forEach(function (r) { zor[r] = (zor[r] || 0) + k.zor[r]; }); });
-    return { n: ks.length, oynayan: oynayan, ort: giren.length ? top / giren.length : 0, biten: ks.filter(function (k) { return k.bitti.colours; }).length, zor: enZor(zor), girmeyen: sinif.ogr.filter(function (o, i) { return !ks[i].son; }).map(function (o) { return o[0]; }) };
+    var top = giren.reduce(function (t, k) { return t + yildizSay(k, konu); }, 0), zor = {};
+    ks.forEach(function (k) { var kz = konuZor(k.zor, konu); Object.keys(kz).forEach(function (r) { zor[r] = (zor[r] || 0) + kz[r]; }); });
+    return { n: ks.length, oynayan: oynayan, ort: giren.length ? top / giren.length : 0, biten: ks.filter(function (k) { return k.bitti[konu]; }).length, zor: enZor(zor), girmeyen: sinif.ogr.filter(function (o, i) { return !ks[i].son; }).map(function (o) { return o[0]; }) };
   }
 
   /* ---------- giriş ---------- */
@@ -86,7 +89,8 @@
     return '<button type="button" class="kt-konu' + (secili ? ' kt-secili' : '') + '" data-konu="' + k.id + '" aria-pressed="' + secili + '"' + (k.acik ? '' : ' disabled') + ' style="--r:' + k.renk + '"><span>' + C.simge(k.simge) + '</span><b lang="en">' + esc(k.en) + '</b><small>' + (k.acik ? esc(k.tr) : 'Yakında') + '</small></button>';
   }
   function panel(bildirim) {
-    var okul = okul_(), sinif = okul.siniflar[sinifI], bugun = new Date(), bk = V.konuBul(gunKonu(sinif, bugun)), hafta = V.hafta(), bugunA = V.gunAnahtar(), o = ozet(sinif), zr = o.zor && renkBul(o.zor);
+    var okul = okul_(), sinif = okul.siniflar[sinifI], bugun = new Date(), bk = V.konuBul(gunKonu(sinif, bugun)), hafta = V.hafta(), bugunA = V.gunAnahtar(), acikK = V.KONU.filter(function (x) { return x.acik; }),
+      kz = konuSec || (bk && bk.acik ? bk.id : 'colours'), kzK = V.konuBul(kz), o = ozet(sinif, kz), zr = o.zor && renkBul(o.zor);
     var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>Öğretmen paneli</small></span>' +
       '<a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
       '<main class="kt-govde"><div class="kt-sekmeler" role="tablist" aria-label="Sınıflar">' + okul.siniflar.map(function (s, i) { return '<button type="button" role="tab" aria-selected="' + (i === sinifI) + '" data-sinif="' + i + '" style="--r:' + s.renk + '"><b>' + esc(s.ad) + '</b><small>' + esc(V.BANT[s.bant].ad + ' · ' + V.BANT[s.bant].yas) + '</small></button>'; }).join('') + '</div>' +
@@ -98,7 +102,7 @@
       (bk ? '<blockquote class="kt-soz"><small>Sınıfta söylemeniz yeter</small>“Çocuklar, bugün öğrendiğimiz <b>' + esc(kucuk(bk.tr)) + '</b> konusunu Acadex Kids’te oynayarak tekrar etmeyi unutmayın!”</blockquote>' : '') + '</div>' +
       '<div class="kt-bugun-sag"><h3>Konuyu değiştir</h3><div class="kt-konular" data-gun="' + bugunA + '">' + V.KONU.map(function (k) { return konuDugme(k, bk && bk.id === k.id); }).join('') +
       '<button type="button" class="kt-konu kt-serbest' + (bk ? '' : ' kt-secili') + '" data-konu="" aria-pressed="' + !bk + '"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Serbest gün</b><small>Konu yok</small></button></div>' +
-      '<p class="kt-not">Şu an oynanabilen konu: Colours. Diğer konular içerikleri hazır olduğunda açılır.</p></div></section>' +
+      '<p class="kt-not">Şu an oynanabilen konular: ' + V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return x.en; }).join(', ') + '. Diğer konular içerikleri hazır olduğunda açılır.</p></div></section>' +
 
       /* haftalık plan */
       '<section class="kt-bolum" aria-labelledby="kt-h"><h2 id="kt-h">Haftalık plan</h2><p class="kt-alt">İsterseniz haftayı önceden planlayın; her sabah yeniden seçmeniz gerekmez.</p><div class="kt-hafta">' +
@@ -109,21 +113,22 @@
       }).join('') + '</div></section>' +
 
       /* ilerleme */
-      '<section class="kt-bolum" aria-labelledby="kt-i"><div class="kt-bolum-bas"><div><h2 id="kt-i">Sınıf ilerlemesi</h2><p class="kt-alt">' + esc(sinif.ad) + ' · Colours konusu</p></div>' +
+      '<section class="kt-bolum" aria-labelledby="kt-i"><div class="kt-bolum-bas"><div><h2 id="kt-i">Sınıf ilerlemesi</h2><p class="kt-alt">' + esc(sinif.ad) + ' · ' + esc(kzK.en) + ' konusu</p><div class="kt-konu-sec" role="group" aria-label="İlerlemesi gösterilen konu">' + acikK.map(function (x) { return '<button type="button" data-ksec="' + x.id + '" aria-pressed="' + (x.id === kz) + '" style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span>' + esc(x.en) + '</button>'; }).join('') + '</div></div>' +
       (BU ? '' : '<label class="kt-anahtar"><input type="checkbox" data-ornek' + (ornekGoster ? ' checked' : '') + '><span>Örnek veriyi göster</span></label>') + '</div>' +
       '<ul class="kt-ozet"><li><b>' + o.oynayan + '<small>/' + o.n + '</small></b><span>bu hafta oynadı</span></li><li><b>' + (Math.round(o.ort * 10) / 10).toString().replace('.', ',') + '<small>/9 ★</small></b><span>ortalama yıldız</span></li><li><b>' + o.biten + '<small>/' + o.n + '</small></b><span>konuyu bitirdi</span></li>' +
       '<li' + (zr ? ' style="--r:' + zr.hex + '"' : '') + ' class="kt-ozet-zor"><b>' + (zr ? '<i></i><span lang="en">' + zr.en + '</span>' : '—') + '</b><span>en çok zorlanılan kelime</span></li></ul>' +
       (o.girmeyen.length ? '<p class="kt-girmeyen"><b>Henüz girmeyenler:</b> ' + o.girmeyen.map(esc).join(', ') + '</p>' : '') +
       '<div class="kt-tablo-sar"><table class="kt-tablo"><thead><tr><th scope="col">Öğrenci</th><th scope="col">Son giriş</th><th scope="col">Yıldız</th><th scope="col">Oyunlar</th><th scope="col">Zorlandığı kelime</th><th scope="col">Çıkartma</th></tr></thead><tbody>' +
       sinif.ogr.map(function (og) {
-        var k = kayit(sinif, og), y = yildizSay(k, 'colours'), z = enZor(k.zor), zrk = z && renkBul(z);
+        var k = kayit(sinif, og), y = yildizSay(k, kz), kzor = konuZor(k.zor, kz), z = enZor(kzor), zrk = z && renkBul(z);
         return '<tr' + (k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(og[1]) + '<b>' + esc(og[0]) + '</b>' + (k.ornek ? '<i class="kt-ornek-e">örnek</i>' : '') + '</span></th><td>' + sonYazi(k.son) + '</td>' +
           '<td><span class="kt-cubuk" role="img" aria-label="' + y + ' / 9 yıldız"><i style="width:' + Math.round(100 * y / 9) + '%"></i></span><span class="kt-sayi">' + y + '/9</span></td>' +
-          '<td>' + oyunSay(k, 'colours') + '/3' + (k.bitti.colours ? ' <span class="kt-tamam">bitirdi</span>' : '') + '</td>' +
-          '<td>' + (zrk ? '<span class="kt-kelime" style="--r:' + zrk.hex + '"><i></i><span lang="en">' + zrk.en + '</span> <small>' + k.zor[z] + ' yanlış</small></span>' : '<span class="kt-yok">—</span>') + '</td><td>' + k.cikartma.length + '</td></tr>';
+          '<td>' + oyunSay(k, kz) + '/3' + (k.bitti[kz] ? ' <span class="kt-tamam">bitirdi</span>' : '') + '</td>' +
+          '<td>' + (zrk ? '<span class="kt-kelime" style="--r:' + zrk.hex + '"><i></i><span lang="en">' + zrk.en + '</span> <small>' + kzor[z] + ' yanlış</small></span>' : '<span class="kt-yok">—</span>') + '</td><td>' + k.cikartma.length + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
       (BU ? '<p class="kt-not">Kayıtlar çocukların kendi oturumlarından gelir; sayfayı yenileyince güncellenir.</p>' : '<p class="kt-not">Örnek okul: gerçek kayıtlar bu tarayıcıda oynanan oturumlardan gelir; “örnek” etiketli satırlar tasarımı göstermek için üretilmiştir.</p>') + '</section></main>';
     kok.innerHTML = h;
+    kok.querySelectorAll('[data-ksec]').forEach(function (b) { b.addEventListener('click', function () { konuSec = b.getAttribute('data-ksec'); panel(); }); });
     kok.querySelectorAll('[data-sinif]').forEach(function (b) { b.addEventListener('click', function () { sinifI = +b.getAttribute('data-sinif'); panel(); }); });
     kok.querySelectorAll('.kt-konular [data-konu]').forEach(function (b) { b.addEventListener('click', function () { var id = b.getAttribute('data-konu'), k = V.konuBul(id); planKoy(sinif, bugunA, id, k ? 'Bugünün konusu ' + k.en + ' olarak kaydedildi. Çocuklar giriş yaptığında bu konuyu görecek.' : 'Bugün serbest gün olarak kaydedildi.'); }); });
     kok.querySelectorAll('[data-plan]').forEach(function (s) { s.addEventListener('change', function () { planKoy(sinif, s.getAttribute('data-plan'), s.value, 'Haftalık plan kaydedildi.'); }); });

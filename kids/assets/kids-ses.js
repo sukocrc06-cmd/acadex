@@ -17,21 +17,23 @@
     return null;
   }
   /* metni okur; ses yoksa ya da kapalıysa hemen biter. Söz bitince çözülen söz verir. */
-  function soyle(metin, dil) {
+  /* ek: {sinir(charIndex)} — tarayıcı kelime sınırı bildirirse (şarkıda karaoke) çağrılır; {hiz} */
+  function soyle(metin, dil, ek) {
     return new Promise(function (bitti) {
       if (!acik || !W.speechSynthesis || !W.SpeechSynthesisUtterance) return bitti(false);
       var v = sesSec(dil || 'en'); if (dil === 'tr' && !v) return bitti(false);   /* Türkçe ses yoksa İngilizce aksanla okutma */
       try {
         W.speechSynthesis.cancel();
         var u = new W.SpeechSynthesisUtterance(metin); if (v) u.voice = v; u.lang = v ? v.lang : (dil === 'tr' ? 'tr-TR' : 'en-GB');
-        u.rate = dil === 'tr' ? 0.95 : 0.82; u.pitch = 1.25;
+        u.rate = ek && ek.hiz ? ek.hiz : dil === 'tr' ? 0.95 : 0.82; u.pitch = 1.25;
+        if (ek && ek.sinir) u.onboundary = function (e) { if (e.name === 'word' || e.name === undefined) try { ek.sinir(e.charIndex); } catch (x) { } };
         var son = false, kapat = function () { if (!son) { son = true; bitti(true); } };
         u.onend = kapat; u.onerror = kapat; setTimeout(kapat, 900 + metin.length * 110);
         W.speechSynthesis.speak(u);
       } catch (e) { bitti(false); }
     });
   }
-  function sus() { try { if (W.speechSynthesis) W.speechSynthesis.cancel(); } catch (e) { } }
+  function sus() { try { if (W.speechSynthesis) W.speechSynthesis.cancel(); } catch (e) { } muzik(false); }
   function ac() { if (ctx) return ctx; var C = W.AudioContext || W.webkitAudioContext; if (!C) return null; try { ctx = new C(); } catch (e) { ctx = null; } return ctx; }
   function nota(f, t0, sure, tip, g) {
     var c = ac(); if (!c || !acik) return;
@@ -52,6 +54,13 @@
     cevir: function () { nota(480, 0, 0.07, 'triangle', 0.08); }
   };
   function fx(ad) { if (FX[ad]) FX[ad](); }
+  /* şarkı altyapısı: kısa, yumuşak bir ezgi döngüsü (WebAudio, dosya yok). muzik(true) başlatır, muzik(false) durdurur */
+  var muzikT = null, EZGI = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1047, 784, 659, 587, 523];
+  function muzik(ac_) {
+    clearInterval(muzikT); muzikT = null; if (!ac_) return;
+    var i = 0, adim = function () { if (!acik) return; nota(EZGI[i % EZGI.length], 0, 0.22, 'triangle', 0.035); if (i % 4 === 0) nota(131, 0, 0.18, 'sine', 0.06); if (i % 4 === 2) nota(196, 0, 0.12, 'sine', 0.03); i++; };
+    adim(); muzikT = setInterval(adim, 300);
+  }
   function ayar(v) { acik = !!v; try { localStorage.setItem('kids.ses', acik ? '1' : '0'); } catch (e) { } if (!acik) sus(); return acik; }
-  W.KIDS_SES = { soyle: soyle, sus: sus, fx: fx, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
+  W.KIDS_SES = { soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
 })(window);

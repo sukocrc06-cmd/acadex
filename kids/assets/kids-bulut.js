@@ -47,6 +47,8 @@
     return rpc('kids_ilerleme_koy', { p_token: b.t, p_veri: b.v }).catch(function () { if (!bekleyen) bekleyen = b; });
   }
   function ilerlemeKoy(token, veri) { bekleyen = { t: token, v: veri }; clearTimeout(zaman); zaman = setTimeout(gonder, 1500); }
+  /* internet geri gelince bekleyen ilerlemeyi gönder (ana ekrandan çevrimdışı oynandıysa) */
+  W.addEventListener('online', function () { gonder(); });
   W.addEventListener('pagehide', function () {
     if (!bekleyen) return;
     try { W.fetch(URL + '/rest/v1/rpc/kids_ilerleme_koy', { method: 'POST', keepalive: true, headers: { 'apikey': ANAHTAR, 'content-type': 'application/json' }, body: JSON.stringify({ p_token: bekleyen.t, p_veri: bekleyen.v }) }); bekleyen = null; } catch (e) { }

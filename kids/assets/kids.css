@@ -281,3 +281,131 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .ka-yukle i:nth-child(3){animation-delay:.3s;background:var(--mavi)}
 @keyframes kaYukle{50%{transform:translateY(-10px)}}
 @media (prefers-reduced-motion:reduce){.ka-yukle i{animation:none}}
+
+/* ======================= 10.11.2026 · Numbers, şarkı, uçuş, dolap, veli köşesi ======================= */
+/* sayı kartları leke yerine de kullanılır */
+.ka-lekeb .kc-sayi{width:100%;max-width:150px;aspect-ratio:1;height:auto;transition:transform .15s}
+.ka-zipla .kc-sayi{animation:kaLeke .5s}
+.ka-izle-leke .kc,.ka-soyle-leke .kc{width:100%;height:100%}
+
+/* giydirilmiş avatar */
+.kc-giyik{position:relative;display:block;width:100%;height:100%}
+.kc-giyik>.kc{display:block;width:100%;height:100%}
+.kc-giyik>.kc-giysi{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.ka-ben-av{display:block;width:52px;height:52px;flex:none}
+.ka-ben-av .kc{width:100%!important;height:100%!important}
+.ka-cikis{display:inline-flex;align-items:center;gap:6px}
+.ka-cikis .kc{width:28px;height:28px}
+
+/* şarkı */
+.ka-sarki{display:grid;gap:14px;justify-items:center;width:min(760px,100%);margin:0 auto}
+.ka-sarki-sahne{position:relative;width:140px;height:140px}
+.ka-sarki-acd{width:100%;height:100%}
+.ka-caliyor .ka-sarki-acd{animation:kaDans .6s ease-in-out infinite alternate}
+@keyframes kaDans{from{transform:rotate(-8deg) translateY(0)}to{transform:rotate(8deg) translateY(-12px)}}
+.ka-notalar i{position:absolute;width:34px;height:34px;opacity:0}
+.ka-notalar i:nth-child(1){left:-30px;top:20px}.ka-notalar i:nth-child(2){right:-34px;top:0}.ka-notalar i:nth-child(3){right:-20px;top:70px}
+.ka-caliyor .ka-notalar i{animation:kaNota 1.8s ease-out infinite}
+.ka-caliyor .ka-notalar i:nth-child(2){animation-delay:.6s}.ka-caliyor .ka-notalar i:nth-child(3){animation-delay:1.2s}
+@keyframes kaNota{0%{opacity:0;transform:translateY(10px) scale(.6)}30%{opacity:1}100%{opacity:0;transform:translateY(-40px) rotate(18deg)}}
+.ka-sozler{display:grid;gap:10px;width:100%;margin:0;padding:0;list-style:none}
+.ka-sozler li{display:flex;align-items:center;gap:12px;padding:10px 14px;border:3px solid transparent;border-radius:20px;transition:background .3s,border-color .3s,transform .3s}
+.ka-sozler li.ka-calan{border-color:var(--m);background:var(--beyaz);box-shadow:var(--golge-k);transform:scale(1.02)}
+.ka-soz-r{flex:none;width:52px;height:52px}
+.ka-soz-r .kc{width:100%;height:100%}
+.ka-soz{padding:2px 4px;border:0;border-radius:10px;background:none;font:800 clamp(20px,3.2vw,30px)/1.3 var(--bas);color:var(--m);cursor:pointer}
+.ka-soz-renk{box-shadow:inset 0 -7px 0 var(--r)}
+.ka-soz.ka-yanan{background:var(--sari);color:var(--m)}
+.ka-soz.ka-zipla{animation:kaPop .35s}
+
+/* adaya uçuş */
+.ka-ucus{position:fixed;inset:0;z-index:70;pointer-events:auto}
+.ka-ucus-acd{position:fixed;width:96px;height:96px;transform:translate(-50%,-50%);z-index:2;filter:drop-shadow(0 6px 0 rgba(35,48,77,.25))}
+.ka-ucus-acd .kc{width:100%;height:100%}
+.ka-ucus-perde{position:fixed;inset:0;background:var(--r);clip-path:circle(0 at 50% 50%)}
+.ka-ada-kon .kc-ada{animation:kaKon .5s ease-out}
+@keyframes kaKon{30%{transform:scale(1.12) translateY(-6px)}}
+
+/* yeni giysi bildirimi */
+.ka-yeni-esya{display:flex;align-items:center;gap:12px;margin:6px 0 0;padding:10px 16px;border:3px solid var(--m);border-radius:18px;background:#F3EDFF;animation:kaPop .45s .4s both}
+.ka-yeni-esya span{display:block;width:56px;height:56px}
+.ka-yeni-esya b{font:800 18px/1.2 var(--bas)}
+
+/* dolap */
+.ka-dolapk .ka-pen{width:min(760px,100%)}
+.ka-dolap{display:grid;grid-template-columns:200px minmax(0,1fr);gap:20px;align-items:start}
+.ka-dolap-on{width:200px;height:200px;padding:16px;border:3px solid var(--m);border-radius:30px;background:var(--gok)}
+.ka-dolap-on.ka-zipla{animation:kaPop .4s}
+.ka-giysiler{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 0;padding:0;list-style:none}
+.ka-giysi{position:relative;display:grid;justify-items:center;gap:4px;width:100%;min-height:120px;padding:14px 6px 8px;border:3px solid var(--m);border-radius:20px;background:var(--beyaz);box-shadow:var(--golge-k);font:800 15px/1.1 var(--bas);color:var(--m)}
+.ka-giysi .kc-giyik,.ka-giysi>.kc{width:64px;height:64px}
+.ka-giysi[aria-pressed="true"]{background:var(--sari)}
+.ka-giysi.ka-kapali{background:#EEF2F8;box-shadow:none}
+.ka-giysi.ka-kapali .kc-giyik{opacity:.35;filter:grayscale(1)}
+.ka-kilit{display:inline-flex;align-items:center;gap:2px;font-size:14px}
+.ka-kilit .kc{width:18px;height:18px}
+.ka-giysi .ka-tik{position:absolute;right:-8px;top:-8px;width:30px;height:30px;padding:4px;border:3px solid var(--m);border-radius:50%;background:var(--yesil)}
+
+/* veli köşesi (yetişkin metni: daha küçük, sade) */
+.ka-velik .ka-pen{width:min(720px,100%)}
+.ka-veli{display:grid;gap:18px;font-size:16px}
+.ka-veli section{display:grid;gap:10px;padding:16px;border:2px solid #E3D9BD;border-radius:20px;background:var(--beyaz)}
+.ka-veli h3{margin:0;font:800 20px/1.2 var(--bas)}
+.ka-veli h3 small{font-size:14px;color:var(--soluk)}
+.ka-veli-ozet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.ka-veli-ozet li{display:grid;padding:10px;border-radius:14px;background:var(--krem);text-align:center}
+.ka-veli-ozet b{font:800 30px/1 var(--bas)}
+.ka-veli-ozet span{font-size:13px;color:var(--soluk)}
+.ka-veli-konu,.ka-veli-kel,.ka-veli-ev{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.ka-veli-konu li{display:grid;grid-template-columns:36px 90px minmax(0,1fr) auto;align-items:center;gap:10px}
+.ka-veli-konu span{width:36px;height:36px}
+.ka-veli-konu i{display:block;height:12px;border-radius:8px;background:#EEF2F8;overflow:hidden}
+.ka-veli-konu em{display:block;height:100%;background:var(--r);border-right:2px solid var(--m)}
+.ka-veli-konu small{font-size:13px;color:var(--soluk);white-space:nowrap}
+.ka-veli-kel li,.ka-veli-ev li{display:flex;align-items:center;gap:10px}
+.ka-veli-kel b{padding:0 6px;border-radius:8px;box-shadow:inset 0 -7px 0 var(--r);font:800 20px/1.2 var(--bas)}
+.ka-veli-ev b{font:800 19px/1.2 var(--bas)}
+.ka-veli-kel small,.ka-veli-ev small{color:var(--soluk)}
+.ka-dinle-k{display:grid;place-items:center;flex:none;width:42px;height:42px;padding:7px;border:2px solid var(--m);border-radius:50%;background:var(--sari)}
+.ka-veli-ayar{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:800}
+.ka-veli-ayar select{min-height:44px;padding:0 10px;border:2px solid var(--m);border-radius:12px;background:var(--beyaz);font:inherit;font-weight:700}
+.ka-veli-ayar .ka-orta{min-height:44px;font-size:17px}
+.ka-veli-pwa{display:grid;gap:8px;padding:12px;border-radius:14px;background:#E8F4FF}
+.ka-veli-pwa .ka-orta{justify-self:start;min-height:46px;font-size:17px}
+.ka-cikis-b{justify-self:start;min-height:44px;padding:0 16px;border:2px solid #B3261E;border-radius:14px;background:transparent;color:#B3261E;font-weight:800}
+
+/* Numbers · say oyunu */
+.ko-say{display:grid;gap:16px;justify-items:center}
+.ko-tepsi{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;width:min(560px,100%);min-height:150px;padding:16px;border:3px solid var(--m);border-radius:26px;background:var(--beyaz);box-shadow:var(--golge)}
+.ko-tepsi span{width:clamp(48px,9vw,74px);aspect-ratio:1;animation:kaPop .4s calc(var(--i) * .07s) both}
+.ko-tepsi span .kc{width:100%;height:100%}
+.ko-tepsi span.ko-sayildi{animation:koSay .5s}
+@keyframes koSay{40%{transform:translateY(-16px) scale(1.2)}}
+.ko-rakamlar{display:flex;flex-wrap:wrap;justify-content:center;gap:14px}
+.ko-rakam{width:clamp(84px,16vw,120px);aspect-ratio:1;padding:0;border:0;background:none;filter:drop-shadow(0 5px 0 var(--m))}
+.ko-rakam .kc{width:100%;height:100%}
+.ko-rakam.ko-dogru{animation:kaPop .4s}
+.ko-rakam.ko-salla{animation:koSalla .5s}
+.ko-on .kc-sayi,.ko-on .kc-nokta{width:100%;height:100%}
+
+@media (max-width:760px){
+  .ka-ben-av{width:42px;height:42px}
+  .ka-cikis span{display:none}
+  .ka-cikis{padding:0 8px}
+  .ka-sayac b{font-size:18px}
+  .ka-dolap{grid-template-columns:minmax(0,1fr);justify-items:center}
+  .ka-dolap-on{width:150px;height:150px}
+  .ka-giysiler{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ka-veli-konu li{grid-template-columns:30px 70px minmax(0,1fr)}
+  .ka-veli-konu small{grid-column:2/4}
+  .ka-sarki-sahne{width:100px;height:100px}
+  .ka-soz-r{width:40px;height:40px}
+}
+.ka-sarki .ka-orta .kc{width:30px;height:30px;margin-right:6px}
+.ka-dolap .ka-pen-alt .kc{display:inline-block;width:22px;height:22px;vertical-align:-4px}
+.ko-tepsi{align-content:center}
+.ko-tepsi span{width:clamp(64px,11vw,100px)}
+@media (max-width:760px){.ko-tepsi span{width:clamp(48px,15vw,70px)}.ko-tepsi{min-height:120px}}
+/* yedi durak telefona sığsın */
+@media (max-width:760px){.ka-konu-ust{gap:6px;padding-left:10px;padding-right:10px}.ka-duraklar{gap:3px;min-width:0}.ka-duraklar span{width:32px;height:32px;padding:6px;border-width:2.5px}.ka-duraklar .ka-simdi span{transform:scale(1.1)}}
+@media (max-width:360px){.ka-duraklar span{width:28px;height:28px;padding:5px}}

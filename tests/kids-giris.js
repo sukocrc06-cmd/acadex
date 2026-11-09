@@ -7,7 +7,7 @@
      - siteye yalnız herkese açık (publishable) anahtar girer, gizli anahtar asla
      - örnek okul (ORNEK-2026) sunucuya gitmez; gerçek okul kodu her zaman sunucuya sorulur
      - kids/index.html kaynak dosyalarla güncel (node kids/assets/birlestir.js)
-     - /kids yönlendirmesi ve yönetim panelindeki bağlantı
+     - /kids → /kids/ yönlendirmesi, sw.js önbelleksiz ve yönetim panelindeki bağlantı
      - davranış (gerçek Postgres, ACADEX_PG verilirse): resimli şifre, deneme
        kilidi, oturum anahtarının özeti, lisans, başka okulun sınıfı, anon yetkisi
        → tests/sql/kids-giris.sql
@@ -61,7 +61,8 @@ test('çocuk resimli şifresi istemcide denetlenmez (gerçek okulda)', () => {
 
 test('yönlendirme ve yönetim bağlantısı', () => {
   const v = JSON.parse(read('vercel.json'));
-  assert.ok(v.rewrites.some((r) => r.source === '/kids' && r.destination === '/kids/index.html'));
+  assert.ok(v.redirects.some((r) => r.source === '/kids' && r.destination === '/kids/'));   // SW kapsamı /kids/ olduğu için sondaki bölü şart
+  assert.ok(v.headers.some((h) => h.source === '/kids/sw.js' && /no-cache/.test(JSON.stringify(h.headers))));
   assert.match(read('js/admin-kids.js'), /href="\/kids\/"/);
   assert.equal(fs.existsSync(path.join(ROOT, 'kids/oyna.html')), true);
 });

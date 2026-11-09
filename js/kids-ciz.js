@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ACADEX KIDS · çizimler (js/kids-ciz.js), 10.11.2026 — Kids çocuk uygulamasıyla aynı dosya; yönetim paneli kartlarda kullanır
+   ACADEX KIDS · çizimler (js/kids-ciz.js), 10.11.2026 — kids/assets/kids-ciz.js ile aynı dosya; yönetim paneli kartlarda kullanır
    Tek çizim dili: kalın lacivert kontur, düz renk, yuvarlak köşe. Hepsi SVG, dışarıdan
    görsel yok. Mini Acadia (maskot), hayvan avatarlar, resimli şifre simgeleri, adalar,
    bulut, balon, boya lekesi. W.KIDS_CIZ
@@ -79,6 +79,9 @@
     gokkusagi: '<g fill="none" stroke-width="8" stroke-linecap="round"><path d="M12 78 a38 38 0 0 1 76 0" stroke="#E5484D"/><path d="M21 78 a29 29 0 0 1 58 0" stroke="#FFD23F"/><path d="M30 78 a20 20 0 0 1 40 0" stroke="#4CC38A"/><path d="M39 78 a11 11 0 0 1 22 0" stroke="#4AA8FF"/></g><path d="M8 78 a42 42 0 0 1 84 0" fill="none" ' + S + '/>',
     firca: '<path d="M60 14 l22 22 l-34 34 l-22 -22 z" fill="#FFB347" ' + S + '/><path d="M26 48 l22 22 q-4 18 -30 16 q-4 -24 8 -38 z" fill="#E5484D" ' + S + '/>',
     kilit: '<rect x="24" y="44" width="52" height="40" rx="10" fill="#C9D3E6" ' + S + '/><path d="M34 44 v-10 a16 16 0 0 1 32 0 v10" fill="none" ' + S + '/><circle cx="50" cy="62" r="5" fill="' + M + '"/>',
+    dolap: '<path d="M30 18 L42 12 q8 10 16 0 L70 18 L88 34 L76 46 L70 40 L70 86 L30 86 L30 40 L24 46 L12 34 Z" fill="#8E7CF0" ' + S + '/><path d="M42 12 q8 10 16 0" fill="none" ' + S + '/><circle cx="50" cy="56" r="7" fill="#FFD23F" ' + S + '/>',
+    nota: '<path d="M40 70 V22 L80 14 V62" fill="none" ' + S + ' stroke-width="5"/><ellipse cx="32" cy="72" rx="12" ry="9" fill="#FF6B5B" ' + S + '/><ellipse cx="72" cy="64" rx="12" ry="9" fill="#FF6B5B" ' + S + '/><path d="M40 32 L80 24" ' + S + ' stroke-width="5"/>',
+    veli: '<circle cx="36" cy="30" r="12" fill="#FFC2A1" ' + S + '/><path d="M16 80 q0 -32 20 -32 q20 0 20 32 z" fill="#4AA8FF" ' + S + '/><circle cx="68" cy="44" r="9" fill="#FFC2A1" ' + S + '/><path d="M54 82 q0 -24 14 -24 q14 0 14 24 z" fill="#FFD23F" ' + S + '/>',
     ses: '<path d="M16 40 h14 l20 -16 v52 l-20 -16 h-14 z" fill="#FFD23F" ' + S + '/><path d="M62 36 q10 14 0 28 M72 26 q18 24 0 48" fill="none" ' + S + '/>',
     mikrofon: '<rect x="36" y="12" width="28" height="46" rx="14" fill="#E5484D" ' + S + '/><path d="M24 46 a26 26 0 0 0 52 0 M50 72 v14 M36 88 h28" fill="none" ' + S + '/>',
     oynat: '<path d="M32 20 L78 50 L32 80 Z" fill="#fff" ' + S + '/>',
@@ -121,5 +124,40 @@
       '<g data-parca="ball" tabindex="0" role="button" aria-label="ball"><circle cx="350" cy="236" r="30" ' + B + '/><path d="M324 224 q26 14 52 0 M322 246 q28 -12 56 0" fill="none" stroke="' + M + '" stroke-width="3" stroke-linecap="round"/></g></svg>';
   }
 
-  W.KIDS_CIZ = { acadia: acadia, avatar: avatar, simge: simge, bulut: bulut, ada: ada, balon: balon, leke: leke, boyamaResmi: boyamaResmi, HAYVAN: Object.keys(HAYVAN), SIMGE: Object.keys(SIMGE), MUREKKEP: M };
+
+  /* ---------- Numbers: rakam kartı ve nokta kartı ---------- */
+  function sayiKart(n, renk) {
+    return svg('0 0 100 100', '<rect x="6" y="6" width="88" height="88" rx="24" fill="#fff" stroke="' + M + '" stroke-width="3"/>' +
+      '<text x="50" y="' + (n >= 10 ? 70 : 74) + '" text-anchor="middle" font-family="\'Baloo 2\',Nunito,sans-serif" font-weight="800" font-size="' + (n >= 10 ? 56 : 68) + '" fill="' + renk + '" stroke="' + M + '" stroke-width="3" paint-order="stroke" stroke-linejoin="round">' + n + '</text>', 'kc-sayi');
+  }
+  var NOKTA = { 1: [[50, 50]], 2: [[32, 50], [68, 50]], 3: [[26, 70], [50, 30], [74, 70]], 4: [[32, 32], [68, 32], [32, 68], [68, 68]], 5: [[28, 28], [72, 28], [50, 50], [28, 72], [72, 72]],
+    6: [[28, 30], [50, 30], [72, 30], [28, 70], [50, 70], [72, 70]], 7: [[28, 26], [50, 26], [72, 26], [39, 50], [61, 50], [39, 74], [61, 74]], 8: [[22, 34], [41, 34], [59, 34], [78, 34], [22, 66], [41, 66], [59, 66], [78, 66]],
+    9: [[28, 26], [50, 26], [72, 26], [28, 50], [50, 50], [72, 50], [28, 74], [50, 74], [72, 74]], 10: [[16, 36], [33, 36], [50, 36], [67, 36], [84, 36], [16, 64], [33, 64], [50, 64], [67, 64], [84, 64]] };
+  function noktalar(n, renk) {
+    var r = n >= 8 ? 7.5 : n >= 5 ? 9 : 11;
+    return svg('0 0 100 100', '<rect x="6" y="6" width="88" height="88" rx="24" fill="#fff" stroke="' + M + '" stroke-width="3"/>' +
+      (NOKTA[n] || []).map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + r + '" fill="' + renk + '" stroke="' + M + '" stroke-width="2.6"/>'; }).join(''), 'kc-nokta');
+  }
+  /* sayılı balon: balonun üstüne rakam */
+  function sayiBalon(n, renk) {
+    return balon(renk).replace('</svg>', '<text x="50" y="' + (n >= 10 ? 66 : 70) + '" text-anchor="middle" font-family="\'Baloo 2\',Nunito,sans-serif" font-weight="800" font-size="' + (n >= 10 ? 40 : 48) + '" fill="#fff" stroke="' + M + '" stroke-width="3" paint-order="stroke">' + n + '</text></svg>');
+  }
+
+  /* ---------- avatar giysileri (avatarla aynı 100x100 düzlem, taşabilir) ---------- */
+  var GIYSI = {
+    fiyonk: '<path d="M60 18 L48 8 L48 30 Z M60 18 L72 8 L72 30 Z" transform="translate(6 2)" fill="#FF6FA5" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><circle cx="66" cy="20" r="5" fill="#FFB3CF" stroke="' + M + '" stroke-width="3"/>',
+    sapka: '<path d="M34 26 L50 -10 L66 26 Z" fill="#8E7CF0" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M40 13 L60 13 M37 20 L63 20" stroke="#FFD23F" stroke-width="4"/><circle cx="50" cy="-11" r="6" fill="#FFD23F" stroke="' + M + '" stroke-width="3"/>',
+    kulaklik: '<path d="M18 56 q0 -46 32 -46 q32 0 32 46" fill="none" stroke="' + M + '" stroke-width="6" stroke-linecap="round"/><path d="M18 56 q0 -46 32 -46 q32 0 32 46" fill="none" stroke="#4AA8FF" stroke-width="2.4" stroke-linecap="round"/><rect x="8" y="48" width="16" height="24" rx="7" fill="#4AA8FF" stroke="' + M + '" stroke-width="3"/><rect x="76" y="48" width="16" height="24" rx="7" fill="#4AA8FF" stroke="' + M + '" stroke-width="3"/>',
+    tac: '<path d="M30 28 L30 8 L40 18 L50 4 L60 18 L70 8 L70 28 Z" fill="#FFD23F" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><circle cx="50" cy="20" r="3.6" fill="#E5484D"/><circle cx="38" cy="23" r="2.6" fill="#4AA8FF"/><circle cx="62" cy="23" r="2.6" fill="#4CC38A"/>',
+    gozluk: '<circle cx="37" cy="50" r="11" fill="rgba(170,220,255,.35)" stroke="' + M + '" stroke-width="3.4"/><circle cx="63" cy="50" r="11" fill="rgba(170,220,255,.35)" stroke="' + M + '" stroke-width="3.4"/><path d="M48 49 q2 -3 4 0" fill="none" stroke="' + M + '" stroke-width="3"/>',
+    gunes: '<rect x="24" y="42" width="24" height="16" rx="7" fill="' + M + '"/><rect x="52" y="42" width="24" height="16" rx="7" fill="' + M + '"/><path d="M48 48 h4" stroke="' + M + '" stroke-width="3"/><path d="M29 46 l6 -2 M57 46 l6 -2" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>'
+  };
+  function giysi(ad) { return GIYSI[ad] ? svg('0 0 100 100', GIYSI[ad], 'kc-giysi', ' overflow="visible"') : ''; }
+  /* giydirilmiş avatar: g = {bas, yuz} */
+  function avatarGiy(hayvan, g) {
+    g = g || {}; var ek = giysi(g.yuz) + giysi(g.bas);
+    return ek ? '<span class="kc-giyik">' + avatar(hayvan) + ek + '</span>' : avatar(hayvan);
+  }
+
+  W.KIDS_CIZ = { acadia: acadia, avatar: avatar, simge: simge, bulut: bulut, ada: ada, balon: balon, leke: leke, boyamaResmi: boyamaResmi, sayiKart: sayiKart, noktalar: noktalar, sayiBalon: sayiBalon, giysi: giysi, avatarGiy: avatarGiy, GIYSI: Object.keys(GIYSI), HAYVAN: Object.keys(HAYVAN), SIMGE: Object.keys(SIMGE), MUREKKEP: M };
 })(window);
