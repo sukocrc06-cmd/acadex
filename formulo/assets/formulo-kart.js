@@ -10,6 +10,7 @@
   var SAKIN = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function al(k, v) { try { var x = localStorage.getItem('formulo.' + k); return x ? JSON.parse(x) : v; } catch (e) { return v; } }
   function koy(k, v) { try { localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } if (W.FOBULUT) W.FOBULUT.degisti(k); }   /* hesaba kayıt: formulo-bulut.js */
+  function gunler() { var b = new Date(), d = new Date(b.getFullYear(), b.getMonth(), b.getDate() - 1); return [b.toDateString(), d.toDateString()]; }
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   function sayi(n) {
     if (!isFinite(n)) return '—';
@@ -66,7 +67,7 @@
         e.preventDefault(); var x = parseFloat(String(inp.value).replace(',', '.').replace(/\s/g, ''));
         var ok = isFinite(x) && Math.abs(x - dogru) <= Math.max(Math.abs(dogru) * 0.02, 1e-9);
         c.className = 'fok-dene-c ' + (ok ? 'fok-ok' : 'fok-no'); c.innerHTML = ok ? '✓ Doğru! Seri +1' : '✗ Doğrusu: <b>' + sayi(dogru) + ' ' + esc(f.o.u) + '</b>';
-        if (ok) { var s = al('seri', { n: 0, gun: '' }), bugun = new Date().toDateString(); if (s.gun !== bugun) { s.n++; s.gun = bugun; koy('seri', s); } seriYaz(); }
+        if (ok) { var s = al('seri', { n: 0, gun: '' }), g = gunler(); if (s.gun !== g[0]) { s.n = s.gun === g[1] ? (s.n || 0) + 1 : 1; s.gun = g[0]; s.en = Math.max(s.en || 0, s.n); koy('seri', s); } seriYaz(); }   /* gün atlanınca seri 1'den başlar (formulo-plus.js ile aynı kural) */
         koy('son', { d: f.d, k: f.k, id: f.id, ts: Date.now() }); sonYaz();
       });
     });
@@ -78,7 +79,7 @@
       kut.href = KOK + 'index.html?f=' + ff.id + '#/' + d.id;
       kut.innerHTML = '<i style="--c:' + d.renk + '"></i><span><small>kaldığın yer</small><b>' + esc(d.tr) + ' · ' + esc(k.tr) + '</b><span>' + esc(ff.tr) + '</span></span><em>→</em>';
     }
-    function seriYaz() { var s = al('seri', { n: 0 }); el.querySelector('[data-fok-seri]').textContent = s.n ? s.n + ' gün seri' : 'seri başlat'; }
+    function seriYaz() { var s = al('seri', { n: 0 }), g = gunler(), n = s.gun === g[0] || s.gun === g[1] ? s.n : 0; el.querySelector('[data-fok-seri]').textContent = n ? n + ' gün seri' : 'seri başlat'; }
     sonYaz(); seriYaz();
     D.addEventListener('formulo:bulut', function () { sonYaz(); seriYaz(); });   /* başka cihazdaki ilerleme geldi */
   }

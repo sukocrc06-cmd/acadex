@@ -40,7 +40,7 @@ test('birleştirme: ilk eşitlemede deste/hata/skor/seri/son kaybolmadan birleş
   assert.deepEqual(m.veri.hata.map((h) => h.id), ['y', 'x'], 'tekrar yok, yeni önce');
   assert.equal(m.veri.skor.calc1.t, 9); assert.equal(m.veri.skor.fiz1.t, 1);
   assert.equal(m.veri.seri.n, 4); assert.equal(m.veri.son.id, 'c');
-  for (const k of B.ANAH) assert.ok(m.zaman[k] > 0, k + ' zamanı');
+  for (const k of ['deste', 'hata', 'skor', 'seri', 'son']) assert.ok(m.zaman[k] > 0, k + ' zamanı');   /* iki tarafta da olmayan anahtar (istat, rozet…) zamansız kalır */
 });
 
 test('birleştirme: eşitlendikten sonra son değişen kazanır (silinen geri gelmez)', () => {

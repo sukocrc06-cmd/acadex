@@ -73,10 +73,12 @@
         '<b class="fo-pafta-ad">' + esc(ad(d)) + '</b><span class="fo-pafta-alt">' + esc(dil === 'en' ? (d.tr === d.en ? d.alt : d.tr) : d.alt) + '</span>' +
         '<svg class="fo-sema fo-sema-' + d.id + '" viewBox="0 0 200 110" aria-hidden="true">' + SEMA[d.id] + '</svg>' +
         '<span class="fo-pafta-say">' + fs.length + ' ' + t('formul') + ' · ' + Object.keys(ls).length + ' ' + t('lab') + '</span>' +
+        (W.FOPLUS ? W.FOPLUS.paftaHTML(d) : '') +
         '<span class="fo-pafta-kitap">' + esc(d.kitap[0]) + '</span>' +
         '<span class="fo-pafta-no">' + ('0' + (i + 1)).slice(-2) + '/08</span></a>';
     });
     h += '</section>';
+    if (W.FOPLUS) h += W.FOPLUS.rafHTML();   /* rozetler ve seri: formulo-plus.js */
     h += '<section class="fo-antet" aria-hidden="true"><span><small>' + t('antet')[0] + '</small>Formulo</span><span><small>' + t('antet')[1] + '</small>Acadia</span><span><small>' + t('antet')[2] + '</small>1:1</span><span><small>' + t('antet')[3] + '</small>' + tarih + '</span><span><small>' + t('antet')[4] + '</small>A0 · 8</span></section>';
     return h;
   }
@@ -85,6 +87,7 @@
     var d = dersBul(f.d), k = d.konular.filter(function (x) { return x.id === f.k; })[0], kayitli = deste.indexOf(f.id) > -1;
     var h = '<article class="fo-kart" id="f-' + f.id + '" data-f="' + f.id + '" style="--c:' + d.renk + '">' +
       '<header class="fo-kart-bas"><span class="fo-konu">' + esc(ad(k)) + '</span>' +
+      (W.FOPLUS ? '<button type="button" class="fo-bildir" data-bildir aria-label="' + W.FOPLUS.T('bildir') + '" title="' + W.FOPLUS.T('bildir') + '">⚑</button>' : '') +
       '<button type="button" class="fo-yildiz" data-yildiz aria-pressed="' + kayitli + '" aria-label="' + t(kayitli ? 'cikar' : 'ekle') + '" title="' + t(kayitli ? 'cikar' : 'ekle') + '">★</button></header>' +
       '<h3 class="fo-kart-ad">' + esc(ad(f)) + '<small>' + esc(dil === 'en' ? f.tr : f.en) + '</small></h3>';
     if (f.h) h += '<div class="fo-f" data-fo-f>' + f.h + '</div>';
@@ -104,6 +107,7 @@
     if (f.not) h += '<p class="fo-not">' + esc(ad(f.not)) + '</p>';
     h += '<footer class="fo-kart-alt"><button type="button" class="fo-btn fo-btn-acd" data-anlat>' + t('anlat') + '</button>';
     if (f.v) h += '<button type="button" class="fo-btn" data-dene-ac>' + t('dene') + '</button>';
+    if (W.FOPLUS && W.FOPLUS.turetVar(f.id)) h += '<button type="button" class="fo-btn fo-btn-ince fo-btn-turet" data-turet>∂ ' + W.FOPLUS.T('turet') + '</button>';
     if (f.lab) h += '<button type="button" class="fo-btn fo-btn-lab" data-lab="' + f.lab + '">' + t('labAc') + ' · ' + esc(ad(FO.lablar[f.lab])) + '</button>';
     h += '</footer></article>';
     return h;
@@ -157,7 +161,7 @@
       var v = {}; Object.keys(f.v).forEach(function (k) {
         var q = f.v[k], n = q.min + Math.round(Math.random() * 20) * (q.max - q.min) / 20; n = Math.round(n / q.st) * q.st; n = +n.toPrecision(2); if (q.min > 0 && n <= 0) n = q.st; v[k] = Math.min(q.max, Math.max(q.min, n)); /* yuvarlak, okunur değerler */
       });
-      var dogru = f.o.f(v); if (!isFinite(dogru)) return soru();
+      var dogru = f.o.f(v), sayildi = false; if (!isFinite(dogru)) return soru();
       kutu.hidden = false;
       kutu.innerHTML = '<p class="fo-dene-s">' + Object.keys(v).map(function (k) { return '<span><b>' + sembol(f, k) + '</b> = ' + sayi(v[k]) + (f.v[k].u ? ' ' + esc(f.v[k].u) : '') + '</span>'; }).join('') + '</p>' +
         '<form class="fo-dene-f"><label><span>' + FO.os(f.o.s) + ' = ?</span><input type="text" inputmode="decimal" autocomplete="off" aria-label="' + t('cevap') + '"><em>' + esc(f.o.u) + '</em></label>' +
@@ -169,6 +173,7 @@
         var x = parseFloat(String(inp.value).replace(',', '.').replace(/\s/g, ''));
         var ok = isFinite(x) && Math.abs(x - dogru) <= Math.max(Math.abs(dogru) * 0.02, 1e-9);
         c.className = 'fo-dene-c ' + (ok ? 'fo-ok' : 'fo-no');
+        if (ok && !sayildi) { sayildi = true; D.dispatchEvent(new CustomEvent('formulo:dogru', { detail: { id: f.id, d: f.d, sev: 'kolay', kaynak: 'dene' } })); }   /* rozet ve seri: formulo-plus.js */
         c.innerHTML = ok ? '✓ ' + t('dogru') : '✗ ' + t('yanlis') + ': <b>' + sayi(dogru) + ' ' + esc(f.o.u) + '</b>';
         sonKaydet(f);
       });
@@ -191,7 +196,7 @@
       '<div class="fo-kitap"><small>' + t('kitap') + '</small>' + d.kitap.map(function (k) { return '<span>' + esc(k) + '</span>'; }).join('') + '</div></header>' +
       '<div class="fo-ders" style="--c:' + d.renk + '"><aside class="fo-konular" aria-label="' + t('konular') + '"><b>' + t('konular') + '</b><button type="button" class="fo-kn" data-kn="" aria-pressed="true">' + t('hepsi') + ' <i>' + fs.length + '</i></button>' +
       d.konular.map(function (k) { var n = fs.filter(function (f) { return f.k === k.id; }).length; return '<button type="button" class="fo-kn" data-kn="' + k.id + '" aria-pressed="false">' + esc(ad(k)) + ' <i>' + n + '</i></button>'; }).join('') + '</aside>' +
-      '<div class="fo-orta"><div class="fo-sekmeler" role="tablist">' + [['F', 'sekF'], ['S', 'sekS'], ['A', 'sekA']].map(function (x, n) { return '<button type="button" role="tab" id="sek-' + x[0] + '" aria-controls="pan-' + x[0] + '" aria-selected="' + (n === 0) + '" data-sekme="' + x[0] + '">' + t(x[1]) + '</button>'; }).join('') + '</div>' +
+      '<div class="fo-orta"><div class="fo-sekmeler" role="tablist">' + [['F', 'sekF'], ['S', 'sekS'], ['A', 'sekA']].map(function (x, n) { return '<button type="button" role="tab" id="sek-' + x[0] + '" aria-controls="pan-' + x[0] + '" aria-selected="' + (n === 0) + '" data-sekme="' + x[0] + '">' + t(x[1]) + '</button>'; }).join('') + '</div>' + (W.FOPLUS && W.FORMULO_SORU ? W.FOPLUS.sinavBarHTML(d) : '') +
       '<div class="fo-kartlar" role="tabpanel" id="pan-F" aria-labelledby="sek-F">' + fs.map(kart).join('') + '</div>' +
       '<div class="fo-panel" role="tabpanel" id="pan-S" aria-labelledby="sek-S" data-pan-s hidden></div><div class="fo-panel" role="tabpanel" id="pan-A" aria-labelledby="sek-A" data-pan-a hidden></div></div>' +
       '<aside class="fo-lab" data-fo-lab aria-label="' + t('lablar') + '"><div class="fo-lab-bas"><b data-lab-ad>' + t('lablar') + '</b><button type="button" class="fo-lab-kapat" data-lab-kapat aria-label="' + t('kapat') + '">×</button></div>' +

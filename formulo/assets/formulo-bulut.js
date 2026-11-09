@@ -1,6 +1,7 @@
 /* ==========================================================================
    FORMULO · hesaba kayıt (formulo/assets/formulo-bulut.js), 08.11.2026
-   Deste, hata defteri, soru havuzu skoru, seri ve "kaldığın yer" artık yalnız
+   Deste, hata defteri, soru havuzu skoru, seri, "kaldığın yer", rozetler, sayaçlar
+   ve sınav geçmişi artık yalnız
    tarayıcıda değil, öğrencinin hesabında da durur (tablo: formulo_ilerleme,
    supabase/migrations/20261108_formulo_ilerleme.sql). Telefonda yıldızlanan
    formül bilgisayarda da destede görünür.
@@ -18,7 +19,7 @@
   'use strict';
   if (W.FOBULUT) return;
   var D = W.document;
-  var ANAH = ['deste', 'hata', 'skor', 'seri', 'son'];
+  var ANAH = ['deste', 'hata', 'skor', 'seri', 'son', 'istat', 'calisilan', 'rozet', 'sinavlar'];   /* son dördü: formulo-plus.js (rozet, sınav) */
   var TABLO = 'formulo_ilerleme';
   function al(k, v) { try { var x = localStorage.getItem('formulo.' + k); return x ? JSON.parse(x) : v; } catch (e) { return v; } }
   function yaz(k, v) { try { if (v == null) localStorage.removeItem('formulo.' + k); else localStorage.setItem('formulo.' + k, JSON.stringify(v)); } catch (e) { } }
@@ -34,8 +35,12 @@
       return s.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); }).slice(0, 60);
     },
     skor: function (y, u) { var s = {}; [u || {}, y || {}].forEach(function (o) { Object.keys(o).forEach(function (d) { if (!s[d] || (o[d] && o[d].t > s[d].t)) s[d] = o[d]; }); }); return s; },
-    seri: function (y, u) { if (!y) return u || null; if (!u) return y; return (u.n || 0) > (y.n || 0) ? u : y; },
-    son: function (y, u) { if (!y) return u || null; if (!u) return y; return (u.ts || 0) > (y.ts || 0) ? u : y; }
+    seri: function (y, u) { if (!y) return u || null; if (!u) return y; var r = (u.n || 0) > (y.n || 0) ? u : y, en = Math.max(y.en || y.n || 0, u.en || u.n || 0); return en > (r.en || 0) ? Object.assign({}, r, { en: en }) : r; },
+    son: function (y, u) { if (!y) return u || null; if (!u) return y; return (u.ts || 0) > (y.ts || 0) ? u : y; },
+    istat: function (y, u) { var s = {}; [y || {}, u || {}].forEach(function (o) { Object.keys(o).forEach(function (k) { s[k] = Math.max(+s[k] || 0, +o[k] || 0); }); }); return s; },
+    calisilan: function (y, u) { return ILK.deste(y, u); },
+    rozet: function (y, u) { var s = {}; [y || {}, u || {}].forEach(function (o) { Object.keys(o).forEach(function (k) { s[k] = s[k] ? Math.min(s[k], o[k]) : o[k]; }); }); return s; },
+    sinavlar: function (y, u) { var gor = {}, s = []; (Array.isArray(y) ? y : []).concat(Array.isArray(u) ? u : []).forEach(function (x) { if (!x || gor[x.ts + '|' + x.d]) return; gor[x.ts + '|' + x.d] = 1; s.push(x); }); return s.sort(function (a, b) { return b.ts - a.ts; }).slice(0, 30); }
   };
   /* yerel: {veri, zaman}, uzak: {veri, zaman}; zaman[k] = o anahtarın son değişim anı (ms) */
   function birlestir(yerel, uzak) {

@@ -227,7 +227,7 @@
       var form = govde.querySelector('form'), inp = form.querySelector('input'), c = govde.querySelector('[data-fq-c]');
       function sonuc(ok, cvp) {
         c.className = 'fq-c ' + (ok ? 'fo-ok' : 'fo-no'); c.innerHTML = ok ? '✓ ' + esc(T('dogru')) : '✗ ' + esc(T('yanlis')) + ': <b>' + cevapHTML(q) + '</b>';
-        if (!cevaplandi) { cevaplandi = true; sk.t++; if (ok) { sk.d++; sk.s++; } else { sk.s = 0; hataEkle(q, cvp); } skor[d.id] = sk; koy('skor', skor); puanYaz(); }
+        if (!cevaplandi) { cevaplandi = true; sk.t++; if (ok) { sk.d++; sk.s++; } else { sk.s = 0; hataEkle(q, cvp); } skor[d.id] = sk; koy('skor', skor); puanYaz(); if (ok) D.dispatchEvent(new CustomEvent('formulo:dogru', { detail: { id: q.f.id, d: q.f.d, sev: q.sev || q.tip, kaynak: 'havuz' } })); }   /* rozet ve seri: formulo-plus.js */
         if (ok) acadia('kutlama', 'zipla', rast(T('tebrik'))); else { acadia('dusunuyor', 'dusun', rast(T('teselli'))); goster(); }
         koy('son', { d: q.f.d, k: q.f.k, id: q.f.id, ts: Date.now() });
       }
@@ -260,5 +260,5 @@
     return { tekrarVar: !!tk };
   }
 
-  W.FORMULO_SORU = { uret: uret, panelHTML: panelHTML, panelKur: panelKur, hataHTML: hataHTML, hataKur: hataKur, ZINCIR: ZINCIR, monoton: monoton, ikiye: ikiye, soruMetni: soruMetni, cozum: cozum, adimlar: adimlar, kolayIcin: function (f) { for (var i = 0; i < 30; i++) { var v = degerler(f); if (gecerli(f, v)) return { tip: 'kolay', f: f, v: v, dogru: f.o.f(v), birim: f.o.u, s: FO.os(f.o.s) }; } return null; }, cevapHTML: cevapHTML, genQ: genQ, verilenler: verilenler, dogruMu: dogruMu, oku: oku };
+  W.FORMULO_SORU = { uret: uret, panelHTML: panelHTML, panelKur: panelKur, hataHTML: hataHTML, hataKur: hataKur, ZINCIR: ZINCIR, monoton: monoton, ikiye: ikiye, soruMetni: soruMetni, cozum: cozum, adimlar: adimlar, kolayIcin: function (f) { for (var i = 0; i < 30; i++) { var v = degerler(f); if (gecerli(f, v)) return { tip: 'kolay', f: f, v: v, dogru: f.o.f(v), birim: f.o.u, s: FO.os(f.o.s) }; } return null; }, cevapHTML: cevapHTML, hataEkle: hataEkle, genQ: genQ, verilenler: verilenler, dogruMu: dogruMu, oku: oku };
 })(window);
