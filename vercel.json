@@ -7,6 +7,10 @@
     {
       "source": "/panel",
       "destination": "/panel.html"
+    },
+    {
+      "source": "/kids",
+      "destination": "/kids/index.html"
     }
   ],
   "headers": [

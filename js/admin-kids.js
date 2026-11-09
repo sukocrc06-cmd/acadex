@@ -82,7 +82,7 @@
       '<div class="kpi"><div class="k">tahsil edilen</div><div class="v">' + TL(gelir) + '</div><div class="s">ödendi işaretli lisanslar, KDV hariç</div></div>' +
       '<div class="kpi' + (bitecek ? ' alert' : '') + '"><div class="k">30 gün içinde</div><div class="v">' + NF(bitecek) + '</div><div class="s">süresi dolan ya da dolacak</div></div></div>' +
       '<div class="tools"><label class="fld grow">Ara<input class="in" id="kd-ara" type="search" placeholder="okul adı, kod ya da ilçe" value="' + X(K.ara) + '"></label>' +
-      '<button type="button" class="btn" id="kd-yeni">+ okul ekle</button></div>' +
+      '<a class="btn ghost" href="/kids/" target="_blank" rel="noopener">Kids sitesini aç ↗</a><button type="button" class="btn" id="kd-yeni">+ okul ekle</button></div>' +
       (goster.length ? '<div class="tbl-w"><table class="kd-tbl"><thead><tr><th>Okul</th><th>Kod</th><th>Öğrenci</th><th>Lisans bitişi</th><th class="hide-sm">Ödeme</th><th></th></tr></thead><tbody>' +
         goster.map(function (o) {
           return '<tr data-okul="' + o.id + '" tabindex="0"><td><b>' + X(o.ad) + '</b><div class="muted kd-k">' + X([o.ilce, o.il].filter(Boolean).join(', ')) + ' · ' + NF(o.sinif) + ' sınıf</div></td>' +

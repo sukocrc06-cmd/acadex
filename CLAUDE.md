@@ -37,6 +37,8 @@
 | **Hata defteri hatırlatması** (bildirim çanı + telefon) | çan `js/dashboard.js` → `gatherNotificationItems` (1c), `exam-engine` → `mistakeReminder`; telefon `20261030_push_hata_defteri.sql` → `exam_mistakes_due`, `push_daily` (takvim JS ile aynı, `tests/push-hata-defteri.js`) |
 | **Yüzdelik sıra** (karnede `sn-peer`, `[data-peer]`) | ekran `js/acadex-ink.js` → `loadPeer`, `paintPeer`; sunucu `20261030b_sinav_yuzdelik.sql` → `exam_peer_percentiles` (20 öğrenci eşiği, 5'e yuvarlama) |
 | **Sınav günü hazırlığı** (`sn-rdy`, `[data-rdy]`) | `js/acadex-ink.js` → `FAZ 10: sınav günü hazırlığı` (`paintRdy`); `exam-engine` → `examReadiness` |
+| **Acadex Kids sitesi** (acadex.com.tr/kids, `kl-`/`ka-`/`kt-`/`kg-`) | kaynak `kids/assets/*`; **`kids/index.html` elle düzenlenmez**, `node kids/assets/birlestir.js` üretir; sunucu bağlantısı `kids/assets/kids-bulut.js` → `20261110b_kids_giris.sql`. Kids ayrı üründür: okul öğretmeni yalnız orada var |
+| **Yönetim → Acadex Kids** (`kd-*`, okul/lisans, toplu öğrenci, A4 giriş kartı) | `js/admin-kids.js`, `css/admin-kids.css`, çizimler `js/kids-ciz.js`; sunucu `20261110_kids_yonetim.sql` |
 
 ---
 
@@ -48,6 +50,7 @@
 | Öteki `supabase/functions/**/index.ts` | **Elle:** Supabase panelinden kopyala-yapıştır |
 | `supabase/migrations/*.sql` | **Elle:** Supabase SQL Editor |
 | `js/`, `css/`, `*.html` | **Push:** GitHub Desktop üzerinden → Vercel otomatik |
+| `kids/**` | **Push:** Vercel otomatik (`/kids` → `kids/index.html`); önce `node kids/assets/birlestir.js` |
 | `tests/` | Hiçbir yere deploy edilmez, sadece yerelde koşar |
 
 - Push işlemleri GitHub Desktop üzerinden kontrol edilerek yapılır.
@@ -99,4 +102,4 @@ node tests/<dosya>.js          # iterasyon sırasında SADECE ilgili dosya
 
 - Log varsa **önce logu kodla eşleştir**, tahmin yürütme.
 - Edge function logunda zaman damgaları mikrosaniyedir; ilk `Istek alindi` satırını sıfır kabul edip çıkarırsan gerçek süre çizelgesi çıkar.
-- Bir UI hatasında "düzelttim" demeden önce o kodun **gerçekten ekrana çizen yol** olduğunu doğrula (bkz. Bölüm 4).
+- Bir UI hatasında "düzelttim" demeden önce o kodun **gerçekten ekrana çizen yol** olduğunu doğrula (bkz. Bölüm 4).
