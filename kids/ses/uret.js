@@ -61,9 +61,12 @@ async function sesler() {
   const r = await fetch(API + '/v1/voices', { headers: { 'xi-api-key': ANAHTAR } });
   if (!r.ok) throw new Error('ElevenLabs ' + r.status + ': ' + (await r.text()).slice(0, 300));
   const j = await r.json();
-  for (const v of j.voices || []) {
+  /* kendi tasarladığın/klonladığın sesler ücretsiz planda API'de kullanılabilir; kütüphaneden eklenenler ücretli plan ister */
+  const TUR = { generated: 'KENDİ SESİN (tasarım)', cloned: 'KENDİ SESİN (klon)', premade: 'hazır', professional: 'kütüphane · ücretli plan', famous: 'kütüphane · ücretli plan' };
+  const vs = (j.voices || []).slice().sort((a, b) => (a.category === 'generated' || a.category === 'cloned' ? -1 : 0) - (b.category === 'generated' || b.category === 'cloned' ? -1 : 0));
+  for (const v of vs) {
     const l = v.labels || {};
-    console.log(v.voice_id.padEnd(24) + ' ' + String(v.name).padEnd(28) + ' ' + [l.gender, l.accent, l.age, l.descriptive || l.description, l.use_case].filter(Boolean).join(' · '));
+    console.log(v.voice_id.padEnd(24) + ' ' + String(v.name).padEnd(28) + ' [' + (TUR[v.category] || v.category || '?') + '] ' + [l.gender, l.accent, l.language, l.age, l.descriptive || l.description, l.use_case].filter(Boolean).join(' · '));
   }
   console.log('\nKadın, sıcak, "narrative/educational" etiketli sesleri `dene` ile dinleyin. Ses Kütüphanesi\'nden (Voice Library) eklediğiniz sesler de burada çıkar.');
 }
@@ -101,7 +104,7 @@ async function uret(hepsi, kuru, dil) {
   const isci = async () => {
     for (let i = is.shift(); i; i = is.shift()) {
       try { fs.writeFileSync(i.tam, await seslendir(yeni.ses[i.x.dil], i.x.metin, i.x.dil)); yeni.sesler[i.anahtar] = i.ad; n++; }
-      catch (e) { hata++; console.error('✗ ' + i.anahtar + ' → ' + e.message); if (/401|403|quota|credits|invalid_api_key|authentication_error|api_key_id_used/i.test(e.message)) { if (is.length) console.error('Anahtar/kredi sorunu: kalan işler durduruldu. Mesajı okuyup düzeltin, sonra yeniden çalıştırın.'); is.length = 0; } }
+      catch (e) { hata++; console.error('✗ ' + i.anahtar + ' → ' + e.message); if (/401|403|quota|credits|invalid_api_key|authentication_error|api_key_id_used|payment_required|paid_plan_required/i.test(e.message)) { if (is.length) console.error('Anahtar/kredi sorunu: kalan işler durduruldu. Mesajı okuyup düzeltin, sonra yeniden çalıştırın.'); is.length = 0; } }
       if (n % 20 === 0 && n) process.stdout.write('  ' + n + ' dosya\n');
     }
   };
