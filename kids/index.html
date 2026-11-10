@@ -1465,10 +1465,15 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function yukle() { try { sesler = W.speechSynthesis ? W.speechSynthesis.getVoices() : []; } catch (e) { sesler = []; } }
   if (W.speechSynthesis) { yukle(); try { W.speechSynthesis.addEventListener('voiceschanged', yukle); } catch (e) { } }
   /* yedek ses: dilde en doğal kadın sesi */
-  var IYI = { en: [/natural.*(sonia|libby|maisie|aria|jenny|ava|emma)/i, /(sonia|libby|aria|jenny|ava|emma).*natural/i, /google uk english female/i, /google us english/i, /samantha|serena|karen|moira|tessa|kate|martha/i, /female/i],
+  var IYI = { en: [/natural.*(sonia|libby|maisie|aria|jenny|ava|emma)/i, /(sonia|libby|aria|jenny|ava|emma).*natural/i, /google uk english female/i, /google us english/i, /samantha|serena|karen|moira|tessa|kate|martha/i, /hazel|zira|susan|catherine|linda|heera/i, /female/i],
     tr: [/natural.*emel/i, /emel/i, /google t(ü|u)rk/i, /yelda/i, /female|kad(ı|i)n/i] };
+  /* erkek sesler: öğretmen sesi kadın olsun (Windows'ta Türkçe yalnız erkek "Tolga" vardır) */
+  var ERKEK = /\b(male|erkek)\b|david|mark|george|james|richard|sean|guy|ryan|tolga|daniel|fred|alex|thomas|oliver|arthur|aaron|ravi|rishi|christopher|eric|roger|brian|andrew|steffan|ahmet|ozan/i;
   function sesSec(dil) {
-    var on = dil === 'tr' ? ['tr-TR', 'tr'] : ['en-GB', 'en-US', 'en'], uygun = sesler.filter(function (v) { var l = (v.lang || '').replace('_', '-'); return on.some(function (o) { return l.indexOf(o) === 0; }); });
+    var on = dil === 'tr' ? ['tr-TR', 'tr'] : ['en-GB', 'en-US', 'en'], hepsi = sesler.filter(function (v) { var l = (v.lang || '').replace('_', '-'); return on.some(function (o) { return l.indexOf(o) === 0; }); });
+    var uygun = hepsi.filter(function (v) { return !ERKEK.test(v.name); });
+    /* İngilizce kelime şart: kadın ses yoksa erkekle de okunur. Türkçe yönerge erkek/robot sesle okunmaz (yazı ekranda kalır) */
+    if (!uygun.length) { if (dil === 'tr') return null; uygun = hepsi; }
     var desen = IYI[dil === 'tr' ? 'tr' : 'en'];
     for (var i = 0; i < desen.length; i++) for (var j = 0; j < uygun.length; j++) if (desen[i].test(uygun[j].name)) return uygun[j];
     for (var k = 0; k < on.length; k++) for (var m = 0; m < uygun.length; m++) if ((uygun[m].lang || '').replace('_', '-').indexOf(on[k]) === 0) return uygun[m];
