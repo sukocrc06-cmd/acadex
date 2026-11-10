@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <script>/* kapı: son 30 dk içinde doğrulandıysa açık başla (assets/kapi.js yine denetler) */try{if(Date.now()-(+sessionStorage.getItem('acx.kapi')||0)<18e5)document.documentElement.classList.remove('kapi')}catch(e){}</script>
-<title>Acadex English</title>
+<title>Acadingo · by Acadex</title>
 <meta name="description" content="Kahvaltıda kelime, otobüste dinleme, kütüphanede okuma, kafede konuşma, akşam bir paragraf. Üniversite öğrencisinin gününe dağılmış İngilizce.">
-<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/ing.css">
 <style>
 body{--c:var(--mavi)}
@@ -46,17 +50,6 @@ body{--c:var(--mavi)}
 .a4 .gok .gunes{box-shadow:inset -14px -4px 0 #2A3A6E}
 @media (max-width:860px){.gok{aspect-ratio:4/5}.gok .kart2{grid-template-columns:1fr;gap:6px}.gok .kart2 .saat{justify-self:start}}
 
-/* defterin */
-.defter{display:grid;grid-template-columns:repeat(5,1fr);gap:18px}
-.defter a{display:flex;flex-direction:column;gap:6px;padding:18px 16px 16px;text-decoration:none;border-top:10px solid var(--t);transition:transform .2s var(--ease),box-shadow .2s}
-.defter a:hover{transform:translate(-2px,-3px) rotate(-.6deg);box-shadow:6px 7px 0 var(--ink)}
-.defter small{font:500 12px var(--mono);color:var(--ink3)}
-.defter b{font:800 23px/1.1 var(--disp);letter-spacing:-.02em}
-.defter .el{font-size:19px;color:var(--ink2)}
-.defter .cubuk{margin-top:auto}
-.defter .cubuk i{background:var(--t);width:calc(var(--d,0) * 100%);transition:width 1s var(--ease)}
-@media (max-width:980px){.defter{grid-template-columns:repeat(2,1fr)}.defter a:last-child{grid-column:1/-1}}
-@media (max-width:520px){.defter{grid-template-columns:1fr}}
 .mektup{max-width:680px;margin:0 auto;padding:30px 32px;background-color:#FFFDF8;background-image:repeating-linear-gradient(transparent 0 33px,#D6E0F0 33px 34px);font-size:18px;line-height:34px;transform:rotate(-.6deg)}
 .mektup p{margin:0 0 0}
 .mektup .el{font-size:26px;color:var(--mavi)}
@@ -64,7 +57,7 @@ body{--c:var(--mavi)}
 </head>
 <body data-panel="" data-sayfa="hub" data-ipucu="Hepsini aynı gün yapmak zorunda değilsin; bir durak bile seri sayılır.|Günün rotası sabah kelimeyle başlar, akşam bir paragrafla biter.|Kaldığın yeri defter hatırlıyor; sayfayı kapatman sorun değil.">
 <header class="ust"><div class="wrap">
-  <a class="marka" href="index.html" aria-current="page"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <a class="marka" href="index.html" aria-current="page"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadingo</b><span class="el">by Acadex</span></a>
   <nav class="sekme" aria-label="Beceriler">
     <a href="vocab.html" style="--t:var(--vocab)"><i></i>Vocab</a>
     <a href="listening.html" style="--t:var(--listening)"><i></i>Listening</a>
@@ -88,7 +81,7 @@ body{--c:var(--mavi)}
   </div>
   <div class="kapak" data-gir="dus" style="--r:2deg;--d:.1s">
     <div class="cilt">
-      <div class="etk"><small>ad · bölüm · dönem</small><b>English</b><span class="el">hazırlıktan C1'e, sınava kadar</span></div>
+      <div class="etk"><small>ad · bölüm · dönem</small><b>Acadingo</b><span class="el">hazırlıktan C1'e, sınava kadar</span></div>
       <div class="cikartma c1">B1<br>→ B2</div>
       <div class="cikartma c2">dokunma, benim!</div>
     </div>
@@ -100,6 +93,23 @@ body{--c:var(--mavi)}
     <a class="ayr" href="writing.html" style="top:76%;background:#EE9A8F"><span>Writing</span></a>
     <svg class="acadia2" viewBox="-62 -62 124 124" aria-hidden="true"><path d="M0 -52 C7 -19 19 -7 52 0 C19 7 7 19 0 52 C-7 19 -19 7 -52 0 C-19 -7 -7 -19 0 -52 Z" fill="#FFD86B" stroke="#1A2A5C" stroke-width="4" stroke-linejoin="round"/><ellipse cx="-17" cy="11" rx="6" ry="3.5" fill="#F29C94"/><ellipse cx="17" cy="11" rx="6" ry="3.5" fill="#F29C94"/><ellipse cx="-10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="#1A2A5C" stroke-width="2.5"/><circle cx="-9" cy="-3" r="3.6" fill="#1A2A5C"/><ellipse cx="10" cy="-4" rx="6.5" ry="8" fill="#fff" stroke="#1A2A5C" stroke-width="2.5"/><circle cx="11" cy="-3" r="3.6" fill="#1A2A5C"/><path d="M-6 10 Q0 16 6 10" fill="none" stroke="#1A2A5C" stroke-width="3" stroke-linecap="round"/></svg>
   </div>
+</div></section>
+
+<section class="sahne ac-sahne" id="ac" data-adim="6" aria-label="Defterin: beş beceri, beş sayfa" data-acadia="Kaydır; defter açılıyor, her sayfada bir becerinin ağacı var.">
+  <div class="ac-yapis">
+    <div class="ac-kitap">
+      <div class="ac-sag" aria-live="polite"></div>
+      <div class="ac-kapak">
+        <div class="yuz"><div class="etk"><small>dönem defteri</small><b>Acadingo</b><span class="el">beş beceri, beş sayfa</span></div><span class="lastik" aria-hidden="true"></span><span class="kaydir mono" aria-hidden="true">kaydır ↓</span></div>
+        <div class="arka"><span class="etiket">içindekiler</span><ol class="ac-ici"></ol><p class="el">Her dal bir basamak. Beşi açılınca rozet “usta” olur.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bolum" id="beceri"><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">beceri radarı</span><h2 class="disp">Beş becerin, tek bakışta.</h2><p>Puanlar yalnız bu tarayıcıdaki kayıtlardan gelir: bitirdiğin alıştırmalar, Defne Hoca oturumları, son iki haftada çalıştığın günler ve panele özel ölçümler.</p></div>
+  <div class="kagit radar" id="radar" data-gir="yukari"><div class="radar-svg"></div><ul class="radar-liste"></ul></div>
 </div></section>
 
 <section class="sahne" id="rota" data-adim="5" aria-label="Günün rotası: beş durak" data-acadia="Kaydır; güneş ilerledikçe günün durakları geçiyor.">
@@ -114,23 +124,19 @@ body{--c:var(--mavi)}
         <li><div><b>21:40 · Writing</b><span>Yurt odasında bir paragraf. Kırmızı kalem açıklamalı.</span></div></li>
       </ol>
     </div>
-    <div class="gok">
-      <div class="gunes" aria-hidden="true"></div>
-      <div class="bina" aria-hidden="true"><svg viewBox="0 0 600 120" preserveAspectRatio="none"><path d="M0 120 V70 h60 V40 h50 V80 h40 V20 h70 V60 h50 V50 h60 V90 h40 V30 h80 V70 h50 V55 h100 V120 Z" fill="#E7DCC3" stroke="#1A2A5C" stroke-width="3"/><path d="M168 36 h10 v10 h-10z M190 36 h10 v10 h-10z M168 58 h10 v10 h-10z M418 46 h10 v10 h-10z M440 46 h10 v10 h-10z M440 68 h10 v10 h-10z" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2"/></svg></div>
+    <div class="gok haritali">
       <div class="kagit kart2" id="durak"></div>
     </div>
   </div>
 </section>
 
-<section class="bolum" id="hafta" data-yirtik><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">bu hafta</span><h2 class="disp">Seri kâğıtta görünür.</h2><p>Bir alıştırma bitirdiğin her gün takvime o panelin rengiyle mürekkep damlar. <span class="mono" data-seri style="color:var(--c)"></span></p></div>
-  <div class="kagit takvim" data-gir="yukari"></div>
-</div></section>
-
-<section class="bolum"><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">defterin</span><h2 class="disp">Nerede kaldın?</h2><p>Her panelde dört alıştırma var. Bitirdiğin alıştırmalar bu tarayıcıda kayıtlı kalır.</p></div>
-  <div class="defter" id="defter"></div>
-</div></section>
+<section class="serit-sahne" id="hafta" data-yirtik>
+  <div class="serit-ic">
+    <div class="wrap"><div class="bolum-b" data-gir="yukari"><span class="el">son dört hafta</span><h2 class="disp">Seri kâğıtta görünür.</h2><p>Bir alıştırma bitirdiğin her gün o panelin rengiyle mürekkep damlar. <span class="mono" data-seri style="color:var(--c)"></span> · <span class="mono" data-toplam></span></p></div></div>
+    <div class="serit"><div class="serit-iz"></div></div>
+    <div class="wrap serit-alt"><span class="mono">kaydırdıkça günler akar</span><span class="serit-cubuk"><i></i></span></div>
+  </div>
+</section>
 
 <section class="bolum" style="padding-top:0"><div class="wrap">
   <div class="kagit mektup" data-gir="yukari">
@@ -140,13 +146,14 @@ body{--c:var(--mavi)}
   </div>
 </div></section>
 </main>
-<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English · <a href="../index.html">Acadex ana sayfa</a></span><span>Kahvaltıdan yurt odasına.</span></div></footer>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadingo · by Acadex · <a href="../index.html">Acadex ana sayfa</a></span><span>Kahvaltıdan yurt odasına.</span></div></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="../js/supabase-config.js"></script>
 <script src="../js/acadex-erisim.js"></script>
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
+<script src="assets/hub.js"></script>
 <script>
 (function () {
   'use strict';
@@ -158,16 +165,11 @@ body{--c:var(--mavi)}
     { id: 'speaking', ad: 'Speaking', yer: 'kampüs kafesi', saat: '17:00', not: 'bir dakika hazırlık, iki dakika konuşma', t: 'var(--speaking)' },
     { id: 'writing', ad: 'Writing', yer: 'yurt odası', saat: '21:40', not: 'kırmızı kalem, açıklamalı', t: 'var(--writing)' }
   ];
-  var kac = function (p) { return Object.keys(ACX.bitenler(p.id)).length; };
+  var kac = function (p) { return Math.min(4, Object.keys(ACX.bitenler(p.id)).length); };   /* eski alıştırma kimlikleri yenileriyle birlikte sayılmasın */
   var durak = D.getElementById('durak');
   function durakCiz(i) { var p = PANEL[i]; durak.innerHTML = '<span class="saat">' + p.saat + '</span><div><b>' + p.ad + ' · ' + p.yer + '</b><span class="el">' + p.not + ' · ' + kac(p) + '/4</span></div><a class="btn sm ana" href="' + p.id + '.html" style="background:' + p.t + ';color:' + (p.id === 'vocab' ? 'var(--ink)' : '#fff') + '">Aç →</a>'; }
-  D.querySelector('.sahne').addEventListener('adim', function (e) { durakCiz(e.detail); });
-  durakCiz(+(D.querySelector('.sahne').dataset.a || 0));
-  D.getElementById('defter').innerHTML = PANEL.map(function (p, i) {
-    var n = kac(p);
-    return '<a class="kagit" href="' + p.id + '.html" style="--t:' + p.t + ';--r:' + (i % 2 ? 1 : -1) * .8 + 'deg" data-gir="dus"><small>' + p.saat + ' · ' + p.yer + '</small><b>' + p.ad + '</b><span class="el">' + (n === 4 ? 'hepsi bitti' : n ? n + ' alıştırma bitti' : 'henüz açılmadı') + '</span><div class="cubuk" aria-label="' + n + ' / 4"><i style="--d:' + n / 4 + '"></i></div></a>';
-  }).join('');
-  ACX.girisler(D.getElementById('defter'));
+  D.getElementById('rota').addEventListener('adim', function (e) { durakCiz(e.detail); });
+  durakCiz(+(D.getElementById('rota').dataset.a || 0));
 })();
 </script>
 </body>

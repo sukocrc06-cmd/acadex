@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KVKK Aydınlatma Metni ve Veri Politikaları — Acadex</title>
+<meta name="description" content="Acadex KVKK Aydınlatma Metni, Açık Rıza Metni, Çerez ve Yerel Depolama Politikası ve kişisel veri başvuru yolu.">
+<link rel="canonical" href="https://www.acadex.com.tr/kvkk.html">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
+<!--
+  08.11.2026 · KVKK paketi (6698 sayılı Kanun md. 10 aydınlatma, md. 11 haklar, md. 9 yurt dışına aktarım;
+  KVK Kurulu 24.03.2026 tarihli ilke kararı: aydınlatma ve açık rıza metinleri ayrı düzenlenir).
+  METİN SÜRÜMÜ: 2026-11-08 · register.html bu sürümü kullanıcı kaydına yazar (js/auth.js → LEGAL_SURUM).
+  TASLAKTIR: yayından önce bir hukukçu okumalıdır. Şirket kurulunca veri sorumlusu bilgisi güncellenir.
+-->
+<style>
+:root{--navy:#0D1838;--ink:#1F2533;--soft:#4B5675;--line:#E1E6F0;--blue:#2F6BFF;--cream:#FBFAF6}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--cream);color:var(--ink);font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.65}
+a{color:var(--blue);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:8px;background:#fff;padding:8px 12px;border-radius:6px}
+.skip:focus{left:8px;z-index:10}
+header{position:sticky;top:0;z-index:5;background:rgba(251,250,246,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.ust{max-width:980px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.marka{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;color:var(--navy);text-decoration:none;letter-spacing:-.02em}
+.marka img{width:32px;height:32px}
+.ust nav{display:flex;gap:6px;flex-wrap:wrap}
+.ust nav a{font-size:14px;font-weight:600;color:var(--soft);text-decoration:none;padding:8px 10px;border-radius:8px;min-height:40px;display:inline-flex;align-items:center}
+.ust nav a:hover{background:#EEF1F6;color:var(--navy)}
+main{max-width:980px;margin:0 auto;padding:28px 20px 80px}
+h1{font-size:34px;line-height:1.15;letter-spacing:-.02em;color:var(--navy);margin:8px 0 6px}
+.surum{font-size:14px;color:var(--soft);margin:0 0 20px}
+.icindekiler{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:0 0 34px;padding:0;list-style:none}
+.icindekiler a{display:block;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:#fff;text-decoration:none;color:var(--navy);font-weight:700}
+.icindekiler a small{display:block;font-weight:500;color:var(--soft);font-size:13px;margin-top:2px}
+section{background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px 28px;margin:0 0 26px;scroll-margin-top:84px}
+h2{font-size:24px;color:var(--navy);margin:0 0 14px;letter-spacing:-.01em}
+h3{font-size:17px;color:var(--navy);margin:22px 0 8px}
+p,li{color:#2A3142}
+ul,ol{padding-left:22px}
+li{margin:0 0 6px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:10px 0 6px}
+th,td{border:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
+th{background:#F5F7FB;color:var(--navy);font-weight:700}
+.kutu{padding:14px 16px;border-left:4px solid var(--blue);background:#F2F6FF;border-radius:0 8px 8px 0;margin:14px 0}
+.uyari{border-left-color:#E8B53A;background:#FFF8E6}
+footer{max-width:980px;margin:0 auto;padding:0 20px 40px;font-size:13px;color:var(--soft)}
+@media (max-width:640px){section{padding:20px 18px}h1{font-size:28px}.ust nav{display:none}table{font-size:13.5px}th,td{padding:7px}}
+@media print{header,.icindekiler,footer{display:none}section{border:0;padding:0;break-inside:avoid-page}}
+</style>
+</head>
+<body>
+<a class="skip" href="#icerik">İçeriğe geç</a>
+<header><div class="ust">
+  <a class="marka" href="index.html"><img src="assets/landing/acadex-logo.webp" alt="" width="32" height="32">Acadex</a>
+  <nav aria-label="KVKK bölümleri"><a href="#aydinlatma">Aydınlatma</a><a href="#acik-riza">Açık rıza</a><a href="#cerez">Çerez ve depolama</a><a href="#basvuru">Başvuru</a><a href="legal.html">Gizlilik ve şartlar</a></nav>
+</div></header>
+
+<main id="icerik">
+  <h1>Kişisel verileriniz</h1>
+  <p class="surum">Metin sürümü: 08.11.2026 · Bu sayfadaki metinler 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında hazırlanmıştır.</p>
+  <ul class="icindekiler">
+    <li><a href="#aydinlatma">KVKK Aydınlatma Metni<small>hangi veriyi, neden, kime</small></a></li>
+    <li><a href="#acik-riza">Açık Rıza Metni<small>isteğe bağlı izinler</small></a></li>
+    <li><a href="#cerez">Çerez ve Yerel Depolama<small>tarayıcında ne tutulur</small></a></li>
+    <li><a href="#basvuru">Haklarınız ve başvuru<small>KVKK md. 11</small></a></li>
+  </ul>
+
+  <!-- ===================== AYDINLATMA ===================== -->
+  <section id="aydinlatma" aria-labelledby="h-aydinlatma">
+    <h2 id="h-aydinlatma">KVKK Aydınlatma Metni</h2>
+    <p>Bu metin, Acadex'i (acadex.com.tr, Formulo, Acadex Medica, Acadingo ve diğer laboratuvarlar dahil) kullanırken kişisel verilerinizin nasıl işlendiğini KVKK'nın 10. maddesi uyarınca açıklar. Aydınlatma bir onay değildir; kullanımınızı sürdürebilmeniz için onay vermeniz gerekmez.</p>
+
+    <h3>1. Veri sorumlusu</h3>
+    <p>Veri sorumlusu, Acadex'in kurucusu <strong>Şükrü Çerçi</strong>'dir (Ankara, Türkiye). İletişim: <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a>. Acadex'i işletecek şirket kurulduğunda bu bölüm şirket unvanı, adresi ve MERSİS numarasıyla güncellenecektir.</p>
+
+    <h3>2. İşlenen kişisel veriler</h3>
+    <table>
+      <tr><th style="width:28%">Veri kategorisi</th><th>Örnekler</th></tr>
+      <tr><td>Kimlik ve iletişim</td><td>Ad soyad, e-posta adresi, öğrenci numarası, bölüm; Google ile girişte Google'ın paylaştığı ad, e-posta ve profil fotoğrafı</td></tr>
+      <tr><td>Hesap ve güvenlik</td><td>Şifre (yalnız şifrelenmiş özet olarak, Supabase tarafından), oturum anahtarları, giriş zamanı, IP adresi ve tarayıcı bilgisi gibi işlem güvenliği kayıtları</td></tr>
+      <tr><td>Yüklediğiniz içerik</td><td>Ders notu, slayt, PDF ve görseller; bunlardan çıkarılan metin</td></tr>
+      <tr><td>Öğrenme verileri</td><td>Özetler, bilgi kartları, çalışma defteri, planlayıcı ve sınav takvimi, deneme sınavı cevapları ve puanları, seri, Formulo destesi ve hata defteri, laboratuvar ve Medica vaka sonuçları, Acadingo alıştırmaları</td></tr>
+      <tr><td>Yapay zekâ ile yazışmalar</td><td>Acadia, Formulo'da "Acadia'ya sor", Medica yapay zekâ hasta ve İngilizce hocasına yazdığınız ya da söylediğiniz metin</td></tr>
+      <tr><td>Görsel ve ses</td><td>İsteğe bağlı profil/kart fotoğrafı. Konuşma alıştırmalarında mikrofon kaydı yalnız kendi cihazınızda kalır; konuşmanın yazıya çevrilmesi tarayıcınızın konuşma tanıma hizmetiyle yapılır</td></tr>
+      <tr><td>Paylaşımlar ve destek</td><td>Bölüm akışında kendi isteğinizle paylaştığınız kartlar ve yorumlar, canlı destek ve iletişim formu mesajları</td></tr>
+      <tr><td>Ödeme ve fatura</td><td>Paket satın alırsanız ad soyad, telefon, fatura adresi, paket ve tutar bilgisi. Kart bilgileri Acadex'e gelmez, doğrudan iyzico tarafından işlenir</td></tr>
+      <tr><td>Bildirim</td><td>Telefon/tarayıcı bildirimine izin verirseniz cihazınızın bildirim aboneliği</td></tr>
+    </table>
+    <p>Acadex, kişisel verilerin KVKK md. 6'da sayılan <strong>özel nitelikli</strong> türlerini (sağlık, biyometrik veri vb.) toplamayı amaçlamaz. Acadex Medica'daki hastalar kurgusaldır. Lütfen yüklediğiniz belgelere ve yapay zekâya yazdıklarınıza kendinizin ya da başkalarının sağlık bilgisi, kimlik numarası gibi verilerini eklemeyin.</p>
+
+    <h3>3. İşleme amaçları ve hukuki sebepler</h3>
+    <table>
+      <tr><th style="width:44%">Amaç</th><th>Hukuki sebep (KVKK md. 5/2)</th></tr>
+      <tr><td>Hesap açmak, giriş yapmak, hizmeti sunmak (özet, kart, sınav, laboratuvar, Formulo, Medica, Acadingo, yapay zekâ asistanları)</td><td>Sözleşmenin kurulması ve ifası (c)</td></tr>
+      <tr><td>İlerlemenizi farklı cihazlarda saklamak, hatırlatma ve bildirim göndermek</td><td>Sözleşmenin ifası (c)</td></tr>
+      <tr><td>Paket satışı, ödeme, fatura</td><td>Sözleşmenin ifası (c); hukuki yükümlülük (ç): vergi ve ticaret mevzuatı</td></tr>
+      <tr><td>Hesap güvenliği, kötüye kullanımın ve yetkisiz erişimin önlenmesi, kullanım kotaları</td><td>Hukuki yükümlülük (ç): 5651 sayılı Kanun ve KVKK md. 12; meşru menfaat (f)</td></tr>
+      <tr><td>Destek taleplerini yanıtlamak, hata düzeltmek, hizmeti toplu ve kişiye özel olmayan istatistiklerle geliştirmek</td><td>Meşru menfaat (f)</td></tr>
+      <tr><td>Bölüm akışında içeriğinizi diğer öğrencilere göstermek</td><td>Sözleşmenin ifası (c); paylaşım her seferinde sizin seçiminizledir</td></tr>
+      <tr><td>Hukuki uyuşmazlıklarda hakların kullanılması</td><td>Bir hakkın tesisi, kullanılması veya korunması (e)</td></tr>
+      <tr><td>Kampanya, yenilik ve etkinlik duyurusu e-postaları</td><td>Yalnız <a href="#acik-riza">açık rızanız</a> varsa (md. 5/1)</td></tr>
+    </table>
+
+    <h3>4. Toplama yöntemi</h3>
+    <p>Veriler; kayıt ve giriş formları, Google ile giriş, yüklediğiniz dosyalar, uygulama içi kullanımınız, ödeme sayfası ve destek kanalları aracılığıyla elektronik ortamda, otomatik ve kısmen otomatik yollarla toplanır.</p>
+
+    <h3>5. Aktarılan taraflar ve yurt dışına aktarım</h3>
+    <p>Acadex'in çalışması için aşağıdaki hizmet sağlayıcılar, Acadex adına <strong>veri işleyen</strong> olarak yalnız gereken verileri işler. Verileriniz satılmaz, reklam amacıyla paylaşılmaz.</p>
+    <table>
+      <tr><th style="width:22%">Hizmet sağlayıcı</th><th>Ne için</th><th style="width:20%">Konum</th></tr>
+      <tr><td>Supabase (AWS altyapısı)</td><td>Hesaplar, veritabanı, dosya deposu, sunucu fonksiyonları</td><td>Fransa (Paris, AB)</td></tr>
+      <tr><td>Vercel</td><td>Web sitesinin yayını; teknik erişim kayıtları</td><td>ABD / küresel CDN</td></tr>
+      <tr><td>Groq</td><td>Yapay zekâ: özet, kart, sınav, Acadia, Formulo, Medica yapay zekâ hasta, İngilizce hocası</td><td>ABD</td></tr>
+      <tr><td>Google (Gemini API)</td><td>Bazı belge özetleme işlemleri</td><td>ABD</td></tr>
+      <tr><td>OpenAI</td><td>Çalışma görseli üretimi</td><td>ABD</td></tr>
+      <tr><td>ElevenLabs</td><td>Sesli anlatım (podcast) üretimi</td><td>ABD</td></tr>
+      <tr><td>OCR.space, PDF.co</td><td>Taranmış belge ve PDF'den metin çıkarma</td><td>AB / ABD</td></tr>
+      <tr><td>Tavily, Pexels, Unsplash</td><td>Sunum için web araştırması ve telifsiz görsel arama (yalnız arama ifadesi)</td><td>ABD / AB</td></tr>
+      <tr><td>Resend, e-posta sağlayıcısı</td><td>Hatırlatma ve bildirim e-postaları</td><td>ABD</td></tr>
+      <tr><td>iyzico</td><td>Ödeme alınması</td><td>Türkiye</td></tr>
+      <tr><td>Google (Google ile giriş, tarayıcı konuşma tanıma)</td><td>Google hesabıyla giriş; konuşma alıştırmasında sesin yazıya çevrilmesi (tarayıcınız üzerinden)</td><td>ABD</td></tr>
+    </table>
+    <p>Yapay zekâ özelliklerinde dosyanızın kendisi değil, yalnız o işlem için gereken metin gönderilir. Acadex, içeriklerinizin yapay zekâ modellerinin eğitiminde kullanılmamasını öngören ücretli/kurumsal API koşullarını kullanır ve sağlayıcıların eğitim amaçlı veri kullanımını kapatır. Yurt dışına aktarım, KVKK'nın 9. maddesi ve Kişisel Verilerin Yurt Dışına Aktarılmasına İlişkin Usul ve Esaslar Hakkında Yönetmelik kapsamındaki uygun güvencelerle (standart sözleşme ve sağlayıcıların veri işleme sözleşmeleri) yapılır. Bunların dışında veriler, yalnız yasal zorunluluk hâlinde yetkili kamu kurum ve kuruluşlarıyla paylaşılır.</p>
+
+    <h3>6. Saklama süresi</h3>
+    <ul>
+      <li>Hesap ve öğrenme verileri: hesabınız açık olduğu sürece. Ayarlar → Hesabı sil ile hesabınızı sildiğinizde belgeleriniz, kartlarınız, sınav geçmişiniz ve ilerlemeniz silinir.</li>
+      <li>Ödeme ve fatura kayıtları: vergi ve ticaret mevzuatının öngördüğü süre (genellikle 10 yıl).</li>
+      <li>İşlem güvenliği kayıtları: ilgili mevzuatın öngördüğü süre kadar, ardından silinir ya da anonimleştirilir.</li>
+      <li>Yapay zekâ sağlayıcılarına giden metinler: Acadex tarafından ayrıca saklanmaz; sağlayıcıların kısa süreli kötüye kullanım denetimi saklaması kendi koşullarına tabidir.</li>
+    </ul>
+
+    <h3>7. Haklarınız</h3>
+    <p>KVKK'nın 11. maddesindeki haklarınızı ve nasıl başvuracağınızı <a href="#basvuru">Haklarınız ve başvuru</a> bölümünde bulabilirsiniz.</p>
+  </section>
+
+  <!-- ===================== AÇIK RIZA ===================== -->
+  <section id="acik-riza" aria-labelledby="h-riza">
+    <h2 id="h-riza">Açık Rıza Metni</h2>
+    <div class="kutu">Bu metin <strong>isteğe bağlıdır</strong>. Rıza vermeseniz de Acadex'in tüm özelliklerini aynı şekilde kullanırsınız. Rızanızı istediğiniz zaman <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a> adresine yazarak ya da e-postalardaki "abonelikten çık" bağlantısıyla geri alabilirsiniz; geri alma ileriye dönük sonuç doğurur.</div>
+    <p>Kayıt sırasında ilgili kutuyu işaretlerseniz, <a href="#aydinlatma">KVKK Aydınlatma Metni</a>'ni okuduğunuzu ve aşağıdaki işleme için özgür iradenizle, bilgilendirilmiş olarak açık rıza verdiğinizi kabul edersiniz:</p>
+    <ul>
+      <li><strong>Duyuru ve kampanya e-postaları:</strong> Ad soyad ve e-posta adresinizin, Acadex'in yeni özellikleri, kampanyaları, indirimleri ve etkinlikleri hakkında size e-posta gönderilmesi amacıyla işlenmesi ve bu e-postaların gönderimi için e-posta hizmet sağlayıcısına (yurt dışında bulunabilir) aktarılması. Bu izin aynı zamanda 6563 sayılı Kanun kapsamında ticari elektronik ileti onayıdır.</li>
+    </ul>
+    <p>Hesap güvenliği, şifre sıfırlama, çalışma hatırlatmaları ve paket/ödeme bildirimleri gibi hizmetin gereği olan e-postalar bu izinden bağımsızdır ve hizmet sözleşmesi kapsamında gönderilir.</p>
+  </section>
+
+  <!-- ===================== ÇEREZ ===================== -->
+  <section id="cerez" aria-labelledby="h-cerez">
+    <h2 id="h-cerez">Çerez ve Yerel Depolama Politikası</h2>
+    <p>Acadex reklam, izleme ya da pazarlama çerezi <strong>kullanmaz</strong> ve üçüncü taraf analiz aracı yüklemez. Tarayıcınızda yalnız hizmetin çalışması için zorunlu ya da sizin seçtiğiniz tercihleri hatırlayan kayıtlar tutulur. Bu kayıtlar için ayrıca onay istenmez (zorunlu ve işlevsel).</p>
+    <table>
+      <tr><th style="width:30%">Kayıt</th><th>Amacı</th><th style="width:20%">Süre</th></tr>
+      <tr><td>Oturum anahtarı (Supabase, yerel depolama)</td><td>Giriş yapmış kalmanız; çıkış yapınca silinir</td><td>Oturum süresince</td></tr>
+      <tr><td>Arayüz tercihleri (dil, karanlık mod, dar menü, ses ve hız ayarları)</td><td>Seçimlerinizi hatırlamak</td><td>Siz silene kadar</td></tr>
+      <tr><td>Çalışma durumu (taslaklar, son açılan ders, Formulo destesi, alıştırma ilerlemesi)</td><td>Kaldığınız yerden devam etmeniz; bir kısmı hesabınızla eşitlenir</td><td>Siz silene kadar</td></tr>
+      <tr><td>Bildirim servis çalışanı ve aboneliği</td><td>İzin verdiyseniz bildirim göstermek</td><td>İzni geri alana kadar</td></tr>
+      <tr><td>Oturum depolaması (kısa süreli)</td><td>Sayfa geçişlerinde geçici durum</td><td>Sekme kapanınca</td></tr>
+    </table>
+    <p>Bu kayıtları tarayıcınızın ayarlarından istediğiniz zaman silebilirsiniz; bu durumda yeniden giriş yapmanız ve tercihlerinizi yeniden seçmeniz gerekebilir. Ödeme sırasında iyzico'nun güvenli ödeme sayfası kendi çerezlerini kullanabilir; bunlar iyzico'nun politikalarına tabidir.</p>
+  </section>
+
+  <!-- ===================== BAŞVURU ===================== -->
+  <section id="basvuru" aria-labelledby="h-basvuru">
+    <h2 id="h-basvuru">Haklarınız ve başvuru</h2>
+    <p>KVKK'nın 11. maddesi uyarınca veri sorumlusuna başvurarak şu haklarınızı kullanabilirsiniz:</p>
+    <ol>
+      <li>Kişisel verilerinizin işlenip işlenmediğini öğrenme,</li>
+      <li>İşlenmişse buna ilişkin bilgi talep etme,</li>
+      <li>İşlenme amacını ve amacına uygun kullanılıp kullanılmadığını öğrenme,</li>
+      <li>Yurt içinde veya yurt dışında aktarıldığı üçüncü kişileri bilme,</li>
+      <li>Eksik veya yanlış işlenmişse düzeltilmesini isteme,</li>
+      <li>KVKK md. 7'deki şartlar çerçevesinde silinmesini veya yok edilmesini isteme,</li>
+      <li>5. ve 6. bentlerdeki işlemlerin, verilerin aktarıldığı üçüncü kişilere bildirilmesini isteme,</li>
+      <li>Münhasıran otomatik sistemlerle analiz edilmesi sonucu aleyhinize bir sonucun ortaya çıkmasına itiraz etme,</li>
+      <li>Kanuna aykırı işleme nedeniyle zarara uğramanız hâlinde zararın giderilmesini talep etme.</li>
+    </ol>
+    <h3>Nasıl başvurulur?</h3>
+    <ul>
+      <li><strong>E-posta:</strong> Acadex'e kayıtlı e-posta adresinizden <a href="mailto:destek@acadex.com.tr?subject=KVKK%20ba%C5%9Fvurusu">destek@acadex.com.tr</a> adresine "KVKK başvurusu" konulu e-posta gönderin.</li>
+      <li><strong>Yazılı:</strong> Islak imzalı dilekçeyle ya da KEP / güvenli elektronik imza ile (posta adresi şirket kurulunca bu sayfaya eklenecektir; o zamana kadar adres talep üzerine e-postayla bildirilir).</li>
+    </ul>
+    <p>Başvurunuzda ad soyad, (yabancılar için uyruk ve pasaport/kimlik numarası), tebligata esas adres veya e-posta ve talebinizin konusu yer almalıdır (Veri Sorumlusuna Başvuru Usul ve Esasları Hakkında Tebliğ). Başvurular en geç <strong>30 gün</strong> içinde ücretsiz yanıtlanır. Başvurunuz reddedilirse, yanıtı yetersiz bulursanız ya da süresinde yanıt verilmezse Kişisel Verileri Koruma Kurulu'na şikâyette bulunabilirsiniz.</p>
+    <div class="kutu uyari">Hesabınızı ve verilerinizi hemen silmek için başvuru beklemeniz gerekmez: Ayarlar → Hesabı sil.</div>
+  </section>
+</main>
+<footer>© 2026 Acadex · <a href="legal.html#privacy">Gizlilik Politikası</a> · <a href="legal.html#terms">Kullanım Şartları</a> · <a href="legal.html#mesafeli-satis">Mesafeli Satış</a></footer>
+</body>
+</html>

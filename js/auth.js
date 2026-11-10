@@ -23,8 +23,9 @@ function getMsg(key, defaultVal) {
 // ACADEX ENGLISH (05.11.2026): ingilizce/ kilit kartındaki giriş bağlantısı
 // login.html?sonra=ingilizce ile gelir; girişten sonra (Google dönüşü dahil,
 // o dönüş login.html'e parametresiz düşer) panel yerine oraya dönülür.
+// FORMULO (08.11.2026): formulo/ kapısı da aynı yolu kullanır (?sonra=formulo).
 // Yalnız listedeki hedefler kabul edilir (açık yönlendirme yok).
-const SONRA_HEDEF = { ingilizce: 'ingilizce/' };
+const SONRA_HEDEF = { ingilizce: 'ingilizce/', formulo: 'formulo/' };
 (function () {
   try { const s = new URLSearchParams(window.location.search).get('sonra'); if (s && SONRA_HEDEF[s]) sessionStorage.setItem('acadex.sonra', s); } catch (e) { /* gizli pencere */ }
 })();
@@ -141,6 +142,8 @@ function isAllowedStudentEmail(email) {
 }
 
 function initRegisterForm() {
+  /* KVKK ve kullanım şartları metin sürümü (kvkk.html, legal.html); metin değişince güncellenir */
+  const LEGAL_SURUM = '2026-11-08';
   const form = document.getElementById('register-form');
   if (!form) return;
 
@@ -358,7 +361,14 @@ function initRegisterForm() {
             student_number: studentNumber,
             department: department,
             full_name: fullName,
-            avatar_url: avatarUrl
+            avatar_url: avatarUrl,
+            /* 08.11.2026 · KVKK: hangi metin sürümünün kabul edildiği / okunduğu ve isteğe bağlı açık rıza (kvkk.html) */
+            legal: {
+              surum: LEGAL_SURUM,
+              kullanim_kabul: new Date().toISOString(),
+              aydinlatma_sunuldu: true,
+              acik_riza_eposta: !!(document.getElementById('acik-riza') && document.getElementById('acik-riza').checked)
+            }
           }
         }
       });

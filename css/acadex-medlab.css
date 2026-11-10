@@ -283,31 +283,61 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 #medlab-view.axm .axm-med{display:block;width:100%;height:100%;transition:transform .6s cubic-bezier(.2,.7,.2,1)}
 #medlab-view.axm button.axm-labb:hover .axm-med,#medlab-view.axm button.axm-labb:focus-visible .axm-med{transform:scale(1.03)}
 #medlab-view.axm .axm-med g,#medlab-view.axm .axm-med rect,#medlab-view.axm .axm-med ellipse{transform-box:fill-box}
-#medlab-view.axm .axm-med .med-govde,#medlab-view.axm .axm-med .med-kol{transform-origin:50% 100%}
-#medlab-view.axm .axm-med .med-goz,#medlab-view.axm .axm-med .med-bub{transform-origin:50% 50%}
-#medlab-view.axm .axm-med .med-maske{transform-origin:50% 0}
+/* rehber hekim Uzm. Dr. Ela Altındağ (06.11.2026): canlı karşılama + karta ilk girişte sinematik açılış.
+   Açılışı js/acadex-medlab.js başlatır (med-bekle → med-oyna); JS yoksa ya da hareket azaltılmışsa son kare durur. */
+#medlab-view.axm .axm-med .med-dr .dr-salla,#medlab-view.axm .axm-med .med-dr .dr-at{transform-box:view-box;transform-origin:0 0}
+#medlab-view.axm .axm-med .dr-nefes,#medlab-view.axm .axm-med .dr-bas{transform-origin:50% 100%}
+#medlab-view.axm .axm-med .dr-goz,#medlab-view.axm .axm-med .med-bub,#medlab-view.axm .axm-med .med-teker{transform-origin:50% 50%}
+#medlab-view.axm .axm-med .dr-agiz{transform-origin:50% 0}
+#medlab-view.axm .axm-med .dr-bebek{transition:transform .25s ease-out}
+#medlab-view.axm .axm-med .med-acil-isik{opacity:.3}
 @media (prefers-reduced-motion:no-preference){
 #medlab-view.axm .axm-med .med-k1{animation:med-k1 6s ease-in-out infinite}
 #medlab-view.axm .axm-med .med-k2{animation:med-k2 6s ease-in-out infinite}
-#medlab-view.axm .axm-med .med-pen .p2{animation:med-pen 5s steps(1) infinite}#medlab-view.axm .axm-med .med-pen .p4{animation:med-pen 7s steps(1) -2s infinite}#medlab-view.axm .axm-med .med-pen .p5{animation:med-pen 6s steps(1) -4s infinite}#medlab-view.axm .axm-med .med-pen .p8{animation:med-pen 8s steps(1) -1s infinite}
+#medlab-view.axm .axm-med .med-pen .p2{animation:med-pen 5s steps(1) infinite}#medlab-view.axm .axm-med .med-pen .p4{animation:med-pen 7s steps(1) -2s infinite}#medlab-view.axm .axm-med .med-pen .p5{animation:med-pen 6s steps(1) -4s infinite}
 #medlab-view.axm .axm-med .med-sir{animation:med-sir .8s steps(2) infinite}
-#medlab-view.axm .axm-med .med-govde{animation:med-nefes 3.4s ease-in-out infinite}
-#medlab-view.axm .axm-med .med-kol{animation:med-kol 3s ease-in-out infinite}
-#medlab-view.axm .axm-med .med-goz{animation:med-goz 4.6s infinite}
-#medlab-view.axm .axm-med .med-maske{animation:med-maske 2.2s ease-in-out infinite}
+#medlab-view.axm .axm-med .med-acil-isik{animation:med-acil 3s ease-in-out infinite}
+#medlab-view.axm .axm-med .dr-nefes{animation:med-nefes 3.4s ease-in-out infinite}
+#medlab-view.axm .axm-med .dr-salla{animation:med-salla 2.6s ease-in-out infinite;transition:transform .45s cubic-bezier(.3,1.4,.5,1)}
+#medlab-view.axm .axm-med .dr-at{animation:med-at 3.2s ease-in-out infinite}
+#medlab-view.axm .axm-med .dr-bas{animation:med-bas 7s ease-in-out infinite}
+#medlab-view.axm .axm-med .dr-goz{animation:med-goz 4.6s infinite}
 #medlab-view.axm .axm-med .med-bub{animation:med-bub 2.2s cubic-bezier(.3,1.5,.5,1) infinite}
 #medlab-view.axm .axm-med .med-bulut{animation:med-bulut 18s linear infinite alternate}
+/* kartın üstüne gelince: selamı bırakıp kapıyı gösterir, konuşur */
+#medlab-view.axm button.axm-labb:is(:hover,:focus-visible) .axm-med .dr-salla{animation:none;transform:rotate(-84deg)}
+#medlab-view.axm button.axm-labb:is(:hover,:focus-visible) .axm-med .dr-agiz,#medlab-view.axm .axm-med.med-konus .dr-agiz{animation:med-agiz .24s ease-in-out infinite alternate}
+/* sinematik açılış: ambulans gelir (siren, tekerler), ACİL tabelası yanar, Dr. Ela yürüyerek gelir, balon açılır */
+#medlab-view.axm .axm-med.med-bekle .med-amb{transform:translateX(-320px)}
+#medlab-view.axm .axm-med.med-bekle .med-dr .dr-govde{transform:translateX(170px);opacity:0}
+#medlab-view.axm .axm-med.med-bekle .med-bub{transform:scale(0);opacity:0}
+#medlab-view.axm .axm-med.med-bekle .med-acil-isik{opacity:0}
+#medlab-view.axm .axm-med.med-oyna .med-amb{animation:med-amb-gel 1.7s cubic-bezier(.2,.9,.3,1) both}
+#medlab-view.axm .axm-med.med-oyna .med-teker{animation:med-don .42s linear 4}
+#medlab-view.axm .axm-med.med-oyna .med-sir-isik{animation:med-flas .5s steps(2) 6}
+#medlab-view.axm .axm-med.med-oyna .med-acil-isik{animation:med-acil-yan 1.2s ease 1.1s both,med-acil 3s ease-in-out 2.3s infinite}
+#medlab-view.axm .axm-med.med-oyna .med-dr .dr-govde{animation:med-dr-gel 1.3s ease-out 1.3s both}
+#medlab-view.axm .axm-med.med-oyna .med-bub{animation:med-bub-gel .55s cubic-bezier(.3,1.6,.5,1) 2.5s both,med-bub 2.2s cubic-bezier(.3,1.5,.5,1) 3.4s infinite}
 }
 @keyframes med-k1{0%,20%,80%,100%{transform:none}35%,65%{transform:translateX(-30px)}}
 @keyframes med-k2{0%,20%,80%,100%{transform:none}35%,65%{transform:translateX(30px)}}
 @keyframes med-pen{0%{fill:#FFE9A8}50%{fill:#BFE0F5}}
 @keyframes med-sir{50%{fill:#E5544A}}
 @keyframes med-nefes{50%{transform:scaleY(1.02)}}
-@keyframes med-kol{50%{transform:translateY(-3px)}}
 @keyframes med-goz{0%,92%,100%{transform:none}95%{transform:scaleY(.12)}}
-@keyframes med-maske{0%,60%,100%{transform:none}70%,90%{transform:scaleY(1.08)}}
+@keyframes med-salla{0%,55%,100%{transform:rotate(0)}8%,24%,40%{transform:rotate(-16deg)}16%,32%{transform:rotate(10deg)}}
+@keyframes med-at{50%{transform:rotate(7deg)}}
+@keyframes med-bas{0%,70%,100%{transform:none}78%,92%{transform:rotate(-4deg)}}
+@keyframes med-agiz{to{transform:scaleY(1.6)}}
 @keyframes med-bub{0%,100%{transform:scale(1)}20%{transform:scale(1.07) rotate(-2deg)}40%{transform:scale(1)}}
 @keyframes med-bulut{to{transform:translateX(40px)}}
+@keyframes med-acil{0%,100%{opacity:.18}50%{opacity:.45}}
+@keyframes med-acil-yan{0%{opacity:0}30%{opacity:.95}45%{opacity:.2}60%{opacity:.9}100%{opacity:.3}}
+@keyframes med-amb-gel{from{transform:translateX(-320px)}82%{transform:translateX(8px)}92%{transform:translateX(-2px)}to{transform:none}}
+@keyframes med-don{to{transform:rotate(360deg)}}
+@keyframes med-flas{0%{opacity:.55}100%{opacity:0}}
+@keyframes med-dr-gel{0%{transform:translateX(170px);opacity:0}15%{opacity:1}25%{transform:translate(128px,-7px)}40%{transform:translate(90px,0)}55%{transform:translate(56px,-7px)}70%{transform:translate(24px,0)}85%{transform:translate(6px,-4px)}100%{transform:none;opacity:1}}
+@keyframes med-bub-gel{0%{transform:scale(0);opacity:0}100%{transform:scale(1);opacity:1}}
 @media (max-width:760px){
   #medlab-view.axm .axm-lab-wide .axm-labb{flex-direction:column}
   #medlab-view.axm .axm-lab-wide .axm-cover{flex:none;border-right:0;border-bottom:1.4px solid #E1E5EE}
@@ -382,3 +412,4 @@ body.axl-spot #acadia-panel,body.axl-spot .acadia-fab-wrap{display:none!importan
 #medlab-view.axm .axm-kampus-on[hidden]{display:none}
 #medlab-view.axm .axm-kampus-on span{padding:8px 16px;border-radius:999px;background:rgba(255,255,255,.88);font-size:20px;color:#0D1838}
 @media (max-width:760px){#medlab-view.axm .axm-kampus-fr{height:1100px}#medlab-view.axm .axm-kampus-on{height:110vw}}
+#medlab-view.axm .axm-cover-med .axm-tag{right:auto;left:12px;transform:rotate(-3deg)}

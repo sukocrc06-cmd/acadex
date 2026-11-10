@@ -142,6 +142,15 @@
       if (!!d.spot !== spotOn) setSpot(d.spot);
       if (d.spotRes && d.spotRes.length) spotReport(d.spotRes);
       setLabel(); renderChips();
+    } else if (d.type === 'ai-hasta') {
+      /* Acadex Medica · yapay zekâ hasta (06.11.2026): öğrencinin serbest sorusu sunucuda (supabase/functions/medica-hasta)
+         senaryoya sadık bir hasta cevabına çevrilir; anahtar sunucuda, burada yalnız oturumla çağrılır */
+      var cli = W.supabaseClient || (typeof supabaseClient !== 'undefined' ? supabaseClient : null), id = d.id;
+      if (!cli || !cli.functions || !d.req) { post({ type: 'ai-hasta-cevap', id: id, hata: 'yok' }); return; }
+      cli.functions.invoke('medica-hasta', { body: d.req }).then(function (r) {
+        var x = r && r.data; if (r.error || !x || x.error) { post({ type: 'ai-hasta-cevap', id: id, hata: 'sunucu' }); return; }
+        post({ type: 'ai-hasta-cevap', id: id, cevap: String(x.cevap || '').slice(0, 600), eslesen: Array.isArray(x.eslesen) ? x.eslesen.slice(0, 3).map(String) : [] });
+      }, function () { post({ type: 'ai-hasta-cevap', id: id, hata: 'ag' }); });
     } else if (d.type === 'ack' && acks[d.id]) acks[d.id]();
     else if (d.type === 'reply' && wait[d.id]) wait[d.id](d);
   });

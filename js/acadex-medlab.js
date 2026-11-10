@@ -128,4 +128,45 @@
     };
     window.switchDashboardView = switchDashboardView;
   }
+
+  /* Acadex Medica kapağı (06.11.2026): Uzm. Dr. Ela Altındağ. Kart ilk kez görününce sinematik açılış
+     (css/acadex-medlab.css → med-bekle / med-oyna), balonda "hoş geldin!" yazılır; gözleri imleci izler;
+     kartın üstüne gelince kapıyı gösterip "buyur, gir!" der. Hareket azaltılmışsa yalnız son kare. */
+  (function medKapak() {
+    var svg = sec.querySelector('[data-medica-kapak]'); if (!svg) return;
+    var btn = svg.closest('[data-medlab-open]'), bubT = svg.querySelector('.med-bub-t'), bebek = svg.querySelector('.med-dr .dr-bebek'), goz = svg.querySelector('.med-dr .dr-goz');
+    var MET = { gel: 'hoş geldin!', buyur: 'buyur, gir!' };
+    var yazT = 0, yaz = function (m, hizli) {
+      clearInterval(yazT); if (!bubT) return;
+      if (calm || hizli) { bubT.textContent = m; return; }
+      var i = 0; bubT.textContent = ''; svg.classList.add('med-konus');
+      yazT = setInterval(function () { i++; bubT.textContent = m.slice(0, i); if (i >= m.length) { clearInterval(yazT); svg.classList.remove('med-konus'); } }, 70);
+    };
+    if (!calm && typeof IntersectionObserver === 'function') {
+      svg.classList.add('med-bekle');
+      var io = new IntersectionObserver(function (es) {
+        if (!es.some(function (x) { return x.isIntersecting; })) return;
+        io.disconnect(); svg.classList.remove('med-bekle'); svg.classList.add('med-oyna');
+        if (bubT) bubT.textContent = '';
+        setTimeout(function () { yaz(MET.gel); }, 2700);
+      }, { threshold: 0.35 });
+      io.observe(svg);
+    }
+    if (btn) {
+      var ac = function () { yaz(MET.buyur, false); }, kapa = function () { yaz(MET.gel, true); };
+      btn.addEventListener('pointerenter', ac); btn.addEventListener('focus', ac);
+      btn.addEventListener('pointerleave', kapa); btn.addEventListener('blur', kapa);
+    }
+    /* bakış: bebekler imlece doğru en çok 2,4 birim kayar (kart görünürken, kare başına bir kez) */
+    if (!calm && bebek && goz && window.matchMedia && window.matchMedia('(pointer:fine)').matches) {
+      var px = 0, py = 0, bek = false;
+      var bak = function () {
+        bek = false; if (!sec.classList.contains('active') && !sec.offsetParent) return;
+        var r = lsafe(function () { return goz.getBoundingClientRect(); }, null); if (!r || !r.width) return;
+        var dx = px - (r.left + r.width / 2), dy = py - (r.top + r.height / 2), d = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.min(1, d / 260) * 2.4;
+        bebek.style.transform = 'translate(' + (dx / d * k).toFixed(2) + 'px,' + (dy / d * k * 0.8).toFixed(2) + 'px)';
+      };
+      window.addEventListener('pointermove', function (e) { px = e.clientX; py = e.clientY; if (!bek) { bek = true; requestAnimationFrame(bak); } }, { passive: true });
+    }
+  })();
 })();

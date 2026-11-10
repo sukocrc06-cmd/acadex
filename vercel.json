@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/kids",
+      "destination": "/kids/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/admin",
@@ -20,6 +27,15 @@
         {
           "key": "Service-Worker-Allowed",
           "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/kids/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
         }
       ]
     },

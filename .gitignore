@@ -17,3 +17,6 @@ Thumbs.db
 .env.*.local
 # landing'deki yeni dosyalar varsayılan olarak dışarıda (fontlar ve logo zorla eklendi).
 /assets/landing/*
+
+# Acadex Kids: ElevenLabs ses denemeleri (yayına gitmez)
+kids/ses/_deneme/

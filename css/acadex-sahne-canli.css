@@ -1,0 +1,69 @@
+/* ==========================================================================
+   SAHNELER CANLI · tanıtım sayfası (index.html, js/acadex-sahne-canli.js), 08.11.2026
+   1) Fark (#alanlar): satır satır dönüşüm. Kaydırdıkça eski alışkanlığın üstü kırmızı
+      kalemle çizilir, ok çizilir, yeni cümle mavi kalemle yazılır, sonra altı çizilir.
+      Satır başına --fq (0–1) betikten gelir; .ba-rows.fk yoksa eski davranış sürer.
+   2) Yöntemler (#yontemler): mevcut --a/--b/--c/--f değişkenlerine ek katman.
+      Saat ibresi ve saniye kolu, bitkiye renk, zil; Leitner kartı zıplar, 4. bölmede ✓;
+      Recall'da puan mührü; Feynman'da fosforlu kalem ve ampul.
+   3) Yüzen öğeler: telefonda ip çeken çocuk ve bulutu gizli (Paketler menüde duruyor).
+   Önek fk-/yc- (çıplak .on/.ust sayfadaki başka bölümlerle çakışıyordu).
+   ========================================================================== */
+
+/* ---------- 1. FARK ---------- */
+.js .ba-rows.fk > .ba-row{opacity:1;transform:none;transition:none}
+.ba-rows.fk .ba-row{--s:clamp(0, var(--fq, 0) * 3, 1);--ar:clamp(0, var(--fq, 0) * 3 - 1, 1);--w:clamp(0, var(--fq, 0) * 2.2 - 1.1, 1);--u:clamp(0, var(--fq, 0) * 5 - 4, 1);position:relative}
+.js .ba-rows.fk .ba-row .ink-s{transition:none;background-size:calc(var(--s) * 100%) .5em}
+.ba-rows.fk .ba-before{position:relative;opacity:calc(1 - var(--s) * .4)}
+.ba-rows.fk .ba-arrow path{stroke-dasharray:1 1;stroke-dashoffset:calc(1px - var(--ar) * 1px)}
+.ba-rows.fk .ba-after{position:relative}
+.ba-rows.fk .ba-after .disp{clip-path:inset(-.4em calc((1 - var(--w)) * 100%) -.4em -.2em)}
+.js .ba-rows.fk .ba-row .ink-u{transition:none;background-size:calc(var(--u) * 100%) .32em}
+.ba-rows.fk .ba-after em{opacity:var(--u);transform:translateY(calc((1 - var(--u)) * 6px))}
+/* kalemler: kırmızı çizer, mavi yazar */
+.fk-pen{position:absolute;top:50%;width:16px;height:46px;margin:-40px 0 0 -3px;pointer-events:none;transform-origin:3px 44px;rotate:28deg}
+.fk-pen.k{left:calc(var(--s) * 100%);opacity:calc(min(1, var(--s) * 25) * min(1, (1 - var(--s)) * 25))}
+.fk-pen.m{top:0;margin-top:-18px;left:calc(var(--w) * 100%);opacity:calc(min(1, var(--w) * 25) * min(1, (1 - var(--w)) * 25))}
+.ba-rows.fk .ba-after .fk-pen.m{left:calc(var(--w) * var(--dw, 100%))}
+/* satır bitince mühür */
+.fk-tik{position:absolute;right:-6px;top:50%;width:34px;height:34px;margin-top:-17px;display:grid;place-items:center;border:2px solid #7FD3A2;border-radius:50%;color:#7FD3A2;font:700 18px/1 'Caveat',cursive;transform:rotate(-12deg) scale(calc(.4 + var(--u) * .6));opacity:var(--u);pointer-events:none}
+@media (max-width:760px){.fk-tik{top:22px;margin-top:0}.fk-pen{display:none}}
+
+/* ---------- 2. YÖNTEMLER ---------- */
+/* Pomodoro: ibre (kalan süre) ve kırmızı saniye kolu */
+.yc-ibre{transform-box:view-box;transform-origin:140px 150px}
+.yc-ibre.dk{transform:rotate(calc((1 - var(--a, 1)) * 150deg))}
+.yc-ibre.sn{transform:rotate(calc(var(--a, 1) * 25 * 360deg))}
+.yc-ibre line{stroke-linecap:round}
+.yc-zil{opacity:0;transform-box:view-box;transform-origin:140px 20px}
+.nb-timer.yc-cal{animation:ycZil .7s cubic-bezier(.3,.7,.4,1) 1;transform-origin:50% 90%}
+.nb-timer.yc-cal .yc-zil{animation:ycZilCizgi .9s ease-out 1}
+@keyframes ycZil{15%{rotate:-6deg}30%{rotate:5deg}45%{rotate:-4deg}60%{rotate:3deg}75%{rotate:-1.5deg}}
+@keyframes ycZilCizgi{0%{opacity:0;transform:scale(.6)}25%{opacity:1}100%{opacity:0;transform:scale(1.25)}}
+/* bitki renklenir */
+.nb-plant path.nb-draw[d$="Z"]{fill:#BFE3C4;fill-opacity:calc(var(--p, 1) * .9)}
+.nb-plant g g path.nb-draw[d$="Z"]{fill:#FFB4A2}
+.nb-plant g g circle.nb-draw{fill:#FFD86B;fill-opacity:var(--p, 1)}
+.nb-plant path[d="M74 258 L84 308 H160 L170 258"],.nb-plant path[d="M66 246 H178 V258 H66 Z"]{fill:#E9A27C;fill-opacity:.55}
+/* Leitner: kart bölmeden bölmeye zıplar */
+.lt-card{translate:0 calc(var(--lift, 0) * -30px);rotate:calc(var(--lift, 0) * -7deg);transition:border-color .3s,background .3s}
+.lt-card.yc-ok{border-color:#1E8A55;background:#E6F5EA}
+.lt-card.yc-ok::after{content:"✓";position:absolute;right:6px;bottom:3px;font:700 17px/1 'Caveat',cursive;color:#1E8A55}
+.lt-card.miss::after{content:"↺";position:absolute;right:6px;bottom:4px;font:700 15px/1 'Instrument Sans',sans-serif;color:#B4511F}
+.lt-col.yc-gel{background:rgba(47,107,255,.07);transition:background .3s}
+/* Recall: puan mührü, yanlış satır kızarır */
+.nb-ar{position:relative}
+.ar-row[style*="--i: 2"]{background:rgba(201,72,59,calc(clamp(0, var(--c, 1) * 8 - 6.8, 1) * .08));transition:none}
+.yc-puan{position:absolute;right:230px;bottom:40px;z-index:3;display:grid;place-items:center;width:74px;height:74px;border:3px solid #C9483B;border-radius:50%;color:#C9483B;font:700 30px/1 'Caveat',cursive;rotate:-14deg;scale:calc(1.6 - clamp(0, var(--c, 1) * 10 - 9, 1) * .6);opacity:clamp(0, var(--c, 1) * 10 - 9, 1);pointer-events:none;background:rgba(255,255,255,.7)}
+.yc-puan small{display:block;font-size:14px;margin-top:-6px}
+/* Feynman: yeni satırlara fosforlu kalem, sonunda ampul */
+.fy-new{background:linear-gradient(transparent 58%,rgba(255,216,107,.7) 58%,rgba(255,216,107,.7) 92%,transparent 92%) no-repeat 0 0/calc(var(--w, 1) * 100%) 100%;width:fit-content}
+.yc-ampul{display:inline-block;width:30px;height:38px;vertical-align:-10px;margin-left:8px}
+.yc-ampul .cam{fill:#FFE27A;fill-opacity:clamp(0, var(--f, 1) * 10 - 9, 1);stroke:#1A2A5C;stroke-width:2}
+.yc-ampul .isik{stroke:#E3A80F;stroke-width:2;stroke-linecap:round;opacity:clamp(0, var(--f, 1) * 10 - 9, 1)}
+.yc-ampul .dip{fill:none;stroke:#1A2A5C;stroke-width:2;stroke-linecap:round}
+@media (max-width:960px){.yc-puan{right:auto;left:0;bottom:30px;width:60px;height:60px;font-size:24px}}
+@media (prefers-reduced-motion:reduce){.nb-timer.yc-cal,.nb-timer.yc-cal .yc-zil{animation:none}.lt-card{translate:none;rotate:none}}
+
+/* ---------- 3. YÜZEN ÖĞELER ---------- */
+@media (max-width:760px){.pkt-dock,.pkt-bub{display:none !important}}

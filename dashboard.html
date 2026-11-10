@@ -7,7 +7,10 @@
   <title data-i18n="common.dashboard">Dashboard — Acadex</title>
   
   <!-- Favicon Link -->
-  <link rel="icon" type="image/png" href="assets/logo-icon-only.png">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/favicon-192.png">
   <meta name="theme-color" content="#0D1838">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
@@ -61,12 +64,14 @@
   <!-- Core Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/acadex-ink.css">
+  <link rel="stylesheet" href="formulo/assets/formulo-kart.css">
 <link rel="stylesheet" href="css/acadex-defter-plus.css">
 <link rel="stylesheet" href="css/acadex-rozet.css">
 <link rel="stylesheet" href="css/acadex-takvim.css">
 <link rel="stylesheet" href="css/acadex-kaynak-masa.css">
 <link rel="stylesheet" href="css/acadex-liman.css">
 <link rel="stylesheet" href="css/acadia-kit.css">
+<link rel="stylesheet" href="css/acadex-panel-izgara.css">
 <link rel="stylesheet" href="css/acadex-kartoteks.css">
 <link rel="stylesheet" href="css/acadex-medlab.css">
 <link rel="stylesheet" href="css/acadex-finans.css">
@@ -139,37 +144,59 @@
     <aside class="sidebar ax-side" id="nav-menu">
       <nav aria-label="Ana menü">
         <ul class="sidebar-nav"><li class="sidebar-item active" id="side-home"><a href="#home" onclick="switchDashboardView('home')"><svg viewBox="0 0 24 24"><path d="M4 11.5 L12 4.5 L20 11.5"/><path d="M6.5 10 V19.5 H17.5 V10"/><path d="M10.5 19.5 V14.5 H13.5 V19.5"/></svg><span class="lbl">Bugün</span></a></li></ul>
-        <h4>çalış</h4>
-        <ul class="sidebar-nav">
-          <li class="sidebar-item" id="side-planner"><a href="#planner" onclick="switchDashboardView('planner')"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M8 3.5 V7.5 M16 3.5 V7.5 M4 10 H20"/><path d="M8 14 L10 16 L14 12.5"/></svg><span class="lbl">Çalışma planlayıcı</span></a></li>
-          <li class="sidebar-item" id="side-notebook"><a href="#notebook" onclick="switchDashboardView('notebook')"><svg viewBox="0 0 24 24"><path d="M6 4 H17 C18 4 19 5 19 6 V20 H7 C6 20 5 19 5 18 V5 C5 4.5 5.5 4 6 4 Z"/><path d="M9 8.5 H15 M9 12 H15"/></svg><span class="lbl">Çalışma defteri</span></a></li>
-          <li class="sidebar-item" id="side-cards"><a href="#cards" onclick="switchDashboardView('cards')"><svg viewBox="0 0 24 24"><rect x="3.5" y="7" width="13" height="10" rx="1.5"/><path d="M7 4.5 H19 C19.8 4.5 20.5 5.2 20.5 6 V14"/></svg><span class="lbl">Bilgi kartları</span></a></li>
-          <li class="sidebar-item" id="side-sourcehub"><a href="#sourcehub" onclick="switchDashboardView('sourcehub')"><svg viewBox="0 0 24 24"><path d="M4 5.5 C7 4.5 10 5 12 6.5 C14 5 17 4.5 20 5.5 V18.5 C17 17.5 14 18 12 19.5 C10 18 7 17.5 4 18.5 Z"/><path d="M12 6.5 V19.5"/></svg><span class="lbl">Kaynakla çalış</span></a></li>
-          <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
-          <li class="sidebar-item" id="side-medlab"><a href="#medlab" onclick="switchDashboardView('medlab')"><svg viewBox="0 0 24 24"><path d="M6 3.5 V9 C6 12.3 8.2 14.5 11 14.5 C13.8 14.5 16 12.3 16 9 V3.5"/><path d="M11 14.5 V16.5 C11 18.7 12.8 20.5 15 20.5 C17.2 20.5 18.5 18.9 18.5 17 V14.8"/><circle cx="18.5" cy="12.8" r="2"/></svg><span class="lbl">Acadex MedLab</span></a></li>
-          <li class="sidebar-item" id="side-finans"><a href="#finans" onclick="switchDashboardView('finans')"><svg viewBox="0 0 24 24"><path d="M3 15h18l-2.5 5h-13z"/><path d="M5 15v-5h6v5M11 15v-3.5h6V15"/><path d="M14 11.5V4M14 4h5"/></svg><span class="lbl">Acadex Finans</span></a></li>
-          <!-- R70 (28.10.2026): telefonda alt menüde olan Acadia geniş ekranın menüsünde de olsun -->
-          <li class="sidebar-item" id="side-acadia"><a href="#acadia" onclick="event.preventDefault();if(typeof window.toggleAcadiaPanel==='function')window.toggleAcadiaPanel()"><svg viewBox="0 0 24 24"><path d="M12 3 L13.8 10.2 L21 12 L13.8 13.8 L12 21 L10.2 13.8 L3 12 L10.2 10.2 Z"/></svg><span class="lbl">Acadia</span></a></li>
-        </ul>
-        <h4>belgeler</h4>
-        <ul class="sidebar-nav">
-          <li class="sidebar-item" id="side-docs"><a href="#docs" onclick="switchDashboardView('docs')"><svg viewBox="0 0 24 24"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/><path d="M9.5 12.5 H16 M9.5 16 H14"/></svg><span class="lbl">Belgelerim</span></a></li>
-          <li class="sidebar-item" id="side-feed"><a href="#feed" onclick="switchDashboardView('feed')"><svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="3"/><circle cx="16.5" cy="9.5" r="2.4"/><path d="M3.5 19 C4 15.5 6 14 8 14 C10 14 12 15.5 12.5 19"/><path d="M13.5 16 C14.2 14.6 15.2 14 16.5 14 C18.2 14 19.6 15.3 20 18"/></svg><span class="lbl">Bölüm akışı</span></a></li>
-          <li class="sidebar-item" id="side-acadexsunum"><a href="#acadexsunum" onclick="switchDashboardView('acadexsunum')"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M12 16 V19.5 M8.5 20 H15.5"/></svg><span class="lbl">Acadex sunum</span></a></li>
-        </ul>
-        <h4>ölç</h4>
-        <ul class="sidebar-nav">
-          <li class="sidebar-item" id="side-exams"><a href="#exams" onclick="switchDashboardView('exams')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L20.5 8 L12 12.5 L3.5 8 Z"/><path d="M3.5 12 L12 16.5 L20.5 12"/><path d="M3.5 16 L12 20.5 L20.5 16"/></svg><span class="lbl">Sınav platformu</span></a></li>
-        </ul>
+        <!-- 06.11.2026 · sade menü: 4 grup başlığı; açık görünümün grubu kendiliğinden açılır, aynı anda tek grup.
+             Bütün paneller ayrıca Bugün sayfasındaki "panellerin" ızgarasında (js/acadex-panel-izgara.js). Dar menüde (nav-c) gruplar düz listelenir. -->
+        <div class="ax-grp" data-grp="calis">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-calis"><svg viewBox="0 0 24 24"><path d="M5 19.5 L5.8 15.6 L15.6 5.8 C16.4 5 17.6 5 18.4 5.8 C19.2 6.6 19.2 7.8 18.4 8.6 L8.6 18.4 Z"/><path d="M14.2 7.2 L17 10"/></svg><span class="lbl">Çalış</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>çalış</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-calis">
+            <li class="sidebar-item" id="side-planner"><a href="#planner" onclick="switchDashboardView('planner')"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M8 3.5 V7.5 M16 3.5 V7.5 M4 10 H20"/><path d="M8 14 L10 16 L14 12.5"/></svg><span class="lbl">Çalışma planlayıcı</span></a></li>
+            <li class="sidebar-item" id="side-notebook"><a href="#notebook" onclick="switchDashboardView('notebook')"><svg viewBox="0 0 24 24"><path d="M6 4 H17 C18 4 19 5 19 6 V20 H7 C6 20 5 19 5 18 V5 C5 4.5 5.5 4 6 4 Z"/><path d="M9 8.5 H15 M9 12 H15"/></svg><span class="lbl">Çalışma defteri</span></a></li>
+            <li class="sidebar-item" id="side-cards"><a href="#cards" onclick="switchDashboardView('cards')"><svg viewBox="0 0 24 24"><rect x="3.5" y="7" width="13" height="10" rx="1.5"/><path d="M7 4.5 H19 C19.8 4.5 20.5 5.2 20.5 6 V14"/></svg><span class="lbl">Bilgi kartları</span></a></li>
+            <li class="sidebar-item" id="side-sourcehub"><a href="#sourcehub" onclick="switchDashboardView('sourcehub')"><svg viewBox="0 0 24 24"><path d="M4 5.5 C7 4.5 10 5 12 6.5 C14 5 17 4.5 20 5.5 V18.5 C17 17.5 14 18 12 19.5 C10 18 7 17.5 4 18.5 Z"/><path d="M12 6.5 V19.5"/></svg><span class="lbl">Kaynakla çalış</span></a></li>
+            <!-- R70 (28.10.2026): telefonda alt menüde olan Acadia geniş ekranın menüsünde de olsun -->
+            <li class="sidebar-item" id="side-acadia"><a href="#acadia" onclick="event.preventDefault();if(typeof window.toggleAcadiaPanel==='function')window.toggleAcadiaPanel()"><svg viewBox="0 0 24 24"><path d="M12 3 L13.8 10.2 L21 12 L13.8 13.8 L12 21 L10.2 13.8 L3 12 L10.2 10.2 Z"/></svg><span class="lbl">Acadia</span></a></li>
+          </ul>
+        </div>
+        <div class="ax-grp" data-grp="lab">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-lab"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.2 20.5 6.3 20.5 H17.7 C18.8 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.6 14.5 H16.4"/></svg><span class="lbl">Laboratuvarlar</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>laboratuvarlar</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-lab">
+            <li class="sidebar-item" id="side-studylab"><a href="#studylab" onclick="switchDashboardView('studylab')"><svg viewBox="0 0 24 24"><path d="M9.5 3.5 H14.5 M10.5 3.5 V9 L5 18.5 C4.4 19.6 5.1 20.5 6.3 20.5 H17.7 C18.9 20.5 19.6 19.6 19 18.5 L13.5 9 V3.5"/><path d="M7.4 14.5 H16.6"/><circle cx="10.5" cy="17.2" r=".6"/><circle cx="13.6" cy="16.4" r=".5"/></svg><span class="lbl">Acadex Study Lab</span></a></li>
+            <li class="sidebar-item" id="side-medlab"><a href="#medlab" onclick="switchDashboardView('medlab')"><svg viewBox="0 0 24 24"><path d="M6 3.5 V9 C6 12.3 8.2 14.5 11 14.5 C13.8 14.5 16 12.3 16 9 V3.5"/><path d="M11 14.5 V16.5 C11 18.7 12.8 20.5 15 20.5 C17.2 20.5 18.5 18.9 18.5 17 V14.8"/><circle cx="18.5" cy="12.8" r="2"/></svg><span class="lbl">Acadex MedLab</span></a></li>
+            <li class="sidebar-item" id="side-finans"><a href="#finans" onclick="switchDashboardView('finans')"><svg viewBox="0 0 24 24"><path d="M3 15h18l-2.5 5h-13z"/><path d="M5 15v-5h6v5M11 15v-3.5h6V15"/><path d="M14 11.5V4M14 4h5"/></svg><span class="lbl">Acadex Finans</span></a></li>
+          </ul>
+        </div>
+        <div class="ax-grp" data-grp="belge">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-belge"><svg viewBox="0 0 24 24"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/><path d="M9.5 12.5 H16 M9.5 16 H14"/></svg><span class="lbl">Belgeler</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>belgeler</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-belge">
+            <li class="sidebar-item" id="side-docs"><a href="#docs" onclick="switchDashboardView('docs')"><svg viewBox="0 0 24 24"><path d="M7 3.5 H14 L18.5 8 V20.5 H7 Z"/><path d="M14 3.5 V8 H18.5"/><path d="M9.5 12.5 H16 M9.5 16 H14"/></svg><span class="lbl">Belgelerim</span></a></li>
+            <li class="sidebar-item" id="side-feed"><a href="#feed" onclick="switchDashboardView('feed')"><svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="3"/><circle cx="16.5" cy="9.5" r="2.4"/><path d="M3.5 19 C4 15.5 6 14 8 14 C10 14 12 15.5 12.5 19"/><path d="M13.5 16 C14.2 14.6 15.2 14 16.5 14 C18.2 14 19.6 15.3 20 18"/></svg><span class="lbl">Bölüm akışı</span></a></li>
+            <li class="sidebar-item" id="side-acadexsunum"><a href="#acadexsunum" onclick="switchDashboardView('acadexsunum')"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M12 16 V19.5 M8.5 20 H15.5"/></svg><span class="lbl">Acadex sunum</span></a></li>
+          </ul>
+        </div>
+        <div class="ax-grp" data-grp="olc">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-olc"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/></svg><span class="lbl">Ölç</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>ölç</h4>
+          <ul class="sidebar-nav ax-grp-ul" id="ax-grp-olc">
+            <li class="sidebar-item" id="side-exams"><a href="#exams" onclick="switchDashboardView('exams')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L20.5 8 L12 12.5 L3.5 8 Z"/><path d="M3.5 12 L12 16.5 L20.5 12"/><path d="M3.5 16 L12 20.5 L20.5 16"/></svg><span class="lbl">Sınav platformu</span></a></li>
+          </ul>
+        </div>
+        <!-- 08.11.2026 · Formulo: Ölç grubunun altında ayrı satır (ayrı sayfa: formulo/) -->
+        <ul class="sidebar-nav ax-formulo"><li class="sidebar-item" id="side-formulo"><a href="formulo/"><svg viewBox="0 0 24 24"><path d="M15.5 4.5 C14 3.2 11.8 3.6 11.3 6 L9.2 18 C8.7 20.4 6.5 20.8 5 19.5"/><path d="M13.5 10.5 H19.5 M16.5 7.5 V13.5"/></svg><span class="lbl">Formulo</span></a></li></ul>
         <div class="sep" aria-hidden="true"></div>
         <ul class="sidebar-nav">
           <li class="sidebar-item" id="side-settings"><a href="#settings" onclick="switchDashboardView('settings')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5 V6 M12 18 V20.5 M3.5 12 H6 M18 12 H20.5 M6 6 L7.7 7.7 M16.3 16.3 L18 18 M6 18 L7.7 16.3 M16.3 7.7 L18 6"/></svg><span class="lbl">Ayarlar</span></a></li>
         </ul>
-        <h4>proje</h4>
-        <ul class="sidebar-nav team">
-          <li class="sidebar-item" id="side-sandbox-interaction"><a href="#sandbox-interaction" onclick="switchDashboardView('sandbox-interaction')"><svg viewBox="0 0 24 24"><path d="M5 7.5 C5 5.6 6.6 4.5 8.5 4.5 H15.5 C17.4 4.5 19 5.6 19 7.5 V13 C19 14.9 17.4 16 15.5 16 H10 L6 19.5 V16 C5.4 15.6 5 14.6 5 13 Z"/></svg><span class="lbl">Sandbox etkileşim paneli</span></a></li>
-          <li class="sidebar-item" id="side-sandbox"><a href="#sandbox" onclick="switchDashboardView('sandbox')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L19.5 7.5 V16.5 L12 20.5 L4.5 16.5 V7.5 Z"/><path d="M4.5 7.5 L12 11.5 L19.5 7.5 M12 11.5 V20.5"/></svg><span class="lbl">Geliştirici sandbox</span></a></li>
-        </ul>
+        <div class="ax-grp" data-grp="proje">
+          <button type="button" class="ax-grp-b" aria-expanded="false" aria-controls="ax-grp-proje"><svg viewBox="0 0 24 24"><path d="M8.5 8 L4.5 12 L8.5 16 M15.5 8 L19.5 12 L15.5 16 M13.5 5.5 L10.5 18.5"/></svg><span class="lbl">Proje</span><span class="ax-grp-n" aria-hidden="true"></span><svg class="ax-grp-c" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg></button>
+          <h4>proje</h4>
+          <ul class="sidebar-nav team ax-grp-ul" id="ax-grp-proje">
+            <li class="sidebar-item" id="side-sandbox-interaction"><a href="#sandbox-interaction" onclick="switchDashboardView('sandbox-interaction')"><svg viewBox="0 0 24 24"><path d="M5 7.5 C5 5.6 6.6 4.5 8.5 4.5 H15.5 C17.4 4.5 19 5.6 19 7.5 V13 C19 14.9 17.4 16 15.5 16 H10 L6 19.5 V16 C5.4 15.6 5 14.6 5 13 Z"/></svg><span class="lbl">Sandbox etkileşim paneli</span></a></li>
+            <li class="sidebar-item" id="side-sandbox"><a href="#sandbox" onclick="switchDashboardView('sandbox')"><svg viewBox="0 0 24 24"><path d="M12 3.5 L19.5 7.5 V16.5 L12 20.5 L4.5 16.5 V7.5 Z"/><path d="M4.5 7.5 L12 11.5 L19.5 7.5 M12 11.5 V20.5"/></svg><span class="lbl">Geliştirici sandbox</span></a></li>
+          </ul>
+        </div>
         <!-- R19/R41/R71 (28.10.2026): dar ekranda üst çubukta gizlenen Yenilikler, dil ve hesap bilgisi hamburger menüsünde -->
         <div class="ax-side-m">
           <button type="button" class="ax-side-me" onclick="switchDashboardView('settings')"><span class="ax-side-me-n" data-side-me-n="">Hesabım</span><small data-side-me-d="">profil ve ayarlar</small></button>
@@ -324,6 +351,31 @@
 <div class="card-h"><h2 class="hd" id="t-weak">odaklanman gerekenler</h2></div>
 <p class="hand" style="font-size:19px;color:#6A7593;margin:0 0 8px">sınav geçmişine göre sıradaki tekrar konuların</p>
 <div id="home-weak-topics-list" style="display:flex;flex-direction:column;gap:.6rem"></div>
+</section>
+
+<section class="card c-6 land acg-kart" data-acg-kart aria-labelledby="t-acg">
+<div class="card-h"><h2 class="hd" id="t-acg">Acadingo <small>by Acadex</small></h2><a class="more" href="ingilizce/">deftere git →</a></div>
+<div class="acg-k-ust">
+<svg class="acg-k-acadia" viewBox="-22 -36 44 66" aria-hidden="true"><rect x="-14" y="-6" width="28" height="34" rx="12" fill="#C93B2B" stroke="#1A2A5C" stroke-width="3"/><circle cy="-18" r="15" fill="#F6D7B0" stroke="#1A2A5C" stroke-width="3"/><path d="M-15 -22 q15 -16 30 0 q-6 -4 -15 -3 q-9 -1 -15 3z" fill="#1A2A5C"/><circle cx="-5" cy="-17" r="2.2" fill="#1A2A5C"/><circle cx="5" cy="-17" r="2.2" fill="#1A2A5C"/><path d="M-4 -10 q4 3 8 0" fill="none" stroke="#1A2A5C" stroke-width="2" stroke-linecap="round"/></svg>
+<div class="acg-k-simdi" data-acg-simdi aria-live="polite"><span class="acg-k-mono">şu an</span><b class="acg-k-ad">Vocab <span>· kahvaltı</span></b></div>
+</div>
+<nav class="acg-k-sekmeler" data-acg-sekmeler aria-label="Acadingo durakları"></nav>
+<div class="acg-k-alt"><span class="acg-k-ozet" data-acg-ozet>0/5 durak bugün</span><a class="acg-k-btn" data-acg-git href="ingilizce/">Acadingo'ya git →</a></div>
+</section>
+
+<!-- ===== FORMULO KARTI: günün formülü (formulo/assets/formulo-kart.css, formulo/assets/formulo-kart.js) ===== -->
+<section class="card c-6 land fok" data-fok data-fok-kok="formulo/" aria-labelledby="t-fok">
+<div class="card-h"><h2 class="hd" id="t-fok">Formul<i>o</i> <small>günün formülü</small></h2><span class="fok-seri" data-fok-seri>seri başlat</span></div>
+<div class="fok-pafta">
+<div class="fok-ust"><b data-fok-ders>FİZ 101 · Fizik I</b><button type="button" class="fok-baska" data-fok-baska>başka bir tane ↻</button></div>
+<div class="fok-f" data-fok-f aria-live="polite"></div>
+<p class="fok-ad" data-fok-ad></p>
+<svg class="fok-sema" data-fok-sema viewBox="0 0 160 62" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+</div>
+<div class="fok-dug"><button type="button" class="fok-ana" data-fok-dene-ac>Kendini dene</button></div>
+<div class="fok-dene" data-fok-dene hidden></div>
+<a class="fok-son" data-fok-son href="formulo/"></a>
+<a class="fok-git" data-fok-git href="formulo/"><span>Formulo'ya git →</span></a>
 </section>
 
 <section class="card sched land" aria-labelledby="t-sched">
@@ -1939,7 +1991,7 @@
 <ul class="axm-labs" data-medlabs="">
 <li class="axm-lab axm-lab-wide" style="--i:0;--r:0deg;--mc:#2E9C86">
 <button type="button" class="axm-labb" data-medlab-open="medica" aria-describedby="axm-med-d">
-<span class="axm-cover axm-cover-med" role="img" aria-label="Acadex Medica eğitim hastanesi: kapıda maskeli, ameliyata hazır rehber cerrah, eldivenli elleri havada"><svg class="axm-med" viewBox="0 0 864 352" aria-hidden="true" focusable="false">
+<span class="axm-cover axm-cover-med" role="img" aria-label="Acadex Medica eğitim hastanesi: kapıda beyaz önlüklü, steteskoplu rehber hekim Uzm. Dr. Ela Altındağ gülümseyerek el sallıyor; ambulans acile yanaşıyor"><svg class="axm-med" data-medica-kapak viewBox="0 0 864 352" aria-hidden="true" focusable="false">
 <rect width="864" height="352" fill="#E3EEF4"/>
 <g class="med-bulut" fill="#fff" opacity=".8"><ellipse cx="120" cy="54" rx="46" ry="14"/><ellipse cx="150" cy="46" rx="30" ry="14"/><ellipse cx="700" cy="40" rx="40" ry="12"/></g>
 <rect x="0" y="300" width="864" height="52" fill="#CBD5DE"/><path d="M0 300H864" stroke="#9AA6B8" stroke-width="3"/>
@@ -1949,25 +2001,15 @@
 <g class="med-pen">
 <rect x="262" y="126" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="334" y="126" width="54" height="40" rx="3" fill="#FFE9A8" class="p2"/><rect x="484" y="126" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="556" y="126" width="54" height="40" rx="3" fill="#FFE9A8" class="p4"/>
 <rect x="262" y="184" width="54" height="40" rx="3" fill="#FFE9A8" class="p5"/><rect x="334" y="184" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="484" y="184" width="54" height="40" rx="3" fill="#BFE0F5"/><rect x="556" y="184" width="54" height="40" rx="3" fill="#FFE9A8" class="p8"/></g>
-<g><rect x="400" y="122" width="72" height="20" rx="4" fill="#2E9C86"/><text x="436" y="136" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#fff">ACİL</text></g>
+<g class="med-acil"><rect class="med-acil-isik" x="394" y="116" width="84" height="32" rx="8" fill="#5FE3C6" opacity="0"/><rect x="400" y="122" width="72" height="20" rx="4" fill="#2E9C86"/><text x="436" y="136" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#fff">ACİL</text></g>
 <rect x="398" y="186" width="76" height="114" fill="#8D98A8"/><g class="med-k1"><rect x="402" y="190" width="34" height="110" fill="#DDEFFA" stroke="#9FB6C8" stroke-width="2"/></g><g class="med-k2"><rect x="436" y="190" width="34" height="110" fill="#DDEFFA" stroke="#9FB6C8" stroke-width="2"/></g></g>
-<g class="med-amb"><rect x="56" y="232" width="150" height="62" rx="10" fill="#FFFFFF" stroke="#0D1838" stroke-width="4"/><rect x="150" y="242" width="44" height="26" rx="4" fill="#BFE0F5"/><rect x="74" y="250" width="56" height="10" fill="#E5544A"/><rect x="97" y="238" width="10" height="34" fill="#E5544A"/><circle cx="90" cy="296" r="13" fill="#0D1838"/><circle cx="174" cy="296" r="13" fill="#0D1838"/><rect class="med-sir" x="110" y="222" width="22" height="10" rx="3" fill="#2F6BFF"/></g>
-<g class="med-cerrah" transform="translate(744 318) scale(.84)">
-<ellipse cx="0" cy="0" rx="62" ry="9" fill="#0D1838" opacity=".13"/>
-<rect x="-30" y="-132" width="25" height="122" rx="10" fill="#2F7F6E"/><rect x="5" y="-132" width="25" height="122" rx="10" fill="#2F7F6E"/>
-<rect x="-38" y="-14" width="35" height="13" rx="6" fill="#F4F6F9" stroke="#C7CFDD" stroke-width="2"/><rect x="2" y="-14" width="35" height="13" rx="6" fill="#F4F6F9" stroke="#C7CFDD" stroke-width="2"/>
-<g class="med-govde"><path d="M-46 -226 C-48 -246 48 -246 46 -226 L50 -120 C50 -110 -50 -110 -50 -120 Z" fill="#3E9A86"/><path d="M-16 -241 L0 -204 L16 -241" fill="#2F7F6E"/></g>
-<g class="med-kol"><path d="M-42 -224 L-56 -204" stroke="#3E9A86" stroke-width="24" stroke-linecap="round"/><path d="M-56 -204 L-72 -186 L-66 -240" stroke="#E8B48A" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/><ellipse cx="-65" cy="-258" rx="12" ry="15" fill="#8FC3EE"/><path d="M-74 -270 v-14 M-67 -273 v-16 M-60 -272 v-15 M-54 -266 v-11" stroke="#8FC3EE" stroke-width="5" stroke-linecap="round"/>
-<path d="M42 -224 L56 -204" stroke="#3E9A86" stroke-width="24" stroke-linecap="round"/><path d="M56 -204 L72 -186 L66 -240" stroke="#E8B48A" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/><ellipse cx="65" cy="-258" rx="12" ry="15" fill="#8FC3EE"/><path d="M74 -270 v-14 M67 -273 v-16 M60 -272 v-15 M54 -266 v-11" stroke="#8FC3EE" stroke-width="5" stroke-linecap="round"/></g>
-<rect x="-9" y="-254" width="18" height="16" fill="#E8B48A"/>
-<g class="med-bas"><ellipse cx="0" cy="-284" rx="32" ry="36" fill="#E8B48A"/><path d="M-35 -292 C-38 -332 38 -332 35 -292 C22 -300 -22 -300 -35 -292 Z" fill="#3E9A86"/>
-<g class="med-goz"><ellipse cx="-11" cy="-286" rx="3.6" ry="4.6" fill="#0D1838"/><ellipse cx="11" cy="-286" rx="3.6" ry="4.6" fill="#0D1838"/></g>
-<g class="med-maske"><path d="M-28 -278 Q0 -284 28 -278 L26 -257 Q0 -244 -26 -257 Z" fill="#A6DDD5" stroke="#7FC1B7" stroke-width="1.6"/><path d="M-25 -271 Q0 -275 25 -271 M-25 -264 Q0 -267 25 -264" stroke="#7FC1B7" stroke-width="1.5" fill="none"/></g></g></g>
-<g class="med-bub"><rect x="560" y="186" width="104" height="44" rx="16" fill="#FFFDF8" stroke="#0D1838" stroke-width="4"/><path d="M652 228 l18 14 l-4 -18" fill="#FFFDF8" stroke="#0D1838" stroke-width="4" stroke-linejoin="round"/><text x="612" y="215" font-family="Caveat,cursive" font-size="25" font-weight="700" fill="#2E9C86" text-anchor="middle">hoş geldin!</text></g>
+<g class="med-amb"><rect x="56" y="232" width="150" height="62" rx="10" fill="#FFFFFF" stroke="#0D1838" stroke-width="4"/><rect x="150" y="242" width="44" height="26" rx="4" fill="#BFE0F5"/><rect x="74" y="250" width="56" height="10" fill="#E5544A"/><rect x="97" y="238" width="10" height="34" fill="#E5544A"/><g class="med-teker"><circle cx="90" cy="296" r="13" fill="#0D1838"/><path d="M90 288v16M82 296h16" stroke="#8D98A8" stroke-width="2.5"/></g><g class="med-teker"><circle cx="174" cy="296" r="13" fill="#0D1838"/><path d="M174 288v16M166 296h16" stroke="#8D98A8" stroke-width="2.5"/></g><circle class="med-sir-isik" cx="121" cy="227" r="26" fill="#2F6BFF" opacity="0"/><rect class="med-sir" x="110" y="222" width="22" height="10" rx="3" fill="#2F6BFF"/></g>
+<g class="dr med-dr" transform="translate(748 330) scale(0.8)"><g class="dr-govde"><ellipse cx="0" cy="2" rx="64" ry="10" fill="#0D1838" opacity=".12"/><rect x="-28" y="-134" width="24" height="124" rx="10" fill="#2F7F6E"/><rect x="4" y="-134" width="24" height="124" rx="10" fill="#2F7F6E"/><path d="M-38 -1 q0 -15 15 -15 h13 q4 0 4 6 v9 z M38 -1 q0 -15 -15 -15 h-13 q-4 0 -4 6 v9 z" fill="#fff" stroke="#CDD6E2" stroke-width="2"/><g class="dr-nefes"><path d="M-42 -240 C-44 -252 44 -252 42 -240 L44 -126 L-44 -126 Z" fill="#3E9A86"/><path d="M-14 -250 L0 -226 L14 -250" fill="#2F7F6E"/><path d="M-46 -244 C-53 -246 -57 -240 -57 -230 L-63 -98 L-14 -98 L-12 -214 L-22 -249 Z M46 -244 C53 -246 57 -240 57 -230 L63 -98 L14 -98 L12 -214 L22 -249 Z" fill="#FFFFFF" stroke="#CDD6E2" stroke-width="2.5" stroke-linejoin="round"/><path d="M-22 -249 L-12 -214 L-21 -196 M22 -249 L12 -214 L21 -196 M-53 -150 h26 v18 h-26 z M27 -150 h26 v18 h-26 z M28 -201 h18" stroke="#CDD6E2" stroke-width="2.5" fill="none" stroke-linejoin="round"/><rect x="34" y="-214" width="4.5" height="17" rx="2" fill="#2F6BFF"/><rect x="40" y="-212" width="4.5" height="15" rx="2" fill="#E5544A"/><path d="M-37 -214 v-7" stroke="#9AA6B8" stroke-width="2"/><g class="dr-kart"><rect x="-50" y="-214" width="26" height="31" rx="3" fill="#fff" stroke="#CDD6E2" stroke-width="2"/><rect x="-50" y="-214" width="26" height="8" rx="3" fill="#2E9C86"/><circle cx="-37" cy="-197" r="5" fill="#EDBB98"/><path d="M-41 -199 q4 -7 8 0" fill="#3A2418"/><rect x="-46" y="-189" width="18" height="2.6" rx="1" fill="#9AA6B8"/></g><g fill="none" stroke="#0D1838" stroke-width="3.5" stroke-linecap="round"><path d="M-19 -252 C-28 -226 -20 -204 -4 -200 M19 -252 C28 -226 20 -204 4 -200 M-4 -200 C2 -199 5 -196 5 -190 C5 -176 11 -172 11 -165"/></g><circle cx="11" cy="-159" r="7" fill="#C9D1DC" stroke="#0D1838" stroke-width="3"/></g><path d="M48 -236 C60 -210 62 -180 58 -152" stroke="#CDD6E2" stroke-width="27" stroke-linecap="round" fill="none"/><path d="M48 -236 C60 -210 62 -180 58 -152" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" fill="none"/><circle cx="57" cy="-143" r="10" fill="#EDBB98"/><g transform="translate(62 -150) rotate(8)"><rect x="-4" y="-46" width="34" height="46" rx="4" fill="#C7A27A" stroke="#0D1838" stroke-width="2.5"/><rect x="1" y="-40" width="24" height="34" fill="#fff"/><path d="M5 -32h16M5 -25h16M5 -18h10" stroke="#9AA6B8" stroke-width="2"/><rect x="7" y="-50" width="12" height="7" rx="2" fill="#8D98A8"/></g><circle cx="58" cy="-147" r="6" fill="#EDBB98"/><path d="M-48 -236 L-68 -200" stroke="#CDD6E2" stroke-width="27" stroke-linecap="round" fill="none"/><path d="M-48 -236 L-68 -200" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" fill="none"/><g transform="translate(-68 -200)"><g class="dr-salla"><path d="M0 0 L-8 -40" stroke="#CDD6E2" stroke-width="25" stroke-linecap="round" fill="none"/><path d="M0 0 L-8 -40" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" fill="none"/><path d="M-8 -42 L-10 -50" stroke="#EDBB98" stroke-width="14" stroke-linecap="round"/><ellipse cx="-11" cy="-61" rx="11" ry="13" fill="#EDBB98"/><g fill="#EDBB98"><rect x="-22" y="-82" width="5" height="18" rx="2.5"/><rect x="-16" y="-86" width="5" height="21" rx="2.5"/><rect x="-10" y="-85" width="5" height="20" rx="2.5"/><rect x="-4" y="-80" width="5" height="16" rx="2.5"/><rect x="1" y="-66" width="5" height="14" rx="2.5" transform="rotate(38 3 -59)"/></g></g></g><rect x="-9" y="-266" width="18" height="20" rx="4" fill="#EDBB98"/><path d="M-9 -252 q9 6 18 0" stroke="#D39A76" stroke-width="2" fill="none" opacity=".6"/><g class="dr-bas"><g transform="translate(24 -318)"><g class="dr-at"><path d="M0 0 C22 6 27 34 15 63 C11 73 2 75 -2 67 C10 45 8 19 -6 7 Z" fill="#3A2418"/><path d="M8 14 C14 28 14 42 10 56" stroke="#5E3D2B" stroke-width="2.5" fill="none" stroke-linecap="round"/></g></g><ellipse cx="0" cy="-298" rx="36" ry="39" fill="#3A2418"/><ellipse cx="-31" cy="-291" rx="5.5" ry="8" fill="#EDBB98"/><ellipse cx="31" cy="-291" rx="5.5" ry="8" fill="#EDBB98"/><circle cx="-31" cy="-281" r="2.6" fill="#E8B53A"/><circle cx="31" cy="-281" r="2.6" fill="#E8B53A"/><ellipse cx="0" cy="-292" rx="30" ry="34" fill="#EDBB98"/><path d="M-34 -294 C-39 -337 34 -343 35 -300 C30 -318 14 -327 -4 -323 C-16 -320 -26 -310 -34 -294 Z" fill="#3A2418"/><path d="M-31 -302 C-37 -284 -35 -268 -27 -258 C-30 -274 -28 -290 -23 -300 Z M31 -304 C36 -288 35 -274 29 -264 C31 -278 29 -292 25 -302 Z" fill="#3A2418"/><path d="M-17 -327 C-7 -333 9 -333 19 -326" stroke="#5E3D2B" stroke-width="3" fill="none" stroke-linecap="round"/><rect x="20" y="-325" width="9" height="11" rx="3" fill="#E5544A" transform="rotate(22 24 -319)"/><path d="M-19 -304 q8 -5 15 -1 M19 -304 q-8 -5 -15 -1" stroke="#3A2418" stroke-width="2" fill="none" stroke-linecap="round"/><g class="dr-goz"><ellipse cx="-11" cy="-292" rx="5.2" ry="5.8" fill="#fff"/><ellipse cx="11" cy="-292" rx="5.2" ry="5.8" fill="#fff"/><g class="dr-bebek"><circle cx="-11" cy="-291.5" r="3.5" fill="#0D1838"/><circle cx="11" cy="-291.5" r="3.5" fill="#0D1838"/><circle cx="-9.8" cy="-293" r="1.2" fill="#fff"/><circle cx="12.2" cy="-293" r="1.2" fill="#fff"/></g><path d="M-16.6 -294.6 Q-11 -299.6 -5.6 -294.6 M16.6 -294.6 Q11 -299.6 5.6 -294.6" stroke="#0D1838" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M-16.4 -295 l-3 -1.6 M16.4 -295 l3 -1.6 M-15 -297.4 l-1.8 -2.4 M15 -297.4 l1.8 -2.4" stroke="#0D1838" stroke-width="1.8" stroke-linecap="round"/></g><ellipse cx="-19" cy="-278" rx="6" ry="3.5" fill="#F08A8A" opacity=".42"/><ellipse cx="19" cy="-278" rx="6" ry="3.5" fill="#F08A8A" opacity=".42"/><path d="M0 -287 q-3 7 1 9" stroke="#D39A76" stroke-width="2" fill="none" stroke-linecap="round"/><g class="dr-agiz"><path d="M-9.5 -271 Q0 -259.5 9.5 -271 Q4 -268.5 0 -269.4 Q-4 -268.5 -9.5 -271 Z" fill="#C24E5A"/><path d="M-6 -269.6 Q0 -267.4 6 -269.6" stroke="#fff" stroke-width="1.6" fill="none"/></g></g></g></g>
+<g class="med-bub"><rect x="560" y="186" width="104" height="44" rx="16" fill="#FFFDF8" stroke="#0D1838" stroke-width="4"/><path d="M652 228 l18 14 l-4 -18" fill="#FFFDF8" stroke="#0D1838" stroke-width="4" stroke-linejoin="round"/><text class="med-bub-t" x="612" y="215" font-family="Caveat,cursive" font-size="25" font-weight="700" fill="#2E9C86" text-anchor="middle">hoş geldin!</text></g>
 </svg><span class="axm-tag mono">hastane</span></span>
 <span class="axm-lab-tx"><span class="axm-lab-t disp">Acadex Medica</span>
 <span class="axm-lab-for hand">bütün klinik vakalar burada</span>
-<span class="axm-lab-d" id="axm-med-d">Eğitim hastanesi: maskeli rehber cerrah seni karşılar, bölümünün katına asansörle çıkarsın. Bekleme salonundan hastanı çağır, odada görüş, sonra lab’da vakayı tamamla. Nöbet tut, karneni topla.</span>
+<span class="axm-lab-d" id="axm-med-d">Eğitim hastanesi: rehber hekimin Uzm. Dr. Ela Altındağ seni kapıda karşılar, bölümünün katına asansörle çıkarsın. Bekleme salonundan hastanı çağır, odada görüş, sonra lab’da vakayı tamamla. Nöbet tut, karneni topla.</span>
 <span class="axm-lab-cta">Hastaneye gir →</span></span>
 </button>
 </li>
@@ -3102,11 +3144,17 @@
 <script src="js/acadex-medlab-acadia.js"></script>
 <script src="js/acadia-yerinde.js"></script>
   <script src="js/avatar-studio.js"></script>
+  <script src="js/acadex-panel-izgara.js"></script>
   <script src="js/acadex-plus.js"></script>
   <script src="js/acadex-bolumler.js"></script>
   <script src="js/profile-complete.js"></script>
   <script src="js/acadex-paket.js"></script>
   <script src="js/acadex-masa.js"></script>
+  <script src="js/acadingo-kart.js"></script>
+  <script src="formulo/assets/formulo-veri.js"></script>
+  <script src="formulo/assets/formulo-veri-ek.js"></script>
+  <script src="formulo/assets/formulo-bulut.js"></script>
+  <script src="formulo/assets/formulo-kart.js"></script>
   <script src="js/acadex-test.js"></script>
   <script src="js/i18n-en.js"></script>
   <script src="js/acadex-i18n.js"></script>

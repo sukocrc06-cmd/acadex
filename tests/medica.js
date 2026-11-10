@@ -3,7 +3,7 @@
 
    NEDEN VAR (31.10.2026): MedLab'in içine "Acadex Medica" eğitim hastanesi eklendi
    (labs/medica/). Bütün klinik vakalar lab'lardan kaldırılıp hastaneye taşındı:
-     giriş → maskeli rehber cerrah → bölüm seçimi → asansör → katın bekleme salonu →
+     giriş → rehber hekim (Uzm. Dr. Ela Altındağ) → bölüm seçimi → asansör → katın bekleme salonu →
      hasta odada (labs/klinik sahnesi) → lab'a devir (?medica=1&vaka=…) → sonuç hastaneye.
    Bu test şunları tutar:
      - Her kat (Tıp, Fizyoterapi, Odyoloji, Diyet, DKT) senaryolarını önekle toplar; hepsi
@@ -16,8 +16,8 @@
    (vakit, yürüyen personel, anons), canlı muayene odası (akan EKG/SpO₂, eşik alarmı, yüz ifadesi),
    nöbette triyaj masası ve süreli acil kod, katlar arası konsültasyon zincirleri.
    31.10.2026 (3. tur): Anatomi ve Fizyo'da lab işi bitince sonuç hastaya döner: bulgu formu
-   ("Hastaya bildir"), Fizyo Lab'de kurulan ev programı, taburcu sahnesi. Lab'da maskeli rehber
-   cerrah üç kademeli ipucu verir (5/10/20 puan).
+   ("Hastaya bildir"), Fizyo Lab'de kurulan ev programı, taburcu sahnesi. Lab'da rehber hekim
+   Dr. Ela üç kademeli ipucu verir (5/10/20 puan).
    01.11.2026: 6. kat hastane eczanesi (Eczacılık Lab) ve 7. kat dahiliye servisi (Hemşirelik Lab):
    her biri 8 hasta, bölüme göre anamnez, acil kodda role özgü adımlar (eczacı acil ilaç, hemşire ilk
    müdahale), lab'a devir ve sonucun hastaneye dönmesi. Lab'ların kendi testleri: tests/eczacilik-hemsirelik.js.
@@ -125,7 +125,7 @@ test('yeni hastalar: her kata 4, lab’da karşılığı var', () => {
     diyet: ['dyt-v-dash', 'dyt-v-onko', 'dyt-v-osteo', 'dyt-e-peg'], dkt: ['dkt-osman', 'dkt-kerem', 'dkt-yarik', 'dkt-ykek'] };
   for (const [kat, ids] of Object.entries(yeni)) for (const id of ids) { assert.ok(SEN[id], id); assert.equal(MV.katOf(id).id, kat, id); }
   const ana = read('labs/anatomi/index.html');
-  for (const v of ['inme', 'kalca', 'apandisit', 'kot']) assert.match(ana, new RegExp("\\{ id: '" + v + "', ad: "), 'Anatomi CASES ' + v);
+  for (const v of ['inme', 'kalca', 'apandisit', 'kot']) assert.match(ana, new RegExp("\\{ id: '" + v + "',[^\\n]*? ad: "), 'Anatomi CASES ' + v);
   assert.ok(M.VK.some((v) => v.id === 'v-onko') && M.EP.some((c) => c.id === 'e-peg'));
   assert.ok(ODY.P.buson.oto.R.g === 'buson' && /g === 'buson'/.test(read('labs/odyoloji/odyo-kabin2.js')), 'otoskopta buşon çizimi');
 });
@@ -231,13 +231,12 @@ test('lab’lar: Fizyo açılınca “tamamlandı” demez, ev programı hastaya
   const fz = read('labs/fizyo/index.html'), an = read('labs/anatomi/index.html'), c = read('labs/medica/medica-cerrah.js'), js = read('labs/medica/medica.js');
   assert.match(fz, /medicaBildir\(\{ vaka: t\.id, type: 'hazir', tamam: false, exAd \}\)/);
   assert.match(fz, /const saveProg = \(\) => \{ if \(MEDICA\) \{ medicaProg\(\); return; \} LS\.set\('fzProg', FZS\.prog\); \};/, 'öğrencinin kendi programı ezilmez');
-  assert.match(an, /sc\.src = '\.\.\/medica\/medica-cerrah\.js'/); assert.match(an, /function medicaCerrah\(o\) \{ if \(!MEDICA \|\| window\.parent === window\) return;/);
+  assert.match(an, /sc\.src = '\.\.\/medica\/medica-cerrah\.js'/); assert.match(an, /function medicaCerrah\(o\) \{ if \(window\.AXCERRAH\) \{ window\.AXCERRAH\.kur\(o\); return; \}/, '06.11.2026: Dr. Ela tek başına Anatomi Lab’da da');
   assert.ok(!/medicaCerrah/.test(fz), 'rehber cerrah yalnız Anatomi vakalarında (01.11.2026 seçimi)');
   /* Anatomi: önce ekibe ilk plan, sonra hastaya anlatım (taburcuda son sorudaki seçim söylenir) */
   for (const s of Object.values(SEN).filter((x) => x.lab === 'anatomi')) { assert.equal(s.sonu.sorular.length, 2, s.id); assert.match(s.sonu.sorular[0].s, /İlk plan/, s.id); }
-  assert.match(an, /if \(n === 2\) \{ frame\(ms, \{ dir: dirFor\(ms\), k: 3\.2 \}\);/, '2. kademe bölgeyi gösterir');
-  assert.match(an, /return 'Bu ' \+ S\[sid\]\.tr \+ ' \(' \+ S\[sid\]\.la \+ '\)\. Parlayan yapıya şimdi sen dokun\.';/, '3. kademe yapıyı söyler, öğrenci dokunur');
-  assert.match(c, /class="axc-maske"/); assert.match(c, /type: 'ipucu', lab: o\.lab, kademe: n, ceza: CEZA\[n - 1\]/); assert.match(c, /e\.key === 'Escape'/);
+  assert.match(an, /kademe: vkIpucu, etiket: VK_ETIKET/, 'kademeler tests/anatomi-vaka.js içinde sınanır');
+  assert.match(c, /class="axc-agiz"/); assert.match(c, /<b>Uzm\. Dr\. Ela Altındağ<\/b>/); assert.match(c, /type: 'ipucu', lab: o\.lab, kademe: n, ceza: CEZA\[n - 1\]/); assert.match(c, /e\.key === 'Escape'/);
   assert.match(js, /if \(S\.aktif\.sen\.sonu\) \{ if \(typeof d\.puan === 'number'\) S\.aktif\.cerceve = Math\.round\(d\.puan\); bildirHazir\(/);
   assert.match(js, /if \(d\.type === 'program' && Array\.isArray\(d\.items\)\) \{ S\.aktif\.program = d\.items\.slice\(0, 12\)/);
   assert.match(js, /anim: 'cik'/); assert.match(read('labs/klinik/klinik.js'), /cik: function \(\) \{/);
@@ -336,7 +335,31 @@ test('hasta ve nöbet puanı', () => {
   assert.ok(MV.yatan(SEN['dyt-e-inme']) && !MV.yatan(SEN['dyt-v-dm']));
 });
 
-test('hastane sayfası: betik sırası, rehber cerrah, asansör, erişilebilirlik', () => {
+test('rehber hekim (06.11.2026): Uzm. Dr. Ela Altındağ; kapak, hol ve köşe rehberi aynı çizim; açılış hareket azaltmaya uyar', () => {
+  const V = require(path.join(ROOT, 'labs/medica/medica-veri.js'));
+  assert.deepEqual(V.REHBER, { ad: 'Ela Altındağ', unvan: 'Uzm. Dr.', brans: 'acil tıp' });
+  assert.match(V.TANITIM[0], /Ben Uzm\. Dr\. Ela Altındağ/);
+  const js = read('labs/medica/medica.js'), dash = read('dashboard.html'), c = read('labs/medica/medica-cerrah.js');
+  for (const f of [js, c, dash, read('labs/medica/index.html'), read('labs/medica/medica-veri.js')]) assert.doesNotMatch(f.replace(/medica-cerrah|AXCERRAH|medicaCerrah|cerrahi değerlendirme|Acil ve cerrahi|'cerrah'\]/g, ''), /Kaan Arslan|maskeli|rehber cerrah/i);
+  /* pano kapağındaki Dr. Ela, hol çiziminin aynısı (ela fonksiyonundan üretilir) */
+  const a = js.indexOf('  var ela = function (o) {'), b = js.indexOf('  var bitki = function');
+  const ela = new Function(js.slice(a, b) + '; return ela;')();
+  const i = dash.indexOf('<g class="dr med-dr"'), cover = dash.slice(i, dash.indexOf('<g class="med-bub">', i)).trim();
+  assert.equal(cover, ela({ x: 748, y: 330, sc: 0.8, cls: 'med-dr' }));
+  for (const k of ['dr-salla', 'dr-goz', 'dr-bebek', 'dr-agiz', 'dr-at', 'dr-nefes']) assert.ok(cover.includes('class="' + k + '"'), k);
+  assert.match(cover, /stroke="#0D1838" stroke-width="3.5"/, 'steteskop');
+  assert.match(dash, /aria-label="Acadex Medica eğitim hastanesi: kapıda beyaz önlüklü, steteskoplu rehber hekim Uzm\. Dr\. Ela Altındağ/);
+  /* sinematik açılış: JS yoksa ya da hareket azaltılmışsa son kare; yalnız ilk görünüşte bir kez */
+  const css = read('css/acadex-medlab.css'), mj = read('js/acadex-medlab.js');
+  const nm = css.slice(css.indexOf('@media (prefers-reduced-motion:no-preference){', css.indexOf('rehber hekim Uzm. Dr. Ela')));
+  assert.ok(nm.indexOf('.med-bekle .med-amb') > -1 && nm.indexOf('.med-bekle .med-amb') < nm.indexOf('\n}\n'), 'bekleme durumu yalnız hareket serbestken');
+  assert.match(mj, /if \(!calm && typeof IntersectionObserver === 'function'\) \{\n      svg\.classList\.add\('med-bekle'\);/);
+  assert.match(mj, /io\.disconnect\(\); svg\.classList\.remove\('med-bekle'\); svg\.classList\.add\('med-oyna'\);/);
+  assert.match(mj, /var MET = \{ gel: 'hoş geldin!', buyur: 'buyur, gir!' \};/);
+  assert.match(css, /button\.axm-labb:is\(:hover,:focus-visible\) \.axm-med \.dr-salla\{animation:none;transform:rotate\(-84deg\)\}/, 'kartta kapıyı gösterir');
+});
+
+test('hastane sayfası: betik sırası, rehber hekim, asansör, erişilebilirlik', () => {
   const h = read('labs/medica/index.html'), at = (f) => h.indexOf('src="' + f + '"');
   assert.ok(at('../diyet/diyet-model.js') < at('../klinik/klinik.js'));
   assert.ok(at('../klinik/klinik.js') < at('../klinik/senaryo-diyet.js') && at('../klinik/senaryo-dkt.js') < at('medica-veri.js') && at('medica-veri.js') < at('medica.js'));
@@ -344,7 +367,6 @@ test('hastane sayfası: betik sırası, rehber cerrah, asansör, erişilebilirli
   assert.match(h, /<iframe title="Lab: vaka formu" allow="fullscreen; microphone" allowfullscreen><\/iframe>/, 'DKT ses laboratuvarı mikrofonu');
   assert.match(h, /@media \(prefers-reduced-motion:reduce\)/);
   const js = read('labs/medica/medica.js');
-  assert.match(js, /class="maske"/, 'rehber cerrah maskeli'); assert.match(js, /eldiven/);
   assert.match(js, /if \(RM\) \{ git\(\); live\(/, 'hareket azaltmada asansör animasyonu yok');
   assert.match(js, /setAttribute\('role', 'dialog'\)/); assert.match(js, /e\.key === 'Escape'/);
   /* iç çerçeve aktarımı: lab mesajları 'medica' adıyla, yalnız aynı kaynaktan */

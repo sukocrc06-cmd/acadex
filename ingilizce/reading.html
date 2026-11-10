@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <script>/* kapı: son 30 dk içinde doğrulandıysa açık başla (assets/kapi.js yine denetler) */try{if(Date.now()-(+sessionStorage.getItem('acx.kapi')||0)<18e5)document.documentElement.classList.remove('kapi')}catch(e){}</script>
-<title>Reading · Acadex English</title>
+<title>Reading · Acadingo</title>
 <meta name="description" content="Akademik metni baştan sona çevirmeden okumak: göz gezdir, ana fikri işaretle, bilmediğin kelime kenarda Türkçesiyle beklesin.">
-<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/ing.css">
 <style>
 body{--c:var(--reading)}
@@ -48,15 +52,12 @@ body{--c:var(--reading)}
 .soru-k b{font:800 16px var(--disp)}.soru-k .el{font-size:20px;color:var(--reading)}
 @media (max-width:860px){.makale{grid-template-columns:1fr;padding:18px 16px}.makale h3{font-size:22px}.makale p{font-size:15px;line-height:1.55}.kenar2{margin:0;grid-template-columns:repeat(3,1fr);gap:8px;max-height:0;overflow:hidden;transition:max-height .5s}.a2 .kenar2{max-height:120px;margin-top:10px}.kenar2 li{font-size:16px}.a0:not(.a1) .makale .govde{opacity:.2}.a3 .kenar2{max-height:0;margin:0}}
 
-/* metin kutusu */
-.parca{padding:16px 18px;border:2px dashed var(--ink3);border-radius:12px;background:#FFFDF8;font:400 16.5px/1.65 Georgia,serif;color:#2A3350;margin-bottom:16px}
-.saat2{font:500 34px var(--mono);color:var(--reading)}
 </style>
 </head>
 <body data-panel="reading" data-ipucu="Önce başlıklar ve her paragrafın ilk cümlesi. Gerisi sonra.|Not Given: metinde ne doğrusu ne yanlışı var demek. Tahmin yürütme.|Bilmediğin her kelimede durma; anlamı bozan kelimede dur.|Cevabı bulunca kanıt cümlesinin altını çiz; emin olursun.">
 <a class="gizli" href="#calis">Alıştırmalara geç</a>
 <header class="ust"><div class="wrap">
-  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadingo</b><span class="el">by Acadex</span></a>
   <nav class="sekme" aria-label="Beceriler">
     <a href="vocab.html" style="--t:var(--vocab)"><i></i>Vocab</a>
     <a href="listening.html" style="--t:var(--listening)"><i></i>Listening</a>
@@ -150,34 +151,16 @@ body{--c:var(--reading)}
   <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
 </div></section>
 
-<section class="bolum" id="calis" data-acadia="Dört metin. Önce göz gezdir, sonra soruya geç."><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">kütüphanelik</span><h2 class="disp">Bir kahve soğumadan.</h2><p>Kısa metinler, gerçek soru tipleri. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
-  <div class="calis">
-    <article class="kagit alis" data-id="anafikir" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 3 paragraf</span><h3>Ana fikir hangisi?</h3><p>Her paragraf için tek cümle seç.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-ana"></div>
-    </article>
-    <article class="kagit alis" data-id="tfng" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 2 · 4 ifade</span><h3>True / False / Not Given</h3><p>Metne göre karar ver; kendi bildiğine göre değil.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div class="parca">Many universities now offer “flipped” courses, in which students watch short lectures at home and use class time for discussion and problem-solving. A 2022 study at a large public university found that students in flipped courses scored slightly higher on final exams. However, the same study reported that these students spent more hours preparing each week, and some said the workload was difficult to manage alongside part-time jobs.</div>
-      <div id="t-tfng"></div>
-    </article>
-    <article class="kagit alis" data-id="baglam" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 3 · 5 kelime</span><h3>Bağlamdan tahmin</h3><p>Sözlüğe bakmadan: cümle kelimeyi ele veriyor.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-baglam"></div>
-    </article>
-    <article class="kagit alis" data-id="hiz" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 4 · 180 kelime</span><h3>Okuma hızın kaç?</h3><p>Başla'ya bas, normal hızında oku, bitince durdur. Sonra iki soru.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="hiz-k"><button class="btn ana" type="button" id="hiz-bas">Başla</button></div>
-    </article>
-  </div>
+<section class="bolum" id="calis" data-acadia="Kategori ve seviye seç; fosforla işaretle, kelimeye dokun, sonra soruya geç."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">okuma masası</span><h2 class="disp">Her gün başka bir makale.</h2><p>Sekiz kategori, altı seviye; IELTS soru tipleri, süreli tarama ve hız antrenmanı. Kelimeye dokununca anlamı gelir, fosforla işaretlediğin yer kenar notuyla kalır. <span class="mono" data-sayac style="color:var(--c)"></span></p></div>
+  <div class="calis okm" id="oku-app"></div>
 </div></section>
 
 <section class="sonraki"><div class="wrap">
   <a class="kagit" href="speaking.html" data-gir="yukari"><div><small>sonraki durak · 17:00</small><b>Kafe: Speaking</b><span class="el">çay söyle, sıra sende</span></div><span class="ok" aria-hidden="true">→</span></a>
 </div></section>
 </main>
-<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English</span><span>Göz gezdir, işaretle, kanıtla.</span></div></footer>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadingo · by Acadex</span><span>Göz gezdir, işaretle, kanıtla.</span></div></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="../js/supabase-config.js"></script>
@@ -185,12 +168,27 @@ body{--c:var(--reading)}
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
 <script src="assets/hoca.js"></script>
+<script src="assets/kelime-banka.js"></script>
+<script src="assets/oku-banka.js"></script>
+<script src="assets/oku.js"></script>
 <script>
 (function () {
   'use strict';
   var mk = document.querySelector('.metin-kart');
   HOCA.soruTuru(document.getElementById('hoca-oturum'), {
     panel: 'reading', baslik: 'okuma · 5 soru', metin: mk, metinYazi: mk.innerText,
+    /* yeni tur: havuzdan görülmemiş metin; kart yeniden yazılır, fosforlu kısımlar işaretlenir */
+    yeniGetir: async function () {
+      var v = await ACX.icerik('okuma'); if (!v || !Array.isArray(v.paragraflar) || !Array.isArray(v.sorular)) return null;
+      /* her fosforlu ifade bir kez sarılır; aynı ifadeyi soran sorular aynı işareti paylaşır */
+      var e = ACX.esc, fid = {}, ps = v.paragraflar.map(function (p, k) { var t = e(p); v.sorular.forEach(function (q, j) { var f = q.fosfor ? e(q.fosfor) : ''; if (q.paragraf !== k || !f) return; if (fid[f]) { q._f = fid[f]; return; } if (t.indexOf(f) > -1) { fid[f] = 'y' + j; q._f = 'y' + j; t = t.replace(f, '<span data-f="y' + j + '">' + f + '</span>'); } }); return '<p style="font:400 16.5px/1.65 Georgia,serif">' + t + '</p>'; });
+      mk.innerHTML = '<span class="etiket" lang="tr">yeni metin · ' + v.paragraflar.length + ' paragraf · B1–B2</span><h3 style="font:700 24px Georgia,serif;margin:6px 0 10px">' + e(v.baslik) + '</h3>' + ps.join('');
+      mk.classList.remove('gir'); void mk.offsetWidth; mk.classList.add('gir');
+      return { metinYazi: mk.innerText, sorular: v.sorular.map(function (q, j) {
+        return { soru_en: String(q.soru_en), soru_tr: String(q.soru_tr || ''), paragraf: Math.max(0, Math.min(2, +q.paragraf || 0)), fosfor: q._f || '', ornek: String(q.ornek), dogru_tr: 'Metindeki fikri yakaladın.',
+          kural: { g: q.anahtar.map(function (a) { return { ad: String(a.ad_tr), t: a.kelimeler.map(String) }; }) }, ipucu: q.ipucu.map(String).slice(0, 3) };
+      }) };
+    },
     giris_en: "Hi, I'm Defne. Read the text once, then I'll ask you five questions.", giris_tr: 'Önce metni bir kez oku. Sonra beş soru soracağım; kendi cümlenle cevapla, kelimesi kelimesine aynısı gerekmez.',
     sorular: [
       { soru_en: 'According to the text, why do people procrastinate?', soru_tr: 'Metne göre insanlar işleri neden erteliyor?', paragraf: 0, fosfor: 'f1',
@@ -217,48 +215,6 @@ body{--c:var(--reading)}
   });
 })();
 </script>
-<script>
-(function () {
-  'use strict';
-  var P = 'reading', D = document;
-  ACX.test(D.getElementById('t-ana'), [
-    { ust: 'paragraf 1', soru: '<i>Cities around the world are planting trees on rooftops and along busy roads. Trees lower street temperatures by several degrees in summer, absorb rainwater that would otherwise flood drains, and filter some of the dust from traffic. For local governments, they are one of the cheapest ways to make a city more liveable.</i>', sec: ['Ağaçlar yağmur suyunu emer.', 'Ağaç dikmek şehirler için ucuz ve çok yönlü bir iyileştirmedir.', 'Trafik tozu şehirlerde büyük bir sorundur.', 'Çatı bahçeleri pahalıdır.'], d: 1, neden: 'Diğerleri paragraftaki <b>ayrıntılar</b>. Son cümle hepsini toparlıyor: ucuz ve yaşanabilirliği artıran bir yol.' },
-    { ust: 'paragraf 2', soru: '<i>Although remote work saves commuting time, many employees report feeling isolated. Without casual conversations in the office, new staff in particular find it harder to learn how things are done and to build relationships with colleagues.</i>', sec: ['Uzaktan çalışma yol süresini kısaltır.', 'Uzaktan çalışma, özellikle yeni çalışanlarda yalnızlık ve uyum sorunu yaratabilir.', 'Ofis sohbetleri verimsizdir.', 'Çalışanlar ofise dönmek istiyor.'], d: 1, neden: '“Although” ile gelen kısım karşı görüş; asıl fikir virgülden sonra: <b>yalnızlık</b>, özellikle yeni çalışanlar için.' },
-    { ust: 'paragraf 3', soru: '<i>The price of a cup of coffee depends less on the beans than most people think. Rent, staff wages and the cost of milk often make up the largest share, which is why the same coffee can cost twice as much in a city centre.</i>', sec: ['Kahve fiyatını çekirdekten çok kira ve işçilik gibi giderler belirler.', 'Şehir merkezinde kahve iki kat pahalıdır.', 'Süt fiyatları arttı.', 'Kahve çekirdeği ucuzdur.'], d: 0, neden: 'İlk cümle iddiayı koyuyor, ikincisi açıklıyor. Şehir merkezi örneği <b>sonuç</b>, ana fikir değil.' }
-  ], { panel: P, id: 'anafikir', tebrik: 'Ana fikri yakalamak artık refleks.' });
-
-  ACX.test(D.getElementById('t-tfng'), [
-    { soru: 'In flipped courses, lectures are watched outside the classroom.', sec: ['True', 'False', 'Not Given'], d: 0, yan: 1, neden: '“students watch short lectures <b>at home</b>” → doğru.' },
-    { soru: 'Students in flipped courses scored much higher on final exams.', sec: ['True', 'False', 'Not Given'], d: 1, yan: 1, neden: 'Metin “<b>slightly</b> higher” diyor; “much higher” bununla çelişir → False.' },
-    { soru: 'Flipped courses are cheaper for universities to run.', sec: ['True', 'False', 'Not Given'], d: 2, yan: 1, neden: 'Maliyetten hiç söz edilmiyor. Ne doğru ne yanlış → <b>Not Given</b>.' },
-    { soru: 'Some students found the workload hard to combine with part-time work.', sec: ['True', 'False', 'Not Given'], d: 0, yan: 1, neden: '“difficult to manage alongside part-time jobs” → doğru.' }
-  ], { panel: P, id: 'tfng', tebrik: 'Not Given tuzağına düşmedin.' });
-
-  ACX.test(D.getElementById('t-baglam'), [
-    { soru: 'The bridge was so <b>fragile</b> that only one person could cross at a time.', sec: ['kırılgan', 'uzun', 'yeni', 'kalabalık'], d: 0, yan: 1, neden: 'Bir seferde tek kişi geçebiliyorsa köprü dayanıksız: <b>kırılgan</b>.' },
-    { soru: 'Unlike his <b>talkative</b> sister, Mert rarely speaks in meetings.', sec: ['sessiz', 'konuşkan', 'kıskanç', 'yorgun'], d: 1, yan: 1, neden: '“Unlike” zıtlık kuruyor; Mert az konuşuyorsa kız kardeşi <b>konuşkan</b>.' },
-    { soru: 'The results were <b>inconclusive</b>, so the team decided to repeat the experiment.', sec: ['kesin', 'sonuçsuz / net olmayan', 'şaşırtıcı', 'pahalı'], d: 1, yan: 1, neden: 'Deneyi tekrar ediyorlarsa sonuç net değil: <b>in-</b> (değil) + <b>conclusive</b> (kesin).' },
-    { soru: 'After the long hike, we were <b>famished</b> and ate everything on the table.', sec: ['çok aç', 'çok mutlu', 'kaybolmuş', 'üşümüş'], d: 0, yan: 1, neden: 'Masadaki her şeyi yedilerse: <b>çok aç</b>.' },
-    { soru: 'The new policy will <b>curb</b> spending, cutting the budget by 10%.', sec: ['artırmak', 'sınırlamak', 'açıklamak', 'ertelemek'], d: 1, yan: 1, neden: 'Bütçe %10 kesiliyor: harcamayı <b>sınırlamak / dizginlemek</b>.' }
-  ], { panel: P, id: 'baglam', tebrik: 'Sözlüksüz okuyorsun.' });
-
-  /* okuma hızı */
-  var METIN = 'Every autumn, thousands of first-year students arrive on campus with the same worry: how will I make friends? Psychologists say the answer is simpler than it seems. In one well-known study, researchers asked students to rate how close they felt to people living on the same floor of a dormitory. The strongest friendships were not between people with similar backgrounds or hobbies, but between people whose doors were closest to each other. Small, repeated encounters in the corridor, at the kitchen or on the stairs gave them many chances to start a conversation. Later studies found a similar pattern in classrooms where seats were assigned. The lesson for new students is practical. Instead of waiting for the perfect group, they can choose places where they will see the same faces again and again: a regular table in the library, a weekly club meeting or a sports team. Friendship, it seems, grows from being nearby more often than from having everything in common.';
-  var kel = METIN.split(/\s+/).length, t0 = 0, kutu = D.getElementById('hiz-k');
-  D.getElementById('hiz-bas').onclick = function () {
-    t0 = performance.now();
-    kutu.innerHTML = '<div class="parca">' + METIN + '</div><button class="btn ana" type="button" id="hiz-dur">Bitirdim</button>';
-    D.getElementById('hiz-dur').onclick = function () {
-      var dk = (performance.now() - t0) / 60000, wpm = Math.round(kel / Math.max(dk, .05));
-      var yorum = wpm > 600 ? 'Bu hız gerçekçi değil; metni okumadan mı durdurdun? Sorular gösterecek.' : wpm < 120 ? 'Dikkatli okuyorsun. Göz gezdirme adımı hızını en çok buradan artırır.' : wpm < 220 ? 'Sınav için rahat bir hız. Anlamayı kaçırmadıysan tamam.' : 'Hızlısın. Sorularda anlamayı kontrol edelim.';
-      kutu.innerHTML = '<p style="margin:0 0 4px"><span class="saat2">' + wpm + '</span> <span class="say">kelime / dakika</span></p><p class="el" style="font-size:21px;margin:0 0 14px;color:var(--c)">' + yorum + '</p><div id="t-hiz"></div>';
-      ACX.test(D.getElementById('t-hiz'), [
-        { soru: 'Araştırmaya göre en güçlü arkadaşlıklar kimler arasında kuruldu?', sec: ['Benzer hobileri olanlar', 'Odaları birbirine en yakın olanlar', 'Aynı bölümde okuyanlar', 'Aynı şehirden gelenler'], d: 1, neden: '“between people whose doors were closest to each other”.' },
-        { soru: 'Metin yeni öğrencilere ne öneriyor?', sec: ['Mükemmel grubu beklemelerini', 'Aynı yüzleri sık göreceği yerler seçmelerini', 'Yurtta kalmalarını', 'Ortak ilgi alanı aramalarını'], d: 1, neden: '“choose places where they will see the same faces again and again”.' }
-      ], { panel: P, id: 'hiz', tebrik: wpm + ' kelime/dk, deftere yazdım.' });
-    };
-  };
-})();
-</script>
+<script>OKU.kur(document.getElementById('oku-app'));</script>
 </body>
 </html>

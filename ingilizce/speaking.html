@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <script>/* kapı: son 30 dk içinde doğrulandıysa açık başla (assets/kapi.js yine denetler) */try{if(Date.now()-(+sessionStorage.getItem('acx.kapi')||0)<18e5)document.documentElement.classList.remove('kapi')}catch(e){}</script>
-<title>Speaking · Acadex English</title>
+<title>Speaking · Acadingo</title>
 <meta name="description" content="Bir dakika hazırlan, iki dakika konuş, kendi sesini dinle. Vurgu, doğal geçişler ve gölge okuma.">
-<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/ing.css">
 <style>
 body{--c:var(--speaking)}
@@ -64,7 +68,7 @@ body{--c:var(--speaking)}
 <body data-panel="speaking" data-ipucu="Hazırlıkta cümle yazma, kelime yaz. Cümle yazarsan okursun.|Duraksarken 'um' yerine 'Let me think…' de. Zaman kazanırsın, puan kaybetmezsin.|Kısa cevap verme; her cevaba bir neden, bir örnek ekle.|Kendi sesini dinlemek garip gelir. İkinci kayıttan sonra geçer.">
 <a class="gizli" href="#calis">Alıştırmalara geç</a>
 <header class="ust"><div class="wrap">
-  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadingo</b><span class="el">by Acadex</span></a>
   <nav class="sekme" aria-label="Beceriler">
     <a href="vocab.html" style="--t:var(--vocab)"><i></i>Vocab</a>
     <a href="listening.html" style="--t:var(--listening)"><i></i>Listening</a>
@@ -141,42 +145,28 @@ body{--c:var(--speaking)}
   </div>
 </div></section>
 
-<section class="bolum" id="hoca" data-acadia="Hocanın yanındayım. Takılırsan bana bas, çaktırmadan söylerim."><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">Defne Hoca'yla</span><h2 class="disp">Hocayla beş dakikalık sohbet.</h2><p>Hoca sorar, sen mikrofonla ya da yazarak cevaplarsın. Her cevaptan sonra kısa bir not, sonunda akıcılık, kelime ve dilbilgisi karnesi.</p></div>
-  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div>
+<section class="bolum" id="hoca" data-acadia="Pratikte yanındayım; sınav modunda gözetmen beni dışarı çıkarıyor."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">sınav odası</span><h2 class="disp">Üç sınav, tek oda, Defne Hoca gözetmen.</h2><p>Kolay: hazırlık atlama mülakatı. Orta: IELTS tarzı üç bölüm. Zor: TOEFL tarzı dinle-tekrarla ve mülakat. Pratikte bölüm bölüm çalış, sınav modunda baştan sona gir; sonunda kriter kriter tahmini puan, kayıtların ve kendi cümlelerinden düzeltmeler.</p></div>
+  <div class="kagit hoca-kart simulator" id="sinav-oda" data-gir="yukari"></div>
+  <details class="serbest" data-gir="yukari"><summary class="btn sm">Serbest sohbet · puan yok, beş soru</summary>
+  <div class="kagit hoca-kart" data-gir="yukari"><div id="hoca-oturum"></div></div></details>
 </div></section>
 
-<section class="bolum" id="calis" data-acadia="Mikrofon izni istenirse kayıt yalnız bu sayfada, senin cihazında kalır."><div class="wrap">
-  <div class="bolum-b" data-gir="yukari"><span class="el">kafelik</span><h2 class="disp">Çay soğumadan dört tur.</h2><p>Kulaklıkla çalışmak daha rahat. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
-  <div class="calis">
-    <article class="kagit alis" data-id="kart" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 3 dakika</span><h3>Konu kartı</h3><p>Bir dakika hazırlan, iki dakika konuş, sonra kendini dinle.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div class="cue" lang="en" id="cue"></div>
-      <div class="zaman"><span class="buyuk" id="sure">1:00</span><button class="btn ana" type="button" id="kart-bas">Hazırlığı başlat</button><button class="btn sm" type="button" id="kart-yeni">Başka konu</button></div>
-      <label class="gizli" for="kart-not">Hazırlık notları</label>
-      <textarea id="kart-not" rows="2" placeholder="sadece anahtar kelimeler…"></textarea>
-      <div id="kart-ses" style="margin-top:12px"></div>
-    </article>
-    <article class="kagit alis" data-id="vurgu" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 2 · 5 kelime</span><h3>Vurgu nerede?</h3><p>Dinle, büyük harfli heceyi seç.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-vurgu"></div>
-    </article>
-    <article class="kagit alis" data-id="gecis" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 3 · 5 durum</span><h3>“Um” yerine ne?</h3><p>Duraksadığın anlar için doğal kalıplar.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div id="t-gecis"></div>
-    </article>
-    <article class="kagit alis" data-id="golge" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 4 · 3 cümle</span><h3>Gölge okuma</h3><p>Dinle, aynı ritimle tekrar et. Tarayıcın destekliyorsa söylediğini yazıya çevirip karşılaştırır.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div class="golge" id="golge"></div>
-    </article>
-  </div>
+<section class="bolum" id="atolye" data-acadia="Bir kitap çek: kategori, seviye, sonra etkinlik. Her turda yeni içerik."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">konuşma atölyesi</span><h2 class="disp">Raftan bir kitap çek, konuşmaya başla.</h2><p>On dört kategori, A1’den C2’ye altı seviye, yedi etkinlik: tek dakika, münazara, anlat-buldur, rol yapma, grafik, hikâye zinciri ve röportaj. Konular ders kitaplarının seviye sırasına göre seçildi; her turda yeni içerik gelir.</p></div>
+  <div class="atolye" id="konusma-atolye" data-gir="yukari"></div>
+</div></section>
+
+<section class="bolum" id="calis" data-acadia="Her gün yeni dört tur; seviye senin başarına göre kendiliğinden ayarlanır."><div class="wrap">
+  <div class="bolum-b" data-gir="yukari"><span class="el">kafelik</span><h2 class="disp">Çay soğumadan dört tur.</h2><p>Her gün yeni dört kısa tur: telaffuz, akıcılık, dinle-tekrarla, kelime ve kalıp. Seviye, turlardaki başarına göre her gün kendiliğinden ayarlanır. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
+  <div class="calis cay" id="cay-gun"></div>
 </div></section>
 
 <section class="sonraki"><div class="wrap">
   <a class="kagit" href="writing.html" data-gir="yukari"><div><small>son durak · 21:40</small><b>Yurt odası: Writing</b><span class="el">günün son işi bir paragraf</span></div><span class="ok" aria-hidden="true">→</span></a>
 </div></section>
 </main>
-<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English</span><span>Hazırlan, konuş, dinle.</span></div></footer>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadingo · by Acadex</span><span>Hazırlan, konuş, dinle.</span></div></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="../js/supabase-config.js"></script>
@@ -184,14 +174,23 @@ body{--c:var(--speaking)}
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
 <script src="assets/hoca.js"></script>
+<script src="assets/sinav-banka.js"></script>
+<script src="assets/sinav.js"></script>
+<script src="assets/konusma-banka.js"></script>
+<script src="assets/konusma.js"></script>
+<script src="assets/cay-banka.js"></script>
+<script src="assets/cay.js"></script>
 <script>
 (function () {
   'use strict';
+  SINAV.kur(document.getElementById('sinav-oda'));
+  KONUSMA.kur(document.getElementById('konusma-atolye'));
   HOCA.sohbet(document.getElementById('hoca-oturum'), {
     panel: 'speaking', baslik: 'sohbet · 5 tur', tur: 5,
     giris_en: "Hi, I'm Defne. Let's have a short chat. Five questions, no stress.", giris_tr: 'Mikrofona basıp konuş ya da yaz. Her cevaptan sonra kısa bir not düşerim; beşinci sorudan sonra karnen çıkar.',
     ilk_tr: 'Ne okuyorsun, neden seçtin?',
     sorular: ["Let's start easy. What are you studying, and why did you choose it?", 'Do you prefer studying alone or with friends? Why?', 'Tell me about a place on campus you really like.', 'How do you usually relax after a long day?', 'Some people say university should be free for everyone. What do you think?'],
+    yeniGetir: async function () { var v = await ACX.icerik('sohbet'); return v && Array.isArray(v.sorular) ? { sorular: v.sorular.map(String), ipucu: (v.ipucu || []).map(String) } : null; },
     ipucu: ['Başlangıç: “I’m studying … because …”', '“I prefer … because … For example, …”', '“My favourite place is … I usually go there to …”', '“After a long day, I usually … It helps me …”', '“I think … because … On the other hand, …”']
   });
 })();
@@ -203,91 +202,8 @@ body{--c:var(--speaking)}
   function dalga(el, n) { var h = ''; for (var i = 0; i < n; i++) h += '<b style="--h:' + (22 + Math.round(70 * Math.abs(Math.sin(i * 2.1) * Math.cos(i * .5)))) + ';--g:' + (-(i % 7) * .13).toFixed(2) + 's"></b>'; el.innerHTML = h; }
   dalga(D.querySelector('.kafe .dalga'), 14); dalga(D.getElementById('konusma'), 40);
 
-  /* konu kartı: hazırlık + konuşma + kayıt */
-  var KONU = [
-    ['Describe a place on campus where you like to spend time.', ['where it is', 'what you do there', 'who you go there with', 'and explain why you like it']],
-    ['Describe a course you enjoyed at university.', ['what the course was', 'who taught it', 'what you learned', 'and explain why you enjoyed it']],
-    ['Describe a time you helped a friend with a problem.', ['who the friend was', 'what the problem was', 'how you helped', 'and explain how you felt afterwards']],
-    ['Describe an app you use every day.', ['what it is', 'how you found it', 'what you use it for', 'and explain why it is useful to you']]
-  ];
-  var ki = 0, faz = 'bos', kalan = 0, sayac = null, kayit = null, parca = [], akis = null;
-  var sure = D.getElementById('sure'), bas = D.getElementById('kart-bas'), sesK = D.getElementById('kart-ses');
-  function cue() { var k = KONU[ki]; D.getElementById('cue').innerHTML = '<b>' + k[0] + '</b><div class="say" style="margin-top:4px">You should say:</div><ul>' + k[1].map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>'; }
-  function yaz() { sure.textContent = Math.floor(kalan / 60) + ':' + String(kalan % 60).padStart(2, '0'); }
-  function dur() { clearInterval(sayac); sayac = null; }
-  function sifirla() { dur(); kayitDur(); faz = 'bos'; kalan = 60; yaz(); bas.textContent = 'Hazırlığı başlat'; bas.disabled = false; }
-  function kayitDur() { try { if (kayit && kayit.state !== 'inactive') kayit.stop(); } catch (e) {} if (akis) { akis.getTracks().forEach(function (t) { t.stop(); }); akis = null; } }
-  function konusmaBasla() {
-    faz = 'konus'; kalan = 120; yaz(); bas.textContent = 'Bitirdim'; bas.disabled = false;
-    ACX.soyle('Saat işliyor; konuş. Takılırsan “let me think”.', 3500);
-    var basT = Date.now();
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && W.MediaRecorder) {
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
-        akis = s; parca = []; kayit = new MediaRecorder(s);
-        kayit.ondataavailable = function (e) { if (e.data.size) parca.push(e.data); };
-        kayit.onstop = function () { var url = URL.createObjectURL(new Blob(parca, { type: kayit.mimeType || 'audio/webm' })); sesK.innerHTML = '<p class="el" style="font-size:21px;margin:0 0 6px;color:var(--c)">kaydın hazır, kendini dinle:</p><audio controls src="' + url + '" style="width:100%"></audio><p class="say">Dinlerken üç şeyi say: kaç kez “um”, kaç kez “very”, hangi kelimede durakladın.</p>'; };
-        kayit.start();
-      }).catch(function () { sesK.innerHTML = '<p class="say">Mikrofon izni yok; kayıt olmadan süreyle devam ediyorsun.</p>'; });
-    } else sesK.innerHTML = '<p class="say">Bu tarayıcı kayıt yapamıyor; süreyle devam ediyorsun.</p>';
-    sayac = setInterval(function () { kalan--; yaz(); if (kalan <= 0) bitir(Date.now() - basT); }, 1000);
-    bas.onclick = function () { bitir(Date.now() - basT); };
-  }
-  function bitir(ms) {
-    dur(); kayitDur(); faz = 'bitti'; bas.textContent = 'Tekrar dene'; bas.onclick = baslat;
-    if (ms >= 45000) { ACX.bitir(P, 'kart'); ACX.sevin(); ACX.soyle(Math.round(ms / 1000) + ' saniye konuştun. Sınavda bu kadar yeter.', 4500); }
-    else { ACX.uz(); ACX.soyle('45 saniyenin altında kaldı. Her ipucuna bir cümle daha ekle.', 4500); }
-  }
-  function baslat() {
-    sifirla(); sesK.innerHTML = ''; faz = 'hazir'; bas.textContent = 'Hazırım, konuşayım'; D.getElementById('kart-not').focus({ preventScroll: true });
-    sayac = setInterval(function () { kalan--; yaz(); if (kalan <= 0) { dur(); konusmaBasla(); } }, 1000);
-    bas.onclick = function () { dur(); konusmaBasla(); };
-  }
-  bas.onclick = baslat;
-  D.getElementById('kart-yeni').onclick = function () { ki = (ki + 1) % KONU.length; cue(); sifirla(); bas.onclick = baslat; sesK.innerHTML = ''; };
-  cue(); sifirla();
-
-  ACX.test(D.getElementById('t-vurgu'), [
-    { soru: '<b>photograph</b>', dinle: 'photograph', sec: ['PHO-to-graph', 'pho-TO-graph', 'pho-to-GRAPH'], d: 0, neden: '<b>PHO</b>-to-graph. Ama photographer’da vurgu kayar…' },
-    { soru: '<b>photographer</b>', dinle: 'photographer', sec: ['PHO-to-gra-pher', 'pho-TO-gra-pher', 'pho-to-GRA-pher'], d: 1, neden: 'pho-<b>TO</b>-gra-pher. -er eki vurguyu bir hece ileri iter.' },
-    { soru: '<b>economy</b>', dinle: 'economy', sec: ['E-co-no-my', 'e-CO-no-my', 'e-co-NO-my'], d: 1, neden: 'e-<b>CO</b>-no-my.' },
-    { soru: '<b>economic</b>', dinle: 'economic', sec: ['E-co-no-mic', 'e-CO-no-mic', 'e-co-NO-mic'], d: 2, neden: '-ic eki vurguyu kendinden önceki heceye çeker: e-co-<b>NO</b>-mic.' },
-    { soru: '<b>record</b> (fiil: kaydetmek)', dinle: 'Please record the lecture.', sec: ['RE-cord', 're-CORD'], d: 1, yan: 1, neden: 'Fiil olunca vurgu sonda: re-<b>CORD</b>. İsim olunca başta: <b>RE</b>-cord.' }
-  ], { panel: P, id: 'vurgu', tebrik: 'Vurgular yerinde; artık daha net anlaşılırsın.' });
-
-  ACX.test(D.getElementById('t-gecis'), [
-    { soru: 'Soruyu tam anlamadın.', sec: ['What?', 'Sorry, could you rephrase that?', 'I don’t understand anything.', 'Again.'], d: 1, neden: 'Kibar ve sınavda puan kaybettirmeyen kalıp: <b>Could you rephrase that?</b>' },
-    { soru: 'Cevabı düşünmek için birkaç saniye lazım.', sec: ['Ummmm…', 'That’s an interesting question. Let me think…', 'I don’t know.', 'Next question please.'], d: 1, neden: 'Sessizlik yerine zaman kazandıran bir cümle: <b>Let me think…</b>' },
-    { soru: 'Kelimeyi hatırlayamadın (“dolap”).', sec: ['Şey… dolap?', 'It’s the thing… you know…', 'It’s a piece of furniture where you keep clothes.', 'I forgot.'], d: 2, neden: 'Kelime yoksa <b>tarif et</b>. Sınavda buna “paraphrase” denir ve puan getirir.' },
-    { soru: 'Yeni bir fikre geçiyorsun.', sec: ['And and and…', 'Another reason is that…', 'Also also…', 'Okay so yes…'], d: 1, neden: '<b>Another reason is that…</b> konuşmana iskelet kazandırır.' },
-    { soru: 'Cevabını bağlamak istiyorsun.', sec: ['That’s it.', 'So, overall, that’s why it means a lot to me.', 'Finish.', 'I have no more ideas.'], d: 1, neden: 'Kısa bir toparlama cümlesi cevabı tamamlanmış gösterir.' }
-  ], { panel: P, id: 'gecis', tebrik: 'Sessizlik yok, “um” yok.' });
-
-  /* gölge okuma */
-  var GOLGE = ['I usually study in the library because it is quiet.', 'Could you tell me when the next seminar starts?', 'In my opinion, online classes save a lot of time.'];
-  var SR = W.SpeechRecognition || W.webkitSpeechRecognition, yapilan = {}, g = D.getElementById('golge');
-  g.innerHTML = GOLGE.map(function (c, i) {
-    return '<div class="satir"><p lang="en">' + c + '</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" type="button" data-d="' + i + '">▶ Dinle</button>' +
-      (SR ? '<button class="btn sm ana" type="button" data-s="' + i + '">● Söyle</button>' : '<button class="btn sm ana" type="button" data-b="' + i + '">Söyledim, benzerdi</button>') + '</div><div class="fark" id="g' + i + '"></div></div>';
-  }).join('');
-  var norm = function (s) { return s.toLowerCase().replace(/[^a-z' ]/g, ' ').split(/\s+/).filter(Boolean); };
-  function say(i) { yapilan[i] = 1; if (Object.keys(yapilan).length >= 3 && ACX.bitir(P, 'golge')) { ACX.sevin(); ACX.soyle('Üç cümle, üç tekrar. Ritim oturuyor.', 3800); } }
-  g.addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.d) ACX.ses(GOLGE[+b.dataset.d], .9);
-    if (b.dataset.b) { say(+b.dataset.b); b.textContent = '✓ işaretlendi'; b.disabled = true; ACX.sevin(); }
-    if (b.dataset.s) {
-      var i = +b.dataset.s, out = D.getElementById('g' + i), r = new SR(); r.lang = 'en-GB'; r.interimResults = false; r.maxAlternatives = 1;
-      out.innerHTML = '<span class="say">dinliyorum…</span>'; b.disabled = true;
-      r.onresult = function (ev) {
-        var duy = norm(ev.results[0][0].transcript), hedef = norm(GOLGE[i]), isabet = 0;
-        out.innerHTML = hedef.map(function (w) { var ok = duy.indexOf(w) > -1; if (ok) isabet++; return '<span class="' + (ok ? 'ok' : 'yok') + '">' + w + '</span>'; }).join(' ') + ' <span class="say">· ' + Math.round(isabet / hedef.length * 100) + '% anlaşıldı</span>';
-        if (isabet / hedef.length >= .7) { say(i); ACX.sevin(); } else ACX.uz();
-      };
-      r.onerror = function () { out.innerHTML = '<span class="say">Mikrofona ulaşılamadı. İzin verip tekrar dene.</span>'; };
-      r.onend = function () { b.disabled = false; };
-      try { r.start(); } catch (x) { b.disabled = false; }
-    }
-  });
+  /* “çay soğumadan dört tur”: her gün yeni dört tur, otomatik seviye (assets/cay.js) */
+  CAY.kur(D.getElementById('cay-gun'));
 })();
 </script>
 </body>

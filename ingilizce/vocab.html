@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <script>/* kapı: son 30 dk içinde doğrulandıysa açık başla (assets/kapi.js yine denetler) */try{if(Date.now()-(+sessionStorage.getItem('acx.kapi')||0)<18e5)document.documentElement.classList.remove('kapi')}catch(e){}</script>
-<title>Vocab · Acadex English</title>
+<title>Vocab · Acadingo</title>
 <meta name="description" content="Kahvaltıda on kelime. Unutmak üzereyken karşına yeniden çıkan bir deste, kalıplar ve kelime aileleri.">
-<link rel="icon" type="image/png" href="../assets/landing/acadex-logo.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/icons/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/favicon-192.png">
+<link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/ing.css">
 <style>
 body{--c:#B07F00}
@@ -70,7 +74,7 @@ body{--c:#B07F00}
 <body data-panel="vocab" data-ipucu="Kelimeyi tek başına değil, yanındaki kelimeyle öğren: make a decision, do research.|'Biliyordum' dürüst olsun; destede yalan söylemek sınavda geri döner.|Bir kelimenin ailesini öğrenince dört kelime kazanırsın: economy, economic, economical, economically.|Yeni kelimeyi bugün bir cümlede kullan, yarın hatırla.">
 <a class="gizli" href="#calis">Alıştırmalara geç</a>
 <header class="ust"><div class="wrap">
-  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadex</b><span class="el">English</span></a>
+  <a class="marka" href="index.html"><img src="../assets/landing/acadex-logo.png" alt=""><b>Acadingo</b><span class="el">by Acadex</span></a>
   <nav class="sekme" aria-label="Beceriler">
     <a href="vocab.html" style="--t:var(--vocab)" aria-current="page"><i></i>Vocab</a>
     <a href="listening.html" style="--t:var(--listening)"><i></i>Listening</a>
@@ -165,15 +169,9 @@ body{--c:#B07F00}
 <section class="bolum" id="calis" data-acadia="Önce deste, sonra kalıplar. Dürüst cevap ver, deste ona göre ayarlanır."><div class="wrap">
   <div class="bolum-b" data-gir="yukari"><span class="el">kahvaltılık</span><h2 class="disp">Bugünün kartları.</h2><p>Desten bu tarayıcıda kalır; yarın açınca sadece vakti gelen kartlar gelir. <span class="mono" data-sayac style="color:var(--c)">0 / 4</span></p></div>
   <div class="calis">
-    <article class="kagit alis" data-id="deste" data-gir="yukari"><span class="bant"></span>
-      <div class="alis-u"><div><span class="etiket">alıştırma 1 · 10 kart</span><h3>Sabah destesi</h3><p>Karta dokun, çevir. Sonra dürüstçe işaretle.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
-      <div class="cdeste">
-        <div>
-          <div class="sahnek" id="dk" tabindex="0" role="button" aria-label="Kartı çevir"><div class="kart" id="dkk"><div class="yuz"></div><div class="yuz arka"></div></div></div>
-          <div class="dugme3" id="dk3"><button class="btn" type="button" data-n="0">Bilmiyordum<small>10 dk sonra</small></button><button class="btn" type="button" data-n="1">Zorlandım<small>yarın</small></button><button class="btn ana" type="button" data-n="2" style="background:var(--vocab);color:var(--ink)">Biliyordum<small>aralık uzar</small></button></div>
-        </div>
-        <div class="kutular"><div>bugün kalan <b id="dk-k">0</b></div><div>öğrenilen <b id="dk-o">0</b></div><div>sıradaki <b id="dk-s">—</b></div><button class="btn sm" type="button" id="dk-dinle">▶ Dinle</button></div>
-      </div>
+    <article class="kagit alis kel-alis" data-id="deste" data-gir="yukari"><span class="bant"></span>
+      <div class="alis-u"><div><span class="etiket">alıştırma 1 · kişisel deste</span><h3>Senin desten</h3><p>Seviyene göre, yalnız bilmediğin kelimeler. Kaydır, çevir, oyna; her kelime bahçende bir bitki.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
+      <div class="kel" id="kelime-app"></div>
     </article>
     <article class="kagit alis" data-id="kalip" data-gir="yukari"><span class="bant"></span>
       <div class="alis-u"><div><span class="etiket">alıştırma 2 · 5 soru</span><h3>Make mi, do mu?</h3><p>İngilizcenin “öyle denir” kısmı.</p></div><span class="tik" aria-label="tamamlandı">✓</span></div>
@@ -194,7 +192,7 @@ body{--c:#B07F00}
   <a class="kagit" href="listening.html" data-gir="yukari"><div><small>sonraki durak · 08:15</small><b>Otobüs: Listening</b><span class="el">bardağı bırak, kulaklığı tak</span></div><span class="ok" aria-hidden="true">→</span></a>
 </div></section>
 </main>
-<footer class="dip"><div class="wrap"><span>© 2026 Acadex · English</span><span>Unutmak üzereyken bir daha.</span></div></footer>
+<footer class="dip"><div class="wrap"><span>© 2026 Acadingo · by Acadex</span><span>Unutmak üzereyken bir daha.</span></div></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="../js/supabase-config.js"></script>
@@ -202,6 +200,8 @@ body{--c:#B07F00}
 <script src="assets/kapi.js"></script>
 <script src="assets/ing.js"></script>
 <script src="assets/hoca.js"></script>
+<script src="assets/kelime-banka.js"></script>
+<script src="assets/kelime.js"></script>
 <script>
 (function () {
   'use strict';
@@ -215,7 +215,11 @@ body{--c:#B07F00}
   HOCA.soruTuru(document.getElementById('hoca-oturum'), {
     panel: 'vocab', baslik: 'kelimeyle cümle · 5 kelime',
     giris_en: "Hi, I'm Defne. Let's use your new words. I give you a word, you make a sentence.", giris_tr: 'Kendi hayatından bir cümle kur; örneğimi kopyalama, hemen anlarım.',
-    sorular: K.map(function (k) { return { tip: 'kelime', kelime: k[0], anlam: k[1], ornek: k[2], ipucu: k[3], soru_en: 'Make a sentence with “' + k[0] + '”.', soru_tr: k[1] }; })
+    sorular: K.map(function (k) { return { tip: 'kelime', kelime: k[0], anlam: k[1], ornek: k[2], ipucu: k[3], soru_en: 'Make a sentence with “' + k[0] + '”.', soru_tr: k[1] }; }),
+    yeniGetir: async function () {
+      var v = await ACX.icerik('kelime'); if (!v || !Array.isArray(v.kelimeler)) return null;
+      return { sorular: v.kelimeler.map(function (k) { var w = String(k.kelime); return { tip: 'kelime', kelime: w, anlam: String(k.anlam_tr), ornek: String(k.ornek), ipucu: k.ipucu.map(String), soru_en: 'Make a sentence with “' + w + '”.', soru_tr: String(k.anlam_tr) }; }) };
+    }
   });
 })();
 </script>
@@ -223,54 +227,8 @@ body{--c:#B07F00}
 (function () {
   'use strict';
   var P = 'vocab', D = document;
-  /* aralıklı tekrar: kutu sistemi (0: 10 dk, 1: 1 gün, sonra 3, 7, 14 gün) */
-  var KELIME = [
-    ['thrive', '/θraɪv/ · verb', 'gelişmek, serpilmek', 'Small businesses thrive near universities.'],
-    ['reluctant', '/rɪˈlʌktənt/ · adj', 'isteksiz, gönülsüz', 'She was reluctant to change her major.'],
-    ['obtain', '/əbˈteɪn/ · verb', 'elde etmek', 'You must obtain a permit before the trip.'],
-    ['adequate', '/ˈædɪkwət/ · adj', 'yeterli', 'The library does not have adequate study space.'],
-    ['significant', '/sɪɡˈnɪfɪkənt/ · adj', 'önemli, kayda değer', 'There was a significant rise in rent.'],
-    ['assume', '/əˈsjuːm/ · verb', 'varsaymak', 'Don’t assume everyone has read the article.'],
-    ['decline', '/dɪˈklaɪn/ · verb / noun', 'azalmak; düşüş', 'Car sales declined last year.'],
-    ['evidence', '/ˈevɪdəns/ · noun', 'kanıt', 'There is little evidence for this claim.'],
-    ['approach', '/əˈprəʊtʃ/ · noun', 'yaklaşım', 'We need a different approach to the problem.'],
-    ['outcome', '/ˈaʊtkʌm/ · noun', 'sonuç', 'Nobody could predict the outcome of the vote.']
-  ];
-  var ARALIK = [10 * 60e3, 864e5, 3 * 864e5, 7 * 864e5, 14 * 864e5];
-  var durum = ACX.ls.al('deste', {}), simdi = Date.now(), sira = [], cur = null, oturum = 0;
-  KELIME.forEach(function (k) { if (!durum[k[0]]) durum[k[0]] = { kutu: 0, vade: 0 }; });
-  function tazele() { simdi = Date.now(); sira = KELIME.filter(function (k) { return durum[k[0]].vade <= simdi; }); }
-  var kart = D.getElementById('dkk'), sahnek = D.getElementById('dk'), dug = D.getElementById('dk3');
-  function goster() {
-    tazele();
-    D.getElementById('dk-k').textContent = sira.length;
-    D.getElementById('dk-o').textContent = KELIME.filter(function (k) { return durum[k[0]].kutu >= 2; }).length + ' / ' + KELIME.length;
-    var gelecek = KELIME.map(function (k) { return durum[k[0]].vade; }).filter(function (v) { return v > simdi; }).sort()[0];
-    D.getElementById('dk-s').textContent = sira.length ? 'şimdi' : gelecek ? zaman(gelecek - simdi) : '—';
-    kart.classList.remove('don'); dug.style.visibility = 'hidden';
-    if (!sira.length) {
-      cur = null;
-      kart.querySelector('.yuz').innerHTML = '<b style="font-size:30px">Bugünlük bitti.</b><small>sıradaki kart ' + D.getElementById('dk-s').textContent + ' sonra</small>';
-      if (oturum) { ACX.bitir(P, 'deste'); ACX.sevin(); ACX.soyle('Deste temiz. Yarın sadece vakti gelenler.', 4200); }
-      return;
-    }
-    cur = sira[0];
-    kart.querySelector('.yuz').innerHTML = '<b>' + cur[0] + '</b><small>' + cur[1] + '</small><small style="margin-top:14px">dokun, çevir</small>';
-    var c = cur; setTimeout(function () { if (cur === c) kart.querySelector('.arka').innerHTML = '<span class="tr">' + c[2] + '</span><span class="ornek">' + c[3] + '</span>'; }, 300);   /* arka yüz, kart geri dönerken değişmesin */
-  }
-  function zaman(ms) { var dk = Math.round(ms / 60e3); return dk < 60 ? dk + ' dk' : dk < 1440 ? Math.round(dk / 60) + ' sa' : Math.round(dk / 1440) + ' gün'; }
-  function cevir() { if (!cur) return; kart.classList.toggle('don'); if (kart.classList.contains('don')) dug.style.visibility = 'visible'; }
-  sahnek.addEventListener('click', cevir);
-  sahnek.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cevir(); } });
-  dug.addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b || !cur) return; var n = +b.dataset.n, d = durum[cur[0]];
-    if (n === 0) { d.kutu = 0; d.vade = Date.now() + ARALIK[0]; ACX.uz(); }
-    else if (n === 1) { d.kutu = Math.max(1, d.kutu); d.vade = Date.now() + ARALIK[1]; }
-    else { d.kutu = Math.min(4, d.kutu + 1); d.vade = Date.now() + ARALIK[Math.max(1, d.kutu)]; ACX.sevin(); }
-    oturum++; ACX.ls.yaz('deste', durum); goster();
-  });
-  D.getElementById('dk-dinle').onclick = function () { if (cur) ACX.ses(kart.classList.contains('don') ? cur[3] : cur[0], .9); };
-  goster();
+  /* kişisel deste: seviye testi, aralıklı tekrar, oyunlar, bahçe (assets/kelime.js) */
+  KELIME.kur(D.getElementById('kelime-app'));
 
   ACX.test(D.getElementById('t-kalip'), [
     { soru: 'I need to ____ a decision about my internship by Friday.', sec: ['do', 'make', 'take', 'have'], d: 1, yan: 1, neden: '<b>make a decision</b>. (İngiliz İngilizcesinde “take a decision” da duyulur ama sınavda make güvenli.)' },

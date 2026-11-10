@@ -36,7 +36,7 @@ export function makePassword(len = 14): string {
 }
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
-if (import.meta.main) serve(async (req) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   try {
@@ -62,7 +62,7 @@ if (import.meta.main) serve(async (req) => {
     if (inv.error) return json({ error: 'Davet eklenemedi: ' + inv.error.message }, 400)
 
     // 2) hesap zaten var mı?
-    const { data: existing } = await serviceClient.from('profiles').select('id, full_name').ilike('email', email).maybeSingle()
+    const { data: existing } = await serviceClient.from('profiles').select('id, full_name').ilike('email', email.replace(/[\\%_]/g, (m) => '\\' + m)).maybeSingle()
     let password: string | null = null, created = false, name = existing?.full_name || fullName || null
     if (!existing) {
       password = makePassword(14)

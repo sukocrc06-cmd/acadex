@@ -28,39 +28,74 @@
   var INK = '#1A2A5C', TEN = '#EDBE97', SAC = '#3B2416', CEKET = '#5B7FB5';
 
   /* ---------- karakter ---------- */
+  /* 2.5B: yumuşak ışık-gölge (gradyan), ince kontur, takip eden göz ve baş */
+  var CZ = '#2B2340';   /* yumuşak kontur */
   var SVG = '<svg class="hoca" viewBox="0 0 300 280" role="img" aria-label="Defne Hoca">' +
-    '<g class="kupa"><path d="M50 204 h32 v26 a9 9 0 0 1 -9 9 h-14 a9 9 0 0 1 -9 -9 z" fill="#F5EFE2" stroke="' + INK + '" stroke-width="3"/><path d="M82 210 a8 8 0 0 1 0 16" fill="none" stroke="' + INK + '" stroke-width="3"/><rect x="56" y="214" width="20" height="10" rx="2" fill="#FFD86B" stroke="' + INK + '" stroke-width="1.5"/>' +
-      '<path class="buhar" d="M60 198 c-5 -8 5 -12 0 -20 M70 198 c-5 -8 5 -12 0 -20" fill="none" stroke="#8A93AE" stroke-width="2.5" stroke-linecap="round"/></g>' +
-    '<g class="govde"><path d="M104 120 C100 70 130 52 152 52 C182 52 204 74 200 124 C198 150 196 168 186 178 L118 178 C108 168 104 150 104 120Z" fill="' + SAC + '"/>' +
-      '<rect x="140" y="148" width="22" height="34" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/>' +
-      '<path d="M62 282 C64 232 84 198 120 188 L151 204 L182 188 C218 198 238 232 240 282 Z" fill="' + CEKET + '" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round"/>' +
-      '<path d="M120 188 L151 216 L182 188 L172 184 L151 200 L130 184 Z" fill="#F5EFE2" stroke="' + INK + '" stroke-width="2.5" stroke-linejoin="round"/>' +
-      '<path d="M120 188 L132 230 M182 188 L170 230" stroke="' + INK + '" stroke-width="2.5" fill="none"/><circle cx="104" cy="250" r="3" fill="#F5EFE2" stroke="' + INK + '" stroke-width="1.5"/><circle cx="198" cy="250" r="3" fill="#F5EFE2" stroke="' + INK + '" stroke-width="1.5"/></g>' +
-    '<g class="bas">' +
-      '<ellipse cx="111" cy="117" rx="6" ry="9" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/><ellipse cx="191" cy="117" rx="6" ry="9" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/><circle cx="191" cy="130" r="3" fill="#FFD86B" stroke="' + INK + '" stroke-width="1.5"/>' +
-      '<ellipse cx="151" cy="112" rx="40" ry="47" fill="' + TEN + '" stroke="' + INK + '" stroke-width="3"/>' +
-      '<path d="M110 106 C110 72 134 58 156 60 C180 62 196 80 194 106 C184 92 168 84 150 88 C138 90 124 98 110 106Z" fill="' + SAC + '" stroke="' + INK + '" stroke-width="2.5" stroke-linejoin="round"/>' +
-      '<path d="M110 104 C104 128 108 152 118 170" fill="none" stroke="' + SAC + '" stroke-width="9" stroke-linecap="round"/><path d="M193 104 C198 128 194 152 186 170" fill="none" stroke="' + SAC + '" stroke-width="9" stroke-linecap="round"/>' +
-      '<g class="kalem-kulak"><path d="M182 96 L214 80 L217 86 L185 102 Z" fill="#C93B2B" stroke="' + INK + '" stroke-width="2"/><path d="M214 80 L222 79 L217 86 Z" fill="#F5EFE2" stroke="' + INK + '" stroke-width="1.5"/></g>' +
-      '<path class="kas k1" d="M127 99 Q136 93 145 98" fill="none" stroke="' + INK + '" stroke-width="3.4" stroke-linecap="round"/><path class="kas k2" d="M157 98 Q166 93 175 99" fill="none" stroke="' + INK + '" stroke-width="3.4" stroke-linecap="round"/>' +
-      '<g class="gozler"><g class="goz g1"><ellipse cx="136" cy="113" rx="4.4" ry="5.8" fill="' + INK + '"/><circle cx="137.6" cy="111" r="1.4" fill="#fff"/></g><g class="goz g2"><ellipse cx="166" cy="113" rx="4.4" ry="5.8" fill="' + INK + '"/><circle cx="167.6" cy="111" r="1.4" fill="#fff"/></g>' +
-        '<path class="kirpik" d="M160 114 Q166 108 172 114" fill="none" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/></g>' +
-      '<path d="M151 117 q-3 9 2 11" fill="none" stroke="' + INK + '" stroke-width="2.2" stroke-linecap="round"/>' +
-      '<ellipse cx="127" cy="129" rx="7" ry="3.5" fill="#F29C94" opacity=".55"/><ellipse cx="175" cy="129" rx="7" ry="3.5" fill="#F29C94" opacity=".55"/>' +
+    '<defs>' +
+      '<radialGradient id="dh-ten" cx="42%" cy="34%" r="72%"><stop offset="0" stop-color="#FAD9BC"/><stop offset=".62" stop-color="#EDB98F"/><stop offset="1" stop-color="#D6946A"/></radialGradient>' +
+      '<linearGradient id="dh-ten2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D8976D"/><stop offset="1" stop-color="#EDB98F"/></linearGradient>' +
+      '<linearGradient id="dh-sac" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#6A4330"/><stop offset=".55" stop-color="#3E2416"/><stop offset="1" stop-color="#26140A"/></linearGradient>' +
+      '<linearGradient id="dh-ceket" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#86A9DC"/><stop offset=".5" stop-color="#5D82BA"/><stop offset="1" stop-color="#3B5888"/></linearGradient>' +
+      '<linearGradient id="dh-tsirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFDF8"/><stop offset="1" stop-color="#E6DDCB"/></linearGradient>' +
+      '<linearGradient id="dh-masa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E2C08F"/><stop offset=".25" stop-color="#C99D69"/><stop offset="1" stop-color="#9C7044"/></linearGradient>' +
+      '<radialGradient id="dh-isik" cx="50%" cy="38%" r="58%"><stop offset="0" stop-color="#FFF4D2" stop-opacity=".95"/><stop offset=".7" stop-color="#FFF4D2" stop-opacity=".25"/><stop offset="1" stop-color="#FFF4D2" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="dh-iris" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#8A5A36"/><stop offset="1" stop-color="#3A2212"/></radialGradient>' +
+      '<radialGradient id="dh-yanak" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#F08C86" stop-opacity=".55"/><stop offset="1" stop-color="#F08C86" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="dh-kupa" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#EFE7D7"/><stop offset="1" stop-color="#CFC4AE"/></linearGradient>' +
+      '<linearGradient id="dh-kalem" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E25B48"/><stop offset="1" stop-color="#A52C1F"/></linearGradient>' +
+      '<filter id="dh-golge" x="-25%" y="-25%" width="150%" height="150%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#1A2A5C" flood-opacity=".22"/></filter>' +
+    '</defs>' +
+    '<circle cx="150" cy="128" r="122" fill="url(#dh-isik)"/>' +
+    '<g filter="url(#dh-golge)">' +
+    '<g class="govde">' +
+      '<path d="M102 122 C96 70 128 48 152 48 C184 48 208 72 204 126 C202 154 200 172 188 182 L116 182 C104 172 100 152 102 122Z" fill="url(#dh-sac)"/>' +
+      '<path d="M139 146 h24 v40 h-24z" fill="url(#dh-ten2)"/><path d="M139 160 q12 8 24 0 v-8 q-12 9 -24 0z" fill="#B87650" opacity=".35"/>' +
+      '<path d="M60 282 C62 232 84 198 120 188 L151 206 L182 188 C218 198 240 232 242 282 Z" fill="url(#dh-ceket)" stroke="' + CZ + '" stroke-opacity=".5" stroke-width="1.6"/>' +
+      '<path d="M120 188 L151 218 L182 188 L172 184 L151 201 L130 184 Z" fill="url(#dh-tsirt)"/>' +
+      '<path d="M120 188 L134 236 L151 218 Z" fill="#4E70A6"/><path d="M182 188 L168 236 L151 218 Z" fill="#3F5F94"/>' +
+      '<path d="M84 228 q-10 24 -10 54 M218 228 q10 24 10 54" fill="none" stroke="#3B5888" stroke-width="2" opacity=".6"/>' +
+      '<path d="M96 206 q20 -12 34 -16 M206 206 q-20 -12 -34 -16" fill="none" stroke="#9DBCE6" stroke-width="2" opacity=".5"/>' +
+      '<circle cx="104" cy="252" r="3" fill="#E9E1CF" stroke="' + CZ + '" stroke-opacity=".4"/><circle cx="198" cy="252" r="3" fill="#E9E1CF" stroke="' + CZ + '" stroke-opacity=".4"/>' +
+    '</g>' +
+    '<g class="bas"><g class="bas-takip">' +
+      '<ellipse cx="110" cy="118" rx="7" ry="10" fill="url(#dh-ten)"/><path d="M108 112 q4 6 0 12" fill="none" stroke="#C07B55" stroke-width="1.6"/>' +
+      '<ellipse cx="192" cy="118" rx="7" ry="10" fill="url(#dh-ten)"/><path d="M194 112 q-4 6 0 12" fill="none" stroke="#C07B55" stroke-width="1.6"/>' +
+      '<circle cx="192" cy="131" r="3.4" fill="#F2C94C" stroke="#B8902A" stroke-width="1"/><circle cx="191" cy="130" r="1" fill="#fff"/>' +
+      '<path d="M151 64 C176 64 192 86 192 112 C192 140 176 160 151 160 C126 160 110 140 110 112 C110 86 126 64 151 64Z" fill="url(#dh-ten)"/>' +
+      '<ellipse cx="128" cy="130" rx="11" ry="7" fill="url(#dh-yanak)"/><ellipse cx="174" cy="130" rx="11" ry="7" fill="url(#dh-yanak)"/>' +
+      '<path d="M108 108 C106 74 132 56 156 58 C182 60 198 80 196 108 C186 92 170 84 152 88 C138 90 124 98 108 108Z" fill="url(#dh-sac)"/>' +
+      '<path d="M128 70 Q150 60 176 72" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="5" stroke-linecap="round"/>' +
+      '<path d="M108 104 C102 130 106 154 118 174" fill="none" stroke="url(#dh-sac)" stroke-width="10" stroke-linecap="round"/><path d="M196 104 C200 130 196 154 186 174" fill="none" stroke="url(#dh-sac)" stroke-width="10" stroke-linecap="round"/>' +
+      '<g class="kalem-kulak"><path d="M182 96 L214 80 L218 86 L186 102 Z" fill="url(#dh-kalem)"/><path d="M214 80 L222 79 L218 86 Z" fill="#F3E6CF"/><path d="M220.5 79.2 L222 79 L221 80.6 Z" fill="#333"/></g>' +
+      '<path class="kas k1" d="M126 100 Q136 93 146 98" fill="none" stroke="#3A2214" stroke-width="3.8" stroke-linecap="round"/><path class="kas k2" d="M156 98 Q166 93 176 100" fill="none" stroke="#3A2214" stroke-width="3.8" stroke-linecap="round"/>' +
+      '<g class="gozler">' +
+        '<g class="goz g1"><ellipse cx="136" cy="113" rx="6.6" ry="5" fill="#fff"/><g class="bebek"><circle cx="136" cy="113.4" r="3.9" fill="url(#dh-iris)"/><circle cx="136" cy="113.4" r="1.9" fill="#160C08"/><circle cx="137.4" cy="111.8" r="1.2" fill="#fff"/></g><path d="M129 111 Q136 106.5 143 111" fill="none" stroke="#2A170D" stroke-width="2.4" stroke-linecap="round"/></g>' +
+        '<g class="goz g2"><ellipse cx="166" cy="113" rx="6.6" ry="5" fill="#fff"/><g class="bebek"><circle cx="166" cy="113.4" r="3.9" fill="url(#dh-iris)"/><circle cx="166" cy="113.4" r="1.9" fill="#160C08"/><circle cx="167.4" cy="111.8" r="1.2" fill="#fff"/></g><path d="M159 111 Q166 106.5 173 111" fill="none" stroke="#2A170D" stroke-width="2.4" stroke-linecap="round"/></g>' +
+        '<path class="kirpik" d="M159 114 Q166 108 173 114" fill="none" stroke="#2A170D" stroke-width="2.6" stroke-linecap="round"/>' +
+      '</g>' +
+      '<path d="M151 116 q-4 9 1 12 q3 1 5 -1" fill="none" stroke="#B9774F" stroke-width="2" stroke-linecap="round"/><ellipse cx="153" cy="121" rx="2" ry="4" fill="#fff" opacity=".25"/>' +
       '<g class="agiz">' +
-        '<path class="a-kapali" d="M141 135 Q151 142 161 135" fill="none" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/>' +
-        '<path class="a-gulus" d="M139 133 Q151 150 163 133 Z" fill="#7A2E2E" stroke="' + INK + '" stroke-width="2.5" stroke-linejoin="round"/>' +
-        '<ellipse class="a-acik" cx="151" cy="138" rx="7" ry="5.5" fill="#7A2E2E" stroke="' + INK + '" stroke-width="2.2"/>' +
-        '<ellipse class="a-o" cx="151" cy="138" rx="4.2" ry="5" fill="#7A2E2E" stroke="' + INK + '" stroke-width="2"/>' +
-        '<path class="a-duz" d="M143 137 L159 137" fill="none" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/>' +
-        '<path class="a-egik" d="M142 138 Q153 141 161 132" fill="none" stroke="' + INK + '" stroke-width="3" stroke-linecap="round"/>' +
-      '</g></g>' +
-    '<path d="M0 238 H300 V280 H0 Z" fill="#C9A57A" stroke="' + INK + '" stroke-width="3"/><path d="M0 246 H300" stroke="#B48C5E" stroke-width="2"/>' +
-    '<g class="kol-sag"><path d="M90 214 C76 226 72 236 80 242 L106 242 C102 234 100 226 106 218" fill="' + CEKET + '" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round"/><ellipse cx="86" cy="234" rx="10" ry="7" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/></g>' +
-    '<g class="kol k-masa"><path d="M212 214 C226 226 230 236 222 242 L196 242 C200 234 204 226 198 218" fill="' + CEKET + '" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round"/><path d="M206 236 L234 222" stroke="#C93B2B" stroke-width="4" stroke-linecap="round"/><ellipse cx="210" cy="234" rx="10" ry="7" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/></g>' +
-    '<g class="kol k-tikla"><path d="M212 214 C226 226 230 236 222 242 L196 242 C200 234 204 226 198 218" fill="' + CEKET + '" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round"/><g class="kalem-vur"><path d="M210 232 L238 214" stroke="#C93B2B" stroke-width="4" stroke-linecap="round"/></g><ellipse cx="210" cy="232" rx="10" ry="7" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/></g>' +
-    '<g class="kol k-bas"><path d="M200 200 C228 196 244 176 240 158 L224 156 C226 174 218 186 196 192Z" fill="' + CEKET + '" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round"/><circle cx="232" cy="150" r="11" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/><path d="M230 141 v-13 a4.5 4.5 0 0 1 9 0 v13" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/></g>' +
-    '<g class="kol k-salla"><path d="M200 200 C228 196 244 176 240 160 L224 158 C226 174 218 186 196 192Z" fill="' + CEKET + '" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round"/><g class="avuc"><ellipse cx="234" cy="146" rx="12" ry="14" fill="' + TEN + '" stroke="' + INK + '" stroke-width="2.5"/><path d="M226 136 v-8 M232 133 v-10 M238 133 v-10 M244 137 v-7" stroke="' + INK + '" stroke-width="2.2" stroke-linecap="round"/></g></g>' +
+        '<path class="a-kapali" d="M141 135 Q151 140 161 135 Q151 145 141 135Z" fill="#C8686A" stroke="#9E4B4E" stroke-width="1.2" stroke-linejoin="round"/>' +
+        '<g class="a-gulus"><path d="M138 133 Q151 152 164 133 Z" fill="#6E2A2C" stroke="#9E4B4E" stroke-width="1.4" stroke-linejoin="round"/><path d="M140 134 Q151 139 162 134 L161 137 Q151 141 141 137Z" fill="#fff"/></g>' +
+        '<g class="a-acik"><ellipse cx="151" cy="138" rx="7" ry="5.6" fill="#6E2A2C" stroke="#9E4B4E" stroke-width="1.4"/><ellipse cx="151" cy="141" rx="4" ry="2" fill="#D9777A"/></g>' +
+        '<ellipse class="a-o" cx="151" cy="138" rx="4.2" ry="5" fill="#6E2A2C" stroke="#9E4B4E" stroke-width="1.4"/>' +
+        '<path class="a-duz" d="M143 137 Q151 138.5 159 137" fill="none" stroke="#9E4B4E" stroke-width="3" stroke-linecap="round"/>' +
+        '<path class="a-egik" d="M142 138 Q153 141 161 132" fill="none" stroke="#9E4B4E" stroke-width="3" stroke-linecap="round"/>' +
+      '</g></g></g>' +
+    '</g>' +
+    '<path d="M0 238 H300 V280 H0 Z" fill="url(#dh-masa)"/><path d="M0 238.5 H300" stroke="#F3D9B0" stroke-width="2"/><path d="M0 246 H300" stroke="#8A5F36" stroke-opacity=".35" stroke-width="2"/>' +
+    '<path d="M20 258 q60 -4 120 0 M170 266 q60 -5 120 0" fill="none" stroke="#8A5F36" stroke-opacity=".25" stroke-width="1.5"/>' +
+    '<ellipse cx="92" cy="242" rx="30" ry="4" fill="#5A3A1E" opacity=".25"/><ellipse cx="210" cy="242" rx="30" ry="4" fill="#5A3A1E" opacity=".25"/>' +
+    '<g class="kupa"><ellipse cx="66" cy="240" rx="20" ry="4" fill="#5A3A1E" opacity=".3"/><path d="M50 204 h32 v26 a9 9 0 0 1 -9 9 h-14 a9 9 0 0 1 -9 -9 z" fill="url(#dh-kupa)" stroke="' + CZ + '" stroke-opacity=".45" stroke-width="1.4"/><ellipse cx="66" cy="204" rx="16" ry="3" fill="#6B4228"/><path d="M82 210 a8 8 0 0 1 0 16" fill="none" stroke="#CFC4AE" stroke-width="4"/><rect x="56" y="214" width="20" height="10" rx="2" fill="#FFD86B"/><path d="M60 219 h12" stroke="#1A2A5C" stroke-width="1.5"/>' +
+      '<path class="buhar" d="M60 198 c-5 -8 5 -12 0 -20 M70 198 c-5 -8 5 -12 0 -20" fill="none" stroke="#9AA2BB" stroke-width="2.5" stroke-linecap="round"/></g>' +
+    '<g class="kol-sag"><path d="M90 214 C76 226 72 236 80 242 L106 242 C102 234 100 226 106 218" fill="url(#dh-ceket)"/><ellipse cx="86" cy="234" rx="10" ry="7" fill="url(#dh-ten)"/></g>' +
+    '<g class="kol k-masa"><path d="M212 214 C226 226 230 236 222 242 L196 242 C200 234 204 226 198 218" fill="url(#dh-ceket)"/><path d="M206 236 L234 222" stroke="url(#dh-kalem)" stroke-width="4.5" stroke-linecap="round"/><ellipse cx="210" cy="234" rx="10" ry="7" fill="url(#dh-ten)"/></g>' +
+    '<g class="kol k-tikla"><path d="M212 214 C226 226 230 236 222 242 L196 242 C200 234 204 226 198 218" fill="url(#dh-ceket)"/><g class="kalem-vur"><path d="M210 232 L238 214" stroke="url(#dh-kalem)" stroke-width="4.5" stroke-linecap="round"/></g><ellipse cx="210" cy="232" rx="10" ry="7" fill="url(#dh-ten)"/></g>' +
+    '<g class="kol k-bas"><path d="M200 200 C228 196 244 176 240 158 L224 156 C226 174 218 186 196 192Z" fill="url(#dh-ceket)"/><circle cx="232" cy="150" r="11" fill="url(#dh-ten)"/><path d="M230 141 v-13 a4.5 4.5 0 0 1 9 0 v13" fill="url(#dh-ten)" stroke="#C07B55" stroke-width="1.2"/><path d="M224 152 h14 M224 156 h12" stroke="#C07B55" stroke-width="1.2"/></g>' +
+    '<g class="kol k-salla"><path d="M200 200 C228 196 244 176 240 160 L224 158 C226 174 218 186 196 192Z" fill="url(#dh-ceket)"/><g class="avuc"><ellipse cx="234" cy="146" rx="12" ry="14" fill="url(#dh-ten)"/><path d="M226 136 v-8 M232 133 v-10 M238 133 v-10 M244 137 v-7" stroke="url(#dh-ten)" stroke-width="5" stroke-linecap="round"/><path d="M228 150 q6 4 12 0" fill="none" stroke="#C07B55" stroke-width="1.2"/></g></g>' +
+    /* gözetmen kostümü (speaking sınav modu): yaka kartı + sınav kâğıdı altlığı; .gozetmen sınıfıyla görünür, kupa gizlenir */
+    '<g class="gz"><path d="M136 186 l15 22 l15 -22" fill="none" stroke="#C93B2B" stroke-width="3"/><path d="M151 208 v4" stroke="#1A2A5C" stroke-width="2"/><rect x="140" y="212" width="22" height="16" rx="3" fill="#FFFFFF" stroke="#1A2A5C" stroke-width="1.8"/><rect x="140" y="212" width="22" height="4.5" rx="1.5" fill="#C93B2B"/><path d="M144 221 h14 M144 225 h9" stroke="#1A2A5C" stroke-width="1.4"/>' +
+      '<g transform="translate(-20 0) rotate(-8 60 228)"><rect x="34" y="200" width="54" height="40" rx="4" fill="#B48C5E" stroke="#1A2A5C" stroke-width="2"/><rect x="40" y="206" width="42" height="32" fill="#FFFFFF"/><rect x="52" y="196" width="18" height="8" rx="2" fill="#9AA2BB" stroke="#1A2A5C" stroke-width="1.5"/><path d="M45 214 h28 M45 221 h32 M45 228 h22" stroke="#9AA2BB" stroke-width="2"/><path d="M73 228 l3 3 l6 -7" fill="none" stroke="#2C7A4B" stroke-width="2"/></g></g>' +
     '</svg>';
 
   /* ---------- ses: hoca sesi (kadın, İngiliz ya da Amerikan) ---------- */
@@ -80,6 +115,21 @@
     var svg = kok.querySelector('svg.hoca'), soz = kok.querySelector('.hoca-soz'), enEl = soz.querySelector('.en'), trEl = soz.querySelector('.tr');
     var kis = kok.querySelector('.hoca-kis'), fis = kok.querySelector('.fisilti'), tahtaIc = kok.querySelector('.tahta-ic');
     var konusuyor = null, durum = { ifade: 'normal', kol: 'masa' };
+    /* göz ve baş imleci takip eder; dokunmatikte gözler ara ara etrafa bakar */
+    var takip = svg.querySelector('.bas-takip'), bebek = svg.querySelectorAll('.bebek'), govdeEl = svg.querySelector('.govde');
+    function bak(dx, dy) {
+      dx = Math.max(-1, Math.min(1, dx)); dy = Math.max(-1, Math.min(1, dy));
+      bebek.forEach(function (b) { b.style.transform = 'translate(' + (dx * 2.4).toFixed(2) + 'px,' + (dy * 1.7).toFixed(2) + 'px)'; });
+      takip.style.transform = 'translate(' + (dx * 2.2).toFixed(2) + 'px,' + (dy * 1.4).toFixed(2) + 'px) rotate(' + (dx * 3.2).toFixed(2) + 'deg)';
+      govdeEl.style.transform = 'translate(' + (dx * .9).toFixed(2) + 'px,0)';
+      kis.style.setProperty('--ry', (dx * 4).toFixed(2) + 'deg'); kis.style.setProperty('--rx', (-dy * 2.5).toFixed(2) + 'deg');
+    }
+    if (!sakin) {
+      if (W.matchMedia('(pointer:fine)').matches) {
+        var bekleyen = false, son = null;
+        W.addEventListener('pointermove', function (e) { son = e; if (bekleyen) return; bekleyen = true; requestAnimationFrame(function () { bekleyen = false; var r = svg.getBoundingClientRect(); if (r.bottom < 0 || r.top > W.innerHeight) return; var cx = r.left + r.width * .5, cy = r.top + r.height * .4; bak((son.clientX - cx) / (W.innerWidth * .45), (son.clientY - cy) / (W.innerHeight * .5)); }); }, { passive: true });
+      } else (function gez() { bak(Math.random() * 1.6 - .8, Math.random() * 1.2 - .5); setTimeout(gez, 2500 + Math.random() * 3000); })();
+    }
     svg.dataset.agiz = 'kapali'; svg.dataset.kol = 'masa'; svg.dataset.ifade = 'normal';
     var agizIfade = { normal: 'kapali', gulum: 'gulus', dusun: 'egik', kas: 'duz', sasir: 'o', kirp: 'egik' };
     function ifade(x) { durum.ifade = x; svg.dataset.ifade = x; if (!konusuyor) svg.dataset.agiz = agizIfade[x] || 'kapali'; }
@@ -90,11 +140,21 @@
     function soyle(en, tr, o) {
       o = o || {};
       if (konusuyor) konusuyor();
-      enEl.innerHTML = o.gizli ? '<span class="dinle-isaret">🔊 dinle…</span>' : esc(en); trEl.textContent = tr || ''; trEl.hidden = !tr;
+      /* karaoke altyazı: kelimeler sesle birlikte yanar (onboundary; yoksa tahmini zamanlama) */
+      var kelimeler = [], kar = !o.gizli && en && sesVar && sesAcik() && !sakin;
+      if (o.gizli) enEl.innerHTML = '<span class="dinle-isaret">🔊 dinle…</span>';
+      else if (kar) { var poz = 0; enEl.innerHTML = String(en).split(/(\s+)/).map(function (w) { var bas = poz; poz += w.length; if (!w.trim()) return w; kelimeler.push(bas); return '<span class="kw">' + esc(w) + '</span>'; }).join(''); enEl.classList.add('karaoke'); }
+      else { enEl.innerHTML = esc(en); enEl.classList.remove('karaoke'); }
+      var kw = enEl.querySelectorAll('.kw'), simdiki = -1;
+      var yak = function (i) { if (i === simdiki || i >= kw.length) return; for (var j = 0; j < kw.length; j++) { kw[j].classList.toggle('kw-gecti', j < i); kw[j].classList.toggle('kw-simdi', j === i); } simdiki = i; };
+      trEl.textContent = tr || ''; trEl.hidden = !tr;
       soz.classList.remove('yeni'); void soz.offsetWidth; soz.classList.add('yeni');
       return new Promise(function (bitti) {
         var dongu = null, son = false;
-        var kapat = function () { if (son) return; son = true; clearInterval(dongu); konusuyor = null; svg.dataset.agiz = agizIfade[durum.ifade] || 'kapali'; bitti(); };
+        var tahminZ = null, sinirGeldi = false;
+        var kapat = function () { if (son) return; son = true; clearInterval(dongu); clearTimeout(tahminZ); konusuyor = null; svg.dataset.agiz = agizIfade[durum.ifade] || 'kapali'; yak(kw.length); enEl.classList.remove('karaoke'); bitti(); };
+        /* boundary olayı gelmeyen seslerde kelime uzunluğuna göre tahmini ilerleme */
+        var tahmin = function (hiz) { var t = 0, ms = 60000 / (165 * hiz); [].forEach.call(kw, function (k, i) { var w = k.textContent.replace(/[^a-z0-9']/gi, '').length; t += ms * (0.55 + Math.min(w, 12) / 9) + (/[,.;:!?]$/.test(k.textContent) ? ms * .6 : 0); setTimeout(function () { if (!son && !sinirGeldi) yak(i + 1); }, t); }); };
         konusuyor = kapat;
         if (!sakin) dongu = setInterval(function () { svg.dataset.agiz = rasgele(['acik', 'o', 'kapali', 'acik']); }, 120);
         var tahmini = Math.max(1200, String(en).split(/\s+/).length * 330 / (o.hiz || .95));
@@ -102,7 +162,13 @@
           try {
             speechSynthesis.cancel();
             var u = new SpeechSynthesisUtterance(en); u.lang = 'en-GB'; var v = hocaSesi(); if (v) u.voice = v; u.rate = o.hiz || .95; u.pitch = 1.08;
-            u.onend = kapat; u.onerror = kapat; speechSynthesis.speak(u);
+            u.onend = kapat; u.onerror = kapat;
+            if (kw.length) {
+              u.onboundary = function (e) { if (e.name && e.name !== 'word') return; sinirGeldi = true; var i = 0; while (i + 1 < kelimeler.length && kelimeler[i + 1] <= e.charIndex) i++; yak(i); };
+              u.onstart = function () { if (simdiki < 0) yak(0); };
+              tahminZ = setTimeout(function () { if (!sinirGeldi && !son) { yak(0); tahmin(o.hiz || .95); } }, 600);
+            }
+            speechSynthesis.speak(u);
             setTimeout(kapat, tahmini * 2.2 + 1500);   /* bazı tarayıcılar onend göndermez */
           } catch (e) { setTimeout(kapat, tahmini); }
         } else setTimeout(kapat, Math.min(tahmini, 2600));
@@ -181,22 +247,8 @@
     return out;
   }
 
-  /* ---------- yapay zekâ istemcisi ---------- */
-  var yzKapali = false;
-  async function yz(mod, veri) {
-    if (yzKapali) return null;
-    var url, anahtar, sb;
-    try { url = SUPABASE_URL; anahtar = SUPABASE_ANON_KEY; sb = supabaseClient; } catch (e) { return null; }
-    try {
-      var s = await sb.auth.getSession(), tok = s && s.data && s.data.session && s.data.session.access_token; if (!tok) return null;
-      var ac = new AbortController(), zaman = setTimeout(function () { ac.abort(); }, 9000);
-      var r = await fetch(url + '/functions/v1/ingilizce-hoca', { method: 'POST', signal: ac.signal, headers: { Authorization: 'Bearer ' + tok, apikey: anahtar, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ mod: mod }, veri)) });
-      clearTimeout(zaman);
-      if (r.status === 404) { yzKapali = true; return null; }
-      if (!r.ok) return null;
-      var j = await r.json(); return j && typeof j === 'object' && !j.error ? j : null;
-    } catch (e) { return null; }
-  }
+  /* ---------- yapay zekâ: assets/ing.js'teki ortak istemci (ACX.yz) ---------- */
+  function yz(mod, veri, ms) { return W.ACX && W.ACX.yz ? W.ACX.yz(mod, veri, ms) : Promise.resolve(null); }
 
   /* ---------- ortak parçalar ---------- */
   function yildizCiz(n, top) { var s = ''; for (var i = 0; i < top; i++) s += n >= i + 1 ? '★' : n >= i + .5 ? '⯪' : '☆'; return s; }
@@ -223,9 +275,22 @@
     var h = sahne(el.querySelector('.hoca-sahne-yer')), govde = el.querySelector('.hoca-govde'), yEl = el.querySelector('.yildiz');
     var i = 0, puan = [], ipucuNo = 0, deneme = 0, s = null;
     function yildizGoster() { var top = 0; puan.forEach(function (p) { top += p; }); yEl.textContent = yildizCiz(top / Math.max(1, puan.length || 1), 3) + '  ' + puan.length + '/' + o.sorular.length; }
+    /* sınırsız içerik: ilk tur sayfadaki hazır set (anında, internetsiz); sonraki her tur havuzdan görülmemiş set */
+    var gordu = function () { return W.ACX ? !!(W.ACX.ls.al('hocaTur', {})[o.panel]) : false; };
+    async function yeniSet() {
+      if (!o.yeniGetir || !gordu()) return false;
+      govde.innerHTML = '<p class="hoca-giris el" style="font-size:22px">Defne Hoca yeni bir tur hazırlıyor…</p>';
+      h.dusun(true); h.soyle('Let me prepare something new for you.', 'Daha önce görmediğin bir tur hazırlıyorum.');
+      var y = null; try { y = await o.yeniGetir(); } catch (e) { y = null; }
+      h.dusun(false);
+      if (y && y.sorular && y.sorular.length) { o.sorular = y.sorular; if (y.metinYazi) o.metinYazi = y.metinYazi; return true; }
+      if (W.ACX) W.ACX.soyle('Şu an yeni içerik getiremedim; bildiğin turla devam ediyoruz.', 4200);
+      return false;
+    }
+    function turBasla() { i = 0; puan = []; yildizGoster(); soruCiz(); }
     function baslat() {
-      govde.innerHTML = '<p class="hoca-giris">' + esc(o.giris_tr || '') + '</p><button class="btn ana" type="button">Başlayalım</button>';
-      govde.querySelector('button').onclick = function () { soruCiz(); };
+      govde.innerHTML = '<p class="hoca-giris">' + esc(o.giris_tr || '') + '</p><button class="btn ana" type="button">' + (gordu() && o.yeniGetir ? 'Yeni bir tur' : 'Başlayalım') + '</button>';
+      govde.querySelector('button').onclick = async function () { await yeniSet(); turBasla(); };
       h.soyle(o.giris_en || "Hi, I'm Defne. Ready?", o.giris_tr2 || '');
     }
     function soruCiz() {
@@ -302,8 +367,10 @@
       var en = ort >= 2.5 ? 'Excellent work today.' : ort >= 1.5 ? 'Good job. A bit more practice and you are there.' : "We'll get there. Let's try again tomorrow.";
       var tr = ort >= 2.5 ? 'Bugün çok iyiydin.' : ort >= 1.5 ? 'İyi gidiyor; biraz daha pratikle oturacak.' : 'Sorun değil, yarın bir tur daha.';
       h.ifade(ort >= 1.5 ? 'gulum' : 'normal'); h.soyle(en, tr);
-      govde.innerHTML = '<p class="el" style="font-size:28px;margin:0 0 6px;color:var(--c)">' + yildizCiz(ort, 3) + ' · ' + esc(tr) + '</p><button class="btn sm" type="button">Baştan</button>';
-      govde.querySelector('button').onclick = function () { i = 0; puan = []; yildizGoster(); soruCiz(); };
+      if (W.ACX) { var t = W.ACX.ls.al('hocaTur', {}); t[o.panel] = (t[o.panel] || 0) + 1; W.ACX.ls.yaz('hocaTur', t); }
+      govde.innerHTML = '<p class="el" style="font-size:28px;margin:0 0 6px;color:var(--c)">' + yildizCiz(ort, 3) + ' · ' + esc(tr) + '</p><div class="dugmeler" style="gap:8px">' + (o.yeniGetir ? '<button class="btn sm ana" type="button" data-yeni>Yeni tur</button>' : '') + '<button class="btn sm" type="button" data-ayni>Aynı tur</button></div>';
+      govde.querySelector('[data-ayni]').onclick = turBasla;
+      var yb = govde.querySelector('[data-yeni]'); if (yb) yb.onclick = async function () { await yeniSet(); turBasla(); };
       if (ort >= 1.5) bitti(o.panel, el.closest('.hoca-kart') || el);
     }
     yildizGoster(); baslat();
@@ -388,9 +455,17 @@
         '<div class="alt-satir"><span class="el">' + (akici + kelime + dilbil >= 11 ? 'Bugün iyi konuştun.' : 'Bir tur daha konuşalım mı?') + '</span><button class="btn sm" type="button">Yeni sohbet</button></div></div>';
       giris.querySelector('button').onclick = basla;
       h.soyle(akici + kelime + dilbil >= 11 ? 'That was a great conversation. Well done.' : 'Thanks for talking with me. Let’s practise again soon.', 'Karnen aşağıda.');
-      if (cevaplar.length >= TUR) bitti(o.panel, el.closest('.hoca-kart') || el);
+      if (cevaplar.length >= TUR) { bitti(o.panel, el.closest('.hoca-kart') || el); if (W.ACX) { var t = W.ACX.ls.al('hocaTur', {}); t[o.panel] = (t[o.panel] || 0) + 1; W.ACX.ls.yaz('hocaTur', t); } }
     }
-    async function basla() { log.innerHTML = ''; gecmis = []; cevaplar = []; tur = 0; girisCiz(); await sor(o.sorular[0], o.ilk_tr); }
+    async function basla() {
+      var t = W.ACX ? W.ACX.ls.al('hocaTur', {}) : {};
+      if (o.yeniGetir && t[o.panel]) {
+        giris.innerHTML = '<p class="hoca-giris el" style="font-size:22px">Defne Hoca yeni bir konu seçiyor…</p>'; h.dusun(true);
+        var y = null; try { y = await o.yeniGetir(); } catch (e) { y = null; } h.dusun(false);
+        if (y && y.sorular && y.sorular.length >= 5) { o.sorular = y.sorular; o.ipucu = y.ipucu || o.ipucu; o.ilk_tr = ''; }
+      }
+      log.innerHTML = ''; gecmis = []; cevaplar = []; tur = 0; girisCiz(); await sor(o.sorular[0], o.ilk_tr);
+    }
     giris.innerHTML = '<p class="hoca-giris">' + esc(o.giris_tr) + '</p><button class="btn ana" type="button">Sohbete başla</button>';
     giris.querySelector('button').onclick = basla;
     h.soyle(o.giris_en, '');
@@ -435,7 +510,18 @@
       '<details class="nasil"><summary>Acadia: “Bunu İngilizce nasıl derim?”</summary><div class="nasil-ic"><label class="gizli" for="nsl">Türkçe ifade</label><input type="text" id="nsl" placeholder="örn. bence, devam zorunluluğu, öte yandan…"><button class="btn sm" type="button">Sor</button></div><div class="nasil-sonuc"></div></details></div></div>';
     var h = sahne(el.querySelector('.hoca-sahne-yer')), sayfa = el.querySelector('.defter-sayfa'), giris = el.querySelector('.yazi-giris'), adimSay = el.querySelector('.adim-say'), konuEl = el.querySelector('.konu-sec');
     var ki = 0, adim = 0, cumleler = [], sonuclar = [], yeniden = null, taslak1 = null;
-    function konuCiz() { konuEl.innerHTML = '<p><b>Konu:</b> <span lang="en">' + esc(o.konular[ki]) + '</span> <button class="btn sm" type="button">Başka konu</button></p>'; konuEl.querySelector('button').onclick = function () { ki = (ki + 1) % o.konular.length; baslat(); }; }
+    function konuCiz() {
+      konuEl.innerHTML = '<p><b>Konu:</b> <span lang="en">' + esc(o.konular[ki]) + '</span> <button class="btn sm" type="button">Başka konu</button></p>';
+      konuEl.querySelector('button').onclick = async function () {
+        var btn = this;
+        if (ki + 1 >= o.konular.length && W.ACX) {   /* liste bitti: havuzdan görülmemiş konular */
+          btn.disabled = true; btn.textContent = 'yeni konu…';
+          var v = await W.ACX.icerik('yazi_konu');
+          if (v && Array.isArray(v.konular)) v.konular.forEach(function (k) { if (typeof k === 'string' && o.konular.indexOf(k) < 0) o.konular.push(k); });
+        }
+        ki = (ki + 1) % o.konular.length; baslat();
+      };
+    }
     function sayfaCiz() {
       sayfa.innerHTML = cumleler.map(function (c, i) {
         var r = sonuclar[i] || { notlar: [] }, metin = esc(c);

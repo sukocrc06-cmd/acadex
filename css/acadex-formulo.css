@@ -1,0 +1,134 @@
+/* ==========================================================================
+   FORMULO · tanıtım sayfası sahnesi (index.html #formulo, js/acadex-formulo.js), 08.11.2026
+   "Bir formülün dersi": kareli defter kâğıdı üstünde ahşap çerçeveli yeşil tahta.
+   Kaydırdıkça Profesör Acadia formülü yazar, şeklini çizer, açıyı kaydırmanla değiştirir,
+   ara soru sorar ve sohbette ipucu verir. Hareket azaltılınca sahne sabitlenmez. Önek fmu-.
+   ========================================================================== */
+@font-face{font-family:'LM Roman';font-display:swap;font-style:normal;src:url(../formulo/assets/fonts/lm-regular.woff) format('woff')}
+@font-face{font-family:'LM Roman';font-display:swap;font-style:italic;src:url(../formulo/assets/fonts/lm-italic.woff) format('woff')}
+.fmu{--ink:#1E2A44;--kagit:#FAF7F0;--tahta:#183A30;--teb:#F1F6F2;--sari:#FFD86B;--cam:#7FE3FF;--tur:#FF9F5A;--math:'LM Roman','Cambria Math','Times New Roman',serif;position:relative;color:var(--ink);font-family:'Instrument Sans',system-ui,sans-serif;
+  background-color:var(--kagit);background-image:linear-gradient(rgba(30,42,68,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(30,42,68,.055) 1px,transparent 1px);background-size:24px 24px}
+.fmu,.fmu *,.fmu *::before,.fmu *::after{box-sizing:border-box}
+.fmu-intro{max-width:1100px;margin:0 auto;padding:100px 28px 30px;display:grid;gap:14px;justify-items:center;text-align:center}
+.fmu-eyb{display:inline-flex;align-items:center;gap:10px;font:500 13px 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#4A5470}
+.fmu-eyb b{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--sari);color:var(--ink);font:italic 18px var(--math);text-transform:none}
+.fmu-h{margin:0;font:800 clamp(38px,6vw,76px)/.98 'Bricolage Grotesque',sans-serif;letter-spacing:-.035em;max-width:16ch}
+.fmu-h u{text-decoration:none;background:linear-gradient(transparent 60%,#FFE36E 60%,#FFE36E 90%,transparent 90%)}
+.fmu-lead{margin:0;max-width:640px;font-size:clamp(17px,1.6vw,20px);line-height:1.5;color:#3F4A68}
+.fmu-not{font:600 26px/1 Caveat,cursive;color:#0E6F7C;transform:rotate(-2deg)}
+
+/* iz ve sahne */
+.fmu-track{position:relative;height:calc(5 * 85vh + 40vh)}
+.fmu-stage{position:sticky;top:0;height:100vh;min-height:600px;display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);grid-template-rows:1fr auto;gap:18px 34px;align-items:center;max-width:1260px;margin:0 auto;padding:84px 28px 26px}
+/* ders planı */
+.fmu-plan{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:fmu}
+.fmu-plan li{padding:10px 14px;border-left:3px solid transparent;border-radius:0 10px 10px 0;transition:background .35s,border-color .35s,opacity .35s;opacity:.55}
+.fmu-plan li.fmu-gecti{opacity:.8}
+.fmu-plan li.fmu-su{opacity:1;border-left-color:var(--c);background:#fff;box-shadow:0 10px 22px -18px rgba(30,42,68,.6)}
+.fmu-plan button{all:unset;display:flex;align-items:center;gap:10px;cursor:pointer;min-height:36px}
+.fmu-plan button:focus-visible{outline:2px solid #0E6F7C;outline-offset:4px;border-radius:4px}
+.fmu-plan b{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;border:2px solid var(--c);font:700 13px 'JetBrains Mono',monospace;color:var(--ink)}
+.fmu-plan li.fmu-su b,.fmu-plan li.fmu-gecti b{background:var(--c);color:#fff}
+.fmu-plan span{font:800 22px 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em}
+.fmu-plan p{margin:4px 0 0 38px;font-size:15px;line-height:1.45;color:#4A5470;max-height:0;overflow:hidden;transition:max-height .45s ease}
+.fmu-plan li.fmu-su p{max-height:90px}
+/* tahta */
+.fmu-tahta{position:relative;height:min(560px,calc(100vh - 150px));min-height:420px;border-radius:14px;overflow:hidden;color:var(--teb);
+  background:radial-gradient(120% 90% at 30% 10%,#21483C,#173529 72%);box-shadow:inset 0 0 0 12px #7A5534,inset 0 0 0 14px rgba(0,0,0,.28),0 26px 40px -28px rgba(30,42,68,.6)}
+.fmu-tahta::after{content:"";position:absolute;left:14%;right:14%;bottom:12px;height:7px;border-radius:3px;background:#8C6440}
+.fmu-f{position:absolute;left:40px;top:34px;font:clamp(30px,3.4vw,46px)/1.4 var(--math);white-space:nowrap;clip-path:inset(-30px 100% -30px 0)}
+.fmu-f i{font-style:italic;transition:color .4s,background .4s;border-radius:4px;padding:0 .05em}
+.fmu-f sup,.fmu-f sub{font-size:.6em;line-height:0}
+.fmu-fr{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 .14em;font-size:.86em;line-height:1.25}
+.fmu-fr>span{align-self:stretch;text-align:center;padding:0 .2em}
+.fmu-fr>span:first-child{border-bottom:2px solid currentColor}
+.fmu.fmu-v .fmu-tv{color:var(--sari)}.fmu.fmu-t .fmu-tt{color:var(--cam)}.fmu.fmu-g .fmu-tg{color:var(--tur)}
+.fmu-sekil{position:absolute;left:30px;right:30px;top:118px;width:calc(100% - 60px);height:auto;max-height:calc(100% - 250px);overflow:visible;opacity:0;transition:opacity .5s}
+.fmu[data-a="1"] .fmu-sekil,.fmu[data-a="2"] .fmu-sekil{opacity:1}
+.fmu[data-a="3"] .fmu-sekil,.fmu[data-a="4"] .fmu-sekil{opacity:.25}
+.fmu-zemin{stroke:rgba(241,246,242,.45);stroke-width:1.6}
+.fmu-iz{fill:none;stroke:var(--sari);stroke-width:2.6;stroke-linecap:round;stroke-dasharray:5 6}
+.fmu-ok{stroke:var(--cam);stroke-width:3;stroke-linecap:round}
+.fmu-acy{fill:none;stroke:var(--cam);stroke-width:1.6}
+.fmu-th-et{fill:var(--cam);font:italic 15px var(--math)}
+.fmu-olcu{fill:none;stroke:rgba(241,246,242,.7);stroke-width:1.4}
+.fmu-gok{stroke:var(--tur);stroke-width:2.6;marker-end:none}
+.fmu-g-et{fill:var(--tur);font:italic 17px var(--math)}
+.fmu-top{fill:var(--tur);stroke:var(--teb);stroke-width:1.5}
+.fmu-kay{position:absolute;left:40px;right:40px;bottom:132px;display:grid;grid-template-columns:24px minmax(0,1fr) 54px 24px auto;align-items:center;gap:12px;opacity:0;transform:translateY(8px);transition:opacity .45s,transform .45s}
+.fmu[data-a="2"] .fmu-kay{opacity:1;transform:none}
+.fmu-sem{font:italic 24px var(--math)}
+.fmu-ray{position:relative;height:12px;border-radius:3px;background:repeating-linear-gradient(90deg,rgba(241,246,242,.4) 0 1px,transparent 1px 10%) 0 0/100% 6px no-repeat,rgba(241,246,242,.08)}
+.fmu-ray i{position:absolute;left:0;top:0;bottom:0;width:50%;border-radius:3px;background:var(--cam)}
+.fmu-ray i::after{content:"";position:absolute;right:-9px;top:-6px;width:18px;height:24px;border-radius:5px;background:var(--teb);box-shadow:0 2px 0 rgba(0,0,0,.3)}
+.fmu-kay b{font:500 16px 'JetBrains Mono',monospace;color:var(--cam)}
+.fmu-kay .fmu-r{font:400 30px var(--math);color:var(--sari);white-space:nowrap}
+/* ara soru ve sohbet */
+.fmu-soru,.fmu-sohbet{position:absolute;left:50%;top:132px;width:min(420px,calc(100% - 60px));transform:translate(-50%,14px);opacity:0;transition:opacity .45s,transform .45s;pointer-events:none}
+.fmu[data-a="3"] .fmu-soru,.fmu[data-a="4"] .fmu-sohbet{opacity:1;transform:translate(-50%,0)}
+.fmu-soru{padding:16px 18px;border-radius:8px;background:var(--kagit);color:var(--ink);box-shadow:0 14px 26px -12px rgba(0,0,0,.55);transform:translate(-50%,14px) rotate(-1deg)}
+.fmu[data-a="3"] .fmu-soru{transform:translate(-50%,0) rotate(-1deg)}
+.fmu-soru small{display:inline-block;padding:2px 9px;border-radius:999px;background:#FFE36E;font:500 11px 'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase}
+.fmu-soru p{margin:8px 0 12px;font-size:17px;font-weight:600}
+.fmu-sik{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fmu-sik span{padding:8px 0;text-align:center;border:1.5px solid rgba(30,42,68,.2);border-radius:8px;font-weight:600;transition:background .35s,border-color .35s,color .35s}
+.fmu.fmu-dogru .fmu-dog{background:rgba(30,122,76,.14);border-color:#1E7A4C;color:#1E7A4C}
+.fmu.fmu-dogru .fmu-dog::after{content:" ✓"}
+.fmu-sohbet{display:grid;gap:12px}
+.fmu-sohbet p{margin:0;padding:11px 15px;border-radius:14px;font-size:16px;line-height:1.4}
+.fmu-sen{justify-self:end;max-width:85%;background:var(--kagit);color:var(--ink);font-weight:600;border-radius:14px 4px 14px 14px!important}
+.fmu-ac{justify-self:start;max-width:92%;border:1.5px dashed rgba(241,246,242,.55);border-radius:4px 14px 14px 14px!important;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s}
+.fmu.fmu-cvp .fmu-ac{opacity:1;transform:none}
+/* Profesör Acadia */
+.fmu-alt{position:absolute;left:26px;right:26px;bottom:24px;display:flex;align-items:flex-end;gap:10px}
+.fmu-acd{flex:none;width:96px;height:100px}
+.fmu-acd svg.acd{width:100%;height:100%;overflow:visible}
+.fmu-balon{position:relative;margin:0 0 14px;padding:10px 14px;max-width:520px;border-radius:12px;background:var(--kagit);color:var(--ink);font:600 21px/1.25 Caveat,cursive;box-shadow:0 8px 18px -10px rgba(0,0,0,.5)}
+.fmu-balon::before{content:"";position:absolute;left:-8px;bottom:16px;border:8px solid transparent;border-right-color:var(--kagit);border-left:0}
+.fmu-balon.fmu-yeni{animation:fmuBalon .35s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes fmuBalon{from{transform:scale(.94) translateY(6px);opacity:.4}}
+.fmu-cubuk{grid-column:1/-1;height:6px;border-radius:3px;background:rgba(30,42,68,.1);overflow:hidden}
+.fmu-cubuk i{display:block;height:100%;width:calc(var(--p,0) * 100%);background:linear-gradient(90deg,#D99A00,#2A9BB5,#2FA36B,#E07035,#C9529E);border-radius:3px}
+/* son */
+.fmu-son{max-width:980px;margin:0 auto;padding:40px 28px 110px;display:grid;justify-items:center;gap:14px;text-align:center}
+.fmu-dersler{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.fmu-dersler li{padding:6px 12px;border:1.5px solid var(--c);border-top-width:5px;border-radius:6px;background:#fff;font-weight:600;font-size:14.5px}
+.fmu-son h3{margin:6px 0 0;font:800 clamp(26px,3vw,36px)/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em}
+.fmu-btn{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 24px;border-radius:999px;background:var(--ink);color:#fff;font-weight:700;font-size:17px;text-decoration:none;transition:transform .2s}
+.fmu-btn svg{width:20px;height:20px}
+.fmu-btn:hover{transform:translateY(-2px)}
+.fmu-son small{font:500 13px 'JetBrains Mono',monospace;color:#5B6787}
+
+@media (max-width:900px){
+  .fmu-intro{padding:80px 20px 20px}
+  .fmu-stage{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;gap:10px;padding:70px 14px 16px;min-height:560px}
+  .fmu-plan{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px}
+  .fmu-plan li{padding:6px 4px;border-left:0;border-bottom:3px solid transparent;border-radius:8px 8px 0 0;text-align:center}
+  .fmu-plan li.fmu-su{border-bottom-color:var(--c)}
+  .fmu-plan button{flex-direction:column;gap:2px;justify-content:center;width:100%}
+  .fmu-plan b{width:24px;height:24px;font-size:11px}
+  .fmu-plan span{font-size:12.5px}
+  .fmu-plan p{display:none}
+  .fmu-tahta{height:calc(100svh - 190px);min-height:440px}
+  .fmu-f{left:22px;top:24px;font-size:28px}
+  .fmu-sekil{left:14px;right:14px;width:calc(100% - 28px);top:96px;max-height:none}
+  .fmu-kay{left:22px;right:22px;bottom:118px;grid-template-columns:20px minmax(0,1fr) 44px;row-gap:6px}
+  .fmu-kay .fmu-sem-r{grid-row:2;grid-column:1}.fmu-kay .fmu-r{grid-row:2;grid-column:2/-1}
+  .fmu-soru,.fmu-sohbet{top:90px}
+  .fmu-alt{left:14px;right:14px;bottom:20px}
+  .fmu-acd{width:72px;height:76px}
+  .fmu-balon{font-size:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  .fmu-track{height:auto}
+  .fmu-stage{position:relative;height:auto;min-height:0}
+  .fmu-tahta{height:auto;min-height:0;padding:28px 26px 26px;display:grid;gap:16px}
+  .fmu-f,.fmu-sekil,.fmu-kay,.fmu-soru,.fmu-sohbet,.fmu-alt{position:relative;left:auto;right:auto;top:auto;bottom:auto;transform:none!important;opacity:1!important;clip-path:none!important;width:auto;max-height:none}
+  .fmu-ac{opacity:1;transform:none}
+  .fmu-plan p{max-height:none}
+  .fmu-cubuk{display:none}
+}
+/* site rehberi (js/acadia-rehber.js) bu bölümde kenara çekilir; tahtadaki Profesör Acadia anlatır */
+.acd-guide.fmu-sakla{opacity:0!important;pointer-events:none}
+@media (min-width:1201px){.fmu-stage{padding-right:150px}}
+@media (max-width:900px){.fmu-tahta{height:min(calc(100svh - 190px),560px)}.fmu-sohbet{top:150px}}

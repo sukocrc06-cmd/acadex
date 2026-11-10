@@ -1,7 +1,7 @@
 /* ==========================================================================
    ACADEX MEDICA · hastane (labs/medica/medica.js), 31.10.2026
    MedLab'in içindeki eğitim hastanesi. Akış:
-     giriş (lobi) → maskeli, ameliyata hazır rehber cerrah karşılar ve hastaneyi tanıtır →
+     giriş (lobi) → rehber hekim Uzm. Dr. Ela Altındağ karşılar ve hastaneyi tanıtır →
      öğrenci bölümünü seçer → asansör (kapılar kapanır, kat göstergesi sayar, açılır) →
      katın bekleme salonu: sıra numaralı hastalar, servis odasındaki yatan hastalar →
      hasta odaya çağrılır → labs/klinik sahnesi (anamnez, muayene, karar) →
@@ -62,39 +62,74 @@
     } catch (e) {}
   };
   var ding = function () { bip(1318, 0.6); bip(1046, 0.9, 0.18); };
+  /* ortam sesi (06.11.2026): uzak hastane uğultusu (filtreli gürültü), arada uzak monitör bipi; anonslar sesli okunur.
+     Yalnız düğmeyle açılır, tercih saklanır; hareket azaltma tercihinden bağımsızdır (ses, hareket değil). */
+  var ORT = { on: false, n: null, g: null, iv: null };
+  try { ORT.on = ls.get('ortam', false) === true; } catch (e) {}
+  var ortam = function (ac) {
+    ORT.on = ac; try { ls.set('ortam', ac); } catch (e) {}
+    var b = $('#md-ort'); if (b) b.setAttribute('aria-pressed', String(ac));
+    try {
+      if (ac) {
+        AC = AC || new (W.AudioContext || W.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume();
+        if (!ORT.n) {
+          var buf = AC.createBuffer(1, AC.sampleRate * 4, AC.sampleRate), d = buf.getChannelData(0), son = 0;
+          for (var i = 0; i < d.length; i++) { son = (son + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = son * 3.2; }
+          var src = AC.createBufferSource(); src.buffer = buf; src.loop = true;
+          var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
+          ORT.g = AC.createGain(); ORT.g.gain.value = 0; src.connect(lp); lp.connect(ORT.g); ORT.g.connect(AC.destination); src.start(); ORT.n = src;
+        }
+        ORT.g.gain.setTargetAtTime(0.05, AC.currentTime, 0.6);
+        clearInterval(ORT.iv); ORT.iv = setInterval(function () { if (!D.hidden && Math.random() < 0.35) { var t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = 960; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.012, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 0.15); } }, 2300);
+      } else { if (ORT.g && AC) ORT.g.gain.setTargetAtTime(0, AC.currentTime, 0.3); clearInterval(ORT.iv); if (W.speechSynthesis) W.speechSynthesis.cancel(); }
+    } catch (e) {}
+  };
+  var anonsOku = function (metin) {
+    if (!ORT.on || !W.speechSynthesis || !W.SpeechSynthesisUtterance) return;
+    try { var u = new W.SpeechSynthesisUtterance(metin), vs = W.speechSynthesis.getVoices().filter(function (v) { return /^tr/i.test(v.lang); }); u.lang = 'tr-TR'; u.rate = 0.95; u.pitch = 1.05; u.volume = 0.8; if (vs.length) u.voice = vs[0]; W.speechSynthesis.speak(u); } catch (e) {}
+  };
 
   /* =========================== çizim =========================== */
-  /* rehber cerrah: yeşil forma, bone, maske, steril eldivenli eller havada (ameliyata hazır) */
-  var cerrah = function (o) {
-    var ten = '#E8B48A', f = '#3E9A86', fk = '#2F7F6E', el = '#8FC3EE';
-    var s = '<g class="cerrah' + (o.cls ? ' ' + o.cls : '') + '" transform="translate(' + o.x + ' ' + o.y + ') scale(' + (o.sc || 1) + ')">';
-    s += '<g class="govde">';
-    s += '<ellipse cx="0" cy="2" rx="66" ry="10" fill="#0D1838" opacity=".12"/>';
-    s += '<rect x="-32" y="-140" width="27" height="130" rx="11" fill="' + fk + '"/><rect x="5" y="-140" width="27" height="130" rx="11" fill="' + fk + '"/>';
-    s += '<rect x="-40" y="-15" width="38" height="15" rx="7" fill="#F4F6F9" stroke="#C7CFDD" stroke-width="2"/><rect x="2" y="-15" width="38" height="15" rx="7" fill="#F4F6F9" stroke="#C7CFDD" stroke-width="2"/>';
-    s += '<g class="nefes"><path d="M-48 -238 C-50 -260 50 -260 48 -238 L52 -126 C52 -116 -52 -116 -52 -126 Z" fill="' + f + '"/>';
-    s += '<path d="M-17 -254 L0 -214 L17 -254" fill="' + fk + '"/><path d="M0 -214 V-126" stroke="' + fk + '" stroke-width="2" opacity=".5"/>';
-    s += '<rect x="16" y="-232" width="26" height="15" rx="3" fill="#fff"/><text x="29" y="-221.5" font-size="8" text-anchor="middle" fill="' + fk + '" font-family="JetBrains Mono,monospace" font-weight="700">AXM</text></g>';
-    /* eller havada: kısa kollu forma, çıplak önkol, eldiven */
-    var kol = function (m) {
-      return '<g class="kol' + (m < 0 ? 'L' : 'R') + '"><path d="M' + (44 * m) + ' -236 L' + (60 * m) + ' -214" stroke="' + f + '" stroke-width="26" stroke-linecap="round"/>' +
-        '<path d="M' + (60 * m) + ' -214 L' + (76 * m) + ' -194 L' + (70 * m) + ' -252" stroke="' + ten + '" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' +
-        '<path d="M' + (70 * m) + ' -250 L' + (69 * m) + ' -262" stroke="' + el + '" stroke-width="19" stroke-linecap="round"/>' +
-        '<g fill="' + el + '"><ellipse cx="' + (69 * m) + '" cy="-272" rx="12" ry="14"/><rect x="' + (69 * m - 11) + '" y="-296" width="5" height="18" rx="2.5"/><rect x="' + (69 * m - 5) + '" y="-300" width="5" height="20" rx="2.5"/><rect x="' + (69 * m + 1) + '" y="-298" width="5" height="19" rx="2.5"/><rect x="' + (69 * m + 6) + '" y="-293" width="5" height="15" rx="2.5"/></g></g>';
-    };
-    s += kol(-1) + kol(1);
-    s += '<rect x="-10" y="-266" width="20" height="18" fill="' + ten + '"/>';
-    s += '<g class="bas"><ellipse cx="-34" cy="-296" rx="6" ry="9" fill="' + ten + '"/><ellipse cx="34" cy="-296" rx="6" ry="9" fill="' + ten + '"/>';
-    s += '<ellipse cx="0" cy="-296" rx="34" ry="38" fill="' + ten + '"/>';
-    /* bone */
-    s += '<path d="M-37 -304 C-40 -346 40 -346 37 -304 C24 -312 -24 -312 -37 -304 Z" fill="' + f + '"/><path d="M36 -312 c10 2 16 10 12 18" stroke="' + f + '" stroke-width="5" fill="none" stroke-linecap="round"/>';
-    s += '<g fill="#fff" opacity=".35"><circle cx="-18" cy="-326" r="2.4"/><circle cx="0" cy="-332" r="2.4"/><circle cx="18" cy="-326" r="2.4"/><circle cx="-8" cy="-316" r="2.4"/><circle cx="10" cy="-316" r="2.4"/></g>';
-    /* gözler ve kaşlar (maskenin üstünde) */
-    s += '<g class="goz"><ellipse cx="-12" cy="-298" rx="3.8" ry="4.8" fill="#0D1838"/><ellipse cx="12" cy="-298" rx="3.8" ry="4.8" fill="#0D1838"/></g>';
-    s += '<path d="M-20 -309 q8 -5 15 -1 M20 -309 q-8 -5 -15 -1" stroke="#3A2A1E" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
-    /* cerrahi maske: kıvrımlar, kulak lastikleri; konuşurken hafifçe kabarır */
-    s += '<path d="M-31 -296 L-37 -299 M31 -296 L37 -299 M-29 -270 L-36 -290 M29 -270 L36 -290" stroke="#E9F3F2" stroke-width="2.2"/>';
-    s += '<g class="maske"><path d="M-30 -290 Q0 -296 30 -290 L28 -268 Q0 -254 -28 -268 Z" fill="#A6DDD5" stroke="#7FC1B7" stroke-width="1.6"/><path d="M-27 -283 Q0 -287 27 -283 M-27 -276 Q0 -279 27 -276 M-25 -269 Q0 -270 25 -269" stroke="#7FC1B7" stroke-width="1.5" fill="none"/></g>';
+  /* rehber hekim Uzm. Dr. Ela Altındağ (06.11.2026): beyaz önlük, altında yeşil forma, boynunda steteskop,
+     yaka kartı; at kuyruğu saç, gülümseyen yüz. Sol eli havada selam verir, sağ elinde vaka panosu.
+     Sınıflar: dr-govde (yürüyüş), dr-nefes, dr-salla (selam veren önkol, dirsekten döner), dr-at (saç),
+     dr-goz (göz kırpma), dr-bebek (bakış), dr-agiz (konuşma). Pano kapağı da aynı çizimi kullanır
+     (dashboard.html .med-dr; tests/medica.js ikisinin aynı olduğunu denetler). */
+  var ela = function (o) {
+    var ten = '#EDBB98', tenK = '#D39A76', sac = '#3A2418', sacA = '#5E3D2B', bey = '#FFFFFF', beyK = '#CDD6E2', f = '#3E9A86', fk = '#2F7F6E', mur = '#0D1838';
+    var kol = function (d, w) { return '<path d="' + d + '" stroke="' + beyK + '" stroke-width="' + (w + 5) + '" stroke-linecap="round" fill="none"/><path d="' + d + '" stroke="' + bey + '" stroke-width="' + w + '" stroke-linecap="round" fill="none"/>'; };
+    var s = '<g class="dr' + (o.cls ? ' ' + o.cls : '') + '" transform="translate(' + o.x + ' ' + o.y + ') scale(' + (o.sc || 1) + ')"><g class="dr-govde">';
+    s += '<ellipse cx="0" cy="2" rx="64" ry="10" fill="' + mur + '" opacity=".12"/>';
+    s += '<rect x="-28" y="-134" width="24" height="124" rx="10" fill="' + fk + '"/><rect x="4" y="-134" width="24" height="124" rx="10" fill="' + fk + '"/>';
+    s += '<path d="M-38 -1 q0 -15 15 -15 h13 q4 0 4 6 v9 z M38 -1 q0 -15 -15 -15 h-13 q-4 0 -4 6 v9 z" fill="#fff" stroke="' + beyK + '" stroke-width="2"/>';
+    /* gövde: forma, açık önlük, yaka, cepler, kalem, yaka kartı, steteskop */
+    s += '<g class="dr-nefes"><path d="M-42 -240 C-44 -252 44 -252 42 -240 L44 -126 L-44 -126 Z" fill="' + f + '"/><path d="M-14 -250 L0 -226 L14 -250" fill="' + fk + '"/>';
+    s += '<path d="M-46 -244 C-53 -246 -57 -240 -57 -230 L-63 -98 L-14 -98 L-12 -214 L-22 -249 Z M46 -244 C53 -246 57 -240 57 -230 L63 -98 L14 -98 L12 -214 L22 -249 Z" fill="' + bey + '" stroke="' + beyK + '" stroke-width="2.5" stroke-linejoin="round"/>';
+    s += '<path d="M-22 -249 L-12 -214 L-21 -196 M22 -249 L12 -214 L21 -196 M-53 -150 h26 v18 h-26 z M27 -150 h26 v18 h-26 z M28 -201 h18" stroke="' + beyK + '" stroke-width="2.5" fill="none" stroke-linejoin="round"/>';
+    s += '<rect x="34" y="-214" width="4.5" height="17" rx="2" fill="#2F6BFF"/><rect x="40" y="-212" width="4.5" height="15" rx="2" fill="#E5544A"/>';
+    s += '<path d="M-37 -214 v-7" stroke="#9AA6B8" stroke-width="2"/><g class="dr-kart"><rect x="-50" y="-214" width="26" height="31" rx="3" fill="#fff" stroke="' + beyK + '" stroke-width="2"/><rect x="-50" y="-214" width="26" height="8" rx="3" fill="#2E9C86"/><circle cx="-37" cy="-197" r="5" fill="' + ten + '"/><path d="M-41 -199 q4 -7 8 0" fill="' + sac + '"/><rect x="-46" y="-189" width="18" height="2.6" rx="1" fill="#9AA6B8"/></g>';
+    s += '<g fill="none" stroke="' + mur + '" stroke-width="3.5" stroke-linecap="round"><path d="M-19 -252 C-28 -226 -20 -204 -4 -200 M19 -252 C28 -226 20 -204 4 -200 M-4 -200 C2 -199 5 -196 5 -190 C5 -176 11 -172 11 -165"/></g><circle cx="11" cy="-159" r="7" fill="#C9D1DC" stroke="' + mur + '" stroke-width="3"/></g>';
+    /* sağ kol: vaka panosu */
+    s += kol('M48 -236 C60 -210 62 -180 58 -152', 22) + '<circle cx="57" cy="-143" r="10" fill="' + ten + '"/>';
+    s += '<g transform="translate(62 -150) rotate(8)"><rect x="-4" y="-46" width="34" height="46" rx="4" fill="#C7A27A" stroke="' + mur + '" stroke-width="2.5"/><rect x="1" y="-40" width="24" height="34" fill="#fff"/><path d="M5 -32h16M5 -25h16M5 -18h10" stroke="#9AA6B8" stroke-width="2"/><rect x="7" y="-50" width="12" height="7" rx="2" fill="#8D98A8"/></g><circle cx="58" cy="-147" r="6" fill="' + ten + '"/>';
+    /* sol kol: selam (önkol dirsekten döner) */
+    s += kol('M-48 -236 L-68 -200', 22) + '<g transform="translate(-68 -200)"><g class="dr-salla">' + kol('M0 0 L-8 -40', 20) +
+      '<path d="M-8 -42 L-10 -50" stroke="' + ten + '" stroke-width="14" stroke-linecap="round"/><ellipse cx="-11" cy="-61" rx="11" ry="13" fill="' + ten + '"/>' +
+      '<g fill="' + ten + '"><rect x="-22" y="-82" width="5" height="18" rx="2.5"/><rect x="-16" y="-86" width="5" height="21" rx="2.5"/><rect x="-10" y="-85" width="5" height="20" rx="2.5"/><rect x="-4" y="-80" width="5" height="16" rx="2.5"/><rect x="1" y="-66" width="5" height="14" rx="2.5" transform="rotate(38 3 -59)"/></g></g></g>';
+    /* baş: at kuyruğu (arkada), saç, kulak ve küpe, yüz, kâkül, kaş, göz, yanak, burun, gülümseme */
+    s += '<rect x="-9" y="-266" width="18" height="20" rx="4" fill="' + ten + '"/><path d="M-9 -252 q9 6 18 0" stroke="' + tenK + '" stroke-width="2" fill="none" opacity=".6"/>';
+    s += '<g class="dr-bas"><g transform="translate(24 -318)"><g class="dr-at"><path d="M0 0 C22 6 27 34 15 63 C11 73 2 75 -2 67 C10 45 8 19 -6 7 Z" fill="' + sac + '"/><path d="M8 14 C14 28 14 42 10 56" stroke="' + sacA + '" stroke-width="2.5" fill="none" stroke-linecap="round"/></g></g>';
+    s += '<ellipse cx="0" cy="-298" rx="36" ry="39" fill="' + sac + '"/>';
+    s += '<ellipse cx="-31" cy="-291" rx="5.5" ry="8" fill="' + ten + '"/><ellipse cx="31" cy="-291" rx="5.5" ry="8" fill="' + ten + '"/><circle cx="-31" cy="-281" r="2.6" fill="#E8B53A"/><circle cx="31" cy="-281" r="2.6" fill="#E8B53A"/>';
+    s += '<ellipse cx="0" cy="-292" rx="30" ry="34" fill="' + ten + '"/>';
+    s += '<path d="M-34 -294 C-39 -337 34 -343 35 -300 C30 -318 14 -327 -4 -323 C-16 -320 -26 -310 -34 -294 Z" fill="' + sac + '"/><path d="M-31 -302 C-37 -284 -35 -268 -27 -258 C-30 -274 -28 -290 -23 -300 Z M31 -304 C36 -288 35 -274 29 -264 C31 -278 29 -292 25 -302 Z" fill="' + sac + '"/><path d="M-17 -327 C-7 -333 9 -333 19 -326" stroke="' + sacA + '" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    s += '<rect x="20" y="-325" width="9" height="11" rx="3" fill="#E5544A" transform="rotate(22 24 -319)"/>';
+    s += '<path d="M-19 -304 q8 -5 15 -1 M19 -304 q-8 -5 -15 -1" stroke="' + sac + '" stroke-width="2" fill="none" stroke-linecap="round"/>';
+    s += '<g class="dr-goz"><ellipse cx="-11" cy="-292" rx="5.2" ry="5.8" fill="#fff"/><ellipse cx="11" cy="-292" rx="5.2" ry="5.8" fill="#fff"/><g class="dr-bebek"><circle cx="-11" cy="-291.5" r="3.5" fill="' + mur + '"/><circle cx="11" cy="-291.5" r="3.5" fill="' + mur + '"/><circle cx="-9.8" cy="-293" r="1.2" fill="#fff"/><circle cx="12.2" cy="-293" r="1.2" fill="#fff"/></g>' +
+      '<path d="M-16.6 -294.6 Q-11 -299.6 -5.6 -294.6 M16.6 -294.6 Q11 -299.6 5.6 -294.6" stroke="' + mur + '" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M-16.4 -295 l-3 -1.6 M16.4 -295 l3 -1.6 M-15 -297.4 l-1.8 -2.4 M15 -297.4 l1.8 -2.4" stroke="' + mur + '" stroke-width="1.8" stroke-linecap="round"/></g>';
+    s += '<ellipse cx="-19" cy="-278" rx="6" ry="3.5" fill="#F08A8A" opacity=".42"/><ellipse cx="19" cy="-278" rx="6" ry="3.5" fill="#F08A8A" opacity=".42"/>';
+    s += '<path d="M0 -287 q-3 7 1 9" stroke="' + tenK + '" stroke-width="2" fill="none" stroke-linecap="round"/>';
+    s += '<g class="dr-agiz"><path d="M-9.5 -271 Q0 -259.5 9.5 -271 Q4 -268.5 0 -269.4 Q-4 -268.5 -9.5 -271 Z" fill="#C24E5A"/><path d="M-6 -269.6 Q0 -267.4 6 -269.6" stroke="#fff" stroke-width="1.6" fill="none"/></g>';
     s += '</g></g></g>';
     return s;
   };
@@ -153,7 +188,7 @@
 
   /* ---------- giriş (lobi) ---------- */
   var lobiSVG = function () {
-    var s = '<svg class="sahne" data-vakit="' + V.vakit(vakitDk()) + '" viewBox="0 0 1000 560" role="img" aria-label="Acadex Medica giriş holü: danışma, kat yönlendirme panosu, asansör ve rehber cerrah">' + defs() + gokDefs();
+    var s = '<svg class="sahne" data-vakit="' + V.vakit(vakitDk()) + '" viewBox="0 0 1000 560" role="img" aria-label="Acadex Medica giriş holü: danışma, kat yönlendirme panosu, asansör ve rehber hekim Uzm. Dr. Ela Altındağ">' + defs() + gokDefs();
     s += '<rect width="1000" height="430" fill="url(#duvar)"/>' + tavan() + zemin();
     /* yön bulma şeritleri: girişten asansöre giden renkli çizgiler */
     s += '<g class="serit" fill="none" stroke-linecap="round">' + V.KAT.map(function (k, i) { var d = 'M150 ' + (548 - i * 9) + ' C 420 ' + (548 - i * 9) + ', 700 ' + (500 - i * 7) + ', 900 ' + (440 + i * 2); return '<path d="' + d + '" stroke="' + k.renk + '" stroke-width="6" opacity=".75"/><path class="nabiz" style="animation-delay:-' + (i * 0.5) + 's" d="' + d + '" stroke="#fff" stroke-width="4" pathLength="100"/>'; }).join('') + '</g>';
@@ -175,7 +210,7 @@
       V.KAT.slice().reverse().map(function (k, i) { return '<g transform="translate(12 ' + (40 + i * ph) + ')"><rect width="24" height="' + (ph - 4) + '" rx="5" fill="' + k.renk + '"/><text x="12" y="' + (ph - 8) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="13" font-weight="700" fill="#fff">' + k.no + '</text><text x="32" y="' + (ph - 8) + '" font-size="11.5" font-weight="700" fill="#0D1838" font-family="Instrument Sans,sans-serif">' + X(k.ad.length > 15 ? k.ad.slice(0, 14) + '…' : k.ad) + '</text></g>'; }).join('') + '</g>';
     s += asansorKapi(846, 176, 'G');
     s += bitki(296, 430, .9) + bitki(990, 430, .8);
-    s += cerrah({ x: 520, y: 520, sc: 1.05, cls: 'gelis' });
+    s += ela({ x: 520, y: 520, sc: 1.05, cls: 'gelis' });
     s += '<rect class="vakit-ton" width="1000" height="560" pointer-events="none"/>';
     return s + '</svg>';
   };
@@ -270,7 +305,7 @@
   var lobi = function (m) {
     m.className = 'md-ekran lobi';
     m.innerHTML = '<div class="md-sahne-k">' + lobiSVG() + '</div><div class="md-panel" data-panel aria-live="polite"></div>';
-    if (dar()) $('.sahne', m).setAttribute('viewBox', '270 30 600 530');              /* telefonda cerraha ve danışmaya yaklaş */
+    if (dar()) $('.sahne', m).setAttribute('viewBox', '270 30 600 530');              /* telefonda Dr. Ela'ya ve danışmaya yaklaş */
     var panel = $('[data-panel]', m), ad = V.REHBER.unvan + ' ' + V.REHBER.ad;
     var secim = function (row) {
       row.classList.add('bolum');
@@ -292,7 +327,7 @@
         dugme(row, 'Tanıtımı yeniden dinle', '', function () { tanitim(0); });
       });
     };
-    /* kapılar açılır, cerrah içeri yürür, sonra konuşur */
+    /* kapılar açılır, Dr. Ela içeri yürür, sonra konuşur */
     var sv = $('.sahne', m);
     if (RM) { sv.classList.add('acik', 'geldi'); basla(); }
     else { requestAnimationFrame(function () { sv.classList.add('acik'); }); setTimeout(function () { sv.classList.add('geldi'); }, 450); setTimeout(basla, 1700); }
@@ -334,7 +369,7 @@
   var panelAsansor = function () {
     var md = modal('<div class="md-asn-panel"><span class="k">asansör</span><h2 id="md-mt">Hangi kata?</h2><div class="md-asn-b">' +
       V.KAT.slice().reverse().map(function (k) { return '<button type="button" data-kat="' + k.id + '" style="--kc:' + k.renk + '"' + (S.kat === k.id ? ' aria-current="true"' : '') + '><b>' + k.no + '</b><span>' + X(k.ad) + '<small>' + X(k.bolum) + (S.bolum === k.id ? ' · senin bölümün' : '') + '</small></span></button>'; }).join('') +
-      '<button type="button" data-kat="lobi" style="--kc:#2E9C86"' + (S.ekran === 'lobi' ? ' aria-current="true"' : '') + '><b>G</b><span>Giriş holü<small>danışma ve rehber cerrah</small></span></button></div>' +
+      '<button type="button" data-kat="lobi" style="--kc:#2E9C86"' + (S.ekran === 'lobi' ? ' aria-current="true"' : '') + '><b>G</b><span>Giriş holü<small>danışma ve rehber hekim</small></span></button></div>' +
       (V.ARAKAT && V.ARAKAT.length ? '<h3 class="md-asn-ara-t">Anatomi ara katları <small>1. katın üstü · her sistem ayrı · radyoloji ve diseksiyon salonu</small></h3><div class="md-asn-b md-asn-ara">' +
         V.ARAKAT.map(function (k) { return '<button type="button" data-kat="' + k.id + '" style="--kc:' + k.renk + '"' + (S.kat === k.id ? ' aria-current="true"' : '') + '><b>' + k.etiket + '</b><span>' + X(k.ad) + '<small>' + hastalar(k).length + ' hasta · ' + X(k.mentor) + '</small></span></button>'; }).join('') + '</div>' : '') + '</div>');
     md.addEventListener('click', function (e) { var b = e.target.closest('[data-kat]'); if (!b) return; kapatModal(); var k = b.getAttribute('data-kat'); if (k === 'lobi') { if (S.ekran !== 'lobi') asansor(null); } else if (k !== S.kat || S.ekran !== 'kat') asansor(k); });
@@ -344,7 +379,7 @@
     var from = S.ekran === 'lobi' ? 0 : (V.katBul(S.kat) || { no: 0 }).no, to = katId ? V.katBul(katId).no : 0;
     var git = function () { ekran(katId ? 'kat' : 'lobi', katId); if (sonra) sonra(); };
     if (RM) { git(); live((to ? to + '. kat' : 'Giriş holü') + '.'); return; }
-    ov.hidden = false; g.textContent = from || 'G'; ok.textContent = to > from ? '▲' : to < from ? '▼' : '•'; ov.className = 'md-asansor';
+    ov.hidden = false; g.textContent = from || 'G'; ok.textContent = to > from ? '▲' : to < from ? '▼' : '•'; ov.className = 'md-asansor ' + (to < from ? 'asagi' : 'yukari');
     $('.gosterge small', ov).textContent = katId ? (V.katBul(katId).ara ? V.katBul(katId).etiket + ' ara kat · ' : '') + V.katBul(katId).ad : 'Giriş holü';
     requestAnimationFrame(function () { ov.classList.add('kapan'); });
     setTimeout(function () {
@@ -362,6 +397,9 @@
     bip(880, 0.25); bip(660, 0.35, 0.22);
     var pano = $('.pano-no'); if (pano) { pano.textContent = no; pano.classList.remove('flas'); void pano.getBoundingClientRect(); pano.classList.add('flas'); }
     var hb = $('.sahne [data-sen="' + sen.id + '"]'); if (hb) hb.classList.add('kalk');
+    /* sinematik: kamera çağrılan hastaya yaklaşır, sahne odaya geçer (klinik.js kapıdan içeri süzülür) */
+    var sh = $('#md-main .sahne');
+    if (sh && hb && !RM) { try { var bb = hb.getBBox(), vb = sh.viewBox.baseVal; sh.style.transformOrigin = ((bb.x + bb.width / 2 - vb.x) / vb.width * 100).toFixed(1) + '% ' + ((bb.y + bb.height / 2 - vb.y) / vb.height * 100).toFixed(1) + '%'; } catch (e) {} setTimeout(function () { sh.classList.add('yaklas'); }, 350); setTimeout(function () { sh.classList.remove('yaklas'); }, 2600); }
     live('Sıra ' + no + ', ' + (sen.hasta.hitap || sen.hasta.ad) + ' odaya çağrıldı.');
     setTimeout(function () { sahne(sen, !!nobetten); }, RM ? 0 : 900);
   };
@@ -372,7 +410,8 @@
     K.open(oyna, {
       onSonuc: function (R) { S.aktif.sahne = R.puan; S.aktif.kacan = R.rows.filter(function (r) { return r.kacan.length; }).map(function (r) { return r.kacan[0]; }).slice(0, 2); kaydetHasta(); },
       onDevir: function (R, hedef) { if (S.aktif.sahne == null) { S.aktif.sahne = R.puan; kaydetHasta(); } labAc(sen, hedef); },
-      onKapat: function () { bitir(false); }
+      onKapat: function () { bitir(false); },
+      aiSor: EMB ? aiSor : null
     });
     bridge();
   };
@@ -390,7 +429,7 @@
   };
   var ipucuYaz = function () {
     var a = S.aktif, el = $('#md-mu-ip'); if (!el || !a) return;
-    el.hidden = !a.ipucu; el.textContent = 'cerraha danıştın · −' + a.ipucu;
+    el.hidden = !a.ipucu; el.textContent = 'Dr. Ela’ya danıştın · −' + a.ipucu;
   };
   var sonuFormu = function () {
     var a = S.aktif; if (!a || !a.sen.sonu) return;
@@ -427,7 +466,7 @@
         pr.yanlis.map(function (id) { var k = kac.filter(function (x) { return x[0] === id; })[0]; return ' <em>' + X(ad(id)) + ': ' + X(k ? k[1] : 'bu dönemde uygun değil') + '</em>'; }).join('') + '</li>';
       var sn = $('.sf-son', md); sn.hidden = false;
       sn.innerHTML = damga(son) + '<span class="k">lab puanı</span><ul>' + (a.cerceve != null ? '<li><b>Modelde bulma · ' + a.cerceve + '</b> (%70)</li><li><b>Hastaya anlatım · ' + R.puan + '</b> (%30)</li>' : '<li><b>Bildirim formu · ' + R.puan + '</b></li>') + ph +
-        (a.ipucu ? '<li><b>Rehber cerrah · −' + a.ipucu + '</b> (' + a.ipucuN + ' ipucu)</li>' : '') + '</ul>';
+        (a.ipucu ? '<li><b>Rehber hekim · −' + a.ipucu + '</b> (' + a.ipucuN + ' ipucu)</li>' : '') + '</ul>';
       var row = $('[data-sf-row]', md); row.innerHTML = '';
       odak(dugme(row, 'Hastanın yanına dön →', 'pri', function () { kapatModal(true); S.olay = null; labKapat(); taburcu(); }));
       live('Lab puanı ' + son + '.');
@@ -443,7 +482,7 @@
     if (a.program && a.program.length) L.push({ tip: 'konus', kim: 'sen', metin: 'Evde yapacağınız egzersizler: ' + a.program.map(function (x) { return x.ad + (x.set ? ' (' + x.set + '×' + x.tekrar + ')' : ''); }).join(', ') + '. Ağrı belirgin artarsa durup bize haber verin.' });
     if (iyi) L.push({ tip: 'konus', kim: kim, ifade: 'rahat', metin: kim === 'refakat' ? 'Şimdi ne olduğunu anladık, içimiz rahatladı. Çok teşekkür ederiz.' : 'Şimdi ne olduğunu anladım, içim rahatladı. Çok teşekkür ederim.' });
     else L.push({ tip: 'konus', kim: kim, ifade: 'endise', metin: 'Tam anlayamadım… Bu ne demek oluyor, ne yapacağız?' }, { tip: 'konus', kim: 'mentor', metin: 'Ben toparlayayım: ' + dogru[0] });
-    L.push({ tip: 'konus', kim: 'mentor', metin: 'Lab puanın ' + a.labSon + (a.ipucu ? ' (rehber cerraha danıştığın için −' + a.ipucu + ')' : '') + '. ' + (iyi ? 'Hastayla iyi bir kapanış yaptın.' : 'Bir sonraki hastada önce bulguyu, sonra hastanın anlayacağı dili düşün.') });
+    L.push({ tip: 'konus', kim: 'mentor', metin: 'Lab puanın ' + a.labSon + (a.ipucu ? ' (rehber hekime danıştığın için −' + a.ipucu + ')' : '') + '. ' + (iyi ? 'Hastayla iyi bir kapanış yaptın.' : 'Bir sonraki hastada önce bulguyu, sonra hastanın anlayacağı dili düşün.') });
     L.push(yat ? { tip: 'konus', kim: 'anlatici', metin: (h.hitap || h.ad) + ' servise alınıyor.' } : { tip: 'konus', kim: 'anlatici', anim: 'cik', metin: (h.hitap || h.ad) + ' teşekkür edip odadan çıkıyor.' });
     L.push({ tip: 'devir', metin: 'Hasta dosyası kapandı.', dugme: 'Bekleme salonuna dön' });
     var kapan = false, bitis = function () { if (kapan) return; kapan = true; a.lab = a.labSon; kaydetHasta(); bitir(true); };
@@ -563,7 +602,7 @@
   var damga = function (p) { var c = p >= 85 ? '#2E8E5B' : p >= 60 ? '#B9821F' : '#C9483B', l = p >= 85 ? 'ÇOK İYİ' : p >= 60 ? 'GELİŞİYOR' : 'TEKRAR'; return '<div class="damga" style="color:' + c + '"><b>' + p + '</b><small>' + l + '</small></div>'; };
   var karne = function (n) {
     var o = V.nobetOzet(n), kat = V.katBul(n.kat);
-    var satir = n.hastalar.map(function (h) { var s = K.SEN[h.id]; if (!s) return ''; var p = V.hastaPuan(h); return '<tr><td><b>' + X(s.hasta.hitap || s.hasta.ad) + '</b><small>' + X(s.baslik) + '</small>' + (h.kacan && h.kacan.length ? '<small class="kc">kaçan: ' + X(h.kacan.join('; ')) + '</small>' : '') + (h.ipucu ? '<small>rehber cerraha danıştın (−' + h.ipucu + ')</small>' : '') + '</td><td class="n">' + (h.sahne != null ? h.sahne : '—') + '</td><td class="n">' + (h.lab != null ? h.lab : '—') + '</td><td class="n"><b>' + (p != null ? p : 'görülmedi') + '</b></td></tr>'; }).join('');
+    var satir = n.hastalar.map(function (h) { var s = K.SEN[h.id]; if (!s) return ''; var p = V.hastaPuan(h); return '<tr><td><b>' + X(s.hasta.hitap || s.hasta.ad) + '</b><small>' + X(s.baslik) + '</small>' + (h.kacan && h.kacan.length ? '<small class="kc">kaçan: ' + X(h.kacan.join('; ')) + '</small>' : '') + (h.ipucu ? '<small>rehber hekime danıştın (−' + h.ipucu + ')</small>' : '') + '</td><td class="n">' + (h.sahne != null ? h.sahne : '—') + '</td><td class="n">' + (h.lab != null ? h.lab : '—') + '</td><td class="n"><b>' + (p != null ? p : 'görülmedi') + '</b></td></tr>'; }).join('');
     modal('<div class="md-karne">' + damga(o.ort) + '<span class="k">nöbet karnesi · ' + X(kat.ad) + '</span><h2 id="md-mt">' + o.gorulen + ' / ' + o.toplam + ' hasta · ortalama ' + o.ort + '</h2><p class="sub">' + V.saat(V.NOBET_BASLA) + ' – ' + V.saat(n.saat) + ' · ' + new Date(n.bitis || Date.now()).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + '</p>' +
       '<div class="tw"><table><thead><tr><th>Hasta</th><th class="n">Görüşme</th><th class="n">Lab</th><th class="n">Puan</th></tr></thead><tbody>' + satir + '</tbody></table></div>' +
       ((n.triyaj || n.kod) ? '<div class="md-ek">' + (n.triyaj ? '<div><span class="k">triyaj masası</span><b>' + (n.triyaj.atlandi ? 'atlandı' : n.triyaj.dogru + ' / ' + n.triyaj.toplam + ' doğru') + '</b><small>' + (n.triyaj.atlandi ? '—' : n.triyaj.puan) + '</small></div>' : '') +
@@ -601,6 +640,7 @@
     el.innerHTML = '<i><svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></i><span>' + X(metin) + '</span>';
     void el.offsetWidth; el.classList.add('on');
     if (AC || kod) { bip(784, 0.5, 0); bip(622, 0.7, 0.32); }
+    setTimeout(function () { anonsOku(metin); }, RM ? 0 : 1100);
     clearTimeout(anons.h); anons.h = setTimeout(function () { el.classList.remove('on'); }, kod ? 5200 : 6500);
   };
   var anonsPlanla = function () {
@@ -777,6 +817,8 @@
   });
   $('#md-asn').addEventListener('click', panelAsansor);
   $('#md-def').addEventListener('click', defter);
+  $('#md-ort').addEventListener('click', function () { ortam(!ORT.on); toast(ORT.on ? 'Ortam sesi açık: anonslar sesli okunur.' : 'Ortam sesi kapalı.'); });
+  if (ORT.on) { var ortB = $('#md-ort'); if (ortB) ortB.setAttribute('aria-pressed', 'true'); D.addEventListener('pointerdown', function ilk() { D.removeEventListener('pointerdown', ilk); if (ORT.on) ortam(true); }); }
   $('#md-kon').addEventListener('click', konsultPanel);
   $('#md-nob').addEventListener('click', function () { if (S.nobet) { if (S.ekran !== 'kat' || S.kat !== S.nobet.kat) asansor(S.nobet.kat); } });
   $('#md-mu-geri').addEventListener('click', function () { bitir(true); });
@@ -786,6 +828,9 @@
   /* =========================== Acadia köprüsü ve iç çerçeve aktarımı =========================== */
   var EMB = W.parent !== W && /(?:\?|&)medlab=1(?:&|$)/.test(location.search), ORG = location.origin;
   var ust = function (m) { if (!EMB) return; m.src = 'axlab'; m.lab = 'medica'; try { W.parent.postMessage(m, ORG); } catch (e) {} };
+  /* yapay zekâ hasta: serbest soru üst sayfaya (MedLab) gider, oradan sunucuya; 8,5 sn'de gelmezse klinik yerel eşlemeye döner */
+  var AIQ = {}, aiSeq = 0;
+  var aiSor = function (req) { return new Promise(function (res) { var id = 'h' + (++aiSeq); AIQ[id] = res; setTimeout(function () { if (AIQ[id]) { delete AIQ[id]; res(null); } }, 8500); ust({ type: 'ai-hasta', id: id, req: req }); }); };
   var ic = function () { var f = $('#md-muayene iframe'); return S.lab && f && f.contentWindow ? f.contentWindow : null; };
   var ctx = function () {
     var k = S.kat ? V.katBul(S.kat) : null, a = S.aktif;
@@ -805,7 +850,7 @@
         about: 'öğrenci Acadex Medica eğitim hastanesinin ' + k.ad + ' katında, bekleme salonunda. Hastaları seçip görüşüyor, ardından ' + k.labAd + '’de vakayı tamamlıyor.' },
         chips: [['kat', 'Bu katta kimler bekliyor?'], ['nobet', 'Nöbet modu nasıl çalışır?'], ['konsult', 'Konsültasyon nasıl işler?']] };
     }
-    return { sel: { key: 'medica.lobi', title: 'Giriş holü', la: 'Acadex Medica', rows: [['Bölümün', S.bolum ? V.katBul(S.bolum).bolum : 'seçilmedi']], about: 'öğrenci Acadex Medica eğitim hastanesinin giriş holünde; rehber cerrah hastaneyi tanıtıyor ve öğrencinin bölümüne göre kat seçiliyor.' },
+    return { sel: { key: 'medica.lobi', title: 'Giriş holü', la: 'Acadex Medica', rows: [['Bölümün', S.bolum ? V.katBul(S.bolum).bolum : 'seçilmedi']], about: 'öğrenci Acadex Medica eğitim hastanesinin giriş holünde; rehber hekim Uzm. Dr. Ela Altındağ hastaneyi tanıtıyor ve öğrencinin bölümüne göre kat seçiliyor.' },
       chips: [['katlar', 'Hangi katta ne var?'], ['nobet', 'Nöbet modu nasıl çalışır?']] };
   };
   var bridge = function () { if (!EMB || S.lab) return; clearTimeout(bridge.t); bridge.t = setTimeout(function () { var c = ctx(); ust({ type: 'ctx', mode: S.ekran, spot: false, sel: c.sel, chips: c.chips }); }, 60); };
@@ -837,6 +882,7 @@
     }
     /* üst sayfa (MedLab Acadia köprüsü) */
     if (!EMB || e.source !== W.parent || d.src !== 'axhost') return;
+    if (d.type === 'ai-hasta-cevap') { var cb = AIQ[d.id]; if (cb) { delete AIQ[d.id]; cb(d.hata ? null : { cevap: d.cevap, eslesen: d.eslesen }); } return; }
     var i = ic();
     if (i) { try { i.postMessage(d, ORG); } catch (er) {} return; }
     if (d.type === 'hello') { bridge(); return; }

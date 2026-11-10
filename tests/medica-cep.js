@@ -116,7 +116,7 @@ test('Anatomi Lab: Sistemler modu, tıklama kancası, API ve modül dosyası en 
   assert.match(h, /window\.dispatchEvent\(new Event\('axlab:hazir'\)\);/);
   /* programla çerçevelenen görünüm panel boyutlanınca başa dönmesin; Medica'da lab'ın kendi cerrahı yalnız kendi vakasında */
   assert.match(h, /kameraTut: \(\) => \{ userMoved = true; \}/);
-  assert.match(h, /if \(mc\) medicaCerrah\(\{ lab: 'anatomi'/);
+  assert.match(h, /anahtar: \(\) => CASE\.run && CASE\.c && \(!MEDICA \|\| CASE\.c\.id === VK_MEDICA_VAKA\)/, '06.11.2026: rehber startCase içinde (vkRehber)');
   const sis = h.indexOf('<script type="module">/* ===== SİSTEMLER'), lab = h.indexOf("<script type=\"module\">import * as THREE from 'three';");
   assert.ok(lab > 0 && sis > lab, 'Sistemler betiği lab modülünden sonra, satır içi (lab tek dosya çalışır)');
 });

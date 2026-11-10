@@ -1,11 +1,11 @@
 /* ==========================================================================
-   ACADEX MEDICA · rehber cerrah ipucu (labs/medica/medica-cerrah.js), 31.10.2026
+   ACADEX MEDICA · rehber hekim ipucu (labs/medica/medica-cerrah.js), 31.10.2026 · 06.11.2026 Dr. Ela
    Anatomi ve Fizyo Lab, Acadex Medica içinde (?medica=1) açıldığında yüklenir.
-   Ameliyata hazır, maskeli rehber cerrah (Op. Dr. Kaan Arslan) köşede belirir ve üç
+   Rehber hekim Uzm. Dr. Ela Altındağ köşede belirir ve üç
    kademede yardım eder: 1) sözel ipucu, 2) bölgeyi gösterir, 3) yapıyı gösterip adını söyler.
    Her kademe puandan düşer (5 / 10 / 20; labs/medica/medica-veri.js → IPUCU_CEZA ile aynı);
    kullanılan kademe hastaneye {src:'axmedica', type:'ipucu'} iletisiyle bildirilir.
-   Platformda insan öğretmen yoktur: cerrah Acadex'in kendi kurgusal rehberidir.
+   Platformda insan öğretmen yoktur: Dr. Ela Acadex'in kendi kurgusal rehberidir.
 
    Kullanım: AXCERRAH.kur({ lab, anahtar: () => adım anahtarı | null, kademe: n => metin | Promise<metin>, etiket?: [3 düğme adı] })
    ========================================================================== */
@@ -18,18 +18,26 @@
   var ETIKET = ['İpucu ver', 'Bölgeyi göster', 'Yapıyı göster'];
   var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
 
-  /* maskeli cerrah: bone, cerrahi maske (ağız kapalı), yeşil forma, steril eldivenli işaret eden el */
-  var cerrahSVG = function () {
-    return '<svg viewBox="0 0 120 132" aria-hidden="true">' +
-      '<path d="M14 132 C16 104 34 92 60 92 C86 92 104 104 106 132 Z" fill="#3E9A86"/><path d="M48 92 L60 112 L72 92" fill="#2F7F6E"/>' +
-      '<rect x="52" y="78" width="16" height="16" rx="5" fill="#E8B48A"/>' +
-      '<ellipse cx="60" cy="56" rx="27" ry="30" fill="#E8B48A"/>' +
-      '<path d="M32 50 C32 22 88 22 88 50 C80 40 40 40 32 50 Z" fill="#3E9A86"/><g fill="#2F7F6E" opacity=".55"><circle cx="46" cy="36" r="2.4"/><circle cx="60" cy="31" r="2.4"/><circle cx="74" cy="36" r="2.4"/><circle cx="53" cy="43" r="2"/><circle cx="67" cy="43" r="2"/></g>' +
-      '<g class="axc-goz"><ellipse cx="50" cy="55" rx="3" ry="3.6" fill="#0D1838"/><ellipse cx="70" cy="55" rx="3" ry="3.6" fill="#0D1838"/></g>' +
-      '<path d="M44 48 q6 -3 11 0 M65 48 q6 -3 11 0" stroke="#3A2A1E" stroke-width="2" fill="none" stroke-linecap="round"/>' +
-      '<g class="axc-maske"><path d="M35 62 h50 v12 c0 13 -50 13 -50 0 z" fill="#9FD8D0"/><path d="M38 67 h44 M38 72 h44 M40 77 h40" stroke="#7CC2B8" stroke-width="1.4"/><path d="M35 64 L30 58 M85 64 L90 58" stroke="#7CC2B8" stroke-width="1.6"/></g>' +
-      '<g class="axc-el"><path d="M96 132 L102 98" stroke="#3E9A86" stroke-width="13" stroke-linecap="round"/><path d="M96 98 c-2 -8 4 -12 8 -10 c2 -6 9 -4 9 2 c0 6 -2 10 -6 12 z" fill="#8FC3EE"/><path d="M103 88 L104 72" stroke="#8FC3EE" stroke-width="5.5" stroke-linecap="round"/></g>' +
-      '</svg>';
+  /* rehber hekim Uzm. Dr. Ela Altındağ (06.11.2026), omuz hizasından: beyaz önlük, steteskop, at kuyruğu,
+     gülümseyen yüz, işaret eden el. Çizim hastane holündeki tam boy figürle aynı (labs/medica/medica.js → ela). */
+  var elaSVG = function () {
+    var ten = '#EDBB98', sac = '#3A2418', mur = '#0D1838';
+    return '<svg viewBox="0 0 120 132" aria-hidden="true"><g transform="translate(60 348)">' +
+      '<path d="M-42 -240 C-44 -252 44 -252 42 -240 L44 -200 L-44 -200 Z" fill="#3E9A86"/><path d="M-14 -250 L0 -226 L14 -250" fill="#2F7F6E"/>' +
+      '<path d="M-46 -244 C-53 -246 -60 -238 -62 -226 L-64 -200 L-14 -200 L-12 -214 L-22 -249 Z M46 -244 C53 -246 60 -238 62 -226 L64 -200 L14 -200 L12 -214 L22 -249 Z" fill="#fff" stroke="#CDD6E2" stroke-width="2.5" stroke-linejoin="round"/>' +
+      '<path d="M-22 -249 L-12 -214 M22 -249 L12 -214" stroke="#CDD6E2" stroke-width="2.5"/><rect x="-46" y="-218" width="20" height="18" rx="2" fill="#fff" stroke="#CDD6E2" stroke-width="2"/><rect x="-46" y="-218" width="20" height="6" rx="2" fill="#2E9C86"/>' +
+      '<path d="M-19 -252 C-28 -226 -20 -208 -6 -203 M19 -252 C28 -226 20 -208 6 -203" stroke="' + mur + '" stroke-width="3.5" fill="none" stroke-linecap="round"/>' +
+      '<rect x="-9" y="-266" width="18" height="20" rx="4" fill="' + ten + '"/>' +
+      '<g transform="translate(24 -318)"><path class="axc-at" d="M0 0 C22 6 27 34 15 63 C11 73 2 75 -2 67 C10 45 8 19 -6 7 Z" fill="' + sac + '"/></g>' +
+      '<ellipse cx="0" cy="-298" rx="36" ry="39" fill="' + sac + '"/><ellipse cx="-31" cy="-291" rx="5.5" ry="8" fill="' + ten + '"/><ellipse cx="31" cy="-291" rx="5.5" ry="8" fill="' + ten + '"/><circle cx="-31" cy="-281" r="2.6" fill="#E8B53A"/><circle cx="31" cy="-281" r="2.6" fill="#E8B53A"/>' +
+      '<ellipse cx="0" cy="-292" rx="30" ry="34" fill="' + ten + '"/>' +
+      '<path d="M-34 -294 C-39 -337 34 -343 35 -300 C30 -318 14 -327 -4 -323 C-16 -320 -26 -310 -34 -294 Z" fill="' + sac + '"/><path d="M-31 -302 C-37 -284 -35 -268 -27 -258 C-30 -274 -28 -290 -23 -300 Z M31 -304 C36 -288 35 -274 29 -264 C31 -278 29 -292 25 -302 Z" fill="' + sac + '"/><rect x="20" y="-325" width="9" height="11" rx="3" fill="#E5544A" transform="rotate(22 24 -319)"/>' +
+      '<path d="M-19 -304 q8 -5 15 -1 M19 -304 q-8 -5 -15 -1" stroke="' + sac + '" stroke-width="2" fill="none" stroke-linecap="round"/>' +
+      '<g class="axc-goz"><ellipse cx="-11" cy="-292" rx="5.2" ry="5.8" fill="#fff"/><ellipse cx="11" cy="-292" rx="5.2" ry="5.8" fill="#fff"/><circle cx="-11" cy="-291.5" r="3.5" fill="' + mur + '"/><circle cx="11" cy="-291.5" r="3.5" fill="' + mur + '"/><circle cx="-9.8" cy="-293" r="1.2" fill="#fff"/><circle cx="12.2" cy="-293" r="1.2" fill="#fff"/><path d="M-16.6 -294.6 Q-11 -299.6 -5.6 -294.6 M16.6 -294.6 Q11 -299.6 5.6 -294.6" stroke="' + mur + '" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M-16.4 -295 l-3 -1.6 M16.4 -295 l3 -1.6" stroke="' + mur + '" stroke-width="1.8" stroke-linecap="round"/></g>' +
+      '<ellipse cx="-19" cy="-278" rx="6" ry="3.5" fill="#F08A8A" opacity=".42"/><ellipse cx="19" cy="-278" rx="6" ry="3.5" fill="#F08A8A" opacity=".42"/><path d="M0 -287 q-3 7 1 9" stroke="#D39A76" stroke-width="2" fill="none" stroke-linecap="round"/>' +
+      '<g class="axc-agiz"><path d="M-9.5 -271 Q0 -259.5 9.5 -271 Q4 -268.5 0 -269.4 Q-4 -268.5 -9.5 -271 Z" fill="#C24E5A"/><path d="M-6 -269.6 Q0 -267.4 6 -269.6" stroke="#fff" stroke-width="1.6" fill="none"/></g>' +
+      '<g class="axc-el"><path d="M40 -200 L44 -230" stroke="#CDD6E2" stroke-width="15" stroke-linecap="round"/><path d="M40 -200 L44 -230" stroke="#fff" stroke-width="11" stroke-linecap="round"/><ellipse cx="45" cy="-238" rx="7" ry="8" fill="' + ten + '"/><path d="M46 -244 L47 -258" stroke="' + ten + '" stroke-width="5" stroke-linecap="round"/></g>' +
+      '</g></svg>';
   };
   var CSS = [
     '.axc-b{position:fixed;left:16px;bottom:16px;z-index:9400;display:flex;align-items:center;gap:8px;padding:4px 14px 4px 4px;border:2px solid #0D1838;border-radius:999px;background:#fff;color:#0D1838;font:700 14px "Instrument Sans",system-ui,sans-serif;box-shadow:3px 3px 0 #0D1838;cursor:pointer}',
@@ -48,8 +56,12 @@
     '.axc-r{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}',
     '.axc-r button{min-height:40px;padding:0 14px;border:1.5px solid #0D1838;border-radius:999px;background:#fff;color:#0D1838;font:700 13.5px "Instrument Sans",system-ui,sans-serif;cursor:pointer}',
     '.axc-r button.pri{background:#0D1838;color:#fff}.axc-r button:disabled{opacity:.45;cursor:default}',
-    '.axc-p.konus .axc-maske{animation:axc-m .3s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 0}',
-    '@keyframes axc-m{to{transform:scaleY(1.08)}}',
+    '.axc-r button.ok{background:#E3F4EA;border-color:#1E8A55;opacity:1}.axc-r button.no{background:#FDECEA;border-color:#C9483B}.axc-r.soru button{flex:1 1 100%;text-align:left;padding:8px 14px;min-height:42px;line-height:1.3}',
+    '.axc-sn{display:block;margin-top:8px;font:700 11px "JetBrains Mono",monospace;letter-spacing:.1em;color:#2E9C86}',
+    '.axc-p.konus .axc-agiz{animation:axc-m .26s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 0}',
+    '@keyframes axc-m{to{transform:scaleY(1.6)}}',
+    '.axc-at{animation:axc-at 3.2s ease-in-out infinite;transform-box:view-box;transform-origin:0 0}',
+    '@keyframes axc-at{50%{transform:rotate(6deg)}}',
     '.axc-goz{animation:axc-g 4.6s infinite;transform-box:fill-box;transform-origin:center}',
     '@keyframes axc-g{0%,93%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}',
     '.axc-p.konus .axc-el{animation:axc-e .9s ease-in-out 2 alternate;transform-box:fill-box;transform-origin:50% 100%}',
@@ -62,9 +74,9 @@
     if (!o || D.querySelector('.axc-b')) return;
     var st = D.createElement('style'); st.textContent = CSS; D.head.appendChild(st);
     var b = D.createElement('button'); b.type = 'button'; b.className = 'axc-b'; b.setAttribute('aria-expanded', 'false'); b.setAttribute('aria-controls', 'axc-p');
-    b.innerHTML = '<i>' + cerrahSVG() + '</i><span>Rehber cerraha sor</span>';
-    var p = D.createElement('div'); p.className = 'axc-p'; p.id = 'axc-p'; p.hidden = true; p.setAttribute('role', 'region'); p.setAttribute('aria-label', 'Rehber cerrah ipucu');
-    p.innerHTML = '<div class="axc-u"><div class="axc-yz">' + cerrahSVG() + '</div><div><b>Op. Dr. Kaan Arslan</b><small>rehber cerrah · her ipucu puandan düşer</small><div class="axc-k" aria-hidden="true"><span></span><span></span><span></span></div></div></div><p class="axc-t" aria-live="polite"></p><div class="axc-r"></div>';
+    b.innerHTML = '<i>' + elaSVG() + '</i><span>Dr. Ela’ya sor</span>';
+    var p = D.createElement('div'); p.className = 'axc-p'; p.id = 'axc-p'; p.hidden = true; p.setAttribute('role', 'region'); p.setAttribute('aria-label', 'Rehber hekim ipucu');
+    p.innerHTML = '<div class="axc-u"><div class="axc-yz">' + elaSVG() + '</div><div><b>Uzm. Dr. Ela Altındağ</b><small>rehber hekim · her ipucu puandan düşer</small><div class="axc-k" aria-hidden="true"><span></span><span></span><span></span></div></div></div><p class="axc-t" aria-live="polite"></p><div class="axc-r"></div>';
     D.body.appendChild(b); D.body.appendChild(p);
     var S = { anahtar: null, kademe: 0, yaz: null };
     var t = p.querySelector('.axc-t'), r = p.querySelector('.axc-r');
@@ -75,9 +87,10 @@
       S.yaz = setInterval(function () { i += 2; t.innerHTML = X(metin.slice(0, i)) + '<span class="cur"></span>'; if (i >= metin.length) bit(); }, 18);
       t.onclick = bit;
     };
-    var bildir = function (n) { try { W.parent.postMessage({ src: 'axmedica', type: 'ipucu', lab: o.lab, kademe: n, ceza: CEZA[n - 1] }, location.origin); } catch (e) {} };
+    var bildir = function (n) { if (W.parent === W) return; try { W.parent.postMessage({ src: 'axmedica', type: 'ipucu', lab: o.lab, kademe: n, ceza: CEZA[n - 1] }, location.origin); } catch (e) {} };
     var dugmeler = function () {
       var k = S.kademe, ak = o.anahtar();
+      r.className = 'axc-r';
       Array.prototype.forEach.call(p.querySelectorAll('.axc-k span'), function (s, i) { s.classList.toggle('on', i < k); });
       r.innerHTML = (ak && k < 3 ? '<button type="button" class="pri" data-axc="ver">' + (o.etiket || ETIKET)[k] + ' (−' + CEZA[k] + ')</button>' : '') + '<button type="button" data-axc="kapat">' + (k ? 'Tamam, deneyeyim' : 'Kendim bulacağım') + '</button>';
     };
@@ -96,8 +109,42 @@
       if (x.getAttribute('data-axc') === 'kapat') { kapat(); return; }
       if (o.anahtar() !== S.anahtar) { ac(); return; }
       var n = S.kademe + 1; x.disabled = true;
-      Promise.resolve(o.kademe(n)).then(function (metin) { if (!metin) { dugmeler(); return; } S.kademe = n; bildir(n); soyle(metin); dugmeler(); });
+      Promise.resolve(o.kademe(n)).then(function (cv) {
+        if (!cv) { dugmeler(); return; }
+        S.kademe = n; bildir(n);
+        if (typeof cv === 'object' && cv.sorular && cv.sorular.length) { sorgula(cv); return; }
+        soyle(typeof cv === 'object' ? cv.metin : cv); dugmeler();
+      });
     });
+    /* 06.11.2026 · soru sorarak götürme: kademe {metin, sorular:[{s, sec:[…], dogru, ok, yanlis, sonra()}], son}
+       döndürürse Dr. Ela soruları sırayla sorar; her doğru cevap modeli bir adım yaklaştırır (sonra), yanlışta
+       açıklama yapar ve aynı soruyu bekler. En sonda "son" metni söylenir; bulmak yine öğrencinin dokunuşudur. */
+    var sorgula = function (cv) {
+      var i = 0, ak = S.anahtar;
+      var sor = function () {
+        if (o.anahtar() !== ak) { dugmeler(); return; }
+        var q = cv.sorular[i];
+        soyle((i === 0 && cv.metin ? cv.metin + ' ' : '') + q.s);
+        r.className = 'axc-r soru';
+        r.innerHTML = q.sec.map(function (t, j) { return '<button type="button" data-sq="' + j + '">' + X(t) + '</button>'; }).join('') + '<span class="axc-sn">soru ' + (i + 1) + ' / ' + cv.sorular.length + '</span>';
+      };
+      if (S.cev) r.removeEventListener('click', S.cev);
+      r.addEventListener('click', S.cev = function cev(e) {
+        var x = e.target.closest('[data-sq]'); if (!x || x.disabled) return;
+        var q = cv.sorular[i], j = +x.getAttribute('data-sq');
+        if (j !== q.dogru) { x.classList.add('no'); x.disabled = true; soyle(q.yanlis || 'Tekrar düşün.'); return; }
+        x.classList.add('ok'); Array.prototype.forEach.call(r.querySelectorAll('[data-sq]'), function (y) { y.disabled = true; });
+        try { if (q.sonra) q.sonra(); } catch (er) {}
+        soyle(q.ok || 'Doğru.');
+        setTimeout(function () {
+          i++;
+          if (i < cv.sorular.length) { sor(); return; }
+          r.removeEventListener('click', cev); S.cev = null; r.className = 'axc-r';
+          if (cv.son) soyle(cv.son); dugmeler();
+        }, RM ? 300 : 1500);
+      });
+      sor();
+    };
     D.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !p.hidden) kapat(); });
     return { ac: ac, kapat: kapat, durum: S };
   };

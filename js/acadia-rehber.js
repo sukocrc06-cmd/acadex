@@ -3,7 +3,7 @@
    Acadia sayfanın sağında durur; scroll'la bölümden bölüme süzülür, her durakta
    poz/ifade değiştirir ve kısa bir balonla bölümü anlatır. Hızlı scroll'da hafifçe
    yatar, tıklayınca zıplar ve bir sonraki cümleyi söyler. Gözleri imleci izler.
-   Telefonda sağ altta, küçük ve balonu kısa süreli. Hareket azaltmada sabit durur,
+   Telefonda sağ altta, küçük ve balonsuz; masaüstünde balon bölüm değişince 4,5 sn görünür. Hareket azaltmada sabit durur,
    yalnız ifade ve balon değişir. Çizim: js/acadia-kit.js.
    YILDIZ UÇUŞU (02.11.2026): geniş ekranda sabit durmaz; her bölümde o bölümün kenarına
    (sağa ya da sola) kavisli bir yay çizerek süzülür, dururken hafifçe sekiz çizer.
@@ -22,6 +22,8 @@
     { q: '#alanlar', side: 'l', pose: 'dusun', mood: 'dusunuyor', y: 22, t: 'Ezberden değil, anlamaktan yanayım.' },
     { q: '#yontemler', side: 'r', pose: 'isaret', mood: 'mutlu', y: 38, t: 'Pomodoro, aralıklı tekrar, Feynman… hepsi tek masada.' },
     { q: '#akis', side: 'l', pose: 'dur', mood: 'odakli', y: 20, t: 'Her derse ona uyan tekniği öneririm.' },
+    /* 08.11.2026 Formulo: tahtada Profesör Acadia anlatır; rehber o sırada kenara çekilir (css/acadex-formulo.css) */
+    { q: '#formulo', side: 'r', pose: 'isaret', mood: 'odakli', y: 30, sakla: true, t: 'Formulo tahtasına geçtim; kaydır, ders başlasın.' },
     { q: '#medlab', side: 'r', pose: 'isaret', mood: 'mutlu', y: 40, costume: 'medlab', t: 'Stetoskobumu taktım; sağlık kampüsünü birlikte gezelim.' },
     { q: '#gizlilik', side: 'l', pose: 'dur', mood: 'odakli', y: 20, t: 'Notların sende kalır; kimseye göstermem.' },
     { q: '#soru', side: 'r', pose: 'dusun', mood: 'dusunuyor', y: 42, t: 'Aklına takılan bir şey mi var? Sor, cevaplayalım.' },
@@ -39,7 +41,7 @@
   var api = W.acadiaRehber = { at: '', say: function (text, mood, pose) {
     if (mood) host.dataset.mood = mood; if (pose) host.dataset.pose = pose; host.__acdV = -1; K.mount();
     if (!calm) { host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop'); }
-    K.say(host, text, narrow() ? 3800 : 0); live.textContent = text;
+    if (!narrow()) K.say(host, text, 4500); live.textContent = text;   /* 08.11.2026: telefonda balon yok, masaüstünde 4,5 sn */
   } };
   var cur = -1, extraI = 0, hideT = 0, narrow = function () { return W.innerWidth < 900; };
   var go = function (i) {
@@ -51,9 +53,10 @@
     g.style.setProperty('--gy', s.y + 'vh');
     g.classList.toggle('on-dark', !!(s.el && (s.el.classList.contains('dk'))));
     live.textContent = s.t;
+    g.classList.toggle('fmu-sakla', !!s.sakla); if (s.sakla) return;
     if (fly.on) { fly.to(s); return; }
     if (!calm) { host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop'); }
-    K.say(host, s.t, narrow() ? 3800 : 0);
+    if (!narrow()) K.say(host, s.t, 4500);   /* 08.11.2026: balon bölüm değişince kısa süre; telefonda yok */
   };
 
   /* ---------- yıldız uçuşu + ışık izi (geniş ekran, hareket serbest) ---------- */
@@ -102,7 +105,7 @@
       if (!stop) return;
       host.classList.remove('acd-hop'); void host.offsetWidth; host.classList.add('acd-hop');
       for (var i = 0; i < 5; i++) burst(1);
-      var s = stop; sayT = setTimeout(function () { if (stop === s && !flying) K.say(host, s.t, 0); }, 120);
+      var s = stop; sayT = setTimeout(function () { if (stop === s && !flying) K.say(host, s.t, 4500); }, 120);   /* 08.11.2026: balon kalıcı değil */
     };
     var emit = function (x, y, n, fast) {
       for (var i = 0; i < n; i++) parts.push({ x: x + (Math.random() - .5) * 6, y: y + (Math.random() - .5) * 6, vx: (Math.random() - .5) * .3, vy: (Math.random() - .5) * .3 + .08, life: 0, max: (fast ? 34 : 54) + Math.random() * 24, r: .6 + Math.random() * .8, star: Math.random() < .12 });
@@ -161,7 +164,7 @@
       if (want) {
         size(); pos.x = VW + 40; pos.y = VH * .3; last.x = pos.x; last.y = pos.y; setSide('r');
         if (cur > -1) fly.to(STOPS[cur]);
-      } else { g.style.transform = ''; parts = []; ribbon = []; cx.clearRect(0, 0, VW, VH); host.classList.add('say-l'); host.classList.remove('say-r'); if (cur > -1) K.say(host, STOPS[cur].t, 3800); }
+      } else { g.style.transform = ''; parts = []; ribbon = []; cx.clearRect(0, 0, VW, VH); host.classList.add('say-l'); host.classList.remove('say-r'); }   /* 08.11.2026: telefonda balon yok */
       start();
     };
     W.addEventListener('resize', function () { apply(); });

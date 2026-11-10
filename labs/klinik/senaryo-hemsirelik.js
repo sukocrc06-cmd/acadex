@@ -22,7 +22,7 @@
   var VITAL = function (id) { return E('vital', 'Vital bulguları ölç, NEWS2 hesapla', id, 3, { anim: 'monitor' }); };
 
   return [
-    { id: 'hem-pnomoni', vaka: 'pnomoni', lab: 'hemsirelik', oda: ODA, odaAd: ODAAD, baslik: 'Gece nefes darlığı arttı',
+    { id: 'hem-pnomoni', muayene: { akciger: { sag: 'ral', sol: 'normal' } }, vaka: 'pnomoni', lab: 'hemsirelik', oda: ODA, odaAd: ODAAD, baslik: 'Gece nefes darlığı arttı',
       hasta: { ad: 'Rasim', hitap: 'Rasim Bey', yas: 76, cins: 'E', gorunum: 'yasli', poz: 'yat', uyanik: true, maske: true, ifade: 'endise' }, mentor: HEM, vital: { nabiz: 114, ta: '100/60', spo2: 91, ates: 38.7 },
       adimlar: [
         { tip: 'konus', kim: 'hasta', metin: 'Hemşire hanım… nefesim yetmiyor… gece hiç uyuyamadım.' },
@@ -190,7 +190,7 @@
         MASA('Vaka masasında değerlendirmeyi seç, hemşirelik tanını ve girişimlerini yaz.')
       ] },
 
-    { id: 'hem-kky', vaka: 'kky', lab: 'hemsirelik', oda: ODA, odaAd: ODAAD, baslik: 'Bir günde iki kilo',
+    { id: 'hem-kky', muayene: { akciger: { sag: 'ral', sol: 'ral' }, kalp: { tip: 'normal' } }, vaka: 'kky', lab: 'hemsirelik', oda: ODA, odaAd: ODAAD, baslik: 'Bir günde iki kilo',
       hasta: { ad: 'Nihat', hitap: 'Nihat Bey', yas: 78, cins: 'E', gorunum: 'yasli', poz: 'yat', uyanik: true }, mentor: HEM, vital: { nabiz: 98, ta: '142/90', spo2: 93 },
       adimlar: [
         { tip: 'konus', kim: 'hasta', metin: 'Bacaklarım şişti, yatınca nefesim daralıyor. İki yastıkla ancak uyuyabildim.' },

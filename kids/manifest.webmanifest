@@ -1,0 +1,18 @@
+{
+  "name": "Acadex Kids",
+  "short_name": "Acadex Kids",
+  "description": "Okulda öğrendiğini evde oyunlarla tekrar et.",
+  "lang": "tr",
+  "dir": "ltr",
+  "start_url": "/kids/#oyna",
+  "scope": "/kids/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#CDEBFF",
+  "theme_color": "#7CC4FF",
+  "icons": [
+    { "src": "/kids/assets/ikon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/kids/assets/ikon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/kids/assets/ikon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
