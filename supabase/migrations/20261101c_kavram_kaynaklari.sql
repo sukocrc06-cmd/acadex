@@ -6,10 +6,15 @@
 -- ipucu güven ağırlıkları) + FSRS unutma eğrisi, az veri kapılarıyla birlikte
 -- ("yetkin" n>=3, "usta" n>=5 ve iki ayrı gün). Eksik olan tahmin değil, ÇARE.
 --
--- ÖLÇÜLEN BOŞLUK: js/dashboard.js -> loadWeakConceptMap() zayıf kavramı bulup
--- yanına "pratik yap" koyuyor; o düğme practiceWeakConcept() ile kaynağı
--- ZORLA 'course'a çeviriyor (courseRadio.checked = true). Yani döngü
--- sınav → zayıf kavram → yine sınav. Öğrenci içeriğe hiç geri dönmüyor,
+-- ÖLÇÜLEN BOŞLUK — ÖNCÜL 10.11.2026'DA DÜZELTİLDİ.
+-- Bu blok önce js/dashboard.js -> loadWeakConceptMap / practiceWeakConcept'i
+-- işaret ediyordu. YANLIŞTI: o kod ekranda yok; #exam-weak-concepts-list
+-- dashboard.html'de display:none bir kabın içinde (sınav salonu yeniden
+-- tasarlanınca gizlendi). Ekrana çizen yol js/acadex-ink.js -> paintMastery
+-- ve orada "bu konudan deneme" ZATEN var (kart masasında data-focus-key +
+-- data-concept, ders masasında data-practice), yani karttan gelen zayıflıkta
+-- öğrenci ders ağacına atılmıyor.
+-- Gerçek boşluk tek: "oku" yolu. Öğrenci içeriğe geri dönmüyor,
 -- çünkü "bu kavram hangi belgede anlatılıyor" bilgisi 01.11 öncesinde
 -- sorgulanabilir değildi (user_concept_index 2,5 ay boyunca 0 satır).
 -- 20261101b_kavram_indeksi.sql onu doldurdu (1.526 satır, 756 tekil kavram).
@@ -28,9 +33,14 @@
 -- kullanıcı yalnız kendi indeksini ve kendi belgelerini görür. auth.uid()
 -- boşsa hiç satır dönmez.
 --
--- ARAYÜZ BAĞLANTISI BU MIGRATION'IN İŞİ DEĞİL: loadWeakConceptMap sınav
--- platformunun içinde ve onu başka bir geliştirici ilerletiyor. Bağlamak tek
--- çağrı: rpc('concept_study_sources', { p_concepts: [...] }).
+-- ARAYÜZ BAĞLANTISI BU MIGRATION'IN İŞİ DEĞİL ve yeri BELLİ:
+-- js/acadex-ink.js -> paintMastery. Satır başına değil, düğme çıkan kavramlar
+-- için TEK toplu çağrı: rpc('concept_study_sources', { p_concepts: [...] }).
+-- Eşleşme seçimi: önce o masanın kartları içinden 'exact', yoksa yine masa
+-- içinden 'contains', ders masasında genel 'exact'. Masa dışında 'contains'
+-- kabul edilmemeli — "faiz" gibi kısa kavramlar her şeyi yakalar.
+-- dashboard.js'teki gizli yola BAĞLANMAMALI; tests/kavram-kaynaklari.js
+-- bunu denetliyor.
 --
 -- Teste bağlı: tests/kavram-kaynaklari.js
 -- ==========================================================================

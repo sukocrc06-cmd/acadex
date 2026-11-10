@@ -4321,7 +4321,7 @@ window.axNotify = function (title, opts) {
   $('[data-export]').addEventListener('click', async function () {
     var b = this, t = $('[data-export-t]'), u = me(); if (!u || !sb()) return;
     b.disabled = true; t.textContent = 'toplanıyor…';
-    var T = [['profil', 'profiles', 'id'], ['belgeler', 'documents', 'user_id'], ['ozetler_ve_kartlar', 'study_cards', 'user_id'], ['kart_tekrarlari', 'card_item_confidence', 'user_id'], ['bilgi_deposu', 'card_depot', 'user_id'], ['defter', 'notebooks', 'user_id'], ['planlayici', 'study_events', 'user_id'], ['sinavlar', 'exams', 'user_id'], ['rozetler', 'user_achievements', 'user_id']];
+    var T = [['profil', 'profiles', 'id'], ['belgeler', 'documents', 'user_id'], ['ozetler_ve_kartlar', 'study_cards', 'user_id'], ['kart_tekrarlari', 'card_item_confidence', 'user_id'], ['bilgi_deposu', 'card_depot', 'user_id'], ['defter', 'notebooks', 'user_id'], ['planlayici', 'study_events', 'user_id'], ['sinavlar', 'exams', 'user_id'], ['rozetler', 'user_achievements', 'user_id'], ['kavram_okumalari', 'concept_study_opens', 'user_id']];
     var out = { hesap: { id: u.id, eposta: u.email, olusturma: u.created_at }, disa_aktarma: new Date().toISOString() }, miss = [];
     for (var i = 0; i < T.length; i++) {
       try { var r = await sb().from(T[i][1]).select('*').eq(T[i][2], u.id); if (r.error) throw r.error; out[T[i][0]] = r.data || []; }
