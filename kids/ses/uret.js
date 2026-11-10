@@ -18,6 +18,7 @@
      node kids/ses/uret.js kuru                   # kaç cümle / karakter üretileceğini gösterir, API'ye gitmez
      node kids/ses/uret.js uret                   # eksik dosyaları üretir (ses id değişen dili baştan üretir)
      node kids/ses/uret.js uret --hepsi           # hepsini baştan üretir
+     node kids/ses/uret.js uret --dil en          # yalnız İngilizceyi üretir (Türkçe yönergeler cihaz sesiyle kalır)
    İsteğe bağlı: $env:ELEVEN_MODEL (varsayılan eleven_multilingual_v2)
    ========================================================================== */
 'use strict';
@@ -75,8 +76,8 @@ async function dene(ses, dil) {
   console.log('Dinle: ' + path.relative(process.cwd(), f) + '   (_deneme klasörü yayına gitmez; .gitignore\'da)');
 }
 
-async function uret(hepsi, kuru) {
-  const L = katalog(), eski = listeOku(), ses = { en: process.env.ELEVEN_SES_EN || '', tr: process.env.ELEVEN_SES_TR || '' };
+async function uret(hepsi, kuru, dil) {
+  const L = katalog().filter((x) => !dil || x.dil === dil), eski = listeOku(), ses = { en: process.env.ELEVEN_SES_EN || '', tr: process.env.ELEVEN_SES_TR || '' };
   const yeni = { surum: 1, uretildi: new Date().toISOString(), model: MODEL, ses: { en: ses.en || (eski.ses || {}).en || '', tr: ses.tr || (eski.ses || {}).tr || '' }, sesler: {} };
   const is = [];
   for (const x of L) {
@@ -86,7 +87,9 @@ async function uret(hepsi, kuru) {
   }
   const kar = is.reduce((t, i) => t + i.x.metin.length, 0);
   console.log(L.length + ' cümle; üretilecek ' + is.length + ' dosya, ' + kar + ' karakter (en ' + is.filter((i) => i.x.dil === 'en').length + ', tr ' + is.filter((i) => i.x.dil === 'tr').length + ').');
-  fs.writeFileSync(path.join(KOK, 'kayit-metni.csv'), '﻿dosya;dil;metin;nerede\n' + L.map((x) => [dosyaAdi(x.dil, x.metin), x.dil, '"' + x.metin.replace(/"/g, '""') + '"', x.not].join(';')).join('\n') + '\n');
+  /* başka dilin önceden üretilmiş dosyaları listede kalsın */
+  if (dil) for (const k of Object.keys(eski.sesler || {})) if (!k.startsWith(dil + ':') && fs.existsSync(path.join(KOK, eski.sesler[k]))) yeni.sesler[k] = eski.sesler[k];
+  if (!dil) fs.writeFileSync(path.join(KOK, 'kayit-metni.csv'), '﻿dosya;dil;metin;nerede\n' + L.map((x) => [dosyaAdi(x.dil, x.metin), x.dil, '"' + x.metin.replace(/"/g, '""') + '"', x.not].join(';')).join('\n') + '\n');
   if (kuru) return;
   if (!is.length) { fs.writeFileSync(LISTE, JSON.stringify(yeni, null, 1)); return console.log('Hepsi hazır. liste.json güncellendi.'); }
   anahtarGerek();
@@ -110,8 +113,10 @@ const [, , komut, a1, a2] = process.argv;
 if (require.main === module) (async () => {
   if (komut === 'sesler') return sesler();
   if (komut === 'dene') return dene(a1, a2);
-  if (komut === 'kuru') return uret(false, true);
-  if (komut === 'uret') return uret(process.argv.includes('--hepsi'), false);
+  if (komut === 'kuru') return uret(false, true, '');
+  const di = process.argv.indexOf('--dil'), dil = di > 0 ? process.argv[di + 1] : '';
+  if (dil && dil !== 'en' && dil !== 'tr') throw new Error('--dil en ya da tr olmalı');
+  if (komut === 'uret') return uret(process.argv.includes('--hepsi'), false, dil);
   console.log('Komutlar: sesler · dene <ses_id> en|tr · kuru · uret [--hepsi]   (ayrıntı dosyanın başında)');
 })().catch((e) => { console.error(e.message); process.exit(1); });
 
