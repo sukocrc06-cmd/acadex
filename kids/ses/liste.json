@@ -1,10 +1,16 @@
 {
  "surum": 1,
- "uretildi": "2026-11-10T00:15:54.306Z",
+ "uretildi": "2026-11-10T00:23:42.820Z",
  "model": "eleven_multilingual_v2",
  "ses": {
-  "en": "ingilizce_ses_id",
-  "tr": "turkce_ses_id"
+  "en": "pFZP5JQG7iQjIQuC4Bku",
+  "tr": "ZgndNiUCwSn9oAFrs6rJ"
  },
- "sesler": {}
+ "sesler": {
+  "en:Good try!": "en/good-try-f0c08f.mp3",
+  "en:Well done!": "en/well-done-e78d52.mp3",
+  "en:Let's count together!": "en/let-s-count-together-98a09f.mp3",
+  "en:Let's learn colours!": "en/let-s-learn-colours-3c8317.mp3",
+  "en:Super!": "en/super-9c20f5.mp3"
+ }
 }
