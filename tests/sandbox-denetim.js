@@ -80,4 +80,28 @@ test('TESLİM DENETİMİ: teslimden önce kod gerçekten çalıştırılır (10.
   assert.ok(html.includes('data-tslist=""'), 'rapor listesi yok');
 });
 
+test('HATAYI ACADIA\'YA TAŞIMA: konsol hatası tek tıkla bağlamıyla sorulur (10.11.2026)', () => {
+  /* Sandbox geliştirme #2. Konsoldaki her error satırına "Acadia'ya sor"
+     eklenir; tıklayınca hata metni + ilgili dosya içeriği Acadia sekmesine
+     taşınır. Dosya tahmini önce "@dosya:satır" ekinden, yoksa açık dosyadan. */
+  // (a) Düğme YALNIZ hata satırında — log/warn/sys satırına eklenmez.
+  assert.ok(ink.includes("var sor = c.t === 'error' ? ' <button type=\"button\" data-aierr=\"' + i + '\">Acadia’ya sor</button>' : ''"),
+    'Acadia düğmesi hata satırına özgü değil ya da yok');
+  assert.ok(ink.includes('consEl.innerHTML = cons.map(function (c, i) {'),
+    'paintCons indeks taşımıyor — düğme hangi hatayı soracağını bilemez');
+  // (b) Tıklama: dosya tahmini + kod bağlamı + aiAsk ile aynı dil kuralı.
+  const blok = ink.match(/var b = e\.target\.closest\('\[data-aierr\]'\);[\s\S]{0,2200}aiErrBusy = false/);
+  assert.ok(blok, 'data-aierr işleyicisi yok');
+  assert.ok(blok[0].includes("P.files.hasOwnProperty(m[1]) ? m[1] : P.cur"),
+    'dosya tahmini @dosya:satır ekini kullanmıyor');
+  assert.ok(blok[0].includes('codeFor({ text: kod })'), 'kod bağlamı sınırsız gidiyor (codeFor yok)');
+  assert.ok(blok[0].includes('aksiyon bloğu ekleme'),
+    'istem aksiyon bloğunu yasaklamıyor — aiAsk kalıplarıyla tutarsız');
+  assert.ok(blok[0].includes("outTab('aca')"), 'Acadia sekmesine geçmiyor');
+  assert.ok(blok[0].includes('SBX.acadia(soru)'), 'Acadia çağrısı yok');
+  // (c) Çifte tıklama koruması ve dürüstlük notu.
+  assert.ok(ink.includes('var aiErrBusy = false;'), 'meşgul bayrağı yok');
+  assert.ok(blok[0].includes('Acadia hata yapabilir'), 'dürüstlük notu yok — öbür Acadia yollarıyla tutarsız');
+});
+
 summary();

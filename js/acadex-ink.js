@@ -5828,11 +5828,35 @@ var SBX = (function () {
   /* TSD.kayit doluyken her konsol olayi oraya da yazilir (teslim denetimi). */
   var log = function (t, a) { var nt = t === 'log' || t === 'info' ? 'log' : t; cons.push({ t: nt, a: a, at: Date.now() }); if (TSD.kayit) TSD.kayit.push({ t: nt, a: String(a == null ? '' : a) }); if (t === 'error') lastErr++; if (cons.length > 400) cons.shift(); paintCons(); };
   var paintCons = function () {
-    consEl.innerHTML = cons.map(function (c) { var m = /@([^\s:]+):(\d+)$/.exec(c.a) || /line (\d+)/.exec(c.a); var go = m ? ' <button type="button" data-goline="' + X(m.length > 2 ? m[1] + '|' + m[2] : (P && P.cur || '') + '|' + m[1]) + '">satıra git</button>' : ''; return '<li class="' + (c.t === 'error' ? 'err' : c.t === 'warn' ? 'warn' : c.t === 'sys' ? 'sys' : '') + '">' + X(c.a) + go + '</li>'; }).join('');
+    consEl.innerHTML = cons.map(function (c, i) { var m = /@([^\s:]+):(\d+)$/.exec(c.a) || /line (\d+)/.exec(c.a); var go = m ? ' <button type="button" data-goline="' + X(m.length > 2 ? m[1] + '|' + m[2] : (P && P.cur || '') + '|' + m[1]) + '">satıra git</button>' : ''; var sor = c.t === 'error' ? ' <button type="button" data-aierr="' + i + '">Acadia’ya sor</button>' : ''; return '<li class="' + (c.t === 'error' ? 'err' : c.t === 'warn' ? 'warn' : c.t === 'sys' ? 'sys' : '') + '">' + X(c.a) + go + sor + '</li>'; }).join('');
     consEl.scrollTop = consEl.scrollHeight;
     var errs = cons.filter(function (c) { return c.t === 'error'; }).length, b = Q('[data-ccount]'); b.textContent = cons.length; b.classList.toggle('err', errs > 0);
   };
   consEl.addEventListener('click', function (e) { var b = e.target.closest('[data-goline]'); if (!b) return; var pr = b.getAttribute('data-goline').split('|'); goLine(pr[0], +pr[1]); });
+  /* HATAYI ACADIA'YA TASI (10.11.2026, sandbox gelistirme #2): konsoldaki
+     hata tek tikla Acadia sekmesine gider — hata metni + ilgili dosyanin
+     icerigiyle. Dosya tahmini once hatanin "@dosya:satir" ekinden, yoksa
+     acik dosyadan. aiAsk kaliplariyla ayni dil: aksiyon blogu istenmez. */
+  var aiErrBusy = false;
+  consEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-aierr]'); if (!b || !P) return;
+    if (aiErrBusy) { outTab('aca'); return; }
+    var c = cons[+b.getAttribute('data-aierr')]; if (!c) return;
+    var m = /@([^\s:]+):(\d+)$/.exec(c.a), dosya = (m && P.files.hasOwnProperty(m[1]) ? m[1] : P.cur) || '';
+    var kod = dosya && P.files[dosya] ? P.files[dosya] : '';
+    var soru = 'Geliştirici sandbox\'ta "' + dosya + '" dosyasını çalıştırınca şu hata çıktı:\n' + String(c.a).slice(0, 400) +
+      '\n\nBir üniversite öğrencisine kısa ve sade Türkçe ile anlat: (1) bu hata ne demek, (2) kodda neden oluşuyor, (3) nasıl düzeltilir — gerekiyorsa küçük bir kod örneğiyle. Yalnızca bu hata hakkında konuş, aksiyon bloğu ekleme.' +
+      (kod ? '\n\n```\n' + codeFor({ text: kod }) + '\n```' : '');
+    var forP = P; aiErrBusy = true; outTab('aca');
+    aiOut.innerHTML = '<h4>' + X(dosya || 'hata') + '</h4><p><code>' + X(String(c.a).slice(0, 160)) + '</code></p><div class="ai-wait hand" data-aiwait="">Acadia hatayı okuyor…</div>';
+    SBX.acadia(soru).then(function (reply) {
+      if (P !== forP) return;
+      aiOut.innerHTML = '<h4>Acadia · ' + X(dosya || 'hata') + '</h4>' + mdLite(reply) + '<span class="honest">Acadia hata yapabilir; düzeltmeyi uygulayıp “çalıştır” ile doğrula.</span>';
+    }, function (er) {
+      console.warn(er); if (P !== forP) return;
+      var w = aiOut.querySelector('[data-aiwait]'); if (w) w.outerHTML = '<span class="honest">Acadia’ya şu an ulaşılamadı; “satıra git” ile hatanın olduğu satıra bakıp biraz sonra tekrar dene.</span>';
+    }).then(function () { aiErrBusy = false; });
+  });
   var goLine = function (p, ln) { if (p && P.files.hasOwnProperty(p) && p !== P.cur) openFile(p); var lines = ta.value.split('\n'), s = 0; for (var i = 0; i < Math.min(ln - 1, lines.length); i++) s += lines[i].length + 1; ta.focus(); ta.setSelectionRange(s, s + (lines[ln - 1] || '').length); scrollToSel(); };
   Q('[data-cclear]').addEventListener('click', function () { cons = []; lastErr = 0; paintCons(); });
   QA('[data-dev]').forEach(function (b) { b.addEventListener('click', function () { framew.classList.toggle('phone', b.getAttribute('data-dev') === 'phone'); QA('[data-dev]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
