@@ -3,11 +3,12 @@
    Kapsam yalnız /kids/. Sayfa tek dosya (kids/index.html: stil, betik, yazı tipi
    içinde), bu yüzden önbellekte o ve simgeler yeter. Sayfa isteği önce internetten
    denenir (yeni sürüm hemen gelsin), 4 sn'de yanıt yoksa önbellekten açılır.
-   Supabase istekleri (başka alan adı) hiç önbelleğe alınmaz.
+   Supabase istekleri (başka alan adı) hiç önbelleğe alınmaz. Ses dosyaları (kids/ses/*.mp3)
+   ilk çalındıklarında önbelleğe girer; liste.json her seferinde önce internetten denenir.
    Yeni sürüm yayınlarken SURUM'u değiştirmek eski önbelleği temizler.
    ========================================================================== */
 'use strict';
-const SURUM = 'acadex-kids-2026-11-10b';
+const SURUM = 'acadex-kids-2026-11-10c';
 const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -19,6 +20,11 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET' || u.origin !== self.location.origin || !u.pathname.startsWith('/kids/')) return;
+  /* ses listesi: yeni üretilen sesler hemen gelsin (internetten, yoksa önbellekten) */
+  if (u.pathname === '/kids/ses/liste.json') {
+    e.respondWith(fetch(r).then((y) => { if (y.ok) { const k = y.clone(); caches.open(SURUM).then((c) => c.put(r, k)); } return y; }, () => caches.match(r).then((c) => c || Response.error())));
+    return;
+  }
   if (r.mode === 'navigate' || u.pathname === '/kids/' || u.pathname === '/kids/index.html') {
     e.respondWith(new Promise((coz) => {
       let bitti = false;

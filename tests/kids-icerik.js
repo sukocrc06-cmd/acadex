@@ -60,7 +60,7 @@ test('şarkı: yaş dünyasında olmayan kelimenin satırı atlanır, kapanış 
 test('oyunlar: say var; balon ve hafıza konu paketini kullanır', () => {
   const o = read('kids/assets/kids-oyun.js'), app = read('kids/assets/kids-app.js');
   assert.match(o, /function say\(kok, a\)/);
-  assert.match(o, /W\.KIDS_OYUN = \{ say: say,/);
+  assert.match(o, /W\.KIDS_OYUN = \{[^}]*say: say,/);
   assert.match(o, /var B = \(a\.paket \|\| RENK_PAKET\)\.balon/);
   assert.match(o, /var H = \(a\.paket \|\| RENK_PAKET\)\.hafiza/);
   assert.match(app, /OYUN\[d\.id\]\(sahne, \{ renkler: renkler\(\), bant: bant\(\), paket: paket\(\),/);

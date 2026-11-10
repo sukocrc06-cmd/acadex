@@ -1,0 +1,10 @@
+{
+ "surum": 1,
+ "uretildi": "2026-11-10T00:15:54.306Z",
+ "model": "eleven_multilingual_v2",
+ "ses": {
+  "en": "ingilizce_ses_id",
+  "tr": "turkce_ses_id"
+ },
+ "sesler": {}
+}

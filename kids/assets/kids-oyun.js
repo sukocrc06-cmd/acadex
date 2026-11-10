@@ -111,7 +111,8 @@
   }
 
   /* ---------------- 4. say (Numbers): nesneleri say, doğru rakama dokun ---------------- */
-  var SAY_NESNE = [['elma', 'apples'], ['yildiz', 'stars'], ['top', 'balls'], ['balik', 'fish'], ['cilek', 'strawberries'], ['cicek', 'flowers']];
+  var SAY_NESNE = [['elma', 'apples', 'apple'], ['yildiz', 'stars', 'star'], ['top', 'balls', 'ball'], ['balik', 'fish', 'fish'], ['cilek', 'strawberries', 'strawberry'], ['cicek', 'flowers', 'flower']];
+  function sayCevap(o, nesne) { return o.en + ' ' + (o.n === 1 ? nesne[2] : nesne[1]) + '!'; }
   function say(kok, a) {
     var ogeler = a.renkler, tur = 0, yanlis = 0, hedef = null, nesne = null, bitti = false, kilit = false, son = null, sayac = [];
     kok.innerHTML = '<div class="ko ko-say">' + yonerge('', a.bant.yazi) + '<div class="ko-tepsi" data-ko-tepsi></div><div class="ko-rakamlar" data-ko-alan></div></div>';
@@ -143,7 +144,7 @@
       var b = e.target.closest('[data-ko-renk]'); if (!b || kilit || bitti) return;
       if (b.getAttribute('data-ko-renk') === hedef.id) {
         kilit = true; temizle(); SES.fx('dogru'); b.classList.add('ko-dogru'); tur++;
-        SES.soyle(hedef.en + ' ' + nesne[1] + '!', 'en').then(function () { if (!bitti) setTimeout(yeni, 300); });
+        SES.soyle(sayCevap(hedef, nesne), 'en').then(function () { if (!bitti) setTimeout(yeni, 300); });
       } else { yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(b); birlikteSay(); }
     });
     kok.querySelector('[data-ko-dinle]').addEventListener('click', function () { SES.fx('dokun'); sor(); });
@@ -151,5 +152,5 @@
     return { dur: function () { bitti = true; temizle(); SES.sus(); } };
   }
 
-  W.KIDS_OYUN = { say: say, balon: balon, hafiza: hafiza, boyama: boyama, kar: kar, yildizHesap: yildizHesap, BOYA_GOREV: BOYA_GOREV };
+  W.KIDS_OYUN = { SAY_NESNE: SAY_NESNE, sayCevap: sayCevap, say: say, balon: balon, hafiza: hafiza, boyama: boyama, kar: kar, yildizHesap: yildizHesap, BOYA_GOREV: BOYA_GOREV };
 })(window);
