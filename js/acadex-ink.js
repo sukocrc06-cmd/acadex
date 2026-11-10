@@ -4963,9 +4963,6 @@ var SBX = (function () {
   };
 
   /* ---------- store: canlı gönderiler veritabanında, taslaklar bu tarayıcıda ---------- */
-  var mine = function () { return SBX.st.myPosts.concat(SBX.drafts()); };
-  var saveMine = function () { return true; };
-  var upsert = function (p) { return !!SBX.saveDraft(p); };
 
   /* ---------- one post: a browser window ---------- */
   var ago = function (t) { var m = Math.round((Date.now() - t) / 60000); if (m < 1) return 'şimdi'; if (m < 60) return m + ' dk önce'; var h = Math.round(m / 60); if (h < 24) return h + ' sa önce'; var d = Math.floor(h / 24); return d === 1 ? 'dün' : d + ' gün önce'; };
@@ -5137,7 +5134,7 @@ var SBX = (function () {
     (Q('[data-ctitle]').value ? Q('[data-ctext]') : Q('[data-ctitle]')).focus();
   };
 
-  return { frameCheck: frameCheck, noFrame: noFrame, armShot: armShot, popWin: popWin, liveBar: liveBar, shotUrl: shotUrl, fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, mine: mine, saveMine: saveMine, upsert: upsert, open: open, ago: ago, calm: calm, uid: uid };
+  return { frameCheck: frameCheck, noFrame: noFrame, armShot: armShot, popWin: popWin, liveBar: liveBar, shotUrl: shotUrl, fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, open: open, ago: ago, calm: calm, uid: uid };
   })();
 
   /* ================= SANDBOX ETKİLEŞİM PANELİ · akış ================= */
@@ -5161,28 +5158,26 @@ var SBX = (function () {
   var F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }, openCm = {};
   var all = function () { return SBX.st.posts.filter(function (p) { return hidden.indexOf(p.id) < 0 && !pendingDel[p.id]; }); };
   var byId = function (id) { var r = null; SBX.st.posts.concat(SBX.drafts()).forEach(function (p) { if (p.id === id) r = p; }); return r; };
-  var withMine = function (p) { return p; };
-  var follow = SBX.st.follow;
 
   /* ---------- feed ---------- */
   var feedEl = Q('[data-feed]'), noneEl = Q('[data-none]'), fstate = Q('[data-fstate]');
   var visible = function () { return all().filter(function (p) { if (F.by && p.uid !== F.by) return false; if (F.dept && (SBX.person(p.by).dept || '') !== F.dept) return false; if (F.kind && p.kind !== F.kind) return false; if (F.tech && (p.tech || []).indexOf(F.tech) < 0) return false; if (F.course && p.course !== F.course) return false; if (F.mode === 'follow' && p.by !== 'me' && SBX.st.follow.indexOf(p.uid) < 0) return false; if (F.mode === 'saved' && saved.indexOf(p.id) < 0) return false; return true; }); };
   var io = (!calm && 'IntersectionObserver' in window) ? new IntersectionObserver(function (en) { en.forEach(function (e) { if (e.isIntersecting) { e.target.classList.remove('pre'); e.target.classList.add('in'); io.unobserve(e.target); ETK.fillSnaps(e.target, byId); ETK.hydrateGh(e.target); ETK.watchFrames(e.target); } }); }, { rootMargin: '0px 0px -10% 0px', threshold: .05 }) : null;
-  var one = function (p) { return ETK.postHTML(withMine(p), { myReact: p.myReact || '', saved: saved.indexOf(p.id) > -1, following: SBX.st.follow.indexOf(p.uid) > -1 }); };
+  var one = function (p) { return ETK.postHTML(p, { myReact: p.myReact || '', saved: saved.indexOf(p.id) > -1, following: SBX.st.follow.indexOf(p.uid) > -1 }); };
   /* ---------- pencil notes in the margins (derived from the post itself) ---------- */
   var ARROW_DOWN = '<svg viewBox="0 0 46 40" aria-hidden="true"><path pathLength="1" d="M42 3 C30 4 16 10 10 30 M4 24 C6 28 8 31 10 36 C13 32 16 30 20 28"/></svg>';
   var decorate = function (el, p) {
-    if (el.querySelector('.ek-anc')) return; var q = withMine(p), win = el.querySelector('.ek-win'), live = ETK.liveUrl(p), seed = 0; for (var i = 0; i < p.id.length; i++) seed = (seed * 31 + p.id.charCodeAt(i)) >>> 0;
+    if (el.querySelector('.ek-anc')) return; var win = el.querySelector('.ek-win'), live = ETK.liveUrl(p), seed = 0; for (var i = 0; i < p.id.length; i++) seed = (seed * 31 + p.id.charCodeAt(i)) >>> 0;
     var tryTxt = p.kind === 'oyun' ? 'oyna, çalışıyor!' : live ? 'canlı site burada' : p.snap ? 'dene, çalışıyor' : p.image ? 'ekran görüntüsü' : 'kodu burada';
     if (win) win.insertAdjacentHTML('beforebegin', '<div class="ek-anc" aria-hidden="true"><span class="ek-note n-try" style="--nr:' + (-3 - seed % 4) + 'deg"><span>' + tryTxt + '</span>' + ARROW_DOWN + '</span></div>');
     var term = el.querySelector('.ek-term'); if (term && p.versions > 1) term.insertAdjacentHTML('afterend', '<div class="ek-anc after-term" aria-hidden="true"><span class="ek-note ek-pen n-ver" style="--nd:.3s"><span>v' + (p.versions - 1) + ' → v' + p.versions + '</span><svg viewBox="0 0 34 20" aria-hidden="true"><path pathLength="1" d="M3 15 C10 4 20 3 31 9 M25 4 L31 9 L24 12"/></svg></span></div>');
-    var tot = 0, mx = 0; Object.keys(q.reacts || {}).forEach(function (k) { tot += q.reacts[k]; });
-    var top = null; all().forEach(function (x) { var w = withMine(x), t = 0; Object.keys(w.reacts || {}).forEach(function (k) { t += w.reacts[k]; }); if (t > mx) { mx = t; top = x.id; } });
+    var tot = 0, mx = 0; Object.keys(p.reacts || {}).forEach(function (k) { tot += p.reacts[k]; });
+    var top = null; all().forEach(function (x) { var t = 0; Object.keys(x.reacts || {}).forEach(function (k) { t += x.reacts[k]; }); if (t > mx) { mx = t; top = x.id; } });
     var rs = el.querySelector('.ek-rsum');
     if (rs && tot >= 6 && top === p.id) { rs.insertAdjacentHTML('afterbegin', '<svg class="ek-hot" viewBox="0 0 250 40" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M8 22 C10 6 120 2 200 8 C246 12 248 32 196 36 C120 41 20 38 10 26 C6 20 18 12 36 10"/></svg><span class="ek-hotnote" aria-hidden="true">bölümün gözdesi</span>'); el.insertAdjacentHTML('afterbegin', '<svg class="ek-star" viewBox="0 0 30 30" aria-hidden="true"><path pathLength="1" d="M15 3 C16 9 17 11 19.5 12.5 C22.5 12.8 25 13 27 13.2 C24 15.5 22 17.2 20.6 18.6 C21.3 22 22 25 22.5 27.5 C19.5 25.6 17 24 15 22.8 C12.5 24.3 10 26 7.5 27.6 C8.3 24.5 9 21.6 9.6 18.6 C7.6 16.8 5.5 15 3 13.2 C6 13 8.5 12.8 10.6 12.5 C12.6 10.5 13.8 7 15 3 Z"/></svg>'); }
-    if (rs && q.cm.length >= 2) rs.insertAdjacentHTML('beforeend', '<span class="ek-note ek-pen n-talk" style="--nd:.5s" aria-hidden="true"><span>← tartışma var, oku</span></span>');
+    if (rs && (p.cm || []).length >= 2) rs.insertAdjacentHTML('beforeend', '<span class="ek-note ek-pen n-talk" style="--nd:.5s" aria-hidden="true"><span>← tartışma var, oku</span></span>');
   };
-  var arm = function (el) { var pp = byId(el.getAttribute('data-pid')); if (pp) decorate(el, pp); if (io) { el.classList.add('pre'); io.observe(el); } else { el.classList.add('in'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el); ETK.watchFrames(el); } if (reports[el.getAttribute('data-pid')]) markReported(el); };
+  var arm = function (el) { var pp = byId(el.getAttribute('data-pid')); if (pp) decorate(el, pp); if (io) { el.classList.add('pre'); io.observe(el); } else { el.classList.add('in'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el); } if (reports[el.getAttribute('data-pid')]) markReported(el); };
   /* kişi profili: kapak + fotoğraf + bilgiler (birinin adına/fotoğrafına basınca akışın üstünde) */
   var profCard = function (uid) {
     var isMe = uid === (SBX.me() || {}).id, u = SBX.person(isMe ? 'me' : uid), mine = all().filter(function (p) { return p.uid === uid || (isMe && p.by === 'me'); });
@@ -5205,7 +5200,7 @@ var SBX = (function () {
     var bits = []; if (F.kind) bits.push(ETK.KINDS[F.kind]); if (F.tech) bits.push(F.tech); if (F.course) bits.push(F.course); if (F.mode === 'follow') bits.push('takip ettiklerin'); if (F.mode === 'saved') bits.push('kaydettiklerin'); if (F.by) bits.push(SBX.person(F.by === (SBX.me() || {}).id ? 'me' : F.by).n + ' projeleri'); if (F.dept) bits.push(Q('[data-dept] option[value="' + F.dept + '"]').textContent);
     fstate.textContent = bits.length ? 'süzgeç: ' + bits.join(' · ') + ' — ' + list.length + ' proje' : '';
   };
-  var rePost = function (id, focusSel) { var old = feedEl.querySelector('[data-pid="' + id + '"]'), p = byId(id); if (!old || !p) return null; var w = document.createElement('div'); w.innerHTML = one(p); var n = w.firstChild; n.classList.add('in'); decorate(n, p); n.classList.add('noanim'); if (old.classList.contains('open')) n.classList.add('open'); var oldF = old.querySelector('iframe[data-sl]'); old.parentNode.replaceChild(n, old); ETK.fillSnaps(n, byId); ETK.hydrateGh(n); ETK.watchFrames(n); if (openCm[id]) paintCms(n, p); if (reports[id]) markReported(n); if (focusSel) { var f = n.querySelector(focusSel); if (f) f.focus(); } return n; };
+  var rePost = function (id, focusSel) { var old = feedEl.querySelector('[data-pid="' + id + '"]'), p = byId(id); if (!old || !p) return null; var w = document.createElement('div'); w.innerHTML = one(p); var n = w.firstChild; n.classList.add('in'); decorate(n, p); n.classList.add('noanim'); if (old.classList.contains('open')) n.classList.add('open'); old.parentNode.replaceChild(n, old); ETK.fillSnaps(n, byId); ETK.hydrateGh(n); ETK.watchFrames(n); if (openCm[id]) paintCms(n, p); if (reports[id]) markReported(n); if (focusSel) { var f = n.querySelector(focusSel); if (f) f.focus(); } return n; };
   var markReported = function (el) { var w = el.querySelector('.ek-win'); if (w && !el.querySelector('.ef-repd')) { var b = document.createElement('p'); b.className = 'ef-repd hand'; b.style.cssText = 'margin:8px 0 0;font-size:19px;color:var(--red)'; b.textContent = 'bunu bildirdin; moderatör inceleyecek.'; w.after(b); } };
 
   /* tabs strip, filters, people, drafts */
@@ -5213,7 +5208,7 @@ var SBX = (function () {
   var paintFilters = function () {
     var ps = all(), kinds = [], techs = [], courses = [];
     ps.forEach(function (p) { if (p.kind && kinds.indexOf(p.kind) < 0) kinds.push(p.kind); (p.tech || []).forEach(function (t) { if (techs.indexOf(t) < 0) techs.push(t); }); if (p.course && courses.indexOf(p.course) < 0) courses.push(p.course); });
-    Q('[data-kinds]').innerHTML = ['', ].concat(kinds).map(function (k) { return '<button type="button" data-fk="' + k + '" aria-pressed="' + (F.kind === k) + '">' + (k ? ETK.KINDS[k] : 'hepsi') + '</button>'; }).join('');
+    Q('[data-kinds]').innerHTML = [''].concat(kinds).map(function (k) { return '<button type="button" data-fk="' + k + '" aria-pressed="' + (F.kind === k) + '">' + (k ? ETK.KINDS[k] : 'hepsi') + '</button>'; }).join('');
     Q('[data-techs]').innerHTML = techs.map(function (t) { return '<button type="button" data-ft="' + X(t) + '" aria-pressed="' + (F.tech === t) + '">' + X(t) + '</button>'; }).join('');
     Q('[data-course]').innerHTML = '<option value="">tüm dersler</option>' + courses.map(function (c) { return '<option' + (F.course === c ? ' selected' : '') + '>' + X(c) + '</option>'; }).join('');
     QA('[data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', String(F.mode === b.getAttribute('data-mode'))); });
@@ -5271,8 +5266,8 @@ var SBX = (function () {
   var LBL = { genel: 'genel', tasarim: 'tasarım', performans: 'performans', erisim: 'erişilebilirlik', hata: 'hata' };
   var cHTML = function (pid, c, isRep) { var u = SBX.person(c.by); return '<li class="ef-c l-' + (LBL[c.l] ? c.l : 'genel') + '" data-cid="' + c.id + '"><div class="ef-c-h"><b>' + X(c.by === 'me' ? 'sen' : u.n) + '</b><span class="ef-lb">' + (LBL[c.l] || 'genel') + '</span><span>' + ETK.ago(c.at) + '</span>' + (c.by === 'me' ? '<button type="button" class="del" data-cdel="' + c.id + '" aria-label="İncelemeni sil">sil</button>' : '') + '</div><p>' + X(c.t) + '</p>' + (isRep || SBX.feat.cx === false ? '' : '<button type="button" class="rp" data-rp="' + c.id + '">yanıtla</button>' + ((c.rep || []).length ? '<ul class="ef-rep">' + c.rep.map(function (r) { return cHTML(pid, r, true); }).join('') + '</ul>' : '')) + '</li>'; };
   var paintCms = function (el, p) {
-    var q = withMine(p), box = el.querySelector('[data-cms]'); box.hidden = false;
-    box.innerHTML = (q.cm.length ? '<ul class="ef-th">' + q.cm.map(function (c) { return cHTML(p.id, c); }).join('') + '</ul>' : '') +
+    var cm = p.cm || [], box = el.querySelector('[data-cms]'); box.hidden = false;
+    box.innerHTML = (cm.length ? '<ul class="ef-th">' + cm.map(function (c) { return cHTML(p.id, c); }).join('') + '</ul>' : '') +
       '<form class="ef-cf" data-cf=""><p class="to" data-to="" hidden></p>' + (SBX.feat.cx === false ? '<input type="hidden" data-cl="" value="genel">' : '<label class="vh" for="cl-' + p.id + '">İnceleme türü</label><select id="cl-' + p.id + '" data-cl="">' + Object.keys(LBL).map(function (k) { return '<option value="' + k + '">' + LBL[k] + '</option>'; }).join('') + '</select>') + '<label class="vh" for="ci-' + p.id + '">İnceleme yaz</label><input id="ci-' + p.id + '" type="text" maxlength="400" placeholder="incelemeni yaz: ne güzel, ne düzelir?" autocomplete="off"><button type="submit" class="btn btn-blue">gönder</button></form>';
   };
   var menu = Q('[data-menu]'), menuFor = null, menuFrom = null; SBX.layer.appendChild(menu);
@@ -5290,7 +5285,7 @@ var SBX = (function () {
     if ((b = e.target.closest('[data-cdel]'))) { var dc = b.getAttribute('data-cdel'); b.disabled = true; SBX.delComment(p, dc).then(function () { openCm[id] = true; rePost(id); say('İncelemen silindi.'); }, function () { b.disabled = false; say('Silinemedi; tekrar dene.'); }); return; }
     if ((b = e.target.closest('[data-save]'))) { var i = saved.indexOf(id); if (i > -1) saved.splice(i, 1); else saved.push(id); S(SBX.uk('etk.saved'), saved); rePost(id, '[data-save]'); say(i > -1 ? 'Kaydettiklerinden çıkardım.' : 'Kaydedildi; “kaydettiklerim” süzgecinde.'); return; }
     if (e.target.closest('[data-cm]')) { openCm[id] = !openCm[id]; var box = post.querySelector('[data-cms]'); if (openCm[id]) { paintCms(post, p); box.querySelector('input[type=text]').focus(); } else box.hidden = true; return; }
-    if ((b = e.target.closest('[data-rp]'))) { var f = post.querySelector('[data-cf]'), to = f.querySelector('[data-to]'), cid = b.getAttribute('data-rp'), c = withMine(p).cm.filter(function (x) { return x.id === cid; })[0]; f.setAttribute('data-reply', cid); to.hidden = false; to.innerHTML = 'yanıt: ' + X(c.by === 'me' ? 'kendine' : SBX.person(c.by).n) + ' <button type="button" data-unrp="">vazgeç</button>'; f.querySelector('input[type=text]').focus(); return; }
+    if ((b = e.target.closest('[data-rp]'))) { var f = post.querySelector('[data-cf]'), to = f.querySelector('[data-to]'), cid = b.getAttribute('data-rp'), c = (p.cm || []).filter(function (x) { return x.id === cid; })[0]; f.setAttribute('data-reply', cid); to.hidden = false; to.innerHTML = 'yanıt: ' + X(c.by === 'me' ? 'kendine' : SBX.person(c.by).n) + ' <button type="button" data-unrp="">vazgeç</button>'; f.querySelector('input[type=text]').focus(); return; }
     if (e.target.closest('[data-unrp]')) { var f2 = post.querySelector('[data-cf]'); f2.removeAttribute('data-reply'); f2.querySelector('[data-to]').hidden = true; f2.querySelector('input[type=text]').focus(); return; }
     if (e.target.closest('[data-more]')) { var o = post.classList.toggle('open'); var mb = e.target.closest('[data-more]'); mb.setAttribute('aria-expanded', String(o)); mb.textContent = o ? 'daha az göster' : '…devamını gör'; return; }
     if (e.target.closest('[data-golive]')) { var v = post.querySelector('.ek-live'), url = ETK.liveUrl(p), ph = !!post.querySelector('[data-devb=phone][aria-pressed=true]'); v.classList.add('ek-sc'); v.setAttribute('data-dev', ph ? 'phone' : 'desk'); if (!url) return;
@@ -5359,7 +5354,7 @@ var SBX = (function () {
   var reload = function () {
     if (loading) return; loading = true; if (!SBX.st.loaded) { fstate.textContent = 'akış yükleniyor…'; }
     feedEl.classList.add('ef-pend');
-    return SBX.loadPosts().then(function () { saved = G(SBX.uk('etk.saved'), []); hidden = G(SBX.uk('etk.hidden'), []); reports = G(SBX.uk('etk.reports'), {}); loading = false; feedEl.classList.remove('ef-pend'); fstate.textContent = ''; follow = SBX.st.follow; paintAll(); afterLoad(); },
+    return SBX.loadPosts().then(function () { saved = G(SBX.uk('etk.saved'), []); hidden = G(SBX.uk('etk.hidden'), []); reports = G(SBX.uk('etk.reports'), {}); loading = false; feedEl.classList.remove('ef-pend'); fstate.textContent = ''; paintAll(); afterLoad(); },
       function (er) { loading = false; feedEl.classList.remove('ef-pend'); console.warn('acadex-ink: proje akışı yüklenemedi', er); fstate.textContent = ''; feedEl.innerHTML = '<p class="hand" style="font-size:21px;color:#C9483B">akış yüklenemedi. sayfayı yenileyip tekrar dene.</p>'; });
   };
   var afterLoad = function () {
