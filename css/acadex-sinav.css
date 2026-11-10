@@ -164,6 +164,7 @@ html body #exams-view.axs .sn-mrow .due{position:absolute;right:10px;top:-11px;p
 html body #exams-view.axs .sn-mrow .bar{display:none!important}
 html body #exams-view.axs .sn-mrow .sn-ghost{grid-area:act;justify-self:stretch;margin-top:8px;min-height:34px;border:2px solid var(--sn-ink)!important;border-radius:10px;background:var(--sn-paper)!important;color:var(--sn-ink)!important;font-weight:700;font-size:12.5px}
 html body #exams-view.axs .sn-mrow .sn-ghost::before{content:"▶ ";color:var(--sn-blue)}
+html body #exams-view.axs .sn-dmore{grid-column:1/-1;text-align:center;padding-top:4px}
 html body #exams-view.axs .sn-mmore{grid-column:1/-1;text-align:center;list-style:none}
 html body #exams-view.axs .sn-mrev{margin-top:14px;padding:10px 14px;border-radius:14px;background:#FFF8E2;border:2px dashed #E8C77A}
 /* denemeler: damgalı kâğıt sırası */

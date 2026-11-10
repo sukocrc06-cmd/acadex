@@ -123,4 +123,24 @@ test('tahtaya sınav yaz: tür çipleri, hızlı tarih, canlı önizleme', () =>
   assert.ok(css.includes('.sn-caldlg'));
 });
 
+test('SIRALAR SAYFALANIYOR: ilk 10, gerisi "devamını göster" ile', () => {
+  /* 10.11.2026: ders sayısı artınca "sıralar" bölümü çok uzuyordu. Ustalık
+     haritasındaki mastAll kalıbının aynısı kullanıldı — ayrı bir mekanizma
+     uydurulmadı. Düğme ızgarada TAM GENİŞLİK kaplamalı, yoksa bir sıra
+     karosunun yerine oturur ve kaybolur. */
+  assert.match(ink, /var deskAll = false;/, 'sayfalama durumu yok');
+  assert.match(ink, /var DESK_ILK = 10;/, 'ilk gösterim sayısı sabiti yok');
+  assert.match(ink, /shown = deskAll \? ds : ds\.slice\(0, DESK_ILK\)/, 'liste dilimlenmiyor');
+  assert.match(ink, /deskEl\.innerHTML = shown\.map/, 'çizim hâlâ tüm listeyi basıyor');
+  assert.match(ink, /data-desk-all=""/, '"devamını göster" düğmesi yok');
+  assert.match(ink, /deskAll = !deskAll; paintDesks\(\);/, 'düğme listeyi yenilemiyor');
+  /* "+ yeni sıra" karosu gösterilenin sonunda kalmalı, tüm listenin değil. */
+  assert.match(ink, /sn-desk add" style="--i:' \+ shown\.length/,
+    'ekle karosunun sırası tüm listeye göre hesaplanıyor');
+  /* İki dosyada da kural var: temel acadex-ink, salon üstü acadex-sinav —
+     .sn-mmore ile aynı kalıp. */
+  assert.match(css, /#exams-view\.axs \.sn-dmore\{grid-column:1\/-1/,
+    'salon stilinde tam genişlik kuralı yok — düğme karo yerine geçer');
+});
+
 summary();

@@ -3778,6 +3778,7 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-mrow .lv,:is(#exams-view.axs,#axs-layer) .sn-mrow .due{justify-self:start}
 :is(#exams-view.axs,#axs-layer) .sn-mrow .due{grid-column:3}
 :is(#exams-view.axs,#axs-layer) .sn-mrow .lv{grid-column:2}
+:is(#exams-view.axs,#axs-layer) .sn-dmore{grid-column:1 / -1;text-align:center;padding:4px 0 0}
 :is(#exams-view.axs,#axs-layer) .sn-mmore{list-style:none;padding:10px 0 0;text-align:center}
 :is(#exams-view.axs,#axs-layer) .sn-mast-how{margin-top:10px;font-size:12.5px;color:var(--muted)}
 :is(#exams-view.axs,#axs-layer) .sn-mast-how summary{cursor:pointer;font-weight:600}

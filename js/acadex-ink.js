@@ -2841,9 +2841,14 @@ window.axNotify = function (title, opts) {
     var p = vals.map(function (v, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
     return '<svg viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><path class="tg" d="M0 ' + y(target).toFixed(1) + ' H' + w + '"/>' + (n > 1 ? '<path d="' + p + '"/>' : '') + '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(vals[n - 1]).toFixed(1) + '" r="3.2"/></svg>';
   };
+  /* SIRALAR SAYFALAMASI (10.11.2026). Ders sayısı artınca bölüm çok uzuyordu;
+     ilk 10 sıra gösterilir, gerisi istenince açılır. Ustalık haritasındaki
+     mastAll kalıbının aynısı — ayrı bir mekanizma uydurulmadı. */
+  var deskAll = false;
+  var DESK_ILK = 10;
   var paintDesks = function () {
-    var ds = desks();
-    deskEl.innerHTML = ds.map(function (d, i) {
+    var ds = desks(), shown = deskAll ? ds : ds.slice(0, DESK_ILK);
+    deskEl.innerHTML = shown.map(function (d, i) {
       var h = hoca[d.key] || {}, ex = d.ex, last = ex.length ? ex[ex.length - 1].grade : null, tgt = +(h.target || 70);
       var chips = [h.type ? TYPE[h.type] : '', h.diff ? DIFF[h.diff] : '', h.lang ? (h.lang === 'tr' ? 'TR' : 'EN') : '', h.sim ? 'süreli' : ''].filter(Boolean);
       var sticky = (h.who || h.note || chips.length) ? '<div class="sn-sticky"><b>' + esc(h.who || 'hocanın tarzı') + '</b>' + (chips.length ? '<span class="chips">' + chips.map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</span>' : '') + (h.note ? '<i>' + esc(h.note) + '</i>' : '') + '</div>' : '';
@@ -2859,9 +2864,14 @@ window.axNotify = function (title, opts) {
         '<div class="sn-dstat">' + mark + (ex.length > 1 ? spark(ex.slice(-8).map(function (x) { return +x.grade || 0; }), tgt) : '') + '</div></div>' + sticky + beads +
         '<div class="sn-dbtns"><button type="button" class="btn btn-blue" data-try="' + esc(d.key) + '">' + (ex.length ? 'deneme yap' : 'ilk deneme') + '</button><button type="button" class="sn-ghost sn-folderb" data-prof="' + esc(d.key) + '" aria-label="' + esc(d.name) + ' hoca dosyası" title="hoca dosyası"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3z"/><path d="M7 14h8"/></svg><span>hoca dosyası</span></button></div>' +
         '</div><div class="sn-legs" aria-hidden="true"></div><i class="sn-chair" aria-hidden="true"></i>' + (i % 2 === 0 ? '<i class="sn-pencil" aria-hidden="true"></i>' : '') + '</div>';
-    }).join('') + '<div class="sn-desk add" style="--i:' + ds.length + '"><div class="sn-top"><button type="button" data-add-desk=""><span class="pl" aria-hidden="true">+</span>' + (ds.length ? 'ders ağacından sıra aç' : 'ilk sıranı aç: ders ağacından bir ders seç') + '</button></div><div class="sn-legs" aria-hidden="true"></div></div>';
+    }).join('') + '<div class="sn-desk add" style="--i:' + shown.length + '"><div class="sn-top"><button type="button" data-add-desk=""><span class="pl" aria-hidden="true">+</span>' + (ds.length ? 'ders ağacından sıra aç' : 'ilk sıranı aç: ders ağacından bir ders seç') + '</button></div><div class="sn-legs" aria-hidden="true"></div></div>'
+      + (ds.length > DESK_ILK
+        ? '<div class="sn-dmore"><button type="button" class="sn-ghost" data-desk-all="">'
+          + (deskAll ? 'daha az göster' : 'devamını göster (' + (ds.length - DESK_ILK) + ')') + '</button></div>'
+        : '');
   };
   deskEl.addEventListener('click', function (e) {
+    if (e.target.closest('[data-desk-all]')) { deskAll = !deskAll; paintDesks(); return; }
     var t = e.target.closest('[data-try]'); if (t) { openBuild(t.getAttribute('data-try')); return; }
     var p = e.target.closest('[data-prof]'); if (p) { openProf(p.getAttribute('data-prof')); return; }
     if (e.target.closest('[data-add-desk]')) openBuild(null, 'course');
