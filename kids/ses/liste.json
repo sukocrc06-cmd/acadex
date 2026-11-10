@@ -1,6 +1,6 @@
 {
  "surum": 1,
- "uretildi": "2026-11-10T00:43:43.716Z",
+ "uretildi": "2026-11-10T00:47:54.753Z",
  "model": "eleven_multilingual_v2",
  "ses": {
   "en": "pFZP5JQG7iQjIQuC4Bku",
@@ -354,9 +354,9 @@
   "en:ten strawberries!": "en/ten-strawberries-f11c06.mp3",
   "en:ten flowers!": "en/ten-flowers-7be103.mp3",
   "en:nine.": "en/nine-fff027.mp3",
-  "tr:Hangi sınıftasın?": "tr/hangi-siniftasin-616ed4.mp3",
-  "tr:Sen hangisisin? Resmine dokun.": "tr/sen-hangisisin-resmine-dokun-3fd228.mp3",
   "tr:Gizli iki resmine sırayla dokun.": "tr/gizli-iki-resmine-sirayla-dokun-bcf371.mp3",
+  "tr:Sen hangisisin? Resmine dokun.": "tr/sen-hangisisin-resmine-dokun-3fd228.mp3",
+  "tr:Hangi sınıftasın?": "tr/hangi-siniftasin-616ed4.mp3",
   "tr:Biraz dinlenelim; birkaç dakika sonra yeniden dene.": "tr/biraz-dinlenelim-birkac-dakika-sonra-yen-59c8de.mp3",
   "tr:Okulunuzun Acadex Kids lisansı açık değil.": "tr/okulunuzun-acadex-kids-lisansi-acik-degi-d63b87.mp3",
   "tr:Bu ada yakında açılacak.": "tr/bu-ada-yakinda-acilacak-d8ec7d.mp3",
