@@ -4677,7 +4677,13 @@ var SBX = (function () {
     var uids = {}; rows.forEach(function (x) { uids[x.user_id] = 1; }); cms.forEach(function (c) { uids[c.user_id] = 1; });
     var ul = Object.keys(uids);
     if (ul.length) {
-      var pq = await sb().from('profiles').select('id, full_name, department, avatar_url, banner_url, bio, github_url, linkedin_url, website_url').in('id', ul);
+      /* public_profiles ŞART (10.11.2026 denetimi): profiles RLS'i yalnız kendi
+         satırını gösterir, doğrudan profiles sorgusu HATA VERMEDEN boş döner ve
+         paneldeki herkes "Bir öğrenci" + "?" olur. Görünüm dar kolon listesiyle
+         (email/student_number yok) bunu çözer: 20261110c_panel_profil_guvenlik.sql.
+         Görünüm henüz yoksa eski yola düşülür ki panel daha kötüye gitmesin. */
+      var pq = await sb().from('public_profiles').select('id, full_name, department, avatar_url, banner_url, bio, github_url, linkedin_url, website_url').in('id', ul);
+      if (pq && pq.error) pq = await sb().from('profiles').select('id, full_name, department, avatar_url, banner_url, bio, github_url, linkedin_url, website_url').in('id', ul);
       if (pq && pq.error) pq = await sb().from('profiles').select('id, full_name, department, avatar_url, bio, github_url, linkedin_url, website_url').in('id', ul); /* banner_url sütunu yoksa */
       ((pq && pq.data) || []).forEach(function (p) { PPL[p.id] = person(p, false); });
     }
@@ -4713,18 +4719,23 @@ var SBX = (function () {
   var react = async function (p, k) {
     var u = me(); if (!u) return;
     var was = p.myReact;
-    if (was) {
+    /* Ayni tepkiye ikinci tiklama = kaldirma. Degisim ise TEK upsert:
+       eski "sil + ekle" iki adimdi ve ikinci adim dusunce eski tepki
+       sunucudan da gitmis oluyordu (10.11.2026 denetimi). onConflict'in
+       guncelleme dali 20261110c'deki update politikasina dayanir. */
+    if (was === k) {
       var d = await sb().from('sandbox_project_likes').delete().eq('project_id', p.id).eq('user_id', u.id);
       if (d.error) throw d.error;
       p.reacts[was] = Math.max(0, (p.reacts[was] || 1) - 1); p.myReact = ''; p.likes = Math.max(0, p.likes - 1);
+      return;
     }
-    if (was === k) return;
     var row = { project_id: p.id, user_id: u.id }; if (feat.rx !== false) row.reaction = k;
-    var r = await sb().from('sandbox_project_likes').insert(row);
-    if (r.error && missing(r.error) && row.reaction) { feat.rx = false; delete row.reaction; r = await sb().from('sandbox_project_likes').insert(row); }
+    var r = await sb().from('sandbox_project_likes').upsert(row, { onConflict: 'project_id,user_id' });
+    if (r.error && missing(r.error) && row.reaction) { feat.rx = false; delete row.reaction; r = await sb().from('sandbox_project_likes').upsert(row, { onConflict: 'project_id,user_id', ignoreDuplicates: true }); }
     if (r.error) throw r.error;
     var kk = feat.rx === false ? 'ilham' : k;
-    p.reacts[kk] = (p.reacts[kk] || 0) + 1; p.myReact = kk; p.likes++;
+    if (was) p.reacts[was] = Math.max(0, (p.reacts[was] || 1) - 1); else p.likes++;
+    p.reacts[kk] = (p.reacts[kk] || 0) + 1; p.myReact = kk;
   };
   var comment = async function (p, text, label, parent) {
     var u = me(); if (!u) return null;
@@ -4995,7 +5006,7 @@ var SBX = (function () {
       '<span class="ek-ctl">' + ((p.snap || live) && !o.preview ? '<span class="ek-devs" role="group" aria-label="Önizleme boyutu"><button type="button" data-devb="desk" aria-pressed="true" aria-label="Masaüstü görünümü" title="masaüstü"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11" rx="1.5"/><path d="M9 19.5 H15 M12 16 V19.5"/></svg></button><button type="button" data-devb="phone" aria-pressed="false" aria-label="Telefon görünümü" title="telefon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="3.5" width="9" height="17" rx="2"/><path d="M11 17.5 H13"/></svg></button></span>' : '') + (live ? '<a href="' + X(live) + '" target="_blank" rel="noopener" aria-label="' + X(p.title) + ' yeni sekmede aç" title="yeni sekmede aç">↗</a>' : '') + (o.preview ? '' : '<button type="button" data-reload="" aria-label="Önizlemeyi yenile" title="yenile">↻</button>' + (p.snap || live ? '<button type="button" data-full="" aria-label="Tam ekran dene" title="tam ekran dene">⛶</button>' : '')) + '</span></div>' + view + '</div>' +
       (tl.length ? '<div class="ek-term" aria-label="Proje bilgisi"><span class="pr">$ git log --özet</span>' + tl.map(function (t, i) { return '<span class="ln" style="--d:' + i + '">' + t + '</span>'; }).join('') + '</div>' : '') +
       (repo && (live || p.snap || p.image) ? '<div data-gh="' + X(repo) + '"></div>' : '') +
-      '<div class="ek-tags">' + (p.kind ? '<span class="k">' + KINDS[p.kind] + '</span>' : '') + (p.tech || []).map(function (t) { return '<span>' + X(t) + '</span>'; }).join('') + '</div>' +
+      '<div class="ek-tags">' + (p.kind ? '<span class="k">' + (KINDS[p.kind] || X(p.kind)) + '</span>' : '') + (p.tech || []).map(function (t) { return '<span>' + X(t) + '</span>'; }).join('') + '</div>' +
       (o.preview ? '' :
       '<div class="ek-rsum" data-rsum="">' + (rtot ? '<span class="ic">' + Object.keys(REACT).filter(function (k) { return reacts[k]; }).map(function (k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + REACT[k].svg + '</svg>'; }).join('') + '</span>' + rtot + ' tepki' : 'ilk tepkiyi sen ver') + ' · <button type="button" data-cm="">' + (p.cm || []).length + ' inceleme</button></div>' +
       '<div class="ek-acts" role="group" aria-label="Tepkiler">' + Object.keys(REACT).map(function (k) { return '<button type="button" class="ek-r r-' + k + '" data-react="' + k + '" aria-pressed="' + (my === k) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + REACT[k].svg + '</svg><span>' + REACT[k].l + '</span><b>' + (reacts[k] || 0) + '</b></button>'; }).join('') +
@@ -5197,7 +5208,7 @@ var SBX = (function () {
     var list = visible(); feedEl.innerHTML = (F.by ? profCard(F.by) : '') + list.map(one).join(''); noneEl.hidden = !!list.length || !SBX.st.loaded; if (!list.length && SBX.st.loaded && !all().length) { noneEl.hidden = true; feedEl.innerHTML = '<div class="ef-empty hand" style="padding:30px 6px;font-size:22px;color:#6A7593">panel henüz boş. ilk projeyi sen paylaş: “gönderi hazırla”.</div>'; }
     var lm = Q('[data-loadmore]'); if (lm) lm.hidden = !SBX.st.more || !!(F.kind || F.tech || F.course || F.mode || F.by || F.dept);
     QA('.ek-post', feedEl).forEach(arm);
-    var bits = []; if (F.kind) bits.push(ETK.KINDS[F.kind]); if (F.tech) bits.push(F.tech); if (F.course) bits.push(F.course); if (F.mode === 'follow') bits.push('takip ettiklerin'); if (F.mode === 'saved') bits.push('kaydettiklerin'); if (F.by) bits.push(SBX.person(F.by === (SBX.me() || {}).id ? 'me' : F.by).n + ' projeleri'); if (F.dept) bits.push(Q('[data-dept] option[value="' + F.dept + '"]').textContent);
+    var bits = []; if (F.kind) bits.push(ETK.KINDS[F.kind] || F.kind); if (F.tech) bits.push(F.tech); if (F.course) bits.push(F.course); if (F.mode === 'follow') bits.push('takip ettiklerin'); if (F.mode === 'saved') bits.push('kaydettiklerin'); if (F.by) bits.push(SBX.person(F.by === (SBX.me() || {}).id ? 'me' : F.by).n + ' projeleri'); if (F.dept) { var dop = Q('[data-dept] option[value="' + F.dept + '"]'); bits.push(dop ? dop.textContent : F.dept); }
     fstate.textContent = bits.length ? 'süzgeç: ' + bits.join(' · ') + ' — ' + list.length + ' proje' : '';
   };
   var rePost = function (id, focusSel) { var old = feedEl.querySelector('[data-pid="' + id + '"]'), p = byId(id); if (!old || !p) return null; var w = document.createElement('div'); w.innerHTML = one(p); var n = w.firstChild; n.classList.add('in'); decorate(n, p); n.classList.add('noanim'); if (old.classList.contains('open')) n.classList.add('open'); old.parentNode.replaceChild(n, old); ETK.fillSnaps(n, byId); ETK.hydrateGh(n); ETK.watchFrames(n); if (openCm[id]) paintCms(n, p); if (reports[id]) markReported(n); if (focusSel) { var f = n.querySelector(focusSel); if (f) f.focus(); } return n; };
@@ -5208,7 +5219,7 @@ var SBX = (function () {
   var paintFilters = function () {
     var ps = all(), kinds = [], techs = [], courses = [];
     ps.forEach(function (p) { if (p.kind && kinds.indexOf(p.kind) < 0) kinds.push(p.kind); (p.tech || []).forEach(function (t) { if (techs.indexOf(t) < 0) techs.push(t); }); if (p.course && courses.indexOf(p.course) < 0) courses.push(p.course); });
-    Q('[data-kinds]').innerHTML = [''].concat(kinds).map(function (k) { return '<button type="button" data-fk="' + k + '" aria-pressed="' + (F.kind === k) + '">' + (k ? ETK.KINDS[k] : 'hepsi') + '</button>'; }).join('');
+    Q('[data-kinds]').innerHTML = [''].concat(kinds).map(function (k) { return '<button type="button" data-fk="' + X(k) + '" aria-pressed="' + (F.kind === k) + '">' + (k ? ETK.KINDS[k] || X(k) : 'hepsi') + '</button>'; }).join('');
     Q('[data-techs]').innerHTML = techs.map(function (t) { return '<button type="button" data-ft="' + X(t) + '" aria-pressed="' + (F.tech === t) + '">' + X(t) + '</button>'; }).join('');
     Q('[data-course]').innerHTML = '<option value="">tüm dersler</option>' + courses.map(function (c) { return '<option' + (F.course === c ? ' selected' : '') + '>' + X(c) + '</option>'; }).join('');
     QA('[data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', String(F.mode === b.getAttribute('data-mode'))); });
@@ -5219,7 +5230,7 @@ var SBX = (function () {
 
   root.addEventListener('click', function (e) {
     var b;
-    if ((b = e.target.closest('[data-fk]'))) { F.kind = b.getAttribute('data-fk'); paintFilters(); renderFeed(); Q('[data-fk="' + F.kind + '"]').focus(); return; }
+    if ((b = e.target.closest('[data-fk]'))) { F.kind = b.getAttribute('data-fk'); paintFilters(); renderFeed(); var kb = QA('[data-fk]').filter(function (x) { return x.getAttribute('data-fk') === F.kind; })[0]; if (kb) kb.focus(); return; }
     if ((b = e.target.closest('[data-ft]'))) { var t = b.getAttribute('data-ft'); F.tech = F.tech === t ? '' : t; paintFilters(); renderFeed(); var fb = QA('[data-ft]').filter(function (x) { return x.getAttribute('data-ft') === t; })[0]; if (fb) fb.focus(); return; }
     if ((b = e.target.closest('[data-mode]'))) { var m = b.getAttribute('data-mode'); F.mode = F.mode === m ? '' : m; paintFilters(); renderFeed(); return; }
     if (e.target.closest('[data-clear]')) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; Q('[data-dept]').value = ''; paintFilters(); renderFeed(); return; }
@@ -5254,12 +5265,12 @@ var SBX = (function () {
     };
     step();
   };
-  var afterCompose = function (p) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; Q('[data-dept]').value = ''; paintAll(); if (p.status === 'draft') { say('Taslak saklandı; sağdaki “taslaklarım”da.'); return; } var el = feedEl.querySelector('[data-pid="' + p.id + '"]'); if (el) { el.classList.remove('pre'); el.classList.add('in', 'fresh'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el); deployIn(el, p); el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); var h = el.querySelector('h3'); h.setAttribute('tabindex', '-1'); setTimeout(function () { h.focus({ preventScroll: true }); }, 300); } say('Gönderin panelde yayında.'); };
+  var afterCompose = function (p) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; Q('[data-dept]').value = ''; paintAll(); if (p.status === 'draft') { say('Taslak saklandı; sağdaki “taslaklarım”da.'); return; } var el = feedEl.querySelector('[data-pid="' + p.id + '"]'); if (el) { el.classList.remove('pre'); el.classList.add('in', 'fresh'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el); deployIn(el, p); el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); var h = el.querySelector('h3'); if (h) { h.setAttribute('tabindex', '-1'); setTimeout(function () { h.focus({ preventScroll: true }); }, 300); } } say('Gönderin panelde yayında.'); };
   var goTo = function (id) {
     if (!feedEl.querySelector('[data-pid="' + id + '"]')) { F = { kind: '', tech: '', course: '', mode: '', by: '', dept: '' }; paintFilters(); renderFeed(); }
     var el = feedEl.querySelector('[data-pid="' + id + '"]'); if (!el) return; el.classList.remove('pre'); el.classList.add('in'); ETK.fillSnaps(el, byId); ETK.hydrateGh(el); ETK.watchFrames(el);
     el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' }); el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1600);
-    var h = el.querySelector('h3'); h.setAttribute('tabindex', '-1'); setTimeout(function () { h.focus({ preventScroll: true }); }, calm ? 0 : 450);
+    var h = el.querySelector('h3'); if (h) { h.setAttribute('tabindex', '-1'); setTimeout(function () { h.focus({ preventScroll: true }); }, calm ? 0 : 450); }
   };
 
   /* post interactions */
@@ -5292,7 +5303,7 @@ var SBX = (function () {
       var showNo = function () { v.classList.add('ek-nofrv'); v.innerHTML = ETK.noFrame(url, ph, p.by === 'me'); ETK.armShot(v); };
       var c0 = null; try { c0 = JSON.parse(localStorage.getItem('acadex.sbx.frame.' + ETK.host(url))); } catch (er) {}
       if (c0 && c0.e === false && Date.now() - c0.t < 6 * 3600e3) { showNo(); return; }
-      v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" loading="eager"></iframe></div>' + ETK.liveBar(url); v.removeAttribute('data-ro'); ETK.watchFrames(post);
+      v.innerHTML = '<div class="ek-stage"><iframe class="ek-frame" title="' + X(p.title) + ' canlı" src="' + X(url) + '" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer" loading="eager"></iframe></div>' + ETK.liveBar(url); v.removeAttribute('data-ro'); ETK.watchFrames(post);
       v._showNo = showNo;
       ETK.frameCheck(url).then(function (ok) {
         if (!v.isConnected || !v.querySelector('iframe.ek-frame')) return;
@@ -5352,7 +5363,7 @@ var SBX = (function () {
   /* ---------- yükleme ---------- */
   var loading = false;
   var reload = function () {
-    if (loading) return; loading = true; if (!SBX.st.loaded) { fstate.textContent = 'akış yükleniyor…'; }
+    if (loading) return Promise.resolve(); loading = true; if (!SBX.st.loaded) { fstate.textContent = 'akış yükleniyor…'; }
     feedEl.classList.add('ef-pend');
     return SBX.loadPosts().then(function () { saved = G(SBX.uk('etk.saved'), []); hidden = G(SBX.uk('etk.hidden'), []); reports = G(SBX.uk('etk.reports'), {}); loading = false; feedEl.classList.remove('ef-pend'); fstate.textContent = ''; paintAll(); afterLoad(); },
       function (er) { loading = false; feedEl.classList.remove('ef-pend'); console.warn('acadex-ink: proje akışı yüklenemedi', er); fstate.textContent = ''; feedEl.innerHTML = '<p class="hand" style="font-size:21px;color:#C9483B">akış yüklenemedi. sayfayı yenileyip tekrar dene.</p>'; });
