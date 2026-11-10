@@ -41,4 +41,43 @@ test('önizleme kum havuzunda; canlı bağlantı Acadex\'in kendi adresi olamaz'
   assert.match(ink, /return lu\.origin === location\.origin \? '' : lu\.href;/);
 });
 
+test('TESLİM DENETİMİ: teslimden önce kod gerçekten çalıştırılır (10.11.2026)', () => {
+  /* Eski teslim öz-beyandı: düğme yalnızca status='teslim' yazıyordu. Artık
+     teslimden önce proje çalıştırılıp rapor çıkar; öğrenci geçti/kaldı +
+     nedenini görür, rapor meta.denetim'de saklanır, rafta rozet olur. */
+  // (a) Doğrudan işaretleyen eski yol KALKTI, denetim araya girdi.
+  assert.ok(!ink.includes("addEventListener('click', function () { commitTyping(); var last = P.versions[P.versions.length - 1]; if (!last || changedSince(last)) commit('teslim');"),
+    'eski öz-beyan teslim yolu geri gelmiş');
+  assert.ok(ink.includes('teslimDenetimi().then(function (sn)'), 'teslim düğmesi denetimi beklemiyor');
+  assert.ok(ink.includes("tsDlg.returnValue === 'ok' && P) teslimEt()"), 'rapor onaylanmadan teslim edilmemeli');
+  // (b) Konsol kancası: denetim penceresi açıkken olaylar kayda da düşer.
+  assert.ok(ink.includes('if (TSD.kayit) TSD.kayit.push('), 'log() denetim kancası taşımıyor');
+  // (c) Beklenen değerler ÖLÇÜLDÜ (başlangıç çözümleri gerçek CSV'lere karşı
+  //     koşturuldu, korelasyon elle doğrulandı) — değişirse bilerek değişsin.
+  assert.ok(ink.includes('deger: [120, 81745, 75795, 68720, 52335]'), 'sales beklenenleri değişmiş');
+  assert.ok(ink.includes('deger: [120, 15.88, 74.08, 0.968]'), 'student beklenenleri değişmiş');
+  assert.ok(ink.includes('deger: [57.1, 5.3, 12.1]'), 'churn beklenenleri değişmiş');
+  // (d) Tolerans: 0.968'i 0.97 yazan öğrenci geçmeli, 57 de 57.1'i karşılamalı.
+  const tolSrc = ink.match(/var degerVar = function \(nums, v\) \{ (.*?) \};/);
+  assert.ok(tolSrc, 'degerVar yok');
+  const degerVar = new Function('nums', 'v', tolSrc[1].replace(/^var tol/, 'var tol') + '');
+  assert.ok(degerVar([0.97], 0.968), '0.97 yuvarlaması 0.968 için kabul edilmiyor');
+  assert.ok(degerVar([57], 57.1), '57, %57.1 için kabul edilmiyor');
+  assert.ok(!degerVar([81000], 81745), '81000 yanlış değeri 81745 sayılıyor — tolerans fazla gevşek');
+  // (e) İki para biçimi de okunur: 81,745.00 ve 81.745,00.
+  const cekSrc = ink.match(/var sayilariCek = function \(metin\) \{([\s\S]*?)\n  \};/);
+  assert.ok(cekSrc, 'sayilariCek yok');
+  const sayilariCek = new Function('metin', cekSrc[1] + '\n return out;');
+  assert.ok(sayilariCek('toplam 81,745.00 TL').includes(81745), 'EN biçimi okunmuyor');
+  assert.ok(sayilariCek('toplam 81.745,00 TL').includes(81745), 'TR biçimi okunmuyor');
+  // (f) Rapor saklanır ve rafta görünür.
+  assert.ok(ink.includes("denetim: m.denetim || null"), 'fromRow denetimi okumuyor');
+  assert.ok(ink.includes("denetim: p.denetim || null"), 'toRow denetimi yazmıyor');
+  assert.ok(ink.includes('teslim denetiminden geçti'), 'raf rozeti yok');
+  // (g) Rapor penceresi dashboard.html'de.
+  assert.ok(html.includes('data-tsdlg=""'), 'teslim denetimi penceresi yok');
+  assert.ok(html.includes('data-tsgo=""'), 'teslim et düğmesi yok');
+  assert.ok(html.includes('data-tslist=""'), 'rapor listesi yok');
+});
+
 summary();

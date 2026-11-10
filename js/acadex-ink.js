@@ -4831,8 +4831,8 @@ var SBX = (function () {
   /* ---------- kod projeleri ---------- */
   var ws = { list: null, synced: {}, t: 0, busy: false };
   var wsKey = function () { return uk('dev.projects'); };
-  var fromRow = function (r) { var m = r.meta || {}; return { id: r.id, name: r.name, status: r.status || 'taslak', course: r.course || '', due: r.due || '', files: r.files || {}, versions: r.versions || [], open: m.open || [], cur: m.cur || '', created: Date.parse(r.created_at) || Date.now(), updated: Date.parse(r.updated_at) || Date.now() }; };
-  var toRow = function (p) { return { id: p.id, user_id: me().id, name: p.name || 'Adsız proje', status: p.status || 'taslak', course: p.course || null, due: p.due || null, files: p.files || {}, versions: p.versions || [], meta: { open: p.open || [], cur: p.cur || '' }, created_at: new Date(p.created || Date.now()).toISOString(), updated_at: new Date(p.updated || Date.now()).toISOString() }; };
+  var fromRow = function (r) { var m = r.meta || {}; return { id: r.id, name: r.name, status: r.status || 'taslak', course: r.course || '', due: r.due || '', files: r.files || {}, versions: r.versions || [], open: m.open || [], cur: m.cur || '', denetim: m.denetim || null, created: Date.parse(r.created_at) || Date.now(), updated: Date.parse(r.updated_at) || Date.now() }; };
+  var toRow = function (p) { return { id: p.id, user_id: me().id, name: p.name || 'Adsız proje', status: p.status || 'taslak', course: p.course || null, due: p.due || null, files: p.files || {}, versions: p.versions || [], meta: { open: p.open || [], cur: p.cur || '', denetim: p.denetim || null }, created_at: new Date(p.created || Date.now()).toISOString(), updated_at: new Date(p.updated || Date.now()).toISOString() }; };
   var wsLoad = async function () {
     var local = G(wsKey(), []); if (!Array.isArray(local)) local = [];
     ws.list = local;
@@ -5525,6 +5525,7 @@ var SBX = (function () {
         '<h3 id="pc-' + pr.id + '">' + X(pr.name) + '</h3><p class="meta">' + Object.keys(pr.files).length + ' dosya · ' + (pr.versions || []).length + ' durak · son değişiklik ' + fmtT(pr.updated) + (pr.course ? ' · ' + X(pr.course) : '') + '</p>' +
         miniSchema(pr) + '<div class="chips">' + langs(pr).map(function (l) { return '<span>' + l + '</span>'; }).join('') + '</div>' +
         (dt ? '<p class="due' + (d != null && d <= 3 && pr.status !== 'teslim' ? ' soon' : '') + '">⏱ ' + dt + '</p>' : '') +
+        (pr.denetim ? '<p class="due' + (pr.denetim.ok ? '' : ' soon') + '">' + (pr.denetim.ok ? '✓ teslim denetiminden geçti' : '△ denetimde eksik vardı') + '</p>' : '') +
         (posted(pr.id) ? '<button type="button" class="dv-live" data-golivep="' + posted(pr.id).id + '">● panelde yayında</button>' : '') + '<div class="acts"><button type="button" class="btn btn-dark" data-open="' + pr.id + '">aç</button><button type="button" class="dv-ghost" data-cshare="' + pr.id + '">panele gönder</button><button type="button" class="dv-ghost" data-czip="' + pr.id + '">.zip</button><button type="button" class="dv-ghost" data-cdel="' + pr.id + '" aria-label="' + X(pr.name) + ' projesini sil">sil</button></div></article>';
     }).join('');
   };
@@ -5824,7 +5825,8 @@ var SBX = (function () {
     if (anim && !calm) { framew.classList.remove('run'); void framew.offsetWidth; framew.classList.add('run'); }
   };
   window.addEventListener('message', function (e) { if (!e.data || !e.data.acadexDev || e.source !== frame.contentWindow) return; log(e.data.t, e.data.a); });
-  var log = function (t, a) { cons.push({ t: t === 'log' || t === 'info' ? 'log' : t, a: a, at: Date.now() }); if (t === 'error') lastErr++; if (cons.length > 400) cons.shift(); paintCons(); };
+  /* TSD.kayit doluyken her konsol olayi oraya da yazilir (teslim denetimi). */
+  var log = function (t, a) { var nt = t === 'log' || t === 'info' ? 'log' : t; cons.push({ t: nt, a: a, at: Date.now() }); if (TSD.kayit) TSD.kayit.push({ t: nt, a: String(a == null ? '' : a) }); if (t === 'error') lastErr++; if (cons.length > 400) cons.shift(); paintCons(); };
   var paintCons = function () {
     consEl.innerHTML = cons.map(function (c) { var m = /@([^\s:]+):(\d+)$/.exec(c.a) || /line (\d+)/.exec(c.a); var go = m ? ' <button type="button" data-goline="' + X(m.length > 2 ? m[1] + '|' + m[2] : (P && P.cur || '') + '|' + m[1]) + '">satıra git</button>' : ''; return '<li class="' + (c.t === 'error' ? 'err' : c.t === 'warn' ? 'warn' : c.t === 'sys' ? 'sys' : '') + '">' + X(c.a) + go + '</li>'; }).join('');
     consEl.scrollTop = consEl.scrollHeight;
@@ -6054,7 +6056,109 @@ var SBX = (function () {
     Q('[data-check]').innerHTML = items.map(function (it) { return '<li class="' + (it[1] ? 'ok' : '') + '"><i aria-hidden="true"></i>' + it[0] + '<span class="vh">' + (it[1] ? ': tamam' : ': eksik') + '</span>' + (it[1] ? '' : '<small>' + it[2] + '</small>') + '</li>'; }).join('');
     var del = Q('[data-deliver]'); del.textContent = P.status === 'teslim' ? 'teslim edildi ✓' : 'teslim edildi olarak işaretle'; del.disabled = P.status === 'teslim';
   };
-  Q('[data-deliver]').addEventListener('click', function () { commitTyping(); var last = P.versions[P.versions.length - 1]; if (!last || changedSince(last)) commit('teslim'); P.status = 'teslim'; Q('[data-status]').value = 'teslim'; dirty(); saveNow(); paintChecks(); paintDue(); say('Proje teslim edildi olarak işaretlendi; son hâl “teslim” durağında.'); });
+  /* ================= TESLIM DENETIMI (10.11.2026) =================
+     Eski teslim OZ-BEYANDI: dugme yalnizca status='teslim' yaziyordu, kod hic
+     calistirilmadan "teslim edildi" denebiliyordu. Artik teslimden once proje
+     GERCEKTEN calistirilir (HTML -> onizleme + BRIDGE konsolu, Python ->
+     Pyodide) ve ogrenci aninda gecti/kaldi + neden gorur. Ogretmen yok;
+     rapor baglayici degil ("yine de teslim et" acik) ama projeyle birlikte
+     SAKLANIR (sandbox_workspaces.meta.denetim) ve rafta rozet olur.
+
+     DS_BEKLENEN: uc hazir veri setinin DOGRU cevaplari. Uydurma degil,
+     10.11.2026'da olculdu: baslangic cozumleri (DSPY) gercek CSV'lere karsi
+     yerelde kosturuldu. student_performance'taki korelasyon elle dogrulandi
+     (statistics.correlation Python 3.10+; Pyodide 0.26.4 = 3.12, sorun yok).
+     Ay cirolari BILEREK listede yok: ogrenci yalniz bolge kirilimini yazsa
+     da alistirmanin ozunu cozmustur, yanlis "kaldi" uretmeyelim. */
+  var TSD = { kayit: null };
+  var DS_BEKLENEN = {
+    'sales_dataset.csv': { soru: 'bölge ciroları', deger: [120, 81745, 75795, 68720, 52335] },
+    'student_performance_dataset.csv': { soru: 'ortalamalar ve korelasyon', deger: [120, 15.88, 74.08, 0.968] },
+    'customer_churn_dataset.csv': { soru: 'sözleşme türüne göre kayıp oranı', deger: [57.1, 5.3, 12.1] }
+  };
+  /* "81,745.00" da "81.745,00" da 81745 okunmali: iki okuma da aday olur. */
+  var sayilariCek = function (metin) {
+    var out = [], m, re = /-?\d[\d.,]*/g;
+    while ((m = re.exec(metin))) {
+      var t = m[0].replace(/[.,]+$/, '');
+      var en = parseFloat(t.replace(/,/g, ''));
+      if (isFinite(en)) out.push(en);
+      var tr = parseFloat(t.replace(/\./g, '').replace(',', '.'));
+      if (isFinite(tr) && tr !== en) out.push(tr);
+    }
+    return out;
+  };
+  /* Tolerans: binde 5 ya da 0.021 — ogrenci 0.968'i 0.97 diye yuvarlarsa gecer. */
+  var degerVar = function (nums, v) { var tol = Math.max(Math.abs(v) * 0.005, 0.021); return nums.some(function (n) { return Math.abs(n - v) <= tol; }); };
+  var dsAdi = function () { var ad = ''; Object.keys(DS_BEKLENEN).forEach(function (k) { if (P.files.hasOwnProperty(k)) ad = k; }); return ad; };
+  var degerlendir = function (kayit, zamanAsti, girisYok) {
+    var hatalar = kayit.filter(function (x) { return x.t === 'error'; });
+    var ciktilar = kayit.filter(function (x) { return x.t === 'log'; });
+    var sayfa = pageOf(), ds = dsAdi(), last = (P.versions || [])[P.versions.length - 1];
+    var items = [
+      ['çalışan bir giriş dosyası var', !girisYok, '.html ya da .py ekle'],
+      ['çalıştırma hatasız bitti', !girisYok && !zamanAsti && !hatalar.length,
+        zamanAsti ? 'zaman aşımı: kod bitmedi ya da çalıştırma onaylanmadı' : (hatalar[0] ? String(hatalar[0].a).slice(0, 90) : 'önce çalıştırıp konsola bak')]
+    ];
+    if (!sayfa) items.push(['kod çıktı üretti', ciktilar.length > 0, 'print ile sonucu konsola yazdır']);
+    if (ds) {
+      var tum = sayilariCek(ciktilar.map(function (x) { return x.a; }).join('\n'));
+      var eksik = DS_BEKLENEN[ds].deger.filter(function (v) { return !degerVar(tum, v); });
+      items.push(['alıştırma sonuçları doğru: ' + DS_BEKLENEN[ds].soru, !eksik.length,
+        eksik.length ? 'çıktıda bulunamayan değerler: ' + eksik.join(', ') : '']);
+    }
+    items.push(
+      ['README.md var', Object.keys(P.files).some(function (x) { return /(^|\/)readme\.md$/i.test(x); }), 'Acadia → README yaz'],
+      ['son hâl durakta kayıtlı', !!last && !changedSince(last), 'durak ekle'],
+      ['ders ve teslim tarihi girildi', !!(P.course && P.due), 'yukarıdaki alanlar']
+    );
+    return { at: Date.now(), ok: items.every(function (it) { return it[1]; }), items: items.map(function (it) { return { k: it[0], ok: !!it[1], info: it[1] ? '' : it[2] }; }) };
+  };
+  var teslimDenetimi = function () {
+    return new Promise(function (res) {
+      commitTyping();
+      var py = paths(P).filter(function (x) { return ext(x) === 'py'; })[0], sayfa = pageOf();
+      if (!sayfa && !py) { res(degerlendir([], false, true)); return; }
+      var basla = function (bitti, sure) {
+        TSD.kayit = [];
+        var t0 = Date.now(), tik = setInterval(function () {
+          var k = TSD.kayit || [];
+          if (bitti(k) || Date.now() - t0 > sure) { clearInterval(tik); TSD.kayit = null; res(degerlendir(k, Date.now() - t0 > sure)); }
+        }, 250);
+      };
+      if (sayfa) {
+        /* HTML icin sabit pencere: BRIDGE hazir/bitti sinyali tasimiyor,
+           3,5 saniyede dusen hata saymak pratikte yeterli. */
+        cons.push({ t: 'sys', a: '— teslim denetimi: ' + sayfa + ' —' }); paintCons();
+        basla(function () { return false; }, 3500);
+        refreshPreview(true); outTab('prev');
+      } else {
+        /* Python: runPython bitince '— bitti —' ya da error basar. Pyodide ilk
+           inmede uzun surebilir (onay penceresi + ~10 MB), sure genis tutulur;
+           ogrenci onayi reddederse zaman asimi raporu doner. */
+        basla(function (k) { return k.some(function (x) { return (x.t === 'sys' && x.a.indexOf('bitti') > -1) || x.t === 'error'; }); }, pyodide ? 30000 : 120000);
+        runPython(py);
+      }
+    });
+  };
+  var tsDlg = Q('[data-tsdlg]');
+  var teslimEt = function () { var last = P.versions[P.versions.length - 1]; if (!last || changedSince(last)) commit('teslim'); P.status = 'teslim'; Q('[data-status]').value = 'teslim'; dirty(); saveNow(); paintChecks(); paintDue(); say('Proje teslim edildi olarak işaretlendi; son hâl “teslim” durağında.'); };
+  Q('[data-deliver]').addEventListener('click', function (e) {
+    var b = e.currentTarget; if (TSD.kayit) return;
+    b.disabled = true; b.textContent = 'denetleniyor…';
+    teslimDenetimi().then(function (sn) {
+      b.disabled = P.status === 'teslim'; b.textContent = 'teslim edildi olarak işaretle';
+      if (!P) return;
+      P.denetim = sn; dirty(); saveNow(); renderCards();
+      Q('[data-tssum]').textContent = sn.ok
+        ? 'Her şey yerinde: proje çalıştı ve bütün kontrollerden geçti.'
+        : 'Bazı kontroller geçmedi. Yine de teslim edebilirsin; rapor projeyle birlikte saklanır.';
+      Q('[data-tslist]').innerHTML = sn.items.map(function (it) { return '<li class="' + (it.ok ? 'ok' : '') + '"><i aria-hidden="true"></i>' + X(it.k) + '<span class="vh">' + (it.ok ? ': tamam' : ': eksik') + '</span>' + (it.ok ? '' : '<small>' + X(it.info) + '</small>') + '</li>'; }).join('');
+      var go = Q('[data-tsgo]'); go.textContent = sn.ok ? 'teslim et' : 'yine de teslim et';
+      openDlg(tsDlg, b);
+      tsDlg.onclose = function () { if (tsDlg.returnValue === 'ok' && P) teslimEt(); tsDlg.returnValue = ''; };
+    });
+  });
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && pop) closePop(true); });
   window.addEventListener('beforeunload', function () { if (P) { commitTyping(); SBX.wsPersist(); } });
