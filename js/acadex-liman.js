@@ -20,15 +20,15 @@
   var logOf = function () { return lsafe(function () { var o = JSON.parse(localStorage.getItem('acadex.finans.log') || 'null'); return o && o.tabs ? o : { tabs: {} }; }, { tabs: {} }); };
   var seenGet = function () { return lsafe(function () { return JSON.parse(localStorage.getItem('acadex.liman.seen') || 'null'); }, null); };
   var seenSet = function (a) { try { localStorage.setItem('acadex.liman.seen', JSON.stringify(a)); } catch (e) {} };
-  /* panel anahtarı (zaman, sirket-sim, istat-galton) → defter anahtarı (finans.zaman, sirket.sim, istat.galton) */
-  var logKey = function (k) { return /^sirket-/.test(k) ? 'sirket.' + k.slice(7) : /^istat-/.test(k) ? 'istat.' + k.slice(6) : 'finans.' + k; };
+  /* panel anahtarı (zaman, sirket-sim) → defter anahtarı (finans.zaman, sirket.sim) */
+  var logKey = function (k) { return /^sirket-/.test(k) ? 'sirket.' + k.slice(7) : 'finans.' + k; };
   var stations = function () {
     var seen = {}, out = [];
     Array.prototype.forEach.call(sec.querySelectorAll('[data-finans-open]'), function (b) {
       if (panel.contains(b) || b.hasAttribute('data-lm-skip')) return;
       var k = b.getAttribute('data-finans-open'); if (seen[k]) return; seen[k] = 1;
       var li = b.closest('li'), cc = (li && li.style.getPropertyValue('--cc')) || '#2F6FB0';
-      var name = /^sirket-/.test(k) ? (W.AX_SIRKET || {})[k.slice(7)] : /^istat-/.test(k) ? (W.AX_ISTAT || {})[k.slice(6)] : (W.AX_FINANS || {})[k];
+      var name = /^sirket-/.test(k) ? (W.AX_SIRKET || {})[k.slice(7)] : (W.AX_FINANS || {})[k];
       out.push({ k: k, b: b, cc: cc.trim(), name: name || k, kat: /^sirket-/.test(k) });
     });
     return out;
@@ -89,16 +89,6 @@
       var txt = !r || !r.v ? 'yeni' : r.best != null ? '%' + r.best + (r.best >= 85 ? ' ✓' : '') : 'açıldı';
       tag.textContent = txt; tag.className = 'lm-tag' + (!r || !r.v ? ' is-new' : r.best != null && r.best >= 85 ? ' is-ok' : r.best != null ? ' is-try' : ' is-open');
     });
-    /* gözlemevindeki 28 yıldızlı yol şeridi: hafta noktası istasyon karnesi %85+ ise yanar, açıldıysa yarı parlar; elmaslar vize provası */
-    var yol = sec.querySelector('.axf-yol');
-    if (yol) {
-      var ex = lsafe(function () { return JSON.parse(localStorage.getItem('acadex.finans.istat.sinav') || '{}') || {}; }, {}), lit = 0;
-      Array.prototype.forEach.call(yol.querySelectorAll('.axf-ydots i'), function (d) {
-        var k = d.getAttribute('data-w'), r = k ? log.tabs[k] : ex[d.getAttribute('data-x')], on = !!(r && r.best != null && r.best >= 85);
-        d.classList.toggle('on', on); d.classList.toggle('seen', !on && !!(r && (r.v || r.best != null))); if (on) lit++;
-      });
-      var yn = yol.querySelector('[data-yol-n]'); if (yn) yn.textContent = lit + ' / 28';
-    }
     if (fresh.length && !RM) { panel.classList.remove('lm-load'); void panel.offsetWidth; panel.classList.add('lm-load'); setTimeout(function () { panel.classList.remove('lm-load'); }, 1800 + fresh.length * 250); }
     seenSet(opened.map(function (o) { return o.k; }));
   };

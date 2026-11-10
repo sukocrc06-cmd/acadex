@@ -9,7 +9,7 @@
      - Kayıt yalnızca bu tarayıcıda; ağ isteği yok.
      - Panodaki "devam" / "öneri" düğmeleri panelin mevcut açma düğmesi
        (data-finans-open) ile çalışır; ayrı açma kodu yok.
-     - Her istasyon (8 finans + 7 şirket katı + 9 istatistik gözlemevi, 03.11.2026) gemide bir yuva.
+     - Her istasyon (8 finans + 7 şirket katı; istatistik gözlemevi 11.11.2026’da kaldırıldı) gemide bir yuva.
    Çalıştırma:  node tests/finans-liman.js
    ========================================================================== */
 'use strict';
@@ -26,7 +26,7 @@ const app = read('labs/finans/fn-app.js'), js = read('js/acadex-liman.js'), css 
 test('sayfaya bağlı; finans panelinden sonra yüklenir', () => {
   assert.match(html, /<link rel="stylesheet" href="css\/acadex-liman\.css">/);
   assert.match(html, /<script src="js\/acadex-finans\.js"><\/script>\n<script src="js\/acadex-liman\.js"><\/script>/);
-  assert.equal(new Set([...html.matchAll(/data-finans-open="([a-z-]+)"/g)].map((m) => m[1])).size, 29); // 04.11.2026: istatistik v2 (+4 istasyon, +yol şeridi)
+  assert.equal(new Set([...html.matchAll(/data-finans-open="([a-z-]+)"/g)].map((m) => m[1])).size, 15); // 11.11.2026: istatistik gözlemevi kaldırıldı (8 finans + 7 şirket)
 });
 
 test('lab defteri: açılış, süre ve karne; tekrar çizilen karne bir kez sayılır', () => {
