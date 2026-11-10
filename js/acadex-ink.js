@@ -2751,6 +2751,8 @@ window.axNotify = function (title, opts) {
   var loadData = function () {
     if (!me() || !sb()) return Promise.resolve();
     if (loading) return loading;
+    /* Kartlar/sınavlar yenileniyor: kavram → kaynak önbelleği bayatladı. */
+    srcSifirla();
     loading = Promise.all([
       sb().from('exams').select('*, study_cards(course_tag, documents(file_name))').eq('user_id', me().id).not('completed_at', 'is', null).order('completed_at', { ascending: true }).limit(300),
       sb().from('study_events').select('*').eq('user_id', me().id).eq('event_type', 'exam').order('event_date', { ascending: true }),
@@ -3852,6 +3854,104 @@ window.axNotify = function (title, opts) {
      tümü; tekrar zamanı gelenler ve en zayıflar başta. */
   var mastEl = $('[data-mastery]'), mastSum = $('[data-mast-sum]'), mastGo = $('[data-mast-go]'), mastRev = $('[data-mrev]'), mastAll = false, revList = [];
   var LV_CLS = ['lo', 'mid', 'ok', 'top'];
+  /* ==========================================================================
+     ZAYIF KONUDA "NOTUNU AÇ" (10.11.2026)
+
+     Ustalık haritasında zaten "bu konudan deneme" vardı; eksik olan tek şey
+     içeriğe DÖNÜŞ yoluydu. Kaynak: concept_study_sources (20261101c).
+
+     NEDEN BURADA: js/dashboard.js -> loadWeakConceptMap görünmüyor;
+     #exam-weak-concepts-list dashboard.html'de display:none bir kabın içinde.
+     Ekrana çizen yol burası. tests/kavram-kaynaklari.js bunu denetliyor.
+
+     TEK TOPLU ÇAĞRI: satır başına RPC atılmaz. Düğme çıkan kavramlar
+     (level <= 1 ya da due) tek istekte sorulur, sonuç kavram adına göre
+     önbelleğe alınır, loadData yenileyince temizlenir.
+
+     EŞLEŞME SIRASI: önce bu masanın kartları içinden 'exact', yoksa yine
+     masa içinden 'contains', ders masasında genel 'exact'. Masa dışında
+     'contains' KABUL EDİLMEZ — "faiz" gibi kısa kavramlar her şeyi yakalar.
+
+     HATA SESSİZ: RPC düşerse yalnız deneme düğmesi görünür, harita bozulmaz
+     ve istek tekrarlanmaz (srcHata). */
+  var SRC = {}, srcBusy = false, srcHata = false;
+  var srcSifirla = function () { SRC = {}; srcHata = false; };
+
+  var srcYukle = function (rows) {
+    if (srcBusy || srcHata || !sb() || !me()) return;
+    var eksik = [];
+    rows.forEach(function (c) {
+      if (!(c.level <= 1 || c.due)) return;
+      if (Object.prototype.hasOwnProperty.call(SRC, c.name)) return;
+      if (eksik.indexOf(c.name) < 0) eksik.push(c.name);
+    });
+    if (!eksik.length) return;
+    srcBusy = true;
+    sb().rpc('concept_study_sources', { p_concepts: eksik }).then(function (r) {
+      srcBusy = false;
+      if (r.error) { srcHata = true; return; }
+      var g = {};
+      (r.data || []).forEach(function (x) { (g[x.istenen] = g[x.istenen] || []).push(x); });
+      eksik.forEach(function (ad) { SRC[ad] = g[ad] || []; });
+      paintReport();
+    }, function () { srcBusy = false; srcHata = true; });
+  };
+
+  var srcSec = function (c) {
+    var l = SRC[c.name];
+    if (!l || !l.length) return null;
+    var kartlar = (c.desk && c.desk.cards) || [];
+    var icinde = function (x) { return kartlar.indexOf(x.study_card_id) > -1; };
+    var s = l.filter(function (x) { return icinde(x) && x.match_kind === 'exact'; })[0]
+         || l.filter(function (x) { return icinde(x) && x.match_kind === 'contains'; })[0];
+    if (s) return s;
+    if (c.desk && c.desk.code) return l.filter(function (x) { return x.match_kind === 'exact'; })[0] || null;
+    return null;
+  };
+
+  /* OKUMA OTURUMU — concept_study_opens (20261110).
+     Satır AÇILIŞTA eklenir, süre KAPANIŞTA güncellenir: sekmeyi kapatan
+     öğrencinin açılışı yine kaydedilsin. Yalnızca GÖRÜNÜR süre sayılır
+     (gizli sekmede sayaç durur), üst sınır 1800 sn, ölçülemeyen süre NULL
+     kalır — 0 YAZILMAZ (sınav süre raporundaki PR #89 hatası tam buydu). */
+  var OKU = null;
+  var okuKapat = function () {
+    if (!OKU) return;
+    var o = OKU; OKU = null;
+    if (o.gorunurdu) { o.sn += (Date.now() - o.gorunurdu) / 1000; o.gorunurdu = 0; }
+    document.removeEventListener('visibilitychange', o.gorunurluk);
+    window.removeEventListener('pagehide', o.kapat);
+    if (o.gozlemci) o.gozlemci.disconnect();
+    var sn = Math.round(o.sn);
+    if (!o.id || !(sn > 0) || !sb()) return;
+    sb().from('concept_study_opens').update({ visible_seconds: Math.min(1800, sn) })
+      .eq('id', o.id).then(function () {}, function () {});
+  };
+  var okuBasla = function (meta) {
+    okuKapat();
+    var o = { id: null, sn: 0, gorunurdu: document.visibilityState === 'visible' ? Date.now() : 0 };
+    o.gorunurluk = function () {
+      if (document.visibilityState === 'visible') { if (!o.gorunurdu) o.gorunurdu = Date.now(); }
+      else if (o.gorunurdu) { o.sn += (Date.now() - o.gorunurdu) / 1000; o.gorunurdu = 0; }
+    };
+    o.kapat = function () { okuKapat(); };
+    document.addEventListener('visibilitychange', o.gorunurluk);
+    window.addEventListener('pagehide', o.kapat);
+    var m = document.getElementById('study-card-modal');
+    if (m && window.MutationObserver) {
+      o.gozlemci = new MutationObserver(function () { if (!m.classList.contains('active')) okuKapat(); });
+      o.gozlemci.observe(m, { attributes: true, attributeFilter: ['class'] });
+    }
+    OKU = o;
+    if (!sb() || !me()) return;
+    sb().from('concept_study_opens').insert({
+      concept: meta.concept, study_card_id: meta.card || null,
+      document_id: meta.doc || null, match_kind: meta.kind || null
+    }).select('id').single().then(function (r) {
+      if (!r.error && r.data && OKU === o) o.id = r.data.id;
+    }, function () {});
+  };
+
   var paintMastery = function (ds) {
     if (!mastEl) return;
     var eng = ENG();
@@ -3883,13 +3983,32 @@ window.axNotify = function (title, opts) {
       var meta = (rSel === 'all' ? esc(c.desk.name) + ' · ' : '') + 'son ' + c.recentExams + ' denemede ort. ' + c.recentAvg + ' · ' + when + ' · ' + c.n + ' soru · hafıza %' + c.retention + (c.fewData ? ' · az veri' : '');
       var act = !(c.level <= 1 || c.due) ? '' : c.desk.code ? '<button type="button" class="sn-ghost" data-practice="' + esc(c.desk.code) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>'
         : '<button type="button" class="sn-ghost" data-focus-key="' + esc(c.desk.key) + '" data-concept="' + esc(c.name) + '">bu konudan deneme</button>';
+      var src = srcSec(c), oku = '';
+      if (src) {
+        /* Birden çok belge dönerse ilki açılır, ötekiler title'da görünür. */
+        var baska = (SRC[c.name] || []).map(function (x) { return x.file_name; })
+          .filter(function (f, i, a) { return f && f !== src.file_name && a.indexOf(f) === i; });
+        oku = '<button type="button" class="sn-ghost" data-open-doc="' + esc(String(src.document_id || '')) +
+          '" data-open-card="' + esc(String(src.study_card_id || '')) +
+          '" data-open-file="' + esc(String(src.file_name || '')) +
+          '" data-open-kind="' + esc(String(src.match_kind || '')) +
+          '" data-concept="' + esc(c.name) + '"' +
+          (baska.length ? ' title="' + esc('ayrıca: ' + baska.join(', ')) + '"' : '') +
+          '>notunu aç</button>';
+      } else if (SRC[c.name] && !SRC[c.name].length) {
+        oku = '<button type="button" class="sn-ghost sn-nodoc" data-no-doc="" data-concept="' + esc(c.name) +
+          '">notun yok · materyal yükle</button>';
+      }
       /* konu taşı: halka ustalığı gösterir, ayrıntı satırı kısaltıldı; tamamı title'da */
       var R = 17, C = 2 * Math.PI * R;
       return '<li class="sn-mrow ' + LV_CLS[c.level] + (c.due ? ' is-due' : '') + '" title="' + meta.replace(/<[^>]+>/g, '') + '"><span class="ring" role="img" aria-label="ustalık ' + c.mastery + ' / 100"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="' + R + '"/><circle class="v" cx="22" cy="22" r="' + R + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - c.mastery / 100)).toFixed(1) + '"/></svg><b>' + c.mastery + '</b></span>' +
         '<div class="nm"><b>' + esc(c.name) + '</b><span class="mt">' + (rSel === 'all' ? esc(c.desk.name) + ' · ' : '') + 'hafıza %' + c.retention + ' · ' + c.n + ' soru</span></div>' +
         '<span class="lv">' + esc(c.levelName) + '</span>' + (c.due ? '<span class="due">tekrar zamanı</span>' : '') +
-        '<span class="bar" aria-hidden="true"><i style="width:' + c.mastery + '%"></i></span>' + act + '</li>';
+        '<span class="bar" aria-hidden="true"><i style="width:' + c.mastery + '%"></i></span>' + act + oku + '</li>';
     }).join('') + (rows.length > 10 ? '<li class="sn-mmore"><button type="button" class="sn-ghost" data-mast-all="">' + (mastAll ? 'daha az göster' : 'tümünü göster (' + rows.length + ')') + '</button></li>' : '');
+    /* Satırlar çizildi; eksik kavramlar için TEK toplu çağrı. Sonuç gelince
+       srcYukle paintReport'u bir kez çağırır, döngü olmaz: hepsi önbellekte. */
+    srcYukle(shown);
   };
   var MON_S = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
   var revWhen = function (r) { if (r.inDays === 0) return r.overdue ? 'bugün (gecikti)' : 'bugün'; if (r.inDays === 1) return 'yarın'; if (r.inDays < 7) return r.inDays + ' gün sonra'; var d = new Date(r.dueAt); return d.getDate() + ' ' + MON_S[d.getMonth()]; };
@@ -3928,6 +4047,14 @@ window.axNotify = function (title, opts) {
     if (e.target.closest('[data-mast-all]')) { mastAll = !mastAll; paintReport(); return; }
     var fk = e.target.closest('[data-focus-key]');
     if (fk) { var cpt = fk.getAttribute('data-concept'); Promise.resolve(openBuild(fk.getAttribute('data-focus-key'))).then(function () { topicEl.value = cpt || ''; paintCover(); }); return; }
+    var od = e.target.closest('[data-open-doc]');
+    if (od) {
+      var doc = od.getAttribute('data-open-doc'), kart = od.getAttribute('data-open-card');
+      okuBasla({ concept: od.getAttribute('data-concept'), card: kart || null, doc: doc || null, kind: od.getAttribute('data-open-kind') });
+      if (typeof viewStudyCard === 'function') viewStudyCard(doc, od.getAttribute('data-open-file') || '', false, kart || null);
+      return;
+    }
+    if (e.target.closest('[data-no-doc]')) { if (typeof switchDashboardView === 'function') switchDashboardView('docs'); return; }
     var p = e.target.closest('[data-practice]'); if (p) practice(p.getAttribute('data-practice'), p.getAttribute('data-concept'));
   });
   rtabs.addEventListener('click', function (e) { var b = e.target.closest('[data-rk]'); if (b) { rSel = b.getAttribute('data-rk'); paintReport(); } });

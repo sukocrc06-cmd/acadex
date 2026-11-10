@@ -107,4 +107,80 @@ test('öğrencinin kendi verisi indirme listesine eklendi', () => {
     'dışa aktarma listesinde yok — öğrenci kendi okuma kaydını indiremez');
 });
 
+/* --------------------------------------------------------------------------
+   ARAYÜZ: paintMastery'deki "notunu aç" yolu (10.11.2026)
+   -------------------------------------------------------------------------- */
+
+test('TEK toplu RPC — satır başına çağrı yok', () => {
+  /* 10 satırlık haritada satır başına istek atmak 10 RPC demekti. Düğme çıkan
+     kavramlar (level <= 1 || due) tek istekte sorulur, sonuç önbelleğe alınır
+     ve loadData yenileyince temizlenir. */
+  assert.match(ink, /rpc\('concept_study_sources', \{ p_concepts: eksik \}\)/,
+    'toplu çağrı yok');
+  assert.ok((ink.match(/rpc\('concept_study_sources'/g) || []).length === 1,
+    'birden fazla çağrı yeri var — toplu olma özelliği kaybolmuş');
+  assert.match(ink, /if \(Object\.prototype\.hasOwnProperty\.call\(SRC, c\.name\)\) return;/,
+    'önbellek kontrolü yok — her paint tekrar çağırır');
+  assert.match(ink, /var srcSifirla = function \(\)/, 'önbellek sıfırlayıcı yok');
+  assert.match(ink, /if \(loading\) return loading;\n\s*\/\*[\s\S]{0,120}?\*\/\n\s*srcSifirla\(\);/,
+    'loadData önbelleği temizlemiyor — kart silinse bile eski kaynak gösterilir');
+});
+
+test('EŞLEŞME SIRASI: masa dışında contains KABUL EDİLMEZ', () => {
+  /* "faiz" gibi kısa kavramlar contains ile her şeyi yakalar; masa dışında
+     kabul edilirse öğrenci alakasız bir belgeye yollanır. */
+  const blok = ink.slice(ink.indexOf('var srcSec = function'),
+                         ink.indexOf('var srcSec = function') + 700);
+  assert.match(blok, /icinde\(x\) && x\.match_kind === 'exact'/, 'masa içi exact önce gelmiyor');
+  assert.match(blok, /icinde\(x\) && x\.match_kind === 'contains'/, 'masa içi contains ikinci sırada değil');
+  assert.match(blok, /if \(c\.desk && c\.desk\.code\) return l\.filter\(function \(x\) \{ return x\.match_kind === 'exact'/,
+    'ders masasında genel exact dalı yok');
+  /* Ders masası dalının İÇİNDE contains geçmemeli. Bloğu kesip bakıyoruz;
+     mesafe tabanlı regex yanıltıcıydı (araya 50 karakter girince eşleşiyordu). */
+  const dersDali = blok.slice(blok.indexOf('if (c.desk && c.desk.code)'));
+  assert.ok(dersDali.indexOf('contains') < 0,
+    'ders masasında contains kabul ediliyor — alakasız belge açılabilir');
+  assert.ok(dersDali.indexOf("'exact'") > -1, 'ders masası dalı exact kullanmıyor');
+});
+
+test('RPC hatası SESSİZ: harita bozulmaz, istek tekrarlanmaz', () => {
+  assert.match(ink, /if \(r\.error\) \{ srcHata = true; return; \}/, 'hata yutulmuyor');
+  assert.match(ink, /if \(srcBusy \|\| srcHata \|\| !sb\(\) \|\| !me\(\)\) return;/,
+    'hata sonrası istek tekrarlanıyor ya da oturumsuz çağrı yapılıyor');
+});
+
+test('SÜRE: yalnız görünür, tavan 1800, ölçülemezse NULL', () => {
+  /* Üçü birlikte olmazsa ölçü yalan söyler: gizli sekmede 40 dakikalık sahte
+     okuma, ya da 0 yazıp "göz attı" sanılması (PR #89). */
+  assert.match(ink, /document\.addEventListener\('visibilitychange', o\.gorunurluk\)/,
+    'gizli sekmede sayaç durmuyor');
+  assert.match(ink, /visible_seconds: Math\.min\(1800, sn\)/, 'üst sınır uygulanmıyor');
+  assert.match(ink, /if \(!o\.id \|\| !\(sn > 0\) \|\| !sb\(\)\) return;/,
+    'süre 0 iken de yazılıyor — NULL kalmalı');
+});
+
+test('AÇILIŞ önce kaydedilir, süre sonra güncellenir', () => {
+  /* Yalnız kapanışta yazılsaydı sekmeyi kapatan öğrencinin açılışı hiç
+     kaydedilmezdi; açılış en güvenilir sinyal. */
+  assert.match(ink, /from\('concept_study_opens'\)\.insert\(\{/, 'açılış eklenmiyor');
+  assert.match(ink, /from\('concept_study_opens'\)\.update\(\{ visible_seconds/, 'süre güncellenmiyor');
+  assert.match(ink, /window\.addEventListener\('pagehide', o\.kapat\)/, 'pagehide bağlanmamış');
+  assert.match(ink, /attributeFilter: \['class'\]/, 'kart kapanışı izlenmiyor');
+  assert.match(ink, /if \(!r\.error && r\.data && OKU === o\) o\.id = r\.data\.id;/,
+    'geç dönen insert eski oturuma bağlanabilir');
+});
+
+test('kaynağı olmayan kavramda "notun yok" ve yükleme yolu', () => {
+  assert.match(ink, /data-no-doc=""/, '"notun yok" düğmesi yok');
+  assert.match(ink, /switchDashboardView\('docs'\)/, 'materyal yükleme ekranına götürmüyor');
+  assert.match(ink, /SRC\[c\.name\] && !SRC\[c\.name\]\.length/,
+    '"notun yok" henüz yüklenmemiş kavramda da çıkıyor olabilir');
+});
+
+test('mevcut "bu konudan deneme" düğmesi korundu', () => {
+  assert.match(ink, /data-focus-key="/, 'kart masasındaki deneme düğmesi kaybolmuş');
+  assert.match(ink, /data-practice="/, 'ders masasındaki deneme düğmesi kaybolmuş');
+  assert.match(ink, /\+ act \+ oku \+ '<\/li>'/, 'iki düğme birlikte basılmıyor');
+});
+
 summary();
