@@ -4622,7 +4622,7 @@ var SBX = (function () {
   var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
   var uk = function (k) { var u = me(); return 'acadex.' + k + '.' + (u ? u.id : 'anon'); };
   var missing = function (er) { if (!er) return false; var m = String(er.message || er.details || er.hint || ''); return /does not exist|schema cache|could not find|column .* of|relation/i.test(m) || ['42P01', '42703', 'PGRST204', 'PGRST205', 'PGRST200'].indexOf(er.code) > -1; };
-  var feat = { ws: null, px: null, rx: null, cx: null, fol: null, rep: null };
+  var feat = { ws: null, px: null, rx: null, cx: null, fol: null, rep: null, dn: null };
   var layer = document.getElementById('axv-layer');
   if (!layer) { layer = document.createElement('div'); layer.id = 'axv-layer'; document.body.appendChild(layer); }
 
@@ -4656,6 +4656,7 @@ var SBX = (function () {
     var ca = Date.parse(r.created_at) || Date.now(), ua = Date.parse(r.updated_at) || ca;
     return { id: r.id, uid: r.user_id, by: mine ? 'me' : r.user_id, at: ca, edited: ua - ca > 60000, title: r.title || '', text: r.description || '', kind: kind, tech: tech, course: r.course || '', tags: tags,
       links: { github: r.github_url || '', vercel: /\.vercel\.app/i.test(live) ? live : '', url: /\.vercel\.app/i.test(live) ? '' : live }, snap: r.snapshot || '', versions: r.versions_count || 0, langs: tech.slice(0, 6), image: r.image_url || '', projId: r.workspace_id || '',
+      denetim: r.denetim && r.denetim.ok ? r.denetim : null,
       status: 'live', likes: r.likes_count || 0, reacts: {}, myReact: '', cm: [], raw: r };
   };
   var loadPosts = async function () {
@@ -4808,9 +4809,20 @@ var SBX = (function () {
     var tags = [p.kind].concat((p.tech || []).map(tagify), hashTags).filter(Boolean).filter(function (t, i, a) { return a.indexOf(t) === i; }).slice(0, 8);
     var base = { title: p.title, description: p.text, github_url: p.links.github || null, live_url: live, tags: tags, image_url: img, updated_at: new Date().toISOString() };
     var extra = { kind: p.kind || null, tech: p.tech || [], course: p.course || null, snapshot: p.snap || null, workspace_id: p.projId || null, versions_count: p.versions || 0 };
+    /* TESLIM DENETIMI ROZETI (11.11.2026): panel okuyuculari baskasinin
+       sandbox_workspaces satirini OKUYAMAZ (RLS kendi satirin), o yuzden
+       rozet yayin aninda gonderi satirina yazilir. YALNIZ gecen denetim ve
+       YALNIZ { ok, at } gider: rapor maddeleri hata metni tasiyabilir,
+       kamuya cikmaz. Gecemeyen denetim hic yazilmaz — panelde kimse
+       "eksikli" diye damgalanmaz, rozet yalniz olumlu. */
+    var wsDen = null; if (p.projId) ((ws && ws.list) || []).forEach(function (w) { if (w.id === p.projId && w.denetim && w.denetim.ok) wsDen = { ok: true, at: w.denetim.at || Date.now() }; });
+    if (feat.dn !== false && wsDen) extra.denetim = wsDen; else if (!wsDen) extra.denetim = null;
     var isNew = !p.id || !/^[0-9a-f-]{36}$/i.test(p.id);
     var go = function (row) { return isNew ? sb().from('sandbox_projects').insert(Object.assign({ user_id: u.id }, row)).select().single() : sb().from('sandbox_projects').update(row).eq('id', p.id).select().single(); };
     var r = feat.px === false ? await go(base) : await go(Object.assign({}, base, extra));
+    /* denetim kolonu henuz yoksa once YALNIZ onu dusur; px yedegine dusmek
+       kind/tech/snapshot'i da kaybettirirdi (feat.rx/cx ile ayni desen). */
+    if (r.error && missing(r.error) && feat.px !== false && 'denetim' in extra) { feat.dn = false; delete extra.denetim; r = await go(Object.assign({}, base, extra)); }
     if (r.error && missing(r.error) && feat.px !== false) { feat.px = false; r = await go(base); } else if (!r.error) feat.px = feat.px === false ? false : true;
     if (r.error) throw r.error;
     var row = r.data || Object.assign({ id: p.id, user_id: u.id, created_at: new Date().toISOString() }, base, extra);
@@ -5016,7 +5028,7 @@ var SBX = (function () {
       '<span class="ek-ctl">' + ((p.snap || live) && !o.preview ? '<span class="ek-devs" role="group" aria-label="Önizleme boyutu"><button type="button" data-devb="desk" aria-pressed="true" aria-label="Masaüstü görünümü" title="masaüstü"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="11" rx="1.5"/><path d="M9 19.5 H15 M12 16 V19.5"/></svg></button><button type="button" data-devb="phone" aria-pressed="false" aria-label="Telefon görünümü" title="telefon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="3.5" width="9" height="17" rx="2"/><path d="M11 17.5 H13"/></svg></button></span>' : '') + (live ? '<a href="' + X(live) + '" target="_blank" rel="noopener" aria-label="' + X(p.title) + ' yeni sekmede aç" title="yeni sekmede aç">↗</a>' : '') + (o.preview ? '' : '<button type="button" data-reload="" aria-label="Önizlemeyi yenile" title="yenile">↻</button>' + (p.snap || live ? '<button type="button" data-full="" aria-label="Tam ekran dene" title="tam ekran dene">⛶</button>' : '')) + '</span></div>' + view + '</div>' +
       (tl.length ? '<div class="ek-term" aria-label="Proje bilgisi"><span class="pr">$ git log --özet</span>' + tl.map(function (t, i) { return '<span class="ln" style="--d:' + i + '">' + t + '</span>'; }).join('') + '</div>' : '') +
       (repo && (live || p.snap || p.image) ? '<div data-gh="' + X(repo) + '"></div>' : '') +
-      '<div class="ek-tags">' + (p.kind ? '<span class="k">' + (KINDS[p.kind] || X(p.kind)) + '</span>' : '') + (p.tech || []).map(function (t) { return '<span>' + X(t) + '</span>'; }).join('') + '</div>' +
+      '<div class="ek-tags">' + (p.denetim && p.denetim.ok ? '<span class="dnt" title="Sandbox teslim denetiminden geçti: kod çalıştırıldı, kontrolleri geçti">✓ denetimden geçti</span>' : '') + (p.kind ? '<span class="k">' + (KINDS[p.kind] || X(p.kind)) + '</span>' : '') + (p.tech || []).map(function (t) { return '<span>' + X(t) + '</span>'; }).join('') + '</div>' +
       (o.preview ? '' :
       '<div class="ek-rsum" data-rsum="">' + (rtot ? '<span class="ic">' + Object.keys(REACT).filter(function (k) { return reacts[k]; }).map(function (k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + REACT[k].svg + '</svg>'; }).join('') + '</span>' + rtot + ' tepki' : 'ilk tepkiyi sen ver') + ' · <button type="button" data-cm="">' + (p.cm || []).length + ' inceleme</button></div>' +
       '<div class="ek-acts" role="group" aria-label="Tepkiler">' + Object.keys(REACT).map(function (k) { return '<button type="button" class="ek-r r-' + k + '" data-react="' + k + '" aria-pressed="' + (my === k) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + REACT[k].svg + '</svg><span>' + REACT[k].l + '</span><b>' + (reacts[k] || 0) + '</b></button>'; }).join('') +

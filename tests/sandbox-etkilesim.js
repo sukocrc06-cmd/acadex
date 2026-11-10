@@ -210,4 +210,31 @@ test('"d" İLE BAŞLAYAN UUID TASLAK SAYILMAZ: düzenleme kopya üretmez', () =>
     'savePost isNew ayrımı değişmiş — iki ayrım birbirinden koparsa bu sınıf hata geri gelir');
 });
 
+test('TESLİM ROZETİ PANELE TAŞINIR: yalnız olumlu, yalnız ok+at (11.11.2026)', () => {
+  /* Köprü adımı: sandbox_workspaces RLS'i herkese kendi satırı olduğundan
+     rozet yayın anında gönderi satırına kopyalanır (sandbox_projects.denetim). */
+  const mig = read('supabase/migrations/20261111_panel_denetim_rozeti.sql');
+  assert.match(mig, /add column if not exists denetim jsonb/, 'denetim kolonu yok');
+  assert.match(mig, /check \(denetim is null or \(denetim->>'ok'\) = 'true'\)/,
+    'olumlu-tek kısıtı yok — panelde "eksikli" damgası mümkün olur');
+
+  // İstemci: yalnız { ok, at } gider, tam rapor (hata metinleri) kamuya çıkmaz.
+  assert.ok(ink.includes("wsDen = { ok: true, at: w.denetim.at || Date.now() }"),
+    'rozet ok+at dışında alan taşıyor ya da yok');
+  assert.ok(!/extra\.denetim = w\.denetim/.test(ink), 'TAM rapor gönderi satırına kopyalanıyor — hata metni kamuya çıkar');
+  // Geçemeyen denetim yazılmaz; eski rozet yeniden yayında temizlenir.
+  assert.ok(ink.includes('else if (!wsDen) extra.denetim = null;'),
+    'bayat rozet yeniden yayında temizlenmiyor');
+  // Kademeli yedek: kolon yokken YALNIZ denetim düşer (px yedeği kind/tech'i de götürürdü).
+  assert.ok(ink.includes("'denetim' in extra) { feat.dn = false; delete extra.denetim;"),
+    'kolon-yok yedeği denetime özgü değil — ilk hatada kind/tech de kaybolur');
+  // Okuma + çizim: yalnız ok olan rozet çipe dönüşür.
+  assert.ok(ink.includes("denetim: r.denetim && r.denetim.ok ? r.denetim : null"),
+    'toPost olumsuz/bozuk rozeti süzmüyor');
+  assert.ok(ink.includes('p.denetim && p.denetim.ok ? \'<span class="dnt"'),
+    'rozet çipi koşulsuz ya da yok');
+  const css = read('css/acadex-ink.css');
+  assert.ok(css.includes('.ek-tags .dnt{'), 'rozet çipinin stili yok');
+});
+
 summary();
