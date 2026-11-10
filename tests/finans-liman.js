@@ -9,7 +9,8 @@
      - Kayıt yalnızca bu tarayıcıda; ağ isteği yok.
      - Panodaki "devam" / "öneri" düğmeleri panelin mevcut açma düğmesi
        (data-finans-open) ile çalışır; ayrı açma kodu yok.
-     - Her istasyon (8 finans + 7 şirket katı; istatistik gözlemevi 11.11.2026’da kaldırıldı) gemide bir yuva.
+     - Her istasyon (8 finans + 7 şirket katı) gemide bir yuva. İstatistik giriş dersi (labs/istat/,
+       11.11.2026) kendi ilerleme defterini tutar; hafta düğmeleri data-lm-skip ile gemiye girmez.
    Çalıştırma:  node tests/finans-liman.js
    ========================================================================== */
 'use strict';
@@ -26,7 +27,11 @@ const app = read('labs/finans/fn-app.js'), js = read('js/acadex-liman.js'), css 
 test('sayfaya bağlı; finans panelinden sonra yüklenir', () => {
   assert.match(html, /<link rel="stylesheet" href="css\/acadex-liman\.css">/);
   assert.match(html, /<script src="js\/acadex-finans\.js"><\/script>\n<script src="js\/acadex-liman\.js"><\/script>/);
-  assert.equal(new Set([...html.matchAll(/data-finans-open="([a-z-]+)"/g)].map((m) => m[1])).size, 15); // 11.11.2026: istatistik gözlemevi kaldırıldı (8 finans + 7 şirket)
+  /* gemideki yuvalar: 8 finans + 7 şirket katı. İstatistik giriş dersinin hafta düğmeleri (istat-…) kendi
+     ilerlemesini tutar (acadex.istat.v1) ve data-lm-skip ile gemiye girmez (11.11.2026). */
+  const keys = [...html.matchAll(/<button[^>]*data-finans-open="([a-z0-9-]+)"[^>]*>/g)];
+  assert.equal(new Set(keys.filter((m) => !/data-lm-skip/.test(m[0])).map((m) => m[1])).size, 15);
+  assert.ok(keys.filter((m) => /^istat-/.test(m[1])).every((m) => /data-lm-skip/.test(m[0])), 'istatistik düğmeleri gemiye girmez');
 });
 
 test('lab defteri: açılış, süre ve karne; tekrar çizilen karne bir kez sayılır', () => {

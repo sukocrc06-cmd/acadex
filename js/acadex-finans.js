@@ -1,7 +1,7 @@
 /* ================= ACADEX FİNANS: finans, muhasebe ve uluslararası ticaret istasyonları ================= */
 /* Görünüm dashboard.html → #finans-view; stiller css/acadex-finans.css.
    Sekiz istasyon tek sayfada: labs/finans/index.html (?hub=1&tab=<istasyon>); şirket katları labs/sirket/.
-   (İstatistik gözlemevi 11.11.2026'da kaldırıldı.) Karttan açılınca
+   İstatistik giriş dersi (haftalık ders yolu, 11.11.2026) labs/istat/. Karttan açılınca
    tam ekran katmandaki iframe'e yüklenir; iframe zaten yüklüyse sayfa yeniden yüklenmez,
    istasyon postMessage ile değişir. Sitenin Acadia'sı MedLab köprüsünü kullanır
    (js/acadex-medlab-acadia.js → axMedLabHook('finans')). */
@@ -15,9 +15,13 @@
   /* genel müdürlük (29.10.2026): şirket yönetimi katları ayrı lab'da (labs/sirket/), aynı katmanda açılır; anahtar 'sirket-<kat>' */
   var SK = { terazi: 'Bilanço terazisi', tablolar: 'Üç tablo ve nakit', maliyet: 'Maliyet ve başabaş', yatirim: 'Yatırım kararı', strateji: 'Strateji masası', org: 'Organizasyon', sim: 'Şirketi yönet' };
   window.AX_SIRKET = SK;
-  var labOf = function (k) { return /^sirket-/.test(k) ? 'sirket' : 'finans'; };
+  /* istatistik giriş dersi (11.11.2026): haftalık ders yolu ayrı lab'da (labs/istat/), aynı katmanda açılır; anahtar 'istat-<yol|gN>' */
+  var IST = { yol: 'Ders yolu', g1: '1. hafta · Veri ve ölçekler', g2: '2. hafta · Anakütle ve örneklem', g3: '3. hafta · Veri ve frekans tabloları', g4: '4. hafta · Grafikler', g5: '5. hafta · Mod ve medyan', g6: '6. hafta · Ortalamalar', g7: '7. hafta · Olasılık', g9: '9. hafta · Değişkenlik', g10: '10. hafta · Kesikli dağılımlar', g11: '11. hafta · Binom ve Poisson', g12: '12. hafta · Hipergeometrik', g13: '13. hafta · Sürekli değişken', g14: '14. hafta · Düzgün ve üstel', g15: '15. hafta · Normal dağılım' };
+  window.AX_ISTAT = IST;
+  var labOf = function (k) { return /^sirket-/.test(k) ? 'sirket' : /^istat-/.test(k) ? 'istat' : 'finans'; };
   var info = function (k) {
     if (labOf(k) === 'sirket') { var t = k.slice(7); return SK[t] ? { lab: 'sirket', tab: t, src: 'labs/sirket/index.html', name: 'Acadex Şirket · ' + SK[t] } : null; }
+    if (labOf(k) === 'istat') { var u = k.slice(6); return IST[u] ? { lab: 'istat', tab: u, src: 'labs/istat/index.html', name: 'Acadex İstatistik · ' + IST[u] } : null; }
     return ST[k] ? { lab: 'finans', tab: k, src: SRC, name: 'Acadex Finans · ' + ST[k] } : null;
   };
   var curLab = null;
@@ -60,7 +64,7 @@
     if (run.hidden) return;
     cur = null;
     if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook(null, frame); });
-    var b = lastBtn, fin = function () { run.hidden = true; document.body.classList.remove('axm-open'); if (b && now !== true) lsafe(function () { b.focus(); }); };
+    var b = lastBtn, fin = function () { run.hidden = true; document.body.classList.remove('axm-open'); if (istPaint) istPaint(); if (b && now !== true) lsafe(function () { b.focus(); }); };
     if (now !== true && sec.classList.contains('active')) grow(b, true, fin); else { clearTimeout(grow.t); run.classList.remove('axm-grow'); if (run.style) run.style.clipPath = ''; fin(); }
   };
   window.axFinansOpen = function (k) { if (typeof switchDashboardView === 'function') switchDashboardView('finans'); return open(k); };
@@ -72,6 +76,21 @@
   });
   run.querySelector('[data-finans-close]').addEventListener('click', close);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !run.hidden && !document.querySelector('dialog[open]')) close(); });
+
+  /* istatistik ders yolu: hafta düğmelerine ilerleme (localStorage 'acadex.istat.v1'; lab her değişimde 'progress' yollar) */
+  var istPaint = function () {
+    var box = sec.querySelector('[data-ist-yol]'); if (!box) return;
+    var p = lsafe(function () { return JSON.parse(localStorage.getItem('acadex.istat.v1') || '{}') || {}; }, {}), done = 0, all = 0;
+    Array.prototype.forEach.call(box.querySelectorAll('[data-finans-open^="istat-g"]'), function (b) {
+      var r = p[b.getAttribute('data-finans-open').slice(6)] || {}, n = (r.a ? 1 : 0) + (r.g ? 1 : 0) + (r.s != null && r.s >= 60 ? 1 : 0);
+      all++; if (n === 3) done++;
+      b.setAttribute('data-ist-n', String(n)); b.classList.toggle('is-last', p.last === b.getAttribute('data-finans-open').slice(6));
+    });
+    var t = sec.querySelector('[data-ist-n]'); if (t) t.textContent = done + ' / ' + all + ' hafta tamam';
+  };
+  istPaint();
+  window.addEventListener('message', function (e) { var d = e.data; if (e.origin === location.origin && d && d.src === 'axlab' && d.lab === 'istat' && d.type === 'progress') { clearTimeout(istPaint.t); istPaint.t = setTimeout(istPaint, 200); } });
+  window.addEventListener('storage', function (e) { if (e.key === 'acadex.istat.v1') istPaint(); });
 
   /* dashboard bağlantısı: kenar menü ve ilk açılış (MedLab'deki gibi) */
   if (typeof switchDashboardView === 'function') {
