@@ -123,17 +123,21 @@ test('tahtaya sınav yaz: tür çipleri, hızlı tarih, canlı önizleme', () =>
   assert.ok(css.includes('.sn-caldlg'));
 });
 
-test('SIRALAR SAYFALANIYOR: ilk 10, gerisi "devamını göster" ile', () => {
+test('SIRALAR SAYFALANIYOR: ilk 8, her tıklamada 8 daha', () => {
   /* 10.11.2026: ders sayısı artınca "sıralar" bölümü çok uzuyordu. Ustalık
      haritasındaki mastAll kalıbının aynısı kullanıldı — ayrı bir mekanizma
      uydurulmadı. Düğme ızgarada TAM GENİŞLİK kaplamalı, yoksa bir sıra
      karosunun yerine oturur ve kaybolur. */
-  assert.match(ink, /var deskAll = false;/, 'sayfalama durumu yok');
-  assert.match(ink, /var DESK_ILK = 10;/, 'ilk gösterim sayısı sabiti yok');
-  assert.match(ink, /shown = deskAll \? ds : ds\.slice\(0, DESK_ILK\)/, 'liste dilimlenmiyor');
+  assert.match(ink, /var DESK_ILK = 8, DESK_ADIM = 8;/, 'ilk gösterim ve adım sabitleri yok');
+  assert.match(ink, /var deskN = DESK_ILK, deskToplam = 0;/, 'kademeli sayaç yok');
+  assert.match(ink, /shown = ds\.slice\(0, deskN\)/, 'liste sayaca göre dilimlenmiyor');
   assert.match(ink, /deskEl\.innerHTML = shown\.map/, 'çizim hâlâ tüm listeyi basıyor');
   assert.match(ink, /data-desk-all=""/, '"devamını göster" düğmesi yok');
-  assert.match(ink, /deskAll = !deskAll; paintDesks\(\);/, 'düğme listeyi yenilemiyor');
+  /* Her tıklama DESK_ADIM kadar açar; hepsi açılınca başa sarar. */
+  assert.match(ink, /deskN = deskN >= deskToplam \? DESK_ILK : deskN \+ DESK_ADIM;/,
+    'düğme kademeli açmıyor — ya hepsini birden basıyor ya da başa sarmıyor');
+  assert.match(ink, /ds\.length > shown\.length[\s\S]{0,120}kaldı/,
+    'kalan sayısı gösterilmiyor');
   /* "+ yeni sıra" karosu gösterilenin sonunda kalmalı, tüm listenin değil. */
   assert.match(ink, /sn-desk add" style="--i:' \+ shown\.length/,
     'ekle karosunun sırası tüm listeye göre hesaplanıyor');

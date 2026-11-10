@@ -2841,13 +2841,17 @@ window.axNotify = function (title, opts) {
     var p = vals.map(function (v, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
     return '<svg viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true"><path class="tg" d="M0 ' + y(target).toFixed(1) + ' H' + w + '"/>' + (n > 1 ? '<path d="' + p + '"/>' : '') + '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(vals[n - 1]).toFixed(1) + '" r="3.2"/></svg>';
   };
-  /* SIRALAR SAYFALAMASI (10.11.2026). Ders sayısı artınca bölüm çok uzuyordu;
-     ilk 10 sıra gösterilir, gerisi istenince açılır. Ustalık haritasındaki
-     mastAll kalıbının aynısı — ayrı bir mekanizma uydurulmadı. */
-  var deskAll = false;
-  var DESK_ILK = 10;
+  /* SIRALAR SAYFALAMASI (10.11.2026). Ders sayısı artınca bölüm çok uzuyordu:
+     ölçüldü, 104 kartın hiçbirinde course_tag dolu olmadığı için her kart
+     kendi sırası oluyor (bkz. keyOfCard) ve bölüm 104 karo basıyordu.
+     KADEMELİ: ilk 8 görünür, her "devamını göster" 8 tane daha açar; hepsi
+     açılınca düğme "daha az göster"e dönüp başa sarar. Tek seferde hepsini
+     açmak 104 karoyu birden basmak demekti. */
+  var DESK_ILK = 8, DESK_ADIM = 8;
+  var deskN = DESK_ILK, deskToplam = 0;
   var paintDesks = function () {
-    var ds = desks(), shown = deskAll ? ds : ds.slice(0, DESK_ILK);
+    var ds = desks(), shown = ds.slice(0, deskN);
+    deskToplam = ds.length;
     deskEl.innerHTML = shown.map(function (d, i) {
       var h = hoca[d.key] || {}, ex = d.ex, last = ex.length ? ex[ex.length - 1].grade : null, tgt = +(h.target || 70);
       var chips = [h.type ? TYPE[h.type] : '', h.diff ? DIFF[h.diff] : '', h.lang ? (h.lang === 'tr' ? 'TR' : 'EN') : '', h.sim ? 'süreli' : ''].filter(Boolean);
@@ -2867,11 +2871,17 @@ window.axNotify = function (title, opts) {
     }).join('') + '<div class="sn-desk add" style="--i:' + shown.length + '"><div class="sn-top"><button type="button" data-add-desk=""><span class="pl" aria-hidden="true">+</span>' + (ds.length ? 'ders ağacından sıra aç' : 'ilk sıranı aç: ders ağacından bir ders seç') + '</button></div><div class="sn-legs" aria-hidden="true"></div></div>'
       + (ds.length > DESK_ILK
         ? '<div class="sn-dmore"><button type="button" class="sn-ghost" data-desk-all="">'
-          + (deskAll ? 'daha az göster' : 'devamını göster (' + (ds.length - DESK_ILK) + ')') + '</button></div>'
+          + (ds.length > shown.length
+              ? 'devamını göster (' + (ds.length - shown.length) + ' kaldı)'
+              : 'daha az göster')
+            + '</button></div>'
         : '');
   };
   deskEl.addEventListener('click', function (e) {
-    if (e.target.closest('[data-desk-all]')) { deskAll = !deskAll; paintDesks(); return; }
+    if (e.target.closest('[data-desk-all]')) {
+      deskN = deskN >= deskToplam ? DESK_ILK : deskN + DESK_ADIM;
+      paintDesks(); return;
+    }
     var t = e.target.closest('[data-try]'); if (t) { openBuild(t.getAttribute('data-try')); return; }
     var p = e.target.closest('[data-prof]'); if (p) { openProf(p.getAttribute('data-prof')); return; }
     if (e.target.closest('[data-add-desk]')) openBuild(null, 'course');
