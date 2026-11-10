@@ -162,6 +162,13 @@ html body #exams-view.axs .sn-mrow .lv{color:#fff;-webkit-text-fill-color:#fff}
 html body #exams-view.axs .sn-mrow.lo .lv{background:var(--sn-red)}html body #exams-view.axs .sn-mrow.mid .lv{background:#E0892F}html body #exams-view.axs .sn-mrow.ok .lv{background:var(--sn-blue)}html body #exams-view.axs .sn-mrow.top .lv{background:var(--sn-amber);-webkit-text-fill-color:var(--sn-ink)}
 html body #exams-view.axs .sn-mrow .due{position:absolute;right:10px;top:-11px;padding:2px 8px;border-radius:999px;background:var(--sn-yel);border:2px solid var(--sn-ink);font-size:11px;font-weight:800;color:var(--sn-ink)}
 html body #exams-view.axs .sn-mrow .bar{display:none!important}
+/* İKİ DÜĞME TEK ŞERİTTE (10.11.2026). .sn-mrow burada bir KART
+   ("ring nm" / "ring lv" / "act act") ve düğmeler grid-area:act ile alt
+   şeride oturuyor. "notunu aç" eklenince ikisini <span class="acts"> içine
+   aldık; sarmalayıcı o alanı DEVRALMALI, yoksa örtük bir alana düşüp
+   kartın dışına taşar (10.11'de canlıda böyle oldu). */
+html body #exams-view.axs .sn-mrow .acts{grid-area:act;display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+html body #exams-view.axs .sn-mrow .acts .sn-ghost{margin-top:0;flex:1 1 auto}
 html body #exams-view.axs .sn-mrow .sn-ghost{grid-area:act;justify-self:stretch;margin-top:8px;min-height:34px;border:2px solid var(--sn-ink)!important;border-radius:10px;background:var(--sn-paper)!important;color:var(--sn-ink)!important;font-weight:700;font-size:12.5px}
 html body #exams-view.axs .sn-mrow .sn-ghost::before{content:"▶ ";color:var(--sn-blue)}
 html body #exams-view.axs .sn-dmore{grid-column:1/-1;text-align:center;padding-top:4px}

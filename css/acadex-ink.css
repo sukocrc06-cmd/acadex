@@ -3761,7 +3761,9 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#exams-view.axs,#axs-layer) .sn-mast-sum{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted)}
 :is(#exams-view.axs,#axs-layer) .sn-mast{list-style:none;margin:8px 0 0;padding:0}
 :is(#exams-view.axs,#axs-layer) .sn-mrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto minmax(80px,140px) auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #EEF1F7}
-:is(#exams-view.axs,#axs-layer) .sn-mrow .acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+/* Temel katman. Salon görünümü bunu acadex-sinav.css'te ezer ve düğmelere
+   kartın 'act' şeridini verir; burada hizalama DAYATILMAZ. */
+:is(#exams-view.axs,#axs-layer) .sn-mrow .acts{display:flex;flex-wrap:wrap;gap:6px}
 :is(#exams-view.axs,#axs-layer) .sn-mrow .nm{display:flex;flex-direction:column;min-width:0}
 :is(#exams-view.axs,#axs-layer) .sn-mrow .nm b{font-size:14px;color:var(--ink);overflow-wrap:anywhere}
 :is(#exams-view.axs,#axs-layer) .sn-mrow .mt{font-size:11.5px;color:var(--muted)}

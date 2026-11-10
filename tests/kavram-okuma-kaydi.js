@@ -186,6 +186,17 @@ test('mevcut "bu konudan deneme" düğmesi korundu', () => {
   const css = read('css/acadex-ink.css');
   assert.match(css, /\.sn-mrow \.acts\{display:flex;flex-wrap:wrap/,
     'acts hücresi sarmıyor — dar ekranda düğmeler taşar');
+  /* ASIL DÜZEN BURADA. .sn-mrow sınav salonunda 5 kolonlu bir satır DEĞİL,
+     "ring nm"/"ring lv"/"act act" alanlı bir KART; düğmeler grid-area:act
+     ile alt şeride oturuyor. Sarmalayıcı o alanı devralmazsa örtük alana
+     düşüp kartın dışına taşar — 10.11.2026'da canlıda böyle oldu. */
+  const salon = read('css/acadex-sinav.css');
+  assert.match(salon, /\.sn-mrow \.acts\{grid-area:act;display:flex;flex-wrap:wrap/,
+    'salon stilinde acts "act" alanını devralmıyor — düğmeler karttan taşar');
+  assert.match(salon, /\.sn-mrow \.acts \.sn-ghost\{margin-top:0/,
+    'düğmelerin eski margin-top\'u sıfırlanmamış — çift boşluk olur');
+  assert.match(salon, /grid-template-areas:"ring nm" "ring lv" "act act"/,
+    'kart alan düzeni değişmiş — acts kuralının öncülü geçersiz');
 });
 
 summary();
