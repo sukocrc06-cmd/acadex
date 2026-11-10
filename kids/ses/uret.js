@@ -100,15 +100,17 @@ async function uret(hepsi, kuru, dil) {
   anahtarGerek();
   for (const d of ['en', 'tr']) if (is.some((i) => i.x.dil === d) && !yeni.ses[d]) throw new Error((d === 'en' ? 'ELEVEN_SES_EN' : 'ELEVEN_SES_TR') + ' ortam değişkeni yok (ses id). Önce: node kids/ses/uret.js sesler');
   fs.mkdirSync(path.join(KOK, 'en'), { recursive: true }); fs.mkdirSync(path.join(KOK, 'tr'), { recursive: true });
-  let n = 0, hata = 0;
+  let n = 0, hata = 0; const hataDil = {};
   const isci = async () => {
     for (let i = is.shift(); i; i = is.shift()) {
       try { fs.writeFileSync(i.tam, await seslendir(yeni.ses[i.x.dil], i.x.metin, i.x.dil)); yeni.sesler[i.anahtar] = i.ad; n++; }
-      catch (e) { hata++; console.error('✗ ' + i.anahtar + ' → ' + e.message); if (/401|403|quota|credits|invalid_api_key|authentication_error|api_key_id_used|payment_required|paid_plan_required/i.test(e.message)) { if (is.length) console.error('Anahtar/kredi sorunu: kalan işler durduruldu. Mesajı okuyup düzeltin, sonra yeniden çalıştırın.'); is.length = 0; } }
+      catch (e) { hata++; hataDil[i.x.dil] = 1; if (fs.existsSync(i.tam)) yeni.sesler[i.anahtar] = i.ad; console.error('✗ ' + i.anahtar + ' → ' + e.message); if (/401|403|quota|credits|invalid_api_key|authentication_error|api_key_id_used|payment_required|paid_plan_required/i.test(e.message)) { if (is.length) console.error('Anahtar/kredi sorunu: kalan işler durduruldu. Mesajı okuyup düzeltin, sonra yeniden çalıştırın.'); is.length = 0; } }
       if (n % 20 === 0 && n) process.stdout.write('  ' + n + ' dosya\n');
     }
   };
   await Promise.all([isci(), isci(), isci()]);
+  /* yeni ses kullanılamadıysa eski kayıtlar ve eski ses kimliği yerinde kalır (site sessiz kalmaz) */
+  for (const d of Object.keys(hataDil)) if ((eski.ses || {})[d]) { yeni.ses[d] = eski.ses[d]; for (const k of Object.keys(eski.sesler || {})) if (k.startsWith(d + ':') && !yeni.sesler[k] && fs.existsSync(path.join(KOK, eski.sesler[k]))) yeni.sesler[k] = eski.sesler[k]; }
   fs.writeFileSync(LISTE, JSON.stringify(yeni, null, 1));
   console.log('Bitti: ' + n + ' dosya üretildi' + (hata ? ', ' + hata + ' hata (yeniden çalıştırınca yalnız eksikler üretilir)' : '') + '. liste.json güncellendi.');
   console.log('Sıradaki adım: kids/sw.js içindeki SURUM satırını değiştirip push edin.');

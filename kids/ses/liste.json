@@ -4,7 +4,7 @@
  "model": "eleven_multilingual_v2",
  "ses": {
   "en": "pFZP5JQG7iQjIQuC4Bku",
-  "tr": "ZgndNiUCwSn9oAFrs6rJ"
+  "tr": "GKg9ZZ7pQkXwhdUKqbnm"
  },
  "sesler": {
   "en:Good try!": "en/good-try-f0c08f.mp3",
@@ -353,6 +353,27 @@
   "en:ten fish!": "en/ten-fish-4bf26a.mp3",
   "en:ten strawberries!": "en/ten-strawberries-f11c06.mp3",
   "en:ten flowers!": "en/ten-flowers-7be103.mp3",
-  "en:nine.": "en/nine-fff027.mp3"
+  "en:nine.": "en/nine-fff027.mp3",
+  "tr:Hangi sınıftasın?": "tr/hangi-siniftasin-616ed4.mp3",
+  "tr:Sen hangisisin? Resmine dokun.": "tr/sen-hangisisin-resmine-dokun-3fd228.mp3",
+  "tr:Gizli iki resmine sırayla dokun.": "tr/gizli-iki-resmine-sirayla-dokun-bcf371.mp3",
+  "tr:Biraz dinlenelim; birkaç dakika sonra yeniden dene.": "tr/biraz-dinlenelim-birkac-dakika-sonra-yen-59c8de.mp3",
+  "tr:Okulunuzun Acadex Kids lisansı açık değil.": "tr/okulunuzun-acadex-kids-lisansi-acik-degi-d63b87.mp3",
+  "tr:Bu ada yakında açılacak.": "tr/bu-ada-yakinda-acilacak-d8ec7d.mp3",
+  "tr:Bugün serbest gün. İstediğin adaya dokun.": "tr/bugun-serbest-gun-i-stedigin-adaya-dokun-ff78ea.mp3",
+  "tr:Mola zamanı! Bugün çok güzel çalıştın.": "tr/mola-zamani-bugun-cok-guzel-calistin-5470a1.mp3",
+  "tr:Dolabına yeni bir şey geldi!": "tr/dolabina-yeni-bir-sey-geldi-9bf5cd.mp3",
+  "tr:Hadi birlikte şarkı söyleyelim!": "tr/hadi-birlikte-sarki-soyleyelim-81b786.mp3",
+  "tr:Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.": "tr/dolabina-hos-geldin-yildiz-topladikca-ye-32b5fe.mp3",
+  "tr:3 yıldız toplayınca açılacak.": "tr/3-yildiz-toplayinca-acilacak-3870d3.mp3",
+  "tr:6 yıldız toplayınca açılacak.": "tr/6-yildiz-toplayinca-acilacak-95d26f.mp3",
+  "tr:9 yıldız toplayınca açılacak.": "tr/9-yildiz-toplayinca-acilacak-af8d0f.mp3",
+  "tr:12 yıldız toplayınca açılacak.": "tr/12-yildiz-toplayinca-acilacak-501035.mp3",
+  "tr:16 yıldız toplayınca açılacak.": "tr/16-yildiz-toplayinca-acilacak-937bc8.mp3",
+  "tr:20 yıldız toplayınca açılacak.": "tr/20-yildiz-toplayinca-acilacak-6b0286.mp3",
+  "tr:Bugünün konusu renkler. Hadi oynayalım!": "tr/bugunun-konusu-renkler-hadi-oynayalim-811748.mp3",
+  "tr:Bugünün konusu sayılar. Hadi oynayalım!": "tr/bugunun-konusu-sayilar-hadi-oynayalim-ce1e0f.mp3",
+  "tr:Renklere dokun ve dinle.": "tr/renklere-dokun-ve-dinle-840dc3.mp3",
+  "tr:Sayılara dokun ve dinle.": "tr/sayilara-dokun-ve-dinle-183324.mp3"
  }
 }
