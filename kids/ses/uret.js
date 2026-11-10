@@ -37,7 +37,9 @@ function dosyaAdi(dil, metin) {
   return dil + '/' + slug + '-' + crypto.createHash('sha1').update(dil + ':' + metin).digest('hex').slice(0, 6) + '.mp3';
 }
 function listeOku() { try { return JSON.parse(fs.readFileSync(LISTE, 'utf8')); } catch (e) { return { surum: 1, ses: {}, model: '', sesler: {} }; } }
-function anahtarGerek() { if (!ANAHTAR) { console.error('ELEVENLABS_API_KEY ortam değişkeni yok. PowerShell: $env:ELEVENLABS_API_KEY = "anahtarın"'); process.exit(1); } }
+function anahtarGerek() {
+  if (ANAHTAR && !/^sk_/.test(ANAHTAR)) { console.error('Bu bir API anahtarı değil (sk_ ile başlamalı). Listede görünen "key ID" değil, anahtar oluşturulurken bir kez gösterilen sk_... değeri gerekir.'); process.exit(1); }
+  if (!ANAHTAR) { console.error('ELEVENLABS_API_KEY ortam değişkeni yok. PowerShell: $env:ELEVENLABS_API_KEY = "anahtarın"'); process.exit(1); } }
 const bekle = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function seslendir(ses, metin, dil) {
@@ -99,7 +101,7 @@ async function uret(hepsi, kuru, dil) {
   const isci = async () => {
     for (let i = is.shift(); i; i = is.shift()) {
       try { fs.writeFileSync(i.tam, await seslendir(yeni.ses[i.x.dil], i.x.metin, i.x.dil)); yeni.sesler[i.anahtar] = i.ad; n++; }
-      catch (e) { hata++; console.error('✗ ' + i.anahtar + ' → ' + e.message); if (/401|403|quota|credits/i.test(e.message)) { is.length = 0; } }
+      catch (e) { hata++; console.error('✗ ' + i.anahtar + ' → ' + e.message); if (/401|403|quota|credits|invalid_api_key|authentication_error|api_key_id_used/i.test(e.message)) { if (is.length) console.error('Anahtar/kredi sorunu: kalan işler durduruldu. Mesajı okuyup düzeltin, sonra yeniden çalıştırın.'); is.length = 0; } }
       if (n % 20 === 0 && n) process.stdout.write('  ' + n + ' dosya\n');
     }
   };
