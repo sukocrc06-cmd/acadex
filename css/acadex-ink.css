@@ -5115,6 +5115,9 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 @media (prefers-reduced-motion: no-preference){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-frame-w.run .dv-signal{animation:axv-sig .8s ease-out}}
 @keyframes axv-sig{0%{width:0;opacity:1}80%{width:100%;opacity:1}100%{width:100%;opacity:0}}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cons-b{display:flex;justify-content:flex-end;margin-bottom:6px}
+/* konsol tur suzgeci (10.11.2026) */
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cfil{display:flex;gap:4px;flex-wrap:wrap}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cfil .dv-mini[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cons{list-style:none;margin:0;padding:8px 10px;flex:1;min-height:300px;overflow:auto;background:#141925;border-radius:4px;font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.55;color:#DCE2EE}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cons li{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05);white-space:pre-wrap;word-break:break-word}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cons li.err{color:#FF8A80}

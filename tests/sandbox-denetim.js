@@ -104,4 +104,51 @@ test('HATAYI ACADIA\'YA TAŞIMA: konsol hatası tek tıkla bağlamıyla sorulur 
   assert.ok(blok[0].includes('Acadia hata yapabilir'), 'dürüstlük notu yok — öbür Acadia yollarıyla tutarsız');
 });
 
+test('KONSOL SÜZGECİ + CTRL+ENTER (10.11.2026)', () => {
+  /* Sandbox geliştirme #3. 60+ kayıtlı konsolda hatayı bulmak zordu. */
+  // (a) Süzgeç çipleri başlıkta, temizle sağda duruyor.
+  assert.ok(html.includes('data-cfil="error"') && html.includes('data-cfil="warn"') && html.includes('data-cfil="log"'),
+    'konsol tür süzgeci çipleri yok');
+  assert.ok(html.includes('data-cclear=""'), 'temizle düğmesi kaybolmuş');
+  // (b) sys satırları HER süzgeçte kalır: koşu sınırları olmadan hangi hata
+  //     hangi koşunun bilinemez. İndeks i korunur: data-aierr konsolun tam
+  //     dizisine işaret eder, süzgeç kaydırırsa YANLIŞ hata sorulur.
+  assert.ok(ink.includes("if (consFiltre && c.t !== consFiltre && c.t !== 'sys') return '';"),
+    'süzgeç sys satırlarını da gizliyor ya da yok');
+  assert.ok(ink.includes('consEl.innerHTML = cons.map(function (c, i) {'),
+    'süzgeç map indeksini bozmuş — Acadia düğmesi yanlış hataya işaret eder');
+  // (c) Ctrl+Enter çalıştırır ve ipucu çubuğunda yazar.
+  assert.ok(ink.includes("e.key === 'Enter') { e.preventDefault(); Q('[data-run]').click(); return; }"),
+    'Ctrl+Enter kısayolu yok');
+  assert.ok(html.includes('Ctrl+Enter çalıştır'), 'ipucu çubuğu kısayolu söylemiyor');
+  // (d) Python hata satırı @dosya:satır biçiminde loglanıyor — "satıra git"
+  //     doğru dosyayı açar (zaten vardı; bu test geri gitmesin diye).
+  assert.ok(ink.includes("log('error', tail + (last ? ' @' + file + ':' + last : ''))"),
+    'Python hatası dosya:satır eki taşımıyor');
+});
+
+test('PYTHON GRAFİK ÇIKTISI + PAKET HABERİ (10.11.2026)', () => {
+  /* Sandbox geliştirme #4. loadPackagesFromImports zaten vardı (numpy/pandas
+     çalışıyordu) ama paket inerken konsol sessizdi ve matplotlib figürü
+     hiçbir yere çizilmiyordu. */
+  // (a) Koşudan ÖNCE AGG arka ucu: matplotlib-pyodide'ın DOM arka ucuna
+  //     düşerse figür ana sayfaya sızar; AGG ile belleğe çizilir.
+  assert.ok(ink.includes('matplotlib\\nmatplotlib.use("AGG")'), 'AGG arka ucu seçilmiyor');
+  // (b) Kuyruk yalnız matplotlib içe aktarıldıysa çalışır, figürleri base64
+  //     toplar ve kapatır (ikinci koşuda birikme olmasın).
+  assert.ok(ink.includes("'if \"matplotlib\" in sys.modules:\\n'"), 'grafik kuyruğu koşulsuz çalışıyor');
+  assert.ok(ink.includes("plt.close(\"all\")"), 'figürler kapatılmıyor — ikinci koşuda birikir');
+  // (c) Kuyruğun hatası öğrencinin koşusunu düşürmez; başarıda önizlemeye geçilir.
+  assert.ok(ink.includes("function (e) { console.warn('grafik toplanamadı', e); }"),
+    'kuyruk hatası koşuyu düşürür');
+  assert.ok(ink.includes("log('sys', n + ' grafik önizlemede'); outTab('prev');"), 'grafik önizlemeye taşınmıyor');
+  // (d) "önizleme yok" kaplaması grafik gelince kalkar — yoksa resim gizli kalır.
+  assert.ok(ink.includes('noprev.hidden = true;\n    var pf'), 'noprev kaplaması grafiği örter');
+  // (e) Paket haberi: öğrenci inen paketi görmeli, donmuş sanmamalı.
+  assert.ok(ink.includes("log('sys', 'paketler hazırlanıyor: ' + pk.join(', ')"), 'paket haberi yok');
+  assert.ok(ink.includes("['numpy', 'pandas', 'matplotlib', 'scipy', 'sympy', 'sklearn']"), 'bilinen paket listesi yok');
+  // (f) PyProxy sızıntısı: dönüş değeri destroy edilir.
+  assert.ok(ink.includes('if (v && v.destroy) { try { v.destroy(); } catch (e) {} }'), 'PyProxy destroy edilmiyor');
+});
+
 summary();

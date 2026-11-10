@@ -5778,6 +5778,7 @@ var SBX = (function () {
   ta.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); commitTyping(); openCommit(Q('[data-commit]')); return; }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openFind(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); Q('[data-run]').click(); return; }
     if (e.key === 'Escape') { ta.blur(); return; }
     if (e.key === 'Tab') {
       e.preventDefault();
@@ -5827,11 +5828,18 @@ var SBX = (function () {
   window.addEventListener('message', function (e) { if (!e.data || !e.data.acadexDev || e.source !== frame.contentWindow) return; log(e.data.t, e.data.a); });
   /* TSD.kayit doluyken her konsol olayi oraya da yazilir (teslim denetimi). */
   var log = function (t, a) { var nt = t === 'log' || t === 'info' ? 'log' : t; cons.push({ t: nt, a: a, at: Date.now() }); if (TSD.kayit) TSD.kayit.push({ t: nt, a: String(a == null ? '' : a) }); if (t === 'error') lastErr++; if (cons.length > 400) cons.shift(); paintCons(); };
+  /* Konsol suzgeci (10.11.2026, sandbox gelistirme #3): 60+ kayitta hatayi
+     bulmak zordu. sys satirlari HER suzgecte kalir — kosu sinirlari
+     olmadan hangi hata hangi kosunun bilinemez. Indeks i KORUNUR:
+     data-aierr konsolun tam dizisine isaret eder, suzgec onu bozmamali. */
+  var consFiltre = '';
   var paintCons = function () {
-    consEl.innerHTML = cons.map(function (c, i) { var m = /@([^\s:]+):(\d+)$/.exec(c.a) || /line (\d+)/.exec(c.a); var go = m ? ' <button type="button" data-goline="' + X(m.length > 2 ? m[1] + '|' + m[2] : (P && P.cur || '') + '|' + m[1]) + '">satıra git</button>' : ''; var sor = c.t === 'error' ? ' <button type="button" data-aierr="' + i + '">Acadia’ya sor</button>' : ''; return '<li class="' + (c.t === 'error' ? 'err' : c.t === 'warn' ? 'warn' : c.t === 'sys' ? 'sys' : '') + '">' + X(c.a) + go + sor + '</li>'; }).join('');
+    consEl.innerHTML = cons.map(function (c, i) {
+      if (consFiltre && c.t !== consFiltre && c.t !== 'sys') return ''; var m = /@([^\s:]+):(\d+)$/.exec(c.a) || /line (\d+)/.exec(c.a); var go = m ? ' <button type="button" data-goline="' + X(m.length > 2 ? m[1] + '|' + m[2] : (P && P.cur || '') + '|' + m[1]) + '">satıra git</button>' : ''; var sor = c.t === 'error' ? ' <button type="button" data-aierr="' + i + '">Acadia’ya sor</button>' : ''; return '<li class="' + (c.t === 'error' ? 'err' : c.t === 'warn' ? 'warn' : c.t === 'sys' ? 'sys' : '') + '">' + X(c.a) + go + sor + '</li>'; }).join('');
     consEl.scrollTop = consEl.scrollHeight;
     var errs = cons.filter(function (c) { return c.t === 'error'; }).length, b = Q('[data-ccount]'); b.textContent = cons.length; b.classList.toggle('err', errs > 0);
   };
+  QA('[data-cfil]').forEach(function (b) { b.addEventListener('click', function () { consFiltre = b.getAttribute('data-cfil'); QA('[data-cfil]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); paintCons(); }); });
   consEl.addEventListener('click', function (e) { var b = e.target.closest('[data-goline]'); if (!b) return; var pr = b.getAttribute('data-goline').split('|'); goLine(pr[0], +pr[1]); });
   /* HATAYI ACADIA'YA TASI (10.11.2026, sandbox gelistirme #2): konsoldaki
      hata tek tikla Acadia sekmesine gider — hata metni + ilgili dosyanin
@@ -5884,6 +5892,37 @@ var SBX = (function () {
       s.onerror = function () { rej(new Error('Pyodide indirilemedi (bağlantı ya da ağ izni)')); }; document.head.appendChild(s);
     }); pyLoading.catch(function () { pyLoading = null; }); return pyLoading;
   };
+  /* PYTHON GRAFIK CIKTISI (10.11.2026, sandbox gelistirme #4).
+     loadPackagesFromImports sayesinde numpy/pandas/matplotlib ZATEN
+     yukleniyordu ama iki kusur vardi: paket inerken konsol sessizdi
+     (ogrenci donmus saniyor) ve matplotlib figuru hicbir yere cizilmiyordu.
+     Cozum: kostan ONCE AGG arka ucu secilir (matplotlib-pyodide'in DOM
+     arka ucuna dusmesin), kostan SONRA kucuk bir Python kuyrugu acik
+     figurleri PNG/base64 toplar, onizleme sekmesinde gosterilir.
+     Kuyruk matplotlib ice aktarilmadiysa HIC dokunmaz; kuyrugun kendi
+     hatasi ogrencinin kosusunu DUSURMEZ (yalniz console.warn). */
+  var PY_PAKETLER = ['numpy', 'pandas', 'matplotlib', 'scipy', 'sympy', 'sklearn'];
+  var PY_GRAFIK = 'import sys\n_acx_g = []\n' +
+    'if "matplotlib" in sys.modules:\n' +
+    '    import io, base64\n' +
+    '    import matplotlib.pyplot as plt\n' +
+    '    for _n in plt.get_fignums():\n' +
+    '        _b = io.BytesIO()\n' +
+    '        plt.figure(_n).savefig(_b, format="png", dpi=110, bbox_inches="tight")\n' +
+    '        _acx_g.append(base64.b64encode(_b.getvalue()).decode())\n' +
+    '    plt.close("all")\n' +
+    '_acx_g\n';
+  var pyGrafikGoster = function (imgs) {
+    if (!imgs || !imgs.length) return 0;
+    /* Python projesinde "önizleme yok" kaplaması açık kalır (refreshPreview
+       buildDoc bulamaz) — grafik gelince kaplama kalkmalı, yoksa resim altta
+       gizli kalır. */
+    noprev.hidden = true;
+    var pf = Q('[data-prevfile]'); if (pf) pf.textContent = 'Python grafikleri';
+    frame.removeAttribute('src');
+    frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>body{margin:16px;font-family:system-ui,sans-serif;background:#fff}img{max-width:100%;display:block;margin:0 auto 16px;box-shadow:0 1px 8px rgba(0,0,0,.12);border-radius:6px}</style></head><body>' + imgs.map(function (b) { return '<img alt="grafik" src="data:image/png;base64,' + b + '">'; }).join('') + '</body></html>';
+    return imgs.length;
+  };
   var runPython = function (file) {
     outTab('cons');
     var go = function () {
@@ -5891,7 +5930,21 @@ var SBX = (function () {
       loadPy().then(function (py) {
         Object.keys(P.files).forEach(function (p) { var d = p.split('/').slice(0, -1), acc = ''; d.forEach(function (x) { acc += (acc ? '/' : '') + x; try { py.FS.mkdir(acc); } catch (e) {} }); try { py.FS.writeFile(p, P.files[p]); } catch (e) {} });
         py.setStdout({ batched: function (s) { log('log', s); } }); py.setStderr({ batched: function (s) { log('warn', s); } });
-        return py.loadPackagesFromImports(P.files[file]).then(function () { return py.runPythonAsync(P.files[file]); });
+        var kaynak = P.files[file];
+        var pk = []; (kaynak.match(/^[ \t]*(?:from|import)[ \t]+([A-Za-z_]\w*)/gm) || []).forEach(function (l) { var m = /([A-Za-z_]\w*)$/.exec(l); if (m && PY_PAKETLER.indexOf(m[1]) > -1 && pk.indexOf(m[1]) < 0) pk.push(m[1]); });
+        if (pk.length) log('sys', 'paketler hazırlanıyor: ' + pk.join(', ') + ' (ilk sefer indirilir, biraz sürebilir)');
+        var once = /\bmatplotlib\b/.test(kaynak) ? 'import matplotlib\nmatplotlib.use("AGG")\n' : '';
+        return py.loadPackagesFromImports(kaynak)
+          .then(function () { return once ? py.runPythonAsync(once) : null; })
+          .then(function () { return py.runPythonAsync(kaynak); })
+          .then(function () {
+            return py.runPythonAsync(PY_GRAFIK).then(function (v) {
+              var imgs = v && v.toJs ? v.toJs() : (v || []);
+              if (v && v.destroy) { try { v.destroy(); } catch (e) {} }
+              var n = pyGrafikGoster(imgs);
+              if (n) { log('sys', n + ' grafik önizlemede'); outTab('prev'); }
+            }, function (e) { console.warn('grafik toplanamadı', e); });
+          });
       }).then(function () { log('sys', '— bitti —'); }, function (err) { var m = String(err && err.message || err), ln = /File "<exec>", line (\d+)/g, last = null, mm; while ((mm = ln.exec(m))) last = mm[1]; var tail = m.trim().split('\n').pop(); log('error', tail + (last ? ' @' + file + ':' + last : '')); });
     };
     if (pyOk || pyodide) go(); else { openDlg(pyDlg, Q('[data-run]')); pyDlg.onclose = function () { if (pyDlg.returnValue === 'ok') { pyOk = true; go(); } pyDlg.returnValue = ''; }; }
