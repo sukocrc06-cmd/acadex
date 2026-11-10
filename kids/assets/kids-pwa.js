@@ -10,7 +10,15 @@
   'use strict';
   var istem = null, N = W.navigator;
   var uygun = /^https:$|^http:$/.test(location.protocol) && (location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) && /^\/kids(\/|$)/.test(location.pathname);
-  if (uygun && N.serviceWorker) W.addEventListener('load', function () { N.serviceWorker.register('/kids/sw.js', { scope: '/kids/' }).catch(function () { }); });
+  /* her açılışta yeni sürümü sor; yeni sw devreye girince sayfayı bir kez yenile (eski ses/sayfa takılı kalmasın) */
+  if (uygun && N.serviceWorker) W.addEventListener('load', function () {
+    var vardi = !!N.serviceWorker.controller;
+    N.serviceWorker.register('/kids/sw.js', { scope: '/kids/' }).then(function (r) { try { r.update(); } catch (e) { } }).catch(function () { });
+    N.serviceWorker.addEventListener('controllerchange', function () {
+      if (!vardi) return; try { if (sessionStorage.getItem('kids.swYenile')) return; sessionStorage.setItem('kids.swYenile', '1'); } catch (e) { return; }
+      location.reload();
+    });
+  });
   W.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); istem = e; });
   W.addEventListener('appinstalled', function () { istem = null; });
   function kurulu() { try { return W.matchMedia('(display-mode: standalone)').matches || N.standalone === true; } catch (e) { return false; } }

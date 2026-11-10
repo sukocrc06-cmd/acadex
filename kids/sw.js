@@ -4,12 +4,12 @@
    içinde), bu yüzden önbellekte o ve simgeler yeter. Sayfa isteği önce internetten
    denenir (yeni sürüm hemen gelsin), 4 sn'de yanıt yoksa önbellekten açılır.
    Supabase istekleri (başka alan adı) hiç önbelleğe alınmaz. Ses dosyaları (kids/ses/*.mp3)
-   ilk çalındıklarında önbelleğe girer; liste.json her seferinde önce internetten denenir.
+   ve liste.json her seferinde önce internetten alınır, internet yoksa önbellekteki çalar.
    Yeni sürüm yayınlarken SURUM'u değiştirmek eski önbelleği temizler. Ses değişince
    SURUM'a gerek yok: kids-ses.js adrese sesin kimliğini (?v=) ekler.
    ========================================================================== */
 'use strict';
-const SURUM = 'acadex-kids-2026-11-10d';
+const SURUM = 'acadex-kids-2026-11-10e';
 const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -21,8 +21,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET' || u.origin !== self.location.origin || !u.pathname.startsWith('/kids/')) return;
-  /* ses listesi: yeni üretilen sesler hemen gelsin (internetten, yoksa önbellekten) */
-  if (u.pathname === '/kids/ses/liste.json') {
+  /* ses listesi ve ses dosyaları: her zaman önce internetten (ses değişince eskisi çalmasın), internet yoksa önbellekten */
+  if (u.pathname === '/kids/ses/liste.json' || u.pathname.startsWith('/kids/ses/')) {
     e.respondWith(fetch(r).then((y) => { if (y.ok) { const k = y.clone(); caches.open(SURUM).then((c) => c.put(r, k)); } return y; }, () => caches.match(r).then((c) => c || Response.error())));
     return;
   }

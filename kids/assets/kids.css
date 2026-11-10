@@ -409,3 +409,4 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 /* yedi durak telefona sığsın */
 @media (max-width:760px){.ka-konu-ust{gap:6px;padding-left:10px;padding-right:10px}.ka-duraklar{gap:3px;min-width:0}.ka-duraklar span{width:32px;height:32px;padding:6px;border-width:2.5px}.ka-duraklar .ka-simdi span{transform:scale(1.1)}}
 @media (max-width:360px){.ka-duraklar span{width:28px;height:28px;padding:5px}}
+.ka-veli-ses{margin:0;font-size:13px;color:var(--soluk)}

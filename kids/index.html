@@ -424,6 +424,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 /* yedi durak telefona sığsın */
 @media (max-width:760px){.ka-konu-ust{gap:6px;padding-left:10px;padding-right:10px}.ka-duraklar{gap:3px;min-width:0}.ka-duraklar span{width:32px;height:32px;padding:6px;border-width:2.5px}.ka-duraklar .ka-simdi span{transform:scale(1.1)}}
 @media (max-width:360px){.ka-duraklar span{width:28px;height:28px;padding:5px}}
+.ka-veli-ses{margin:0;font-size:13px;color:var(--soluk)}
 
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası (kids/assets/kids-landing.css), 10.11.2026
@@ -1570,7 +1571,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     adim(); muzikT = setInterval(adim, 300);
   }
   function ayar(v) { acik = !!v; try { localStorage.setItem('kids.ses', acik ? '1' : '0'); } catch (e) { } if (!acik) sus(); return acik; }
-  W.KIDS_SES = { kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
+  W.KIDS_SES = { surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
 })(window);
 
 /* ---- kids-bulut.js ---- */
@@ -1657,7 +1658,15 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   'use strict';
   var istem = null, N = W.navigator;
   var uygun = /^https:$|^http:$/.test(location.protocol) && (location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) && /^\/kids(\/|$)/.test(location.pathname);
-  if (uygun && N.serviceWorker) W.addEventListener('load', function () { N.serviceWorker.register('/kids/sw.js', { scope: '/kids/' }).catch(function () { }); });
+  /* her açılışta yeni sürümü sor; yeni sw devreye girince sayfayı bir kez yenile (eski ses/sayfa takılı kalmasın) */
+  if (uygun && N.serviceWorker) W.addEventListener('load', function () {
+    var vardi = !!N.serviceWorker.controller;
+    N.serviceWorker.register('/kids/sw.js', { scope: '/kids/' }).then(function (r) { try { r.update(); } catch (e) { } }).catch(function () { });
+    N.serviceWorker.addEventListener('controllerchange', function () {
+      if (!vardi) return; try { if (sessionStorage.getItem('kids.swYenile')) return; sessionStorage.setItem('kids.swYenile', '1'); } catch (e) { return; }
+      location.reload();
+    });
+  });
   W.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); istem = e; });
   W.addEventListener('appinstalled', function () { istem = null; });
   function kurulu() { try { return W.matchMedia('(display-mode: standalone)').matches || N.standalone === true; } catch (e) { return false; } }
@@ -2231,6 +2240,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       '<section><h3>Zorlandığı kelimeler</h3>' + (zor.length ? '<ul class="ka-veli-kel">' + zor.map(function (o) { return '<li style="--r:' + o.hex + '">' + dinle(o.en) + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul><p class="ka-pen-alt">Dinleyip birlikte tekrar edin; günlük hayatta gösterip sorun.</p>' : '<p class="ka-pen-alt">Henüz zorlandığı bir kelime yok.</p>') + '</section>' +
       '<section><h3>Evde birlikte söyleyin <small lang="en">' + esc(kz.en) + '</small></h3><ul class="ka-veli-ev">' + ek.ev.map(function (c) { return '<li>' + dinle(c[0]) + '<b lang="en">' + esc(c[0]) + '</b><small>' + esc(c[1]) + '</small></li>'; }).join('') + '</ul></section>' +
       '<section><h3>Ayarlar</h3><label class="ka-veli-ayar">Mola hatırlatması<select data-mola>' + [10, 15, 20, 30].map(function (m) { return '<option value="' + m + '"' + (m === mola ? ' selected' : '') + '>' + m + ' dakikada bir</option>'; }).join('') + '</select></label>' +
+      (SES.kayitli() ? '<p class="ka-veli-ses">Seslendirme: kayıtlı öğretmen sesi · ' + SES.kayitli() + ' cümle · <span lang="en">tr ' + esc(String(SES.surumler().tr || '-').slice(0, 6)) + '</span></p>' : '<p class="ka-veli-ses">Seslendirme: cihazın kendi sesi</p>') +
       '<label class="ka-veli-ayar">Ses<button type="button" class="ka-orta" data-vses aria-pressed="' + SES.acikMi() + '">' + (SES.acikMi() ? 'Açık' : 'Kapalı') + '</button></label>' +
       (pwa === 'kurulu' ? '<p class="ka-veli-pwa">✓ Acadex Kids bu cihazda uygulama olarak açık.</p>' : pwa === 'kur' ? '<div class="ka-veli-pwa"><p>Acadex Kids’i ana ekrana ekleyin: çocuğunuz tek dokunuşla açar, internet kesilse de oynar.</p><button type="button" class="ka-orta" data-kur>Ana ekrana ekle</button></div>'
         : pwa === 'ios' ? '<div class="ka-veli-pwa"><p>Ana ekrana eklemek için: Safari’de <b>Paylaş</b> düğmesine, sonra <b>Ana Ekrana Ekle</b>’ye dokunun.</p></div>' : '') +
