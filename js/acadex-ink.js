@@ -5145,7 +5145,7 @@ var SBX = (function () {
     ['[data-lgh]', '[data-lvc]', '[data-lurl]'].forEach(function (s) { if (!validate(dlg.querySelector(s))) bad.push(s); });
     var hasSrc = ghParse(cur.links.github) || isVercel(cur.links.vercel) || isUrl(cur.links.url) || (cur.useSnap && cur.snap) || coverFile || cur.image;
     var em = status === 'live' ? emptyLines(cur.text) : [], warnEmpty = em.length && cur._warned !== cur.text; if (em.length) cur._warned = cur.text;
-    var msg = !cur.title ? 'Bir başlık yaz.' : bad.length ? 'İşaretli bağlantının biçimini düzelt.' : !hasSrc && status === 'live' ? 'En az bir bağlantı, kapak fotoğrafı ya da sandbox önizlemesi ekle.' : status === 'live' && cur.text.trim().length < 20 ? 'Birkaç cümleyle projeni anlat (en az 20 karakter).' : warnEmpty ? 'Şablonda boş kalan satırlar var: ' + em.join(', ') + '. Doldur ya da yine de gönder; boş satırlar panelde gizlenir.' : '';
+    var msg = !cur.title ? 'Bir başlık yaz.' : bad.length ? 'İşaretli bağlantının biçimini düzelt.' : !hasSrc && status === 'live' ? (cur.projId ? 'Önizleme için projeyi sandbox\'ta bir kez çalıştır (grafikler ve konsol çıktısı karta girer) ya da bir bağlantı / kapak fotoğrafı ekle.' : 'En az bir bağlantı, kapak fotoğrafı ya da sandbox önizlemesi ekle.') : status === 'live' && cur.text.trim().length < 20 ? 'Birkaç cümleyle projeni anlat (en az 20 karakter).' : warnEmpty ? 'Şablonda boş kalan satırlar var: ' + em.join(', ') + '. Doldur ya da yine de gönder; boş satırlar panelde gizlenir.' : '';
     if (msg) { err.textContent = msg; err.hidden = false; var f = !cur.title ? dlg.querySelector('[data-ctitle]') : bad.length ? dlg.querySelector(bad[0]) : !hasSrc ? dlg.querySelector('[data-lgh]') : dlg.querySelector('[data-ctext]'); if (f) f.focus(); return; }
     err.hidden = true;
     var p = { id: cur.id || '', by: 'me', at: Date.now(), title: cur.title, kind: cur.kind, tech: cur.tech, course: cur.course, text: cur.text.trim(), links: { github: ghParse(cur.links.github) ? cur.links.github : '', vercel: isVercel(cur.links.vercel) ? cur.links.vercel : '', url: isUrl(cur.links.url) ? cur.links.url : '' }, projId: cur.projId || '', snap: cur.useSnap ? cur.snap : '', versions: cur.versions || 0, langs: cur.langs || [], status: status, image: cur.image || '', reacts: cur.reacts || {}, cm: cur.cm || [] };
@@ -5181,7 +5181,7 @@ var SBX = (function () {
     (Q('[data-ctitle]').value ? Q('[data-ctext]') : Q('[data-ctitle]')).focus();
   };
 
-  return { frameCheck: frameCheck, noFrame: noFrame, armShot: armShot, popWin: popWin, liveBar: liveBar, shotUrl: shotUrl, fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, postHTML: postHTML, fillSnaps: fillSnaps, open: open, ago: ago, calm: calm, uid: uid };
+  return { frameCheck: frameCheck, noFrame: noFrame, armShot: armShot, popWin: popWin, liveBar: liveBar, shotUrl: shotUrl, fitFrames: fitFrames, watchFrames: watchFrames, fitOne: fitOne, cleanText: cleanText, emptyLines: emptyLines, X: X, PPL: PPL, KINDS: KINDS, REACT: REACT, KIND_SVG: KIND_SVG, ghParse: ghParse, liveUrl: liveUrl, host: host, gh: gh, hydrateGh: hydrateGh, buildSingle: buildSingle, pySnap: pySnap, postHTML: postHTML, fillSnaps: fillSnaps, open: open, ago: ago, calm: calm, uid: uid };
   })();
 
   /* ================= SANDBOX ETKİLEŞİM PANELİ · akış ================= */
@@ -5564,7 +5564,7 @@ var SBX = (function () {
     if (P) { commitTyping(); saveNow(); }
     var ex = null, lp = posted(pid); if (lp) SBX.st.posts.forEach(function (p) { if (p.id === lp.id) ex = p; });
     if (!ex) SBX.drafts().forEach(function (p) { if (p.projId === pid && !ex) ex = p; });
-    if (ex) { ex = JSON.parse(JSON.stringify(ex)); var pr = byId(pid); ex.snap = ETK.buildSingle(pr.files) || ex.snap; ex.versions = (pr.versions || []).length; ex.langs = langs(pr); }
+    if (ex) { ex = JSON.parse(JSON.stringify(ex)); var pr = byId(pid); ex.snap = ETK.buildSingle(pr.files) || ETK.pySnap(pr) || ex.snap; ex.versions = (pr.versions || []).length; ex.langs = langs(pr); }
     ETK.open({ projectId: pid, post: ex, projects: projects, from: from, onDone: function (p) { renderCards(); var go = function () { if (p.status === 'live') { try { sessionStorage.setItem('acadex.etk.just', p.id); } catch (e) {} } if (typeof switchDashboardView === 'function') switchDashboardView('sandbox-interaction'); }; say(p.status === 'live' ? 'Gönderin Sandbox etkileşim panelinde yayında.' : 'Taslak saklandı; panelde “taslaklarım”da.', null, go, 'panelde gör →'); } });
   };
   var byId = function (id) { var r = null; projects.forEach(function (p) { if (p.id === id) r = p; }); return r; };

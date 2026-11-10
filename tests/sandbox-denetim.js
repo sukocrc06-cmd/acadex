@@ -174,6 +174,15 @@ test('PYTHON PROJESİ PANELE GÖNDERİLEBİLİR: son koşudan analiz kartı (11.
   // (d) Çıktı KAÇIRILARAK gömülür (öğrenci çıktısı HTML taşıyabilir).
   assert.ok(ink.includes("'<pre>' + X((sk.out || []).join('\\n')) + '</pre>'"),
     'konsol çıktısı kaçırılmadan snapshot HTML\'ine giriyor');
+  // (e) EX DALI DA DÜŞER (11.11 canlı bulgusu #2): daha önce paylaşılmış ya da
+  //     TASLAĞI olan proje ex dalına girer; orada yalnız buildSingle vardı —
+  //     ilk hatada taslak kaydeden öğrenci kalıcı kilitleniyordu.
+  assert.ok(ink.includes('ETK.buildSingle(pr.files) || ETK.pySnap(pr) || ex.snap'),
+    'shareProject ex dalı analiz kartına düşmüyor');
+  assert.ok(ink.includes('pySnap: pySnap'), 'pySnap dışa açılmıyor — ex dalı erişemez');
+  // (f) Hata mesajı yol gösterir: sandbox projesi seçiliyken "bir kez çalıştır" der.
+  assert.ok(ink.includes("cur.projId ? 'Önizleme için projeyi sandbox\\'ta bir kez çalıştır"),
+    'sayfasız projede hata mesajı yol göstermiyor');
 });
 
 summary();
