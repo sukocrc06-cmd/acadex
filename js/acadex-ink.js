@@ -5133,7 +5133,12 @@ var SBX = (function () {
       var dp = SBX.saveDraft(p); if (!dp) { err.textContent = 'Taslak saklanamadı: tarayıcı alanı dolu.'; err.hidden = false; return; }
       dlg.close(); if (onDone) onDone(dp); return;
     }
-    var sub = dlg.querySelector('button[type=submit]'), wasDraft = /^d/.test(p.id) ? p.id : ''; if (wasDraft) p.id = '';
+    /* TASLAK AYRIMI UUID'YE BAKMALI (10.11.2026, canli olcum): taslak kimligi
+       'd' + Date.now().toString(36) ama GERCEK UUID de 'd' ile baslayabilir —
+       Berkay'in d1bb5e77-... gonderisi tam boyleydi. Yalniz /^d/ kontrolu o
+       kimligi silip INSERT yaptiriyordu: duzenleme yeni gonderi olarak
+       yayinlaniyor, eskisi panelde kaliyordu (16'da 1 gonderiyi vurur). */
+    var sub = dlg.querySelector('button[type=submit]'), wasDraft = /^d/.test(p.id) && !/^[0-9a-f-]{36}$/i.test(p.id) ? p.id : ''; if (wasDraft) p.id = '';
     sub.disabled = true; sub.textContent = coverFile ? 'fotoğraf yükleniyor…' : 'gönderiliyor…';
     SBX.savePost(p, coverFile).then(function (np) {
       sub.disabled = false; sub.textContent = 'panele gönder'; if (wasDraft) SBX.dropDraft(wasDraft); coverFile = null;

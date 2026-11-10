@@ -192,4 +192,22 @@ test('İNCELEME DÜZENLENEBİLİR: yalnız metin + updated_at, null = hiç düze
   assert.ok(css.includes('.ef-ce input'), 'satır içi düzenleyici stili yok');
 });
 
+test('"d" İLE BAŞLAYAN UUID TASLAK SAYILMAZ: düzenleme kopya üretmez', () => {
+  /* Canlı ölçüm (10.11.2026): Berkay'ın d1bb5e77-... kimlikli gönderisinde
+     "düzenle" yeni bir gönderi yayınladı, eskisi panelde kaldı. Sebep:
+     taslak ayrımı yalnız /^d/ idi; taslak kimliği 'd'+Date.now().toString(36)
+     ama gerçek UUID de 16'da 1 olasılıkla 'd' ile başlar. Kimlik silinince
+     savePost isNew sayıp INSERT ediyordu. */
+  assert.ok(ink.includes("wasDraft = /^d/.test(p.id) && !/^[0-9a-f-]{36}$/i.test(p.id) ? p.id : ''"),
+    'taslak ayrımı UUID dışlaması taşımıyor — d ile başlayan gönderiyi düzenlemek kopya üretir');
+  // Ayrımın iki yanı da gerçek biçimlerle çalışmalı:
+  const taslakMi = (id) => /^d/.test(id) && !/^[0-9a-f-]{36}$/i.test(id);
+  assert.ok(taslakMi('d' + Date.now().toString(36)), 'gerçek taslak kimliği taslak sayılmıyor');
+  assert.ok(!taslakMi('d1bb5e77-d7df-4334-a9ae-4f4e0316ce78'), 'd ile başlayan UUID hâlâ taslak sanılıyor');
+  assert.ok(!taslakMi('a1bb5e77-d7df-4334-a9ae-4f4e0316ce78'), 'sıradan UUID taslak sanılıyor');
+  // savePost tarafındaki isNew ayrımı aynı UUID kalıbını kullanmaya devam etmeli
+  assert.ok(ink.includes("var isNew = !p.id || !/^[0-9a-f-]{36}$/i.test(p.id);"),
+    'savePost isNew ayrımı değişmiş — iki ayrım birbirinden koparsa bu sınıf hata geri gelir');
+});
+
 summary();
