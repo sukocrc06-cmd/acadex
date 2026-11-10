@@ -165,7 +165,7 @@
 #finans-view.axf .axf-iw[data-ist-n="1"] .axf-ip i:nth-child(-n+1),#finans-view.axf .axf-iw[data-ist-n="2"] .axf-ip i:nth-child(-n+2),#finans-view.axf .axf-iw[data-ist-n="3"] .axf-ip i{background:var(--cc)}
 #finans-view.axf .axf-iw[data-ist-n="3"]{background:#F1F8F2}
 #finans-view.axf .axf-iw.is-last{outline:2px dashed var(--cc);outline-offset:2px}
-#finans-view.axf .axf-ist-bahar{margin:12px 0 0;font-size:12px;color:var(--muted,#4B5675)}
+#finans-view.axf .axf-ist-d{margin:12px 0 6px;font-size:12px;font-weight:600;color:var(--muted,#4B5675)}
 @media (max-width:860px){
   #finans-view.axf .axf-ist{grid-template-columns:minmax(0,1fr);padding:18px 14px}
   #finans-view.axf .axf-board{max-width:220px}

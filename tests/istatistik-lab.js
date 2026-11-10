@@ -1,7 +1,7 @@
 /* ==========================================================================
    ACADEX — İSTATİSTİK GİRİŞ DERSİ (tests/istatistik-lab.js)
 
-   NEDEN VAR (11.11.2026): Finans panelinin altındaki eski istatistik gözlemevi
+   NEDEN VAR (11.11.2026; bahar dönemi, Veri Hoca, özet kartı ve sınav provası 12.11.2026): Finans panelinin altındaki eski istatistik gözlemevi
    (labs/istatistik/) kaldırıldı; yerine ders notlarının (Statistics for Business I,
    güz) sırasıyla haftalık ders yolu geldi: labs/istat/. Her hafta = animasyonlu
    anlatım sahneleri + etkileşimli görsel + yeni nesil sorular. Bu test şunları tutar:
@@ -29,7 +29,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g,
 const { test, summary } = makeRunner();
 const near = (a, b, e, m) => assert.ok(Math.abs(a - b) <= e, (m || '') + ' ' + a + ' ≠ ' + b);
 
-const FILES = ['ist-core.js', 'ist-h1.js', 'ist-h2.js', 'ist-h3.js', 'ist-h4.js'];
+const FILES = ['ist-core.js', 'ist-h1.js', 'ist-h2.js', 'ist-h3.js', 'ist-h4.js', 'ist-h5.js', 'ist-h6.js', 'ist-h7.js', 'ist-h8.js', 'ist-ozet.js'];
 const win = { location: { search: '', origin: 'https://acadex.com.tr', href: 'https://acadex.com.tr/labs/istat/' }, matchMedia: () => ({ matches: false }), addEventListener() {} };
 win.parent = win;
 const ctx = { window: win, document: { addEventListener() {} }, location: win.location, Math, JSON, Date, isFinite, isNaN, parseFloat, Number, String, Array, Object, URL };
@@ -37,16 +37,21 @@ vm.createContext(ctx);
 FILES.forEach((f) => vm.runInContext(read('labs/istat/' + f), ctx, { filename: f }));
 const IST = win.IST, M = IST.M;
 
-test('14 güz haftası, notlardaki sırayla; her hafta anlatım + görsel + sorular', () => {
-  assert.deepEqual([...IST.H.map((h) => h.id)], ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15']);
-  const en = { g1: /Basic Outlook to Statistics 1/, g2: /Basic Outlook to Statistics 2/, g3: /^Data$/, g4: /Graphical/, g5: /Central Tendency Measures I$/, g6: /Central Tendency Measures II/, g7: /^Probability$/, g9: /Variability/, g10: /Discrete PD/, g11: /Binomial and Poisson/, g12: /Hypergeometric/, g13: /Continuous PD 1/, g14: /Uniform and Exponential/, g15: /Normal/ };
+test('27 hafta notlardaki sırayla (güz 1–7, 9–15; bahar 1–7, 9–14); her hafta anlatım + görsel + sorular + özet', () => {
+  assert.deepEqual([...IST.H.map((h) => h.id)].sort(), ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b9', 'b10', 'b11', 'b12', 'b13', 'b14'].sort());
+  const en = { g1: /Basic Outlook to Statistics 1/, g2: /Basic Outlook to Statistics 2/, g3: /^Data$/, g4: /Graphical/, g5: /Central Tendency Measures I$/, g6: /Central Tendency Measures II/, g7: /^Probability$/, g9: /Variability/, g10: /Discrete PD/, g11: /Binomial and Poisson/, g12: /Hypergeometric/, g13: /Continuous PD 1/, g14: /Uniform and Exponential/, g15: /Normal/,
+    b1: /Sampling Methods/, b2: /Point Estimation/, b3: /Interval Estimation/, b4: /^One Sample Hypothesis Testing$/, b5: /One Sample Hypothesis Testing 2/, b6: /Two Samples/, b7: /ANOVA/, b9: /Correlation/, b10: /Regression/, b11: /Non-Parametric Statistics I$/, b12: /Non-Parametric Statistics II/, b13: /Index Numbers/, b14: /Decision Theory/ };
   IST.H.forEach((h) => {
     assert.match(h.en, en[h.id], h.id + ' İngilizce adı notlarla aynı');
     assert.ok(h.sahneler.length >= 5, h.id + ' en az 5 sahne');
     assert.equal(typeof h.gorsel.kur, 'function');
-    assert.ok(h.no === +h.id.slice(1));
+    assert.equal(h.no, +h.id.slice(1)); assert.equal(h.donem, h.id[0] === 'b' ? 'bahar' : 'guz');
+    const o = IST.OZET[h.id]; assert.ok(o && o.m.length >= 3 && o.f.length >= 1, h.id + ' özet kartı');
   });
-  assert.equal(IST.BAHAR.length, 13, 'bahar haftaları yolda "yakında" olarak görünür');
+  /* sınav provaları yalnızca var olan haftalara bakar; her hafta bir provada */
+  const pv = [].concat(...Array.from(IST.PROVA, (p) => Array.from(p.hf)));
+  assert.deepEqual(pv.sort(), Array.from(IST.H, (h) => h.id).sort());
+  assert.match(IST.hoca(), /class="hoca"/); assert.doesNotMatch(read('labs/istat/ist-core.js') + read('labs/istat/index.html'), /Ali İhsan|Çetin/i, 'anlatıcı kurgusal');
 });
 
 test('anlatım sahneleri: her sahne görsel üretir, terimler Türkçe + İngilizce', () => {
@@ -94,6 +99,12 @@ test('matematik çekirdeği notlardaki örnekleri verir', () => {
   const d = [12, 15, 17, 18, 20, 21, 23, 24, 26, 30, 41];
   assert.equal(M.pct(d, 0.25), 17); assert.equal(M.pct(d, 0.75), 26);
   assert.equal(M.C(100, 4), 3921225); assert.equal(M.C(5, 2), 10);
+  /* bahar: t, ki-kare, F tabloları ve notlardaki örnekler */
+  assert.equal(M.tkr(0.025, 9), 2.262); assert.equal(M.tkr(0.005, 8), 3.355); assert.equal(M.tkr(0.05, 11), 1.796); assert.equal(M.c2kr(0.05, 3), 7.815); assert.equal(M.c2kr(0.05, 14), 23.685); assert.equal(M.fkr(0.05, 2, 12), 3.89);
+  const A = IST.anova([[254, 263, 241, 237, 251], [234, 218, 235, 227, 216], [200, 222, 197, 206, 204]]);
+  near(A.ssb, 4716.4, 1e-6, 'golf SSB'); near(A.ssw, 1119.6, 1e-6, 'golf SSW'); near(A.F, 25.27, 0.01, 'golf F');
+  near(M.r([1, 2, 3, 4], [2, 4, 6, 8]), 1, 1e-12); assert.deepEqual([...M.rank([10, 10, 10, 3, 5, 12])], [4, 4, 4, 1, 2, 6]);
+  let p = 0; for (let k = 15; k <= 20; k++) p += M.binom(k, 20, 0.5); near(p, 0.0207, 5e-5, 'binom testi 15/20');
   near(M.Phi(0), 0.5, 1e-9); near(M.zinv(0.95), 1.6449, 1e-3);
 });
 
@@ -107,7 +118,7 @@ test('cevap ayrıştırma ve Türkçe sayı biçimi', () => {
 test('hub: panel düğmeleri, açılış anahtarı, liman, Acadia; ağ isteği yok', () => {
   const html = read('dashboard.html'), fin = read('js/acadex-finans.js'), aca = read('js/acadex-medlab-acadia.js'), idx = read('labs/istat/index.html');
   const keys = [...html.matchAll(/<button[^>]*data-finans-open="(istat-[a-z0-9]+)"[^>]*>/g)];
-  assert.deepEqual(keys.map((m) => m[1]).sort(), ['istat-yol'].concat(IST.H.map((h) => 'istat-' + h.id)).sort());
+  assert.deepEqual(keys.map((m) => m[1]).sort(), ['istat-yol'].concat(IST.H.map((h) => 'istat-' + h.id)).sort(), 'panelde 27 hafta + ders yolu');
   assert.ok(keys.every((m) => /data-lm-skip/.test(m[0])));
   assert.match(fin, /labOf\(k\) === 'istat'\) \{ var u = k\.slice\(6\); return IST\[u\] \? \{ lab: 'istat', tab: u, src: 'labs\/istat\/index\.html'/);
   const IKEYS = Object.keys(new Function(fin.slice(fin.indexOf('var IST = '), fin.indexOf(';', fin.indexOf('var IST = '))) + '; return IST;')());

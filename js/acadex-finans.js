@@ -16,7 +16,7 @@
   var SK = { terazi: 'Bilanço terazisi', tablolar: 'Üç tablo ve nakit', maliyet: 'Maliyet ve başabaş', yatirim: 'Yatırım kararı', strateji: 'Strateji masası', org: 'Organizasyon', sim: 'Şirketi yönet' };
   window.AX_SIRKET = SK;
   /* istatistik giriş dersi (11.11.2026): haftalık ders yolu ayrı lab'da (labs/istat/), aynı katmanda açılır; anahtar 'istat-<yol|gN>' */
-  var IST = { yol: 'Ders yolu', g1: '1. hafta · Veri ve ölçekler', g2: '2. hafta · Anakütle ve örneklem', g3: '3. hafta · Veri ve frekans tabloları', g4: '4. hafta · Grafikler', g5: '5. hafta · Mod ve medyan', g6: '6. hafta · Ortalamalar', g7: '7. hafta · Olasılık', g9: '9. hafta · Değişkenlik', g10: '10. hafta · Kesikli dağılımlar', g11: '11. hafta · Binom ve Poisson', g12: '12. hafta · Hipergeometrik', g13: '13. hafta · Sürekli değişken', g14: '14. hafta · Düzgün ve üstel', g15: '15. hafta · Normal dağılım' };
+  var IST = { yol: 'Ders yolu', g1: '1. hafta · Veri ve ölçekler', g2: '2. hafta · Anakütle ve örneklem', g3: '3. hafta · Veri ve frekans tabloları', g4: '4. hafta · Grafikler', g5: '5. hafta · Mod ve medyan', g6: '6. hafta · Ortalamalar', g7: '7. hafta · Olasılık', g9: '9. hafta · Değişkenlik', g10: '10. hafta · Kesikli dağılımlar', g11: '11. hafta · Binom ve Poisson', g12: '12. hafta · Hipergeometrik', g13: '13. hafta · Sürekli değişken', g14: '14. hafta · Düzgün ve üstel', g15: '15. hafta · Normal dağılım', b1: 'Bahar 1 · Örnekleme yöntemleri', b2: 'Bahar 2 · Nokta tahmini', b3: 'Bahar 3 · Güven aralıkları', b4: 'Bahar 4 · Hipotez testi', b5: 'Bahar 5 · z, t, oran ve varyans testleri', b6: 'Bahar 6 · İki örneklem testleri', b7: 'Bahar 7 · ANOVA', b9: 'Bahar 9 · Korelasyon', b10: 'Bahar 10 · Regresyon', b11: 'Bahar 11 · Binom, işaret, ki-kare', b12: 'Bahar 12 · Sıra testleri', b13: 'Bahar 13 · İndeks sayıları', b14: 'Bahar 14 · Karar teorisi' };
   window.AX_ISTAT = IST;
   var labOf = function (k) { return /^sirket-/.test(k) ? 'sirket' : /^istat-/.test(k) ? 'istat' : 'finans'; };
   var info = function (k) {
@@ -81,7 +81,7 @@
   var istPaint = function () {
     var box = sec.querySelector('[data-ist-yol]'); if (!box) return;
     var p = lsafe(function () { return JSON.parse(localStorage.getItem('acadex.istat.v1') || '{}') || {}; }, {}), done = 0, all = 0;
-    Array.prototype.forEach.call(box.querySelectorAll('[data-finans-open^="istat-g"]'), function (b) {
+    Array.prototype.forEach.call(sec.querySelectorAll('[data-ist-yol] [data-finans-open^="istat-"]'), function (b) {
       var r = p[b.getAttribute('data-finans-open').slice(6)] || {}, n = (r.a ? 1 : 0) + (r.g ? 1 : 0) + (r.s != null && r.s >= 60 ? 1 : 0);
       all++; if (n === 3) done++;
       b.setAttribute('data-ist-n', String(n)); b.classList.toggle('is-last', p.last === b.getAttribute('data-finans-open').slice(6));

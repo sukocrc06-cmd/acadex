@@ -14,7 +14,7 @@
   'use strict';
   var W = window, D = document;
   var IST = W.IST = { H: [], by: {} };
-  IST.hafta = function (h) { IST.H.push(h); IST.by[h.id] = h; };
+  IST.hafta = function (h) { h.donem = h.donem || (h.id.charAt(0) === 'b' ? 'bahar' : 'guz'); IST.H.push(h); IST.by[h.id] = h; };
 
   /* ---------- yardımcılar ---------- */
   var X = IST.X = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -82,6 +82,54 @@
   /* tablo değeri: P(0 < Z < z), z iki basamağa yuvarlanır (z tablosundaki gibi) */
   M.ztab = function (z) { z = Math.round(Math.abs(z) * 100) / 100; return Math.round((M.Phi(z) - 0.5) * 10000) / 10000; };
   M.zinv = function (p) { var lo = -6, hi = 6; for (var i = 0; i < 80; i++) { var m = (lo + hi) / 2; if (M.Phi(m) < p) lo = m; else hi = m; } return (lo + hi) / 2; };
+
+  /* t, ki-kare ve F (12.11.2026, bahar dönemi): log-gama (Lanczos), düzenlenmiş eksik beta ve gama */
+  M.lgam = function (x) {
+    var c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var y = x, t = x + 5.5; t -= (x + 0.5) * Math.log(t); var s = 1.000000000190015;
+    for (var j = 0; j < 6; j++) s += c[j] / ++y;
+    return -t + Math.log(2.5066282746310005 * s / x);
+  };
+  var betacf = function (a, b, x) {
+    var qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d; var h = d;
+    for (var m = 1; m <= 200; m++) {
+      var m2 = 2 * m, aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30; d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30; d = 1 / d; var del = d * c; h *= del;
+      if (Math.abs(del - 1) < 3e-12) break;
+    }
+    return h;
+  };
+  M.ibeta = function (x, a, b) {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    var bt = Math.exp(M.lgam(a + b) - M.lgam(a) - M.lgam(b) + a * Math.log(x) + b * Math.log(1 - x));
+    return x < (a + 1) / (a + b + 2) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b;
+  };
+  M.igam = function (a, x) {
+    if (x <= 0) return 0;
+    if (x < a + 1) { var ap = a, sum = 1 / a, del = sum; for (var n = 0; n < 500; n++) { ap++; del *= x / ap; sum += del; if (Math.abs(del) < Math.abs(sum) * 1e-14) break; } return sum * Math.exp(-x + a * Math.log(x) - M.lgam(a)); }
+    var b = x + 1 - a, c = 1e30, d = 1 / b, h = d;
+    for (var i = 1; i < 500; i++) { var an = -i * (i - a); b += 2; d = an * d + b; if (Math.abs(d) < 1e-30) d = 1e-30; c = b + an / c; if (Math.abs(c) < 1e-30) c = 1e-30; d = 1 / d; var dl = d * c; h *= dl; if (Math.abs(dl - 1) < 1e-14) break; }
+    return 1 - Math.exp(-x + a * Math.log(x) - M.lgam(a)) * h;
+  };
+  M.tcdf = function (t, v) { var p = 0.5 * M.ibeta(v / (v + t * t), v / 2, 0.5); return t >= 0 ? 1 - p : p; };
+  M.tpdf = function (t, v) { return Math.exp(M.lgam((v + 1) / 2) - M.lgam(v / 2)) / Math.sqrt(v * Math.PI) * Math.pow(1 + t * t / v, -(v + 1) / 2); };
+  M.c2cdf = function (x, k) { return M.igam(k / 2, x / 2); };
+  M.c2pdf = function (x, k) { return x <= 0 ? 0 : Math.exp((k / 2 - 1) * Math.log(x) - x / 2 - (k / 2) * Math.log(2) - M.lgam(k / 2)); };
+  M.fcdf = function (x, a, b) { return x <= 0 ? 0 : M.ibeta(a * x / (a * x + b), a / 2, b / 2); };
+  M.fpdf = function (x, a, b) { return x <= 0 ? 0 : Math.exp(0.5 * (a * Math.log(a * x) + b * Math.log(b) - (a + b) * Math.log(a * x + b)) - Math.log(x) - (M.lgam(a / 2) + M.lgam(b / 2) - M.lgam((a + b) / 2))); };
+  var inv = function (cdf, p, lo, hi) { for (var i = 0; i < 100; i++) { var m = (lo + hi) / 2; if (cdf(m) < p) lo = m; else hi = m; } return (lo + hi) / 2; };
+  /* sağ kuyruk kritik değerleri (tablolardaki gibi üç ondalığa yuvarlı) */
+  M.tkr = function (a, v) { return Math.round(inv(function (t) { return M.tcdf(t, v); }, 1 - a, 0, 80) * 1000) / 1000; };
+  M.c2kr = function (a, k) { return Math.round(inv(function (x) { return M.c2cdf(x, k); }, 1 - a, 0, 400) * 1000) / 1000; };
+  M.fkr = function (a, d1, d2) { return Math.round(inv(function (x) { return M.fcdf(x, d1, d2); }, 1 - a, 0, 400) * 100) / 100; };
+  M.zkr = function (a) { return Math.round(M.zinv(1 - a) * 1000) / 1000; };
+  M.cov = function (x, y) { var mx = M.mean(x), my = M.mean(y); return M.sum(x.map(function (v, i) { return (v - mx) * (y[i] - my); })) / (x.length - 1); };
+  M.r = function (x, y) { return M.cov(x, y) / (M.sdS(x) * M.sdS(y)); };
+  M.ls = function (x, y) { var mx = M.mean(x), my = M.mean(y), sxy = M.sum(x.map(function (v, i) { return (v - mx) * (y[i] - my); })), sxx = M.sum(x.map(function (v) { return (v - mx) * (v - mx); })), b = sxy / sxx; return { a: my - b * mx, b: b, sxy: sxy, sxx: sxx, mx: mx, my: my }; };
+  /* sıralar (eşitlerde ortalama sıra) */
+  M.rank = function (a) { var s = a.map(function (v, i) { return [v, i]; }).sort(function (p, q) { return p[0] - q[0]; }), r = []; for (var i = 0; i < s.length;) { var j = i; while (j + 1 < s.length && s[j + 1][0] === s[i][0]) j++; for (var k = i; k <= j; k++) r[s[k][1]] = (i + j) / 2 + 1; i = j + 1; } return r; };
 
   /* ---------- görsel ilkeller (SVG dizgileri) ---------- */
   var V = IST.V = {};
@@ -274,7 +322,7 @@
     var H = IST.by[cur.tab], adim = { a: 'anlatım', g: 'etkileşimli görsel', s: 'yeni nesil sorular' }[cur.step];
     var sel = H ? {
       key: 'istat.' + H.id, title: H.no + '. hafta · ' + H.tr, la: 'Acadex İstatistik', rows: [],
-      about: 'öğrenci Acadex İstatistik giriş dersinde (Statistics for Business I), ' + H.no + '. hafta "' + H.tr + ' (' + H.en + ')" dersinin ' + adim + ' bölümünde' +
+      about: 'öğrenci Acadex İstatistik dersinde (Statistics for Business ' + (H.donem === 'bahar' ? 'II' : 'I') + '), ' + H.no + '. hafta "' + H.tr + ' (' + H.en + ')" dersinin ' + adim + ' bölümünde' +
         (cur.step === 'a' && H.sahneler[cur.sahne] ? ', "' + H.sahneler[cur.sahne].b.replace(/<[^>]+>/g, '') + '" sahnesinde' : '') + '. Sorularda cevabı doğrudan verme, adım adım yönlendir.'
     } : { key: 'istat.yol', title: 'Ders yolu', la: 'Acadex İstatistik', rows: [], about: 'öğrenci Acadex İstatistik giriş dersinin haftalık ders yolunda; hangi haftadan başlayacağını seçiyor.' };
     return { type: 'ctx', mode: cur.tab, spot: false, sel: sel, chips: [] };
@@ -295,73 +343,124 @@
   };
   var top = function () { lsafe(function () { W.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }); }); };
 
+  /* ---------- Veri Hoca: kurgusal anlatıcı (12.11.2026) ----------
+     Gözlüklü, papyonlu bir çizgi hoca. Boştayken göz kırpar; anlatırken ağzı oynar,
+     her yeni cümlede işaret çubuğuyla görsele doğru gösterir. */
+  IST.hoca = function (sz) {
+    return '<svg class="hoca" viewBox="0 0 84 92" width="' + (sz || 64) + '" height="' + Math.round((sz || 64) * 92 / 84) + '" aria-hidden="true">' +
+      '<path d="M10 92c2-18 14-26 32-26s30 8 32 26z" fill="#2F6FB0" stroke="#0D1838" stroke-width="2.4"/>' +
+      '<path d="M34 66l8 10 8-10" fill="#FFFDF8" stroke="#0D1838" stroke-width="2"/><path d="M36 78l6-4 6 4-6 4z" fill="#C8553D" stroke="#0D1838" stroke-width="1.6"/>' +
+      '<circle cx="42" cy="36" r="22" fill="#F1C7A1" stroke="#0D1838" stroke-width="2.4"/>' +
+      '<path d="M20 34c0-16 10-22 22-22s22 6 22 22c-4-8-10-11-14-11-3 4-12 5-18 2-5 1-9 4-12 9z" fill="#5B6578" stroke="#0D1838" stroke-width="2"/>' +
+      '<g class="goz"><circle cx="34" cy="38" r="2.4" fill="#0D1838"/><circle cx="50" cy="38" r="2.4" fill="#0D1838"/></g>' +
+      '<circle cx="34" cy="38" r="7" fill="rgba(255,255,255,.25)" stroke="#0D1838" stroke-width="2"/><circle cx="50" cy="38" r="7" fill="rgba(255,255,255,.25)" stroke="#0D1838" stroke-width="2"/><path d="M41 38h2" stroke="#0D1838" stroke-width="2"/>' +
+      '<path d="M37 47c3 2 7 2 10 0" fill="none" stroke="#0D1838" stroke-width="1.8" stroke-linecap="round"/>' +
+      '<ellipse class="agiz" cx="42" cy="50" rx="4.2" ry="2.6" fill="#7A2E2A"/>' +
+      '<g class="kol"><path d="M66 82l12-16" stroke="#2F6FB0" stroke-width="7" stroke-linecap="round"/><path d="M78 66l6-14" stroke="#8A6D3B" stroke-width="2.6" stroke-linecap="round"/><circle cx="78" cy="66" r="3.6" fill="#F1C7A1" stroke="#0D1838" stroke-width="1.5"/></g></svg>';
+  };
+
   /* ---------- yol haritası ---------- */
-  IST.BAHAR = [
-    [1, 'Örnekleme yöntemleri', 'Sampling Methods'], [2, 'Nokta tahmini', 'Point Estimation'], [3, 'Aralık tahmini', 'Interval Estimation'],
-    [4, 'Tek örneklem hipotez testi I', 'One Sample Hypothesis Testing'], [5, 'Tek örneklem hipotez testi II', 'One Sample Hypothesis Testing 2'],
-    [6, 'İki örneklem hipotez testi', 'Two Samples Hypothesis Testing'], [7, 'Varyans analizi', 'ANOVA'], [9, 'Korelasyon', 'Correlation'],
-    [10, 'Regresyon analizi', 'Regression Analysis'], [11, 'Parametrik olmayan testler I', 'Non-Parametric Statistics I'],
-    [12, 'Parametrik olmayan testler II', 'Non-Parametric Statistics II'], [13, 'İndeks sayıları', 'Index Numbers'], [14, 'Karar teorisi', 'Decision Theory']
+  IST.PROVA = [
+    { id: 'pv-gv', ad: 'Güz · vize provası', hf: ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7'] },
+    { id: 'pv-gf', ad: 'Güz · final provası', hf: ['g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15'] },
+    { id: 'pv-bv', ad: 'Bahar · vize provası', hf: ['b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7'] },
+    { id: 'pv-bf', ad: 'Bahar · final provası', hf: ['b9', 'b10', 'b11', 'b12', 'b13', 'b14'] }
   ];
+  var donem = function (d) { return IST.H.filter(function (H) { return H.donem === d; }); };
   var yol = function () {
     var p = prog(), done = 0, parts = 0;
     IST.H.forEach(function (H) { var q = IST.parts(p[H.id]); parts += q.filter(Boolean).length; if (q[0] && q[1] && q[2]) done++; });
-    var tot = IST.H.length * 3, pc = tot ? parts / tot : 0, C = 2 * Math.PI * 46;
-    var kart = function (H, i) {
+    var tot = IST.H.length * 3, pc = tot ? parts / tot : 0, C = 2 * Math.PI * 46, i = 0;
+    var kart = function (H) {
       var q = IST.parts(p[H.id]), r = p[H.id] || {}, all = q[0] && q[1] && q[2];
-      return '<li style="--i:' + i + ';--cc:' + H.renk + '"><button type="button" class="is-wk' + (all ? ' done' : '') + '" data-go="' + H.id + '">' +
+      return '<li style="--i:' + (i++) + ';--cc:' + H.renk + '"><button type="button" class="is-wk' + (all ? ' done' : '') + '" data-go="' + H.id + '">' +
         '<span class="no"><b>' + H.no + '. HAFTA</b>' + (p.last === H.id ? '<span>kaldığın yer</span>' : '') + '</span>' +
         '<h3 class="disp">' + X(H.tr) + '<small>' + X(H.en) + '</small></h3>' +
         '<span class="parts" aria-label="anlatım ' + (q[0] ? 'bitti' : 'bekliyor') + ', görsel ' + (q[1] ? 'bitti' : 'bekliyor') + ', sorular ' + (q[2] ? 'geçti' : 'bekliyor') + '"><i class="' + (q[0] ? 'on' : '') + '"></i><i class="' + (q[1] ? 'on' : '') + '"></i><i class="' + (q[2] ? 'on' : '') + '"></i><span>' + (r.s != null ? '%' + r.s : all ? '✓' : '') + '</span></span></button></li>';
     };
-    var guz = IST.H.slice().sort(function (a, b) { return a.no - b.no; }), html = '', i = 0;
-    guz.forEach(function (H) {
-      if (H.no === 9) html += '<li style="--i:' + (i++) + '"><div class="is-ara"><span><b>8</b>ara sınav haftası<br>(midterm)</span></div></li>';
-      html += kart(H, i++);
-    });
+    var liste = function (L) { var h = ''; L.forEach(function (H) { if (H.no === 9) h += '<li style="--i:' + (i++) + '"><div class="is-ara"><span><b>8</b>ara sınav haftası<br>(midterm)</span></div></li>'; h += kart(H); }); return h; };
+    var prova = function (d) {
+      return '<div class="is-pv">' + IST.PROVA.filter(function (P) { return P.id.charAt(3) === d; }).map(function (P) {
+        var r = p[P.id] || {}; return '<button type="button" class="is-pvb" data-go="' + P.id + '"><span class="ic" aria-hidden="true">⏱️</span><span><b class="disp">' + X(P.ad) + '</b><small>' + P.hf.length * 2 + ' soru · ' + P.hf.length * 5 + ' dakika · ' + P.hf.map(function (k) { return IST.by[k] ? IST.by[k].no : ''; }).join(', ') + '. haftalar</small></span><span class="sc">' + (r.s != null ? 'en iyi %' + r.s : 'başla →') + '</span></button>';
+      }).join('') + '</div>';
+    };
     main.innerHTML = '<div class="is-hero"><div><span class="hand" style="font-size:22px;color:var(--rust)">Statistics for Business I · II</span><h1 class="disp">İstatistiğe giriş<br>haftalık ders yolu</h1>' +
-      '<p>Her hafta üç adım: <b>animasyonlu anlatım</b>, <b>etkileşimli görsel</b> ve <b>yeni nesil sorular</b>. Sıra ders notlarındakiyle aynı; terimlerin İngilizcesi yanında.</p></div>' +
+      '<p>Her hafta: <b>Veri Hoca’nın animasyonlu anlatımı</b>, <b>etkileşimli görsel</b>, <b>yeni nesil sorular</b> ve yazdırılabilir <b>özet kartı</b>. Sıra ders notlarındakiyle aynı; terimlerin İngilizcesi yanında.</p></div>' +
       '<div class="is-ring" aria-label="ilerleme yüzde ' + Math.round(pc * 100) + '"><svg viewBox="0 0 112 112"><circle cx="56" cy="56" r="46" fill="none" stroke="#E6E0D2" stroke-width="10"/><circle cx="56" cy="56" r="46" fill="none" stroke="#0D1838" stroke-width="10" stroke-linecap="round" stroke-dasharray="' + (C * pc).toFixed(1) + ' ' + C.toFixed(1) + '"/></svg><b class="disp">%' + Math.round(pc * 100) + '</b><small>' + done + ' / ' + IST.H.length + ' hafta</small></div></div>' +
-      '<div class="is-donem"><h2 class="disp">Güz dönemi</h2><span>Statistics for Business I · betimsel istatistik, olasılık ve dağılımlar</span></div><ol class="is-yol">' + html + '</ol>' +
-      '<div class="is-donem"><h2 class="disp">Bahar dönemi</h2><span>Statistics for Business II · yakında</span></div><ol class="is-yol">' +
-      IST.BAHAR.map(function (b, j) { return '<li style="--i:' + (j + i) + '"><div class="is-wk lock" aria-disabled="true"><span class="no"><b>' + b[0] + '. HAFTA</b></span><h3 class="disp">' + X(b[1]) + '<small>' + X(b[2]) + '</small></h3><span class="is-soon">yakında</span></div></li>'; }).join('') + '</ol>' +
-      '<p class="is-not">Ders notları: Statistics for Business I–II (güz ve bahar). Sorulardaki şirketler ve sayılar ders amaçlı kurgusaldır; her "yeni soru seti" sayıları yeniden üretir.</p>';
+      '<div class="is-hocab">' + IST.hoca(70) + '<p><b>Veri Hoca:</b> Merhaba! Bir haftayı aç, “▶ oynat”a bas; sahneleri ben anlatayım. Takıldığın yerde durdur, kendi hızında oku. Dönem sonunda sınav provalarıyla kendini dene.</p></div>' +
+      '<div class="is-donem"><h2 class="disp">Güz dönemi</h2><span>Statistics for Business I · betimsel istatistik, olasılık ve dağılımlar</span></div><ol class="is-yol">' + liste(donem('guz')) + '</ol>' + prova('g') +
+      '<div class="is-donem"><h2 class="disp">Bahar dönemi</h2><span>Statistics for Business II · örnekleme, tahmin, hipotez testleri, ilişki ve karar</span></div><ol class="is-yol">' + liste(donem('bahar')) + '</ol>' + prova('b') +
+      '<p class="is-not">Ders notları: Statistics for Business I–II. Anlatıcı Veri Hoca kurgusal bir karakterdir. Sorulardaki şirketler ve sayılar ders amaçlı kurgusaldır; her “yeni soru seti” sayıları yeniden üretir.</p>';
     crumb.textContent = 'Ders yolu';
   };
 
   /* ---------- ders ---------- */
+  var ADIM = [['a', 'Anlatım', 0], ['g', 'Görsel', 1], ['s', 'Sorular', 2], ['o', 'Özet', 3]];
   var ders = function (H, step) {
     var p = prog()[H.id] || {}, q = IST.parts(p);
-    main.innerHTML = '<div class="is-ders" style="--cc:' + H.renk + '"><div class="is-dh"><div><span class="k">' + H.no + '. hafta · Güz</span><h1 class="disp">' + X(H.tr) + '<small>' + X(H.en) + '</small></h1></div>' +
+    main.innerHTML = '<div class="is-ders" style="--cc:' + H.renk + '"><div class="is-dh"><div><span class="k">' + H.no + '. hafta · ' + (H.donem === 'bahar' ? 'Bahar' : 'Güz') + '</span><h1 class="disp">' + X(H.tr) + '<small>' + X(H.en) + '</small></h1></div>' +
       '<div class="is-adim" role="tablist" aria-label="Dersin adımları">' +
-      [['a', 'Anlatım', 0], ['g', 'Görsel', 1], ['s', 'Sorular', 2]].map(function (t) { return '<button type="button" role="tab" data-st="' + t[0] + '" aria-selected="' + (step === t[0]) + '" class="' + (q[t[2]] ? 'ok' : '') + '"><i>' + (q[t[2]] ? '✓' : t[2] + 1) + '</i><span>' + t[1] + '</span></button>'; }).join('') +
+      ADIM.map(function (t) { var ok = t[2] < 3 && q[t[2]]; return '<button type="button" role="tab" data-st="' + t[0] + '" aria-selected="' + (step === t[0]) + '" class="' + (ok ? 'ok' : '') + '"><i>' + (ok ? '✓' : t[2] < 3 ? t[2] + 1 : '★') + '</i><span>' + t[1] + '</span></button>'; }).join('') +
       '</div></div><div class="is-card" data-body></div><div class="is-sonraki" data-alt></div></div>';
-    crumb.innerHTML = '<span>' + H.no + '. hafta</span><span aria-hidden="true">·</span><span>' + X(H.tr) + '</span>';
+    crumb.innerHTML = '<span>' + (H.donem === 'bahar' ? 'Bahar' : 'Güz') + ' · ' + H.no + '. hafta</span><span aria-hidden="true">·</span><span>' + X(H.tr) + '</span>';
     var body = main.querySelector('[data-body]');
     if (step === 'a') anlatim(H, body);
     else if (step === 'g') gorsel(H, body);
+    else if (step === 'o') ozet(H, body);
     else sorular(H, body);
     var alt = main.querySelector('[data-alt]'), i = IST.H.indexOf(H), nx = IST.H[i + 1], pv = IST.H[i - 1];
-    alt.innerHTML = (pv ? '<button type="button" class="btn ghost" data-go="' + pv.id + '">← ' + pv.no + '. hafta</button>' : '') + '<button type="button" class="btn ghost" data-go="yol">ders yolu</button>' + (nx ? '<button type="button" class="btn" data-go="' + nx.id + '">' + nx.no + '. hafta →</button>' : '');
+    alt.innerHTML = (pv ? '<button type="button" class="btn ghost" data-go="' + pv.id + '">← ' + pv.no + '. hafta</button>' : '') + '<button type="button" class="btn ghost" data-go="yol">ders yolu</button>' + (nx ? '<button type="button" class="btn" data-go="' + nx.id + '">' + (nx.donem !== H.donem ? 'Bahar · ' : '') + nx.no + '. hafta →</button>' : '');
   };
+
+  /* anlatım: sahneler + Veri Hoca + otomatik oynatıcı (altyazı = metnin paragraf/madde birimleri) */
+  var oyn = { t: null };
+  var durdur = function () { clearTimeout(oyn.t); oyn.t = null; };
+  IST.durdur = durdur;
   var anlatim = function (H, body) {
     var S = H.sahneler, k = Math.min(cur.sahne || 0, S.length - 1);
     var draw = function () {
-      cur.sahne = k; var s = S[k];
-      body.innerHTML = '<div class="is-sahne"><div class="is-metin"><span class="sn">SAHNE ' + (k + 1) + ' / ' + S.length + '</span><h2 class="disp">' + s.b + '</h2><div class="tx">' + s.t + '</div>' +
+      durdur(); cur.sahne = k; var s = S[k];
+      body.innerHTML = '<div class="is-sahne"><div class="is-bar" aria-hidden="true"><i data-bar></i></div><div class="is-metin"><span class="sn">SAHNE ' + (k + 1) + ' / ' + S.length + '</span><h2 class="disp">' + s.b + '</h2>' +
+        '<div class="is-hk">' + IST.hoca(58) + '<div class="is-bal" data-bal aria-live="polite">' + (cur.play ? '' : k ? 'Hazırsan ▶ oynat; bu sahneyi birlikte okuyalım.' : 'Merhaba, ben Veri Hoca! ▶ oynat’a basarsan bu dersi sahne sahne anlatırım.') + '</div></div>' +
+        '<div class="tx">' + s.t + '</div>' +
         (s.terim ? '<div class="is-terimler">' + s.terim.map(function (t) { return '<span>' + X(t[0]) + ' <em>· ' + X(t[1]) + '</em></span>'; }).join('') + '</div>' : '') +
-        '<div class="is-sahne-nav"><div class="is-dots">' + S.map(function (_, j) { return '<button type="button" data-sj="' + j + '" class="' + (j < k ? 'on' : '') + '"' + (j === k ? ' aria-current="true"' : '') + ' aria-label="sahne ' + (j + 1) + '"></button>'; }).join('') + '</div>' +
-        '<button type="button" class="btn sm ghost" data-sp' + (k ? '' : ' disabled') + '>← geri</button>' +
-        (k < S.length - 1 ? '<button type="button" class="btn sm pri" data-sn>ileri →</button>' : '<button type="button" class="btn sm pri" data-tog>görsele geç →</button>') + '</div></div>' +
+        '<div class="is-sahne-nav"><button type="button" class="btn sm pri is-oyn" data-play aria-pressed="' + !!cur.play + '">' + (cur.play ? '⏸ durdur' : '▶ oynat') + '</button><button type="button" class="btn sm ghost" data-hiz title="oynatma hızı">' + (cur.hiz === 1.5 ? '1,5×' : '1×') + '</button>' +
+        '<div class="is-dots">' + S.map(function (_, j) { return '<button type="button" data-sj="' + j + '" class="' + (j < k ? 'on' : '') + '"' + (j === k ? ' aria-current="true"' : '') + ' aria-label="sahne ' + (j + 1) + '"></button>'; }).join('') + '</div>' +
+        '<button type="button" class="btn sm ghost" data-sp' + (k ? '' : ' disabled') + '>←</button>' +
+        (k < S.length - 1 ? '<button type="button" class="btn sm" data-sn>ileri →</button>' : '<button type="button" class="btn sm" data-tog>görsel →</button>') + '</div></div>' +
         '<div class="is-gor"><button type="button" class="btn sm ghost tekrar" data-rp title="animasyonu yeniden oynat">↻ tekrar</button><div class="fig" data-v></div></div></div>';
-      var v = body.querySelector('[data-v]');
-      lsafe(function () { v.innerHTML = typeof s.v === 'function' ? s.v() : (s.v || ''); });
-      if (s.kur) lsafe(function () { s.kur(v); });
-      body.querySelector('[data-rp]').onclick = function () { var h = v.innerHTML; v.innerHTML = ''; void v.offsetWidth; v.innerHTML = typeof s.v === 'function' ? s.v() : h; if (s.kur) s.kur(v); };
-      var sp = body.querySelector('[data-sp]'); sp.onclick = function () { if (k) { k--; draw(); } };
-      var sn = body.querySelector('[data-sn]'); if (sn) sn.onclick = function () { k++; draw(); if (k === S.length - 1) put(H.id, { a: 1 }); };
-      var tg = body.querySelector('[data-tog]'); if (tg) tg.onclick = function () { put(H.id, { a: 1 }); IST.go(H.id, 'g'); };
-      [].forEach.call(body.querySelectorAll('[data-sj]'), function (b) { b.onclick = function () { k = +b.getAttribute('data-sj'); draw(); if (k === S.length - 1) put(H.id, { a: 1 }); }; });
+      var v = body.querySelector('[data-v]'), hk = body.querySelector('.hoca'), bal = body.querySelector('[data-bal]'), bar = body.querySelector('[data-bar]');
+      var ciz = function () { v.innerHTML = ''; void v.offsetWidth; lsafe(function () { v.innerHTML = typeof s.v === 'function' ? s.v() : (s.v || ''); }); if (s.kur) lsafe(function () { s.kur(v); }); };
+      ciz();
+      body.querySelector('[data-rp]').onclick = ciz;
+      var git = function (j) { k = j; draw(); if (k === S.length - 1) put(H.id, { a: 1 }); };
+      body.querySelector('[data-sp]').onclick = function () { if (k) git(k - 1); };
+      var sn = body.querySelector('[data-sn]'); if (sn) sn.onclick = function () { git(k + 1); };
+      var tg = body.querySelector('[data-tog]'); if (tg) tg.onclick = function () { cur.play = false; put(H.id, { a: 1 }); IST.go(H.id, 'g'); };
+      [].forEach.call(body.querySelectorAll('[data-sj]'), function (b) { b.onclick = function () { git(+b.getAttribute('data-sj')); }; });
+      body.querySelector('[data-hiz]').onclick = function () { cur.hiz = cur.hiz === 1.5 ? 1 : 1.5; this.textContent = cur.hiz === 1.5 ? '1,5×' : '1×'; };
+      /* altyazı birimleri */
+      var units = []; [].forEach.call(body.querySelectorAll('.tx > *'), function (el) { if (/^(UL|OL)$/.test(el.tagName)) [].forEach.call(el.children, function (li) { units.push(li); }); else units.push(el); });
+      var adim = function (u) {
+        units.forEach(function (x, j) { x.classList.toggle('is-oku', j === u); x.classList.toggle('is-okundu', j < u); });
+        if (u >= units.length) {
+          hk.classList.remove('konus'); bar.style.transition = 'none'; bar.style.width = '100%';
+          oyn.t = setTimeout(function () { if (k < S.length - 1) { git(k + 1); } else { cur.play = false; put(H.id, { a: 1 }); draw(); bal.textContent = 'Anlatım bitti! Şimdi görselde kendin dene.'; IST.toast('Anlatım bitti → görsele geç'); } }, 1100 / (cur.hiz || 1));
+          return;
+        }
+        var el = units[u], txt = el.textContent.replace(/\s+/g, ' ').trim(), dur = Math.max(2600, Math.min(11000, txt.length * 62)) / (cur.hiz || 1);
+        bal.textContent = txt.length > 230 ? txt.slice(0, 227) + '…' : txt;
+        hk.classList.add('konus'); hk.classList.remove('isaret'); void hk.offsetWidth; hk.classList.add('isaret');
+        bar.style.transition = 'none'; bar.style.width = (u / units.length * 100) + '%'; void bar.offsetWidth;
+        bar.style.transition = 'width ' + dur + 'ms linear'; bar.style.width = ((u + 1) / units.length * 100) + '%';
+        if (!calm) lsafe(function () { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+        oyn.t = setTimeout(function () { adim(u + 1); }, dur);
+      };
+      body.querySelector('[data-play]').onclick = function () {
+        cur.play = !cur.play; this.setAttribute('aria-pressed', String(cur.play)); this.textContent = cur.play ? '⏸ durdur' : '▶ oynat';
+        if (cur.play) adim(0); else { durdur(); hk.classList.remove('konus'); bal.textContent = 'Durdurdum. Devam etmek için ▶ oynat.'; }
+      };
+      if (cur.play) setTimeout(function () { if (cur.play && cur.sahne === k && body.contains(bal)) adim(0); }, 500);
       if (k === S.length - 1) put(H.id, { a: 1 });
       ctxSend();
     };
@@ -369,7 +468,7 @@
   };
   var gorsel = function (H, body) {
     var G = H.gorsel;
-    body.innerHTML = '<div class="is-at"><h2 class="disp">' + G.b + '</h2><p>' + G.t + '</p><div data-at></div>' +
+    body.innerHTML = '<div class="is-at"><div class="is-hk" style="margin-bottom:10px">' + IST.hoca(48) + '<div class="is-bal"><b>' + G.b + '.</b> ' + G.t + '</div></div><div data-at></div>' +
       '<div class="is-sahne-nav" style="margin-top:18px"><span style="flex:1"></span><button type="button" class="btn sm pri" data-tos>sorulara geç →</button></div></div>';
     var touched = false, api = { dokundu: function () { if (!touched) { touched = true; put(H.id, { g: 1 }); } } };
     body.querySelector('[data-at]').addEventListener('input', function () { api.dokundu(); });
@@ -378,15 +477,84 @@
     body.querySelector('[data-tos]').onclick = function () { api.dokundu(); IST.go(H.id, 's'); };
     ctxSend();
   };
+  /* özet ve formül kartı (yazdırılabilir) */
+  var ozet = function (H, body) {
+    var O = (IST.OZET || {})[H.id] || { m: [], f: [] };
+    body.innerHTML = '<div class="is-oz" style="--cc:' + H.renk + '"><div class="is-oz-h"><div><span class="k">' + (H.donem === 'bahar' ? 'Statistics for Business II' : 'Statistics for Business I') + ' · ' + H.no + '. hafta</span><h2 class="disp">' + X(H.tr) + '</h2><small>' + X(H.en) + '</small></div><button type="button" class="btn sm" data-yaz>🖨 yazdır / PDF</button></div>' +
+      '<div class="is-oz-g"><section><h3>Bu haftanın özeti</h3><ul>' + O.m.map(function (m) { return '<li>' + m + '</li>'; }).join('') + '</ul></section>' +
+      '<section><h3>Formül kartı</h3><table class="tb"><tbody>' + O.f.map(function (f) { return '<tr><td>' + f[0] + (f[2] ? '<small style="display:block;color:var(--muted)">' + f[2] + '</small>' : '') + '</td><td class="mono">' + f[1] + '</td></tr>'; }).join('') + '</tbody></table></section></div>' +
+      '<p class="is-oz-n">Acadex İstatistik · Veri Hoca’nın özet kartı</p></div>';
+    body.querySelector('[data-yaz]').onclick = function () { D.body.classList.add('is-yazdir'); var bit = function () { D.body.classList.remove('is-yazdir'); W.removeEventListener('afterprint', bit); }; W.addEventListener('afterprint', bit); lsafe(function () { W.print(); }); setTimeout(bit, 1500); };
+    ctxSend();
+  };
+
+  /* ---------- soru kartı (alıştırma ve sınav ortak) ----------
+     o.sinav: ipucu/çözüm yok, anında geri bildirim yok; cevap kaydedilir, puan oku() ile alınır. */
+  var HARF = 'ABCDE';
+  var soruKart = function (Q, qi, r, o) {
+    o = o || {};
+    var el = D.createElement('div'); el.className = 'q'; el.style.animationDelay = (qi * 0.05) + 's';
+    var ord = Q.o ? r.shuf(Q.o.map(function (_, i) { return i; })) : null, secim = null, ilk = null, cevap = null;
+    el.innerHTML = '<div class="q-h"><span>Soru ' + (qi + 1) + '</span>' + (o.etiket ? '<span class="tag" style="background:' + o.renk + '">' + X(o.etiket) + '</span>' : '') + (Q.tag ? '<span class="tag">' + X(Q.tag) + '</span>' : '') + '<span class="st" data-qst></span></div>' +
+      '<div class="q-b' + (Q.g && !Q.wide ? ' g2' : '') + '"><div class="q-q">' + Q.q + '</div>' + (Q.g ? '<div class="q-g fig">' + Q.g + '</div>' : '') +
+      (ord ? '<div class="q-o">' + ord.map(function (i, j) { return '<button type="button" data-o="' + i + '"><i>' + HARF[j] + '</i><span>' + Q.o[i] + '</span></button>'; }).join('') + '</div>'
+        : '<div class="q-n"><label class="vh" for="qn' + o.pre + qi + '">cevap</label><input id="qn' + o.pre + qi + '" inputmode="decimal" autocomplete="off" placeholder="' + X(Q.ph || 'cevap') + '"><button type="button" class="btn sm pri" data-ck>' + (o.sinav ? 'kaydet' : 'kontrol et') + '</button>' + (Q.birim ? '<small>' + X(Q.birim) + '</small>' : '') + '<small>' + X(Q.not || 'ondalık için virgül ya da nokta; kesir de olur (3/8)') + '</small></div>') +
+      '<div class="q-fb" data-fb aria-live="polite"></div><div class="q-f"' + (o.sinav ? ' hidden' : '') + '><button type="button" class="btn sm ghost" data-ip>💡 ipucu</button><button type="button" class="btn sm ghost" data-cz>adım adım çözüm</button></div><div data-ipb></div><div data-czb></div></div>';
+    var fb = el.querySelector('[data-fb]'), stEl = el.querySelector('[data-qst]');
+    var mark = function (good) { if (ilk === null) { ilk = good; if (!o.sinav) { stEl.textContent = good ? '✓ ilk denemede' : '✗ ilk deneme'; stEl.style.color = good ? 'var(--ok)' : 'var(--bad)'; } if (o.on) o.on(qi, good); } };
+    var dogruMu = function (v) { var tol = Q.tol != null ? Q.tol : Math.max(Math.abs(Q.say) * 0.005, 0.0051); return Math.abs(v - Q.say) <= tol; };
+    if (ord) [].forEach.call(el.querySelectorAll('[data-o]'), function (b) {
+      b.onclick = function () {
+        var i = +b.getAttribute('data-o'), good = i === Q.a;
+        if (o.sinav) { secim = i; [].forEach.call(el.querySelectorAll('[data-o]'), function (x) { x.setAttribute('aria-pressed', String(x === b)); x.classList.toggle('sec', x === b); }); stEl.textContent = 'cevaplandı'; if (o.on) o.on(qi, null); return; }
+        mark(good);
+        if (good) { [].forEach.call(el.querySelectorAll('[data-o]'), function (x) { x.disabled = true; }); b.classList.add('ok'); fb.innerHTML = '<b style="color:var(--ok)">Doğru.</b> ' + (Q.n || ''); }
+        else { b.classList.add('no'); b.disabled = true; fb.innerHTML = '<b style="color:var(--bad)">Bu değil.</b> ' + (Q.yn && Q.yn[i] ? Q.yn[i] : 'İpucuna bakıp yeniden dene.'); }
+      };
+    });
+    else {
+      var inp = el.querySelector('input'), ck = el.querySelector('[data-ck]');
+      var check = function () {
+        var v = IST.parse(inp.value); if (isNaN(v)) { fb.innerHTML = 'Bir sayı yaz (örnek: ' + X(Q.ornek || '0,25') + ').'; return; }
+        if (o.sinav) { cevap = v; stEl.textContent = 'kaydedildi'; fb.textContent = ''; if (o.on) o.on(qi, null); return; }
+        var good = dogruMu(v);
+        mark(good); inp.classList.toggle('ok', good); inp.classList.toggle('no', !good);
+        fb.innerHTML = good ? '<b style="color:var(--ok)">Doğru.</b> Cevap: <b>' + Q.goster + '</b>. ' + (Q.n || '') : '<b style="color:var(--bad)">Tam değil.</b> ' + (Q.yanlis ? Q.yanlis(v) : 'Adımları kontrol et; ipucu yardımcı olabilir.');
+        if (good) { inp.disabled = true; ck.disabled = true; }
+      };
+      ck.onclick = check; inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); });
+    }
+    el.querySelector('[data-ip]').onclick = function () { el.querySelector('[data-ipb]').innerHTML = '<div class="q-ip">💡 ' + Q.ip + '</div>'; };
+    el.querySelector('[data-cz]').onclick = function () {
+      if (ilk === null && !o.bitti) mark(false);
+      var box = el.querySelector('[data-czb]'), n = 1;
+      var dr = function () {
+        box.innerHTML = '<div class="q-cz"><b>Adım adım çözüm</b><ol>' + Q.cz.slice(0, n).map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
+          (n < Q.cz.length ? '<div><button type="button" class="btn sm" data-cn>sonraki adım</button> <button type="button" class="btn sm ghost" data-ca>hepsini göster</button></div>' : '') + '</div>';
+        var cn = box.querySelector('[data-cn]'); if (cn) { cn.onclick = function () { n++; dr(); }; box.querySelector('[data-ca]').onclick = function () { n = Q.cz.length; dr(); }; }
+      };
+      dr();
+    };
+    /* sınav sonunda: notla, kilitle, çözümü aç */
+    el.oku = function () {
+      o.bitti = true; var good;
+      if (ord) { good = secim === Q.a; [].forEach.call(el.querySelectorAll('[data-o]'), function (x) { x.disabled = true; var i = +x.getAttribute('data-o'); if (i === Q.a) x.classList.add('ok'); else if (i === secim) x.classList.add('no'); }); }
+      else { var inp2 = el.querySelector('input'); good = cevap != null && dogruMu(cevap); inp2.disabled = true; el.querySelector('[data-ck]').disabled = true; inp2.classList.add(good ? 'ok' : 'no'); }
+      stEl.textContent = good ? '✓ doğru' : (ord ? secim : cevap) == null ? '— boş' : '✗ yanlış'; stEl.style.color = good ? 'var(--ok)' : 'var(--bad)';
+      fb.innerHTML = good ? '<b style="color:var(--ok)">Doğru.</b>' : '<b style="color:var(--bad)">Doğru cevap:</b> ' + (ord ? HARF[ord.indexOf(Q.a)] + ') ' + Q.o[Q.a] : Q.goster);
+      el.querySelector('.q-f').hidden = false; return good;
+    };
+    return el;
+  };
 
   /* ---------- yeni nesil sorular ---------- */
-  var HARF = 'ABCDE';
   var sorular = function (H, body) {
-    var seed = cur.seed || ((Date.now() / 1000) | 0), r = IST.rng(seed * 7 + H.no), list = lsafe(function () { return H.sorular(r); }, []);
+    var seed = cur.seed || ((Date.now() / 1000) | 0), r = IST.rng(seed * 7 + H.no + (H.donem === 'bahar' ? 100 : 0)), list = lsafe(function () { return H.sorular(r); }, []);
     var res = list.map(function () { return null; });
-    body.innerHTML = '<div class="is-sor"><div class="is-sor-h"><div><h2 class="disp">Yeni nesil sorular</h2><p>' + list.length + ' soru · senaryo, tablo ve grafik okuma. Takılırsan önce <b>ipucu</b>, sonra <b>adım adım çözüm</b>. Puan ilk denemene göre.</p></div>' +
+    body.innerHTML = '<div class="is-sor"><div class="is-sor-h"><div class="is-hk">' + IST.hoca(48) + '<div class="is-bal"><b>Yeni nesil sorular.</b> ' + list.length + ' soru; senaryo, tablo ve grafik okuma. Takılırsan önce <b>ipucu</b>, sonra <b>adım adım çözüm</b>. Puan ilk denemene göre.</div></div>' +
       '<button type="button" class="btn sm" data-yeni>↻ yeni soru seti</button></div><div data-qs style="display:grid;gap:14px"></div><div data-karne></div></div>';
-    body.querySelector('[data-yeni]').onclick = function () { cur.seed = ((Date.now() / 1000) | 0) + Math.floor(Math.random() * 1e5); sorular(H, body); };
+    var yeni = function () { cur.seed = ((Date.now() / 1000) | 0) + Math.floor(Math.random() * 1e5); sorular(H, body); };
+    body.querySelector('[data-yeni]').onclick = yeni;
     var qs = body.querySelector('[data-qs]');
     var bitti = function () {
       if (res.some(function (x) { return x === null; })) return;
@@ -394,77 +562,72 @@
       put(H.id, { s: pc });
       var nx = IST.H[IST.H.indexOf(H) + 1];
       body.querySelector('[data-karne]').innerHTML = '<div class="is-karne"><b>' + ok + ' / ' + res.length + '</b><div><p>' + (pc >= 80 ? 'Harika! Bu haftanın konusu oturmuş görünüyor.' : pc >= 60 ? 'İyi gidiyorsun; yanlışlarının çözüm adımlarını bir kez daha oku.' : 'Anlatıma geri dönüp sahneleri tekrar izle, sonra yeni bir soru setiyle dene.') +
-        ' Sorular her sette yeni sayılarla gelir.</p><div class="row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn sm" data-yeni2>yeni soru seti</button>' + (nx ? '<button type="button" class="btn sm" data-go="' + nx.id + '">' + nx.no + '. haftaya geç →</button>' : '<button type="button" class="btn sm" data-go="yol">ders yoluna dön</button>') + '</div></div></div>';
-      body.querySelector('[data-yeni2]').onclick = function () { cur.seed = ((Date.now() / 1000) | 0) + Math.floor(Math.random() * 1e5); sorular(H, body); top(); };
+        ' Sorular her sette yeni sayılarla gelir.</p><div class="row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn sm" data-yeni2>yeni soru seti</button><button type="button" class="btn sm" data-go="' + H.id + '" data-st-go="o">özet kartı ★</button>' + (nx ? '<button type="button" class="btn sm" data-go="' + nx.id + '">' + nx.no + '. haftaya geç →</button>' : '<button type="button" class="btn sm" data-go="yol">ders yoluna dön</button>') + '</div></div></div>';
+      body.querySelector('[data-yeni2]').onclick = function () { yeni(); top(); };
+      body.querySelector('[data-st-go]').onclick = function (e) { e.stopPropagation(); IST.go(H.id, 'o'); };
       main.querySelectorAll('.is-adim [data-st="s"]').forEach(function (b) { if (pc >= 60) { b.classList.add('ok'); b.querySelector('i').textContent = '✓'; } });
     };
-    list.forEach(function (Q, qi) {
-      var el = D.createElement('div'); el.className = 'q'; el.style.animationDelay = (qi * 0.06) + 's';
-      var ord = Q.o ? r.shuf(Q.o.map(function (_, i) { return i; })) : null;
-      el.innerHTML = '<div class="q-h"><span>Soru ' + (qi + 1) + '</span>' + (Q.tag ? '<span class="tag">' + X(Q.tag) + '</span>' : '') + '<span class="st" data-st></span></div>' +
-        '<div class="q-b' + (Q.g && !Q.wide ? ' g2' : '') + '"><div class="q-q">' + Q.q + '</div>' + (Q.g ? '<div class="q-g fig">' + Q.g + '</div>' : '') +
-        (ord ? '<div class="q-o">' + ord.map(function (i, j) { return '<button type="button" data-o="' + i + '"><i>' + HARF[j] + '</i><span>' + Q.o[i] + '</span></button>'; }).join('') + '</div>'
-          : '<div class="q-n"><label class="vh" for="qn' + qi + '">cevap</label><input id="qn' + qi + '" inputmode="decimal" autocomplete="off" placeholder="' + X(Q.ph || 'cevap') + '"><button type="button" class="btn sm pri" data-ck>kontrol et</button>' + (Q.birim ? '<small>' + X(Q.birim) + '</small>' : '') + '<small>' + X(Q.not || 'ondalık için virgül ya da nokta; kesir de olur (3/8)') + '</small></div>') +
-        '<div class="q-fb" data-fb aria-live="polite"></div><div class="q-f"><button type="button" class="btn sm ghost" data-ip>💡 ipucu</button><button type="button" class="btn sm ghost" data-cz>adım adım çözüm</button></div><div data-ipb></div><div data-czb></div></div>';
-      qs.appendChild(el);
-      var fb = el.querySelector('[data-fb]'), stEl = el.querySelector('[data-st]');
-      var mark = function (good) {
-        if (res[qi] === null) { res[qi] = good; stEl.textContent = good ? '✓ ilk denemede' : '✗ ilk deneme'; stEl.style.color = good ? 'var(--ok)' : 'var(--bad)'; bitti(); }
-      };
-      if (ord) [].forEach.call(el.querySelectorAll('[data-o]'), function (b) {
-        b.onclick = function () {
-          var i = +b.getAttribute('data-o'), good = i === Q.a;
-          mark(good);
-          if (good) { [].forEach.call(el.querySelectorAll('[data-o]'), function (x) { x.disabled = true; }); b.classList.add('ok'); fb.innerHTML = '<b style="color:var(--ok)">Doğru.</b> ' + (Q.n || ''); }
-          else { b.classList.add('no'); b.disabled = true; fb.innerHTML = '<b style="color:var(--bad)">Bu değil.</b> ' + (Q.yn && Q.yn[i] ? Q.yn[i] : 'İpucuna bakıp yeniden dene.'); }
-        };
-      });
-      else {
-        var inp = el.querySelector('input'), ck = el.querySelector('[data-ck]');
-        var check = function () {
-          var v = IST.parse(inp.value); if (isNaN(v)) { fb.innerHTML = 'Bir sayı yaz (örnek: ' + X(Q.ornek || '0,25') + ').'; return; }
-          var tol = Q.tol != null ? Q.tol : Math.max(Math.abs(Q.say) * 0.005, 0.0051), good = Math.abs(v - Q.say) <= tol;
-          mark(good); inp.classList.toggle('ok', good); inp.classList.toggle('no', !good);
-          fb.innerHTML = good ? '<b style="color:var(--ok)">Doğru.</b> Cevap: <b>' + Q.goster + '</b>. ' + (Q.n || '') : '<b style="color:var(--bad)">Tam değil.</b> ' + (Q.yanlis ? Q.yanlis(v) : 'Adımları kontrol et; ipucu yardımcı olabilir.');
-          if (good) { inp.disabled = true; ck.disabled = true; }
-        };
-        ck.onclick = check; inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); });
-      }
-      el.querySelector('[data-ip]').onclick = function () { el.querySelector('[data-ipb]').innerHTML = '<div class="q-ip">💡 ' + Q.ip + '</div>'; };
-      el.querySelector('[data-cz]').onclick = function () {
-        if (res[qi] === null) mark(false);
-        var box = el.querySelector('[data-czb]'), n = 0;
-        var dr = function () {
-          box.innerHTML = '<div class="q-cz"><b>Adım adım çözüm</b><ol>' + Q.cz.slice(0, n).map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
-            (n < Q.cz.length ? '<div><button type="button" class="btn sm" data-cn>' + (n ? 'sonraki adım' : 'ilk adım') + '</button> <button type="button" class="btn sm ghost" data-ca>hepsini göster</button></div>' : '') + '</div>';
-          var cn = box.querySelector('[data-cn]'); if (cn) { cn.onclick = function () { n++; dr(); }; box.querySelector('[data-ca]').onclick = function () { n = Q.cz.length; dr(); }; }
-        };
-        n = 1; dr();
-      };
-    });
+    list.forEach(function (Q, qi) { qs.appendChild(soruKart(Q, qi, r, { pre: 'a', on: function (i, g) { res[i] = g; bitti(); } })); });
+    ctxSend();
+  };
+
+  /* ---------- sınav provası: haftalardan karışık, süreli; sonunda karne ve çözümler ---------- */
+  var prova = function (P) {
+    durdur();
+    var r = IST.rng((Date.now() / 1000 | 0) + Math.floor(Math.random() * 1e5)), list = [];
+    P.hf.forEach(function (k) { var H = IST.by[k]; if (!H) return; var L = lsafe(function () { return H.sorular(IST.rng(r.int(1, 1e9))); }, []); r.shuf(L).slice(0, 2).forEach(function (Q) { list.push({ Q: Q, H: H }); }); });
+    list = r.shuf(list);
+    var sure = list.length * 150, kal = sure, kartlar = [], cev = 0, bitti = false;
+    main.innerHTML = '<div class="is-ders is-prova"><div class="is-dh"><div><span class="k">Sınav provası</span><h1 class="disp">' + X(P.ad) + '<small>' + list.length + ' soru · ipucu yok · sonunda karne ve çözümler</small></h1></div>' +
+      '<div class="is-saat" data-saat><b data-kal></b><small data-cev>0 / ' + list.length + ' cevap</small></div></div><div data-qs style="display:grid;gap:14px"></div>' +
+      '<div class="is-sonraki"><button type="button" class="btn pri" data-bitir>sınavı bitir</button></div><div data-karne></div></div>';
+    crumb.textContent = P.ad;
+    var qs = main.querySelector('[data-qs]'), kalEl = main.querySelector('[data-kal]');
+    var on = function () { cev = kartlar.filter(function (k) { return k.querySelector('[data-qst]').textContent; }).length; main.querySelector('[data-cev]').textContent = cev + ' / ' + list.length + ' cevap'; };
+    list.forEach(function (x, i) { var el = soruKart(x.Q, i, r, { pre: 'p', sinav: true, etiket: x.H.no + '. hafta', renk: x.H.renk, on: on }); kartlar.push(el); qs.appendChild(el); });
+    var yaz = function () { var m = Math.floor(kal / 60), s = kal % 60; kalEl.textContent = m + ':' + (s < 10 ? '0' : '') + s; main.querySelector('[data-saat]').classList.toggle('az', kal <= 60); };
+    var bitir = function () {
+      if (bitti) return; bitti = true; clearInterval(prova.t);
+      var ok = 0, hf = {};
+      kartlar.forEach(function (el, i) { var g = el.oku(); if (g) ok++; var h = list[i].H.id; hf[h] = hf[h] || [0, 0]; hf[h][1]++; if (g) hf[h][0]++; });
+      var pc = Math.round(ok / list.length * 100), zayif = Object.keys(hf).filter(function (k) { return hf[k][0] < hf[k][1]; });
+      put(P.id, { s: pc });
+      main.querySelector('[data-bitir]').disabled = true;
+      main.querySelector('[data-karne]').innerHTML = '<div class="is-karne" style="margin-top:14px"><b>%' + pc + '</b><div><p>' + ok + ' / ' + list.length + ' doğru · süre ' + Math.round((sure - kal) / 60) + ' dk. ' + (pc >= 70 ? 'Sınava hazırsın gibi görünüyor!' : 'Aşağıdaki haftaları tekrar etmeni öneririm.') + '</p>' +
+        '<div class="is-pvk">' + Object.keys(hf).map(function (k) { var H = IST.by[k], v = hf[k]; return '<button type="button" class="btn sm' + (v[0] < v[1] ? '' : ' ghost') + '" data-go="' + k + '">' + H.no + '. hafta ' + v[0] + '/' + v[1] + '</button>'; }).join('') + '</div>' +
+        '<p style="margin-top:8px">Her sorunun altındaki “adım adım çözüm” artık açık.' + (zayif.length ? ' Zayıf haftalar: ' + zayif.map(function (k) { return IST.by[k].no + '.'; }).join(', ') + ' hafta.' : '') + '</p></div></div>';
+      main.querySelector('[data-karne]').scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' });
+    };
+    main.querySelector('[data-bitir]').onclick = function () { if (cev < list.length && !W.confirm) { bitir(); return; } bitir(); };
+    clearInterval(prova.t); yaz();
+    prova.t = setInterval(function () { if (!main.contains(kalEl)) { clearInterval(prova.t); return; } kal--; yaz(); if (kal <= 0) { IST.toast('Süre doldu'); bitir(); } }, 1000);
     ctxSend();
   };
 
   /* ---------- yönlendirme ---------- */
   IST.go = function (tab, step) {
-    if (tab !== 'yol' && !IST.by[tab]) tab = 'yol';
+    var P = IST.PROVA.filter(function (x) { return x.id === tab; })[0];
+    if (tab !== 'yol' && !IST.by[tab] && !P) tab = 'yol';
     var same = cur.tab === tab;
+    durdur(); clearInterval(prova.t);
+    if (!same) cur.play = false;
     cur.tab = tab; cur.step = step || (same ? cur.step : 'a'); if (!same) { cur.sahne = 0; cur.seed = null; }
-    if (tab === 'yol') yol(); else ders(IST.by[tab], cur.step);
+    if (tab === 'yol') yol(); else if (P) prova(P); else ders(IST.by[tab], cur.step);
     setUrl(); ctxSend(); top();
   };
   IST.cur = cur;
   IST.start = function () {
     main = D.getElementById('main'); crumb = D.getElementById('crumb'); toastEl = D.getElementById('toast');
-    IST.H.sort(function (a, b) { return a.no - b.no; });
+    IST.H.sort(function (a, b) { return (a.donem === b.donem ? 0 : a.donem === 'guz' ? -1 : 1) || a.no - b.no; });
     D.addEventListener('click', function (e) {
       var g = e.target.closest && e.target.closest('[data-go]'); if (g) { IST.go(g.getAttribute('data-go')); return; }
       var s = e.target.closest && e.target.closest('[data-st]'); if (s && s.closest('.is-adim')) { IST.go(cur.tab, s.getAttribute('data-st')); }
     });
     D.addEventListener('keydown', function (e) {
-      if (cur.step !== 'a' || cur.tab === 'yol' || /INPUT|TEXTAREA|SELECT/.test((e.target.tagName || ''))) return;
+      if (cur.step !== 'a' || !IST.by[cur.tab] || /INPUT|TEXTAREA|SELECT|BUTTON/.test((e.target.tagName || ''))) return;
       if (e.key === 'ArrowRight') { var n = main.querySelector('[data-sn],[data-tog]'); if (n) n.click(); }
       else if (e.key === 'ArrowLeft') { var b = main.querySelector('[data-sp]'); if (b && !b.disabled) b.click(); }
+      else if (e.key === ' ') { var p = main.querySelector('[data-play]'); if (p) { e.preventDefault(); p.click(); } }
     });
     var t = lsafe(function () { return new URL(location.href).searchParams.get('tab'); }, null) || 'yol';
     IST.go(t);
