@@ -5,10 +5,11 @@
    denenir (yeni sürüm hemen gelsin), 4 sn'de yanıt yoksa önbellekten açılır.
    Supabase istekleri (başka alan adı) hiç önbelleğe alınmaz. Ses dosyaları (kids/ses/*.mp3)
    ilk çalındıklarında önbelleğe girer; liste.json her seferinde önce internetten denenir.
-   Yeni sürüm yayınlarken SURUM'u değiştirmek eski önbelleği temizler.
+   Yeni sürüm yayınlarken SURUM'u değiştirmek eski önbelleği temizler. Ses değişince
+   SURUM'a gerek yok: kids-ses.js adrese sesin kimliğini (?v=) ekler.
    ========================================================================== */
 'use strict';
-const SURUM = 'acadex-kids-2026-11-10c';
+const SURUM = 'acadex-kids-2026-11-10d';
 const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png'];
 
 self.addEventListener('install', (e) => {

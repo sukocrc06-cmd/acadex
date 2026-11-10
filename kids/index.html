@@ -1481,8 +1481,10 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   }
 
   /* ---------- kayıtlı sesler ---------- */
-  var TABAN = /^\/kids(\/|$)/.test(location.pathname) ? '/kids/' : '', LISTE = null, eksik = {}, oynatici = null, bekleyen = null, zaman = [];
-  if (W.fetch && location.protocol !== 'file:') W.fetch(TABAN + 'ses/liste.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.sesler) LISTE = j.sesler; }, function () { });
+  var TABAN = /^\/kids(\/|$)/.test(location.pathname) ? '/kids/' : '', LISTE = null, SURUMLER = {}, eksik = {}, oynatici = null, bekleyen = null, zaman = [];
+  if (W.fetch && location.protocol !== 'file:') W.fetch(TABAN + 'ses/liste.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.sesler) { LISTE = j.sesler; SURUMLER = j.ses || {}; } }, function () { });
+  /* ses değişince dosya adları aynı kalır; adrese sesin kimliğini ekleyerek tarayıcı ve sw önbelleği yeni sesi alır */
+  function adres(dosya) { var d = dosya.split('/')[0], v = SURUMLER[d]; return TABAN + 'ses/' + dosya + (v ? '?v=' + encodeURIComponent(String(v).slice(0, 24)) : ''); }
   function anahtar(metin, dil) { return (dil || 'en') + ':' + String(metin).trim().replace(/\s+/g, ' '); }
   function oyn() {
     if (oynatici) return oynatici;
@@ -1492,7 +1494,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   /* iOS/Safari: ilk dokunuşta oynatıcıyı "uyandır" ki sonraki sesler gecikmeli de çalabilsin */
   function uyandir() {
     W.removeEventListener('pointerdown', uyandir, true);
-    try { var a = oyn(); if (!a.src && LISTE) { var ilk = LISTE[Object.keys(LISTE)[0]]; a.src = TABAN + 'ses/' + ilk; } a.muted = true; var p = a.play(); if (p && p.then) p.then(function () { a.pause(); a.muted = false; }, function () { a.muted = false; }); else a.muted = false; } catch (e) { }
+    try { var a = oyn(); if (!a.src && LISTE) { var ilk = LISTE[Object.keys(LISTE)[0]]; a.src = adres(ilk); } a.muted = true; var p = a.play(); if (p && p.then) p.then(function () { a.pause(); a.muted = false; }, function () { a.muted = false; }); else a.muted = false; } catch (e) { }
   }
   W.addEventListener('pointerdown', uyandir, true);
   function bitir(sonuc) { zaman.forEach(clearTimeout); zaman = []; if (bekleyen) { var b = bekleyen; bekleyen = null; b(sonuc); } }
@@ -1509,7 +1511,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
         while ((m = re.exec(metin))) (function (ci) { zaman.push(setTimeout(function () { try { ek.sinir(ci); } catch (x) { } }, sure * ci / uz)); })(m.index);
       };
       zaman.push(setTimeout(function () { bitir(true); }, 15000));
-      a.src = TABAN + 'ses/' + dosya; a.muted = false;
+      a.src = adres(dosya); a.muted = false;
       var p = a.play(); if (p && p.catch) p.catch(function () { var b = bekleyen; bekleyen = null; if (b) yedek().then(b); });
     });
   }

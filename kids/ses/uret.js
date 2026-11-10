@@ -113,7 +113,7 @@ async function uret(hepsi, kuru, dil) {
   for (const d of Object.keys(hataDil)) if ((eski.ses || {})[d]) { yeni.ses[d] = eski.ses[d]; for (const k of Object.keys(eski.sesler || {})) if (k.startsWith(d + ':') && !yeni.sesler[k] && fs.existsSync(path.join(KOK, eski.sesler[k]))) yeni.sesler[k] = eski.sesler[k]; }
   fs.writeFileSync(LISTE, JSON.stringify(yeni, null, 1));
   console.log('Bitti: ' + n + ' dosya üretildi' + (hata ? ', ' + hata + ' hata (yeniden çalıştırınca yalnız eksikler üretilir)' : '') + '. liste.json güncellendi.');
-  console.log('Sıradaki adım: kids/sw.js içindeki SURUM satırını değiştirip push edin.');
+  console.log('Sıradaki adım: GitHub Desktop ile commit + push. (Ses değiştiyse site yenisini kendiliğinden alır.)');
 }
 
 const [, , komut, a1, a2] = process.argv;
