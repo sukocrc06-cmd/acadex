@@ -160,4 +160,36 @@ test('panel düzeltmeleri PANEL DIŞINA taşmadı', () => {
     'bölüm akışındaki h3 satırına dokunulmuş');
 });
 
+test('İNCELEME DÜZENLENEBİLİR: yalnız metin + updated_at, null = hiç düzenlenmedi', () => {
+  /* Canlı denetimde Berkay'ın bulduğu boşluk: kendi incelemende "sil" var ama
+     "düzenle" yoktu. Sunucu ayağı 20261110d; updated_at NULL kalırsa hiç
+     düzenlenmemiş demektir (0/now() ile doldurulmaz — süre raporu dersi). */
+  const mig = read('supabase/migrations/20261110d_inceleme_duzenleme.sql');
+  assert.match(mig, /add column if not exists updated_at timestamptz/, 'updated_at kolonu yok');
+  assert.match(mig, /for update\s+using \(auth\.uid\(\) = user_id\)\s+with check \(auth\.uid\(\) = user_id\)/,
+    'update politikası kendi satırıyla sınırlı değil');
+  assert.match(mig, /revoke update on public\.sandbox_project_comments from authenticated/,
+    'tablo geneli update geri alınmıyor — kolon kısıtı etkisiz kalır');
+  assert.match(mig, /grant update \(content, updated_at\)/,
+    'kolon düzeyinde grant yok — sahibi parent_id/label/project_id değiştirebilir');
+
+  // istemci: yalnız iki kolon gider, panel erişebilir
+  assert.ok(ink.includes(".update({ content: text, updated_at: new Date().toISOString() }).eq('id', cid)"),
+    'editComment content+updated_at dışında alan gönderiyor ya da yok');
+  assert.ok(ink.includes('editComment: editComment'), 'editComment dışa açılmıyor — panel erişemez');
+  assert.ok(ink.includes('e: !!c.updated_at'), 'düzenlenmişlik bayrağı satırdan eşlenmiyor');
+  assert.ok(ink.includes("(c.e ? ' · düzenlendi' : '')"), 'ekranda " · düzenlendi" ibaresi yok');
+  assert.ok(ink.includes('data-cedit="'), 'kendi incelemesinde düzenle düğmesi yok');
+  assert.ok(ink.includes("eli.querySelector(':scope > p')"),
+    'düzenleyici :scope > p kullanmıyor — üst yorumda yanıtın metni yakalanır');
+  assert.ok(ink.includes('SBX.editComment(byId(eid2)'), 'panel editComment çağırmıyor');
+
+  // CSS: düğme ve satır içi düzenleyici stilleri
+  const css = read('css/acadex-ink.css');
+  assert.ok(css.includes('.ef-c .edt{'), 'düzenle düğmesi stili yok');
+  assert.ok(css.includes('.ef-c .edt~.del{margin-left:0}'),
+    'sil düğmesinin auto marjı sıfırlanmıyor — düğmeler ayrışır');
+  assert.ok(css.includes('.ef-ce input'), 'satır içi düzenleyici stili yok');
+});
+
 summary();

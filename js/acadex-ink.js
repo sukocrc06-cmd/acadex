@@ -4692,7 +4692,7 @@ var SBX = (function () {
     posts.forEach(function (p) { byId[p.id] = p; });
     likes.forEach(function (l) { var p = byId[l.project_id]; if (!p) return; var k = feat.rx ? (l.reaction || 'ilham') : 'ilham'; p.reacts[k] = (p.reacts[k] || 0) + 1; if (l.user_id === u.id) p.myReact = k; });
     var cById = {};
-    cms.forEach(function (c) { cById[c.id] = { id: c.id, uid: c.user_id, by: c.user_id === u.id ? 'me' : c.user_id, l: c.label || 'genel', t: c.content, at: Date.parse(c.created_at) || Date.now(), parent: c.parent_id || null, rep: [], pid: c.project_id }; if ('label' in c) feat.cx = true; });
+    cms.forEach(function (c) { cById[c.id] = { id: c.id, uid: c.user_id, by: c.user_id === u.id ? 'me' : c.user_id, l: c.label || 'genel', t: c.content, at: Date.parse(c.created_at) || Date.now(), e: !!c.updated_at, parent: c.parent_id || null, rep: [], pid: c.project_id }; if ('label' in c) feat.cx = true; });
     Object.keys(cById).forEach(function (k) { var c = cById[k], p = byId[c.pid]; if (!p) return; if (c.parent && cById[c.parent]) cById[c.parent].rep.push(c); else p.cm.push(c); });
     if (feat.cx == null) feat.cx = cms.length ? false : null;
     st.posts = posts; st.loaded = true;
@@ -4753,6 +4753,16 @@ var SBX = (function () {
     var r = await sb().from('sandbox_project_comments').delete().eq('id', cid);
     if (r.error) throw r.error;
     p.cm = p.cm.filter(function (c) { return c.id !== cid; }).map(function (c) { c.rep = c.rep.filter(function (x) { return x.id !== cid; }); return c; });
+  };
+  /* Inceleme duzenleme (10.11.2026, canli denetim bulgusu: "sil var ama
+     duzenle yok"). Yalniz content + updated_at gider; kolon duzeyinde grant
+     baska alani zaten reddeder (20261110d_inceleme_duzenleme.sql).
+     updated_at ekranda " - duzenlendi" ibaresine donusur. */
+  var editComment = async function (p, cid, text) {
+    var r = await sb().from('sandbox_project_comments').update({ content: text, updated_at: new Date().toISOString() }).eq('id', cid);
+    if (r.error) throw r.error;
+    var dok = function (c) { if (c.id === cid) { c.t = text; c.e = true; } (c.rep || []).forEach(dok); };
+    (p.cm || []).forEach(dok);
   };
   var follow = async function (uid) {
     var u = me(); if (!u || !uid) return false;
@@ -4865,7 +4875,7 @@ var SBX = (function () {
   };
 
   return { st: st, feat: feat, PPL: PPL, person: function (k) { return PPL[k] || { n: 'Bir öğrenci', s: '', c: '#E4E8F1', i: '?', img: '' }; }, setMe: setMe, layer: layer, me: me, G: G, S: S, uk: uk,
-    loadPosts: loadPosts, loadMine: loadMine, react: react, comment: comment, delComment: delComment, follow: follow, report: report, removePost: removePost, savePost: savePost,
+    loadPosts: loadPosts, loadMine: loadMine, react: react, comment: comment, delComment: delComment, editComment: editComment, follow: follow, report: report, removePost: removePost, savePost: savePost,
     drafts: drafts, saveDraft: saveDraft, dropDraft: dropDraft, ws: ws, wsLoad: wsLoad, wsPersist: wsPersist, wsDelete: wsDelete, wsUndelete: wsUndelete, wsSync: wsSync, acadia: acadia, deptKey: deptKey };
 })();
 
@@ -5275,7 +5285,7 @@ var SBX = (function () {
 
   /* post interactions */
   var LBL = { genel: 'genel', tasarim: 'tasarım', performans: 'performans', erisim: 'erişilebilirlik', hata: 'hata' };
-  var cHTML = function (pid, c, isRep) { var u = SBX.person(c.by); return '<li class="ef-c l-' + (LBL[c.l] ? c.l : 'genel') + '" data-cid="' + c.id + '"><div class="ef-c-h"><b>' + X(c.by === 'me' ? 'sen' : u.n) + '</b><span class="ef-lb">' + (LBL[c.l] || 'genel') + '</span><span>' + ETK.ago(c.at) + '</span>' + (c.by === 'me' ? '<button type="button" class="del" data-cdel="' + c.id + '" aria-label="İncelemeni sil">sil</button>' : '') + '</div><p>' + X(c.t) + '</p>' + (isRep || SBX.feat.cx === false ? '' : '<button type="button" class="rp" data-rp="' + c.id + '">yanıtla</button>' + ((c.rep || []).length ? '<ul class="ef-rep">' + c.rep.map(function (r) { return cHTML(pid, r, true); }).join('') + '</ul>' : '')) + '</li>'; };
+  var cHTML = function (pid, c, isRep) { var u = SBX.person(c.by); return '<li class="ef-c l-' + (LBL[c.l] ? c.l : 'genel') + '" data-cid="' + c.id + '"><div class="ef-c-h"><b>' + X(c.by === 'me' ? 'sen' : u.n) + '</b><span class="ef-lb">' + (LBL[c.l] || 'genel') + '</span><span>' + ETK.ago(c.at) + (c.e ? ' · düzenlendi' : '') + '</span>' + (c.by === 'me' ? '<button type="button" class="edt" data-cedit="' + c.id + '" aria-label="İncelemeni düzenle">düzenle</button><button type="button" class="del" data-cdel="' + c.id + '" aria-label="İncelemeni sil">sil</button>' : '') + '</div><p>' + X(c.t) + '</p>' + (isRep || SBX.feat.cx === false ? '' : '<button type="button" class="rp" data-rp="' + c.id + '">yanıtla</button>' + ((c.rep || []).length ? '<ul class="ef-rep">' + c.rep.map(function (r) { return cHTML(pid, r, true); }).join('') + '</ul>' : '')) + '</li>'; };
   var paintCms = function (el, p) {
     var cm = p.cm || [], box = el.querySelector('[data-cms]'); box.hidden = false;
     box.innerHTML = (cm.length ? '<ul class="ef-th">' + cm.map(function (c) { return cHTML(p.id, c); }).join('') + '</ul>' : '') +
@@ -5293,6 +5303,19 @@ var SBX = (function () {
       }, function (er) { console.warn(er); rePost(id); say('Tepki kaydedilemedi; tekrar dene.'); });
       return;
     }
+    if ((b = e.target.closest('[data-cedit]'))) {
+      var eli = b.closest('.ef-c'), eid = b.getAttribute('data-cedit');
+      if (eli.querySelector('.ef-ce')) { eli.querySelector('.ef-ce input').focus(); return; }
+      /* yanitlar ic ice li tasir: :scope > p olmazsa ust yorumun duzenleyicisi yanitin metnini yakalar */
+      var ec = null, bul = function (c) { if (c.id === eid) ec = c; (c.rep || []).forEach(bul); }; (p.cm || []).forEach(bul);
+      if (!ec) return;
+      var ep = eli.querySelector(':scope > p'); if (!ep) return;
+      ep.hidden = true;
+      ep.insertAdjacentHTML('afterend', '<form class="ef-ce" data-ce="' + eid + '"><label class="vh" for="ce-' + eid + '">İncelemeni düzenle</label><input id="ce-' + eid + '" type="text" maxlength="400" autocomplete="off"><button type="submit" class="btn btn-blue">kaydet</button><button type="button" data-cex="">vazgeç</button></form>');
+      var ei = eli.querySelector('.ef-ce input'); ei.value = ec.t; ei.focus();
+      return;
+    }
+    if ((b = e.target.closest('[data-cex]'))) { var xf = b.closest('.ef-ce'), xp = xf.previousElementSibling; xf.remove(); if (xp) xp.hidden = false; return; }
     if ((b = e.target.closest('[data-cdel]'))) { var dc = b.getAttribute('data-cdel'); b.disabled = true; SBX.delComment(p, dc).then(function () { openCm[id] = true; rePost(id); say('İncelemen silindi.'); }, function () { b.disabled = false; say('Silinemedi; tekrar dene.'); }); return; }
     if ((b = e.target.closest('[data-save]'))) { var i = saved.indexOf(id); if (i > -1) saved.splice(i, 1); else saved.push(id); S(SBX.uk('etk.saved'), saved); rePost(id, '[data-save]'); say(i > -1 ? 'Kaydettiklerinden çıkardım.' : 'Kaydedildi; “kaydettiklerim” süzgecinde.'); return; }
     if (e.target.closest('[data-cm]')) { openCm[id] = !openCm[id]; var box = post.querySelector('[data-cms]'); if (openCm[id]) { paintCms(post, p); box.querySelector('input[type=text]').focus(); } else box.hidden = true; return; }
@@ -5327,6 +5350,16 @@ var SBX = (function () {
     if ((b = e.target.closest('[data-prof]'))) { showBy(b.getAttribute('data-prof')); return; }
   });
   feedEl.addEventListener('submit', function (e) {
+    var fe = e.target.closest('[data-ce]');
+    if (fe) {
+      e.preventDefault(); var epost = fe.closest('.ek-post'), eid2 = epost.getAttribute('data-pid'), ei2 = fe.querySelector('input'), ev = ei2.value.trim();
+      if (!ev) { ei2.focus(); return; }
+      var eb = fe.querySelector('button[type=submit]'); eb.disabled = true;
+      SBX.editComment(byId(eid2), fe.getAttribute('data-ce'), ev).then(function () {
+        openCm[eid2] = true; rePost(eid2); say('İncelemen güncellendi.');
+      }, function (er) { console.warn(er); eb.disabled = false; say('Kaydedilemedi; tekrar dene.'); });
+      return;
+    }
     var f = e.target.closest('[data-cf]'); if (!f) return; e.preventDefault(); var post = f.closest('.ek-post'), id = post.getAttribute('data-pid'), inp = f.querySelector('input[type=text]'), v = inp.value.trim(); if (!v) { inp.focus(); return; }
     var rp = f.getAttribute('data-reply'), p = byId(id), sbtn = f.querySelector('button[type=submit]'); sbtn.disabled = true;
     SBX.comment(p, v, f.querySelector('[data-cl]').value, rp).then(function (c) {

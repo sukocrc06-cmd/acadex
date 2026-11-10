@@ -5706,6 +5706,19 @@ html.js :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-post
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-cover input{font-size:13px}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-c .del{margin-left:auto;border:0;background:none;color:#8A93AB;font:inherit;font-size:12px;cursor:pointer;min-height:32px;padding:0 6px}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-c .del:hover{color:#C9483B}
+/* inceleme duzenleme (10.11.2026): duzenle dugmesi sil ile ayni satirda,
+   satir ici duzenleyici .ef-ce gizlenen <p>'nin yerine gecer */
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-c .edt{margin-left:auto;border:0;background:none;color:#8A93AB;font:inherit;font-size:12px;cursor:pointer}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-c .edt:hover{color:var(--blue)}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-c .edt:focus-visible,
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-c .del:focus-visible{outline:2px solid var(--blue);border-radius:4px}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-c .edt~.del{margin-left:0}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce{display:flex;gap:6px;margin:4px 0 6px}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce input{flex:1;min-width:0;padding:7px 10px;border:1.5px solid #D7DCE8;border-radius:8px;font:inherit;font-size:13.5px;color:var(--ink);background:#fff}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce input:focus{outline:2px solid var(--blue);outline-offset:1px}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce .btn{padding:6px 12px;font-size:12.5px}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce [data-cex]{border:0;background:none;color:#8A93AB;font:inherit;font-size:12.5px;cursor:pointer}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce [data-cex]:hover{color:var(--ink)}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-aca-out .honest{display:block;margin-top:8px;font-size:12px;color:#6A7593}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-aca-out .ai-txt{white-space:pre-wrap;font-size:14px;line-height:1.55;color:#24305A}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-pend{opacity:.45;pointer-events:none;transition:opacity .3s}
