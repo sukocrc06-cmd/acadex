@@ -3999,12 +3999,19 @@ window.axNotify = function (title, opts) {
         oku = '<button type="button" class="sn-ghost sn-nodoc" data-no-doc="" data-concept="' + esc(c.name) +
           '">notun yok · materyal yükle</button>';
       }
+      /* İKİ DÜĞME TEK HÜCREDE (10.11.2026). .sn-mrow sabit 5 kolonlu bir grid
+         (minmax(0,1fr) auto auto minmax(80px,140px) auto). "notunu aç" ayrı bir
+         çocuk olarak eklenseydi kolon sayısı aşılır ve düğme masaüstünde alt
+         satıra, hem de sola kayardı. Sarmalayınca çocuk sayısı değişmiyor:
+         değişiklik masaüstü düzenine dokunmuyor, dar ekranda düğmeler kendi
+         hücresi içinde sarıyor. */
+      var acts = (act || oku) ? '<span class="acts">' + act + oku + '</span>' : '';
       /* konu taşı: halka ustalığı gösterir, ayrıntı satırı kısaltıldı; tamamı title'da */
       var R = 17, C = 2 * Math.PI * R;
       return '<li class="sn-mrow ' + LV_CLS[c.level] + (c.due ? ' is-due' : '') + '" title="' + meta.replace(/<[^>]+>/g, '') + '"><span class="ring" role="img" aria-label="ustalık ' + c.mastery + ' / 100"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="' + R + '"/><circle class="v" cx="22" cy="22" r="' + R + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - c.mastery / 100)).toFixed(1) + '"/></svg><b>' + c.mastery + '</b></span>' +
         '<div class="nm"><b>' + esc(c.name) + '</b><span class="mt">' + (rSel === 'all' ? esc(c.desk.name) + ' · ' : '') + 'hafıza %' + c.retention + ' · ' + c.n + ' soru</span></div>' +
         '<span class="lv">' + esc(c.levelName) + '</span>' + (c.due ? '<span class="due">tekrar zamanı</span>' : '') +
-        '<span class="bar" aria-hidden="true"><i style="width:' + c.mastery + '%"></i></span>' + act + oku + '</li>';
+        '<span class="bar" aria-hidden="true"><i style="width:' + c.mastery + '%"></i></span>' + acts + '</li>';
     }).join('') + (rows.length > 10 ? '<li class="sn-mmore"><button type="button" class="sn-ghost" data-mast-all="">' + (mastAll ? 'daha az göster' : 'tümünü göster (' + rows.length + ')') + '</button></li>' : '');
     /* Satırlar çizildi; eksik kavramlar için TEK toplu çağrı. Sonuç gelince
        srcYukle paintReport'u bir kez çağırır, döngü olmaz: hepsi önbellekte. */

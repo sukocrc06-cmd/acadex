@@ -180,7 +180,12 @@ test('kaynağı olmayan kavramda "notun yok" ve yükleme yolu', () => {
 test('mevcut "bu konudan deneme" düğmesi korundu', () => {
   assert.match(ink, /data-focus-key="/, 'kart masasındaki deneme düğmesi kaybolmuş');
   assert.match(ink, /data-practice="/, 'ders masasındaki deneme düğmesi kaybolmuş');
-  assert.match(ink, /\+ act \+ oku \+ '<\/li>'/, 'iki düğme birlikte basılmıyor');
+  assert.match(ink, /var acts = \(act \|\| oku\) \? '<span class="acts">' \+ act \+ oku/,
+    'iki düğme tek hücrede toplanmıyor — .sn-mrow 5 kolonlu grid, düzen bozulur');
+  assert.match(ink, /\+ acts \+ '<\/li>'/, 'satıra acts basılmıyor');
+  const css = read('css/acadex-ink.css');
+  assert.match(css, /\.sn-mrow \.acts\{display:flex;flex-wrap:wrap/,
+    'acts hücresi sarmıyor — dar ekranda düğmeler taşar');
 });
 
 summary();
