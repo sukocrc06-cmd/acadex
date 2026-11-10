@@ -44,9 +44,16 @@ test('public_profiles görünümü DAR: dokuz herkese açık kolon, gizli kolon 
   assert.match(govde, /security_invoker = off/,
     'security_invoker=off değil — görünüm profiles RLS\'ine takılır ve yine boş döner');
   assert.match(sql, /coalesce\(is_suspended, false\) = false/, 'askıya alınan hesap süzülmüyor');
-  assert.match(sql, /revoke all on public\.public_profiles from public, anon/, 'anon görünümü okuyabilir');
-  assert.match(sql, /grant select on public\.public_profiles to authenticated, service_role/,
+  /* authenticated'dan revoke ŞART: Supabase varsayılanı görünüme ALL verir,
+     grant'lar toplamalıdır ve bu görünüm otomatik güncellenebilir —
+     security_invoker=off ile yazma profiles RLS'ini aşardı (canlıda ölçüldü:
+     revoke öncesi ACL authenticated=arwdDxtm, sonrası =r). */
+  assert.match(sql, /revoke all on public\.public_profiles from public, anon, authenticated/,
+    'authenticated\'ın varsayılan ALL yetkisi geri alınmıyor — görünümden başkasının profili YAZILABİLİR');
+  assert.match(sql, /grant select on public\.public_profiles to authenticated;/,
     'authenticated görünümü okuyamaz — panel yine boş kalır');
+  assert.ok(!/grant (all|insert|update|delete)[^\n]*public_profiles[^\n]*authenticated/.test(sql),
+    'görünümde authenticated\'a okuma dışı yetki verilmiş');
 });
 
 test('anon kapatıldı: SELECT politikaları giriş şartına bağlı, yetkiler geri alınmış', () => {
@@ -65,6 +72,8 @@ test('anon kapatıldı: SELECT politikaları giriş şartına bağlı, yetkiler 
   }
   assert.match(sql, /create policy sandbox_project_likes_update_own[\s\S]*?for update[\s\S]*?using \(auth\.uid\(\) = user_id\)[\s\S]*?with check \(auth\.uid\(\) = user_id\)/,
     'likes UPDATE politikası yok — tepki değiştirme upsert\'i RLS\'e takılır');
+  assert.match(sql, /revoke execute on function public\.bump_sandbox_project_likes_count\(\)\s+from public, anon, authenticated/,
+    'sayaç tetikleyicisinin EXECUTE yetkisi istemci rollerinden alınmıyor (advisor uyarısı)');
 });
 
 test('profil okuması public_profiles üzerinden, profiles yedeği duruyor', () => {
