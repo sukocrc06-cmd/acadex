@@ -28,7 +28,7 @@ const G = loadFromSource('supabase/functions/summarize-document/index.ts', [
   'geminiMode', 'geminiParallelActive',
   'GROQ_CHAT_URL', 'GEMINI_GENERATE_BASE', 'GEMINI_FAST_MODEL_DEFAULT', 'GEMINI_PARALLEL_MIN_OUTPUT',
   'geminiParallelUsage', 'resetGeminiParallelUsage',
-  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'BOLUK_ONDALIK_RE', 'BANT_ETIKETI_RE', 'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE', 'SAYFA_ISARETI_RE', 'YUZDE_CEVRIM_RE', 'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND', 'araHesabiAyikla', 'SAYI_BELIRTECI', 'sayiOkumalari',
+  'geminiSerit', 'URL_BENZERI_RE', 'BOZUK_US_RE', 'CAG_YILI_RE', 'DERS_KODU_RE', 'ATIF_ETIKETI_RE', 'BOLUK_ONDALIK_RE', 'BANT_ETIKETI_RE', 'KAYNAKCA_CILT_RE', 'PROJE_KODU_RE', 'KOD_DISI', 'DERS_KODU_BOSLUKLU_RE', 'SLAYT_ALTBILGI_RE', 'SAYFA_ISARETI_RE', 'YUZDE_CEVRIM_RE', 'ARA_HESAP_ISLEM_RE', 'ARA_HESAP_SAF_SOL_RE', 'ARA_HESAP_MIN_OPERAND', 'araHesabiAyikla', 'SAYI_BELIRTECI', 'sayiOkumalari',
   // Grafik eksen centikleri hedeften duser (31.10.2026 olcumu).
   'EKSEN_MIN_UZUNLUK', 'eksenCentikleriniAyikla',
   'distinctiveNumbers',
@@ -446,6 +446,69 @@ test('distinctiveNumbers: bolunmus ondalik ONARILIR, bant etiketi ELENIR', () =>
      olabilir, birlestirmek uydurma sayi uretir. */
   assert.ok(!G.distinctiveNumbers('Tablo 5\n.4 oranini gosterir').includes(5.4),
     'satir sonu uzerinden ondalik birlestirildi');
+});
+
+test('distinctiveNumbers: KAYNAKCA kunyesi hedef degildir (10.11.2026)', () => {
+  /* Olculen kosu: RSH Hemsireligi.pdf, canli log
+       "Window 1 sayisal kapsama: 0/4 (%0) — kayip: 3787, 976, 765, 805"
+     ve "kayiplari nerede" satirlarinin DORDU de kaynakcaya isaret ediyordu.
+     Yani ogrenciye gosterilen "sayisal kapsama %0" rozeti UYDURMAYDI: kart
+     gercekte eksik degil, metrik dergi sayfa numarasini olgu sayiyordu.
+     Belgeye sadakat ilkesinin ayrimi: kapsama dusukse cikarim duzeltilir,
+     ARTEFAKT HARIC — bu dorduncu artefakt sinifi.
+
+     MUHAFIZ DEGERLERI 100 USTU SECILDI (bilerek): fonksiyonun sonunda
+     `if (yil || (!kesirli && v < 100)) continue` var, yani 100 altindaki
+     tam sayi ile 1500-2100 arasi yil ZATEN hedef olmuyor. Muhafizi 5 veya
+     15 ile yazmak hicbir sey olcmez — kural kaldirilsa da test gecer.
+     Ayni filtre, logdaki kayip listesinde 2018/2020/2021 bulunmamasinin da
+     sebebi. */
+  const KAYNAKCA = [
+    ['Proje numarası: TSA-2018-3787, Çukurova Nobel Tıp Kitabevi; 2020', 3787],
+    ['Issues Ment Health Nurs. 2020;41(11):976-84.', 976],
+    ['Int J Ment Health Nurs. 2018;27(2):765-73.', 765],
+    ['İstanbul Tıp Kitabevleri; 2021. p.798-805.', 805],
+  ];
+  for (const [satir, kayip] of KAYNAKCA) {
+    const out = G.distinctiveNumbers(satir);
+    assert.ok(!out.includes(kayip),
+      'kaynakcadan ' + kayip + ' hedef olarak cikti: [' + out.join(', ') + '] <- ' + satir);
+  }
+
+  /* ARALIGIN IKINCI YARISI: eski desen "p.798"i eliyor, "-805"i BIRAKIYORDU.
+     Regresyonun tam yeri burasi. */
+  assert.ok(!G.distinctiveNumbers('p.798-805.').includes(805),
+    'sayfa araliginin ikinci yarisi hedef kaldi');
+  assert.ok(!G.distinctiveNumbers('sayfa 120-240 arasinda').includes(240),
+    'sayfa araliginin ikinci yarisi hedef kaldi (Turkce onek)');
+
+  /* KORUMA 1: tire ile sayi arasinda BOSLUK varsa aralik SAYILMAZ — yoksa
+     "chapter 3 - 500 million" cumlesinde gercek miktar yutulur. Gercek
+     atiflarda aralik bosluksuz yazilir (976-84, 798-805). */
+  assert.ok(G.distinctiveNumbers('chapter 3 - 500 million people').includes(500),
+    'bosluklu tireden sonraki gercek miktar yutuldu');
+
+  /* KORUMA 2: dergi kuralinda PARANTEZ ZORUNLU. Parantezsiz "41:976"
+     bicimi de kabul edilse onunla birlikte saat ("14:30") ve oran ("3:1")
+     da yutulurdu; ikisi de gercek icerik. Bu satir kuralin darligini
+     dogrudan olcuyor. */
+  assert.ok(G.distinctiveNumbers('Sure 41:976 olarak kaydedildi').includes(976),
+    'parantezsiz iki nokta bicimi de elendi — kural fazla genis');
+  const saat = G.distinctiveNumbers('Saat 14:30 itibariyle 250 kisi basvurdu');
+  assert.ok(saat.includes(250), 'saat kurali gercek miktari yuttu: [' + saat.join(', ') + ']');
+
+  /* KORUMA 3: kaynakca kalibina BENZEMEYEN gercek olgular yerinde. 976
+     tek basina gectiginde olcum degeridir; 3.787 ise binlik ayracli sayi,
+     proje kodunun son blogu degil. */
+  assert.ok(G.distinctiveNumbers('Hemoglobin 976 g/L olarak olculdu').includes(976),
+    'ciplak 976 elendi — kural fazla genis');
+  assert.ok(G.distinctiveNumbers('Toplam 3.787 hasta izlendi').includes(3.787),
+    'binlik ayracli 3.787 proje kodu sanildi');
+
+  /* KORUMA 4: proje kodu kurali BUYUK HARF istiyor (i bayragi yok) —
+     kucuk harfli tireli siradan ifade yutulmamali. */
+  assert.ok(G.distinctiveNumbers('sonuc-2018-450 birim artti').includes(450),
+    'kucuk harfli tireli ifade proje kodu sanildi');
 });
 
 /* ---------------------------------------------------------------------------

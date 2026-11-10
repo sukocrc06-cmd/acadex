@@ -6710,8 +6710,51 @@ const DERS_KODU_BOSLUKLU_RE = /\b([A-Z]{3,5})\s(\d{2,4})\b/g
  * Yerine "onunde HARF olmasin": rakam serbest, boylece yapisik sayfa
  * numarasi engel degil, ama "configure 2.2" gibi sozcuk ici eslesme yine
  * engelli. */
+/* ARALIGIN IKINCI YARISI KURTULUYORDU (10.11.2026 olcumu, RSH Hemsireligi.pdf).
+ *
+ * Canli log: "Window 1 sayisal kapsama: 0/4 (%0) — kayip: 3787, 976, 765, 805"
+ * ve dordunun dordu de KAYNAKCA. Son kayip su satirdan geliyordu:
+ *   805 <- "Istanbul Tip Kitabevleri; 2021. p.798-805."
+ * Desen "p.798"i eliyor, ardindaki "-805" ise hedef olarak KALIYOR — yani
+ * sayfa araliginin ilk yarisi elenirken ikinci yarisi rozete giriyordu.
+ *
+ * ARALIK TAILINDE BOSLUK YOK (bilerek): tire ile sayi arasinda bosluga izin
+ * verilse "chapter 3 - 5 million people" gibi bir cumlede gercek miktar (5)
+ * yutulurdu. Yerelde olculdu, o cumlede 5 KORUNUYOR. Gercek atiflarda aralik
+ * zaten bosluksuz yazilir: 976-84, 798-805, 12-15. */
 const ATIF_ETIKETI_RE =
-  /(?<![A-Za-z])(?:figure|fig|table|tablo|\u015fekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:\.\d+)*\b/gi
+  /(?<![A-Za-z])(?:figure|fig|table|tablo|\u015fekil|sekil|chart|exhibit|slide|slayt|appendix|page|sayfa|chapter|section|equation|eq|pp|p)\s*\.?\s*\d+(?:\.\d+)*(?:[-\u2013\u2014]\d+(?:\.\d+)*)?\b/gi
+
+/* DERGI ATFI: CILT(SAYI):SAYFA (10.11.2026 olcumu, ayni kosu).
+ *
+ * Ayni logdaki iki kayip da onek TASIMIYOR, o yuzden ATIF_ETIKETI_RE
+ * gormuyordu:
+ *   976 <- "Issues Ment Health Nurs. 2020;41(11):976-84."
+ *   765 <- "Int J Ment Health Nurs. 2018;27(2):765-73."
+ * Bunlar dergi cilt/sayi/sayfa numaralari — belgenin kendi kunyesi, olculen
+ * bir miktar degil (CAG_YILI_RE ve ATIF_ETIKETI_RE ile ayni gerekce).
+ *
+ * PARANTEZ ZORUNLU, kural bilerek dar tutuldu. Parantez optional yapilsa
+ * "41:976" gibi bir sey de eslesirdi ve onunla birlikte SAAT ("14:30") ile
+ * ORAN ("3:1") da yutulurdu — ikisi de gercek icerik. Yerelde olculdu, ikisi
+ * de KORUNUYOR. Parantezsiz bicim ("2020;41:976-84") elimizdeki iki ornekte
+ * yok; tek ornekten kural cikarilmaz (bkz. ATIF_ETIKETI_RE yanindaki ayni
+ * gerekce: ciplak bolum numarasi da bu yuzden disarida). */
+const KAYNAKCA_CILT_RE =
+  /(?<![A-Za-z0-9.])\d{1,4}\s*\(\s*\d{1,4}(?:\s*[-\u2013]\s*\d{1,4})?\s*\)\s*:\s*\d{1,5}(?:\s*[-\u2013]\s*\d{1,5})?/g
+
+/* PROJE/KATALOG KODU (10.11.2026 olcumu, ayni kosu).
+ *
+ * Dorduncu kayip:
+ *   3787 <- "Proje numarasi: TSA-2018-3787, Cukurova Nobel Tip Kitabevi; 2020"
+ * Kodun son blogu olculen bir deger degil, kimlik. DERS_KODU_RE bunu
+ * gormuyor: o desen harflerin HEMEN ardindan rakam bekliyor (BUS211),
+ * burada araya tire giriyor.
+ *
+ * BUYUK HARF SARTI (i bayragi YOK): kucuk harfe de izin verilse "sonuc-2018-5"
+ * gibi siradan bir tireli ifade de yutulurdu. En az iki buyuk harf + iki
+ * rakam blogu sarti kalibi kimlik olmaya zorluyor. */
+const PROJE_KODU_RE = /(?<![A-Za-z0-9])[A-Z]{2,6}[-\/]\d{2,4}[-\/]\d{1,6}(?![\w-])/g
 
 /* BOLUNMUS ONDALIK ONARIMI (04.11.2026 olcumu, 2-Eritrositler -3 (1).pdf).
  *
@@ -6920,6 +6963,9 @@ function distinctiveNumbers(text: string): number[] {
     .replace(BOZUK_US_RE, '$1 ')
     .replace(CAG_YILI_RE, ' ')
     .replace(ATIF_ETIKETI_RE, ' ')
+    // Kaynakca kunyesi: cilt(sayi):sayfa ve proje kodu (10.11.2026).
+    .replace(KAYNAKCA_CILT_RE, ' ')
+    .replace(PROJE_KODU_RE, ' ')
     .replace(BANT_ETIKETI_RE, ' ')
     .replace(DERS_KODU_RE, ' ')
     .replace(DERS_KODU_BOSLUKLU_RE, (tam: string, kod: string) => KOD_DISI.has(String(kod)) ? tam : ' ')
