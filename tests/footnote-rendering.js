@@ -1362,4 +1362,41 @@ test('rozet aciklamasinda Yunan harfi KORUNUYOR', () => {
   assert.ok(!/\s_1/.test(r[0]), 'yalin "_1" kalmis: ' + r[0]);
 });
 
+test('ANLATI FORMULU TURUNCU ve tek parca (10.11.2026)', () => {
+  /* Ekranda anlatidaki formuller "daginik ve koyu" goruntu veriyordu.
+     Iki ayri sebep olculdu:
+       1) Renk --amber jetonundan geliyordu = #B4511F, yani pas/kahve.
+          Cevresindeki lacivert prose metninden ayrismiyor, koyu okunuyor.
+       2) Satir ici formul satir sonunda ikiye bolunuyor, blok formul
+          (.katex-display) ise prose genisligini asip tasiyordu.
+     Bu test ucunu birlikte kilitler; biri geri alinirsa duser. */
+  const CSS = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'css/acadex-ink.css'), 'utf8').replace(/\r\n/g, '\n');
+
+  // (1) Kendi jetonu var ve GERCEKTEN turuncu (r > g > b, mavi dusuk).
+  const jeton = CSS.match(/#study-card-modal\.axr\{--math:(#[0-9A-Fa-f]{6})\}/);
+  assert.ok(jeton, '--math jetonu yok — formul rengi yine --amber uzerinden gelir');
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(jeton[1].slice(i, i + 2), 16));
+  assert.ok(r > g && g > b, '--math ' + jeton[1] + ' turuncu degil (r>g>b beklenir)');
+  assert.ok(r >= 0xB0 && b <= 0x40, '--math ' + jeton[1] + ' yeterince parlak/turuncu degil');
+
+  // (2) Satir ici matematik o jetonu kullaniyor ve --amber'e DONMUYOR.
+  const kural = CSS.match(/\.axr-prose \.katex,\n[^\n]*\.axr-kps \.katex\{([^}]*)\}/);
+  assert.ok(kural, 'anlati/madde satir ici matematik kurali bulunamadi');
+  assert.match(kural[1], /color:var\(--math\)/, 'formul rengi --math jetonundan gelmiyor');
+  assert.ok(!/var\(--amber\)/.test(kural[1]), 'renk yine --amber — rozet rengiyle ayni, koyu kalir');
+  assert.match(kural[1], /white-space:nowrap/, 'satir ici formul satir sonunda bolunebilir');
+
+  // (3) Blok formul kendi seridinde kaydirilir, ICI normal sarilir.
+  const blok = CSS.match(/\.axr-prose \.katex-display,\n[^\n]*\.axr-kps \.katex-display\{([^}]*)\}/);
+  assert.ok(blok, 'blok formul kurali yok — uzun formul prose genisligini asar');
+  assert.match(blok[1], /overflow-x:auto/, 'blok formulde kaydirma yok');
+  assert.match(CSS, /\.axr-prose \.katex-display>\.katex,\n[^\n]*\.axr-kps \.katex-display>\.katex\{white-space:normal\}/,
+    'blok formulun ici nowrap kaliyor — kaydirma cubugu hic cikmaz');
+
+  // (4) Gece masasindaki filter:none iptali YERINDE kalmali.
+  assert.match(CSS, /html\.ax-dark #study-card-modal\.axr \.axr-prose \.katex,/,
+    'gece masasi geri-cevirme iptali kalkmis — formul koyu temada ters doner');
+});
+
 summary().then(() => process.exit(process.exitCode || 0));

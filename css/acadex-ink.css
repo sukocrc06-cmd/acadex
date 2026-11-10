@@ -8209,9 +8209,26 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-chalk figcaption .mono{color:#B9D4C6}
 #study-card-modal.axr .axr-chalk figcaption b{color:#FFF}
 /* SATIR ICI MATEMATIK: anlati ve maddelerde cevresindeki metinden ayirt
-   edilsin. Koyu temada cok sonuk kaliyordu. */
+   edilsin. Koyu temada cok sonuk kaliyordu.
+
+   RENK VE DUZEN (10.11.2026): renk --amber uzerinden geliyordu (#B4511F),
+   yani pas/kahve — ekranda formul "koyu" okunuyordu ve cevresindeki lacivert
+   metinden ayrismiyordu. Kendi jetonu --math ile gercek turuncuya alindi;
+   --amber rozet ve uyari renkleri icin oldugu gibi kaldi (orada degistirmek
+   ilgisiz yerleri bozardi).
+
+   DAGINIK GORUNUM iki ayri sebepten: (a) satir ici formul satir sonunda
+   ikiye bolunuyordu, (b) blok formul (\[...\] -> .katex-display) prose
+   genisligini asip tasiyordu. Birincisi nowrap ile, ikincisi kendi
+   kaydirilabilir seridiyle cozuldu; blok formulun ICI normal sarilir,
+   yoksa uzun tureve hic kaydirma cubugu cikmaz. */
+#study-card-modal.axr{--math:#C9570F}
 #study-card-modal.axr .axr-prose .katex,
-#study-card-modal.axr .axr-kps .katex{color:var(--amber)}
+#study-card-modal.axr .axr-kps .katex{color:var(--math);white-space:nowrap}
+#study-card-modal.axr .axr-prose .katex-display,
+#study-card-modal.axr .axr-kps .katex-display{margin:.9em 0;padding:6px 0;overflow-x:auto;overflow-y:hidden;text-align:center}
+#study-card-modal.axr .axr-prose .katex-display>.katex,
+#study-card-modal.axr .axr-kps .katex-display>.katex{white-space:normal}
 /* Gece masasi kok ogeyi ters ceviriyor ve .katex'i GERI ceviriyor; satir
    ici matematik boylece cevresindeki metnin tersine donup koyu kaliyordu.
    Burada geri cevirme iptal: metinle ayni mantikta cevrilsin. */
