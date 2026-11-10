@@ -151,4 +151,29 @@ test('PYTHON GRAFİK ÇIKTISI + PAKET HABERİ (10.11.2026)', () => {
   assert.ok(ink.includes('if (v && v.destroy) { try { v.destroy(); } catch (e) {} }'), 'PyProxy destroy edilmiyor');
 });
 
+test('PYTHON PROJESİ PANELE GÖNDERİLEBİLİR: son koşudan analiz kartı (11.11.2026)', () => {
+  /* Canlı bulgu (Berkay): "panele gönder deyince GitHub reposu istiyor".
+     buildSingle sayfasız projede boş döner, hasSrc düşer, öğrenci bağlantıya
+     zorlanırdı. Çözüm: son Python koşusunun grafikleri + çıktısı meta'ya
+     yazılır (sonKosu), composer bundan snapshot üretir. */
+  // (a) Koşu kaydı sınırlı: en çok 2 grafik (<140 KB) ve 30 satır (200 krk) —
+  //     sandbox_workspaces.meta şişmemeli.
+  assert.ok(ink.includes('var k0 = cons.length;'), 'koşu başlangıç işaretçisi yok');
+  assert.ok(ink.includes("String(x.a).slice(0, 200); }).slice(0, 30)"), 'çıktı sınırı yok');
+  assert.ok(ink.includes('b.length < 140000; }).slice(0, 2)'), 'grafik boyut/adet sınırı yok');
+  assert.ok(ink.includes('P.sonKosu = { at: Date.now(), out: sOut, imgs: sImg }; dirty(); saveNow();'),
+    'son koşu kaydedilmiyor');
+  // (b) Kalıcılık: meta üzerinden gider-gelir.
+  assert.ok(ink.includes("sonKosu: m.sonKosu || null"), 'fromRow sonKosu okumuyor');
+  assert.ok(ink.includes("sonKosu: p.sonKosu || null"), 'toRow sonKosu yazmıyor');
+  // (c) Composer: sayfa snapshot'ı yoksa analiz kartına düşer; hiç koşu yoksa
+  //     boş döner ve eski davranış (bağlantı/kapak iste) değişmez.
+  assert.ok(ink.includes('(buildSingle(pr.files) || pySnap(pr))'), 'fillFrom analiz kartına düşmüyor');
+  assert.ok(ink.includes("if (!sk || (!(sk.imgs || []).length && !(sk.out || []).length)) return '';"),
+    'boş koşuda pySnap boş dönmüyor — davranış değişir');
+  // (d) Çıktı KAÇIRILARAK gömülür (öğrenci çıktısı HTML taşıyabilir).
+  assert.ok(ink.includes("'<pre>' + X((sk.out || []).join('\\n')) + '</pre>'"),
+    'konsol çıktısı kaçırılmadan snapshot HTML\'ine giriyor');
+});
+
 summary();

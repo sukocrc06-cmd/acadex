@@ -4843,8 +4843,8 @@ var SBX = (function () {
   /* ---------- kod projeleri ---------- */
   var ws = { list: null, synced: {}, t: 0, busy: false };
   var wsKey = function () { return uk('dev.projects'); };
-  var fromRow = function (r) { var m = r.meta || {}; return { id: r.id, name: r.name, status: r.status || 'taslak', course: r.course || '', due: r.due || '', files: r.files || {}, versions: r.versions || [], open: m.open || [], cur: m.cur || '', denetim: m.denetim || null, created: Date.parse(r.created_at) || Date.now(), updated: Date.parse(r.updated_at) || Date.now() }; };
-  var toRow = function (p) { return { id: p.id, user_id: me().id, name: p.name || 'Adsız proje', status: p.status || 'taslak', course: p.course || null, due: p.due || null, files: p.files || {}, versions: p.versions || [], meta: { open: p.open || [], cur: p.cur || '', denetim: p.denetim || null }, created_at: new Date(p.created || Date.now()).toISOString(), updated_at: new Date(p.updated || Date.now()).toISOString() }; };
+  var fromRow = function (r) { var m = r.meta || {}; return { id: r.id, name: r.name, status: r.status || 'taslak', course: r.course || '', due: r.due || '', files: r.files || {}, versions: r.versions || [], open: m.open || [], cur: m.cur || '', denetim: m.denetim || null, sonKosu: m.sonKosu || null, created: Date.parse(r.created_at) || Date.now(), updated: Date.parse(r.updated_at) || Date.now() }; };
+  var toRow = function (p) { return { id: p.id, user_id: me().id, name: p.name || 'Adsız proje', status: p.status || 'taslak', course: p.course || null, due: p.due || null, files: p.files || {}, versions: p.versions || [], meta: { open: p.open || [], cur: p.cur || '', denetim: p.denetim || null, sonKosu: p.sonKosu || null }, created_at: new Date(p.created || Date.now()).toISOString(), updated_at: new Date(p.updated || Date.now()).toISOString() }; };
   var wsLoad = async function () {
     var local = G(wsKey(), []); if (!Array.isArray(local)) local = [];
     ws.list = local;
@@ -5116,9 +5116,18 @@ var SBX = (function () {
     tags.forEach(function (t) { if (t.length > 2 && cur.text.indexOf(t) < 0 && sug.indexOf(t) < 0) sug.push(t); });
     dlg.querySelector('[data-csug]').innerHTML = sug.length ? '<span>etiket ekle:</span>' + sug.slice(0, 6).map(function (t) { return '<button type="button" data-addtag="' + X(t) + '">' + X(t) + '</button>'; }).join('') : '';
   };
+  /* Sayfasız (Python/analiz) proje için önizleme: son koşunun grafikleri ve
+     çıktısı. buildSingle boş dönerse devreye girer; hiç koşulmamış projede
+     boş döner ve davranış eskisi gibi kalır (bağlantı/kapak istenir). */
+  var pySnap = function (pr) {
+    var sk = pr && pr.sonKosu; if (!sk || (!(sk.imgs || []).length && !(sk.out || []).length)) return '';
+    return '<!doctype html><html><head><meta charset="utf-8"><style>body{margin:14px;font-family:system-ui,sans-serif;background:#fff;color:#0D1838}img{max-width:100%;display:block;margin:0 auto 12px;box-shadow:0 1px 8px rgba(0,0,0,.12);border-radius:6px}pre{background:#0D1838;color:#DCE8F8;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5;overflow:auto;white-space:pre-wrap;word-break:break-word}h3{margin:0 0 10px;font-size:14px}</style></head><body><h3>son çalıştırma çıktısı</h3>' +
+      (sk.imgs || []).map(function (b) { return '<img alt="grafik" src="data:image/png;base64,' + b + '">'; }).join('') +
+      ((sk.out || []).length ? '<pre>' + X((sk.out || []).join('\n')) + '</pre>' : '') + '</body></html>';
+  };
   var fillFrom = function (pr) {
     var Q = function (s) { return dlg.querySelector(s); };
-    cur.projId = pr ? pr.id : ''; cur.snap = pr ? buildSingle(pr.files) : ''; cur.versions = pr ? (pr.versions || []).length : 0; cur.langs = pr ? langsOf(pr.files) : [];
+    cur.projId = pr ? pr.id : ''; cur.snap = pr ? (buildSingle(pr.files) || pySnap(pr)) : ''; cur.versions = pr ? (pr.versions || []).length : 0; cur.langs = pr ? langsOf(pr.files) : [];
     Q('[data-csnapw]').hidden = !cur.snap;
     if (!pr) return;
     if (!Q('[data-ctitle]').value || Q('[data-ctitle]')._auto) { Q('[data-ctitle]').value = pr.name; Q('[data-ctitle]')._auto = true; }
@@ -5938,6 +5947,7 @@ var SBX = (function () {
   var runPython = function (file) {
     outTab('cons');
     var go = function () {
+      var k0 = cons.length; /* son koşu kaydı bu işaretten itibaren toplanır */
       log('sys', '— ' + file + ' çalışıyor' + (pyodide ? '' : ' · Python yükleniyor (ilk sefer biraz sürer)') + ' —'); lastErr = 0;
       loadPy().then(function (py) {
         Object.keys(P.files).forEach(function (p) { var d = p.split('/').slice(0, -1), acc = ''; d.forEach(function (x) { acc += (acc ? '/' : '') + x; try { py.FS.mkdir(acc); } catch (e) {} }); try { py.FS.writeFile(p, P.files[p]); } catch (e) {} });
@@ -5955,6 +5965,18 @@ var SBX = (function () {
               if (v && v.destroy) { try { v.destroy(); } catch (e) {} }
               var n = pyGrafikGoster(imgs);
               if (n) { log('sys', n + ' grafik önizlemede'); outTab('prev'); }
+              /* SON KOŞU KAYDI (11.11.2026): sayfasız (Python) projeyi panele
+                 gönderebilmek için önizleme gerekiyordu; buildSingle sayfasız
+                 projede boş döner ve öğrenci GitHub bağlantısına zorlanıyordu.
+                 Son koşunun grafikleri + çıktısı meta'ya yazılır, composer
+                 bundan 'analiz kartı' snapshot'ı üretir. Sınırlar bilinçli:
+                 en çok 2 grafik (her biri <140 KB base64), 30 satır çıktı —
+                 sandbox_workspaces.meta şişmesin. */
+              if (P) {
+                var sOut = cons.slice(k0).filter(function (x) { return x.t === 'log'; }).map(function (x) { return String(x.a).slice(0, 200); }).slice(0, 30);
+                var sImg = (imgs || []).filter(function (b) { return b && b.length < 140000; }).slice(0, 2);
+                if (sOut.length || sImg.length) { P.sonKosu = { at: Date.now(), out: sOut, imgs: sImg }; dirty(); saveNow(); }
+              }
             }, function (e) { console.warn('grafik toplanamadı', e); });
           });
       }).then(function () { log('sys', '— bitti —'); }, function (err) { var m = String(err && err.message || err), ln = /File "<exec>", line (\d+)/g, last = null, mm; while ((mm = ln.exec(m))) last = mm[1]; var tail = m.trim().split('\n').pop(); log('error', tail + (last ? ' @' + file + ':' + last : '')); });
