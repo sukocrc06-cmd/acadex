@@ -29,7 +29,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g,
 const { test, summary } = makeRunner();
 const near = (a, b, e, m) => assert.ok(Math.abs(a - b) <= e, (m || '') + ' ' + a + ' ≠ ' + b);
 
-const FILES = ['ist-core.js', 'ist-h1.js', 'ist-h2.js', 'ist-h3.js', 'ist-h4.js', 'ist-h5.js', 'ist-h6.js', 'ist-h7.js', 'ist-h8.js', 'ist-ozet.js'];
+const FILES = ['ist-core.js', 'ist-sahne.js', 'ist-h1.js', 'ist-h2.js', 'ist-h3.js', 'ist-h4.js', 'ist-h5.js', 'ist-h6.js', 'ist-h7.js', 'ist-h8.js', 'ist-ozet.js', 'ist-tahmin.js'];
 const win = { location: { search: '', origin: 'https://acadex.com.tr', href: 'https://acadex.com.tr/labs/istat/' }, matchMedia: () => ({ matches: false }), addEventListener() {} };
 win.parent = win;
 const ctx = { window: win, document: { addEventListener() {} }, location: win.location, Math, JSON, Date, isFinite, isNaN, parseFloat, Number, String, Array, Object, URL };
@@ -130,6 +130,23 @@ test('hub: panel düğmeleri, açılış anahtarı, liman, Acadia; ağ isteği y
   FILES.forEach((f) => assert.doesNotMatch(read('labs/istat/' + f), /fetch\(|XMLHttpRequest|supabase|localStorage\.clear/, f));
   assert.match(read('labs/istat/ist-core.js'), /m\.src = 'axlab'; m\.lab = 'istat'/);
   assert.match(read('labs/istat/ist.css'), /@media \(prefers-reduced-motion:reduce\)/);
+});
+
+test('tahmin kartları ve soru sahneleri: her sahnede geçerli tahmin; görselli sorular her adımda çizilir', () => {
+  IST.H.forEach((h) => {
+    const T = IST.TAHMIN[h.id]; assert.ok(T, h.id + ' tahminleri');
+    assert.equal(T.length, h.sahneler.length, h.id + ' her sahneye bir tahmin');
+    T.forEach((t, i) => { if (!t) return; assert.ok(t[0] && t[1].length >= 2 && t[1].length <= 4 && t[2] >= 0 && t[2] < t[1].length && t[3], h.id + ' sahne ' + i); assert.equal(new Set(t[1]).size, t[1].length, h.id + ' sahne ' + i + ' tekrar eden seçenek'); });
+  });
+  let viz = 0;
+  IST.H.forEach((h) => { for (let seed = 1; seed <= 40; seed++) h.sorular(IST.rng(seed * 31 + h.no)).forEach((q, i) => {
+    if (!q.viz) return; viz++;
+    for (let k = 0; k <= q.cz.length; k++) { const s = q.viz(k); assert.equal(typeof s, 'string'); assert.doesNotMatch(s, /NaN|undefined|Infinity/, h.id + ' #' + i + ' adım ' + k); }
+  }); });
+  assert.ok(viz >= 40 * 40, 'görselli soru sayısı: ' + viz);
+  /* senaryo kartları: sorudaki sayılar veri kartına dönüşür */
+  const sh = IST.senaryo({ q: '<p>Bir fabrikada σ = 25 g, n = 40, x̄ = <b>460 g</b>.</p>' }, 0, ['25']);
+  assert.match(sh, /🏭/); assert.match(sh, /σ = 25/); assert.match(sh, /class="pop on"/);
 });
 
 summary();

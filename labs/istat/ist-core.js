@@ -355,7 +355,7 @@
       '<g class="goz"><circle cx="34" cy="38" r="2.4" fill="#0D1838"/><circle cx="50" cy="38" r="2.4" fill="#0D1838"/></g>' +
       '<circle cx="34" cy="38" r="7" fill="rgba(255,255,255,.25)" stroke="#0D1838" stroke-width="2"/><circle cx="50" cy="38" r="7" fill="rgba(255,255,255,.25)" stroke="#0D1838" stroke-width="2"/><path d="M41 38h2" stroke="#0D1838" stroke-width="2"/>' +
       '<path d="M37 47c3 2 7 2 10 0" fill="none" stroke="#0D1838" stroke-width="1.8" stroke-linecap="round"/>' +
-      '<ellipse class="agiz" cx="42" cy="50" rx="4.2" ry="2.6" fill="#7A2E2A"/>' +
+      '<ellipse class="agiz" cx="42" cy="50" rx="4.2" ry="2.6" fill="#7A2E2A"/><path class="gul" d="M35 48c3 6 11 6 14 0z" fill="#7A2E2A"/><path class="kas" d="M28 27l9 2M47 29l9-2" stroke="#0D1838" stroke-width="2" stroke-linecap="round"/>' +
       '<g class="kol"><path d="M66 82l12-16" stroke="#2F6FB0" stroke-width="7" stroke-linecap="round"/><path d="M78 66l6-14" stroke="#8A6D3B" stroke-width="2.6" stroke-linecap="round"/><circle cx="78" cy="66" r="3.6" fill="#F1C7A1" stroke="#0D1838" stroke-width="1.5"/></g></svg>';
   };
 
@@ -412,16 +412,40 @@
     alt.innerHTML = (pv ? '<button type="button" class="btn ghost" data-go="' + pv.id + '">← ' + pv.no + '. hafta</button>' : '') + '<button type="button" class="btn ghost" data-go="yol">ders yolu</button>' + (nx ? '<button type="button" class="btn" data-go="' + nx.id + '">' + (nx.donem !== H.donem ? 'Bahar · ' : '') + nx.no + '. hafta →</button>' : '');
   };
 
-  /* anlatım: sahneler + Veri Hoca + otomatik oynatıcı (altyazı = metnin paragraf/madde birimleri) */
+  /* anlatım: sahneler + Veri Hoca + otomatik oynatıcı (altyazı = metnin paragraf/madde birimleri)
+     13.11.2026 · senkron görsel: görseldeki animasyonlu parçalar gecikme sırasına göre metin birimlerine
+     bölünür; Veri Hoca bir birimi okurken o birimin parçası belirir ve parlar. Elle okurken bir paragrafa
+     tıklamak görseldeki karşılığını parlatır.
+     13.11.2026 · tahmin et, sonra gör: IST.TAHMIN[hafta][sahne] varsa metnin ortasında “Sence?” kartı çıkar;
+     cevaplanana kadar metnin ve görselin ikinci yarısı bekler. */
   var oyn = { t: null };
   var durdur = function () { clearTimeout(oyn.t); oyn.t = null; };
   IST.durdur = durdur;
+  var ANIM = '.an,.pop,.gy,.gx,.dr,.fd,.dp';
+  var gecik = function (el) { var d = parseFloat((el.style.getPropertyValue('--d') || '').replace('s', '')); if (isNaN(d)) d = parseFloat(lsafe(function () { return getComputedStyle(el).animationDelay; }, '0')) || 0; return d; };
+  /* görseldeki animasyonlu öğeleri n birime dağıt (aynı gecikmedekiler birlikte kalır) */
+  var parcala = function (v, n) {
+    var els = [].filter.call(v.querySelectorAll(ANIM), function (e) { var p = e.parentElement && e.parentElement.closest(ANIM); return !p || !v.contains(p); });
+    var gr = {}, keys = [];
+    els.forEach(function (e) { var k = Math.round(gecik(e) * 100) / 100; e.__d = k; if (!gr[k]) { gr[k] = []; keys.push(k); } gr[k].push(e); });
+    keys.sort(function (a, b) { return a - b; });
+    var out = []; for (var j = 0; j < n; j++) out.push([]);
+    keys.forEach(function (k, i) { out[Math.min(n - 1, Math.floor(i * n / Math.max(1, keys.length)))].push(gr[k]); });
+    return out.map(function (g) { return [].concat.apply([], g); });
+  };
+  var gizle = function (L) { L.forEach(function (e) { e.classList.add('is-bekle'); }); };
+  var ac = function (L, parla) {
+    if (!L.length) return; var t0 = Math.min.apply(null, L.map(function (e) { return e.__d || 0; }));
+    L.forEach(function (e) { e.style.animationDelay = Math.max(0, (e.__d || 0) - t0) + 's'; e.classList.remove('is-bekle'); if (parla) { e.classList.remove('is-yeni'); void e.getBoundingClientRect(); e.classList.add('is-yeni'); } });
+    if (parla) setTimeout(function () { L.forEach(function (e) { e.classList.remove('is-yeni'); }); }, 2600);
+  };
+  cur.tah = cur.tah || {};
   var anlatim = function (H, body) {
     var S = H.sahneler, k = Math.min(cur.sahne || 0, S.length - 1);
     var draw = function () {
-      durdur(); cur.sahne = k; var s = S[k];
+      durdur(); cur.sahne = k; var s = S[k], T = ((IST.TAHMIN || {})[H.id] || [])[k], tk = H.id + ':' + k;
       body.innerHTML = '<div class="is-sahne"><div class="is-bar" aria-hidden="true"><i data-bar></i></div><div class="is-metin"><span class="sn">SAHNE ' + (k + 1) + ' / ' + S.length + '</span><h2 class="disp">' + s.b + '</h2>' +
-        '<div class="is-hk">' + IST.hoca(58) + '<div class="is-bal" data-bal aria-live="polite">' + (cur.play ? '' : k ? 'Hazırsan ▶ oynat; bu sahneyi birlikte okuyalım.' : 'Merhaba, ben Veri Hoca! ▶ oynat’a basarsan bu dersi sahne sahne anlatırım.') + '</div></div>' +
+        '<div class="is-hk">' + IST.hoca(58) + '<div class="is-bal" data-bal aria-live="polite">' + (cur.play ? '' : k ? 'Hazırsan ▶ oynat; bu sahneyi birlikte okuyalım. Bir paragrafa tıklarsan görselde karşılığını gösteririm.' : 'Merhaba, ben Veri Hoca! ▶ oynat’a basarsan bu dersi sahne sahne anlatırım.') + '</div></div>' +
         '<div class="tx">' + s.t + '</div>' +
         (s.terim ? '<div class="is-terimler">' + s.terim.map(function (t) { return '<span>' + X(t[0]) + ' <em>· ' + X(t[1]) + '</em></span>'; }).join('') + '</div>' : '') +
         '<div class="is-sahne-nav"><button type="button" class="btn sm pri is-oyn" data-play aria-pressed="' + !!cur.play + '">' + (cur.play ? '⏸ durdur' : '▶ oynat') + '</button><button type="button" class="btn sm ghost" data-hiz title="oynatma hızı">' + (cur.hiz === 1.5 ? '1,5×' : '1×') + '</button>' +
@@ -430,35 +454,74 @@
         (k < S.length - 1 ? '<button type="button" class="btn sm" data-sn>ileri →</button>' : '<button type="button" class="btn sm" data-tog>görsel →</button>') + '</div></div>' +
         '<div class="is-gor"><button type="button" class="btn sm ghost tekrar" data-rp title="animasyonu yeniden oynat">↻ tekrar</button><div class="fig" data-v></div></div></div>';
       var v = body.querySelector('[data-v]'), hk = body.querySelector('.hoca'), bal = body.querySelector('[data-bal]'), bar = body.querySelector('[data-bar]');
-      var ciz = function () { v.innerHTML = ''; void v.offsetWidth; lsafe(function () { v.innerHTML = typeof s.v === 'function' ? s.v() : (s.v || ''); }); if (s.kur) lsafe(function () { s.kur(v); }); };
+      /* altyazı birimleri */
+      var units = []; [].forEach.call(body.querySelectorAll('.tx > *'), function (el) { if (/^(UL|OL)$/.test(el.tagName)) [].forEach.call(el.children, function (li) { units.push(li); }); else units.push(el); });
+      var N = units.length, m = T ? Math.max(1, Math.ceil(N / 2)) : N, P = [], acik = !T || cur.tah[tk];
+      var ciz = function () {
+        v.innerHTML = ''; void v.offsetWidth; lsafe(function () { v.innerHTML = typeof s.v === 'function' ? s.v() : (s.v || ''); }); if (s.kur) lsafe(function () { s.kur(v); });
+        P = parcala(v, Math.max(1, N));
+        if (cur.play) P.forEach(gizle);
+        else if (!acik) P.slice(m).forEach(gizle);
+      };
       ciz();
-      body.querySelector('[data-rp]').onclick = ciz;
+      body.querySelector('[data-rp]').onclick = function () { var ply = cur.play; cur.play = false; ciz(); cur.play = ply; if (ply) P.forEach(function (L) { ac(L); }); };
+      /* tahmin kartı */
+      var kart = null;
+      var bekle = function (on) { units.forEach(function (x, j) { x.classList.toggle('is-gizli', on && j >= m); }); };
+      if (T) {
+        kart = D.createElement('div'); kart.className = 'is-tah'; kart.setAttribute('role', 'group'); kart.setAttribute('aria-label', 'Tahmin sorusu');
+        kart.innerHTML = '<div class="is-tah-h"><span>🤔 Sence?</span><button type="button" class="is-tah-gec" data-gec>geç →</button></div><p>' + T[0] + '</p><div class="is-tah-o">' + T[1].map(function (o, i) { return '<button type="button" data-t="' + i + '">' + o + '</button>'; }).join('') + '</div><div class="is-tah-fb" data-tfb></div>';
+        var after = units[m - 1]; (after.tagName === 'LI' ? after.parentElement : after).insertAdjacentElement('afterend', kart);
+        if (acik) { kart.classList.add('cozuldu'); kart.querySelector('[data-tfb]').innerHTML = '<b>Cevap:</b> ' + T[1][T[2]] + '. ' + T[3]; [].forEach.call(kart.querySelectorAll('[data-t]'), function (b) { b.disabled = true; if (+b.getAttribute('data-t') === T[2]) b.classList.add('ok'); }); kart.querySelector('[data-gec]').hidden = true; }
+        else bekle(true);
+      }
+      var devam = null;
+      var coz = function (i) {
+        if (acik) return; acik = true; cur.tah[tk] = 1;
+        var good = i === T[2];
+        [].forEach.call(kart.querySelectorAll('[data-t]'), function (b) { var j = +b.getAttribute('data-t'); b.disabled = true; if (j === T[2]) b.classList.add('ok'); else if (j === i) b.classList.add('no'); });
+        kart.classList.add('cozuldu'); kart.querySelector('[data-gec]').hidden = true;
+        kart.querySelector('[data-tfb]').innerHTML = (i == null ? '' : good ? '<b style="color:var(--ok)">Bildin!</b> ' : '<b style="color:var(--bad)">Yakındı.</b> ') + '<b>Cevap:</b> ' + T[1][T[2]] + '. ' + T[3];
+        hk.classList.remove('konus', 'dusun'); hk.classList.add(good ? 'mutlu' : 'dusun'); setTimeout(function () { hk.classList.remove('mutlu', 'dusun'); }, 2600);
+        bal.textContent = i == null ? 'Peki, cevabı birlikte görelim: ' + T[1][T[2]] + '.' : good ? 'Harika tahmin! ' + T[3] : 'Güzel deneme. ' + T[3];
+        bekle(false);
+        if (!cur.play) P.slice(m).forEach(function (L) { ac(L, true); });
+        if (devam) { var f = devam; devam = null; oyn.t = setTimeout(f, 2600 / (cur.hiz || 1)); }
+      };
+      if (kart) { [].forEach.call(kart.querySelectorAll('[data-t]'), function (b) { b.onclick = function () { coz(+b.getAttribute('data-t')); }; }); kart.querySelector('[data-gec]').onclick = function () { coz(null); }; }
+      /* elle okuma: paragrafa tıkla → görseldeki karşılığı parlar */
+      units.forEach(function (el, j) { el.classList.add('is-birim'); el.addEventListener('click', function () { if (cur.play || el.classList.contains('is-gizli')) return; units.forEach(function (x) { x.classList.toggle('is-oku', x === el); }); ac(P[j] || [], true); setTimeout(function () { el.classList.remove('is-oku'); }, 2600); }); });
       var git = function (j) { k = j; draw(); if (k === S.length - 1) put(H.id, { a: 1 }); };
       body.querySelector('[data-sp]').onclick = function () { if (k) git(k - 1); };
       var sn = body.querySelector('[data-sn]'); if (sn) sn.onclick = function () { git(k + 1); };
       var tg = body.querySelector('[data-tog]'); if (tg) tg.onclick = function () { cur.play = false; put(H.id, { a: 1 }); IST.go(H.id, 'g'); };
       [].forEach.call(body.querySelectorAll('[data-sj]'), function (b) { b.onclick = function () { git(+b.getAttribute('data-sj')); }; });
       body.querySelector('[data-hiz]').onclick = function () { cur.hiz = cur.hiz === 1.5 ? 1 : 1.5; this.textContent = cur.hiz === 1.5 ? '1,5×' : '1×'; };
-      /* altyazı birimleri */
-      var units = []; [].forEach.call(body.querySelectorAll('.tx > *'), function (el) { if (/^(UL|OL)$/.test(el.tagName)) [].forEach.call(el.children, function (li) { units.push(li); }); else units.push(el); });
       var adim = function (u) {
+        if (u === m && !acik && u < N) {
+          hk.classList.remove('konus'); hk.classList.add('dusun'); bal.textContent = 'Dur bir saniye: sence? Cevabını seç (ya da “geç”), sonra devam edelim.';
+          units.forEach(function (x) { x.classList.remove('is-oku'); }); lsafe(function () { kart.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' }); });
+          devam = function () { adim(u); }; return;
+        }
         units.forEach(function (x, j) { x.classList.toggle('is-oku', j === u); x.classList.toggle('is-okundu', j < u); });
-        if (u >= units.length) {
+        if (u >= N) {
           hk.classList.remove('konus'); bar.style.transition = 'none'; bar.style.width = '100%';
           oyn.t = setTimeout(function () { if (k < S.length - 1) { git(k + 1); } else { cur.play = false; put(H.id, { a: 1 }); draw(); bal.textContent = 'Anlatım bitti! Şimdi görselde kendin dene.'; IST.toast('Anlatım bitti → görsele geç'); } }, 1100 / (cur.hiz || 1));
           return;
         }
         var el = units[u], txt = el.textContent.replace(/\s+/g, ' ').trim(), dur = Math.max(2600, Math.min(11000, txt.length * 62)) / (cur.hiz || 1);
+        ac(P[u] || [], true);
         bal.textContent = txt.length > 230 ? txt.slice(0, 227) + '…' : txt;
-        hk.classList.add('konus'); hk.classList.remove('isaret'); void hk.offsetWidth; hk.classList.add('isaret');
-        bar.style.transition = 'none'; bar.style.width = (u / units.length * 100) + '%'; void bar.offsetWidth;
-        bar.style.transition = 'width ' + dur + 'ms linear'; bar.style.width = ((u + 1) / units.length * 100) + '%';
+        hk.classList.remove('dusun', 'mutlu'); hk.classList.add('konus'); hk.classList.remove('isaret'); void hk.offsetWidth; hk.classList.add('isaret');
+        bar.style.transition = 'none'; bar.style.width = (u / N * 100) + '%'; void bar.offsetWidth;
+        bar.style.transition = 'width ' + dur + 'ms linear'; bar.style.width = ((u + 1) / N * 100) + '%';
         if (!calm) lsafe(function () { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
         oyn.t = setTimeout(function () { adim(u + 1); }, dur);
       };
       body.querySelector('[data-play]').onclick = function () {
         cur.play = !cur.play; this.setAttribute('aria-pressed', String(cur.play)); this.textContent = cur.play ? '⏸ durdur' : '▶ oynat';
-        if (cur.play) adim(0); else { durdur(); hk.classList.remove('konus'); bal.textContent = 'Durdurdum. Devam etmek için ▶ oynat.'; }
+        if (cur.play) { P.forEach(gizle); adim(0); }
+        else { durdur(); devam = null; hk.classList.remove('konus'); bal.textContent = 'Durdurdum. Devam etmek için ▶ oynat.'; P.forEach(function (L, j) { if (acik || j < m) ac(L); }); }
       };
       if (cur.play) setTimeout(function () { if (cur.play && cur.sahne === k && body.contains(bal)) adim(0); }, 500);
       if (k === S.length - 1) put(H.id, { a: 1 });
@@ -489,18 +552,48 @@
   };
 
   /* ---------- soru kartı (alıştırma ve sınav ortak) ----------
-     o.sinav: ipucu/çözüm yok, anında geri bildirim yok; cevap kaydedilir, puan oku() ile alınır. */
+     o.sinav: ipucu/çözüm yok, anında geri bildirim yok; cevap kaydedilir, puan oku() ile alınır.
+     13.11.2026 · senaryo görseli: Q.viz(adım) varsa o çizilir; yoksa sorudaki sayılar “veri kartları”na,
+     sorudaki sayı listesi nokta grafiğine dönüşür (IST.senaryo). Animasyonlu çözüm: çözüm adımları kara
+     tahtaya tebeşirle yazılır; her adımda Q.viz yeniden çizilir, kullanılan veri kartları ve tablodaki
+     ilgili hücreler parlar. */
   var HARF = 'ABCDE';
+  var duz = function (h) { return String(h || '').replace(/<[^>]+>/g, ' ').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' '); };
+  var sayilar = function (t) { return (duz(t).match(/[−-]?\d[\d.]*(?:,\d+)?/g) || []).map(function (x) { return x.replace(/^−/, '-'); }); };
+  var SAHNE_IC = [[/kafe|kahve|tatlı|fırın|sipariş/i, '☕'], [/banka|kredi|faiz|mobil şube|maaş/i, '🏦'], [/fabrika|üretim|makine|dolum|parça|montaj|sensör|ambalaj/i, '🏭'], [/kargo|teslim|kurye/i, '📦'], [/otel/i, '🏨'], [/market|mağaza|sepet|şube|bayi|zincir/i, '🛒'], [/çağrı merkezi|görüşme|arama|temsilci/i, '📞'], [/öğrenci|sınav|ders|eğitim|puan/i, '🎓'], [/hasta|ilaç|eczane|diyet|tansiyon/i, '🏥'], [/anket|seçim|parti|tercih/i, '🗳️'], [/otopark|araç|otoyol|lastik|asansör|metro|otobüs/i, '🚗'], [/zar/i, '🎲'], [/web|uygulama|site|A\/B/i, '📱'], [/enerji|elektrik/i, '⚡'], [/yatırım|hisse|ciro|girişim|fon/i, '📈'], [/spor/i, '🏋️'], [/kütüphane|kitap/i, '📚'], [/laboratuvar|numune/i, '🧪'], [/sigorta|poliçe/i, '🛡️'], [/sıcaklık|°C/i, '🌡️']];
+  IST.senaryo = function (Q, k, kullan) {
+    var t = duz(Q.q), ic = '📊'; SAHNE_IC.some(function (p) { if (p[0].test(t)) { ic = p[1]; return true; } return false; });
+    var ch = [], gor = {};
+    (Q.q.match(/[A-Za-zμσλαβρχΣ][₀₁₂²̂̄A-Za-z]{0,3}\s*(?:<sub>[^<]*<\/sub>)?\s*=\s*[−-]?\d[\d.,]*%?/g) || []).forEach(function (m) { var s = duz(m).replace(/\s+/g, ' ').trim().replace(/[,.;:]+$/, ''); if (!gor[s]) { gor[s] = 1; ch.push(s); } });
+    (Q.q.match(/<b>([^<]*\d[^<]*)<\/b>/g) || []).forEach(function (m) { var s = duz(m).replace(/\s+/g, ' ').trim(); s = s.replace(/[,.;:]+$/, ''); if (/^(%\s?)?[−-]?\d[\d.,]*\s?(%|°C?|[a-zçğıöşü²³]{1,4}|TL|ml|kg|dk|bin TL)?$/i.test(s) && !gor[s] && !ch.some(function (c) { return c.indexOf(s) >= 0; })) { gor[s] = 1; ch.push(s); } });
+    ch = ch.slice(0, 6);
+    var liste = (Q.q.match(/class="mono"[^>]*>([^<]+)</) || [])[1], dots = '';
+    if (liste && !Q.g) { var L = sayilar(liste).map(function (x) { return parseFloat(x.replace(/\./g, '').replace(',', '.')); }).filter(isFinite); if (L.length >= 4 && L.length <= 30) { var mn = Math.min.apply(null, L), mx = Math.max.apply(null, L), st = V.nice((mx - mn) / 6 || 1), lo = Math.floor(mn / st) * st, hi = Math.ceil(mx / st) * st; var isik = {}; (kullan || []).forEach(function (x) { isik[x] = 1; }); dots = V.dots({ v: L, min: lo, max: hi === lo ? lo + st : hi, step: st, h: 120, r: 7, stag: 0.03, hi: function (v) { return isik[String(v).replace('.', ',')]; } }); } }
+    if (!ch.length && !dots) return '';
+    return '<div class="q-sh"><span class="q-ic pop" aria-hidden="true">' + ic + '</span><div class="q-chips">' + ch.map(function (c, i) { var on = (kullan || []).some(function (u) { return c.replace(/\s/g, '').indexOf(u) >= 0; }); return '<span class="pop' + (on ? ' on' : '') + '" ' + V.d(0.08 * i) + '>' + X(c) + '</span>'; }).join('') + '</div></div>' + (dots ? '<div class="q-dots">' + dots + '</div>' : '');
+  };
   var soruKart = function (Q, qi, r, o) {
     o = o || {};
     var el = D.createElement('div'); el.className = 'q'; el.style.animationDelay = (qi * 0.05) + 's';
     var ord = Q.o ? r.shuf(Q.o.map(function (_, i) { return i; })) : null, secim = null, ilk = null, cevap = null;
     el.innerHTML = '<div class="q-h"><span>Soru ' + (qi + 1) + '</span>' + (o.etiket ? '<span class="tag" style="background:' + o.renk + '">' + X(o.etiket) + '</span>' : '') + (Q.tag ? '<span class="tag">' + X(Q.tag) + '</span>' : '') + '<span class="st" data-qst></span></div>' +
-      '<div class="q-b' + (Q.g && !Q.wide ? ' g2' : '') + '"><div class="q-q">' + Q.q + '</div>' + (Q.g ? '<div class="q-g fig">' + Q.g + '</div>' : '') +
+      '<div class="q-sv" data-sv></div>' +
+      '<div class="q-b' + (Q.g && !Q.wide ? ' g2' : '') + '"><div class="q-q">' + Q.q + '</div>' + (Q.g ? '<div class="q-g fig" data-qg>' + Q.g + '</div>' : '') +
       (ord ? '<div class="q-o">' + ord.map(function (i, j) { return '<button type="button" data-o="' + i + '"><i>' + HARF[j] + '</i><span>' + Q.o[i] + '</span></button>'; }).join('') + '</div>'
         : '<div class="q-n"><label class="vh" for="qn' + o.pre + qi + '">cevap</label><input id="qn' + o.pre + qi + '" inputmode="decimal" autocomplete="off" placeholder="' + X(Q.ph || 'cevap') + '"><button type="button" class="btn sm pri" data-ck>' + (o.sinav ? 'kaydet' : 'kontrol et') + '</button>' + (Q.birim ? '<small>' + X(Q.birim) + '</small>' : '') + '<small>' + X(Q.not || 'ondalık için virgül ya da nokta; kesir de olur (3/8)') + '</small></div>') +
       '<div class="q-fb" data-fb aria-live="polite"></div><div class="q-f"' + (o.sinav ? ' hidden' : '') + '><button type="button" class="btn sm ghost" data-ip>💡 ipucu</button><button type="button" class="btn sm ghost" data-cz>adım adım çözüm</button></div><div data-ipb></div><div data-czb></div></div>';
-    var fb = el.querySelector('[data-fb]'), stEl = el.querySelector('[data-qst]');
+    var fb = el.querySelector('[data-fb]'), stEl = el.querySelector('[data-qst]'), sv = el.querySelector('[data-sv]');
+    /* senaryo görseli; k = gösterilen çözüm adımı sayısı */
+    var sahne = function (k) {
+      var used = []; Q.cz.slice(0, k).forEach(function (s) { used = used.concat(sayilar(s)); });
+      var h = '';
+      if (Q.viz) h = lsafe(function () { return Q.viz(k) || ''; }, '');
+      h = (Q.viz && Q.vizOnly ? '' : IST.senaryo(Q, k, used)) + (h ? '<div class="q-viz fig">' + h + '</div>' : '');
+      sv.innerHTML = h; sv.hidden = !h;
+      var g = el.querySelector('[data-qg]');
+      if (g && k) { var son = sayilar(Q.cz[k - 1]); [].forEach.call(g.querySelectorAll('td'), function (td) { var t = duz(td.innerHTML).trim(); td.classList.toggle('cz-on', !!t && son.indexOf(t) >= 0); }); }
+    };
+    sahne(0);
     var mark = function (good) { if (ilk === null) { ilk = good; if (!o.sinav) { stEl.textContent = good ? '✓ ilk denemede' : '✗ ilk deneme'; stEl.style.color = good ? 'var(--ok)' : 'var(--bad)'; } if (o.on) o.on(qi, good); } };
     var dogruMu = function (v) { var tol = Q.tol != null ? Q.tol : Math.max(Math.abs(Q.say) * 0.005, 0.0051); return Math.abs(v - Q.say) <= tol; };
     if (ord) [].forEach.call(el.querySelectorAll('[data-o]'), function (b) {
@@ -529,9 +622,11 @@
       if (ilk === null && !o.bitti) mark(false);
       var box = el.querySelector('[data-czb]'), n = 1;
       var dr = function () {
-        box.innerHTML = '<div class="q-cz"><b>Adım adım çözüm</b><ol>' + Q.cz.slice(0, n).map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
-          (n < Q.cz.length ? '<div><button type="button" class="btn sm" data-cn>sonraki adım</button> <button type="button" class="btn sm ghost" data-ca>hepsini göster</button></div>' : '') + '</div>';
+        box.innerHTML = '<div class="q-cz"><div class="q-cz-h">' + IST.hoca(40) + '<b>Adım adım çözüm</b><span>' + n + ' / ' + Q.cz.length + '</span></div><ol>' + Q.cz.slice(0, n).map(function (s, i) { return '<li' + (i === n - 1 ? ' class="yeni"' : '') + '>' + s + '</li>'; }).join('') + '</ol>' +
+          (n < Q.cz.length ? '<div class="q-cz-n"><button type="button" class="btn sm" data-cn>sonraki adım</button> <button type="button" class="btn sm ghost" data-ca>hepsini göster</button></div>' : '') + '</div>';
+        sahne(n);
         var cn = box.querySelector('[data-cn]'); if (cn) { cn.onclick = function () { n++; dr(); }; box.querySelector('[data-ca]').onclick = function () { n = Q.cz.length; dr(); }; }
+        if (Q.viz && !calm) lsafe(function () { if (sv.getBoundingClientRect().bottom < 0) sv.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
       };
       dr();
     };

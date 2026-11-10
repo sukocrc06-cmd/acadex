@@ -383,7 +383,7 @@
       out.push({ tag: 'tablo okuma', q: '<p>Bir markette ' + nn + ' alışverişin sepet tutarları gruplanmış.</p><p>Sepet tutarı <b>' + (lo + (upto + 1) * h) + ' TL’den az</b> olan kaç alışveriş vardır?</p>', g: t2, say: Fv, goster: String(Fv), tol: 0.01, ornek: '25',
         ip: 'Bu, ' + (lo + (upto + 1) * h) + ' TL’de biten sınıfın birikimli frekansıdır.', cz: ['Üst sınırı ' + (lo + (upto + 1) * h) + ' olan sınıfa kadarki tüm sınıfları topla.', ff.slice(0, upto + 1).join(' + ') + ' = <b>' + Fv + '</b>.'] });
       var mn = r.int(12, 60), k3 = r.pick([5, 6, 7, 8]), mx = mn + r.int(k3 * 8, k3 * 25), w = Math.ceil((mx - mn) / k3);
-      out.push({ tag: 'hesap', q: '<p>Bir kargo firmasında günlük teslimat sayıları en az <b>' + mn + '</b>, en çok <b>' + mx + '</b>. Veri <b>' + k3 + ' sınıfa</b> gruplanacak.</p><p>Yaklaşık sınıf genişliği kaçtır? (tam sayıya yukarı yuvarla)</p>', say: w, goster: String(w), tol: 0.01, ornek: '9',
+      out.push({ viz: function (ka) { return IST.S.sinif(mn, mx, k3, w, ka); }, tag: 'hesap', q: '<p>Bir kargo firmasında günlük teslimat sayıları en az <b>' + mn + '</b>, en çok <b>' + mx + '</b>. Veri <b>' + k3 + ' sınıfa</b> gruplanacak.</p><p>Yaklaşık sınıf genişliği kaçtır? (tam sayıya yukarı yuvarla)</p>', say: w, goster: String(w), tol: 0.01, ornek: '9',
         ip: 'Genişlik ≈ (en büyük − en küçük) / sınıf sayısı; sonra yukarı yuvarla ki son değer de bir sınıfa girsin.', cz: ['Açıklık = ' + mx + ' − ' + mn + ' = <b>' + (mx - mn) + '</b>.', (mx - mn) + ' / ' + k3 + ' = ' + nf((mx - mn) / k3, 2) + '.', 'Yukarı yuvarla: <b>' + w + '</b>.'] });
       var a = r.int(30, 90), b = r.int(60, 140), c = r.int(50, 130), e = r.int(60, 140), gr = r.pick([['Kadın', 'Erkek'], ['Öğrenci', 'Çalışan'], ['Ankara', 'İzmir']]), sor = r.int(0, 1);
       var ct = V.tablo(['Grup', 'Evet', 'Hayır', 'Toplam'], [[gr[0], String(a), String(b), String(a + b)], [gr[1], String(c), String(e), String(c + e)], ['<b>Toplam</b>', String(a + c), String(b + e), String(a + b + c + e)]], { n: [1, 2, 3], st: 0 });
@@ -490,7 +490,7 @@
       var out = [];
       var kat = r.pick([['Hafta içi', 'Cumartesi', 'Pazar'], ['Kredi kartı', 'Nakit', 'Mobil ödeme', 'Havale'], ['Kahve', 'Çay', 'Meyve suyu', 'Su']]);
       var fv = kat.map(function () { return r.int(2, 12); }), n = M.sum(fv), ki = r.int(0, kat.length - 1), ang = fv[ki] / n * 360;
-      out.push({ tag: 'hesap', q: '<p>Bir kafede ' + n + ' siparişin dağılımı yanda. Pasta grafiğinde <b>“' + kat[ki] + '”</b> diliminin merkez açısı kaç derece olur? (bir ondalık)</p>', g: V.tablo(['Kategori', 'f'], kat.map(function (k, i) { return [k, String(fv[i])]; }), { n: [1], st: 0 }), say: ang, goster: nf(ang, 1) + '°', tol: 0.06, ornek: '120',
+      out.push({ viz: function (ka) { return ka >= 2 ? V.pie({ v: fv, l: kat, h: 230 }) : IST.S.cift(kat, fv, ka, { fmt: function (v) { return nf(v, 0); } }); }, tag: 'hesap', q: '<p>Bir kafede ' + n + ' siparişin dağılımı yanda. Pasta grafiğinde <b>“' + kat[ki] + '”</b> diliminin merkez açısı kaç derece olur? (bir ondalık)</p>', g: V.tablo(['Kategori', 'f'], kat.map(function (k, i) { return [k, String(fv[i])]; }), { n: [1], st: 0 }), say: ang, goster: nf(ang, 1) + '°', tol: 0.06, ornek: '120',
         ip: 'Açı = (f / n) × 360°.', cz: ['f = ' + fv[ki] + ', n = ' + n + '.', '(' + fv[ki] + ' / ' + n + ') × 360° = <b>' + nf(ang, 1) + '°</b>.'] });
       var g1 = [], g2 = [], lab = ['Oca', 'Şub', 'Mar', 'Nis'];
       for (var i = 0; i < 4; i++) { g1.push(r.int(2, 9) * 10); g2.push(r.int(2, 9) * 10); }

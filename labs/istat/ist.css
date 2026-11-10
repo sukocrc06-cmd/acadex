@@ -328,3 +328,54 @@ main{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
   body.is-yazdir .tb th{background:#eee;color:#000}
 }
 @media (prefers-reduced-motion:reduce){.hoca .goz,.hoca.konus .agiz{animation:none}}
+
+/* ---------- senkron görsel ve tahmin (13.11.2026) ---------- */
+.is-bekle{animation:none!important;opacity:0!important}
+.is-yeni{filter:drop-shadow(0 0 7px rgba(255,200,60,.95)) drop-shadow(0 0 2px #E0A526)}
+.fig *{transition:filter .8s ease}
+.is-metin .tx .is-birim{cursor:pointer;border-radius:4px;transition:background .2s,opacity .3s,filter .3s}
+.is-metin .tx .is-birim:hover{background:rgba(255,231,160,.35)}
+.is-metin .tx .is-gizli{filter:blur(3px);opacity:.35;pointer-events:none;user-select:none}
+.hoca .gul,.hoca .kas{display:none}
+.hoca.mutlu .gul{display:inline}.hoca.mutlu .agiz{display:none}
+.hoca.dusun .kas{display:inline}.hoca.dusun{animation:isTilt 1.2s ease-in-out infinite alternate;transform-origin:50% 90%}
+@keyframes isTilt{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+.is-tah{margin:4px 0 12px;padding:12px 14px;border:2px solid var(--ink);border-radius:14px;background:#FFF8E1;box-shadow:0 3px 0 var(--must);animation:isPop .5s var(--spring) both}
+.is-tah-h{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:13px;color:var(--rust);letter-spacing:.02em}
+.is-tah-gec{border:0;background:none;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline}
+.is-tah p{margin:6px 0 10px;font-size:15px;line-height:1.45;color:var(--ink)}
+.is-tah-o{display:flex;flex-wrap:wrap;gap:6px}
+.is-tah-o button{min-height:36px;padding:6px 12px;border:1.5px solid var(--ink);border-radius:999px;background:#fff;font-weight:700;font-size:13.5px;cursor:pointer;transition:transform .15s}
+.is-tah-o button:hover:not([disabled]){transform:translateY(-2px)}
+.is-tah-o button.ok{background:var(--ok);border-color:var(--ok);color:#fff;animation:isPop .5s var(--spring)}
+.is-tah-o button.no{background:var(--bad-s);border-color:var(--bad);text-decoration:line-through}
+.is-tah-o button[disabled]{cursor:default}
+.is-tah-fb{margin-top:8px;font-size:14px;line-height:1.5;color:var(--ink2)}
+.is-tah-fb:empty{display:none}
+.is-tah.cozuldu{background:#F4FAF5;box-shadow:0 3px 0 var(--ok)}
+
+/* ---------- soru senaryosu ve tebeşirli çözüm (13.11.2026) ---------- */
+.q-sv{padding:12px 14px;border-bottom:1.5px dashed var(--line2);background:linear-gradient(180deg,#FBF8F0,#fff)}
+.q-sv[hidden]{display:none}
+.q-sh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.q-ic{display:grid;place-items:center;width:52px;height:52px;border:2px solid var(--ink);border-radius:14px;background:#fff;font-size:28px;box-shadow:0 2px 0 var(--ink)}
+.q-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.q-chips span{padding:5px 11px;border:1.5px solid var(--ink);border-radius:10px;background:#fff;font:600 14px 'JetBrains Mono',monospace;transition:background .4s,box-shadow .4s,transform .3s}
+.q-chips span.on{background:#FFE7A0;box-shadow:0 0 0 3px rgba(224,165,38,.35);transform:translateY(-1px)}
+.q-dots{margin-top:8px}
+.q-viz{margin-top:10px;max-width:620px}
+.q-g td.cz-on{background:#FFE7A0!important;box-shadow:inset 0 0 0 2px #E0A526;transition:background .4s}
+.q-cz{border:8px solid #8A6D3B!important;border-radius:14px!important;background:#1F3B32!important;color:#F4F1E6;padding:12px 16px!important}
+.q-cz-h{display:flex;align-items:center;gap:10px;color:#fff}
+.q-cz-h span{margin-left:auto;font:600 12px 'JetBrains Mono',monospace;color:#A9C2B6}
+.q-cz ol{padding-left:22px}
+.q-cz li{color:#F4F1E6;font-size:15px}
+.q-cz li b{color:#FFD86B!important}
+.q-cz li.yeni{animation:isChalkL 1s steps(16,end) both!important}
+@keyframes isChalkL{from{clip-path:inset(0 100% 0 -40px)}to{clip-path:inset(0 0 0 -40px)}}
+.q-cz .m{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.2)!important;color:#fff}
+.q-cz sub{color:inherit}
+.q-cz-n .btn{background:#F4F1E6;color:var(--ink)}
+[data-czb],[data-ipb]{grid-column:1/-1}
+.q-cz-n .btn.ghost{background:transparent;color:#F4F1E6;border-color:#A9C2B6}
+@media (prefers-reduced-motion:reduce){.hoca.dusun{animation:none}}
