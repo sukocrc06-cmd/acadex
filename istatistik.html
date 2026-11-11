@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acadex İstatistik · Ders girişi</title>
+<meta name="robots" content="noindex">
+<!-- ==========================================================================
+     DERS KODUYLA MİSAFİR GİRİŞİ (11.11.2026)
+     Hocanın derste verdiği kodla, hesap açmadan giriş: kod anon RPC ile
+     doğrulanır (ders_kodu_dogrula), Supabase ANONİM oturumu açılır,
+     misafir_kaydet kod↔kullanıcı bağını kurar, dashboard'a yönlenir.
+     Dashboard'da is_anonymous bayrağı "misafir modu"nu açar: her şey
+     görünür, yalnız İstatistik ders yolu kullanılır (js/acadex-ink.js).
+     Sunucu ayağı: 20261111b_ders_kodu_misafir.sql.
+     ========================================================================== -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Caveat:wght@700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1A2A5C;--navy:#0D1838;--blue:#2F6BFF;--muted:#4B5675;--red:#C9483B;--paper:#F6F7FB}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;font-family:'Bricolage Grotesque',system-ui,sans-serif;color:var(--ink);background:var(--paper);background-image:linear-gradient(rgba(47,107,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(47,107,255,.06) 1px,transparent 1px);background-size:26px 26px}
+.kart{width:min(440px,100%);background:#fff;border:2px solid #DCE2EE;border-radius:14px 18px 13px 16px;padding:30px 28px 26px;box-shadow:6px 8px 0 rgba(26,42,92,.08)}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.logo b{font-size:22px;letter-spacing:-.02em}
+.eyb{font-family:'Caveat',cursive;font-weight:700;font-size:21px;color:var(--blue)}
+h1{margin:10px 0 4px;font-size:26px;letter-spacing:-.02em}
+.sub{margin:0 0 20px;font-size:14.5px;line-height:1.55;color:var(--muted)}
+label{display:block;margin:0 0 12px}
+label span{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+input{width:100%;padding:12px 13px;border:2px solid #DCE2EE;border-radius:9px;font:inherit;font-size:16px}
+input:focus{outline:none;border-color:var(--blue)}
+#kod{font-family:'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
+button{width:100%;margin-top:6px;padding:13px;border:0;border-radius:10px;background:var(--navy);color:#fff;font:inherit;font-size:16.5px;font-weight:700;cursor:pointer}
+button:hover{background:var(--blue)}
+button:disabled{opacity:.55;cursor:wait}
+.hata{margin:12px 0 0;padding:10px 12px;border-radius:8px;background:#FBEAE8;color:var(--red);font-size:14px;line-height:1.5}
+.alt{margin:18px 0 0;font-size:13px;color:var(--muted);text-align:center}
+.alt a{color:var(--blue)}
+.not{margin:14px 0 0;font-family:'Caveat',cursive;font-weight:700;font-size:19px;color:var(--muted);text-align:center}
+@media (prefers-color-scheme: dark){body{background:#0E1424;color:#E6EBF7}.kart{background:#141B2E;border-color:#273253}.sub,.alt,.not{color:#9AA6C4}input{background:#0E1424;border-color:#273253;color:#E6EBF7}}
+</style>
+</head>
+<body>
+<main class="kart">
+<div class="logo"><b>Acadex</b><span class="eyb">istatistik dersi</span></div>
+<h1>Ders girişi</h1>
+<p class="sub">Hocanın verdiği ders koduyla gir; hesap açmana gerek yok. Haftalık İstatistik ders yolu açılır, kaldığın yer hatırlanır.</p>
+<form id="f">
+<label><span>ders kodu</span><input id="kod" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ör. ISTAT2026"></label>
+<label><span>adın ya da rumuzun <small>(isteğe bağlı)</small></span><input id="ad" maxlength="40" autocomplete="off" placeholder="sınıf listesinde böyle görünürsün"></label>
+<button id="git" type="submit">derse gir</button>
+<p class="hata" id="hata" hidden></p>
+</form>
+<p class="alt">Acadex hesabın varsa <a href="index.html">normal girişten</a> devam et — ders yolu orada da var.</p>
+<p class="not">tahtadaki kod + 10 saniye = içerdesin</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/supabase-config.js"></script>
+<script>
+(function () {
+  'use strict';
+  var f = document.getElementById('f'), kodEl = document.getElementById('kod'),
+      adEl = document.getElementById('ad'), git = document.getElementById('git'),
+      hata = document.getElementById('hata');
+  var soyle = function (m) { hata.textContent = m; hata.hidden = !m; };
+  var MESAJ = {
+    kod: 'Bu kod bulunamadı. Tahtadaki kodu olduğu gibi yaz (büyük/küçük harf fark etmez).',
+    pasif: 'Bu kod şu an kapalı ya da süresi dolmuş; hocana sor.',
+    kilit: 'Çok fazla deneme oldu; birkaç dakika sonra tekrar dene.'
+  };
+  /* Zaten oturum varsa (misafir ya da gerçek) dogrudan panele. */
+  supabaseClient.auth.getSession().then(function (r) {
+    if (r.data && r.data.session) window.location.replace('dashboard.html');
+  });
+  f.addEventListener('submit', function (e) {
+    e.preventDefault(); soyle('');
+    var kod = kodEl.value.trim().toUpperCase();
+    if (!kod) { kodEl.focus(); return; }
+    git.disabled = true; git.textContent = 'kontrol ediliyor…';
+    supabaseClient.rpc('ders_kodu_dogrula', { p_kod: kod }).then(function (r) {
+      var d = r.data || {};
+      if (r.error) throw r.error;
+      if (!d.ok) { soyle(MESAJ[d.neden] || MESAJ.kod); git.disabled = false; git.textContent = 'derse gir'; return null; }
+      git.textContent = 'giriş açılıyor…';
+      return supabaseClient.auth.signInAnonymously().then(function (a) {
+        if (a.error) throw a.error;
+        return supabaseClient.rpc('misafir_kaydet', { p_kod: kod, p_rumuz: adEl.value.trim() });
+      }).then(function (m) {
+        if (m && m.error) throw m.error;
+        try { sessionStorage.setItem('acadex.misafir.giris', '1'); } catch (er) {}
+        window.location.replace('dashboard.html');
+      });
+    }).catch(function (er) {
+      var m = String((er && er.message) || er);
+      soyle(/anonymous.*disabled/i.test(m)
+        ? 'Misafir girişi sunucuda henüz açılmamış; yöneticiye haber ver.'
+        : 'Giriş yapılamadı: ' + m.slice(0, 120));
+      git.disabled = false; git.textContent = 'derse gir';
+    });
+  });
+  kodEl.focus();
+})();
+</script>
+</body>
+</html>
