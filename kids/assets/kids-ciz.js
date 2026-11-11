@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ACADEX KIDS · çizimler (kids/assets/kids-ciz.js), 10.11.2026
+   ACADEX KIDS · çizimler (kids/assets/kids-ciz.js), 12.11.2026
    Tek çizim dili: kalın lacivert kontur, düz renk, yuvarlak köşe. Hepsi SVG, dışarıdan
    görsel yok. Mini Acadia (maskot), hayvan avatarlar, resimli şifre simgeleri, adalar,
    bulut, balon, boya lekesi. W.KIDS_CIZ
@@ -90,7 +90,9 @@
     tik: '<path d="M18 54 l20 20 l44 -48" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>',
     geri: '<path d="M60 18 L28 50 L60 82" fill="none" stroke="' + M + '" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>'
   };
-  function simge(ad, cls) { return svg('0 0 100 100', SIMGE[ad] || SIMGE.yildiz, 'kc-simge ' + (cls || '')); }
+  /* bilinmeyen ad: tema çizimlerinden (kids-resim.js) */
+  function disIc(ad) { return W.KIDS_RESIM && W.KIDS_RESIM.var(ad) ? W.KIDS_RESIM.ic(ad) : ''; }
+  function simge(ad, cls) { return svg('0 0 100 100', SIMGE[ad] || disIc(ad) || SIMGE.yildiz, 'kc-simge ' + (cls || '')); }
 
   /* ---------- sahne parçaları ---------- */
   function bulut(cls) { return svg('0 0 200 90', '<path d="M30 76 q-24 0 -24 -20 q0 -18 22 -20 q4 -24 32 -24 q20 0 28 16 q10 -8 26 -4 q20 4 20 22 q22 0 22 16 q0 14 -18 14 z" fill="#fff" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/>', 'kc-bulut ' + (cls || '')); }
@@ -100,7 +102,7 @@
       '<path d="M56 122 q10 10 22 6 M110 136 q12 4 22 -6" fill="none" stroke="#8F6740" stroke-width="3" stroke-linecap="round"/>' +
       '<ellipse cx="100" cy="84" rx="82" ry="26" fill="' + (kilitli ? '#D5DDEA' : renk) + '" stroke="' + M + '" stroke-width="3"/>' +
       '<path d="M40 80 q20 -10 44 -8" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".55"/>' +
-      '<g transform="translate(62 2) scale(.76)"' + (kilitli ? ' opacity=".5"' : '') + '>' + (SIMGE[ic] || '') + '</g>', 'kc-ada');
+      '<g transform="translate(62 2) scale(.76)"' + (kilitli ? ' opacity=".5"' : '') + '>' + (SIMGE[ic] || disIc(ic)) + '</g>', 'kc-ada');
   }
   function balon(renk) {
     return svg('0 0 100 150', '<path d="M50 104 q-6 22 4 42" fill="none" stroke="' + M + '" stroke-width="2.4" stroke-linecap="round"/>' +
@@ -150,7 +152,18 @@
     kulaklik: '<path d="M18 56 q0 -46 32 -46 q32 0 32 46" fill="none" stroke="' + M + '" stroke-width="6" stroke-linecap="round"/><path d="M18 56 q0 -46 32 -46 q32 0 32 46" fill="none" stroke="#4AA8FF" stroke-width="2.4" stroke-linecap="round"/><rect x="8" y="48" width="16" height="24" rx="7" fill="#4AA8FF" stroke="' + M + '" stroke-width="3"/><rect x="76" y="48" width="16" height="24" rx="7" fill="#4AA8FF" stroke="' + M + '" stroke-width="3"/>',
     tac: '<path d="M30 28 L30 8 L40 18 L50 4 L60 18 L70 8 L70 28 Z" fill="#FFD23F" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><circle cx="50" cy="20" r="3.6" fill="#E5484D"/><circle cx="38" cy="23" r="2.6" fill="#4AA8FF"/><circle cx="62" cy="23" r="2.6" fill="#4CC38A"/>',
     gozluk: '<circle cx="37" cy="50" r="11" fill="rgba(170,220,255,.35)" stroke="' + M + '" stroke-width="3.4"/><circle cx="63" cy="50" r="11" fill="rgba(170,220,255,.35)" stroke="' + M + '" stroke-width="3.4"/><path d="M48 49 q2 -3 4 0" fill="none" stroke="' + M + '" stroke-width="3"/>',
-    gunes: '<rect x="24" y="42" width="24" height="16" rx="7" fill="' + M + '"/><rect x="52" y="42" width="24" height="16" rx="7" fill="' + M + '"/><path d="M48 48 h4" stroke="' + M + '" stroke-width="3"/><path d="M29 46 l6 -2 M57 46 l6 -2" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>'
+    gunes: '<rect x="24" y="42" width="24" height="16" rx="7" fill="' + M + '"/><rect x="52" y="42" width="24" height="16" rx="7" fill="' + M + '"/><path d="M48 48 h4" stroke="' + M + '" stroke-width="3"/><path d="M29 46 l6 -2 M57 46 l6 -2" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>',
+    /* tema giysileri: konu adası bitince açılır */
+    kulak: '<path d="M24 34 q26 -22 52 0" fill="none" stroke="' + M + '" stroke-width="7" stroke-linecap="round"/><path d="M24 34 q26 -22 52 0" fill="none" stroke="#FF6FA5" stroke-width="3" stroke-linecap="round"/><path d="M24 30 L22 2 L44 18 Z M76 30 L78 2 L56 18 Z" fill="#FF9F45" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M27 22 L26 10 L36 17 Z M73 22 L74 10 L64 17 Z" fill="#FFC9D4"/>',
+    cicektac: '<path d="M22 30 q28 -18 56 0" fill="none" stroke="#4CC38A" stroke-width="4" stroke-linecap="round"/>' + [[24, 28, '#FF6FA5'], [37, 19, '#FFD23F'], [50, 16, '#8E7CF0'], [63, 19, '#4AA8FF'], [76, 28, '#FF6FA5']].map(function (x) { return '<circle cx="' + x[0] + '" cy="' + x[1] + '" r="7" fill="' + x[2] + '" stroke="' + M + '" stroke-width="2.6"/><circle cx="' + x[0] + '" cy="' + x[1] + '" r="2.6" fill="#FFF3B0"/>'; }).join(''),
+    bant: '<path d="M16 38 q34 -20 68 0 v10 q-34 -20 -68 0 z" fill="#E5484D" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M20 41 q30 -16 60 0" fill="none" stroke="#fff" stroke-width="2.4"/>',
+    asci: '<path d="M30 28 q-16 -2 -14 -16 q2 -12 16 -8 q4 -14 18 -14 q14 0 18 14 q14 -4 16 8 q2 14 -14 16 z" fill="#fff" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><rect x="30" y="22" width="40" height="10" rx="2" fill="#fff" stroke="' + M + '" stroke-width="3"/>',
+    pervane: '<path d="M26 28 q0 -24 24 -24 q24 0 24 24 z" fill="#4AA8FF" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M50 4 v24" stroke="#FFD23F" stroke-width="5"/><path d="M50 4 v-6" stroke="' + M + '" stroke-width="3"/><path d="M50 -4 q-14 -6 -20 0 q6 6 20 0 q14 6 20 0 q-6 -6 -20 0 z" fill="#E5484D" stroke="' + M + '" stroke-width="2.6" stroke-linejoin="round"/>',
+    bere: '<path d="M22 32 q0 -30 28 -30 q28 0 28 30 z" fill="#E5484D" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><rect x="20" y="26" width="60" height="11" rx="5" fill="#fff" stroke="' + M + '" stroke-width="3"/><circle cx="50" cy="-1" r="7" fill="#fff" stroke="' + M + '" stroke-width="3"/>',
+    maske: '<rect x="20" y="40" width="60" height="20" rx="10" fill="#8E7CF0" stroke="' + M + '" stroke-width="3"/><path d="M29 51 q8 5 16 0 M55 51 q8 5 16 0" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M20 48 h-6 M80 48 h6" stroke="' + M + '" stroke-width="3" stroke-linecap="round"/>',
+    kep: '<path d="M34 20 v12 q16 8 32 0 v-12" fill="' + M + '" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M16 18 L50 4 L84 18 L50 30 Z" fill="' + M + '" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M50 17 L80 20 V36" fill="none" stroke="#FFD23F" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="38" r="3.6" fill="#FFD23F"/>',
+    semsiye: '<path d="M14 26 q36 -36 72 0 z" fill="#4CC38A" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M38 26 q12 -30 24 0" fill="#FFD23F" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M50 -6 v-4" stroke="' + M + '" stroke-width="3" stroke-linecap="round"/><path d="M50 26 v6" stroke="' + M + '" stroke-width="3"/>',
+    yanak: '<path d="M27 58 l2.6 5.4 l6 .8 l-4.4 4.2 l1 6 l-5.2 -2.8 l-5.2 2.8 l1 -6 l-4.4 -4.2 l6 -.8 z" fill="#FFD23F" stroke="' + M + '" stroke-width="2.2" stroke-linejoin="round"/><path d="M73 58 l2.6 5.4 l6 .8 l-4.4 4.2 l1 6 l-5.2 -2.8 l-5.2 2.8 l1 -6 l-4.4 -4.2 l6 -.8 z" fill="#FFD23F" stroke="' + M + '" stroke-width="2.2" stroke-linejoin="round"/>'
   };
   function giysi(ad) { return GIYSI[ad] ? svg('0 0 100 100', GIYSI[ad], 'kc-giysi', ' overflow="visible"') : ''; }
   /* giydirilmiş avatar: g = {bas, yuz} */

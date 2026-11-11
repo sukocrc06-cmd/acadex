@@ -2,7 +2,8 @@
    ACADEX KIDS · konu paketleri (kids/assets/kids-konu.js), 10.11.2026
    Bir konuyu oynanabilir yapan her şey burada: kelimeler (yaşa göre), çizimi,
    Acadia'nın cümleleri, üçüncü oyun, şarkı ve veliye "evde söyleyin" cümleleri.
-   Yeni konu eklemek = buraya bir paket + KIDS_VERI.KONU'da acik:true.
+   Yeni konu eklemek = buraya (ya da kids-temalar.js'e, KIDS_KONU.ekle ile) bir paket
+   + KIDS_VERI.KONU'da acik:true. etkinlik: veli köşesinin "evde 5 dakika" kartları.
    Şarkı sözleri Acadex için yazıldı (alıntı değil).
    W.KIDS_KONU.al(konuId) → paket
    ========================================================================== */
@@ -31,6 +32,8 @@
         { kim: null, soz: 'Colours, colours, one, two, three!' }
       ],
       ev: [['What colour is it?', 'Bu ne renk?'], ['It\'s red!', 'Kırmızı!'], ['I like blue.', 'Maviyi severim.']],
+      etkinlik: [{ ad: 'Renk avı', adim: 'Evde bir renk söyleyin: “Find red!” Çocuğunuz o renkte bir eşya bulup getirsin ve söylesin: “Red!” Sonra sıra onda.' },
+        { ad: 'Giysi renkleri', adim: 'Giyinirken sorun: “What colour is it?” Çocuğunuz tişörtünün, çorabının rengini İngilizce söylesin.' }],
       bitis: 'Great job! Colours, done!'
     },
     numbers: {
@@ -52,6 +55,8 @@
         { kim: null, soz: 'Numbers, numbers, one to ten!' }
       ],
       ev: [['How many?', 'Kaç tane?'], ['One, two, three!', 'Bir, iki, üç!'], ['I am five.', 'Ben beş yaşındayım.']],
+      etkinlik: [{ ad: 'Merdiven sayma', adim: 'Merdiven çıkarken ya da sofrayı kurarken birlikte sayın: “One, two, three…” Çocuğunuz sayıyı yüksek sesle söylesin.' },
+        { ad: 'Parmak sayısı', adim: 'Birkaç parmak gösterin: “How many?” Çocuğunuz sayıp İngilizce söylesin. Sonra o göstersin, siz sayın.' }],
       bitis: 'Great job! Numbers, done!'
     }
   };
@@ -60,5 +65,15 @@
     var var_ = {}; ogeler.forEach(function (o) { var_[o.id] = 1; });
     return p.sarki.filter(function (s) { return !s.kim || var_[s.kim]; });
   }
-  W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: Object.keys(P) };
+  var PAKET = Object.keys(P);
+  /* kids-temalar.js on temayı buradan ekler; KIDS_VERI.KONU sırası korunur */
+  function ekle(id, paket) { P[id] = paket; if (PAKET.indexOf(id) < 0) PAKET.push(id); var sira = V.KONU.map(function (k) { return k.id; }); PAKET.sort(function (a, b) { return sira.indexOf(a) - sira.indexOf(b); }); }
+  /* akıllı tahta "Simon says" komutu: My Body'de kendi vücudun, öbürlerinde tahtadaki resim */
+  var BELIRLI = { family: { baby: 1, family: 1 }, colours: 0, numbers: 0, weather: 0, feelings: 0 };
+  function komut(p, o) {
+    if (p.id === 'body') return 'Touch your ' + o.en + '!';
+    if (p.id === 'numbers') return 'Point to number ' + o.en + '!';
+    var b = BELIRLI[p.id]; return 'Point to ' + (b === 0 || (b && !b[o.id]) ? '' : 'the ') + o.en.toLowerCase() + '!';
+  }
+  W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut };
 })(window);

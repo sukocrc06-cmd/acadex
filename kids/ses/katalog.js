@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-veri.js', 'kids-konu.js', 'kids-oyun.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-oyun.js', 'kids-oyun2.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -25,16 +25,16 @@ const TR = [
   'Hangi sınıftasın?', 'Sen hangisisin? Resmine dokun.', 'Gizli iki resmine sırayla dokun.', 'Biraz dinlenelim; birkaç dakika sonra yeniden dene.',
   'Okulunuzun Acadex Kids lisansı açık değil.', 'Bu ada yakında açılacak.', 'Bugün serbest gün. İstediğin adaya dokun.',
   'Mola zamanı! Bugün çok güzel çalıştın.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
-  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.'
+  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!'
 ];
-const EN = ['Good try!', 'Well done!', 'Super!', 'Let\'s count together!'];
+const EN = ['Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?'];
 
 module.exports = function katalog() {
   const W = modulleriYukle(), V = W.KIDS_VERI, K = W.KIDS_KONU, O = W.KIDS_OYUN, liste = new Map();
   const ekle = (dil, metin, not) => { metin = String(metin).trim().replace(/\s+/g, ' '); const k = dil + ':' + metin; if (!liste.has(k)) liste.set(k, { dil, metin, not: not || '' }); };
   TR.forEach((m) => ekle('tr', m, 'yönerge'));
   EN.forEach((m) => ekle('en', m, 'övgü / oyun'));
-  V.GIYSI.forEach((g) => ekle('tr', g.yildiz + ' yıldız toplayınca açılacak.', 'dolap'));
+  V.GIYSI.forEach((g) => ekle('tr', g.tema ? V.konuBul(g.tema).tr + ' adasını bitirince açılacak.' : g.yildiz + ' yıldız toplayınca açılacak.', 'dolap'));
   V.KONU.filter((k) => k.acik).forEach((k) => ekle('tr', 'Bugünün konusu ' + k.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!', 'harita'));
   for (const id of K.PAKET) {
     const P = K.al(id), hepsi = P.ogeler(V.BANT.yildiz);
@@ -42,13 +42,16 @@ module.exports = function katalog() {
     hepsi.forEach((o) => {
       ekle('en', o.en, id + ' · kelime'); ekle('en', o.en + '.', id + ' · izle'); ekle('en', o.en + '!', id + ' · balon doğru');
       ekle('en', P.izleCumle(o), id + ' · izle'); ekle('en', 'Say: ' + o.en, id + ' · söyle'); ekle('en', P.balon.soz(o), id + ' · balon');
-      hepsi.forEach((y) => { if (y !== o) ekle('en', 'That is ' + y.en + '. Find ' + o.en + '!', id + ' · balon yanlış'); });
+      if (!P.balon.yanlis) hepsi.forEach((y) => { if (y !== o) ekle('en', 'That is ' + y.en + '. Find ' + o.en + '!', id + ' · balon yanlış'); });
+      /* akıllı tahta: Simon says komutu */
+      ekle('en', K.komut(P, o), id + ' · akıllı tahta');
     });
     P.sarki.forEach((s) => {
       ekle('en', s.soz, id + ' · şarkı');
       s.soz.split(' ').forEach((w) => { const t = w.toLowerCase().replace(/[^a-z']/g, ''); if (t) ekle('en', t, id + ' · şarkı kelimesi'); });
     });
     P.ev.forEach((c) => ekle('en', c[0], id + ' · veli köşesi'));
+    if (O.cumleler) O.cumleler(P).forEach((m) => ekle('en', m, id + ' · ' + P.oyun3.ad));
   }
   /* Colours · boyama */
   O.BOYA_GOREV.forEach((g) => { ekle('en', 'Colour the ' + g[0] + ' ' + g[1] + '.', 'colours · boyama'); ekle('en', g[1] + ' ' + g[0] + '!', 'colours · boyama doğru'); });

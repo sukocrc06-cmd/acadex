@@ -1,11 +1,14 @@
 /* ==========================================================================
-   ACADEX KIDS · öğretmen paneli (kids/assets/kids-ogretmen.js), 10.11.2026
+   ACADEX KIDS · öğretmen paneli (kids/assets/kids-ogretmen.js), 12.11.2026
    Öğretmenin tek işi: günün konusunu seçmek. İsterse haftayı önceden planlar ve
    sınıfın ilerlemesine bakar. Ödev vermek, not girmek, içerik hazırlamak yok.
    - Günün konusu / haftalık plan: KIDS_VERI.planKoy ile saklanır; çocuk giriş
      yaptığında haritanın üstünde o konu çıkar ('' = serbest gün).
    - Sınıf ilerleme tablosu: bu tarayıcıda oynayan çocukların gerçek kaydı
      (kids.il.<okul>.<sinif>.<ad>) + etiketli örnek veri (kapatılabilir).
+   - Sınıf raporu: konu tamamlama tablosu, kelime ısı haritası (hangi çocuk hangi
+     kelimede zorlanıyor) ve yazdırılabilir haftalık veli bülteni (kişisel veri içermez).
+   - Akıllı tahta: sınıfta yansıtmak için kartlar, şarkı, Simon says, çocuk seçen çark (kids-tahta.js).
    Gerçek okul: okul kodu + yönetim panelinin ürettiği şifre (kids-bulut.js → Supabase);
    plan ve ilerleme sunucudan gelir. Örnek okul (ORNEK-2026 / 1234) yalnız tanıtım
    içindir ve bu tarayıcıda çalışır. Önek kt-. W.KIDS_OGRETMEN
@@ -29,7 +32,16 @@
     var b = 1 + h % 3, f = 1 + (h >> 2) % 3, y = h % 4 === 1 ? 0 : 1 + (h >> 4) % 3, zor = {};
     zor[renkler[h % renkler.length].id] = 1 + h % 3; if (h % 3 === 0) zor[renkler[(h + 2) % renkler.length].id] = 1;
     var yl = { balon: b, hafiza: f }; if (y) yl.boyama = y;
-    return { ornek: true, yildiz: { colours: yl }, bitti: y ? { colours: 1 } : {}, zor: zor, cikartma: y ? ['gokkusagi'] : [], son: Date.now() - (h % 4) * 864e5 - (h % 9) * 36e5 };
+    var yil = { colours: yl }, bit = y ? { colours: 1 } : {}, cik = y ? ['gokkusagi'] : [], bant = V.BANT[sinif.bant];
+    /* örnek sınıf birkaç temayı da oynamış olsun: rapor ve ısı haritası boş görünmesin */
+    ['numbers', 'animals', 'food', 'family'].forEach(function (kid, j) {
+      var t = tohum(sinif.id + ad + kid); if (t % 3 === 0 && j > 0) return;
+      var p = W.KIDS_KONU && W.KIDS_KONU.al(kid); if (!p) return;
+      var ol = p.ogeler(bant), o3 = p.oyun3.id, yy = {}; yy.balon = 1 + t % 3; yy.hafiza = 1 + (t >> 3) % 3; if (t % 4) yy[o3] = 1 + (t >> 5) % 3;
+      yil[kid] = yy; if (t % 4 && yy.balon + yy.hafiza + yy[o3] >= 6) { bit[kid] = 1; cik.push(p.cikartma[0]); }
+      zor[ol[t % ol.length].id] = 1 + t % 3; if (t % 5 === 1) zor[ol[(t + 3) % ol.length].id] = 1;
+    });
+    return { ornek: true, yildiz: yil, bitti: bit, zor: zor, cikartma: cik, son: Date.now() - (h % 4) * 864e5 - (h % 9) * 36e5 };
   }
   function kayit(sinif, og) {
     var ad = og[0];
@@ -92,7 +104,7 @@
     var okul = okul_(), sinif = okul.siniflar[sinifI], bugun = new Date(), bk = V.konuBul(gunKonu(sinif, bugun)), hafta = V.hafta(), bugunA = V.gunAnahtar(), acikK = V.KONU.filter(function (x) { return x.acik; }),
       kz = konuSec || (bk && bk.acik ? bk.id : 'colours'), kzK = V.konuBul(kz), o = ozet(sinif, kz), zr = o.zor && renkBul(o.zor);
     var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>Öğretmen paneli</small></span>' +
-      '<a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
+      '<button type="button" class="kt-tahta-b" data-tahta>' + C.simge('yildiz') + ' Akıllı tahta</button><a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
       '<main class="kt-govde"><div class="kt-sekmeler" role="tablist" aria-label="Sınıflar">' + okul.siniflar.map(function (s, i) { return '<button type="button" role="tab" aria-selected="' + (i === sinifI) + '" data-sinif="' + i + '" style="--r:' + s.renk + '"><b>' + esc(s.ad) + '</b><small>' + esc(V.BANT[s.bant].ad + ' · ' + V.BANT[s.bant].yas) + '</small></button>'; }).join('') + '</div>' +
       '<p class="kt-bildirim' + (bildirim ? ' kt-var' : '') + '" role="status" data-bildirim>' + (bildirim ? '✓ ' + esc(bildirim) : '') + '</p>' +
 
@@ -102,7 +114,7 @@
       (bk ? '<blockquote class="kt-soz"><small>Sınıfta söylemeniz yeter</small>“Çocuklar, bugün öğrendiğimiz <b>' + esc(kucuk(bk.tr)) + '</b> konusunu Acadex Kids’te oynayarak tekrar etmeyi unutmayın!”</blockquote>' : '') + '</div>' +
       '<div class="kt-bugun-sag"><h3>Konuyu değiştir</h3><div class="kt-konular" data-gun="' + bugunA + '">' + V.KONU.map(function (k) { return konuDugme(k, bk && bk.id === k.id); }).join('') +
       '<button type="button" class="kt-konu kt-serbest' + (bk ? '' : ' kt-secili') + '" data-konu="" aria-pressed="' + !bk + '"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Serbest gün</b><small>Konu yok</small></button></div>' +
-      '<p class="kt-not">Şu an oynanabilen konular: ' + V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return x.en; }).join(', ') + '. Diğer konular içerikleri hazır olduğunda açılır.</p></div></section>' +
+      (V.KONU.every(function (x) { return x.acik; }) ? '<p class="kt-not">12 konunun hepsi oynanabilir; her konuda 7 durak ve konuya özel bir oyun var.</p>' : '<p class="kt-not">Şu an oynanabilen konular: ' + V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return x.en; }).join(', ') + '. Diğer konular içerikleri hazır olduğunda açılır.</p>') + '</div></section>' +
 
       /* haftalık plan */
       '<section class="kt-bolum" aria-labelledby="kt-h"><h2 id="kt-h">Haftalık plan</h2><p class="kt-alt">İsterseniz haftayı önceden planlayın; her sabah yeniden seçmeniz gerekmez.</p><div class="kt-hafta">' +
@@ -126,8 +138,11 @@
           '<td>' + oyunSay(k, kz) + '/3' + (k.bitti[kz] ? ' <span class="kt-tamam">bitirdi</span>' : '') + '</td>' +
           '<td>' + (zrk ? '<span class="kt-kelime" style="--r:' + zrk.hex + '"><i></i><span lang="en">' + zrk.en + '</span> <small>' + kzor[z] + ' yanlış</small></span>' : '<span class="kt-yok">—</span>') + '</td><td>' + k.cikartma.length + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
-      (BU ? '<p class="kt-not">Kayıtlar çocukların kendi oturumlarından gelir; sayfayı yenileyince güncellenir.</p>' : '<p class="kt-not">Örnek okul: gerçek kayıtlar bu tarayıcıda oynanan oturumlardan gelir; “örnek” etiketli satırlar tasarımı göstermek için üretilmiştir.</p>') + '</section></main>';
+      (BU ? '<p class="kt-not">Kayıtlar çocukların kendi oturumlarından gelir; sayfayı yenileyince güncellenir.</p>' : '<p class="kt-not">Örnek okul: gerçek kayıtlar bu tarayıcıda oynanan oturumlardan gelir; “örnek” etiketli satırlar tasarımı göstermek için üretilmiştir.</p>') + '</section>' +
+      rapor(sinif, kz) + '</main>';
     kok.innerHTML = h;
+    kok.querySelector('[data-tahta]').addEventListener('click', function () { if (W.KIDS_TAHTA) W.KIDS_TAHTA.ac({ sinif: sinif, konu: bk && bk.acik ? bk.id : kz }); });
+    kok.querySelector('[data-bulten]').addEventListener('click', function () { bulten(sinif, kz); });
     kok.querySelectorAll('[data-ksec]').forEach(function (b) { b.addEventListener('click', function () { konuSec = b.getAttribute('data-ksec'); panel(); }); });
     kok.querySelectorAll('[data-sinif]').forEach(function (b) { b.addEventListener('click', function () { sinifI = +b.getAttribute('data-sinif'); panel(); }); });
     kok.querySelectorAll('.kt-konular [data-konu]').forEach(function (b) { b.addEventListener('click', function () { var id = b.getAttribute('data-konu'), k = V.konuBul(id); planKoy(sinif, bugunA, id, k ? 'Bugünün konusu ' + k.en + ' olarak kaydedildi. Çocuklar giriş yaptığında bu konuyu görecek.' : 'Bugün serbest gün olarak kaydedildi.'); }); });
@@ -138,6 +153,59 @@
   }
 
   function okul_() { return okul(); }
+
+  /* ---------- sınıf raporu ---------- */
+  function seviye(n) { return n >= 3 ? 3 : n; }
+  function rapor(sinif, kz) {
+    var acik = V.KONU.filter(function (x) { return x.acik; }), ks = sinif.ogr.map(function (og) { return { og: og, k: kayit(sinif, og) }; });
+    var p = W.KIDS_KONU.al(kz), kel = p ? p.ogeler(V.BANT[sinif.bant]) : [], kzK = V.konuBul(kz), top = {};
+    kel.forEach(function (o) { top[o.id] = 0; }); ks.forEach(function (x) { kel.forEach(function (o) { top[o.id] += (x.k.zor || {})[o.id] || 0; }); });
+    var biten = acik.map(function (t) { return ks.filter(function (x) { return x.k.bitti[t.id]; }).length; });
+    return '<section class="kt-bolum kt-rapor" aria-labelledby="kt-r"><div class="kt-bolum-bas"><div><h2 id="kt-r">Sınıf raporu</h2><p class="kt-alt">' + esc(sinif.ad) + ' · not ve sıralama yok; hangi konuyu yeniden işlemek gerektiğini gösterir.</p></div>' +
+      '<button type="button" class="kl-dugme kt-bulten-b" data-bulten>Haftalık veli bültenini yazdır</button></div>' +
+      /* konu tamamlama */
+      '<h3 class="kt-r-bas">Konu tamamlama</h3><div class="kt-tablo-sar"><table class="kt-tablo kt-tamam-t"><thead><tr><th scope="col">Öğrenci</th>' + acik.map(function (t) { return '<th scope="col" title="' + esc(t.tr) + '"><span class="kt-th-r" style="--r:' + t.renk + '">' + C.simge(t.simge) + '</span><small lang="en">' + esc(t.en) + '</small></th>'; }).join('') + '</tr></thead><tbody>' +
+      ks.map(function (x) {
+        return '<tr' + (x.k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(x.og[1]) + '<b>' + esc(x.og[0]) + '</b></span></th>' + acik.map(function (t) {
+          var y = yildizSay(x.k, t.id), b = !!x.k.bitti[t.id];
+          return '<td class="kt-hucre kt-y' + (b ? 'b' : y ? Math.min(3, Math.ceil(y / 3)) : 0) + '" style="--r:' + t.renk + '" title="' + esc(x.og[0] + ' · ' + t.en + ': ' + y + '/9 yıldız' + (b ? ', bitirdi' : '')) + '">' + (b ? '✓' : y ? y : '·') + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody><tfoot><tr><th scope="row">Bitiren</th>' + biten.map(function (n) { return '<td class="kt-hucre-t">' + n + '/' + ks.length + '</td>'; }).join('') + '</tr></tfoot></table></div>' +
+      '<p class="kt-lejant"><span class="kt-hucre kt-yb">✓</span> bitirdi <span class="kt-hucre kt-y3">7</span> 7-9 yıldız <span class="kt-hucre kt-y1">2</span> başladı <span class="kt-hucre kt-y0">·</span> henüz oynamadı</p>' +
+      /* kelime ısı haritası */
+      '<h3 class="kt-r-bas">Kelime ısı haritası <small lang="en">' + esc(kzK.en) + '</small></h3><p class="kt-alt">Hücredeki sayı, çocuğun o kelimede kaç kez yanıldığıdır. Kırmızılaşan sütun sınıfça yeniden işlenecek kelimedir. Konuyu yukarıdaki “Sınıf ilerlemesi”nden değiştirin.</p>' +
+      '<div class="kt-tablo-sar"><table class="kt-tablo kt-isi"><thead><tr><th scope="col">Öğrenci</th>' + kel.map(function (o) { return '<th scope="col"><span class="kt-isi-r">' + p.gorsel(o) + '</span><small lang="en">' + esc(o.en) + '</small></th>'; }).join('') + '</tr></thead><tbody>' +
+      ks.map(function (x) {
+        var oynadi = oyunSay(x.k, kz) > 0;
+        return '<tr><th scope="row"><span class="kt-ogr">' + C.avatar(x.og[1]) + '<b>' + esc(x.og[0]) + '</b></span></th>' + kel.map(function (o) { var z = (x.k.zor || {})[o.id] || 0; return '<td class="kt-isi-h kt-i' + (oynadi ? seviye(z) : 'x') + '" title="' + esc(x.og[0] + ' · ' + o.en + ': ' + (oynadi ? z + ' yanlış' : 'oynamadı')) + '">' + (oynadi ? (z || '') : '–') + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody><tfoot><tr><th scope="row">Sınıf</th>' + kel.map(function (o) { return '<td class="kt-isi-h kt-i' + seviye(Math.ceil(top[o.id] / 2)) + '">' + top[o.id] + '</td>'; }).join('') + '</tr></tfoot></table></div>' +
+      '<p class="kt-lejant"><span class="kt-isi-h kt-i0"></span> sorun yok <span class="kt-isi-h kt-i1">1</span> bir yanlış <span class="kt-isi-h kt-i2">2</span> iki <span class="kt-isi-h kt-i3">3+</span> zorlanıyor <span class="kt-isi-h kt-ix">–</span> konuyu oynamadı</p></section>';
+  }
+
+  /* ---------- haftalık veli bülteni (yazdır) ---------- */
+  function bulten(sinif, kz) {
+    var hafta = V.hafta(), gunler = hafta.map(function (d, i) { return { gun: GUN[i], d: d, k: V.konuBul(gunKonu(sinif, d)) }; }), konular = [];
+    gunler.forEach(function (g) { if (g.k && konular.indexOf(g.k.id) < 0) konular.push(g.k.id); });
+    if (!konular.length) konular.push(kz);
+    var o = ozet(sinif, konular[0]), bant = V.BANT[sinif.bant], tarih = function (d) { return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2); };
+    var h = '<article class="kt-bul"><header><span class="kt-bul-m">' + C.acadia({ mood: 'kutlama' }) + '</span><div><small>Acadex Kids · haftalık veli bülteni</small><h1>' + esc(okul().ad) + ' · ' + esc(sinif.ad) + '</h1><p>' + tarih(hafta[0]) + ' – ' + tarih(hafta[4]) + ' haftası · ' + esc(bant.ad + ' (' + bant.yas + ')') + '</p></div></header>' +
+      '<p class="kt-bul-giris">Sevgili veliler, bu hafta sınıfta aşağıdaki konuları işledik. Çocuğunuz aynı konuları Acadex Kids’te oyunlarla tekrar edebilir. Evde günde 5–10 dakika yeter; Türkçe konuşun, İngilizce kelimeyi oyunun içinde söyleyin.</p>' +
+      '<table class="kt-bul-plan"><tbody>' + gunler.map(function (g) { return '<tr><th>' + g.gun + ' <small>' + tarih(g.d) + '</small></th><td>' + (g.k ? '<b lang="en">' + esc(g.k.en) + '</b> · ' + esc(g.k.tr) : 'Serbest gün') + '</td></tr>'; }).join('') + '</tbody></table>' +
+      konular.map(function (id) {
+        var p = W.KIDS_KONU.al(id), k = V.konuBul(id); if (!p) return '';
+        return '<section class="kt-bul-k"><h2><span style="--r:' + k.renk + '">' + C.simge(k.simge) + '</span><span lang="en">' + esc(k.en) + '</span> · ' + esc(k.tr) + '</h2>' +
+          '<h3>Kelimeler</h3><ul class="kt-bul-kel">' + p.ogeler(bant).map(function (x) { return '<li><span>' + p.gorsel(x) + '</span><b lang="en">' + esc(x.en) + '</b><small>' + esc(x.tr) + '</small></li>'; }).join('') + '</ul>' +
+          '<h3>Evde birlikte söyleyin</h3><ul class="kt-bul-ev">' + p.ev.map(function (c) { return '<li><b lang="en">' + esc(c[0]) + '</b> — ' + esc(c[1]) + '</li>'; }).join('') + '</ul>' +
+          (p.etkinlik && p.etkinlik[0] ? '<h3>Evde 5 dakika: ' + esc(p.etkinlik[0].ad) + '</h3><p>' + esc(p.etkinlik[0].adim) + '</p>' : '') + '</section>';
+      }).join('') +
+      '<footer><p><b>Sınıfımız bu hafta:</b> ' + o.oynayan + ' / ' + o.n + ' çocuk Acadex Kids’te oynadı.' + (o.zor && V.ogeBul(o.zor) ? ' En çok tekrar edeceğimiz kelime: <b lang="en">' + esc(V.ogeBul(o.zor).en) + '</b>.' : '') + '</p>' +
+      '<p class="kt-bul-k2">Çocuğunuzun kişisel ilerlemesini Acadex Kids’te <b>Veli</b> düğmesinin arkasındaki veli köşesinde görebilirsiniz. Bu bültende çocuklara ait kişisel bilgi yoktur.</p></footer></article>';
+    var b = D.getElementById('kt-bulten'); if (!b) { b = D.createElement('div'); b.id = 'kt-bulten'; D.body.appendChild(b); }
+    b.innerHTML = h; D.documentElement.classList.add('kt-yazdir');
+    var bitir = function () { D.documentElement.classList.remove('kt-yazdir'); W.removeEventListener('afterprint', bitir); };
+    W.addEventListener('afterprint', bitir);
+    setTimeout(function () { try { W.print(); } catch (e) { } setTimeout(bitir, 1500); }, 60);
+  }
   function planKoy(sinif, gun, konu, mesaj) {
     if (!BU) { V.planKoy(sinif.id, gun, konu); return panel(mesaj); }
     kok.querySelectorAll('.kt-konular button, [data-plan]').forEach(function (x) { x.disabled = true; });
@@ -158,5 +226,5 @@
   }
   function ac() { kok = D.getElementById('kids-ogretmen'); if (!kok) return; var o = V.al('ogrOturum', null); BU = null; if (o && o.token) yukle(o.token); else if (o && o.kod === V.OKUL.kod) panel(); else giris(); }
   function kapat() { if (kok) kok.innerHTML = ''; }
-  W.KIDS_OGRETMEN = { ac: ac, kapat: kapat, ornekKayit: ornekKayit, ozet: ozet };
+  W.KIDS_OGRETMEN = { ac: ac, kapat: kapat, ornekKayit: ornekKayit, ozet: ozet, rapor: rapor, bulten: bulten };
 })(window);
