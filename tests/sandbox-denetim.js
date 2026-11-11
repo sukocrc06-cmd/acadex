@@ -222,4 +222,17 @@ test('SENKRON SERTLEŞTİ + YENİ ŞABLONLAR (11.11.2026)', () => {
     'şablon kartları veri setlerinin arasına girmiş');
 });
 
+test('GİZLİ ÇIKTI PANELİ KOŞUDA AÇILIR (11.11.2026)', () => {
+  /* Canlı bulgu: öğrenci çıktı panelini gizlemişti (acadex.dv.noout=1,
+     tercih tarayıcıda kalıcı). "çalıştır" çalışıyordu ama konsol görünmez
+     panele yazıyordu — Python onayından sonra "tepki gelmiyor" sanıldı.
+     Panel gizliyken sekmelere el ile tıklanamaz; outTab'a düşen her çağrı
+     programatiktir (çalıştır / teslim denetimi / Acadia / grafik) ve
+     "çıktıyı göster" niyeti taşır. */
+  assert.ok(ink.includes("window.axDvOut = function (hide) { var gr = document.querySelector('#sandbox-view .dv-grid'); if (gr) setOut(gr, !!hide); };"),
+    'gizle/göster tek kapısı (axDvOut) yok');
+  assert.ok(ink.includes('var outTab = function (k) { if (window.axDvOut) window.axDvOut(false);'),
+    'outTab gizli paneli açmıyor — koşu çıktısı görünmez kalır');
+});
+
 summary();

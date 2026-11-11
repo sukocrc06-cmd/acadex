@@ -5905,7 +5905,7 @@ var SBX = (function () {
   var goLine = function (p, ln) { if (p && P.files.hasOwnProperty(p) && p !== P.cur) openFile(p); var lines = ta.value.split('\n'), s = 0; for (var i = 0; i < Math.min(ln - 1, lines.length); i++) s += lines[i].length + 1; ta.focus(); ta.setSelectionRange(s, s + (lines[ln - 1] || '').length); scrollToSel(); };
   Q('[data-cclear]').addEventListener('click', function () { cons = []; lastErr = 0; paintCons(); });
   QA('[data-dev]').forEach(function (b) { b.addEventListener('click', function () { framew.classList.toggle('phone', b.getAttribute('data-dev') === 'phone'); QA('[data-dev]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); }); });
-  var outTab = function (k) { QA('[data-ot]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-ot') === k)); }); QA('[data-op]').forEach(function (p) { p.hidden = p.getAttribute('data-op') !== k; }); if (k === 'due') paintChecks(); };
+  var outTab = function (k) { if (window.axDvOut) window.axDvOut(false); QA('[data-ot]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-ot') === k)); }); QA('[data-op]').forEach(function (p) { p.hidden = p.getAttribute('data-op') !== k; }); if (k === 'due') paintChecks(); };
   QA('[data-ot]').forEach(function (b) { b.addEventListener('click', function () { outTab(b.getAttribute('data-ot')); }); });
 
   /* run: signal flows through the schema */
@@ -11991,4 +11991,8 @@ var SBX = (function () {
   var g = document.querySelector('#sandbox-view .dv-grid'), saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) {}
   if (g && saved === '1') setOut(g, true);
+  /* Sandbox kodu (outTab) koşu başlarken paneli açabilsin diye tek kapı.
+     11.11.2026 canlı bulgusu: panel gizliyken "çalıştır" çalışıyordu ama
+     konsol görünmez panele yazıyordu — öğrenci "tepki gelmiyor" sanıyor. */
+  window.axDvOut = function (hide) { var gr = document.querySelector('#sandbox-view .dv-grid'); if (gr) setOut(gr, !!hide); };
 })();
