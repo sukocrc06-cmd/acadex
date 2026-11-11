@@ -151,7 +151,7 @@
     { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
-  var TITLES = { kids: 'Acadex Kids', overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', finans: 'Finans', content: 'İçerik', support: 'Canlı destek', push: 'Telefon bildirimleri', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
+  var TITLES = { kids: 'Acadex Kids', derskod: 'Ders kodları', overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', finans: 'Finans', content: 'İçerik', support: 'Canlı destek', push: 'Telefon bildirimleri', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
   var paintNav = function () {
     var fo = FIN_ONLY();
     $('#nav').innerHTML = NAV.filter(function (n, i) { return !fo || (n.k ? FIN_NAV[n.k] : NAV[i + 1] && FIN_NAV[NAV[i + 1].k]); }).map(function (n) {

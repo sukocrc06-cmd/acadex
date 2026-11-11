@@ -102,6 +102,10 @@ test('ADMİN: Ders kodları bölümü kayıtlı ve hafta sayımı ilerleme biçi
   const app = read('js/admin-app.js');
   const admHtml = read('admin.html');
   assert.ok(app.includes("{ k: 'derskod', t: 'Ders kodları' }"), 'NAV girdisi yok');
+  /* go() başlığı TITLES'tan okur ve toLocaleUpperCase çağırır: girdi eksikse
+     yönlendirme yarıda patlar, ESKİ görünüm ekranda kalır (11.11 canlı bulgu —
+     "ders kodlarına basınca geçmiyor"). Menüye eklenen her anahtar TITLES'a da girmeli. */
+  assert.ok(app.includes("derskod: 'Ders kodları',"), 'TITLES girdisi yok — tıklayınca görünüm değişmez');
   assert.ok(app.includes("derskod: '<rect"), 'ikon yok — menüde boş svg çıkar');
   assert.ok(admHtml.includes('js/admin-ders.js'), 'modül admin.html\'e bağlı değil');
   assert.ok(adm.includes('A.VIEWS.derskod = async function (m)'), 'görünüm AXADM\'e kayıtlı değil');
