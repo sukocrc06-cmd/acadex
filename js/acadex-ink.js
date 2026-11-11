@@ -6303,6 +6303,12 @@ var SBX = (function () {
         var files = {}; files[fn] = txt; files['analiz.py'] = DSPY[fn] || ('import csv\nwith open("' + fn + '", encoding="utf-8") as f:\n    print(next(csv.reader(f)))\n'); files['README.md'] = '# ' + nm + '\n\n`analiz.py` dosyasını “çalıştır” ile çalıştır; sonuçlar konsola yazılır.\n';
         var pr = addProject(nm, files, '', '', 'veri setinden'); b.disabled = false; openProject(pr.id); P.cur = 'analiz.py'; if (P.open.indexOf('analiz.py') < 0) P.open.unshift('analiz.py'); renderTabs(); loadEditor(); say('“' + nm + '” hazır; “çalıştır”a bas, sonuçlar konsola düşer.');
       }).catch(function () { b.disabled = false; say('Veri seti indirilemedi; .csv indir bağlantısını dene.'); }); return; }
+    /* Vitrindeki sablon kartlari (11.11.2026): veri seti kartlariyla ayni
+       tek-tik deneyim — sablon dosyalari kopyalanir, proje acilir. */
+    var tb = e.target.closest('[data-tplopen]');
+    if (tb) { var tk = tb.getAttribute('data-tplopen'), tt = DV_TPLS[tk]; if (!tt) return;
+      var tpr = addProject(tb.getAttribute('data-tplname') || tt.l, clone(tt.files), '', '', tt.l + ' şablonundan');
+      openProject(tpr.id); say('“' + (tb.getAttribute('data-tplname') || tt.l) + '” hazır; “çalıştır”a bas.'); return; }
     if (e.target.closest('[data-goetk]')) { if (typeof switchDashboardView === 'function') switchDashboardView('sandbox-interaction'); }
   });
 

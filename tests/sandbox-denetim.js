@@ -210,6 +210,16 @@ test('SENKRON SERTLEŞTİ + YENİ ŞABLONLAR (11.11.2026)', () => {
   assert.ok(ink.includes('taksit = anapara * r / (1 - (1 + r) ** -vade_ay)'),
     'annüite formülü değişmiş — README ve kontrol satırıyla çelişir');
   assert.ok(ink.includes('taksit ~10.046,21 TL'), 'kontrol satırı yok — formül bozulursa fark edilmez');
+  // Vitrin (11.11, Berkay'ın isteği: "örnek setlerde görünmüyor"): şablonlar
+  // yalnız "yeni proje" penceresinde değil, örnek vitrininde de tek tıkla açılır.
+  assert.ok(html.includes('data-tplopen="grafik"') && html.includes('data-tplopen="kredi"'),
+    'vitrinde şablon kartları yok');
+  assert.ok(html.includes('örnek veri setleri ve şablonlar'), 'bölüm başlığı şablonları kapsamıyor');
+  assert.ok(ink.includes("tb.getAttribute('data-tplopen'), tt = DV_TPLS[tk]"),
+    'vitrin kartının tek-tık işleyicisi yok');
+  // Veri setlerinden sonra gelsinler: csv kartlarıyla karışmasın.
+  assert.ok(html.indexOf('Müşteri kaybı (churn)') < html.indexOf('Aylık gelir-gider grafiği'),
+    'şablon kartları veri setlerinin arasına girmiş');
 });
 
 summary();
