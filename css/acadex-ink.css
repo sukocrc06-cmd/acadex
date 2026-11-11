@@ -9163,3 +9163,30 @@ body.ax-misafir .ax-msf-bar [data-msf-cik]{background:transparent;color:#9AA6C4}
 body.ax-misafir .ax-msf-bar.dur{background:#7A2E24}
 body.ax-misafir .ax-msf-bar.dur b{color:#FFD27A}
 @media (max-width:760px){body.ax-misafir .ax-msf-bar{bottom:10px;font-size:13px;gap:8px;padding:8px 8px 8px 12px}}
+
+/* ================= öneri paketi (12.11.2026): vitrin + hesap aç + Acadia ön bakışı ================= */
+/* haftanın projesi rozeti + yönetici yıldızı (etkileşim paneli) */
+.ek-tags .vit{background:#FFF3D6;color:#8A5A00;border:1.4px solid #E8C877;border-radius:999px;padding:3px 10px;font-weight:800}
+.ek-vit{border:1.4px solid #E8C877;background:#FFF9EC;color:#B07E12;border-radius:999px;width:34px;height:34px;font-size:17px;cursor:pointer;flex:none}
+.ek-vit[aria-pressed="true"]{background:#F4B63F;color:#3A2A00}
+/* Acadia ön bakışı kutusu (gönderi hazırla) */
+.ek-aai{margin:6px 0 0;padding:10px 14px;border:1.6px dashed #B9C6E4;border-radius:10px;font-size:14px;background:#F4F7FF}
+.ek-aai ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}
+.ek-aai li.ok{color:#1F7A43}
+.ek-aai li.on{color:#8A5A00}
+/* misafir "hesabını aç" penceresi */
+body.ax-misafir .ax-msf-kayit{position:fixed;inset:0;z-index:10000;background:rgba(13,24,56,.55);display:flex;align-items:center;justify-content:center;padding:18px}
+body.ax-misafir .ax-msf-kayit .in{position:relative;width:min(420px,100%);background:#fff;color:#1A2A5C;border:2px solid #DCE2EE;border-radius:14px 18px 13px 16px;padding:26px 24px;font-family:"Bricolage Grotesque",system-ui,sans-serif;box-shadow:6px 8px 0 rgba(26,42,92,.18)}
+body.ax-misafir .ax-msf-kayit h3{margin:0 0 6px;font-size:21px;letter-spacing:-.02em}
+body.ax-misafir .ax-msf-kayit p{margin:0 0 14px;font-size:14px;line-height:1.5;color:#4B5675}
+body.ax-misafir .ax-msf-kayit label{display:block;margin:0 0 12px}
+body.ax-misafir .ax-msf-kayit label span{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+body.ax-misafir .ax-msf-kayit input{width:100%;box-sizing:border-box;padding:11px 12px;border:2px solid #DCE2EE;border-radius:9px;font:inherit;font-size:15.5px}
+body.ax-misafir .ax-msf-kayit input:focus{outline:none;border-color:#2F6BFF}
+body.ax-misafir .ax-msf-kayit .g{width:100%;margin-top:4px;padding:12px;border:0;border-radius:10px;background:#0D1838;color:#fff;font:inherit;font-size:15.5px;font-weight:700;cursor:pointer}
+body.ax-misafir .ax-msf-kayit .g:hover{background:#2F6BFF}
+body.ax-misafir .ax-msf-kayit .g:disabled{opacity:.55;cursor:wait}
+body.ax-misafir .ax-msf-kayit .x{position:absolute;top:10px;right:12px;border:0;background:none;font-size:24px;color:#8A93AB;cursor:pointer}
+body.ax-misafir .ax-msf-kayit .h{margin:10px 0 0;font-size:13.5px;color:#1F7A43}
+body.ax-misafir .ax-msf-kayit .h.kir{color:#C9483B}
+@media (prefers-color-scheme:dark){body.ax-misafir .ax-msf-kayit .in{background:#141B2E;color:#E6EBF7;border-color:#273253}body.ax-misafir .ax-msf-kayit p{color:#9AA6C4}body.ax-misafir .ax-msf-kayit input{background:#0E1424;border-color:#273253;color:#E6EBF7}.ek-aai{background:#17203A;border-color:#2C3A61}}

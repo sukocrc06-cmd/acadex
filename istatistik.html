@@ -108,7 +108,12 @@ button:disabled{opacity:.55;cursor:wait}
       git.disabled = false; git.textContent = 'derse gir';
     });
   });
-  kodEl.focus();
+  /* QR ya da tahtadaki bağlantıyla gelindiyse kod hazır gelir:
+     istatistik.html?kod=ISTAT2026 (admin "Ders kodları" QR'ı bunu üretir). */
+  try {
+    var qk = (new URLSearchParams(location.search).get('kod') || '').trim();
+    if (qk) { kodEl.value = qk.toUpperCase(); adEl.focus(); } else kodEl.focus();
+  } catch (er) { kodEl.focus(); }
 })();
 </script>
 </body>

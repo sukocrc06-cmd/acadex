@@ -222,6 +222,43 @@ test('BÖLÜM SORULUR: girişte seçilir, konuk listesinde ve profilde görünü
   assert.ok(adm2.includes("(g.bolum ? ' · ' + X(g.bolum) : '')"), 'admin konuk listesi bölümü göstermiyor');
 });
 
+test('ÖNERİ PAKETİ: QR + yansıtma + dönüşüm + temizlik (12.11.2026)', () => {
+  /* Berkay "hepsini yapalım" dedi: ders günü paketi. QR bağlantısı kodu
+     kapı sayfasına taşır; yansıtma ekranı projektörde canlı sayım gösterir;
+     misafir e-posta+şifreyle gerçek hesaba dönüşür (uid değişmediği için
+     ilerleme kalır); eski anonim hesaplar onaylı temizlenir. */
+  const kapi2 = read('istatistik.html');
+  assert.ok(kapi2.includes("new URLSearchParams(location.search).get('kod')"),
+    'kapı sayfası ?kod= bağlantısını doldurmuyor — QR işe yaramaz');
+  const adm3 = read('js/admin-ders.js');
+  assert.ok(adm3.includes("'/istatistik.html?kod=' + encodeURIComponent(kod)"),
+    'QR bağlantısı giriş sayfasına kodu taşımıyor');
+  assert.ok(adm3.includes('data-dk-yansit'), 'yansıtma ekranı düğmesi yok');
+  assert.match(adm3, /admin_ders_konuk_ozet[\s\S]*?setTimeout\(tazele, 5000\)/,
+    'yansıtma sayacı canlı tazelenmiyor');
+  assert.match(adm3, /p_dene: true[\s\S]*?confirm[\s\S]*?p_dene: false/,
+    'temizlik önce saymadan ya da onaysız silebilir');
+  const mig = read('supabase/migrations/20261112_vitrin_takip_donusum.sql');
+  assert.match(mig, /admin_misafir_temizle[\s\S]*?current_is_admin/, 'temizlikte yönetici kapısı yok');
+  assert.match(mig, /if p_gun < 7 then/, 'temizlik 7 gün tabanı yok — kısa aralıkla ilerleme silinebilir');
+  // Dönüşüm: yalnız ders konuğu otomatik davet alır; access_allowed ancak
+  // işlem-yerel görevli bayrağıyla geçer (protect_profile_flags).
+  assert.match(mig, /misafir_tamamla[\s\S]*?if not exists \(select 1 from ders_konuklari/,
+    'dönüşümde ders konuğu şartı yok — kapalı beta kapısı delinir');
+  assert.match(mig, /set_config\('acadex\.gorevli', '1', true\)/,
+    'görevli bayrağı kurulmuyor — access_allowed güncellemesi tetikleyiciye takılır');
+  assert.match(mig, /coalesce\(current_setting\('acadex\.gorevli', true\), ''\) = '1'/,
+    'protect_profile_flags görevli bayrağını tanımıyor');
+  assert.ok(ink.includes('data-msf-hesap'), 'misafir şeridinde "hesabını aç" yok');
+  assert.ok(ink.includes('cl.auth.updateUser({ email: em.value.trim(), password: pw.value })'),
+    'dönüşüm e-posta+şifre bağlamıyor');
+  assert.ok(ink.includes("cl.rpc('misafir_tamamla')"), 'dönüşüm sunucuda tamamlanmıyor');
+  assert.ok(ink.includes("t.closest('.ax-msf-kayit')"),
+    'hesap penceresi tıklama bekçisine takılır — form doldurulamaz');
+  assert.ok(ink.includes("e.target.closest('.ax-msf-kayit')"),
+    'hesap penceresi gönderim bekçisine takılır — Enter çalışmaz');
+});
+
 test('GÜVENLİK TARAMASI: definer yan kapılar + yarım giriş (12.11.2026)', () => {
   /* Tarama bulgusu 1: genel kilit RLS'tir, definer fonksiyonlar takılmaz.
      İç koruması olmayan iki definer yazıcı (push_subscribe, ing_icerik_al)

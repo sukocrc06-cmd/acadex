@@ -26,12 +26,19 @@
     return n;
   };
 
+  /* Giriş bağlantısı + QR (12.11.2026): tahtaya yansıtılır, telefon okutur.
+     QR görseli api.qrserver.com'dan gelir (mshots gibi dış görsel servisi
+     kalıbı); içinde yalnız herkese açık giriş adresi + kod vardır. */
+  var girisUrl = function (kod) { return location.origin + '/istatistik.html?kod=' + encodeURIComponent(kod); };
+  var qrUrl = function (kod, px) { return 'https://api.qrserver.com/v1/create-qr-code/?size=' + px + 'x' + px + '&qzone=2&data=' + encodeURIComponent(girisUrl(kod)); };
+
   A.VIEWS.derskod = async function (m) {
     m.innerHTML = '<div class="tools"><form id="dk-f" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
       '<input id="dk-kod" required maxlength="24" placeholder="KOD (ör. ISTAT2026)" style="text-transform:uppercase;font-family:ui-monospace,monospace" autocomplete="off">' +
       '<input id="dk-not" maxlength="80" placeholder="not (ör. Çarşamba 09:00 şubesi)" autocomplete="off">' +
       '<input id="dk-tarih" type="date" title="son geçerlilik (boş = süresiz)">' +
-      '<button type="submit" class="btn">kod oluştur</button></form></div>' +
+      '<button type="submit" class="btn">kod oluştur</button>' +
+      '<button type="button" class="btn ghost" id="dk-temiz" style="margin-left:auto" title="30 günden eski, derse de girmemiş anonim hesapları siler">eski misafirleri temizle</button></form></div>' +
       '<div id="dk-list" class="list"><div class="card empty"><span class="hand">yükleniyor…</span></div></div>';
     var box = document.getElementById('dk-list');
     var yukle = async function () {
@@ -49,6 +56,7 @@
             (r.son_tarih ? ' · son tarih: ' + X(r.son_tarih) : ' · süresiz') + '</p>' +
             '<div class="acts">' +
             '<button type="button" class="btn ghost sm" data-dk-tgl="' + X(r.kod) + '" data-aktif="' + r.aktif + '" data-not="' + X(r['not'] || '') + '" data-tarih="' + X(r.son_tarih || '') + '">' + (r.aktif ? 'kapat' : 'aç') + '</button>' +
+            '<button type="button" class="btn ghost sm" data-dk-yansit="' + X(r.kod) + '" data-id="' + X(r.id) + '" title="Projektöre: kocaman kod + QR + canlı katılım sayacı">yansıt (QR)</button>' +
             ((r.giris || 0) ? '<button type="button" class="btn ghost sm" data-dk-kim="' + X(r.id) + '">konuklar</button>' : '') +
             '</div><div class="dk-kim" hidden></div></div>';
         }).join('');
@@ -64,8 +72,52 @@
         e.target.reset(); yukle();
       } catch (er) { toast(errMsg(er), true); }
     });
+    /* Eski misafir temizliği: önce kuru koşu (sayım), onaydan sonra silme.
+       Sunucu kuralı admin_misafir_temizle'de (p_gun>=7, yalnız yönetici). */
+    document.getElementById('dk-temiz').addEventListener('click', async function () {
+      var b = this; b.disabled = true;
+      try {
+        var n = await rpc('admin_misafir_temizle', { p_gun: 30, p_dene: true });
+        if (!n) { toast('Silinecek eski misafir yok (30 günden eski + 30 gündür girmemiş).'); b.disabled = false; return; }
+        if (!window.confirm(n + ' eski misafir hesabı silinecek (30 günden eski, 30 gündür derse girmemiş). Onaylıyor musun?')) { b.disabled = false; return; }
+        var s = await rpc('admin_misafir_temizle', { p_gun: 30, p_dene: false });
+        toast(s + ' eski misafir hesabı silindi.'); yukle();
+      } catch (er) { toast(errMsg(er), true); }
+      b.disabled = false;
+    });
+
+    /* Yansıtma ekranı: kocaman kod + QR + canlı katılım. Hoca projektöre
+       açar; sayaç 5 sn'de bir admin_ders_konuk_ozet ile tazelenir. */
+    var yansit = function (kod, kodId) {
+      var ort = document.createElement('div');
+      ort.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0D1838;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px';
+      ort.innerHTML = '<button type="button" data-yx style="position:absolute;top:18px;right:22px;font-size:30px;background:none;border:0;color:#9AA6C4;cursor:pointer" aria-label="Kapat">×</button>' +
+        '<p style="margin:0;font-size:clamp(18px,2.6vw,30px);color:#9AA6C4">acadex.com.tr/istatistik.html · ders kodu:</p>' +
+        '<b style="font-family:ui-monospace,monospace;font-size:clamp(44px,9vw,120px);letter-spacing:.12em">' + X(kod) + '</b>' +
+        '<img src="' + X(qrUrl(kod, 520)) + '" alt="' + X(kod) + ' giriş karekodu" style="width:min(44vh,380px);background:#fff;padding:14px;border-radius:14px">' +
+        '<p style="margin:0;font-size:clamp(15px,2vw,22px);color:#9AA6C4">telefonla okut ya da adresi yaz — hesap gerekmez</p>' +
+        '<p data-ysay style="margin:0;font-size:clamp(17px,2.4vw,28px)">katılım sayılıyor…</p>';
+      document.body.appendChild(ort);
+      var say = ort.querySelector('[data-ysay]'), canli = true;
+      var tazele = async function () {
+        if (!canli) return;
+        try {
+          var ks = await rpc('admin_ders_konuk_ozet', { p_kod_id: kodId });
+          var adlar = ks.slice(0, 5).map(function (g) { return X(g.rumuz || 'rumuzsuz'); }).join(', ');
+          say.innerHTML = '<b style="font-size:1.4em">' + ks.length + '</b> kişi girdi' + (adlar ? ' · son: ' + adlar : '');
+        } catch (er) { say.textContent = 'sayım alınamadı: ' + errMsg(er); }
+        if (canli) setTimeout(tazele, 5000);
+      };
+      var kapat = function () { canli = false; ort.remove(); document.removeEventListener('keydown', esc); };
+      var esc = function (e) { if (e.key === 'Escape') kapat(); };
+      ort.querySelector('[data-yx]').addEventListener('click', kapat);
+      document.addEventListener('keydown', esc);
+      tazele();
+    };
+
     box.addEventListener('click', async function (e) {
       var b;
+      if ((b = e.target.closest('[data-dk-yansit]'))) { yansit(b.getAttribute('data-dk-yansit'), b.getAttribute('data-id')); return; }
       if ((b = e.target.closest('[data-dk-tgl]'))) {
         b.disabled = true;
         try {

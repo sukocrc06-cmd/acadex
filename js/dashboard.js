@@ -13203,6 +13203,43 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (shared cards) error:', err);
   }
 
+  // 1d. Sandbox: takip ettiğin biri yeni proje paylaştı (12.11.2026).
+  // Takip listesi sandbox_follows'ta; tablo yoksa sessizce atlanır — panel
+  // bu durumda takipleri zaten tarayıcıda tutuyordur, bildirim de olmaz.
+  try {
+    const { data: fol, error: folErr } = await supabaseClient
+      .from('sandbox_follows')
+      .select('followee_id')
+      .eq('follower_id', currentUser.id);
+    if (!folErr && fol && fol.length) {
+      const { data: projs, error: prErr } = await supabaseClient
+        .from('sandbox_projects')
+        .select('id, title, user_id, created_at')
+        .in('user_id', fol.map(f => f.followee_id))
+        .gt('created_at', lastCheck)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (!prErr && projs && projs.length) {
+        const { data: who } = await supabaseClient
+          .from('public_profiles')
+          .select('id, full_name')
+          .in('id', projs.map(p => p.user_id));
+        const adlar = {};
+        (who || []).forEach(w => { adlar[w.id] = w.full_name; });
+        projs.forEach(p => {
+          items.push({
+            time: p.created_at,
+            title: 'Takip ettiğin kişi yeni proje paylaştı',
+            subtitle: `${escapeHtml(adlar[p.user_id] || 'Bir arkadaşın')}: ${escapeHtml(p.title || 'yeni proje')}`,
+            onClick: () => switchDashboardView('sandbox-interaction')
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (sandbox takip) error:', err);
+  }
+
   // 1b. FAZ 5.3: günü gelen konu tekrarları (ustalık haritasından planlayıcıya
   // eklenen "Tekrar zamanı: …" hedefleri). Günü gelince bir kez görünür.
   try {

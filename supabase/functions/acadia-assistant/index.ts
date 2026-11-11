@@ -192,11 +192,12 @@ serve(async (req) => {
     const isAgent = body?.mode === 'agent'
     const isTranslate = body?.mode === 'translate'
     const isFrame = body?.mode === 'frame_check'
+    const isReview = body?.mode === 'sbx_review'
     const page = (isAgent && body?.page && typeof body.page === 'object') ? body.page : null
     // Ajan modunda açık kartın tamamı isteme gömülmez (Groq dakika başı token sınırı);
     // Acadia gerekirse read_study_card aracıyla okur.
     const studyCardId = isAgent ? null : body?.studyCardId
-    if (!isAgent && !isTranslate && !isFrame && (!message || typeof message !== 'string')) {
+    if (!isAgent && !isTranslate && !isFrame && !isReview && (!message || typeof message !== 'string')) {
       return new Response(JSON.stringify({ error: 'Missing "message" parameter' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -227,6 +228,15 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized user token' }), {
         status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Misafir (anonim ders-kodu oturumu) model çağrısı yapamaz: dashboard'un
+    // kalanı gibi Acadia da vitrindir; masraf tam hesaplara (12.11.2026).
+    if ((user as any)?.is_anonymous) {
+      return new Response(JSON.stringify({ error: 'Misafir girişi Acadia’yı kullanamaz; tam hesapla giriş yap.' }), {
+        status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
@@ -271,6 +281,49 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Translation could not be parsed' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
       return new Response(JSON.stringify({ translation: out }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // ------------------------------------------------------------------
+    // ÖN-İNCELEME (Sandbox "Acadia'ya baktır"): body.mode === 'sbx_review'
+    // Paylaşmadan önce kısa, cesaretlendirici geri bildirim: 2 güçlü yan +
+    // en çok 2 somut öneri. body.payload: { title, text, tech[], code? }.
+    // Kod en çok 6000 karakter gelir (istemci kırpar); çıktı JSON'dur.
+    // ------------------------------------------------------------------
+    if (isReview) {
+      const p = body?.payload && typeof body.payload === 'object' ? body.payload : null
+      if (!p || (!p.title && !p.text)) {
+        return new Response(JSON.stringify({ error: 'Missing "payload"' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const key = Deno.env.get('GROQ_API_KEY')
+      if (!key) return new Response(JSON.stringify({ error: 'Groq API key not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const src = JSON.stringify({
+        baslik: String(p.title || '').slice(0, 120),
+        yazi: String(p.text || '').slice(0, 1600),
+        teknolojiler: Array.isArray(p.tech) ? p.tech.slice(0, 8) : [],
+        kod: String(p.code || '').slice(0, 6000)
+      })
+      const sys = 'Sen Acadia’sın: Acadex’te öğrencilerin proje paylaşımlarına paylaşmadan önce bakan sıcak bir yardımcı. Sana başlık, tanıtım yazısı, teknolojiler ve (varsa) koddan bir kesit gelir. TÜRKÇE ve yalnız şu JSON’la yanıt ver: {"iyi": ["...", "..."], "oner": ["..."]} — iyi: tam 2 somut güçlü yan (koddan/yazıdan örnekle), oner: 1-2 somut, küçük ve uygulanabilir öneri (paylaşımı geciktirmeyecek cinsten). Kısa cümleler; öğrenciyi cesaretlendir, asla küçümseme; genel geçer laf etme.'
+      const run = async (model: string) => {
+        const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model, temperature: 0.4, max_completion_tokens: 600, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: sys }, { role: 'user', content: src }] })
+        })
+        let data: any = null
+        try { data = await resp.json() } catch (_e) { data = null }
+        return { resp, data }
+      }
+      let r = await run('openai/gpt-oss-20b')
+      if (!r.resp.ok) { console.warn('sbx_review 20b failed, retrying on 120b:', r.resp.status); r = await run('openai/gpt-oss-120b') }
+      if (!r.resp.ok) {
+        return new Response(JSON.stringify({ error: 'Review unavailable', status: r.resp.status }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      let out: any = null
+      try { out = JSON.parse(r.data?.choices?.[0]?.message?.content || '') } catch (_e) { out = null }
+      if (!out || typeof out !== 'object' || (!Array.isArray(out.iyi) && !Array.isArray(out.oner))) {
+        return new Response(JSON.stringify({ error: 'Review could not be parsed' }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ review: { iyi: Array.isArray(out.iyi) ? out.iyi.slice(0, 3) : [], oner: Array.isArray(out.oner) ? out.oner.slice(0, 2) : [] } }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // ------------------------------------------------------------------

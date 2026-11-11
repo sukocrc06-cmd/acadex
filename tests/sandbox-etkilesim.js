@@ -250,4 +250,31 @@ test('MOBİL: panel telefon genişliğinde taşmaz (11.11.2026)', () => {
     'tam ekran çubuğunda uzun başlık taşar');
 });
 
+test('VİTRİN + TAKİP BİLDİRİMİ + ACADIA ÖN BAKIŞI (12.11.2026)', () => {
+  /* Öneri paketi: (1) haftanın projesi — yetki veritabanında, panel rozet +
+     en üste alma; (2) takip edilen kişinin yeni projesi bildirim çanına
+     düşer; (3) paylaşmadan önce Acadia ön bakışı (başarısızlık paylaşımı
+     engellemez). */
+  const ink = read('js/acadex-ink.js');
+  assert.ok(ink.includes('vitrin: !!r.vitrin'), 'vitrin alanı gönderiye taşınmıyor');
+  assert.ok(ink.includes('★ haftanın projesi'), 'vitrin rozeti çizilmiyor');
+  assert.match(ink, /list\.filter\(function \(p\) \{ return p\.vitrin; \}\)\.concat/,
+    'vitrindeki proje en üste alınmıyor');
+  assert.match(ink, /admin_sandbox_vitrin', \{ p_id: vid, p_on: !vp\.vitrin \}/,
+    'yıldız düğmesi sunucu RPC’sine gitmiyor');
+  const mig = read('supabase/migrations/20261112_vitrin_takip_donusum.sql');
+  assert.match(mig, /update sandbox_projects set vitrin = false where vitrin and id <> p_id/,
+    'vitrin tekliği sunucuda değil — iki “haftanın projesi” olabilir');
+  assert.match(mig, /admin_sandbox_vitrin[\s\S]*?current_is_admin/, 'vitrin RPC’sinde yönetici kapısı yok');
+  const dash = read('js/dashboard.js');
+  assert.ok(dash.includes("from('sandbox_follows')"), 'bildirim çanı takip listesini okumuyor');
+  assert.ok(dash.includes("switchDashboardView('sandbox-interaction')"),
+    'takip bildirimi paneli açmıyor');
+  assert.ok(ink.includes("mode: 'sbx_review'"), 'compose Acadia ön bakışına gitmiyor');
+  assert.ok(ink.includes('paylaşmana engel değil'), 'Acadia hatası paylaşımı engelliyor gibi durur');
+  const fn = read('supabase/functions/acadia-assistant/index.ts');
+  assert.ok(fn.includes("body?.mode === 'sbx_review'"), 'sunucuda sbx_review modu yok');
+  assert.ok(fn.includes('is_anonymous'), 'acadia-assistant misafiri reddetmiyor — model masrafı açık');
+});
+
 summary();
