@@ -185,4 +185,31 @@ test('PYTHON PROJESİ PANELE GÖNDERİLEBİLİR: son koşudan analiz kartı (11.
     'sayfasız projede hata mesajı yol göstermiyor');
 });
 
+test('SENKRON SERTLEŞTİ + YENİ ŞABLONLAR (11.11.2026)', () => {
+  /* Tam tarama bulguları. Senkron: eski wsSync ilk hatada break yapıyordu —
+     tek bozuk proje, listede arkasında duran HER projenin buluta yazılmasını
+     sonsuza dek kesiyordu ve hata yalnız console'a gidiyordu (sessiz kayıp). */
+  assert.ok(ink.includes("ws.err = (p.name || 'proje') + ': ' + String(r.error.message || r.error.code || 'hata').slice(0, 120); continue;"),
+    'senkron hatasında continue yok — baş-blokaj geri gelmiş');
+  assert.ok(ink.includes('if (missing(r.error)) { feat.ws = false; break; }'),
+    'şema hatasında (missing) durulmuyor — her projede boşa istek atılır');
+  assert.ok(ink.includes("cloudEl.textContent = 'buluta yazılamadı — projeler bu tarayıcıda güvende'"),
+    'senkron hatası öğrenciye gösterilmiyor');
+  // download: her indirme bir objectURL askıda bırakıyordu.
+  assert.ok(ink.includes('setTimeout(function () { URL.revokeObjectURL(u); }, 4000)'),
+    'indirme URL\'i geri bırakılmıyor');
+  // Otomatik önizleme ZATEN VARDI (autoRun, 450 ms) — özellik sanılıp
+  // yeniden yazılmasın, kaldırılırsa da bilerek kaldırılsın.
+  assert.ok(ink.includes('if (autoRun) refreshPreview(false); }, 450)'),
+    'autoRun canlı önizleme kalkmış');
+  // Yeni şablonlar: grafik (matplotlib yolunu sergiler) + kredi (annüite).
+  // kredi.py yerelde KOŞULDU: 100.000 TL, %36, 12 ay -> taksit 10.046,21 TL.
+  assert.ok(ink.includes("grafik: { l: 'Python grafik'"), 'grafik şablonu yok');
+  assert.ok(ink.includes('plt.bar(aylar, gelir'), 'grafik şablonu matplotlib kullanmıyor');
+  assert.ok(ink.includes("kredi: { l: 'kredi taksit tablosu'"), 'kredi şablonu yok');
+  assert.ok(ink.includes('taksit = anapara * r / (1 - (1 + r) ** -vade_ay)'),
+    'annüite formülü değişmiş — README ve kontrol satırıyla çelişir');
+  assert.ok(ink.includes('taksit ~10.046,21 TL'), 'kontrol satırı yok — formül bozulursa fark edilmez');
+});
+
 summary();

@@ -4862,9 +4862,15 @@ var SBX = (function () {
     if (!feat.ws || !ws.list || ws.busy) return; ws.busy = true;
     try {
       var dirty = ws.list.filter(function (p) { return ws.synced[p.id] !== p.updated; });
+      ws.err = '';
       for (var i = 0; i < dirty.length; i++) {
         var p = dirty[i], r = await sb().from('sandbox_workspaces').upsert(toRow(p), { onConflict: 'id' });
-        if (r.error) { console.warn('acadex-ink: proje buluta yazılamadı', r.error); if (missing(r.error)) feat.ws = false; break; }
+        /* BAS-BLOKAJ KALDIRILDI (11.11.2026): eskiden ilk hatada break vardı —
+           tek bozuk proje, arkasındaki HER projenin senkronunu sonsuza dek
+           kesiyordu ve hata yalnız console'a gidiyordu (sessiz kayıp sınıfı).
+           Şema hatası (missing) hariç kalanlar denenmeye devam eder; son hata
+           ws.err'de tutulur, paintCloud öğrenciye gösterir. */
+        if (r.error) { console.warn('acadex-ink: proje buluta yazılamadı', p.name, r.error); if (missing(r.error)) { feat.ws = false; break; } ws.err = (p.name || 'proje') + ': ' + String(r.error.message || r.error.code || 'hata').slice(0, 120); continue; }
         ws.synced[p.id] = p.updated;
       }
     } finally { ws.busy = false; }
@@ -5456,7 +5462,13 @@ var SBX = (function () {
       'grafik.js': '// acadex.oku(dosya) önizlemede proje dosyalarını okur\nconst satirlar = acadex.oku("veri/mevduat.csv").trim().split("\\n").slice(1);\nconst veri = satirlar.map((s) => {\n  const [ad, deger] = s.split(",");\n  return { ad, deger: Number(deger) };\n});\n\nconst c = document.getElementById("c");\nconst g = c.getContext("2d");\nconst enBuyuk = Math.max(...veri.map((v) => v.deger));\nconst gen = c.width / veri.length;\n\nveri.forEach((v, i) => {\n  const h = (v.deger / enBuyuk) * (c.height - 40);\n  g.fillStyle = "#2F6BFF";\n  g.fillRect(i * gen + 16, c.height - h - 20, gen - 32, h);\n  g.fillStyle = "#0D1838";\n  g.fillText(v.ad + " · " + v.deger, i * gen + 16, c.height - 6);\n});\nconsole.log(veri.length + " şube çizildi");\n' } },
     python: { l: 'Python analiz', d: 'ortalama, medyan, mod, std', files: {
       'analiz.py': 'import statistics as st\n\n# Bir şubedeki 9 müşterinin aylık geliri (bin TL)\ngelir = [18, 20, 21, 22, 23, 24, 25, 26, 160]\n\ndef ozet(veri):\n    return {\n        "ortalama": round(st.mean(veri), 2),\n        "medyan": st.median(veri),\n        "mod": st.multimode(veri),\n        "std": round(st.stdev(veri), 2),\n    }\n\nfor ad, deger in ozet(gelir).items():\n    print(f"{ad:>8}: {deger}")\n\nprint("aykırı değer çıkarılınca ortalama:", round(st.mean(gelir[:-1]), 2))\n',
-      'README.md': '# Gelir analizi\n\n`analiz.py` dosyasını çalıştır; sonuçlar konsola yazılır.\n' } }
+      'README.md': '# Gelir analizi\n\n`analiz.py` dosyasını çalıştır; sonuçlar konsola yazılır.\n' } },
+    grafik: { l: 'Python grafik', d: 'matplotlib ile çubuk + çizgi grafik', files: {
+      'grafik.py': '# Aylık gelir ve giderin grafiği\n# "çalıştır" deyince grafik önizleme sekmesine çizilir.\nimport matplotlib.pyplot as plt\n\naylar = ["Şubat", "Mart", "Nisan", "Mayıs", "Haziran"]\ngelir = [42000, 45500, 39800, 51200, 48700]\ngider = [36500, 41200, 38900, 43800, 40100]\n\nplt.figure(figsize=(7, 4))\nplt.bar(aylar, gelir, color="#2F6BFF", label="gelir")\nplt.plot(aylar, gider, color="#C9483B", marker="o", linewidth=2, label="gider")\nplt.title("Aylık gelir ve gider (bin TL yerine TL)")\nplt.ylabel("TL")\nplt.legend()\n\nfark = [g - h for g, h in zip(gelir, gider)]\nfor ay, f in zip(aylar, fark):\n    print(f"{ay:<8} net {f:>8,} TL")\nprint("en iyi ay:", aylar[fark.index(max(fark))])\n',
+      'README.md': '# Aylık gelir-gider grafiği\n\n`grafik.py` dosyasını "çalıştır" ile çalıştır; grafik önizleme sekmesinde,\nnet rakamlar konsolda görünür. Sayıları kendi verinle değiştir.\n' } },
+    kredi: { l: 'kredi taksit tablosu', d: 'eşit taksit (annüite) ve kalan borç', files: {
+      'kredi.py': '# Eşit taksitli kredi: taksit = K · r / (1 - (1+r)^-n)\nanapara = 100_000        # TL\nyillik_faiz = 0.36       # %36\nvade_ay = 12\n\nr = yillik_faiz / 12\ntaksit = anapara * r / (1 - (1 + r) ** -vade_ay)\nprint(f"aylık taksit: {taksit:,.2f} TL\\n")\n\nkalan = anapara\ntoplam_faiz = 0.0\nprint(f"{\'ay\':>2}  {\'faiz\':>12}  {\'anapara payı\':>14}  {\'kalan\':>14}")\nfor ay in range(1, vade_ay + 1):\n    faiz = kalan * r\n    anapara_payi = taksit - faiz\n    kalan -= anapara_payi\n    toplam_faiz += faiz\n    print(f"{ay:>2}  {faiz:>12,.2f}  {anapara_payi:>14,.2f}  {max(0, kalan):>14,.2f}")\n\nprint(f"\\ntoplam geri ödeme: {taksit * vade_ay:,.2f} TL")\nprint(f"toplam faiz: {toplam_faiz:,.2f} TL")\n# kontrol: 100.000 TL, %36 yıllık, 12 ay -> taksit ~10.046,21 TL\n',
+      'README.md': '# Kredi taksit tablosu\n\nEşit taksitli (annüite) kredinin ay ay dökümü: faiz, anapara payı ve\nkalan borç. `kredi.py` içindeki anapara / faiz / vadeyi değiştirip\n"çalıştır" ile dene.\n' } }
   };
 
   /* ================= GELİŞTİRİCİ SANDBOX · sistem şeması tahtası ================= */
@@ -5484,12 +5496,16 @@ var SBX = (function () {
   toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
 
   /* ---------- store ---------- */
-  var KEY = SBX.uk('dev.projects');
   var projects = [];
   var P = null; /* open project */
   var saveT = 0, savedEl = Q('[data-saved]');
   var cloudEl = Q('[data-cloud]');
-  var paintCloud = function () { if (!cloudEl) return; cloudEl.hidden = SBX.feat.ws !== false; cloudEl.textContent = 'bu tarayıcıda saklanıyor'; cloudEl.title = 'Projelerin bu tarayıcıda; hesabına kaydedilmesi için sunucuda sandbox_workspaces tablosu gerekli.'; };
+  var paintCloud = function () {
+    if (!cloudEl) return;
+    if (SBX.ws.err) { cloudEl.hidden = false; cloudEl.textContent = 'buluta yazılamadı — projeler bu tarayıcıda güvende'; cloudEl.title = SBX.ws.err + ' · Bağlantıyı kontrol et; bir sonraki kayıtta yeniden denenir.'; return; }
+    cloudEl.hidden = SBX.feat.ws !== false;
+    cloudEl.textContent = 'bu tarayıcıda saklanıyor'; cloudEl.title = 'Projelerin bu tarayıcıda; hesabına kaydedilmesi için sunucuda sandbox_workspaces tablosu gerekli.';
+  };
   SBX.ws.onSync = paintCloud;
   var saveNow = function () {
     if (SBX.wsPersist()) { var d = new Date(); savedEl.textContent = 'kaydedildi · ' + p2(d.getHours()) + ':' + p2(d.getMinutes()); savedEl.style.color = ''; }
@@ -5666,7 +5682,7 @@ var SBX = (function () {
     e.setUint32(0, 0x06054b50, true); e.setUint16(8, n, true); e.setUint16(10, n, true); e.setUint32(12, csz, true); e.setUint32(16, off, true);
     return new Blob(parts.concat(cen).concat([new Uint8Array(e.buffer)]), { type: 'application/zip' });
   };
-  var download = function (name, blob, type) { var b = blob instanceof Blob ? blob : new Blob([blob], { type: type || 'text/plain' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 800); };
+  var download = function (name, blob, type) { var b = blob instanceof Blob ? blob : new Blob([blob], { type: type || 'text/plain' }), a = document.createElement('a'), u = URL.createObjectURL(b); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); };
 
   /* ---------- workspace ---------- */
   var schEl = Q('[data-sch]'), tabsEl = Q('[data-tabs]'), ta = Q('[data-ta]'), hl = Q('[data-hl]'), gut = Q('[data-gut]'), area = Q('.dv-area'), codeBox = Q('[data-code]');
