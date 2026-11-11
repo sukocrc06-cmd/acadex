@@ -5964,16 +5964,26 @@ var SBX = (function () {
     outTab('cons');
     var go = function () {
       var k0 = cons.length; /* son koşu kaydı bu işaretten itibaren toplanır */
-      log('sys', '— ' + file + ' çalışıyor' + (pyodide ? '' : ' · Python yükleniyor (ilk sefer biraz sürer)') + ' —'); lastErr = 0;
+      log('sys', '— ' + file + ' çalışıyor —'); lastErr = 0;
+      /* NABIZ (11.11.2026): Pyodide (~10 MB) ve paketler inerken konsol dakikaya
+         yakın sessiz kalabiliyordu — öğrenci 'bozuk' sanıyor (canlı bulgu).
+         Tek satır saniye saniye atar, bitince süresiyle sabitlenir. Satır
+         log() yerine doğrudan cons'a yazılır: teslim denetimi kaydına ve
+         son koşu kaydına girmesin diye. */
+      var nabizE = null, nabizT = 0, nabiz0 = 0;
+      var nabizDur = function (sonuc) { if (nabizT) { clearInterval(nabizT); nabizT = 0; } if (nabizE && sonuc) { nabizE.a = sonuc + ' · ' + Math.round((Date.now() - nabiz0) / 1000) + ' sn'; paintCons(); } nabizE = null; };
+      var nabizBasla = function (metin) { nabizDur(); nabiz0 = Date.now(); nabizE = { t: 'sys', a: metin, at: Date.now() }; cons.push(nabizE); paintCons(); nabizT = setInterval(function () { if (!nabizE) return; nabizE.a = metin + ' ' + Math.round((Date.now() - nabiz0) / 1000) + ' sn'; paintCons(); }, 1000); };
+      if (!pyodide) nabizBasla('Python indiriliyor (ilk sefer ~10 MB)…');
       loadPy().then(function (py) {
+        nabizDur('Python hazır');
         Object.keys(P.files).forEach(function (p) { var d = p.split('/').slice(0, -1), acc = ''; d.forEach(function (x) { acc += (acc ? '/' : '') + x; try { py.FS.mkdir(acc); } catch (e) {} }); try { py.FS.writeFile(p, P.files[p]); } catch (e) {} });
         py.setStdout({ batched: function (s) { log('log', s); } }); py.setStderr({ batched: function (s) { log('warn', s); } });
         var kaynak = P.files[file];
         var pk = []; (kaynak.match(/^[ \t]*(?:from|import)[ \t]+([A-Za-z_]\w*)/gm) || []).forEach(function (l) { var m = /([A-Za-z_]\w*)$/.exec(l); if (m && PY_PAKETLER.indexOf(m[1]) > -1 && pk.indexOf(m[1]) < 0) pk.push(m[1]); });
-        if (pk.length) log('sys', 'paketler hazırlanıyor: ' + pk.join(', ') + ' (ilk sefer indirilir, biraz sürebilir)');
+        if (pk.length) nabizBasla('paketler indiriliyor: ' + pk.join(', ') + '…');
         var once = /\bmatplotlib\b/.test(kaynak) ? 'import matplotlib\nmatplotlib.use("AGG")\n' : '';
         return py.loadPackagesFromImports(kaynak)
-          .then(function () { return once ? py.runPythonAsync(once) : null; })
+          .then(function () { nabizDur(pk.length ? 'paketler hazır' : ''); return once ? py.runPythonAsync(once) : null; })
           .then(function () { return py.runPythonAsync(kaynak); })
           .then(function () {
             return py.runPythonAsync(PY_GRAFIK).then(function (v) {
@@ -5995,7 +6005,7 @@ var SBX = (function () {
               }
             }, function (e) { console.warn('grafik toplanamadı', e); });
           });
-      }).then(function () { log('sys', '— bitti —'); }, function (err) { var m = String(err && err.message || err), ln = /File "<exec>", line (\d+)/g, last = null, mm; while ((mm = ln.exec(m))) last = mm[1]; var tail = m.trim().split('\n').pop(); log('error', tail + (last ? ' @' + file + ':' + last : '')); });
+      }).then(function () { nabizDur(); log('sys', '— bitti —'); }, function (err) { nabizDur(); var m = String(err && err.message || err), ln = /File "<exec>", line (\d+)/g, last = null, mm; while ((mm = ln.exec(m))) last = mm[1]; var tail = m.trim().split('\n').pop(); log('error', tail + (last ? ' @' + file + ':' + last : '')); });
     };
     if (pyOk || pyodide) go(); else { openDlg(pyDlg, Q('[data-run]')); pyDlg.onclose = function () { if (pyDlg.returnValue === 'ok') { pyOk = true; go(); } pyDlg.returnValue = ''; }; }
   };
@@ -6201,7 +6211,11 @@ var SBX = (function () {
   var DS_BEKLENEN = {
     'sales_dataset.csv': { soru: 'bölge ciroları', deger: [120, 81745, 75795, 68720, 52335] },
     'student_performance_dataset.csv': { soru: 'ortalamalar ve korelasyon', deger: [120, 15.88, 74.08, 0.968] },
-    'customer_churn_dataset.csv': { soru: 'sözleşme türüne göre kayıp oranı', deger: [57.1, 5.3, 12.1] }
+    'customer_churn_dataset.csv': { soru: 'sözleşme türüne göre kayıp oranı', deger: [57.1, 5.3, 12.1] },
+    /* bant yuzdeleri bilerek listede YOK: ogrenci %17.9'u %18 diye yuvarlasa
+       kalirdi. Bant BUYUKLUKLERI (39/38/43) yuvarlamadan bagimsiz. */
+    'export_dataset.csv': { soru: 'ülke bazında ihracat toplamları', deger: [120, 122483, 100233, 78457, 74180, 69095] },
+    'loan_applications_dataset.csv': { soru: 'onay oranı ve not bantları', deger: [120, 50, 39, 38, 43] }
   };
   /* "81,745.00" da "81.745,00" da 81745 okunmali: iki okuma da aday olur. */
   var sayilariCek = function (metin) {
@@ -6296,6 +6310,11 @@ var SBX = (function () {
     'student_performance_dataset.csv': '# Çalışma saati ile final puanı arasındaki ilişki\nimport csv\nimport statistics as st\n\nwith open("student_performance_dataset.csv", encoding="utf-8") as f:\n    satirlar = list(csv.DictReader(f))\n\nsaat = [float(s["study_hours_per_week"]) for s in satirlar]\npuan = [float(s["final_exam_score"]) for s in satirlar]\n\nprint(len(satirlar), "öğrenci")\nprint("ortalama çalışma saati:", round(st.mean(saat), 2))\nprint("ortalama final puanı:", round(st.mean(puan), 2))\nprint("korelasyon (r):", round(st.correlation(saat, puan), 3))\n',
     'customer_churn_dataset.csv': '# Sözleşme türüne göre müşteri kaybı oranı\nimport csv\nfrom collections import defaultdict\n\nwith open("customer_churn_dataset.csv", encoding="utf-8") as f:\n    satirlar = list(csv.DictReader(f))\n\ntoplam = defaultdict(int)\nkayip = defaultdict(int)\nfor s in satirlar:\n    tur = s["contract_type"]\n    toplam[tur] += 1\n    if str(s["churned"]).strip().lower() in ("1", "true", "yes", "evet"):\n        kayip[tur] += 1\n\nfor tur in sorted(toplam):\n    print(f"{tur:<16} %{kayip[tur] / toplam[tur] * 100:5.1f} kayıp  ({kayip[tur]}/{toplam[tur]})")\n'
   };
+  /* 11.11.2026: iki yeni set — ihracat (Ticaret) ve kredi basvurulari
+     (Bankacilik). Baslangic cozumleri gercek CSV'lere karsi kosturuldu;
+     DS_BEKLENEN'deki degerler o kosunun ciktisidir, uydurma degil. */
+  DSPY['export_dataset.csv'] = "# Ülkeye göre toplam ihracat ve en güçlü pazar\nimport csv\nfrom collections import defaultdict\n\nwith open(\"export_dataset.csv\", encoding=\"utf-8\") as f:\n    satirlar = list(csv.DictReader(f))\n\nprint(len(satirlar), \"sevkiyat satırı\")\nulke = defaultdict(float)\ngrup = defaultdict(float)\nfor s in satirlar:\n    tutar = float(s[\"total_usd\"])\n    ulke[s[\"country\"]] += tutar\n    grup[s[\"product_group\"]] += tutar\n\nprint(\"\\nülkeye göre ihracat (USD):\")\nfor u, t in sorted(ulke.items(), key=lambda x: -x[1]):\n    print(f\"  {u:<12} {t:>12,.0f}\")\n\nprint(\"\\nürün grubuna göre (USD):\")\nfor g, t in sorted(grup.items(), key=lambda x: -x[1]):\n    print(f\"  {g:<12} {t:>12,.0f}\")\n\nen = max(ulke, key=ulke.get)\nprint(f\"\\nen güçlü pazar: {en} (payı %{100*ulke[en]/sum(ulke.values()):.1f})\")\n";
+  DSPY['loan_applications_dataset.csv'] = "# Kredi onay oranı: genel ve kredi notu bandına göre\nimport csv\n\nwith open(\"loan_applications_dataset.csv\", encoding=\"utf-8\") as f:\n    satirlar = list(csv.DictReader(f))\n\nprint(len(satirlar), \"başvuru\")\nonay = [s for s in satirlar if s[\"approved\"] == \"Yes\"]\nprint(f\"genel onay oranı: %{100*len(onay)/len(satirlar):.1f} ({len(onay)}/{len(satirlar)})\")\n\nprint(\"\\nkredi notu bandına göre:\")\nbantlar = [(\"düşük  <500\", 0, 499), (\"orta 500-650\", 500, 650), (\"yüksek >650\", 651, 10**9)]\nfor ad, lo, hi in bantlar:\n    b = [s for s in satirlar if lo <= int(s[\"credit_score\"]) <= hi]\n    y = sum(1 for s in b if s[\"approved\"] == \"Yes\")\n    print(f\"  {ad:<13} %{100*y/len(b):.1f} kabul  ({y}/{len(b)})\")\n\nort = sum(int(s[\"credit_score\"]) for s in onay) / len(onay)\nprint(f\"\\nonaylananların ortalama kredi notu: {ort:.0f}\")\n";
   root.addEventListener('click', function (e) {
     var b = e.target.closest('[data-dsopen]');
     if (b) { var fn = b.getAttribute('data-dsopen'), nm = b.getAttribute('data-dsname'); b.disabled = true;

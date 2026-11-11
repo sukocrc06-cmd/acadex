@@ -145,7 +145,16 @@ test('PYTHON GRAFİK ÇIKTISI + PAKET HABERİ (10.11.2026)', () => {
   // (d) "önizleme yok" kaplaması grafik gelince kalkar — yoksa resim gizli kalır.
   assert.ok(ink.includes('noprev.hidden = true;\n    var pf'), 'noprev kaplaması grafiği örter');
   // (e) Paket haberi: öğrenci inen paketi görmeli, donmuş sanmamalı.
-  assert.ok(ink.includes("log('sys', 'paketler hazırlanıyor: ' + pk.join(', ')"), 'paket haberi yok');
+  /* Paket haberi 11.11'de NABZA dönüştü: tek sys satırı saniye saniye sayar,
+     bitince süresiyle sabitlenir. Nabız log() yerine doğrudan cons'a yazılır —
+     teslim denetimi kaydına ve son koşu kaydına sızmasın. */
+  assert.ok(ink.includes("if (!pyodide) nabizBasla('Python indiriliyor (ilk sefer ~10 MB)…');"),
+    'Pyodide indirme nabzı yok — ilk yüklemede dakikalık sessizlik geri gelir');
+  assert.ok(ink.includes("nabizBasla('paketler indiriliyor: ' + pk.join(', ') + '…')"), 'paket indirme nabzı yok');
+  assert.ok(ink.includes("nabizDur(pk.length ? 'paketler hazır' : '')"), 'paket nabzı durmuyor');
+  assert.ok(ink.includes("function (err) { nabizDur(); var m = String(err && err.message || err)"),
+    'hata yolunda nabız durmuyor — satır sonsuza dek sayar');
+  assert.ok(ink.includes('cons.push(nabizE)'), 'nabız log() üzerinden gidiyor — denetim kaydına sızar');
   assert.ok(ink.includes("['numpy', 'pandas', 'matplotlib', 'scipy', 'sympy', 'sklearn']"), 'bilinen paket listesi yok');
   // (f) PyProxy sızıntısı: dönüş değeri destroy edilir.
   assert.ok(ink.includes('if (v && v.destroy) { try { v.destroy(); } catch (e) {} }'), 'PyProxy destroy edilmiyor');
@@ -233,6 +242,31 @@ test('GİZLİ ÇIKTI PANELİ KOŞUDA AÇILIR (11.11.2026)', () => {
     'gizle/göster tek kapısı (axDvOut) yok');
   assert.ok(ink.includes('var outTab = function (k) { if (window.axDvOut) window.axDvOut(false);'),
     'outTab gizli paneli açmıyor — koşu çıktısı görünmez kalır');
+});
+
+test('YENİ VERİ SETLERİ: ihracat + kredi başvuruları (11.11.2026)', () => {
+  /* Yöntem üç setteki ile aynı: CSV deterministik üretildi (seed 2026),
+     başlangıç çözümü gerçek CSV'ye karşı koşturuldu, DS_BEKLENEN o koşunun
+     çıktısından alındı. Bant yüzdeleri bilerek beklenenlerde yok —
+     %17.9'u %18 diye yuvarlayan öğrenci kalmasın; bant BÜYÜKLÜKLERİ
+     (39/38/43) yuvarlamadan bağımsız. */
+  for (const f of ['export_dataset.csv', 'loan_applications_dataset.csv']) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'assets/datasets', f)), f + ' depoda yok');
+    const csv = read('assets/datasets/' + f);
+    assert.equal(csv.trim().split('\n').length, 121, f + ' 120 satır + başlık değil');
+  }
+  // Başlangıç çözümleri ve ölçülmüş beklenenler
+  assert.ok(ink.includes("DSPY['export_dataset.csv'] = "), 'ihracat başlangıç çözümü yok');
+  assert.ok(ink.includes("DSPY['loan_applications_dataset.csv'] = "), 'kredi başlangıç çözümü yok');
+  assert.ok(ink.includes('deger: [120, 122483, 100233, 78457, 74180, 69095]'),
+    'ihracat beklenenleri değişmiş — CSV yeniden üretildiyse değerleri de yeniden ölç');
+  assert.ok(ink.includes('deger: [120, 50, 39, 38, 43]'),
+    'kredi beklenenleri değişmiş — bant büyüklükleri CSV ile eşleşmeli');
+  // Vitrin kartları: veri setleri grubunda, şablonlardan önce
+  assert.ok(html.includes('data-dsopen="export_dataset.csv"'), 'ihracat kartı yok');
+  assert.ok(html.includes('data-dsopen="loan_applications_dataset.csv"'), 'kredi kartı yok');
+  assert.ok(html.indexOf('Kredi başvuruları') < html.indexOf('Aylık gelir-gider grafiği'),
+    'yeni set kartları şablonların arasına girmiş');
 });
 
 summary();
