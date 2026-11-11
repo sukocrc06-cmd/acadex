@@ -148,4 +148,28 @@ test('GENEL KİLİT: misafir veritabanında HİÇBİR tabloya yazamaz (11.11.202
   assert.ok(ink.includes("['drop', 'dragover'].forEach"), 'sürükle-bırak bekçisi yok');
 });
 
+test('KAPALI BETA KAPISI + SİHİRBAZ: misafiri kovmaz, sihirbaz açılmaz (11.11.2026)', () => {
+  /* Canlı deneme bulgusu: anonim giriş açılınca misafir önce profil
+     sihirbazına, sonra login.html?erisim=yok'a düştü. İki sebep:
+     (a) js/acadex-erisim.js kapalı beta bekçisi access_allowed=false görüp
+     oturumu kapatıyordu — misafir bu kapının konusu değil, yetkisi ayrı
+     katmanda kısıtlı; (b) anonim profil onboarding_completed=false doğuyordu. */
+  const erisim = read('js/acadex-erisim.js');
+  const i = erisim.indexOf('if (isDash) {');
+  assert.ok(i > -1, 'erişim bekçisinin dashboard dalı bulunamadı — öncül değişti');
+  const dal = erisim.slice(i, i + 700);
+  assert.ok(dal.includes('if (u.is_anonymous) return;'),
+    'bekçide misafir istisnası yok — ders kodu girişi login\'e geri atılır');
+  assert.ok(dal.indexOf('is_anonymous') < dal.indexOf('var r = await check(u.id)'),
+    'istisna profil denetiminden SONRA — yine kovulur');
+  const prof = read('supabase/migrations/20261111d_misafir_profil.sql');
+  assert.match(prof, /new\.onboarding_completed := true;/, 'sihirbaz atlaması yok');
+  assert.match(prof, /new\.access_allowed := false;/,
+    'misafir access_allowed=true doğuyor — beta izin anlamı bulanır');
+  assert.match(prof, /'Misafir'/, 'boş ad düzeltilmiyor');
+  // Anonim olmayan dal eski davranışını AYNEN korur (beta kuralı bozulmasın).
+  assert.match(prof, /\(not public\.registration_frozen\(\)\)\s*\n\s*or exists \(select 1 from access_invites/,
+    'kapalı beta varsayılanı değişmiş');
+});
+
 summary();

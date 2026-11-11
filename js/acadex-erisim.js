@@ -101,6 +101,11 @@
       try {
         var s = await supabaseClient.auth.getSession(), u = s && s.data && s.data.session && s.data.session.user;
         if (!u) return;
+        /* Ders koduyla gelen MİSAFİR (anonim oturum) bu kapının konusu değil:
+           access_allowed=false doğar ama yetkisi ayrı katmanda kısıtlıdır
+           (misafir modu + veritabanı yazma kilidi, 11.11.2026 —
+           tests/ders-kodu-misafir.js). Kapı onu kovarsa özellik hiç açılmaz. */
+        if (u.is_anonymous) return;
         var r = await check(u.id); if (r.ok) return;
         css(); var b = document.createElement('div'); b.className = 'ax-block';
         b.appendChild(card('Hesabın henüz açılmadı', 'Acadex şu an geliştirme aşamasında ve yalnızca izin verilen hesaplar girebiliyor. Seni giriş sayfasına alıyoruz.'));
