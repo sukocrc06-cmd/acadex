@@ -58,7 +58,7 @@ test('KAPI SAYFASI: doğrula → anonim oturum → kaydet → panele', () => {
   assert.ok(giris.includes("rpc('ders_kodu_dogrula', { p_kod: kod })"), 'kod doğrulaması yok');
   assert.ok(giris.indexOf("ders_kodu_dogrula") < giris.indexOf('signInAnonymously'),
     'oturum koddan ÖNCE açılıyor — kodsuz anonim hesap üretir');
-  assert.ok(giris.includes("rpc('misafir_kaydet', { p_kod: kod, p_rumuz: adEl.value.trim() })"), 'kod↔kullanıcı bağı kurulmuyor');
+  assert.ok(giris.includes("rpc('misafir_kaydet', { p_kod: kod, p_rumuz: adEl.value.trim(), p_bolum: bolumEl.value })"), 'kod↔kullanıcı bağı kurulmuyor');
   assert.ok(giris.includes("sessionStorage.setItem('acadex.misafir.giris', '1')"), 'otomatik ders açma işareti yok');
   assert.ok(giris.includes('Misafir girişi sunucuda henüz açılmamış'), 'anonim kapalıyken anlaşılır mesaj yok');
   assert.ok(giris.includes('window.location.replace(\'dashboard.html\')'), 'panele yönlenmiyor');
@@ -202,6 +202,24 @@ test('ACADIA KAPANIR + RUMUZ GÖRÜNEN AD OLUR (11.11.2026)', () => {
     'anonim şartı düşmüş — gerçek hesabın adı kodla değiştirilebilir olur');
   assert.match(rmz, /rumuz = case when excluded\.rumuz <> '' then excluded\.rumuz else ders_konuklari\.rumuz end/,
     'tekrar girişte boş rumuz eskisini eziyor');
+});
+
+test('BÖLÜM SORULUR: girişte seçilir, konuk listesinde ve profilde görünür (11.11.2026)', () => {
+  const g2 = read('istatistik.html');
+  assert.ok(g2.includes('<select id="bolum">'), 'kapı sayfasında bölüm seçimi yok');
+  assert.ok(g2.includes('Management Information Systems'), 'bölüm değerleri profil sihirbazındaki İngilizce anahtarlarla aynı değil');
+  assert.ok(g2.includes('p_bolum: bolumEl.value'), 'bölüm sunucuya gönderilmiyor');
+  const bm = read('supabase/migrations/20261111f_misafir_bolum.sql');
+  // İmza değişti: eski 2 parametreli sürüm düşmezse PostgREST rpc belirsizliği doğar.
+  assert.match(bm, /drop function if exists public\.misafir_kaydet\(text, text\);/,
+    'eski imza düşürülmüyor — rpc çağrısı iki aşırı yüklemede belirsizlik hatası verir');
+  assert.match(bm, /if v_bolum <> '' then update profiles set department = v_bolum/,
+    'bölüm profile yazılmıyor — panel başlıkları bölümsüz kalır');
+  assert.match(bm, /bolum = case when excluded\.bolum <> '' then excluded\.bolum else ders_konuklari\.bolum end/,
+    'tekrar girişte boş bölüm eskisini eziyor');
+  assert.match(bm, /'bolum', g\.bolum/, 'konuk özeti bölümü döndürmüyor');
+  const adm2 = read('js/admin-ders.js');
+  assert.ok(adm2.includes("(g.bolum ? ' · ' + X(g.bolum) : '')"), 'admin konuk listesi bölümü göstermiyor');
 });
 
 summary();

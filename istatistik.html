@@ -28,8 +28,8 @@ h1{margin:10px 0 4px;font-size:26px;letter-spacing:-.02em}
 .sub{margin:0 0 20px;font-size:14.5px;line-height:1.55;color:var(--muted)}
 label{display:block;margin:0 0 12px}
 label span{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
-input{width:100%;padding:12px 13px;border:2px solid #DCE2EE;border-radius:9px;font:inherit;font-size:16px}
-input:focus{outline:none;border-color:var(--blue)}
+input,select{width:100%;padding:12px 13px;border:2px solid #DCE2EE;border-radius:9px;font:inherit;font-size:16px;background:#fff;color:inherit}
+input:focus,select:focus{outline:none;border-color:var(--blue)}
 #kod{font-family:'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase}
 button{width:100%;margin-top:6px;padding:13px;border:0;border-radius:10px;background:var(--navy);color:#fff;font:inherit;font-size:16.5px;font-weight:700;cursor:pointer}
 button:hover{background:var(--blue)}
@@ -38,7 +38,7 @@ button:disabled{opacity:.55;cursor:wait}
 .alt{margin:18px 0 0;font-size:13px;color:var(--muted);text-align:center}
 .alt a{color:var(--blue)}
 .not{margin:14px 0 0;font-family:'Caveat',cursive;font-weight:700;font-size:19px;color:var(--muted);text-align:center}
-@media (prefers-color-scheme: dark){body{background:#0E1424;color:#E6EBF7}.kart{background:#141B2E;border-color:#273253}.sub,.alt,.not{color:#9AA6C4}input{background:#0E1424;border-color:#273253;color:#E6EBF7}}
+@media (prefers-color-scheme: dark){body{background:#0E1424;color:#E6EBF7}.kart{background:#141B2E;border-color:#273253}.sub,.alt,.not{color:#9AA6C4}input,select{background:#0E1424;border-color:#273253;color:#E6EBF7}}
 </style>
 </head>
 <body>
@@ -49,6 +49,7 @@ button:disabled{opacity:.55;cursor:wait}
 <form id="f">
 <label><span>ders kodu</span><input id="kod" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ör. ISTAT2026"></label>
 <label><span>adın ya da rumuzun <small>(isteğe bağlı)</small></span><input id="ad" maxlength="40" autocomplete="off" placeholder="sınıf listesinde böyle görünürsün"></label>
+<label><span>bölümün <small>(isteğe bağlı)</small></span><select id="bolum"><option value="">bölümünü seç…</option><option value="Management Information Systems">Yönetim Bilişim Sistemleri</option><option value="Business Administration">İşletme</option><option value="International Trade and Business">Uluslararası Ticaret ve İşletmecilik</option><option value="Banking and Finance">Bankacılık ve Finans</option><option value="Diğer">başka bölüm</option></select></label>
 <button id="git" type="submit">derse gir</button>
 <p class="hata" id="hata" hidden></p>
 </form>
@@ -61,7 +62,7 @@ button:disabled{opacity:.55;cursor:wait}
 (function () {
   'use strict';
   var f = document.getElementById('f'), kodEl = document.getElementById('kod'),
-      adEl = document.getElementById('ad'), git = document.getElementById('git'),
+      adEl = document.getElementById('ad'), bolumEl = document.getElementById('bolum'), git = document.getElementById('git'),
       hata = document.getElementById('hata');
   var soyle = function (m) { hata.textContent = m; hata.hidden = !m; };
   var MESAJ = {
@@ -85,7 +86,7 @@ button:disabled{opacity:.55;cursor:wait}
       git.textContent = 'giriş açılıyor…';
       return supabaseClient.auth.signInAnonymously().then(function (a) {
         if (a.error) throw a.error;
-        return supabaseClient.rpc('misafir_kaydet', { p_kod: kod, p_rumuz: adEl.value.trim() });
+        return supabaseClient.rpc('misafir_kaydet', { p_kod: kod, p_rumuz: adEl.value.trim(), p_bolum: bolumEl.value });
       }).then(function (m) {
         if (m && m.error) throw m.error;
         try { sessionStorage.setItem('acadex.misafir.giris', '1'); } catch (er) {}

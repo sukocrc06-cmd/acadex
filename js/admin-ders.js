@@ -81,7 +81,7 @@
         try {
           var ks = await rpc('admin_ders_konuk_ozet', { p_kod_id: b.getAttribute('data-dk-kim') });
           kutu.innerHTML = ks.length ? '<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">' + ks.map(function (g) {
-            return '<li><b>' + X(g.rumuz || '(rumuzsuz)') + '</b> · ' + haftaSay(g.ilerleme) + ' haftada iz · ' + (g.giris_sayi || 1) + ' giriş · son: ' + AGO(g.son_giris) + '</li>';
+            return '<li><b>' + X(g.rumuz || '(rumuzsuz)') + '</b>' + (g.bolum ? ' · ' + X(g.bolum) : '') + ' · ' + haftaSay(g.ilerleme) + ' haftada iz · ' + (g.giris_sayi || 1) + ' giriş · son: ' + AGO(g.son_giris) + '</li>';
           }).join('') + '</ul>' : '<p class="muted">henüz konuk yok.</p>';
         } catch (er) { kutu.innerHTML = '<p class="muted">' + X(errMsg(er)) + '</p>'; }
       }
