@@ -10,18 +10,41 @@ tr/mola-zamani-bugun-cok-guzel-calistin-5470a1.mp3;tr;"Mola zamanı! Bugün çok
 tr/dolabina-yeni-bir-sey-geldi-9bf5cd.mp3;tr;"Dolabına yeni bir şey geldi!";yönerge
 tr/hadi-birlikte-sarki-soyleyelim-81b786.mp3;tr;"Hadi birlikte şarkı söyleyelim!";yönerge
 tr/dolabina-hos-geldin-yildiz-topladikca-ye-32b5fe.mp3;tr;"Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.";yönerge
+tr/yeni-bir-rozet-kazandin-35ff1e.mp3;tr;"Yeni bir rozet kazandın!";yönerge
 en/good-try-f0c08f.mp3;en;"Good try!";övgü / oyun
 en/well-done-e78d52.mp3;en;"Well done!";övgü / oyun
 en/super-9c20f5.mp3;en;"Super!";övgü / oyun
 en/let-s-count-together-98a09f.mp3;en;"Let's count together!";övgü / oyun
+en/simon-says-f12b6a.mp3;en;"Simon says!";övgü / oyun
+en/what-is-it-3ed9d6.mp3;en;"What is it?";övgü / oyun
 tr/3-yildiz-toplayinca-acilacak-3870d3.mp3;tr;"3 yıldız toplayınca açılacak.";dolap
 tr/6-yildiz-toplayinca-acilacak-95d26f.mp3;tr;"6 yıldız toplayınca açılacak.";dolap
 tr/9-yildiz-toplayinca-acilacak-af8d0f.mp3;tr;"9 yıldız toplayınca açılacak.";dolap
 tr/12-yildiz-toplayinca-acilacak-501035.mp3;tr;"12 yıldız toplayınca açılacak.";dolap
 tr/16-yildiz-toplayinca-acilacak-937bc8.mp3;tr;"16 yıldız toplayınca açılacak.";dolap
 tr/20-yildiz-toplayinca-acilacak-6b0286.mp3;tr;"20 yıldız toplayınca açılacak.";dolap
+tr/hayvanlar-adasini-bitirince-acilacak-b7dfbe.mp3;tr;"Hayvanlar adasını bitirince açılacak.";dolap
+tr/ailem-adasini-bitirince-acilacak-a20162.mp3;tr;"Ailem adasını bitirince açılacak.";dolap
+tr/vucudum-adasini-bitirince-acilacak-b0048f.mp3;tr;"Vücudum adasını bitirince açılacak.";dolap
+tr/yiyecekler-adasini-bitirince-acilacak-9b29fb.mp3;tr;"Yiyecekler adasını bitirince açılacak.";dolap
+tr/oyuncaklar-adasini-bitirince-acilacak-141d8e.mp3;tr;"Oyuncaklar adasını bitirince açılacak.";dolap
+tr/kiyafetler-adasini-bitirince-acilacak-e23537.mp3;tr;"Kıyafetler adasını bitirince açılacak.";dolap
+tr/evim-adasini-bitirince-acilacak-af7f4b.mp3;tr;"Evim adasını bitirince açılacak.";dolap
+tr/okulum-adasini-bitirince-acilacak-3b2d0b.mp3;tr;"Okulum adasını bitirince açılacak.";dolap
+tr/hava-durumu-adasini-bitirince-acilacak-ea2556.mp3;tr;"Hava Durumu adasını bitirince açılacak.";dolap
+tr/duygular-adasini-bitirince-acilacak-cef33b.mp3;tr;"Duygular adasını bitirince açılacak.";dolap
 tr/bugunun-konusu-renkler-hadi-oynayalim-811748.mp3;tr;"Bugünün konusu renkler. Hadi oynayalım!";harita
 tr/bugunun-konusu-sayilar-hadi-oynayalim-ce1e0f.mp3;tr;"Bugünün konusu sayılar. Hadi oynayalım!";harita
+tr/bugunun-konusu-hayvanlar-hadi-oynayalim-659290.mp3;tr;"Bugünün konusu hayvanlar. Hadi oynayalım!";harita
+tr/bugunun-konusu-ailem-hadi-oynayalim-20e68e.mp3;tr;"Bugünün konusu ailem. Hadi oynayalım!";harita
+tr/bugunun-konusu-vucudum-hadi-oynayalim-d76321.mp3;tr;"Bugünün konusu vücudum. Hadi oynayalım!";harita
+tr/bugunun-konusu-yiyecekler-hadi-oynayalim-527981.mp3;tr;"Bugünün konusu yiyecekler. Hadi oynayalım!";harita
+tr/bugunun-konusu-oyuncaklar-hadi-oynayalim-276900.mp3;tr;"Bugünün konusu oyuncaklar. Hadi oynayalım!";harita
+tr/bugunun-konusu-kiyafetler-hadi-oynayalim-31bdb7.mp3;tr;"Bugünün konusu kıyafetler. Hadi oynayalım!";harita
+tr/bugunun-konusu-evim-hadi-oynayalim-3c88d5.mp3;tr;"Bugünün konusu evim. Hadi oynayalım!";harita
+tr/bugunun-konusu-okulum-hadi-oynayalim-1b4aef.mp3;tr;"Bugünün konusu okulum. Hadi oynayalım!";harita
+tr/bugunun-konusu-hava-durumu-hadi-oynayali-079e17.mp3;tr;"Bugünün konusu hava durumu. Hadi oynayalım!";harita
+tr/bugunun-konusu-duygular-hadi-oynayalim-96437f.mp3;tr;"Bugünün konusu duygular. Hadi oynayalım!";harita
 en/let-s-learn-colours-3c8317.mp3;en;"Let's learn colours!";colours · izle
 tr/renklere-dokun-ve-dinle-840dc3.mp3;tr;"Renklere dokun ve dinle.";colours · dokun
 en/find-the-same-colours-06ed8d.mp3;en;"Find the same colours!";colours · hafıza
@@ -37,6 +60,7 @@ en/that-is-blue-find-red-2e62e2.mp3;en;"That is blue. Find red!";colours · balo
 en/that-is-green-find-red-ddc707.mp3;en;"That is green. Find red!";colours · balon yanlış
 en/that-is-orange-find-red-4d78c1.mp3;en;"That is orange. Find red!";colours · balon yanlış
 en/that-is-purple-find-red-8a9994.mp3;en;"That is purple. Find red!";colours · balon yanlış
+en/point-to-red-5e4609.mp3;en;"Point to red!";colours · akıllı tahta
 en/yellow-d5b3cb.mp3;en;"yellow";colours · kelime
 en/yellow-364a6d.mp3;en;"yellow.";colours · izle
 en/yellow-f6f2b8.mp3;en;"yellow!";colours · balon doğru
@@ -48,6 +72,7 @@ en/that-is-blue-find-yellow-6c38a1.mp3;en;"That is blue. Find yellow!";colours �
 en/that-is-green-find-yellow-6cb1e0.mp3;en;"That is green. Find yellow!";colours · balon yanlış
 en/that-is-orange-find-yellow-43c1a3.mp3;en;"That is orange. Find yellow!";colours · balon yanlış
 en/that-is-purple-find-yellow-f90410.mp3;en;"That is purple. Find yellow!";colours · balon yanlış
+en/point-to-yellow-6184b9.mp3;en;"Point to yellow!";colours · akıllı tahta
 en/blue-9e7480.mp3;en;"blue";colours · kelime
 en/blue-7ada40.mp3;en;"blue.";colours · izle
 en/blue-fb3466.mp3;en;"blue!";colours · balon doğru
@@ -59,6 +84,7 @@ en/that-is-yellow-find-blue-149d61.mp3;en;"That is yellow. Find blue!";colours �
 en/that-is-green-find-blue-26600d.mp3;en;"That is green. Find blue!";colours · balon yanlış
 en/that-is-orange-find-blue-cb8459.mp3;en;"That is orange. Find blue!";colours · balon yanlış
 en/that-is-purple-find-blue-fd0b79.mp3;en;"That is purple. Find blue!";colours · balon yanlış
+en/point-to-blue-18fb3f.mp3;en;"Point to blue!";colours · akıllı tahta
 en/green-96e60d.mp3;en;"green";colours · kelime
 en/green-dcc3bd.mp3;en;"green.";colours · izle
 en/green-c26d26.mp3;en;"green!";colours · balon doğru
@@ -70,6 +96,7 @@ en/that-is-yellow-find-green-9baeae.mp3;en;"That is yellow. Find green!";colours
 en/that-is-blue-find-green-1efd5b.mp3;en;"That is blue. Find green!";colours · balon yanlış
 en/that-is-orange-find-green-8a572c.mp3;en;"That is orange. Find green!";colours · balon yanlış
 en/that-is-purple-find-green-c63a43.mp3;en;"That is purple. Find green!";colours · balon yanlış
+en/point-to-green-cea510.mp3;en;"Point to green!";colours · akıllı tahta
 en/orange-227246.mp3;en;"orange";colours · kelime
 en/orange-0c0892.mp3;en;"orange.";colours · izle
 en/orange-d42a94.mp3;en;"orange!";colours · balon doğru
@@ -81,6 +108,7 @@ en/that-is-yellow-find-orange-b5776e.mp3;en;"That is yellow. Find orange!";colou
 en/that-is-blue-find-orange-ee32d3.mp3;en;"That is blue. Find orange!";colours · balon yanlış
 en/that-is-green-find-orange-abe531.mp3;en;"That is green. Find orange!";colours · balon yanlış
 en/that-is-purple-find-orange-792ca2.mp3;en;"That is purple. Find orange!";colours · balon yanlış
+en/point-to-orange-73b0ec.mp3;en;"Point to orange!";colours · akıllı tahta
 en/purple-f7721f.mp3;en;"purple";colours · kelime
 en/purple-0b045c.mp3;en;"purple.";colours · izle
 en/purple-540745.mp3;en;"purple!";colours · balon doğru
@@ -92,6 +120,7 @@ en/that-is-yellow-find-purple-95240a.mp3;en;"That is yellow. Find purple!";colou
 en/that-is-blue-find-purple-571dd2.mp3;en;"That is blue. Find purple!";colours · balon yanlış
 en/that-is-green-find-purple-26ceb4.mp3;en;"That is green. Find purple!";colours · balon yanlış
 en/that-is-orange-find-purple-f9862c.mp3;en;"That is orange. Find purple!";colours · balon yanlış
+en/point-to-purple-0e2ab9.mp3;en;"Point to purple!";colours · akıllı tahta
 en/red-red-the-apple-is-red-b1caee.mp3;en;"Red, red, the apple is red.";colours · şarkı
 en/the-3449ba.mp3;en;"the";colours · şarkı kelimesi
 en/apple-9bd000.mp3;en;"apple";colours · şarkı kelimesi
@@ -132,6 +161,7 @@ en/that-is-seven-find-one-f3d89a.mp3;en;"That is seven. Find one!";numbers · ba
 en/that-is-eight-find-one-bc4aef.mp3;en;"That is eight. Find one!";numbers · balon yanlış
 en/that-is-nine-find-one-01069b.mp3;en;"That is nine. Find one!";numbers · balon yanlış
 en/that-is-ten-find-one-b0a648.mp3;en;"That is ten. Find one!";numbers · balon yanlış
+en/point-to-number-one-31285e.mp3;en;"Point to number one!";numbers · akıllı tahta
 en/two-917029.mp3;en;"two.";numbers · izle
 en/two-3d772e.mp3;en;"two!";numbers · balon doğru
 en/count-with-me-one-two-3992cb.mp3;en;"Count with me: one, two!";numbers · izle
@@ -146,6 +176,7 @@ en/that-is-seven-find-two-cb2477.mp3;en;"That is seven. Find two!";numbers · ba
 en/that-is-eight-find-two-983e76.mp3;en;"That is eight. Find two!";numbers · balon yanlış
 en/that-is-nine-find-two-0ef33d.mp3;en;"That is nine. Find two!";numbers · balon yanlış
 en/that-is-ten-find-two-1cb952.mp3;en;"That is ten. Find two!";numbers · balon yanlış
+en/point-to-number-two-c0b632.mp3;en;"Point to number two!";numbers · akıllı tahta
 en/three-a37c4a.mp3;en;"three.";numbers · izle
 en/three-eae104.mp3;en;"three!";numbers · balon doğru
 en/count-with-me-one-two-three-3358a5.mp3;en;"Count with me: one, two, three!";numbers · izle
@@ -160,6 +191,7 @@ en/that-is-seven-find-three-83fe99.mp3;en;"That is seven. Find three!";numbers �
 en/that-is-eight-find-three-75dcdc.mp3;en;"That is eight. Find three!";numbers · balon yanlış
 en/that-is-nine-find-three-b17753.mp3;en;"That is nine. Find three!";numbers · balon yanlış
 en/that-is-ten-find-three-ad7822.mp3;en;"That is ten. Find three!";numbers · balon yanlış
+en/point-to-number-three-d80033.mp3;en;"Point to number three!";numbers · akıllı tahta
 en/four-358f76.mp3;en;"four";numbers · kelime
 en/four-16fe86.mp3;en;"four.";numbers · izle
 en/four-670dd2.mp3;en;"four!";numbers · balon doğru
@@ -175,6 +207,7 @@ en/that-is-seven-find-four-0e0f41.mp3;en;"That is seven. Find four!";numbers · 
 en/that-is-eight-find-four-65de38.mp3;en;"That is eight. Find four!";numbers · balon yanlış
 en/that-is-nine-find-four-29c688.mp3;en;"That is nine. Find four!";numbers · balon yanlış
 en/that-is-ten-find-four-0ef032.mp3;en;"That is ten. Find four!";numbers · balon yanlış
+en/point-to-number-four-34db84.mp3;en;"Point to number four!";numbers · akıllı tahta
 en/five-575203.mp3;en;"five";numbers · kelime
 en/five-14e94c.mp3;en;"five.";numbers · izle
 en/five-5446da.mp3;en;"five!";numbers · balon doğru
@@ -190,6 +223,7 @@ en/that-is-seven-find-five-55d5bf.mp3;en;"That is seven. Find five!";numbers · 
 en/that-is-eight-find-five-26babc.mp3;en;"That is eight. Find five!";numbers · balon yanlış
 en/that-is-nine-find-five-d80582.mp3;en;"That is nine. Find five!";numbers · balon yanlış
 en/that-is-ten-find-five-2ecbec.mp3;en;"That is ten. Find five!";numbers · balon yanlış
+en/point-to-number-five-ebbd01.mp3;en;"Point to number five!";numbers · akıllı tahta
 en/six-fb8b5c.mp3;en;"six";numbers · kelime
 en/six-9fad11.mp3;en;"six.";numbers · izle
 en/six-087e76.mp3;en;"six!";numbers · balon doğru
@@ -205,6 +239,7 @@ en/that-is-seven-find-six-cf791b.mp3;en;"That is seven. Find six!";numbers · ba
 en/that-is-eight-find-six-4eb94a.mp3;en;"That is eight. Find six!";numbers · balon yanlış
 en/that-is-nine-find-six-72ebb4.mp3;en;"That is nine. Find six!";numbers · balon yanlış
 en/that-is-ten-find-six-5e953b.mp3;en;"That is ten. Find six!";numbers · balon yanlış
+en/point-to-number-six-31d920.mp3;en;"Point to number six!";numbers · akıllı tahta
 en/seven-ca4157.mp3;en;"seven";numbers · kelime
 en/seven-5fbcec.mp3;en;"seven.";numbers · izle
 en/seven-5c9cfb.mp3;en;"seven!";numbers · balon doğru
@@ -220,6 +255,7 @@ en/that-is-six-find-seven-a51e71.mp3;en;"That is six. Find seven!";numbers · ba
 en/that-is-eight-find-seven-65b2b0.mp3;en;"That is eight. Find seven!";numbers · balon yanlış
 en/that-is-nine-find-seven-27b792.mp3;en;"That is nine. Find seven!";numbers · balon yanlış
 en/that-is-ten-find-seven-c4afb3.mp3;en;"That is ten. Find seven!";numbers · balon yanlış
+en/point-to-number-seven-c179a4.mp3;en;"Point to number seven!";numbers · akıllı tahta
 en/eight-f3fb7d.mp3;en;"eight";numbers · kelime
 en/eight-8e54a6.mp3;en;"eight.";numbers · izle
 en/eight-eeaf5c.mp3;en;"eight!";numbers · balon doğru
@@ -235,6 +271,7 @@ en/that-is-six-find-eight-044768.mp3;en;"That is six. Find eight!";numbers · ba
 en/that-is-seven-find-eight-f20cc7.mp3;en;"That is seven. Find eight!";numbers · balon yanlış
 en/that-is-nine-find-eight-0dc7e8.mp3;en;"That is nine. Find eight!";numbers · balon yanlış
 en/that-is-ten-find-eight-1d818a.mp3;en;"That is ten. Find eight!";numbers · balon yanlış
+en/point-to-number-eight-3bf09c.mp3;en;"Point to number eight!";numbers · akıllı tahta
 en/nine-9013f0.mp3;en;"nine";numbers · kelime
 en/nine-fff027.mp3;en;"nine.";numbers · izle
 en/nine-24ee38.mp3;en;"nine!";numbers · balon doğru
@@ -250,6 +287,7 @@ en/that-is-six-find-nine-d3b869.mp3;en;"That is six. Find nine!";numbers · balo
 en/that-is-seven-find-nine-3a9037.mp3;en;"That is seven. Find nine!";numbers · balon yanlış
 en/that-is-eight-find-nine-24e884.mp3;en;"That is eight. Find nine!";numbers · balon yanlış
 en/that-is-ten-find-nine-953f86.mp3;en;"That is ten. Find nine!";numbers · balon yanlış
+en/point-to-number-nine-6800cb.mp3;en;"Point to number nine!";numbers · akıllı tahta
 en/ten-3d4b07.mp3;en;"ten";numbers · kelime
 en/ten-5c46ce.mp3;en;"ten.";numbers · izle
 en/ten-6988b5.mp3;en;"ten!";numbers · balon doğru
@@ -265,6 +303,7 @@ en/that-is-six-find-ten-f5fde4.mp3;en;"That is six. Find ten!";numbers · balon 
 en/that-is-seven-find-ten-38f6bc.mp3;en;"That is seven. Find ten!";numbers · balon yanlış
 en/that-is-eight-find-ten-0d426a.mp3;en;"That is eight. Find ten!";numbers · balon yanlış
 en/that-is-nine-find-ten-94001f.mp3;en;"That is nine. Find ten!";numbers · balon yanlış
+en/point-to-number-ten-b78ac5.mp3;en;"Point to number ten!";numbers · akıllı tahta
 en/one-two-three-count-with-me-51e916.mp3;en;"One, two, three, count with me!";numbers · şarkı
 en/count-4750f9.mp3;en;"count";numbers · şarkı kelimesi
 en/with-8eccd6.mp3;en;"with";numbers · şarkı kelimesi
@@ -284,6 +323,1065 @@ en/to-7c508f.mp3;en;"to";numbers · şarkı kelimesi
 en/how-many-3802d7.mp3;en;"How many?";numbers · veli köşesi
 en/one-two-three-f7ca61.mp3;en;"One, two, three!";numbers · veli köşesi
 en/i-am-five-51f268.mp3;en;"I am five.";numbers · veli köşesi
+en/let-s-meet-the-animals-7bb5dd.mp3;en;"Let's meet the animals!";animals · izle
+tr/hayvanlara-dokun-ve-dinle-265dec.mp3;tr;"Hayvanlara dokun ve dinle.";animals · dokun
+en/find-the-same-animals-d23953.mp3;en;"Find the same animals!";animals · hafıza
+en/great-job-animals-done-83ebd5.mp3;en;"Great job! Animals, done!";animals · bitiş
+en/cat-3c967e.mp3;en;"cat";animals · kelime
+en/cat-252526.mp3;en;"cat.";animals · izle
+en/cat-d49cb9.mp3;en;"cat!";animals · balon doğru
+en/it-s-a-cat-96d7e1.mp3;en;"It's a cat!";animals · izle
+en/say-cat-fea4a6.mp3;en;"Say: cat";animals · söyle
+en/pop-the-cat-d6915c.mp3;en;"Pop the cat!";animals · balon
+en/point-to-the-cat-516ed9.mp3;en;"Point to the cat!";animals · akıllı tahta
+en/dog-e83667.mp3;en;"dog";animals · kelime
+en/dog-3bf838.mp3;en;"dog.";animals · izle
+en/dog-b43683.mp3;en;"dog!";animals · balon doğru
+en/it-s-a-dog-b56a8c.mp3;en;"It's a dog!";animals · izle
+en/say-dog-55808c.mp3;en;"Say: dog";animals · söyle
+en/pop-the-dog-dd07cb.mp3;en;"Pop the dog!";animals · balon
+en/point-to-the-dog-667d9a.mp3;en;"Point to the dog!";animals · akıllı tahta
+en/fish-c0d733.mp3;en;"fish";animals · kelime
+en/fish-bfcc85.mp3;en;"fish.";animals · izle
+en/fish-82da82.mp3;en;"fish!";animals · balon doğru
+en/it-s-a-fish-1c6344.mp3;en;"It's a fish!";animals · izle
+en/say-fish-583af8.mp3;en;"Say: fish";animals · söyle
+en/pop-the-fish-c0a4e0.mp3;en;"Pop the fish!";animals · balon
+en/point-to-the-fish-d3b921.mp3;en;"Point to the fish!";animals · akıllı tahta
+en/bird-d6197f.mp3;en;"bird";animals · kelime
+en/bird-3c33ac.mp3;en;"bird.";animals · izle
+en/bird-722a17.mp3;en;"bird!";animals · balon doğru
+en/it-s-a-bird-e18863.mp3;en;"It's a bird!";animals · izle
+en/say-bird-0b9c84.mp3;en;"Say: bird";animals · söyle
+en/pop-the-bird-9477d4.mp3;en;"Pop the bird!";animals · balon
+en/point-to-the-bird-2019e9.mp3;en;"Point to the bird!";animals · akıllı tahta
+en/rabbit-06fb8c.mp3;en;"rabbit";animals · kelime
+en/rabbit-7cac02.mp3;en;"rabbit.";animals · izle
+en/rabbit-ee6bec.mp3;en;"rabbit!";animals · balon doğru
+en/it-s-a-rabbit-1df407.mp3;en;"It's a rabbit!";animals · izle
+en/say-rabbit-bc6dee.mp3;en;"Say: rabbit";animals · söyle
+en/pop-the-rabbit-c9dd6b.mp3;en;"Pop the rabbit!";animals · balon
+en/point-to-the-rabbit-fa6a51.mp3;en;"Point to the rabbit!";animals · akıllı tahta
+en/frog-2a8f83.mp3;en;"frog.";animals · izle
+en/frog-d5866f.mp3;en;"frog!";animals · balon doğru
+en/it-s-a-frog-d3d267.mp3;en;"It's a frog!";animals · izle
+en/say-frog-a0c9c2.mp3;en;"Say: frog";animals · söyle
+en/pop-the-frog-52993c.mp3;en;"Pop the frog!";animals · balon
+en/point-to-the-frog-4916b5.mp3;en;"Point to the frog!";animals · akıllı tahta
+en/cow-402260.mp3;en;"cow";animals · kelime
+en/cow-6bf2f7.mp3;en;"cow.";animals · izle
+en/cow-e42390.mp3;en;"cow!";animals · balon doğru
+en/it-s-a-cow-774f1e.mp3;en;"It's a cow!";animals · izle
+en/say-cow-c66f68.mp3;en;"Say: cow";animals · söyle
+en/pop-the-cow-66c744.mp3;en;"Pop the cow!";animals · balon
+en/point-to-the-cow-6c3008.mp3;en;"Point to the cow!";animals · akıllı tahta
+en/chick-040beb.mp3;en;"chick";animals · kelime
+en/chick-5d7ed3.mp3;en;"chick.";animals · izle
+en/chick-320a6f.mp3;en;"chick!";animals · balon doğru
+en/it-s-a-chick-40066f.mp3;en;"It's a chick!";animals · izle
+en/say-chick-171a64.mp3;en;"Say: chick";animals · söyle
+en/pop-the-chick-453ad9.mp3;en;"Pop the chick!";animals · balon
+en/point-to-the-chick-23271c.mp3;en;"Point to the chick!";animals · akıllı tahta
+en/lion-3c01a7.mp3;en;"lion";animals · kelime
+en/lion-603342.mp3;en;"lion.";animals · izle
+en/lion-9789a0.mp3;en;"lion!";animals · balon doğru
+en/it-s-a-lion-7a1420.mp3;en;"It's a lion!";animals · izle
+en/say-lion-538ee0.mp3;en;"Say: lion";animals · söyle
+en/pop-the-lion-1e1f40.mp3;en;"Pop the lion!";animals · balon
+en/point-to-the-lion-35c22b.mp3;en;"Point to the lion!";animals · akıllı tahta
+en/bear-fca787.mp3;en;"bear";animals · kelime
+en/bear-82ab7f.mp3;en;"bear.";animals · izle
+en/bear-3446c3.mp3;en;"bear!";animals · balon doğru
+en/it-s-a-bear-b54266.mp3;en;"It's a bear!";animals · izle
+en/say-bear-e0f756.mp3;en;"Say: bear";animals · söyle
+en/pop-the-bear-a93917.mp3;en;"Pop the bear!";animals · balon
+en/point-to-the-bear-e40e3f.mp3;en;"Point to the bear!";animals · akıllı tahta
+en/the-cat-says-meow-meow-meow-64bb33.mp3;en;"The cat says meow, meow, meow!";animals · şarkı
+en/says-e30e7d.mp3;en;"says";animals · şarkı kelimesi
+en/meow-09f9e0.mp3;en;"meow";animals · şarkı kelimesi
+en/the-dog-says-woof-woof-woof-a51912.mp3;en;"The dog says woof, woof, woof!";animals · şarkı
+en/woof-bdcd30.mp3;en;"woof";animals · şarkı kelimesi
+en/the-frog-says-ribbit-jump-jump-jump-3e3b9b.mp3;en;"The frog says ribbit, jump, jump, jump!";animals · şarkı
+en/ribbit-76f3fb.mp3;en;"ribbit";animals · şarkı kelimesi
+en/jump-07c279.mp3;en;"jump";animals · şarkı kelimesi
+en/the-cow-says-moo-on-the-farm-2e5e95.mp3;en;"The cow says moo on the farm!";animals · şarkı
+en/moo-aeb0fb.mp3;en;"moo";animals · şarkı kelimesi
+en/on-f9f6b7.mp3;en;"on";animals · şarkı kelimesi
+en/farm-a41eef.mp3;en;"farm";animals · şarkı kelimesi
+en/the-lion-says-roar-big-and-strong-2f72f9.mp3;en;"The lion says roar, big and strong!";animals · şarkı
+en/roar-492462.mp3;en;"roar";animals · şarkı kelimesi
+en/big-a5b9cd.mp3;en;"big";animals · şarkı kelimesi
+en/strong-2ee1f2.mp3;en;"strong";animals · şarkı kelimesi
+en/animals-animals-sing-along-9b7add.mp3;en;"Animals, animals, sing along!";animals · şarkı
+en/animals-72859e.mp3;en;"animals";animals · şarkı kelimesi
+en/sing-536e48.mp3;en;"sing";animals · şarkı kelimesi
+en/along-c60f15.mp3;en;"along";animals · şarkı kelimesi
+en/what-animal-is-it-822cd3.mp3;en;"What animal is it?";animals · veli köşesi
+en/the-dog-says-woof-a1100e.mp3;en;"The dog says woof.";animals · veli köşesi
+en/meow-meow-who-says-meow-b418d8.mp3;en;"Meow, meow! Who says meow?";animals · Kim der?
+en/the-cat-says-meow-39c709.mp3;en;"The cat says meow!";animals · Kim der?
+en/woof-woof-who-says-woof-8f59d2.mp3;en;"Woof, woof! Who says woof?";animals · Kim der?
+en/the-dog-says-woof-5b96e5.mp3;en;"The dog says woof!";animals · Kim der?
+en/tweet-tweet-who-says-tweet-3f1065.mp3;en;"Tweet, tweet! Who says tweet?";animals · Kim der?
+en/the-bird-says-tweet-6a3e09.mp3;en;"The bird says tweet!";animals · Kim der?
+en/ribbit-ribbit-who-says-ribbit-ac0ce9.mp3;en;"Ribbit, ribbit! Who says ribbit?";animals · Kim der?
+en/the-frog-says-ribbit-e8383f.mp3;en;"The frog says ribbit!";animals · Kim der?
+en/moo-moo-who-says-moo-1165b8.mp3;en;"Moo, moo! Who says moo?";animals · Kim der?
+en/the-cow-says-moo-cc8797.mp3;en;"The cow says moo!";animals · Kim der?
+en/cheep-cheep-who-says-cheep-d6cc61.mp3;en;"Cheep, cheep! Who says cheep?";animals · Kim der?
+en/the-chick-says-cheep-94cf2c.mp3;en;"The chick says cheep!";animals · Kim der?
+en/roar-roar-who-says-roar-fc11bf.mp3;en;"Roar, roar! Who says roar?";animals · Kim der?
+en/the-lion-says-roar-e6663a.mp3;en;"The lion says roar!";animals · Kim der?
+en/you-know-all-the-animal-sounds-a51ace.mp3;en;"You know all the animal sounds!";animals · Kim der?
+en/let-s-meet-my-family-632b23.mp3;en;"Let's meet my family!";family · izle
+tr/aileye-dokun-ve-dinle-f597c5.mp3;tr;"Aileye dokun ve dinle.";family · dokun
+en/find-the-same-people-d2d130.mp3;en;"Find the same people!";family · hafıza
+en/great-job-family-done-f5a482.mp3;en;"Great job! Family, done!";family · bitiş
+en/mum-2cfefe.mp3;en;"mum";family · kelime
+en/mum-417bd8.mp3;en;"mum.";family · izle
+en/mum-994cb4.mp3;en;"mum!";family · balon doğru
+en/this-is-my-mum-972e6f.mp3;en;"This is my mum!";family · izle
+en/say-mum-f303f8.mp3;en;"Say: mum";family · söyle
+en/find-mum-e7a81d.mp3;en;"Find mum!";family · balon
+en/point-to-mum-c5e82b.mp3;en;"Point to mum!";family · akıllı tahta
+en/dad-d63d2f.mp3;en;"dad";family · kelime
+en/dad-6a460d.mp3;en;"dad.";family · izle
+en/dad-70f347.mp3;en;"dad!";family · balon doğru
+en/this-is-my-dad-04be6c.mp3;en;"This is my dad!";family · izle
+en/say-dad-1a625c.mp3;en;"Say: dad";family · söyle
+en/find-dad-0a0f94.mp3;en;"Find dad!";family · balon
+en/point-to-dad-b63a79.mp3;en;"Point to dad!";family · akıllı tahta
+en/baby-97a9b1.mp3;en;"baby";family · kelime
+en/baby-08c03a.mp3;en;"baby.";family · izle
+en/baby-02030a.mp3;en;"baby!";family · balon doğru
+en/this-is-my-baby-96943c.mp3;en;"This is my baby!";family · izle
+en/say-baby-eb0d38.mp3;en;"Say: baby";family · söyle
+en/find-the-baby-9e54c4.mp3;en;"Find the baby!";family · balon
+en/point-to-the-baby-bb3f84.mp3;en;"Point to the baby!";family · akıllı tahta
+en/sister-6703e1.mp3;en;"sister";family · kelime
+en/sister-66bb6f.mp3;en;"sister.";family · izle
+en/sister-a93234.mp3;en;"sister!";family · balon doğru
+en/this-is-my-sister-04c423.mp3;en;"This is my sister!";family · izle
+en/say-sister-aba78b.mp3;en;"Say: sister";family · söyle
+en/find-sister-b165b2.mp3;en;"Find sister!";family · balon
+en/point-to-sister-01fac6.mp3;en;"Point to sister!";family · akıllı tahta
+en/brother-e43c15.mp3;en;"brother";family · kelime
+en/brother-4a90e0.mp3;en;"brother.";family · izle
+en/brother-5d0551.mp3;en;"brother!";family · balon doğru
+en/this-is-my-brother-afd856.mp3;en;"This is my brother!";family · izle
+en/say-brother-883e4b.mp3;en;"Say: brother";family · söyle
+en/find-brother-04fc04.mp3;en;"Find brother!";family · balon
+en/point-to-brother-0b56a6.mp3;en;"Point to brother!";family · akıllı tahta
+en/grandma-0d2c21.mp3;en;"grandma";family · kelime
+en/grandma-7f693f.mp3;en;"grandma.";family · izle
+en/grandma-64f1cf.mp3;en;"grandma!";family · balon doğru
+en/this-is-my-grandma-4d77de.mp3;en;"This is my grandma!";family · izle
+en/say-grandma-2f3997.mp3;en;"Say: grandma";family · söyle
+en/find-grandma-a93752.mp3;en;"Find grandma!";family · balon
+en/point-to-grandma-10b8ce.mp3;en;"Point to grandma!";family · akıllı tahta
+en/grandpa-d620c7.mp3;en;"grandpa";family · kelime
+en/grandpa-cf9412.mp3;en;"grandpa.";family · izle
+en/grandpa-92152d.mp3;en;"grandpa!";family · balon doğru
+en/this-is-my-grandpa-b3e003.mp3;en;"This is my grandpa!";family · izle
+en/say-grandpa-6cbd39.mp3;en;"Say: grandpa";family · söyle
+en/find-grandpa-86e572.mp3;en;"Find grandpa!";family · balon
+en/point-to-grandpa-3c2299.mp3;en;"Point to grandpa!";family · akıllı tahta
+en/family-5fb5fc.mp3;en;"family";family · kelime
+en/family-0a4f62.mp3;en;"family.";family · izle
+en/family-8597c5.mp3;en;"family!";family · balon doğru
+en/this-is-my-family-ffff8a.mp3;en;"This is my family!";family · izle
+en/say-family-7f6273.mp3;en;"Say: family";family · söyle
+en/find-the-family-e1a9b7.mp3;en;"Find the family!";family · balon
+en/point-to-the-family-dfbb0e.mp3;en;"Point to the family!";family · akıllı tahta
+en/aunt-dcc6f4.mp3;en;"aunt";family · kelime
+en/aunt-e30c0b.mp3;en;"aunt.";family · izle
+en/aunt-b5631a.mp3;en;"aunt!";family · balon doğru
+en/this-is-my-aunt-0c0307.mp3;en;"This is my aunt!";family · izle
+en/say-aunt-dd19f1.mp3;en;"Say: aunt";family · söyle
+en/find-aunt-fe92f4.mp3;en;"Find aunt!";family · balon
+en/point-to-aunt-009bbe.mp3;en;"Point to aunt!";family · akıllı tahta
+en/uncle-cf8c62.mp3;en;"uncle";family · kelime
+en/uncle-9b14e2.mp3;en;"uncle.";family · izle
+en/uncle-d99b48.mp3;en;"uncle!";family · balon doğru
+en/this-is-my-uncle-790436.mp3;en;"This is my uncle!";family · izle
+en/say-uncle-4ceb29.mp3;en;"Say: uncle";family · söyle
+en/find-uncle-a02b6b.mp3;en;"Find uncle!";family · balon
+en/point-to-uncle-34e53b.mp3;en;"Point to uncle!";family · akıllı tahta
+en/mum-and-me-we-like-to-play-4deeb3.mp3;en;"Mum and me, we like to play!";family · şarkı
+en/we-1643fb.mp3;en;"we";family · şarkı kelimesi
+en/like-912011.mp3;en;"like";family · şarkı kelimesi
+en/play-9b4c6f.mp3;en;"play";family · şarkı kelimesi
+en/dad-and-me-we-laugh-all-day-fd3437.mp3;en;"Dad and me, we laugh all day!";family · şarkı
+en/laugh-b47987.mp3;en;"laugh";family · şarkı kelimesi
+en/all-aa4e23.mp3;en;"all";family · şarkı kelimesi
+en/day-bea05a.mp3;en;"day";family · şarkı kelimesi
+en/baby-is-small-hello-hello-19d927.mp3;en;"Baby is small, hello, hello!";family · şarkı
+en/small-d7061a.mp3;en;"small";family · şarkı kelimesi
+en/hello-b77451.mp3;en;"hello";family · şarkı kelimesi
+en/sister-and-brother-me-too-me-too-caef27.mp3;en;"Sister and brother, me too, me too!";family · şarkı
+en/too-22deb5.mp3;en;"too";family · şarkı kelimesi
+en/grandma-and-grandpa-a-big-hug-for-you-b1ec2a.mp3;en;"Grandma and grandpa, a big hug for you!";family · şarkı
+en/hug-16334f.mp3;en;"hug";family · şarkı kelimesi
+en/for-8e4423.mp3;en;"for";family · şarkı kelimesi
+en/you-167bd5.mp3;en;"you";family · şarkı kelimesi
+en/i-love-my-family-yes-i-do-ead30b.mp3;en;"I love my family, yes, I do!";family · şarkı
+en/i-ff763e.mp3;en;"i";family · şarkı kelimesi
+en/love-338eae.mp3;en;"love";family · şarkı kelimesi
+en/my-8c77c1.mp3;en;"my";family · şarkı kelimesi
+en/yes-ea2713.mp3;en;"yes";family · şarkı kelimesi
+en/do-0c602e.mp3;en;"do";family · şarkı kelimesi
+en/who-is-this-ecc8c3.mp3;en;"Who is this?";family · veli köşesi
+en/this-is-my-mum-0b69a7.mp3;en;"This is my mum.";family · veli köşesi
+en/i-love-you-dad-2fdc3e.mp3;en;"I love you, Dad!";family · veli köşesi
+en/put-mum-in-the-photo-5964bd.mp3;en;"Put mum in the photo!";family · Fotoğraf
+en/put-dad-in-the-photo-1116a8.mp3;en;"Put dad in the photo!";family · Fotoğraf
+en/put-the-baby-in-the-photo-91f9b0.mp3;en;"Put the baby in the photo!";family · Fotoğraf
+en/put-sister-in-the-photo-e32ec3.mp3;en;"Put sister in the photo!";family · Fotoğraf
+en/put-brother-in-the-photo-de9ea9.mp3;en;"Put brother in the photo!";family · Fotoğraf
+en/put-grandma-in-the-photo-1ae0f5.mp3;en;"Put grandma in the photo!";family · Fotoğraf
+en/put-grandpa-in-the-photo-268584.mp3;en;"Put grandpa in the photo!";family · Fotoğraf
+en/put-aunt-in-the-photo-e44e0a.mp3;en;"Put aunt in the photo!";family · Fotoğraf
+en/put-uncle-in-the-photo-7f6832.mp3;en;"Put uncle in the photo!";family · Fotoğraf
+en/say-cheese-what-a-happy-family-ab894c.mp3;en;"Say cheese! What a happy family!";family · Fotoğraf
+en/let-s-learn-my-body-d6315a.mp3;en;"Let's learn my body!";body · izle
+tr/vucudumuza-dokun-ve-dinle-5d1756.mp3;tr;"Vücudumuza dokun ve dinle.";body · dokun
+en/great-job-my-body-done-0f38cd.mp3;en;"Great job! My body, done!";body · bitiş
+en/head-167744.mp3;en;"head";body · kelime
+en/head-56b4f1.mp3;en;"head.";body · izle
+en/head-d496f4.mp3;en;"head!";body · balon doğru
+en/this-is-my-head-141dba.mp3;en;"This is my head!";body · izle
+en/say-head-06e95a.mp3;en;"Say: head";body · söyle
+en/pop-the-head-684233.mp3;en;"Pop the head!";body · balon
+en/touch-your-head-8e64dd.mp3;en;"Touch your head!";body · akıllı tahta
+en/eyes-744317.mp3;en;"eyes";body · kelime
+en/eyes-7d1ee7.mp3;en;"eyes.";body · izle
+en/eyes-068614.mp3;en;"eyes!";body · balon doğru
+en/these-are-my-eyes-4b018d.mp3;en;"These are my eyes!";body · izle
+en/say-eyes-42efb7.mp3;en;"Say: eyes";body · söyle
+en/pop-the-eyes-2657d4.mp3;en;"Pop the eyes!";body · balon
+en/touch-your-eyes-b70163.mp3;en;"Touch your eyes!";body · akıllı tahta
+en/ears-de96ac.mp3;en;"ears";body · kelime
+en/ears-9d92fa.mp3;en;"ears.";body · izle
+en/ears-12115c.mp3;en;"ears!";body · balon doğru
+en/these-are-my-ears-84dc90.mp3;en;"These are my ears!";body · izle
+en/say-ears-12fed8.mp3;en;"Say: ears";body · söyle
+en/pop-the-ears-987ded.mp3;en;"Pop the ears!";body · balon
+en/touch-your-ears-778a98.mp3;en;"Touch your ears!";body · akıllı tahta
+en/nose-0d6f3a.mp3;en;"nose";body · kelime
+en/nose-efc2ef.mp3;en;"nose.";body · izle
+en/nose-f69c7a.mp3;en;"nose!";body · balon doğru
+en/this-is-my-nose-71e3da.mp3;en;"This is my nose!";body · izle
+en/say-nose-b6b6d3.mp3;en;"Say: nose";body · söyle
+en/pop-the-nose-ff2f0d.mp3;en;"Pop the nose!";body · balon
+en/touch-your-nose-ff9cab.mp3;en;"Touch your nose!";body · akıllı tahta
+en/mouth-be9633.mp3;en;"mouth";body · kelime
+en/mouth-f8f2fa.mp3;en;"mouth.";body · izle
+en/mouth-9d70cf.mp3;en;"mouth!";body · balon doğru
+en/this-is-my-mouth-2fd346.mp3;en;"This is my mouth!";body · izle
+en/say-mouth-c324c1.mp3;en;"Say: mouth";body · söyle
+en/pop-the-mouth-36c8d4.mp3;en;"Pop the mouth!";body · balon
+en/touch-your-mouth-26cc54.mp3;en;"Touch your mouth!";body · akıllı tahta
+en/hands-d2f41a.mp3;en;"hands";body · kelime
+en/hands-7969dc.mp3;en;"hands.";body · izle
+en/hands-8f7b74.mp3;en;"hands!";body · balon doğru
+en/these-are-my-hands-c4e95d.mp3;en;"These are my hands!";body · izle
+en/say-hands-56645f.mp3;en;"Say: hands";body · söyle
+en/pop-the-hands-ae8d48.mp3;en;"Pop the hands!";body · balon
+en/touch-your-hands-aab328.mp3;en;"Touch your hands!";body · akıllı tahta
+en/hair-54b6cc.mp3;en;"hair";body · kelime
+en/hair-4e5e6d.mp3;en;"hair.";body · izle
+en/hair-0dc7ea.mp3;en;"hair!";body · balon doğru
+en/this-is-my-hair-02ea37.mp3;en;"This is my hair!";body · izle
+en/say-hair-4449fb.mp3;en;"Say: hair";body · söyle
+en/pop-the-hair-c40788.mp3;en;"Pop the hair!";body · balon
+en/touch-your-hair-362e52.mp3;en;"Touch your hair!";body · akıllı tahta
+en/feet-09eb13.mp3;en;"feet";body · kelime
+en/feet-9efafd.mp3;en;"feet.";body · izle
+en/feet-88cc5f.mp3;en;"feet!";body · balon doğru
+en/these-are-my-feet-6350f5.mp3;en;"These are my feet!";body · izle
+en/say-feet-757402.mp3;en;"Say: feet";body · söyle
+en/pop-the-feet-e4f4e6.mp3;en;"Pop the feet!";body · balon
+en/touch-your-feet-2cd454.mp3;en;"Touch your feet!";body · akıllı tahta
+en/arms-cb0fe0.mp3;en;"arms";body · kelime
+en/arms-d4c44a.mp3;en;"arms.";body · izle
+en/arms-0fcacf.mp3;en;"arms!";body · balon doğru
+en/these-are-my-arms-7a29f9.mp3;en;"These are my arms!";body · izle
+en/say-arms-b004ac.mp3;en;"Say: arms";body · söyle
+en/pop-the-arms-7a2028.mp3;en;"Pop the arms!";body · balon
+en/touch-your-arms-8803f9.mp3;en;"Touch your arms!";body · akıllı tahta
+en/legs-adc9d9.mp3;en;"legs";body · kelime
+en/legs-770351.mp3;en;"legs.";body · izle
+en/legs-90de41.mp3;en;"legs!";body · balon doğru
+en/these-are-my-legs-e3cc1e.mp3;en;"These are my legs!";body · izle
+en/say-legs-d2903c.mp3;en;"Say: legs";body · söyle
+en/pop-the-legs-885b71.mp3;en;"Pop the legs!";body · balon
+en/touch-your-legs-42f576.mp3;en;"Touch your legs!";body · akıllı tahta
+en/head-and-hands-clap-clap-clap-96f582.mp3;en;"Head and hands, clap, clap, clap!";body · şarkı
+en/clap-cc431e.mp3;en;"clap";body · şarkı kelimesi
+en/eyes-and-ears-look-and-listen-e01619.mp3;en;"Eyes and ears, look and listen!";body · şarkı
+en/listen-cd127d.mp3;en;"listen";body · şarkı kelimesi
+en/nose-and-mouth-smell-and-taste-71548c.mp3;en;"Nose and mouth, smell and taste!";body · şarkı
+en/smell-9abb49.mp3;en;"smell";body · şarkı kelimesi
+en/taste-1308f0.mp3;en;"taste";body · şarkı kelimesi
+en/feet-go-stamp-stamp-stamp-0bfc0c.mp3;en;"Feet go stamp, stamp, stamp!";body · şarkı
+en/go-68440f.mp3;en;"go";body · şarkı kelimesi
+en/stamp-f2c86e.mp3;en;"stamp";body · şarkı kelimesi
+en/arms-up-high-legs-jump-jump-ac698c.mp3;en;"Arms up high, legs jump, jump!";body · şarkı
+en/up-26f011.mp3;en;"up";body · şarkı kelimesi
+en/this-is-my-body-look-at-me-722624.mp3;en;"This is my body, look at me!";body · şarkı
+en/this-f3b440.mp3;en;"this";body · şarkı kelimesi
+en/body-d0387a.mp3;en;"body";body · şarkı kelimesi
+en/clap-your-hands-7c68db.mp3;en;"Clap your hands!";body · veli köşesi
+en/these-are-my-eyes-92ddf0.mp3;en;"These are my eyes.";body · veli köşesi
+en/super-you-know-your-body-c13147.mp3;en;"Super! You know your body!";body · Dokun!
+en/let-s-eat-yummy-food-6ee5d8.mp3;en;"Let's eat! Yummy food!";food · izle
+tr/yiyeceklere-dokun-ve-dinle-032334.mp3;tr;"Yiyeceklere dokun ve dinle.";food · dokun
+en/find-the-same-food-8a3b33.mp3;en;"Find the same food!";food · hafıza
+en/great-job-food-done-951863.mp3;en;"Great job! Food, done!";food · bitiş
+en/apple-b09fc3.mp3;en;"apple.";food · izle
+en/apple-30dc6b.mp3;en;"apple!";food · balon doğru
+en/yummy-an-apple-91fb19.mp3;en;"Yummy, an apple!";food · izle
+en/say-apple-db5583.mp3;en;"Say: apple";food · söyle
+en/pop-the-apple-7f7f99.mp3;en;"Pop the apple!";food · balon
+en/point-to-the-apple-26f222.mp3;en;"Point to the apple!";food · akıllı tahta
+en/banana-7bb8aa.mp3;en;"banana";food · kelime
+en/banana-e81149.mp3;en;"banana.";food · izle
+en/banana-3c1cc4.mp3;en;"banana!";food · balon doğru
+en/yummy-a-banana-679175.mp3;en;"Yummy, a banana!";food · izle
+en/say-banana-c6ad2e.mp3;en;"Say: banana";food · söyle
+en/pop-the-banana-cf64f6.mp3;en;"Pop the banana!";food · balon
+en/point-to-the-banana-4870d0.mp3;en;"Point to the banana!";food · akıllı tahta
+en/bread-0bee2f.mp3;en;"bread";food · kelime
+en/bread-b3d9e8.mp3;en;"bread.";food · izle
+en/bread-a7195f.mp3;en;"bread!";food · balon doğru
+en/yummy-bread-8603ea.mp3;en;"Yummy, bread!";food · izle
+en/say-bread-569b33.mp3;en;"Say: bread";food · söyle
+en/pop-the-bread-55b5b2.mp3;en;"Pop the bread!";food · balon
+en/point-to-the-bread-e0b9cf.mp3;en;"Point to the bread!";food · akıllı tahta
+en/milk-bbf977.mp3;en;"milk";food · kelime
+en/milk-fa1a8e.mp3;en;"milk.";food · izle
+en/milk-a8c8dd.mp3;en;"milk!";food · balon doğru
+en/yummy-milk-a212eb.mp3;en;"Yummy, milk!";food · izle
+en/say-milk-910bd1.mp3;en;"Say: milk";food · söyle
+en/pop-the-milk-21ac24.mp3;en;"Pop the milk!";food · balon
+en/point-to-the-milk-97ebd6.mp3;en;"Point to the milk!";food · akıllı tahta
+en/egg-153fee.mp3;en;"egg";food · kelime
+en/egg-5d2067.mp3;en;"egg.";food · izle
+en/egg-6655fd.mp3;en;"egg!";food · balon doğru
+en/yummy-an-egg-2876e6.mp3;en;"Yummy, an egg!";food · izle
+en/say-egg-5bd422.mp3;en;"Say: egg";food · söyle
+en/pop-the-egg-fc8dc7.mp3;en;"Pop the egg!";food · balon
+en/point-to-the-egg-3ca1c3.mp3;en;"Point to the egg!";food · akıllı tahta
+en/cake-b38b3b.mp3;en;"cake";food · kelime
+en/cake-cb88ff.mp3;en;"cake.";food · izle
+en/cake-fe7235.mp3;en;"cake!";food · balon doğru
+en/yummy-a-cake-2c0022.mp3;en;"Yummy, a cake!";food · izle
+en/say-cake-ffb504.mp3;en;"Say: cake";food · söyle
+en/pop-the-cake-efb663.mp3;en;"Pop the cake!";food · balon
+en/point-to-the-cake-b157a1.mp3;en;"Point to the cake!";food · akıllı tahta
+en/cheese-024e8d.mp3;en;"cheese";food · kelime
+en/cheese-50b1b4.mp3;en;"cheese.";food · izle
+en/cheese-d6e1d8.mp3;en;"cheese!";food · balon doğru
+en/yummy-cheese-b61837.mp3;en;"Yummy, cheese!";food · izle
+en/say-cheese-4fb15b.mp3;en;"Say: cheese";food · söyle
+en/pop-the-cheese-25ff7e.mp3;en;"Pop the cheese!";food · balon
+en/point-to-the-cheese-5c0205.mp3;en;"Point to the cheese!";food · akıllı tahta
+en/carrot-5c0d75.mp3;en;"carrot";food · kelime
+en/carrot-0b3ef8.mp3;en;"carrot.";food · izle
+en/carrot-0e6a6b.mp3;en;"carrot!";food · balon doğru
+en/yummy-a-carrot-cdbc19.mp3;en;"Yummy, a carrot!";food · izle
+en/say-carrot-b940e3.mp3;en;"Say: carrot";food · söyle
+en/pop-the-carrot-73a28d.mp3;en;"Pop the carrot!";food · balon
+en/point-to-the-carrot-4b4ea1.mp3;en;"Point to the carrot!";food · akıllı tahta
+en/strawberry-db3fd0.mp3;en;"strawberry";food · kelime
+en/strawberry-6252d9.mp3;en;"strawberry.";food · izle
+en/strawberry-059e27.mp3;en;"strawberry!";food · balon doğru
+en/yummy-a-strawberry-612aee.mp3;en;"Yummy, a strawberry!";food · izle
+en/say-strawberry-c55590.mp3;en;"Say: strawberry";food · söyle
+en/pop-the-strawberry-e97276.mp3;en;"Pop the strawberry!";food · balon
+en/point-to-the-strawberry-31cf9d.mp3;en;"Point to the strawberry!";food · akıllı tahta
+en/juice-947c8f.mp3;en;"juice";food · kelime
+en/juice-0c7ca2.mp3;en;"juice.";food · izle
+en/juice-2c80f2.mp3;en;"juice!";food · balon doğru
+en/yummy-juice-328ba4.mp3;en;"Yummy, juice!";food · izle
+en/say-juice-8df404.mp3;en;"Say: juice";food · söyle
+en/pop-the-juice-931acd.mp3;en;"Pop the juice!";food · balon
+en/point-to-the-juice-82bc88.mp3;en;"Point to the juice!";food · akıllı tahta
+en/apples-apples-crunch-crunch-crunch-113193.mp3;en;"Apples, apples, crunch, crunch, crunch!";food · şarkı
+en/apples-787f21.mp3;en;"apples";food · şarkı kelimesi
+en/crunch-9597e0.mp3;en;"crunch";food · şarkı kelimesi
+en/bananas-are-yellow-yum-yum-yum-fc1208.mp3;en;"Bananas are yellow, yum, yum, yum!";food · şarkı
+en/bananas-922566.mp3;en;"bananas";food · şarkı kelimesi
+en/are-0bd4d9.mp3;en;"are";food · şarkı kelimesi
+en/yum-879ce3.mp3;en;"yum";food · şarkı kelimesi
+en/milk-and-bread-for-breakfast-time-ff7691.mp3;en;"Milk and bread for breakfast time!";food · şarkı
+en/breakfast-f16983.mp3;en;"breakfast";food · şarkı kelimesi
+en/time-8dc0b7.mp3;en;"time";food · şarkı kelimesi
+en/cake-for-a-party-one-two-three-9886c6.mp3;en;"Cake for a party, one, two, three!";food · şarkı
+en/party-eeb48b.mp3;en;"party";food · şarkı kelimesi
+en/carrots-are-orange-good-for-me-b9a1e2.mp3;en;"Carrots are orange, good for me!";food · şarkı
+en/carrots-6726ee.mp3;en;"carrots";food · şarkı kelimesi
+en/good-74ae5a.mp3;en;"good";food · şarkı kelimesi
+en/i-like-food-food-yummy-food-d9688e.mp3;en;"I like food, food, yummy food!";food · şarkı
+en/food-5083ac.mp3;en;"food";food · şarkı kelimesi
+en/yummy-c293a6.mp3;en;"yummy";food · şarkı kelimesi
+en/i-like-apples-93e484.mp3;en;"I like apples.";food · veli köşesi
+en/i-m-hungry-426b8c.mp3;en;"I'm hungry!";food · veli köşesi
+en/yummy-3e2c64.mp3;en;"Yummy!";food · veli köşesi
+en/i-like-apples-put-them-in-the-basket-0ea354.mp3;en;"I like apples! Put them in the basket.";food · Piknik
+en/i-like-bananas-put-them-in-the-basket-d40f25.mp3;en;"I like bananas! Put them in the basket.";food · Piknik
+en/i-like-bread-put-it-in-the-basket-c545d8.mp3;en;"I like bread! Put it in the basket.";food · Piknik
+en/i-like-milk-put-it-in-the-basket-a68dbd.mp3;en;"I like milk! Put it in the basket.";food · Piknik
+en/i-like-eggs-put-them-in-the-basket-f10eaf.mp3;en;"I like eggs! Put them in the basket.";food · Piknik
+en/i-like-cake-put-it-in-the-basket-c6aa5d.mp3;en;"I like cake! Put it in the basket.";food · Piknik
+en/i-like-cheese-put-it-in-the-basket-52b25c.mp3;en;"I like cheese! Put it in the basket.";food · Piknik
+en/i-like-carrots-put-them-in-the-basket-ce5d27.mp3;en;"I like carrots! Put them in the basket.";food · Piknik
+en/i-like-strawberries-put-them-in-the-bask-ee4583.mp3;en;"I like strawberries! Put them in the basket.";food · Piknik
+en/i-like-juice-put-it-in-the-basket-355280.mp3;en;"I like juice! Put it in the basket.";food · Piknik
+en/let-s-have-a-picnic-097e2e.mp3;en;"Let's have a picnic!";food · Piknik
+en/let-s-play-with-toys-20376d.mp3;en;"Let's play with toys!";toys · izle
+tr/oyuncaklara-dokun-ve-dinle-daac88.mp3;tr;"Oyuncaklara dokun ve dinle.";toys · dokun
+en/find-the-same-toys-2e3c3b.mp3;en;"Find the same toys!";toys · hafıza
+en/great-job-toys-done-16515d.mp3;en;"Great job! Toys, done!";toys · bitiş
+en/ball-b27980.mp3;en;"ball";toys · kelime
+en/ball-e2720e.mp3;en;"ball.";toys · izle
+en/ball-dff333.mp3;en;"ball!";toys · balon doğru
+en/look-a-ball-32d214.mp3;en;"Look, a ball!";toys · izle
+en/say-ball-685463.mp3;en;"Say: ball";toys · söyle
+en/pop-the-ball-a3041b.mp3;en;"Pop the ball!";toys · balon
+en/point-to-the-ball-c0a62c.mp3;en;"Point to the ball!";toys · akıllı tahta
+en/car-0726d6.mp3;en;"car";toys · kelime
+en/car-a8d9cd.mp3;en;"car.";toys · izle
+en/car-6d0478.mp3;en;"car!";toys · balon doğru
+en/look-a-car-930efe.mp3;en;"Look, a car!";toys · izle
+en/say-car-5e39b5.mp3;en;"Say: car";toys · söyle
+en/pop-the-car-bd8aaa.mp3;en;"Pop the car!";toys · balon
+en/point-to-the-car-90ce0d.mp3;en;"Point to the car!";toys · akıllı tahta
+en/teddy-0ba8bc.mp3;en;"teddy";toys · kelime
+en/teddy-17230b.mp3;en;"teddy.";toys · izle
+en/teddy-f0d6a0.mp3;en;"teddy!";toys · balon doğru
+en/look-a-teddy-182d0c.mp3;en;"Look, a teddy!";toys · izle
+en/say-teddy-ccc3bc.mp3;en;"Say: teddy";toys · söyle
+en/pop-the-teddy-6c6d78.mp3;en;"Pop the teddy!";toys · balon
+en/point-to-the-teddy-df4f40.mp3;en;"Point to the teddy!";toys · akıllı tahta
+en/doll-ea66a6.mp3;en;"doll";toys · kelime
+en/doll-feb902.mp3;en;"doll.";toys · izle
+en/doll-68854b.mp3;en;"doll!";toys · balon doğru
+en/look-a-doll-6291d9.mp3;en;"Look, a doll!";toys · izle
+en/say-doll-94aacf.mp3;en;"Say: doll";toys · söyle
+en/pop-the-doll-a3eb8e.mp3;en;"Pop the doll!";toys · balon
+en/point-to-the-doll-6e7b66.mp3;en;"Point to the doll!";toys · akıllı tahta
+en/kite-1656dd.mp3;en;"kite";toys · kelime
+en/kite-4ca173.mp3;en;"kite.";toys · izle
+en/kite-76944f.mp3;en;"kite!";toys · balon doğru
+en/look-a-kite-2818d7.mp3;en;"Look, a kite!";toys · izle
+en/say-kite-917d10.mp3;en;"Say: kite";toys · söyle
+en/pop-the-kite-6b153a.mp3;en;"Pop the kite!";toys · balon
+en/point-to-the-kite-34bc97.mp3;en;"Point to the kite!";toys · akıllı tahta
+en/blocks-101d7f.mp3;en;"blocks";toys · kelime
+en/blocks-e4d2a3.mp3;en;"blocks.";toys · izle
+en/blocks-b12145.mp3;en;"blocks!";toys · balon doğru
+en/look-blocks-4a15d8.mp3;en;"Look, blocks!";toys · izle
+en/say-blocks-35c91a.mp3;en;"Say: blocks";toys · söyle
+en/pop-the-blocks-798fec.mp3;en;"Pop the blocks!";toys · balon
+en/point-to-the-blocks-9d015e.mp3;en;"Point to the blocks!";toys · akıllı tahta
+en/train-dd4269.mp3;en;"train";toys · kelime
+en/train-5b487e.mp3;en;"train.";toys · izle
+en/train-9a9b07.mp3;en;"train!";toys · balon doğru
+en/look-a-train-00ed5b.mp3;en;"Look, a train!";toys · izle
+en/say-train-047afc.mp3;en;"Say: train";toys · söyle
+en/pop-the-train-0d7ac9.mp3;en;"Pop the train!";toys · balon
+en/point-to-the-train-76f3b1.mp3;en;"Point to the train!";toys · akıllı tahta
+en/robot-34b13c.mp3;en;"robot";toys · kelime
+en/robot-e0e4d6.mp3;en;"robot.";toys · izle
+en/robot-626c80.mp3;en;"robot!";toys · balon doğru
+en/look-a-robot-d7f0a4.mp3;en;"Look, a robot!";toys · izle
+en/say-robot-a3a690.mp3;en;"Say: robot";toys · söyle
+en/pop-the-robot-3caaaf.mp3;en;"Pop the robot!";toys · balon
+en/point-to-the-robot-3d3ddf.mp3;en;"Point to the robot!";toys · akıllı tahta
+en/drum-267942.mp3;en;"drum";toys · kelime
+en/drum-164c96.mp3;en;"drum.";toys · izle
+en/drum-ff6996.mp3;en;"drum!";toys · balon doğru
+en/look-a-drum-9c51d6.mp3;en;"Look, a drum!";toys · izle
+en/say-drum-6d3d46.mp3;en;"Say: drum";toys · söyle
+en/pop-the-drum-b51dd4.mp3;en;"Pop the drum!";toys · balon
+en/point-to-the-drum-3df8a5.mp3;en;"Point to the drum!";toys · akıllı tahta
+en/balloon-c573e8.mp3;en;"balloon";toys · kelime
+en/balloon-ada5e1.mp3;en;"balloon.";toys · izle
+en/balloon-1e383b.mp3;en;"balloon!";toys · balon doğru
+en/look-a-balloon-ba711b.mp3;en;"Look, a balloon!";toys · izle
+en/say-balloon-b384f9.mp3;en;"Say: balloon";toys · söyle
+en/pop-the-balloon-6f8a1f.mp3;en;"Pop the balloon!";toys · balon
+en/point-to-the-balloon-d0d842.mp3;en;"Point to the balloon!";toys · akıllı tahta
+en/bounce-the-ball-bounce-bounce-bounce-4ba51c.mp3;en;"Bounce the ball, bounce, bounce, bounce!";toys · şarkı
+en/bounce-6b5c69.mp3;en;"bounce";toys · şarkı kelimesi
+en/drive-the-car-beep-beep-beep-2b9b53.mp3;en;"Drive the car, beep, beep, beep!";toys · şarkı
+en/drive-4f2855.mp3;en;"drive";toys · şarkı kelimesi
+en/beep-49543d.mp3;en;"beep";toys · şarkı kelimesi
+en/hug-my-teddy-nice-and-tight-12eef8.mp3;en;"Hug my teddy, nice and tight!";toys · şarkı
+en/nice-ca01d3.mp3;en;"nice";toys · şarkı kelimesi
+en/tight-0c6e1d.mp3;en;"tight";toys · şarkı kelimesi
+en/fly-my-kite-up-in-the-sky-b7d756.mp3;en;"Fly my kite up in the sky!";toys · şarkı
+en/fly-39e12d.mp3;en;"fly";toys · şarkı kelimesi
+en/in-a86b0d.mp3;en;"in";toys · şarkı kelimesi
+en/the-train-goes-choo-choo-choo-37c319.mp3;en;"The train goes choo, choo, choo!";toys · şarkı
+en/goes-933609.mp3;en;"goes";toys · şarkı kelimesi
+en/choo-14985c.mp3;en;"choo";toys · şarkı kelimesi
+en/toys-toys-let-s-play-with-toys-bd4b14.mp3;en;"Toys, toys, let's play with toys!";toys · şarkı
+en/toys-61db92.mp3;en;"toys";toys · şarkı kelimesi
+en/let-s-play-d57cf9.mp3;en;"Let's play!";toys · veli köşesi
+en/where-is-the-ball-d18317.mp3;en;"Where is the ball?";toys · veli köşesi
+en/tidy-up-please-7e122b.mp3;en;"Tidy up, please.";toys · veli köşesi
+en/put-the-ball-in-the-box-c9e41e.mp3;en;"Put the ball in the box!";toys · Topla
+en/the-ball-is-in-the-box-d8bf68.mp3;en;"The ball is in the box!";toys · Topla
+en/put-the-car-in-the-box-5f72d9.mp3;en;"Put the car in the box!";toys · Topla
+en/the-car-is-in-the-box-157a14.mp3;en;"The car is in the box!";toys · Topla
+en/put-the-teddy-in-the-box-df3766.mp3;en;"Put the teddy in the box!";toys · Topla
+en/the-teddy-is-in-the-box-72dc15.mp3;en;"The teddy is in the box!";toys · Topla
+en/put-the-doll-in-the-box-22b91d.mp3;en;"Put the doll in the box!";toys · Topla
+en/the-doll-is-in-the-box-50bbea.mp3;en;"The doll is in the box!";toys · Topla
+en/put-the-kite-in-the-box-5f1060.mp3;en;"Put the kite in the box!";toys · Topla
+en/the-kite-is-in-the-box-69896c.mp3;en;"The kite is in the box!";toys · Topla
+en/put-the-blocks-in-the-box-d46f25.mp3;en;"Put the blocks in the box!";toys · Topla
+en/the-blocks-are-in-the-box-4074bf.mp3;en;"The blocks are in the box!";toys · Topla
+en/put-the-train-in-the-box-40f9f8.mp3;en;"Put the train in the box!";toys · Topla
+en/the-train-is-in-the-box-e3c2f3.mp3;en;"The train is in the box!";toys · Topla
+en/put-the-robot-in-the-box-6ae373.mp3;en;"Put the robot in the box!";toys · Topla
+en/the-robot-is-in-the-box-b7ab35.mp3;en;"The robot is in the box!";toys · Topla
+en/put-the-drum-in-the-box-43b93a.mp3;en;"Put the drum in the box!";toys · Topla
+en/the-drum-is-in-the-box-5f34ad.mp3;en;"The drum is in the box!";toys · Topla
+en/put-the-balloon-in-the-box-0f0c1b.mp3;en;"Put the balloon in the box!";toys · Topla
+en/the-balloon-is-in-the-box-b20591.mp3;en;"The balloon is in the box!";toys · Topla
+en/all-tidy-well-done-21509b.mp3;en;"All tidy! Well done!";toys · Topla
+en/let-s-get-dressed-fd8227.mp3;en;"Let's get dressed!";clothes · izle
+tr/kiyafetlere-dokun-ve-dinle-0067cb.mp3;tr;"Kıyafetlere dokun ve dinle.";clothes · dokun
+en/find-the-same-clothes-ae0f24.mp3;en;"Find the same clothes!";clothes · hafıza
+en/great-job-clothes-done-95d8c7.mp3;en;"Great job! Clothes, done!";clothes · bitiş
+en/hat-656e70.mp3;en;"hat";clothes · kelime
+en/hat-fbdc8b.mp3;en;"hat.";clothes · izle
+en/hat-96597e.mp3;en;"hat!";clothes · balon doğru
+en/put-on-your-hat-c24255.mp3;en;"Put on your hat!";clothes · izle
+en/say-hat-a351d0.mp3;en;"Say: hat";clothes · söyle
+en/pop-the-hat-180a9e.mp3;en;"Pop the hat!";clothes · balon
+en/point-to-the-hat-a6097a.mp3;en;"Point to the hat!";clothes · akıllı tahta
+en/t-shirt-fbbacd.mp3;en;"T-shirt";clothes · kelime
+en/t-shirt-8ba3cd.mp3;en;"T-shirt.";clothes · izle
+en/t-shirt-16b6cf.mp3;en;"T-shirt!";clothes · balon doğru
+en/put-on-your-t-shirt-647ba8.mp3;en;"Put on your t-shirt!";clothes · izle
+en/say-t-shirt-215fe3.mp3;en;"Say: T-shirt";clothes · söyle
+en/pop-the-t-shirt-22489c.mp3;en;"Pop the t-shirt!";clothes · balon
+en/point-to-the-t-shirt-b9c7f7.mp3;en;"Point to the t-shirt!";clothes · akıllı tahta
+en/dress-6bd9e9.mp3;en;"dress";clothes · kelime
+en/dress-1c5335.mp3;en;"dress.";clothes · izle
+en/dress-04f8ab.mp3;en;"dress!";clothes · balon doğru
+en/put-on-your-dress-7ccdb7.mp3;en;"Put on your dress!";clothes · izle
+en/say-dress-783ccc.mp3;en;"Say: dress";clothes · söyle
+en/pop-the-dress-a79b54.mp3;en;"Pop the dress!";clothes · balon
+en/point-to-the-dress-dc6bc6.mp3;en;"Point to the dress!";clothes · akıllı tahta
+en/shoes-46be30.mp3;en;"shoes";clothes · kelime
+en/shoes-6b811c.mp3;en;"shoes.";clothes · izle
+en/shoes-f09e65.mp3;en;"shoes!";clothes · balon doğru
+en/put-on-your-shoes-c9f8bf.mp3;en;"Put on your shoes!";clothes · izle
+en/say-shoes-8b2c3d.mp3;en;"Say: shoes";clothes · söyle
+en/pop-the-shoes-875ea5.mp3;en;"Pop the shoes!";clothes · balon
+en/point-to-the-shoes-8830da.mp3;en;"Point to the shoes!";clothes · akıllı tahta
+en/socks-98497d.mp3;en;"socks";clothes · kelime
+en/socks-931186.mp3;en;"socks.";clothes · izle
+en/socks-c9864b.mp3;en;"socks!";clothes · balon doğru
+en/put-on-your-socks-0cd84b.mp3;en;"Put on your socks!";clothes · izle
+en/say-socks-1dd212.mp3;en;"Say: socks";clothes · söyle
+en/pop-the-socks-0a3ba3.mp3;en;"Pop the socks!";clothes · balon
+en/point-to-the-socks-cf65c3.mp3;en;"Point to the socks!";clothes · akıllı tahta
+en/coat-f128d2.mp3;en;"coat";clothes · kelime
+en/coat-96ff7d.mp3;en;"coat.";clothes · izle
+en/coat-8e570a.mp3;en;"coat!";clothes · balon doğru
+en/put-on-your-coat-03e3b9.mp3;en;"Put on your coat!";clothes · izle
+en/say-coat-c784ae.mp3;en;"Say: coat";clothes · söyle
+en/pop-the-coat-f723ea.mp3;en;"Pop the coat!";clothes · balon
+en/point-to-the-coat-e7a59e.mp3;en;"Point to the coat!";clothes · akıllı tahta
+en/scarf-e54486.mp3;en;"scarf";clothes · kelime
+en/scarf-df6d3c.mp3;en;"scarf.";clothes · izle
+en/scarf-a00b27.mp3;en;"scarf!";clothes · balon doğru
+en/put-on-your-scarf-d3de1b.mp3;en;"Put on your scarf!";clothes · izle
+en/say-scarf-de00a4.mp3;en;"Say: scarf";clothes · söyle
+en/pop-the-scarf-b9a733.mp3;en;"Pop the scarf!";clothes · balon
+en/point-to-the-scarf-4da369.mp3;en;"Point to the scarf!";clothes · akıllı tahta
+en/gloves-00eb72.mp3;en;"gloves";clothes · kelime
+en/gloves-012981.mp3;en;"gloves.";clothes · izle
+en/gloves-9d04bc.mp3;en;"gloves!";clothes · balon doğru
+en/put-on-your-gloves-df11df.mp3;en;"Put on your gloves!";clothes · izle
+en/say-gloves-c5ddb9.mp3;en;"Say: gloves";clothes · söyle
+en/pop-the-gloves-d839ee.mp3;en;"Pop the gloves!";clothes · balon
+en/point-to-the-gloves-213dcb.mp3;en;"Point to the gloves!";clothes · akıllı tahta
+en/trousers-ebf27b.mp3;en;"trousers";clothes · kelime
+en/trousers-48ff1b.mp3;en;"trousers.";clothes · izle
+en/trousers-1a3ae1.mp3;en;"trousers!";clothes · balon doğru
+en/put-on-your-trousers-7b0187.mp3;en;"Put on your trousers!";clothes · izle
+en/say-trousers-7475ce.mp3;en;"Say: trousers";clothes · söyle
+en/pop-the-trousers-d1d1e6.mp3;en;"Pop the trousers!";clothes · balon
+en/point-to-the-trousers-2d32b2.mp3;en;"Point to the trousers!";clothes · akıllı tahta
+en/boots-89a208.mp3;en;"boots";clothes · kelime
+en/boots-e6bc8e.mp3;en;"boots.";clothes · izle
+en/boots-9a347f.mp3;en;"boots!";clothes · balon doğru
+en/put-on-your-boots-d132e0.mp3;en;"Put on your boots!";clothes · izle
+en/say-boots-9b88d8.mp3;en;"Say: boots";clothes · söyle
+en/pop-the-boots-24db72.mp3;en;"Pop the boots!";clothes · balon
+en/point-to-the-boots-41a161.mp3;en;"Point to the boots!";clothes · akıllı tahta
+en/put-on-your-hat-it-s-sunny-today-0e7778.mp3;en;"Put on your hat, it's sunny today!";clothes · şarkı
+en/put-84af56.mp3;en;"put";clothes · şarkı kelimesi
+en/your-58bcfb.mp3;en;"your";clothes · şarkı kelimesi
+en/it-s-f8b8ed.mp3;en;"it's";clothes · şarkı kelimesi
+en/sunny-b66982.mp3;en;"sunny";clothes · şarkı kelimesi
+en/today-53c0d0.mp3;en;"today";clothes · şarkı kelimesi
+en/put-on-your-coat-it-s-cold-today-ad3f26.mp3;en;"Put on your coat, it's cold today!";clothes · şarkı
+en/cold-d8713b.mp3;en;"cold";clothes · şarkı kelimesi
+en/shoes-and-socks-let-s-go-and-play-94f88b.mp3;en;"Shoes and socks, let's go and play!";clothes · şarkı
+en/scarf-and-gloves-the-snow-is-here-f34223.mp3;en;"Scarf and gloves, the snow is here!";clothes · şarkı
+en/snow-5e68ad.mp3;en;"snow";clothes · şarkı kelimesi
+en/here-0b8379.mp3;en;"here";clothes · şarkı kelimesi
+en/boots-in-the-rain-splash-splash-splash-d79948.mp3;en;"Boots in the rain, splash, splash, splash!";clothes · şarkı
+en/rain-100bee.mp3;en;"rain";clothes · şarkı kelimesi
+en/splash-e7c742.mp3;en;"splash";clothes · şarkı kelimesi
+en/clothes-clothes-i-can-dress-myself-bfdb7d.mp3;en;"Clothes, clothes, I can dress myself!";clothes · şarkı
+en/clothes-b43ae4.mp3;en;"clothes";clothes · şarkı kelimesi
+en/can-09d05e.mp3;en;"can";clothes · şarkı kelimesi
+en/myself-1b266a.mp3;en;"myself";clothes · şarkı kelimesi
+en/put-on-your-shoes-95a101.mp3;en;"Put on your shoes.";clothes · veli köşesi
+en/it-s-cold-put-on-your-coat-61433a.mp3;en;"It's cold! Put on your coat.";clothes · veli köşesi
+en/i-like-my-hat-2dbf8c.mp3;en;"I like my hat.";clothes · veli köşesi
+en/it-s-sunny-put-on-your-hat-0cfe0a.mp3;en;"It's sunny! Put on your hat.";clothes · Giydir
+en/it-s-hot-put-on-your-t-shirt-e8b8b0.mp3;en;"It's hot! Put on your t-shirt.";clothes · Giydir
+en/it-s-a-party-put-on-your-dress-4b800e.mp3;en;"It's a party! Put on your dress.";clothes · Giydir
+en/let-s-go-out-put-on-your-shoes-020f59.mp3;en;"Let's go out! Put on your shoes.";clothes · Giydir
+en/your-feet-are-cold-put-on-your-socks-68bad3.mp3;en;"Your feet are cold! Put on your socks.";clothes · Giydir
+en/it-s-windy-put-on-your-scarf-dfa6b0.mp3;en;"It's windy! Put on your scarf.";clothes · Giydir
+en/it-s-snowy-put-on-your-gloves-8a2d2a.mp3;en;"It's snowy! Put on your gloves.";clothes · Giydir
+en/let-s-go-to-school-put-on-your-trousers-253073.mp3;en;"Let's go to school! Put on your trousers.";clothes · Giydir
+en/it-s-rainy-put-on-your-boots-3f002e.mp3;en;"It's rainy! Put on your boots.";clothes · Giydir
+en/you-look-great-61aea0.mp3;en;"You look great!";clothes · Giydir
+en/welcome-to-my-home-975144.mp3;en;"Welcome to my home!";home · izle
+tr/evdeki-esyalara-dokun-ve-dinle-162ca7.mp3;tr;"Evdeki eşyalara dokun ve dinle.";home · dokun
+en/find-the-same-things-9f48a8.mp3;en;"Find the same things!";home · hafıza
+en/great-job-my-home-done-f422d0.mp3;en;"Great job! My home, done!";home · bitiş
+en/bed-721fa8.mp3;en;"bed";home · kelime
+en/bed-e1e61b.mp3;en;"bed.";home · izle
+en/bed-8cc8b2.mp3;en;"bed!";home · balon doğru
+en/this-is-my-bed-033ede.mp3;en;"This is my bed!";home · izle
+en/say-bed-d0c1bf.mp3;en;"Say: bed";home · söyle
+en/pop-the-bed-8c67bb.mp3;en;"Pop the bed!";home · balon
+en/point-to-the-bed-2929b6.mp3;en;"Point to the bed!";home · akıllı tahta
+en/sofa-359e9c.mp3;en;"sofa";home · kelime
+en/sofa-b287ca.mp3;en;"sofa.";home · izle
+en/sofa-baf225.mp3;en;"sofa!";home · balon doğru
+en/this-is-my-sofa-1d4acf.mp3;en;"This is my sofa!";home · izle
+en/say-sofa-e241e1.mp3;en;"Say: sofa";home · söyle
+en/pop-the-sofa-649b1b.mp3;en;"Pop the sofa!";home · balon
+en/point-to-the-sofa-03f53a.mp3;en;"Point to the sofa!";home · akıllı tahta
+en/table-3299ea.mp3;en;"table";home · kelime
+en/table-252c8c.mp3;en;"table.";home · izle
+en/table-8c8e46.mp3;en;"table!";home · balon doğru
+en/this-is-my-table-51cfbd.mp3;en;"This is my table!";home · izle
+en/say-table-ce464b.mp3;en;"Say: table";home · söyle
+en/pop-the-table-731e26.mp3;en;"Pop the table!";home · balon
+en/point-to-the-table-16255d.mp3;en;"Point to the table!";home · akıllı tahta
+en/chair-717816.mp3;en;"chair";home · kelime
+en/chair-f0ef12.mp3;en;"chair.";home · izle
+en/chair-b0f9e2.mp3;en;"chair!";home · balon doğru
+en/this-is-my-chair-c5a529.mp3;en;"This is my chair!";home · izle
+en/say-chair-253fac.mp3;en;"Say: chair";home · söyle
+en/pop-the-chair-b1e805.mp3;en;"Pop the chair!";home · balon
+en/point-to-the-chair-293030.mp3;en;"Point to the chair!";home · akıllı tahta
+en/bath-f948da.mp3;en;"bath";home · kelime
+en/bath-0f6ea5.mp3;en;"bath.";home · izle
+en/bath-0112b6.mp3;en;"bath!";home · balon doğru
+en/this-is-my-bath-bb16f5.mp3;en;"This is my bath!";home · izle
+en/say-bath-c66ec6.mp3;en;"Say: bath";home · söyle
+en/pop-the-bath-fec40b.mp3;en;"Pop the bath!";home · balon
+en/point-to-the-bath-b2a287.mp3;en;"Point to the bath!";home · akıllı tahta
+en/lamp-63e61a.mp3;en;"lamp";home · kelime
+en/lamp-122d7e.mp3;en;"lamp.";home · izle
+en/lamp-7560c2.mp3;en;"lamp!";home · balon doğru
+en/this-is-my-lamp-c98965.mp3;en;"This is my lamp!";home · izle
+en/say-lamp-da3ec2.mp3;en;"Say: lamp";home · söyle
+en/pop-the-lamp-e47568.mp3;en;"Pop the lamp!";home · balon
+en/point-to-the-lamp-7eaa50.mp3;en;"Point to the lamp!";home · akıllı tahta
+en/fridge-00cbdf.mp3;en;"fridge";home · kelime
+en/fridge-dcf2c5.mp3;en;"fridge.";home · izle
+en/fridge-061002.mp3;en;"fridge!";home · balon doğru
+en/this-is-my-fridge-37ea61.mp3;en;"This is my fridge!";home · izle
+en/say-fridge-706276.mp3;en;"Say: fridge";home · söyle
+en/pop-the-fridge-8cea04.mp3;en;"Pop the fridge!";home · balon
+en/point-to-the-fridge-dbab66.mp3;en;"Point to the fridge!";home · akıllı tahta
+en/door-6601b8.mp3;en;"door";home · kelime
+en/door-b7de0f.mp3;en;"door.";home · izle
+en/door-7daa0a.mp3;en;"door!";home · balon doğru
+en/this-is-my-door-0ab73c.mp3;en;"This is my door!";home · izle
+en/say-door-2bd0d5.mp3;en;"Say: door";home · söyle
+en/pop-the-door-129ee5.mp3;en;"Pop the door!";home · balon
+en/point-to-the-door-33b77c.mp3;en;"Point to the door!";home · akıllı tahta
+en/window-1dc5bd.mp3;en;"window";home · kelime
+en/window-c96c5e.mp3;en;"window.";home · izle
+en/window-a39449.mp3;en;"window!";home · balon doğru
+en/this-is-my-window-98aeb0.mp3;en;"This is my window!";home · izle
+en/say-window-9323e7.mp3;en;"Say: window";home · söyle
+en/pop-the-window-c4733b.mp3;en;"Pop the window!";home · balon
+en/point-to-the-window-da80bf.mp3;en;"Point to the window!";home · akıllı tahta
+en/clock-42b1d4.mp3;en;"clock";home · kelime
+en/clock-57f3c9.mp3;en;"clock.";home · izle
+en/clock-f9c829.mp3;en;"clock!";home · balon doğru
+en/this-is-my-clock-eec4ac.mp3;en;"This is my clock!";home · izle
+en/say-clock-d425a7.mp3;en;"Say: clock";home · söyle
+en/pop-the-clock-0d0625.mp3;en;"Pop the clock!";home · balon
+en/point-to-the-clock-376215.mp3;en;"Point to the clock!";home · akıllı tahta
+en/this-is-my-bed-good-night-sleep-tight-0fd4bc.mp3;en;"This is my bed, good night, sleep tight!";home · şarkı
+en/night-279395.mp3;en;"night";home · şarkı kelimesi
+en/sleep-e7d39b.mp3;en;"sleep";home · şarkı kelimesi
+en/sit-on-the-sofa-one-two-three-25ccf2.mp3;en;"Sit on the sofa, one, two, three!";home · şarkı
+en/sit-ed0388.mp3;en;"sit";home · şarkı kelimesi
+en/table-and-chair-it-s-time-to-eat-101a70.mp3;en;"Table and chair, it's time to eat!";home · şarkı
+en/eat-428dfd.mp3;en;"eat";home · şarkı kelimesi
+en/splash-in-the-bath-splash-splash-splash-4f8e83.mp3;en;"Splash in the bath, splash, splash, splash!";home · şarkı
+en/open-the-door-knock-knock-knock-69f20d.mp3;en;"Open the door, knock, knock, knock!";home · şarkı
+en/open-55c06b.mp3;en;"open";home · şarkı kelimesi
+en/knock-389fd1.mp3;en;"knock";home · şarkı kelimesi
+en/home-home-i-love-my-home-3cc6a8.mp3;en;"Home, home, I love my home!";home · şarkı
+en/home-2dd9e0.mp3;en;"home";home · şarkı kelimesi
+en/where-is-the-lamp-db1dd7.mp3;en;"Where is the lamp?";home · veli köşesi
+en/open-the-door-please-78b50f.mp3;en;"Open the door, please.";home · veli köşesi
+en/this-is-my-bed-ad4c6f.mp3;en;"This is my bed.";home · veli köşesi
+en/where-does-the-bed-go-638941.mp3;en;"Where does the bed go?";home · Odalar
+en/the-bed-goes-in-the-bedroom-ca55ec.mp3;en;"The bed goes in the bedroom!";home · Odalar
+en/where-does-the-sofa-go-06b2b8.mp3;en;"Where does the sofa go?";home · Odalar
+en/the-sofa-goes-in-the-living-room-0cb0d6.mp3;en;"The sofa goes in the living room!";home · Odalar
+en/where-does-the-table-go-0d139e.mp3;en;"Where does the table go?";home · Odalar
+en/the-table-goes-in-the-kitchen-2a14ec.mp3;en;"The table goes in the kitchen!";home · Odalar
+en/where-does-the-chair-go-27cb20.mp3;en;"Where does the chair go?";home · Odalar
+en/the-chair-goes-in-the-kitchen-865d28.mp3;en;"The chair goes in the kitchen!";home · Odalar
+en/the-chair-goes-in-the-living-room-48a7cf.mp3;en;"The chair goes in the living room!";home · Odalar
+en/where-does-the-bath-go-e43135.mp3;en;"Where does the bath go?";home · Odalar
+en/the-bath-goes-in-the-bathroom-fa6c43.mp3;en;"The bath goes in the bathroom!";home · Odalar
+en/where-does-the-lamp-go-baaed3.mp3;en;"Where does the lamp go?";home · Odalar
+en/the-lamp-goes-in-the-bedroom-65d8bf.mp3;en;"The lamp goes in the bedroom!";home · Odalar
+en/the-lamp-goes-in-the-living-room-fa3ae1.mp3;en;"The lamp goes in the living room!";home · Odalar
+en/where-does-the-fridge-go-a47fe9.mp3;en;"Where does the fridge go?";home · Odalar
+en/the-fridge-goes-in-the-kitchen-1393d7.mp3;en;"The fridge goes in the kitchen!";home · Odalar
+en/where-does-the-clock-go-1d52bf.mp3;en;"Where does the clock go?";home · Odalar
+en/the-clock-goes-in-the-bedroom-53175b.mp3;en;"The clock goes in the bedroom!";home · Odalar
+en/the-clock-goes-in-the-kitchen-f62d61.mp3;en;"The clock goes in the kitchen!";home · Odalar
+en/the-clock-goes-in-the-living-room-845911.mp3;en;"The clock goes in the living room!";home · Odalar
+en/bedroom-1daa63.mp3;en;"bedroom.";home · Odalar
+en/kitchen-898c16.mp3;en;"kitchen.";home · Odalar
+en/living-room-4b4eb3.mp3;en;"living room.";home · Odalar
+en/bathroom-7f573e.mp3;en;"bathroom.";home · Odalar
+en/everything-is-in-the-right-room-03d6e7.mp3;en;"Everything is in the right room!";home · Odalar
+en/let-s-go-to-school-c2e29e.mp3;en;"Let's go to school!";school · izle
+tr/okul-esyalarina-dokun-ve-dinle-4180f0.mp3;tr;"Okul eşyalarına dokun ve dinle.";school · dokun
+en/find-the-same-school-things-b1f381.mp3;en;"Find the same school things!";school · hafıza
+en/great-job-school-done-5394f8.mp3;en;"Great job! School, done!";school · bitiş
+en/pencil-6a860e.mp3;en;"pencil";school · kelime
+en/pencil-9cf28f.mp3;en;"pencil.";school · izle
+en/pencil-579950.mp3;en;"pencil!";school · balon doğru
+en/this-is-my-pencil-788e6b.mp3;en;"This is my pencil!";school · izle
+en/say-pencil-4fd739.mp3;en;"Say: pencil";school · söyle
+en/pop-the-pencil-f4b022.mp3;en;"Pop the pencil!";school · balon
+en/point-to-the-pencil-9e4fc5.mp3;en;"Point to the pencil!";school · akıllı tahta
+en/book-25f9fe.mp3;en;"book";school · kelime
+en/book-e3099c.mp3;en;"book.";school · izle
+en/book-7cd675.mp3;en;"book!";school · balon doğru
+en/this-is-my-book-f7e46f.mp3;en;"This is my book!";school · izle
+en/say-book-a261d4.mp3;en;"Say: book";school · söyle
+en/pop-the-book-aa8fe8.mp3;en;"Pop the book!";school · balon
+en/point-to-the-book-bb0cf2.mp3;en;"Point to the book!";school · akıllı tahta
+en/bag-618e2c.mp3;en;"bag";school · kelime
+en/bag-1c572c.mp3;en;"bag.";school · izle
+en/bag-381d8c.mp3;en;"bag!";school · balon doğru
+en/this-is-my-bag-b9e719.mp3;en;"This is my bag!";school · izle
+en/say-bag-b584d9.mp3;en;"Say: bag";school · söyle
+en/pop-the-bag-b8d9d3.mp3;en;"Pop the bag!";school · balon
+en/point-to-the-bag-a509a5.mp3;en;"Point to the bag!";school · akıllı tahta
+en/crayons-bd00ee.mp3;en;"crayons";school · kelime
+en/crayons-5e71b3.mp3;en;"crayons.";school · izle
+en/crayons-dc3320.mp3;en;"crayons!";school · balon doğru
+en/these-are-my-crayons-34604c.mp3;en;"These are my crayons!";school · izle
+en/say-crayons-0d8a39.mp3;en;"Say: crayons";school · söyle
+en/pop-the-crayons-c39f86.mp3;en;"Pop the crayons!";school · balon
+en/point-to-the-crayons-8c3732.mp3;en;"Point to the crayons!";school · akıllı tahta
+en/scissors-4edb33.mp3;en;"scissors";school · kelime
+en/scissors-3007e5.mp3;en;"scissors.";school · izle
+en/scissors-1e6609.mp3;en;"scissors!";school · balon doğru
+en/these-are-my-scissors-bddca8.mp3;en;"These are my scissors!";school · izle
+en/say-scissors-548d44.mp3;en;"Say: scissors";school · söyle
+en/pop-the-scissors-5ed0d1.mp3;en;"Pop the scissors!";school · balon
+en/point-to-the-scissors-223ffe.mp3;en;"Point to the scissors!";school · akıllı tahta
+en/glue-13d25b.mp3;en;"glue";school · kelime
+en/glue-170d04.mp3;en;"glue.";school · izle
+en/glue-6d0a69.mp3;en;"glue!";school · balon doğru
+en/this-is-my-glue-b428e8.mp3;en;"This is my glue!";school · izle
+en/say-glue-3e59fe.mp3;en;"Say: glue";school · söyle
+en/pop-the-glue-fab4af.mp3;en;"Pop the glue!";school · balon
+en/point-to-the-glue-f58c75.mp3;en;"Point to the glue!";school · akıllı tahta
+en/ruler-321d78.mp3;en;"ruler";school · kelime
+en/ruler-eb7c67.mp3;en;"ruler.";school · izle
+en/ruler-8a12f4.mp3;en;"ruler!";school · balon doğru
+en/this-is-my-ruler-8780d8.mp3;en;"This is my ruler!";school · izle
+en/say-ruler-361fee.mp3;en;"Say: ruler";school · söyle
+en/pop-the-ruler-5ea1ec.mp3;en;"Pop the ruler!";school · balon
+en/point-to-the-ruler-d439f4.mp3;en;"Point to the ruler!";school · akıllı tahta
+en/eraser-b84812.mp3;en;"eraser";school · kelime
+en/eraser-8e4030.mp3;en;"eraser.";school · izle
+en/eraser-506915.mp3;en;"eraser!";school · balon doğru
+en/this-is-my-eraser-454fcc.mp3;en;"This is my eraser!";school · izle
+en/say-eraser-6b9aa2.mp3;en;"Say: eraser";school · söyle
+en/pop-the-eraser-ae9343.mp3;en;"Pop the eraser!";school · balon
+en/point-to-the-eraser-cdb3ae.mp3;en;"Point to the eraser!";school · akıllı tahta
+en/desk-e704f5.mp3;en;"desk";school · kelime
+en/desk-5b2319.mp3;en;"desk.";school · izle
+en/desk-f6c972.mp3;en;"desk!";school · balon doğru
+en/this-is-my-desk-5bf22e.mp3;en;"This is my desk!";school · izle
+en/say-desk-4a3d53.mp3;en;"Say: desk";school · söyle
+en/pop-the-desk-301c3c.mp3;en;"Pop the desk!";school · balon
+en/point-to-the-desk-52d7ce.mp3;en;"Point to the desk!";school · akıllı tahta
+en/board-d0687f.mp3;en;"board";school · kelime
+en/board-3c4f83.mp3;en;"board.";school · izle
+en/board-7e808e.mp3;en;"board!";school · balon doğru
+en/this-is-my-board-14ebcb.mp3;en;"This is my board!";school · izle
+en/say-board-26b4ab.mp3;en;"Say: board";school · söyle
+en/pop-the-board-bb0efd.mp3;en;"Pop the board!";school · balon
+en/point-to-the-board-eedf1f.mp3;en;"Point to the board!";school · akıllı tahta
+en/pack-my-bag-it-s-time-for-school-f6be97.mp3;en;"Pack my bag, it's time for school!";school · şarkı
+en/pack-350f39.mp3;en;"pack";school · şarkı kelimesi
+en/school-8fc2d3.mp3;en;"school";school · şarkı kelimesi
+en/a-pencil-and-a-book-look-look-look-f58995.mp3;en;"A pencil and a book, look, look, look!";school · şarkı
+en/crayons-for-colours-draw-draw-draw-5f1a90.mp3;en;"Crayons for colours, draw, draw, draw!";school · şarkı
+en/draw-c2b9ff.mp3;en;"draw";school · şarkı kelimesi
+en/scissors-and-glue-cut-and-stick-43bcf8.mp3;en;"Scissors and glue, cut and stick!";school · şarkı
+en/cut-5504de.mp3;en;"cut";school · şarkı kelimesi
+en/stick-a5a08f.mp3;en;"stick";school · şarkı kelimesi
+en/a-ruler-and-an-eraser-nice-and-neat-61cb23.mp3;en;"A ruler and an eraser, nice and neat!";school · şarkı
+en/an-a3b5bb.mp3;en;"an";school · şarkı kelimesi
+en/neat-ac2f86.mp3;en;"neat";school · şarkı kelimesi
+en/school-school-i-love-my-school-56958b.mp3;en;"School, school, I love my school!";school · şarkı
+en/where-is-your-bag-7e069d.mp3;en;"Where is your bag?";school · veli köşesi
+en/i-have-a-pencil-cab0e5.mp3;en;"I have a pencil.";school · veli köşesi
+en/put-the-pencil-in-your-bag-27db2b.mp3;en;"Put the pencil in your bag!";school · Çanta
+en/put-the-book-in-your-bag-9f6051.mp3;en;"Put the book in your bag!";school · Çanta
+en/put-the-crayons-in-your-bag-4ff9df.mp3;en;"Put the crayons in your bag!";school · Çanta
+en/put-the-scissors-in-your-bag-53039f.mp3;en;"Put the scissors in your bag!";school · Çanta
+en/put-the-glue-in-your-bag-40883b.mp3;en;"Put the glue in your bag!";school · Çanta
+en/put-the-ruler-in-your-bag-ffbfe0.mp3;en;"Put the ruler in your bag!";school · Çanta
+en/put-the-eraser-in-your-bag-1bf83a.mp3;en;"Put the eraser in your bag!";school · Çanta
+en/your-bag-is-ready-for-school-16cd7e.mp3;en;"Your bag is ready for school!";school · Çanta
+en/what-s-the-weather-like-bb5139.mp3;en;"What's the weather like?";weather · izle
+tr/havalara-dokun-ve-dinle-e42793.mp3;tr;"Havalara dokun ve dinle.";weather · dokun
+en/find-the-same-weather-b05765.mp3;en;"Find the same weather!";weather · hafıza
+en/great-job-weather-done-68eb1f.mp3;en;"Great job! Weather, done!";weather · bitiş
+en/sunny-d0b351.mp3;en;"sunny.";weather · izle
+en/sunny-8ac2ec.mp3;en;"sunny!";weather · balon doğru
+en/it-s-sunny-b791af.mp3;en;"It's sunny!";weather · izle
+en/say-sunny-a857b3.mp3;en;"Say: sunny";weather · söyle
+en/pop-the-sunny-balloon-147040.mp3;en;"Pop the sunny balloon!";weather · balon
+en/point-to-sunny-83ee03.mp3;en;"Point to sunny!";weather · akıllı tahta
+en/rainy-0c3c1c.mp3;en;"rainy";weather · kelime
+en/rainy-3717ed.mp3;en;"rainy.";weather · izle
+en/rainy-db79bf.mp3;en;"rainy!";weather · balon doğru
+en/it-s-rainy-4e98bf.mp3;en;"It's rainy!";weather · izle
+en/say-rainy-6cdcba.mp3;en;"Say: rainy";weather · söyle
+en/pop-the-rainy-balloon-2726d0.mp3;en;"Pop the rainy balloon!";weather · balon
+en/point-to-rainy-e09022.mp3;en;"Point to rainy!";weather · akıllı tahta
+en/cloudy-272853.mp3;en;"cloudy";weather · kelime
+en/cloudy-cc4928.mp3;en;"cloudy.";weather · izle
+en/cloudy-55c6fd.mp3;en;"cloudy!";weather · balon doğru
+en/it-s-cloudy-bded0a.mp3;en;"It's cloudy!";weather · izle
+en/say-cloudy-f8a402.mp3;en;"Say: cloudy";weather · söyle
+en/pop-the-cloudy-balloon-6b3c32.mp3;en;"Pop the cloudy balloon!";weather · balon
+en/point-to-cloudy-6c88ff.mp3;en;"Point to cloudy!";weather · akıllı tahta
+en/windy-42955a.mp3;en;"windy";weather · kelime
+en/windy-3bdb5c.mp3;en;"windy.";weather · izle
+en/windy-fb6384.mp3;en;"windy!";weather · balon doğru
+en/it-s-windy-bf2eb9.mp3;en;"It's windy!";weather · izle
+en/say-windy-abc97b.mp3;en;"Say: windy";weather · söyle
+en/pop-the-windy-balloon-07a7d6.mp3;en;"Pop the windy balloon!";weather · balon
+en/point-to-windy-5357cb.mp3;en;"Point to windy!";weather · akıllı tahta
+en/snowy-2ea4d1.mp3;en;"snowy";weather · kelime
+en/snowy-a7a6bc.mp3;en;"snowy.";weather · izle
+en/snowy-0901e7.mp3;en;"snowy!";weather · balon doğru
+en/it-s-snowy-c22fc1.mp3;en;"It's snowy!";weather · izle
+en/say-snowy-86d189.mp3;en;"Say: snowy";weather · söyle
+en/pop-the-snowy-balloon-d8c2ce.mp3;en;"Pop the snowy balloon!";weather · balon
+en/point-to-snowy-c8df68.mp3;en;"Point to snowy!";weather · akıllı tahta
+en/hot-425213.mp3;en;"hot";weather · kelime
+en/hot-ab5bef.mp3;en;"hot.";weather · izle
+en/hot-51e40c.mp3;en;"hot!";weather · balon doğru
+en/it-s-hot-b0c773.mp3;en;"It's hot!";weather · izle
+en/say-hot-51aff3.mp3;en;"Say: hot";weather · söyle
+en/pop-the-hot-balloon-924b20.mp3;en;"Pop the hot balloon!";weather · balon
+en/point-to-hot-f5d918.mp3;en;"Point to hot!";weather · akıllı tahta
+en/cold-c33f3d.mp3;en;"cold.";weather · izle
+en/cold-072fde.mp3;en;"cold!";weather · balon doğru
+en/it-s-cold-bfbbfe.mp3;en;"It's cold!";weather · izle
+en/say-cold-f03eb4.mp3;en;"Say: cold";weather · söyle
+en/pop-the-cold-balloon-4139ad.mp3;en;"Pop the cold balloon!";weather · balon
+en/point-to-cold-a213fb.mp3;en;"Point to cold!";weather · akıllı tahta
+en/rainbow-d8ae6e.mp3;en;"rainbow";weather · kelime
+en/rainbow-60c27a.mp3;en;"rainbow.";weather · izle
+en/rainbow-2c3de8.mp3;en;"rainbow!";weather · balon doğru
+en/look-a-rainbow-df5d95.mp3;en;"Look, a rainbow!";weather · izle
+en/say-rainbow-2e7e05.mp3;en;"Say: rainbow";weather · söyle
+en/pop-the-rainbow-balloon-cc331f.mp3;en;"Pop the rainbow balloon!";weather · balon
+en/point-to-rainbow-2626e6.mp3;en;"Point to rainbow!";weather · akıllı tahta
+en/stormy-beb9ac.mp3;en;"stormy";weather · kelime
+en/stormy-afb11e.mp3;en;"stormy.";weather · izle
+en/stormy-14f156.mp3;en;"stormy!";weather · balon doğru
+en/it-s-stormy-ded884.mp3;en;"It's stormy!";weather · izle
+en/say-stormy-338c46.mp3;en;"Say: stormy";weather · söyle
+en/pop-the-stormy-balloon-64cf2e.mp3;en;"Pop the stormy balloon!";weather · balon
+en/point-to-stormy-e4eb07.mp3;en;"Point to stormy!";weather · akıllı tahta
+en/foggy-6c0f79.mp3;en;"foggy";weather · kelime
+en/foggy-580506.mp3;en;"foggy.";weather · izle
+en/foggy-6b29fc.mp3;en;"foggy!";weather · balon doğru
+en/it-s-foggy-804239.mp3;en;"It's foggy!";weather · izle
+en/say-foggy-eba8a3.mp3;en;"Say: foggy";weather · söyle
+en/pop-the-foggy-balloon-1a4ee1.mp3;en;"Pop the foggy balloon!";weather · balon
+en/point-to-foggy-48c058.mp3;en;"Point to foggy!";weather · akıllı tahta
+en/sunny-sunny-hello-sun-74567a.mp3;en;"Sunny, sunny, hello, sun!";weather · şarkı
+en/rainy-rainy-drip-drop-drip-2382f0.mp3;en;"Rainy, rainy, drip, drop, drip!";weather · şarkı
+en/drip-497b44.mp3;en;"drip";weather · şarkı kelimesi
+en/drop-f5e286.mp3;en;"drop";weather · şarkı kelimesi
+en/windy-windy-whoosh-whoosh-whoosh-c26a04.mp3;en;"Windy, windy, whoosh, whoosh, whoosh!";weather · şarkı
+en/whoosh-3df715.mp3;en;"whoosh";weather · şarkı kelimesi
+en/snowy-snowy-white-and-cold-3ccc05.mp3;en;"Snowy, snowy, white and cold!";weather · şarkı
+en/white-134a2c.mp3;en;"white";weather · şarkı kelimesi
+en/look-up-high-a-rainbow-in-the-sky-bcc88b.mp3;en;"Look up high, a rainbow in the sky!";weather · şarkı
+en/what-s-the-weather-let-s-look-outside-5e4df5.mp3;en;"What's the weather? Let's look outside!";weather · şarkı
+en/what-s-09de4f.mp3;en;"what's";weather · şarkı kelimesi
+en/weather-027a60.mp3;en;"weather";weather · şarkı kelimesi
+en/outside-cd0228.mp3;en;"outside";weather · şarkı kelimesi
+en/it-s-cold-today-d24006.mp3;en;"It's cold today.";weather · veli köşesi
+en/it-s-sunny-today-c6581a.mp3;en;"It's sunny today!";weather · Çark
+en/it-s-rainy-today-af1432.mp3;en;"It's rainy today!";weather · Çark
+en/it-s-cloudy-today-2b0015.mp3;en;"It's cloudy today!";weather · Çark
+en/it-s-windy-today-dd8d9e.mp3;en;"It's windy today!";weather · Çark
+en/it-s-snowy-today-27d6ea.mp3;en;"It's snowy today!";weather · Çark
+en/it-s-hot-today-22d65e.mp3;en;"It's hot today!";weather · Çark
+en/it-s-cold-today-f43ac6.mp3;en;"It's cold today!";weather · Çark
+en/there-s-a-rainbow-today-91fb0e.mp3;en;"There's a rainbow today!";weather · Çark
+en/it-s-stormy-today-9b3513.mp3;en;"It's stormy today!";weather · Çark
+en/it-s-foggy-today-e07c87.mp3;en;"It's foggy today!";weather · Çark
+en/spin-the-wheel-8b1ea0.mp3;en;"Spin the wheel!";weather · Çark
+en/you-are-a-weather-star-7ed8b0.mp3;en;"You are a weather star!";weather · Çark
+en/how-do-you-feel-today-c1db98.mp3;en;"How do you feel today?";feelings · izle
+tr/yuzlere-dokun-ve-dinle-a49a5f.mp3;tr;"Yüzlere dokun ve dinle.";feelings · dokun
+en/find-the-same-faces-2a047d.mp3;en;"Find the same faces!";feelings · hafıza
+en/great-job-feelings-done-228f35.mp3;en;"Great job! Feelings, done!";feelings · bitiş
+en/happy-e1f24d.mp3;en;"happy";feelings · kelime
+en/happy-f93e9c.mp3;en;"happy.";feelings · izle
+en/happy-0157bc.mp3;en;"happy!";feelings · balon doğru
+en/i-m-happy-443f9b.mp3;en;"I'm happy!";feelings · izle
+en/say-happy-b061df.mp3;en;"Say: happy";feelings · söyle
+en/pop-the-happy-face-27cf74.mp3;en;"Pop the happy face!";feelings · balon
+en/point-to-happy-4eedae.mp3;en;"Point to happy!";feelings · akıllı tahta
+en/sad-a1422d.mp3;en;"sad";feelings · kelime
+en/sad-2bbd99.mp3;en;"sad.";feelings · izle
+en/sad-62f336.mp3;en;"sad!";feelings · balon doğru
+en/i-m-sad-56a8c6.mp3;en;"I'm sad!";feelings · izle
+en/say-sad-461db3.mp3;en;"Say: sad";feelings · söyle
+en/pop-the-sad-face-73c4fe.mp3;en;"Pop the sad face!";feelings · balon
+en/point-to-sad-46e97c.mp3;en;"Point to sad!";feelings · akıllı tahta
+en/angry-a08069.mp3;en;"angry";feelings · kelime
+en/angry-861ffe.mp3;en;"angry.";feelings · izle
+en/angry-b0bee1.mp3;en;"angry!";feelings · balon doğru
+en/i-m-angry-8cf338.mp3;en;"I'm angry!";feelings · izle
+en/say-angry-749563.mp3;en;"Say: angry";feelings · söyle
+en/pop-the-angry-face-24d319.mp3;en;"Pop the angry face!";feelings · balon
+en/point-to-angry-67df40.mp3;en;"Point to angry!";feelings · akıllı tahta
+en/scared-439210.mp3;en;"scared";feelings · kelime
+en/scared-f33aeb.mp3;en;"scared.";feelings · izle
+en/scared-45c961.mp3;en;"scared!";feelings · balon doğru
+en/i-m-scared-dd7aa0.mp3;en;"I'm scared!";feelings · izle
+en/say-scared-7429c6.mp3;en;"Say: scared";feelings · söyle
+en/pop-the-scared-face-5e98fe.mp3;en;"Pop the scared face!";feelings · balon
+en/point-to-scared-199292.mp3;en;"Point to scared!";feelings · akıllı tahta
+en/surprised-a9e4d6.mp3;en;"surprised";feelings · kelime
+en/surprised-5de1de.mp3;en;"surprised.";feelings · izle
+en/surprised-5d3670.mp3;en;"surprised!";feelings · balon doğru
+en/i-m-surprised-897f6f.mp3;en;"I'm surprised!";feelings · izle
+en/say-surprised-316fe7.mp3;en;"Say: surprised";feelings · söyle
+en/pop-the-surprised-face-b843ef.mp3;en;"Pop the surprised face!";feelings · balon
+en/point-to-surprised-208551.mp3;en;"Point to surprised!";feelings · akıllı tahta
+en/tired-ec5a5c.mp3;en;"tired";feelings · kelime
+en/tired-e565d6.mp3;en;"tired.";feelings · izle
+en/tired-46b5f1.mp3;en;"tired!";feelings · balon doğru
+en/i-m-tired-af894f.mp3;en;"I'm tired!";feelings · izle
+en/say-tired-a93f50.mp3;en;"Say: tired";feelings · söyle
+en/pop-the-tired-face-74cd28.mp3;en;"Pop the tired face!";feelings · balon
+en/point-to-tired-f3ffa9.mp3;en;"Point to tired!";feelings · akıllı tahta
+en/hungry-e4c3f6.mp3;en;"hungry";feelings · kelime
+en/hungry-93c330.mp3;en;"hungry.";feelings · izle
+en/hungry-1f0546.mp3;en;"hungry!";feelings · balon doğru
+en/say-hungry-4416ae.mp3;en;"Say: hungry";feelings · söyle
+en/pop-the-hungry-face-d70657.mp3;en;"Pop the hungry face!";feelings · balon
+en/point-to-hungry-6dd73b.mp3;en;"Point to hungry!";feelings · akıllı tahta
+en/excited-9a2549.mp3;en;"excited";feelings · kelime
+en/excited-2319d5.mp3;en;"excited.";feelings · izle
+en/excited-9c74e6.mp3;en;"excited!";feelings · balon doğru
+en/i-m-excited-c0fe4c.mp3;en;"I'm excited!";feelings · izle
+en/say-excited-1debc1.mp3;en;"Say: excited";feelings · söyle
+en/pop-the-excited-face-c067d9.mp3;en;"Pop the excited face!";feelings · balon
+en/point-to-excited-95fabf.mp3;en;"Point to excited!";feelings · akıllı tahta
+en/shy-58184a.mp3;en;"shy";feelings · kelime
+en/shy-16663c.mp3;en;"shy.";feelings · izle
+en/shy-50e6a7.mp3;en;"shy!";feelings · balon doğru
+en/i-m-shy-320391.mp3;en;"I'm shy!";feelings · izle
+en/say-shy-4ddcde.mp3;en;"Say: shy";feelings · söyle
+en/pop-the-shy-face-06438b.mp3;en;"Pop the shy face!";feelings · balon
+en/point-to-shy-6e7dd8.mp3;en;"Point to shy!";feelings · akıllı tahta
+en/bored-f0eeaa.mp3;en;"bored";feelings · kelime
+en/bored-7ef6fa.mp3;en;"bored.";feelings · izle
+en/bored-d0a922.mp3;en;"bored!";feelings · balon doğru
+en/i-m-bored-bf7adc.mp3;en;"I'm bored!";feelings · izle
+en/say-bored-059504.mp3;en;"Say: bored";feelings · söyle
+en/pop-the-bored-face-2678a1.mp3;en;"Pop the bored face!";feelings · balon
+en/point-to-bored-1e26d2.mp3;en;"Point to bored!";feelings · akıllı tahta
+en/when-i-m-happy-i-jump-and-smile-ec85e8.mp3;en;"When I'm happy, I jump and smile!";feelings · şarkı
+en/when-375a1f.mp3;en;"when";feelings · şarkı kelimesi
+en/i-m-db9af3.mp3;en;"i'm";feelings · şarkı kelimesi
+en/smile-277596.mp3;en;"smile";feelings · şarkı kelimesi
+en/when-i-m-sad-i-need-a-hug-3a117f.mp3;en;"When I'm sad, I need a hug!";feelings · şarkı
+en/need-9238b7.mp3;en;"need";feelings · şarkı kelimesi
+en/when-i-m-angry-i-breathe-in-slow-550fe8.mp3;en;"When I'm angry, I breathe in slow!";feelings · şarkı
+en/breathe-e9e836.mp3;en;"breathe";feelings · şarkı kelimesi
+en/slow-c3d39c.mp3;en;"slow";feelings · şarkı kelimesi
+en/when-i-m-scared-i-hold-your-hand-be2c43.mp3;en;"When I'm scared, I hold your hand!";feelings · şarkı
+en/hold-26705c.mp3;en;"hold";feelings · şarkı kelimesi
+en/hand-6a503f.mp3;en;"hand";feelings · şarkı kelimesi
+en/when-i-m-tired-i-go-to-bed-a190f2.mp3;en;"When I'm tired, I go to bed!";feelings · şarkı
+en/feelings-feelings-it-s-ok-to-feel-1a685d.mp3;en;"Feelings, feelings, it's OK to feel!";feelings · şarkı
+en/feelings-68a608.mp3;en;"feelings";feelings · şarkı kelimesi
+en/ok-b3d0da.mp3;en;"ok";feelings · şarkı kelimesi
+en/feel-995b62.mp3;en;"feel";feelings · şarkı kelimesi
+en/how-do-you-feel-c18c58.mp3;en;"How do you feel?";feelings · veli köşesi
+en/are-you-tired-7c0bcd.mp3;en;"Are you tired?";feelings · veli köşesi
+en/it-s-my-birthday-how-do-i-feel-eafe51.mp3;en;"It's my birthday! How do I feel?";feelings · Nasılım?
+en/i-feel-happy-1c3a6b.mp3;en;"I feel happy!";feelings · Nasılım?
+en/my-balloon-flew-away-how-do-i-feel-ee51a8.mp3;en;"My balloon flew away. How do I feel?";feelings · Nasılım?
+en/i-feel-sad-d7add6.mp3;en;"I feel sad!";feelings · Nasılım?
+en/he-took-my-toy-how-do-i-feel-a6b5de.mp3;en;"He took my toy! How do I feel?";feelings · Nasılım?
+en/i-feel-angry-2958c7.mp3;en;"I feel angry!";feelings · Nasılım?
+en/a-big-storm-how-do-i-feel-e9c093.mp3;en;"A big storm! How do I feel?";feelings · Nasılım?
+en/i-feel-scared-c5461f.mp3;en;"I feel scared!";feelings · Nasılım?
+en/a-present-for-me-how-do-i-feel-70b6cc.mp3;en;"A present for me! How do I feel?";feelings · Nasılım?
+en/i-feel-surprised-0b2a27.mp3;en;"I feel surprised!";feelings · Nasılım?
+en/i-played-all-day-how-do-i-feel-37f455.mp3;en;"I played all day. How do I feel?";feelings · Nasılım?
+en/i-feel-tired-aef769.mp3;en;"I feel tired!";feelings · Nasılım?
+en/it-s-lunch-time-how-do-i-feel-ca4b91.mp3;en;"It's lunch time! How do I feel?";feelings · Nasılım?
+en/i-feel-hungry-422b89.mp3;en;"I feel hungry!";feelings · Nasılım?
+en/we-re-going-to-the-park-how-do-i-feel-55a517.mp3;en;"We're going to the park! How do I feel?";feelings · Nasılım?
+en/i-feel-excited-79e134.mp3;en;"I feel excited!";feelings · Nasılım?
+en/hello-i-m-new-here-how-do-i-feel-7611f5.mp3;en;"Hello! I'm new here. How do I feel?";feelings · Nasılım?
+en/i-feel-shy-764aa8.mp3;en;"I feel shy!";feelings · Nasılım?
+en/there-s-nothing-to-do-how-do-i-feel-cdd9cb.mp3;en;"There's nothing to do. How do I feel?";feelings · Nasılım?
+en/i-feel-bored-dc4c69.mp3;en;"I feel bored!";feelings · Nasılım?
+en/you-understand-feelings-d63bb9.mp3;en;"You understand feelings!";feelings · Nasılım?
 en/colour-the-sun-yellow-087f06.mp3;en;"Colour the sun yellow.";colours · boyama
 en/yellow-sun-f47056.mp3;en;"yellow sun!";colours · boyama doğru
 en/colour-the-tree-green-5ba852.mp3;en;"Colour the tree green.";colours · boyama

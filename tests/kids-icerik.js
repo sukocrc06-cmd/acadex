@@ -26,14 +26,14 @@ const yukle = () => {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }) };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-veri.js', 'kids-konu.js']) vm.runInContext(read('kids/assets/' + f), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js']) vm.runInContext(read('kids/assets/' + f), ctx);
   return W;
 };
 
 test('açık her konunun paketi var; yaşa göre kelime sayısı', () => {
   const W = yukle(), V = W.KIDS_VERI, K = W.KIDS_KONU;
   const acik = V.KONU.filter((k) => k.acik).map((k) => k.id);
-  assert.deepEqual([...acik], ['colours', 'numbers']);
+  assert.deepEqual([...acik], [...V.KONU.map((k) => k.id)], 'on iki konunun hepsi açık');
   for (const id of acik) {
     const p = K.al(id);
     assert.ok(p, id);
@@ -69,7 +69,10 @@ test('oyunlar: say var; balon ve hafıza konu paketini kullanır', () => {
 
 test('dolap: eşikler artan, yuvalar bas/yuz, her giysinin çizimi var', () => {
   const W = yukle(), V = W.KIDS_VERI, C = W.KIDS_CIZ;
-  const e = V.GIYSI.map((g) => g.yildiz);
+  const e = V.GIYSI.filter((g) => !g.tema).map((g) => g.yildiz);
+  /* tema giysileri yıldızla değil, o konunun adası bitince açılır: her konuya bir tane */
+  const tg = V.GIYSI.filter((g) => g.tema).map((g) => g.tema);
+  assert.deepEqual([...tg].sort(), [...V.KONU.filter((k) => !['colours', 'numbers'].includes(k.id)).map((k) => k.id)].sort());
   assert.deepEqual([...e], [...e].sort((a, b) => a - b));
   for (const g of V.GIYSI) { assert.ok(['bas', 'yuz'].includes(g.yuva), g.id); assert.ok(C.GIYSI.includes(g.id), g.id + ' çizimi'); }
   assert.ok(e[e.length - 1] <= 2 * 9 + 2, 'en pahalı giysi iki konuyla açılabilmeli');

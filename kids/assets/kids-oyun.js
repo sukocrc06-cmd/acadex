@@ -4,6 +4,7 @@
    ayar: {renkler:[{id,en,tr,hex}], bant:{yazi,secenek,tur,cift,kelimeKart}, bitti(yildiz), yanlis(kelimeId),
           paket?: KIDS_KONU paketi (yoksa Colours davranışı: renkli balon ve leke)}
    Oyunlar: balon, hafiza, boyama (Colours), say (Numbers: nesneleri say, rakama dokun).
+   On temanın üçüncü oyunları kids-oyun2.js'de (aynı yardımcılarla).
    Kurallar: yalnız dokunma; yanlışta ceza yok (hafif sallanır, soru yinelenir);
    her dokunuşa ses ve hareket; yönerge her zaman hoparlörle yeniden dinlenir.
    Tanıtım sayfasındaki demo da aynı balon oyununu kullanır. W.KIDS_OYUN
@@ -44,7 +45,8 @@
       if (id === hedef.id) {
         kilit = true; SES.fx('pat'); b.classList.add('ko-pat'); tur++;
         SES.soyle(hedef.en + '!', 'en').then(function () { if (!bitti) setTimeout(yeni, 250); });
-      } else { yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(b); var y = renk.filter(function (r) { return r.id === id; })[0]; SES.soyle('That is ' + y.en + '. Find ' + hedef.en + '!', 'en'); }
+      } else { yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(b); var y = renk.filter(function (r) { return r.id === id; })[0];
+        if (B.yanlis) { var iki = B.yanlis(y, hedef), h0 = hedef; SES.soyle(iki[0], 'en').then(function () { if (!bitti && h0 === hedef) SES.soyle(iki[1], 'en'); }); } else SES.soyle('That is ' + y.en + '. Find ' + hedef.en + '!', 'en'); }
     }
     alan.addEventListener('click', dokun);
     kok.querySelector('[data-ko-dinle]').addEventListener('click', function () { SES.fx('dokun'); sor(); });
@@ -152,5 +154,5 @@
     return { dur: function () { bitti = true; temizle(); SES.sus(); } };
   }
 
-  W.KIDS_OYUN = { SAY_NESNE: SAY_NESNE, sayCevap: sayCevap, say: say, balon: balon, hafiza: hafiza, boyama: boyama, kar: kar, yildizHesap: yildizHesap, BOYA_GOREV: BOYA_GOREV };
+  W.KIDS_OYUN = { SAY_NESNE: SAY_NESNE, sayCevap: sayCevap, say: say, balon: balon, hafiza: hafiza, boyama: boyama, kar: kar, yildizHesap: yildizHesap, BOYA_GOREV: BOYA_GOREV, salla: salla, yonerge: yonerge, turNokta: turNokta };
 })(window);
