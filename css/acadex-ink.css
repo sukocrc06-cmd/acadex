@@ -5198,6 +5198,8 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 @media (max-width: 1240px){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-grid{grid-template-columns:210px minmax(0,1fr)}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-out{grid-column:1 / -1;min-height:420px}}
 @media (max-width: 760px){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .gelistirici{padding:18px 14px 150px}
+/* mobil denetim (11.11.2026): suzgec cipleri + temizle tek satira sigmiyordu */
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cons-b{flex-wrap:wrap;gap:6px}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-drop{flex-direction:column;text-align:center}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-board{padding:18px 14px 24px}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .dv-cards{grid-template-columns:minmax(0,1fr)}
@@ -5479,6 +5481,8 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-full{position:fixed;inset:0;z-index:460;display:flex;flex-direction:column;background:#141925}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-full[hidden]{display:none}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-full-bar{display:flex;align-items:center;gap:12px;padding:8px 14px;color:#DCE2EE;font-family:"JetBrains Mono",monospace;font-size:13px}
+/* mobil denetim (11.11.2026): uzun proje adi cubugu tasiriyordu */
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-full-bar [data-full-t]{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-full-bar span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-full-bar a{color:#9DB8FF;min-height:44px;display:inline-flex;align-items:center}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-full-bar .btn{margin:0;min-height:40px}
@@ -5499,6 +5503,9 @@ html.js :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-post
 @media (max-width: 1180px){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-wrap{grid-template-columns:minmax(0,1fr)}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-rail{position:static;order:-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}}
 @media (max-width: 760px){:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .etkilesim{padding:18px 12px 150px}
+/* mobil denetim (11.11.2026): duzenleyici kutusu 360px'te uc oge yan yana sigmiyordu */
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce{flex-wrap:wrap}
+:is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-ce input{flex:1 1 100%}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-rail{grid-template-columns:minmax(0,1fr)}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ef-tabs-k{display:none}}
 :is(#sandbox-view.axv,#sandbox-interaction-view.axe,#axv-layer) .ek-post{--graph:#4B5675}

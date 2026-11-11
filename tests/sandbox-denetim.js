@@ -269,4 +269,12 @@ test('YENİ VERİ SETLERİ: ihracat + kredi başvuruları (11.11.2026)', () => {
     'yeni set kartları şablonların arasına girmiş');
 });
 
+test('MOBİL: sandbox telefon genişliğinde taşmaz (11.11.2026)', () => {
+  const css = read('css/acadex-ink.css');
+  assert.ok(css.includes('.dv-grid{grid-template-columns:minmax(0,1fr)}'), 'telefonda editör + çıktı tek sütuna inmiyor');
+  assert.ok(css.includes('.dv-cons-b{flex-wrap:wrap;gap:6px}'), 'konsol başlığı (süzgeç + temizle) telefonda sarmıyor');
+  assert.ok(css.includes('.dv-ws-top{display:flex;flex-wrap:wrap'), 'üst araç çubuğu sarmıyor — çalıştır düğmesi taşar');
+  assert.ok(css.includes('.dv-hint{display:none}'), 'kısayol ipucu telefonda gizlenmiyor');
+});
+
 summary();

@@ -237,4 +237,17 @@ test('TESLİM ROZETİ PANELE TAŞINIR: yalnız olumlu, yalnız ok+at (11.11.2026
   assert.ok(css.includes('.ek-tags .dnt{'), 'rozet çipinin stili yok');
 });
 
+test('MOBİL: panel telefon genişliğinde taşmaz (11.11.2026)', () => {
+  /* Kod üzerinden mobil denetim. Temel zaten vardı (760px blokları, tepki
+     etiketleri gizli, kompozer 900'de tek sütun) — bunlar kilitlenir,
+     taramada bulunan iki boşluk kapatılır. */
+  const css = read('css/acadex-ink.css');
+  assert.ok(css.includes('.ek-r span{position:absolute;width:1px'), 'telefonda tepki etiketleri gizlenmiyor — beş düğme sığmaz');
+  assert.ok(css.includes('.ek-devs{display:none}'), 'telefonda masaüstü/telefon önizleme düğmeleri gizlenmiyor');
+  assert.ok(css.includes('.ef-ce{flex-wrap:wrap}'), 'inceleme düzenleyicisi dar ekranda sarmıyor');
+  assert.ok(css.includes('.ef-ce input{flex:1 1 100%}'), 'düzenleyici girişi tam satıra yayılmıyor');
+  assert.ok(css.includes('.ef-full-bar [data-full-t]{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis'),
+    'tam ekran çubuğunda uzun başlık taşar');
+});
+
 summary();
