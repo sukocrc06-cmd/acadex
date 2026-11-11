@@ -250,8 +250,17 @@ test('ÖNERİ PAKETİ: QR + yansıtma + dönüşüm + temizlik (12.11.2026)', ()
   assert.match(mig, /coalesce\(current_setting\('acadex\.gorevli', true\), ''\) = '1'/,
     'protect_profile_flags görevli bayrağını tanımıyor');
   assert.ok(ink.includes('data-msf-hesap'), 'misafir şeridinde "hesabını aç" yok');
-  assert.ok(ink.includes('cl.auth.updateUser({ email: em.value.trim(), password: pw.value })'),
-    'dönüşüm e-posta+şifre bağlamıyor');
+  /* 12.11 tarama: Supabase anonim kullanıcıya şifreyi ancak e-posta
+     doğrulandıktan sonra ekletir — tek çağrıda ikisi reddedilir. */
+  assert.ok(!ink.includes('updateUser({ email: em.value.trim(), password: pw.value })'),
+    'e-posta ve şifre tek çağrıda — Supabase anonim kullanıcıda reddeder');
+  assert.match(ink, /updateUser\(\{ email: em\.value\.trim\(\) \}[\s\S]*?u2\.is_anonymous\) return 'onay'[\s\S]*?updateUser\(\{ password: pw\.value \}\)/,
+    'dönüşüm iki adımlı değil (önce e-posta, doğrulanınca şifre)');
+  const tg = read('supabase/migrations/20261112b_misafir_donusum_tetik.sql');
+  assert.match(tg, /after update of is_anonymous, email on auth\.users/,
+    'onay başka sekmede tıklanınca erişimi açacak tetikleyici yok — beta kapısı kullanıcıyı atar');
+  assert.match(tg, /exists \(select 1 from ders_konuklari where user_id = new\.id\)/,
+    'tetikleyicide ders konuğu şartı yok — kapalı beta delinir');
   assert.ok(ink.includes("cl.rpc('misafir_tamamla')"), 'dönüşüm sunucuda tamamlanmıyor');
   assert.ok(ink.includes("t.closest('.ax-msf-kayit')"),
     'hesap penceresi tıklama bekçisine takılır — form doldurulamaz');

@@ -1633,7 +1633,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 
   W.KIDS_BULUT = {
     ORNEK_KOD: ORNEK_KOD, RENK: RENK, Hata: Hata, rpc: rpc, okulBicim: okulBicim,
-    okulBul: function (kod) { return rpc('kids_okul_bul', { p_kod: kod }).then(okulBicim); },
+    /* 20261112c: başarısız arama JSON döner ({hata, mesaj}) ki deneme sayacı geri alınmasın */
+    okulBul: function (kod) { return rpc('kids_okul_bul', { p_kod: kod }).then(function (o) { if (o && o.hata) throw new Hata(o.mesaj || 'Bu kodu bulamadım.', o.hata === 'kilit' ? 'kilit' : 'yok'); return okulBicim(o); }); },
     giris: function (id, sifre) { return rpc('kids_giris', { p_ogrenci: id, p_sifre: sifre }); },
     durum: function (t) { return rpc('kids_durum', { p_token: t }); },
     ilerlemeKoy: ilerlemeKoy, ilerlemeGonder: gonder,
@@ -2336,9 +2337,23 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     var yl = { balon: b, hafiza: f }; if (y) yl.boyama = y;
     return { ornek: true, yildiz: { colours: yl }, bitti: y ? { colours: 1 } : {}, zor: zor, cikartma: y ? ['gokkusagi'] : [], son: Date.now() - (h % 4) * 864e5 - (h % 9) * 36e5 };
   }
+  /* İlerleme verisini çocuk oturumu yazar; öğretmen ekranı onu HTML'e basar.
+     Çocuk anahtarı ele geçirilirse (resimli şifre 72 ihtimal) sayı yerine
+     HTML yazılıp öğretmen tarayıcısında çalıştırılabiliyordu (12.11 tarama).
+     Burada her alan biçimine zorlanır: sayılar sayı, anahtarlar düz kimlik. */
+  function sayi(v) { v = Number(v); return isFinite(v) && v > 0 ? Math.min(v, 1e6) : 0; }
+  function kimlik(k) { return /^[a-z0-9_-]{1,40}$/i.test(k); }
+  function sayiHarita(m) { var r = {}; if (m && typeof m === 'object') Object.keys(m).forEach(function (k) { if (kimlik(k)) r[k] = sayi(m[k]); }); return r; }
+  function temizKayit(u) {
+    u = u && typeof u === 'object' ? u : {};
+    var yildiz = {}, bitti = {};
+    if (u.yildiz && typeof u.yildiz === 'object') Object.keys(u.yildiz).forEach(function (k) { if (kimlik(k)) yildiz[k] = sayiHarita(u.yildiz[k]); });
+    if (u.bitti && typeof u.bitti === 'object') Object.keys(u.bitti).forEach(function (k) { if (kimlik(k) && u.bitti[k]) bitti[k] = 1; });
+    return { yildiz: yildiz, bitti: bitti, zor: sayiHarita(u.zor), cikartma: Array.isArray(u.cikartma) ? u.cikartma.filter(function (c) { return typeof c === 'string' && kimlik(c); }) : [], son: sayi(u.son) };
+  }
   function kayit(sinif, og) {
     var ad = og[0];
-    if (BU) { var u = og[3] || {}; return { yildiz: u.yildiz || {}, bitti: u.bitti || {}, zor: u.zor || {}, cikartma: u.cikartma || [], son: u.son || 0 }; }
+    if (BU) return temizKayit(og[3]);
     var g = V.al('il.' + V.OKUL.kod + '.' + sinif.id + '.' + ad, null);
     if (g && (g.son || (g.yildiz && Object.keys(g.yildiz).length))) { g.yildiz = g.yildiz || {}; g.bitti = g.bitti || {}; g.zor = g.zor || {}; g.cikartma = g.cikartma || []; return g; }
     return ornekGoster ? ornekKayit(sinif, ad) : { yildiz: {}, bitti: {}, zor: {}, cikartma: [], son: 0 };

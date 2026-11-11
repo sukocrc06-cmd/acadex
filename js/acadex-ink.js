@@ -12126,16 +12126,25 @@ var SBX = (function () {
         e.preventDefault(); de('');
         if (pw.value.length < 8) { de('Şifre en az 8 karakter olmalı.', true); return; }
         go.disabled = true; go.textContent = 'açılıyor…';
-        cl.auth.updateUser({ email: em.value.trim(), password: pw.value }).then(function (r) {
+        /* İKİ ADIM (Supabase kuralı): anonim kullanıcıya şifre ancak e-posta
+           doğrulandıktan sonra eklenebilir; tek çağrıda ikisi birden reddedilir.
+           E-posta onayı kapalıysa bağlama anında olur ve şifre hemen yazılır;
+           açıksa onay bağlantısı tıklanınca erişimi sunucu tetikleyicisi açar
+           (20261112b) — şifre sonra "şifremi unuttum" ile belirlenir. */
+        cl.auth.updateUser({ email: em.value.trim() }, { emailRedirectTo: location.origin + '/dashboard.html' }).then(function (r) {
           if (r.error) throw r.error;
-          return cl.auth.refreshSession();
-        }).then(function () {
-          return cl.rpc('misafir_tamamla');
-        }).then(function (r) {
-          if (r && r.error) throw r.error;
-          if (r && r.data === true) { de('Hesabın hazır! Sayfa yenileniyor…'); setTimeout(function () { window.location.reload(); }, 900); return; }
-          /* Sunucuda e-posta onayı açıksa dönüşüm onay tıklanınca biter. */
-          de('E-postana onay bağlantısı gönderildi. Onayladıktan sonra buraya dönüp tekrar “hesabı aç”a bas.');
+          var u2 = r.data && r.data.user;
+          if (u2 && u2.is_anonymous) return 'onay';
+          return cl.auth.updateUser({ password: pw.value }).then(function (r2) {
+            if (r2.error) throw r2.error;
+            return cl.auth.refreshSession();
+          }).then(function () { return cl.rpc('misafir_tamamla'); }).then(function (r3) {
+            if (r3 && r3.error) throw r3.error;
+            return 'tamam';
+          });
+        }).then(function (sonuc) {
+          if (sonuc === 'tamam') { de('Hesabın hazır! Sayfa yenileniyor…'); setTimeout(function () { window.location.reload(); }, 900); return; }
+          de('E-postana onay bağlantısı gönderildi. Bağlantıya tıklayınca hesabın açılır; şifreni sonra giriş ekranındaki “şifremi unuttum” ile belirlersin.');
           go.disabled = false; go.textContent = 'hesabı aç';
         }).catch(function (er) {
           var m = String((er && er.message) || er);
