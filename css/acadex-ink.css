@@ -9153,3 +9153,13 @@ html.ax-dark .axl-pom-alert .axl-pa-box{box-shadow:5px 5px 0 #1A2A5C}
 #home-view.axd .acg-k-btn:hover,#home-view.axd .acg-k-btn:focus-visible{transform:translateY(-1px);background:var(--ac);color:#fff}
 @media (max-width:480px){#home-view.axd .acg-k-sekmeler{gap:4px}#home-view.axd .acg-k-sek{padding:7px 3px 8px}#home-view.axd .acg-k-sek b{font-size:10.5px;letter-spacing:-.02em}#home-view.axd .acg-k-sek small{font-size:9.5px}#home-view.axd .acg-k-sek i{right:3px}}
 @media (prefers-reduced-motion:reduce){#home-view.axd .acg-k-acadia{animation:none}}
+
+/* ================= misafir modu şeridi (11.11.2026) ================= */
+body.ax-misafir .ax-msf-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 24px);padding:10px 10px 10px 16px;border-radius:999px;background:#0D1838;color:#fff;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:14px;box-shadow:0 8px 24px rgba(13,24,56,.35)}
+body.ax-misafir .ax-msf-bar .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.ax-misafir .ax-msf-bar b{color:#9DB8FF}
+body.ax-misafir .ax-msf-bar button{border:0;border-radius:999px;padding:8px 14px;font:inherit;font-weight:700;cursor:pointer;background:#2F6BFF;color:#fff}
+body.ax-misafir .ax-msf-bar [data-msf-cik]{background:transparent;color:#9AA6C4}
+body.ax-misafir .ax-msf-bar.dur{background:#7A2E24}
+body.ax-misafir .ax-msf-bar.dur b{color:#FFD27A}
+@media (max-width:760px){body.ax-misafir .ax-msf-bar{bottom:10px;font-size:13px;gap:8px;padding:8px 8px 8px 12px}}

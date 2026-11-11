@@ -12015,3 +12015,78 @@ var SBX = (function () {
      konsol görünmez panele yazıyordu — öğrenci "tepki gelmiyor" sanıyor. */
   window.axDvOut = function (hide) { var gr = document.querySelector('#sandbox-view .dv-grid'); if (gr) setOut(gr, !!hide); };
 })();
+
+/* ================= MİSAFİR MODU · ders koduyla giriş (11.11.2026) =================
+   istatistik.html kod doğrulayıp Supabase ANONİM oturumu açar; buradaki tek
+   ölçüt oturumdaki is_anonymous bayrağıdır. Misafir dashboard'u GEZER ama
+   kullanamaz: yakalama evresindeki tıklama bekçisi yalnız kenar çubuğu
+   gezinmesine, İstatistik ders yoluna ve çıkışa izin verir. Formulo ayrı
+   sayfa olduğu için bekçi onu da kapatır. Lab'ın progress mesajı sunucuya
+   yazılır (misafir_ilerleme_koy) ki admin "kaç kişi kaçıncı haftada" görsün.
+   Sunucu ayağı: 20261111b_ders_kodu_misafir.sql. */
+(function () {
+  'use strict';
+  var cl = typeof supabaseClient !== 'undefined' ? supabaseClient : null;
+  if (!cl) return;
+  cl.auth.getUser().then(function (r) {
+    var u = r && r.data && r.data.user;
+    if (!u || !u.is_anonymous) return;
+    document.body.classList.add('ax-misafir');
+    var bar = document.createElement('div');
+    bar.className = 'ax-msf-bar';
+    bar.innerHTML = '<span class="t">Misafir girişi · yalnız <b>İstatistik dersi</b> açık</span>' +
+      '<button type="button" data-msf-ders="">derse git</button>' +
+      '<button type="button" data-msf-cik="">çıkış</button>';
+    document.body.appendChild(bar);
+    var uyariT = 0;
+    var uyar = function () {
+      bar.classList.add('dur'); clearTimeout(uyariT);
+      var eski = bar.querySelector('.t').innerHTML;
+      bar.querySelector('.t').innerHTML = 'Misafir modunda burası yalnız <b>vitrindedir</b> — İstatistik dersi açık';
+      uyariT = setTimeout(function () { bar.classList.remove('dur'); bar.querySelector('.t').innerHTML = eski; }, 2600);
+    };
+    var dersAc = function () { if (window.axIstatAc) { window.axIstatAc(); return true; } return false; };
+    bar.addEventListener('click', function (e) {
+      if (e.target.closest('[data-msf-ders]')) { dersAc(); return; }
+      if (e.target.closest('[data-msf-cik]')) {
+        /* anonim oturum kapatilir; ayni tarayici ayni kodla yeniden girebilir */
+        cl.auth.signOut().then(function () { window.location.replace('istatistik.html'); });
+      }
+    });
+    /* tıklama bekçisi: izinliler dışında her şey vitrin */
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t.closest('.ax-msf-bar') || t.closest('[data-finans-run]')) return;          // şerit + ders yolu katmanı
+      if (t.closest('#side-istatistik')) return;                                        // kenar: İstatistik
+      if (t.closest('#btn-logout')) return;                                             // çıkış
+      var yan = t.closest('.sidebar-item a');
+      if (yan) {
+        /* gezinme serbest; ayrı sayfaya götürenler (Formulo) vitrin */
+        if (/^#/.test(yan.getAttribute('href') || '')) return;
+        e.preventDefault(); e.stopPropagation(); uyar(); return;
+      }
+      if (t.closest('[data-finans-open]')) {
+        var k = t.closest('[data-finans-open]').getAttribute('data-finans-open') || '';
+        if (k.indexOf('istat') === 0) return;                                           // İstatistik kartları serbest
+      }
+      var etk = t.closest('a, button, input, select, textarea, [role="button"], [onclick]');
+      if (!etk) return;                                                                 // düz metne dokunma
+      e.preventDefault(); e.stopPropagation(); uyar();
+    }, true);
+    /* girişten gelindiyse ders yolu kendiliğinden açılır (axIstatAc tanımlanana dek dener) */
+    var otomatik = false;
+    try { otomatik = sessionStorage.getItem('acadex.misafir.giris') === '1'; sessionStorage.removeItem('acadex.misafir.giris'); } catch (e) {}
+    if (otomatik) { var n = 0, tik = setInterval(function () { if (dersAc() || ++n > 25) clearInterval(tik); }, 200); }
+    /* ilerleme sunucuya: lab'ın progress mesajı → localStorage → RPC (2 sn sakinleşme) */
+    var sT = 0;
+    window.addEventListener('message', function (e) {
+      var d = e.data;
+      if (e.origin !== location.origin || !d || d.src !== 'axlab' || d.lab !== 'istat' || d.type !== 'progress') return;
+      clearTimeout(sT);
+      sT = setTimeout(function () {
+        var v = null; try { v = JSON.parse(localStorage.getItem('acadex.istat.v1')); } catch (er) {}
+        if (v) cl.rpc('misafir_ilerleme_koy', { p_veri: v }).then(null, function (er) { console.warn('misafir ilerleme yazılamadı', er); });
+      }, 2000);
+    });
+  });
+})();

@@ -176,3 +176,9 @@ revoke all on function public.admin_ders_kodu_koy(text, text, boolean, date) fro
 grant execute on function public.admin_ders_kodu_koy(text, text, boolean, date) to authenticated;
 revoke all on function public.admin_ders_konuk_ozet(uuid) from public, anon;
 grant execute on function public.admin_ders_konuk_ozet(uuid) to authenticated;
+
+-- 7) Anonim profil emniyeti --------------------------------------------------
+-- Anonim kullanıcının e-postası yoktur; profiles.email NOT NULL ise profil
+-- tetikleyicisi patlar ve misafir girişi hiç açılmaz. Kolon zaten null'a
+-- izin veriyorsa bu satır etkisiz bir dokunuştur.
+alter table public.profiles alter column email drop not null;

@@ -12431,6 +12431,16 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } }
     })
 
+    // MISAFIR REDDI (11.11.2026): ders koduyla giren anonim kullanici ozet
+    // cikaramaz — misafir kilidi istemcidedir ama bu fonksiyon gercek para
+    // harcar, API'den dogrudan cagrilmasi da kapali olmali.
+    const { data: { user: istekUser } } = await userClient.auth.getUser()
+    if ((istekUser as any)?.is_anonymous) {
+      return new Response(JSON.stringify({ error: 'Misafir girişi özet çıkaramaz; tam hesapla giriş yap.' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     // Fetch document to verify ownership.
     //
     // Retried once on purpose. The dashboard inserts the documents row and

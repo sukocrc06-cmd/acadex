@@ -75,6 +75,8 @@
     lastBtn = b; open(b.getAttribute('data-finans-open'));
   });
   run.querySelector('[data-finans-close]').addEventListener('click', close);
+  /* Kenar cubugu ve misafir modu ders yolunu dogrudan acabilsin (11.11.2026). */
+  window.axIstatAc = function () { open('istat-yol'); };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !run.hidden && !document.querySelector('dialog[open]')) close(); });
 
   /* istatistik ders yolu: hafta düğmelerine ilerleme (localStorage 'acadex.istat.v1'; lab her değişimde 'progress' yollar) */
