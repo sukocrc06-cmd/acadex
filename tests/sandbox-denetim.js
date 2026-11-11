@@ -277,4 +277,16 @@ test('MOBİL: sandbox telefon genişliğinde taşmaz (11.11.2026)', () => {
   assert.ok(css.includes('.dv-hint{display:none}'), 'kısayol ipucu telefonda gizlenmiyor');
 });
 
+test('DERLENEN PROJE MESAJI: Vite/React/TS yüklenince yol gösterir (12.11.2026)', () => {
+  /* Canlı bulgu: Vite+TS projesi yüklendi, önizleme "gelmiyor" sanıldı —
+     aslında kaynak hâli tarayıcıda koşamaz. Genel "html yok" yazısı yerine
+     mesaj canlı adres / dist yükleme yolunu söyler. */
+  assert.match(ink, /\\\.\(tsx\?\|jsx\)\$\/i\.test\(p\) \|\| \/\(\^\|\\\/\)vite\\\.config\\\.\/i\.test\(p\)/,
+    'derlenen proje tespiti (tsx/jsx/vite.config) yok');
+  assert.ok(ink.includes('bu derlenen bir proje (Vite/React/TS)'),
+    'derlenen projeye özel mesaj yok — genel "html yok" yazısı yanıltır');
+  assert.ok(ink.includes('bu projede bir .html sayfası yok. Python için'),
+    'derlenmeyen projelerde eski Python yönlendirmesi korunmalı');
+});
+
 summary();

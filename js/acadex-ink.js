@@ -5907,6 +5907,15 @@ var SBX = (function () {
   };
   var refreshPreview = function (anim) {
     if (!P) return; var d = buildDoc(true); noprev.hidden = !!d; if (d) { cons = cons.filter(function (c) { return c.t === 'sys' && anim; }); lastErr = 0; paintCons(); } Q('[data-prevfile]').textContent = d ? d.page : '';
+    if (!d) {
+      /* Derlenen proje (Vite/React/TS) kaynak hâliyle tarayıcıda koşmaz; genel
+         "html yok" mesajı yanıltıyordu (12.11 canlı bulgu: Vite+TS yüklendi,
+         önizleme "gelmiyor" sanıldı). Mesaj doğru yolu söylesin. */
+      var derlenen = paths(P).some(function (p) { return /\.(tsx?|jsx)$/i.test(p) || /(^|\/)vite\.config\./i.test(p); });
+      noprev.textContent = derlenen
+        ? 'bu derlenen bir proje (Vite/React/TS) — tarayıcı kaynak hâlini çalıştıramaz. Canlı adresini panele gönderide paylaş ya da "build" çıktısı olan dist klasörünü yükle.'
+        : 'bu projede bir .html sayfası yok. Python için “çalıştır”a bas, çıktı konsola düşer.';
+    }
     if (d) frame.srcdoc = d.html; else frame.removeAttribute('srcdoc');
     if (anim && !calm) { framew.classList.remove('run'); void framew.offsetWidth; framew.classList.add('run'); }
   };
