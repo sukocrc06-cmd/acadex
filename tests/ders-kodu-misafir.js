@@ -115,4 +115,33 @@ test('ADMİN: Ders kodları bölümü kayıtlı ve hafta sayımı ilerleme biçi
     'kapat/aç kodun notunu ya da tarihini siliyor');
 });
 
+test('GENEL KİLİT: misafir veritabanında HİÇBİR tabloya yazamaz (11.11.2026)', () => {
+  /* Berkay: "istatistik hariç hepsinde engellensin, diğerlerine bu işi
+     bırakmayalım". Çözüm RLS'in KISITLAYICI politikaları: permissive
+     politikalara dokunmadan VE'lenir; anonim JWT ile gelen her yazma —
+     hangi sayfadan, hangi edge fonksiyonundan gelirse gelsin — veritabanında
+     düşer. SECURITY DEFINER fonksiyonlar (misafir_ilerleme_koy dahil) tablo
+     sahibiyle çalıştığı için İstatistik ilerlemesi çalışmaya devam eder. */
+  const kilit = read('supabase/migrations/20261111c_misafir_yazamaz.sql');
+  assert.match(kilit, /coalesce\(\(auth\.jwt\(\)->>'is_anonymous'\)::boolean, false\)/,
+    'misafir_mi eski JWT\'de false dönmüyor — gerçek kullanıcı kilitlenebilir');
+  // Üç işlem de kısıtlayıcı politikayla, RLS açık TÜM public tablolara.
+  assert.match(kilit, /for r in select tablename from pg_tables\s*\n\s*where schemaname = 'public' and rowsecurity/,
+    'döngü RLS açık public tabloları taramıyor');
+  for (const ad of ['zz_misafir_ekleyemez', 'zz_misafir_degistiremez', 'zz_misafir_silemez']) {
+    assert.ok(kilit.includes(ad), ad + ' politikası yok');
+  }
+  assert.equal(kilit.split('as restrictive').length - 1, 6,
+    'kısıtlayıcı politika sayısı 6 değil (3 tablo döngüsü + 3 storage)');
+  // SELECT'e dokunulmaz: "sadece görsünler".
+  assert.ok(!/for select/.test(kilit), 'okuma da kilitlenmiş — misafir hiçbir şey göremez');
+  // Depolama: misafir dosya yükleyemez.
+  assert.match(kilit, /create policy zz_misafir_ekleyemez on storage\.objects/,
+    'storage yazması açık — misafir dosya yükleyebilir');
+  // İstemci: tıklamaya ek form + sürükle-bırak bekçisi (ders yolu muaf).
+  assert.ok(ink.includes("document.addEventListener('submit', function (e) {\n      if (e.target.closest('[data-finans-run]')"),
+    'form bekçisi yok — Enter ile gönderim vitrini deler');
+  assert.ok(ink.includes("['drop', 'dragover'].forEach"), 'sürükle-bırak bekçisi yok');
+});
+
 summary();

@@ -12073,6 +12073,18 @@ var SBX = (function () {
       if (!etk) return;                                                                 // düz metne dokunma
       e.preventDefault(); e.stopPropagation(); uyar();
     }, true);
+    /* form + sürükle-bırak bekçisi: tıklama dışı yazma yolları da vitrindedir
+       (Enter ile form göndermek, belge sürüklemek). Ders yolu katmanı muaf. */
+    document.addEventListener('submit', function (e) {
+      if (e.target.closest('[data-finans-run]') || e.target.closest('.ax-msf-bar')) return;
+      e.preventDefault(); e.stopPropagation(); uyar();
+    }, true);
+    ['drop', 'dragover'].forEach(function (ev) {
+      document.addEventListener(ev, function (e) {
+        if (e.target.closest && e.target.closest('[data-finans-run]')) return;
+        e.preventDefault(); e.stopPropagation(); if (ev === 'drop') uyar();
+      }, true);
+    });
     /* girişten gelindiyse ders yolu kendiliğinden açılır (axIstatAc tanımlanana dek dener) */
     var otomatik = false;
     try { otomatik = sessionStorage.getItem('acadex.misafir.giris') === '1'; sessionStorage.removeItem('acadex.misafir.giris'); } catch (e) {}
