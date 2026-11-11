@@ -12059,11 +12059,16 @@ var SBX = (function () {
       if (t.closest('.ax-msf-bar') || t.closest('[data-finans-run]')) return;          // şerit + ders yolu katmanı
       if (t.closest('#side-istatistik')) return;                                        // kenar: İstatistik
       if (t.closest('#btn-logout')) return;                                             // çıkış
-      var yan = t.closest('.sidebar-item a');
-      if (yan) {
-        /* gezinme serbest; ayrı sayfaya götürenler (Formulo) vitrin */
-        if (/^#/.test(yan.getAttribute('href') || '')) return;
-        e.preventDefault(); e.stopPropagation(); uyar(); return;
+      var side = t.closest('#nav-menu');
+      if (side) {
+        /* Kenar çubuğunun TAMAMI gezilebilir — grup aç/kapa düğmeleri
+           (.ax-grp-b) dahil; ilk sürüm yalnız #'li bağlantılara izin verince
+           gruplar açılamıyordu (11.11 canlı bulgu). Vitrin olan tek şey
+           panel DIŞINA götüren bağlantılar: Formulo, paketler gibi href'i
+           # ile başlamayan <a>'lar. */
+        var ya = t.closest('a');
+        if (ya && !/^#/.test(ya.getAttribute('href') || '')) { e.preventDefault(); e.stopPropagation(); uyar(); return; }
+        return;
       }
       if (t.closest('[data-finans-open]')) {
         var k = t.closest('[data-finans-open]').getAttribute('data-finans-open') || '';

@@ -70,8 +70,15 @@ test('MİSAFİR MODU: bekçi yalnız gezinme + İstatistik + çıkışa izin ver
   // Bekçi yakalama evresinde; kenar çubuğunda yalnız # bağlantıları serbest
   // (Formulo ayrı sayfadır, vitrine girer).
   assert.ok(ink.includes("}, true);"), 'bekçi yakalama evresinde değil');
-  assert.ok(ink.includes("if (/^#/.test(yan.getAttribute('href') || '')) return;"),
-    'kenar çubuğu gezinmesi serbest değil ya da Formulo da serbest kalmış');
+  /* Kenar çubuğunun TAMAMI serbest olmalı: grup başlıkları (.ax-grp-b) düğme,
+     bağlantı değil — ilk sürüm yalnız #'li <a>'lara izin verince misafir
+     grupları açamadı, "içeriklere bakamıyoruz" (11.11 canlı bulgu). Vitrin
+     olan tek şey panel dışına götüren bağlantılar (href # ile başlamayan). */
+  assert.ok(ink.includes("var side = t.closest('#nav-menu');"), 'bekçi kenar çubuğunu sarmalayıcıdan tanımıyor');
+  assert.ok(ink.includes("if (ya && !/^#/.test(ya.getAttribute('href') || '')) { e.preventDefault(); e.stopPropagation(); uyar(); return; }"),
+    'dışarı götüren kenar bağlantıları (Formulo/paketler) vitrine alınmıyor');
+  const sideBlok = ink.slice(ink.indexOf("var side = t.closest('#nav-menu');"), ink.indexOf("var side = t.closest('#nav-menu');") + 700);
+  assert.ok(/return;\n\s*\}/.test(sideBlok), 'kenar çubuğu içi serbest bırakılmıyor — gruplar yine açılmaz');
   assert.ok(ink.includes("if (k.indexOf('istat') === 0) return;"), 'İstatistik kartları bekçiye takılıyor');
   assert.ok(ink.includes("t.closest('[data-finans-run]')"), 'ders yolu katmanı bekçiye takılıyor');
   // Girişten gelince ders kendiliğinden açılır; ilerleme sunucuya yazılır.
