@@ -162,6 +162,14 @@ test('KAPALI BETA KAPISI + SİHİRBAZ: misafiri kovmaz, sihirbaz açılmaz (11.1
     'bekçide misafir istisnası yok — ders kodu girişi login\'e geri atılır');
   assert.ok(dal.indexOf('is_anonymous') < dal.indexOf('var r = await check(u.id)'),
     'istisna profil denetiminden SONRA — yine kovulur');
+  /* "Profilini tamamla" penceresi (profile-complete.js) bölümü olmayan her
+     hesaba açılır; misafirin bölümü OLMAZ — pencere ona hiç çıkmamalı
+     (canlı bulgu: KVKK kutusu bekçiye takıldı, öğrenci kilitlendi). */
+  const pcx = read('js/profile-complete.js');
+  assert.ok(pcx.includes('if (u && u.is_anonymous) return;'),
+    'profil tamamlama penceresi misafire de açılıyor — KVKK kutusu bekçiye takılır');
+  assert.ok(pcx.indexOf('u.is_anonymous) return;') < pcx.indexOf('if (needs(p)) open(p, u)'),
+    'istisna needs denetiminden SONRA — pencere yine açılır');
   const prof = read('supabase/migrations/20261111d_misafir_profil.sql');
   assert.match(prof, /new\.onboarding_completed := true;/, 'sihirbaz atlaması yok');
   assert.match(prof, /new\.access_allowed := false;/,

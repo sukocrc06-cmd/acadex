@@ -94,6 +94,11 @@
   var tries = 0;
   var check = function () {
     var p = g('currentUserProfile') || window.currentUserProfile, u = g('currentUser') || window.currentUser;
+    /* Ders koduyla gelen MİSAFİR (anonim oturum) bu pencerenin konusu değil:
+       bölümü/numarası olmayan bir hesaptır ve KVKK'ya tabi kişisel veri
+       vermez; profili veritabanı kilidi yüzünden zaten yazamaz (11.11.2026,
+       tests/ders-kodu-misafir.js). */
+    if (u && u.is_anonymous) return;
     if (p && u) { if (needs(p)) open(p, u); return; }
     if (++tries < 60) setTimeout(check, 500);
   };
