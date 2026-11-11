@@ -222,4 +222,25 @@ test('BÖLÜM SORULUR: girişte seçilir, konuk listesinde ve profilde görünü
   assert.ok(adm2.includes("(g.bolum ? ' · ' + X(g.bolum) : '')"), 'admin konuk listesi bölümü göstermiyor');
 });
 
+test('GÜVENLİK TARAMASI: definer yan kapılar + yarım giriş (12.11.2026)', () => {
+  /* Tarama bulgusu 1: genel kilit RLS'tir, definer fonksiyonlar takılmaz.
+     İç koruması olmayan iki definer yazıcı (push_subscribe, ing_icerik_al)
+     misafire kapatıldı; gerçek kullanıcı için davranış aynı. */
+  const g = read('supabase/migrations/20261111g_misafir_rpc_kapisi.sql');
+  assert.match(g, /push_subscribe[\s\S]*?if public\.misafir_mi\(\) then raise exception 'PUSH_GIRIS'/,
+    'misafir konsoldan push aboneliği açabilir');
+  assert.match(g, /ing_icerik_al[\s\S]*?if public\.misafir_mi\(\) then return; end if;/,
+    'misafir ing_gorulen tablosuna iz bırakabilir');
+  assert.match(g, /alter function public\.misafir_mi\(\) set search_path to '';/,
+    'misafir_mi search_path sabitlenmemiş (Supabase danışman uyarısı)');
+  /* Tarama bulgusu 2: kod, doğrulama ile kayıt arasında kapanırsa misafir_kaydet
+     false döner (hata değil) — eski kod bunu yutup bağsız anonim oturumla
+     panele geçiyordu; admin o misafiri hiç göremezdi. Şimdi oturum kapatılır. */
+  const kapi = read('istatistik.html');
+  assert.ok(kapi.includes('if (m && m.data === false) {'),
+    'misafir_kaydet=false yutulur — koda bağlı olmayan misafir panele düşer');
+  assert.match(kapi, /m\.data === false\) \{[\s\S]*?signOut\(\)/,
+    'kayıt düşünce anonim oturum kapatılmıyor');
+});
+
 summary();

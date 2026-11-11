@@ -89,6 +89,14 @@ button:disabled{opacity:.55;cursor:wait}
         return supabaseClient.rpc('misafir_kaydet', { p_kod: kod, p_rumuz: adEl.value.trim(), p_bolum: bolumEl.value });
       }).then(function (m) {
         if (m && m.error) throw m.error;
+        /* Kod, doğrulama ile kayıt arasında kapanmış olabilir: kaydet false
+           dönerse az önce açılan anonim oturum kapatılır — yoksa hiçbir koda
+           bağlı olmayan bir misafir panele düşer ve admin onu hiç göremez. */
+        if (m && m.data === false) {
+          return supabaseClient.auth.signOut().then(function () {
+            soyle(MESAJ.pasif); git.disabled = false; git.textContent = 'derse gir';
+          });
+        }
         try { sessionStorage.setItem('acadex.misafir.giris', '1'); } catch (er) {}
         window.location.replace('dashboard.html');
       });
