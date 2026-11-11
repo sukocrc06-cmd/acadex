@@ -12059,6 +12059,10 @@ var SBX = (function () {
       if (t.closest('.ax-msf-bar') || t.closest('[data-finans-run]')) return;          // şerit + ders yolu katmanı
       if (t.closest('#side-istatistik')) return;                                        // kenar: İstatistik
       if (t.closest('#btn-logout')) return;                                             // çıkış
+      /* Acadia paneli ders yolundaki köprüden açılabiliyor; içi vitrinde kalsın
+         ama KAPATMA her zaman serbest — yoksa panel ekranda kilitli kalıyor
+         (11.11 canlı bulgu). */
+      if (t.closest('[data-close]') && t.closest('#axa-layer')) return;
       var side = t.closest('#nav-menu');
       if (side) {
         /* Kenar çubuğunun TAMAMI gezilebilir — grup aç/kapa düğmeleri

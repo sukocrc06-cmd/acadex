@@ -187,4 +187,21 @@ test('KAPALI BETA KAPISI + SİHİRBAZ: misafiri kovmaz, sihirbaz açılmaz (11.1
     'kapalı beta varsayılanı değişmiş');
 });
 
+test('ACADIA KAPANIR + RUMUZ GÖRÜNEN AD OLUR (11.11.2026)', () => {
+  /* Canlı bulgu: ders yolundaki köprü Acadia panelini açabiliyor; kapatma
+     düğmesi bekçiye takılınca panel ekranda kilitli kalıyordu. Kapatma artık
+     her zaman serbest; panelin İÇİ vitrinde (AI çağrıları misafire kapalı). */
+  assert.ok(ink.includes("if (t.closest('[data-close]') && t.closest('#axa-layer')) return;"),
+    'Acadia kapatma düğmesi bekçiye takılıyor');
+  // Rumuz: ders_konuklari + profiles.full_name — panel "Merhaba <rumuz>" der.
+  const rmz = read('supabase/migrations/20261111e_misafir_rumuz.sql');
+  assert.match(rmz, /update profiles set full_name = v_ad where id = auth\.uid\(\);/,
+    'rumuz görünen ada yazılmıyor — panel "Misafir" demeye devam eder');
+  assert.match(rmz, /if v_ad <> '' then/, 'boş rumuz adı silip boş bırakır');
+  assert.match(rmz, /if auth\.uid\(\) is null or not v_anon then return false; end if;/,
+    'anonim şartı düşmüş — gerçek hesabın adı kodla değiştirilebilir olur');
+  assert.match(rmz, /rumuz = case when excluded\.rumuz <> '' then excluded\.rumuz else ders_konuklari\.rumuz end/,
+    'tekrar girişte boş rumuz eskisini eziyor');
+});
+
 summary();
