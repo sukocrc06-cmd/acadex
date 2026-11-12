@@ -72,4 +72,23 @@ test('YÖNETMEN: model şeridi ve yumuşak taslak eşiği (13.11.2026)', () => {
     'taslak eşiği hâlâ %75 — 10 asetatlık istekte 7 başlık gelince üretim tamamen düşer');
 });
 
+test('HER ÜRETİM YOLU PUANLANIR (13.11.2026, canlı ölçüm)', () => {
+  /* 12.11 akşamı üretilen "Kuramsal Yaklaşımlar ve Hemşirelik Süreci" sunumu
+     quality_score'suz kaydedildi ve presentation_generation_runs'a hiç satır
+     düşmedi: source_type 'topic' olduğu için akış sunum-research'ten geçti,
+     yönetmene hiç uğramadı. Kalite yalnız yönetmen yanıtından okunursa en çok
+     kullanılan yolda puan hiç oluşmaz. Çözüm: deste basıldıktan sonra
+     yönetmenin 'critique' eylemi (üretim yapmaz) desteyi puanlar. */
+  assert.match(ink, /var kaliteOlc = function/, 'hazır desteyi puanlayan yol yok');
+  assert.match(ink, /action: 'critique', presentation: \{ title: d\.title \|\| '', slides: sl \}/,
+    'critique eylemi çağrılmıyor');
+  assert.match(ink, /if \(mode !== 'append' && !deck\.quality && deck\.slides\.length\) kaliteOlc\(deck\);/,
+    'deste basılınca puanlama tetiklenmiyor');
+  assert.match(ink, /if \(!q \|\| typeof q\.score !== 'number' \|\| d !== deck\) return;/,
+    'yanıt geldiğinde deste değişmiş olabilir — eski puan yeni desteye yazılmamalı');
+  // critique üretim yapmaz: yönetmende kaynak yüklemeden önce döner.
+  assert.match(dir, /if \(action === 'critique'\)[\s\S]{0,700}const source = await loadSource/,
+    'critique kaynak yüklemesinden sonra çalışıyor — gereksiz yere pahalı');
+});
+
 summary();

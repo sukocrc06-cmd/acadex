@@ -7599,6 +7599,21 @@ var SBX = (function () {
       say(n + ' asetata fotoğraf önerdim. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
     }, function (e) { console.warn('acadex-sunum: otomatik görsel', e); });
   };
+  /* Hazır desteyi yönetmenin eleştirmenine puanlatır (üretim yapmaz, hızlıdır).
+     Sonuç desteye yazılır, kaydedilir ve üretim özetinde görünür. Başarısız
+     olursa sessizce geçilir: puan yokluğu sunumu engellemez. */
+  var kaliteOlc = function (d) {
+    var sl = arr(d.slides).map(function (x) {
+      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section' } };
+    });
+    if (!sl.length) return;
+    fn('acadia-presentation-director', { action: 'critique', presentation: { title: d.title || '', slides: sl }, sourceType: d.source || 'topic', slideCount: sl.length }, 30000)
+      .then(function (r) {
+        var q = r && r.quality; if (!q || typeof q.score !== 'number' || d !== deck) return;
+        d.quality = q; dirty();
+        say('Acadia kalite notu: ' + Math.round(q.score) + '/100' + (arr(q.issues).length ? ' — ' + arr(q.issues).length + ' iyileştirme önerisi var' : ''));
+      }, function (e) { console.warn('acadex-sunum: kalite ölçülemedi', e); });
+  };
   var printDeck = function (mode) {
     strips = strips.filter(function (s) { return s.t.trim() || s.k === 'end'; }); if (!strips.length) return;
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data; var sl = newSlide(s.k, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
@@ -7610,6 +7625,12 @@ var SBX = (function () {
     if (plotMeta.lang) deck.lang = plotMeta.lang;
     if (plotMeta.quality) deck.quality = plotMeta.quality;
     if (mode !== 'append') { deck.source = plotMeta.source || 'blank'; deck.sourceId = isUuid(plotMeta.sourceId) ? plotMeta.sourceId : null; }
+    /* HER YOL İÇİN KALİTE (13.11.2026, canlı ölçüm): üretimin üç yolu var
+       (sunum-research, generate-presentation, yönetmen) ama kalite puanını
+       yalnız yönetmen döndürüyordu — en çok kullanılan araştırma yolunda puan
+       hiç oluşmuyordu. Yönetmenin 'critique' eylemi hazır desteyi puanlıyor,
+       üretim yapmıyor; deste basıldıktan sonra arka planda çağrılır. */
+    if (mode !== 'append' && !deck.quality && deck.slides.length) kaliteOlc(deck);
     deck.cur = start; selId = null; plotFrom = null; plot.close(); renderAll(); dirty();
     QA('.sx-th', thumbsEl).slice(start).forEach(function (li, i) { if (!calm) { li.classList.add('printed'); li.querySelector('.sx-thb').style.animationDelay = (i * 120) + 'ms'; } });
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
