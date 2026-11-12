@@ -31,9 +31,10 @@ const BICIM = 'mp3_44100_64';
 /* çocuklar için: biraz yavaş, sıcak, tutarlı */
 /* tr (12.11.2026): yönerge sesi "rap yapar gibi" bulundu. Asıl sebep hız değil
    style 0.3'tü (abartılı anlatım). 0'da ses durgunlaştığı için 0.15'te
-   dengelendi: canlı ama zıpır değil. Hız 0.95 → 0.8; stability 0.65 tonu
-   doğal tutar. en'e dokunulmadı: kelimeleri öğreten ses odur. */
-const AYAR = { en: { stability: 0.55, similarity_boost: 0.8, style: 0.25, use_speaker_boost: true, speed: 0.9 }, tr: { stability: 0.65, similarity_boost: 0.8, style: 0.15, use_speaker_boost: true, speed: 0.8 } };
+   dengelendi: canlı ama zıpır değil. Hız 0.95 → 0.8 → 0.75 (ElevenLabs tabanı
+   0.7); stability 0.65 tonu doğal tutar. en'e dokunulmadı: kelimeleri öğreten
+   ses odur. */
+const AYAR = { en: { stability: 0.55, similarity_boost: 0.8, style: 0.25, use_speaker_boost: true, speed: 0.9 }, tr: { stability: 0.65, similarity_boost: 0.8, style: 0.15, use_speaker_boost: true, speed: 0.75 } };
 
 const KATLA = { ç: 'c', ğ: 'g', ı: 'i', İ: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a' };
 function dosyaAdi(dil, metin) {
