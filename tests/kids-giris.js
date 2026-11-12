@@ -89,4 +89,31 @@ test('davranış (gerçek Postgres): şifre, kilit, oturum, plan, lisans, anon',
   } finally { execSync(P + ' -d postgres -c "drop database if exists ax_kidsg"', { stdio: 'pipe' }); }
 });
 
+test('22 TEMA + SERTLEŞTİRME: plan kuralı, kod taraması, katlanan kilit, temiz ilerleme (12.11.2026)', () => {
+  const sq = read('supabase/migrations/20261112c_kids_temalar_ve_sertlestirme.sql');
+  /* Tema sayısı 12→22 çıktı ama kids_plan kuralı eskide kalmıştı: öğretmen
+     Fruits seçince kayıt düşüyordu. Kural istemcideki V.KONU ile eşit olmalı. */
+  const veri = read('kids/assets/kids-veri.js');
+  const konular = (veri.match(/\{ id: '([a-z]+)', en: '[^']+', tr: '[^']+', renk:/g) || [])
+    .map((m) => m.match(/id: '([a-z]+)'/)[1]);
+  assert.ok(konular.length >= 22, 'tema listesi okunamadı (' + konular.length + ')');
+  for (const k of konular) assert.ok(sq.includes("'" + k + "'"), k + ' teması kids_plan kuralında yok — öğretmen o günü planlayamaz');
+  /* Okul kodu tahmin edilebilir (addan türer); arama sınırsızsa çocuk adları dökülür. */
+  assert.match(sq, /d\.sayi >= 30 then\s*return json_build_object\('hata', 'kilit'/, 'kod araması IP başına sınırlı değil');
+  assert.match(sq, /if o\.id is null then\s*insert into kids_kod_deneme[\s\S]*?return json_build_object\('hata', 'yok'/,
+    'başarısız arama hata fırlatıyor — sayaç işlemle geri alınır, sınır hiç dolmaz');
+  /* Resimli şifre 72 ihtimal: kilit sıfırlanırsa havuz ~1 saatte taranır. */
+  assert.match(sq, /least\(5 \* power\(2, kilit_say\)::int, 1440\)/, 'çocuk kilidi katlanmıyor');
+  assert.match(sq, /kilit_say = 0 where id = g\.id/, 'doğru girişte katlanan kilit sıfırlanmıyor');
+  const bl = read('kids/assets/kids-bulut.js');
+  assert.match(bl, /if \(o && o\.hata\) throw new Hata\(/, 'istemci yeni JSON hata biçimini tanımıyor — kod yokken boş okul çizer');
+  /* Çocuğun yazdığı ilerleme öğretmen ekranında HTML olarak çalışabiliyordu. */
+  const og = read('kids/assets/kids-ogretmen.js');
+  assert.ok(og.includes('if (BU) return temizKayit(og[3]);'), 'sunucu ilerlemesi temizlenmeden öğretmen ekranına basılıyor');
+  assert.match(og, /function sayi\(v\) \{ v = Number\(v\);/, 'ilerleme sayıları sayıya zorlanmıyor');
+  const html = read('kids/index.html');
+  assert.ok(html.includes('temizKayit') && html.includes("o.hata === 'kilit'"),
+    'kids/index.html yeniden üretilmemiş (node kids/assets/birlestir.js)');
+});
+
 summary();

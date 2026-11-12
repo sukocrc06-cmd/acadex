@@ -43,9 +43,24 @@
     });
     return { ornek: true, yildiz: yil, bitti: bit, zor: zor, cikartma: cik, son: Date.now() - (h % 4) * 864e5 - (h % 9) * 36e5 };
   }
+  /* İlerlemeyi çocuk oturumu yazar, bu ekran onu HTML'e basar. Çocuk anahtarı
+     ele geçerse (resimli şifre dar bir havuzdur) sayı yerine HTML yazılıp
+     ÖĞRETMENİN tarayıcısında çalıştırılabilirdi (12.11 taraması). Sunucudan
+     gelen her alan burada biçimine zorlanır: sayılar sayı, anahtarlar düz kimlik. */
+  function sayi(v) { v = Number(v); return isFinite(v) && v > 0 ? Math.min(v, 1e6) : 0; }
+  function kimlik(k) { return /^[a-z0-9@_-]{1,40}$/i.test(k); }
+  function sayiHarita(m) { var r = {}; if (m && typeof m === 'object') Object.keys(m).forEach(function (k) { if (kimlik(k)) r[k] = sayi(m[k]); }); return r; }
+  function temizKayit(u) {
+    u = u && typeof u === 'object' ? u : {};
+    var yildiz = {}, bitti = {};
+    if (u.yildiz && typeof u.yildiz === 'object') Object.keys(u.yildiz).forEach(function (k) { if (kimlik(k)) yildiz[k] = sayiHarita(u.yildiz[k]); });
+    if (u.bitti && typeof u.bitti === 'object') Object.keys(u.bitti).forEach(function (k) { if (kimlik(k) && u.bitti[k]) bitti[k] = 1; });
+    return { yildiz: yildiz, bitti: bitti, zor: sayiHarita(u.zor), usta: sayiHarita(u.usta),
+      cikartma: Array.isArray(u.cikartma) ? u.cikartma.filter(function (c) { return typeof c === 'string' && kimlik(c); }) : [], son: sayi(u.son) };
+  }
   function kayit(sinif, og) {
     var ad = og[0];
-    if (BU) { var u = og[3] || {}; return { yildiz: u.yildiz || {}, bitti: u.bitti || {}, zor: u.zor || {}, cikartma: u.cikartma || [], son: u.son || 0 }; }
+    if (BU) return temizKayit(og[3]);
     var g = V.al('il.' + V.OKUL.kod + '.' + sinif.id + '.' + ad, null);
     if (g && (g.son || (g.yildiz && Object.keys(g.yildiz).length))) { g.yildiz = g.yildiz || {}; g.bitti = g.bitti || {}; g.zor = g.zor || {}; g.cikartma = g.cikartma || []; return g; }
     return ornekGoster ? ornekKayit(sinif, ad) : { yildiz: {}, bitti: {}, zor: {}, cikartma: [], son: 0 };

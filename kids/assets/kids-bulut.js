@@ -56,7 +56,9 @@
 
   W.KIDS_BULUT = {
     ORNEK_KOD: ORNEK_KOD, RENK: RENK, Hata: Hata, rpc: rpc, okulBicim: okulBicim,
-    okulBul: function (kod) { return rpc('kids_okul_bul', { p_kod: kod }).then(okulBicim); },
+    /* 20261112c: kod taramasına karşı başarısız arama HATA FIRLATMAZ, {hata,mesaj} döner
+       (fırlatsa deneme sayacı işlemle birlikte geri alınırdı) */
+    okulBul: function (kod) { return rpc('kids_okul_bul', { p_kod: kod }).then(function (o) { if (o && o.hata) throw new Hata(o.mesaj || 'Bu kodu bulamadım.', o.hata === 'kilit' ? 'kilit' : 'yok'); return okulBicim(o); }); },
     giris: function (id, sifre) { return rpc('kids_giris', { p_ogrenci: id, p_sifre: sifre }); },
     durum: function (t) { return rpc('kids_durum', { p_token: t }); },
     ilerlemeKoy: ilerlemeKoy, ilerlemeGonder: gonder,
