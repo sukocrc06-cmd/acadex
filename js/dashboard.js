@@ -13203,6 +13203,44 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (shared cards) error:', err);
   }
 
+  // 1f. Bölüm panosu: KENDİ kâğıdına kenar notu düşüldü (13.11.2026).
+  // Raptiye bildirimi panoda zaten var; not sessizdi.
+  try {
+    const { data: kagit, error: kErr } = await supabaseClient
+      .from('study_cards')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .eq('is_shared', true);
+    if (!kErr && kagit && kagit.length) {
+      const { data: notlar, error: nErr } = await supabaseClient
+        .from('study_card_notes')
+        .select('id, card_id, user_id, body, created_at')
+        .in('card_id', kagit.map(k => k.id))
+        .neq('user_id', currentUser.id)
+        .gt('created_at', lastCheck)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (!nErr && notlar && notlar.length) {
+        const { data: kimler } = await supabaseClient
+          .from('public_profiles')
+          .select('id, full_name')
+          .in('id', [...new Set(notlar.map(n => n.user_id))]);
+        const adlar = {};
+        (kimler || []).forEach(w => { adlar[w.id] = w.full_name; });
+        notlar.forEach(n => {
+          items.push({
+            time: n.created_at,
+            title: 'Kâğıdına kenar notu düşüldü',
+            subtitle: `${escapeHtml(adlar[n.user_id] || 'Bir arkadaşın')}: ${escapeHtml(String(n.body || '').slice(0, 80))}`,
+            onClick: () => switchDashboardView('feed')
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (pano notu) error:', err);
+  }
+
   // 1e. Sandbox: KENDİ projene inceleme geldi (13.11.2026). Takip bildirimi
   // vardı ama asıl önemlisi buydu: öğrenci paylaşıp "kimse bakmadı" sanıyordu.
   try {

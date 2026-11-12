@@ -8159,7 +8159,7 @@ var SBX = (function () {
   var POSTS = [], myLikes = {}, myCm = {}, metaLocal = {};
   var saved = [], hidden = [], reports = {}, follow = [], seen = [], prefs = { pin: true, note: true, line: true };
   var OK = { notes: true, follows: true, reports: true, meta: true }, LIMIT = 30, MORE = false, NODEPT = false, LOADERR = false;
-  var F = { tag: '', who: '', mode: '', bolum: '' }, openCm = {}, allCm = {}, quote = {};
+  var F = { tag: '', who: '', mode: '', bolum: '', q: '' }, openCm = {}, allCm = {}, quote = {};
 
   var posts = function () { return POSTS.filter(function (p) { return hidden.indexOf(p.id) < 0; }).sort(function (a, b) { return b.at - a.at; }); };
   var byId = function (id) { var r = null; POSTS.forEach(function (p) { if (p.id === id) r = p; }); return r; };
@@ -8228,6 +8228,9 @@ var SBX = (function () {
       '<button type="button" class="bp-act" data-a="pin" aria-pressed="' + liked + '">' + IC.pin + '<span class="n" data-ln-n="">' + pinSay(p) + '</span><span class="l">raptiye</span></button>' +
       '<button type="button" class="bp-act" data-a="note" aria-expanded="' + !!openCm[p.id] + '">' + IC.note + '<span class="n">' + C.length + '</span><span class="l">not</span></button>' +
       '<button type="button" class="bp-act" data-a="save" aria-pressed="' + sv + '">' + IC.save + '<span class="l">' + (sv ? 'kaydedildi' : 'kaydet') + '</span></button>' +
+      /* kendi kartlarıma kopyala (13.11.2026): sandbox'taki "kurcala"nın
+         karşılığı. Kendi kartında anlamsız, o yüzden yalnız başkasınınkinde. */
+      (own ? '' : '<button type="button" class="bp-act" data-a="kopya"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="3.5" width="12" height="15" rx="2"/><path d="M15.5 18.5 V20.5 C15.5 21.3 14.8 21.5 14 21.5 H5.5 C4.7 21.5 3.5 21.3 3.5 20.5 V7 C3.5 6.2 4.7 6 5.5 6 H8.5"/></svg><span class="l">kartlarıma al</span></button>') +
       '<button type="button" class="bp-act bp-act-more" data-a="more" aria-haspopup="menu" aria-label="Diğer seçenekler">' + IC.more + '</button>' +
       '</div>' +
       '<div class="bp-cmts"' + (openCm[p.id] ? '' : ' hidden') + '>' +
@@ -8265,9 +8268,20 @@ var SBX = (function () {
     var tags = []; posts().forEach(function (p) { if (p.tag && tags.indexOf(p.tag) < 0) tags.push(p.tag); });
     tapesEl.innerHTML = ['', ].concat(tags).map(function (t, i) { return '<button type="button" class="bp-tape" data-tag="' + X(t) + '" aria-pressed="' + (F.tag === t) + '" style="--r:' + ((i % 3) - 1) * 1.4 + 'deg;--tc:' + (t ? tagC(t) : 'rgba(13,24,56,.14)') + '">' + (t ? X(t) : 'tüm dersler') + '</button>'; }).join('');
   };
+  /* panoda arama (13.11.2026): başlık, maddeler, not, etiket, kaynak dosya ve
+     paylaşan kişi. Türkçe harf katlaması yapılır ki "ISTATISTIK" de bulsun. */
+  var katla = function (t) {
+    return String(t == null ? '' : t).toLocaleLowerCase('tr')
+      .replace(/[çğıöşüâî]/g, function (c) { return { 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i' }[c]; });
+  };
+  var araUyar = function (p, q) {
+    var h = katla([p.title, p.note, p.tag, p.src, (p.lines || []).join(' '), person(p.by).n].join(' '));
+    return katla(q).split(/\s+/).filter(Boolean).every(function (k) { return h.indexOf(k) > -1; });
+  };
   var visible = function () {
     return posts().filter(function (p) {
       if (F.bolum && F.bolum !== '*' && (p.dept || '') !== F.bolum) return false;
+      if (F.q && !araUyar(p, F.q)) return false;
       if (F.tag && p.tag !== F.tag) return false;
       if (F.who && p.by !== F.who) return false;
       if (F.mode === 'follow' && p.by !== 'me' && follow.indexOf(p.by) < 0) return false;
@@ -8283,8 +8297,21 @@ var SBX = (function () {
   var arm = function (el) { if (io) { el.classList.add('pre'); io.observe(el); } else el.classList.add('in'); };
   var sizeViz = function (scope) { QA('.bp-viz .b', scope).forEach(function (p) { try { p.style.setProperty('--len', Math.ceil(p.getTotalLength()) + 1); } catch (e) {} }); };
 
+  /* haftanın kartı (13.11.2026): son 7 günde en çok raptiyelenen kâğıt panonun
+     tepesinde anılır. Süzgeç ya da arama açıkken gösterilmez — o an başka bir
+     şey arıyorsundur. En az 2 raptiye şartı: tek raptiyeyle "haftanın" olmaz. */
+  var haftaninKarti = function () {
+    var sinir = Date.now() - 7 * 864e5, en = null;
+    posts().forEach(function (p) { if (p.at < sinir) return; var n = pinSay(p); if (n >= 2 && (!en || n > pinSay(en))) en = p; });
+    return en;
+  };
   var renderFeed = function () {
     var list = visible(), html = '', last = -1;
+    var hk = (F.tag || F.who || F.mode || F.q) ? null : haftaninKarti();
+    if (hk) html += '<button type="button" class="bp-hafta" data-git="' + hk.id + '">' +
+      '<span class="bp-hafta-e">haftanın kâğıdı</span>' +
+      '<b>' + X(hk.title) + '</b>' +
+      '<span class="bp-hafta-a">' + X(person(hk.by).n) + ' · ' + pinSay(hk) + ' raptiye</span></button>';
     list.forEach(function (p) { var d = dayOf(p.at); if (d !== last) { html += '<div class="bp-door"><span class="bp-plate"><i></i>' + DOORS[d][0] + ' · <b>' + DOORS[d][1] + '</b></span></div>'; last = d; } html += postHTML(p); });
     feedEl.innerHTML = html; var all = posts().length; noneEl.hidden = !!list.length || !all;
     emptyEl.hidden = !!all || loadEl.hidden === false; olderEl.hidden = !MORE || !!(F.tag || F.who || F.mode);
@@ -8458,10 +8485,28 @@ var SBX = (function () {
     if (on && !calm) { var sh = el.querySelector('.bp-sheet'); sh.classList.remove('jolt'); void sh.offsetWidth; sh.classList.add('jolt'); }
   };
   feedEl.addEventListener('click', function (e) {
+    var hg = e.target.closest('[data-git]');
+    if (hg) { var hel = feedEl.querySelector('.bp-post[data-id="' + hg.getAttribute('data-git') + '"]');
+      if (hel) hel.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' }); return; }
     var post = e.target.closest('.bp-post'); if (!post) return; var id = post.getAttribute('data-id'), p = byId(id), t;
     if ((t = e.target.closest('[data-prof-k]'))) { openProf(t.getAttribute('data-prof-k'), t); return; }
     if ((t = e.target.closest('[data-a]'))) {
       var a = t.getAttribute('data-a');
+      if (a === 'kopya') {
+        /* Kopya sunucuda üretilir (kart 36 kolonlu; istemci tek tek yazarsa
+           yeni kolon eklendiğinde kopya sessizce eksilir). */
+        var cc = sbc(); if (!cc) return;
+        var kb = e.target.closest('[data-a="kopya"]'); if (kb) kb.disabled = true;
+        cc.rpc('study_card_kopyala', { p_card: id }).then(function (r) {
+          if (kb) kb.disabled = false;
+          if (r.error) { console.warn('acadex-bolum: kopya', r.error); say(MISSING(r.error) ? 'Bu özellik sunucuda henüz açık değil (migration).' : 'Kopyalanamadı.'); return; }
+          if (!r.data) { say('Bu kart kopyalanamadı.'); return; }
+          say('“' + p.title + '” kartlarına eklendi (kapalı, yalnız sende).', null, function () {
+            if (typeof switchDashboardView === 'function') switchDashboardView('cards');
+          }, 'kartlarıma git →');
+        });
+        return;
+      }
       if (a === 'pin') { var on = !myLikes[id]; setLike(id, on); if (on && p.by !== 'me') say('Raptiyeni taktın. ' + person(p.by).n.split(' ')[0] + ' bunu görecek.'); }
       else if (a === 'full') return;
       else if (a === 'note') { openCm[id] = !openCm[id]; var c = post.querySelector('.bp-cmts'); c.hidden = !openCm[id]; t.setAttribute('aria-expanded', String(!!openCm[id])); if (openCm[id]) c.querySelector('input').focus(); }
@@ -8503,6 +8548,10 @@ var SBX = (function () {
   });
 
   /* ---------- filters / stories / roll ---------- */
+  var araEl = Q('[data-ara]');
+  if (araEl) { var araT = 0; araEl.addEventListener('input', function () {
+    clearTimeout(araT); var v = this.value; araT = setTimeout(function () { F.q = v.trim(); renderFeed(); }, 180);
+  }); }
   if (bolumlerEl) bolumlerEl.addEventListener('click', function (e) {
     var b = e.target.closest('[data-bol]'); if (!b) return;
     var yeni = b.getAttribute('data-bol');

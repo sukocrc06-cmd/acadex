@@ -113,4 +113,38 @@ test('PANO SÜSÜ TEK TEK KALDIRILIR (13.11.2026)', () => {
     'kaldırma düğmesi yalnız süsleme modunda görünmeli');
 });
 
+test('KARTLARIMA AL + ARAMA + HAFTANIN KÂĞIDI + NOT BİLDİRİMİ (13.11.2026)', () => {
+  /* Panodaki özeti yalnız okuyabiliyordun. Kopya SUNUCUDA üretilir: kart 36
+     kolonlu, istemci tek tek yazarsa yeni kolon eklendiğinde kopya sessizce
+     eksilir. */
+  const kop = read('supabase/migrations/20261113c_kart_kopyala.sql');
+  assert.match(kop, /where id = p_card and is_shared = true/, 'paylaşılmamış kart da kopyalanabiliyor');
+  assert.match(kop, /if v_sahip = auth\.uid\(\) then return null/, 'kendi kartını kopyalamak engellenmiyor');
+  assert.match(kop, /where user_id = auth\.uid\(\) and kaynak_kart = p_card limit 1/,
+    'ikinci kez kopyalamak yeni kart üretiyor');
+  assert.match(kop, /auth\.uid\(\), null, c\.id, false, null, null,/,
+    'kopya: sahibi sen, belge bağı YOK, kapalı doğmalı (belge erişimi sızmasın)');
+  assert.match(kop, /if public\.misafir_mi\(\) then/, 'misafir kart kopyalayabiliyor');
+  assert.ok(ink.includes("data-a=\"kopya\""), 'panoda "kartlarıma al" düğmesi yok');
+  assert.match(ink, /\(own \? '' :/, 'kendi kâğıdında da kopyala düğmesi çıkıyor');
+  assert.match(ink, /rpc\('study_card_kopyala', \{ p_card: id \}\)/, 'kopyalama sunucuya gitmiyor');
+  /* Arama: başlık, madde, etiket, kişi; Türkçe harf katlamalı. */
+  assert.ok(html.includes('data-ara='), 'panoda arama kutusu yok');
+  assert.match(ink, /var araUyar = function/, 'arama süzgeci yok');
+  assert.match(ink, /if \(F\.q && !araUyar\(p, F\.q\)\) return false;/, 'arama listeyi süzmüyor');
+  assert.match(ink, /toLocaleLowerCase\('tr'\)/, 'arama Türkçe harfleri katlamıyor (İSTATİSTİK bulunmaz)');
+  /* Haftanın kâğıdı: son 7 gün, en az 2 raptiye, süzgeç açıkken gizli. */
+  assert.match(ink, /var haftaninKarti = function/, 'haftanın kâğıdı yok');
+  assert.match(ink, /n >= 2 && \(!en \|\| n > pinSay\(en\)\)/, 'tek raptiyeyle "haftanın kâğıdı" olmamalı');
+  assert.match(ink, /\(F\.tag \|\| F\.who \|\| F\.mode \|\| F\.q\) \? null : haftaninKarti\(\)/,
+    'süzgeç/arama açıkken haftanın kâğıdı gizlenmiyor');
+  /* Kendi kâğıdına not düşülünce bildirim (raptiye bildirimi zaten vardı). */
+  const dash = read('js/dashboard.js');
+  assert.ok(dash.includes("'Kâğıdına kenar notu düşüldü'"), 'kenar notu bildirimi yok');
+  assert.match(dash, /from\('study_card_notes'\)[\s\S]{0,260}\.neq\('user_id', currentUser\.id\)/,
+    'kendi notların da bildiriliyor');
+  assert.match(dash, /from\('study_cards'\)\s*\n\s*\.select\('id'\)\s*\n\s*\.eq\('user_id', currentUser\.id\)\s*\n\s*\.eq\('is_shared', true\)/,
+    'bildirim yalnız kendi PAYLAŞILAN kâğıtların için olmalı');
+});
+
 summary();
