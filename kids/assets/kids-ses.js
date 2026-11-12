@@ -109,9 +109,12 @@
     dogru: function () { nota(660, 0, 0.14, 'triangle'); nota(880, 0.11, 0.2, 'triangle'); },
     yanlis: function () { nota(300, 0, 0.16, 'sine', 0.1); nota(250, 0.1, 0.2, 'sine', 0.1); },
     yildiz: function () { [523, 659, 784, 1047].forEach(function (f, i) { nota(f, i * 0.1, 0.25, 'triangle'); }); },
-    cevir: function () { nota(480, 0, 0.07, 'triangle', 0.08); }
+    cevir: function () { nota(480, 0, 0.07, 'triangle', 0.08); },
+    /* seri: her doğru cevapta bir nota yukarı (do-re-mi…) */
+    seri: function (n) { var g = [0, 2, 4, 5, 7, 9, 11, 12][Math.min(7, Math.max(0, (n || 1) - 1))]; nota(523.25 * Math.pow(2, g / 12), 0, 0.18, 'triangle', 0.12); nota(523.25 * Math.pow(2, (g + 7) / 12), 0.06, 0.16, 'sine', 0.06); },
+    duduk: function () { nota(587, 0, 0.35, 'square', 0.05); nota(740, 0, 0.35, 'square', 0.04); nota(587, 0.42, 0.25, 'square', 0.05); }
   };
-  function fx(ad) { if (FX[ad]) FX[ad](); }
+  function fx(ad, x) { if (FX[ad]) FX[ad](x); }
   /* şarkı altyapısı: kısa, yumuşak bir ezgi döngüsü (WebAudio, dosya yok). muzik(true) başlatır, muzik(false) durdurur */
   var muzikT = null, EZGI = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1047, 784, 659, 587, 523];
   function muzik(ac_) {

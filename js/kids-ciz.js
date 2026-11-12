@@ -36,7 +36,7 @@
       '<polygon points="' + pts + '" fill="#FFD23F" stroke="#FFD23F" stroke-width="13" stroke-linejoin="round"/>' +
       '<path d="M30 30 q6 -9 16 -9" fill="none" stroke="#FFF1B0" stroke-width="5" stroke-linecap="round"/>' +
       '<ellipse cx="33" cy="58" rx="5" ry="3.4" fill="#FF9E8A"/><ellipse cx="67" cy="58" rx="5" ry="3.4" fill="#FF9E8A"/>' +
-      GOZ[mood] + AGIZ[mood] + '</g>', 'kc-acd' + (o.cls ? ' ' + o.cls : ''));
+      GOZ[mood] + '<g class="kc-acd-agiz">' + AGIZ[mood] + '</g></g>', 'kc-acd' + (o.cls ? ' ' + o.cls : ''));
   }
 
   /* ---------- hayvan avatarlar ---------- */

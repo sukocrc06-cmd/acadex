@@ -199,7 +199,8 @@
   function duraklar(kid) {
     var o3 = (K.al(kid) || K.al('colours')).oyun3;
     return [{ id: 'izle', ad: 'İzle', simge: 'oynat' }, { id: 'sarki', ad: 'Şarkı', simge: 'nota' }, { id: 'dokun', ad: 'Dokun', simge: 'ses' }, { id: 'balon', ad: 'Balon', simge: 'top', oyun: 1 },
-      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }, { id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }].concat((K.al(kid) || {}).karisik ? [{ id: 'karisik', ad: 'Karışık', simge: 'gokkusagi', oyun: 1 }] : []).concat([{ id: 'soyle', ad: 'Söyle', simge: 'mikrofon' }]);
+      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }, { id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }].concat((K.al(kid) || {}).karisik ? [{ id: 'karisik', ad: 'Karışık', simge: 'gokkusagi', oyun: 1 }] : [])
+      .concat(OYUN.PARK ? [{ id: 'park', ad: OYUN.PARK[S.parkSecim || 'sesavi'][1], simge: OYUN.PARK[S.parkSecim || 'sesavi'][2], oyun: 1 }] : []).concat([{ id: 'soyle', ad: 'Söyle', simge: 'mikrofon' }]);
   }
   var DURAK = duraklar('colours');
   function konuUst(n) {
@@ -217,7 +218,8 @@
     il.usta[id] = e + 1; S.ustaArtti.push(id); koy(ilAnahtar(), il);
   }
   function konuAc(kid, n) {
-    S.konu = kid; S.duraklar = duraklar(kid); S.goruldu = {}; S.ustaArtti = []; S.seviye = S.seviye || 1;
+    S.seviye = S.seviye || 1; if (n === 0 || S.konu !== kid || !S.parkSecim) S.parkSecim = OYUN.parkOyun ? OYUN.parkOyun(bant(), kid) : null;
+    S.konu = kid; S.duraklar = duraklar(kid); S.goruldu = {}; S.ustaArtti = [];
     if (n >= S.duraklar.length) return konuBitti(kid);
     var d = S.duraklar[n];
     if (n === 0) { var il0 = ilerleme(); il0.gunler = il0.gunler || {}; il0.gunler[V.gunAnahtar()] = 1; il0.sonKonu = kid; var gk = Object.keys(il0.gunler).sort(); if (gk.length > 60) delete il0.gunler[gk[0]]; koy(ilAnahtar(), il0); }
@@ -229,12 +231,13 @@
     else if (d.id === 'dokun') aktif = dokunDinle(sahne, ileri);
     else if (d.id === 'sarki') aktif = sarki(sahne, ileri);
     else if (d.id === 'soyle') aktif = soyle(sahne, ileri);
-    else aktif = OYUN[d.id](sahne, { renkler: renkler(), bant: bant(), paket: paket(), bitti: function (y) { araEkran(kid, d, y, ileri); }, dogru: ustaArtir, yanlis: function (kelime) { var il = ilerleme(); il.zor[kelime] = (il.zor[kelime] || 0) + 1; koy(ilAnahtar(), il); } });
+    else aktif = OYUN[d.id](sahne, { renkler: renkler(), bant: bant(), paket: paket(), parkOyun: S.parkSecim, bitti: function (y) { araEkran(kid, d, y, ileri); }, dogru: ustaArtir, yanlis: function (kelime) { var il = ilerleme(); il.zor[kelime] = (il.zor[kelime] || 0) + 1; koy(ilAnahtar(), il); } });
   }
   function ileriDugme(etiket) { return '<button type="button" class="ka-buyuk ka-ileri" data-ileri>' + (etiket || 'Devam') + ' ' + C.simge('oynat') + '</button>'; }
 
   /* 1. İzle: Acadia renkleri tek tek tanıtır */
   function izle(sahne, ileri) {
+    if (W.KIDS_ANLAT) return W.KIDS_ANLAT.izle(sahne, { paket: paket(), ogeler: renklerIzle(), bant: bant(), konu: S.konu, ileri: ileri, acd: acd, ileriDugme: ileriDugme('Şarkıya geç') });
     var rs = renklerIzle(), iptal = false, P = paket();
     sahne.innerHTML = '<div class="ka-izle"><div class="ka-izle-acd" data-acd>' + acd('mutlu', 'isaret') + '</div><div class="ka-izle-tuval"><div class="ka-izle-leke" data-leke></div><p class="ka-kelime" data-kelime lang="en"></p></div>' +
       '<div class="ka-izle-sira" data-sira>' + rs.map(function (r) { return '<i style="--r:' + r.hex + '"></i>'; }).join('') + '</div><div class="ka-izle-alt" data-alt hidden><button type="button" class="ka-orta" data-yeniden>Bir daha izle</button>' + ileriDugme('Şarkıya geç') + '</div></div>';

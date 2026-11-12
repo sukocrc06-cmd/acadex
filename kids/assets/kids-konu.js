@@ -80,6 +80,6 @@
     var b = BELIRLI[p.id]; return 'Point to ' + (b === 0 || (b && !b[o.id]) ? '' : 'the ') + o.en.toLowerCase() + '!';
   }
   /* konunun oyun sayısı ve en çok yıldızı: üç oyun + (varsa) karışık durak */
-  function oyunSay(id) { var p = P[id]; return 3 + (p && p.karisik ? 1 : 0); }
+  function oyunSay(id) { var p = P[id]; return 4 + (p && p.karisik ? 1 : 0); }   /* balon, hafıza, konu oyunu, park (+ karışık) */
   W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
 })(window);

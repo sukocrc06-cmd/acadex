@@ -1,0 +1,158 @@
+/* ==========================================================================
+   ACADEX KIDS · animasyonlu anlatım ve oyun parkı (kids/assets/kids-anlat.css), 12.11.2026
+   Önek kn- (anlatım) ve ko- (park oyunları). Hareket azaltma ayarında sakinleşir.
+   ========================================================================== */
+.kn{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,230px);grid-template-areas:"sahne ogr" "sira sira" "alt alt";gap:12px 16px;align-items:center}
+.kn-sahne{grid-area:sahne;position:relative;display:grid;place-items:center;min-height:clamp(260px,46vh,420px);border:3px solid var(--m);border-radius:28px;overflow:hidden;background:#fff;box-shadow:inset 0 -10px 0 rgba(35,48,77,.06)}
+.kn-arka{position:absolute;inset:0;opacity:.9}.kn-arka .ka-dunya-r{width:100%;height:100%}
+.kn-isik{position:absolute;width:70%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--r) 45%,#fff) 0%,transparent 68%);opacity:0;transition:opacity .5s}
+.kn-gir .kn-isik{opacity:1;animation:knIsik 4s linear infinite}
+@keyframes knIsik{to{transform:rotate(360deg) scale(1.05)}}
+.kn-oge{position:relative;z-index:1;display:grid;place-items:center;width:min(58%,300px);aspect-ratio:1;cursor:pointer}
+.kn-resim{width:100%;height:100%;filter:drop-shadow(0 8px 0 rgba(35,48,77,.15))}
+.kn-resim .kc{width:100%;height:100%}
+.kn-kelime{position:absolute;z-index:2;left:0;right:0;bottom:10px;margin:0;text-align:center;font:800 clamp(38px,7vw,72px)/1 var(--bas);color:var(--m)}
+.kn-kelime span{display:inline-block;opacity:0;-webkit-text-stroke:0;text-shadow:0 4px 0 color-mix(in srgb,var(--r) 70%,#fff)}
+.kn-yaz span{animation:knHarf .5s calc(var(--h) * .08s) cubic-bezier(.3,1.6,.5,1) forwards}
+.kn-bosluk{width:.3em}
+@keyframes knHarf{0%{opacity:0;transform:translateY(40px) scale(.3) rotate(-20deg)}100%{opacity:1;transform:none}}
+/* kıvılcım patlaması (her girişte) */
+.kn-kivilcim{position:absolute;left:50%;top:45%;z-index:1;pointer-events:none}
+.kn-kivilcim i{position:absolute;width:12px;height:12px;background:var(--sari);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);opacity:0}
+.kn-gir .kn-kivilcim i{animation:knKiv .9s .55s ease-out both}
+.kn-kivilcim i:nth-child(1){--x:-120px;--y:-80px}.kn-kivilcim i:nth-child(2){--x:120px;--y:-90px}.kn-kivilcim i:nth-child(3){--x:-140px;--y:20px}.kn-kivilcim i:nth-child(4){--x:140px;--y:30px}
+.kn-kivilcim i:nth-child(5){--x:-60px;--y:-140px}.kn-kivilcim i:nth-child(6){--x:70px;--y:-130px}.kn-kivilcim i:nth-child(7){--x:-90px;--y:110px}.kn-kivilcim i:nth-child(8){--x:90px;--y:100px}
+@keyframes knKiv{0%{opacity:1;transform:translate(0,0) scale(.3)}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(1.3) rotate(180deg)}}
+/* konuya göre giriş hareketi */
+.kn-gir .kn-resim{animation:knPop .7s cubic-bezier(.3,1.5,.5,1) both}
+@keyframes knPop{from{transform:scale(0) rotate(-12deg)}}
+.kn-h-yuru.kn-gir .kn-resim{animation:knYuru 1s ease-out both}
+@keyframes knYuru{0%{transform:translateX(-160%)}20%{transform:translateX(-120%) translateY(-14px)}40%{transform:translateX(-75%)}60%{transform:translateX(-35%) translateY(-14px)}80%{transform:translateX(-8%)}100%{transform:none}}
+.kn-h-yuz.kn-gir .kn-resim{animation:knYuz 1.1s ease-out both}
+@keyframes knYuz{0%{transform:translate(-160%,40px) rotate(-10deg)}50%{transform:translate(-40%,-20px) rotate(6deg)}100%{transform:none}}
+.kn-h-gec.kn-gir .kn-resim{animation:knGec 1s cubic-bezier(.2,.8,.3,1.1) both}
+@keyframes knGec{0%{transform:translateX(170%) skewX(-12deg)}75%{transform:translateX(-6%) skewX(6deg)}100%{transform:none}}
+.kn-h-in.kn-gir .kn-resim{animation:knIn 1s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes knIn{0%{transform:translateY(-170%) rotate(-8deg)}60%{transform:translateY(6%) rotate(4deg)}100%{transform:none}}
+.kn-h-dus.kn-gir .kn-resim{animation:knDus .9s cubic-bezier(.5,0,.5,1) both}
+@keyframes knDus{0%{transform:translateY(-160%)}60%{transform:translateY(0) scale(1.2,.8)}75%{transform:translateY(-10%) scale(.95,1.05)}100%{transform:none}}
+.kn-h-takla.kn-gir .kn-resim{animation:knTakla 1s cubic-bezier(.3,1.3,.5,1) both}
+@keyframes knTakla{0%{transform:scale(.2) rotate(-360deg)}100%{transform:none}}
+.kn-h-don.kn-gir .kn-resim{animation:knDon 1s cubic-bezier(.3,1.3,.5,1) both}
+@keyframes knDon{0%{transform:rotateY(540deg) scale(.3)}100%{transform:none}}
+.kn-h-zipla.kn-gir .kn-resim{animation:knZipla 1.1s ease-out both}
+@keyframes knZipla{0%{transform:translateY(80%) scale(.4)}35%{transform:translateY(-30%) scale(1)}55%{transform:translateY(0) scale(1.15,.85)}75%{transform:translateY(-8%)}100%{transform:none}}
+.kn-h-salla.kn-gir .kn-resim{animation:knSalla 1.2s ease-out both;transform-origin:center top}
+@keyframes knSalla{0%{transform:translateY(-140%) rotate(0)}40%{transform:translateY(0) rotate(14deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(5deg)}100%{transform:none}}
+.kn-h-kur.kn-gir .kn-resim{animation:knKur .9s cubic-bezier(.3,1.4,.5,1) both;transform-origin:center bottom}
+@keyframes knKur{0%{transform:scaleY(0)}60%{transform:scaleY(1.15)}100%{transform:none}}
+.kn-h-buyu.kn-gir .kn-resim{animation:knBuyu .9s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes knBuyu{0%{transform:scale(0)}50%{transform:scale(1.18)}70%{transform:scale(.94)}100%{transform:none}}
+/* Colours: fırça boyar */
+.kn-h-boya.kn-gir .kn-resim{animation:knBoya 1s .15s ease-out both}
+@keyframes knBoya{0%{clip-path:circle(0% at 15% 85%)}100%{clip-path:circle(150% at 15% 85%)}}
+.kn-firca{position:absolute;width:38%;left:-10%;top:60%;opacity:0}
+.kn-firca .kc{width:100%;height:auto}
+.kn-gir .kn-firca{animation:knFirca 1.1s ease-in-out both}
+@keyframes knFirca{0%{opacity:1;transform:translate(0,0) rotate(-20deg)}50%{transform:translate(120%,-120%) rotate(20deg)}90%{opacity:1;transform:translate(220%,-30%) rotate(-10deg)}100%{opacity:0;transform:translate(260%,-80%)}}
+/* Numbers: yıldızlar tek tek */
+.kn-sayilar{position:absolute;left:-30%;right:-30%;top:-22%;display:flex;flex-wrap:wrap;justify-content:center;gap:4px}
+.kn-sayilar i{width:13%;aspect-ratio:1;opacity:0}
+.kn-sayilar.kn-no i{width:11%}.kn-sayilar.kn-nc i{width:8%}
+.kn-sayilar .kc{width:100%;height:100%}
+.kn-gir .kn-sayilar i{animation:knSay .4s calc(.3s + var(--s) * .35s) cubic-bezier(.3,1.6,.5,1) both}
+@keyframes knSay{0%{opacity:0;transform:scale(0) rotate(-90deg)}100%{opacity:1;transform:none}}
+/* ABC ve günler: çizerek yazılır */
+.kn-h-yaz.kn-gir .kn-resim :is(path,rect,circle,ellipse,polygon,text){stroke-dasharray:420;animation:knCiz 1.4s ease-in-out both}
+@keyframes knCiz{0%{stroke-dashoffset:420;fill-opacity:0}70%{fill-opacity:0}100%{stroke-dashoffset:0;fill-opacity:1}}
+/* yağış ve toz */
+.kn-yagis{position:absolute;inset:-40% -30% auto;height:140%;pointer-events:none}
+.kn-yagis i{position:absolute;top:0;width:6px;height:14px;border-radius:3px;background:color-mix(in srgb,var(--r) 70%,#fff);opacity:0}
+.kn-gir .kn-yagis i{animation:knYag 1.6s calc(.8s + var(--k,0s)) linear infinite}
+.kn-yagis i:nth-child(1){left:8%;--k:.1s}.kn-yagis i:nth-child(2){left:24%;--k:.6s}.kn-yagis i:nth-child(3){left:42%;--k:.3s}.kn-yagis i:nth-child(4){left:60%;--k:.9s}.kn-yagis i:nth-child(5){left:78%;--k:.2s}.kn-yagis i:nth-child(6){left:92%;--k:.7s}
+@keyframes knYag{0%{opacity:0;transform:translateY(0)}20%{opacity:.8}100%{opacity:0;transform:translateY(380px)}}
+.kn-toz{position:absolute;left:5%;bottom:4%;display:flex;gap:4px}
+.kn-toz i{width:14px;height:14px;border-radius:50%;background:#E3E8F2;opacity:0}
+.kn-gir .kn-toz i{animation:knToz .8s calc(.2s + var(--t,0s)) ease-out both}
+.kn-toz i:nth-child(2){--t:.15s}.kn-toz i:nth-child(3){--t:.3s}
+@keyframes knToz{0%{opacity:.9;transform:scale(.4)}100%{opacity:0;transform:translateX(-30px) scale(1.6)}}
+/* dokununca / dinlerken */
+.kn-zipla .kn-resim{animation:kaJole .55s cubic-bezier(.3,1.5,.5,1)!important}
+.kn-dinle{box-shadow:0 0 0 6px var(--sari),inset 0 -10px 0 rgba(35,48,77,.06);transition:box-shadow .3s}
+/* Acadia öğretmen */
+.kn-ogretmen{grid-area:ogr;position:relative;display:grid;justify-items:center;gap:8px;align-self:end}
+.kn-acd{width:min(100%,190px);animation:knSuzul 3s ease-in-out infinite}
+@keyframes knSuzul{50%{transform:translateY(-8px) rotate(-2deg)}}
+.kn-acd .kc{width:100%;height:auto}
+.kn-acd .kc-acd-agiz{transform-box:fill-box;transform-origin:center}
+.kn-konus .kc-acd-agiz{animation:knAgiz .26s ease-in-out infinite alternate}
+@keyframes knAgiz{from{transform:scaleY(.5)}to{transform:scaleY(1.5) scaleX(1.1)}}
+.kn-balon{position:relative;min-height:1.4em;margin:0;padding:10px 14px;border:3px solid var(--m);border-radius:18px;background:var(--beyaz);font:800 clamp(16px,2.2vw,20px)/1.25 var(--bas);text-align:center;box-shadow:var(--golge-k)}
+.kn-balon:empty{visibility:hidden}
+.kn-balon::before{content:'';position:absolute;left:50%;top:-12px;width:18px;height:18px;margin-left:-9px;background:var(--beyaz);border-left:3px solid var(--m);border-top:3px solid var(--m);transform:rotate(45deg)}
+.kn-sira-sen{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border:3px solid var(--m);border-radius:20px;background:var(--sari);font:800 18px/1 var(--bas);animation:knSen .8s ease-in-out infinite alternate}
+.kn-sira-sen .kc{width:24px;height:24px}
+@keyframes knSen{to{transform:scale(1.08);box-shadow:0 0 0 8px rgba(255,210,63,.35)}}
+.kn-sira{grid-area:sira;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0;padding:0;list-style:none}
+.kn-sira button{width:clamp(40px,7vw,54px);aspect-ratio:1;padding:4px;border:3px solid #D8CFB4;border-radius:14px;background:var(--beyaz);opacity:.55;transition:transform .25s,opacity .25s}
+.kn-sira button .kc{width:100%;height:100%}
+.kn-sira li.kn-gordu button{opacity:1;border-color:var(--m)}
+.kn-sira li.kn-bu button{opacity:1;border-color:var(--m);background:color-mix(in srgb,var(--r) 30%,#fff);transform:scale(1.18)}
+.kn .ka-izle-alt{grid-area:alt}
+.kn-bitti .kn-sira li button{animation:kaPop .4s calc(var(--i,0) * .05s) both}
+@media (max-width:760px){.kn{grid-template-columns:minmax(0,1fr);grid-template-areas:"sahne" "ogr" "sira" "alt"}.kn-ogretmen{grid-template-columns:76px minmax(0,1fr);justify-items:start;align-items:center}.kn-acd{width:76px}.kn-sira-sen{grid-column:1/-1;justify-self:center}.kn-balon::before{left:-6px;top:50%;margin:-9px 0 0;transform:rotate(-45deg)}}
+
+/* ==================== oyun parkı ==================== */
+.ko-park{grid-template-rows:auto minmax(0,1fr) auto;min-width:0}
+.ko-park .ko-tur{flex-wrap:wrap}
+/* ses avı */
+.ko-avalan{position:relative;min-height:clamp(320px,52vh,460px);border:3px solid var(--m);border-radius:24px;background:linear-gradient(#E8F6FF,#FFF8E7);overflow:hidden}
+.ko-av{--w:clamp(60px,13vw,104px);position:absolute;left:var(--x);top:var(--y);margin:calc(var(--w) / -2) 0 0 calc(var(--w) / -2);width:var(--w);aspect-ratio:1;padding:6px;border:3px solid var(--m);border-radius:50%;background:var(--beyaz);box-shadow:var(--golge-k);animation:koSuzul 3.4s calc(var(--i) * -.6s) ease-in-out infinite alternate}
+.ko-av .kc{width:100%;height:100%}
+@keyframes koSuzul{0%{transform:translate(0,0) rotate(-4deg)}100%{transform:translate(10px,-12px) rotate(4deg)}}
+.ko-av.ko-bulundu{animation:koBul .6s ease-in forwards;pointer-events:none}
+@keyframes koBul{40%{transform:scale(1.35);box-shadow:0 0 0 10px rgba(76,195,138,.5)}100%{transform:scale(0) rotate(180deg);opacity:0}}
+.ko-av.ko-salla{animation:koSalla .5s}
+/* yapboz */
+.ko-yb{display:grid;place-items:center}
+.ko-yb-tahta{position:relative;display:grid;grid-template-columns:repeat(var(--sut),1fr);grid-template-rows:repeat(var(--sat),1fr);width:min(320px,74vw);aspect-ratio:1;border:4px solid var(--m);border-radius:18px;background:#fff;overflow:hidden;box-shadow:var(--golge)}
+.ko-yb-golge{position:absolute;inset:0;opacity:.14;filter:grayscale(1)}.ko-yb-golge .kc{width:100%;height:100%}
+.ko-yb-yuva{position:relative;border:1.5px dashed #C9BFA3}
+.ko-yb-yuva .kc{position:absolute;inset:0;width:100%;height:100%}
+.ko-yb-simdi{background:rgba(255,210,63,.35);animation:koNefes 1s ease-in-out infinite alternate;box-shadow:inset 0 0 0 3px var(--sari)}
+.ko-yb-dolu{border-color:transparent;animation:kaPop .35s}
+.ko-yb-tamam{animation:kaJole .6s cubic-bezier(.3,1.5,.5,1);box-shadow:0 0 0 6px var(--yesil),var(--golge)}
+.ko-yb-tamam .ko-yb-yuva{border-color:transparent}
+.ko-yb-tepsi{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.ko-yb-p{width:clamp(80px,17vw,110px);aspect-ratio:1;padding:0;border:3px solid var(--m);border-radius:14px;background:#fff;box-shadow:var(--golge);overflow:hidden;animation:kaPop .35s both}
+.ko-yb-p .kc{width:100%;height:100%;display:block}
+.ko-yb-p.ko-salla{animation:koSalla .5s}
+/* gölge */
+.ko-gl-sahne{display:grid;place-items:center}
+.ko-gl-golge{width:min(220px,50vw);aspect-ratio:1;padding:16px;border:3px dashed var(--m);border-radius:50%;background:radial-gradient(circle,#fff,#E8F6FF)}
+.ko-gl-golge .kc{width:100%;height:100%;filter:brightness(0) opacity(.75);transition:filter .6s}
+.ko-gl-gir{animation:kaPop .45s}
+.ko-gl-acik .kc{filter:none}
+.ko-gl-acik{border-style:solid;animation:kaJole .6s}
+/* harf treni */
+.ko-tren-yol{position:relative;min-height:150px;overflow:hidden;border-bottom:8px solid #8F6740;background:repeating-linear-gradient(90deg,transparent 0 30px,#C98A4B 30px 36px) bottom/100% 10px no-repeat}
+.ko-tren{position:absolute;left:0;right:0;bottom:14px;display:flex;align-items:flex-end;gap:5px;padding:0 6px}
+.ko-tren-gel{animation:koTrenGel 1s cubic-bezier(.2,.8,.3,1) both}
+@keyframes koTrenGel{from{transform:translateX(110vw)}}
+.ko-tren-git{animation:koTrenGit 1.1s cubic-bezier(.6,0,.8,.4) forwards}
+@keyframes koTrenGit{to{transform:translateX(-120vw)}}
+.ko-lok{position:relative;flex:none;width:clamp(48px,11vw,70px);height:clamp(56px,12vw,74px);border:3px solid var(--m);border-radius:12px 12px 6px 6px;background:var(--mercan)}
+.ko-lok::before{content:'';position:absolute;left:8px;top:-22px;width:16px;height:22px;border:3px solid var(--m);border-bottom:0;background:var(--m)}
+.ko-lok::after{content:'';position:absolute;right:8px;top:10px;width:26px;height:22px;border:3px solid var(--m);border-radius:4px;background:#BDE8F2}
+.ko-duman{position:absolute;left:6px;top:-40px;width:18px;height:18px;border-radius:50%;background:#E3E8F2;animation:koDuman 1.4s ease-out infinite}
+.ko-duman+.ko-duman{animation-delay:.7s}
+@keyframes koDuman{0%{opacity:.9;transform:scale(.5)}100%{opacity:0;transform:translate(-20px,-30px) scale(1.6)}}
+.ko-vagon{display:grid;place-items:center;flex:1 1 0;min-width:0;max-width:60px;height:clamp(46px,11vw,60px);padding:0 2px;font-size:clamp(24px,6vw,36px)!important;border:3px solid var(--m);border-radius:10px;background:var(--sari);font:800 36px/1 var(--bas);color:var(--m);box-shadow:inset 0 -8px 0 rgba(35,48,77,.12)}
+.ko-v-resim{flex:none;width:clamp(48px,12vw,66px);max-width:none;padding:4px;background:#fff}.ko-v-resim .kc{width:100%;height:100%}
+.ko-v-bos{background:#fff;border-style:dashed;color:var(--soluk);animation:koNefes .9s ease-in-out infinite alternate}
+.ko-v-doldu{background:var(--yesil);color:#fff;animation:kaPop .4s}
+.ko-harfler{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.ko-harf-b{width:clamp(64px,13vw,86px);aspect-ratio:1;border:3px solid var(--m);border-radius:18px;background:var(--beyaz);box-shadow:var(--golge);font:800 44px/1 var(--bas);color:var(--m)}
+.ko-harf-b.ko-dogru{background:#E6F8EE;animation:kaPop .4s}
+.ko-harf-b.ko-salla{animation:koSalla .5s}
+@media (prefers-reduced-motion:reduce){.kn *,.ko-av,.ko-tren,.ko-duman{animation:none!important;transition:none!important}.kn-kelime span{opacity:1}}

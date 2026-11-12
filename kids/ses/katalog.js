@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-kitap.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -62,6 +62,10 @@ module.exports = function katalog() {
     ekle('en', V.SAYI.slice(0, s.n).map((x) => x.en).join(', '), 'numbers · birlikte say');
     O.SAY_NESNE.forEach((n) => ekle('en', O.sayCevap(s, n), 'numbers · say doğru'));
   });
+  /* oyun parkı ve anlatım */
+  (O.parkCumleler || []).forEach((m) => ekle('en', m, 'park / anlatım'));
+  /* harf treni: kelime (ABC'de örnek kelime) noktalı ve ünlemli */
+  for (const id of K.PAKET) K.al(id).ogeler({ kelimeSay: 99, renkSay: 99, sayiSay: 99 }).filter(O.harfUygun || (() => false)).forEach((x) => { const w = x.kelime || x.en; ekle('en', w + '.', 'harf treni'); ekle('en', w + '!', 'harf treni'); });
   /* hikâye kitaplığı: cümleler, tek tek kelimeler (dokununca), sorular */
   for (const b of W.KIDS_KITAP.LISTE) {
     ekle('en', b.ad, 'kitap · ' + b.id);
