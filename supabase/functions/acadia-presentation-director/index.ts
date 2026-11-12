@@ -218,7 +218,14 @@ async function loadSource(userClient: any, userId: string, body: any): Promise<S
 }
 
 async function callGroq(apiKey: string, system: string, user: string, maxTokens: number, temperature = 0.18) {
-  const model = Deno.env.get('GROQ_PRESENTATION_MODEL') || 'openai/gpt-oss-120b'
+  // MODEL ŞERİDİ (13.11.2026): üretim kayıtlarında 4 koşunun 3'ü düşmüştü ve
+  // ikisi AI_SERVICE_UNAVAILABLE idi. Üç denemenin üçü de AYNI modele
+  // gidiyordu, yani model meşgulse tekrar denemek işe yaramıyordu. Özetleme
+  // yolunda işe yarayan kalıp buraya da geldi: son denemede ayrı kotası olan
+  // küçük modele düşülür.
+  const primary = Deno.env.get('GROQ_PRESENTATION_MODEL') || 'openai/gpt-oss-120b'
+  const fallback = Deno.env.get('GROQ_PRESENTATION_MODEL_FALLBACK') || 'openai/gpt-oss-20b'
+  const lane = [primary, primary, fallback]
   let prompt = user
   let lastError = ''
   // Hard ceiling raised from 2800 → 8000: the compose stage now asks for
@@ -240,7 +247,7 @@ async function callGroq(apiKey: string, system: string, user: string, maxTokens:
         signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model,
+          model: lane[attempt] || primary,
           temperature,
           max_completion_tokens: effectiveMaxTokens,
           response_format: { type: 'json_object' },
@@ -287,7 +294,11 @@ function normalizePlan(value: Record<string, unknown>, slideCount: number, mode:
   const root = value.plan && typeof value.plan === 'object' && !Array.isArray(value.plan) ? value.plan as Record<string, unknown> : value
   const briefRaw = root.brief && typeof root.brief === 'object' && !Array.isArray(root.brief) ? root.brief as Record<string, unknown> : {}
   const outlineRaw = Array.isArray(root.outline) ? root.outline : []
-  if (outlineRaw.length < Math.max(4, Math.ceil(slideCount * 0.75))) throw new Error('INCOMPLETE_PLAN')
+  // Eşik %75'ten %50'ye indirildi (13.11.2026): 10 asetat istenen bir koşuda
+  // model 7 başlık döndürdüğünde üretim tamamen düşüyordu. Kısa taslak
+  // kullanılabilir — compose aşaması eksikleri tamamlar, kalite raporu da
+  // slide_count_mismatch olarak zaten bildirir. 3 başlığın altı gerçekten boştur.
+  if (outlineRaw.length < Math.max(3, Math.ceil(slideCount * 0.5))) throw new Error('INCOMPLETE_PLAN')
   const outline = outlineRaw.slice(0, slideCount).map((item, index) => {
     const row = item && typeof item === 'object' && !Array.isArray(item) ? item as Record<string, unknown> : {}
     const visual = cleanText(row.visual_strategy ?? row.visual_purpose, 30)

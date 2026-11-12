@@ -7323,7 +7323,9 @@ var SBX = (function () {
       if (c.metric && (c.metric.value || c.metric.label)) b.unshift(txt(c.metric.value) + ' ' + txt(c.metric.label));
       return { t: txt(x.title) || 'Asetat', k: k, b: b.filter(Boolean).slice(0, 6), notes: txt(x.speaker_notes || x.notes) };
     });
-    return { title: txt(pres.title), items: out };
+    /* Yönetmenin kalite raporu buraya kadar geliyordu ve atılıyordu;
+       artık desteyle birlikte taşınır, kaydedilir ve ekranda görünür (13.11.2026). */
+    return { title: txt(pres.title), items: out, quality: d && d.quality && typeof d.quality === 'object' ? d.quality : null };
   };
   /* özet kartının düz metni: iskeletli kurgu ve anlam doğrulaması için kaynak */
   var cardText = function (c) {
@@ -7418,7 +7420,7 @@ var SBX = (function () {
   var legacyTopic = function (tp, o, title) {
     return fn('generate-presentation', { topic: tp, tone: TONE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr' }, 75000).then(fromLegacy)
       .catch(function (e) { console.warn('acadex-sunum: generate-presentation', e); return fn('acadia-presentation-director', { action: 'generate', sourceType: 'topic', topic: tp, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(fromDirector); })
-      .then(function (r) { plotMeta.via = 'ai'; o.ai = true; return shape(r.items, o, r.title || title); },
+      .then(function (r) { plotMeta.via = 'ai'; plotMeta.quality = r.quality || null; o.ai = true; return shape(r.items, o, r.title || title); },
             function (e) { console.warn('acadex-sunum: topic', e); plotMeta.via = 'skeleton'; return shape(generic(tp), o, title); });
   };
   /* asetat içi atıf: kaynak numarası kaynakçadaki sırayla; rakamlı maddelere, yoksa son maddeye */
@@ -7490,6 +7492,16 @@ var SBX = (function () {
         var mc = plotMeta.check && plotMeta.check.meaning; if (mc && mc.checked) extra.push(mc.checked + ' iddia kaynağın kendi paragrafıyla karşılaştırıldı' + (mc.fixed ? ', ' + mc.fixed + ' yanlış etiket düzeltildi' : '') + (mc.flagged ? ', ' + mc.flagged + ' iddia şüpheli (editörde işaretli)' : ', anlamca sorun yok'));
         var ck = plotMeta.check; if (ck && ck.checked) extra.push(ck.checked + ' rakam kaynak metniyle karşılaştırıldı' + (ck.unverified ? ', ' + ck.unverified + ' tanesi kaynakta bulunamadı (editörde kırmızı altı çizili)' : ', hepsi kaynakta var'));
         if (arr(plotMeta.sources).length) extra.push(plotMeta.sources.length + ' kaynak; sona kaynakça eklendi');
+        /* Kalite raporu: puan tek başına işe yaramaz, sorunlar da görünmeli —
+           yoksa öğrenci "96 almışım" deyip eksik desteyi öyle bırakır (13.11.2026). */
+        var kq = plotMeta.quality;
+        if (kq && typeof kq.score === 'number') {
+          var QS = { slide_count_mismatch: 'slayt sayısı istediğinle tutmuyor', duplicate_titles: 'aynı başlık birden çok asetatta',
+            weak_speaker_notes: 'konuşma notları kısa', dense_slides: 'bazı asetatlar çok yoğun',
+            visual_repetition: 'arka arkaya aynı düzen', weak_grounding: 'bazı asetatlar kaynağa bağlı değil' };
+          extra.push('Acadia kalite notu ' + Math.round(kq.score) + '/100' +
+            (arr(kq.issues).length ? ' — ' + arr(kq.issues).map(function (x) { return QS[x] || x; }).join(', ') : ''));
+        }
         if (plotMeta.webFail) extra.push('web araştırması şu an yapılamadı, bu yüzden kaynakça yok');
         var sk = strips.filter(function (x) { return /^(stat|time|quote)$/.test(x.k); }).length; if (sk && !ck) extra.push(sk + ' asetata madde yerine daha uygun düzen seçildi');
         help.textContent = (plotMeta.webFail ? 'Acadia konuyu genel bilgisiyle yazdı. Sırala, düzelt, türünü değiştir.' : VIA[plotMeta.via] || VIA.ai) + (extra.length ? ' · ' + extra.join(' · ') + '.' : '');
@@ -7596,6 +7608,7 @@ var SBX = (function () {
     if (mode === 'append') deck.slides = deck.slides.concat(made); else deck.slides = made;
     if (!deck.title || mode !== 'append') deck.title = plotMeta.title || deck.title;
     if (plotMeta.lang) deck.lang = plotMeta.lang;
+    if (plotMeta.quality) deck.quality = plotMeta.quality;
     if (mode !== 'append') { deck.source = plotMeta.source || 'blank'; deck.sourceId = isUuid(plotMeta.sourceId) ? plotMeta.sourceId : null; }
     deck.cur = start; selId = null; plotFrom = null; plot.close(); renderAll(); dirty();
     QA('.sx-th', thumbsEl).slice(start).forEach(function (li, i) { if (!calm) { li.classList.add('printed'); li.querySelector('.sx-thb').style.animationDelay = (i * 120) + 'ms'; } });
@@ -8000,6 +8013,9 @@ var SBX = (function () {
       try {
         var row = { title: (d.title || 'Adsız sunum').slice(0, 140), theme: 'ink', slide_count: d.slides.length, language: d.lang || 'tr', source_type: d.source || 'blank', updated_at: new Date().toISOString() };
         if (d.share && d.dbId) row.share_snapshot = snapOf(d);
+        /* Kalite: yönetmen 0-100 puan ve sorun listesi döndürüyordu ama hiçbir
+           yere yazılmıyordu; quality_score sütunu bu yüzden hep boştu (13.11.2026). */
+        if (d.quality && typeof d.quality.score === 'number') { row.quality_score = Math.max(0, Math.min(100, Math.round(d.quality.score))); row.quality_report = d.quality; }
         if (isUuid(d.sourceId)) row.source_id = d.sourceId;
         if (!d.dbId) { row.user_id = u.id; var r = await c.from('presentations').insert(row).select('id').single(); if (r.error) throw r.error; d.dbId = r.data.id; }
         else { var r2 = await c.from('presentations').update(row).eq('id', d.dbId); if (r2.error) throw r2.error; }
