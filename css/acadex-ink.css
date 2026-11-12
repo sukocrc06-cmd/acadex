@@ -9190,3 +9190,24 @@ body.ax-misafir .ax-msf-kayit .x{position:absolute;top:10px;right:12px;border:0;
 body.ax-misafir .ax-msf-kayit .h{margin:10px 0 0;font-size:13.5px;color:#1F7A43}
 body.ax-misafir .ax-msf-kayit .h.kir{color:#C9483B}
 @media (prefers-color-scheme:dark){body.ax-misafir .ax-msf-kayit .in{background:#141B2E;color:#E6EBF7;border-color:#273253}body.ax-misafir .ax-msf-kayit p{color:#9AA6C4}body.ax-misafir .ax-msf-kayit input{background:#0E1424;border-color:#273253;color:#E6EBF7}.ek-aai{background:#17203A;border-color:#2C3A61}}
+
+/* ---- misafir kilometre taşı kutlaması + sınıf panosu (13.11.2026) ---- */
+body.ax-misafir .ax-msf-kutlama{position:fixed;inset:0;z-index:10000;background:rgba(13,24,56,.6);display:flex;align-items:center;justify-content:center;padding:18px}
+body.ax-misafir .ax-msf-kutlama .in{position:relative;width:min(430px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1A2A5C;border:2px solid #DCE2EE;border-radius:14px 18px 13px 16px;padding:26px 24px 22px;font-family:"Bricolage Grotesque",system-ui,sans-serif;text-align:center;box-shadow:6px 8px 0 rgba(26,42,92,.18)}
+body.ax-misafir .ax-msf-kutlama .yildiz{font-size:46px;line-height:1;color:#F4B63F}
+body.ax-misafir .ax-msf-kutlama h3{margin:8px 0 6px;font-size:23px;letter-spacing:-.02em}
+body.ax-misafir .ax-msf-kutlama p{margin:0 0 14px;font-size:14px;line-height:1.55;color:#4B5675}
+body.ax-misafir .ax-msf-kutlama .pano{border:1.6px solid #DCE2EE;border-radius:10px;padding:12px;margin:0 0 14px;text-align:left}
+body.ax-misafir .ax-msf-kutlama .pano>b{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#2F6BFF}
+body.ax-misafir .ax-msf-kutlama .pano ul{list-style:none;display:flex;gap:10px;margin:8px 0 0;padding:0}
+body.ax-misafir .ax-msf-kutlama .pano li{flex:1;min-width:0;text-align:center}
+body.ax-misafir .ax-msf-kutlama .pano li b{display:block;font-size:21px;font-variant-numeric:tabular-nums}
+body.ax-misafir .ax-msf-kutlama .pano li span{font-size:11.5px;line-height:1.3;color:#6A7593;display:block}
+body.ax-misafir .ax-msf-kutlama .pano p{margin:10px 0 0;font-size:13.5px;color:#1A2A5C}
+body.ax-misafir .ax-msf-kutlama .g{width:100%;padding:12px;border:0;border-radius:10px;background:#0D1838;color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+body.ax-misafir .ax-msf-kutlama .g:hover{background:#2F6BFF}
+body.ax-misafir .ax-msf-kutlama .s{width:100%;margin-top:8px;padding:9px;border:0;background:none;font:inherit;font-size:13.5px;color:#6A7593;cursor:pointer}
+body.ax-misafir .ax-msf-kutlama .x{position:absolute;top:8px;right:12px;border:0;background:none;font-size:24px;color:#8A93AB;cursor:pointer}
+/* panelde "kurcala" (remix) düğmesi */
+.ek-rmx svg{stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-color-scheme:dark){body.ax-misafir .ax-msf-kutlama .in{background:#141B2E;color:#E6EBF7;border-color:#273253}body.ax-misafir .ax-msf-kutlama p{color:#9AA6C4}body.ax-misafir .ax-msf-kutlama .pano{border-color:#273253}body.ax-misafir .ax-msf-kutlama .pano p{color:#E6EBF7}}

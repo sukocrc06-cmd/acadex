@@ -13203,6 +13203,45 @@ async function gatherNotificationItems(lastCheck) {
     console.error('gatherNotificationItems (shared cards) error:', err);
   }
 
+  // 1e. Sandbox: KENDİ projene inceleme geldi (13.11.2026). Takip bildirimi
+  // vardı ama asıl önemlisi buydu: öğrenci paylaşıp "kimse bakmadı" sanıyordu.
+  try {
+    const { data: benim, error: bErr } = await supabaseClient
+      .from('sandbox_projects')
+      .select('id, title')
+      .eq('user_id', currentUser.id);
+    if (!bErr && benim && benim.length) {
+      const ad = {};
+      benim.forEach(p => { ad[p.id] = p.title; });
+      const { data: inc, error: iErr } = await supabaseClient
+        .from('sandbox_project_comments')
+        .select('id, project_id, user_id, content, created_at')
+        .in('project_id', benim.map(p => p.id))
+        .neq('user_id', currentUser.id)
+        .gt('created_at', lastCheck)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (!iErr && inc && inc.length) {
+        const { data: kim } = await supabaseClient
+          .from('public_profiles')
+          .select('id, full_name')
+          .in('id', [...new Set(inc.map(c => c.user_id))]);
+        const adlar = {};
+        (kim || []).forEach(w => { adlar[w.id] = w.full_name; });
+        inc.forEach(c => {
+          items.push({
+            time: c.created_at,
+            title: 'Projene inceleme geldi',
+            subtitle: `${escapeHtml(adlar[c.user_id] || 'Bir arkadaşın')} → ${escapeHtml(ad[c.project_id] || 'projen')}: ${escapeHtml(String(c.content || '').slice(0, 80))}`,
+            onClick: () => switchDashboardView('sandbox-interaction')
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.error('gatherNotificationItems (sandbox inceleme) error:', err);
+  }
+
   // 1d. Sandbox: takip ettiğin biri yeni proje paylaştı (12.11.2026).
   // Takip listesi sandbox_follows'ta; tablo yoksa sessizce atlanır — panel
   // bu durumda takipleri zaten tarayıcıda tutuyordur, bildirim de olmaz.

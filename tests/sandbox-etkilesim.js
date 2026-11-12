@@ -277,4 +277,32 @@ test('VİTRİN + TAKİP BİLDİRİMİ + ACADIA ÖN BAKIŞI (12.11.2026)', () => 
   assert.ok(fn.includes('is_anonymous'), 'acadia-assistant misafiri reddetmiyor — model masrafı açık');
 });
 
+test('KURCALA (remix) + İNCELEME BİLDİRİMİ (13.11.2026)', () => {
+  /* Panelde projeyi yalnız izleyebiliyordun; öğrenmenin hızlı yolu kodu açıp
+     kurcalamak. Dosya ağacı sunucuda (sandbox_workspaces.files) ama RLS
+     başkasınınkini okutmaz → definer RPC yalnız YAYINDAKİ gönderiyi açar. */
+  const mig = read('supabase/migrations/20261113_remix_ve_pano.sql');
+  assert.match(mig, /not coalesce\(p\.hidden, false\) or p\.user_id = auth\.uid\(\)/,
+    'remix görünürlük kuralı gönderinin SELECT politikasıyla aynı değil');
+  assert.match(mig, /if public\.misafir_mi\(\) then\s*\n\s*raise exception 'Misafir girişi proje kopyalayamaz/,
+    'misafir proje kopyalayabiliyor');
+  assert.match(mig, /if v_sahip <> auth\.uid\(\) then\s*\n\s*update sandbox_projects set remix_sayi/,
+    'kendi projeni kopyalamak sayacı şişiriyor');
+  const ink = read('js/acadex-ink.js');
+  assert.ok(ink.includes('data-remix'), 'panelde kurcala düğmesi yok');
+  assert.match(ink, /p\.projId && !o\.preview \?/, 'sandbox projesi olmayan gönderide de kurcala çıkıyor');
+  assert.match(ink, /cl3\.rpc\('sandbox_remix', \{ p_post: rp\.id \}\)/, 'kurcala sunucuya gitmiyor');
+  assert.match(ink, /sessionStorage\.setItem\('acadex\.dv\.remix'/, 'kopya geliştirici sandbox’a devredilmiyor');
+  assert.match(ink, /var remixAl = function/, 'geliştirici sandbox kopyayı karşılamıyor');
+  assert.match(ink, /if \(booted\) \{ renderCards\(\); remixAl\(\); return; \}/,
+    'sandbox zaten açıkken gelen kopya karşılanmıyor');
+  /* Takip bildirimi vardı; kendi projene gelen inceleme bildirilmiyordu. */
+  const dash = read('js/dashboard.js');
+  assert.ok(dash.includes("from('sandbox_project_comments')"), 'çan incelemeleri okumuyor');
+  assert.ok(dash.includes("'Projene inceleme geldi'"), 'inceleme bildirimi yok');
+  assert.match(dash, /\.neq\('user_id', currentUser\.id\)[\s\S]{0,120}gt\('created_at', lastCheck\)/,
+    'kendi yorumun ya da eski yorumlar da bildiriliyor');
+  assert.ok(dash.includes('c.content'), 'yorum metni yanlış kolondan okunuyor (body değil content)');
+});
+
 summary();
