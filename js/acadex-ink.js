@@ -8159,11 +8159,14 @@ var SBX = (function () {
   var POSTS = [], myLikes = {}, myCm = {}, metaLocal = {};
   var saved = [], hidden = [], reports = {}, follow = [], seen = [], prefs = { pin: true, note: true, line: true };
   var OK = { notes: true, follows: true, reports: true, meta: true }, LIMIT = 30, MORE = false, NODEPT = false, LOADERR = false;
-  var F = { tag: '', who: '', mode: '' }, openCm = {}, allCm = {}, quote = {};
+  var F = { tag: '', who: '', mode: '', bolum: '' }, openCm = {}, allCm = {}, quote = {};
 
   var posts = function () { return POSTS.filter(function (p) { return hidden.indexOf(p.id) < 0; }).sort(function (a, b) { return b.at - a.at; }); };
   var byId = function (id) { var r = null; POSTS.forEach(function (p) { if (p.id === id) r = p; }); return r; };
   var likesOf = function (p) { return p.likes.concat(myLikes[p.id] ? ['me'] : []); };
+  /* Görünen raptiye sayısı: kimin raptiyelediği artık yalnız kendi kartında
+     bilinir; toplam sayı study_card_pin_counts'tan gelir (20261113b). */
+  var pinSay = function (p) { return Math.max(p.pinN || 0, likesOf(p).length); };
   var cmOf = function (p) { return p.cm.concat(myCm[p.id] || []).sort(function (a, b) { return a.at - b.at; }); };
   var ago = function (t) { var m = Math.round((Date.now() - t) / 60000); if (m < 1) return 'şimdi'; if (m < 60) return m + ' dk önce'; var h = Math.round(m / 60); if (h < 24) return h + ' sa önce'; var d = Math.floor(h / 24); return d === 1 ? 'dün' : d + ' gün önce'; };
   var dayOf = function (t) { var h = (Date.now() - t) / HR; return h < 24 ? 0 : h < 48 ? 1 : h < 168 ? 2 : 3; };
@@ -8222,7 +8225,7 @@ var SBX = (function () {
       '</div>' +
       (pv ? '' :
       '<div class="bp-acts">' +
-      '<button type="button" class="bp-act" data-a="pin" aria-pressed="' + liked + '">' + IC.pin + '<span class="n" data-ln-n="">' + L.length + '</span><span class="l">raptiye</span></button>' +
+      '<button type="button" class="bp-act" data-a="pin" aria-pressed="' + liked + '">' + IC.pin + '<span class="n" data-ln-n="">' + pinSay(p) + '</span><span class="l">raptiye</span></button>' +
       '<button type="button" class="bp-act" data-a="note" aria-expanded="' + !!openCm[p.id] + '">' + IC.note + '<span class="n">' + C.length + '</span><span class="l">not</span></button>' +
       '<button type="button" class="bp-act" data-a="save" aria-pressed="' + sv + '">' + IC.save + '<span class="l">' + (sv ? 'kaydedildi' : 'kaydet') + '</span></button>' +
       '<button type="button" class="bp-act bp-act-more" data-a="more" aria-haspopup="menu" aria-label="Diğer seçenekler">' + IC.more + '</button>' +
@@ -8239,12 +8242,32 @@ var SBX = (function () {
 
   /* ---------- filters ---------- */
   var tapesEl = Q('[data-tapes]'), feedEl = Q('[data-feed]'), noneEl = Q('[data-none]'), fstate = Q('[data-fstate]'), emptyEl = Q('[data-emptyb]'), loadEl = Q('[data-load]'), olderEl = Q('[data-older]');
+  /* ---- bölüm sekmesi (13.11.2026) ----
+     Akış eskiden yalnız kendi bölümünü gösteriyordu. Artık hangi bölümden
+     paylaşıldıysa o bölüm sekmede görünür ve seçilebilir; "hepsi" tüm
+     paylaşılanları getirir. Bölüm değişince sunucudan yeniden çekilir,
+     çünkü sorgu bölüme göre süzülüyor (study_cards_select_shared). */
+  var bolumlerEl = Q('[data-bolumler]');
+  var BOL_SAY = {};
+  var bolAd = function (d) { return (window.AX_BOLUM && window.AX_BOLUM.name(d)) || trD(d) || d; };
+  var paintBolumler = function () {
+    if (!bolumlerEl) return;
+    var benim = profile().department || '', liste = Object.keys(BOL_SAY).sort(function (a2, b2) { return BOL_SAY[b2] - BOL_SAY[a2]; });
+    if (benim && liste.indexOf(benim) < 0) liste.unshift(benim);
+    var sec = F.bolum || benim;
+    var dug = function (deger, etiket, say) {
+      return '<button type="button" class="bp-bol" data-bol="' + X(deger) + '" aria-pressed="' + (sec === deger) + '">' +
+        X(etiket) + (say ? '<span class="n">' + say + '</span>' : '') + '</button>';
+    };
+    bolumlerEl.innerHTML = liste.map(function (d) { return dug(d, bolAd(d) + (d === benim ? ' (bölümüm)' : ''), BOL_SAY[d] || 0); }).join('') + dug('*', 'hepsi', 0);
+  };
   var paintTapes = function () {
     var tags = []; posts().forEach(function (p) { if (p.tag && tags.indexOf(p.tag) < 0) tags.push(p.tag); });
     tapesEl.innerHTML = ['', ].concat(tags).map(function (t, i) { return '<button type="button" class="bp-tape" data-tag="' + X(t) + '" aria-pressed="' + (F.tag === t) + '" style="--r:' + ((i % 3) - 1) * 1.4 + 'deg;--tc:' + (t ? tagC(t) : 'rgba(13,24,56,.14)') + '">' + (t ? X(t) : 'tüm dersler') + '</button>'; }).join('');
   };
   var visible = function () {
     return posts().filter(function (p) {
+      if (F.bolum && F.bolum !== '*' && (p.dept || '') !== F.bolum) return false;
       if (F.tag && p.tag !== F.tag) return false;
       if (F.who && p.by !== F.who) return false;
       if (F.mode === 'follow' && p.by !== 'me' && follow.indexOf(p.by) < 0) return false;
@@ -8319,7 +8342,7 @@ var SBX = (function () {
     c.addEventListener('change', function () { prefs[c.getAttribute('data-pref')] = c.checked; S(LS('prefs'), prefs); paintNtf(); say(c.checked ? 'Tamam, haber vereceğim.' : 'Bunun için artık haber vermeyeceğim.'); });
   });
 
-  var paintAll = function () { paintTapes(); paintStories(); paintRoll(); paintNtf(); renderFeed(); };
+  var paintAll = function () { paintBolumler(); paintTapes(); paintStories(); paintRoll(); paintNtf(); renderFeed(); };
 
   /* ---------- profile card ---------- */
   var prof = Q('[data-prof]'), profFrom = null; LY.appendChild(prof);
@@ -8421,13 +8444,17 @@ var SBX = (function () {
     sheet.appendChild(b); setTimeout(function () { b.remove(); }, 950);
   };
   var setLike = function (id, on, quiet) {
+    var oncePin = !!myLikes[id];
     if (on) myLikes[id] = 1; else delete myLikes[id];
+    /* sunucudan gelen toplam sayıyı da kaydır (başkalarının raptiyeleri
+       artık ham satır olarak gelmiyor, yalnız sayı olarak) */
+    var pp = byId(id); if (pp && oncePin !== !!on) pp.pinN = Math.max(0, (pp.pinN || 0) + (on ? 1 : -1));
     if (!quiet) saveLike(id, on);
     var el = feedEl.querySelector('.bp-post[data-id="' + id + '"]'), p = byId(id); if (!el) return;
     var row = el.querySelector('.bp-likes'), btn = el.querySelector('[data-a="pin"]'), L = likesOf(p);
     var mineP = row.querySelector('.mine'); if (mineP) mineP.remove();
     if (on) { var w = document.createElement('span'); w.innerHTML = pinEl(PINC.blue, 'mine dropin', ((L.length - 1) * 37 % 30) - 15); row.appendChild(w.firstChild); }
-    btn.setAttribute('aria-pressed', String(on)); btn.querySelector('.n').textContent = L.length;
+    btn.setAttribute('aria-pressed', String(on)); btn.querySelector('.n').textContent = pinSay(p);
     if (on && !calm) { var sh = el.querySelector('.bp-sheet'); sh.classList.remove('jolt'); void sh.offsetWidth; sh.classList.add('jolt'); }
   };
   feedEl.addEventListener('click', function (e) {
@@ -8476,6 +8503,13 @@ var SBX = (function () {
   });
 
   /* ---------- filters / stories / roll ---------- */
+  if (bolumlerEl) bolumlerEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-bol]'); if (!b) return;
+    var yeni = b.getAttribute('data-bol');
+    if (yeni === (F.bolum || profile().department || '')) return;
+    F.bolum = yeni; F.tag = ''; F.who = ''; paintBolumler();
+    POSTS = []; load();           /* bölüm sunucuda süzülüyor: yeniden çek */
+  });
   tapesEl.addEventListener('click', function (e) { var b = e.target.closest('[data-tag]'); if (!b) return; F.tag = b.getAttribute('data-tag'); paintTapes(); renderFeed(); tapesEl.querySelector('[data-tag="' + F.tag + '"]').focus(); });
   QA('.bp-mode').forEach(function (b) { b.addEventListener('click', function () { var m = b.getAttribute('data-mode'); F.mode = F.mode === m ? '' : m; renderFeed(); }); });
   Q('[data-older]').addEventListener('click', function () { olderEl.disabled = true; olderEl.textContent = 'yükleniyor…'; LIMIT += 30; load().then(function () { olderEl.disabled = false; olderEl.textContent = 'daha eski kâğıtlar'; }); });
@@ -8570,6 +8604,7 @@ var SBX = (function () {
     return { id: c.id, by: by, at: Date.parse(c.shared_at || c.created_at) || Date.now(), tag: c.course_tag || '',
       paper: PAPERS.indexOf(sm.paper) > -1 ? sm.paper : PAPERS[h % 4], pin: PINS.indexOf(sm.pin) > -1 ? sm.pin : PINS[(h >> 3) % 4], r: +((((h >> 5) % 25) - 12) / 10).toFixed(1),
       title: cut(sm.title || baseName(file), 80), src: file ? baseName(file) : '', lines: lines.length ? lines : ['Bu özette kısa madde yok; tamamını açıp okuyabilirsin.'], note: cut(sm.note || '', 120),
+      dept: c.department || '',
       likes: [], likeAt: [], cm: [], doc: c.document_id || '', docName: file };
   };
   var syncLib = function (id, on) {
@@ -8708,7 +8743,12 @@ var SBX = (function () {
   };
   var stkHTML = function (o) {
     var d = STK[o.t]; if (!d) return '';
-    return '<div class="bp-stk" data-sid="' + o.id + '" data-t="' + o.t + '" role="img" aria-label="' + X(o.t === 'motto' ? 'not: ' + o.txt : d.l) + '"' + (board.classList.contains('decor') ? ' tabindex="0"' : '') + ' style="left:' + o.x + '%;top:' + o.y + 'px;--sr:' + o.r + 'deg">' + (o.t === 'motto' ? X(o.txt) : o.t === 'polar' ? d.h.replace('ŞÇ', X(person('me').i)) : d.h) + '</div>';
+    return '<div class="bp-stk" data-sid="' + o.id + '" data-t="' + o.t + '" role="img" aria-label="' + X(o.t === 'motto' ? 'not: ' + o.txt : d.l) + '"' + (board.classList.contains('decor') ? ' tabindex="0"' : '') + ' style="left:' + o.x + '%;top:' + o.y + 'px;--sr:' + o.r + 'deg">' + (o.t === 'motto' ? X(o.txt) : o.t === 'polar' ? d.h.replace('ŞÇ', X(person('me').i)) : d.h) +
+      /* tek tek kaldırma (13.11.2026): eskiden yalnız klavyeden Delete ile
+         siliniyordu; dokunmatikte tek yol "ilk hâline döndür" idi ve hepsini
+         silerdi. Süsleme modunda her süsün kendi ✕ düğmesi var. */
+      '<button type="button" class="bp-stk-x" data-stk-sil="' + o.id + '" aria-label="' + X((o.t === 'motto' ? 'not' : d.l)) + ' süsünü kaldır" title="kaldır">×</button>' +
+      '</div>';
   };
   var paintStk = function (popId) {
     stkL.innerHTML = bd.stk.map(stkHTML).join('');
@@ -8723,6 +8763,31 @@ var SBX = (function () {
     else { selStk = null; if (root.offsetParent) decoBtn.focus(); }
   };
   decoBtn.addEventListener('click', function () { setDecor(deco.hidden); });
+  /* ---- görünme tercihi (13.11.2026) ----
+     "isteyen adıyla, isteyen 'Bir arkadaş' olarak görünsün." Tercih profilde
+     (profiles.akis_gizli); public_profiles ona uyar, yani BAŞKALARININ gördüğü
+     değişir — kendi adını her yerde görmeye devam edersin. Hem bu akışta hem
+     sandbox panelinde geçerlidir. */
+  var gizliBtn = Q('[data-gizli]');
+  var gizliCiz = function (v) {
+    if (!gizliBtn) return;
+    gizliBtn.setAttribute('aria-pressed', String(!!v));
+    var t = gizliBtn.querySelector('[data-gizli-t]'); if (t) t.textContent = v ? '“Bir arkadaş” olarak görünüyorum' : 'adımla görünüyorum';
+  };
+  gizliCiz(!!profile().akis_gizli);
+  if (gizliBtn) gizliBtn.addEventListener('click', function () {
+    var c2 = sbc(), u2 = me(); if (!c2 || !u2) return;
+    var yeni = !profile().akis_gizli;
+    gizliBtn.disabled = true;
+    c2.from('profiles').update({ akis_gizli: yeni }).eq('id', u2.id).then(function (r) {
+      gizliBtn.disabled = false;
+      if (r.error) { console.warn('acadex-bolum: görünme tercihi', r.error); say(MISSING(r.error) ? 'Bu ayar sunucuda henüz açık değil (migration).' : 'Ayar kaydedilemedi.'); return; }
+      try { if (window.currentUserProfile) window.currentUserProfile.akis_gizli = yeni; } catch (er) {}
+      gizliCiz(yeni);
+      say(yeni ? 'Bundan sonra paylaşımlarında “Bir arkadaş” olarak görüneceksin.' : 'Bundan sonra paylaşımlarında adın görünecek.');
+      POSTS = []; load();
+    });
+  });
   Q('[data-deco-done]', deco).addEventListener('click', function () { setDecor(false); say('Panon kaydedildi; bu tarayıcıda böyle kalacak.'); });
   deco.addEventListener('change', function (e) {
     if (e.target.name === 'dc-bg') bd.bg = e.target.value; else if (e.target.name === 'dc-fr') bd.fr = e.target.value; else return;
@@ -8743,7 +8808,15 @@ var SBX = (function () {
   });
   /* drag (pointer) */
   var drag = null;
+  stkL.addEventListener('click', function (e) {
+    var x = e.target.closest('[data-stk-sil]'); if (!x) return;
+    e.preventDefault(); e.stopPropagation();
+    var o = stkById(x.getAttribute('data-stk-sil')); if (!o) return;
+    var ix = bd.stk.indexOf(o); bd.stk.splice(ix, 1); saveBd(); paintStk();
+    say('Süs kaldırıldı.', function () { bd.stk.splice(ix, 0, o); saveBd(); paintStk(o.id); });
+  });
   stkL.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('[data-stk-sil]')) return;          /* kaldırma düğmesi sürüklemeyi başlatmasın */
     var el = e.target.closest('.bp-stk'); if (!el || !board.classList.contains('decor')) return;
     e.preventDefault(); el.focus({ preventScroll: true }); el.setPointerCapture(e.pointerId);
     var lr = stkL.getBoundingClientRect(), er = el.getBoundingClientRect();
@@ -8792,24 +8865,35 @@ var SBX = (function () {
     NODEPT = !pf.department; LOADERR = false;
     if (NODEPT) { POSTS = []; ROLL = []; loadEl.hidden = true; paintAll(); return; }
     if (!POSTS.length) { loadEl.hidden = false; emptyEl.hidden = true; }
-    var r = await c.from('study_cards').select('*, documents(file_name)').eq('is_shared', true).eq('department', pf.department).order('shared_at', { ascending: false }).limit(LIMIT);
+    /* 13.11: bölüm sekmesi — F.bolum seçiliyse o bölüm, değilse kendi bölümün.
+       'hepsi' seçilince bölüm şartı kalkar (study_cards_select_shared politikası
+       paylaşılan kartı giriş yapmış herkese açar). */
+    var qb = c.from('study_cards').select('*, documents(file_name)').eq('is_shared', true);
+    if (F.bolum !== '*') qb = qb.eq('department', F.bolum || pf.department);
+    var r = await qb.order('shared_at', { ascending: false }).limit(LIMIT);
     if (run !== loadSeq) return;
     if (r.error) { console.warn('acadex-bolum: pano', r.error); LOADERR = !POSTS.length; loadEl.hidden = true; paintAll(); if (!LOADERR) say('Pano yenilenemedi; eski hâli duruyor.'); return; }
     var cards = r.data || [], ids = cards.map(function (x) { return x.id; });
     MORE = cards.length >= LIMIT;
     var none = { data: [] }, safe = function (q) { return Promise.resolve(q).catch(function (e) { return { error: e }; }); };
     var res = await Promise.all([
-      safe(c.from('profiles').select('id, full_name, avatar_url, department').eq('department', pf.department).limit(150)),
+      (function () { var ay = []; cards.forEach(function (x) { if (ay.indexOf(x.user_id) < 0) ay.push(x.user_id); });
+        return ay.length ? safe(c.from('public_profiles').select('id, full_name, avatar_url, department, gizli').in('id', ay.slice(0, 150))) : none; })(),
       ids.length ? safe(c.from('study_card_votes').select('card_id, user_id, created_at').in('card_id', ids)) : none,
       ids.length && OK.notes ? safe(c.from('study_card_notes').select('id, card_id, user_id, body, line_index, created_at').in('card_id', ids).order('created_at', { ascending: true }).limit(2000)) : none,
-      OK.follows ? safe(c.from('sandbox_follows').select('followee_id').eq('follower_id', u.id)) : none
+      OK.follows ? safe(c.from('sandbox_follows').select('followee_id').eq('follower_id', u.id)) : none,
+      /* res[4]: raptiye SAYILARI herkese açık görünümden — ham study_card_votes
+         artık yalnız kendi raptiyeni ve kendi kartına geleni verir (20261113b). */
+      ids.length ? safe(c.from('study_card_pin_counts').select('card_id, n').in('card_id', ids)) : none,
+      /* res[5]: bölüm sekmesi sayaçları — hangi bölümden kaç kart paylaşılmış */
+      safe(c.from('study_cards').select('department').eq('is_shared', true).limit(1000))
     ]);
     if (run !== loadSeq) return;
     var profs = (res[0].data || []).slice(), have = {};
     profs.forEach(function (p) { have[p.id] = 1; });
     var miss = []; cards.forEach(function (x) { if (x.user_id !== u.id && !have[x.user_id] && miss.indexOf(x.user_id) < 0) miss.push(x.user_id); });
     (res[2].data || []).forEach(function (x) { if (x.user_id !== u.id && !have[x.user_id] && miss.indexOf(x.user_id) < 0) miss.push(x.user_id); });
-    if (miss.length) { var r2 = await safe(c.from('profiles').select('id, full_name, avatar_url, department').in('id', miss.slice(0, 150))); if (!r2.error) profs = profs.concat(r2.data || []); }
+    if (miss.length) { var r2 = await safe(c.from('public_profiles').select('id, full_name, avatar_url, department, gizli').in('id', miss.slice(0, 150))); if (!r2.error) profs = profs.concat(r2.data || []); }
     if (run !== loadSeq) return;
     var meP = PPL.me; PPL = { me: meP };
     profs.forEach(function (p) { if (p.id === u.id) { var m = mkPerson(p, true); m.dept = p.department; PPL.me = m; return; } var q = mkPerson(p, false); q.dept = p.department; PPL[p.id] = q; });
@@ -8823,6 +8907,19 @@ var SBX = (function () {
     myLikes = {};
     (res[1].data || []).forEach(function (v) { var p = byCard[v.card_id]; if (!p) return; if (v.user_id === u.id) myLikes[p.id] = 1; else { p.likes.push(v.user_id); p.likeAt.push({ by: v.user_id, at: Date.parse(v.created_at) || 0 }); } });
     (res[2].data || []).forEach(function (n) { var p = byCard[n.card_id]; if (!p) return; var o = { id: n.id, by: n.user_id === u.id ? 'me' : n.user_id, t: n.body, at: Date.parse(n.created_at) || 0 }; if (n.line_index != null) o.ln = n.line_index; p.cm.push(o); });
+    /* Raptiye sayısı: ham satırlar artık yalnız kendi raptiyeni ve kendi
+       kartına geleni verdiği için toplam sayı görünümden gelir (20261113b).
+       Görünüm yoksa (migration koşmadıysa) elde ne varsa o sayılır. */
+    (res[4].data || []).forEach(function (x) {
+      var p = byCard[x.card_id]; if (!p) return;
+      var benimki = myLikes[p.id] ? 1 : 0, toplam = Math.max(x.n || 0, p.likes.length + benimki);
+      p.pinN = toplam;
+    });
+    if (res[4].error && !MISSING(res[4].error)) console.warn('acadex-bolum: raptiye sayısı', res[4].error);
+    POSTS.forEach(function (p) { if (p.pinN == null) p.pinN = p.likes.length + (myLikes[p.id] ? 1 : 0); });
+    /* Bölüm sekmesi sayaçları */
+    BOL_SAY = {};
+    (res[5].data || []).forEach(function (x) { var d = x.department || ''; if (d) BOL_SAY[d] = (BOL_SAY[d] || 0) + 1; });
     var cnt = {}, pc = {};
     POSTS.forEach(function (p) { pc[p.by] = (pc[p.by] || 0) + 1; if (!p.tag) return; (cnt[p.by] = cnt[p.by] || {})[p.tag] = (cnt[p.by][p.tag] || 0) + 1; });
     Object.keys(cnt).forEach(function (k) { if (PPL[k]) PPL[k].d = Object.keys(cnt[k]).sort(function (a, b) { return cnt[k][b] - cnt[k][a]; }); });
