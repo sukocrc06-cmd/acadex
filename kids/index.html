@@ -5363,6 +5363,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     if (u.yildiz && typeof u.yildiz === 'object') Object.keys(u.yildiz).forEach(function (k) { if (kimlik(k)) yildiz[k] = sayiHarita(u.yildiz[k]); });
     if (u.bitti && typeof u.bitti === 'object') Object.keys(u.bitti).forEach(function (k) { if (kimlik(k) && u.bitti[k]) bitti[k] = 1; });
     return { yildiz: yildiz, bitti: bitti, zor: sayiHarita(u.zor), usta: sayiHarita(u.usta),
+      seviye: sayiHarita(u.seviye), kitap: sayiHarita(u.kitap), gunler: sayiHarita(u.gunler),
       cikartma: Array.isArray(u.cikartma) ? u.cikartma.filter(function (c) { return typeof c === 'string' && kimlik(c); }) : [], son: sayi(u.son) };
   }
   function kayit(sinif, og) {
