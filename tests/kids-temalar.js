@@ -76,7 +76,7 @@ test('ödül dünyası: çıkartmalar tekil ve çizili; her konuya rozet ve tema
   for (const k of V.KONU) {
     assert.ok(k.acik && k.rozet, k.id);
     if (k.simge !== 'yildiz') assert.notEqual(C.simge(k.simge), yok, k.id + ' ada simgesi');
-    assert.match(C.ada(k.renk, k.simge, false), /<g transform[^>]*>\s*<[a-z]/, k.id + ' adada simge çizilmeli');
+    assert.match(C.ada(k.renk, k.simge, false), /<g class="kc-ada-ana" transform[^>]*>\s*<[a-z]/, k.id + ' adada simge çizilmeli');
   }
   assert.match(R.rozet('#FFD98A', R.ic('lion'), false), /kc-rozet/);
   assert.match(R.rozet('#FFD98A', '', true), /kc-kilitli/);

@@ -91,7 +91,7 @@
       var id = b.getAttribute('data-ko-id'), x = adaylar.filter(function (y) { return y.id === id; })[0];
       var dogru = oda ? hedef.oda.indexOf(id) > -1 : id === hedef.id;
       if (dogru) {
-        kilit = true; tur++; SES.fx('dogru'); b.classList.add('ko-dogru');
+        kilit = true; tur++; SES.fx('dogru'); b.classList.add('ko-dogru'); if (a.dogru) a.dogru(hedef.id);
         if (cark) ust.querySelector('[data-pencere]').innerHTML = R.ciz(hedef.id);
         if (durum) { var r_ = ust.querySelector('.ko-durum-acd'); if (r_) r_.innerHTML = R.ciz(hedef.id); }
         SES.soyle(T.dogru(hedef, x, ek), 'en').then(function () { if (!bitti) setTimeout(yeni, 350); });
@@ -147,7 +147,7 @@
       var b = e.target.closest('[data-ko-id]'); if (!b || kilit || bitti) return;
       var id = b.getAttribute('data-ko-id'), x = adaylar.filter(function (y) { return y.id === id; })[0];
       if (id === hedef.id) {
-        kilit = true; SES.fx('dogru'); b.classList.add('ko-gitti');
+        kilit = true; SES.fx('dogru'); b.classList.add('ko-gitti'); if (a.dogru) a.dogru(hedef.id);
         ucur(b.querySelector('svg') || b, hedefYer(), R.ciz(x.id)).then(function () { if (bitti) return; yerles(x); SES.fx('pat'); tur++; return SES.soyle(T.dogru(x), 'en'); }).then(function () { if (!bitti) setTimeout(yeni, 250); });
       } else {
         yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(b);
@@ -174,7 +174,7 @@
     function dokun(g) {
       if (!g || kilit || bitti) return;
       var id = g.getAttribute('data-parca');
-      if (id === hedef.id) { kilit = true; tur++; SES.fx('dogru'); g.classList.add('ko-yandi'); SES.soyle(T.dogru(hedef), 'en').then(function () { if (!bitti) setTimeout(yeni, 300); }); }
+      if (id === hedef.id) { kilit = true; tur++; SES.fx('dogru'); g.classList.add('ko-yandi'); if (a.dogru) a.dogru(hedef.id); SES.soyle(T.dogru(hedef), 'en').then(function () { if (!bitti) setTimeout(yeni, 300); }); }
       else { yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(fig); var h0 = hedef; SES.soyle((hepsi[id] || hedef).en + '.', 'en').then(function () { if (!bitti && h0 === hedef) sor(); }); }
     }
     fig.addEventListener('click', function (e) { dokun(e.target.closest('[data-parca]')); });
@@ -225,7 +225,7 @@
     alan.addEventListener('click', function (e) {
       var b = e.target.closest('[data-ko-k]'); if (!b || kilit || bitti) return;
       var h = adaylar.filter(function (x) { return anahtarK(x) === b.getAttribute('data-ko-k'); })[0];
-      if (h === hedef) { kilit = true; tur++; SES.fx('dogru'); b.classList.add('ko-dogru'); var p = parcalar(hedef); p[p.length - 1] += '!'; SES.dizi(p, 'en').then(function () { if (!bitti) setTimeout(yeni, 350); }); }
+      if (h === hedef) { kilit = true; tur++; SES.fx('dogru'); b.classList.add('ko-dogru'); if (a.dogru) a.dogru(hedef.o.id); var p = parcalar(hedef); p[p.length - 1] += '!'; SES.dizi(p, 'en').then(function () { if (!bitti) setTimeout(yeni, 350); }); }
       else { yanlis++; if (a.yanlis) a.yanlis(hedef.o.id); SES.fx('yanlis'); salla(b); var h0 = hedef, q = parcalar(h); q[q.length - 1] += '.'; SES.dizi(q, 'en').then(function () { if (!bitti && h0 === hedef) sor(); }); }
     });
     kok.querySelector('[data-ko-dinle]').addEventListener('click', function () { SES.fx('dokun'); sor(); });

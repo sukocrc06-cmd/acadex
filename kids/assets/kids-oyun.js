@@ -43,7 +43,7 @@
       var b = e.target.closest('[data-ko-renk]'); if (!b || kilit || bitti) return;
       var id = b.getAttribute('data-ko-renk');
       if (id === hedef.id) {
-        kilit = true; SES.fx('pat'); b.classList.add('ko-pat'); tur++;
+        kilit = true; SES.fx('pat'); b.classList.add('ko-pat'); tur++; if (a.dogru) a.dogru(hedef.id);
         SES.soyle(hedef.en + '!', 'en').then(function () { if (!bitti) setTimeout(yeni, 250); });
       } else { yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(b); var y = renk.filter(function (r) { return r.id === id; })[0];
         if (B.yanlis) { var iki = B.yanlis(y, hedef), h0 = hedef; SES.soyle(iki[0], 'en').then(function () { if (!bitti && h0 === hedef) SES.soyle(iki[1], 'en'); }); } else SES.soyle('That is ' + y.en + '. Find ' + hedef.en + '!', 'en'); }
@@ -70,7 +70,7 @@
       if (acik.length < 2) return;
       deneme++; kilit = true; var x = acik[0], y = acik[1]; acik = [];
       if (x.k.r === y.k.r) {
-        setTimeout(function () { x.b.classList.add('ko-bulundu'); y.b.classList.add('ko-bulundu'); SES.fx('dogru'); kilit = false; bulunan++;
+        setTimeout(function () { x.b.classList.add('ko-bulundu'); y.b.classList.add('ko-bulundu'); SES.fx('dogru'); kilit = false; bulunan++; if (a.dogru) a.dogru(x.k.r.id);
           if (bulunan === cift.length) { bitti = true; setTimeout(function () { a.bitti(yildizHesap(deneme - cift.length, [2, 5])); }, 700); } }, 450);
       } else setTimeout(function () { x.b.classList.remove('ko-acik'); y.b.classList.remove('ko-acik'); kilit = false; }, 1100);
     });
@@ -101,7 +101,7 @@
       if (!secili) { salla(kok.querySelector('.ko-palet')); return; }
       if (p.getAttribute('data-parca') === g[0] && secili.id === g[1]) {
         p.querySelectorAll('circle,path[fill="#fff"],rect').forEach(function (s) { if (s.getAttribute('fill') === '#fff') s.setAttribute('fill', secili.hex); });
-        p.classList.add('ko-boyandi'); p.classList.remove('ko-hedef'); SES.fx('dogru'); i++;
+        p.classList.add('ko-boyandi'); p.classList.remove('ko-hedef'); SES.fx('dogru'); i++; if (a.dogru) a.dogru(g[1]);
         SES.soyle(g[1] + ' ' + g[0] + '!', 'en').then(function () { if (!bitti) yeni(); });
       } else { yanlis++; if (a.yanlis) a.yanlis(g[1]); SES.fx('yanlis'); salla(p); sor(); }
     }
@@ -145,7 +145,7 @@
     alan.addEventListener('click', function (e) {
       var b = e.target.closest('[data-ko-renk]'); if (!b || kilit || bitti) return;
       if (b.getAttribute('data-ko-renk') === hedef.id) {
-        kilit = true; temizle(); SES.fx('dogru'); b.classList.add('ko-dogru'); tur++;
+        kilit = true; temizle(); SES.fx('dogru'); b.classList.add('ko-dogru'); tur++; if (a.dogru) a.dogru(hedef.id);
         SES.soyle(sayCevap(hedef, nesne), 'en').then(function () { if (!bitti) setTimeout(yeni, 300); });
       } else { yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(b); birlikteSay(); }
     });

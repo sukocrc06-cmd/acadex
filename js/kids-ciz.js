@@ -96,13 +96,14 @@
 
   /* ---------- sahne parçaları ---------- */
   function bulut(cls) { return svg('0 0 200 90', '<path d="M30 76 q-24 0 -24 -20 q0 -18 22 -20 q4 -24 32 -24 q20 0 28 16 q10 -8 26 -4 q20 4 20 22 q22 0 22 16 q0 14 -18 14 z" fill="#fff" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/>', 'kc-bulut ' + (cls || '')); }
-  function ada(renk, ic, kilitli) {
+  /* ek: büyüyen ada süsleri ve sakinler (kids-odul.js), simgenin önünde/arkasında çizilir */
+  function ada(renk, ic, kilitli, ek) {
     return svg('0 0 200 170',
       '<path d="M22 86 q78 -34 156 0 q-6 44 -40 62 q-38 20 -76 0 q-34 -18 -40 -62 z" fill="#B98A5A" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/>' +
       '<path d="M56 122 q10 10 22 6 M110 136 q12 4 22 -6" fill="none" stroke="#8F6740" stroke-width="3" stroke-linecap="round"/>' +
       '<ellipse cx="100" cy="84" rx="82" ry="26" fill="' + (kilitli ? '#D5DDEA' : renk) + '" stroke="' + M + '" stroke-width="3"/>' +
       '<path d="M40 80 q20 -10 44 -8" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".55"/>' +
-      '<g transform="translate(62 2) scale(.76)"' + (kilitli ? ' opacity=".5"' : '') + '>' + (SIMGE[ic] || disIc(ic)) + '</g>', 'kc-ada');
+      '<g class="kc-ada-ana" transform="translate(62 2) scale(.76)"' + (kilitli ? ' opacity=".5"' : '') + '>' + (SIMGE[ic] || disIc(ic)) + '</g>' + (ek ? '<g class="kc-ada-ek">' + ek + '</g>' : ''), 'kc-ada', ' overflow="visible"');
   }
   function balon(renk) {
     return svg('0 0 100 150', '<path d="M50 104 q-6 22 4 42" fill="none" stroke="' + M + '" stroke-width="2.4" stroke-linecap="round"/>' +
