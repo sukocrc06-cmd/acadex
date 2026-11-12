@@ -116,4 +116,24 @@ test('22 TEMA + SERTLEŞTİRME: plan kuralı, kod taraması, katlanan kilit, tem
     'kids/index.html yeniden üretilmemiş (node kids/assets/birlestir.js)');
 });
 
+test('OTURUM YÖNETİMİ: katlanan öğretmen kilidi + sınıf oturumlarını kapatma (12.11.2026)', () => {
+  const sq = read('supabase/migrations/20261112d_kids_oturum_yonetimi.sql');
+  /* Öğretmen şifresi 6 haneli rakam; kilit sıfırlanmak yerine katlanmalı. */
+  assert.match(sq, /least\(15 \* power\(2, sifre_kilit_say\)::int, 1440\)/, 'öğretmen kilidi katlanmıyor');
+  assert.match(sq, /sifre_kilit_say = 0 where id = o\.id/, 'doğru girişte öğretmen kilidi sıfırlanmıyor');
+  /* Çocuk oturumu 90 gün açık; paylaşımlı tablette öğretmen sıfırlayabilmeli.
+     Yalnız KENDİ okulunun sınıfı, yalnız ÇOCUK oturumları silinir. */
+  assert.match(sq, /where id = p_sinif and okul_id = o\.okul_id/, 'başka okulun sınıfının oturumu kapatılabilir');
+  assert.match(sq, /delete from kids_oturumlar k\s*\n\s*where k\.tur = 'cocuk'/, 'öğretmenin kendi oturumu da siliniyor olabilir');
+  assert.match(sq, /public\.kids_oturum\(p_token, 'ogretmen'\)/, 'oturum denetimi yok');
+  const bl = read('kids/assets/kids-bulut.js');
+  assert.ok(bl.includes("rpc('kids_sinif_oturum_kapat'"), 'köprüde sinifOturumKapat yok');
+  const og = read('kids/assets/kids-ogretmen.js');
+  assert.ok(og.includes('data-otkapat'), 'öğretmen panelinde oturum kapatma düğmesi yok');
+  assert.match(og, /BU \? '<button type="button" class="kt-tahta-b" data-otkapat>/, 'düğme örnek okulda da görünüyor (bulut dışı)');
+  assert.match(og, /B\.sinifOturumKapat\(TOK, sinif\.id\)/, 'düğme sunucuya gitmiyor');
+  const html = read('kids/index.html');
+  assert.ok(html.includes('data-otkapat'), 'kids/index.html yeniden üretilmemiş (node kids/assets/birlestir.js)');
+});
+
 summary();

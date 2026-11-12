@@ -120,7 +120,7 @@
     var okul = okul_(), sinif = okul.siniflar[sinifI], bugun = new Date(), bk = V.konuBul(gunKonu(sinif, bugun)), hafta = V.hafta(), bugunA = V.gunAnahtar(), acikK = V.KONU.filter(function (x) { return x.acik; }),
       kz = konuSec || (bk && bk.acik ? bk.id : 'colours'), kzK = V.konuBul(kz), o = ozet(sinif, kz), zr = o.zor && renkBul(o.zor);
     var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>Öğretmen paneli</small></span>' +
-      '<button type="button" class="kt-tahta-b" data-tahta>' + C.simge('yildiz') + ' Akıllı tahta</button><button type="button" class="kt-tahta-b kt-mat-b" data-materyal>' + C.simge('album') + ' Materyaller</button><a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
+      '<button type="button" class="kt-tahta-b" data-tahta>' + C.simge('yildiz') + ' Akıllı tahta</button><button type="button" class="kt-tahta-b kt-mat-b" data-materyal>' + C.simge('album') + ' Materyaller</button>' + (BU ? '<button type="button" class="kt-tahta-b" data-otkapat>' + C.simge('kilit') + ' Oturumları kapat</button>' : '') + '<a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
       '<main class="kt-govde"><div class="kt-sekmeler" role="tablist" aria-label="Sınıflar">' + okul.siniflar.map(function (s, i) { return '<button type="button" role="tab" aria-selected="' + (i === sinifI) + '" data-sinif="' + i + '" style="--r:' + s.renk + '"><b>' + esc(s.ad) + '</b><small>' + esc(V.BANT[s.bant].ad + ' · ' + V.BANT[s.bant].yas) + '</small></button>'; }).join('') + '</div>' +
       '<p class="kt-bildirim' + (bildirim ? ' kt-var' : '') + '" role="status" data-bildirim>' + (bildirim ? '✓ ' + esc(bildirim) : '') + '</p>' +
 
@@ -159,6 +159,17 @@
     kok.innerHTML = h;
     kok.querySelector('[data-tahta]').addEventListener('click', function () { if (W.KIDS_TAHTA) W.KIDS_TAHTA.ac({ sinif: sinif, konu: bk && bk.acik ? bk.id : kz }); });
     kok.querySelector('[data-bulten]').addEventListener('click', function () { bulten(sinif, kz); });
+    /* Paylaşımlı tablet: sınıfın açık çocuk oturumlarını kapatır. Veri silinmez,
+       çocuk resimli şifresiyle yeniden girer (20261112d). */
+    var otk = kok.querySelector('[data-otkapat]');
+    if (otk) otk.addEventListener('click', function () {
+      var b = this;
+      if (!W.confirm(sinif.ad + ' sınıfındaki açık girişler kapatılsın mı? Çocuklar resimli şifresiyle yeniden girer, ilerlemeleri durur.')) return;
+      b.disabled = true;
+      B.sinifOturumKapat(TOK, sinif.id).then(function (n) {
+        b.disabled = false; W.alert(n ? n + ' açık giriş kapatıldı.' : 'Bu sınıfta açık giriş yoktu.');
+      }, function (er) { b.disabled = false; if (er.tur === 'oturum') return cikisZorla(er); W.alert('Kapatılamadı: ' + er.message); });
+    });
     kok.querySelectorAll('[data-materyal]').forEach(function (b) { b.addEventListener('click', function () { if (W.KIDS_YAZDIR) W.KIDS_YAZDIR.panel({ konu: bk && bk.acik ? bk.id : kz, bant: sinif.bant }); }); });
     kok.querySelectorAll('[data-ksec]').forEach(function (b) { b.addEventListener('click', function () { konuSec = b.getAttribute('data-ksec'); panel(); }); });
     kok.querySelectorAll('[data-sinif]').forEach(function (b) { b.addEventListener('click', function () { sinifI = +b.getAttribute('data-sinif'); panel(); }); });

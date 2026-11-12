@@ -66,6 +66,8 @@
     ogretmenGiris: function (kod, sifre) { return rpc('kids_ogretmen_giris', { p_kod: kod, p_sifre: sifre }); },
     ogretmenVeri: function (t, bas, bit) { return rpc('kids_ogretmen_veri', { p_token: t, p_bas: bas, p_bit: bit }).then(function (v) { var o = okulBicim({ kod: v.okul.kod, ad: v.okul.ad, siniflar: v.siniflar }); o.bugun = v.bugun; return o; }); },
     planKoy: function (t, sinif, gun, konu) { return rpc('kids_plan_koy', { p_token: t, p_sinif: sinif, p_gun: gun, p_konu: konu }); },
+    /* 20261112d: paylaşımlı tablette açık kalan çocuk oturumlarını kapatır (yalnız o sınıf) */
+    sinifOturumKapat: function (t, sinif) { return rpc('kids_sinif_oturum_kapat', { p_token: t, p_sinif: sinif }); },
     ayar: function (url, anahtar) { URL = url; ANAHTAR = anahtar; }   /* yalnız test */
   };
 })(window);
