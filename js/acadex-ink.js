@@ -12245,11 +12245,10 @@ var SBX = (function () {
     var otomatik = false;
     try { otomatik = sessionStorage.getItem('acadex.misafir.giris') === '1'; sessionStorage.removeItem('acadex.misafir.giris'); } catch (e) {}
     if (otomatik) { var n = 0, tik = setInterval(function () { if (dersAc() || ++n > 25) clearInterval(tik); }, 200); }
-    /* ---- kilometre taşı ekranı + sınıf panosu (13.11.2026) ----
+    /* ---- kilometre taşı ekranı (13.11.2026) ----
        Hafta "bitti" ölçütü lab ile birebir: anlatım + görsel + sınav >= 60
        (labs/istat ist-core IST.parts). ESIK'inci hafta bitince bir KEZ kutlama
-       çıkar; hesap açmaya en yatkın an orasıdır. Panoda isim yok, yalnız sayı
-       (misafir_pano kendi ders kodunun toplamını döndürür). */
+       çıkar; hesap açmaya en yatkın an orasıdır. */
     var ESIK = 3;
     var bitenHafta = function (v) {
       var n = 0; if (!v || typeof v !== 'object') return 0;
@@ -12264,28 +12263,15 @@ var SBX = (function () {
       try { return +(localStorage.getItem('acadex.misafir.kutlama') || 0) >= n; } catch (e) { return true; }
     };
     var kutlamaYaz = function (n) { try { localStorage.setItem('acadex.misafir.kutlama', String(n)); } catch (e) {} };
-    var panoCiz = function (kutu) {
-      cl.rpc('misafir_pano').then(function (r) {
-        var d = r && r.data; if (!d || !d.toplam) { kutu.innerHTML = ''; return; }
-        var yuzde = d.toplam > 1 ? Math.round(100 * d.gerisinde / (d.toplam - 1)) : 0;
-        kutu.innerHTML = '<div class="pano"><b>Sınıf panosu</b>' +
-          '<ul><li><b>' + d.toplam + '</b><span>kişi derse girdi</span></li>' +
-          '<li><b>' + d.oynayan + '</b><span>en az bir hafta bitirdi</span></li>' +
-          '<li><b>' + d.ort + '</b><span>sınıf ortalaması (hafta)</span></li></ul>' +
-          (d.toplam > 1 ? '<p>Sınıfın <b>%' + yuzde + '</b>’inden ilerdesin.</p>' : '') + '</div>';
-      }, function () { kutu.innerHTML = ''; });
-    };
     var kutla = function (n) {
       var k = document.createElement('div'); k.className = 'ax-msf-kutlama';
       k.innerHTML = '<div class="in"><button type="button" class="x" data-kx="" aria-label="Kapat">×</button>' +
         '<div class="yildiz" aria-hidden="true">★</div>' +
         '<h3>' + n + '. haftayı bitirdin!</h3>' +
         '<p>Anlatımı, görseli ve soruları tamamladın. Bu ilerleme şu an yalnız bu tarayıcıda duruyor.</p>' +
-        '<div class="pano-yer" data-pano=""></div>' +
         '<button type="button" class="g" data-khesap="">hesabını aç, ilerlemen seninle gelsin</button>' +
         '<button type="button" class="s" data-kx="">sonra</button></div>';
       document.body.appendChild(k);
-      panoCiz(k.querySelector('[data-pano]'));
       k.addEventListener('click', function (e) {
         if (e.target === k || e.target.closest('[data-kx]')) { k.remove(); return; }
         if (e.target.closest('[data-khesap]')) { k.remove(); kayitAc(); }

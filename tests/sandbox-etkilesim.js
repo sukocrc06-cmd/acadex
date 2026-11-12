@@ -281,7 +281,7 @@ test('KURCALA (remix) + İNCELEME BİLDİRİMİ (13.11.2026)', () => {
   /* Panelde projeyi yalnız izleyebiliyordun; öğrenmenin hızlı yolu kodu açıp
      kurcalamak. Dosya ağacı sunucuda (sandbox_workspaces.files) ama RLS
      başkasınınkini okutmaz → definer RPC yalnız YAYINDAKİ gönderiyi açar. */
-  const mig = read('supabase/migrations/20261113_remix_ve_pano.sql');
+  const mig = read('supabase/migrations/20261113_sandbox_remix.sql');
   assert.match(mig, /not coalesce\(p\.hidden, false\) or p\.user_id = auth\.uid\(\)/,
     'remix görünürlük kuralı gönderinin SELECT politikasıyla aynı değil');
   assert.match(mig, /if public\.misafir_mi\(\) then\s*\n\s*raise exception 'Misafir girişi proje kopyalayamaz/,

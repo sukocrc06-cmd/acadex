@@ -289,7 +289,7 @@ test('GÜVENLİK TARAMASI: definer yan kapılar + yarım giriş (12.11.2026)', (
     'kayıt düşünce anonim oturum kapatılmıyor');
 });
 
-test('KİLOMETRE TAŞI + SINIF PANOSU (13.11.2026)', () => {
+test('KİLOMETRE TAŞI EKRANI (13.11.2026)', () => {
   /* Misafir ders yolunda ilerliyor ama hiçbir şey olmuyordu; hesap açmaya en
      yatkın an bir haftayı bitirdiği andır. Hafta "bitti" ölçütü lab ile
      birebir aynı olmalı (IST.parts: a && g && s >= 60), yoksa kutlama
@@ -304,16 +304,6 @@ test('KİLOMETRE TAŞI + SINIF PANOSU (13.11.2026)', () => {
   assert.ok(ink.includes("t.closest('.ax-msf-kutlama')"),
     'kutlama penceresi tıklama bekçisine takılır — düğmeleri çalışmaz');
   assert.match(ink, /data-khesap[\s\S]{0,200}kayitAc\(\)/, 'kutlamadaki hesap düğmesi dönüşümü açmıyor');
-  /* Pano: isim yok, yalnız sayı; kendi ders kodunun toplamı. */
-  const mig = read('supabase/migrations/20261113_remix_ve_pano.sql');
-  assert.match(mig, /select kod_id into v_kod from ders_konuklari where user_id = auth\.uid\(\)/,
-    'pano başka kodun verisini döndürebilir');
-  assert.ok(!/full_name|rumuz/.test(mig.split('misafir_pano')[1] || ''),
-    'pano isim döndürüyor — sınıf panosu isimsiz olmalı');
-  assert.match(mig, /\(e\.value->>'s'\)::numeric >= 60/, 'pano hafta ölçütü lab ile aynı değil');
-  assert.match(mig, /coalesce\(e\.value->>'s', ''\) ~ '\^\[0-9\]\+\(\\\.\[0-9\]\+\)\?\$'/,
-    'sayısal olmayan s değeri cast hatası verir');
-  assert.ok(ink.includes("cl.rpc('misafir_pano')"), 'pano istemciden çağrılmıyor');
 });
 
 summary();
