@@ -12,11 +12,14 @@
     { id: 'blue', en: 'blue', tr: 'mavi', hex: '#4AA8FF' },
     { id: 'green', en: 'green', tr: 'yeşil', hex: '#4CC38A' },
     { id: 'orange', en: 'orange', tr: 'turuncu', hex: '#FF8A3D' },
-    { id: 'purple', en: 'purple', tr: 'mor', hex: '#8E7CF0' }
+    { id: 'purple', en: 'purple', tr: 'mor', hex: '#8E7CF0' },
+    /* ikinci kat (Yıldızlar) */
+    { id: 'pink', en: 'pink', tr: 'pembe', hex: '#FF6FA5' }, { id: 'brown', en: 'brown', tr: 'kahverengi', hex: '#9A6A42' }, { id: 'black', en: 'black', tr: 'siyah', hex: '#2A2F3A' },
+    { id: 'white', en: 'white', tr: 'beyaz', hex: '#FFFFFF' }, { id: 'grey', en: 'grey', tr: 'gri', hex: '#9AA7BD' }
   ];
   /* sayılar: her rakamın kendi rengi (kart, balon, nokta) */
-  var SAYI = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'].map(function (en, i) {
-    return { id: en, en: en, tr: ['bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz', 'on'][i], n: i + 1, hex: ['#E5484D', '#FF8A3D', '#E0A800', '#4CC38A', '#4AA8FF', '#8E7CF0', '#FF6FA5', '#12A3A3', '#C97A2B', '#5B6B8C'][i] };
+  var SAYI = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'].map(function (en, i) {
+    return { id: en, en: en, tr: ['bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz', 'on', 'on bir', 'on iki', 'on üç', 'on dört', 'on beş', 'on altı', 'on yedi', 'on sekiz', 'on dokuz', 'yirmi'][i], n: i + 1, hex: ['#E5484D', '#FF8A3D', '#E0A800', '#4CC38A', '#4AA8FF', '#8E7CF0', '#FF6FA5', '#12A3A3', '#C97A2B', '#5B6B8C'][i % 10] };
   });
   /* 12 konu: Cambridge Pre A1 Starters temaları + MEB 2. sınıf temalarıyla hizalı */
   var KONU = [
@@ -31,13 +34,24 @@
     { id: 'home', en: 'My Home', tr: 'Evim', renk: '#C7EBA0', simge: 'sofa', acik: true, rozet: 'Ev Kahramanı' },
     { id: 'school', en: 'School', tr: 'Okulum', renk: '#FFE08A', simge: 'bag', acik: true, rozet: 'Okul Yıldızı' },
     { id: 'weather', en: 'Weather', tr: 'Hava Durumu', renk: '#BDE8F2', simge: 'sunny', acik: true, rozet: 'Hava Gözlemcisi' },
-    { id: 'feelings', en: 'Feelings', tr: 'Duygular', renk: '#FFC9E0', simge: 'happy', acik: true, rozet: 'Duygu Dedektifi' }
+    { id: 'feelings', en: 'Feelings', tr: 'Duygular', renk: '#FFC9E0', simge: 'happy', acik: true, rozet: 'Duygu Dedektifi' },
+    /* ikinci takımada */
+    { id: 'fruits', en: 'Fruits', tr: 'Meyveler', renk: '#FFD9A0', simge: 'watermelon', acik: true, rozet: 'Meyve Bahçıvanı', grup: 2 },
+    { id: 'transport', en: 'Transport', tr: 'Taşıtlar', renk: '#C9D6EE', simge: 'bus', acik: true, rozet: 'Yolcu Kaptan', grup: 2 },
+    { id: 'shapes', en: 'Shapes', tr: 'Şekiller', renk: '#DCD2FF', simge: 'triangle', acik: true, rozet: 'Şekil Ustası', grup: 2 },
+    { id: 'sea', en: 'Under the Sea', tr: 'Deniz', renk: '#9FDBF7', simge: 'whale', acik: true, rozet: 'Deniz Kâşifi', grup: 2 },
+    { id: 'jobs', en: 'Jobs', tr: 'Meslekler', renk: '#FFD9B5', simge: 'firefighter', acik: true, rozet: 'Meslek Bilgini', grup: 2 },
+    { id: 'actions', en: 'Actions', tr: 'Hareketler', renk: '#C6EDCF', simge: 'jump', acik: true, rozet: 'Hareket Yıldızı', grup: 2 },
+    { id: 'seasons', en: 'Seasons', tr: 'Mevsimler', renk: '#D7EDB0', simge: 'autumn', acik: true, rozet: 'Mevsim Gözcüsü', grup: 2 },
+    { id: 'days', en: 'Days', tr: 'Günler', renk: '#D5DDF7', simge: 'friday', acik: true, rozet: 'Takvim Ustası', grup: 2 },
+    { id: 'places', en: 'Where is it?', tr: 'Yerler', renk: '#F2D7B0', simge: 'under', acik: true, rozet: 'Saklambaç Ustası', grup: 2 },
+    { id: 'alphabet', en: 'ABC', tr: 'Alfabe', renk: '#CDEBFF', simge: 'harf-a', acik: true, rozet: 'Harf Kâşifi', grup: 2 }
   ];
   /* yaş dünyaları: zorluk ve yazı miktarı buna göre değişir */
   var BANT = {
     minik: { ad: 'Minikler', yas: '3-4 yaş', renkSay: 3, sayiSay: 5, kelimeSay: 6, yazi: false, secenek: 3, tur: 4, cift: 3 },
-    kasif: { ad: 'Kâşifler', yas: '5-6 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 8, yazi: true, secenek: 4, tur: 5, cift: 4 },
-    yildiz: { ad: 'Yıldızlar', yas: '7-10 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 10, yazi: true, secenek: 5, tur: 6, cift: 6, kelimeKart: true }
+    kasif: { ad: 'Kâşifler', yas: '5-6 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 10, yazi: true, secenek: 4, tur: 5, cift: 4 },
+    yildiz: { ad: 'Yıldızlar', yas: '7-10 yaş', renkSay: 11, sayiSay: 20, kelimeSay: 20, yazi: true, secenek: 5, tur: 6, cift: 6, kelimeKart: true }
   };
   var OKUL = {
     kod: 'ORNEK-2026', ad: 'Örnek Anaokulu', ornek: true,

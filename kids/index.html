@@ -597,6 +597,63 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 }
 @media (prefers-reduced-motion:reduce){.ka-bayrak,.ka-ada-canli i,.ka-ada-bitti .kc-ada > g,.ko-ses-b i,.ko-yuva.ko-simdi{animation:none}.ko-cark-r{transition:none}}
 
+/* ---------- ada dünyaları: konunun arka planı ---------- */
+.ka-dunya{position:fixed;inset:0;z-index:0;pointer-events:none}
+.ka-dunya-r{width:100%;height:100%;display:block}
+[data-gorunum="konu"] .ka-konu-ust,[data-gorunum="konu"] .ka-sahne,[data-gorunum="kitap"] .ka-konu-ust,[data-gorunum="kitap"] .ka-sahne{position:relative;z-index:1}
+[data-gorunum="konu"] .ka-sahne,[data-gorunum="kitap"] .ka-sahne{background:color-mix(in srgb,var(--krem) 86%,transparent);backdrop-filter:blur(2px)}
+.ka-takimada{grid-column:1/-1;display:flex;align-items:baseline;justify-content:center;gap:10px;margin:26px 0 6px;font:800 26px/1.1 var(--bas);text-align:center}
+.ka-takimada span{padding:6px 18px;border:3px solid var(--m);border-radius:18px;background:var(--beyaz);box-shadow:var(--golge-k)}
+.ka-takimada small{font-size:15px;color:var(--soluk)}
+
+/* ---------- karışık durak ---------- */
+.ko-karisik-a{align-content:center}
+.ko-karisik-k{display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:2px;width:clamp(140px,40vw,210px);min-height:clamp(120px,32vw,170px);padding:8px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);box-shadow:var(--golge)}
+.ko-karisik-k i{display:block;width:44%;aspect-ratio:1;animation:kaPop .35s calc(var(--i) * .04s) both}
+.ko-kn1 i{width:66%}.ko-knc i{width:23%}.ko-kno i{width:30%}
+.ko-karisik-k .kc{width:100%;height:100%}
+.ko-karisik-k.ko-dogru{background:#E6F8EE;animation:kaPop .4s}
+.ko-karisik-k.ko-salla{animation:koSalla .5s}
+.ko-g-goz{top:16%;width:46%;aspect-ratio:1}
+.ko-g-bel{top:56%;width:40%;aspect-ratio:1}
+
+/* ---------- hikâye kitaplığı ---------- */
+.kk-bas{display:flex;align-items:center;gap:8px;margin:0;font:800 26px/1 var(--bas)}
+.kk-bas .kc{width:34px;height:34px}
+.kk-raf{display:block}
+.kk-alt{margin:0 0 14px;color:var(--soluk)}
+.kk-kitaplar{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin:0;padding:0;list-style:none}
+.kk-kapak{position:relative;display:grid;justify-items:center;gap:4px;width:100%;padding:12px 10px 14px;border:3px solid var(--m);border-radius:8px 20px 20px 8px;background:var(--r);box-shadow:inset 10px 0 0 rgba(35,48,77,.18),var(--golge);color:var(--m);text-align:center;animation:kaPop .35s calc(var(--i) * .04s) both}
+.kk-res{display:block;width:72%;aspect-ratio:1;padding:8px;border-radius:50%;background:rgba(255,255,255,.75)}
+.kk-res .kc{width:100%;height:100%}
+.kk-kapak b{font:800 17px/1.1 var(--bas)}
+.kk-kapak small{font-size:13px;color:var(--m);opacity:.75;font-weight:800}
+.kk-kapak .ka-tik{display:grid;position:absolute;top:-8px;right:-8px;width:30px;height:30px}
+.kk-noktalar{display:flex;gap:6px;margin:0;padding:0;list-style:none}
+.kk-noktalar li{display:grid;place-items:center;width:18px;height:18px;border:2px solid var(--m);border-radius:50%;background:var(--beyaz);font:800 11px var(--bas)}
+.kk-noktalar li.kk-gecti{background:var(--yesil)}.kk-noktalar li.kk-bu{background:var(--sari);transform:scale(1.2)}
+.kk-sayfa{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:12px;justify-items:center}
+.kk-ad{margin:0;font:800 18px/1 var(--bas);color:var(--soluk)}
+.kk-resim{position:relative;display:flex;justify-content:center;align-items:center;gap:2%;width:100%;min-height:200px;padding:14px;border:3px solid var(--m);border-radius:26px;background:color-mix(in srgb,var(--r) 30%,#fff)}
+.kk-resim span{display:block;width:min(34%,190px);aspect-ratio:1;animation:kaPop .45s calc(var(--i) * .15s) both}
+.kk-r1 span{width:min(62%,260px)}.kk-r2 span{width:min(44%,210px)}.kk-r3 span{width:min(30%,170px)}
+.kk-resim span .kc{width:100%;height:100%}
+.kk-resim .kk-acd{position:absolute;right:8px;top:8px;width:56px;height:auto;aspect-ratio:auto;animation:none}
+.kk-cumle{margin:0;font:800 clamp(22px,4.4vw,34px)/1.35 var(--bas);text-align:center}
+.kk-k{padding:0 3px;border:0;border-radius:8px;background:none;font:inherit;color:inherit;cursor:pointer;transition:background .15s}
+.kk-k.kk-yanan{background:var(--sari);box-shadow:0 0 0 2px var(--m)}
+.kk-k.kk-zipla{animation:kaPop .35s}
+.kk-alt-d{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.kk-soru{display:grid;gap:16px;justify-items:center;align-content:center}
+.kk-soru-no{margin:0;color:var(--soluk);font-weight:800}
+.kk-soru-s{display:flex;align-items:center;gap:10px;margin:0;font:800 clamp(22px,4vw,32px)/1.2 var(--bas);text-align:center}
+.ka-veli-yaz{display:flex;flex-wrap:wrap;gap:8px}
+.ka-veli-yaz .ka-orta{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:16px}
+.ka-veli-yaz .kc{width:22px;height:22px}
+@media (max-width:760px){.kk-kitaplar{grid-template-columns:repeat(2,minmax(0,1fr))}.kk-resim{min-height:150px}}
+.ko-palet{flex-wrap:wrap}
+.ko-palet .ko-boya{flex:none}
+
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası (kids/assets/kids-landing.css), 10.11.2026
    Okul sahibi ve yöneticisine hitap eder; çocuk uygulamasıyla aynı çizim dili.
@@ -1276,6 +1333,61 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .kt-bul footer{margin-top:12px;padding-top:8px;border-top:2px solid #23304D}
 .kt-bul-k2{color:#5A6785;font-size:12px}
 
+/* ---------- yazdırılabilir materyal: seçim penceresi ---------- */
+.kt-r-dug{display:flex;flex-wrap:wrap;gap:8px}
+.ky-ort{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:16px;background:rgba(35,48,77,.55)}
+.ky-pen{display:grid;gap:12px;width:min(760px,100%);max-height:calc(100dvh - 32px);overflow:auto;padding:20px;border:3px solid var(--m);border-radius:26px;background:var(--krem);box-shadow:0 8px 0 var(--m);color:var(--m);font:600 16px/1.4 var(--govde)}
+.ky-pen header{display:flex;align-items:center;justify-content:space-between}
+.ky-pen h2{margin:0;font:800 26px/1.1 var(--bas)}
+.ky-x{width:44px;height:44px;border:2px solid var(--m);border-radius:50%;background:var(--beyaz);font:800 24px/1 var(--bas)}
+.ky-not{margin:0;color:var(--soluk)}
+.ky-alan{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:800}
+.ky-alan select,.ky-alan input{min-height:44px;padding:0 10px;border:2px solid var(--m);border-radius:12px;background:var(--beyaz);font:700 16px var(--govde);max-width:60%}
+.ky-turler{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ky-turler button{display:grid;justify-items:center;gap:4px;padding:10px 6px;border:2px solid var(--m);border-radius:16px;background:var(--beyaz);font:800 14px/1.15 var(--govde);color:var(--m)}
+.ky-turler .kc{width:34px;height:34px}
+.ky-turler button[aria-checked="true"]{background:var(--sari);box-shadow:var(--golge-k)}
+.ky-onizle{max-height:340px;overflow:auto;padding:12px;border:2px dashed #C9BFA3;border-radius:16px;background:#fff}
+.ky-onizle .ky-sayfa{transform-origin:top left}
+.ky-yaz{justify-self:end}
+@media (max-width:600px){.ky-turler{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* baskı sayfaları */
+.ky-baski,.ky-onizle{color:#23304D;font:600 13px/1.4 'Nunito',system-ui,sans-serif}
+.ky-sayfa{break-after:page;page-break-after:always;padding:4px}
+.ky-sayfa:last-child{break-after:auto}
+.ky-bas{display:flex;align-items:center;gap:10px;padding-bottom:6px;margin-bottom:8px;border-bottom:3px solid #23304D}
+.ky-bas span{width:44px}.ky-bas .kc{width:100%;height:auto}
+.ky-bas small{display:block;color:#5A6785;font-weight:800}
+.ky-bas b{font:800 22px/1.1 'Baloo 2',sans-serif}
+.ky-ad{margin:4px 0 10px;font-size:15px}
+.ky-boya{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0;padding:0;list-style:none}
+.ky-boya li{display:grid;justify-items:center;gap:4px;padding:10px;border:2px solid #23304D;border-radius:16px}
+.ky-boya span{width:78%;aspect-ratio:1}.ky-boya .kc{width:100%;height:100%}
+.ky-boya b{font:800 40px/1 'Baloo 2',sans-serif;color:#fff;-webkit-text-stroke:1.6px #23304D;letter-spacing:.04em}
+.ky-kart{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:0;padding:0;list-style:none}
+.ky-kart li{display:grid;justify-items:center;gap:2px;padding:12px;border:2px dashed #9AA7BD;text-align:center}
+.ky-kart span{width:56%;aspect-ratio:1}.ky-kart .kc{width:100%;height:100%}
+.ky-kart b{font:800 28px/1 'Baloo 2',sans-serif;box-shadow:inset 0 -.3em 0 color-mix(in srgb,var(--r) 45%,transparent)}
+.ky-kart small{color:#5A6785}
+.ky-bingo{margin:0 0 16px;padding:10px;border:3px solid #23304D;border-radius:18px;break-inside:avoid}
+.ky-bingo p{margin:0 0 6px;text-align:center;font:800 22px/1 'Baloo 2',sans-serif;letter-spacing:.1em}
+.ky-bingo ul{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.ky-b3{grid-template-columns:repeat(3,1fr)}.ky-b2{grid-template-columns:repeat(2,1fr)}
+.ky-bingo li{display:grid;justify-items:center;padding:6px;border:2px solid #23304D;border-radius:10px}
+.ky-bingo span{width:52%;aspect-ratio:1}.ky-bingo .kc{width:100%;height:100%}
+.ky-bingo b{font:800 15px/1 'Baloo 2',sans-serif}
+.ky-liste{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0;list-style:none}
+.ky-liste li{display:flex;align-items:center;gap:6px}
+.ky-liste span{width:30px;height:30px;flex:none}.ky-liste .kc{width:100%;height:100%}
+.ky-sert{display:grid;place-items:center;min-height:250mm}
+.ky-sert-ic{display:grid;justify-items:center;gap:10px;width:100%;padding:28px;border:8px double #23304D;border-radius:28px;text-align:center;background:linear-gradient(color-mix(in srgb,var(--r) 18%,#fff),#fff)}
+.ky-sert-acd{width:110px}.ky-sert-acd .kc{width:100%;height:auto}
+.ky-sert h1{margin:0;font:800 56px/1 'Baloo 2',sans-serif}
+.ky-sert-ad{margin:10px 0 0;font-size:22px}
+.ky-sert-rz{display:grid;justify-items:center;gap:4px}.ky-sert-rz .kc{width:120px;height:auto}.ky-sert-rz b{font:800 22px 'Baloo 2',sans-serif}
+.ky-sert-alt{margin-top:20px;color:#5A6785}
+.ky-onizle .ky-sert{min-height:0}
+
 </style>
 </head>
 <body class="kl">
@@ -1716,7 +1828,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 
   /* ---------- duygu yüzleri ---------- */
   function yuz(d) {
-    var ten = { angry: '#FF9E7A', scared: '#E6EEFF', tired: '#FFE6A6' }[d] || '#FFD84D', h = c(50, 52, 40, ten), goz = '', agiz = '', ek = '';
+    var ten = { angry: '#FF9E7A', scared: '#E6EEFF', tired: '#FFE6A6', sick: '#CDEFC4', worried: '#FFE6A6' }[d] || '#FFD84D', h = c(50, 52, 40, ten), goz = '', agiz = '', ek = '';
     var nokGoz = n(36, 46, 4.6) + n(64, 46, 4.6) + n(37.4, 44.6, 1.5, '#fff') + n(65.4, 44.6, 1.5, '#fff');
     if (d === 'happy') { goz = iz('M29 46 q7 -8 14 0 M57 46 q7 -8 14 0', M, 3.4); agiz = p('M30 58 q20 26 40 0 z', '#E5484D'); }
     if (d === 'sad') { goz = nokGoz + iz('M28 36 l12 -4 M72 36 l-12 -4', M, 3); agiz = iz('M36 72 q14 -12 28 0', M, 3.4); ek = damla(30, 54); }
@@ -1727,6 +1839,16 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     if (d === 'hungry') { goz = n(36, 42, 4.4) + n(64, 42, 4.4) + n(37, 40.6, 1.4, '#fff') + n(65, 40.6, 1.4, '#fff'); agiz = p('M34 60 q16 18 32 0 z', '#7A2F3A') + p('M54 64 q8 12 14 2 q-4 -6 -14 -2 z', '#FF7A8A'); }
     if (d === 'excited') { goz = yildiz(36, 45, 9, '#FF8A3D') + yildiz(64, 45, 9, '#FF8A3D'); agiz = p('M28 58 q22 30 44 0 z', '#E5484D') + '<path d="M40 70 q10 6 20 0" fill="#FF9EB5"/>'; }
     if (d === 'shy') { goz = iz('M30 48 q6 4 12 0 M58 48 q6 4 12 0', M, 3.2); agiz = iz('M45 64 q5 4 10 0', M, 3); ek = '<ellipse cx="30" cy="58" rx="8" ry="5" fill="#FF6FA5" opacity=".75"/><ellipse cx="70" cy="58" rx="8" ry="5" fill="#FF6FA5" opacity=".75"/>' + iz('M24 58 l4 -3 M30 58 l4 -3 M66 58 l4 -3 M72 58 l4 -3', '#fff', 2); }
+    if (d === 'proud') { goz = iz('M29 44 q7 -6 14 0 M57 44 q7 -6 14 0', M, 3.2); agiz = iz('M36 62 q14 12 28 0', M, 3.4); ek = yildiz(80, 18, 10, '#FFD23F') + iz('M30 30 l12 2 M70 30 l-12 2', M, 3); }
+    if (d === 'worried') { goz = nokGoz + iz('M28 34 l12 4 M72 34 l-12 4', M, 3); agiz = iz('M38 70 q6 -4 12 0 q6 4 12 0', M, 3); ek = damla(80, 30, '#BDE8F2'); }
+    if (d === 'silly') { goz = c(36, 46, 7, '#fff') + n(38, 48, 3) + iz('M57 46 q7 -6 14 0', M, 3.4); agiz = p('M32 60 q18 18 36 0 z', '#7A2F3A') + p('M44 66 q6 14 12 0 z', '#FF7A8A'); }
+    if (d === 'brave') { goz = nokGoz + iz('M27 36 l14 2 M73 36 l-14 2', M, 3.6); agiz = p('M34 62 q16 12 32 0 z', '#fff'); ek = p('M10 74 l10 -10 l10 10 l-10 18 z', '#E5484D'); }
+    if (d === 'loved') { goz = p('M29 42 q3 -5 7 -1 q4 -4 7 1 q-1 6 -7 10 q-6 -4 -7 -10 z', '#E5484D') + p('M57 42 q3 -5 7 -1 q4 -4 7 1 q-1 6 -7 10 q-6 -4 -7 -10 z', '#E5484D'); agiz = p('M34 60 q16 16 32 0 z', '#E5484D'); }
+    if (d === 'sleepy') { goz = iz('M29 48 q7 4 14 0 M57 48 q7 4 14 0', M, 3.2); agiz = e(50, 68, 6, 7, '#7A2F3A'); ek = yazi(84, 24, 'Z', 16, '#4AA8FF'); }
+    if (d === 'calm') { goz = iz('M29 46 q7 5 14 0 M57 46 q7 5 14 0', M, 3); agiz = iz('M40 64 q10 7 20 0', M, 3); ek = p('M80 70 q8 -10 14 -2 q-6 10 -14 2 z', '#4CC38A'); }
+    if (d === 'nervous') { goz = c(36, 46, 6, '#fff') + c(64, 46, 6, '#fff') + n(38, 46, 2.4) + n(66, 46, 2.4); agiz = p('M36 64 h28 v6 h-28 z', '#fff') + iz('M43 64 v6 M50 64 v6 M57 64 v6', M, 2); ek = damla(24, 30, '#BDE8F2'); }
+    if (d === 'sick') { goz = iz('M30 44 l10 6 M30 50 l10 -6 M58 44 l10 6 M58 50 l10 -6', M, 2.6); agiz = iz('M38 70 q12 -6 24 0', M, 3.2); ek = r(68, 60, 8, 22, 4, '#fff') + '<rect x="70" y="72" width="4" height="9" fill="#E5484D"/>'; }
+    if (d === 'thirsty') { goz = nokGoz; agiz = p('M40 64 q10 -6 20 0 q-10 10 -20 0 z', '#7A2F3A'); ek = damla(82, 16, '#4AA8FF') + damla(90, 34, '#4AA8FF'); }
     if (d === 'bored') { goz = iz('M28 44 h16 M56 44 h16', M, 3) + n(36, 48, 3.6) + n(64, 48, 3.6); agiz = iz('M38 68 h22', M, 3.4); ek = iz('M18 20 q-4 -4 0 -8', '#9AA7BD', 3); }
     return h + goz + agiz + ek;
   }
@@ -1833,7 +1955,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   };
   Object.keys(VUCUT).forEach(function (k) { R[k] = (function (s) { return function () { return s; }; })(VUCUT[k]); });
   Object.keys(AILE).forEach(function (k) { R[k] = (function (o) { return function () { return kisi(o); }; })(AILE[k]); });
-  ['happy', 'sad', 'angry', 'scared', 'surprised', 'tired', 'hungry', 'excited', 'shy', 'bored'].forEach(function (k) { R[k] = function () { return yuz(k); }; });
+  ['happy', 'sad', 'angry', 'scared', 'surprised', 'tired', 'hungry', 'excited', 'shy', 'bored', 'proud', 'worried', 'silly', 'brave', 'loved', 'sleepy', 'calm', 'nervous', 'sick', 'thirsty'].forEach(function (k) { R[k] = function () { return yuz(k); }; });
 
   var onbellek = {};
   function ic(ad) { if (!R[ad]) return ''; if (!(ad in onbellek)) onbellek[ad] = R[ad](); return onbellek[ad]; }
@@ -1860,8 +1982,11 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     return '<svg class="kc ko-beden" viewBox="0 0 240 330" role="img" aria-label="Çocuk figürü">' +
       b('legs', kalin('M102 236 V292', '#2E7DD8', 22) + kalin('M138 236 V292', '#2E7DD8', 22), r(84, 230, 72, 66, 0)) +
       b('feet', e(96, 304, 20, 11, '#E5484D') + e(144, 304, 20, 11, '#E5484D'), r(70, 290, 100, 30, 0)) +
-      b('arms', kalin('M86 172 Q60 190 48 218', TEN, 18) + kalin('M154 172 Q180 190 192 218', TEN, 18), '') +
-      r(78, 150, 84, 96, 26, '#4CC38A') + yildizYol(120, 194, 16, 8, 5) + ' fill="#FFD23F" ' + S + '/>' +
+      b('arms', kalin('M86 178 Q60 194 48 218', TEN, 18) + kalin('M154 178 Q180 194 192 218', TEN, 18), '') +
+      b('neck', r(108, 140, 24, 28, 4, TEN), r(98, 148, 44, 18, 0)) +
+      b('tummy', r(78, 160, 84, 86, 26, '#4CC38A') + yildizYol(120, 200, 16, 8, 5) + ' fill="#FFD23F" ' + S + '/>', r(86, 186, 68, 52, 0)) +
+      b('shoulders', '<circle cx="90" cy="170" r="7" fill="#7FD9A8"/><circle cx="150" cy="170" r="7" fill="#7FD9A8"/>', c(90, 170, 16) + c(150, 170, 16)) +
+      b('knees', e(102, 266, 9, 6, '#7FB7F2') + e(138, 266, 9, 6, '#7FB7F2'), r(86, 256, 68, 20, 0)) +
       b('hands', c(44, 226, 15, TEN) + c(196, 226, 15, TEN), '') +
       b('head', c(120, 92, 62, TEN) + '<circle cx="86" cy="118" r="8" fill="#FF9EB5" opacity=".7"/><circle cx="154" cy="118" r="8" fill="#FF9EB5" opacity=".7"/>', '') +
       b('ears', c(56, 98, 14, TEN) + iz('M52 92 q8 0 8 8', M, 3) + c(184, 98, 14, TEN) + iz('M188 92 q-8 0 -8 8', M, 3), c(56, 98, 20) + c(184, 98, 20)) +
@@ -1881,7 +2006,296 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function kutu() { return '<svg class="kc ko-kap-r" viewBox="0 0 200 120" aria-hidden="true"><path d="M20 30 L4 10 L60 10 L70 30 Z" fill="#6FB8FF" ' + S + '/><path d="M180 30 L196 10 L140 10 L130 30 Z" fill="#6FB8FF" ' + S + '/><rect x="20" y="30" width="160" height="84" rx="6" fill="#4AA8FF" ' + S + '/>' + yildiz(100, 72, 18, '#FFD23F') + yazi(52, 92, 'TOYS', 16) + '</svg>'; }
   function canta() { return '<svg class="kc ko-kap-r" viewBox="0 0 200 130" aria-hidden="true"><path d="M80 24 q0 -20 20 -20 q20 0 20 20" fill="none" ' + S + ' stroke-width="5"/><rect x="30" y="20" width="140" height="106" rx="24" fill="#E5484D" ' + S + '/><path d="M30 52 q70 26 140 0" fill="#FF7A80" ' + S + '/><rect x="90" y="56" width="20" height="16" rx="3" fill="#FFD23F" ' + S + '/></svg>'; }
 
-  W.KIDS_RESIM = { ic: ic, ciz: ciz, var: function (ad) { return !!R[ad]; }, balonResim: balonResim, rozet: rozet, beden: beden, giyFigur: giyFigur, cerceve: cerceve, sepet: sepet, kutu: kutu, canta: canta, ADLAR: Object.keys(R) };
+  /* boyama: çizimin ana rengini (en sık dolgu) verilen renkle değiştir — "three red cars" */
+  var DOKUNMA = /^#(23304D|FFF|FFFFFF|FFD9C2|F3D9B5|FFF3DD|FFE2BF)$/i;
+  function anaRenk(m) { var say = {}, en = null; (m.match(/fill="#[0-9A-Fa-f]{6}"/g) || []).forEach(function (x) { var h = x.slice(6, 13).toUpperCase(); if (DOKUNMA.test(h)) return; say[h] = (say[h] || 0) + 1; if (!en || say[h] > say[en]) en = h; }); return en; }
+  var boyaB = {};
+  function boya(ad, hex) { var k = ad + hex; if (boyaB[k]) return boyaB[k]; var m = ic(ad), a = anaRenk(m); return (boyaB[k] = a ? m.replace(new RegExp(a, 'gi'), hex) : m); }
+  function boyanir(ad) { return !!anaRenk(ic(ad)); }
+  /* çizgi resim (yazdırılabilir boyama sayfası): bütün dolgular beyaz, kontur kalır */
+  function cizgi(ad) { return ic(ad).replace(/fill="#(?!23304D)[0-9A-Fa-f]{3,6}"/gi, 'fill="#fff"').replace(/stroke="#(?!23304D)[0-9A-Fa-f]{3,6}"/gi, 'stroke="#23304D"').replace(/ opacity="[^"]*"/g, ''); }
+  /* ada dünyaları: her konunun sahne arka planı (gök, zemin, soluk motifler) */
+  var DUNYA = {
+    colours: ['#FFE9F0', '#FFC9D8', ['gokkusagi', 'firca', 'yildiz']], numbers: ['#E6F8EE', '#B9E8CB', ['yildiz', 'top', 'elma']],
+    animals: ['#FFF4D6', '#B7E39A', ['cow', 'chick', 'cat']], family: ['#EEF1FF', '#C9D2FF', ['family', 'ev', 'baby']], body: ['#FFF0E6', '#FFD3BC', ['hands', 'eyes', 'feet']],
+    food: ['#FFF0F0', '#FFC9C9', ['apple', 'cake', 'carrot']], toys: ['#EAF6FF', '#BFE3FF', ['ball', 'kite', 'teddy']], clothes: ['#F5EEFF', '#E0CCFF', ['hat', 'tshirt', 'socks']],
+    home: ['#F3FBE8', '#D5EDB6', ['lamp', 'sofa', 'clock']], school: ['#FFF8DD', '#FFE59A', ['book', 'pencil', 'bag']], weather: ['#E2F5FB', '#BCE6F2', ['cloudy', 'sunny', 'rainy']],
+    feelings: ['#FFEFF6', '#FFCDE2', ['happy', 'loved', 'excited']], fruits: ['#FFF6E5', '#FFDDA0', ['orangefruit', 'pear', 'cherries']], transport: ['#EAF2FF', '#C9D3E6', ['bus', 'plane', 'bike']],
+    shapes: ['#F4F0FF', '#DCD2FF', ['circle', 'triangle', 'star']], sea: ['#DDF3FF', '#8FD3F5', ['whale', 'starfish', 'shell']], jobs: ['#FFF3E8', '#FFD9B5', ['doctor', 'chef', 'pilot']],
+    actions: ['#EFFAF1', '#C6EDCF', ['run', 'jump', 'dance']], seasons: ['#FFF8E8', '#D7EDB0', ['spring', 'autumn', 'winter']], days: ['#F2F5FF', '#D5DDF7', ['monday', 'friday', 'sunday']],
+    places: ['#FFF7EC', '#F2D7B0', ['under', 'in', 'on']], alphabet: ['#F0FAFF', '#CDEBFF', ['harf-a', 'harf-b', 'harf-c']]
+  };
+  function motif(ad) { return R[ad] ? ic(ad) : icAl(C.simge(ad)); }
+  function dunya(kid) {
+    var d = DUNYA[kid] || DUNYA.colours, yer = [[18, 30, 0.34], [300, 18, 0.3], [150, 60, 0.24], [330, 150, 0.32], [40, 170, 0.28], [220, 200, 0.3], [110, 120, 0.22], [250, 100, 0.26]];
+    return '<svg class="ka-dunya-r" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><rect width="400" height="300" fill="' + d[0] + '"/>' +
+      '<path d="M0 236 q60 -26 130 -6 q80 22 150 -4 q70 -24 120 2 V300 H0 Z" fill="' + d[1] + '"/>' +
+      yer.map(function (y, i) { return '<g transform="translate(' + y[0] + ' ' + y[1] + ') scale(' + y[2] + ') rotate(' + (i % 2 ? 8 : -8) + ' 50 50)" opacity=".2">' + motif(d[2][i % d[2].length]) + '</g>'; }).join('') + '</svg>';
+  }
+  function ekle(ad, f) { R[ad] = f; delete onbellek[ad]; }
+  W.KIDS_RESIM = { ic: ic, ciz: ciz, boya: boya, boyanir: boyanir, cizgi: cizgi, dunya: dunya, DUNYA: DUNYA, ekle: ekle,
+    A: { M: M, S: S, TEN: TEN, p: p, c: c, e: e, r: r, n: n, iz: iz, kalin: kalin, g: g, yazi: yazi, parlak: parlak, yildiz: yildiz, yildizYol: yildizYol, icAl: icAl, hazir: hazir, gunes: gunes, bulut: bulut, damla: damla, kar: kar, termometre: termometre, kisi: kisi, yuz: yuz, AILE: AILE }, var: function (ad) { return !!R[ad]; }, liste: function () { return Object.keys(R); }, balonResim: balonResim, rozet: rozet, beden: beden, giyFigur: giyFigur, cerceve: cerceve, sepet: sepet, kutu: kutu, canta: canta, ADLAR: Object.keys(R) };
+})(window);
+
+/* ---- kids-resim2.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · ikinci kat ve yeni tema çizimleri (kids/assets/kids-resim2.js), 12.11.2026
+   kids-resim.js'in diliyle (aynı yardımcılar, KIDS_RESIM.A): eski on temanın
+   ikinci kat kelimeleri (her temaya +10) ve on yeni temanın (Fruits, Transport,
+   Shapes, Sea, Jobs, Actions, Seasons, Days, Places, Alphabet) çizimleri.
+   Hareketler tek bir çocuk figüründen, meslekler insan çiziminden, harfler ve günler
+   kart çiziminden çıkar. KIDS_RESIM.ekle ile kaydolur.
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var RS = W.KIDS_RESIM, C = W.KIDS_CIZ, A = RS.A, M = A.M, S = A.S, TEN = A.TEN;
+  var p = A.p, c = A.c, e = A.e, r = A.r, n = A.n, iz = A.iz, kalin = A.kalin, g = A.g, yazi = A.yazi, parlak = A.parlak, yildiz = A.yildiz, yildizYol = A.yildizYol;
+  var gunes = A.gunes, bulut = A.bulut, damla = A.damla, kar = A.kar, kisi = A.kisi, icAl = A.icAl, hazir = A.hazir, AILE = A.AILE;
+  function goz2(x1, x2, y, k) { k = k || 3.6; return n(x1, y, k) + n(x2, y, k) + n(x1 + 1.3, y - 1.4, k * 0.38, '#fff') + n(x2 + 1.3, y - 1.4, k * 0.38, '#fff'); }
+  function gul(x, y, w) { return iz('M' + (x - w) + ' ' + y + ' q' + w + ' ' + (w * 0.8) + ' ' + (w * 2) + ' 0', M, 3); }
+  function yanak(x1, x2, y) { return '<circle cx="' + x1 + '" cy="' + y + '" r="4" fill="#FF9EB5" opacity=".7"/><circle cx="' + x2 + '" cy="' + y + '" r="4" fill="#FF9EB5" opacity=".7"/>'; }
+  function kalp(x, y, k, f) { return g('translate(' + x + ' ' + y + ') scale(' + k + ')', p('M0 6 q-10 -12 -18 -4 q-8 10 18 26 q26 -16 18 -26 q-8 -8 -18 4 z', f || '#E5484D')); }
+  function ai(ad) { return RS.ic(ad); }
+  function kucukAgac(x, y, tepe, s) { return g('translate(' + x + ' ' + y + ') scale(' + (s || 1) + ')', r(-4, 0, 8, 26, 2, '#B07A40') + c(0, -8, 18, tepe)); }
+  var D = {};
+
+  /* ---------------- Animals · ikinci kat ---------------- */
+  D.horse = function () { return p('M33 24 l4 -18 l9 15 z', '#B07A40') + p('M67 24 l-4 -18 l-9 15 z', '#B07A40') + e(50, 46, 22, 27, '#C98A4B') + p('M38 20 q12 -12 24 0 q-4 12 -12 12 q-8 0 -12 -12 z', '#5B3A22') + e(50, 72, 18, 14, '#E8B98A') + n(44, 72, 2.6) + n(56, 72, 2.6) + goz2(40, 60, 44); };
+  D.pig = function () { return p('M24 32 l-4 -20 l20 9 z', '#FFB3C7') + p('M76 32 l4 -20 l-20 9 z', '#FFB3C7') + c(50, 54, 33, '#FFB3C7') + e(50, 64, 14, 10, '#FF8FAE') + n(45, 64, 2.8) + n(55, 64, 2.8) + goz2(37, 63, 46) + yanak(28, 72, 58); };
+  D.sheep = function () { return [[30, 30, 12], [50, 24, 13], [70, 30, 12], [24, 50, 11], [76, 50, 11], [32, 74, 11], [68, 74, 11], [50, 80, 11]].map(function (x) { return c(x[0], x[1], x[2], '#fff'); }).join('') + e(28, 50, 9, 5, '#5B4636') + e(72, 50, 9, 5, '#5B4636') + e(50, 54, 18, 22, '#5B4636') + n(43, 50, 3.4, '#fff') + n(57, 50, 3.4, '#fff') + n(43, 50, 1.6) + n(57, 50, 1.6) + iz('M45 66 q5 4 10 0', '#fff', 2.6); };
+  D.duck = function () { return iz('M4 90 q10 -6 20 0 t20 0 t20 0 t20 0 t20 0', '#4AA8FF', 3) + p('M12 60 q4 -18 30 -16 q16 2 22 -8 q16 4 16 24 q0 20 -32 22 q-30 2 -36 -22 z', '#FFD84D') + c(66, 32, 16, '#FFD84D') + p('M80 32 l15 4 l-15 7 z', '#FF8A3D') + n(70, 28, 3.2) + p('M28 60 q14 -10 28 4 q-14 10 -28 -4 z', '#F2C230'); };
+  D.monkey = function () { return c(20, 50, 11, '#9A6A42') + c(80, 50, 11, '#9A6A42') + c(20, 50, 5, '#FFD0A8') + c(80, 50, 5, '#FFD0A8') + c(50, 48, 30, '#9A6A42') + p('M28 54 q0 -18 11 -18 q11 0 11 7 q0 -7 11 -7 q11 0 11 18 q0 24 -22 24 q-22 0 -22 -24 z', '#FFD0A8') + goz2(41, 59, 48, 3.2) + n(47, 60, 1.7) + n(53, 60, 1.7) + gul(43, 66, 7); };
+  D.elephant = function () { return e(20, 44, 18, 24, '#AEB8CC') + e(80, 44, 18, 24, '#AEB8CC') + e(20, 44, 10, 15, '#FFC9D4') + e(80, 44, 10, 15, '#FFC9D4') + c(50, 42, 26, '#AEB8CC') + p('M43 56 q0 22 -3 30 q0 7 7 7 q7 0 7 -7 q0 -12 3 -30 z', '#AEB8CC') + iz('M44 70 h8 M44 78 h8', M, 2) + goz2(40, 60, 38, 3.4) + yanak(34, 66, 50); };
+  D.giraffe = function () { return r(42, 46, 16, 52, 6, '#FFC94D') + c(46, 60, 3.4, '#C98A4B') + c(54, 74, 3.4, '#C98A4B') + c(47, 88, 3, '#C98A4B') + iz('M44 18 v-10 M56 18 v-10', M, 3) + c(44, 8, 3.4, '#C98A4B') + c(56, 8, 3.4, '#C98A4B') + e(30, 26, 8, 4.4, '#FFC94D') + e(70, 26, 8, 4.4, '#FFC94D') + e(50, 32, 17, 15, '#FFC94D') + e(50, 41, 11, 7, '#F2B13A') + goz2(44, 56, 29, 2.8) + n(46, 41, 1.4) + n(54, 41, 1.4); };
+  D.tiger = function () { return p('M20 44 L24 14 L44 30 Z M80 44 L76 14 L56 30 Z', '#FF9F45') + c(50, 54, 33, '#FF9F45') + iz('M50 22 v12 M28 40 l10 4 M72 40 l-10 4 M22 58 h11 M78 58 h-11 M24 68 h9 M76 68 h-9', M, 3) + e(50, 66, 15, 11, '#fff') + p('M46 59 h8 l-4 5 z', M) + iz('M50 64 q-5 6 -10 2 M50 64 q5 6 10 2', M, 2.4) + goz2(39, 61, 48, 4); };
+  D.mouse = function () { return c(26, 30, 16, '#C7CCD6') + c(74, 30, 16, '#C7CCD6') + c(26, 30, 9, '#FFC9D4') + c(74, 30, 9, '#FFC9D4') + e(50, 58, 27, 25, '#C7CCD6') + iz('M28 70 h-16 M28 77 h-15 M72 70 h16 M72 77 h15', M, 2) + n(50, 72, 4.4, '#FF8FAE') + goz2(40, 60, 54); };
+  D.snake = function () { return kalin('M12 82 q15 -22 30 0 t30 0 q12 -18 6 -38 q-4 -14 10 -20', '#4CC38A', 12) + e(88, 22, 11, 8, '#4CC38A') + n(85, 19, 2.2) + n(92, 19, 2.2) + iz('M98 24 l6 1 m-6 -1 l6 -3', '#E5484D', 2) + '<circle cx="28" cy="74" r="2.4" fill="#2E9D62"/><circle cx="58" cy="86" r="2.4" fill="#2E9D62"/><circle cx="76" cy="58" r="2.4" fill="#2E9D62"/>'; };
+
+  /* ---------------- Family · ikinci kat ---------------- */
+  D.boy = function () { return kisi({ stil: 'kisa', sac: '#3B2A22', ust: '#4AA8FF', olcek: 0.88 }); };
+  D.girl = function () { return kisi({ stil: 'kuyruk', sac: '#8F5A3A', ust: '#FF6FA5', olcek: 0.88, toka: '#FFD23F' }); };
+  D.man = function () { return kisi({ stil: 'kisa', sac: '#C9773A', ust: '#5B6478', gozluk: 1 }); };
+  D.woman = function () { return kisi({ stil: 'uzun', sac: '#3B2A22', ust: '#4CC38A' }); };
+  D.cousin = function () { return kisi({ stil: 'kivircik', sac: '#3B2A22', ust: '#FFD23F', olcek: 0.88 }); };
+  D.friend = function () { return g('translate(-14 12) scale(.72)', kisi({ stil: 'diken', sac: '#3B2A22', ust: '#4CC38A' })) + g('translate(42 12) scale(.72)', kisi({ stil: 'kuyruk', sac: '#C9773A', ust: '#8E7CF0' })) + kalp(50, 14, 0.5); };
+  D.parents = function () { return g('translate(-12 8) scale(.74)', kisi(AILE.dad)) + g('translate(38 8) scale(.74)', kisi(AILE.mum)); };
+  D.grandparents = function () { return g('translate(-12 8) scale(.74)', kisi(AILE.grandpa)) + g('translate(38 8) scale(.74)', kisi(AILE.grandma)); };
+  D.twins = function () { var t = { stil: 'kuyruk', sac: '#8F5A3A', ust: '#FF9F45' }; return g('translate(-10 14) scale(.7)', kisi(t)) + g('translate(40 14) scale(.7)', kisi(t)); };
+  D.pet = function () { return g('translate(8 14) scale(.84)', icAl(C.avatar('kopek'))) + kalp(78, 10, 0.5); };
+
+  /* ---------------- My Body · ikinci kat ---------------- */
+  function yuzTam(ek) { return c(50, 52, 36, TEN) + p('M16 46 q0 -34 34 -34 q34 0 34 34 q-10 -16 -24 -14 q-12 8 -44 14 z', '#8F5A3A') + goz2(38, 62, 50, 3.6) + iz('M48 58 q2 4 4 0', M, 2.6) + gul(42, 68, 8) + (ek || ''); }
+  D.face = function () { return yuzTam(yanak(30, 70, 62)); };
+  D.cheeks = function () { return yuzTam('<circle cx="28" cy="62" r="9" fill="#FF6FA5" opacity=".8"/><circle cx="72" cy="62" r="9" fill="#FF6FA5" opacity=".8"/>' + iz('M22 60 l4 -3 M30 60 l4 -3 M66 60 l4 -3 M74 60 l4 -3', '#fff', 2)); };
+  D.fingers = function () { return r(22, 16, 10, 40, 5, TEN) + r(34, 8, 10, 46, 5, TEN) + r(46, 6, 10, 48, 5, TEN) + r(58, 10, 10, 44, 5, TEN) + r(70, 24, 9, 34, 4.5, TEN) + r(22, 44, 57, 46, 18, TEN) + [27, 39, 51, 63, 74.5].map(function (x, i) { return '<circle cx="' + x + '" cy="' + [22, 14, 12, 16, 30][i] + '" r="3.4" fill="' + ['#E5484D', '#FF8A3D', '#FFD23F', '#4CC38A', '#4AA8FF'][i] + '"/>'; }).join(''); };
+  D.toes = function () { return p('M28 92 q-10 0 -10 -26 q0 -30 12 -40 h40 q12 10 12 40 q0 26 -10 26 z', TEN) + c(28, 22, 7, TEN) + c(42, 16, 7, TEN) + c(56, 16, 6.4, TEN) + c(68, 20, 5.8, TEN) + c(78, 27, 5, TEN) + '<circle cx="42" cy="14" r="2.6" fill="#FF6FA5"/><circle cx="56" cy="14" r="2.4" fill="#FF6FA5"/>'; };
+  D.teeth = function () { return p('M10 48 q40 -36 80 0 q-6 34 -40 34 q-34 0 -40 -34 z', '#FF6F7D') + p('M18 48 q32 -22 64 0 v6 h-64 z', '#fff') + p('M22 68 q28 10 56 0 v-4 h-56 z', '#fff') + iz('M34 44 v10 M50 40 v14 M66 44 v10 M36 64 v6 M50 66 v6 M64 64 v6', M, 2); };
+  D.tongue = function () { return p('M14 44 q36 -26 72 0 q-6 26 -36 26 q-30 0 -36 -26 z', '#7A2F3A') + p('M34 52 q16 -6 32 0 v22 q0 16 -16 16 q-16 0 -16 -16 z', '#FF7A8A') + iz('M50 58 v18', '#E25A6E', 3); };
+  D.neck = function () { return p('M14 98 q0 -26 36 -26 q36 0 36 26 z', '#4CC38A') + r(40, 52, 20, 28, 4, TEN) + c(50, 36, 22, TEN) + p('M28 32 q0 -20 22 -20 q22 0 22 20 q-8 -10 -22 -8 q-14 -2 -22 8 z', '#8F5A3A') + goz2(43, 57, 36, 2.6) + iz('M34 64 q16 8 32 0', '#FFD23F', 5); };
+  D.shoulders = function () { return p('M8 96 q0 -34 42 -34 q42 0 42 34 z', '#4AA8FF') + r(42, 46, 16, 20, 3, TEN) + c(50, 32, 20, TEN) + p('M30 28 q0 -18 20 -18 q20 0 20 18 q-8 -8 -20 -6 q-12 -2 -20 6 z', '#3B2A22') + goz2(43, 57, 32, 2.6) + yildiz(18, 68, 9, '#FFD23F') + yildiz(82, 68, 9, '#FFD23F'); };
+  D.knees = function () { return kalin('M24 10 L50 52 L32 92', TEN, 18) + r(14, 4, 24, 22, 6, '#4AA8FF') + c(50, 52, 10, '#FFC2A1') + yildiz(68, 40, 8, '#FFD23F') + e(38, 94, 14, 6, '#E5484D'); };
+  D.tummy = function () { return r(18, 8, 64, 20, 8, '#4CC38A') + e(50, 52, 32, 30, TEN) + n(50, 56, 2.6, '#E2A48A') + r(20, 74, 60, 20, 6, '#4AA8FF') + iz('M36 40 q14 -6 28 0', '#F2B39A', 3); };
+
+  /* ---------------- Food · ikinci kat ---------------- */
+  D.pizza = function () { return p('M12 22 L88 22 L50 94 Z', '#FFC94D') + p('M10 18 q40 -12 80 0 v10 q-40 -10 -80 0 z', '#D9934A') + c(36, 36, 6, '#E5484D') + c(62, 38, 6, '#E5484D') + c(50, 58, 5, '#E5484D') + p('M44 44 q6 -6 10 0 q-4 6 -10 0 z', '#4CC38A'); };
+  D.sandwich = function () { return p('M8 70 L50 18 L92 70 Z', '#FFE6B8') + iz('M18 60 h64', '#4CC38A', 7) + iz('M24 52 h52', '#E5484D', 5) + iz('M30 44 h40', '#FFD23F', 5) + r(8, 70, 84, 12, 4, '#D9934A'); };
+  D.soup = function () { return iz('M36 30 q-6 -8 0 -16 M50 30 q-6 -8 0 -16 M64 30 q-6 -8 0 -16', '#9AA7BD', 3) + p('M10 44 h80 q0 40 -40 40 q-40 0 -40 -40 z', '#E5484D') + e(50, 44, 40, 9, '#FFB347') + c(38, 44, 3, '#4CC38A') + c(58, 46, 3, '#FF8A3D') + iz('M74 42 l16 -26', M, 4) + e(90, 14, 5, 4, '#C7CCD6') + iz('M30 90 h40', M, 3); };
+  D.rice = function () { return iz('M60 8 l24 50 M70 6 l20 50', '#C98A4B', 4) + p('M16 54 q34 -34 68 0 z', '#fff') + '<circle cx="34" cy="44" r="2" fill="#E3E8F2"/><circle cx="50" cy="36" r="2" fill="#E3E8F2"/><circle cx="64" cy="44" r="2" fill="#E3E8F2"/>' + p('M10 54 h80 q0 34 -40 34 q-40 0 -40 -34 z', '#4AA8FF') + iz('M22 66 q28 8 56 0', '#fff', 3); };
+  D.cookie = function () { return c(50, 50, 38, '#D9934A') + [[36, 34], [60, 30], [66, 54], [44, 60], [30, 50], [54, 74]].map(function (x) { return '<circle cx="' + x[0] + '" cy="' + x[1] + '" r="5" fill="#5B3A22"/>'; }).join('') + parlak('M26 30 q6 -8 14 -10'); };
+  D.icecream = function () { return p('M32 50 L50 96 L68 50 Z', '#E8A85A') + iz('M38 58 l20 22 M46 52 l18 18 M62 58 l-20 22 M54 52 l-18 18', '#C98A4B', 2) + c(40, 44, 14, '#FF9EB5') + c(60, 44, 14, '#FFF3DD') + c(50, 28, 15, '#9A6A42') + c(52, 10, 5, '#E5484D'); };
+  D.chicken = function () { return r(58, 62, 26, 10, 5, '#fff') + c(86, 62, 6, '#fff') + c(86, 72, 6, '#fff') + p('M18 64 q-12 -22 8 -40 q22 -18 38 2 q12 18 -4 34 q-14 14 -42 4 z', '#D9934A') + parlak('M26 34 q8 -10 18 -10'); };
+  D.pasta = function () { return e(50, 66, 44, 16, '#fff') + iz('M22 60 q6 -12 12 0 t12 0 t12 0 t12 0 t12 0 M26 68 q6 -10 12 0 t12 0 t12 0 t12 0', '#F2B92A', 4) + c(50, 56, 10, '#E5484D') + iz('M82 20 l-12 36 M78 18 l-2 8 M84 20 l-2 8 M88 22 l-2 8', '#9AA7BD', 3); };
+  D.honey = function () { return r(22, 22, 56, 12, 4, '#C98A4B') + r(24, 34, 52, 58, 12, '#FFB020') + p('M30 34 q4 10 8 0 q4 14 8 0 q4 8 8 0', '#FFB020') + e(50, 64, 18, 12, '#FFF3DD') + yazi(50, 68, 'HONEY', 9, '#C98A4B') + parlak('M32 46 v30'); };
+  D.chocolate = function () { return r(22, 10, 56, 80, 6, '#7A4A2A') + iz('M22 30 h56 M22 50 h56 M50 10 v40', '#5B3A22', 3) + p('M22 56 h56 v34 q0 0 0 0 h-56 z', '#E5484D') + p('M22 56 l10 6 l10 -6 l10 6 l10 -6 l10 6 l6 -4', '#C7CCD6') + yazi(50, 80, 'CHOCO', 10); };
+
+  /* ---------------- Toys · ikinci kat ---------------- */
+  D.puzzle = function () { return p('M10 14 h28 q-4 -10 8 -10 q12 0 8 10 h28 v28 q10 -4 10 8 q0 12 -10 8 v28 h-72 z', '#4AA8FF') + p('M30 46 h14 q-2 -6 4 -6 q6 0 4 6 h14 v14 q6 -2 6 4 q0 6 -6 4 v14 h-36 z', '#FFD23F'); };
+  D.yoyo = function () { return iz('M50 46 V4', M, 2.4) + c(50, 4, 3.4, '#fff') + c(50, 56, 34, '#E5484D') + c(50, 56, 14, '#FFD23F') + n(50, 56, 3) + parlak('M26 44 q4 -12 14 -16'); };
+  D.dinosaur = function () { return p('M8 74 q0 -26 26 -30 q12 -2 18 -16 q6 -16 24 -14 q14 2 14 14 q0 10 -12 10 h-6 q-2 24 -12 36 l4 16 h-10 l-4 -12 h-14 l-2 12 h-10 l2 -14 q-14 -2 -18 -2 z', '#4CC38A') + p('M40 42 l4 -8 l4 6 l4 -10 l4 8 l4 -8', '#FFD23F') + n(78, 24, 3) + iz('M80 32 h6', M, 2.4); };
+  D.bubbles = function () { return iz('M14 92 l24 -30', '#FF8A3D', 5) + '<circle cx="44" cy="56" r="9" fill="none" stroke="' + M + '" stroke-width="3"/>' + [[62, 36, 14], [80, 66, 9], [36, 22, 10], [84, 18, 7]].map(function (x) { return '<circle cx="' + x[0] + '" cy="' + x[1] + '" r="' + x[2] + '" fill="#E3F4FF" stroke="#4AA8FF" stroke-width="3"/><path d="M' + (x[0] - x[2] * 0.5) + ' ' + (x[1] - x[2] * 0.2) + ' q2 -4 6 -5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/>'; }).join(''); };
+  D.skateboard = function () { return r(6, 44, 88, 14, 7, '#FF8A3D') + iz('M16 50 h68', '#FFD23F', 3) + iz('M26 58 v6 M74 58 v6', M, 4) + c(26, 70, 7, '#FFD23F') + c(74, 70, 7, '#FFD23F'); };
+  D.dice = function () { return p('M18 32 l14 -14 h52 l-14 14 z', '#E3E8F2') + p('M70 32 l14 -14 v52 l-14 14 z', '#C7CCD6') + r(18, 32, 52, 52, 8, '#fff') + n(30, 44, 4.6, '#E5484D') + n(44, 58, 4.6, '#E5484D') + n(58, 72, 4.6, '#E5484D') + n(51, 25, 3) + n(77, 44, 3) + n(77, 60, 3); };
+  D.marbles = function () { return [[30, 64, '#E5484D'], [62, 66, '#4AA8FF'], [46, 40, '#4CC38A'], [76, 40, '#FFD23F']].map(function (x) { return c(x[0], x[1], 14, x[2]) + iz('M' + (x[0] - 7) + ' ' + (x[1] + 2) + ' q7 -10 14 0', '#fff', 2.4) + n(x[0] - 5, x[1] - 6, 2.4, '#fff'); }).join(''); };
+  D.piano = function () { return r(6, 24, 88, 14, 4, '#8E5A3A') + r(6, 38, 88, 46, 4, '#fff') + iz('M18.6 38 v46 M31.2 38 v46 M43.8 38 v46 M56.4 38 v46 M69 38 v46 M81.6 38 v46', M, 2) + [15, 27, 52, 65, 77].map(function (x) { return '<rect x="' + x + '" y="38" width="7" height="26" rx="1" fill="' + M + '"/>'; }).join(''); };
+  D.whistle = function () { return iz('M20 30 q-12 30 18 40', '#E5484D', 3) + p('M30 40 h40 q14 0 14 14 q0 16 -16 16 q-14 0 -18 -12 h-20 z', '#FFD23F') + c(66, 56, 6, '#fff') + r(22, 36, 10, 10, 3, '#C7CCD6'); };
+  D.puppet = function () { return p('M26 92 V40 q0 -30 24 -30 q24 0 24 30 v52 z', '#8E7CF0') + p('M26 50 q24 16 48 0 q-4 18 -24 18 q-20 0 -24 -18 z', '#E5484D') + c(40, 30, 7, '#fff') + c(60, 30, 7, '#fff') + n(41, 31, 3) + n(61, 31, 3) + r(24, 84, 52, 8, 3, '#B9A8FF'); };
+
+  /* ---------------- Clothes · ikinci kat ---------------- */
+  D.skirt = function () { return r(30, 14, 40, 9, 3, '#6E5BD8') + p('M30 23 h40 l20 62 h-80 z', '#8E7CF0') + iz('M40 23 l-8 62 M50 23 v62 M60 23 l8 62', '#6E5BD8', 2.4); };
+  D.shorts = function () { return p('M22 18 H78 L84 74 H56 L50 46 L44 74 H16 Z', '#FF8A3D') + iz('M22 28 H78', M, 3) + iz('M50 28 V44', M, 3); };
+  D.jacket = function () { return p('M36 12 L18 22 L10 78 H26 V84 H74 V78 H90 L82 22 L64 12 Q50 22 36 12 Z', '#2E7DD8') + iz('M50 20 V84', '#FFD23F', 3) + r(24, 54, 14, 14, 3, '#2569B8') + r(62, 54, 14, 14, 3, '#2569B8') + p('M36 12 q14 -12 28 0 q-14 8 -28 0 z', '#2569B8'); };
+  D.sweater = function () { return p('M34 14 L16 22 L6 80 H22 L28 44 V90 H72 V44 L78 80 H94 L84 22 L66 14 Q50 26 34 14 Z', '#E5484D') + iz('M28 56 H72 M28 66 H72', '#fff', 4) + iz('M8 74 h12 M80 74 h12 M28 84 h44', '#B8333A', 3); };
+  D.pyjamas = function () { return p('M32 8 L16 16 L10 46 H22 L26 30 V52 H74 V30 L78 46 H90 L84 16 L68 8 Q50 18 32 8 Z', '#B9C7FF') + p('M28 52 H72 L76 94 H56 L50 66 L44 94 H24 Z', '#B9C7FF') + yildiz(40, 30, 5, '#FFD23F') + yildiz(60, 40, 5, '#FFD23F') + yildiz(38, 76, 4, '#FFD23F') + yildiz(64, 82, 4, '#FFD23F') + p('M44 22 a6 6 0 1 0 8 8 a8 8 0 0 1 -8 -8 z', '#FFD23F'); };
+  D.cap = function () { return p('M18 58 q0 -36 32 -36 q30 0 32 32 z', '#E5484D') + p('M48 56 q32 -2 46 10 q-22 8 -46 0 z', '#B8333A') + c(50, 22, 3.4, '#B8333A') + iz('M50 22 v32', '#B8333A', 2); };
+  D.sunglasses = function () { return iz('M14 42 l-6 -10 M86 42 l6 -10', M, 3) + r(12, 40, 32, 24, 10, '#23304D') + r(56, 40, 32, 24, 10, '#23304D') + iz('M44 48 q6 -6 12 0', M, 3) + iz('M18 46 l8 -2 M62 46 l8 -2', '#fff', 2.4); };
+  D.belt = function () { return r(4, 42, 92, 16, 4, '#8F5A3A') + r(36, 36, 28, 28, 4, '#FFD23F') + r(42, 42, 16, 16, 2, '#8F5A3A') + iz('M50 50 h12', '#C7CCD6', 3) + n(16, 50, 2.4) + n(24, 50, 2.4); };
+  D.sandals = function () { var t = e(26, 66, 14, 26, '#C98A4B') + iz('M14 52 q12 -10 24 0 M14 70 q12 -8 24 0', '#E5484D', 5); return g('translate(46 -6)', t) + t; };
+  D.swimsuit = function () { return p('M32 10 v12 q-4 20 -10 32 q-4 12 4 24 l16 14 h16 l16 -14 q8 -12 4 -24 q-6 -12 -10 -32 v-12 l-6 0 q-6 14 -12 14 q-6 0 -12 -14 z', '#2EB5A8') + c(40, 50, 4, '#FFD23F') + c(60, 60, 4, '#FFD23F') + c(48, 74, 4, '#FFD23F'); };
+
+  /* ---------------- My Home · ikinci kat ---------------- */
+  D.shower = function () { return ai('dus'); };
+  D.mirror = function () { return iz('M50 86 v8 M36 94 h28', M, 4) + e(50, 46, 32, 40, '#C98A4B') + e(50, 46, 25, 33, '#DDF3FF') + iz('M38 30 l-6 14 M46 26 l-12 28', '#fff', 4); };
+  D.sink = function () { return iz('M50 30 V14 h16 v8', M, 4) + c(40, 22, 4, '#9AA7BD') + p('M10 40 h80 v8 q0 30 -40 30 q-40 0 -40 -30 z', '#fff') + iz('M14 48 h72', '#BDE8F2', 4) + r(42, 78, 16, 16, 2, '#C7CCD6') + damla(66, 26); };
+  D.cooker = function () { return r(14, 20, 72, 74, 6, '#E3E8F2') + e(34, 26, 10, 3, '#5B6478') + e(66, 26, 10, 3, '#5B6478') + iz('M14 34 h72', M, 3) + c(28, 42, 3.4, '#E5484D') + c(42, 42, 3.4, '#E5484D') + c(58, 42, 3.4, '#E5484D') + c(72, 42, 3.4, '#E5484D') + r(22, 52, 56, 34, 4, '#5B6478') + r(30, 58, 40, 20, 3, '#FFB347'); };
+  D.wardrobe = function () { return r(16, 6, 68, 84, 4, '#C98A4B') + iz('M50 6 V90', M, 3) + c(44, 48, 2.6, '#FFD23F') + c(56, 48, 2.6, '#FFD23F') + iz('M22 90 v6 M78 90 v6', M, 4) + r(24, 14, 20, 26, 3, '#E8A85A') + r(56, 14, 20, 26, 3, '#E8A85A'); };
+  D.carpet = function () { return p('M18 30 h64 l14 50 h-92 z', '#E5484D') + p('M28 38 h44 l8 34 h-60 z', '#FFD23F') + yildiz(50, 55, 9, '#E5484D') + iz('M8 84 v6 M20 84 v6 M32 84 v6 M44 84 v6 M56 84 v6 M68 84 v6 M80 84 v6 M92 84 v6', M, 2.4); };
+  D.stairs = function () { return p('M8 92 V76 H28 V60 H48 V44 H68 V28 H92 V92 Z', '#C98A4B') + iz('M28 76 V92 M48 60 V92 M68 44 V92', '#B07A40', 2.4) + iz('M8 76 L92 12', M, 3) + iz('M28 76 v-24 M48 60 v-24 M68 44 v-24 M88 28 v-24', M, 2); };
+  D.plant = function () { return p('M50 60 q-30 -6 -30 -36 q22 0 30 30 z', '#4CC38A') + p('M50 60 q30 -6 30 -36 q-22 0 -30 30 z', '#3FB86A') + p('M50 60 q-4 -30 0 -50 q8 24 0 50 z', '#6FD69A') + p('M28 60 h44 l-6 34 h-32 z', '#E8A85A') + iz('M28 68 h44', M, 3); };
+  D.pillow = function () { return p('M10 26 q20 6 40 0 q20 6 40 0 q-6 24 0 48 q-20 -6 -40 0 q-20 -6 -40 0 q6 -24 0 -48 z', '#B9C7FF') + yildiz(50, 50, 10, '#FFD23F') + iz('M22 38 q4 2 8 0 M70 62 q4 2 8 0', '#8E9FE8', 2.4); };
+
+  /* ---------------- School · ikinci kat ---------------- */
+  D.notebook = function () { return r(22, 10, 60, 80, 6, '#4CC38A') + r(30, 24, 44, 22, 3, '#fff') + iz('M36 32 h32 M36 40 h24', '#9AA7BD', 2.4) + [18, 32, 46, 60, 74].map(function (y) { return '<circle cx="22" cy="' + y + '" r="4" fill="#fff" stroke="' + M + '" stroke-width="2.4"/>'; }).join(''); };
+  D.pen = function () { return g('rotate(-40 50 50)', r(14, 42, 58, 16, 6, '#2E7DD8') + r(14, 40, 22, 20, 6, '#1E5FA8') + p('M72 42 L90 50 L72 58 Z', '#C7CCD6') + iz('M84 50 h6', M, 2) + r(24, 36, 6, 8, 2, '#C7CCD6')); };
+  D.sharpener = function () { return r(22, 30, 56, 44, 8, '#E5484D') + c(44, 52, 11, '#fff') + n(44, 52, 4) + r(60, 40, 12, 24, 2, '#C7CCD6') + iz('M52 76 l10 12 M60 74 l10 12', '#C98A4B', 3); };
+  D.chalk = function () { return r(10, 74, 80, 10, 3, '#C98A4B') + g('rotate(-14 30 60)', r(16, 56, 34, 12, 5, '#fff')) + g('rotate(10 64 58)', r(48, 54, 34, 12, 5, '#FFC9D4')) + r(36, 40, 30, 12, 5, '#BDE8F2'); };
+  D.paints = function () { return p('M50 12 q38 0 40 34 q0 14 -14 14 q-10 0 -10 10 q0 16 -18 16 q-38 0 -38 -36 q0 -38 40 -38 z', '#E8A85A') + c(32, 34, 6, '#E5484D') + c(50, 26, 6, '#FFD23F') + c(68, 34, 6, '#4AA8FF') + c(30, 54, 6, '#4CC38A') + c(48, 60, 6, '#8E7CF0') + iz('M70 92 l18 -30', '#C98A4B', 4) + p('M86 60 l6 -10 l4 4 z', '#E5484D'); };
+  D.globe = function () { return iz('M22 44 a30 30 0 0 0 54 20', M, 3) + iz('M50 78 v10', M, 4) + e(50, 92, 18, 5, '#C98A4B') + c(50, 44, 28, '#4AA8FF') + p('M36 26 q10 -4 14 4 q-2 8 -10 8 q-8 4 -6 12 q-8 -4 -6 -14 z', '#4CC38A') + p('M56 48 q10 -4 14 4 q0 10 -10 14 q-6 -6 -4 -18 z', '#4CC38A'); };
+  D.computer = function () { return r(10, 10, 80, 54, 6, '#5B6478') + r(16, 16, 68, 42, 3, '#BDE8F2') + p('M30 46 l10 -12 l8 8 l6 -6 l10 10 z', '#4CC38A') + c(70, 26, 5, '#FFD23F') + r(42, 64, 16, 10, 0, '#9AA7BD') + r(16, 76, 68, 14, 4, '#E3E8F2') + iz('M24 83 h52', '#9AA7BD', 2.4); };
+  D.lunchbox = function () { return iz('M38 26 q0 -14 12 -14 q12 0 12 14', M, 4) + r(12, 26, 76, 60, 10, '#FFD23F') + iz('M12 42 h76', M, 3) + g('translate(36 46) scale(.3)', ai('apple')); };
+  D.stapler = function () { return p('M10 70 h80 v12 h-80 z', '#5B6478') + p('M12 66 q0 -22 24 -22 h44 q10 0 10 10 v8 q0 4 -4 4 h-74 z', '#E5484D') + iz('M30 58 h50', '#fff', 3); };
+  D.paper = function () { return p('M22 8 h40 l18 18 v66 h-58 z', '#fff') + p('M62 8 v18 h18', '#E3E8F2') + iz('M32 38 h38 M32 50 h38 M32 62 h38 M32 74 h24', '#9AA7BD', 2.4); };
+
+  /* ---------------- Weather · ikinci kat ---------------- */
+  D.sun = function () { return gunes(50, 50, 24) + goz2(42, 58, 48, 2.6) + gul(43, 56, 7); };
+  D.cloud = function () { return bulut(6, 26, 1.3, '#fff') + goz2(42, 58, 56, 2.6) + gul(44, 62, 6); };
+  D.rain = function () { return [[20, 14], [44, 8], [68, 16], [30, 42], [56, 38], [80, 44], [18, 70], [44, 68], [70, 72]].map(function (x) { return damla(x[0], x[1]); }).join(''); };
+  D.snow = function () { return kar(50, 50, 28) + kar(18, 18, 8) + kar(84, 80, 8) + kar(82, 18, 6) + kar(16, 82, 6); };
+  D.wind = function () { return kalin('M6 30 h56 q16 0 16 -12 q0 -10 -10 -10 q-8 0 -8 8', '#DDF3FF', 6) + kalin('M6 52 h74 q12 0 12 12 q0 10 -10 10 q-8 0 -8 -8', '#DDF3FF', 6) + kalin('M6 74 h40 q10 0 10 8', '#DDF3FF', 6); };
+  D.umbrella = function () { return iz('M50 46 V84 q0 8 -8 8 q-7 0 -7 -7', M, 4) + p('M8 50 q42 -54 84 0 q-10 -8 -21 0 q-10 -8 -21 0 q-10 -8 -21 0 q-11 -8 -21 0 z', '#E5484D') + p('M50 8 q-14 14 -13 42 q8 -6 13 0 q5 -6 13 0 q1 -28 -13 -42 z', '#FFD23F'); };
+  D.snowman = function () { return c(50, 70, 23, '#fff') + c(50, 36, 16, '#fff') + r(36, 8, 28, 14, 2, M) + r(30, 20, 40, 5, 2, M) + p('M50 38 l14 4 l-14 4 z', '#FF8A3D') + goz2(44, 56, 32, 2.4) + n(50, 62, 2.6) + n(50, 72, 2.6) + iz('M34 50 q16 8 32 0', '#E5484D', 6); };
+  D.puddle = function () { return e(50, 76, 42, 14, '#7FCBEA') + e(50, 76, 24, 7, '#BDE8F2') + iz('M30 70 q4 -3 8 0 M60 82 q4 -3 8 0', '#fff', 2.4) + damla(30, 20) + damla(56, 10) + damla(74, 30); };
+  D.lightning = function () { return p('M58 4 L22 54 H46 L36 96 L78 40 H54 Z', '#FFD23F') + parlak('M50 14 L34 40'); };
+  D.ice = function () { return p('M22 32 l20 -16 h40 l-20 16 z', '#EAF8FF') + p('M62 32 l20 -16 v44 l-20 16 z', '#BDE8F2') + r(22, 32, 40, 44, 4, '#DDF3FF') + iz('M30 42 l8 -6 M30 54 l14 -10', '#fff', 3) + damla(40, 82, '#BDE8F2'); };
+
+  /* ---------------- Fruits ---------------- */
+  function yaprak(x, y, rot) { return g('translate(' + x + ' ' + y + ') rotate(' + (rot || 0) + ')', p('M0 0 q10 -12 22 -6 q-8 14 -22 6 z', '#4CC38A')); }
+  D.orangefruit = function () { return c(50, 56, 34, '#FF9F1C') + iz('M50 22 v-8', M, 3) + yaprak(52, 16, -10) + '<circle cx="38" cy="50" r="1.6" fill="#E07F00"/><circle cx="60" cy="64" r="1.6" fill="#E07F00"/><circle cx="54" cy="44" r="1.6" fill="#E07F00"/>' + parlak('M30 44 q4 -10 12 -14'); };
+  D.grapes = function () { return iz('M52 18 q2 -8 8 -12', M, 3) + yaprak(56, 14, -20) + [[40, 28], [56, 28], [32, 44], [48, 44], [64, 44], [40, 60], [56, 60], [48, 76]].map(function (x) { return c(x[0], x[1], 10, '#8E5AC8') + n(x[0] - 3, x[1] - 3, 2, '#fff'); }).join(''); };
+  D.pear = function () { return iz('M50 18 q2 -8 6 -12', M, 3) + p('M50 16 q12 0 12 18 q0 10 10 22 q12 18 0 34 q-10 12 -22 12 q-12 0 -22 -12 q-12 -16 0 -34 q10 -12 10 -22 q0 -18 12 -18 z', '#B5D33D') + yaprak(54, 12, -30) + parlak('M38 60 q0 -10 6 -16'); };
+  D.lemon = function () { return p('M8 54 l8 -6 q16 -24 34 -24 q18 0 34 24 l8 6 l-8 6 q-16 24 -34 24 q-18 0 -34 -24 z', '#FFE14D') + yaprak(52, 24, -40) + parlak('M28 46 q8 -12 18 -14'); };
+  D.watermelon = function () { return p('M6 34 h88 q0 48 -44 48 q-44 0 -44 -48 z', '#4CC38A') + p('M14 34 h72 q0 38 -36 38 q-36 0 -36 -38 z', '#FF5A6E') + [[30, 44], [44, 52], [58, 46], [68, 40], [50, 62], [36, 58]].map(function (x) { return '<ellipse cx="' + x[0] + '" cy="' + x[1] + '" rx="2" ry="3" fill="' + M + '"/>'; }).join(''); };
+  D.cherries = function () { return iz('M36 60 q4 -30 22 -48 M64 64 q2 -30 -6 -52', '#3FB86A', 3) + yaprak(58, 12, 10) + c(34, 68, 15, '#E5484D') + c(64, 70, 15, '#E5484D') + n(28, 62, 3, '#fff') + n(58, 64, 3, '#fff'); };
+  D.pineapple = function () { return p('M50 34 l-14 -26 l10 10 l4 -16 l4 16 l10 -10 z', '#4CC38A') + e(50, 64, 26, 32, '#FFC93D') + iz('M30 50 l40 30 M28 66 l30 24 M34 38 l40 32 M70 50 l-40 30 M72 66 l-30 24 M66 38 l-40 32', '#E0A21A', 2.4); };
+  D.peach = function () { return c(50, 56, 33, '#FFB08A') + iz('M50 24 q-10 30 0 64', '#F08A64', 3) + yaprak(52, 20, -20) + '<circle cx="66" cy="52" r="10" fill="#FF8A80" opacity=".5"/>'; };
+  D.kiwi = function () { return c(50, 50, 38, '#8F6740') + c(50, 50, 31, '#9ED35A') + c(50, 50, 11, '#F3F7D0') + [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(function (i) { var a = i * Math.PI / 6; return '<ellipse cx="' + (50 + 18 * Math.cos(a)).toFixed(1) + '" cy="' + (50 + 18 * Math.sin(a)).toFixed(1) + '" rx="1.6" ry="2.6" transform="rotate(' + (i * 30 + 90) + ' ' + (50 + 18 * Math.cos(a)).toFixed(1) + ' ' + (50 + 18 * Math.sin(a)).toFixed(1) + ')" fill="' + M + '"/>'; }).join(''); };
+  D.mango = function () { return p('M28 28 q30 -24 48 4 q16 28 -6 52 q-24 22 -42 0 q-16 -26 0 -56 z', '#FFB020') + '<ellipse cx="64" cy="40" rx="12" ry="9" fill="#FF7A50" opacity=".55"/>' + iz('M48 18 q0 -8 6 -12', M, 3) + yaprak(52, 12, -10); };
+
+  /* ---------------- Transport ---------------- */
+  function teker(x, y, k) { return c(x, y, k, M) + c(x, y, k * 0.45, '#C7CCD6'); }
+  D.bus = function () { return r(6, 22, 88, 54, 8, '#FFD23F') + r(12, 30, 16, 16, 2, '#BDE8F2') + r(32, 30, 16, 16, 2, '#BDE8F2') + r(52, 30, 16, 16, 2, '#BDE8F2') + r(74, 30, 14, 32, 2, '#BDE8F2') + iz('M6 56 h66', '#E5484D', 4) + teker(26, 78, 9) + teker(72, 78, 9); };
+  D.plane = function () { return p('M44 46 L30 14 h10 l20 32 z', '#E5484D') + p('M44 56 L30 88 h10 l20 -32 z', '#E5484D') + p('M8 42 l10 8 l-10 8 z', '#4AA8FF') + p('M10 46 h70 q12 0 14 4 q-2 4 -14 4 h-70 z', '#fff') + c(56, 50, 2.6, '#4AA8FF') + c(66, 50, 2.6, '#4AA8FF') + c(46, 50, 2.6, '#4AA8FF') + c(36, 50, 2.6, '#4AA8FF'); };
+  D.ship = function () { return iz('M2 90 q12 -6 24 0 t24 0 t24 0 t24 0', '#4AA8FF', 3) + r(30, 44, 40, 18, 3, '#fff') + r(36, 48, 6, 6, 1, '#BDE8F2') + r(48, 48, 6, 6, 1, '#BDE8F2') + r(60, 48, 6, 6, 1, '#BDE8F2') + r(46, 24, 12, 20, 2, '#E5484D') + c(52, 14, 5, '#E3E8F2') + c(60, 8, 4, '#E3E8F2') + p('M8 62 h84 l-14 22 h-56 z', '#2E7DD8'); };
+  D.bike = function () { return '<circle cx="24" cy="66" r="17" fill="none" stroke="' + M + '" stroke-width="4"/><circle cx="76" cy="66" r="17" fill="none" stroke="' + M + '" stroke-width="4"/>' + iz('M24 66 L40 40 H66 L76 66 M40 40 L52 66 L66 40 M52 66 H24', '#4CC38A', 4) + iz('M36 34 h12 M66 40 l-4 -14 h10', M, 4); };
+  D.helicopter = function () { return iz('M8 14 h84 M50 14 v14', M, 4) + p('M70 50 h22 l4 -10 h4 l-2 20 h-28 z', '#4AA8FF') + e(46, 54, 28, 20, '#4AA8FF') + p('M50 40 q16 0 20 14 h-20 z', '#BDE8F2') + iz('M28 82 h40 M36 74 v8 M56 74 v8', M, 4); };
+  D.taxi = function () { return r(38, 18, 24, 10, 2, '#fff') + yazi(50, 26, 'TAXI', 8, M) + p('M10 58 q4 -18 18 -22 h40 q16 4 22 22 v14 h-80 z', '#FFD23F') + r(30, 40, 18, 14, 2, '#BDE8F2') + r(52, 40, 18, 14, 2, '#BDE8F2') + iz('M10 62 h80', M, 2) + '<path d="M10 64 h8 v4 h-8 z M26 64 h8 v4 h-8 z M42 64 h8 v4 h-8 z M58 64 h8 v4 h-8 z M74 64 h8 v4 h-8 z" fill="' + M + '"/>' + teker(28, 74, 9) + teker(72, 74, 9); };
+  D.tractor = function () { return r(46, 30, 26, 30, 3, '#4CC38A') + r(50, 34, 18, 14, 2, '#BDE8F2') + r(24, 48, 64, 18, 4, '#4CC38A') + iz('M30 48 V30', M, 4) + teker(32, 70, 20) + teker(80, 78, 11); };
+  D.truck = function () { return r(6, 26, 58, 44, 4, '#9AA7BD') + p('M64 40 h18 l12 14 v16 h-30 z', '#E5484D') + r(68, 44, 12, 10, 2, '#BDE8F2') + teker(22, 74, 9) + teker(48, 74, 9) + teker(80, 74, 9); };
+  D.rocket = function () { return p('M40 76 q10 24 20 0 z', '#FF8A3D') + p('M44 76 q6 14 12 0 z', '#FFD23F') + p('M30 62 l-10 16 h14 z M70 62 l10 16 h-14 z', '#E5484D') + p('M50 6 q22 22 20 56 v14 h-40 v-14 q-2 -34 20 -56 z', '#fff') + c(50, 40, 8, '#4AA8FF') + p('M42 18 q8 -8 16 0 z', '#E5484D'); };
+  D.motorbike = function () { return teker(20, 70, 14) + teker(80, 70, 14) + p('M30 60 q8 -18 26 -18 h12 l12 26 h-16 l-8 -10 h-14 z', '#E5484D') + r(34, 36, 22, 8, 4, M) + iz('M70 42 l6 -12 h8', M, 4) + c(84, 46, 4, '#FFD23F'); };
+
+  /* ---------------- Shapes ---------------- */
+  function sekil(ic) { return ic + goz2(42, 58, 50, 3) + gul(44, 58, 6); }
+  D.circle = function () { return sekil(c(50, 50, 38, '#4AA8FF')); };
+  D.square = function () { return sekil(r(14, 14, 72, 72, 4, '#E5484D')); };
+  D.triangle = function () { return sekil(p('M50 8 L92 86 H8 Z', '#4CC38A').replace('d="M50 8', 'd="M50 8')) ; };
+  D.rectangle = function () { return sekil(r(6, 26, 88, 50, 4, '#FF8A3D')); };
+  D.star = function () { return yildiz(50, 54, 44, '#FFD23F') + goz2(42, 58, 54, 3) + gul(44, 62, 6); };
+  D.heart = function () { return p('M50 30 q-16 -24 -34 -12 q-18 14 0 40 q14 18 34 30 q20 -12 34 -30 q18 -26 0 -40 q-18 -12 -34 12 z', '#FF6FA5') + goz2(40, 60, 46, 3) + gul(44, 56, 6); };
+  D.oval = function () { return sekil(e(50, 50, 42, 28, '#8E7CF0')); };
+  D.diamond = function () { return sekil(p('M50 6 L90 50 L50 94 L10 50 Z', '#2EB5A8')); };
+
+  /* ---------------- Sea ---------------- */
+  D.whale = function () { return iz('M44 20 q-6 -10 0 -14 M44 20 q6 -10 12 -12', '#4AA8FF', 3) + p('M86 40 l10 -14 l2 18 z', '#4A7FD8') + p('M8 60 q0 -34 44 -34 q38 0 40 30 q0 28 -42 28 q-42 0 -42 -24 z', '#4A7FD8') + p('M14 66 q34 16 70 0 q-6 18 -34 18 q-30 0 -36 -18 z', '#BDE8F2') + n(28, 50, 3.4) + gul(20, 60, 6); };
+  D.dolphin = function () { return p('M8 70 q20 -46 64 -40 q14 2 24 10 q-8 4 -18 2 q4 20 -14 32 q-28 18 -56 -4 z', '#7FB7E8') + p('M48 32 l6 -18 l10 18 z', '#7FB7E8') + p('M10 72 l-6 12 l14 -4 z', '#7FB7E8') + n(70, 40, 3) + gul(76, 46, 4) + iz('M24 70 q20 8 40 -6', '#DDF3FF', 4); };
+  D.octopus = function () { return [18, 34, 50, 66, 82].map(function (x, i) { return kalin('M' + x + ' 54 q' + (i % 2 ? 8 : -8) + ' 18 0 26 q' + (i % 2 ? -6 : 6) + ' 8 2 12', '#FF7AAE', 9); }).join('') + e(50, 38, 30, 28, '#FF7AAE') + goz2(40, 60, 38, 4) + gul(44, 48, 6) + '<circle cx="30" cy="22" r="3" fill="#FFB3D0"/><circle cx="66" cy="20" r="4" fill="#FFB3D0"/>'; };
+  D.crab = function () { return iz('M24 66 l-14 10 M26 74 l-12 14 M76 66 l14 10 M74 74 l12 14', M, 4) + iz('M30 50 l-12 -20 M70 50 l12 -20', M, 4) + p('M8 22 q8 -14 20 -4 l-10 6 l12 2 q-8 14 -22 -4 z', '#FF6B5B') + p('M92 22 q-8 -14 -20 -4 l10 6 l-12 2 q8 14 22 -4 z', '#FF6B5B') + iz('M42 46 v-12 M58 46 v-12', M, 3) + c(42, 30, 5, '#fff') + c(58, 30, 5, '#fff') + n(42, 30, 2.4) + n(58, 30, 2.4) + e(50, 60, 30, 18, '#FF6B5B') + gul(44, 62, 6); };
+  D.shark = function () { return iz('M2 88 q12 -6 24 0 t24 0 t24 0 t24 0', '#4AA8FF', 3) + p('M84 52 l12 -18 v38 z', '#8A94A8') + p('M44 30 l10 -22 l10 24 z', '#8A94A8') + p('M8 56 q20 -28 52 -26 q30 2 34 22 q-6 22 -40 24 q-34 2 -46 -20 z', '#8A94A8') + p('M10 58 q30 12 70 4 q-10 14 -36 14 q-26 0 -34 -18 z', '#fff') + p('M20 60 l4 6 l4 -6 l4 6 l4 -6 l4 6 l4 -6', '#fff') + n(28, 46, 3.4); };
+  D.turtle = function () { return c(86, 56, 10, '#9ED35A') + n(89, 53, 2.2) + e(26, 76, 9, 6, '#9ED35A') + e(70, 78, 9, 6, '#9ED35A') + e(22, 42, 8, 6, '#9ED35A') + e(50, 56, 32, 26, '#4CC38A') + p('M36 46 l14 -10 l14 10 l-4 16 h-20 z', '#3FB86A') + iz('M36 46 l-14 4 M64 46 l14 4 M40 62 l-8 12 M60 62 l8 12', '#2E9D62', 2.4); };
+  D.starfish = function () { return yildizYol(50, 54, 44, 20, 5) + ' fill="#FF8A3D" ' + S + '/>' + '<circle cx="50" cy="22" r="2" fill="#FFD9B0"/><circle cx="24" cy="44" r="2" fill="#FFD9B0"/><circle cx="76" cy="44" r="2" fill="#FFD9B0"/><circle cx="34" cy="76" r="2" fill="#FFD9B0"/><circle cx="66" cy="76" r="2" fill="#FFD9B0"/>' + goz2(44, 56, 52, 2.6) + gul(46, 58, 4); };
+  D.jellyfish = function () { return iz('M30 54 q-6 12 2 22 q6 10 -2 18 M44 56 q6 12 -2 22 q-6 10 2 18 M58 56 q-6 12 2 22 q6 10 -2 18 M72 54 q6 12 -2 22', '#C9A7E8', 4) + p('M14 56 q0 -44 36 -44 q36 0 36 44 q-9 -6 -18 0 q-9 -6 -18 0 q-9 -6 -18 0 q-9 -6 -18 0 z', '#C9A7E8') + goz2(40, 60, 38, 3) + gul(44, 46, 6); };
+  D.seahorse = function () { return p('M52 10 q20 0 20 18 q0 10 -8 14 q12 10 8 30 q-4 18 -18 18 q-12 0 -12 -10 q0 -8 8 -8 q6 0 6 4 q4 -14 -6 -24 q-8 -8 -2 -20 l-18 -2 q2 -12 22 -20 z', '#FFC94D') + p('M64 44 l12 6 l-10 6 z', '#FFB020') + n(58, 22, 2.8) + iz('M50 30 l2 6 M54 50 l4 4 M54 62 l4 2', '#E0A21A', 2.4); };
+  D.shell = function () { return p('M50 90 l-38 -36 q2 -40 38 -44 q36 4 38 44 z', '#FFC9D4') + iz('M50 90 V16 M50 90 L30 22 M50 90 L70 22 M50 90 L18 40 M50 90 L82 40', '#F28AAE', 2.6) + r(40, 86, 20, 8, 3, '#FFC9D4'); };
+
+  /* ---------------- Jobs ---------------- */
+  D.stetoskop = function () { return iz('M30 10 v24 q0 24 20 24 q20 0 20 -24 v-24', M, 4) + iz('M50 58 v14 q0 14 14 14 h8', M, 4) + c(78, 86, 9, '#C7CCD6') + c(30, 10, 4, '#C7CCD6') + c(70, 10, 4, '#C7CCD6'); };
+  D.yangin = function () { return p('M50 6 q26 24 22 52 q-2 30 -22 34 q-20 -4 -22 -34 q-2 -18 10 -30 q2 14 8 16 q-4 -20 4 -38 z', '#FF8A3D') + p('M50 46 q12 12 10 26 q-2 14 -10 16 q-8 -2 -10 -16 q0 -12 10 -26 z', '#FFD23F'); };
+  D.polisrozet = function () { return yildizYol(50, 50, 40, 26, 6) + ' fill="#FFD23F" ' + S + '/>' + c(50, 50, 16, '#2E4A8C') + yildiz(50, 51, 9, '#FFD23F'); };
+  D.cekic = function () { return g('rotate(-35 50 50)', r(44, 34, 12, 60, 4, '#C98A4B') + r(22, 14, 56, 22, 5, '#9AA7BD') + iz('M30 20 h12', '#fff', 3)); };
+  D.yarabandi = function () { return g('rotate(-30 50 50)', r(6, 36, 88, 28, 12, '#FFC2A1') + r(34, 36, 32, 28, 4, '#FFE6D6') + n(42, 44, 1.8, '#E8A88A') + n(58, 44, 1.8, '#E8A88A') + n(42, 56, 1.8, '#E8A88A') + n(58, 56, 1.8, '#E8A88A')); };
+  function meslek(o, ek, on) { return (on || '') + kisi(o) + (ek || ''); }
+  D.doctor = function () { return meslek({ stil: 'kisa', sac: '#3B2A22', ust: '#fff' }, iz('M36 74 q-2 14 8 16 M64 74 q2 14 -8 16', M, 3) + c(44, 90, 3, '#C7CCD6') + r(58, 80, 12, 12, 2, '#fff') + iz('M64 82 v8 M60 86 h8', '#E5484D', 3)); };
+  D.teacher = function () { return meslek({ stil: 'topuz', sac: '#8F5A3A', ust: '#8E7CF0', gozluk: 1 }, r(58, 74, 26, 20, 3, '#4AA8FF') + yazi(71, 88, 'ABC', 9)); };
+  D.chef = function () { return meslek({ stil: 'kisa', sac: '#3B2A22', ust: '#fff' }, p('M32 30 q-12 -2 -10 -12 q2 -10 14 -6 q4 -12 14 -12 q10 0 14 12 q12 -4 14 6 q2 10 -10 12 z', '#fff') + r(32, 24, 36, 9, 2, '#fff') + iz('M44 78 v14 M56 78 v14', '#E5484D', 3)); };
+  D.firefighter = function () { return meslek({ stil: 'kisa', sac: '#3B2A22', ust: '#E5484D' }, p('M24 34 q0 -24 26 -24 q26 0 26 24 l8 4 h-68 z', '#FFD23F') + r(44, 14, 12, 10, 2, '#E5484D') + iz('M30 84 h40', '#FFD23F', 4)); };
+  D.police = function () { return meslek({ stil: 'kisa', sac: '#3B2A22', ust: '#2E4A8C' }, p('M26 30 q24 -22 48 0 v6 h-48 z', '#2E4A8C') + r(26, 32, 48, 6, 2, '#1E2F5C') + yildiz(50, 24, 5, '#FFD23F') + yildiz(62, 84, 6, '#FFD23F')); };
+  D.farmer = function () { return meslek({ stil: 'kisa', sac: '#C9773A', ust: '#4CC38A' }, e(50, 28, 34, 7, '#F2D27A') + p('M32 28 q0 -18 18 -18 q18 0 18 18 z', '#F2D27A') + iz('M34 26 h32', '#E5484D', 3) + iz('M38 72 v24 M62 72 v24', '#2E7DD8', 5)); };
+  D.pilot = function () { return meslek({ stil: 'kisa', sac: '#3B2A22', ust: '#2E4A8C' }, p('M28 30 q22 -20 44 0 v6 h-44 z', '#fff') + r(26, 32, 48, 6, 2, '#1E2F5C') + p('M40 84 h20 l-4 4 h-12 z', '#FFD23F') + iz('M34 84 h6 M60 84 h6', '#FFD23F', 3)); };
+  D.builder = function () { return meslek({ stil: 'kisa', sac: '#5B3A22', ust: '#FF8A3D' }, p('M26 32 q0 -24 24 -24 q24 0 24 24 z', '#FFD23F') + r(22, 30, 56, 6, 3, '#FFD23F') + iz('M36 76 v20 M64 76 v20', '#fff', 4)); };
+  D.nurse = function () { return meslek({ stil: 'uzun', sac: '#8F5A3A', ust: '#7FD3E6' }, p('M34 22 h32 l-4 -12 h-24 z', '#fff') + iz('M50 12 v8 M46 16 h8', '#E5484D', 2.6)); };
+  D.vet = function () { return meslek({ stil: 'kuyruk', sac: '#C9773A', ust: '#4CC38A' }, g('translate(52 60) scale(.42)', icAl(C.avatar('kopek')))); };
+
+  /* ---------------- Actions: tek çocuk figürü, poza göre ---------------- */
+  function cocuk(o) {
+    var gom = '#4AA8FF', bac = '#2E7DD8', h = '';
+    (o.bacak || []).forEach(function (d) { h += kalin(d, bac, 8); });
+    h += kalin(o.govde, gom, 14);
+    (o.kol || []).forEach(function (d) { h += kalin(d, TEN, 7); });
+    h += c(o.bas[0], o.bas[1], 12, TEN) + p('M' + (o.bas[0] - 12) + ' ' + (o.bas[1] - 2) + ' q0 -12 12 -12 q12 0 12 12 q-6 -6 -12 -5 q-6 -1 -12 5 z', '#8F5A3A');
+    h += o.uyku ? iz('M' + (o.bas[0] - 6) + ' ' + (o.bas[1] + 1) + ' h4 M' + (o.bas[0] + 2) + ' ' + (o.bas[1] + 1) + ' h4', M, 2.4) : n(o.bas[0] - 4, o.bas[1] + 1, 1.8) + n(o.bas[0] + 4, o.bas[1] + 1, 1.8);
+    h += o.agiz === 'acik' ? e(o.bas[0], o.bas[1] + 7, 3, 3.4, '#7A2F3A') : iz('M' + (o.bas[0] - 3) + ' ' + (o.bas[1] + 6) + ' q3 3 6 0', M, 2);
+    return (o.arka || '') + h + (o.on || '');
+  }
+  D.run = function () { return iz('M8 40 h12 M4 52 h12 M10 64 h10', '#9AA7BD', 3) + cocuk({ bas: [58, 20], govde: 'M56 34 L48 58', kol: ['M54 40 L66 48 L74 38', 'M54 40 L40 46 L34 56'], bacak: ['M48 58 L62 72 L58 88', 'M48 58 L36 74 L22 76'] }); };
+  D.jump = function () { return e(50, 94, 16, 3.4, '#C7CCD6') + iz('M30 86 l-6 6 M70 86 l6 6', '#9AA7BD', 3) + cocuk({ bas: [50, 16], govde: 'M50 30 V54', kol: ['M50 36 L36 20', 'M50 36 L64 20'], bacak: ['M50 54 L40 66 L46 78', 'M50 54 L60 66 L54 78'], agiz: 'acik' }); };
+  D.swim = function () { return cocuk({ bas: [26, 48], govde: 'M36 54 H64', kol: ['M42 54 L54 40 L66 34', 'M42 56 L30 66'], bacak: ['M64 54 L82 50', 'M64 56 L84 60'] }) + iz('M2 62 q8 -6 16 0 t16 0 t16 0 t16 0 t16 0 t16 0', '#4AA8FF', 4) + iz('M6 76 q8 -6 16 0 t16 0 t16 0 t16 0 t16 0', '#7FCBEA', 4); };
+  D.sing = function () { return cocuk({ bas: [44, 22], govde: 'M44 36 V62', kol: ['M44 42 L58 48 L60 34', 'M44 42 L30 54'], bacak: ['M44 62 L38 90', 'M44 62 L52 90'], agiz: 'acik', on: c(62, 30, 4, M) }) + g('translate(66 6) scale(.3)', hazir('nota')) + g('translate(76 34) scale(.22)', hazir('nota')); };
+  D.dance = function () { return cocuk({ bas: [50, 18], govde: 'M50 32 L52 58', kol: ['M50 38 L34 24', 'M50 38 L68 44 L76 34'], bacak: ['M52 58 L44 90', 'M52 58 L70 70 L78 64'], agiz: 'acik' }) + g('translate(8 50) scale(.26)', hazir('nota')) + yildiz(82, 14, 6, '#FFD23F'); };
+  D.sleep = function () { return r(6, 54, 88, 20, 4, '#4AA8FF') + r(8, 46, 20, 12, 6, '#fff') + c(20, 42, 11, TEN) + p('M9 40 q0 -11 11 -11 q11 0 11 11 q-5 -5 -11 -4 q-6 -1 -11 4 z', '#8F5A3A') + iz('M15 44 h4 M22 44 h4', M, 2.2) + p('M30 50 h62 v8 h-62 z', '#FFD23F') + iz('M8 74 v14 M92 74 v14', M, 4) + yazi(64, 30, 'Z', 18, '#8E7CF0') + yazi(78, 16, 'Z', 13, '#8E7CF0'); };
+  D.eat = function () { return c(50, 40, 26, TEN) + p('M24 36 q0 -26 26 -26 q26 0 26 26 q-10 -12 -26 -10 q-16 -2 -26 10 z', '#8F5A3A') + goz2(40, 60, 38, 3) + e(50, 54, 6, 5, '#7A2F3A') + iz('M66 92 L54 56', '#C7CCD6', 4) + e(52, 52, 6, 4, '#C7CCD6') + p('M20 76 h60 q0 18 -30 18 q-30 0 -30 -18 z', '#4CC38A'); };
+  D.read = function () { return cocuk({ bas: [50, 20], govde: 'M50 34 V62', kol: ['M50 40 L36 52', 'M50 40 L64 52'], bacak: ['M50 62 L42 90', 'M50 62 L58 90'] }) + g('translate(26 38) scale(.48)', ai('book')); };
+  D.draw = function () { return r(10, 34, 62, 52, 3, '#fff') + p('M18 74 l10 -18 l8 10 l8 -14 l12 22 z', '#4CC38A') + c(54, 46, 6, '#FFD23F') + g('rotate(30 74 40)', r(64, 26, 12, 40, 3, '#E5484D') + p('M64 66 L70 78 L76 66 Z', '#FFE6B8')) + c(80, 30, 10, TEN); };
+  D.climb = function () { return iz('M24 4 V96 M60 4 V96 M24 18 H60 M24 38 H60 M24 58 H60 M24 78 H60', '#C98A4B', 5) + cocuk({ bas: [44, 26], govde: 'M44 40 V62', kol: ['M44 44 L30 36 L26 30', 'M44 44 L58 38 L60 28'], bacak: ['M44 62 L32 70 L30 78', 'M44 62 L56 60 L58 58'] }); };
+
+  /* ---------------- Seasons ---------------- */
+  function agac(tepe, ek) { return r(44, 54, 12, 38, 3, '#B07A40') + c(50, 40, 30, tepe) + (ek || ''); }
+  D.yaprak = function () { return p('M50 92 q-40 -30 -14 -70 q16 -20 14 -18 q2 -2 14 18 q26 40 -14 70 z', '#FF8A3D') + iz('M50 92 V20 M50 50 l-14 -10 M50 64 l14 -12', '#C9612A', 2.6); };
+  D.spring = function () { return agac('#9ED35A', c(36, 30, 5, '#FFB3D0') + c(58, 26, 5, '#FFB3D0') + c(64, 46, 5, '#FFB3D0') + c(42, 50, 5, '#FFB3D0')) + g('translate(4 66) scale(.26)', hazir('cicek')) + g('translate(72 66) scale(.26)', hazir('cicek')); };
+  D.summer = function () { return gunes(80, 18, 10) + iz('M2 72 q12 -6 24 0 t24 0 t24 0 t24 0', '#4AA8FF', 4) + p('M0 80 h100 v20 h-100 z', '#FFE08A') + iz('M30 80 V36', M, 3) + p('M8 40 q22 -26 44 0 z', '#E5484D') + c(70, 88, 6, '#FF8A3D'); };
+  D.autumn = function () { return agac('#FF8A3D', c(34, 36, 4, '#E5484D') + c(62, 30, 4, '#FFD23F') + c(56, 50, 4, '#E5484D')) + g('translate(10 70) rotate(-20) scale(.18)', ai('yaprak')) + g('translate(74 72) rotate(30) scale(.18)', ai('yaprak')); };
+  D.winter = function () { return p('M0 84 q50 -14 100 0 v16 h-100 z', '#fff') + r(46, 74, 8, 14, 2, '#B07A40') + p('M50 6 L74 44 H62 L82 76 H18 L38 44 H26 Z', '#3FB86A') + p('M50 6 L62 26 q-12 6 -24 0 Z', '#fff') + iz('M30 72 q10 -6 20 0 q10 -6 20 0 M36 42 q7 -4 14 0 q7 -4 14 0', '#fff', 4) + kar(14, 20, 5) + kar(88, 26, 5) + kar(86, 60, 4); };
+
+  /* ---------------- Days: takvim yaprağı ---------------- */
+  var GUN_R = { monday: '#4AA8FF', tuesday: '#4CC38A', wednesday: '#FFD23F', thursday: '#FF8A3D', friday: '#8E7CF0', saturday: '#FF6FA5', sunday: '#E5484D' };
+  Object.keys(GUN_R).forEach(function (k) {
+    D[k] = function () { return r(14, 10, 72, 80, 10, '#fff') + p('M14 30 v-10 q0 -10 10 -10 h52 q10 0 10 10 v10 z', GUN_R[k]) + iz('M32 6 v10 M68 6 v10', M, 4) + yazi(50, 64, k.slice(0, 3).toUpperCase(), 26, GUN_R[k]) + (k === 'saturday' || k === 'sunday' ? yildiz(50, 80, 6, '#FFD23F') : iz('M38 80 h24', '#E3E8F2', 4)); };
+  });
+
+  /* ---------------- Places: top ve kutu ---------------- */
+  var kutuOn = r(28, 50, 46, 38, 4, '#C98A4B') + iz('M28 62 h46', '#B07A40', 3), top_ = function (x, y) { return c(x, y, 11, '#E5484D') + iz('M' + (x - 9) + ' ' + (y - 3) + ' q9 6 18 0', '#fff', 2.4); };
+  D['in'] = function () { return r(28, 50, 46, 38, 4, '#B07A40') + top_(51, 52) + p('M28 60 h46 v28 h-46 z', '#C98A4B') + iz('M28 60 l-8 -12 M74 60 l8 -12', M, 3); };
+  D.on = function () { return kutuOn + top_(51, 38); };
+  D.under = function () { return r(10, 30, 80, 10, 3, '#C98A4B') + r(16, 40, 7, 50, 2, '#B07A40') + r(77, 40, 7, 50, 2, '#B07A40') + top_(50, 78); };
+  D.next = function () { return kutuOn + top_(86, 76); };
+  D.behind = function () { return top_(60, 46) + kutuOn; };
+  D.front = function () { return r(30, 30, 46, 38, 4, '#C98A4B') + iz('M30 42 h46', '#B07A40', 3) + top_(52, 78); };
+
+  /* ---------------- Alphabet ---------------- */
+  D.queen = function () { return kisi({ stil: 'uzun', sac: '#C9773A', ust: '#8E7CF0' }) + p('M32 26 L32 8 L41 18 L50 4 L59 18 L68 8 L68 26 Z', '#FFD23F') + c(50, 18, 2.4, '#E5484D'); };
+  D.van = function () { return p('M6 30 h60 q14 0 22 16 l6 10 v18 h-88 z', '#FFFFFF') + r(68, 36, 16, 14, 3, '#BDE8F2') + iz('M6 58 h88', '#4AA8FF', 5) + teker(24, 76, 9) + teker(74, 76, 9); };
+  D.xylophone = function () { return ['#E5484D', '#FF8A3D', '#FFD23F', '#4CC38A', '#4AA8FF', '#8E7CF0'].map(function (f, i) { return r(8 + i * 14, 18 + i * 5, 12, 64 - i * 10, 3, f); }).join('') + iz('M10 30 h80 M10 74 h80', M, 2) + g('rotate(30 70 80)', r(66, 66, 5, 30, 2, '#C98A4B')) + c(72, 64, 5, '#fff'); };
+  D.zebra = function () { return p('M34 24 l4 -16 l8 14 z M66 24 l-4 -16 l-8 14 z', '#fff') + e(50, 48, 24, 30, '#fff') + iz('M30 34 h12 M58 34 h12 M28 46 h10 M62 46 h10 M30 58 h10 M60 58 h10', M, 4) + p('M40 16 q10 -8 20 0 l-4 12 h-12 z', M) + e(50, 74, 16, 11, '#9AA7BD') + n(44, 74, 2.4) + n(56, 74, 2.4) + goz2(42, 58, 44, 3); };
+  var HARF = { a: 'apple', b: 'ball', c: 'cat', d: 'dog', e: 'egg', f: 'fish', g: 'grapes', h: 'hat', i: 'icecream', j: 'juice', k: 'kite', l: 'lion', m: 'milk', n: 'nose', o: 'octopus', p: 'pencil', q: 'queen', r: 'rabbit', s: 'sun', t: 'teddy', u: 'umbrella', v: 'van', w: 'window', x: 'xylophone', y: 'yoyo', z: 'zebra' };
+  var HARF_R = ['#E5484D', '#FF8A3D', '#E8B820', '#3FB86A', '#2E8FE8', '#8E7CF0', '#FF6FA5'];
+  Object.keys(HARF).forEach(function (h, i) {
+    D['harf-' + h] = function () { return r(6, 6, 88, 88, 18, '#fff') + yazi(32, 68, h.toUpperCase(), 56, HARF_R[i % 7]) + g('translate(56 46) scale(.42)', ai(HARF[h])); };
+  });
+
+  D.lonely = function () { return A.yuz('sad').replace(/<path d="M30 54[^>]*\/>/, ''); };
+  Object.keys(D).forEach(function (k) { RS.ekle(k, D[k]); });
+  /* yerleştirme kapları: meyve kâsesi, akvaryum */
+  RS.kase = function () { return '<svg class="kc ko-kap-r" viewBox="0 0 200 120" aria-hidden="true">' + p('M10 40 h180 q0 76 -90 76 q-90 0 -90 -76 z', '#4AA8FF') + iz('M24 62 q76 22 152 0', '#fff', 4) + e(100, 40, 90, 10, '#BDE8F2') + '</svg>'; };
+  RS.akvaryum = function () { return '<svg class="kc ko-kap-r" viewBox="0 0 200 120" aria-hidden="true">' + r(10, 8, 180, 108, 14, '#BDE8F2') + p('M10 40 q45 -10 90 0 t90 0 V102 q0 14 -14 14 H24 q-14 0 -14 -14 Z', '#4AA8FF') + p('M30 116 q10 -30 0 -50 q14 20 8 50 z', '#4CC38A') + p('M160 116 q-8 -26 4 -44 q8 22 2 44 z', '#3FB86A') + '<circle cx="60" cy="70" r="4" fill="#fff" opacity=".7"/><circle cx="70" cy="56" r="3" fill="#fff" opacity=".7"/><circle cx="140" cy="80" r="5" fill="#fff" opacity=".6"/></svg>'; };
+  W.KIDS_RESIM.HARF = HARF;
 })(window);
 
 /* ---- kids-veri.js ---- */
@@ -1899,11 +2313,14 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     { id: 'blue', en: 'blue', tr: 'mavi', hex: '#4AA8FF' },
     { id: 'green', en: 'green', tr: 'yeşil', hex: '#4CC38A' },
     { id: 'orange', en: 'orange', tr: 'turuncu', hex: '#FF8A3D' },
-    { id: 'purple', en: 'purple', tr: 'mor', hex: '#8E7CF0' }
+    { id: 'purple', en: 'purple', tr: 'mor', hex: '#8E7CF0' },
+    /* ikinci kat (Yıldızlar) */
+    { id: 'pink', en: 'pink', tr: 'pembe', hex: '#FF6FA5' }, { id: 'brown', en: 'brown', tr: 'kahverengi', hex: '#9A6A42' }, { id: 'black', en: 'black', tr: 'siyah', hex: '#2A2F3A' },
+    { id: 'white', en: 'white', tr: 'beyaz', hex: '#FFFFFF' }, { id: 'grey', en: 'grey', tr: 'gri', hex: '#9AA7BD' }
   ];
   /* sayılar: her rakamın kendi rengi (kart, balon, nokta) */
-  var SAYI = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'].map(function (en, i) {
-    return { id: en, en: en, tr: ['bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz', 'on'][i], n: i + 1, hex: ['#E5484D', '#FF8A3D', '#E0A800', '#4CC38A', '#4AA8FF', '#8E7CF0', '#FF6FA5', '#12A3A3', '#C97A2B', '#5B6B8C'][i] };
+  var SAYI = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'].map(function (en, i) {
+    return { id: en, en: en, tr: ['bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz', 'on', 'on bir', 'on iki', 'on üç', 'on dört', 'on beş', 'on altı', 'on yedi', 'on sekiz', 'on dokuz', 'yirmi'][i], n: i + 1, hex: ['#E5484D', '#FF8A3D', '#E0A800', '#4CC38A', '#4AA8FF', '#8E7CF0', '#FF6FA5', '#12A3A3', '#C97A2B', '#5B6B8C'][i % 10] };
   });
   /* 12 konu: Cambridge Pre A1 Starters temaları + MEB 2. sınıf temalarıyla hizalı */
   var KONU = [
@@ -1918,13 +2335,24 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     { id: 'home', en: 'My Home', tr: 'Evim', renk: '#C7EBA0', simge: 'sofa', acik: true, rozet: 'Ev Kahramanı' },
     { id: 'school', en: 'School', tr: 'Okulum', renk: '#FFE08A', simge: 'bag', acik: true, rozet: 'Okul Yıldızı' },
     { id: 'weather', en: 'Weather', tr: 'Hava Durumu', renk: '#BDE8F2', simge: 'sunny', acik: true, rozet: 'Hava Gözlemcisi' },
-    { id: 'feelings', en: 'Feelings', tr: 'Duygular', renk: '#FFC9E0', simge: 'happy', acik: true, rozet: 'Duygu Dedektifi' }
+    { id: 'feelings', en: 'Feelings', tr: 'Duygular', renk: '#FFC9E0', simge: 'happy', acik: true, rozet: 'Duygu Dedektifi' },
+    /* ikinci takımada */
+    { id: 'fruits', en: 'Fruits', tr: 'Meyveler', renk: '#FFD9A0', simge: 'watermelon', acik: true, rozet: 'Meyve Bahçıvanı', grup: 2 },
+    { id: 'transport', en: 'Transport', tr: 'Taşıtlar', renk: '#C9D6EE', simge: 'bus', acik: true, rozet: 'Yolcu Kaptan', grup: 2 },
+    { id: 'shapes', en: 'Shapes', tr: 'Şekiller', renk: '#DCD2FF', simge: 'triangle', acik: true, rozet: 'Şekil Ustası', grup: 2 },
+    { id: 'sea', en: 'Under the Sea', tr: 'Deniz', renk: '#9FDBF7', simge: 'whale', acik: true, rozet: 'Deniz Kâşifi', grup: 2 },
+    { id: 'jobs', en: 'Jobs', tr: 'Meslekler', renk: '#FFD9B5', simge: 'firefighter', acik: true, rozet: 'Meslek Bilgini', grup: 2 },
+    { id: 'actions', en: 'Actions', tr: 'Hareketler', renk: '#C6EDCF', simge: 'jump', acik: true, rozet: 'Hareket Yıldızı', grup: 2 },
+    { id: 'seasons', en: 'Seasons', tr: 'Mevsimler', renk: '#D7EDB0', simge: 'autumn', acik: true, rozet: 'Mevsim Gözcüsü', grup: 2 },
+    { id: 'days', en: 'Days', tr: 'Günler', renk: '#D5DDF7', simge: 'friday', acik: true, rozet: 'Takvim Ustası', grup: 2 },
+    { id: 'places', en: 'Where is it?', tr: 'Yerler', renk: '#F2D7B0', simge: 'under', acik: true, rozet: 'Saklambaç Ustası', grup: 2 },
+    { id: 'alphabet', en: 'ABC', tr: 'Alfabe', renk: '#CDEBFF', simge: 'harf-a', acik: true, rozet: 'Harf Kâşifi', grup: 2 }
   ];
   /* yaş dünyaları: zorluk ve yazı miktarı buna göre değişir */
   var BANT = {
     minik: { ad: 'Minikler', yas: '3-4 yaş', renkSay: 3, sayiSay: 5, kelimeSay: 6, yazi: false, secenek: 3, tur: 4, cift: 3 },
-    kasif: { ad: 'Kâşifler', yas: '5-6 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 8, yazi: true, secenek: 4, tur: 5, cift: 4 },
-    yildiz: { ad: 'Yıldızlar', yas: '7-10 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 10, yazi: true, secenek: 5, tur: 6, cift: 6, kelimeKart: true }
+    kasif: { ad: 'Kâşifler', yas: '5-6 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 10, yazi: true, secenek: 4, tur: 5, cift: 4 },
+    yildiz: { ad: 'Yıldızlar', yas: '7-10 yaş', renkSay: 11, sayiSay: 20, kelimeSay: 20, yazi: true, secenek: 5, tur: 6, cift: 6, kelimeKart: true }
   };
   var OKUL = {
     kod: 'ORNEK-2026', ad: 'Örnek Anaokulu', ornek: true,
@@ -2044,13 +2472,19 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   /* kids-temalar.js on temayı buradan ekler; KIDS_VERI.KONU sırası korunur */
   function ekle(id, paket) { P[id] = paket; if (PAKET.indexOf(id) < 0) PAKET.push(id); var sira = V.KONU.map(function (k) { return k.id; }); PAKET.sort(function (a, b) { return sira.indexOf(a) - sira.indexOf(b); }); }
   /* akıllı tahta "Simon says" komutu: My Body'de kendi vücudun, öbürlerinde tahtadaki resim */
-  var BELIRLI = { family: { baby: 1, family: 1 }, colours: 0, numbers: 0, weather: 0, feelings: 0 };
+  var BELIRLI = { family: { baby: 1, family: 1, boy: 1, girl: 1, man: 1, woman: 1, friend: 1, parents: 1, twins: 1, pet: 1 }, colours: 0, numbers: 0, weather: 0, feelings: 0, seasons: 0 };
   function komut(p, o) {
     if (p.id === 'body') return 'Touch your ' + o.en + '!';
     if (p.id === 'numbers') return 'Point to number ' + o.en + '!';
+    if (p.id === 'places') return o.cumle;
+    if (p.id === 'alphabet') return 'Point to the letter ' + o.en + '!';
+    if (p.id === 'days') return 'Point to ' + o.en + '!';
+    if (p.id === 'actions') return 'Can you ' + o.en + '?';
     var b = BELIRLI[p.id]; return 'Point to ' + (b === 0 || (b && !b[o.id]) ? '' : 'the ') + o.en.toLowerCase() + '!';
   }
-  W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut };
+  /* konunun oyun sayısı ve en çok yıldızı: üç oyun + (varsa) karışık durak */
+  function oyunSay(id) { var p = P[id]; return 3 + (p && p.karisik ? 1 : 0); }
+  W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
 })(window);
 
 /* ---- kids-temalar.js ---- */
@@ -2071,11 +2505,12 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function vurgu(o, metin) { var i = metin.toLowerCase().indexOf(o.en.toLowerCase()); return i < 0 ? metin : metin.slice(0, i) + '<b style="--r:' + o.hex + '">' + metin.slice(i, i + o.en.length) + '</b>' + metin.slice(i + o.en.length); }
   function o(id, en, tr, hex, ek) { var x = { id: id, en: en, tr: tr, hex: hex }; for (var k in ek || {}) x[k] = ek[k]; return x; }
 
+  function bantAdi(b) { var B = W.KIDS_VERI.BANT; for (var k in B) if (B[k] === b || B[k].ad === b.ad) return k; return 'kasif'; }
   /* ortak paket iskeleti: konu yalnız farklı olanı verir */
   function tema(t) {
     var p = {
       id: t.id,
-      ogeler: function (bant) { return t.liste.slice(0, bant.kelimeSay || 8); },
+      ogeler: function (bant) { return t.liste.slice(0, (t.say && bant.ad && t.say[bantAdi(bant)]) || bant.kelimeSay || 8); },
       gorsel: function (x) { return R.ciz(x.id); },
       izleGiris: t.giris,
       izleCumle: function (x) { return x.izle || t.izle(x); },
@@ -2092,7 +2527,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
         a: function (x) { return R.ciz(x.id); },
         b: function (x, bant) { return bant.kelimeKart ? '<b lang="en" style="--r:' + x.hex + '">' + esc(x.en) + '</b>' : bant.yazi ? '<span class="ko-resimk">' + R.ciz(x.id) + '<small lang="en">' + esc(x.en) + '</small></span>' : R.ciz(x.id); }
       },
-      oyun3: t.oyun3, cikartma: t.cikartma, sarki: t.sarki, ev: t.ev, etkinlik: t.etkinlik,
+      oyun3: t.oyun3, cikartma: t.cikartma, sarki: t.sarki, ev: t.ev, etkinlik: t.etkinlik, liste: t.liste, karisik: t.karisik || false,
       bitis: 'Great job! ' + t.ad + ', done!'
     };
     K.ekle(t.id, p);
@@ -2105,7 +2540,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   tema({
     id: 'animals', ad: 'Animals', giris: 'Let\'s meet the animals!', dokun: 'Hayvanlara dokun ve dinle.', hafiza: 'Find the same animals!', balon: pop,
     izle: function (x) { return 'It\'s a ' + kucuk(x) + '!'; },
-    liste: [o('cat', 'cat', 'kedi', '#FF9F45', { ses: 'Meow' }), o('dog', 'dog', 'köpek', '#D9A35E', { ses: 'Woof' }), o('fish', 'fish', 'balık', '#4AA8FF'), o('bird', 'bird', 'kuş', '#F2B92A', { ses: 'Tweet' }),
+    liste: [o('cat', 'cat', 'kedi', '#FF9F45', { ses: 'Meow' }), o('dog', 'dog', 'köpek', '#D9A35E', { ses: 'Woof' }), o('fish', 'fish', 'balık', '#4AA8FF', { cogul: 'fish' }), o('bird', 'bird', 'kuş', '#F2B92A', { ses: 'Tweet' }),
       o('rabbit', 'rabbit', 'tavşan', '#FF8FB0'), o('frog', 'frog', 'kurbağa', '#3FB86A', { ses: 'Ribbit' }), o('cow', 'cow', 'inek', '#7C8AA3', { ses: 'Moo' }), o('chick', 'chick', 'civciv', '#F2B92A', { ses: 'Cheep' }),
       o('lion', 'lion', 'aslan', '#E08A2E', { ses: 'Roar' }), o('bear', 'bear', 'ayı', '#B07A40')],
     oyun3: {
@@ -2246,10 +2681,10 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     id: 'clothes', ad: 'Clothes', giris: 'Let\'s get dressed!', dokun: 'Kıyafetlere dokun ve dinle.', hafiza: 'Find the same clothes!', balon: pop,
     izle: function (x) { return 'Put on your ' + kucuk(x) + '!'; },
     liste: [o('hat', 'hat', 'şapka', '#E8B820', { yer: 'bas', hava: 'sunny', durum: 'It\'s sunny!' }), o('tshirt', 'T-shirt', 'tişört', '#3FB86A', { yer: 'govde', hava: 'hot', durum: 'It\'s hot!' }),
-      o('dress', 'dress', 'elbise', '#FF6FA5', { yer: 'govde', hava: 'balloon', durum: 'It\'s a party!' }), o('shoes', 'shoes', 'ayakkabı', '#2E8FE8', { yer: 'ayak', hava: 'kite', durum: 'Let\'s go out!' }),
-      o('socks', 'socks', 'çorap', '#E5484D', { yer: 'ayak', hava: 'cold', durum: 'Your feet are cold!' }), o('coat', 'coat', 'mont', '#B07A40', { yer: 'govde', hava: 'cold', durum: 'It\'s cold!' }),
-      o('scarf', 'scarf', 'atkı', '#F0405A', { yer: 'boyun', hava: 'windy', durum: 'It\'s windy!' }), o('gloves', 'gloves', 'eldiven', '#8E7CF0', { yer: 'el', hava: 'snowy', durum: 'It\'s snowy!' }),
-      o('trousers', 'trousers', 'pantolon', '#2E7DD8', { yer: 'bacak', hava: 'bag', durum: 'Let\'s go to school!' }), o('boots', 'boots', 'çizme', '#E8A400', { yer: 'ayak', hava: 'rainy', durum: 'It\'s rainy!' })],
+      o('dress', 'dress', 'elbise', '#FF6FA5', { yer: 'govde', hava: 'balloon', durum: 'It\'s a party!' }), o('shoes', 'shoes', 'ayakkabı', '#2E8FE8', { cok: 1, yer: 'ayak', hava: 'kite', durum: 'Let\'s go out!' }),
+      o('socks', 'socks', 'çorap', '#E5484D', { cok: 1, yer: 'ayak', hava: 'cold', durum: 'Your feet are cold!' }), o('coat', 'coat', 'mont', '#B07A40', { yer: 'govde', hava: 'cold', durum: 'It\'s cold!' }),
+      o('scarf', 'scarf', 'atkı', '#F0405A', { yer: 'boyun', hava: 'windy', durum: 'It\'s windy!' }), o('gloves', 'gloves', 'eldiven', '#8E7CF0', { cok: 1, yer: 'el', hava: 'snowy', durum: 'It\'s snowy!' }),
+      o('trousers', 'trousers', 'pantolon', '#2E7DD8', { cok: 1, yer: 'bacak', hava: 'bag', durum: 'Let\'s go to school!' }), o('boots', 'boots', 'çizme', '#E8A400', { cok: 1, yer: 'ayak', hava: 'rainy', durum: 'It\'s rainy!' })],
     oyun3: {
       id: 'giydir', ad: 'Giydir', simge: 'tshirt', motor: 'yerlestir', kap: 'giy',
       soz: function (x) { return x.durum + ' Put on your ' + kucuk(x) + '.'; },
@@ -2388,7 +2823,231 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       { ad: 'Gün sonu sohbeti', adim: 'Yatmadan önce sorun: “How do you feel?” Çocuğunuz bir duygu seçsin, nedenini Türkçe anlatsın.' }]
   });
 
-  W.KIDS_TEMALAR = { ODA: ODA };
+  W.KIDS_TEMALAR = { ODA: ODA, tema: tema, o: o, vurgu: vurgu };
+})(window);
+
+/* ---- kids-temalar2.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · ikinci kat kelimeler ve ikinci takımada (kids/assets/kids-temalar2.js), 12.11.2026
+   1) İlk on temanın her birine +10 kelime (Yıldızlar 20 kelimeyle oynar, Kâşifler 10).
+   2) On yeni tema: Fruits, Transport, Shapes, Sea, Jobs, Actions, Seasons, Days,
+      Places (in/on/under…), Alphabet. Her biri kendi oyunu, şarkısı, çıkartması ve
+      "evde 5 dakika" etkinliğiyle.
+   3) Karışık durak (kids-oyun2 "karisik"): sayı × renk × kelime birleşimiyle sınırsız
+      soru ("Find three red cars!"). karisik: 'renk' = sayı ve renk, 'say' = yalnız sayı.
+   Şarkılar ve hikâye cümleleri Acadex için yazıldı.
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var T = W.KIDS_TEMALAR, K = W.KIDS_KONU, o = T.o, tema = T.tema;
+  function ekle(id, l) { var p = K.al(id); l.forEach(function (x) { p.liste.push(x); }); return p; }
+  var kucuk = function (x) { return x.en.toLowerCase(); }, pop = function (x) { return 'Pop the ' + kucuk(x) + '!'; };
+
+  /* ---------------- 1) ikinci kat ---------------- */
+  ekle('animals', [o('horse', 'horse', 'at', '#B07A40', { ses: 'Neigh' }), o('pig', 'pig', 'domuz', '#F06A95', { ses: 'Oink' }), o('sheep', 'sheep', 'koyun', '#7C8AA3', { ses: 'Baa', cogul: 'sheep' }), o('duck', 'duck', 'ördek', '#E8A400', { ses: 'Quack' }),
+    o('monkey', 'monkey', 'maymun', '#9A6A42', { ses: 'Ooh, ooh' }), o('elephant', 'elephant', 'fil', '#7C8AA3', { ses: 'Toot', bir: 'an' }), o('giraffe', 'giraffe', 'zürafa', '#E0A21A'), o('tiger', 'tiger', 'kaplan', '#FF7A1A'),
+    o('mouse', 'mouse', 'fare', '#8A94A8', { ses: 'Squeak', cogul: 'mice' }), o('snake', 'snake', 'yılan', '#3FB86A', { ses: 'Hiss' })]);
+  ekle('family', [o('boy', 'boy', 'erkek çocuk', '#2E8FE8', { the: 1 }), o('girl', 'girl', 'kız çocuk', '#FF6FA5', { the: 1 }), o('man', 'man', 'adam', '#5B6478', { the: 1 }), o('woman', 'woman', 'kadın', '#3FB86A', { the: 1 }),
+    o('friend', 'friend', 'arkadaş', '#8E7CF0', { the: 1 }), o('cousin', 'cousin', 'kuzen', '#E8B820'), o('parents', 'parents', 'anne baba', '#2E8FE8', { the: 1, cok: 1 }), o('grandparents', 'grandparents', 'büyükanne ve büyükbaba', '#B58AE0', { cok: 1 }),
+    o('twins', 'twins', 'ikizler', '#FF8A3D', { the: 1, cok: 1 }), o('pet', 'pet', 'evcil hayvan', '#D9A35E', { the: 1 })]);
+  ekle('body', [o('face', 'face', 'yüz', '#E8875A'), o('fingers', 'fingers', 'parmaklar', '#E8B820', { cok: 1 }), o('toes', 'toes', 'ayak parmakları', '#F06A95', { cok: 1 }), o('teeth', 'teeth', 'dişler', '#2E8FE8', { cok: 1 }),
+    o('tongue', 'tongue', 'dil', '#E5484D'), o('neck', 'neck', 'boyun', '#1FA597'), o('shoulders', 'shoulders', 'omuzlar', '#2E8FE8', { cok: 1 }), o('knees', 'knees', 'dizler', '#8E7CF0', { cok: 1 }),
+    o('tummy', 'tummy', 'karın', '#3FB86A'), o('cheeks', 'cheeks', 'yanaklar', '#FF6FA5', { cok: 1 })]);
+  ekle('food', [o('pizza', 'pizza', 'pizza', '#E5484D', { bir: 'pizza', cok: 'pizza', tek: 1 }), o('sandwich', 'sandwich', 'sandviç', '#C98A4B', { bir: 'a sandwich', cok: 'sandwiches' }), o('soup', 'soup', 'çorba', '#E5484D', { bir: 'soup', cok: 'soup', tek: 1 }),
+    o('rice', 'rice', 'pirinç pilavı', '#2E8FE8', { bir: 'rice', cok: 'rice', tek: 1 }), o('cookie', 'cookie', 'kurabiye', '#B07A40', { bir: 'a cookie', cok: 'cookies' }), o('icecream', 'ice cream', 'dondurma', '#FF6FA5', { bir: 'ice cream', cok: 'ice cream', tek: 1 }),
+    o('chicken', 'chicken', 'tavuk', '#C98A4B', { bir: 'chicken', cok: 'chicken', tek: 1 }), o('pasta', 'pasta', 'makarna', '#E8A400', { bir: 'pasta', cok: 'pasta', tek: 1 }), o('honey', 'honey', 'bal', '#E8A400', { bir: 'honey', cok: 'honey', tek: 1 }),
+    o('chocolate', 'chocolate', 'çikolata', '#7A4A2A', { bir: 'chocolate', cok: 'chocolate', tek: 1 })]);
+  ekle('toys', [o('puzzle', 'puzzle', 'yapboz', '#2E8FE8', { bir: 'a puzzle' }), o('yoyo', 'yo-yo', 'yoyo', '#E5484D', { bir: 'a yo-yo' }), o('dinosaur', 'dinosaur', 'dinozor', '#3FB86A', { bir: 'a dinosaur' }), o('bubbles', 'bubbles', 'baloncuklar', '#3BAED8', { bir: 'bubbles', cok: 1 }),
+    o('skateboard', 'skateboard', 'kaykay', '#FF7A1A', { bir: 'a skateboard' }), o('dice', 'dice', 'zar', '#E5484D', { bir: 'a dice', cogul: 'dice' }), o('marbles', 'marbles', 'bilyeler', '#3FB86A', { bir: 'marbles', cok: 1 }), o('piano', 'piano', 'piyano', '#8F5A3A', { bir: 'a piano' }),
+    o('whistle', 'whistle', 'düdük', '#E8B820', { bir: 'a whistle' }), o('puppet', 'puppet', 'kukla', '#8E7CF0', { bir: 'a puppet' })]);
+  ekle('clothes', [o('skirt', 'skirt', 'etek', '#8E7CF0', { yer: 'bacak', hava: 'sunny', durum: 'It\'s a nice day!' }), o('shorts', 'shorts', 'şort', '#FF7A1A', { yer: 'bacak', hava: 'hot', durum: 'It\'s very hot!', cok: 1 }),
+    o('jacket', 'jacket', 'ceket', '#2E7DD8', { yer: 'govde', hava: 'windy', durum: 'It\'s a bit cold!' }), o('sweater', 'sweater', 'kazak', '#E5484D', { yer: 'govde', hava: 'cold', durum: 'It\'s chilly!' }),
+    o('pyjamas', 'pyjamas', 'pijama', '#6E7FE0', { yer: 'govde', hava: 'sleep', durum: 'It\'s bedtime!', cok: 1 }), o('cap', 'cap', 'kasket', '#E5484D', { yer: 'bas', hava: 'sun', durum: 'The sun is bright!' }),
+    o('sunglasses', 'sunglasses', 'güneş gözlüğü', '#23304D', { yer: 'goz', hava: 'sunny', durum: 'It\'s so sunny!', cok: 1 }), o('belt', 'belt', 'kemer', '#8F5A3A', { yer: 'bel', hava: 'trousers', durum: 'Your trousers are too big!' }),
+    o('sandals', 'sandals', 'sandalet', '#C98A4B', { yer: 'ayak', hava: 'summer', durum: 'Let\'s go to the beach!', cok: 1 }), o('swimsuit', 'swimsuit', 'mayo', '#1FA597', { yer: 'govde', hava: 'swim', durum: 'Let\'s go swimming!' })]);
+  ekle('home', [o('tv', 'TV', 'televizyon', '#5B6478', { oda: ['living'] }), o('mirror', 'mirror', 'ayna', '#3BAED8', { oda: ['bathroom', 'bedroom'] }), o('shower', 'shower', 'duş', '#2E8FE8', { oda: ['bathroom'] }),
+    o('sink', 'sink', 'lavabo', '#7C8AA3', { oda: ['bathroom', 'kitchen'] }), o('cooker', 'cooker', 'ocak', '#E5484D', { oda: ['kitchen'] }), o('wardrobe', 'wardrobe', 'gardırop', '#B07A40', { oda: ['bedroom'] }),
+    o('carpet', 'carpet', 'halı', '#E5484D', { oda: ['living', 'bedroom'] }), o('stairs', 'stairs', 'merdiven', '#C98A4B', { cok: 1 }), o('plant', 'plant', 'saksı çiçeği', '#3FB86A', { oda: ['living'] }), o('pillow', 'pillow', 'yastık', '#6E7FE0', { oda: ['bedroom'] })]);
+  ekle('school', [o('notebook', 'notebook', 'defter', '#3FB86A'), o('pen', 'pen', 'tükenmez kalem', '#2E7DD8'), o('sharpener', 'sharpener', 'kalemtıraş', '#E5484D'), o('chalk', 'chalk', 'tebeşir', '#7C8AA3'),
+    o('paints', 'paints', 'boyalar', '#E8A400', { cok: 1 }), o('globe', 'globe', 'küre', '#2E8FE8'), o('computer', 'computer', 'bilgisayar', '#5B6478'), o('lunchbox', 'lunchbox', 'beslenme çantası', '#E8B820'),
+    o('stapler', 'stapler', 'zımba', '#E5484D'), o('paper', 'paper', 'kâğıt', '#7C8AA3')]);
+  ekle('weather', [o('sun', 'sun', 'güneş', '#E8A400', { isim: 1, izle: 'Look at the sun!' }), o('cloud', 'cloud', 'bulut', '#7C8AA3', { isim: 1, izle: 'Look, a cloud!' }), o('rain', 'rain', 'yağmur', '#2E8FE8', { isim: 1, izle: 'Here comes the rain!' }),
+    o('snow', 'snow', 'kar', '#3BAED8', { isim: 1, izle: 'Look, snow!' }), o('wind', 'wind', 'rüzgâr', '#1FA597', { isim: 1, izle: 'Feel the wind!' }), o('umbrella', 'umbrella', 'şemsiye', '#E5484D', { isim: 1, izle: 'I have an umbrella!' }),
+    o('snowman', 'snowman', 'kardan adam', '#3BAED8', { isim: 1, izle: 'Look, a snowman!' }), o('puddle', 'puddle', 'su birikintisi', '#2E8FE8', { isim: 1, izle: 'Jump in the puddle!' }),
+    o('lightning', 'lightning', 'şimşek', '#E8A400', { isim: 1, izle: 'Look, lightning!' }), o('ice', 'ice', 'buz', '#3BAED8', { isim: 1, izle: 'Brr! Ice!' })]);
+  ekle('feelings', [o('proud', 'proud', 'gururlu', '#E8A400', { durum: 'I won a prize!', resim: 'star' }), o('worried', 'worried', 'endişeli', '#7C8AA3', { durum: 'Where is my cat?', resim: 'cat' }),
+    o('silly', 'silly', 'şakacı', '#FF7A1A', { durum: 'Look at my funny face!', resim: 'puppet' }), o('brave', 'brave', 'cesur', '#E5484D', { durum: 'I climbed so high!', resim: 'climb' }),
+    o('loved', 'loved', 'sevilmiş', '#FF6FA5', { durum: 'Mum gives me a big hug.', resim: 'mum' }), o('calm', 'calm', 'sakin', '#3FB86A', { durum: 'I\'m reading a quiet book.', resim: 'read' }),
+    o('nervous', 'nervous', 'gergin', '#8E7CF0', { durum: 'My first day at school!', resim: 'bag' }), o('sick', 'sick', 'hasta', '#3FB86A', { durum: 'I have a cold. I need soup.', resim: 'soup' }),
+    o('thirsty', 'thirsty', 'susamış', '#2E8FE8', { durum: 'It\'s so hot! I need water.', resim: 'sun' }), o('sleepy', 'sleepy', 'uykulu', '#6E7FE0', { durum: 'It\'s very late at night.', resim: 'sleep' })]);
+  /* oyunların ikinci kata uyumu */
+  var FIG = ['head', 'eyes', 'ears', 'nose', 'mouth', 'hands', 'hair', 'feet', 'arms', 'legs', 'neck', 'shoulders', 'knees', 'tummy'];
+  K.al('body').oyun3.hedefler = function (l) { return l.filter(function (x) { return FIG.indexOf(x.id) > -1; }); };
+  K.al('weather').oyun3.hedefler = function (l) { return l.filter(function (x) { return !x.isim; }); };
+  K.al('school').oyun3.hedefler = function (l) { return l.filter(function (x) { return ['bag', 'desk', 'board', 'computer', 'globe'].indexOf(x.id) < 0; }); };
+  K.al('feelings').oyun3.yakin = { tired: 'sleepy', sleepy: 'tired' };   /* aynı turda ikisi birden seçenek olmaz */
+  ['animals', 'food'].forEach(function (id) { K.al(id).karisik = 'say'; });
+  ['toys', 'clothes', 'home', 'school'].forEach(function (id) { K.al(id).karisik = 'renk'; });
+
+  /* ---------------- 2) ikinci takımada ---------------- */
+  tema({
+    id: 'fruits', ad: 'Fruits', giris: 'Let\'s eat some fruit!', dokun: 'Meyvelere dokun ve dinle.', hafiza: 'Find the same fruit!', balon: pop, karisik: 'say',
+    izle: function (x) { return 'Look, ' + x.bir + '!'; },
+    liste: [o('orangefruit', 'orange', 'portakal', '#FF8A00', { bir: 'an orange' }), o('grapes', 'grapes', 'üzüm', '#8E5AC8', { bir: 'grapes', cok: 1 }), o('pear', 'pear', 'armut', '#8CB528', { bir: 'a pear' }), o('lemon', 'lemon', 'limon', '#D9B400', { bir: 'a lemon' }),
+      o('watermelon', 'watermelon', 'karpuz', '#3FB86A', { bir: 'a watermelon' }), o('cherries', 'cherries', 'kiraz', '#E5484D', { bir: 'cherries', cok: 1 }), o('pineapple', 'pineapple', 'ananas', '#E8A400', { bir: 'a pineapple' }), o('peach', 'peach', 'şeftali', '#FF8A6B', { bir: 'a peach', cogul: 'peaches' }),
+      o('kiwi', 'kiwi', 'kivi', '#6FA82E', { bir: 'a kiwi' }), o('mango', 'mango', 'mango', '#E8A400', { bir: 'a mango' })],
+    oyun3: { id: 'kase', ad: 'Salata', simge: 'cherries', motor: 'yerlestir', kap: 'kase', soz: function (x) { return 'Put the ' + x.en + ' in the bowl!'; }, dogru: function (x) { return x.en + '!'; }, son: 'What a yummy fruit salad!' },
+    cikartma: ['watermelon', 'pineapple', 'cherries'],
+    sarki: [{ kim: 'orangefruit', soz: 'Orange, orange, round and sweet!' }, { kim: 'grapes', soz: 'Purple grapes, one, two, three!' }, { kim: 'lemon', soz: 'Yellow lemon, sour, sour, sour!' },
+      { kim: 'watermelon', soz: 'Big watermelon, red inside!' }, { kim: 'pineapple', soz: 'Pineapple, pineapple, spiky crown!' }, { kim: null, soz: 'Fruit, fruit, I love fruit!' }],
+    ev: [['Do you like grapes?', 'Üzüm sever misin?'], ['A banana, please.', 'Bir muz lütfen.'], ['It\'s sweet!', 'Tatlı!']],
+    etkinlik: [{ ad: 'Meyve tabağı', adim: 'Meyve keserken çocuğunuz sıradaki meyvenin adını söylesin: “Orange!”, “Pear!” Tabak dolunca birlikte sayın.' },
+      { ad: 'Gözü kapalı tat', adim: 'Gözü kapalı bir meyve tattırın: “What is it?” — “It\'s a peach!”' }]
+  });
+  tema({
+    id: 'transport', ad: 'Transport', giris: 'Let\'s go! Beep, beep!', dokun: 'Taşıtlara dokun ve dinle.', hafiza: 'Find the same vehicles!', balon: pop, karisik: 'renk',
+    izle: function (x) { return 'It\'s a ' + kucuk(x) + '!'; },
+    liste: [o('bus', 'bus', 'otobüs', '#E8A400', { ses: 'Beep, beep', cogul: 'buses' }), o('plane', 'plane', 'uçak', '#E5484D', { ses: 'Whoosh' }), o('ship', 'ship', 'gemi', '#2E7DD8', { ses: 'Toot, toot' }), o('bike', 'bike', 'bisiklet', '#3FB86A', { ses: 'Ring, ring' }),
+      o('helicopter', 'helicopter', 'helikopter', '#2E8FE8', { ses: 'Chop, chop, chop' }), o('taxi', 'taxi', 'taksi', '#E8B820', { ses: 'Honk, honk' }), o('tractor', 'tractor', 'traktör', '#3FB86A', { ses: 'Putt, putt' }), o('truck', 'truck', 'kamyon', '#E5484D', { ses: 'Vroom, vroom' }),
+      o('rocket', 'rocket', 'roket', '#FF7A1A', { ses: 'Three, two, one, blast off' }), o('motorbike', 'motorbike', 'motosiklet', '#E5484D', { ses: 'Brrm, brrm' })],
+    oyun3: { id: 'tasit', ad: 'Kim geliyor?', simge: 'ses', motor: 'sec', hedefler: function (l) { return l.filter(function (x) { return x.ses; }); },
+      soz: function (x) { return x.ses + '! What is it?'; }, dogru: function (x) { return 'It\'s a ' + kucuk(x) + '!'; }, son: 'You know all the vehicles!' },
+    cikartma: ['rocket', 'helicopter', 'bus'],
+    sarki: [{ kim: 'bus', soz: 'The bus goes beep, beep, beep!' }, { kim: 'plane', soz: 'The plane flies high, whoosh, whoosh!' }, { kim: 'ship', soz: 'The ship sails on the sea!' },
+      { kim: 'bike', soz: 'Ride my bike, ring, ring, ring!' }, { kim: 'rocket', soz: 'Three, two, one, the rocket goes up!' }, { kim: null, soz: 'Let\'s go, let\'s go, here we go!' }],
+    ev: [['How do you go to school?', 'Okula nasıl gidiyorsun?'], ['By bus!', 'Otobüsle!'], ['Look, a plane!', 'Bak, bir uçak!']],
+    etkinlik: [{ ad: 'Pencere avı', adim: 'Pencereden ya da yolda gördüğünüz taşıtları sayın: “A bus! Two cars!”' }, { ad: 'Taşıt sesleri', adim: 'Bir taşıt sesi çıkarın (“Toot, toot!”), çocuğunuz adını söylesin: “Ship!”' }]
+  });
+  var SEKIL_N = { circle: [['ball', 'the ball'], ['clock', 'the clock']], square: [['window', 'the window'], ['dice', 'the dice']], triangle: [['pizza', 'the pizza']], rectangle: [['door', 'the door'], ['bus', 'the bus']],
+    star: [['starfish', 'the starfish']], heart: [], oval: [['egg', 'the egg']], diamond: [['kite', 'the kite']] };
+  tema({
+    id: 'shapes', ad: 'Shapes', giris: 'Let\'s find shapes!', dokun: 'Şekillere dokun ve dinle.', hafiza: 'Find the same shapes!', balon: pop, karisik: 'renk',
+    izle: function (x) { return 'It\'s ' + (x.id === 'oval' ? 'an ' : 'a ') + x.en + '!'; },
+    liste: [o('circle', 'circle', 'daire', '#2E8FE8'), o('square', 'square', 'kare', '#E5484D'), o('triangle', 'triangle', 'üçgen', '#3FB86A'), o('star', 'star', 'yıldız', '#E8A400'),
+      o('rectangle', 'rectangle', 'dikdörtgen', '#FF7A1A'), o('heart', 'heart', 'kalp', '#FF6FA5'), o('oval', 'oval', 'oval', '#8E7CF0'), o('diamond', 'diamond', 'baklava dilimi', '#1FA597')],
+    oyun3: { id: 'sekil', ad: 'Ne şekil?', simge: 'triangle', motor: 'sec',
+      tur: function (x) { var l = SEKIL_N[x.id] || []; if (!l.length) return null; var s = l[Math.floor(Math.random() * l.length)]; return { resim: s[0], soz: 'What shape is ' + s[1] + '?' }; },
+      turlar: function (x) { return (SEKIL_N[x.id] || []).map(function (s) { return { resim: s[0], soz: 'What shape is ' + s[1] + '?' }; }); },
+      soz: function (x) { return 'Find the ' + x.en + '!'; }, dogru: function (x) { return 'It\'s ' + (x.id === 'oval' ? 'an ' : 'a ') + x.en + '!'; }, son: 'You are a shape star!' },
+    cikartma: ['star', 'heart', 'diamond'],
+    sarki: [{ kim: 'circle', soz: 'A circle is round like the sun!' }, { kim: 'square', soz: 'A square has four sides, one, two, three, four!' }, { kim: 'triangle', soz: 'A triangle has three, one, two, three!' },
+      { kim: 'star', soz: 'Twinkle, twinkle, little star shape!' }, { kim: 'heart', soz: 'A heart for you, a heart for me!' }, { kim: null, soz: 'Shapes, shapes, all around me!' }],
+    ev: [['What shape is it?', 'Bu ne şekil?'], ['It\'s a circle!', 'Bu bir daire!'], ['Find a square!', 'Bir kare bul!']],
+    etkinlik: [{ ad: 'Şekil avı', adim: 'Evde şekil arayın: “Find a circle!” Saat, tabak, pencere… Bulunca adını söylesin.' }, { ad: 'Kâğıt şekiller', adim: 'Kâğıttan üçgen, kare, daire kesin; çocuğunuz sizin söylediğiniz şekli göstersin.' }]
+  });
+  tema({
+    id: 'sea', ad: 'Under the sea', giris: 'Let\'s dive under the sea!', dokun: 'Deniz canlılarına dokun ve dinle.', hafiza: 'Find the same sea animals!', balon: pop, karisik: 'say',
+    izle: function (x) { return 'It\'s a ' + x.en + '!'; },
+    liste: [o('whale', 'whale', 'balina', '#2E6FD8'), o('dolphin', 'dolphin', 'yunus', '#3B8FD8'), o('octopus', 'octopus', 'ahtapot', '#F0559A', { bir: 'an', cogul: 'octopuses' }), o('crab', 'crab', 'yengeç', '#E5484D'),
+      o('turtle', 'turtle', 'kaplumbağa', '#3FB86A'), o('starfish', 'starfish', 'deniz yıldızı', '#FF7A1A', { cogul: 'starfish' }), o('shark', 'shark', 'köpek balığı', '#5B6478'), o('jellyfish', 'jellyfish', 'denizanası', '#A97CD8', { cogul: 'jellyfish' }),
+      o('seahorse', 'seahorse', 'denizatı', '#E8A400'), o('shell', 'shell', 'deniz kabuğu', '#F06A95')],
+    oyun3: { id: 'akvaryum', ad: 'Akvaryum', simge: 'whale', motor: 'yerlestir', kap: 'akvaryum', soz: function (x) { return 'Put the ' + x.en + ' in the water!'; }, dogru: function (x) { return x.en + '!'; }, son: 'Splash! The sea is full of friends!' },
+    cikartma: ['whale', 'octopus', 'starfish'],
+    sarki: [{ kim: 'whale', soz: 'A big blue whale says hello!' }, { kim: 'dolphin', soz: 'Dolphins jump, splash, splash, splash!' }, { kim: 'octopus', soz: 'Octopus has eight long arms!' },
+      { kim: 'crab', soz: 'A little crab walks side to side!' }, { kim: 'turtle', soz: 'Slow, slow turtle swims along!' }, { kim: null, soz: 'Under the sea, swim with me!' }],
+    ev: [['Can you swim like a fish?', 'Balık gibi yüzebilir misin?'], ['Look, a crab!', 'Bak, bir yengeç!'], ['The sea is blue.', 'Deniz mavi.']],
+    etkinlik: [{ ad: 'Deniz hareketleri', adim: '“Crab!” deyince yan yan yürüyün, “Dolphin!” deyince zıplayın, “Turtle!” deyince yavaşça yürüyün.' }, { ad: 'Banyo denizi', adim: 'Banyoda oyuncaklarla deniz kurun; her oyuncağı suya koyarken adını söyleyin.' }]
+  });
+  var AN = function (x) { return /^[aeiou]/i.test(x.en) ? 'an ' : 'a '; };
+  tema({
+    id: 'jobs', ad: 'Jobs', giris: 'What do you want to be?', dokun: 'Mesleklere dokun ve dinle.', hafiza: 'Find the same jobs!', balon: pop,
+    izle: function (x) { return 'I\'m ' + AN(x) + x.en + '!'; },
+    liste: [o('doctor', 'doctor', 'doktor', '#2E8FE8', { arac: 'stetoskop', kim: 'Who helps sick people?' }), o('teacher', 'teacher', 'öğretmen', '#8E7CF0', { arac: 'board', kim: 'Who teaches children?' }),
+      o('chef', 'chef', 'aşçı', '#E5484D', { arac: 'tencere', kim: 'Who cooks food?' }), o('firefighter', 'firefighter', 'itfaiyeci', '#E5484D', { arac: 'yangin', kim: 'Who puts out fires?' }),
+      o('police', 'police officer', 'polis', '#2E4A8C', { arac: 'polisrozet', kim: 'Who keeps us safe?' }), o('farmer', 'farmer', 'çiftçi', '#3FB86A', { arac: 'tractor', kim: 'Who drives a tractor?' }),
+      o('pilot', 'pilot', 'pilot', '#2E4A8C', { arac: 'plane', kim: 'Who flies a plane?' }), o('builder', 'builder', 'inşaat işçisi', '#FF7A1A', { arac: 'cekic', kim: 'Who builds houses?' }),
+      o('nurse', 'nurse', 'hemşire', '#1FA597', { arac: 'yarabandi', kim: 'Who looks after patients?' }), o('vet', 'vet', 'veteriner', '#3FB86A', { arac: 'dog', kim: 'Who helps animals?' })],
+    oyun3: { id: 'meslek', ad: 'Kim yapar?', simge: 'doctor', motor: 'sec', tur: function (x) { return { resim: x.arac, soz: x.kim }; }, turlar: function (x) { return [{ resim: x.arac, soz: x.kim }]; },
+      soz: function (x) { return x.kim; }, dogru: function (x) { return AN(x).charAt(0).toUpperCase() + AN(x).slice(1) + x.en + '!'; }, son: 'Great! You know all the jobs!' },
+    cikartma: ['firefighter', 'pilot', 'chef'],
+    sarki: [{ kim: 'doctor', soz: 'The doctor helps me when I\'m sick!' }, { kim: 'teacher', soz: 'My teacher reads a book with me!' }, { kim: 'chef', soz: 'The chef cooks, yum, yum, yum!' },
+      { kim: 'firefighter', soz: 'The firefighter is brave and strong!' }, { kim: 'farmer', soz: 'The farmer drives a big tractor!' }, { kim: null, soz: 'What do you want to be? You can be anything!' }],
+    ev: [['What do you want to be?', 'Büyüyünce ne olmak istersin?'], ['I want to be a doctor.', 'Doktor olmak istiyorum.'], ['Thank you, chef!', 'Teşekkürler aşçı!']],
+    etkinlik: [{ ad: 'Meslek tiyatrosu', adim: 'Sırayla bir mesleği canlandırın; diğeri bilsin: “You\'re a chef!” Şapka, kaşık gibi eşyalar işi kolaylaştırır.' }, { ad: 'Kim yardım eder?', adim: 'Sokakta gördüğünüz meslekleri birlikte söyleyin: “Look, a police officer!”' }]
+  });
+  tema({
+    id: 'actions', ad: 'Actions', giris: 'Let\'s move! Stand up!', dokun: 'Hareketlere dokun ve dinle.', hafiza: 'Find the same actions!',
+    balon: function (x) { return 'Who can ' + x.en + '? Pop!'; },
+    izle: function (x) { return 'I can ' + x.en + '!'; },
+    liste: [o('run', 'run', 'koşmak', '#E5484D'), o('jump', 'jump', 'zıplamak', '#FF7A1A'), o('swim', 'swim', 'yüzmek', '#2E8FE8'), o('sing', 'sing', 'şarkı söylemek', '#8E7CF0'), o('dance', 'dance', 'dans etmek', '#FF6FA5'),
+      o('sleep', 'sleep', 'uyumak', '#6E7FE0'), o('eat', 'eat', 'yemek', '#3FB86A'), o('read', 'read', 'okumak', '#1FA597'), o('draw', 'draw', 'resim yapmak', '#E8A400'), o('climb', 'climb', 'tırmanmak', '#B07A40')],
+    oyun3: { id: 'hareket', ad: 'Yapabilir', simge: 'jump', motor: 'sec', soz: function (x) { return 'Who can ' + x.en + '?'; }, dogru: function (x) { return 'I can ' + x.en + '!'; }, son: 'Wow! You can do so much!' },
+    cikartma: ['dance', 'swim', 'climb'],
+    sarki: [{ kim: 'run', soz: 'Run, run, run on the spot!' }, { kim: 'jump', soz: 'Jump, jump, jump up high!' }, { kim: 'swim', soz: 'Swim, swim, like a fish!' },
+      { kim: 'dance', soz: 'Dance, dance, turn around!' }, { kim: 'sleep', soz: 'Now we sleep, shh, shh, shh!' }, { kim: null, soz: 'I can move, I can move, look at me!' }],
+    ev: [['Can you jump?', 'Zıplayabilir misin?'], ['Yes, I can!', 'Evet, yapabilirim!'], ['Let\'s dance!', 'Hadi dans edelim!']],
+    etkinlik: [{ ad: 'Dur-kalk oyunu', adim: 'Müzik açın; durdurunca bir hareket söyleyin: “Jump!”, “Dance!” Çocuğunuz yapsın.' }, { ad: 'Hareket zarı', adim: 'Kâğıda altı hareket çizip zar atın; çıkanı birlikte yapıp söyleyin: “I can run!”' }]
+  });
+  var MEVSIM = { spring: [['cicek', 'flowers'], ['rainbow', 'a rainbow']], summer: [['icecream', 'ice cream'], ['sunny', 'the hot sun']], autumn: [['yaprak', 'orange leaves'], ['umbrella', 'an umbrella']], winter: [['snowman', 'a snowman'], ['scarf', 'a scarf']] };
+  tema({
+    id: 'seasons', ad: 'Seasons', giris: 'Spring, summer, autumn, winter!', dokun: 'Mevsimlere dokun ve dinle.', hafiza: 'Find the same seasons!', balon: pop,
+    izle: function (x) { return 'It\'s ' + x.en + '!'; },
+    liste: [o('spring', 'spring', 'ilkbahar', '#3FB86A'), o('summer', 'summer', 'yaz', '#E8A400'), o('autumn', 'autumn', 'sonbahar', '#FF7A1A'), o('winter', 'winter', 'kış', '#2E8FE8')],
+    oyun3: { id: 'mevsim', ad: 'Ne zaman?', simge: 'spring', motor: 'sec',
+      tur: function (x) { var s = MEVSIM[x.id][Math.floor(Math.random() * 2)]; return { resim: s[0], soz: 'When do we see ' + s[1] + '?' }; },
+      turlar: function (x) { return MEVSIM[x.id].map(function (s) { return { resim: s[0], soz: 'When do we see ' + s[1] + '?' }; }); },
+      soz: function (x) { return 'Find ' + x.en + '!'; }, dogru: function (x) { return 'In ' + x.en + '!'; }, son: 'You know all four seasons!' },
+    cikartma: ['spring', 'summer', 'winter'],
+    sarki: [{ kim: 'spring', soz: 'In spring the flowers grow!' }, { kim: 'summer', soz: 'In summer we play in the sun!' }, { kim: 'autumn', soz: 'In autumn the leaves fall down!' },
+      { kim: 'winter', soz: 'In winter we play in the snow!' }, { kim: null, soz: 'Four seasons, round and round!' }],
+    ev: [['What season is it?', 'Hangi mevsimdeyiz?'], ['It\'s winter!', 'Kış!'], ['I like summer.', 'Yazı severim.']],
+    etkinlik: [{ ad: 'Mevsim dolabı', adim: 'Dolaptan bir giysi çıkarın: “When do we wear it?” — “In winter!”' }, { ad: 'Pencere mevsimi', adim: 'Her hafta pencereden bakıp mevsimi söyleyin; yaprak, kar, çiçek gibi ipuçlarını gösterin.' }]
+  });
+  var GUNLER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'], BUYUK = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
+  tema({
+    id: 'days', ad: 'Days', giris: 'Seven days in a week!', dokun: 'Günlere dokun ve dinle.', hafiza: 'Find the same days!',
+    balon: function (x) { return 'Pop ' + x.en + '!'; },
+    izle: function (x) { return 'Today is ' + x.en + '!'; },
+    liste: GUNLER.map(function (g, i) { return o(g, BUYUK(g), ['pazartesi', 'salı', 'çarşamba', 'perşembe', 'cuma', 'cumartesi', 'pazar'][i], ['#2E8FE8', '#3FB86A', '#E8A400', '#FF7A1A', '#8E7CF0', '#FF6FA5', '#E5484D'][i]); }),
+    say: { minik: 7, kasif: 7, yildiz: 7 },
+    oyun3: { id: 'gunsira', ad: 'Sıradaki', simge: 'friday', motor: 'sec',
+      tur: function (x) { var i = GUNLER.indexOf(x.id), once = GUNLER[(i + 6) % 7]; return { resim: once, soz: 'What comes after ' + BUYUK(once) + '?' }; },
+      turlar: function (x) { var i = GUNLER.indexOf(x.id), once = GUNLER[(i + 6) % 7]; return [{ resim: once, soz: 'What comes after ' + BUYUK(once) + '?' }]; },
+      soz: function (x) { return 'Find ' + x.en + '!'; }, dogru: function (x) { return x.en + '!'; }, son: 'Seven days, well done!' },
+    cikartma: ['friday', 'saturday', 'sunday'],
+    sarki: [{ kim: 'monday', soz: 'Monday, Tuesday, back to school!' }, { kim: 'wednesday', soz: 'Wednesday, Thursday, learn and play!' }, { kim: 'friday', soz: 'Friday, Friday, almost there!' },
+      { kim: 'saturday', soz: 'Saturday, Sunday, fun all day!' }, { kim: null, soz: 'Seven days, seven days in a week!' }],
+    ev: [['What day is it today?', 'Bugün günlerden ne?'], ['It\'s Monday.', 'Pazartesi.'], ['See you on Friday!', 'Cuma görüşürüz!']],
+    etkinlik: [{ ad: 'Sabah takvimi', adim: 'Her sabah sorun: “What day is it today?” Çocuğunuz takvimde günü göstersin ve söylesin.' }, { ad: 'Hafta zinciri', adim: 'Yedi kâğıda gün adlarını yazın; karıştırıp birlikte sıraya dizin, dizerken söyleyin.' }]
+  });
+  tema({
+    id: 'places', ad: 'Where is it?', giris: 'Where is the ball?', dokun: 'Resimlere dokun ve dinle.', hafiza: 'Find the same pictures!',
+    balon: function (x) { return x.cumle; },
+    izle: function (x) { return x.cumle; },
+    liste: [o('in', 'in', 'içinde', '#B07A40', { cumle: 'The ball is in the box.' }), o('on', 'on', 'üstünde', '#E5484D', { cumle: 'The ball is on the box.' }), o('under', 'under', 'altında', '#2E8FE8', { cumle: 'The ball is under the table.' }),
+      o('next', 'next to', 'yanında', '#3FB86A', { cumle: 'The ball is next to the box.' }), o('behind', 'behind', 'arkasında', '#8E7CF0', { cumle: 'The ball is behind the box.' }), o('front', 'in front of', 'önünde', '#FF7A1A', { cumle: 'The ball is in front of the box.' })],
+    say: { minik: 3, kasif: 6, yildiz: 6 },
+    oyun3: { id: 'nerede', ad: 'Nerede?', simge: 'under', motor: 'sec', soz: function (x) { return x.cumle + ' Find it!'; }, dogru: function (x) { return x.cumle; }, son: 'You found the ball every time!' },
+    cikartma: ['in', 'under', 'behind'],
+    sarki: [{ kim: 'in', soz: 'In the box, in the box, where is the ball?' }, { kim: 'on', soz: 'On the box, on the box, here it is!' }, { kim: 'under', soz: 'Under the table, hiding there!' },
+      { kim: 'behind', soz: 'Behind the box, peek-a-boo!' }, { kim: null, soz: 'Where is it? Where is it? Can you see?' }],
+    ev: [['Where is your shoe?', 'Ayakkabın nerede?'], ['It\'s under the bed.', 'Yatağın altında.'], ['Put it on the table.', 'Masanın üstüne koy.']],
+    etkinlik: [{ ad: 'Saklambaç oyuncak', adim: 'Bir oyuncağı saklayın, ipucu verin: “It\'s under the chair!” Bulunca rolleri değiştirin.' }, { ad: 'Komut oyunu', adim: '“Put the spoon in the cup!”, “Put the teddy on the bed!” deyin; çocuğunuz yapsın.' }]
+  });
+  var HARF = W.KIDS_RESIM.HARF, HARF_AD = { icecream: 'ice cream' };
+  var HARF_R = ['#E5484D', '#FF7A1A', '#D9A400', '#3FB86A', '#2E8FE8', '#8E7CF0', '#FF6FA5'];
+  tema({
+    id: 'alphabet', ad: 'ABC', giris: 'Let\'s sing the ABC!', dokun: 'Harflere dokun ve dinle.', hafiza: 'Find the same letters!',
+    balon: function (x) { return 'Pop the letter ' + x.en + '!'; },
+    izle: function (x) { return x.en + ' is for ' + x.kelime + '!'; },
+    liste: Object.keys(HARF).map(function (h, i) { var k = HARF_AD[HARF[h]] || HARF[h]; return o('harf-' + h, h.toUpperCase(), h.toUpperCase() + ' harfi · ' + k, HARF_R[i % 7], { kelime: k, resim: HARF[h] }); }),
+    say: { minik: 6, kasif: 13, yildiz: 26 },
+    oyun3: { id: 'harf', ad: 'Hangi harf?', simge: 'harf-a', motor: 'sec',
+      tur: function (x) { return { resim: x.resim, soz: BUYUK(x.kelime) + '! What letter is it?' }; }, turlar: function (x) { return [{ resim: x.resim, soz: BUYUK(x.kelime) + '! What letter is it?' }]; },
+      soz: function (x) { return 'Find the letter ' + x.en + '!'; }, dogru: function (x) { return x.en + ' is for ' + x.kelime + '!'; }, son: 'Now you know your ABC!' },
+    cikartma: ['harf-a', 'harf-b', 'harf-c'],
+    sarki: [{ kim: 'harf-a', soz: 'A, B, C, D, E, F, G!' }, { kim: 'harf-h', soz: 'H, I, J, K, L, M, N, O, P!' }, { kim: 'harf-q', soz: 'Q, R, S, T, U, V!' }, { kim: 'harf-w', soz: 'W, X, Y and Z!' },
+      { kim: null, soz: 'Now I know my ABC, sing it again with me!' }],
+    ev: [['What letter is it?', 'Bu hangi harf?'], ['A is for apple.', 'A, apple (elma) gibi.'], ['Can you find B?', 'B harfini bulabilir misin?']],
+    etkinlik: [{ ad: 'Harf avı', adim: 'Kutuların, kitapların üstünde bir harf arayın: “Find A!” Bulunca o harfle başlayan bir İngilizce kelime söyleyin.' }, { ad: 'Parmakla yaz', adim: 'Unun ya da kumun üstüne parmakla bir harf yazın; çocuğunuz adını söylesin.' }]
+  });
+
+  /* ---------------- 3) karışık durak: sayı × renk × kelime ---------------- */
+  /* çoğul: food'un cok alanı çoğul kelimedir; başka konularda cok:1 "kelime zaten çoğul" demektir */
+  function cogul(x) { return typeof x.cok === 'string' ? x.cok : x.cogul || (/(s|sh|ch|x)$/.test(x.en) ? x.en + 'es' : /[^aeiou]y$/.test(x.en) ? x.en.slice(0, -1) + 'ies' : x.en + 's'); }
+  function karisikUygun(x) { return x.cok !== 1 && !x.tek; }
+  W.KIDS_TEMALAR.cogul = cogul;
+  W.KIDS_TEMALAR.karisikUygun = karisikUygun;
 })(window);
 
 /* ---- kids-ses.js ---- */
@@ -2514,7 +3173,15 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     adim(); muzikT = setInterval(adim, 300);
   }
   function ayar(v) { acik = !!v; try { localStorage.setItem('kids.ses', acik ? '1' : '0'); } catch (e) { } if (!acik) sus(); return acik; }
-  W.KIDS_SES = { surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
+  /* parça parça söyle (karışık sorular: "Find" + "three" + "red" + "cars"): bütün cümle kayıtlıysa onu,
+     değilse kayıtlı parçaları art arda çalar; böylece sınırsız birleşim de öğretmen sesiyle duyulur */
+  function kayitliMi(metin, dil) { return !!(LISTE && LISTE[anahtar(metin, dil)]); }
+  function dizi(parcalar, dil) {
+    var tam = parcalar.join(' ').replace(/ ([!?.,])/g, '$1');
+    if (kayitliMi(tam, dil) || !LISTE || !parcalar.every(function (x) { return kayitliMi(x, dil); })) return soyle(tam, dil);
+    var i = 0; return (function sira() { if (i >= parcalar.length || !acik) return Promise.resolve(true); return soyle(parcalar[i++], dil).then(function (ok) { return ok === false ? false : sira(); }); })();
+  }
+  W.KIDS_SES = { kayitliMi: kayitliMi, dizi: dizi, surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
 })(window);
 
 /* ---- kids-bulut.js ---- */
@@ -2823,28 +3490,31 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     });
   }
   function sonra(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function resim(id) { return R.var(id) ? R.ciz(id) : C.simge(id); }
 
   /* ---------------- motor 1: sec ---------------- */
   function sec(kok, a, P) {
-    var T = P.oyun3, liste = hedefler(T, a.renkler), tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = true, adaylar = [];
+    var T = P.oyun3, liste = hedefler(T, a.renkler), tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = true, adaylar = [], ek = null;
     var oda = !!T.odalar, cark = !!T.cark, durum = !!T.durum, tura = Math.min(a.bant.tur, Math.max(3, liste.length + 1));
     kok.innerHTML = '<div class="ko ko-sec ko-o-' + T.id + '">' + yonerge('', a.bant.yazi) + '<div class="ko-sahne2" data-ust></div><div class="ko-kartlar2" data-ko-alan></div></div>';
     var ust = kok.querySelector('[data-ust]'), alan = kok.querySelector('[data-ko-alan]'), soz = kok.querySelector('[data-ko-soz]'), tn = kok.querySelector('[data-ko-tur]'), aci = 0;
-    function sor() { soz.innerHTML = vurgu(hedef, T.soz(hedef)); return SES.soyle(T.soz(hedef), 'en'); }
+    function metin() { return ek && ek.soz || T.soz(hedef); }
+    function sor() { soz.innerHTML = ek ? esc(metin()) : vurgu(hedef, metin()); return SES.soyle(metin(), 'en'); }
     function secenekler() {
       if (oda) {
         var dogru = T.odalar.filter(function (x) { return hedef.oda.indexOf(x.id) > -1; }), yan = T.odalar.filter(function (x) { return hedef.oda.indexOf(x.id) < 0; });
         return kar([rasgele(dogru)].concat(kar(yan).slice(0, Math.min(a.bant.secenek, 4) - 1)));
       }
-      return kar([hedef].concat(kar(a.renkler.filter(function (x) { return x !== hedef; })).slice(0, Math.min(a.bant.secenek, 4) - 1)));
+      var yakin = T.yakin && T.yakin[hedef.id];
+      return kar([hedef].concat(kar(a.renkler.filter(function (x) { return x !== hedef && x.id !== yakin; })).slice(0, Math.min(a.bant.secenek, 4) - 1)));
     }
     function kart(x) {
-      var resim = oda ? C.simge(x.simge) : R.ciz(x.id);
-      return '<button type="button" class="ko-kart2" data-ko-id="' + x.id + '" style="--r:' + x.hex + '" aria-label="' + esc(x.en) + '"' + (cark ? ' disabled' : '') + '>' + resim + (a.bant.yazi ? '<b lang="en">' + esc(x.en) + '</b>' : '') + '</button>';
+      var rs = oda ? C.simge(x.simge) : R.ciz(x.id);
+      return '<button type="button" class="ko-kart2" data-ko-id="' + x.id + '" style="--r:' + x.hex + '" aria-label="' + esc(x.en) + '"' + (cark ? ' disabled' : '') + '>' + rs + (a.bant.yazi ? '<b lang="en">' + esc(x.en) + '</b>' : '') + '</button>';
     }
     function ustCiz() {
       if (oda) ust.innerHTML = '<div class="ko-buyukres" style="--r:' + hedef.hex + '">' + R.ciz(hedef.id) + '</div>';
-      else if (durum) ust.innerHTML = '<div class="ko-durum"><span class="ko-durum-r">' + R.ciz(hedef.resim) + '</span><span class="ko-durum-acd">' + C.acadia({ mood: 'dusun' }) + '</span>' + (a.bant.yazi ? '<p lang="en">' + esc(hedef.durum) + '</p>' : '') + '</div>';
+      else if (durum) ust.innerHTML = '<div class="ko-durum"><span class="ko-durum-r">' + resim(hedef.resim) + '</span><span class="ko-durum-acd">' + C.acadia({ mood: 'dusun' }) + '</span>' + (a.bant.yazi ? '<p lang="en">' + esc(hedef.durum) + '</p>' : '') + '</div>';
       else if (cark) {
         if (!ust.querySelector('[data-cark]')) {
           var dil = '', renk = ['#FF9EB5', '#FFD23F', '#9BE0B4', '#A5DBFF', '#D9C2FF', '#FFB3B3', '#BDE8F2', '#FFE08A'];
@@ -2854,7 +3524,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
           ust.querySelector('[data-cevir]').addEventListener('click', cevir);
         }
         ust.querySelector('[data-cevir]').disabled = false; ust.querySelector('[data-cevir]').hidden = false;
-      } else ust.innerHTML = '<button type="button" class="ko-ses-b" data-tekrar aria-label="Sesi yeniden dinle">' + C.simge('ses') + '<i></i><i></i><i></i></button>';
+      } else if (ek && ek.resim) ust.innerHTML = '<button type="button" class="ko-buyukres" data-tekrar style="--r:' + hedef.hex + '" aria-label="Yeniden dinle">' + resim(ek.resim) + '</button>';
+      else ust.innerHTML = '<button type="button" class="ko-ses-b" data-tekrar aria-label="Sesi yeniden dinle">' + C.simge('ses') + '<i></i><i></i><i></i></button>';
       var t = ust.querySelector('[data-tekrar]'); if (t) t.addEventListener('click', function () { SES.fx('dokun'); sor(); });
     }
     function cevir() {
@@ -2868,7 +3539,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     }
     function yeni() {
       if (tur >= tura) { bitti = true; return SES.soyle(T.son, 'en').then(function () { a.bitti(yildizHesap(yanlis, [1, 3])); }); }
-      turNokta(tn, tur, tura); hedef = rasgele(liste, hedef); adaylar = secenekler();
+      turNokta(tn, tur, tura); hedef = rasgele(liste, hedef); ek = T.tur ? T.tur(hedef) : null; adaylar = secenekler();
       alan.innerHTML = adaylar.map(kart).join(''); ustCiz();
       if (cark) { kilit = true; soz.innerHTML = 'Spin the wheel!'; SES.soyle('Spin the wheel!', 'en'); return; }
       kilit = false; sor();
@@ -2881,7 +3552,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
         kilit = true; tur++; SES.fx('dogru'); b.classList.add('ko-dogru');
         if (cark) ust.querySelector('[data-pencere]').innerHTML = R.ciz(hedef.id);
         if (durum) { var r_ = ust.querySelector('.ko-durum-acd'); if (r_) r_.innerHTML = R.ciz(hedef.id); }
-        SES.soyle(T.dogru(hedef, x), 'en').then(function () { if (!bitti) setTimeout(yeni, 350); });
+        SES.soyle(T.dogru(hedef, x, ek), 'en').then(function () { if (!bitti) setTimeout(yeni, 350); });
       } else {
         yanlis++; if (a.yanlis) a.yanlis(hedef.id); SES.fx('yanlis'); salla(b);
         var h0 = hedef; SES.soyle(x.en + '.', 'en').then(function () { if (!bitti && h0 === hedef) sor(); });
@@ -2893,13 +3564,13 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   }
 
   /* ---------------- motor 2: yerlestir ---------------- */
-  var KAP = { sepet: function () { return R.sepet(); }, kutu: function () { return R.kutu(); }, canta: function () { return R.canta(); } };
+  var KAP = { sepet: function () { return R.sepet(); }, kutu: function () { return R.kutu(); }, canta: function () { return R.canta(); }, kase: function () { return R.kase(); }, akvaryum: function () { return R.akvaryum(); } };
   function yerlestir(kok, a, P) {
     var T = P.oyun3, liste = kar(hedefler(T, a.renkler)), tura = Math.min(a.bant.tur, liste.length), sira = liste.slice(0, tura), tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = false, adaylar = [];
-    var yabanci = (T.yabanci || []).map(function (id) { for (var i = 0; i < K.PAKET.length; i++) { var y = K.al(K.PAKET[i]).ogeler({ kelimeSay: 10 }).filter(function (o) { return o.id === id; })[0]; if (y) return y; } return null; }).filter(Boolean);
+    var yabanci = (T.yabanci || []).map(function (id) { for (var i = 0; i < K.PAKET.length; i++) { var y = K.al(K.PAKET[i]).ogeler({ kelimeSay: 99 }).filter(function (o) { return o.id === id; })[0]; if (y) return y; } return null; }).filter(Boolean);
     var kapHtml;
     if (T.kap === 'cerceve') kapHtml = '<div class="ko-cerceve">' + R.cerceve() + '<div class="ko-foto ko-f' + tura + '">' + sira.map(function (x, i) { return '<span class="ko-yuva" data-yuva="' + i + '"><i>?</i></span>'; }).join('') + '</div></div>';
-    else if (T.kap === 'giy') kapHtml = '<div class="ko-giy"><div class="ko-hava" data-hava></div><div class="ko-giyfig-k">' + R.giyFigur() + '<span class="ko-g ko-g-govde" data-g="govde"></span><span class="ko-g ko-g-bacak" data-g="bacak"></span><span class="ko-g ko-g-ayak" data-g="ayak"></span><span class="ko-g ko-g-boyun" data-g="boyun"></span><span class="ko-g ko-g-el" data-g="el"></span><span class="ko-g ko-g-bas" data-g="bas"></span></div></div>';
+    else if (T.kap === 'giy') kapHtml = '<div class="ko-giy"><div class="ko-hava" data-hava></div><div class="ko-giyfig-k">' + R.giyFigur() + '<span class="ko-g ko-g-govde" data-g="govde"></span><span class="ko-g ko-g-bacak" data-g="bacak"></span><span class="ko-g ko-g-ayak" data-g="ayak"></span><span class="ko-g ko-g-boyun" data-g="boyun"></span><span class="ko-g ko-g-el" data-g="el"></span><span class="ko-g ko-g-bel" data-g="bel"></span><span class="ko-g ko-g-bas" data-g="bas"></span><span class="ko-g ko-g-goz" data-g="goz"></span></div></div>';
     else kapHtml = '<div class="ko-kap ko-kap-' + T.kap + '"><div class="ko-icinde" data-icinde></div>' + KAP[T.kap]() + '</div>';
     kok.innerHTML = '<div class="ko ko-yer ko-o-' + T.id + '">' + yonerge('', a.bant.yazi) + '<div class="ko-yer-sahne" data-sahne2>' + kapHtml + '</div><div class="ko-tepsi2" data-ko-alan></div></div>';
     var alan = kok.querySelector('[data-ko-alan]'), soz = kok.querySelector('[data-ko-soz]'), tn = kok.querySelector('[data-ko-tur]'), sahne = kok.querySelector('[data-sahne2]');
@@ -2926,7 +3597,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       if (diger.length < n) diger = diger.concat(kar(a.renkler.filter(function (x) { return x !== hedef && diger.indexOf(x) < 0; })).slice(0, n - diger.length));
       adaylar = kar([hedef].concat(diger));
       alan.innerHTML = adaylar.map(function (x) { return '<button type="button" class="ko-kart2" data-ko-id="' + x.id + '" style="--r:' + x.hex + '" aria-label="' + esc(x.en) + '">' + R.ciz(x.id) + (a.bant.yazi ? '<b lang="en">' + esc(x.en) + '</b>' : '') + '</button>'; }).join('');
-      if (T.kap === 'giy') { var hv = sahne.querySelector('[data-hava]'); hv.innerHTML = R.ciz(hedef.hava); hv.classList.remove('ko-yeni'); void hv.offsetWidth; hv.classList.add('ko-yeni'); }
+      if (T.kap === 'giy') { var hv = sahne.querySelector('[data-hava]'); hv.innerHTML = resim(hedef.hava); hv.classList.remove('ko-yeni'); void hv.offsetWidth; hv.classList.add('ko-yeni'); }
       if (T.kap === 'cerceve') { var yv = hedefYer(); sahne.querySelectorAll('.ko-yuva').forEach(function (s) { s.classList.toggle('ko-simdi', s === yv); }); }
       sor();
     }
@@ -2949,7 +3620,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   /* ---------------- motor 3: simon ---------------- */
   function simon(kok, a, P) {
     var T = P.oyun3, liste = a.renkler, tura = a.bant.tur, tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = false, hepsi = {};
-    P.ogeler({ kelimeSay: 10 }).forEach(function (x) { hepsi[x.id] = x; });
+    P.ogeler({ kelimeSay: 99 }).forEach(function (x) { hepsi[x.id] = x; });
     kok.innerHTML = '<div class="ko ko-simon">' + yonerge('', a.bant.yazi) + '<div class="ko-simon-sahne"><span class="ko-simon-acd">' + C.acadia({ mood: 'mutlu', pose: 'isaret' }) + '</span>' + R.beden() + '</div></div>';
     var fig = kok.querySelector('.ko-beden'), soz = kok.querySelector('[data-ko-soz]'), tn = kok.querySelector('[data-ko-tur]');
     function sor() { soz.innerHTML = vurgu(hedef, T.soz(hedef)); return SES.soyle(T.soz(hedef), 'en'); }
@@ -2971,6 +3642,62 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     return { dur: function () { bitti = true; SES.sus(); } };
   }
 
+  /* ---------------- motor 4: karisik (sayı × renk × kelime; her tur yeni bir birleşim) ---------------- */
+  var NMAX = { 3: 3, 4: 5, 5: 8 };
+  function karisikKur(P, bant) {
+    var TM = W.KIDS_TEMALAR, V = W.KIDS_VERI, renkli = P.karisik === 'renk';
+    return {
+      renkli: renkli, nmax: NMAX[bant.secenek] || 5,
+      ogeler: P.ogeler(bant).filter(function (x) { return TM.karisikUygun(x) && R.var(x.id) && (!renkli || R.boyanir(x.id)); }),
+      renkler: V.RENK.slice(0, Math.min(bant.renkSay || 6, 10)).filter(function (x) { return x.id !== 'white'; })
+    };
+  }
+  function parcalar(h) { var TM = W.KIDS_TEMALAR, V = W.KIDS_VERI; return [V.SAYI[h.n - 1].en].concat(h.r ? [h.r.en] : []).concat([h.n === 1 ? h.o.en : TM.cogul(h.o)]); }
+  function anahtarK(h) { return h.o.id + '|' + h.n + '|' + (h.r ? h.r.id : ''); }
+  function karisik(kok, a, P) {
+    var K_ = karisikKur(P, a.bant), tura = a.bant.tur, tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = false, adaylar = [], son = '';
+    var rnd = function (l) { return l[Math.floor(Math.random() * l.length)]; };
+    function uret() { return { o: rnd(K_.ogeler), n: 1 + Math.floor(Math.random() * K_.nmax), r: K_.renkli ? rnd(K_.renkler) : null }; }
+    function kart(h) {
+      var ic = (h.r ? R.boya(h.o.id, h.r.hex) : R.ic(h.o.id)), tek = '<svg class="kc" viewBox="0 0 100 100" aria-hidden="true">' + ic + '</svg>', s = '';
+      for (var i = 0; i < h.n; i++) s += '<i style="--i:' + i + '">' + tek + '</i>';
+      return '<button type="button" class="ko-karisik-k ko-kn' + (h.n > 6 ? 'c' : h.n > 3 ? 'o' : h.n > 1 ? 'a' : '1') + '" data-ko-k="' + anahtarK(h) + '" aria-label="' + esc(parcalar(h).join(' ')) + '">' + s + '</button>';
+    }
+    kok.innerHTML = '<div class="ko ko-sec ko-karisik">' + yonerge('', a.bant.yazi) + '<div class="ko-kartlar2 ko-karisik-a" data-ko-alan></div></div>';
+    var alan = kok.querySelector('[data-ko-alan]'), soz = kok.querySelector('[data-ko-soz]'), tn = kok.querySelector('[data-ko-tur]');
+    function sor() { var p = parcalar(hedef); soz.innerHTML = 'Find <b style="--r:' + (hedef.r ? hedef.r.hex : hedef.o.hex) + '">' + esc(p.join(' ')) + '</b>!'; return SES.dizi(['Find'].concat(p.slice(0, -1)).concat([p[p.length - 1] + '!']), 'en'); }
+    function yeni() {
+      if (tur >= tura || !K_.ogeler.length) { bitti = true; return SES.soyle('Super! You found them all!', 'en').then(function () { a.bitti(yildizHesap(yanlis, [1, 3])); }); }
+      kilit = false; turNokta(tn, tur, tura);
+      do { hedef = uret(); } while (anahtarK(hedef) === son && K_.ogeler.length > 1); son = anahtarK(hedef);
+      var gor = {}, l = [hedef], n = Math.min(a.bant.secenek, 4) - 1, deneme = 0; gor[anahtarK(hedef)] = 1;
+      while (l.length <= n && deneme++ < 60) {
+        var v = { o: hedef.o, n: hedef.n, r: hedef.r }, tip = deneme % 3;
+        if (tip === 0) v.n = Math.max(1, Math.min(K_.nmax, hedef.n + (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 2))));
+        else if (tip === 1 && K_.renkli) v.r = rnd(K_.renkler);
+        else v.o = rnd(K_.ogeler);
+        if (!gor[anahtarK(v)]) { gor[anahtarK(v)] = 1; l.push(v); }
+      }
+      adaylar = kar(l); alan.innerHTML = adaylar.map(kart).join(''); sor();
+    }
+    alan.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-ko-k]'); if (!b || kilit || bitti) return;
+      var h = adaylar.filter(function (x) { return anahtarK(x) === b.getAttribute('data-ko-k'); })[0];
+      if (h === hedef) { kilit = true; tur++; SES.fx('dogru'); b.classList.add('ko-dogru'); var p = parcalar(hedef); p[p.length - 1] += '!'; SES.dizi(p, 'en').then(function () { if (!bitti) setTimeout(yeni, 350); }); }
+      else { yanlis++; if (a.yanlis) a.yanlis(hedef.o.id); SES.fx('yanlis'); salla(b); var h0 = hedef, q = parcalar(h); q[q.length - 1] += '.'; SES.dizi(q, 'en').then(function () { if (!bitti && h0 === hedef) sor(); }); }
+    });
+    kok.querySelector('[data-ko-dinle]').addEventListener('click', function () { SES.fx('dokun'); sor(); });
+    yeni();
+    return { dur: function () { bitti = true; SES.sus(); } };
+  }
+  O.karisik = function (kok, a) { return karisik(kok, a, a.paket); };
+  /* katalog: karışık durağın kayıtlı parçaları (çoğullar; sayı ve renk sözcükleri zaten kayıtlı) */
+  O.karisikParca = function (P) {
+    if (!P.karisik) return []; var TM = W.KIDS_TEMALAR, l = ['Find', 'Super! You found them all!'];
+    P.ogeler({ kelimeSay: 99 }).filter(TM.karisikUygun).forEach(function (x) { l.push(TM.cogul(x) + '!', TM.cogul(x) + '.', x.en + '!', x.en + '.'); });
+    return l;
+  };
+
   var MOTOR = { sec: sec, yerlestir: yerlestir, simon: simon };
   /* her temanın oyununu kendi kimliğiyle kaydet (konuAc OYUN[d.id] ile çağırır) */
   K.PAKET.forEach(function (pid) {
@@ -2979,18 +3706,233 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   });
   /* katalog: bu oyunların söyleyebileceği bütün İngilizce cümleler */
   O.cumleler = function (P) {
-    var T = P.oyun3, l = [], hepsi = P.ogeler({ kelimeSay: 10 }); if (!T || !T.motor) return l;
+    var T = P.oyun3, l = [], hepsi = P.ogeler({ kelimeSay: 99 }); if (!T || !T.motor) return l;
     hedefler(T, hepsi).forEach(function (x) {
-      l.push(T.soz(x));
+      if (T.turlar) T.turlar(x).forEach(function (t) { l.push(t.soz); }); else l.push(T.soz(x));
       if (T.odalar) T.odalar.filter(function (r) { return x.oda.indexOf(r.id) > -1; }).forEach(function (r) { l.push(T.dogru(x, r)); }); else l.push(T.dogru(x));
     });
     if (T.odalar) T.odalar.forEach(function (r) { l.push(r.en + '.'); });
-    (T.yabanci || []).forEach(function (id) { for (var i = 0; i < K.PAKET.length; i++) { var y = K.al(K.PAKET[i]).ogeler({ kelimeSay: 10 }).filter(function (o) { return o.id === id; })[0]; if (y) { l.push(y.en + '.'); break; } } });
+    (T.yabanci || []).forEach(function (id) { for (var i = 0; i < K.PAKET.length; i++) { var y = K.al(K.PAKET[i]).ogeler({ kelimeSay: 99 }).filter(function (o) { return o.id === id; })[0]; if (y) { l.push(y.en + '.'); break; } } });
     if (T.cark) l.push('Spin the wheel!');
     l.push(T.son);
     return l;
   };
   O.MOTOR = MOTOR;
+})(window);
+
+/* ---- kids-kitap.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · hikâye kitaplığı (kids/assets/kids-kitap.js), 12.11.2026
+   Her konuya bir resimli, sesli mini hikâye (5 sayfa) ve sonunda 3 resimli soru.
+   Sayfa açılınca Acadia okur, okunan kelime yanar; kelimeye dokununca o kelime okunur.
+   Hikâyeler Acadex için yazıldı; resimler kids-resim çizimlerinden kurulur.
+   Okunan kitap çocuğun ilerlemesine (il.kitap) işlenir; kitaplıkta ✓ görünür.
+   Kaynak: KIDS_KITAP.LISTE (katalog bu listeden seslendirir). W.KIDS_KITAP
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, C = W.KIDS_CIZ, R = W.KIDS_RESIM, V = W.KIDS_VERI, SES = W.KIDS_SES;
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  function k(id, konu, ad, tr, sayfa, soru) { return { id: id, konu: konu, ad: ad, tr: tr, sayfalar: sayfa.map(function (x) { return { s: x[0], r: x[1] }; }), sorular: soru.map(function (x) { return { s: x[0], c: x[1], y: x[2] }; }) }; }
+  var LISTE = [
+    k('boya', 'colours', 'The Rainbow Paint', 'Gökkuşağı boyası', [['Ada has a paint box.', ['girl', 'paints']], ['She paints a red apple.', ['apple']], ['She paints a yellow sun and a blue ship.', ['sunny', 'ship']], ['She paints a green frog.', ['frog']], ['Look! A rainbow!', ['rainbow', 'girl']]],
+      [['What colour is the apple?', 'red', ['red', 'blue', 'green']], ['What does Ada paint first?', 'apple', ['apple', 'frog', 'sunny']], ['What is green?', 'frog', ['frog', 'apple', 'sun']]]),
+    k('yildizlar', 'numbers', 'Ten Little Stars', 'On küçük yıldız', [['One star, two stars, three stars in the sky.', ['star', 'star', 'star']], ['A little bird counts the stars.', ['bird', 'star']], ['Four, five, six! The moon says hello.', ['ay', 'star']], ['Seven, eight, nine, ten! So many stars!', ['star', 'star', 'star']], ['Good night, stars!', ['sleep']]],
+      [['Who counts the stars?', 'bird', ['bird', 'cat', 'fish']], ['How many stars? Ten!', 'ten', ['ten', 'two', 'five']], ['Who says hello?', 'ay', ['ay', 'sun', 'car']]]),
+    k('ciftlik', 'animals', 'Who Is Hiding?', 'Kim saklanıyor?', [['Tom goes to the farm.', ['boy', 'tractor']], ['Moo! A cow is hiding.', ['cow']], ['Quack! A duck is in the water.', ['duck']], ['Oink! A pig is in the mud.', ['pig']], ['Woof! It\'s my dog! Hello, dog!', ['dog', 'boy']]],
+      [['Who says moo?', 'cow', ['cow', 'pig', 'duck']], ['Who is in the water?', 'duck', ['duck', 'dog', 'cow']], ['Who says woof?', 'dog', ['dog', 'cat', 'pig']]]),
+    k('dogumgunu', 'family', 'Grandma\'s Birthday', 'Büyükannenin doğum günü', [['It\'s Grandma\'s birthday today.', ['grandma', 'cake']], ['Mum makes a big cake.', ['mum', 'cake']], ['Dad and the baby have a present.', ['dad', 'baby', 'hediye']], ['My sister sings a song.', ['sister', 'sing']], ['Grandma is very happy!', ['grandma', 'happy']]],
+      [['Whose birthday is it?', 'grandma', ['grandma', 'dad', 'baby']], ['What does Mum make?', 'cake', ['cake', 'pizza', 'soup']], ['Who sings a song?', 'sister', ['sister', 'brother', 'dad']]]),
+    k('freddy', 'body', 'Freddy the Monster', 'Canavar Freddy', [['This is Freddy. He is a friendly monster.', ['puppet']], ['He has three eyes!', ['eyes', 'eyes']], ['He has two big ears.', ['ears']], ['He has a small nose and a big mouth.', ['nose', 'mouth']], ['Freddy waves his hands. Hello!', ['puppet', 'hands']]],
+      [['How many eyes has Freddy got?', 'three', ['three', 'two', 'one']], ['What does Freddy wave?', 'hands', ['hands', 'feet', 'ears']], ['What is small?', 'nose', ['nose', 'mouth', 'ears']]]),
+    k('ayi', 'food', 'The Hungry Bear', 'Aç ayı', [['Bear is hungry.', ['bear', 'hungry']], ['He eats an apple. Yum!', ['bear', 'apple']], ['He eats bread and cheese.', ['bread', 'cheese']], ['He drinks milk.', ['milk']], ['Now he is not hungry. He is happy!', ['bear', 'happy']]],
+      [['Who is hungry?', 'bear', ['bear', 'cat', 'cow']], ['What does Bear drink?', 'milk', ['milk', 'juice', 'soup']], ['What does he eat first?', 'apple', ['apple', 'cake', 'egg']]]),
+    k('ayicik', 'toys', 'Where Is My Teddy?', 'Ayıcığım nerede?', [['Mia can\'t find her teddy.', ['girl', 'teddy']], ['Is it in the toy box? No, it\'s a car.', ['car']], ['Is it under the bed? No, it\'s a ball.', ['bed', 'ball']], ['Is it on the chair? No, it\'s a doll.', ['chair', 'doll']], ['It\'s in her bag! Hello, teddy!', ['bag', 'teddy']]],
+      [['What can\'t Mia find?', 'teddy', ['teddy', 'robot', 'kite']], ['What is under the bed?', 'ball', ['ball', 'car', 'doll']], ['Where is the teddy?', 'bag', ['bag', 'bed', 'chair']]]),
+    k('leo', 'clothes', 'Get Dressed, Leo!', 'Giyin Leo!', [['It\'s cold today, Leo.', ['cold', 'boy']], ['Put on your coat.', ['coat']], ['Put on your hat and your scarf.', ['hat', 'scarf']], ['Put on your gloves and your boots.', ['gloves', 'boots']], ['Now let\'s play in the snow!', ['snowman', 'boy']]],
+      [['Is it hot or cold?', 'cold', ['cold', 'hot', 'sunny']], ['What goes on Leo\'s head?', 'hat', ['hat', 'boots', 'gloves']], ['Where does Leo play?', 'snow', ['snow', 'rain', 'sun']]]),
+    k('kedi', 'home', 'Kitty\'s House', 'Kedinin evi', [['Kitty the cat lives in a house.', ['cat', 'ev']], ['She sleeps on the bed.', ['bed', 'cat']], ['She sits on the sofa.', ['sofa', 'cat']], ['She looks in the mirror. Who is that?', ['mirror', 'cat']], ['It\'s Kitty! Meow!', ['cat']]],
+      [['Where does Kitty sleep?', 'bed', ['bed', 'sofa', 'bath']], ['What does Kitty look in?', 'mirror', ['mirror', 'window', 'door']], ['Who says meow?', 'cat', ['cat', 'dog', 'cow']]]),
+    k('ilkgun', 'school', 'My First Day', 'İlk günüm', [['Today is my first day at school.', ['nervous', 'bag']], ['I have a new bag.', ['bag']], ['In my bag I have a pencil and a book.', ['pencil', 'book']], ['My teacher says hello. I say hello!', ['teacher', 'board']], ['I make a new friend. School is fun!', ['friend', 'happy']]],
+      [['What is new?', 'bag', ['bag', 'hat', 'ball']], ['Who says hello?', 'teacher', ['teacher', 'doctor', 'chef']], ['What is in the bag?', 'pencil', ['pencil', 'cake', 'kite']]]),
+    k('yagmur', 'weather', 'Rain, Rain, Sun!', 'Yağmur, yağmur, güneş!', [['Look outside. It\'s rainy.', ['rainy']], ['I have my umbrella and my boots.', ['umbrella', 'boots']], ['I jump in a big puddle. Splash!', ['puddle', 'jump']], ['Now it\'s sunny!', ['sunny']], ['Look! A rainbow!', ['rainbow']]],
+      [['What is the weather first?', 'rainy', ['rainy', 'snowy', 'sunny']], ['Where do I jump?', 'puddle', ['puddle', 'bed', 'sofa']], ['What do I see at the end?', 'rainbow', ['rainbow', 'snowman', 'star']]]),
+    k('aslan', 'feelings', 'Little Lion\'s Day', 'Küçük aslanın günü', [['In the morning Little Lion is sleepy.', ['lion', 'sleepy']], ['He can\'t find his ball. He is sad.', ['lion', 'sad']], ['A bird finds the ball! Lion is surprised.', ['bird', 'ball', 'surprised']], ['They play together. Lion is happy!', ['lion', 'bird', 'happy']], ['At night he is tired. Good night, Little Lion!', ['lion', 'sleep']]],
+      [['What can\'t Lion find?', 'ball', ['ball', 'kite', 'car']], ['Who finds the ball?', 'bird', ['bird', 'fish', 'cow']], ['How does Lion feel when they play?', 'happy', ['happy', 'angry', 'sad']]]),
+    k('pazar', 'fruits', 'The Fruit Market', 'Meyve pazarı', [['Let\'s go to the fruit market!', ['bag', 'orangefruit']], ['I buy three oranges.', ['orangefruit', 'orangefruit', 'orangefruit']], ['Mum buys grapes and a big watermelon.', ['grapes', 'watermelon']], ['The lemon is sour! Yuck!', ['lemon', 'silly']], ['We make a fruit salad. Yummy!', ['kiwi', 'pear', 'cherries']]],
+      [['How many oranges do I buy?', 'three', ['three', 'one', 'five']], ['What is big?', 'watermelon', ['watermelon', 'cherries', 'grapes']], ['What is sour?', 'lemon', ['lemon', 'peach', 'mango']]]),
+    k('dede', 'transport', 'Grandpa\'s Trip', 'Dedenin yolculuğu', [['Grandpa goes to see his friend.', ['grandpa']], ['First he takes a bus. Beep, beep!', ['bus']], ['Then he takes a train.', ['train']], ['Then he takes a ship. Toot, toot!', ['ship']], ['His friend is waiting with a bike. Ring, ring!', ['man', 'bike']]],
+      [['What does Grandpa take first?', 'bus', ['bus', 'plane', 'taxi']], ['What goes toot, toot?', 'ship', ['ship', 'car', 'bike']], ['What has the friend got?', 'bike', ['bike', 'rocket', 'truck']]]),
+    k('sekilkent', 'shapes', 'Shape Town', 'Şekil Kasabası', [['Welcome to Shape Town!', ['square', 'triangle']], ['The houses are squares.', ['square', 'square']], ['The roofs are triangles.', ['triangle', 'triangle']], ['The sun is a big circle.', ['circle', 'sun']], ['At night the sky is full of stars.', ['star', 'star', 'star']]],
+      [['What shape are the houses?', 'square', ['square', 'circle', 'star']], ['What shape is the sun?', 'circle', ['circle', 'triangle', 'heart']], ['What is in the sky at night?', 'star', ['star', 'square', 'oval']]]),
+    k('ollie', 'sea', 'Ollie the Octopus', 'Ahtapot Ollie', [['Ollie the octopus lives in the sea.', ['octopus']], ['He has eight long arms.', ['octopus']], ['He plays with a crab and a fish.', ['crab', 'fish']], ['Oh no! A shark! Ollie hides in a shell.', ['shark', 'shell']], ['The shark is friendly. Let\'s play!', ['shark', 'octopus', 'happy']]],
+      [['Who is Ollie?', 'octopus', ['octopus', 'turtle', 'dolphin']], ['How many arms has Ollie got?', 'eight', ['eight', 'two', 'four']], ['Where does Ollie hide?', 'shell', ['shell', 'crab', 'starfish']]]),
+    k('buyuyunce', 'jobs', 'When I Grow Up', 'Büyüyünce', [['What do you want to be?', ['boy', 'girl']], ['I want to be a doctor. I help people.', ['doctor']], ['I want to be a chef. I cook pizza.', ['chef', 'pizza']], ['I want to be a pilot. I fly a plane!', ['pilot', 'plane']], ['And you? You can be anything!', ['star']]],
+      [['Who helps people?', 'doctor', ['doctor', 'chef', 'pilot']], ['What does the chef cook?', 'pizza', ['pizza', 'soup', 'cake']], ['What does the pilot fly?', 'plane', ['plane', 'kite', 'bus']]]),
+    k('maymun', 'actions', 'Monkey Can!', 'Maymun yapabilir!', [['Monkey can climb a tree.', ['monkey', 'climb']], ['Frog can jump. Jump, jump!', ['frog', 'jump']], ['Fish can swim.', ['fish', 'swim']], ['Bird can sing.', ['bird', 'sing']], ['And I can dance! Look at me!', ['dance']]],
+      [['Who can climb?', 'monkey', ['monkey', 'fish', 'frog']], ['What can Fish do?', 'swim', ['swim', 'sing', 'climb']], ['What can I do?', 'dance', ['dance', 'sleep', 'read']]]),
+    k('agac', 'seasons', 'The Tree\'s Year', 'Ağacın bir yılı', [['In spring the tree has flowers.', ['spring']], ['In summer children play under the tree.', ['summer', 'boy']], ['In autumn the leaves are orange.', ['autumn', 'yaprak']], ['In winter there is snow on the tree.', ['winter']], ['Then spring comes again!', ['spring', 'happy']]],
+      [['When does the tree have flowers?', 'spring', ['spring', 'winter', 'autumn']], ['What colour are the leaves in autumn?', 'orange', ['orange', 'blue', 'purple']], ['When is there snow?', 'winter', ['winter', 'summer', 'spring']]]),
+    k('tavsan', 'days', 'Busy Bunny', 'Meşgul Tavşan', [['On Monday Bunny goes to school.', ['rabbit', 'bag']], ['On Tuesday Bunny paints.', ['rabbit', 'paints']], ['On Wednesday Bunny swims.', ['swim']], ['On Thursday and Friday Bunny reads.', ['read']], ['On Saturday and Sunday Bunny plays with friends!', ['rabbit', 'friend']]],
+      [['When does Bunny paint?', 'tuesday', ['tuesday', 'monday', 'sunday']], ['What does Bunny do on Wednesday?', 'swim', ['swim', 'read', 'sing']], ['When does Bunny go to school?', 'monday', ['monday', 'saturday', 'friday']]]),
+    k('saklambac', 'places', 'Where Is Kitten?', 'Kedicik nerede?', [['Kitten likes to hide.', ['cat']], ['Is she in the box? Yes!', ['in', 'cat']], ['Now she is under the table.', ['under', 'cat']], ['Now she is behind the box.', ['behind']], ['Now she is on my bed. Got you!', ['bed', 'cat']]],
+      [['Who likes to hide?', 'cat', ['cat', 'dog', 'bird']], ['Where is she first?', 'in', ['in', 'under', 'behind']], ['Where is she at the end?', 'bed', ['bed', 'sofa', 'bath']]]),
+    k('abc', 'alphabet', 'A Is for Apple', 'A, Apple gibi', [['A is for apple. Crunch!', ['harf-a', 'apple']], ['B is for ball. Bounce!', ['harf-b', 'ball']], ['C is for cat. Meow!', ['harf-c', 'cat']], ['D is for dog. Woof!', ['harf-d', 'dog']], ['E is for egg. What comes next? F!', ['harf-e', 'harf-f']]],
+      [['What is A for?', 'apple', ['apple', 'ball', 'egg']], ['C is for…?', 'cat', ['cat', 'dog', 'cow']], ['What comes after E?', 'harf-f', ['harf-f', 'harf-a', 'harf-z']]])
+  ];
+  /* resim: tema çizimi, renk lekesi, sayı kartı ya da simge */
+  function gorsel(id) {
+    if (R.var(id)) return R.ciz(id);
+    var renk = V.RENK.filter(function (x) { return x.id === id; })[0]; if (renk) return C.leke(renk.hex);
+    var sayi = V.SAYI.filter(function (x) { return x.id === id; })[0]; if (sayi) return C.sayiKart(sayi.n, sayi.hex);
+    return C.simge(id);
+  }
+  function kelimeler(s) { return s.split(' ').map(function (w) { return w.toLowerCase().replace(/[^a-z']/g, ''); }).filter(Boolean); }
+
+  /* ---------------- arayüz ---------------- */
+  var S = null;
+  function kitaplik(o) {
+    S = o; SES.sus();
+    var il = o.il(), okunan = il.kitap || {};
+    o.kok.innerHTML = '<div class="ka-dunya" aria-hidden="true">' + R.dunya('family') + '</div><header class="ka-konu-ust"><button type="button" class="ka-yuvarlak" data-kgeri aria-label="Haritaya dön">' + C.simge('ev') + '</button><h1 class="kk-bas">' + C.simge('book') + ' Kitaplık</h1><span></span></header>' +
+      '<main class="ka-sahne kk-raf"><p class="kk-alt">Bir kitap seç. Acadia sana okusun; kelimelere dokun, sonunda soruları cevapla. <b>' + Object.keys(okunan).length + ' / ' + LISTE.length + '</b> kitap okudun.</p><ul class="kk-kitaplar">' +
+      LISTE.map(function (b, i) { var kz = V.konuBul(b.konu); return '<li><button type="button" class="kk-kapak' + (okunan[b.id] ? ' kk-okundu' : '') + '" data-kitap="' + b.id + '" style="--r:' + kz.renk + ';--i:' + (i % 8) + '"><span class="kk-res">' + gorsel(b.sayfalar[0].r[0]) + '</span><b lang="en">' + esc(b.ad) + '</b><small>' + esc(b.tr) + '</small>' + (okunan[b.id] ? '<i class="ka-tik">' + C.simge('tik') + '</i>' : '') + '</button></li>'; }).join('') + '</ul></main>';
+    o.kok.dataset.gorunum = 'kitap';
+    o.kok.querySelector('[data-kgeri]').addEventListener('click', function () { SES.fx('dokun'); SES.sus(); o.geri(); });
+    o.kok.querySelectorAll('[data-kitap]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); ac(b.getAttribute('data-kitap'), 0); }); });
+    SES.soyle('Kitaplığa hoş geldin! Bir kitap seç.', 'tr');
+  }
+  function ac(id, n) {
+    var b = LISTE.filter(function (x) { return x.id === id; })[0], o = S, kz = V.konuBul(b.konu), son = n >= b.sayfalar.length, iptal = false;
+    SES.sus(); o.kok.scrollTo && W.scrollTo(0, 0);
+    var nokta = '<ol class="kk-noktalar">' + b.sayfalar.map(function (x, i) { return '<li class="' + (i === n ? 'kk-bu' : i < n ? 'kk-gecti' : '') + '"></li>'; }).join('') + '<li class="' + (son ? 'kk-bu' : '') + '">?</li></ol>';
+    var ust = '<div class="ka-dunya" aria-hidden="true">' + R.dunya(b.konu) + '</div><header class="ka-konu-ust"><button type="button" class="ka-yuvarlak" data-kraf aria-label="Kitaplığa dön">' + C.simge('book') + '</button>' + nokta + '<button type="button" class="ka-yuvarlak" data-koku aria-label="Yeniden oku">' + C.simge('ses') + '</button></header>';
+    if (son) return sorular(b, 0, 0, ust);
+    var sf = b.sayfalar[n], bas = 0;
+    var cumle = sf.s.split(' ').map(function (w) { var h = '<button type="button" class="kk-k" data-kk="' + esc(w.toLowerCase().replace(/[^a-z']/g, '')) + '" data-bas="' + bas + '">' + esc(w) + '</button>'; bas += w.length + 1; return h; }).join(' ');
+    o.kok.innerHTML = ust + '<main class="ka-sahne kk-sayfa" style="--r:' + kz.renk + '"><h2 class="kk-ad" lang="en">' + esc(b.ad) + '</h2><div class="kk-resim kk-r' + sf.r.length + '">' + sf.r.map(function (r, i) { return '<span style="--i:' + i + '">' + gorsel(r) + '</span>'; }).join('') + '<span class="kk-acd">' + C.acadia({ mood: 'mutlu' }) + '</span></div>' +
+      '<p class="kk-cumle" lang="en">' + cumle + '</p><div class="kk-alt-d"><button type="button" class="ka-orta" data-konce' + (n ? '' : ' disabled') + '>‹ Önceki</button><button type="button" class="ka-buyuk" data-ksonra>' + (n === b.sayfalar.length - 1 ? 'Sorular' : 'Sonraki') + ' ' + C.simge('oynat') + '</button></div></main>';
+    o.kok.dataset.gorunum = 'kitap';
+    var ks = [].slice.call(o.kok.querySelectorAll('.kk-k'));
+    function oku() {
+      ks.forEach(function (x) { x.classList.remove('kk-yanan'); });
+      var zaman = null, j = 0, sinirGeldi = false;
+      zaman = setInterval(function () { if (!sinirGeldi && j < ks.length) { ks.forEach(function (x, m) { x.classList.toggle('kk-yanan', m === j); }); j++; } }, 380);
+      return SES.soyle(sf.s, 'en', { hiz: 0.9, sinir: function (ci) { sinirGeldi = true; ks.forEach(function (x) { x.classList.toggle('kk-yanan', +x.getAttribute('data-bas') <= ci && ci < +x.getAttribute('data-bas') + x.textContent.length + 1); }); } })
+        .then(function () { clearInterval(zaman); ks.forEach(function (x) { x.classList.remove('kk-yanan'); }); });
+    }
+    ks.forEach(function (x) { x.addEventListener('click', function () { SES.sus(); SES.fx('dokun'); x.classList.remove('kk-zipla'); void x.offsetWidth; x.classList.add('kk-zipla'); SES.soyle(x.getAttribute('data-kk'), 'en'); }); });
+    o.kok.querySelector('[data-koku]').addEventListener('click', function () { SES.sus(); oku(); });
+    o.kok.querySelector('[data-kraf]').addEventListener('click', function () { iptal = true; SES.sus(); SES.fx('dokun'); kitaplik(o); });
+    o.kok.querySelector('[data-ksonra]').addEventListener('click', function () { iptal = true; SES.fx('dokun'); ac(id, n + 1); });
+    o.kok.querySelector('[data-konce]').addEventListener('click', function () { iptal = true; SES.fx('dokun'); ac(id, n - 1); });
+    setTimeout(function () { if (!iptal) oku(); }, 300);
+  }
+  function sorular(b, i, dogruSay, ust) {
+    var o = S, q = b.sorular[i];
+    if (!q) return bitir(b, dogruSay, ust);
+    var sec = q.y.slice().sort(function () { return Math.random() - 0.5; });
+    o.kok.innerHTML = ust + '<main class="ka-sahne kk-soru"><p class="kk-soru-no">Soru ' + (i + 1) + ' / ' + b.sorular.length + '</p><h2 class="kk-soru-s" lang="en"><button type="button" class="ko-dinle" data-ksor aria-label="Soruyu dinle">' + C.simge('ses') + '</button>' + esc(q.s) + '</h2>' +
+      '<div class="ko-kartlar2">' + sec.map(function (x) { return '<button type="button" class="ko-kart2" data-kcev="' + x + '">' + gorsel(x) + '</button>'; }).join('') + '</div></main>';
+    var ilk = true, sor = function () { return SES.soyle(q.s, 'en'); };
+    o.kok.querySelector('[data-ksor]').addEventListener('click', function () { SES.fx('dokun'); sor(); });
+    o.kok.querySelector('[data-kraf]').addEventListener('click', function () { SES.sus(); kitaplik(o); });
+    o.kok.querySelector('[data-koku]').addEventListener('click', function () { SES.sus(); sor(); });
+    o.kok.querySelectorAll('[data-kcev]').forEach(function (bt) {
+      bt.addEventListener('click', function () {
+        if (bt.getAttribute('data-kcev') === q.c) { SES.fx('dogru'); bt.classList.add('ko-dogru'); var y = ilk ? 1 : 0; SES.soyle(['Well done!', 'Super!'][i % 2], 'en').then(function () { sorular(b, i + 1, dogruSay + y, ust); }); }
+        else { ilk = false; SES.fx('yanlis'); bt.classList.remove('ko-salla'); void bt.offsetWidth; bt.classList.add('ko-salla'); sor(); }
+      });
+    });
+    sor();
+  }
+  function bitir(b, dogru, ust) {
+    var o = S, il = o.il(); il.kitap = il.kitap || {}; il.kitap[b.id] = Date.now(); o.kaydet(il);
+    o.kok.innerHTML = ust.replace(/data-kraf/, 'data-kraf') + '<main class="ka-sahne ka-bitis kk-bitti"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><div class="ka-ara-acd">' + C.acadia({ mood: 'kutlama' }) + '</div><h1><span lang="en">' + esc(b.ad) + '</span></h1><p>Kitabı bitirdin! İlk denemede <b>' + dogru + ' / ' + b.sorular.length + '</b> soruyu bildin.</p>' +
+      '<div class="ka-izle-alt"><button type="button" class="ka-orta" data-kyine>Yeniden oku</button><button type="button" class="ka-buyuk" data-kraf2 data-odak>Kitaplık ' + C.simge('book') + '</button></div></main>';
+    SES.fx('yildiz'); SES.soyle('The end! Great reading!', 'en');
+    o.kok.querySelector('[data-kraf]').addEventListener('click', function () { kitaplik(o); });
+    o.kok.querySelector('[data-kraf2]').addEventListener('click', function () { SES.fx('dokun'); kitaplik(o); });
+    o.kok.querySelector('[data-koku]').addEventListener('click', function () { SES.soyle('The end! Great reading!', 'en'); });
+    o.kok.querySelector('[data-kyine]').addEventListener('click', function () { ac(b.id, 0); });
+  }
+  W.KIDS_KITAP = { LISTE: LISTE, kitaplik: kitaplik, ac: function (id) { ac(id, 0); }, gorsel: gorsel, kelimeler: kelimeler };
+})(window);
+
+/* ---- kids-yazdir.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · yazdırılabilir materyal (kids/assets/kids-yazdir.js), 12.11.2026
+   Öğretmen panelinden ve veli köşesinden: seçilen konu ve yaş dünyası için
+   - Boyama sayfası (çizimlerin kontur hâli, altında üstünden geçilecek kelime)
+   - Kelime kartları (kesip oynamak için; resim + kelime)
+   - Bingo (her kart farklı; öğretmenin çağırma listesi ayrı sayfada)
+   - Tebrik sertifikası (konu rozeti; isim satırı boş, elle yazılır)
+   Ödev değildir; sınıf içi ve evde oyun içindir. Kişisel veri basılmaz.
+   Yazdırma #kt-bulten + .kt-yazdir ile yapılır (kids-tahta.css). W.KIDS_YAZDIR
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, C = W.KIDS_CIZ, R = W.KIDS_RESIM, V = W.KIDS_VERI, K = W.KIDS_KONU;
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var TUR = [['boyama', 'Boyama sayfası', 'firca'], ['kart', 'Kelime kartları', 'album'], ['bingo', 'Bingo', 'yildiz'], ['sertifika', 'Tebrik sertifikası', 'tik']];
+
+  function yazdir(html) {
+    var b = D.getElementById('kt-bulten'); if (!b) { b = D.createElement('div'); b.id = 'kt-bulten'; D.body.appendChild(b); }
+    b.innerHTML = html; D.documentElement.classList.add('kt-yazdir');
+    var bitir = function () { D.documentElement.classList.remove('kt-yazdir'); W.removeEventListener('afterprint', bitir); };
+    W.addEventListener('afterprint', bitir);
+    setTimeout(function () { try { W.print(); } catch (e) { } setTimeout(bitir, 1500); }, 80);
+  }
+  /* boyama için kontur: dolgular beyaz, kontur kalır */
+  function beyaz(svg) { return String(svg).replace(/fill="#(?!23304D)[0-9A-Fa-f]{3,6}"/gi, 'fill="#fff"').replace(/stroke="#(?!23304D)[0-9A-Fa-f]{3,6}"/gi, 'stroke="#23304D"').replace(/ opacity="[^"]*"/g, ''); }
+  function parcala(l, n) { var r = []; for (var i = 0; i < l.length; i += n) r.push(l.slice(i, i + n)); return r; }
+  function kar(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function bas(k, alt) { return '<header class="ky-bas"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><div><small>Acadex Kids · ' + esc(alt) + '</small><b lang="en">' + esc(k.en) + '</b> · ' + esc(k.tr) + '</div></header>'; }
+
+  function uret(tur, konu, bantId, n) {
+    var P = K.al(konu), k = V.konuBul(konu), bant = V.BANT[bantId] || V.BANT.kasif, l = P.ogeler(bant);
+    if (tur === 'boyama') return parcala(l, 4).map(function (s) { return '<section class="ky-sayfa">' + bas(k, 'boyama sayfası') + '<p class="ky-ad">Adım: ______________________</p><ul class="ky-boya">' + s.map(function (o) { return '<li><span>' + beyaz(P.gorsel(o)) + '</span><b lang="en">' + esc(o.en) + '</b></li>'; }).join('') + '</ul></section>'; }).join('');
+    if (tur === 'kart') return parcala(l, 8).map(function (s) { return '<section class="ky-sayfa">' + bas(k, 'kelime kartları · kesip oynayın') + '<ul class="ky-kart">' + s.map(function (o) { return '<li style="--r:' + (o.hex || '#9AA7BD') + '"><span>' + P.gorsel(o) + '</span><b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul></section>'; }).join('');
+    if (tur === 'bingo') {
+      var boy = 3, hucre = l.length >= 9 ? 9 : Math.min(6, l.length), kartlar = [];
+      for (var i = 0; i < n; i++) kartlar.push(kar(l).slice(0, hucre));
+      return parcala(kartlar, 2).map(function (s, sf) { return '<section class="ky-sayfa">' + bas(k, 'bingo') + s.map(function (kk, j) { return '<div class="ky-bingo"><p>BINGO · ' + (sf * 2 + j + 1) + '</p><ul class="ky-b' + boy + '">' + kk.map(function (o) { return '<li><span>' + P.gorsel(o) + '</span><b lang="en">' + esc(o.en) + '</b></li>'; }).join('') + '</ul></div>'; }).join('') + '</section>'; }).join('') +
+        '<section class="ky-sayfa">' + bas(k, 'bingo · öğretmenin çağırma listesi') + '<p>Kelimeleri karışık sırayla söyleyin; çocuk kartında varsa işaretler. Bir sıra (yatay, dikey ya da çapraz) dolunca “Bingo!” der.</p><ul class="ky-liste">' + l.map(function (o) { return '<li><span>' + P.gorsel(o) + '</span><b lang="en">' + esc(o.en) + '</b> <small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul></section>';
+    }
+    var rz = R.rozet(k.renk, C.simge(k.simge).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, ''), false);
+    return '<section class="ky-sayfa ky-sert" style="--r:' + k.renk + '"><div class="ky-sert-ic"><span class="ky-sert-acd">' + C.acadia({ mood: 'kutlama' }) + '</span><h1 lang="en">Well done!</h1><p class="ky-sert-ad">______________________________</p>' +
+      '<p><b lang="en">' + esc(k.en) + '</b> (' + esc(k.tr) + ') konusunu Acadex Kids’te bitirdi ve şu rozeti kazandı:</p><div class="ky-sert-rz">' + rz + '<b>' + esc(k.rozet || k.tr) + '</b></div><p class="ky-sert-alt">Tarih: ____________ &nbsp;&nbsp; İmza: ____________</p></div></section>';
+  }
+
+  /* seçim penceresi: konu, yaş dünyası, tür */
+  function panel(o) {
+    o = o || {}; var konu = o.konu && K.al(o.konu) ? o.konu : 'colours', bant = o.bant || 'kasif', tur = 'boyama', adet = 6;
+    var ort = D.createElement('div'); ort.className = 'ky-ort'; D.body.appendChild(ort);
+    function kapat() { ort.remove(); D.removeEventListener('keydown', esc2); }
+    function esc2(e) { if (e.key === 'Escape') kapat(); }
+    D.addEventListener('keydown', esc2);
+    function ciz() {
+      ort.innerHTML = '<div class="ky-pen" role="dialog" aria-modal="true" aria-label="Yazdırılabilir materyal"><header><h2>Yazdırılabilir materyal</h2><button type="button" class="ky-x" data-ykapat aria-label="Kapat">×</button></header>' +
+        '<p class="ky-not">Sınıf içi ve evde oyun için. Ödev değil; isim satırları boş basılır.</p>' +
+        '<label class="ky-alan">Konu<select data-ykonu>' + V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return '<option value="' + x.id + '"' + (x.id === konu ? ' selected' : '') + '>' + esc(x.en + ' · ' + x.tr) + '</option>'; }).join('') + '</select></label>' +
+        (o.bantSabit ? '' : '<label class="ky-alan">Yaş dünyası<select data-ybant>' + Object.keys(V.BANT).map(function (b) { return '<option value="' + b + '"' + (b === bant ? ' selected' : '') + '>' + esc(V.BANT[b].ad + ' (' + V.BANT[b].yas + ')') + '</option>'; }).join('') + '</select></label>') +
+        '<div class="ky-turler" role="radiogroup" aria-label="Materyal">' + TUR.map(function (t) { return '<button type="button" role="radio" aria-checked="' + (t[0] === tur) + '" data-ytur="' + t[0] + '">' + C.simge(t[2]) + '<span>' + t[1] + '</span></button>'; }).join('') + '</div>' +
+        (tur === 'bingo' ? '<label class="ky-alan">Kaç kart?<input type="number" min="2" max="30" value="' + adet + '" data-yadet></label>' : '') +
+        '<div class="ky-onizle" aria-label="Önizleme">' + uret(tur, konu, bant, Math.min(adet, 2)).split('</section>')[0] + '</section></div>' +
+        '<button type="button" class="kl-dugme ky-yaz" data-yyaz>Yazdır</button></div>';
+      ort.querySelector('[data-ykapat]').addEventListener('click', kapat);
+      ort.addEventListener('click', function (e) { if (e.target === ort) kapat(); });
+      ort.querySelector('[data-ykonu]').addEventListener('change', function () { konu = this.value; ciz(); });
+      var b = ort.querySelector('[data-ybant]'); if (b) b.addEventListener('change', function () { bant = this.value; ciz(); });
+      ort.querySelectorAll('[data-ytur]').forEach(function (x) { x.addEventListener('click', function () { tur = x.getAttribute('data-ytur'); ciz(); }); });
+      var ad = ort.querySelector('[data-yadet]'); if (ad) ad.addEventListener('change', function () { adet = Math.max(2, Math.min(30, +this.value || 6)); });
+      ort.querySelector('[data-yyaz]').addEventListener('click', function () { yazdir('<div class="ky-baski">' + uret(tur, konu, bant, adet) + '</div>'); });
+      var f = ort.querySelector('[data-ykapat]'); try { f.focus(); } catch (e) { }
+    }
+    ciz();
+    return { kapat: kapat };
+  }
+  W.KIDS_YAZDIR = { panel: panel, uret: uret, yazdir: yazdir, TUR: TUR };
 })(window);
 
 /* ---- kids-app.js ---- */
@@ -3095,6 +4037,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function ustCubuk(il) {
     return '<header class="ka-cubuk"><span class="ka-ben"><span class="ka-ben-av">' + ben(il) + '</span><b>' + esc(S.ogr[0]) + '</b><small>' + esc(S.sinif.ad) + '</small></span>' +
       '<span class="ka-sayac" aria-label="' + toplamYildiz(il) + ' yıldız">' + C.simge('yildiz') + '<b>' + toplamYildiz(il) + '</b></span>' +
+      '<button type="button" class="ka-yuvarlak" data-kitap aria-label="Kitaplık">' + C.simge('book') + '</button>' +
       '<button type="button" class="ka-yuvarlak" data-album aria-label="Çıkartma albümü">' + C.simge('album') + '</button>' +
       '<button type="button" class="ka-yuvarlak" data-dolap aria-label="Dolabım">' + C.simge('dolap') + '</button>' +
       '<button type="button" class="ka-yuvarlak" data-ses aria-pressed="' + SES.acikMi() + '" aria-label="Ses">' + C.simge('ses') + '</button>' +
@@ -3110,9 +4053,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       '<section class="ka-harita" aria-label="Konular"><div class="ka-bulutlar" aria-hidden="true">' + C.bulut('ka-b1') + C.bulut('ka-b2') + C.bulut('ka-b3') + '</div><ol class="ka-adalar">' +
       V.KONU.map(function (k, i) {
         var y = il.yildiz[k.id] || {}, n = Object.keys(y).reduce(function (t, o) { return t + y[o]; }, 0), bitti = !!il.bitti[k.id];
-        return '<li style="--i:' + i + '"><button type="button" class="ka-ada' + (k.acik ? '' : ' ka-kilitli') + (k.id === bid ? ' ka-ada-bugun' : '') + (bitti ? ' ka-ada-bitti' : '') + '" ' + (k.acik ? 'data-konu="' + k.id + '"' : 'data-yakinda') + ' aria-label="' + esc(k.en + ', ' + k.tr + (k.acik ? '' : ', yakında')) + '">' +
+        return (k.grup === 2 && !(V.KONU[i - 1] || {}).grup ? '</ol><h2 class="ka-takimada"><span>İkinci takımada</span><small>' + V.KONU.filter(function (x) { return x.grup === 2; }).length + ' yeni ada</small></h2><ol class="ka-adalar">' : '') + '<li style="--i:' + (i % 12) + '"><button type="button" class="ka-ada' + (k.acik ? '' : ' ka-kilitli') + (k.id === bid ? ' ka-ada-bugun' : '') + (bitti ? ' ka-ada-bitti' : '') + '" ' + (k.acik ? 'data-konu="' + k.id + '"' : 'data-yakinda') + ' aria-label="' + esc(k.en + ', ' + k.tr + (k.acik ? '' : ', yakında')) + '">' +
           C.ada(k.renk, k.simge, !k.acik) + (bitti ? adaCanli(k) : '') + '<span class="ka-ada-ad"><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small></span>' +
-          (k.acik ? '<span class="ka-ada-y">' + (bitti ? '✓ ' : '') + n + '/9 ★</span>' : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button></li>';
+          (k.acik ? '<span class="ka-ada-y">' + (bitti ? '✓ ' : '') + n + '/' + K.yildizMax(k.id) + ' ★</span>' : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button></li>';
       }).join('') + '</ol></section>', 'harita');
     app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); ucus(kid, function () { konuAc(kid, 0); }); }); });
     app.querySelectorAll('[data-yakinda]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('yanlis'); b.classList.remove('ko-salla'); void b.offsetWidth; b.classList.add('ko-salla'); SES.soyle('Bu ada yakında açılacak.', 'tr'); }); });
@@ -3123,6 +4066,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     var s = app.querySelector('[data-ses]'); if (s) s.addEventListener('click', function () { var a = SES.ayar(!SES.acikMi()); s.setAttribute('aria-pressed', a); if (a) SES.fx('dogru'); });
     var a = app.querySelector('[data-album]'); if (a) a.addEventListener('click', album);
     var dl = app.querySelector('[data-dolap]'); if (dl) dl.addEventListener('click', dolap);
+    var kt = app.querySelector('[data-kitap]'); if (kt && W.KIDS_KITAP) kt.addEventListener('click', function () { SES.fx('dokun'); dur(); W.KIDS_KITAP.kitaplik({ kok: app, il: ilerleme, kaydet: function (il) { koy(ilAnahtar(), il); }, geri: panel }); });
     var c = app.querySelector('[data-veli]'); if (c) c.addEventListener('click', function () { SES.fx('dokun'); veliKapisi(veliKosesi); });
   }
 
@@ -3169,7 +4113,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function duraklar(kid) {
     var o3 = (K.al(kid) || K.al('colours')).oyun3;
     return [{ id: 'izle', ad: 'İzle', simge: 'oynat' }, { id: 'sarki', ad: 'Şarkı', simge: 'nota' }, { id: 'dokun', ad: 'Dokun', simge: 'ses' }, { id: 'balon', ad: 'Balon', simge: 'top', oyun: 1 },
-      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }, { id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }, { id: 'soyle', ad: 'Söyle', simge: 'mikrofon' }];
+      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }, { id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }].concat((K.al(kid) || {}).karisik ? [{ id: 'karisik', ad: 'Karışık', simge: 'gokkusagi', oyun: 1 }] : []).concat([{ id: 'soyle', ad: 'Söyle', simge: 'mikrofon' }]);
   }
   var DURAK = duraklar('colours');
   function konuUst(n) {
@@ -3177,12 +4121,14 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       '<ol class="ka-duraklar">' + S.duraklar.map(function (d, i) { return '<li class="' + (i < n ? 'ka-gecti' : i === n ? 'ka-simdi' : '') + '"' + (i === n ? ' aria-current="step"' : '') + '><span>' + C.simge(i < n ? 'tik' : d.simge) + '</span><small>' + d.ad + '</small></li>'; }).join('') + '</ol>' +
       '<button type="button" class="ka-yuvarlak" data-ses aria-pressed="' + SES.acikMi() + '" aria-label="Ses">' + C.simge('ses') + '</button></header>';
   }
+  /* ada dünyası: her konunun kendi arka planı (gök, zemin, soluk motifler) */
+  function dunya(kid) { return '<div class="ka-dunya" aria-hidden="true">' + RS.dunya(kid) + '</div>'; }
   function konuAc(kid, n) {
     S.konu = kid; S.duraklar = duraklar(kid);
     if (n >= S.duraklar.length) return konuBitti(kid);
     var d = S.duraklar[n];
     if (n === 0) { var il0 = ilerleme(); il0.gunler = il0.gunler || {}; il0.gunler[V.gunAnahtar()] = 1; il0.sonKonu = kid; var gk = Object.keys(il0.gunler).sort(); if (gk.length > 60) delete il0.gunler[gk[0]]; koy(ilAnahtar(), il0); }
-    ciz(konuUst(n) + '<main class="ka-sahne ka-s-' + d.id + '" data-sahne></main>', 'konu');
+    ciz(dunya(kid) + konuUst(n) + '<main class="ka-sahne ka-s-' + d.id + '" data-sahne></main>', 'konu');
     app.querySelector('[data-eve]').addEventListener('click', function () { SES.fx('dokun'); panel(); donus(kid); });
     cubukKur();
     var sahne = app.querySelector('[data-sahne]'), ileri = function () { konuAc(kid, n + 1); molaBak(); };
@@ -3406,7 +4352,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
         '<ol class="ka-veli-gunler" aria-label="Son 7 gün">' + gunler.map(function (x) { var o = !!(il.gunler || {})[x.a]; return '<li class="' + (o ? 'ka-oynadi' : '') + '"><i>' + (o ? C.simge('yildiz') : '') + '</i><small>' + x.ad + '</small></li>'; }).join('') + '</ol>' +
         '<p class="ka-pen-alt">' + (gun >= 4 ? 'Harika bir hafta! Kısa ve düzenli oyun en iyisidir.' : gun ? 'Günde 10 dakika yeter; düzenli oynamak ezberden daha etkilidir.' : 'Bu hafta henüz oynamadı. Birlikte bir ada seçmeye ne dersiniz?') + '</p></section>' +
         (biten.length ? '<section><h3>Rozetleri</h3><ul class="ka-veli-rozet">' + biten.map(function (x) { return '<li>' + RS.rozet(x.renk, simgeIc(x.simge), false) + '<small>' + esc(x.rozet || x.tr) + '</small></li>'; }).join('') + '</ul></section>' : '') +
-        '<section><h3>Konular</h3><ul class="ka-veli-konu">' + acik.map(function (x) { var n = yildizK(x); return '<li style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span><b lang="en">' + esc(x.en) + '</b><i><em style="width:' + Math.round(n / 9 * 100) + '%"></em></i><small>' + n + '/9 ★' + (il.bitti && il.bitti[x.id] ? ' · bitirdi' : '') + '</small></li>'; }).join('') + '</ul></section>' +
+        '<section><h3>Konular</h3><ul class="ka-veli-konu">' + acik.map(function (x) { var n = yildizK(x); return '<li style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span><b lang="en">' + esc(x.en) + '</b><i><em style="width:' + Math.round(n / K.yildizMax(x.id) * 100) + '%"></em></i><small>' + n + '/' + K.yildizMax(x.id) + ' ★' + (il.bitti && il.bitti[x.id] ? ' · bitirdi' : '') + '</small></li>'; }).join('') + '</ul></section>' +
         '<section><h3>Zorlandığı kelimeler</h3>' + (zor.length ? '<ul class="ka-veli-kel">' + zor.map(function (o) { return '<li style="--r:' + o.hex + '">' + dinle(o.en) + (RS.var(o.id) ? '<span class="ka-veli-kr">' + RS.ciz(o.id) + '</span>' : '') + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul><p class="ka-pen-alt">Dinleyip birlikte tekrar edin; günlük hayatta gösterip sorun.</p>' : '<p class="ka-pen-alt">Henüz zorlandığı bir kelime yok.</p>') + '</section>';
     }
     function kelime() {
@@ -3418,6 +4364,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     function evde() {
       var P = K.al(secK), kz = V.konuBul(secK);
       return '<section><h3>Evde 5 dakika</h3><p class="ka-pen-alt">Ekransız, malzemesiz kısa oyunlar. Türkçe anlatın, İngilizce kelimeyi oyunun içinde söyleyin.</p>' + konuSec() +
+        '<div class="ka-veli-yaz"><button type="button" class="ka-orta" data-vyaz="boyama">' + C.simge('firca') + ' Boyama sayfası yazdır</button><button type="button" class="ka-orta" data-vyaz="kart">' + C.simge('album') + ' Kelime kartları yazdır</button></div>' +
         '<ul class="ka-veli-etk">' + (P.etkinlik || []).map(function (x, i) { return '<li style="--r:' + kz.renk + '"><span class="ka-etk-no">' + (i + 1) + '</span><div><b>' + esc(x.ad) + '</b><p>' + esc(x.adim) + '</p><small>⏱ 5 dakika</small></div></li>'; }).join('') + '</ul></section>' +
         '<section><h3>Evde birlikte söyleyin <small lang="en">' + esc(kz.en) + '</small></h3><ul class="ka-veli-ev">' + P.ev.map(function (c) { return '<li>' + dinle(c[0]) + '<b lang="en">' + esc(c[0]) + '</b><small>' + esc(c[1]) + '</small></li>'; }).join('') + '</ul></section>';
     }
@@ -3438,6 +4385,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       k.el.querySelectorAll('[data-vs]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-vs') === sekme); });
       ic.querySelectorAll('[data-en]').forEach(function (b) { b.addEventListener('click', function () { sus(); SES.fx('dokun'); SES.soyle(b.getAttribute('data-en'), 'en'); }); });
       ic.querySelectorAll('[data-vk]').forEach(function (b) { b.addEventListener('click', function () { secK = b.getAttribute('data-vk'); SES.fx('dokun'); goster(); }); });
+      ic.querySelectorAll('[data-vyaz]').forEach(function (b) { b.addEventListener('click', function () { if (!W.KIDS_YAZDIR) return; W.KIDS_YAZDIR.yazdir('<div class="ky-baski">' + W.KIDS_YAZDIR.uret(b.getAttribute('data-vyaz'), secK, S.sinif.bant, 2) + '</div>'); }); });
       var hp = ic.querySelector('[data-hepsi]');
       if (hp) hp.addEventListener('click', function () {
         if (dinleS) return sus(); var lis = [].slice.call(ic.querySelectorAll('[data-li]')), j = 0, ben_ = {}; dinleS = ben_; SES.fx('dokun'); hp.querySelector('span').textContent = 'Durdur';
@@ -3455,10 +4403,10 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   /* konu bitti: çıkartma */
   function konuBitti(kid) {
     var il = ilerleme(), yeni = (cikartmalar(kid) || []).filter(function (c) { return il.cikartma.indexOf(c) < 0; }), y = il.yildiz[kid] || {}, n = Object.keys(y).reduce(function (t, o) { return t + y[o]; }, 0);
-    var ilk = !il.bitti[kid], odul = yeni.slice(0, n >= 8 ? 3 : n >= 5 ? 2 : 1); il.cikartma = il.cikartma.concat(odul); il.bitti[kid] = Date.now(); koy(ilAnahtar(), il);
+    var ilk = !il.bitti[kid], ym = K.yildizMax(kid), odul = yeni.slice(0, n >= ym * 0.85 ? 3 : n >= ym * 0.55 ? 2 : 1); il.cikartma = il.cikartma.concat(odul); il.bitti[kid] = Date.now(); koy(ilAnahtar(), il);
     var k = V.KONU.filter(function (x) { return x.id === kid; })[0], tg = ilk ? V.GIYSI.filter(function (g) { return g.tema === kid; })[0] : null;
-    ciz('<main class="ka-sahne ka-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(24).join('<i></i>') + '</div><div class="ka-ara-acd">' + acd('kutlama') + '</div><h1><span lang="en">' + esc(k.en) + '</span> tamam!</h1>' +
-      '<p class="ka-bitis-y">' + C.simge('yildiz') + ' <b>' + n + '</b> / 9 yıldız</p>' +
+    ciz(dunya(kid) + '<main class="ka-sahne ka-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(24).join('<i></i>') + '</div><div class="ka-ara-acd">' + acd('kutlama') + '</div><h1><span lang="en">' + esc(k.en) + '</span> tamam!</h1>' +
+      '<p class="ka-bitis-y">' + C.simge('yildiz') + ' <b>' + n + '</b> / ' + ym + ' yıldız</p>' +
       (ilk ? '<div class="ka-yeni-rozet"><span class="ka-yeni-rozet-r">' + RS.rozet(k.renk, simgeIc(k.simge), false) + '</span><p><small>Yeni rozet!</small><b>' + esc(k.rozet || k.tr) + '</b>' + (tg ? '<em>Dolabına da yeni bir şey geldi: ' + esc(tg.ad) + '</em>' : '') + '</p></div>' : '') +
       (odul.length ? '<p>Yeni çıkartmaların:</p><div class="ka-oduller">' + odul.map(function (c, i) { return '<span style="--i:' + i + '">' + C.simge(c) + '</span>'; }).join('') + '</div>' : '<p>Bütün çıkartmaları topladın. Daha çok yıldız için yeniden oynayabilirsin.</p>') +
       '<div class="ka-izle-alt"><button type="button" class="ka-orta" data-yine>Yeniden oyna</button><button type="button" class="ka-buyuk" data-harita data-odak>Haritaya dön ' + C.simge('ev') + '</button></div></main>', 'konu');
@@ -3779,7 +4727,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     var okul = okul_(), sinif = okul.siniflar[sinifI], bugun = new Date(), bk = V.konuBul(gunKonu(sinif, bugun)), hafta = V.hafta(), bugunA = V.gunAnahtar(), acikK = V.KONU.filter(function (x) { return x.acik; }),
       kz = konuSec || (bk && bk.acik ? bk.id : 'colours'), kzK = V.konuBul(kz), o = ozet(sinif, kz), zr = o.zor && renkBul(o.zor);
     var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>Öğretmen paneli</small></span>' +
-      '<button type="button" class="kt-tahta-b" data-tahta>' + C.simge('yildiz') + ' Akıllı tahta</button><a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
+      '<button type="button" class="kt-tahta-b" data-tahta>' + C.simge('yildiz') + ' Akıllı tahta</button><button type="button" class="kt-tahta-b kt-mat-b" data-materyal>' + C.simge('album') + ' Materyaller</button><a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
       '<main class="kt-govde"><div class="kt-sekmeler" role="tablist" aria-label="Sınıflar">' + okul.siniflar.map(function (s, i) { return '<button type="button" role="tab" aria-selected="' + (i === sinifI) + '" data-sinif="' + i + '" style="--r:' + s.renk + '"><b>' + esc(s.ad) + '</b><small>' + esc(V.BANT[s.bant].ad + ' · ' + V.BANT[s.bant].yas) + '</small></button>'; }).join('') + '</div>' +
       '<p class="kt-bildirim' + (bildirim ? ' kt-var' : '') + '" role="status" data-bildirim>' + (bildirim ? '✓ ' + esc(bildirim) : '') + '</p>' +
 
@@ -3802,15 +4750,15 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       /* ilerleme */
       '<section class="kt-bolum" aria-labelledby="kt-i"><div class="kt-bolum-bas"><div><h2 id="kt-i">Sınıf ilerlemesi</h2><p class="kt-alt">' + esc(sinif.ad) + ' · ' + esc(kzK.en) + ' konusu</p><div class="kt-konu-sec" role="group" aria-label="İlerlemesi gösterilen konu">' + acikK.map(function (x) { return '<button type="button" data-ksec="' + x.id + '" aria-pressed="' + (x.id === kz) + '" style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span>' + esc(x.en) + '</button>'; }).join('') + '</div></div>' +
       (BU ? '' : '<label class="kt-anahtar"><input type="checkbox" data-ornek' + (ornekGoster ? ' checked' : '') + '><span>Örnek veriyi göster</span></label>') + '</div>' +
-      '<ul class="kt-ozet"><li><b>' + o.oynayan + '<small>/' + o.n + '</small></b><span>bu hafta oynadı</span></li><li><b>' + (Math.round(o.ort * 10) / 10).toString().replace('.', ',') + '<small>/9 ★</small></b><span>ortalama yıldız</span></li><li><b>' + o.biten + '<small>/' + o.n + '</small></b><span>konuyu bitirdi</span></li>' +
+      '<ul class="kt-ozet"><li><b>' + o.oynayan + '<small>/' + o.n + '</small></b><span>bu hafta oynadı</span></li><li><b>' + (Math.round(o.ort * 10) / 10).toString().replace('.', ',') + '<small>/' + W.KIDS_KONU.yildizMax(kz) + ' ★</small></b><span>ortalama yıldız</span></li><li><b>' + o.biten + '<small>/' + o.n + '</small></b><span>konuyu bitirdi</span></li>' +
       '<li' + (zr ? ' style="--r:' + zr.hex + '"' : '') + ' class="kt-ozet-zor"><b>' + (zr ? '<i></i><span lang="en">' + zr.en + '</span>' : '—') + '</b><span>en çok zorlanılan kelime</span></li></ul>' +
       (o.girmeyen.length ? '<p class="kt-girmeyen"><b>Henüz girmeyenler:</b> ' + o.girmeyen.map(esc).join(', ') + '</p>' : '') +
       '<div class="kt-tablo-sar"><table class="kt-tablo"><thead><tr><th scope="col">Öğrenci</th><th scope="col">Son giriş</th><th scope="col">Yıldız</th><th scope="col">Oyunlar</th><th scope="col">Zorlandığı kelime</th><th scope="col">Çıkartma</th></tr></thead><tbody>' +
       sinif.ogr.map(function (og) {
         var k = kayit(sinif, og), y = yildizSay(k, kz), kzor = konuZor(k.zor, kz), z = enZor(kzor), zrk = z && renkBul(z);
         return '<tr' + (k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(og[1]) + '<b>' + esc(og[0]) + '</b>' + (k.ornek ? '<i class="kt-ornek-e">örnek</i>' : '') + '</span></th><td>' + sonYazi(k.son) + '</td>' +
-          '<td><span class="kt-cubuk" role="img" aria-label="' + y + ' / 9 yıldız"><i style="width:' + Math.round(100 * y / 9) + '%"></i></span><span class="kt-sayi">' + y + '/9</span></td>' +
-          '<td>' + oyunSay(k, kz) + '/3' + (k.bitti[kz] ? ' <span class="kt-tamam">bitirdi</span>' : '') + '</td>' +
+          '<td><span class="kt-cubuk" role="img" aria-label="' + y + ' / ' + W.KIDS_KONU.yildizMax(kz) + ' yıldız"><i style="width:' + Math.round(100 * y / W.KIDS_KONU.yildizMax(kz)) + '%"></i></span><span class="kt-sayi">' + y + '/' + W.KIDS_KONU.yildizMax(kz) + '</span></td>' +
+          '<td>' + oyunSay(k, kz) + '/' + W.KIDS_KONU.oyunSay(kz) + (k.bitti[kz] ? ' <span class="kt-tamam">bitirdi</span>' : '') + '</td>' +
           '<td>' + (zrk ? '<span class="kt-kelime" style="--r:' + zrk.hex + '"><i></i><span lang="en">' + zrk.en + '</span> <small>' + kzor[z] + ' yanlış</small></span>' : '<span class="kt-yok">—</span>') + '</td><td>' + k.cikartma.length + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
       (BU ? '<p class="kt-not">Kayıtlar çocukların kendi oturumlarından gelir; sayfayı yenileyince güncellenir.</p>' : '<p class="kt-not">Örnek okul: gerçek kayıtlar bu tarayıcıda oynanan oturumlardan gelir; “örnek” etiketli satırlar tasarımı göstermek için üretilmiştir.</p>') + '</section>' +
@@ -3818,6 +4766,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     kok.innerHTML = h;
     kok.querySelector('[data-tahta]').addEventListener('click', function () { if (W.KIDS_TAHTA) W.KIDS_TAHTA.ac({ sinif: sinif, konu: bk && bk.acik ? bk.id : kz }); });
     kok.querySelector('[data-bulten]').addEventListener('click', function () { bulten(sinif, kz); });
+    kok.querySelectorAll('[data-materyal]').forEach(function (b) { b.addEventListener('click', function () { if (W.KIDS_YAZDIR) W.KIDS_YAZDIR.panel({ konu: bk && bk.acik ? bk.id : kz, bant: sinif.bant }); }); });
     kok.querySelectorAll('[data-ksec]').forEach(function (b) { b.addEventListener('click', function () { konuSec = b.getAttribute('data-ksec'); panel(); }); });
     kok.querySelectorAll('[data-sinif]').forEach(function (b) { b.addEventListener('click', function () { sinifI = +b.getAttribute('data-sinif'); panel(); }); });
     kok.querySelectorAll('.kt-konular [data-konu]').forEach(function (b) { b.addEventListener('click', function () { var id = b.getAttribute('data-konu'), k = V.konuBul(id); planKoy(sinif, bugunA, id, k ? 'Bugünün konusu ' + k.en + ' olarak kaydedildi. Çocuklar giriş yaptığında bu konuyu görecek.' : 'Bugün serbest gün olarak kaydedildi.'); }); });
@@ -3837,13 +4786,13 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     kel.forEach(function (o) { top[o.id] = 0; }); ks.forEach(function (x) { kel.forEach(function (o) { top[o.id] += (x.k.zor || {})[o.id] || 0; }); });
     var biten = acik.map(function (t) { return ks.filter(function (x) { return x.k.bitti[t.id]; }).length; });
     return '<section class="kt-bolum kt-rapor" aria-labelledby="kt-r"><div class="kt-bolum-bas"><div><h2 id="kt-r">Sınıf raporu</h2><p class="kt-alt">' + esc(sinif.ad) + ' · not ve sıralama yok; hangi konuyu yeniden işlemek gerektiğini gösterir.</p></div>' +
-      '<button type="button" class="kl-dugme kt-bulten-b" data-bulten>Haftalık veli bültenini yazdır</button></div>' +
+      '<span class="kt-r-dug"><button type="button" class="kl-dugme kl-dugme-b kt-bulten-b" data-materyal>Materyal yazdır</button><button type="button" class="kl-dugme kt-bulten-b" data-bulten>Haftalık veli bültenini yazdır</button></span></div>' +
       /* konu tamamlama */
       '<h3 class="kt-r-bas">Konu tamamlama</h3><div class="kt-tablo-sar"><table class="kt-tablo kt-tamam-t"><thead><tr><th scope="col">Öğrenci</th>' + acik.map(function (t) { return '<th scope="col" title="' + esc(t.tr) + '"><span class="kt-th-r" style="--r:' + t.renk + '">' + C.simge(t.simge) + '</span><small lang="en">' + esc(t.en) + '</small></th>'; }).join('') + '</tr></thead><tbody>' +
       ks.map(function (x) {
         return '<tr' + (x.k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(x.og[1]) + '<b>' + esc(x.og[0]) + '</b></span></th>' + acik.map(function (t) {
           var y = yildizSay(x.k, t.id), b = !!x.k.bitti[t.id];
-          return '<td class="kt-hucre kt-y' + (b ? 'b' : y ? Math.min(3, Math.ceil(y / 3)) : 0) + '" style="--r:' + t.renk + '" title="' + esc(x.og[0] + ' · ' + t.en + ': ' + y + '/9 yıldız' + (b ? ', bitirdi' : '')) + '">' + (b ? '✓' : y ? y : '·') + '</td>';
+          return '<td class="kt-hucre kt-y' + (b ? 'b' : y ? Math.min(3, Math.ceil(y / W.KIDS_KONU.yildizMax(t.id) * 3)) : 0) + '" style="--r:' + t.renk + '" title="' + esc(x.og[0] + ' · ' + t.en + ': ' + y + '/' + W.KIDS_KONU.yildizMax(t.id) + ' yıldız' + (b ? ', bitirdi' : '')) + '">' + (b ? '✓' : y ? y : '·') + '</td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody><tfoot><tr><th scope="row">Bitiren</th>' + biten.map(function (n) { return '<td class="kt-hucre-t">' + n + '/' + ks.length + '</td>'; }).join('') + '</tr></tfoot></table></div>' +
       '<p class="kt-lejant"><span class="kt-hucre kt-yb">✓</span> bitirdi <span class="kt-hucre kt-y3">7</span> 7-9 yıldız <span class="kt-hucre kt-y1">2</span> başladı <span class="kt-hucre kt-y0">·</span> henüz oynamadı</p>' +

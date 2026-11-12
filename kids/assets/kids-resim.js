@@ -77,7 +77,7 @@
 
   /* ---------- duygu yüzleri ---------- */
   function yuz(d) {
-    var ten = { angry: '#FF9E7A', scared: '#E6EEFF', tired: '#FFE6A6' }[d] || '#FFD84D', h = c(50, 52, 40, ten), goz = '', agiz = '', ek = '';
+    var ten = { angry: '#FF9E7A', scared: '#E6EEFF', tired: '#FFE6A6', sick: '#CDEFC4', worried: '#FFE6A6' }[d] || '#FFD84D', h = c(50, 52, 40, ten), goz = '', agiz = '', ek = '';
     var nokGoz = n(36, 46, 4.6) + n(64, 46, 4.6) + n(37.4, 44.6, 1.5, '#fff') + n(65.4, 44.6, 1.5, '#fff');
     if (d === 'happy') { goz = iz('M29 46 q7 -8 14 0 M57 46 q7 -8 14 0', M, 3.4); agiz = p('M30 58 q20 26 40 0 z', '#E5484D'); }
     if (d === 'sad') { goz = nokGoz + iz('M28 36 l12 -4 M72 36 l-12 -4', M, 3); agiz = iz('M36 72 q14 -12 28 0', M, 3.4); ek = damla(30, 54); }
@@ -88,6 +88,16 @@
     if (d === 'hungry') { goz = n(36, 42, 4.4) + n(64, 42, 4.4) + n(37, 40.6, 1.4, '#fff') + n(65, 40.6, 1.4, '#fff'); agiz = p('M34 60 q16 18 32 0 z', '#7A2F3A') + p('M54 64 q8 12 14 2 q-4 -6 -14 -2 z', '#FF7A8A'); }
     if (d === 'excited') { goz = yildiz(36, 45, 9, '#FF8A3D') + yildiz(64, 45, 9, '#FF8A3D'); agiz = p('M28 58 q22 30 44 0 z', '#E5484D') + '<path d="M40 70 q10 6 20 0" fill="#FF9EB5"/>'; }
     if (d === 'shy') { goz = iz('M30 48 q6 4 12 0 M58 48 q6 4 12 0', M, 3.2); agiz = iz('M45 64 q5 4 10 0', M, 3); ek = '<ellipse cx="30" cy="58" rx="8" ry="5" fill="#FF6FA5" opacity=".75"/><ellipse cx="70" cy="58" rx="8" ry="5" fill="#FF6FA5" opacity=".75"/>' + iz('M24 58 l4 -3 M30 58 l4 -3 M66 58 l4 -3 M72 58 l4 -3', '#fff', 2); }
+    if (d === 'proud') { goz = iz('M29 44 q7 -6 14 0 M57 44 q7 -6 14 0', M, 3.2); agiz = iz('M36 62 q14 12 28 0', M, 3.4); ek = yildiz(80, 18, 10, '#FFD23F') + iz('M30 30 l12 2 M70 30 l-12 2', M, 3); }
+    if (d === 'worried') { goz = nokGoz + iz('M28 34 l12 4 M72 34 l-12 4', M, 3); agiz = iz('M38 70 q6 -4 12 0 q6 4 12 0', M, 3); ek = damla(80, 30, '#BDE8F2'); }
+    if (d === 'silly') { goz = c(36, 46, 7, '#fff') + n(38, 48, 3) + iz('M57 46 q7 -6 14 0', M, 3.4); agiz = p('M32 60 q18 18 36 0 z', '#7A2F3A') + p('M44 66 q6 14 12 0 z', '#FF7A8A'); }
+    if (d === 'brave') { goz = nokGoz + iz('M27 36 l14 2 M73 36 l-14 2', M, 3.6); agiz = p('M34 62 q16 12 32 0 z', '#fff'); ek = p('M10 74 l10 -10 l10 10 l-10 18 z', '#E5484D'); }
+    if (d === 'loved') { goz = p('M29 42 q3 -5 7 -1 q4 -4 7 1 q-1 6 -7 10 q-6 -4 -7 -10 z', '#E5484D') + p('M57 42 q3 -5 7 -1 q4 -4 7 1 q-1 6 -7 10 q-6 -4 -7 -10 z', '#E5484D'); agiz = p('M34 60 q16 16 32 0 z', '#E5484D'); }
+    if (d === 'sleepy') { goz = iz('M29 48 q7 4 14 0 M57 48 q7 4 14 0', M, 3.2); agiz = e(50, 68, 6, 7, '#7A2F3A'); ek = yazi(84, 24, 'Z', 16, '#4AA8FF'); }
+    if (d === 'calm') { goz = iz('M29 46 q7 5 14 0 M57 46 q7 5 14 0', M, 3); agiz = iz('M40 64 q10 7 20 0', M, 3); ek = p('M80 70 q8 -10 14 -2 q-6 10 -14 2 z', '#4CC38A'); }
+    if (d === 'nervous') { goz = c(36, 46, 6, '#fff') + c(64, 46, 6, '#fff') + n(38, 46, 2.4) + n(66, 46, 2.4); agiz = p('M36 64 h28 v6 h-28 z', '#fff') + iz('M43 64 v6 M50 64 v6 M57 64 v6', M, 2); ek = damla(24, 30, '#BDE8F2'); }
+    if (d === 'sick') { goz = iz('M30 44 l10 6 M30 50 l10 -6 M58 44 l10 6 M58 50 l10 -6', M, 2.6); agiz = iz('M38 70 q12 -6 24 0', M, 3.2); ek = r(68, 60, 8, 22, 4, '#fff') + '<rect x="70" y="72" width="4" height="9" fill="#E5484D"/>'; }
+    if (d === 'thirsty') { goz = nokGoz; agiz = p('M40 64 q10 -6 20 0 q-10 10 -20 0 z', '#7A2F3A'); ek = damla(82, 16, '#4AA8FF') + damla(90, 34, '#4AA8FF'); }
     if (d === 'bored') { goz = iz('M28 44 h16 M56 44 h16', M, 3) + n(36, 48, 3.6) + n(64, 48, 3.6); agiz = iz('M38 68 h22', M, 3.4); ek = iz('M18 20 q-4 -4 0 -8', '#9AA7BD', 3); }
     return h + goz + agiz + ek;
   }
@@ -194,7 +204,7 @@
   };
   Object.keys(VUCUT).forEach(function (k) { R[k] = (function (s) { return function () { return s; }; })(VUCUT[k]); });
   Object.keys(AILE).forEach(function (k) { R[k] = (function (o) { return function () { return kisi(o); }; })(AILE[k]); });
-  ['happy', 'sad', 'angry', 'scared', 'surprised', 'tired', 'hungry', 'excited', 'shy', 'bored'].forEach(function (k) { R[k] = function () { return yuz(k); }; });
+  ['happy', 'sad', 'angry', 'scared', 'surprised', 'tired', 'hungry', 'excited', 'shy', 'bored', 'proud', 'worried', 'silly', 'brave', 'loved', 'sleepy', 'calm', 'nervous', 'sick', 'thirsty'].forEach(function (k) { R[k] = function () { return yuz(k); }; });
 
   var onbellek = {};
   function ic(ad) { if (!R[ad]) return ''; if (!(ad in onbellek)) onbellek[ad] = R[ad](); return onbellek[ad]; }
@@ -221,8 +231,11 @@
     return '<svg class="kc ko-beden" viewBox="0 0 240 330" role="img" aria-label="Çocuk figürü">' +
       b('legs', kalin('M102 236 V292', '#2E7DD8', 22) + kalin('M138 236 V292', '#2E7DD8', 22), r(84, 230, 72, 66, 0)) +
       b('feet', e(96, 304, 20, 11, '#E5484D') + e(144, 304, 20, 11, '#E5484D'), r(70, 290, 100, 30, 0)) +
-      b('arms', kalin('M86 172 Q60 190 48 218', TEN, 18) + kalin('M154 172 Q180 190 192 218', TEN, 18), '') +
-      r(78, 150, 84, 96, 26, '#4CC38A') + yildizYol(120, 194, 16, 8, 5) + ' fill="#FFD23F" ' + S + '/>' +
+      b('arms', kalin('M86 178 Q60 194 48 218', TEN, 18) + kalin('M154 178 Q180 194 192 218', TEN, 18), '') +
+      b('neck', r(108, 140, 24, 28, 4, TEN), r(98, 148, 44, 18, 0)) +
+      b('tummy', r(78, 160, 84, 86, 26, '#4CC38A') + yildizYol(120, 200, 16, 8, 5) + ' fill="#FFD23F" ' + S + '/>', r(86, 186, 68, 52, 0)) +
+      b('shoulders', '<circle cx="90" cy="170" r="7" fill="#7FD9A8"/><circle cx="150" cy="170" r="7" fill="#7FD9A8"/>', c(90, 170, 16) + c(150, 170, 16)) +
+      b('knees', e(102, 266, 9, 6, '#7FB7F2') + e(138, 266, 9, 6, '#7FB7F2'), r(86, 256, 68, 20, 0)) +
       b('hands', c(44, 226, 15, TEN) + c(196, 226, 15, TEN), '') +
       b('head', c(120, 92, 62, TEN) + '<circle cx="86" cy="118" r="8" fill="#FF9EB5" opacity=".7"/><circle cx="154" cy="118" r="8" fill="#FF9EB5" opacity=".7"/>', '') +
       b('ears', c(56, 98, 14, TEN) + iz('M52 92 q8 0 8 8', M, 3) + c(184, 98, 14, TEN) + iz('M188 92 q-8 0 -8 8', M, 3), c(56, 98, 20) + c(184, 98, 20)) +
@@ -242,5 +255,33 @@
   function kutu() { return '<svg class="kc ko-kap-r" viewBox="0 0 200 120" aria-hidden="true"><path d="M20 30 L4 10 L60 10 L70 30 Z" fill="#6FB8FF" ' + S + '/><path d="M180 30 L196 10 L140 10 L130 30 Z" fill="#6FB8FF" ' + S + '/><rect x="20" y="30" width="160" height="84" rx="6" fill="#4AA8FF" ' + S + '/>' + yildiz(100, 72, 18, '#FFD23F') + yazi(52, 92, 'TOYS', 16) + '</svg>'; }
   function canta() { return '<svg class="kc ko-kap-r" viewBox="0 0 200 130" aria-hidden="true"><path d="M80 24 q0 -20 20 -20 q20 0 20 20" fill="none" ' + S + ' stroke-width="5"/><rect x="30" y="20" width="140" height="106" rx="24" fill="#E5484D" ' + S + '/><path d="M30 52 q70 26 140 0" fill="#FF7A80" ' + S + '/><rect x="90" y="56" width="20" height="16" rx="3" fill="#FFD23F" ' + S + '/></svg>'; }
 
-  W.KIDS_RESIM = { ic: ic, ciz: ciz, var: function (ad) { return !!R[ad]; }, balonResim: balonResim, rozet: rozet, beden: beden, giyFigur: giyFigur, cerceve: cerceve, sepet: sepet, kutu: kutu, canta: canta, ADLAR: Object.keys(R) };
+  /* boyama: çizimin ana rengini (en sık dolgu) verilen renkle değiştir — "three red cars" */
+  var DOKUNMA = /^#(23304D|FFF|FFFFFF|FFD9C2|F3D9B5|FFF3DD|FFE2BF)$/i;
+  function anaRenk(m) { var say = {}, en = null; (m.match(/fill="#[0-9A-Fa-f]{6}"/g) || []).forEach(function (x) { var h = x.slice(6, 13).toUpperCase(); if (DOKUNMA.test(h)) return; say[h] = (say[h] || 0) + 1; if (!en || say[h] > say[en]) en = h; }); return en; }
+  var boyaB = {};
+  function boya(ad, hex) { var k = ad + hex; if (boyaB[k]) return boyaB[k]; var m = ic(ad), a = anaRenk(m); return (boyaB[k] = a ? m.replace(new RegExp(a, 'gi'), hex) : m); }
+  function boyanir(ad) { return !!anaRenk(ic(ad)); }
+  /* çizgi resim (yazdırılabilir boyama sayfası): bütün dolgular beyaz, kontur kalır */
+  function cizgi(ad) { return ic(ad).replace(/fill="#(?!23304D)[0-9A-Fa-f]{3,6}"/gi, 'fill="#fff"').replace(/stroke="#(?!23304D)[0-9A-Fa-f]{3,6}"/gi, 'stroke="#23304D"').replace(/ opacity="[^"]*"/g, ''); }
+  /* ada dünyaları: her konunun sahne arka planı (gök, zemin, soluk motifler) */
+  var DUNYA = {
+    colours: ['#FFE9F0', '#FFC9D8', ['gokkusagi', 'firca', 'yildiz']], numbers: ['#E6F8EE', '#B9E8CB', ['yildiz', 'top', 'elma']],
+    animals: ['#FFF4D6', '#B7E39A', ['cow', 'chick', 'cat']], family: ['#EEF1FF', '#C9D2FF', ['family', 'ev', 'baby']], body: ['#FFF0E6', '#FFD3BC', ['hands', 'eyes', 'feet']],
+    food: ['#FFF0F0', '#FFC9C9', ['apple', 'cake', 'carrot']], toys: ['#EAF6FF', '#BFE3FF', ['ball', 'kite', 'teddy']], clothes: ['#F5EEFF', '#E0CCFF', ['hat', 'tshirt', 'socks']],
+    home: ['#F3FBE8', '#D5EDB6', ['lamp', 'sofa', 'clock']], school: ['#FFF8DD', '#FFE59A', ['book', 'pencil', 'bag']], weather: ['#E2F5FB', '#BCE6F2', ['cloudy', 'sunny', 'rainy']],
+    feelings: ['#FFEFF6', '#FFCDE2', ['happy', 'loved', 'excited']], fruits: ['#FFF6E5', '#FFDDA0', ['orangefruit', 'pear', 'cherries']], transport: ['#EAF2FF', '#C9D3E6', ['bus', 'plane', 'bike']],
+    shapes: ['#F4F0FF', '#DCD2FF', ['circle', 'triangle', 'star']], sea: ['#DDF3FF', '#8FD3F5', ['whale', 'starfish', 'shell']], jobs: ['#FFF3E8', '#FFD9B5', ['doctor', 'chef', 'pilot']],
+    actions: ['#EFFAF1', '#C6EDCF', ['run', 'jump', 'dance']], seasons: ['#FFF8E8', '#D7EDB0', ['spring', 'autumn', 'winter']], days: ['#F2F5FF', '#D5DDF7', ['monday', 'friday', 'sunday']],
+    places: ['#FFF7EC', '#F2D7B0', ['under', 'in', 'on']], alphabet: ['#F0FAFF', '#CDEBFF', ['harf-a', 'harf-b', 'harf-c']]
+  };
+  function motif(ad) { return R[ad] ? ic(ad) : icAl(C.simge(ad)); }
+  function dunya(kid) {
+    var d = DUNYA[kid] || DUNYA.colours, yer = [[18, 30, 0.34], [300, 18, 0.3], [150, 60, 0.24], [330, 150, 0.32], [40, 170, 0.28], [220, 200, 0.3], [110, 120, 0.22], [250, 100, 0.26]];
+    return '<svg class="ka-dunya-r" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><rect width="400" height="300" fill="' + d[0] + '"/>' +
+      '<path d="M0 236 q60 -26 130 -6 q80 22 150 -4 q70 -24 120 2 V300 H0 Z" fill="' + d[1] + '"/>' +
+      yer.map(function (y, i) { return '<g transform="translate(' + y[0] + ' ' + y[1] + ') scale(' + y[2] + ') rotate(' + (i % 2 ? 8 : -8) + ' 50 50)" opacity=".2">' + motif(d[2][i % d[2].length]) + '</g>'; }).join('') + '</svg>';
+  }
+  function ekle(ad, f) { R[ad] = f; delete onbellek[ad]; }
+  W.KIDS_RESIM = { ic: ic, ciz: ciz, boya: boya, boyanir: boyanir, cizgi: cizgi, dunya: dunya, DUNYA: DUNYA, ekle: ekle,
+    A: { M: M, S: S, TEN: TEN, p: p, c: c, e: e, r: r, n: n, iz: iz, kalin: kalin, g: g, yazi: yazi, parlak: parlak, yildiz: yildiz, yildizYol: yildizYol, icAl: icAl, hazir: hazir, gunes: gunes, bulut: bulut, damla: damla, kar: kar, termometre: termometre, kisi: kisi, yuz: yuz, AILE: AILE }, var: function (ad) { return !!R[ad]; }, liste: function () { return Object.keys(R); }, balonResim: balonResim, rozet: rozet, beden: beden, giyFigur: giyFigur, cerceve: cerceve, sepet: sepet, kutu: kutu, canta: canta, ADLAR: Object.keys(R) };
 })(window);

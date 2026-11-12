@@ -28,7 +28,7 @@ const yukle = () => {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-oyun.js', 'kids-oyun2.js']) vm.runInContext(read('kids/assets/' + f), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-oyun.js', 'kids-oyun2.js']) vm.runInContext(read('kids/assets/' + f), ctx);
   return W;
 };
 
@@ -38,7 +38,7 @@ test('on tema: yaşa göre 6 / 8 / 10 kelime, her kelimenin çizimi, kimlikler b
   for (const id of K.PAKET) for (const o of K.al(id).ogeler(V.BANT.yildiz)) { assert.ok(!gor.has(o.id), 'kimlik iki konuda: ' + o.id); gor.add(o.id); }
   for (const id of TEMA) {
     const p = K.al(id);
-    assert.deepEqual([p.ogeler(V.BANT.minik).length, p.ogeler(V.BANT.kasif).length, p.ogeler(V.BANT.yildiz).length], [6, 8, 10], id);
+    assert.deepEqual([p.ogeler(V.BANT.minik).length, p.ogeler(V.BANT.kasif).length, p.ogeler(V.BANT.yildiz).length], [6, 10, 20], id + ' (ikinci kat: Yıldızlar 20 kelime)');
     for (const o of p.ogeler(V.BANT.yildiz)) {
       assert.ok(o.en && o.tr && /^#[0-9A-F]{6}$/i.test(o.hex), id + '.' + o.id);
       assert.ok(R.var(o.id), o.id + ' çizimi yok');
@@ -71,7 +71,7 @@ test('üçüncü oyunlar: her konuda ayrı, kayıtlı, motoru var; cümleleri ka
 test('ödül dünyası: çıkartmalar tekil ve çizili; her konuya rozet ve tema giysisi', () => {
   const W = yukle(), V = W.KIDS_VERI, K = W.KIDS_KONU, C = W.KIDS_CIZ, R = W.KIDS_RESIM, yok = C.simge('bu-yok');
   const cik = K.PAKET.flatMap((id) => [...K.al(id).cikartma]);
-  assert.equal(cik.length, 36); assert.equal(new Set(cik).size, 36, 'çıkartma iki konuda');
+  assert.equal(cik.length, 3 * K.PAKET.length); assert.equal(new Set(cik).size, cik.length, 'çıkartma iki konuda');
   for (const c of cik) if (c !== 'yildiz') assert.notEqual(C.simge(c), yok, c + ' çizimi yok');
   for (const k of V.KONU) {
     assert.ok(k.acik && k.rozet, k.id);
@@ -93,10 +93,10 @@ test('ogeBul tema kelimelerini bulur; ogeKonu kelimenin konusunu verir', () => {
   assert.equal(V.ogeKonu('sofa'), 'home'); assert.equal(V.ogeKonu('seven'), 'numbers');
 });
 
-test('Simon figürü: My Body kelimelerinin hepsi dokunulabilir parça', () => {
+test('Simon figürü: My Body oyununun her hedefi dokunulabilir parça (en az 14)', () => {
   const W = yukle(), V = W.KIDS_VERI, b = W.KIDS_RESIM.beden();
-  for (const o of W.KIDS_KONU.al('body').ogeler(V.BANT.yildiz)) assert.match(b, new RegExp('data-parca="' + o.id + '" tabindex="0" role="button"'), o.id);
-  for (const o of W.KIDS_KONU.al('clothes').ogeler(V.BANT.yildiz)) assert.ok(['bas', 'govde', 'boyun', 'el', 'bacak', 'ayak'].includes(o.yer) && o.hava && o.durum, o.id);
+  const P = W.KIDS_KONU.al('body'); assert.ok(P.oyun3.hedefler(P.ogeler(V.BANT.yildiz)).length >= 14); for (const o of P.oyun3.hedefler(P.ogeler(V.BANT.yildiz))) assert.match(b, new RegExp('data-parca="' + o.id + '" tabindex="0" role="button"'), o.id);
+  for (const o of W.KIDS_KONU.al('clothes').ogeler(V.BANT.yildiz)) assert.ok(['bas', 'govde', 'boyun', 'el', 'bacak', 'ayak', 'goz', 'bel'].includes(o.yer) && o.hava && o.durum, o.id);
   for (const o of W.KIDS_KONU.al('home').ogeler(V.BANT.yildiz).filter((x) => x.oda)) for (const r of o.oda) assert.ok(W.KIDS_TEMALAR.ODA.some((x) => x.id === r), o.id + ' → ' + r);
 });
 

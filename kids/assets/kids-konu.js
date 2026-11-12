@@ -69,11 +69,17 @@
   /* kids-temalar.js on temayı buradan ekler; KIDS_VERI.KONU sırası korunur */
   function ekle(id, paket) { P[id] = paket; if (PAKET.indexOf(id) < 0) PAKET.push(id); var sira = V.KONU.map(function (k) { return k.id; }); PAKET.sort(function (a, b) { return sira.indexOf(a) - sira.indexOf(b); }); }
   /* akıllı tahta "Simon says" komutu: My Body'de kendi vücudun, öbürlerinde tahtadaki resim */
-  var BELIRLI = { family: { baby: 1, family: 1 }, colours: 0, numbers: 0, weather: 0, feelings: 0 };
+  var BELIRLI = { family: { baby: 1, family: 1, boy: 1, girl: 1, man: 1, woman: 1, friend: 1, parents: 1, twins: 1, pet: 1 }, colours: 0, numbers: 0, weather: 0, feelings: 0, seasons: 0 };
   function komut(p, o) {
     if (p.id === 'body') return 'Touch your ' + o.en + '!';
     if (p.id === 'numbers') return 'Point to number ' + o.en + '!';
+    if (p.id === 'places') return o.cumle;
+    if (p.id === 'alphabet') return 'Point to the letter ' + o.en + '!';
+    if (p.id === 'days') return 'Point to ' + o.en + '!';
+    if (p.id === 'actions') return 'Can you ' + o.en + '?';
     var b = BELIRLI[p.id]; return 'Point to ' + (b === 0 || (b && !b[o.id]) ? '' : 'the ') + o.en.toLowerCase() + '!';
   }
-  W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut };
+  /* konunun oyun sayısı ve en çok yıldızı: üç oyun + (varsa) karışık durak */
+  function oyunSay(id) { var p = P[id]; return 3 + (p && p.karisik ? 1 : 0); }
+  W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
 })(window);

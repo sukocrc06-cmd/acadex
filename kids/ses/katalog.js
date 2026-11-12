@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-oyun.js', 'kids-oyun2.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-kitap.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -25,9 +25,9 @@ const TR = [
   'Hangi sınıftasın?', 'Sen hangisisin? Resmine dokun.', 'Gizli iki resmine sırayla dokun.', 'Biraz dinlenelim; birkaç dakika sonra yeniden dene.',
   'Okulunuzun Acadex Kids lisansı açık değil.', 'Bu ada yakında açılacak.', 'Bugün serbest gün. İstediğin adaya dokun.',
   'Mola zamanı! Bugün çok güzel çalıştın.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
-  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!'
+  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.'
 ];
-const EN = ['Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?'];
+const EN = ['Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?', 'The end! Great reading!'];
 
 module.exports = function katalog() {
   const W = modulleriYukle(), V = W.KIDS_VERI, K = W.KIDS_KONU, O = W.KIDS_OYUN, liste = new Map();
@@ -52,6 +52,7 @@ module.exports = function katalog() {
     });
     P.ev.forEach((c) => ekle('en', c[0], id + ' · veli köşesi'));
     if (O.cumleler) O.cumleler(P).forEach((m) => ekle('en', m, id + ' · ' + P.oyun3.ad));
+    if (O.karisikParca) O.karisikParca(P).forEach((m) => ekle('en', m, id + ' · karışık'));
   }
   /* Colours · boyama */
   O.BOYA_GOREV.forEach((g) => { ekle('en', 'Colour the ' + g[0] + ' ' + g[1] + '.', 'colours · boyama'); ekle('en', g[1] + ' ' + g[0] + '!', 'colours · boyama doğru'); });
@@ -61,6 +62,12 @@ module.exports = function katalog() {
     ekle('en', V.SAYI.slice(0, s.n).map((x) => x.en).join(', '), 'numbers · birlikte say');
     O.SAY_NESNE.forEach((n) => ekle('en', O.sayCevap(s, n), 'numbers · say doğru'));
   });
+  /* hikâye kitaplığı: cümleler, tek tek kelimeler (dokununca), sorular */
+  for (const b of W.KIDS_KITAP.LISTE) {
+    ekle('en', b.ad, 'kitap · ' + b.id);
+    b.sayfalar.forEach((s) => { ekle('en', s.s, 'kitap · ' + b.id); W.KIDS_KITAP.kelimeler(s.s).forEach((w) => ekle('en', w, 'kitap kelimesi')); });
+    b.sorular.forEach((q) => ekle('en', q.s, 'kitap · soru'));
+  }
   return [...liste.values()];
 };
 

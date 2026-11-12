@@ -168,3 +168,60 @@
   .ka-veli-konu li{grid-template-columns:32px 76px minmax(0,1fr) auto;gap:6px}
 }
 @media (prefers-reduced-motion:reduce){.ka-bayrak,.ka-ada-canli i,.ka-ada-bitti .kc-ada > g,.ko-ses-b i,.ko-yuva.ko-simdi{animation:none}.ko-cark-r{transition:none}}
+
+/* ---------- ada dünyaları: konunun arka planı ---------- */
+.ka-dunya{position:fixed;inset:0;z-index:0;pointer-events:none}
+.ka-dunya-r{width:100%;height:100%;display:block}
+[data-gorunum="konu"] .ka-konu-ust,[data-gorunum="konu"] .ka-sahne,[data-gorunum="kitap"] .ka-konu-ust,[data-gorunum="kitap"] .ka-sahne{position:relative;z-index:1}
+[data-gorunum="konu"] .ka-sahne,[data-gorunum="kitap"] .ka-sahne{background:color-mix(in srgb,var(--krem) 86%,transparent);backdrop-filter:blur(2px)}
+.ka-takimada{grid-column:1/-1;display:flex;align-items:baseline;justify-content:center;gap:10px;margin:26px 0 6px;font:800 26px/1.1 var(--bas);text-align:center}
+.ka-takimada span{padding:6px 18px;border:3px solid var(--m);border-radius:18px;background:var(--beyaz);box-shadow:var(--golge-k)}
+.ka-takimada small{font-size:15px;color:var(--soluk)}
+
+/* ---------- karışık durak ---------- */
+.ko-karisik-a{align-content:center}
+.ko-karisik-k{display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:2px;width:clamp(140px,40vw,210px);min-height:clamp(120px,32vw,170px);padding:8px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);box-shadow:var(--golge)}
+.ko-karisik-k i{display:block;width:44%;aspect-ratio:1;animation:kaPop .35s calc(var(--i) * .04s) both}
+.ko-kn1 i{width:66%}.ko-knc i{width:23%}.ko-kno i{width:30%}
+.ko-karisik-k .kc{width:100%;height:100%}
+.ko-karisik-k.ko-dogru{background:#E6F8EE;animation:kaPop .4s}
+.ko-karisik-k.ko-salla{animation:koSalla .5s}
+.ko-g-goz{top:16%;width:46%;aspect-ratio:1}
+.ko-g-bel{top:56%;width:40%;aspect-ratio:1}
+
+/* ---------- hikâye kitaplığı ---------- */
+.kk-bas{display:flex;align-items:center;gap:8px;margin:0;font:800 26px/1 var(--bas)}
+.kk-bas .kc{width:34px;height:34px}
+.kk-raf{display:block}
+.kk-alt{margin:0 0 14px;color:var(--soluk)}
+.kk-kitaplar{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin:0;padding:0;list-style:none}
+.kk-kapak{position:relative;display:grid;justify-items:center;gap:4px;width:100%;padding:12px 10px 14px;border:3px solid var(--m);border-radius:8px 20px 20px 8px;background:var(--r);box-shadow:inset 10px 0 0 rgba(35,48,77,.18),var(--golge);color:var(--m);text-align:center;animation:kaPop .35s calc(var(--i) * .04s) both}
+.kk-res{display:block;width:72%;aspect-ratio:1;padding:8px;border-radius:50%;background:rgba(255,255,255,.75)}
+.kk-res .kc{width:100%;height:100%}
+.kk-kapak b{font:800 17px/1.1 var(--bas)}
+.kk-kapak small{font-size:13px;color:var(--m);opacity:.75;font-weight:800}
+.kk-kapak .ka-tik{display:grid;position:absolute;top:-8px;right:-8px;width:30px;height:30px}
+.kk-noktalar{display:flex;gap:6px;margin:0;padding:0;list-style:none}
+.kk-noktalar li{display:grid;place-items:center;width:18px;height:18px;border:2px solid var(--m);border-radius:50%;background:var(--beyaz);font:800 11px var(--bas)}
+.kk-noktalar li.kk-gecti{background:var(--yesil)}.kk-noktalar li.kk-bu{background:var(--sari);transform:scale(1.2)}
+.kk-sayfa{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:12px;justify-items:center}
+.kk-ad{margin:0;font:800 18px/1 var(--bas);color:var(--soluk)}
+.kk-resim{position:relative;display:flex;justify-content:center;align-items:center;gap:2%;width:100%;min-height:200px;padding:14px;border:3px solid var(--m);border-radius:26px;background:color-mix(in srgb,var(--r) 30%,#fff)}
+.kk-resim span{display:block;width:min(34%,190px);aspect-ratio:1;animation:kaPop .45s calc(var(--i) * .15s) both}
+.kk-r1 span{width:min(62%,260px)}.kk-r2 span{width:min(44%,210px)}.kk-r3 span{width:min(30%,170px)}
+.kk-resim span .kc{width:100%;height:100%}
+.kk-resim .kk-acd{position:absolute;right:8px;top:8px;width:56px;height:auto;aspect-ratio:auto;animation:none}
+.kk-cumle{margin:0;font:800 clamp(22px,4.4vw,34px)/1.35 var(--bas);text-align:center}
+.kk-k{padding:0 3px;border:0;border-radius:8px;background:none;font:inherit;color:inherit;cursor:pointer;transition:background .15s}
+.kk-k.kk-yanan{background:var(--sari);box-shadow:0 0 0 2px var(--m)}
+.kk-k.kk-zipla{animation:kaPop .35s}
+.kk-alt-d{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.kk-soru{display:grid;gap:16px;justify-items:center;align-content:center}
+.kk-soru-no{margin:0;color:var(--soluk);font-weight:800}
+.kk-soru-s{display:flex;align-items:center;gap:10px;margin:0;font:800 clamp(22px,4vw,32px)/1.2 var(--bas);text-align:center}
+.ka-veli-yaz{display:flex;flex-wrap:wrap;gap:8px}
+.ka-veli-yaz .ka-orta{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:16px}
+.ka-veli-yaz .kc{width:22px;height:22px}
+@media (max-width:760px){.kk-kitaplar{grid-template-columns:repeat(2,minmax(0,1fr))}.kk-resim{min-height:150px}}
+.ko-palet{flex-wrap:wrap}
+.ko-palet .ko-boya{flex:none}

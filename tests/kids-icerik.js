@@ -26,7 +26,7 @@ const yukle = () => {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }) };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js']) vm.runInContext(read('kids/assets/' + f), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js']) vm.runInContext(read('kids/assets/' + f), ctx);
   return W;
 };
 
@@ -72,7 +72,7 @@ test('dolap: eşikler artan, yuvalar bas/yuz, her giysinin çizimi var', () => {
   const e = V.GIYSI.filter((g) => !g.tema).map((g) => g.yildiz);
   /* tema giysileri yıldızla değil, o konunun adası bitince açılır: her konuya bir tane */
   const tg = V.GIYSI.filter((g) => g.tema).map((g) => g.tema);
-  assert.deepEqual([...tg].sort(), [...V.KONU.filter((k) => !['colours', 'numbers'].includes(k.id)).map((k) => k.id)].sort());
+  assert.deepEqual([...tg].sort(), [...V.KONU.filter((k) => !['colours', 'numbers'].includes(k.id) && k.grup !== 2).map((k) => k.id)].sort());
   assert.deepEqual([...e], [...e].sort((a, b) => a - b));
   for (const g of V.GIYSI) { assert.ok(['bas', 'yuz'].includes(g.yuva), g.id); assert.ok(C.GIYSI.includes(g.id), g.id + ' çizimi'); }
   assert.ok(e[e.length - 1] <= 2 * 9 + 2, 'en pahalı giysi iki konuyla açılabilmeli');

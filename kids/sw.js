@@ -9,7 +9,7 @@
    SURUM'a gerek yok: kids-ses.js adrese sesin kimliğini (?v=) ekler.
    ========================================================================== */
 'use strict';
-const SURUM = 'acadex-kids-2026-11-12a';
+const SURUM = 'acadex-kids-2026-11-12b';
 const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png'];
 
 self.addEventListener('install', (e) => {

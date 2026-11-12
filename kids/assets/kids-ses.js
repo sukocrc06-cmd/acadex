@@ -120,5 +120,13 @@
     adim(); muzikT = setInterval(adim, 300);
   }
   function ayar(v) { acik = !!v; try { localStorage.setItem('kids.ses', acik ? '1' : '0'); } catch (e) { } if (!acik) sus(); return acik; }
-  W.KIDS_SES = { surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
+  /* parça parça söyle (karışık sorular: "Find" + "three" + "red" + "cars"): bütün cümle kayıtlıysa onu,
+     değilse kayıtlı parçaları art arda çalar; böylece sınırsız birleşim de öğretmen sesiyle duyulur */
+  function kayitliMi(metin, dil) { return !!(LISTE && LISTE[anahtar(metin, dil)]); }
+  function dizi(parcalar, dil) {
+    var tam = parcalar.join(' ').replace(/ ([!?.,])/g, '$1');
+    if (kayitliMi(tam, dil) || !LISTE || !parcalar.every(function (x) { return kayitliMi(x, dil); })) return soyle(tam, dil);
+    var i = 0; return (function sira() { if (i >= parcalar.length || !acik) return Promise.resolve(true); return soyle(parcalar[i++], dil).then(function (ok) { return ok === false ? false : sira(); }); })();
+  }
+  W.KIDS_SES = { kayitliMi: kayitliMi, dizi: dizi, surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
 })(window);

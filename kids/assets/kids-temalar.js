@@ -15,11 +15,12 @@
   function vurgu(o, metin) { var i = metin.toLowerCase().indexOf(o.en.toLowerCase()); return i < 0 ? metin : metin.slice(0, i) + '<b style="--r:' + o.hex + '">' + metin.slice(i, i + o.en.length) + '</b>' + metin.slice(i + o.en.length); }
   function o(id, en, tr, hex, ek) { var x = { id: id, en: en, tr: tr, hex: hex }; for (var k in ek || {}) x[k] = ek[k]; return x; }
 
+  function bantAdi(b) { var B = W.KIDS_VERI.BANT; for (var k in B) if (B[k] === b || B[k].ad === b.ad) return k; return 'kasif'; }
   /* ortak paket iskeleti: konu yalnız farklı olanı verir */
   function tema(t) {
     var p = {
       id: t.id,
-      ogeler: function (bant) { return t.liste.slice(0, bant.kelimeSay || 8); },
+      ogeler: function (bant) { return t.liste.slice(0, (t.say && bant.ad && t.say[bantAdi(bant)]) || bant.kelimeSay || 8); },
       gorsel: function (x) { return R.ciz(x.id); },
       izleGiris: t.giris,
       izleCumle: function (x) { return x.izle || t.izle(x); },
@@ -36,7 +37,7 @@
         a: function (x) { return R.ciz(x.id); },
         b: function (x, bant) { return bant.kelimeKart ? '<b lang="en" style="--r:' + x.hex + '">' + esc(x.en) + '</b>' : bant.yazi ? '<span class="ko-resimk">' + R.ciz(x.id) + '<small lang="en">' + esc(x.en) + '</small></span>' : R.ciz(x.id); }
       },
-      oyun3: t.oyun3, cikartma: t.cikartma, sarki: t.sarki, ev: t.ev, etkinlik: t.etkinlik,
+      oyun3: t.oyun3, cikartma: t.cikartma, sarki: t.sarki, ev: t.ev, etkinlik: t.etkinlik, liste: t.liste, karisik: t.karisik || false,
       bitis: 'Great job! ' + t.ad + ', done!'
     };
     K.ekle(t.id, p);
@@ -49,7 +50,7 @@
   tema({
     id: 'animals', ad: 'Animals', giris: 'Let\'s meet the animals!', dokun: 'Hayvanlara dokun ve dinle.', hafiza: 'Find the same animals!', balon: pop,
     izle: function (x) { return 'It\'s a ' + kucuk(x) + '!'; },
-    liste: [o('cat', 'cat', 'kedi', '#FF9F45', { ses: 'Meow' }), o('dog', 'dog', 'köpek', '#D9A35E', { ses: 'Woof' }), o('fish', 'fish', 'balık', '#4AA8FF'), o('bird', 'bird', 'kuş', '#F2B92A', { ses: 'Tweet' }),
+    liste: [o('cat', 'cat', 'kedi', '#FF9F45', { ses: 'Meow' }), o('dog', 'dog', 'köpek', '#D9A35E', { ses: 'Woof' }), o('fish', 'fish', 'balık', '#4AA8FF', { cogul: 'fish' }), o('bird', 'bird', 'kuş', '#F2B92A', { ses: 'Tweet' }),
       o('rabbit', 'rabbit', 'tavşan', '#FF8FB0'), o('frog', 'frog', 'kurbağa', '#3FB86A', { ses: 'Ribbit' }), o('cow', 'cow', 'inek', '#7C8AA3', { ses: 'Moo' }), o('chick', 'chick', 'civciv', '#F2B92A', { ses: 'Cheep' }),
       o('lion', 'lion', 'aslan', '#E08A2E', { ses: 'Roar' }), o('bear', 'bear', 'ayı', '#B07A40')],
     oyun3: {
@@ -190,10 +191,10 @@
     id: 'clothes', ad: 'Clothes', giris: 'Let\'s get dressed!', dokun: 'Kıyafetlere dokun ve dinle.', hafiza: 'Find the same clothes!', balon: pop,
     izle: function (x) { return 'Put on your ' + kucuk(x) + '!'; },
     liste: [o('hat', 'hat', 'şapka', '#E8B820', { yer: 'bas', hava: 'sunny', durum: 'It\'s sunny!' }), o('tshirt', 'T-shirt', 'tişört', '#3FB86A', { yer: 'govde', hava: 'hot', durum: 'It\'s hot!' }),
-      o('dress', 'dress', 'elbise', '#FF6FA5', { yer: 'govde', hava: 'balloon', durum: 'It\'s a party!' }), o('shoes', 'shoes', 'ayakkabı', '#2E8FE8', { yer: 'ayak', hava: 'kite', durum: 'Let\'s go out!' }),
-      o('socks', 'socks', 'çorap', '#E5484D', { yer: 'ayak', hava: 'cold', durum: 'Your feet are cold!' }), o('coat', 'coat', 'mont', '#B07A40', { yer: 'govde', hava: 'cold', durum: 'It\'s cold!' }),
-      o('scarf', 'scarf', 'atkı', '#F0405A', { yer: 'boyun', hava: 'windy', durum: 'It\'s windy!' }), o('gloves', 'gloves', 'eldiven', '#8E7CF0', { yer: 'el', hava: 'snowy', durum: 'It\'s snowy!' }),
-      o('trousers', 'trousers', 'pantolon', '#2E7DD8', { yer: 'bacak', hava: 'bag', durum: 'Let\'s go to school!' }), o('boots', 'boots', 'çizme', '#E8A400', { yer: 'ayak', hava: 'rainy', durum: 'It\'s rainy!' })],
+      o('dress', 'dress', 'elbise', '#FF6FA5', { yer: 'govde', hava: 'balloon', durum: 'It\'s a party!' }), o('shoes', 'shoes', 'ayakkabı', '#2E8FE8', { cok: 1, yer: 'ayak', hava: 'kite', durum: 'Let\'s go out!' }),
+      o('socks', 'socks', 'çorap', '#E5484D', { cok: 1, yer: 'ayak', hava: 'cold', durum: 'Your feet are cold!' }), o('coat', 'coat', 'mont', '#B07A40', { yer: 'govde', hava: 'cold', durum: 'It\'s cold!' }),
+      o('scarf', 'scarf', 'atkı', '#F0405A', { yer: 'boyun', hava: 'windy', durum: 'It\'s windy!' }), o('gloves', 'gloves', 'eldiven', '#8E7CF0', { cok: 1, yer: 'el', hava: 'snowy', durum: 'It\'s snowy!' }),
+      o('trousers', 'trousers', 'pantolon', '#2E7DD8', { cok: 1, yer: 'bacak', hava: 'bag', durum: 'Let\'s go to school!' }), o('boots', 'boots', 'çizme', '#E8A400', { cok: 1, yer: 'ayak', hava: 'rainy', durum: 'It\'s rainy!' })],
     oyun3: {
       id: 'giydir', ad: 'Giydir', simge: 'tshirt', motor: 'yerlestir', kap: 'giy',
       soz: function (x) { return x.durum + ' Put on your ' + kucuk(x) + '.'; },
@@ -332,5 +333,5 @@
       { ad: 'Gün sonu sohbeti', adim: 'Yatmadan önce sorun: “How do you feel?” Çocuğunuz bir duygu seçsin, nedenini Türkçe anlatsın.' }]
   });
 
-  W.KIDS_TEMALAR = { ODA: ODA };
+  W.KIDS_TEMALAR = { ODA: ODA, tema: tema, o: o, vurgu: vurgu };
 })(window);
