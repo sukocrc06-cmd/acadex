@@ -61,7 +61,9 @@
   function ben(kid, r, P) {
     var c = P && P.izleCumle ? P.izleCumle(r) : '';
     switch (kid) {
-      case 'animals': case 'sea': case 'transport': return r.ses ? sesTekrar(r.ses) + '! I\'m ' + adli(r) + '!' : 'Hi! ' + benim(r);
+      /* hayvanlar: "Meow" artık öğretmen sesiyle söylenmez; önce çizgi film efekti çalar (kids-ses hayvan), sonra tanıtım */
+      case 'animals': case 'sea': return 'Hi! ' + benim(r);
+      case 'transport': return r.ses ? sesTekrar(r.ses) + '! I\'m ' + adli(r) + '!' : 'Hi! ' + benim(r);
       case 'colours': return 'Hi! I\'m ' + r.en + '!';
       case 'numbers': return 'Hi! I\'m number ' + r.en + '!';
       case 'alphabet': return 'Hi! I\'m the letter ' + r.en + '!';
@@ -107,7 +109,7 @@
   function esya(ad) { return ESYA[ad] || ''; }
 
   /* hangi hayvan sesi çalınır (kids-ses.js FX.hayvan) */
-  var HAYVAN = { cat: 1, dog: 1, bird: 1, frog: 1, cow: 1, chick: 1, lion: 1, horse: 1, pig: 1, sheep: 1, duck: 1, monkey: 1, elephant: 1, mouse: 1, snake: 1, owl: 1, bee: 1, goat: 1, hen: 1, crocodile: 1, whale: 1, dolphin: 1, seal: 1, walrus: 1, tiger: 1, bear: 1 };
+  var HAYVAN = { cat: 1, dog: 1, bird: 1, frog: 1, cow: 1, chick: 1, lion: 1, horse: 1, pig: 1, sheep: 1, duck: 1, monkey: 1, elephant: 1, mouse: 1, snake: 1, owl: 1, bee: 1, goat: 1, hen: 1, crocodile: 1, whale: 1, dolphin: 1, seal: 1, walrus: 1, tiger: 1, bear: 1, rabbit: 1 };
   function hayvanSesi(r) { return r && HAYVAN[r.id] ? r.id : null; }
 
   W.KIDS_KONUSAN = { replik: replik, ben: ben, esya: esya, hayvanSesi: hayvanSesi, ESYA: ESYA, adli: adli };

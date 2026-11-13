@@ -18,6 +18,10 @@ tr/once-bir-onceki-paketi-bitir-01c95d.mp3;tr;"Önce bir önceki paketi bitir.";
 tr/yeni-bir-kelime-paketi-acildi-1eb66a.mp3;tr;"Yeni bir kelime paketi açıldı!";yönerge
 tr/gumus-madalya-kazandin-85385f.mp3;tr;"Gümüş madalya kazandın!";yönerge
 tr/altin-madalya-kazandin-f6cce4.mp3;tr;"Altın madalya kazandın!";yönerge
+en/say-it-with-me-375ab2.mp3;en;"Say it with me!";övgü / oyun
+en/yes-let-s-see-01a8b7.mp3;en;"Yes! Let's see!";övgü / oyun
+en/hmm-let-s-see-b6dc64.mp3;en;"Hmm! Let's see!";övgü / oyun
+en/i-like-it-too-1b31a0.mp3;en;"I like it too!";övgü / oyun
 en/good-try-f0c08f.mp3;en;"Good try!";övgü / oyun
 en/well-done-e78d52.mp3;en;"Well done!";övgü / oyun
 en/super-9c20f5.mp3;en;"Super!";övgü / oyun
@@ -5745,52 +5749,52 @@ en/hi-i-m-number-eighteen-35a560.mp3;en;"Hi! I'm number eighteen!";numbers · ko
 en/hi-i-m-number-nineteen-98d2bc.mp3;en;"Hi! I'm number nineteen!";numbers · konuşan ben
 en/hi-i-m-number-twenty-3395fc.mp3;en;"Hi! I'm number twenty!";numbers · konuşan ben
 en/who-are-you-b6197e.mp3;en;"Who are you?";animals · konuşan soru
-en/meow-meow-i-m-a-cat-9c2ccb.mp3;en;"Meow, meow! I'm a cat!";animals · konuşan ben
+en/hi-i-m-a-cat-b3dc06.mp3;en;"Hi! I'm a cat!";animals · konuşan ben
 en/hello-cat-42709d.mp3;en;"Hello, cat!";animals · konuşan selam
 en/the-cat-plays-with-a-ball-28d947.mp3;en;"The cat plays with a ball!";animals · konuşan hikaye
-en/woof-woof-i-m-a-dog-214619.mp3;en;"Woof, woof! I'm a dog!";animals · konuşan ben
+en/hi-i-m-a-dog-3a37f6.mp3;en;"Hi! I'm a dog!";animals · konuşan ben
 en/hello-dog-2e884d.mp3;en;"Hello, dog!";animals · konuşan selam
 en/the-dog-plays-with-a-ball-40f1d4.mp3;en;"The dog plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-fish-0f1e89.mp3;en;"Hi! I'm a fish!";animals · konuşan ben
 en/hello-fish-584a19.mp3;en;"Hello, fish!";animals · konuşan selam
 en/the-fish-plays-with-a-ball-b76098.mp3;en;"The fish plays with a ball!";animals · konuşan hikaye
-en/tweet-tweet-i-m-a-bird-0b20fc.mp3;en;"Tweet, tweet! I'm a bird!";animals · konuşan ben
+en/hi-i-m-a-bird-36f1e8.mp3;en;"Hi! I'm a bird!";animals · konuşan ben
 en/hello-bird-4c585c.mp3;en;"Hello, bird!";animals · konuşan selam
 en/the-bird-plays-with-a-ball-f4ae1d.mp3;en;"The bird plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-rabbit-91a709.mp3;en;"Hi! I'm a rabbit!";animals · konuşan ben
 en/hello-rabbit-ec623b.mp3;en;"Hello, rabbit!";animals · konuşan selam
 en/the-rabbit-plays-with-a-ball-ee484b.mp3;en;"The rabbit plays with a ball!";animals · konuşan hikaye
-en/ribbit-ribbit-i-m-a-frog-52a5c9.mp3;en;"Ribbit, ribbit! I'm a frog!";animals · konuşan ben
+en/hi-i-m-a-frog-f26f14.mp3;en;"Hi! I'm a frog!";animals · konuşan ben
 en/hello-frog-eea537.mp3;en;"Hello, frog!";animals · konuşan selam
 en/the-frog-plays-with-a-ball-4a1a17.mp3;en;"The frog plays with a ball!";animals · konuşan hikaye
-en/moo-moo-i-m-a-cow-cbe755.mp3;en;"Moo, moo! I'm a cow!";animals · konuşan ben
+en/hi-i-m-a-cow-34bd8f.mp3;en;"Hi! I'm a cow!";animals · konuşan ben
 en/hello-cow-f8aceb.mp3;en;"Hello, cow!";animals · konuşan selam
 en/the-cow-plays-with-a-ball-c6eb1b.mp3;en;"The cow plays with a ball!";animals · konuşan hikaye
-en/cheep-cheep-i-m-a-chick-c5f84e.mp3;en;"Cheep, cheep! I'm a chick!";animals · konuşan ben
+en/hi-i-m-a-chick-b887ea.mp3;en;"Hi! I'm a chick!";animals · konuşan ben
 en/hello-chick-8f7a50.mp3;en;"Hello, chick!";animals · konuşan selam
 en/the-chick-plays-with-a-ball-221ffc.mp3;en;"The chick plays with a ball!";animals · konuşan hikaye
-en/roar-roar-i-m-a-lion-380057.mp3;en;"Roar, roar! I'm a lion!";animals · konuşan ben
+en/hi-i-m-a-lion-20b290.mp3;en;"Hi! I'm a lion!";animals · konuşan ben
 en/hello-lion-08e165.mp3;en;"Hello, lion!";animals · konuşan selam
 en/the-lion-plays-with-a-ball-62af1d.mp3;en;"The lion plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-bear-0a9d27.mp3;en;"Hi! I'm a bear!";animals · konuşan ben
 en/hello-bear-ec6188.mp3;en;"Hello, bear!";animals · konuşan selam
 en/the-bear-plays-with-a-ball-9c56b6.mp3;en;"The bear plays with a ball!";animals · konuşan hikaye
-en/neigh-neigh-i-m-a-horse-63901c.mp3;en;"Neigh, neigh! I'm a horse!";animals · konuşan ben
+en/hi-i-m-a-horse-be9245.mp3;en;"Hi! I'm a horse!";animals · konuşan ben
 en/hello-horse-2a3d9f.mp3;en;"Hello, horse!";animals · konuşan selam
 en/the-horse-plays-with-a-ball-19062c.mp3;en;"The horse plays with a ball!";animals · konuşan hikaye
-en/oink-oink-i-m-a-pig-ed0180.mp3;en;"Oink, oink! I'm a pig!";animals · konuşan ben
+en/hi-i-m-a-pig-eb6bbf.mp3;en;"Hi! I'm a pig!";animals · konuşan ben
 en/hello-pig-f49a9f.mp3;en;"Hello, pig!";animals · konuşan selam
 en/the-pig-plays-with-a-ball-a57803.mp3;en;"The pig plays with a ball!";animals · konuşan hikaye
-en/baa-baa-i-m-a-sheep-901aa2.mp3;en;"Baa, baa! I'm a sheep!";animals · konuşan ben
+en/hi-i-m-a-sheep-81d606.mp3;en;"Hi! I'm a sheep!";animals · konuşan ben
 en/hello-sheep-2ea6f4.mp3;en;"Hello, sheep!";animals · konuşan selam
 en/the-sheep-plays-with-a-ball-cfbaba.mp3;en;"The sheep plays with a ball!";animals · konuşan hikaye
-en/quack-quack-i-m-a-duck-71152c.mp3;en;"Quack, quack! I'm a duck!";animals · konuşan ben
+en/hi-i-m-a-duck-171e8a.mp3;en;"Hi! I'm a duck!";animals · konuşan ben
 en/hello-duck-df31f7.mp3;en;"Hello, duck!";animals · konuşan selam
 en/the-duck-plays-with-a-ball-76f223.mp3;en;"The duck plays with a ball!";animals · konuşan hikaye
-en/ooh-ooh-i-m-a-monkey-3f6eb7.mp3;en;"Ooh, ooh! I'm a monkey!";animals · konuşan ben
+en/hi-i-m-a-monkey-50c6c4.mp3;en;"Hi! I'm a monkey!";animals · konuşan ben
 en/hello-monkey-68e765.mp3;en;"Hello, monkey!";animals · konuşan selam
 en/the-monkey-plays-with-a-ball-0828f9.mp3;en;"The monkey plays with a ball!";animals · konuşan hikaye
-en/toot-toot-i-m-an-elephant-16f697.mp3;en;"Toot, toot! I'm an elephant!";animals · konuşan ben
+en/hi-i-m-an-elephant-2b52a9.mp3;en;"Hi! I'm an elephant!";animals · konuşan ben
 en/hello-elephant-4a2c06.mp3;en;"Hello, elephant!";animals · konuşan selam
 en/the-elephant-plays-with-a-ball-fed61b.mp3;en;"The elephant plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-giraffe-37febd.mp3;en;"Hi! I'm a giraffe!";animals · konuşan ben
@@ -5799,19 +5803,19 @@ en/the-giraffe-plays-with-a-ball-088dd0.mp3;en;"The giraffe plays with a ball!";
 en/hi-i-m-a-tiger-6551d5.mp3;en;"Hi! I'm a tiger!";animals · konuşan ben
 en/hello-tiger-0fa2a8.mp3;en;"Hello, tiger!";animals · konuşan selam
 en/the-tiger-plays-with-a-ball-ec85db.mp3;en;"The tiger plays with a ball!";animals · konuşan hikaye
-en/squeak-squeak-i-m-a-mouse-8d7319.mp3;en;"Squeak, squeak! I'm a mouse!";animals · konuşan ben
+en/hi-i-m-a-mouse-23f93e.mp3;en;"Hi! I'm a mouse!";animals · konuşan ben
 en/hello-mouse-95517b.mp3;en;"Hello, mouse!";animals · konuşan selam
 en/the-mouse-plays-with-a-ball-6a3a38.mp3;en;"The mouse plays with a ball!";animals · konuşan hikaye
-en/hiss-hiss-i-m-a-snake-bb8eee.mp3;en;"Hiss, hiss! I'm a snake!";animals · konuşan ben
+en/hi-i-m-a-snake-db7e69.mp3;en;"Hi! I'm a snake!";animals · konuşan ben
 en/hello-snake-55fff6.mp3;en;"Hello, snake!";animals · konuşan selam
 en/the-snake-plays-with-a-ball-787b6c.mp3;en;"The snake plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-penguin-d6c7be.mp3;en;"Hi! I'm a penguin!";animals · konuşan ben
 en/hello-penguin-1411eb.mp3;en;"Hello, penguin!";animals · konuşan selam
 en/the-penguin-plays-with-a-ball-3c0bdb.mp3;en;"The penguin plays with a ball!";animals · konuşan hikaye
-en/hoot-hoot-i-m-an-owl-a2d49f.mp3;en;"Hoot, hoot! I'm an owl!";animals · konuşan ben
+en/hi-i-m-an-owl-9dd0eb.mp3;en;"Hi! I'm an owl!";animals · konuşan ben
 en/hello-owl-980c72.mp3;en;"Hello, owl!";animals · konuşan selam
 en/the-owl-plays-with-a-ball-51842d.mp3;en;"The owl plays with a ball!";animals · konuşan hikaye
-en/buzz-buzz-i-m-a-bee-36f51b.mp3;en;"Buzz, buzz! I'm a bee!";animals · konuşan ben
+en/hi-i-m-a-bee-66144e.mp3;en;"Hi! I'm a bee!";animals · konuşan ben
 en/hello-bee-7758e4.mp3;en;"Hello, bee!";animals · konuşan selam
 en/the-bee-plays-with-a-ball-40a8d4.mp3;en;"The bee plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-butterfly-4b5bec.mp3;en;"Hi! I'm a butterfly!";animals · konuşan ben
@@ -5826,13 +5830,13 @@ en/the-panda-plays-with-a-ball-2e9727.mp3;en;"The panda plays with a ball!";anim
 en/hi-i-m-a-fox-2dd366.mp3;en;"Hi! I'm a fox!";animals · konuşan ben
 en/hello-fox-963470.mp3;en;"Hello, fox!";animals · konuşan selam
 en/the-fox-plays-with-a-ball-2f81a3.mp3;en;"The fox plays with a ball!";animals · konuşan hikaye
-en/maa-maa-i-m-a-goat-3d1a1e.mp3;en;"Maa, maa! I'm a goat!";animals · konuşan ben
+en/hi-i-m-a-goat-279dae.mp3;en;"Hi! I'm a goat!";animals · konuşan ben
 en/hello-goat-531a11.mp3;en;"Hello, goat!";animals · konuşan selam
 en/the-goat-plays-with-a-ball-8c9df0.mp3;en;"The goat plays with a ball!";animals · konuşan hikaye
-en/cluck-cluck-i-m-a-hen-0d30e5.mp3;en;"Cluck, cluck! I'm a hen!";animals · konuşan ben
+en/hi-i-m-a-hen-3e65d7.mp3;en;"Hi! I'm a hen!";animals · konuşan ben
 en/hello-hen-d546b7.mp3;en;"Hello, hen!";animals · konuşan selam
 en/the-hen-plays-with-a-ball-c412d5.mp3;en;"The hen plays with a ball!";animals · konuşan hikaye
-en/snap-snap-i-m-a-crocodile-71bea8.mp3;en;"Snap, snap! I'm a crocodile!";animals · konuşan ben
+en/hi-i-m-a-crocodile-44e4f8.mp3;en;"Hi! I'm a crocodile!";animals · konuşan ben
 en/hello-crocodile-e6e670.mp3;en;"Hello, crocodile!";animals · konuşan selam
 en/the-crocodile-plays-with-a-ball-f6c1a2.mp3;en;"The crocodile plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-hippo-124a01.mp3;en;"Hi! I'm a hippo!";animals · konuşan ben
@@ -6982,280 +6986,481 @@ en/queen-4d3275.mp3;en;"queen.";harf treni
 en/queen-28578c.mp3;en;"queen!";harf treni
 en/yoyo-ff6568.mp3;en;"yoyo.";harf treni
 en/yoyo-97a4e3.mp3;en;"yoyo!";harf treni
-en/the-rainbow-paint-1055b1.mp3;en;"The Rainbow Paint";kitap · boya
-en/ada-has-a-paint-box-846c8e.mp3;en;"Ada has a paint box.";kitap · boya
-en/ada-19e93c.mp3;en;"ada";kitap kelimesi
-en/paint-30e126.mp3;en;"paint";kitap kelimesi
-en/she-paints-a-red-apple-122936.mp3;en;"She paints a red apple.";kitap · boya
-en/she-8a5001.mp3;en;"she";kitap kelimesi
-en/she-paints-a-yellow-sun-and-a-blue-ship-72f3d0.mp3;en;"She paints a yellow sun and a blue ship.";kitap · boya
-en/she-paints-a-green-frog-f38101.mp3;en;"She paints a green frog.";kitap · boya
-en/look-a-rainbow-37c00c.mp3;en;"Look! A rainbow!";kitap · boya
-en/what-colour-is-the-apple-b61722.mp3;en;"What colour is the apple?";kitap · soru
-en/what-does-ada-paint-first-50160f.mp3;en;"What does Ada paint first?";kitap · soru
-en/what-is-green-f8fd90.mp3;en;"What is green?";kitap · soru
-en/ten-little-stars-3613d7.mp3;en;"Ten Little Stars";kitap · yildizlar
-en/one-star-two-stars-three-stars-in-the-sk-5741e1.mp3;en;"One star, two stars, three stars in the sky.";kitap · yildizlar
-en/stars-89c78e.mp3;en;"stars";kitap kelimesi
-en/a-little-bird-counts-the-stars-ed4cd7.mp3;en;"A little bird counts the stars.";kitap · yildizlar
-en/counts-23a495.mp3;en;"counts";kitap kelimesi
-en/four-five-six-the-moon-says-hello-eec084.mp3;en;"Four, five, six! The moon says hello.";kitap · yildizlar
-en/seven-eight-nine-ten-so-many-stars-ecc97e.mp3;en;"Seven, eight, nine, ten! So many stars!";kitap · yildizlar
-en/so-3130f7.mp3;en;"so";kitap kelimesi
-en/many-3c5e45.mp3;en;"many";kitap kelimesi
-en/good-night-stars-e45fae.mp3;en;"Good night, stars!";kitap · yildizlar
-en/who-counts-the-stars-e66127.mp3;en;"Who counts the stars?";kitap · soru
-en/how-many-stars-ten-631616.mp3;en;"How many stars? Ten!";kitap · soru
-en/who-says-hello-9ab318.mp3;en;"Who says hello?";kitap · soru
-en/who-is-hiding-4a51d3.mp3;en;"Who Is Hiding?";kitap · ciftlik
-en/tom-goes-to-the-farm-598033.mp3;en;"Tom goes to the farm.";kitap · ciftlik
+en/where-is-my-ball-545779.mp3;en;"Where Is My Ball?";kitap · boya
+en/kitty-has-a-red-ball-48ecb7.mp3;en;"Kitty has a red ball.";kitap · boya
+en/kitty-332025.mp3;en;"kitty";kitap kelimesi
+en/oh-no-where-is-my-ball-4771cf.mp3;en;"Oh no! Where is my ball?";kitap · boya
+en/oh-73e9cf.mp3;en;"oh";kitap kelimesi
+en/no-cdcf87.mp3;en;"no";kitap kelimesi
+en/is-it-in-the-blue-bag-no-c44e34.mp3;en;"Is it in the blue bag? No!";kitap · boya
+en/is-it-on-the-yellow-chair-no-249b04.mp3;en;"Is it on the yellow chair? No!";kitap · boya
+en/look-puppy-has-the-red-ball-fc645e.mp3;en;"Look! Puppy has the red ball!";kitap · boya
+en/puppy-5ba21b.mp3;en;"puppy";kitap kelimesi
+en/kitty-and-puppy-play-hooray-8f9b01.mp3;en;"Kitty and Puppy play. Hooray!";kitap · boya
+en/hooray-9078f4.mp3;en;"hooray";kitap kelimesi
+en/what-colour-is-the-ball-e6f925.mp3;en;"What colour is the ball?";kitap · soru
+en/who-has-the-ball-3fc89d.mp3;en;"Who has the ball?";kitap · soru
+en/how-is-kitty-at-the-end-0f6b5a.mp3;en;"How is Kitty at the end?";kitap · soru
+en/where-is-my-ball-999300.mp3;en;"Where is my ball?";kitap · nakarat
+en/touch-the-ball-99ad94.mp3;en;"Touch the ball!";kitap · dokun
+en/three-hungry-chicks-80a931.mp3;en;"Three Hungry Chicks";kitap · yildizlar
+en/hen-has-three-hungry-chicks-ad0f7d.mp3;en;"Hen has three hungry chicks.";kitap · yildizlar
+en/chicks-3dd606.mp3;en;"chicks";kitap kelimesi
+en/cheep-cheep-we-are-hungry-b63cf2.mp3;en;"Cheep, cheep! We are hungry!";kitap · yildizlar
+en/cheep-aaebe3.mp3;en;"cheep";kitap kelimesi
+en/one-apple-falls-bump-c76073.mp3;en;"One apple falls. Bump!";kitap · yildizlar
+en/falls-c45fff.mp3;en;"falls";kitap kelimesi
+en/bump-0ee5d1.mp3;en;"bump";kitap kelimesi
+en/two-apples-fall-bump-bump-7e5bec.mp3;en;"Two apples fall. Bump, bump!";kitap · yildizlar
+en/three-apples-fall-one-two-three-85d2de.mp3;en;"Three apples fall! One, two, three!";kitap · yildizlar
+en/one-apple-for-each-chick-yummy-2df7cb.mp3;en;"One apple for each chick. Yummy!";kitap · yildizlar
+en/each-501f00.mp3;en;"each";kitap kelimesi
+en/how-many-chicks-26391d.mp3;en;"How many chicks?";kitap · soru
+en/what-falls-from-the-tree-f7b9a8.mp3;en;"What falls from the tree?";kitap · soru
+en/who-is-hungry-c2c95e.mp3;en;"Who is hungry?";kitap · soru
+en/we-are-hungry-d04a62.mp3;en;"We are hungry!";kitap · nakarat
+en/how-many-apples-next-7b0d33.mp3;en;"How many apples next?";kitap · tahmin
+en/touch-the-apple-7e7326.mp3;en;"Touch the apple!";kitap · dokun
+en/where-is-my-puppy-789cd8.mp3;en;"Where Is My Puppy?";kitap · ciftlik
+en/tom-can-t-find-his-puppy-e95efc.mp3;en;"Tom can't find his puppy.";kitap · ciftlik
 en/tom-d8a2fc.mp3;en;"tom";kitap kelimesi
-en/moo-a-cow-is-hiding-25bf4e.mp3;en;"Moo! A cow is hiding.";kitap · ciftlik
-en/quack-a-duck-is-in-the-water-2bc4f7.mp3;en;"Quack! A duck is in the water.";kitap · ciftlik
+en/can-t-9bc871.mp3;en;"can't";kitap kelimesi
+en/find-0f6fa2.mp3;en;"find";kitap kelimesi
+en/his-1d5bdd.mp3;en;"his";kitap kelimesi
+en/puppy-puppy-where-are-you-ea501f.mp3;en;"Puppy, puppy, where are you?";kitap · ciftlik
+en/is-it-you-moo-no-i-m-a-cow-5fe2ea.mp3;en;"Is it you? Moo! No, I'm a cow.";kitap · ciftlik
+en/is-it-you-quack-no-i-m-a-duck-2e8978.mp3;en;"Is it you? Quack! No, I'm a duck.";kitap · ciftlik
 en/quack-1964b5.mp3;en;"quack";kitap kelimesi
-en/water-5856e4.mp3;en;"water";kitap kelimesi
-en/oink-a-pig-is-in-the-mud-ef7b25.mp3;en;"Oink! A pig is in the mud.";kitap · ciftlik
-en/oink-310a64.mp3;en;"oink";kitap kelimesi
-en/mud-69c3b1.mp3;en;"mud";kitap kelimesi
-en/woof-it-s-my-dog-hello-dog-a0cf5c.mp3;en;"Woof! It's my dog! Hello, dog!";kitap · ciftlik
+en/woof-woof-here-i-am-e65bb6.mp3;en;"Woof, woof! Here I am!";kitap · ciftlik
+en/am-05380d.mp3;en;"am";kitap kelimesi
+en/tom-hugs-his-puppy-good-dog-e61fc3.mp3;en;"Tom hugs his puppy. Good dog!";kitap · ciftlik
+en/hugs-c33c27.mp3;en;"hugs";kitap kelimesi
 en/who-says-moo-d08ced.mp3;en;"Who says moo?";kitap · soru
-en/who-is-in-the-water-ab523d.mp3;en;"Who is in the water?";kitap · soru
-en/who-says-woof-c2f8a0.mp3;en;"Who says woof?";kitap · soru
-en/grandma-s-birthday-960d0d.mp3;en;"Grandma's Birthday";kitap · dogumgunu
-en/it-s-grandma-s-birthday-today-f40740.mp3;en;"It's Grandma's birthday today.";kitap · dogumgunu
+en/who-says-quack-6244a0.mp3;en;"Who says quack?";kitap · soru
+en/who-does-tom-find-90fc2d.mp3;en;"Who does Tom find?";kitap · soru
+en/who-comes-next-b61796.mp3;en;"Who comes next?";kitap · tahmin
+en/touch-the-dog-d1595f.mp3;en;"Touch the dog!";kitap · dokun
+en/a-cake-for-grandma-44cf04.mp3;en;"A Cake for Grandma";kitap · dogumgunu
+en/it-is-grandma-s-birthday-b65343.mp3;en;"It is Grandma's birthday.";kitap · dogumgunu
 en/grandma-s-ce187d.mp3;en;"grandma's";kitap kelimesi
 en/birthday-51039c.mp3;en;"birthday";kitap kelimesi
 en/mum-makes-a-big-cake-77b001.mp3;en;"Mum makes a big cake.";kitap · dogumgunu
 en/makes-78efde.mp3;en;"makes";kitap kelimesi
-en/dad-and-the-baby-have-a-present-50ccf2.mp3;en;"Dad and the baby have a present.";kitap · dogumgunu
-en/have-6bc538.mp3;en;"have";kitap kelimesi
-en/present-f70b34.mp3;en;"present";kitap kelimesi
-en/my-sister-sings-a-song-a8d879.mp3;en;"My sister sings a song.";kitap · dogumgunu
-en/sings-ffed4f.mp3;en;"sings";kitap kelimesi
-en/song-f41e5d.mp3;en;"song";kitap kelimesi
-en/grandma-is-very-happy-d8e8b7.mp3;en;"Grandma is very happy!";kitap · dogumgunu
-en/very-d18bc3.mp3;en;"very";kitap kelimesi
+en/oh-no-the-baby-wants-the-cake-da2e4f.mp3;en;"Oh no! The baby wants the cake!";kitap · dogumgunu
+en/wants-f4acf0.mp3;en;"wants";kitap kelimesi
+en/dad-says-wait-baby-wait-e86e96.mp3;en;"Dad says: Wait, baby! Wait!";kitap · dogumgunu
+en/wait-6442ba.mp3;en;"wait";kitap kelimesi
+en/surprise-happy-birthday-grandma-72dcf4.mp3;en;"Surprise! Happy birthday, Grandma!";kitap · dogumgunu
+en/surprise-c2c382.mp3;en;"surprise";kitap kelimesi
+en/everyone-eats-cake-baby-too-cbd251.mp3;en;"Everyone eats cake. Baby too!";kitap · dogumgunu
+en/everyone-2855de.mp3;en;"everyone";kitap kelimesi
+en/eats-713145.mp3;en;"eats";kitap kelimesi
 en/whose-birthday-is-it-334cfb.mp3;en;"Whose birthday is it?";kitap · soru
 en/what-does-mum-make-897e60.mp3;en;"What does Mum make?";kitap · soru
-en/who-sings-a-song-241cdf.mp3;en;"Who sings a song?";kitap · soru
-en/freddy-the-monster-820998.mp3;en;"Freddy the Monster";kitap · freddy
-en/this-is-freddy-he-is-a-friendly-monster-891695.mp3;en;"This is Freddy. He is a friendly monster.";kitap · freddy
-en/freddy-e6de97.mp3;en;"freddy";kitap kelimesi
-en/he-571614.mp3;en;"he";kitap kelimesi
-en/friendly-a1144a.mp3;en;"friendly";kitap kelimesi
-en/monster-204ce3.mp3;en;"monster";kitap kelimesi
-en/he-has-three-eyes-dd6c26.mp3;en;"He has three eyes!";kitap · freddy
-en/he-has-two-big-ears-ab7f94.mp3;en;"He has two big ears.";kitap · freddy
-en/he-has-a-small-nose-and-a-big-mouth-c4c30f.mp3;en;"He has a small nose and a big mouth.";kitap · freddy
-en/freddy-waves-his-hands-hello-34455e.mp3;en;"Freddy waves his hands. Hello!";kitap · freddy
-en/waves-db729b.mp3;en;"waves";kitap kelimesi
-en/his-1d5bdd.mp3;en;"his";kitap kelimesi
-en/how-many-eyes-has-freddy-got-7932be.mp3;en;"How many eyes has Freddy got?";kitap · soru
-en/what-does-freddy-wave-a4bbd6.mp3;en;"What does Freddy wave?";kitap · soru
-en/what-is-small-6e7592.mp3;en;"What is small?";kitap · soru
+en/who-wants-the-cake-9bc36c.mp3;en;"Who wants the cake?";kitap · soru
+en/who-stops-the-baby-33c593.mp3;en;"Who stops the baby?";kitap · tahmin
+en/wait-baby-wait-901504.mp3;en;"Wait, baby! Wait!";kitap · nakarat
+en/touch-the-cake-1b6fde.mp3;en;"Touch the cake!";kitap · dokun
+en/wash-wash-wash-14e02e.mp3;en;"Wash, Wash, Wash!";kitap · freddy
+en/bunny-plays-in-a-puddle-oh-no-c2cb4f.mp3;en;"Bunny plays in a puddle. Oh no!";kitap · freddy
+en/bunny-46b331.mp3;en;"bunny";kitap kelimesi
+en/plays-b945f4.mp3;en;"plays";kitap kelimesi
+en/wash-wash-wash-splash-1d7e74.mp3;en;"Wash, wash, wash! Splash!";kitap · freddy
+en/wash-your-hands-edead0.mp3;en;"Wash your hands.";kitap · freddy
+en/wash-your-face-and-your-nose-69da1b.mp3;en;"Wash your face and your nose.";kitap · freddy
+en/wash-your-long-ears-230cd4.mp3;en;"Wash your long ears!";kitap · freddy
+en/now-bunny-is-clean-good-night-201d93.mp3;en;"Now Bunny is clean. Good night!";kitap · freddy
+en/clean-a75a1c.mp3;en;"clean";kitap kelimesi
+en/who-plays-in-the-puddle-2f992e.mp3;en;"Who plays in the puddle?";kitap · soru
+en/what-does-bunny-wash-first-0cf27b.mp3;en;"What does Bunny wash first?";kitap · soru
+en/where-is-bunny-at-the-end-b820e1.mp3;en;"Where is Bunny at the end?";kitap · soru
+en/wash-wash-wash-455914.mp3;en;"Wash, wash, wash!";kitap · nakarat
+en/what-does-bunny-wash-next-e4aafe.mp3;en;"What does Bunny wash next?";kitap · tahmin
+en/touch-the-ears-d18efc.mp3;en;"Touch the ears!";kitap · dokun
 en/the-hungry-bear-526c95.mp3;en;"The Hungry Bear";kitap · ayi
-en/bear-is-hungry-8c98d9.mp3;en;"Bear is hungry.";kitap · ayi
-en/he-eats-an-apple-yum-91b4e7.mp3;en;"He eats an apple. Yum!";kitap · ayi
-en/eats-713145.mp3;en;"eats";kitap kelimesi
+en/bear-is-very-hungry-7f56bc.mp3;en;"Bear is very hungry.";kitap · ayi
+en/very-d18bc3.mp3;en;"very";kitap kelimesi
+en/yum-yum-i-want-more-3e63d7.mp3;en;"Yum, yum! I want more!";kitap · ayi
+en/more-3c2acd.mp3;en;"more";kitap kelimesi
+en/he-eats-one-apple-a8fb63.mp3;en;"He eats one apple.";kitap · ayi
+en/he-571614.mp3;en;"he";kitap kelimesi
 en/he-eats-bread-and-cheese-7eeb7e.mp3;en;"He eats bread and cheese.";kitap · ayi
-en/he-drinks-milk-f1fafa.mp3;en;"He drinks milk.";kitap · ayi
-en/drinks-bd2de3.mp3;en;"drinks";kitap kelimesi
-en/now-he-is-not-hungry-he-is-happy-7b937c.mp3;en;"Now he is not hungry. He is happy!";kitap · ayi
-en/not-29af72.mp3;en;"not";kitap kelimesi
-en/who-is-hungry-c2c95e.mp3;en;"Who is hungry?";kitap · soru
-en/what-does-bear-drink-480aee.mp3;en;"What does Bear drink?";kitap · soru
-en/what-does-he-eat-first-f184b8.mp3;en;"What does he eat first?";kitap · soru
+en/he-eats-a-big-cake-2a45bc.mp3;en;"He eats a big cake!";kitap · ayi
+en/oh-my-tummy-bear-is-sleepy-now-45ade7.mp3;en;"Oh! My tummy! Bear is sleepy now.";kitap · ayi
+en/what-does-bear-eat-first-29f6c9.mp3;en;"What does Bear eat first?";kitap · soru
+en/how-is-bear-at-the-end-2fb0b4.mp3;en;"How is Bear at the end?";kitap · soru
+en/what-does-bear-eat-next-106329.mp3;en;"What does Bear eat next?";kitap · tahmin
 en/where-is-my-teddy-22587d.mp3;en;"Where Is My Teddy?";kitap · ayicik
 en/mia-can-t-find-her-teddy-6015ec.mp3;en;"Mia can't find her teddy.";kitap · ayicik
 en/mia-8dc44b.mp3;en;"mia";kitap kelimesi
-en/can-t-9bc871.mp3;en;"can't";kitap kelimesi
-en/find-0f6fa2.mp3;en;"find";kitap kelimesi
 en/her-115f63.mp3;en;"her";kitap kelimesi
-en/is-it-in-the-toy-box-no-it-s-a-car-608acf.mp3;en;"Is it in the toy box? No, it's a car.";kitap · ayicik
+en/teddy-teddy-where-are-you-63594f.mp3;en;"Teddy, teddy, where are you?";kitap · ayicik
+en/is-he-in-the-toy-car-no-0ec6dc.mp3;en;"Is he in the toy car? No.";kitap · ayicik
 en/toy-ee100e.mp3;en;"toy";kitap kelimesi
-en/no-cdcf87.mp3;en;"no";kitap kelimesi
-en/is-it-under-the-bed-no-it-s-a-ball-9ba7f6.mp3;en;"Is it under the bed? No, it's a ball.";kitap · ayicik
-en/is-it-on-the-chair-no-it-s-a-doll-515656.mp3;en;"Is it on the chair? No, it's a doll.";kitap · ayicik
-en/it-s-in-her-bag-hello-teddy-5b7140.mp3;en;"It's in her bag! Hello, teddy!";kitap · ayicik
+en/is-he-with-the-robot-no-7e0472.mp3;en;"Is he with the robot? No.";kitap · ayicik
+en/look-teddy-is-in-the-bed-cc952e.mp3;en;"Look! Teddy is in the bed!";kitap · ayicik
+en/good-night-teddy-good-night-mia-1ea22c.mp3;en;"Good night, Teddy. Good night, Mia.";kitap · ayicik
 en/what-can-t-mia-find-4cf7ee.mp3;en;"What can't Mia find?";kitap · soru
-en/what-is-under-the-bed-4efd0f.mp3;en;"What is under the bed?";kitap · soru
-en/where-is-the-teddy-014808.mp3;en;"Where is the teddy?";kitap · soru
-en/get-dressed-leo-d44621.mp3;en;"Get Dressed, Leo!";kitap · leo
-en/it-s-cold-today-leo-da419d.mp3;en;"It's cold today, Leo.";kitap · leo
-en/leo-2ace9b.mp3;en;"leo";kitap kelimesi
-en/put-on-your-coat-6fac70.mp3;en;"Put on your coat.";kitap · leo
-en/put-on-your-hat-and-your-scarf-2dfd21.mp3;en;"Put on your hat and your scarf.";kitap · leo
-en/put-on-your-gloves-and-your-boots-4b47a4.mp3;en;"Put on your gloves and your boots.";kitap · leo
-en/now-let-s-play-in-the-snow-162437.mp3;en;"Now let's play in the snow!";kitap · leo
-en/is-it-hot-or-cold-50bc5d.mp3;en;"Is it hot or cold?";kitap · soru
-en/what-goes-on-leo-s-head-046728.mp3;en;"What goes on Leo's head?";kitap · soru
-en/where-does-leo-play-9cafc6.mp3;en;"Where does Leo play?";kitap · soru
-en/kitty-s-house-9c3bc6.mp3;en;"Kitty's House";kitap · kedi
-en/kitty-the-cat-lives-in-a-house-13455d.mp3;en;"Kitty the cat lives in a house.";kitap · kedi
-en/kitty-332025.mp3;en;"kitty";kitap kelimesi
-en/lives-252cbc.mp3;en;"lives";kitap kelimesi
-en/house-147b37.mp3;en;"house";kitap kelimesi
-en/she-sleeps-on-the-bed-253c1a.mp3;en;"She sleeps on the bed.";kitap · kedi
-en/sleeps-151110.mp3;en;"sleeps";kitap kelimesi
-en/she-sits-on-the-sofa-040ccd.mp3;en;"She sits on the sofa.";kitap · kedi
-en/sits-cc40e8.mp3;en;"sits";kitap kelimesi
-en/she-looks-in-the-mirror-who-is-that-02312c.mp3;en;"She looks in the mirror. Who is that?";kitap · kedi
-en/looks-067ced.mp3;en;"looks";kitap kelimesi
-en/who-b6a900.mp3;en;"who";kitap kelimesi
-en/that-d6808e.mp3;en;"that";kitap kelimesi
-en/it-s-kitty-meow-ba788d.mp3;en;"It's Kitty! Meow!";kitap · kedi
-en/where-does-kitty-sleep-8b8e1c.mp3;en;"Where does Kitty sleep?";kitap · soru
-en/what-does-kitty-look-in-70b184.mp3;en;"What does Kitty look in?";kitap · soru
-en/who-says-meow-c5fb0c.mp3;en;"Who says meow?";kitap · soru
-en/my-first-day-4d7257.mp3;en;"My First Day";kitap · ilkgun
-en/today-is-my-first-day-at-school-851610.mp3;en;"Today is my first day at school.";kitap · ilkgun
-en/first-0d2aff.mp3;en;"first";kitap kelimesi
-en/i-have-a-new-bag-71f6a6.mp3;en;"I have a new bag.";kitap · ilkgun
-en/new-5ddd91.mp3;en;"new";kitap kelimesi
-en/in-my-bag-i-have-a-pencil-and-a-book-be0ce4.mp3;en;"In my bag I have a pencil and a book.";kitap · ilkgun
-en/my-teacher-says-hello-i-say-hello-9436d5.mp3;en;"My teacher says hello. I say hello!";kitap · ilkgun
-en/say-054318.mp3;en;"say";kitap kelimesi
-en/i-make-a-new-friend-school-is-fun-6f440e.mp3;en;"I make a new friend. School is fun!";kitap · ilkgun
-en/make-537be7.mp3;en;"make";kitap kelimesi
-en/what-is-new-66053c.mp3;en;"What is new?";kitap · soru
-en/what-is-in-the-bag-464386.mp3;en;"What is in the bag?";kitap · soru
-en/rain-rain-sun-2185b9.mp3;en;"Rain, Rain, Sun!";kitap · yagmur
-en/look-outside-it-s-rainy-318499.mp3;en;"Look outside. It's rainy.";kitap · yagmur
-en/i-have-my-umbrella-and-my-boots-d73a24.mp3;en;"I have my umbrella and my boots.";kitap · yagmur
-en/i-jump-in-a-big-puddle-splash-9d9ab0.mp3;en;"I jump in a big puddle. Splash!";kitap · yagmur
-en/now-it-s-sunny-6b40b2.mp3;en;"Now it's sunny!";kitap · yagmur
-en/what-is-the-weather-first-0caa3e.mp3;en;"What is the weather first?";kitap · soru
-en/where-do-i-jump-cda1cc.mp3;en;"Where do I jump?";kitap · soru
-en/what-do-i-see-at-the-end-a02f72.mp3;en;"What do I see at the end?";kitap · soru
-en/little-lion-s-day-42202a.mp3;en;"Little Lion's Day";kitap · aslan
-en/in-the-morning-little-lion-is-sleepy-2a3820.mp3;en;"In the morning Little Lion is sleepy.";kitap · aslan
-en/morning-be555c.mp3;en;"morning";kitap kelimesi
-en/he-can-t-find-his-ball-he-is-sad-5817a1.mp3;en;"He can't find his ball. He is sad.";kitap · aslan
-en/a-bird-finds-the-ball-lion-is-surprised-1b245c.mp3;en;"A bird finds the ball! Lion is surprised.";kitap · aslan
-en/finds-351acc.mp3;en;"finds";kitap kelimesi
-en/they-play-together-lion-is-happy-2cb496.mp3;en;"They play together. Lion is happy!";kitap · aslan
-en/they-e87943.mp3;en;"they";kitap kelimesi
-en/together-5b4735.mp3;en;"together";kitap kelimesi
-en/at-night-he-is-tired-good-night-little-l-dc4df3.mp3;en;"At night he is tired. Good night, Little Lion!";kitap · aslan
-en/what-can-t-lion-find-590520.mp3;en;"What can't Lion find?";kitap · soru
-en/who-finds-the-ball-306ce5.mp3;en;"Who finds the ball?";kitap · soru
-en/how-does-lion-feel-when-they-play-e0266f.mp3;en;"How does Lion feel when they play?";kitap · soru
-en/the-fruit-market-6c4033.mp3;en;"The Fruit Market";kitap · pazar
-en/let-s-go-to-the-fruit-market-4b549a.mp3;en;"Let's go to the fruit market!";kitap · pazar
+en/where-is-teddy-fefe07.mp3;en;"Where is Teddy?";kitap · soru
+en/who-is-not-with-teddy-204e36.mp3;en;"Who is not with Teddy?";kitap · soru
+en/touch-the-teddy-f479a8.mp3;en;"Touch the teddy!";kitap · dokun
+en/the-big-watermelon-40635e.mp3;en;"The Big Watermelon";kitap · pazar
+en/mum-and-i-go-to-the-market-543845.mp3;en;"Mum and I go to the market.";kitap · pazar
 en/market-e35aa3.mp3;en;"market";kitap kelimesi
-en/i-buy-three-oranges-60b0f2.mp3;en;"I buy three oranges.";kitap · pazar
-en/buy-e01246.mp3;en;"buy";kitap kelimesi
-en/oranges-067fd7.mp3;en;"oranges";kitap kelimesi
-en/mum-buys-grapes-and-a-big-watermelon-e3f129.mp3;en;"Mum buys grapes and a big watermelon.";kitap · pazar
+en/i-want-a-big-watermelon-c5af1a.mp3;en;"I want a big watermelon!";kitap · pazar
+en/mum-buys-three-oranges-13b605.mp3;en;"Mum buys three oranges.";kitap · pazar
 en/buys-424ddf.mp3;en;"buys";kitap kelimesi
-en/the-lemon-is-sour-yuck-597396.mp3;en;"The lemon is sour! Yuck!";kitap · pazar
-en/yuck-d2e098.mp3;en;"yuck";kitap kelimesi
-en/we-make-a-fruit-salad-yummy-74416a.mp3;en;"We make a fruit salad. Yummy!";kitap · pazar
-en/how-many-oranges-do-i-buy-1b703e.mp3;en;"How many oranges do I buy?";kitap · soru
-en/what-is-big-1942b8.mp3;en;"What is big?";kitap · soru
-en/what-is-sour-cf4ae6.mp3;en;"What is sour?";kitap · soru
-en/grandpa-s-trip-a42181.mp3;en;"Grandpa's Trip";kitap · dede
-en/grandpa-goes-to-see-his-friend-158580.mp3;en;"Grandpa goes to see his friend.";kitap · dede
-en/first-he-takes-a-bus-beep-beep-39794a.mp3;en;"First he takes a bus. Beep, beep!";kitap · dede
-en/takes-6779ad.mp3;en;"takes";kitap kelimesi
-en/then-he-takes-a-train-d95da2.mp3;en;"Then he takes a train.";kitap · dede
+en/oranges-067fd7.mp3;en;"oranges";kitap kelimesi
+en/mum-buys-grapes-9dc72c.mp3;en;"Mum buys grapes.";kitap · pazar
+en/oh-the-watermelon-is-so-heavy-f61c3f.mp3;en;"Oh! The watermelon is so heavy!";kitap · pazar
+en/so-3130f7.mp3;en;"so";kitap kelimesi
+en/heavy-a1611e.mp3;en;"heavy";kitap kelimesi
+en/dad-helps-we-eat-it-all-yummy-245d4c.mp3;en;"Dad helps. We eat it all. Yummy!";kitap · pazar
+en/how-many-oranges-eb4266.mp3;en;"How many oranges?";kitap · soru
+en/what-is-heavy-63e627.mp3;en;"What is heavy?";kitap · soru
+en/who-helps-a5995c.mp3;en;"Who helps?";kitap · soru
+en/what-do-i-want-eb403b.mp3;en;"What do I want?";kitap · tahmin
+en/touch-the-watermelon-0162fd.mp3;en;"Touch the watermelon!";kitap · dokun
+en/leo-and-the-snowy-day-3d39ea.mp3;en;"Leo and the Snowy Day";kitap · leo
+en/it-is-snowy-leo-wants-to-play-outside-146d1d.mp3;en;"It is snowy. Leo wants to play outside.";kitap · leo
+en/leo-2ace9b.mp3;en;"leo";kitap kelimesi
+en/brr-it-is-cold-leo-runs-back-in-2d6281.mp3;en;"Brr! It is cold! Leo runs back in.";kitap · leo
+en/brr-798cbd.mp3;en;"brr";kitap kelimesi
+en/runs-5a4af6.mp3;en;"runs";kitap kelimesi
+en/he-puts-on-his-coat-brr-still-cold-4caf8b.mp3;en;"He puts on his coat. Brr! Still cold!";kitap · leo
+en/puts-12a065.mp3;en;"puts";kitap kelimesi
+en/still-9ecb90.mp3;en;"still";kitap kelimesi
+en/he-puts-on-his-boots-and-gloves-still-co-e28d40.mp3;en;"He puts on his boots and gloves. Still cold!";kitap · leo
+en/he-puts-on-his-hat-and-scarf-warm-at-las-dfe1a8.mp3;en;"He puts on his hat and scarf. Warm at last!";kitap · leo
+en/last-0caded.mp3;en;"last";kitap kelimesi
+en/leo-makes-a-big-snowman-65ef39.mp3;en;"Leo makes a big snowman.";kitap · leo
+en/the-snowman-is-cold-too-here-is-my-scarf-fd1f86.mp3;en;"The snowman is cold too. Here is my scarf!";kitap · leo
+en/what-is-the-weather-792d93.mp3;en;"What is the weather?";kitap · soru
+en/what-does-leo-put-on-first-0025d9.mp3;en;"What does Leo put on first?";kitap · soru
+en/who-gets-the-scarf-b810c5.mp3;en;"Who gets the scarf?";kitap · soru
+en/brr-it-is-cold-04037c.mp3;en;"Brr! It is cold!";kitap · nakarat
+en/what-does-leo-need-now-1c9e09.mp3;en;"What does Leo need now?";kitap · tahmin
+en/touch-the-scarf-b742c7.mp3;en;"Touch the scarf!";kitap · dokun
+en/kitty-wants-to-sleep-5a7626.mp3;en;"Kitty Wants to Sleep";kitap · kedi
+en/kitty-is-sleepy-she-wants-a-quiet-place-fcf680.mp3;en;"Kitty is sleepy. She wants a quiet place.";kitap · kedi
+en/she-8a5001.mp3;en;"she";kitap kelimesi
+en/quiet-f5e5af.mp3;en;"quiet";kitap kelimesi
+en/place-7f11f8.mp3;en;"place";kitap kelimesi
+en/she-tries-the-sofa-the-tv-is-too-loud-b6fd59.mp3;en;"She tries the sofa. The TV is too loud!";kitap · kedi
+en/tries-e20509.mp3;en;"tries";kitap kelimesi
+en/tv-75857f.mp3;en;"tv";kitap kelimesi
+en/loud-ff7aa6.mp3;en;"loud";kitap kelimesi
+en/she-tries-the-kitchen-the-fridge-goes-hu-449bd0.mp3;en;"She tries the kitchen. The fridge goes hum!";kitap · kedi
+en/hum-1dbcef.mp3;en;"hum";kitap kelimesi
+en/she-tries-the-bath-drip-drip-too-wet-0dcf76.mp3;en;"She tries the bath. Drip, drip! Too wet!";kitap · kedi
+en/too-loud-too-wet-where-can-i-sleep-e87f0d.mp3;en;"Too loud! Too wet! Where can I sleep?";kitap · kedi
+en/then-she-sees-a-soft-warm-bed-bc2ed7.mp3;en;"Then she sees a soft, warm bed.";kitap · kedi
 en/then-4f912d.mp3;en;"then";kitap kelimesi
-en/then-he-takes-a-ship-toot-toot-5b79d7.mp3;en;"Then he takes a ship. Toot, toot!";kitap · dede
-en/toot-916e84.mp3;en;"toot";kitap kelimesi
-en/his-friend-is-waiting-with-a-bike-ring-r-a35be5.mp3;en;"His friend is waiting with a bike. Ring, ring!";kitap · dede
-en/waiting-5b35e4.mp3;en;"waiting";kitap kelimesi
-en/what-does-grandpa-take-first-a9dddc.mp3;en;"What does Grandpa take first?";kitap · soru
-en/what-goes-toot-toot-e71ee8.mp3;en;"What goes toot, toot?";kitap · soru
-en/what-has-the-friend-got-7aa744.mp3;en;"What has the friend got?";kitap · soru
-en/shape-town-f1cb05.mp3;en;"Shape Town";kitap · sekilkent
-en/welcome-to-shape-town-a377de.mp3;en;"Welcome to Shape Town!";kitap · sekilkent
-en/welcome-5bc090.mp3;en;"welcome";kitap kelimesi
-en/town-454ceb.mp3;en;"town";kitap kelimesi
-en/the-houses-are-squares-ebc261.mp3;en;"The houses are squares.";kitap · sekilkent
-en/houses-347d22.mp3;en;"houses";kitap kelimesi
-en/squares-aec36c.mp3;en;"squares";kitap kelimesi
-en/the-roofs-are-triangles-1389cf.mp3;en;"The roofs are triangles.";kitap · sekilkent
-en/roofs-ee712e.mp3;en;"roofs";kitap kelimesi
-en/triangles-1b4c96.mp3;en;"triangles";kitap kelimesi
-en/the-sun-is-a-big-circle-43f3a3.mp3;en;"The sun is a big circle.";kitap · sekilkent
-en/at-night-the-sky-is-full-of-stars-cc89ba.mp3;en;"At night the sky is full of stars.";kitap · sekilkent
-en/full-fdc47c.mp3;en;"full";kitap kelimesi
-en/of-b689cc.mp3;en;"of";kitap kelimesi
-en/what-shape-are-the-houses-da20a9.mp3;en;"What shape are the houses?";kitap · soru
-en/what-shape-is-the-sun-3f94ae.mp3;en;"What shape is the sun?";kitap · soru
-en/what-is-in-the-sky-at-night-b6f39f.mp3;en;"What is in the sky at night?";kitap · soru
-en/ollie-the-octopus-432650.mp3;en;"Ollie the Octopus";kitap · ollie
-en/ollie-the-octopus-lives-in-the-sea-822c41.mp3;en;"Ollie the octopus lives in the sea.";kitap · ollie
-en/ollie-c8c806.mp3;en;"ollie";kitap kelimesi
-en/he-has-eight-long-arms-ae21a4.mp3;en;"He has eight long arms.";kitap · ollie
-en/he-plays-with-a-crab-and-a-fish-dbe5f6.mp3;en;"He plays with a crab and a fish.";kitap · ollie
-en/plays-b945f4.mp3;en;"plays";kitap kelimesi
-en/oh-no-a-shark-ollie-hides-in-a-shell-c48035.mp3;en;"Oh no! A shark! Ollie hides in a shell.";kitap · ollie
-en/oh-73e9cf.mp3;en;"oh";kitap kelimesi
-en/hides-ed332d.mp3;en;"hides";kitap kelimesi
-en/the-shark-is-friendly-let-s-play-dfe3e0.mp3;en;"The shark is friendly. Let's play!";kitap · ollie
-en/who-is-ollie-335992.mp3;en;"Who is Ollie?";kitap · soru
-en/how-many-arms-has-ollie-got-f38337.mp3;en;"How many arms has Ollie got?";kitap · soru
-en/where-does-ollie-hide-180281.mp3;en;"Where does Ollie hide?";kitap · soru
-en/when-i-grow-up-7e0fd5.mp3;en;"When I Grow Up";kitap · buyuyunce
-en/i-want-to-be-a-doctor-i-help-people-1ca1c5.mp3;en;"I want to be a doctor. I help people.";kitap · buyuyunce
-en/help-d53ebd.mp3;en;"help";kitap kelimesi
-en/i-want-to-be-a-chef-i-cook-pizza-989956.mp3;en;"I want to be a chef. I cook pizza.";kitap · buyuyunce
-en/i-want-to-be-a-pilot-i-fly-a-plane-dd9beb.mp3;en;"I want to be a pilot. I fly a plane!";kitap · buyuyunce
-en/and-you-you-can-be-anything-b112e3.mp3;en;"And you? You can be anything!";kitap · buyuyunce
-en/who-helps-people-2b3ac0.mp3;en;"Who helps people?";kitap · soru
-en/what-does-the-chef-cook-dadafc.mp3;en;"What does the chef cook?";kitap · soru
-en/what-does-the-pilot-fly-a84348.mp3;en;"What does the pilot fly?";kitap · soru
-en/monkey-can-9f885b.mp3;en;"Monkey Can!";kitap · maymun
-en/monkey-can-climb-a-tree-eeff32.mp3;en;"Monkey can climb a tree.";kitap · maymun
-en/tree-66d66f.mp3;en;"tree";kitap kelimesi
-en/frog-can-jump-jump-jump-5f8ca6.mp3;en;"Frog can jump. Jump, jump!";kitap · maymun
-en/fish-can-swim-df827a.mp3;en;"Fish can swim.";kitap · maymun
-en/bird-can-sing-ea9258.mp3;en;"Bird can sing.";kitap · maymun
-en/and-i-can-dance-look-at-me-c6864a.mp3;en;"And I can dance! Look at me!";kitap · maymun
-en/what-can-fish-do-005502.mp3;en;"What can Fish do?";kitap · soru
-en/what-can-i-do-295fa0.mp3;en;"What can I do?";kitap · soru
-en/the-tree-s-year-471429.mp3;en;"The Tree's Year";kitap · agac
-en/in-spring-the-tree-has-flowers-9409cf.mp3;en;"In spring the tree has flowers.";kitap · agac
-en/in-summer-children-play-under-the-tree-a6b330.mp3;en;"In summer children play under the tree.";kitap · agac
-en/in-autumn-the-leaves-are-orange-78aeb5.mp3;en;"In autumn the leaves are orange.";kitap · agac
-en/in-winter-there-is-snow-on-the-tree-0c9a70.mp3;en;"In winter there is snow on the tree.";kitap · agac
-en/then-spring-comes-again-e6548f.mp3;en;"Then spring comes again!";kitap · agac
+en/sees-9e7ca3.mp3;en;"sees";kitap kelimesi
+en/soft-80ac46.mp3;en;"soft";kitap kelimesi
+en/shh-kitty-is-sleeping-good-night-8b8b65.mp3;en;"Shh! Kitty is sleeping. Good night!";kitap · kedi
+en/sleeping-728ff9.mp3;en;"sleeping";kitap kelimesi
+en/who-is-sleepy-91e4b1.mp3;en;"Who is sleepy?";kitap · soru
+en/what-is-too-loud-573143.mp3;en;"What is too loud?";kitap · soru
+en/where-does-kitty-sleep-8b8e1c.mp3;en;"Where does Kitty sleep?";kitap · soru
+en/where-can-i-sleep-907faa.mp3;en;"Where can I sleep?";kitap · nakarat
+en/touch-the-bed-e6f591.mp3;en;"Touch the bed!";kitap · dokun
+en/my-first-day-4d7257.mp3;en;"My First Day";kitap · ilkgun
+en/today-is-my-first-day-at-school-i-am-sca-2f0bf1.mp3;en;"Today is my first day at school. I am scared.";kitap · ilkgun
+en/first-0d2aff.mp3;en;"first";kitap kelimesi
+en/my-teacher-smiles-hello-come-in-c33017.mp3;en;"My teacher smiles. Hello! Come in!";kitap · ilkgun
+en/smiles-1bb520.mp3;en;"smiles";kitap kelimesi
+en/come-820786.mp3;en;"come";kitap kelimesi
+en/i-have-no-pencil-oh-no-7432a6.mp3;en;"I have no pencil. Oh no!";kitap · ilkgun
+en/have-6bc538.mp3;en;"have";kitap kelimesi
+en/a-girl-says-here-you-are-ede940.mp3;en;"A girl says: Here you are!";kitap · ilkgun
+en/she-has-no-eraser-i-say-here-you-are-43c41e.mp3;en;"She has no eraser. I say: Here you are!";kitap · ilkgun
+en/say-054318.mp3;en;"say";kitap kelimesi
+en/we-draw-a-big-picture-together-437eb7.mp3;en;"We draw a big picture together.";kitap · ilkgun
+en/picture-39bd0f.mp3;en;"picture";kitap kelimesi
+en/together-5b4735.mp3;en;"together";kitap kelimesi
+en/now-i-have-a-friend-i-love-school-aa1a0d.mp3;en;"Now I have a friend. I love school!";kitap · ilkgun
+en/how-do-i-feel-first-5fa73d.mp3;en;"How do I feel first?";kitap · soru
+en/what-does-the-girl-give-me-e6a96c.mp3;en;"What does the girl give me?";kitap · soru
+en/what-do-i-give-her-3f85a7.mp3;en;"What do I give her?";kitap · soru
+en/who-helps-me-3892f5.mp3;en;"Who helps me?";kitap · tahmin
+en/here-you-are-7c12b6.mp3;en;"Here you are!";kitap · nakarat
+en/touch-the-crayons-82c2ad.mp3;en;"Touch the crayons!";kitap · dokun
+en/the-lost-umbrella-509dd0.mp3;en;"The Lost Umbrella";kitap · yagmur
+en/it-is-rainy-duck-has-a-red-umbrella-2f3f69.mp3;en;"It is rainy. Duck has a red umbrella.";kitap · yagmur
+en/whoosh-the-wind-takes-the-umbrella-23d15a.mp3;en;"Whoosh! The wind takes the umbrella!";kitap · yagmur
+en/takes-6779ad.mp3;en;"takes";kitap kelimesi
+en/come-back-umbrella-come-back-035453.mp3;en;"Come back, umbrella! Come back!";kitap · yagmur
+en/it-flies-over-a-puddle-duck-jumps-splash-d67d49.mp3;en;"It flies over a puddle. Duck jumps. Splash!";kitap · yagmur
+en/over-9c6f84.mp3;en;"over";kitap kelimesi
+en/jumps-63215e.mp3;en;"jumps";kitap kelimesi
+en/it-flies-up-to-a-cloud-too-high-66eb36.mp3;en;"It flies up to a cloud. Too high!";kitap · yagmur
+en/then-the-sun-comes-out-the-wind-stops-a90d5d.mp3;en;"Then the sun comes out. The wind stops.";kitap · yagmur
 en/comes-d0bb17.mp3;en;"comes";kitap kelimesi
-en/when-does-the-tree-have-flowers-e14078.mp3;en;"When does the tree have flowers?";kitap · soru
-en/what-colour-are-the-leaves-in-autumn-2b5f00.mp3;en;"What colour are the leaves in autumn?";kitap · soru
-en/when-is-there-snow-041a53.mp3;en;"When is there snow?";kitap · soru
-en/busy-bunny-0acf0e.mp3;en;"Busy Bunny";kitap · tavsan
-en/on-monday-bunny-goes-to-school-0e78d6.mp3;en;"On Monday Bunny goes to school.";kitap · tavsan
-en/bunny-46b331.mp3;en;"bunny";kitap kelimesi
-en/on-tuesday-bunny-paints-3ba594.mp3;en;"On Tuesday Bunny paints.";kitap · tavsan
-en/on-wednesday-bunny-swims-1724c3.mp3;en;"On Wednesday Bunny swims.";kitap · tavsan
-en/on-thursday-and-friday-bunny-reads-69a316.mp3;en;"On Thursday and Friday Bunny reads.";kitap · tavsan
-en/on-saturday-and-sunday-bunny-plays-with--bb20a4.mp3;en;"On Saturday and Sunday Bunny plays with friends!";kitap · tavsan
-en/friends-abef71.mp3;en;"friends";kitap kelimesi
-en/when-does-bunny-paint-e7ebf9.mp3;en;"When does Bunny paint?";kitap · soru
-en/what-does-bunny-do-on-wednesday-2c0f9e.mp3;en;"What does Bunny do on Wednesday?";kitap · soru
-en/when-does-bunny-go-to-school-b5b726.mp3;en;"When does Bunny go to school?";kitap · soru
-en/where-is-kitten-b6f149.mp3;en;"Where Is Kitten?";kitap · saklambac
-en/kitten-likes-to-hide-765b86.mp3;en;"Kitten likes to hide.";kitap · saklambac
-en/kitten-5d8fe2.mp3;en;"kitten";kitap kelimesi
-en/likes-e973cc.mp3;en;"likes";kitap kelimesi
+en/out-3c078a.mp3;en;"out";kitap kelimesi
+en/stops-5cafb1.mp3;en;"stops";kitap kelimesi
+en/the-umbrella-comes-down-look-a-rainbow-f14c14.mp3;en;"The umbrella comes down. Look, a rainbow!";kitap · yagmur
+en/who-has-an-umbrella-3724e7.mp3;en;"Who has an umbrella?";kitap · soru
+en/what-takes-the-umbrella-d0bc59.mp3;en;"What takes the umbrella?";kitap · soru
+en/what-is-in-the-sky-at-the-end-098e14.mp3;en;"What is in the sky at the end?";kitap · soru
+en/come-back-umbrella-d4540a.mp3;en;"Come back, umbrella!";kitap · nakarat
+en/what-comes-after-the-rain-2707a6.mp3;en;"What comes after the rain?";kitap · tahmin
+en/touch-the-sun-e2fd7a.mp3;en;"Touch the sun!";kitap · dokun
+en/little-lion-is-angry-1d3c3a.mp3;en;"Little Lion Is Angry";kitap · aslan
+en/little-lion-builds-a-tall-tower-9ab257.mp3;en;"Little Lion builds a tall tower.";kitap · aslan
+en/builds-0ed52a.mp3;en;"builds";kitap kelimesi
+en/tall-cd728b.mp3;en;"tall";kitap kelimesi
+en/tower-878b0c.mp3;en;"tower";kitap kelimesi
+en/crash-the-tower-falls-down-2a8cfc.mp3;en;"Crash! The tower falls down.";kitap · aslan
+en/crash-b0ab5d.mp3;en;"crash";kitap kelimesi
+en/little-lion-is-angry-grr-971f85.mp3;en;"Little Lion is angry. Grr!";kitap · aslan
+en/grr-b1f053.mp3;en;"grr";kitap kelimesi
+en/then-he-is-sad-he-cries-f577d9.mp3;en;"Then he is sad. He cries.";kitap · aslan
+en/cries-eae4ff.mp3;en;"cries";kitap kelimesi
+en/mum-says-breathe-in-breathe-out-e5800a.mp3;en;"Mum says: Breathe in, breathe out.";kitap · aslan
+en/little-lion-is-calm-now-he-tries-again-a84a46.mp3;en;"Little Lion is calm now. He tries again.";kitap · aslan
+en/look-a-new-tower-he-is-proud-affc00.mp3;en;"Look! A new tower! He is proud.";kitap · aslan
+en/new-5ddd91.mp3;en;"new";kitap kelimesi
+en/what-falls-down-693323.mp3;en;"What falls down?";kitap · soru
+en/how-does-little-lion-feel-first-203b52.mp3;en;"How does Little Lion feel first?";kitap · soru
+en/how-does-he-feel-at-the-end-316c3d.mp3;en;"How does he feel at the end?";kitap · soru
+en/grr-i-am-angry-7b3387.mp3;en;"Grr! I am angry!";kitap · nakarat
+en/who-helps-little-lion-dce7d7.mp3;en;"Who helps Little Lion?";kitap · tahmin
+en/touch-the-blocks-3644ce.mp3;en;"Touch the blocks!";kitap · dokun
+en/grandpa-is-late-43b497.mp3;en;"Grandpa Is Late";kitap · dede
+en/grandpa-has-a-birthday-cake-for-me-32d6a0.mp3;en;"Grandpa has a birthday cake for me.";kitap · dede
+en/he-takes-the-bus-but-the-bus-stops-f0daf6.mp3;en;"He takes the bus. But the bus stops!";kitap · dede
+en/but-1e6975.mp3;en;"but";kitap kelimesi
+en/hurry-grandpa-hurry-fabed5.mp3;en;"Hurry, Grandpa, hurry!";kitap · dede
+en/hurry-1146ea.mp3;en;"hurry";kitap kelimesi
+en/he-takes-a-taxi-but-there-are-too-many-c-37869e.mp3;en;"He takes a taxi. But there are too many cars!";kitap · dede
+en/many-3c5e45.mp3;en;"many";kitap kelimesi
+en/cars-191174.mp3;en;"cars";kitap kelimesi
+en/he-sees-a-bike-ring-ring-4b68ed.mp3;en;"He sees a bike. Ring, ring!";kitap · dede
+en/grandpa-rides-fast-whee-ab5c19.mp3;en;"Grandpa rides fast. Whee!";kitap · dede
+en/rides-558ae1.mp3;en;"rides";kitap kelimesi
+en/fast-76a1f9.mp3;en;"fast";kitap kelimesi
+en/whee-487507.mp3;en;"whee";kitap kelimesi
+en/he-is-here-happy-birthday-to-me-54e62e.mp3;en;"He is here! Happy birthday to me!";kitap · dede
+en/what-does-grandpa-take-first-a9dddc.mp3;en;"What does Grandpa take first?";kitap · soru
+en/what-has-grandpa-got-cda50a.mp3;en;"What has Grandpa got?";kitap · soru
+en/how-does-he-come-at-the-end-1be685.mp3;en;"How does he come at the end?";kitap · soru
+en/how-does-grandpa-come-4e6125.mp3;en;"How does Grandpa come?";kitap · tahmin
+en/touch-the-bike-4febe6.mp3;en;"Touch the bike!";kitap · dokun
+en/the-sad-little-square-fb587c.mp3;en;"The Sad Little Square";kitap · sekilkent
+en/square-is-sad-he-can-t-roll-like-circle-1827c7.mp3;en;"Square is sad. He can't roll like Circle.";kitap · sekilkent
+en/roll-3a5af7.mp3;en;"roll";kitap kelimesi
+en/circle-rolls-down-the-hill-whee-e37161.mp3;en;"Circle rolls down the hill. Whee!";kitap · sekilkent
+en/rolls-a87abc.mp3;en;"rolls";kitap kelimesi
+en/hill-50abb5.mp3;en;"hill";kitap kelimesi
+en/square-tries-bump-i-can-t-roll-69f5fe.mp3;en;"Square tries. Bump! I can't roll!";kitap · sekilkent
+en/triangle-says-you-are-strong-help-us-7339b2.mp3;en;"Triangle says: You are strong. Help us!";kitap · sekilkent
+en/help-d53ebd.mp3;en;"help";kitap kelimesi
+en/us-e66909.mp3;en;"us";kitap kelimesi
+en/square-is-the-walls-triangle-is-the-roof-00bc00.mp3;en;"Square is the walls. Triangle is the roof.";kitap · sekilkent
+en/walls-5b9f63.mp3;en;"walls";kitap kelimesi
+en/circle-is-the-sun-star-shines-at-night-0e8d12.mp3;en;"Circle is the sun. Star shines at night.";kitap · sekilkent
+en/shines-a5f7e9.mp3;en;"shines";kitap kelimesi
+en/look-a-house-square-is-happy-now-089d79.mp3;en;"Look! A house! Square is happy now.";kitap · sekilkent
+en/house-147b37.mp3;en;"house";kitap kelimesi
+en/who-is-sad-248e52.mp3;en;"Who is sad?";kitap · soru
+en/who-can-roll-f56232.mp3;en;"Who can roll?";kitap · soru
+en/what-is-the-roof-78310a.mp3;en;"What is the roof?";kitap · soru
+en/i-can-t-roll-dc53da.mp3;en;"I can't roll!";kitap · nakarat
+en/touch-the-triangle-edef40.mp3;en;"Touch the triangle!";kitap · dokun
+en/ollie-and-the-lost-shell-857c31.mp3;en;"Ollie and the Lost Shell";kitap · ollie
+en/crab-is-crying-he-lost-his-shell-f20805.mp3;en;"Crab is crying. He lost his shell.";kitap · ollie
+en/crying-8fd6f4.mp3;en;"crying";kitap kelimesi
+en/lost-e8e23c.mp3;en;"lost";kitap kelimesi
+en/ollie-the-octopus-says-i-can-help-c73ee3.mp3;en;"Ollie the octopus says: I can help!";kitap · ollie
+en/ollie-c8c806.mp3;en;"ollie";kitap kelimesi
+en/they-ask-the-turtle-no-shell-here-5f50c8.mp3;en;"They ask the turtle. No shell here.";kitap · ollie
+en/they-e87943.mp3;en;"they";kitap kelimesi
+en/ask-555413.mp3;en;"ask";kitap kelimesi
+en/they-ask-the-starfish-no-shell-here-1e04e4.mp3;en;"They ask the starfish. No shell here.";kitap · ollie
+en/oh-no-a-big-shark-hide-2c5b31.mp3;en;"Oh no! A big shark! Hide!";kitap · ollie
 en/hide-7c8216.mp3;en;"hide";kitap kelimesi
-en/is-she-in-the-box-yes-56c041.mp3;en;"Is she in the box? Yes!";kitap · saklambac
-en/now-she-is-under-the-table-31422d.mp3;en;"Now she is under the table.";kitap · saklambac
-en/now-she-is-behind-the-box-a27868.mp3;en;"Now she is behind the box.";kitap · saklambac
-en/now-she-is-on-my-bed-got-you-a955da.mp3;en;"Now she is on my bed. Got you!";kitap · saklambac
-en/got-d048cf.mp3;en;"got";kitap kelimesi
-en/who-likes-to-hide-360862.mp3;en;"Who likes to hide?";kitap · soru
-en/where-is-she-first-8ec661.mp3;en;"Where is she first?";kitap · soru
-en/where-is-she-at-the-end-d9bec6.mp3;en;"Where is she at the end?";kitap · soru
-en/a-is-for-apple-b02527.mp3;en;"A Is for Apple";kitap · abc
-en/a-is-for-apple-crunch-6b920b.mp3;en;"A is for apple. Crunch!";kitap · abc
-en/b-is-for-ball-bounce-053ded.mp3;en;"B is for ball. Bounce!";kitap · abc
-en/c-is-for-cat-meow-5d8299.mp3;en;"C is for cat. Meow!";kitap · abc
-en/d-is-for-dog-woof-88cfd2.mp3;en;"D is for dog. Woof!";kitap · abc
-en/e-is-for-egg-what-comes-next-f-fa3072.mp3;en;"E is for egg. What comes next? F!";kitap · abc
-en/next-a4ff4b.mp3;en;"next";kitap kelimesi
-en/what-is-a-for-14281f.mp3;en;"What is A for?";kitap · soru
-en/c-is-for-ce5e3c.mp3;en;"C is for…?";kitap · soru
-en/what-comes-after-e-dd3f4e.mp3;en;"What comes after E?";kitap · soru
+en/but-the-shark-has-the-shell-is-this-your-072727.mp3;en;"But the shark has the shell. Is this yours?";kitap · ollie
+en/yours-05029d.mp3;en;"yours";kitap kelimesi
+en/thank-you-shark-now-we-are-friends-d6bbbd.mp3;en;"Thank you, Shark! Now we are friends.";kitap · ollie
+en/thank-69d982.mp3;en;"thank";kitap kelimesi
+en/friends-abef71.mp3;en;"friends";kitap kelimesi
+en/who-lost-his-shell-d58424.mp3;en;"Who lost his shell?";kitap · soru
+en/who-helps-crab-72ad89.mp3;en;"Who helps Crab?";kitap · soru
+en/who-has-the-shell-846642.mp3;en;"Who has the shell?";kitap · soru
+en/i-can-help-25d3d0.mp3;en;"I can help!";kitap · nakarat
+en/who-is-coming-478877.mp3;en;"Who is coming?";kitap · tahmin
+en/touch-the-shell-60efea.mp3;en;"Touch the shell!";kitap · dokun
+en/the-kitten-in-the-tree-b7b67e.mp3;en;"The Kitten in the Tree";kitap · buyuyunce
+en/a-little-kitten-is-up-in-a-tall-tree-4ff318.mp3;en;"A little kitten is up in a tall tree.";kitap · buyuyunce
+en/kitten-5d8fe2.mp3;en;"kitten";kitap kelimesi
+en/tree-66d66f.mp3;en;"tree";kitap kelimesi
+en/meow-help-i-can-t-come-down-a51cdc.mp3;en;"Meow! Help! I can't come down!";kitap · buyuyunce
+en/the-chef-comes-here-kitten-some-fish-066905.mp3;en;"The chef comes. Here, kitten! Some fish!";kitap · buyuyunce
+en/some-369f91.mp3;en;"some";kitap kelimesi
+en/but-the-kitten-is-too-scared-to-move-d29e66.mp3;en;"But the kitten is too scared to move.";kitap · buyuyunce
+en/the-doctor-comes-don-t-worry-kitten-b1666c.mp3;en;"The doctor comes. Don't worry, kitten!";kitap · buyuyunce
+en/don-t-2ca531.mp3;en;"don't";kitap kelimesi
+en/worry-14f250.mp3;en;"worry";kitap kelimesi
+en/the-firefighter-comes-with-a-long-ladder-6c45bf.mp3;en;"The firefighter comes with a long ladder.";kitap · buyuyunce
+en/ladder-e23cac.mp3;en;"ladder";kitap kelimesi
+en/up-up-up-he-brings-the-kitten-down-2f86f6.mp3;en;"Up, up, up! He brings the kitten down.";kitap · buyuyunce
+en/brings-2ab59a.mp3;en;"brings";kitap kelimesi
+en/the-vet-says-she-is-fine-everyone-claps-561d72.mp3;en;"The vet says: She is fine. Everyone claps!";kitap · buyuyunce
+en/fine-6d96b3.mp3;en;"fine";kitap kelimesi
+en/claps-b4e22e.mp3;en;"claps";kitap kelimesi
+en/who-is-in-the-tree-b3e536.mp3;en;"Who is in the tree?";kitap · soru
+en/what-has-the-chef-got-e9c8e8.mp3;en;"What has the chef got?";kitap · soru
+en/who-brings-the-kitten-down-55549a.mp3;en;"Who brings the kitten down?";kitap · soru
+en/help-i-can-t-come-down-3be7b4.mp3;en;"Help! I can't come down!";kitap · nakarat
+en/who-can-climb-up-a93906.mp3;en;"Who can climb up?";kitap · tahmin
+en/touch-the-firefighter-4c8176.mp3;en;"Touch the firefighter!";kitap · dokun
+en/monkey-wants-to-fly-12a82f.mp3;en;"Monkey Wants to Fly";kitap · maymun
+en/monkey-sees-a-bird-i-want-to-fly-too-0b3d06.mp3;en;"Monkey sees a bird. I want to fly too!";kitap · maymun
+en/he-jumps-and-jumps-but-he-can-t-fly-c5b48f.mp3;en;"He jumps and jumps. But he can't fly.";kitap · maymun
+en/try-again-monkey-try-again-017539.mp3;en;"Try again, Monkey! Try again!";kitap · maymun
+en/try-6d071b.mp3;en;"try";kitap kelimesi
+en/he-runs-very-fast-but-he-can-t-fly-9acacb.mp3;en;"He runs very fast. But he can't fly.";kitap · maymun
+en/he-climbs-the-tallest-tree-but-he-can-t--5104fd.mp3;en;"He climbs the tallest tree. But he can't fly.";kitap · maymun
+en/climbs-2c2256.mp3;en;"climbs";kitap kelimesi
+en/tallest-7e29b8.mp3;en;"tallest";kitap kelimesi
+en/bird-says-i-can-fly-but-i-can-t-climb-976682.mp3;en;"Bird says: I can fly, but I can't climb.";kitap · maymun
+en/monkey-smiles-i-can-climb-come-on-my-bac-d32cfe.mp3;en;"Monkey smiles. I can climb! Come on my back!";kitap · maymun
+en/now-they-play-in-the-tree-together-2f85e7.mp3;en;"Now they play in the tree together.";kitap · maymun
+en/who-wants-to-fly-3dcc66.mp3;en;"Who wants to fly?";kitap · soru
+en/what-can-monkey-do-well-6d9973.mp3;en;"What can Monkey do well?";kitap · soru
+en/try-again-monkey-6082e2.mp3;en;"Try again, Monkey!";kitap · nakarat
+en/touch-the-monkey-40f193.mp3;en;"Touch the monkey!";kitap · dokun
+en/the-little-seed-21939a.mp3;en;"The Little Seed";kitap · agac
+en/a-little-seed-sleeps-under-the-snow-it-i-00c1e5.mp3;en;"A little seed sleeps under the snow. It is winter.";kitap · agac
+en/seed-159bac.mp3;en;"seed";kitap kelimesi
+en/sleeps-151110.mp3;en;"sleeps";kitap kelimesi
+en/in-spring-the-sun-says-wake-up-little-se-ee0d63.mp3;en;"In spring the sun says: Wake up, little seed!";kitap · agac
+en/wake-8f4c18.mp3;en;"wake";kitap kelimesi
+en/the-seed-grows-a-green-leaf-1e60c8.mp3;en;"The seed grows a green leaf.";kitap · agac
+en/grows-2c252b.mp3;en;"grows";kitap kelimesi
+en/the-rain-comes-the-seed-drinks-and-grows-c8b00b.mp3;en;"The rain comes. The seed drinks and grows.";kitap · agac
+en/drinks-bd2de3.mp3;en;"drinks";kitap kelimesi
+en/in-summer-it-is-a-tall-yellow-flower-bd816c.mp3;en;"In summer it is a tall yellow flower.";kitap · agac
+en/a-bee-comes-to-say-hello-buzz-5bbeff.mp3;en;"A bee comes to say hello. Buzz!";kitap · agac
+en/buzz-328deb.mp3;en;"buzz";kitap kelimesi
+en/in-autumn-the-wind-blows-new-seeds-fly-a-954b0c.mp3;en;"In autumn the wind blows. New seeds fly away.";kitap · agac
+en/blows-bdb6b6.mp3;en;"blows";kitap kelimesi
+en/seeds-971442.mp3;en;"seeds";kitap kelimesi
+en/away-4a0188.mp3;en;"away";kitap kelimesi
+en/winter-comes-again-sleep-well-little-see-bff53c.mp3;en;"Winter comes again. Sleep well, little seeds!";kitap · agac
+en/well-f4f9c0.mp3;en;"well";kitap kelimesi
+en/when-does-the-seed-wake-up-f06bfa.mp3;en;"When does the seed wake up?";kitap · soru
+en/what-does-the-seed-become-133712.mp3;en;"What does the seed become?";kitap · soru
+en/who-says-hello-to-the-flower-38f582.mp3;en;"Who says hello to the flower?";kitap · soru
+en/wake-up-little-seed-9ab79e.mp3;en;"Wake up, little seed!";kitap · nakarat
+en/touch-the-flower-eedec2.mp3;en;"Touch the flower!";kitap · dokun
+en/bunny-s-carrot-cake-1d559d.mp3;en;"Bunny's Carrot Cake";kitap · tavsan
+en/on-monday-bunny-plants-a-carrot-seed-117737.mp3;en;"On Monday Bunny plants a carrot seed.";kitap · tavsan
+en/plants-331587.mp3;en;"plants";kitap kelimesi
+en/on-tuesday-the-rain-gives-it-water-c21365.mp3;en;"On Tuesday the rain gives it water.";kitap · tavsan
+en/gives-ecd71f.mp3;en;"gives";kitap kelimesi
+en/water-5856e4.mp3;en;"water";kitap kelimesi
+en/is-it-ready-not-yet-bunny-4f7517.mp3;en;"Is it ready? Not yet, Bunny!";kitap · tavsan
+en/ready-c12a27.mp3;en;"ready";kitap kelimesi
+en/not-29af72.mp3;en;"not";kitap kelimesi
+en/yet-664bdf.mp3;en;"yet";kitap kelimesi
+en/on-wednesday-a-little-leaf-comes-out-dffc06.mp3;en;"On Wednesday a little leaf comes out.";kitap · tavsan
+en/on-thursday-it-is-sunny-the-carrot-grows-5ee80c.mp3;en;"On Thursday it is sunny. The carrot grows.";kitap · tavsan
+en/on-friday-bunny-pulls-pop-a-big-carrot-5d671e.mp3;en;"On Friday Bunny pulls. Pop! A big carrot!";kitap · tavsan
+en/pulls-fd5939.mp3;en;"pulls";kitap kelimesi
+en/pop-b6c2e8.mp3;en;"pop";kitap kelimesi
+en/on-saturday-she-makes-a-carrot-cake-1443e8.mp3;en;"On Saturday she makes a carrot cake.";kitap · tavsan
+en/on-sunday-all-her-friends-eat-cake-yummy-49a0de.mp3;en;"On Sunday all her friends eat cake. Yummy!";kitap · tavsan
+en/when-does-bunny-plant-the-seed-eded62.mp3;en;"When does Bunny plant the seed?";kitap · soru
+en/what-grows-569d78.mp3;en;"What grows?";kitap · soru
+en/when-do-the-friends-eat-cake-ae23af.mp3;en;"When do the friends eat cake?";kitap · soru
+en/not-yet-bunny-fde5c6.mp3;en;"Not yet, Bunny!";kitap · nakarat
+en/what-does-bunny-make-f2a193.mp3;en;"What does Bunny make?";kitap · tahmin
+en/touch-the-carrot-3db5f8.mp3;en;"Touch the carrot!";kitap · dokun
+en/hide-and-seek-de6f6c.mp3;en;"Hide and Seek";kitap · saklambac
+en/let-s-play-hide-and-seek-puppy-counts-to-00ddd9.mp3;en;"Let's play hide and seek! Puppy counts to ten.";kitap · saklambac
+en/seek-2c261f.mp3;en;"seek";kitap kelimesi
+en/counts-23a495.mp3;en;"counts";kitap kelimesi
+en/ready-or-not-here-i-come-37da61.mp3;en;"Ready or not, here I come!";kitap · saklambac
+en/or-400395.mp3;en;"or";kitap kelimesi
+en/is-kitten-under-the-table-no-494c38.mp3;en;"Is Kitten under the table? No.";kitap · saklambac
+en/is-kitten-behind-the-door-no-b3456f.mp3;en;"Is Kitten behind the door? No.";kitap · saklambac
+en/is-kitten-in-the-bag-no-d75a12.mp3;en;"Is Kitten in the bag? No.";kitap · saklambac
+en/puppy-is-sad-i-can-t-find-her-c96630.mp3;en;"Puppy is sad. I can't find her!";kitap · saklambac
+en/then-he-hears-a-sound-meow-on-the-bed-5d7736.mp3;en;"Then he hears a sound. Meow! On the bed!";kitap · saklambac
+en/hears-2946b7.mp3;en;"hears";kitap kelimesi
+en/sound-04e732.mp3;en;"sound";kitap kelimesi
+en/found-you-now-it-s-your-turn-kitten-81feed.mp3;en;"Found you! Now it's your turn, Kitten!";kitap · saklambac
+en/found-52aab9.mp3;en;"found";kitap kelimesi
+en/who-counts-to-ten-59aad6.mp3;en;"Who counts to ten?";kitap · soru
+en/where-does-puppy-look-first-058aa9.mp3;en;"Where does Puppy look first?";kitap · soru
+en/where-is-kitten-0b9cdb.mp3;en;"Where is Kitten?";kitap · soru
+en/touch-the-cat-f3df95.mp3;en;"Touch the cat!";kitap · dokun
+en/the-lost-letter-52cc4a.mp3;en;"The Lost Letter";kitap · abc
+en/a-b-and-c-are-friends-they-make-words-b8be1e.mp3;en;"A, B and C are friends. They make words.";kitap · abc
+en/make-537be7.mp3;en;"make";kitap kelimesi
+en/words-9968ec.mp3;en;"words";kitap kelimesi
+en/one-day-c-is-not-here-oh-no-34cf8f.mp3;en;"One day C is not here. Oh no!";kitap · abc
+en/where-are-you-c-ed36cc.mp3;en;"Where are you, C?";kitap · abc
+en/a-looks-under-the-apple-no-c-806076.mp3;en;"A looks under the apple. No C.";kitap · abc
+en/looks-067ced.mp3;en;"looks";kitap kelimesi
+en/b-looks-behind-the-ball-no-c-5e764d.mp3;en;"B looks behind the ball. No C.";kitap · abc
+en/they-hear-a-sound-meow-7f9eb8.mp3;en;"They hear a sound. Meow!";kitap · abc
+en/hear-b39982.mp3;en;"hear";kitap kelimesi
+en/c-is-with-the-cat-c-is-for-cat-8deeae.mp3;en;"C is with the cat! C is for cat!";kitap · abc
+en/now-they-make-a-word-c-a-b-cab-4c140f.mp3;en;"Now they make a word: C, A, B. Cab!";kitap · abc
+en/word-b6ca81.mp3;en;"word";kitap kelimesi
+en/cab-1a3ff6.mp3;en;"cab";kitap kelimesi
+en/who-is-lost-ceb4f4.mp3;en;"Who is lost?";kitap · soru
+en/where-does-a-look-4196de.mp3;en;"Where does A look?";kitap · soru
+en/who-is-c-with-71ae57.mp3;en;"Who is C with?";kitap · soru
+en/choose-your-pet-7c76ba.mp3;en;"Choose your pet!";köşeler
+en/i-love-you-d5dd35.mp3;en;"I love you!";köşeler
+en/no-thank-you-ddca25.mp3;en;"No, thank you!";köşeler
+en/hello-i-m-your-pet-a6fb4f.mp3;en;"Hello! I'm your pet!";köşeler
+en/yummy-thank-you-2cc13d.mp3;en;"Yummy! Thank you!";köşeler
+en/i-want-an-apple-6328f8.mp3;en;"I want an apple!";köşeler
+en/i-want-a-banana-afd8fc.mp3;en;"I want a banana!";köşeler
+en/i-want-a-carrot-e77397.mp3;en;"I want a carrot!";köşeler
+en/i-want-cheese-84798a.mp3;en;"I want cheese!";köşeler
+en/i-want-milk-497c8d.mp3;en;"I want milk!";köşeler
+en/i-want-bread-0f8cb0.mp3;en;"I want bread!";köşeler
+en/i-want-a-cake-6e416a.mp3;en;"I want a cake!";köşeler
+en/i-want-a-cookie-627ba1.mp3;en;"I want a cookie!";köşeler
+en/i-want-an-egg-7c39c3.mp3;en;"I want an egg!";köşeler
+en/i-want-a-strawberry-5c62cd.mp3;en;"I want a strawberry!";köşeler
+en/i-m-dirty-99dbc5.mp3;en;"I'm dirty!";köşeler
+en/i-m-clean-now-905abd.mp3;en;"I'm clean now!";köşeler
+en/wash-my-ears-ef9abe.mp3;en;"Wash my ears!";köşeler
+en/wash-my-nose-d1b729.mp3;en;"Wash my nose!";köşeler
+en/wash-my-face-c5ea39.mp3;en;"Wash my face!";köşeler
+en/wash-my-tummy-b95a0b.mp3;en;"Wash my tummy!";köşeler
+en/wash-my-feet-f559b4.mp3;en;"Wash my feet!";köşeler
+en/that-was-fun-3ce910.mp3;en;"That was fun!";köşeler
+en/good-night-ca97ff.mp3;en;"Good night!";köşeler
+en/i-want-my-bed-5ae287.mp3;en;"I want my bed!";köşeler
+en/i-wake-up-cb9df3.mp3;en;"I wake up.";köşeler
+en/i-wash-my-face-ea9c5a.mp3;en;"I wash my face.";köşeler
+en/i-brush-my-teeth-47fc21.mp3;en;"I brush my teeth.";köşeler
+en/i-get-dressed-0bc24b.mp3;en;"I get dressed.";köşeler
+en/i-eat-breakfast-00f2bc.mp3;en;"I eat breakfast.";köşeler
+en/i-go-to-school-04eb2a.mp3;en;"I go to school.";köşeler
+en/i-play-with-my-friends-59144b.mp3;en;"I play with my friends.";köşeler
+en/i-eat-dinner-415a9f.mp3;en;"I eat dinner.";köşeler
+en/i-take-a-bath-dea76e.mp3;en;"I take a bath.";köşeler
+en/i-read-a-book-3c2fe0.mp3;en;"I read a book.";köşeler
+en/i-go-to-bed-good-night-167149.mp3;en;"I go to bed. Good night!";köşeler
+en/this-is-my-day-b27ea6.mp3;en;"This is my day!";köşeler
+en/what-comes-first-513bc7.mp3;en;"What comes first?";köşeler
+en/what-comes-next-c3a463.mp3;en;"What comes next?";köşeler
+en/now-you-put-them-in-order-54aebc.mp3;en;"Now you put them in order!";köşeler
+en/great-that-s-my-day-26a987.mp3;en;"Great! That's my day!";köşeler
+en/the-sun-goes-down-the-sky-is-dark-b264b0.mp3;en;"The sun goes down. The sky is dark.";köşeler
+en/the-moon-says-hello-to-the-stars-0f4e1e.mp3;en;"The moon says hello to the stars.";köşeler
+en/the-little-bird-is-in-her-nest-302433.mp3;en;"The little bird is in her nest.";köşeler
+en/the-little-bear-is-in-his-bed-9e0e79.mp3;en;"The little bear is in his bed.";köşeler
+en/the-fish-sleep-in-the-sea-96b0c9.mp3;en;"The fish sleep in the sea.";köşeler
+en/the-cat-is-warm-and-sleepy-ea4436.mp3;en;"The cat is warm and sleepy.";köşeler
+en/now-close-your-eyes-like-the-moon-2940d0.mp3;en;"Now close your eyes, like the moon.";köşeler
+en/good-night-sweet-dreams-d70fa7.mp3;en;"Good night. Sweet dreams.";köşeler

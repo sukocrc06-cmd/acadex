@@ -217,4 +217,16 @@
 .kn-hk-ayna .kn-resim{animation:knHop .4s .5s ease-in-out 4 alternate!important}
 @media (max-width:760px){.kn-oge-balon{top:4%;right:3%;max-width:56%;font-size:15px}}
 @media (prefers-reduced-motion:reduce){.kn-ucus{display:none}.kn-hk .kn-oge{animation:none!important}}
+/* --- 13.11.2026 tam gövdeli canlı hayvanlar (kids-hayvan.js) -------------------------------- */
+.kc-hayvan .kc-kuyruk{transform-box:fill-box;transform-origin:0% 100%;animation:kcKuyruk 1.1s ease-in-out infinite alternate}
+.kc-hayvan .kc-kafa{transform-box:fill-box;transform-origin:50% 85%;animation:kcKafa 3.2s ease-in-out infinite}
+.kc-hayvan .kc-govde{transform-box:fill-box;transform-origin:50% 100%;animation:kcNefes 2.4s ease-in-out infinite alternate}
+.kc-konus-agiz{opacity:0;transform-box:fill-box;transform-origin:50% 20%}
+.kn-oge-konus .kc-konus-agiz,.ka-konusuyor .kc-konus-agiz,.kc-konusuyor .kc-konus-agiz{opacity:1;animation:kcAgiz .2s ease-in-out infinite alternate}
+.kn-oge-konus .kc-hayvan .kc-kuyruk,.ka-konusuyor .kc-hayvan .kc-kuyruk,.kc-konusuyor .kc-kuyruk{animation-duration:.3s}
+@keyframes kcKuyruk{from{transform:rotate(-9deg)}to{transform:rotate(11deg)}}
+@keyframes kcKafa{0%,70%,100%{transform:rotate(0)}78%{transform:rotate(-5deg)}90%{transform:rotate(4deg)}}
+@keyframes kcNefes{to{transform:scale(1.02,1.035)}}
+@keyframes kcAgiz{from{transform:scaleY(.25)}to{transform:scaleY(1)}}
+@media (prefers-reduced-motion:reduce){.kc-hayvan *{animation:none!important}.kn-oge-konus .kc-konus-agiz,.ka-konusuyor .kc-konus-agiz{opacity:1}}
 @media (prefers-reduced-motion:reduce){.kn *,.ko-av,.ko-tren,.ko-duman{animation:none!important;transition:none!important}.kn-kelime span{opacity:1}}

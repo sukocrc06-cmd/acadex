@@ -26,7 +26,7 @@ const yukle = () => {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-kitap.js', 'kids-yazdir.js']) vm.runInContext(read('kids/assets/' + f), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-kitap.js', 'kids-yazdir.js']) vm.runInContext(read('kids/assets/' + f), ctx);
   return W;
 };
 const kat = () => new Set(require(path.join(ROOT, 'kids/ses/katalog.js'))().map((x) => x.dil + ':' + x.metin));
@@ -67,7 +67,10 @@ test('kitaplık: her konuya bir kitap; resimler çizilir; metinler katalogda', (
   const W = yukle(), V = W.KIDS_VERI, KT = W.KIDS_KITAP, C = W.KIDS_CIZ, k = kat(), yok = C.simge('bu-yok');
   assert.deepEqual([...new Set(KT.LISTE.map((b) => b.konu))].sort(), [...V.KONU.map((x) => x.id)].sort());
   for (const b of KT.LISTE) {
-    assert.equal(b.sayfalar.length, 5, b.id); assert.equal(b.sorular.length, 3, b.id);
+    /* 13.11.2026: olaylı hikâyeler, yaşa göre üç seviye: 1 Minikler 6 sayfa · 2 Kâşifler 7 · 3 Yıldızlar 8 */
+    assert.ok([1, 2, 3].includes(b.sv), b.id + ' seviye'); assert.equal(b.sayfalar.length, 5 + b.sv, b.id); assert.equal(b.sorular.length, 3, b.id);
+    assert.ok(b.sayfalar.some((s) => s.n) && b.sayfalar.some((s) => s.t || s.d), b.id + ' katılım (nakarat + tahmin/dokun) olmalı');
+    for (const s of b.sayfalar) { if (s.n) assert.ok(k.has('en:' + s.n), s.n); if (s.t) { assert.ok(k.has('en:' + s.t.s), s.t.s); assert.ok(s.t.y.includes(s.t.c), b.id + ' tahmin cevabı seçeneklerde'); } }
     for (const id of [].concat(...b.sayfalar.map((s) => s.r), ...b.sorular.map((q) => [q.c, ...q.y]))) assert.ok(id === 'star' || KT.gorsel(id) !== yok, b.id + ' resim ' + id);
     for (const q of b.sorular) assert.ok(q.y.includes(q.c), b.id + ' doğru cevap seçeneklerde');
     for (const s of b.sayfalar) { assert.ok(k.has('en:' + s.s), s.s); for (const w of KT.kelimeler(s.s)) assert.ok(k.has('en:' + w), w); }

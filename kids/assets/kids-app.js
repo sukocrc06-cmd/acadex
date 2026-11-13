@@ -115,6 +115,7 @@
       (bugun ? '<section class="ka-bugun"><div class="ka-bugun-acd">' + acd('kutlama') + '</div><div class="ka-bugun-yazi"><small>Bugünün konusu</small><h1><span lang="en">' + esc(bugun.en) + '</span> <em>' + esc(bugun.tr) + '</em></h1><p>Bugün okulda bunu öğrendin! Hadi oynayarak tekrar edelim.</p></div>' +
         '<button type="button" class="ka-buyuk ka-oyna" data-konu="' + bugun.id + '" data-odak>Oyna ' + C.simge('oynat') + '</button></section>'
         : '<section class="ka-bugun ka-serbest"><div class="ka-bugun-acd">' + acd('mutlu') + '</div><div class="ka-bugun-yazi"><small>Serbest gün</small><h1>İstediğin adaya uç!</h1><p>Bugün için seçilmiş bir konu yok. Açık adalardan birine dokun.</p></div></section>') +
+      (W.KIDS_PANEL3 ? W.KIDS_PANEL3.seritHtml(il) : '') +
       '<section class="ka-harita" aria-label="Konular"><div class="ka-bulutlar" aria-hidden="true">' + C.bulut('ka-b1') + C.bulut('ka-b2') + C.bulut('ka-b3') + '</div><ol class="ka-adalar">' +
       V.KONU.map(function (k, i) {
         var n = OD.konuYildiz(il, k.id), bitti = !!il.bitti[k.id], sv = OD.seviye(il, k.id), as = OD.asama(il, k.id), us = OD.ustalik(il, k.id), np = k.acik ? paketSay(k.id) : 1, gor = (il.asamaGor || {})[k.id] || 0;
@@ -136,9 +137,10 @@
     var a = app.querySelector('[data-album]'); if (a) a.addEventListener('click', album);
     var dl = app.querySelector('[data-dolap]'); if (dl) dl.addEventListener('click', dolap);
     var oz = { kok: app, il: ilerleme, kaydet: function (il) { koy(ilAnahtar(), il); }, geri: panel, bant: function () { return V.BANT[S.sinif.bant]; }, katman: katman, dur: dur };
+    app.querySelectorAll('[data-kose]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); dur(); var r = W.KIDS_PANEL3.ac(b.getAttribute('data-kose'), oz); if (r && r.dur) aktif = r; }); });
     var sz = app.querySelector('[data-sozluk]'); if (sz && W.KIDS_PANEL2) sz.addEventListener('click', function () { SES.fx('dokun'); W.KIDS_PANEL2.sozluk(oz); });
     var sk = app.querySelector('[data-sahnekur]'); if (sk && W.KIDS_PANEL2) sk.addEventListener('click', function () { SES.fx('dokun'); dur(); W.KIDS_PANEL2.sahne(oz); });
-    var kt = app.querySelector('[data-kitap]'); if (kt && W.KIDS_KITAP) kt.addEventListener('click', function () { SES.fx('dokun'); dur(); W.KIDS_KITAP.kitaplik({ kok: app, il: ilerleme, kaydet: function (il) { koy(ilAnahtar(), il); }, geri: panel }); });
+    var kt = app.querySelector('[data-kitap]'); if (kt && W.KIDS_KITAP) kt.addEventListener('click', function () { SES.fx('dokun'); dur(); W.KIDS_KITAP.kitaplik({ kok: app, il: ilerleme, kaydet: function (il) { koy(ilAnahtar(), il); }, geri: panel, bant: S.sinif.bant }); });
     var c = app.querySelector('[data-veli]'); if (c) c.addEventListener('click', function () { SES.fx('dokun'); veliKapisi(veliKosesi); });
   }
 
@@ -297,7 +299,7 @@
   function dokunDinle(sahne, ileri) {
     var rs = renkler(), gor = {}, P = paket();
     sahne.innerHTML = '<div class="ka-dokun"><p class="ka-yon">' + C.simge('ses') + ' ' + P.dokunYon + '</p><div class="ka-lekeler ka-l' + rs.length + '">' +
-      rs.map(function (r) { return '<button type="button" class="ka-lekeb" data-r="' + r.id + '" aria-label="' + r.en + '">' + P.gorsel(r) + (bant().yazi ? '<b lang="en">' + r.en + '</b>' : '') + '<i class="ka-tik">' + C.simge('tik') + '</i></button>'; }).join('') + '</div>' +
+      rs.map(function (r) { return '<button type="button" class="ka-lekeb" data-r="' + r.id + '" aria-label="' + r.en + '">' + (W.KIDS_HAYVAN ? W.KIDS_HAYVAN.en(r, P) : P.gorsel(r)) + (bant().yazi ? '<b lang="en">' + r.en + '</b>' : '') + '<i class="ka-tik">' + C.simge('tik') + '</i></button>'; }).join('') + '</div>' +
       '<div class="ka-izle-alt" data-alt hidden>' + ileriDugme('Oyuna geç') + '</div></div>';
     sahne.querySelectorAll('[data-r]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -305,8 +307,8 @@
         SES.fx('dokun'); b.classList.remove('ka-zipla', 'ka-konusuyor'); void b.offsetWidth; b.classList.add('ka-zipla', 'ka-duyuldu'); gor[r.id] = 1;
         /* konuşan kelime: hayvan önce sesini çıkarır, sonra kendini tanıtır ("Woof, woof! I'm a dog!") */
         var KS = W.KIDS_KONUSAN, hs = KS && KS.hayvanSesi(r), ben = KS && KS.ben(S.konu, r, P);
-        if (hs) SES.fx('hayvan', hs);
-        setTimeout(function () { b.classList.add('ka-konusuyor'); SES.soyle(ben || r.en, 'en', { perde: 1.5 }).then(function () { b.classList.remove('ka-konusuyor'); }); }, hs ? 900 : 0);
+        b.classList.add('ka-konusuyor');
+        (hs && SES.hayvan ? SES.hayvan(hs) : Promise.resolve()).then(function () { return SES.soyle(ben || r.en, 'en', { perde: 1.5 }); }).then(function () { b.classList.remove('ka-konusuyor'); });
         if (Object.keys(gor).length === rs.length) { sahne.querySelector('[data-alt]').hidden = false; }
       });
     });

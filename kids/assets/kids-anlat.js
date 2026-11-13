@@ -57,7 +57,7 @@
     }
     function hikayeBitir() { hik.innerHTML = ''; obalon.hidden = true; sk.className = sk.className.replace(/ ?kn-hk(-\S+)?/g, ''); }
     function sahneCiz(r) {
-      var ic = P.gorsel(r), n = r.n || 0, ek = '';
+      var ic = W.KIDS_HAYVAN ? W.KIDS_HAYVAN.en(r, P) : P.gorsel(r), n = r.n || 0, ek = '';
       if (hareket === 'say' && n) { var s = ''; for (var i = 0; i < n; i++) s += '<i style="--s:' + i + '">' + C.simge('yildiz') + '</i>'; ek = '<div class="kn-sayilar kn-n' + (n > 10 ? 'c' : n > 5 ? 'o' : 'a') + '">' + s + '</div>'; }
       if (hareket === 'boya') ek = '<span class="kn-firca" aria-hidden="true">' + C.simge('firca') + '</span>';
       if (hareket === 'gec' || hareket === 'yuru') ek = '<span class="kn-toz" aria-hidden="true"><i></i><i></i><i></i></span>';
@@ -80,7 +80,7 @@
         /* diyalog: Acadia sorar, kelime kendini tanıtır, Acadia selam verir */
         await soyle(rp.soru); if (dur()) return false;
         var hs = KS.hayvanSesi(r);
-        if (hs) { sk.classList.add('kn-oge-konus'); SES.fx('hayvan', hs); await bekle(azHareket() ? 300 : 1000); sk.classList.remove('kn-oge-konus'); if (dur()) return false; }
+        if (hs) { sk.classList.add('kn-oge-konus'); await (SES.hayvan ? SES.hayvan(hs) : bekle(900)); sk.classList.remove('kn-oge-konus'); if (dur()) return false; await bekle(150); }
         yaz(); await ogeSoyle(rp.ben); if (dur()) return false; await bekle(200);
         if (rp.selam) { acdK.innerHTML = o.acd('mutlu', 'el'); await soyle(rp.selam); if (dur()) return false; }
         obalon.hidden = true;
@@ -108,7 +108,7 @@
     }
     /* sıradaki küçük resimlere dokunarak o kelimeye atla */
     sira.addEventListener('click', function (e) { var b = e.target.closest('[data-git]'); if (!b) return; SES.sus(); SES.fx('dokun'); oyna(+b.getAttribute('data-git')); });
-    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]); if (h) SES.fx('hayvan', h); var b = KS && KS.ben(o.konu, rs[i], P); setTimeout(function () { if (b) ogeSoyle(b).then(function () { if (!sen.hidden) return; obalon.hidden = true; }); else SES.soyle(rs[i].en, 'en'); }, h ? 900 : 0); });
+    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]), b = KS && KS.ben(o.konu, rs[i], P); (h && SES.hayvan ? SES.hayvan(h) : Promise.resolve()).then(function () { if (b) return ogeSoyle(b).then(function () { obalon.hidden = true; }); return SES.soyle(rs[i].en, 'en'); }); });
     sahne.querySelector('[data-yeniden]').addEventListener('click', function () { SES.fx('dokun'); kok.classList.remove('kn-bitti'); oyna(0); });
     sahne.querySelector('[data-ileri]').addEventListener('click', function () { SES.fx('dokun'); o.ileri(); });
     oyna(0);

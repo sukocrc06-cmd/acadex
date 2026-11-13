@@ -91,7 +91,7 @@
       } catch (e) { bitti(false); }
     });
   }
-  function sus() { try { if (W.speechSynthesis) W.speechSynthesis.cancel(); } catch (e) { } try { if (oynatici) oynatici.pause(); } catch (e) { } bitir(false); muzik(false); }
+  function sus() { try { if (W.speechSynthesis) W.speechSynthesis.cancel(); } catch (e) { } try { if (fxCalar) fxCalar.pause(); } catch (e) { } try { if (oynatici) oynatici.pause(); } catch (e) { } bitir(false); muzik(false); }
   function ac() { if (ctx) return ctx; var C = W.AudioContext || W.webkitAudioContext; if (!C) return null; try { ctx = new C(); } catch (e) { ctx = null; } return ctx; }
   function nota(f, t0, sure, tip, g) {
     var c = ac(); if (!c || !acik) return;
@@ -155,10 +155,29 @@
     whale: function () { kay(300, 600, 0, 0.8, 'sine', 0.1); kay(600, 250, 0.8, 0.8, 'sine', 0.08); },
     dolphin: function () { [0, 0.08, 0.16, 0.24].forEach(function (t) { kay(3000, 4200, t, 0.05, 'sine', 0.07); }); },
     seal: function () { kay(500, 350, 0, 0.14, 'sawtooth', 0.1); kay(520, 350, 0.22, 0.14, 'sawtooth', 0.1); },
+    rabbit: function () { kay(1800, 2400, 0, 0.06, 'sine', 0.06); kay(1900, 2500, 0.14, 0.06, 'sine', 0.06); },
     walrus: function () { kay(160, 110, 0, 0.5, 'sawtooth', 0.11, 8); }
   };
+  /* çizgi film efekti: kayıtlı dosya (liste.json "fx:<id>") varsa onu, yoksa sentezi çalar; bitince çözülür */
+  var fxCalar = null;
+  function hayvan(id) {
+    return new Promise(function (coz) {
+      if (!acik) return coz(false);
+      var d = LISTE && LISTE['fx:' + id], son = false, bit = function (x) { if (!son) { son = true; coz(x); } };
+      if (d) {
+        try {
+          fxCalar = fxCalar || new W.Audio(); fxCalar.pause(); fxCalar.src = adres(d); fxCalar.volume = 0.9;
+          fxCalar.onended = function () { bit(true); }; fxCalar.onerror = function () { if (HAYVAN[id]) HAYVAN[id](); setTimeout(function () { bit(true); }, 900); };
+          var p = fxCalar.play(); if (p && p.catch) p.catch(function () { fxCalar.onerror(); });
+          return setTimeout(function () { bit(true); }, 4500);
+        } catch (e) { }
+      }
+      if (HAYVAN[id]) { HAYVAN[id](); return setTimeout(function () { bit(true); }, 950); }
+      bit(false);
+    });
+  }
   var FX = {
-    hayvan: function (id) { if (HAYVAN[id]) HAYVAN[id](); },
+    hayvan: function (id) { hayvan(id); },
     dokun: function () { nota(660, 0, 0.09, 'triangle', 0.1); },
     pat: function () { nota(240, 0, 0.12, 'square', 0.1); nota(520, 0.03, 0.1, 'triangle', 0.12); },
     dogru: function () { nota(660, 0, 0.14, 'triangle'); nota(880, 0.11, 0.2, 'triangle'); },
@@ -177,6 +196,13 @@
     var i = 0, adim = function () { if (!acik) return; nota(EZGI[i % EZGI.length], 0, 0.22, 'triangle', 0.035); if (i % 4 === 0) nota(131, 0, 0.18, 'sine', 0.06); if (i % 4 === 2) nota(196, 0, 0.12, 'sine', 0.03); i++; };
     adim(); muzikT = setInterval(adim, 300);
   }
+  /* ninni: uyku vakti için çok yavaş, yumuşak bir ezgi (WebAudio). ninni(true) başlatır, ninni(false) durdurur */
+  var ninniT = null, NINNI = [392, 330, 330, 349, 294, 294, 262, 294, 330, 349, 392, 392, 392, 330, 330, 349, 294, 294, 262, 330, 392, 392, 262, 0];
+  function ninni(ac_) {
+    clearInterval(ninniT); ninniT = null; if (!ac_) return;
+    var i = 0, adim = function () { if (!acik) return; var f = NINNI[i % NINNI.length]; if (f) { nota(f, 0, 1.1, 'sine', 0.045); if (i % 3 === 0) nota(f / 2, 0, 1.6, 'sine', 0.03); } i++; };
+    adim(); ninniT = setInterval(adim, 850);
+  }
   function ayar(v) { acik = !!v; try { localStorage.setItem('kids.ses', acik ? '1' : '0'); } catch (e) { } if (!acik) sus(); return acik; }
   /* parça parça söyle (karışık sorular: "Find" + "three" + "red" + "cars"): bütün cümle kayıtlıysa onu,
      değilse kayıtlı parçaları art arda çalar; böylece sınırsız birleşim de öğretmen sesiyle duyulur */
@@ -186,5 +212,5 @@
     if (kayitliMi(tam, dil) || !LISTE || !parcalar.every(function (x) { return kayitliMi(x, dil); })) return soyle(tam, dil);
     var i = 0; return (function sira() { if (i >= parcalar.length || !acik) return Promise.resolve(true); return soyle(parcalar[i++], dil).then(function (ok) { return ok === false ? false : sira(); }); })();
   }
-  W.KIDS_SES = { kayitliMi: kayitliMi, dizi: dizi, surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
+  W.KIDS_SES = { ninni: ninni, hayvan: hayvan, kayitliMi: kayitliMi, dizi: dizi, surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
 })(window);

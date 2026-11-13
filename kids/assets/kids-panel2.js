@@ -92,7 +92,7 @@
       return SES.dizi(p, 'en').then(function () { acd.classList.remove('kn-konus'); });
     }
     function yerCiz(yeni) {
-      yerEl.innerHTML = yerler.map(function (y, i) { var x = ogeBul(y[0], y[1]); return x ? '<button type="button" class="kp-yer' + (i === yeni ? ' kp-yeni' : '') + '" data-yi="' + i + '" style="left:' + y[2] + '%;top:' + y[3] + '%;--s:' + y[4] + '" aria-label="' + esc(x.en) + '">' + K.al(y[0]).gorsel(x) + '</button>' : ''; }).join('');
+      yerEl.innerHTML = yerler.map(function (y, i) { var x = ogeBul(y[0], y[1]); return x ? '<button type="button" class="kp-yer' + (i === yeni ? ' kp-yeni' : '') + '" data-yi="' + i + '" style="left:' + y[2] + '%;top:' + y[3] + '%;--s:' + y[4] + '" aria-label="' + esc(x.en) + '">' + (W.KIDS_HAYVAN ? W.KIDS_HAYVAN.en(x, K.al(y[0])) : K.al(y[0]).gorsel(x)) + '</button>' : ''; }).join('');
     }
     function tepsiCiz() {
       tk.innerHTML = S.konular.map(function (kid) { var kz = V.konuBul(kid); return '<button type="button" data-tkk="' + kid + '" aria-pressed="' + (kid === secKonu) + '" style="--r:' + kz.renk + '"><span>' + C.simge(kz.simge) + '</span>' + esc(kz.en) + '</button>'; }).join('');

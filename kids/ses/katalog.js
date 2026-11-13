@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js', 'kids-konusan.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-hayvan.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js', 'kids-konusan.js', 'kids-panel3.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -27,7 +27,7 @@ const TR = [
   'Mola zamanı! Bugün çok güzel çalıştın.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
   'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.', 'Adan büyüdü!', 'Hadi bir sahne kuralım!', 'Önce bir önceki paketi bitir.', 'Yeni bir kelime paketi açıldı!', 'Gümüş madalya kazandın!', 'Altın madalya kazandın!'
 ];
-const EN = ['Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?', 'The end! Great reading!'];
+const EN = ['Say it with me!', 'Yes! Let\'s see!', 'Hmm! Let\'s see!', 'I like it too!', 'Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?', 'The end! Great reading!'];
 
 module.exports = function katalog() {
   const W = modulleriYukle(), V = W.KIDS_VERI, K = W.KIDS_KONU, O = W.KIDS_OYUN, liste = new Map();
@@ -77,7 +77,10 @@ module.exports = function katalog() {
     ekle('en', b.ad, 'kitap · ' + b.id);
     b.sayfalar.forEach((s) => { ekle('en', s.s, 'kitap · ' + b.id); W.KIDS_KITAP.kelimeler(s.s).forEach((w) => ekle('en', w, 'kitap kelimesi')); });
     b.sorular.forEach((q) => ekle('en', q.s, 'kitap · soru'));
+    b.sayfalar.forEach((s) => { if (s.n) ekle('en', s.n, 'kitap · nakarat'); if (s.d) ekle('en', W.KIDS_KITAP.dokunCumle(s.d), 'kitap · dokun'); if (s.t) ekle('en', s.t.s, 'kitap · tahmin'); });
   }
+  /* evcil hayvanım, benim günüm, uyku vakti */
+  W.KIDS_PANEL3.cumleler().forEach((m) => ekle('en', m, 'köşeler'));
   return [...liste.values()];
 };
 

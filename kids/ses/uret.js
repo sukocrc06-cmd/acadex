@@ -19,6 +19,9 @@
      node kids/ses/uret.js uret                   # eksik dosyaları üretir (ses id değişen dili baştan üretir)
      node kids/ses/uret.js uret --hepsi           # hepsini baştan üretir
      node kids/ses/uret.js uret --dil en          # yalnız İngilizceyi üretir (Türkçe yönergeler cihaz sesiyle kalır)
+     node kids/ses/uret.js efekt kuru             # çizgi film hayvan seslerinden kaçı eksik, gösterir
+     node kids/ses/uret.js efekt                  # eksik efektleri üretir (kids/ses/fx/*.mp3, liste.json'a fx:<id>)
+     node kids/ses/uret.js efekt --hepsi          # efektleri baştan üretir (metinler: kids/ses/efektler.js)
    İsteğe bağlı: $env:ELEVEN_MODEL (varsayılan eleven_multilingual_v2)
    ========================================================================== */
 'use strict';
@@ -61,6 +64,29 @@ async function seslendir(ses, metin, dil) {
   throw new Error('ElevenLabs yanıt vermedi (5 deneme).');
 }
 
+/* çizgi film ses efektleri: ElevenLabs "sound generation" (metinden efekt). Sesli okumadan ayrı kredi harcar. */
+async function efektUret(hepsi, kuru) {
+  const E = require('./efektler.js'), L = listeOku(); L.sesler = L.sesler || {};
+  const is = E.filter((x) => hepsi || !fs.existsSync(path.join(KOK, 'fx', x.id + '.mp3')));
+  console.log(E.length + ' efekt; üretilecek ' + is.length + ' dosya, toplam ' + is.reduce((t, x) => t + x.sure, 0).toFixed(1) + ' saniye.');
+  for (const x of E) if (fs.existsSync(path.join(KOK, 'fx', x.id + '.mp3'))) L.sesler['fx:' + x.id] = 'fx/' + x.id + '.mp3';
+  if (kuru) return;
+  if (is.length) anahtarGerek();
+  fs.mkdirSync(path.join(KOK, 'fx'), { recursive: true });
+  let n = 0, kredi = 0;
+  for (const x of is) {
+    try {
+      const r = await fetch(API + '/v1/sound-generation?output_format=' + BICIM, { method: 'POST', headers: { 'xi-api-key': ANAHTAR, 'content-type': 'application/json', accept: 'audio/mpeg' }, body: JSON.stringify({ text: x.metin, duration_seconds: x.sure, prompt_influence: 0.5 }) });
+      if (!r.ok) throw new Error('ElevenLabs ' + r.status + ': ' + (await r.text()).slice(0, 300));
+      kredi += +(r.headers.get('character-cost') || 0);
+      fs.writeFileSync(path.join(KOK, 'fx', x.id + '.mp3'), Buffer.from(await r.arrayBuffer())); L.sesler['fx:' + x.id] = 'fx/' + x.id + '.mp3'; n++; console.log('  ✓ ' + x.id);
+    } catch (err) { console.error('✗ ' + x.id + ' → ' + err.message); if (/401|403|quota|credits|payment_required/i.test(err.message)) break; }
+    await bekle(400);
+  }
+  fs.writeFileSync(LISTE, JSON.stringify(L, null, 1));
+  console.log('Bitti: ' + n + ' efekt üretildi' + (kredi ? ' (' + kredi + ' kredi)' : '') + '. Dinle: kids/ses/fx/. Beğenmediğin sesin metnini efektler.js\'te değiştir, dosyasını sil, yeniden çalıştır.');
+}
+
 async function sesler() {
   anahtarGerek();
   const r = await fetch(API + '/v1/voices', { headers: { 'xi-api-key': ANAHTAR } });
@@ -89,6 +115,8 @@ async function dene(ses, dil) {
 async function uret(hepsi, kuru, dil) {
   const L = katalog().filter((x) => !dil || x.dil === dil), eski = listeOku(), ses = { en: process.env.ELEVEN_SES_EN || '', tr: process.env.ELEVEN_SES_TR || '' };
   const yeni = { surum: 1, uretildi: new Date().toISOString(), model: MODEL, ses: { en: ses.en || (eski.ses || {}).en || '', tr: ses.tr || (eski.ses || {}).tr || '' }, sesler: {} };
+  /* ses efektleri (fx:<id>) sesli okumadan bağımsızdır; listede kalır */
+  for (const k of Object.keys(eski.sesler || {})) if (k.startsWith('fx:') && fs.existsSync(path.join(KOK, eski.sesler[k]))) yeni.sesler[k] = eski.sesler[k];
   const is = [];
   for (const x of L) {
     const ad = dosyaAdi(x.dil, x.metin), tam = path.join(KOK, ad), anahtar = x.dil + ':' + x.metin;
@@ -126,10 +154,11 @@ if (require.main === module) (async () => {
   if (komut === 'sesler') return sesler();
   if (komut === 'dene') return dene(a1, a2);
   if (komut === 'kuru') return uret(false, true, '');
+  if (komut === 'efekt') return efektUret(process.argv.includes('--hepsi'), a1 === 'kuru');
   const di = process.argv.indexOf('--dil'), dil = di > 0 ? process.argv[di + 1] : '';
   if (dil && dil !== 'en' && dil !== 'tr') throw new Error('--dil en ya da tr olmalı');
   if (komut === 'uret') return uret(process.argv.includes('--hepsi'), false, dil);
-  console.log('Komutlar: sesler · dene <ses_id> en|tr · kuru · uret [--hepsi]   (ayrıntı dosyanın başında)');
+  console.log('Komutlar: sesler · dene <ses_id> en|tr · kuru · uret [--hepsi] · efekt [kuru|--hepsi]   (ayrıntı dosyanın başında)');
 })().catch((e) => { console.error(e.message); process.exit(1); });
 
 module.exports = { dosyaAdi };

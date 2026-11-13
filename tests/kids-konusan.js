@@ -45,8 +45,9 @@ test('her kelimenin diyaloğu var ve İngilizcesi düzgün', () => {
   }
   assert.ok(n >= 490, n);
   const b = (id, en) => KS.replik(id, K.hepsi(id).find((x) => x.en === en), K.al(id));
-  assert.equal(b('animals', 'dog').ben, 'Woof, woof! I\'m a dog!');
-  assert.equal(b('animals', 'elephant').ben, 'Toot, toot! I\'m an elephant!');
+  assert.equal(b('animals', 'dog').ben, 'Hi! I\'m a dog!', 'hav sesi artık efekt; öğretmen sesi "Woof" demez');
+  assert.equal(b('transport', 'bus').ben, 'Beep, beep! I\'m a bus!');
+  assert.equal(b('animals', 'elephant').ben, 'Hi! I\'m an elephant!');
   assert.equal(b('food', 'strawberry').ben, 'Hi! I\'m a strawberry!');
   assert.equal(b('fruits', 'grapes').ben, 'Hi! We are grapes!');
   assert.equal(b('sea', 'octopus').ben, 'Hi! I\'m an octopus!');
@@ -58,21 +59,24 @@ test('diyalog cümleleri ses kataloğunda', () => {
   const W = yukle(), K = W.KIDS_KONU, KS = W.KIDS_KONUSAN;
   const kat = require(path.join(ROOT, 'kids/ses/katalog.js'))(), en = new Set(kat.filter((x) => x.dil === 'en').map((x) => x.metin));
   for (const id of K.PAKET) for (const r of K.hepsi(id)) { const rp = KS.replik(id, r, K.al(id)); if (!rp) continue; for (const m of [rp.soru, rp.ben, rp.selam, rp.hikaye].filter(Boolean)) assert.ok(en.has(m), 'katalogda yok: ' + m); }
-  assert.ok(read('kids/ses/kayit-metni.csv').includes('Woof, woof! I\'m a dog!'), 'kayit-metni.csv yenilenmeli (node kids/ses/uret.js kuru)');
+  assert.ok(read('kids/ses/kayit-metni.csv').includes('Hi! I\'m a dog!'), 'kayit-metni.csv yenilenmeli (node kids/ses/uret.js kuru)');
 });
 
 test('hayvan sesleri ve hikâye eşyaları tanımlı', () => {
   const W = yukle(), K = W.KIDS_KONU, KS = W.KIDS_KONUSAN, ses = read('kids/assets/kids-ses.js');
   const tarif = new Set([...ses.matchAll(/^\s{4}([a-z]+): function \(\) \{ (?:kay|hisir|\[)/gm)].map((m) => m[1]));
   for (const id of ['animals', 'sea']) for (const r of K.hepsi(id)) { const h = KS.hayvanSesi(r); if (h) assert.ok(tarif.has(h), 'ses tarifi yok: ' + h); }
-  assert.ok(KS.hayvanSesi({ id: 'dog' }) && KS.hayvanSesi({ id: 'cat' }) && !KS.hayvanSesi({ id: 'rabbit' }));
-  assert.match(ses, /hayvan: function \(id\) \{ if \(HAYVAN\[id\]\) HAYVAN\[id\]\(\); \}/);
+  assert.ok(KS.hayvanSesi({ id: 'dog' }) && KS.hayvanSesi({ id: 'cat' }) && !KS.hayvanSesi({ id: 'apple' }));
+  assert.match(ses, /function hayvan\(id\)/); assert.match(ses, /LISTE\['fx:' \+ id\]/, 'kayıtlı çizgi film efekti varsa o çalar');
+  /* ElevenLabs efekt listesi: sesi olan her hayvanın bir tarifi var */
+  const ef = new Set(require(path.join(ROOT, 'kids/ses/efektler.js')).map((x) => x.id));
+  for (const id of ['animals', 'sea']) for (const r of K.hepsi(id)) { const h = KS.hayvanSesi(r); if (h) assert.ok(ef.has(h), 'efekt tarifi yok: ' + h); }
   for (const id of K.PAKET) for (const r of K.hepsi(id)) { const rp = KS.replik(id, r, K.al(id)); if (rp && rp.sahne) assert.match(KS.esya(rp.sahne), /<svg/, rp.sahne); }
 });
 
 test('İzle ve Dokun konuşan kelimeleri kullanır; giriş animasyonu baştan oynamaz', () => {
   const an = read('kids/assets/kids-anlat.js'), app = read('kids/assets/kids-app.js'), css = read('kids/assets/kids-anlat.css');
-  assert.match(an, /KS\.replik\(o\.konu, r, P\)/); assert.match(an, /SES\.fx\('hayvan', hs\)/); assert.match(an, /o\.acd\('mutlu', 'el'\)/);
+  assert.match(an, /KS\.replik\(o\.konu, r, P\)/); assert.match(an, /SES\.hayvan \? SES\.hayvan\(hs\)/); assert.match(an, /o\.acd\('mutlu', 'el'\)/);
   assert.match(app, /KS\.ben\(S\.konu, r, P\)/);
   assert.doesNotMatch(css, /\.kn-gir \.kn-(resim|oge)\b/, 'giriş kuralları :not(.kn-durgun) ile sınırlı olmalı');
   assert.match(read('kids/assets/kids-ciz.js'), /o\.pose === 'el'/);
