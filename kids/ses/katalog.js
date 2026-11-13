@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js', 'kids-konusan.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -66,6 +66,9 @@ module.exports = function katalog() {
   (O.parkCumleler || []).forEach((m) => ekle('en', m, 'park / anlatım'));
   /* sahne kur: sayılabilir her kelimenin çoğulu ("two" + "cats!") */
   ['Pick a picture!', 'Big!', 'Small!', 'Great picture!'].forEach((m) => ekle('en', m, 'sahne kur'));
+  /* konuşan kelimeler: Acadia'nın sorusu, kelimenin kendini tanıtması, selam, mini hikâye */
+  const KS = W.KIDS_KONUSAN;
+  for (const id of K.PAKET) for (const x of K.hepsi(id)) { const rp = KS.replik(id, x, K.al(id)); if (!rp) continue; ['soru', 'ben', 'selam', 'hikaye'].forEach((a) => { if (rp[a]) ekle('en', rp[a], id + ' · konuşan ' + a); }); }
   for (const id of K.PAKET) K.hepsi(id).filter(W.KIDS_TEMALAR.karisikUygun).forEach((x) => ekle('en', W.KIDS_TEMALAR.cogul(x) + '!', 'sahne kur · çoğul'));
   /* harf treni: kelime (ABC'de örnek kelime) noktalı ve ünlemli */
   for (const id of K.PAKET) K.al(id).ogeler({ kelimeSay: 99, renkSay: 99, sayiSay: 99 }).filter(O.harfUygun || (() => false)).forEach((x) => { const w = x.kelime || x.en; ekle('en', w + '.', 'harf treni'); ekle('en', w + '!', 'harf treni'); });

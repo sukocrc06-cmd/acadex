@@ -302,7 +302,11 @@
     sahne.querySelectorAll('[data-r]').forEach(function (b) {
       b.addEventListener('click', function () {
         var r = rs.filter(function (x) { return x.id === b.getAttribute('data-r'); })[0];
-        SES.fx('dokun'); b.classList.remove('ka-zipla'); void b.offsetWidth; b.classList.add('ka-zipla', 'ka-duyuldu'); SES.soyle(r.en, 'en'); gor[r.id] = 1;
+        SES.fx('dokun'); b.classList.remove('ka-zipla', 'ka-konusuyor'); void b.offsetWidth; b.classList.add('ka-zipla', 'ka-duyuldu'); gor[r.id] = 1;
+        /* konuşan kelime: hayvan önce sesini çıkarır, sonra kendini tanıtır ("Woof, woof! I'm a dog!") */
+        var KS = W.KIDS_KONUSAN, hs = KS && KS.hayvanSesi(r), ben = KS && KS.ben(S.konu, r, P);
+        if (hs) SES.fx('hayvan', hs);
+        setTimeout(function () { b.classList.add('ka-konusuyor'); SES.soyle(ben || r.en, 'en', { perde: 1.5 }).then(function () { b.classList.remove('ka-konusuyor'); }); }, hs ? 900 : 0);
         if (Object.keys(gor).length === rs.length) { sahne.querySelector('[data-alt]').hidden = false; }
       });
     });

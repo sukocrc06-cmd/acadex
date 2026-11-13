@@ -83,7 +83,7 @@
         bitir(false); if (oynatici) oynatici.pause();
         W.speechSynthesis.cancel();
         var u = new W.SpeechSynthesisUtterance(metin); if (v) u.voice = v; u.lang = v ? v.lang : (dil === 'tr' ? 'tr-TR' : 'en-GB');
-        u.rate = ek && ek.hiz ? ek.hiz : dil === 'tr' ? 0.95 : 0.85; u.pitch = 1.1;
+        u.rate = ek && ek.hiz ? ek.hiz : dil === 'tr' ? 0.95 : 0.85; u.pitch = ek && ek.perde ? ek.perde : 1.1;
         if (ek && ek.sinir) u.onboundary = function (e) { if (e.name === 'word' || e.name === undefined) try { ek.sinir(e.charIndex); } catch (x) { } };
         var son = false, kapat = function () { if (!son) { son = true; bitti(true); } };
         u.onend = kapat; u.onerror = kapat; setTimeout(kapat, 900 + metin.length * 110);
@@ -103,7 +103,62 @@
       o.connect(k); k.connect(c.destination); o.start(t); o.stop(t + sure + 0.05);
     } catch (e) { }
   }
+  /* kayan nota (miyav, möö…): f0 → f1, isteğe bağlı titreşim (vib Hz) */
+  function kay(f0, f1, t0, sure, tip, g, vib) {
+    var c = ac(); if (!c || !acik) return;
+    try {
+      if (c.state === 'suspended') c.resume();
+      var o = c.createOscillator(), k = c.createGain(), t = c.currentTime + t0;
+      o.type = tip || 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + sure);
+      if (vib) { var l = c.createOscillator(), lg = c.createGain(); l.frequency.value = vib; lg.gain.value = f0 * 0.06; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + sure + 0.05); }
+      var f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = Math.min(4000, f0 * 4);
+      k.gain.setValueAtTime(0.0001, t); k.gain.exponentialRampToValueAtTime(g || 0.12, t + Math.min(0.05, sure / 4)); k.gain.exponentialRampToValueAtTime(0.0001, t + sure);
+      o.connect(f); f.connect(k); k.connect(c.destination); o.start(t); o.stop(t + sure + 0.05);
+    } catch (e) { }
+  }
+  /* hışırtı (yılan, kükreme, şapırtı): süzülmüş gürültü */
+  function hisir(t0, sure, g, ff, tip) {
+    var c = ac(); if (!c || !acik) return;
+    try {
+      var n = Math.floor(c.sampleRate * sure), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+      for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      var s = c.createBufferSource(), f = c.createBiquadFilter(), k = c.createGain(), t = c.currentTime + t0;
+      s.buffer = b; f.type = tip || 'highpass'; f.frequency.value = ff || 3000;
+      k.gain.setValueAtTime(0.0001, t); k.gain.exponentialRampToValueAtTime(g || 0.1, t + 0.03); k.gain.exponentialRampToValueAtTime(0.0001, t + sure);
+      s.connect(f); f.connect(k); k.connect(c.destination); s.start(t);
+    } catch (e) { }
+  }
+  /* hayvan sesleri: sentezlenir (kayıt dosyası yok, telif yok); ardından kelime kendini tanıtır */
+  var HAYVAN = {
+    dog: function () { kay(420, 220, 0, 0.13, 'sawtooth', 0.14); hisir(0, 0.08, 0.05, 900, 'bandpass'); kay(440, 230, 0.22, 0.13, 'sawtooth', 0.14); hisir(0.22, 0.08, 0.05, 900, 'bandpass'); },
+    cat: function () { kay(520, 820, 0, 0.22, 'sawtooth', 0.08); kay(820, 420, 0.22, 0.34, 'sawtooth', 0.08); },
+    cow: function () { kay(140, 120, 0, 0.9, 'sawtooth', 0.12, 5); },
+    sheep: function () { kay(380, 340, 0, 0.6, 'sawtooth', 0.09, 14); },
+    goat: function () { kay(440, 380, 0, 0.55, 'sawtooth', 0.09, 16); },
+    duck: function () { kay(700, 520, 0, 0.12, 'square', 0.07); kay(720, 520, 0.18, 0.12, 'square', 0.07); },
+    bird: function () { [0, 0.14, 0.28].forEach(function (t) { kay(2200, 3400, t, 0.08, 'sine', 0.08); }); },
+    chick: function () { [0, 0.16, 0.32].forEach(function (t) { kay(2600, 3000, t, 0.07, 'sine', 0.07); }); },
+    hen: function () { [0, 0.12, 0.24].forEach(function (t) { kay(500, 420, t, 0.08, 'square', 0.06); }); kay(700, 900, 0.38, 0.25, 'square', 0.06); },
+    pig: function () { kay(260, 200, 0, 0.16, 'square', 0.08, 30); kay(270, 200, 0.24, 0.16, 'square', 0.08, 30); },
+    lion: function () { kay(110, 70, 0, 0.9, 'sawtooth', 0.14, 9); hisir(0, 0.8, 0.06, 500, 'lowpass'); },
+    tiger: function () { kay(130, 80, 0, 0.7, 'sawtooth', 0.13, 11); hisir(0, 0.6, 0.05, 600, 'lowpass'); },
+    bear: function () { kay(100, 70, 0, 0.7, 'sawtooth', 0.13, 7); },
+    horse: function () { kay(900, 600, 0, 0.6, 'sawtooth', 0.07, 18); },
+    frog: function () { kay(180, 150, 0, 0.12, 'square', 0.09, 40); kay(200, 150, 0.2, 0.14, 'square', 0.09, 40); },
+    monkey: function () { [0, 0.2, 0.4].forEach(function (t) { kay(500, 900, t, 0.15, 'triangle', 0.1); }); },
+    elephant: function () { kay(300, 700, 0, 0.5, 'sawtooth', 0.1, 6); },
+    mouse: function () { kay(3000, 3600, 0, 0.08, 'sine', 0.07); kay(3200, 3800, 0.12, 0.08, 'sine', 0.07); },
+    snake: function () { hisir(0, 0.8, 0.08, 4000); },
+    owl: function () { kay(380, 340, 0, 0.3, 'sine', 0.13); kay(380, 330, 0.45, 0.45, 'sine', 0.13); },
+    bee: function () { kay(220, 240, 0, 0.8, 'sawtooth', 0.05, 25); },
+    crocodile: function () { hisir(0, 0.06, 0.2, 1500, 'bandpass'); hisir(0.2, 0.06, 0.2, 1500, 'bandpass'); },
+    whale: function () { kay(300, 600, 0, 0.8, 'sine', 0.1); kay(600, 250, 0.8, 0.8, 'sine', 0.08); },
+    dolphin: function () { [0, 0.08, 0.16, 0.24].forEach(function (t) { kay(3000, 4200, t, 0.05, 'sine', 0.07); }); },
+    seal: function () { kay(500, 350, 0, 0.14, 'sawtooth', 0.1); kay(520, 350, 0.22, 0.14, 'sawtooth', 0.1); },
+    walrus: function () { kay(160, 110, 0, 0.5, 'sawtooth', 0.11, 8); }
+  };
   var FX = {
+    hayvan: function (id) { if (HAYVAN[id]) HAYVAN[id](); },
     dokun: function () { nota(660, 0, 0.09, 'triangle', 0.1); },
     pat: function () { nota(240, 0, 0.12, 'square', 0.1); nota(520, 0.03, 0.1, 'triangle', 0.12); },
     dogru: function () { nota(660, 0, 0.14, 'triangle'); nota(880, 0.11, 0.2, 'triangle'); },

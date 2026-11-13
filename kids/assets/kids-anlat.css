@@ -24,32 +24,32 @@
 .kn-kivilcim i:nth-child(5){--x:-60px;--y:-140px}.kn-kivilcim i:nth-child(6){--x:70px;--y:-130px}.kn-kivilcim i:nth-child(7){--x:-90px;--y:110px}.kn-kivilcim i:nth-child(8){--x:90px;--y:100px}
 @keyframes knKiv{0%{opacity:1;transform:translate(0,0) scale(.3)}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(1.3) rotate(180deg)}}
 /* konuya göre giriş hareketi */
-.kn-gir .kn-resim{animation:knPop .7s cubic-bezier(.3,1.5,.5,1) both}
+.kn-gir:not(.kn-durgun) .kn-resim{animation:knPop .7s cubic-bezier(.3,1.5,.5,1) both}
 @keyframes knPop{from{transform:scale(0) rotate(-12deg)}}
-.kn-h-yuru.kn-gir .kn-resim{animation:knYuru 1s ease-out both}
+.kn-h-yuru.kn-gir:not(.kn-durgun) .kn-resim{animation:knYuru 1s ease-out both}
 @keyframes knYuru{0%{transform:translateX(-160%)}20%{transform:translateX(-120%) translateY(-14px)}40%{transform:translateX(-75%)}60%{transform:translateX(-35%) translateY(-14px)}80%{transform:translateX(-8%)}100%{transform:none}}
-.kn-h-yuz.kn-gir .kn-resim{animation:knYuz 1.1s ease-out both}
+.kn-h-yuz.kn-gir:not(.kn-durgun) .kn-resim{animation:knYuz 1.1s ease-out both}
 @keyframes knYuz{0%{transform:translate(-160%,40px) rotate(-10deg)}50%{transform:translate(-40%,-20px) rotate(6deg)}100%{transform:none}}
-.kn-h-gec.kn-gir .kn-resim{animation:knGec 1s cubic-bezier(.2,.8,.3,1.1) both}
+.kn-h-gec.kn-gir:not(.kn-durgun) .kn-resim{animation:knGec 1s cubic-bezier(.2,.8,.3,1.1) both}
 @keyframes knGec{0%{transform:translateX(170%) skewX(-12deg)}75%{transform:translateX(-6%) skewX(6deg)}100%{transform:none}}
-.kn-h-in.kn-gir .kn-resim{animation:knIn 1s cubic-bezier(.3,1.4,.5,1) both}
+.kn-h-in.kn-gir:not(.kn-durgun) .kn-resim{animation:knIn 1s cubic-bezier(.3,1.4,.5,1) both}
 @keyframes knIn{0%{transform:translateY(-170%) rotate(-8deg)}60%{transform:translateY(6%) rotate(4deg)}100%{transform:none}}
-.kn-h-dus.kn-gir .kn-resim{animation:knDus .9s cubic-bezier(.5,0,.5,1) both}
+.kn-h-dus.kn-gir:not(.kn-durgun) .kn-resim{animation:knDus .9s cubic-bezier(.5,0,.5,1) both}
 @keyframes knDus{0%{transform:translateY(-160%)}60%{transform:translateY(0) scale(1.2,.8)}75%{transform:translateY(-10%) scale(.95,1.05)}100%{transform:none}}
-.kn-h-takla.kn-gir .kn-resim{animation:knTakla 1s cubic-bezier(.3,1.3,.5,1) both}
+.kn-h-takla.kn-gir:not(.kn-durgun) .kn-resim{animation:knTakla 1s cubic-bezier(.3,1.3,.5,1) both}
 @keyframes knTakla{0%{transform:scale(.2) rotate(-360deg)}100%{transform:none}}
-.kn-h-don.kn-gir .kn-resim{animation:knDon 1s cubic-bezier(.3,1.3,.5,1) both}
+.kn-h-don.kn-gir:not(.kn-durgun) .kn-resim{animation:knDon 1s cubic-bezier(.3,1.3,.5,1) both}
 @keyframes knDon{0%{transform:rotateY(540deg) scale(.3)}100%{transform:none}}
-.kn-h-zipla.kn-gir .kn-resim{animation:knZipla 1.1s ease-out both}
+.kn-h-zipla.kn-gir:not(.kn-durgun) .kn-resim{animation:knZipla 1.1s ease-out both}
 @keyframes knZipla{0%{transform:translateY(80%) scale(.4)}35%{transform:translateY(-30%) scale(1)}55%{transform:translateY(0) scale(1.15,.85)}75%{transform:translateY(-8%)}100%{transform:none}}
-.kn-h-salla.kn-gir .kn-resim{animation:knSalla 1.2s ease-out both;transform-origin:center top}
+.kn-h-salla.kn-gir:not(.kn-durgun) .kn-resim{animation:knSalla 1.2s ease-out both;transform-origin:center top}
 @keyframes knSalla{0%{transform:translateY(-140%) rotate(0)}40%{transform:translateY(0) rotate(14deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(5deg)}100%{transform:none}}
-.kn-h-kur.kn-gir .kn-resim{animation:knKur .9s cubic-bezier(.3,1.4,.5,1) both;transform-origin:center bottom}
+.kn-h-kur.kn-gir:not(.kn-durgun) .kn-resim{animation:knKur .9s cubic-bezier(.3,1.4,.5,1) both;transform-origin:center bottom}
 @keyframes knKur{0%{transform:scaleY(0)}60%{transform:scaleY(1.15)}100%{transform:none}}
-.kn-h-buyu.kn-gir .kn-resim{animation:knBuyu .9s cubic-bezier(.3,1.6,.5,1) both}
+.kn-h-buyu.kn-gir:not(.kn-durgun) .kn-resim{animation:knBuyu .9s cubic-bezier(.3,1.6,.5,1) both}
 @keyframes knBuyu{0%{transform:scale(0)}50%{transform:scale(1.18)}70%{transform:scale(.94)}100%{transform:none}}
 /* Colours: fırça boyar */
-.kn-h-boya.kn-gir .kn-resim{animation:knBoya 1s .15s ease-out both}
+.kn-h-boya.kn-gir:not(.kn-durgun) .kn-resim{animation:knBoya 1s .15s ease-out both}
 @keyframes knBoya{0%{clip-path:circle(0% at 15% 85%)}100%{clip-path:circle(150% at 15% 85%)}}
 .kn-firca{position:absolute;width:38%;left:-10%;top:60%;opacity:0}
 .kn-firca .kc{width:100%;height:auto}
@@ -63,7 +63,7 @@
 .kn-gir .kn-sayilar i{animation:knSay .4s calc(.3s + var(--s) * .35s) cubic-bezier(.3,1.6,.5,1) both}
 @keyframes knSay{0%{opacity:0;transform:scale(0) rotate(-90deg)}100%{opacity:1;transform:none}}
 /* ABC ve günler: çizerek yazılır */
-.kn-h-yaz.kn-gir .kn-resim :is(path,rect,circle,ellipse,polygon,text){stroke-dasharray:420;animation:knCiz 1.4s ease-in-out both}
+.kn-h-yaz.kn-gir:not(.kn-durgun) .kn-resim :is(path,rect,circle,ellipse,polygon,text){stroke-dasharray:420;animation:knCiz 1.4s ease-in-out both}
 @keyframes knCiz{0%{stroke-dashoffset:420;fill-opacity:0}70%{fill-opacity:0}100%{stroke-dashoffset:0;fill-opacity:1}}
 /* yağış ve toz */
 .kn-yagis{position:absolute;inset:-40% -30% auto;height:140%;pointer-events:none}
@@ -155,4 +155,66 @@
 .ko-harf-b{width:clamp(64px,13vw,86px);aspect-ratio:1;border:3px solid var(--m);border-radius:18px;background:var(--beyaz);box-shadow:var(--golge);font:800 44px/1 var(--bas);color:var(--m)}
 .ko-harf-b.ko-dogru{background:#E6F8EE;animation:kaPop .4s}
 .ko-harf-b.ko-salla{animation:koSalla .5s}
+/* --- 13.11.2026 konuşan kelimeler, Acadia diyaloğu, mini hikâye ------------------------------ */
+.ka-lekeb.ka-konusuyor > :first-child{animation:knKonus .3s ease-in-out infinite alternate}
+.kn-hk .kn-kelime{top:10px;bottom:auto}
+.kn-sahne.kn-oge-konus .kn-resim{animation:knKonus .3s ease-in-out infinite alternate!important}
+@keyframes knKonus{from{transform:scale(1,1) translateY(0)}to{transform:scale(1.05,.93) translateY(3%)}}
+.kn-oge-balon{position:absolute;z-index:4;top:7%;right:5%;max-width:min(48%,260px);margin:0;padding:8px 12px;border:3px solid var(--m);border-radius:18px;background:var(--beyaz);font:800 clamp(15px,2vw,20px)/1.2 var(--bas);color:var(--m);box-shadow:var(--golge-k);animation:knBalon .35s cubic-bezier(.3,1.6,.5,1) both}
+.kn-oge-balon::after{content:'';position:absolute;left:18px;bottom:-12px;width:16px;height:16px;background:var(--beyaz);border-right:3px solid var(--m);border-bottom:3px solid var(--m);transform:rotate(45deg)}
+.kn-oge-balon[hidden]{display:none}
+.kn-noktalar{display:flex;gap:6px;padding:12px 14px}.kn-noktalar i{width:10px;height:10px;border-radius:50%;background:var(--r,#9AA7BD);animation:knNokta .6s calc(var(--n,0) * .15s) ease-in-out infinite alternate}
+.kn-noktalar i:nth-child(2){--n:1}.kn-noktalar i:nth-child(3){--n:2}
+@keyframes knNokta{to{transform:translateY(-6px)}}
+@keyframes knBalon{from{opacity:0;transform:scale(.4) translateY(20px)}}
+.kc-acd-el{transform-box:fill-box;transform-origin:0% 100%;animation:knEl .35s ease-in-out infinite alternate}
+@keyframes knEl{from{transform:rotate(-14deg)}to{transform:rotate(16deg)}}
+.kn-hikaye{position:absolute;inset:0;z-index:0;pointer-events:none}
+.kn-hk-sepet .kn-hikaye,.kn-hk-buyutec .kn-hikaye,.kn-hk-el .kn-hikaye{z-index:3}
+.kn-esya{position:absolute;display:block}.kn-esya .kc{width:100%;height:100%}
+.kn-ucus{position:absolute;inset:0}.kn-ucus i{position:absolute;bottom:-12%;left:calc(10% + var(--u,0) * 18%);width:9%;aspect-ratio:1;opacity:0;animation:knUcus 2.4s calc(var(--u,0) * .35s) ease-out infinite}
+.kn-ucus i:nth-child(2){--u:1}.kn-ucus i:nth-child(3){--u:2}.kn-ucus i:nth-child(4){--u:3}.kn-ucus i:nth-child(5){--u:4}
+.kn-ucus .kc{width:100%;height:100%}
+@keyframes knUcus{0%{opacity:0;transform:translateY(0) scale(.6)}20%{opacity:1}100%{opacity:0;transform:translateY(-320%) scale(1.1) rotate(20deg)}}
+/* top: yuvarlanarak gelir, kelime zıplar */
+.kn-e-top{width:20%;aspect-ratio:1;right:6%;bottom:10%;animation:knTop 1.1s cubic-bezier(.3,1.2,.5,1) both}
+@keyframes knTop{from{transform:translateX(260%) rotate(540deg)}to{transform:none}}
+.kn-hk-top .kn-resim{animation:knHop .45s .9s ease-in-out 3 alternate!important}
+@keyframes knHop{to{transform:translateY(-16%) rotate(-6deg)}}
+/* sepet: kelime sepete atlar */
+.kn-e-sepet{width:min(30%,190px);aspect-ratio:1;left:50%;margin-left:min(-15%,-95px);bottom:-2%;animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
+.kn-durgun.kn-hk-sepet .kn-oge{animation:knSepete .9s .2s cubic-bezier(.5,-.3,.6,1.3) forwards}
+@keyframes knSepete{40%{transform:translateY(-18%) scale(.8)}100%{transform:translateY(30%) scale(.45)}}
+@keyframes knYuksel{from{transform:translateY(100%)}}
+/* tabak: kelime tabağa iner */
+.kn-e-tabak{width:70%;aspect-ratio:1;left:15%;bottom:-18%;animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
+.kn-durgun.kn-hk-tabak .kn-oge{animation:knTabak .8s .4s cubic-bezier(.3,1.4,.5,1) forwards}
+@keyframes knTabak{to{transform:translateY(16%) scale(.78)}}
+/* kalp, kabarcık, pırıltı: arkada büyük eşya + uçuşan küçükler */
+.kn-e-kalp,.kn-e-pirilti,.kn-e-kabarcik{width:76%;aspect-ratio:1;left:12%;top:4%;opacity:.28;animation:knNabiz 1s ease-in-out infinite alternate}
+@keyframes knNabiz{from{transform:scale(.88)}to{transform:scale(1.04)}}
+/* el: kelimeye dokunur */
+.kn-e-el{width:26%;aspect-ratio:1;left:4%;bottom:6%;animation:knEl2 1s ease-in-out .2s 2 alternate both}
+@keyframes knEl2{from{transform:translate(-60%,30%) rotate(-20deg)}to{transform:translate(70%,-10%) rotate(10deg)}}
+.kn-hk-el .kn-resim{animation:kaJole .6s 1s both!important}
+/* oyuncak kutusu: kelime sevinçle döner */
+.kn-e-kutu{width:26%;aspect-ratio:1;right:4%;bottom:2%;animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
+.kn-hk-kutu .kn-resim{animation:knDon 1.2s .4s ease-in-out both!important}
+@keyframes knDon{50%{transform:rotate(-12deg) scale(1.1)}100%{transform:rotate(360deg)}}
+/* yol: taşıt gider, öbür yandan geri gelir */
+.kn-e-yol{width:100%;height:40%;left:0;bottom:-6%}.kn-e-yol .kc{height:100%;width:100%}.kn-e-yol svg{preserveAspectRatio:none}
+.kn-durgun.kn-hk-yol .kn-oge{animation:knYol 2.2s .3s ease-in-out both}
+@keyframes knYol{45%{transform:translateX(160%)}46%{transform:translateX(-160%)}100%{transform:none}}
+/* büyüteç: üzerinden geçer */
+.kn-e-buyutec{width:34%;aspect-ratio:1;left:10%;top:16%;animation:knBak 1.6s ease-in-out both}
+@keyframes knBak{0%{transform:translate(-80%,40%)}50%{transform:translate(70%,-10%)}100%{transform:translate(120%,20%) rotate(10deg)}}
+/* boya: renk sahneye yayılır */
+.kn-e-boya{width:min(96%,520px);aspect-ratio:1;left:50%;top:50%;margin:min(-48%,-260px) 0 0 min(-48%,-260px);opacity:.4;animation:knBoya .9s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes knBoya{from{transform:scale(0) rotate(-60deg)}70%{transform:scale(1.12)}}
+.kn-hk-boya .kn-resim{animation:kaJole .6s .5s both!important}
+/* ayna: kelime aynada yüz yapar */
+.kn-e-ayna{width:30%;aspect-ratio:1;right:4%;top:14%;animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
+.kn-hk-ayna .kn-resim{animation:knHop .4s .5s ease-in-out 4 alternate!important}
+@media (max-width:760px){.kn-oge-balon{top:4%;right:3%;max-width:56%;font-size:15px}}
+@media (prefers-reduced-motion:reduce){.kn-ucus{display:none}.kn-hk .kn-oge{animation:none!important}}
 @media (prefers-reduced-motion:reduce){.kn *,.ko-av,.ko-tren,.ko-duman{animation:none!important;transition:none!important}.kn-kelime span{opacity:1}}

@@ -30,7 +30,8 @@
     o = o || {}; var mood = GOZ[o.mood] ? o.mood : 'mutlu', pts = yildizNokta(50, 52, 37, 20);
     var kol = o.mood === 'kutlama'
       ? '<path d="M20 44 q-9 -9 -6 -19 M80 44 q9 -9 6 -19" fill="none" stroke="' + M + '" stroke-width="3.2" stroke-linecap="round"/>'
-      : (o.pose === 'isaret' ? '<path d="M80 46 q10 -4 14 -14" fill="none" stroke="' + M + '" stroke-width="3.2" stroke-linecap="round"/><circle cx="94" cy="31" r="3" fill="#FFD23F" stroke="' + M + '" stroke-width="2"/>' : '');
+      : (o.pose === 'isaret' ? '<path d="M80 46 q10 -4 14 -14" fill="none" stroke="' + M + '" stroke-width="3.2" stroke-linecap="round"/><circle cx="94" cy="31" r="3" fill="#FFD23F" stroke="' + M + '" stroke-width="2"/>'
+        : o.pose === 'el' ? '<g class="kc-acd-el"><path d="M80 46 q12 -6 12 -20" fill="none" stroke="' + M + '" stroke-width="3.2" stroke-linecap="round"/><circle cx="92" cy="24" r="4.5" fill="#FFD23F" stroke="' + M + '" stroke-width="2"/></g>' : '');
     return svg('0 0 100 100', '<g class="kc-acadia kc-' + mood + '">' + kol +
       '<polygon points="' + pts + '" fill="' + M + '" stroke="' + M + '" stroke-width="19" stroke-linejoin="round"/>' +
       '<polygon points="' + pts + '" fill="#FFD23F" stroke="#FFD23F" stroke-width="13" stroke-linejoin="round"/>' +
