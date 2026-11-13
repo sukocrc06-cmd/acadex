@@ -20,7 +20,7 @@
   function tema(t) {
     var p = {
       id: t.id,
-      ogeler: function (bant) { return t.liste.slice(0, (t.say && bant.ad && t.say[bantAdi(bant)]) || bant.kelimeSay || 8); },
+      ogeler: function (bant) { return bant.paket != null ? K.paketle(t.liste, bant) : t.liste.slice(0, (t.say && bant.ad && t.say[bantAdi(bant)]) || bant.kelimeSay || 8); },
       gorsel: function (x) { return R.ciz(x.id); },
       izleGiris: t.giris,
       izleCumle: function (x) { return x.izle || t.izle(x); },

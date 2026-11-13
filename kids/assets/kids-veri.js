@@ -49,9 +49,9 @@
   ];
   /* yaş dünyaları: zorluk ve yazı miktarı buna göre değişir */
   var BANT = {
-    minik: { ad: 'Minikler', yas: '3-4 yaş', renkSay: 3, sayiSay: 5, kelimeSay: 6, yazi: false, secenek: 3, tur: 4, cift: 3 },
-    kasif: { ad: 'Kâşifler', yas: '5-6 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 10, yazi: true, secenek: 4, tur: 5, cift: 4 },
-    yildiz: { ad: 'Yıldızlar', yas: '7-10 yaş', renkSay: 11, sayiSay: 20, kelimeSay: 20, yazi: true, secenek: 5, tur: 6, cift: 6, kelimeKart: true }
+    minik: { ad: 'Minikler', yas: '3-4 yaş', renkSay: 3, sayiSay: 5, kelimeSay: 6, paketBoy: 6, yazi: false, secenek: 3, tur: 4, cift: 3 },
+    kasif: { ad: 'Kâşifler', yas: '5-6 yaş', renkSay: 6, sayiSay: 10, kelimeSay: 10, paketBoy: 8, yazi: true, secenek: 4, tur: 5, cift: 4 },
+    yildiz: { ad: 'Yıldızlar', yas: '7-10 yaş', renkSay: 11, sayiSay: 20, kelimeSay: 20, paketBoy: 10, yazi: true, secenek: 5, tur: 6, cift: 6, kelimeKart: true }
   };
   var OKUL = {
     kod: 'ORNEK-2026', ad: 'Örnek Anaokulu', ornek: true,
@@ -90,11 +90,11 @@
   function ogeBul(id) {
     var x = RENK.concat(SAYI).filter(function (o) { return o.id === id; }); if (x[0]) return x[0];
     var K = W.KIDS_KONU; if (!K) return null;
-    for (var i = 0; i < K.PAKET.length; i++) { var y = K.al(K.PAKET[i]).ogeler(BANT.yildiz).filter(function (o) { return o.id === id; })[0]; if (y) return y; }
+    for (var i = 0; i < K.PAKET.length; i++) { var y = K.hepsi(K.PAKET[i]).filter(function (o) { return o.id === id; })[0]; if (y) return y; }
     return null;
   }
   /* kelimenin hangi konudan olduğu */
-  function ogeKonu(id) { var K = W.KIDS_KONU; if (!K) return null; for (var i = 0; i < K.PAKET.length; i++) if (K.al(K.PAKET[i]).ogeler(BANT.yildiz).some(function (o) { return o.id === id; })) return K.PAKET[i]; return null; }
+  function ogeKonu(id) { var K = W.KIDS_KONU; if (!K) return null; for (var i = 0; i < K.PAKET.length; i++) if (K.hepsi(K.PAKET[i]).some(function (o) { return o.id === id; })) return K.PAKET[i]; return null; }
   function konuBul(id) { for (var i = 0; i < KONU.length; i++) if (KONU[i].id === id) return KONU[i]; return null; }
   W.KIDS_VERI = { SAYI: SAYI, GIYSI: GIYSI, ogeBul: ogeBul, ogeKonu: ogeKonu, RENK: RENK, KONU: KONU, BANT: BANT, OKUL: OKUL, SIFRE_RESIM: SIFRE_RESIM, al: al, koy: koy, gunAnahtar: gunAnahtar, hafta: hafta, planAl: planAl, planKoy: planKoy, gunKonu: gunKonu, konuBul: konuBul };
 })(window);

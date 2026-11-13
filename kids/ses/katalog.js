@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -25,7 +25,7 @@ const TR = [
   'Hangi sınıftasın?', 'Sen hangisisin? Resmine dokun.', 'Gizli iki resmine sırayla dokun.', 'Biraz dinlenelim; birkaç dakika sonra yeniden dene.',
   'Okulunuzun Acadex Kids lisansı açık değil.', 'Bu ada yakında açılacak.', 'Bugün serbest gün. İstediğin adaya dokun.',
   'Mola zamanı! Bugün çok güzel çalıştın.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
-  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.', 'Adan büyüdü!', 'Gümüş madalya kazandın!', 'Altın madalya kazandın!'
+  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.', 'Adan büyüdü!', 'Hadi bir sahne kuralım!', 'Önce bir önceki paketi bitir.', 'Yeni bir kelime paketi açıldı!', 'Gümüş madalya kazandın!', 'Altın madalya kazandın!'
 ];
 const EN = ['Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?', 'The end! Great reading!'];
 
@@ -37,7 +37,7 @@ module.exports = function katalog() {
   V.GIYSI.forEach((g) => ekle('tr', g.tema ? V.konuBul(g.tema).tr + ' adasını bitirince açılacak.' : g.yildiz + ' yıldız toplayınca açılacak.', 'dolap'));
   V.KONU.filter((k) => k.acik).forEach((k) => ekle('tr', 'Bugünün konusu ' + k.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!', 'harita'));
   for (const id of K.PAKET) {
-    const P = K.al(id), hepsi = P.ogeler(V.BANT.yildiz);
+    const P = K.al(id), hepsi = K.hepsi(id);
     ekle('en', P.izleGiris, id + ' · izle'); ekle('tr', P.dokunYon, id + ' · dokun'); ekle('en', P.hafiza.soz, id + ' · hafıza'); ekle('en', P.bitis, id + ' · bitiş');
     hepsi.forEach((o) => {
       ekle('en', o.en, id + ' · kelime'); ekle('en', o.en + '.', id + ' · izle'); ekle('en', o.en + '!', id + ' · balon doğru');
@@ -64,6 +64,9 @@ module.exports = function katalog() {
   });
   /* oyun parkı ve anlatım */
   (O.parkCumleler || []).forEach((m) => ekle('en', m, 'park / anlatım'));
+  /* sahne kur: sayılabilir her kelimenin çoğulu ("two" + "cats!") */
+  ['Pick a picture!', 'Big!', 'Small!', 'Great picture!'].forEach((m) => ekle('en', m, 'sahne kur'));
+  for (const id of K.PAKET) K.hepsi(id).filter(W.KIDS_TEMALAR.karisikUygun).forEach((x) => ekle('en', W.KIDS_TEMALAR.cogul(x) + '!', 'sahne kur · çoğul'));
   /* harf treni: kelime (ABC'de örnek kelime) noktalı ve ünlemli */
   for (const id of K.PAKET) K.al(id).ogeler({ kelimeSay: 99, renkSay: 99, sayiSay: 99 }).filter(O.harfUygun || (() => false)).forEach((x) => { const w = x.kelime || x.en; ekle('en', w + '.', 'harf treni'); ekle('en', w + '!', 'harf treni'); });
   /* hikâye kitaplığı: cümleler, tek tek kelimeler (dokununca), sorular */

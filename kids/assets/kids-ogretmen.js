@@ -76,7 +76,7 @@
   }
   function renkBul(id) { return V.ogeBul(id); }
   /* zorlanılan kelimelerden yalnız seçili konununkiler */
-  function konuZor(z, konu) { var p = W.KIDS_KONU && W.KIDS_KONU.al(konu), ids = {}; if (!p) return z || {}; p.ogeler(V.BANT.yildiz).forEach(function (o) { ids[o.id] = 1; }); var r = {}; Object.keys(z || {}).forEach(function (k) { if (ids[k]) r[k] = z[k]; }); return r; }
+  function konuZor(z, konu) { var p = W.KIDS_KONU && W.KIDS_KONU.al(konu), ids = {}; if (!p) return z || {}; W.KIDS_KONU.hepsi(konu).forEach(function (o) { ids[o.id] = 1; }); var r = {}; Object.keys(z || {}).forEach(function (k) { if (ids[k]) r[k] = z[k]; }); return r; }
   function ozet(sinif, konu) {
     konu = konu || 'colours';
     var ks = sinif.ogr.map(function (o) { return kayit(sinif, o); }), hafta0 = V.hafta()[0].getTime();

@@ -25,7 +25,7 @@ const yukle = () => {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-odul.js']) vm.runInContext(read('kids/assets/' + f), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-odul.js']) vm.runInContext(read('kids/assets/' + f), ctx);
   return W;
 };
 
@@ -57,7 +57,8 @@ test('ustalık 3 ile sınırlı; ada aşaması ilerlemeyle büyür', () => {
   const W = yukle(), OD = W.KIDS_ODUL, V = W.KIDS_VERI;
   const il = { yildiz: {}, usta: { cat: 5, dog: 2 }, bitti: {}, seviye: {} };
   const u = OD.ustalik(il, 'animals', V.BANT.minik);
-  assert.equal(u.max, 18); assert.equal(u.n, 5); assert.equal(u.ogren, 1);
+  assert.equal(u.max, 3 * W.KIDS_KONU.hepsi('animals').length, 'ustalık konunun bütün kelimelerini sayar (paketlerden bağımsız)'); assert.equal(u.n, 5); assert.equal(u.ogren, 1);
+  assert.equal(OD.ustalik(il, 'animals', { ...V.BANT.minik, paket: 0 }).max, 18, 'paket verilirse yalnız o paket');
   assert.equal(OD.ustaToplam(il), 5);
   assert.equal(OD.asama({ yildiz: {}, usta: {}, bitti: {} }, 'animals'), 0);
   assert.equal(OD.asama(il, 'animals'), 1, 'ustalık varsa çimen');

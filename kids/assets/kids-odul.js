@@ -32,10 +32,14 @@
   }
   function ustalik(il, kid, bant) {
     var P = K.al(kid); if (!P) return { n: 0, max: 0, ogren: 0, liste: [] };
-    var l = P.ogeler(bant).map(function (o) { return { o: o, u: Math.min(3, (il.usta || {})[o.id] || 0) }; });
+    var l = (bant && bant.paket != null ? P.ogeler(bant) : K.hepsi(kid)).map(function (o) { return { o: o, u: Math.min(3, (il.usta || {})[o.id] || 0) }; });
     return { n: l.reduce(function (t, x) { return t + x.u; }, 0), max: 3 * l.length, ogren: l.filter(function (x) { return x.u >= 3; }).length, liste: l };
   }
   function ustaToplam(il) { return Object.keys(il.usta || {}).reduce(function (t, k) { return t + Math.min(3, il.usta[k]); }, 0); }
+  /* kelime paketleri: bitirilen paketler il.paketler[konu][k] */
+  function paketBitti(il, kid, k) { return !!((il.paketler || {})[kid] || {})[k]; }
+  function paketAcik(il, kid, k) { return k === 0 || paketBitti(il, kid, k - 1); }
+  function biteniPaket(il, kid) { return Object.keys((il.paketler || {})[kid] || {}).length; }
   function asama(il, kid) { var s = seviye(il, kid); if (s >= 3) return 3; if (s >= 1) return 2; return konuYildiz(il, kid) || Object.keys(il.usta || {}).some(function (id) { return V.ogeKonu(id) === kid; }) ? 1 : 0; }
 
   /* ---------- madalya çizimi ---------- */
@@ -86,5 +90,5 @@
   }
 
   W.KIDS_ODUL = { MADALYA: MADALYA, anahtar: anahtar, seviyeYildiz: seviyeYildiz, konuYildiz: konuYildiz, konuMax: konuMax, seviye: seviye, bantSeviye: bantSeviye,
-    ustalik: ustalik, ustaToplam: ustaToplam, asama: asama, madalya: madalya, adaEk: adaEk, SAKIN: SAKIN, YAPI: YAPI };
+    ustalik: ustalik, ustaToplam: ustaToplam, paketBitti: paketBitti, paketAcik: paketAcik, biteniPaket: biteniPaket, asama: asama, madalya: madalya, adaEk: adaEk, SAKIN: SAKIN, YAPI: YAPI };
 })(window);

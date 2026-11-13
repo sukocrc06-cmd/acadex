@@ -17,6 +17,8 @@
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   function rasgele(l, degil) { var a = l.filter(function (x) { return x !== degil; }); return a[Math.floor(Math.random() * a.length)] || l[0]; }
   function hedefler(T, l) { return T.hedefler ? T.hedefler(l) : l; }
+  /* paketin içinde oyuna uygun kelime yoksa (ör. mevsim eşyaları paketi) konunun bütün kelimelerinden alınır */
+  function hedefGuvenli(T, a, P) { var l = hedefler(T, a.renkler); return l.length ? l : hedefler(T, K.hepsi ? K.hepsi(P.id) : a.renkler); }
   function vurgu(x, metin) { var i = metin.toLowerCase().indexOf(x.en.toLowerCase()); metin = esc(metin); return i < 0 ? metin : metin.slice(0, i) + '<b style="--r:' + x.hex + '">' + metin.slice(i, i + x.en.length) + '</b>' + metin.slice(i + x.en.length); }
   /* dokunulan şeyi hedefe uçur (kopyası uçar, asıl yerinde kalır) */
   function ucur(den, ya, html) {
@@ -36,7 +38,7 @@
 
   /* ---------------- motor 1: sec ---------------- */
   function sec(kok, a, P) {
-    var T = P.oyun3, liste = hedefler(T, a.renkler), tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = true, adaylar = [], ek = null;
+    var T = P.oyun3, liste = hedefGuvenli(T, a, P), tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = true, adaylar = [], ek = null;
     var oda = !!T.odalar, cark = !!T.cark, durum = !!T.durum, tura = Math.min(a.bant.tur, Math.max(3, liste.length + 1));
     kok.innerHTML = '<div class="ko ko-sec ko-o-' + T.id + '">' + yonerge('', a.bant.yazi) + '<div class="ko-sahne2" data-ust></div><div class="ko-kartlar2" data-ko-alan></div></div>';
     var ust = kok.querySelector('[data-ust]'), alan = kok.querySelector('[data-ko-alan]'), soz = kok.querySelector('[data-ko-soz]'), tn = kok.querySelector('[data-ko-tur]'), aci = 0;
@@ -108,7 +110,7 @@
   /* ---------------- motor 2: yerlestir ---------------- */
   var KAP = { sepet: function () { return R.sepet(); }, kutu: function () { return R.kutu(); }, canta: function () { return R.canta(); }, kase: function () { return R.kase(); }, akvaryum: function () { return R.akvaryum(); } };
   function yerlestir(kok, a, P) {
-    var T = P.oyun3, liste = kar(hedefler(T, a.renkler)), tura = Math.min(a.bant.tur, liste.length), sira = liste.slice(0, tura), tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = false, adaylar = [];
+    var T = P.oyun3, liste = kar(hedefGuvenli(T, a, P)), tura = Math.min(a.bant.tur, liste.length), sira = liste.slice(0, tura), tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = false, adaylar = [];
     var yabanci = (T.yabanci || []).map(function (id) { for (var i = 0; i < K.PAKET.length; i++) { var y = K.al(K.PAKET[i]).ogeler({ kelimeSay: 99 }).filter(function (o) { return o.id === id; })[0]; if (y) return y; } return null; }).filter(Boolean);
     var kapHtml;
     if (T.kap === 'cerceve') kapHtml = '<div class="ko-cerceve">' + R.cerceve() + '<div class="ko-foto ko-f' + tura + '">' + sira.map(function (x, i) { return '<span class="ko-yuva" data-yuva="' + i + '"><i>?</i></span>'; }).join('') + '</div></div>';
@@ -161,7 +163,7 @@
 
   /* ---------------- motor 3: simon ---------------- */
   function simon(kok, a, P) {
-    var T = P.oyun3, liste = a.renkler, tura = a.bant.tur, tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = false, hepsi = {};
+    var T = P.oyun3, liste = hedefGuvenli(T, a, P), tura = a.bant.tur, tur = 0, yanlis = 0, hedef = null, bitti = false, kilit = false, hepsi = {};
     P.ogeler({ kelimeSay: 99 }).forEach(function (x) { hepsi[x.id] = x; });
     kok.innerHTML = '<div class="ko ko-simon">' + yonerge('', a.bant.yazi) + '<div class="ko-simon-sahne"><span class="ko-simon-acd">' + C.acadia({ mood: 'mutlu', pose: 'isaret' }) + '</span>' + R.beden() + '</div></div>';
     var fig = kok.querySelector('.ko-beden'), soz = kok.querySelector('[data-ko-soz]'), tn = kok.querySelector('[data-ko-tur]');

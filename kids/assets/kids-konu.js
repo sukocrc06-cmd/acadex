@@ -11,10 +11,17 @@
   'use strict';
   var C = W.KIDS_CIZ, V = W.KIDS_VERI;
 
+  /* kelime paketleri: konunun bütün kelimeleri yaşa göre 6 / 8 / 10'luk paketlere bölünür.
+     Son paket yarıdan küçük kalırsa bir öncekine katılır. paket 0'dan sayılır. */
+  function paketSay(n, boy) { var c = Math.max(1, Math.ceil(n / boy)); if (c > 1 && n - (c - 1) * boy < Math.ceil(boy / 2)) c--; return c; }
+  function paketle(l, bant) {
+    var boy = bant.paketBoy || 8, c = paketSay(l.length, boy), k = Math.max(0, Math.min(c - 1, bant.paket | 0)), bas = k * boy;
+    return l.slice(bas, k === c - 1 ? l.length : bas + boy);
+  }
   var P = {
     colours: {
       id: 'colours',
-      ogeler: function (bant) { return V.RENK.slice(0, bant.renkSay); },
+      ogeler: function (bant) { return bant.paket != null ? paketle(V.RENK, bant) : V.RENK.slice(0, bant.renkSay); }, liste: V.RENK,
       gorsel: function (o) { return C.leke(o.hex); },
       izleGiris: 'Let\'s learn colours!',
       izleCumle: function (o) { return 'It\'s ' + o.en + '!'; },
@@ -38,7 +45,7 @@
     },
     numbers: {
       id: 'numbers',
-      ogeler: function (bant) { return V.SAYI.slice(0, bant.sayiSay || 10); },
+      ogeler: function (bant) { return bant.paket != null ? paketle(V.SAYI, bant) : V.SAYI.slice(0, bant.sayiSay || 10); }, liste: V.SAYI,
       gorsel: function (o) { return C.sayiKart(o.n, o.hex); },
       izleGiris: 'Let\'s count!',
       izleCumle: function (o) { return o.n <= 5 ? 'Count with me: ' + V.SAYI.slice(0, o.n).map(function (x) { return x.en; }).join(', ') + '!' : 'It\'s ' + o.en + '!'; },
@@ -69,7 +76,7 @@
   /* kids-temalar.js on temayı buradan ekler; KIDS_VERI.KONU sırası korunur */
   function ekle(id, paket) { P[id] = paket; if (PAKET.indexOf(id) < 0) PAKET.push(id); var sira = V.KONU.map(function (k) { return k.id; }); PAKET.sort(function (a, b) { return sira.indexOf(a) - sira.indexOf(b); }); }
   /* akıllı tahta "Simon says" komutu: My Body'de kendi vücudun, öbürlerinde tahtadaki resim */
-  var BELIRLI = { family: { baby: 1, family: 1, boy: 1, girl: 1, man: 1, woman: 1, friend: 1, parents: 1, twins: 1, pet: 1 }, colours: 0, numbers: 0, weather: 0, feelings: 0, seasons: 0 };
+  var BELIRLI = { family: { baby: 1, family: 1, boy: 1, girl: 1, man: 1, woman: 1, friend: 1, parents: 1, twins: 1, pet: 1, son: 1, daughter: 1, children: 1, people: 1, neighbour: 1 }, colours: 0, days: 0, numbers: 0, weather: 0, feelings: 0, seasons: 0 };
   function komut(p, o) {
     if (p.id === 'body') return 'Touch your ' + o.en + '!';
     if (p.id === 'numbers') return 'Point to number ' + o.en + '!';
@@ -81,5 +88,7 @@
   }
   /* konunun oyun sayısı ve en çok yıldızı: üç oyun + (varsa) karışık durak */
   function oyunSay(id) { var p = P[id]; return 4 + (p && p.karisik ? 1 : 0); }   /* balon, hafıza, konu oyunu, park (+ karışık) */
-  W.KIDS_KONU = { al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
+  function hepsi(id) { var p = P[id]; return p ? (p.liste || p.ogeler({ kelimeSay: 999, renkSay: 999, sayiSay: 999 })) : []; }
+  function paketSayisi(id, bant) { return paketSay(hepsi(id).length, bant.paketBoy || 8); }
+  W.KIDS_KONU = { hepsi: hepsi, paketle: paketle, paketSayisi: paketSayisi, al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
 })(window);
