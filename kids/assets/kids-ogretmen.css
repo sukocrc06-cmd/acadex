@@ -100,6 +100,11 @@
   .kt-okul small,.kt-bag{display:none}
   .kt-ust .kl-marka b{display:none}
 }
+/* 14.11.2026: dar ekranda üst çubuk düğmeleri alt satıra geçer (önceden sayfayı yatayda taşırıyordu) */
+@media (max-width:640px){
+  .kt-ust{flex-wrap:wrap;gap:8px 10px;position:static}
+  .kt-ust .kt-okul{flex:1 1 150px;min-width:0}
+}
 
 /* sunucu (kids-bulut.js) */
 .kt-bildirim.kt-hata{background:#FDE3E1}

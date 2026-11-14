@@ -24,6 +24,8 @@
   function bant() { var b = OD.bantSeviye(V.BANT[S.sinif.bant], S.seviye || 1); if (b === V.BANT[S.sinif.bant]) { var x = {}; for (var k in b) x[k] = b[k]; b = x; } b.paket = S.paket || 0; return b; }
   function paketSay(kid) { return K.paketSayisi(kid, V.BANT[S.sinif.bant]); }
   function paket() { return K.al(S.konu) || K.al('colours'); }
+  /* örnek okulda bugünün konusu: açık plan > haftalık şablon (kids-kres.js) */
+  function yerelKonu() { return W.KIDS_KRES ? W.KIDS_KRES.gunBilgi(S.sinif, new Date(), { bulut: false, setler: W.KIDS_KRES.yerelAl(V.OKUL.kod).setler }).konu : V.gunKonu(S.sinif.id); }
   function renkler() { return paket().ogeler(bant()); }
   function ben(il) { return C.avatarGiy(S.ogr[1], (il || ilerleme()).giysi); }
   function dur() { if (aktif && aktif.dur) aktif.dur(); aktif = null; SES.sus(); }
@@ -109,12 +111,13 @@
       '<button type="button" class="ka-cikis" data-veli aria-label="Veli köşesi">' + C.simge('veli') + '<span>Veli</span></button></header>';
   }
   function panel() {
-    var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : V.gunKonu(S.sinif.id)), bugun = bk && bk.acik ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
+    var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : yerelKonu()), bugun = bk && bk.acik && !bk.sinifSeti ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
     il.son = Date.now(); koy(ilAnahtar(), il);   /* öğretmen panelindeki "son giriş" */
     ciz(ustCubuk(il) +
       (bugun ? '<section class="ka-bugun"><div class="ka-bugun-acd">' + acd('kutlama') + '</div><div class="ka-bugun-yazi"><small>Bugünün konusu</small><h1><span lang="en">' + esc(bugun.en) + '</span> <em>' + esc(bugun.tr) + '</em></h1><p>Bugün okulda bunu öğrendin! Hadi oynayarak tekrar edelim.</p></div>' +
         '<button type="button" class="ka-buyuk ka-oyna" data-konu="' + bugun.id + '" data-odak>Oyna ' + C.simge('oynat') + '</button></section>'
         : '<section class="ka-bugun ka-serbest"><div class="ka-bugun-acd">' + acd('mutlu') + '</div><div class="ka-bugun-yazi"><small>Serbest gün</small><h1>İstediğin adaya uç!</h1><p>Bugün için seçilmiş bir konu yok. Açık adalardan birine dokun.</p></div></section>') +
+      (W.KIDS_KRES ? W.KIDS_KRES.cocukBant(S) : '') +
       (W.KIDS_PANEL3 ? W.KIDS_PANEL3.seritHtml(il) : '') +
       '<section class="ka-harita" aria-label="Konular"><div class="ka-bulutlar" aria-hidden="true">' + C.bulut('ka-b1') + C.bulut('ka-b2') + C.bulut('ka-b3') + '</div><ol class="ka-adalar">' +
       V.KONU.map(function (k, i) {
@@ -126,6 +129,8 @@
             '<span class="ka-ada-usta" title="Kelime ustalığı: ' + us.ogren + ' / ' + us.liste.length + ' kelime"><i><em style="width:' + (us.max ? Math.round(100 * us.n / us.max) : 0) + '%"></em></i><small>' + us.ogren + '/' + us.liste.length + ' kelime' + (np > 1 ? ' · ' + OD.biteniPaket(il, k.id) + '/' + np + ' paket' : '') + '</small></span>' : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button></li>';
       }).join('') + '</ol></section>', 'harita');
     app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); adaSec(kid); }); });
+    /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
+    app.querySelectorAll('[data-setoyna]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); S.seviye = 1; S.paket = 0; konuAc(b.getAttribute('data-setoyna'), 0); }); });
     /* ada büyüdüyse: bir kez kutla, sonra hatırla */
     if (yukselen.length) { var il2 = ilerleme(); il2.asamaGor = il2.asamaGor || {}; yukselen.forEach(function (id) { il2.asamaGor[id] = OD.asama(il2, id); }); koy(ilAnahtar(), il2); setTimeout(function () { if (app.dataset.gorunum === 'harita') { SES.fx('yildiz'); SES.soyle('Adan büyüdü!', 'tr'); } }, 900); }
     app.querySelectorAll('[data-yakinda]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('yanlis'); b.classList.remove('ko-salla'); void b.offsetWidth; b.classList.add('ko-salla'); SES.soyle('Bu ada yakında açılacak.', 'tr'); }); });
@@ -229,9 +234,9 @@
   /* ======================= konu: Colours ======================= */
   /* her konu yedi durak: İzle, Şarkı, Dokun, iki ortak oyun, konuya özel üçüncü oyun, Söyle */
   function duraklar(kid) {
-    var o3 = (K.al(kid) || K.al('colours')).oyun3;
-    return [{ id: 'izle', ad: 'İzle', simge: 'oynat' }, { id: 'sarki', ad: 'Şarkı', simge: 'nota' }, { id: 'dokun', ad: 'Dokun', simge: 'ses' }, { id: 'balon', ad: 'Balon', simge: 'top', oyun: 1 },
-      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }, { id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }].concat((K.al(kid) || {}).karisik ? [{ id: 'karisik', ad: 'Karışık', simge: 'gokkusagi', oyun: 1 }] : [])
+    var Pk = K.al(kid) || K.al('colours'), o3 = Pk.oyun3;   /* kreşin kelime setinde şarkı ve konu oyunu yok */
+    return [{ id: 'izle', ad: 'İzle', simge: 'oynat' }].concat(Pk.sarki ? [{ id: 'sarki', ad: 'Şarkı', simge: 'nota' }] : []).concat([{ id: 'dokun', ad: 'Dokun', simge: 'ses' }, { id: 'balon', ad: 'Balon', simge: 'top', oyun: 1 },
+      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }]).concat(o3 ? [{ id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }] : []).concat((K.al(kid) || {}).karisik ? [{ id: 'karisik', ad: 'Karışık', simge: 'gokkusagi', oyun: 1 }] : [])
       .concat(OYUN.PARK ? [{ id: 'park', ad: OYUN.PARK[S.parkSecim || 'sesavi'][1], simge: OYUN.PARK[S.parkSecim || 'sesavi'][2], oyun: 1 }] : []).concat([{ id: 'soyle', ad: 'Söyle', simge: 'mikrofon' }]);
   }
   var DURAK = duraklar('colours');
@@ -492,7 +497,7 @@
     for (var g = 6; g >= 0; g--) { var d = new Date(Date.now() - g * 864e5); gunler.push({ a: V.gunAnahtar(d), ad: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'][d.getDay()] }); }
     var gun = Object.keys(il.gunler || {}).filter(function (x) { return x >= gecen; }).length;
     var acik = V.KONU.filter(function (x) { return x.acik; }), zor = Object.keys(il.zor || {}).sort(function (a, b) { return il.zor[b] - il.zor[a]; }).slice(0, 4).map(V.ogeBul).filter(Boolean);
-    var secK = il.sonKonu || (bulutMu() ? S.bugun : V.gunKonu(S.sinif.id)) || 'colours'; if (!K.al(secK)) secK = 'colours';
+    var secK = il.sonKonu || (bulutMu() ? S.bugun : yerelKonu()) || 'colours'; if (!K.al(secK)) secK = 'colours';
     var pwa = W.KIDS_PWA ? W.KIDS_PWA.durum() : 'yok', sekme = 'ozet', dinleS = null;
     var mola = +al('mola', 15) || 15, dinle = function (en) { return '<button type="button" class="ka-dinle-k" data-en="' + esc(en) + '" aria-label="Dinle: ' + esc(en) + '">' + C.simge('ses') + '</button>'; };
     var yildizK = function (x) { return OD.konuYildiz(il, x.id); };
@@ -553,7 +558,18 @@
   }
 
   /* konu bitti: çıkartma */
+  /* kreşin kelime seti bitti: rozet, çıkartma, madalya, paket yok (bunlar konuların); yıldızlar sayılır */
+  function setBitti(kid) {
+    var il = ilerleme(), n = OD.seviyeYildiz(il, kid, 1), ym = K.yildizMax(kid), k = V.konuBul(kid);
+    ciz(dunya(kid) + '<main class="ka-sahne ka-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(24).join('<i></i>') + '</div><div class="ka-ara-acd">' + acd('kutlama') + '</div>' +
+      '<h1>Sınıfımızın kelimeleri tamam!</h1><p class="kr-set-bitti">' + esc(k ? k.tr : '') + '</p><p class="ka-bitis-y">' + C.simge('yildiz') + ' <b>' + n + '</b> / ' + ym + ' yıldız</p>' +
+      '<div class="ka-izle-alt"><button type="button" class="ka-orta" data-yine>Yeniden oyna</button><button type="button" class="ka-buyuk" data-harita data-odak>Haritaya dön ' + C.simge('ev') + '</button></div></main>', 'konu');
+    SES.fx('yildiz'); SES.soyle(paket().bitis, 'en');
+    app.querySelector('[data-yine]').addEventListener('click', function () { SES.fx('dokun'); konuAc(kid, 0); });
+    app.querySelector('[data-harita]').addEventListener('click', function () { SES.fx('dokun'); panel(); });
+  }
   function konuBitti(kid) {
+    if ((V.konuBul(kid) || {}).sinifSeti) return setBitti(kid);
     var L = S.seviye || 1, il = ilerleme(), yeni = (cikartmalar(kid) || []).filter(function (c) { return il.cikartma.indexOf(c) < 0; }), n = OD.seviyeYildiz(il, kid, L);
     var yeniSv = L > OD.seviye(il, kid), md = OD.MADALYA[L - 1]; il.seviye[kid] = Math.max(il.seviye[kid] || 0, L);
     il.paketler = il.paketler || {}; il.paketler[kid] = il.paketler[kid] || {}; var pkI = S.paket || 0, yeniPk = !il.paketler[kid][pkI] && pkI + 1 < paketSay(kid); il.paketler[kid][pkI] = il.paketler[kid][pkI] || Date.now();
@@ -577,6 +593,9 @@
     app = D.getElementById('kids-app'); if (!app) return;
     basla = Date.now(); molaVerildi = false;
     var o = al('oturum', null);
+    /* evde devam: kartın QR'ı (#ev=KOD~öğrenci) doğrudan o çocuğun resim seçme adımına açar */
+    var ev = W.KIDS_QR && W.KIDS_QR.evCoz(location.hash);
+    if (ev) { try { history.replaceState(null, '', location.pathname + location.search + '#oyna'); } catch (e) { } return evAc(ev, o); }
     if (o && o.token) return bulutAc(o.token);
     if (o && o.kod === V.OKUL.kod) {
       S.okul = V.OKUL; S.sinif = S.okul.siniflar.filter(function (s) { return s.id === o.sinif; })[0];
@@ -585,13 +604,24 @@
     }
     girisKod();
   }
+  function evAc(ev, o) {
+    var sd = al('sonDurum', null);
+    if (o && o.token && sd && sd.token === o.token && sd.d && sd.d.ogr && sd.d.ogr.id === ev.ogr) return bulutAc(o.token);   /* aynı çocuk zaten girmiş */
+    yukleniyor('Okulunu arıyorum…');
+    B.okulBul(ev.kod).then(function (ok) {
+      var bul = null;
+      ok.siniflar.forEach(function (s) { s.ogr.forEach(function (g) { if (g[2] === ev.ogr) bul = [s, g]; }); });
+      if (!bul) return girisKod('Bu kart artık geçerli değil. Okulundan yeni kart isteyebilirsin.');
+      S.okul = ok; S.sinif = bul[0]; S.ogr = bul[1]; koy('sonKod', ok.kod); SES.fx('dogru'); girisSifre();
+    }, function (er) { SES.fx('yanlis'); girisKod(er.tur === 'yok' ? 'Bu kart artık geçerli değil. Okulundan yeni kart isteyebilirsin.' : er.message); });
+  }
   /* sunucudaki oturumla aç: çocuğun bilgisi, günün konusu, kayıtlı ilerleme */
   function bulutAc(token) {
     yukleniyor('Haritanı hazırlıyorum…');
     B.durum(token).then(function (d) {
       if (d.ilerleme !== undefined) { var kd = JSON.parse(JSON.stringify(d)); delete kd.ilerleme; koy('sonDurum', { token: token, d: kd }); }
       S.token = token; S.okul = { kod: d.okul.kod, ad: d.okul.ad, bulut: true };
-      S.sinif = { id: d.sinif.id, ad: d.sinif.ad, bant: d.sinif.bant }; S.ogr = [d.ogr.ad, d.ogr.hayvan, d.ogr.id]; S.bugun = d.bugun;
+      S.sinif = { id: d.sinif.id, ad: d.sinif.ad, bant: d.sinif.bant }; S.ogr = [d.ogr.ad, d.ogr.hayvan, d.ogr.id]; S.bugun = d.bugun; S.etkinlik = d.etkinlik || ''; S.set = d.set || null;
       /* bu tarayıcıdaki kayıtla sunucudakini birleştir: hangisi daha yeniyse */
       var yerel = al(ilAnahtar(), null), uzak = d.ilerleme;
       if (uzak && (!yerel || (uzak.guncel || 0) > (yerel.guncel || 0))) { try { localStorage.setItem('kids.' + ilAnahtar(), JSON.stringify(uzak)); } catch (e) { } }
@@ -599,7 +629,7 @@
       panel();
     }, function (er) {
       var sd = al('sonDurum', null);
-      if (er.tur === 'ag' && sd && sd.token === token) { var d2 = sd.d; S.token = token; S.okul = { kod: d2.okul.kod, ad: d2.okul.ad, bulut: true }; S.sinif = { id: d2.sinif.id, ad: d2.sinif.ad, bant: d2.sinif.bant }; S.ogr = [d2.ogr.ad, d2.ogr.hayvan, d2.ogr.id]; S.bugun = d2.bugun; return panel(); }   /* internet yok: son bilinen hâlle oyna, ilerleme bağlanınca gider */
+      if (er.tur === 'ag' && sd && sd.token === token) { var d2 = sd.d; S.token = token; S.okul = { kod: d2.okul.kod, ad: d2.okul.ad, bulut: true }; S.sinif = { id: d2.sinif.id, ad: d2.sinif.ad, bant: d2.sinif.bant }; S.ogr = [d2.ogr.ad, d2.ogr.hayvan, d2.ogr.id]; S.bugun = d2.bugun; S.etkinlik = d2.etkinlik || ''; S.set = d2.set || null; return panel(); }   /* internet yok: son bilinen hâlle oyna, ilerleme bağlanınca gider */
       if (er.tur === 'ag') { ciz('<section class="ka-giris"><div class="ka-kart">' + balon(esc(er.message)) + '<button type="button" class="ka-buyuk" data-yine data-odak>Yeniden dene</button></div></section>', 'giris'); app.querySelector('[data-yine]').addEventListener('click', function () { bulutAc(token); }); return; }
       koy('oturum', null); koy('sonDurum', null); S.token = null; girisKod(er.tur === 'lisans' ? er.message : '');
     });

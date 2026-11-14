@@ -74,6 +74,7 @@
   function hafta(d) { d = d ? new Date(d) : new Date(); var g = (d.getDay() + 6) % 7, pzt = new Date(d.getFullYear(), d.getMonth(), d.getDate() - g), r = []; for (var i = 0; i < 5; i++) r.push(new Date(pzt.getFullYear(), pzt.getMonth(), pzt.getDate() + i)); return r; }
   function planAl(sinifId) { var p = al('plan.' + OKUL.kod + '.' + sinifId, null) || {}; p.gunler = p.gunler || {}; return p; }
   function planKoy(sinifId, gun, konuId) { var p = planAl(sinifId); p.gunler[gun] = konuId; koy('plan.' + OKUL.kod + '.' + sinifId, p); return p; }
+  function planVar(sinifId, d) { return gunAnahtar(d) in planAl(sinifId).gunler; }
   function gunKonu(sinifId, d) { var p = planAl(sinifId), g = gunAnahtar(d); return g in p.gunler ? p.gunler[g] : (g === gunAnahtar() ? OKUL.bugun.konu : ''); }
   /* avatar dolabı: toplam yıldızla açılır; bas ve yuz yuvaları */
   var GIYSI = [
@@ -95,6 +96,8 @@
   }
   /* kelimenin hangi konudan olduğu */
   function ogeKonu(id) { var K = W.KIDS_KONU; if (!K) return null; for (var i = 0; i < K.PAKET.length; i++) if (K.hepsi(K.PAKET[i]).some(function (o) { return o.id === id; })) return K.PAKET[i]; return null; }
-  function konuBul(id) { for (var i = 0; i < KONU.length; i++) if (KONU[i].id === id) return KONU[i]; return null; }
-  W.KIDS_VERI = { SAYI: SAYI, GIYSI: GIYSI, ogeBul: ogeBul, ogeKonu: ogeKonu, RENK: RENK, KONU: KONU, BANT: BANT, OKUL: OKUL, SIFRE_RESIM: SIFRE_RESIM, al: al, koy: koy, gunAnahtar: gunAnahtar, hafta: hafta, planAl: planAl, planKoy: planKoy, gunKonu: gunKonu, konuBul: konuBul };
+  var GECICI = {};   /* kreşin kelime seti (kids-kres.js): haritada ada olarak görünmez, oynanırken konu gibi davranır */
+  function geciciKonu(k) { GECICI[k.id] = k; }
+  function konuBul(id) { for (var i = 0; i < KONU.length; i++) if (KONU[i].id === id) return KONU[i]; return GECICI[id] || null; }
+  W.KIDS_VERI = { SAYI: SAYI, GIYSI: GIYSI, ogeBul: ogeBul, ogeKonu: ogeKonu, RENK: RENK, KONU: KONU, BANT: BANT, OKUL: OKUL, SIFRE_RESIM: SIFRE_RESIM, al: al, koy: koy, gunAnahtar: gunAnahtar, hafta: hafta, planAl: planAl, planKoy: planKoy, planVar: planVar, gunKonu: gunKonu, konuBul: konuBul, geciciKonu: geciciKonu };
 })(window);

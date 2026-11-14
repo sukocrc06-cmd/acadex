@@ -5,6 +5,8 @@
      okulBul(kod) · giris(ogrenciId, [resim, resim]) · durum(anahtar) ·
      ilerlemeKoy(anahtar, veri) · cikis(anahtar) ·
      ogretmenGiris(kod, şifre) · ogretmenVeri(anahtar, baş, bit) · planKoy(...)
+     14.11.2026: gunKoy · haftaKoy · setKaydet · setSil (kreşin günü) · yoneticiGiris · yoneticiVeri · yon (kreş
+     yöneticisi) · basvuru (kreş başvurusu) → supabase/migrations/20261114_kids_kres.sql
    Fonksiyonlar: supabase/migrations/20261110b_kids_giris.sql (anon çağrılır,
    yetki ve deneme sınırı sunucuda). Burada yalnız herkese açık (publishable)
    anahtar var; gizli anahtar asla bu dosyaya girmez.
@@ -36,7 +38,7 @@
   /* sunucu okulunu uygulamanın beklediği biçime çevirir: ogr = [ad, hayvan, id] */
   function okulBicim(o) {
     return { kod: o.kod, ad: o.ad, bulut: true, siniflar: (o.siniflar || []).map(function (s) {
-      return { id: s.id, ad: s.ad, bant: s.bant, renk: RENK[s.bant] || '#4AA8FF', ogr: (s.ogr || []).map(function (g) { return [g.ad, g.hayvan, g.id, g.ilerleme || null]; }), plan: s.plan || {} };
+      return { id: s.id, ad: s.ad, bant: s.bant, renk: RENK[s.bant] || '#4AA8FF', ogr: (s.ogr || []).map(function (g) { return [g.ad, g.hayvan, g.id, g.ilerleme || null]; }), plan: s.plan || {}, gunler: s.gunler || {}, hafta: s.hafta || {} };
     }) };
   }
 
@@ -64,7 +66,18 @@
     ilerlemeKoy: ilerlemeKoy, ilerlemeGonder: gonder,
     cikis: function (t) { return gonder().then(function () { return rpc('kids_cikis', { p_token: t }); }).catch(function () { }); },
     ogretmenGiris: function (kod, sifre) { return rpc('kids_ogretmen_giris', { p_kod: kod, p_sifre: sifre }); },
-    ogretmenVeri: function (t, bas, bit) { return rpc('kids_ogretmen_veri', { p_token: t, p_bas: bas, p_bit: bit }).then(function (v) { var o = okulBicim({ kod: v.okul.kod, ad: v.okul.ad, siniflar: v.siniflar }); o.bugun = v.bugun; return o; }); },
+    ogretmenVeri: function (t, bas, bit) { return rpc('kids_ogretmen_veri', { p_token: t, p_bas: bas, p_bit: bit }).then(function (v) { var o = okulBicim({ kod: v.okul.kod, ad: v.okul.ad, siniflar: v.siniflar }); o.bugun = v.bugun; o.setler = v.setler || []; o.ogretmen = v.ogretmen || null; return o; }); },
+    /* 20261114: kreşin günü (konu + etkinlik + kelime seti), haftalık şablon, kelime setleri */
+    gunKoy: function (t, sinif, gun, konu, set, etkinlik) { return rpc('kids_gun_koy', { p_token: t, p_sinif: sinif, p_gun: gun, p_konu: konu || '', p_set: set || null, p_etkinlik: etkinlik || '' }); },
+    haftaKoy: function (t, sinif, n, konu, set, etkinlik) { return rpc('kids_hafta_koy', { p_token: t, p_sinif: sinif, p_hafta_gunu: n, p_konu: konu || '', p_set: set || null, p_etkinlik: etkinlik || '' }); },
+    setKaydet: function (t, id, ad, kelimeler) { return rpc('kids_set_kaydet', { p_token: t, p_id: id || null, p_ad: ad, p_kelimeler: kelimeler }); },
+    setSil: function (t, id) { return rpc('kids_set_sil', { p_token: t, p_id: id }); },
+    /* 20261114: kreş yöneticisi (müdür) */
+    yoneticiGiris: function (kod, sifre) { return rpc('kids_yonetici_giris', { p_kod: kod, p_sifre: sifre }); },
+    yoneticiVeri: function (t) { return rpc('kids_yonetici_veri', { p_token: t }); },
+    yon: function (fn, t, args) { var a = { p_token: t }; for (var k in args || {}) a[k] = args[k]; return rpc('kids_yon_' + fn, a); },
+    /* 20261114: kreş başvurusu (anon; sınırda hata fırlatmaz, {tamam:false, mesaj} döner) */
+    basvuru: function (p) { return rpc('kids_basvuru_yap', { p: p }); },
     planKoy: function (t, sinif, gun, konu) { return rpc('kids_plan_koy', { p_token: t, p_sinif: sinif, p_gun: gun, p_konu: konu }); },
     /* 20261112d: paylaşımlı tablette açık kalan çocuk oturumlarını kapatır (yalnız o sınıf) */
     sinifOturumKapat: function (t, sinif) { return rpc('kids_sinif_oturum_kapat', { p_token: t, p_sinif: sinif }); },
