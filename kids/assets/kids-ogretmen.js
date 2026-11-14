@@ -9,7 +9,8 @@
    - Sınıf raporu: konu tamamlama tablosu, kelime ısı haritası (hangi çocuk hangi
      kelimede zorlanıyor) ve yazdırılabilir haftalık veli bülteni (kişisel veri içermez).
    - Akıllı tahta: sınıfta yansıtmak için kartlar, şarkı, Simon says, çocuk seçen çark (kids-tahta.js).
-   Gerçek okul: okul kodu + yönetim panelinin ürettiği şifre (kids-bulut.js → Supabase);
+   Kreşin günü (14.11.2026, kids-kres.js): etkinlik takvimi, kelime setleri, "Bugün ne öğrendik" kartı.
+   Gerçek okul: okul kodu + okul şifresi ya da öğretmenin kişisel PIN'i (kids-bulut.js → Supabase);
    plan ve ilerleme sunucudan gelir. Örnek okul (ORNEK-2026 / 1234) yalnız tanıtım
    içindir ve bu tarayıcıda çalışır. Önek kt-. W.KIDS_OGRETMEN
    ========================================================================== */
@@ -17,7 +18,16 @@
   'use strict';
   var D = W.document, C = W.KIDS_CIZ, V = W.KIDS_VERI, B = W.KIDS_BULUT, kok, sinifI = 0, ornekGoster = true, BU = null, TOK = null, konuSec = null;
   function okul() { return BU || V.OKUL; }
-  function gunKonu(sinif, d) { if (!BU) return V.gunKonu(sinif.id, d); var g = V.gunAnahtar(d); return sinif.plan && g in sinif.plan ? sinif.plan[g] : ''; }
+  function gunKonu(sinif, d) {
+    if (W.KIDS_KRES) return W.KIDS_KRES.gunBilgi(sinif, d, { bulut: !!BU, setler: BU ? BU.setler : [], kod: V.OKUL.kod }).konu;   /* açık plan > haftalık şablon */
+    if (!BU) return V.gunKonu(sinif.id, d); var g = V.gunAnahtar(d); return sinif.plan && g in sinif.plan ? sinif.plan[g] : '';
+  }
+  /* kreşin günü (kids-kres.js): etkinlik takvimi, kelime setleri, veli kartı */
+  function kresCtx(sinif) {
+    return { kok: kok, okul: okul(), sinif: sinif, bulut: !!BU, token: TOK,
+      setler: function () { return BU ? (BU.setler || []) : W.KIDS_KRES.yerelAl(V.OKUL.kod).setler; },
+      yenile: function (m) { if (BU) yukle(TOK, m); else panel(m); }, cikis: function (er) { cikisZorla(er); } };
+  }
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var GUN = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
   function tarihUzun(d) { try { return d.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }); } catch (e) { return V.gunAnahtar(d); } }
@@ -92,7 +102,7 @@
       '<label>Okul kodu<input name="kod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" value="' + esc(V.al('sonKod', '')) + '"></label>' +
       '<label>Şifre<input name="sifre" type="password" autocomplete="current-password" maxlength="40"></label>' +
       '<p class="kt-uyari" role="alert">' + (hata || '') + '</p><button type="submit" class="kl-dugme">Giriş yap</button>' +
-      '<p class="kt-ornek">Şifrenizi okulunuzun yöneticisi Acadex’ten alır. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · <a href="#oyna">Çocuk girişi</a></p></form></section>';
+      '<p class="kt-ornek">Okul şifresini ya da size özel PIN’inizi kreş yöneticinizden alın. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#giris">← Giriş seçenekleri</a> · <a href="#oyna">Çocuk girişi</a> · <a href="#yonetim">Kreş yönetimi</a></p></form></section>';
     var f = kok.querySelector('[data-f]');
     kok.querySelector('[data-doldur]').addEventListener('click', function () { f.elements.kod.value = V.OKUL.kod; f.elements.sifre.value = V.OKUL.ogretmenSifre; f.querySelector('[type=submit]').focus(); });
     f.addEventListener('submit', function (e) {
@@ -119,7 +129,7 @@
   function panel(bildirim) {
     var okul = okul_(), sinif = okul.siniflar[sinifI], bugun = new Date(), bk = V.konuBul(gunKonu(sinif, bugun)), hafta = V.hafta(), bugunA = V.gunAnahtar(), acikK = V.KONU.filter(function (x) { return x.acik; }),
       kz = konuSec || (bk && bk.acik ? bk.id : 'colours'), kzK = V.konuBul(kz), o = ozet(sinif, kz), zr = o.zor && renkBul(o.zor);
-    var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>Öğretmen paneli</small></span>' +
+    var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>' + (BU && BU.ogretmen ? esc(BU.ogretmen) + ' · ' : '') + 'Öğretmen paneli</small></span>' +
       '<button type="button" class="kt-tahta-b" data-tahta>' + C.simge('yildiz') + ' Akıllı tahta</button><button type="button" class="kt-tahta-b kt-mat-b" data-materyal>' + C.simge('album') + ' Materyaller</button>' + (BU ? '<button type="button" class="kt-tahta-b" data-otkapat>' + C.simge('kilit') + ' Oturumları kapat</button>' : '') + '<a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
       '<main class="kt-govde"><div class="kt-sekmeler" role="tablist" aria-label="Sınıflar">' + okul.siniflar.map(function (s, i) { return '<button type="button" role="tab" aria-selected="' + (i === sinifI) + '" data-sinif="' + i + '" style="--r:' + s.renk + '"><b>' + esc(s.ad) + '</b><small>' + esc(V.BANT[s.bant].ad + ' · ' + V.BANT[s.bant].yas) + '</small></button>'; }).join('') + '</div>' +
       '<p class="kt-bildirim' + (bildirim ? ' kt-var' : '') + '" role="status" data-bildirim>' + (bildirim ? '✓ ' + esc(bildirim) : '') + '</p>' +
@@ -131,6 +141,8 @@
       '<div class="kt-bugun-sag"><h3>Konuyu değiştir</h3><div class="kt-konular" data-gun="' + bugunA + '">' + V.KONU.map(function (k) { return konuDugme(k, bk && bk.id === k.id); }).join('') +
       '<button type="button" class="kt-konu kt-serbest' + (bk ? '' : ' kt-secili') + '" data-konu="" aria-pressed="' + !bk + '"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Serbest gün</b><small>Konu yok</small></button></div>' +
       (V.KONU.every(function (x) { return x.acik; }) ? '<p class="kt-not">12 konunun hepsi oynanabilir; her konuda 7 durak ve konuya özel bir oyun var.</p>' : '<p class="kt-not">Şu an oynanabilen konular: ' + V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return x.en; }).join(', ') + '. Diğer konular içerikleri hazır olduğunda açılır.</p>') + '</div></section>' +
+
+      (W.KIDS_KRES ? W.KIDS_KRES.bolum(kresCtx(sinif)) : '') +
 
       /* haftalık plan */
       '<section class="kt-bolum" aria-labelledby="kt-h"><h2 id="kt-h">Haftalık plan</h2><p class="kt-alt">İsterseniz haftayı önceden planlayın; her sabah yeniden seçmeniz gerekmez.</p><div class="kt-hafta">' +
@@ -157,6 +169,7 @@
       (BU ? '<p class="kt-not">Kayıtlar çocukların kendi oturumlarından gelir; sayfayı yenileyince güncellenir.</p>' : '<p class="kt-not">Örnek okul: gerçek kayıtlar bu tarayıcıda oynanan oturumlardan gelir; “örnek” etiketli satırlar tasarımı göstermek için üretilmiştir.</p>') + '</section>' +
       rapor(sinif, kz) + '</main>';
     kok.innerHTML = h;
+    if (W.KIDS_KRES) W.KIDS_KRES.bagla(kresCtx(sinif));
     kok.querySelector('[data-tahta]').addEventListener('click', function () { if (W.KIDS_TAHTA) W.KIDS_TAHTA.ac({ sinif: sinif, konu: bk && bk.acik ? bk.id : kz }); });
     kok.querySelector('[data-bulten]').addEventListener('click', function () { bulten(sinif, kz); });
     /* Paylaşımlı tablet: sınıfın açık çocuk oturumlarını kapatır. Veri silinmez,
@@ -235,6 +248,8 @@
     setTimeout(function () { try { W.print(); } catch (e) { } setTimeout(bitir, 1500); }, 60);
   }
   function planKoy(sinif, gun, konu, mesaj) {
+    /* 14.11.2026: konu değişince o günün etkinliği ve kelime seti korunur */
+    if (W.KIDS_KRES) { kok.querySelectorAll('.kt-konular button, [data-plan]').forEach(function (x) { x.disabled = true; }); return W.KIDS_KRES.konuKoy(kresCtx(sinif), gun, konu, mesaj).catch(function () { panel(); }); }
     if (!BU) { V.planKoy(sinif.id, gun, konu); return panel(mesaj); }
     kok.querySelectorAll('.kt-konular button, [data-plan]').forEach(function (x) { x.disabled = true; });
     B.planKoy(TOK, sinif.id, gun, konu).then(function () { sinif.plan[gun] = konu; panel(mesaj); }, function (er) { if (er.tur === 'oturum' || er.tur === 'lisans') return cikisZorla(er); panel(); var bl = kok.querySelector('[data-bildirim]'); bl.textContent = '✗ ' + er.message; bl.classList.add('kt-var', 'kt-hata'); });
@@ -244,8 +259,9 @@
   function yukle(token, mesaj) {
     TOK = token; kok.innerHTML = '<section class="kt-giris"><div class="kt-kart kt-yukle"><span>' + C.acadia({ mood: 'dusun' }) + '</span><p>Sınıflarınız yükleniyor…</p></div></section>';
     var h = V.hafta();
-    B.ogretmenVeri(token, V.gunAnahtar(h[0]), V.gunAnahtar(h[4])).then(function (o) {
-      if (!o.siniflar.length) { BU = null; kok.innerHTML = '<section class="kt-giris"><div class="kt-kart"><h1>' + esc(o.ad) + '</h1><p>Okulunuzda henüz sınıf tanımlı değil. Sınıflar ve öğrenci kartları Acadex tarafından hazırlanır; lütfen Acadex ile iletişime geçin.</p><button type="button" class="kl-dugme" data-cikis>Çıkış</button></div></section>'; kok.querySelector('[data-cikis]').addEventListener('click', function () { B.cikis(token); V.koy('ogrOturum', null); TOK = null; giris(); }); return; }
+    /* iki ay: belirli günler takvime önceden konabildiği için (kids_ogretmen_veri en çok 62 gün) */
+    B.ogretmenVeri(token, V.gunAnahtar(h[0]), V.gunAnahtar(new Date(h[0].getFullYear(), h[0].getMonth(), h[0].getDate() + 61))).then(function (o) {
+      if (!o.siniflar.length) { BU = null; kok.innerHTML = '<section class="kt-giris"><div class="kt-kart"><h1>' + esc(o.ad) + '</h1><p>Görebileceğiniz bir sınıf yok. Kreş yöneticiniz yönetim panelinden sınıf açabilir ve size sınıf atayabilir.</p><button type="button" class="kl-dugme" data-cikis>Çıkış</button></div></section>'; kok.querySelector('[data-cikis]').addEventListener('click', function () { B.cikis(token); V.koy('ogrOturum', null); TOK = null; giris(); }); return; }
       BU = o; if (sinifI >= o.siniflar.length) sinifI = 0; panel(mesaj);
     }, function (er) {
       if (er.tur === 'ag') { kok.innerHTML = '<section class="kt-giris"><div class="kt-kart"><p>' + esc(er.message) + '</p><button type="button" class="kl-dugme" data-yine>Yeniden dene</button></div></section>'; kok.querySelector('[data-yine]').addEventListener('click', function () { yukle(token, mesaj); }); return; }

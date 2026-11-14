@@ -69,3 +69,6 @@
   .kd-kota-b{justify-items:start}
 }
 @media (max-width:560px){ .kd-2{grid-template-columns:minmax(0,1fr)} }
+/* 14.11.2026: kreş başvuruları */
+.kd-basvuru{margin:0 0 16px}.kd-basvuru-bas{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.kd-mesaj{width:100%;min-height:200px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap}

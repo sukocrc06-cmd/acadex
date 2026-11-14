@@ -58,7 +58,10 @@
   };
   var SELAMSIZ = { feelings: 1, actions: 1, jobs: 1, numbers: 1, weather: 1, days: 1 };
 
+  /* kreşin kelime setinde (kid 'set-…') her kelime kendi konusunun cümlesiyle konuşur */
+  function asil(kid, r, P) { if (!/^set-/.test(kid || '') || !W.KIDS_VERI) return [kid, P]; var k = W.KIDS_VERI.ogeKonu(r.id); return k ? [k, W.KIDS_KONU.al(k)] : [kid, P]; }
   function ben(kid, r, P) {
+    var a0 = asil(kid, r, P); kid = a0[0]; P = a0[1];
     var c = P && P.izleCumle ? P.izleCumle(r) : '';
     switch (kid) {
       /* hayvanlar: "Meow" artık öğretmen sesiyle söylenmez; önce çizgi film efekti çalar (kids-ses hayvan), sonra tanıtım */
@@ -80,6 +83,7 @@
     }
   }
   function replik(kid, r, P) {
+    var a0 = asil(kid, r, P); kid = a0[0]; P = a0[1];
     var b = ben(kid, r, P); if (!b) return null;
     var soru = SORU[kid] || 'Who are you?';
     if (kid === 'weather' && SIFAT.indexOf(' ' + r.en + ' ') >= 0) soru = 'What\'s the weather like?';

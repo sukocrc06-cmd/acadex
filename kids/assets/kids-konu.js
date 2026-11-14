@@ -87,8 +87,10 @@
     var b = BELIRLI[p.id]; return 'Point to ' + (b === 0 || (b && !b[o.id]) ? '' : 'the ') + o.en.toLowerCase() + '!';
   }
   /* konunun oyun sayısı ve en çok yıldızı: üç oyun + (varsa) karışık durak */
-  function oyunSay(id) { var p = P[id]; return 4 + (p && p.karisik ? 1 : 0); }   /* balon, hafıza, konu oyunu, park (+ karışık) */
+  function oyunSay(id) { var p = P[id]; return (p && p.oyun3 === null ? 3 : 4) + (p && p.karisik ? 1 : 0); }   /* sınıf setinde konu oyunu yok */
+  /* kreşin kelime seti (kids-kres.js): oynanır ama konu listesine (PAKET) girmez; sözlük, katalog, ogeKonu etkilenmez */
+  function gecici(id, paket) { P[id] = paket; }   /* balon, hafıza, konu oyunu, park (+ karışık) */
   function hepsi(id) { var p = P[id]; return p ? (p.liste || p.ogeler({ kelimeSay: 999, renkSay: 999, sayiSay: 999 })) : []; }
   function paketSayisi(id, bant) { return paketSay(hepsi(id).length, bant.paketBoy || 8); }
-  W.KIDS_KONU = { hepsi: hepsi, paketle: paketle, paketSayisi: paketSayisi, al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
+  W.KIDS_KONU = { hepsi: hepsi, paketle: paketle, paketSayisi: paketSayisi, al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, gecici: gecici, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
 })(window);

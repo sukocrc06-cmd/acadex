@@ -1,7 +1,7 @@
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası (kids/assets/kids-landing.js), 10.11.2026
    Çizimleri yerleştirir, konu listesini kurar, oynanabilir balon demosunu ve
-   demo talep formunu (e-posta taslağı açar; tasarım sürümünde sunucu yok) bağlar.
+   (14.11.2026: demo ve başvuru formu kaldırıldı; giriş #giris ekranından.)
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -29,15 +29,6 @@
     }
     var b = D.querySelector('[data-demo-basla]'); if (b) b.addEventListener('click', baslat);
 
-    /* demo talebi: e-posta taslağı */
-    var f = D.querySelector('[data-demo-form]');
-    if (f) f.addEventListener('submit', function (e) {
-      e.preventDefault(); var not = f.querySelector('[data-form-not]'), v = function (n) { return f.elements[n].value.trim(); };
-      if (!v('ad') || !v('okul') || !v('tel')) { not.className = 'kl-form-not kl-hata'; not.textContent = 'Lütfen adınızı, okulunuzun adını ve telefonunuzu yazın.'; (f.querySelector('input:invalid') || f.elements.ad).focus(); return; }
-      var govde = 'Merhaba,\n\nAcadex Kids için demo talep ediyorum.\n\nAd soyad: ' + v('ad') + '\nOkul: ' + v('okul') + '\nTelefon: ' + v('tel') + (v('sayi') ? '\nÖğrenci sayısı: ' + v('sayi') : '') + '\n';
-      not.className = 'kl-form-not'; not.textContent = 'E-posta uygulamanız açılıyor. Açılmazsa destek@acadex.com.tr adresine yazabilirsiniz.';
-      W.location.href = 'mailto:destek@acadex.com.tr?subject=' + encodeURIComponent('Acadex Kids demo talebi: ' + v('okul')) + '&body=' + encodeURIComponent(govde);
-    });
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
 })(window);

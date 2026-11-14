@@ -5,7 +5,8 @@
         34.900 TL + KDV ücret, ödeme durumu, okulun öğretmen şifresi.
      2) Toplu sınıf ve öğrenci: ad listesi yapıştırılır; her çocuğa kimlik
         (AY-2026-007), hayvan resmi ve iki resimli şifre verilir.
-     3) Giriş kartı: A4'e 8 kart, kesme çizgili, yazdırılır.
+     3) Giriş kartı: A4'e 8 kart, kesme çizgili, yazdırılır (14.11.2026: "Evde oyna" QR'lı, js/kids-kart.js).
+     4) 14.11.2026: kreş başvuruları (onay → 14 gün deneme) ve kreş yönetici şifresi.
    KVKK: çocuğun yalnız adı ve soyadının baş harfi tutulur ("Defne K.");
    sunucu da kısaltır. Yetki veritabanında (supabase/migrations/20261110_kids_yonetim.sql):
    bütün kids_* fonksiyonları admin_guard() ile yöneticiye açıktır.
@@ -71,6 +72,8 @@
   /* =========================== okul listesi =========================== */
   var liste = async function (m) {
     K.liste = await rpc('kids_okul_liste');
+    /* 14.11.2026: kreş başvuruları (kids_basvuru_liste). Migration henüz çalışmadıysa sessizce atlanır. */
+    try { K.basvuru = await rpc('kids_basvuru_liste'); } catch (e) { K.basvuru = null; }
     var L = K.liste, aktif = L.filter(function (o) { return o.aktif; });
     var ogr = aktif.reduce(function (s, o) { return s + o.ogrenci; }, 0), kota = aktif.reduce(function (s, o) { return s + o.kota; }, 0);
     var gelir = L.filter(function (o) { return o.odeme === 'odendi'; }).reduce(function (s, o) { return s + Number(o.ucret_kurus); }, 0);
@@ -81,6 +84,7 @@
       '<div class="kpi" style="--w:' + (kota ? Math.round(ogr / kota * 100) : 0) + '%"><div class="k">öğrenci</div><div class="v">' + NF(ogr) + '</div><div class="s">' + NF(kota) + ' kotanın kullanılan kısmı</div></div>' +
       '<div class="kpi"><div class="k">tahsil edilen</div><div class="v">' + TL(gelir) + '</div><div class="s">ödendi işaretli lisanslar, KDV hariç</div></div>' +
       '<div class="kpi' + (bitecek ? ' alert' : '') + '"><div class="k">30 gün içinde</div><div class="v">' + NF(bitecek) + '</div><div class="s">süresi dolan ya da dolacak</div></div></div>' +
+      basvuruHTML(K.basvuru) +
       '<div class="tools"><label class="fld grow">Ara<input class="in" id="kd-ara" type="search" placeholder="okul adı, kod ya da ilçe" value="' + X(K.ara) + '"></label>' +
       '<a class="btn ghost" href="/kids/" target="_blank" rel="noopener">Kids sitesini aç ↗</a><button type="button" class="btn" id="kd-yeni">+ okul ekle</button></div>' +
       (goster.length ? '<div class="tbl-w"><table class="kd-tbl"><thead><tr><th>Okul</th><th>Kod</th><th>Öğrenci</th><th>Lisans bitişi</th><th class="hide-sm">Ödeme</th><th></th></tr></thead><tbody>' +
@@ -93,10 +97,57 @@
         : '<div class="card empty"><span class="hand">' + (L.length ? 'eşleşen okul yok' : 'henüz okul yok') + '</span>' + (L.length ? '' : 'Kids lisansı satılan ilk okulu “okul ekle” ile kaydedin.') + '</div>');
     $('#kd-ara', m).addEventListener('input', function () { var v = this.value, pos = this.selectionStart; K.ara = v; liste(m).then(function () { var i = $('#kd-ara', m); i.focus(); try { i.setSelectionRange(pos, pos); } catch (e) {} }); });
     $('#kd-yeni', m).addEventListener('click', function () { okulForm(null, m); });
+    basvuruBagla(m);
     $$('tr[data-okul]', m).forEach(function (tr) {
       var ac = function () { K.okul = tr.getAttribute('data-okul'); K.sinif = null; K.secili = {}; A.VIEWS.kids(m); };
       tr.addEventListener('click', ac); tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') ac(); });
     });
+  };
+
+  /* =========================== kreş başvuruları (14.11.2026) ===========================
+     Kreş tanıtım sayfasından başvurur (kids_basvuru_yap). Onay: okul "deneme" olarak açılır
+     (varsayılan 14 gün, 40 öğrenci); yönetici ve öğretmen şifresi yalnız onay yanıtında bir kez döner. */
+  var basvuruHTML = function (L) {
+    if (!L || !L.length) return '';
+    var bek = L.filter(function (b) { return b.durum === 'bekliyor'; });
+    return '<div class="card kd-basvuru"><div class="kd-basvuru-bas"><b>Kreş başvuruları</b> <span class="pill ' + (bek.length ? 'warn' : '') + '">' + NF(bek.length) + ' bekliyor</span></div>' +
+      '<div class="tbl-w"><table class="kd-tbl"><thead><tr><th>Kreş</th><th>Yetkili</th><th class="hide-sm">Öğrenci</th><th>Tarih</th><th></th></tr></thead><tbody>' +
+      L.slice(0, 30).map(function (b) {
+        return '<tr><td><b>' + X(b.kres_ad) + '</b><div class="muted kd-k">' + X([b.ilce, b.il].filter(Boolean).join(', ')) + (b.mesaj ? ' · ' + X(b.mesaj) : '') + '</div></td>' +
+          '<td>' + X(b.yetkili_ad) + '<div class="muted kd-k mono">' + X(b.tel) + (b.eposta ? ' · ' + X(b.eposta) : '') + '</div></td><td class="hide-sm">' + NF(b.ogrenci_sayi) + '</td><td>' + DT(String(b.created_at).slice(0, 10)) + '</td>' +
+          '<td>' + (b.durum === 'bekliyor' ? '<button type="button" class="btn sm" data-bonay="' + b.id + '">onayla</button> <button type="button" class="btn ghost sm" data-bred="' + b.id + '">reddet</button>'
+            : b.durum === 'onaylandi' ? '<span class="pill ok">açıldı' + (b.okul_kod ? ' · ' + X(b.okul_kod) : '') + '</span>' : '<span class="pill">reddedildi</span>') + '</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+  };
+  var basvuruBagla = function (m) {
+    $$('[data-bred]', m).forEach(function (b) { b.addEventListener('click', async function () {
+      if (!A.confirmBox('Bu başvuru reddedilsin mi?')) return;
+      try { await rpc('kids_basvuru_reddet', { p_id: b.getAttribute('data-bred') }); toast('Başvuru reddedildi.'); liste(m); } catch (e) { toast(errMsg(e), true); }
+    }); });
+    $$('[data-bonay]', m).forEach(function (b) { b.addEventListener('click', function () {
+      var bv = K.basvuru.filter(function (x) { return x.id === b.getAttribute('data-bonay'); })[0], kota = Math.max(40, Math.ceil((bv.ogrenci_sayi || 0) / 10) * 10 + 10);
+      A.openDrawer('Başvuruyu onayla · ' + bv.kres_ad,
+        '<form id="kd-bf" class="kd-form"><label class="fld">Okul kodu<input class="in mono" name="kod" required value="' + X(kodOner(bv.kres_ad)) + '" pattern="[A-Z0-9]{2,8}-[0-9]{4}"></label>' +
+        '<label class="fld">Deneme süresi (gün)<input class="in" name="gun" type="number" min="1" max="60" value="14"></label>' +
+        '<label class="fld">Öğrenci kotası<input class="in" name="kota" type="number" min="1" max="5000" value="' + kota + '"></label>' +
+        '<p class="muted">Okul “deneme” olarak açılır; süre bitince çocuklar ve öğretmenler giremez, kayıtlar silinmez. Ücreti ve ödemeyi sonra okulu düzenleyerek girersiniz.</p>' +
+        '<p class="err" id="kd-bf-h" role="alert"></p><div class="acts"><button type="submit" class="btn">onayla ve şifreleri üret</button></div></form>');
+      $('#kd-bf').addEventListener('submit', async function (e) {
+        e.preventDefault(); var f = e.target, kod = f.kod.value.trim().toUpperCase();
+        if (!/^[A-Z0-9]{2,8}-[0-9]{4}$/.test(kod)) { $('#kd-bf-h').textContent = 'Kod AY-2026 biçiminde olmalı.'; return; }
+        try {
+          var r = await rpc('kids_basvuru_onayla', { p_id: bv.id, p_kod: kod, p_gun: +f.gun.value || 14, p_kota: +f.kota.value || 40 });
+          var metin = 'Merhaba ' + bv.yetkili_ad + ',\n\n' + bv.kres_ad + ' için Acadex Kids deneme hesabınız açıldı (' + (+f.gun.value || 14) + ' gün).\n\nKreş yönetimi: ' + SITE + '/#yonetim\nOkul kodu: ' + kod + '\nYönetici şifresi: ' + r.yonetici_sifre +
+            '\n\nÖğretmen girişi (ortak şifre): ' + r.ogretmen_sifre + '\nYönetim panelinden öğretmenlerinize kişisel PIN de verebilirsiniz.\n\nİlk adımlar: sınıf açın, öğrenci listesini yapıştırın, kartları yazdırın.';
+          A.openDrawer('Deneme hesabı açıldı · ' + kod,
+            '<div class="kd-sifre-k"><span class="mono">Yönetici</span><b class="mono">' + X(r.yonetici_sifre) + '</b></div><div class="kd-sifre-k"><span class="mono">Öğretmen</span><b class="mono">' + X(r.ogretmen_sifre) + '</b></div>' +
+            '<p class="err">Bu şifreler yalnız şimdi görünür; Acadex onları düz hâliyle saklamaz. Aşağıdaki mesajı kreş yetkilisine iletin.</p>' +
+            '<textarea class="in kd-mesaj" rows="11" readonly>' + X(metin) + '</textarea><div class="acts"><button type="button" class="btn" id="kd-bkopya">mesajı kopyala</button></div>');
+          $('#kd-bkopya').addEventListener('click', function () { try { navigator.clipboard.writeText(metin).then(function () { toast('Kopyalandı.'); }); } catch (er) { toast('Kopyalanamadı; metni seçip kopyalayın.', true); } });
+          liste(m);
+        } catch (er) { $('#kd-bf-h').textContent = errMsg(er); }
+      });
+    }); });
   };
 
   /* =========================== okul formu (çekmece) =========================== */
@@ -152,6 +203,7 @@
         '<div class="kd-etiket">' + lisansPill(o) + ' <span class="pill ' + ODEME[o.odeme][1] + '">' + ODEME[o.odeme][0] + ' · ' + TL(o.ucret_kurus) + '</span> <span class="pill">' + DT(o.lisans_bas) + ' → ' + DT(o.lisans_bit) + (gk >= 0 ? ' (' + NF(gk) + ' gün)' : '') + '</span></div></div>' +
         '<div class="kd-bas-sag"><div class="kd-kota-b">' + kotaCubuk(o.ogrenci, o.kota) + '<small>' + (kalan > 0 ? NF(kalan) + ' öğrenci daha eklenebilir' : 'kota dolu') + '</small></div>' +
         '<div class="acts"><button type="button" class="btn ghost sm" id="kd-duz">okulu düzenle</button><button type="button" class="btn ghost sm" id="kd-sifre">' + (o.sifre_var ? 'öğretmen şifresini yenile' : 'öğretmen şifresi oluştur') + '</button>' +
+        '<button type="button" class="btn ghost sm" id="kd-ysifre">' + (o.yonetici_var ? 'yönetici şifresini yenile' : 'kreş yönetici şifresi oluştur') + '</button>' +
         '<button type="button" class="btn sm" id="kd-tum"' + (G.some(function (g) { return g.aktif; }) ? '' : ' disabled') + '>bütün kartları yazdır</button></div></div></div>' +
       '<div class="kd-siniflar" role="tablist" aria-label="Sınıflar">' + S.map(function (x) {
         return '<button type="button" role="tab" aria-selected="' + (x.id === K.sinif) + '" data-sinif="' + x.id + '"><b>' + X(x.ad) + '</b><small>' + X(BANT[x.bant].split(' · ')[0]) + ' · ' + NF(x.ogrenci) + '</small></button>';
@@ -161,6 +213,7 @@
     $('#kd-geri', m).addEventListener('click', function () { K.okul = null; A.VIEWS.kids(m); });
     $('#kd-duz', m).addEventListener('click', function () { okulForm(o, m); });
     $('#kd-sifre', m).addEventListener('click', function () { sifreYenile(o, m); });
+    $('#kd-ysifre', m).addEventListener('click', function () { yoneticiSifre(o, m); });
     $('#kd-tum', m).addEventListener('click', function () { kartBas(o, G.filter(function (g) { return g.aktif; }), S); });
     $('#kd-sekle', m).addEventListener('click', function () { sinifForm(o, null, m); });
     $$('[data-sinif]', m).forEach(function (b) { b.addEventListener('click', function () { K.sinif = b.getAttribute('data-sinif'); K.secili = {}; detay(m); }); });
@@ -275,6 +328,21 @@
     $('#kd-og-k').addEventListener('click', function () { kartBas(K.d.okul, [g], S); });
   };
 
+  /* 14.11.2026: kreş yöneticisi kendi okulunu acadex.com.tr/kids/#yonetim adresinden yönetir */
+  var yoneticiSifre = async function (o, m) {
+    if (o.yonetici_var && !A.confirmBox(o.ad + ' için yeni yönetici şifresi üretilsin mi? Eski şifre ve açık yönetici oturumları hemen geçersiz olur.')) return;
+    try {
+      var s = await rpc('kids_okul_yonetici_sifre', { p_okul: o.id });
+      A.openDrawer('Kreş yönetici şifresi',
+        '<div class="kd-sifre-k"><span class="mono">' + X(o.kod) + '</span><b class="mono">' + X(s) + '</b></div>' +
+        '<p>Kreş müdürü <b>' + SITE + '/#yonetim</b> adresinden okul kodu ve bu şifreyle girer: sınıf açar, öğrenci ekler, öğretmenlere PIN verir, kartları yazdırır.</p>' +
+        '<p class="err">Bu şifre yalnız şimdi görünür; Acadex onu düz hâliyle saklamaz. Kreş yetkilisine iletin.</p>' +
+        '<div class="acts"><button type="button" class="btn" id="kd-ykopya">kopyala</button></div>');
+      $('#kd-ykopya').addEventListener('click', function () { try { navigator.clipboard.writeText(o.kod + ' · ' + s).then(function () { toast('Kopyalandı.'); }); } catch (e) { toast('Kopyalanamadı; şifreyi elle yazın.', true); } });
+      o.yonetici_var = true; var b = $('#kd-ysifre', m); if (b) b.textContent = 'yönetici şifresini yenile';
+    } catch (e) { toast(errMsg(e), true); }
+  };
+
   var sifreYenile = async function (o, m) {
     if (o.sifre_var && !A.confirmBox(o.ad + ' için yeni öğretmen şifresi üretilsin mi? Eski şifre hemen geçersiz olur.')) return;
     try {
@@ -289,42 +357,15 @@
     } catch (e) { toast(errMsg(e), true); }
   };
 
-  /* =========================== giriş kartı: A4'e 8 kart =========================== */
-  var kartHTML = function (o, g, sinifAd) {
-    return '<div class="kart"><div class="k-ust"><span class="k-acd">' + (C ? C.acadia({ mood: 'mutlu' }) : '') + '</span><b>Acadex <i>Kids</i></b><span class="k-sinif">' + X(sinifAd || '') + '</span></div>' +
-      '<div class="k-orta"><span class="k-av">' + ciz('avatar', g.hayvan) + '</span><div class="k-kim"><span class="k-ad">' + X(g.ad) + '</span><span class="k-not">Resmin: <b>' + X(HAYVAN[g.hayvan]) + '</b></span>' +
-      '<span class="k-gizli">Gizli resimlerin</span><span class="k-sf">' + g.sifre.map(function (r, i) { return '<span><i>' + (i + 1) + '</i>' + ciz('simge', r) + '</span>'; }).join('') + '</span></div></div>' +
-      '<div class="k-alt"><span><b>' + SITE + '</b></span><span>Okul kodu <b>' + X(o.kod) + '</b></span><span class="k-no">' + X(g.kimlik) + '</span></div></div>';
-  };
-  var kartSayfa = function (o, liste, siniflar) {
-    var ad = {}; (siniflar || []).forEach(function (s) { ad[s.id] = s.ad; });
-    var sayfalar = []; for (var i = 0; i < liste.length; i += 8) sayfalar.push(liste.slice(i, i + 8));
-    return '<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>' + X(o.kod) + ' · Acadex Kids giriş kartları</title>' +
-      '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;800&display=swap" rel="stylesheet">' +
-      '<style>' + KART_CSS + '</style></head><body><div class="arac"><b>' + X(o.ad) + '</b> · ' + NF(liste.length) + ' kart, ' + NF(sayfalar.length) + ' sayfa A4. Yazdırırken “Gerçek boyut / %100” ve “Arka plan grafikleri” seçili olsun.' +
-      '<button type="button" onclick="print()">Yazdır</button></div>' +
-      sayfalar.map(function (p) { return '<section class="sayfa">' + p.map(function (g) { return kartHTML(o, g, ad[g.sinif_id]); }).join('') + '</section>'; }).join('') +
-      '<script>document.fonts&&document.fonts.ready.then(function(){setTimeout(function(){print()},300)});<\/script></body></html>';
-  };
-  var KART_CSS = '@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#E9E6DD;font-family:Nunito,system-ui,sans-serif;color:#23304D;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
-    '.arac{position:sticky;top:0;display:flex;gap:12px;align-items:center;padding:10px 16px;background:#23304D;color:#fff;font-size:14px}.arac button{margin-left:auto;padding:8px 18px;border:0;border-radius:999px;background:#FFD23F;font:800 15px Nunito,sans-serif;cursor:pointer}' +
-    '.sayfa{width:210mm;height:297mm;margin:10mm auto;display:grid;grid-template-columns:repeat(2,105mm);grid-template-rows:repeat(4,74.25mm);background:#fff;page-break-after:always;break-after:page}' +
-    '.kart{position:relative;display:grid;grid-template-rows:auto 1fr auto;padding:4.5mm 5.5mm;border:.3mm dashed #B8B2A2;overflow:hidden}' +
-    '.k-ust{display:flex;align-items:center;gap:2mm;padding-bottom:2mm;border-bottom:.5mm solid #FFE79A}.k-acd{width:8mm;height:8mm}.k-acd svg,.k-av svg,.k-sf svg{display:block;width:100%;height:100%}' +
-    '.k-ust b{font:800 13pt/1 "Baloo 2",sans-serif}.k-ust i{font-style:normal;padding:0 1.5mm;border-radius:2mm;background:#FFB3A9}.k-sinif{margin-left:auto;padding:.6mm 2.5mm;border-radius:9mm;background:#E8F4FF;font-weight:800;font-size:9pt}' +
-    '.k-orta{display:grid;grid-template-columns:30mm 1fr;gap:4mm;align-items:center;padding:2mm 0}.k-av{display:block;width:30mm;height:30mm;padding:1.5mm;border:.6mm solid #23304D;border-radius:7mm;background:#FFF6D6}' +
-    '.k-kim{display:grid;gap:.8mm}.k-ad{font:800 17pt/1.05 "Baloo 2",sans-serif}.k-not{font-size:8.5pt}.k-gizli{margin-top:1.2mm;font-weight:800;font-size:8.5pt}' +
-    '.k-sf{display:flex;gap:2.5mm}.k-sf>span{position:relative;width:15mm;height:15mm;padding:1.4mm;border:.5mm dashed #23304D;border-radius:3.5mm;background:#fff}' +
-    '.k-sf i{position:absolute;left:-1.8mm;top:-1.8mm;width:5mm;height:5mm;border-radius:50%;background:#23304D;color:#fff;font:800 7pt/5mm Nunito,sans-serif;text-align:center;font-style:normal}' +
-    '.k-alt{display:flex;gap:3mm;align-items:center;padding-top:1.8mm;border-top:.3mm solid #E3DECF;font-size:7.5pt}.k-alt b{font-weight:800}.k-no{margin-left:auto;font-family:ui-monospace,Menlo,monospace;font-size:7.5pt}' +
-    '@media print{body{background:#fff}.arac{display:none}.sayfa{margin:0}}';
+  /* =========================== giriş kartı: A4'e 8 kart ===========================
+     14.11.2026: kart kreş yönetici paneliyle ortak oldu → js/kids-kart.js (kids/assets/kids-kart.js
+     kopyası). Kartta "Evde oyna" QR'ı var (js/kids-qr.js, tarayıcıda üretilir; dış servise gitmez). */
+  var kartSayfa = function (o, liste, siniflar) { return window.KIDS_KART.sayfa(o, liste, siniflar); };
   var kartBas = function (o, liste, siniflar) {
     if (!liste.length) { toast('Yazdırılacak etkin öğrenci yok.', true); return; }
-    var w = window.open('', '_blank');
-    if (!w) { toast('Yeni sekme açılamadı; tarayıcının açılır pencere engelini bu site için kaldırın.', true); return; }
-    w.document.open(); w.document.write(kartSayfa(o, liste, siniflar)); w.document.close();
+    if (!window.KIDS_KART.ac(o, liste, siniflar)) toast('Yeni sekme açılamadı; tarayıcının açılır pencere engelini bu site için kaldırın.', true);
   };
-  window.AXKIDS_TEST.kartSayfa = kartSayfa;
+  window.AXKIDS_TEST.kartSayfa = kartSayfa; window.AXKIDS_TEST.basvuruHTML = basvuruHTML;
 
   /* =========================== çerçeve =========================== */
   A.VIEWS.kids = async function (m) {

@@ -1709,6 +1709,11 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   .kt-okul small,.kt-bag{display:none}
   .kt-ust .kl-marka b{display:none}
 }
+/* 14.11.2026: dar ekranda üst çubuk düğmeleri alt satıra geçer (önceden sayfayı yatayda taşırıyordu) */
+@media (max-width:640px){
+  .kt-ust{flex-wrap:wrap;gap:8px 10px;position:static}
+  .kt-ust .kt-okul{flex:1 1 150px;min-width:0}
+}
 
 /* sunucu (kids-bulut.js) */
 .kt-bildirim.kt-hata{background:#FDE3E1}
@@ -1919,6 +1924,150 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 .ky-sert-alt{margin-top:20px;color:#5A6785}
 .ky-onizle .ky-sert{min-height:0}
 
+/* ==========================================================================
+   ACADEX KIDS · kreşin günü, kreş yöneticisi, başvuru (kids/assets/kids-kres.css), 14.11.2026
+   Önekler: kr- (öğretmen: takvim, setler, veli kartı; çocuk haritasındaki bant),
+   km- (kreş yönetici paneli), kgi- (giriş ekranı, #giris).
+   ========================================================================== */
+/* ---------- öğretmen paneli bölümü ---------- */
+.kr-bolum{margin-top:34px}
+.kr-izgara{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:14px}
+.kr-kutu{display:grid;align-content:start;gap:10px;padding:16px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);box-shadow:var(--golge-k)}
+.kr-kutu>small{font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--soluk)}
+.kr-bugun{background:#FFF3C9}
+.kr-ozet{display:flex;flex-wrap:wrap;gap:6px;min-height:34px;align-items:center}
+.kr-cip{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border:2px solid var(--m);border-radius:999px;background:var(--r,#E8F4FF);font-weight:800;font-size:15px}
+.kr-cip .kc{width:18px;height:18px}.kr-cip-e{background:#FFD9A8}.kr-cip-s{background:#E5DCFF}
+.kr-bos{margin:0;color:var(--soluk);font-size:15px}
+.kr-dugmeler{display:flex;flex-wrap:wrap;gap:8px}
+.kr-dugmeler .kc,.kr-pen-alt .kc{width:20px;height:20px;margin-right:6px}
+.kr-hafta-mini{display:grid;gap:4px;margin:0;padding:0;list-style:none;font-size:15px}
+.kr-hafta-mini li{display:grid;grid-template-columns:42px 1fr;gap:6px}.kr-hafta-mini b{color:var(--soluk)}
+.kr-hafta-mini span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kr-set-say{margin:0;font-size:15px}.kr-set-say b{font:800 24px var(--bas)}
+.kr-yak{display:grid;gap:4px;margin:0;padding:0;list-style:none;font-size:15px}.kr-yak li{display:grid;grid-template-columns:72px 1fr;gap:6px}
+/* ---------- pencere ---------- */
+body.kr-acik{overflow:hidden}
+.kr-katman{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:rgba(35,48,77,.45);animation:kaPop .2s}
+.kr-pen{display:flex;flex-direction:column;width:min(760px,100%);max-height:calc(100dvh - 32px);border:3px solid var(--m);border-radius:26px;background:var(--krem);box-shadow:0 8px 0 var(--m);overflow:hidden}
+.kr-pen-bas{display:flex;align-items:flex-start;gap:12px;padding:16px 18px 10px;border-bottom:2px solid #E9DFC2}
+.kr-pen-bas h2{margin:0;font:800 24px/1.1 var(--bas)}.kr-pen-bas p{margin:4px 0 0;color:var(--soluk);font-size:15px}
+.kr-kapat{margin-left:auto;flex:none;width:44px;height:44px;border:3px solid var(--m);border-radius:50%;background:var(--beyaz);font:800 24px/1 var(--bas)}
+.kr-govde{flex:1 1 auto;overflow:auto;padding:14px 18px;min-height:0}
+.kr-pen-bas,.kr-pen-alt{flex:none}
+.kr-govde h3{margin:14px 0 8px;font:800 18px var(--bas)}.kr-govde h3:first-child{margin-top:0}.kr-govde h3 small{font:700 14px var(--govde);color:var(--soluk)}
+.kr-govde select,.kr-kendi input,.kr-ara input,.km-form input,.km-form select,.km-form textarea{width:100%;min-height:48px;padding:0 12px;border:3px solid var(--m);border-radius:14px;background:var(--beyaz);color:var(--m);font:700 17px var(--govde)}
+.kr-kendi{display:grid;gap:4px;margin-top:10px;font-size:15px;font-weight:800}
+.kr-pen-alt{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:2px solid #E9DFC2;background:var(--beyaz)}
+.kr-etk{display:flex;flex-wrap:wrap;gap:6px}
+.kr-etk button{min-height:42px;padding:0 14px;border:2px solid var(--m);border-radius:999px;background:var(--beyaz);font-weight:800;font-size:15px}
+.kr-etk button[aria-pressed="true"],.kr-kelimeler button[aria-pressed="true"]{background:var(--sari);box-shadow:var(--golge-k)}
+.kr-hafta{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.kr-hafta li{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border:2px solid var(--m);border-radius:16px;background:var(--beyaz)}
+.kr-ozel{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.kr-ozel li{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:2px solid var(--m);border-radius:16px;background:var(--beyaz)}
+.kr-ozel-t{display:grid;justify-items:center;padding:4px;border-radius:12px;background:var(--r);font-weight:800;font-size:13px}.kr-ozel-t b{font:800 24px/1 var(--bas)}
+.kr-ozel li>div{display:grid}.kr-ozel small{color:var(--soluk);font-size:14px}
+.kr-eklendi{display:inline-flex;align-items:center;gap:4px;font-weight:800;color:#1F8A55}.kr-eklendi .kc{width:20px;height:20px}
+.kr-setler{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.kr-setler li{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 12px;border:2px solid var(--m);border-radius:16px;background:var(--beyaz)}
+.kr-setler li>div:nth-child(2){display:grid}.kr-setler small{color:var(--soluk);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kr-set-r{display:flex}.kr-set-r i{display:block;width:34px;height:34px;margin-right:-8px;padding:2px;border:2px solid var(--m);border-radius:10px;background:var(--beyaz)}.kr-set-r .kc{width:100%;height:100%}
+.kr-sil{min-height:40px;padding:0 12px;border:2px solid #C8473B;border-radius:12px;background:var(--beyaz);color:#C8473B;font-weight:800}
+.kr-secili{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0 8px;min-height:40px}
+.kr-secili>b{font:800 18px var(--bas);margin-right:4px}
+.kr-secili button{display:inline-flex;align-items:center;gap:4px;min-height:36px;padding:0 10px 0 4px;border:2px solid var(--m);border-radius:999px;background:var(--sari);font-weight:800;font-size:14px}
+.kr-secili i{display:block;width:26px;height:26px}.kr-secili .kc{width:100%;height:100%}
+.kr-ara{margin-bottom:8px}
+.kr-sekmeler{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px}
+.kr-sekmeler button{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 10px 0 6px;border:2px solid var(--m);border-radius:12px;background:var(--beyaz);font-weight:800;font-size:14px}
+.kr-sekmeler button[aria-selected="true"]{background:var(--r)}.kr-sekmeler .kc{width:22px;height:22px}
+.kr-kelimeler{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:8px 0 0;padding:0;list-style:none}
+.kr-kelimeler button{display:grid;justify-items:center;gap:2px;width:100%;padding:8px 4px;border:2px solid #E3D9BD;border-radius:14px;background:var(--beyaz)}
+.kr-kelimeler i{display:block;width:52px;height:52px}.kr-kelimeler .kc{width:100%;height:100%}.kr-kelimeler b{font:800 15px/1.1 var(--bas)}.kr-kelimeler small{font-size:12px;color:var(--soluk)}
+/* ---------- bugün ne öğrendik kartı ---------- */
+.kr-gkart{display:grid;gap:12px;width:min(560px,100%);margin:0 auto;padding:18px;border:3px solid var(--m);border-radius:24px;background:#FFFDF5;box-shadow:var(--golge)}
+.kr-gkart header{display:flex;gap:12px;align-items:center}.kr-gkart-acd{flex:none;width:64px;height:64px}.kr-gkart-acd .kc{width:100%;height:100%}
+.kr-gkart header small{font-weight:800;color:var(--soluk)}.kr-gkart h3{margin:0;font:800 26px/1.05 var(--bas)}.kr-gkart header p{margin:2px 0 0;font-size:15px}
+.kr-gkart-cip{display:flex;flex-wrap:wrap;gap:6px}.kr-gkart-cip span{padding:3px 12px;border:2px solid var(--m);border-radius:999px;background:#FFE7A8;font-weight:800;font-size:14px}
+.kr-gkart-k{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.kr-gkart-k li{display:grid;justify-items:center;gap:1px;padding:8px 4px;border:2px solid #E3D9BD;border-radius:14px;background:var(--beyaz)}
+.kr-gkart-k i{display:block;width:48px;height:48px}.kr-gkart-k .kc{width:100%;height:100%}.kr-gkart-k b{font:800 16px/1.1 var(--bas)}.kr-gkart-k small{font-size:12px;color:var(--soluk)}
+.kr-gkart-s{padding:10px 14px;border-radius:16px;background:#E8F4FF}.kr-gkart-s ol{margin:6px 0 0;padding-left:20px;font-size:15px}
+.kr-gkart footer{font-size:13px;color:var(--soluk)}
+/* ---------- çocuk haritası: bugünün etkinliği + sınıf seti ---------- */
+.kr-cocuk{display:flex;flex-wrap:wrap;gap:12px;width:min(1040px,calc(100% - 32px));margin:14px auto 0}
+.kr-etkinlik{display:flex;align-items:center;gap:10px;margin:0;padding:10px 16px;border:3px solid var(--m);border-radius:22px;background:#FFD9A8;box-shadow:var(--golge)}
+.kr-etkinlik .kc{width:40px;height:40px}.kr-etkinlik span{display:grid}.kr-etkinlik small{font-weight:800;font-size:13px}.kr-etkinlik b{font:800 22px/1.05 var(--bas)}
+.kr-set-b{flex:1 1 320px;display:flex;align-items:center;gap:12px;padding:10px 16px;border:3px solid var(--m);border-radius:22px;background:#E5DCFF;box-shadow:var(--golge);text-align:left;color:var(--m)}
+.kr-set-b>span:nth-child(2){display:grid;flex:1}.kr-set-b small{font-weight:800;font-size:13px}.kr-set-b b{font:800 22px/1.05 var(--bas)}.kr-set-b em{font-style:normal;font-size:14px}
+.kr-set-b>.kc{width:42px;height:42px;padding:8px;border:3px solid var(--m);border-radius:50%;background:var(--mercan);color:#fff}
+.kr-set-b .kr-set-r i{width:46px;height:46px}
+.kr-set-bitti{font:800 22px var(--bas)}
+@media (max-width:640px){
+  .kr-hafta li{grid-template-columns:1fr auto}.kr-hafta li .kr-ozet{grid-column:1/-1;grid-row:2}
+  .kr-ozel li{grid-template-columns:56px minmax(0,1fr)}.kr-ozel li>button,.kr-ozel li>.kr-eklendi{grid-column:1/-1;justify-self:end}
+  .kr-setler li{grid-template-columns:auto minmax(0,1fr)}.kr-setler li>button{grid-row:2}
+  .kr-pen-bas h2{font-size:21px}.kr-katman{padding:8px}.kr-pen{max-height:calc(100dvh - 16px)}
+}
+/* ---------- kreş yönetici paneli ---------- */
+.km-govde .kt-bildirim{margin-bottom:12px}
+.km-lisans{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:center;padding:16px 18px;border:3px solid var(--m);border-radius:24px;background:#DDF5E7;box-shadow:var(--golge)}
+.km-lisans.km-deneme{background:#E5DCFF}.km-lisans.km-bitti{background:#FDE3E1}
+.km-lisans>div{display:grid}.km-lisans small{font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+.km-lisans b{font:800 26px/1.1 var(--bas)}.km-lisans b i{font-style:normal;font-size:18px;color:var(--soluk)}.km-lisans span{font-size:15px}
+.km-cubuk{display:block;height:12px;margin-top:6px;border:2px solid var(--m);border-radius:999px;background:var(--beyaz);overflow:hidden}.km-cubuk i{display:block;height:100%;background:var(--yesil)}
+.km-uyari{grid-column:1/-1;margin:0;font-size:15px;font-weight:700}
+.km-sekmeler{margin-top:18px}
+.km-bolum{margin-top:18px}
+.km-siniflar{display:flex;flex-wrap:wrap;gap:10px}
+.km-sinif{display:grid;justify-items:start;gap:1px;min-width:170px;padding:10px 14px;border:3px solid var(--m);border-radius:18px;background:var(--beyaz);box-shadow:var(--golge-k);text-align:left;color:var(--m)}
+.km-sinif b{font:800 19px var(--bas)}.km-sinif small{font-size:13px;color:var(--soluk)}.km-sinif span{font-weight:800;font-size:14px}
+.km-sinif[aria-pressed="true"]{background:var(--sari)}.km-yeni{place-items:center;justify-items:center;border-style:dashed;font:800 18px var(--bas)}
+.km-bos{margin:14px 0 0;color:var(--soluk)}
+.km-sinif-bas{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-top:22px}
+.km-sinif-bas h2{margin:0;font:800 28px var(--bas)}
+.km-arac{display:flex;flex-wrap:wrap;gap:8px}
+.km-ekle{margin-top:14px;border:3px solid var(--m);border-radius:20px;background:var(--beyaz)}
+.km-ekle summary{padding:12px 16px;font:800 18px var(--bas);cursor:pointer}
+.km-ekle .km-form{padding:0 16px 16px}
+.km-form{display:grid;gap:10px}.km-form label{display:grid;gap:4px;font-size:15px;font-weight:800}
+.km-form textarea{min-height:140px;padding:10px 12px;line-height:1.5;resize:vertical}
+.km-onizle{margin:0;font-size:15px}.km-hata{color:#C8473B;font-weight:800}
+.km-kvkk{margin:0;font-size:14px;color:var(--soluk)}
+.km-toplu{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px;padding:10px 14px;border:3px solid var(--m);border-radius:16px;background:#FFF3C9}
+.km-tablo td:first-child,.km-tablo th:first-child{width:36px}
+.km-tablo input[type=checkbox]{width:22px;height:22px}
+.km-sf{display:flex;gap:4px}.km-sf i{display:block;width:30px;height:30px;padding:2px;border:2px dashed var(--m);border-radius:8px;background:var(--beyaz)}.km-sf .kc{width:100%;height:100%}
+.km-mono{font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.km-anahtar{display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:14px;cursor:pointer}.km-anahtar input{width:22px;height:22px}
+.km-kucuk{min-height:38px;padding:0 12px;border:2px solid var(--m);border-radius:12px;background:var(--beyaz);font-weight:800;font-size:14px}
+.km-ogretmenler{display:grid;gap:8px;margin:14px 0 0;padding:0;list-style:none}
+.km-ogretmenler li{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border:3px solid var(--m);border-radius:16px;background:var(--beyaz)}
+.km-ogretmenler li>div{display:grid;flex:1;min-width:180px}.km-ogretmenler small{color:var(--soluk);font-size:14px}
+.km-kutu{margin-top:16px;padding:16px 18px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz)}
+.km-kutu h3{margin:0 0 6px;font:800 20px var(--bas)}.km-kutu p{margin:0 0 10px;font-size:15px}
+.km-dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0 0 10px;font-size:15px}.km-dl dt{font-weight:800;color:var(--soluk)}.km-dl dd{margin:0}
+.km-siniflar-sec{display:flex;flex-wrap:wrap;gap:8px 16px;margin:0;padding:10px 12px;border:2px solid #E3D9BD;border-radius:14px}
+.km-siniflar-sec legend{font-weight:800;font-size:15px}.km-siniflar-sec legend small{font-weight:700;color:var(--soluk)}
+.km-siniflar-sec label{display:inline-flex;align-items:center;gap:6px;font-weight:700}.km-siniflar-sec input{width:22px;height:22px}
+.km-gizli-d{margin:4px 0;padding:14px;border:3px dashed var(--m);border-radius:16px;background:#FFF3C9;font:800 40px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-align:center;user-select:all}
+@media (max-width:640px){.km-lisans{grid-template-columns:1fr}.km-sinif{min-width:0;flex:1 1 140px}.km-tablo th:nth-child(4),.km-tablo td:nth-child(4){display:none}}
+/* ---------- giriş ekranı (#giris): rol seçimi ---------- */
+.kgi-kart{display:grid;gap:14px;width:min(720px,100%);padding:26px;border:3px solid var(--m);border-radius:28px;background:var(--krem);box-shadow:0 8px 0 var(--m)}
+.kgi-alt{margin:0;font:800 20px var(--bas)}
+.kgi-roller{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kgi-rol{display:grid;justify-items:center;align-content:start;gap:6px;padding:18px 12px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);box-shadow:var(--golge);color:var(--m);text-align:center;text-decoration:none;transition:transform .15s}
+.kgi-rol:hover{transform:translateY(-3px)}.kgi-rol:active{transform:translateY(3px);box-shadow:var(--golge-k)}
+.kgi-r{display:block;width:84px;height:84px;padding:6px;border:3px solid var(--m);border-radius:22px;background:var(--r,#FFF3C9)}.kgi-r .kc,.kgi-r svg{width:100%;height:100%}
+.kgi-cocuk{--r:#FFE7A8}.kgi-ogretmen{--r:#CDEBFF}.kgi-yonetici{--r:#E5DCFF}
+.kgi-rol b{font:800 22px/1.1 var(--bas)}.kgi-rol small{font-size:14px;font-weight:700;color:var(--soluk)}
+.kgi-not{display:flex;gap:10px;align-items:center;margin:0;padding:10px 14px;border-radius:16px;background:#E8F4FF;font-size:15px}.kgi-not .kc{flex:none;width:30px;height:30px}
+.kgi-iletisim{margin-top:10px;font-weight:800}
+@media (max-width:640px){.kgi-roller{grid-template-columns:1fr}.kgi-rol{grid-template-columns:64px 1fr;justify-items:start;text-align:left;column-gap:12px}.kgi-r{grid-row:1/3;width:64px;height:64px}.kgi-rol b{align-self:end}.kgi-kart{padding:18px}}
+/* tablo kaydırma kutusu konumlu: içindeki mutlak konumlu gizli etiket (.ka-gizli) sayfayı yatayda taşırmasın */
+.kt-tablo-sar{position:relative}
+
 </style>
 </head>
 <body class="kl">
@@ -1927,9 +2076,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 <header class="kl-ust">
   <a class="kl-marka" href="#" aria-label="Acadex Kids"><span data-acd="mutlu"></span><b>Acadex <i>Kids</i></b></a>
   <nav class="kl-nav" aria-label="Bölümler"><a href="#nasil">Nasıl çalışır</a><a href="#dene">Deneyin</a><a href="#icerik-konular">İçerik</a><a href="#fiyat">Fiyat</a><a href="#sss">Sorular</a></nav>
-  <a class="kl-giris" href="#ogretmen">Öğretmen girişi</a>
-  <a class="kl-giris kl-giris-c" href="#oyna">Çocuk girişi</a>
-  <a class="kl-dugme kl-dugme-k" href="#demo">Demo isteyin</a>
+  <a class="kl-dugme kl-dugme-k" href="#giris">Giriş yap</a>
 </header>
 
 <main id="icerik">
@@ -1939,7 +2086,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     <p class="kl-etiket">Kreş · Anaokulu · İlkokul</p>
     <h1>Okulda öğrendi.<br><em>Evde oynayarak</em> pekiştiriyor.</h1>
     <p class="kl-giris-p">Acadex Kids, 3-10 yaş için oyunlarla İngilizce tekrar platformu. Öğretmen günün konusunu seçer; çocuk evde o konuyu izler, dinler, oynar ve söyler.</p>
-    <div class="kl-cta"><a class="kl-dugme" href="#demo">Okulunuz için demo isteyin</a><a class="kl-dugme kl-dugme-b" href="#dene">Bir oyunu deneyin</a></div>
+    <div class="kl-cta"><a class="kl-dugme" href="#giris">Giriş yap</a><a class="kl-dugme kl-dugme-b" href="#dene">Bir oyunu deneyin</a></div>
     <ul class="kl-rozet"><li>Reklam yok</li><li>Okuma bilmeyen çocuk da kullanır</li><li>Günde 10 dakika yeter</li></ul>
   </div>
   <div class="kl-hero-sahne" aria-hidden="true">
@@ -2065,7 +2212,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 <section class="kl-bolum kl-fiyat" id="fiyat" data-durak="yildiz">
   <h2>Tek platform, tek fiyat</h2>
   <div class="kl-fiyat-kart">
-    <div class="kl-fiyat-sol"><p class="kl-etiket">Yıllık okul lisansı</p><p class="kl-tutar"><b>34.900 TL</b><span>+ KDV / yıl</span></p><p>100 öğrenciye kadar kullanım hakkı.</p><a class="kl-dugme" href="#demo">Demo isteyin</a></div>
+    <div class="kl-fiyat-sol"><p class="kl-etiket">Yıllık okul lisansı</p><p class="kl-tutar"><b>34.900 TL</b><span>+ KDV / yıl</span></p><p>100 öğrenciye kadar kullanım hakkı.</p><p class="kgi-iletisim">Lisans ve bilgi için: <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></p></div>
     <ul class="kl-fiyat-sag"><li>Paket yok: bütün konular ve üç yaş dünyası tek lisansta.</li><li>Kreş, anaokulu ve ilkokul için aynı platform.</li><li>Okulunuz bu hizmeti velilere ücretsiz sunabilir ya da kendi belirlediği fiyatla sunabilir.</li><li>Tek yıllık ödeme.</li></ul>
   </div>
 </section>
@@ -2076,29 +2223,22 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     <details><summary>Çocuklar hangi cihazdan girer?</summary><p>Tarayıcısı olan her telefon, tablet ve bilgisayardan. Uygulama indirmek gerekmez.</p></details>
     <details><summary>Okuma yazma bilmeyen çocuk nasıl giriş yapar?</summary><p>Veli okul kodunu bir kez yazar. Çocuk sınıfını ve kendi resmini seçer, iki gizli resmine dokunur. Bütün yönergeler seslidir.</p></details>
     <details><summary>Öğretmene ek iş çıkar mı?</summary><p>Hayır. Öğretmen yalnız günün konusunu seçer; isterse haftayı önceden planlar ve sınıfın ilerlemesine bakar. Ödev vermek, not girmek ya da içerik hazırlamak yok. <a href="#ogretmen">Öğretmen paneline göz atın.</a></p></details>
+    <details><summary>Kreşimizin kendi etkinlikleri var; uyar mı?</summary><p>Evet. Öğretmen haftalık etkinliklerinizi (bahçe günü, meyve günü…) ve belirli gün ve haftaları hazır listeden seçer; o gün çocuğun haritası etkinliğe uygun konuyla açılır. Kendi projeleriniz için 510 hazır kelimeden kelime setleri kurabilirsiniz. Gün sonunda velilere “Bugün ne öğrendik?” kartı tek tuşla gider.</p></details>
+    <details><summary>Kreşi kim kurar, öğrencileri kim ekler?</summary><p>Kreş müdürü kendi yönetim panelinden sınıf açar, öğrenci listesini Excel'den yapıştırarak ekler, öğretmenlere kişisel PIN verir ve kartları yazdırır. <a href="#yonetim">Kreş yönetimi</a></p></details>
+    <details><summary>Çocuklar evde de oynayabilir mi?</summary><p>Evet. Her çocuğun kartında bir QR var; veli okutunca Acadex Kids doğrudan çocuğun gizli resim ekranında açılır ve çocuk okulda kaldığı yerden devam eder.</p></details>
     <details><summary>Velilerden ücret alabilir miyiz?</summary><p>Karar okulundur: hizmeti ücretsiz sunabilir ya da kendi belirlediğiniz fiyatla sunabilirsiniz.</p></details>
   </div>
 </section>
-
-<section class="kl-bolum kl-demo" id="demo">
-  <div class="kl-demo-yazi"><span class="kl-demo-acd" data-acd="kutlama"></span><h2>Okulunuzda deneyelim</h2><p>Bilgilerinizi bırakın; okulunuza özel bir tanıtım için sizi arayalım.</p></div>
-  <form class="kl-form" data-demo-form novalidate>
-    <label>Adınız soyadınız<input name="ad" autocomplete="name" required></label>
-    <label>Okulunuzun adı<input name="okul" autocomplete="organization" required></label>
-    <label>Telefon<input name="tel" type="tel" autocomplete="tel" inputmode="tel" required></label>
-    <label>Yaklaşık öğrenci sayısı<input name="sayi" inputmode="numeric"></label>
-    <p class="kl-form-not" data-form-not aria-live="polite">Gönder’e bastığınızda e-posta uygulamanız hazır bir mesajla açılır.</p>
-    <button type="submit" class="kl-dugme">Demo talebi gönder</button>
-  </form>
-</section>
 </main>
 
-<footer class="kl-alt-bilgi"><p><b>Acadex Kids</b>, bir Acadex ürünüdür.</p><p><a href="#oyna">Çocuk girişi</a> · <a href="#ogretmen">Öğretmen girişi</a></p><p>Örnek okul (ORNEK-2026) ve örnek öğrenciler tanıtım içindir, gerçek değildir.</p></footer>
+<footer class="kl-alt-bilgi"><p><b>Acadex Kids</b>, bir Acadex ürünüdür.</p><p><a href="#giris">Giriş yap</a> · <a href="#oyna">Çocuk</a> · <a href="#ogretmen">Öğretmen</a> · <a href="#yonetim">Kreş yönetimi</a></p><p>Örnek okul (ORNEK-2026) ve örnek öğrenciler tanıtım içindir, gerçek değildir.</p></footer>
 <div class="kl-ray" data-ray aria-hidden="true"><i></i><span></span></div>
 </div>
 
 <div id="kids-app" hidden></div>
 <div id="kids-ogretmen" hidden></div>
+<div id="kids-yonetim" hidden></div>
+<div id="kids-giris" hidden></div>
 <noscript><p style="padding:24px;font:600 18px sans-serif">Acadex Kids'in oyunları ve panelleri için tarayıcıda JavaScript açık olmalı.</p></noscript>
 <script>
 /* ---- kids-ciz.js ---- */
@@ -2280,6 +2420,185 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 
   W.KIDS_CIZ = { acadia: acadia, avatar: avatar, simge: simge, bulut: bulut, ada: ada, balon: balon, leke: leke, boyamaResmi: boyamaResmi, sayiKart: sayiKart, noktalar: noktalar, sayiBalon: sayiBalon, giysi: giysi, avatarGiy: avatarGiy, GIYSI: Object.keys(GIYSI), HAYVAN: Object.keys(HAYVAN), SIMGE: Object.keys(SIMGE), MUREKKEP: M };
 })(window);
+
+/* ---- kids-qr.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · QR kod üretici (kids/assets/kids-qr.js), 14.11.2026
+   Evde devam kartlarındaki QR'ı tarayıcıda üretir. Dış servis KULLANILMAZ:
+   QR içinde okul kodu ve öğrenci kimliği var; bunu üçüncü bir siteye göndermek
+   KVKK açısından uygun değil (admin-ders.js'teki ders QR'ı dış servisle üretilir,
+   orada çocuk verisi yoktur).
+   Standart QR (ISO/IEC 18004): bayt kipi, hata düzeltme M (yüzde 15), sürüm 1-10
+   (en çok 213 bayt), maske ceza puanına göre seçilir. Algoritma Nayuki'nin açık
+   anlatımındaki adımları izler; tests/kids-kres.js çıktıyı çözerek doğrular.
+   W.KIDS_QR.svg(metin, {boyut, renk}) → '<svg…>' · KIDS_QR.matris(metin) → [[bool]]
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  /* sürüm 1-10, hata düzeltme M */
+  var ECC = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26];
+  var BLOK = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5];
+  var M_BIT = 0;   /* format bitlerinde M = 00 */
+
+  function hamModul(v) { var r = (16 * v + 128) * v + 64; if (v >= 2) { var n = Math.floor(v / 7) + 2; r -= (25 * n - 10) * n - 55; if (v >= 7) r -= 36; } return r; }
+  function veriKelime(v) { return Math.floor(hamModul(v) / 8) - ECC[v] * BLOK[v]; }
+  function utf8(s) { var b = [], e = unescape(encodeURIComponent(s)); for (var i = 0; i < e.length; i++) b.push(e.charCodeAt(i)); return b; }
+  function bit(x, i) { return ((x >>> i) & 1) !== 0; }
+
+  /* GF(256) çarpma ve Reed-Solomon */
+  function carp(x, y) { var z = 0; for (var i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z; }
+  function bolen(d) { var r = []; for (var i = 0; i < d - 1; i++) r.push(0); r.push(1); var kok = 1; for (i = 0; i < d; i++) { for (var j = 0; j < r.length; j++) { r[j] = carp(r[j], kok); if (j + 1 < r.length) r[j] ^= r[j + 1]; } kok = carp(kok, 2); } return r; }
+  function kalan(veri, b) { var r = b.map(function () { return 0; }); veri.forEach(function (x) { var f = x ^ r.shift(); r.push(0); b.forEach(function (c, i) { r[i] ^= carp(c, f); }); }); return r; }
+
+  function hizalama(v, boyut) { if (v === 1) return []; var n = Math.floor(v / 7) + 2, adim = Math.ceil((v * 4 + 4) / (n * 2 - 2)) * 2, r = [6]; for (var p = boyut - 7; r.length < n; p -= adim) r.splice(1, 0, p); return r; }
+
+  function matris(metin) {
+    var veri = utf8(String(metin)), v = 1;
+    while (v <= 10 && 4 + (v < 10 ? 8 : 16) + veri.length * 8 > veriKelime(v) * 8) v++;
+    if (v > 10) throw new Error('QR için metin çok uzun');
+    var boyut = v * 4 + 17, M = [], F = [], x, y, i, j;
+    for (y = 0; y < boyut; y++) { M.push([]); F.push([]); for (x = 0; x < boyut; x++) { M[y].push(false); F[y].push(false); } }
+    function koy(x, y, k) { M[y][x] = k; F[y][x] = true; }
+    /* sabit desenler: zamanlama, bulucular, hizalama */
+    for (i = 0; i < boyut; i++) { koy(6, i, i % 2 === 0); koy(i, 6, i % 2 === 0); }
+    [[3, 3], [boyut - 4, 3], [3, boyut - 4]].forEach(function (p) { for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) { var d = Math.max(Math.abs(dx), Math.abs(dy)), xx = p[0] + dx, yy = p[1] + dy; if (xx >= 0 && xx < boyut && yy >= 0 && yy < boyut) koy(xx, yy, d !== 2 && d !== 4); } });
+    var ap = hizalama(v, boyut), n = ap.length;
+    for (i = 0; i < n; i++) for (j = 0; j < n; j++) { if ((i === 0 && j === 0) || (i === 0 && j === n - 1) || (i === n - 1 && j === 0)) continue; for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) koy(ap[i] + dx, ap[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1); }
+    function format(maske) {
+      var d = M_BIT << 3 | maske, r = d; for (var k = 0; k < 10; k++) r = (r << 1) ^ ((r >>> 9) * 0x537); var b = (d << 10 | r) ^ 0x5412;
+      for (k = 0; k <= 5; k++) koy(8, k, bit(b, k)); koy(8, 7, bit(b, 6)); koy(8, 8, bit(b, 7)); koy(7, 8, bit(b, 8));
+      for (k = 9; k < 15; k++) koy(14 - k, 8, bit(b, k));
+      for (k = 0; k < 8; k++) koy(boyut - 1 - k, 8, bit(b, k));
+      for (k = 8; k < 15; k++) koy(8, boyut - 15 + k, bit(b, k));
+      koy(8, boyut - 8, true);
+    }
+    format(0);
+    if (v >= 7) { var r = v; for (i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1F25); var vb = v << 12 | r; for (i = 0; i < 18; i++) { var c = bit(vb, i), a = boyut - 11 + i % 3, b2 = Math.floor(i / 3); koy(a, b2, c); koy(b2, a, c); } }
+    /* veri: kip 0100 + uzunluk + baytlar + sonlandırıcı + dolgu */
+    var bits = [], ek = function (val, len) { for (var k = len - 1; k >= 0; k--) bits.push((val >>> k) & 1); };
+    ek(4, 4); ek(veri.length, v < 10 ? 8 : 16); veri.forEach(function (b) { ek(b, 8); });
+    var kap = veriKelime(v) * 8; ek(0, Math.min(4, kap - bits.length)); ek(0, (8 - bits.length % 8) % 8);
+    for (var dolgu = 0xEC; bits.length < kap; dolgu ^= 0xEC ^ 0x11) ek(dolgu, 8);
+    var kel = []; for (i = 0; i < bits.length; i += 8) { var t = 0; for (j = 0; j < 8; j++) t = t << 1 | bits[i + j]; kel.push(t); }
+    /* bloklara böl, hata düzeltme ekle, iç içe geçir */
+    var nb = BLOK[v], el = ECC[v], ham = Math.floor(hamModul(v) / 8), kisaN = nb - ham % nb, kisaL = Math.floor(ham / nb), bl = [], rs = bolen(el), son = [];
+    for (i = 0, j = 0; i < nb; i++) { var d = kel.slice(j, j + kisaL - el + (i < kisaN ? 0 : 1)); j += d.length; var e = kalan(d, rs); if (i < kisaN) d.push(0); bl.push(d.concat(e)); }
+    for (i = 0; i < bl[0].length; i++) bl.forEach(function (b, k) { if (i !== kisaL - el || k >= kisaN) son.push(b[i]); });
+    /* zikzak yerleştirme */
+    var s = 0;
+    for (var sag = boyut - 1; sag >= 1; sag -= 2) {
+      if (sag === 6) sag = 5;
+      for (var dik = 0; dik < boyut; dik++) for (j = 0; j < 2; j++) {
+        x = sag - j; var yukari = ((sag + 1) & 2) === 0; y = yukari ? boyut - 1 - dik : dik;
+        if (!F[y][x] && s < son.length * 8) { M[y][x] = bit(son[s >>> 3], 7 - (s & 7)); s++; }
+      }
+    }
+    function maskele(m) {
+      for (var yy = 0; yy < boyut; yy++) for (var xx = 0; xx < boyut; xx++) {
+        if (F[yy][xx]) continue; var t;
+        switch (m) { case 0: t = (xx + yy) % 2 === 0; break; case 1: t = yy % 2 === 0; break; case 2: t = xx % 3 === 0; break; case 3: t = (xx + yy) % 3 === 0; break;
+          case 4: t = (Math.floor(xx / 3) + Math.floor(yy / 2)) % 2 === 0; break; case 5: t = xx * yy % 2 + xx * yy % 3 === 0; break;
+          case 6: t = (xx * yy % 2 + xx * yy % 3) % 2 === 0; break; default: t = ((xx + yy) % 2 + xx * yy % 3) % 2 === 0; }
+        if (t) M[yy][xx] = !M[yy][xx];
+      }
+    }
+    /* ceza: art arda aynı renk, 2x2 bloklar, bulucuya benzeyen dizi, siyah/beyaz dengesi */
+    function ceza() {
+      var p = 0, koyu = 0, k, run, yy, xx;
+      for (var yon = 0; yon < 2; yon++) for (var a = 0; a < boyut; a++) {
+        run = 1; var dizi = '';
+        for (var b = 0; b < boyut; b++) {
+          var c = yon ? M[b][a] : M[a][b]; dizi += c ? '1' : '0';
+          if (b > 0 && c === (yon ? M[b - 1][a] : M[a][b - 1])) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1;
+        }
+        var re = /(?=(10111010000|00001011101))/g; while (re.exec(dizi)) { p += 40; re.lastIndex++; }
+      }
+      for (yy = 0; yy < boyut - 1; yy++) for (xx = 0; xx < boyut - 1; xx++) { k = M[yy][xx]; if (k === M[yy][xx + 1] && k === M[yy + 1][xx] && k === M[yy + 1][xx + 1]) p += 3; }
+      for (yy = 0; yy < boyut; yy++) for (xx = 0; xx < boyut; xx++) if (M[yy][xx]) koyu++;
+      var top = boyut * boyut; p += Math.max(0, Math.ceil(Math.abs(koyu * 20 - top * 10) / top) - 1) * 10;
+      return p;
+    }
+    var enIyi = 0, enAz = Infinity;
+    for (var m = 0; m < 8; m++) { maskele(m); format(m); var c = ceza(); if (c < enAz) { enAz = c; enIyi = m; } maskele(m); }
+    maskele(enIyi); format(enIyi);
+    return M;
+  }
+
+  function svg(metin, o) {
+    o = o || {}; var M = matris(metin), n = M.length, kenar = 4, t = n + kenar * 2, d = '';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) if (M[y][x]) d += 'M' + (x + kenar) + ' ' + (y + kenar) + 'h1v1h-1z';
+    return '<svg xmlns="http://www.w3.org/2000/svg" class="kq" viewBox="0 0 ' + t + ' ' + t + '"' + (o.boyut ? ' width="' + o.boyut + '" height="' + o.boyut + '"' : '') + ' shape-rendering="crispEdges" role="img" aria-label="' + (o.etiket || 'QR kod') + '">' +
+      '<rect width="' + t + '" height="' + t + '" fill="#fff"/><path d="' + d + '" fill="' + (o.renk || '#000') + '"/></svg>';
+  }
+
+  /* evde devam bağlantısı: okul kodu + öğrenci kimliği. Şifre YOK; çocuk yine resimli şifresini seçer */
+  function evAdres(kod, ogrenciId, kok) { return (kok || 'https://acadex.com.tr/kids/') + '#ev=' + encodeURIComponent(kod) + '~' + ogrenciId; }
+  function evCoz(hash) { var m = /^#?ev=([A-Za-z0-9-]{4,13})~([0-9a-f-]{36})$/i.exec(decodeURIComponent(hash || '')); return m ? { kod: m[1].toUpperCase(), ogr: m[2].toLowerCase() } : null; }
+
+  W.KIDS_QR = { matris: matris, svg: svg, evAdres: evAdres, evCoz: evCoz };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---- kids-kart.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · giriş kartları (kids/assets/kids-kart.js), 14.11.2026
+   A4'e 8 kart, kesme çizgili. Önceden yalnız yönetim panelindeydi (js/admin-kids.js);
+   kreş yöneticisi de kendi kartlarını bastığı için ortak dosyaya taşındı.
+   Yönetim paneli bu dosyanın kopyasını kullanır: js/kids-kart.js (ilk iki satır dışında aynı).
+   Kartta: çocuğun adı (yalnız ad + soyadın baş harfi), hayvanı, iki gizli resmi,
+   okul kodu, kimlik ve "Evde oyna" QR'ı. QR'da şifre YOK: veli okutunca site doğrudan
+   o çocuğun resim seçme adımına açılır (kids-qr.js evAdres). QR tarayıcıda üretilir.
+   W.KIDS_KART.sayfa(okul, öğrenciler, sınıflar, {kok}) → HTML · KIDS_KART.ac(...) → yeni sekme
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var HAYVAN = { tavsan: 'Tavşan', ayi: 'Ayı', kedi: 'Kedi', civciv: 'Civciv', panda: 'Panda', kurbaga: 'Kurbağa', tilki: 'Tilki', kopek: 'Köpek' };
+  var SITE = 'acadex.com.tr/kids';
+  var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  function ciz(fn, ad) { var C = W.KIDS_CIZ; try { return C ? C[fn](ad) : ''; } catch (e) { return ''; } }
+  function qr(o, g, kok) { var Q = W.KIDS_QR; if (!Q || !g.id) return ''; try { return Q.svg(Q.evAdres(o.kod, g.id, kok), { etiket: 'Evde oyna' }); } catch (e) { return ''; } }
+
+  function kart(o, g, sinifAd, kok) {
+    var q = qr(o, g, kok);
+    return '<div class="kart"><div class="k-ust"><span class="k-acd">' + (W.KIDS_CIZ ? W.KIDS_CIZ.acadia({ mood: 'mutlu' }) : '') + '</span><b>Acadex <i>Kids</i></b><span class="k-sinif">' + X(sinifAd || '') + '</span></div>' +
+      '<div class="k-orta' + (q ? ' k-qrli' : '') + '"><span class="k-av">' + ciz('avatar', g.hayvan) + '</span><div class="k-kim"><span class="k-ad">' + X(g.ad) + '</span><span class="k-not">Resmin: <b>' + X(HAYVAN[g.hayvan] || '') + '</b></span>' +
+      '<span class="k-gizli">Gizli resimlerin</span><span class="k-sf">' + (g.sifre || []).map(function (r, i) { return '<span><i>' + (i + 1) + '</i>' + ciz('simge', r) + '</span>'; }).join('') + '</span></div>' +
+      (q ? '<span class="k-qr">' + q + '<small>Evde oyna</small></span>' : '') + '</div>' +
+      '<div class="k-alt"><span><b>' + SITE + '</b></span><span>Okul kodu <b>' + X(o.kod) + '</b></span><span class="k-no">' + X(g.kimlik || '') + '</span></div></div>';
+  }
+  var CSS = '@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#E9E6DD;font-family:Nunito,system-ui,sans-serif;color:#23304D;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+    '.arac{position:sticky;top:0;display:flex;gap:12px;align-items:center;padding:10px 16px;background:#23304D;color:#fff;font-size:14px}.arac button{margin-left:auto;padding:8px 18px;border:0;border-radius:999px;background:#FFD23F;font:800 15px Nunito,sans-serif;cursor:pointer}' +
+    '.sayfa{width:210mm;height:297mm;margin:10mm auto;display:grid;grid-template-columns:repeat(2,105mm);grid-template-rows:repeat(4,74.25mm);background:#fff;page-break-after:always;break-after:page}' +
+    '.kart{position:relative;display:grid;grid-template-rows:auto 1fr auto;padding:4.5mm 5.5mm;border:.3mm dashed #B8B2A2;overflow:hidden}' +
+    '.k-ust{display:flex;align-items:center;gap:2mm;padding-bottom:2mm;border-bottom:.5mm solid #FFE79A}.k-acd{width:8mm;height:8mm}.k-acd svg,.k-av svg,.k-sf svg{display:block;width:100%;height:100%}' +
+    '.k-ust b{font:800 13pt/1 "Baloo 2",sans-serif}.k-ust i{font-style:normal;padding:0 1.5mm;border-radius:2mm;background:#FFB3A9}.k-sinif{margin-left:auto;padding:.6mm 2.5mm;border-radius:9mm;background:#E8F4FF;font-weight:800;font-size:9pt}' +
+    '.k-orta{display:grid;grid-template-columns:30mm 1fr;gap:4mm;align-items:center;padding:2mm 0}.k-orta.k-qrli{grid-template-columns:26mm 1fr 20mm;gap:3mm}' +
+    '.k-av{display:block;width:30mm;height:30mm;padding:1.5mm;border:.6mm solid #23304D;border-radius:7mm;background:#FFF6D6}.k-qrli .k-av{width:26mm;height:26mm}' +
+    '.k-kim{display:grid;gap:.8mm;min-width:0}.k-ad{font:800 17pt/1.05 "Baloo 2",sans-serif;overflow-wrap:anywhere}.k-qrli .k-ad{font-size:15pt}.k-not{font-size:8.5pt}.k-gizli{margin-top:1.2mm;font-weight:800;font-size:8.5pt}' +
+    '.k-sf{display:flex;gap:2.5mm}.k-sf>span{position:relative;width:15mm;height:15mm;padding:1.4mm;border:.5mm dashed #23304D;border-radius:3.5mm;background:#fff}.k-qrli .k-sf>span{width:13.5mm;height:13.5mm}' +
+    '.k-sf i{position:absolute;left:-1.8mm;top:-1.8mm;width:5mm;height:5mm;border-radius:50%;background:#23304D;color:#fff;font:800 7pt/5mm Nunito,sans-serif;text-align:center;font-style:normal}' +
+    '.k-qr{display:grid;justify-items:center;gap:.6mm}.k-qr svg{display:block;width:20mm;height:20mm}.k-qr small{font-weight:800;font-size:7pt}' +
+    '.k-alt{display:flex;gap:3mm;align-items:center;padding-top:1.8mm;border-top:.3mm solid #E3DECF;font-size:7.5pt}.k-alt b{font-weight:800}.k-no{margin-left:auto;font-family:ui-monospace,Menlo,monospace;font-size:7.5pt}' +
+    '.ev-not{width:210mm;margin:0 auto 10mm;padding:5mm 8mm;background:#fff;font-size:10pt;line-height:1.45}.ev-not b{font-weight:800}' +
+    '@media print{body{background:#fff}.arac,.ev-not{display:none}.sayfa{margin:0}}';
+  function sayfa(o, liste, siniflar, ek) {
+    ek = ek || {}; var ad = {}; (siniflar || []).forEach(function (s) { ad[s.id] = s.ad; });
+    var sayfalar = []; for (var i = 0; i < liste.length; i += 8) sayfalar.push(liste.slice(i, i + 8));
+    return '<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>' + X(o.kod) + ' · Acadex Kids giriş kartları</title>' +
+      '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@600;800&display=swap" rel="stylesheet">' +
+      '<style>' + CSS + '</style></head><body><div class="arac"><b>' + X(o.ad) + '</b> · ' + liste.length + ' kart, ' + sayfalar.length + ' sayfa A4. Yazdırırken “Gerçek boyut / %100” ve “Arka plan grafikleri” seçili olsun.' +
+      '<button type="button" onclick="print()">Yazdır</button></div>' +
+      '<p class="ev-not"><b>Evde oyna:</b> Veli kartın köşesindeki QR\'ı telefonun kamerasıyla okutur; Acadex Kids doğrudan çocuğun resim seçme ekranında açılır. Çocuk iki gizli resmini seçer ve okulda kaldığı yerden devam eder. QR\'da şifre yoktur; kartı yalnız çocuğun ailesine verin.</p>' +
+      sayfalar.map(function (p) { return '<section class="sayfa">' + p.map(function (g) { return kart(o, g, ad[g.sinif_id], ek.kok); }).join('') + '</section>'; }).join('') +
+      '<script>document.fonts&&document.fonts.ready.then(function(){setTimeout(function(){print()},300)});<\/script></body></html>';
+  }
+  /* yeni sekmede açar; açılır pencere engellenirse false döner */
+  function ac(o, liste, siniflar, ek) {
+    if (!liste.length) return false;
+    var w = W.open('', '_blank'); if (!w) return false;
+    w.document.open(); w.document.write(sayfa(o, liste, siniflar, ek)); w.document.close(); return true;
+  }
+  W.KIDS_KART = { sayfa: sayfa, ac: ac, kart: kart, CSS: CSS, HAYVAN: HAYVAN };
+})(typeof window !== 'undefined' ? window : globalThis);
 
 /* ---- kids-resim.js ---- */
 /* ==========================================================================
@@ -3245,6 +3564,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function hafta(d) { d = d ? new Date(d) : new Date(); var g = (d.getDay() + 6) % 7, pzt = new Date(d.getFullYear(), d.getMonth(), d.getDate() - g), r = []; for (var i = 0; i < 5; i++) r.push(new Date(pzt.getFullYear(), pzt.getMonth(), pzt.getDate() + i)); return r; }
   function planAl(sinifId) { var p = al('plan.' + OKUL.kod + '.' + sinifId, null) || {}; p.gunler = p.gunler || {}; return p; }
   function planKoy(sinifId, gun, konuId) { var p = planAl(sinifId); p.gunler[gun] = konuId; koy('plan.' + OKUL.kod + '.' + sinifId, p); return p; }
+  function planVar(sinifId, d) { return gunAnahtar(d) in planAl(sinifId).gunler; }
   function gunKonu(sinifId, d) { var p = planAl(sinifId), g = gunAnahtar(d); return g in p.gunler ? p.gunler[g] : (g === gunAnahtar() ? OKUL.bugun.konu : ''); }
   /* avatar dolabı: toplam yıldızla açılır; bas ve yuz yuvaları */
   var GIYSI = [
@@ -3266,8 +3586,10 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   }
   /* kelimenin hangi konudan olduğu */
   function ogeKonu(id) { var K = W.KIDS_KONU; if (!K) return null; for (var i = 0; i < K.PAKET.length; i++) if (K.hepsi(K.PAKET[i]).some(function (o) { return o.id === id; })) return K.PAKET[i]; return null; }
-  function konuBul(id) { for (var i = 0; i < KONU.length; i++) if (KONU[i].id === id) return KONU[i]; return null; }
-  W.KIDS_VERI = { SAYI: SAYI, GIYSI: GIYSI, ogeBul: ogeBul, ogeKonu: ogeKonu, RENK: RENK, KONU: KONU, BANT: BANT, OKUL: OKUL, SIFRE_RESIM: SIFRE_RESIM, al: al, koy: koy, gunAnahtar: gunAnahtar, hafta: hafta, planAl: planAl, planKoy: planKoy, gunKonu: gunKonu, konuBul: konuBul };
+  var GECICI = {};   /* kreşin kelime seti (kids-kres.js): haritada ada olarak görünmez, oynanırken konu gibi davranır */
+  function geciciKonu(k) { GECICI[k.id] = k; }
+  function konuBul(id) { for (var i = 0; i < KONU.length; i++) if (KONU[i].id === id) return KONU[i]; return GECICI[id] || null; }
+  W.KIDS_VERI = { SAYI: SAYI, GIYSI: GIYSI, ogeBul: ogeBul, ogeKonu: ogeKonu, RENK: RENK, KONU: KONU, BANT: BANT, OKUL: OKUL, SIFRE_RESIM: SIFRE_RESIM, al: al, koy: koy, gunAnahtar: gunAnahtar, hafta: hafta, planAl: planAl, planKoy: planKoy, planVar: planVar, gunKonu: gunKonu, konuBul: konuBul, geciciKonu: geciciKonu };
 })(window);
 
 /* ---- kids-konu.js ---- */
@@ -3360,10 +3682,12 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     var b = BELIRLI[p.id]; return 'Point to ' + (b === 0 || (b && !b[o.id]) ? '' : 'the ') + o.en.toLowerCase() + '!';
   }
   /* konunun oyun sayısı ve en çok yıldızı: üç oyun + (varsa) karışık durak */
-  function oyunSay(id) { var p = P[id]; return 4 + (p && p.karisik ? 1 : 0); }   /* balon, hafıza, konu oyunu, park (+ karışık) */
+  function oyunSay(id) { var p = P[id]; return (p && p.oyun3 === null ? 3 : 4) + (p && p.karisik ? 1 : 0); }   /* sınıf setinde konu oyunu yok */
+  /* kreşin kelime seti (kids-kres.js): oynanır ama konu listesine (PAKET) girmez; sözlük, katalog, ogeKonu etkilenmez */
+  function gecici(id, paket) { P[id] = paket; }   /* balon, hafıza, konu oyunu, park (+ karışık) */
   function hepsi(id) { var p = P[id]; return p ? (p.liste || p.ogeler({ kelimeSay: 999, renkSay: 999, sayiSay: 999 })) : []; }
   function paketSayisi(id, bant) { return paketSay(hepsi(id).length, bant.paketBoy || 8); }
-  W.KIDS_KONU = { hepsi: hepsi, paketle: paketle, paketSayisi: paketSayisi, al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
+  W.KIDS_KONU = { hepsi: hepsi, paketle: paketle, paketSayisi: paketSayisi, al: function (id) { return P[id] || null; }, sarkiSatir: sarkiSatir, PAKET: PAKET, ekle: ekle, gecici: gecici, komut: komut, oyunSay: oyunSay, yildizMax: function (id) { return 3 * oyunSay(id); } };
 })(window);
 
 /* ---- kids-temalar.js ---- */
@@ -4353,6 +4677,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
      okulBul(kod) · giris(ogrenciId, [resim, resim]) · durum(anahtar) ·
      ilerlemeKoy(anahtar, veri) · cikis(anahtar) ·
      ogretmenGiris(kod, şifre) · ogretmenVeri(anahtar, baş, bit) · planKoy(...)
+     14.11.2026: gunKoy · haftaKoy · setKaydet · setSil (kreşin günü) · yoneticiGiris · yoneticiVeri · yon (kreş
+     yöneticisi) → supabase/migrations/20261114_kids_kres.sql
    Fonksiyonlar: supabase/migrations/20261110b_kids_giris.sql (anon çağrılır,
    yetki ve deneme sınırı sunucuda). Burada yalnız herkese açık (publishable)
    anahtar var; gizli anahtar asla bu dosyaya girmez.
@@ -4384,7 +4710,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   /* sunucu okulunu uygulamanın beklediği biçime çevirir: ogr = [ad, hayvan, id] */
   function okulBicim(o) {
     return { kod: o.kod, ad: o.ad, bulut: true, siniflar: (o.siniflar || []).map(function (s) {
-      return { id: s.id, ad: s.ad, bant: s.bant, renk: RENK[s.bant] || '#4AA8FF', ogr: (s.ogr || []).map(function (g) { return [g.ad, g.hayvan, g.id, g.ilerleme || null]; }), plan: s.plan || {} };
+      return { id: s.id, ad: s.ad, bant: s.bant, renk: RENK[s.bant] || '#4AA8FF', ogr: (s.ogr || []).map(function (g) { return [g.ad, g.hayvan, g.id, g.ilerleme || null]; }), plan: s.plan || {}, gunler: s.gunler || {}, hafta: s.hafta || {} };
     }) };
   }
 
@@ -4412,7 +4738,16 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     ilerlemeKoy: ilerlemeKoy, ilerlemeGonder: gonder,
     cikis: function (t) { return gonder().then(function () { return rpc('kids_cikis', { p_token: t }); }).catch(function () { }); },
     ogretmenGiris: function (kod, sifre) { return rpc('kids_ogretmen_giris', { p_kod: kod, p_sifre: sifre }); },
-    ogretmenVeri: function (t, bas, bit) { return rpc('kids_ogretmen_veri', { p_token: t, p_bas: bas, p_bit: bit }).then(function (v) { var o = okulBicim({ kod: v.okul.kod, ad: v.okul.ad, siniflar: v.siniflar }); o.bugun = v.bugun; return o; }); },
+    ogretmenVeri: function (t, bas, bit) { return rpc('kids_ogretmen_veri', { p_token: t, p_bas: bas, p_bit: bit }).then(function (v) { var o = okulBicim({ kod: v.okul.kod, ad: v.okul.ad, siniflar: v.siniflar }); o.bugun = v.bugun; o.setler = v.setler || []; o.ogretmen = v.ogretmen || null; return o; }); },
+    /* 20261114: kreşin günü (konu + etkinlik + kelime seti), haftalık şablon, kelime setleri */
+    gunKoy: function (t, sinif, gun, konu, set, etkinlik) { return rpc('kids_gun_koy', { p_token: t, p_sinif: sinif, p_gun: gun, p_konu: konu || '', p_set: set || null, p_etkinlik: etkinlik || '' }); },
+    haftaKoy: function (t, sinif, n, konu, set, etkinlik) { return rpc('kids_hafta_koy', { p_token: t, p_sinif: sinif, p_hafta_gunu: n, p_konu: konu || '', p_set: set || null, p_etkinlik: etkinlik || '' }); },
+    setKaydet: function (t, id, ad, kelimeler) { return rpc('kids_set_kaydet', { p_token: t, p_id: id || null, p_ad: ad, p_kelimeler: kelimeler }); },
+    setSil: function (t, id) { return rpc('kids_set_sil', { p_token: t, p_id: id }); },
+    /* 20261114: kreş yöneticisi (müdür) */
+    yoneticiGiris: function (kod, sifre) { return rpc('kids_yonetici_giris', { p_kod: kod, p_sifre: sifre }); },
+    yoneticiVeri: function (t) { return rpc('kids_yonetici_veri', { p_token: t }); },
+    yon: function (fn, t, args) { var a = { p_token: t }; for (var k in args || {}) a[k] = args[k]; return rpc('kids_yon_' + fn, a); },
     planKoy: function (t, sinif, gun, konu) { return rpc('kids_plan_koy', { p_token: t, p_sinif: sinif, p_gun: gun, p_konu: konu }); },
     /* 20261112d: paylaşımlı tablette açık kalan çocuk oturumlarını kapatır (yalnız o sınıf) */
     sinifOturumKapat: function (t, sinif) { return rpc('kids_sinif_oturum_kapat', { p_token: t, p_sinif: sinif }); },
@@ -5115,7 +5450,10 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   };
   var SELAMSIZ = { feelings: 1, actions: 1, jobs: 1, numbers: 1, weather: 1, days: 1 };
 
+  /* kreşin kelime setinde (kid 'set-…') her kelime kendi konusunun cümlesiyle konuşur */
+  function asil(kid, r, P) { if (!/^set-/.test(kid || '') || !W.KIDS_VERI) return [kid, P]; var k = W.KIDS_VERI.ogeKonu(r.id); return k ? [k, W.KIDS_KONU.al(k)] : [kid, P]; }
   function ben(kid, r, P) {
+    var a0 = asil(kid, r, P); kid = a0[0]; P = a0[1];
     var c = P && P.izleCumle ? P.izleCumle(r) : '';
     switch (kid) {
       /* hayvanlar: "Meow" artık öğretmen sesiyle söylenmez; önce çizgi film efekti çalar (kids-ses hayvan), sonra tanıtım */
@@ -5137,6 +5475,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     }
   }
   function replik(kid, r, P) {
+    var a0 = asil(kid, r, P); kid = a0[0]; P = a0[1];
     var b = ben(kid, r, P); if (!b) return null;
     var soru = SORU[kid] || 'Who are you?';
     if (kid === 'weather' && SIFAT.indexOf(' ' + r.en + ' ') >= 0) soru = 'What\'s the weather like?';
@@ -5877,6 +6216,382 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   W.KIDS_PANEL3 = { evcil: evcil, gunum: gunum, uyku: uyku, ac: ac, seritHtml: seritHtml, cumleler: cumleler, RUTIN: RUTIN, GECE: GECE, IHTIYAC: IHTIYAC, TUR: TUR, evcilOku: evcilOku, enDusuk: enDusuk, SAATTE: SAATTE };
 })(window);
 
+/* ---- kids-kres.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · kreşin kendi haftası (kids/assets/kids-kres.js), 14.11.2026
+   Her kreşin kendine özgü etkinlikleri var ("Pazartesi bahçe günü", 23 Nisan…).
+   Öğretmen yine içerik YAZMAZ, ödev vermez; hazır olandan seçer:
+   - Etkinlik takvimi: haftalık kreş etkinlikleri (bahçe, meyve, spor…) ve belirli
+     gün ve haftalar (Hayvanları Koruma Günü, 23 Nisan…). Her etkinliğin önerilen
+     konusu var. Haftalık şablon her hafta tekrar eder; tek bir gün için ayrıca
+     seçim yapılırsa o gün şablonun yerine geçer (sunucuda kids_gun_bilgi ile aynı).
+   - Kreşin kelime seti: 510 hazır kelimeden 3-20 kelimelik set ("Sonbahar projemiz").
+     O gün sete ayrılırsa çocuk seti ayrı bir ada gibi oynar (İzle, Dokun, Balon,
+     Hafıza, Park, Söyle). Her kelime kendi konusunun çizimi ve cümleleriyle gelir.
+   - Bugün ne öğrendik kartı: günün kelimeleri, evde sorulacak iki soru; çocuk adı
+     ve sonucu YOK. Yazdırılır ya da WhatsApp'ta paylaşılır.
+   Gerçek okul: kids-bulut.js (kids_gun_koy, kids_hafta_koy, kids_set_kaydet).
+   Örnek okul: bu tarayıcıda (localStorage 'kids.kres.<kod>').
+   W.KIDS_KRES. Önek kr-.
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, C = W.KIDS_CIZ, V = W.KIDS_VERI, K = W.KIDS_KONU, SES = W.KIDS_SES;
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var GUN = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
+  var AY = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+
+  /* ---------------------------- etkinlik kataloğu ---------------------------- */
+  var HAFTALIK = [
+    ['Bahçe günü', 'seasons'], ['Meyve günü', 'fruits'], ['Oyuncak günü', 'toys'], ['Spor günü', 'actions'], ['Kitap günü', 'school'],
+    ['Müzik ve dans', 'actions'], ['Mutfak etkinliği', 'food'], ['Doğa yürüyüşü', 'animals'], ['Renk günü', 'colours'], ['Sanat etkinliği', 'shapes'],
+    ['Deney günü', 'weather'], ['Drama günü', 'feelings'], ['Aile katılım günü', 'family'], ['Trafik eğitimi', 'transport'], ['Sağlık ve temizlik', 'body'],
+    ['Su oyunları', 'sea'], ['Meslekler günü', 'jobs'], ['Kostüm günü', 'clothes'], ['Sayı oyunları', 'numbers'], ['Evcil hayvanlar', 'animals']
+  ].map(function (x) { return { ad: x[0], konu: x[1] }; });
+  /* Belirli gün ve haftalar (okul öncesi). Tarih önerilir; öğretmen başka güne de koyabilir.
+     g: ayın günü · h: [kaçıncı, haftanın günü 0=Pazar, 1=Pazartesi] · son: ayın son Pazartesisi */
+  var OZEL = [
+    { ad: 'Hayvanları Koruma Günü', ay: 10, g: 4, konu: 'animals' },
+    { ad: 'Cumhuriyet Bayramı', ay: 10, g: 29, konu: 'colours' },
+    { ad: 'Dünya Çocuk Hakları Günü', ay: 11, g: 20, konu: 'family' },
+    { ad: 'Ağız ve Diş Sağlığı Haftası', ay: 11, g: 21, konu: 'body' },
+    { ad: 'Öğretmenler Günü', ay: 11, g: 24, konu: 'school' },
+    { ad: 'Dünya Engelliler Günü', ay: 12, g: 3, konu: 'feelings' },
+    { ad: 'Yerli Malları Haftası', ay: 12, g: 12, konu: 'fruits' },
+    { ad: 'Yeni yıl', ay: 12, g: 31, konu: 'seasons' },
+    { ad: 'Enerji Tasarrufu Haftası', ay: 1, h: [2, 1], konu: 'home' },
+    { ad: 'Orman Haftası', ay: 3, g: 21, konu: 'seasons' },
+    { ad: 'Dünya Su Günü', ay: 3, g: 22, konu: 'weather' },
+    { ad: 'Kütüphaneler Haftası', ay: 3, son: 1, konu: 'school' },
+    { ad: 'Dünya Sağlık Günü', ay: 4, g: 7, konu: 'body' },
+    { ad: '23 Nisan Çocuk Bayramı', ay: 4, g: 23, konu: 'toys' },
+    { ad: 'Trafik ve İlk Yardım Haftası', ay: 5, h: [1, 1], konu: 'transport' },
+    { ad: 'Anneler Günü', ay: 5, h: [2, 0], konu: 'family' },
+    { ad: '19 Mayıs Gençlik ve Spor Bayramı', ay: 5, g: 19, konu: 'actions' },
+    { ad: 'Dünya Çevre Günü', ay: 6, g: 5, konu: 'seasons' },
+    { ad: 'Babalar Günü', ay: 6, h: [3, 0], konu: 'family' }
+  ];
+  function ozelTarih(o, yil) {
+    if (o.g) return new Date(yil, o.ay - 1, o.g);
+    if (o.son) { var d = new Date(yil, o.ay, 0); while (d.getDay() !== o.son) d.setDate(d.getDate() - 1); return d; }
+    var x = new Date(yil, o.ay - 1, 1), n = 0; while (true) { if (x.getDay() === o.h[1] && ++n === o.h[0]) return x; x.setDate(x.getDate() + 1); }
+  }
+  /* hafta sonuna denk gelen gün kreşte bir önceki Cuma kutlanır */
+  function isGunu(d) { var x = new Date(d); while (x.getDay() === 0 || x.getDay() === 6) x.setDate(x.getDate() - 1); return x; }
+  /* bugünden sonraki gün sayısı içinde yaklaşan özel günler */
+  function yaklasan(bugun, gun) {
+    bugun = bugun || new Date(); var b0 = new Date(bugun.getFullYear(), bugun.getMonth(), bugun.getDate()), son = new Date(b0.getTime() + (gun || 60) * 864e5), r = [];
+    [b0.getFullYear(), b0.getFullYear() + 1].forEach(function (y) { OZEL.forEach(function (o) { var t = ozelTarih(o, y), k = isGunu(t); if (k >= b0 && k <= son) r.push({ o: o, tarih: t, gun: k }); }); });
+    return r.sort(function (a, b) { return a.gun - b.gun; });
+  }
+
+  /* ---------------------------- veri: sunucu ya da bu tarayıcı ---------------------------- */
+  function yerelAl(kod) { var s = V.al('kres.' + kod, null) || {}; s.setler = s.setler || []; s.gunler = s.gunler || {}; s.hafta = s.hafta || {}; return s; }
+  function yerelKoy(kod, s) { V.koy('kres.' + kod, s); }
+  function setBul(setler, id) { for (var i = 0; i < (setler || []).length; i++) if (setler[i].id === id) return setler[i]; return null; }
+  function haftaGunu(d) { return (d.getDay() + 6) % 7 + 1; }   /* 1 Pazartesi … 7 Pazar */
+  function bos() { return { konu: '', set: null, etkinlik: '', kaynak: null }; }
+  /* günün geçerli bilgisi: açık plan > haftalık şablon. o = {bulut, setler, kod} */
+  function gunBilgi(sinif, d, o) {
+    d = d || new Date(); var g = V.gunAnahtar(d), hg = haftaGunu(d), setler = o.setler || [];
+    var cevir = function (x, kaynak) { return { konu: x.konu || '', set: x.set ? (typeof x.set === 'object' ? x.set : setBul(setler, x.set)) : null, etkinlik: x.etkinlik || '', kaynak: kaynak }; };
+    if (o.bulut) {
+      if (sinif.gunler && sinif.gunler[g]) return cevir(sinif.gunler[g], 'plan');
+      if (sinif.plan && g in sinif.plan) return { konu: sinif.plan[g], set: null, etkinlik: '', kaynak: 'plan' };
+      if (hg <= 5 && sinif.hafta && sinif.hafta[hg]) return cevir(sinif.hafta[hg], 'hafta');
+      return bos();
+    }
+    var s = yerelAl(o.kod || V.OKUL.kod), ek = (s.gunler[sinif.id] || {})[g];
+    if (ek || (V.planVar && V.planVar(sinif.id, d))) return cevir({ konu: V.gunKonu(sinif.id, d), set: ek && ek.set, etkinlik: ek && ek.etkinlik }, 'plan');
+    var h = hg <= 5 && (s.hafta[sinif.id] || {})[hg];
+    if (h) return cevir(h, 'hafta');
+    return { konu: V.gunKonu(sinif.id, d), set: null, etkinlik: '', kaynak: null };
+  }
+
+  /* ---------------------------- çocuk: kelime seti adası ---------------------------- */
+  function setKimlik(set) { return 'set-' + String(set.id).replace(/[^0-9a-z]/gi, '').slice(0, 10).toLowerCase(); }
+  function setKaydet(set) {
+    var kid = setKimlik(set), liste = [], kon = {};
+    (set.kelimeler || []).forEach(function (id) { var x = V.ogeBul(id), k = V.ogeKonu(id); if (x && k && K.al(k)) { liste.push(x); kon[x.id] = k; } });
+    if (liste.length < 3) return null;
+    var P0 = function (x) { return K.al(kon[x.id]); };
+    var p = {
+      id: kid, liste: liste, kaynak: kon, sinifSeti: true,
+      ogeler: function () { return liste.slice(0, 20); },
+      gorsel: function (x) { return P0(x).gorsel(x); },
+      izleGiris: 'Let\'s learn our class words!',
+      izleCumle: function (x) { return P0(x).izleCumle(x); },
+      dokunYon: 'Kelimelere dokun ve dinle.',
+      balon: {
+        soz: function (x) { return P0(x).balon.soz(x); }, html: function (x) { return P0(x).balon.html(x); }, ciz: function (x) { return P0(x).balon.ciz(x); },
+        yanlis: function (y, x) { var b = P0(x).balon; return b.yanlis ? b.yanlis(y, x) : [y.en + '.', b.soz(x)]; }
+      },
+      hafiza: { soz: 'Find the pairs!', a: function (x) { return P0(x).hafiza.a(x); }, b: function (x, bant) { return P0(x).hafiza.b(x, bant); } },
+      oyun3: null, cikartma: [], sarki: null, ev: [], etkinlik: [], karisik: false,
+      bitis: 'Great job! Our class words, done!'
+    };
+    K.gecici(kid, p);
+    V.geciciKonu({ id: kid, en: 'Our class words', tr: set.ad, renk: '#C9B8FF', simge: 'book', acik: true, sinifSeti: true });
+    return kid;
+  }
+
+  /* çocuk haritasındaki bant: bugünün etkinliği ve (varsa) sınıfın kelime seti */
+  function cocukBant(S) {
+    var b = S.okul && S.okul.bulut ? { etkinlik: S.etkinlik || '', set: S.set || null } : gunBilgi(S.sinif, new Date(), { bulut: false, setler: yerelAl(V.OKUL.kod).setler });
+    if (!b.etkinlik && !b.set) return '';
+    var kid = b.set ? setKaydet(b.set) : null;
+    return '<section class="kr-cocuk">' + (b.etkinlik ? '<p class="kr-etkinlik">' + C.simge('yildiz') + '<span><small>Bugün okulda</small><b>' + esc(b.etkinlik) + '</b></span></p>' : '') +
+      (kid ? '<button type="button" class="kr-set-b" data-setoyna="' + kid + '"><span class="kr-set-r">' + K.al(kid).liste.slice(0, 3).map(function (x) { return '<i>' + K.al(kid).gorsel(x) + '</i>'; }).join('') + '</span>' +
+        '<span><small>Sınıfımızın kelimeleri</small><b>' + esc(b.set.ad) + '</b><em>' + K.al(kid).liste.length + ' kelime</em></span>' + C.simge('oynat') + '</button>' : '') + '</section>';
+  }
+
+  /* ---------------------------- öğretmen: kreş günü bölümü ---------------------------- */
+  function kaynakO(ctx) { return { bulut: ctx.bulut, setler: ctx.setler(), kod: ctx.okul.kod }; }
+  function konuAd(id) { var k = id && V.konuBul(id); return k ? k.en : ''; }
+  function ozetHtml(b) {
+    var p = [];
+    if (b.etkinlik) p.push('<span class="kr-cip kr-cip-e">' + esc(b.etkinlik) + '</span>');
+    if (b.konu) p.push('<span class="kr-cip" style="--r:' + V.konuBul(b.konu).renk + '">' + esc(konuAd(b.konu)) + '</span>');
+    if (b.set) p.push('<span class="kr-cip kr-cip-s">' + C.simge('book') + esc(b.set.ad) + '</span>');
+    return p.length ? p.join('') : '<span class="kr-bos">Seçim yok</span>';
+  }
+  function bolum(ctx) {
+    var bugun = new Date(), b = gunBilgi(ctx.sinif, bugun, kaynakO(ctx)), yak = yaklasan(bugun, 21).slice(0, 3);
+    return '<section class="kr-bolum" aria-labelledby="kr-b"><div class="kr-bolum-bas"><div><h2 id="kr-b">Kreşimizin günü</h2><p class="kt-alt">Kreşinizin kendi etkinlikleri ve kelime setleri. Çocuk o gün haritasında bunları görür.</p></div></div>' +
+      '<div class="kr-izgara"><div class="kr-kutu kr-bugun"><small>Bugün' + (b.kaynak === 'hafta' ? ' · haftalık şablondan' : '') + '</small><div class="kr-ozet">' + ozetHtml(b) + '</div>' +
+      '<div class="kr-dugmeler"><button type="button" class="kl-dugme kl-dugme-k" data-kr="bugun">Bugünü düzenle</button><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kr="kart">' + C.simge('veli') + ' Bugün ne öğrendik?</button></div></div>' +
+      '<div class="kr-kutu"><small>Haftalık etkinlikler</small><ol class="kr-hafta-mini">' + GUN.map(function (g, i) { var h = (ctx.bulut ? (ctx.sinif.hafta || {})[i + 1] : (yerelAl(ctx.okul.kod).hafta[ctx.sinif.id] || {})[i + 1]); return '<li><b>' + g.slice(0, 3) + '</b><span>' + (h && (h.etkinlik || konuAd(h.konu)) ? esc(h.etkinlik || konuAd(h.konu)) : '—') + '</span></li>'; }).join('') + '</ol>' +
+      '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kr="hafta">Haftayı düzenle</button></div>' +
+      '<div class="kr-kutu"><small>Kelime setlerimiz</small><p class="kr-set-say"><b>' + ctx.setler().length + '</b> set' + (ctx.setler().length ? ': ' + ctx.setler().slice(0, 3).map(function (s) { return esc(s.ad); }).join(', ') + (ctx.setler().length > 3 ? '…' : '') : '') + '</p>' +
+      '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kr="setler">Setleri yönet</button></div>' +
+      '<div class="kr-kutu"><small>Yaklaşan belirli günler</small>' + (yak.length ? '<ul class="kr-yak">' + yak.map(function (y) { return '<li><b>' + y.tarih.getDate() + ' ' + AY[y.tarih.getMonth()] + '</b><span>' + esc(y.o.ad) + '</span></li>'; }).join('') + '</ul>' : '<p class="kr-bos">Önümüzdeki üç haftada yok.</p>') +
+      '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kr="ozel">Takvime ekle</button></div></div></section>';
+  }
+  function bagla(ctx) {
+    var k = ctx.kok;
+    k.querySelectorAll('[data-kr]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var n = b.getAttribute('data-kr'), bugun = new Date();
+        if (n === 'bugun') gunDuzenle(ctx, { baslik: 'Bugün · ' + tarihYaz(bugun), deger: gunBilgi(ctx.sinif, bugun, kaynakO(ctx)), kaydet: function (v) { return gunKoy(ctx, V.gunAnahtar(bugun), v, 'Bugün kaydedildi. Çocuklar haritada görecek.'); } });
+        else if (n === 'hafta') haftaPanel(ctx);
+        else if (n === 'setler') setPanel(ctx);
+        else if (n === 'ozel') ozelPanel(ctx);
+        else if (n === 'kart') gunKarti(ctx, bugun);
+      });
+    });
+  }
+  function tarihYaz(d) { return d.getDate() + ' ' + AY[d.getMonth()] + ' ' + ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'][d.getDay()]; }
+
+  /* sunucu ya da yerel kayıt; sonra panel yeniden çizilir */
+  function hataGoster(ctx, er) { if (er && (er.tur === 'oturum' || er.tur === 'lisans')) return ctx.cikis(er); W.alert('Kaydedilemedi: ' + (er && er.message || er)); }
+  function gunKoy(ctx, gun, v, mesaj) {
+    if (ctx.bulut) return W.KIDS_BULUT.gunKoy(ctx.token, ctx.sinif.id, gun, v.konu || '', v.set ? v.set.id || v.set : null, v.etkinlik || '').then(function () { ctx.yenile(mesaj); }, function (er) { hataGoster(ctx, er); throw er; });
+    var s = yerelAl(ctx.okul.kod); s.gunler[ctx.sinif.id] = s.gunler[ctx.sinif.id] || {};
+    if (!v.konu && !v.set && !v.etkinlik) delete s.gunler[ctx.sinif.id][gun]; else s.gunler[ctx.sinif.id][gun] = { set: v.set ? v.set.id || v.set : null, etkinlik: v.etkinlik || '' };
+    yerelKoy(ctx.okul.kod, s); V.planKoy(ctx.sinif.id, gun, v.konu || ''); ctx.yenile(mesaj); return Promise.resolve();
+  }
+  function haftaKoy(ctx, n, v, mesaj) {
+    if (ctx.bulut) return W.KIDS_BULUT.haftaKoy(ctx.token, ctx.sinif.id, n, v.konu || '', v.set ? v.set.id || v.set : null, v.etkinlik || '').then(function () { ctx.yenile(mesaj); }, function (er) { hataGoster(ctx, er); throw er; });
+    var s = yerelAl(ctx.okul.kod); s.hafta[ctx.sinif.id] = s.hafta[ctx.sinif.id] || {};
+    if (!v.konu && !v.set && !v.etkinlik) delete s.hafta[ctx.sinif.id][n]; else s.hafta[ctx.sinif.id][n] = { konu: v.konu || '', set: v.set ? v.set.id || v.set : null, etkinlik: v.etkinlik || '' };
+    yerelKoy(ctx.okul.kod, s); ctx.yenile(mesaj); return Promise.resolve();
+  }
+  /* yalnız konuyu değiştirir; o günün etkinliği ve seti korunur (öğretmen panelindeki eski konu düğmeleri) */
+  function konuKoy(ctx, gun, konu, mesaj) {
+    var d = new Date(gun + 'T12:00:00'), b = gunBilgi(ctx.sinif, d, kaynakO(ctx));
+    return gunKoy(ctx, gun, { konu: konu, set: b.set, etkinlik: b.etkinlik }, mesaj);
+  }
+  function setKaydetSunucu(ctx, set) {
+    if (ctx.bulut) return W.KIDS_BULUT.setKaydet(ctx.token, set.id || null, set.ad, set.kelimeler);
+    var s = yerelAl(ctx.okul.kod), ad = set.ad.trim();
+    if (s.setler.some(function (x) { return x.ad === ad && x.id !== set.id; })) return Promise.reject(new Error('Bu adla bir set zaten var.'));
+    if (set.id) s.setler = s.setler.map(function (x) { return x.id === set.id ? { id: x.id, ad: ad, kelimeler: set.kelimeler } : x; });
+    else s.setler.push({ id: 'y' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad: ad, kelimeler: set.kelimeler });
+    yerelKoy(ctx.okul.kod, s); return Promise.resolve();
+  }
+  function setSilSunucu(ctx, id) {
+    if (ctx.bulut) return W.KIDS_BULUT.setSil(ctx.token, id);
+    var s = yerelAl(ctx.okul.kod); s.setler = s.setler.filter(function (x) { return x.id !== id; });
+    Object.keys(s.gunler).forEach(function (si) { Object.keys(s.gunler[si]).forEach(function (g) { if (s.gunler[si][g].set === id) s.gunler[si][g].set = null; }); });
+    Object.keys(s.hafta).forEach(function (si) { Object.keys(s.hafta[si]).forEach(function (g) { if (s.hafta[si][g].set === id) s.hafta[si][g].set = null; }); });
+    yerelKoy(ctx.okul.kod, s); return Promise.resolve();
+  }
+
+  /* ---------------------------- pencere ---------------------------- */
+  function katman(ctx, html, cls) {
+    var el = D.createElement('div'); el.className = 'kr-katman ' + (cls || ''); el.innerHTML = '<div class="kr-pen" role="dialog" aria-modal="true">' + html + '</div>';
+    var once = D.activeElement; D.body.appendChild(el); D.body.classList.add('kr-acik');
+    function kapat() { el.remove(); D.body.classList.remove('kr-acik'); D.removeEventListener('keydown', tus); try { once && once.focus(); } catch (e) { } }
+    function tus(e) { if (e.key === 'Escape') kapat(); }
+    D.addEventListener('keydown', tus);
+    el.addEventListener('click', function (e) { if (e.target === el || e.target.closest('[data-krkapat]')) kapat(); });
+    var f = el.querySelector('[data-odak]') || el.querySelector('button, input, select'); if (f) try { f.focus({ preventScroll: true }); } catch (e) { }
+    return { el: el, kapat: kapat };
+  }
+  function penBas(baslik, alt) { return '<header class="kr-pen-bas"><div><h2>' + baslik + '</h2>' + (alt ? '<p>' + alt + '</p>' : '') + '</div><button type="button" class="kr-kapat" data-krkapat aria-label="Kapat">×</button></header>'; }
+
+  /* bir gün (ya da haftanın bir günü) için: etkinlik + konu + set */
+  function gunDuzenle(ctx, o) {
+    var v = { konu: o.deger.konu || '', set: o.deger.set || null, etkinlik: o.deger.etkinlik || '' }, setler = ctx.setler();
+    var p = katman(ctx, penBas(esc(o.baslik), 'Bir etkinlik seçin; önerilen konu kendiliğinden gelir, isterseniz değiştirin.') +
+      '<div class="kr-govde"><h3>Etkinlik</h3><div class="kr-etk" data-etk>' + HAFTALIK.map(function (h) { return '<button type="button" data-e="' + esc(h.ad) + '" data-k="' + h.konu + '" aria-pressed="' + (v.etkinlik === h.ad) + '">' + esc(h.ad) + '</button>'; }).join('') +
+      '</div><label class="kr-kendi">Ya da kendi etkinliğiniz<input data-ekendi maxlength="40" placeholder="Örn. Sonbahar şenliği" value="' + esc(HAFTALIK.some(function (h) { return h.ad === v.etkinlik; }) ? '' : v.etkinlik) + '"></label>' +
+      '<h3>Konu</h3><select data-konu><option value="">Konu yok</option>' + V.KONU.filter(function (k) { return k.acik; }).map(function (k) { return '<option value="' + k.id + '"' + (k.id === v.konu ? ' selected' : '') + '>' + esc(k.en + ' · ' + k.tr) + '</option>'; }).join('') + '</select>' +
+      '<h3>Kelime seti <small>(isteğe bağlı)</small></h3>' + (setler.length ? '<select data-set><option value="">Set yok</option>' + setler.map(function (s) { return '<option value="' + esc(s.id) + '"' + (v.set && (v.set.id || v.set) === s.id ? ' selected' : '') + '>' + esc(s.ad) + ' (' + s.kelimeler.length + ' kelime)</option>'; }).join('') + '</select>' : '<p class="kr-bos">Henüz set yok. “Setleri yönet”ten oluşturabilirsiniz.</p>') +
+      '</div><footer class="kr-pen-alt"><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-temizle>Temizle</button><button type="button" class="kl-dugme kl-dugme-k" data-kaydet data-odak>Kaydet</button></footer>', 'kr-gunp');
+    var el = p.el, kendi = el.querySelector('[data-ekendi]'), ks = el.querySelector('[data-konu]'), ss = el.querySelector('[data-set]');
+    el.querySelectorAll('[data-e]').forEach(function (b) { b.addEventListener('click', function () { var sec = b.getAttribute('aria-pressed') !== 'true'; el.querySelectorAll('[data-e]').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', String(sec)); if (sec) { kendi.value = ''; if (!ks.dataset.elle) ks.value = b.getAttribute('data-k'); } }); });   /* öğretmen bu pencerede konuyu kendisi seçmediyse önerilen konu gelir */
+    kendi.addEventListener('input', function () { if (kendi.value.trim()) el.querySelectorAll('[data-e]').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); }); });
+    ks.addEventListener('change', function () { ks.dataset.elle = '1'; });
+    function topla() { var e = el.querySelector('[data-e][aria-pressed="true"]'); return { etkinlik: kendi.value.trim() || (e ? e.getAttribute('data-e') : ''), konu: ks.value, set: ss && ss.value ? setBul(setler, ss.value) : null }; }
+    function gonder(val, b) { b.disabled = true; o.kaydet(val).then(function () { p.kapat(); }, function () { b.disabled = false; }); }
+    el.querySelector('[data-kaydet]').addEventListener('click', function () { gonder(topla(), this); });
+    el.querySelector('[data-temizle]').addEventListener('click', function () { gonder({ konu: '', set: null, etkinlik: '' }, this); });
+    return p;
+  }
+
+  function haftaPanel(ctx) {
+    var hafta = ctx.bulut ? (ctx.sinif.hafta || {}) : (yerelAl(ctx.okul.kod).hafta[ctx.sinif.id] || {}), setler = ctx.setler();
+    var p = katman(ctx, penBas('Haftalık etkinlikler · ' + esc(ctx.sinif.ad), 'Her hafta tekrar eder. Tek bir güne ayrıca seçim yaparsanız o gün şablonun yerine geçer.') +
+      '<div class="kr-govde"><ol class="kr-hafta">' + GUN.map(function (g, i) {
+        var h = hafta[i + 1] || {}, b = { konu: h.konu, etkinlik: h.etkinlik, set: h.set ? setBul(setler, h.set) || null : null };
+        return '<li><b>' + g + '</b><div class="kr-ozet">' + ozetHtml(b) + '</div><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-hg="' + (i + 1) + '">Düzenle</button></li>';
+      }).join('') + '</ol></div>', 'kr-haftap');
+    p.el.querySelectorAll('[data-hg]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var n = +b.getAttribute('data-hg'), h = hafta[n] || {};
+        p.kapat();
+        gunDuzenle(ctx, { baslik: 'Her ' + GUN[n - 1], deger: { konu: h.konu, etkinlik: h.etkinlik, set: h.set ? setBul(setler, h.set) : null }, kaydet: function (v) { return haftaKoy(ctx, n, v, 'Haftalık etkinlik kaydedildi: her ' + GUN[n - 1] + '.'); } });
+      });
+    });
+  }
+
+  function ozelPanel(ctx) {
+    var l = yaklasan(new Date(), 58);
+    var p = katman(ctx, penBas('Belirli gün ve haftalar', 'Önümüzdeki iki ay. Hafta sonuna denk gelen gün bir önceki Cuma\'ya konur. Tarihler önerilir; isterseniz başka güne de koyabilirsiniz.') +
+      '<div class="kr-govde">' + (l.length ? '<ul class="kr-ozel">' + l.map(function (y, i) {
+        var k = V.konuBul(y.o.konu), b = gunBilgi(ctx.sinif, y.gun, kaynakO(ctx)), var_ = b.etkinlik === y.o.ad;
+        return '<li style="--r:' + k.renk + '"><span class="kr-ozel-t"><b>' + y.tarih.getDate() + '</b>' + AY[y.tarih.getMonth()].slice(0, 3) + '</span><div><b>' + esc(y.o.ad) + '</b><small>' + esc(k.en + ' · ' + k.tr) + (y.gun.getTime() !== y.tarih.getTime() ? ' · ' + tarihYaz(y.gun) + ' kutlanır' : '') + '</small></div>' +
+          (var_ ? '<span class="kr-eklendi">' + C.simge('tik') + ' Takvimde</span>' : '<button type="button" class="kl-dugme kl-dugme-k" data-oz="' + i + '">Ekle</button>') + '</li>';
+      }).join('') + '</ul>' : '<p class="kr-bos">Önümüzdeki iki ayda listede belirli gün yok.</p>') + '</div>', 'kr-ozelp');
+    p.el.querySelectorAll('[data-oz]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var y = l[+b.getAttribute('data-oz')], eski = gunBilgi(ctx.sinif, y.gun, kaynakO(ctx)); b.disabled = true;
+        gunKoy(ctx, V.gunAnahtar(y.gun), { konu: y.o.konu, set: eski.set, etkinlik: y.o.ad }, y.o.ad + ' takvime eklendi (' + tarihYaz(y.gun) + ').').then(function () { p.kapat(); }, function () { b.disabled = false; });
+      });
+    });
+  }
+
+  /* kelime setleri: liste + yeni/düzenle (konu sekmeleri, resimli kelime ızgarası, arama) */
+  function setPanel(ctx) {
+    var setler = ctx.setler();
+    var p = katman(ctx, penBas('Kelime setlerimiz', 'Kreşinizin projelerine göre 3-20 kelimelik setler. Bir güne ya da haftalık etkinliğe set ekleyince çocuk o seti ayrı bir ada gibi oynar.') +
+      '<div class="kr-govde">' + (setler.length ? '<ul class="kr-setler">' + setler.map(function (s) {
+        var l = s.kelimeler.map(V.ogeBul).filter(Boolean);
+        return '<li><div class="kr-set-r">' + l.slice(0, 4).map(function (x) { var k = V.ogeKonu(x.id); return '<i>' + K.al(k).gorsel(x) + '</i>'; }).join('') + '</div><div><b>' + esc(s.ad) + '</b><small>' + l.map(function (x) { return x.en; }).slice(0, 8).join(', ') + (l.length > 8 ? '…' : '') + '</small></div>' +
+          '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-sd="' + esc(s.id) + '">Düzenle</button><button type="button" class="kr-sil" data-ss="' + esc(s.id) + '" aria-label="' + esc(s.ad) + ' setini sil">Sil</button></li>';
+      }).join('') + '</ul>' : '<p class="kr-bos">Henüz set yok.</p>') + '</div><footer class="kr-pen-alt"><button type="button" class="kl-dugme kl-dugme-k" data-yeni data-odak>+ Yeni set</button></footer>', 'kr-setp');
+    p.el.querySelector('[data-yeni]').addEventListener('click', function () { p.kapat(); setDuzenle(ctx, null); });
+    p.el.querySelectorAll('[data-sd]').forEach(function (b) { b.addEventListener('click', function () { p.kapat(); setDuzenle(ctx, setBul(setler, b.getAttribute('data-sd'))); }); });
+    p.el.querySelectorAll('[data-ss]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var s = setBul(setler, b.getAttribute('data-ss')); if (!W.confirm('“' + s.ad + '” seti silinsin mi? Bu setin seçildiği günlerde set kalkar.')) return;
+        setSilSunucu(ctx, s.id).then(function () { p.kapat(); ctx.yenile('“' + s.ad + '” seti silindi.'); }, function (er) { hataGoster(ctx, er); });
+      });
+    });
+  }
+  function setDuzenle(ctx, set) {
+    var sec = set ? set.kelimeler.slice() : [], acik = V.KONU.filter(function (k) { return k.acik; }), sekme = acik[0].id, ara = '';
+    var p = katman(ctx, penBas(set ? 'Seti düzenle' : 'Yeni kelime seti', 'Kelimelere dokunarak seçin (en az 3, en çok 20).') +
+      '<div class="kr-govde"><label class="kr-kendi">Set adı<input data-ad maxlength="40" placeholder="Örn. Sonbahar projemiz" value="' + esc(set ? set.ad : '') + '" data-odak></label>' +
+      '<div class="kr-secili" data-secili aria-live="polite"></div>' +
+      '<div class="kr-ara"><input data-ara type="search" placeholder="Kelime ara (İngilizce ya da Türkçe)" aria-label="Kelime ara"></div>' +
+      '<div class="kr-sekmeler" role="tablist">' + acik.map(function (k) { return '<button type="button" role="tab" data-sk="' + k.id + '" style="--r:' + k.renk + '">' + C.simge(k.simge) + '<span>' + esc(k.tr) + '</span></button>'; }).join('') + '</div>' +
+      '<ul class="kr-kelimeler" data-kel></ul><p class="kt-uyari" data-uyari role="alert"></p></div>' +
+      '<footer class="kr-pen-alt"><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-krkapat>Vazgeç</button><button type="button" class="kl-dugme kl-dugme-k" data-kaydet>Kaydet</button></footer>', 'kr-setd');
+    var el = p.el, kel = el.querySelector('[data-kel]'), secili = el.querySelector('[data-secili]');
+    function resim(id) { var x = V.ogeBul(id), k = V.ogeKonu(id); return x && k ? K.al(k).gorsel(x) : ''; }
+    function ciz() {
+      secili.innerHTML = '<b>' + sec.length + ' / 20</b>' + sec.map(function (id) { var x = V.ogeBul(id); return x ? '<button type="button" data-cik="' + id + '" aria-label="' + esc(x.en) + ' çıkar"><i>' + resim(id) + '</i>' + esc(x.en) + ' ×</button>' : ''; }).join('');
+      var q = ara.trim().toLocaleLowerCase('tr'), l = [];
+      if (q) acik.forEach(function (k) { K.hepsi(k.id).forEach(function (x) { if ((x.en + ' ' + x.tr).toLocaleLowerCase('tr').indexOf(q) >= 0) l.push(x); }); });
+      else l = K.hepsi(sekme);
+      kel.innerHTML = l.slice(0, 80).map(function (x) { var s = sec.indexOf(x.id) >= 0; return '<li><button type="button" data-kx="' + x.id + '" aria-pressed="' + s + '"><i>' + resim(x.id) + '</i><b lang="en">' + esc(x.en) + '</b><small>' + esc(x.tr) + '</small></button></li>'; }).join('') || '<li class="kr-bos">Bulunamadı.</li>';
+      el.querySelectorAll('[data-sk]').forEach(function (b) { b.setAttribute('aria-selected', String(!q && b.getAttribute('data-sk') === sekme)); });
+    }
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-kx], [data-cik], [data-sk]'); if (!b) return;
+      if (b.hasAttribute('data-sk')) { sekme = b.getAttribute('data-sk'); ara = ''; el.querySelector('[data-ara]').value = ''; return ciz(); }
+      var id = b.getAttribute('data-kx') || b.getAttribute('data-cik'), i = sec.indexOf(id);
+      if (i >= 0) sec.splice(i, 1); else if (sec.length < 20) { sec.push(id); var x = V.ogeBul(id); if (x && SES) SES.soyle(x.en, 'en'); } else { el.querySelector('[data-uyari]').textContent = 'Bir sette en çok 20 kelime olur.'; return; }
+      el.querySelector('[data-uyari]').textContent = ''; ciz();
+    });
+    el.querySelector('[data-ara]').addEventListener('input', function () { ara = this.value; ciz(); });
+    el.querySelector('[data-kaydet]').addEventListener('click', function () {
+      var ad = el.querySelector('[data-ad]').value.trim(), u = el.querySelector('[data-uyari]'), b = this;
+      if (!ad) { u.textContent = 'Sete bir ad verin.'; return; }
+      if (sec.length < 3) { u.textContent = 'En az 3 kelime seçin.'; return; }
+      b.disabled = true;
+      setKaydetSunucu(ctx, { id: set && set.id, ad: ad, kelimeler: sec }).then(function () { p.kapat(); ctx.yenile('“' + ad + '” seti kaydedildi.'); }, function (er) { b.disabled = false; if (er && (er.tur === 'oturum' || er.tur === 'lisans')) return ctx.cikis(er); u.textContent = er.message || String(er); });
+    });
+    ciz();
+  }
+
+  /* ---------------------------- bugün ne öğrendik? (veli kartı) ---------------------------- */
+  function gunKelimeleri(sinif, b) {
+    if (b.set) return b.set.kelimeler.map(V.ogeBul).filter(Boolean).slice(0, 10);
+    var P = b.konu && K.al(b.konu); if (!P) return [];
+    var bant = V.BANT[sinif.bant] || V.BANT.kasif; return P.ogeler(bant).slice(0, 10);
+  }
+  function resimOf(x) { var k = V.ogeKonu(x.id); return k ? K.al(k).gorsel(x) : ''; }
+  /* evde sorulacak iki soru: Türkçe sorulur, cevap İngilizce kelime */
+  function sorular(l) {
+    if (!l.length) return [];
+    var a = l[0], b = l[Math.min(l.length - 1, Math.floor(l.length / 2))];
+    var r = ['“' + a.tr + '” İngilizce nasıl söylenir? (' + a.en + ')'];
+    if (b && b !== a) r.push('Evde bir “' + b.tr + '” gösterin; çocuğunuz İngilizcesini söylesin. (' + b.en + ')');
+    else r.push('Bugün hangi kelimeyi en çok sevdin? İngilizce söyler misin?');
+    return r;
+  }
+  function kartVeri(ctx, d) {
+    var b = gunBilgi(ctx.sinif, d, kaynakO(ctx)), l = gunKelimeleri(ctx.sinif, b), k = b.konu && V.konuBul(b.konu);
+    return { okul: ctx.okul.ad, sinif: ctx.sinif.ad, tarih: tarihYaz(d), etkinlik: b.etkinlik, konu: k ? k.en + ' · ' + k.tr : '', set: b.set ? b.set.ad : '', kelimeler: l, sorular: sorular(l) };
+  }
+  function kartMetin(v) {
+    return v.okul + ' · ' + v.sinif + '\n' + v.tarih + '\n\n' + (v.etkinlik ? 'Bugün: ' + v.etkinlik + '\n' : '') + (v.konu ? 'İngilizce konumuz: ' + v.konu + '\n' : '') + (v.set ? 'Kelime setimiz: ' + v.set + '\n' : '') +
+      (v.kelimeler.length ? '\nÖğrendiğimiz kelimeler:\n' + v.kelimeler.map(function (x) { return '• ' + x.en + ' (' + x.tr + ')'; }).join('\n') + '\n' : '') +
+      (v.sorular.length ? '\nEvde sorun:\n' + v.sorular.map(function (s, i) { return (i + 1) + '. ' + s; }).join('\n') + '\n' : '') +
+      '\nAcadex Kids\'te evde de tekrar edebilirsiniz: acadex.com.tr/kids';
+  }
+  function kartHtml(v) {
+    return '<article class="kr-gkart"><header><span class="kr-gkart-acd">' + C.acadia({ mood: 'kutlama' }) + '</span><div><small>' + esc(v.okul) + ' · ' + esc(v.sinif) + '</small><h3>Bugün ne öğrendik?</h3><p>' + esc(v.tarih) + '</p></div></header>' +
+      '<div class="kr-gkart-cip">' + (v.etkinlik ? '<span>' + esc(v.etkinlik) + '</span>' : '') + (v.konu ? '<span>' + esc(v.konu) + '</span>' : '') + (v.set ? '<span>' + esc(v.set) + '</span>' : '') + '</div>' +
+      (v.kelimeler.length ? '<ul class="kr-gkart-k">' + v.kelimeler.map(function (x) { return '<li><i>' + resimOf(x) + '</i><b lang="en">' + esc(x.en) + '</b><small>' + esc(x.tr) + '</small></li>'; }).join('') + '</ul>' : '<p class="kr-bos">Bugün için konu ya da set seçilmemiş.</p>') +
+      (v.sorular.length ? '<div class="kr-gkart-s"><b>Evde sorun</b><ol>' + v.sorular.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol></div>' : '') +
+      '<footer>Acadex Kids · evde de tekrar edin: <b>acadex.com.tr/kids</b></footer></article>';
+  }
+  function gunKarti(ctx, d) {
+    var v = kartVeri(ctx, d), metin = kartMetin(v);
+    var p = katman(ctx, penBas('Bugün ne öğrendik?', 'Velilere gönderin ya da yazdırıp çantaya koyun. Kartta çocuk adı ve sonucu yer almaz.') +
+      '<div class="kr-govde">' + kartHtml(v) + '</div><footer class="kr-pen-alt"><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kopya>Metni kopyala</button><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-yaz>Yazdır</button><button type="button" class="kl-dugme kl-dugme-k" data-paylas data-odak>Paylaş</button></footer>', 'kr-kartp');
+    var el = p.el;
+    el.querySelector('[data-paylas]').addEventListener('click', function () {
+      if (W.navigator.share) { W.navigator.share({ title: 'Bugün ne öğrendik?', text: metin }).catch(function () { }); return; }
+      W.open('https://wa.me/?text=' + encodeURIComponent(metin), '_blank', 'noopener');
+    });
+    el.querySelector('[data-kopya]').addEventListener('click', function () { var b = this; (W.navigator.clipboard ? W.navigator.clipboard.writeText(metin) : Promise.reject()).then(function () { b.textContent = 'Kopyalandı ✓'; }, function () { W.prompt('Metni kopyalayın:', metin); }); });
+    el.querySelector('[data-yaz]').addEventListener('click', function () {
+      var w = W.open('', '_blank'); if (!w) return W.alert('Yeni sekme açılamadı; açılır pencere engelini kaldırın.');
+      var css = Array.prototype.map.call(D.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
+      w.document.open(); w.document.write('<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Bugün ne öğrendik?</title><style>' + css + '@page{size:A5;margin:10mm}body{background:#fff}.kr-gkart{box-shadow:none;margin:0 auto}</style></head><body class="kl kt">' + kartHtml(v) + '<script>setTimeout(function(){print()},400)<\/script></body></html>'); w.document.close();
+    });
+    return { veri: v, metin: metin };
+  }
+
+  W.KIDS_KRES = { HAFTALIK: HAFTALIK, OZEL: OZEL, ozelTarih: ozelTarih, isGunu: isGunu, yaklasan: yaklasan, gunBilgi: gunBilgi, setKimlik: setKimlik, setKaydet: setKaydet,
+    cocukBant: cocukBant, bolum: bolum, bagla: bagla, konuKoy: konuKoy, kartVeri: kartVeri, kartMetin: kartMetin, sorular: sorular, gunKelimeleri: gunKelimeleri, yerelAl: yerelAl };
+})(window);
+
 /* ---- kids-yazdir.js ---- */
 /* ==========================================================================
    ACADEX KIDS · yazdırılabilir materyal (kids/assets/kids-yazdir.js), 12.11.2026
@@ -5980,6 +6695,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function bant() { var b = OD.bantSeviye(V.BANT[S.sinif.bant], S.seviye || 1); if (b === V.BANT[S.sinif.bant]) { var x = {}; for (var k in b) x[k] = b[k]; b = x; } b.paket = S.paket || 0; return b; }
   function paketSay(kid) { return K.paketSayisi(kid, V.BANT[S.sinif.bant]); }
   function paket() { return K.al(S.konu) || K.al('colours'); }
+  /* örnek okulda bugünün konusu: açık plan > haftalık şablon (kids-kres.js) */
+  function yerelKonu() { return W.KIDS_KRES ? W.KIDS_KRES.gunBilgi(S.sinif, new Date(), { bulut: false, setler: W.KIDS_KRES.yerelAl(V.OKUL.kod).setler }).konu : V.gunKonu(S.sinif.id); }
   function renkler() { return paket().ogeler(bant()); }
   function ben(il) { return C.avatarGiy(S.ogr[1], (il || ilerleme()).giysi); }
   function dur() { if (aktif && aktif.dur) aktif.dur(); aktif = null; SES.sus(); }
@@ -6065,12 +6782,13 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       '<button type="button" class="ka-cikis" data-veli aria-label="Veli köşesi">' + C.simge('veli') + '<span>Veli</span></button></header>';
   }
   function panel() {
-    var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : V.gunKonu(S.sinif.id)), bugun = bk && bk.acik ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
+    var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : yerelKonu()), bugun = bk && bk.acik && !bk.sinifSeti ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
     il.son = Date.now(); koy(ilAnahtar(), il);   /* öğretmen panelindeki "son giriş" */
     ciz(ustCubuk(il) +
       (bugun ? '<section class="ka-bugun"><div class="ka-bugun-acd">' + acd('kutlama') + '</div><div class="ka-bugun-yazi"><small>Bugünün konusu</small><h1><span lang="en">' + esc(bugun.en) + '</span> <em>' + esc(bugun.tr) + '</em></h1><p>Bugün okulda bunu öğrendin! Hadi oynayarak tekrar edelim.</p></div>' +
         '<button type="button" class="ka-buyuk ka-oyna" data-konu="' + bugun.id + '" data-odak>Oyna ' + C.simge('oynat') + '</button></section>'
         : '<section class="ka-bugun ka-serbest"><div class="ka-bugun-acd">' + acd('mutlu') + '</div><div class="ka-bugun-yazi"><small>Serbest gün</small><h1>İstediğin adaya uç!</h1><p>Bugün için seçilmiş bir konu yok. Açık adalardan birine dokun.</p></div></section>') +
+      (W.KIDS_KRES ? W.KIDS_KRES.cocukBant(S) : '') +
       (W.KIDS_PANEL3 ? W.KIDS_PANEL3.seritHtml(il) : '') +
       '<section class="ka-harita" aria-label="Konular"><div class="ka-bulutlar" aria-hidden="true">' + C.bulut('ka-b1') + C.bulut('ka-b2') + C.bulut('ka-b3') + '</div><ol class="ka-adalar">' +
       V.KONU.map(function (k, i) {
@@ -6082,6 +6800,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
             '<span class="ka-ada-usta" title="Kelime ustalığı: ' + us.ogren + ' / ' + us.liste.length + ' kelime"><i><em style="width:' + (us.max ? Math.round(100 * us.n / us.max) : 0) + '%"></em></i><small>' + us.ogren + '/' + us.liste.length + ' kelime' + (np > 1 ? ' · ' + OD.biteniPaket(il, k.id) + '/' + np + ' paket' : '') + '</small></span>' : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button></li>';
       }).join('') + '</ol></section>', 'harita');
     app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); adaSec(kid); }); });
+    /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
+    app.querySelectorAll('[data-setoyna]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); S.seviye = 1; S.paket = 0; konuAc(b.getAttribute('data-setoyna'), 0); }); });
     /* ada büyüdüyse: bir kez kutla, sonra hatırla */
     if (yukselen.length) { var il2 = ilerleme(); il2.asamaGor = il2.asamaGor || {}; yukselen.forEach(function (id) { il2.asamaGor[id] = OD.asama(il2, id); }); koy(ilAnahtar(), il2); setTimeout(function () { if (app.dataset.gorunum === 'harita') { SES.fx('yildiz'); SES.soyle('Adan büyüdü!', 'tr'); } }, 900); }
     app.querySelectorAll('[data-yakinda]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('yanlis'); b.classList.remove('ko-salla'); void b.offsetWidth; b.classList.add('ko-salla'); SES.soyle('Bu ada yakında açılacak.', 'tr'); }); });
@@ -6185,9 +6905,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   /* ======================= konu: Colours ======================= */
   /* her konu yedi durak: İzle, Şarkı, Dokun, iki ortak oyun, konuya özel üçüncü oyun, Söyle */
   function duraklar(kid) {
-    var o3 = (K.al(kid) || K.al('colours')).oyun3;
-    return [{ id: 'izle', ad: 'İzle', simge: 'oynat' }, { id: 'sarki', ad: 'Şarkı', simge: 'nota' }, { id: 'dokun', ad: 'Dokun', simge: 'ses' }, { id: 'balon', ad: 'Balon', simge: 'top', oyun: 1 },
-      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }, { id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }].concat((K.al(kid) || {}).karisik ? [{ id: 'karisik', ad: 'Karışık', simge: 'gokkusagi', oyun: 1 }] : [])
+    var Pk = K.al(kid) || K.al('colours'), o3 = Pk.oyun3;   /* kreşin kelime setinde şarkı ve konu oyunu yok */
+    return [{ id: 'izle', ad: 'İzle', simge: 'oynat' }].concat(Pk.sarki ? [{ id: 'sarki', ad: 'Şarkı', simge: 'nota' }] : []).concat([{ id: 'dokun', ad: 'Dokun', simge: 'ses' }, { id: 'balon', ad: 'Balon', simge: 'top', oyun: 1 },
+      { id: 'hafiza', ad: 'Hafıza', simge: 'yildiz', oyun: 1 }]).concat(o3 ? [{ id: o3.id, ad: o3.ad, simge: o3.simge, oyun: 1 }] : []).concat((K.al(kid) || {}).karisik ? [{ id: 'karisik', ad: 'Karışık', simge: 'gokkusagi', oyun: 1 }] : [])
       .concat(OYUN.PARK ? [{ id: 'park', ad: OYUN.PARK[S.parkSecim || 'sesavi'][1], simge: OYUN.PARK[S.parkSecim || 'sesavi'][2], oyun: 1 }] : []).concat([{ id: 'soyle', ad: 'Söyle', simge: 'mikrofon' }]);
   }
   var DURAK = duraklar('colours');
@@ -6448,7 +7168,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     for (var g = 6; g >= 0; g--) { var d = new Date(Date.now() - g * 864e5); gunler.push({ a: V.gunAnahtar(d), ad: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'][d.getDay()] }); }
     var gun = Object.keys(il.gunler || {}).filter(function (x) { return x >= gecen; }).length;
     var acik = V.KONU.filter(function (x) { return x.acik; }), zor = Object.keys(il.zor || {}).sort(function (a, b) { return il.zor[b] - il.zor[a]; }).slice(0, 4).map(V.ogeBul).filter(Boolean);
-    var secK = il.sonKonu || (bulutMu() ? S.bugun : V.gunKonu(S.sinif.id)) || 'colours'; if (!K.al(secK)) secK = 'colours';
+    var secK = il.sonKonu || (bulutMu() ? S.bugun : yerelKonu()) || 'colours'; if (!K.al(secK)) secK = 'colours';
     var pwa = W.KIDS_PWA ? W.KIDS_PWA.durum() : 'yok', sekme = 'ozet', dinleS = null;
     var mola = +al('mola', 15) || 15, dinle = function (en) { return '<button type="button" class="ka-dinle-k" data-en="' + esc(en) + '" aria-label="Dinle: ' + esc(en) + '">' + C.simge('ses') + '</button>'; };
     var yildizK = function (x) { return OD.konuYildiz(il, x.id); };
@@ -6509,7 +7229,18 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   }
 
   /* konu bitti: çıkartma */
+  /* kreşin kelime seti bitti: rozet, çıkartma, madalya, paket yok (bunlar konuların); yıldızlar sayılır */
+  function setBitti(kid) {
+    var il = ilerleme(), n = OD.seviyeYildiz(il, kid, 1), ym = K.yildizMax(kid), k = V.konuBul(kid);
+    ciz(dunya(kid) + '<main class="ka-sahne ka-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(24).join('<i></i>') + '</div><div class="ka-ara-acd">' + acd('kutlama') + '</div>' +
+      '<h1>Sınıfımızın kelimeleri tamam!</h1><p class="kr-set-bitti">' + esc(k ? k.tr : '') + '</p><p class="ka-bitis-y">' + C.simge('yildiz') + ' <b>' + n + '</b> / ' + ym + ' yıldız</p>' +
+      '<div class="ka-izle-alt"><button type="button" class="ka-orta" data-yine>Yeniden oyna</button><button type="button" class="ka-buyuk" data-harita data-odak>Haritaya dön ' + C.simge('ev') + '</button></div></main>', 'konu');
+    SES.fx('yildiz'); SES.soyle(paket().bitis, 'en');
+    app.querySelector('[data-yine]').addEventListener('click', function () { SES.fx('dokun'); konuAc(kid, 0); });
+    app.querySelector('[data-harita]').addEventListener('click', function () { SES.fx('dokun'); panel(); });
+  }
   function konuBitti(kid) {
+    if ((V.konuBul(kid) || {}).sinifSeti) return setBitti(kid);
     var L = S.seviye || 1, il = ilerleme(), yeni = (cikartmalar(kid) || []).filter(function (c) { return il.cikartma.indexOf(c) < 0; }), n = OD.seviyeYildiz(il, kid, L);
     var yeniSv = L > OD.seviye(il, kid), md = OD.MADALYA[L - 1]; il.seviye[kid] = Math.max(il.seviye[kid] || 0, L);
     il.paketler = il.paketler || {}; il.paketler[kid] = il.paketler[kid] || {}; var pkI = S.paket || 0, yeniPk = !il.paketler[kid][pkI] && pkI + 1 < paketSay(kid); il.paketler[kid][pkI] = il.paketler[kid][pkI] || Date.now();
@@ -6533,6 +7264,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     app = D.getElementById('kids-app'); if (!app) return;
     basla = Date.now(); molaVerildi = false;
     var o = al('oturum', null);
+    /* evde devam: kartın QR'ı (#ev=KOD~öğrenci) doğrudan o çocuğun resim seçme adımına açar */
+    var ev = W.KIDS_QR && W.KIDS_QR.evCoz(location.hash);
+    if (ev) { try { history.replaceState(null, '', location.pathname + location.search + '#oyna'); } catch (e) { } return evAc(ev, o); }
     if (o && o.token) return bulutAc(o.token);
     if (o && o.kod === V.OKUL.kod) {
       S.okul = V.OKUL; S.sinif = S.okul.siniflar.filter(function (s) { return s.id === o.sinif; })[0];
@@ -6541,13 +7275,24 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     }
     girisKod();
   }
+  function evAc(ev, o) {
+    var sd = al('sonDurum', null);
+    if (o && o.token && sd && sd.token === o.token && sd.d && sd.d.ogr && sd.d.ogr.id === ev.ogr) return bulutAc(o.token);   /* aynı çocuk zaten girmiş */
+    yukleniyor('Okulunu arıyorum…');
+    B.okulBul(ev.kod).then(function (ok) {
+      var bul = null;
+      ok.siniflar.forEach(function (s) { s.ogr.forEach(function (g) { if (g[2] === ev.ogr) bul = [s, g]; }); });
+      if (!bul) return girisKod('Bu kart artık geçerli değil. Okulundan yeni kart isteyebilirsin.');
+      S.okul = ok; S.sinif = bul[0]; S.ogr = bul[1]; koy('sonKod', ok.kod); SES.fx('dogru'); girisSifre();
+    }, function (er) { SES.fx('yanlis'); girisKod(er.tur === 'yok' ? 'Bu kart artık geçerli değil. Okulundan yeni kart isteyebilirsin.' : er.message); });
+  }
   /* sunucudaki oturumla aç: çocuğun bilgisi, günün konusu, kayıtlı ilerleme */
   function bulutAc(token) {
     yukleniyor('Haritanı hazırlıyorum…');
     B.durum(token).then(function (d) {
       if (d.ilerleme !== undefined) { var kd = JSON.parse(JSON.stringify(d)); delete kd.ilerleme; koy('sonDurum', { token: token, d: kd }); }
       S.token = token; S.okul = { kod: d.okul.kod, ad: d.okul.ad, bulut: true };
-      S.sinif = { id: d.sinif.id, ad: d.sinif.ad, bant: d.sinif.bant }; S.ogr = [d.ogr.ad, d.ogr.hayvan, d.ogr.id]; S.bugun = d.bugun;
+      S.sinif = { id: d.sinif.id, ad: d.sinif.ad, bant: d.sinif.bant }; S.ogr = [d.ogr.ad, d.ogr.hayvan, d.ogr.id]; S.bugun = d.bugun; S.etkinlik = d.etkinlik || ''; S.set = d.set || null;
       /* bu tarayıcıdaki kayıtla sunucudakini birleştir: hangisi daha yeniyse */
       var yerel = al(ilAnahtar(), null), uzak = d.ilerleme;
       if (uzak && (!yerel || (uzak.guncel || 0) > (yerel.guncel || 0))) { try { localStorage.setItem('kids.' + ilAnahtar(), JSON.stringify(uzak)); } catch (e) { } }
@@ -6555,7 +7300,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       panel();
     }, function (er) {
       var sd = al('sonDurum', null);
-      if (er.tur === 'ag' && sd && sd.token === token) { var d2 = sd.d; S.token = token; S.okul = { kod: d2.okul.kod, ad: d2.okul.ad, bulut: true }; S.sinif = { id: d2.sinif.id, ad: d2.sinif.ad, bant: d2.sinif.bant }; S.ogr = [d2.ogr.ad, d2.ogr.hayvan, d2.ogr.id]; S.bugun = d2.bugun; return panel(); }   /* internet yok: son bilinen hâlle oyna, ilerleme bağlanınca gider */
+      if (er.tur === 'ag' && sd && sd.token === token) { var d2 = sd.d; S.token = token; S.okul = { kod: d2.okul.kod, ad: d2.okul.ad, bulut: true }; S.sinif = { id: d2.sinif.id, ad: d2.sinif.ad, bant: d2.sinif.bant }; S.ogr = [d2.ogr.ad, d2.ogr.hayvan, d2.ogr.id]; S.bugun = d2.bugun; S.etkinlik = d2.etkinlik || ''; S.set = d2.set || null; return panel(); }   /* internet yok: son bilinen hâlle oyna, ilerleme bağlanınca gider */
       if (er.tur === 'ag') { ciz('<section class="ka-giris"><div class="ka-kart">' + balon(esc(er.message)) + '<button type="button" class="ka-buyuk" data-yine data-odak>Yeniden dene</button></div></section>', 'giris'); app.querySelector('[data-yine]').addEventListener('click', function () { bulutAc(token); }); return; }
       koy('oturum', null); koy('sonDurum', null); S.token = null; girisKod(er.tur === 'lisans' ? er.message : '');
     });
@@ -6746,7 +7491,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
    - Sınıf raporu: konu tamamlama tablosu, kelime ısı haritası (hangi çocuk hangi
      kelimede zorlanıyor) ve yazdırılabilir haftalık veli bülteni (kişisel veri içermez).
    - Akıllı tahta: sınıfta yansıtmak için kartlar, şarkı, Simon says, çocuk seçen çark (kids-tahta.js).
-   Gerçek okul: okul kodu + yönetim panelinin ürettiği şifre (kids-bulut.js → Supabase);
+   Kreşin günü (14.11.2026, kids-kres.js): etkinlik takvimi, kelime setleri, "Bugün ne öğrendik" kartı.
+   Gerçek okul: okul kodu + okul şifresi ya da öğretmenin kişisel PIN'i (kids-bulut.js → Supabase);
    plan ve ilerleme sunucudan gelir. Örnek okul (ORNEK-2026 / 1234) yalnız tanıtım
    içindir ve bu tarayıcıda çalışır. Önek kt-. W.KIDS_OGRETMEN
    ========================================================================== */
@@ -6754,7 +7500,16 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   'use strict';
   var D = W.document, C = W.KIDS_CIZ, V = W.KIDS_VERI, B = W.KIDS_BULUT, kok, sinifI = 0, ornekGoster = true, BU = null, TOK = null, konuSec = null;
   function okul() { return BU || V.OKUL; }
-  function gunKonu(sinif, d) { if (!BU) return V.gunKonu(sinif.id, d); var g = V.gunAnahtar(d); return sinif.plan && g in sinif.plan ? sinif.plan[g] : ''; }
+  function gunKonu(sinif, d) {
+    if (W.KIDS_KRES) return W.KIDS_KRES.gunBilgi(sinif, d, { bulut: !!BU, setler: BU ? BU.setler : [], kod: V.OKUL.kod }).konu;   /* açık plan > haftalık şablon */
+    if (!BU) return V.gunKonu(sinif.id, d); var g = V.gunAnahtar(d); return sinif.plan && g in sinif.plan ? sinif.plan[g] : '';
+  }
+  /* kreşin günü (kids-kres.js): etkinlik takvimi, kelime setleri, veli kartı */
+  function kresCtx(sinif) {
+    return { kok: kok, okul: okul(), sinif: sinif, bulut: !!BU, token: TOK,
+      setler: function () { return BU ? (BU.setler || []) : W.KIDS_KRES.yerelAl(V.OKUL.kod).setler; },
+      yenile: function (m) { if (BU) yukle(TOK, m); else panel(m); }, cikis: function (er) { cikisZorla(er); } };
+  }
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var GUN = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
   function tarihUzun(d) { try { return d.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }); } catch (e) { return V.gunAnahtar(d); } }
@@ -6829,7 +7584,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       '<label>Okul kodu<input name="kod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" value="' + esc(V.al('sonKod', '')) + '"></label>' +
       '<label>Şifre<input name="sifre" type="password" autocomplete="current-password" maxlength="40"></label>' +
       '<p class="kt-uyari" role="alert">' + (hata || '') + '</p><button type="submit" class="kl-dugme">Giriş yap</button>' +
-      '<p class="kt-ornek">Şifrenizi okulunuzun yöneticisi Acadex’ten alır. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · <a href="#oyna">Çocuk girişi</a></p></form></section>';
+      '<p class="kt-ornek">Okul şifresini ya da size özel PIN’inizi kreş yöneticinizden alın. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#giris">← Giriş seçenekleri</a> · <a href="#oyna">Çocuk girişi</a> · <a href="#yonetim">Kreş yönetimi</a></p></form></section>';
     var f = kok.querySelector('[data-f]');
     kok.querySelector('[data-doldur]').addEventListener('click', function () { f.elements.kod.value = V.OKUL.kod; f.elements.sifre.value = V.OKUL.ogretmenSifre; f.querySelector('[type=submit]').focus(); });
     f.addEventListener('submit', function (e) {
@@ -6856,7 +7611,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function panel(bildirim) {
     var okul = okul_(), sinif = okul.siniflar[sinifI], bugun = new Date(), bk = V.konuBul(gunKonu(sinif, bugun)), hafta = V.hafta(), bugunA = V.gunAnahtar(), acikK = V.KONU.filter(function (x) { return x.acik; }),
       kz = konuSec || (bk && bk.acik ? bk.id : 'colours'), kzK = V.konuBul(kz), o = ozet(sinif, kz), zr = o.zor && renkBul(o.zor);
-    var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>Öğretmen paneli</small></span>' +
+    var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(okul.ad) + '</b><small>' + (BU && BU.ogretmen ? esc(BU.ogretmen) + ' · ' : '') + 'Öğretmen paneli</small></span>' +
       '<button type="button" class="kt-tahta-b" data-tahta>' + C.simge('yildiz') + ' Akıllı tahta</button><button type="button" class="kt-tahta-b kt-mat-b" data-materyal>' + C.simge('album') + ' Materyaller</button>' + (BU ? '<button type="button" class="kt-tahta-b" data-otkapat>' + C.simge('kilit') + ' Oturumları kapat</button>' : '') + '<a class="kt-bag" href="#oyna">Çocuk ekranını aç</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
       '<main class="kt-govde"><div class="kt-sekmeler" role="tablist" aria-label="Sınıflar">' + okul.siniflar.map(function (s, i) { return '<button type="button" role="tab" aria-selected="' + (i === sinifI) + '" data-sinif="' + i + '" style="--r:' + s.renk + '"><b>' + esc(s.ad) + '</b><small>' + esc(V.BANT[s.bant].ad + ' · ' + V.BANT[s.bant].yas) + '</small></button>'; }).join('') + '</div>' +
       '<p class="kt-bildirim' + (bildirim ? ' kt-var' : '') + '" role="status" data-bildirim>' + (bildirim ? '✓ ' + esc(bildirim) : '') + '</p>' +
@@ -6868,6 +7623,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       '<div class="kt-bugun-sag"><h3>Konuyu değiştir</h3><div class="kt-konular" data-gun="' + bugunA + '">' + V.KONU.map(function (k) { return konuDugme(k, bk && bk.id === k.id); }).join('') +
       '<button type="button" class="kt-konu kt-serbest' + (bk ? '' : ' kt-secili') + '" data-konu="" aria-pressed="' + !bk + '"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Serbest gün</b><small>Konu yok</small></button></div>' +
       (V.KONU.every(function (x) { return x.acik; }) ? '<p class="kt-not">12 konunun hepsi oynanabilir; her konuda 7 durak ve konuya özel bir oyun var.</p>' : '<p class="kt-not">Şu an oynanabilen konular: ' + V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return x.en; }).join(', ') + '. Diğer konular içerikleri hazır olduğunda açılır.</p>') + '</div></section>' +
+
+      (W.KIDS_KRES ? W.KIDS_KRES.bolum(kresCtx(sinif)) : '') +
 
       /* haftalık plan */
       '<section class="kt-bolum" aria-labelledby="kt-h"><h2 id="kt-h">Haftalık plan</h2><p class="kt-alt">İsterseniz haftayı önceden planlayın; her sabah yeniden seçmeniz gerekmez.</p><div class="kt-hafta">' +
@@ -6894,6 +7651,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
       (BU ? '<p class="kt-not">Kayıtlar çocukların kendi oturumlarından gelir; sayfayı yenileyince güncellenir.</p>' : '<p class="kt-not">Örnek okul: gerçek kayıtlar bu tarayıcıda oynanan oturumlardan gelir; “örnek” etiketli satırlar tasarımı göstermek için üretilmiştir.</p>') + '</section>' +
       rapor(sinif, kz) + '</main>';
     kok.innerHTML = h;
+    if (W.KIDS_KRES) W.KIDS_KRES.bagla(kresCtx(sinif));
     kok.querySelector('[data-tahta]').addEventListener('click', function () { if (W.KIDS_TAHTA) W.KIDS_TAHTA.ac({ sinif: sinif, konu: bk && bk.acik ? bk.id : kz }); });
     kok.querySelector('[data-bulten]').addEventListener('click', function () { bulten(sinif, kz); });
     /* Paylaşımlı tablet: sınıfın açık çocuk oturumlarını kapatır. Veri silinmez,
@@ -6972,6 +7730,8 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     setTimeout(function () { try { W.print(); } catch (e) { } setTimeout(bitir, 1500); }, 60);
   }
   function planKoy(sinif, gun, konu, mesaj) {
+    /* 14.11.2026: konu değişince o günün etkinliği ve kelime seti korunur */
+    if (W.KIDS_KRES) { kok.querySelectorAll('.kt-konular button, [data-plan]').forEach(function (x) { x.disabled = true; }); return W.KIDS_KRES.konuKoy(kresCtx(sinif), gun, konu, mesaj).catch(function () { panel(); }); }
     if (!BU) { V.planKoy(sinif.id, gun, konu); return panel(mesaj); }
     kok.querySelectorAll('.kt-konular button, [data-plan]').forEach(function (x) { x.disabled = true; });
     B.planKoy(TOK, sinif.id, gun, konu).then(function () { sinif.plan[gun] = konu; panel(mesaj); }, function (er) { if (er.tur === 'oturum' || er.tur === 'lisans') return cikisZorla(er); panel(); var bl = kok.querySelector('[data-bildirim]'); bl.textContent = '✗ ' + er.message; bl.classList.add('kt-var', 'kt-hata'); });
@@ -6981,8 +7741,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   function yukle(token, mesaj) {
     TOK = token; kok.innerHTML = '<section class="kt-giris"><div class="kt-kart kt-yukle"><span>' + C.acadia({ mood: 'dusun' }) + '</span><p>Sınıflarınız yükleniyor…</p></div></section>';
     var h = V.hafta();
-    B.ogretmenVeri(token, V.gunAnahtar(h[0]), V.gunAnahtar(h[4])).then(function (o) {
-      if (!o.siniflar.length) { BU = null; kok.innerHTML = '<section class="kt-giris"><div class="kt-kart"><h1>' + esc(o.ad) + '</h1><p>Okulunuzda henüz sınıf tanımlı değil. Sınıflar ve öğrenci kartları Acadex tarafından hazırlanır; lütfen Acadex ile iletişime geçin.</p><button type="button" class="kl-dugme" data-cikis>Çıkış</button></div></section>'; kok.querySelector('[data-cikis]').addEventListener('click', function () { B.cikis(token); V.koy('ogrOturum', null); TOK = null; giris(); }); return; }
+    /* iki ay: belirli günler takvime önceden konabildiği için (kids_ogretmen_veri en çok 62 gün) */
+    B.ogretmenVeri(token, V.gunAnahtar(h[0]), V.gunAnahtar(new Date(h[0].getFullYear(), h[0].getMonth(), h[0].getDate() + 61))).then(function (o) {
+      if (!o.siniflar.length) { BU = null; kok.innerHTML = '<section class="kt-giris"><div class="kt-kart"><h1>' + esc(o.ad) + '</h1><p>Görebileceğiniz bir sınıf yok. Kreş yöneticiniz yönetim panelinden sınıf açabilir ve size sınıf atayabilir.</p><button type="button" class="kl-dugme" data-cikis>Çıkış</button></div></section>'; kok.querySelector('[data-cikis]').addEventListener('click', function () { B.cikis(token); V.koy('ogrOturum', null); TOK = null; giris(); }); return; }
       BU = o; if (sinifI >= o.siniflar.length) sinifI = 0; panel(mesaj);
     }, function (er) {
       if (er.tur === 'ag') { kok.innerHTML = '<section class="kt-giris"><div class="kt-kart"><p>' + esc(er.message) + '</p><button type="button" class="kl-dugme" data-yine>Yeniden dene</button></div></section>'; kok.querySelector('[data-yine]').addEventListener('click', function () { yukle(token, mesaj); }); return; }
@@ -6994,11 +7755,273 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
   W.KIDS_OGRETMEN = { ac: ac, kapat: kapat, ornekKayit: ornekKayit, ozet: ozet, rapor: rapor, bulten: bulten };
 })(window);
 
+/* ---- kids-yonetici.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · kreş yönetici paneli (kids/assets/kids-yonetici.js), 14.11.2026
+   acadex.com.tr/kids/#yonetim · Kreş müdürü okul kodu + yönetici şifresiyle girer.
+   Binlerce kreşi tek tek yönetim panelinden kurmak yerine her kreş kendini yönetir:
+   - Sınıflar ve öğrenciler: sınıf aç, ad listesini Excel'den yapıştırarak toplu ekle
+     (yalnız ad + soyadın baş harfi tutulur), resimli şifre yenile, sınıf değiştir, kapat.
+   - Kart yazdır: A4'e 8 kart, "Evde oyna" QR'lı (kids-kart.js).
+   - Öğretmenler: kişisel 6 haneli PIN (yalnız bir kez gösterilir), sınıf atama; okulun
+     ortak öğretmen şifresi.
+   - Lisans/deneme durumu: süre bitince kayıtlar görünür ama değiştirilemez.
+   Sunucu: supabase/migrations/20261114_kids_kres.sql (kids_yonetici_*, kids_yon_*). Önek km-.
+   W.KIDS_YONETICI
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, C = W.KIDS_CIZ, V = W.KIDS_VERI, B = W.KIDS_BULUT, kok, TOK = null, VERI = null, sekme = 'siniflar', sinifId = null, secili = {};
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var BANT = { minik: 'Minikler · 3-4 yaş', kasif: 'Kâşifler · 5-6 yaş', yildiz: 'Yıldızlar · 7-10 yaş' };
+  var HAYVAN = { tavsan: 'Tavşan', ayi: 'Ayı', kedi: 'Kedi', civciv: 'Civciv', panda: 'Panda', kurbaga: 'Kurbağa', tilki: 'Tilki', kopek: 'Köpek' };
+  var ODEME = { bekliyor: 'Ödeme bekliyor', odendi: 'Lisanslı', deneme: 'Deneme' };
+
+  /* ---------- saf yardımcılar (tests/kids-kres.js) ---------- */
+  /* sunucudaki kids_ad_kisalt ile aynı: "Ayşe Nur Kaya" → "Ayşe Nur K." */
+  function adKisalt(s) { var w = String(s || '').trim().split(/\s+/).filter(Boolean); if (!w.length) return ''; if (w.length === 1) return w[0].slice(0, 40); return (w.slice(0, -1).join(' ') + ' ' + w[w.length - 1].charAt(0).toLocaleUpperCase('tr') + '.').slice(0, 40); }
+  /* Excel'den yapıştırılan liste: her satır bir çocuk; "1. Ada Kaya", "Ada<TAB>Kaya", "Ada Kaya;5 yaş" */
+  function adlariAyikla(metin) {
+    return String(metin || '').split(/\r?\n/).map(function (l) {
+      var p = l.split('\t').map(function (x) { return x.trim(); }).filter(Boolean);
+      var s = (p.length >= 2 && !/\d/.test(p[1]) ? p[0] + ' ' + p[1] : (p[0] || '')).split(/[;,]/)[0];
+      return s.replace(/^\s*\d+\s*[.)\-]?\s*/, '').replace(/\s+/g, ' ').trim();
+    }).filter(function (s) { return s.length >= 2 && /\p{L}/u.test(s); }).slice(0, 100);
+  }
+  function kalanYazi(o) {
+    if (!o.acik) return o.odeme === 'deneme' ? 'Deneme süreniz bitti' : 'Lisans süreniz bitti';
+    return o.kalan_gun <= 0 ? 'Bugün son gün' : o.kalan_gun + ' gün kaldı';
+  }
+
+  /* ---------- giriş ---------- */
+  function giris(hata, kodYaz) {
+    kok.innerHTML = '<section class="kt-giris"><form class="kt-kart" data-f novalidate><div class="kt-giris-bas"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><div><small>Acadex Kids</small><h1>Kreş yönetimi</h1></div></div>' +
+      '<label>Okul kodu<input name="kod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="13" value="' + esc(kodYaz || V.al('sonKod', '')) + '"></label>' +
+      '<label>Yönetici şifresi<input name="sifre" type="password" autocomplete="current-password" maxlength="60"></label>' +
+      '<p class="kt-uyari" role="alert">' + esc(hata || '') + '</p><button type="submit" class="kl-dugme">Giriş yap</button>' +
+      '<p class="kt-ornek">Yönetici şifresini Acadex size iletir. Kreşiniz henüz kayıtlı değilse <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a> adresine yazın.</p>' +
+      '<p class="kt-donus"><a href="#giris">← Giriş seçenekleri</a> · <a href="#ogretmen">Öğretmen girişi</a></p></form></section>';
+    var f = kok.querySelector('[data-f]');
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var kod = f.elements.kod.value.trim().toLocaleUpperCase('tr').replace(/İ/g, 'I').replace(/\s+/g, ''), sifre = f.elements.sifre.value;
+      if (!kod || !sifre) return giris('Okul kodunu ve yönetici şifresini yazın.', kod);
+      var b = f.querySelector('[type=submit]'); b.disabled = true; b.textContent = 'Giriş yapılıyor…';
+      B.yoneticiGiris(kod, sifre).then(function (r) {
+        if (!r || !r.tamam) return giris('Okul kodu ya da yönetici şifresi hatalı.', kod);
+        V.koy('sonKod', kod); V.koy('yonOturum', { kod: kod, token: r.token }); yukle(r.token);
+      }, function (er) { giris(er.message, kod); });
+    });
+    try { (f.elements.kod.value ? f.elements.sifre : f.elements.kod).focus({ preventScroll: true }); } catch (e) { }
+  }
+  function cikisZorla(er) { TOK = null; VERI = null; V.koy('yonOturum', null); giris(er && er.tur !== 'oturum' ? er.message : 'Oturumunuz kapandı; yeniden giriş yapın.'); }
+  function yukle(token, mesaj) {
+    TOK = token;
+    if (!VERI) kok.innerHTML = '<section class="kt-giris"><div class="kt-kart kt-yukle"><span>' + C.acadia({ mood: 'dusun' }) + '</span><p>Kreşiniz yükleniyor…</p></div></section>';
+    B.yoneticiVeri(token).then(function (v) {
+      VERI = v; if (!sinifId || !v.siniflar.some(function (s) { return s.id === sinifId; })) sinifId = v.siniflar[0] ? v.siniflar[0].id : null;
+      panel(mesaj);
+    }, function (er) {
+      if (er.tur === 'ag') { kok.innerHTML = '<section class="kt-giris"><div class="kt-kart"><p>' + esc(er.message) + '</p><button type="button" class="kl-dugme" data-yine>Yeniden dene</button></div></section>'; kok.querySelector('[data-yine]').addEventListener('click', function () { yukle(token, mesaj); }); return; }
+      cikisZorla(er);
+    });
+  }
+  /* yazma çağrısı: hata olursa bildirimde gösterir, oturum/lisans sorununda girişe döner */
+  function yaz(fn, args, mesaj) {
+    kok.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+    return B.yon(fn, TOK, args).then(function (r) { yukle(TOK, mesaj); return r; }, function (er) {
+      if (er.tur === 'oturum') { cikisZorla(er); throw er; }
+      panel(); bildir('✗ ' + er.message, true); throw er;
+    });
+  }
+  function bildir(m, hata) { var b = kok.querySelector('[data-bildirim]'); if (!b) return; b.textContent = m; b.className = 'kt-bildirim kt-var' + (hata ? ' kt-hata' : ''); try { b.scrollIntoView({ block: 'nearest' }); } catch (e) { } }
+
+  /* ---------- panel ---------- */
+  function panel(mesaj) {
+    var o = VERI.okul, salt = !o.acik, kullan = Math.min(100, Math.round(100 * o.ogrenci / Math.max(1, o.kota)));
+    var h = '<header class="kt-ust"><a class="kl-marka" href="#" aria-label="Acadex Kids tanıtım sayfası"><span>' + C.acadia({ mood: 'mutlu' }) + '</span><b>Acadex <i>Kids</i></b></a><span class="kt-okul"><b>' + esc(o.ad) + '</b><small>Kreş yönetimi · ' + esc(o.kod) + '</small></span>' +
+      '<a class="kt-bag" href="#ogretmen">Öğretmen paneli</a><button type="button" class="kt-cikis" data-cikis>Çıkış</button></header>' +
+      '<main class="kt-govde km-govde"><p class="kt-bildirim' + (mesaj ? ' kt-var' : '') + '" role="status" data-bildirim>' + (mesaj ? '✓ ' + esc(mesaj) : '') + '</p>' +
+      '<section class="km-lisans' + (salt ? ' km-bitti' : o.odeme === 'deneme' ? ' km-deneme' : '') + '"><div><small>' + esc(ODEME[o.odeme] || o.odeme) + '</small><b>' + esc(kalanYazi(o)) + '</b><span>Bitiş: ' + esc(String(o.lisans_bit).split('-').reverse().join('.')) + '</span></div>' +
+      '<div class="km-kota"><small>Öğrenci</small><b>' + o.ogrenci + ' <i>/ ' + o.kota + '</i></b><span class="km-cubuk"><i style="width:' + kullan + '%"></i></span></div>' +
+      (salt ? '<p class="km-uyari">Kayıtlarınız duruyor ama değiştirilemez; çocuklar ve öğretmenler giriş yapamaz. Devam etmek için Acadex ile iletişime geçin.</p>' : o.odeme === 'deneme' ? '<p class="km-uyari">Deneme süresince her şey açık. Beğendiyseniz lisans için Acadex ile iletişime geçin; kayıtlarınız aynen devam eder.</p>' : '') + '</section>' +
+      '<div class="kt-sekmeler km-sekmeler" role="tablist">' + [['siniflar', 'Sınıflar ve öğrenciler'], ['ogretmenler', 'Öğretmenler'], ['ayarlar', 'Ayarlar']].map(function (t) { return '<button type="button" role="tab" data-sekme="' + t[0] + '" aria-selected="' + (sekme === t[0]) + '"><b>' + t[1] + '</b></button>'; }).join('') + '</div>' +
+      (sekme === 'siniflar' ? siniflarHtml(salt) : sekme === 'ogretmenler' ? ogretmenlerHtml(salt) : ayarlarHtml(salt)) + '</main>';
+    kok.innerHTML = h;
+    kok.querySelector('[data-cikis]').addEventListener('click', function () { V.koy('yonOturum', null); TOK = null; VERI = null; giris(); });
+    kok.querySelectorAll('[data-sekme]').forEach(function (b) { b.addEventListener('click', function () { sekme = b.getAttribute('data-sekme'); panel(); }); });
+    if (sekme === 'siniflar') siniflarBagla(salt); else if (sekme === 'ogretmenler') ogretmenlerBagla(salt); else ayarlarBagla(salt);
+  }
+
+  /* ---------- sınıflar ve öğrenciler ---------- */
+  function sinifBul(id) { return VERI.siniflar.filter(function (s) { return s.id === id; })[0] || null; }
+  function siniflarHtml(salt) {
+    var S = sinifBul(sinifId), ogr = S ? S.ogr : [];
+    return '<section class="km-bolum"><div class="km-siniflar">' + VERI.siniflar.map(function (s) { var n = s.ogr.filter(function (g) { return g.aktif; }).length; return '<button type="button" class="km-sinif" data-sinif="' + s.id + '" aria-pressed="' + (s.id === sinifId) + '"><b>' + esc(s.ad) + '</b><small>' + esc(BANT[s.bant]) + '</small><span>' + n + ' öğrenci</span></button>'; }).join('') +
+      (salt ? '' : '<button type="button" class="km-sinif km-yeni" data-yenisinif>+ Sınıf aç</button>') + '</div>' +
+      (!S ? '<p class="km-bos">Henüz sınıf yok. “Sınıf aç” ile başlayın: örneğin “Papatyalar”, Kâşifler (5-6 yaş).</p>' :
+        '<div class="km-sinif-bas"><div><h2>' + esc(S.ad) + '</h2><p class="kt-alt">' + esc(BANT[S.bant]) + ' · ' + ogr.filter(function (g) { return g.aktif; }).length + ' etkin öğrenci</p></div><div class="km-arac">' +
+        (salt ? '' : '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-sinifduz>Sınıfı düzenle</button>') +
+        '<button type="button" class="kl-dugme kl-dugme-k" data-kartlar' + (ogr.some(function (g) { return g.aktif; }) ? '' : ' disabled') + '>Kartları yazdır</button></div></div>' +
+        (salt ? '' : '<details class="km-ekle"' + (ogr.length ? '' : ' open') + '><summary>+ Öğrenci ekle</summary><div class="km-form"><label>Her satıra bir çocuk. Excel\'den ad ve soyad sütunlarını kopyalayıp yapıştırabilirsiniz.<textarea data-adlar rows="6" placeholder="Ada Kaya&#10;Mert Yılmaz&#10;Elif Sarı"></textarea></label>' +
+          '<p class="km-onizle" data-onizle aria-live="polite"></p><p class="km-kvkk">KVKK: yalnız ad ve soyadın baş harfi kaydedilir (“Ada K.”). Her çocuğa bir hayvan resmi ve iki gizli resim verilir.</p><button type="button" class="kl-dugme kl-dugme-k" data-ekle disabled>Ekle</button></div></details>') +
+        (ogr.length ? '<div class="km-toplu" data-toplu hidden><b data-ssay>0</b> seçili <button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-t="kart">Kart yazdır</button>' + (salt ? '' : '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-t="sifre">Gizli resimleri yenile</button><button type="button" class="kr-sil" data-t="sil">Sil</button>') + '</div>' +
+          '<div class="kt-tablo-sar"><table class="kt-tablo km-tablo"><thead><tr><th scope="col"><input type="checkbox" data-hepsi aria-label="Hepsini seç"></th><th scope="col">Öğrenci</th><th scope="col">Gizli resimler</th><th scope="col">Kimlik</th><th scope="col">Durum</th><th scope="col"><span class="ka-gizli">İşlem</span></th></tr></thead><tbody>' +
+          ogr.map(function (g) {
+            return '<tr' + (g.aktif ? '' : ' class="kt-pasif"') + '><td><input type="checkbox" data-sec="' + g.id + '"' + (secili[g.id] ? ' checked' : '') + ' aria-label="' + esc(g.ad) + ' seç"></td><th scope="row"><span class="kt-ogr">' + C.avatar(g.hayvan) + '<b>' + esc(g.ad) + '</b></span></th>' +
+              '<td><span class="km-sf">' + g.sifre.map(function (r) { return '<i title="' + esc(r) + '">' + C.simge(r) + '</i>'; }).join('') + '</span></td><td class="km-mono">' + esc(g.kimlik) + '</td>' +
+              '<td>' + (salt ? (g.aktif ? 'Etkin' : 'Kapalı') : '<label class="km-anahtar"><input type="checkbox" data-aktif="' + g.id + '"' + (g.aktif ? ' checked' : '') + '><span>' + (g.aktif ? 'Etkin' : 'Kapalı') + '</span></label>') + '</td>' +
+              '<td>' + (salt ? '' : '<button type="button" class="km-kucuk" data-ogrduz="' + g.id + '">Düzenle</button>') + '</td></tr>';
+          }).join('') + '</tbody></table></div>' : '')) + '</section>';
+  }
+  function siniflarBagla(salt) {
+    var S = sinifBul(sinifId);
+    kok.querySelectorAll('[data-sinif]').forEach(function (b) { b.addEventListener('click', function () { sinifId = b.getAttribute('data-sinif'); secili = {}; panel(); }); });
+    var ys = kok.querySelector('[data-yenisinif]'); if (ys) ys.addEventListener('click', function () { sinifDuzenle(null); });
+    var sd = kok.querySelector('[data-sinifduz]'); if (sd) sd.addEventListener('click', function () { sinifDuzenle(S); });
+    var kb = kok.querySelector('[data-kartlar]'); if (kb) kb.addEventListener('click', function () { kartlar(S.ogr.filter(function (g) { return g.aktif; })); });
+    var ta = kok.querySelector('[data-adlar]');
+    if (ta) {
+      var on = kok.querySelector('[data-onizle]'), eb = kok.querySelector('[data-ekle]');
+      var guncelle = function () { var l = adlariAyikla(ta.value); eb.disabled = !l.length; on.innerHTML = l.length ? '<b>' + l.length + ' çocuk:</b> ' + l.map(function (x) { return esc(adKisalt(x)); }).join(', ') + (l.length + VERI.okul.ogrenci > VERI.okul.kota ? '<br><span class="km-hata">Kota yetmiyor: ' + VERI.okul.ogrenci + ' / ' + VERI.okul.kota + '</span>' : '') : ''; };
+      ta.addEventListener('input', guncelle);
+      eb.addEventListener('click', function () { var l = adlariAyikla(ta.value); yaz('ogrenci_ekle', { p_sinif: S.id, p_adlar: l }, l.length + ' öğrenci eklendi. Kartlarını yazdırabilirsiniz.').catch(function () { }); });
+    }
+    var toplu = kok.querySelector('[data-toplu]');
+    function seciliGuncelle() { var ids = Object.keys(secili).filter(function (k) { return secili[k]; }); if (toplu) { toplu.hidden = !ids.length; toplu.querySelector('[data-ssay]').textContent = ids.length; } return ids; }
+    kok.querySelectorAll('[data-sec]').forEach(function (c) { c.addEventListener('change', function () { secili[c.getAttribute('data-sec')] = c.checked; seciliGuncelle(); }); });
+    var hp = kok.querySelector('[data-hepsi]'); if (hp) hp.addEventListener('change', function () { kok.querySelectorAll('[data-sec]').forEach(function (c) { c.checked = hp.checked; secili[c.getAttribute('data-sec')] = hp.checked; }); seciliGuncelle(); });
+    seciliGuncelle();
+    kok.querySelectorAll('[data-t]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var ids = seciliGuncelle(), t = b.getAttribute('data-t'), l = S.ogr.filter(function (g) { return secili[g.id]; });
+        if (t === 'kart') return kartlar(l.filter(function (g) { return g.aktif; }));
+        if (t === 'sifre' && W.confirm(ids.length + ' öğrencinin gizli resimleri değişsin mi? Eski kartları geçersiz olur; yeni kart basmanız gerekir.')) { secili = {}; yaz('ogrenci_sifre_yenile', { p_ids: ids }, 'Gizli resimler yenilendi; yeni kartları yazdırın.').catch(function () { }); }
+        if (t === 'sil' && W.confirm(ids.length + ' öğrenci ve ilerlemeleri kalıcı olarak silinsin mi? Bu geri alınamaz. Yalnız ayrılan çocuklar için kullanın; geçici olarak kapatmak için “Durum”u kapatın.')) { secili = {}; yaz('ogrenci_sil', { p_ids: ids }, ids.length + ' öğrenci silindi.').catch(function () { }); }
+      });
+    });
+    kok.querySelectorAll('[data-aktif]').forEach(function (c) { c.addEventListener('change', function () { yaz('ogrenci_guncelle', { p_id: c.getAttribute('data-aktif'), p: { aktif: c.checked } }, c.checked ? 'Öğrenci etkinleştirildi.' : 'Öğrenci kapatıldı; giriş yapamaz, kaydı durur.').catch(function () { }); }); });
+    kok.querySelectorAll('[data-ogrduz]').forEach(function (b) { b.addEventListener('click', function () { ogrenciDuzenle(S.ogr.filter(function (g) { return g.id === b.getAttribute('data-ogrduz'); })[0], S); }); });
+  }
+  function kartlar(l) {
+    if (!l.length) return bildir('Yazdırılacak etkin öğrenci yok.', true);
+    var o = VERI.okul, liste = l.map(function (g) { var s = VERI.siniflar.filter(function (x) { return x.ogr.indexOf(g) >= 0; })[0]; var c = {}; for (var k in g) c[k] = g[k]; c.sinif_id = s ? s.id : null; return c; });
+    if (!W.KIDS_KART.ac(o, liste, VERI.siniflar, { kok: location.origin + location.pathname })) bildir('Yeni sekme açılamadı; tarayıcının açılır pencere engelini bu site için kaldırın.', true);
+  }
+  /* küçük form penceresi (kids-kres.css .kr-katman) */
+  function pencere(baslik, govde, dugme) {
+    var el = D.createElement('div'); el.className = 'kr-katman';
+    el.innerHTML = '<form class="kr-pen" role="dialog" aria-modal="true" novalidate><header class="kr-pen-bas"><div><h2>' + baslik + '</h2></div><button type="button" class="kr-kapat" data-kapat aria-label="Kapat">×</button></header><div class="kr-govde km-form">' + govde + '<p class="kt-uyari" data-uyari role="alert"></p></div>' +
+      '<footer class="kr-pen-alt"><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kapat>Vazgeç</button>' + (dugme ? '<button type="submit" class="kl-dugme kl-dugme-k">' + dugme + '</button>' : '') + '</footer></form>';
+    D.body.appendChild(el); D.body.classList.add('kr-acik');
+    var kapat = function () { el.remove(); D.body.classList.remove('kr-acik'); D.removeEventListener('keydown', tus); };
+    var tus = function (e) { if (e.key === 'Escape') kapat(); };
+    D.addEventListener('keydown', tus);
+    el.addEventListener('click', function (e) { if (e.target === el || e.target.closest('[data-kapat]')) kapat(); });
+    var f = el.querySelector('input, select, textarea, [type=submit]'); if (f) try { f.focus({ preventScroll: true }); } catch (e) { }
+    return { el: el, form: el.querySelector('form'), kapat: kapat, uyari: function (m) { el.querySelector('[data-uyari]').textContent = m; } };
+  }
+  function sinifDuzenle(S) {
+    var p = pencere(S ? 'Sınıfı düzenle' : 'Yeni sınıf', '<label>Sınıf adı<input name="ad" maxlength="60" value="' + esc(S ? S.ad : '') + '" placeholder="Örn. Papatyalar"></label>' +
+      '<label>Yaş grubu<select name="bant">' + Object.keys(BANT).map(function (k) { return '<option value="' + k + '"' + ((S ? S.bant : 'kasif') === k ? ' selected' : '') + '>' + BANT[k] + '</option>'; }).join('') + '</select></label>' +
+      '<p class="km-kvkk">Yaş grubu kelime sayısını, oyunların zorluğunu ve hikâye kitaplarını belirler.</p>' + (S ? '<button type="button" class="kr-sil" data-sinifsil>Sınıfı sil</button>' : ''), S ? 'Kaydet' : 'Sınıfı aç');
+    p.form.addEventListener('submit', function (e) {
+      e.preventDefault(); var ad = p.form.elements.ad.value.trim(); if (!ad) return p.uyari('Sınıfa bir ad verin.');
+      p.kapat(); yaz('sinif_kaydet', { p_id: S ? S.id : null, p_ad: ad, p_bant: p.form.elements.bant.value }, S ? 'Sınıf kaydedildi.' : ad + ' sınıfı açıldı. Şimdi öğrencileri ekleyin.').then(function (id) { if (!S && id) sinifId = id; }, function () { });
+    });
+    var sil = p.el.querySelector('[data-sinifsil]');
+    if (sil) sil.addEventListener('click', function () { if (!W.confirm(S.ad + ' sınıfı ve içindeki ' + S.ogr.length + ' öğrenci kalıcı olarak silinsin mi? Basılmış kartlar geçersiz olur. Bu geri alınamaz.')) return; p.kapat(); sinifId = null; yaz('sinif_sil', { p_id: S.id }, 'Sınıf silindi.').catch(function () { }); });
+  }
+  function ogrenciDuzenle(g, S) {
+    var p = pencere(esc(g.ad), '<label>Ad<input name="ad" maxlength="60" value="' + esc(g.ad) + '"></label>' +
+      '<label>Sınıf<select name="sinif">' + VERI.siniflar.map(function (s) { return '<option value="' + s.id + '"' + (s.id === S.id ? ' selected' : '') + '>' + esc(s.ad) + '</option>'; }).join('') + '</select></label>' +
+      '<p class="km-kvkk">Hayvan resmi: <b>' + esc(HAYVAN[g.hayvan] || g.hayvan) + '</b> · Kimlik: <b class="km-mono">' + esc(g.kimlik) + '</b></p>' +
+      '<div class="km-arac"><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kart>Kartını yazdır</button><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-sifre>Gizli resimleri yenile</button></div>', 'Kaydet');
+    p.form.addEventListener('submit', function (e) {
+      e.preventDefault(); var ad = p.form.elements.ad.value.trim(), s = p.form.elements.sinif.value, d = {};
+      if (ad && ad !== g.ad) d.ad = ad; if (s !== S.id) d.sinif_id = s;
+      p.kapat(); if (!Object.keys(d).length) return;
+      yaz('ogrenci_guncelle', { p_id: g.id, p: d }, 'Öğrenci kaydedildi.').catch(function () { });
+    });
+    p.el.querySelector('[data-kart]').addEventListener('click', function () { kartlar([g]); });
+    p.el.querySelector('[data-sifre]').addEventListener('click', function () { if (!W.confirm(g.ad + ' için yeni gizli resimler üretilsin mi? Eski kartı geçersiz olur.')) return; p.kapat(); yaz('ogrenci_sifre_yenile', { p_ids: [g.id] }, 'Yeni gizli resimler hazır; kartını yeniden yazdırın.').catch(function () { }); });
+  }
+
+  /* ---------- öğretmenler ---------- */
+  function ogretmenlerHtml(salt) {
+    var o = VERI.okul, sad = {}; VERI.siniflar.forEach(function (s) { sad[s.id] = s.ad; });
+    return '<section class="km-bolum"><div class="km-sinif-bas"><div><h2>Öğretmenler</h2><p class="kt-alt">Her öğretmene kişisel bir PIN verin. PIN\'le giren öğretmen yalnız kendi sınıflarını görür ve planlar.</p></div>' +
+      (salt ? '' : '<div class="km-arac"><button type="button" class="kl-dugme kl-dugme-k" data-yeniogt>+ Öğretmen ekle</button></div>') + '</div>' +
+      (VERI.ogretmenler.length ? '<ul class="km-ogretmenler">' + VERI.ogretmenler.map(function (t) {
+        return '<li' + (t.aktif ? '' : ' class="kt-pasif"') + '><div><b>' + esc(t.ad) + '</b><small>' + (t.siniflar.length ? t.siniflar.map(function (id) { return esc(sad[id] || '?'); }).join(', ') : 'Bütün sınıflar') + (t.aktif ? '' : ' · kapalı') + '</small></div>' +
+          (salt ? '' : '<button type="button" class="km-kucuk" data-ogtduz="' + t.id + '">Düzenle</button><button type="button" class="km-kucuk" data-ogtpin="' + t.id + '">Yeni PIN</button>') + '</li>';
+      }).join('') + '</ul>' : '<p class="km-bos">Henüz öğretmen eklenmedi. Öğretmenler şimdilik okulun ortak şifresiyle girebilir.</p>') +
+      '<div class="km-kutu"><h3>Okulun ortak öğretmen şifresi</h3><p>' + (o.ogretmen_sifre_var ? 'Tanımlı. Bu şifreyle giren her öğretmen bütün sınıfları görür.' : 'Tanımlı değil.') + ' Kişisel PIN daha güvenlidir; ortak şifreyi yalnız gerekirse kullanın.</p>' +
+      (salt ? '' : '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-okulsifre>' + (o.ogretmen_sifre_var ? 'Ortak şifreyi yenile' : 'Ortak şifre oluştur') + '</button>') + '</div>' +
+      '<p class="kt-not">Öğretmenler <b>acadex.com.tr/kids</b> adresinde “Öğretmen girişi”nden okul kodu <b>' + esc(o.kod) + '</b> ve PIN\'leriyle girer.</p></section>';
+  }
+  function gizliGoster(baslik, deger, aciklama) {
+    var p = pencere(baslik, '<p class="km-gizli-d" aria-live="polite">' + esc(deger) + '</p><p>' + aciklama + '</p><p class="km-kvkk">Bu değer yalnız şimdi gösterilir; kaydedilmez. Unutulursa yenisini üretirsiniz.</p>', null);
+    return p;
+  }
+  function ogretmenDuzenle(t) {
+    var p = pencere(t ? 'Öğretmeni düzenle' : 'Yeni öğretmen', '<label>Ad<input name="ad" maxlength="40" value="' + esc(t ? t.ad : '') + '" placeholder="Örn. Ayşe Öğretmen"></label>' +
+      '<fieldset class="km-siniflar-sec"><legend>Sınıfları <small>(hiçbiri seçilmezse bütün sınıfları görür)</small></legend>' + VERI.siniflar.map(function (s) { return '<label><input type="checkbox" name="sinif" value="' + s.id + '"' + (t && t.siniflar.indexOf(s.id) >= 0 ? ' checked' : '') + '> ' + esc(s.ad) + '</label>'; }).join('') + '</fieldset>' +
+      (t ? '<label class="km-anahtar"><input type="checkbox" name="aktif"' + (t.aktif ? ' checked' : '') + '><span>Etkin (kapatılırsa giriş yapamaz)</span></label><button type="button" class="kr-sil" data-ogtsil>Öğretmeni sil</button>' : ''), t ? 'Kaydet' : 'Ekle ve PIN üret');
+    p.form.addEventListener('submit', function (e) {
+      e.preventDefault(); var ad = p.form.elements.ad.value.trim(); if (ad.length < 2) return p.uyari('Öğretmenin adını yazın.');
+      var sn = Array.prototype.filter.call(p.form.querySelectorAll('[name=sinif]'), function (c) { return c.checked; }).map(function (c) { return c.value; });
+      p.kapat();
+      yaz('ogretmen_kaydet', { p_id: t ? t.id : null, p_ad: ad, p_siniflar: sn, p_aktif: t ? p.form.elements.aktif.checked : null }, t ? 'Öğretmen kaydedildi.' : ad + ' eklendi.').then(function (r) {
+        if (r && r.pin) gizliGoster(esc(ad) + ' için PIN', r.pin, 'Öğretmen, okul kodu <b>' + esc(VERI.okul.kod) + '</b> ve bu PIN ile “Öğretmen girişi”nden girer.');
+      }, function () { });
+    });
+    var sil = p.el.querySelector('[data-ogtsil]');
+    if (sil) sil.addEventListener('click', function () { if (!W.confirm(t.ad + ' silinsin mi? PIN\'i hemen geçersiz olur.')) return; p.kapat(); yaz('ogretmen_sil', { p_id: t.id }, 'Öğretmen silindi.').catch(function () { }); });
+  }
+  function ogretmenlerBagla() {
+    var y = kok.querySelector('[data-yeniogt]'); if (y) y.addEventListener('click', function () { ogretmenDuzenle(null); });
+    kok.querySelectorAll('[data-ogtduz]').forEach(function (b) { b.addEventListener('click', function () { ogretmenDuzenle(VERI.ogretmenler.filter(function (t) { return t.id === b.getAttribute('data-ogtduz'); })[0]); }); });
+    kok.querySelectorAll('[data-ogtpin]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var t = VERI.ogretmenler.filter(function (x) { return x.id === b.getAttribute('data-ogtpin'); })[0];
+        if (!W.confirm(t.ad + ' için yeni PIN üretilsin mi? Eski PIN hemen geçersiz olur.')) return;
+        yaz('ogretmen_pin', { p_id: t.id }, 'Yeni PIN üretildi.').then(function (pin) { gizliGoster(esc(t.ad) + ' için yeni PIN', pin, 'Eski PIN artık çalışmaz.'); }, function () { });
+      });
+    });
+    var os = kok.querySelector('[data-okulsifre]');
+    if (os) os.addEventListener('click', function () {
+      if (VERI.okul.ogretmen_sifre_var && !W.confirm('Ortak şifre yenilensin mi? Eski şifreyle açık öğretmen oturumları kapanır.')) return;
+      yaz('okul_sifre', {}, 'Ortak öğretmen şifresi hazır.').then(function (s) { gizliGoster('Okulun ortak öğretmen şifresi', s, 'Bu şifreyle giren her öğretmen bütün sınıfları görür.'); }, function () { });
+    });
+  }
+
+  /* ---------- ayarlar ---------- */
+  function ayarlarHtml() {
+    var o = VERI.okul;
+    return '<section class="km-bolum"><div class="km-kutu"><h3>Kreş bilgileri</h3><dl class="km-dl"><dt>Kreş</dt><dd>' + esc(o.ad) + '</dd><dt>Okul kodu</dt><dd class="km-mono">' + esc(o.kod) + '</dd><dt>İl / ilçe</dt><dd>' + esc([o.il, o.ilce].filter(Boolean).join(' / ')) + '</dd><dt>Yetkili</dt><dd>' + esc(o.yetkili_ad) + '</dd></dl><p class="km-kvkk">Bilgilerde değişiklik için Acadex ile iletişime geçin.</p></div>' +
+      '<div class="km-kutu"><h3>Yönetici şifresini değiştir</h3><form class="km-form" data-sf novalidate><label>Mevcut şifre<input name="eski" type="password" autocomplete="current-password"></label><label>Yeni şifre (en az 8 karakter)<input name="yeni" type="password" autocomplete="new-password" minlength="8"></label><p class="kt-uyari" data-sfu role="alert"></p><button type="submit" class="kl-dugme kl-dugme-k">Şifreyi değiştir</button></form></div>' +
+      '<div class="km-kutu"><h3>Evde oyna kartları</h3><p>Her çocuğun kartında bir QR var. Veli telefonla okutunca Acadex Kids doğrudan çocuğun gizli resim ekranında açılır; çocuk evde kaldığı yerden devam eder. QR\'da şifre yoktur ve tarayıcıda üretilir, başka bir siteye gönderilmez.</p></div></section>';
+  }
+  function ayarlarBagla() {
+    var f = kok.querySelector('[data-sf]'); if (!f) return;
+    f.addEventListener('submit', function (e) {
+      e.preventDefault(); var u = kok.querySelector('[data-sfu]'), y = f.elements.yeni.value;
+      if (y.length < 8) { u.textContent = 'Yeni şifre en az 8 karakter olmalı.'; return; }
+      B.yon('sifre_degistir', TOK, { p_eski: f.elements.eski.value, p_yeni: y }).then(function () { f.reset(); bildir('✓ Yönetici şifresi değiştirildi. Diğer cihazlardaki oturumlar kapatıldı.'); }, function (er) { if (er.tur === 'oturum') return cikisZorla(er); u.textContent = er.message; });
+    });
+  }
+
+  function ac() { kok = D.getElementById('kids-yonetim'); if (!kok) return; var o = V.al('yonOturum', null); if (o && o.token) yukle(o.token); else giris(); }
+  function kapat() { if (kok) kok.innerHTML = ''; VERI = null; }
+  W.KIDS_YONETICI = { ac: ac, kapat: kapat, adKisalt: adKisalt, adlariAyikla: adlariAyikla, kalanYazi: kalanYazi };
+})(window);
+
 /* ---- kids-landing.js ---- */
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası (kids/assets/kids-landing.js), 10.11.2026
    Çizimleri yerleştirir, konu listesini kurar, oynanabilir balon demosunu ve
-   demo talep formunu (e-posta taslağı açar; tasarım sürümünde sunucu yok) bağlar.
+   (14.11.2026: demo ve başvuru formu kaldırıldı; giriş #giris ekranından.)
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -7026,15 +8049,6 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
     }
     var b = D.querySelector('[data-demo-basla]'); if (b) b.addEventListener('click', baslat);
 
-    /* demo talebi: e-posta taslağı */
-    var f = D.querySelector('[data-demo-form]');
-    if (f) f.addEventListener('submit', function (e) {
-      e.preventDefault(); var not = f.querySelector('[data-form-not]'), v = function (n) { return f.elements[n].value.trim(); };
-      if (!v('ad') || !v('okul') || !v('tel')) { not.className = 'kl-form-not kl-hata'; not.textContent = 'Lütfen adınızı, okulunuzun adını ve telefonunuzu yazın.'; (f.querySelector('input:invalid') || f.elements.ad).focus(); return; }
-      var govde = 'Merhaba,\n\nAcadex Kids için demo talep ediyorum.\n\nAd soyad: ' + v('ad') + '\nOkul: ' + v('okul') + '\nTelefon: ' + v('tel') + (v('sayi') ? '\nÖğrenci sayısı: ' + v('sayi') : '') + '\n';
-      not.className = 'kl-form-not'; not.textContent = 'E-posta uygulamanız açılıyor. Açılmazsa destek@acadex.com.tr adresine yazabilirsiniz.';
-      W.location.href = 'mailto:destek@acadex.com.tr?subject=' + encodeURIComponent('Acadex Kids demo talebi: ' + v('okul')) + '&body=' + encodeURIComponent(govde);
-    });
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
 })(window);
@@ -7282,23 +8296,41 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
    ACADEX KIDS · tek sayfa yönlendirme (kids/assets/kids-yon.js), 10.11.2026
    Tek index.html içinde üç görünüm: tanıtım (varsayılan), #oyna (çocuk),
    #ogretmen (öğretmen paneli). Tanıtım içi bağlantılar (#nasil, #fiyat…) kaydırır.
+   14.11.2026: #ev=KOD~öğrenci (evde devam kartı QR'ı) → oyna; #yonetim → kreş yönetici paneli;
+   #giris → rol seçmeli giriş (Çocuk / Öğretmen / Kreş yöneticisi). Eski #basvuru ve #demo bağlantıları da buraya gelir.
    ========================================================================== */
 (function (W) {
   'use strict';
   var D = W.document, simdi = null;
-  function gorunum() { var h = (location.hash || '').replace(/^#\/?/, ''); return h === 'oyna' ? 'oyna' : h === 'ogretmen' ? 'ogretmen' : 'tanitim'; }
+  function gorunum() { var h = (location.hash || '').replace(/^#\/?/, ''); return h === 'oyna' || /^ev=/.test(h) ? 'oyna' : h === 'ogretmen' ? 'ogretmen' : h === 'yonetim' ? 'yonetim' : h === 'giris' || h === 'basvuru' || h === 'demo' ? 'giris' : 'tanitim'; }
+  /* giriş ekranı: kim giriyor? Çocuk (okul kodu + gizli resimler), öğretmen (okul kodu + PIN/şifre),
+     kreş yöneticisi (okul kodu + yönetici şifresi). Kartın QR'ı ise doğrudan çocuğun resim adımını açar. */
+  function girisCiz(k) {
+    var C = W.KIDS_CIZ, s = function (f, a) { try { return C[f](a); } catch (e) { return ''; } };
+    var rol = [['#oyna', s('avatar', 'kedi'), 'Çocuk', 'Okul kodu ve iki gizli resimle oyna', 'kgi-cocuk'],
+      ['#ogretmen', s('simge', 'book'), 'Öğretmen', 'Okul kodu ve size özel PIN ya da okul şifresi', 'kgi-ogretmen'],
+      ['#yonetim', s('simge', 'ev'), 'Kreş yöneticisi', 'Sınıflar, öğrenciler, öğretmenler ve kartlar', 'kgi-yonetici']];
+    k.innerHTML = '<section class="kt-giris kgi"><div class="kgi-kart"><div class="kt-giris-bas"><span>' + s('acadia', { mood: 'mutlu' }) + '</span><div><small>Acadex Kids</small><h1>Giriş yap</h1></div></div>' +
+      '<p class="kgi-alt">Kim giriyor?</p><div class="kgi-roller">' + rol.map(function (r, i) { return '<a class="kgi-rol ' + r[4] + '" href="' + r[0] + '"' + (i === 0 ? ' data-odak' : '') + '><span class="kgi-r">' + r[1] + '</span><b>' + r[2] + '</b><small>' + r[3] + '</small></a>'; }).join('') + '</div>' +
+      '<p class="kgi-not">' + s('simge', 'yildiz') + '<span>Çocuğunuzun kartında QR var mı? Telefonun kamerasıyla okutun; doğrudan çocuğunuzun gizli resim ekranı açılır.</span></p>' +
+      '<p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · Kreşiniz kayıtlı değil mi? <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></p></div></section>';
+    var o = k.querySelector('[data-odak]'); if (o) try { o.focus({ preventScroll: true }); } catch (e) { }
+  }
   function goster() {
     var g = gorunum(); if (g === simdi) return;
     if (simdi === 'oyna' && W.KIDS_APP) W.KIDS_APP.kapat();
     if (simdi === 'ogretmen' && W.KIDS_OGRETMEN) W.KIDS_OGRETMEN.kapat();
+    if (simdi === 'yonetim' && W.KIDS_YONETICI) W.KIDS_YONETICI.kapat();
     if (W.KIDS_SES) W.KIDS_SES.sus();
     simdi = g;
     D.getElementById('kl-sayfa').hidden = g !== 'tanitim';
     D.getElementById('kids-app').hidden = g !== 'oyna';
     D.getElementById('kids-ogretmen').hidden = g !== 'ogretmen';
-    D.body.className = g === 'tanitim' ? 'kl' : g === 'ogretmen' ? 'kl kt' : 'ka-govde';
-    D.title = g === 'oyna' ? 'Acadex Kids · Oyna' : g === 'ogretmen' ? 'Acadex Kids · Öğretmen paneli' : 'Acadex Kids · Kreş, anaokulu ve ilkokul için oyunlarla İngilizce';
-    if (g === 'oyna') W.KIDS_APP.ac(); else if (g === 'ogretmen') W.KIDS_OGRETMEN.ac();
+    var yk = D.getElementById('kids-yonetim'); if (yk) yk.hidden = g !== 'yonetim';
+    var gk = D.getElementById('kids-giris'); if (gk) { gk.hidden = g !== 'giris'; if (g === 'giris') girisCiz(gk); else gk.innerHTML = ''; }
+    D.body.className = g === 'tanitim' ? 'kl' : g === 'ogretmen' || g === 'yonetim' || g === 'giris' ? 'kl kt' : 'ka-govde';
+    D.title = g === 'oyna' ? 'Acadex Kids · Oyna' : g === 'ogretmen' ? 'Acadex Kids · Öğretmen paneli' : g === 'yonetim' ? 'Acadex Kids · Kreş yönetimi' : g === 'giris' ? 'Acadex Kids · Giriş' : 'Acadex Kids · Kreş, anaokulu ve ilkokul için oyunlarla İngilizce';
+    if (g === 'oyna') W.KIDS_APP.ac(); else if (g === 'ogretmen') W.KIDS_OGRETMEN.ac(); else if (g === 'yonetim' && W.KIDS_YONETICI) W.KIDS_YONETICI.ac();
     if (g !== 'tanitim') W.scrollTo(0, 0);
     else { var hedef = (location.hash || '').replace(/^#/, ''), el = hedef && D.getElementById(hedef); if (el) setTimeout(function () { el.scrollIntoView(); }, 60); else W.scrollTo(0, 0); }   /* gizliyken tarayıcı çapaya kaydıramaz */
     D.dispatchEvent(new CustomEvent('kids:gorunum', { detail: g }));

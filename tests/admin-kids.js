@@ -30,7 +30,8 @@ const SQL = 'supabase/migrations/20261110_kids_yonetim.sql';
 const yukle = () => {
   const X = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const w = { AXADM: { VIEWS: {}, X, NF: String, DT: String, $: () => null, $$: () => [], rpc: async () => null, toast() {}, errMsg: String } };
-  vm.runInNewContext(read('js/admin-kids.js'), { window: w, document: {}, navigator: {}, console });
+  const c = vm.createContext({ window: w, document: {}, navigator: {}, console });
+  for (const f of ['js/kids-ciz.js', 'js/kids-qr.js', 'js/kids-kart.js', 'js/admin-kids.js']) vm.runInContext(read(f), c);   /* 14.11.2026: kart js/kids-kart.js'te */
   return w;
 };
 
@@ -75,6 +76,15 @@ test('kart sayfası: A4, 8 kartta bir sayfa, kaçışlı ad', () => {
   assert.match(h, /@page\{size:A4;margin:0\}/);
   assert.ok(!h.includes('<b>x</b>') && h.includes('&lt;b&gt;x&lt;/b&gt;'));
   assert.match(h, /AY-2026-017/);
+});
+
+test('kreş başvuruları: bekleyenler önce, onay/ret düğmesi yalnız bekleyende, kaçışlı (14.11.2026)', () => {
+  const T = yukle().AXKIDS_TEST;
+  assert.equal(T.basvuruHTML([]), ''); assert.equal(T.basvuruHTML(null), '');
+  const h = T.basvuruHTML([{ id: 'b1', kres_ad: '<i>Papatya</i>', il: 'Ankara', ilce: 'Çankaya', yetkili_ad: 'Zehra', tel: '0532', eposta: '', ogrenci_sayi: 30, mesaj: '', durum: 'bekliyor', created_at: '2026-11-14T10:00:00Z' },
+    { id: 'b2', kres_ad: 'Gül', il: '', ilce: '', yetkili_ad: 'A', tel: '1', eposta: '', ogrenci_sayi: 0, mesaj: '', durum: 'onaylandi', okul_kod: 'GUL-2026', created_at: '2026-11-13T10:00:00Z' }]);
+  assert.match(h, /1 bekliyor/); assert.equal((h.match(/data-bonay=/g) || []).length, 1); assert.match(h, /açıldı · GUL-2026/);
+  assert.ok(!h.includes('<i>Papatya</i>') && h.includes('&lt;i&gt;Papatya&lt;/i&gt;'));
 });
 
 test('güvenlik: tablolar kapalı, her yönetici fonksiyonu admin_guard() ile başlar, anon çağıramaz', () => {
