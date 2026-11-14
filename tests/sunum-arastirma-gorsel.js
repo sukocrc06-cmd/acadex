@@ -192,6 +192,13 @@ test('KAYNAKSIZ DOLDURMA KAPALI, KAPSAM İSKELETİ, ANLAM DENETİMİ (14.11.2026
   assert.match(sr, /if \(s\._cw && s\.chart\)/, 'etiketi yanlış grafik yine çiziliyor');
   // 4) ince asetat + fotoğraf olmayan görsel
   assert.match(sr, /if \(!plain\(x\) \|\| x\.bullets\.length !== 1\) continue;/, 'tek maddelik asetat birleştirilmiyor');
+  // Canlı deste 14.11.2026 (asgari ücret): tek maddelik asetatın komşuları kapak ve
+  // zaman çizelgesiydi, asetat kaldı → en yakın listeye taşınır. Aynı destede kolon
+  // düzeni hiç çıkmadı: yazar her asetata fotoğraf ipucu koyuyor, "!s.img" koşulu eliyordu.
+  assert.match(sr, /Math\.abs\(j - i\)[^\n]*o\.y\.bullets\.length < 4\)\.sort/, 'tek madde yalnız bitişik listeye taşınıyor');
+  const vs = ink.slice(ink.indexOf('var vSay = {}, vSec'), ink.indexOf('push(); var made = strips.map'));
+  assert.ok(!/var kol = [^\n]*s\.img/.test(vs), 'fotoğraf ipucu kolon düzenini engelliyor');
+  assert.match(vs, /if \(kol && !vSay\.kol\) \{ vSay\.kol = 1; return 7; \}/, 'art arda kolon sınırı yok');
   assert.match(sr, /const dropAt = /, 'düşen asetata kurulan köprü cümlesi notta kalıyor');
   const m = sr.match(/const NOT_PHOTO = (\/.+\/i);/);
   assert.ok(m, 'NOT_PHOTO yok');
@@ -435,7 +442,7 @@ test('DÜZEN: kolonlu içerik, almaşık çizelge, tek punto sayılar', () => {
   assert.equal(kol.filter((e) => e.bold).length, 3, 'her kolonun alt başlığı olmalı');
   assert.ok(kol.some((e) => e.text === 'Şebeke esnekliği') && kol.some((e) => /^Depolama ve talep/.test(e.text)), 'terim başlığa, açıklama gövdeye');
   assert.equal(VARY.list[6]('B', ['Düz bir madde, iki nokta yok burada hiç', K[1], K[2]]), null, 'terimsiz madde kolon olmaz');
-  assert.match(ink, /every\(function \(x\) \{ return \/\^\[\^:\]\{3,36\}:\\s\+\.\{20,\}\$\/\.test\(String\(x\)\); \}\)\) return 7;/, 'kolon düzeni içerikten seçilmeli');
+  assert.match(ink, /every\(function \(x\) \{ return \/\^\[\^:\]\{3,36\}:\\s\+\.\{20,\}\$\/\.test\(String\(x\)\); \}\);\s+if \(kol && !vSay\.kol\)/, 'kolon düzeni içerikten seçilmeli');
   const cz = VARY.time[3]('B', ['2021: faiz indirimi başladı', '2022: enflasyon zirve yaptı', '2023: politika değişti', '2024: sıkılaşma sürdü']);
   const ys = cz.filter((e) => e.bold).map((e) => e.y);
   assert.ok(ys[0] < 322 && ys[1] > 322 && ys[2] < 322 && ys[3] > 322, 'duraklar eksenin üstünde ve altında sırayla durmalı');

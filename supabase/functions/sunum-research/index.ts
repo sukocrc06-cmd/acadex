@@ -655,7 +655,9 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
     const plain = (x: any) => x && x.kind === "list" && !x.chart && !x.table;
     for (let i = slides.length - 2; i >= 0; i--) {
       const x: any = slides[i]; if (!plain(x) || x.bullets.length !== 1) continue;
-      const t: any = [slides[i - 1], slides[i + 1]].find((y: any) => plain(y) && y.bullets.length < 4); if (!t) continue;
+      /* Komşu liste değilse en yakın listeye taşınır: canlı destede (14.11.2026)
+         tek maddelik asetatın komşuları kapak ve zaman çizelgesiydi, asetat kaldı. */
+      const t: any = slides.map((y: any, j: number) => ({ y, d: Math.abs(j - i) })).filter((o: any) => o.d && plain(o.y) && o.y.bullets.length > 1 && o.y.bullets.length < 4).sort((a: any, b: any) => a.d - b.d).map((o: any) => o.y)[0]; if (!t) continue;
       if (x.warn.length) { t.warn.push(t.bullets.length); }
       t.bullets.push(x.bullets[0]); t.src = [...new Set([...t.src, ...x.src])];
       dropAt(i);

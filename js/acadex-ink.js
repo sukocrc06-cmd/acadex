@@ -8274,7 +8274,12 @@ var SBX = (function () {
          çizilmiyordu, yine de çizelge klasiğe düşüyordu (canlı deste 14.11.2026). */
       if (!VSIRA[kind] || (kind === 'list' && arr(s.warnI).length) || (/^(list|quote)$/.test(kind) && s.img && s.img.entity)) return 0;
       if (kind === 'list' && arr(s.b).length && arr(s.b).length <= 2 && !s.img) return 6;      /* ince asetat: tek cümle kutusu */
-      if (kind === 'list' && arr(s.b).length >= 2 && arr(s.b).length <= 4 && !s.img && arr(s.b).every(function (x) { return /^[^:]{3,36}:\s+.{20,}$/.test(String(x)); })) return 7;      /* "Terim: açıklama" maddeleri kolonlara açılır */
+      /* Fotoğraf ipucu kolonu engellemez: yazar hemen her asetata ipucu koyuyor,
+         "!s.img" koşuluyla kolon düzeni canlıda hiç çıkmadı (deste 14.11.2026).
+         Art arda iki liste kolon olmaz; aradaki klasik asetat fotoğrafı alır. */
+      var kol = kind === 'list' && arr(s.b).length >= 2 && arr(s.b).length <= 4 && arr(s.b).every(function (x) { return /^[^:]{3,36}:\s+.{20,}$/.test(String(x)); });
+      if (kol && !vSay.kol) { vSay.kol = 1; return 7; }      /* "Terim: açıklama" maddeleri kolonlara açılır */
+      if (kind === 'list') vSay.kol = 0;
       var n = vSay[kind] = (vSay[kind] || 0) + 1; return VSIRA[kind][(n - 1) % VSIRA[kind].length];
     };
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data;
