@@ -2,7 +2,8 @@
    ACADEX — ACADEX KIDS: KAYDIRMA ŞÖLENİ VE "OYUN DÜNYANA GİDİYORSUN" UÇUŞU (tests/kids-ucus.js), 15.11.2026
 
    NEDEN VAR: Tanıtım sayfasında gökyüzü sabahtan geceye döner (paralaks bulut, güneş, ay,
-   yıldız), kartlar zıplayarak, başlık harfleri hoplayarak gelir, hero'da adalar açılır ve balonlu
+   yıldız), başlıklar maskeden kayar ve kartlar sırayla gelir (15.11.2026 (2): harf harf hoplama ve
+   jöle zıplaması kaldırıldı), hero'da adalar açılır ve balonlu
    bir çocuk yükselir (kids-scroll.js/.css). Çocuk giriş yapınca renkli evrenden roketle oyun
    dünyasına uçar (kids-ucus.js/.css). Bu dosya şunları korur:
      - uçuş yalnız girişte (şifre ya da "Kim oynuyor?"), haritaya her dönüşte değil
@@ -36,25 +37,23 @@ test('gökyüzü: durakların hepsi sayfada, gece başlıkları açık renk, par
   assert.match(j, /\[null, '#23304D'\]/, 'en alt renk alt bilgi şeridiyle aynı');
   assert.match(css, /\.kl-gok #fiyat>h2,\.kl-gok #sss>h2\{color:var\(--krem\)/);
   assert.match(j, /function gokCiz\(\) \{\s*if \(SAKIN \|\| !kat\) return;/);
-  assert.match(j, /function ziplaKur\(\) \{\s*if \(SAKIN \|\| !\('IntersectionObserver' in W\)\) return;/, 'hareketi azaltta kartlar baştan görünür');
-  assert.match(css, /\.kl-zip-hazir \.kl-zip\{opacity:0;translate:/, 'gizleme yalnız betik hazırsa ve transform yerine translate (eğik tablet bozulmaz)');
+  assert.match(j, /function girisKur\(\) \{\s*if \(SAKIN \|\| !\('IntersectionObserver' in W\)\) return;/, 'hareketi azaltta içerik baştan görünür');
+  assert.match(css, /\.kl-giris-hazir \.kl-gir\{opacity:0;translate:0 28px\}/, 'gizleme yalnız betik hazırsa; transform yerine translate (eğik çizimler bozulmaz)');
+  assert.doesNotMatch(j + css, /kl-hh|kl-zip|harfle/, 'harf harf hoplama ve jöle zıplaması kaldırıldı');
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)\{\s*\.kl-gok-kat>span/);
 });
 
-test('başlıklar harf harf: metin aynı kalır, kelimeler bölünmez', () => {
+test('başlıklar maskeyle: metin olduğu gibi kalır, iki kez sarılmaz', () => {
   const j = read('kids/assets/kids-scroll.js');
-  /* minik DOM: harfle() yalnız childNodes, createElement, createTextNode, createDocumentFragment kullanır */
-  function el(tag) { return { tagName: tag, nodeType: 1, childNodes: [], style: { setProperty() {} }, dataset: {}, className: '', appendChild(c) { if (c.frag) { c.childNodes.forEach((x) => this.childNodes.push(x)); } else this.childNodes.push(c); return c; }, replaceChild(n, o) { const i = this.childNodes.indexOf(o); this.childNodes.splice(i, 1, ...(n.frag ? n.childNodes : [n])); }, set textContent(v) { this.childNodes = [txt(v)]; } }; }
-  function txt(v) { return { nodeType: 3, nodeValue: v }; }
-  const D = { readyState: 'loading', addEventListener() {}, createElement: el, createTextNode: txt, createDocumentFragment() { const f = el('#f'); f.frag = true; return f; } };
+  function el(tag) { return { tagName: tag, nodeType: 1, childNodes: [], className: '', get firstChild() { return this.childNodes[0] || null; }, appendChild(c) { const i = this._ust ? -1 : 0; if (c._ust) { const k = c._ust.childNodes.indexOf(c); if (k >= 0) c._ust.childNodes.splice(k, 1); } c._ust = this; this.childNodes.push(c); return c; }, querySelector(s) { const ara = (n) => n.childNodes.some((x) => x.className === s.slice(1) || (x.childNodes && ara(x))); return ara(this) ? {} : null; } }; }
+  function txt(v) { return { nodeType: 3, nodeValue: v, childNodes: [] }; }
+  const D = { readyState: 'loading', addEventListener() {}, createElement: el, createTextNode: txt };
   const c = { document: D, matchMedia: () => ({ matches: false }), KIDS_CIZ: {} }; c.window = c; vm.createContext(c); vm.runInContext(j, c);
-  const h = el('H2'); h.childNodes = [txt('Okul ve '), el('BR'), txt('veli için')];
-  c.KIDS_SCROLL.harfle(h);
-  const metin = (n) => n.nodeType === 3 ? n.nodeValue : n.tagName === 'BR' ? '\n' : n.childNodes.map(metin).join('');
-  assert.equal(metin(h), 'Okul ve \nveli için');
-  const kel = h.childNodes.filter((n) => n.className === 'kl-hk');
-  assert.equal(kel.length, 4); assert.ok(kel.every((k) => k.childNodes.every((x) => x.className === 'kl-hh')));
-  c.KIDS_SCROLL.harfle(h); assert.equal(h.childNodes.filter((n) => n.className === 'kl-hk').length, 4, 'iki kez bölünmez');
+  const h = el('H2'); h.appendChild(txt('Herkes için ')); const b = el('B'); b.appendChild(txt('kazanç')); h.appendChild(b);
+  c.KIDS_SCROLL.maskele(h);
+  const metin = (n) => n.nodeType === 3 ? n.nodeValue : n.childNodes.map(metin).join('');
+  assert.equal(metin(h), 'Herkes için kazanç'); assert.equal(h.childNodes.length, 1); assert.equal(h.childNodes[0].className, 'kl-m'); assert.equal(h.childNodes[0].childNodes[0].className, 'kl-m-ic');
+  c.KIDS_SCROLL.maskele(h); assert.equal(h.childNodes[0].childNodes[0].className, 'kl-m-ic', 'iki kez sarılmaz'); assert.equal(h.childNodes[0].childNodes[0].childNodes[0].nodeType, 3);
   assert.doesNotMatch(c.KIDS_SCROLL.cocuk(), /<image|href=/, 'çocuk çizimi özgün, dış resim yok');
 });
 

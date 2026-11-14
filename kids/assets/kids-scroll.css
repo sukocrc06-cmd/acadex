@@ -1,7 +1,7 @@
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası kaydırma şöleni (kids/assets/kids-scroll.css), 15.11.2026
-   kl-gok (sabahtan geceye zemin + paralaks katman), kl-zip (zıplayarak gelen kartlar ve
-   harf harf başlıklar), kl-hero-cocuk (balonlu çocuk) ve adaların açılması.
+   kl-gok (sabahtan geceye zemin + paralaks katman), kl-gir / kl-m (sırayla gelen içerik,
+   maskeden kayan başlıklar), kl-hero-cocuk (balonlu çocuk) ve fare/eğimle derinleşen hero.
    ========================================================================== */
 #icerik.kl-gok{background-color:#E4F5FF;background-repeat:no-repeat;padding-bottom:clamp(48px,7vw,80px)}
 #icerik.kl-gok+.kl-alt-bilgi{margin-top:0;border-top-color:#23304D}
@@ -31,28 +31,28 @@
 .kl-gok #fiyat>h2,.kl-gok #sss>h2{color:var(--krem);text-shadow:0 3px 0 rgba(10,14,40,.35)}
 .kl-gok .kl-guven>h2{text-shadow:0 2px 0 rgba(255,255,255,.5)}
 
-/* ---------- zıplayarak gelenler ---------- */
-.kl-zip-hazir .kl-zip{opacity:0;translate:0 46px;scale:.86;rotate:-1.5deg}
-.kl-zip-hazir .kl-zip.kl-geldi{opacity:1;translate:none;scale:none;rotate:none;transition:opacity .35s ease-out calc(var(--zi,0) * 90ms),translate .8s cubic-bezier(.22,1.65,.42,1) calc(var(--zi,0) * 90ms),scale .8s cubic-bezier(.22,1.65,.42,1) calc(var(--zi,0) * 90ms),rotate .8s ease-out calc(var(--zi,0) * 90ms)}
-.kl-zip-hazir .kl-zip.kl-geldi:nth-child(even){rotate:none}
-.kl-zip-hazir .kl-zip:nth-child(even):not(.kl-geldi){rotate:1.5deg}
-.kl-hk{display:inline-block;white-space:nowrap}
-.kl-hh{display:inline-block}
-.kl-zip-hazir .kl-zip-h .kl-hh{opacity:0;transform:translateY(.6em) scale(.4) rotate(-12deg)}
-.kl-zip-hazir .kl-zip-h.kl-geldi .kl-hh{opacity:1;transform:none;transition:opacity .2s calc(var(--i) * 28ms),transform .6s cubic-bezier(.2,1.9,.4,1) calc(var(--i) * 28ms)}
-/* geldikten sonra kartlar dokunuşa hoplar */
-.kl-zip-hazir .kl-konular>li.kl-geldi:hover,.kl-zip-hazir .kl-yaslar>li.kl-geldi:hover,.kl-zip-hazir .kl-adimlar>li.kl-geldi:hover{transform:translateY(-6px) rotate(-1deg);transition:transform .25s cubic-bezier(.2,1.8,.4,1)}
+/* ---------- içerik girişi: maskeden kayan başlıklar, sırayla gelen kartlar ---------- */
+#kl-sayfa{--mx:0;--my:0}
+.kl-giris-hazir .kl-gir{opacity:0;translate:0 28px}
+.kl-giris-hazir .kl-gir.kl-geldi{opacity:1;translate:none;transition:opacity .7s cubic-bezier(.2,.7,.2,1) calc(var(--zi,0) * 70ms),translate .9s cubic-bezier(.2,.7,.2,1) calc(var(--zi,0) * 70ms)}
+.kl-m{display:block;overflow:hidden;padding-bottom:.08em;margin-bottom:-.08em}
+.kl-m-ic{display:block}
+.kl-giris-hazir .kl-gir-h .kl-m-ic,.kl-giris-hazir .kl-hero h1 .kl-m-ic{translate:0 105%}
+.kl-giris-hazir .kl-gir-h.kl-geldi .kl-m-ic{translate:none;transition:translate .9s cubic-bezier(.2,.75,.15,1)}
+.kl-giris-hazir .kl-hero h1.kl-geldi .kl-m-ic{translate:none;transition:translate 1s cubic-bezier(.2,.75,.15,1) calc(.15s + var(--i,0) * .12s)}
+.kl-hero h1 .kl-m-satir{padding-bottom:.12em;margin-bottom:-.12em}
+.kl-hero h1 em{display:inline-block}
 
 /* ---------- hero: adalar açılır, çocuk balonla yükselir ---------- */
 .kl-hero-sahne{--hp:0}
-.kl-ada1{translate:calc(var(--hp) * -90px) calc(var(--hp) * -70px);scale:calc(1 + var(--hp) * .18)}
-.kl-ada2{translate:calc(var(--hp) * 80px) calc(var(--hp) * -110px);scale:calc(1 + var(--hp) * .25)}
-.kl-ada3{translate:calc(var(--hp) * 50px) calc(var(--hp) * 60px);scale:calc(1 + var(--hp) * .3)}
-.kl-bulut1{translate:calc(var(--hp) * -160px) calc(var(--hp) * -40px)}
-.kl-bulut2{translate:calc(var(--hp) * 170px) 0}
-.kl-bulut3{translate:calc(var(--hp) * -60px) calc(var(--hp) * 90px)}
-.kl-hero-acd{translate:0 calc(var(--hp) * -60px);rotate:calc(var(--hp) * 20deg)}
-.kl-hero-cocuk{left:64%;bottom:-6%;width:17%;z-index:3;translate:calc(var(--hp) * -40px) calc(var(--hp) * -230px);rotate:calc(var(--hp) * -6deg)}
+.kl-ada1{translate:calc(var(--hp) * -90px + var(--mx) * -18px) calc(var(--hp) * -70px + var(--my) * -14px);scale:calc(1 + var(--hp) * .18)}
+.kl-ada2{translate:calc(var(--hp) * 80px + var(--mx) * -30px) calc(var(--hp) * -110px + var(--my) * -22px);scale:calc(1 + var(--hp) * .25)}
+.kl-ada3{translate:calc(var(--hp) * 50px + var(--mx) * -40px) calc(var(--hp) * 60px + var(--my) * -30px);scale:calc(1 + var(--hp) * .3)}
+.kl-bulut1{translate:calc(var(--hp) * -160px + var(--mx) * -8px) calc(var(--hp) * -40px + var(--my) * -6px)}
+.kl-bulut2{translate:calc(var(--hp) * 170px + var(--mx) * -10px) calc(var(--my) * -8px)}
+.kl-bulut3{translate:calc(var(--hp) * -60px + var(--mx) * -50px) calc(var(--hp) * 90px + var(--my) * -36px)}
+.kl-hero-acd{translate:calc(var(--mx) * -24px) calc(var(--hp) * -60px + var(--my) * -18px);rotate:calc(var(--hp) * 20deg)}
+.kl-hero-cocuk{left:64%;bottom:-6%;width:17%;z-index:3;translate:calc(var(--hp) * -40px + var(--mx) * -34px) calc(var(--hp) * -230px + var(--my) * -26px);rotate:calc(var(--hp) * -6deg)}
 .kl-hero-cocuk .kc{width:100%;height:auto;display:block;transform-origin:50% 55%;animation:klCocukSuz 3.2s ease-in-out infinite alternate}
 .kl-hero-cocuk .kl-cb-el{transform-origin:78px 156px;animation:klCocukEl 1.6s ease-in-out infinite}
 .kl-hero-cocuk .kl-cb1,.kl-hero-cocuk .kl-cb2,.kl-hero-cocuk .kl-cb3{transform-box:fill-box;transform-origin:50% 100%;animation:klBalonSalla 2.4s ease-in-out infinite alternate}

@@ -37,7 +37,7 @@ test('anahtar: yalnız publishable, ana siteyle aynı proje', () => {
 
 test('kids/index.html kaynaklarla güncel ve bütün parçaları içerir', () => {
   const html = read('kids/index.html');
-  for (const f of ['kids-bulut.js', 'kids-gun.js', 'kids-app.js', 'kids-ogretmen.js', 'kids-yon.js']) assert.ok(html.includes('/* ---- ' + f + ' ---- */'), f);
+  for (const f of ['kids-bulut.js', 'kids-film.js', 'kids-app.js', 'kids-ogretmen.js', 'kids-yon.js'])   /* 15.11.2026: kids-gun.js yerine film */ assert.ok(html.includes('/* ---- ' + f + ' ---- */'), f);
   for (const f of ['kids-bulut.js', 'kids-app.js', 'kids-ogretmen.js', 'kids-veri.js']) assert.ok(html.includes(read('kids/assets/' + f).trim().slice(0, 4000)), f + ' eski: node kids/assets/birlestir.js');
   assert.doesNotMatch(html, /<!--(CSS|JS)-->/);
 });
