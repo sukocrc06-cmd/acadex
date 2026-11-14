@@ -261,11 +261,14 @@ const cleanNote = (t: string) => String(t || "")
   .replace(/\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "")
   .replace(/(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*['’]?\s*(?:[a-zçğıöşü]{1,4}\s+göre|according to)?\s*,?/gi, "")
   .replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, "")
+  // "Bu söz, bilimup.com'da tam olarak bu ifadeyle yer alıyor": site adı anan cümle söylenmez.
+  .split(/(?<=[.!?])\s+/).filter((c) => !/\b[a-z0-9-]+\.(?:com|org|net|edu|gov|info|co)(?:\.[a-z]{2})?\b/i.test(c)).join(" ")
   .replace(/\s+([.,;:!?])/g, "$1").replace(/([.!?])\s*,/g, "$1").replace(/\s{2,}/g, " ").trim()
   .replace(/(^|[.!?]\s+)([a-zçğıöşü])/g, (_m, a, b) => a + b.toLocaleUpperCase("tr"));
 // Asetat metninde "(Kaynak 2, 8)" kalmaz: canlı destede (Apollo 11, 14.11.2026)
 // zaman çizelgesi maddeleri hem bunu hem gerçek atfı "[1, 2, 4]" taşıyordu.
 const ABSOLUTE = /(?:^|\s)en (?:hızlı|büyük|küçük|uzun|kısa|yüksek|düşük|önemli|eski|yeni|iyi|kötü|pahalı|ucuz)|\bilk kez\b|\btarihte(?:ki)?\b|\bkanıtla|\bkesin(?:likle)?\b|\brekor|\bthe (?:first|fastest|largest|biggest|smallest|longest|highest|lowest|most|only)\b|\bproved?\b|\brecord\b|\bnever\b|\balways\b/i;
+const mixedUnits = (labels: string[]) => new Set((labels || []).map((l) => (String(l).match(/\(([^)]+)\)\s*$/) || [])[1]).filter(Boolean).map((u) => String(u).toLocaleLowerCase("tr").trim())).size > 1;
 const cleanCite = (t: string) => String(t || "").replace(/\s*\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "").trim();
 async function groq(key: string, model: string, sys: string, user: string, maxTok: number) {
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -443,10 +446,12 @@ q1 = the topic as a precise search query in its own language; q2 = a query for c
       const stems = (t: string) => [...new Set((t.toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, Math.max(5, w.length - 2))))];
       const onTopic = (w: Wiki) => { const low = (w.title + " " + w.text).toLocaleLowerCase("tr"); return [topic, topicEn].filter(Boolean).some((t) => { const k = stems(t); return k.length > 0 && k.every((x) => low.includes(x)); }); };
       // 3) Birleştir: aynı adres bir kez, alan adı başına en çok 2, puana göre sırala.
-      const seen = new Set<string>(); const perHost: Record<string, number> = {};
+      const seen = new Set<string>(); const perHost: Record<string, number> = {}; let untrusted = 0;
       const web = tv.flat().filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url)))
         .sort((a: any, b: any) => (Number(b.score) || 0) + trust(hostOf(b.url)) - (Number(a.score) || 0) - trust(hostOf(a.url)))
         .filter((r: any) => { const u0 = String(r.url).split("#")[0]; const h = hostOf(u0); if (seen.has(u0) || (perHost[h] || 0) >= 2 || /wikipedia\.org$/.test(h)) return false; seen.add(u0); perHost[h] = (perHost[h] || 0) + 1; return true; })
+        // En az 3 kurumsal kaynak varsa ötekilerden en çok 2 alınır.
+        .filter((r: any, _i: number, all: any[]) => { if (trust(hostOf(r.url)) || all.filter((x) => trust(hostOf(x.url))).length < 3) return true; return ++untrusted <= 2; })
         .slice(0, 7);
       engine.web = web.length;
       srcs = web.map((r: any, i: number) => ({
@@ -472,12 +477,12 @@ Rules:
 - The FIRST content slide hooks the audience: why this topic matters, with one concrete fact from the sources. The LAST content slide is the conclusion: kind "list" with exactly 3 takeaway bullets. Every slide must have real content — never leave bullets empty.
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
-  "chart": a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
-  "time": 3-4 chronological steps or dates; "two": a comparison of two sides (heads = the two side names);
+  "chart": one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
+  "time": 3-4 chronological steps or dates; "two": a comparison of exactly two sides (heads = the two side names) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 concise bullet points (max ~14 words each).
   Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
-- When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give clock times with the time zone the source uses.
+- When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give a clock time only together with the time zone the source itself states — never invent or translate a time-zone abbreviation; if the source gives none, give the date without the clock time.
 - Do not repeat the same fact on two slides. "stat" values are quantities (amounts, percentages, durations), never calendar dates — dates belong on a "time" slide.
 - A "quote" slide's title says who said it and when; the title is never the quotation itself.
 - No superlatives or absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") unless a source states exactly that — this applies to notes too.
@@ -548,7 +553,12 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       }
       const table = s.table && Array.isArray(s.table.rows) ? { headers: (s.table.headers || []).map(String).slice(0, 4), rows: s.table.rows.slice(0, 5).map((r: any) => (Array.isArray(r) ? r : []).map(String).slice(0, 4)) } : null;
       let k = kind;
+      /* Tek eksende üç ayrı birim grafik değildir: canlı destede (14.11.2026)
+         "10 mil · 7 km · 20 saniye" aynı çubuk grafikte yan yana çizildi. */
+      if (chart && mixedUnits(chart.labels)) chartOk = false;
       if (k === "chart" && (!chart || !chartOk)) k = "list";
+      // Grafik listeye inince maddesi yoksa asetat boş sayılıp düşüyordu; değerler maddeye yazılır.
+      if (k === "list" && kind === "chart" && chart && !bullets.length) chart.values.forEach((v: number, i: number) => { const l = String(chart.labels[i] || ""); const u = (l.match(/\(([^)]+)\)\s*$/) || [])[1] || chart.unit; bullets.push(`${l.replace(/\s*\([^)]+\)\s*$/, "")}: ${String(v).replace(".", lang === "en" ? "." : ",")} ${u}`.trim()); if (!verified(String(v), idx) && !verified(String(v), allIdx)) warn.push(bullets.length - 1); });
       if (k === "stat" && stats.filter((x: any) => x.ok).length < 3) k = "list";
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });

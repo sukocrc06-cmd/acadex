@@ -241,4 +241,25 @@ test('KALAN KUSURLAR: kısa not, mutlak iddia, zayıf kaynak, kaynakça notu (14
   assert.match(ink, /if \(it\.fix === 'outro'\) ns\.b = ns\.b\.slice\(0, 3\);/, '"3 mesaj" altında 4 madde basılıyor');
 });
 
+test('KARIŞIK BİRİMLİ GRAFİK, NOTTA SİTE ADI, KAYNAK KARIŞIMI (14.11.2026, üçüncü Apollo destesi)', () => {
+  /* Deste sunulabilir hâle geldi ama: "10 mil · 7 km · 20 saniye" tek çubuk
+     grafikte çizildi; not "bu söz bilimup.com'da tam olarak bu ifadeyle yer
+     alıyor" dedi; iniş saati uydurma "EEZ" dilimiyle yazıldı; üç kişilik
+     mürettebat iki kolona sıkıştı (Aldrin yok). */
+  const ts = require('typescript');
+  const pick = (from, to) => ts.transpileModule(sr.slice(sr.indexOf(from), sr.indexOf(to)), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const f = new Function(pick('const cleanNote', 'const ABSOLUTE') + pick('const mixedUnits', 'const cleanCite') + ';return { cleanNote, mixedUnits };')();
+  assert.ok(f.mixedUnits(['Planlanan yükseklik (mil)', 'İniş hatası (km)', 'Kalan yakıt (saniye)']), 'karışık birim yakalanmıyor');
+  assert.ok(!f.mixedUnits(['2019 (milyar $)', '2020 (milyar $)']), 'tek birimli grafik eleniyor');
+  assert.ok(!f.mixedUnits(['Gün 1', 'Gün 2']), 'birimsiz etiketler eleniyor');
+  assert.equal(f.cleanNote('Armstrong bu sözü Ay’da söyledi. Bu söz, bilimup.com’da tam olarak bu ifadeyle yer alıyor. Şimdi mirasa bakalım.'),
+    'Armstrong bu sözü Ay’da söyledi. Şimdi mirasa bakalım.');
+  assert.equal(f.cleanNote('Görev 8,5 gün sürdü. ABD’de izlenme yüksekti.'), 'Görev 8,5 gün sürdü. ABD’de izlenme yüksekti.', 'ondalık ya da kısaltma cümleyi düşürmemeli');
+  assert.match(sr, /if \(chart && mixedUnits\(chart\.labels\)\) chartOk = false;/, 'karışık birimli grafik çiziliyor');
+  assert.match(sr, /if \(k === "list" && kind === "chart" && chart && !bullets\.length\)/, 'listeye inen grafik asetatı boş kalıp düşüyor');
+  assert.ok(sr.includes('never invent or translate a time-zone abbreviation'), 'uydurma saat dilimi yasağı yok');
+  assert.ok(sr.includes('three or more people, items or groups go in a "list" or "table"'), 'üç kişi iki kolona sıkışıyor');
+  assert.match(sr, /return \+\+untrusted <= 2;/, 'kurumsal kaynak yeterliyken zayıf kaynak sınırlanmıyor');
+});
+
 summary();
