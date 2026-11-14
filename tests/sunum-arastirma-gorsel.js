@@ -262,4 +262,72 @@ test('KARIŞIK BİRİMLİ GRAFİK, NOTTA SİTE ADI, KAYNAK KARIŞIMI (14.11.2026
   assert.match(sr, /return \+\+untrusted <= 2;/, 'kurumsal kaynak yeterliyken zayıf kaynak sınırlanmıyor');
 });
 
+test('TOKEN BÜTÇESİ: anlam denetimi ve büyük model sınıra takılmaz (14.11.2026, canlı log)', () => {
+  /* Enflasyon destesinin logu: "meaning check 413" — genişlettiğim denetim
+     (70 iddia × 1100 karakter) Groq'un dakikada 8000 token sınırını aştı ve o
+     destede HİÇBİR iddia denetlenmedi ("%85 enflasyon (2023)" yanlış yılla
+     geçti). Aynı logda yazar da 8282 token ile 413 alıp küçük modele düşmüştü. */
+  assert.match(sr, /srcBlock\(13000\);/, 'yazarın kaynak bloğu 8000 token sınırını aşıyor');
+  assert.ok(!/srcBlock\(18000\)/.test(sr), '18 bin karakterlik blok geri gelmiş');
+  assert.match(sr, /if \(!g\.ok && g\.status === 413\) g = await groq\(gKey, "openai\/gpt-oss-120b"/, '413\'te büyük model küçük blokla yeniden denenmiyor');
+  assert.match(sr, /let payload = pack\(10000\);/, 'denetim yükü karakter bütçesiyle kesilmiyor');
+  assert.match(sr, /payload = pack\(4500\);/, 'yedek model yarım yükle denenmiyor');
+  assert.match(sr, /source: c\.ctx\.slice\(0, 420\)/, 'iddia başına kaynak parçası kısaltılmıyor');
+  // Öncelik sırası gerçek kodla: sayı kutusu ve grafik, sayısız maddeden önce gider.
+  const ts = require('typescript');
+  const a = sr.indexOf('const rank = '), b = sr.indexOf('let payload = pack');
+  const numTokens = (t) => t.match(/\d+/g) || [];
+  const claims = [{ k: '0.b0', text: 'sayısız uzun bir madde', ctx: 'x'.repeat(900) }, { k: '0.n1', text: 'not 5', ctx: 'y' }, { k: '1.s0', text: '%85', ctx: 'z' }, { k: '2.c0', text: 'g: 3', ctx: 'w' }, { k: '0.b1', text: 'madde 7', ctx: 'q' }];
+  const pack = new Function('claims', 'numTokens', ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + ';return pack;')(claims, numTokens);
+  assert.deepEqual(pack(10000).map((x) => x.k), ['1.s0', '2.c0', '0.b1', '0.n1', '0.b0']);
+  assert.deepEqual(pack(200).map((x) => x.k), ['1.s0', '2.c0', '0.b1', '0.n1'], 'bütçe dolunca en önemsiz iddia dışarıda kalmalı');
+  assert.ok(pack(10000)[4].source.length === 420, 'kaynak parçası 420 karaktere inmiyor');
+  // Güncellik ve biçim kuralları
+  assert.ok(sr.includes('q2 must ask for the latest data and include the current year'), 'güncel konuda güncel veri aranmıyor');
+  assert.ok(sr.includes('Never present old data as the present situation'), 'eski veri bugünmüş gibi sunulabiliyor');
+  assert.ok(sr.includes('EACH starting with its own date or period'), 'tarihsiz maddeler zaman çizelgesine giriyor');
+});
+
+test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (14.11.2026)', () => {
+  /* Berkay: "hep aynı kalıpları kullanıyor" — enflasyon destesinde iki zaman
+     çizelgesi birebir aynıydı. Çeşitler gerçek kodla kurulur ve ölçülür:
+     her öğe 960×540 asetatın içinde kalmalı, içerik uymuyorsa null dönmeli. */
+  const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
+  assert.ok(a > 0 && b > a, 'VARY bloğu bulunamadı');
+  let id = 0;
+  const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
+  const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
+  const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
+  const { VARY, VSIRA, tarihBol } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol };')(E, head, statsOf, '#0D1838', '#2F6BFF');
+  const B3 = ['Eylül 2021: Enflasyon %19 iken faiz indirimleri başladı', '2022 – Enflasyon %85 seviyesine yükseldi', '2023: Seçim sonrası politika değişti'];
+  const B5 = B3.concat(['2024: Sıkılaşma sürdü', '2025: Dezenflasyon']);
+  const icinde = (els, ad) => els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, ad + ': öğe asetatın dışına taşıyor (' + e.type + ' ' + e.x + ',' + e.y + ' ' + e.w + '×' + e.h + ')'));
+  let kurulan = 0;
+  Object.keys(VARY).forEach((k) => VARY[k].forEach((f, i) => {
+    [B3, B3.concat(['Dördüncü kısa madde']), B5].forEach((bb) => {
+      const veri = k === 'stat' ? ['%19 — Eylül 2021', '%85 — Ekim 2022', '%61,5 — 2023 Ç3'] : bb;
+      const els = f('Başlık', veri, { heads: ['Önce', 'Sonra'] });
+      if (!els) return;
+      kurulan++; icinde(els, k + ' çeşit ' + (i + 1));
+      assert.equal(els[0].type, 'h', 'başlık ilk öğe olmalı (titleOf ilk h\'yi okur)');
+      assert.ok(!els.some((e) => e.muted), 'çeşit yer tutucu basmamalı');
+      const yazi = els.filter((e) => e.type === 't' || e.type === 'ul').map((e) => e.text).join(' ');
+      if (k !== 'stat') veri.forEach((x) => { const d = k === 'time' ? tarihBol(x) : null; assert.ok(yazi.includes(d ? d[1] : x), k + ' çeşit ' + (i + 1) + ': madde kayboldu'); });
+    });
+    assert.equal(f('Başlık', [], {}), null, k + ' çeşit ' + (i + 1) + ': boş içerikle klasik düzene dönmeli');
+    /* iki kolon çeşidi klasikle aynı madde listesini kullanır; uzun metni otomatik sığdırma küçültür */
+    if (k !== 'stat' && k !== 'two') assert.equal(f('Başlık', ['x'.repeat(400), 'y', 'z'], {}), null, 'uzun metin kartlara sıkıştırılmamalı');
+  }));
+  assert.ok(kurulan >= 12, 'çeşitler kurulmuyor (' + kurulan + ')');
+  assert.deepEqual(tarihBol('Eylül 2021: faiz indirimi başladı'), ['Eylül 2021', 'faiz indirimi başladı']);
+  assert.deepEqual(tarihBol('16 Temmuz 1969 – Saturn V fırlatıldı'), ['16 Temmuz 1969', 'Saturn V fırlatıldı']);
+  assert.equal(tarihBol('Bu değişim eş zamanlı gerçekleşti'), null, 'tarihsiz cümle tarih diye bölünmemeli');
+  // Zaman çizelgesi: ilk iki asetat klasik OLMAYAN iki ayrı görünüm alır.
+  assert.deepEqual(VSIRA.time.slice(0, 2), [2, 1]);
+  assert.match(ink, /if \(!VSIRA\[kind\] \|\| arr\(s\.warnI\)\.length \|\| \(kind === 'list' && s\.img && s\.img\.entity\)\) return 0;/,
+    'uyarılı ya da gerçek fotoğraf bekleyen asetat klasik kalmalı');
+  assert.match(ink, /if \(yerTutucu\(sl\) \|\| sl\.v \|\|/, 'kartlı düzenin üstüne fotoğraf konuyor');
+  assert.match(ink, /lay: sl\.lay \|\| null, v: sl\.v \|\| 0,/, 'çeşit kaydedilmiyor');
+});
+
 summary();

@@ -257,7 +257,7 @@ test('FOTOĞRAF ADAYLIĞI VE SESSİZ VAZGEÇME (14.11.2026)', () => {
      olup olmadığına bakılır — elle eklenmiş fotoğrafı da kapsar. */
   assert.match(ink, /var GORSEL = \/\^\(img\|chart\|table\|mmd\|math\|viz\)\$\/;/,
     'görsel öğe listesi yok');
-  assert.match(ink, /if \(sl\.els\.some\(function \(e\) \{ return GORSEL\.test\(e\.type\); \}\)\) return false;/,
+  assert.match(ink, /if \(sl\.v \|\| sl\.els\.some\(function \(e\) \{ return GORSEL\.test\(e\.type\); \}\)\) return false;/,
     'görseli olan asetat fotoğraf adayı olmaktan çıkmıyor');
   assert.match(ink, /\.filter\(Boolean\)\.length <= 4 && t\.length < 260;/,
     'eşik hâlâ ≤3 madde / <170 karakter — 10 asetatlık destede tek aday kalıyor');

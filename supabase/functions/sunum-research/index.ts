@@ -421,7 +421,8 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
       //    yalnız konu aranır.
       const sysQ = `You plan web research for a university presentation. Given a TOPIC, return ONLY JSON:
 {"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in the topic's own language","wiki_en":"best matching English Wikipedia article title"}
-q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about the topic (same language); q3 = the topic as an English search query. No quotes, no site: operators.`;
+q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about the topic (same language); q3 = the topic as an English search query. No quotes, no site: operators.
+Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing situation (economy, policy, markets, technology, a living person or organisation), q2 must ask for the latest data and include the current year.`;
       const gq = await groq(gKey, "openai/gpt-oss-20b", sysQ, `TOPIC: ${topic}`, 300);
       try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); if (gq.ok && qs.length) queries = [...new Set([topic, ...qs.slice(-2)])].slice(0, 3);   /* konu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür */ topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
       engine.queries = queries.length;
@@ -478,11 +479,14 @@ Rules:
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
   "chart": one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
-  "time": 3-4 chronological steps or dates; "two": a comparison of exactly two sides (heads = the two side names) — three or more people, items or groups go in a "list" or "table", never in "two";
+  "time": 3-4 chronological steps, EACH starting with its own date or period — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 concise bullet points (max ~14 words each).
   Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
 - When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give a clock time only together with the time zone the source itself states — never invent or translate a time-zone abbreviation; if the source gives none, give the date without the clock time.
+- Today is ${new Date().toISOString().slice(0, 10)}. Say which period every number refers to; if the newest data in the sources is more than a year old, the conclusion slide says up to which date the deck is current. Never present old data as the present situation.
+- Do not write academic citations such as "(Yılmaz et al., 2023)" inside bullets or labels; attribution is carried by "src". Naming the reporting institution ("TCMB raporu") is fine.
+- Titles and headings are fully in ${L}; translate foreign terms (e.g. "unorthodox policy" = "alışılmadık politika").
 - Do not repeat the same fact on two slides. "stat" values are quantities (amounts, percentages, durations), never calendar dates — dates belong on a "time" slide.
 - A "quote" slide's title says who said it and when; the title is never the quotation itself.
 - No superlatives or absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") unless a source states exactly that — this applies to notes too.
@@ -500,9 +504,15 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       return docText ? `[1] ${srcs[0].title}\n${docText.slice(0, Math.min(14000, total))}`
         : srcs.map((s) => `[${s.id}] ${s.title} (${s.site}${s.date ? ", " + s.date.slice(0, 10) : ""})\n${pickPassages(s.text, keys, per) || s.snippet}`).join("\n\n");
     };
-    const user = `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(18000);
+    /* TOKEN BÜTÇESİ (canlı log, 14.11.2026): Groq ücretsiz katmanda model başına
+       dakikada 8000 token. 18 bin karakterlik kaynak bloğu 8282 token tuttu, büyük
+       model 413 verdi ve deste küçük modelle yazıldı. Blok 13 bine indi; yine 413
+       gelirse büyük model 9 binle bir kez daha denenir, küçük modele ondan sonra
+       inilir. */
+    const user = `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(13000);
 
     let g = await groq(gKey, "openai/gpt-oss-120b", sys, user, 7000);
+    if (!g.ok && g.status === 413) g = await groq(gKey, "openai/gpt-oss-120b", sys, `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(9000), 7000);
     // Yedek: küçük model + yarı bütçe. Büyük model meşgulken ya da istek
     // dakikalık token sınırına takıldığında aynı isteği yinelemek işe yaramaz.
     if (!g.ok) { console.warn("groq 120b", g.status, JSON.stringify(g.data).slice(0, 300)); g = await groq(gKey, "openai/gpt-oss-20b", sys, `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(9000), 6000); }
@@ -587,7 +597,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
     if (!slides.length) return J({ error: "Acadia yanıtı okunamadı" }, 502);
 
     // ---------- anlam doğrulaması: her iddia kaynağın ilgili paragrafıyla karşılaştırılır ----------
-    const ctxFor = (ids: number[], claim: string) => {
+    const ctxFor = (ids: number[], claim: string, max = 1100) => {
       const pool = srcs.filter((x) => !ids.length || ids.includes(x.id));
       const keys = (claim.match(/\d+(?:[.,]\d+)*|[\p{L}]{6,}/gu) || []).slice(0, 6);
       const parts: string[] = [];
@@ -595,7 +605,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
         const low = s0.text.toLocaleLowerCase("tr");
         for (const k of keys) { const at = low.indexOf(k.toLocaleLowerCase("tr")); if (at >= 0) { parts.push(`[${s0.id}] …${s0.text.slice(Math.max(0, at - 260), at + 260)}…`); break; } }
       }
-      return (parts.length ? parts : pool.slice(0, 2).map((x) => `[${x.id}] ${x.snippet.slice(0, 500)}`)).join("\n").slice(0, 1100);
+      return (parts.length ? parts : pool.slice(0, 2).map((x) => `[${x.id}] ${x.snippet.slice(0, 500)}`)).join("\n").slice(0, max);
     };
     const claims: { k: string; si: number; bi: number; text: string; ctx: string }[] = [];
     slides.forEach((s: any, si: number) => {
@@ -615,8 +625,10 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
 Rewrite the note as 4-5 natural spoken sentences, 55-75 words: keep what is correct, add one concrete detail or example from the excerpts that is NOT on the slide, and keep the final bridge sentence if there is one.
 Use ONLY facts from the excerpts or the slide. No new numbers unless they are in the excerpts. No superlatives the excerpts do not state. Never mention source numbers or labels.
 Return ONLY JSON: {"r":[{"i":0,"notes":""}]}`;
-      const payN = short.slice(0, 12).map((x: any) => ({ i: x.i, title: x.s.title, slide: [...x.s.bullets, ...x.s.stats.map((y: any) => `${y.value} ${y.label}`)].join(" | ").slice(0, 500), note: x.s.notes, source: ctxFor(x.s.src, x.s.title + " " + x.s.bullets.join(" ")) }));
-      const gn = await groq(gKey, "openai/gpt-oss-20b", sysN, JSON.stringify(payN), 3500);
+      // En kısa 6 not, 450 karakterlik kaynakla: bu çağrı anlam denetimiyle aynı
+      // modelin dakikalık bütçesini paylaşır, o denetim daha önemlidir.
+      const payN = short.sort((a: any, b: any) => wc(a.s.notes) - wc(b.s.notes)).slice(0, 6).map((x: any) => ({ i: x.i, title: x.s.title, slide: [...x.s.bullets, ...x.s.stats.map((y: any) => `${y.value} ${y.label}`)].join(" | ").slice(0, 300), note: x.s.notes, source: ctxFor(x.s.src, x.s.title + " " + x.s.bullets.join(" "), 450) }));
+      const gn = await groq(gKey, "openai/gpt-oss-20b", sysN, JSON.stringify(payN), 2000);
       let rn: any = null; try { rn = JSON.parse(gn.data?.choices?.[0]?.message?.content || ""); } catch { rn = null; }
       if (gn.ok && rn && Array.isArray(rn.r)) for (const r of rn.r) {
         const s: any = slides[Number(r?.i)]; if (!s) continue;
@@ -644,10 +656,17 @@ For "mislabel" give "fix": the corrected claim in ${LL}, same length and style, 
 Superlatives and absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") are "unsupported" unless the excerpts state exactly that.
 A claim of the form "title — label: value unit" is a chart data point: it is "ok" only if the excerpts explicitly give that value for that label; a total divided into parts the source does not state is "unsupported".
 Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {"r":[{"k":"","v":"ok|mislabel|unsupported","fix":"","why":""}]}`;
-      const payload = claims.slice(0, 70).map((c) => ({ k: c.k, claim: c.text, source: c.ctx }));
+      /* Canlı log (14.11.2026): 70 iddia × 1100 karakter 413 verdi ve o destede
+         HİÇBİR iddia denetlenmedi. İddialar önem sırasına dizilir (sayı kutusu,
+         grafik, sayılı madde, sayılı/mutlak not cümlesi, öteki maddeler),
+         kaynak parçası 420 karaktere iner ve yük ~10 bin karakterde kesilir. */
+      const rank = (c: any) => { const t = c.k.split(".")[1][0]; return t === "s" ? 0 : t === "c" ? 1 : t === "b" && numTokens(c.text).length ? 2 : t === "n" ? 3 : 4; };
+      const pack = (limit: number) => { const out: any[] = []; let used = 0; for (const c of [...claims].sort((a, b) => rank(a) - rank(b))) { const it = { k: c.k, claim: c.text, source: c.ctx.slice(0, 420) }; const len = JSON.stringify(it).length; if (used + len > limit) break; used += len; out.push(it); } return out; };
+      let payload = pack(10000);
       // ayrı model: aynı dakikada ana yazımla aynı token sınırına takılmasın
-      let gv = await groq(gKey, "openai/gpt-oss-20b", sysV, JSON.stringify(payload), 6000);
-      if (!gv.ok) { await new Promise((r) => setTimeout(r, 1500)); gv = await groq(gKey, "openai/gpt-oss-120b", sysV, JSON.stringify(payload), 6000); }
+      let gv = await groq(gKey, "openai/gpt-oss-20b", sysV, JSON.stringify(payload), 3000);
+      // Yedek: öteki model (ayrı dakikalık bütçe) ve yarım yük — en önemli iddialar yine denetlenir.
+      if (!gv.ok) { console.warn("meaning check 20b", gv.status, payload.length); payload = pack(4500); await new Promise((r) => setTimeout(r, 1500)); gv = await groq(gKey, "openai/gpt-oss-120b", sysV, JSON.stringify(payload), 2000); }
       let rv: any = null; try { rv = JSON.parse(gv.data?.choices?.[0]?.message?.content || ""); } catch { rv = null; }
       if (gv.ok && rv && Array.isArray(rv.r)) {
         meaning.checked = payload.length;
