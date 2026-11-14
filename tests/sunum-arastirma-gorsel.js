@@ -616,4 +616,130 @@ test('CANLI DESTE 14.11 (irade): madde içi kaynak girişi, yayın yılı öneki
   assert.equal(ink.split("sonB(sl).join(', ')").length - 1, 2, 'TR ve EN kapanış notu aynı kaynaktan yazılmalı');
 });
 
+test('CANLI DESTE 14.11 (zaman yönetimi) — sunucu: "(src1)", uydurma sayı asetatı, yinelenen fikir, nota uymayan cümle', () => {
+  /* Destede: maddelerde ve alıntıda "(src1)" / "(src2, src4)"; Pomodoro'nun 25 ve
+     5 dakikası "Sabah: dakika · Öğle: dakika · Akşam: dakika" diye günlük rutin
+     sayıları olarak basıldı; "araç seçimi: dijital ya da fiziksel planlayıcı"
+     üç asetatta yinelendi; notlar "Bu slide", "Udemy kaynağı…" diyor ve listeye
+     inmiş asetat için "bu çizgi grafikte" diye anlatıyordu. */
+  const pick = (a, b) => { const i = sr.indexOf(a), j = sr.indexOf(b, i); assert.ok(i > 0 && j > i, a + ' bulunamadı'); return sr.slice(i, j); };
+  const ts = require('typescript');
+  const js = ts.transpileModule(pick('const keysOf', 'const aspHit') + pick('const dropEchoes', '/* "Alıntı" bir cümledir') + pick('const cleanCite', 'async function groq'), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const f = new Function(js + ';return { cleanCite, statOdd, noteFit, dropEchoes };')();
+  assert.equal(f.cleanCite('Pomodoro odaklanmayı artırır (src1). Bitti [src 2, src4]'), 'Pomodoro odaklanmayı artırır. Bitti');
+  assert.equal(f.cleanCite('Öncelik matrisi (src2, src4) işleri ayırır (Kaynak 3)'), 'Öncelik matrisi işleri ayırır');
+  assert.equal(f.cleanCite('Kaynak yönetimi (2023) önemlidir'), 'Kaynak yönetimi (2023) önemlidir', 'yıl ve düz sözcük silinmemeli');
+  assert.equal(f.statOdd([{ value: '25', label: 'Sabah: dakika' }, { value: '5', label: 'Öğle: dakika' }, { value: '25', label: 'Akşam: dakika' }]), 2, '"ad: birim" etiketli dizi uydurmadır');
+  assert.equal(f.statOdd([{ value: '%25', label: 'kadın' }, { value: '%25', label: 'erkek' }, { value: '%3', label: 'öteki' }]), 1, 'yinelenen değer listeye iner');
+  assert.equal(f.statOdd([{ value: '%19', label: 'Eylül 2021' }, { value: '%85', label: 'Ekim 2022' }, { value: '%61,5', label: '2023 üçüncü çeyrek: yıllık enflasyon oranı' }]), 0, 'sağlam sayı asetatı elenmemeli');
+  assert.match(sr, /if \(k === "stat" && statOdd\(stats\)\) \{ k = "list"; if \(statOdd\(stats\) === 2\) stats = \[\]; \}/, 'uydurma dizi maddeye çevrilmemeli');
+  const not = f.noteFit({ notes: 'Bu slide’da üç araç var. Bu çizgi grafikte sabah saatleri görülüyor. Udemy kaynağı bunu doğruluyor. Sonuç slide’ı önemli. Slide bitti.' }, 'tr');
+  assert.equal(not, 'Bu slaytta üç araç var. Sonuç slaytı önemli. Slayt bitti.');
+  assert.match(f.noteFit({ notes: 'Bu grafikte artış görülüyor. Sonra tabloya bakalım.', chart: {}, table: {} }, 'tr'), /grafikte.*tabloya/, 'grafiği/tablosu olan asetatın notu kırpılmamalı');
+  assert.equal(f.noteFit({ notes: 'This slide shows three tools.' }, 'en'), 'This slide shows three tools.', 'İngilizce notta "slide" doğru sözcük');
+  assert.equal(f.noteFit({ notes: 'Udemy kaynağı bunu doğruluyor.' }, 'tr'), 'Udemy kaynağı bunu doğruluyor.', 'tek cümlelik not boşaltılmamalı');
+  const d = [
+    { kind: 'list', bullets: ['Zaman yönetimi neden önemlidir sorusunun yanıtı verimlilik ve iyi oluşta saklıdır'], warn: [] },
+    { kind: 'list', bullets: ['Araç seçimi: dijital veya fiziksel planlayıcı kullanmak alışkanlığı kalıcı kılar', 'Pomodoro tekniği odaklanmayı artırır ve molaları düzenler'], warn: [1] },
+    { kind: 'list', bullets: ['Araç uyumu: dijital ya da fiziksel planlayıcı seçimi alışkanlığı kalıcı yapar', 'Uyku düzeni dikkat süresini uzattığı için verimliliği doğrudan belirler'], warn: [1] },
+    { kind: 'list', bullets: ['Araç seçimi: dijital veya fiziksel planlayıcı kullanmak alışkanlığı kalıcı kılar'], warn: [] },
+  ];
+  assert.equal(f.dropEchoes(d), 1);
+  assert.deepEqual(d[2].bullets, ['Uyku düzeni dikkat süresini uzattığı için verimliliği doğrudan belirler']);
+  assert.deepEqual(d[2].warn, [0], 'uyarı sırası kayan maddeyle birlikte kaymalı');
+  assert.equal(d[3].bullets.length, 1, 'son asetat özettir, yineleyebilir');
+  assert.ok(sr.indexOf('dropEchoes(slides);') > sr.indexOf('dropRepeats(slides);') && sr.indexOf('dropEchoes(slides);') < sr.indexOf('const dropAt ='), 'boşalan asetatı düşüren adım sonra çalışmalı');
+  assert.match(sr, /slides\.forEach\(\(x: any\) => \{ x\.notes = noteFit\(x, lang\); \}\);/);
+  assert.ok(sr.includes('"(src2)"') && sr.includes('In Turkish say "slayt"') && sr.includes('"Sabah: dakika"'), 'istemde yeni yasaklar yok');
+  // üst üste iki fotoğraf: aynı sorgu ikinci kez Unsplash'e gitmez, ikinci fotoğraf aynı "i" ile döner
+  assert.match(sr, /if \(!p && q && memo\.has\(q\)\) p = take\(memo\.get\(q\) \|\| \[\]\);/);
+  assert.match(sr, /if \(cift\.has\(x\.i\) && x\.q\) hints\.push\(\{ i: x\.i, q: x\.q, entity: "" \}\);/);
+});
+
+test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda gelmez, fotoğraf üç biçimde, gündem, tablo başlığı', () => {
+  /* Berkay: "genel yapının çok aynı olması… her şeyin en az 3-4 farklı hâli
+     olmalı". Canlı destede 7, 9 ve 10. asetat üç sütunluk aynı karttı (kolon
+     çeşidi kartlarla aynı görünüyordu), 2, 3 ve 5. asetat "liste + sağda
+     fotoğraf"tı. */
+  const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
+  let id = 0;
+  const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
+  const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
+  const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
+  const { VARY, VSIRA, LAILE, TINT } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', ink.slice(a, b) + ';return { VARY, VSIRA, LAILE, TINT };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3]);
+  // klasik + çeşitler: her türde en az 4 görünüm
+  Object.keys(VARY).forEach((k) => assert.ok(new Set(VSIRA[k]).size >= 4, k + ': ' + new Set(VSIRA[k]).size + ' görünüm var, en az 4 olmalı'));
+  assert.ok(VARY.list.length >= 10 && VARY.stat.length >= 4 && VARY.two.length >= 3 && VARY.quote.length >= 3);
+  // kolon çeşidi artık kart değil: büyük renkli kutusu yok, kart çeşidinin var
+  const KOL = ['Pomodoro: 25 dakika odak ve 5 dakika mola döngüsüyle çalışılır', 'Eisenhower: işler önem ve aciliyete göre dörde ayrılır', 'Pareto: sonuçların çoğu işlerin küçük bir bölümünden gelir'];
+  const buyukKutu = (els) => els.filter((e) => e.type === 'rect' && e.w >= 60 && e.h >= 60).length;
+  assert.equal(buyukKutu(VARY.list[6]('B', KOL, {})), 0, 'kolon çeşidi kartlarla aynı görünüyor');
+  assert.ok(buyukKutu(VARY.list[0]('B', KOL, {})) >= 3);
+  // gündem: 8 kısa başlık iki kolona sığar, uzun başlıkla kurulmaz
+  const G8 = ['Giriş', 'Temel kavramlar', 'Öncelik belirleme', 'Pomodoro tekniği', 'Araçlar', 'Sık yapılan hatalar', 'Uygulama planı', 'Sonuç'];
+  const g = VARY.list[9]('Gündem', G8, {});
+  assert.ok(g && g.every((e) => e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540), 'gündem asetata sığmıyor');
+  G8.forEach((x) => assert.ok(g.some((e) => e.type === 't' && e.text === x), 'gündemde başlık eksik: ' + x));
+  assert.ok(new Set(g.filter((e) => e.type === 't').map((e) => e.x)).size === 2, '5 başlıktan çoğu iki kolona bölünmeli');
+  assert.equal(VARY.list[9]('Gündem', ['x'.repeat(80), 'b', 'c'], {}), null);
+  // sıra: gerçek vSec + newSlide ile 8 liste — aynı aile art arda gelmez, en az 5 ayrı görünüm
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  const vs = ink.slice(ink.indexOf('var vSay = {}, vSec'), ink.indexOf('push(); var made = strips.map'));
+  const ns = ink.slice(ink.indexOf('  var newSlide = function (kind, t, b, c) {'), ink.indexOf('  /* ---------- rendering ---------- */'));
+  const kur = new Function('VSIRA', 'VARY', 'LAILE', 'arr', 'LAY', 'uid', vs + ns + ';return function (s, kind) { var cx = { heads: s.heads }; cx.v = vSec(s, kind); cx.aile = vSay.aile || ""; var sl = newSlide(kind, s.t, s.b, cx); if (kind === "list") vSay.aile = LAILE[sl.v || 0] || ""; return sl; };');
+  const LAY = { list: { f: (t, bb) => head(t).concat([E('ul', 90, 160, 780, 340, { text: bb.join('\n') })]) }, quote: { f: (t, bb) => [E('h', 150, 150, 700, 210, { text: bb[0] }), E('t', 150, 396, 700, 40, { text: t })] } };
+  const yeni = () => kur(VSIRA, VARY, LAILE, arr, LAY, () => ++id);
+  const DUZ = ['Planlama güne başlamadan önce yapılırsa öncelikler netleşir', 'Kesintileri azaltmak odak süresini belirgin biçimde uzatır', 'Haftalık gözden geçirme sapmaları erken gösterir'];
+  let bas = yeni();
+  const seri = [KOL, DUZ, KOL, DUZ, KOL, DUZ, DUZ, DUZ].map((bb) => bas({ t: 'Başlık', b: bb }, 'list').v || 0);
+  seri.forEach((v, i) => { if (i) assert.notEqual(LAILE[v], LAILE[seri[i - 1]], 'aynı aile art arda: ' + seri.join(',')); });
+  assert.ok(new Set(seri).size >= 5, 'sekiz listede yalnız ' + new Set(seri).size + ' ayrı görünüm: ' + seri.join(','));
+  assert.equal(seri.filter((v) => LAILE[v] === 's').length <= 3, true, 'üç sütunlu aile baskın: ' + seri.join(','));
+  // canlı destenin dizilişi: kolon, düz, kolon — üçü birden sütun ailesinden olamaz
+  bas = yeni();
+  const canli = [KOL, KOL, KOL].map((bb) => bas({ t: 'B', b: bb }, 'list').v || 0);
+  assert.ok(canli.filter((v) => LAILE[v] === 's').length <= 2 && LAILE[canli[0]] !== LAILE[canli[1]] && LAILE[canli[1]] !== LAILE[canli[2]], 'kolon maddeleri üç kez aynı aileyle basıldı: ' + canli.join(','));
+  // fotoğraf ipucu olan ilk alıntı klasik kalır (tam sayfa fotoğrafa aday), ikincisi kutulu çeşit alır
+  bas = yeni();
+  const Q = { t: 'Peter Drucker', b: ['Ölçemediğiniz şeyi yönetemezsiniz.'], img: { q: 'clock desk' } };
+  assert.equal(bas(Q, 'quote').v || 0, 0); assert.ok(bas(Q, 'quote').v > 0);
+
+  // ---- fotoğraf biçimleri: gerçek placePhoto / placePair / placeTam ----
+  const fa = ink.indexOf('  var fotoImg = function'), fb = ink.indexOf('\n  };', ink.indexOf('  var placePhoto = function (sl, p, alt, bicim) {'));
+  assert.ok(fa > 0 && fb > fa, 'fotoğraf yerleştirme bloğu bulunamadı');
+  const izler = [];
+  const F = new Function('E', 'W', 'H', 'SOFT', 'TINT', 'credText', 'fn', 'fotoKutu', ink.slice(fa, fb) + '\n  };return { placePhoto, placePair, placeTam };')(E, 960, 540, '#6A7593', TINT, (p) => 'Fotoğraf: ' + p.photographer, (n, o) => { izler.push(o); return Promise.resolve(); }, (p, mw, mh) => ({ w: mw, h: Math.min(mh, Math.round(mw * p.h / p.w)) }));
+  const P = (n) => ({ large: 'https://images.example/' + n + '.jpg', w: 1600, h: 1000, photographer: 'A' + n, page: 'https://example/' + n, track: 'https://track/' + n, alt: 'alt' + n });
+  const liste = () => ({ lay: 'list', els: head('Başlık').concat([E('ul', 90, 160, 780, 340, { text: 'a\nb\nc' })]) });
+  const icinde = (sl) => sl.els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, 'taşan öğe: ' + e.type));
+  const ust = (sl) => { const u = sl.els.find((e) => e.type === 'ul'); sl.els.filter((e) => e.type === 'img').forEach((im) => assert.ok(im.x >= u.x + u.w || im.x + im.w <= u.x, 'fotoğraf maddelerin üstüne biniyor')); };
+  const sag = liste(); F.placePhoto(sag, P(1), 'x'); icinde(sag); ust(sag);
+  const sol = liste(); F.placePhoto(sol, P(2), 'x', 'sol'); icinde(sol); ust(sol);
+  assert.ok(sol.els.find((e) => e.type === 'img').x < 100 && sag.els.find((e) => e.type === 'img').x > 500, 'sol biçim fotoğrafı sola almıyor');
+  const iki = liste(); F.placePair(iki, P(3), P(4)); icinde(iki); ust(iki);
+  const ims = iki.els.filter((e) => e.type === 'img');
+  assert.equal(ims.length, 2); assert.ok(ims[1].y >= ims[0].y + ims[0].h, 'iki fotoğraf üst üste dizilmeli');
+  assert.ok(ims.every((e) => e.kap === 1 && e.oran === 1.6), 'kırparak dolduran fotoğraf oranını taşımalı (PPTX)');
+  assert.equal(iki.els.filter((e) => e.type === 't' && /^Fotoğraf: A[34]$/.test(e.text)).length, 2, 'iki fotoğrafın da atfı yazılmalı');
+  assert.ok(iki.els.every((e) => e.y + e.h <= 504), 'alt bilgi şeridine taşıyor');
+  const alinti = () => ({ lay: 'quote', els: [E('h', 70, 40, 120, 150, { text: '“' }), E('h', 150, 150, 700, 210, { text: 'Ölçemediğiniz şeyi yönetemezsiniz.' }), E('mark', 150, 370, 160, 16, {}), E('t', 150, 396, 700, 40, { text: 'Peter Drucker' })] });
+  const tam = alinti(); F.placePhoto(tam, P(5), 'x', 'tam'); icinde(tam);
+  assert.deepEqual([tam.els[0].type, tam.els[0].w, tam.els[0].h, tam.els[1].type], ['img', 960, 540, 'rect'], 'tam sayfa fotoğraf + metin panosu kurulmadı');
+  assert.equal(tam.els[1].fill, '#EEF3FF', 'pano çizgili şablonlarda saydamlaşan renklerden olmamalı');
+  assert.equal(tam.els.filter((e) => e.type === 't')[0].text, 'Peter Drucker', 'ilk metin öğesi atıf kalmalı (titleOf)');
+  const pano = tam.els[1]; tam.els.filter((e) => e.type === 'h' || e.type === 't').forEach((e) => assert.ok(e.x >= pano.x && e.y >= pano.y - 10 && e.x + e.w <= pano.x + pano.w && e.y + e.h <= pano.y + pano.h, 'yazı panonun dışında, fotoğrafın üstünde kalıyor'));
+  const dik = alinti(); F.placePhoto(dik, Object.assign(P(6), { w: 1000, h: 1600 }), 'x', 'tam'); assert.ok(dik.els[0].type !== 'img', 'dikey fotoğraf tam sayfa yapılmamalı');
+  assert.equal(izler.length, 6, 'her fotoğrafın izleme çağrısı yapılmalı (Unsplash koşulu)');
+  assert.match(ink, /\['', 'iki', 'sol'\]\[li\+\+ % 3\]/, 'liste fotoğrafları biçim değiştirmiyor');
+  assert.match(ink, /iki: bic\[i\] === 'iki' \? 1 : 0/);
+  assert.match(ink, /sizing: \{ type: e\.kap \? 'cover' : 'contain', w: box\.w, h: box\.h \}/, 'PPTX kırpılan fotoğrafı sıkıştırarak basar');
+  // gündem ve kapanış notu
+  assert.match(ink, /var gs = newSlide\('list', ENn \? 'Agenda' : 'Gündem', gb, \{ v: 10 \}\);/);
+  assert.match(ink, /made\[0\]\.lay === 'cover' && govde\.length >= 5 &&/);
+  assert.match(ink, /String\(tt\.text\)\.split\(' · '\)\.filter\(Boolean\)\.slice\(0, 3\) : govde\.slice\(-3\)/, 'kapanış notu asetattaki maddeleri okumuyor');
+  // tablo: başlık satırı vurgu rengiyle dolu — ekranda ve PPTX'te
+  assert.match(ink, /var ac = temaRenk\(BLUE\), th = '<th style="background:' \+ ac/);
+  assert.match(ink, /fill: \{ color: hex\(temaRenk\(BLUE\)\) \}/);
+});
+
 summary();

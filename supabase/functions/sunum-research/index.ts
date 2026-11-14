@@ -151,6 +151,7 @@ const UNSPLASH_MAX = 5;
 type Hint = { i: number; q: string; entity: string };
 async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Photo & { i: number })[]; rate: boolean }> {
   const used = new Set<string>(); let uCalls = 0, rate = false;
+  const memo = new Map<string, Photo[]>();   // aynı sorgunun ikinci fotoğrafı yeni arama harcamaz
   const take = (list: Photo[]) => { const p = list.find((x) => x && x.large && !used.has(x.large)); if (p) used.add(p.large); return p || null; };
   // Wikipedia aramaları paralel; stok aramaları sırayla (sınır sayacı ve tekrar denetimi için).
   const wiki = await Promise.all(hints.map((h) => h.entity ? wikiImage(h.entity) : Promise.resolve(null)));
@@ -158,7 +159,8 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
   for (let k = 0; k < hints.length; k++) {
     const h = hints[k]; let p: Photo | null = wiki[k] ? take([wiki[k] as Photo]) : null;
     const q = (h.q || h.entity || "").slice(0, 80).trim();
-    if (!p && q && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; p = take(u.photos); }
+    if (!p && q && memo.has(q)) p = take(memo.get(q) || []);
+    if (!p && q && !memo.has(q) && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; memo.set(q, u.photos); p = take(u.photos); }
     if (!p && q) p = take(await pexelsSearch(q, 6, lang));
     if (!p && q) p = take(await commonsSearch(h.entity || q, 8));
     if (p) photos.push({ ...p, i: h.i });
@@ -252,6 +254,25 @@ const dropRepeats = (slides: any[]): number => {
       if (keep.length < s.bullets.length) { s.bullets = keep; s.warn = warn; n++; }
     }
     [...s.bullets, ...s.stats.map((x: any) => x.value), ...(s.table ? s.table.rows.flat() : [])].forEach((b: string) => sigNums(b).forEach((v) => seen.add(v)));
+  });
+  return n;
+};
+/* Aynı FİKİR ikinci kez madde olmaz: canlı destede (14.11.2026, zaman
+   yönetimi) "araç seçimi: dijital ya da fiziksel planlayıcı" üç ayrı asetatta,
+   Eisenhower/Pareto tanımı iki asetatta yinelendi — sayı taşımadıkları için
+   dropRepeats görmüyordu. Ölçü: sözcük köklerinin en az %60'ı önceki bir
+   maddede geçiyorsa (en az 4 kök) yinelemedir. Son asetat özettir, hariç. */
+const dropEchoes = (slides: any[]): number => {
+  const seen: string[][] = []; let n = 0;
+  const echo = (ks: string[]) => ks.length >= 4 && seen.some((p) => { const o = ks.filter((w) => p.includes(w)).length; return o / Math.min(ks.length, p.length) >= 0.6; });
+  slides.forEach((s: any, si: number) => {
+    const add: string[][] = [];
+    if (s.kind === "list" && si > 0 && si < slides.length - 1) {
+      const keep: string[] = [], warn: number[] = [];
+      s.bullets.forEach((b: string, i: number) => { const ks = keysOf(b); if (echo(ks)) return; add.push(ks); if (s.warn.includes(i)) warn.push(keep.length); keep.push(b); });
+      if (keep.length < s.bullets.length) { s.bullets = keep; s.warn = warn; n++; }
+    } else s.bullets.forEach((b: string) => add.push(keysOf(b)));
+    add.forEach((ks) => { if (ks.length >= 4) seen.push(ks); });
   });
   return n;
 };
@@ -357,7 +378,28 @@ const cleanNote = (t: string) => String(t || "")
 // zaman çizelgesi maddeleri hem bunu hem gerçek atfı "[1, 2, 4]" taşıyordu.
 const ABSOLUTE = /(?:^|\s)en (?:hızlı|büyük|küçük|uzun|kısa|yüksek|düşük|önemli|eski|yeni|iyi|kötü|pahalı|ucuz)|\bilk kez\b|\btarihte(?:ki)?\b|\bkanıtla|\bkesin(?:likle)?\b|\brekor|\bthe (?:first|fastest|largest|biggest|smallest|longest|highest|lowest|most|only)\b|\bproved?\b|\brecord\b|\bnever\b|\balways\b/i;
 const mixedUnits = (labels: string[]) => new Set((labels || []).map((l) => (String(l).match(/\(([^)]+)\)\s*$/) || [])[1]).filter(Boolean).map((u) => String(u).toLocaleLowerCase("tr").trim())).size > 1;
-const cleanCite = (t: string) => String(t || "").replace(/\s*\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "").trim();
+// "(src1)", "(src2, src4)", "[src 3]": model kaynak alanının adını metne de yazdı
+// (canlı deste 14.11.2026, zaman yönetimi — madde, alıntı ve kolon metinlerinde).
+const cleanCite = (t: string) => String(t || "").replace(/\s*\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "").replace(/\s*[(\[]\s*src\s*\d+(?:\s*(?:,|;|ve|and|&)\s*(?:src\s*)?\d+)*\s*[)\]]/gi, "").trim();
+/* Üç "sayı" aynı ölçünün üç değeri değilse sayı asetatı olmaz. Aynı destede
+   Pomodoro'nun 25 ve 5 dakikası "Sabah: dakika · Öğle: dakika · Akşam: dakika"
+   etiketleriyle günlük rutin diye basıldı: etiket "ad: birim" biçimindeyse
+   (2) uydurma bir dizidir ve maddeye de çevrilmez; yalnız değer yineliyorsa
+   (1) listeye iner. */
+const statOdd = (st: { value: string; label: string }[]): number => st.some((x) => /^[^:]{1,24}:\s*\S{1,12}$/.test(String(x.label || "").trim())) ? 2 : new Set(st.map((x) => String(x.value || "").replace(/\s+/g, ""))).size < st.length ? 1 : 0;
+/* Not, asetatın SON hâline uyar: grafik listeye indiyse "bu grafikte" diyen
+   cümle, tablo yoksa "tabloda" diyen cümle düşer; "Udemy kaynağı…", "Kuveyt
+   Türk blogu…" diye site adı anan cümle söylenmez (en az iki cümle kalıyorsa);
+   Türkçe notta "slide" sözcüğü "slayt" olur. */
+const noteFit = (s: any, lang: string): string => {
+  const c = String(s.notes || "").split(/(?<=[.!?])\s+/).filter(Boolean);
+  let k = c.filter((x) => !((!s.chart && /\bgrafi[kğ]|\bcharts?\b|\bgraphs?\b/i.test(x)) || (!s.table && /\btablo(?:da|ya|su|yu|daki)?\b|\btable\b/i.test(x))));
+  const adsiz = k.filter((x) => !/\bkaynağ[ıi]|\bblogu|\bweb\s+sitesi|\b(?:the|this)\s+[\w-]+\s+(?:source|blog|website)\b/i.test(x));
+  if (adsiz.length >= 2) k = adsiz;
+  let t = (k.length ? k : c).join(" ");
+  if (lang !== "en") t = t.replace(/\bslide(?:['’](\p{L}+))?(?!\p{L})/giu, (m: string, e?: string) => (/^S/.test(m) ? "Slayt" : "slayt") + String(e || "").toLocaleLowerCase("tr").replace(/^y/, "").replace(/^d/, "t").replace(/e/g, "a").replace(/i/g, "ı"));
+  return t;
+};
 async function groq(key: string, model: string, sys: string, user: string, maxTok: number) {
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -428,7 +470,11 @@ The deck topic is given for context. Return ONLY JSON: {"r":[{"i":0,"q":"","enti
       }
       // İpucu hiç üretilemediyse başlık + konu ile aranır: hiç görsel olmamasından iyidir.
       items.forEach((x: any) => { if (!x.q && !x.entity) x.q = (x.title + " " + topicI).slice(0, 80); });
-      const res = await resolveImages(items.map((x: any) => ({ i: x.i, q: x.q, entity: x.entity })), lang);
+      /* "iki: 1" isteyen asetata aynı sorgudan İKİNCİ fotoğraf da döner (üst üste
+         iki fotoğraf düzeni); ikisi de aynı "i" ile gelir, istemci gruplayıp dizer. */
+      const cift = new Set((Array.isArray(body?.slides) ? body.slides : []).filter((x: any) => x?.iki).map((x: any) => Number(x?.i) || 0));
+      const hints: Hint[] = []; items.forEach((x: any) => { hints.push({ i: x.i, q: x.q, entity: x.entity }); if (cift.has(x.i) && x.q) hints.push({ i: x.i, q: x.q, entity: "" }); });
+      const res = await resolveImages(hints, lang);
       return J({ photos: res.photos, rate: res.rate });
     }
 
@@ -588,12 +634,12 @@ Rules:
 - Today is ${new Date().toISOString().slice(0, 10)}. Say which period every number refers to; if the newest data in the sources is more than a year old, the conclusion slide says up to which date the deck is current. Never present old data as the present situation.
 - Do not write academic citations such as "(Yılmaz et al., 2023)" inside bullets or labels; attribution is carried by "src". Naming the reporting institution ("TCMB raporu") is fine.
 - Titles and headings are fully in ${L}; translate foreign terms (e.g. "unorthodox policy" = "alışılmadık politika").
-- Do not repeat the same fact on two slides. "stat" values are quantities (amounts, percentages, durations), never calendar dates — dates belong on a "time" slide.
+- Do not repeat the same fact, advice or definition on two slides: each slide adds something new, and a method explained once (e.g. the Eisenhower matrix) is not explained again. "stat" needs three values of comparable quantities with meaningful labels — never reuse one number under different labels, never use a label that is just a category and a unit ("Sabah: dakika"). "stat" values are quantities (amounts, percentages, durations), never calendar dates — dates belong on a "time" slide.
 - A "quote" slide's title says who said it and when; the title is never the quotation itself.
 - No superlatives or absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") unless a source states exactly that — this applies to notes too.
 - Use the established ${L} term for technical vocabulary (e.g. breccia = "breş"); if unsure, keep the original term in parentheses.
-- "src" = the source ids used on that slide. Source ids go ONLY in "src": never write "(Kaynak 2)" or "(Source 2)" inside titles, bullets, labels or notes.
-- "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets. Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters. Fewer than 45 words is a failure.
+- "src" = the source ids used on that slide. Source ids go ONLY in "src": never write "(Kaynak 2)", "(Source 2)" or "(src2)" inside titles, bullets, labels or notes.
+- "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets. Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters, and never say "X kaynağı", "X blogu" or a website's name. In Turkish say "slayt", never "slide". Notes describe the slide as it is: do not mention a chart or table the slide does not have. Fewer than 45 words is a failure.
 - "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 2-4 concrete visual words (objects, places, scenes; no abstract words). "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
 - "cover_image" = same shape, for the cover slide of the whole deck.
 Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
@@ -698,12 +744,13 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       // Grafik listeye inince maddesi yoksa asetat boş sayılıp düşüyordu; değerler maddeye yazılır.
       if (k === "list" && kind === "chart" && chart && !bullets.length) chart.values.forEach((v: number, i: number) => { const l = String(chart.labels[i] || ""); const u = (l.match(/\(([^)]+)\)\s*$/) || [])[1] || chart.unit; bullets.push(`${l.replace(/\s*\([^)]+\)\s*$/, "")}: ${String(v).replace(".", lang === "en" ? "." : ",")} ${u}`.trim()); if (!verified(String(v), idx) && !verified(String(v), allIdx)) warn.push(bullets.length - 1); });
       if (k === "stat" && stats.filter((x: any) => x.ok).length < 3) k = "list";
+      if (k === "stat" && statOdd(stats)) { k = "list"; if (statOdd(stats) === 2) stats = []; }
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
       const yaz = (t: string) => yazim(t, lang);
       if (k === "two") { const sd = sidesOf(bullets, s.heads.map(String), warn); bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn); }
       if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
-      return { title: yaz(String(s.title || "").trim()), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
+      return { title: yaz(cleanCite(String(s.title || ""))), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map((h: any) => cleanCite(String(h))) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });
 
     // İçeriği olmayan asetat (madde, sayı, grafik, tablo — hiçbiri yok) kurguya
@@ -712,6 +759,8 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
        Armstrong'ın ünlü sözüne bakalım" — o asetat destede yoktu, 14.11.2026);
        asetat düşünce o cümle de düşer. */
     dropRepeats(slides);
+    dropEchoes(slides);
+    slides.forEach((x: any) => { x.notes = noteFit(x, lang); });
     const sentences = (t: string) => String(t || "").split(/(?<=[.!?])\s+/).filter(Boolean);
     const dropAt = (i: number) => { slides.splice(i, 1); const p: any = slides[i - 1]; if (p) { const ns = sentences(p.notes); if (ns.length >= 3) p.notes = ns.slice(0, -1).join(" "); } };
     for (let i = slides.length - 1; i >= 0; i--) { const x: any = slides[i]; if (!x.title || (!x.bullets.length && !x.stats.length && !x.chart && !x.table)) dropAt(i); }
