@@ -7943,9 +7943,11 @@ var SBX = (function () {
       var ns = arr(s.src).map(function (id) { return num[id]; }).filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort(function (a, b) { return a - b; });
       if (!ns.length || s.k === 'cover' || s.k === 'end' || s.k === 'refs') return;
       var tag = ' [' + ns.join(', ') + ']', b = s.b || [];
-      if (s.k === 'stat' || s.k === 'chart' || s.k === 'table') { if (s.k === 'stat') s.b = b.map(function (x) { return x + tag; }); else s.b = [(b[0] ? b[0] + tag : (curLang() === 'en' ? 'Source:' : 'Kaynak:') + tag)]; return; }
-      var hit = false; s.b = b.map(function (x) { if (/\d/.test(x)) { hit = true; return x + tag; } return x; });
-      if (!hit && s.b.length) s.b[s.b.length - 1] += tag;
+      if (s.k === 'stat' || s.k === 'chart' || s.k === 'table') { if (s.k === 'stat') { s.b = b.slice(); if (s.b.length) s.b[s.b.length - 1] += tag; } else s.b = [(b[0] ? b[0] + tag : (curLang() === 'en' ? 'Source:' : 'Kaynak:') + tag)]; return; }
+      /* Asetatta tek atıf: aynı "[2, 4]" her maddenin sonunda yineleniyordu (canlı
+         deste 14.11.2026). Sayı taşıyan son maddeye, yoksa son maddeye konur. */
+      var son = -1; b.forEach(function (x, i) { if (/\d/.test(x)) son = i; }); if (son < 0) son = b.length - 1;
+      if (son >= 0) { s.b = b.slice(); s.b[son] += tag; }
     });
   };
   var makeOutline = function (o) {
@@ -8241,7 +8243,7 @@ var SBX = (function () {
   var kaliteOlc = function (d, loud) {
     if (kaliteBusy) return;
     var sl = arr(d.slides).map(function (x) {
-      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section', has_visual: gorselVar(x), placeholder: yerTutucu(x) } };
+      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section', look: (x.lay || 'section') + ':' + (x.v || 0), has_visual: gorselVar(x), placeholder: yerTutucu(x) } };
     });
     if (!sl.length) return;
     kaliteBusy = true; paintKalite(true);
