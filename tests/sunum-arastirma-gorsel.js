@@ -341,7 +341,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   assert.equal(tarihBol('Bu değişim eş zamanlı gerçekleşti'), null, 'tarihsiz cümle tarih diye bölünmemeli');
   // Zaman çizelgesi: ilk iki asetat klasik OLMAYAN iki ayrı görünüm alır.
   assert.deepEqual(VSIRA.time.slice(0, 2), [2, 1]);
-  assert.match(ink, /if \(!VSIRA\[kind\] \|\| \(kind === 'list' && arr\(s\.warnI\)\.length\) \|\|/,
+  assert.match(ink, /if \(kind === 'list' && arr\(s\.warnI\)\.length\) \{ vSay\.tek = 1;/,
     'uyarı yalnız listeyi klasikte tutmalı (zaman çizelgesi uyarı yüzünden klasiğe düşüyordu)');
   assert.match(ink, /if \(kind === 'list' && arr\(s\.b\)\.length && arr\(s\.b\)\.length <= 2 && !s\.img\) return 6;/, 'ince asetat boş listeyle basılıyor');
   assert.match(ink, /arr\(d\.rows\)\.length <= 2 \? 27/, 'iki satırlık tablo küçük yazıyla basılıyor');
@@ -652,7 +652,7 @@ test('CANLI DESTE 14.11 (zaman yönetimi) — sunucu: "(src1)", uydurma sayı as
   assert.match(sr, /slides\.forEach\(\(x: any\) => \{ x\.notes = noteFit\(x, lang\); \}\);/);
   assert.ok(sr.includes('"(src2)"') && sr.includes('In Turkish say "slayt"') && sr.includes('"Sabah: dakika"'), 'istemde yeni yasaklar yok');
   // üst üste iki fotoğraf: aynı sorgu ikinci kez Unsplash'e gitmez, ikinci fotoğraf aynı "i" ile döner
-  assert.match(sr, /if \(!p && q && memo\.has\(q\)\) p = take\(memo\.get\(q\) \|\| \[\]\);/);
+  assert.match(sr, /if \(!p && q && memo\.has\(q\)\) p = take\(memo\.get\(q\) \|\| \[\], q\);/);
   assert.match(sr, /if \(cift\.has\(x\.i\) && x\.q\) hints\.push\(\{ i: x\.i, q: x\.q, entity: "" \}\);/);
 });
 
@@ -686,7 +686,7 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   const arr = (x) => (Array.isArray(x) ? x : []);
   const vs = ink.slice(ink.indexOf('var vSay = {}, vSec'), ink.indexOf('push(); var made = strips.map'));
   const ns = ink.slice(ink.indexOf('  var newSlide = function (kind, t, b, c) {'), ink.indexOf('  /* ---------- rendering ---------- */'));
-  const kur = new Function('VSIRA', 'VARY', 'LAILE', 'arr', 'LAY', 'uid', vs + ns + ';return function (s, kind) { var cx = { heads: s.heads }; cx.v = vSec(s, kind); cx.aile = vSay.aile || ""; var sl = newSlide(kind, s.t, s.b, cx); if (kind === "list") vSay.aile = LAILE[sl.v || 0] || ""; return sl; };');
+  const kur = new Function('VSIRA', 'VARY', 'LAILE', 'arr', 'LAY', 'uid', vs + ns + ';return function (s, kind) { var cx = { heads: s.heads }; cx.v = vSec(s, kind); cx.aile = vSay.aile || ""; cx.tek = vSay.tek; var sl = newSlide(kind, s.t, s.b, cx); if (kind === "list") vSay.aile = LAILE[sl.v || 0] || ""; return sl; };');
   const LAY = { list: { f: (t, bb) => head(t).concat([E('ul', 90, 160, 780, 340, { text: bb.join('\n') })]) }, quote: { f: (t, bb) => [E('h', 150, 150, 700, 210, { text: bb[0] }), E('t', 150, 396, 700, 40, { text: t })] } };
   const yeni = () => kur(VSIRA, VARY, LAILE, arr, LAY, () => ++id);
   const DUZ = ['Planlama güne başlamadan önce yapılırsa öncelikler netleşir', 'Kesintileri azaltmak odak süresini belirgin biçimde uzatır', 'Haftalık gözden geçirme sapmaları erken gösterir'];
@@ -703,6 +703,28 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   bas = yeni();
   const Q = { t: 'Peter Drucker', b: ['Ölçemediğiniz şeyi yönetemezsiniz.'], img: { q: 'clock desk' } };
   assert.equal(bas(Q, 'quote').v || 0, 0); assert.ok(bas(Q, 'quote').v > 0);
+
+  /* CANLI DESTE 14.11 (etkili ders çalışma): beş listenin beşi de uyarılıydı
+     ("veri yok"), uyarı listeyi klasiğe kilitlediği için hepsi aynı düzenle
+     basıldı. Uyarılı listeler klasik ↔ bölünmüş döner; uyarı ul'de kalır. */
+  bas = yeni();
+  const uyarili = [DUZ, DUZ, DUZ, DUZ, DUZ].map((bb) => bas({ t: 'Başlık', b: bb, warnI: [1] }, 'list'));
+  assert.deepEqual(uyarili.map((x) => x.v || 0), [0, 9, 0, 9, 0], 'uyarılı listeler tek düzende kalıyor');
+  uyarili.forEach((x) => assert.ok(x.els.some((e) => e.type === 'ul' && e.text.includes(DUZ[1])), 'uyarılı madde ul dışında kaldı, işaret çizilmez'));
+  // bölünmüş düzen uymuyorsa (2 madde) başka kartlı çeşide değil klasiğe düşer
+  bas = yeni(); bas({ t: 'B', b: DUZ, warnI: [0] }, 'list');
+  assert.equal(bas({ t: 'B', b: KOL.slice(0, 2), warnI: [0] }, 'list').v || 0, 0);
+  // aynı destede 5. asetat "birinci taraf / ikinci taraf" ile basıldı: taraf adı yoksa liste
+  assert.match(ink, /if \(kind === 'two' && arr\(s\.b\)\.length && arr\(s\.heads\)\.filter\(function \(h\) \{ return \/\\S\/\.test\(String\(h \|\| ''\)\); \}\)\.length < 2\) kind = 'list';/);
+  // aynı destede "red pen writing on book" aramasından oje süren kadın fotoğrafı geldi: sorguyla ortak sözcüğü olan öne alınır
+  const { keysOf } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['keysOf']);
+  const SQ = keysOf('person holding on red pen while writing on book');
+  const uyar = (alt) => SQ.some((k) => keysOf(alt).includes(k));
+  assert.equal(uyar('woman putting on nail polish on her finger'), false);
+  assert.equal(uyar('person writing on white notebook'), true);
+  const rsrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'supabase/functions/sunum-research/index.ts'), 'utf8');
+  assert.match(rsrc, /const p = \(qk\.length \? ok\.find\(fit\) : null\) \|\| ok\[0\];/, 'uyan fotoğraf yoksa ilk sonuç kalmalı');
+  assert.match(rsrc, /p = take\(u\.photos, q\);/);
 
   // ---- fotoğraf biçimleri: gerçek placePhoto / placePair / placeTam ----
   const fa = ink.indexOf('  var fotoImg = function'), fb = ink.indexOf('\n  };', ink.indexOf('  var placePhoto = function (sl, p, alt, bicim) {'));
@@ -740,6 +762,25 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   // tablo: başlık satırı vurgu rengiyle dolu — ekranda ve PPTX'te
   assert.match(ink, /var ac = temaRenk\(BLUE\), th = '<th style="background:' \+ ac/);
   assert.match(ink, /fill: \{ color: hex\(temaRenk\(BLUE\)\) \}/);
+});
+
+test('CANLI DESTE 14.11 (etkili ders çalışma) — notlar: aynı dolgu cümlesi yinelenmez, not "slayt" der', () => {
+  /* Üç not "…zaman yönetimi ve aktif öğrenme teknikleriyle desteklenmelidir"
+     dolgusuyla bitiyordu; kaynakça notu "asetat", yazarın notları "slayt" diyordu. */
+  const { noteEchoes } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['keysOf', 'noteEchoes']);
+  const S = [
+    { notes: 'Biyolojik ritme uygun saatlerde çalışmak verimliliği artırır. Boş zamanları planlamak uzun vadeli başarı için kritiktir. Bu yaklaşım, zaman yönetimi ve aktif öğrenme tekniklerini destekler.' },
+    { notes: 'Bireysel çalışma kendi hızında ilerleme avantajı sağlar. Grup çalışması farklı bakış açıları kazandırır. Her iki yaklaşım da zaman yönetimi ve aktif öğrenme teknikleriyle desteklenmelidir.' },
+    { notes: 'Bu yaklaşım zaman yönetimi ve aktif öğrenme tekniklerini destekler. Tek özgün cümle burada.' },
+  ];
+  assert.equal(noteEchoes(S), 1);
+  assert.match(S[0].notes, /destekler\.$/, 'ilk geçiş kalır');
+  assert.doesNotMatch(S[1].notes, /desteklenmelidir/); assert.match(S[1].notes, /Grup çalışması/);
+  assert.match(S[2].notes, /destekler/, 'notta iki cümleden az kalacaksa atılmaz');
+  const sr = require('fs').readFileSync(require('path').join(__dirname, '..', 'supabase/functions/sunum-research/index.ts'), 'utf8');
+  assert.match(sr, /x\.notes = noteFit\(x, lang\); \}\); noteEchoes\(slides\);/);
+  assert.match(sr, /closing summary slide states conclusions in new words/);
+  assert.doesNotMatch(ink, /kapanış asetatına geç|sıradaki asetata bağla|b\.push\('asetatta /, 'konuşmacı notu "slayt" demeli');
 });
 
 summary();

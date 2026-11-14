@@ -6940,6 +6940,7 @@ var SBX = (function () {
        bir önceki listeyle aynı aileden olanlar sona kalır. */
     var v = c && c.v, alt = null, sira = (VARY[kind] && VSIRA[kind]) || [], at = sira.indexOf(v), dene = v && VARY[kind] ? [v].concat(sira.slice(at + 1), sira.slice(0, Math.max(0, at))).filter(function (x, i, a) { return x && a.indexOf(x) === i; }) : [];
     if (kind === 'list' && c && c.aile) dene = dene.filter(function (x, i) { return !i || LAILE[x] !== c.aile; }).concat(dene.filter(function (x, i) { return i && LAILE[x] === c.aile; }));
+    if (c && c.tek) dene = dene.slice(0, 1);      /* uyarılı liste: istenen çeşit uymazsa başka çeşide değil klasiğe düşer (uyarı işareti ul ister) */
     for (var di = 0; di < dene.length && !alt; di++) { var fv = VARY[kind][dene[di] - 1]; alt = fv ? fv(t, b, c) : null; if (alt) v = dene[di]; }
     var sl = { id: uid(), lay: kind, bg: 'clear', notes: '', els: alt || LAY[kind].f(t, b, c) }; if (alt) sl.v = v; return sl;
   };
@@ -7485,7 +7486,7 @@ var SBX = (function () {
        cümle olmaz ama birlikte anlatılacak malzemedir. */
     var kisa = [];
     s.els.forEach(function (e) { if ((e.type === 't' || e.type === 'h') && !e.muted && e.text !== skip) { var v = txt(e.text); if (v.length > 1 && v !== '—') kisa.push(v); } });
-    if (kisa.length > 1) b.push('asetatta ' + kisa.slice(0, 6).join(', ') + ' var; her birini bir cümleyle açıkla');
+    if (kisa.length > 1) b.push('slaytta ' + kisa.slice(0, 6).join(', ') + ' var; her birini bir cümleyle açıkla');
     return b;
   };
   var AI = {
@@ -7497,7 +7498,7 @@ var SBX = (function () {
       /* Özel ad ya da kısaltmayla başlayan madde küçültülmez: "Richard Stallman,
          GNU projesini…" notta "richard Stallman…" oluyordu (14.11.2026). */
       var alt1 = function (x) { var m = String(x).match(/^(\S+)\s+(\S+)/); if (/^[A-ZÇĞİÖŞÜ]{2,}/.test(x) || (m && /^[A-ZÇĞİÖŞÜ]/.test(m[2]))) return String(x); return String(x).charAt(0).toLocaleLowerCase('tr') + String(x).slice(1); };
-      var EN = curLang() === 'en', w = EN ? ['First,', 'Next,', 'Then,', 'Finally,'] : ['İlk olarak', 'Ardından', 'Sonra', 'Son olarak'], txt = (t ? (EN ? 'Now let me walk you through “' + t + '”. ' : '“' + t + '” konusunu anlatıyorum. ') : '') + b.slice(0, 4).map(function (x, i) { return (b.length > 1 && i === Math.min(b.length, 4) - 1 ? w[3] : w[Math.min(i, 2)]) + ' ' + alt1(x).replace(/\.$/, '') + '.'; }).join(' ') + (b.length ? '' : 'Ana fikri bir cümleyle söyle, bir örnek ver.') + ' Bir cümleyle sıradaki asetata bağla.';
+      var EN = curLang() === 'en', w = EN ? ['First,', 'Next,', 'Then,', 'Finally,'] : ['İlk olarak', 'Ardından', 'Sonra', 'Son olarak'], txt = (t ? (EN ? 'Now let me walk you through “' + t + '”. ' : '“' + t + '” konusunu anlatıyorum. ') : '') + b.slice(0, 4).map(function (x, i) { return (b.length > 1 && i === Math.min(b.length, 4) - 1 ? w[3] : w[Math.min(i, 2)]) + ' ' + alt1(x).replace(/\.$/, '') + '.'; }).join(' ') + (b.length ? '' : 'Ana fikri bir cümleyle söyle, bir örnek ver.') + ' Bir cümleyle sıradaki slayta bağla.';
       s.notes = txt.trim(); if (!quiet) notesEl.value = s.notes; return 'Konuşmacı notu yazıldı; altta düzenleyebilirsin.';
     },
     q: function (s) { var t = titleOf(s) || 'bu konu'; addQ(s, 'Soru: Sizce ' + t.charAt(0).toLocaleLowerCase('tr') + t.slice(1) + ' neden önemli?'); return 'Dinleyiciye bir soru eklendi.'; }
@@ -8075,7 +8076,7 @@ var SBX = (function () {
         var all = (head0 ? [head0] : []).concat(st).concat(tail ? [tail] : []);
         return lockLang(all, o.lang, plotMeta.title).then(function (r) { if (r.title) { plotMeta.title = r.title; if (head0) head0.t = r.title; } plotMeta.fixed.lang = r.n; plotMeta.lang = o.lang;
           var out = r.strips, srcs = arr(plotMeta.sources);
-          if (srcs.length) { cite(out, srcs); var at = out.length && out[out.length - 1].k === 'end' ? out.length - 1 : out.length; out.splice(at, 0, { t: o.lang === 'en' ? 'References' : 'Kaynakça', k: 'refs', b: srcs.map(function (x, i) { return '[' + (i + 1) + '] ' + String(x.apa || x.url); }), notes: o.lang === 'en' ? 'Do not read the list aloud. Say that every fact and number in the deck comes from these sources and that you can share the links afterwards, then move on to the closing slide.' : 'Listeyi sesli okuma. Sunumdaki her bilgi ve rakamın bu kaynaklardan geldiğini, bağlantıların asetatta durduğunu ve isteyenle paylaşabileceğini söyle; sonra kapanış asetatına geç.' }); }
+          if (srcs.length) { cite(out, srcs); var at = out.length && out[out.length - 1].k === 'end' ? out.length - 1 : out.length; out.splice(at, 0, { t: o.lang === 'en' ? 'References' : 'Kaynakça', k: 'refs', b: srcs.map(function (x, i) { return '[' + (i + 1) + '] ' + String(x.apa || x.url); }), notes: o.lang === 'en' ? 'Do not read the list aloud. Say that every fact and number in the deck comes from these sources and that you can share the links afterwards, then move on to the closing slide.' : 'Listeyi sesli okuma. Sunumdaki her bilgi ve rakamın bu kaynaklardan geldiğini, bağlantıların slaytta durduğunu ve isteyenle paylaşabileceğini söyle; sonra kapanış slaytına geç.' }); }
           return out; });
       });
     });
@@ -8389,7 +8390,13 @@ var SBX = (function () {
     var vSay = {}, vSec = function (s, kind) {
       /* Uyarı yalnız LİSTEYİ klasikte tutar: zaman çizelgesinde uyarı zaten
          çizilmiyordu, yine de çizelge klasiğe düşüyordu (canlı deste 14.11.2026). */
-      if (!VSIRA[kind] || (kind === 'list' && arr(s.warnI).length) || (/^(list|quote)$/.test(kind) && s.img && s.img.entity)) return 0;
+      if (!VSIRA[kind] || (/^(list|quote)$/.test(kind) && s.img && s.img.entity)) return 0;
+      /* Uyarılı liste hep klasikte kalınca çeşit hiç çıkmıyordu: "Etkili ders çalışma"
+         destesinde (14.11.2026) beş listenin beşi de uyarılıydı, hepsi aynı düzenle
+         basıldı. Uyarı işareti madde listesinde (ul) çizilir; bölünmüş düzen (9)
+         maddeleri ul olarak taşır, bu yüzden uyarılı listeler klasik ↔ bölünmüş döner. */
+      vSay.tek = 0;
+      if (kind === 'list' && arr(s.warnI).length) { vSay.tek = 1; vSay.uy = (vSay.uy || 0) + 1; return vSay.uy % 2 ? 0 : 9; }
       /* Fotoğraf ipucu olan ilk alıntı klasik kalır: fotoğraf gelirse tam sayfa fotoğraf + metin panosu olur (placeTam). */
       if (kind === 'quote' && s.img && s.img.q && !vSay.qf) { vSay.qf = 1; return 0; }
       if (kind === 'list' && arr(s.b).length && arr(s.b).length <= 2 && !s.img) return 6;      /* ince asetat: tek cümle kutusu */
@@ -8407,7 +8414,10 @@ var SBX = (function () {
     };
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data;
       var kind = s.k; if (!dataKind(s, kind)) { kind = 'list'; bosCerceve++; }      /* boş tablo/diyagram çerçevesi basılmaz */
-      cx.v = vSec(s, kind); cx.aile = vSay.aile || '';
+      /* Taraf adı olmayan "two" listeye iner: tür şeritten elle "iki kolon" yapılınca
+         asetat "birinci taraf / ikinci taraf" yer tutucusuyla basıldı (canlı deste 14.11.2026). */
+      if (kind === 'two' && arr(s.b).length && arr(s.heads).filter(function (h) { return /\S/.test(String(h || '')); }).length < 2) kind = 'list';
+      cx.v = vSec(s, kind); cx.aile = vSay.aile || ''; cx.tek = vSay.tek;
       var sl = newSlide(kind, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
       if (kind === 'list') vSay.aile = LAILE[sl.v || 0] || '';
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
@@ -8443,7 +8453,7 @@ var SBX = (function () {
          "İlk olarak [1] lanewayssd.com…"); kimse kaynakçayı sesli okumaz. */
       else if (sl.lay === 'refs') sl.notes = ENn
         ? 'Do not read the list aloud. Say that every figure in the deck comes from these sources and that you can share the links afterwards, then move on to the closing slide.'
-        : 'Listeyi sesli okuma. Sunumdaki bütün verilerin bu kaynaklardan geldiğini ve isteyenle bağlantıları paylaşabileceğini söyle, sonra kapanış asetatına geç.';
+        : 'Listeyi sesli okuma. Sunumdaki bütün verilerin bu kaynaklardan geldiğini ve isteyenle bağlantıları paylaşabileceğini söyle, sonra kapanış slaytına geç.';
       else if (sl.lay === 'end') sl.notes = ENn
         ? 'Repeat the key messages once more in short sentences' + (sonB(sl).length ? ': ' + sonB(sl).join(', ') : '') + '. Thank the audience and invite questions. If nobody asks, open one yourself: “the question I hear most often is…”.'
         : 'Ana mesajları kısa cümlelerle bir kez daha tekrar et' + (sonB(sl).length ? ': ' + sonB(sl).join(', ') : '') + '. Dinleyiciye teşekkür et ve soruları davet et. Soru gelmezse “en çok merak edilen nokta şu oluyor…” diyerek ilk soruyu kendin aç.';

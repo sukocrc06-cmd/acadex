@@ -152,16 +152,20 @@ type Hint = { i: number; q: string; entity: string };
 async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Photo & { i: number })[]; rate: boolean }> {
   const used = new Set<string>(); let uCalls = 0, rate = false;
   const memo = new Map<string, Photo[]>();   // aynı sorgunun ikinci fotoğrafı yeni arama harcamaz
-  const take = (list: Photo[]) => { const p = list.find((x) => x && x.large && !used.has(x.large)); if (p) used.add(p.large); return p || null; };
+  /* Sorguyla ortak sözcüğü olan fotoğraf öne alınır: "person holding red pen while
+     writing on book" aramasından "woman putting on nail polish" fotoğrafı ders
+     çalışma destesine kondu (canlı deste 14.11.2026). Uyan yoksa ilk sonuç kalır. */
+  const take = (list: Photo[], q = "") => { const qk = keysOf(q); const fit = (x: Photo) => { const ak = keysOf(x.alt); return qk.some((k) => ak.includes(k)); };
+    const ok = list.filter((x) => x && x.large && !used.has(x.large)); const p = (qk.length ? ok.find(fit) : null) || ok[0]; if (p) used.add(p.large); return p || null; };
   // Wikipedia aramaları paralel; stok aramaları sırayla (sınır sayacı ve tekrar denetimi için).
   const wiki = await Promise.all(hints.map((h) => h.entity ? wikiImage(h.entity) : Promise.resolve(null)));
   const photos: (Photo & { i: number })[] = [];
   for (let k = 0; k < hints.length; k++) {
     const h = hints[k]; let p: Photo | null = wiki[k] ? take([wiki[k] as Photo]) : null;
     const q = (h.q || h.entity || "").slice(0, 80).trim();
-    if (!p && q && memo.has(q)) p = take(memo.get(q) || []);
-    if (!p && q && !memo.has(q) && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; memo.set(q, u.photos); p = take(u.photos); }
-    if (!p && q) p = take(await pexelsSearch(q, 6, lang));
+    if (!p && q && memo.has(q)) p = take(memo.get(q) || [], q);
+    if (!p && q && !memo.has(q) && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; memo.set(q, u.photos); p = take(u.photos, q); }
+    if (!p && q) p = take(await pexelsSearch(q, 6, lang), q);
     if (!p && q) p = take(await commonsSearch(h.entity || q, 8));
     if (p) photos.push({ ...p, i: h.i });
   }
@@ -400,6 +404,22 @@ const noteFit = (s: any, lang: string): string => {
   if (lang !== "en") t = t.replace(/\bslide(?:['’](\p{L}+))?(?!\p{L})/giu, (m: string, e?: string) => (/^S/.test(m) ? "Slayt" : "slayt") + String(e || "").toLocaleLowerCase("tr").replace(/^y/, "").replace(/^d/, "t").replace(/e/g, "a").replace(/i/g, "ı"));
   return t;
 };
+/* Aynı cümle her notun sonuna eklenmez: "Etkili ders çalışma" destesinde
+   (14.11.2026) üç not "…zaman yönetimi ve aktif öğrenme teknikleriyle
+   desteklenmelidir" dolgusuyla bitti. Cümlenin köklerinin en az %70'i önceki
+   bir asetatın not cümlesinde geçiyorsa (en az 4 kök) atılır; notta en az iki
+   cümle kalır. */
+const noteEchoes = (slides: any[]): number => {
+  const seen: string[][] = []; let n = 0;
+  slides.forEach((s: any) => {
+    const c = String(s.notes || "").split(/(?<=[.!?])\s+/).filter(Boolean), ks = c.map(keysOf);
+    const dup = ks.map((k) => k.length >= 4 && seen.some((p) => k.filter((w) => p.includes(w)).length / k.length >= 0.7));
+    let keep = c.filter((_, i) => !dup[i]);
+    if (keep.length < 2) keep = c; else if (keep.length < c.length) { s.notes = keep.join(" "); n++; }
+    ks.forEach((k) => { if (k.length >= 4) seen.push(k); });
+  });
+  return n;
+};
 async function groq(key: string, model: string, sys: string, user: string, maxTok: number) {
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -634,7 +654,7 @@ Rules:
 - Today is ${new Date().toISOString().slice(0, 10)}. Say which period every number refers to; if the newest data in the sources is more than a year old, the conclusion slide says up to which date the deck is current. Never present old data as the present situation.
 - Do not write academic citations such as "(Yılmaz et al., 2023)" inside bullets or labels; attribution is carried by "src". Naming the reporting institution ("TCMB raporu") is fine.
 - Titles and headings are fully in ${L}; translate foreign terms (e.g. "unorthodox policy" = "alışılmadık politika").
-- Do not repeat the same fact, advice or definition on two slides: each slide adds something new, and a method explained once (e.g. the Eisenhower matrix) is not explained again. "stat" needs three values of comparable quantities with meaningful labels — never reuse one number under different labels, never use a label that is just a category and a unit ("Sabah: dakika"). "stat" values are quantities (amounts, percentages, durations), never calendar dates — dates belong on a "time" slide.
+- Do not repeat the same fact, advice or definition on two slides: each slide adds something new, and a method explained once (e.g. the Eisenhower matrix) is not explained again. The closing summary slide states conclusions in new words; it does not quote again a figure already shown on an earlier slide (\"18-20 °C\"). Notes never end with the same linking sentence on several slides. "stat" needs three values of comparable quantities with meaningful labels — never reuse one number under different labels, never use a label that is just a category and a unit ("Sabah: dakika"). "stat" values are quantities (amounts, percentages, durations), never calendar dates — dates belong on a "time" slide.
 - A "quote" slide's title says who said it and when; the title is never the quotation itself.
 - No superlatives or absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") unless a source states exactly that — this applies to notes too.
 - Use the established ${L} term for technical vocabulary (e.g. breccia = "breş"); if unsure, keep the original term in parentheses.
@@ -760,7 +780,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
        asetat düşünce o cümle de düşer. */
     dropRepeats(slides);
     dropEchoes(slides);
-    slides.forEach((x: any) => { x.notes = noteFit(x, lang); });
+    slides.forEach((x: any) => { x.notes = noteFit(x, lang); }); noteEchoes(slides);
     const sentences = (t: string) => String(t || "").split(/(?<=[.!?])\s+/).filter(Boolean);
     const dropAt = (i: number) => { slides.splice(i, 1); const p: any = slides[i - 1]; if (p) { const ns = sentences(p.notes); if (ns.length >= 3) p.notes = ns.slice(0, -1).join(" "); } };
     for (let i = slides.length - 1; i >= 0; i--) { const x: any = slides[i]; if (!x.title || (!x.bullets.length && !x.stats.length && !x.chart && !x.table)) dropAt(i); }

@@ -164,7 +164,7 @@ test('KONUŞMA NOTU ASETATIN İÇERİĞİNDEN YAZILIR (14.11.2026)', () => {
      "3 sayı"/SWOT/zaman çizelgesinde ise içerik kısa kutulara dağılmıştır. */
   assert.match(ink, /if \(s\.els\.some\(function \(e\) \{ return e\.type === 'h' && e\.text === '“'; \}\)\)/,
     'alıntı asetatı için not yolu yok (başlık = alıntı, b boş kalır)');
-  assert.match(ink, /b\.push\('asetatta ' \+ kisa\.slice\(0, 6\)\.join\(', '\) \+ ' var; her birini bir cümleyle açıkla'\)/,
+  assert.match(ink, /b\.push\('slaytta ' \+ kisa\.slice\(0, 6\)\.join\(', '\) \+ ' var; her birini bir cümleyle açıkla'\)/,
     '3 sayı / SWOT / zaman çizelgesi asetatları hâlâ şablon nota düşüyor');
   /* Canlı ölçüm (14.11.2026, "Chp 7 Attitudes"): tablo asetatı 23 → 53 kelime,
      diyagram 20 → 52, alıntı 23 → 36. Yerel koşu: tests/_not-olcum yoktur,
