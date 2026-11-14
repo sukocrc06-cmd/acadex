@@ -676,7 +676,12 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
           const tur = c.k.split(".")[1][0];
           if (tur === "n") {   // not cümlesi: düzeltilebiliyorsa düzelt, yoksa söyletme
             if (r.v === "mislabel" && fix && numTokens(fix).every((t) => numTokens(c.text).includes(t))) { s._ns[c.bi] = fix; meaning.fixed++; }
-            else if (r.v === "unsupported" || r.v === "mislabel") { s._ns[c.bi] = ""; meaning.flagged++; }
+            /* Canlı deste (14.11.2026): 420 karakterlik kaynak parçasıyla denetçi
+               "veri yok" deyip doğru cümleleri de sildi, notlar 13-18 kelimeye
+               indi. Cümle yalnız iki kanıt birlikteyse silinir: denetçi
+               desteklemiyor VE (sayısı kaynak metninde hiç geçmiyor YA DA
+               mutlak bir iddia taşıyor). */
+            else if ((r.v === "unsupported" || r.v === "mislabel") && (ABSOLUTE.test(c.text) || (numTokens(c.text).length > 0 && !verified(c.text, allIdx)))) { s._ns[c.bi] = ""; meaning.flagged++; }
             continue;
           }
           if (tur === "c") { if (r.v === "unsupported" || r.v === "mislabel") { (s._cw = s._cw || {})[c.bi] = why || "kaynakla tam örtüşmüyor"; meaning.flagged++; } continue; }

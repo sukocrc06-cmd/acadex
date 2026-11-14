@@ -6557,6 +6557,23 @@ var SBX = (function () {
      İçerik çeşide uymuyorsa (az/çok madde, uzun metin) null döner, klasik düzen
      basılır. Elle "düzen değiştir" her zaman klasiği basar. */
   var TINT = ['#DCE6FF', '#D9EFE3', '#F6E7C4', '#F4DDDA'];
+  /* Simgeler: kendi çizimimiz (24×24, tek çizgi) — dış kütüphane ya da lisans yok.
+     Maddenin konusuna göre seçilir; eşleşme yoksa sıradan nötr bir simge gelir. */
+  var IKON = {
+    trend: 'M3 17 L9 11 L13 15 L21 7 M15 7 H21 V13', bank: 'M3 10 L12 4 L21 10 M5 10 V18 M10 10 V18 M14 10 V18 M19 10 V18 M3 20 H21',
+    money: 'M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M12 7 V17 M15 9.5 C15 8 9 8 9 10.5 C9 13 15 11.5 15 14 C15 16 9 16 9 14.5', calendar: 'M5 6 H19 V20 H5 Z M5 10 H19 M9 4 V8 M15 4 V8',
+    people: 'M9 11 A3 3 0 1 0 9 5 A3 3 0 1 0 9 11 M3 19 C3 15 15 15 15 19 M16 11 A2.5 2.5 0 1 0 16 6 M17 14.5 C19.5 15 21 16.5 21 19', globe: 'M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M3 12 H21 M12 3 C8 7 8 17 12 21 M12 3 C16 7 16 17 12 21',
+    target: 'M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M12 7 A5 5 0 1 0 12 17 A5 5 0 1 0 12 7 M12 11.5 V12.5', alert: 'M12 4 L21 19 H3 Z M12 10 V14 M12 16.5 V17',
+    check: 'M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M8 12 L11 15 L16 9', bulb: 'M9 17 H15 M10 20 H14 M8 14 C5 11 6 4 12 4 C18 4 19 11 16 14 Z',
+    chart: 'M4 20 H20 M7 17 V11 M12 17 V6 M17 17 V13', book: 'M4 5 C7 4 10 4 12 6 C14 4 17 4 20 5 V19 C17 18 14 18 12 20 C10 18 7 18 4 19 Z M12 6 V20',
+    scale: 'M12 4 V20 M7 20 H17 M5 7 H19 M5 7 L3 13 H7 Z M19 7 L17 13 H21 Z', rocket: 'M12 3 C16 6 16 13 14 16 H10 C8 13 8 6 12 3 M10 16 L8 20 M14 16 L16 20 M12 9 V9.5',
+    arrow: 'M5 12 H19 M13 6 L19 12 L13 18', spark: 'M12 3 V9 M12 15 V21 M3 12 H9 M15 12 H21 M6 6 L9 9 M15 15 L18 18 M18 6 L15 9 M9 15 L6 18'
+  };
+  var IKON_RE = [['alert', /risk|tehdit|uyarı|kriz|sorun|tehlike|kayıp|zarar|threat|crisis|warning|problem/i], ['trend', /enflasyon|artış|büyüme|yüksel|düşüş|oran|inflation|growth|increase|decline|rate/i], ['bank', /banka|merkez bankası|hükümet|kurum|devlet|bakanlık|bank|government|institution/i],
+    ['money', /faiz|para|maliyet|fiyat|gelir|bütçe|yatırım|kredi|lira|dolar|interest|money|cost|price|revenue|budget|invest/i], ['calendar', /tarih|yıl(?:ı|ında)?\b|dönem|takvim|süre|\b(?:19|20)\d\d\b|date|year|period|timeline/i], ['people', /insan|toplum|ekip|çalışan|müşteri|tüketici|hanehalk|mürettebat|people|team|customer|consumer|society/i],
+    ['globe', /dünya|küresel|uluslararası|ülke|ihracat|ithalat|world|global|international|country|export/i], ['target', /hedef|amaç|strateji|plan|odak|goal|target|strategy|objective/i], ['chart', /veri|istatistik|ölçüm|analiz|rapor|data|statistic|analysis|report/i],
+    ['scale', /hukuk|kanun|yasa|adalet|denge|karşılaştır|law|legal|balance|compare/i], ['rocket', /teknoloji|yenilik|inovasyon|uzay|dijital|yazılım|technology|innovation|space|digital|software/i], ['book', /eğitim|öğren|araştırma|bilim|akademi|literatür|education|learn|research|science/i], ['bulb', /fikir|çözüm|öneri|ders|sonuç|idea|solution|lesson|insight/i]];
+  var ikonSec = function (x, i) { for (var k = 0; k < IKON_RE.length; k++) if (IKON_RE[k][1].test(String(x))) return IKON_RE[k][0]; return ['check', 'spark', 'arrow', 'bulb'][i % 4]; };
   /* "Eylül 2021: faiz indirimi başladı" → ['Eylül 2021', 'faiz indirimi başladı'] */
   var tarihBol = function (x) { var m = String(x).match(/^(.{2,34}?)\s*(?::|\s[–—-])\s+(.{4,})$/); return m && /\d/.test(m[1]) ? [m[1].trim(), m[2].trim()] : null; };
   var kisa = function (b, lo, hi, max) { return b && b.length >= lo && b.length <= hi && b.every(function (x) { return String(x).length <= max; }); };
@@ -6572,7 +6589,20 @@ var SBX = (function () {
         return out; },
       /* 3 · vurgu: ilk madde solda büyük kutuda, ötekiler sağda */
       function (t, b) { if (!kisa(b, 3, 4, 170) || String(b[0]).length > 120) return null;
-        return head(t).concat([E('rect', 70, 166, 340, 270, { fill: TINT[0] }), E('t', 94, 192, 292, 220, { text: b[0], size: 26, bold: true }), E('ul', 440, 176, 450, 300, { text: b.slice(1).join('\n'), size: 22 })]); }
+        return head(t).concat([E('rect', 70, 166, 340, 270, { fill: TINT[0] }), E('t', 94, 192, 292, 220, { text: b[0], size: 26, bold: true }), E('ul', 440, 176, 450, 300, { text: b.slice(1).join('\n'), size: 22 })]); },
+      /* 4 · 2×2 ızgara: dört madde, her biri simgeli kutuda */
+      function (t, b) { if (!kisa(b, 4, 4, 160)) return null; var out = head(t);
+        b.forEach(function (x, i) { var X0 = i % 2 ? 490 : 70, Y0 = i < 2 ? 158 : 330; out.push(E('rect', X0, Y0, 400, 160, { fill: TINT[i] })); out.push(E('icon', X0 + 18, Y0 + 18, 36, 36, { icon: ikonSec(x, i), color: BLUE })); out.push(E('t', X0 + 70, Y0 + 18, 314, 126, { text: x, size: 23 })); });
+        return out; },
+      /* 5 · şeritli satırlar: solunda renkli şerit ve simge olan tam genişlik satırlar */
+      function (t, b) { if (!kisa(b, 3, 4, 170)) return null; var n = b.length, rh = Math.floor(336 / n), out = head(t);
+        b.forEach(function (x, i) { var y = 156 + i * rh; out.push(E('rect', 70, y, 820, rh - 12, { fill: '#EEF3FF' })); out.push(E('rect', 70, y, 8, rh - 12, { fill: BLUE })); out.push(E('icon', 98, y + Math.round((rh - 12 - 34) / 2), 34, 34, { icon: ikonSec(x, i), color: BLUE })); out.push(E('t', 150, y + 14, 724, rh - 38, { text: x, size: n > 3 ? 23 : 25 })); });
+        return out; },
+      /* 6 · tek cümle: 1-2 maddelik asetat boş listeyle değil büyük vurgu kutusuyla basılır */
+      function (t, b) { if (!b || !b.length || b.length > 2 || String(b[0]).length > 230 || String(b[1] || '').length > 200) return null; var hh = b.length > 1 ? 200 : 230;
+        var out = head(t).concat([E('rect', 70, 166, 820, hh, { fill: TINT[0] }), E('rect', 70, 166, 10, hh, { fill: BLUE }), E('icon', 100, 190, 44, 44, { icon: ikonSec(b[0], 3), color: BLUE }), E('t', 162, 186, 706, hh - 40, { text: b[0], size: b.length > 1 ? 30 : 34, bold: true })]);
+        if (b[1]) out.push(E('t', 70, 386, 820, 110, { text: b[1], size: 23 }));
+        return out; }
     ],
     time: [
       /* 1 · dikey çizelge: solda çizgi ve duraklar, tarih kalın */
@@ -6585,23 +6615,43 @@ var SBX = (function () {
       function (t, b) { if (!kisa(b, 3, 4, 190)) return null; var n = b.length, w = Math.floor((820 - (n - 1) * 20) / n), out = head(t);
         b.forEach(function (x, i) { var X0 = 70 + i * (w + 20), d = tarihBol(x); out.push(E('rect', X0, 170, w, 280, { fill: '#EEF3FF' })); out.push(E('rect', X0, 170, w, 10, { fill: BLUE }));
           out.push(E('t', X0 + 16, 196, w - 32, 58, { text: d ? d[0] : (i + 1) + '. adım', size: 23, bold: true, color: BLUE })); out.push(E('t', X0 + 16, 258, w - 32, 180, { text: d ? d[1] : x, size: n === 4 ? 19 : 21 })); });
+        return out; },
+      /* 3 · basamaklar: her adım bir öncekinden yüksek kutu — ilerleme duygusu */
+      function (t, b) { if (!kisa(b, 3, 4, 130)) return null; var n = b.length, w = Math.floor((820 - (n - 1) * 16) / n), out = head(t);
+        b.forEach(function (x, i) { var X0 = 70 + i * (w + 16), hh = 216 + i * Math.floor(100 / (n - 1)), Y0 = 496 - hh, d = tarihBol(x); out.push(E('rect', X0, Y0, w, hh, { fill: TINT[i % 4] }));
+          out.push(E('t', X0 + 14, Y0 + 12, w - 28, 52, { text: d ? d[0] : (i + 1) + '. adım', size: 21, bold: true, color: BLUE })); out.push(E('t', X0 + 14, Y0 + 68, w - 28, hh - 80, { text: d ? d[1] : x, size: n === 4 ? 17 : 19 })); });
         return out; }
     ],
     stat: [
       /* 1 · sayı kartları */
       function (t, b, c) { var ss = statsOf(b, c); if (ss.length < 3) return null; var out = head(t);
         ss.slice(0, 3).forEach(function (x, i) { var vl = String(x.value), X0 = 70 + i * 280; out.push(E('rect', X0, 170, 260, 270, { fill: TINT[i] })); out.push(E('h', X0 + 10, 200, 240, 110, { text: vl, size: vl.length > 9 ? 36 : vl.length > 6 ? 48 : vl.length > 4 ? 58 : 72, color: BLUE, align: 'center' })); out.push(E('t', X0 + 16, 322, 228, 100, { text: x.label, size: 18, align: 'center' })); });
+        return out; },
+      /* 2 · bir büyük, iki küçük: ilk sayı solda büyük kutuda */
+      function (t, b, c) { var ss = statsOf(b, c); if (ss.length < 3) return null; var v0 = String(ss[0].value);
+        var out = head(t).concat([E('rect', 70, 160, 400, 330, { fill: TINT[0] }), E('h', 86, 214, 368, 124, { text: v0, size: v0.length > 9 ? 44 : v0.length > 6 ? 60 : v0.length > 4 ? 76 : 96, color: BLUE, align: 'center' }), E('t', 96, 350, 348, 120, { text: ss[0].label, size: 20, align: 'center' })]);
+        [1, 2].forEach(function (k) { var Y0 = k === 1 ? 160 : 335, vl = String(ss[k].value); out.push(E('rect', 490, Y0, 400, 155, { fill: TINT[k] })); out.push(E('h', 506, Y0 + 40, 176, 80, { text: vl, size: vl.length > 9 ? 26 : vl.length > 6 ? 34 : 46, color: BLUE, align: 'center' })); out.push(E('t', 692, Y0 + 30, 184, 100, { text: ss[k].label, size: 17 })); });
         return out; }
     ],
     two: [
-      /* 1 · başlık şeritli iki kutu */
+      /* 1 · başlık şeritli iki kutu. Tek maddelik tarafta madde imi yerine büyük
+         metin basılır; "Unorthodox: 2021'de…" gibi başlığı yineleyen önek atılır
+         (canlı deste 14.11.2026: iki kolonun altı boştu, önek başlığın aynısıydı). */
       function (t, b, c) { b = b || []; if (b.length < 2) return null; var h = Math.ceil(b.length / 2), out = head(t);
-        [[70, b.slice(0, h), 0], [500, b.slice(h), 1]].forEach(function (k) { out.push(E('rect', k[0], 160, 390, 50, { fill: TINT[k[2]] })); out.push(E('t', k[0] + 16, 170, 358, 32, { text: (c && c.heads && c.heads[k[2]]) || (k[2] ? 'ikinci taraf' : 'birinci taraf'), size: 21, bold: true })); out.push(E('ul', k[0] + 6, 226, 378, 270, { text: k[1].join('\n'), size: 22 })); });
+        [[70, b.slice(0, h), 0], [500, b.slice(h), 1]].forEach(function (k) { var hd = (c && c.heads && c.heads[k[2]]) || (k[2] ? 'ikinci taraf' : 'birinci taraf');
+          var it = k[1].map(function (x) { var m = String(x).match(/^([^:]{3,32}):\s+(.{8,})$/); return m && hd.toLocaleLowerCase('tr').indexOf(m[1].toLocaleLowerCase('tr').trim()) === 0 ? m[2].charAt(0).toLocaleUpperCase('tr') + m[2].slice(1) : x; });
+          out.push(E('rect', k[0], 160, 390, 330, { fill: '#EEF3FF' })); out.push(E('rect', k[0], 160, 390, 54, { fill: TINT[k[2]] })); out.push(E('t', k[0] + 18, 172, 354, 32, { text: hd, size: 21, bold: true }));
+          out.push(it.length === 1 ? E('t', k[0] + 20, 236, 350, 236, { text: it[0], size: 24 }) : E('ul', k[0] + 10, 232, 370, 246, { text: it.join('\n'), size: 21 })); });
         return out; }
+    ],
+    quote: [
+      /* 1 · alıntı kutusu: renkli zemin, solda şerit */
+      function (t, b) { if (!b || !b[0] || String(b[0]).length > 260) return null;
+        return [E('rect', 70, 110, 820, 320, { fill: TINT[0] }), E('rect', 70, 110, 10, 320, { fill: BLUE }), E('h', 104, 104, 90, 96, { text: '“', size: 110, color: BLUE }), E('h', 110, 200, 746, 180, { text: b[0], size: 32 }), E('t', 110, 452, 780, 40, { text: t, size: 20, color: SOFT })]; }
     ]
   };
   /* Bir destede aynı türün art arda gelen asetatları farklı görünümle basılır. */
-  var VSIRA = { list: [1, 2, 0, 3], time: [2, 1, 0], stat: [1, 0], two: [1, 0] };
+  var VSIRA = { list: [1, 5, 0, 2, 4, 3], time: [2, 1, 3, 0], stat: [1, 2, 0], two: [1, 0], quote: [1, 0] };
   /* ---------- özetten taşınan zenginlik: grafik, tablo, formül, diyagram ---------- */
   var PAL = ['#2F6BFF', '#E8B53A', '#1E8A55', '#C9483B', '#7A5AF8', '#0D1838', '#6A7593'];
   var chartVals = function (c) { var d = arr(c.data).length ? arr(c.data) : (arr(c.datasets)[0] && arr(arr(c.datasets)[0].data)) || arr(c.values); return d.map(function (v) { return Number(String(v).replace(',', '.')) || 0; }); };
@@ -6636,14 +6686,16 @@ var SBX = (function () {
   };
   var mathHTML = function (latex) { if (window.katex && latex) { try { return window.katex.renderToString(latex, { displayMode: true, throwOnError: false }); } catch (e) {} } return X(latex || ''); };
   LAY.chart = { l: 'grafik', f: function (t, b, c) { var d = (c && c.data) || {}; return head(t).concat([E('chart', 90, 146, 780, 316, { chart: { type: d.type || 'bar', labels: arr(d.labels), data: chartVals(d) } }), E('t', 90, 470, 780, 40, b && b[0] ? { text: b[0], size: 18, color: SOFT } : { text: 'grafiğin söylediğini bir cümleyle yaz', size: 18, color: SOFT, muted: true })]); } };
-  LAY.table = { l: 'tablo', f: function (t, b, c) { var d = (c && c.data) || { headers: ['başlık', 'başlık'], rows: [['', '']] }; var out = head(t).concat([E('table', 70, 150, 820, b && b[0] ? 320 : 340, { table: { headers: arr(d.headers).map(txt), rows: arr(d.rows).slice(0, 6).map(function (r) { return arr(r).map(txt); }) }, size: arr(d.rows).length > 4 || arr(d.headers).length > 4 ? 16 : 19 })]); if (b && b[0]) out.push(E('t', 70, 478, 820, 34, { text: b[0], size: 15, color: SOFT })); return out; } };
+  LAY.table = { l: 'tablo', f: function (t, b, c) { var d = (c && c.data) || { headers: ['başlık', 'başlık'], rows: [['', '']] }; var out = head(t).concat([E('table', 70, 150, 820, b && b[0] ? 320 : 340, { table: { headers: arr(d.headers).map(txt), rows: arr(d.rows).slice(0, 6).map(function (r) { return arr(r).map(txt); }) }, size: arr(d.rows).length > 4 || arr(d.headers).length > 4 ? 16 : arr(d.rows).length <= 2 ? 27 : arr(d.rows).length === 3 ? 23 : 19 })]);   /* 2 satırlık tablo asetatın üçte birini dolduruyordu */ if (b && b[0]) out.push(E('t', 70, 478, 820, 34, { text: b[0], size: 15, color: SOFT })); return out; } };
   LAY.math = { l: 'formül', f: function (t, b, c) { var fs = arr(c && c.data).slice(0, 3), out = head(t), hh = fs.length > 1 ? Math.floor(340 / fs.length) : 300;
     fs.forEach(function (f, i) { var y = 150 + i * hh; out.push(E('math', 70, y, 520, hh - 16, { latex: f.latex || '', size: fs.length > 2 ? 22 : 28 })); var vars = arr(f.variables).slice(0, 4).map(function (v) { return txt(v.symbol) + ': ' + txt(v.meaning); }).filter(function (x) { return x.length > 2; }); out.push(E('t', 610, y, 290, hh - 16, { text: (f.name ? txt(f.name) + (vars.length ? '\n' : '') : '') + vars.join('\n'), size: 16, color: SOFT })); });
     if (!fs.length) out.push(E('math', 70, 160, 820, 200, { latex: 'a^2 + b^2 = c^2', size: 32, muted: true })); return out; } };
   LAY.diagram = { l: 'diyagram', f: function (t, b, c) { var d = (c && c.data) || {}; return head(t).concat([E('mmd', 110, 140, 740, 316, { svg: d.svg || '', code: d.mermaid || '' }), E('t', 110, 462, 740, 50, b && b[0] ? { text: b[0], size: 18, color: SOFT, align: 'center' } : { text: '', size: 18, color: SOFT, align: 'center' })]); } };
   LAY.refs = { l: 'kaynakça', f: function (t, b) { b = b || []; return head(t).concat([E('ul', 70, 146, 820, 370, b.length ? { text: b.join('\n'), size: b.length > 5 ? 13 : b.length > 3 ? 15 : 17, color: '#2A3550' } : { text: 'Yazar. (Yıl). Başlık. Yayıncı. https://…', size: 16, muted: true })]); } };
   var newSlide = function (kind, t, b, c) {
-    var v = c && c.v, alt = v && VARY[kind] && VARY[kind][v - 1] ? VARY[kind][v - 1](t, b, c) : null;
+    /* İstenen çeşit içeriğe uymuyorsa (null) sıradaki uyan çeşit denenir; hiçbiri uymazsa klasik. */
+    var v = c && c.v, alt = null, dene = v && VARY[kind] ? [v].concat(VSIRA[kind].filter(function (x) { return x && x !== v; })) : [];
+    for (var di = 0; di < dene.length && !alt; di++) { var fv = VARY[kind][dene[di] - 1]; alt = fv ? fv(t, b, c) : null; if (alt) v = dene[di]; }
     var sl = { id: uid(), lay: kind, bg: 'clear', notes: '', els: alt || LAY[kind].f(t, b, c) }; if (alt) sl.v = v; return sl;
   };
 
@@ -6663,6 +6715,7 @@ var SBX = (function () {
     if (e.type === 'mmd') return e.svg ? '<div class="sx-mmd">' + e.svg + '</div>' : '<span class="ph">diyagram</span>';
     if (e.type === 'h' || e.type === 't') return X(e.text);
     if (e.type === 'ul') return '<ul>' + e.text.split('\n').filter(function (l) { return l.trim(); }).map(function (l) { var wy = e.why && e.why[l]; return e.warn && e.warn.indexOf(l) >= 0 ? '<li class="warn" data-why="' + X(wy ? String(wy).slice(0, 40) : 'kaynakta yok') + '" title="' + X(wy ? 'Acadia: ' + wy + '. Kontrol et ya da düzelt.' : 'Bu rakam kaynak metinde bulunamadı; kontrol et ya da düzelt.') + '">' + X(l) + '</li>' : '<li>' + X(l) + '</li>'; }).join('') + '</ul>';
+    if (e.type === 'icon') return '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (IKON[e.icon] || IKON.check) + '"/></svg>';
     if (e.type === 'arrow') return '<svg viewBox="0 0 100 20" preserveAspectRatio="none"><path vector-effect="non-scaling-stroke" d="M1 10 H98 M90 3 L98 10 L90 17"/></svg>';
     if (e.type === 'mark') return '<svg viewBox="0 0 100 12" preserveAspectRatio="none"><path pathLength="1" vector-effect="non-scaling-stroke" d="M2 7 C20 3 38 10 56 6 S86 4 98 8"/></svg>';
     if (e.type === 'img') return e.src ? '<img src="' + e.src + '" alt="' + X(e.alt || 'görsel') + '">' : '<span class="ph">görsel</span>';
@@ -6671,7 +6724,7 @@ var SBX = (function () {
   var elHTML = function (e, edit) {
     var st = 'left:' + e.x + 'px;top:' + e.y + 'px;width:' + e.w + 'px;height:' + e.h + 'px;font-size:' + e.size + 'px;color:' + e.color + ';text-align:' + e.align + ';font-weight:' + (e.bold ? 700 : (e.type === 'h' ? 800 : 400));
     if (e.type === 'rect' || e.type === 'ellipse') st += ';background:' + (e.fill || '#DCE6FF');
-    var lab = { viz: 'çizim', h: 'başlık', t: 'metin', ul: 'madde listesi', rect: 'kutu', ellipse: 'daire', arrow: 'ok', mark: 'vurgu çizgisi', img: 'görsel', chart: 'grafik', table: 'tablo', math: 'formül', mmd: 'diyagram' }[e.type];
+    var lab = { viz: 'çizim', h: 'başlık', t: 'metin', ul: 'madde listesi', rect: 'kutu', ellipse: 'daire', arrow: 'ok', mark: 'vurgu çizgisi', img: 'görsel', chart: 'grafik', table: 'tablo', math: 'formül', mmd: 'diyagram', icon: 'simge' }[e.type];
     return '<div class="sx-el' + (e.muted ? ' muted' : '') + '" data-id="' + e.id + '" data-type="' + e.type + '" style="' + st + '"' +
       (edit ? ' tabindex="0" role="button" aria-label="' + X(lab + (e.text ? ': ' + e.text.slice(0, 40) : '')) + '"' : '') + '>' + elInner(e) + (edit ? '<i class="sx-rs" data-rs="" aria-hidden="true"></i>' : '') + '</div>';
   };
@@ -7947,7 +8000,10 @@ var SBX = (function () {
        kalanlar: doğrulanamayan maddesi olan asetat (uyarı işareti yalnız madde
        listesinde çizilir) ve gerçek bir kişi/yer fotoğrafı bekleyen asetat. */
     var vSay = {}, vSec = function (s, kind) {
-      if (!VSIRA[kind] || arr(s.warnI).length || (kind === 'list' && s.img && s.img.entity)) return 0;
+      /* Uyarı yalnız LİSTEYİ klasikte tutar: zaman çizelgesinde uyarı zaten
+         çizilmiyordu, yine de çizelge klasiğe düşüyordu (canlı deste 14.11.2026). */
+      if (!VSIRA[kind] || (kind === 'list' && arr(s.warnI).length) || (/^(list|quote)$/.test(kind) && s.img && s.img.entity)) return 0;
+      if (kind === 'list' && arr(s.b).length && arr(s.b).length <= 2 && !s.img) return 6;      /* ince asetat: tek cümle kutusu */
       var n = vSay[kind] = (vSay[kind] || 0) + 1; return VSIRA[kind][(n - 1) % VSIRA[kind].length];
     };
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data;

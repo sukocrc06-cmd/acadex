@@ -298,34 +298,46 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
   const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
   const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
-  const { VARY, VSIRA, tarihBol } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol };')(E, head, statsOf, '#0D1838', '#2F6BFF');
+  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593');
   const B3 = ['Eylül 2021: Enflasyon %19 iken faiz indirimleri başladı', '2022 – Enflasyon %85 seviyesine yükseldi', '2023: Seçim sonrası politika değişti'];
   const B5 = B3.concat(['2024: Sıkılaşma sürdü', '2025: Dezenflasyon']);
   const icinde = (els, ad) => els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, ad + ': öğe asetatın dışına taşıyor (' + e.type + ' ' + e.x + ',' + e.y + ' ' + e.w + '×' + e.h + ')'));
   let kurulan = 0;
   Object.keys(VARY).forEach((k) => VARY[k].forEach((f, i) => {
-    [B3, B3.concat(['Dördüncü kısa madde']), B5].forEach((bb) => {
+    [B3.slice(0, 1), B3.slice(0, 2), B3, B3.concat(['Dördüncü kısa madde']), B5].forEach((bb) => {
       const veri = k === 'stat' ? ['%19 — Eylül 2021', '%85 — Ekim 2022', '%61,5 — 2023 Ç3'] : bb;
       const els = f('Başlık', veri, { heads: ['Önce', 'Sonra'] });
       if (!els) return;
       kurulan++; icinde(els, k + ' çeşit ' + (i + 1));
-      assert.equal(els[0].type, 'h', 'başlık ilk öğe olmalı (titleOf ilk h\'yi okur)');
+      if (k !== 'quote') assert.equal(els[0].type, 'h', 'başlık ilk öğe olmalı (titleOf ilk h\'yi okur)');
+      else assert.equal(els.filter((e) => e.type === 't')[0].text, 'Başlık', 'alıntıda ilk metin öğesi atıf olmalı (titleOf onu okur)');
       assert.ok(!els.some((e) => e.muted), 'çeşit yer tutucu basmamalı');
-      const yazi = els.filter((e) => e.type === 't' || e.type === 'ul').map((e) => e.text).join(' ');
-      if (k !== 'stat') veri.forEach((x) => { const d = k === 'time' ? tarihBol(x) : null; assert.ok(yazi.includes(d ? d[1] : x), k + ' çeşit ' + (i + 1) + ': madde kayboldu'); });
+      const yazi = els.filter((e) => e.type === 't' || e.type === 'ul' || e.type === 'h').map((e) => e.text).join(' ');
+      els.filter((e) => e.type === 'icon').forEach((e) => assert.ok(IKON[e.icon], 'tanımsız simge: ' + e.icon));
+      if (k !== 'stat') (k === 'quote' ? veri.slice(0, 1) : veri).forEach((x) => { const d = k === 'time' ? tarihBol(x) : null; assert.ok(yazi.includes(d ? d[1] : x), k + ' çeşit ' + (i + 1) + ': madde kayboldu'); });
     });
     assert.equal(f('Başlık', [], {}), null, k + ' çeşit ' + (i + 1) + ': boş içerikle klasik düzene dönmeli');
     /* iki kolon çeşidi klasikle aynı madde listesini kullanır; uzun metni otomatik sığdırma küçültür */
     if (k !== 'stat' && k !== 'two') assert.equal(f('Başlık', ['x'.repeat(400), 'y', 'z'], {}), null, 'uzun metin kartlara sıkıştırılmamalı');
   }));
-  assert.ok(kurulan >= 12, 'çeşitler kurulmuyor (' + kurulan + ')');
+  assert.ok(kurulan >= 24, 'çeşitler kurulmuyor (' + kurulan + ')');
+  assert.ok(Object.keys(VARY).reduce((n, k) => n + VARY[k].length, 0) >= 13, 'en az 13 düzen çeşidi olmalı');
+  assert.equal(ikonSec('Enflasyon %85 seviyesine yükseldi', 0), 'trend');
+  assert.equal(ikonSec('Merkez Bankası kararı', 0), 'bank');
+  assert.ok(IKON[ikonSec('hiçbir anahtar sözcük yok', 2)], 'eşleşmeyen madde nötr simge almalı');
+  // İki kolon: başlığı yineleyen önek atılır, tek madde büyük metin olur.
+  const iki = VARY.two[0]('B', ['Unorthodox: 2021’de faiz indirimleri yapıldı', 'Orthodox: 2023’te faiz yükseltildi'], { heads: ['Unorthodox (faiz indirimi)', 'Orthodox (faiz artırımı)'] });
+  assert.ok(iki.some((e) => e.type === 't' && e.text === '2021’de faiz indirimleri yapıldı'), 'başlığı yineleyen önek duruyor');
+  assert.ok(!iki.some((e) => e.type === 'ul'), 'tek maddelik kolon madde imiyle basılıyor');
   assert.deepEqual(tarihBol('Eylül 2021: faiz indirimi başladı'), ['Eylül 2021', 'faiz indirimi başladı']);
   assert.deepEqual(tarihBol('16 Temmuz 1969 – Saturn V fırlatıldı'), ['16 Temmuz 1969', 'Saturn V fırlatıldı']);
   assert.equal(tarihBol('Bu değişim eş zamanlı gerçekleşti'), null, 'tarihsiz cümle tarih diye bölünmemeli');
   // Zaman çizelgesi: ilk iki asetat klasik OLMAYAN iki ayrı görünüm alır.
   assert.deepEqual(VSIRA.time.slice(0, 2), [2, 1]);
-  assert.match(ink, /if \(!VSIRA\[kind\] \|\| arr\(s\.warnI\)\.length \|\| \(kind === 'list' && s\.img && s\.img\.entity\)\) return 0;/,
-    'uyarılı ya da gerçek fotoğraf bekleyen asetat klasik kalmalı');
+  assert.match(ink, /if \(!VSIRA\[kind\] \|\| \(kind === 'list' && arr\(s\.warnI\)\.length\) \|\|/,
+    'uyarı yalnız listeyi klasikte tutmalı (zaman çizelgesi uyarı yüzünden klasiğe düşüyordu)');
+  assert.match(ink, /if \(kind === 'list' && arr\(s\.b\)\.length && arr\(s\.b\)\.length <= 2 && !s\.img\) return 6;/, 'ince asetat boş listeyle basılıyor');
+  assert.match(ink, /arr\(d\.rows\)\.length <= 2 \? 27/, 'iki satırlık tablo küçük yazıyla basılıyor');
   assert.match(ink, /if \(yerTutucu\(sl\) \|\| sl\.v \|\|/, 'kartlı düzenin üstüne fotoğraf konuyor');
   assert.match(ink, /lay: sl\.lay \|\| null, v: sl\.v \|\| 0,/, 'çeşit kaydedilmiyor');
 });
