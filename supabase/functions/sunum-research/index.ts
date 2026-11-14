@@ -217,6 +217,36 @@ const verified = (claim: string, idx: Set<string>): boolean => {
   return toks.every((t) => variants(t).some((x) => idx.has(x)));
 };
 
+/* Aynı ajans haberinin kopyaları ayrı kaynak değildir: canlı destede
+   (yenilenebilir enerji, 14.11.2026) beş kaynağın dördü aynı AA haberiydi;
+   deste iki rakamı (442,2 TWh, 21,5 milyar $) beş asetatta tekrarladı.
+   Ölçü: metnin başındaki ayırt edici sayılar (yıl ve tek-iki haneli tam sayı
+   hariç) büyük oranda aynıysa aynı haberdir. */
+const sigNums = (t: string): string[] => [...new Set(numTokens(t).filter((x) => !/^(1[5-9]|20)\d{2}$/.test(x)).map((x) => x.replace(/[.,]/g, "")).filter((x) => x.length >= 3))];
+const sameStory = (a: string, b: string): boolean => {
+  const x = sigNums(String(a || "").slice(0, 3000)), y = new Set(sigNums(String(b || "").slice(0, 3000)));
+  if (x.length < 3 || y.size < 3) return false;
+  const ortak = x.filter((v) => y.has(v)).length;
+  return ortak / Math.min(x.length, y.size) >= 0.6;
+};
+/* Aynı rakam ikinci kez madde olarak yazılmaz (son asetat özet olduğu için
+   hariç). Dönen: maddesi atılan asetat sayısı. */
+const dropRepeats = (slides: any[]): number => {
+  const seen = new Set<string>(); let n = 0;
+  slides.forEach((s: any, si: number) => {
+    if (s.kind === "list" && si < slides.length - 1) {
+      const keep: string[] = [], warn: number[] = [];
+      s.bullets.forEach((b: string, i: number) => { const t = sigNums(b); if (t.length && t.every((v) => seen.has(v))) return; if (s.warn.includes(i)) warn.push(keep.length); keep.push(b); });
+      if (keep.length < s.bullets.length) { s.bullets = keep; s.warn = warn; n++; }
+    }
+    [...s.bullets, ...s.stats.map((x: any) => x.value), ...(s.table ? s.table.rows.flat() : [])].forEach((b: string) => sigNums(b).forEach((v) => seen.add(v)));
+  });
+  return n;
+};
+/* "Alıntı" bir cümledir. Canlı destede kurum adlarının listesi tırnak içinde
+   alıntı diye basıldı ("SHURA … – …, …, … ortaklığı"). */
+const isSentence = (t: string) => /[.!?…]["”»']?\s*$/.test(String(t || "").trim());
+
 // akademik sunuma uymayan kaynaklar (video, sosyal medya, forum)
 const BLOCK = ["youtube.com", "youtu.be", "facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "quora.com", "pinterest.com", "linkedin.com", "eksisozluk.com", "uludagsozluk.com", "incisozluk.com.tr", "dailymotion.com", "vimeo.com", "scribd.com", "slideshare.net"];
 // Kurumsal kaynak öne alınır: canlı destede (Apollo 11, 14.11.2026) dört
@@ -240,7 +270,9 @@ const findYear = (text: string, url: string): string => {
     /\b((?:19|20)\d{2})-\d{2}-\d{2}\b/,
   ];
   for (const re of pats) { const m = head.match(re); if (m && ok(+m[1])) return m[1]; }
-  const u = String(url || "").match(/[/_-]((?:19|20)\d{2})[/_-]/); if (u && ok(+u[1])) return u[1];
+  /* Adresteki yıl aralığı yayın yılı değildir: ".../turkiye-2015-2025-te-..."
+     kaynakçaya "(2015)" diye geçti (canlı deste, 14.11.2026). */
+  const u = String(url || "").match(/(?<!(?:19|20)\d{2})[/_-]((?:19|20)\d{2})[/_-](?!(?:19|20)\d{2})/); if (u && ok(+u[1])) return u[1];
   return "";
 };
 const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
@@ -453,6 +485,7 @@ Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing si
         .filter((r: any) => { const u0 = String(r.url).split("#")[0]; const h = hostOf(u0); if (seen.has(u0) || (perHost[h] || 0) >= 2 || /wikipedia\.org$/.test(h)) return false; seen.add(u0); perHost[h] = (perHost[h] || 0) + 1; return true; })
         // En az 3 kurumsal kaynak varsa ötekilerden en çok 2 alınır.
         .filter((r: any, _i: number, all: any[]) => { if (trust(hostOf(r.url)) || all.filter((x) => trust(hostOf(x.url))).length < 3) return true; return ++untrusted <= 2; })
+        .filter((r: any, i: number, all: any[]) => !all.slice(0, i).some((x) => sameStory(String(x.raw_content || x.content), String(r.raw_content || r.content))))
         .slice(0, 7);
       engine.web = web.length;
       srcs = web.map((r: any, i: number) => ({
@@ -566,6 +599,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       /* Tek eksende üç ayrı birim grafik değildir: canlı destede (14.11.2026)
          "10 mil · 7 km · 20 saniye" aynı çubuk grafikte yan yana çizildi. */
       if (chart && mixedUnits(chart.labels)) chartOk = false;
+      if (k === "quote" && bullets.length && !isSentence(bullets[0])) k = "list";
       if (k === "chart" && (!chart || !chartOk)) k = "list";
       // Grafik listeye inince maddesi yoksa asetat boş sayılıp düşüyordu; değerler maddeye yazılır.
       if (k === "list" && kind === "chart" && chart && !bullets.length) chart.values.forEach((v: number, i: number) => { const l = String(chart.labels[i] || ""); const u = (l.match(/\(([^)]+)\)\s*$/) || [])[1] || chart.unit; bullets.push(`${l.replace(/\s*\([^)]+\)\s*$/, "")}: ${String(v).replace(".", lang === "en" ? "." : ",")} ${u}`.trim()); if (!verified(String(v), idx) && !verified(String(v), allIdx)) warn.push(bullets.length - 1); });
@@ -580,6 +614,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
     /* Düşen asetatın öncesindeki not son cümlesinde ona köprü kurar ("şimdi
        Armstrong'ın ünlü sözüne bakalım" — o asetat destede yoktu, 14.11.2026);
        asetat düşünce o cümle de düşer. */
+    dropRepeats(slides);
     const sentences = (t: string) => String(t || "").split(/(?<=[.!?])\s+/).filter(Boolean);
     const dropAt = (i: number) => { slides.splice(i, 1); const p: any = slides[i - 1]; if (p) { const ns = sentences(p.notes); if (ns.length >= 3) p.notes = ns.slice(0, -1).join(" "); } };
     for (let i = slides.length - 1; i >= 0; i--) { const x: any = slides[i]; if (!x.title || (!x.bullets.length && !x.stats.length && !x.chart && !x.table)) dropAt(i); }

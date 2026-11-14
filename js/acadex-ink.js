@@ -6537,6 +6537,19 @@ var SBX = (function () {
   var FONT_ES = { 'Calibri': 'Carlito', 'Calibri Light': 'Carlito', 'Cambria': 'Caladea', 'Arial': 'Arimo', 'Helvetica': 'Arimo', 'Times New Roman': 'Tinos', 'Source Sans Pro': 'Source Sans 3', 'Century Gothic': 'Questrial', 'Gill Sans MT': 'Lato', 'Segoe UI': 'Open Sans', 'Tahoma': 'Open Sans', 'Verdana': 'Open Sans', 'Trebuchet MS': 'Fira Sans', 'Georgia': 'Gelasio', 'Garamond': 'EB Garamond', 'Franklin Gothic Medium': 'Libre Franklin', 'Franklin Gothic Book': 'Libre Franklin', 'Rockwell': 'Rokkitt', 'Impact': 'Anton', 'Consolas': 'Inconsolata', 'Aptos': 'Inter', 'Aptos Display': 'Inter' };
   var FONT_SERIF = /serif|garamond|baskerville|palatino|caladea|tinos|gelasio|playfair|merriweather|lora|crimson|alegreya$|bitter|arvo|slab|spectral|rokkitt|fraunces|vollkorn|old standard|cinzel|times|georgia|cambria/i, FONT_DISPLAY = /^(League Gothic|Bebas Neue|Anton|Oswald|Abril Fatface|Archivo Black|Righteous|Pacifico|Permanent Marker|DM Serif Display|Instrument Serif|Amatic SC|Barlow Condensed|Special Elite)$/;
   var fontCss = function (f) { return "'" + f + "'," + (FONT_SERIF.test(f) ? 'Georgia,serif' : "'Instrument Sans',system-ui,sans-serif"); };
+  /* Biçim: şablon yalnız renk değil, yapı da taşır — zemin deseni, kutu
+     biçimi, köşe yarıçapı. Renk gibi yalnız çizimde uygulanır, öğelere
+     yazılmaz. Kendi dosyasından gelen şablonda biçim kimlikten türetilir
+     (aynı dosya hep aynı görünür). */
+  var DESEN = ['yok', 'serit', 'ust', 'alt', 'kose', 'cift', 'cerceve', 'nokta', 'blok'];
+  /* hazır şablonların biçimi (kimlik → desen kutu yarıçap); eski kayıtlarda biçim alanı yoksa da buradan gelir */
+  var BIC = { 'rv-white': 'ust dolu 4', 'rv-simple': 'cerceve cizgi 0', 'rv-sky': 'kose dolu 22', 'rv-beige': 'alt dolu 6', 'rv-serif': 'cerceve cizgi 2', 'rv-solarized': 'serit dolu 0', 'mp-default': 'yok dolu 10', 'mp-gaia': 'blok dolu 14', 'mp-uncover': 'nokta cizgi 12', 'rv-black': 'serit dolu 2', 'rv-league': 'ust cizgi 0', 'rv-night': 'cift dolu 24', 'rv-blood': 'blok dolu 0', 'rv-moon': 'kose cizgi 16', 'rv-dracula': 'nokta dolu 18', 'mp-uncover-k': 'alt cizgi 8' };
+  var bicKur = function (b, id) {
+    var h = 0, k = String(id || ''); for (var i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0;
+    var hz = BIC[k] ? BIC[k].split(' ') : null;
+    b = b && typeof b === 'object' ? b : hz ? { dz: hz[0], kutu: hz[1], r: hz[2] } : { dz: DESEN[1 + h % (DESEN.length - 1)], kutu: h % 3 === 0 ? 'cizgi' : 'dolu', r: [0, 6, 12, 22][(h >> 3) % 4] };
+    return { dz: DESEN.indexOf(b.dz) >= 0 ? b.dz : 'yok', kutu: b.kutu === 'cizgi' ? 'cizgi' : 'dolu', r: Math.max(0, Math.min(28, Math.round(+b.r) || 0)) };
+  };
   var temaKur = function (o) {
     if (!o || typeof o !== 'object') return null;
     var bg = hx6(o.bg, '#FFFFFF'), dark = lum(bg) < .3, ink = hx6(o.ink, dark ? '#F4F4F4' : '#1B1B1B'); if (kontrast(ink, bg) < 4) ink = dark ? '#F4F4F4' : '#1B1B1B';
@@ -6547,7 +6560,8 @@ var SBX = (function () {
     var boya = iyi.concat(accs.filter(function (c) { return iyi.indexOf(c) < 0 && kontrast(c, bg) >= 1.25; }), [acc, '#1E8A55', '#C88A1C', '#C9483B']).filter(function (c, i, a) { return a.indexOf(c) === i; }).slice(0, 4);
     var hf = fontAd(FONT_ES[o.hf] || o.hf), bf = fontAd(FONT_ES[o.bf] || o.bf);
     var def = { id: String(o.id || 'ozel').replace(/[^\w\-]/g, '').slice(0, 40), ad: String(o.ad || 'Şablon').slice(0, 40), bg: bg, ink: ink, head: head, acc: acc, accs: boya, hf: hf, bf: bf, src: String(o.src || '').slice(0, 90) };
-    return { id: def.id, ad: def.ad, src: def.src, def: def, dark: dark, ink: ink, head: head, acc: acc, hf: hf, bf: bf, soft: mix(ink, bg, .36),
+    def.bic = bicKur(o.bic, def.id);
+    return { id: def.id, ad: def.ad, src: def.src, def: def, bic: def.bic, dark: dark, ink: ink, head: head, acc: acc, hf: hf, bf: bf, soft: mix(ink, bg, .36),
       bg: { clear: bg, blue: mix(bg, acc, dark ? .16 : .09), navy: dark ? mix(bg, '#000000', .5) : lum(ink) < .12 ? mix(ink, acc, .14) : '#0D1838' },
       tint: boya.map(function (c) { return mix(bg, c, dark ? .3 : .17); }) };
   };
@@ -6575,6 +6589,27 @@ var SBX = (function () {
     var r = i >= 0 ? T.tint[i] : k === NAVY || k === '#2A3550' ? (tip === 'h' ? T.head : T.ink) : k === BLUE ? T.acc : k === SOFT ? T.soft : k === '#EEF3FF' ? T.bg.blue : k === '#E4E8F1' ? mix(T.bg.clear, T.ink, .14) : k === '#9DB8FF' ? mix(T.acc, T.bg.clear, .45) : null;
     return r ? r + a : c;
   };
+  /* Zemin deseni: şablonun kendi öğe türlerimizle (kutu, daire) çizilen
+     süsü. Ayrı bir çizim yolu yok — ekran, paylaşım ve PPTX aynı listeyi
+     basar. Desenler kenar boşluğunda kalır (içerik 70–890 arası). */
+  var temaDekor = function (s) {
+    var T = deck && deck.tema; if (!T || !T.bic || T.bic.dz === 'yok') return [];
+    var B = T.bg[s.bg || 'clear'] || T.bg.clear, A = T.acc, S1 = mix(B, A, T.dark ? .2 : .11), S2 = mix(B, A, T.dark ? .42 : .3), out = [];
+    var D = function (tp, x, y, w, h, f) { out.push({ id: 'dz' + out.length, type: tp, x: x, y: y, w: w, h: h, fill: f, dz: 1, text: '', size: 24, color: B, align: 'left', bold: false }); };
+    switch (T.bic.dz) {
+      case 'serit': D('rect', 0, 0, 16, 540, A); break;
+      case 'ust': D('rect', 0, 0, 960, 10, A); break;
+      case 'alt': D('rect', 0, 522, 960, 18, S1); D('rect', 0, 522, 200, 18, A); break;
+      case 'kose': D('ellipse', 790, -170, 340, 340, S1); D('ellipse', 880, -70, 160, 160, S2); break;
+      case 'cift': D('ellipse', 840, -120, 230, 230, S1); D('ellipse', -130, 420, 250, 250, S1); break;
+      case 'cerceve': D('rect', 16, 16, 928, 3, S2); D('rect', 16, 521, 928, 3, S2); D('rect', 16, 16, 3, 508, S2); D('rect', 941, 16, 3, 508, S2); break;
+      case 'nokta': for (var i = 0; i < 4; i++) for (var j = 0; j < 6; j++) D('ellipse', 902 + i * 13, 18 + j * 13, 5, 5, S2); break;
+      case 'blok': D('rect', 0, 0, 30, 540, S1); D('rect', 30, 0, 4, 540, A); break;
+    }
+    return out;
+  };
+  /* Çizgili kutu: renkli zemin yerine çerçeve. Yalnız büyük, renkli (TINT) kutular; ince çizgi ve bantlar dolu kalır. Dönen: çerçeve rengi ya da ''. */
+  var kutuCizgi = function (e) { var T = deck && deck.tema, i = TINT.indexOf(String(e.fill || '#DCE6FF').toUpperCase()); return T && T.bic && T.bic.kutu === 'cizgi' && e.type === 'rect' && !e.dz && i >= 0 && e.w >= 60 && e.h >= 60 ? mix(T.tint[i], T.acc, .4) : ''; };
   var temaSty = function (s) { var T = deck && deck.tema; if (!T) return ''; var b = s.bg || 'clear'; return 'background:' + (T.bg[b] || T.bg.clear) + ';color:' + (b === 'navy' ? '#FFFFFF' : T.ink) + (T.bf ? ';font-family:' + fontCss(T.bf) : ''); };
   /* Koyu şablonda tablo, çizim ve grafik yazıları "gece" asetatının kurallarını kullanır. */
   var temaCls = function (s) { var T = deck && deck.tema; return 'sx-slide bg-' + (s.bg || 'clear') + (T && T.dark && s.bg !== 'navy' ? ' bg-navy' : ''); };
@@ -6843,11 +6878,13 @@ var SBX = (function () {
     var TM = deck && deck.tema, st = 'left:' + e.x + 'px;top:' + e.y + 'px;width:' + e.w + 'px;height:' + e.h + 'px;font-size:' + e.size + 'px;color:' + temaRenk(e.color, e.type) + ';text-align:' + e.align + ';font-weight:' + (e.bold ? 700 : (e.type === 'h' ? (TM && FONT_DISPLAY.test(TM.hf) ? 400 : 800) : 400));
     if (e.type === 'h' && TM && TM.hf) st += ';font-family:' + fontCss(TM.hf);
     if (e.type === 'rect' || e.type === 'ellipse') st += ';background:' + temaRenk(e.fill || '#DCE6FF');
+    if (e.dz) st += ';pointer-events:none;border-radius:' + (e.type === 'ellipse' ? '50%' : '0');
+    else if (TM && TM.bic && e.type === 'rect') { var kc = kutuCizgi(e); st += ';border-radius:' + TM.bic.r + 'px' + (kc ? ';background:transparent;box-shadow:inset 0 0 0 2px ' + kc : ''); }
     var lab = { viz: 'çizim', h: 'başlık', t: 'metin', ul: 'madde listesi', rect: 'kutu', ellipse: 'daire', arrow: 'ok', mark: 'vurgu çizgisi', img: 'görsel', chart: 'grafik', table: 'tablo', math: 'formül', mmd: 'diyagram', icon: 'simge' }[e.type];
     return '<div class="sx-el' + (e.muted ? ' muted' : '') + '" data-id="' + e.id + '" data-type="' + e.type + '" style="' + st + '"' +
       (edit ? ' tabindex="0" role="button" aria-label="' + X(lab + (e.text ? ': ' + e.text.slice(0, 40) : '')) + '"' : '') + '>' + elInner(e) + (edit ? '<i class="sx-rs" data-rs="" aria-hidden="true"></i>' : '') + '</div>';
   };
-  var slideHTML = function (s) { var ts = temaSty(s); return '<div class="' + temaCls(s) + '"' + (ts ? ' style="' + ts + '"' : '') + ' aria-hidden="true">' + s.els.map(function (e) { return elHTML(e, false); }).join('') + '</div>'; };
+  var slideHTML = function (s) { var ts = temaSty(s); return '<div class="' + temaCls(s) + '"' + (ts ? ' style="' + ts + '"' : '') + ' aria-hidden="true">' + temaDekor(s).concat(s.els).map(function (e) { return elHTML(e, false); }).join('') + '</div>'; };
   /* otomatik sığdırma: taşan yazıyı asetata sığana dek küçült, taşan kutuyu asetat içine çek */
   var fitBox = null, FMIN = { h: 22, t: 12, ul: 13 };
   var fitEl = function (e) {
@@ -6968,7 +7005,7 @@ var SBX = (function () {
     var s = cur(); frame.hidden = !s; emptyEl.hidden = !!s;
     if (!s) { stage.innerHTML = ''; paintSel(); return; }
     stage.className = temaCls(s); var T0 = deck.tema, sb = s.bg || 'clear'; stage.style.background = T0 ? T0.bg[sb] || T0.bg.clear : ''; stage.style.color = T0 ? (sb === 'navy' ? '#FFFFFF' : T0.ink) : ''; stage.style.fontFamily = T0 && T0.bf ? fontCss(T0.bf) : '';
-    stage.innerHTML = s.els.map(function (e) { return elHTML(e, true); }).join('');
+    stage.innerHTML = temaDekor(s).map(function (e) { return elHTML(e, false); }).join('') + s.els.map(function (e) { return elHTML(e, true); }).join('');
     if (selId) { var el = stage.querySelector('[data-id="' + selId + '"]'); if (el) el.classList.add('sel'); else selId = null; }
     applyScale(); paintSel();
     Q('[data-notes]').value = s.notes || '';
@@ -7809,7 +7846,7 @@ var SBX = (function () {
   var smartKind = function (s) {
     if (s.k !== 'list') return;
     var b = (s.b || []).map(String);
-    if (b.length === 1 && b[0].length > 40 && b[0].length < 220) { s.k = 'quote'; return; }
+    if (b.length === 1 && b[0].length > 40 && b[0].length < 220 && /[.!?…]["”»']?\s*$/.test(b[0])) { s.k = 'quote'; return; }
     if (b.length >= 3 && b.length <= 4) {
       var ys = b.map(function (x) { var m = x.match(/\b(1[5-9]\d{2}|20\d{2})\b/); return m ? +m[0] : null; });
       if (ys.every(function (y) { return y; }) && ys.every(function (y, i) { return !i || y >= ys[i - 1]; }) && ys[0] !== ys[ys.length - 1]) { s.k = 'time'; return; }
@@ -8513,12 +8550,13 @@ var SBX = (function () {
         var TX = deck.tema, ff = TX && TX.bf || 'Arial', fh = TX && TX.hf || ff; sl.background = { color: TX ? hex(TX.bg[bg] || TX.bg.clear) : BGC[bg] || 'FFFFFF' };
         off.innerHTML = slideHTML(s);
         var col = function (e) { var c = hex(temaRenk(e.color, e.type)); return dark && c === '0D1838' ? 'FFFFFF' : c; };
-        for (var ei = 0; ei < s.els.length; ei++) {
-          var e = s.els[ei]; if (e.muted) continue;
+        var pels = temaDekor(s).concat(s.els);
+        for (var ei = 0; ei < pels.length; ei++) {
+          var e = pels[ei]; if (e.muted) continue;
           var box = { x: IN(e.x), y: IN(e.y), w: IN(e.w), h: IN(e.h) };
           if (e.type === 'h' || e.type === 't') { if (!e.text) continue; sl.addText(e.text, Object.assign({}, box, { fontFace: e.type === 'h' ? fh : ff, fontSize: PT(e.size), bold: (e.type === 'h' && !(TX && FONT_DISPLAY.test(TX.hf))) || !!e.bold, color: col(e), align: e.align || 'left', valign: 'top', margin: 2, fit: 'shrink' })); }
           else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; sl.addText(ls.map(function (l) { return { text: l, options: { bullet: { code: '25AA' }, breakLine: true } }; }), Object.assign({}, box, { fontFace: ff, fontSize: PT(e.size), color: col(e), valign: 'top', paraSpaceAfter: 6, margin: 2, fit: 'shrink' })); }
-          else if (e.type === 'rect' || e.type === 'ellipse') sl.addShape(e.type === 'rect' ? pp.ShapeType.roundRect : pp.ShapeType.ellipse, Object.assign({}, box, { fill: { color: hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF') }, line: { color: hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF') }, rectRadius: 0.08 }));
+          else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
           else if (e.type === 'arrow') sl.addShape(pp.ShapeType.line, { x: box.x, y: box.y + box.h / 2, w: box.w, h: 0, line: { color: hex(temaRenk(e.color), '#2F6BFF'), width: 3, endArrowType: 'triangle' } });
           else if (e.type === 'mark') sl.addShape(pp.ShapeType.rect, { x: box.x, y: box.y + box.h * 0.3, w: box.w, h: Math.max(0.04, box.h * 0.35), fill: { color: hex(temaRenk(e.color), '#2F6BFF'), transparency: 35 }, line: { type: 'none' } });
           else if (e.type === 'img') { if (e.src) sl.addImage({ [/^https?:/.test(e.src) ? 'path' : 'data']: e.src, x: box.x, y: box.y, w: box.w, h: box.h, sizing: { type: 'contain', w: box.w, h: box.h } }); }
@@ -8549,7 +8587,7 @@ var SBX = (function () {
     } finally { off.remove(); if (btn) { btn.disabled = false; btn.textContent = 'PowerPoint indir'; } }
   };
   /* ---------- paylaşım bağlantısı (salt okunur, notlar gizli) ---------- */
-  var snapOf = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: s.els.map(function (e) { return elHTML(e, false); }).join('') }; }) }; };
+  var snapOf = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: temaDekor(s).concat(s.els).map(function (e) { return elHTML(e, false); }).join('') }; }) }; };
   var newToken = function () { var a = new Uint8Array(24); crypto.getRandomValues(a); return btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   var shDlg = Q('[data-sharedlg]'), shFrom = null;
   var shLink = function (t) { return location.origin + '/izle.html?k=' + t; };

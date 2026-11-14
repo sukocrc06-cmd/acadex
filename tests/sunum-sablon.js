@@ -32,7 +32,7 @@ const { test, summary } = makeRunner();
 const dilim = (bas, son) => { const a = ink.indexOf(bas), b = ink.indexOf(son, a); assert.ok(a > 0 && b > a, 'dilim bulunamadı: ' + bas); return ink.slice(a, b); };
 const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#D9EFE3','#F6E7C4','#F4DDDA'],deck={tema:null};" +
   dilim('  var rgb3 = ', '  var fontYuklu = ') + dilim('  var temaCikar = ', '  var zipLib = ') + dilim('  var IKON = {', '  var ikonSec = ') + dilim('  var ikonSec = ', '\n') +
-  ';return {TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;}};';
+  ';return {TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;}};';
 const M = new Function('arr', src)((x) => (Array.isArray(x) ? x : []));
 
 test('hazır şablonlar: 16 tane, kimlikleri benzersiz, hepsi okunaklı', () => {
@@ -91,6 +91,50 @@ test('temaKur: okunmayan birleşimi düzeltir (açık zeminde açık yazı, sar�
   assert.equal(T.acc, '#1155CC', 'zeminde görünmeyen vurgu atlanıp sıradaki seçilmeli');
   /* kaydedilen tanım yeniden kurulunca aynı şablon çıkmalı (bulut gidiş-dönüşü) */
   assert.deepEqual(M.temaKur(T.def), T);
+});
+
+/* BİÇİM (14.11.2026): "şablonlar çalışıyor ama desenler hâlâ aynı" — şablon
+   yalnız renk değiştiriyordu, her deste aynı kutularla çıkıyordu. Şablon artık
+   zemin deseni + kutu biçimi + köşe yarıçapı da taşır; renk gibi yalnız çizimde
+   uygulanır. */
+test('biçim: her hazır şablonun yapısı var, en az 6 ayrı desen kullanılıyor', () => {
+  const dz = new Set(M.TEMALAR.map((t) => t.bic.dz));
+  assert.ok(dz.size >= 6, 'şablonlar birbirinden yapıca ayrışmalı: ' + [...dz]);
+  assert.ok(M.TEMALAR.some((t) => t.bic.kutu === 'cizgi') && M.TEMALAR.some((t) => t.bic.kutu === 'dolu'));
+  /* biçim alanı olmadan kaydedilmiş eski deste de hazır şablonun biçimini alır */
+  const T = M.TEMALAR.find((t) => t.id === 'mp-uncover-k'), eski = Object.assign({}, T.def); delete eski.bic;
+  assert.deepEqual(M.temaKur(eski).bic, T.bic);
+  /* kendi dosyasından gelen şablon: biçim kimlikten türetilir, hep aynı çıkar */
+  assert.deepEqual(M.temaKur({ id: 'u-abc123', bg: '#FFFFFF' }).bic, M.temaKur({ id: 'u-abc123', bg: '#FFFFFF' }).bic);
+  assert.deepEqual(M.temaKur({ id: 'x', bic: { dz: '"><img>', kutu: 'x', r: 9999 } }).bic, { dz: 'yok', kutu: 'dolu', r: 28 });
+});
+
+test('biçim: desen kenar boşluğunda kalır, öğelere yazılmaz, şablonsuzken yoktur', () => {
+  M.set(null); assert.deepEqual(M.temaDekor({ bg: 'clear' }), []);
+  for (const T of M.TEMALAR) {
+    M.set(T); const s = { bg: 'clear', els: [] }, d = M.temaDekor(s);
+    assert.equal(s.els.length, 0, 'desen asetatın öğelerine eklenmemeli');
+    assert.ok(T.bic.dz === 'yok' ? d.length === 0 : d.length > 0, T.id);
+    for (const e of d) {
+      assert.ok(e.dz && (e.type === 'rect' || e.type === 'ellipse')); assert.match(e.fill, /^#[0-9A-F]{6}$/);
+      /* dolu (vurgu rengi) desen içerik alanına (70–890 × 46–510) giremez; soluk daireler girebilir */
+      if (e.fill === T.acc) assert.ok(e.x + e.w <= 70 || e.x >= 890 || e.y + e.h <= 46 || e.y >= 510, T.id + ' deseni içeriğin üstüne biniyor');
+    }
+  }
+  M.set(null);
+});
+
+test('biçim: çizgili kutu yalnız büyük renkli kutulara uygulanır', () => {
+  M.set(M.TEMALAR.find((t) => t.bic.kutu === 'cizgi'));
+  assert.match(M.kutuCizgi({ type: 'rect', fill: '#DCE6FF', w: 260, h: 280 }), /^#[0-9A-F]{6}$/);
+  assert.equal(M.kutuCizgi({ type: 'rect', fill: '#DCE6FF', w: 8, h: 100 }), '', 'ince bant dolu kalır');
+  assert.equal(M.kutuCizgi({ type: 'rect', fill: '#2F6BFF', w: 260, h: 280 }), '', 'vurgu renkli kutu dolu kalır');
+  assert.equal(M.kutuCizgi({ type: 'rect', fill: '#DCE6FF', w: 260, h: 280, dz: 1 }), '');
+  M.set(M.TEMALAR.find((t) => t.bic.kutu === 'dolu'));
+  assert.equal(M.kutuCizgi({ type: 'rect', fill: '#DCE6FF', w: 260, h: 280 }), '');
+  M.set(null);
+  /* desen ekranda, paylaşımda ve PPTX'te aynı listeden basılır */
+  assert.ok(ink.split('temaDekor(s)').length - 1 >= 4, 'slideHTML, sahne, snapOf ve exportPptx deseni basmalı');
 });
 
 test('PowerPoint yazı tipleri açık karşılıklarına çevrilir', () => {

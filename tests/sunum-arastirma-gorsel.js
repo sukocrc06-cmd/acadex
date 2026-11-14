@@ -342,4 +342,43 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   assert.match(ink, /lay: sl\.lay \|\| null, v: sl\.v \|\| 0,/, 'çeşit kaydedilmiyor');
 });
 
+/* CANLI DESTE (14.11.2026, "Türkiye'de yenilenebilir enerji 2015–2025"):
+   beş kaynağın dördü aynı AA haberinin kopyasıydı; deste iki rakamı (442,2 TWh,
+   21,5 milyar $) beş asetatta tekrarladı, kurum adlarının listesini "alıntı"
+   diye bastı, kaynakçaya adresteki yıl aralığından "(2015)" yazdı. Kalite
+   puanı yine de 92 çıktı — yani bunu ölçen bir şey yoktu. */
+const SR = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'sigNums', 'sameStory', 'dropRepeats', 'isSentence', 'AY', 'findYear']);
+
+test('KAYNAK: aynı ajans haberinin kopyası ikinci kaynak sayılmaz', () => {
+  const aa = 'Türkiye 10 yılda güneş ve rüzgardan 442,2 teravatsaat elektrik üretti. 21,5 milyar dolar ithalat önlendi, 354 milyon ton emisyon engellendi.';
+  const kopya = 'Güneş ve rüzgarla 21.5 milyar $ cepte kaldı. On yılda 442,2 TWh üretim; 354 milyon ton karbon salımı önlendi. Kurulu güç 36.000 MW.';
+  const baska = 'SHURA raporuna göre 2017 sonunda kurulu güç 85 GW idi; rüzgâr 6.516 MW, güneş 3.421 MW. Hedef yüzde 50.';
+  assert.equal(SR.sameStory(aa, kopya), true);
+  assert.equal(SR.sameStory(aa, baska), false);
+  assert.equal(SR.sameStory('2015 yılında başladı, 2025 yılında bitti.', '2015 ve 2025 arasında.'), false, 'yalnız yıllar ortaksa aynı haber denmez');
+  assert.match(sr, /\.filter\(\(r: any, i: number, all: any\[\]\) => !all\.slice\(0, i\)\.some\(\(x\) => sameStory\(/, 'kopyalar 7 kaynaklık kesimden ÖNCE düşmeli ki yerlerine başka kaynak girsin');
+});
+
+test('KURGU: aynı rakam ikinci kez madde olmaz; özet asetatı hariç', () => {
+  const S = (kind, bullets) => ({ kind, bullets, warn: [], stats: [], table: null });
+  const d = [S('list', ['442,2 TWh üretildi', '21,5 milyar $ tasarruf', 'Dış ticarete katkı']), S('list', ['Üretilen 442,2 TWh fosil ihtiyacını azaltır', 'İthalat 21,5 milyar $ düştü', 'Maliyetlerde istikrar']), S('time', ['2015: başlangıç', '2025: 442,2 TWh']), S('list', ['442,2 TWh ve 21,5 milyar $ özet'])];
+  d[1].warn = [2];
+  assert.equal(SR.dropRepeats(d), 1);
+  assert.deepEqual(d[1].bullets, ['Maliyetlerde istikrar']); assert.deepEqual(d[1].warn, [0], 'uyarı sırası kalan maddeye kaymalı');
+  assert.equal(d[2].bullets.length, 2, 'zaman çizelgesi bozulmaz'); assert.equal(d[3].bullets.length, 1, 'son asetat özet: tekrar serbest');
+  assert.ok(sr.indexOf('dropRepeats(slides);') < sr.indexOf('const dropAt ='), 'tek maddeye inen asetatı komşuya taşıyan adım sonra çalışmalı');
+});
+
+test('KURGU: alıntı bir cümledir; ad listesi alıntı diye basılmaz', () => {
+  assert.equal(SR.isSentence('SHURA Enerji Dönüşümü Merkezi – Avrupa Climate Foundation, Agora Energiewende, Sabancı Üniversitesi ortaklığı'), false);
+  assert.equal(SR.isSentence('“Bu, bir insan için küçük bir adım.”'), true);
+  assert.match(sr, /if \(k === "quote" && bullets\.length && !isSentence\(bullets\[0\]\)\) k = "list";/);
+  assert.match(ink, /b\[0\]\.length < 220 && \/\[\.!\?…\]/, 'istemcinin akıllı düzeni de tek maddeyi cümle değilse alıntıya çevirmemeli');
+});
+
+test('KAYNAKÇA: adresteki yıl aralığı yayın yılı değildir', () => {
+  assert.equal(SR.findYear('', 'https://www.sondakika.com/guncel/haber-turkiye-2015-2025-te-yenilenebilir-20348209'), '');
+  assert.equal(SR.findYear('', 'https://ornek.org/wp-content/uploads/2018/10/rapor.pdf'), '2018');
+});
+
 summary();
