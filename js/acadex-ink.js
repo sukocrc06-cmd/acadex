@@ -7583,7 +7583,7 @@ var SBX = (function () {
         var all = (head0 ? [head0] : []).concat(st).concat(tail ? [tail] : []);
         return lockLang(all, o.lang, plotMeta.title).then(function (r) { if (r.title) { plotMeta.title = r.title; if (head0) head0.t = r.title; } plotMeta.fixed.lang = r.n; plotMeta.lang = o.lang;
           var out = r.strips, srcs = arr(plotMeta.sources);
-          if (srcs.length) { cite(out, srcs); var at = out.length && out[out.length - 1].k === 'end' ? out.length - 1 : out.length; out.splice(at, 0, { t: o.lang === 'en' ? 'References' : 'Kaynakça', k: 'refs', b: srcs.map(function (x, i) { return '[' + (i + 1) + '] ' + String(x.apa || x.url); }), notes: o.lang === 'en' ? 'Every fact and number in this deck comes from these sources; the full links are on the slide.' : 'Sunumdaki her bilgi ve rakam bu kaynaklardan geliyor; bağlantıların tamamı asetatta.' }); }
+          if (srcs.length) { cite(out, srcs); var at = out.length && out[out.length - 1].k === 'end' ? out.length - 1 : out.length; out.splice(at, 0, { t: o.lang === 'en' ? 'References' : 'Kaynakça', k: 'refs', b: srcs.map(function (x, i) { return '[' + (i + 1) + '] ' + String(x.apa || x.url); }), notes: o.lang === 'en' ? 'Do not read the list aloud. Say that every fact and number in the deck comes from these sources and that you can share the links afterwards, then move on to the closing slide.' : 'Listeyi sesli okuma. Sunumdaki her bilgi ve rakamın bu kaynaklardan geldiğini, bağlantıların asetatta durduğunu ve isteyenle paylaşabileceğini söyle; sonra kapanış asetatına geç.' }); }
           return out; });
       });
     });
@@ -7654,9 +7654,10 @@ var SBX = (function () {
     if (body.length >= 3) {
       /* Araştırmalı destede ilk asetat zaten kancadır (yazara öyle söylenir) ama
          başlığı özgül olduğu için ("650 Milyon İzleyici…") INTRO'ya uymaz; öneri
-         ikinci bir giriş ekletiyordu. */
+         ikinci bir giriş ekletiyordu. Sonuç için de aynısı: "Apollo 11’den
+         Çıkarılacak 3 Temel Ders" OUTRO'ya uymadı, ikinci bir sonuç eklendi. */
       if (plotMeta.via !== 'research' && !body.slice(0, 2).some(function (i) { return INTRO.test(strips[i].t); })) out.push({ i: body[0], msg: 'Giriş asetatı yok: dinleyici konunun neden önemli olduğunu duymadan içeriğe giriyor.', fix: 'intro', btn: 'giriş ekle' });
-      if (!body.slice(-2).some(function (i) { return OUTRO.test(strips[i].t); })) out.push({ i: body[body.length - 1], msg: 'Sonuç asetatı yok: sunum ana mesajları toparlamadan bitiyor.', fix: 'outro', btn: 'sonuç ekle' });
+      if (plotMeta.via !== 'research' && !body.slice(-2).some(function (i) { return OUTRO.test(strips[i].t); })) out.push({ i: body[body.length - 1], msg: 'Sonuç asetatı yok: sunum ana mesajları toparlamadan bitiyor.', fix: 'outro', btn: 'sonuç ekle' });
     }
     var seen = {}; body.forEach(function (i) { var k = normT(strips[i].t).split(' ').slice(0, 3).join(' '); if (k.length > 3 && seen[k] != null) out.push({ i: i, msg: (seen[k] + 1) + '. ve ' + (i + 1) + '. asetatın başlığı neredeyse aynı; tekrar ediyor olabilir.', fix: 'del', btn: (i + 1) + '. asetatı sil' }); else seen[k] = i; });
     body.forEach(function (i) { var s = strips[i], b = s.b || [], len = b.join(' ').length; if (s.k === 'list' && (b.length > 5 || len > 420)) out.push({ i: i, msg: (i + 1) + '. asetat kalabalık (' + b.length + ' madde); dinleyici okumaya başlar, seni dinlemez.', fix: 'split', btn: 'ikiye böl' }); });
@@ -7686,7 +7687,8 @@ var SBX = (function () {
       : { t: en ? 'Conclusion: key messages' : 'Sonuç: akılda kalacak 3 mesaj', k: 'list', b: [], ctx: strips.filter(function (x) { return !/^(cover|end|refs)$/.test(x.k); }).map(function (x) { return x.t + ': ' + (x.b || []).slice(0, 2).join('; '); }).join('\n') };
     var at = it.fix === 'intro' ? Math.max(1, strips.findIndex(function (x) { return x.k !== 'cover'; })) : (function () { var k = strips.length; while (k > 0 && /^(end|refs)$/.test(strips[k - 1].k)) k--; return k; })();
     strips.splice(at, 0, ns); paintStrips(); flowEl.setAttribute('aria-busy', 'true');
-    ask(ns).then(function () { flowEl.removeAttribute('aria-busy'); paintStrips(); if (!ns.b.length) say('Acadia şu an içerik yazamadı; şerit boş kaldı, basınca sen doldurursun.'); });
+    ask(ns).then(function () { if (it.fix === 'outro') ns.b = ns.b.slice(0, 3);   /* başlık "3 mesaj" der; 4 madde basılıyordu */
+      flowEl.removeAttribute('aria-busy'); paintStrips(); if (!ns.b.length) say('Acadia şu an içerik yazamadı; şerit boş kaldı, basınca sen doldurursun.'); });
   };
   var flowList = [];
   var paintFlow = function () {

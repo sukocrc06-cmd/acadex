@@ -201,4 +201,44 @@ test('KAYNAKSIZ DOLDURMA KAPALI, KAPSAM İSKELETİ, ANLAM DENETİMİ (14.11.2026
   assert.match(sr, /String\(ii\.mime \|\| ""\) !== "image\/jpeg"/, 'Commons aramasında PNG (çizelge/şema) kabul ediliyor');
 });
 
+test('ASETATTA "(Kaynak 2, 8)" KALMAZ, UYDURMA GRAFİK, ÇİFT SONUÇ (14.11.2026, ikinci Apollo destesi)', () => {
+  /* Kapsam düzeldi (kronoloji, mürettebat, alıntı, 4 kaynak) ama: maddeler
+     "(Kaynak 2, 8)" taşıdı; 31 tur "Gün 1: 10, Gün 2: 10, Gün 3: 11" diye
+     uydurma bir grafiğe bölündü; "sonuç ekle" ikinci bir sonuç asetatı ekledi. */
+  const ts = require('typescript');
+  const a = sr.indexOf('const cleanCite'), b = sr.indexOf('async function groq');
+  const f = new Function(ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + ';return cleanCite;')();
+  assert.equal(f('Collins Columbia’da yörüngede kaldı (Kaynak 1, 2, 8)'), 'Collins Columbia’da yörüngede kaldı');
+  assert.equal(f('650 milyon izleyici (NASA tahmini)'), '650 milyon izleyici (NASA tahmini)', 'kurum adı silinmemeli');
+  assert.match(sr, /\.map\(\(x: any\) => cleanCite\(String\(x \|\| ""\)\)\)\.filter\(Boolean\)\.slice\(0, 6\)/, 'maddeler temizlenmiyor');
+  assert.ok(sr.includes('Never split a total into parts the sources do not give'), 'yazara uydurma dağılım yasağı yok');
+  assert.ok(sr.includes('a total divided into parts the source does not state is "unsupported"'), 'denetçi uydurma dağılımı geçiriyor');
+  assert.match(ink, /if \(plotMeta\.via !== 'research' && !body\.slice\(-2\)\.some/, 'araştırmalı destede ikinci sonuç öneriliyor');
+});
+
+test('KALAN KUSURLAR: kısa not, mutlak iddia, zayıf kaynak, kaynakça notu (14.11.2026)', () => {
+  /* İkinci Apollo destesinde kalanlar: notlar 38-45 kelime; "insanlık
+     tarihindeki en hızlı uzay yolculuğu" kaynaksız; dört kaynaktan biri siyasi
+     haber sitesi ve saati yanlış veriyor; 11 kelimelik kaynakça notu puanlayıcıda
+     "kısa not" sayılıyor (eşik 22); "3 mesaj" başlığı altında 4 madde. */
+  const ts = require('typescript');
+  const a = sr.indexOf('const TRUSTED'), b = sr.indexOf('const blocked');
+  const trust = new Function(ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + ';return trust;')();
+  ['www.lpi.usra.edu', 'airandspace.si.edu', 'nasa.gov', 'data.tuik.gov.tr', 'metu.edu.tr'].forEach((h) => assert.ok(trust(h) > 0, h + ' kurumsal sayılmıyor'));
+  ['ulkucudunya.com', 'ornekblog.net', 'educationsite.com'].forEach((h) => assert.equal(trust(h), 0, h + ' kurumsal sayılıyor'));
+  assert.match(sr, /\+ trust\(hostOf\(b\.url\)\) - \(Number\(a\.score\) \|\| 0\) - trust\(hostOf\(a\.url\)\)/, 'sıralama kurumsal kaynağı öne almıyor');
+  const m = sr.match(/const ABSOLUTE = (\/.+\/i);/); assert.ok(m, 'ABSOLUTE yok');
+  const abs = eval(m[1]);
+  assert.ok(abs.test('Bu, insanlık tarihindeki en hızlı uzay yolculuğu olarak kayda geçti.'), 'mutlak iddia yakalanmıyor');
+  assert.ok(abs.test('Örnekler yaşamın yokluğunu kanıtladı.'), '"kanıtladı" yakalanmıyor');
+  assert.ok(!abs.test('Collins yörüngede kalıp ekibi bekledi.'), 'sıradan cümle denetime giriyor');
+  assert.match(sr, /if \(numTokens\(t\)\.length \|\| ABSOLUTE\.test\(t\)\) claims\.push/, 'mutlak iddialı not cümlesi denetlenmiyor');
+  assert.match(sr, /filter\(\(x: any\) => wc\(x\.s\.notes\) < 45\)/, 'kısa notlar uzatılmıyor');
+  assert.match(sr, /if \(wc\(nt\) > wc\(s\.notes\) && wc\(nt\) <= 110 && \(verified\(nt, allIdx\) \|\| !numTokens\(nt\)\.length\)\) s\.notes = nt;/,
+    'uzatılmış not sayı denetiminden geçmeden yazılıyor');
+  const refs = ink.match(/'(Listeyi sesli okuma\. Sunumdaki her bilgi[^']+)'/);
+  assert.ok(refs && refs[1].split(/\s+/).length >= 22, 'kaynakça notu puanlayıcı eşiğinin (22 kelime) altında');
+  assert.match(ink, /if \(it\.fix === 'outro'\) ns\.b = ns\.b\.slice\(0, 3\);/, '"3 mesaj" altında 4 madde basılıyor');
+});
+
 summary();

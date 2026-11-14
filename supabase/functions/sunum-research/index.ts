@@ -219,6 +219,12 @@ const verified = (claim: string, idx: Set<string>): boolean => {
 
 // akademik sunuma uymayan kaynaklar (video, sosyal medya, forum)
 const BLOCK = ["youtube.com", "youtu.be", "facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "quora.com", "pinterest.com", "linkedin.com", "eksisozluk.com", "uludagsozluk.com", "incisozluk.com.tr", "dailymotion.com", "vimeo.com", "scribd.com", "slideshare.net"];
+// Kurumsal kaynak öne alınır: canlı destede (Apollo 11, 14.11.2026) dört
+// kaynaktan biri siyasi bir haber sitesiydi ve ilk adımın saatini yanlış
+// veriyordu (01:56; doğrusu 02:56 UTC). Engellemek yerine sıralamada geri
+// düşer: yeterince kurumsal kaynak varsa listeye hiç girmez.
+const TRUSTED = /(\.edu(\.[a-z]{2})?|\.gov(\.[a-z]{2})?|\.ac\.[a-z]{2}|\.int|\.k12\.tr)$|(^|\.)(nasa\.gov|esa\.int|si\.edu|britannica\.com|tuik\.gov\.tr|tcmb\.gov\.tr|oecd\.org|worldbank\.org|imf\.org|un\.org|who\.int|europa\.eu|nature\.com|sciencedirect\.com|springer\.com|jstor\.org|dergipark\.org\.tr|tubitak\.gov\.tr|history\.com|nationalgeographic\.com|bbc\.com|bbc\.co\.uk|reuters\.com|aa\.com\.tr|trthaber\.com)$/i;
+const trust = (h: string) => (TRUSTED.test(h) ? 0.25 : 0);
 const blocked = (h: string) => BLOCK.some((b) => h === b || h.endsWith("." + b));
 // yayın yılı: Tavily tarih vermezse sayfanın başındaki tarihten ya da adresten bul
 const AY = "ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec";
@@ -257,6 +263,10 @@ const cleanNote = (t: string) => String(t || "")
   .replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, "")
   .replace(/\s+([.,;:!?])/g, "$1").replace(/([.!?])\s*,/g, "$1").replace(/\s{2,}/g, " ").trim()
   .replace(/(^|[.!?]\s+)([a-zçğıöşü])/g, (_m, a, b) => a + b.toLocaleUpperCase("tr"));
+// Asetat metninde "(Kaynak 2, 8)" kalmaz: canlı destede (Apollo 11, 14.11.2026)
+// zaman çizelgesi maddeleri hem bunu hem gerçek atfı "[1, 2, 4]" taşıyordu.
+const ABSOLUTE = /(?:^|\s)en (?:hızlı|büyük|küçük|uzun|kısa|yüksek|düşük|önemli|eski|yeni|iyi|kötü|pahalı|ucuz)|\bilk kez\b|\btarihte(?:ki)?\b|\bkanıtla|\bkesin(?:likle)?\b|\brekor|\bthe (?:first|fastest|largest|biggest|smallest|longest|highest|lowest|most|only)\b|\bproved?\b|\brecord\b|\bnever\b|\balways\b/i;
+const cleanCite = (t: string) => String(t || "").replace(/\s*\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "").trim();
 async function groq(key: string, model: string, sys: string, user: string, maxTok: number) {
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -435,7 +445,7 @@ q1 = the topic as a precise search query in its own language; q2 = a query for c
       // 3) Birleştir: aynı adres bir kez, alan adı başına en çok 2, puana göre sırala.
       const seen = new Set<string>(); const perHost: Record<string, number> = {};
       const web = tv.flat().filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url)))
-        .sort((a: any, b: any) => (Number(b.score) || 0) - (Number(a.score) || 0))
+        .sort((a: any, b: any) => (Number(b.score) || 0) + trust(hostOf(b.url)) - (Number(a.score) || 0) - trust(hostOf(a.url)))
         .filter((r: any) => { const u0 = String(r.url).split("#")[0]; const h = hostOf(u0); if (seen.has(u0) || (perHost[h] || 0) >= 2 || /wikipedia\.org$/.test(h)) return false; seen.add(u0); perHost[h] = (perHost[h] || 0) + 1; return true; })
         .slice(0, 7);
       engine.web = web.length;
@@ -462,12 +472,17 @@ Rules:
 - The FIRST content slide hooks the audience: why this topic matters, with one concrete fact from the sources. The LAST content slide is the conclusion: kind "list" with exactly 3 takeaway bullets. Every slide must have real content — never leave bullets empty.
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
-  "chart": a numeric series of 3-8 points that appears in the sources (labels + numeric values, same unit);
+  "chart": a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
   "time": 3-4 chronological steps or dates; "two": a comparison of two sides (heads = the two side names);
   "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 concise bullet points (max ~14 words each).
   Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
-- "src" = the source ids used on that slide.
+- When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give clock times with the time zone the source uses.
+- Do not repeat the same fact on two slides. "stat" values are quantities (amounts, percentages, durations), never calendar dates — dates belong on a "time" slide.
+- A "quote" slide's title says who said it and when; the title is never the quotation itself.
+- No superlatives or absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") unless a source states exactly that — this applies to notes too.
+- Use the established ${L} term for technical vocabulary (e.g. breccia = "breş"); if unsure, keep the original term in parentheses.
+- "src" = the source ids used on that slide. Source ids go ONLY in "src": never write "(Kaynak 2)" or "(Source 2)" inside titles, bullets, labels or notes.
 - "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets. Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters. Fewer than 45 words is a failure.
 - "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 2-4 concrete visual words (objects, places, scenes; no abstract words). "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
 - "cover_image" = same shape, for the cover slide of the whole deck.
@@ -514,12 +529,12 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       const ids = (Array.isArray(s.src) ? s.src : []).map((x: any) => Number(x)).filter((x: number) => srcs.some((y) => y.id === x));
       const idx = idxOf(ids);
       const kind = KINDS.includes(s.kind) ? s.kind : "list";
-      const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, 6);
+      const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => cleanCite(String(x || ""))).filter(Boolean).slice(0, 6);
       if (kind === "quote" && !bullets.length) { const qt = String(s.quote || s.text || "").trim(); if (qt) bullets.push(qt); }
       if (kind === "quote" && bullets.length) bullets[0] = safeQuote(bullets[0]);
       const warn: number[] = [];
       bullets.forEach((b: string, i: number) => { if (numTokens(b).length) { checked++; if (!verified(b, idx) && !verified(b, allIdx)) { warn.push(i); unverified++; } } });
-      let stats = (Array.isArray(s.stats) ? s.stats : []).map((x: any) => ({ value: String(x?.value || "").trim(), label: String(x?.label || "").trim() })).filter((x: any) => x.value);
+      let stats = (Array.isArray(s.stats) ? s.stats : []).map((x: any) => ({ value: String(x?.value || "").trim(), label: cleanCite(String(x?.label || "")) })).filter((x: any) => x.value);
       stats = stats.map((x: any) => { checked++; const ok = verified(x.value, idx) || verified(x.value, allIdx); if (!ok) unverified++; return { ...x, ok }; });
       let chart = s.chart && Array.isArray(s.chart.values) ? s.chart : null;
       let chartOk = true;
@@ -577,6 +592,28 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       s.bullets.forEach((b: string, bi: number) => { if (b.length > 12) claims.push({ k: `${si}.b${bi}`, si, bi, text: b, ctx: ctxFor(s.src, b) }); });
       s.stats.forEach((x: any, bi: number) => claims.push({ k: `${si}.s${bi}`, si, bi, text: `${x.value} — ${x.label}`, ctx: ctxFor(s.src, x.value + " " + x.label) }));
     });
+    /* KISA NOT UZATILIR (14.11.2026): yazara 45-80 kelime söylendiği hâlde üç
+       canlı destede notlar 38-45 kelimede kaldı. 45'in altındaki notlar tek
+       çağrıda, asetatın kendi kaynak paragrafıyla yeniden yazdırılır; yeni
+       metin kaynakta geçmeyen bir sayı taşıyorsa ya da kısalıyorsa eski not kalır.
+       Aşağıdaki anlam denetimi uzatılmış notu da görür. */
+    const wc = (t: string) => (String(t || "").trim().match(/\S+/g) || []).length;
+    const short = slides.map((s: any, i: number) => ({ s, i })).filter((x: any) => wc(x.s.notes) < 45);
+    if (short.length && body?.expandNotes !== false) {
+      const LN = lang === "en" ? "English" : "Turkish (Türkçe)";
+      const sysN = `You improve presenter notes in ${LN}. For each item you get the slide title, what is on the slide, the current note and SOURCE EXCERPTS.
+Rewrite the note as 4-5 natural spoken sentences, 55-75 words: keep what is correct, add one concrete detail or example from the excerpts that is NOT on the slide, and keep the final bridge sentence if there is one.
+Use ONLY facts from the excerpts or the slide. No new numbers unless they are in the excerpts. No superlatives the excerpts do not state. Never mention source numbers or labels.
+Return ONLY JSON: {"r":[{"i":0,"notes":""}]}`;
+      const payN = short.slice(0, 12).map((x: any) => ({ i: x.i, title: x.s.title, slide: [...x.s.bullets, ...x.s.stats.map((y: any) => `${y.value} ${y.label}`)].join(" | ").slice(0, 500), note: x.s.notes, source: ctxFor(x.s.src, x.s.title + " " + x.s.bullets.join(" ")) }));
+      const gn = await groq(gKey, "openai/gpt-oss-20b", sysN, JSON.stringify(payN), 3500);
+      let rn: any = null; try { rn = JSON.parse(gn.data?.choices?.[0]?.message?.content || ""); } catch { rn = null; }
+      if (gn.ok && rn && Array.isArray(rn.r)) for (const r of rn.r) {
+        const s: any = slides[Number(r?.i)]; if (!s) continue;
+        const nt = cleanNote(r?.notes);
+        if (wc(nt) > wc(s.notes) && wc(nt) <= 110 && (verified(nt, allIdx) || !numTokens(nt).length)) s.notes = nt;
+      } else console.warn("note expand", gn.status);
+    }
     /* Grafik değerleri ve notlardaki sayılı cümleler de denetlenir (14.11.2026):
        sayı kaynakta geçtiği için geçerli sayılıyordu ama anlamı kaymıştı —
        "21,5 saat" yüzeyde kalış süresiyken not "21,5 saat yürüdüler" diyordu,
@@ -584,7 +621,9 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
     slides.forEach((s: any, si: number) => {
       if (s.chart) s.chart.values.forEach((v: number, bi: number) => { const t = `${s.title} — ${s.chart.labels[bi] || ""}: ${v} ${s.chart.unit}`.trim(); claims.push({ k: `${si}.c${bi}`, si, bi, text: t, ctx: ctxFor(s.src, t) }); });
       s._ns = sentences(s.notes);
-      s._ns.forEach((t: string, bi: number) => { if (numTokens(t).length) claims.push({ k: `${si}.n${bi}`, si, bi, text: t, ctx: ctxFor(s.src, t) }); });
+      // Sayısız ama mutlak iddia da denetlenir: "insanlık tarihindeki en hızlı
+      // uzay yolculuğu" kaynakta yoktu ve sayı taşımadığı için geçmişti.
+      s._ns.forEach((t: string, bi: number) => { if (numTokens(t).length || ABSOLUTE.test(t)) claims.push({ k: `${si}.n${bi}`, si, bi, text: t, ctx: ctxFor(s.src, t) }); });
     });
     const meaning = { checked: 0, flagged: 0, fixed: 0 };
     if (claims.length && body?.meaningCheck !== false) {
@@ -592,8 +631,10 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       const sysV = `You are a strict fact checker. For each CLAIM, read its SOURCE EXCERPTS and decide:
 "ok" = the excerpts support the claim as worded; "mislabel" = the number/fact is in the source but the claim labels it wrongly (e.g. a measured value called a forecast, wrong year, wrong institution, wrong unit); "unsupported" = the excerpts do not support it or contradict it.
 For "mislabel" give "fix": the corrected claim in ${LL}, same length and style, keeping the number. For others "fix" is "". "why" = max 10 words in ${LL}.
+Superlatives and absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") are "unsupported" unless the excerpts state exactly that.
+A claim of the form "title — label: value unit" is a chart data point: it is "ok" only if the excerpts explicitly give that value for that label; a total divided into parts the source does not state is "unsupported".
 Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {"r":[{"k":"","v":"ok|mislabel|unsupported","fix":"","why":""}]}`;
-      const payload = claims.slice(0, 60).map((c) => ({ k: c.k, claim: c.text, source: c.ctx }));
+      const payload = claims.slice(0, 70).map((c) => ({ k: c.k, claim: c.text, source: c.ctx }));
       // ayrı model: aynı dakikada ana yazımla aynı token sınırına takılmasın
       let gv = await groq(gKey, "openai/gpt-oss-20b", sysV, JSON.stringify(payload), 6000);
       if (!gv.ok) { await new Promise((r) => setTimeout(r, 1500)); gv = await groq(gKey, "openai/gpt-oss-120b", sysV, JSON.stringify(payload), 6000); }
