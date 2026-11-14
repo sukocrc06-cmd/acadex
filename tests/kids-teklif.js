@@ -100,4 +100,8 @@ test('SQL: e-posta zorunlu, telefon isteğe bağlı, arandı durumu, iç not, ye
   assert.match(read('tests/kids-kres.js'), /kids-istek\.sql/, 'davranış testi çalışıyor');
 });
 
+test('tanıtım sayfası ücretsiz deneme vaat etmez (15.11.2026)', () => {
+  for (const f of ['kids/assets/sayfa.html', 'kids/assets/kids-teklif.js']) assert.doesNotMatch(read(f), /ücretsiz deneme|günlük ücretsiz|gün ücretsiz|Ücretsizdir/i, f);
+});
+
 summary();

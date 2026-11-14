@@ -21,7 +21,7 @@
   }
   function formHtml() {
     return '<header class="kr-pen-bas ktf-bas"><span class="ktf-acd" aria-hidden="true">' + acd('mutlu') + '</span><div><h2 id="ktf-baslik">Kreşiniz için teklif alın</h2>' +
-      '<p>Bilgilerinizi bırakın; <b>1 iş günü içinde</b> kreşinize özel fiyat ve <b>14 günlük ücretsiz deneme</b> için size dönelim.</p></div>' +
+      '<p>Bilgilerinizi bırakın; <b>1 iş günü içinde</b> kreşinize özel fiyat teklifiyle size dönelim.</p></div>' +
       '<button type="button" class="kr-kapat" data-kapat aria-label="Kapat">×</button></header>' +
       '<form class="kr-govde ktf-form" novalidate>' +
       alan('kres_ad', 'Kreşin adı', { max: 120, ac: 'organization', ph: 'Papatya Anaokulu', odak: true, genis: true }, true) +
@@ -34,7 +34,7 @@
       alan('mesaj', 'Notunuz', { tur: 'textarea', genis: true, ph: 'Ne zaman başlamak istersiniz, kaç sınıfınız var…' }, false) +
       '<label class="ktf-onay ktf-genis"><input type="checkbox" name="kvkk"> <span><a href="/kvkk.html" target="_blank" rel="noopener">Aydınlatma metnini</a> okudum; bu bilgilerle benimle iletişime geçilmesini kabul ediyorum.</span></label>' +
       '<b class="ktf-hata ktf-genis" data-hata="genel" role="alert"></b>' +
-      '<div class="ktf-alt ktf-genis"><button type="submit" class="kl-dugme ktf-gonder">Teklif iste</button><span>Ücretsizdir, bağlayıcı değildir.</span></div></form>';
+      '<div class="ktf-alt ktf-genis"><button type="submit" class="kl-dugme ktf-gonder">Teklif iste</button><span>Teklif istemek bağlayıcı değildir.</span></div></form>';
   }
   function tesekkur(ad) {
     return '<header class="kr-pen-bas ktf-bas ktf-bas-bos"><button type="button" class="kr-kapat" data-kapat aria-label="Kapat">×</button></header>' +
