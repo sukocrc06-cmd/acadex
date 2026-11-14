@@ -124,6 +124,7 @@ async function commonsSearch(q: string, per: number): Promise<Photo[]> {
 }
 // Wikipedia maddesinin kendi görseli: yalnız ÖZGÜR lisanslı (pilicense=free) —
 // adil kullanım (logo, afiş, kapak) görselleri sunuma taşınmaz.
+const wikiNotPhoto = (file: string, src: string): boolean => /\.svg/i.test(file + " " + src) || NOT_PHOTO.test(file.replace(/_/g, " "));
 async function wikiImage(entity: string): Promise<Photo | null> {
   for (const lang of ["en", "tr"]) {
     const base = `https://${lang}.wikipedia.org/w/api.php?format=json&origin=*&action=query&prop=pageimages|info&inprop=url&piprop=thumbnail|name&pithumbsize=1200&pilicense=free&redirects=1`;
@@ -136,6 +137,8 @@ async function wikiImage(entity: string): Promise<Photo | null> {
       pg = Object.values(j?.query?.pages || {})[0];
     }
     const th = pg?.thumbnail; if (!th?.source || (th.width || 0) < 420) continue;
+    // Ülke/kurum maddelerinin baş görseli çoğu kez bayrak, arma ya da haritadır (SVG): fotoğraf değil, kapakta kırpılıp biçimsiz durur.
+    if (wikiNotPhoto(String(pg.pageimage || ""), String(th.source))) continue;
     return { id: "w" + pg.pageid, alt: String(pg.title || entity), w: th.width, h: th.height, thumb: th.source, large: th.source, photographer: "",
       page: pg.pageimage ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(pg.pageimage)}` : String(pg.fullurl || ""), source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org" };
   }
@@ -263,6 +266,20 @@ const seriesOf = (bullets: string[]): { labels: string[]; values: number[]; unit
 };
 /* Zaman çizelgesinde her adımın kendi tarihi olur: "2023 · 2035 · 2035" diye
    aynı tarih iki durakta basıldı (aynı deste). Yinelenen tarih varsa liste. */
+/* "two": maddeler kendi tarafına dizilir. İstemci listeyi ortadan böler; canlı
+   destede (14.11.2026) "2023: …" ve "2026: …" maddelerinin ikisi de sol kolona
+   ("2023") düştü, sağda ("2026") yalnız "Fark: …" kaldı. Dizilemiyorsa dokunmaz. */
+const sidesOf = (bullets: string[], heads: string[], warn: number[]): { bullets: string[]; warn: number[] } => {
+  const low = (t: string) => String(t || "").toLocaleLowerCase("tr").trim();
+  const h = heads.slice(0, 2).map(low); const n = bullets.length, target = Math.ceil(n / 2);
+  if (h.length < 2 || !h[0] || !h[1] || n < 2) return { bullets, warn };
+  const side = bullets.map((b) => { const m = String(b).match(/^([^:]{2,32}):\s/); const p = m ? low(m[1]) : ""; return !p ? -1 : h[0].startsWith(p) ? 0 : h[1].startsWith(p) ? 1 : -1; });
+  const ix = (k: number) => side.map((v, i) => v === k ? i : -1).filter((i) => i >= 0);
+  const Lx = ix(0), Rx = ix(1), Ox = ix(-1);
+  if (!Lx.length || !Rx.length || Lx.length > target || Rx.length > n - target) return { bullets, warn };
+  const order = [...Lx, ...Ox.slice(0, target - Lx.length), ...Rx, ...Ox.slice(target - Lx.length)];
+  return { bullets: order.map((i) => bullets[i]), warn: warn.map((w) => order.indexOf(w)).filter((w) => w >= 0) };
+};
 const timeOk = (bullets: string[]): boolean => {
   const l = (bullets || []).map((b) => { const m = String(b).match(/^(.{2,34}?)\s*(?::|\s[–—-])\s+/); return (m && /\d/.test(m[1]) ? m[1] : (String(b).match(/\b(?:1[5-9]|20)\d{2}\b/) || [""])[0]).toLocaleLowerCase("tr").trim(); }).filter(Boolean);
   return new Set(l).size === l.length;
@@ -486,7 +503,7 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
       //    yalnız konu aranır.
       const sysQ = `You plan web research for a university presentation. Given a TOPIC, return ONLY JSON:
 {"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in the topic's own language","wiki_en":"best matching English Wikipedia article title"}
-q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about the topic (same language); q3 = the topic as an English search query. No quotes, no site: operators.
+q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about the topic (same language); q3 = the topic as an English search query. If the topic asks HOW, or for ways, methods, strategies, solutions or advice, q1 and q3 must search for those ways themselves (the concrete instruments, options and their evidence), not for background data about the problem. No quotes, no site: operators.
 Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing situation (economy, policy, markets, technology, a living person or organisation), q2 must ask for the latest data and include the current year.`;
       const gq = await groq(gKey, "openai/gpt-oss-20b", sysQ, `TOPIC: ${topic}`, 300);
       try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); if (gq.ok && qs.length) queries = [...new Set([topic, ...qs.slice(-2)])].slice(0, 3);   /* konu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür */ topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
@@ -539,6 +556,8 @@ Rules:
 - Write ${n - 2} content slides (cover and closing are added separately). Tone: ${tone}.
 - ${story} Slide titles should make this arc visible. Every title is a specific claim or topic (never generic like "Giriş", "Introduction", "Genel Bakış"), unique, max 9 words.
 - COVERAGE: before writing, plan the deck so that it tells the whole story, as far as the sources allow: (1) what it is and the context/background, (2) the key people, organisations or actors by name, (3) how it happened or how it works — the chronology or mechanism, (4) the key numbers, (5) the results, impact or legacy. A deck that is only a list of numbers is a failure: at most 2 slides may be "stat" or "chart". Draw on at least 3 different sources when that many are given.
+- ANSWER THE TOPIC AS PHRASED: if the topic asks how, or for ways, methods, strategies or solutions, most body slides present those ways one by one (what it is, evidence from the sources, limits) — background data about the problem takes at most two slides. If the sources do not cover such ways, say so on the critical slide instead of filling the deck with background.
+- Never put a source name in parentheses inside a bullet ("(NPR)", "(TCMB)") — sources are cited through "src" only. Never compute a number yourself (difference, ratio, total, average): every figure appears in a source exactly as written.
 - ACADEMIC DEPTH: this is a university seminar, not a fact sheet. As far as the sources allow, the deck contains (a) one slide that defines the key concepts and the scope, (b) at least one analysis slide that explains WHY — causes, mechanisms, drivers, (c) one comparison (kind "two" or "table") of periods, countries, methods or viewpoints, and (d) one critical slide: limitations, risks, open debates, or points where the sources disagree. The conclusion states implications ("what follows from this"), not a recap of numbers.
 - A bullet is an analytical statement, not a label: 12-22 words (max 150 characters) that give a claim together with its cause, mechanism, comparison or consequence, written as a full sentence. Never write a bare number with a two-word label as a bullet ("%5,7 güneş" is a failure). On analysis, concept and critical slides start each bullet with a 2-4 word key term and a colon ("Şebeke esnekliği: ...").
 - Every "list" slide has 3-4 bullets; never write a slide with a single bullet. Use "stat" only when you have exactly 3 numbers; a lone number belongs inside a bullet of another slide.
@@ -547,7 +566,7 @@ Rules:
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
   "chart": one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
-  "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names) — three or more people, items or groups go in a "list" or "table", never in "two";
+  "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names; 2-3 bullets per side, first all bullets of side one, then all of side two) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list".
   Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
@@ -608,11 +627,17 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       const q = flat(m[1]);
       return q.length > 12 && srcFlat.includes(q) ? b : m[1].trim();
     };
+    /* Madde sonundaki kaynak adı ("… (SBB).", "(NPR)", "(Devlet)", "(SCIENTIFIC)")
+       atılır: atıf zaten "[n]" ile basılıyor, model adı çoğu kez de yanlış koyuyor
+       (canlı deste 14.11.2026). Yalnız kaynak listesindeki bir site/başlık sözcüğü
+       ya da genel etiket silinir; "(TÜFE)" gibi kısaltma açıklaması kalır. */
+    const srcWords = " " + flat(srcs.map((x) => `${x.site} ${x.title}`).join(" ")) + " ", srcGlue = srcWords.replace(/ /g, "");
+    const dropAttr = (b: string) => b.replace(/\s*\(([^()\d]{2,30})\)(?=[.!?]?\s*$)/, (m, a) => { const f = flat(a); return /^(wikipedia|vikipedi|scientific|devlet|kaynak|source|web)$/.test(f) || (f.length >= 3 && (srcWords.includes(` ${f} `) || srcGlue.includes(f.replace(/ /g, "")))) ? "" : m; });
     const slides = out.slides.slice(0, n).map((s: any) => {
       const ids = (Array.isArray(s.src) ? s.src : []).map((x: any) => Number(x)).filter((x: number) => srcs.some((y) => y.id === x));
       const idx = idxOf(ids);
       const kind = KINDS.includes(s.kind) ? s.kind : "list";
-      const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => cleanCite(String(x || ""))).filter(Boolean).slice(0, 6);
+      const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => dropAttr(cleanCite(String(x || "")))).filter(Boolean).slice(0, 6);
       if (kind === "quote" && !bullets.length) { const qt = String(s.quote || s.text || "").trim(); if (qt) bullets.push(qt); }
       if (kind === "quote" && bullets.length) bullets[0] = safeQuote(bullets[0]);
       const warn: number[] = [];
@@ -648,6 +673,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
       const yaz = (t: string) => yazim(t, lang);
+      if (k === "two") { const sd = sidesOf(bullets, s.heads.map(String), warn); bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn); }
       if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
       return { title: yaz(String(s.title || "").trim()), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });
@@ -782,7 +808,7 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
     slides.forEach((s: any) => {
       if (s._ns) { const nt = s._ns.filter(Boolean).join(" "); if (nt) s.notes = nt; delete s._ns; }
       // Etiketi kaynakla örtüşmeyen grafik çizilmez: değerler uyarılı maddeye iner.
-      if (s._cw && s.chart) { s.chart.values.forEach((v: number, i: number) => { const bi = s.bullets.length; s.bullets.push(`${s.chart.labels[i] || ""}: ${v} ${s.chart.unit}`.trim()); if (s._cw[i]) { s.warn.push(bi); (s.why = s.why || {})[bi] = s._cw[i]; } }); s.chart = null; s.kind = "list"; }
+      if (s._cw && s.chart) { s.chart.values.forEach((v: number, i: number) => { const bi = s.bullets.length; s.bullets.push(yazim(`${s.chart.labels[i] || ""}: ${v}${s.chart.unit === "%" ? "%" : " " + (s.chart.unit || "")}`.trim(), lang)); if (s._cw[i]) { s.warn.push(bi); (s.why = s.why || {})[bi] = s._cw[i]; } }); s.chart = null; s.kind = "list"; }
       delete s._cw;
     });
 

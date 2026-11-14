@@ -217,7 +217,7 @@ test('ASETATTA "(Kaynak 2, 8)" KALMAZ, UYDURMA GRAFİK, ÇİFT SONUÇ (14.11.202
   const f = new Function(ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + ';return cleanCite;')();
   assert.equal(f('Collins Columbia’da yörüngede kaldı (Kaynak 1, 2, 8)'), 'Collins Columbia’da yörüngede kaldı');
   assert.equal(f('650 milyon izleyici (NASA tahmini)'), '650 milyon izleyici (NASA tahmini)', 'kurum adı silinmemeli');
-  assert.match(sr, /\.map\(\(x: any\) => cleanCite\(String\(x \|\| ""\)\)\)\.filter\(Boolean\)\.slice\(0, 6\)/, 'maddeler temizlenmiyor');
+  assert.match(sr, /\.map\(\(x: any\) => dropAttr\(cleanCite\(String\(x \|\| ""\)\)\)\)\.filter\(Boolean\)\.slice\(0, 6\)/, 'maddeler temizlenmiyor');
   assert.ok(sr.includes('Never split a total into parts the sources do not give'), 'yazara uydurma dağılım yasağı yok');
   assert.ok(sr.includes('a total divided into parts the source does not state is "unsupported"'), 'denetçi uydurma dağılımı geçiriyor');
   assert.match(ink, /if \(plotMeta\.via !== 'research' && !body\.slice\(-2\)\.some/, 'araştırmalı destede ikinci sonuç öneriliyor');
@@ -470,6 +470,19 @@ test('YAZIM: kesilmez tire, ISO tarih, yüzde işareti; başlıksız "two" liste
   assert.match(ink, /\|\| \/\^\\s\*\[-‑–—\]\\s\*\\d\/\.test\(m\[3\]\)\) return null;/, 'aralık sayı ve etiket diye bölünüyor');
 });
 
+test('KURGU: iki kolonda madde kendi tarafına dizilir; "nasıl/yolları" konusu yanıtlanır', () => {
+  // Canlı deste 14.11.2026 ("Parayı Enflasyona Ezdirmeme Yolları"): "2023: …" ve "2026: …"
+  // ikisi de sol kolona düştü; destede tek bir "yol" yoktu, hepsi enflasyon verisiydi.
+  const { sidesOf } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['sidesOf']);
+  const r = sidesOf(['2023: Ortalama %65', '2026: Ekimde %29,77', 'Fark: 35 puan'], ['2023', '2026'], [2]);
+  assert.deepStrictEqual(r.bullets, ['2023: Ortalama %65', 'Fark: 35 puan', '2026: Ekimde %29,77']);
+  assert.deepStrictEqual(r.warn, [1], 'uyarı maddesiyle birlikte taşınmalı');
+  const same = ['Enflasyon düştü', 'Faiz arttı'];
+  assert.strictEqual(sidesOf(same, ['TCMB', 'SBB'], []).bullets, same, 'öneki olmayan maddelere dokunulmamalı');
+  assert.ok(sr.includes('ANSWER THE TOPIC AS PHRASED'), 'kurgu istemi konunun sorduğunu yanıtlatmıyor');
+  assert.ok(sr.includes('must search for those ways themselves'), 'sorgu planı yöntemleri aramıyor');
+});
+
 test('KALİTE: ince asetat ve yinelenen rakam puandan düşer', () => {
   const D = require('./_ts-extract.js').loadFromSource('supabase/functions/acadia-presentation-director/index.ts', ['cleanText', 'words', 'repeatedFacts', 'qualityDeck']);
   const not = 'Bu asetatta konuyu ayrıntılı biçimde anlatan, dinleyiciye örnek veren ve sonraki asetata köprü kuran yeterince uzun bir konuşma notu bulunuyor; kısa sayılmamalı.';
@@ -484,6 +497,75 @@ test('KALİTE: ince asetat ve yinelenen rakam puandan düşer', () => {
   assert.ok(q2.score <= q1.score - 12, 'puan belirgin düşmeli (' + q1.score + ' → ' + q2.score + ')');
   assert.equal(D.repeatedFacts(['2023 yılında 12 ülke', '2023 yılında 12 şirket']), 0, 'yıl ve küçük tam sayı yineleme değil');
   assert.ok(ink.includes("thin_slides: 'bazı asetatlar çok ince") && ink.includes('repeated_facts:'), 'yeni sorunların Türkçe karşılığı yok');
+});
+
+
+test('KALİTE ÖLÇÜMÜ CANLI YOLDAN GEÇER: critique normalize sonrası ölçülen alanları geri koyar', () => {
+  // Canlı 14.11.2026: art arda dört deste 92 aldı, hepsinde tek sorun visual_repetition.
+  // normalizeSlide 'list'/'two'/'time' adını 'section' yapıyor, has_visual ve placeholder
+  // alanlarını atıyordu: ölçülen dal hiç çalışmadı, her deste "üç section art arda" sayıldı.
+  // Önceki test qualityDeck'i doğrudan çağırdığı için bunu göremedi; bu test gerçek yoldan gider.
+  const D = require('./_ts-extract.js').loadFromSource('supabase/functions/acadia-presentation-director/index.ts', ['allowedLayouts', 'allowedVariants', 'allowedVisuals', 'allowedChartTypes', 'allowedDiagramTypes', 'cleanText', 'words', 'repeatedFacts', 'normalizeTable', 'normalizeChart', 'normalizeCards', 'normalizeSteps', 'normalizeDiagram', 'normalizeSlide', 'normalizeDeck', 'restoreMeasured', 'qualityDeck']);
+  const not = 'Bu asetatta konuyu ayrıntılı biçimde anlatan, dinleyiciye örnek veren ve sonraki asetata köprü kuran yeterince uzun bir konuşma notu bulunuyor; kısa sayılmamalı.';
+  const dolu = 'Şebeke esnekliği: depolama ve talep yönetimi olmadan güneş üretimi öğle saatlerinde kesintiye uğrar ve yatırım geri dönüşü uzar.';
+  const S = (lay, v, text, vis) => ({ title: lay + v + text.length + Math.random(), speaker_notes: not, content: { text, design_variant: lay, look: lay + ':' + v, has_visual: !!vis, placeholder: false } });
+  const olc = (slides) => { const raw = { title: 'x', slides }; const d = D.normalizeDeck(raw, slides.length, 'topic'); D.restoreMeasured(d, raw); return D.qualityDeck(d, slides.length, 'topic'); };
+  const iyi = olc([S('cover', 0, '', 1), S('list', 7, dolu, 0), S('time', 2, dolu, 1), S('two', 1, dolu, 0), S('stat', 1, '6,81 puan gıda', 1), S('list', 1, dolu, 0), S('refs', 0, 'kaynak', 0), S('end', 0, '', 0)]);
+  assert.ok(!iyi.issues.includes('visual_repetition'), 'çeşitli düzenli deste yineleme sayılıyor (' + iyi.issues + ')');
+  const ayni = olc([S('cover', 0, '', 1), S('list', 0, dolu, 1), S('list', 0, dolu, 1), S('list', 0, dolu, 1), S('stat', 1, '6,81 puan', 1), S('end', 0, '', 0)]);
+  assert.ok(ayni.issues.includes('visual_repetition'), 'üç klasik liste art arda yinelemedir');
+  const cesit = olc([S('cover', 0, '', 1), S('list', 0, dolu, 1), S('list', 7, dolu, 1), S('list', 1, dolu, 1), S('stat', 1, '6,81 puan', 1), S('end', 0, '', 0)]);
+  assert.ok(!cesit.issues.includes('visual_repetition'), 'aynı tür ama farklı çeşit yineleme değildir');
+  const ince = olc([S('cover', 0, '', 0), S('list', 0, 'kısa madde [1]', 0), S('list', 7, dolu, 0), S('two', 1, dolu, 0), S('time', 2, dolu, 0), S('end', 0, '', 0)]);
+  assert.ok(ince.issues.includes('thin_slides') && ince.issues.includes('few_visuals'), 'ölçülen dal canlı yolda çalışmıyor (' + ince.issues + ')');
+  assert.match(ink, /look: \(x\.lay \|\| 'section'\) \+ ':' \+ \(x\.v \|\| 0\)/, 'istemci düzen çeşidini göndermiyor');
+});
+
+test('ATIF: madde sonundaki kaynak adı atılır, asetatta tek "[n]" kalır', () => {
+  // Canlı deste 14.11.2026: "… yükselmiştir (SBB ölçümü). [1, 3]", "(Devlet). [2, 4]" — her
+  // maddede hem parantezli ad hem aynı etiket vardı.
+  assert.match(sr, /const dropAttr = \(b: string\) =>/, 'kaynak adı süzgeci yok');
+  assert.ok(sr.includes('Never put a source name in parentheses') && sr.includes('Never compute a number yourself'), 'istemde parantezli kaynak / hesaplanmış sayı yasağı yok');
+  const flat = (t) => t.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const srcs = [{ site: 'sbb.gov.tr', title: 'Enflasyon' }, { site: 'npr.org', title: 'Turks often keep gold' }, { site: 'worldbank.org', title: 'Report' }];
+  const body = sr.match(/const srcWords = [^\n]+\n\s*const dropAttr = [^\n]+/)[0].replace(/: string/g, '').replace(/\(x\) =>/, '(x) =>');
+  const dropAttr = new Function('flat', 'srcs', body + '; return dropAttr;')(flat, srcs);
+  assert.equal(dropAttr('TÜFE %29,77 oldu (SBB).'), 'TÜFE %29,77 oldu.');
+  assert.equal(dropAttr('Zam uygulandı (World Bank)'), 'Zam uygulandı');
+  assert.equal(dropAttr('Program yayımlandı (Devlet).'), 'Program yayımlandı.');
+  assert.equal(dropAttr('Tüketici Fiyat Endeksi (TÜFE).'), 'Tüketici Fiyat Endeksi (TÜFE).', 'kısaltma açıklaması kalmalı');
+  assert.equal(dropAttr('Etki sınırlı (önemsiz)'), 'Etki sınırlı (önemsiz)');
+  const cm = ink.match(/var cite = function \(st, srcs\) \{[\s\S]*?\n  \};/)[0];
+  const cite = new Function('arr', 'curLang', cm + '; return cite;')((x) => Array.isArray(x) ? x : [], () => 'tr');
+  const st = [{ k: 'time', src: ['a', 'b'], b: ['2023: faiz arttı', '2024: program', '2026: tahmin %29,5'] }, { k: 'stat', src: ['a'], b: ['6,81 — gıda', '6,10 — ulaştırma', '4,71 — konut'] }, { k: 'list', src: ['b'], b: ['Terim: açıklama', 'Öteki: açıklama'] }];
+  cite(st, [{ id: 'a' }, { id: 'b' }]);
+  st.forEach((s) => assert.equal(s.b.join(' ').split('[').length - 1, 1, s.k + ': atıf bir kez basılmalı (' + s.b.join(' | ') + ')'));
+  assert.ok(/\[1, 2\]$/.test(st[0].b[2]) && /\[2\]$/.test(st[2].b[1]));
+});
+
+test('GÖRSEL BİÇİMİ: kutu fotoğrafın oranına uyar, bayrak/SVG fotoğraf sayılmaz, seçili görselde "resmi değiştir" çıkar', () => {
+  // Canlı deste 14.11.2026 ("Türkiye'de Parayı Enflasyona Ezdirmeme Yolları"): kapağa Wikipedia'nın
+  // "Turkey" maddesinden Flag_of_Turkey.svg geldi ve sabit 340×400 dik kutuda kırpıldı (ay-yıldız yarım).
+  // Kullanıcı ayrıca beğenmediği resmi üstüne basıp değiştirmek istedi.
+  const fk = ink.match(/var fotoKutu = function \(p, mw, mh\) \{[^\n]+\};/)[0];
+  const fotoKutu = new Function(fk + '; return fotoKutu;')();
+  assert.deepEqual(fotoKutu({ w: 1200, h: 800 }, 340, 400), { w: 340, h: 227 }, 'yatay görsel dik kutuya kırpılmamalı');
+  assert.deepEqual(fotoKutu({ w: 800, h: 1200 }, 340, 400), { w: 267, h: 400 }, 'dik görsel yüksekliğe sığmalı');
+  assert.ok(!/sl\.lay === 'cover'\) \{ w = 340; h = 400;/.test(ink), 'kapak kutusu yine sabit 340×400');
+  assert.match(ink, /var k = fotoKutu\(p, old\.w,[\s\S]{0,400}x\.y = old\.y \+ old\.h \+ 4/, 'fotoğraf değişince kutu ve künye yeni orana taşınmıyor');
+  const W = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['NOT_PHOTO', 'wikiNotPhoto']);
+  assert.equal(W.wikiNotPhoto('Flag_of_Turkey.svg', 'https://upload.wikimedia.org/x/Flag_of_Turkey.svg/1200px-Flag_of_Turkey.svg.png'), true);
+  assert.equal(W.wikiNotPhoto('Coat_of_arms_of_X.png', 'https://upload.wikimedia.org/x.png'), true);
+  assert.equal(W.wikiNotPhoto('Ada_Lovelace_portrait.jpg', 'https://upload.wikimedia.org/a.jpg'), false);
+  assert.match(sr, /if \(wikiNotPhoto\(String\(pg\.pageimage \|\| ""\), String\(th\.source\)\)\) continue;/, 'madde görseli süzülmüyor');
+  // "resmi değiştir": yalnız düzenleme sahnesinde ve seçiliyken; basınca sürükleme başlamaz, arama penceresi açılır
+  assert.match(ink, /edit && e\.type === 'img' && e\.src \? '<b class="sx-chg" data-imchg="">resmi değiştir<\/b>'/, 'düğme yok ya da küçük resimlere/yansıya da basılıyor');
+  assert.match(ink, /if \(e\.target\.closest\('\[data-imchg\]'\)\) \{ imOpen\(el\); return; \}\s*drag = /, 'düğmeye basınca pencere açılmıyor / sürükleme başlıyor');
+  assert.match(css, /\.sx-el\.sel > \.sx-chg\{display:block\}/, 'düğme seçiliyken görünmüyor');
+  // grafikten listeye düşen maddeler de yazım kuralından geçer ("2025: 15.2 %" basılmıştı)
+  const Y = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['AYLAR', 'trDec', 'yazim']);
+  assert.equal(Y.yazim('2025: 15.2%', 'tr'), '2025: %15,2');
+  assert.match(sr, /s\.bullets\.push\(yazim\(`\$\{s\.chart\.labels\[i\] \|\| ""\}: \$\{v\}\$\{s\.chart\.unit === "%" \? "%" :/, 'grafik yedeği yazım kuralından geçmiyor');
 });
 
 summary();

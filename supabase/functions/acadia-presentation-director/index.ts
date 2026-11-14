@@ -468,6 +468,25 @@ function repeatedFacts(texts: string[]) {
   texts.forEach(text => { new Set((text.match(/\d+(?:[.,]\d+)*/g) || []).filter(x => !/^(1[5-9]|20)\d{2}$/.test(x) && (/[.,]/.test(x) || x.length >= 3)).map(x => x.replace(/[.,]/g, ''))).forEach(x => seen.set(x, (seen.get(x) || 0) + 1)) })
   return [...seen.values()].filter(n => n > 1).length
 }
+// CRITIQUE ÖLÇÜMÜ CANLIDA ÖLÜYDÜ (14.11.2026): normalizeSlide istemcinin gönderdiği
+// has_visual / placeholder alanlarını atıyor, tanımadığı düzen adını ('list', 'two',
+// 'time'…) 'section' yapıyordu. Sonuç: boş asetat, görselsizlik, ince asetat ve
+// yinelenen rakam ölçütleri hiç çalışmadı; her asetat 'section' göründüğü için
+// visual_repetition HER destede −8 yazdı (art arda dört destede puan 92).
+// Ölçülen alanlar normalize'dan sonra ham desteden geri konur.
+function restoreMeasured(deck: { slides: any[] }, rawDeck: any) {
+  const rs = Array.isArray(rawDeck?.slides) ? rawDeck.slides : []
+  deck.slides.forEach((slide, i) => {
+    const c = rs[i]?.content
+    if (!c || typeof c !== 'object') return
+    if (typeof c.has_visual === 'boolean') slide.content.has_visual = c.has_visual
+    if (typeof c.placeholder === 'boolean') slide.content.placeholder = c.placeholder
+    const dv = cleanText(c.design_variant, 30), look = cleanText(c.look, 30)
+    if (dv) slide.content.design_variant = dv
+    if (look) slide.content.look = look
+  })
+}
+
 function qualityDeck(deck: { title: string; slides: any[] }, requestedCount: number, sourceType: string) {
   let score = 100
   const issues: string[] = []
@@ -478,9 +497,11 @@ function qualityDeck(deck: { title: string; slides: any[] }, requestedCount: num
   if (weakNotes) { score -= Math.min(16, weakNotes * 3); issues.push('weak_speaker_notes') }
   const dense = deck.slides.filter(slide => words(String(slide.content?.text || '')) > 95).length
   if (dense) { score -= Math.min(14, dense * 3); issues.push('dense_slides') }
-  const variants = deck.slides.map(slide => String(slide.content?.design_variant || 'section'))
+  // 'look' = düzen + çeşit ("list:7"): üç liste art arda gelse de kartlı, kolonlu ve
+  // klasik basıldıysa göze yinelenme değildir.
+  const variants = deck.slides.map(slide => String(slide.content?.look || slide.content?.design_variant || 'section'))
   for (let i = 2; i < variants.length; i++) {
-    if (variants[i] === variants[i - 1] && variants[i] === variants[i - 2] && !['hero','summary'].includes(variants[i])) {
+    if (variants[i] === variants[i - 1] && variants[i] === variants[i - 2] && !['hero','summary','cover','end','refs'].includes(variants[i].split(':')[0])) {
       score -= 8; issues.push('visual_repetition'); break
     }
   }
@@ -640,6 +661,7 @@ serve(async (req) => {
       const sourceType = allowedSourceTypes.has(body?.sourceType) ? body.sourceType : 'topic'
       const count = clampInt(body?.slideCount ?? rawDeck?.slides?.length, 1, 30, rawDeck?.slides?.length || 1)
       const deck = normalizeDeck(rawDeck, count, sourceType)
+      restoreMeasured(deck, rawDeck)
       return respond({ version: 11, quality: qualityDeck(deck, count, sourceType) })
     }
 

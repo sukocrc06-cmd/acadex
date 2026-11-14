@@ -6902,7 +6902,7 @@ var SBX = (function () {
     else if (TM && TM.bic && e.type === 'rect') { var kc = kutuCizgi(e); st += ';border-radius:' + TM.bic.r + 'px' + (kc ? ';background:transparent;box-shadow:inset 0 0 0 2px ' + kc : ''); }
     var lab = { viz: 'çizim', h: 'başlık', t: 'metin', ul: 'madde listesi', rect: 'kutu', ellipse: 'daire', arrow: 'ok', mark: 'vurgu çizgisi', img: 'görsel', chart: 'grafik', table: 'tablo', math: 'formül', mmd: 'diyagram', icon: 'simge' }[e.type];
     return '<div class="sx-el' + (e.muted ? ' muted' : '') + '" data-id="' + e.id + '" data-type="' + e.type + '" style="' + st + '"' +
-      (edit ? ' tabindex="0" role="button" aria-label="' + X(lab + (e.text ? ': ' + e.text.slice(0, 40) : '')) + '"' : '') + '>' + elInner(e) + (edit ? '<i class="sx-rs" data-rs="" aria-hidden="true"></i>' : '') + '</div>';
+      (edit ? ' tabindex="0" role="button" aria-label="' + X(lab + (e.text ? ': ' + e.text.slice(0, 40) : '')) + '"' : '') + '>' + elInner(e) + (edit && e.type === 'img' && e.src ? '<b class="sx-chg" data-imchg="">resmi değiştir</b>' : '') + (edit ? '<i class="sx-rs" data-rs="" aria-hidden="true"></i>' : '') + '</div>';
   };
   var slideHTML = function (s) { var ts = temaSty(s); return '<div class="' + temaCls(s) + '"' + (ts ? ' style="' + ts + '"' : '') + ' aria-hidden="true">' + temaDekor(s).concat(s.els).map(function (e) { return elHTML(e, false); }).join('') + '</div>'; };
   /* otomatik sığdırma: taşan yazıyı asetata sığana dek küçült, taşan kutuyu asetat içine çek */
@@ -7151,6 +7151,7 @@ var SBX = (function () {
     if (!el) { select(null); return; }
     var id = el.getAttribute('data-id'); select(id); var o = selObj();
     e.preventDefault(); el.focus({ preventScroll: true });
+    if (e.target.closest('[data-imchg]')) { imOpen(el); return; }
     drag = { o: o, el: el, rs: !!e.target.closest('[data-rs]'), sx: e.clientX, sy: e.clientY, x: o.x, y: o.y, w: o.w, h: o.h, moved: false, before: snap() };
     try { el.setPointerCapture(e.pointerId); } catch (x) {}
   });
@@ -7248,21 +7249,24 @@ var SBX = (function () {
       errCode(e).then(function (c) { imNote.textContent = /no_key|UNSPLASH|PEXELS/.test(c) ? 'Görsel kütüphanesi henüz açılmadı: Unsplash anahtarı eklenince burada fotoğraflar çıkacak.' : /rate|sınır/.test(c) ? 'Bu saatlik fotoğraf arama hakkı doldu; biraz sonra tekrar dene.' : 'Fotoğraflar şu an getirilemedi; biraz sonra tekrar dene.'; });
     });
   };
-  Q('[data-imgsearch]').addEventListener('click', function (ev) {
-    imFrom = ev.currentTarget; var so = selObj(); if (so && so.type === 'img' && so.alt) imQ.value = so.alt; else if (!imQ.value.trim()) imQ.value = (cur() && titleOf(cur())) || deck.title || '';
+  Q('[data-imgsearch]').addEventListener('click', function (ev) { imOpen(ev.currentTarget); });
+  var imOpen = function (from) {
+    imFrom = from; var so = selObj(); if (so && so.type === 'img' && so.alt) imQ.value = so.alt; else if (!imQ.value.trim()) imQ.value = (cur() && titleOf(cur())) || deck.title || '';
     if (imgDlg.showModal) imgDlg.showModal(); else imgDlg.setAttribute('open', ''); imQ.focus(); imQ.select(); if (imQ.value.trim()) imSearch();
-  });
+  };
   Q('[data-im-f]', imgDlg).addEventListener('submit', function (e) { e.preventDefault(); imLast = ''; imSearch(); });
   Q('[data-im-x]', imgDlg).addEventListener('click', function () { imgDlg.close(); });
   imgDlg.addEventListener('close', function () { if (imFrom && document.contains(imFrom)) imFrom.focus(); });
   /* fotoğrafı asetata yerleştir: metin varsa maddeler sola, fotoğraf sağa; kapakta başlık sola */
   var credText = function (p) { var src = p.source || 'Unsplash'; return (curLang() === 'en' ? 'Photo: ' : 'Fotoğraf: ') + (p.photographer ? p.photographer + ' / ' : '') + src + (p.license ? ' · ' + p.license : ''); };
+  /* Kutu fotoğrafın kendi oranını taşır: sabit kutu yatay bir görseli (bayrak, manzara) dikine kırpıyordu. */
+  var fotoKutu = function (p, mw, mh) { var r = (p.h || 2) / (p.w || 3), w = mw, h = Math.round(w * r); if (h > mh) { h = mh; w = Math.round(h / r); } return { w: w, h: h }; };
   var placePhoto = function (sl, p, alt) {
     var w = 480, h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > 330) { h = 330; w = Math.round(h * (p.w || 3) / (p.h || 2)); }
     var x = Math.round((W - w) / 2), y = Math.round((H - h) / 2) - 8;
     /* Alıntı düzeninde asıl geniş kutu büyük yazıdır (h); daralmazsa fotoğrafın altında kalır. */
     var wide = sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't' || (sl.lay === 'quote' && e.type === 'h' && e.text.length > 1)) && e.x < 200 && e.w > 520 && e.y > 130 && !e.muted; });
-    if (sl.lay === 'cover') { w = 340; h = 400; x = W - 40 - w; y = 70; wide = sl.els.filter(function (e) { return (e.type === 'h' || e.type === 't' || e.type === 'mark') && e.w > 420; }); }
+    if (sl.lay === 'cover') { var k = fotoKutu(p, 340, 400); w = k.w; h = k.h; x = W - 40 - w; y = 70 + Math.round((400 - h) / 2); wide = sl.els.filter(function (e) { return (e.type === 'h' || e.type === 't' || e.type === 'mark') && e.w > 420; }); }
     else if (wide.length) { w = 360; h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > 300) { h = 300; w = Math.round(h * (p.w || 3) / (p.h || 2)); } x = W - 50 - w; y = 160; }
     wide.forEach(function (e) { e.w = Math.max(e.type === 'mark' ? 120 : 300, Math.min(e.w, x - e.x - 24)); });
     var cr = E('t', x, y + h + 4, w, 22, { text: credText(p), size: 12, color: SOFT, align: 'right' });
@@ -7277,7 +7281,10 @@ var SBX = (function () {
     push();
     if (old && old.type === 'img' && old.creditId) { /* seçili fotoğrafı değiştir */
       s0 = cur(); old.src = p.large; old.alt = p.alt || imQ.value.trim(); old.credit = p.photographer || ''; old.creditUrl = p.page || '';
-      s0.els.forEach(function (x) { if (x.id === old.creditId) x.text = credText(p); });
+      /* yeni fotoğrafın oranı farklıysa kutu da değişir: genişlik korunur, taşarsa daralır; ortası/sağ kenarı yerinde kalır */
+      var k = fotoKutu(p, old.w, Math.max(old.h, s0.lay === 'cover' ? 400 : 300)), orta = Math.abs(old.x + old.w / 2 - W / 2) < 6;
+      old.x = orta ? Math.round((W - k.w) / 2) : old.x + old.w - k.w; old.y = Math.max(20, Math.round(old.y + old.h / 2 - k.h / 2)); old.w = k.w; old.h = k.h;
+      s0.els.forEach(function (x) { if (x.id === old.creditId) { x.text = credText(p); x.x = old.x; x.w = old.w; x.y = old.y + old.h + 4; } });
       if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {});
       selId = old.id; renderStage(); refreshThumb(); dirty(); imgDlg.close(); say('Fotoğraf değiştirildi.', undo); return;
     }
@@ -7943,9 +7950,11 @@ var SBX = (function () {
       var ns = arr(s.src).map(function (id) { return num[id]; }).filter(Boolean).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort(function (a, b) { return a - b; });
       if (!ns.length || s.k === 'cover' || s.k === 'end' || s.k === 'refs') return;
       var tag = ' [' + ns.join(', ') + ']', b = s.b || [];
-      if (s.k === 'stat' || s.k === 'chart' || s.k === 'table') { if (s.k === 'stat') s.b = b.map(function (x) { return x + tag; }); else s.b = [(b[0] ? b[0] + tag : (curLang() === 'en' ? 'Source:' : 'Kaynak:') + tag)]; return; }
-      var hit = false; s.b = b.map(function (x) { if (/\d/.test(x)) { hit = true; return x + tag; } return x; });
-      if (!hit && s.b.length) s.b[s.b.length - 1] += tag;
+      if (s.k === 'stat' || s.k === 'chart' || s.k === 'table') { if (s.k === 'stat') { s.b = b.slice(); if (s.b.length) s.b[s.b.length - 1] += tag; } else s.b = [(b[0] ? b[0] + tag : (curLang() === 'en' ? 'Source:' : 'Kaynak:') + tag)]; return; }
+      /* Asetatta tek atıf: aynı "[2, 4]" her maddenin sonunda yineleniyordu (canlı
+         deste 14.11.2026). Sayı taşıyan son maddeye, yoksa son maddeye konur. */
+      var son = -1; b.forEach(function (x, i) { if (/\d/.test(x)) son = i; }); if (son < 0) son = b.length - 1;
+      if (son >= 0) { s.b = b.slice(); s.b[son] += tag; }
     });
   };
   var makeOutline = function (o) {
@@ -8241,7 +8250,7 @@ var SBX = (function () {
   var kaliteOlc = function (d, loud) {
     if (kaliteBusy) return;
     var sl = arr(d.slides).map(function (x) {
-      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section', has_visual: gorselVar(x), placeholder: yerTutucu(x) } };
+      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section', look: (x.lay || 'section') + ':' + (x.v || 0), has_visual: gorselVar(x), placeholder: yerTutucu(x) } };
     });
     if (!sl.length) return;
     kaliteBusy = true; paintKalite(true);

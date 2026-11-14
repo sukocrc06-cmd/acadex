@@ -6062,6 +6062,9 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#acadexsunum-view.axu,#axu-layer) .sx-fit .sx-el.editing *:focus,:is(#acadexsunum-view.axu,#axu-layer) .sx-fit .sx-el.editing:focus{outline:none}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-rs{position:absolute;right:-14px;bottom:-14px;width:22px;height:22px;border-radius:50%;background:#2F6BFF;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:nwse-resize;display:none}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el.sel > .sx-rs{display:block}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-chg{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:none;padding:7px 14px;border-radius:999px;background:#0D1838;color:#fff;font:600 14px/1 "Inter",sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.35)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-chg:hover{background:#2F6BFF}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-el.sel > .sx-chg{display:block}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el.editing > .sx-rs{display:none}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-box{position:sticky;top:84px;max-height:calc(100vh - 100px);overflow:auto;padding:16px 16px 14px;background:#fff;border-radius:4px 6px 4px 5px;box-shadow:0 1px 0 #E1E5EE,0 18px 30px -26px rgba(13,24,56,.6);scrollbar-width:thin}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-box::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,#2F6BFF 0 34px,#0D1838 34px 68px,#C9483B 68px 102px,#1E8A55 102px 136px)}
