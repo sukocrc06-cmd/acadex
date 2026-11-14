@@ -612,6 +612,9 @@ async function composeDeck(apiKey: string, source: SourceBundle, body: any, plan
       console.warn('V11 critic repair skipped:', error)
     }
   }
+  // Ölçüm (14.11.2026, ruh sağlığı hemşireliği): 'detailed' istenen destede perdeye
+  // asetat başına tek cümle çıktı, kalite 100 dedi. Yazarın ne döndürdüğü görünsün.
+  console.log(`Director deste: ${deck.slides.length} asetat, metin kelime [${deck.slides.map((s: any) => words(String(s.content?.text || ''))).join(',')}], not kelime [${deck.slides.map((s: any) => words(String(s.speaker_notes || ''))).join(',')}]`)
   return { deck, quality, evidenceChunks: selected }
 }
 

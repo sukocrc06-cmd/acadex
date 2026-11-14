@@ -163,7 +163,7 @@ test('UYDURMA ALINTI VE NOTTA KAYNAK ETİKETİ (14.11.2026, dördüncü canlı d
     '"There was no choice but to be pioneers." — Margaret Hamilton', 'kaynakta harfi harfine geçen alıntı korunmalı');
   assert.match(sr, /if \(kind === "quote" && bullets\.length\) bullets\[0\] = safeQuote\(bullets\[0\]\)/, 'alıntı denetimi çağrılmıyor');
   assert.match(sr, /notes: cleanNote\(s\.notes\)/, 'not temizlenmeden dönüyor');
-  assert.match(ink, /s\.k !== 'cover' && s\.k !== 'end' && s\.k !== 'refs'\) \{ AI\.note\(sl, true\)/, 'kaynakça notu listeyi okuyor');
+  assert.match(ink, /s\.k !== 'cover' && s\.k !== 'end' && s\.k !== 'refs' && !notYeter\(s\.notes\)\) \{ AI\.note\(sl, true\)/, 'kaynakça notu listeyi okuyor');
   assert.match(ink, /else if \(sl\.lay === 'refs'\) sl\.notes = ENn/, 'kaynakça notu yok');
 });
 
@@ -819,6 +819,33 @@ test('CANLI DESTE 14.11 (kanın fizyolojik özellikleri) — şablon notu yenide
   const idx = buildNumIndex('Kanın viskozitesi suyun 4,5 katıdır');
   assert.ok(verified('Kan sudan 4,5 kat daha akışmazdır.', idx));
   assert.ok(numTokens('Viskozite 37 derecede ölçülür.').length && !verified('Viskozite 37 derecede ölçülür.', idx), 'asetatta olmayan sayı notta kalıyor');
+});
+
+/* CANLI DESTE 14.11 (ruh sağlığı hemşireliği, yönetmen yolu): sekiz asetat art
+   arda alıntı düzeniyle basıldı; yönetmenin yazdığı notlar şablonla ezildi;
+   tablo/diyagram başlıklarında "Tablo 1. … (Slide 2)" kaldı. */
+test('CANLI DESTE 14.11 (ruh sağlığı hemşireliği) — alıntı art arda gelmez, Acadia notu ezilmez, görsel başlığı temizlenir', () => {
+  const ink = read('js/acadex-ink.js');
+  const al = (re) => { const m = ink.match(re); assert.ok(m, 'bulunamadı: ' + re); return m[0]; };
+  const vTur = new Function('vSay', al(/var vTur = function \(kind\) \{.*\};/) + 'return vTur;')({});
+  const seri = ['quote', 'quote', 'quote', 'quote', 'quote', 'quote', 'quote', 'quote'].map(vTur);
+  assert.deepEqual(seri, ['quote', 'list', 'quote', 'list', 'list', 'list', 'list', 'list']);
+  const vT2 = new Function('vSay', al(/var vTur = function \(kind\) \{.*\};/) + 'return vTur;')({});
+  assert.deepEqual(['quote', 'list', 'table', 'quote', 'time'].map(vT2), ['quote', 'list', 'table', 'quote', 'time'], 'aralıklı alıntıya dokunulmaz');
+  assert.match(ink, /length < 2\) kind = 'list';\n\s+kind = vTur\(kind\);/, 'alıntı tayını basım yoluna bağlı değil');
+  const notYeter = new Function('langOf', 'curLang', al(/var notYeter = function \(n\) \{.*\};/) + 'return notYeter;')((t) => (/\bthe\b/i.test(t) ? 'en' : 'tr'), () => 'tr');
+  assert.equal(notYeter('Peplau, Orlando ve Travelbee kuramlarının ortak noktası hemşire ile hasta arasındaki ilişkiyi bakımın merkezine koymalarıdır; bunu bir örnekle açıklayın.'), true);
+  assert.equal(notYeter('Kısa bir not.'), false);
+  assert.equal(notYeter('The three theories share one idea and the presenter should explain how the nurse and the patient relate to each other here.'), false, 'başka dildeki not kalıyor');
+  assert.match(ink, /s\.k !== 'refs' && !notYeter\(s\.notes\)\) \{ AI\.note\(sl, true\); taslak\.push/);
+  const gorselAd = new Function('txt', al(/var gorselAd = function \(t\) \{.*\};/) + 'return gorselAd;')((x) => String(x || ''));
+  assert.equal(gorselAd('Tablo 1. Psikiyatri Hemşireliği İçin Oluşturulan Kuramsal Çerçeveler (Slide 2)'), 'Psikiyatri Hemşireliği İçin Oluşturulan Kuramsal Çerçeveler');
+  assert.equal(gorselAd('TABLO 1: Uluslararası standartların genel yapısı (Slide 3)'), 'Uluslararası standartların genel yapısı');
+  assert.equal(gorselAd('Extremum pattern (Slide 27/28)'), 'Extremum pattern');
+  assert.equal(gorselAd('Tablo ve grafik okuma (2024)'), 'Tablo ve grafik okuma (2024)', 'gerçek başlık kırpılıyor');
+  assert.equal((ink.match(/t: gorselAd\((?:x|d)\.title\)/g) || []).length, 3);
+  assert.match(ink, /\(titleOf\(x\.sl\) \+ notOzu\(x\.sl\)\)\.length > 40/, 'alıntı asetatının notu yeniden yazılmıyor');
+  assert.match(read('supabase/functions/acadia-presentation-director/index.ts'), /console\.log\(`Director deste: \$\{deck\.slides\.length\} asetat, metin kelime \[/);
 });
 
 summary();

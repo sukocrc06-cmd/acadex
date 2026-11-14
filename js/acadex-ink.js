@@ -7829,14 +7829,18 @@ var SBX = (function () {
     try { p = typeof safeMermaidRender === 'function' ? safeMermaidRender(box, mmdSlideCode(code), id).then(function (ok) { return ok ? box.innerHTML : ''; }) : window.mermaid.render(id, mmdSlideCode(code)).then(function (r) { return r.svg; }); } catch (e) { p = Promise.resolve(''); }
     return Promise.resolve(p).then(function (svg) { box.remove(); svg = String(svg || ''); var m = svg.match(/<svg[\s\S]*<\/svg>/); return m ? m[0].replace(/^<svg([^>]*?)\s(width)="[^"]*"/, '<svg$1').replace(/^<svg([^>]*?)\sstyle="[^"]*"/, '<svg$1') : ''; }, function () { box.remove(); return ''; });
   };
+  /* Özet kartı görsel başlığına geldiği asetatı yazar: "Tablo 1. … (Slide 2)".
+     Kartta işe yarar, sunumda başlığa basılınca artıktır; aynı destede iki ayrı
+     "Tablo 1" de vardı (canlı deste 14.11.2026, ruh sağlığı hemşireliği). */
+  var gorselAd = function (t) { return txt(t).replace(/\s*\((?:slide|slayt|sayfa|page)s?\s*\d+(?:\s*[\/–-]\s*\d+)*\)\s*$/i, '').replace(/^(?:tablo|table|şekil|figure|diyagram|diagram|grafik|chart)\s*\d+\s*[.:–-]\s*/i, '').trim(); };
   var cardVisuals = function (c, lang) {
     var en = lang === 'en', out = [];
-    arr(c.charts).filter(function (x) { return chartVals(x).length >= 2; }).slice(0, 2).forEach(function (x) { out.push({ t: txt(x.title) || (en ? 'In numbers' : 'Rakamlarla'), k: 'chart', b: x.caption || x.description ? [txt(x.caption || x.description)] : [], data: { type: x.type || 'bar', labels: chartLabels(x, chartVals(x).length), data: chartVals(x) } }); });
-    arr(c.tables).filter(function (x) { return arr(x.rows).length; }).slice(0, 2).forEach(function (x) { out.push({ t: txt(x.title) || (en ? 'At a glance' : 'Bir bakışta'), k: 'table', b: [], data: { headers: arr(x.headers).map(txt), rows: arr(x.rows).slice(0, 6).map(function (r) { return arr(r).map(txt); }) } }); });
+    arr(c.charts).filter(function (x) { return chartVals(x).length >= 2; }).slice(0, 2).forEach(function (x) { out.push({ t: gorselAd(x.title) || (en ? 'In numbers' : 'Rakamlarla'), k: 'chart', b: x.caption || x.description ? [txt(x.caption || x.description)] : [], data: { type: x.type || 'bar', labels: chartLabels(x, chartVals(x).length), data: chartVals(x) } }); });
+    arr(c.tables).filter(function (x) { return arr(x.rows).length; }).slice(0, 2).forEach(function (x) { out.push({ t: gorselAd(x.title) || (en ? 'At a glance' : 'Bir bakışta'), k: 'table', b: [], data: { headers: arr(x.headers).map(txt), rows: arr(x.rows).slice(0, 6).map(function (r) { return arr(r).map(txt); }) } }); });
     var fs = arr(c.formulas).filter(function (f) { return f && f.latex; });
     for (var i = 0; i < Math.min(fs.length, 6); i += 3) out.push({ t: i ? (en ? 'More formulas' : 'Diğer formüller') : (en ? 'Key formulas' : 'Temel formüller'), k: 'math', b: [], data: fs.slice(i, i + 3) });
     var dg = arr(c.diagrams).filter(function (d) { return d && d.mermaid; }).slice(0, 2);
-    return Promise.all(dg.map(function (d) { return renderMmd(d.mermaid).then(function (svg) { return svg ? { t: txt(d.title) || (en ? 'How it works' : 'Nasıl işler?'), k: 'diagram', b: d.description ? [txt(d.description)] : [], data: { mermaid: d.mermaid, svg: svg } } : null; }); }))
+    return Promise.all(dg.map(function (d) { return renderMmd(d.mermaid).then(function (svg) { return svg ? { t: gorselAd(d.title) || (en ? 'How it works' : 'Nasıl işler?'), k: 'diagram', b: d.description ? [txt(d.description)] : [], data: { mermaid: d.mermaid, svg: svg } } : null; }); }))
       .then(function (ds) { return out.concat(ds.filter(Boolean)); });
   };
   var KINDS = ['cover', 'list', 'two', 'quote', 'time', 'stat', 'swot', 'viz', 'chart', 'table', 'math', 'diagram', 'refs', 'end'];
@@ -8302,7 +8306,7 @@ var SBX = (function () {
   };
   var notTur = function (sl) { var k = 'list'; sl.els.forEach(function (e) { if (/^(table|mmd|chart|math)$/.test(e.type) && !e.muted) k = e.type; }); return k; };
   var notlariYaz = function (taslak, topic) {
-    var is = arr(taslak).filter(function (x) { return x.sl.notes && x.sl.notes.indexOf(x.n) === 0 && !yerTutucu(x.sl) && notOzu(x.sl).length > 20; });
+    var is = arr(taslak).filter(function (x) { return x.sl.notes && x.sl.notes.indexOf(x.n) === 0 && !yerTutucu(x.sl) && (titleOf(x.sl) + notOzu(x.sl)).length > 40; });      /* alıntıda cümle başlıktadır */
     var tur = function (bas) {
       var grup = is.slice(bas, bas + 12); if (!grup.length) return;
       fn('sunum-research', { action: 'notes', topic: topic, language: curLang(), slides: grup.map(function (x, i) { return { i: bas + i, kind: notTur(x.sl), title: titleOf(x.sl), text: notOzu(x.sl) }; }) }, 60000).then(function (d) {
@@ -8450,16 +8454,26 @@ var SBX = (function () {
       if (kind === 'list') for (var q = 0; q < sr.length && LAILE[v] === vSay.aile; q++) { n = ++vSay[kind]; v = sr[(n - 1) % sr.length]; }
       return v;
     };
+    /* Alıntı düzeni art arda gelmez, destede en çok iki kez kullanılır. "Ruh sağlığı
+       hemşireliği" destesinde (14.11.2026) Acadia her asetata tek cümle yazdı,
+       smartKind hepsini alıntı yaptı: sekiz asetat art arda tırnak işaretiyle basıldı.
+       Fazlası tek maddelik listeye iner (kutu ↔ klasik döner, klasik fotoğrafa adaydır). */
+    var vTur = function (kind) { if (kind === 'quote' && (vSay.son === 'quote' || vSay.qn >= 2)) kind = 'list'; if (kind === 'quote') vSay.qn = (vSay.qn || 0) + 1; vSay.son = kind; return kind; };
+    /* Acadia'nın yazdığı not şablonla ezilmez: yönetmen her asetata 70-110 kelimelik
+       not yazıyor, basarken hepsi "“X” konusunu anlatıyorum…" şablonuyla değişiyordu
+       (aynı deste; kalite raporu "zayıf not yok" derken ekranda 16 şablon not vardı). */
+    var notYeter = function (n) { n = String(n || '').trim(); var l = langOf(n); return n.split(/\s+/).length >= 15 && (!l || l === curLang()); };
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data;
       var kind = s.k; if (!dataKind(s, kind)) { kind = 'list'; bosCerceve++; }      /* boş tablo/diyagram çerçevesi basılmaz */
       /* Taraf adı olmayan "two" listeye iner: tür şeritten elle "iki kolon" yapılınca
          asetat "birinci taraf / ikinci taraf" yer tutucusuyla basıldı (canlı deste 14.11.2026). */
       if (kind === 'two' && arr(s.b).length && arr(s.heads).filter(function (h) { return /\S/.test(String(h || '')); }).length < 2) kind = 'list';
+      kind = vTur(kind);
       cx.v = vSec(s, kind); cx.aile = vSay.aile || ''; cx.tek = vSay.tek;
       var sl = newSlide(kind, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
       if (kind === 'list') vSay.aile = LAILE[sl.v || 0] || '';
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
-      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs') { AI.note(sl, true); taslak.push({ sl: sl, n: sl.notes }); } if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs' && !notYeter(s.notes)) { AI.note(sl, true); taslak.push({ sl: sl, n: sl.notes }); } if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
     /* Kapak ve kapanışın notu hiç yoktu (0 kelime): sunumun en zor iki ânı —
        açılış ve soru-cevap — hazırlıksız kalıyordu, kalite ölçümü de her destede
        bu ikisini "kısa not" sayıyordu. Destenin kendi başlıklarından yazılır. */
