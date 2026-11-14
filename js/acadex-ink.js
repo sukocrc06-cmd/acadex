@@ -7652,7 +7652,10 @@ var SBX = (function () {
   var flowIssues = function () {
     var en = curLang() === 'en', out = [], body = []; strips.forEach(function (s, i) { if (!/^(cover|end|refs)$/.test(s.k)) body.push(i); });
     if (body.length >= 3) {
-      if (!body.slice(0, 2).some(function (i) { return INTRO.test(strips[i].t); })) out.push({ i: body[0], msg: 'Giriş asetatı yok: dinleyici konunun neden önemli olduğunu duymadan içeriğe giriyor.', fix: 'intro', btn: 'giriş ekle' });
+      /* Araştırmalı destede ilk asetat zaten kancadır (yazara öyle söylenir) ama
+         başlığı özgül olduğu için ("650 Milyon İzleyici…") INTRO'ya uymaz; öneri
+         ikinci bir giriş ekletiyordu. */
+      if (plotMeta.via !== 'research' && !body.slice(0, 2).some(function (i) { return INTRO.test(strips[i].t); })) out.push({ i: body[0], msg: 'Giriş asetatı yok: dinleyici konunun neden önemli olduğunu duymadan içeriğe giriyor.', fix: 'intro', btn: 'giriş ekle' });
       if (!body.slice(-2).some(function (i) { return OUTRO.test(strips[i].t); })) out.push({ i: body[body.length - 1], msg: 'Sonuç asetatı yok: sunum ana mesajları toparlamadan bitiyor.', fix: 'outro', btn: 'sonuç ekle' });
     }
     var seen = {}; body.forEach(function (i) { var k = normT(strips[i].t).split(' ').slice(0, 3).join(' '); if (k.length > 3 && seen[k] != null) out.push({ i: i, msg: (seen[k] + 1) + '. ve ' + (i + 1) + '. asetatın başlığı neredeyse aynı; tekrar ediyor olabilir.', fix: 'del', btn: (i + 1) + '. asetatı sil' }); else seen[k] = i; });
@@ -7660,9 +7663,22 @@ var SBX = (function () {
     var run = 0; body.forEach(function (i, j) { if (strips[i].k === 'list') run = j > 0 && body[j - 1] === i - 1 && strips[i - 1].k === 'list' ? run + 1 : 1; else run = 0; if (run === 3) { var fx = [i - 1, i - 2, i].filter(function (k) { var c = JSON.parse(JSON.stringify(strips[k])); smartKind(c); return c.k !== 'list'; })[0]; out.push(fx != null ? { i: i, j: fx, msg: (i - 1) + '–' + (i + 1) + '. asetatların hepsi madde listesi; ' + (fx + 1) + '. asetat başka bir düzene daha iyi uyuyor.', fix: 'kind', btn: 'düzeni değiştir' } : { i: i, msg: (i - 1) + '–' + (i + 1) + '. asetatların hepsi madde listesi; birinin türünü grafik, tablo ya da alıntı yapmak akışı canlandırır.' }); } });
     return out;
   };
+  /* BOŞ ŞERİDİ YAZDIR. Araştırmalı destede şerit AYNI KAYNAKLARDAN yazılır:
+     canlı destede (Apollo 11, 14.11.2026) "giriş ekle" şeridini kaynaksız
+     zenginleştirme yazdı ve "12.000 metre yürüdü", "0,24 kg örnek" uydurdu
+     (doğrusu ~1 km, 21,5 kg); o maddeler uyarı işareti de almadı. Kaynaklı
+     yazım düşerse kaynaksız yazıma DÖNÜLMEZ — şerit boş kalır, basılmaz. */
+  var kaynakli = function () { return plotMeta.via === 'research' && arr(plotMeta.sources).some(function (x) { return x && x.ctx; }); };
+  var doldur = function (ns, ctx) {
+    var topic = plotMeta.title || deck.title || '', temiz = function (l) { return l.map(cleanB).map(stripMd).filter(function (x) { return x.length > 2; }).slice(0, 4); };
+    if (kaynakli()) return fn('sunum-research', { action: 'fill', language: curLang(), topic: topic, slideTitle: ns.t, context: ctx || '', sources: plotMeta.sources.filter(function (x) { return x && x.ctx; }).map(function (x) { return { id: x.id, title: x.title, text: x.ctx }; }) }, 40000).then(function (d) {
+      ns.b = temiz(arr(d && d.bullets).map(String)); if (ns.b.length) { ns.src = arr(d.src); if (d.notes) ns.notes = String(d.notes); }
+    });
+    return fn('generate-slide-content', { action: 'enrich', language: curLang(), topic: topic, slideTitle: ns.t, currentText: ctx || '' }, 40000).then(function (d) { var c = d && (d.content || d.text); ns.b = temiz(String(c || '').split('\n')); });
+  };
   var flowFix = function (it) {
-    var en = curLang() === 'en', s = strips[it.i], topic = plotMeta.title || deck.title || '';
-    var ask = function (ns) { return fn('generate-slide-content', { action: 'enrich', language: curLang(), topic: topic, slideTitle: ns.t, currentText: ns.ctx || '' }, 40000).then(function (d) { var c = d && (d.content || d.text); ns.b = String(c || '').split('\n').map(cleanB).map(stripMd).filter(function (x) { return x.length > 2; }).slice(0, 4); delete ns.ctx; }, function () { delete ns.ctx; }); };
+    var en = curLang() === 'en', s = strips[it.i];
+    var ask = function (ns) { var c = ns.ctx; delete ns.ctx; return doldur(ns, c).then(null, function (e) { console.warn('acadex-sunum: şerit yazılamadı', e); }); };
     if (it.fix === 'del') { strips.splice(it.i, 1); paintStrips(); return; }
     if (it.fix === 'split') { var h = Math.ceil(s.b.length / 2), s2 = { t: s.t + (en ? ' (cont.)' : ' (devam)'), k: 'list', b: s.b.slice(h), notes: '', src: s.src }; s.b = s.b.slice(0, h); s.warnI = []; strips.splice(it.i + 1, 0, s2); paintStrips(); return; }
     if (it.fix === 'kind') { var m = strips[it.j]; smartKind(m); paintStrips(); say((it.j + 1) + '. asetat “' + LAY[m.k].l + '” düzenine geçti; beğenmezsen türünden değiştir.'); return; }
@@ -7811,15 +7827,18 @@ var SBX = (function () {
     strips.forEach(function (x) { if (x.k === 'stat' && statsOf(x.b, { data: x.data }).length < 3) x.k = 'list'; });   /* 3 sayı yoksa "—" kutuları basılmaz */
     var bos = strips.filter(bosSerit);
     if (!bos.length || plotMeta.via === 'skeleton') return Promise.resolve(0);
-    var topic = plotMeta.title || deck.title || '';
     var ctx = strips.filter(function (x) { return !/^(cover|end|refs)$/.test(x.k) && arr(x.b).length; }).map(function (x) { return x.t + ': ' + x.b.slice(0, 2).join('; '); }).join('\n').slice(0, 1400);
     return Promise.all(bos.slice(0, 6).map(function (ns) {
-      return fn('generate-slide-content', { action: 'enrich', language: curLang(), topic: topic, slideTitle: ns.t, currentText: ctx }, 40000).then(function (d) {
-        var c = d && (d.content || d.text);
-        ns.b = String(c || '').split('\n').map(cleanB).map(stripMd).filter(function (x) { return x.length > 2; }).slice(0, 4);
+      return doldur(ns, ctx).then(function () {
         if (ns.b.length && ns.k !== 'two') { ns.k = 'list'; smartKind(ns); }
       }, function (e) { console.warn('acadex-sunum: boş şerit yazılamadı', e); });
-    })).then(function () { return strips.filter(bosSerit).length; });
+    })).then(function () {
+      /* Kaynaklı destede yazılamayan şerit basılmaz: yer tutucuyla asetat
+         olacağına hiç olmaz. Sayısı özet cümlesinde söylenir. */
+      var kalan = strips.filter(bosSerit).length;
+      if (kalan && kaynakli()) for (var i = strips.length - 1; i >= 0; i--) if (bosSerit(strips[i])) strips.splice(i, 1);
+      return kalan;
+    });
   };
   var basiliyor = false;
   var bas = function (mode) {
@@ -7913,7 +7932,7 @@ var SBX = (function () {
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
     if (!calm) { glass.classList.remove('printing'); void glass.offsetWidth; glass.classList.add('printing'); } flipGlass();
     var wantPh = Q('[data-pl-photo]', plot); if (wantPh && wantPh.checked) illustrate(made, plotMeta.title || deck.title);
-    say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (bosCerceve ? ' ' + bosCerceve + ' asetatın tablo/diyagram verisi gelmediği için madde düzenine alındı.' : '') + (kalanBos ? ' ' + kalanBos + ' asetatı Acadia yazamadı; soluk yerleri sen doldur ya da asetatı seçip “zenginleştir” de.' : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
+    say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (bosCerceve ? ' ' + bosCerceve + ' asetatın tablo/diyagram verisi gelmediği için madde düzenine alındı.' : '') + (kalanBos ? (kaynakli() ? ' ' + kalanBos + ' boş şerit kaynaklardan yazılamadığı için basılmadı.' : ' ' + kalanBos + ' asetatı Acadia yazamadı; soluk yerleri sen doldur ya da asetatı seçip “zenginleştir” de.') : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
   };
   Q('[data-pl-ok]', plot).addEventListener('click', function () { if (deck.slides.length) { step(3); plot.querySelector('input[name=pl-mode]:checked').focus(); } else bas('replace'); });
   Q('[data-pl-print]', plot).addEventListener('click', function () { bas(plot.querySelector('input[name=pl-mode]:checked').value); });

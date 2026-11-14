@@ -100,6 +100,7 @@ async function pexelsSearch(q: string, per: number, lang: string): Promise<Photo
 }
 // Wikimedia Commons: anahtarsız, tamamı özgür lisanslı. Stok fotoğraf kadar
 // "şık" değildir ama somut konularda (tarihî makine, bina, belge) gerçeğini verir.
+const NOT_PHOTO = /chart|diagram|graph|\bmap\b|logo|icon|flag|insignia|emblem|patch|schema|schematic|timeline|table|plot|infographic|screenshot|poster|cover|stamp|signature|coat of arms/i;
 async function commonsSearch(q: string, per: number): Promise<Photo[]> {
   const r = await tfetch(`https://commons.wikimedia.org/w/api.php?format=json&origin=*&action=query&generator=search&gsrnamespace=6&gsrlimit=${per}&gsrsearch=${encodeURIComponent(q + " filetype:bitmap")}&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=1200`, { headers: UA }, 7000);
   if (!r || !r.ok) return [];
@@ -108,7 +109,10 @@ async function commonsSearch(q: string, per: number): Promise<Photo[]> {
   pages.sort((a, b) => (a.index || 0) - (b.index || 0));
   const out: Photo[] = [];
   for (const pg of pages) {
-    const ii = pg?.imageinfo?.[0]; if (!ii || !/^image\/(jpeg|png)$/.test(String(ii.mime || ""))) continue;
+    // Yalnız fotoğraf: canlı destede giriş asetatına "Astronaut Assignments
+    // Chart.png" geldi (14.11.2026). PNG'ler çoğunlukla çizelge, harita, şema.
+    const ii = pg?.imageinfo?.[0]; if (!ii || String(ii.mime || "") !== "image/jpeg") continue;
+    if (NOT_PHOTO.test(String(pg.title || ""))) continue;
     if ((ii.width || 0) < 700 || (ii.height || 0) < 400) continue;          // küçük görsel perdede bulanır
     if ((ii.height || 1) / (ii.width || 1) > 1.6) continue;                  // çok dikey görsel asetata oturmaz
     const meta = ii.extmetadata || {};
@@ -243,6 +247,16 @@ const apa = (s: Src, lang: string, accessed: string) => {
     : `${site}. (${y}). ${s.title}. Erişim tarihi: ${accessed}. ${s.url}`;
 };
 
+/* Canlı deste (14.11.2026): notlar "Kaynak1 ve 3'e göre", "(Kaynak1,5)"
+   diye yazılmıştı — bunlar yüksek sesle okunan cümleler, dinleyici için
+   anlamsız. Model kurala uymazsa burada temizlenir. */
+const cleanNote = (t: string) => String(t || "")
+  .replace(/according to\s+sources?\s*\d+(?:\s*(?:,|and|&)\s*\d+)*\s*,?\s*/gi, "")
+  .replace(/\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "")
+  .replace(/(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*['’]?\s*(?:[a-zçğıöşü]{1,4}\s+göre|according to)?\s*,?/gi, "")
+  .replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, "")
+  .replace(/\s+([.,;:!?])/g, "$1").replace(/([.!?])\s*,/g, "$1").replace(/\s{2,}/g, " ").trim()
+  .replace(/(^|[.!?]\s+)([a-zçğıöşü])/g, (_m, a, b) => a + b.toLocaleUpperCase("tr"));
 async function groq(key: string, model: string, sys: string, user: string, maxTok: number) {
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -315,6 +329,33 @@ The deck topic is given for context. Return ONLY JSON: {"r":[{"i":0,"q":"","enti
       items.forEach((x: any) => { if (!x.q && !x.entity) x.q = (x.title + " " + topicI).slice(0, 80); });
       const res = await resolveImages(items.map((x: any) => ({ i: x.i, q: x.q, entity: x.entity })), lang);
       return J({ photos: res.photos, rate: res.rate });
+    }
+
+    /* ---------------- boş şeridi KAYNAKLA yaz ----------------
+       Canlı deste (14.11.2026, Apollo 11): "giriş ekle" şeridini kaynaksız
+       generate-slide-content yazdı ve "12.000 metre yürüdü", "0,24 kg örnek"
+       uydurdu (doğrusu ~1 km ve 21,5 kg). Araştırmalı destede eklenen şerit de
+       aynı kaynaklardan yazılır; kaynakta geçmeyen sayı taşıyan madde atılır. */
+    if (action === "fill") {
+      const gk = Deno.env.get("GROQ_API_KEY");
+      const fs = (Array.isArray(body?.sources) ? body.sources : []).slice(0, 10).map((x: any) => ({ id: Number(x?.id) || 0, title: String(x?.title || "").slice(0, 160), text: String(x?.text || "").slice(0, 1400) })).filter((x: any) => x.id && x.text.length > 80);
+      const st = String(body?.slideTitle || "").slice(0, 160).trim();
+      if (!gk || !fs.length || !st) return J({ error: "kaynak yok", code: "no_sources" }, 422);
+      const LF = lang === "en" ? "English" : "Turkish (Türkçe)";
+      const sysF = `You write ONE presentation slide in ${LF}, using ONLY the numbered SOURCES given.
+Every fact, number, date and name must come from the sources; if the sources lack something, leave it out. Never invent numbers. Translate faithfully, keep proper names and numbers unchanged, and label each number exactly as the source does.
+Write 3-4 concise bullets (max ~14 words each) that fit the slide title. Do not repeat facts already listed under OTHER SLIDES.
+"notes" = what the presenter says: 3-4 natural spoken sentences, 45-80 words, with no source numbers or labels in them.
+Return ONLY JSON: {"bullets":[""],"notes":"","src":[1]}`;
+      const userF = `DECK TOPIC: ${String(body?.topic || "").slice(0, 200)}\nSLIDE TITLE: ${st}\nOTHER SLIDES:\n${String(body?.context || "").slice(0, 1400)}\n\nSOURCES:\n` + fs.map((x: any) => `[${x.id}] ${x.title}\n${x.text}`).join("\n\n");
+      let gf = await groq(gk, "openai/gpt-oss-120b", sysF, userF, 1500);
+      if (!gf.ok) gf = await groq(gk, "openai/gpt-oss-20b", sysF, userF, 1500);
+      let of: any = null; try { of = JSON.parse(gf.data?.choices?.[0]?.message?.content || ""); } catch { of = null; }
+      if (!gf.ok || !of || !Array.isArray(of.bullets)) return J({ error: "Acadia şeridi yazamadı" }, 502);
+      const idxF = buildNumIndex(fs.map((x: any) => x.text).join(" "));
+      const bulletsF = of.bullets.map((x: any) => String(x || "").trim()).filter((b: string) => b.length > 2 && (!numTokens(b).length || verified(b, idxF))).slice(0, 4);
+      const noteF = cleanNote(of.notes).split(/(?<=[.!?])\s+/).filter((t) => !numTokens(t).length || verified(t, idxF)).join(" ");
+      return J({ bullets: bulletsF, notes: noteF, src: (Array.isArray(of.src) ? of.src : []).map(Number).filter((n: number) => fs.some((x: any) => x.id === n)) });
     }
 
     // ---------------- prova yorumu: söylenenler + notlar → asetat başına geri bildirim ----------------
@@ -415,6 +456,9 @@ Rules:
 - Sources may be in another language; translate faithfully into ${L}, keep proper names and numbers unchanged.
 - Write ${n - 2} content slides (cover and closing are added separately). Tone: ${tone}.
 - ${story} Slide titles should make this arc visible. Every title is a specific claim or topic (never generic like "Giriş", "Introduction", "Genel Bakış"), unique, max 9 words.
+- COVERAGE: before writing, plan the deck so that it tells the whole story, as far as the sources allow: (1) what it is and the context/background, (2) the key people, organisations or actors by name, (3) how it happened or how it works — the chronology or mechanism, (4) the key numbers, (5) the results, impact or legacy. A deck that is only a list of numbers is a failure: at most 2 slides may be "stat" or "chart". Draw on at least 3 different sources when that many are given.
+- Every "list" slide has 3-4 bullets; never write a slide with a single bullet. Use "stat" only when you have exactly 3 numbers; a lone number belongs inside a bullet of another slide.
+- For "quote", "time" and "two" slides the content goes in "bullets" (quote: bullets[0] is the sentence).
 - The FIRST content slide hooks the audience: why this topic matters, with one concrete fact from the sources. The LAST content slide is the conclusion: kind "list" with exactly 3 takeaway bullets. Every slide must have real content — never leave bullets empty.
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
@@ -455,16 +499,6 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       return pick.length ? buildNumIndex(pick.map((s) => s.text + " " + s.snippet).join(" ")) : allIdx;
     };
     let checked = 0, unverified = 0;
-    /* Canlı deste (14.11.2026): notlar "Kaynak1 ve 3'e göre", "(Kaynak1,5)"
-       diye yazılmıştı — bunlar yüksek sesle okunan cümleler, dinleyici için
-       anlamsız. Model kurala uymazsa burada temizlenir. */
-    const cleanNote = (t: string) => String(t || "")
-      .replace(/according to\s+sources?\s*\d+(?:\s*(?:,|and|&)\s*\d+)*\s*,?\s*/gi, "")
-      .replace(/\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "")
-      .replace(/(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*['’]?\s*(?:[a-zçğıöşü]{1,4}\s+göre|according to)?\s*,?/gi, "")
-      .replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, "")
-      .replace(/\s+([.,;:!?])/g, "$1").replace(/([.!?])\s*,/g, "$1").replace(/\s{2,}/g, " ").trim()
-      .replace(/(^|[.!?]\s+)([a-zçğıöşü])/g, (_m, a, b) => a + b.toLocaleUpperCase("tr"));
     /* Aynı destede bir özet cümlesi tırnak içinde Margaret Hamilton'a
        atfedilmişti. Söz kaynak metninde harfi harfine geçmiyorsa kişiye
        atfedilmez: tırnak ve ad düşer, cümle düz ifade olarak kalır. */
@@ -481,6 +515,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       const idx = idxOf(ids);
       const kind = KINDS.includes(s.kind) ? s.kind : "list";
       const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, 6);
+      if (kind === "quote" && !bullets.length) { const qt = String(s.quote || s.text || "").trim(); if (qt) bullets.push(qt); }
       if (kind === "quote" && bullets.length) bullets[0] = safeQuote(bullets[0]);
       const warn: number[] = [];
       bullets.forEach((b: string, i: number) => { if (numTokens(b).length) { checked++; if (!verified(b, idx) && !verified(b, allIdx)) { warn.push(i); unverified++; } } });
@@ -507,7 +542,23 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
 
     // İçeriği olmayan asetat (madde, sayı, grafik, tablo — hiçbiri yok) kurguya
     // girmez: istemci onu "ana fikri yaz…" yer tutucusuyla basıyordu.
-    for (let i = slides.length - 1; i >= 0; i--) { const x: any = slides[i]; if (!x.title || (!x.bullets.length && !x.stats.length && !x.chart && !x.table)) slides.splice(i, 1); }
+    /* Düşen asetatın öncesindeki not son cümlesinde ona köprü kurar ("şimdi
+       Armstrong'ın ünlü sözüne bakalım" — o asetat destede yoktu, 14.11.2026);
+       asetat düşünce o cümle de düşer. */
+    const sentences = (t: string) => String(t || "").split(/(?<=[.!?])\s+/).filter(Boolean);
+    const dropAt = (i: number) => { slides.splice(i, 1); const p: any = slides[i - 1]; if (p) { const ns = sentences(p.notes); if (ns.length >= 3) p.notes = ns.slice(0, -1).join(" "); } };
+    for (let i = slides.length - 1; i >= 0; i--) { const x: any = slides[i]; if (!x.title || (!x.bullets.length && !x.stats.length && !x.chart && !x.table)) dropAt(i); }
+    /* Tek maddelik liste asetat değildir (aynı destede "650 milyon — izleyici"
+       tek başına bir asetattı: 3 sayısı olmayan "stat" listeye inince böyle
+       kalıyor). Madde komşu listeye taşınır, asetat düşer. */
+    const plain = (x: any) => x && x.kind === "list" && !x.chart && !x.table;
+    for (let i = slides.length - 2; i >= 0; i--) {
+      const x: any = slides[i]; if (!plain(x) || x.bullets.length !== 1) continue;
+      const t: any = [slides[i - 1], slides[i + 1]].find((y: any) => plain(y) && y.bullets.length < 4); if (!t) continue;
+      if (x.warn.length) { t.warn.push(t.bullets.length); }
+      t.bullets.push(x.bullets[0]); t.src = [...new Set([...t.src, ...x.src])];
+      dropAt(i);
+    }
     if (!slides.length) return J({ error: "Acadia yanıtı okunamadı" }, 502);
 
     // ---------- anlam doğrulaması: her iddia kaynağın ilgili paragrafıyla karşılaştırılır ----------
@@ -526,6 +577,15 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       s.bullets.forEach((b: string, bi: number) => { if (b.length > 12) claims.push({ k: `${si}.b${bi}`, si, bi, text: b, ctx: ctxFor(s.src, b) }); });
       s.stats.forEach((x: any, bi: number) => claims.push({ k: `${si}.s${bi}`, si, bi, text: `${x.value} — ${x.label}`, ctx: ctxFor(s.src, x.value + " " + x.label) }));
     });
+    /* Grafik değerleri ve notlardaki sayılı cümleler de denetlenir (14.11.2026):
+       sayı kaynakta geçtiği için geçerli sayılıyordu ama anlamı kaymıştı —
+       "21,5 saat" yüzeyde kalış süresiyken not "21,5 saat yürüdüler" diyordu,
+       grafik de 2,5 saatlik yürüyüşü "iniş hazırlığı" diye etiketlemişti. */
+    slides.forEach((s: any, si: number) => {
+      if (s.chart) s.chart.values.forEach((v: number, bi: number) => { const t = `${s.title} — ${s.chart.labels[bi] || ""}: ${v} ${s.chart.unit}`.trim(); claims.push({ k: `${si}.c${bi}`, si, bi, text: t, ctx: ctxFor(s.src, t) }); });
+      s._ns = sentences(s.notes);
+      s._ns.forEach((t: string, bi: number) => { if (numTokens(t).length) claims.push({ k: `${si}.n${bi}`, si, bi, text: t, ctx: ctxFor(s.src, t) }); });
+    });
     const meaning = { checked: 0, flagged: 0, fixed: 0 };
     if (claims.length && body?.meaningCheck !== false) {
       const LL = lang === "en" ? "English" : "Turkish (Türkçe)";
@@ -533,16 +593,23 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
 "ok" = the excerpts support the claim as worded; "mislabel" = the number/fact is in the source but the claim labels it wrongly (e.g. a measured value called a forecast, wrong year, wrong institution, wrong unit); "unsupported" = the excerpts do not support it or contradict it.
 For "mislabel" give "fix": the corrected claim in ${LL}, same length and style, keeping the number. For others "fix" is "". "why" = max 10 words in ${LL}.
 Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {"r":[{"k":"","v":"ok|mislabel|unsupported","fix":"","why":""}]}`;
-      const payload = claims.slice(0, 40).map((c) => ({ k: c.k, claim: c.text, source: c.ctx }));
+      const payload = claims.slice(0, 60).map((c) => ({ k: c.k, claim: c.text, source: c.ctx }));
       // ayrı model: aynı dakikada ana yazımla aynı token sınırına takılmasın
-      let gv = await groq(gKey, "openai/gpt-oss-20b", sysV, JSON.stringify(payload), 4000);
-      if (!gv.ok) { await new Promise((r) => setTimeout(r, 1500)); gv = await groq(gKey, "openai/gpt-oss-120b", sysV, JSON.stringify(payload), 4000); }
+      let gv = await groq(gKey, "openai/gpt-oss-20b", sysV, JSON.stringify(payload), 6000);
+      if (!gv.ok) { await new Promise((r) => setTimeout(r, 1500)); gv = await groq(gKey, "openai/gpt-oss-120b", sysV, JSON.stringify(payload), 6000); }
       let rv: any = null; try { rv = JSON.parse(gv.data?.choices?.[0]?.message?.content || ""); } catch { rv = null; }
       if (gv.ok && rv && Array.isArray(rv.r)) {
         meaning.checked = payload.length;
         for (const r of rv.r) {
           const c = claims.find((x) => x.k === r?.k); if (!c) continue;
           const s: any = slides[c.si]; const why = String(r?.why || "").slice(0, 90); const fix = String(r?.fix || "").trim();
+          const tur = c.k.split(".")[1][0];
+          if (tur === "n") {   // not cümlesi: düzeltilebiliyorsa düzelt, yoksa söyletme
+            if (r.v === "mislabel" && fix && numTokens(fix).every((t) => numTokens(c.text).includes(t))) { s._ns[c.bi] = fix; meaning.fixed++; }
+            else if (r.v === "unsupported" || r.v === "mislabel") { s._ns[c.bi] = ""; meaning.flagged++; }
+            continue;
+          }
+          if (tur === "c") { if (r.v === "unsupported" || r.v === "mislabel") { (s._cw = s._cw || {})[c.bi] = why || "kaynakla tam örtüşmüyor"; meaning.flagged++; } continue; }
           if (r.v === "mislabel" && fix && numTokens(fix).every((t) => numTokens(c.text).includes(t))) {
             meaning.fixed++;
             if (c.k.includes(".s")) { const parts = fix.split(/\s+[—–-]\s+/); if (parts.length > 1) s.stats[c.bi].label = parts.slice(1).join(" — "); }
@@ -557,10 +624,16 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
         slides.forEach((s: any) => { const weak = s.stats.filter((x: any) => x.weak); if (s.kind === "stat" && weak.length) { s.kind = "list"; s.stats.forEach((x: any) => { const i = s.bullets.length; s.bullets.push(`${x.value} — ${x.label}`); if (x.weak) { s.warn.push(i); (s.why = s.why || {})[i] = x.weak; } }); s.stats = []; } });
       } else console.warn("meaning check", gv.status);
     }
+    slides.forEach((s: any) => {
+      if (s._ns) { const nt = s._ns.filter(Boolean).join(" "); if (nt) s.notes = nt; delete s._ns; }
+      // Etiketi kaynakla örtüşmeyen grafik çizilmez: değerler uyarılı maddeye iner.
+      if (s._cw && s.chart) { s.chart.values.forEach((v: number, i: number) => { const bi = s.bullets.length; s.bullets.push(`${s.chart.labels[i] || ""}: ${v} ${s.chart.unit}`.trim()); if (s._cw[i]) { s.warn.push(bi); (s.why = s.why || {})[bi] = s._cw[i]; } }); s.chart = null; s.kind = "list"; }
+      delete s._cw;
+    });
 
     const accessed = new Date().toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "numeric", month: "long", year: "numeric" });
     const used = new Set<number>(); slides.forEach((s: any) => s.src.forEach((x: number) => used.add(x)));
-    const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed) }));
+    const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed), ctx: s.snippet.slice(0, 1200) }));
     return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning }, engine });
   } catch (e) {
     console.error("sunum-research", e);

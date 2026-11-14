@@ -76,7 +76,7 @@ test('YAZAR: dolu not, gerçek giriş ve sonuç, asetat başına görsel ipucu',
   assert.match(sr, /"cover_image":\{"q":"","entity":""\}/, 'kapak görseli ipucu istenmiyor');
   assert.match(sr, /image: imgOf\(s\.image\)/, 'ipucu istemciye taşınmıyor');
   // İçeriksiz asetat kurguya girmez.
-  assert.match(sr, /if \(!x\.title \|\| \(!x\.bullets\.length && !x\.stats\.length && !x\.chart && !x\.table\)\) slides\.splice\(i, 1\)/,
+  assert.match(sr, /if \(!x\.title \|\| \(!x\.bullets\.length && !x\.stats\.length && !x\.chart && !x\.table\)\) dropAt\(i\)/,
     'içeriği olmayan asetat istemciye gidiyor ve yer tutucuyla basılıyor');
 });
 
@@ -114,7 +114,7 @@ test('BOŞ ŞERİT: basmadan önce yazılır, çift tık ikinci boş şerit ekle
     '3 sayısı olmayan "3 sayı" asetatı "—" kutularıyla basılıyor');
   assert.match(ink, /else bas\('replace'\); \}\);/, 'ilk basım doldurmadan geçiyor');
   assert.match(ink, /bas\(plot\.querySelector\('input\[name=pl-mode\]:checked'\)\.value\)/, 'ikinci adımdaki basım doldurmadan geçiyor');
-  assert.match(ink, /kalanBos \? ' ' \+ kalanBos \+ ' asetatı Acadia yazamadı/, 'boş kalan asetat söylenmiyor');
+  assert.match(ink, /' ' \+ kalanBos \+ ' asetatı Acadia yazamadı/, 'boş kalan asetat söylenmiyor');
   assert.match(ink, /if \(flowEl\.getAttribute\('aria-busy'\) === 'true'\) return;/, 'giriş/sonuç yazılırken ikinci tık engellenmiyor');
   // Küçük modele yedek: büyük model meşgulken şerit boş kalmasın.
   assert.match(gsc, /callGroq\('4-6', Deno\.env\.get\('GROQ_SLIDE_MODEL_FALLBACK'\) \|\| 'openai\/gpt-oss-20b'\)/, 'generate-slide-content tek modele bağlı');
@@ -146,9 +146,9 @@ test('UYDURMA ALINTI VE NOTTA KAYNAK ETİKETİ (14.11.2026, dördüncü canlı d
      diye yazılmıştı — yüksek sesle okunan metinde anlamsız; (3) Kaynakça notu
      kaynak listesini baştan okuyordu. Temizleyiciler gerçek kodla koşulur. */
   const ts = require('typescript');
-  const a = sr.indexOf('const cleanNote'), b = sr.indexOf('const slides = out.slides');
-  assert.ok(a > 0 && b > a, 'cleanNote / safeQuote bulunamadı');
-  const js = ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const a = sr.indexOf('const cleanNote'), a2 = sr.indexOf('async function groq'), b0 = sr.indexOf('const flat = (t: string)'), b = sr.indexOf('const slides = out.slides');
+  assert.ok(a > 0 && a2 > a && b0 > a2 && b > b0, 'cleanNote / safeQuote bulunamadı');
+  const js = ts.transpileModule(sr.slice(a, a2) + sr.slice(b0, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const srcs = [{ text: 'Hamilton said: There was no choice but to be pioneers.', snippet: '' }];
   const f = new Function('srcs', js + ';return { cleanNote, safeQuote };')(srcs);
   assert.equal(f.cleanNote('İlk programdan bahsediyoruz. Kaynak1 ve 3’e göre, Tom Kilburn yazdı.'),
@@ -165,6 +165,40 @@ test('UYDURMA ALINTI VE NOTTA KAYNAK ETİKETİ (14.11.2026, dördüncü canlı d
   assert.match(sr, /notes: cleanNote\(s\.notes\)/, 'not temizlenmeden dönüyor');
   assert.match(ink, /s\.k !== 'cover' && s\.k !== 'end' && s\.k !== 'refs'\) AI\.note\(sl, true\)/, 'kaynakça notu listeyi okuyor');
   assert.match(ink, /else if \(sl\.lay === 'refs'\) sl\.notes = ENn/, 'kaynakça notu yok');
+});
+
+test('KAYNAKSIZ DOLDURMA KAPALI, KAPSAM İSKELETİ, ANLAM DENETİMİ (14.11.2026, Apollo 11 destesi)', () => {
+  /* 89/100 alan destede: "giriş ekle" şeridi kaynaksız yazıldı ve "12.000 metre
+     yürüdü", "0,24 kg örnek" uydurdu (doğrusu ~1 km, 21,5 kg); deste yalnız sayı
+     sıraladı (mürettebat, kronoloji, bağlam yok); "21,5 saat yürüdüler" notu ve
+     yanlış etiketli grafik sayı kaynakta geçtiği için denetimden geçti; tek
+     maddelik asetat ve "Astronaut Assignments Chart.png" görseli basıldı. */
+  // 1) kaynaklı doldurma
+  assert.match(sr, /if \(action === "fill"\)/, 'fill eylemi yok');
+  assert.match(sr, /!numTokens\(b\)\.length \|\| verified\(b, idxF\)/, 'fill: kaynakta geçmeyen sayılı madde atılmıyor');
+  assert.match(sr, /apa: apa\(s, lang, accessed\), ctx: s\.snippet\.slice\(0, 1200\)/, 'kaynak paragrafı istemciye dönmüyor');
+  assert.match(ink, /if \(kaynakli\(\)\) return fn\('sunum-research', \{ action: 'fill'/, 'araştırmalı destede şerit kaynaksız yazılıyor');
+  assert.equal((ink.match(/action: 'enrich', language: curLang\(\), topic: topic, slideTitle: ns\.t/g) || []).length, 1,
+    'kaynaksız zenginleştirme tek yerde (doldur) kalmalı');
+  assert.match(ink, /if \(kalan && kaynakli\(\)\) for \(var i = strips\.length - 1; i >= 0; i--\) if \(bosSerit\(strips\[i\]\)\) strips\.splice\(i, 1\)/,
+    'kaynaklardan yazılamayan şerit yer tutucuyla basılıyor');
+  assert.match(ink, /if \(plotMeta\.via !== 'research' && !body\.slice\(0, 2\)\.some/, 'araştırmalı destede ikinci giriş öneriliyor');
+  // 2) kapsam
+  assert.ok(sr.includes('- COVERAGE: before writing, plan the deck'), 'yazara kapsam iskeleti verilmiyor');
+  assert.ok(sr.includes('never write a slide with a single bullet'), 'tek maddelik asetat yasağı yok');
+  // 3) anlam: grafik + not
+  assert.match(sr, /claims\.push\(\{ k: `\$\{si\}\.c\$\{bi\}`/, 'grafik değerleri anlam denetimine girmiyor');
+  assert.match(sr, /claims\.push\(\{ k: `\$\{si\}\.n\$\{bi\}`/, 'notlardaki sayılı cümleler denetlenmiyor');
+  assert.match(sr, /if \(s\._cw && s\.chart\)/, 'etiketi yanlış grafik yine çiziliyor');
+  // 4) ince asetat + fotoğraf olmayan görsel
+  assert.match(sr, /if \(!plain\(x\) \|\| x\.bullets\.length !== 1\) continue;/, 'tek maddelik asetat birleştirilmiyor');
+  assert.match(sr, /const dropAt = /, 'düşen asetata kurulan köprü cümlesi notta kalıyor');
+  const m = sr.match(/const NOT_PHOTO = (\/.+\/i);/);
+  assert.ok(m, 'NOT_PHOTO yok');
+  const re = eval(m[1]);
+  assert.ok(re.test('File:Astronaut Assignments Chart.png'), 'çizelge dosyası fotoğraf sayılıyor');
+  assert.ok(!re.test('File:Aldrin Apollo 11 original.jpg'), 'gerçek fotoğraf eleniyor');
+  assert.match(sr, /String\(ii\.mime \|\| ""\) !== "image\/jpeg"/, 'Commons aramasında PNG (çizelge/şema) kabul ediliyor');
 });
 
 summary();
