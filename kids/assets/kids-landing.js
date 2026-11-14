@@ -1,7 +1,7 @@
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası (kids/assets/kids-landing.js), 10.11.2026
    Çizimleri yerleştirir, konu listesini kurar, oynanabilir balon demosunu ve
-   kreş başvuru formunu (14.11.2026: sunucuya gider, kids_basvuru_yap) bağlar.
+   (14.11.2026: demo ve başvuru formu kaldırıldı; giriş #giris ekranından.)
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -29,26 +29,6 @@
     }
     var b = D.querySelector('[data-demo-basla]'); if (b) b.addEventListener('click', baslat);
 
-    /* kreş başvurusu (14.11.2026): kids_basvuru_yap. Sunucu IP başına günde 3 başvuru alır, açık rıza ister. */
-    var f = D.querySelector('[data-basvuru-form]');
-    if (f) f.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var v = function (n) { return (f.elements[n].value || '').trim(); }, not = f.querySelector('[data-form-not]'), b = f.querySelector('[type=submit]');
-      var hata = function (m) { not.textContent = m; not.classList.add('kb-hata'); };
-      not.classList.remove('kb-hata', 'kb-tamam');
-      if (v('kres_ad').length < 2) return hata('Kreşin adını yazın.');
-      if (v('yetkili_ad').length < 2) return hata('Yetkili adını yazın.');
-      if (!/^[0-9 +()-]{10,20}$/.test(v('tel'))) return hata('Telefon numarasını rakamlarla yazın (örn. 0532 123 45 67).');
-      if (v('eposta') && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('eposta'))) return hata('E-posta adresi geçerli görünmüyor.');
-      if (!f.elements.kvkk.checked) return hata('Devam etmek için onay kutusunu işaretleyin.');
-      b.disabled = true; b.textContent = 'Gönderiliyor…';
-      W.KIDS_BULUT.basvuru({ kres_ad: v('kres_ad'), il: v('il'), ilce: v('ilce'), yetkili_ad: v('yetkili_ad'), tel: v('tel'), eposta: v('eposta'), ogrenci_sayi: parseInt(v('ogrenci_sayi'), 10) || 0, kvkk: true }).then(function (r) {
-        b.disabled = false; b.textContent = 'Başvur';
-        if (!r || !r.tamam) return hata((r && r.mesaj) || 'Başvuru alınamadı. Lütfen yeniden deneyin.');
-        f.reset(); f.elements.il.value = 'Ankara';
-        not.textContent = 'Başvurunuz alındı, teşekkürler! En geç bir iş günü içinde sizi arayıp kreş yönetici şifrenizi ileteceğiz. 14 günlük deneme onayla başlar.'; not.classList.add('kb-tamam');
-      }, function (er) { b.disabled = false; b.textContent = 'Başvur'; hata(er.message || 'Başvuru alınamadı.'); });
-    });
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
 })(window);

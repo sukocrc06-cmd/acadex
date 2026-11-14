@@ -1,7 +1,7 @@
 /* ==========================================================================
    ACADEX KIDS · kreşin günü, kreş yöneticisi, başvuru (kids/assets/kids-kres.css), 14.11.2026
    Önekler: kr- (öğretmen: takvim, setler, veli kartı; çocuk haritasındaki bant),
-   km- (kreş yönetici paneli), kb- (tanıtım sayfasındaki başvuru formu).
+   km- (kreş yönetici paneli), kgi- (giriş ekranı, #giris).
    ========================================================================== */
 /* ---------- öğretmen paneli bölümü ---------- */
 .kr-bolum{margin-top:34px}
@@ -127,19 +127,17 @@ body.kr-acik{overflow:hidden}
 .km-siniflar-sec label{display:inline-flex;align-items:center;gap:6px;font-weight:700}.km-siniflar-sec input{width:22px;height:22px}
 .km-gizli-d{margin:4px 0;padding:14px;border:3px dashed var(--m);border-radius:16px;background:#FFF3C9;font:800 40px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-align:center;user-select:all}
 @media (max-width:640px){.km-lisans{grid-template-columns:1fr}.km-sinif{min-width:0;flex:1 1 140px}.km-tablo th:nth-child(4),.km-tablo td:nth-child(4){display:none}}
-/* ---------- tanıtım: başvuru formu ---------- */
-.kl-demo{position:relative}.kb-capa{position:absolute;top:-80px;left:0;width:1px;height:1px;overflow:hidden}
-.kb-adim{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0;padding:0;list-style:none}
-.kb-adim li{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 4px;border:2px solid var(--m);border-radius:999px;background:var(--beyaz);font-weight:800;font-size:15px}
-.kb-adim b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--sari)}
-.kb-ikili{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.kb-onay{display:flex!important;align-items:flex-start;gap:10px;font-weight:700!important;font-size:14px!important}.kb-onay>input{flex:none;width:22px;height:22px;min-height:0!important;margin-top:2px}
-.kb-aydinlatma summary{display:inline;font-weight:800;text-decoration:underline;cursor:pointer}.kb-aydinlatma p{margin:6px 0 0;font-weight:600}
-.kl-form-not.kb-hata{color:#C8473B;font-weight:800}.kl-form-not.kb-tamam{padding:10px 14px;border:3px solid var(--m);border-radius:14px;background:#DDF5E7;color:var(--m);font-weight:800}
-@media (max-width:640px){.kb-ikili{grid-template-columns:1fr}}
+/* ---------- giriş ekranı (#giris): rol seçimi ---------- */
+.kgi-kart{display:grid;gap:14px;width:min(720px,100%);padding:26px;border:3px solid var(--m);border-radius:28px;background:var(--krem);box-shadow:0 8px 0 var(--m)}
+.kgi-alt{margin:0;font:800 20px var(--bas)}
+.kgi-roller{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kgi-rol{display:grid;justify-items:center;align-content:start;gap:6px;padding:18px 12px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);box-shadow:var(--golge);color:var(--m);text-align:center;text-decoration:none;transition:transform .15s}
+.kgi-rol:hover{transform:translateY(-3px)}.kgi-rol:active{transform:translateY(3px);box-shadow:var(--golge-k)}
+.kgi-r{display:block;width:84px;height:84px;padding:6px;border:3px solid var(--m);border-radius:22px;background:var(--r,#FFF3C9)}.kgi-r .kc,.kgi-r svg{width:100%;height:100%}
+.kgi-cocuk{--r:#FFE7A8}.kgi-ogretmen{--r:#CDEBFF}.kgi-yonetici{--r:#E5DCFF}
+.kgi-rol b{font:800 22px/1.1 var(--bas)}.kgi-rol small{font-size:14px;font-weight:700;color:var(--soluk)}
+.kgi-not{display:flex;gap:10px;align-items:center;margin:0;padding:10px 14px;border-radius:16px;background:#E8F4FF;font-size:15px}.kgi-not .kc{flex:none;width:30px;height:30px}
+.kgi-iletisim{margin-top:10px;font-weight:800}
+@media (max-width:640px){.kgi-roller{grid-template-columns:1fr}.kgi-rol{grid-template-columns:64px 1fr;justify-items:start;text-align:left;column-gap:12px}.kgi-r{grid-row:1/3;width:64px;height:64px}.kgi-rol b{align-self:end}.kgi-kart{padding:18px}}
 /* tablo kaydırma kutusu konumlu: içindeki mutlak konumlu gizli etiket (.ka-gizli) sayfayı yatayda taşırmasın */
 .kt-tablo-sar{position:relative}
-/* başvuru formu .kl-form iki sütunlu ızgara: tam genişlik satırlar */
-.kl-form .kb-ikili,.kl-form .kb-onay,.kl-form .kl-form-not{grid-column:1/-1}
-.kl-form label:has(input[name=kres_ad]),.kl-form label:has(input[name=yetkili_ad]),.kl-form label:has(input[name=ogrenci_sayi]){grid-column:1/-1}
-.kb-ikili input{width:100%}

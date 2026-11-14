@@ -41,8 +41,8 @@
       '<label>Okul kodu<input name="kod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="13" value="' + esc(kodYaz || V.al('sonKod', '')) + '"></label>' +
       '<label>Yönetici şifresi<input name="sifre" type="password" autocomplete="current-password" maxlength="60"></label>' +
       '<p class="kt-uyari" role="alert">' + esc(hata || '') + '</p><button type="submit" class="kl-dugme">Giriş yap</button>' +
-      '<p class="kt-ornek">Yönetici şifresi, kreşiniz Acadex Kids\'e kaydolduğunda size iletilir. Henüz kayıtlı değil misiniz? <a href="#basvuru">14 gün ücretsiz deneyin</a>.</p>' +
-      '<p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · <a href="#ogretmen">Öğretmen girişi</a></p></form></section>';
+      '<p class="kt-ornek">Yönetici şifresini Acadex size iletir. Kreşiniz henüz kayıtlı değilse <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a> adresine yazın.</p>' +
+      '<p class="kt-donus"><a href="#giris">← Giriş seçenekleri</a> · <a href="#ogretmen">Öğretmen girişi</a></p></form></section>';
     var f = kok.querySelector('[data-f]');
     f.addEventListener('submit', function (e) {
       e.preventDefault();

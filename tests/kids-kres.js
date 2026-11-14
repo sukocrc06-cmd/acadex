@@ -6,7 +6,8 @@
        kelime seti (çocuk seti ayrı ada gibi oynar), "Bugün ne öğrendik?" veli kartı
      - kreş yöneticisi (#yonetim): sınıf, toplu öğrenci, öğretmen PIN'leri, kart basımı
      - evde devam: kartta QR (tarayıcıda üretilir, dış servise gitmez) → çocuğun resim adımı
-     - başvuru + 14 gün deneme; yönetim panelinde onay ve kreş yönetici şifresi
+     - yönetim panelinde kreş yönetici şifresi; tanıtım sayfasında tek giriş noktası (#giris, rol seçimi)
+       (başvuru formu 14.11.2026'da kaldırıldı; sunucudaki başvuru fonksiyonları yerinde ama sitede çağrılmıyor)
    Bu dosya şunları korur:
      - SQL: her yeni fonksiyon ya iç yardımcı (kimseye açık değil) ya da yetki listesinde;
        yazma işlemleri lisans/deneme bitince kapanır; şifre ve PIN yalnız bcrypt özeti
@@ -195,11 +196,15 @@ test('bağlantılar: yönlendirme, öğretmen paneli, başvuru formu, paket', ()
   assert.match(og, /h\[0\]\.getDate\(\) \+ 61/, 'iki aylık plan yüklenir (sunucu en çok 62 gün)');
   for (const f of ['kids-qr.js', 'kids-kart.js', 'kids-kres.js', 'kids-yonetici.js', 'kids-kres.css']) assert.ok(b.includes("'" + f + "'"), f + ' paketlenmiyor');
   assert.ok(b.indexOf("'kids-kres.js'") > b.indexOf("'kids-konusan.js'") && b.indexOf("'kids-kres.js'") < b.indexOf("'kids-app.js'"));
-  for (const s of ['KIDS_KRES', 'KIDS_YONETICI', 'KIDS_QR', 'KIDS_KART', 'data-basvuru-form', 'id="kids-yonetim"']) assert.ok(html.includes(s), 'index.html yeniden üretilmeli: ' + s);
-  assert.match(sayfa, /<section class="kl-bolum kl-demo" id="basvuru"><a id="demo"/, 'eski #demo bağlantıları çalışır');
-  assert.match(sayfa, /name="kvkk"/); assert.doesNotMatch(read('kids/assets/kids-landing.js'), /mailto:/);
+  for (const s of ['KIDS_KRES', 'KIDS_YONETICI', 'KIDS_QR', 'KIDS_KART', 'id="kids-yonetim"', 'id="kids-giris"']) assert.ok(html.includes(s), 'index.html yeniden üretilmeli: ' + s);
+  /* 14.11.2026 (2): demo ve başvuru formu kaldırıldı; tek giriş noktası #giris (rol seçimi). Eski #basvuru/#demo bağlantıları #giris'e gelir. */
+  assert.doesNotMatch(sayfa, /Demo isteyin|data-basvuru-form|id="basvuru"|href="#demo"|href="#basvuru"/);
+  assert.match(sayfa, /<a class="kl-dugme kl-dugme-k" href="#giris">Giriş yap<\/a>/);
+  assert.match(yon, /h === 'giris' \|\| h === 'basvuru' \|\| h === 'demo' \? 'giris'/);
+  for (const r of ['#oyna', '#ogretmen', '#yonetim']) assert.ok(yon.includes("['" + r + "'"), 'giriş ekranında ' + r);
+  assert.doesNotMatch(read('kids/assets/kids-landing.js'), /kids_basvuru_yap|KIDS_BULUT\.basvuru/);
   const bulut = read('kids/assets/kids-bulut.js');
-  for (const fn of ['kids_gun_koy', 'kids_hafta_koy', 'kids_set_kaydet', 'kids_set_sil', 'kids_yonetici_giris', 'kids_yonetici_veri', 'kids_basvuru_yap']) { assert.ok(bulut.includes("'" + fn + "'"), fn); assert.ok(read(SQL).includes('function public.' + fn + '('), fn + ' SQL'); }
+  for (const fn of ['kids_gun_koy', 'kids_hafta_koy', 'kids_set_kaydet', 'kids_set_sil', 'kids_yonetici_giris', 'kids_yonetici_veri']) { assert.ok(bulut.includes("'" + fn + "'"), fn); assert.ok(read(SQL).includes('function public.' + fn + '('), fn + ' SQL'); }
   const yonJs = read('kids/assets/kids-yonetici.js');
   for (const fn of [...yonJs.matchAll(/yaz\('(\w+)'/g)].map((m) => m[1]).concat(['sifre_degistir'])) assert.ok(read(SQL).includes('function public.kids_yon_' + fn + '('), 'kids_yon_' + fn + ' SQL');
 });

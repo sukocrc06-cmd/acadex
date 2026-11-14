@@ -102,7 +102,7 @@
       '<label>Okul kodu<input name="kod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" value="' + esc(V.al('sonKod', '')) + '"></label>' +
       '<label>Şifre<input name="sifre" type="password" autocomplete="current-password" maxlength="40"></label>' +
       '<p class="kt-uyari" role="alert">' + (hata || '') + '</p><button type="submit" class="kl-dugme">Giriş yap</button>' +
-      '<p class="kt-ornek">Okul şifresini ya da size özel PIN’inizi kreş yöneticinizden alın. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · <a href="#oyna">Çocuk girişi</a> · <a href="#yonetim">Kreş yönetimi</a></p></form></section>';
+      '<p class="kt-ornek">Okul şifresini ya da size özel PIN’inizi kreş yöneticinizden alın. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#giris">← Giriş seçenekleri</a> · <a href="#oyna">Çocuk girişi</a> · <a href="#yonetim">Kreş yönetimi</a></p></form></section>';
     var f = kok.querySelector('[data-f]');
     kok.querySelector('[data-doldur]').addEventListener('click', function () { f.elements.kod.value = V.OKUL.kod; f.elements.sifre.value = V.OKUL.ogretmenSifre; f.querySelector('[type=submit]').focus(); });
     f.addEventListener('submit', function (e) {

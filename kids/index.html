@@ -1927,7 +1927,7 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 /* ==========================================================================
    ACADEX KIDS · kreşin günü, kreş yöneticisi, başvuru (kids/assets/kids-kres.css), 14.11.2026
    Önekler: kr- (öğretmen: takvim, setler, veli kartı; çocuk haritasındaki bant),
-   km- (kreş yönetici paneli), kb- (tanıtım sayfasındaki başvuru formu).
+   km- (kreş yönetici paneli), kgi- (giriş ekranı, #giris).
    ========================================================================== */
 /* ---------- öğretmen paneli bölümü ---------- */
 .kr-bolum{margin-top:34px}
@@ -2053,22 +2053,20 @@ body.kr-acik{overflow:hidden}
 .km-siniflar-sec label{display:inline-flex;align-items:center;gap:6px;font-weight:700}.km-siniflar-sec input{width:22px;height:22px}
 .km-gizli-d{margin:4px 0;padding:14px;border:3px dashed var(--m);border-radius:16px;background:#FFF3C9;font:800 40px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-align:center;user-select:all}
 @media (max-width:640px){.km-lisans{grid-template-columns:1fr}.km-sinif{min-width:0;flex:1 1 140px}.km-tablo th:nth-child(4),.km-tablo td:nth-child(4){display:none}}
-/* ---------- tanıtım: başvuru formu ---------- */
-.kl-demo{position:relative}.kb-capa{position:absolute;top:-80px;left:0;width:1px;height:1px;overflow:hidden}
-.kb-adim{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0;padding:0;list-style:none}
-.kb-adim li{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 4px;border:2px solid var(--m);border-radius:999px;background:var(--beyaz);font-weight:800;font-size:15px}
-.kb-adim b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--sari)}
-.kb-ikili{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.kb-onay{display:flex!important;align-items:flex-start;gap:10px;font-weight:700!important;font-size:14px!important}.kb-onay>input{flex:none;width:22px;height:22px;min-height:0!important;margin-top:2px}
-.kb-aydinlatma summary{display:inline;font-weight:800;text-decoration:underline;cursor:pointer}.kb-aydinlatma p{margin:6px 0 0;font-weight:600}
-.kl-form-not.kb-hata{color:#C8473B;font-weight:800}.kl-form-not.kb-tamam{padding:10px 14px;border:3px solid var(--m);border-radius:14px;background:#DDF5E7;color:var(--m);font-weight:800}
-@media (max-width:640px){.kb-ikili{grid-template-columns:1fr}}
+/* ---------- giriş ekranı (#giris): rol seçimi ---------- */
+.kgi-kart{display:grid;gap:14px;width:min(720px,100%);padding:26px;border:3px solid var(--m);border-radius:28px;background:var(--krem);box-shadow:0 8px 0 var(--m)}
+.kgi-alt{margin:0;font:800 20px var(--bas)}
+.kgi-roller{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kgi-rol{display:grid;justify-items:center;align-content:start;gap:6px;padding:18px 12px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);box-shadow:var(--golge);color:var(--m);text-align:center;text-decoration:none;transition:transform .15s}
+.kgi-rol:hover{transform:translateY(-3px)}.kgi-rol:active{transform:translateY(3px);box-shadow:var(--golge-k)}
+.kgi-r{display:block;width:84px;height:84px;padding:6px;border:3px solid var(--m);border-radius:22px;background:var(--r,#FFF3C9)}.kgi-r .kc,.kgi-r svg{width:100%;height:100%}
+.kgi-cocuk{--r:#FFE7A8}.kgi-ogretmen{--r:#CDEBFF}.kgi-yonetici{--r:#E5DCFF}
+.kgi-rol b{font:800 22px/1.1 var(--bas)}.kgi-rol small{font-size:14px;font-weight:700;color:var(--soluk)}
+.kgi-not{display:flex;gap:10px;align-items:center;margin:0;padding:10px 14px;border-radius:16px;background:#E8F4FF;font-size:15px}.kgi-not .kc{flex:none;width:30px;height:30px}
+.kgi-iletisim{margin-top:10px;font-weight:800}
+@media (max-width:640px){.kgi-roller{grid-template-columns:1fr}.kgi-rol{grid-template-columns:64px 1fr;justify-items:start;text-align:left;column-gap:12px}.kgi-r{grid-row:1/3;width:64px;height:64px}.kgi-rol b{align-self:end}.kgi-kart{padding:18px}}
 /* tablo kaydırma kutusu konumlu: içindeki mutlak konumlu gizli etiket (.ka-gizli) sayfayı yatayda taşırmasın */
 .kt-tablo-sar{position:relative}
-/* başvuru formu .kl-form iki sütunlu ızgara: tam genişlik satırlar */
-.kl-form .kb-ikili,.kl-form .kb-onay,.kl-form .kl-form-not{grid-column:1/-1}
-.kl-form label:has(input[name=kres_ad]),.kl-form label:has(input[name=yetkili_ad]),.kl-form label:has(input[name=ogrenci_sayi]){grid-column:1/-1}
-.kb-ikili input{width:100%}
 
 </style>
 </head>
@@ -2078,9 +2076,7 @@ body.kr-acik{overflow:hidden}
 <header class="kl-ust">
   <a class="kl-marka" href="#" aria-label="Acadex Kids"><span data-acd="mutlu"></span><b>Acadex <i>Kids</i></b></a>
   <nav class="kl-nav" aria-label="Bölümler"><a href="#nasil">Nasıl çalışır</a><a href="#dene">Deneyin</a><a href="#icerik-konular">İçerik</a><a href="#fiyat">Fiyat</a><a href="#sss">Sorular</a></nav>
-  <a class="kl-giris" href="#ogretmen">Öğretmen girişi</a>
-  <a class="kl-giris kl-giris-c" href="#oyna">Çocuk girişi</a>
-  <a class="kl-dugme kl-dugme-k" href="#basvuru">Ücretsiz deneyin</a>
+  <a class="kl-dugme kl-dugme-k" href="#giris">Giriş yap</a>
 </header>
 
 <main id="icerik">
@@ -2090,7 +2086,7 @@ body.kr-acik{overflow:hidden}
     <p class="kl-etiket">Kreş · Anaokulu · İlkokul</p>
     <h1>Okulda öğrendi.<br><em>Evde oynayarak</em> pekiştiriyor.</h1>
     <p class="kl-giris-p">Acadex Kids, 3-10 yaş için oyunlarla İngilizce tekrar platformu. Öğretmen günün konusunu seçer; çocuk evde o konuyu izler, dinler, oynar ve söyler.</p>
-    <div class="kl-cta"><a class="kl-dugme" href="#basvuru">Kreşinizle 14 gün ücretsiz deneyin</a><a class="kl-dugme kl-dugme-b" href="#dene">Bir oyunu deneyin</a></div>
+    <div class="kl-cta"><a class="kl-dugme" href="#giris">Giriş yap</a><a class="kl-dugme kl-dugme-b" href="#dene">Bir oyunu deneyin</a></div>
     <ul class="kl-rozet"><li>Reklam yok</li><li>Okuma bilmeyen çocuk da kullanır</li><li>Günde 10 dakika yeter</li></ul>
   </div>
   <div class="kl-hero-sahne" aria-hidden="true">
@@ -2216,7 +2212,7 @@ body.kr-acik{overflow:hidden}
 <section class="kl-bolum kl-fiyat" id="fiyat" data-durak="yildiz">
   <h2>Tek platform, tek fiyat</h2>
   <div class="kl-fiyat-kart">
-    <div class="kl-fiyat-sol"><p class="kl-etiket">Yıllık okul lisansı</p><p class="kl-tutar"><b>34.900 TL</b><span>+ KDV / yıl</span></p><p>100 öğrenciye kadar kullanım hakkı.</p><a class="kl-dugme" href="#basvuru">14 gün ücretsiz deneyin</a></div>
+    <div class="kl-fiyat-sol"><p class="kl-etiket">Yıllık okul lisansı</p><p class="kl-tutar"><b>34.900 TL</b><span>+ KDV / yıl</span></p><p>100 öğrenciye kadar kullanım hakkı.</p><p class="kgi-iletisim">Lisans ve bilgi için: <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></p></div>
     <ul class="kl-fiyat-sag"><li>Paket yok: bütün konular ve üç yaş dünyası tek lisansta.</li><li>Kreş, anaokulu ve ilkokul için aynı platform.</li><li>Okulunuz bu hizmeti velilere ücretsiz sunabilir ya da kendi belirlediği fiyatla sunabilir.</li><li>Tek yıllık ödeme.</li></ul>
   </div>
 </section>
@@ -2233,30 +2229,16 @@ body.kr-acik{overflow:hidden}
     <details><summary>Velilerden ücret alabilir miyiz?</summary><p>Karar okulundur: hizmeti ücretsiz sunabilir ya da kendi belirlediğiniz fiyatla sunabilirsiniz.</p></details>
   </div>
 </section>
-
-<section class="kl-bolum kl-demo" id="basvuru"><a id="demo" class="kb-capa" aria-hidden="true" tabindex="-1"></a>
-  <div class="kl-demo-yazi"><span class="kl-demo-acd" data-acd="kutlama"></span><h2>Kreşinizle 14 gün ücretsiz deneyin</h2><p>Başvurunuzu bırakın; onaylayıp kreş yönetici şifrenizi iletelim. Sınıflarınızı açar, öğrencilerinizi ekler, hemen başlarsınız. Kredi kartı yok, otomatik ücret yok.</p>
-    <ul class="kb-adim"><li><b>1</b>Başvuru</li><li><b>2</b>Onay ve yönetici şifresi</li><li><b>3</b>Sınıflar, öğrenciler, kartlar</li></ul></div>
-  <form class="kl-form" data-basvuru-form novalidate>
-    <label>Kreşin adı<input name="kres_ad" autocomplete="organization" required maxlength="120"></label>
-    <div class="kb-ikili"><label>İl<input name="il" value="Ankara" maxlength="40"></label><label>İlçe<input name="ilce" maxlength="60"></label></div>
-    <label>Yetkili adı soyadı<input name="yetkili_ad" autocomplete="name" required maxlength="80"></label>
-    <div class="kb-ikili"><label>Telefon<input name="tel" type="tel" autocomplete="tel" inputmode="tel" required maxlength="20" placeholder="05xx xxx xx xx"></label><label>E-posta <small>(isteğe bağlı)</small><input name="eposta" type="email" autocomplete="email" maxlength="120"></label></div>
-    <label>Yaklaşık öğrenci sayısı<input name="ogrenci_sayi" inputmode="numeric" maxlength="4"></label>
-    <label class="kb-onay"><input type="checkbox" name="kvkk"> <span>Başvurumla ilgili benimle iletişime geçilmesi için bilgilerimin işlenmesini kabul ediyorum. <details class="kb-aydinlatma"><summary>Aydınlatma metni</summary><p>Veri sorumlusu Acadex'tir. Kreş adı, il/ilçe, yetkili adı, telefon ve e-posta yalnız başvurunuzu değerlendirmek, sizinle iletişime geçmek ve deneme hesabını açmak için işlenir; üçüncü kişilerle pazarlama amacıyla paylaşılmaz. Başvuru formunda çocuklara ait hiçbir bilgi alınmaz. KVKK'nın 11. maddesindeki haklarınız için destek@acadex.com.tr adresine yazabilirsiniz.</p></details></span></label>
-    <p class="kl-form-not" data-form-not aria-live="polite"></p>
-    <button type="submit" class="kl-dugme">Başvur</button>
-  </form>
-</section>
 </main>
 
-<footer class="kl-alt-bilgi"><p><b>Acadex Kids</b>, bir Acadex ürünüdür.</p><p><a href="#oyna">Çocuk girişi</a> · <a href="#ogretmen">Öğretmen girişi</a> · <a href="#yonetim">Kreş yönetimi</a></p><p>Örnek okul (ORNEK-2026) ve örnek öğrenciler tanıtım içindir, gerçek değildir.</p></footer>
+<footer class="kl-alt-bilgi"><p><b>Acadex Kids</b>, bir Acadex ürünüdür.</p><p><a href="#giris">Giriş yap</a> · <a href="#oyna">Çocuk</a> · <a href="#ogretmen">Öğretmen</a> · <a href="#yonetim">Kreş yönetimi</a></p><p>Örnek okul (ORNEK-2026) ve örnek öğrenciler tanıtım içindir, gerçek değildir.</p></footer>
 <div class="kl-ray" data-ray aria-hidden="true"><i></i><span></span></div>
 </div>
 
 <div id="kids-app" hidden></div>
 <div id="kids-ogretmen" hidden></div>
 <div id="kids-yonetim" hidden></div>
+<div id="kids-giris" hidden></div>
 <noscript><p style="padding:24px;font:600 18px sans-serif">Acadex Kids'in oyunları ve panelleri için tarayıcıda JavaScript açık olmalı.</p></noscript>
 <script>
 /* ---- kids-ciz.js ---- */
@@ -4696,7 +4678,7 @@ body.kr-acik{overflow:hidden}
      ilerlemeKoy(anahtar, veri) · cikis(anahtar) ·
      ogretmenGiris(kod, şifre) · ogretmenVeri(anahtar, baş, bit) · planKoy(...)
      14.11.2026: gunKoy · haftaKoy · setKaydet · setSil (kreşin günü) · yoneticiGiris · yoneticiVeri · yon (kreş
-     yöneticisi) · basvuru (kreş başvurusu) → supabase/migrations/20261114_kids_kres.sql
+     yöneticisi) → supabase/migrations/20261114_kids_kres.sql
    Fonksiyonlar: supabase/migrations/20261110b_kids_giris.sql (anon çağrılır,
    yetki ve deneme sınırı sunucuda). Burada yalnız herkese açık (publishable)
    anahtar var; gizli anahtar asla bu dosyaya girmez.
@@ -4766,8 +4748,6 @@ body.kr-acik{overflow:hidden}
     yoneticiGiris: function (kod, sifre) { return rpc('kids_yonetici_giris', { p_kod: kod, p_sifre: sifre }); },
     yoneticiVeri: function (t) { return rpc('kids_yonetici_veri', { p_token: t }); },
     yon: function (fn, t, args) { var a = { p_token: t }; for (var k in args || {}) a[k] = args[k]; return rpc('kids_yon_' + fn, a); },
-    /* 20261114: kreş başvurusu (anon; sınırda hata fırlatmaz, {tamam:false, mesaj} döner) */
-    basvuru: function (p) { return rpc('kids_basvuru_yap', { p: p }); },
     planKoy: function (t, sinif, gun, konu) { return rpc('kids_plan_koy', { p_token: t, p_sinif: sinif, p_gun: gun, p_konu: konu }); },
     /* 20261112d: paylaşımlı tablette açık kalan çocuk oturumlarını kapatır (yalnız o sınıf) */
     sinifOturumKapat: function (t, sinif) { return rpc('kids_sinif_oturum_kapat', { p_token: t, p_sinif: sinif }); },
@@ -7604,7 +7584,7 @@ body.kr-acik{overflow:hidden}
       '<label>Okul kodu<input name="kod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" value="' + esc(V.al('sonKod', '')) + '"></label>' +
       '<label>Şifre<input name="sifre" type="password" autocomplete="current-password" maxlength="40"></label>' +
       '<p class="kt-uyari" role="alert">' + (hata || '') + '</p><button type="submit" class="kl-dugme">Giriş yap</button>' +
-      '<p class="kt-ornek">Okul şifresini ya da size özel PIN’inizi kreş yöneticinizden alın. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · <a href="#oyna">Çocuk girişi</a> · <a href="#yonetim">Kreş yönetimi</a></p></form></section>';
+      '<p class="kt-ornek">Okul şifresini ya da size özel PIN’inizi kreş yöneticinizden alın. Denemek için örnek okul: <b>' + V.OKUL.kod + '</b>, şifre <b>' + V.OKUL.ogretmenSifre + '</b>. <button type="button" data-doldur>Doldur</button></p><p class="kt-donus"><a href="#giris">← Giriş seçenekleri</a> · <a href="#oyna">Çocuk girişi</a> · <a href="#yonetim">Kreş yönetimi</a></p></form></section>';
     var f = kok.querySelector('[data-f]');
     kok.querySelector('[data-doldur]').addEventListener('click', function () { f.elements.kod.value = V.OKUL.kod; f.elements.sifre.value = V.OKUL.ogretmenSifre; f.querySelector('[type=submit]').focus(); });
     f.addEventListener('submit', function (e) {
@@ -7819,8 +7799,8 @@ body.kr-acik{overflow:hidden}
       '<label>Okul kodu<input name="kod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="13" value="' + esc(kodYaz || V.al('sonKod', '')) + '"></label>' +
       '<label>Yönetici şifresi<input name="sifre" type="password" autocomplete="current-password" maxlength="60"></label>' +
       '<p class="kt-uyari" role="alert">' + esc(hata || '') + '</p><button type="submit" class="kl-dugme">Giriş yap</button>' +
-      '<p class="kt-ornek">Yönetici şifresi, kreşiniz Acadex Kids\'e kaydolduğunda size iletilir. Henüz kayıtlı değil misiniz? <a href="#basvuru">14 gün ücretsiz deneyin</a>.</p>' +
-      '<p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · <a href="#ogretmen">Öğretmen girişi</a></p></form></section>';
+      '<p class="kt-ornek">Yönetici şifresini Acadex size iletir. Kreşiniz henüz kayıtlı değilse <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a> adresine yazın.</p>' +
+      '<p class="kt-donus"><a href="#giris">← Giriş seçenekleri</a> · <a href="#ogretmen">Öğretmen girişi</a></p></form></section>';
     var f = kok.querySelector('[data-f]');
     f.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -8041,7 +8021,7 @@ body.kr-acik{overflow:hidden}
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası (kids/assets/kids-landing.js), 10.11.2026
    Çizimleri yerleştirir, konu listesini kurar, oynanabilir balon demosunu ve
-   kreş başvuru formunu (14.11.2026: sunucuya gider, kids_basvuru_yap) bağlar.
+   (14.11.2026: demo ve başvuru formu kaldırıldı; giriş #giris ekranından.)
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -8069,26 +8049,6 @@ body.kr-acik{overflow:hidden}
     }
     var b = D.querySelector('[data-demo-basla]'); if (b) b.addEventListener('click', baslat);
 
-    /* kreş başvurusu (14.11.2026): kids_basvuru_yap. Sunucu IP başına günde 3 başvuru alır, açık rıza ister. */
-    var f = D.querySelector('[data-basvuru-form]');
-    if (f) f.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var v = function (n) { return (f.elements[n].value || '').trim(); }, not = f.querySelector('[data-form-not]'), b = f.querySelector('[type=submit]');
-      var hata = function (m) { not.textContent = m; not.classList.add('kb-hata'); };
-      not.classList.remove('kb-hata', 'kb-tamam');
-      if (v('kres_ad').length < 2) return hata('Kreşin adını yazın.');
-      if (v('yetkili_ad').length < 2) return hata('Yetkili adını yazın.');
-      if (!/^[0-9 +()-]{10,20}$/.test(v('tel'))) return hata('Telefon numarasını rakamlarla yazın (örn. 0532 123 45 67).');
-      if (v('eposta') && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('eposta'))) return hata('E-posta adresi geçerli görünmüyor.');
-      if (!f.elements.kvkk.checked) return hata('Devam etmek için onay kutusunu işaretleyin.');
-      b.disabled = true; b.textContent = 'Gönderiliyor…';
-      W.KIDS_BULUT.basvuru({ kres_ad: v('kres_ad'), il: v('il'), ilce: v('ilce'), yetkili_ad: v('yetkili_ad'), tel: v('tel'), eposta: v('eposta'), ogrenci_sayi: parseInt(v('ogrenci_sayi'), 10) || 0, kvkk: true }).then(function (r) {
-        b.disabled = false; b.textContent = 'Başvur';
-        if (!r || !r.tamam) return hata((r && r.mesaj) || 'Başvuru alınamadı. Lütfen yeniden deneyin.');
-        f.reset(); f.elements.il.value = 'Ankara';
-        not.textContent = 'Başvurunuz alındı, teşekkürler! En geç bir iş günü içinde sizi arayıp kreş yönetici şifrenizi ileteceğiz. 14 günlük deneme onayla başlar.'; not.classList.add('kb-tamam');
-      }, function (er) { b.disabled = false; b.textContent = 'Başvur'; hata(er.message || 'Başvuru alınamadı.'); });
-    });
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
 })(window);
@@ -8336,12 +8296,26 @@ body.kr-acik{overflow:hidden}
    ACADEX KIDS · tek sayfa yönlendirme (kids/assets/kids-yon.js), 10.11.2026
    Tek index.html içinde üç görünüm: tanıtım (varsayılan), #oyna (çocuk),
    #ogretmen (öğretmen paneli). Tanıtım içi bağlantılar (#nasil, #fiyat…) kaydırır.
-   14.11.2026: #ev=KOD~öğrenci (evde devam kartı QR'ı) → oyna; #yonetim → kreş yönetici paneli.
+   14.11.2026: #ev=KOD~öğrenci (evde devam kartı QR'ı) → oyna; #yonetim → kreş yönetici paneli;
+   #giris → rol seçmeli giriş (Çocuk / Öğretmen / Kreş yöneticisi). Eski #basvuru ve #demo bağlantıları da buraya gelir.
    ========================================================================== */
 (function (W) {
   'use strict';
   var D = W.document, simdi = null;
-  function gorunum() { var h = (location.hash || '').replace(/^#\/?/, ''); return h === 'oyna' || /^ev=/.test(h) ? 'oyna' : h === 'ogretmen' ? 'ogretmen' : h === 'yonetim' ? 'yonetim' : 'tanitim'; }
+  function gorunum() { var h = (location.hash || '').replace(/^#\/?/, ''); return h === 'oyna' || /^ev=/.test(h) ? 'oyna' : h === 'ogretmen' ? 'ogretmen' : h === 'yonetim' ? 'yonetim' : h === 'giris' || h === 'basvuru' || h === 'demo' ? 'giris' : 'tanitim'; }
+  /* giriş ekranı: kim giriyor? Çocuk (okul kodu + gizli resimler), öğretmen (okul kodu + PIN/şifre),
+     kreş yöneticisi (okul kodu + yönetici şifresi). Kartın QR'ı ise doğrudan çocuğun resim adımını açar. */
+  function girisCiz(k) {
+    var C = W.KIDS_CIZ, s = function (f, a) { try { return C[f](a); } catch (e) { return ''; } };
+    var rol = [['#oyna', s('avatar', 'kedi'), 'Çocuk', 'Okul kodu ve iki gizli resimle oyna', 'kgi-cocuk'],
+      ['#ogretmen', s('simge', 'book'), 'Öğretmen', 'Okul kodu ve size özel PIN ya da okul şifresi', 'kgi-ogretmen'],
+      ['#yonetim', s('simge', 'ev'), 'Kreş yöneticisi', 'Sınıflar, öğrenciler, öğretmenler ve kartlar', 'kgi-yonetici']];
+    k.innerHTML = '<section class="kt-giris kgi"><div class="kgi-kart"><div class="kt-giris-bas"><span>' + s('acadia', { mood: 'mutlu' }) + '</span><div><small>Acadex Kids</small><h1>Giriş yap</h1></div></div>' +
+      '<p class="kgi-alt">Kim giriyor?</p><div class="kgi-roller">' + rol.map(function (r, i) { return '<a class="kgi-rol ' + r[4] + '" href="' + r[0] + '"' + (i === 0 ? ' data-odak' : '') + '><span class="kgi-r">' + r[1] + '</span><b>' + r[2] + '</b><small>' + r[3] + '</small></a>'; }).join('') + '</div>' +
+      '<p class="kgi-not">' + s('simge', 'yildiz') + '<span>Çocuğunuzun kartında QR var mı? Telefonun kamerasıyla okutun; doğrudan çocuğunuzun gizli resim ekranı açılır.</span></p>' +
+      '<p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · Kreşiniz kayıtlı değil mi? <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></p></div></section>';
+    var o = k.querySelector('[data-odak]'); if (o) try { o.focus({ preventScroll: true }); } catch (e) { }
+  }
   function goster() {
     var g = gorunum(); if (g === simdi) return;
     if (simdi === 'oyna' && W.KIDS_APP) W.KIDS_APP.kapat();
@@ -8353,8 +8327,9 @@ body.kr-acik{overflow:hidden}
     D.getElementById('kids-app').hidden = g !== 'oyna';
     D.getElementById('kids-ogretmen').hidden = g !== 'ogretmen';
     var yk = D.getElementById('kids-yonetim'); if (yk) yk.hidden = g !== 'yonetim';
-    D.body.className = g === 'tanitim' ? 'kl' : g === 'ogretmen' || g === 'yonetim' ? 'kl kt' : 'ka-govde';
-    D.title = g === 'oyna' ? 'Acadex Kids · Oyna' : g === 'ogretmen' ? 'Acadex Kids · Öğretmen paneli' : g === 'yonetim' ? 'Acadex Kids · Kreş yönetimi' : 'Acadex Kids · Kreş, anaokulu ve ilkokul için oyunlarla İngilizce';
+    var gk = D.getElementById('kids-giris'); if (gk) { gk.hidden = g !== 'giris'; if (g === 'giris') girisCiz(gk); else gk.innerHTML = ''; }
+    D.body.className = g === 'tanitim' ? 'kl' : g === 'ogretmen' || g === 'yonetim' || g === 'giris' ? 'kl kt' : 'ka-govde';
+    D.title = g === 'oyna' ? 'Acadex Kids · Oyna' : g === 'ogretmen' ? 'Acadex Kids · Öğretmen paneli' : g === 'yonetim' ? 'Acadex Kids · Kreş yönetimi' : g === 'giris' ? 'Acadex Kids · Giriş' : 'Acadex Kids · Kreş, anaokulu ve ilkokul için oyunlarla İngilizce';
     if (g === 'oyna') W.KIDS_APP.ac(); else if (g === 'ogretmen') W.KIDS_OGRETMEN.ac(); else if (g === 'yonetim' && W.KIDS_YONETICI) W.KIDS_YONETICI.ac();
     if (g !== 'tanitim') W.scrollTo(0, 0);
     else { var hedef = (location.hash || '').replace(/^#/, ''), el = hedef && D.getElementById(hedef); if (el) setTimeout(function () { el.scrollIntoView(); }, 60); else W.scrollTo(0, 0); }   /* gizliyken tarayıcı çapaya kaydıramaz */

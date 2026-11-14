@@ -6,7 +6,7 @@
      ilerlemeKoy(anahtar, veri) · cikis(anahtar) ·
      ogretmenGiris(kod, şifre) · ogretmenVeri(anahtar, baş, bit) · planKoy(...)
      14.11.2026: gunKoy · haftaKoy · setKaydet · setSil (kreşin günü) · yoneticiGiris · yoneticiVeri · yon (kreş
-     yöneticisi) · basvuru (kreş başvurusu) → supabase/migrations/20261114_kids_kres.sql
+     yöneticisi) → supabase/migrations/20261114_kids_kres.sql
    Fonksiyonlar: supabase/migrations/20261110b_kids_giris.sql (anon çağrılır,
    yetki ve deneme sınırı sunucuda). Burada yalnız herkese açık (publishable)
    anahtar var; gizli anahtar asla bu dosyaya girmez.
@@ -76,8 +76,6 @@
     yoneticiGiris: function (kod, sifre) { return rpc('kids_yonetici_giris', { p_kod: kod, p_sifre: sifre }); },
     yoneticiVeri: function (t) { return rpc('kids_yonetici_veri', { p_token: t }); },
     yon: function (fn, t, args) { var a = { p_token: t }; for (var k in args || {}) a[k] = args[k]; return rpc('kids_yon_' + fn, a); },
-    /* 20261114: kreş başvurusu (anon; sınırda hata fırlatmaz, {tamam:false, mesaj} döner) */
-    basvuru: function (p) { return rpc('kids_basvuru_yap', { p: p }); },
     planKoy: function (t, sinif, gun, konu) { return rpc('kids_plan_koy', { p_token: t, p_sinif: sinif, p_gun: gun, p_konu: konu }); },
     /* 20261112d: paylaşımlı tablette açık kalan çocuk oturumlarını kapatır (yalnız o sınıf) */
     sinifOturumKapat: function (t, sinif) { return rpc('kids_sinif_oturum_kapat', { p_token: t, p_sinif: sinif }); },
