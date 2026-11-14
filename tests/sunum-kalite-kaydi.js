@@ -31,6 +31,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const ink = read('js/acadex-ink.js');
 const dir = read('supabase/functions/acadia-presentation-director/index.ts');
+const html = read('dashboard.html');
 
 test('KALİTE RAPORU DESTEYE KADAR GELİR (13.11.2026)', () => {
   assert.match(ink, /return \{ title: txt\(pres\.title\), items: out, quality: d && d\.quality/,
@@ -56,7 +57,9 @@ test('PUAN SORUNLARIYLA BİRLİKTE GÖRÜNÜR (13.11.2026)', () => {
      bildiriyordu. Yalnız puan gösterilirse bu sorun görünmez kalır. */
   assert.match(ink, /Acadia kalite notu ' \+ Math\.round\(kq\.score\) \+ '\/100'/,
     'kalite notu ekranda gösterilmiyor');
-  assert.match(ink, /arr\(kq\.issues\)\.length \? ' — ' \+ arr\(kq\.issues\)\.map/,
+  /* 14.11.2026: karşılıklar KALITE_TR'ye taşındı, üretim özeti kaliteYazi ile
+     okur — ama sorunlar hâlâ puanın yanında görünmek zorunda. */
+  assert.match(ink, /qi\.length \? ' — ' \+ qi\.join\(', '\) : ''/,
     'sorunlar puanın yanında gösterilmiyor');
   for (const k of ['slide_count_mismatch', 'duplicate_titles', 'weak_speaker_notes', 'dense_slides', 'visual_repetition', 'weak_grounding'])
     assert.ok(ink.includes(k + ':'), k + ' için Türkçe karşılık yok (ham anahtar görünür)');
@@ -84,11 +87,210 @@ test('HER ÜRETİM YOLU PUANLANIR (13.11.2026, canlı ölçüm)', () => {
     'critique eylemi çağrılmıyor');
   assert.match(ink, /if \(mode !== 'append' && !deck\.quality && deck\.slides\.length\) kaliteOlc\(deck\);/,
     'deste basılınca puanlama tetiklenmiyor');
-  assert.match(ink, /if \(!q \|\| typeof q\.score !== 'number' \|\| d !== deck\) return;/,
+  assert.match(ink, /if \(!q \|\| typeof q\.score !== 'number' \|\| d !== deck\) \{ paintKalite\(\); return; \}/,
     'yanıt geldiğinde deste değişmiş olabilir — eski puan yeni desteye yazılmamalı');
   // critique üretim yapmaz: yönetmende kaynak yüklemeden önce döner.
   assert.match(dir, /if \(action === 'critique'\)[\s\S]{0,700}const source = await loadSource/,
     'critique kaynak yüklemesinden sonra çalışıyor — gereksiz yere pahalı');
+});
+
+/* --------------------------------------------------------------------------
+   14.11.2026 — "Chp 7 Attitudes" destesinin canlı ölçümü. 13 asetat, puan
+   boş, iki asetat aynı başlıklı, iki asetat boş görsel çerçevesi, 9 asetatın
+   konuşma notu 16-23 kelime. Dördü de ayrı kök sebep:
+     a) kaliteOlc yalnız printDeck'ten çağrılıyordu → kütüphaneden açılan
+        desteye ulaşan yol yoktu.
+     b) quality_report yazılıyor ama fetchDeck hiç okumuyordu → buluttan gelen
+        her deste puansız görünüyordu.
+     c) kurgu şeridinde tablo/diyagram türü veri olmadan seçilebiliyordu →
+        LAY.table "başlık | başlık" yer tutucusunu, LAY.diagram boş kutuyu
+        perdeye basıyordu.
+     d) AI.note yalnız `ul` maddelerine bakıyordu → tablo/diyagram/alıntı
+        asetatlarında şablon cümleye düşüyordu.
+   -------------------------------------------------------------------------- */
+
+test('HAZIR DESTE AÇILINCA PUANLANIR (14.11.2026)', () => {
+  assert.match(ink, /if \(!deck\.quality && deck\.slides\.length > 2\) kaliteOlc\(deck\);/,
+    'kütüphaneden açılan puansız deste ölçülmüyor — printDeck dışında kaliteye ulaşan yol yok');
+  assert.ok(ink.includes("var kalBtn = Q('[data-kalite]');"),
+    'elle yeniden ölçme düğmesi yok (deste düzenlenince puan bayatlar)');
+  assert.match(ink, /deck\.quality = null; deck\.qualityKey = null;\s*\/\* elle istenen ölçüm/,
+    'elle ölçüm eski puanı ve parmak izini temizlemiyor — kaliteOlc hemen döner');
+  assert.match(ink, /if \(kaliteBusy\) return;/, 'çift ölçüm engeli yok');
+  assert.ok(html.includes('data-kalite='), 'sunum başlığında kalite rozeti yok');
+});
+
+test('KAYDEDİLEN KALİTE RAPORU GERİ OKUNUR (14.11.2026)', () => {
+  /* quality_report 13.11'de yazılmaya başladı ama fetchDeck yalnız
+     presentation_slides çekiyordu: puan buluttan dönmüyordu. */
+  assert.match(ink, /select\('quality_report,source_type,source_id'\)\.eq\('id', m\.dbId\)/,
+    'fetchDeck kalite raporunu çekmiyor — her açılışta boşuna yeniden ölçülür');
+  assert.match(ink, /if \(qq && typeof qq\.score === 'number'\) d\.quality = qq;/,
+    'rapor desteye yazılmıyor');
+  assert.match(ink, /d\.source = pr\.data\.source_type \|\| 'blank'; d\.sourceId = pr\.data\.source_id \|\| null;/,
+    'kaynak bağı buluttan dönmüyor — critique sourceType’ı yanlış gider');
+});
+
+test('BOŞ GÖRSEL ÇERÇEVESİ BASILMAZ (14.11.2026)', () => {
+  assert.match(ink, /var dataKind = function \(s, k\)/, 'veri denetimi yok');
+  assert.match(ink, /if \(k === 'table'\) return !!\(s\.data && arr\(s\.data\.rows\)\.some/,
+    'tabloda dolu hücre aranmıyor — "başlık | başlık" yer tutucusu geçer');
+  assert.match(ink, /if \(k === 'diagram'\) return !!\(s\.data && \(s\.data\.svg \|\| s\.data\.mermaid\)\)/,
+    'boş diyagram kutusu geçer');
+  // Şeritte seçilemez olmalı; seçili tür devre dışı bırakılmamalı (yoksa select kilitlenir).
+  assert.match(ink, /var ok = k === s\.k \|\| dataKind\(s, k\);/,
+    'veri gerektiren tür veri yokken de seçilebiliyor');
+  assert.ok(ink.includes("(ok ? '' : ' (veri yok)')"), 'seçilemeyen türün nedeni yazılmıyor');
+  // Son savunma: AI veri olmadan o türü döndürse bile basılmaz.
+  assert.match(ink, /var kind = s\.k; if \(!dataKind\(s, kind\)\) \{ kind = 'list'; bosCerceve\+\+; \}/,
+    'basarken maddeye düşürme yok — AI veri yollamazsa boş çerçeve perdeye çıkar');
+  assert.match(ink, /bosCerceve \? ' ' \+ bosCerceve \+ ' asetatın tablo\/diyagram verisi gelmediği için madde düzenine alındı\.' : ''/,
+    'düşürme kullanıcıya söylenmiyor');
+});
+
+test('KONUŞMA NOTU ASETATIN İÇERİĞİNDEN YAZILIR (14.11.2026)', () => {
+  /* Ölçüm: maddeli iki asetatın notu 37 ve 44 kelime, tablo/diyagram/alıntı
+     asetatlarının notu 16-23 — hepsi aynı şablon cümle. */
+  assert.match(ink, /var t = titleOf\(s\), b = noteBits\(s, t\);/, 'AI.note hâlâ yalnız ul maddelerine bakıyor');
+  assert.match(ink, /if \(b\.length\) return b;/, 'madde varken fazladan malzeme toplanıyor');
+  assert.match(ink, /if \(!rows\.length\) return;\s+\/\* boş yer tutucu tablo/,
+    'boş yer tutucu tablo "tabloda başlık ile başlık karşılaştırılıyor" notunu doğurur');
+  assert.match(ink, /b\.push\('şemanın adımları: ' \+ lb\.join\(' → '\)\)/,
+    'diyagram düğümleri nota girmiyor');
+  assert.match(ink, /e\.text\.length > 24 && e\.text !== skip/,
+    'başlığın kendisi nota ikinci kez giriyor (alıntı asetatında başlık = alıntı)');
+  assert.match(ink, /var mmdLabels = function/, 'mermaid düğüm adlarını okuyan yol yok');
+  /* Alıntı düzeninde tek yazı başlığın kendisi olduğu için ilk tur boş döner;
+     "3 sayı"/SWOT/zaman çizelgesinde ise içerik kısa kutulara dağılmıştır. */
+  assert.match(ink, /if \(s\.els\.some\(function \(e\) \{ return e\.type === 'h' && e\.text === '“'; \}\)\)/,
+    'alıntı asetatı için not yolu yok (başlık = alıntı, b boş kalır)');
+  assert.match(ink, /b\.push\('asetatta ' \+ kisa\.slice\(0, 6\)\.join\(', '\) \+ ' var; her birini bir cümleyle açıkla'\)/,
+    '3 sayı / SWOT / zaman çizelgesi asetatları hâlâ şablon nota düşüyor');
+  /* Canlı ölçüm (14.11.2026, "Chp 7 Attitudes"): tablo asetatı 23 → 53 kelime,
+     diyagram 20 → 52, alıntı 23 → 36. Yerel koşu: tests/_not-olcum yoktur,
+     ölçüm elle yapıldı; buradaki kilit, malzeme toplayan dalların durması. */
+});
+
+test('ÇİFT BAŞLIK YERELDE, ASETAT NUMARASIYLA BULUNUR (14.11.2026)', () => {
+  /* Yönetmenin duplicate_titles sorunu hangi asetat olduğunu söylemiyor;
+     üstelik Acadia'ya sormadan da bulunabilir. "Chp 7 Attitudes"te kopyalar
+     çoğalt (⧉) düğmesiyle elde oluşmuştu, üretimde değil. */
+  assert.match(ink, /var ciftBasliklar = function/, 'yerel çift başlık denetimi yok');
+  assert.match(ink, /out\.push\(\(seen\[k\] \+ 1\) \+ '\. ve ' \+ \(i \+ 1\) \+ '\. asetat'\)/,
+    'çift başlık asetat numarasıyla bildirilmiyor');
+  assert.match(ink, /if \(cift\.length\) iss\.unshift\('aynı başlık: ' \+ cift\.join\(', '\)\)/,
+    'rozet yerel bulguyu göstermiyor');
+  assert.match(ink, /el\.classList\.toggle\('warn', !busy && \(!!iss\.length \|\| !!bayat\)\)/,
+    'sorun ya da bayat puan varken rozet uyarmıyor');
+  const css = read('css/acadex-ink.css');
+  assert.match(css, /\.sx-kal\.warn\{color:/, 'uyarı rozetinin stili yok');
+});
+
+test('KALİTE KARŞILIKLARI TEK YERDE (14.11.2026)', () => {
+  /* Aynı Türkçe karşılık listesi hem üretim özetinde hem rozette gerekiyordu;
+     iki kopya zamanla ayrışır. */
+  assert.match(ink, /var KALITE_TR = \{ slide_count_mismatch:/, 'ortak karşılık tablosu yok');
+  assert.equal((ink.match(/slide_count_mismatch: 'slayt sayısı/g) || []).length, 1,
+    'karşılık tablosu iki yerde kopyalanmış');
+  assert.match(ink, /var qi = kaliteYazi\(kq\);/, 'üretim özeti ortak tabloyu kullanmıyor');
+});
+
+/* --------------------------------------------------------------------------
+   14.11.2026 (ikinci tur) — "Yazılımın Tarihsel Gelişimi" destesi: 10 asetat,
+   görsel diye sadece bir çizgi grafiği ve bir zaman çizelgesi, hiç fotoğraf
+   yok. Altı ayrı kök sebep çıktı:
+     a) Puan 44/100 görünüyordu ama o puan BİR ÖNCEKİ desteye aitti: aynı
+        kayda yeni üretim basılırken printDeck'in `!deck.quality` koşulu
+        tutmuyordu. Kanıt: raporda weak_grounding vardı, oysa yönetmen
+        sourceType 'topic' iken o ölçütü hiç uygulamıyor.
+     b) Ölçümden sonra deste değişince puan bayatlıyor, bunu söyleyen yok.
+     c) autoPhotos'un alt metin süzgeci TERS çalışıyordu: yalnız konu
+        İngilizceye çevrilebildiğinde (aramanın en isabetli olduğu durumda)
+        devreye giriyor ve her şeyi atıyordu; çeviri başarısızken (Türkçe
+        arama, alakasız sonuç riski) hiç süzmüyordu.
+     d) Fotoğraf adaylığı eşiği "≤3 madde ve <170 karakter"di; bu destenin en
+        kısa madde asetatı 174 karakterdi, 4 karakterle elendi ve tek aday
+        kapak kaldı.
+     e) Fotoğraf hiç konmazsa sessizce vazgeçiliyordu; "fotoğraf öner"
+        işaretliyken kullanıcı nedenini bilmiyordu.
+     f) LAY.time her zaman 4 durak çiziyordu; araştırma 3 adım döndürünce
+        4. durakta soluk italik "4. adım" yazısı perdeye çıkıyordu.
+   Ayrıca titleOf alıntı asetatında alıntının kendisini başlık sanıyordu.
+   -------------------------------------------------------------------------- */
+
+test('ESKİ PUAN YENİ DESTEYE YAPIŞMAZ (14.11.2026)', () => {
+  assert.match(ink, /if \(mode !== 'append'\) deck\.quality = plotMeta\.quality \|\| null;/,
+    'yeniden üretimde eski puan temizlenmiyor — açılışta ölçülen puan yeni destenin üstünde kalır');
+  assert.match(ink, /else if \(plotMeta\.quality\) deck\.quality = plotMeta\.quality;/,
+    'ekleme kipinde var olan puan korunmalı');
+});
+
+test('BAYAT PUAN BAYAT DİYE GÖRÜNÜR (14.11.2026)', () => {
+  assert.match(ink, /var deckKey = function \(d\)/, 'ölçüm anının parmak izi yok');
+  assert.match(ink, /\(sl\.lay \|\| ''\) \+ ':' \+ titleOf\(sl\) \+ ':' \+ String\(sl\.notes \|\| ''\)\.length/,
+    'parmak izi puanı belirleyen şeyleri (düzen, başlık, not uzunluğu) kapsamıyor');
+  assert.match(ink, /d\.quality = q; d\.qualityKey = deckKey\(d\);/, 'ölçümde parmak izi saklanmıyor');
+  assert.match(ink, /var bayat = has && deck\.qualityKey && deck\.qualityKey !== deckKey\(deck\);/,
+    'bayatlık hesaplanmıyor');
+  assert.match(ink, /\(bayat \? ' · bayat' : ''\)/, 'rozet bayatlığı göstermiyor');
+  assert.match(ink, /if \(d\.quality\) d\.qualityKey = deckKey\(d\);/,
+    'buluttan dönen puana parmak izi hesaplanmıyor — sonraki düzenlemeler bayat görünmez');
+});
+
+test('FOTOĞRAF SÜZGECİ DOĞRU YÖNDE (14.11.2026)', () => {
+  /* Eski kod: `if (en && kw.length) ph = ph.filter(...)` — İngilizce karşılık
+     BULUNDUĞUNDA süzüyordu. Doğrusu: bulunduğunda arama zaten konulu, uyan yoksa
+     ilk sonuçlar kullanılır; bulunamadığında yalnız kapağa konur. */
+  assert.match(ink, /ph = hit\.length \? hit : all;/,
+    'alt metni uymayan fotoğraflar hâlâ tamamen atılıyor — hiç fotoğraf konmaz');
+  assert.match(ink, /\} else \{ ph = all\.slice\(0, 1\); kapakSinir = true; \}/,
+    'konu İngilizceye çevrilemediğinde Türkçe arama sonuçları her asetata dağılıyor (28.10.2026 şikâyeti)');
+  assert.match(ink, /var hedef = kapakSinir \? cand\.filter\(function \(sl\) \{ return sl\.lay === 'cover'; \}\) : cand;/,
+    'kapak sınırı uygulanmıyor');
+});
+
+test('FOTOĞRAF ADAYLIĞI VE SESSİZ VAZGEÇME (14.11.2026)', () => {
+  assert.match(ink, /if \(!\/\^\(list\|quote\)\$\/\.test\(sl\.lay \|\| ''\)\) return false;/,
+    'fotoğraf yeri olan alıntı düzeni aday değil');
+  /* Zaman çizelgesi, grafik, tablo ve diyagramın kendisi görseldir; üstlerine
+     fotoğraf konması asetatı bozar. Düzen adına değil, asetatta görsel öğe
+     olup olmadığına bakılır — elle eklenmiş fotoğrafı da kapsar. */
+  assert.match(ink, /var GORSEL = \/\^\(img\|chart\|table\|mmd\|math\|viz\)\$\/;/,
+    'görsel öğe listesi yok');
+  assert.match(ink, /if \(sl\.v \|\| sl\.els\.some\(function \(e\) \{ return GORSEL\.test\(e\.type\); \}\)\) return false;/,
+    'görseli olan asetat fotoğraf adayı olmaktan çıkmıyor');
+  assert.match(ink, /\.filter\(Boolean\)\.length <= 4 && t\.length < 260;/,
+    'eşik hâlâ ≤3 madde / <170 karakter — 10 asetatlık destede tek aday kalıyor');
+  // Her çıkış yolu kullanıcıya bir şey söylemeli.
+  for (const m of ['Unsplash’te bu konuya uygun fotoğraf bulunamadı',
+                   'Fotoğraf için uygun asetat bulamadım',
+                   'Fotoğraf yerleştirilemedi',
+                   'Fotoğraf arama anahtarı tanımlı değil',
+                   'Fotoğraf araması şu an yapılamadı'])
+    assert.ok(ink.includes(m), 'sessiz vazgeçme: "' + m + '" bildirimi yok');
+  assert.match(ink, /kapakSinir \? ' \(konu İngilizceye çevrilemedi, bu yüzden yalnız kapağa\)' : ''/,
+    'kapakla sınırlı kalmanın nedeni söylenmiyor');
+});
+
+test('ZAMAN ÇİZELGESİ: GELEN ADIM KADAR DURAK (14.11.2026)', () => {
+  assert.match(ink, /var n = b && b\.length \? Math\.min\(4, b\.length\) : 4, off = \(4 - n\) \* 100;/,
+    'durak sayısı hâlâ sabit 4 — 3 adımlık çizelgede "4. adım" yer tutucusu perdeye çıkar');
+  assert.match(ink, /for \(var i = 0; i < n; i\+\+\) \{ out\.push\(E\('ellipse', 104 \+ off \+ i \* 200/,
+    'duraklar ortalanmıyor');
+  // Hiç adım yokken 4 yer tutucu kalmalı: boş asetata bu düzeni elle seçmenin yolu o.
+  assert.match(ink, /text: \(i \+ 1\) \+ '\. adım', size: 19, align: 'center', muted: true/,
+    'elle kurulan destede yer tutucu duraklar kalkmış');
+});
+
+test('ALINTI ASETATININ BAŞLIĞI ALINTI DEĞİLDİR (14.11.2026)', () => {
+  /* LAY.quote: h “ · h alıntı · mark · t konu. titleOf ilk uzun h'yi
+     döndürdüğü için presentations.title alıntı metni oluyordu. */
+  assert.match(ink, /if \(s\.lay === 'quote'\) \{ for \(var j = 0; j < s\.els\.length; j\+\+\) if \(s\.els\[j\]\.type === 't' && !s\.els\[j\]\.muted/,
+    'alıntı asetatında başlık hâlâ alıntının kendisi');
+  assert.match(ink, /var alt1 = function \(x\) \{ var m = String\(x\)\.match/,
+    'özel adla başlayan madde notta küçültülüyor ("richard Stallman")');
+  assert.match(ink, /if \(\/\^\[A-ZÇĞİÖŞÜ\]\{2,\}\/\.test\(x\) \|\| \(m && \/\^\[A-ZÇĞİÖŞÜ\]\/\.test\(m\[2\]\)\)\) return String\(x\);/,
+    'kısaltma (IBM, GNU) ve iki büyük harfli ad kalıbı korunmuyor');
 });
 
 summary();

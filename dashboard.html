@@ -1369,6 +1369,7 @@
 <input id="sx-deck" type="text" maxlength="70" data-deck-title="" placeholder="sunumuna bir ad ver…">
 <span class="sx-count hand" data-count=""></span>
 <span class="sx-cloud hand" data-cloud="" aria-live="polite"></span>
+<button type="button" class="sx-lnk sx-kal" data-kalite="" hidden>kaliteyi ölç</button>
 <button type="button" class="sx-lnk" data-pdf="">PDF indir</button><button type="button" class="sx-lnk" data-pptx="">PowerPoint indir</button><button type="button" class="sx-lnk" data-share="">paylaş</button>
 <button type="button" class="sx-lnk danger" data-wipe="">tepegözü boşalt</button>
 </div>
@@ -1444,7 +1445,9 @@
 <button type="button" class="sx-tool" data-add="ellipse"><b aria-hidden="true">○</b>daire</button>
 <button type="button" class="sx-tool" data-add="arrow"><b aria-hidden="true">→</b>ok</button>
 <button type="button" class="sx-tool" data-add="mark"><b aria-hidden="true">✎</b>vurgu</button>
+<button type="button" class="sx-tool" data-add="icon"><b aria-hidden="true">✦</b>simge</button>
 </div>
+<div class="sx-ikp" data-ikonlar="" hidden></div>
 <input type="file" accept="image/*" data-img="" hidden>
 </div>
 
@@ -1487,6 +1490,13 @@
 <button type="button" class="sx-bg" role="radio" data-bg="blue" aria-checked="false">mavi</button>
 <button type="button" class="sx-bg" role="radio" data-bg="navy" aria-checked="false">gece</button>
 </div>
+</div>
+
+<div class="sx-sec">
+<h3 class="sx-k">şablon <span>tüm sunuma</span></h3>
+<div class="sx-tms" role="radiogroup" aria-label="Sunum şablonu" data-temalar=""></div>
+<input type="file" accept=".pptx,.potx" data-temapptx="" hidden>
+<p class="sx-tip" data-temabilgi=""></p>
 </div>
 
 <div class="sx-sec sx-ac">

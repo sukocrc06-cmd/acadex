@@ -463,6 +463,11 @@ function normalizeDeck(value: Record<string, unknown>, slideCount: number, sourc
 }
 
 function words(value: string) { return cleanText(value).split(/\s+/).filter(Boolean).length }
+function repeatedFacts(texts: string[]) {
+  const seen = new Map<string, number>()
+  texts.forEach(text => { new Set((text.match(/\d+(?:[.,]\d+)*/g) || []).filter(x => !/^(1[5-9]|20)\d{2}$/.test(x) && (/[.,]/.test(x) || x.length >= 3)).map(x => x.replace(/[.,]/g, ''))).forEach(x => seen.set(x, (seen.get(x) || 0) + 1)) })
+  return [...seen.values()].filter(n => n > 1).length
+}
 function qualityDeck(deck: { title: string; slides: any[] }, requestedCount: number, sourceType: string) {
   let score = 100
   const issues: string[] = []
@@ -478,6 +483,31 @@ function qualityDeck(deck: { title: string; slides: any[] }, requestedCount: num
     if (variants[i] === variants[i - 1] && variants[i] === variants[i - 2] && !['hero','summary'].includes(variants[i])) {
       score -= 8; issues.push('visual_repetition'); break
     }
+  }
+  // BOŞ ASETAT ve GÖRSELSİZLİK (14.11.2026): iki "giriş" asetatı ve sonuç asetatı
+  // yalnız yer tutucu ("ana fikri yaz…") taşıyan, tek fotoğrafı olmayan bir deste
+  // 76/100 ile "geçti" almıştı — puanlayıcı ikisini de görmüyordu. İstemci
+  // critique çağrısında has_visual / placeholder alanlarını gönderir; alanlar
+  // yoksa (yönetmenin kendi üretimi) bu iki ölçüt uygulanmaz.
+  const measured = deck.slides.some(slide => typeof slide.content?.has_visual === 'boolean')
+  if (measured) {
+    const last = deck.slides.length - 1
+    const empty = deck.slides.filter((slide, index) => index > 0 && index < last &&
+      (slide.content?.placeholder === true || (!words(String(slide.content?.text || '')) && !slide.content?.has_visual))).length
+    if (empty) { score -= Math.min(36, empty * 12); issues.push('empty_slides') }
+    const visual = deck.slides.filter(slide => slide.content?.has_visual === true).length
+    const vr = visual / Math.max(1, deck.slides.length)
+    if (deck.slides.length >= 6 && vr < 0.3) { score -= Math.round((0.3 - vr) * 50); issues.push('few_visuals') }
+    // İNCE ASETAT ve YİNELENEN RAKAM (14.11.2026): iki kısa maddelik ("%5,7 güneş",
+    // "%3,4 jeotermal") ve aynı rakamları sayı asetatından sonra yineleyen bir
+    // deste 92/100 aldı; kullanıcıya "çok basit ve boş" göründü. Madde asetatı
+    // 15 kelimeden azsa ince sayılır; ayırt edici bir sayı (ondalıklı ya da üç+
+    // haneli, yıl değil) sonuç asetatı dışında iki asetatta geçiyorsa yinelenmiştir.
+    const body = deck.slides.filter((slide, index) => index > 0 && index < last && !['cover','refs','end'].includes(String(slide.content?.design_variant)))
+    const thin = body.filter(slide => ['list','two','time'].includes(String(slide.content?.design_variant)) && slide.content?.placeholder !== true && words(String(slide.content?.text || '')) > 0 && words(String(slide.content?.text || '')) < 15).length
+    if (thin) { score -= Math.min(18, thin * 6); issues.push('thin_slides') }
+    const repeated = repeatedFacts(body.slice(0, -1).map(slide => String(slide.content?.text || '')))
+    if (repeated >= 2) { score -= Math.min(15, repeated * 3); issues.push('repeated_facts') }
   }
   if (sourceType !== 'topic') {
     const grounded = deck.slides.filter((slide, index) => index === 0 || Array.isArray(slide.content?.source_refs) && slide.content.source_refs.length).length

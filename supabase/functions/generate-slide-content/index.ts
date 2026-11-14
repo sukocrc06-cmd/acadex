@@ -218,7 +218,7 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"title": "str
       userPrompt = existingTitles.length ? `Mevcut slayt başlıkları (tekrar etme):\n${existingTitles.join('\n')}` : 'Henüz başka slayt yok.'
     }
 
-    const callGroq = async (bulletsHint: string) => {
+    const callGroq = async (bulletsHint: string, model?: string) => {
       const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -232,7 +232,7 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"title": "str
           // openai/gpt-oss-120b is Groq's recommended replacement, already
           // adopted by summarize-document, generate-section-visual, and the
           // other Acadex edge functions hit by this same deprecation.
-          model: "openai/gpt-oss-120b",
+          model: model || "openai/gpt-oss-120b",
           temperature: (action === 'enrich' || action === 'shorten') ? 0.35 : 0.8,
           response_format: { type: "json_object" },
           messages: [
@@ -251,6 +251,14 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma: {"title": "str
       // Trim currentText further and retry once
       userPrompt = userPrompt.slice(0, 600)
       ;({ resp: groqResponse, data: groqData } = await callGroq('2-3'))
+    }
+
+    // YEDEK MODEL (14.11.2026): büyük model meşgulken "giriş ekle" / "sonuç ekle"
+    // şeritleri boş kalıyor ve asetata "ana fikri yaz…" yer tutucusu basılıyordu.
+    // Ayrı kotası olan küçük model bir kez denenir.
+    if (!groqResponse.ok) {
+      console.warn('generate-slide-content: 120b failed, trying fallback model.', groqResponse.status)
+      ;({ resp: groqResponse, data: groqData } = await callGroq('4-6', Deno.env.get('GROQ_SLIDE_MODEL_FALLBACK') || 'openai/gpt-oss-20b'))
     }
 
     if (!groqResponse.ok) {
