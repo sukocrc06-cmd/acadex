@@ -13,13 +13,14 @@
   var HAYVAN = { tavsan: 'Tavşan', ayi: 'Ayı', kedi: 'Kedi', civciv: 'Civciv', panda: 'Panda', kurbaga: 'Kurbağa', tilki: 'Tilki', kopek: 'Köpek' };
   var SITE = 'acadex.com.tr/kids';
   var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-  function ciz(fn, ad) { var C = W.KIDS_CIZ; try { return C ? C[fn](ad) : ''; } catch (e) { return ''; } }
+  function ciz(fn, ad, ek) { var C = W.KIDS_CIZ; try { return C ? C[fn](ad, ek) : ''; } catch (e) { return ''; } }
+  function yuzAd(g) { var C = W.KIDS_CIZ; return (C && C.yuzAd && C.yuzAd(g.hayvan, g.renk)) || HAYVAN[g.hayvan] || ''; }
   function qr(o, g, kok) { var Q = W.KIDS_QR; if (!Q || !g.id) return ''; try { return Q.svg(Q.evAdres(o.kod, g.id, kok), { etiket: 'Evde oyna' }); } catch (e) { return ''; } }
 
   function kart(o, g, sinifAd, kok) {
     var q = qr(o, g, kok);
     return '<div class="kart"><div class="k-ust"><span class="k-acd">' + (W.KIDS_CIZ ? W.KIDS_CIZ.acadia({ mood: 'mutlu' }) : '') + '</span><b>Acadex <i>Kids</i></b><span class="k-sinif">' + X(sinifAd || '') + '</span></div>' +
-      '<div class="k-orta' + (q ? ' k-qrli' : '') + '"><span class="k-av">' + ciz('avatar', g.hayvan) + '</span><div class="k-kim"><span class="k-ad">' + X(g.ad) + '</span><span class="k-not">Resmin: <b>' + X(HAYVAN[g.hayvan] || '') + '</b></span>' +
+      '<div class="k-orta' + (q ? ' k-qrli' : '') + '"><span class="k-av">' + ciz('avatar', g.hayvan, g.renk) + '</span><div class="k-kim"><span class="k-ad">' + X(g.ad) + '</span><span class="k-not">Resmin: <b>' + X(yuzAd(g)) + '</b></span>' +
       '<span class="k-gizli">Gizli resimlerin</span><span class="k-sf">' + (g.sifre || []).map(function (r, i) { return '<span><i>' + (i + 1) + '</i>' + ciz('simge', r) + '</span>'; }).join('') + '</span></div>' +
       (q ? '<span class="k-qr">' + q + '<small>Evde oyna</small></span>' : '') + '</div>' +
       '<div class="k-alt"><span><b>' + SITE + '</b></span><span>Okul kodu <b>' + X(o.kod) + '</b></span><span class="k-no">' + X(g.kimlik || '') + '</span></div></div>';

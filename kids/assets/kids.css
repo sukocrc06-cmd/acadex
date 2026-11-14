@@ -410,3 +410,40 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 @media (max-width:760px){.ka-konu-ust{gap:6px;padding-left:10px;padding-right:10px}.ka-duraklar{gap:3px;min-width:0}.ka-duraklar span{width:32px;height:32px;padding:6px;border-width:2.5px}.ka-duraklar .ka-simdi span{transform:scale(1.1)}}
 @media (max-width:360px){.ka-duraklar span{width:28px;height:28px;padding:5px}}
 .ka-veli-ses{margin:0;font-size:13px;color:var(--soluk)}
+
+/* ---------- 14.11.2026: "Kim oynuyor?", ad onayı, sınıfta eşsiz yüz ---------- */
+button.ka-ben{padding:4px 12px 4px 4px;border:3px solid transparent;border-radius:999px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+button.ka-ben:hover{border-color:var(--m);background:var(--beyaz)}
+.ka-kim small{font-size:13px;color:var(--soluk);font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ka-kim:disabled{opacity:.55;cursor:default}
+.ka-cihaz-o{position:relative;display:grid}
+.ka-cihaz-sil{position:absolute;top:-10px;right:-10px;width:44px;height:44px;border:3px solid var(--m);border-radius:50%;background:var(--mercan);color:#fff;font:800 26px/1 var(--bas);box-shadow:var(--golge-k);cursor:pointer}
+.ka-kim-yeni{border-style:dashed;background:var(--krem);cursor:pointer}
+.ka-arti{display:grid;place-items:center;width:88px;height:88px;border:3px dashed var(--m);border-radius:50%;font:800 52px/1 var(--bas);color:var(--soluk)}
+.ka-bag{padding:0;border:0;background:none;color:var(--soluk);font:800 15px/1.4 var(--govde);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.ka-onay{display:grid;justify-items:center;gap:6px;text-align:center}
+.ka-onay-acd{width:84px;height:84px}
+.ka-onay-acd .kc{width:100%;height:100%}
+.ka-onay-yuz{width:168px;height:168px;animation:kaPop .35s}
+.ka-onay-yuz .kc{width:100%;height:100%}
+.ka-onay-soru{margin:4px 0 0;font:800 40px/1.1 var(--bas)}
+.ka-onay-not{margin:0;color:var(--soluk);font-weight:800}
+.ka-onay-d{display:grid;grid-template-columns:1fr 1.4fr;gap:14px;width:100%;margin-top:14px}
+.ka-onay-b{display:grid;justify-items:center;gap:2px;min-height:96px;padding:10px;border:3px solid var(--m);border-radius:24px;box-shadow:var(--golge);font:800 20px/1.1 var(--bas);color:var(--m);cursor:pointer;transition:transform .12s,box-shadow .12s}
+.ka-onay-b span{font-size:40px;line-height:1}
+.ka-onay-b:active{transform:translateY(4px);box-shadow:0 1px 0 var(--m)}
+.ka-onay-evet{background:var(--yesil)}
+.ka-onay-hayir{background:var(--beyaz)}
+@media (max-width:640px){
+  .ka-arti{width:68px;height:68px;font-size:40px}
+  .ka-onay-yuz{width:128px;height:128px}
+  .ka-onay-soru{font-size:32px}
+  button.ka-ben{padding-right:6px}
+  /* dar ekranda çubuk yana kayar; hiçbir düğme kesilmez */
+  .ka-cubuk{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .ka-cubuk::-webkit-scrollbar{display:none}
+  .ka-cubuk>*{flex:none}
+  button.ka-ben{max-width:150px}
+  button.ka-ben b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media (prefers-reduced-motion: reduce){.ka-onay-yuz{animation:none}}

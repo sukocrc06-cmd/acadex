@@ -64,6 +64,8 @@
     sifre: ['kedi', 'elma'],   /* örnek okulda bütün çocukların resimli şifresi aynı */
     ogretmenSifre: '1234'      /* örnek okulun öğretmen şifresi (yalnız tanıtım) */
   };
+  /* örnek okulda da her çocuğun yüzü sınıfında eşsiz: [ad, hayvan, id, ilerleme, renk] */
+  OKUL.siniflar.forEach(function (s) { s.ogr.forEach(function (o, i) { o[4] = (i * 3) % 8; }); });
   var SIFRE_RESIM = ['kedi', 'elma', 'top', 'balik', 'cicek', 'ay', 'araba', 'kus', 'cilek'];
   /* ---------- günün konusu ve haftalık plan (öğretmen seçer, çocuk ekranına yansır) ----------
      Tasarım sürümünde bu tarayıcıda saklanır: kids.plan.<okul>.<sinif> = {gunler: {'2026-11-10': 'colours' | ''}}

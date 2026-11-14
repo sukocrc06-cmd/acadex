@@ -67,7 +67,8 @@
     var p = Math.min(100, Math.round(n / Math.max(1, kota) * 100));
     return '<span class="kd-kota' + (p >= 100 ? ' dolu' : p >= 90 ? ' az' : '') + '"><i style="width:' + p + '%"></i></span><span class="kd-kota-t">' + NF(n) + ' / ' + NF(kota) + '</span>';
   };
-  var ciz = function (fn, ad) { try { return C ? C[fn](ad) : ''; } catch (e) { return ''; } };
+  var ciz = function (fn, ad, ek) { try { return C ? C[fn](ad, ek) : ''; } catch (e) { return ''; } };
+  var yuzAd = function (g) { return (C && C.yuzAd && C.yuzAd(g.hayvan, g.renk)) || HAYVAN[g.hayvan] || ''; };
 
   /* =========================== okul listesi =========================== */
   var liste = async function (m) {
@@ -237,7 +238,7 @@
       ogr.map(function (g) {
         return '<tr class="' + (g.aktif ? '' : 'kd-pasif') + '"><td><input type="checkbox" data-sec="' + g.id + '"' + (K.secili[g.id] ? ' checked' : '') + ' aria-label="' + X(g.ad) + ' seç"></td>' +
           '<td class="mono">' + X(g.kimlik) + '</td><td><b>' + X(g.ad) + '</b>' + (g.aktif ? '' : ' <span class="pill">pasif</span>') + '</td>' +
-          '<td><span class="kd-av" title="' + X(HAYVAN[g.hayvan]) + '">' + ciz('avatar', g.hayvan) + '</span></td>' +
+          '<td><span class="kd-av" title="' + X(yuzAd(g)) + '">' + ciz('avatar', g.hayvan, g.renk) + '</span></td>' +
           '<td><span class="kd-sf">' + g.sifre.map(function (r) { return '<span title="' + X(RESIM[r]) + '">' + ciz('simge', r) + '</span>'; }).join('') + '</span></td>' +
           '<td class="kd-r"><button type="button" class="btn ghost sm" data-ogr="' + g.id + '">düzenle</button></td></tr>';
       }).join('') + '</tbody></table></div>';
@@ -307,7 +308,7 @@
   var ogrForm = function (g, m) {
     var S = K.d.siniflar;
     A.openDrawer(g.kimlik,
-      '<div class="kd-ogr-bas"><span class="kd-av kd-av-b">' + ciz('avatar', g.hayvan) + '</span><div><b>' + X(g.ad) + '</b><span class="muted">' + X(HAYVAN[g.hayvan]) + ' · gizli resimler: ' + g.sifre.map(function (r) { return X(RESIM[r]); }).join(', ') + '</span></div></div>' +
+      '<div class="kd-ogr-bas"><span class="kd-av kd-av-b">' + ciz('avatar', g.hayvan, g.renk) + '</span><div><b>' + X(g.ad) + '</b><span class="muted">' + X(yuzAd(g)) + ' · gizli resimler: ' + g.sifre.map(function (r) { return X(RESIM[r]); }).join(', ') + '</span></div></div>' +
       '<form id="kd-ogf" class="kd-form" novalidate><label class="fld">Ad <small>soyadın yalnız baş harfi kaydedilir</small><input class="in" name="ad" maxlength="80" value="' + X(g.ad) + '"></label>' +
       '<label class="fld">Sınıf<select class="in" name="sinif">' + S.map(function (s) { return '<option value="' + s.id + '"' + (s.id === g.sinif_id ? ' selected' : '') + '>' + X(s.ad) + '</option>'; }).join('') + '</select></label>' +
       '<label class="kd-cb"><input type="checkbox" name="aktif"' + (g.aktif ? ' checked' : '') + '> Etkin (pasif öğrenci giriş yapamaz ve kotadan düşer)</label>' +
