@@ -130,10 +130,10 @@
     if (x.kod === V.OKUL.kod) {
       S.okul = V.OKUL; S.sinif = V.OKUL.siniflar.filter(function (s) { return s.id === x.sinif; })[0];
       S.ogr = S.sinif && S.sinif.ogr.filter(function (g) { return g[0] === x.ad; })[0];
-      if (S.sinif && S.ogr) { koy('oturum', { kod: V.OKUL.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); return panel(); }
+      if (S.sinif && S.ogr) { koy('oturum', { kod: V.OKUL.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); S.ucus = true; return panel(); }
       cihazSil(x); return kimOynuyor();
     }
-    if (x.token) { koy('oturum', { kod: x.kod, token: x.token }); return bulutAc(x.token, x); }
+    if (x.token) { koy('oturum', { kod: x.kod, token: x.token }); S.ucus = true; return bulutAc(x.token, x); }
     if (x.id) return evAc({ kod: x.kod, ogr: x.id }, null);
     cihazSil(x); kimOynuyor();
   }
@@ -152,14 +152,14 @@
         if (sec.length < 2) return;
         var yanlis = function (mesaj) { SES.fx('yanlis'); yuva.classList.add('ko-salla'); if (mesaj) { app.querySelector('[data-uyari]').textContent = mesaj; SES.soyle(mesaj, 'tr'); } setTimeout(function () { sec = []; yuva.classList.remove('ko-salla'); yuva.innerHTML = '<span></span><span></span>'; }, 700); };
         if (!bulutMu()) {
-          if (sec[0] === S.okul.sifre[0] && sec[1] === S.okul.sifre[1]) { SES.fx('yildiz'); koy('oturum', { kod: S.okul.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); setTimeout(panel, 500); }
+          if (sec[0] === S.okul.sifre[0] && sec[1] === S.okul.sifre[1]) { SES.fx('yildiz'); koy('oturum', { kod: S.okul.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); S.ucus = true; setTimeout(panel, 500); }
           else yanlis();
           return;
         }
         var deneme = sec.slice();
         B.giris(S.ogr[2], deneme).then(function (r) {
           if (!r.tamam) return yanlis(r.kilit ? 'Biraz dinlenelim; birkaç dakika sonra yeniden dene.' : '');
-          S.token = r.token; koy('oturum', { kod: S.okul.kod, token: r.token }); SES.fx('yildiz');
+          S.token = r.token; koy('oturum', { kod: S.okul.kod, token: r.token }); S.ucus = true; SES.fx('yildiz');
           setTimeout(function () { bulutAc(r.token); }, 400);
         }, function (er) { yanlis(er.message); });
       });
@@ -183,6 +183,8 @@
     var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : yerelKonu()), bugun = bk && bk.acik && !bk.sinifSeti ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
     il.son = Date.now(); koy(ilAnahtar(), il);   /* öğretmen panelindeki "son giriş" */
     cihazEkle();
+    /* girişten hemen sonra: "Oyun dünyana gidiyorsun!" uçuşu (kids-ucus.js); harita arkada hazır bekler */
+    var ucus = S.ucus && W.KIDS_UCUS; S.ucus = false;
     ciz(ustCubuk(il) +
       (bugun ? '<section class="ka-bugun"><div class="ka-bugun-acd">' + acd('kutlama') + '</div><div class="ka-bugun-yazi"><small>Bugünün konusu</small><h1><span lang="en">' + esc(bugun.en) + '</span> <em>' + esc(bugun.tr) + '</em></h1><p>Bugün okulda bunu öğrendin! Hadi oynayarak tekrar edelim.</p></div>' +
         '<button type="button" class="ka-buyuk ka-oyna" data-konu="' + bugun.id + '" data-odak>Oyna ' + C.simge('oynat') + '</button></section>'
@@ -205,7 +207,8 @@
     if (yukselen.length) { var il2 = ilerleme(); il2.asamaGor = il2.asamaGor || {}; yukselen.forEach(function (id) { il2.asamaGor[id] = OD.asama(il2, id); }); koy(ilAnahtar(), il2); setTimeout(function () { if (app.dataset.gorunum === 'harita') { SES.fx('yildiz'); SES.soyle('Adan büyüdü!', 'tr'); } }, 900); }
     app.querySelectorAll('[data-yakinda]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('yanlis'); b.classList.remove('ko-salla'); void b.offsetWidth; b.classList.add('ko-salla'); SES.soyle('Bu ada yakında açılacak.', 'tr'); }); });
     cubukKur(panel);
-    SES.soyle(bugun ? 'Bugünün konusu ' + bugun.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!' : 'Bugün serbest gün. İstediğin adaya dokun.', 'tr');
+    var karsila = function () { if (app.dataset.gorunum === 'harita') SES.soyle(bugun ? 'Bugünün konusu ' + bugun.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!' : 'Bugün serbest gün. İstediğin adaya dokun.', 'tr'); };
+    if (ucus) W.KIDS_UCUS.oynat({ ad: S.ogr[0], hayvan: S.ogr[1], renk: S.ogr[4], anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]) }).then(karsila); else karsila();
   }
   function cubukKur(yeniden) {
     var s = app.querySelector('[data-ses]'); if (s) s.addEventListener('click', function () { var a = SES.ayar(!SES.acikMi()); s.setAttribute('aria-pressed', a); if (a) SES.fx('dogru'); });

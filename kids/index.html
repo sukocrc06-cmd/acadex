@@ -2158,6 +2158,153 @@ body.kr-acik{overflow:hidden}
 /* tablo kaydırma kutusu konumlu: içindeki mutlak konumlu gizli etiket (.ka-gizli) sayfayı yatayda taşırmasın */
 .kt-tablo-sar{position:relative}
 
+/* ==========================================================================
+   ACADEX KIDS · tanıtım sayfası kaydırma şöleni (kids/assets/kids-scroll.css), 15.11.2026
+   kl-gok (sabahtan geceye zemin + paralaks katman), kl-zip (zıplayarak gelen kartlar ve
+   harf harf başlıklar), kl-hero-cocuk (balonlu çocuk) ve adaların açılması.
+   ========================================================================== */
+#icerik.kl-gok{background-color:#E4F5FF;background-repeat:no-repeat;padding-bottom:clamp(48px,7vw,80px)}
+#icerik.kl-gok+.kl-alt-bilgi{margin-top:0;border-top-color:#23304D}
+.kl-gok-kat{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.kl-gok-kat>span{position:absolute;display:block;will-change:transform}
+/* bulutlar: uzaktakiler soluk ve küçük */
+.kl-gb{width:var(--w,160px);margin-left:calc(var(--w,160px) / -2)}
+.kl-gb .kc{width:100%;height:auto;display:block}
+.kl-gb0{opacity:.55}.kl-gb1{opacity:.75}.kl-gb2{opacity:.95}
+.kl-gb>.kc{animation:klGbSuz 18s ease-in-out infinite alternate}
+.kl-gb1>.kc{animation-duration:14s;animation-delay:-4s}.kl-gb2>.kc{animation-duration:11s;animation-delay:-7s}
+@keyframes klGbSuz{from{translate:-24px 0}to{translate:24px 0}}
+/* gün batımı güneşi */
+.kl-gunes{width:150px;height:150px;margin-left:-75px}
+.kl-gunes i{display:block;width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 40% 38%,#FFF3B0 0 22%,#FFC64A 48%,#FF8A3D 72%);box-shadow:0 0 0 18px rgba(255,180,90,.28),0 0 0 40px rgba(255,180,90,.14),0 0 90px 30px rgba(255,150,80,.35)}
+/* ay ve yıldızlar */
+.kl-ay{width:96px;height:96px;margin-left:-48px}
+.kl-ay i{display:block;width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 36% 34%,#FFFBEA 0 40%,#F3E6B6 72%);box-shadow:0 0 40px 12px rgba(255,246,200,.35)}
+.kl-ay i::before,.kl-ay i::after{content:"";position:absolute;border-radius:50%;background:rgba(214,196,140,.55)}
+.kl-ay i::before{width:20%;height:20%;left:28%;top:52%}.kl-ay i::after{width:12%;height:12%;left:58%;top:30%}
+.kl-yz{width:4px;height:4px;border-radius:50%;background:#FFF8D6;box-shadow:0 0 6px 1px rgba(255,248,214,.8);animation:klYz 2.6s ease-in-out infinite alternate;animation-delay:var(--d,0s)}
+.kl-yz-b{width:7px;height:7px}
+@keyframes klYz{from{opacity:.25;scale:.7}to{opacity:1;scale:1.15}}
+.kl-kayan{width:120px;height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff);opacity:0;rotate:-24deg;animation:klKayan 7s ease-in 2s infinite}
+@keyframes klKayan{0%,82%{opacity:0;translate:0 0}86%{opacity:1}100%{opacity:0;translate:70vw 30vh}}
+/* gece bölümlerinde başlıklar açık renk */
+.kl-gok #fiyat>h2,.kl-gok #sss>h2{color:var(--krem);text-shadow:0 3px 0 rgba(10,14,40,.35)}
+.kl-gok .kl-guven>h2{text-shadow:0 2px 0 rgba(255,255,255,.5)}
+
+/* ---------- zıplayarak gelenler ---------- */
+.kl-zip-hazir .kl-zip{opacity:0;translate:0 46px;scale:.86;rotate:-1.5deg}
+.kl-zip-hazir .kl-zip.kl-geldi{opacity:1;translate:none;scale:none;rotate:none;transition:opacity .35s ease-out calc(var(--zi,0) * 90ms),translate .8s cubic-bezier(.22,1.65,.42,1) calc(var(--zi,0) * 90ms),scale .8s cubic-bezier(.22,1.65,.42,1) calc(var(--zi,0) * 90ms),rotate .8s ease-out calc(var(--zi,0) * 90ms)}
+.kl-zip-hazir .kl-zip.kl-geldi:nth-child(even){rotate:none}
+.kl-zip-hazir .kl-zip:nth-child(even):not(.kl-geldi){rotate:1.5deg}
+.kl-hk{display:inline-block;white-space:nowrap}
+.kl-hh{display:inline-block}
+.kl-zip-hazir .kl-zip-h .kl-hh{opacity:0;transform:translateY(.6em) scale(.4) rotate(-12deg)}
+.kl-zip-hazir .kl-zip-h.kl-geldi .kl-hh{opacity:1;transform:none;transition:opacity .2s calc(var(--i) * 28ms),transform .6s cubic-bezier(.2,1.9,.4,1) calc(var(--i) * 28ms)}
+/* geldikten sonra kartlar dokunuşa hoplar */
+.kl-zip-hazir .kl-konular>li.kl-geldi:hover,.kl-zip-hazir .kl-yaslar>li.kl-geldi:hover,.kl-zip-hazir .kl-adimlar>li.kl-geldi:hover{transform:translateY(-6px) rotate(-1deg);transition:transform .25s cubic-bezier(.2,1.8,.4,1)}
+
+/* ---------- hero: adalar açılır, çocuk balonla yükselir ---------- */
+.kl-hero-sahne{--hp:0}
+.kl-ada1{translate:calc(var(--hp) * -90px) calc(var(--hp) * -70px);scale:calc(1 + var(--hp) * .18)}
+.kl-ada2{translate:calc(var(--hp) * 80px) calc(var(--hp) * -110px);scale:calc(1 + var(--hp) * .25)}
+.kl-ada3{translate:calc(var(--hp) * 50px) calc(var(--hp) * 60px);scale:calc(1 + var(--hp) * .3)}
+.kl-bulut1{translate:calc(var(--hp) * -160px) calc(var(--hp) * -40px)}
+.kl-bulut2{translate:calc(var(--hp) * 170px) 0}
+.kl-bulut3{translate:calc(var(--hp) * -60px) calc(var(--hp) * 90px)}
+.kl-hero-acd{translate:0 calc(var(--hp) * -60px);rotate:calc(var(--hp) * 20deg)}
+.kl-hero-cocuk{left:64%;bottom:-6%;width:17%;z-index:3;translate:calc(var(--hp) * -40px) calc(var(--hp) * -230px);rotate:calc(var(--hp) * -6deg)}
+.kl-hero-cocuk .kc{width:100%;height:auto;display:block;transform-origin:50% 55%;animation:klCocukSuz 3.2s ease-in-out infinite alternate}
+.kl-hero-cocuk .kl-cb-el{transform-origin:78px 156px;animation:klCocukEl 1.6s ease-in-out infinite}
+.kl-hero-cocuk .kl-cb1,.kl-hero-cocuk .kl-cb2,.kl-hero-cocuk .kl-cb3{transform-box:fill-box;transform-origin:50% 100%;animation:klBalonSalla 2.4s ease-in-out infinite alternate}
+.kl-hero-cocuk .kl-cb2{animation-delay:-.8s}.kl-hero-cocuk .kl-cb3{animation-delay:-1.6s}
+@keyframes klCocukSuz{from{transform:translateY(8px) rotate(-3deg)}to{transform:translateY(-10px) rotate(3deg)}}
+@keyframes klCocukEl{0%,100%{transform:rotate(0)}25%{transform:rotate(-22deg)}50%{transform:rotate(6deg)}75%{transform:rotate(-16deg)}}
+@keyframes klBalonSalla{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+@media (max-width:900px){.kl-hero-cocuk{width:20%;left:62%}}
+@media (max-width:760px){.kl-gunes{width:96px;height:96px;margin-left:-48px}.kl-ay{width:70px;height:70px;margin-left:-35px}}
+
+@media (prefers-reduced-motion: reduce){
+  .kl-gok-kat>span,.kl-gb>.kc,.kl-yz,.kl-kayan,.kl-hero-cocuk .kc,.kl-hero-cocuk .kl-cb-el,.kl-hero-cocuk g,.kl-hero-cocuk ellipse{animation:none!important}
+  .kl-kayan{display:none}
+}
+
+/* ==========================================================================
+   ACADEX KIDS · "Oyun dünyana gidiyorsun!" uçuşu (kids/assets/kids-ucus.css), 15.11.2026
+   Bütün parçalar aynı süreye (--sure) göre yüzdeyle zamanlanır: tam 3,2 sn, kısa 1,1 sn.
+   ========================================================================== */
+.ku{position:fixed;inset:0;z-index:300;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .38s ease}
+.ku.ku-son{opacity:0}
+.ku-evren{position:absolute;inset:0;background:radial-gradient(circle at 50% 46%,#FFB3D1 0,#B58CFF 18%,#5B3FC4 42%,#251A66 70%,#120C33 100%);animation:kuEvren var(--sure) ease forwards}
+@keyframes kuEvren{0%{opacity:0}7%{opacity:1}80%{opacity:1}88%,100%{opacity:0}}
+.ku-nebula,.ku-gokkusagi{position:absolute;left:50%;top:46%;border-radius:50%;pointer-events:none}
+.ku-nebula{width:140vmax;height:140vmax;margin:-70vmax 0 0 -70vmax;background:conic-gradient(from 0deg,rgba(255,107,91,.35),rgba(255,210,63,.3),rgba(76,195,138,.3),rgba(74,168,255,.35),rgba(142,124,240,.35),rgba(255,122,168,.3),rgba(255,107,91,.35));filter:blur(40px);animation:kuDon calc(var(--sure) * 3) linear infinite}
+.ku-gokkusagi{width:46vmin;height:46vmin;margin:-23vmin 0 0 -23vmin;background:radial-gradient(circle,rgba(255,255,255,.9) 0,rgba(255,243,176,.6) 22%,rgba(255,255,255,0) 60%);animation:kuNabiz calc(var(--sure) / 3) ease-in-out infinite alternate}
+@keyframes kuDon{to{rotate:360deg}}
+@keyframes kuNabiz{from{scale:.85;opacity:.7}to{scale:1.15;opacity:1}}
+/* yıldızlar merkezden dışarı akar (ışık hızı) */
+.ku-yildizlar i{position:absolute;left:50%;top:46%;width:6px;height:3px;margin:-1.5px 0 0;border-radius:3px;background:var(--c);transform-origin:0 50%;rotate:var(--a);animation:kuWarp var(--t) cubic-bezier(.55,0,1,.45) var(--d) infinite;box-shadow:0 0 8px var(--c)}
+@keyframes kuWarp{0%{translate:2vmin 0;width:4px;opacity:0}15%{opacity:1}100%{translate:78vmax 0;width:90px;opacity:.9}}
+/* oyun dünyasının adaları yanından geçer */
+.ku-ada{position:absolute;left:50%;top:46%;width:14vmin;margin:-7vmin 0 0 -7vmin;opacity:0;animation:kuAda calc(var(--sure) * .55) cubic-bezier(.5,0,.9,.6) var(--d) forwards}
+.ku-ada .kc{width:100%;height:auto;display:block}
+@keyframes kuAda{0%{opacity:0;transform:rotate(var(--a)) translateX(4vmin) rotate(calc(var(--a) * -1)) scale(.2)}20%{opacity:1}100%{opacity:1;transform:rotate(var(--a)) translateX(70vmax) rotate(calc(var(--a) * -1)) scale(2.4)}}
+/* roket ve pencerede çocuğun yüzü */
+.ku-roket{position:absolute;left:50%;top:46%;width:clamp(120px,22vmin,210px);margin-left:calc(clamp(120px,22vmin,210px) / -2);translate:0 -50%;animation:kuRoket var(--sure) cubic-bezier(.4,0,.2,1) forwards}
+.ku-roket-c{display:block;width:100%;height:auto;overflow:visible}
+.ku-yuz{position:absolute;left:50%;top:39%;width:40%;aspect-ratio:1;translate:-50% -50%;border-radius:50%;overflow:hidden}
+.ku-yuz .kc{width:100%;height:100%;display:block}
+.ku-alev{transform-origin:60px 160px;animation:kuAlev .12s ease-in-out infinite alternate}
+@keyframes kuAlev{from{transform:scaleY(.8)}to{transform:scaleY(1.15)}}
+@keyframes kuRoket{
+  0%{transform:translate(-58vw,48vh) rotate(42deg) scale(.45)}
+  30%{transform:translate(0,3vh) rotate(-4deg) scale(1)}
+  45%{transform:translate(0,-1vh) rotate(3deg) scale(1.03)}
+  62%{transform:translate(0,1vh) rotate(-2deg) scale(1.05)}
+  82%{transform:translate(0,-28vh) rotate(0) scale(.6)}
+  100%{transform:translate(0,-72vh) rotate(0) scale(.2)}}
+.ku-acd{position:absolute;left:50%;top:46%;width:clamp(64px,11vmin,110px);margin:calc(clamp(64px,11vmin,110px) / -2) 0 0 calc(clamp(64px,11vmin,110px) / -2);animation:kuAcd var(--sure) cubic-bezier(.4,0,.2,1) forwards}
+.ku-acd .kc{width:100%;height:auto;display:block}
+@keyframes kuAcd{
+  0%{transform:translate(-50vw,-40vh) rotate(-30deg) scale(.4)}
+  32%{transform:translate(clamp(110px,18vmin,190px),-6vh) rotate(10deg) scale(1)}
+  48%{transform:translate(clamp(110px,18vmin,190px),-11vh) rotate(-8deg) scale(1)}
+  64%{transform:translate(clamp(110px,18vmin,190px),-5vh) rotate(8deg) scale(1)}
+  82%{transform:translate(8vmin,-30vh) rotate(0) scale(.6)}
+  100%{transform:translate(0,-72vh) scale(.2)}}
+/* yazı */
+.ku-yazi{position:absolute;left:0;right:0;bottom:12vh;margin:0;padding:0 16px;text-align:center;animation:kuYazi var(--sure) ease forwards}
+.ku-yazi span{display:inline-block;padding:12px 26px;border:4px solid #23304D;border-radius:999px;background:#FFF8E7;color:#23304D;box-shadow:0 7px 0 #23304D;font:800 clamp(24px,4.6vw,44px)/1.1 'Baloo 2','Nunito',system-ui,sans-serif}
+.ku-yazi b{color:#E5484D}
+@keyframes kuYazi{0%,16%{opacity:0;transform:translateY(40px) scale(.6)}26%{opacity:1;transform:translateY(-6px) scale(1.08)}32%,74%{opacity:1;transform:none}84%,100%{opacity:0;transform:translateY(-20px) scale(.9)}}
+/* bulutların arasından iniş: önce ekranı kaplar, sonra açılıp haritayı gösterir */
+.ku-bulutlar{position:absolute;inset:0;pointer-events:none}
+.ku-bulut{position:absolute;left:50%;top:50%;width:60vmax;margin:-13.5vmax 0 0 -30vmax;opacity:0;animation:kuBulut var(--sure) cubic-bezier(.3,0,.3,1) var(--d) forwards}
+.ku-bulut .kc{width:100%;height:auto;display:block}
+@keyframes kuBulut{
+  0%,66%{opacity:0;transform:rotate(var(--a)) translateX(0) rotate(calc(var(--a) * -1)) scale(.15)}
+  80%{opacity:1;transform:rotate(var(--a)) translateX(12vmax) rotate(calc(var(--a) * -1)) scale(1.6)}
+  100%{opacity:0;transform:rotate(var(--a)) translateX(85vmax) rotate(calc(var(--a) * -1)) scale(2.2)}}
+.ku-bulutlar::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,#fff 0,rgba(255,255,255,.9) 38%,rgba(255,255,255,0) 78%);opacity:0;animation:kuBeyaz var(--sure) ease forwards}
+@keyframes kuBeyaz{0%,70%{opacity:0}82%{opacity:.95}100%{opacity:0}}
+.ku-kisa .ku-bulutlar::after{animation-name:kuBeyazK}
+@keyframes kuBeyazK{0%,45%{opacity:0}66%{opacity:.95}100%{opacity:0}}
+/* kısa hâl (aynı gün ikinci giriş) */
+.ku-kisa .ku-roket{animation-name:kuRoketK}.ku-kisa .ku-acd{display:none}
+@keyframes kuRoketK{0%{transform:translate(0,22vh) scale(.6)}55%{transform:translate(0,-2vh) scale(1)}100%{transform:translate(0,-72vh) scale(.2)}}
+.ku-kisa .ku-yazi{animation-name:kuYaziK}
+@keyframes kuYaziK{0%{opacity:0;transform:scale(.7)}18%,60%{opacity:1;transform:none}80%,100%{opacity:0}}
+.ku-kisa .ku-bulut{animation-name:kuBulutK}
+@keyframes kuBulutK{0%,40%{opacity:0;transform:rotate(var(--a)) translateX(0) rotate(calc(var(--a) * -1)) scale(.15)}65%{opacity:1;transform:rotate(var(--a)) translateX(12vmax) rotate(calc(var(--a) * -1)) scale(1.6)}100%{opacity:0;transform:rotate(var(--a)) translateX(85vmax) rotate(calc(var(--a) * -1)) scale(2.2)}}
+.ku-kisa .ku-evren{animation-name:kuEvrenK}
+@keyframes kuEvrenK{0%{opacity:0}10%,55%{opacity:1}72%,100%{opacity:0}}
+/* hareketi azalt: yalnız yüz, yazı ve solma */
+.ku-sakin .ku-nebula,.ku-sakin .ku-yildizlar,.ku-sakin .ku-bulutlar,.ku-sakin .ku-gokkusagi{display:none}
+.ku-sakin .ku-evren{animation:none;opacity:1}
+.ku-sakin .ku-yazi{animation:none}
+.ku-yuz-b{position:absolute;left:50%;top:42%;width:clamp(110px,24vmin,200px);aspect-ratio:1;translate:-50% -50%}
+.ku-yuz-b .kc{width:100%;height:100%;display:block}
+@media (prefers-reduced-motion: reduce){.ku *{animation:none!important}}
+
 </style>
 </head>
 <body class="kl">
@@ -6904,10 +7051,10 @@ body.kr-acik{overflow:hidden}
     if (x.kod === V.OKUL.kod) {
       S.okul = V.OKUL; S.sinif = V.OKUL.siniflar.filter(function (s) { return s.id === x.sinif; })[0];
       S.ogr = S.sinif && S.sinif.ogr.filter(function (g) { return g[0] === x.ad; })[0];
-      if (S.sinif && S.ogr) { koy('oturum', { kod: V.OKUL.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); return panel(); }
+      if (S.sinif && S.ogr) { koy('oturum', { kod: V.OKUL.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); S.ucus = true; return panel(); }
       cihazSil(x); return kimOynuyor();
     }
-    if (x.token) { koy('oturum', { kod: x.kod, token: x.token }); return bulutAc(x.token, x); }
+    if (x.token) { koy('oturum', { kod: x.kod, token: x.token }); S.ucus = true; return bulutAc(x.token, x); }
     if (x.id) return evAc({ kod: x.kod, ogr: x.id }, null);
     cihazSil(x); kimOynuyor();
   }
@@ -6926,14 +7073,14 @@ body.kr-acik{overflow:hidden}
         if (sec.length < 2) return;
         var yanlis = function (mesaj) { SES.fx('yanlis'); yuva.classList.add('ko-salla'); if (mesaj) { app.querySelector('[data-uyari]').textContent = mesaj; SES.soyle(mesaj, 'tr'); } setTimeout(function () { sec = []; yuva.classList.remove('ko-salla'); yuva.innerHTML = '<span></span><span></span>'; }, 700); };
         if (!bulutMu()) {
-          if (sec[0] === S.okul.sifre[0] && sec[1] === S.okul.sifre[1]) { SES.fx('yildiz'); koy('oturum', { kod: S.okul.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); setTimeout(panel, 500); }
+          if (sec[0] === S.okul.sifre[0] && sec[1] === S.okul.sifre[1]) { SES.fx('yildiz'); koy('oturum', { kod: S.okul.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); S.ucus = true; setTimeout(panel, 500); }
           else yanlis();
           return;
         }
         var deneme = sec.slice();
         B.giris(S.ogr[2], deneme).then(function (r) {
           if (!r.tamam) return yanlis(r.kilit ? 'Biraz dinlenelim; birkaç dakika sonra yeniden dene.' : '');
-          S.token = r.token; koy('oturum', { kod: S.okul.kod, token: r.token }); SES.fx('yildiz');
+          S.token = r.token; koy('oturum', { kod: S.okul.kod, token: r.token }); S.ucus = true; SES.fx('yildiz');
           setTimeout(function () { bulutAc(r.token); }, 400);
         }, function (er) { yanlis(er.message); });
       });
@@ -6957,6 +7104,8 @@ body.kr-acik{overflow:hidden}
     var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : yerelKonu()), bugun = bk && bk.acik && !bk.sinifSeti ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
     il.son = Date.now(); koy(ilAnahtar(), il);   /* öğretmen panelindeki "son giriş" */
     cihazEkle();
+    /* girişten hemen sonra: "Oyun dünyana gidiyorsun!" uçuşu (kids-ucus.js); harita arkada hazır bekler */
+    var ucus = S.ucus && W.KIDS_UCUS; S.ucus = false;
     ciz(ustCubuk(il) +
       (bugun ? '<section class="ka-bugun"><div class="ka-bugun-acd">' + acd('kutlama') + '</div><div class="ka-bugun-yazi"><small>Bugünün konusu</small><h1><span lang="en">' + esc(bugun.en) + '</span> <em>' + esc(bugun.tr) + '</em></h1><p>Bugün okulda bunu öğrendin! Hadi oynayarak tekrar edelim.</p></div>' +
         '<button type="button" class="ka-buyuk ka-oyna" data-konu="' + bugun.id + '" data-odak>Oyna ' + C.simge('oynat') + '</button></section>'
@@ -6979,7 +7128,8 @@ body.kr-acik{overflow:hidden}
     if (yukselen.length) { var il2 = ilerleme(); il2.asamaGor = il2.asamaGor || {}; yukselen.forEach(function (id) { il2.asamaGor[id] = OD.asama(il2, id); }); koy(ilAnahtar(), il2); setTimeout(function () { if (app.dataset.gorunum === 'harita') { SES.fx('yildiz'); SES.soyle('Adan büyüdü!', 'tr'); } }, 900); }
     app.querySelectorAll('[data-yakinda]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('yanlis'); b.classList.remove('ko-salla'); void b.offsetWidth; b.classList.add('ko-salla'); SES.soyle('Bu ada yakında açılacak.', 'tr'); }); });
     cubukKur(panel);
-    SES.soyle(bugun ? 'Bugünün konusu ' + bugun.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!' : 'Bugün serbest gün. İstediğin adaya dokun.', 'tr');
+    var karsila = function () { if (app.dataset.gorunum === 'harita') SES.soyle(bugun ? 'Bugünün konusu ' + bugun.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!' : 'Bugün serbest gün. İstediğin adaya dokun.', 'tr'); };
+    if (ucus) W.KIDS_UCUS.oynat({ ad: S.ogr[0], hayvan: S.ogr[1], renk: S.ogr[4], anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]) }).then(karsila); else karsila();
   }
   function cubukKur(yeniden) {
     var s = app.querySelector('[data-ses]'); if (s) s.addEventListener('click', function () { var a = SES.ayar(!SES.acikMi()); s.setAttribute('aria-pressed', a); if (a) SES.fx('dogru'); });
@@ -7483,6 +7633,89 @@ body.kr-acik{overflow:hidden}
   /* tek sayfa: kids-yon.js #oyna'da ac(), başka görünüme geçerken kapat() çağırır */
   function kapatApp() { dur(); D.querySelectorAll('.ka-ort').forEach(function (o) { o.remove(); }); if (app) app.innerHTML = ''; }
   W.KIDS_APP = { ac: kur, kapat: kapatApp, panel: panel, konuAc: konuAc, durum: function () { return S; }, DURAK: DURAK, sorEki: sorEki, kimOynuyor: function () { kimOynuyor(); } };
+})(window);
+
+/* ---- kids-ucus.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · "Oyun dünyana gidiyorsun!" uçuşu (kids/assets/kids-ucus.js), 15.11.2026
+   Çocuk giriş yapınca (şifreyle ya da "Kim oynuyor?"dan) renkli bir evrenden roketle uçar:
+   rokettin penceresinde kendi yüzü (hayvan + renk), yanında Acadia, yanından adalar ve
+   yıldızlar akar; bulutların arasından haritaya iner. Yaklaşık 3,2 sn; aynı gün aynı çocuk
+   ikinci kez girerse 1,1 sn'lik kısa hâli. Dokununca ya da bir tuşa basınca atlanır.
+   Sessizdir. Hareketi azalt açıksa yalnız yumuşak bir solma (0,9 sn).
+   KIDS_UCUS.oynat({ad, hayvan, renk, anahtar}) → bitince çözülen Promise.
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, C = W.KIDS_CIZ, V = W.KIDS_VERI;
+  var SAKIN = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  function bugun() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  /* aynı gün aynı çocuk ikinci kez mi giriyor? (yalnız bu cihazda; ad tutulmaz, anahtar tutulur) */
+  function kisaMi(anahtar) {
+    var k = 'kids.ucus', m = {};
+    try { m = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { m = {}; }
+    var g = bugun(), kisa = m[anahtar] === g;
+    Object.keys(m).forEach(function (a) { if (m[a] !== g) delete m[a]; });
+    m[anahtar] = g; try { localStorage.setItem(k, JSON.stringify(m)); } catch (e) { }
+    return kisa;
+  }
+  function ilkAd(ad) { return String(ad || '').trim().split(/\s+/)[0].replace(/[.,]+$/, ''); }
+  /* özgün roket çizimi; pencere (cx 60, cy 78) çocuğun yüzü için boş bırakılır */
+  function roket() {
+    var M = '#23304D';
+    return '<svg class="ku-roket-c" viewBox="0 0 120 200" aria-hidden="true">' +
+      '<g class="ku-alev"><path d="M44 160 q16 48 16 40 q0 8 16 -40 z" fill="#FFB020"/><path d="M50 160 q10 30 10 26 q0 4 10 -26 z" fill="#FFF3B0"/></g>' +
+      '<path d="M34 120 l-22 36 l26 -6 z M86 120 l22 36 l-26 -6 z" fill="#E5484D" stroke="' + M + '" stroke-width="3.5" stroke-linejoin="round"/>' +
+      '<path d="M60 6 q34 30 30 120 q-2 26 -10 36 h-40 q-8 -10 -10 -36 q-4 -90 30 -120 z" fill="#FFFFFF" stroke="' + M + '" stroke-width="3.5" stroke-linejoin="round"/>' +
+      '<path d="M60 6 q18 16 25 44 h-50 q7 -28 25 -44 z" fill="#E5484D" stroke="' + M + '" stroke-width="3.5" stroke-linejoin="round"/>' +
+      '<path d="M40 162 h40 l-4 10 h-32 z" fill="#8E7CF0" stroke="' + M + '" stroke-width="3.5" stroke-linejoin="round"/>' +
+      '<path d="M60 112 v40" stroke="#4AA8FF" stroke-width="6" stroke-linecap="round"/>' +
+      '<circle cx="60" cy="78" r="25" fill="#CDEBFF" stroke="' + M + '" stroke-width="4"/></svg>';
+  }
+  function sahne(o, kisa) {
+    var yildiz = '', ada = '', bulut = '', n = kisa ? 26 : 54;
+    for (var i = 0; i < n; i++) {
+      var a = (i * 137.5) % 360, t = (0.7 + (i % 5) * 0.18).toFixed(2), d = (-(i % 9) * 0.11).toFixed(2), c = ['#FFFFFF', '#FFD23F', '#A5DBFF', '#FFB3D1', '#B8F2C8'][i % 5];
+      yildiz += '<i style="--a:' + a.toFixed(1) + 'deg;--t:' + t + 's;--d:' + d + 's;--c:' + c + '"></i>';
+    }
+    if (!kisa && V && V.KONU) {
+      V.KONU.slice(0, 6).forEach(function (k, i) {
+        var a = [210, 330, 30, 150, 260, 90][i];
+        ada += '<span class="ku-ada" style="--a:' + a + 'deg;--d:' + (0.25 + i * 0.22).toFixed(2) + 's">' + C.ada(k.renk, k.simge, false) + '</span>';
+      });
+    }
+    for (var b = 0; b < 7; b++) bulut += '<span class="ku-bulut" style="--a:' + (b * 51) + 'deg;--d:' + (b * 0.03).toFixed(2) + 's">' + C.bulut() + '</span>';
+    var ad = ilkAd(o.ad);
+    return '<div class="ku-evren" aria-hidden="true"><span class="ku-nebula"></span><span class="ku-gokkusagi"></span><span class="ku-yildizlar">' + yildiz + '</span>' + ada + '</div>' +
+      (SAKIN ? '' : '<div class="ku-roket" aria-hidden="true">' + roket() + '<span class="ku-yuz">' + C.avatar(o.hayvan, o.renk) + '</span></div><span class="ku-acd" aria-hidden="true">' + C.acadia({ mood: 'kutlama' }) + '</span>') +
+      (SAKIN ? '<span class="ku-yuz-b" aria-hidden="true">' + C.avatar(o.hayvan, o.renk) + '</span>' : '') +
+      '<p class="ku-yazi" role="status"><span>Oyun dünyana gidiyorsun' + (ad ? ', <b>' + esc(ad) + '</b>' : '') + '!</span></p>' +
+      '<div class="ku-bulutlar" aria-hidden="true">' + bulut + '</div>';
+  }
+  function oynat(o) {
+    o = o || {};
+    return new Promise(function (bitti) {
+      if (!C || !D.body) return bitti();
+      var kisa = SAKIN ? false : kisaMi(o.anahtar || ('?' + (o.ad || ''))), sure = SAKIN ? 900 : kisa ? 1100 : 3200;
+      var k = D.createElement('div');
+      k.className = 'ku' + (kisa ? ' ku-kisa' : '') + (SAKIN ? ' ku-sakin' : '');
+      k.style.setProperty('--sure', sure + 'ms');
+      k.innerHTML = sahne(o, kisa);
+      D.body.appendChild(k);
+      var bitir = function (hizli) {
+        if (!k.isConnected || k.dataset.bitiyor) return; k.dataset.bitiyor = '1';
+        D.removeEventListener('keydown', tus, true); clearTimeout(z);
+        k.classList.add('ku-son');
+        setTimeout(function () { k.remove(); bitti(); }, hizli ? 220 : 380);
+      };
+      var tus = function () { bitir(true); };
+      var z = setTimeout(function () { bitir(false); }, sure);
+      k.addEventListener('pointerdown', function () { bitir(true); });
+      D.addEventListener('keydown', tus, true);
+    });
+  }
+  W.KIDS_UCUS = { oynat: oynat, kisaMi: kisaMi, ilkAd: ilkAd };
 })(window);
 
 /* ---- kids-tahta.js ---- */
@@ -8332,6 +8565,159 @@ body.kr-acik{overflow:hidden}
     D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') setTimeout(yeniden, 30); });
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
+})(window);
+
+/* ---- kids-scroll.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · tanıtım sayfası kaydırma şöleni (kids/assets/kids-scroll.js), 15.11.2026
+   1) Gökyüzü sabahtan geceye: sayfanın zemini bölümlerin yerine göre sabah mavisi → öğle →
+      ikindi altını → gün batımı → alacakaranlık → yıldızlı gece (alttaki bilgi şeridiyle birleşir).
+      Bulutlar, güneş, ay ve yıldızlar farklı derinliklerde kayar (paralaks).
+   2) Bölümler zıplayarak gelir: kartlar jöle gibi yaylanır, başlık harfleri tek tek hoplar.
+   3) Hero: adalar kaydırdıkça açılır ve derinleşir; balonlu bir çocuk yükselip el sallar.
+   Hareketi azalt açıksa: renkli zemin kalır, hiçbir şey hareket etmez, her şey baştan görünür.
+   Çizimler özgündür (kids-ciz.js); dış kaynak yok.
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, C = W.KIDS_CIZ;
+  var SAKIN = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var ana, kat, hero, sahneH, derin = [], bekliyor = false, gozcu = null;
+
+  /* ---------- 1) gökyüzü ---------- */
+  /* [bölüm seçicisi, o bölümün başındaki renk]; arası yumuşak geçer. Son renk alt bilgi şeridinin rengi. */
+  var DURAK = [
+    [null, '#E4F5FF'], ['#nasil', '#D6F0FF'], ['#dene', '#CDEBFF'], ['#yas', '#FFF3D4'], ['#icerik-konular', '#FFDDB0'],
+    ['.kl-guven', '#FFC9BE'], ['#fiyat', '#6E68C6'], ['#sss', '#2E3574'], [null, '#23304D']
+  ];
+  function ustY(el) { var y = 0; while (el && el !== ana) { y += el.offsetTop; el = el.offsetParent; } return y; }
+  function rastgele(t) { var x = Math.sin(t * 9301 + 49297) * 233280; return x - Math.floor(x); }   /* her yüklemede aynı yerleşim */
+
+  function gokKur() {
+    var H = ana.scrollHeight, durak = [];
+    DURAK.forEach(function (d, i) {
+      var y = i === 0 ? 0 : i === DURAK.length - 1 ? H : (d[0] && ana.querySelector(d[0]) ? ustY(ana.querySelector(d[0])) : -1);
+      if (y >= 0) durak.push([y, d[1]]);
+    });
+    /* alacakaranlık bölümün ortasında morlaşır */
+    var g = ana.querySelector('.kl-guven');
+    if (g) durak.splice(durak.length - 3, 0, [ustY(g) + g.offsetHeight * 0.55, '#E2C4F2']);
+    durak.sort(function (a, b) { return a[0] - b[0]; });
+    ana.style.backgroundImage = 'linear-gradient(180deg,' + durak.map(function (d) { return d[1] + ' ' + Math.round(d[0]) + 'px'; }).join(',') + ')';
+    ana.classList.add('kl-gok');
+
+    /* derinlik katmanı: bulutlar (gündüz), güneş (gün batımı), ay ve yıldızlar (gece) */
+    if (!kat) { kat = D.createElement('div'); kat.className = 'kl-gok-kat'; kat.setAttribute('aria-hidden', 'true'); ana.insertBefore(kat, ana.firstChild); }
+    var w = ana.clientWidth, dar = w < 760, yKonu = ustY(ana.querySelector('#icerik-konular') || ana), yFiyat = ustY(ana.querySelector('#fiyat') || ana), html = '';
+    derin = [];
+    var ekle = function (cls, x, y, k, ic, stil) { derin.push({ y: y, k: k }); html += '<span class="' + cls + '" style="left:' + x.toFixed(1) + '%;top:' + Math.round(y) + 'px;' + (stil || '') + '">' + (ic || '') + '</span>'; };
+    var nb = dar ? 7 : 14;
+    for (var i = 0; i < nb; i++) {
+      var y = 160 + rastgele(i + 1) * Math.max(200, yKonu - 200), k = [0.12, 0.25, 0.4][i % 3];
+      ekle('kl-gb kl-gb' + (i % 3), rastgele(i + 31) * 92 - 4, y, k, C.bulut(), '--w:' + Math.round((dar ? 90 : 120) + k * (dar ? 160 : 300)) + 'px');
+    }
+    ekle('kl-gunes', dar ? 84 : 80, yKonu - (dar ? 230 : 120), dar ? 0.2 : 0.35, '<i></i>');
+    for (var j = 0; j < (dar ? 26 : 54); j++) {
+      var ys = yFiyat - 160 + rastgele(j + 101) * (ana.scrollHeight - yFiyat + 120);
+      ekle('kl-yz' + (j % 5 === 0 ? ' kl-yz-b' : ''), rastgele(j + 201) * 98, ys, 0.06 + (j % 3) * 0.05, '', '--d:' + (rastgele(j + 301) * 3).toFixed(2) + 's');
+    }
+    ekle('kl-ay', dar ? 76 : 84, yFiyat + 40, 0.3, '<i></i>');
+    ekle('kl-kayan', 10, yFiyat + 120, 0.1, '', '');
+    kat.innerHTML = html;
+    [].forEach.call(kat.children, function (el, n) { derin[n].el = el; });
+  }
+  function gokCiz() {
+    if (SAKIN || !kat) return;
+    var ust = ana.getBoundingClientRect().top + W.scrollY, orta = W.scrollY + W.innerHeight / 2 - ust, vh = W.innerHeight;
+    for (var i = 0; i < derin.length; i++) {
+      var d = derin[i], fark = orta - d.y;
+      if (Math.abs(fark) > vh * 1.6) continue;
+      d.el.style.transform = 'translate3d(0,' + (fark * d.k).toFixed(1) + 'px,0)';
+    }
+  }
+
+  /* ---------- 2) zıplayarak gelen bölümler ---------- */
+  var ZIPLA = '.kl-soz,.kl-adimlar>li,.kl-yaslar>li,.kl-konular>li,.kl-guvenler>li,.kl-sss>details,.kl-fiyat-kart,.kl-dene-oyun,.kl-tablet';
+  var BASLIK = '.kl-bolum>h2,.kl-dene h2,.kl-sahne h2';
+  function harfle(h) {
+    if (h.dataset.harf) return; h.dataset.harf = '1';
+    var n = 0, isle = function (dugum) {
+      [].slice.call(dugum.childNodes).forEach(function (c) {
+        if (c.nodeType === 1) { if (c.tagName !== 'BR') isle(c); return; }
+        if (c.nodeType !== 3 || !c.nodeValue.trim()) return;
+        var f = D.createDocumentFragment();
+        c.nodeValue.split(/(\s+)/).forEach(function (s) {
+          if (!s) return;
+          if (/^\s+$/.test(s)) { f.appendChild(D.createTextNode(s)); return; }
+          var k = D.createElement('span'); k.className = 'kl-hk';
+          Array.from(s).forEach(function (ch) { var e = D.createElement('span'); e.className = 'kl-hh'; e.style.setProperty('--i', n++); e.textContent = ch; k.appendChild(e); });
+          f.appendChild(k);
+        });
+        dugum.replaceChild(f, c);
+      });
+    };
+    isle(h);
+  }
+  function ziplaKur() {
+    if (SAKIN || !('IntersectionObserver' in W)) return;
+    D.documentElement.classList.add('kl-zip-hazir');
+    var liste = [].slice.call(ana.querySelectorAll(ZIPLA)), baslik = [].slice.call(ana.querySelectorAll(BASLIK));
+    baslik.forEach(harfle);
+    /* aynı satırdakiler sırayla gelir */
+    liste.forEach(function (el) { var kardes = el.parentNode ? [].indexOf.call(el.parentNode.children, el) : 0; el.style.setProperty('--zi', kardes % 6); el.classList.add('kl-zip'); });
+    baslik.forEach(function (el) { el.classList.add('kl-zip-h'); });
+    gozcu = new W.IntersectionObserver(function (gir) {
+      gir.forEach(function (g) { if (g.isIntersecting) { g.target.classList.add('kl-geldi'); gozcu.unobserve(g.target); } });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
+    liste.concat(baslik).forEach(function (el) { gozcu.observe(el); });
+  }
+
+  /* ---------- 3) hero: açılan adalar ve balonlu çocuk ---------- */
+  /* özgün çizim: iki kollu, balon iplerini tutan minik çocuk (belirli bir karakter değildir) */
+  function cocuk() {
+    var M = '#23304D';
+    return '<svg class="kc" viewBox="0 0 120 220" aria-hidden="true">' +
+      '<g class="kl-cb-ip" fill="none" stroke="' + M + '" stroke-width="2"><path d="M60 118 L34 52"/><path d="M60 118 L60 40"/><path d="M60 118 L88 54"/></g>' +
+      '<g stroke="' + M + '" stroke-width="3"><ellipse class="kl-cb1" cx="30" cy="34" rx="18" ry="22" fill="#E5484D"/><ellipse class="kl-cb2" cx="60" cy="22" rx="18" ry="22" fill="#FFD23F"/><ellipse class="kl-cb3" cx="90" cy="36" rx="18" ry="22" fill="#4AA8FF"/></g>' +
+      '<g fill="#fff" opacity=".7"><ellipse cx="24" cy="26" rx="4" ry="7"/><ellipse cx="54" cy="14" rx="4" ry="7"/><ellipse cx="84" cy="28" rx="4" ry="7"/></g>' +
+      '<path d="M52 196 l-4 18 h10 l2 -18 z M68 196 l4 18 h-10 l-2 -18 z" fill="' + M + '"/>' +
+      '<path d="M42 150 q18 -12 36 0 l6 48 h-48 z" fill="#4CC38A" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/>' +
+      '<path d="M44 158 q-10 -20 14 -38" fill="none" stroke="' + M + '" stroke-width="7" stroke-linecap="round"/><path d="M44 158 q-10 -20 14 -38" fill="none" stroke="#FFCFA8" stroke-width="3.5" stroke-linecap="round"/>' +
+      '<g class="kl-cb-el"><path d="M76 158 q16 -10 18 -30" fill="none" stroke="' + M + '" stroke-width="7" stroke-linecap="round"/><path d="M76 158 q16 -10 18 -30" fill="none" stroke="#FFCFA8" stroke-width="3.5" stroke-linecap="round"/><circle cx="94" cy="126" r="6" fill="#FFCFA8" stroke="' + M + '" stroke-width="3"/></g>' +
+      '<circle cx="58" cy="120" r="5" fill="#FFCFA8" stroke="' + M + '" stroke-width="3"/>' +
+      '<circle cx="60" cy="134" r="22" fill="#FFCFA8" stroke="' + M + '" stroke-width="3"/>' +
+      '<path d="M38 132 q2 -24 22 -24 q20 0 22 22 q-10 -10 -22 -10 q-14 0 -22 12 z" fill="#7A4A2A" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/>' +
+      '<circle cx="52" cy="136" r="2.6" fill="' + M + '"/><circle cx="68" cy="136" r="2.6" fill="' + M + '"/>' +
+      '<path d="M53 145 q7 6 14 0" fill="none" stroke="' + M + '" stroke-width="2.6" stroke-linecap="round"/>' +
+      '<ellipse cx="46" cy="143" rx="4" ry="2.6" fill="#FF9E8A" opacity=".8"/><ellipse cx="74" cy="143" rx="4" ry="2.6" fill="#FF9E8A" opacity=".8"/></svg>';
+  }
+  function heroKur() {
+    hero = D.querySelector('.kl-hero'); sahneH = hero && hero.querySelector('.kl-hero-sahne');
+    if (!sahneH || sahneH.querySelector('.kl-hero-cocuk')) return;
+    var s = D.createElement('span'); s.className = 'kl-hero-cocuk'; s.innerHTML = cocuk(); sahneH.appendChild(s);
+  }
+  function heroCiz() {
+    if (SAKIN || !hero) return;
+    var r = hero.getBoundingClientRect(), p = Math.min(1, Math.max(0, -r.top / Math.max(1, r.height)));
+    if (r.bottom < -50) return;
+    sahneH.style.setProperty('--hp', p.toFixed(3));
+  }
+
+  /* ---------- çerçeve ---------- */
+  function ciz() { bekliyor = false; if (D.getElementById('kl-sayfa').hidden) return; gokCiz(); heroCiz(); }
+  function iste() { if (!bekliyor) { bekliyor = true; W.requestAnimationFrame(ciz); } }
+  var zaman = null;
+  function yeniden() { clearTimeout(zaman); zaman = setTimeout(function () { gokKur(); iste(); }, 60); }
+  function kur() {
+    ana = D.getElementById('icerik'); if (!ana || !C) return;
+    heroKur(); gokKur(); ziplaKur(); iste();
+    W.addEventListener('scroll', iste, { passive: true }); W.addEventListener('resize', yeniden);
+    if (W.ResizeObserver) { var son = 0; new W.ResizeObserver(function () { var h = ana.scrollHeight; if (Math.abs(h - son) > 40) { son = h; yeniden(); } }).observe(ana); }
+    if (D.fonts && D.fonts.ready) D.fonts.ready.then(yeniden);
+    D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') yeniden(); });
+  }
+  if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
+  W.KIDS_SCROLL = { harfle: harfle, cocuk: cocuk, DURAK: DURAK, yeniden: yeniden };
 })(window);
 
 /* ---- kids-teklif.js ---- */
