@@ -217,7 +217,7 @@ test('ASETATTA "(Kaynak 2, 8)" KALMAZ, UYDURMA GRAFİK, ÇİFT SONUÇ (14.11.202
   const f = new Function(ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + ';return cleanCite;')();
   assert.equal(f('Collins Columbia’da yörüngede kaldı (Kaynak 1, 2, 8)'), 'Collins Columbia’da yörüngede kaldı');
   assert.equal(f('650 milyon izleyici (NASA tahmini)'), '650 milyon izleyici (NASA tahmini)', 'kurum adı silinmemeli');
-  assert.match(sr, /\.map\(\(x: any\) => dropAttr\(cleanCite\(String\(x \|\| ""\)\)\)\)\.filter\(Boolean\)\.slice\(0, 6\)/, 'maddeler temizlenmiyor');
+  assert.match(sr, /\.map\(\(x: any\) => dropLead\(dropAttr\(cleanCite\(String\(x \|\| ""\)\)\)\)\)\.filter\(Boolean\)\.slice\(0, 6\)/, 'maddeler temizlenmiyor');
   assert.ok(sr.includes('Never split a total into parts the sources do not give'), 'yazara uydurma dağılım yasağı yok');
   assert.ok(sr.includes('a total divided into parts the source does not state is "unsupported"'), 'denetçi uydurma dağılımı geçiriyor');
   assert.match(ink, /if \(plotMeta\.via !== 'research' && !body\.slice\(-2\)\.some/, 'araştırmalı destede ikinci sonuç öneriliyor');
@@ -585,6 +585,35 @@ test('KONUYA SADAKAT: araştırma konunun alt başlıklarını arar, kaynağı o
   const asp = ['altın', 'mevduat faizi', 'döviz', 'yatırım fonu'];
   assert.equal(aspHit(asp, 'TÜFE yıllık %29,77 oldu; Merkez Bankası politika faizini artırdı. Altı ayda bütçe açığı daraldı.'), 0, 'veri sayfası alt başlık taşımaz ("altı" ≠ "altın", "faiz" tek başına yetmez)');
   assert.equal(aspHit(asp, 'Altının yıllık getirisi enflasyonu aştı; mevduat faizleri ise geride kaldı. Dövizde ve yatırım fonlarında tablo karışık.'), 4);
+});
+
+test('CANLI DESTE 14.11 (irade): madde içi kaynak girişi, yayın yılı öneki, başlıksız "two", kapanış notu', () => {
+  // "İradeyi Güçlendirme Nasıl Başlar?": maddeler "Kaynaklar (hiwellapp.com, 2018) gösteriyor ki, …"
+  // diye başlıyordu; 7. asetat "birinci taraf / ikinci taraf" yer tutucusuyla basıldı ve üç maddesi de
+  // "2016 – …" ile açılıyordu (2016 olay tarihi değil, kaynağın yayın yılı); kapanış asetatı ilk üç
+  // başlığı listelerken notu son üçünü sayıyordu.
+  const body = sr.match(/const dropLead = [\s\S]+?\n    const dropYear = [^\n]+/)[0].replace(/\((b|bs): string(\[\])?\)/g, '($1)');
+  const { dropLead, dropYear } = new Function('lang', body + '; return { dropLead, dropYear };')('tr');
+  assert.equal(dropLead('Kaynaklar (hiwellapp.com, 2018) gösteriyor ki, küçük hedefler iradeyi güçlendirir.'), 'Küçük hedefler iradeyi güçlendirir.');
+  assert.equal(dropLead('Kaynak (acikbeyin.com) bildiriyor ki, meditasyon dikkati artırır.'), 'Meditasyon dikkati artırır.');
+  assert.equal(dropLead('Kaynaklara göre irade bir kas gibi çalışır.'), 'İrade bir kas gibi çalışır.');
+  assert.equal(dropLead('Uyku düzeni öz denetimi etkiler (sciencefocus.com).'), 'Uyku düzeni öz denetimi etkiler.');
+  // kişi + yıl atfı ve sıradan madde değişmez
+  for (const b of ['Tim Bono (2016) vurgular: küçük adımlar kalıcıdır.', 'Kaynak suyu şişelenirken (pH 7,2) ölçülür.', 'TÜFE (2003=100) yıllık %29,77 oldu.']) assert.equal(dropLead(b), b);
+  assert.deepEqual(dropYear(['2016 – şeker reddi iradeyi yorar', '2016 – telefon bildirimleri dikkati böler']), ['Şeker reddi iradeyi yorar', 'Telefon bildirimleri dikkati böler']);
+  const cizelge = ['1998 – ilk deney yapıldı', '2007 – glikoz çalışması', '2016 – tekrar çalışması'];
+  assert.deepEqual(dropYear(cizelge), cizelge, 'gerçek zaman çizelgesi bozulmaz');
+  assert.deepEqual(dropYear(['2016 – tek madde']), ['2016 – tek madde']);
+  assert.match(sr, /dropYear\(\(Array\.isArray\(s\.bullets\)[^\n]+dropLead\(dropAttr\(cleanCite\(/, 'süzgeçler maddelere uygulanmıyor');
+  assert.ok(sr.includes('never write a domain name') && sr.includes('never the publication year of the source'), 'istemde alan adı / yayın yılı yasağı yok');
+  // taraf adı harf/rakam taşımıyorsa ("—", "…") "two" listeye iner — sunucuda da istemcide de
+  assert.match(sr, /s\.heads\.slice\(0, 2\)\.filter\(\(h: any\) => \/\[\\p\{L\}\\d\]\/u\.test\(String\(h \|\| ""\)\)\)\.length < 2\)\) k = "list"/);
+  const fr = new Function('arr', 'txt', ink.slice(ink.indexOf('  var fromResearch = '), ink.indexOf('  var smartKind = ')) + '; return fromResearch;')((x) => (Array.isArray(x) ? x : []), (x) => String(x == null ? '' : x).trim());
+  const tur = (heads) => fr({ slides: [{ title: 'Karşılaştırma', kind: 'two', bullets: ['a maddesi', 'b maddesi'], heads }] }).items[0].k;
+  assert.equal(tur(['Kısa vade', 'Uzun vade']), 'two'); assert.equal(tur([]), 'list'); assert.equal(tur(['—', '']), 'list'); assert.equal(tur(undefined), 'list');
+  // kapanış notu asetatta yazan maddeleri sayar
+  assert.match(ink, /var sonB = function \(sl\) \{ var u = sl\.els\.filter\(function \(e\) \{ return e\.type === 'ul' && !e\.muted && e\.text; \}\)\[0\];/);
+  assert.equal(ink.split("sonB(sl).join(', ')").length - 1, 2, 'TR ve EN kapanış notu aynı kaynaktan yazılmalı');
 });
 
 summary();

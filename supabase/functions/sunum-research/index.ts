@@ -569,6 +569,7 @@ Rules:
 - ${story} Slide titles should make this arc visible. Every title is a specific claim or topic (never generic like "Giriş", "Introduction", "Genel Bakış"), unique, max 9 words.
 - COVERAGE: before writing, plan the deck so that it tells the whole story, as far as the sources allow: (1) what it is and the context/background, (2) the key people, organisations or actors by name, (3) how it happened or how it works — the chronology or mechanism, (4) the key numbers, (5) the results, impact or legacy. A deck that is only a list of numbers is a failure: at most 2 slides may be "stat" or "chart". Draw on at least 3 different sources when that many are given.
 - ANSWER THE TOPIC AS PHRASED: if the topic asks how, or for ways, methods, strategies or solutions, most body slides present those ways one by one (what it is, evidence from the sources, limits) — background data about the problem takes at most two slides. If the sources do not cover such ways, say so on the critical slide instead of filling the deck with background.
+- Never start a bullet with "Kaynak", "Kaynaklar", "Source(s)" or a website name, and never write a domain name (example.com) inside a bullet: state the fact itself; the numbered "src" field already carries the attribution. A year in front of a bullet is only for an event that happened in that year, never the publication year of the source.
 - The user message may give AUDIENCE EXPECTS and ASPECTS. They are the plan of the talk: the body is organised around the aspects, and each aspect the sources cover gets its own slide (or at least its own bullet) saying what it is, the evidence the sources give for it, and its limit or risk. They are NOT facts: say nothing about an aspect that the sources do not say, and leave out an aspect the sources do not cover (name the uncovered ones on the critical slide). Slides about background that the audience did not ask for (general data on the problem, what the government or central bank does when the topic asks what a person can do) take at most two slides.
 - Never put a source name in parentheses inside a bullet ("(NPR)", "(TCMB)") — sources are cited through "src" only. Never compute a number yourself (difference, ratio, total, average): every figure appears in a source exactly as written.
 - ACADEMIC DEPTH: this is a university seminar, not a fact sheet. As far as the sources allow, the deck contains (a) one slide that defines the key concepts and the scope, (b) at least one analysis slide that explains WHY — causes, mechanisms, drivers, (c) one comparison (kind "two" or "table") of periods, countries, methods or viewpoints, and (d) one critical slide: limitations, risks, open debates, or points where the sources disagree. The conclusion states implications ("what follows from this"), not a recap of numbers.
@@ -647,11 +648,24 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
        ya da genel etiket silinir; "(TÜFE)" gibi kısaltma açıklaması kalır. */
     const srcWords = " " + flat(srcs.map((x) => `${x.site} ${x.title}`).join(" ")) + " ", srcGlue = srcWords.replace(/ /g, "");
     const dropAttr = (b: string) => b.replace(/\s*\(([^()\d]{2,30})\)(?=[.!?]?\s*$)/, (m, a) => { const f = flat(a); return /^(wikipedia|vikipedi|scientific|devlet|kaynak|source|web)$/.test(f) || (f.length >= 3 && (srcWords.includes(` ${f} `) || srcGlue.includes(f.replace(/ /g, "")))) ? "" : m; });
+    /* Madde İÇİNDEKİ kaynak girişi de atılır: canlı destede (14.11.2026) maddeler
+       "Kaynaklar (hiwellapp.com, 2018) gösteriyor ki, …", "Kaynak (acikbeyin.com)
+       bildiriyor ki, …" diye başlıyordu. dropAttr yalnız madde SONUNDAKİ ayracı
+       siliyor; alan adı asetatta okunmaz, atıf zaten "[n]" ile basılıyor.
+       "Tim Bono (2016)" gibi kişi + yıl atfı kalır. */
+    const dropLead = (b: string) => {
+      const t = b.replace(/\s*\((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s()]*)?(?:\s*,\s*\d{4})?\)/gi, "")
+        .replace(/^\s*(?:(?:bu\s+)?kaynak(?:lar|ça)?(?:\s*\([^()]{0,40}\))?\s+(?:gösteriyor|bildiriyor|belirtiyor|aktarıyor|söylüyor|vurguluyor|gösterir|belirtir)(?:\s+ki)?|(?:the\s+)?sources?(?:\s*\([^()]{0,40}\))?\s+(?:shows?|reports?|states?|says?|notes?|indicates?)(?:\s+that)?|kaynak(?:lar)?a\s+göre|according\s+to\s+(?:the\s+)?sources?)\s*[,:]?\s*/i, "");
+      return t === b ? b : t.charAt(0).toLocaleUpperCase(lang === "en" ? "en" : "tr") + t.slice(1);
+    };
+    /* Bütün maddeler AYNI yılla başlıyorsa o yıl tarih değil, kaynağın yayın
+       yılıdır ("2016 – şeker reddi…", "2016 – telefon…"): baştan atılır. */
+    const dropYear = (bs: string[]) => { const ys = bs.map((b) => (b.match(/^\s*((?:1[5-9]|20)\d{2})\s*[–—:-]\s+(?=\S)/) || [])[1]); return bs.length >= 2 && ys[0] && ys.every((y) => y === ys[0]) ? bs.map((b) => { const t = b.replace(/^\s*\d{4}\s*[–—:-]\s+/, ""); return t.charAt(0).toLocaleUpperCase(lang === "en" ? "en" : "tr") + t.slice(1); }) : bs; };
     const slides = out.slides.slice(0, n).map((s: any) => {
       const ids = (Array.isArray(s.src) ? s.src : []).map((x: any) => Number(x)).filter((x: number) => srcs.some((y) => y.id === x));
       const idx = idxOf(ids);
       const kind = KINDS.includes(s.kind) ? s.kind : "list";
-      const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => dropAttr(cleanCite(String(x || "")))).filter(Boolean).slice(0, 6);
+      const bullets = dropYear((Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => dropLead(dropAttr(cleanCite(String(x || ""))))).filter(Boolean).slice(0, 6));
       if (kind === "quote" && !bullets.length) { const qt = String(s.quote || s.text || "").trim(); if (qt) bullets.push(qt); }
       if (kind === "quote" && bullets.length) bullets[0] = safeQuote(bullets[0]);
       const warn: number[] = [];
@@ -677,7 +691,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (k === "time" && !timeOk(bullets)) k = "list";
       /* İki taraf adı olmayan "two" karşılaştırma değildir: canlı destede (14.11.2026)
          sınırlılıklar asetatı "birinci taraf / ikinci taraf" yer tutucusuyla basıldı. */
-      if (k === "two" && (!Array.isArray(s.heads) || s.heads.filter((h: any) => String(h || "").trim()).length < 2)) k = "list";
+      if (k === "two" && (!Array.isArray(s.heads) || s.heads.slice(0, 2).filter((h: any) => /[\p{L}\d]/u.test(String(h || ""))).length < 2)) k = "list";
       const ser = k === "list" && !warn.length ? seriesOf(bullets) : null;
       if (ser) { k = "chart"; chart = { type: "line", ...ser }; chartOk = true; }
       if (k === "chart" && (!chart || !chartOk)) k = "list";

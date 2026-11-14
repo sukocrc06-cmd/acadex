@@ -32,12 +32,12 @@ const { test, summary } = makeRunner();
 const dilim = (bas, son) => { const a = ink.indexOf(bas), b = ink.indexOf(son, a); assert.ok(a > 0 && b > a, 'dilim bulunamadı: ' + bas); return ink.slice(a, b); };
 const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#D9EFE3','#F6E7C4','#F4DDDA'],deck={tema:null};" +
   dilim('  var rgb3 = ', '  var fontYuklu = ') + dilim('  var temaCikar = ', '  var zipLib = ') + dilim('  var IKON = {', '  var ikonSec = ') + dilim('  var ikonSec = ', '\n') +
-  ';return {TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;}};';
+  ';return {TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,temaAlt,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;},deste:function(d){Object.assign(deck,d);}};';
 const M = new Function('arr', src)((x) => (Array.isArray(x) ? x : []));
 
-test('hazır şablonlar: 16 tane, kimlikleri benzersiz, hepsi okunaklı', () => {
-  assert.equal(M.TEMALAR.length, 16);
-  assert.equal(new Set(M.TEMALAR.map((t) => t.id)).size, 16);
+test('hazır şablonlar: 18 tane, kimlikleri benzersiz, hepsi okunaklı', () => {
+  assert.equal(M.TEMALAR.length, 18);
+  assert.equal(new Set(M.TEMALAR.map((t) => t.id)).size, 18);
   for (const t of M.TEMALAR) {
     assert.ok(M.kontrast(t.ink, t.bg.clear) >= 4, t.id + ' gövde yazısı zeminde okunmuyor');
     assert.ok(M.kontrast(t.head, t.bg.clear) >= 3, t.id + ' başlık zeminde okunmuyor');
@@ -45,7 +45,8 @@ test('hazır şablonlar: 16 tane, kimlikleri benzersiz, hepsi okunaklı', () => 
     assert.equal(t.tint.length, 4);
     /* renkli kutuların içindeki yazı da gövde rengiyle yazılır */
     for (const c of t.tint) assert.ok(M.kontrast(t.ink, c) >= 3, t.id + ' kutu içi yazı okunmuyor: ' + c);
-    assert.match(t.src, /MIT/, t.id + ' kaynağı/lisansı yazmalı');
+    /* ax-*: Acadex'in kendi şablonu; dışarıdan alınan her şablon lisansını yazar */
+    assert.match(t.src, t.id.indexOf('ax-') === 0 ? /özgün/ : /MIT/, t.id + ' kaynağı/lisansı yazmalı');
   }
 });
 
@@ -215,6 +216,37 @@ test('BİÇİM: pano ve halka desenleri çizilir, içerik alanını örtmez', ()
   const h = M.temaDekor({ bg: 'clear' }); assert.ok(h.length >= 3 && h.every((e) => e.type === 'ellipse' && e.dz === 1));
   assert.equal(M.temaKur({ id: 'mp-default', bg: '#FFFFFF' }).bic.dz, 'pano'); assert.equal(M.temaKur({ id: 'rv-moon', bg: '#002B36' }).bic.dz, 'halka');
   M.set(null);
+});
+
+/* PROFESYONEL GÖRÜNÜM (14.11.2026). Canlı deste "İradeyi Güçlendirme Nasıl
+   Başlar?" tema:null ile basılmıştı: zemin deseni, yazı tipi, alt bilgi yoktu.
+   Hazır PowerPoint taslaklarından alınan üç kalıp: (1) iki tonlu çerçeve + pano,
+   (2) köşelerde pastel daire/halka/nokta, (3) her içerik asetatında deste adı +
+   sayfa numarası. Yalnız yerleşim alındı; görsel alınmadı. */
+test('profesyonel görünüm: iki özgün şablon, alt bilgi ve varsayılan şablon', () => {
+  const P = M.TEMALAR.find((t) => t.id === 'ax-pastel'), F = M.TEMALAR.find((t) => t.id === 'ax-memfis');
+  assert.equal(P.bic.dz, 'gecis'); assert.equal(F.bic.dz, 'memfis');
+  M.set(P); const g = M.temaDekor({ bg: 'clear' });
+  assert.ok(new Set(g.slice(0, 6).map((e) => e.fill)).size >= 4, 'çerçeve kademeli geçmeli');
+  const pano = g[g.length - 1]; assert.equal(pano.fill, P.bg.clear); assert.ok(pano.x <= 70 && pano.x + pano.w >= 890 && pano.y <= 46 && pano.y + pano.h >= 510, 'içerik panonun içinde kalmalı');
+  M.set(F); assert.ok(new Set(M.temaDekor({ bg: 'clear' }).map((e) => e.fill)).size >= 4, 'memfis en az üç renk + zemin kullanır');
+  /* alt bilgi: kapakta ve kapanışta yok, içerikte deste adı + sayfa numarası */
+  const kapak = { lay: 'cover', els: [] }, ic = { lay: 'list', els: [{ y: 206, h: 290 }] }, dolu = { lay: 'refs', els: [{ y: 146, h: 370 }] }, son = { lay: 'end', els: [] };
+  M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, dolu, son] });
+  assert.deepEqual(M.temaAlt(kapak), []); assert.deepEqual(M.temaAlt(son), []);
+  const a = M.temaAlt(ic); assert.equal(a.length, 2); assert.equal(a[0].text, 'İRADEYİ GÜÇLENDİRME'); assert.equal(a[1].text, '2');
+  for (const e of a) { assert.equal(e.type, 't'); assert.ok(e.dz && e.y >= 504 && e.y + e.h <= 520 && e.x >= 70 && e.x + e.w <= 890); }
+  assert.deepEqual(M.temaAlt(dolu), [], 'asetatın kendi öğesi alt satıra iniyorsa alt bilgi basılmaz');
+  assert.equal(ic.els.length, 1, 'alt bilgi öğelere yazılmaz');
+  M.set(null); assert.deepEqual(M.temaAlt(ic), [], 'şablonsuzken alt bilgi yok');
+  /* dört çizim yolu da alt bilgiyi basar */
+  assert.ok(ink.split('temaAlt(s)').length - 1 >= 4, 'alt bilgi ekran/küçük resim/PPTX/paylaşımda aynı olmalı');
+  /* üretilen deste şablonsuz kalmaz; "Şablonsuz" seçimi ezilmez */
+  assert.match(ink, /mode !== 'append' && !deck\.tema && !deck\.temaEl/);
+  assert.match(ink, /var temaSec = function \(T\) \{ deck\.temaEl = 1;/);
+  const V = /var VARSAYILAN_TEMA = \[([^\]]+)\]/.exec(ink)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
+  assert.ok(V.length >= 4 && V.includes('ax-pastel') && V.includes('ax-memfis'));
+  for (const id of V) { const t = M.TEMALAR.find((x) => x.id === id); assert.ok(t && !t.dark, id + ' varsayılan şablon açık zeminli olmalı'); }
 });
 
 summary();
