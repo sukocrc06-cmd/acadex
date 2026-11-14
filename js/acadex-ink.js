@@ -6533,7 +6533,16 @@ var SBX = (function () {
       E('t', 70, 160, 390, 40, { text: (c && c.heads && c.heads[0]) || 'birinci taraf', size: 22, color: BLUE, bold: true }), E('ul', 70, 206, 390, 290, b.length ? { text: b.slice(0, h).join('\n'), size: 22 } : { text: 'madde\nmadde', size: 22, muted: true }),
       E('t', 500, 160, 390, 40, { text: (c && c.heads && c.heads[1]) || 'ikinci taraf', size: 22, color: BLUE, bold: true }), E('ul', 500, 206, 390, 290, b.length > 1 ? { text: b.slice(h).join('\n'), size: 22 } : { text: 'madde\nmadde', size: 22, muted: true })]); } },
     quote: { l: 'alıntı', f: function (t, b) { return [E('h', 70, 40, 120, 150, { text: '“', size: 160, color: BLUE }), E('h', 150, 150, 700, 210, b && b[0] ? { text: b[0], size: 38 } : { text: 'akılda kalacak tek cümleyi buraya yaz', size: 38, muted: true }), E('mark', 150, 370, 160, 16, { color: BLUE }), E('t', 150, 396, 700, 40, { text: t, size: 20, color: SOFT })]; } },
-    time: { l: 'zaman çizelgesi', f: function (t, b) { var out = head(t).concat([E('arrow', 70, 286, 830, 28, { color: BLUE })]); for (var i = 0; i < 4; i++) { out.push(E('ellipse', 104 + i * 200, 286, 28, 28, { fill: NAVY })); out.push(E('t', 60 + i * 200, i % 2 ? 330 : 176, 180, 90, b && b[i] ? { text: b[i], size: 19, align: 'center' } : { text: (i + 1) + '. adım', size: 19, align: 'center', muted: true })); } return out; } },
+    /* Durak sayısı gelen adım kadardır. Eskiden her zaman 4 durak çiziliyordu:
+       araştırma 3 adım döndürünce 4. durakta soluk italik "4. adım" yazısı
+       kalıyor ve perdeye öyle çıkıyordu ("Yazılımın Tarihsel Gelişimi",
+       3. asetat — 14.11.2026). Hiç adım yoksa 4 yer tutucu durur: boş asetata
+       bu düzeni elle seçip doldurmanın yolu o. */
+    time: { l: 'zaman çizelgesi', f: function (t, b) {
+      var n = b && b.length ? Math.min(4, b.length) : 4, off = (4 - n) * 100;
+      var out = head(t).concat([E('arrow', 70, 286, 830, 28, { color: BLUE })]);
+      for (var i = 0; i < n; i++) { out.push(E('ellipse', 104 + off + i * 200, 286, 28, 28, { fill: NAVY })); out.push(E('t', 60 + off + i * 200, i % 2 ? 330 : 176, 180, 90, b && b[i] ? { text: b[i], size: 19, align: 'center' } : { text: (i + 1) + '. adım', size: 19, align: 'center', muted: true })); }
+      return out; } },
     stat: { l: '3 sayı', f: function (t, b, c) { var ss = statsOf(b, c), out = head(t); for (var i = 0; i < 3; i++) { var x = ss[i], vl = x ? String(x.value) : ''; out.push(E('h', 70 + i * 280, 190, 260, 110, x ? { text: vl, size: vl.length > 9 ? 40 : vl.length > 6 ? 52 : vl.length > 4 ? 64 : 80, color: BLUE, align: 'center' } : { text: '—', size: 80, color: BLUE, align: 'center' })); out.push(E('t', 70 + i * 280, 310, 260, 90, x ? { text: x.label, size: 18, color: SOFT, align: 'center' } : { text: 'kaynağıyla birlikte bir sayı yaz', size: 18, color: SOFT, align: 'center', muted: true })); } return out; } },
     swot: { l: 'SWOT', f: function (t) { var F = ['#DCE6FF', '#F4DDDA', '#D9EFE3', '#E4E8F1'], N = ['GÜÇLÜ YÖNLER', 'ZAYIF YÖNLER', 'FIRSATLAR', 'TEHDİTLER'], out = head(t); for (var i = 0; i < 4; i++) { var x = i % 2 ? 490 : 70, y = i < 2 ? 140 : 330; out.push(E('rect', x, y, 400, 172, { fill: F[i] })); out.push(E('t', x + 18, y + 14, 364, 34, { text: N[i], size: 17, bold: true, color: NAVY })); out.push(E('t', x + 18, y + 52, 364, 106, { text: '—', size: 19, muted: true })); } return out; } },
     viz: { l: 'çizim', f: function (t, b, c) { return head(t).concat([c && c.viz ? E('viz', 150, 140, 660, 290, { viz: c.viz, color: NAVY }) : E('img', 230, 140, 500, 290, {}), E('t', 120, 446, 720, 60, b && b[0] ? { text: b[0], size: 20, color: SOFT, align: 'center' } : { text: 'çizimi bir cümleyle açıkla', size: 20, color: SOFT, align: 'center', muted: true })]); } },
@@ -6651,7 +6660,18 @@ var SBX = (function () {
       '<span class="sx-thn" aria-hidden="true">' + (i + 1) + '</span>' +
       '<span class="sx-thm"><button type="button" data-tdup="' + i + '" aria-label="' + (i + 1) + '. asetatı çoğalt">⧉</button><button type="button" data-tdel="' + i + '" aria-label="' + (i + 1) + '. asetatı sil">×</button></span></li>';
   };
-  var titleOf = function (s) { for (var i = 0; i < s.els.length; i++) if (s.els[i].type === 'h' && s.els[i].text.length > 1 && !s.els[i].muted) return s.els[i].text; return ''; };
+  /* Alıntı düzeninde büyük yazı alıntının kendisidir; asetatın konusu alttaki
+     küçük satırda durur (LAY.quote: h “ · h alıntı · mark · t konu). titleOf ilk
+     uzun `h`'yi döndürdüğü için presentations.title, asetat etiketi, PDF başlığı
+     ve kalite ölçümü alıntıyı başlık sanıyordu — "Yazılımın Tarihsel Gelişimi"
+     destesinde 6. asetatın başlığı "Richard Stallman, GNU projesini… [1]" olarak
+     kaydedilmişti, konu olan "1983 – GNU ve GPL'nin Doğuşu" kaybolmuştu
+     (14.11.2026). */
+  var titleOf = function (s) {
+    if (s.lay === 'quote') { for (var j = 0; j < s.els.length; j++) if (s.els[j].type === 't' && !s.els[j].muted && String(s.els[j].text || '').trim()) return s.els[j].text; }
+    for (var i = 0; i < s.els.length; i++) if (s.els[i].type === 'h' && s.els[i].text.length > 1 && !s.els[i].muted) return s.els[i].text;
+    return '';
+  };
   var fitThumbs = function () { QA('.sx-thv').forEach(fitInto); };
   var renderThumbs = function () { thumbsEl.innerHTML = deck.slides.map(thumbHTML).join(''); fitThumbs(); };
   var refreshThumb = function () { var s = cur(); if (!s) return; var li = thumbsEl.querySelector('[data-sid="' + s.id + '"] .sx-thv'); if (li) { li.innerHTML = slideHTML(s); fitInto(li); } };
@@ -6672,6 +6692,10 @@ var SBX = (function () {
     weak_speaker_notes: 'konuşma notları kısa', dense_slides: 'bazı asetatlar çok yoğun',
     visual_repetition: 'arka arkaya aynı düzen', weak_grounding: 'bazı asetatlar kaynağa bağlı değil' };
   var kaliteYazi = function (q) { return arr(q && q.issues).map(function (x) { return KALITE_TR[x] || x; }); };
+  /* Destenin ölçüm anındaki parmak izi: asetat sayısı, düzenler, başlıklar ve
+     not uzunlukları — kalite puanını belirleyen şeyler. Deste bunlardan biri
+     değiştikten sonra eski puanı doğruymuş gibi göstermek yanıltıcıdır. */
+  var deckKey = function (d) { return arr(d.slides).length + '|' + arr(d.slides).map(function (sl) { return (sl.lay || '') + ':' + titleOf(sl) + ':' + String(sl.notes || '').length; }).join('|'); };
   var titleKey = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
   var ciftBasliklar = function () {
     var seen = {}, out = [];
@@ -6681,14 +6705,16 @@ var SBX = (function () {
   var paintKalite = function (busy) {
     var el = Q('[data-kalite]'); if (!el) return;
     var q = deck.quality, has = q && typeof q.score === 'number', cift = ciftBasliklar();
+    var bayat = has && deck.qualityKey && deck.qualityKey !== deckKey(deck);
     el.hidden = !deck.slides.length; el.disabled = !!busy;
-    el.textContent = busy ? 'ölçülüyor…' : has ? 'kalite ' + Math.round(q.score) + '/100' : 'kaliteyi ölç';
-    var iss = kaliteYazi(q).filter(function (x) { return !(cift.length && x === KALITE_TR.duplicate_titles); });
+    el.textContent = busy ? 'ölçülüyor…' : has ? 'kalite ' + Math.round(q.score) + '/100' + (bayat ? ' · bayat' : '') : 'kaliteyi ölç';
+    var iss = bayat ? [] : kaliteYazi(q).filter(function (x) { return !(cift.length && x === KALITE_TR.duplicate_titles); });
     if (cift.length) iss.unshift('aynı başlık: ' + cift.join(', '));
-    el.classList.toggle('warn', !busy && !!iss.length);
-    el.title = busy ? '' : (has ? 'Acadia’nın notu ' + Math.round(q.score) + '/100. ' : '') +
-      (iss.length ? 'Bulunanlar: ' + iss.join('; ') + '. ' : has ? 'Sorun bulunmadı. ' : '') +
-      (has ? 'Yeniden ölçmek için tıkla.' : 'Acadia desteyi puanlasın.');
+    el.classList.toggle('warn', !busy && (!!iss.length || !!bayat));
+    el.title = busy ? '' : bayat ? 'Bu puan ölçümden sonraki değişiklikleri kapsamıyor. Yeniden ölçmek için tıkla.' + (cift.length ? ' Şu an: ' + iss.join('; ') + '.' : '')
+      : (has ? 'Acadia’nın notu ' + Math.round(q.score) + '/100. ' : '') +
+        (iss.length ? 'Bulunanlar: ' + iss.join('; ') + '. ' : has ? 'Sorun bulunmadı. ' : '') +
+        (has ? 'Yeniden ölçmek için tıkla.' : 'Acadia desteyi puanlasın.');
   };
   var renderAll = function () { renderThumbs(); renderStage(); paintMeta(); };
   var flipT = 0, flipGlass = function () { if (calm) return; glass.classList.remove('flip'); void glass.offsetWidth; glass.classList.add('flip'); clearTimeout(flipT); flipT = setTimeout(function () { glass.classList.remove('flip'); }, 1700); };
@@ -6971,7 +6997,10 @@ var SBX = (function () {
     list: function (s) { var n = 0; s.els.forEach(function (e) { if (e.type === 't' && !e.muted && sentences(e.text).length > 1) { e.type = 'ul'; e.text = sentences(e.text).map(function (x) { return x.replace(/\.$/, ''); }).join('\n'); e.h = Math.max(e.h, 200); n++; } }); return n ? 'Paragraf maddelere bölündü.' : 'Bu asetatta maddeye çevrilecek uzun bir paragraf yok.'; },
     note: function (s, quiet) {
       var t = titleOf(s), b = noteBits(s, t);
-      var EN = curLang() === 'en', w = EN ? ['First,', 'Next,', 'Then,', 'Finally,'] : ['İlk olarak', 'Ardından', 'Sonra', 'Son olarak'], txt = (t ? (EN ? 'Now let me walk you through “' + t + '”. ' : '“' + t + '” konusunu anlatıyorum. ') : '') + b.slice(0, 4).map(function (x, i) { return (b.length > 1 && i === Math.min(b.length, 4) - 1 ? w[3] : w[Math.min(i, 2)]) + ' ' + x.charAt(0).toLocaleLowerCase('tr') + x.slice(1).replace(/\.$/, '') + '.'; }).join(' ') + (b.length ? '' : 'Ana fikri bir cümleyle söyle, bir örnek ver.') + ' Bir cümleyle sıradaki asetata bağla.';
+      /* Özel ad ya da kısaltmayla başlayan madde küçültülmez: "Richard Stallman,
+         GNU projesini…" notta "richard Stallman…" oluyordu (14.11.2026). */
+      var alt1 = function (x) { var m = String(x).match(/^(\S+)\s+(\S+)/); if (/^[A-ZÇĞİÖŞÜ]{2,}/.test(x) || (m && /^[A-ZÇĞİÖŞÜ]/.test(m[2]))) return String(x); return String(x).charAt(0).toLocaleLowerCase('tr') + String(x).slice(1); };
+      var EN = curLang() === 'en', w = EN ? ['First,', 'Next,', 'Then,', 'Finally,'] : ['İlk olarak', 'Ardından', 'Sonra', 'Son olarak'], txt = (t ? (EN ? 'Now let me walk you through “' + t + '”. ' : '“' + t + '” konusunu anlatıyorum. ') : '') + b.slice(0, 4).map(function (x, i) { return (b.length > 1 && i === Math.min(b.length, 4) - 1 ? w[3] : w[Math.min(i, 2)]) + ' ' + alt1(x).replace(/\.$/, '') + '.'; }).join(' ') + (b.length ? '' : 'Ana fikri bir cümleyle söyle, bir örnek ver.') + ' Bir cümleyle sıradaki asetata bağla.';
       s.notes = txt.trim(); if (!quiet) notesEl.value = s.notes; return 'Konuşmacı notu yazıldı; altta düzenleyebilirsin.';
     },
     q: function (s) { var t = titleOf(s) || 'bu konu'; addQ(s, 'Soru: Sizce ' + t.charAt(0).toLocaleLowerCase('tr') + t.slice(1) + ' neden önemli?'); return 'Dinleyiciye bir soru eklendi.'; }
@@ -7672,7 +7701,19 @@ var SBX = (function () {
   /* otomatik görsel önerisi: kapak + metni az 2 asetat; tek Unsplash araması */
   var autoPhotos = function (made, q) {
     q = String(q || '').trim(); if (!q) return;
-    var cand = made.filter(function (sl) { if (sl.lay === 'cover') return true; if (sl.lay !== 'list') return false; var t = sl.els.filter(function (e) { return e.type === 'ul' && !e.muted; }).map(function (e) { return e.text; }).join('\n'); return t && t.split('\n').length <= 3 && t.length < 170; }).slice(0, 3);
+    /* ADAY ASETATLAR (14.11.2026): eşik "en çok 3 madde ve 170 karakter"di.
+       "Yazılımın Tarihsel Gelişimi" destesinde en kısa madde asetatı 174
+       karakterdi — 4 karakterle elendi ve 10 asetatlık destede tek aday kapak
+       kaldı. Fotoğraf yeri olan düzenler de dışarıdaydı (alıntı, zaman
+       çizelgesi). Eşik gevşedi; üst sınır yine 3 fotoğraf. */
+    var GORSEL = /^(img|chart|table|mmd|math|viz)$/;
+    var cand = made.filter(function (sl) {
+      if (sl.els.some(function (e) { return GORSEL.test(e.type); })) return false;   /* grafiğin/tablonun/çizelgenin üstüne fotoğraf konmaz */
+      if (sl.lay === 'cover') return true;
+      if (!/^(list|quote)$/.test(sl.lay || '')) return false;
+      var t = sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't') && !e.muted; }).map(function (e) { return e.text; }).join('\n');
+      return t && t.split('\n').filter(Boolean).length <= 4 && t.length < 260;
+    }).slice(0, 3);
     if (!cand.length) return;
     /* KONUYA UYGUN GÖRSEL (28.10.2026, test raporu R83): Türkçe konu Unsplash'te
        alakasız sonuç veriyordu (borsa sunumuna orman). Bilinen Türkçe terimler
@@ -7681,13 +7722,35 @@ var SBX = (function () {
        boş asetattan kötü). Elle "görsel ara" bundan etkilenmez. */
     var en = photoQuery(q), kw = en.split(/\s+/).filter(function (w) { return w.length >= 4; });
     fn('sunum-research', { action: 'images', query: en || q, language: curLang() }, 25000).then(function (d) {
-      var ph = arr(d && d.photos).filter(function (p) { return p && p.large; });
-      if (en && kw.length) ph = ph.filter(function (p) { var alt = String(p.alt || '').toLowerCase(); return kw.some(function (w) { return alt.indexOf(w.slice(0, 5)) > -1; }); });
-      if (!ph.length) return;
-      var n = 0; cand.forEach(function (sl, i) { if (!ph[i] || deck.slides.indexOf(sl) < 0) return; placePhoto(sl, ph[i], q); fitSlide(sl); n++; });
-      if (!n) return; renderAll(); dirty();
-      say(n + ' asetata fotoğraf önerdim. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
-    }, function (e) { console.warn('acadex-sunum: otomatik görsel', e); });
+      var all = arr(d && d.photos).filter(function (p) { return p && p.large; });
+      if (!all.length) { say('Unsplash’te bu konuya uygun fotoğraf bulunamadı; “görsel ara” ile kendin seçebilirsin.'); return; }
+      /* SÜZGEÇ TERS ÇALIŞIYORDU (14.11.2026): alt metin süzgeci yalnız konu
+         İngilizceye ÇEVRİLEBİLDİĞİNDE devreye giriyordu — yani aramanın en
+         isabetli olduğu durumda. "Yazılımın Tarihsel Gelişimi" → "software"
+         araması iyi sonuç verdi ama alt metinlerinde "softw" geçmediği için
+         hepsi atıldı ve tek fotoğraf konmadı. Çeviri başarısızken (örn.
+         "Kuramsal Yaklaşımlar ve Hemşirelik Süreci") süzgeç hiç çalışmıyor,
+         Türkçe arama sonuçları olduğu gibi yerleştiriliyordu — 28.10.2026'da
+         şikâyet edilen tam buydu. Doğrusu tersi: İngilizce arama yapıldıysa
+         alt metni uyanlar öne alınır, uyan yoksa arama zaten konuluydu, ilk
+         sonuçlar kullanılır. Çeviri yoksa yalnız kapağa konur. */
+      var ph, kapakSinir = false;
+      if (en && kw.length) {
+        var hit = all.filter(function (p) { var alt = String(p.alt || '').toLowerCase(); return kw.some(function (w) { return alt.indexOf(w.slice(0, 5)) > -1; }); });
+        ph = hit.length ? hit : all;
+      } else { ph = all.slice(0, 1); kapakSinir = true; }
+      var hedef = kapakSinir ? cand.filter(function (sl) { return sl.lay === 'cover'; }) : cand;
+      if (!hedef.length) { say('Fotoğraf için uygun asetat bulamadım; istediğin asetatı seçip “görsel ara” diyebilirsin.'); return; }
+      var n = 0; hedef.forEach(function (sl, i) { if (!ph[i] || deck.slides.indexOf(sl) < 0) return; placePhoto(sl, ph[i], q); fitSlide(sl); n++; });
+      if (!n) { say('Fotoğraf yerleştirilemedi; “görsel ara” ile kendin seçebilirsin.'); return; }
+      renderAll(); dirty();
+      say(n + ' asetata fotoğraf önerdim' + (kapakSinir ? ' (konu İngilizceye çevrilemedi, bu yüzden yalnız kapağa)' : '') + '. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
+    }, function (e) {
+      console.warn('acadex-sunum: otomatik görsel', e);
+      /* Sessizce vazgeçmek en kötüsüydü: "fotoğraf öner" işaretliyken hiçbir
+         şey olmuyor ve kullanıcı nedenini bilmiyordu. */
+      say(String(e && e.message || '').indexOf('no_key') > -1 ? 'Fotoğraf arama anahtarı tanımlı değil; “görsel ara” da çalışmaz. Yöneticiye bildir.' : 'Fotoğraf araması şu an yapılamadı; “görsel ara” ile kendin seçebilirsin.');
+    });
   };
   /* Hazır desteyi yönetmenin eleştirmenine puanlatır (üretim yapmaz, hızlıdır).
      Sonuç desteye yazılır, kaydedilir ve üretim özetinde görünür. Başarısız
@@ -7704,7 +7767,7 @@ var SBX = (function () {
       .then(function (r) {
         kaliteBusy = false;
         var q = r && r.quality; if (!q || typeof q.score !== 'number' || d !== deck) { paintKalite(); return; }
-        d.quality = q; dirty(); paintKalite();
+        d.quality = q; d.qualityKey = deckKey(d); dirty(); paintKalite();
         /* Puan tek başına yetmez: sorunlar adıyla görünmeli, yoksa "96 almışım"
            deyip eksik deste öyle kalır (13.11.2026 dersi). */
         var iss = kaliteYazi(q);
@@ -7717,7 +7780,7 @@ var SBX = (function () {
   var kalBtn = Q('[data-kalite]');                          /* eski HTML önbellekte kalmışsa modül çökmesin */
   if (kalBtn) kalBtn.addEventListener('click', function () {
     if (!deck.slides.length) return;
-    deck.quality = null;                                   /* elle istenen ölçüm her zaman yeniden sorar */
+    deck.quality = null; deck.qualityKey = null;           /* elle istenen ölçüm her zaman yeniden sorar */
     kaliteOlc(deck, true);
   });
   var printDeck = function (mode) {
@@ -7732,7 +7795,14 @@ var SBX = (function () {
     if (mode === 'append') deck.slides = deck.slides.concat(made); else deck.slides = made;
     if (!deck.title || mode !== 'append') deck.title = plotMeta.title || deck.title;
     if (plotMeta.lang) deck.lang = plotMeta.lang;
-    if (plotMeta.quality) deck.quality = plotMeta.quality;
+    /* BAYAT PUAN (14.11.2026): 13.11'de eklenen "açılışta bir kez ölç" yolu
+       deck.quality'yi dolduruyor; sonra aynı desteye yeni bir üretim basılınca
+       aşağıdaki `!deck.quality` koşulu tutmuyor ve ESKİ puan yeni destenin
+       üstünde kalıyordu. "Yazılımın Tarihsel Gelişimi" 44/100 göründü; o puan
+       bir önceki destenin puanıydı — raporda weak_grounding vardı, oysa
+       yönetmen 'topic' kaynaklı destelerde o ölçütü hiç uygulamıyor. */
+    if (mode !== 'append') deck.quality = plotMeta.quality || null;
+    else if (plotMeta.quality) deck.quality = plotMeta.quality;
     if (mode !== 'append') { deck.source = plotMeta.source || 'blank'; deck.sourceId = isUuid(plotMeta.sourceId) ? plotMeta.sourceId : null; }
     /* HER YOL İÇİN KALİTE (13.11.2026, canlı ölçüm): üretimin üç yolu var
        (sunum-research, generate-presentation, yönetmen) ama kalite puanını
@@ -8185,6 +8255,9 @@ var SBX = (function () {
         if (ct.ink && Array.isArray(ct.els)) return { id: ct.id || uid(), lay: ct.lay || null, bg: ct.bg || 'clear', notes: row.speaker_notes || '', els: ct.els };
         var b = String(ct.text || '').split('\n').map(cleanB).filter(Boolean).slice(0, 8), sl = newSlide(b.length ? 'list' : 'cover', row.title || 'Başlık', b); sl.notes = row.speaker_notes || ''; return sl;
       });
+      /* Buluttan dönen puanın parmak izi yoktur; asetatlar yüklendikten sonra
+         hesaplanır, böylece bundan sonraki her düzenleme "bayat" görünür. */
+      if (d.quality) d.qualityKey = deckKey(d);
       return d;
     }
   };

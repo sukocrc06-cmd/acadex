@@ -114,8 +114,8 @@ test('HAZIR DESTE AÇILINCA PUANLANIR (14.11.2026)', () => {
     'kütüphaneden açılan puansız deste ölçülmüyor — printDeck dışında kaliteye ulaşan yol yok');
   assert.ok(ink.includes("var kalBtn = Q('[data-kalite]');"),
     'elle yeniden ölçme düğmesi yok (deste düzenlenince puan bayatlar)');
-  assert.match(ink, /deck\.quality = null;\s*\n?\s*\/\* elle istenen ölçüm/,
-    'elle ölçüm eski puanı temizlemiyor — kaliteOlc hemen döner');
+  assert.match(ink, /deck\.quality = null; deck\.qualityKey = null;\s*\/\* elle istenen ölçüm/,
+    'elle ölçüm eski puanı ve parmak izini temizlemiyor — kaliteOlc hemen döner');
   assert.match(ink, /if \(kaliteBusy\) return;/, 'çift ölçüm engeli yok');
   assert.ok(html.includes('data-kalite='), 'sunum başlığında kalite rozeti yok');
 });
@@ -180,8 +180,8 @@ test('ÇİFT BAŞLIK YERELDE, ASETAT NUMARASIYLA BULUNUR (14.11.2026)', () => {
     'çift başlık asetat numarasıyla bildirilmiyor');
   assert.match(ink, /if \(cift\.length\) iss\.unshift\('aynı başlık: ' \+ cift\.join\(', '\)\)/,
     'rozet yerel bulguyu göstermiyor');
-  assert.match(ink, /el\.classList\.toggle\('warn', !busy && !!iss\.length\)/,
-    'sorun varken rozet uyarmıyor');
+  assert.match(ink, /el\.classList\.toggle\('warn', !busy && \(!!iss\.length \|\| !!bayat\)\)/,
+    'sorun ya da bayat puan varken rozet uyarmıyor');
   const css = read('css/acadex-ink.css');
   assert.match(css, /\.sx-kal\.warn\{color:/, 'uyarı rozetinin stili yok');
 });
@@ -193,6 +193,104 @@ test('KALİTE KARŞILIKLARI TEK YERDE (14.11.2026)', () => {
   assert.equal((ink.match(/slide_count_mismatch: 'slayt sayısı/g) || []).length, 1,
     'karşılık tablosu iki yerde kopyalanmış');
   assert.match(ink, /var qi = kaliteYazi\(kq\);/, 'üretim özeti ortak tabloyu kullanmıyor');
+});
+
+/* --------------------------------------------------------------------------
+   14.11.2026 (ikinci tur) — "Yazılımın Tarihsel Gelişimi" destesi: 10 asetat,
+   görsel diye sadece bir çizgi grafiği ve bir zaman çizelgesi, hiç fotoğraf
+   yok. Altı ayrı kök sebep çıktı:
+     a) Puan 44/100 görünüyordu ama o puan BİR ÖNCEKİ desteye aitti: aynı
+        kayda yeni üretim basılırken printDeck'in `!deck.quality` koşulu
+        tutmuyordu. Kanıt: raporda weak_grounding vardı, oysa yönetmen
+        sourceType 'topic' iken o ölçütü hiç uygulamıyor.
+     b) Ölçümden sonra deste değişince puan bayatlıyor, bunu söyleyen yok.
+     c) autoPhotos'un alt metin süzgeci TERS çalışıyordu: yalnız konu
+        İngilizceye çevrilebildiğinde (aramanın en isabetli olduğu durumda)
+        devreye giriyor ve her şeyi atıyordu; çeviri başarısızken (Türkçe
+        arama, alakasız sonuç riski) hiç süzmüyordu.
+     d) Fotoğraf adaylığı eşiği "≤3 madde ve <170 karakter"di; bu destenin en
+        kısa madde asetatı 174 karakterdi, 4 karakterle elendi ve tek aday
+        kapak kaldı.
+     e) Fotoğraf hiç konmazsa sessizce vazgeçiliyordu; "fotoğraf öner"
+        işaretliyken kullanıcı nedenini bilmiyordu.
+     f) LAY.time her zaman 4 durak çiziyordu; araştırma 3 adım döndürünce
+        4. durakta soluk italik "4. adım" yazısı perdeye çıkıyordu.
+   Ayrıca titleOf alıntı asetatında alıntının kendisini başlık sanıyordu.
+   -------------------------------------------------------------------------- */
+
+test('ESKİ PUAN YENİ DESTEYE YAPIŞMAZ (14.11.2026)', () => {
+  assert.match(ink, /if \(mode !== 'append'\) deck\.quality = plotMeta\.quality \|\| null;/,
+    'yeniden üretimde eski puan temizlenmiyor — açılışta ölçülen puan yeni destenin üstünde kalır');
+  assert.match(ink, /else if \(plotMeta\.quality\) deck\.quality = plotMeta\.quality;/,
+    'ekleme kipinde var olan puan korunmalı');
+});
+
+test('BAYAT PUAN BAYAT DİYE GÖRÜNÜR (14.11.2026)', () => {
+  assert.match(ink, /var deckKey = function \(d\)/, 'ölçüm anının parmak izi yok');
+  assert.match(ink, /\(sl\.lay \|\| ''\) \+ ':' \+ titleOf\(sl\) \+ ':' \+ String\(sl\.notes \|\| ''\)\.length/,
+    'parmak izi puanı belirleyen şeyleri (düzen, başlık, not uzunluğu) kapsamıyor');
+  assert.match(ink, /d\.quality = q; d\.qualityKey = deckKey\(d\);/, 'ölçümde parmak izi saklanmıyor');
+  assert.match(ink, /var bayat = has && deck\.qualityKey && deck\.qualityKey !== deckKey\(deck\);/,
+    'bayatlık hesaplanmıyor');
+  assert.match(ink, /\(bayat \? ' · bayat' : ''\)/, 'rozet bayatlığı göstermiyor');
+  assert.match(ink, /if \(d\.quality\) d\.qualityKey = deckKey\(d\);/,
+    'buluttan dönen puana parmak izi hesaplanmıyor — sonraki düzenlemeler bayat görünmez');
+});
+
+test('FOTOĞRAF SÜZGECİ DOĞRU YÖNDE (14.11.2026)', () => {
+  /* Eski kod: `if (en && kw.length) ph = ph.filter(...)` — İngilizce karşılık
+     BULUNDUĞUNDA süzüyordu. Doğrusu: bulunduğunda arama zaten konulu, uyan yoksa
+     ilk sonuçlar kullanılır; bulunamadığında yalnız kapağa konur. */
+  assert.match(ink, /ph = hit\.length \? hit : all;/,
+    'alt metni uymayan fotoğraflar hâlâ tamamen atılıyor — hiç fotoğraf konmaz');
+  assert.match(ink, /\} else \{ ph = all\.slice\(0, 1\); kapakSinir = true; \}/,
+    'konu İngilizceye çevrilemediğinde Türkçe arama sonuçları her asetata dağılıyor (28.10.2026 şikâyeti)');
+  assert.match(ink, /var hedef = kapakSinir \? cand\.filter\(function \(sl\) \{ return sl\.lay === 'cover'; \}\) : cand;/,
+    'kapak sınırı uygulanmıyor');
+});
+
+test('FOTOĞRAF ADAYLIĞI VE SESSİZ VAZGEÇME (14.11.2026)', () => {
+  assert.match(ink, /if \(!\/\^\(list\|quote\)\$\/\.test\(sl\.lay \|\| ''\)\) return false;/,
+    'fotoğraf yeri olan alıntı düzeni aday değil');
+  /* Zaman çizelgesi, grafik, tablo ve diyagramın kendisi görseldir; üstlerine
+     fotoğraf konması asetatı bozar. Düzen adına değil, asetatta görsel öğe
+     olup olmadığına bakılır — elle eklenmiş fotoğrafı da kapsar. */
+  assert.match(ink, /var GORSEL = \/\^\(img\|chart\|table\|mmd\|math\|viz\)\$\/;/,
+    'görsel öğe listesi yok');
+  assert.match(ink, /if \(sl\.els\.some\(function \(e\) \{ return GORSEL\.test\(e\.type\); \}\)\) return false;/,
+    'görseli olan asetat fotoğraf adayı olmaktan çıkmıyor');
+  assert.match(ink, /\.filter\(Boolean\)\.length <= 4 && t\.length < 260;/,
+    'eşik hâlâ ≤3 madde / <170 karakter — 10 asetatlık destede tek aday kalıyor');
+  // Her çıkış yolu kullanıcıya bir şey söylemeli.
+  for (const m of ['Unsplash’te bu konuya uygun fotoğraf bulunamadı',
+                   'Fotoğraf için uygun asetat bulamadım',
+                   'Fotoğraf yerleştirilemedi',
+                   'Fotoğraf arama anahtarı tanımlı değil',
+                   'Fotoğraf araması şu an yapılamadı'])
+    assert.ok(ink.includes(m), 'sessiz vazgeçme: "' + m + '" bildirimi yok');
+  assert.match(ink, /kapakSinir \? ' \(konu İngilizceye çevrilemedi, bu yüzden yalnız kapağa\)' : ''/,
+    'kapakla sınırlı kalmanın nedeni söylenmiyor');
+});
+
+test('ZAMAN ÇİZELGESİ: GELEN ADIM KADAR DURAK (14.11.2026)', () => {
+  assert.match(ink, /var n = b && b\.length \? Math\.min\(4, b\.length\) : 4, off = \(4 - n\) \* 100;/,
+    'durak sayısı hâlâ sabit 4 — 3 adımlık çizelgede "4. adım" yer tutucusu perdeye çıkar');
+  assert.match(ink, /for \(var i = 0; i < n; i\+\+\) \{ out\.push\(E\('ellipse', 104 \+ off \+ i \* 200/,
+    'duraklar ortalanmıyor');
+  // Hiç adım yokken 4 yer tutucu kalmalı: boş asetata bu düzeni elle seçmenin yolu o.
+  assert.match(ink, /text: \(i \+ 1\) \+ '\. adım', size: 19, align: 'center', muted: true/,
+    'elle kurulan destede yer tutucu duraklar kalkmış');
+});
+
+test('ALINTI ASETATININ BAŞLIĞI ALINTI DEĞİLDİR (14.11.2026)', () => {
+  /* LAY.quote: h “ · h alıntı · mark · t konu. titleOf ilk uzun h'yi
+     döndürdüğü için presentations.title alıntı metni oluyordu. */
+  assert.match(ink, /if \(s\.lay === 'quote'\) \{ for \(var j = 0; j < s\.els\.length; j\+\+\) if \(s\.els\[j\]\.type === 't' && !s\.els\[j\]\.muted/,
+    'alıntı asetatında başlık hâlâ alıntının kendisi');
+  assert.match(ink, /var alt1 = function \(x\) \{ var m = String\(x\)\.match/,
+    'özel adla başlayan madde notta küçültülüyor ("richard Stallman")');
+  assert.match(ink, /if \(\/\^\[A-ZÇĞİÖŞÜ\]\{2,\}\/\.test\(x\) \|\| \(m && \/\^\[A-ZÇĞİÖŞÜ\]\/\.test\(m\[2\]\)\)\) return String\(x\);/,
+    'kısaltma (IBM, GNU) ve iki büyük harfli ad kalıbı korunmuyor');
 });
 
 summary();
