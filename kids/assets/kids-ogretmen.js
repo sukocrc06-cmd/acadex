@@ -161,7 +161,7 @@
       '<div class="kt-tablo-sar"><table class="kt-tablo"><thead><tr><th scope="col">Öğrenci</th><th scope="col">Son giriş</th><th scope="col">Yıldız</th><th scope="col">Oyunlar</th><th scope="col">Zorlandığı kelime</th><th scope="col">Çıkartma</th></tr></thead><tbody>' +
       sinif.ogr.map(function (og) {
         var k = kayit(sinif, og), y = yildizSay(k, kz), kzor = konuZor(k.zor, kz), z = enZor(kzor), zrk = z && renkBul(z);
-        return '<tr' + (k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(og[1]) + '<b>' + esc(og[0]) + '</b>' + (k.ornek ? '<i class="kt-ornek-e">örnek</i>' : '') + '</span></th><td>' + sonYazi(k.son) + '</td>' +
+        return '<tr' + (k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(og[1], og[4]) + '<b>' + esc(og[0]) + '</b>' + (k.ornek ? '<i class="kt-ornek-e">örnek</i>' : '') + '</span></th><td>' + sonYazi(k.son) + '</td>' +
           '<td><span class="kt-cubuk" role="img" aria-label="' + y + ' / ' + W.KIDS_KONU.yildizMax(kz) + ' yıldız"><i style="width:' + Math.round(100 * y / W.KIDS_KONU.yildizMax(kz)) + '%"></i></span><span class="kt-sayi">' + y + '/' + W.KIDS_KONU.yildizMax(kz) + '</span></td>' +
           '<td>' + oyunSay(k, kz) + '/' + W.KIDS_KONU.oyunSay(kz) + (k.bitti[kz] ? ' <span class="kt-tamam">bitirdi</span>' : '') + '</td>' +
           '<td>' + (zrk ? '<span class="kt-kelime" style="--r:' + zrk.hex + '"><i></i><span lang="en">' + zrk.en + '</span> <small>' + kzor[z] + ' yanlış</small></span>' : '<span class="kt-yok">—</span>') + '</td><td>' + k.cikartma.length + '</td></tr>';
@@ -207,7 +207,7 @@
       /* konu tamamlama */
       '<h3 class="kt-r-bas">Konu tamamlama</h3><div class="kt-tablo-sar"><table class="kt-tablo kt-tamam-t"><thead><tr><th scope="col">Öğrenci</th>' + acik.map(function (t) { return '<th scope="col" title="' + esc(t.tr) + '"><span class="kt-th-r" style="--r:' + t.renk + '">' + C.simge(t.simge) + '</span><small lang="en">' + esc(t.en) + '</small></th>'; }).join('') + '</tr></thead><tbody>' +
       ks.map(function (x) {
-        return '<tr' + (x.k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(x.og[1]) + '<b>' + esc(x.og[0]) + '</b></span></th>' + acik.map(function (t) {
+        return '<tr' + (x.k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(x.og[1], x.og[4]) + '<b>' + esc(x.og[0]) + '</b></span></th>' + acik.map(function (t) {
           var y = yildizSay(x.k, t.id), b = !!x.k.bitti[t.id];
           return '<td class="kt-hucre kt-y' + (b ? 'b' : y ? Math.min(3, Math.ceil(y / W.KIDS_KONU.yildizMax(t.id) * 3)) : 0) + '" style="--r:' + t.renk + '" title="' + esc(x.og[0] + ' · ' + t.en + ': ' + y + '/' + W.KIDS_KONU.yildizMax(t.id) + ' yıldız' + (b ? ', bitirdi' : '')) + '">' + (b ? '✓' : y ? y : '·') + '</td>';
         }).join('') + '</tr>';
@@ -218,7 +218,7 @@
       '<div class="kt-tablo-sar"><table class="kt-tablo kt-isi"><thead><tr><th scope="col">Öğrenci</th>' + kel.map(function (o) { return '<th scope="col"><span class="kt-isi-r">' + p.gorsel(o) + '</span><small lang="en">' + esc(o.en) + '</small></th>'; }).join('') + '</tr></thead><tbody>' +
       ks.map(function (x) {
         var oynadi = oyunSay(x.k, kz) > 0;
-        return '<tr><th scope="row"><span class="kt-ogr">' + C.avatar(x.og[1]) + '<b>' + esc(x.og[0]) + '</b></span></th>' + kel.map(function (o) { var z = (x.k.zor || {})[o.id] || 0; return '<td class="kt-isi-h kt-i' + (oynadi ? seviye(z) : 'x') + '" title="' + esc(x.og[0] + ' · ' + o.en + ': ' + (oynadi ? z + ' yanlış' : 'oynamadı')) + '">' + (oynadi ? (z || '') : '–') + '</td>'; }).join('') + '</tr>';
+        return '<tr><th scope="row"><span class="kt-ogr">' + C.avatar(x.og[1], x.og[4]) + '<b>' + esc(x.og[0]) + '</b></span></th>' + kel.map(function (o) { var z = (x.k.zor || {})[o.id] || 0; return '<td class="kt-isi-h kt-i' + (oynadi ? seviye(z) : 'x') + '" title="' + esc(x.og[0] + ' · ' + o.en + ': ' + (oynadi ? z + ' yanlış' : 'oynamadı')) + '">' + (oynadi ? (z || '') : '–') + '</td>'; }).join('') + '</tr>';
       }).join('') + '</tbody><tfoot><tr><th scope="row">Sınıf</th>' + kel.map(function (o) { return '<td class="kt-isi-h kt-i' + seviye(Math.ceil(top[o.id] / 2)) + '">' + top[o.id] + '</td>'; }).join('') + '</tr></tfoot></table></div>' +
       '<p class="kt-lejant"><span class="kt-isi-h kt-i0"></span> sorun yok <span class="kt-isi-h kt-i1">1</span> bir yanlış <span class="kt-isi-h kt-i2">2</span> iki <span class="kt-isi-h kt-i3">3+</span> zorlanıyor <span class="kt-isi-h kt-ix">–</span> konuyu oynamadı</p></section>';
   }

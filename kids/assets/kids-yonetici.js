@@ -110,7 +110,7 @@
         (ogr.length ? '<div class="km-toplu" data-toplu hidden><b data-ssay>0</b> seçili <button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-t="kart">Kart yazdır</button>' + (salt ? '' : '<button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-t="sifre">Gizli resimleri yenile</button><button type="button" class="kr-sil" data-t="sil">Sil</button>') + '</div>' +
           '<div class="kt-tablo-sar"><table class="kt-tablo km-tablo"><thead><tr><th scope="col"><input type="checkbox" data-hepsi aria-label="Hepsini seç"></th><th scope="col">Öğrenci</th><th scope="col">Gizli resimler</th><th scope="col">Kimlik</th><th scope="col">Durum</th><th scope="col"><span class="ka-gizli">İşlem</span></th></tr></thead><tbody>' +
           ogr.map(function (g) {
-            return '<tr' + (g.aktif ? '' : ' class="kt-pasif"') + '><td><input type="checkbox" data-sec="' + g.id + '"' + (secili[g.id] ? ' checked' : '') + ' aria-label="' + esc(g.ad) + ' seç"></td><th scope="row"><span class="kt-ogr">' + C.avatar(g.hayvan) + '<b>' + esc(g.ad) + '</b></span></th>' +
+            return '<tr' + (g.aktif ? '' : ' class="kt-pasif"') + '><td><input type="checkbox" data-sec="' + g.id + '"' + (secili[g.id] ? ' checked' : '') + ' aria-label="' + esc(g.ad) + ' seç"></td><th scope="row"><span class="kt-ogr">' + C.avatar(g.hayvan, g.renk) + '<b>' + esc(g.ad) + '</b></span></th>' +
               '<td><span class="km-sf">' + g.sifre.map(function (r) { return '<i title="' + esc(r) + '">' + C.simge(r) + '</i>'; }).join('') + '</span></td><td class="km-mono">' + esc(g.kimlik) + '</td>' +
               '<td>' + (salt ? (g.aktif ? 'Etkin' : 'Kapalı') : '<label class="km-anahtar"><input type="checkbox" data-aktif="' + g.id + '"' + (g.aktif ? ' checked' : '') + '><span>' + (g.aktif ? 'Etkin' : 'Kapalı') + '</span></label>') + '</td>' +
               '<td>' + (salt ? '' : '<button type="button" class="km-kucuk" data-ogrduz="' + g.id + '">Düzenle</button>') + '</td></tr>';
@@ -177,7 +177,7 @@
   function ogrenciDuzenle(g, S) {
     var p = pencere(esc(g.ad), '<label>Ad<input name="ad" maxlength="60" value="' + esc(g.ad) + '"></label>' +
       '<label>Sınıf<select name="sinif">' + VERI.siniflar.map(function (s) { return '<option value="' + s.id + '"' + (s.id === S.id ? ' selected' : '') + '>' + esc(s.ad) + '</option>'; }).join('') + '</select></label>' +
-      '<p class="km-kvkk">Hayvan resmi: <b>' + esc(HAYVAN[g.hayvan] || g.hayvan) + '</b> · Kimlik: <b class="km-mono">' + esc(g.kimlik) + '</b></p>' +
+      '<p class="km-kvkk">Resmi: <b>' + esc(C.yuzAd(g.hayvan, g.renk) || HAYVAN[g.hayvan] || g.hayvan) + '</b> · Kimlik: <b class="km-mono">' + esc(g.kimlik) + '</b></p>' +
       '<div class="km-arac"><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-kart>Kartını yazdır</button><button type="button" class="kl-dugme kl-dugme-k kl-dugme-b" data-sifre>Gizli resimleri yenile</button></div>', 'Kaydet');
     p.form.addEventListener('submit', function (e) {
       e.preventDefault(); var ad = p.form.elements.ad.value.trim(), s = p.form.elements.sinif.value, d = {};

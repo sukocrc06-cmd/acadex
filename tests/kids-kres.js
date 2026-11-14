@@ -34,6 +34,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const { test, summary } = makeRunner();
 const SQL = 'supabase/migrations/20261114_kids_kres.sql';
+const YUZ = 'supabase/migrations/20261114b_kids_yuz.sql';
 const yukle = (ek) => {
   const depo = {};
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {}, navigator: {} };
@@ -216,9 +217,10 @@ test('davranış (gerçek Postgres): yönetici, PIN, set, takvim, çocuk, başvu
   execSync(P + ' -d postgres -c "drop database if exists ax_kres" -c "create database ax_kres"', { stdio: 'pipe' });
   try {
     for (const f of ['tests/sql/kids-yonetim-stub.sql', 'supabase/migrations/20261110_kids_yonetim.sql', 'supabase/migrations/20261110b_kids_giris.sql',
-      'supabase/migrations/20261112c_kids_temalar_ve_sertlestirme.sql', 'supabase/migrations/20261112d_kids_oturum_yonetimi.sql', SQL, SQL]) execSync(P + ' -d ax_kres -f ' + q(f), { stdio: 'pipe' });
+      'supabase/migrations/20261112c_kids_temalar_ve_sertlestirme.sql', 'supabase/migrations/20261112d_kids_oturum_yonetimi.sql', SQL, SQL, YUZ, YUZ]) execSync(P + ' -d ax_kres -f ' + q(f), { stdio: 'pipe' });
     const out = execSync(P + ' -d ax_kres -f ' + q('tests/sql/kids-kres.sql') + ' 2>&1').toString();
     assert.match(out, /KRES AKIS GECTI/); assert.match(out, /KRES YETKI GECTI/);
+    assert.match(execSync(P + ' -d ax_kres -f ' + q('tests/sql/kids-yuz.sql') + ' 2>&1').toString(), /YUZ GECTI/);
   } finally { execSync(P + ' -d postgres -c "drop database if exists ax_kres"', { stdio: 'pipe' }); }
 });
 

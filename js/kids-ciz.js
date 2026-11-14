@@ -46,8 +46,15 @@
     kopek: { r: '#E9C58E', k: 'sarkik', b: '#FFF3DD' }, panda: { r: '#FFFFFF', k: 'yuvarlak', b: '#FFFFFF', koyu: 1 }, tilki: { r: '#F0703A', k: 'sivri', b: '#FFF3E4' },
     kurbaga: { r: '#5CC97B', k: 'goz', b: '#C9F2C4' }, civciv: { r: '#FFD84D', k: 'yok', b: '#FFD84D', gaga: 1 }
   };
-  function avatar(ad) {
-    var h = HAYVAN[ad] || HAYVAN.ayi, ks = h.koyu ? M : h.r, kulak = '';
+  /* sınıfta eşsiz yüz (20261114b): hayvan + arka plan rengi; 8 × 8 = 64 farklı yüz */
+  var YUZ_RENK = [['Kırmızı', '#FF6B6B'], ['Turuncu', '#FF9F43'], ['Sarı', '#FFD23F'], ['Yeşil', '#4CC38A'], ['Mavi', '#4AA8FF'], ['Mor', '#A07CF0'], ['Pembe', '#FF7AA8'], ['Turkuaz', '#2EC4B6']];
+  var HAYVAN_AD = { tavsan: 'Tavşan', ayi: 'Ayı', kedi: 'Kedi', civciv: 'Civciv', panda: 'Panda', kurbaga: 'Kurbağa', tilki: 'Tilki', kopek: 'Köpek' };
+  function renkNo(r) { if (r == null || r === '') return -1; r = +r; return r >= 0 && r < 8 && r === Math.floor(r) ? r : -1; }
+  /* "Mavi kedi" (renk yoksa yalnız hayvan) */
+  function yuzAd(hayvan, renk) { var a = HAYVAN_AD[hayvan] || '', n = renkNo(renk); return n < 0 ? a : YUZ_RENK[n][0] + ' ' + a.toLocaleLowerCase('tr'); }
+  function avatar(ad, renk) {
+    var h = HAYVAN[ad] || HAYVAN.ayi, ks = h.koyu ? M : h.r, kulak = '', rn = renkNo(renk);
+    var zemin = rn < 0 ? '' : '<circle cx="50" cy="52" r="47" fill="' + YUZ_RENK[rn][1] + '" stroke="' + M + '" stroke-width="3"/><circle cx="50" cy="52" r="40" fill="#fff" opacity=".35"/>';
     if (h.k === 'yuvarlak') kulak = '<circle cx="26" cy="26" r="12" fill="' + ks + '" stroke="' + M + '" stroke-width="3"/><circle cx="74" cy="26" r="12" fill="' + ks + '" stroke="' + M + '" stroke-width="3"/>';
     if (h.k === 'uzun') kulak = '<ellipse cx="36" cy="18" rx="8" ry="20" fill="' + h.r + '" stroke="' + M + '" stroke-width="3"/><ellipse cx="64" cy="18" rx="8" ry="20" fill="' + h.r + '" stroke="' + M + '" stroke-width="3"/><ellipse cx="36" cy="18" rx="3" ry="12" fill="' + h.b + '"/><ellipse cx="64" cy="18" rx="3" ry="12" fill="' + h.b + '"/>';
     if (h.k === 'sivri') kulak = '<path d="M18 40 L22 10 L44 26 Z M82 40 L78 10 L56 26 Z" fill="' + h.r + '" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/>';
@@ -60,7 +67,7 @@
     var burun = h.gaga ? '<path d="M43 60 L57 60 L50 70 Z" fill="#FF8A3D" stroke="' + M + '" stroke-width="2.6" stroke-linejoin="round"/>'
       : (h.k === 'goz' ? '<path d="M36 62 q14 12 28 0" fill="none" stroke="' + M + '" stroke-width="3" stroke-linecap="round"/>'
         : '<ellipse cx="50" cy="66" rx="14" ry="10" fill="' + h.b + '"/><ellipse cx="50" cy="61" rx="4.6" ry="3.4" fill="' + M + '"/><path d="M50 64 v4 M50 68 q-5 5 -9 1 M50 68 q5 5 9 1" fill="none" stroke="' + M + '" stroke-width="2.4" stroke-linecap="round"/>');
-    return svg('0 0 100 100', kulak + '<circle cx="50" cy="54" r="34" fill="' + h.r + '" stroke="' + M + '" stroke-width="3"/>' +
+    return svg('0 0 100 100', zemin + kulak + '<circle cx="50" cy="54" r="34" fill="' + h.r + '" stroke="' + M + '" stroke-width="3"/>' +
       (h.k === 'goz' ? '' : '<ellipse cx="27" cy="62" rx="5" ry="3.4" fill="#FF9E8A" opacity=".8"/><ellipse cx="73" cy="62" rx="5" ry="3.4" fill="#FF9E8A" opacity=".8"/>') + goz + burun, 'kc-av');
   }
 
@@ -169,10 +176,10 @@
   };
   function giysi(ad) { return GIYSI[ad] ? svg('0 0 100 100', GIYSI[ad], 'kc-giysi', ' overflow="visible"') : ''; }
   /* giydirilmiş avatar: g = {bas, yuz} */
-  function avatarGiy(hayvan, g) {
+  function avatarGiy(hayvan, g, renk) {
     g = g || {}; var ek = giysi(g.yuz) + giysi(g.bas);
-    return ek ? '<span class="kc-giyik">' + avatar(hayvan) + ek + '</span>' : avatar(hayvan);
+    return ek ? '<span class="kc-giyik">' + avatar(hayvan, renk) + ek + '</span>' : avatar(hayvan, renk);
   }
 
-  W.KIDS_CIZ = { acadia: acadia, avatar: avatar, simge: simge, bulut: bulut, ada: ada, balon: balon, leke: leke, boyamaResmi: boyamaResmi, sayiKart: sayiKart, noktalar: noktalar, sayiBalon: sayiBalon, giysi: giysi, avatarGiy: avatarGiy, GIYSI: Object.keys(GIYSI), HAYVAN: Object.keys(HAYVAN), SIMGE: Object.keys(SIMGE), MUREKKEP: M };
+  W.KIDS_CIZ = { acadia: acadia, avatar: avatar, yuzAd: yuzAd, renkNo: renkNo, YUZ_RENK: YUZ_RENK, HAYVAN_AD: HAYVAN_AD, simge: simge, bulut: bulut, ada: ada, balon: balon, leke: leke, boyamaResmi: boyamaResmi, sayiKart: sayiKart, noktalar: noktalar, sayiBalon: sayiBalon, giysi: giysi, avatarGiy: avatarGiy, GIYSI: Object.keys(GIYSI), HAYVAN: Object.keys(HAYVAN), SIMGE: Object.keys(SIMGE), MUREKKEP: M };
 })(window);

@@ -130,7 +130,7 @@
 
   /* ---------- Çark: sırayla bir çocuk ---------- */
   function cark(s) {
-    var ogr = (S.sinif.ogr || []).map(function (o) { return { ad: o[0], hayvan: o[1] }; }), n = ogr.length;
+    var ogr = (S.sinif.ogr || []).map(function (o) { return { ad: o[0], hayvan: o[1], renk: o[4] }; }), n = ogr.length;
     if (!n) { s.innerHTML = '<p class="kh-ipucu">Bu sınıfta henüz öğrenci yok.</p>'; return; }
     var dilim = 360 / n, renk = ['#FF9EB5', '#FFD23F', '#9BE0B4', '#A5DBFF', '#D9C2FF', '#FFB3B3', '#BDE8F2', '#FFE08A'], yol = '';
     ogr.forEach(function (o, i) {
@@ -152,7 +152,7 @@
       setTimeout(function () {
         if (!kok) return; S.secilen.push(ogr[i].ad); var o = kar(ogeler())[0];
         SES.fx('yildiz');
-        sonuc.innerHTML = '<div class="kh-secilen"><span class="kh-av">' + C.avatar(ogr[i].hayvan) + '</span><b>' + esc(ogr[i].ad) + '</b></div>' +
+        sonuc.innerHTML = '<div class="kh-secilen"><span class="kh-av">' + C.avatar(ogr[i].hayvan, ogr[i].renk) + '</span><b>' + esc(ogr[i].ad) + '</b></div>' +
           '<button type="button" class="kh-soru" data-khsor style="--k:' + (o.hex || '#9AA7BD') + '"><span class="kh-res">' + gorsel(o) + '</span><span class="kh-gizli"><b lang="en">' + esc(o.en) + '</b></span><small>What is it? · Dokun, cevabı göster</small></button>';
         SES.soyle('What is it?', 'en');
         sonuc.querySelector('[data-khsor]').addEventListener('click', function () { var g = this.querySelector('.kh-gizli'); if (g) { g.classList.remove('kh-gizli'); g.classList.add('kh-acildi'); } SES.fx('dogru'); SES.soyle(o.en, 'en'); });
