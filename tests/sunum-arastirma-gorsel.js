@@ -298,7 +298,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
   const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
   const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
-  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593');
+  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3]);
   const B3 = ['Eylül 2021: Enflasyon %19 iken faiz indirimleri başladı', '2022 – Enflasyon %85 seviyesine yükseldi', '2023: Seçim sonrası politika değişti'];
   const B5 = B3.concat(['2024: Sıkılaşma sürdü', '2025: Dezenflasyon']);
   const icinde = (els, ad) => els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, ad + ': öğe asetatın dışına taşıyor (' + e.type + ' ' + e.x + ',' + e.y + ' ' + e.w + '×' + e.h + ')'));
@@ -347,7 +347,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
    21,5 milyar $) beş asetatta tekrarladı, kurum adlarının listesini "alıntı"
    diye bastı, kaynakçaya adresteki yıl aralığından "(2015)" yazdı. Kalite
    puanı yine de 92 çıktı — yani bunu ölçen bir şey yoktu. */
-const SR = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'sigNums', 'sameStory', 'dropRepeats', 'isSentence', 'AY', 'findYear']);
+const SR = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'sigNums', 'sameStory', 'dropRepeats', 'isSentence', 'seriesOf', 'timeOk', 'trDec', 'AY', 'findYear']);
 
 test('KAYNAK: aynı ajans haberinin kopyası ikinci kaynak sayılmaz', () => {
   const aa = 'Türkiye 10 yılda güneş ve rüzgardan 442,2 teravatsaat elektrik üretti. 21,5 milyar dolar ithalat önlendi, 354 milyon ton emisyon engellendi.';
@@ -379,6 +379,89 @@ test('KURGU: alıntı bir cümledir; ad listesi alıntı diye basılmaz', () => 
 test('KAYNAKÇA: adresteki yıl aralığı yayın yılı değildir', () => {
   assert.equal(SR.findYear('', 'https://www.sondakika.com/guncel/haber-turkiye-2015-2025-te-yenilenebilir-20348209'), '');
   assert.equal(SR.findYear('', 'https://ornek.org/wp-content/uploads/2018/10/rapor.pdf'), '2018');
+});
+
+/* Canlı deste (14.11.2026, "Türkiye'de Yenilenebilir Enerji: 2023-2026"):
+   sayı asetatındaki %5,7 ve %3,4 iki maddelik ayrı bir asetat olarak yinelendi,
+   yıl serisi fotoğraflı liste oldu, çizelgede aynı tarih iki kez basıldı. */
+test('KURGU: ondalıklı kısa sayı da tekrar sayılır', () => {
+  assert.deepEqual(SR.sigNums('%5,7 güneş'), ['57']);
+  assert.deepEqual(SR.sigNums('12 ülke, 2023 yılı'), [], 'iki haneli tam sayı ve yıl ayırt edici değil');
+  const S = (kind, bullets, stats) => ({ kind, bullets, warn: [], stats: stats || [], table: null });
+  const d = [S('stat', [], [{ value: '%42' }, { value: '%5,7' }, { value: '%3,4' }]), S('list', ['%5,7 güneş', '%3,4 jeotermal', 'Şebeke yatırımı gerekiyor']), S('list', ['özet'])];
+  SR.dropRepeats(d);
+  assert.deepEqual(d[1].bullets, ['Şebeke yatırımı gerekiyor']);
+});
+
+test('KURGU: yıl etiketli çıplak sayılar grafik olur', () => {
+  const g = SR.seriesOf(['2000: 27.3 GW', '2023: 110.9 GW', '2024-Kasım: 115 GW']);
+  assert.deepEqual(g, { labels: ['2000', '2023', '2024-Kasım'], values: [27.3, 110.9, 115], unit: 'GW' });
+  assert.deepEqual(SR.seriesOf(['2021: %19', '2022: %85', '2023: %61,5']).values, [19, 85, 61.5]);
+  assert.deepEqual(SR.seriesOf(['2021: 1.250 MW', '2022: 1.900 MW', '2023: 2.400 MW']).values, [1250, 1900, 2400], 'binlik nokta ondalık değil');
+  assert.equal(SR.seriesOf(['2000: 27 GW', '2023: 110 TWh', '2024: 115 GW']), null, 'birimler karışıksa grafik olmaz');
+  assert.equal(SR.seriesOf(['2021: faiz indirimi başladı', '2022: enflasyon %85', '2023: politika değişti']), null, 'cümle seri değildir');
+  assert.equal(SR.seriesOf(['2000: 27 GW', '2023: 110 GW']), null, 'iki nokta grafik etmez');
+  assert.match(sr, /const ser = k === "list" && !warn\.length \? seriesOf\(bullets\) : null;/, 'doğrulanamayan sayı grafiğe taşınmaz');
+});
+
+test('KURGU: zaman çizelgesinde her durağın kendi tarihi olur', () => {
+  assert.equal(SR.timeOk(['2023: kurulu güç arttı', '2035: hedef %53', '2035: yatırım planı']), false);
+  assert.equal(SR.timeOk(['Eylül 2021: indirim', '2022 – zirve', '2023: dönüş']), true);
+  assert.match(sr, /if \(k === "time" && !timeOk\(bullets\)\) k = "list";/);
+});
+
+test('KURGU: Türkçe destede ondalık virgülle yazılır; tarih ve binlik bozulmaz', () => {
+  assert.equal(SR.trDec('27.3 GW ve %5.75'), '27,3 GW ve %5,75');
+  assert.equal(SR.trDec('14.11.2026 tarihinde 1.250 MW'), '14.11.2026 tarihinde 1.250 MW');
+  assert.equal(SR.trDec('Sürüm 1.2.3'), 'Sürüm 1.2.3');
+  assert.match(sr, /const yaz = \(t: string\) => lang === "en" \? t : trDec\(t\);/);
+});
+
+test('KURGU: istem akademik derinlik ister (kavram, neden, karşılaştırma, sınırlılık)', () => {
+  assert.match(sr, /ACADEMIC DEPTH:/); assert.match(sr, /limitations, risks, open debates/);
+  assert.match(sr, /A bullet is an analytical statement, not a label: 12-22 words/);
+  assert.match(sr, /start each bullet with a 2-4 word key term and a colon/, 'kolonlu düzen bu biçime bağlı');
+});
+
+/* Hazır PowerPoint taslaklarından alınan iskeletler (14.11.2026). */
+test('DÜZEN: kolonlu içerik, almaşık çizelge, tek punto sayılar', () => {
+  const a = ink.indexOf('  var tarihBol = '), b = ink.indexOf('  var VSIRA = ');
+  let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o), head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 })];
+  const statsOf = (bb) => bb.map((x) => { const m = String(x).split(' — '); return { value: m[0], label: m[1] }; });
+  const sb = ink.match(/var statBoy = function[^\n]+/)[0];
+  const { VARY, statBoy } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'TINT', 'ikonSec', 'kisa', sb + ';' + ink.slice(a, b).replace(/var (ikonSec|kisa) = /g, 'var _$1 = ') + ';return { VARY, statBoy };')(E, head, statsOf, '#0', '#1', '#2', ['a', 'b', 'c', 'd'], () => 'check', (bb, lo, hi, max) => bb && bb.length >= lo && bb.length <= hi && bb.every((x) => String(x).length <= max));
+  const K = ['Şebeke esnekliği: depolama ve talep yönetimi olmadan güneş üretimi öğle saatinde kesilir', 'Finansman maliyeti: yüksek faiz, sermaye yoğun rüzgâr projelerini geciktirir', 'İthalat bağımlılığı: panel ve türbin tedariki döviz kuruna duyarlıdır'];
+  const kol = VARY.list[6]('B', K);
+  assert.equal(kol.filter((e) => e.bold).length, 3, 'her kolonun alt başlığı olmalı');
+  assert.ok(kol.some((e) => e.text === 'Şebeke esnekliği') && kol.some((e) => /^Depolama ve talep/.test(e.text)), 'terim başlığa, açıklama gövdeye');
+  assert.equal(VARY.list[6]('B', ['Düz bir madde, iki nokta yok burada hiç', K[1], K[2]]), null, 'terimsiz madde kolon olmaz');
+  assert.match(ink, /every\(function \(x\) \{ return \/\^\[\^:\]\{3,36\}:\\s\+\.\{20,\}\$\/\.test\(String\(x\)\); \}\)\) return 7;/, 'kolon düzeni içerikten seçilmeli');
+  const cz = VARY.time[3]('B', ['2021: faiz indirimi başladı', '2022: enflasyon zirve yaptı', '2023: politika değişti', '2024: sıkılaşma sürdü']);
+  const ys = cz.filter((e) => e.bold).map((e) => e.y);
+  assert.ok(ys[0] < 322 && ys[1] > 322 && ys[2] < 322 && ys[3] > 322, 'duraklar eksenin üstünde ve altında sırayla durmalı');
+  cz.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540));
+  assert.equal(VARY.time[3]('B', ['tarihsiz bir adım cümlesi', '2022: b adımı burada', '2023: c adımı burada']), null);
+  assert.equal(statBoy([{ value: '%5,7' }, { value: '115 GW' }, { value: '21,5 milyar $' }], [36, 48, 58, 72]), 36, 'en uzun sayı puntoyu belirler');
+  const st = VARY.stat[0]('B', ['%5,7 — a', '115 GW — b', '21,5 milyar $ — c']).filter((e) => e.type === 'h' && e.text !== 'B');
+  assert.equal(new Set(st.map((e) => e.size)).size, 1, 'aynı sıradaki sayılar farklı puntoda');
+});
+
+/* 92/100 alan canlı deste (14.11.2026) kullanıcıya "çok basit ve boş" göründü:
+   puanlayıcı ince asetatı ve yinelenen rakamı görmüyordu. */
+test('KALİTE: ince asetat ve yinelenen rakam puandan düşer', () => {
+  const D = require('./_ts-extract.js').loadFromSource('supabase/functions/acadia-presentation-director/index.ts', ['cleanText', 'words', 'repeatedFacts', 'qualityDeck']);
+  const not = 'Bu asetatta konuyu ayrıntılı biçimde anlatan, dinleyiciye örnek veren ve sonraki asetata köprü kuran yeterince uzun bir konuşma notu bulunuyor; kısa sayılmamalı.';
+  const S = (v, text, vis) => ({ title: 'B' + Math.random(), speaker_notes: not, content: { text, design_variant: v, has_visual: !!vis, placeholder: false } });
+  const dolu = 'Şebeke esnekliği: depolama ve talep yönetimi olmadan güneş üretimi öğle saatlerinde kesintiye uğrar ve yatırım geri dönüşü uzar.';
+  const iyi = { title: 'x', slides: [S('cover', '', 1), S('stat', '%5,7 güneş %3,4 jeotermal 115 GW', 0), S('list', dolu, 1), S('chart', '', 1), S('list', dolu + ' 115 GW.', 0), S('end', '', 0)] };
+  const q1 = D.qualityDeck(iyi, 6, 'topic');
+  assert.ok(!q1.issues.includes('thin_slides') && !q1.issues.includes('repeated_facts'), 'sayı asetatı ince sayılmaz; sonuç asetatı rakamı yineleyebilir (' + q1.issues + ')');
+  const kotu = { title: 'x', slides: [S('cover', '', 1), S('stat', '%5,7 güneş %3,4 jeotermal 115 GW', 0), S('list', '%5,7 güneş [1]\n%3,4 jeotermal [1]', 0), S('list', dolu, 1), S('list', dolu, 1), S('end', '', 0)] };
+  const q2 = D.qualityDeck(kotu, 6, 'topic');
+  assert.ok(q2.issues.includes('thin_slides'), 'iki kısa maddelik asetat ince'); assert.ok(q2.issues.includes('repeated_facts'), 'aynı iki rakam iki asetatta');
+  assert.ok(q2.score <= q1.score - 12, 'puan belirgin düşmeli (' + q1.score + ' → ' + q2.score + ')');
+  assert.equal(D.repeatedFacts(['2023 yılında 12 ülke', '2023 yılında 12 şirket']), 0, 'yıl ve küçük tam sayı yineleme değil');
+  assert.ok(ink.includes("thin_slides: 'bazı asetatlar çok ince") && ink.includes('repeated_facts:'), 'yeni sorunların Türkçe karşılığı yok');
 });
 
 summary();

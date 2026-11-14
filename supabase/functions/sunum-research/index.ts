@@ -222,7 +222,10 @@ const verified = (claim: string, idx: Set<string>): boolean => {
    deste iki rakamı (442,2 TWh, 21,5 milyar $) beş asetatta tekrarladı.
    Ölçü: metnin başındaki ayırt edici sayılar (yıl ve tek-iki haneli tam sayı
    hariç) büyük oranda aynıysa aynı haberdir. */
-const sigNums = (t: string): string[] => [...new Set(numTokens(t).filter((x) => !/^(1[5-9]|20)\d{2}$/.test(x)).map((x) => x.replace(/[.,]/g, "")).filter((x) => x.length >= 3))];
+/* Ondalıklı sayı kısa da olsa ayırt edicidir: "%5,7 güneş" ve "%3,4 jeotermal"
+   sayı asetatından sonra iki maddelik ayrı bir asetat olarak yinelendi
+   (canlı deste 14.11.2026) — "57" iki hane diye sayılmıyordu. */
+const sigNums = (t: string): string[] => [...new Set(numTokens(t).filter((x) => !/^(1[5-9]|20)\d{2}$/.test(x)).filter((x) => /[.,]/.test(x) || x.length >= 3).map((x) => x.replace(/[.,]/g, "")))];
 const sameStory = (a: string, b: string): boolean => {
   const x = sigNums(String(a || "").slice(0, 3000)), y = new Set(sigNums(String(b || "").slice(0, 3000)));
   if (x.length < 3 || y.size < 3) return false;
@@ -246,6 +249,27 @@ const dropRepeats = (slides: any[]): number => {
 /* "Alıntı" bir cümledir. Canlı destede kurum adlarının listesi tırnak içinde
    alıntı diye basıldı ("SHURA … – …, …, … ortaklığı"). */
 const isSentence = (t: string) => /[.!?…]["”»']?\s*$/.test(String(t || "").trim());
+/* Yıl etiketli çıplak sayılar madde değil seridir: "2000: 27.3 GW · 2023:
+   110.9 GW · 2024-Kasım: 115 GW" fotoğraflı madde listesi olarak basıldı
+   (aynı deste). Hepsi "yıl: sayı birim" ise ve birim aynıysa çizgi grafiği olur. */
+const seriesOf = (bullets: string[]): { labels: string[]; values: number[]; unit: string } | null => {
+  if (!Array.isArray(bullets) || bullets.length < 3 || bullets.length > 8) return null;
+  const rows = bullets.map((b) => String(b).trim().match(/^(.{2,24}?)\s*(?::|\s[–—-])\s*(%)?\s*(\d+(?:[.,]\d+)*)\s*(%|[\p{L}$€₺/²³]{1,12}(?:\s[\p{L}]{1,8})?)?\.?$/u));
+  if (!rows.every((m) => m && /\b(?:19|20)\d{2}\b/.test(m[1]))) return null;
+  const num = (x: string) => Number(/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(x) ? x.replace(/\./g, "").replace(",", ".") : x.replace(",", "."));
+  const labels = rows.map((m) => m![1].trim()), values = rows.map((m) => num(m![3])), units = rows.map((m) => String(m![2] || m![4] || "").toLocaleLowerCase("tr"));
+  if (values.some((v) => isNaN(v)) || new Set(units).size !== 1 || new Set(labels).size !== labels.length) return null;
+  return { labels, values, unit: String(rows[0]![2] || rows[0]![4] || "") };
+};
+/* Zaman çizelgesinde her adımın kendi tarihi olur: "2023 · 2035 · 2035" diye
+   aynı tarih iki durakta basıldı (aynı deste). Yinelenen tarih varsa liste. */
+const timeOk = (bullets: string[]): boolean => {
+  const l = (bullets || []).map((b) => { const m = String(b).match(/^(.{2,34}?)\s*(?::|\s[–—-])\s+/); return (m && /\d/.test(m[1]) ? m[1] : (String(b).match(/\b(?:1[5-9]|20)\d{2}\b/) || [""])[0]).toLocaleLowerCase("tr").trim(); }).filter(Boolean);
+  return new Set(l).size === l.length;
+};
+/* Türkçe destede ondalık ayırıcı virgüldür ("27.3 GW" değil "27,3 GW").
+   Tarih (14.11.2026) ve binlik (1.250) dokunulmaz kalır. */
+const trDec = (t: string) => String(t || "").replace(/(?<![\d.,])(\d+)\.(\d{1,2})(?!\d|\.\d)/g, "$1,$2");
 
 // akademik sunuma uymayan kaynaklar (video, sosyal medya, forum)
 const BLOCK = ["youtube.com", "youtu.be", "facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "quora.com", "pinterest.com", "linkedin.com", "eksisozluk.com", "uludagsozluk.com", "incisozluk.com.tr", "dailymotion.com", "vimeo.com", "scribd.com", "slideshare.net"];
@@ -506,6 +530,8 @@ Rules:
 - Write ${n - 2} content slides (cover and closing are added separately). Tone: ${tone}.
 - ${story} Slide titles should make this arc visible. Every title is a specific claim or topic (never generic like "Giriş", "Introduction", "Genel Bakış"), unique, max 9 words.
 - COVERAGE: before writing, plan the deck so that it tells the whole story, as far as the sources allow: (1) what it is and the context/background, (2) the key people, organisations or actors by name, (3) how it happened or how it works — the chronology or mechanism, (4) the key numbers, (5) the results, impact or legacy. A deck that is only a list of numbers is a failure: at most 2 slides may be "stat" or "chart". Draw on at least 3 different sources when that many are given.
+- ACADEMIC DEPTH: this is a university seminar, not a fact sheet. As far as the sources allow, the deck contains (a) one slide that defines the key concepts and the scope, (b) at least one analysis slide that explains WHY — causes, mechanisms, drivers, (c) one comparison (kind "two" or "table") of periods, countries, methods or viewpoints, and (d) one critical slide: limitations, risks, open debates, or points where the sources disagree. The conclusion states implications ("what follows from this"), not a recap of numbers.
+- A bullet is an analytical statement, not a label: 12-22 words (max 150 characters) that give a claim together with its cause, mechanism, comparison or consequence, written as a full sentence. Never write a bare number with a two-word label as a bullet ("%5,7 güneş" is a failure). On analysis, concept and critical slides start each bullet with a 2-4 word key term and a colon ("Şebeke esnekliği: ...").
 - Every "list" slide has 3-4 bullets; never write a slide with a single bullet. Use "stat" only when you have exactly 3 numbers; a lone number belongs inside a bullet of another slide.
 - For "quote", "time" and "two" slides the content goes in "bullets" (quote: bullets[0] is the sentence).
 - The FIRST content slide hooks the audience: why this topic matters, with one concrete fact from the sources. The LAST content slide is the conclusion: kind "list" with exactly 3 takeaway bullets. Every slide must have real content — never leave bullets empty.
@@ -514,7 +540,7 @@ Rules:
   "chart": one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
   "time": 3-4 chronological steps, EACH starting with its own date or period — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
-  "list": 3-4 concise bullet points (max ~14 words each).
+  "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list".
   Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
 - When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give a clock time only together with the time zone the source itself states — never invent or translate a time-zone abbreviation; if the source gives none, give the date without the clock time.
 - Today is ${new Date().toISOString().slice(0, 10)}. Say which period every number refers to; if the newest data in the sources is more than a year old, the conclusion slide says up to which date the deck is current. Never present old data as the present situation.
@@ -600,13 +626,18 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
          "10 mil · 7 km · 20 saniye" aynı çubuk grafikte yan yana çizildi. */
       if (chart && mixedUnits(chart.labels)) chartOk = false;
       if (k === "quote" && bullets.length && !isSentence(bullets[0])) k = "list";
+      if (k === "time" && !timeOk(bullets)) k = "list";
+      const ser = k === "list" && !warn.length ? seriesOf(bullets) : null;
+      if (ser) { k = "chart"; chart = { type: "line", ...ser }; chartOk = true; }
       if (k === "chart" && (!chart || !chartOk)) k = "list";
       // Grafik listeye inince maddesi yoksa asetat boş sayılıp düşüyordu; değerler maddeye yazılır.
       if (k === "list" && kind === "chart" && chart && !bullets.length) chart.values.forEach((v: number, i: number) => { const l = String(chart.labels[i] || ""); const u = (l.match(/\(([^)]+)\)\s*$/) || [])[1] || chart.unit; bullets.push(`${l.replace(/\s*\([^)]+\)\s*$/, "")}: ${String(v).replace(".", lang === "en" ? "." : ",")} ${u}`.trim()); if (!verified(String(v), idx) && !verified(String(v), allIdx)) warn.push(bullets.length - 1); });
       if (k === "stat" && stats.filter((x: any) => x.ok).length < 3) k = "list";
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
-      return { title: String(s.title || "").trim(), kind: k, bullets, warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
+      const yaz = (t: string) => lang === "en" ? t : trDec(t);
+      if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
+      return { title: String(s.title || "").trim(), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });
 
     // İçeriği olmayan asetat (madde, sayı, grafik, tablo — hiçbiri yok) kurguya

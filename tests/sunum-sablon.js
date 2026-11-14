@@ -205,4 +205,16 @@ test('kaynak bağları: çizim, PPTX, bulut kaydı ve paylaşım şablonu taşı
   for (const a of ['Lucide', 'ISC License', 'Hakim El Hattab', 'Marp team']) assert.ok(lis.includes(a), 'lisans metni eksik: ' + a);
 });
 
+/* Hazır taslaklardan alınan iki zemin iskeleti: pano ve halka (14.11.2026). */
+test('BİÇİM: pano ve halka desenleri çizilir, içerik alanını örtmez', () => {
+  const T = M.temaKur({ id: 'x', bg: '#FFFFFF', acc: '#2F6BFF', bic: { dz: 'pano', kutu: 'dolu', r: 8 } });
+  M.set(T); const p = M.temaDekor({ bg: 'clear' });
+  assert.equal(p.length, 2); assert.equal(p[1].fill.toUpperCase(), T.bg.clear.toUpperCase(), 'pano asetat zemini renginde olmalı (yazı kontrastı değişmesin)');
+  assert.ok(p[1].x <= 70 && p[1].x + p[1].w >= 890 && p[1].y <= 46 && p[1].y + p[1].h >= 510, 'içerik panonun içinde kalmalı');
+  M.set(M.temaKur({ id: 'x', bg: '#FFFFFF', acc: '#2F6BFF', bic: { dz: 'halka', kutu: 'cizgi', r: 8 } }));
+  const h = M.temaDekor({ bg: 'clear' }); assert.ok(h.length >= 3 && h.every((e) => e.type === 'ellipse' && e.dz === 1));
+  assert.equal(M.temaKur({ id: 'mp-default', bg: '#FFFFFF' }).bic.dz, 'pano'); assert.equal(M.temaKur({ id: 'rv-moon', bg: '#002B36' }).bic.dz, 'halka');
+  M.set(null);
+});
+
 summary();
