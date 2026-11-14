@@ -9236,3 +9236,8 @@ body.axb-deco #feed-view.axb .bp-stk-x,body.axb-deco .bp-stk-x{display:flex}
 .sx-kal.warn{color:#C9483B}
 .sx-kal.warn::before{content:"⚠ ";font-size:.9em}
 .sx-kal[disabled]{opacity:.55;cursor:progress}
+
+/* Doldurulmamış yer tutucu perdeye ve çıktıya çıkmaz (14.11.2026): soluk italik
+   "ana fikri yaz…", "4. adım" gibi yazılar düzenleme ekranında yol gösterir,
+   sunumda ise yarım iş gibi görünür. */
+:is(#acadexsunum-view.axu,#axu-layer) :is(.sx-pr,.sx-print) .sx-el.muted,.sx-pr .sx-el.muted,.sx-print .sx-el.muted{visibility:hidden}

@@ -479,6 +479,21 @@ function qualityDeck(deck: { title: string; slides: any[] }, requestedCount: num
       score -= 8; issues.push('visual_repetition'); break
     }
   }
+  // BOŞ ASETAT ve GÖRSELSİZLİK (14.11.2026): iki "giriş" asetatı ve sonuç asetatı
+  // yalnız yer tutucu ("ana fikri yaz…") taşıyan, tek fotoğrafı olmayan bir deste
+  // 76/100 ile "geçti" almıştı — puanlayıcı ikisini de görmüyordu. İstemci
+  // critique çağrısında has_visual / placeholder alanlarını gönderir; alanlar
+  // yoksa (yönetmenin kendi üretimi) bu iki ölçüt uygulanmaz.
+  const measured = deck.slides.some(slide => typeof slide.content?.has_visual === 'boolean')
+  if (measured) {
+    const last = deck.slides.length - 1
+    const empty = deck.slides.filter((slide, index) => index > 0 && index < last &&
+      (slide.content?.placeholder === true || (!words(String(slide.content?.text || '')) && !slide.content?.has_visual))).length
+    if (empty) { score -= Math.min(36, empty * 12); issues.push('empty_slides') }
+    const visual = deck.slides.filter(slide => slide.content?.has_visual === true).length
+    const vr = visual / Math.max(1, deck.slides.length)
+    if (deck.slides.length >= 6 && vr < 0.3) { score -= Math.round((0.3 - vr) * 50); issues.push('few_visuals') }
+  }
   if (sourceType !== 'topic') {
     const grounded = deck.slides.filter((slide, index) => index === 0 || Array.isArray(slide.content?.source_refs) && slide.content.source_refs.length).length
     const ratio = grounded / Math.max(1, deck.slides.length)

@@ -6690,7 +6690,14 @@ var SBX = (function () {
      bulunur — onun için Acadia'ya sormaya gerek yok. */
   var KALITE_TR = { slide_count_mismatch: 'slayt sayısı istediğinle tutmuyor', duplicate_titles: 'aynı başlık birden çok asetatta',
     weak_speaker_notes: 'konuşma notları kısa', dense_slides: 'bazı asetatlar çok yoğun',
-    visual_repetition: 'arka arkaya aynı düzen', weak_grounding: 'bazı asetatlar kaynağa bağlı değil' };
+    visual_repetition: 'arka arkaya aynı düzen', weak_grounding: 'bazı asetatlar kaynağa bağlı değil',
+    empty_slides: 'boş ya da doldurulmamış asetat var', few_visuals: 'görsel az (asetatların üçte birinden azında)' };
+  /* Yerel, kesin denetimler — Acadia'ya sormaya gerek olmayanlar. Soluk (muted)
+     her öğe doldurulmamış bir yer tutucudur ve perdede de görünür. */
+  var GORSEL_EL = /^(img|chart|table|mmd|math|viz)$/;
+  var gorselVar = function (sl) { return /^(time|stat|swot)$/.test(sl.lay || '') || sl.els.some(function (e) { return GORSEL_EL.test(e.type); }); };
+  var yerTutucu = function (sl) { return sl.els.some(function (e) { return e.muted && /^(h|t|ul|math)$/.test(e.type); }); };
+  var bosAsetatlar = function () { var out = []; deck.slides.forEach(function (sl, i) { if (yerTutucu(sl)) out.push(i + 1); }); return out; };
   var kaliteYazi = function (q) { return arr(q && q.issues).map(function (x) { return KALITE_TR[x] || x; }); };
   /* Destenin ölçüm anındaki parmak izi: asetat sayısı, düzenler, başlıklar ve
      not uzunlukları — kalite puanını belirleyen şeyler. Deste bunlardan biri
@@ -6710,8 +6717,9 @@ var SBX = (function () {
     el.textContent = busy ? 'ölçülüyor…' : has ? 'kalite ' + Math.round(q.score) + '/100' + (bayat ? ' · bayat' : '') : 'kaliteyi ölç';
     var iss = bayat ? [] : kaliteYazi(q).filter(function (x) { return !(cift.length && x === KALITE_TR.duplicate_titles); });
     if (cift.length) iss.unshift('aynı başlık: ' + cift.join(', '));
+    var bos = bosAsetatlar(); if (bos.length) iss.unshift('doldurulmamış yer: ' + bos.join('., ') + '. asetat');
     el.classList.toggle('warn', !busy && (!!iss.length || !!bayat));
-    el.title = busy ? '' : bayat ? 'Bu puan ölçümden sonraki değişiklikleri kapsamıyor. Yeniden ölçmek için tıkla.' + (cift.length ? ' Şu an: ' + iss.join('; ') + '.' : '')
+    el.title = busy ? '' : bayat ? 'Bu puan ölçümden sonraki değişiklikleri kapsamıyor. Yeniden ölçmek için tıkla.' + (iss.length ? ' Şu an: ' + iss.join('; ') + '.' : '')
       : (has ? 'Acadia’nın notu ' + Math.round(q.score) + '/100. ' : '') +
         (iss.length ? 'Bulunanlar: ' + iss.join('; ') + '. ' : has ? 'Sorun bulunmadı. ' : '') +
         (has ? 'Yeniden ölçmek için tıkla.' : 'Acadia desteyi puanlasın.');
@@ -6868,11 +6876,12 @@ var SBX = (function () {
   Q('[data-im-x]', imgDlg).addEventListener('click', function () { imgDlg.close(); });
   imgDlg.addEventListener('close', function () { if (imFrom && document.contains(imFrom)) imFrom.focus(); });
   /* fotoğrafı asetata yerleştir: metin varsa maddeler sola, fotoğraf sağa; kapakta başlık sola */
-  var credText = function (p) { return (curLang() === 'en' ? 'Photo: ' : 'Fotoğraf: ') + (p.photographer || p.source || 'Unsplash') + ' / ' + (p.source || 'Unsplash'); };
+  var credText = function (p) { var src = p.source || 'Unsplash'; return (curLang() === 'en' ? 'Photo: ' : 'Fotoğraf: ') + (p.photographer ? p.photographer + ' / ' : '') + src + (p.license ? ' · ' + p.license : ''); };
   var placePhoto = function (sl, p, alt) {
     var w = 480, h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > 330) { h = 330; w = Math.round(h * (p.w || 3) / (p.h || 2)); }
     var x = Math.round((W - w) / 2), y = Math.round((H - h) / 2) - 8;
-    var wide = sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't') && e.x < 200 && e.w > 520 && e.y > 130 && !e.muted; });
+    /* Alıntı düzeninde asıl geniş kutu büyük yazıdır (h); daralmazsa fotoğrafın altında kalır. */
+    var wide = sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't' || (sl.lay === 'quote' && e.type === 'h' && e.text.length > 1)) && e.x < 200 && e.w > 520 && e.y > 130 && !e.muted; });
     if (sl.lay === 'cover') { w = 340; h = 400; x = W - 40 - w; y = 70; wide = sl.els.filter(function (e) { return (e.type === 'h' || e.type === 't' || e.type === 'mark') && e.w > 420; }); }
     else if (wide.length) { w = 360; h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > 300) { h = 300; w = Math.round(h * (p.w || 3) / (p.h || 2)); } x = W - 50 - w; y = 160; }
     wide.forEach(function (e) { e.w = Math.max(e.type === 'mark' ? 120 : 300, Math.min(e.w, x - e.x - 24)); });
@@ -7462,7 +7471,7 @@ var SBX = (function () {
     var sl = arr(d && d.slides); if (!sl.length) throw new Error('boş kurgu');
     var items = sl.map(function (x) {
       var k = String(x.kind || 'list'), b = arr(x.bullets).map(txt).filter(Boolean), st = arr(x.stats).filter(function (v) { return v && v.value; });
-      var s = { t: txt(x.title) || 'Asetat', k: 'list', b: b, notes: txt(x.notes), src: arr(x.src), warnI: arr(x.warn).filter(function (i) { return b[i]; }), why: x.why || {}, fixed: arr(x.fixed) };
+      var s = { t: txt(x.title) || 'Asetat', k: 'list', b: b, notes: txt(x.notes), img: x.image && (x.image.q || x.image.entity) ? { q: txt(x.image.q), entity: txt(x.image.entity) } : null, src: arr(x.src), warnI: arr(x.warn).filter(function (i) { return b[i]; }), why: x.why || {}, fixed: arr(x.fixed) };
       if (k === 'stat' && st.length >= 3) { s.k = 'stat'; s.b = st.slice(0, 3).map(function (v) { return txt(v.value) + ' — ' + txt(v.label); }); s.data = { stats: st.slice(0, 3) }; s.warnI = []; }
       else if (k === 'chart' && x.chart && arr(x.chart.values).length >= 2) { s.k = 'chart'; s.data = { type: x.chart.type || 'bar', labels: arr(x.chart.labels).map(txt), data: arr(x.chart.values) }; s.b = b.length ? [b[0]] : x.chart.unit ? ['(' + txt(x.chart.unit) + ')'] : []; s.warnI = []; }
       else if (k === 'table' && x.table && arr(x.table.rows).length) { s.k = 'table'; s.data = { headers: arr(x.table.headers).map(txt), rows: arr(x.table.rows).map(function (r) { return arr(r).map(txt); }) }; s.warnI = []; }
@@ -7471,7 +7480,7 @@ var SBX = (function () {
       else if (k === 'quote' && b.length) { s.k = 'quote'; s.b = [b[0]]; }
       return s;
     });
-    return { title: txt(d.title), items: items, sources: arr(d.sources), check: d.check || null };
+    return { title: txt(d.title), items: items, sources: arr(d.sources), check: d.check || null, cover: d.cover_image || null, engine: d.engine || null };
   };
   /* akıllı düzen: içerik madde listesinden daha iyi bir düzene uyuyorsa onu seç */
   var STATRE = /^(.*?)((?:%\s?)?[$€₺]?\s?\d[\d.,]*\s?(?:%|milyon|milyar|bin|trilyon|million|billion|thousand|TL|USD|\$|€|kat|x)?)(.*)$/i;
@@ -7532,9 +7541,9 @@ var SBX = (function () {
     var tp = (o.topic || '').trim(); if (!tp) return Promise.resolve(null);
     var title = tp.charAt(0).toLocaleUpperCase('tr') + tp.slice(1), web = o.web !== false;
     plotMeta = { sub: subLine(), source: 'topic', sourceId: null };
-    var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = web ? 'Acadia webde kaynak arıyor, okuyor ve kurguyu çiziyor… (20–40 sn)' : 'Acadia kurguyu çiziyor…';
+    var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = web ? 'Acadia konuyu birkaç sorguya açıyor, webde ve Wikipedia’da arıyor, okuyup kurguyu çiziyor… (30–60 sn)' : 'Acadia kurguyu çiziyor…';
     var research = web ? fn('sunum-research', { action: 'research', topic: tp, story: o.story || 'auto', slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch) : Promise.reject(new Error('kapalı'));
-    return research.then(function (r) { plotMeta.via = 'research'; plotMeta.sources = r.sources; plotMeta.check = r.check; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) {
+    return research.then(function (r) { plotMeta.via = 'research'; plotMeta.sources = r.sources; plotMeta.check = r.check; plotMeta.cover = r.cover; plotMeta.engine = r.engine; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) {
       if (web) { console.warn('acadex-sunum: research', e); plotMeta.webFail = true; }
       return legacyTopic(tp, o, title);
     });
@@ -7622,6 +7631,7 @@ var SBX = (function () {
           extra.push('Acadia kalite notu ' + Math.round(kq.score) + '/100' + (qi.length ? ' — ' + qi.join(', ') : ''));
         }
         if (plotMeta.webFail) extra.push('web araştırması şu an yapılamadı, bu yüzden kaynakça yok');
+        var en0 = plotMeta.engine; if (en0 && (en0.web || en0.wiki)) extra.push((en0.queries || 1) + ' sorguyla ' + (en0.web || 0) + ' web' + (en0.wiki ? ' + ' + en0.wiki + ' Wikipedia' : '') + ' kaynağı okundu');
         var sk = strips.filter(function (x) { return /^(stat|time|quote)$/.test(x.k); }).length; if (sk && !ck) extra.push(sk + ' asetata madde yerine daha uygun düzen seçildi');
         help.textContent = (plotMeta.webFail ? 'Acadia konuyu genel bilgisiyle yazdı. Sırala, düzelt, türünü değiştir.' : VIA[plotMeta.via] || VIA.ai) + (extra.length ? ' · ' + extra.join(' · ') + '.' : '');
         paintStrips(true); var f = stripsEl.querySelector('input'); if (f) f.focus();
@@ -7668,7 +7678,10 @@ var SBX = (function () {
     flowEl.innerHTML = flowList.length ? '<p class="sx-flow-h"><b>akış kontrolü</b> · ' + flowList.length + ' öneri</p><ul>' + flowList.map(function (it, k) { return '<li><span>' + X(it.msg) + '</span>' + (it.fix ? '<button type="button" class="sx-lnk" data-flow-fix="' + k + '">' + X(it.btn) + '</button>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="sx-flow-h ok"><b>akış kontrolü</b> · giriş, gelişme ve sonuç yerinde; tekrar ya da kalabalık asetat yok.</p>';
     QA('.sx-strip', stripsEl).forEach(function (li) { var i = +li.getAttribute('data-i'); li.classList.toggle('flag', flowList.some(function (it) { return it.i === i; })); });
   };
-  flowEl.addEventListener('click', function (e) { var b = e.target.closest('[data-flow-fix]'); if (!b) return; var it = flowList[+b.getAttribute('data-flow-fix')]; if (it) flowFix(it); });
+  flowEl.addEventListener('click', function (e) { var b = e.target.closest('[data-flow-fix]'); if (!b) return;
+    /* Acadia giriş/sonuç şeridini yazarken ikinci tık ikinci bir boş şerit
+       ekliyordu: canlı destede iki tane "Giriş: neden önemli?" çıktı (14.11.2026). */
+    if (flowEl.getAttribute('aria-busy') === 'true') return; var it = flowList[+b.getAttribute('data-flow-fix')]; if (it) flowFix(it); });
   var paintStrips = function (anim) {
     stripsEl.innerHTML = strips.map(stripHTML).join(''); paintFlow();
     if (anim && !calm) QA('.sx-strip', stripsEl).forEach(function (li, i) { li.classList.add('drawn'); li.style.animationDelay = (i * 90) + 'ms'; });
@@ -7752,6 +7765,72 @@ var SBX = (function () {
       say(String(e && e.message || '').indexOf('no_key') > -1 ? 'Fotoğraf arama anahtarı tanımlı değil; “görsel ara” da çalışmaz. Yöneticiye bildir.' : 'Fotoğraf araması şu an yapılamadı; “görsel ara” ile kendin seçebilirsin.');
     });
   };
+  /* ASETAT BAŞINA GÖRSEL (14.11.2026). autoPhotos deste başına TEK arama
+     yapıyor (destenin adı) ve sonucu kapağa + en çok iki asetata dağıtıyordu;
+     her asetat aynı aramanın fotoğrafını alıyordu, çoğu destede de hiçbiri
+     konmuyordu. Artık her aday asetat kendi ipucuyla sunucuya gider
+     (sunum-research → illustrate): araştırma yolunda ipucunu kurguyu yazan
+     model verir (image.q / image.entity), öteki yollarda sunucu üretir. Somut
+     bir kişi/makine/yer ise Wikipedia'nın kendi görseli, kavramsa stok fotoğraf
+     gelir. Sunucuya ulaşılamazsa eski tek aramalı yol yedek kalır. */
+  var illustrate = function (made, topic) {
+    var cap = Math.min(8, Math.max(3, Math.ceil(made.length * 0.4)));
+    var cand = made.filter(function (sl) {
+      if (yerTutucu(sl) || sl.els.some(function (e) { return GORSEL_EL.test(e.type); })) return false;
+      if (sl.lay === 'cover') return true;
+      if (!/^(list|quote)$/.test(sl.lay || '')) return false;
+      var t = sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't') && !e.muted; }).map(function (e) { return e.text; }).join('\n');
+      return t && t.split('\n').filter(Boolean).length <= 4 && t.length < 340;
+    });
+    /* kapak her zaman; sonra yazarın ipucu verdiği asetatlar; üst sınır destenin %40'ı */
+    cand.sort(function (a, b) { return ((b.lay === 'cover') - (a.lay === 'cover')) || ((b.imgq ? 1 : 0) - (a.imgq ? 1 : 0)); });
+    cand = cand.slice(0, cap);
+    if (!cand.length) { say('Fotoğraf için uygun asetat bulamadım; istediğin asetatı seçip “görsel ara” diyebilirsin.'); return; }
+    var payload = cand.map(function (sl) { return { i: made.indexOf(sl), title: titleOf(sl), text: bodyOf(sl).slice(0, 300), q: sl.imgq ? sl.imgq.q || '' : '', entity: sl.imgq ? sl.imgq.entity || '' : '' }; });
+    fn('sunum-research', { action: 'illustrate', topic: topic, language: curLang(), slides: payload }, 50000).then(function (d) {
+      var n = 0;
+      arr(d && d.photos).forEach(function (p) {
+        var sl = made[p.i]; if (!sl || !p.large || deck.slides.indexOf(sl) < 0 || sl.els.some(function (e) { return e.type === 'img'; })) return;
+        placePhoto(sl, p, p.alt); fitSlide(sl); n++;
+      });
+      if (!n) { autoPhotos(made, topic); return; }
+      renderAll(); dirty();
+      say(n + ' asetata konusuna uygun görsel yerleştirdim' + (d && d.rate ? ' (Unsplash saatlik sınırı doldu, kalanı Wikimedia’dan)' : '') + '. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
+    }, function (e) { console.warn('acadex-sunum: görsel yerleştirme', e); autoPhotos(made, topic); });
+  };
+  /* BOŞ ŞERİT BASILMADAN ÖNCE YAZILIR (14.11.2026). "giriş ekle" / "sonuç ekle" /
+     "yeni asetat" şeridi Acadia yazamazsa boş kalıyor ve asetata "ana fikri yaz ·
+     bir örnek ver · neden önemli?" yer tutucusuyla basılıyordu; canlı destede
+     10 asetatın 3'ü böyleydi ve deste yine de "geçti" almıştı. Basmadan önce boş
+     şeritler bir kez daha yazdırılır; yine boş kalan olursa sayısı söylenir.
+     İskelet yolunda (Acadia'ya hiç ulaşılamadı) dokunulmaz: orada soluk yerler
+     bilerek kullanıcıya bırakılır. */
+  var BOS_OLMAZ = /^(list|two|time|quote|stat)$/;
+  var bosSerit = function (x) { return BOS_OLMAZ.test(x.k) && x.t.trim() && !arr(x.b).filter(Boolean).length; };
+  var hazirla = function () {
+    strips.forEach(function (x) { if (x.k === 'stat' && statsOf(x.b, { data: x.data }).length < 3) x.k = 'list'; });   /* 3 sayı yoksa "—" kutuları basılmaz */
+    var bos = strips.filter(bosSerit);
+    if (!bos.length || plotMeta.via === 'skeleton') return Promise.resolve(0);
+    var topic = plotMeta.title || deck.title || '';
+    var ctx = strips.filter(function (x) { return !/^(cover|end|refs)$/.test(x.k) && arr(x.b).length; }).map(function (x) { return x.t + ': ' + x.b.slice(0, 2).join('; '); }).join('\n').slice(0, 1400);
+    return Promise.all(bos.slice(0, 6).map(function (ns) {
+      return fn('generate-slide-content', { action: 'enrich', language: curLang(), topic: topic, slideTitle: ns.t, currentText: ctx }, 40000).then(function (d) {
+        var c = d && (d.content || d.text);
+        ns.b = String(c || '').split('\n').map(cleanB).map(stripMd).filter(function (x) { return x.length > 2; }).slice(0, 4);
+        if (ns.b.length && ns.k !== 'two') { ns.k = 'list'; smartKind(ns); }
+      }, function (e) { console.warn('acadex-sunum: boş şerit yazılamadı', e); });
+    })).then(function () { return strips.filter(bosSerit).length; });
+  };
+  var basiliyor = false;
+  var bas = function (mode) {
+    if (basiliyor) return; basiliyor = true;
+    var bs = [Q('[data-pl-ok]', plot), Q('[data-pl-print]', plot)], eski = bs.map(function (b) { return b.textContent; });
+    if (strips.some(bosSerit) && plotMeta.via !== 'skeleton') bs.forEach(function (b) { b.disabled = true; b.textContent = 'boş şeritler yazılıyor…'; });
+    hazirla().then(function (kalan) { return kalan; }, function () { return 0; }).then(function (kalan) {
+      basiliyor = false; bs.forEach(function (b, i) { b.disabled = false; b.textContent = eski[i]; });
+      printDeck(mode, kalan);
+    });
+  };
   /* Hazır desteyi yönetmenin eleştirmenine puanlatır (üretim yapmaz, hızlıdır).
      Sonuç desteye yazılır, kaydedilir ve üretim özetinde görünür. Başarısız
      olursa sessizce geçilir: puan yokluğu sunumu engellemez. */
@@ -7759,7 +7838,7 @@ var SBX = (function () {
   var kaliteOlc = function (d, loud) {
     if (kaliteBusy) return;
     var sl = arr(d.slides).map(function (x) {
-      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section' } };
+      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section', has_visual: gorselVar(x), placeholder: yerTutucu(x) } };
     });
     if (!sl.length) return;
     kaliteBusy = true; paintKalite(true);
@@ -7783,13 +7862,27 @@ var SBX = (function () {
     deck.quality = null; deck.qualityKey = null;           /* elle istenen ölçüm her zaman yeniden sorar */
     kaliteOlc(deck, true);
   });
-  var printDeck = function (mode) {
+  var printDeck = function (mode, kalanBos) {
     strips = strips.filter(function (s) { return s.t.trim() || s.k === 'end'; }); if (!strips.length) return;
     var bosCerceve = 0;
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data;
       var kind = s.k; if (!dataKind(s, kind)) { kind = 'list'; bosCerceve++; }      /* boş tablo/diyagram çerçevesi basılmaz */
       var sl = newSlide(kind, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
+      if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
       var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end') AI.note(sl, true); if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+    /* Kapak ve kapanışın notu hiç yoktu (0 kelime): sunumun en zor iki ânı —
+       açılış ve soru-cevap — hazırlıksız kalıyordu, kalite ölçümü de her destede
+       bu ikisini "kısa not" sayıyordu. Destenin kendi başlıklarından yazılır. */
+    var govde = made.filter(function (sl) { return !/^(cover|end|refs)$/.test(sl.lay || ''); }).map(titleOf).filter(Boolean), ENn = curLang() === 'en';
+    made.forEach(function (sl) {
+      if (sl.notes) return;
+      if (sl.lay === 'cover') sl.notes = ENn
+        ? 'Introduce yourself and state the topic in one sentence: “' + (plotMeta.title || titleOf(sl)) + '”. Tell the audience what they will know by the end. The flow is: ' + govde.slice(0, 4).join(', ') + '. Mention that you have left time for questions at the end.'
+        : 'Kendini tanıt ve konuyu tek cümleyle söyle: “' + (plotMeta.title || titleOf(sl)) + '”. Dinleyiciye sunumun sonunda ne öğrenmiş olacağını anlat. Akış şöyle: ' + govde.slice(0, 4).join(', ') + '. Sorular için sona zaman ayırdığını belirt.';
+      else if (sl.lay === 'end') sl.notes = ENn
+        ? 'Repeat the key messages once more in short sentences' + (govde.length ? ': ' + govde.slice(-3).join(', ') : '') + '. Thank the audience and invite questions. If nobody asks, open one yourself: “the question I hear most often is…”.'
+        : 'Ana mesajları kısa cümlelerle bir kez daha tekrar et' + (govde.length ? ': ' + govde.slice(-3).join(', ') : '') + '. Dinleyiciye teşekkür et ve soruları davet et. Soru gelmezse “en çok merak edilen nokta şu oluyor…” diyerek ilk soruyu kendin aç.';
+    });
     var fitted = 0; made.forEach(function (sl) { fitted += fitSlide(sl); });
     var start = mode === 'append' ? deck.slides.length : 0;
     if (mode === 'append') deck.slides = deck.slides.concat(made); else deck.slides = made;
@@ -7814,11 +7907,11 @@ var SBX = (function () {
     QA('.sx-th', thumbsEl).slice(start).forEach(function (li, i) { if (!calm) { li.classList.add('printed'); li.querySelector('.sx-thb').style.animationDelay = (i * 120) + 'ms'; } });
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
     if (!calm) { glass.classList.remove('printing'); void glass.offsetWidth; glass.classList.add('printing'); } flipGlass();
-    var wantPh = Q('[data-pl-photo]', plot); if (wantPh && wantPh.checked) autoPhotos(made, plotMeta.title || deck.title);
-    say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (bosCerceve ? ' ' + bosCerceve + ' asetatın tablo/diyagram verisi gelmediği için madde düzenine alındı.' : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
+    var wantPh = Q('[data-pl-photo]', plot); if (wantPh && wantPh.checked) illustrate(made, plotMeta.title || deck.title);
+    say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (bosCerceve ? ' ' + bosCerceve + ' asetatın tablo/diyagram verisi gelmediği için madde düzenine alındı.' : '') + (kalanBos ? ' ' + kalanBos + ' asetatı Acadia yazamadı; soluk yerleri sen doldur ya da asetatı seçip “zenginleştir” de.' : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
   };
-  Q('[data-pl-ok]', plot).addEventListener('click', function () { if (deck.slides.length) { step(3); plot.querySelector('input[name=pl-mode]:checked').focus(); } else printDeck('replace'); });
-  Q('[data-pl-print]', plot).addEventListener('click', function () { printDeck(plot.querySelector('input[name=pl-mode]:checked').value); });
+  Q('[data-pl-ok]', plot).addEventListener('click', function () { if (deck.slides.length) { step(3); plot.querySelector('input[name=pl-mode]:checked').focus(); } else bas('replace'); });
+  Q('[data-pl-print]', plot).addEventListener('click', function () { bas(plot.querySelector('input[name=pl-mode]:checked').value); });
 
   /* ---------- prova koçu: tarayıcının konuşma tanıması ile hız, dolgu, kapsama ---------- */
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;

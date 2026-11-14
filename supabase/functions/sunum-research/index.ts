@@ -5,8 +5,23 @@
 //   sunum kurgusu yazar (her asetat için uygun düzen + kaynak numarası) →
 //   SUNUCU, rakam ve tarihleri kaynak metniyle birebir karşılaştırır
 //   (yapay zekâya sorulmaz, uydurma "doğrulandı" olamaz) → APA kaynakça.
-// action 'images': konu → Unsplash'ten telifsiz yatay fotoğraflar (Pexels yedek).
+// action 'images': konu → Unsplash'ten telifsiz yatay fotoğraflar (Pexels yedek,
+//   ikisi de sonuç vermezse Wikimedia Commons).
+// action 'illustrate': asetat listesi → her asetata konusuna uygun görsel.
+//   Somut bir kişi/makine/yer/kurum ise Wikipedia'nın kendi görseli (yalnız
+//   özgür lisanslı), kavramsa Unsplash → Pexels → Wikimedia Commons.
 // action 'track':  seçilen Unsplash fotoğrafının indirme sayacı (Unsplash kuralı).
+//
+// v2 (14.11.2026) — NEDEN: canlı ölçümde araştırma tek Tavily sorgusuna (konu
+// cümlesinin kendisi) dayanıyordu ve modele her kaynağın yalnız ilk ~2.300
+// karakteri gidiyordu; görsel ise deste başına TEK aramaydı ve çoğu destede
+// hiç fotoğraf çıkmıyordu. Artık:
+//   1) konu 3 arama sorgusuna açılır (kendi dili, bir alt başlık, İngilizce),
+//   2) sorgular paralel aranır, sonuçlar birleştirilir, alan adı başına 2 kaynak,
+//   3) Wikipedia (TR + EN) anahtarsız ek kaynak olur — Tavily düşse de araştırma
+//      ayakta kalır,
+//   4) modele kaynağın başı değil, konuyla en çok örtüşen paragrafları gider,
+//   5) yazar her asetat için bir görsel ipucu üretir (image.q / image.entity).
 //
 // Gizli anahtarlar Supabase → Edge Functions → Secrets'ta durur:
 //   TAVILY_API_KEY, UNSPLASH_ACCESS_KEY, GROQ_API_KEY. Tarayıcıya hiç gitmez.
@@ -23,6 +38,146 @@ const J = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status
 type Src = { id: number; title: string; url: string; site: string; date: string; text: string; snippet: string };
 
 const KINDS = ["list", "two", "time", "stat", "chart", "quote", "table"];
+
+// ---------- ağ yardımcıları ----------
+// Wikimedia, kimliği belli olmayan istemcileri reddeder; User-Agent zorunlu.
+const UA = { "User-Agent": "AcadexSunum/2.0 (https://acadex.com.tr)", "Accept": "application/json" };
+const tfetch = async (url: string, init: RequestInit = {}, ms = 7000): Promise<Response | null> => {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...init, signal: c.signal }); } catch { return null; } finally { clearTimeout(t); }
+};
+const stripTags = (h: string) => String(h || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+
+// ---------- Wikipedia: anahtarsız kaynak ----------
+type Wiki = { title: string; url: string; text: string; date: string; lang: string };
+async function wikiPages(lang: string, q: string, n: number): Promise<Wiki[]> {
+  const base = `https://${lang}.wikipedia.org/w/api.php?format=json&origin=*`;
+  const sr = await tfetch(`${base}&action=query&list=search&srlimit=${n}&srsearch=${encodeURIComponent(q)}`, { headers: UA }, 6000);
+  if (!sr || !sr.ok) return [];
+  const sj: any = await sr.json().catch(() => null);
+  const titles: string[] = (sj?.query?.search || []).map((x: any) => String(x.title || "")).filter(Boolean).slice(0, n);
+  const out = await Promise.all(titles.map(async (t) => {
+    // Tam metin yalnız tek sayfalık istekte döner (exlimit=1).
+    const r = await tfetch(`${base}&action=query&prop=extracts|info&explaintext=1&redirects=1&titles=${encodeURIComponent(t)}`, { headers: UA }, 7000);
+    if (!r || !r.ok) return null;
+    const j: any = await r.json().catch(() => null);
+    const pg: any = Object.values(j?.query?.pages || {})[0];
+    const text = String(pg?.extract || "").trim();
+    if (text.length < 400) return null;                      // taslak/anlam ayrımı sayfası kaynak olmaz
+    return { title: String(pg.title || t), url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(String(pg.title || t).replace(/ /g, "_"))}`, text: text.slice(0, 20000), date: String(pg?.touched || "").slice(0, 10), lang } as Wiki;
+  }));
+  return out.filter(Boolean) as Wiki[];
+}
+
+// ---------- görsel kaynakları ----------
+type Photo = { id: string; alt: string; w: number; h: number; thumb: string; large: string; photographer: string; photographer_url?: string; page: string; source: string; source_url: string; track?: string; license?: string };
+const UTM = "utm_source=acadex&utm_medium=referral";
+const mapUnsplash = (p: any, q: string): Photo => ({
+  id: String(p.id), alt: p.alt_description || p.description || q, w: p.width, h: p.height,
+  thumb: p.urls?.small, large: p.urls?.regular,
+  photographer: p.user?.name, photographer_url: `${p.user?.links?.html}?${UTM}`, page: `${p.links?.html}?${UTM}`,
+  source: "Unsplash", source_url: `https://unsplash.com/?${UTM}`, track: p.links?.download_location,
+});
+const mapPexels = (p: any, q: string): Photo => ({
+  id: String(p.id), alt: p.alt || q, w: p.width, h: p.height, thumb: p.src?.medium, large: p.src?.large,
+  photographer: p.photographer, photographer_url: p.photographer_url, page: p.url, source: "Pexels", source_url: "https://www.pexels.com",
+});
+async function unsplashSearch(q: string, per: number): Promise<{ photos: Photo[]; rate: boolean; ok: boolean }> {
+  const key = Deno.env.get("UNSPLASH_ACCESS_KEY"); if (!key) return { photos: [], rate: false, ok: false };
+  const r = await tfetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=${per}&orientation=landscape&content_filter=high`, { headers: { Authorization: `Client-ID ${key}`, "Accept-Version": "v1" } }, 7000);
+  if (!r) return { photos: [], rate: false, ok: false };
+  if (r.status === 403 || r.status === 429) return { photos: [], rate: true, ok: false };
+  if (!r.ok) return { photos: [], rate: false, ok: false };
+  const d: any = await r.json().catch(() => null);
+  return { photos: (d?.results || []).map((p: any) => mapUnsplash(p, q)).filter((p: Photo) => p.large), rate: false, ok: true };
+}
+async function pexelsSearch(q: string, per: number, lang: string): Promise<Photo[]> {
+  const key = Deno.env.get("PEXELS_API_KEY"); if (!key) return [];
+  const r = await tfetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=${per}&orientation=landscape&locale=${lang === "en" ? "en-US" : "tr-TR"}`, { headers: { Authorization: key } }, 7000);
+  if (!r || !r.ok) return [];
+  const d: any = await r.json().catch(() => null);
+  return (d?.photos || []).map((p: any) => mapPexels(p, q)).filter((p: Photo) => p.large);
+}
+// Wikimedia Commons: anahtarsız, tamamı özgür lisanslı. Stok fotoğraf kadar
+// "şık" değildir ama somut konularda (tarihî makine, bina, belge) gerçeğini verir.
+async function commonsSearch(q: string, per: number): Promise<Photo[]> {
+  const r = await tfetch(`https://commons.wikimedia.org/w/api.php?format=json&origin=*&action=query&generator=search&gsrnamespace=6&gsrlimit=${per}&gsrsearch=${encodeURIComponent(q + " filetype:bitmap")}&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=1200`, { headers: UA }, 7000);
+  if (!r || !r.ok) return [];
+  const j: any = await r.json().catch(() => null);
+  const pages: any[] = Object.values(j?.query?.pages || {});
+  pages.sort((a, b) => (a.index || 0) - (b.index || 0));
+  const out: Photo[] = [];
+  for (const pg of pages) {
+    const ii = pg?.imageinfo?.[0]; if (!ii || !/^image\/(jpeg|png)$/.test(String(ii.mime || ""))) continue;
+    if ((ii.width || 0) < 700 || (ii.height || 0) < 400) continue;          // küçük görsel perdede bulanır
+    if ((ii.height || 1) / (ii.width || 1) > 1.6) continue;                  // çok dikey görsel asetata oturmaz
+    const meta = ii.extmetadata || {};
+    out.push({ id: "c" + pg.pageid, alt: stripTags(meta.ImageDescription?.value || "").slice(0, 160) || q, w: ii.thumbwidth || ii.width, h: ii.thumbheight || ii.height,
+      thumb: ii.thumburl || ii.url, large: ii.thumburl || ii.url, photographer: stripTags(meta.Artist?.value || "").slice(0, 60), page: ii.descriptionurl || "",
+      source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org", license: stripTags(meta.LicenseShortName?.value || "") });
+  }
+  return out;
+}
+// Wikipedia maddesinin kendi görseli: yalnız ÖZGÜR lisanslı (pilicense=free) —
+// adil kullanım (logo, afiş, kapak) görselleri sunuma taşınmaz.
+async function wikiImage(entity: string): Promise<Photo | null> {
+  for (const lang of ["en", "tr"]) {
+    const base = `https://${lang}.wikipedia.org/w/api.php?format=json&origin=*&action=query&prop=pageimages|info&inprop=url&piprop=thumbnail|name&pithumbsize=1200&pilicense=free&redirects=1`;
+    let r = await tfetch(`${base}&titles=${encodeURIComponent(entity)}`, { headers: UA }, 6000);
+    let j: any = r && r.ok ? await r.json().catch(() => null) : null;
+    let pg: any = Object.values(j?.query?.pages || {})[0];
+    if (!pg?.thumbnail) {
+      r = await tfetch(`${base}&generator=search&gsrlimit=1&gsrsearch=${encodeURIComponent(entity)}`, { headers: UA }, 6000);
+      j = r && r.ok ? await r.json().catch(() => null) : null;
+      pg = Object.values(j?.query?.pages || {})[0];
+    }
+    const th = pg?.thumbnail; if (!th?.source || (th.width || 0) < 420) continue;
+    return { id: "w" + pg.pageid, alt: String(pg.title || entity), w: th.width, h: th.height, thumb: th.source, large: th.source, photographer: "",
+      page: pg.pageimage ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(pg.pageimage)}` : String(pg.fullurl || ""), source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org" };
+  }
+  return null;
+}
+// Bir destenin görselleri: her ipucu için sırayla dener, aynı görseli iki
+// asetata koymaz. Unsplash'in saatlik sınırı dar olduğu için (ücretsiz katman
+// 50 istek) deste başına en çok UNSPLASH_MAX arama yapılır.
+const UNSPLASH_MAX = 5;
+type Hint = { i: number; q: string; entity: string };
+async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Photo & { i: number })[]; rate: boolean }> {
+  const used = new Set<string>(); let uCalls = 0, rate = false;
+  const take = (list: Photo[]) => { const p = list.find((x) => x && x.large && !used.has(x.large)); if (p) used.add(p.large); return p || null; };
+  // Wikipedia aramaları paralel; stok aramaları sırayla (sınır sayacı ve tekrar denetimi için).
+  const wiki = await Promise.all(hints.map((h) => h.entity ? wikiImage(h.entity) : Promise.resolve(null)));
+  const photos: (Photo & { i: number })[] = [];
+  for (let k = 0; k < hints.length; k++) {
+    const h = hints[k]; let p: Photo | null = wiki[k] ? take([wiki[k] as Photo]) : null;
+    const q = (h.q || h.entity || "").slice(0, 80).trim();
+    if (!p && q && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; p = take(u.photos); }
+    if (!p && q) p = take(await pexelsSearch(q, 6, lang));
+    if (!p && q) p = take(await commonsSearch(h.entity || q, 8));
+    if (p) photos.push({ ...p, i: h.i });
+  }
+  return { photos, rate };
+}
+
+// ---------- kaynak metninden konuya en yakın paragraflar ----------
+// Modele kaynağın BAŞI değil, konuyla örtüşen yerleri gider: sayfanın ilk 900
+// karakteri çoğu sitede menü, çerez bildirimi ve giriş cümlesidir.
+const keysOf = (s: string): string[] => [...new Set((String(s || "").toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, 6)))];
+const pickPassages = (text: string, keys: string[], budget: number): string => {
+  const raw = String(text || "");
+  let paras = raw.split(/\n+/).map((x) => x.replace(/\s+/g, " ").trim()).filter((x) => x.length > 60);
+  if (paras.length < 4) { paras = []; const flat = raw.replace(/\s+/g, " "); for (let i = 0; i < flat.length; i += 600) paras.push(flat.slice(i, i + 600)); }
+  const scored = paras.slice(0, 220).map((p, i) => {
+    const low = p.toLocaleLowerCase("tr"); let sc = 0;
+    for (const k of keys) if (low.includes(k)) sc += 2;
+    if (/\d{2,}/.test(p)) sc += 1;                                           // rakam/tarih taşıyan paragraf sunuma malzeme olur
+    if (p.length < 120) sc -= 1;
+    return { p: p.slice(0, 900), i, sc };
+  });
+  const top = [...scored].sort((a, b) => b.sc - a.sc || a.i - b.i); const pick: typeof scored = []; let used = 0;
+  for (const x of top) { if (used + x.p.length > budget) continue; pick.push(x); used += x.p.length; if (used > budget * 0.92) break; }
+  return pick.sort((a, b) => a.i - b.i).map((x) => x.p).join("\n");
+};
 
 // ---------- rakam doğrulama: iddiadaki her anlamlı sayı kaynakta geçiyor mu ----------
 const numTokens = (s: string): string[] => {
@@ -125,33 +280,41 @@ Deno.serve(async (req) => {
     if (action === "images") {
       const q = String(body?.query || "").slice(0, 100).trim();
       if (!q) return J({ error: "Arama boş" }, 400);
-      const uKey = Deno.env.get("UNSPLASH_ACCESS_KEY");
-      const pKey = Deno.env.get("PEXELS_API_KEY");
-      const UTM = "utm_source=acadex&utm_medium=referral";
-      if (uKey) {
-        const r = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=12&orientation=landscape&content_filter=high`, { headers: { Authorization: `Client-ID ${uKey}`, "Accept-Version": "v1" } });
-        if (r.status === 403 || r.status === 429) return J({ error: "Unsplash saatlik arama sınırı doldu", code: "rate" }, 429);
-        if (!r.ok) return J({ error: "Unsplash yanıt vermedi", status: r.status }, 502);
-        const d = await r.json();
-        const photos = (d.results || []).map((p: any) => ({
-          id: p.id, alt: p.alt_description || p.description || q, w: p.width, h: p.height,
-          thumb: p.urls?.small, large: p.urls?.regular,
-          photographer: p.user?.name, photographer_url: `${p.user?.links?.html}?${UTM}`, page: `${p.links?.html}?${UTM}`,
-          source: "Unsplash", source_url: `https://unsplash.com/?${UTM}`, track: p.links?.download_location,
-        }));
-        return J({ photos });
+      const hasKey = !!(Deno.env.get("UNSPLASH_ACCESS_KEY") || Deno.env.get("PEXELS_API_KEY"));
+      const u = await unsplashSearch(q, 12);
+      let photos: Photo[] = u.photos;
+      if (!photos.length) photos = await pexelsSearch(q, 12, lang);
+      // Stok arşivler boş döndüyse ya da sınır dolduysa Wikimedia Commons:
+      // anahtar istemez, bu yüzden "görsel ara" hiçbir zaman tamamen kapanmaz.
+      if (!photos.length) photos = await commonsSearch(q, 12);
+      if (!photos.length && u.rate) return J({ error: "Unsplash saatlik arama sınırı doldu", code: "rate" }, 429);
+      if (!photos.length && !hasKey) return J({ error: "UNSPLASH_ACCESS_KEY tanımlı değil", code: "no_key" }, 503);
+      return J({ photos });
+    }
+
+    // ---------------- asetatlara görsel: ipucu yoksa Acadia üretir ----------------
+    if (action === "illustrate") {
+      const items = (Array.isArray(body?.slides) ? body.slides : []).slice(0, 8).map((x: any) => ({
+        i: Number(x?.i) || 0, title: String(x?.title || "").slice(0, 140), text: String(x?.text || "").slice(0, 320),
+        q: String(x?.q || "").slice(0, 80).trim(), entity: String(x?.entity || "").slice(0, 80).trim(),
+      }));
+      if (!items.length) return J({ photos: [] });
+      const topicI = String(body?.topic || "").slice(0, 160);
+      const need = items.filter((x: any) => !x.q && !x.entity);
+      const gk = Deno.env.get("GROQ_API_KEY");
+      if (need.length && gk) {
+        const sysI = `For each presentation slide, choose the image that would genuinely help the audience.
+"q" = an ENGLISH stock-photo search query, 2-4 concrete visual words (objects, places, scenes — never abstract words like "concept", "importance", "development"; never the slide title translated word by word).
+"entity" = the exact English Wikipedia article title IF the slide is mainly about one specific person, machine, product, building, place, organisation or historical event (e.g. "ENIAC", "Grace Hopper", "Hagia Sophia"); otherwise "".
+The deck topic is given for context. Return ONLY JSON: {"r":[{"i":0,"q":"","entity":""}]}`;
+        const gi = await groq(gk, "openai/gpt-oss-20b", sysI, JSON.stringify({ topic: topicI, slides: need.map((x: any) => ({ i: x.i, title: x.title, text: x.text })) }), 900);
+        let ri: any = null; try { ri = JSON.parse(gi.data?.choices?.[0]?.message?.content || ""); } catch { ri = null; }
+        if (gi.ok && ri && Array.isArray(ri.r)) for (const r of ri.r) { const it = items.find((x: any) => x.i === Number(r?.i)); if (it) { it.q = String(r?.q || "").slice(0, 80).trim(); it.entity = String(r?.entity || "").slice(0, 80).trim(); } }
       }
-      if (pKey) {
-        const r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=12&orientation=landscape&locale=${lang === "en" ? "en-US" : "tr-TR"}`, { headers: { Authorization: pKey } });
-        if (!r.ok) return J({ error: "Pexels yanıt vermedi", status: r.status }, 502);
-        const d = await r.json();
-        const photos = (d.photos || []).map((p: any) => ({
-          id: p.id, alt: p.alt || q, w: p.width, h: p.height, thumb: p.src?.medium, large: p.src?.large,
-          photographer: p.photographer, photographer_url: p.photographer_url, page: p.url, source: "Pexels", source_url: "https://www.pexels.com",
-        }));
-        return J({ photos });
-      }
-      return J({ error: "UNSPLASH_ACCESS_KEY tanımlı değil", code: "no_key" }, 503);
+      // İpucu hiç üretilemediyse başlık + konu ile aranır: hiç görsel olmamasından iyidir.
+      items.forEach((x: any) => { if (!x.q && !x.entity) x.q = (x.title + " " + topicI).slice(0, 80); });
+      const res = await resolveImages(items.map((x: any) => ({ i: x.i, q: x.q, entity: x.entity })), lang);
+      return J({ photos: res.photos, rate: res.rate });
     }
 
     // ---------------- prova yorumu: söylenenler + notlar → asetat başına geri bildirim ----------------
@@ -179,7 +342,6 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
     const tKey = Deno.env.get("TAVILY_API_KEY");
     const gKey = Deno.env.get("GROQ_API_KEY");
     const docText = String(body?.sourceText || "").slice(0, 24000).trim();
-    if (!tKey && !docText) return J({ error: "TAVILY_API_KEY tanımlı değil", code: "no_key" }, 503);
     if (!gKey) return J({ error: "GROQ_API_KEY tanımlı değil" }, 500);
     const topic = String(body?.topic || "").slice(0, 160).trim();
     if (topic.length < 2) return J({ error: "Konu boş" }, 400);
@@ -194,22 +356,55 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
     const story = STORY[String(body?.story || "")] || "Story arc: introduction (why it matters) → body → conclusion with key takeaways.";
 
     let srcs: Src[] = [];
+    let queries: string[] = [topic]; let topicEn = "", wikiT = "", wikiE = "";
+    const engine = { queries: 1, web: 0, wiki: 0 };
     if (docText) {
       const dt = String(body?.sourceTitle || topic).slice(0, 200);
       srcs = [{ id: 1, title: dt, url: "", site: "", date: "", text: docText, snippet: docText.slice(0, 1400) }];
     } else {
-    const tv = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${tKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: topic, search_depth: "advanced", max_results: 10, include_raw_content: true, include_answer: false, chunks_per_source: 3, exclude_domains: BLOCK }),
-    });
-    if (!tv.ok) { const t = await tv.text().catch(() => ""); console.error("tavily", tv.status, t.slice(0, 300)); return J({ error: "Web araması yapılamadı", status: tv.status }, 502); }
-    const tj = await tv.json();
-    srcs = (tj.results || []).filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url))).slice(0, 6).map((r: any, i: number) => ({
-      id: i + 1, title: String(r.title || hostOf(r.url)).replace(/\s+[|–-]\s+[^|–-]{2,40}$/, "").slice(0, 200), url: r.url, site: hostOf(r.url), date: String(r.published_date || "") || findYear(String(r.raw_content || r.content || ""), r.url),
-      text: String(r.raw_content || r.content || "").slice(0, 20000), snippet: String(r.content || "").slice(0, 1400),
-    }));
-    if (srcs.length < 2) return J({ error: "Bu konuda yeterli kaynak bulunamadı", code: "few_sources" }, 422);
+      // 1) Konuyu arama sorgularına aç. Tek sorgu (konu cümlesinin kendisi)
+      //    dar ve tek dilli sonuç veriyordu; küçük model hızlıdır, düşerse
+      //    yalnız konu aranır.
+      const sysQ = `You plan web research for a university presentation. Given a TOPIC, return ONLY JSON:
+{"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in the topic's own language","wiki_en":"best matching English Wikipedia article title"}
+q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about the topic (same language); q3 = the topic as an English search query. No quotes, no site: operators.`;
+      const gq = await groq(gKey, "openai/gpt-oss-20b", sysQ, `TOPIC: ${topic}`, 300);
+      try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); if (gq.ok && qs.length) queries = [...new Set([topic, ...qs.slice(-2)])].slice(0, 3);   /* konu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür */ topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
+      engine.queries = queries.length;
+
+      // 2) Tavily (varsa) ve Wikipedia paralel. İlk sorgu derin, ötekiler hızlı.
+      const tavily = async (q: string, deep: boolean): Promise<any[]> => {
+        if (!tKey) return [];
+        const r = await tfetch("https://api.tavily.com/search", { method: "POST", headers: { "Authorization": `Bearer ${tKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q, search_depth: deep ? "advanced" : "basic", max_results: deep ? 8 : 5, include_raw_content: true, include_answer: false, ...(deep ? { chunks_per_source: 3 } : {}), exclude_domains: BLOCK }) }, 20000);
+        if (!r || !r.ok) { console.error("tavily", r?.status, q.slice(0, 60)); return []; }
+        const j: any = await r.json().catch(() => null); return Array.isArray(j?.results) ? j.results : [];
+      };
+      const [tv, wTr, wEn] = await Promise.all([
+        Promise.all(queries.map((q, i) => tavily(q, i === 0))),
+        wikiPages(lang === "en" ? "en" : "tr", wikiT || topic, 1),
+        lang === "en" ? Promise.resolve([] as Wiki[]) : wikiPages("en", wikiE || topicEn || topic, 1),
+      ]);
+      // Wikipedia araması her zaman BİR sayfa döndürür, alakasız da olsa
+      // (canlı deneme: "Yazılımın tarihsel gelişimi" → "Diyalektik ve Tarihsel
+      // Materyalizm"). Sayfa, konunun ya da İngilizce karşılığının ayırt edici
+      // sözcüklerinin hepsini taşımıyorsa kaynak yapılmaz.
+      const stems = (t: string) => [...new Set((t.toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, Math.max(5, w.length - 2))))];
+      const onTopic = (w: Wiki) => { const low = (w.title + " " + w.text).toLocaleLowerCase("tr"); return [topic, topicEn].filter(Boolean).some((t) => { const k = stems(t); return k.length > 0 && k.every((x) => low.includes(x)); }); };
+      // 3) Birleştir: aynı adres bir kez, alan adı başına en çok 2, puana göre sırala.
+      const seen = new Set<string>(); const perHost: Record<string, number> = {};
+      const web = tv.flat().filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url)))
+        .sort((a: any, b: any) => (Number(b.score) || 0) - (Number(a.score) || 0))
+        .filter((r: any) => { const u0 = String(r.url).split("#")[0]; const h = hostOf(u0); if (seen.has(u0) || (perHost[h] || 0) >= 2 || /wikipedia\.org$/.test(h)) return false; seen.add(u0); perHost[h] = (perHost[h] || 0) + 1; return true; })
+        .slice(0, 7);
+      engine.web = web.length;
+      srcs = web.map((r: any, i: number) => ({
+        id: i + 1, title: String(r.title || hostOf(r.url)).replace(/\s+[|–-]\s+[^|–-]{2,40}$/, "").slice(0, 200), url: r.url, site: hostOf(r.url), date: String(r.published_date || "") || findYear(String(r.raw_content || r.content || ""), r.url),
+        text: String(r.raw_content || r.content || "").slice(0, 20000), snippet: String(r.content || "").slice(0, 1400),
+      }));
+      for (const w of [...wTr, ...wEn].filter(onTopic)) { srcs.push({ id: srcs.length + 1, title: w.title, url: w.url, site: `${w.lang}.wikipedia.org`, date: w.date, text: w.text, snippet: w.text.slice(0, 1400) }); engine.wiki++; }
+      if (!srcs.length && !tKey) return J({ error: "TAVILY_API_KEY tanımlı değil", code: "no_key" }, 503);
+      if (srcs.length < 2) return J({ error: "Bu konuda yeterli kaynak bulunamadı", code: "few_sources" }, 422);
     }
 
     const L = lang === "en" ? "English" : "Turkish (Türkçe)";
@@ -217,25 +412,41 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
 Rules:
 - Every fact, number, date and name must come from the sources. If the sources do not contain something, leave it out. Never invent numbers.
 - Label every number exactly as the source does: a measured/realised value is not a forecast, a target is not a result, an estimate is not an official figure. Name who reported it (e.g. "TÜİK ölçümü", "ENAG hesaplaması", "TCMB tahmini").
+- Sources may be in another language; translate faithfully into ${L}, keep proper names and numbers unchanged.
 - Write ${n - 2} content slides (cover and closing are added separately). Tone: ${tone}.
-- ${story} Slide titles should make this arc visible; the last content slide is the conclusion.
+- ${story} Slide titles should make this arc visible. Every title is a specific claim or topic (never generic like "Giriş", "Introduction", "Genel Bakış"), unique, max 9 words.
+- The FIRST content slide hooks the audience: why this topic matters, with one concrete fact from the sources. The LAST content slide is the conclusion: kind "list" with exactly 3 takeaway bullets. Every slide must have real content — never leave bullets empty.
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
   "chart": a numeric series of 3-8 points that appears in the sources (labels + numeric values, same unit);
   "time": 3-4 chronological steps or dates; "two": a comparison of two sides (heads = the two side names);
   "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition;
-  "list": 3-5 concise bullet points (max ~14 words each).
-  Use at least 3 different layouts across the deck; avoid more than 2 "list" slides in a row.
-- "src" = the source ids used on that slide. "notes" = 2-3 natural spoken sentences for the presenter.
-Return ONLY JSON: {"title":"short deck title","slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","src":[1]}]}`;
-    const user = `TOPIC: ${topic}\n\nSOURCES:\n` + (docText ? `[1] ${srcs[0].title}\n${docText.slice(0, 14000)}` : srcs.map((s) => `[${s.id}] ${s.title} (${s.site}${s.date ? ", " + s.date.slice(0, 10) : ""})\n${s.snippet}\n${s.text.slice(0, 900)}`).join("\n\n"));
+  "list": 3-4 concise bullet points (max ~14 words each).
+  Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
+- "src" = the source ids used on that slide.
+- "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets.
+- "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 2-4 concrete visual words (objects, places, scenes; no abstract words). "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
+- "cover_image" = same shape, for the cover slide of the whole deck.
+Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
+    // Kaynak bütçesi: toplam ~18 bin karakter, kaynak başına en çok 3 bin.
+    // Paragraflar konu + sorgu sözcükleriyle puanlanıp seçilir.
+    const keys = keysOf([topic, topicEn, ...queries].join(" "));
+    const srcBlock = (total: number) => {
+      const per = Math.min(3000, Math.floor(total / Math.max(1, srcs.length)));
+      return docText ? `[1] ${srcs[0].title}\n${docText.slice(0, Math.min(14000, total))}`
+        : srcs.map((s) => `[${s.id}] ${s.title} (${s.site}${s.date ? ", " + s.date.slice(0, 10) : ""})\n${pickPassages(s.text, keys, per) || s.snippet}`).join("\n\n");
+    };
+    const user = `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(18000);
 
-    let g = await groq(gKey, "openai/gpt-oss-120b", sys, user, 6000);
-    if (!g.ok) { console.warn("groq 120b", g.status, JSON.stringify(g.data).slice(0, 300)); g = await groq(gKey, "openai/gpt-oss-20b", sys, user, 6000); }
+    let g = await groq(gKey, "openai/gpt-oss-120b", sys, user, 7000);
+    // Yedek: küçük model + yarı bütçe. Büyük model meşgulken ya da istek
+    // dakikalık token sınırına takıldığında aynı isteği yinelemek işe yaramaz.
+    if (!g.ok) { console.warn("groq 120b", g.status, JSON.stringify(g.data).slice(0, 300)); g = await groq(gKey, "openai/gpt-oss-20b", sys, `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(9000), 6000); }
     if (!g.ok) return J({ error: "Acadia sunumu yazamadı", status: g.status }, 502);
     let out: any = null;
     try { out = JSON.parse(g.data?.choices?.[0]?.message?.content || ""); } catch { out = null; }
     if (!out || !Array.isArray(out.slides) || !out.slides.length) return J({ error: "Acadia yanıtı okunamadı" }, 502);
+    const imgOf = (x: any) => ({ q: String(x?.q || "").slice(0, 80).trim(), entity: String(x?.entity || "").slice(0, 80).trim() });
 
     // ---------- doğrulama: sunucuda, kaynak metniyle ----------
     const allIdx = buildNumIndex(srcs.map((s) => s.text + " " + s.snippet).join(" "));
@@ -269,8 +480,13 @@ Return ONLY JSON: {"title":"short deck title","slides":[{"title":"","kind":"list
       if (k === "stat" && stats.filter((x: any) => x.ok).length < 3) k = "list";
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
-      return { title: String(s.title || "").trim(), kind: k, bullets, warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: String(s.notes || "").trim(), src: ids };
+      return { title: String(s.title || "").trim(), kind: k, bullets, warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: String(s.notes || "").trim(), image: imgOf(s.image), src: ids };
     });
+
+    // İçeriği olmayan asetat (madde, sayı, grafik, tablo — hiçbiri yok) kurguya
+    // girmez: istemci onu "ana fikri yaz…" yer tutucusuyla basıyordu.
+    for (let i = slides.length - 1; i >= 0; i--) { const x: any = slides[i]; if (!x.title || (!x.bullets.length && !x.stats.length && !x.chart && !x.table)) slides.splice(i, 1); }
+    if (!slides.length) return J({ error: "Acadia yanıtı okunamadı" }, 502);
 
     // ---------- anlam doğrulaması: her iddia kaynağın ilgili paragrafıyla karşılaştırılır ----------
     const ctxFor = (ids: number[], claim: string) => {
@@ -323,7 +539,7 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
     const accessed = new Date().toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "numeric", month: "long", year: "numeric" });
     const used = new Set<number>(); slides.forEach((s: any) => s.src.forEach((x: number) => used.add(x)));
     const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed) }));
-    return J({ title: String(out.title || topic).trim(), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning } });
+    return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning }, engine });
   } catch (e) {
     console.error("sunum-research", e);
     return J({ error: String((e as Error)?.message || e).slice(0, 200) }, 500);
