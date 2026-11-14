@@ -525,6 +525,37 @@ Return ONLY JSON: {"bullets":[""],"notes":"","src":[1]}`;
       return J({ bullets: bulletsF, notes: noteF, src: (Array.isArray(of.src) ? of.src : []).map(Number).filter((n: number) => fs.some((x: any) => x.id === n)) });
     }
 
+    /* ---------------- konuşmacı notu: asetatın KENDİ içeriğinden ----------------
+       Belge/kart yolundan basılan destede not istemcideki şablondan geliyordu:
+       "“X” konusunu anlatıyorum. İlk olarak … Son olarak …" (canlı deste
+       14.11.2026, kanın fizyolojik özellikleri — 18 asetatın 18'i). Kaynak
+       araması yok; not yalnız asetatta yazanı açar. Asetatta geçmeyen sayı
+       taşıyan cümle atılır, iki cümlenin altına düşen not hiç dönmez (istemci
+       şablonu korur). */
+    if (action === "notes") {
+      const gk = Deno.env.get("GROQ_API_KEY");
+      const ns = (Array.isArray(body?.slides) ? body.slides : []).slice(0, 12).map((x: any) => ({ i: Number(x?.i) || 0, kind: String(x?.kind || "list").slice(0, 12), title: String(x?.title || "").slice(0, 160), text: String(x?.text || "").slice(0, 700) })).filter((x: any) => x.title || x.text);
+      if (!gk || !ns.length) return J({ notes: [] });
+      const LN = lang === "en" ? "English" : "Turkish (Türkçe)";
+      const sysN = `You write speaker notes in ${LN} for presentation slides. For each slide you get its kind, title and the text shown on it.
+"n" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the idea behind the slide and how its items relate; do not read the bullets back one by one and do not list table row names.
+Use ONLY what the slide shows: never add a number, date, name or fact that is not in its text. kind "table": say what the comparison shows. kind "math": say in plain words what the formula relates, no symbols or LaTeX. kind "mmd": tell the flow as a story. kind "chart": say what stands out.
+Never start with "This slide", "Bu slaytta", "… konusunu anlatıyorum" or with the title in quotes; do not open two notes the same way; no "First / Next / Finally" scaffolding; do not end notes with a sentence about moving to the next slide. No markdown.
+Return ONLY JSON: {"r":[{"i":0,"n":""}]}`;
+      const userN = JSON.stringify({ topic: String(body?.topic || "").slice(0, 200), slides: ns });
+      let gn = await groq(gk, "openai/gpt-oss-120b", sysN, userN, 3600);
+      if (!gn.ok) gn = await groq(gk, "openai/gpt-oss-20b", sysN, userN, 3600);
+      let on: any = null; try { on = JSON.parse(gn.data?.choices?.[0]?.message?.content || ""); } catch { on = null; }
+      if (!gn.ok || !on || !Array.isArray(on.r)) return J({ error: "Acadia notları yazamadı" }, 502);
+      const outN = ns.map((x: any) => {
+        const r = on.r.find((y: any) => Number(y?.i) === x.i), idxN = buildNumIndex(x.title + " " + x.text);
+        const notes = cleanNote(String(r?.n || "")).split(/(?<=[.!?])\s+/).filter((t) => !numTokens(t).length || verified(t, idxN)).join(" ");
+        return { i: x.i, notes: noteFit({ notes, chart: x.kind === "chart", table: x.kind === "table" }, lang) };
+      });
+      noteEchoes(outN);
+      return J({ notes: outN.filter((x: any) => x.notes.split(/(?<=[.!?])\s+/).length >= 2 && x.notes.split(/\s+/).length >= 20) });
+    }
+
     // ---------------- prova yorumu: söylenenler + notlar → asetat başına geri bildirim ----------------
     if (action === "coach") {
       const gk = Deno.env.get("GROQ_API_KEY");

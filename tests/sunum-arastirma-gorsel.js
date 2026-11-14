@@ -163,7 +163,7 @@ test('UYDURMA ALINTI VE NOTTA KAYNAK ETİKETİ (14.11.2026, dördüncü canlı d
     '"There was no choice but to be pioneers." — Margaret Hamilton', 'kaynakta harfi harfine geçen alıntı korunmalı');
   assert.match(sr, /if \(kind === "quote" && bullets\.length\) bullets\[0\] = safeQuote\(bullets\[0\]\)/, 'alıntı denetimi çağrılmıyor');
   assert.match(sr, /notes: cleanNote\(s\.notes\)/, 'not temizlenmeden dönüyor');
-  assert.match(ink, /s\.k !== 'cover' && s\.k !== 'end' && s\.k !== 'refs'\) AI\.note\(sl, true\)/, 'kaynakça notu listeyi okuyor');
+  assert.match(ink, /s\.k !== 'cover' && s\.k !== 'end' && s\.k !== 'refs'\) \{ AI\.note\(sl, true\)/, 'kaynakça notu listeyi okuyor');
   assert.match(ink, /else if \(sl\.lay === 'refs'\) sl\.notes = ENn/, 'kaynakça notu yok');
 });
 
@@ -343,7 +343,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   assert.deepEqual(VSIRA.time.slice(0, 2), [2, 1]);
   assert.match(ink, /if \(kind === 'list' && arr\(s\.warnI\)\.length\) \{ vSay\.tek = 1;/,
     'uyarı yalnız listeyi klasikte tutmalı (zaman çizelgesi uyarı yüzünden klasiğe düşüyordu)');
-  assert.match(ink, /if \(kind === 'list' && arr\(s\.b\)\.length && arr\(s\.b\)\.length <= 2 && !s\.img\) return 6;/, 'ince asetat boş listeyle basılıyor');
+  assert.match(ink, /if \(kind === 'list' && arr\(s\.b\)\.length && arr\(s\.b\)\.length <= 2 && !s\.img\) return vSay\.aile === LAILE\[6\] \? 0 : 6;/, 'ince asetat boş listeyle basılıyor');
   assert.match(ink, /arr\(d\.rows\)\.length <= 2 \? 27/, 'iki satırlık tablo küçük yazıyla basılıyor');
   assert.match(ink, /if \(yerTutucu\(sl\) \|\| sl\.v \|\|/, 'kartlı düzenin üstüne fotoğraf konuyor');
   assert.match(ink, /lay: sl\.lay \|\| null, v: sl\.v \|\| 0,/, 'çeşit kaydedilmiyor');
@@ -714,6 +714,16 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   // bölünmüş düzen uymuyorsa (2 madde) başka kartlı çeşide değil klasiğe düşer
   bas = yeni(); bas({ t: 'B', b: DUZ, warnI: [0] }, 'list');
   assert.equal(bas({ t: 'B', b: KOL.slice(0, 2), warnI: [0] }, 'list').v || 0, 0);
+  /* CANLI DESTE 14.11 (kanın fizyolojik özellikleri): 14 listenin 9'u tek cümle
+     kutusuyla (v6) basıldı. Sebep zincirdi: akış kontrolü dört maddelik, 420+
+     karakterlik listeye "kalabalık" dedi, "ikiye böl" iki maddelik çiftler üretti,
+     her biri ince asetat kutusuna düştü. Kutu art arda gelmez; eşik 560'a çıktı;
+     gündem "(devam)" başlıklarını saymaz. */
+  bas = yeni();
+  const ince = [0, 1, 2, 3, 4, 5].map(() => bas({ t: 'B', b: DUZ.slice(0, 2) }, 'list').v || 0);
+  assert.deepEqual(ince, [6, 0, 6, 0, 6, 0], 'ince asetat kutusu art arda geliyor: ' + ince.join(','));
+  assert.match(ink, /s\.k === 'list' && \(b\.length > 5 \|\| len > 560\)/, 'dört orta boy madde yine "kalabalık" sayılıyor');
+  assert.match(ink, /var gb = govde\.filter\(function \(x\) \{ return !\/\\\(\(devam\|cont\\\.\)\\\)\\s\*\$\/i\.test\(x\); \}\)\.slice\(0, 8\)/, 'gündem "(devam)" başlıklarını listeliyor');
   // aynı destede 5. asetat "birinci taraf / ikinci taraf" ile basıldı: taraf adı yoksa liste
   assert.match(ink, /if \(kind === 'two' && arr\(s\.b\)\.length && arr\(s\.heads\)\.filter\(function \(h\) \{ return \/\\S\/\.test\(String\(h \|\| ''\)\); \}\)\.length < 2\) kind = 'list';/);
   // aynı destede "red pen writing on book" aramasından oje süren kadın fotoğrafı geldi: sorguyla ortak sözcüğü olan öne alınır
@@ -781,6 +791,34 @@ test('CANLI DESTE 14.11 (etkili ders çalışma) — notlar: aynı dolgu cümles
   assert.match(sr, /x\.notes = noteFit\(x, lang\); \}\); noteEchoes\(slides\);/);
   assert.match(sr, /closing summary slide states conclusions in new words/);
   assert.doesNotMatch(ink, /kapanış asetatına geç|sıradaki asetata bağla|b\.push\('asetatta /, 'konuşmacı notu "slayt" demeli');
+});
+
+/* CANLI DESTE 14.11 (kanın fizyolojik özellikleri): belge/kart yolunda 18 notun
+   18'i şablondu ("“X” konusunu anlatıyorum. İlk olarak … Son olarak …"), tablo
+   notu satır adlarını saydı, formül notuna değişken listesi satır satır düştü;
+   20 asetatta yalnız kapak fotoğraf aldı. Şablon notu basımdan sonra Acadia
+   asetatın kendi içeriğinden yeniden yazar; elle değişen nota dokunulmaz. */
+test('CANLI DESTE 14.11 (kanın fizyolojik özellikleri) — şablon notu yeniden yazılır, dört maddelik liste fotoğrafa aday', () => {
+  const ink = read('js/acadex-ink.js'), ts = read('supabase/functions/sunum-research/index.ts');
+  assert.match(ink, /\{ AI\.note\(sl, true\); taslak\.push\(\{ sl: sl, n: sl\.notes \}\); \}/, 'şablon notu alan asetat kaydedilmiyor');
+  assert.match(ink, /if \(plotMeta\.via !== 'skeleton'\) notlariYaz\(taslak, /, 'basımdan sonra notlar yeniden yazdırılmıyor');
+  assert.match(ink, /String\(x\.sl\.notes \|\| ''\)\.indexOf\(x\.n\) !== 0\) return;/, 'kullanıcının değiştirdiği not eziliyor');
+  assert.match(ink, /x\.sl\.notes = String\(r\.notes\)\.trim\(\) \+ x\.sl\.notes\.slice\(x\.n\.length\)/, '"Asetata sığmayanlar" eki kayboluyor');
+  assert.match(ink, /b\.push\(e\.text\.replace\(\/\\s\*\\n\\s\*\/g, '; '\)\);/, 'nota ham satır sonu düşüyor');
+  assert.match(ink, /length <= 4 && t\.length < 430;/, 'dört maddelik liste fotoğrafa aday değil');
+  // sunucu: yalnız asetatta yazandan; asetatta geçmeyen sayı taşıyan cümle atılır, kısa kalan not dönmez
+  const blok = ts.slice(ts.indexOf('if (action === "notes") {'), ts.indexOf('// ---------------- prova yorumu'));
+  assert.ok(blok.length > 500, '"notes" eylemi yok');
+  assert.match(blok, /never add a number, date, name or fact that is not in its text/);
+  assert.match(blok, /Never start with "This slide", "Bu slaytta", "… konusunu anlatıyorum"/);
+  assert.match(blok, /idxN = buildNumIndex\(x\.title \+ " " \+ x\.text\)/);
+  assert.match(blok, /filter\(\(t\) => !numTokens\(t\)\.length \|\| verified\(t, idxN\)\)/);
+  assert.match(blok, /noteEchoes\(outN\);/);
+  assert.match(blok, /length >= 2 && x\.notes\.split\(\/\\s\+\/\)\.length >= 20/);
+  const { numTokens, buildNumIndex, verified } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'variants', 'buildNumIndex', 'verified']);
+  const idx = buildNumIndex('Kanın viskozitesi suyun 4,5 katıdır');
+  assert.ok(verified('Kan sudan 4,5 kat daha akışmazdır.', idx));
+  assert.ok(numTokens('Viskozite 37 derecede ölçülür.').length && !verified('Viskozite 37 derecede ölçülür.', idx), 'asetatta olmayan sayı notta kalıyor');
 });
 
 summary();

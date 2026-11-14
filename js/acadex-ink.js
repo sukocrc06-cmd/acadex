@@ -7469,7 +7469,7 @@ var SBX = (function () {
       } else if (e.type === 'math' && e.latex && !e.muted) {
         b.push('formülü adım adım, değişkenlerini söyleyerek oku');
       } else if ((e.type === 't' || e.type === 'h') && !e.muted && e.text && e.text.length > 24 && e.text !== skip) {
-        b.push(e.text);
+        b.push(e.text.replace(/\s*\n\s*/g, '; '));      /* değişken listesi nota satır satır düşmesin */
       }
     });
     if (b.length) return b;
@@ -8153,7 +8153,7 @@ var SBX = (function () {
       if (plotMeta.via !== 'research' && !body.slice(-2).some(function (i) { return OUTRO.test(strips[i].t); })) out.push({ i: body[body.length - 1], msg: 'Sonuç asetatı yok: sunum ana mesajları toparlamadan bitiyor.', fix: 'outro', btn: 'sonuç ekle' });
     }
     var seen = {}; body.forEach(function (i) { var k = normT(strips[i].t).split(' ').slice(0, 3).join(' '); if (k.length > 3 && seen[k] != null) out.push({ i: i, msg: (seen[k] + 1) + '. ve ' + (i + 1) + '. asetatın başlığı neredeyse aynı; tekrar ediyor olabilir.', fix: 'del', btn: (i + 1) + '. asetatı sil' }); else seen[k] = i; });
-    body.forEach(function (i) { var s = strips[i], b = s.b || [], len = b.join(' ').length; if (s.k === 'list' && (b.length > 5 || len > 420)) out.push({ i: i, msg: (i + 1) + '. asetat kalabalık (' + b.length + ' madde); dinleyici okumaya başlar, seni dinlemez.', fix: 'split', btn: 'ikiye böl' }); });
+    body.forEach(function (i) { var s = strips[i], b = s.b || [], len = b.join(' ').length; if (s.k === 'list' && (b.length > 5 || len > 560)) out.push({ i: i, msg: (i + 1) + '. asetat kalabalık (' + b.length + ' madde); dinleyici okumaya başlar, seni dinlemez.', fix: 'split', btn: 'ikiye böl' }); });
     var run = 0; body.forEach(function (i, j) { if (strips[i].k === 'list') run = j > 0 && body[j - 1] === i - 1 && strips[i - 1].k === 'list' ? run + 1 : 1; else run = 0; if (run === 3) { var fx = [i - 1, i - 2, i].filter(function (k) { var c = JSON.parse(JSON.stringify(strips[k])); smartKind(c); return c.k !== 'list'; })[0]; out.push(fx != null ? { i: i, j: fx, msg: (i - 1) + '–' + (i + 1) + '. asetatların hepsi madde listesi; ' + (fx + 1) + '. asetat başka bir düzene daha iyi uyuyor.', fix: 'kind', btn: 'düzeni değiştir' } : { i: i, msg: (i - 1) + '–' + (i + 1) + '. asetatların hepsi madde listesi; birinin türünü grafik, tablo ya da alıntı yapmak akışı canlandırır.' }); } });
     return out;
   };
@@ -8284,6 +8284,40 @@ var SBX = (function () {
      model verir (image.q / image.entity), öteki yollarda sunucu üretir. Somut
      bir kişi/makine/yer ise Wikipedia'nın kendi görseli, kavramsa stok fotoğraf
      gelir. Sunucuya ulaşılamazsa eski tek aramalı yol yedek kalır. */
+  /* ŞABLON NOTU ACADIA YENİDEN YAZAR (14.11.2026, "kanın fizyolojik özellikleri").
+     Belge/kart yolunda not AI.note şablonundan geliyordu: 18 asetatın 18'i
+     "“X” konusunu anlatıyorum. İlk olarak … Son olarak …" diye başlayıp aynı
+     cümleyle bitti; tablo notu satır adlarını saydı. Deste basıldıktan sonra arka
+     planda asetatın kendi içeriğinden not istenir. Kullanıcı o arada notu
+     değiştirdiyse dokunulmaz; sunucu yazamazsa şablon kalır. */
+  var notOzu = function (sl) {
+    var o = [bodyOf(sl)];
+    sl.els.forEach(function (e) {
+      if (e.type === 'table' && e.table) o.push(arr(e.table.headers).map(txt).join(' | ') + '\n' + arr(e.table.rows).slice(0, 6).map(function (r) { return arr(r).map(txt).join(' | '); }).join('\n'));
+      else if (e.type === 'mmd') o.push(mmdLabels(e.code).join(' → '));
+      else if (e.type === 'chart' && e.chart) o.push(arr(e.chart.labels).map(txt).join(', ') + (arr(e.chart.data).length ? ': ' + arr(e.chart.data).join(', ') : ''));
+      else if (e.type === 'math' && e.latex && !e.muted) o.push(e.latex);
+    });
+    return o.filter(Boolean).join('\n').slice(0, 700);
+  };
+  var notTur = function (sl) { var k = 'list'; sl.els.forEach(function (e) { if (/^(table|mmd|chart|math)$/.test(e.type) && !e.muted) k = e.type; }); return k; };
+  var notlariYaz = function (taslak, topic) {
+    var is = arr(taslak).filter(function (x) { return x.sl.notes && x.sl.notes.indexOf(x.n) === 0 && !yerTutucu(x.sl) && notOzu(x.sl).length > 20; });
+    var tur = function (bas) {
+      var grup = is.slice(bas, bas + 12); if (!grup.length) return;
+      fn('sunum-research', { action: 'notes', topic: topic, language: curLang(), slides: grup.map(function (x, i) { return { i: bas + i, kind: notTur(x.sl), title: titleOf(x.sl), text: notOzu(x.sl) }; }) }, 60000).then(function (d) {
+        var n = 0;
+        arr(d && d.notes).forEach(function (r) {
+          var x = is[r && r.i]; if (!x || !r.notes || deck.slides.indexOf(x.sl) < 0 || String(x.sl.notes || '').indexOf(x.n) !== 0) return;   /* elle değişen nota dokunulmaz */
+          x.sl.notes = String(r.notes).trim() + x.sl.notes.slice(x.n.length); n++;      /* "Asetata sığmayanlar: …" eki korunur */
+          if (deck.slides[deck.cur] === x.sl) notesEl.value = x.sl.notes;
+        });
+        if (n) dirty();
+        tur(bas + 12);
+      }, function (e) { console.warn('acadex-sunum: konuşmacı notları', e); });
+    };
+    tur(0);
+  };
   var illustrate = function (made, topic) {
     var cap = Math.min(8, Math.max(3, Math.ceil(made.length * 0.4)));
     var cand = made.filter(function (sl) {
@@ -8291,7 +8325,7 @@ var SBX = (function () {
       if (sl.lay === 'cover') return true;
       if (!/^(list|quote)$/.test(sl.lay || '')) return false;
       var t = sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't') && !e.muted; }).map(function (e) { return e.text; }).join('\n');
-      return t && t.split('\n').filter(Boolean).length <= 4 && t.length < 340;
+      return t && t.split('\n').filter(Boolean).length <= 4 && t.length < 430;      /* 340 iken belge destesinde dört maddelik hiçbir liste aday olamadı, yalnız kapak fotoğraf aldı (14.11.2026) */
     });
     /* kapak her zaman; sonra yazarın ipucu verdiği asetatlar; üst sınır destenin %40'ı */
     cand.sort(function (a, b) { return ((b.lay === 'cover') - (a.lay === 'cover')) || ((b.imgq ? 1 : 0) - (a.imgq ? 1 : 0)); });
@@ -8387,6 +8421,7 @@ var SBX = (function () {
     /* Düzen çeşidi: türün destedeki kaçıncı asetatı olduğuna göre döner. Klasik
        kalanlar: doğrulanamayan maddesi olan asetat (uyarı işareti yalnız madde
        listesinde çizilir) ve gerçek bir kişi/yer fotoğrafı bekleyen asetat. */
+    var taslak = [];      /* şablon notu alan asetatlar; basımdan sonra Acadia yeniden yazar (notlariYaz) */
     var vSay = {}, vSec = function (s, kind) {
       /* Uyarı yalnız LİSTEYİ klasikte tutar: zaman çizelgesinde uyarı zaten
          çizilmiyordu, yine de çizelge klasiğe düşüyordu (canlı deste 14.11.2026). */
@@ -8399,7 +8434,10 @@ var SBX = (function () {
       if (kind === 'list' && arr(s.warnI).length) { vSay.tek = 1; vSay.uy = (vSay.uy || 0) + 1; return vSay.uy % 2 ? 0 : 9; }
       /* Fotoğraf ipucu olan ilk alıntı klasik kalır: fotoğraf gelirse tam sayfa fotoğraf + metin panosu olur (placeTam). */
       if (kind === 'quote' && s.img && s.img.q && !vSay.qf) { vSay.qf = 1; return 0; }
-      if (kind === 'list' && arr(s.b).length && arr(s.b).length <= 2 && !s.img) return 6;      /* ince asetat: tek cümle kutusu */
+      /* ince asetat: tek cümle kutusu — ama art arda değil. "Kanın fizyolojik özellikleri"
+         destesinde (14.11.2026) "ikiye böl" ile oluşan on iki maddelik asetatın onu da aynı
+         kutuyla basıldı; ikincisi klasik kalır (fotoğrafa da aday olur). */
+      if (kind === 'list' && arr(s.b).length && arr(s.b).length <= 2 && !s.img) return vSay.aile === LAILE[6] ? 0 : 6;
       /* Fotoğraf ipucu kolonu engellemez: yazar hemen her asetata ipucu koyuyor,
          "!s.img" koşuluyla kolon düzeni canlıda hiç çıkmadı (deste 14.11.2026).
          Art arda iki liste kolon olmaz; aradaki klasik asetat fotoğrafı alır. */
@@ -8421,7 +8459,7 @@ var SBX = (function () {
       var sl = newSlide(kind, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
       if (kind === 'list') vSay.aile = LAILE[sl.v || 0] || '';
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
-      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs') AI.note(sl, true); if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs') { AI.note(sl, true); taslak.push({ sl: sl, n: sl.notes }); } if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
     /* Kapak ve kapanışın notu hiç yoktu (0 kelime): sunumun en zor iki ânı —
        açılış ve soru-cevap — hazırlıksız kalıyordu, kalite ölçümü de her destede
        bu ikisini "kısa not" sayıyordu. Destenin kendi başlıklarından yazılır. */
@@ -8437,7 +8475,7 @@ var SBX = (function () {
        Yeni destede, en az 5 gövde asetatı varsa ve yazar zaten bir gündem
        yazmadıysa eklenir; başlıklar destenin kendi başlıklarıdır. */
     if (mode !== 'append' && made.length && made[0].lay === 'cover' && govde.length >= 5 && !govde.some(function (x) { return /^(gündem|içindekiler|akış|sunum akışı|agenda|outline|contents)\b/i.test(x); })) {
-      var gb = govde.slice(0, 8).map(function (x) { x = String(x).replace(/\s+/g, ' ').trim(); return x.length > 62 ? x.slice(0, 60).replace(/\s+\S*$/, '') + '…' : x; });
+      var gb = govde.filter(function (x) { return !/\((devam|cont\.)\)\s*$/i.test(x); }).slice(0, 8).map(function (x) { x = String(x).replace(/\s+/g, ' ').trim(); return x.length > 62 ? x.slice(0, 60).replace(/\s+\S*$/, '') + '…' : x; });
       var gs = newSlide('list', ENn ? 'Agenda' : 'Gündem', gb, { v: 10 });
       if (gs.v === 10) { gs.notes = ENn
         ? 'Walk through the flow in one breath: ' + gb.slice(0, 4).join(', ') + (gb.length > 4 ? ' and the rest' : '') + '. Say in one sentence what each part answers; do not go into detail here. Tell the audience roughly how long the talk will take.'
@@ -8489,6 +8527,7 @@ var SBX = (function () {
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
     if (!calm) { glass.classList.remove('printing'); void glass.offsetWidth; glass.classList.add('printing'); } flipGlass();
     var wantPh = Q('[data-pl-photo]', plot); if (wantPh && wantPh.checked) illustrate(made, plotMeta.title || deck.title);
+    if (plotMeta.via !== 'skeleton') notlariYaz(taslak, plotMeta.title || deck.title);
     say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (bosCerceve ? ' ' + bosCerceve + ' asetatın tablo/diyagram verisi gelmediği için madde düzenine alındı.' : '') + (kalanBos ? (kaynakli() ? ' ' + kalanBos + ' boş şerit kaynaklardan yazılamadığı için basılmadı.' : ' ' + kalanBos + ' asetatı Acadia yazamadı; soluk yerleri sen doldur ya da asetatı seçip “zenginleştir” de.') : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
   };
   Q('[data-pl-ok]', plot).addEventListener('click', function () { if (deck.slides.length) { step(3); plot.querySelector('input[name=pl-mode]:checked').focus(); } else bas('replace'); });
