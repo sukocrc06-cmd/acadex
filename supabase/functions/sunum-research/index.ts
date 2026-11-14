@@ -124,6 +124,7 @@ async function commonsSearch(q: string, per: number): Promise<Photo[]> {
 }
 // Wikipedia maddesinin kendi görseli: yalnız ÖZGÜR lisanslı (pilicense=free) —
 // adil kullanım (logo, afiş, kapak) görselleri sunuma taşınmaz.
+const wikiNotPhoto = (file: string, src: string): boolean => /\.svg/i.test(file + " " + src) || NOT_PHOTO.test(file.replace(/_/g, " "));
 async function wikiImage(entity: string): Promise<Photo | null> {
   for (const lang of ["en", "tr"]) {
     const base = `https://${lang}.wikipedia.org/w/api.php?format=json&origin=*&action=query&prop=pageimages|info&inprop=url&piprop=thumbnail|name&pithumbsize=1200&pilicense=free&redirects=1`;
@@ -136,6 +137,8 @@ async function wikiImage(entity: string): Promise<Photo | null> {
       pg = Object.values(j?.query?.pages || {})[0];
     }
     const th = pg?.thumbnail; if (!th?.source || (th.width || 0) < 420) continue;
+    // Ülke/kurum maddelerinin baş görseli çoğu kez bayrak, arma ya da haritadır (SVG): fotoğraf değil, kapakta kırpılıp biçimsiz durur.
+    if (wikiNotPhoto(String(pg.pageimage || ""), String(th.source))) continue;
     return { id: "w" + pg.pageid, alt: String(pg.title || entity), w: th.width, h: th.height, thumb: th.source, large: th.source, photographer: "",
       page: pg.pageimage ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(pg.pageimage)}` : String(pg.fullurl || ""), source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org" };
   }
@@ -805,7 +808,7 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
     slides.forEach((s: any) => {
       if (s._ns) { const nt = s._ns.filter(Boolean).join(" "); if (nt) s.notes = nt; delete s._ns; }
       // Etiketi kaynakla örtüşmeyen grafik çizilmez: değerler uyarılı maddeye iner.
-      if (s._cw && s.chart) { s.chart.values.forEach((v: number, i: number) => { const bi = s.bullets.length; s.bullets.push(`${s.chart.labels[i] || ""}: ${v} ${s.chart.unit}`.trim()); if (s._cw[i]) { s.warn.push(bi); (s.why = s.why || {})[bi] = s._cw[i]; } }); s.chart = null; s.kind = "list"; }
+      if (s._cw && s.chart) { s.chart.values.forEach((v: number, i: number) => { const bi = s.bullets.length; s.bullets.push(yazim(`${s.chart.labels[i] || ""}: ${v}${s.chart.unit === "%" ? "%" : " " + (s.chart.unit || "")}`.trim(), lang)); if (s._cw[i]) { s.warn.push(bi); (s.why = s.why || {})[bi] = s._cw[i]; } }); s.chart = null; s.kind = "list"; }
       delete s._cw;
     });
 

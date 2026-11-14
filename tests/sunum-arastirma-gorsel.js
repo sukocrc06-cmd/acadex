@@ -543,4 +543,29 @@ test('ATIF: madde sonundaki kaynak adı atılır, asetatta tek "[n]" kalır', ()
   assert.ok(/\[1, 2\]$/.test(st[0].b[2]) && /\[2\]$/.test(st[2].b[1]));
 });
 
+test('GÖRSEL BİÇİMİ: kutu fotoğrafın oranına uyar, bayrak/SVG fotoğraf sayılmaz, seçili görselde "resmi değiştir" çıkar', () => {
+  // Canlı deste 14.11.2026 ("Türkiye'de Parayı Enflasyona Ezdirmeme Yolları"): kapağa Wikipedia'nın
+  // "Turkey" maddesinden Flag_of_Turkey.svg geldi ve sabit 340×400 dik kutuda kırpıldı (ay-yıldız yarım).
+  // Kullanıcı ayrıca beğenmediği resmi üstüne basıp değiştirmek istedi.
+  const fk = ink.match(/var fotoKutu = function \(p, mw, mh\) \{[^\n]+\};/)[0];
+  const fotoKutu = new Function(fk + '; return fotoKutu;')();
+  assert.deepEqual(fotoKutu({ w: 1200, h: 800 }, 340, 400), { w: 340, h: 227 }, 'yatay görsel dik kutuya kırpılmamalı');
+  assert.deepEqual(fotoKutu({ w: 800, h: 1200 }, 340, 400), { w: 267, h: 400 }, 'dik görsel yüksekliğe sığmalı');
+  assert.ok(!/sl\.lay === 'cover'\) \{ w = 340; h = 400;/.test(ink), 'kapak kutusu yine sabit 340×400');
+  assert.match(ink, /var k = fotoKutu\(p, old\.w,[\s\S]{0,400}x\.y = old\.y \+ old\.h \+ 4/, 'fotoğraf değişince kutu ve künye yeni orana taşınmıyor');
+  const W = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['NOT_PHOTO', 'wikiNotPhoto']);
+  assert.equal(W.wikiNotPhoto('Flag_of_Turkey.svg', 'https://upload.wikimedia.org/x/Flag_of_Turkey.svg/1200px-Flag_of_Turkey.svg.png'), true);
+  assert.equal(W.wikiNotPhoto('Coat_of_arms_of_X.png', 'https://upload.wikimedia.org/x.png'), true);
+  assert.equal(W.wikiNotPhoto('Ada_Lovelace_portrait.jpg', 'https://upload.wikimedia.org/a.jpg'), false);
+  assert.match(sr, /if \(wikiNotPhoto\(String\(pg\.pageimage \|\| ""\), String\(th\.source\)\)\) continue;/, 'madde görseli süzülmüyor');
+  // "resmi değiştir": yalnız düzenleme sahnesinde ve seçiliyken; basınca sürükleme başlamaz, arama penceresi açılır
+  assert.match(ink, /edit && e\.type === 'img' && e\.src \? '<b class="sx-chg" data-imchg="">resmi değiştir<\/b>'/, 'düğme yok ya da küçük resimlere/yansıya da basılıyor');
+  assert.match(ink, /if \(e\.target\.closest\('\[data-imchg\]'\)\) \{ imOpen\(el\); return; \}\s*drag = /, 'düğmeye basınca pencere açılmıyor / sürükleme başlıyor');
+  assert.match(css, /\.sx-el\.sel > \.sx-chg\{display:block\}/, 'düğme seçiliyken görünmüyor');
+  // grafikten listeye düşen maddeler de yazım kuralından geçer ("2025: 15.2 %" basılmıştı)
+  const Y = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['AYLAR', 'trDec', 'yazim']);
+  assert.equal(Y.yazim('2025: 15.2%', 'tr'), '2025: %15,2');
+  assert.match(sr, /s\.bullets\.push\(yazim\(`\$\{s\.chart\.labels\[i\] \|\| ""\}: \$\{v\}\$\{s\.chart\.unit === "%" \? "%" :/, 'grafik yedeği yazım kuralından geçmiyor');
+});
+
 summary();
