@@ -9229,3 +9229,10 @@ body.axb-deco #feed-view.axb .bp-stk-x,body.axb-deco .bp-stk-x{display:flex}
 #feed-view.axb .bp-hafta-a{font-size:12.5px;color:#6A7593;margin-left:auto;white-space:nowrap}
 @media (max-width:560px){#feed-view.axb .bp-hafta-a{margin-left:0}}
 @media (prefers-color-scheme:dark){#feed-view.axb .bp-ara input{background:#141B2E;border-color:#273253;color:#E6EBF7}#feed-view.axb .bp-hafta{background:#32270E;border-color:#8A6A20;color:#E6EBF7}#feed-view.axb .bp-hafta-e{color:#E8C877}#feed-view.axb .bp-hafta-a{color:#9AA6C4}}
+
+/* Kalite rozeti: sunum adının yanında puanı taşır, tıklayınca yeniden ölçer.
+   Sorun varsa uyarı rengine geçer (14.11.2026). */
+.sx-kal{font-variant-numeric:tabular-nums}
+.sx-kal.warn{color:#C9483B}
+.sx-kal.warn::before{content:"⚠ ";font-size:.9em}
+.sx-kal[disabled]{opacity:.55;cursor:progress}

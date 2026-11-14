@@ -6659,6 +6659,36 @@ var SBX = (function () {
     var n = deck.slides.length; Q('[data-count]').textContent = n ? n + ' asetat' : '';
     Q('[data-pos]').textContent = n ? (deck.cur + 1) + ' / ' + n : '';
     var ti = Q('[data-deck-title]'); if (document.activeElement !== ti) ti.value = deck.title || '';
+    paintKalite();
+  };
+  /* ---------- kalite rozeti ----------
+     NEDEN (14.11.2026): yönetmenin kalite raporu yalnız üretim penceresinde,
+     bir kerelik bir cümle olarak görünüyordu. Kütüphaneden açılan desteye
+     ulaşan yol yoktu; "Chp 7 Attitudes" destesi bu yüzden puansızdı ve aynı
+     başlıklı iki asetatı kimse söylemedi. Rozet puanı sürekli gösterir,
+     tıklayınca yeniden ölçer; çift başlık ayrıca yerelde, asetat numarasıyla
+     bulunur — onun için Acadia'ya sormaya gerek yok. */
+  var KALITE_TR = { slide_count_mismatch: 'slayt sayısı istediğinle tutmuyor', duplicate_titles: 'aynı başlık birden çok asetatta',
+    weak_speaker_notes: 'konuşma notları kısa', dense_slides: 'bazı asetatlar çok yoğun',
+    visual_repetition: 'arka arkaya aynı düzen', weak_grounding: 'bazı asetatlar kaynağa bağlı değil' };
+  var kaliteYazi = function (q) { return arr(q && q.issues).map(function (x) { return KALITE_TR[x] || x; }); };
+  var titleKey = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
+  var ciftBasliklar = function () {
+    var seen = {}, out = [];
+    deck.slides.forEach(function (sl, i) { var k = titleKey(titleOf(sl)); if (k.length < 4) return; if (seen[k] != null) out.push((seen[k] + 1) + '. ve ' + (i + 1) + '. asetat'); else seen[k] = i; });
+    return out;
+  };
+  var paintKalite = function (busy) {
+    var el = Q('[data-kalite]'); if (!el) return;
+    var q = deck.quality, has = q && typeof q.score === 'number', cift = ciftBasliklar();
+    el.hidden = !deck.slides.length; el.disabled = !!busy;
+    el.textContent = busy ? 'ölçülüyor…' : has ? 'kalite ' + Math.round(q.score) + '/100' : 'kaliteyi ölç';
+    var iss = kaliteYazi(q).filter(function (x) { return !(cift.length && x === KALITE_TR.duplicate_titles); });
+    if (cift.length) iss.unshift('aynı başlık: ' + cift.join(', '));
+    el.classList.toggle('warn', !busy && !!iss.length);
+    el.title = busy ? '' : (has ? 'Acadia’nın notu ' + Math.round(q.score) + '/100. ' : '') +
+      (iss.length ? 'Bulunanlar: ' + iss.join('; ') + '. ' : has ? 'Sorun bulunmadı. ' : '') +
+      (has ? 'Yeniden ölçmek için tıkla.' : 'Acadia desteyi puanlasın.');
   };
   var renderAll = function () { renderThumbs(); renderStage(); paintMeta(); };
   var flipT = 0, flipGlass = function () { if (calm) return; glass.classList.remove('flip'); void glass.offsetWidth; glass.classList.add('flip'); clearTimeout(flipT); flipT = setTimeout(function () { glass.classList.remove('flip'); }, 1700); };
@@ -6886,12 +6916,61 @@ var SBX = (function () {
   /* ---------- Acadia on this sheet (önizleme: yerel kurallarla) ---------- */
   var sentences = function (t) { return t.replace(/\n/g, ' ').split(/(?<=[.!?])\s+/).map(function (x) { return x.trim(); }).filter(Boolean); };
   var shortLine = function (l) { var c = l.split(/[:;(]|\s[–—]\s/)[0].trim(); return tidyLine(c.split(/\s+/).length >= 4 ? c : l, 9); };
+  /* Konuşma notu malzemesi (14.11.2026, "Chp 7 Attitudes" ölçümü): AI.note
+     yalnız `ul` maddelerine bakıyordu. Tablo, diyagram, grafik, formül ve alıntı
+     asetatlarında madde yoktur; not "… konusunu anlatıyorum. Ana fikri bir
+     cümleyle söyle." şablonuna düşüyordu. 13 asetatın 9'u bu yüzden 16-23
+     kelimeydi, maddeli iki asetat ise 37 ve 44. Artık asetat ne taşıyorsa
+     notun malzemesi odur. */
+  var mmdLabels = function (code) {
+    var out = [], re = /[\[\(\{]"?([^"\]\)\}|<>-]{2,60})"?[\]\)\}]/g, m;
+    while ((m = re.exec(String(code || ''))) !== null && out.length < 8) { var v = m[1].trim(); if (v && out.indexOf(v) < 0) out.push(v); }
+    return out;
+  };
+  var noteBits = function (s, skip) {
+    var b = [];
+    s.els.forEach(function (e) { if (e.type === 'ul' && !e.muted && e.text) b = b.concat(e.text.split('\n').filter(Boolean)); });
+    if (b.length) return b;
+    s.els.forEach(function (e) {
+      if (e.type === 'table' && e.table) {
+        var hd = arr(e.table.headers).map(txt).filter(Boolean);
+        var rows = arr(e.table.rows).map(function (r) { return txt(arr(r)[0]); }).filter(Boolean);
+        if (!rows.length) return;                                   /* boş yer tutucu tablo: anlatacak bir şey yok */
+        if (hd.length > 1) b.push('tabloda ' + hd.join(' ile ') + ' karşılaştırılıyor');
+        b.push('satırlar: ' + rows.slice(0, 5).join(', '));
+      } else if (e.type === 'mmd') {
+        var lb = mmdLabels(e.code); if (lb.length) b.push('şemanın adımları: ' + lb.join(' → '));
+      } else if (e.type === 'chart' && e.chart) {
+        var lab = arr(e.chart.labels).map(txt).filter(Boolean); if (lab.length) b.push('grafikte ' + lab.slice(0, 5).join(', ') + ' karşılaştırılıyor');
+      } else if (e.type === 'math' && e.latex && !e.muted) {
+        b.push('formülü adım adım, değişkenlerini söyleyerek oku');
+      } else if ((e.type === 't' || e.type === 'h') && !e.muted && e.text && e.text.length > 24 && e.text !== skip) {
+        b.push(e.text);
+      }
+    });
+    if (b.length) return b;
+    /* Alıntı düzeninde tek yazı başlığın kendisidir (titleOf alıntıyı döndürür),
+       bu yüzden yukarıdaki tur boş döner. Not, cümleyi okumanın nasıl yapıldığını
+       söylemeli. */
+    if (s.els.some(function (e) { return e.type === 'h' && e.text === '“'; })) {
+      var alt = []; s.els.forEach(function (e) { if (e.type === 't' && !e.muted && txt(e.text)) alt.push(txt(e.text)); });
+      b.push('cümleyi yüksek sesle oku, bir an sessiz kal' + (alt.length ? ' (bağlam: ' + alt.join(', ') + ')' : ''));
+      b.push('dinleyiciye “siz ne düşünüyorsunuz?” diye sor');
+      return b;
+    }
+    /* 3 sayı, SWOT, zaman çizelgesi: içerik kısa kutulara dağılmıştır, tek tek
+       cümle olmaz ama birlikte anlatılacak malzemedir. */
+    var kisa = [];
+    s.els.forEach(function (e) { if ((e.type === 't' || e.type === 'h') && !e.muted && e.text !== skip) { var v = txt(e.text); if (v.length > 1 && v !== '—') kisa.push(v); } });
+    if (kisa.length > 1) b.push('asetatta ' + kisa.slice(0, 6).join(', ') + ' var; her birini bir cümleyle açıkla');
+    return b;
+  };
   var AI = {
     short: function (s) { var n = 0; s.els.forEach(function (e) { if (e.muted) return; if (e.type === 'ul') { var v = e.text.split('\n').map(shortLine).join('\n'); if (v !== e.text) { e.text = v; n++; } } else if (e.type === 't' && sentences(e.text).length > 1) { e.text = sentences(e.text)[0]; n++; } }); return n ? 'Maddeler ve metinler kısaltıldı.' : 'Kısaltılacak uzun bir şey bulamadım.'; },
     rich: function (s) { var u = null; s.els.forEach(function (e) { if (e.type === 'ul' && !u) u = e; }); var t = titleOf(s) || 'bu konu'; if (u) { u.text = (u.muted ? '' : u.text + '\n') + 'Örnek: ' + t.toLocaleLowerCase('tr') + ' için gerçek hayattan bir örnek ekle'; u.muted = false; } else s.els.push(E('t', 90, 440, 780, 40, { text: 'Örnek: ' + t.toLocaleLowerCase('tr') + ' için gerçek hayattan bir örnek ekle', size: 20, color: SOFT })); return 'Acadia’ya şu an ulaşılamadı; örnek için yer açtım, sen doldur.'; },
     list: function (s) { var n = 0; s.els.forEach(function (e) { if (e.type === 't' && !e.muted && sentences(e.text).length > 1) { e.type = 'ul'; e.text = sentences(e.text).map(function (x) { return x.replace(/\.$/, ''); }).join('\n'); e.h = Math.max(e.h, 200); n++; } }); return n ? 'Paragraf maddelere bölündü.' : 'Bu asetatta maddeye çevrilecek uzun bir paragraf yok.'; },
     note: function (s, quiet) {
-      var t = titleOf(s), b = []; s.els.forEach(function (e) { if (e.type === 'ul' && !e.muted) b = b.concat(e.text.split('\n').filter(Boolean)); });
+      var t = titleOf(s), b = noteBits(s, t);
       var EN = curLang() === 'en', w = EN ? ['First,', 'Next,', 'Then,', 'Finally,'] : ['İlk olarak', 'Ardından', 'Sonra', 'Son olarak'], txt = (t ? (EN ? 'Now let me walk you through “' + t + '”. ' : '“' + t + '” konusunu anlatıyorum. ') : '') + b.slice(0, 4).map(function (x, i) { return (b.length > 1 && i === Math.min(b.length, 4) - 1 ? w[3] : w[Math.min(i, 2)]) + ' ' + x.charAt(0).toLocaleLowerCase('tr') + x.slice(1).replace(/\.$/, '') + '.'; }).join(' ') + (b.length ? '' : 'Ana fikri bir cümleyle söyle, bir örnek ver.') + ' Bir cümleyle sıradaki asetata bağla.';
       s.notes = txt.trim(); if (!quiet) notesEl.value = s.notes; return 'Konuşmacı notu yazıldı; altta düzenleyebilirsin.';
     },
@@ -7234,6 +7313,20 @@ var SBX = (function () {
       .then(function (ds) { return out.concat(ds.filter(Boolean)); });
   };
   var KINDS = ['cover', 'list', 'two', 'quote', 'time', 'stat', 'swot', 'viz', 'chart', 'table', 'math', 'diagram', 'refs', 'end'];
+  /* BOŞ GÖRSEL ÇERÇEVESİ SUNUMA GİTMESİN (14.11.2026, "Chp 7 Attitudes"):
+     LAY.table verisi yokken "başlık | başlık" yazan bir yer tutucu tablo,
+     LAY.diagram ise bomboş bir diyagram kutusu basıyor. Bunlar elle kurulan
+     destede bilerek vardır (boş asetata tablo düzeni seçip doldurursun) ama
+     kurgu şeridinde tür listesinden seçilebiliyordu ve perdeye boş çerçeve
+     olarak çıkıyordu — 13 asetatın 2'si böyleydi. Şeritte veri yoksa o tür
+     seçilemez; yine de veri olmadan gelirse basarken madde listesine düşer. */
+  var dataKind = function (s, k) {
+    if (k === 'chart') return !!(s.data && chartVals(s.data).length >= 2);
+    if (k === 'table') return !!(s.data && arr(s.data.rows).some(function (r) { return arr(r).some(function (c) { return txt(c); }); }));
+    if (k === 'math') return arr(s.data).length > 0;
+    if (k === 'diagram') return !!(s.data && (s.data.svg || s.data.mermaid));
+    return true;
+  };
   var plot = Q('[data-plotdlg]'), stripsEl = Q('[data-strips]'), strips = [], plotFrom = null, plotMeta = {};
   var SRC = null, srcP = null;
   var loadSrc = function () {
@@ -7496,11 +7589,8 @@ var SBX = (function () {
            yoksa öğrenci "96 almışım" deyip eksik desteyi öyle bırakır (13.11.2026). */
         var kq = plotMeta.quality;
         if (kq && typeof kq.score === 'number') {
-          var QS = { slide_count_mismatch: 'slayt sayısı istediğinle tutmuyor', duplicate_titles: 'aynı başlık birden çok asetatta',
-            weak_speaker_notes: 'konuşma notları kısa', dense_slides: 'bazı asetatlar çok yoğun',
-            visual_repetition: 'arka arkaya aynı düzen', weak_grounding: 'bazı asetatlar kaynağa bağlı değil' };
-          extra.push('Acadia kalite notu ' + Math.round(kq.score) + '/100' +
-            (arr(kq.issues).length ? ' — ' + arr(kq.issues).map(function (x) { return QS[x] || x; }).join(', ') : ''));
+          var qi = kaliteYazi(kq);
+          extra.push('Acadia kalite notu ' + Math.round(kq.score) + '/100' + (qi.length ? ' — ' + qi.join(', ') : ''));
         }
         if (plotMeta.webFail) extra.push('web araştırması şu an yapılamadı, bu yüzden kaynakça yok');
         var sk = strips.filter(function (x) { return /^(stat|time|quote)$/.test(x.k); }).length; if (sk && !ck) extra.push(sk + ' asetata madde yerine daha uygun düzen seçildi');
@@ -7512,7 +7602,7 @@ var SBX = (function () {
   var stripHTML = function (s, i) {
     return '<li class="sx-strip" draggable="true" data-i="' + i + '" style="--r:' + ((i % 3) - 1) * .5 + 'deg"><button type="button" class="sx-grip" data-grip="" aria-label="' + (i + 1) + '. şeridi taşı (Alt+ok)"></button>' +
       '<label class="vh" for="st-' + i + '">' + (i + 1) + '. asetat başlığı</label><input id="st-' + i + '" type="text" maxlength="80" value="' + X(s.t) + '" data-st-t="">' +
-      '<select aria-label="' + (i + 1) + '. asetat türü" data-st-k="">' + KINDS.map(function (k) { return '<option value="' + k + '"' + (k === s.k ? ' selected' : '') + '>' + LAY[k].l + '</option>'; }).join('') + '</select>' +
+      '<select aria-label="' + (i + 1) + '. asetat türü" data-st-k="">' + KINDS.map(function (k) { var ok = k === s.k || dataKind(s, k); return '<option value="' + k + '"' + (k === s.k ? ' selected' : '') + (ok ? '' : ' disabled') + '>' + LAY[k].l + (ok ? '' : ' (veri yok)') + '</option>'; }).join('') + '</select>' +
       '<button type="button" class="del" data-st-del="" aria-label="' + (i + 1) + '. şeridi sil">×</button></li>';
   };
   /* ---------- akış kontrolü: giriş, sonuç, tekrar, kalabalık, tekdüzelik ---------- */
@@ -7602,21 +7692,40 @@ var SBX = (function () {
   /* Hazır desteyi yönetmenin eleştirmenine puanlatır (üretim yapmaz, hızlıdır).
      Sonuç desteye yazılır, kaydedilir ve üretim özetinde görünür. Başarısız
      olursa sessizce geçilir: puan yokluğu sunumu engellemez. */
-  var kaliteOlc = function (d) {
+  var kaliteBusy = false;
+  var kaliteOlc = function (d, loud) {
+    if (kaliteBusy) return;
     var sl = arr(d.slides).map(function (x) {
       return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section' } };
     });
     if (!sl.length) return;
+    kaliteBusy = true; paintKalite(true);
     fn('acadia-presentation-director', { action: 'critique', presentation: { title: d.title || '', slides: sl }, sourceType: d.source || 'topic', slideCount: sl.length }, 30000)
       .then(function (r) {
-        var q = r && r.quality; if (!q || typeof q.score !== 'number' || d !== deck) return;
-        d.quality = q; dirty();
-        say('Acadia kalite notu: ' + Math.round(q.score) + '/100' + (arr(q.issues).length ? ' — ' + arr(q.issues).length + ' iyileştirme önerisi var' : ''));
-      }, function (e) { console.warn('acadex-sunum: kalite ölçülemedi', e); });
+        kaliteBusy = false;
+        var q = r && r.quality; if (!q || typeof q.score !== 'number' || d !== deck) { paintKalite(); return; }
+        d.quality = q; dirty(); paintKalite();
+        /* Puan tek başına yetmez: sorunlar adıyla görünmeli, yoksa "96 almışım"
+           deyip eksik deste öyle kalır (13.11.2026 dersi). */
+        var iss = kaliteYazi(q);
+        if (loud || iss.length) say('Acadia kalite notu: ' + Math.round(q.score) + '/100' + (iss.length ? ' — ' + iss.join(', ') : ' — sorun bulunmadı.'));
+      }, function (e) {
+        kaliteBusy = false; paintKalite(); console.warn('acadex-sunum: kalite ölçülemedi', e);
+        if (loud) say('Acadia şu an puanlayamadı; biraz sonra tekrar dene.');
+      });
   };
+  var kalBtn = Q('[data-kalite]');                          /* eski HTML önbellekte kalmışsa modül çökmesin */
+  if (kalBtn) kalBtn.addEventListener('click', function () {
+    if (!deck.slides.length) return;
+    deck.quality = null;                                   /* elle istenen ölçüm her zaman yeniden sorar */
+    kaliteOlc(deck, true);
+  });
   var printDeck = function (mode) {
     strips = strips.filter(function (s) { return s.t.trim() || s.k === 'end'; }); if (!strips.length) return;
-    push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data; var sl = newSlide(s.k, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
+    var bosCerceve = 0;
+    push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.viz = s.viz; cx.data = s.data;
+      var kind = s.k; if (!dataKind(s, kind)) { kind = 'list'; bosCerceve++; }      /* boş tablo/diyagram çerçevesi basılmaz */
+      var sl = newSlide(kind, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
       var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end') AI.note(sl, true); if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
     var fitted = 0; made.forEach(function (sl) { fitted += fitSlide(sl); });
     var start = mode === 'append' ? deck.slides.length : 0;
@@ -7636,7 +7745,7 @@ var SBX = (function () {
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
     if (!calm) { glass.classList.remove('printing'); void glass.offsetWidth; glass.classList.add('printing'); } flipGlass();
     var wantPh = Q('[data-pl-photo]', plot); if (wantPh && wantPh.checked) autoPhotos(made, plotMeta.title || deck.title);
-    say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
+    say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (bosCerceve ? ' ' + bosCerceve + ' asetatın tablo/diyagram verisi gelmediği için madde düzenine alındı.' : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
   };
   Q('[data-pl-ok]', plot).addEventListener('click', function () { if (deck.slides.length) { step(3); plot.querySelector('input[name=pl-mode]:checked').focus(); } else printDeck('replace'); });
   Q('[data-pl-print]', plot).addEventListener('click', function () { printDeck(plot.querySelector('input[name=pl-mode]:checked').value); });
@@ -8062,6 +8171,15 @@ var SBX = (function () {
       var r = await c.from('presentation_slides').select('*').eq('presentation_id', m.dbId).order('order_index', { ascending: true });
       if (r.error) { console.warn('acadex-sunum: asetatlar', r.error); return null; }
       var d = fresh(); d.id = m.id; d.dbId = m.dbId; d.title = m.title || ''; if (m.lang) d.lang = m.lang;
+      /* quality_report yazılıyordu ama hiç okunmuyordu: buluttan açılan her
+         deste puansız görünüyor, açılışta boşuna yeniden ölçülüyordu
+         (14.11.2026). Kaynak bağı da aynı şekilde kayboluyordu. */
+      var pr = await c.from('presentations').select('quality_report,source_type,source_id').eq('id', m.dbId).maybeSingle();
+      if (!pr.error && pr.data) {
+        var qq = pr.data.quality_report;
+        if (qq && typeof qq.score === 'number') d.quality = qq;
+        d.source = pr.data.source_type || 'blank'; d.sourceId = pr.data.source_id || null;
+      }
       d.slides = (r.data || []).map(function (row) {
         var ct = row.content || {};
         if (ct.ink && Array.isArray(ct.els)) return { id: ct.id || uid(), lay: ct.lay || null, bg: ct.bg || 'clear', notes: row.speaker_notes || '', els: ct.els };
@@ -8087,6 +8205,12 @@ var SBX = (function () {
     if (d.cur >= d.slides.length) d.cur = Math.max(0, d.slides.length - 1);
     commitEdit(); deck = d; undoS = []; redoS = []; selId = null; S(store.k('cur'), deck.id);
     renderAll(); paintHist(); paintDecks();
+    /* HAZIR DESTE DE PUANLANIR (14.11.2026): kaliteOlc yalnız printDeck'ten,
+       yani üretim penceresinden çağrılıyordu. Kütüphaneden açılan desteye
+       ulaşan hiçbir yol yoktu; push'tan önce üretilmiş destelerin puanı hep
+       boş kalıyordu. Puanı olmayan deste açılınca bir kez sessizce ölçülür;
+       sonuç kaydedilir ve fetchDeck ile geri gelir, tekrar ölçülmez. */
+    if (!deck.quality && deck.slides.length > 2) kaliteOlc(deck);
     savedEl.textContent = deck.slides.length ? 'sunumun açıldı' : ''; savedEl.style.color = '';
   };
   var syncList = async function () {
