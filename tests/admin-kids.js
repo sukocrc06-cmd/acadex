@@ -78,12 +78,14 @@ test('kart sayfası: A4, 8 kartta bir sayfa, kaçışlı ad', () => {
   assert.match(h, /AY-2026-017/);
 });
 
-test('kreş başvuruları: bekleyenler önce, onay/ret düğmesi yalnız bekleyende, kaçışlı (14.11.2026)', () => {
+test('istekler (teklif al): açık olanlar, okul aç yalnız yeni/arandı isteklerde, kaçışlı (15.11.2026)', () => {
   const T = yukle().AXKIDS_TEST;
-  assert.equal(T.basvuruHTML([]), ''); assert.equal(T.basvuruHTML(null), '');
+  assert.match(T.basvuruHTML([]), /henüz istek yok/); assert.match(T.basvuruHTML(null), /20261115_kids_istek\.sql/);
   const h = T.basvuruHTML([{ id: 'b1', kres_ad: '<i>Papatya</i>', il: 'Ankara', ilce: 'Çankaya', yetkili_ad: 'Zehra', tel: '0532', eposta: '', ogrenci_sayi: 30, mesaj: '', durum: 'bekliyor', created_at: '2026-11-14T10:00:00Z' },
     { id: 'b2', kres_ad: 'Gül', il: '', ilce: '', yetkili_ad: 'A', tel: '1', eposta: '', ogrenci_sayi: 0, mesaj: '', durum: 'onaylandi', okul_kod: 'GUL-2026', created_at: '2026-11-13T10:00:00Z' }]);
-  assert.match(h, /1 bekliyor/); assert.equal((h.match(/data-bonay=/g) || []).length, 1); assert.match(h, /açıldı · GUL-2026/);
+  assert.equal((h.match(/data-bonay=/g) || []).length, 1); assert.doesNotMatch(h, /GUL-2026/, 'açık filtrede açılmış okul görünmez');
+  const hep = T.basvuruHTML([{ id: 'b2', kres_ad: 'Gül', il: '', ilce: '', yetkili_ad: 'A', tel: '', eposta: 'a@b.co', ogrenci_sayi: 0, mesaj: '', durum: 'onaylandi', okul_kod: 'GUL-2026', created_at: '2026-11-13T10:00:00Z' }], 'hepsi');
+  assert.match(hep, /Okul açıldı · GUL-2026/); assert.equal((hep.match(/data-bonay=/g) || []).length, 0);
   assert.ok(!h.includes('<i>Papatya</i>') && h.includes('&lt;i&gt;Papatya&lt;/i&gt;'));
 });
 
@@ -105,7 +107,7 @@ test('güvenlik: tablolar kapalı, her yönetici fonksiyonu admin_guard() ile ba
 
 test('panel: menüde Acadex Kids, betikler admin-app.js\'ten sonra yüklenir', () => {
   const app = read('js/admin-app.js'), html = read('admin.html');
-  assert.match(app, /\{ k: 'kids', t: 'Acadex Kids' \}/);
+  assert.match(app, /\{ k: 'kids', t: 'Acadex Kids', badge: 'kids_istek' \}/, 'menüde bekleyen istek rozeti');
   assert.match(app, /kids: 'Acadex Kids'/);
   assert.match(app, /\n    kids: '<path/);
   const i = (s) => html.indexOf(s);

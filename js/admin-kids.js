@@ -50,7 +50,7 @@
   var TL = function (k) { return (Number(k || 0) / 100).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }); };
   window.AXKIDS_TEST = { kodOner: kodOner, adKisalt: adKisalt, adlariAyikla: adlariAyikla, gunKaldi: gunKaldi, birYilSonra: birYilSonra };
 
-  var K = { okul: null, sinif: null, ara: '', liste: null, d: null, secili: {} };
+  var K = { okul: null, sinif: null, ara: '', liste: null, d: null, secili: {}, sekme: 'okullar', istekFiltre: 'acik' };
   var notReady = function (e) { return /kids_|PGRST202|PGRST205|42883|42P01|does not exist/i.test(String((e && (e.message + ' ' + e.code)) || '')); };
   var kurulum = function () {
     return '<div class="card ink kd-kurulum"><span class="hand">kurulum</span><h2 class="disp">Acadex Kids bölümü henüz kurulmadı</h2>' +
@@ -80,12 +80,20 @@
     var gelir = L.filter(function (o) { return o.odeme === 'odendi'; }).reduce(function (s, o) { return s + Number(o.ucret_kurus); }, 0);
     var bitecek = aktif.filter(function (o) { var g = gunKaldi(o.lisans_bit); return g <= 30; }).length;
     var q = katla(K.ara).trim(), goster = L.filter(function (o) { return !q || katla(o.ad + ' ' + o.kod + ' ' + o.ilce).indexOf(q) >= 0; });
-    m.innerHTML = '<div class="kpis">' +
+    var bekleyen = (K.basvuru || []).filter(function (b) { return b.durum === 'bekliyor'; }).length;
+    if (A.sayac) A.sayac('kids_istek', bekleyen);
+    var sekmeler = '<div class="kd-sekmeler" role="tablist" aria-label="Acadex Kids">' +
+      '<button type="button" role="tab" data-kdsek="okullar" aria-selected="' + (K.sekme === 'okullar') + '">Okullar <span class="kd-say">' + NF(L.length) + '</span></button>' +
+      '<button type="button" role="tab" data-kdsek="istekler" aria-selected="' + (K.sekme === 'istekler') + '">İstekler' + (bekleyen ? ' <span class="kd-rozet" aria-label="' + bekleyen + ' yeni">' + NF(bekleyen) + '</span>' : '') + '</button></div>';
+    if (K.sekme === 'istekler') {
+      m.innerHTML = sekmeler + istekHTML(K.basvuru, K.istekFiltre);
+      sekmeBagla(m); basvuruBagla(m); return;
+    }
+    m.innerHTML = sekmeler + '<div class="kpis">' +
       '<div class="kpi"><div class="k">okul</div><div class="v">' + NF(aktif.length) + '</div><div class="s">etkin lisans' + (L.length > aktif.length ? ' · ' + NF(L.length - aktif.length) + ' kapalı' : '') + '</div></div>' +
       '<div class="kpi" style="--w:' + (kota ? Math.round(ogr / kota * 100) : 0) + '%"><div class="k">öğrenci</div><div class="v">' + NF(ogr) + '</div><div class="s">' + NF(kota) + ' kotanın kullanılan kısmı</div></div>' +
       '<div class="kpi"><div class="k">tahsil edilen</div><div class="v">' + TL(gelir) + '</div><div class="s">ödendi işaretli lisanslar, KDV hariç</div></div>' +
       '<div class="kpi' + (bitecek ? ' alert' : '') + '"><div class="k">30 gün içinde</div><div class="v">' + NF(bitecek) + '</div><div class="s">süresi dolan ya da dolacak</div></div></div>' +
-      basvuruHTML(K.basvuru) +
       '<div class="tools"><label class="fld grow">Ara<input class="in" id="kd-ara" type="search" placeholder="okul adı, kod ya da ilçe" value="' + X(K.ara) + '"></label>' +
       '<a class="btn ghost" href="/kids/" target="_blank" rel="noopener">Kids sitesini aç ↗</a><button type="button" class="btn" id="kd-yeni">+ okul ekle</button></div>' +
       (goster.length ? '<div class="tbl-w"><table class="kd-tbl"><thead><tr><th>Okul</th><th>Kod</th><th>Öğrenci</th><th>Lisans bitişi</th><th class="hide-sm">Ödeme</th><th></th></tr></thead><tbody>' +
@@ -98,36 +106,65 @@
         : '<div class="card empty"><span class="hand">' + (L.length ? 'eşleşen okul yok' : 'henüz okul yok') + '</span>' + (L.length ? '' : 'Kids lisansı satılan ilk okulu “okul ekle” ile kaydedin.') + '</div>');
     $('#kd-ara', m).addEventListener('input', function () { var v = this.value, pos = this.selectionStart; K.ara = v; liste(m).then(function () { var i = $('#kd-ara', m); i.focus(); try { i.setSelectionRange(pos, pos); } catch (e) {} }); });
     $('#kd-yeni', m).addEventListener('click', function () { okulForm(null, m); });
-    basvuruBagla(m);
+    sekmeBagla(m);
     $$('tr[data-okul]', m).forEach(function (tr) {
       var ac = function () { K.okul = tr.getAttribute('data-okul'); K.sinif = null; K.secili = {}; A.VIEWS.kids(m); };
       tr.addEventListener('click', ac); tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') ac(); });
     });
   };
 
-  /* =========================== kreş başvuruları (14.11.2026) ===========================
-     Kreş tanıtım sayfasından başvurur (kids_basvuru_yap). Onay: okul "deneme" olarak açılır
-     (varsayılan 14 gün, 40 öğrenci); yönetici ve öğretmen şifresi yalnız onay yanıtında bir kez döner. */
-  var basvuruHTML = function (L) {
-    if (!L || !L.length) return '';
-    var bek = L.filter(function (b) { return b.durum === 'bekliyor'; });
-    return '<div class="card kd-basvuru"><div class="kd-basvuru-bas"><b>Kreş başvuruları</b> <span class="pill ' + (bek.length ? 'warn' : '') + '">' + NF(bek.length) + ' bekliyor</span></div>' +
-      '<div class="tbl-w"><table class="kd-tbl"><thead><tr><th>Kreş</th><th>Yetkili</th><th class="hide-sm">Öğrenci</th><th>Tarih</th><th></th></tr></thead><tbody>' +
-      L.slice(0, 30).map(function (b) {
-        return '<tr><td><b>' + X(b.kres_ad) + '</b><div class="muted kd-k">' + X([b.ilce, b.il].filter(Boolean).join(', ')) + (b.mesaj ? ' · ' + X(b.mesaj) : '') + '</div></td>' +
-          '<td>' + X(b.yetkili_ad) + '<div class="muted kd-k mono">' + X(b.tel) + (b.eposta ? ' · ' + X(b.eposta) : '') + '</div></td><td class="hide-sm">' + NF(b.ogrenci_sayi) + '</td><td>' + DT(String(b.created_at).slice(0, 10)) + '</td>' +
-          '<td>' + (b.durum === 'bekliyor' ? '<button type="button" class="btn sm" data-bonay="' + b.id + '">onayla</button> <button type="button" class="btn ghost sm" data-bred="' + b.id + '">reddet</button>'
-            : b.durum === 'onaylandi' ? '<span class="pill ok">açıldı' + (b.okul_kod ? ' · ' + X(b.okul_kod) : '') + '</span>' : '<span class="pill">reddedildi</span>') + '</td></tr>';
-      }).join('') + '</tbody></table></div></div>';
+  /* =========================== İstekler: "Kreşim için teklif al" (15.11.2026) ===========================
+     Kreş tanıtım sayfasındaki parlayan düğmeden gelir (kids_basvuru_yap): kreş adı, yetkili, e-posta
+     (zorunlu), telefon, il/ilçe, öğrenci sayısı, not. Durum: yeni (bekliyor) → arandı → okul açıldı ya da reddedildi;
+     iç notu yalnız yöneticiler görür. "Okul aç": okul deneme olarak açılır (varsayılan 14 gün), yönetici ve
+     öğretmen şifresi yalnız o yanıtta bir kez döner. */
+  var ISTEK_DURUM = { bekliyor: ['Yeni', 'warn'], arandi: ['Arandı', 'blue'], onaylandi: ['Okul açıldı', 'ok'], reddedildi: ['Reddedildi', ''] };
+  var ISTEK_FILTRE = [['acik', 'Açık'], ['bekliyor', 'Yeni'], ['arandi', 'Arandı'], ['onaylandi', 'Okul açıldı'], ['reddedildi', 'Reddedildi'], ['hepsi', 'Hepsi']];
+  var istekHTML = function (L, filtre) {
+    if (L === null || L === undefined) return '<div class="card empty"><span class="hand">istekler henüz açık değil</span>supabase/migrations/20261115_kids_istek.sql çalıştırılınca kreşlerin “Kreşim için teklif al” istekleri burada görünür.</div>';
+    filtre = filtre || 'acik';
+    var say = function (f) { return L.filter(function (b) { return f === 'hepsi' || (f === 'acik' ? (b.durum === 'bekliyor' || b.durum === 'arandi') : b.durum === f); }).length; };
+    var G = L.filter(function (b) { return filtre === 'hepsi' || (filtre === 'acik' ? (b.durum === 'bekliyor' || b.durum === 'arandi') : b.durum === filtre); });
+    return '<div class="kd-istek-ust"><p class="muted">Kids tanıtım sayfasındaki <b>“Kreşim için teklif al”</b> düğmesinden gelen istekler. Yetkiliye dönün, durumu işaretleyin; anlaşınca tek tıkla deneme okulu açın.</p>' +
+      '<div class="kd-filtre" role="group" aria-label="Duruma göre">' + ISTEK_FILTRE.map(function (f) { return '<button type="button" class="chip' + (f[0] === filtre ? ' on' : '') + '" data-kdfil="' + f[0] + '" aria-pressed="' + (f[0] === filtre) + '">' + f[1] + ' <span>' + NF(say(f[0])) + '</span></button>'; }).join('') + '</div></div>' +
+      (G.length ? '<div class="tbl-w"><table class="kd-tbl kd-istek"><thead><tr><th>Kreş</th><th>Yetkili</th><th class="hide-sm">Öğrenci</th><th>Geldi</th><th>Durum</th><th></th></tr></thead><tbody>' +
+        G.map(function (b) {
+          var d = ISTEK_DURUM[b.durum] || ISTEK_DURUM.bekliyor, acik = b.durum === 'bekliyor' || b.durum === 'arandi';
+          return '<tr class="' + (b.durum === 'bekliyor' ? 'kd-yeni' : '') + '"><td><b>' + X(b.kres_ad) + '</b><div class="muted kd-k">' + X([b.ilce, b.il].filter(Boolean).join(', ') || '—') + '</div>' +
+            (b.mesaj ? '<div class="kd-istek-mesaj">“' + X(b.mesaj) + '”</div>' : '') + (b.ic_not ? '<div class="kd-istek-not" title="iç not">✎ ' + X(b.ic_not) + '</div>' : '') + '</td>' +
+            '<td>' + X(b.yetkili_ad) + '<div class="kd-k">' + (b.eposta ? '<a class="mono" href="mailto:' + X(b.eposta) + '">' + X(b.eposta) + '</a>' : '') + (b.tel ? '<br><a class="mono" href="tel:' + X(String(b.tel).replace(/[^0-9+]/g, '')) + '">' + X(b.tel) + '</a>' : '') + '</div></td>' +
+            '<td class="hide-sm">' + (b.ogrenci_sayi ? NF(b.ogrenci_sayi) : '—') + '</td><td>' + DT(String(b.created_at).slice(0, 10)) + '</td>' +
+            '<td>' + (acik ? '<select class="in sm" data-bdurum="' + b.id + '" aria-label="' + X(b.kres_ad) + ' durumu"><option value="bekliyor"' + (b.durum === 'bekliyor' ? ' selected' : '') + '>Yeni</option><option value="arandi"' + (b.durum === 'arandi' ? ' selected' : '') + '>Arandı</option><option value="reddedildi">Reddet</option></select>'
+              : '<span class="pill ' + d[1] + '">' + d[0] + (b.durum === 'onaylandi' && b.okul_kod ? ' · ' + X(b.okul_kod) : '') + '</span>') + '</td>' +
+            '<td class="kd-istek-d"><button type="button" class="btn ghost sm" data-bnot="' + b.id + '">not</button>' + (acik ? ' <button type="button" class="btn sm" data-bonay="' + b.id + '">okul aç</button>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table></div>'
+        : '<div class="card empty"><span class="hand">' + (L.length ? 'bu durumda istek yok' : 'henüz istek yok') + '</span>' + (L.length ? '' : 'Kreşler Kids tanıtım sayfasındaki “Kreşim için teklif al” düğmesinden istek gönderince burada görünür.') + '</div>');
+  };
+  var basvuruHTML = istekHTML;   /* eski ad (testler) */
+  var sekmeBagla = function (m) {
+    $$('[data-kdsek]', m).forEach(function (b) { b.addEventListener('click', function () { K.sekme = b.getAttribute('data-kdsek'); liste(m); }); });
+    $$('[data-kdfil]', m).forEach(function (b) { b.addEventListener('click', function () { K.istekFiltre = b.getAttribute('data-kdfil'); liste(m); }); });
   };
   var basvuruBagla = function (m) {
-    $$('[data-bred]', m).forEach(function (b) { b.addEventListener('click', async function () {
-      if (!A.confirmBox('Bu başvuru reddedilsin mi?')) return;
-      try { await rpc('kids_basvuru_reddet', { p_id: b.getAttribute('data-bred') }); toast('Başvuru reddedildi.'); liste(m); } catch (e) { toast(errMsg(e), true); }
+    $$('[data-bdurum]', m).forEach(function (s) { s.addEventListener('change', async function () {
+      var id = s.getAttribute('data-bdurum'), bv = K.basvuru.filter(function (x) { return x.id === id; })[0], yeni = s.value;
+      if (yeni === 'reddedildi' && !A.confirmBox(bv.kres_ad + ' isteği reddedilsin mi?')) { s.value = bv.durum; return; }
+      try { await rpc('kids_basvuru_durum', { p_id: id, p_durum: yeni, p_not: null }); toast(yeni === 'arandi' ? 'Arandı olarak işaretlendi.' : yeni === 'reddedildi' ? 'İstek reddedildi.' : 'Yeni olarak işaretlendi.'); liste(m); }
+      catch (e) { s.value = bv.durum; toast(errMsg(e), true); }
+    }); });
+    $$('[data-bnot]', m).forEach(function (b) { b.addEventListener('click', function () {
+      var bv = K.basvuru.filter(function (x) { return x.id === b.getAttribute('data-bnot'); })[0];
+      A.openDrawer('İç not · ' + bv.kres_ad,
+        '<form id="kd-nf" class="kd-form"><p class="muted">Yalnız yönetim panelinde görünür; kreşe gitmez.</p><label class="fld">Not<textarea class="in" name="not" rows="6" maxlength="1000" placeholder="Örn. Salı 14:00 arandı, demo istedi">' + X(bv.ic_not || '') + '</textarea></label>' +
+        '<p class="err" id="kd-nf-h" role="alert"></p><div class="acts"><button type="submit" class="btn">kaydet</button></div></form>');
+      $('#kd-nf').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try { await rpc('kids_basvuru_durum', { p_id: bv.id, p_durum: null, p_not: e.target.not.value }); A.closeDrawer(); toast('Not kaydedildi.'); liste(m); } catch (er) { $('#kd-nf-h').textContent = errMsg(er); }
+      });
     }); });
     $$('[data-bonay]', m).forEach(function (b) { b.addEventListener('click', function () {
       var bv = K.basvuru.filter(function (x) { return x.id === b.getAttribute('data-bonay'); })[0], kota = Math.max(40, Math.ceil((bv.ogrenci_sayi || 0) / 10) * 10 + 10);
-      A.openDrawer('Başvuruyu onayla · ' + bv.kres_ad,
+      A.openDrawer('Okul aç · ' + bv.kres_ad,
         '<form id="kd-bf" class="kd-form"><label class="fld">Okul kodu<input class="in mono" name="kod" required value="' + X(kodOner(bv.kres_ad)) + '" pattern="[A-Z0-9]{2,8}-[0-9]{4}"></label>' +
         '<label class="fld">Deneme süresi (gün)<input class="in" name="gun" type="number" min="1" max="60" value="14"></label>' +
         '<label class="fld">Öğrenci kotası<input class="in" name="kota" type="number" min="1" max="5000" value="' + kota + '"></label>' +
@@ -143,7 +180,8 @@
           A.openDrawer('Deneme hesabı açıldı · ' + kod,
             '<div class="kd-sifre-k"><span class="mono">Yönetici</span><b class="mono">' + X(r.yonetici_sifre) + '</b></div><div class="kd-sifre-k"><span class="mono">Öğretmen</span><b class="mono">' + X(r.ogretmen_sifre) + '</b></div>' +
             '<p class="err">Bu şifreler yalnız şimdi görünür; Acadex onları düz hâliyle saklamaz. Aşağıdaki mesajı kreş yetkilisine iletin.</p>' +
-            '<textarea class="in kd-mesaj" rows="11" readonly>' + X(metin) + '</textarea><div class="acts"><button type="button" class="btn" id="kd-bkopya">mesajı kopyala</button></div>');
+            '<textarea class="in kd-mesaj" rows="11" readonly>' + X(metin) + '</textarea><div class="acts"><button type="button" class="btn" id="kd-bkopya">mesajı kopyala</button>' +
+            (bv.eposta ? ' <a class="btn ghost" href="mailto:' + X(bv.eposta) + '?subject=' + encodeURIComponent('Acadex Kids deneme hesabınız') + '&amp;body=' + encodeURIComponent(metin) + '">e-postayla gönder</a>' : '') + '</div>');
           $('#kd-bkopya').addEventListener('click', function () { try { navigator.clipboard.writeText(metin).then(function () { toast('Kopyalandı.'); }); } catch (er) { toast('Kopyalanamadı; metni seçip kopyalayın.', true); } });
           liste(m);
         } catch (er) { $('#kd-bf-h').textContent = errMsg(er); }

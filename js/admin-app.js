@@ -147,7 +147,7 @@
     { g: 'MASA' }, { k: 'overview', t: 'Genel bakış' },
     { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' },
     { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'support', t: 'Canlı destek', badge: 'support_unread' }, { k: 'push', t: 'Bildirimler' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
-    { g: 'ACADEX' }, { k: 'finans', t: 'Finans' }, { k: 'kids', t: 'Acadex Kids' }, { k: 'derskod', t: 'Ders kodları' }, { k: 'ekip', t: 'Acadex ekibi' },
+    { g: 'ACADEX' }, { k: 'finans', t: 'Finans' }, { k: 'kids', t: 'Acadex Kids', badge: 'kids_istek' }, { k: 'derskod', t: 'Ders kodları' }, { k: 'ekip', t: 'Acadex ekibi' },
     { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
@@ -172,7 +172,10 @@
     m.innerHTML = '<div class="card"><div class="skel" style="width:40%"></div><div class="skel" style="margin-top:12px"></div><div class="skel" style="margin-top:12px;width:70%"></div></div>';
     VIEWS[k](m).catch(function (e) { m.innerHTML = '<div class="card"><h2>Yüklenemedi</h2><p class="err">' + X(errMsg(e)) + '</p><button type="button" class="btn sm" data-go="' + k + '">tekrar dene</button></div>'; });
   };
-  var refreshCounts = async function () { try { var o = await rpc('admin_overview'); try { TEST = await rpc('admin_test_overview'); o.test_open_hata = TEST.open_hata; } catch (te) { TEST = null; } o.support_unread = SUP.unread; COUNTS = o; paintNav(); $('#maint-pill').hidden = !(SETTINGS_CACHE && SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); return o; } catch (e) { return null; } };
+  var refreshCounts = async function () { try { var o = await rpc('admin_overview'); try { TEST = await rpc('admin_test_overview'); o.test_open_hata = TEST.open_hata; } catch (te) { TEST = null; } 
+    /* 15.11.2026: Kids › İstekler'de bekleyen "teklif al" istekleri (migration yoksa sessizce atlanır) */
+    try { var ki = await rpc('kids_basvuru_liste'); o.kids_istek = (ki || []).filter(function (x) { return x.durum === 'bekliyor'; }).length; } catch (ke) { }
+    o.support_unread = SUP.unread; COUNTS = o; paintNav(); $('#maint-pill').hidden = !(SETTINGS_CACHE && SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); return o; } catch (e) { return null; } };
   var SETTINGS_CACHE = null;
   var start = function () {
     $('#gate').hidden = true; $('#app').hidden = false; $('#me-name').textContent = ME.name || ME.email || 'yönetici';
@@ -1077,7 +1080,7 @@
   };
 
   /* Finans bölümü ayrı dosyada (js/admin-finans.js): ortak yardımcılar */
-  window.AXADM = { VIEWS: VIEWS, rpc: rpc, sb: sb, X: X, NF: NF, DT: DT, AGO: AGO, toast: toast, errMsg: errMsg, openDrawer: openDrawer, closeDrawer: closeDrawer, confirmBox: confirmBox, csv: csv, $: $, $$: $$, me: function () { return ME; }, finOnly: FIN_ONLY, go: function (k) { go(k); } };
+  window.AXADM = { VIEWS: VIEWS, rpc: rpc, sb: sb, X: X, NF: NF, DT: DT, AGO: AGO, toast: toast, errMsg: errMsg, openDrawer: openDrawer, closeDrawer: closeDrawer, confirmBox: confirmBox, csv: csv, $: $, $$: $$, me: function () { return ME; }, finOnly: FIN_ONLY, go: function (k) { go(k); }, sayac: function (k, n) { COUNTS[k] = n; paintNav(); } };
 
   /* oturum değişince (Google dönüşü, çıkış) yeniden başla */
   if (sb) sb.auth.onAuthStateChange(function (ev) { if (ev === 'SIGNED_OUT') loginView(); });

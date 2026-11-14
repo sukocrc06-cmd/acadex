@@ -212,3 +212,56 @@
   .kl-dene-oyun [data-demo]{min-height:380px}
   .kl-fiyat-sol,.kl-fiyat-sag{padding:22px}
 }
+
+/* ---------- 15.11.2026: "Kreşim için teklif al" — üst barın en göz alıcı düğmesi ---------- */
+.kl-teklif{position:relative;isolation:isolate;overflow:hidden;display:inline-flex;align-items:center;gap:8px;min-height:50px;padding:0 20px 0 14px;border:3px solid var(--m);border-radius:18px;background:linear-gradient(180deg,#FF8A5B,var(--mercan));color:#fff!important;box-shadow:0 5px 0 var(--m);font:800 18px/1 var(--bas);text-decoration:none;white-space:nowrap;transition:transform .12s,box-shadow .12s;animation:klTeklifNabiz 3.2s ease-in-out infinite}
+.kl-teklif::after{content:"";position:absolute;z-index:-1;top:-20%;bottom:-20%;left:-60%;width:40%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.75),transparent);transform:skewX(-20deg);animation:klTeklifIsik 3.2s ease-in-out infinite}
+.kl-teklif:hover{transform:translateY(-2px);box-shadow:0 7px 0 var(--m)}
+.kl-teklif:active{transform:translateY(4px);box-shadow:0 1px 0 var(--m)}
+.kl-teklif-y{display:grid;place-items:center;width:28px;height:28px;border:2px solid var(--m);border-radius:50%;background:var(--sari);color:var(--m);font-size:16px;animation:klTeklifYildiz 3.2s ease-in-out infinite}
+.kl-teklif-k{display:none}
+.kl-giris-ust{min-height:46px}
+@keyframes klTeklifIsik{0%,55%{left:-60%}85%,100%{left:130%}}
+@keyframes klTeklifNabiz{0%,100%{box-shadow:0 5px 0 var(--m),0 0 0 0 rgba(255,107,91,.55)}60%{box-shadow:0 5px 0 var(--m),0 0 0 10px rgba(255,107,91,0)}}
+@keyframes klTeklifYildiz{0%,60%,100%{transform:rotate(0) scale(1)}70%{transform:rotate(-18deg) scale(1.18)}80%{transform:rotate(14deg) scale(1.1)}}
+@media (max-width:1100px){.kl-nav a{padding:8px 8px;font-size:15px}}
+@media (max-width:560px){
+  .kl-teklif{min-height:44px;padding:0 12px 0 8px;font-size:16px;gap:6px}
+  .kl-teklif-u{display:none}.kl-teklif-k{display:inline}
+  .kl-teklif-y{width:24px;height:24px;font-size:13px}
+}
+@media (prefers-reduced-motion: reduce){.kl-teklif,.kl-teklif::after,.kl-teklif-y{animation:none}.kl-teklif::after{display:none}}
+
+/* teklif penceresi */
+html.ktf-acik{overflow:hidden}
+.ktf-pen{width:min(680px,100%)}
+.ktf-bas{align-items:center}
+.ktf-bas-bos{border-bottom:0;padding-bottom:0}
+.ktf-acd{flex:none;width:64px;height:64px}.ktf-acd .kc{width:100%;height:100%}
+.ktf-bas h2{font-size:clamp(22px,3vw,28px)}
+.ktf-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;align-content:start}
+.ktf-genis{grid-column:1/-1}
+.ktf-alan{display:grid;gap:4px;align-content:start;font-size:15px;font-weight:800}
+.ktf-alan i{color:var(--mercan);font-style:normal}.ktf-alan small{font-weight:700;color:var(--soluk)}
+.ktf-alan input,.ktf-alan textarea{width:100%;min-height:50px;padding:0 14px;border:3px solid var(--m);border-radius:14px;background:var(--beyaz);color:var(--m);font:700 17px var(--govde)}
+.ktf-alan textarea{min-height:84px;padding:10px 14px;resize:vertical}
+.ktf-alan input:focus,.ktf-alan textarea:focus{outline:none;box-shadow:0 0 0 4px rgba(142,124,240,.45)}
+.ktf-alan [aria-invalid=true]{border-color:#B3261E;background:#FFF1EF}
+.ktf-hata{color:#B3261E;font-size:14px;font-weight:800;min-height:0}.ktf-hata:empty{display:none}
+.ktf-onay{display:flex;gap:10px;align-items:flex-start;font-size:15px;font-weight:700}
+.ktf-onay input{flex:none;width:24px;height:24px;margin:1px 0 0;accent-color:var(--mercan)}
+.ktf-onay a{color:var(--m);font-weight:800}
+.ktf-alt{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.ktf-alt span{color:var(--soluk);font-size:14px;font-weight:700}
+.ktf-gonder{min-height:56px;font-size:21px}
+.ktf-gonder:disabled{opacity:.7;cursor:progress}
+.ktf-tamam{display:grid;justify-items:center;gap:8px;padding:8px 22px 26px!important;text-align:center}
+.ktf-acd-b{width:120px;height:120px}.ktf-acd-b .kc{width:100%;height:100%}
+.ktf-tamam h2{margin:0;font:800 34px/1.1 var(--bas);outline:none}
+.ktf-tamam p{margin:0;max-width:440px}
+.ktf-bu-arada{color:var(--soluk);font-size:15px}
+@media (max-width:560px){
+  .ktf-form{grid-template-columns:minmax(0,1fr)}
+  .ktf-acd{width:48px;height:48px}
+  .ktf-gonder{width:100%}
+}

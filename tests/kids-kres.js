@@ -35,6 +35,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g,
 const { test, summary } = makeRunner();
 const SQL = 'supabase/migrations/20261114_kids_kres.sql';
 const YUZ = 'supabase/migrations/20261114b_kids_yuz.sql';
+const ISTEK = 'supabase/migrations/20261115_kids_istek.sql';
 const yukle = (ek) => {
   const depo = {};
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {}, navigator: {} };
@@ -198,10 +199,11 @@ test('bağlantılar: yönlendirme, öğretmen paneli, başvuru formu, paket', ()
   for (const f of ['kids-qr.js', 'kids-kart.js', 'kids-kres.js', 'kids-yonetici.js', 'kids-kres.css']) assert.ok(b.includes("'" + f + "'"), f + ' paketlenmiyor');
   assert.ok(b.indexOf("'kids-kres.js'") > b.indexOf("'kids-konusan.js'") && b.indexOf("'kids-kres.js'") < b.indexOf("'kids-app.js'"));
   for (const s of ['KIDS_KRES', 'KIDS_YONETICI', 'KIDS_QR', 'KIDS_KART', 'id="kids-yonetim"', 'id="kids-giris"']) assert.ok(html.includes(s), 'index.html yeniden üretilmeli: ' + s);
-  /* 14.11.2026 (2): demo ve başvuru formu kaldırıldı; tek giriş noktası #giris (rol seçimi). Eski #basvuru/#demo bağlantıları #giris'e gelir. */
+  /* 14.11.2026 (2): demo ve eski başvuru formu kaldırıldı; giriş #giris (rol seçimi).
+     15.11.2026: kreş istekleri "Kreşim için teklif al" penceresinden (kids-teklif.js, tests/kids-teklif.js); #basvuru/#demo da onu açar. */
   assert.doesNotMatch(sayfa, /Demo isteyin|data-basvuru-form|id="basvuru"|href="#demo"|href="#basvuru"/);
-  assert.match(sayfa, /<a class="kl-dugme kl-dugme-k" href="#giris">Giriş yap<\/a>/);
-  assert.match(yon, /h === 'giris' \|\| h === 'basvuru' \|\| h === 'demo' \? 'giris'/);
+  assert.match(sayfa, /<a class="kl-dugme kl-dugme-k kl-dugme-b kl-giris-ust" href="#giris">Giriş yap<\/a>/);
+  assert.match(yon, /h === 'giris' \? 'giris' : 'tanitim'/);
   for (const r of ['#oyna', '#ogretmen', '#yonetim']) assert.ok(yon.includes("['" + r + "'"), 'giriş ekranında ' + r);
   assert.doesNotMatch(read('kids/assets/kids-landing.js'), /kids_basvuru_yap|KIDS_BULUT\.basvuru/);
   const bulut = read('kids/assets/kids-bulut.js');
@@ -221,6 +223,10 @@ test('davranış (gerçek Postgres): yönetici, PIN, set, takvim, çocuk, başvu
     const out = execSync(P + ' -d ax_kres -f ' + q('tests/sql/kids-kres.sql') + ' 2>&1').toString();
     assert.match(out, /KRES AKIS GECTI/); assert.match(out, /KRES YETKI GECTI/);
     assert.match(execSync(P + ' -d ax_kres -f ' + q('tests/sql/kids-yuz.sql') + ' 2>&1').toString(), /YUZ GECTI/);
+    /* 15.11.2026: istekler (e-posta zorunlu, telefon isteğe bağlı, durum + not); var olan başvurular üzerinde iki kez */
+    for (const f of [ISTEK, ISTEK]) execSync(P + ' -d ax_kres -f ' + q(f), { stdio: 'pipe' });
+    const ist = execSync(P + ' -d ax_kres -f ' + q('tests/sql/kids-istek.sql') + ' 2>&1').toString();
+    assert.match(ist, /ISTEK AKIS GECTI/); assert.match(ist, /ISTEK YETKI GECTI/);
   } finally { execSync(P + ' -d postgres -c "drop database if exists ax_kres"', { stdio: 'pipe' }); }
 });
 

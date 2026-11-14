@@ -65,6 +65,8 @@
     durum: function (t) { return rpc('kids_durum', { p_token: t }); },
     ilerlemeKoy: ilerlemeKoy, ilerlemeGonder: gonder,
     cikis: function (t) { return gonder().then(function () { return rpc('kids_cikis', { p_token: t }); }).catch(function () { }); },
+    /* 20261115: tanıtım sayfasından "Kreşim için teklif al" (yönetim paneli › Kids › İstekler) */
+    teklif: function (p) { return rpc('kids_basvuru_yap', { p: p }); },
     ogretmenGiris: function (kod, sifre) { return rpc('kids_ogretmen_giris', { p_kod: kod, p_sifre: sifre }); },
     ogretmenVeri: function (t, bas, bit) { return rpc('kids_ogretmen_veri', { p_token: t, p_bas: bas, p_bit: bit }).then(function (v) { var o = okulBicim({ kod: v.okul.kod, ad: v.okul.ad, siniflar: v.siniflar }); o.bugun = v.bugun; o.setler = v.setler || []; o.ogretmen = v.ogretmen || null; return o; }); },
     /* 20261114: kreşin günü (konu + etkinlik + kelime seti), haftalık şablon, kelime setleri */

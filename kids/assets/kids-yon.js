@@ -3,12 +3,13 @@
    Tek index.html içinde üç görünüm: tanıtım (varsayılan), #oyna (çocuk),
    #ogretmen (öğretmen paneli). Tanıtım içi bağlantılar (#nasil, #fiyat…) kaydırır.
    14.11.2026: #ev=KOD~öğrenci (evde devam kartı QR'ı) → oyna; #yonetim → kreş yönetici paneli;
-   #giris → rol seçmeli giriş (Çocuk / Öğretmen / Kreş yöneticisi). Eski #basvuru ve #demo bağlantıları da buraya gelir.
+   #giris → rol seçmeli giriş (Çocuk / Öğretmen / Kreş yöneticisi).
+   15.11.2026: #teklif (ve eski #basvuru, #demo) tanıtım sayfasında kalır; kids-teklif.js teklif penceresini açar.
    ========================================================================== */
 (function (W) {
   'use strict';
   var D = W.document, simdi = null;
-  function gorunum() { var h = (location.hash || '').replace(/^#\/?/, ''); return h === 'oyna' || /^ev=/.test(h) ? 'oyna' : h === 'ogretmen' ? 'ogretmen' : h === 'yonetim' ? 'yonetim' : h === 'giris' || h === 'basvuru' || h === 'demo' ? 'giris' : 'tanitim'; }
+  function gorunum() { var h = (location.hash || '').replace(/^#\/?/, ''); return h === 'oyna' || /^ev=/.test(h) ? 'oyna' : h === 'ogretmen' ? 'ogretmen' : h === 'yonetim' ? 'yonetim' : h === 'giris' ? 'giris' : 'tanitim'; }
   /* giriş ekranı: kim giriyor? Çocuk (okul kodu + gizli resimler), öğretmen (okul kodu + PIN/şifre),
      kreş yöneticisi (okul kodu + yönetici şifresi). Kartın QR'ı ise doğrudan çocuğun resim adımını açar. */
   function girisCiz(k) {
@@ -19,7 +20,7 @@
     k.innerHTML = '<section class="kt-giris kgi"><div class="kgi-kart"><div class="kt-giris-bas"><span>' + s('acadia', { mood: 'mutlu' }) + '</span><div><small>Acadex Kids</small><h1>Giriş yap</h1></div></div>' +
       '<p class="kgi-alt">Kim giriyor?</p><div class="kgi-roller">' + rol.map(function (r, i) { return '<a class="kgi-rol ' + r[4] + '" href="' + r[0] + '"' + (i === 0 ? ' data-odak' : '') + '><span class="kgi-r">' + r[1] + '</span><b>' + r[2] + '</b><small>' + r[3] + '</small></a>'; }).join('') + '</div>' +
       '<p class="kgi-not">' + s('simge', 'yildiz') + '<span>Çocuğunuzun kartında QR var mı? Telefonun kamerasıyla okutun; doğrudan çocuğunuzun gizli resim ekranı açılır.</span></p>' +
-      '<p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · Kreşiniz kayıtlı değil mi? <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></p></div></section>';
+      '<p class="kt-donus"><a href="#">← Tanıtım sayfası</a> · Kreşiniz kayıtlı değil mi? <a href="#teklif" data-teklif>Kreşim için teklif al</a></p></div></section>';
     var o = k.querySelector('[data-odak]'); if (o) try { o.focus({ preventScroll: true }); } catch (e) { }
   }
   function goster() {

@@ -72,3 +72,23 @@
 /* 14.11.2026: kreş başvuruları */
 .kd-basvuru{margin:0 0 16px}.kd-basvuru-bas{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .kd-mesaj{width:100%;min-height:200px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap}
+
+/* 15.11.2026: Okullar | İstekler sekmeleri ve "Kreşim için teklif al" istekleri */
+.kd-sekmeler{display:flex;gap:6px;margin:0 0 16px;border-bottom:1.5px solid var(--line)}
+.kd-sekmeler button{position:relative;display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border:0;border-bottom:3px solid transparent;margin-bottom:-1.5px;background:none;color:var(--muted);font-family:inherit;font-weight:700;font-size:15px;cursor:pointer}
+.kd-sekmeler button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
+.kd-say{padding:1px 8px;border-radius:999px;background:#EFEBDF;color:var(--ink2);font-size:12px}
+.kd-rozet{min-width:22px;padding:1px 7px;border-radius:999px;background:#E5484D;color:#fff;font-size:12px;font-weight:800;text-align:center;animation:kdRozet 2.4s ease-in-out infinite}
+@keyframes kdRozet{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.5)}50%{box-shadow:0 0 0 6px rgba(229,72,77,0)}}
+@media (prefers-reduced-motion: reduce){.kd-rozet{animation:none}}
+.kd-istek-ust{display:grid;gap:10px;margin:0 0 12px}.kd-istek-ust p{margin:0}
+.kd-filtre{display:flex;flex-wrap:wrap;gap:6px}
+.kd-filtre .chip{display:inline-flex;gap:6px;align-items:center;min-height:32px;padding:0 12px;border:1.5px solid var(--line2);border-radius:999px;background:#fff;color:var(--ink2);font-family:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.kd-filtre .chip span{color:var(--muted);font-weight:700}
+.kd-filtre .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}.kd-filtre .chip.on span{color:#fff;opacity:.8}
+.kd-istek tr.kd-yeni td:first-child{box-shadow:inset 3px 0 0 #E5484D}
+.kd-istek-mesaj{margin-top:4px;font-size:13px;color:var(--ink2);font-style:italic}
+.kd-istek-not{margin-top:4px;padding:3px 8px;border-radius:8px;background:#FFF6D8;font-size:12px;color:var(--ink2);display:inline-block}
+.kd-istek select.in.sm{min-height:34px;padding:4px 8px;width:auto}
+.kd-istek-d{white-space:nowrap;text-align:right}
+.kd-istek a{color:var(--blue)}
