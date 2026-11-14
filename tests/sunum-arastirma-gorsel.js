@@ -40,8 +40,8 @@ test('ARAŞTIRMA: konu birden çok sorguya açılır, paralel aranır', () => {
   assert.match(sr, /Promise\.all\(queries\.map\(\(q, i\) => tavily\(q, i === 0\)\)\)/, 'sorgular paralel aranmıyor');
   /* Kuru koşuda yakalandı: [konu, q1, q2, q3] ilk üçe kesilince İngilizce
      sorgu (q3) hiç aranmıyordu. q1 zaten konunun kendisidir; son ikisi alınır. */
-  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.qs\.slice\(-2\)\]\)\]\.slice\(0, 3\)/,
-    'konu + veri sorgusu + İngilizce sorgu aranmalı; en çok 3 sorgu (Tavily kredisi)');
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\)\]\.slice\(0, 4\)/,
+    'konu + alt başlık + veri + İngilizce sorgu aranmalı; en çok 4 sorgu (Tavily kredisi)');
   // Plan düşerse araştırma ölmez: yalnız konu aranır.
   assert.match(sr, /let queries: string\[\] = \[topic\]/, 'sorgu planı düşünce araştırma da düşer');
   assert.match(sr, /\(perHost\[h\] \|\| 0\) >= 2/, 'tek alan adı kaynakçayı doldurabilir');
@@ -65,7 +65,7 @@ test('ARAŞTIRMA: modele kaynağın başı değil, konuyla örtüşen paragrafla
   assert.match(sr, /pickPassages\(s\.text, keys, per\) \|\| s\.snippet/, 'yazar hâlâ kaynağın ilk karakterlerini okuyor');
   assert.ok(!sr.includes('s.text.slice(0, 900)'), 'eski "ilk 900 karakter" kesimi duruyor');
   // Yedek model yarı bütçeyle denenir: aynı isteği yinelemek token sınırını aşmaz.
-  assert.match(sr, /"openai\/gpt-oss-20b", sys, `TOPIC: \$\{topic\}\\n\\nSOURCES:\\n` \+ srcBlock\(9000\)/, 'yedek deneme aynı büyük istekle gidiyor');
+  assert.match(sr, /"openai\/gpt-oss-20b", sys, `TOPIC: \$\{topic\}\$\{plan\}\\n\\nSOURCES:\\n` \+ srcBlock\(9000\)/, 'yedek deneme aynı büyük istekle gidiyor');
 });
 
 test('YAZAR: dolu not, gerçek giriş ve sonuç, asetat başına görsel ipucu', () => {
@@ -233,7 +233,7 @@ test('KALAN KUSURLAR: kısa not, mutlak iddia, zayıf kaynak, kaynakça notu (14
   const trust = new Function(ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + ';return trust;')();
   ['www.lpi.usra.edu', 'airandspace.si.edu', 'nasa.gov', 'data.tuik.gov.tr', 'metu.edu.tr'].forEach((h) => assert.ok(trust(h) > 0, h + ' kurumsal sayılmıyor'));
   ['ulkucudunya.com', 'ornekblog.net', 'educationsite.com'].forEach((h) => assert.equal(trust(h), 0, h + ' kurumsal sayılıyor'));
-  assert.match(sr, /\+ trust\(hostOf\(b\.url\)\) - \(Number\(a\.score\) \|\| 0\) - trust\(hostOf\(a\.url\)\)/, 'sıralama kurumsal kaynağı öne almıyor');
+  assert.match(sr, /\+ trust\(hostOf\(b\.url\)\) \+ 0\.12 \* b\._asp - \(Number\(a\.score\) \|\| 0\) - trust\(hostOf\(a\.url\)\)/, 'sıralama kurumsal kaynağı öne almıyor');
   const m = sr.match(/const ABSOLUTE = (\/.+\/i);/); assert.ok(m, 'ABSOLUTE yok');
   const abs = eval(m[1]);
   assert.ok(abs.test('Bu, insanlık tarihindeki en hızlı uzay yolculuğu olarak kayda geçti.'), 'mutlak iddia yakalanmıyor');
@@ -566,6 +566,25 @@ test('GÖRSEL BİÇİMİ: kutu fotoğrafın oranına uyar, bayrak/SVG fotoğraf 
   const Y = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['AYLAR', 'trDec', 'yazim']);
   assert.equal(Y.yazim('2025: 15.2%', 'tr'), '2025: %15,2');
   assert.match(sr, /s\.bullets\.push\(yazim\(`\$\{s\.chart\.labels\[i\] \|\| ""\}: \$\{v\}\$\{s\.chart\.unit === "%" \? "%" :/, 'grafik yedeği yazım kuralından geçmiyor');
+});
+
+test('KONUYA SADAKAT: araştırma konunun alt başlıklarını arar, kaynağı ona göre seçer, yazara plan olarak verir', () => {
+  // Canlı deste 14.11.2026, "Türkiye'de Parayı Enflasyona Ezdirmeme Yolları": dört kaynağın dördü de
+  // enflasyon verisi/hükümet programıydı (sbb.gov.tr, aa.com.tr, tbmm.gov.tr, tradingeconomics). Deste
+  // "sıkı para politikası, mali disiplin" anlattı; altın, mevduat, döviz, fon TEK kez geçmedi. Kök sebep
+  // yazım değil araştırmaydı: planın q1'i atılıyor, q2 "konunun verisi" (= enflasyon rakamı) arıyor,
+  // kurumsal kaynak önceliği de bireysel yatırım yazılarını eliyordu.
+  assert.ok(sr.includes('"aspects":["a1","a2","a3","a4","a5"]') && sr.includes('"aq":'), 'sorgu planı alt başlık çıkarmıyor');
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\)\]\.slice\(0, 4\)/, 'alt başlık sorgusu aranmıyor');
+  assert.match(sr, /r\._asp >= 2 \|\| all\.filter/, 'alt başlıkları taşıyan kaynak kurumsal sınıra takılıyor');
+  assert.match(sr, /keysOf\(\[topic, topicEn, \.\.\.queries, \.\.\.aspects\]/, 'paragraf seçimi alt başlıkları bilmiyor');
+  assert.ok(sr.includes('AUDIENCE EXPECTS and ASPECTS') && sr.includes('They are NOT facts'), 'yazar plana uymuyor ya da planı olgu sanabilir');
+  assert.match(sr, /engine: \{ \.\.\.engine, focus \}/, 'odak ölçümü dönmüyor');
+  assert.match(sr, /console\.log\(`sunum arastirma: /, 'teşhis satırı yok');
+  const { aspHit } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['aspHit']);
+  const asp = ['altın', 'mevduat faizi', 'döviz', 'yatırım fonu'];
+  assert.equal(aspHit(asp, 'TÜFE yıllık %29,77 oldu; Merkez Bankası politika faizini artırdı. Altı ayda bütçe açığı daraldı.'), 0, 'veri sayfası alt başlık taşımaz ("altı" ≠ "altın", "faiz" tek başına yetmez)');
+  assert.equal(aspHit(asp, 'Altının yıllık getirisi enflasyonu aştı; mevduat faizleri ise geride kaldı. Dövizde ve yatırım fonlarında tablo karışık.'), 4);
 });
 
 summary();

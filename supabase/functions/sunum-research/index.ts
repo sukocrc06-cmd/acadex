@@ -170,6 +170,12 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
 // Modele kaynağın BAŞI değil, konuyla örtüşen yerleri gider: sayfanın ilk 900
 // karakteri çoğu sitede menü, çerez bildirimi ve giriş cümlesidir.
 const keysOf = (s: string): string[] => [...new Set((String(s || "").toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, 6)))];
+// Konunun alt başlıkları ("altın", "mevduat faizi"…) bir metinde geçiyor mu: sözcük başından kök eşleşmesi.
+// Kaynak seçiminde ve destenin konuyu yanıtlayıp yanıtlamadığını ölçmekte kullanılır.
+const aspHit = (aspects: string[], text: string): number => {
+  const flat = " " + String(text || "").toLocaleLowerCase("tr").replace(/[^\p{L}\p{N}]+/gu, " ");
+  return aspects.filter((a) => { const w = (a.toLocaleLowerCase("tr").match(/[\p{L}\p{N}]{3,}/gu) || []).map((x) => x.length <= 5 ? (x.length >= 4 ? x.replace(/[aeıioöuü]$/, "") : x) : x.slice(0, Math.max(5, x.length - 2)));   /* "faizi" → "faiz", "fonu" → "fon"; "altın" olduğu gibi */ return w.length > 0 && w.every((x) => flat.includes(" " + x)); }).length;
+};
 const pickPassages = (text: string, keys: string[], budget: number): string => {
   const raw = String(text || "");
   let paras = raw.split(/\n+/).map((x) => x.replace(/\s+/g, " ").trim()).filter((x) => x.length > 60);
@@ -492,7 +498,7 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
     const story = STORY[String(body?.story || "")] || "Story arc: introduction (why it matters) → body → conclusion with key takeaways.";
 
     let srcs: Src[] = [];
-    let queries: string[] = [topic]; let topicEn = "", wikiT = "", wikiE = "";
+    let queries: string[] = [topic]; let topicEn = "", wikiT = "", wikiE = "", ask = ""; let aspects: string[] = [];
     const engine = { queries: 1, web: 0, wiki: 0 };
     if (docText) {
       const dt = String(body?.sourceTitle || topic).slice(0, 200);
@@ -502,11 +508,15 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
       //    dar ve tek dilli sonuç veriyordu; küçük model hızlıdır, düşerse
       //    yalnız konu aranır.
       const sysQ = `You plan web research for a university presentation. Given a TOPIC, return ONLY JSON:
-{"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in the topic's own language","wiki_en":"best matching English Wikipedia article title"}
-q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about the topic (same language); q3 = the topic as an English search query. If the topic asks HOW, or for ways, methods, strategies, solutions or advice, q1 and q3 must search for those ways themselves (the concrete instruments, options and their evidence), not for background data about the problem. No quotes, no site: operators.
+{"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in the topic's own language","wiki_en":"best matching English Wikipedia article title","ask":"the one question the audience expects this talk to answer, in the topic's language","aspects":["a1","a2","a3","a4","a5"],"aq":"one search query in the topic's language that names those aspects together"}
+"aspects" = the 4-6 concrete sub-topics a good talk on exactly this topic is built from, each 1-3 words in the topic's language, named specifically (for "ways to protect savings from inflation": the instruments themselves, e.g. gold, deposit interest, foreign currency, funds, stocks, real estate — NOT "inflation data" or "government policy"; for a history topic: the key people, inventions and periods by name). They are what the audience came to hear, never background.
+q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about what the topic asks for — for a how/ways topic that means data comparing those ways (their returns, costs, results), not general data about the underlying problem (same language); q3 = the topic as an English search query. If the topic asks HOW, or for ways, methods, strategies, solutions or advice, q1 and q3 must search for those ways themselves (the concrete instruments, options and their evidence), not for background data about the problem. No quotes, no site: operators.
 Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing situation (economy, policy, markets, technology, a living person or organisation), q2 must ask for the latest data and include the current year.`;
-      const gq = await groq(gKey, "openai/gpt-oss-20b", sysQ, `TOPIC: ${topic}`, 300);
-      try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); if (gq.ok && qs.length) queries = [...new Set([topic, ...qs.slice(-2)])].slice(0, 3);   /* konu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür */ topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
+      const gq = await groq(gKey, "openai/gpt-oss-20b", sysQ, `TOPIC: ${topic}`, 600);
+      try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); aspects = (Array.isArray(pq?.aspects) ? pq.aspects : []).map((x: any) => String(x || "").slice(0, 40).trim()).filter((x: string) => x.length > 2).slice(0, 6); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = String(pq?.aq || "").slice(0, 160).trim();
+        /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
+           Alt başlık sorgusu olmadan "…yolları" konusu yalnız sorunun verisini (enflasyon rakamları) buluyordu. */
+        if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)])].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
       engine.queries = queries.length;
 
       // 2) Tavily (varsa) ve Wikipedia paralel. İlk sorgu derin, ötekiler hızlı.
@@ -531,10 +541,12 @@ Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing si
       // 3) Birleştir: aynı adres bir kez, alan adı başına en çok 2, puana göre sırala.
       const seen = new Set<string>(); const perHost: Record<string, number> = {}; let untrusted = 0;
       const web = tv.flat().filter((r: any) => r?.url && (r.content || r.raw_content) && !blocked(hostOf(r.url)))
-        .sort((a: any, b: any) => (Number(b.score) || 0) + trust(hostOf(b.url)) - (Number(a.score) || 0) - trust(hostOf(a.url)))
+        .map((r: any) => ({ ...r, _asp: aspHit(aspects, String(r.title || "") + " " + String(r.raw_content || r.content || "").slice(0, 12000)) }))
+        // alt başlıkları taşıyan kaynak öne geçer: kurumsal ama konuyu yanıtlamayan sayfa (yalnız veri) tek başına deste kurmasın
+        .sort((a: any, b: any) => (Number(b.score) || 0) + trust(hostOf(b.url)) + 0.12 * b._asp - (Number(a.score) || 0) - trust(hostOf(a.url)) - 0.12 * a._asp)
         .filter((r: any) => { const u0 = String(r.url).split("#")[0]; const h = hostOf(u0); if (seen.has(u0) || (perHost[h] || 0) >= 2 || /wikipedia\.org$/.test(h)) return false; seen.add(u0); perHost[h] = (perHost[h] || 0) + 1; return true; })
         // En az 3 kurumsal kaynak varsa ötekilerden en çok 2 alınır.
-        .filter((r: any, _i: number, all: any[]) => { if (trust(hostOf(r.url)) || all.filter((x) => trust(hostOf(x.url))).length < 3) return true; return ++untrusted <= 2; })
+        .filter((r: any, _i: number, all: any[]) => { if (trust(hostOf(r.url)) || r._asp >= 2 || all.filter((x) => trust(hostOf(x.url))).length < 3) return true; return ++untrusted <= 2; })
         .filter((r: any, i: number, all: any[]) => !all.slice(0, i).some((x) => sameStory(String(x.raw_content || x.content), String(r.raw_content || r.content))))
         .slice(0, 7);
       engine.web = web.length;
@@ -557,6 +569,7 @@ Rules:
 - ${story} Slide titles should make this arc visible. Every title is a specific claim or topic (never generic like "Giriş", "Introduction", "Genel Bakış"), unique, max 9 words.
 - COVERAGE: before writing, plan the deck so that it tells the whole story, as far as the sources allow: (1) what it is and the context/background, (2) the key people, organisations or actors by name, (3) how it happened or how it works — the chronology or mechanism, (4) the key numbers, (5) the results, impact or legacy. A deck that is only a list of numbers is a failure: at most 2 slides may be "stat" or "chart". Draw on at least 3 different sources when that many are given.
 - ANSWER THE TOPIC AS PHRASED: if the topic asks how, or for ways, methods, strategies or solutions, most body slides present those ways one by one (what it is, evidence from the sources, limits) — background data about the problem takes at most two slides. If the sources do not cover such ways, say so on the critical slide instead of filling the deck with background.
+- The user message may give AUDIENCE EXPECTS and ASPECTS. They are the plan of the talk: the body is organised around the aspects, and each aspect the sources cover gets its own slide (or at least its own bullet) saying what it is, the evidence the sources give for it, and its limit or risk. They are NOT facts: say nothing about an aspect that the sources do not say, and leave out an aspect the sources do not cover (name the uncovered ones on the critical slide). Slides about background that the audience did not ask for (general data on the problem, what the government or central bank does when the topic asks what a person can do) take at most two slides.
 - Never put a source name in parentheses inside a bullet ("(NPR)", "(TCMB)") — sources are cited through "src" only. Never compute a number yourself (difference, ratio, total, average): every figure appears in a source exactly as written.
 - ACADEMIC DEPTH: this is a university seminar, not a fact sheet. As far as the sources allow, the deck contains (a) one slide that defines the key concepts and the scope, (b) at least one analysis slide that explains WHY — causes, mechanisms, drivers, (c) one comparison (kind "two" or "table") of periods, countries, methods or viewpoints, and (d) one critical slide: limitations, risks, open debates, or points where the sources disagree. The conclusion states implications ("what follows from this"), not a recap of numbers.
 - A bullet is an analytical statement, not a label: 12-22 words (max 150 characters) that give a claim together with its cause, mechanism, comparison or consequence, written as a full sentence. Never write a bare number with a two-word label as a bullet ("%5,7 güneş" is a failure). On analysis, concept and critical slides start each bullet with a 2-4 word key term and a colon ("Şebeke esnekliği: ...").
@@ -585,7 +598,8 @@ Rules:
 Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
     // Kaynak bütçesi: toplam ~18 bin karakter, kaynak başına en çok 3 bin.
     // Paragraflar konu + sorgu sözcükleriyle puanlanıp seçilir.
-    const keys = keysOf([topic, topicEn, ...queries].join(" "));
+    const keys = keysOf([topic, topicEn, ...queries, ...aspects].join(" "));
+    const plan = (ask ? `\nAUDIENCE EXPECTS: ${ask}` : "") + (aspects.length ? `\nASPECTS: ${aspects.join("; ")}` : "");
     const srcBlock = (total: number) => {
       const per = Math.min(3000, Math.floor(total / Math.max(1, srcs.length)));
       return docText ? `[1] ${srcs[0].title}\n${docText.slice(0, Math.min(14000, total))}`
@@ -596,13 +610,13 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
        model 413 verdi ve deste küçük modelle yazıldı. Blok 13 bine indi; yine 413
        gelirse büyük model 9 binle bir kez daha denenir, küçük modele ondan sonra
        inilir. */
-    const user = `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(13000);
+    const user = `TOPIC: ${topic}${plan}\n\nSOURCES:\n` + srcBlock(13000);
 
     let g = await groq(gKey, "openai/gpt-oss-120b", sys, user, 7000);
-    if (!g.ok && g.status === 413) g = await groq(gKey, "openai/gpt-oss-120b", sys, `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(9000), 7000);
+    if (!g.ok && g.status === 413) g = await groq(gKey, "openai/gpt-oss-120b", sys, `TOPIC: ${topic}${plan}\n\nSOURCES:\n` + srcBlock(9000), 7000);
     // Yedek: küçük model + yarı bütçe. Büyük model meşgulken ya da istek
     // dakikalık token sınırına takıldığında aynı isteği yinelemek işe yaramaz.
-    if (!g.ok) { console.warn("groq 120b", g.status, JSON.stringify(g.data).slice(0, 300)); g = await groq(gKey, "openai/gpt-oss-20b", sys, `TOPIC: ${topic}\n\nSOURCES:\n` + srcBlock(9000), 6000); }
+    if (!g.ok) { console.warn("groq 120b", g.status, JSON.stringify(g.data).slice(0, 300)); g = await groq(gKey, "openai/gpt-oss-20b", sys, `TOPIC: ${topic}${plan}\n\nSOURCES:\n` + srcBlock(9000), 6000); }
     if (!g.ok) return J({ error: "Acadia sunumu yazamadı", status: g.status }, 502);
     let out: any = null;
     try { out = JSON.parse(g.data?.choices?.[0]?.message?.content || ""); } catch { out = null; }
@@ -815,7 +829,11 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
     const accessed = new Date().toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "numeric", month: "long", year: "numeric" });
     const used = new Set<number>(); slides.forEach((s: any) => s.src.forEach((x: number) => used.add(x)));
     const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed), ctx: s.snippet.slice(0, 1200) }));
-    return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning }, engine });
+    // Deste konuyu yanıtladı mı: alt başlıkların kaçı asetatlara girdi. Log teşhis içindir (sorgular + kaynaklar + odak tek satırda).
+    const body2 = slides.map((x: any) => [x.title, ...(x.bullets || []), ...(x.stats || []).map((y: any) => y.label), ...((x.table?.rows || []).flat())].join(" ")).join(" ");
+    const focus = { aspects: aspects.length, sources: aspects.filter((a) => aspHit([a], srcs.map((x) => x.text).join(" ").slice(0, 200000))).length, covered: aspects.filter((a) => aspHit([a], body2)).length };
+    console.log(`sunum arastirma: "${topic.slice(0, 60)}" | sorgular ${JSON.stringify(queries)} | alt basliklar ${JSON.stringify(aspects)} | kaynak ${srcs.map((x) => x.site).join(",")} | odak ${focus.covered}/${focus.aspects} (kaynakta ${focus.sources})`);
+    return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning }, engine: { ...engine, focus } });
   } catch (e) {
     console.error("sunum-research", e);
     return J({ error: String((e as Error)?.message || e).slice(0, 200) }, 500);
