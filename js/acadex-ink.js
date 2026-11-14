@@ -7869,7 +7869,7 @@ var SBX = (function () {
       var kind = s.k; if (!dataKind(s, kind)) { kind = 'list'; bosCerceve++; }      /* boş tablo/diyagram çerçevesi basılmaz */
       var sl = newSlide(kind, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
-      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end') AI.note(sl, true); if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+      var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs') AI.note(sl, true); if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
     /* Kapak ve kapanışın notu hiç yoktu (0 kelime): sunumun en zor iki ânı —
        açılış ve soru-cevap — hazırlıksız kalıyordu, kalite ölçümü de her destede
        bu ikisini "kısa not" sayıyordu. Destenin kendi başlıklarından yazılır. */
@@ -7879,6 +7879,11 @@ var SBX = (function () {
       if (sl.lay === 'cover') sl.notes = ENn
         ? 'Introduce yourself and state the topic in one sentence: “' + (plotMeta.title || titleOf(sl)) + '”. Tell the audience what they will know by the end. The flow is: ' + govde.slice(0, 4).join(', ') + '. Mention that you have left time for questions at the end.'
         : 'Kendini tanıt ve konuyu tek cümleyle söyle: “' + (plotMeta.title || titleOf(sl)) + '”. Dinleyiciye sunumun sonunda ne öğrenmiş olacağını anlat. Akış şöyle: ' + govde.slice(0, 4).join(', ') + '. Sorular için sona zaman ayırdığını belirt.';
+      /* Kaynakça notu kaynak listesini baştan sona okuyordu (73 kelime,
+         "İlk olarak [1] lanewayssd.com…"); kimse kaynakçayı sesli okumaz. */
+      else if (sl.lay === 'refs') sl.notes = ENn
+        ? 'Do not read the list aloud. Say that every figure in the deck comes from these sources and that you can share the links afterwards, then move on to the closing slide.'
+        : 'Listeyi sesli okuma. Sunumdaki bütün verilerin bu kaynaklardan geldiğini ve isteyenle bağlantıları paylaşabileceğini söyle, sonra kapanış asetatına geç.';
       else if (sl.lay === 'end') sl.notes = ENn
         ? 'Repeat the key messages once more in short sentences' + (govde.length ? ': ' + govde.slice(-3).join(', ') : '') + '. Thank the audience and invite questions. If nobody asks, open one yourself: “the question I hear most often is…”.'
         : 'Ana mesajları kısa cümlelerle bir kez daha tekrar et' + (govde.length ? ': ' + govde.slice(-3).join(', ') : '') + '. Dinleyiciye teşekkür et ve soruları davet et. Soru gelmezse “en çok merak edilen nokta şu oluyor…” diyerek ilk soruyu kendin aç.';

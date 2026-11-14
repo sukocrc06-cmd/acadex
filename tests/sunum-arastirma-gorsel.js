@@ -140,4 +140,31 @@ test('KAPAK VE KAPANIŞ NOTU destenin kendi başlıklarından yazılır', () => 
   assert.match(ink, /if \(sl\.notes\) return;/, 'var olan not eziliyor');
 });
 
+test('UYDURMA ALINTI VE NOTTA KAYNAK ETİKETİ (14.11.2026, dördüncü canlı deste)', () => {
+  /* 89/100 alan destede: (1) bir kaynak özeti tırnak içinde Margaret
+     Hamilton'a atfedilmişti; (2) notlar "Kaynak1 ve 3'e göre", "(Kaynak1,5)"
+     diye yazılmıştı — yüksek sesle okunan metinde anlamsız; (3) Kaynakça notu
+     kaynak listesini baştan okuyordu. Temizleyiciler gerçek kodla koşulur. */
+  const ts = require('typescript');
+  const a = sr.indexOf('const cleanNote'), b = sr.indexOf('const slides = out.slides');
+  assert.ok(a > 0 && b > a, 'cleanNote / safeQuote bulunamadı');
+  const js = ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const srcs = [{ text: 'Hamilton said: There was no choice but to be pioneers.', snippet: '' }];
+  const f = new Function('srcs', js + ';return { cleanNote, safeQuote };')(srcs);
+  assert.equal(f.cleanNote('İlk programdan bahsediyoruz. Kaynak1 ve 3’e göre, Tom Kilburn yazdı.'),
+    'İlk programdan bahsediyoruz. Tom Kilburn yazdı.');
+  assert.equal(f.cleanNote('Diller geliştirmeyi hızlandırdı (Kaynak1,5). Fortran öne çıktı [1, 5].'),
+    'Diller geliştirmeyi hızlandırdı. Fortran öne çıktı.');
+  assert.equal(f.cleanNote('According to Source 2, DevOps grew (Sources 2 and 4).'), 'DevOps grew.');
+  assert.equal(f.cleanNote('1948 yılında 17 komut çalıştı.'), '1948 yılında 17 komut çalıştı.', 'sayılar silinmemeli');
+  assert.equal(f.safeQuote('"Yazılım mühendisliği bir disiplin haline geldi" – Margaret Hamilton (Kaynak3)'),
+    'Yazılım mühendisliği bir disiplin haline geldi', 'kaynakta geçmeyen söz kişiye atfediliyor');
+  assert.equal(f.safeQuote('"There was no choice but to be pioneers." — Margaret Hamilton'),
+    '"There was no choice but to be pioneers." — Margaret Hamilton', 'kaynakta harfi harfine geçen alıntı korunmalı');
+  assert.match(sr, /if \(kind === "quote" && bullets\.length\) bullets\[0\] = safeQuote\(bullets\[0\]\)/, 'alıntı denetimi çağrılmıyor');
+  assert.match(sr, /notes: cleanNote\(s\.notes\)/, 'not temizlenmeden dönüyor');
+  assert.match(ink, /s\.k !== 'cover' && s\.k !== 'end' && s\.k !== 'refs'\) AI\.note\(sl, true\)/, 'kaynakça notu listeyi okuyor');
+  assert.match(ink, /else if \(sl\.lay === 'refs'\) sl\.notes = ENn/, 'kaynakça notu yok');
+});
+
 summary();

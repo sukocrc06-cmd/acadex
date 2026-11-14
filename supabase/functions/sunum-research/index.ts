@@ -420,11 +420,11 @@ Rules:
   "stat": exactly 3 key numbers from the sources (value + short label);
   "chart": a numeric series of 3-8 points that appears in the sources (labels + numeric values, same unit);
   "time": 3-4 chronological steps or dates; "two": a comparison of two sides (heads = the two side names);
-  "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition;
+  "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 concise bullet points (max ~14 words each).
   Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
 - "src" = the source ids used on that slide.
-- "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets.
+- "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets. Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters. Fewer than 45 words is a failure.
 - "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 2-4 concrete visual words (objects, places, scenes; no abstract words). "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
 - "cover_image" = same shape, for the cover slide of the whole deck.
 Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
@@ -455,11 +455,33 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       return pick.length ? buildNumIndex(pick.map((s) => s.text + " " + s.snippet).join(" ")) : allIdx;
     };
     let checked = 0, unverified = 0;
+    /* Canlı deste (14.11.2026): notlar "Kaynak1 ve 3'e göre", "(Kaynak1,5)"
+       diye yazılmıştı — bunlar yüksek sesle okunan cümleler, dinleyici için
+       anlamsız. Model kurala uymazsa burada temizlenir. */
+    const cleanNote = (t: string) => String(t || "")
+      .replace(/according to\s+sources?\s*\d+(?:\s*(?:,|and|&)\s*\d+)*\s*,?\s*/gi, "")
+      .replace(/\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "")
+      .replace(/(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*['’]?\s*(?:[a-zçğıöşü]{1,4}\s+göre|according to)?\s*,?/gi, "")
+      .replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, "")
+      .replace(/\s+([.,;:!?])/g, "$1").replace(/([.!?])\s*,/g, "$1").replace(/\s{2,}/g, " ").trim()
+      .replace(/(^|[.!?]\s+)([a-zçğıöşü])/g, (_m, a, b) => a + b.toLocaleUpperCase("tr"));
+    /* Aynı destede bir özet cümlesi tırnak içinde Margaret Hamilton'a
+       atfedilmişti. Söz kaynak metninde harfi harfine geçmiyorsa kişiye
+       atfedilmez: tırnak ve ad düşer, cümle düz ifade olarak kalır. */
+    const flat = (t: string) => t.toLocaleLowerCase("tr").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const srcFlat = flat(srcs.map((s) => s.text + " " + s.snippet).join(" "));
+    const safeQuote = (b: string) => {
+      const m = b.match(/^\s*["“”«']+(.+?)["“”»']+\s*[–—-]\s*.+$/s);
+      if (!m) return b;
+      const q = flat(m[1]);
+      return q.length > 12 && srcFlat.includes(q) ? b : m[1].trim();
+    };
     const slides = out.slides.slice(0, n).map((s: any) => {
       const ids = (Array.isArray(s.src) ? s.src : []).map((x: any) => Number(x)).filter((x: number) => srcs.some((y) => y.id === x));
       const idx = idxOf(ids);
       const kind = KINDS.includes(s.kind) ? s.kind : "list";
       const bullets = (Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => String(x || "").trim()).filter(Boolean).slice(0, 6);
+      if (kind === "quote" && bullets.length) bullets[0] = safeQuote(bullets[0]);
       const warn: number[] = [];
       bullets.forEach((b: string, i: number) => { if (numTokens(b).length) { checked++; if (!verified(b, idx) && !verified(b, allIdx)) { warn.push(i); unverified++; } } });
       let stats = (Array.isArray(s.stats) ? s.stats : []).map((x: any) => ({ value: String(x?.value || "").trim(), label: String(x?.label || "").trim() })).filter((x: any) => x.value);
@@ -480,7 +502,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (k === "stat" && stats.filter((x: any) => x.ok).length < 3) k = "list";
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
-      return { title: String(s.title || "").trim(), kind: k, bullets, warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: String(s.notes || "").trim(), image: imgOf(s.image), src: ids };
+      return { title: String(s.title || "").trim(), kind: k, bullets, warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });
 
     // İçeriği olmayan asetat (madde, sayı, grafik, tablo — hiçbiri yok) kurguya
