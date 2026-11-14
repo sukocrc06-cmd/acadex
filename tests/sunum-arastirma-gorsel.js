@@ -421,7 +421,7 @@ test('KURGU: Türkçe destede ondalık virgülle yazılır; tarih ve binlik bozu
   assert.equal(SR.trDec('27.3 GW ve %5.75'), '27,3 GW ve %5,75');
   assert.equal(SR.trDec('14.11.2026 tarihinde 1.250 MW'), '14.11.2026 tarihinde 1.250 MW');
   assert.equal(SR.trDec('Sürüm 1.2.3'), 'Sürüm 1.2.3');
-  assert.match(sr, /const yaz = \(t: string\) => lang === "en" \? t : trDec\(t\);/);
+  assert.match(sr, /const yaz = \(t: string\) => yazim\(t, lang\);/);
 });
 
 test('KURGU: istem akademik derinlik ister (kavram, neden, karşılaştırma, sınırlılık)', () => {
@@ -455,6 +455,21 @@ test('DÜZEN: kolonlu içerik, almaşık çizelge, tek punto sayılar', () => {
 
 /* 92/100 alan canlı deste (14.11.2026) kullanıcıya "çok basit ve boş" göründü:
    puanlayıcı ince asetatı ve yinelenen rakamı görmüyordu. */
+test('YAZIM: kesilmez tire, ISO tarih, yüzde işareti; başlıksız "two" listeye iner; aralık sayı diye bölünmez', () => {
+  // Canlı deste 14.11.2026 (asgari ücret, ikinci): sayı asetatı "%1 | ‑2 — Enflasyon artışı"
+  // diye basıldı, çizelge "2016‑01‑01" yazdı, sınırlılıklar "birinci taraf / ikinci taraf" çıktı.
+  const { yazim } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['AYLAR', 'trDec', 'yazim']);
+  assert.strictEqual(yazim('%1\u20112 puan', 'tr'), '%1-2 puan');
+  assert.strictEqual(yazim('2016\u201101\u201101: zam', 'tr'), '1 Ocak 2016: zam');
+  assert.strictEqual(yazim('2016-12-31', 'en'), '31 December 2016');
+  assert.strictEqual(yazim('10% zam, 0.11-0.27% GSYİH', 'tr'), '%10 zam, %0,11-0,27 GSYİH');
+  assert.strictEqual(yazim('%10 zam ve 2005-2024 dönemi', 'tr'), '%10 zam ve 2005-2024 dönemi');
+  assert.strictEqual(yazim('10% rise', 'en'), '10% rise');
+  assert.match(sr, /if \(k === "two" && \(!Array\.isArray\(s\.heads\)[^\n]*k = "list";/, 'taraf adı olmayan "two" yer tutucuyla basılıyor');
+  assert.ok(sr.includes('never invent a day or month'), 'çizelgede uydurma gün/ay yasağı yok');
+  assert.match(ink, /\|\| \/\^\\s\*\[-‑–—\]\\s\*\\d\/\.test\(m\[3\]\)\) return null;/, 'aralık sayı ve etiket diye bölünüyor');
+});
+
 test('KALİTE: ince asetat ve yinelenen rakam puandan düşer', () => {
   const D = require('./_ts-extract.js').loadFromSource('supabase/functions/acadia-presentation-director/index.ts', ['cleanText', 'words', 'repeatedFacts', 'qualityDeck']);
   const not = 'Bu asetatta konuyu ayrıntılı biçimde anlatan, dinleyiciye örnek veren ve sonraki asetata köprü kuran yeterince uzun bir konuşma notu bulunuyor; kısa sayılmamalı.';

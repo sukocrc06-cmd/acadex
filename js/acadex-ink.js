@@ -7873,7 +7873,9 @@ var SBX = (function () {
       if (ys.every(function (y) { return y; }) && ys.every(function (y, i) { return !i || y >= ys[i - 1]; }) && ys[0] !== ys[ys.length - 1]) { s.k = 'time'; return; }
     }
     if (b.length === 3 && b.every(function (x) { return x.length <= 90 && /\d/.test(x); })) {
-      var st = b.map(function (x) { var m = x.match(STATRE); if (!m || !/\d/.test(m[2])) return null; var lab = (m[1] + ' ' + m[3]).replace(/^[\s:—–,-]+|[\s:—–,-]+$/g, '').replace(/\s+/g, ' ').trim(); return lab ? { value: m[2].trim(), label: lab } : null; });
+      /* Aralık bölünmez: "%1-2 — Enflasyon artışı" maddesinden sayı "%1", etiket
+         "-2 — Enflasyon artışı" çıkıyordu (canlı deste 14.11.2026). */
+      var st = b.map(function (x) { var m = x.match(STATRE); if (!m || !/\d/.test(m[2]) || /^\s*[-‑–—]\s*\d/.test(m[3])) return null; var lab = (m[1] + ' ' + m[3]).replace(/^[\s:—–,-]+|[\s:—–,-]+$/g, '').replace(/\s+/g, ' ').trim(); return lab ? { value: m[2].trim(), label: lab } : null; });
       if (st.every(Boolean)) { s.k = 'stat'; s.b = st.map(function (v) { return v.value + ' — ' + v.label; }); s.data = { stats: st }; }
     }
   };

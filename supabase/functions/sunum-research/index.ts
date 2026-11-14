@@ -269,6 +269,15 @@ const timeOk = (bullets: string[]): boolean => {
 };
 /* Türkçe destede ondalık ayırıcı virgüldür ("27.3 GW" değil "27,3 GW").
    Tarih (14.11.2026) ve binlik (1.250) dokunulmaz kalır. */
+/* Yazım (canlı deste 14.11.2026): model kesilmez tire (U+2011) yazıyor, istemcinin
+   sayı ayrıştırıcısı "%1‑2"yi "%1" diye bölüyordu; "2016-01-01" asetatta tarih
+   gibi okunmuyor; Türkçede yüzde işareti öndedir ("10%" değil "%10"). */
+const AYLAR: Record<string, string[]> = { tr: ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"], en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] };
+const yazim = (t: string, lang: string): string => {
+  const ay = AYLAR[lang === "en" ? "en" : "tr"];
+  const x = String(t || "").replace(/[\u2010\u2011]/g, "-").replace(/\b((?:19|20)\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/g, (_m, y, m, d) => `${+d} ${ay[+m - 1]} ${y}`);
+  return lang === "en" ? x : trDec(x).replace(/(?<![\d%.,-])(\d+(?:,\d+)?(?:\s?[-–]\s?\d+(?:,\d+)?)?)\s?%(?!\s?\d)/g, "%$1");
+};
 const trDec = (t: string) => String(t || "").replace(/(?<![\d.,])(\d+)\.(\d{1,2})(?!\d|\.\d)/g, "$1,$2");
 
 // akademik sunuma uymayan kaynaklar (video, sosyal medya, forum)
@@ -538,7 +547,7 @@ Rules:
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
   "chart": one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
-  "time": 3-4 chronological steps, EACH starting with its own date or period — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names) — three or more people, items or groups go in a "list" or "table", never in "two";
+  "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list".
   Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
@@ -627,6 +636,9 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (chart && mixedUnits(chart.labels)) chartOk = false;
       if (k === "quote" && bullets.length && !isSentence(bullets[0])) k = "list";
       if (k === "time" && !timeOk(bullets)) k = "list";
+      /* İki taraf adı olmayan "two" karşılaştırma değildir: canlı destede (14.11.2026)
+         sınırlılıklar asetatı "birinci taraf / ikinci taraf" yer tutucusuyla basıldı. */
+      if (k === "two" && (!Array.isArray(s.heads) || s.heads.filter((h: any) => String(h || "").trim()).length < 2)) k = "list";
       const ser = k === "list" && !warn.length ? seriesOf(bullets) : null;
       if (ser) { k = "chart"; chart = { type: "line", ...ser }; chartOk = true; }
       if (k === "chart" && (!chart || !chartOk)) k = "list";
@@ -635,9 +647,9 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (k === "stat" && stats.filter((x: any) => x.ok).length < 3) k = "list";
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
-      const yaz = (t: string) => lang === "en" ? t : trDec(t);
+      const yaz = (t: string) => yazim(t, lang);
       if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
-      return { title: String(s.title || "").trim(), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
+      return { title: yaz(String(s.title || "").trim()), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map(String) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });
 
     // İçeriği olmayan asetat (madde, sayı, grafik, tablo — hiçbiri yok) kurguya
