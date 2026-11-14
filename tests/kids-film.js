@@ -84,4 +84,25 @@ test('üç bakış: ARIA sekmeler, ok tuşları, paneller', () => {
   assert.match(J, /b\.tabIndex = i === n \? 0 : -1/);
 });
 
+test('15.11.2026 (3): fiyat yazmaz; teklif sahnesi, yığılan yaş kartları, yana akan konular, bulut kenarlar, tablette deneme', () => {
+  assert.doesNotMatch(S, /34\.900|TL<|KDV|kl-fiyat-kart/, 'sayfada fiyat yok');
+  assert.match(S, /<a href="#fiyat">Teklif<\/a>/);
+  assert.match(S, /<section class="kl-bolum kt2" id="fiyat" aria-labelledby="kt2-b">/);
+  assert.equal((S.match(/<li><i>\d<\/i><b>/g) || []).length, 3, 'üç adımlık yol');
+  assert.equal((S.match(/<article class="kyd-kart" style="--r:#[0-9A-F]{6};--i:\d">/g) || []).length, 3);
+  assert.match(CSS, /\.kyd-kart\{--ort:0;position:sticky;top:calc\(96px \+ var\(--i\) \* 26px\)/);
+  assert.match(J, /a\.style\.setProperty\('--ort', p\.toFixed\(3\)\)/);
+  assert.match(S, /<section class="kkn" id="icerik-konular" data-kk aria-labelledby="kk-b">/);
+  assert.match(J, /kkYol = Math\.max\(0, kkSerit\.offsetWidth - kkSerit\.parentNode\.clientWidth\)/);
+  assert.match(J, /if \(ks\) ks\.textContent = V\.KONU\.length; if \(ws && top\) ws\.textContent = top;/, 'konu ve kelime sayısı veriden');
+  assert.match(J, /if \(SAKIN\) \{ kk\.classList\.add\('kk-duragan'\)|if \(SAKIN\) \{ kk\.classList\.add\('kkn-duragan'\)/);
+  for (const k of ['.kl-hero::after', '.kf::before', '.kf::after']) assert.ok(CSS.includes(k), k + ' bulut kenarı');
+  assert.match(CSS, /\.kl-dene-oyun\{position:relative;padding:18px!important;[^}]*background:var\(--m\)!important/);
+  /* başka modüllerin sınıflarıyla çakışmasın (kitaplık kk-, yazdırma ky-) */
+  for (const f of fs.readdirSync(path.join(ROOT, 'kids/assets')).filter((x) => /\.css$/.test(x) && x !== 'kids-film.css')) {
+    const c = read('kids/assets/' + f);
+    for (const on of ['kf-', 'kb-', 'kyd-', 'kkn-', 'kt2-']) assert.ok(!c.includes('.' + on), f + ' içinde .' + on + ' var: önek çakışması');
+  }
+});
+
 summary();

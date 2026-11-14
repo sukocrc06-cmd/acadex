@@ -2027,7 +2027,7 @@ body.kr-acik{overflow:hidden}
    Zamanlama kids-film.js'in verdiği --t, --k1..--k4 (0..1) ve data-perde ile yapılır.
    ========================================================================== */
 .kf{position:relative;height:700vh;margin-top:clamp(48px,7vw,88px)}
-.kf-yap{position:sticky;top:69px;height:calc(100vh - 69px);height:calc(100dvh - 69px);overflow:hidden;border-top:3px solid var(--m);border-bottom:3px solid var(--m);--t:0;--k1:0;--k2:0;--k3:0;--k4:0}
+.kf-yap{position:sticky;top:69px;height:calc(100vh - 69px);height:calc(100dvh - 69px);overflow:hidden;--t:0;--k1:0;--k2:0;--k3:0;--k4:0}
 .kf-sahne{position:absolute;inset:0}
 .kf-sahne i{display:block}
 
@@ -2254,6 +2254,101 @@ body.kr-acik{overflow:hidden}
 @media (prefers-reduced-motion: reduce){.kf *,.kb *{animation:none!important;transition:none!important}.kb-msj{opacity:1}.kb-g-tablet u{background-size:100% 100%}}
 
 /* ==========================================================================
+   15.11.2026 (3): bulut kenarlı geçişler, tablet içinde deneme, yığılan yaş kartları,
+   yana akan konular şeridi, "Kreşinize özel teklif" sahnesi
+   ========================================================================== */
+/* bulut kenarlar: bölümler düz çizgi yerine bulutla birbirine akar */
+.kl-hero{position:relative;border-bottom:0!important}
+.kl-hero::after,.kf::before,.kf::after{content:"";position:absolute;left:0;right:0;height:46px;background-repeat:repeat-x;background-size:240px 46px;pointer-events:none}
+.kl-hero::after{bottom:-1px;z-index:1;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 48' preserveAspectRatio='none'%3E%3Cpath d='M0 48V30A24 24 0 0 1 44 22A34 34 0 0 1 108 16A30 30 0 0 1 166 22A26 26 0 0 1 214 26A20 20 0 0 1 240 30V48Z' fill='%23E4F5FF'/%3E%3Cpath d='M0 30A24 24 0 0 1 44 22A34 34 0 0 1 108 16A30 30 0 0 1 166 22A26 26 0 0 1 214 26A20 20 0 0 1 240 30' fill='none' stroke='%2323304D' stroke-width='3'/%3E%3C/svg%3E")}
+.kf::before{top:-44px;z-index:8;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 48' preserveAspectRatio='none'%3E%3Cpath d='M0 48V30A24 24 0 0 1 44 22A34 34 0 0 1 108 16A30 30 0 0 1 166 22A26 26 0 0 1 214 26A20 20 0 0 1 240 30V48Z' fill='%23FFF3DC'/%3E%3Cpath d='M0 30A24 24 0 0 1 44 22A34 34 0 0 1 108 16A30 30 0 0 1 166 22A26 26 0 0 1 214 26A20 20 0 0 1 240 30' fill='none' stroke='%2323304D' stroke-width='3'/%3E%3C/svg%3E");background-position:60px 0}
+.kf::after{bottom:-1px;z-index:8;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 48' preserveAspectRatio='none'%3E%3Cpath d='M0 48V30A24 24 0 0 1 44 22A34 34 0 0 1 108 16A30 30 0 0 1 166 22A26 26 0 0 1 214 26A20 20 0 0 1 240 30V48Z' fill='%23D6F0FF'/%3E%3Cpath d='M0 30A24 24 0 0 1 44 22A34 34 0 0 1 108 16A30 30 0 0 1 166 22A26 26 0 0 1 214 26A20 20 0 0 1 240 30' fill='none' stroke='%2323304D' stroke-width='3'/%3E%3C/svg%3E");background-position:130px 0}
+#icerik.kl-gok+.kl-alt-bilgi{border-top:0}
+/* kendiniz deneyin: filmdekiyle aynı tablet */
+.kl-dene-oyun{position:relative;padding:18px!important;border:0!important;border-radius:38px!important;background:var(--m)!important;box-shadow:0 30px 60px -10px rgba(35,48,77,.45),0 10px 0 #101829!important;rotate:-1deg}
+.kl-dene-oyun::before{content:"";position:absolute;left:50%;top:7px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#4A5878}
+.kl-dene-oyun [data-demo]{border-radius:22px;background:var(--krem);overflow:hidden}
+
+/* ---------- yaş dünyaları: yığılan kartlar ---------- */
+.kyd-yigin{display:grid;gap:7vh;margin-top:30px;padding-bottom:4vh}
+.kyd-kart{--ort:0;position:sticky;top:calc(96px + var(--i) * 26px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(18px,3vw,40px);align-items:center;min-height:min(62vh,520px);padding:clamp(20px,3vw,40px);border:3px solid var(--m);border-radius:34px;background:#fff;box-shadow:0 10px 0 var(--m);border-top:18px solid var(--r);scale:calc(1 - var(--ort) * .06);filter:brightness(calc(1 - var(--ort) * .12));transform-origin:50% 0}
+.kyd-av{display:block;width:84px;height:84px}.kyd-av .kc{width:100%;height:100%}
+.kyd-metin h3{margin-top:8px;font:800 clamp(30px,3.6vw,46px)/1.05 var(--bas)}
+.kyd-metin small{font:800 16px var(--govde);padding:3px 12px;border-radius:999px;background:var(--r);vertical-align:middle}
+.kyd-metin p{margin-top:10px;font-size:18px}
+.kyd-metin ul{display:grid;gap:8px;margin:16px 0 0;padding:0;list-style:none}
+.kyd-metin li{position:relative;padding-left:30px;font-weight:700}
+.kyd-metin li::before{content:"";position:absolute;left:0;top:5px;width:16px;height:16px;border:3px solid var(--m);border-radius:50%;background:var(--r)}
+.kyd-ekran{position:relative;aspect-ratio:4/3;padding:14px;border-radius:30px;background:var(--m);box-shadow:0 10px 0 #101829}
+.kyd-e{position:relative;height:100%;border-radius:18px;overflow:hidden;background:var(--gok);display:grid;place-items:center;container-type:size}
+.kyd-e .kc{width:100%;height:auto;display:block}
+.kyd-ses{position:absolute;left:4cqw;top:4cqw;width:11cqw;padding:2cqw;border:.6cqw solid var(--m);border-radius:50%;background:var(--sari)}
+.kyd-balonlar{display:flex;gap:6cqw;width:78%;justify-content:center}
+.kyd-balonlar span{flex:1;animation:koSuz 2.6s ease-in-out infinite alternate}.kyd-balonlar span:nth-child(2){animation-delay:-.9s}.kyd-balonlar span:nth-child(3){animation-delay:-1.7s}
+.kyd-hedef{filter:drop-shadow(0 0 2.4cqw rgba(255,210,63,.9))}
+.kyd-acd{position:absolute;right:3cqw;bottom:3cqw;width:20cqw}
+.kyd-e-kasif{grid-template-rows:1fr auto auto;padding:5cqw 0 4cqw;background:linear-gradient(180deg,#FFF3D4,#FFE2B8)}
+.kyd-resim{width:36cqw}
+.kyd-e-kasif b{font:800 12cqw/1 var(--bas);text-shadow:.6cqw .6cqw 0 #FF9F45}
+.kyd-e-kasif p{margin:1cqw 0 0}.kyd-e-kasif p span{display:inline-block;padding:1.4cqw 3.4cqw;border:.6cqw solid var(--m);border-radius:4cqw;background:#fff;font:800 5cqw var(--bas)}
+.kyd-e-yildiz{grid-template-columns:1fr 1fr;gap:6cqw;padding:5cqw;background:linear-gradient(180deg,#EAF6FF,#D6EEFF)}
+.kyd-kartlar,.kyd-resimler{display:grid;gap:2.6cqw;width:100%}
+.kyd-k{display:grid;place-items:center;height:13cqh;border:.6cqw solid var(--m);border-radius:3cqw;background:#fff;font:800 5.4cqw var(--bas)}
+.kyd-resimler span{display:grid;place-items:center;height:13cqh;border:.6cqw solid var(--m);border-radius:3cqw;background:#fff;padding:1cqw}
+.kyd-e .kyd-resimler span>.kc{width:100%;height:100%}
+.kyd-esli{background:#D8F5E3!important;box-shadow:0 0 0 .8cqw var(--yesil)}
+.kyd-cizgi{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.kyd-cizgi path{fill:none;stroke:var(--yesil);stroke-width:1.4;stroke-dasharray:3 2;vector-effect:non-scaling-stroke;stroke-width:4}
+.kyd-renk{display:block;width:70%;aspect-ratio:1;margin:auto;border:3px solid var(--m);border-radius:50%}
+@media (max-width:760px){.kyd-kart{grid-template-columns:minmax(0,1fr);top:calc(80px + var(--i) * 16px);min-height:0;padding:18px;border-radius:26px}.kyd-av{width:60px;height:60px}.kyd-metin ul{display:none}.kyd-ekran{padding:9px;border-radius:22px}}
+
+/* ---------- konular: yana akan şerit ---------- */
+.kkn{position:relative;margin-top:clamp(48px,7vw,88px)}
+.kkn-yap{position:sticky;top:69px;height:calc(100vh - 69px);height:calc(100dvh - 69px);display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;align-content:center;overflow:hidden}
+.kkn-bas{padding-top:clamp(12px,3vh,32px)!important}
+.kkn-bas h2{font-size:clamp(32px,4.4vw,52px);font-weight:800}
+.kkn-pencere{position:relative;display:flex;align-items:center;min-height:0;min-width:0;overflow:hidden}
+.kkn-serit{flex:none;display:flex;gap:clamp(14px,2vw,26px);margin:0;padding:12px max(16px,calc((100vw - 1120px) / 2)) 24px;list-style:none;will-change:transform}
+.kkn-kart{flex:none;display:grid;justify-items:center;align-content:start;gap:4px;width:clamp(220px,22vw,300px);padding:16px 16px 18px;border:3px solid var(--m);border-radius:30px;background:#fff;box-shadow:0 8px 0 var(--m);border-top:14px solid var(--r);text-align:center;rotate:calc((var(--i) % 3 - 1) * 1.2deg)}
+.kkn-ada{width:72%;animation:kaAda 4s ease-in-out infinite alternate;animation-delay:calc(var(--i) * -.4s)}.kkn-ada .kc{width:100%;height:auto}
+.kkn-kart>b{font:800 26px/1 var(--bas)}.kkn-kart>small{font-weight:800;color:var(--soluk)}
+.kkn-kel{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;margin-top:10px}
+.kkn-kel i{display:grid;justify-items:center;gap:2px;padding:6px 2px;border-radius:14px;background:color-mix(in srgb,var(--r) 22%,#fff)}
+.kkn-kel i>.kc,.kkn-kel i>.kyd-renk{width:34px;height:34px}
+.kkn-kel em{font-style:normal;font-size:11.5px;font-weight:800;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kkn-say{margin-top:8px;padding:3px 12px;border:2px solid var(--m);border-radius:999px;background:var(--r);font:800 14px var(--govde)}
+.kkn-cubuk{width:min(420px,60vw);height:8px;margin:0 auto clamp(14px,3vh,28px);border:2px solid var(--m);border-radius:9px;background:#fff;overflow:hidden}
+.kkn-cubuk i{display:block;height:100%;background:linear-gradient(90deg,var(--sari),var(--mercan));transform-origin:0 50%;transform:scaleX(0)}
+.kkn-duragan .kkn-yap{position:static;height:auto}
+.kkn-duragan .kkn-pencere{overflow-x:auto}
+.kkn-duragan .kkn-cubuk{display:none}
+@media (max-width:760px){.kkn-yap{top:66px;height:calc(100dvh - 66px)}.kkn-kart{width:66vw}}
+
+/* ---------- Kreşinize özel teklif ---------- */
+.kt2-kart{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);border:3px solid var(--m);border-radius:36px;overflow:hidden;background:var(--krem);box-shadow:0 12px 0 #101829,0 40px 80px -20px rgba(0,0,0,.5)}
+.kt2-sol{padding:clamp(24px,4vw,52px)}
+.kt2-sol h2{margin-top:12px;font:800 clamp(32px,4vw,50px)/1.04 var(--bas)}
+.kt2-giris{margin-top:12px;font-size:18.5px;max-width:34em}
+.kt2-yol{display:grid;gap:12px;margin:22px 0 0;padding:0;list-style:none}
+.kt2-yol li{display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:14px;align-items:center}
+.kt2-yol i{grid-row:1/3;display:grid;place-items:center;width:44px;height:44px;border:3px solid var(--m);border-radius:50%;background:var(--sari);font:800 22px var(--bas);font-style:normal}
+.kt2-yol b{font:800 20px/1.1 var(--bas)}.kt2-yol span{font-size:15.5px;color:var(--soluk);font-weight:700}
+.kt2-cta{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin-top:26px}
+.kt2-cta>span{font-weight:700;font-size:15px}.kt2-cta a:not(.kl-teklif){color:var(--m);font-weight:800}
+.kt2-dugme{min-height:60px;padding:0 26px 0 16px;font-size:21px}
+.kt2-sahne{position:relative;min-height:340px;border-left:3px solid var(--m);background:radial-gradient(circle at 70% 18%,#5D57B8 0,#2E3574 55%,#1B2150 100%);overflow:hidden}
+.kt2-sahne>span{position:absolute;display:block}.kt2-sahne .kc{width:100%;height:auto;display:block}
+.kt2-yz{inset:0}.kt2-yz i{position:absolute;width:4px;height:4px;border-radius:50%;background:#FFF8D6;box-shadow:0 0 6px #FFF8D6;animation:klYz 2.4s ease-in-out infinite alternate;animation-delay:var(--d)}
+.kt2-ay{right:12%;top:10%;width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 36% 34%,#FFFBEA 0 40%,#F3E6B6 72%);box-shadow:0 0 40px 12px rgba(255,246,200,.35)}
+.kt2-ada{left:8%;right:8%;bottom:-4%;animation:kaAda 5s ease-in-out infinite alternate}
+.kt2-acd{left:40%;bottom:38%;width:26%;animation:kaAda 2.6s ease-in-out infinite alternate}
+.kt2-cocuk{bottom:30%;width:19%;animation:kbZipla 1.8s cubic-bezier(.3,0,.3,1) infinite}
+.kt2-c0{left:14%;animation-delay:-.3s}.kt2-c1{left:66%;animation-delay:-.9s}.kt2-c2{left:24%;bottom:46%;width:15%;animation-delay:-1.4s}
+.kt2-el{position:absolute;right:-14%;top:-6%;width:30%;height:30%;border:3px solid var(--m);border-radius:50%;background:#FFCFA8;transform-origin:20% 100%;animation:klCocukEl 1.4s ease-in-out infinite}
+@media (max-width:860px){.kt2-kart{grid-template-columns:minmax(0,1fr)}.kt2-sahne{order:-1;min-height:220px;border-left:0;border-bottom:3px solid var(--m)}}
+@media (prefers-reduced-motion: reduce){.kyd *,.kkn *,.kt2-sahne *{animation:none!important}.kyd-kart{scale:none;filter:none}}
+
+/* ==========================================================================
    ACADEX KIDS · "Oyun dünyana gidiyorsun!" uçuşu (kids/assets/kids-ucus.css), 15.11.2026
    Bütün parçalar aynı süreye (--sure) göre yüzdeyle zamanlanır: tam 3,2 sn, kısa 1,1 sn.
    ========================================================================== */
@@ -2337,7 +2432,7 @@ body.kr-acik{overflow:hidden}
 <a class="kl-atla" href="#icerik">İçeriğe geç</a>
 <header class="kl-ust">
   <a class="kl-marka" href="#" aria-label="Acadex Kids"><span data-acd="mutlu"></span><b>Acadex <i>Kids</i></b></a>
-  <nav class="kl-nav" aria-label="Bölümler"><a href="#nasil">Nasıl çalışır</a><a href="#dene">Deneyin</a><a href="#icerik-konular">İçerik</a><a href="#fiyat">Fiyat</a><a href="#sss">Sorular</a></nav>
+  <nav class="kl-nav" aria-label="Bölümler"><a href="#nasil">Nasıl çalışır</a><a href="#dene">Deneyin</a><a href="#icerik-konular">İçerik</a><a href="#fiyat">Teklif</a><a href="#sss">Sorular</a></nav>
   <a class="kl-dugme kl-dugme-k kl-dugme-b kl-giris-ust" href="#giris">Giriş yap</a>
   <a class="kl-teklif" href="#teklif" data-teklif><span class="kl-teklif-y" aria-hidden="true">★</span><span class="kl-teklif-u">Kreşim için teklif al</span><span class="kl-teklif-k" aria-hidden="true">Teklif al</span></a>
 </header>
@@ -2418,20 +2513,22 @@ body.kr-acik{overflow:hidden}
   <div class="kl-dene-oyun"><div data-demo><button type="button" class="ka-buyuk" data-demo-basla>Oyunu başlat</button></div></div>
 </section>
 
-<section class="kl-bolum" id="yas" data-durak="kedi">
-  <h2>Üç yaş dünyası, tek platform</h2>
-  <p class="kl-alt">Çocuk sınıfına göre doğru dünyada başlar. Konular aynı, zorluk ve yazı miktarı yaşa göre değişir.</p>
-  <ul class="kl-yaslar">
-    <li style="--r:#FFD23F"><span data-av="civciv"></span><h3>Minikler <small>3-4 yaş</small></h3><p>Yazı yok; her şey sesli ve resimli. Bir oturumda 3 kelime, 3 seçenek.</p></li>
-    <li style="--r:#FF9EB5"><span data-av="tilki"></span><h3>Kâşifler <small>5-6 yaş</small></h3><p>Kelimeler yazıyla da görünür. 6 kelime, kısa kalıplar: “It’s red!”</p></li>
-    <li style="--r:#A5DBFF"><span data-av="panda"></span><h3>Yıldızlar <small>7-10 yaş</small></h3><p>Okuma devreye girer: kelime kartı ile resmi eşleştirir, daha çok seçenekle oynar.</p></li>
-  </ul>
+<section class="kl-bolum kyd" id="yas" aria-labelledby="kyd-b">
+  <h2 id="kyd-b">Üç yaş dünyası, tek platform</h2>
+  <p class="kl-alt">Çocuk sınıfına göre doğru dünyada başlar. Konular aynı; zorluk ve yazı miktarı yaşa göre değişir.</p>
+  <div class="kyd-yigin">
+    <article class="kyd-kart" style="--r:#FFD23F;--i:0"><div class="kyd-metin"><span class="kyd-av" data-av="civciv"></span><h3>Minikler <small>3-4 yaş</small></h3><p>Yazı yok; her şey sesli ve resimli. Acadia söyler, çocuk dokunur.</p><ul><li>Bir oturumda 3 kelime, 3 seçenek</li><li>Büyük dokunma alanları</li><li>Okuma bilmeden tek başına</li></ul></div><div class="kyd-ekran" data-ky-ekran="minik" aria-hidden="true"></div></article>
+    <article class="kyd-kart" style="--r:#FF9EB5;--i:1"><div class="kyd-metin"><span class="kyd-av" data-av="tilki"></span><h3>Kâşifler <small>5-6 yaş</small></h3><p>Kelimeler yazıyla da görünür; kısa kalıplar başlar.</p><ul><li>Bir oturumda 6 kelime</li><li>“It’s red!” gibi kalıplar</li><li>Söyle adımında kendi sesini dinler</li></ul></div><div class="kyd-ekran" data-ky-ekran="kasif" aria-hidden="true"></div></article>
+    <article class="kyd-kart" style="--r:#A5DBFF;--i:2"><div class="kyd-metin"><span class="kyd-av" data-av="panda"></span><h3>Yıldızlar <small>7-10 yaş</small></h3><p>Okuma devreye girer: kelime kartını resmiyle eşleştirir.</p><ul><li>Daha çok kelime ve seçenek</li><li>Kelime kartları ve harf treni</li><li>İlkokul İngilizce temalarıyla uyumlu</li></ul></div><div class="kyd-ekran" data-ky-ekran="yildiz" aria-hidden="true"></div></article>
+  </div>
 </section>
 
-<section class="kl-bolum" id="icerik-konular" data-durak="gokkusagi">
-  <h2>12 konuyla başlıyoruz</h2>
-  <p class="kl-alt">Konular okul öncesinde en çok kullanılan temalardan ve ilkokul 2. sınıf İngilizce programının temalarından seçildi.</p>
-  <ul class="kl-konular" data-konular></ul>
+<section class="kkn" id="icerik-konular" data-kk aria-labelledby="kk-b">
+  <div class="kkn-yap" data-kk-yap>
+    <div class="kkn-bas kl-bolum"><h2 id="kk-b"><span data-konu-say>22</span> konu, <span data-kelime-say>500+</span> kelime</h2><p class="kl-alt">Okul öncesinde en çok kullanılan temalar ve ilkokul 2. sınıf İngilizce programının temaları. Her konu oyun dünyasında bir ada.</p></div>
+    <div class="kkn-pencere"><ul class="kkn-serit" data-kk-serit></ul></div>
+    <div class="kkn-cubuk" aria-hidden="true"><i data-kk-cubuk></i></div>
+  </div>
 </section>
 
 <section class="kl-bolum kl-guven" data-durak="ay">
@@ -2444,11 +2541,20 @@ body.kr-acik{overflow:hidden}
   </ul>
 </section>
 
-<section class="kl-bolum kl-fiyat" id="fiyat" data-durak="yildiz">
-  <h2>Tek platform, tek fiyat</h2>
-  <div class="kl-fiyat-kart">
-    <div class="kl-fiyat-sol"><p class="kl-etiket">Yıllık okul lisansı</p><p class="kl-tutar"><b>34.900 TL</b><span>+ KDV / yıl</span></p><p>100 öğrenciye kadar kullanım hakkı.</p><p class="kgi-iletisim"><a class="kl-dugme kl-dugme-k" href="#teklif" data-teklif>Kreşim için teklif al</a></p><p class="kgi-iletisim">ya da yazın: <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></p></div>
-    <ul class="kl-fiyat-sag"><li>Paket yok: bütün konular ve üç yaş dünyası tek lisansta.</li><li>Kreş, anaokulu ve ilkokul için aynı platform.</li><li>Okulunuz bu hizmeti velilere ücretsiz sunabilir ya da kendi belirlediği fiyatla sunabilir.</li><li>Tek yıllık ödeme.</li></ul>
+<section class="kl-bolum kt2" id="fiyat" aria-labelledby="kt2-b">
+  <div class="kt2-kart">
+    <div class="kt2-sol">
+      <p class="kl-etiket">Kreşinize özel</p>
+      <h2 id="kt2-b">Size özel teklif, 14 gün ücretsiz deneme</h2>
+      <p class="kt2-giris">Her kreş farklı. Öğrenci sayınıza ve ihtiyacınıza göre size özel bir teklif hazırlayalım; önce birlikte deneyelim.</p>
+      <ol class="kt2-yol">
+        <li><i>1</i><b>İstek bırakın</b><span>Kreş adı, yetkili ve e-posta. Bir dakika sürer.</span></li>
+        <li><i>2</i><b>1 iş gününde dönüş</b><span>Size özel teklif ve kısa bir tanıtım görüşmesi.</span></li>
+        <li><i>3</i><b>Deneme başlasın</b><span>14 gün ücretsiz; sınıflar, kartlar ve şifreler hazır.</span></li>
+      </ol>
+      <div class="kt2-cta"><a class="kl-teklif kt2-dugme" href="#teklif" data-teklif><span class="kl-teklif-y" aria-hidden="true">★</span><span>Kreşim için teklif al</span></a><span>ya da yazın: <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></span></div>
+    </div>
+    <div class="kt2-sahne" data-kt2-sahne aria-hidden="true"></div>
   </div>
 </section>
 
@@ -8634,8 +8740,8 @@ body.kr-acik{overflow:hidden}
   }
 
   /* ---------- 2) içerik girişi: başlık maskeden yukarı kayar, kartlar sırayla yumuşakça gelir ---------- */
-  var GIRIS = '.kl-soz,.kl-adimlar>li,.kl-yaslar>li,.kl-konular>li,.kl-guvenler>li,.kl-sss>details,.kl-fiyat-kart,.kl-dene-oyun,.kl-alt,.kb-sekmeler,.kb-paneller,.kl-dene-yazi>p,.kl-dene-yazi>.kl-dugme';
-  var BASLIK = '.kl-bolum>h2,.kl-dene h2';
+  var GIRIS = '.kl-soz,.kl-adimlar>li,.kl-guvenler>li,.kl-sss>details,.kt2-kart,.kl-dene-oyun,.kkn-bas>p,.kl-alt,.kb-sekmeler,.kb-paneller,.kl-dene-yazi>p,.kl-dene-yazi>.kl-dugme';
+  var BASLIK = '.kl-bolum>h2,.kl-dene h2,.kkn-bas>h2,.kt2-sol>h2';
   function maskele(h) {
     if (h.querySelector('.kl-m')) return;
     var dis = D.createElement('span'), ic = D.createElement('span'); dis.className = 'kl-m'; ic.className = 'kl-m-ic';
@@ -8773,6 +8879,8 @@ body.kr-acik{overflow:hidden}
    Fare/telefon eğimi (--mx, --my) sahne katmanlarını hafifçe kaydırır (kids-scroll.js verir).
    Hareketi azalt açıksa film sabitlenmez: perdeler alt alta, her ekran son hâliyle görünür.
    Üç bakış: Çocuk / Öğretmen / Veli sekmeleri (ARIA sekme düzeni, ok tuşları).
+   15.11.2026 (3): yaş dünyaları üst üste yığılan kartlar (örnek ekranlarla), konular aşağı kaydırdıkça
+   yana akan adalar şeridi, fiyat kartı yerine "Kreşinize özel teklif" sahnesi (fiyat yazılmaz).
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -8897,8 +9005,82 @@ body.kr-acik{overflow:hidden}
     });
   }
 
+  /* ---------- yaş dünyaları: üst üste yığılan kartlar, her birinde o yaşın örnek ekranı ---------- */
+  function resim(id, hex) { var RS = W.KIDS_RESIM; try { if (RS && (!RS.var || RS.var(id))) return RS.ciz(id); } catch (e) { } return '<span class="kyd-renk" style="background:' + (hex || '#FFD23F') + '"></span>'; }
+  function yasEkran(tur) {
+    if (tur === 'minik') return '<div class="kyd-e kyd-e-minik"><span class="kyd-ses">' + C.simge('ses') + '</span><div class="kyd-balonlar"><span>' + C.balon(renk('red')) + '</span><span class="kyd-hedef">' + C.balon(renk('yellow')) + '</span><span>' + C.balon(renk('blue')) + '</span></div><span class="kyd-acd">' + C.acadia({ mood: 'mutlu', pose: 'isaret' }) + '</span></div>';
+    if (tur === 'kasif') return '<div class="kyd-e kyd-e-kasif"><div class="kyd-resim">' + resim('cat') + '</div><b lang="en">cat</b><p lang="en"><span>It’s a cat!</span></p><span class="kyd-acd">' + C.acadia({ mood: 'kutlama' }) + '</span></div>';
+    var k = ['banana', 'apple', 'grapes', 'orange'];
+    return '<div class="kyd-e kyd-e-yildiz"><div class="kyd-kartlar">' + k.map(function (w, i) { return '<span class="kyd-k' + (i === 0 ? ' kyd-esli' : '') + '" lang="en">' + w + '</span>'; }).join('') + '</div><div class="kyd-resimler">' + ['apple', 'banana', 'orange', 'grapes'].map(function (w) { return '<span' + (w === 'banana' ? ' class="kyd-esli"' : '') + '>' + resim(w) + '</span>'; }).join('') + '</div><svg class="kyd-cizgi" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M44 14 C60 14 52 38 66 38" /></svg></div>';
+  }
+  var yasKartlar = [];
+  function yasKur() {
+    var y = D.querySelector('.kyd'); if (!y) return;
+    y.querySelectorAll('[data-ky-ekran]').forEach(function (e) { e.innerHTML = yasEkran(e.getAttribute('data-ky-ekran')); });
+    yasKartlar = [].slice.call(y.querySelectorAll('.kyd-kart'));
+  }
+  function yasCiz() {
+    for (var i = 0; i < yasKartlar.length - 1; i++) {
+      var a = yasKartlar[i], b = yasKartlar[i + 1], ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      var p = cl((ra.bottom - rb.top) / Math.max(1, ra.height));   /* sonraki kart bunu ne kadar örttü */
+      a.style.setProperty('--ort', p.toFixed(3));
+    }
+  }
+
+  /* ---------- konular: aşağı kaydırdıkça yana akan adalar şeridi ---------- */
+  var kk, kkYap, kkSerit, kkCubuk, kkYol = 0;
+  function konuKur() {
+    kk = D.querySelector('[data-kk]'); if (!kk) return;
+    kkYap = kk.querySelector('[data-kk-yap]'); kkSerit = kk.querySelector('[data-kk-serit]'); kkCubuk = kk.querySelector('[data-kk-cubuk]');
+    var K = W.KIDS_KONU, top = 0;
+    kkSerit.innerHTML = V.KONU.map(function (k, i) {
+      var ogeler = K ? K.hepsi(k.id) : []; top += ogeler.length;
+      return '<li class="kkn-kart" style="--r:' + k.renk + ';--i:' + i + '"><span class="kkn-ada">' + C.ada(k.renk, k.simge, false) + '</span><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small>' +
+        '<span class="kkn-kel">' + ogeler.slice(0, 4).map(function (o) { return '<i title="' + esc(o.en) + '">' + resim(o.id, o.hex) + '<em lang="en">' + esc(o.en) + '</em></i>'; }).join('') + '</span><span class="kkn-say">' + ogeler.length + ' kelime</span></li>';
+    }).join('');
+    var ks = kk.querySelector('[data-konu-say]'), ws = kk.querySelector('[data-kelime-say]');
+    if (ks) ks.textContent = V.KONU.length; if (ws && top) ws.textContent = top;
+    if (SAKIN) { kk.classList.add('kkn-duragan'); return; }
+    konuOlc();
+  }
+  function konuOlc() {
+    if (!kk || SAKIN) return;
+    kkYol = Math.max(0, kkSerit.offsetWidth - kkSerit.parentNode.clientWidth);
+    kk.style.height = 'calc(' + Math.round(kkYol) + 'px + 100vh)';
+  }
+  function konuCiz() {
+    if (!kk || SAKIN) return;
+    var r = kk.getBoundingClientRect(), yol = r.height - W.innerHeight, p = yol > 0 ? cl(-r.top / yol) : 0;
+    kkSerit.style.transform = 'translate3d(' + (-p * kkYol).toFixed(1) + 'px,0,0)';
+    if (kkCubuk) kkCubuk.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+  }
+
+  /* ---------- teklif sahnesi: gece adasında Acadia ve el sallayan çocuklar ---------- */
+  function teklifKur() {
+    var s = D.querySelector('[data-kt2-sahne]'); if (!s) return;
+    var y = ''; for (var i = 0; i < 26; i++) y += '<i style="left:' + ((i * 41.3) % 100).toFixed(1) + '%;top:' + ((i * 23.7) % 62).toFixed(1) + '%;--d:' + ((i % 6) * 0.45).toFixed(2) + 's"></i>';
+    s.innerHTML = '<span class="kt2-yz">' + y + '</span><span class="kt2-ay"></span>' +
+      '<span class="kt2-ada">' + C.ada(konu('colours').renk, konu('colours').simge, false) + '</span>' +
+      '<span class="kt2-acd">' + C.acadia({ mood: 'kutlama' }) + '</span>' +
+      [['tavsan', 0], ['kedi', 4], ['panda', 6]].map(function (o, i) { return '<span class="kt2-cocuk kt2-c' + i + '">' + C.avatar(o[0], o[1]) + '<i class="kt2-el"></i></span>'; }).join('');
+  }
+
+  var bekliyor2 = false;
+  function ciz2() { bekliyor2 = false; if (D.getElementById('kl-sayfa').hidden) return; yasCiz(); konuCiz(); }
+  function iste2() { if (!bekliyor2) { bekliyor2 = true; W.requestAnimationFrame(ciz2); } }
+  function digerKur() {
+    yasKur(); konuKur(); teklifKur();
+    if (SAKIN) return;
+    iste2();
+    W.addEventListener('scroll', iste2, { passive: true });
+    W.addEventListener('resize', function () { konuOlc(); iste2(); });
+    if (D.fonts && D.fonts.ready) D.fonts.ready.then(function () { konuOlc(); iste2(); });
+    D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') setTimeout(function () { konuOlc(); iste2(); }, 40); });
+  }
+
   function kur() {
     bakisKur();
+    if (C && V) digerKur();
     bolum = D.querySelector('[data-film]'); if (!bolum || !C || !V) return;
     yap = bolum.querySelector('[data-kf-yap]'); sahne = bolum.querySelector('[data-kf-sahne]'); cubuk = bolum.querySelector('[data-kf-cubuk]');
     bolumler = [].slice.call(bolum.querySelectorAll('[data-kb]')); noktalar = [].slice.call(bolum.querySelectorAll('[data-kgit]'));
@@ -8910,7 +9092,7 @@ body.kr-acik{overflow:hidden}
     D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') { son = -1; iste(); } });
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
-  W.KIDS_FILM = { git: git, seg: seg, N: N, durum: function () { return son; } };
+  W.KIDS_FILM = { git: git, seg: seg, N: N, durum: function () { return son; }, yasEkran: yasEkran };
 })(window);
 
 /* ---- kids-teklif.js ---- */

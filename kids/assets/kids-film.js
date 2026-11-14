@@ -9,6 +9,8 @@
    Fare/telefon eğimi (--mx, --my) sahne katmanlarını hafifçe kaydırır (kids-scroll.js verir).
    Hareketi azalt açıksa film sabitlenmez: perdeler alt alta, her ekran son hâliyle görünür.
    Üç bakış: Çocuk / Öğretmen / Veli sekmeleri (ARIA sekme düzeni, ok tuşları).
+   15.11.2026 (3): yaş dünyaları üst üste yığılan kartlar (örnek ekranlarla), konular aşağı kaydırdıkça
+   yana akan adalar şeridi, fiyat kartı yerine "Kreşinize özel teklif" sahnesi (fiyat yazılmaz).
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -133,8 +135,82 @@
     });
   }
 
+  /* ---------- yaş dünyaları: üst üste yığılan kartlar, her birinde o yaşın örnek ekranı ---------- */
+  function resim(id, hex) { var RS = W.KIDS_RESIM; try { if (RS && (!RS.var || RS.var(id))) return RS.ciz(id); } catch (e) { } return '<span class="kyd-renk" style="background:' + (hex || '#FFD23F') + '"></span>'; }
+  function yasEkran(tur) {
+    if (tur === 'minik') return '<div class="kyd-e kyd-e-minik"><span class="kyd-ses">' + C.simge('ses') + '</span><div class="kyd-balonlar"><span>' + C.balon(renk('red')) + '</span><span class="kyd-hedef">' + C.balon(renk('yellow')) + '</span><span>' + C.balon(renk('blue')) + '</span></div><span class="kyd-acd">' + C.acadia({ mood: 'mutlu', pose: 'isaret' }) + '</span></div>';
+    if (tur === 'kasif') return '<div class="kyd-e kyd-e-kasif"><div class="kyd-resim">' + resim('cat') + '</div><b lang="en">cat</b><p lang="en"><span>It’s a cat!</span></p><span class="kyd-acd">' + C.acadia({ mood: 'kutlama' }) + '</span></div>';
+    var k = ['banana', 'apple', 'grapes', 'orange'];
+    return '<div class="kyd-e kyd-e-yildiz"><div class="kyd-kartlar">' + k.map(function (w, i) { return '<span class="kyd-k' + (i === 0 ? ' kyd-esli' : '') + '" lang="en">' + w + '</span>'; }).join('') + '</div><div class="kyd-resimler">' + ['apple', 'banana', 'orange', 'grapes'].map(function (w) { return '<span' + (w === 'banana' ? ' class="kyd-esli"' : '') + '>' + resim(w) + '</span>'; }).join('') + '</div><svg class="kyd-cizgi" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M44 14 C60 14 52 38 66 38" /></svg></div>';
+  }
+  var yasKartlar = [];
+  function yasKur() {
+    var y = D.querySelector('.kyd'); if (!y) return;
+    y.querySelectorAll('[data-ky-ekran]').forEach(function (e) { e.innerHTML = yasEkran(e.getAttribute('data-ky-ekran')); });
+    yasKartlar = [].slice.call(y.querySelectorAll('.kyd-kart'));
+  }
+  function yasCiz() {
+    for (var i = 0; i < yasKartlar.length - 1; i++) {
+      var a = yasKartlar[i], b = yasKartlar[i + 1], ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      var p = cl((ra.bottom - rb.top) / Math.max(1, ra.height));   /* sonraki kart bunu ne kadar örttü */
+      a.style.setProperty('--ort', p.toFixed(3));
+    }
+  }
+
+  /* ---------- konular: aşağı kaydırdıkça yana akan adalar şeridi ---------- */
+  var kk, kkYap, kkSerit, kkCubuk, kkYol = 0;
+  function konuKur() {
+    kk = D.querySelector('[data-kk]'); if (!kk) return;
+    kkYap = kk.querySelector('[data-kk-yap]'); kkSerit = kk.querySelector('[data-kk-serit]'); kkCubuk = kk.querySelector('[data-kk-cubuk]');
+    var K = W.KIDS_KONU, top = 0;
+    kkSerit.innerHTML = V.KONU.map(function (k, i) {
+      var ogeler = K ? K.hepsi(k.id) : []; top += ogeler.length;
+      return '<li class="kkn-kart" style="--r:' + k.renk + ';--i:' + i + '"><span class="kkn-ada">' + C.ada(k.renk, k.simge, false) + '</span><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small>' +
+        '<span class="kkn-kel">' + ogeler.slice(0, 4).map(function (o) { return '<i title="' + esc(o.en) + '">' + resim(o.id, o.hex) + '<em lang="en">' + esc(o.en) + '</em></i>'; }).join('') + '</span><span class="kkn-say">' + ogeler.length + ' kelime</span></li>';
+    }).join('');
+    var ks = kk.querySelector('[data-konu-say]'), ws = kk.querySelector('[data-kelime-say]');
+    if (ks) ks.textContent = V.KONU.length; if (ws && top) ws.textContent = top;
+    if (SAKIN) { kk.classList.add('kkn-duragan'); return; }
+    konuOlc();
+  }
+  function konuOlc() {
+    if (!kk || SAKIN) return;
+    kkYol = Math.max(0, kkSerit.offsetWidth - kkSerit.parentNode.clientWidth);
+    kk.style.height = 'calc(' + Math.round(kkYol) + 'px + 100vh)';
+  }
+  function konuCiz() {
+    if (!kk || SAKIN) return;
+    var r = kk.getBoundingClientRect(), yol = r.height - W.innerHeight, p = yol > 0 ? cl(-r.top / yol) : 0;
+    kkSerit.style.transform = 'translate3d(' + (-p * kkYol).toFixed(1) + 'px,0,0)';
+    if (kkCubuk) kkCubuk.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+  }
+
+  /* ---------- teklif sahnesi: gece adasında Acadia ve el sallayan çocuklar ---------- */
+  function teklifKur() {
+    var s = D.querySelector('[data-kt2-sahne]'); if (!s) return;
+    var y = ''; for (var i = 0; i < 26; i++) y += '<i style="left:' + ((i * 41.3) % 100).toFixed(1) + '%;top:' + ((i * 23.7) % 62).toFixed(1) + '%;--d:' + ((i % 6) * 0.45).toFixed(2) + 's"></i>';
+    s.innerHTML = '<span class="kt2-yz">' + y + '</span><span class="kt2-ay"></span>' +
+      '<span class="kt2-ada">' + C.ada(konu('colours').renk, konu('colours').simge, false) + '</span>' +
+      '<span class="kt2-acd">' + C.acadia({ mood: 'kutlama' }) + '</span>' +
+      [['tavsan', 0], ['kedi', 4], ['panda', 6]].map(function (o, i) { return '<span class="kt2-cocuk kt2-c' + i + '">' + C.avatar(o[0], o[1]) + '<i class="kt2-el"></i></span>'; }).join('');
+  }
+
+  var bekliyor2 = false;
+  function ciz2() { bekliyor2 = false; if (D.getElementById('kl-sayfa').hidden) return; yasCiz(); konuCiz(); }
+  function iste2() { if (!bekliyor2) { bekliyor2 = true; W.requestAnimationFrame(ciz2); } }
+  function digerKur() {
+    yasKur(); konuKur(); teklifKur();
+    if (SAKIN) return;
+    iste2();
+    W.addEventListener('scroll', iste2, { passive: true });
+    W.addEventListener('resize', function () { konuOlc(); iste2(); });
+    if (D.fonts && D.fonts.ready) D.fonts.ready.then(function () { konuOlc(); iste2(); });
+    D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') setTimeout(function () { konuOlc(); iste2(); }, 40); });
+  }
+
   function kur() {
     bakisKur();
+    if (C && V) digerKur();
     bolum = D.querySelector('[data-film]'); if (!bolum || !C || !V) return;
     yap = bolum.querySelector('[data-kf-yap]'); sahne = bolum.querySelector('[data-kf-sahne]'); cubuk = bolum.querySelector('[data-kf-cubuk]');
     bolumler = [].slice.call(bolum.querySelectorAll('[data-kb]')); noktalar = [].slice.call(bolum.querySelectorAll('[data-kgit]'));
@@ -146,5 +222,5 @@
     D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') { son = -1; iste(); } });
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
-  W.KIDS_FILM = { git: git, seg: seg, N: N, durum: function () { return son; } };
+  W.KIDS_FILM = { git: git, seg: seg, N: N, durum: function () { return son; }, yasEkran: yasEkran };
 })(window);

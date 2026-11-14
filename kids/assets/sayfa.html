@@ -19,7 +19,7 @@
 <a class="kl-atla" href="#icerik">İçeriğe geç</a>
 <header class="kl-ust">
   <a class="kl-marka" href="#" aria-label="Acadex Kids"><span data-acd="mutlu"></span><b>Acadex <i>Kids</i></b></a>
-  <nav class="kl-nav" aria-label="Bölümler"><a href="#nasil">Nasıl çalışır</a><a href="#dene">Deneyin</a><a href="#icerik-konular">İçerik</a><a href="#fiyat">Fiyat</a><a href="#sss">Sorular</a></nav>
+  <nav class="kl-nav" aria-label="Bölümler"><a href="#nasil">Nasıl çalışır</a><a href="#dene">Deneyin</a><a href="#icerik-konular">İçerik</a><a href="#fiyat">Teklif</a><a href="#sss">Sorular</a></nav>
   <a class="kl-dugme kl-dugme-k kl-dugme-b kl-giris-ust" href="#giris">Giriş yap</a>
   <a class="kl-teklif" href="#teklif" data-teklif><span class="kl-teklif-y" aria-hidden="true">★</span><span class="kl-teklif-u">Kreşim için teklif al</span><span class="kl-teklif-k" aria-hidden="true">Teklif al</span></a>
 </header>
@@ -100,20 +100,22 @@
   <div class="kl-dene-oyun"><div data-demo><button type="button" class="ka-buyuk" data-demo-basla>Oyunu başlat</button></div></div>
 </section>
 
-<section class="kl-bolum" id="yas" data-durak="kedi">
-  <h2>Üç yaş dünyası, tek platform</h2>
-  <p class="kl-alt">Çocuk sınıfına göre doğru dünyada başlar. Konular aynı, zorluk ve yazı miktarı yaşa göre değişir.</p>
-  <ul class="kl-yaslar">
-    <li style="--r:#FFD23F"><span data-av="civciv"></span><h3>Minikler <small>3-4 yaş</small></h3><p>Yazı yok; her şey sesli ve resimli. Bir oturumda 3 kelime, 3 seçenek.</p></li>
-    <li style="--r:#FF9EB5"><span data-av="tilki"></span><h3>Kâşifler <small>5-6 yaş</small></h3><p>Kelimeler yazıyla da görünür. 6 kelime, kısa kalıplar: “It’s red!”</p></li>
-    <li style="--r:#A5DBFF"><span data-av="panda"></span><h3>Yıldızlar <small>7-10 yaş</small></h3><p>Okuma devreye girer: kelime kartı ile resmi eşleştirir, daha çok seçenekle oynar.</p></li>
-  </ul>
+<section class="kl-bolum kyd" id="yas" aria-labelledby="kyd-b">
+  <h2 id="kyd-b">Üç yaş dünyası, tek platform</h2>
+  <p class="kl-alt">Çocuk sınıfına göre doğru dünyada başlar. Konular aynı; zorluk ve yazı miktarı yaşa göre değişir.</p>
+  <div class="kyd-yigin">
+    <article class="kyd-kart" style="--r:#FFD23F;--i:0"><div class="kyd-metin"><span class="kyd-av" data-av="civciv"></span><h3>Minikler <small>3-4 yaş</small></h3><p>Yazı yok; her şey sesli ve resimli. Acadia söyler, çocuk dokunur.</p><ul><li>Bir oturumda 3 kelime, 3 seçenek</li><li>Büyük dokunma alanları</li><li>Okuma bilmeden tek başına</li></ul></div><div class="kyd-ekran" data-ky-ekran="minik" aria-hidden="true"></div></article>
+    <article class="kyd-kart" style="--r:#FF9EB5;--i:1"><div class="kyd-metin"><span class="kyd-av" data-av="tilki"></span><h3>Kâşifler <small>5-6 yaş</small></h3><p>Kelimeler yazıyla da görünür; kısa kalıplar başlar.</p><ul><li>Bir oturumda 6 kelime</li><li>“It’s red!” gibi kalıplar</li><li>Söyle adımında kendi sesini dinler</li></ul></div><div class="kyd-ekran" data-ky-ekran="kasif" aria-hidden="true"></div></article>
+    <article class="kyd-kart" style="--r:#A5DBFF;--i:2"><div class="kyd-metin"><span class="kyd-av" data-av="panda"></span><h3>Yıldızlar <small>7-10 yaş</small></h3><p>Okuma devreye girer: kelime kartını resmiyle eşleştirir.</p><ul><li>Daha çok kelime ve seçenek</li><li>Kelime kartları ve harf treni</li><li>İlkokul İngilizce temalarıyla uyumlu</li></ul></div><div class="kyd-ekran" data-ky-ekran="yildiz" aria-hidden="true"></div></article>
+  </div>
 </section>
 
-<section class="kl-bolum" id="icerik-konular" data-durak="gokkusagi">
-  <h2>12 konuyla başlıyoruz</h2>
-  <p class="kl-alt">Konular okul öncesinde en çok kullanılan temalardan ve ilkokul 2. sınıf İngilizce programının temalarından seçildi.</p>
-  <ul class="kl-konular" data-konular></ul>
+<section class="kkn" id="icerik-konular" data-kk aria-labelledby="kk-b">
+  <div class="kkn-yap" data-kk-yap>
+    <div class="kkn-bas kl-bolum"><h2 id="kk-b"><span data-konu-say>22</span> konu, <span data-kelime-say>500+</span> kelime</h2><p class="kl-alt">Okul öncesinde en çok kullanılan temalar ve ilkokul 2. sınıf İngilizce programının temaları. Her konu oyun dünyasında bir ada.</p></div>
+    <div class="kkn-pencere"><ul class="kkn-serit" data-kk-serit></ul></div>
+    <div class="kkn-cubuk" aria-hidden="true"><i data-kk-cubuk></i></div>
+  </div>
 </section>
 
 <section class="kl-bolum kl-guven" data-durak="ay">
@@ -126,11 +128,20 @@
   </ul>
 </section>
 
-<section class="kl-bolum kl-fiyat" id="fiyat" data-durak="yildiz">
-  <h2>Tek platform, tek fiyat</h2>
-  <div class="kl-fiyat-kart">
-    <div class="kl-fiyat-sol"><p class="kl-etiket">Yıllık okul lisansı</p><p class="kl-tutar"><b>34.900 TL</b><span>+ KDV / yıl</span></p><p>100 öğrenciye kadar kullanım hakkı.</p><p class="kgi-iletisim"><a class="kl-dugme kl-dugme-k" href="#teklif" data-teklif>Kreşim için teklif al</a></p><p class="kgi-iletisim">ya da yazın: <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></p></div>
-    <ul class="kl-fiyat-sag"><li>Paket yok: bütün konular ve üç yaş dünyası tek lisansta.</li><li>Kreş, anaokulu ve ilkokul için aynı platform.</li><li>Okulunuz bu hizmeti velilere ücretsiz sunabilir ya da kendi belirlediği fiyatla sunabilir.</li><li>Tek yıllık ödeme.</li></ul>
+<section class="kl-bolum kt2" id="fiyat" aria-labelledby="kt2-b">
+  <div class="kt2-kart">
+    <div class="kt2-sol">
+      <p class="kl-etiket">Kreşinize özel</p>
+      <h2 id="kt2-b">Size özel teklif, 14 gün ücretsiz deneme</h2>
+      <p class="kt2-giris">Her kreş farklı. Öğrenci sayınıza ve ihtiyacınıza göre size özel bir teklif hazırlayalım; önce birlikte deneyelim.</p>
+      <ol class="kt2-yol">
+        <li><i>1</i><b>İstek bırakın</b><span>Kreş adı, yetkili ve e-posta. Bir dakika sürer.</span></li>
+        <li><i>2</i><b>1 iş gününde dönüş</b><span>Size özel teklif ve kısa bir tanıtım görüşmesi.</span></li>
+        <li><i>3</i><b>Deneme başlasın</b><span>14 gün ücretsiz; sınıflar, kartlar ve şifreler hazır.</span></li>
+      </ol>
+      <div class="kt2-cta"><a class="kl-teklif kt2-dugme" href="#teklif" data-teklif><span class="kl-teklif-y" aria-hidden="true">★</span><span>Kreşim için teklif al</span></a><span>ya da yazın: <a href="mailto:destek@acadex.com.tr">destek@acadex.com.tr</a></span></div>
+    </div>
+    <div class="kt2-sahne" data-kt2-sahne aria-hidden="true"></div>
   </div>
 </section>
 

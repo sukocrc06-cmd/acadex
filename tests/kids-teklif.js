@@ -28,7 +28,7 @@ test('üst bar: parlayan "Kreşim için teklif al", giriş düğmesi sade; dar e
   assert.match(ust, /<span class="kl-teklif-u">Kreşim için teklif al<\/span><span class="kl-teklif-k" aria-hidden="true">Teklif al<\/span>/);
   assert.ok(ust.indexOf('kl-teklif') > ust.indexOf('Giriş yap'), 'teklif en sağda');
   assert.match(ust, /kl-dugme-b kl-giris-ust/, 'giriş beyaz kalır, göz teklife gider');
-  assert.match(s, /kl-fiyat-sol[\s\S]*href="#teklif" data-teklif>Kreşim için teklif al/, 'fiyat kartında da');
+  assert.match(s, /kt2-cta"><a class="kl-teklif kt2-dugme" href="#teklif" data-teklif>/, '"Kreşinize özel teklif" sahnesinde de (15.11.2026: fiyat kartı kalktı)');
   const css = read('kids/assets/kids-landing.css');
   assert.match(css, /\.kl-teklif\{[^}]*background:linear-gradient\(180deg,#FF8A5B,var\(--mercan\)\)/);
   assert.match(css, /\.kl-teklif::after\{[^}]*animation:klTeklifIsik/, 'ışık süzülür');

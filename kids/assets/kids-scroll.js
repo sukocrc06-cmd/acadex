@@ -68,8 +68,8 @@
   }
 
   /* ---------- 2) içerik girişi: başlık maskeden yukarı kayar, kartlar sırayla yumuşakça gelir ---------- */
-  var GIRIS = '.kl-soz,.kl-adimlar>li,.kl-yaslar>li,.kl-konular>li,.kl-guvenler>li,.kl-sss>details,.kl-fiyat-kart,.kl-dene-oyun,.kl-alt,.kb-sekmeler,.kb-paneller,.kl-dene-yazi>p,.kl-dene-yazi>.kl-dugme';
-  var BASLIK = '.kl-bolum>h2,.kl-dene h2';
+  var GIRIS = '.kl-soz,.kl-adimlar>li,.kl-guvenler>li,.kl-sss>details,.kt2-kart,.kl-dene-oyun,.kkn-bas>p,.kl-alt,.kb-sekmeler,.kb-paneller,.kl-dene-yazi>p,.kl-dene-yazi>.kl-dugme';
+  var BASLIK = '.kl-bolum>h2,.kl-dene h2,.kkn-bas>h2,.kt2-sol>h2';
   function maskele(h) {
     if (h.querySelector('.kl-m')) return;
     var dis = D.createElement('span'), ic = D.createElement('span'); dis.className = 'kl-m'; ic.className = 'kl-m-ic';
