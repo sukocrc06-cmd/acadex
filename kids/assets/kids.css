@@ -447,3 +447,48 @@ button.ka-ben:hover{border-color:var(--m);background:var(--beyaz)}
   button.ka-ben b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 @media (prefers-reduced-motion: reduce){.ka-onay-yuz{animation:none}}
+
+/* ==========================================================================
+   15.11.2026 · Harita yenilendi: altta "oyun odası" çubuğu (ka-dock), sade adalar + ilerleme halkası
+   ========================================================================== */
+.ka-dock-bosluk{height:calc(150px + env(safe-area-inset-bottom,0px))}
+.ka-dock{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(to top,var(--krem) 70%,rgba(255,248,231,0));pointer-events:none}
+.ka-dock-ic{display:flex;justify-content:center;gap:clamp(8px,1.4vw,16px);max-width:1080px;margin:0 auto;padding:12px clamp(10px,2vw,20px) 14px;border:3px solid var(--m);border-radius:30px;background:var(--beyaz);box-shadow:0 6px 0 var(--m),0 18px 40px rgba(35,48,77,.18);pointer-events:auto}
+.ka-dock-b{position:relative;flex:1 1 0;display:grid;justify-items:center;gap:6px;min-width:0;max-width:128px;padding:8px 4px 6px;border:0;border-radius:22px;background:none;color:var(--m);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .18s cubic-bezier(.3,1.6,.5,1)}
+.ka-dock-r{display:grid;place-items:center;width:clamp(58px,6.4vw,78px);aspect-ratio:1;border:3px solid var(--m);border-radius:24px;background:radial-gradient(circle at 32% 26%,rgba(255,255,255,.75),rgba(255,255,255,0) 52%),var(--r);box-shadow:0 5px 0 var(--m);transition:transform .18s,box-shadow .18s}
+.ka-dock-r .kc{width:72%;height:72%;display:block}
+.ka-dock-r .kc-simge{filter:drop-shadow(0 2px 0 rgba(35,48,77,.25))}
+.ka-dock-b b{max-width:100%;font:800 clamp(13px,1.35vw,17px)/1.1 var(--bas);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ka-dock-b:hover{transform:translateY(-5px)}
+.ka-dock-b:hover .ka-dock-r{transform:rotate(-4deg)}
+.ka-dock-b:active .ka-dock-r{transform:translateY(4px);box-shadow:0 1px 0 var(--m)}
+.ka-dock-b:focus-visible{outline:4px solid var(--r);outline-offset:2px}
+.ka-dock-yeni{position:absolute;top:0;right:calc(50% - clamp(42px,4.6vw,54px));padding:3px 8px;border:2.5px solid var(--m);border-radius:999px;background:#E5484D;color:#fff;font:800 12px/1 var(--bas);font-style:normal;letter-spacing:.02em;box-shadow:0 3px 0 var(--m);animation:kaYeni 1.6s ease-in-out infinite}
+@keyframes kaYeni{0%,100%{transform:scale(1) rotate(-6deg)}50%{transform:scale(1.14) rotate(4deg)}}
+/* sade ada kartı: büyük ada, adı ve ilerleme halkası (madalya, kelime, paket ayrıntısı dokununca açılan pencerede) */
+.ka-ada .ka-ada-ad b{font-size:clamp(20px,2vw,24px)}
+.ka-halka{position:absolute;top:2%;right:6%;width:clamp(52px,5.4vw,64px);aspect-ratio:1;filter:drop-shadow(0 4px 0 rgba(35,48,77,.85))}
+.ka-halka>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ka-halka-z{fill:var(--beyaz);stroke:#E3E8F1;stroke-width:6}
+.ka-halka-d{fill:none;stroke-width:6;stroke-linecap:round;transform:rotate(-90deg);transform-origin:27px 27px;transition:stroke-dasharray .8s ease}
+.ka-halka::before{content:"";position:absolute;inset:-1px;border:3px solid var(--m);border-radius:50%}
+.ka-halka-i{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;line-height:1}
+.ka-halka-i .kc{width:clamp(16px,1.7vw,20px);height:auto;margin-bottom:1px}
+.ka-halka-i b{font:800 clamp(14px,1.4vw,17px)/1 var(--bas);color:var(--m)}
+.ka-halka-tam .ka-halka-z{fill:#FFF3B0}
+.ka-halka-tam{animation:kaHalka 2.4s ease-in-out infinite}
+@keyframes kaHalka{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+/* "Daha fazlası" penceresi */
+.ka-dahak .ka-pen{width:min(760px,calc(100vw - 24px))}.ka-dahak .ka-koseler{width:100%;margin:6px 0 0}
+@media (max-width:720px){
+  .ka-dock{padding:8px 6px calc(8px + env(safe-area-inset-bottom,0px))}
+  .ka-dock-ic{justify-content:flex-start;gap:4px;padding:8px 8px 10px;border-radius:24px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+  .ka-dock-ic::-webkit-scrollbar{display:none}
+  .ka-dock-b{flex:0 0 82px;padding-top:10px;scroll-snap-align:start}
+  .ka-dock-r{width:56px;border-radius:19px}
+  .ka-dock-b b{font-size:12px;letter-spacing:-.01em;overflow:visible}
+  .ka-dock-yeni{top:2px;right:2px;font-size:11px;padding:2px 6px}
+  .ka-dock-bosluk{height:calc(124px + env(safe-area-inset-bottom,0px))}
+}
+@media (prefers-reduced-motion:reduce){.ka-dock-yeni,.ka-halka-tam{animation:none}.ka-dock-b,.ka-dock-r{transition:none}}
+@media print{.ka-dock{display:none}}
