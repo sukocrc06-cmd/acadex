@@ -158,15 +158,15 @@
   }
 
   /* ---------- konular: aşağı kaydırdıkça yana akan adalar şeridi ---------- */
-  var kk, kkYap, kkSerit, kkCubuk, kkYol = 0;
+  var kk, kkYap, kkSerit, kkCubuk, kkYol = 0, KK_HIZ = 0.4;
   function konuKur() {
     kk = D.querySelector('[data-kk]'); if (!kk) return;
     kkYap = kk.querySelector('[data-kk-yap]'); kkSerit = kk.querySelector('[data-kk-serit]'); kkCubuk = kk.querySelector('[data-kk-cubuk]');
     var K = W.KIDS_KONU, top = 0;
     kkSerit.innerHTML = V.KONU.map(function (k, i) {
       var ogeler = K ? K.hepsi(k.id) : []; top += ogeler.length;
-      return '<li class="kkn-kart" style="--r:' + k.renk + ';--i:' + i + '"><span class="kkn-ada">' + C.ada(k.renk, k.simge, false) + '</span><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small>' +
-        '<span class="kkn-kel">' + ogeler.slice(0, 4).map(function (o) { return '<i title="' + esc(o.en) + '">' + resim(o.id, o.hex) + '<em lang="en">' + esc(o.en) + '</em></i>'; }).join('') + '</span><span class="kkn-say">' + ogeler.length + ' kelime</span></li>';
+      return '<li class="kkn-kart" style="--r:' + k.renk + ';--i:' + i + '"><span class="kkn-ada">' + C.ada(k.renk, k.simge, false) + '</span><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + ' · ' + ogeler.length + ' kelime</small>' +
+        '<span class="kkn-kel" aria-label="' + ogeler.length + ' kelime">' + ogeler.slice(0, 5).map(function (o) { return '<i title="' + esc(o.en) + '">' + resim(o.id, o.hex) + '<em lang="en">' + esc(o.en) + '</em></i>'; }).join('') + '</span><span class="kkn-say">' + ogeler.length + ' kelime</span></li>';
     }).join('');
     var ks = kk.querySelector('[data-konu-say]'), ws = kk.querySelector('[data-kelime-say]');
     if (ks) ks.textContent = V.KONU.length; if (ws && top) ws.textContent = top;
@@ -176,7 +176,7 @@
   function konuOlc() {
     if (!kk || SAKIN) return;
     kkYol = Math.max(0, kkSerit.offsetWidth - kkSerit.parentNode.clientWidth);
-    kk.style.height = 'calc(' + Math.round(kkYol) + 'px + 100vh)';
+    kk.style.height = 'calc(' + Math.round(kkYol * KK_HIZ) + 'px + 100vh)';   /* şerit, dikey kaydırmadan hızlı akar: bölüm kısa kalır */
   }
   function konuCiz() {
     if (!kk || SAKIN) return;

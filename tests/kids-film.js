@@ -94,6 +94,8 @@ test('15.11.2026 (3): fiyat yazmaz; teklif sahnesi, yığılan yaş kartları, y
   assert.match(J, /a\.style\.setProperty\('--ort', p\.toFixed\(3\)\)/);
   assert.match(S, /<section class="kkn" id="icerik-konular" data-kk aria-labelledby="kk-b">/);
   assert.match(J, /kkYol = Math\.max\(0, kkSerit\.offsetWidth - kkSerit\.parentNode\.clientWidth\)/);
+  assert.match(J, /KK_HIZ = 0\.4/, 'konular bölümü kısa: şerit dikey kaydırmadan hızlı akar');
+  assert.match(CSS, /\.kkn-serit\{[^}]*grid-template-rows:repeat\(2,auto\)/, 'iki sıra');
   assert.match(J, /if \(ks\) ks\.textContent = V\.KONU\.length; if \(ws && top\) ws\.textContent = top;/, 'konu ve kelime sayısı veriden');
   assert.match(J, /if \(SAKIN\) \{ kk\.classList\.add\('kk-duragan'\)|if \(SAKIN\) \{ kk\.classList\.add\('kkn-duragan'\)/);
   for (const k of ['.kl-hero::after', '.kf::before', '.kf::after']) assert.ok(CSS.includes(k), k + ' bulut kenarı');
