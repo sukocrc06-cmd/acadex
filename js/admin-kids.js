@@ -118,23 +118,23 @@
      (zorunlu), telefon, il/ilçe, öğrenci sayısı, not. Durum: yeni (bekliyor) → arandı → okul açıldı ya da reddedildi;
      iç notu yalnız yöneticiler görür. "Okul aç": okul deneme olarak açılır (varsayılan 14 gün), yönetici ve
      öğretmen şifresi yalnız o yanıtta bir kez döner. */
-  var ISTEK_DURUM = { bekliyor: ['Yeni', 'warn'], arandi: ['Arandı', 'blue'], onaylandi: ['Okul açıldı', 'ok'], reddedildi: ['Reddedildi', ''] };
-  var ISTEK_FILTRE = [['acik', 'Açık'], ['bekliyor', 'Yeni'], ['arandi', 'Arandı'], ['onaylandi', 'Okul açıldı'], ['reddedildi', 'Reddedildi'], ['hepsi', 'Hepsi']];
+  var ISTEK_DURUM = { bekliyor: ['Yeni', 'warn'], arandi: ['Arandı', 'blue'], teklif: ['Teklif gönderildi', 'blue'], onaylandi: ['Okul açıldı', 'ok'], reddedildi: ['Reddedildi', ''] };
+  var ISTEK_FILTRE = [['acik', 'Açık'], ['bekliyor', 'Yeni'], ['arandi', 'Arandı'], ['teklif', 'Teklif'], ['onaylandi', 'Okul açıldı'], ['reddedildi', 'Reddedildi'], ['hepsi', 'Hepsi']];
   var istekHTML = function (L, filtre) {
     if (L === null || L === undefined) return '<div class="card empty"><span class="hand">istekler henüz açık değil</span>supabase/migrations/20261115_kids_istek.sql çalıştırılınca kreşlerin “Kreşim için teklif al” istekleri burada görünür.</div>';
     filtre = filtre || 'acik';
-    var say = function (f) { return L.filter(function (b) { return f === 'hepsi' || (f === 'acik' ? (b.durum === 'bekliyor' || b.durum === 'arandi') : b.durum === f); }).length; };
-    var G = L.filter(function (b) { return filtre === 'hepsi' || (filtre === 'acik' ? (b.durum === 'bekliyor' || b.durum === 'arandi') : b.durum === filtre); });
+    var say = function (f) { return L.filter(function (b) { return f === 'hepsi' || (f === 'acik' ? (b.durum === 'bekliyor' || b.durum === 'arandi' || b.durum === 'teklif') : b.durum === f); }).length; };
+    var G = L.filter(function (b) { return filtre === 'hepsi' || (filtre === 'acik' ? (b.durum === 'bekliyor' || b.durum === 'arandi' || b.durum === 'teklif') : b.durum === filtre); });
     return '<div class="kd-istek-ust"><p class="muted">Kids tanıtım sayfasındaki <b>“Kreşim için teklif al”</b> düğmesinden gelen istekler. Yetkiliye dönün, durumu işaretleyin; anlaşınca tek tıkla deneme okulu açın.</p>' +
       '<div class="kd-filtre" role="group" aria-label="Duruma göre">' + ISTEK_FILTRE.map(function (f) { return '<button type="button" class="chip' + (f[0] === filtre ? ' on' : '') + '" data-kdfil="' + f[0] + '" aria-pressed="' + (f[0] === filtre) + '">' + f[1] + ' <span>' + NF(say(f[0])) + '</span></button>'; }).join('') + '</div></div>' +
       (G.length ? '<div class="tbl-w"><table class="kd-tbl kd-istek"><thead><tr><th>Kreş</th><th>Yetkili</th><th class="hide-sm">Öğrenci</th><th>Geldi</th><th>Durum</th><th></th></tr></thead><tbody>' +
         G.map(function (b) {
-          var d = ISTEK_DURUM[b.durum] || ISTEK_DURUM.bekliyor, acik = b.durum === 'bekliyor' || b.durum === 'arandi';
+          var d = ISTEK_DURUM[b.durum] || ISTEK_DURUM.bekliyor, acik = b.durum === 'bekliyor' || b.durum === 'arandi' || b.durum === 'teklif';
           return '<tr class="' + (b.durum === 'bekliyor' ? 'kd-yeni' : '') + '"><td><b>' + X(b.kres_ad) + '</b><div class="muted kd-k">' + X([b.ilce, b.il].filter(Boolean).join(', ') || '—') + '</div>' +
             (b.mesaj ? '<div class="kd-istek-mesaj">“' + X(b.mesaj) + '”</div>' : '') + (b.ic_not ? '<div class="kd-istek-not" title="iç not">✎ ' + X(b.ic_not) + '</div>' : '') + '</td>' +
             '<td>' + X(b.yetkili_ad) + '<div class="kd-k">' + (b.eposta ? '<a class="mono" href="mailto:' + X(b.eposta) + '">' + X(b.eposta) + '</a>' : '') + (b.tel ? '<br><a class="mono" href="tel:' + X(String(b.tel).replace(/[^0-9+]/g, '')) + '">' + X(b.tel) + '</a>' : '') + '</div></td>' +
             '<td class="hide-sm">' + (b.ogrenci_sayi ? NF(b.ogrenci_sayi) : '—') + '</td><td>' + DT(String(b.created_at).slice(0, 10)) + '</td>' +
-            '<td>' + (acik ? '<select class="in sm" data-bdurum="' + b.id + '" aria-label="' + X(b.kres_ad) + ' durumu"><option value="bekliyor"' + (b.durum === 'bekliyor' ? ' selected' : '') + '>Yeni</option><option value="arandi"' + (b.durum === 'arandi' ? ' selected' : '') + '>Arandı</option><option value="reddedildi">Reddet</option></select>'
+            '<td>' + (acik ? '<select class="in sm" data-bdurum="' + b.id + '" aria-label="' + X(b.kres_ad) + ' durumu"><option value="bekliyor"' + (b.durum === 'bekliyor' ? ' selected' : '') + '>Yeni</option><option value="arandi"' + (b.durum === 'arandi' ? ' selected' : '') + '>Arandı</option>' + (b.durum === 'teklif' ? '<option value="teklif" selected disabled>Teklif gönderildi</option>' : '') + '<option value="reddedildi">Reddet</option></select>'
               : '<span class="pill ' + d[1] + '">' + d[0] + (b.durum === 'onaylandi' && b.okul_kod ? ' · ' + X(b.okul_kod) : '') + '</span>') + '</td>' +
             '<td class="kd-istek-d"><button type="button" class="btn ghost sm" data-bnot="' + b.id + '">not</button>' + (acik ? ' <button type="button" class="btn sm" data-bonay="' + b.id + '">okul aç</button>' : '') + '</td></tr>';
         }).join('') + '</tbody></table></div>'

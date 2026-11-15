@@ -1,7 +1,7 @@
 /* ==========================================================================
    Acadex · Yönetim paneli · FİNANS (js/admin-finans.js) — 04.11.2026
    "Planlar ve kota"nın yerini alır. Sekmeler: Pano · Planlar ve kota · Maliyet ·
-   Gider · Simülatör · Görevler · Rapor.
+   Gider · Simülatör · Görevler · Rapor · Kids (15.11.2026: Acadex Kids gelir modeli, js/admin-finans-kids.js).
    Yetki veritabanında: fin_* fonksiyonları ve tabloları yalnız yöneticiye ve
    "finans" rolüne açılır (supabase/migrations/20261104_finans.sql). Finans rolü
    öğrencilerin kişisel verisini görmez; gelen her sayı toplamdır.
@@ -34,7 +34,7 @@
   var ACT = { fin_limit: 'Kota değişti', fin_price: 'Fiyat değişti', fin_coupon: 'Kampanya kodu', fin_grant_plan: 'Plan verildi', fin_role_grant: 'Finans erişimi verildi', fin_role_revoke: 'Finans erişimi kaldırıldı' };
 
   var F = { tab: lsGet('tab', 'pano'), ov: null, costs: null, month: ym() };
-  var TABS = [['pano', 'Pano'], ['planlar', 'Planlar ve kota'], ['maliyet', 'Maliyet'], ['gider', 'Gider'], ['sim', 'Simülatör'], ['gorev', 'Görevler'], ['rapor', 'Rapor']];
+  var TABS = [['pano', 'Pano'], ['planlar', 'Planlar ve kota'], ['maliyet', 'Maliyet'], ['gider', 'Gider'], ['sim', 'Simülatör'], ['gorev', 'Görevler'], ['rapor', 'Rapor'], ['kids', 'Kids']];
 
   var notReady = function (e) { return /fin_overview|fin_|plan_prices|payment_|does not exist|PGRST202|PGRST205|42883|42P01/i.test(String((e && (e.message + ' ' + e.code)) || '')); };
   var setupCard = function () {
@@ -62,6 +62,11 @@
     catch (e) { if (notReady(e)) { body.innerHTML = setupCard(); return; } body.innerHTML = '<div class="card"><h2>Yüklenemedi</h2><p class="err">' + X(errMsg(e)) + '</p></div>'; }
   };
   var T = {};
+  /* 15.11.2026: Kids sekmesi ayrı dosyada (js/admin-finans-kids.js); ortak yardımcıları ona verir */
+  T.kids = function (box) {
+    if (!window.AXFIN_KIDS) { box.innerHTML = '<div class="card"><p class="err">js/admin-finans-kids.js yüklenmedi.</p></div>'; return; }
+    return window.AXFIN_KIDS(box, { TL: TL, kurus: kurus, kpi: kpi, barChart: barChart, hbars: hbars, ym: ym, addMonth: addMonth, monthShort: monthShort, monthName: monthName, lsGet: lsGet, lsSet: lsSet, q: q, TST: TST });
+  };
 
   var kpi = function (label, val, sub, tone) { return '<div class="kpi fin-kpi' + (tone ? ' ' + tone : '') + '"><div class="k">' + label + '</div><div class="v">' + val + '</div><div class="s">' + (sub || '') + '</div></div>'; };
 

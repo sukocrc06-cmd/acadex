@@ -1,0 +1,74 @@
+/* Acadex · Finans › Kids (css/admin-finans-kids.css) — 15.11.2026. Önek: fkd- */
+.fkd-ust{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 16px}
+.fkd-alt{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;border:1.5px solid var(--line2);border-radius:999px;background:var(--card)}
+.fkd-alt button{min-height:34px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--ink2);font-family:inherit;font-weight:600;font-size:13.5px;cursor:pointer}
+.fkd-alt button[aria-selected=true]{background:var(--ink);color:#fff}
+.fkd-ust .btn{margin-left:auto}
+.fkd-iki{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.fkd-iki .card,.fkd-iki>div{margin:0}
+.fkd-hedef{margin:12px 0}
+.fkd-hedef>div{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+.fkd-hedef>div span{color:var(--muted);font-weight:600}
+.fkd-hedef i{display:block;height:12px;margin-top:6px;border-radius:99px;background:#EFEBDF;overflow:hidden}
+.fkd-hedef em{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),#8A5CF6);transition:width .6s}
+.fkd-huni{display:grid;gap:8px;margin-top:10px}
+.fkd-h{display:grid;grid-template-columns:130px minmax(0,1fr) 46px;align-items:center;gap:10px;font-size:13px}
+.fkd-h i{display:block;height:28px;border-radius:8px;background:#EFEBDF;position:relative}
+.fkd-h i::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);border-radius:8px;background:linear-gradient(90deg,#2F6BFF,#12A3A3)}
+.fkd-h b{position:relative;display:block;padding:0 10px;line-height:28px;color:#fff;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+.fkd-h em{font-style:normal;color:var(--muted);font-weight:700;text-align:right}
+.fkd-lej{display:inline-block;width:10px;height:10px;margin:0 4px 0 10px;border-radius:3px;vertical-align:middle}
+.fkd-fiyat td,.fkd-tablo td{vertical-align:top}
+.fkd-fiyat .muted,.fkd-tablo .muted{font-size:12px}
+.fkd-filtre{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.fkd-filtre .chip{min-height:32px;padding:0 12px;border:1.5px solid var(--line2);border-radius:999px;background:#fff;color:var(--ink2);font-family:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.fkd-filtre .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.fkd-eylem{white-space:nowrap;text-align:right}
+.fkd-eylem .btn{margin:2px 0 2px 4px}
+.fkd-eylem select.in.sm{width:auto;min-height:34px;padding:4px 8px;margin-right:4px}
+tr.fkd-gec td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.fkd-istekler h2{display:flex;align-items:center;gap:8px}
+.fkd-ist{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.fkd-ist-k{display:grid;gap:4px;justify-items:start;padding:10px 12px;border:1.5px solid var(--line2);border-radius:10px;background:#fff}
+.fkd-ist-k .muted{font-size:12px}
+/* teklif formu */
+.fkd-form fieldset{margin:0 0 12px;padding:10px 12px 4px;border:1.5px solid var(--line);border-radius:12px}
+.fkd-form legend{padding:0 6px;font-weight:700;font-size:13px}
+.fkd-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10px}
+.fkd-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 10px}
+.fkd-paketler{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.fkd-pk,.fkd-dn{position:relative;display:block;cursor:pointer}
+.fkd-pk input,.fkd-dn input{position:absolute;opacity:0;pointer-events:none}
+.fkd-pk span{display:grid;gap:2px;padding:10px 12px;border:1.5px solid var(--line2);border-radius:10px;background:#fff}
+.fkd-pk small{color:var(--muted);font-size:12px}
+.fkd-pk input:checked+span,.fkd-dn input:checked+span{border-color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink);background:var(--blue-l)}
+.fkd-pk input:focus-visible+span,.fkd-dn input:focus-visible+span{outline:2px solid var(--blue);outline-offset:2px}
+.fkd-donem{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.fkd-dn span{display:block;padding:8px 10px;border:1.5px solid var(--line2);border-radius:10px;background:#fff;text-align:center;font-weight:600}
+.fkd-dn small{color:var(--green);font-weight:800}
+.fkd-chk{display:flex;gap:8px;align-items:center;margin:4px 0 10px;font-size:14px}
+.fkd-onizle{margin:12px 0 6px;padding:12px 14px;border:1.5px solid var(--ink);border-radius:12px;background:var(--card)}
+.fkd-dok{width:100%;border-collapse:collapse;font-size:13.5px}
+.fkd-dok td{padding:4px 0;border-bottom:1px solid var(--line)}
+.fkd-dok td:last-child{text-align:right;white-space:nowrap}
+.fkd-ind td{color:var(--green)}
+.fkd-net td{font-weight:800}
+.fkd-top td{font-weight:800;font-size:16px;border-bottom:0}
+.fkd-takvim{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.fkd-takvim span{display:grid;gap:1px;padding:6px 10px;border-radius:10px;background:var(--blue-l);font-size:12.5px}
+.fkd-takvim em{font-style:normal;font-weight:800}
+/* yol haritası */
+.fkd-hafta{margin-bottom:12px}
+.fkd-hafta h3{margin:0 0 6px;font-size:14px;font-family:'JetBrains Mono',monospace;letter-spacing:.04em;color:var(--muted)}
+.fkd-hafta ul{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.fkd-hafta li{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fff}
+.fkd-hafta label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;min-width:0}
+.fkd-hafta input{margin-top:3px;width:18px;height:18px;flex:none}
+.fkd-hafta label span{display:grid;gap:2px}
+.fkd-hafta small{color:var(--muted);font-size:12.5px}
+.fkd-hafta em{flex:none;font-style:normal;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+.fkd-hafta li.fkd-bitti b{text-decoration:line-through;color:var(--muted)}
+.fkd-hafta li.fkd-gec{border-color:var(--red)}
+.fkd-hafta li.fkd-gec em{color:var(--red)}
+.fkd-ayar .fld{min-width:0}
+@media (max-width:860px){.fkd-iki{grid-template-columns:minmax(0,1fr)}.fkd-h{grid-template-columns:96px minmax(0,1fr) 40px}.fkd-3{grid-template-columns:minmax(0,1fr)}.fkd-hafta li{flex-direction:column}}
