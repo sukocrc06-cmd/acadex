@@ -2,9 +2,9 @@
    ACADEX KIDS · "Oyun dünyana gidiyorsun!" uçuşu (kids/assets/kids-ucus.js), 15.11.2026
    Çocuk giriş yapınca (şifreyle ya da "Kim oynuyor?"dan) renkli bir evrenden roketle uçar:
    rokettin penceresinde kendi yüzü (hayvan + renk), yanında Acadia, yanından adalar ve
-   yıldızlar akar; bulutların arasından haritaya iner. Yaklaşık 3,2 sn; aynı gün aynı çocuk
-   ikinci kez girerse 1,1 sn'lik kısa hâli. Dokununca ya da bir tuşa basınca atlanır.
-   Sessizdir. Hareketi azalt açıksa yalnız yumuşak bir solma (0,9 sn).
+   yıldızlar akar; bulutların arasından haritaya iner. Yaklaşık 5,2 sn, yumuşak geçişlerle; aynı gün
+   aynı çocuk ikinci kez girerse 2,2 sn'lik kısa hâli. Sonda harita 1 sn'de yavaşça belirir.
+   Dokununca ya da bir tuşa basınca atlanır. Sessizdir. Hareketi azalt açıksa yalnız yumuşak bir solma (1,2 sn).
    KIDS_UCUS.oynat({ad, hayvan, renk, anahtar}) → bitince çözülen Promise.
    ========================================================================== */
 (function (W) {
@@ -38,7 +38,7 @@
   function sahne(o, kisa) {
     var yildiz = '', ada = '', bulut = '', n = kisa ? 26 : 54;
     for (var i = 0; i < n; i++) {
-      var a = (i * 137.5) % 360, t = (0.7 + (i % 5) * 0.18).toFixed(2), d = (-(i % 9) * 0.11).toFixed(2), c = ['#FFFFFF', '#FFD23F', '#A5DBFF', '#FFB3D1', '#B8F2C8'][i % 5];
+      var a = (i * 137.5) % 360, t = (1.3 + (i % 5) * 0.3).toFixed(2), d = (-(i % 9) * 0.11).toFixed(2), c = ['#FFFFFF', '#FFD23F', '#A5DBFF', '#FFB3D1', '#B8F2C8'][i % 5];
       yildiz += '<i style="--a:' + a.toFixed(1) + 'deg;--t:' + t + 's;--d:' + d + 's;--c:' + c + '"></i>';
     }
     if (!kisa && V && V.KONU) {
@@ -59,7 +59,7 @@
     o = o || {};
     return new Promise(function (bitti) {
       if (!C || !D.body) return bitti();
-      var kisa = SAKIN ? false : kisaMi(o.anahtar || ('?' + (o.ad || ''))), sure = SAKIN ? 900 : kisa ? 1100 : 3200;
+      var kisa = SAKIN ? false : kisaMi(o.anahtar || ('?' + (o.ad || ''))), sure = SAKIN ? 1200 : kisa ? 2200 : 5200;   /* 15.11.2026: yumuşak geçiş (önce 3,2 / 1,1 sn) */
       var k = D.createElement('div');
       k.className = 'ku' + (kisa ? ' ku-kisa' : '') + (SAKIN ? ' ku-sakin' : '');
       k.style.setProperty('--sure', sure + 'ms');
@@ -69,7 +69,7 @@
         if (!k.isConnected || k.dataset.bitiyor) return; k.dataset.bitiyor = '1';
         D.removeEventListener('keydown', tus, true); clearTimeout(z);
         k.classList.add('ku-son');
-        setTimeout(function () { k.remove(); bitti(); }, hizli ? 220 : 380);
+        setTimeout(function () { k.remove(); bitti(); }, hizli ? 450 : 1000);
       };
       var tus = function () { bitir(true); };
       var z = setTimeout(function () { bitir(false); }, sure);

@@ -2,10 +2,10 @@
    ACADEX KIDS · "Oyun dünyana gidiyorsun!" uçuşu (kids/assets/kids-ucus.css), 15.11.2026
    Bütün parçalar aynı süreye (--sure) göre yüzdeyle zamanlanır: tam 3,2 sn, kısa 1,1 sn.
    ========================================================================== */
-.ku{position:fixed;inset:0;z-index:300;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .38s ease}
+.ku{position:fixed;inset:0;z-index:300;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity 1s cubic-bezier(.4,0,.2,1)}
 .ku.ku-son{opacity:0}
 .ku-evren{position:absolute;inset:0;background:radial-gradient(circle at 50% 46%,#FFB3D1 0,#B58CFF 18%,#5B3FC4 42%,#251A66 70%,#120C33 100%);animation:kuEvren var(--sure) ease forwards}
-@keyframes kuEvren{0%{opacity:0}7%{opacity:1}80%{opacity:1}88%,100%{opacity:0}}
+@keyframes kuEvren{0%{opacity:0}14%{opacity:1}76%{opacity:1}92%,100%{opacity:0}}
 .ku-nebula,.ku-gokkusagi{position:absolute;left:50%;top:46%;border-radius:50%;pointer-events:none}
 .ku-nebula{width:140vmax;height:140vmax;margin:-70vmax 0 0 -70vmax;background:conic-gradient(from 0deg,rgba(255,107,91,.35),rgba(255,210,63,.3),rgba(76,195,138,.3),rgba(74,168,255,.35),rgba(142,124,240,.35),rgba(255,122,168,.3),rgba(255,107,91,.35));filter:blur(40px);animation:kuDon calc(var(--sure) * 3) linear infinite}
 .ku-gokkusagi{width:46vmin;height:46vmin;margin:-23vmin 0 0 -23vmin;background:radial-gradient(circle,rgba(255,255,255,.9) 0,rgba(255,243,176,.6) 22%,rgba(255,255,255,0) 60%);animation:kuNabiz calc(var(--sure) / 3) ease-in-out infinite alternate}
@@ -19,7 +19,7 @@
 .ku-ada .kc{width:100%;height:auto;display:block}
 @keyframes kuAda{0%{opacity:0;transform:rotate(var(--a)) translateX(4vmin) rotate(calc(var(--a) * -1)) scale(.2)}20%{opacity:1}100%{opacity:1;transform:rotate(var(--a)) translateX(70vmax) rotate(calc(var(--a) * -1)) scale(2.4)}}
 /* roket ve pencerede çocuğun yüzü */
-.ku-roket{position:absolute;left:50%;top:46%;width:clamp(120px,22vmin,210px);margin-left:calc(clamp(120px,22vmin,210px) / -2);translate:0 -50%;animation:kuRoket var(--sure) cubic-bezier(.4,0,.2,1) forwards}
+.ku-roket{position:absolute;left:50%;top:46%;width:clamp(120px,22vmin,210px);margin-left:calc(clamp(120px,22vmin,210px) / -2);translate:0 -50%;animation:kuRoket var(--sure) cubic-bezier(.45,.05,.3,1) forwards}
 .ku-roket-c{display:block;width:100%;height:auto;overflow:visible}
 .ku-yuz{position:absolute;left:50%;top:39%;width:40%;aspect-ratio:1;translate:-50% -50%;border-radius:50%;overflow:hidden}
 .ku-yuz .kc{width:100%;height:100%;display:block}
@@ -45,17 +45,17 @@
 .ku-yazi{position:absolute;left:0;right:0;bottom:12vh;margin:0;padding:0 16px;text-align:center;animation:kuYazi var(--sure) ease forwards}
 .ku-yazi span{display:inline-block;padding:12px 26px;border:4px solid #23304D;border-radius:999px;background:#FFF8E7;color:#23304D;box-shadow:0 7px 0 #23304D;font:800 clamp(24px,4.6vw,44px)/1.1 'Baloo 2','Nunito',system-ui,sans-serif}
 .ku-yazi b{color:#E5484D}
-@keyframes kuYazi{0%,16%{opacity:0;transform:translateY(40px) scale(.6)}26%{opacity:1;transform:translateY(-6px) scale(1.08)}32%,74%{opacity:1;transform:none}84%,100%{opacity:0;transform:translateY(-20px) scale(.9)}}
+@keyframes kuYazi{0%,14%{opacity:0;transform:translateY(24px) scale(.94)}28%,72%{opacity:1;transform:none}86%,100%{opacity:0;transform:translateY(-12px) scale(.98)}}
 /* bulutların arasından iniş: önce ekranı kaplar, sonra açılıp haritayı gösterir */
 .ku-bulutlar{position:absolute;inset:0;pointer-events:none}
-.ku-bulut{position:absolute;left:50%;top:50%;width:60vmax;margin:-13.5vmax 0 0 -30vmax;opacity:0;animation:kuBulut var(--sure) cubic-bezier(.3,0,.3,1) var(--d) forwards}
+.ku-bulut{position:absolute;left:50%;top:50%;width:60vmax;margin:-13.5vmax 0 0 -30vmax;opacity:0;animation:kuBulut var(--sure) cubic-bezier(.45,0,.35,1) var(--d) forwards}
 .ku-bulut .kc{width:100%;height:auto;display:block}
 @keyframes kuBulut{
-  0%,66%{opacity:0;transform:rotate(var(--a)) translateX(0) rotate(calc(var(--a) * -1)) scale(.15)}
-  80%{opacity:1;transform:rotate(var(--a)) translateX(12vmax) rotate(calc(var(--a) * -1)) scale(1.6)}
-  100%{opacity:0;transform:rotate(var(--a)) translateX(85vmax) rotate(calc(var(--a) * -1)) scale(2.2)}}
+  0%,60%{opacity:0;transform:rotate(var(--a)) translateX(0) rotate(calc(var(--a) * -1)) scale(.2)}
+  78%{opacity:.95;transform:rotate(var(--a)) translateX(10vmax) rotate(calc(var(--a) * -1)) scale(1.5)}
+  100%{opacity:0;transform:rotate(var(--a)) translateX(70vmax) rotate(calc(var(--a) * -1)) scale(2)}}
 .ku-bulutlar::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,#fff 0,rgba(255,255,255,.9) 38%,rgba(255,255,255,0) 78%);opacity:0;animation:kuBeyaz var(--sure) ease forwards}
-@keyframes kuBeyaz{0%,70%{opacity:0}82%{opacity:.95}100%{opacity:0}}
+@keyframes kuBeyaz{0%,66%{opacity:0}82%{opacity:.8}100%{opacity:0}}
 .ku-kisa .ku-bulutlar::after{animation-name:kuBeyazK}
 @keyframes kuBeyazK{0%,45%{opacity:0}66%{opacity:.95}100%{opacity:0}}
 /* kısa hâl (aynı gün ikinci giriş) */

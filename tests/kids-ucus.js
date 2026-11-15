@@ -64,7 +64,7 @@ test('uçuş: yalnız girişte; kısa hâl aynı gün; sessiz; Acadia sonra konu
   assert.match(a, /W\.KIDS_UCUS\.oynat\(\{ ad: S\.ogr\[0\], hayvan: S\.ogr\[1\], renk: S\.ogr\[4\], anahtar: [\s\S]*?\}\)\.then\(karsila\); else karsila\(\);/);
   const u = read('kids/assets/kids-ucus.js');
   assert.doesNotMatch(u, /SES\.|KIDS_SES|speechSynthesis/, 'sessiz');
-  assert.match(u, /sure = SAKIN \? 900 : kisa \? 1100 : 3200/);
+  assert.match(u, /sure = SAKIN \? 1200 : kisa \? 2200 : 5200/);
   assert.match(u, /k\.addEventListener\('pointerdown', function \(\) \{ bitir\(true\); \}\)/, 'dokununca atlanır');
   const store = {}, c = { document: { body: null }, matchMedia: () => ({ matches: false }), localStorage: { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } }, KIDS_CIZ: {} };
   c.window = c; vm.createContext(c); vm.runInContext(u, c);
