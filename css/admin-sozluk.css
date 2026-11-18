@@ -1,0 +1,21 @@
+/* Yönetim → Sözlük (js/admin-sozluk.js), 18.11.2026 */
+.sz-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+@media (max-width:760px){.sz-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sz-kpi .card{display:flex;flex-direction:column;gap:4px;padding:14px 16px}
+.sz-kpi b{font-size:26px;line-height:1}
+.sz-say{margin:4px 0 8px}
+.sz-t tr[data-szt]{cursor:pointer}
+.sz-t tr[data-szt]:hover td,.sz-t tr[data-szt]:focus td{background:rgba(47,107,255,.06)}
+.sz-t tr[data-szt]:focus{outline:2px solid #2F6BFF;outline-offset:-2px}
+.sz-nok{display:inline-flex;gap:4px}
+.sz-nok i{display:grid;place-items:center;width:22px;height:22px;border:1.5px dashed #9AA6BF;border-radius:50%;font-style:normal;font-size:11px;font-weight:800;color:#6B7690}
+.sz-nok i.on{border:1.5px solid #1E8A55;background:#1E8A55;color:#fff}
+.sz-alanlar{display:flex;min-width:0;flex-wrap:wrap;gap:6px 12px;margin:0;padding:10px 12px;border:1px solid var(--line2,#D5DBE5);border-radius:10px}
+.sz-alanlar legend{padding:0 4px;font-size:13px;font-weight:700}
+.sz-alanlar label{display:inline-flex;align-items:center;gap:6px;min-height:32px;font-size:13.5px}
+.sz-wd{padding:12px 14px}
+.sz-wdb{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sz-wdb .muted{flex:1;font-size:13px}
+.sz-wdl{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.sz-wdl li{padding:8px 10px;border:1px solid var(--line2,#D5DBE5);border-radius:8px}
+.sz-wdl .lnk{min-height:32px;text-align:left}
