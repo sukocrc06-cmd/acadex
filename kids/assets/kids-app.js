@@ -224,10 +224,12 @@
         var n = OD.konuYildiz(il, k.id), bitti = !!il.bitti[k.id], sv = OD.seviye(il, k.id), as = OD.asama(il, k.id), us = OD.ustalik(il, k.id), np = k.acik ? paketSay(k.id) : 1, gor = (il.asamaGor || {})[k.id] || 0;
         if (k.acik && as > gor) yukselen.push(k.id);
         return (k.grup === 2 && !(V.KONU[i - 1] || {}).grup ? '</ol><h2 class="ka-takimada"><span>İkinci takımada</span><small>' + V.KONU.filter(function (x) { return x.grup === 2; }).length + ' yeni ada</small></h2><ol class="ka-adalar">' : '') + '<li style="--i:' + (i % 12) + '"><button type="button" class="ka-ada' + (k.acik ? '' : ' ka-kilitli') + (k.id === bid ? ' ka-ada-bugun' : '') + (bitti ? ' ka-ada-bitti' : '') + ' ka-as' + as + (as > gor ? ' ka-ada-yukseldi' : '') + '" ' + (k.acik ? 'data-konu="' + k.id + '"' : 'data-yakinda') + ' aria-label="' + esc(k.en + ', ' + k.tr + (k.acik ? ', ' + n + ' / ' + OD.konuMax(k.id) + ' yıldız' + (bitti ? ', bitti' : '') : ', yakında')) + '">' +
-          C.ada(k.renk, k.simge, !k.acik, k.acik ? OD.adaEk(k.id, as) : '') + (bitti ? adaCanli(k) : '') + (as > gor ? '<span class="ka-ada-konfeti" aria-hidden="true">' + new Array(13).join('<i></i>') + '</span>' : '') + '<span class="ka-ada-ad"><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small></span>' +
+          (W.KIDS_UZAY ? W.KIDS_UZAY.gezegen(k.renk, k.simge, !k.acik, k.acik ? as : 0, i) : C.ada(k.renk, k.simge, !k.acik, k.acik ? OD.adaEk(k.id, as) : '')) + (bitti ? adaCanli(k) : '') + (as > gor ? '<span class="ka-ada-konfeti" aria-hidden="true">' + new Array(13).join('<i></i>') + '</span>' : '') + '<span class="ka-ada-ad"><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small></span>' +
           (k.acik ? halka(n, OD.konuMax(k.id), k.renk) : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button></li>';
       }).join('') + '</ol></section>' + dockHtml(il), 'harita');
-    app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); adaSec(kid); }); });
+    app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); if (W.KIDS_UZAY && W.KIDS_UZAY.aktif()) W.KIDS_UZAY.uc(kid, function () { adaSec(kid); }); else adaSec(kid); }); });
+    /* uzay teması (kids-uzay.js): çocuk kasklı astronot olarak son gittiği gezegenin yanında süzülür */
+    if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid });
     /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
     app.querySelectorAll('[data-setoyna]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); S.seviye = 1; S.paket = 0; konuAc(b.getAttribute('data-setoyna'), 0); }); });
     /* ada büyüdüyse: bir kez kutla, sonra hatırla */
@@ -552,11 +554,13 @@
     if (SAKIN || !ada || !cikis || !W.Element.prototype.animate) return sonra();
     var k = V.konuBul(kid), a = merkez(cikis), h = merkez(ada), o = D.createElement('div');
     if (h.r.bottom < 0 || h.r.top > W.innerHeight) { try { ada.scrollIntoView({ block: 'center' }); } catch (e) { } h = merkez(ada); }
-    o.className = 'ka-ucus'; o.innerHTML = '<span class="ka-ucus-acd" style="left:' + a.x + 'px;top:' + a.y + 'px">' + acd('kutlama') + '</span><i class="ka-ucus-perde" style="--r:' + k.renk + '"></i>';
+    /* uzayda astronot gezegene zaten uçtu: Acadia ikinci kez uçmaz, renk perdesi gezegenden açılır */
+    var uzay = !!(W.KIDS_UZAY && W.KIDS_UZAY.aktif() && app.querySelector('.kz-ast-yer'));
+    o.className = 'ka-ucus'; o.innerHTML = '<span class="ka-ucus-acd" style="left:' + a.x + 'px;top:' + a.y + 'px' + (uzay ? ';display:none' : '') + '">' + acd('kutlama') + '</span><i class="ka-ucus-perde" style="--r:' + k.renk + '"></i>';
     D.body.appendChild(o); SES.fx('cevir');
     var ac_ = o.firstChild, dx = h.x - a.x, dy = h.y - a.y - 30;
     ac_.animate([{ transform: 'translate(-50%,-50%) rotate(0) scale(1)' }, { transform: 'translate(calc(-50% + ' + dx / 2 + 'px),calc(-50% + ' + (dy / 2 - 140) + 'px)) rotate(-14deg) scale(1.15)', offset: .5 }, { transform: 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) rotate(6deg) scale(.8)' }],
-      { duration: 780, easing: 'cubic-bezier(.45,0,.2,1)', fill: 'forwards' }).finished.then(function () {
+      { duration: uzay ? 1 : 780, easing: 'cubic-bezier(.45,0,.2,1)', fill: 'forwards' }).finished.then(function () {
       SES.fx('yildiz'); ada.classList.add('ka-ada-kon');
       var p = o.lastChild, cr = 'circle(0px at ' + h.x + 'px ' + h.y + 'px)', ck = 'circle(' + Math.hypot(W.innerWidth, W.innerHeight) + 'px at ' + h.x + 'px ' + h.y + 'px)';
       return p.animate([{ clipPath: cr }, { clipPath: ck }], { duration: 480, easing: 'cubic-bezier(.6,0,.3,1)', fill: 'forwards' }).finished;

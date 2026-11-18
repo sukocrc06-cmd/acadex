@@ -44,7 +44,7 @@
     if (!kisa && V && V.KONU) {
       V.KONU.slice(0, 6).forEach(function (k, i) {
         var a = [210, 330, 30, 150, 260, 90][i];
-        ada += '<span class="ku-ada" style="--a:' + a + 'deg;--d:' + (0.25 + i * 0.22).toFixed(2) + 's">' + C.ada(k.renk, k.simge, false) + '</span>';
+        ada += '<span class="ku-ada" style="--a:' + a + 'deg;--d:' + (0.25 + i * 0.22).toFixed(2) + 's">' + (W.KIDS_UZAY ? W.KIDS_UZAY.gezegen(k.renk, k.simge, false, 0, i) : C.ada(k.renk, k.simge, false)) + '</span>';
       });
     }
     for (var b = 0; b < 7; b++) bulut += '<span class="ku-bulut" style="--a:' + (b * 51) + 'deg;--d:' + (b * 0.03).toFixed(2) + 's">' + C.bulut() + '</span>';

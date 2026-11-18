@@ -1,0 +1,63 @@
+/* ==========================================================================
+   ACADEX KIDS · UZAY TEMASI (kids/assets/kids-uzay.css), 19.11.2026 — bkz. kids-uzay.js
+   html.kz-uzay       : giriş + harita (yıldızlar, kayan yıldız, ateş topu, gezegenler, astronot)
+   html.kz-uzay-sakin : konu ve kitap ekranları (yalnız sakin yıldızlar; kartlar okunaklı kalır)
+   ========================================================================== */
+.kz-tuval{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0;transition:opacity .6s}
+html.kz-uzay .kz-tuval,html.kz-uzay-sakin .kz-tuval{opacity:1}
+html.kz-uzay body,html.kz-uzay-sakin body{
+  background-color:#0B1033;background-attachment:fixed;
+  background-image:radial-gradient(1200px 700px at 12% 8%,rgba(142,124,240,.38),transparent 62%),
+    radial-gradient(900px 600px at 92% 30%,rgba(255,111,165,.22),transparent 60%),
+    radial-gradient(1000px 800px at 40% 110%,rgba(74,168,255,.28),transparent 60%),
+    linear-gradient(180deg,#0B1033 0%,#1A1B57 55%,#2A1E66 100%);
+}
+html.kz-uzay #kids-app,html.kz-uzay-sakin #kids-app{position:relative;z-index:1}
+html.kz-uzay-sakin body{background-color:#141A4A}
+
+/* ---------- giriş: kartlar aynı, etrafı uzay ---------- */
+html.kz-uzay .ka-kart{box-shadow:0 8px 0 var(--m),0 0 0 6px rgba(255,255,255,.08),0 30px 80px -20px rgba(142,124,240,.6)}
+html.kz-uzay .ka-giris .ka-ornek,html.kz-uzay .ka-giris > p{color:inherit}
+
+/* ---------- harita ---------- */
+html.kz-uzay .ka-bulutlar{display:none}
+html.kz-uzay .ka-takimada{color:#fff;text-shadow:0 3px 0 rgba(11,16,51,.6)}
+html.kz-uzay .ka-takimada small{color:#C9D3EE}
+html.kz-uzay .ka-takimada span::before{content:"✦ ";color:#FFD23F}
+html.kz-uzay .ka-dock{background:linear-gradient(to top,rgba(11,16,51,.92) 60%,rgba(11,16,51,0))}
+/* gezegen: süzülme aynı, gölge yok; kilitli gezegen soluk */
+html.kz-uzay .ka-ada .kz-gz{filter:drop-shadow(0 10px 18px rgba(0,0,0,.35))}
+html.kz-uzay .ka-kilitli .kz-gz{filter:saturate(.4) brightness(.85)}
+.kz-gz .kz-ay-y{transform-box:view-box;transform-origin:100px 108px}
+@media (prefers-reduced-motion:no-preference){
+  .kz-gz .kz-ay-y{animation:kzAy 9s linear infinite}
+  .kz-gz .kz-bayrak path:last-child{transform-box:fill-box;transform-origin:0 50%;animation:kzBayrak 1.6s ease-in-out infinite alternate}
+  .kz-gz .kz-altin{transform-box:view-box;transform-origin:100px 108px;animation:kzAy 40s linear infinite}
+}
+@keyframes kzAy{to{transform:rotate(360deg)}}
+@keyframes kzBayrak{from{transform:skewY(-6deg) scaleX(.94)}to{transform:skewY(5deg) scaleX(1)}}
+
+/* ---------- astronot ---------- */
+.kz-ast-yer{position:absolute;left:0;top:0;z-index:6;width:clamp(58px,7vw,84px);margin:-20px 0 0 -30px;pointer-events:none;will-change:transform}
+.kz-ast{display:block;animation:kzSuz 3.2s ease-in-out infinite alternate}
+.kz-ast-ic{position:relative;display:block}
+.kz-ast-g{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+.kz-ast-yuz{position:absolute;left:25%;top:7.5%;width:50%;aspect-ratio:1;border-radius:50%;overflow:hidden}
+.kz-ast-yuz .kc{width:100%;height:100%;display:block;transform:scale(1.12)}
+.kz-ast-cam{position:absolute;left:25%;top:7.5%;width:50%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 30% 26%,rgba(255,255,255,.75) 0 9%,rgba(255,255,255,0) 22%),linear-gradient(160deg,rgba(191,227,255,.35),rgba(191,227,255,0) 55%);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.kz-alev{opacity:0;transform-box:fill-box;transform-origin:50% 0;transition:opacity .2s}
+.kz-ucuyor .kz-alev{opacity:1;animation:kzAlev .12s linear infinite alternate}
+.kz-ucuyor .kz-ast{animation:none}
+@keyframes kzAlev{from{transform:scaleY(.85)}to{transform:scaleY(1.15)}}
+@keyframes kzSuz{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-10px) rotate(4deg)}}
+@media (prefers-reduced-motion:reduce){.kz-ast{animation:none}}
+@media (max-width:600px){.kz-ast-yer{width:56px;margin:-16px 0 0 -26px}}
+
+/* ---------- konu / kitap: sakin yıldızlar, kartlar krem ---------- */
+html.kz-uzay-sakin [data-gorunum="konu"] .ka-konu-ust,html.kz-uzay-sakin [data-gorunum="kitap"] .ka-konu-ust{box-shadow:0 0 0 3px rgba(255,255,255,.12)}
+
+/* ---------- giriş uçuşu: bulut yerine yıldız kapısı ---------- */
+html.kz-uzay .ku-bulutlar .ku-bulut{display:none}
+html.kz-uzay .ku-bulutlar::after{background:radial-gradient(circle at 50% 50%,#2A1E66 0,rgba(26,27,87,.92) 40%,rgba(11,16,51,0) 80%)}
+
+@media print{.kz-tuval,.kz-ast-yer{display:none!important}html.kz-uzay body{background:#fff!important}}
