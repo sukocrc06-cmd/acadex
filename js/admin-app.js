@@ -321,8 +321,15 @@
     EK.teams = a[0].data || []; EK.people = a[1].data || [];
     /* 2. adım (20261029c) kurulu mu? kurulu değilse yeni alanlar gizlenir, kayıt bozulmaz */
     EK.v2 = !EK.teams.length || Object.prototype.hasOwnProperty.call(EK.teams[0], 'state');
+    /* 3. adım (20261118_acadex_ekip_3.sql): çatı birim (parent_id) kurulu mu? */
+    EK.v3 = !!EK.teams.length && Object.prototype.hasOwnProperty.call(EK.teams[0], 'parent_id');
   };
   var ekTeam = function (id) { return EK.teams.filter(function (t) { return t.id === id; })[0] || null; };
+  /* 18.11.2026 · çatı birim: ör. "Marka ve Pazarlama" çatısı altında Tasarım, Pazarlama, Digital Marketing (tek kademe) */
+  var ekParent = function (t) { return t && t.parent_id && t.parent_id !== t.id ? ekTeam(t.parent_id) : null; };
+  var ekKids = function (t) { return t ? EK.teams.filter(function (x) { return x.parent_id === t.id && x.id !== t.id; }).sort(function (a, b) { return (a.sort - b.sort) || a.name.localeCompare(b.name, 'tr'); }) : []; };
+  /* birim listesi: çatının alt birimleri çatının hemen ardından */
+  var ekOrdered = function () { var out = []; EK.teams.forEach(function (t) { if (ekParent(t)) return; out.push(t); out = out.concat(ekKids(t)); }); return out; };
   var ekOpen = function (p) { return p.status === 'acik'; };
   var ekOf = function (tid) { return EK.people.filter(function (p) { return p.team_id === tid; }).sort(function (a, b) { return (ekOpen(a) - ekOpen(b)) || (b.is_lead - a.is_lead) || (a.sort - b.sort) || a.full_name.localeCompare(b.full_name, 'tr'); }); };
   var ekLines = function (s) { return String(s || '').split(/\n+/).map(function (x) { return x.trim(); }).filter(Boolean); };
@@ -338,19 +345,20 @@
       (p.reports_to && p.reports_to !== '—' ? '<span class="ek-rep">bağlı: ' + X(p.reports_to) + '</span>' : '') + '</span></button>';
   };
   var ekTeamPills = function (t) {
-    var f = !t.is_board && !t.is_advisory ? (ekIsStaff(t) ? null : ekFounderOf(t)) : null;
-    return (!t.is_board && !t.is_advisory ? '<span class="pill ek-kol">' + (ekIsStaff(t) ? 'yönetime doğrudan bağlı' : f ? X(f.full_name) + ' kolu' : '') + '</span>' : '') +
+    var f = !t.is_board && !t.is_advisory ? (ekIsStaff(t) ? null : ekFounderOf(t)) : null, up = ekParent(t), ks = ekKids(t);
+    return (up ? '<span class="pill ek-up" style="--tc:' + X(up.color) + '">' + X(up.name) + ' çatısı altında</span>' : '') + (ks.length ? '<span class="pill blue">çatı · ' + ks.length + ' alt birim</span>' : '') + (!t.is_board && !t.is_advisory ? '<span class="pill ek-kol">' + (ekIsStaff(t) ? 'yönetime doğrudan bağlı' : f ? X(f.full_name) + ' kolu' : '') + '</span>' : '') +
       (t.state && t.state !== 'kuruldu' ? '<span class="pill ' + (ETSC[t.state] || '') + '">' + ETS[t.state] + '</span>' : '') +
       (t.priority ? '<span class="pill ' + (EPRIC[t.priority] || '') + '">' + EPRI[t.priority] + '</span>' : '');
   };
   var ekTeamCard = function (t) {
-    var ps = ekOf(t.id), real = ps.filter(function (p) { return !ekOpen(p); }).length, duties = ekLines(t.duties);
-    return '<div class="card ek-team' + (t.state && t.state !== 'kuruldu' ? ' dash' : '') + '" style="--tc:' + X(t.color) + '"><div class="ek-th"><span class="ek-dot"></span><h2><button type="button" class="ek-tlink" data-ekt="' + X(t.id) + '">' + X(t.name) + '</button></h2><span class="muted">' + real + ' kişi</span></div>' +
+    var ps = ekOf(t.id), ks = ekKids(t), real = ps.concat.apply(ps, ks.map(function (c) { return ekOf(c.id); })).filter(function (p) { return !ekOpen(p); }).length, duties = ekLines(t.duties);
+    return '<div class="card ek-team' + (t.state && t.state !== 'kuruldu' ? ' dash' : '') + (ekParent(t) ? ' ek-child' : '') + (ekKids(t).length ? ' ek-roof' : '') + '" style="--tc:' + X(t.color) + '"><div class="ek-th"><span class="ek-dot"></span><h2><button type="button" class="ek-tlink" data-ekt="' + X(t.id) + '">' + X(t.name) + '</button></h2><span class="muted">' + real + ' kişi</span></div>' +
       (!t.is_board ? '<div class="ek-pills">' + ekTeamPills(t) + '</div>' : '') +
       (t.coordinator ? '<p class="ek-coord">' + X(t.coordinator) + '</p>' : '') +
       (t.purpose || t.description ? '<p class="sub">' + X(t.purpose || t.description) + '</p>' : '') +
       (duties.length ? '<details class="ek-duties"><summary>' + (t.is_board ? 'Sorumluluklar' : ps.some(function (p) { return !ekOpen(p); }) ? 'Ortak görevler' : 'Planlanan görevler') + ' · ' + duties.length + '</summary>' + ekList(t.duties) + '</details>' : '') +
-      '<div class="ek-ps">' + (ps.length ? ps.map(function (p) { return ekPerson(p, t.color); }).join('') : '<p class="muted ek-empty">Bu birimde henüz kimse yok.</p>') + '</div>' +
+      (ks.length ? '<p class="ek-coord">Alt birimler</p><div class="ek-pills">' + ks.map(function (c) { return '<button type="button" class="pill ek-up" style="--tc:' + X(c.color) + '" data-ekt="' + X(c.id) + '">' + X(c.name) + ' · ' + ekOf(c.id).filter(function (p) { return !ekOpen(p); }).length + ' kişi</button>'; }).join('') + '</div>' : '') +
+      (ps.length || !ks.length ? '<div class="ek-ps">' + (ps.length ? ps.map(function (p) { return ekPerson(p, t.color); }).join('') : '<p class="muted ek-empty">Bu birimde henüz kimse yok.</p>') + '</div>' : '') +
       '<button type="button" class="lnk ek-add" data-ekadd="' + X(t.id) + '">+ bu birime kişi ekle</button></div>';
   };
   /* açık pozisyonlar ve kurulacak birimler (belgenin 5. bölümü) */
@@ -388,7 +396,14 @@
   var ekIsStaff = function (t) { return /finans/i.test(t.name || ''); };
   var ekFounders = function () {
     var b = EK.teams.filter(function (t) { return t.is_board; })[0];
-    return b ? ekOf(b.id).filter(function (p) { return !ekOpen(p) && p.status !== 'ayrildi'; }) : [];
+    var l = b ? ekOf(b.id).filter(function (p) { return !ekOpen(p) && p.status !== 'ayrildi'; }) : [];
+    /* 18.11.2026: yönetim kurulunda kurucu olmayan üye (ör. akademik danışman) kol açmaz */
+    var k = l.filter(function (p) { return /kurucu/i.test(p.title || ''); });
+    return k.length ? k : l;
+  };
+  var ekMembers = function () {
+    var b = EK.teams.filter(function (t) { return t.is_board; })[0], fs = ekFounders();
+    return b ? ekOf(b.id).filter(function (p) { return !ekOpen(p) && p.status !== 'ayrildi' && fs.indexOf(p) < 0; }) : [];
   };
   var ekFounderOf = function (t, fs) {
     fs = fs || ekFounders(); if (!fs.length) return null;
@@ -400,7 +415,7 @@
      soldakinde sonda, sağdakinde başta durur; böylece hep yan yana gelir */
   var ekPair = function (t) { return EK_PAIR.some(function (r) { return r.test(t.name); }); };
   var ekLaneTeams = function (f, k, n, fs) {
-    var ts = EK.teams.filter(function (t) { return !t.is_board && !t.is_advisory && !ekIsStaff(t) && ekFounderOf(t, fs) === f; })
+    var ts = EK.teams.filter(function (t) { return !t.is_board && !t.is_advisory && !ekIsStaff(t) && !ekParent(t) && ekFounderOf(t, fs) === f; })
       .sort(function (a, b) { return (a.sort - b.sort) || a.name.localeCompare(b.name, 'tr'); });
     var pr = ts.filter(ekPair), rest = ts.filter(function (t) { return !ekPair(t); });
     if (!pr.length) return ts;
@@ -426,25 +441,39 @@
       (lead ? ekNode(lead, t.color) : '') + (others.length ? '<div class="ek-sub">' + others.map(function (p) { return ekNode(p, t.color); }).join('') + '</div>' : '') +
       (!ps.length ? '<button type="button" class="ek-open" data-ekadd="' + X(t.id) + '">+ kişi ekle</button>' : '') + '</div>';
   };
+  /* çatı birim: geniş kutu; başlık, doluluk ve içinde alt birimler yan yana */
+  var ekGroup = function (t, fs) {
+    var ks = ekKids(t), all = ekOf(t.id).concat.apply(ekOf(t.id), ks.map(function (c) { return ekOf(c.id); })), own = ekOf(t.id);
+    var fi = fs ? fs.indexOf(ekFounderOf(t, fs)) : -1;
+    return '<div class="ek-branch ek-grp" data-fi="' + fi + '" style="--tc:' + X(t.color) + ';grid-column:span ' + Math.max(1, ks.length) + '"><button type="button" class="ek-tn ek-grpn" data-ekt="' + X(t.id) + '">' + (fs ? ekBadge(t, fs) : '') + '<b>' + X(t.name) + '</b><small>' + X(t.coordinator || '') + '</small><small class="ek-grpc">' + ks.length + ' alt birim</small>' + ekFill(all) + '</button>' +
+      (own.length ? '<div class="ek-sub ek-grpo">' + own.map(function (p) { return ekNode(p, t.color); }).join('') + '</div>' : '') +
+      '<div class="ek-grpk" style="grid-template-columns:repeat(' + Math.max(1, ks.length) + ',minmax(0,1fr))">' + ks.map(function (c) { return ekBranch(c, false, fs); }).join('') + '</div></div>';
+  };
+  var ekUnit = function (t, fs) { return ekKids(t).length ? ekGroup(t, fs) : ekBranch(t, false, fs); };
   var ekChart = function () {
-    var board = EK.teams.filter(function (t) { return t.is_board; })[0], adv = EK.teams.filter(function (t) { return t.is_advisory && !t.is_board; });
+    var board = EK.teams.filter(function (t) { return t.is_board; })[0], adv = EK.teams.filter(function (t) { return t.is_advisory && !t.is_board && ekOf(t.id).length; });
     var fs = ekFounders(), staff = EK.teams.filter(function (t) { return !t.is_board && !t.is_advisory && ekIsStaff(t); });
     /* sıra: önce ilk kurucunun birimleri (çiftin elemanı sonda), sonra ikincininkiler (çiftin elemanı başta) */
     var units = [];
     fs.forEach(function (f, k) { units = units.concat(ekLaneTeams(f, k, fs.length, fs)); });
-    var n = units.length, cols = n > 6 ? Math.ceil(n / 2) : Math.max(1, n);
-    /* Tasarım ile Pazarlama satır sonunda bölünmesin: bölünüyorsa çift bir sıra sola kayar */
+    var n = units.length, wd = function (t) { return Math.max(1, ekKids(t).length); }, W = units.reduce(function (a, t) { return a + wd(t); }, 0);
+    var cols = Math.max(W > 6 ? Math.ceil(W / 2) : Math.max(1, W), units.reduce(function (a, t) { return Math.max(a, wd(t)); }, 1));
+    /* Tasarım ile Pazarlama satır sonunda bölünmesin: bölünüyorsa çift bir sıra sola kayar (çatı yoksa) */
     var pi = units.map(ekPair).indexOf(true);
-    if (pi > 0 && pi + 1 < n && ekPair(units[pi + 1]) && Math.floor(pi / cols) !== Math.floor((pi + 1) / cols)) units.splice(pi + 1, 0, units.splice(pi - 1, 1)[0]);
+    if (W === n && pi > 0 && pi + 1 < n && ekPair(units[pi + 1]) && Math.floor(pi / cols) !== Math.floor((pi + 1) / cols)) units.splice(pi + 1, 0, units.splice(pi - 1, 1)[0]);
+    /* satırlara diz: bir satır cols sütun; her birim yer olan ilk satıra girer (çatının bıraktığı boşluk küçük birimlerle dolar) */
+    var rows = [], used = [];
+    units.forEach(function (t) { var i = 0; while (i < rows.length && used[i] + wd(t) > cols) i++; if (i === rows.length) { rows.push([]); used.push(0); } rows[i].push(t); used[i] += wd(t); });
     var noTeam = EK.people.filter(function (p) { return !p.team_id || !ekTeam(p.team_id); });
-    var fnodes = fs.map(function (f, k) { return '<span class="ek-fnd" data-fi="' + k + '" style="--fc:' + EK_LANE[k % EK_LANE.length] + '">' + ekNode(f, EK_LANE[k % EK_LANE.length]) + '<small class="ek-fcount">' + units.filter(function (t) { return ekFounderOf(t, fs) === f; }).length + ' birimin koordinasyonu</small></span>'; }).join('');
+    var fnodes = fs.map(function (f, k) { return '<span class="ek-fnd" data-fi="' + k + '" style="--fc:' + EK_LANE[k % EK_LANE.length] + '">' + ekNode(f, EK_LANE[k % EK_LANE.length]) + '<small class="ek-fcount">' + EK.teams.filter(function (t) { return !t.is_board && !t.is_advisory && !ekIsStaff(t) && !ekKids(t).length && ekFounderOf(ekParent(t) || t, fs) === f; }).length + ' birimin koordinasyonu</small></span>'; }).join('') +
+      ekMembers().map(function (p) { return '<span class="ek-fnd ek-uye" data-fi="-1">' + ekNode(p, board ? board.color : '#1A2A5C') + '<small class="ek-fcount">yönetim kurulu üyesi</small></span>'; }).join('');
     var head = board ? '<div class="ek-hq"><span></span><div class="ek-board ek-boardx" style="--tc:' + X(board.color) + '"><button type="button" class="ek-tn" data-ekt="' + X(board.id) + '"><b>' + X(board.name) + '</b>' + (board.coordinator ? '<small>' + X(board.coordinator) + '</small>' : '') + '</button><div class="ek-top">' + fnodes + '</div></div>' +
       '<div class="ek-staff">' + staff.map(function (t) { return '<div class="ek-stf" style="--tc:' + X(t.color) + '"><span class="ek-stl mono">doğrudan yönetime bağlı</span>' + ekBranch(t, true, fs) + '</div>'; }).join('') + '</div></div>' : '<p class="muted">Şemanın tepesi için bir birimi "yönetim" olarak işaretle.</p>';
     /* satırlar aynı sütun sayısında; soldaki dikey çizgi alt satırın yatay çizgisini üsttekine bağlar */
-    var rowsHtml = '<div class="ek-flatw">'; for (var r = 0; r < n; r += cols) rowsHtml += '<div class="ek-row ek-flat' + (r + cols < n ? ' ek-more' : '') + '" style="grid-template-columns:repeat(' + cols + ',176px)">' + units.slice(r, r + cols).map(function (t) { return ekBranch(t, false, fs); }).join('') + '</div>';
+    var rowsHtml = '<div class="ek-flatw">'; rows.forEach(function (row, r) { rowsHtml += '<div class="ek-row ek-flat' + (r < rows.length - 1 ? ' ek-more' : '') + '" style="grid-template-columns:repeat(' + cols + ',176px)">' + row.map(function (t) { return ekUnit(t, fs); }).join('') + '</div>'; });
     rowsHtml += '</div>';
     /* telefonda: yönetim → birim → kişi sırasıyla açılır kapanır ağaç */
-    var mob = '<div class="ek-tree">' + (board ? '<button type="button" class="ek-tn ek-trb" style="--tc:' + X(board.color) + '" data-ekt="' + X(board.id) + '"><b>' + X(board.name) + '</b><small>' + X(fs.map(function (f) { return f.full_name; }).join(' · ')) + '</small></button>' : '') +
+    var mob = '<div class="ek-tree">' + (board ? '<button type="button" class="ek-tn ek-trb" style="--tc:' + X(board.color) + '" data-ekt="' + X(board.id) + '"><b>' + X(board.name) + '</b><small>' + X(fs.concat(ekMembers()).map(function (f) { return f.full_name; }).join(' · ')) + '</small></button>' : '') +
       (staff.length ? '<details open class="ek-tl" style="--lc:' + X(staff[0].color) + '"><summary><b>Yönetime doğrudan bağlı</b><small>' + staff.length + ' birim</small></summary>' + staff.map(function (t) { return ekTreeTeam(t, fs); }).join('') + '</details>' : '') +
       '<details open class="ek-tl" style="--lc:' + X(board ? board.color : '#1A2A5C') + '"><summary><b>Birimler</b><small>' + n + ' birim · hepsi yönetime bağlı</small></summary>' + units.map(function (t) { return ekTreeTeam(t, fs); }).join('') + '</details></div>';
     return '<div class="card ek-chart"><div class="ek-ctools"><span class="muted">Bütün birimler yönetime bağlı. Rozet, birimin koordinasyonunu yürüten kurucuyu gösterir; kurucunun üstüne gelince onun birimleri öne çıkar.</span><button type="button" class="btn ghost sm" data-ekx="png">PNG indir</button><button type="button" class="btn ghost sm" data-ekx="pdf">PDF indir</button></div>' +
@@ -455,7 +484,8 @@
       fs.map(function (f, k) { return '<span><i style="background:' + EK_LANE[k % EK_LANE.length] + ';border-radius:50%"></i>' + X(ini(f.full_name)) + ' = ' + X(f.full_name) + ' koordinasyonu</span>'; }).join('') + '</div></div></div>';
   };
   var ekTreeTeam = function (t, fs) {
-    var ps = ekOf(t.id);
+    var ps = ekOf(t.id), ks = ekKids(t);
+    if (ks.length) return '<details open class="ek-tt ek-ttg" style="--tc:' + X(t.color) + '"><summary><span class="ek-dot"></span><b>' + X(t.name) + (fs ? ' ' + ekBadge(t, fs) : '') + '</b><small>' + ks.length + ' alt birim</small></summary><div class="ek-ttp">' + ps.map(function (p) { return ekNode(p, t.color); }).join('') + ks.map(function (c) { return ekTreeTeam(c, fs); }).join('') + '<button type="button" class="lnk" data-ekt="' + X(t.id) + '">çatının görev kartı →</button></div></details>';
     return '<details class="ek-tt" style="--tc:' + X(t.color) + '"><summary><span class="ek-dot"></span><b>' + X(t.name) + (fs ? ' ' + ekBadge(t, fs) : '') + '</b>' + ekFill(ps) + '</summary><div class="ek-ttp">' + (ps.length ? ps.map(function (p) { return ekNode(p, t.color); }).join('') : '<button type="button" class="ek-open" data-ekadd="' + X(t.id) + '">+ kişi ekle</button>') + '<button type="button" class="lnk" data-ekt="' + X(t.id) + '">birimin görev kartı →</button></div></details>';
   };
   /* PNG / PDF: html2canvas ve jsPDF yalnız gerektiğinde cdnjs'den yüklenir */
@@ -500,7 +530,7 @@
       '<div class="tst-head"><p class="muted" style="margin:0">' + act + ' kişi · ' + EK.teams.filter(function (t) { return !t.is_advisory; }).length + ' birim' + (open ? ' · ' + open + ' açık pozisyon' : '') + '. Kişiye ya da birime tıklayınca görev kartı açılır.</p>' +
       '<div class="acts"><div class="ek-seg" role="group" aria-label="Görünüm"><button type="button" data-ekv="ekip" aria-pressed="' + (EK.view === 'ekip') + '">Birimler</button><button type="button" data-ekv="sema" aria-pressed="' + (EK.view === 'sema') + '">Organizasyon şeması</button></div>' +
       '<button type="button" class="btn ghost sm" id="ek-xlsx">Excel indir</button><button type="button" class="btn ghost sm" id="ek-newt">+ Birim</button><button type="button" class="btn blue sm" id="ek-newp">+ Kişi</button></div></div>' +
-      (EK.view === 'sema' ? ekChart() : (EK.v2 ? ekGaps() : '') + '<div class="ek-grid">' + EK.teams.map(ekTeamCard).join('') + '</div>' +
+      (EK.view === 'sema' ? ekChart() : (EK.v2 ? ekGaps() : '') + '<div class="ek-grid">' + ekOrdered().map(ekTeamCard).join('') + '</div>' +
         (EK.people.some(function (p) { return !p.team_id; }) ? '<div class="card" style="margin-top:16px"><h2>Birimi olmayanlar</h2><div class="ek-ps">' + EK.people.filter(function (p) { return !p.team_id; }).map(function (p) { return ekPerson(p); }).join('') + '</div></div>' : ''));
     m.onclick = function (e) {
       var b;
@@ -537,11 +567,13 @@
       (t.coordinator ? '<p class="ek-coord">' + X(t.coordinator) + '</p>' : '') + (t.description && t.description !== t.purpose ? '<p>' + X(t.description) + '</p>' : '') +
       ekSec('Amaç', t.purpose ? '<p>' + X(t.purpose) + '</p>' : '') + ekSec(t.is_board ? 'Sorumluluklar' : ps.some(function (p) { return !ekOpen(p); }) ? 'Ortak görevler' : 'Planlanan görevler', ekList(t.duties)) +
       ekSec(t.is_board ? 'Karar usulü' : 'Çalışma kuralı', ekParas(t.rules)) + ekSec('Çıktılar', ekParas(t.outputs)) +
-      ekSec('Kişiler', ps.length ? '<div class="ek-ps">' + ps.map(function (p) { return ekPerson(p, t.color); }).join('') + '</div>' : '<p class="muted">Henüz kimse yok.</p>') +
+      ekSec('Alt birimler', ekKids(t).length ? '<div class="ek-pills">' + ekKids(t).map(function (c) { return '<button type="button" class="pill ek-up" style="--tc:' + X(c.color) + '" data-ekt="' + X(c.id) + '">' + X(c.name) + ' · ' + ekOf(c.id).filter(function (p) { return !ekOpen(p); }).length + ' kişi</button>'; }).join('') + '</div>' : '') +
+      ekSec('Kişiler', ps.length ? '<div class="ek-ps">' + ps.map(function (p) { return ekPerson(p, t.color); }).join('') + '</div>' : '<p class="muted">' + (ekKids(t).length ? 'Kişiler alt birimlerde.' : 'Henüz kimse yok.') + '</p>') +
       '<div class="acts"><button type="button" class="btn blue" id="ekt-edit">Birimi düzenle</button><button type="button" class="btn ghost" id="ekt-addp">+ kişi ekle</button></div></div>');
     $('#ekt-edit').addEventListener('click', function () { ekTeamForm(m, t); });
     $('#ekt-addp').addEventListener('click', function () { ekPersonForm(m, null, t.id); });
     $$('[data-ekp]', $('#drawer-body')).forEach(function (b) { b.addEventListener('click', function () { ekPersonCard(m, EK.people.filter(function (p) { return p.id === b.getAttribute('data-ekp'); })[0]); }); });
+    $$('[data-ekt]', $('#drawer-body')).forEach(function (b) { b.addEventListener('click', function () { ekTeamCardView(m, ekTeam(b.getAttribute('data-ekt'))); }); });
   };
   var ekSave = async function (table, id, row) {
     var r = id ? await sb.from(table).update(row).eq('id', id) : await sb.from(table).insert(row);
@@ -589,6 +621,8 @@
       '<form id="ekt-f" novalidate style="display:flex;flex-direction:column;gap:12px">' +
       '<label class="fld">Birim adı<input class="in" name="n" maxlength="60" required value="' + X(t.name) + '" placeholder="ör. Finans"></label>' +
       (EK.v2 ? '<div class="grid g2" style="gap:10px"><label class="fld">Durum' + sel('st', ETS, t.state || 'kuruldu') + '</label><label class="fld">Öncelik' + sel('pr', { yuksek: 'yüksek', orta: 'orta', dusuk: 'düşük' }, t.priority, 'yok') + '</label></div>' +
+        (EK.v3 ? '<label class="fld">Çatı birim <small>ör. Tasarım → Marka ve Pazarlama</small><select class="in" name="up"' + (t.id && ekKids(t).length ? ' disabled title="Bu birim zaten bir çatı"' : '') + '><option value="">yok (doğrudan yönetime bağlı)</option>' +
+          EK.teams.filter(function (x) { return x.id !== t.id && !x.is_board && !x.is_advisory && !ekParent(x); }).map(function (x) { return '<option value="' + X(x.id) + '"' + (t.parent_id === x.id ? ' selected' : '') + '>' + X(x.name) + '</option>'; }).join('') + '</select></label>' : '') +
         '<label class="fld">Lider / koordinasyon <small>ör. Koordinasyon: Serhat Arslan</small><input class="in" name="co" maxlength="200" value="' + X(t.coordinator || '') + '"></label>' +
         '<label class="fld">Amaç<textarea class="in" name="pu" maxlength="1500">' + X(t.purpose || '') + '</textarea></label>' : '') +
       '<label class="fld">Kısa açıklama<textarea class="in" name="d" maxlength="1500">' + X(t.description) + '</textarea></label>' +
@@ -607,6 +641,7 @@
       var c = $('input[name=c]:checked', f), b = $('button[type=submit]', f); b.disabled = true;
       var row = { name: f.n.value.trim(), description: f.d.value.trim(), color: c ? c.value : t.color, sort: parseInt(f.o.value, 10) || 100, is_board: f.b.checked };
       if (EK.v2) { row.state = f.st.value; row.priority = f.pr.value || null; row.coordinator = f.co.value.trim(); row.purpose = f.pu.value.trim(); row.duties = f.du.value.trim(); row.rules = f.ru.value.trim(); row.outputs = f.ou.value.trim(); row.is_advisory = f.ad.checked; }
+      if (EK.v3 && !f.up.disabled) row.parent_id = f.up.value || null;
       try {
         await ekSave('ax_teams', t.id, row);
         toast(t.id ? 'Birim kaydedildi.' : 'Birim eklendi.'); closeDrawer(); VIEWS.ekip(m);
@@ -630,13 +665,13 @@
     var people = EK.people.slice().sort(function (a, b) { var ta = ekTeam(a.team_id), tb = ekTeam(b.team_id); return ((ta ? ta.sort : 9999) - (tb ? tb.sort : 9999)) || (ekOpen(a) - ekOpen(b)) || (b.is_lead - a.is_lead) || (a.sort - b.sort); });
     var PH = ['Ad soyad / pozisyon', 'Rol / unvan', 'Birim', 'Lider', 'Durum', 'Bağlı olduğu', 'Amaç', 'Sorumluluklar', 'Yetkiler', 'Başarı göstergeleri', 'E-posta', 'Telefon', 'Başlangıç'];
     var PR = people.map(function (p) { return [p.full_name, p.title, tName(p.team_id), p.is_lead ? 'evet' : '', EST[p.status] || p.status, p.reports_to || '', p.job_description, bul(p.responsibilities), p.authority || '', p.kpis || '', p.email, p.phone, p.start_date || '']; });
-    var TH = ['Birim', 'Durum', 'Öncelik', 'Lider / koordinasyon', 'Amaç', 'Açıklama', 'Görevler', 'Karar usulü / kural', 'Çıktılar', 'Kişi sayısı', 'Kişiler', 'Açık pozisyonlar'];
-    var TR = EK.teams.map(function (t) { var ps = ekOf(t.id), real = ps.filter(function (p) { return !ekOpen(p); }), op = ps.filter(ekOpen); return [t.name, ETS[t.state] || '', t.priority ? EPRI[t.priority] : '', t.coordinator || '', t.purpose || '', t.description, bul(t.duties), t.rules || '', t.outputs || '', real.length, real.map(function (p) { return p.full_name + (p.title ? ' (' + p.title + ')' : ''); }).join(', '), op.map(function (p) { return p.title || p.full_name; }).join(', ')]; });
+    var TH = ['Birim', 'Çatı birim', 'Durum', 'Öncelik', 'Lider / koordinasyon', 'Amaç', 'Açıklama', 'Görevler', 'Karar usulü / kural', 'Çıktılar', 'Kişi sayısı', 'Kişiler', 'Açık pozisyonlar'];
+    var TR = ekOrdered().map(function (t) { var ps = ekOf(t.id), real = ps.filter(function (p) { return !ekOpen(p); }), op = ps.filter(ekOpen); return [t.name, (ekParent(t) || {}).name || '', ETS[t.state] || '', t.priority ? EPRI[t.priority] : '', t.coordinator || '', t.purpose || '', t.description, bul(t.duties), t.rules || '', t.outputs || '', real.length, real.map(function (p) { return p.full_name + (p.title ? ' (' + p.title + ')' : ''); }).join(', '), op.map(function (p) { return p.title || p.full_name; }).join(', ')]; });
     var day = new Date().toISOString().slice(0, 10);
     try {
       var XL = await loadXlsx(), wb = XL.utils.book_new();
       var ws1 = XL.utils.aoa_to_sheet([PH].concat(PR)); ws1['!cols'] = [24, 34, 22, 8, 14, 30, 50, 70, 50, 40, 26, 16, 12].map(function (w) { return { wch: w }; });
-      var ws2 = XL.utils.aoa_to_sheet([TH].concat(TR)); ws2['!cols'] = [24, 12, 14, 30, 50, 50, 70, 50, 40, 10, 50, 40].map(function (w) { return { wch: w }; });
+      var ws2 = XL.utils.aoa_to_sheet([TH].concat(TR)); ws2['!cols'] = [24, 22, 12, 14, 30, 50, 50, 70, 50, 40, 10, 50, 40].map(function (w) { return { wch: w }; });
       XL.utils.book_append_sheet(wb, ws1, 'Kişiler'); XL.utils.book_append_sheet(wb, ws2, 'Birimler');
       XL.writeFile(wb, 'acadex-ekip-' + day + '.xlsx');
       toast('Excel indirildi.');

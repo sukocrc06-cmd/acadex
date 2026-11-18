@@ -21,11 +21,12 @@ const { makeRunner } = require('./_ts-extract.js');
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const { test, summary } = makeRunner();
-const MIG1 = 'supabase/migrations/20261024e_acadex_ekip.sql', MIG2 = 'supabase/migrations/20261029c_acadex_ekip_2.sql';
+const MIG1 = 'supabase/migrations/20261024e_acadex_ekip.sql', MIG2 = 'supabase/migrations/20261029c_acadex_ekip_2.sql', MIG3 = 'supabase/migrations/20261118_acadex_ekip_3.sql';
 const sql = read(MIG2), adm = read('js/admin-app.js');
 const ek = adm.slice(adm.indexOf('/* ---------- Acadex ekibi'), adm.indexOf('/* ---------- kullanıcılar ----------'));
 
 test('migration: yalnız yapı; kişi/ekip verisi yok (belge gizli)', () => {
+  for (const m of [sql, read(MIG3)]) { assert.doesNotMatch(m, /\binsert\s+into\b/i); assert.doesNotMatch(m, /\b(update|delete)\s+(from\s+)?public\.ax_/i); }
   assert.doesNotMatch(sql, /\binsert\s+into\b/i);
   assert.doesNotMatch(sql, /\b(update|delete)\s+(from\s+)?public\.ax_/i);
   for (const c of ['authority', 'kpis', 'reports_to']) assert.match(sql, new RegExp('ax_people add column if not exists ' + c + ' '));
@@ -63,7 +64,7 @@ test('davranış (gerçek Postgres): eski kurulum üstüne iki kez çalışır, 
   try {
     const run = (s) => execSync(P + ' -d ax_ekip -At -f -', { input: s, stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
     run("do $$ begin if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated; end if; end $$; create function public.admin_ok() returns boolean language sql as $f$ select true $f$;");
-    for (const f of [MIG1, MIG2, MIG2]) execSync(P + ' -d ax_ekip -f ' + q(f), { stdio: 'pipe' });
+    for (const f of [MIG1, MIG2, MIG2, MIG3, MIG3]) execSync(P + ' -d ax_ekip -f ' + q(f), { stdio: 'pipe' });
     // eski kurulumun hazır kayıtları yeni şemada geçerli kalır
     assert.ok(+run('select count(*) from ax_people') >= 1);
     assert.equal(run("select state from ax_teams limit 1"), 'kuruldu');
@@ -72,6 +73,17 @@ test('davranış (gerçek Postgres): eski kurulum üstüne iki kez çalışır, 
     assert.throws(() => run("update ax_people set status = 'gecersiz' where full_name = 'Örnek Aday'"));
     assert.throws(() => run("update ax_teams set priority = 'acil' where sort = 10"));
     assert.throws(() => run("update ax_people set kpis = repeat('x', 1501) where full_name = 'Örnek Aday'"));
+    /* 3. adım: çatı birim, tek kademe */
+    run("insert into ax_teams (name, sort) values ('Çatı', 500), ('Alt A', 510), ('Alt B', 520), ('Bağımsız', 530)");
+    const id = (n) => run("select id from ax_teams where name = '" + n + "'");
+    run("update ax_teams set parent_id = '" + id('Çatı') + "' where name in ('Alt A', 'Alt B')");
+    assert.equal(run("select count(*) from ax_teams where parent_id = '" + id('Çatı') + "'"), '2');
+    assert.throws(() => run("update ax_teams set parent_id = '" + id('Alt A') + "' where name = 'Bağımsız'"), 'alt birimin altına birim girmez');
+    assert.throws(() => run("update ax_teams set parent_id = '" + id('Bağımsız') + "' where name = 'Çatı'"), 'altında birim olan çatı başka çatıya girmez');
+    assert.throws(() => run("update ax_teams set parent_id = id where name = 'Bağımsız'"), 'kendisinin altına giremez');
+    assert.throws(() => run("update ax_teams set parent_id = '" + id('Çatı') + "' where is_advisory"), 'danışma çatı altına girmez');
+    run("delete from ax_teams where name = 'Çatı'");
+    assert.equal(run("select count(*) from ax_teams where name in ('Alt A', 'Alt B') and parent_id is null"), '2', 'çatı silinince alt birimler doğrudan yönetime bağlanır');
   } finally {
     execSync(P + ' -d postgres -c "drop database if exists ax_ekip"', { stdio: 'pipe' });
   }
@@ -85,7 +97,7 @@ test('şema (04.11.2026): bütün birimler yönetime bağlı, rozet koordinatör
     T('d', 'Tasarım', 40, 'Koordinasyon : Şükrü Çerçi'), T('f', 'Finans ve İş Modeli', 50, 'Koordinasyon: Serhat Arslan'), T('p', 'Pazarlama', 60, 'Koordinasyon: Serhat Arslan'),
     T('a', 'Akademik İçerik Kurulu', 70, 'Kuruluş ve koordinasyon: SERHAT ARSLAN'), T('h', 'Hukuk ve KVKK', 80, 'Serhat Arslan'), T('k', 'Kullanıcı Destek', 90, 'şevval aksakal'),
     T('v', 'Veri ve Analitik', 100, 'Şükrü Çerçi'), T('g', 'Digital Marketing', 120, 'Şükrü Çerçi'), T('x', 'Danışma', 200, '', { is_advisory: true })];
-  const ctx = { EK: { teams, people: [F1, F2] }, ekOpen: (p) => p.status === 'acik', ekOf: (id) => (id === 'b' ? [F1, F2] : []) };
+  const ctx = { EK: { teams, people: [F1, F2] }, ekParent: (t) => (t.parent_id ? teams.find((x) => x.id === t.parent_id) : null), ekOpen: (p) => p.status === 'acik', ekOf: (id) => (id === 'b' ? [F1, F2] : []) };
   vm.runInNewContext(blk + ';this.o = { ekFounderOf, ekIsStaff, ekLaneTeams };', ctx);
   const o = ctx.o, fs = [F1, F2], by = (n) => teams.find((t) => t.name === n);
   assert.equal(o.ekFounderOf(by('Pazarlama'), fs), F2); assert.equal(o.ekFounderOf(by('Akademik İçerik Kurulu'), fs), F2, 'büyük/küçük harf fark etmez');
@@ -103,8 +115,33 @@ test('şema (04.11.2026): bütün birimler yönetime bağlı, rozet koordinatör
   assert.match(ek, /html2canvas\/1\.4\.1\/html2canvas\.min\.js/); assert.match(ek, /jspdf\/2\.5\.1\/jspdf\.umd\.min\.js/);
   /* tek gövde: birimler kurucu kartlarının değil yönetim kutusunun altında; kurucular yönetim kutusunun içinde */
   assert.match(ek, /class="ek-board ek-boardx"[\s\S]{0,300}<div class="ek-top">' \+ fnodes/);
-  assert.match(ek, /'<div class="ek-row ek-flat' \+ \(r \+ cols < n \? ' ek-more' : ''\)/, 'satırlar soldaki çizgiyle bağlı'); assert.doesNotMatch(ek, /ek-lane/);
+  assert.match(ek, /'<div class="ek-row ek-flat' \+ \(r < rows\.length - 1 \? ' ek-more' : ''\)/, 'satırlar soldaki çizgiyle bağlı'); assert.doesNotMatch(ek, /ek-lane/);
   assert.match(ek, /Math\.floor\(pi \/ cols\) !== Math\.floor\(\(pi \+ 1\) \/ cols\)\) units\.splice\(pi \+ 1, 0, units\.splice\(pi - 1, 1\)\[0\]\)/, 'çift satır sonunda bölünmez');
   assert.match(css, /@media \(max-width:760px\)\{\.ek-wide\{display:none\}\.ek-tree\{display:block\}/, 'telefonda dikey ağaç');
+});
+test('çatı birim (18.11.2026): alt birimler çatının kolunda ve kutusunda; yönetim kurulu üyesi kol açmaz', () => {
+  const vm = require('node:vm');
+  const blk = ek.slice(ek.indexOf('  var EK_LANE = '), ek.indexOf('  /* doluluk: dolu'));
+  const F1 = { id: 'f1', full_name: 'Şükrü Çerçi', status: 'aktif', title: 'Kurucu Ortak' }, F2 = { id: 'f2', full_name: 'Serhat Arslan', status: 'aktif', title: 'Kurucu Ortak' }, U = { id: 'u1', full_name: 'Örnek Hoca', status: 'aktif', title: 'Yönetim Kurulu Üyesi · Akademik Danışman' };
+  const T = (id, name, sort, coordinator, extra) => Object.assign({ id, name, sort, coordinator, is_board: false, is_advisory: false, parent_id: null }, extra || {});
+  const teams = [T('b', 'Yönetim', 10, '', { is_board: true }), T('u', 'Ürün ve Yazılım', 20, 'Lider: Şükrü Çerçi'), T('m', 'Marka ve Pazarlama', 40, 'Koordinasyon: Şükrü Çerçi'),
+    T('d', 'Tasarım', 41, 'Şükrü Çerçi', { parent_id: 'm' }), T('p', 'Pazarlama', 42, 'Şükrü Çerçi', { parent_id: 'm' }), T('g', 'Digital Marketing', 43, 'Şükrü Çerçi', { parent_id: 'm' }), T('a', 'Akademik', 70, 'Serhat Arslan')];
+  const ctx = { EK: { teams, people: [F1, F2, U] }, ekParent: (t) => (t.parent_id ? teams.find((x) => x.id === t.parent_id) : null), ekOpen: (p) => p.status === 'acik', ekOf: (id) => (id === 'b' ? [F1, F2, U] : []) };
+  vm.runInNewContext(blk + ';this.o = { ekFounders, ekMembers, ekLaneTeams };', ctx);
+  const o = ctx.o;
+  assert.deepEqual(o.ekFounders().map((p) => p.id), ['f1', 'f2'], 'yalnız kurucular kol açar');
+  assert.deepEqual(o.ekMembers().map((p) => p.id), ['u1'], 'kurul üyesi yönetim kutusunda ayrıca görünür');
+  assert.deepEqual(o.ekLaneTeams(F1, 0, 2, [F1, F2]).map((t) => t.name), ['Ürün ve Yazılım', 'Marka ve Pazarlama'], 'alt birimler kolda tek başına değil, çatının içinde');
+  /* şema: çatı alt birim sayısı kadar sütun kaplar; satırlara ilk uygun yer kuralıyla dizilir; boş danışma satırı gizli */
+  assert.match(ek, /grid-column:span ' \+ Math\.max\(1, ks\.length\)/);
+  assert.match(ek, /while \(i < rows\.length && used\[i\] \+ wd\(t\) > cols\) i\+\+;/);
+  assert.match(ek, /t\.is_advisory && !t\.is_board && ekOf\(t\.id\)\.length/);
+  /* form: çatı seçimi yalnız 3. adım kuruluysa gönderilir (eski şemada kayıt bozulmaz) */
+  assert.match(ek, /if \(EK\.v3 && !f\.up\.disabled\) row\.parent_id = f\.up\.value \|\| null;/);
+  assert.match(ek, /EK\.v3 = !!EK\.teams\.length && Object\.prototype\.hasOwnProperty\.call\(EK\.teams\[0\], 'parent_id'\)/);
+  assert.match(ek, /var TH = \['Birim', 'Çatı birim',/, 'Excel\'de çatı sütunu');
+  /* metinler kaçışlı */
+  for (const m of ek.matchAll(/'<span class="pill ek-up"[^;]*?\+ (\w+)\.name \+/g)) assert.fail('kaçışsız ad: ' + m[0]);
+  assert.match(ek, /X\(up\.name\) \+ ' çatısı altında/);
 });
 summary();

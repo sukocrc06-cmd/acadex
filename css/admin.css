@@ -425,3 +425,17 @@ tr:last-child td{border-bottom:0}
 .ek-shot .ek-wide{display:block!important}.ek-shot .ek-tree{display:none!important}
 .ek-shot .ek-branch,.ek-shot .ek-fnd{opacity:1!important;filter:none!important}
 .ek-trb{display:block;margin-bottom:10px}
+/* çatı birim (18.11.2026): ör. Marka ve Pazarlama çatısı altında Tasarım, Pazarlama, Digital Marketing */
+.ek-flat .ek-branch.ek-grp{width:auto;padding:10px 10px 12px;border:2px solid var(--tc);border-radius:16px;background:#fff}
+.ek-grp>.ek-tn{display:block}
+.ek-grpc{margin-top:2px;font-weight:700}
+.ek-grpo{width:100%}
+.ek-grpk{display:grid;align-items:start;gap:22px 10px;width:100%;margin-top:12px;padding-top:20px;border-top:2px solid var(--line2)}
+.ek-flat .ek-grpk .ek-branch{width:auto}
+.ek-uye .ek-node{border-left-width:6px}
+.pill.ek-up{background:#fff;border:1.5px solid var(--tc);color:var(--ink);cursor:pointer;font:inherit;font-size:12px}
+.ek-team.ek-roof{border-top-width:8px}
+.ek-team.ek-child{border-left:4px solid var(--tc)}
+.ek-ttg>.ek-ttp{padding-left:16px}
+.ek-ttg>summary{grid-template-columns:auto minmax(0,1fr) auto}
+.ek-boardx .ek-top .ek-fnd .ek-node{max-width:250px}
