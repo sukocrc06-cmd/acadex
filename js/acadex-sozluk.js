@@ -116,6 +116,7 @@
     'body.axs-hall-on .asz-fab,body.axs-hall-on .asz-pop,html.axf-embed .asz-fab{display:none!important}',
     '.asz-t{display:inline;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;line-height:inherit;letter-spacing:inherit;text-align:inherit;text-decoration:underline dotted 1.5px;text-decoration-color:#2F6BFF;text-underline-offset:3px;cursor:help;border-radius:2px}',
     '.asz-t:hover{background:rgba(47,107,255,.10)}',
+    '.asz-ort[hidden],.asz-p[hidden],.asz-p [hidden],.asz-pop[hidden]{display:none!important}',
     '.asz-ort{position:fixed;inset:0;z-index:9995;background:rgba(13,24,56,.45)}',
     '.asz-p{position:fixed;top:0;right:0;bottom:0;z-index:9996;display:flex;flex-direction:column;width:min(440px,100%);background:#FFFEFB;color:#0D1838;box-shadow:-24px 0 60px -30px rgba(13,24,56,.7);font:15px/1.5 "Instrument Sans",system-ui,sans-serif}',
     '.asz-ph{display:flex;align-items:center;gap:10px;padding:16px 16px 10px}',

@@ -132,4 +132,10 @@ test('yönetim: Sözlük sekmesi; toplu ekleme ayrıştırıcısı', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(o.wdOzet({ id: 'Q1', labels: { en: { value: 'variance' } }, descriptions: { en: { value: 'measure of dispersion' } } }))), { id: 'Q1', tr: '', en: 'variance', aciklama: 'measure of dispersion', dil: 'en' });
   assert.match(adm, /upsert\(c\.satir, \{ onConflict: 'anahtar', ignoreDuplicates: true \}\)/);
 });
+test('pencere: kapatınca gerçekten gizlenir ([hidden], display:flex kuralını ezer)', () => {
+  const js = read('js/acadex-sozluk.js');
+  assert.match(js, /\.asz-ort\[hidden\],\.asz-p\[hidden\],\.asz-p \[hidden\],\.asz-pop\[hidden\]\{display:none!important\}/);
+  assert.ok(js.indexOf('.asz-ort[hidden]') < js.indexOf(".asz-p{position:fixed"), 'gizleme kuralı listede');
+});
+
 summary();
