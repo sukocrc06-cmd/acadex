@@ -388,8 +388,8 @@
       '<p>Her hafta: <b>Veri Hoca’nın animasyonlu anlatımı</b>, <b>etkileşimli görsel</b>, <b>yeni nesil sorular</b> ve yazdırılabilir <b>özet kartı</b>. Sıra ders notlarındakiyle aynı; terimlerin İngilizcesi yanında.</p></div>' +
       '<div class="is-ring" aria-label="ilerleme yüzde ' + Math.round(pc * 100) + '"><svg viewBox="0 0 112 112"><circle cx="56" cy="56" r="46" fill="none" stroke="#E6E0D2" stroke-width="10"/><circle cx="56" cy="56" r="46" fill="none" stroke="#0D1838" stroke-width="10" stroke-linecap="round" stroke-dasharray="' + (C * pc).toFixed(1) + ' ' + C.toFixed(1) + '"/></svg><b class="disp">%' + Math.round(pc * 100) + '</b><small>' + done + ' / ' + IST.H.length + ' hafta</small></div></div>' +
       '<div class="is-hocab">' + IST.hoca(70) + '<p><b>Veri Hoca:</b> Merhaba! Bir haftayı aç, “▶ oynat”a bas; sahneleri ben anlatayım. Takıldığın yerde durdur, kendi hızında oku. Dönem sonunda sınav provalarıyla kendini dene.</p></div>' +
-      '<div class="is-donem"><h2 class="disp">Güz dönemi</h2><span>Statistics for Business I · betimsel istatistik, olasılık ve dağılımlar</span></div><ol class="is-yol">' + liste(donem('guz')) + '</ol>' + prova('g') +
-      '<div class="is-donem"><h2 class="disp">Bahar dönemi</h2><span>Statistics for Business II · örnekleme, tahmin, hipotez testleri, ilişki ve karar</span></div><ol class="is-yol">' + liste(donem('bahar')) + '</ol>' + prova('b') +
+      '<div class="is-donem"><h2 class="disp">Güz dönemi</h2><span>Statistics for Business I · betimsel istatistik, olasılık ve dağılımlar</span></div><ol class="is-yol">' + liste(donem('guz')) + '</ol>' + prova('g') + (IST.yolEk ? IST.yolEk('g') : '') +
+      '<div class="is-donem"><h2 class="disp">Bahar dönemi</h2><span>Statistics for Business II · örnekleme, tahmin, hipotez testleri, ilişki ve karar</span></div><ol class="is-yol">' + liste(donem('bahar')) + '</ol>' + prova('b') + (IST.yolEk ? IST.yolEk('b') : '') +
       '<p class="is-not">Ders notları: Statistics for Business I–II. Anlatıcı Veri Hoca kurgusal bir karakterdir. Sorulardaki şirketler ve sayılar ders amaçlı kurgusaldır; her “yeni soru seti” sayıları yeniden üretir.</p>';
     crumb.textContent = 'Ders yolu';
   };
@@ -703,13 +703,13 @@
 
   /* ---------- yönlendirme ---------- */
   IST.go = function (tab, step) {
-    var P = IST.PROVA.filter(function (x) { return x.id === tab; })[0];
-    if (tab !== 'yol' && !IST.by[tab] && !P) tab = 'yol';
+    var P = IST.PROVA.filter(function (x) { return x.id === tab; })[0], SY = IST.SAYFA && IST.SAYFA[tab];   /* 18.11.2026: ek sayfalar (klasik sınav, formül kağıdı: ist-klasik.js) */
+    if (tab !== 'yol' && !IST.by[tab] && !P && !SY) tab = 'yol';
     var same = cur.tab === tab;
     durdur(); clearInterval(prova.t);
     if (!same) cur.play = false;
     cur.tab = tab; cur.step = step || (same ? cur.step : 'a'); if (!same) { cur.sahne = 0; cur.seed = null; }
-    if (tab === 'yol') yol(); else if (P) prova(P); else ders(IST.by[tab], cur.step);
+    if (tab === 'yol') yol(); else if (P) prova(P); else if (SY) SY(main, crumb); else ders(IST.by[tab], cur.step);
     setUrl(); ctxSend(); top();
   };
   IST.cur = cur;
