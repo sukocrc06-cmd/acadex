@@ -649,13 +649,14 @@ async function loadChunkSizes(
 async function retrieveRelevantChunks(
   serviceClient: any,
   documentIds: string[],
-  tsquery: string
+  tsquery: string,
+  limit: number = RETRIEVED_MAX_CHUNKS
 ): Promise<any[] | null> {
   try {
     const { data, error } = await serviceClient.rpc('search_document_chunks', {
       p_document_ids: documentIds,
       p_tsquery: tsquery,
-      p_limit: RETRIEVED_MAX_CHUNKS
+      p_limit: limit
     })
     if (error) {
       console.warn(`search_document_chunks unavailable (${error.message}) — falling back to whole document`)
@@ -925,6 +926,241 @@ function salvageAnswerContract(raw: string): { answer: string; citations: unknow
 }
 
 /* ===========================================================================
+   DUZ METIN CEVAP (18.11.2026)
+   ===========================================================================
+   Olay: "örnek ver mnc tanımına" sorusuna model DOGRU ve dipnotlu bir cevap
+   yazdi — ama JSON sarmalayicisi olmadan, duz metin olarak. Ne
+   tryParseJsonLoose ne salvageAnswerContract ("answer" anahtari arar) bunu
+   tanidi ve ogrenci ekranda "AI returned invalid JSON formatting" gordu.
+   Sozlesme bizim icin; ogrencinin derdi cevap. Sarmalayici yoksa metnin
+   kendisi cevaptir, [n] isaretleri de atiftir.
+
+   Yarim kalmis bir JSON ({"answer":"... diye baslayip kapanmayan — cevap
+   token butcesine takildiginda olur) da buradan gecer: anahtarin arkasindaki
+   metin kacis dizileri cozulerek alinir; ogrenci ham JSON gormez.
+   Bos ya da yalnizca noktalama ise null: o zaman gercekten cevap yok.
+   =========================================================================== */
+function duzMetinCevap(raw: string): { answer: string; citations: { id: number; reference: string }[] } | null {
+  let t = String(raw || '').trim()
+  if (!t) return null
+  const m = t.match(/^\{\s*"answer"\s*:\s*"/)
+  if (m) {
+    let out = ''
+    for (let j = m[0].length; j < t.length; j++) {
+      const c = t[j]
+      if (c === '\\') {
+        const n = t[j + 1]
+        out += n === 'n' ? '\n' : n === 't' ? '\t' : n === 'r' ? '' : (n ?? '')
+        j++
+        continue
+      }
+      if (c === '"') break
+      out += c
+    }
+    t = out.trim()
+  } else if (/^[\[{]/.test(t)) {
+    // Baska bicimde bir JSON: icinde okunur cevap yok, uydurma.
+    return null
+  } else {
+    t = t.replace(/^["“]+|["”]+$/g, '').trim()
+  }
+  if (!/[\p{L}\p{N}]/u.test(t)) return null
+  const ids = [...new Set([...t.matchAll(/\[(\d{1,2})\]/g)].map(x => Number(x[1])))].sort((a, b) => a - b)
+  return { answer: t, citations: ids.map(id => ({ id, reference: 'Kaynak belge' })) }
+}
+
+/* ===========================================================================
+   DEVAM SORULARI ICIN ARAMA METNI (18.11.2026)
+   ===========================================================================
+   "örnek ver", "bunu açıkla", "peki formülü?" — devam sorusunun kendi
+   kelimeleri belgede aranacak hicbir sey adlandirmaz. Onceki SORU zaten
+   ekleniyordu; ama ogrenci bir onceki CEVABIN konusuna devam ediyorsa
+   (Acadia "MNC ... çok uluslu şirket" dedi, ogrenci "örnek ver" yazdi),
+   konuyu adlandiran kelimeler o cevaptadir.
+   Kural: soru kisaysa (en fazla 4 icerik kelimesi) son Acadia cevabinin ilk
+   cumlesi aramaya eklenir. Uzun ve kendi basina anlamli bir soruya
+   dokunulmaz — onu eski konuyla sulandirmak aramayi bozar.
+   =========================================================================== */
+function takipSorgusu(son: string, onceki: string, sonCevap: string): string {
+  const icerik = String(son || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !QUERY_STOPWORDS.has(w))
+  let metin = `${son || ''} ${onceki || ''}`
+  if (icerik.length <= 4 && sonCevap) {
+    const ilk = String(sonCevap).replace(/\[\d+\]/g, ' ').split(/(?<=[.!?…])\s/)[0] || ''
+    metin += ' ' + ilk.slice(0, 220)
+  }
+  return metin.trim()
+}
+
+/* ===========================================================================
+   GEMINI: SOHBETIN ANA MODELI (18.11.2026)
+   ===========================================================================
+   Asil sinir modelin kotasiydi, belgenin kendisi degil. Groq'un ucretsiz
+   katmaninda dakikada 8.000 token var; sistem talimati ve sohbet gecmisi
+   dustukten sonra 32.000 karakterlik bir belgenin her soruda ancak ~4.000
+   karakteri modele gidiyordu (18.11.2026 kaydi: "4135 chars sent (document
+   total 31972)"). Ogrencinin "her soruma cevap veremiyor" dedigi buydu.
+
+   Gemini Flash-Lite'in baglam penceresi bir milyon token: ders kitabinin bir
+   bolumu butun olarak sigar. summarize-document ayni anahtari ve ayni
+   modelleri zaten kullaniyor (v1 yuzeyi — v1beta bu hesapta 404/503
+   arasinda saliniyor, bkz. summarize-document GEMINI_GENERATE_BASE notu).
+
+   Sira: Gemini once; anahtar yoksa, kota dolduysa, zaman asildiysa ya da bos
+   donerse ESKI GROQ ZINCIRI hic degismeden devreye girer. Yani en kotu
+   durumda davranis bugunku kadar iyi.
+   =========================================================================== */
+const GEMINI_SOHBET_BASE = 'https://generativelanguage.googleapis.com/v1/models'
+const GEMINI_SOHBET_MODELLERI = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']
+/* Belge bu kadar karakteri gecmiyorsa butun olarak gider (~45.000 token).
+   Ucretsiz katmanin dakika basina token sinirina birkac ogrenci ayni anda
+   sigsin diye bir milyonun cok altinda tutuldu. */
+const GEMINI_TAM_BELGE_SINIRI = 180_000
+/* Daha buyukse retrieval, ama Groq'takinin ~20 kati genislikte. */
+const GEMINI_RETRIEVAL_BUTCESI = 80_000
+const GEMINI_RETRIEVAL_PARCA = 160
+const GEMINI_SOHBET_OZET_SINIRI = 9_000
+const GEMINI_DENEME_MS = 28_000
+const GEMINI_TOPLAM_MS = 45_000
+
+function geminiSohbetModelleri(): string[] {
+  const ozel = String(Deno.env.get('GEMINI_CHAT_MODEL') || '').trim()
+  return [...new Set([ozel, ...GEMINI_SOHBET_MODELLERI].filter(Boolean))]
+}
+
+/** OpenAI bicimli sohbeti Gemini contents'e cevirir; gorsel yalnizca son kullanici turunda. */
+function geminiIcerik(mesajlar: { role: string; content: string }[], gorsel?: string): any[] {
+  const out: any[] = []
+  mesajlar.forEach((m, i) => {
+    const parts: any[] = [{ text: String(m.content || '') }]
+    if (gorsel && i === mesajlar.length - 1 && m.role === 'user') {
+      const g = gorsel.match(/^data:([^;,]+);base64,(.*)$/s)
+      if (g) parts.push({ inlineData: { mimeType: g[1], data: g[2] } })
+    }
+    const role = m.role === 'assistant' ? 'model' : 'user'
+    // Gemini ayni rolden ardisik iki tur istemez: birlestir.
+    const onceki = out[out.length - 1]
+    if (onceki && onceki.role === role) onceki.parts.push(...parts)
+    else out.push({ role, parts })
+  })
+  // Konusma model turuyla baslayamaz (karsilama mesaji gecmise girmis olabilir).
+  while (out.length && out[0].role === 'model') out.shift()
+  return out
+}
+
+function geminiMetni(data: any): string {
+  const parts = data?.candidates?.[0]?.content?.parts
+  if (!Array.isArray(parts)) return ''
+  return parts.filter((p: any) => typeof p?.text === 'string' && !p.thought).map((p: any) => p.text).join('')
+}
+
+/**
+ * Gemini'ye sorar. Basarida { metin, model }, hicbir model cevap vermezse
+ * { hata } doner — cagiran Groq zincirine gecer. Asla atmaz.
+ */
+async function geminiSohbet(
+  apiKey: string,
+  sistem: string,
+  mesajlar: { role: string; content: string }[],
+  gorsel: string | undefined,
+  maxOut: number
+): Promise<{ metin: string; model: string } | { hata: string }> {
+  const contents = geminiIcerik(mesajlar, gorsel)
+  if (!contents.length) return { hata: 'bos konusma' }
+  let dusunme: Record<string, unknown> | null = { thinkingLevel: 'low' }
+  const govde = () => JSON.stringify({
+    systemInstruction: { parts: [{ text: sistem }] },
+    contents,
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: maxOut,
+      ...(dusunme ? { thinkingConfig: dusunme } : {})
+    }
+  })
+  const basla = Date.now()
+  let sonHata = ''
+  for (const model of geminiSohbetModelleri()) {
+    for (let deneme = 0; deneme < 2; deneme++) {
+      const kalan = GEMINI_TOPLAM_MS - (Date.now() - basla)
+      if (kalan < 4000) return { hata: `zaman butcesi doldu (${sonHata})` }
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), Math.min(GEMINI_DENEME_MS, kalan))
+      let res: Response
+      try {
+        res = await fetch(`${GEMINI_SOHBET_BASE}/${encodeURIComponent(model)}:generateContent`, {
+          method: 'POST',
+          headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+          body: govde(),
+          signal: ctrl.signal
+        })
+      } catch (e) {
+        clearTimeout(timer)
+        sonHata = `${model}: ${(e as any)?.name === 'AbortError' ? 'zaman asimi' : String((e as any)?.message || e)}`
+        console.warn(`chat-with-document Gemini ${sonHata}`)
+        break
+      }
+      clearTimeout(timer)
+      if (res.ok) {
+        const data = await res.json().catch(() => null)
+        const metin = geminiMetni(data)
+        const bitis = String(data?.candidates?.[0]?.finishReason || '?')
+        const u = data?.usageMetadata || {}
+        if (!metin.trim()) {
+          sonHata = `${model}: bos cevap (finishReason=${bitis})`
+          console.warn(`chat-with-document Gemini ${sonHata}`)
+          break
+        }
+        console.log(
+          `chat-with-document Gemini[${model}] cevap verdi: ${u.promptTokenCount ?? '?'} giris + ` +
+          `${u.candidatesTokenCount ?? '?'} cikis token (dusunme ${u.thoughtsTokenCount ?? 0}), ` +
+          `finish=${bitis}, ${Date.now() - basla} ms`
+        )
+        return { metin, model }
+      }
+      const govdeMetni = (await res.text().catch(() => '')).slice(0, 400)
+      sonHata = `${model}: ${res.status} ${govdeMetni.replace(/\s+/g, ' ').slice(0, 200)}`
+      if (dusunme && res.status === 400 && /thinking/i.test(govdeMetni)) {
+        dusunme = null
+        continue
+      }
+      console.warn(`chat-with-document Gemini ${sonHata}`)
+      // 429 (kota) / 404 (model yok) / 5xx: siradaki model; tekrar deneme yok.
+      break
+    }
+  }
+  return { hata: sonHata || 'Gemini cevap vermedi' }
+}
+
+/** Belgenin kayitli parcalarini SAYFA ETIKETLERIYLE birlestirir; atiflar sayfa gosterebilsin. */
+async function loadStoredTextWithPages(
+  serviceClient: any,
+  documentId: string
+): Promise<{ text: string; pages: number[] } | null> {
+  try {
+    const { data, error } = await serviceClient
+      .from('document_chunks')
+      .select('text, chunk_index, page_start, page_end')
+      .eq('document_id', documentId)
+      .order('chunk_index', { ascending: true })
+    if (error || !data || data.length === 0) return null
+    const pages: number[] = []
+    const text = data.map((r: any) => {
+      const ps = typeof r.page_start === 'number' ? r.page_start : null
+      const pe = typeof r.page_end === 'number' ? r.page_end : null
+      if (ps !== null) for (let p = ps; p <= (pe !== null && pe >= ps ? pe : ps); p++) if (!pages.includes(p)) pages.push(p)
+      const label = ps === null ? '' : (pe !== null && pe !== ps ? `[Sayfa ${ps}-${pe}]\n` : `[Sayfa ${ps}]\n`)
+      return `${label}${String(r.text || '').trim()}`
+    }).filter(Boolean).join('\n\n').trim()
+    return text ? { text, pages: pages.sort((a, b) => a - b) } : null
+  } catch (_e) {
+    return null
+  }
+}
+
+/* ===========================================================================
    ATIF SAYFALARINI GONDERILEN SAYFALARA DAYANDIR
    ===========================================================================
    Atiflar bugune kadar hicbir kontrolden gecmeden ogrenciye gidiyordu.
@@ -1022,7 +1258,7 @@ function groundCitationPages(
 // carry synthesized info (e.g. a diagram's meaning inferred at generation
 // time) that the raw extracted text alone doesn't make obvious. Kept compact
 // since this rides along on every chat turn.
-function buildSummaryContextBlock(card: any): string {
+function buildSummaryContextBlock(card: any, MAX_SUMMARY_CONTEXT = 3000): string {
   const parts: string[] = []
   if (card.summary && typeof card.summary === 'string') {
     parts.push(`Study card summary:\n${card.summary}`)
@@ -1040,7 +1276,9 @@ function buildSummaryContextBlock(card: any): string {
     parts.push(`Formulas identified when this card was generated:\n${JSON.stringify(card.formulas).slice(0, 1500)}`)
   }
   let block = parts.join('\n\n')
-  const MAX_SUMMARY_CONTEXT = 6000
+  // 6.000'di. Groq yolunda bu blok kaynak metinle AYNI dakikalik butceyi
+  // paylasiyor ve belgenin kendisi her zaman ozetinden daha degerli: 3.000.
+  // Gemini yolu genis siniri kendisi ister (GEMINI_SOHBET_OZET_SINIRI).
   if (block.length > MAX_SUMMARY_CONTEXT) {
     block = block.substring(0, MAX_SUMMARY_CONTEXT) + '\n...[truncated]'
   }
@@ -1116,7 +1354,7 @@ serve(async (req) => {
     // 1. Verify the caller can actually see this study card (RLS-enforced).
     const { data: card, error: cardError } = await userClient
       .from('study_cards')
-      .select('id, document_id, is_merged, source_documents, summary_language, summary, key_points, tables, charts, formulas')
+      .select('id, document_id, is_merged, source_documents, summary_language, summary, key_points, tables, charts, formulas, is_quantitative, worked_examples')
       .eq('id', studyCardId)
       .single()
 
@@ -1241,10 +1479,74 @@ serve(async (req) => {
 
     const docNames = docs.map((d: any) => d.file_name).join(', ')
     const summaryContextBlock = buildSummaryContextBlock(card)
+    // buildSystemPrompt bunu okur. Groq yolunda kisa blok (butce paylasiliyor),
+    // Gemini yolunda genis blok; imza testlerle sabit oldugu icin parametre
+    // degil, degisken.
+    let aktifOzet = summaryContextBlock
     const hasImage = typeof imageDataUrl === 'string'
     // "Check my work" only makes sense when there's actually an image to look
     // at — a checked checkbox with no attachment is just ignored.
     const isCheckWorkMode = checkWorkMode === true && hasImage
+
+    // ========================================================================
+    // ONCE GEMINI (18.11.2026) — bkz. GEMINI: SOHBETIN ANA MODELI.
+    // Belge butun olarak (sayfa etiketleriyle) gider; cok buyukse genis bir
+    // retrieval. Basarisizlikta hicbir sey degismemis gibi Groq yoluna inilir.
+    // ========================================================================
+    const geminiAnahtar = Deno.env.get('GEMINI_API_KEY') || ''
+    if (geminiAnahtar && String(Deno.env.get('CHAT_GEMINI') || '').trim().toLowerCase() !== 'kapali') {
+      try {
+        const parcalar: string[] = []
+        let gSayfalar: number[] = []
+        let gYol = 'gemini-tam'
+        for (const doc of docs) {
+          let t = await loadStoredTextWithPages(serviceClient, doc.id)
+          if (!t) {
+            const ham = await extractDocumentText(serviceClient, doc).catch(() => '')
+            t = ham ? { text: ham, pages: [] } : null
+          }
+          if (t) {
+            parcalar.push(docs.length > 1 ? `=== DOCUMENT: ${doc.file_name} ===\n${t.text}` : t.text)
+            for (const p of t.pages) if (!gSayfalar.includes(p)) gSayfalar.push(p)
+          }
+        }
+        let gKaynak = parcalar.join('\n\n')
+        let gGorunum: SourceView = 'whole'
+        if (gKaynak.length > GEMINI_TAM_BELGE_SINIRI) {
+          const ust = [...messages].filter((m: any) => m?.role === 'user' && typeof m?.content === 'string')
+          const sonA = String([...messages].reverse().find((m: any) => m?.role === 'assistant' && typeof m?.content === 'string')?.content || '')
+          const q = buildChunkTsQuery(takipSorgusu(String(ust[ust.length - 1]?.content || ''), String(ust[ust.length - 2]?.content || ''), sonA))
+          const rows = q ? await retrieveRelevantChunks(serviceClient, docIds, q, GEMINI_RETRIEVAL_PARCA) : null
+          if (rows && rows.length > 0) {
+            const r = assembleRetrieved(rows, GEMINI_RETRIEVAL_BUTCESI)
+            gKaynak = r.text; gSayfalar = r.pages; gGorunum = 'retrieval'; gYol = 'gemini-retrieval'
+          } else {
+            gKaynak = gKaynak.slice(0, GEMINI_TAM_BELGE_SINIRI); gGorunum = 'truncated'; gYol = 'gemini-kirpik'
+          }
+        }
+        if (gKaynak.trim()) {
+          aktifOzet = buildSummaryContextBlock(card, GEMINI_SOHBET_OZET_SINIRI)
+          const gSistem = buildSystemPrompt(gKaynak, gGorunum)
+          aktifOzet = summaryContextBlock
+          const gMesaj = messages
+            .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+            .slice(-16)
+            .map((m: any) => ({ role: m.role, content: m.content.slice(0, 6000) }))
+          console.log(`chat-with-document strategy=${gYol}, sourceText=${gKaynak.length} chars, sayfalar=${gSayfalar.length}`)
+          const g = await geminiSohbet(
+            geminiAnahtar, gSistem, gMesaj, imageDataUrl,
+            (needsNumericRules || needsVisualRules || hasImage) ? 4096 : 2048
+          )
+          if ('metin' in g) {
+            return cevapUret(g.metin, gSayfalar, hasImage, g.model, gYol)
+          }
+          console.warn(`chat-with-document: Gemini kullanilamadi (${g.hata.slice(0, 200)}) — Groq zincirine iniliyor`)
+        }
+      } catch (gErr) {
+        aktifOzet = summaryContextBlock
+        console.warn('chat-with-document: Gemini yolu istisna atti, Groq zincirine iniliyor:', gErr)
+      }
+    }
 
     // Measured, not estimated: build the real prompt with an empty source and
     // take its length. `true` for the retrieval variant because that one is
@@ -1315,7 +1617,8 @@ serve(async (req) => {
     const userTurns = messages.filter((m: any) => m?.role === 'user' && typeof m?.content === 'string')
     const latestQuestion = String(userTurns[userTurns.length - 1]?.content || '')
     const priorQuestion = String(userTurns[userTurns.length - 2]?.content || '')
-    const retrievalQuery = buildChunkTsQuery(`${latestQuestion} ${priorQuestion}`.trim())
+    const sonCevap = String([...messages].reverse().find((m: any) => m?.role === 'assistant' && typeof m?.content === 'string')?.content || '')
+    const retrievalQuery = buildChunkTsQuery(takipSorgusu(latestQuestion, priorQuestion, sonCevap))
 
     let sourceText = ''
     let strategy = 'none'
@@ -1461,67 +1764,49 @@ TRUNCATED-SOURCE CAVEAT (important):
 What follows is only the FIRST PART of a longer document. Answer from it exactly as strictly as always — but when it does not contain the answer, say that the part you can see doesn't cover it and that it probably appears later in the document (suggest the student ask again naming the specific topic, chapter or term). Do NOT state or imply that the document itself does not contain something, because you have not seen most of it.`
           : ''
 
-      return `You are a grounded document Q&A assistant for Acadex, an academic study platform. The student is asking questions about a specific uploaded source (${docNames}). ${sourceDescription}${summaryContextBlock ? ', along with the study card summary already generated for it' : ''}.${retrievalCaveat}
+      /* KISALTILDI (18.11.2026): ~10.900 karakterdi; Groq'un 8.000 TPM'inde her
+         karakter belgeden kesiliyordu. Kurallar ayni, anlatim yogun. Kosullu
+         bolumler (gorsel, sayisal) yine yalniz gerektiginde gider. */
+      return `You are a grounded document Q&A assistant for Acadex, an academic study platform; your name is Acadia. The student asks about their uploaded source (${docNames}). ${sourceDescription}${aktifOzet ? ', plus the study card summary generated for it' : ''}.${retrievalCaveat}
 
-STRICT GROUNDING RULE:
-Answer ONLY using information that is actually present in the source text${summaryContextBlock ? ' or the study card summary' : ''} below. Do NOT use outside knowledge to fill in gaps, and do NOT invent facts, numbers, names, or details that are not in the text. If the source does not contain enough information to answer the question, say so honestly and clearly (in the student's own language) instead of guessing — you may still briefly explain the general concept if it's common academic knowledge, but you MUST clearly distinguish that from what the source itself says.
-
-COPY TERMS, DON'T RECALL THEM:
-Expand abbreviations, state definitions and write formulas in the SOURCE's wording, never from memory — a half-remembered expansion is what a student copies into an exam. If the source never expands an abbreviation, leave it unexpanded rather than supplying your own.
-
-CITATION RULE:
-When you state a specific fact, definition, number, or claim drawn from the source, add a citation marker like [1], [2], etc. immediately after it, reusing the same marker for the same location if you reference it again. Build a "citations" array in your JSON output: [{ "id": number, "reference": string }], where "reference" briefly names the topical section/heading area the claim came from (e.g. "Bölüm 2 - SEO tartışması" or "Giriş bölümü"). Don't over-cite — reserve markers for specific, checkable claims, not every sentence. If your answer makes no specific checkable claims (e.g. it's just a clarifying question back to the student, or a general "not found in the source" answer), return an empty citations array.
-
+STRICT GROUNDING RULE: Answer from the source text${aktifOzet ? ' and the study card summary' : ''} below. Never invent facts, numbers, names or details. If the source lacks the answer, say so plainly in the student's language; you may add a short general explanation of a common academic concept, but label it clearly as not coming from the source (e.g. "Belgede geçmiyor; genel bilgi olarak: ...").
+COPY TERMS, DON'T RECALL THEM: expansions, definitions and formulas in the SOURCE's wording, never from memory; if the source never expands an abbreviation, leave it unexpanded.
+EXAMPLES: If asked for an example ("örnek ver"), use the source's own example when it has one. If it has none, you may build one simple illustrative example, labelled "Belgede örnek yok; açıklayıcı bir örnek:".
+FOLLOW-UPS: A short follow-up ("örnek ver", "bunu açıkla", "peki formülü?") refers to the topic of the previous turn — answer about that topic.
+CITATION RULE: Put a marker like [1], [2] right after each specific, checkable claim from the source (reuse a marker for the same place; don't cite every sentence). List them in "citations": [{ "id": number, "reference": string }], where reference names the section/heading and, when a "[Sayfa N]" label is visible, the page (e.g. "Bölüm 2 - Vekâlet sorunu, Sayfa 5"). No checkable claim → empty array.
 ${needsVisualRules ? `
 DIAGRAM & VISUAL-STRUCTURE AWARENESS:
-You only have the extracted text, not the original page images — so a flowchart, comparison diagram, or process illustration in the source often survives only as a cluster of short, disconnected phrases that don't read as normal prose (e.g. parallel short labels repeated near each other, a sequence of terse stage names, or paired opposing terms). If the student asks about a chart, diagram, graphic, or "görsel/şekil" and you spot such a cluster in the source text (or in the study card summary/tables/charts context below, if provided), reconstruct and explain its likely meaning — but explicitly flag that you're inferring the diagram's structure from scattered text labels rather than describing an image you can see (e.g. "Kaynak metindeki dağınık ifadelere bakılırsa, bu muhtemelen ... karşılaştıran bir diyagram."). If you genuinely can't find any fragments that plausibly correspond to what they're asking about, tell them honestly instead of guessing — and mention they can attach a photo/screenshot of that page so you can look at it directly.${hasImage ? `
+You see extracted text, not page images: a diagram often survives only as clusters of short, disconnected labels. If asked about a figure/chart/"görsel/şekil", reconstruct its likely meaning from such clusters (and the summary/tables/charts context) and say you are inferring it from scattered labels. If nothing plausible exists, say so and suggest attaching a photo of the page.${hasImage ? `
 
 ATTACHED IMAGE FROM STUDENT:${isCheckWorkMode ? `
-The student has checked "Bu benim çözümüm — kontrol et" (this is my own solution — check it), so this attached image is the STUDENT'S OWN handwritten or typed attempt at solving a problem — it is NOT a page from the source document, do not describe it as source material. Act as a grader: work through their solution step by step yourself, verify each of their steps against the correct method, and then:
-- If it's fully correct, say so clearly and confirm the final answer.
-- If there's a mistake, identify the EXACT step where it first goes wrong (quote or describe that specific step precisely, e.g. "2. adımda ... yazmışsın"), explain what's wrong about it, and show the correct way to do that step. Note whether the mistake changes the final answer, and if so, what the correct final answer actually is.
-- Reference the actual numbers/values the student wrote — be concrete, not vague.
-- Keep an encouraging tone even when pointing out a mistake; you're helping a student learn, not grading a final exam.
-- If the image genuinely isn't a solution attempt (e.g. it's blank, unrelated, or you can't read the handwriting), say so honestly instead of guessing at what it might say.` : `
-The student has attached a photo or screenshot of part of this source (for example, a diagram, chart, or page they want you to look at directly) along with their latest message. You DO have real vision on this image — actually look at it and describe/explain what it shows, don't just infer from text fragments. Cross-reference the source text and summary above to name the section/concept the image illustrates where relevant, but the image itself is your primary evidence for what it depicts. If the image is blurry, unrelated to this document, or you can't make out enough detail, say so honestly instead of guessing.`}` : ''}
+CHECK-WORK MODE: the image is the STUDENT'S OWN solution, not source material. Solve it yourself step by step, then: if correct, confirm the final answer; if not, name the EXACT first wrong step (quote their numbers), explain why, show the correct step and the correct final answer. Encouraging tone. If the image is blank, unrelated or unreadable, say so.` : `
+The student attached a photo/screenshot (e.g. a diagram or page). You DO see it: describe and explain what it shows, cross-referencing the source to name the section/concept. If it is blurry or unrelated, say so.`}` : ''}
 
-DIAGRAM GENERATION (free, drawn — not a photo):${isCheckWorkMode ? ' Not applicable in CHECK-WORK MODE (see ATTACHED IMAGE FROM STUDENT above) — skip diagram generation entirely while grading the student\'s solution unless a small diagram would genuinely help illustrate the correct method.' : ''}
-When the student is asking about a chart, diagram, flowchart, comparison, process, or hierarchy — and you can reconstruct its actual structure (from the source text, the study card summary/tables/charts context, and/or an attached image) — also produce a Mermaid.js diagram definition of it (see the MERMAID BLOCK part of OUTPUT FORMAT below), so it can be rendered as a real picture for the student instead of only described in prose. Rules:
-- Use "flowchart TD" or "flowchart LR" for processes/hierarchies/flows, "graph TD" for simple relationship diagrams. Keep node labels short (a few words) — put fuller explanation in your "answer" text instead.
-- Every node id must be a short alphanumeric token (e.g. A, B1, step2) — never put special characters or quotes inside node ids, only inside the bracketed label text.
-- Inside node/edge labels, prefer plain words with no punctuation at all. If you must include a comma or a slash, that's fine, but NEVER use a double-quote character ("") anywhere in the diagram — Mermaid doesn't need quoted labels for ordinary text, and a stray quote is the single most common way this block gets garbled downstream. If a label would otherwise need quotes, just reword it without them.
-- Keep it to at most ~12 nodes. Prefer a simple, correct diagram over an elaborate, possibly-wrong one.
-- Skip the diagram entirely (omit the whole MERMAID BLOCK) whenever the question isn't about a diagram/chart/structure, or when you don't have enough grounded structure to draw one honestly — never fabricate a diagram just to have something to show.
-- The diagram is entirely separate from and in addition to your normal "answer" text — still write a normal grounded answer as usual.
+DIAGRAM GENERATION:${isCheckWorkMode ? ' Skip it in CHECK-WORK MODE unless a small diagram truly helps the correct method.' : ''}
+When the question is about a process, comparison, hierarchy or diagram and you can ground its structure, also output a Mermaid diagram (see MERMAID BLOCK below): "flowchart TD"/"flowchart LR" or "graph TD"; node ids short alphanumeric (A, B1); short labels without double quotes; at most ~12 nodes. Skip it when the question is not structural or the structure is not grounded. It is in addition to the normal answer text.
 ` : ''}
-LANGUAGE RULE:
-Respond in the same language the student's latest question is written in (default to Turkish if genuinely ambiguous).
-
-CONVERSATION STYLE:
-Be concise, clear, and directly helpful — write like a knowledgeable classmate walking them through the material, not a formal report. Refer back to earlier turns in the conversation naturally if the student asks a follow-up question.
-
-TABLES AND LISTS IN YOUR ANSWER:
-If the student asks you to bring back a table, ranking, or list of items from the source, reproduce it inside the "answer" string using "- " bullet lines or simple "label: value" lines separated by "\\n" (a literal backslash-n escape sequence, NOT an actual line break) — never break your answer across multiple real lines. Keep each row/item on its own "\\n"-separated line so it still reads clearly when displayed, but the JSON string itself must remain a single line.
-
+LANGUAGE: Reply in the language of the student's latest question (Turkish if unclear).
+STYLE: Concise and clear, like a knowledgeable classmate; refer back to earlier turns when it helps.
+LISTS/TABLES: Rows as "- " lines or "label: value" lines separated by "\\n" (a literal backslash-n inside the JSON string, never a real line break).
 ${needsNumericRules ? `
 MATH FORMULA FORMAT:
-Whenever your answer includes a mathematical formula, equation, or expression (variables, fractions, exponents, summations, financial/statistical notation, etc.), write it in valid LaTeX and wrap it in single dollar signs so it renders as a real formula instead of plain text, e.g. $A = P(1 + r/n)^{nt}$. This matters especially for quantitative subjects (finance, accounting, statistics, economics) — don't just write formulas as plain text like "A = P(1+r/n)^nt" when you can express them properly in LaTeX. Since your answer is a JSON string value, every backslash inside the LaTeX must be escaped as a double backslash in the JSON text itself: to display $\\frac{a}{b}$, the actual JSON string content must contain "$\\\\frac{a}{b}$" (two backslash characters before "frac", not one). Keep formulas inline within your sentences using single $...$ delimiters only — never use $$...$$ block delimiters.
+Write formulas in LaTeX inside single dollars, inline only (never $$): $A = P(1 + r/n)^{nt}$. Inside the JSON string every backslash is doubled: to show $\\frac{a}{b}$ write "$\\\\frac{a}{b}$".
 
 STEP-BY-STEP NUMERIC SOLUTIONS:
-When the student asks you to solve, calculate, or work through a numeric/quantitative problem (e.g. compute an interest amount, solve for an unknown, work out a statistic), structure your "answer" as clearly numbered steps rather than one dense paragraph: "1) ...\\n2) ...\\n3) ..." (the same "\\n"-separated-line convention as TABLES AND LISTS above — a literal backslash-n, not a real line break). Each step should name the formula being applied (in LaTeX per MATH FORMULA FORMAT above) and show the actual numbers plugged in, not just the abstract formula in isolation. Finish with a clearly labeled final line such as "Sonuç: ..." or "Final answer: ..." stating the numeric result with correct units. Only use this structured format for genuinely numeric/computational questions — for conceptual/qualitative questions, answer normally in prose.
+For calculations, answer as numbered steps "1) ...\\n2) ...": each step names its formula (LaTeX) and shows the numbers plugged in; end with "Sonuç: ..." (or "Final answer: ...") with units. Conceptual questions stay in prose.
 ` : ''}
-OUTPUT FORMAT (read carefully, this is machine-parsed, not just for a human):
-Respond with a single-line JSON object and NOTHING else${needsVisualRules ? ' except the optional diagram block described below' : ''} — no markdown code fences, no commentary before or after, every string value valid single-line JSON (escape any newlines inside it as "\\n"): { "answer": string, "citations": [ { "id": number, "reference": string } ] }. The "answer" field is required and must never be empty; if you cannot answer from the source, say so IN that field.${needsVisualRules ? `
-Then, ONLY when DIAGRAM GENERATION above applies, immediately after the JSON object (on new lines, which is fine since this part is plain text, not JSON) append exactly this block with your Mermaid definition inside it, real line breaks allowed:
+OUTPUT FORMAT (read carefully, this is machine-parsed):
+One single-line JSON object and nothing else${needsVisualRules ? ' except the optional MERMAID BLOCK' : ''} — no code fences, no text before or after, newlines escaped as "\\n": { "answer": string, "citations": [ { "id": number, "reference": string } ] }. "answer" is required and must never be empty; if you cannot answer, say so in it.${needsVisualRules ? `
+MERMAID BLOCK — only when DIAGRAM GENERATION applies, right after the JSON object (real line breaks allowed here):
 ###MERMAID_START###
 flowchart TD
   A[Example] --> B[Node]
 ###MERMAID_END###
-Use the literal markers "###MERMAID_START###" and "###MERMAID_END###" on their own lines, nothing else on those lines. If no diagram applies, output NOTHING after the JSON object — do not include the markers at all in that case. Do NOT put any diagram inside the JSON object.` : ''}
-${summaryContextBlock ? `
+Markers on their own lines; no markers at all when there is no diagram; never put the diagram inside the JSON.` : ''}
+${aktifOzet ? `
 STUDY CARD SUMMARY CONTEXT (already generated for this document — may capture a diagram/table/chart's meaning even where the raw source text below is sparse or garbled; cross-check both when relevant):
 """
-${summaryContextBlock}
+${aktifOzet}
 """
 ` : ''}
 SOURCE TEXT:
@@ -1560,6 +1845,7 @@ ${sourceText}
 
     let groqResponse
     let visionUsed = false
+    let kullanilanModel = ''
     if (hasImage) {
       try {
         console.log("chat-with-document: attempting vision analysis with qwen/qwen3.8-27b...")
@@ -1595,6 +1881,7 @@ ${sourceText}
         }, 0, 20000) // no retries, 20s cap — leave real time budget for the text-only fallback below
         if (groqResponse.ok) {
           visionUsed = true
+          kullanilanModel = 'qwen/qwen3.8-27b'
         } else {
           console.warn(`chat-with-document: vision call returned non-ok status ${groqResponse.status}, falling back to text-only.`)
           groqResponse = undefined
@@ -1760,6 +2047,7 @@ ${sourceText}
               continue
             }
             groqResponse = res
+            kullanilanModel = lane
             if (i > 0) console.warn(`chat-with-document: ${lane} seridine dusuldu (onceki serit(ler) kullanilamadi)`)
             break
           }
@@ -1846,106 +2134,128 @@ ${sourceText}
       })
     }
 
-    // Defensive safety net: reasoning-capable models (qwen/qwen3.8-27b,
-    // openai/gpt-oss-120b) can still prepend a <think>...</think> block to
-    // "content" even with reasoning turned down/off above — e.g. Groq changes
-    // a default, or a future model swap reintroduces this. Strip it so a
-    // stray thinking block never breaks the JSON parse below.
-    const thinkMatch = rawContent.match(/<think>[\s\S]*?<\/think>/i)
-    if (thinkMatch) {
-      rawContent = rawContent.slice(thinkMatch.index! + thinkMatch[0].length).trim()
-    } else if (/^\s*<think>/i.test(rawContent)) {
-      // Opening tag with no closing tag — the model ran out of its token
-      // budget mid-thought before ever writing the real answer. Nothing
-      // usable is left; fail with a message that tells the student to retry
-      // rather than a confusing generic JSON error.
-      console.error("chat-with-document: model response was an unterminated <think> block (ran out of tokens while reasoning):", rawContent)
-      return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before writing an answer — please try again' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-    if (!rawContent) {
-      return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
+    return cevapUret(rawContent, gonderilenSayfalar, visionUsed, kullanilanModel, strategy)
 
-    // Pull the optional Mermaid diagram block out via plain string search
-    // BEFORE touching JSON.parse at all — Mermaid syntax (brackets, arrows,
-    // occasional stray quotes) is exactly the kind of content that breaks a
-    // naive "embed it as a JSON string value" approach when the model
-    // forgets to escape something. Extracting it out-of-band means the JSON
-    // parse below only ever has to handle the simple {answer, citations}
-    // shape, regardless of how messy the diagram syntax gets.
-    const MERMAID_START = '###MERMAID_START###'
-    const MERMAID_END = '###MERMAID_END###'
-    let mermaidCode: string | null = null
-    let jsonPart = rawContent
-    const mermaidStartIdx = rawContent.indexOf(MERMAID_START)
-    const mermaidEndIdx = rawContent.indexOf(MERMAID_END)
-    if (mermaidStartIdx !== -1 && mermaidEndIdx !== -1 && mermaidEndIdx > mermaidStartIdx) {
-      mermaidCode = rawContent
-        .substring(mermaidStartIdx + MERMAID_START.length, mermaidEndIdx)
-        .replace(/```mermaid\s*|```/g, '')
-        .trim()
-      jsonPart = rawContent.substring(0, mermaidStartIdx).trim()
-    }
-
-    const cleaned = jsonPart.replace(/```json\s*|```/g, "").trim()
-    let parsedContent
-    try {
-      parsedContent = tryParseJsonLoose(cleaned)
-    } catch (parseError) {
-      // Yapi bozuksa alanlari tek tek kurtarmayi dene (salvageAnswerContract
-      // basligindaki olaya bak): cevap genellikle dogru yazilmis olur ve
-      // sadece sarmalayici bozuktur. Bir cumleyi atmak icin tek bir fazla
-      // parantez yeterli olmamali.
-      const kurtarilan = salvageAnswerContract(cleaned)
-      if (!kurtarilan) {
-        console.error("Failed to parse chat-with-document JSON:", rawContent, parseError)
-        return new Response(JSON.stringify({ error: 'AI returned invalid JSON formatting' }), {
-          status: 500,
+    /* CEVABI ISLE: dusunme blogu, Mermaid, JSON / duz metin, atif dayanagi.
+       Gemini ve Groq yollari ayni kapidan cikar (18.11.2026'da fonksiyona alindi). */
+    function cevapUret(rawContent: string, gonderilenSayfalar: number[], visionUsed: boolean, kullanilanModel: string, strategy: string): Response {
+      // Defensive safety net: reasoning-capable models (qwen/qwen3.8-27b,
+      // openai/gpt-oss-120b) can still prepend a <think>...</think> block to
+      // "content" even with reasoning turned down/off above — e.g. Groq changes
+      // a default, or a future model swap reintroduces this. Strip it so a
+      // stray thinking block never breaks the JSON parse below.
+      const thinkMatch = rawContent.match(/<think>[\s\S]*?<\/think>/i)
+      if (thinkMatch) {
+        rawContent = rawContent.slice(thinkMatch.index! + thinkMatch[0].length).trim()
+      } else if (/^\s*<think>/i.test(rawContent)) {
+        // Opening tag with no closing tag — the model ran out of its token
+        // budget mid-thought before ever writing the real answer. Nothing
+        // usable is left; fail with a message that tells the student to retry
+        // rather than a confusing generic JSON error.
+        console.error("chat-with-document: model response was an unterminated <think> block (ran out of tokens while reasoning):", rawContent)
+        return new Response(JSON.stringify({ error: 'The AI ran out of thinking time before writing an answer — please try again' }), {
+          status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
-      // Kurtarma SESSIZ olmamali: bicim hatasi yapan model gorunur kalsin,
-      // yoksa "her sey yolunda" sanilir ve asil sebep hic arastirilmaz.
-      console.warn(
-        `chat-with-document: bozuk JSON sarmalayicidan kurtarildi ` +
-        `(cevap ${kurtarilan.answer.length} krk, ${kurtarilan.citations.length} atif) — ` +
-        `hata: ${String(parseError).slice(0, 160)}`
-      )
-      parsedContent = kurtarilan
-    }
+      if (!rawContent) {
+        return new Response(JSON.stringify({ error: 'AI failed to generate a response' }), {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
 
-    // Atif sayfalari modelin GERCEKTEN gordugu sayfalara karsi dogrulanir.
-    // Sessiz kalmasi normal: bu kapi dogru yazilmis bir atifa dokunmaz.
-    // Fire ettiginde loglanmasi sart — yoksa ne kadar sik oldugunu hic
-    // ogrenemeyiz ve ozetleme tarafindaki grafik kapisi gibi, hic
-    // tetiklenmeden mi duruyor yoksa surekli mi calisiyor bilemeyiz.
-    const { citations: dayanakliAtiflar, atilan: sahteSayfalar } = groundCitationPages(
-      Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
-      gonderilenSayfalar
-    )
-    if (sahteSayfalar.length > 0) {
-      console.warn(
-        `chat-with-document: atifta gonderilmemis sayfa(lar) temizlendi — ` +
-        `sahte=[${sayfaListesiTopla(sahteSayfalar)}] ` +
-        `gonderilen=[${sayfaListesiTopla(gonderilenSayfalar)}]`
-      )
-    }
+      // Pull the optional Mermaid diagram block out via plain string search
+      // BEFORE touching JSON.parse at all — Mermaid syntax (brackets, arrows,
+      // occasional stray quotes) is exactly the kind of content that breaks a
+      // naive "embed it as a JSON string value" approach when the model
+      // forgets to escape something. Extracting it out-of-band means the JSON
+      // parse below only ever has to handle the simple {answer, citations}
+      // shape, regardless of how messy the diagram syntax gets.
+      const MERMAID_START = '###MERMAID_START###'
+      const MERMAID_END = '###MERMAID_END###'
+      let mermaidCode: string | null = null
+      let jsonPart = rawContent
+      const mermaidStartIdx = rawContent.indexOf(MERMAID_START)
+      const mermaidEndIdx = rawContent.indexOf(MERMAID_END)
+      if (mermaidStartIdx !== -1 && mermaidEndIdx !== -1 && mermaidEndIdx > mermaidStartIdx) {
+        mermaidCode = rawContent
+          .substring(mermaidStartIdx + MERMAID_START.length, mermaidEndIdx)
+          .replace(/```mermaid\s*|```/g, '')
+          .trim()
+        jsonPart = rawContent.substring(0, mermaidStartIdx).trim()
+      }
 
-    return new Response(JSON.stringify({
-      answer: parsedContent.answer || '',
-      citations: dayanakliAtiflar,
-      mermaid: mermaidCode && mermaidCode.length > 0 ? mermaidCode : null,
-      visionUsed
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+      const cleaned = jsonPart.replace(/```json\s*|```/g, "").trim()
+      let parsedContent
+      try {
+        parsedContent = tryParseJsonLoose(cleaned)
+      } catch (parseError) {
+        // Yapi bozuksa alanlari tek tek kurtarmayi dene (salvageAnswerContract
+        // basligindaki olaya bak): cevap genellikle dogru yazilmis olur ve
+        // sadece sarmalayici bozuktur. Bir cumleyi atmak icin tek bir fazla
+        // parantez yeterli olmamali.
+        const kurtarilan = salvageAnswerContract(cleaned) || duzMetinCevap(cleaned)
+        if (!kurtarilan) {
+          console.error("Failed to parse chat-with-document JSON:", rawContent, parseError)
+          return new Response(JSON.stringify({ error: 'Acadia bu cevabı düzgün yazamadı — soruyu bir kez daha gönderir misin?' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        // Kurtarma SESSIZ olmamali: bicim hatasi yapan model gorunur kalsin,
+        // yoksa "her sey yolunda" sanilir ve asil sebep hic arastirilmaz.
+        console.warn(
+          `chat-with-document: bozuk JSON sarmalayicidan kurtarildi ` +
+          `(cevap ${kurtarilan.answer.length} krk, ${kurtarilan.citations.length} atif) — ` +
+          `hata: ${String(parseError).slice(0, 160)}`
+        )
+        parsedContent = kurtarilan
+      }
+      // Gecerli JSON ama sozlesme degil (ornegin yalnizca bir string): metni cevap say.
+      if (!parsedContent || typeof parsedContent !== 'object' || typeof parsedContent.answer !== 'string' || !parsedContent.answer.trim()) {
+        const duz = typeof parsedContent === 'string' ? duzMetinCevap(parsedContent) : duzMetinCevap(cleaned)
+        if (!duz) {
+          console.error('chat-with-document: cevapta okunur metin yok:', rawContent.slice(0, 400))
+          return new Response(JSON.stringify({ error: 'Acadia bu soruya yanıt üretemedi — soruyu biraz farklı sorarsan tekrar deneyebilirim.' }), {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+        console.warn(`chat-with-document: sozlesme disi cevap duz metin olarak alindi (${duz.answer.length} krk)`)
+        parsedContent = duz
+      }
+
+      // Atif sayfalari modelin GERCEKTEN gordugu sayfalara karsi dogrulanir.
+      // Sessiz kalmasi normal: bu kapi dogru yazilmis bir atifa dokunmaz.
+      // Fire ettiginde loglanmasi sart — yoksa ne kadar sik oldugunu hic
+      // ogrenemeyiz ve ozetleme tarafindaki grafik kapisi gibi, hic
+      // tetiklenmeden mi duruyor yoksa surekli mi calisiyor bilemeyiz.
+      const { citations: dayanakliAtiflar, atilan: sahteSayfalar } = groundCitationPages(
+        Array.isArray(parsedContent.citations) ? parsedContent.citations : [],
+        gonderilenSayfalar
+      )
+      if (sahteSayfalar.length > 0) {
+        console.warn(
+          `chat-with-document: atifta gonderilmemis sayfa(lar) temizlendi — ` +
+          `sahte=[${sayfaListesiTopla(sahteSayfalar)}] ` +
+          `gonderilen=[${sayfaListesiTopla(gonderilenSayfalar)}]`
+        )
+      }
+
+      return new Response(JSON.stringify({
+        answer: parsedContent.answer || '',
+        citations: dayanakliAtiflar,
+        mermaid: mermaidCode && mermaidCode.length > 0 ? mermaidCode : null,
+        visionUsed,
+        // Geri bildirim kaydi icin: hangi model ve hangi kaynak yolu (tam belge / retrieval)
+        model: kullanilanModel,
+        yol: strategy
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
   } catch (err) {
     console.error('Unexpected chat-with-document exception: ', err)

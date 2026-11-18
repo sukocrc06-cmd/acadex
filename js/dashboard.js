@@ -6339,11 +6339,17 @@ async function sendSourceHubChatMessage(text, imageDataUrl, checkWorkMode) {
         ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
         : "I couldn't answer right now, please try again.");
       renderSourceHubChatMessage('assistant', errMsg, [], null, false, null, false);
+      // Acadia geri bildirim: cevaplanamayan soru kendiliğinden yönetim listesine düşer
+      // (js/acadex-kaynak-calis.js; tablo yoksa sessizce geçer).
+      if (window.AXGERI && typeof window.AXGERI.hata === 'function') window.AXGERI.hata(cardId, text, errMsg);
       sourceHubChatHistory.pop();
       return;
     }
 
+    // Geri bildirim düğmeleri bu cevabın sorusunu, modelini ve yolunu bilsin (js/acadex-kaynak-calis.js)
+    window.__acadiaSon = { kart: cardId, soru: text, model: data.model || '', yol: data.yol || '' };
     renderSourceHubChatMessage('assistant', data.answer, data.citations || [], null, !!data.visionUsed, data.mermaid || null);
+    window.__acadiaSon = null;
     sourceHubChatHistory.push({ role: 'assistant', content: data.answer });
   } catch (err) {
     console.error('Exception in sendSourceHubChatMessage:', err);
@@ -6351,6 +6357,7 @@ async function sendSourceHubChatMessage(text, imageDataUrl, checkWorkMode) {
       ? 'Şu anda cevap veremiyorum, lütfen tekrar deneyin.'
       : "I couldn't answer right now, please try again.";
     renderSourceHubChatMessage('assistant', errMsg, [], null, false, null, false);
+    if (window.AXGERI && typeof window.AXGERI.hata === 'function') window.AXGERI.hata(cardId, text, 'istemci: ' + String((err && err.message) || err).slice(0, 200));
     sourceHubChatHistory.pop();
   } finally {
     sourceHubChatRequestInFlight = false;

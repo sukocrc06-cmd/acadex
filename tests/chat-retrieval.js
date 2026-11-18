@@ -1043,9 +1043,15 @@ test('kurtarma SESSIZ degil — log satiri var', () => {
   const blok = CHAT_SRC.slice(i, i + 1200);
   assert.ok(/console\.warn/.test(blok), 'kurtarma loglanmali');
   assert.ok(/bozuk JSON sarmalayicidan kurtarildi/.test(blok), 'log mesaji yok');
-  // Ve kurtarilamayan durum HALA hata donmeli.
-  assert.ok(/AI returned invalid JSON formatting/.test(blok),
-    'kurtarilamayan durumda hata donmeye devam etmeli');
+  /* 18.11.2026: eskiden kurtarilamayan her cevap "AI returned invalid JSON
+     formatting" donuyordu — model DUZ METIN dogru cevap yazdiginda da
+     ("örnek ver mnc tanımına", log 15:47). Artik once duz metin denenir;
+     o da yoksa ogrenciye anlasilir bir hata doner. */
+  assert.ok(/salvageAnswerContract\(cleaned\) \|\| duzMetinCevap\(cleaned\)/.test(blok),
+    'JSON kurtarilamazsa duz metin denenmeli');
+  assert.ok(/status: 500/.test(blok) && /yazamadı/.test(blok),
+    'hicbir sey kurtarilamazsa hata donmeye devam etmeli');
+  assert.ok(!/AI returned invalid JSON formatting' \}/.test(blok), 'ogrenciye teknik ingilizce hata gitmemeli');
 });
 
 summary().then(() => process.exit(process.exitCode || 0));
