@@ -49,9 +49,9 @@ function acadexLoadScript(src){
   });
 }
 document.addEventListener('DOMContentLoaded',async()=>{
-  if(window.location.pathname.includes('login.html')) acadexApplyPortalLabel();
+  if(/\/login(\.html)?$/.test(window.location.pathname)) acadexApplyPortalLabel();
   const settings=await acadexGetSiteSettings(); acadexRenderBanner(settings.banner);
-  if(window.location.pathname.includes('login.html')&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
+  if(/\/login(\.html)?$/.test(window.location.pathname)&&settings.maintenance?.enabled){const notice=acadexRenderMaintenanceNotice(settings.maintenance);const loginView=document.getElementById('login-view');if(notice&&loginView)loginView.insertBefore(notice,loginView.firstChild);}
   /* SUNUM MODULLERININ YUKLENMESI DURDURULDU — 06.10.2026.
      ========================================================================
      Burada 13 betik, HER dashboard acilisinda, sirayla yukleniyordu:

@@ -55,7 +55,8 @@ async function getPostLoginDestination(userId) {
 window.addEventListener('pageshow', async (e) => {
   if (!e.persisted) return;
   const p = window.location.pathname;
-  if (!(p.includes('login.html') || p.includes('register.html'))) return;
+  /* .html'li ve .html'siz adres (Cloudflare Pages /login.html'i /login'e çevirir, 19.11.2026) */
+  if (!(/\/login(\.html)?$/.test(p) || /\/register(\.html)?$/.test(p))) return;
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) window.location.replace(await getPostLoginDestination(session.user.id));
@@ -66,8 +67,9 @@ window.addEventListener('pageshow', async (e) => {
 
 document.addEventListener('DOMContentLoaded', async () => {
   const path = window.location.pathname;
-  const isLoginPage = path.includes('login.html');
-  const isRegisterPage = path.includes('register.html');
+  /* .html'li ve .html'siz adres (Cloudflare Pages /login.html'i /login'e çevirir, 19.11.2026) */
+  const isLoginPage = /\/login(\.html)?$/.test(path);
+  const isRegisterPage = /\/register(\.html)?$/.test(path);
 
   // ==========================================
   // 1. Session Redirect Guard on Load

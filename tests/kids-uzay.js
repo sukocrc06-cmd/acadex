@@ -12,7 +12,9 @@
      - uzay yalnız giriş ve haritada; konu ekranlarının kendi sahnesi bozulmaz
      - hareketi azaltta yıldızlar durağan, kayan yıldız / ateş topu yok
      - telefonu yormaz: piksel oranı en çok 2, sekme gizliyken durur
-   Tarayıcıda (Playwright, masaüstü + telefon) denendi.
+     - 3B galaksi (kids-uzay3d.mjs, three.js r160 içinde): dış bağlantı yok, çevrimdışı önbellekte,
+       WebGL yoksa / modül gelmezse düz haritaya döner; düğmeler gerçek düğme olarak gezegen üstünde
+   Tarayıcıda (Playwright + SwiftShader WebGL, masaüstü + telefon) denendi.
    Çalıştırma:  node tests/kids-uzay.js
    ========================================================================== */
 'use strict';
@@ -75,6 +77,26 @@ test('uzay yalnız giriş ve harita; hareketi azaltta sakin; telefonu yormaz', (
   assert.match(css, /\.kz-tuval\{position:fixed;inset:0;[^}]*pointer-events:none/);
   assert.match(css, /prefers-reduced-motion:reduce\)\{\.kz-ast\{animation:none\}/);
   assert.match(css, /html\.kz-uzay body,html\.kz-uzay-sakin body\{\s*background-color:#0B1033/);
+});
+
+
+test('3B galaksi: modül yerel, önbellekte, düşerse düz harita; düğmeler gezegen üstünde', () => {
+  const mjs = read('kids/assets/kids-uzay3d.mjs'), src = read('kids/assets/kids-uzay3d.src.js'), sw = read('kids/sw.js'), css3 = css;
+  assert.ok(mjs.length > 100000 && mjs.length < 700000, 'paket boyutu ' + mjs.length);
+  assert.match(mjs, /"160"/, 'three r160 (MedLab kampüsüyle aynı)');
+  assert.doesNotMatch(mjs, /(?:import|from)\s*["']https?:/, 'CDN içe aktarımı yok');
+  assert.doesNotMatch(mjs, /cdn\.jsdelivr|unpkg|esm\.sh/);
+  assert.match(src, /export function kur\(o\)/);
+  assert.match(sw, /'\/kids\/assets\/kids-uzay3d\.mjs'/, 'çevrimdışı önbellekte');
+  assert.match(js, /new Function\('u', 'return import\(u\)'\)\('\/kids\/assets\/kids-uzay3d\.mjs'\)/, 'eski tarayıcıda sözdizimi hatası yok');
+  assert.match(js, /var sure = setTimeout\(vazgec, 7000\)/, 'modül gelmezse düz harita');
+  assert.match(js, /getContext\('webgl2'\) \|\| c\.getContext\('webgl'\)/);
+  assert.match(js, /if \(U3 && U3\.harita && U3\.harita\.isConnected\)/, 'uçuş 3B astronotla');
+  assert.match(app, /app\.querySelector\('\.kz-ast-yer, \.kz3-acik'\)/);
+  assert.match(css3, /\.ka-harita\.kz3-acik \.ka-ada\{[^}]*pointer-events:auto/);
+  assert.match(css3, /isolation:isolate/, 'etiketler üst çubuğun üstüne taşmaz');
+  assert.match(src, /if \(!kap\.isConnected\) \{ temizle\(\); return; \}/, 'harita kapanınca WebGL bırakılır');
+  assert.match(src, /if \(i === suan \|\| sakin\)/, 'hareketi azaltta uçuş anında');
 });
 
 summary();

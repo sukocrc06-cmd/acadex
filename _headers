@@ -1,0 +1,35 @@
+# Cloudflare Pages başlıkları (vercel.json'daki "headers" bölümünün karşılığı), 19.11.2026
+# Bu dosya tools/cloudflare-paketle.js ile dist/ klasörüne kopyalanır.
+/sw.js
+  Cache-Control: no-cache, must-revalidate
+  Service-Worker-Allowed: /
+
+/kids/sw.js
+  Cache-Control: no-cache, must-revalidate
+
+/js/*
+  Cache-Control: no-cache, must-revalidate
+
+/css/*
+  Cache-Control: no-cache, must-revalidate
+
+/kids/assets/kids-uzay3d.mjs
+  Content-Type: text/javascript; charset=utf-8
+
+/admin
+  X-Robots-Tag: noindex, nofollow
+  X-Frame-Options: DENY
+  Referrer-Policy: same-origin
+
+/admin.html
+  X-Robots-Tag: noindex, nofollow
+  X-Frame-Options: DENY
+  Referrer-Policy: same-origin
+
+/panel
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: same-origin
+
+/panel.html
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: same-origin

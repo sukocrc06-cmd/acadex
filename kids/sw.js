@@ -7,10 +7,12 @@
    ve liste.json her seferinde önce internetten alınır, internet yoksa önbellekteki çalar.
    Yeni sürüm yayınlarken SURUM'u değiştirmek eski önbelleği temizler. Ses değişince
    SURUM'a gerek yok: kids-ses.js adrese sesin kimliğini (?v=) ekler.
+   kids-uzay3d.mjs (3B galaksi haritası, three.js) de önbellekte: harita çevrimdışı da 3B açılır;
+   modül değişince SURUM değiştirilmeli.
    ========================================================================== */
 'use strict';
-const SURUM = 'acadex-kids-2026-11-15h';
-const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png'];
+const SURUM = 'acadex-kids-2026-11-19a';
+const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png', '/kids/assets/kids-uzay3d.mjs'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SURUM).then((c) => c.addAll(DOSYALAR)).then(() => self.skipWaiting()));

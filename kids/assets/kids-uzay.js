@@ -83,9 +83,52 @@
     var h = harita.getBoundingClientRect(), r = (ada.querySelector('.kc-ada') || ada).getBoundingClientRect();
     return { x: r.left - h.left + r.width * 0.12, y: r.top - h.top + r.height * 0.18 };
   }
+  /* ======================= 3B galaksi (kids-uzay3d.mjs, three.js) =======================
+     Harita açılınca modül yüklenir. WebGL yoksa, cihaz çok zayıfsa ya da modül 7 sn'de gelmezse
+     düz (2B) gezegen haritası kalır. kids.uzay3d = 0 (localStorage) 3B'yi kapatır. */
+  var U3 = null, MOD = null;
+  function uc3Uygun() {
+    if (lsAl('kids.uzay3d', 1) === 0) return false;
+    var n = W.navigator || {};
+    if ((n.deviceMemory && n.deviceMemory < 2) || (n.hardwareConcurrency && n.hardwareConcurrency < 2)) return false;
+    try { var c = D.createElement('canvas'); if (!(c.getContext('webgl2') || c.getContext('webgl'))) return false; } catch (e) { return false; }
+    return true;
+  }
+  function modulAl() {
+    /* eski tarayıcıda sözdizimi hatası olmasın diye import() bir fonksiyonun içinde */
+    if (!MOD) { try { MOD = new Function('u', 'return import(u)')('/kids/assets/kids-uzay3d.mjs'); } catch (e) { MOD = Promise.reject(e); } }
+    return MOD;
+  }
+  function uc3Kur(kok, harita, o, yedek) {
+    var lis = [].slice.call(harita.querySelectorAll('.ka-adalar > li'));
+    if (!o.konular || lis.length !== o.konular.length) return false;
+    var kap = D.createElement('div'); kap.className = 'kz3'; harita.insertBefore(kap, harita.firstChild);
+    harita.classList.add('kz3-bekle');
+    var bitti = false, vazgec = function () { if (bitti) return; bitti = true; kap.remove(); harita.classList.remove('kz3-bekle', 'kz3-acik'); lis.forEach(function (l) { l.style.transform = ''; l.style.visibility = ''; }); yedek(); };
+    var sure = setTimeout(vazgec, 7000);
+    modulAl().then(function (m) {
+      if (bitti || !kap.isConnected) return;
+      clearTimeout(sure); bitti = true;
+      var yer = lsAl('kids.uzay.yer', {});
+      U3 = m.kur({
+        kap: kap, sakin: SAKIN, yuz: C ? C.avatar(o.hayvan, o.renk) : '',
+        baslangic: yer[o.anahtar] || o.bugun || (o.konular.filter(function (k) { return !k.kilit; })[0] || {}).id,
+        konular: o.konular.map(function (k, i) { return { id: k.id, renk: k.renk, kilit: k.kilit, asama: k.asama, bugun: k.id === o.bugun, simge: C ? C.simge(k.simge) : '', el: lis[i] }; })
+      });
+      U3.anahtar = o.anahtar; U3.harita = harita;
+      harita.classList.remove('kz3-bekle'); harita.classList.add('kz3-acik');
+    }, function (e) { clearTimeout(sure); if (W.console) console.warn('3B harita açılamadı, düz harita:', e); vazgec(); });
+    return true;
+  }
   /* haritaya astronotu koy: son gidilen gezegen, yoksa bugünün, yoksa ilk açık gezegen */
   function yerlestir(kok, o) {
     var harita = kok.querySelector('.ka-harita'); if (!harita || !aktif()) return;
+    U3 = null;
+    if (o.konular && uc3Uygun() && uc3Kur(kok, harita, o, function () { yerlestir2(kok, o); })) return;
+    yerlestir2(kok, o);
+  }
+  function yerlestir2(kok, o) {
+    var harita = kok.querySelector('.ka-harita'); if (!harita) return;
     var yer = lsAl('kids.uzay.yer', {}), kid = yer[o.anahtar];
     var ada = (kid && adaBul(kok, kid)) || (o.bugun && adaBul(kok, o.bugun)) || kok.querySelector('.ka-ada[data-konu]');
     if (!ada) return;
@@ -98,6 +141,10 @@
   }
   /* gezegene uç: jetpack yanar, kavisle süzülür; bitince sonra() */
   function uc(kid, sonra) {
+    if (U3 && U3.harita && U3.harita.isConnected) {
+      var y3 = lsAl('kids.uzay.yer', {}); y3[U3.anahtar] = kid; lsKoy('kids.uzay.yer', y3);
+      return U3.uc(kid, sonra);
+    }
     var el = AST && AST.el;
     if (!el || !el.isConnected) return sonra();
     var kok = AST.harita.parentNode, ada = adaBul(kok, kid);
@@ -217,5 +264,5 @@
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', izle); else izle();
 
-  W.KIDS_UZAY = { aktif: aktif, gezegen: gezegen, uc: uc, yerlestir: yerlestir, astronotHtml: astronotHtml, _test: { karis: karis } };
+  W.KIDS_UZAY = { aktif: aktif, gezegen: gezegen, uc: uc, yerlestir: yerlestir, astronotHtml: astronotHtml, uc3Uygun: uc3Uygun, _test: { karis: karis } };
 })(window);

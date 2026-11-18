@@ -229,7 +229,8 @@
       }).join('') + '</ol></section>' + dockHtml(il), 'harita');
     app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); if (W.KIDS_UZAY && W.KIDS_UZAY.aktif()) W.KIDS_UZAY.uc(kid, function () { adaSec(kid); }); else adaSec(kid); }); });
     /* uzay teması (kids-uzay.js): çocuk kasklı astronot olarak son gittiği gezegenin yanında süzülür */
-    if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid });
+    if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid,
+      konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
     /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
     app.querySelectorAll('[data-setoyna]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); S.seviye = 1; S.paket = 0; konuAc(b.getAttribute('data-setoyna'), 0); }); });
     /* ada büyüdüyse: bir kez kutla, sonra hatırla */
@@ -555,7 +556,7 @@
     var k = V.konuBul(kid), a = merkez(cikis), h = merkez(ada), o = D.createElement('div');
     if (h.r.bottom < 0 || h.r.top > W.innerHeight) { try { ada.scrollIntoView({ block: 'center' }); } catch (e) { } h = merkez(ada); }
     /* uzayda astronot gezegene zaten uçtu: Acadia ikinci kez uçmaz, renk perdesi gezegenden açılır */
-    var uzay = !!(W.KIDS_UZAY && W.KIDS_UZAY.aktif() && app.querySelector('.kz-ast-yer'));
+    var uzay = !!(W.KIDS_UZAY && W.KIDS_UZAY.aktif() && app.querySelector('.kz-ast-yer, .kz3-acik'));
     o.className = 'ka-ucus'; o.innerHTML = '<span class="ka-ucus-acd" style="left:' + a.x + 'px;top:' + a.y + 'px' + (uzay ? ';display:none' : '') + '">' + acd('kutlama') + '</span><i class="ka-ucus-perde" style="--r:' + k.renk + '"></i>';
     D.body.appendChild(o); SES.fx('cevir');
     var ac_ = o.firstChild, dx = h.x - a.x, dy = h.y - a.y - 30;

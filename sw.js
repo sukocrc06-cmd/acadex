@@ -35,12 +35,12 @@ function axSameOrigin(u) {
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
   var url = axSameOrigin((e.notification.data && e.notification.data.url) || 'dashboard.html#planner') || self.location.origin + '/dashboard.html';
-  var want = new URL(url), wantPage = want.pathname.replace(/\/index\.html$/, '/');
+  var want = new URL(url), wantPage = want.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
     /* ayni sayfa acik: one getir, gerekiyorsa adrese git */
     for (var i = 0; i < list.length; i++) {
       var c = list[i], p;
-      try { p = new URL(c.url).pathname.replace(/\/index\.html$/, '/'); } catch (x) { continue; }
+      try { p = new URL(c.url).pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, ''); } catch (x) { continue; }
       if (p === wantPage && 'focus' in c) {
         return (c.url !== url && c.navigate ? c.navigate(url).catch(function () { return c; }) : Promise.resolve(c)).then(function (w) { return (w || c).focus(); });
       }
