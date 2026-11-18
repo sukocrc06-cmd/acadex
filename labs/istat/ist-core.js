@@ -647,9 +647,11 @@
     var seed = cur.seed || ((Date.now() / 1000) | 0), r = IST.rng(seed * 7 + H.no + (H.donem === 'bahar' ? 100 : 0)), list = lsafe(function () { return H.sorular(r); }, []);
     var res = list.map(function () { return null; });
     body.innerHTML = '<div class="is-sor"><div class="is-sor-h"><div class="is-hk">' + IST.hoca(48) + '<div class="is-bal"><b>Yeni nesil sorular.</b> ' + list.length + ' soru; senaryo, tablo ve grafik okuma. Takılırsan önce <b>ipucu</b>, sonra <b>adım adım çözüm</b>. Puan ilk denemene göre.</div></div>' +
-      '<button type="button" class="btn sm" data-yeni>↻ yeni soru seti</button></div><div data-qs style="display:grid;gap:14px"></div><div data-karne></div></div>';
+      '<button type="button" class="btn sm" data-yeni>↻ yeni soru seti</button></div>' + (H.rehber ? '<div data-rehber style="margin-bottom:14px"></div>' : '') + '<div data-qs style="display:grid;gap:14px"></div><div data-karne></div></div>';
     var yeni = function () { cur.seed = ((Date.now() / 1000) | 0) + Math.floor(Math.random() * 1e5); sorular(H, body); };
     body.querySelector('[data-yeni]').onclick = yeni;
+    /* 18.11.2026 · rehberli seri (azalan yardım): ist-olasilik.js, H.rehber şablonları */
+    if (H.rehber && IST.rehber) lsafe(function () { IST.rehber(H, body.querySelector('[data-rehber]')); });
     var qs = body.querySelector('[data-qs]');
     var bitti = function () {
       if (res.some(function (x) { return x === null; })) return;
