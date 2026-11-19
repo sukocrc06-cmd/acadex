@@ -471,7 +471,9 @@
     var b = sahne.querySelector('[data-ileri]'); b.addEventListener('click', function () { SES.fx('dokun'); ileri(); }); b.focus({ preventScroll: true });
   }
 
-  /* 6. Söyle: çocuk söyler, kendi sesini dinler (kayıt cihazda kalır, puan yok) */
+  /* 6. Söyle: çocuk söyler. 20.11.2026: veli mikrofonu açtıysa (kids-dinle.js) Acadia dinler ve anlar:
+     doğruysa "Aferin!" deyip sonrakine geçer, değilse bir daha ister. Mikrofon kapalıysa eskisi gibi:
+     çocuk kendi sesini kaydedip dinler (kayıt cihazda kalır), "Söyledim!" ile geçer. */
   function soyle(sahne, ileri) {
     var rs = OYUN.kar(renkler()).slice(0, 3), i = 0, kayit = null, akis = null, url = null, iptal = false;
     function temizle() { try { if (kayit && kayit.state !== 'inactive') kayit.stop(); } catch (e) { } try { if (akis) akis.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { } akis = null; if (url) { URL.revokeObjectURL(url); url = null; } }
@@ -481,13 +483,27 @@
       sahne.innerHTML = '<div class="ka-soyle"><p class="ka-yon">' + C.simge('mikrofon') + ' Dinle, sonra sen söyle.</p><div class="ka-soyle-leke">' + paket().gorsel(r) + '</div>' + (bant().yazi ? '<p class="ka-kelime" lang="en" style="--r:' + r.hex + '">' + r.en + '</p>' : '') +
         '<div class="ka-soyle-dugme"><button type="button" class="ka-yuvarlak ka-iri" data-dinle aria-label="Dinle">' + C.simge('ses') + '</button><button type="button" class="ka-yuvarlak ka-iri ka-mik" data-mik aria-label="Söyle (mikrofon)">' + C.simge('mikrofon') + '</button></div>' +
         '<p class="ka-durum" data-durum aria-live="polite"></p><div class="ka-izle-alt"><button type="button" class="ka-buyuk" data-soyledim>Söyledim! ' + C.simge('oynat') + '</button></div>' +
-        '<p class="ka-gizlilik">Ses kaydı yalnız bu cihazda çalınır, hiçbir yere gönderilmez.</p></div>';
-      var durum = sahne.querySelector('[data-durum]'), mik = sahne.querySelector('[data-mik]');
+        '<p class="ka-gizlilik">' + (DN && DN.hazir() ? 'Acadia seni dinliyor. Ses kaydedilmez, yalnız yazıya çevrilir.' : 'Ses kaydı yalnız bu cihazda çalınır, hiçbir yere gönderilmez.') + '</p></div>';
+      var durum = sahne.querySelector('[data-durum]'), mik = sahne.querySelector('[data-mik]'), benim = ++tur;
+      /* Acadia anlasın: "Say: blue" → çocuk "blue" → "Aferin!" → sonraki */
+      function anla() {
+        if (iptal || benim !== tur) return;
+        mik.classList.add('ka-kayit'); mik.disabled = true; durum.textContent = '';
+        DN.tekrarla({ en: r.en, kok: durum.parentNode.querySelector('.ka-soyle-dugme'), soyle: function () { return SES.soyle(r.en, 'en'); } }).then(function (x) {
+          if (iptal || benim !== tur) return;
+          mik.classList.remove('ka-kayit'); mik.disabled = false; DN.gosterge(sahne.querySelector('.ka-soyle-dugme'), 'gizli');
+          if (x === 'tamam') { durum.textContent = '✓ ' + r.en; ustaArtir(r.id); setTimeout(function () { if (!iptal && benim === tur) { i++; goster(); } }, 1300); }
+          else durum.textContent = 'İstersen mikrofona dokunup yeniden söyle.';
+        });
+      }
       sahne.querySelector('[data-dinle]').addEventListener('click', function () { SES.fx('dokun'); SES.soyle(r.en, 'en'); });
-      sahne.querySelector('[data-soyledim]').addEventListener('click', function () { SES.fx('dogru'); i++; goster(); });
+      sahne.querySelector('[data-soyledim]').addEventListener('click', function () { if (DN) DN.durdur(); SES.fx('dogru'); i++; goster(); });
       if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && W.MediaRecorder)) mik.hidden = true;
       mik.addEventListener('click', async function () {
-        if (mik.disabled) return; mik.disabled = true; SES.sus();
+        if (mik.disabled) return;
+        if (DN && DN.hazir()) return anla();
+        if (DN && DN.izin() === 'sor') { var ok = await DN.izinSor(); if (ok && DN.hazir()) return anla(); }
+        mik.disabled = true; SES.sus();
         try {
           akis = akis || await navigator.mediaDevices.getUserMedia({ audio: true }); if (iptal) return temizle();
           var parca = []; kayit = new W.MediaRecorder(akis); kayit.ondataavailable = function (e) { if (e.data && e.data.size) parca.push(e.data); };
@@ -499,10 +515,11 @@
           mik.classList.add('ka-kayit'); durum.textContent = 'Şimdi söyle…'; kayit.start(); setTimeout(function () { try { if (kayit.state !== 'inactive') kayit.stop(); } catch (e) { } }, 2600);
         } catch (e) { mik.hidden = true; durum.textContent = 'Mikrofon açılamadı. Sesli söyle, sonra “Söyledim!”e dokun.'; }
       });
-      SES.soyle('Say: ' + r.en, 'en');
+      SES.soyle('Say: ' + r.en, 'en').then(function () { if (DN && DN.hazir()) anla(); });
     }
+    var DN = W.KIDS_DINLE, tur = 0;
     goster();
-    return { dur: function () { iptal = true; temizle(); SES.sus(); } };
+    return { dur: function () { iptal = true; temizle(); if (DN) DN.durdur(); SES.sus(); } };
   }
 
   /* 2. Şarkı: sözler karaoke gibi yanar, Acadia dans eder, her kelimeye dokunulup dinlenir */
@@ -646,6 +663,8 @@
       return '<section><h3>Ayarlar</h3><label class="ka-veli-ayar">Mola hatırlatması<select data-mola>' + [10, 15, 20, 30].map(function (m) { return '<option value="' + m + '"' + (m === mola ? ' selected' : '') + '>' + m + ' dakikada bir</option>'; }).join('') + '</select></label>' +
         (SES.kayitli() ? '<p class="ka-veli-ses">Seslendirme: kayıtlı öğretmen sesi · ' + SES.kayitli() + ' cümle · <span lang="en">tr ' + esc(String(SES.surumler().tr || '-').slice(0, 6)) + '</span></p>' : '<p class="ka-veli-ses">Seslendirme: cihazın kendi sesi</p>') +
         '<label class="ka-veli-ayar">Ses<button type="button" class="ka-orta" data-vses aria-pressed="' + SES.acikMi() + '">' + (SES.acikMi() ? 'Açık' : 'Kapalı') + '</button></label>' +
+        (W.KIDS_DINLE && (W.KIDS_DINLE.destek().cihaz || W.KIDS_DINLE.destek().kayit) ? '<label class="ka-veli-ayar">Sesli cevap (mikrofon)<button type="button" class="ka-orta" data-vmik aria-pressed="' + (W.KIDS_DINLE.izin() === 'acik') + '">' + (W.KIDS_DINLE.izin() === 'acik' ? 'Açık' : 'Kapalı') + '</button></label>' +
+          '<p class="ka-pen-alt">Açıkken Acadia, çocuğunuzun söylediği İngilizce kelimeyi anlar ve "Aferin!" der; çocuk sesle de gezinebilir ("hayvanlara git"). Ses kaydedilmez: cihazın ses tanıması ya da Acadex sunucusu üzerinden yalnız yazıya çevrilir.</p>' : '') +
         (pwa === 'kurulu' ? '<p class="ka-veli-pwa">✓ Acadex Kids bu cihazda uygulama olarak açık.</p>' : pwa === 'kur' ? '<div class="ka-veli-pwa"><p>Acadex Kids’i ana ekrana ekleyin: çocuğunuz tek dokunuşla açar, internet kesilse de oynar.</p><button type="button" class="ka-orta" data-kur>Ana ekrana ekle</button></div>'
           : pwa === 'ios' ? '<div class="ka-veli-pwa"><p>Ana ekrana eklemek için: Safari’de <b>Paylaş</b> düğmesine, sonra <b>Ana Ekrana Ekle</b>’ye dokunun.</p></div>' : '') +
         '</section><button type="button" class="ka-cikis-b" data-vcikis>Çocuğun oturumunu kapat</button>';
@@ -666,6 +685,7 @@
         (function sira() { if (!k.el.isConnected) { dinleS = null; return SES.sus(); } if (dinleS !== ben_ || j >= lis.length) { if (dinleS === ben_) sus(); return; } lis.forEach(function (x) { x.classList.remove('ka-calan'); }); var li = lis[j++]; li.classList.add('ka-calan'); try { li.scrollIntoView({ block: 'nearest' }); } catch (e) { } SES.soyle(li.getAttribute('data-li'), 'en').then(function () { setTimeout(sira, 450); }); })();
       });
       var m = ic.querySelector('[data-mola]'); if (m) m.addEventListener('change', function () { koy('mola', +this.value); });
+      var vm = ic.querySelector('[data-vmik]'); if (vm) vm.addEventListener('click', function () { var ac_ = W.KIDS_DINLE.izin() !== 'acik'; W.KIDS_DINLE.izinVer(ac_ ? 'acik' : 'kapali'); this.setAttribute('aria-pressed', ac_); this.textContent = ac_ ? 'Açık' : 'Kapalı'; SES.fx('dokun'); });
       var vs = ic.querySelector('[data-vses]'); if (vs) vs.addEventListener('click', function () { var a = SES.ayar(!SES.acikMi()); this.setAttribute('aria-pressed', a); this.textContent = a ? 'Açık' : 'Kapalı'; var s = app.querySelector('[data-ses]'); if (s) s.setAttribute('aria-pressed', a); });
       var kb = ic.querySelector('[data-kur]'); if (kb) kb.addEventListener('click', function () { W.KIDS_PWA.kur().then(function (ok) { if (ok) kb.parentNode.innerHTML = '<p>✓ Ana ekrana eklendi.</p>'; }); });
       var vc = ic.querySelector('[data-vcikis]'); if (vc) vc.addEventListener('click', function () { k.kapat(); koy('oturum', null); koy('sonDurum', null); cihazSil({ kod: S.okul.kod, sinif: S.sinif.id, id: S.ogr[2] || null, ad: S.ogr[0], token: S.token }); S.sinif = null; S.ogr = null; S.token = null; kimOynuyor(); });
@@ -706,9 +726,42 @@
     if (yeniSv) setTimeout(function () { SES.fx('yildiz'); }, 500);
   }
 
+  /* ======================= sesli komut (kids-dinle.js) =======================
+     Sağ alttaki mikrofon: "hayvanlara git", "kitaplık", "resim yap", "geri", "tekrar söyle",
+     "sonraki", "oyna", "sesi kapat". Komut, ekrandaki gerçek düğmeye basar; böylece her ekranda
+     dokunmayla aynı şey olur (sesler, uçuş, kilitli ada uyarısı…). */
+  function gorunurIlk(sel) { var L = [].slice.call(D.querySelectorAll(sel)); for (var i = 0; i < L.length; i++) if (L[i].getClientRects().length && !L[i].disabled && L[i].getAttribute('aria-disabled') !== 'true') return L[i]; return null; }
+  function haritadaYap(f) {
+    if (app.dataset.gorunum === 'harita' && !D.querySelector('.ka-ort')) return f();
+    var ort = D.querySelector('.ka-ort [data-kapat]'); if (ort) ort.click();
+    if (app.dataset.gorunum !== 'harita') { SES.soyle('Önce haritaya dönelim.', 'tr'); panel(); }
+    setTimeout(f, 700);
+  }
+  function sesliKomut(c) {
+    var t = c.tur;
+    if (t === 'konu') return haritadaYap(function () { var a = app.querySelector('.ka-ada[data-konu="' + c.id + '"]'); if (a) a.click(); });
+    if (/^(kitap|sahnekur|sozluk|dolap|album|daha)$/.test(t)) return haritadaYap(function () { var b = app.querySelector('.ka-dock [data-' + t + ']'); if (b) b.click(); });
+    var sec = {
+      geri: '.ka-ort [data-kapat], [data-eve], [data-kgeri], [data-kraf], [data-p3geri], [data-geri]',
+      tekrar: '[data-koku], [data-dinle], [data-ksor], [data-yeniden], [data-tekrar]',
+      ileri: '[data-ksonra], [data-ileri], [data-soyledim]',
+      oyna: '.ka-ort [data-sv], [data-setoyna], [data-ileri], [data-ksonra]'
+    }[t];
+    if (sec) { var b = gorunurIlk(sec); if (b) return b.click(); if (t === 'geri') return panel(); return; }
+    if (t === 'sesKapat' || t === 'sesAc') { var sb = gorunurIlk('[data-ses]'); if (sb && (sb.getAttribute('aria-pressed') === 'true') === (t === 'sesKapat')) sb.click(); }
+  }
+  /* oyunda ekrandaki seçenekler (Hangisi blue? → çocuk "blue" der, o düğmeye basılır) */
+  function oyunSecenekleri() {
+    if (app.dataset.gorunum !== 'konu' && app.dataset.gorunum !== 'kitap') return [];
+    return [].slice.call(app.querySelectorAll('[data-ko-renk], [data-ko-id], [data-kcev], [data-tc]')).filter(function (b) { return b.getClientRects().length && !b.disabled; }).map(function (b) {
+      var id = b.getAttribute('data-ko-renk') || b.getAttribute('data-ko-id') || b.getAttribute('data-kcev') || b.getAttribute('data-tc'), o = V.ogeBul(id);
+      return { el: b, en: o ? (o.kelime || o.en) : (b.getAttribute('aria-label') || id) };
+    }).filter(function (x, i, L) { return x.en && L.findIndex(function (y) { return y.en === x.en; }) === i; });
+  }
   function kur() {
     app = D.getElementById('kids-app'); if (!app) return;
     basla = Date.now(); molaVerildi = false;
+    if (W.KIDS_DINLE) W.KIDS_DINLE.komutDugmesi({ kok: function () { return app; }, konular: function () { return V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return { id: x.id, tr: x.tr, en: x.en }; }); }, yap: sesliKomut, secenekler: oyunSecenekleri });
     var o = al('oturum', null);
     /* evde devam: kartın QR'ı (#ev=KOD~öğrenci) doğrudan o çocuğun resim seçme adımına açar */
     var ev = W.KIDS_QR && W.KIDS_QR.evCoz(location.hash);

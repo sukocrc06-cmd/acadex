@@ -1,0 +1,29 @@
+/* ==========================================================================
+   ACADEX KIDS · sesli cevap ve sesli komut (kids/assets/kids-dinle.css), 20.11.2026 — bkz. kids-dinle.js
+   .kd-gos   : "Seni dinliyorum…" göstergesi (ses seviyesiyle büyüyen halka)
+   .kd-komut : sağ altta yüzen mikrofon düğmesi (Türkçe komut)
+   ========================================================================== */
+.kd-gos{display:inline-flex;align-items:center;gap:10px;margin:8px auto 0;padding:6px 16px 6px 8px;border:3px solid var(--m,#23304D);border-radius:999px;background:#fff;font:800 clamp(15px,2vw,19px)/1.1 var(--bas,system-ui);color:var(--m,#23304D);box-shadow:0 4px 0 var(--m,#23304D)}
+.kd-gos[hidden]{display:none}
+.kd-mik{position:relative;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#FFE3E3}
+.kd-mik .kc{position:relative;z-index:1;width:70%;height:70%}
+.kd-mik i{position:absolute;inset:0;border-radius:50%;background:rgba(229,72,77,.28);transform:scale(calc(1 + var(--sv,0) * .9));transition:transform .08s}
+.kd-dinliyor .kd-mik i,.kd-gos.kd-dinliyor .kd-mik i{animation:kdNabiz 1.2s ease-out infinite}
+.kd-gos.kd-tamam{border-color:#2E9E5B;box-shadow:0 4px 0 #2E9E5B;background:#E6F8EE}
+.kd-gos.kd-tamam .kd-mik{background:#C9F2D9}
+.kd-gos.kd-yeniden{background:#FFF6DB}
+@keyframes kdNabiz{0%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}100%{box-shadow:0 0 0 16px rgba(229,72,77,0)}}
+
+/* yüzen komut düğmesi: alt çubuğun üstünde, sağda */
+.kd-komut{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:60;display:flex;align-items:center;gap:8px;padding:6px;border:3px solid var(--m,#23304D);border-radius:999px;background:#fff;box-shadow:0 5px 0 var(--m,#23304D);cursor:pointer;-webkit-tap-highlight-color:transparent;font:800 15px/1 var(--bas,system-ui);color:var(--m,#23304D)}
+.kd-komut[hidden]{display:none}
+.kd-komut .kd-mik{width:48px;height:48px}
+.kd-komut-y{max-width:0;overflow:hidden;white-space:nowrap;transition:max-width .3s,padding .3s}
+.kd-komut.kd-yazili .kd-komut-y,.kd-komut.kd-dinliyor .kd-komut-y{max-width:min(60vw,320px);padding-right:10px}
+.kd-komut:active{transform:translateY(3px);box-shadow:0 2px 0 var(--m,#23304D)}
+.kd-komut:focus-visible{outline:4px solid #FFD23F;outline-offset:3px}
+.kd-komut.kd-dinliyor{background:#FFF0F0}
+html.kz-uzay .kd-komut{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+@media (max-width:600px){.kd-komut{bottom:calc(86px + env(safe-area-inset-bottom,0px))}.kd-komut .kd-mik{width:42px;height:42px}}
+@media (prefers-reduced-motion:reduce){.kd-mik i{animation:none!important;transition:none}}
+@media print{.kd-komut,.kd-gos{display:none!important}}

@@ -112,7 +112,7 @@ test('eşyayla oyun ve karaoke harfler', () => {
   assert.match(anlat, /await karaoke\(soyle\(r\.en \+ '!'\)\)/, 'senin sıran: harfler yanar');
   assert.match(anlat, /return karaoke\(SES\.soyle\(rs\[i\]\.en, 'en'\)\)/, 'dokununca da');
   assert.match(anlat, /if \(!yazi \|\| azHareket\(\)\) return p;/, 'yazısız yaşta ve hareketi azaltta yok');
-  assert.match(anlat, /kTim\.forEach\(clearTimeout\); SES\.sus\(\);/, 'sahne kapanınca zamanlayıcı kalmaz');
+  assert.match(anlat, /kTim\.forEach\(clearTimeout\); if \(W\.KIDS_DINLE\) W\.KIDS_DINLE\.durdur\(\); SES\.sus\(\);/, 'sahne kapanınca zamanlayıcı ve mikrofon kalmaz');
   assert.match(css, /\.kn-kelime:empty\{display:none\}/);
 });
 

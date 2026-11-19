@@ -1,0 +1,34 @@
+/* ==========================================================================
+   ACADEX KIDS · Türkçe masallar (kids/assets/kids-masal.css), 20.11.2026 — bkz. kids-masal.js
+   ========================================================================== */
+.kk-raf-b{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin:18px 0 10px;font:800 clamp(20px,2.6vw,26px)/1.1 var(--bas);color:var(--m)}
+.kk-raf-b small{font:700 14px/1.2 var(--govde,system-ui);opacity:.7}
+.km-raf .kk-kapak small{font-weight:700;opacity:.75}
+/* metindeki hedef kelime */
+.km-cumle{font-size:clamp(20px,2.8vw,28px);line-height:1.4}
+.km-vurgu{padding:0 .18em;border-radius:.3em;background:color-mix(in srgb,var(--r,#FFD23F) 35%,#fff);color:var(--m);box-shadow:inset 0 -.18em 0 color-mix(in srgb,var(--r,#FFD23F) 70%,#fff);font-weight:800}
+/* kelime kartı: resim · Türkçe → İngilizce */
+.km-kelime{display:grid;justify-items:center;gap:6px;margin:8px auto 4px}
+.km-kelime[hidden]{display:none}
+.km-kart{display:flex;align-items:center;gap:12px;padding:8px 20px 8px 8px;border:3px solid var(--m);border-radius:22px;background:#fff;box-shadow:0 5px 0 var(--m);cursor:pointer;color:var(--m);font:800 clamp(18px,2.4vw,24px)/1 var(--bas)}
+.km-kres{display:grid;place-items:center;width:clamp(56px,8vw,76px);aspect-ratio:1;border-radius:16px;background:color-mix(in srgb,var(--r,#FFD23F) 22%,#fff)}
+.km-kres .kc{width:86%;height:86%}
+.km-tr{opacity:.75}
+.km-ok{opacity:.5}
+.km-kart b{font-size:1.35em;color:color-mix(in srgb,var(--r,#8E7CF0) 70%,#23304D)}
+.km-gel .km-kart{animation:kmGel .55s cubic-bezier(.3,1.6,.5,1) both}
+.km-ogrendi .km-kart{border-color:#2E9E5B;box-shadow:0 5px 0 #2E9E5B;background:#F1FBF5}
+@keyframes kmGel{from{opacity:0;transform:translateY(20px) scale(.6)}}
+.km-sira{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;min-height:10px}
+.km-soyledim{display:inline-flex;align-items:center;gap:8px}
+.km-soyledim .kc{width:26px;height:26px}
+.km-mikac{padding:8px 14px;border:2px dashed var(--m);border-radius:14px;background:none;color:var(--m);font:700 14px/1.2 var(--govde,system-ui);cursor:pointer}
+.km-nabiz{animation:kmNabiz 1s ease-in-out infinite alternate}
+@keyframes kmNabiz{to{transform:scale(1.06);box-shadow:0 0 0 6px rgba(255,210,63,.55)}}
+/* bitiş: öğrenilen kelimeler */
+.km-ogren-b{margin:14px 0 6px;font:800 20px/1.2 var(--bas);color:var(--m)}
+.km-ogren{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:0 0 12px;padding:0;list-style:none}
+.km-ogren button{display:grid;justify-items:center;gap:2px;width:96px;padding:8px 4px;border:3px solid var(--m);border-radius:18px;background:#fff;box-shadow:0 4px 0 var(--m);cursor:pointer;color:var(--m)}
+.km-ogren span{width:56px;height:56px}.km-ogren .kc{width:100%;height:100%}
+.km-ogren b{font:800 17px/1 var(--bas)}.km-ogren small{font-size:12px;opacity:.7}
+@media (prefers-reduced-motion:reduce){.km-gel .km-kart,.km-nabiz{animation:none}}

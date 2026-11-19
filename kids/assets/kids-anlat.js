@@ -117,7 +117,11 @@
       sen.hidden = false; acdK.innerHTML = o.acd('dusun'); sk.classList.add('kn-dinle');
       await bekle(400); if (iptal || benim !== kosu) return false;
       await karaoke(soyle(r.en + '!')); if (iptal || benim !== kosu) return false;
-      await bekle(1500); sk.classList.remove('kn-dinle'); sen.hidden = true;
+      /* mikrofon açıksa (veli izni, kids-dinle.js) çocuğu dinle: doğruysa "Aferin!", değilse bir daha */
+      var DN = W.KIDS_DINLE;
+      if (DN && DN.hazir()) { await DN.tekrarla({ en: r.en, kok: sen.parentNode, soyle: function () { return karaoke(soyle(r.en + '!')); } }); DN.gosterge(sen.parentNode, 'gizli'); }
+      else await bekle(1500);
+      sk.classList.remove('kn-dinle'); sen.hidden = true;
       if (iptal || benim !== kosu) return false;
       sira.children[i].classList.add('kn-gordu'); return true;
     }
@@ -134,7 +138,7 @@
     sahne.querySelector('[data-yeniden]').addEventListener('click', function () { SES.fx('dokun'); kok.classList.remove('kn-bitti'); oyna(0); });
     sahne.querySelector('[data-ileri]').addEventListener('click', function () { SES.fx('dokun'); o.ileri(); });
     oyna(0);
-    return { dur: function () { iptal = true; kTim.forEach(clearTimeout); SES.sus(); } };
+    return { dur: function () { iptal = true; kTim.forEach(clearTimeout); if (W.KIDS_DINLE) W.KIDS_DINLE.durdur(); SES.sus(); } };
   }
   W.KIDS_ANLAT = { izle: izle, HAREKET: HAREKET };
 })(window);

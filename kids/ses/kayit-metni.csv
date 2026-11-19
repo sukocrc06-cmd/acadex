@@ -7423,6 +7423,390 @@ en/cab-1a3ff6.mp3;en;"cab";kitap kelimesi
 en/who-is-lost-ceb4f4.mp3;en;"Who is lost?";kitap · soru
 en/where-does-a-look-4196de.mp3;en;"Where does A look?";kitap · soru
 en/who-is-c-with-71ae57.mp3;en;"Who is C with?";kitap · soru
+tr/hadi-sen-de-soyle-4d95a5.mp3;tr;"Hadi sen de söyle!";masal
+tr/aferin-dec36f.mp3;tr;"Aferin!";masal
+tr/supersin-8989ea.mp3;tr;"Süpersin!";masal
+tr/harika-fe270d.mp3;tr;"Harika!";masal
+tr/hangisi-813da3.mp3;tr;"Hangisi";masal
+tr/masal-bitti-bugun-yeni-kelimeler-ogrendi-8d5303.mp3;tr;"Masal bitti! Bugün yeni kelimeler öğrendin.";masal
+tr/bir-masal-sec-acadia-sana-okusun-ad4d41.mp3;tr;"Bir masal seç, Acadia sana okusun.";masal
+tr/topum-nerede-f8a7dc.mp3;tr;"Topum Nerede?";masal
+tr/minik-kedi-pamuk-un-kirmizi-bir-topu-var-65c355.mp3;tr;"Minik kedi Pamuk'un kırmızı bir topu var.";masal
+tr/kirmizi-i-ngilizce-275f04.mp3;tr;"Kırmızı, İngilizce";masal
+tr/ama-top-kayboldu-pamuk-mavi-cantaya-baki-45316a.mp3;tr;"Ama top kayboldu! Pamuk mavi çantaya bakıyor. Yok!";masal
+tr/mavi-i-ngilizce-d6d20a.mp3;tr;"Mavi, İngilizce";masal
+tr/sari-sandalyenin-altinda-mi-orada-da-yok-1f2269.mp3;tr;"Sarı sandalyenin altında mı? Orada da yok!";masal
+tr/sari-i-ngilizce-9a6ebe.mp3;tr;"Sarı, İngilizce";masal
+tr/yesil-cimenlerde-ariyor-hala-yok-e3cc48.mp3;tr;"Yeşil çimenlerde arıyor. Hâlâ yok!";masal
+tr/yesil-i-ngilizce-2dc592.mp3;tr;"Yeşil, İngilizce";masal
+tr/bak-kopek-karabas-turuncu-yastigin-arkas-483e2f.mp3;tr;"Bak! Köpek Karabaş, turuncu yastığın arkasından topu getirdi.";masal
+tr/turuncu-i-ngilizce-1bf2c6.mp3;tr;"Turuncu, İngilizce";masal
+tr/pamuk-ile-karabas-birlikte-top-oynuyor-y-006dd2.mp3;tr;"Pamuk ile Karabaş birlikte top oynuyor. Yaşasın!";masal
+tr/uc-ac-civciv-76353c.mp3;tr;"Üç Aç Civciv";masal
+tr/tavuk-annenin-uc-kucuk-civcivi-var-cik-c-0d4240.mp3;tr;"Tavuk annenin üç küçük civcivi var. Cik cik cik, çok açlar!";masal
+tr/uc-i-ngilizce-75d278.mp3;tr;"Üç, İngilizce";masal
+tr/agactan-bir-elma-dustu-pat-80c52b.mp3;tr;"Ağaçtan bir elma düştü. Pat!";masal
+tr/bir-i-ngilizce-093df7.mp3;tr;"Bir, İngilizce";masal
+tr/sonra-iki-elma-daha-dustu-pat-pat-a2b269.mp3;tr;"Sonra iki elma daha düştü. Pat, pat!";masal
+tr/i-ki-i-ngilizce-6e3d14.mp3;tr;"İki, İngilizce";masal
+tr/ruzgar-esti-dort-elma-birden-dustu-2008f8.mp3;tr;"Rüzgâr esti, dört elma birden düştü!";masal
+tr/dort-i-ngilizce-be3541.mp3;tr;"Dört, İngilizce";masal
+tr/civcivler-saydi-tam-bes-elma-herkese-yet-cc2a9e.mp3;tr;"Civcivler saydı: tam beş elma! Herkese yeter.";masal
+tr/bes-i-ngilizce-478774.mp3;tr;"Beş, İngilizce";masal
+tr/civcivlerin-karni-doydu-tesekkurler-agac-e2231d.mp3;tr;"Civcivlerin karnı doydu. Teşekkürler, ağaç!";masal
+tr/kopegim-nerede-89e2cb.mp3;tr;"Köpeğim Nerede?";masal
+tr/ali-kopegini-bulamiyor-cok-uzgun-0136fc.mp3;tr;"Ali köpeğini bulamıyor. Çok üzgün.";masal
+tr/kopek-i-ngilizce-39347a.mp3;tr;"Köpek, İngilizce";masal
+tr/ahirda-bir-inek-var-moo-sen-misin-hayir-9edbb8.mp3;tr;"Ahırda bir inek var. Möö! Sen misin? Hayır!";masal
+tr/i-nek-i-ngilizce-3effc6.mp3;tr;"İnek, İngilizce";masal
+tr/golde-bir-ordek-yuzuyor-vak-vak-o-da-deg-1d7aeb.mp3;tr;"Gölde bir ördek yüzüyor. Vak vak! O da değil.";masal
+tr/ordek-i-ngilizce-f4e215.mp3;tr;"Ördek, İngilizce";masal
+tr/citin-ustunde-bir-kedi-oturuyor-miyav-ha-51e156.mp3;tr;"Çitin üstünde bir kedi oturuyor. Miyav! Hayır!";masal
+tr/kedi-i-ngilizce-29e431.mp3;tr;"Kedi, İngilizce";masal
+tr/calilardan-bir-tavsan-zipladi-arkasinda--78216b.mp3;tr;"Çalılardan bir tavşan zıpladı. Arkasında kim var? Hav hav!";masal
+tr/tavsan-i-ngilizce-9a301d.mp3;tr;"Tavşan, İngilizce";masal
+tr/ali-kopegine-sarildi-seni-cok-seviyorum-3b47e1.mp3;tr;"Ali köpeğine sarıldı. Seni çok seviyorum!";masal
+tr/buyukanneye-pasta-bafe5a.mp3;tr;"Büyükanneye Pasta";masal
+tr/bugun-buyukannenin-dogum-gunu-e79018.mp3;tr;"Bugün büyükannenin doğum günü.";masal
+tr/buyukanne-i-ngilizce-a649a7.mp3;tr;"Büyükanne, İngilizce";masal
+tr/annem-kocaman-bir-pasta-yapiyor-e1bd42.mp3;tr;"Annem kocaman bir pasta yapıyor.";masal
+tr/anne-i-ngilizce-61b5c3.mp3;tr;"Anne, İngilizce";masal
+tr/eyvah-bebek-pastaya-uzaniyor-dur-bebek-d-3ad8eb.mp3;tr;"Eyvah! Bebek pastaya uzanıyor. Dur bebek, dur!";masal
+tr/bebek-i-ngilizce-715c66.mp3;tr;"Bebek, İngilizce";masal
+tr/babam-bebegi-kucagina-aliyor-505125.mp3;tr;"Babam bebeği kucağına alıyor.";masal
+tr/baba-i-ngilizce-83aed0.mp3;tr;"Baba, İngilizce";masal
+tr/buyukbabam-mumlari-yakiyor-surpriz-2dfd1d.mp3;tr;"Büyükbabam mumları yakıyor. Sürpriz!";masal
+tr/buyukbaba-i-ngilizce-2fb172.mp3;tr;"Büyükbaba, İngilizce";masal
+tr/herkes-pasta-yiyor-i-yi-ki-dogdun-buyuka-3439ca.mp3;tr;"Herkes pasta yiyor. İyi ki doğdun, büyükanne!";masal
+tr/yika-yika-yika-7e37a6.mp3;tr;"Yıka, Yıka, Yıka!";masal
+tr/tavsan-pitircik-camura-dustu-elleri-camu-a3772f.mp3;tr;"Tavşan Pıtırcık çamura düştü. Elleri çamur oldu!";masal
+tr/eller-i-ngilizce-5f06db.mp3;tr;"Eller, İngilizce";masal
+tr/hadi-yuzunu-yikayalim-siril-siril-474cb7.mp3;tr;"Hadi yüzünü yıkayalım. Şırıl şırıl!";masal
+tr/yuz-i-ngilizce-24cef8.mp3;tr;"Yüz, İngilizce";masal
+tr/simdi-sira-burnunda-pof-38d43d.mp3;tr;"Şimdi sıra burnunda. Pof!";masal
+tr/burun-i-ngilizce-51fb14.mp3;tr;"Burun, İngilizce";masal
+tr/uzun-kulaklarini-da-yikiyor-aa8364.mp3;tr;"Uzun kulaklarını da yıkıyor.";masal
+tr/kulaklar-i-ngilizce-9cf07a.mp3;tr;"Kulaklar, İngilizce";masal
+tr/en-son-ayaklarini-yikiyor-tertemiz-e013e6.mp3;tr;"En son ayaklarını yıkıyor. Tertemiz!";masal
+tr/ayaklar-i-ngilizce-bfdfb6.mp3;tr;"Ayaklar, İngilizce";masal
+tr/pitircik-mis-gibi-kokuyor-i-yi-geceler-86884e.mp3;tr;"Pıtırcık mis gibi kokuyor. İyi geceler!";masal
+tr/ac-ayi-boncuk-9f6fa3.mp3;tr;"Aç Ayı Boncuk";masal
+tr/ayi-boncuk-cok-ac-once-bir-elma-yedi-kit-00f313.mp3;tr;"Ayı Boncuk çok aç. Önce bir elma yedi. Kıtır kıtır!";masal
+tr/elma-i-ngilizce-0dbb3b.mp3;tr;"Elma, İngilizce";masal
+tr/sonra-bir-dilim-ekmek-yedi-96e0e2.mp3;tr;"Sonra bir dilim ekmek yedi.";masal
+tr/ekmek-i-ngilizce-e9af9a.mp3;tr;"Ekmek, İngilizce";masal
+tr/ekmegin-yanina-biraz-peynir-e0a562.mp3;tr;"Ekmeğin yanına biraz peynir.";masal
+tr/peynir-i-ngilizce-0415e0.mp3;tr;"Peynir, İngilizce";masal
+tr/bir-bardak-sut-icti-lik-lik-lik-7a4a76.mp3;tr;"Bir bardak süt içti. Lık lık lık!";masal
+tr/sut-i-ngilizce-e8690f.mp3;tr;"Süt, İngilizce";masal
+tr/en-son-kocaman-bir-pasta-mmm-dd0df0.mp3;tr;"En son kocaman bir pasta! Mmm!";masal
+tr/pasta-i-ngilizce-c8fe0a.mp3;tr;"Pasta, İngilizce";masal
+tr/boncuk-un-karni-doydu-uykusu-geldi-iyy-n-9f8045.mp3;tr;"Boncuk'un karnı doydu, uykusu geldi. Iyy, ne çok yedin!";masal
+tr/ayicigim-nerede-d7d5cb.mp3;tr;"Ayıcığım Nerede?";masal
+tr/ela-oyuncak-ayisini-ariyor-138610.mp3;tr;"Ela oyuncak ayısını arıyor.";masal
+tr/oyuncak-ayi-i-ngilizce-a1708d.mp3;tr;"Oyuncak ayı, İngilizce";masal
+tr/topun-arkasinda-mi-yok-84b3fd.mp3;tr;"Topun arkasında mı? Yok.";masal
+tr/top-i-ngilizce-f73a74.mp3;tr;"Top, İngilizce";masal
+tr/robotun-yaninda-mi-yok-a8679a.mp3;tr;"Robotun yanında mı? Yok.";masal
+tr/robot-i-ngilizce-ce2830.mp3;tr;"Robot, İngilizce";masal
+tr/trenin-vagonunda-mi-o-da-yok-a32441.mp3;tr;"Trenin vagonunda mı? O da yok!";masal
+tr/tren-i-ngilizce-99510d.mp3;tr;"Tren, İngilizce";masal
+tr/ucurtmanin-altinda-bir-sey-kipirdiyor-ay-a24779.mp3;tr;"Uçurtmanın altında bir şey kıpırdıyor... Ayıcık!";masal
+tr/ucurtma-i-ngilizce-ecb704.mp3;tr;"Uçurtma, İngilizce";masal
+tr/ela-ayicigina-sarildi-i-yi-geceler-ayici-89b934.mp3;tr;"Ela ayıcığına sarıldı. İyi geceler, ayıcık!";masal
+tr/karli-gun-0d391a.mp3;tr;"Karlı Gün";masal
+tr/disarida-kar-var-ali-montunu-giyiyor-45e4e5.mp3;tr;"Dışarıda kar var! Ali montunu giyiyor.";masal
+tr/mont-i-ngilizce-de1b70.mp3;tr;"Mont, İngilizce";masal
+tr/sonra-cizmelerini-giyiyor-64bb66.mp3;tr;"Sonra çizmelerini giyiyor.";masal
+tr/cizme-i-ngilizce-50e75c.mp3;tr;"Çizme, İngilizce";masal
+tr/ellerine-eldiven-takiyor-69bde3.mp3;tr;"Ellerine eldiven takıyor.";masal
+tr/eldiven-i-ngilizce-272284.mp3;tr;"Eldiven, İngilizce";masal
+tr/basina-da-sapka-8922ee.mp3;tr;"Başına da şapka.";masal
+tr/sapka-i-ngilizce-87fabe.mp3;tr;"Şapka, İngilizce";masal
+tr/boynuna-atki-doluyor-simdi-sicacik-ab1d6b.mp3;tr;"Boynuna atkı doluyor. Şimdi sıcacık!";masal
+tr/atki-i-ngilizce-ffb5f3.mp3;tr;"Atkı, İngilizce";masal
+tr/ali-kocaman-bir-kardan-adam-yapti-669049.mp3;tr;"Ali kocaman bir kardan adam yaptı.";masal
+tr/uykucu-tekir-0a1ecf.mp3;tr;"Uykucu Tekir";masal
+tr/kedi-tekir-uyumak-istiyor-kanepeye-yatiy-0a5d94.mp3;tr;"Kedi Tekir uyumak istiyor. Kanepeye yatıyor ama televizyon çok gürültülü!";masal
+tr/kanepe-i-ngilizce-067c13.mp3;tr;"Kanepe, İngilizce";masal
+tr/mutfakta-buzdolabi-vinliyor-110389.mp3;tr;"Mutfakta buzdolabı vınlıyor.";masal
+tr/mutfak-i-ngilizce-885e6d.mp3;tr;"Mutfak, İngilizce";masal
+tr/kuvette-damlalar-sip-sip-sip-18e9fb.mp3;tr;"Küvette damlalar şıp şıp şıp!";masal
+tr/kuvet-i-ngilizce-224a55.mp3;tr;"Küvet, İngilizce";masal
+tr/masanin-alti-cok-karanlik-3c25d5.mp3;tr;"Masanın altı çok karanlık.";masal
+tr/masa-i-ngilizce-7ec086.mp3;tr;"Masa, İngilizce";masal
+tr/sonunda-yumusacik-bir-yatak-buluyor-e984ef.mp3;tr;"Sonunda yumuşacık bir yatak buluyor.";masal
+tr/yatak-i-ngilizce-dc3133.mp3;tr;"Yatak, İngilizce";masal
+tr/sss-tekir-uyuyor-i-yi-geceler-343c2c.mp3;tr;"Şşş! Tekir uyuyor. İyi geceler!";masal
+tr/okulda-i-lk-gun-14e1b8.mp3;tr;"Okulda İlk Gün";masal
+tr/bugun-okulun-ilk-gunu-ali-cantasini-aldi-8b843e.mp3;tr;"Bugün okulun ilk günü. Ali çantasını aldı.";masal
+tr/canta-i-ngilizce-abfae7.mp3;tr;"Çanta, İngilizce";masal
+tr/sinifa-girdi-sirasina-oturdu-bb7bb7.mp3;tr;"Sınıfa girdi, sırasına oturdu.";masal
+tr/sira-i-ngilizce-6e91f6.mp3;tr;"Sıra, İngilizce";masal
+tr/eyvah-kalemi-yok-ecb1ca.mp3;tr;"Eyvah, kalemi yok!";masal
+tr/kalem-i-ngilizce-faeaf8.mp3;tr;"Kalem, İngilizce";masal
+tr/ela-ona-kalem-verdi-ali-de-ona-silgisini-c08009.mp3;tr;"Ela ona kalem verdi. Ali de ona silgisini verdi.";masal
+tr/silgi-i-ngilizce-f5fc89.mp3;tr;"Silgi, İngilizce";masal
+tr/birlikte-pastel-boyalarla-resim-yaptilar-119c4b.mp3;tr;"Birlikte pastel boyalarla resim yaptılar.";masal
+tr/pastel-boya-i-ngilizce-e145c6.mp3;tr;"Pastel boya, İngilizce";masal
+tr/ali-nin-yeni-bir-arkadasi-oldu-okul-cok--bf2ec8.mp3;tr;"Ali'nin yeni bir arkadaşı oldu. Okul çok güzel!";masal
+tr/ucan-semsiye-7732ad.mp3;tr;"Uçan Şemsiye";masal
+tr/bugun-hava-yagmurlu-ordek-paytak-disari--d0100c.mp3;tr;"Bugün hava yağmurlu. Ördek Paytak dışarı çıkıyor.";masal
+tr/yagmurlu-i-ngilizce-7f887c.mp3;tr;"Yağmurlu, İngilizce";masal
+tr/paytak-kirmizi-semsiyesini-acti-4e9a8e.mp3;tr;"Paytak kırmızı şemsiyesini açtı.";masal
+tr/semsiye-i-ngilizce-a8a371.mp3;tr;"Şemsiye, İngilizce";masal
+tr/vuuu-ruzgar-semsiyeyi-ucurdu-0c6393.mp3;tr;"Vuuu! Rüzgâr şemsiyeyi uçurdu!";masal
+tr/ruzgar-i-ngilizce-933397.mp3;tr;"Rüzgâr, İngilizce";masal
+tr/semsiye-bir-bulutun-ustune-kondu-3a844c.mp3;tr;"Şemsiye bir bulutun üstüne kondu.";masal
+tr/bulut-i-ngilizce-a8f7cc.mp3;tr;"Bulut, İngilizce";masal
+tr/sonra-gunes-cikti-ruzgar-durdu-c0693f.mp3;tr;"Sonra güneş çıktı, rüzgâr durdu.";masal
+tr/gunes-i-ngilizce-19e587.mp3;tr;"Güneş, İngilizce";masal
+tr/semsiye-suzulerek-geri-geldi-bak-bir-de--bc0822.mp3;tr;"Şemsiye süzülerek geri geldi. Bak, bir de gökkuşağı!";masal
+tr/gokkusagi-i-ngilizce-4cd3ba.mp3;tr;"Gökkuşağı, İngilizce";masal
+tr/kucuk-aslan-a5d447.mp3;tr;"Küçük Aslan";masal
+tr/kucuk-aslan-bir-kule-yapti-cok-mutlu-cf55e7.mp3;tr;"Küçük Aslan bir kule yaptı. Çok mutlu!";masal
+tr/mutlu-i-ngilizce-a947b6.mp3;tr;"Mutlu, İngilizce";masal
+tr/gum-kule-yikildi-aslan-cok-sasirdi-9fd992.mp3;tr;"Güm! Kule yıkıldı. Aslan çok şaşırdı.";masal
+tr/saskin-i-ngilizce-24a493.mp3;tr;"Şaşkın, İngilizce";masal
+tr/sonra-cok-kizdi-grrr-35d6ed.mp3;tr;"Sonra çok kızdı: Grrr!";masal
+tr/kizgin-i-ngilizce-584552.mp3;tr;"Kızgın, İngilizce";masal
+tr/biraz-da-uzuldu-agladi-731f54.mp3;tr;"Biraz da üzüldü, ağladı.";masal
+tr/uzgun-i-ngilizce-a54df0.mp3;tr;"Üzgün, İngilizce";masal
+tr/annesi-dedi-ki-derin-nefes-al-aslan-saki-8f8a15.mp3;tr;"Annesi dedi ki: Derin nefes al. Aslan sakinleşti.";masal
+tr/sakin-i-ngilizce-db4650.mp3;tr;"Sakin, İngilizce";masal
+tr/yeni-bir-kule-yapti-aslan-simdi-cok-guru-dd26b5.mp3;tr;"Yeni bir kule yaptı. Aslan şimdi çok gururlu!";masal
+tr/gururlu-i-ngilizce-2c46f8.mp3;tr;"Gururlu, İngilizce";masal
+tr/kocaman-karpuz-5353b6.mp3;tr;"Kocaman Karpuz";masal
+tr/ela-annesiyle-pazara-gitti-orada-kocaman-41cb09.mp3;tr;"Ela annesiyle pazara gitti. Orada kocaman bir karpuz var!";masal
+tr/karpuz-i-ngilizce-def692.mp3;tr;"Karpuz, İngilizce";masal
+tr/annesi-uc-tane-portakal-aldi-63cf5f.mp3;tr;"Annesi üç tane portakal aldı.";masal
+tr/portakal-i-ngilizce-295c73.mp3;tr;"Portakal, İngilizce";masal
+tr/bir-salkim-uzum-aldi-b0c804.mp3;tr;"Bir salkım üzüm aldı.";masal
+tr/uzum-i-ngilizce-564008.mp3;tr;"Üzüm, İngilizce";masal
+tr/sapsari-bir-limon-aldi-33301b.mp3;tr;"Sapsarı bir limon aldı.";masal
+tr/limon-i-ngilizce-e11a46.mp3;tr;"Limon, İngilizce";masal
+tr/bir-de-tatli-tatli-kiraz-968388.mp3;tr;"Bir de tatlı tatlı kiraz.";masal
+tr/kiraz-i-ngilizce-51697e.mp3;tr;"Kiraz, İngilizce";masal
+tr/babasi-agir-karpuzu-tasidi-hep-birlikte--0a15ef.mp3;tr;"Babası ağır karpuzu taşıdı. Hep birlikte yediler. Mmm!";masal
+tr/dede-yolda-782a78.mp3;tr;"Dede Yolda";masal
+tr/dede-bize-pasta-getiriyor-once-otobuse-b-3e7cdc.mp3;tr;"Dede bize pasta getiriyor. Önce otobüse biniyor.";masal
+tr/otobus-i-ngilizce-4abc1c.mp3;tr;"Otobüs, İngilizce";masal
+tr/eyvah-otobus-bozuldu-dede-arabaya-binece-ab6c3e.mp3;tr;"Eyvah, otobüs bozuldu! Dede arabaya binecek ama yollar çok kalabalık!";masal
+tr/araba-i-ngilizce-a62f80.mp3;tr;"Araba, İngilizce";masal
+tr/onlerinde-kocaman-bir-kamyon-var-dut-dut-017cfd.mp3;tr;"Önlerinde kocaman bir kamyon var. Düt düt!";masal
+tr/kamyon-i-ngilizce-4c821b.mp3;tr;"Kamyon, İngilizce";masal
+tr/dede-bir-bisiklete-bindi-zirr-zirr-9565f6.mp3;tr;"Dede bir bisiklete bindi. Zırr zırr!";masal
+tr/bisiklet-i-ngilizce-122637.mp3;tr;"Bisiklet, İngilizce";masal
+tr/gokyuzunde-bir-ucak-ona-el-salladi-96e0da.mp3;tr;"Gökyüzünde bir uçak ona el salladı.";masal
+tr/ucak-i-ngilizce-ae3abc.mp3;tr;"Uçak, İngilizce";masal
+tr/dede-geldi-pasta-da-sapasaglam-i-yi-ki-d-853b24.mp3;tr;"Dede geldi! Pasta da sapasağlam. İyi ki doğdun!";masal
+tr/kucuk-kare-f15566.mp3;tr;"Küçük Kare";masal
+tr/kucuk-kare-uzgun-yuvarlanamiyor-3b2760.mp3;tr;"Küçük Kare üzgün; yuvarlanamıyor.";masal
+tr/kare-i-ngilizce-94f47d.mp3;tr;"Kare, İngilizce";masal
+tr/daire-tepeden-yuvarlaniyor-viiii-9efe27.mp3;tr;"Daire tepeden yuvarlanıyor. Vıııı!";masal
+tr/daire-i-ngilizce-1bbb16.mp3;tr;"Daire, İngilizce";masal
+tr/ucgen-diyor-ki-sen-cok-guclusun-gel-bir--34f6db.mp3;tr;"Üçgen diyor ki: Sen çok güçlüsün, gel bir ev yapalım!";masal
+tr/ucgen-i-ngilizce-125ced.mp3;tr;"Üçgen, İngilizce";masal
+tr/kare-duvar-oluyor-dikdortgen-de-kapi-3e0de0.mp3;tr;"Kare duvar oluyor, dikdörtgen de kapı.";masal
+tr/dikdortgen-i-ngilizce-171420.mp3;tr;"Dikdörtgen, İngilizce";masal
+tr/gece-evin-ustunde-bir-yildiz-parliyor-a462c5.mp3;tr;"Gece evin üstünde bir yıldız parlıyor.";masal
+tr/yildiz-i-ngilizce-f39f65.mp3;tr;"Yıldız, İngilizce";masal
+tr/bak-ne-guzel-bir-ev-kare-artik-cok-mutlu-59cc7d.mp3;tr;"Bak, ne güzel bir ev! Kare artık çok mutlu.";masal
+tr/kayip-kabuk-970e96.mp3;tr;"Kayıp Kabuk";masal
+tr/kucuk-yengec-agliyor-kabugunu-kaybetmis-32e0c3.mp3;tr;"Küçük yengeç ağlıyor; kabuğunu kaybetmiş.";masal
+tr/yengec-i-ngilizce-d8af42.mp3;tr;"Yengeç, İngilizce";masal
+tr/ahtapot-diyor-ki-ben-yardim-ederim-ea90c0.mp3;tr;"Ahtapot diyor ki: Ben yardım ederim!";masal
+tr/ahtapot-i-ngilizce-afd13d.mp3;tr;"Ahtapot, İngilizce";masal
+tr/kaplumbagaya-soruyorlar-onda-yok-11bd38.mp3;tr;"Kaplumbağaya soruyorlar. Onda yok.";masal
+tr/kaplumbaga-i-ngilizce-dcc00c.mp3;tr;"Kaplumbağa, İngilizce";masal
+tr/denizyildizina-soruyorlar-onda-da-yok-7e2215.mp3;tr;"Denizyıldızına soruyorlar. Onda da yok.";masal
+tr/deniz-yildizi-i-ngilizce-bc0ea0.mp3;tr;"Deniz yıldızı, İngilizce";masal
+tr/kocaman-bir-kopekbaligi-geliyor-agzinda--7b5a7a.mp3;tr;"Kocaman bir köpekbalığı geliyor... Ağzında kabuk var!";masal
+tr/kopek-baligi-i-ngilizce-a9c0b1.mp3;tr;"Köpek balığı, İngilizce";masal
+tr/tesekkurler-kopekbaligi-artik-hepsi-arka-448c7b.mp3;tr;"Teşekkürler köpekbalığı! Artık hepsi arkadaş.";masal
+tr/agactaki-kedi-0d9410.mp3;tr;"Ağaçtaki Kedi";masal
+tr/bir-kedicik-agacta-kalmis-onu-ilk-asci-g-d5d432.mp3;tr;"Bir kedicik ağaçta kalmış. Onu ilk aşçı gördü, balık getirdi.";masal
+tr/asci-i-ngilizce-0b1a94.mp3;tr;"Aşçı, İngilizce";masal
+tr/sonra-doktor-geldi-korkma-kedicik-df46af.mp3;tr;"Sonra doktor geldi: Korkma, kedicik!";masal
+tr/doktor-i-ngilizce-059b5d.mp3;tr;"Doktor, İngilizce";masal
+tr/polis-yoldaki-arabalari-durdurdu-a9a83e.mp3;tr;"Polis yoldaki arabaları durdurdu.";masal
+tr/polis-i-ngilizce-4b2f34.mp3;tr;"Polis, İngilizce";masal
+tr/i-tfaiyeci-uzun-merdivenle-yukari-tirman-9c8d26.mp3;tr;"İtfaiyeci uzun merdivenle yukarı tırmandı.";masal
+tr/i-tfaiyeci-i-ngilizce-643c9a.mp3;tr;"İtfaiyeci, İngilizce";masal
+tr/kedicik-indi-veteriner-bakti-cok-iyi-8ddfcb.mp3;tr;"Kedicik indi. Veteriner baktı: Çok iyi!";masal
+tr/veteriner-i-ngilizce-160099.mp3;tr;"Veteriner, İngilizce";masal
+tr/herkes-alkisladi-yasasin-89a2f2.mp3;tr;"Herkes alkışladı. Yaşasın!";masal
+tr/ucmak-i-steyen-maymun-1edaf2.mp3;tr;"Uçmak İsteyen Maymun";masal
+tr/maymun-cimcime-kus-gibi-ucmak-istiyor-a58907.mp3;tr;"Maymun Cimcime kuş gibi uçmak istiyor.";masal
+tr/ucmak-i-ngilizce-adb5e0.mp3;tr;"Uçmak, İngilizce";masal
+tr/zipliyor-zipliyor-ama-ucamiyor-48fa98.mp3;tr;"Zıplıyor, zıplıyor ama uçamıyor.";masal
+tr/ziplamak-i-ngilizce-1a88ff.mp3;tr;"Zıplamak, İngilizce";masal
+tr/hizli-hizli-kosuyor-yine-ucamiyor-a34b43.mp3;tr;"Hızlı hızlı koşuyor. Yine uçamıyor.";masal
+tr/kosmak-i-ngilizce-b68f1b.mp3;tr;"Koşmak, İngilizce";masal
+tr/en-yuksek-agaca-tirmaniyor-2ea87f.mp3;tr;"En yüksek ağaca tırmanıyor.";masal
+tr/tirmanmak-i-ngilizce-3a08ef.mp3;tr;"Tırmanmak, İngilizce";masal
+tr/kus-diyor-ki-ben-tirmanamam-gel-birlikte-137187.mp3;tr;"Kuş diyor ki: Ben tırmanamam! Gel birlikte dans edelim!";masal
+tr/dans-etmek-i-ngilizce-c715d9.mp3;tr;"Dans etmek, İngilizce";masal
+tr/cimcime-ile-kus-agacta-birlikte-oynuyor-68e91a.mp3;tr;"Cimcime ile kuş ağaçta birlikte oynuyor.";masal
+tr/kucuk-tohum-96eb41.mp3;tr;"Küçük Tohum";masal
+tr/kucuk-tohum-karin-altinda-uyuyor-mevsim--b1026c.mp3;tr;"Küçük tohum karın altında uyuyor. Mevsim kış.";masal
+tr/kis-i-ngilizce-8a8de5.mp3;tr;"Kış, İngilizce";masal
+tr/i-lkbaharda-gunes-seslendi-uyan-kucuk-to-f48e6d.mp3;tr;"İlkbaharda güneş seslendi: Uyan, küçük tohum!";masal
+tr/i-lkbahar-i-ngilizce-33fe3b.mp3;tr;"İlkbahar, İngilizce";masal
+tr/tohumdan-yesil-bir-yaprak-cikti-a42b3a.mp3;tr;"Tohumdan yeşil bir yaprak çıktı.";masal
+tr/yaprak-i-ngilizce-309516.mp3;tr;"Yaprak, İngilizce";masal
+tr/yazin-tohum-kocaman-sari-bir-cicek-oldu-b9faa1.mp3;tr;"Yazın tohum kocaman sarı bir çiçek oldu.";masal
+tr/cicek-i-ngilizce-2893b6.mp3;tr;"Çiçek, İngilizce";masal
+tr/sonbaharda-ruzgar-esti-yeni-tohumlar-uct-8a680b.mp3;tr;"Sonbaharda rüzgâr esti, yeni tohumlar uçtu.";masal
+tr/sonbahar-i-ngilizce-beb17a.mp3;tr;"Sonbahar, İngilizce";masal
+tr/kis-yine-geldi-i-yi-uykular-kucuk-tohuml-ced48d.mp3;tr;"Kış yine geldi. İyi uykular, küçük tohumlar!";masal
+tr/tavsanin-havucu-fd78a1.mp3;tr;"Tavşanın Havucu";masal
+tr/pazartesi-tavsan-bir-havuc-tohumu-ekti-c822ad.mp3;tr;"Pazartesi tavşan bir havuç tohumu ekti.";masal
+tr/pazartesi-i-ngilizce-54cfa9.mp3;tr;"Pazartesi, İngilizce";masal
+tr/sali-yagmur-yagdi-tohum-su-icti-f7d2d7.mp3;tr;"Salı yağmur yağdı, tohum su içti.";masal
+tr/sali-i-ngilizce-418f2a.mp3;tr;"Salı, İngilizce";masal
+tr/carsamba-kucuk-bir-yaprak-cikti-acad4c.mp3;tr;"Çarşamba küçük bir yaprak çıktı.";masal
+tr/carsamba-i-ngilizce-f7a0ff.mp3;tr;"Çarşamba, İngilizce";masal
+tr/persembe-gunes-acti-havuc-buyudu-bcf4f6.mp3;tr;"Perşembe güneş açtı, havuç büyüdü.";masal
+tr/persembe-i-ngilizce-b4e392.mp3;tr;"Perşembe, İngilizce";masal
+tr/cuma-tavsan-cekti-hop-kocaman-bir-havuc-1368cb.mp3;tr;"Cuma tavşan çekti: Hop! Kocaman bir havuç!";masal
+tr/cuma-i-ngilizce-8c4482.mp3;tr;"Cuma, İngilizce";masal
+tr/cumartesi-havuclu-kek-yapti-pazar-gunu-a-743efe.mp3;tr;"Cumartesi havuçlu kek yaptı, pazar günü arkadaşlarıyla yedi.";masal
+tr/saklambac-27a744.mp3;tr;"Saklambaç";masal
+tr/kopek-sayiyor-kedi-saklaniyor-kedi-masan-6287be.mp3;tr;"Köpek sayıyor, kedi saklanıyor. Kedi masanın altında mı? Yok!";masal
+tr/altinda-i-ngilizce-8d4a7b.mp3;tr;"Altında, İngilizce";masal
+tr/kapinin-arkasinda-mi-yok-f8281e.mp3;tr;"Kapının arkasında mı? Yok!";masal
+tr/arkasinda-i-ngilizce-b07d30.mp3;tr;"Arkasında, İngilizce";masal
+tr/cantanin-icinde-mi-yok-422abb.mp3;tr;"Çantanın içinde mi? Yok!";masal
+tr/i-cinde-i-ngilizce-1ae780.mp3;tr;"İçinde, İngilizce";masal
+tr/kanepenin-ustunde-mi-yok-51efac.mp3;tr;"Kanepenin üstünde mi? Yok!";masal
+tr/ustunde-i-ngilizce-15b3c5.mp3;tr;"Üstünde, İngilizce";masal
+tr/yatagin-yaninda-bir-kuyruk-gorunuyor-80e7ae.mp3;tr;"Yatağın yanında bir kuyruk görünüyor!";masal
+tr/yaninda-i-ngilizce-dee824.mp3;tr;"Yanında, İngilizce";masal
+tr/buldum-seni-simdi-sira-sende-kedicik-454d0b.mp3;tr;"Buldum seni! Şimdi sıra sende, kedicik.";masal
+tr/harf-avi-26aff6.mp3;tr;"Harf Avı";masal
+tr/a-harfi-bir-elma-buldu-a-elmanin-harfi-3f21c9.mp3;tr;"A harfi bir elma buldu. A, elmanın harfi!";masal
+tr/b-harfi-bir-top-buldu-38fe2e.mp3;tr;"B harfi bir top buldu.";masal
+tr/c-harfi-bir-kedi-buldu-miyav-68dda7.mp3;tr;"C harfi bir kedi buldu. Miyav!";masal
+tr/d-harfi-bir-kopek-buldu-hav-hav-c72825.mp3;tr;"D harfi bir köpek buldu. Hav hav!";masal
+tr/e-harfi-bir-yumurta-buldu-1eb304.mp3;tr;"E harfi bir yumurta buldu.";masal
+tr/yumurta-i-ngilizce-447ec8.mp3;tr;"Yumurta, İngilizce";masal
+tr/harfler-el-ele-verdi-a-b-c-d-e-ne-guzel-7151ad.mp3;tr;"Harfler el ele verdi: A, B, C, D, E! Ne güzel!";masal
+en/red-4218d4.mp3;en;"red?";masal · kelime
+en/blue-64bc44.mp3;en;"blue?";masal · kelime
+en/yellow-ca64b6.mp3;en;"yellow?";masal · kelime
+en/green-a1626b.mp3;en;"green?";masal · kelime
+en/orange-af8e29.mp3;en;"orange?";masal · kelime
+en/three-e8cd3f.mp3;en;"three?";masal · kelime
+en/one-6bc339.mp3;en;"one?";masal · kelime
+en/two-de7ba7.mp3;en;"two?";masal · kelime
+en/four-8cbe9a.mp3;en;"four?";masal · kelime
+en/five-86fde1.mp3;en;"five?";masal · kelime
+en/dog-7e720a.mp3;en;"dog?";masal · kelime
+en/cow-58464b.mp3;en;"cow?";masal · kelime
+en/duck-429b90.mp3;en;"duck?";masal · kelime
+en/cat-2ed6e0.mp3;en;"cat?";masal · kelime
+en/rabbit-85db84.mp3;en;"rabbit?";masal · kelime
+en/grandma-bcd160.mp3;en;"grandma?";masal · kelime
+en/mum-58e070.mp3;en;"mum?";masal · kelime
+en/baby-43ad57.mp3;en;"baby?";masal · kelime
+en/dad-5a059c.mp3;en;"dad?";masal · kelime
+en/grandpa-c5d71d.mp3;en;"grandpa?";masal · kelime
+en/hands-f19998.mp3;en;"hands?";masal · kelime
+en/face-360d13.mp3;en;"face?";masal · kelime
+en/nose-eba192.mp3;en;"nose?";masal · kelime
+en/ears-c18695.mp3;en;"ears?";masal · kelime
+en/feet-1c7ee8.mp3;en;"feet?";masal · kelime
+en/apple-22c394.mp3;en;"apple?";masal · kelime
+en/bread-b51948.mp3;en;"bread?";masal · kelime
+en/cheese-f2ff2b.mp3;en;"cheese?";masal · kelime
+en/milk-85a573.mp3;en;"milk?";masal · kelime
+en/cake-966dd1.mp3;en;"cake?";masal · kelime
+en/teddy-5f7aa8.mp3;en;"teddy?";masal · kelime
+en/ball-84bfac.mp3;en;"ball?";masal · kelime
+en/robot-1cb997.mp3;en;"robot?";masal · kelime
+en/train-4f33fe.mp3;en;"train?";masal · kelime
+en/kite-42f6da.mp3;en;"kite?";masal · kelime
+en/coat-0f31a7.mp3;en;"coat?";masal · kelime
+en/boots-a07f0d.mp3;en;"boots?";masal · kelime
+en/gloves-4b7bb6.mp3;en;"gloves?";masal · kelime
+en/hat-1e602a.mp3;en;"hat?";masal · kelime
+en/scarf-181632.mp3;en;"scarf?";masal · kelime
+en/sofa-735708.mp3;en;"sofa?";masal · kelime
+en/kitchen-7a833a.mp3;en;"kitchen?";masal · kelime
+en/bath-42c592.mp3;en;"bath?";masal · kelime
+en/table-995d9d.mp3;en;"table?";masal · kelime
+en/bed-53bea5.mp3;en;"bed?";masal · kelime
+en/bag-4e2b24.mp3;en;"bag?";masal · kelime
+en/desk-534c6a.mp3;en;"desk?";masal · kelime
+en/pencil-c6a3aa.mp3;en;"pencil?";masal · kelime
+en/eraser-01931f.mp3;en;"eraser?";masal · kelime
+en/crayons-410d8a.mp3;en;"crayons?";masal · kelime
+en/rainy-8c70de.mp3;en;"rainy?";masal · kelime
+en/umbrella-ae5a30.mp3;en;"umbrella?";masal · kelime
+en/wind-86d950.mp3;en;"wind?";masal · kelime
+en/cloud-21e270.mp3;en;"cloud?";masal · kelime
+en/sun-762044.mp3;en;"sun?";masal · kelime
+en/rainbow-82c713.mp3;en;"rainbow?";masal · kelime
+en/happy-6f5cd1.mp3;en;"happy?";masal · kelime
+en/surprised-84bedb.mp3;en;"surprised?";masal · kelime
+en/angry-5f29bc.mp3;en;"angry?";masal · kelime
+en/sad-2323ca.mp3;en;"sad?";masal · kelime
+en/calm-141f47.mp3;en;"calm?";masal · kelime
+en/proud-342056.mp3;en;"proud?";masal · kelime
+en/watermelon-4bd431.mp3;en;"watermelon?";masal · kelime
+en/grapes-6125c7.mp3;en;"grapes?";masal · kelime
+en/lemon-cc74a4.mp3;en;"lemon?";masal · kelime
+en/cherries-3855f6.mp3;en;"cherries?";masal · kelime
+en/bus-e353cc.mp3;en;"bus?";masal · kelime
+en/car-bd9b70.mp3;en;"car?";masal · kelime
+en/truck-0b941e.mp3;en;"truck?";masal · kelime
+en/bike-dea3de.mp3;en;"bike?";masal · kelime
+en/plane-268a3a.mp3;en;"plane?";masal · kelime
+en/square-19144f.mp3;en;"square?";masal · kelime
+en/circle-e0c6a4.mp3;en;"circle?";masal · kelime
+en/triangle-37a40a.mp3;en;"triangle?";masal · kelime
+en/rectangle-3b8bf3.mp3;en;"rectangle?";masal · kelime
+en/star-5e8c7a.mp3;en;"star?";masal · kelime
+en/crab-b139a9.mp3;en;"crab?";masal · kelime
+en/octopus-8ddfd4.mp3;en;"octopus?";masal · kelime
+en/turtle-ead1fe.mp3;en;"turtle?";masal · kelime
+en/starfish-a49cef.mp3;en;"starfish?";masal · kelime
+en/shark-93b779.mp3;en;"shark?";masal · kelime
+en/chef-f48f4b.mp3;en;"chef?";masal · kelime
+en/doctor-62b8dc.mp3;en;"doctor?";masal · kelime
+en/police-officer-c8a641.mp3;en;"police officer?";masal · kelime
+en/firefighter-be2498.mp3;en;"firefighter?";masal · kelime
+en/vet-107d1f.mp3;en;"vet?";masal · kelime
+en/fly-fdfc8f.mp3;en;"fly?";masal · kelime
+en/jump-859020.mp3;en;"jump?";masal · kelime
+en/run-383578.mp3;en;"run?";masal · kelime
+en/climb-b493c5.mp3;en;"climb?";masal · kelime
+en/dance-457d42.mp3;en;"dance?";masal · kelime
+en/winter-8363e6.mp3;en;"winter?";masal · kelime
+en/spring-0d76d0.mp3;en;"spring?";masal · kelime
+en/leaf-d1a78c.mp3;en;"leaf?";masal · kelime
+en/flower-413209.mp3;en;"flower?";masal · kelime
+en/autumn-f7125b.mp3;en;"autumn?";masal · kelime
+en/monday-06ea96.mp3;en;"Monday?";masal · kelime
+en/tuesday-c3003e.mp3;en;"Tuesday?";masal · kelime
+en/wednesday-ae6d0c.mp3;en;"Wednesday?";masal · kelime
+en/thursday-e8a4e7.mp3;en;"Thursday?";masal · kelime
+en/friday-a6be29.mp3;en;"Friday?";masal · kelime
+en/under-2ddc6c.mp3;en;"under?";masal · kelime
+en/behind-d7bb34.mp3;en;"behind?";masal · kelime
+en/in-a027d6.mp3;en;"in?";masal · kelime
+en/on-e49f82.mp3;en;"on?";masal · kelime
+en/next-to-587f07.mp3;en;"next to?";masal · kelime
+en/egg-57d281.mp3;en;"egg?";masal · kelime
+tr/harika-soyledin-c87935.mp3;tr;"Harika söyledin!";sesli cevap
+tr/cok-guzel-c142b6.mp3;tr;"Çok güzel!";sesli cevap
+tr/bir-daha-dene-db2766.mp3;tr;"Bir daha dene!";sesli cevap
+tr/cok-guzel-deneme-c4dc17.mp3;tr;"Çok güzel deneme!";sesli cevap
+tr/seni-duyamadim-bir-daha-soyler-misin-373d68.mp3;tr;"Seni duyamadım. Bir daha söyler misin?";sesli cevap
+tr/anlayamadim-bir-daha-soyler-misin-ee7898.mp3;tr;"Anlayamadım. Bir daha söyler misin?";sesli cevap
+tr/once-haritaya-donelim-402c8a.mp3;tr;"Önce haritaya dönelim.";sesli cevap
+tr/mikrofon-acilamadi-f28004.mp3;tr;"Mikrofon açılamadı.";sesli cevap
 en/choose-your-pet-7c76ba.mp3;en;"Choose your pet!";köşeler
 en/i-love-you-d5dd35.mp3;en;"I love you!";köşeler
 en/no-thank-you-ddca25.mp3;en;"No, thank you!";köşeler

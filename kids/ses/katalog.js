@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-hayvan.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js', 'kids-konusan.js', 'kids-panel3.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-hayvan.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js', 'kids-masal.js', 'kids-dinle.js', 'kids-konusan.js', 'kids-panel3.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -80,6 +80,12 @@ module.exports = function katalog() {
     b.sorular.forEach((q) => ekle('en', q.s, 'kitap · soru'));
     b.sayfalar.forEach((s) => { if (s.n) ekle('en', s.n, 'kitap · nakarat'); if (s.d) ekle('en', W.KIDS_KITAP.dokunCumle(s.d), 'kitap · dokun'); if (s.t) ekle('en', s.t.s, 'kitap · tahmin'); });
   }
+  /* Türkçe masallar (20.11.2026): Türkçe anlatım, "Araba, İngilizce" + "car!", sorular "Hangisi" + "car?" */
+  const MC = W.KIDS_MASAL.cumleler();
+  MC.tr.forEach((m) => ekle('tr', m, 'masal'));
+  MC.en.forEach((m) => ekle('en', m, 'masal · kelime'));
+  /* sesli cevap / sesli komut (kids-dinle.js): övgü, yeniden dene */
+  W.KIDS_DINLE.cumleler().forEach((m) => ekle('tr', m, 'sesli cevap'));
   /* evcil hayvanım, benim günüm, uyku vakti */
   W.KIDS_PANEL3.cumleler().forEach((m) => ekle('en', m, 'köşeler'));
   return [...liste.values()];
