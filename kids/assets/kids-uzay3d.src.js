@@ -203,12 +203,16 @@ export function kur(o) {
   kap.insertBefore(cv, kap.firstChild);
   const sahne = new Scene(), kam = new PerspectiveCamera(40, 1, 0.1, 400);
 
-  /* yerleşim: sarmal yol */
-  const N = o.konular.length, yerler = o.konular.map((k, i) => {
-    const a = -0.5 + i * 0.6, r = 8.5 + i * 1.75;
-    return new Vector3(Math.cos(a) * r, Math.sin(i * 1.7) * 0.35, Math.sin(a) * r);
+  /* yerleşim: Arşimet sarmalı, yol boyunca EŞİT aralık (ADIM). Kollar arası 2π·B ≈ 9.4 birim,
+     ardışık gezegenler arası ADIM: hiçbir gezegen (halkası ve adı dahil) ötekinin üstüne binmez. */
+  const N = o.konular.length, R0 = 9.5, B = 1.55, ADIM = 8;
+  let th = 0;
+  const yerler = o.konular.map((k, i) => {
+    const r = R0 + B * th, a = th - 0.5, v = new Vector3(Math.cos(a) * r, Math.sin(i * 1.7) * 0.3, Math.sin(a) * r);
+    th += ADIM / Math.hypot(r, B);
+    return v;
   });
-  const R = 8.5 + N * 1.75;
+  const R = yerler.reduce((m, v) => Math.max(m, Math.hypot(v.x, v.z)), R0) + 2;
   const G = galaksi(R); sahne.add(G.g);
   sahne.add(new AmbientLight('#B8C4FF', 0.55));
   sahne.add(new HemisphereLight('#E8ECFF', '#3A2A7A', 0.65));
@@ -235,9 +239,10 @@ export function kur(o) {
 
   /* kamera: eğik bakış, hedef kaydırılabilir */
   const hedef = yerler[suan].clone().setY(0), hedefSon = hedef.clone();
-  let uzak = 40, uzakSon = 40;
+  let uzak = 46, uzakSon = 46;
   /* ~38° eğik bakış: disk elips görünür, kampüsteki gibi derinlik */
-  const ofs = new Vector3(0, 0.62, 0.78).normalize();
+  /* ~48° eğik bakış: derinlik kalır, yakın kollar ekranda birbirine girmez */
+  const ofs = new Vector3(0, 0.74, 0.67).normalize();
   const sinir = R + 2;
   function kamYerlestir() { kam.position.copy(hedef).addScaledVector(ofs, uzak); kam.lookAt(hedef); }
 
@@ -246,10 +251,10 @@ export function kur(o) {
   function boyut() {
     gw = Math.max(1, kap.clientWidth); gh = Math.max(1, kap.clientHeight);
     renderer.setSize(gw, gh, false); kam.aspect = gw / gh;
-    uzakSon = MathUtils.clamp(uzakSon, 12, 58); kam.updateProjectionMatrix();
+    uzakSon = MathUtils.clamp(uzakSon, 12, 80); kam.updateProjectionMatrix();
   }
   boyut();
-  if (gw < 600) { uzak = uzakSon = 30; }
+  if (gw < 600) { uzak = uzakSon = 34; }
   const ro = window.ResizeObserver ? new ResizeObserver(boyut) : null; if (ro) ro.observe(kap);
 
   /* sürükle: kaydır; tekerlek / iki parmak: yaklaş */
@@ -263,13 +268,13 @@ export function kur(o) {
       const l = Math.hypot(hedefSon.x, hedefSon.z); if (l > sinir) hedefSon.multiplyScalar(sinir / l);
     } else if (isaret.size === 2) {
       p.x = e.clientX; p.y = e.clientY; const [a, b] = [...isaret.values()], m = Math.hypot(a.x - b.x, a.y - b.y);
-      if (ilkMesafe > 0) uzakSon = MathUtils.clamp(ilkUzak * ilkMesafe / m, 12, 58); return;
+      if (ilkMesafe > 0) uzakSon = MathUtils.clamp(ilkUzak * ilkMesafe / m, 12, 80); return;
     }
     p.x = e.clientX; p.y = e.clientY;
   });
   const birak = (e) => { isaret.delete(e.pointerId); ilkMesafe = 0; };
   cv.addEventListener('pointerup', birak); cv.addEventListener('pointercancel', birak);
-  cv.addEventListener('wheel', (e) => { e.preventDefault(); uzakSon = MathUtils.clamp(uzakSon * (e.deltaY > 0 ? 1.1 : 0.9), 12, 58); }, { passive: false });
+  cv.addEventListener('wheel', (e) => { e.preventDefault(); uzakSon = MathUtils.clamp(uzakSon * (e.deltaY > 0 ? 1.1 : 0.9), 12, 80); }, { passive: false });
 
   /* etiket katmanı: kids-app'in düğmeleri gezegenlerin üstünde */
   const v = new Vector3();
@@ -286,12 +291,24 @@ export function kur(o) {
     }
   }
 
+  /* dalış: kamera gezegene doğru iner, atmosfer parlar, gezegen ekranı kaplar; sonra konu açılır
+     (kids-app'in renk perdesi gezegenin ortasından, gezegenin renginde açılır: geçiş kesintisiz) */
+  let dalis = null;
+  const harita = kap.parentNode;
+  function dal(i, sonra) {
+    if (sakin) return sonra();
+    if (harita) harita.classList.add('kz3-dal');
+    dalis = { i, t0: performance.now(), sure: 950, h0: hedef.clone(), u0: uzak, sonra };
+  }
+
   /* uçuş */
   let ucus = null;
   function uc(kid, sonra) {
     const i = idx(kid); if (i < 0) return sonra();
+    if (ucus || dalis) return;
     hedefSon.copy(yerler[i]).setY(0);
-    if (i === suan || sakin) { suan = i; A.a.position.copy(astYeri(i)); hedef.copy(hedefSon); return setTimeout(sonra, sakin ? 0 : 120); }
+    if (sakin) { suan = i; A.a.position.copy(astYeri(i)); hedef.copy(hedefSon); return setTimeout(sonra, 0); }
+    if (i === suan) { A.a.position.copy(astYeri(i)); return dal(i, sonra); }
     const a = A.a.position.clone(), b = astYeri(i), m = a.clone().lerp(b, 0.5); m.y += 4 + a.distanceTo(b) * 0.18;
     ucus = { egri: new QuadraticBezierCurve3(a, m, b), t0: performance.now(), sure: 950 + Math.min(700, a.distanceTo(b) * 35), sonra, i };
     A.alevler.forEach((x) => { x.visible = true; });
@@ -315,12 +332,30 @@ export function kur(o) {
       A.a.position.copy(ucus.egri.getPoint(e));
       A.alevler.forEach((x, j) => { x.scale.y = 0.8 + Math.random() * 0.5; });
       A.kL.rotation.z = 1.2; A.kR.rotation.z = -1.2;
-      if (u >= 1) { const s = ucus.sonra; suan = ucus.i; ucus = null; A.alevler.forEach((x) => { x.visible = false; }); A.kL.rotation.z = 0.5; A.kR.rotation.z = -0.5; A.a.rotation.y = 0.5; setTimeout(s, 60); }
+      if (u >= 1) { const s = ucus.sonra; suan = ucus.i; ucus = null; A.alevler.forEach((x) => { x.visible = false; }); A.kL.rotation.z = 0.5; A.kR.rotation.z = -0.5; A.a.rotation.y = 0.5; dal(suan, s); }
     } else if (!sakin) {
       A.a.position.y = astYeri(suan).y + Math.sin(t * 1.8) * 0.12; A.a.rotation.z = Math.sin(t * 1.2) * 0.08;
     }
     const k = sakin ? 1 : 1 - Math.pow(0.002, dt);
-    hedef.lerp(hedefSon, k); uzak += (uzakSon - uzak) * k;
+    if (dalis) {
+      const u = Math.min(1, (now - dalis.t0) / dalis.sure), e = u * u * u * (u * (u * 6 - 15) + 10), p = G2[dalis.i];
+      hedef.copy(dalis.h0).lerp(yerler[dalis.i], e); uzak = dalis.u0 + (PR * 1.25 - dalis.u0) * e;
+      const atm = p.g.children[1]; if (atm && atm.material) { atm.material.opacity = 0.9 + e * 0.1; atm.scale.setScalar(PR * (4.2 + e * 3)); }
+      p.govde.rotation.y += dt * (0.4 + e * 2);
+      A.a.visible = u < 0.45;
+      if (u >= 1) {
+        const s = dalis.sonra, d = dalis; dalis = null; s();
+        /* konu kids-app'te harita üstünde açılır: perde kapattıktan sonra sahneyi eski haline getir,
+           konu kapanınca harita gezegenin başında, adlar yerinde bekler */
+        setTimeout(() => {
+          if (yok) return;
+          const atm = p.g.children[1]; if (atm && atm.material) { atm.material.opacity = 0.9; atm.scale.setScalar(PR * 4.2); }
+          hedef.copy(yerler[d.i]).setY(0); hedefSon.copy(hedef); uzak = uzakSon = d.u0; A.a.visible = true;
+          if (harita) harita.classList.remove('kz3-dal');
+          basla();
+        }, 700);
+      }
+    } else { hedef.lerp(hedefSon, k); uzak += (uzakSon - uzak) * k; }
     kamYerlestir();
     renderer.render(sahne, kam);
     etiketler();
