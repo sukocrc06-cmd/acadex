@@ -58,11 +58,16 @@
     function hikayeBitir() { hik.innerHTML = ''; obalon.hidden = true; sk.className = sk.className.replace(/ ?kn-hk(-\S+)?/g, ''); }
     function sahneCiz(r) {
       var ic = W.KIDS_HAYVAN ? W.KIDS_HAYVAN.en(r, P) : P.gorsel(r), n = r.n || 0, ek = '';
+      /* canlı kelime (kids-canli.js): kelimeye özel giriş yolu, zemin (yol/ray/deniz), parçacık */
+      var cn = W.KIDS_CANLI ? W.KIDS_CANLI.bilgi(r.id) : null, gir = (cn && cn.g) || hareket;
+      sk.className = sk.className.replace(/\bkn-h-\S+/, 'kn-h-' + gir);
+      sahneCiz.sure = (cn && cn.s) || 900;
       if (hareket === 'say' && n) { var s = ''; for (var i = 0; i < n; i++) s += '<i style="--s:' + i + '">' + C.simge('yildiz') + '</i>'; ek = '<div class="kn-sayilar kn-n' + (n > 10 ? 'c' : n > 5 ? 'o' : 'a') + '">' + s + '</div>'; }
       if (hareket === 'boya') ek = '<span class="kn-firca" aria-hidden="true">' + C.simge('firca') + '</span>';
-      if (hareket === 'gec' || hareket === 'yuru') ek = '<span class="kn-toz" aria-hidden="true"><i></i><i></i><i></i></span>';
-      if (hareket === 'in' && r.id !== 'sunny' && r.id !== 'sun') ek = '<span class="kn-yagis" aria-hidden="true">' + new Array(7).join('<i></i>') + '</span>';
-      oge.innerHTML = '<div class="kn-resim" style="--r:' + (r.hex || '#9AA7BD') + '">' + ic + '</div>' + ek;
+      if ((gir === 'gec' || gir === 'yuru') && !(cn && cn.z)) ek = '<span class="kn-toz" aria-hidden="true"><i></i><i></i><i></i></span>';
+      if (gir === 'in' && !(cn && cn.p) && r.id !== 'sunny' && r.id !== 'sun') ek = '<span class="kn-yagis" aria-hidden="true">' + new Array(7).join('<i></i>') + '</span>';
+      if (cn) ek += W.KIDS_CANLI.ekHtml(cn);
+      oge.innerHTML = (cn ? W.KIDS_CANLI.zeminHtml(cn) : '') + '<div class="kn-resim" style="--r:' + (r.hex || '#9AA7BD') + '">' + ic + '</div>' + ek;
       sk.style.setProperty('--r', r.hex || '#9AA7BD');
       sk.classList.remove('kn-gir', 'kn-durgun'); void sk.offsetWidth; sk.classList.add('kn-gir');
     }
@@ -72,7 +77,7 @@
       var rp = KS ? KS.replik(o.konu, r, P) : null, dur = function () { return iptal || benim !== kosu; };
       kel.innerHTML = ''; sen.hidden = true; acdK.innerHTML = o.acd('mutlu', 'isaret'); hikayeBitir();
       sahneCiz(r); SES.fx('pat');
-      await bekle(azHareket() ? 100 : 900); if (dur()) return false;
+      await bekle(azHareket() ? 100 : Math.max(900, sahneCiz.sure || 0)); if (dur()) return false;
       /* giriş bitti: konuşma/hikâye animasyonu kalkınca giriş baştan oynamasın */
       sk.classList.add('kn-durgun');
       function yaz() { kel.innerHTML = yazi ? harfler(r.en) : ''; kel.classList.remove('kn-yaz'); void kel.offsetWidth; kel.classList.add('kn-yaz'); }

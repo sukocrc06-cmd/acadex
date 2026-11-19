@@ -124,6 +124,9 @@
   }
   /* haritaya astronotu koy: son gidilen gezegen, yoksa bugünün, yoksa ilk açık gezegen */
   function yerlestir(kok, o) {
+    /* konudan haritaya dönüşte uzay sınıfını hemen aç: MutationObserver bir an sonra çalışır ve
+       o ana kadar 3B kurulmaz, düz harita kalırdı (20.11.2026 hatası) */
+    var app = kok.id === 'kids-app' ? kok : D.getElementById('kids-app'); if (app) guncelle(app);
     var harita = kok.querySelector('.ka-harita'); if (!harita || !aktif()) return;
     U3 = null;
     dostlarKur(harita, o);

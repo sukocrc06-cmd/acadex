@@ -145,6 +145,8 @@ test('canlı gökyüzü: nebula, kuyruklu yıldız, UFO; ateş topu ve UFO dokun
 
 test('astronot arkadaşlar: gerçek düğme, sırayla el sallar / takla / zıplar, adların altında', () => {
   assert.match(js, /dostlarKur\(harita, o\);/);
+  /* 20.11.2026: konudan dönünce düz harita kalıyordu; uzay sınıfı haritayı kurmadan önce açılmalı */
+  assert.match(js, /if \(app\) guncelle\(app\);\s*var harita = kok\.querySelector\('\.ka-harita'\); if \(!harita \|\| !aktif\(\)\) return;/);
   assert.match(js, /b\.type = 'button'; b\.className = 'kz-dost';/);
   assert.match(js, /HAREKET = \['kz-selam', 'kz-takla', 'kz-zipla'\]/);
   assert.match(js, /C\.HAYVAN\.filter\(function \(h\) \{ return h !== o\.hayvan; \}\)/, 'çocuğun kendi hayvanı değil');

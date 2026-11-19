@@ -208,7 +208,7 @@
 
   var onbellek = {};
   function ic(ad) { if (!R[ad]) return ''; if (!(ad in onbellek)) onbellek[ad] = R[ad](); return onbellek[ad]; }
-  function ciz(ad, cls) { return '<svg class="kc kc-resim ' + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' + ic(ad) + '</svg>'; }
+  function ciz(ad, cls) { return '<svg class="kc kc-resim ' + (W.KIDS_CANLI ? W.KIDS_CANLI.sinif(ad) + ' ' : '') + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' + ic(ad) + '</svg>'; }
   /* resimli balon (balon oyunu): renkli balonun ortasında kelimenin resmi */
   function balonResim(ad, renk) {
     return '<svg class="kc kc-balon kc-rbalon" viewBox="0 0 100 150" aria-hidden="true" focusable="false"><path d="M50 104 q-6 22 4 42" fill="none" stroke="' + M + '" stroke-width="2.4" stroke-linecap="round"/>' +

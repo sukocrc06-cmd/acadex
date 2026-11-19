@@ -68,7 +68,7 @@
     return kuyruk(o) + govde(o) + '<g class="kc-kafa"><g transform="translate(16 -5) scale(.68)">' + R.ic(id) + agiz + '</g></g>';
   }
   function varMi(id) { return !!T[id] && !!R.ic(id); }
-  function ciz(id, cls) { return '<svg class="kc kc-resim kc-hayvan ' + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' + icTam(id) + '</svg>'; }
+  function ciz(id, cls) { return '<svg class="kc kc-resim kc-hayvan ' + (W.KIDS_CANLI ? W.KIDS_CANLI.sinif(id) + ' ' : '') + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' + icTam(id) + '</svg>'; }
   /* bir kelimenin büyük görseli: tam gövdesi varsa o, yoksa paketin olağan görseli */
   function en(o, P) { return o && varMi(o.id) ? ciz(o.id) : (P ? P.gorsel(o) : R.ciz(o.id)); }
   W.KIDS_HAYVAN = { var: varMi, ciz: ciz, ic: icTam, en: en, T: T };
