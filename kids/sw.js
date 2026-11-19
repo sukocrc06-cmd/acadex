@@ -11,7 +11,7 @@
    modül değişince SURUM değiştirilmeli.
    ========================================================================== */
 'use strict';
-const SURUM = 'acadex-kids-2026-11-20c';
+const SURUM = 'acadex-kids-2026-11-20d';
 const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png', '/kids/assets/kids-uzay3d.mjs'];
 
 self.addEventListener('install', (e) => {

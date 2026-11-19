@@ -93,4 +93,27 @@ test('hareketi azalt: hiçbiri oynamaz; paket sırası', () => {
   assert.doesNotMatch(js + css, /https?:\/\/(?!www\.w3\.org)/);
 });
 
+/* tarama 20.11.2026: aynı adlı @keyframes'ler birbirini eziyordu (Colours'ta fırça boyama girişi,
+   Shapes'te dönerek giriş, Acadia'nın kutlama zıplaması, ilerleme halkası nabzı, Transport hikâyesinde
+   "yol" çalışmıyordu). Kids paketindeki bütün CSS'te her animasyon adı tek olmalı. */
+test('kids CSS: her @keyframes adı tek (biri ötekini ezmesin)', () => {
+  const b = read('kids/assets/birlestir.js'), dosyalar = [...b.matchAll(/'([\w-]+\.css)'/g)].map((m) => m[1]);
+  assert.ok(dosyalar.length >= 10);
+  const gor = {}, cift = [];
+  for (const f of dosyalar) for (const m of read('kids/assets/' + f).matchAll(/@keyframes\s+([\w-]+)/g)) { if (gor[m[1]]) cift.push(m[1] + ' (' + gor[m[1]] + ' + ' + f + ')'); else gor[m[1]] = f; }
+  assert.equal(cift.join(', '), '');
+});
+
+test('eşyayla oyun ve karaoke harfler', () => {
+  assert.match(css, /\.kn-hk-top \.kn-e-top\{animation:knTop 1\.1s[^}]*kcnTopOyun 2\.6s 1\.1s ease-in-out infinite\}/, 'top gelir, sonra oyun döngüsü');
+  assert.match(css, /\.kn-sahne\.kn-hk-top \.kn-resim\{animation:kcnTopHayvan/, 'hayvan pati atar, hoplar');
+  assert.match(css, /\.kn-hk-top \.kn-hikaye\{z-index:3\}/, 'top hayvanın önünde');
+  assert.match(css, /\.kn-kelime span\.kn-k-on\{scale:1\.2;translate:0 -10%/, 'transform değil: harf animasyonu ezmez');
+  assert.match(anlat, /await karaoke\(soyle\(r\.en \+ '!'\)\)/, 'senin sıran: harfler yanar');
+  assert.match(anlat, /return karaoke\(SES\.soyle\(rs\[i\]\.en, 'en'\)\)/, 'dokununca da');
+  assert.match(anlat, /if \(!yazi \|\| azHareket\(\)\) return p;/, 'yazısız yaşta ve hareketi azaltta yok');
+  assert.match(anlat, /kTim\.forEach\(clearTimeout\); SES\.sus\(\);/, 'sahne kapanınca zamanlayıcı kalmaz');
+  assert.match(css, /\.kn-kelime:empty\{display:none\}/);
+});
+
 summary();

@@ -50,6 +50,22 @@
       sk.classList.add('kn-oge-konus');
       return SES.soyle(metin, 'en', { perde: 1.5 }).then(function (x) { sk.classList.remove('kn-oge-konus'); return x; });
     }
+    /* karaoke: kelime söylenirken harfleri sırayla yanar; söz bitince hepsi yanık kalır, sonra söner.
+       Kaydın süresi önceden bilinmediği için harf başına ~95 ms tahmin; söz erken biterse hepsi birden yanar. */
+    var kTim = [];
+    function karaoke(p) {
+      if (!yazi || azHareket()) return p;
+      kTim.forEach(clearTimeout); kTim = [];
+      var L = [].slice.call(kel.querySelectorAll('span:not(.kn-bosluk)')); if (!L.length) return p;
+      kel.classList.remove('kn-k-bitti'); L.forEach(function (x) { x.classList.remove('kn-k-on'); });
+      var adim = Math.max(70, Math.min(160, 900 / L.length));
+      L.forEach(function (x, i) { kTim.push(setTimeout(function () { x.classList.add('kn-k-on'); }, 120 + i * adim)); });
+      return Promise.resolve(p).then(function (v) {
+        kTim.forEach(clearTimeout); kTim = []; L.forEach(function (x) { x.classList.add('kn-k-on'); });
+        kTim.push(setTimeout(function () { kel.classList.add('kn-k-bitti'); L.forEach(function (x) { x.classList.remove('kn-k-on'); }); }, 700));
+        return v;
+      });
+    }
     function hikayeBasla(ad) {
       if (!ad || !KS) return;
       hik.innerHTML = '<span class="kn-esya kn-e-' + ad + '">' + KS.esya(ad) + '</span>' + (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti' ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
@@ -92,14 +108,15 @@
         /* mini hikâye: eşya sahneye gelir, kelime onunla oynar */
         if (rp.hikaye) { acdK.innerHTML = o.acd('mutlu', 'isaret'); hikayeBasla(rp.sahne); await bekle(azHareket() ? 100 : 500); if (dur()) return false; await soyle(rp.hikaye, { hiz: 0.9 }); if (dur()) return false; await bekle(400); }
       } else {
-        yaz(); await soyle(r.en + '.'); if (dur()) return false; await bekle(250);
+        yaz(); await bekle(azHareket() ? 0 : 150 + r.en.length * 80); if (dur()) return false;
+        await karaoke(soyle(r.en + '.')); if (dur()) return false; await bekle(250);
         await soyle(P.izleCumle(r), { hiz: 0.9 }); if (dur()) return false;
       }
       hikayeBitir();
       /* senin sıran: kelime tekrar edilir, çocuk söyler */
       sen.hidden = false; acdK.innerHTML = o.acd('dusun'); sk.classList.add('kn-dinle');
       await bekle(400); if (iptal || benim !== kosu) return false;
-      await soyle(r.en + '!'); if (iptal || benim !== kosu) return false;
+      await karaoke(soyle(r.en + '!')); if (iptal || benim !== kosu) return false;
       await bekle(1500); sk.classList.remove('kn-dinle'); sen.hidden = true;
       if (iptal || benim !== kosu) return false;
       sira.children[i].classList.add('kn-gordu'); return true;
@@ -113,11 +130,11 @@
     }
     /* sıradaki küçük resimlere dokunarak o kelimeye atla */
     sira.addEventListener('click', function (e) { var b = e.target.closest('[data-git]'); if (!b) return; SES.sus(); SES.fx('dokun'); oyna(+b.getAttribute('data-git')); });
-    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]), b = KS && KS.ben(o.konu, rs[i], P); (h && SES.hayvan ? SES.hayvan(h) : Promise.resolve()).then(function () { if (b) return ogeSoyle(b).then(function () { obalon.hidden = true; }); return SES.soyle(rs[i].en, 'en'); }); });
+    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]), b = KS && KS.ben(o.konu, rs[i], P); (h && SES.hayvan ? SES.hayvan(h) : Promise.resolve()).then(function () { if (b) return ogeSoyle(b).then(function () { obalon.hidden = true; }); return karaoke(SES.soyle(rs[i].en, 'en')); }); });
     sahne.querySelector('[data-yeniden]').addEventListener('click', function () { SES.fx('dokun'); kok.classList.remove('kn-bitti'); oyna(0); });
     sahne.querySelector('[data-ileri]').addEventListener('click', function () { SES.fx('dokun'); o.ileri(); });
     oyna(0);
-    return { dur: function () { iptal = true; SES.sus(); } };
+    return { dur: function () { iptal = true; kTim.forEach(clearTimeout); SES.sus(); } };
   }
   W.KIDS_ANLAT = { izle: izle, HAREKET: HAREKET };
 })(window);

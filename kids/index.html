@@ -48,9 +48,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 
 /* ---------- Acadia ---------- */
 .kc-acd .kc-acadia{transform-origin:50% 60%;animation:kaNefes 3.2s ease-in-out infinite}
-.kc-acd .kc-kutlama{animation:kaZipla .7s ease-in-out infinite alternate}
+.kc-acd .kc-kutlama{animation:kaAcdZipla .7s ease-in-out infinite alternate}
 @keyframes kaNefes{50%{transform:translateY(-3px) rotate(-2deg)}}
-@keyframes kaZipla{to{transform:translateY(-8px) rotate(4deg)}}
+@keyframes kaAcdZipla{to{transform:translateY(-8px) rotate(4deg)}}
 .ka-acd{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:14px;margin-bottom:18px}
 .ka-acd>.kc{width:96px;height:96px}
 .ka-balon{position:relative;margin:0;padding:14px 18px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);font:700 22px/1.25 var(--bas)}
@@ -491,8 +491,8 @@ button.ka-ben:hover{border-color:var(--m);background:var(--beyaz)}
 .ka-halka-i .kc{width:clamp(16px,1.7vw,20px);height:auto;margin-bottom:1px}
 .ka-halka-i b{font:800 clamp(14px,1.4vw,17px)/1 var(--bas);color:var(--m)}
 .ka-halka-tam .ka-halka-z{fill:#FFF3B0}
-.ka-halka-tam{animation:kaHalka 2.4s ease-in-out infinite}
-@keyframes kaHalka{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.ka-halka-tam{animation:kaHalkaNabiz 2.4s ease-in-out infinite}
+@keyframes kaHalkaNabiz{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 /* "Daha fazlası" penceresi */
 .ka-dahak .ka-pen{width:min(760px,calc(100vw - 24px))}.ka-dahak .ka-koseler{width:100%;margin:6px 0 0}
 @media (max-width:720px){
@@ -1235,8 +1235,8 @@ button.ka-ben:hover{border-color:var(--m);background:var(--beyaz)}
 .kn-hk-el .kn-resim{animation:kaJole .6s 1s both!important}
 /* oyuncak kutusu: kelime sevinçle döner */
 .kn-e-kutu{width:26%;aspect-ratio:1;right:4%;bottom:2%;animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
-.kn-hk-kutu .kn-resim{animation:knDon 1.2s .4s ease-in-out both!important}
-@keyframes knDon{50%{transform:rotate(-12deg) scale(1.1)}100%{transform:rotate(360deg)}}
+.kn-hk-kutu .kn-resim{animation:knKutuDon 1.2s .4s ease-in-out both!important}
+@keyframes knKutuDon{50%{transform:rotate(-12deg) scale(1.1)}100%{transform:rotate(360deg)}}
 /* yol: taşıt gider, öbür yandan geri gelir */
 .kn-e-yol{width:100%;height:40%;left:0;bottom:-6%}.kn-e-yol .kc{height:100%;width:100%}.kn-e-yol svg{preserveAspectRatio:none}
 .kn-durgun.kn-hk-yol .kn-oge{animation:knYol 2.2s .3s ease-in-out both}
@@ -1245,8 +1245,8 @@ button.ka-ben:hover{border-color:var(--m);background:var(--beyaz)}
 .kn-e-buyutec{width:34%;aspect-ratio:1;left:10%;top:16%;animation:knBak 1.6s ease-in-out both}
 @keyframes knBak{0%{transform:translate(-80%,40%)}50%{transform:translate(70%,-10%)}100%{transform:translate(120%,20%) rotate(10deg)}}
 /* boya: renk sahneye yayılır */
-.kn-e-boya{width:min(96%,520px);aspect-ratio:1;left:50%;top:50%;margin:min(-48%,-260px) 0 0 min(-48%,-260px);opacity:.4;animation:knBoya .9s cubic-bezier(.3,1.4,.5,1) both}
-@keyframes knBoya{from{transform:scale(0) rotate(-60deg)}70%{transform:scale(1.12)}}
+.kn-e-boya{width:min(96%,520px);aspect-ratio:1;left:50%;top:50%;margin:min(-48%,-260px) 0 0 min(-48%,-260px);opacity:.4;animation:knBoyaYay .9s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes knBoyaYay{from{transform:scale(0) rotate(-60deg)}70%{transform:scale(1.12)}}
 .kn-hk-boya .kn-resim{animation:kaJole .6s .5s both!important}
 /* ayna: kelime aynada yüz yapar */
 .kn-e-ayna{width:30%;aspect-ratio:1;right:4%;top:14%;animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
@@ -2691,32 +2691,32 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
 
 
 /* ---------- 2) İZLE SAHNESİ: kelimeye özel giriş yolları ---------- */
-.kn-h-yol.kn-gir:not(.kn-durgun) .kn-resim{animation:knYol 1.25s cubic-bezier(.15,.7,.3,1) both}
-@keyframes knYol{0%{transform:translateX(-190%)}72%{transform:translateX(5%) rotate(-1.5deg)}86%{transform:translateX(-2%) rotate(.8deg)}100%{transform:none}}
-.kn-h-ray.kn-gir:not(.kn-durgun) .kn-resim{animation:knRay 1.45s cubic-bezier(.15,.7,.3,1) both}
-@keyframes knRay{0%{transform:translateX(190%)}80%{transform:translateX(-3%)}100%{transform:none}}
-.kn-h-deniz.kn-gir:not(.kn-durgun) .kn-resim{animation:knDeniz 1.45s ease-out both}
-@keyframes knDeniz{0%{transform:translate(-180%,0) rotate(-6deg)}25%{transform:translate(-130%,-6%) rotate(6deg)}50%{transform:translate(-70%,0) rotate(-6deg)}75%{transform:translate(-20%,-5%) rotate(5deg)}100%{transform:none}}
-.kn-h-dalis.kn-gir:not(.kn-durgun) .kn-resim{animation:knDalis 1.35s ease-out both}
-@keyframes knDalis{0%{transform:translate(-140%,70%) rotate(-14deg)}60%{transform:translate(-10%,-6%) rotate(5deg)}100%{transform:none}}
-.kn-h-gok.kn-gir:not(.kn-durgun) .kn-resim{animation:knGok 1.25s cubic-bezier(.2,.7,.3,1) both}
-@keyframes knGok{0%{transform:translate(-180%,-120%) rotate(14deg)}65%{transform:translate(6%,5%) rotate(-5deg)}100%{transform:none}}
-.kn-h-gokyavas.kn-gir:not(.kn-durgun) .kn-resim{animation:knGokyavas 1.55s ease-out both}
-@keyframes knGokyavas{0%{transform:translate(30%,-160%) rotate(8deg)}40%{transform:translate(-10%,-60%) rotate(-6deg)}75%{transform:translate(5%,-6%) rotate(4deg)}100%{transform:none}}
-.kn-h-roket.kn-gir:not(.kn-durgun) .kn-resim{animation:knRoket 1.15s cubic-bezier(.2,.8,.3,1.2) both}
-@keyframes knRoket{0%{transform:translateY(180%)}70%{transform:translateY(-8%)}100%{transform:none}}
-.kn-h-kanat.kn-gir:not(.kn-durgun) .kn-resim{animation:knKanat 1.35s ease-out both}
-@keyframes knKanat{0%{transform:translate(-170%,-110%) rotate(-10deg)}30%{transform:translate(-90%,-10%) rotate(8deg)}55%{transform:translate(-30%,-40%) rotate(-6deg)}80%{transform:translate(6%,-6%) rotate(4deg)}100%{transform:none}}
-.kn-h-paytak.kn-gir:not(.kn-durgun) .kn-resim{animation:knPaytak 1.45s linear both;transform-origin:50% 95%}
-@keyframes knPaytak{0%{transform:translateX(-170%) rotate(-8deg)}12%{transform:translateX(-150%) rotate(8deg)}25%{transform:translateX(-125%) rotate(-8deg)}37%{transform:translateX(-100%) rotate(8deg)}50%{transform:translateX(-75%) rotate(-8deg)}62%{transform:translateX(-50%) rotate(8deg)}75%{transform:translateX(-28%) rotate(-8deg)}87%{transform:translateX(-10%) rotate(6deg)}100%{transform:none}}
-.kn-h-zipla2.kn-gir:not(.kn-durgun) .kn-resim{animation:knZipla2 1.45s ease-in-out both}
-@keyframes knZipla2{0%{transform:translate(-180%,0)}15%{transform:translate(-150%,-32%)}30%{transform:translate(-115%,0) scale(1.1,.9)}45%{transform:translate(-75%,-32%)}60%{transform:translate(-40%,0) scale(1.1,.9)}75%{transform:translate(-12%,-26%)}90%{transform:translate(0,0) scale(1.12,.88)}100%{transform:none}}
-.kn-h-surun.kn-gir:not(.kn-durgun) .kn-resim{animation:knSurun 1.45s ease-out both}
-@keyframes knSurun{0%{transform:translateX(180%) skewX(10deg)}20%{transform:translateX(130%) skewX(-10deg)}40%{transform:translateX(85%) skewX(10deg)}60%{transform:translateX(45%) skewX(-10deg)}80%{transform:translateX(12%) skewX(8deg)}100%{transform:none}}
-.kn-h-yan.kn-gir:not(.kn-durgun) .kn-resim{animation:knYan 1.25s linear both}
-@keyframes knYan{0%{transform:translateX(180%)}20%{transform:translateX(140%) translateY(-4%)}40%{transform:translateX(100%)}60%{transform:translateX(55%) translateY(-4%)}80%{transform:translateX(18%)}100%{transform:none}}
-.kn-h-yuvarlan.kn-gir:not(.kn-durgun) .kn-resim{animation:knYuvarlan 1.25s cubic-bezier(.2,.7,.3,1) both}
-@keyframes knYuvarlan{0%{transform:translateX(-200%) rotate(-720deg)}75%{transform:translateX(6%) rotate(20deg)}100%{transform:none}}
+.kn-h-yol.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGYol 1.25s cubic-bezier(.15,.7,.3,1) both}
+@keyframes kcnGYol{0%{transform:translateX(-190%)}72%{transform:translateX(5%) rotate(-1.5deg)}86%{transform:translateX(-2%) rotate(.8deg)}100%{transform:none}}
+.kn-h-ray.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGRay 1.45s cubic-bezier(.15,.7,.3,1) both}
+@keyframes kcnGRay{0%{transform:translateX(190%)}80%{transform:translateX(-3%)}100%{transform:none}}
+.kn-h-deniz.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGDeniz 1.45s ease-out both}
+@keyframes kcnGDeniz{0%{transform:translate(-180%,0) rotate(-6deg)}25%{transform:translate(-130%,-6%) rotate(6deg)}50%{transform:translate(-70%,0) rotate(-6deg)}75%{transform:translate(-20%,-5%) rotate(5deg)}100%{transform:none}}
+.kn-h-dalis.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGDalis 1.35s ease-out both}
+@keyframes kcnGDalis{0%{transform:translate(-140%,70%) rotate(-14deg)}60%{transform:translate(-10%,-6%) rotate(5deg)}100%{transform:none}}
+.kn-h-gok.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGGok 1.25s cubic-bezier(.2,.7,.3,1) both}
+@keyframes kcnGGok{0%{transform:translate(-180%,-120%) rotate(14deg)}65%{transform:translate(6%,5%) rotate(-5deg)}100%{transform:none}}
+.kn-h-gokyavas.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGGokyavas 1.55s ease-out both}
+@keyframes kcnGGokyavas{0%{transform:translate(30%,-160%) rotate(8deg)}40%{transform:translate(-10%,-60%) rotate(-6deg)}75%{transform:translate(5%,-6%) rotate(4deg)}100%{transform:none}}
+.kn-h-roket.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGRoket 1.15s cubic-bezier(.2,.8,.3,1.2) both}
+@keyframes kcnGRoket{0%{transform:translateY(180%)}70%{transform:translateY(-8%)}100%{transform:none}}
+.kn-h-kanat.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGKanat 1.35s ease-out both}
+@keyframes kcnGKanat{0%{transform:translate(-170%,-110%) rotate(-10deg)}30%{transform:translate(-90%,-10%) rotate(8deg)}55%{transform:translate(-30%,-40%) rotate(-6deg)}80%{transform:translate(6%,-6%) rotate(4deg)}100%{transform:none}}
+.kn-h-paytak.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGPaytak 1.45s linear both;transform-origin:50% 95%}
+@keyframes kcnGPaytak{0%{transform:translateX(-170%) rotate(-8deg)}12%{transform:translateX(-150%) rotate(8deg)}25%{transform:translateX(-125%) rotate(-8deg)}37%{transform:translateX(-100%) rotate(8deg)}50%{transform:translateX(-75%) rotate(-8deg)}62%{transform:translateX(-50%) rotate(8deg)}75%{transform:translateX(-28%) rotate(-8deg)}87%{transform:translateX(-10%) rotate(6deg)}100%{transform:none}}
+.kn-h-zipla2.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGZipla2 1.45s ease-in-out both}
+@keyframes kcnGZipla2{0%{transform:translate(-180%,0)}15%{transform:translate(-150%,-32%)}30%{transform:translate(-115%,0) scale(1.1,.9)}45%{transform:translate(-75%,-32%)}60%{transform:translate(-40%,0) scale(1.1,.9)}75%{transform:translate(-12%,-26%)}90%{transform:translate(0,0) scale(1.12,.88)}100%{transform:none}}
+.kn-h-surun.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGSurun 1.45s ease-out both}
+@keyframes kcnGSurun{0%{transform:translateX(180%) skewX(10deg)}20%{transform:translateX(130%) skewX(-10deg)}40%{transform:translateX(85%) skewX(10deg)}60%{transform:translateX(45%) skewX(-10deg)}80%{transform:translateX(12%) skewX(8deg)}100%{transform:none}}
+.kn-h-yan.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGYan 1.25s linear both}
+@keyframes kcnGYan{0%{transform:translateX(180%)}20%{transform:translateX(140%) translateY(-4%)}40%{transform:translateX(100%)}60%{transform:translateX(55%) translateY(-4%)}80%{transform:translateX(18%)}100%{transform:none}}
+.kn-h-yuvarlan.kn-gir:not(.kn-durgun) .kn-resim{animation:kcnGYuvarlan 1.25s cubic-bezier(.2,.7,.3,1) both}
+@keyframes kcnGYuvarlan{0%{transform:translateX(-200%) rotate(-720deg)}75%{transform:translateX(6%) rotate(20deg)}100%{transform:none}}
 
 /* ---------- zemin: yol / ray / deniz; resmin altında, kendi şeridi akar ---------- */
 .kcn-zemin{position:absolute;z-index:0;left:-80%;right:-80%;bottom:-2%;height:24%;pointer-events:none}
@@ -2783,6 +2783,51 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
 @keyframes kcnAlev{from{transform:scaleY(.8) scaleX(1.05)}to{transform:scaleY(1.25) scaleX(.9)}}
 @keyframes kcnSiren{0%{opacity:.85}50%{opacity:0}}
 @media print{.kcn-p,.kcn-zemin{display:none!important}}
+
+/* ---------- 3) EŞYAYLA OYUN: top (hayvanlar). Top yuvarlanıp ayağının dibine gelir; hayvan
+   pati atar, top havalanıp sahneden çıkar, yuvarlanarak geri gelir; hayvan sevinçle hoplar,
+   topun gittiği yöne bakar. Hikâye cümlesi boyunca döner. ---------- */
+.kn-hk-top .kn-e-top{right:18%;bottom:8%;width:18%}
+@media (prefers-reduced-motion:no-preference){
+  .kn-hk-top .kn-e-top{animation:knTop 1.1s cubic-bezier(.3,1.2,.5,1) both,kcnTopOyun 2.6s 1.1s ease-in-out infinite}
+  .kn-sahne.kn-hk-top .kn-resim{animation:kcnTopHayvan 2.6s 1.1s ease-in-out infinite!important;transform-origin:50% 100%}
+}
+@keyframes kcnTopOyun{
+  0%{transform:none}
+  12%{transform:translateX(-10%) scale(1.12,.86)}
+  34%{transform:translate(150%,-230%) rotate(320deg)}
+  54%{transform:translate(330%,0) rotate(560deg)}
+  56%{transform:translate(330%,0) rotate(560deg)}
+  86%{transform:translate(12%,0) rotate(-30deg)}
+  93%{transform:translate(-5%,-10%) rotate(-10deg)}
+  100%{transform:none}}
+@keyframes kcnTopHayvan{
+  0%{transform:none}
+  7%{transform:translateX(-3%) rotate(-5deg)}
+  13%{transform:translate(6%,-2%) rotate(9deg)}
+  22%{transform:none}
+  33%{transform:translateY(-13%) scale(.96,1.05)}
+  42%{transform:scale(1.06,.94)}
+  50%{transform:translateY(-8%)}
+  58%{transform:none}
+  80%{transform:translateX(3%) rotate(5deg)}
+  100%{transform:none}}
+
+/* ---------- 4) KARAOKE HARFLER: kelime söylenirken harfler sırayla yanar (kids-anlat karaoke()) ----------
+   transform değil translate/scale: harfin giriş animasyonu (knHarf, forwards) transform'u tutar */
+.kn-kelime span{transition:scale .18s cubic-bezier(.3,1.6,.5,1),translate .18s,color .18s}
+.kn-kelime span.kn-k-on{scale:1.2;translate:0 -10%;color:color-mix(in srgb,var(--r,#8E7CF0) 75%,#23304D)}
+.kn-kelime.kn-k-bitti span{scale:1;translate:0 0}
+@media (prefers-reduced-motion:reduce){.kn-kelime span{transition:none}.kn-kelime span.kn-k-on{scale:1;translate:0 0}}
+
+/* ---------- 5) OKUNURLUK (tarama, 20.11.2026): kelime yazısı hayvanın başına / ayağına biniyordu ----------
+   Yazının arkasında yarı saydam bir zemin; hikâyede yazı üste çıkınca resim biraz küçülüp aşağı iner.
+   translate/scale ayrı özellikler: .kn-oge'nin hikâye animasyonlarıyla (sepet, tabak, yol) çakışmaz. */
+.kn-kelime{left:50%;right:auto;width:max-content;max-width:94%;translate:-50% 0;padding:2px .32em 4px;border-radius:.45em;background:rgba(255,255,255,.78);box-shadow:0 2px 0 rgba(35,48,77,.08)}
+.kn-kelime:empty{display:none}
+.kn-oge{transition:translate .45s cubic-bezier(.3,1.3,.5,1),scale .45s cubic-bezier(.3,1.3,.5,1)}
+.kn-hk .kn-oge{translate:0 9%;scale:.86}
+.kn-hk-top .kn-hikaye{z-index:3}
 
 </style>
 </head>
@@ -4239,28 +4284,30 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
 (function (W) {
   'use strict';
   var R = W.KIDS_RESIM, M = '#23304D';
-  /* g: gövde rengi, k: göbek, a: ayak/pati, t: kuyruk türü, tr: kuyruk rengi, ag: ağız yeri [x, y] (yüz çiziminin 100'lük ızgarasında) */
+  /* g: gövde rengi, k: göbek, a: ayak/pati, t: kuyruk türü, tr: kuyruk rengi, ag: ağız yeri [x, y] (yüz çiziminin 100'lük ızgarasında).
+     20.11.2026: ağız burnun ALTINDA, gülümseme çizgisinin üstünde açılır (eskiden burnun üstüne biniyordu,
+     "köpek burnundan konuşuyor"). tests/kids-hayvan-agiz.js her hayvan için burunla çakışmayı ölçer. */
   var T = {
-    cat: { g: '#FF9F45', k: '#FFE1C4', t: 'uzun', ag: [50, 60] },
-    dog: { g: '#E8C48A', k: '#FFF1DC', a: '#B07A40', t: 'gur', tr: '#B07A40', ag: [50, 64] },
-    rabbit: { g: '#F6F1EA', k: '#FFFFFF', a: '#FFC2D4', t: 'ponpon', ag: [50, 62] },
-    frog: { g: '#5DCB7B', k: '#C9F2D2', t: 'yok', kurbaga: 1, ag: [50, 60] },
-    cow: { g: '#FFFFFF', k: '#FFD9E0', a: '#23304D', t: 'puskul', leke: '#23304D', ag: [50, 70] },
-    chick: { g: '#FFD84A', k: '#FFE98A', a: '#FF8A1F', t: 'yok', kus: 1, ag: null },
-    lion: { g: '#F2B84B', k: '#FFE2A8', t: 'puskul', tr: '#B5651D', ag: [50, 66] },
-    bear: { g: '#C68A4B', k: '#F3D7B5', t: 'ponpon', ag: [50, 66] },
-    horse: { g: '#C68A4B', k: '#E8C9A0', a: '#5A3A22', t: 'gur', tr: '#5A3A22', ag: [50, 74] },
-    pig: { g: '#FFB1C8', k: '#FFD3E0', a: '#F06A95', t: 'kivrik', ag: null },
-    sheep: { g: '#FFFFFF', k: '#F3F4F8', a: '#5A3A22', t: 'ponpon', yun: 1, ag: [50, 62] },
-    monkey: { g: '#8F5F3C', k: '#FFD9B8', t: 'uzun', ag: [50, 66] },
-    elephant: { g: '#AEB6CC', k: '#D5DAE8', t: 'puskul', ag: null },
-    tiger: { g: '#FF9F45', k: '#FFF1DC', t: 'uzun', serit: 1, ag: [50, 66] },
-    mouse: { g: '#C5CAD8', k: '#EEF0F6', a: '#FFB1C8', t: 'ince', tr: '#FFB1C8', ag: null },
-    zebra: { g: '#FFFFFF', k: '#F3F4F8', a: '#23304D', t: 'puskul', serit: 1, ag: null },
-    panda: { g: '#FFFFFF', k: '#FFFFFF', a: '#23304D', t: 'ponpon', kol: '#23304D', ag: [50, 66] },
-    fox: { g: '#F0703A', k: '#FFF1DC', a: '#5A3A22', t: 'gur', uc: '#FFFFFF', ag: [50, 66] },
-    goat: { g: '#F6F4EE', k: '#FFFFFF', a: '#8A6A4A', t: 'ponpon', ag: null },
-    hippo: { g: '#C9B8E8', k: '#E6DCF7', t: 'ince', ag: null }
+    cat: { g: '#FF9F45', k: '#FFE1C4', t: 'uzun', ag: [50, 68] },
+    dog: { g: '#E8C48A', k: '#FFF1DC', a: '#B07A40', t: 'gur', tr: '#B07A40', ag: [50, 68] },
+    rabbit: { g: '#F6F1EA', k: '#FFFFFF', a: '#FFC2D4', t: 'ponpon', ag: [50, 68] },
+    frog: { g: '#5DCB7B', k: '#C9F2D2', t: 'yok', kurbaga: 1, ag: [50, 64] },
+    cow: { g: '#FFFFFF', k: '#FFD9E0', a: '#23304D', t: 'puskul', leke: '#23304D', ag: [50, 77] },
+    chick: { g: '#FFD84A', k: '#FFE98A', a: '#FF8A1F', t: 'yok', kus: 1, ag: [50, 65, .7] },
+    lion: { g: '#F2B84B', k: '#FFE2A8', t: 'puskul', tr: '#B5651D', ag: [50, 67.5] },
+    bear: { g: '#C68A4B', k: '#F3D7B5', t: 'ponpon', ag: [50, 68] },
+    horse: { g: '#C68A4B', k: '#E8C9A0', a: '#5A3A22', t: 'gur', tr: '#5A3A22', ag: [50, 80] },
+    pig: { g: '#FFB1C8', k: '#FFD3E0', a: '#F06A95', t: 'kivrik', ag: [50, 77, .8] },
+    sheep: { g: '#FFFFFF', k: '#F3F4F8', a: '#5A3A22', t: 'ponpon', yun: 1, ag: [50, 65] },
+    monkey: { g: '#8F5F3C', k: '#FFD9B8', t: 'uzun', ag: [45, 66.5] },
+    elephant: { g: '#AEB6CC', k: '#D5DAE8', t: 'puskul', ag: [60, 61, .65] },
+    tiger: { g: '#FF9F45', k: '#FFF1DC', t: 'uzun', serit: 1, ag: [50, 67] },
+    mouse: { g: '#C5CAD8', k: '#EEF0F6', a: '#FFB1C8', t: 'ince', tr: '#FFB1C8', ag: [50, 79, .8] },
+    zebra: { g: '#FFFFFF', k: '#F3F4F8', a: '#23304D', t: 'puskul', serit: 1, ag: [50, 79, .75] },
+    panda: { g: '#FFFFFF', k: '#FFFFFF', a: '#23304D', t: 'ponpon', kol: '#23304D', ag: [50, 68] },
+    fox: { g: '#F0703A', k: '#FFF1DC', a: '#5A3A22', t: 'gur', uc: '#FFFFFF', ag: [50, 68] },
+    goat: { g: '#F6F4EE', k: '#FFFFFF', a: '#8A6A4A', t: 'ponpon', ag: [50, 70.5, .8] },
+    hippo: { g: '#C9B8E8', k: '#E6DCF7', t: 'ince', ag: [50, 72, .85] }
   };
   function kuyruk(o) {
     var r = o.tr || o.g, ic;
@@ -4293,7 +4340,9 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
   }
   function icTam(id) {
     var o = T[id];
-    var agiz = o.ag ? '<g class="kc-konus-agiz"><ellipse cx="' + o.ag[0] + '" cy="' + (o.ag[1] + 2) + '" rx="6" ry="5.5" fill="#7A2E3A" stroke="' + M + '" stroke-width="2.4"/><ellipse cx="' + o.ag[0] + '" cy="' + (o.ag[1] + 5) + '" rx="3.4" ry="2.2" fill="#FF8FA3"/></g>' : '';
+    /* ag[2]: küçük yüzlerde ağız ölçeği (civcivde gaga açılır gibi küçük) */
+    var k = o.ag && o.ag[2] || 1;
+    var agiz = o.ag ? '<g class="kc-konus-agiz"><ellipse cx="' + o.ag[0] + '" cy="' + (o.ag[1] + 2) + '" rx="' + 6 * k + '" ry="' + 5.5 * k + '" fill="#7A2E3A" stroke="' + M + '" stroke-width="2.4"/><ellipse cx="' + o.ag[0] + '" cy="' + (o.ag[1] + 2 + 3 * k) + '" rx="' + 3.4 * k + '" ry="' + 2.2 * k + '" fill="#FF8FA3"/></g>' : '';
     return kuyruk(o) + govde(o) + '<g class="kc-kafa"><g transform="translate(16 -5) scale(.68)">' + R.ic(id) + agiz + '</g></g>';
   }
   function varMi(id) { return !!T[id] && !!R.ic(id); }
@@ -6816,6 +6865,22 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
       sk.classList.add('kn-oge-konus');
       return SES.soyle(metin, 'en', { perde: 1.5 }).then(function (x) { sk.classList.remove('kn-oge-konus'); return x; });
     }
+    /* karaoke: kelime söylenirken harfleri sırayla yanar; söz bitince hepsi yanık kalır, sonra söner.
+       Kaydın süresi önceden bilinmediği için harf başına ~95 ms tahmin; söz erken biterse hepsi birden yanar. */
+    var kTim = [];
+    function karaoke(p) {
+      if (!yazi || azHareket()) return p;
+      kTim.forEach(clearTimeout); kTim = [];
+      var L = [].slice.call(kel.querySelectorAll('span:not(.kn-bosluk)')); if (!L.length) return p;
+      kel.classList.remove('kn-k-bitti'); L.forEach(function (x) { x.classList.remove('kn-k-on'); });
+      var adim = Math.max(70, Math.min(160, 900 / L.length));
+      L.forEach(function (x, i) { kTim.push(setTimeout(function () { x.classList.add('kn-k-on'); }, 120 + i * adim)); });
+      return Promise.resolve(p).then(function (v) {
+        kTim.forEach(clearTimeout); kTim = []; L.forEach(function (x) { x.classList.add('kn-k-on'); });
+        kTim.push(setTimeout(function () { kel.classList.add('kn-k-bitti'); L.forEach(function (x) { x.classList.remove('kn-k-on'); }); }, 700));
+        return v;
+      });
+    }
     function hikayeBasla(ad) {
       if (!ad || !KS) return;
       hik.innerHTML = '<span class="kn-esya kn-e-' + ad + '">' + KS.esya(ad) + '</span>' + (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti' ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
@@ -6858,14 +6923,15 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
         /* mini hikâye: eşya sahneye gelir, kelime onunla oynar */
         if (rp.hikaye) { acdK.innerHTML = o.acd('mutlu', 'isaret'); hikayeBasla(rp.sahne); await bekle(azHareket() ? 100 : 500); if (dur()) return false; await soyle(rp.hikaye, { hiz: 0.9 }); if (dur()) return false; await bekle(400); }
       } else {
-        yaz(); await soyle(r.en + '.'); if (dur()) return false; await bekle(250);
+        yaz(); await bekle(azHareket() ? 0 : 150 + r.en.length * 80); if (dur()) return false;
+        await karaoke(soyle(r.en + '.')); if (dur()) return false; await bekle(250);
         await soyle(P.izleCumle(r), { hiz: 0.9 }); if (dur()) return false;
       }
       hikayeBitir();
       /* senin sıran: kelime tekrar edilir, çocuk söyler */
       sen.hidden = false; acdK.innerHTML = o.acd('dusun'); sk.classList.add('kn-dinle');
       await bekle(400); if (iptal || benim !== kosu) return false;
-      await soyle(r.en + '!'); if (iptal || benim !== kosu) return false;
+      await karaoke(soyle(r.en + '!')); if (iptal || benim !== kosu) return false;
       await bekle(1500); sk.classList.remove('kn-dinle'); sen.hidden = true;
       if (iptal || benim !== kosu) return false;
       sira.children[i].classList.add('kn-gordu'); return true;
@@ -6879,11 +6945,11 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
     }
     /* sıradaki küçük resimlere dokunarak o kelimeye atla */
     sira.addEventListener('click', function (e) { var b = e.target.closest('[data-git]'); if (!b) return; SES.sus(); SES.fx('dokun'); oyna(+b.getAttribute('data-git')); });
-    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]), b = KS && KS.ben(o.konu, rs[i], P); (h && SES.hayvan ? SES.hayvan(h) : Promise.resolve()).then(function () { if (b) return ogeSoyle(b).then(function () { obalon.hidden = true; }); return SES.soyle(rs[i].en, 'en'); }); });
+    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]), b = KS && KS.ben(o.konu, rs[i], P); (h && SES.hayvan ? SES.hayvan(h) : Promise.resolve()).then(function () { if (b) return ogeSoyle(b).then(function () { obalon.hidden = true; }); return karaoke(SES.soyle(rs[i].en, 'en')); }); });
     sahne.querySelector('[data-yeniden]').addEventListener('click', function () { SES.fx('dokun'); kok.classList.remove('kn-bitti'); oyna(0); });
     sahne.querySelector('[data-ileri]').addEventListener('click', function () { SES.fx('dokun'); o.ileri(); });
     oyna(0);
-    return { dur: function () { iptal = true; SES.sus(); } };
+    return { dur: function () { iptal = true; kTim.forEach(clearTimeout); SES.sus(); } };
   }
   W.KIDS_ANLAT = { izle: izle, HAREKET: HAREKET };
 })(window);
