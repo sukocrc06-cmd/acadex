@@ -298,10 +298,22 @@
             '<span class="ka-pk-res">' + l.slice(0, 4).map(function (o) { return K.al(kid).gorsel(o); }).join('') + '</span><small>' + (acik ? l.length + ' kelime' + (bitti ? ' · ✓' : '') : C.simge('kilit') + ' önceki paket') + '</small></button>';
         }).join('') + '</div>';
     }
-    var p = katman('<header class="ka-pen-bas"><h2><span lang="en">' + esc(k.en) + '</span></h2><button type="button" class="ka-yuvarlak" data-kapat aria-label="Kapat">×</button></header>' +
+    /* yeni kazanılan madalya: pencere ilk açıldığında yerine oturur (il.madalyaGor[konu] = son görülen) */
+    var gorMd = il.madalyaGor || null, yeniMd = 0;
+    if (!gorMd) { il.madalyaGor = {}; V.KONU.forEach(function (x) { var s0 = OD.seviye(il, x.id); if (s0) il.madalyaGor[x.id] = s0; }); koy(ilAnahtar(), il); }
+    else if (sv > (gorMd[kid] || 0)) { yeniMd = sv; gorMd[kid] = sv; koy(ilAnahtar(), il); }
+    var gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(k.renk, k.simge, false, OD.asama(il, kid), 1) : C.ada(k.renk, k.simge, false, '');
+    var p = katman('<header class="ka-pen-bas ka-sv-bas" style="--r:' + k.renk + '"><span class="ka-sv-gz" aria-hidden="true">' + gz + '</span><h2><span lang="en">' + esc(k.en) + '</span><small>' + esc(k.tr || '') + '</small></h2><button type="button" class="ka-yuvarlak" data-kapat aria-label="Kapat">×</button></header>' +
       '<div data-pkalan></div>' +
-      '<h3 class="ka-usta-bas">Madalya <small>' + (np > 1 ? 'seçili pakette oynanır' : '') + '</small></h3><p class="ka-pen-alt">Gümüş ve Altın’da daha çok seçenek ve daha uzun turlar var. Oynamak için bir madalyaya dokun.</p><div class="ka-seviyeler">' +
-      OD.MADALYA.map(function (m) { var acik = m.id <= sv + 1, bitti = m.id <= sv, y = OD.seviyeYildiz(il, kid, m.id); return '<button type="button" class="ka-seviye' + (bitti ? ' ka-sv-bitti' : '') + '" data-sv="' + m.id + '"' + (acik ? '' : ' aria-disabled="true"') + (m.id === Math.min(sv + 1, 3) ? ' data-odak' : '') + ' style="--m:' + m.renk + ';--ma:' + m.acik + '">' + OD.madalya(m.id, !acik, 56) + '<b>' + m.ad + '</b><small>' + (acik ? y + ' / ' + K.yildizMax(kid) + ' ★' + (bitti ? ' · bitti' : '') : 'önce ' + OD.MADALYA[m.id - 2].ad.toLocaleLowerCase('tr')) + '</small></button>'; }).join('') + '</div>' +
+      '<h3 class="ka-usta-bas">Madalya kürsüsü <small>' + (np > 1 ? 'seçili pakette oynanır' : '') + '</small></h3><p class="ka-pen-alt">Gümüş ve Altın’da daha çok seçenek ve daha uzun turlar var. Oynamak için bir madalyaya dokun.</p>' +
+      '<div class="ka-kursu">' + OD.MADALYA.map(function (m) {
+        var acik = m.id <= sv + 1, bitti = m.id <= sv, sira = acik && !bitti, y = OD.seviyeYildiz(il, kid, m.id), mx = K.yildizMax(kid), du = bitti ? 'bitti' : sira ? 'sira' : 'kilit';
+        return '<button type="button" class="ka-kb ka-kb-' + du + (m.id === yeniMd ? ' ka-kb-yeni' : '') + '" data-sv="' + m.id + '"' + (acik ? '' : ' aria-disabled="true"') + (m.id === Math.min(sv + 1, 3) ? ' data-odak' : '') +
+          ' aria-label="' + m.ad + ' madalya: ' + (bitti ? 'kazandın, ' + y + ' yıldız' : sira ? 'oyna' : 'kilitli, önce ' + OD.MADALYA[m.id - 2].ad.toLocaleLowerCase('tr')) + '" style="--m:' + m.renk + ';--ma:' + m.acik + ';--h:' + m.id + ';--d:' + (Math.min(1, y / (mx || 1)) * 100).toFixed(0) + '%">' +
+          '<span class="ka-kb-md">' + (bitti ? '<i class="ka-kb-hale" aria-hidden="true"></i>' : '') + OD.madalyaParlak(m.id, du) + (m.id === yeniMd ? '<span class="ka-ada-konfeti" aria-hidden="true">' + new Array(13).join('<i></i>') + '</span>' : '') + '</span>' +
+          '<span class="ka-kb-blok"><b>' + m.ad + '</b><span class="ka-kb-cubuk" aria-hidden="true"><i></i></span><small>' + (acik ? y + ' / ' + mx + ' ★' : C.simge('kilit') + ' önce ' + OD.MADALYA[m.id - 2].ad.toLocaleLowerCase('tr')) + '</small>' +
+          (sira ? '<em class="ka-kb-oyna">Oyna ▶</em>' : bitti ? '<em class="ka-kb-tamam">✓ kazandın</em>' : '') + '<i class="ka-kb-no" aria-hidden="true">' + m.id + '</i></span></button>';
+      }).join('') + '</div>' +
       '<h3 class="ka-usta-bas">Kelime ustalığı <small>' + us.ogren + ' / ' + us.liste.length + ' kelimeyi öğrendin</small></h3><ul class="ka-usta-liste">' +
       us.liste.map(function (x, i) { return '<li class="ka-u' + x.u + '" style="--i:' + (i % 20) + ';--r:' + (x.o.hex || '#9AA7BD') + '"><span>' + K.al(kid).gorsel(x.o) + '</span><b lang="en">' + esc(x.o.en) + '</b><i>' + [1, 2, 3].map(function (j) { return '<em class="' + (j <= x.u ? 'ka-dolu' : '') + '">★</em>'; }).join('') + '</i></li>'; }).join('') + '</ul>', 'ka-seviyek');
     function pk() {
@@ -315,6 +327,7 @@
       });
     }
     pk();
+    if (yeniMd) setTimeout(function () { SES.fx('yildiz'); SES.soyle(OD.MADALYA[yeniMd - 1].ad + ' madalya senin!', 'tr'); }, 650);
     p.el.querySelectorAll('[data-sv]').forEach(function (b) {
       b.addEventListener('click', function () {
         var L = +b.getAttribute('data-sv'); if (L > sv + 1) { SES.fx('yanlis'); jole(b); return; }

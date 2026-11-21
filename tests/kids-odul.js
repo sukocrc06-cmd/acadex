@@ -87,4 +87,23 @@ test('oyunlar doğru cevabı bildirir; uygulama durak başına bir kez sayar', (
   assert.match(read('kids/assets/kids-tema.css'), /prefers-reduced-motion:reduce\)\{\.kc-sakin/);
 });
 
+test('21.11.2026: konu penceresi madalya kürsüsü (parlak metal, uzay teması, yeni madalya kutlaması)', () => {
+  const W = yukle(), OD = W.KIDS_ODUL, app = read('kids/assets/kids-app.js'), css = read('kids/assets/kids-tema.css');
+  /* üç durum ayrı görünür; kilitlide asma kilit, yıldız ve ışık yok; her çizimde degrade kimlikleri tekil */
+  const a = OD.madalyaParlak(1, 'bitti'), b = OD.madalyaParlak(2, 'sira'), c = OD.madalyaParlak(3, 'kilit');
+  assert.match(a, /kc-mdp-bitti/); assert.match(b, /kc-mdp-sira/); assert.match(c, /kc-mdp-kilit/);
+  assert.match(a, /kc-md-isik/); assert.doesNotMatch(c, /kc-md-isik/); assert.match(c, /<rect x="-11"/);
+  assert.match(a, /#E59B5C/); assert.match(OD.madalyaParlak(3, 'bitti'), /#FFD23F/); assert.doesNotMatch(c, /#FFD23F/);
+  const ids = (s) => [...s.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+  const hepsi = ids(a).concat(ids(b), ids(c)); assert.equal(new Set(hepsi).size, hepsi.length, 'degrade kimlikleri tekil');
+  /* pencere: kürsü, gezegenli başlık, durumlar ve erişilebilir ad */
+  assert.match(app, /<div class="ka-kursu">/); assert.match(app, /ka-kb-' \+ du/); assert.match(app, /aria-label="' \+ m\.ad \+ ' madalya: /);
+  assert.match(app, /W\.KIDS_UZAY\.gezegen\(k\.renk, k\.simge, false, OD\.asama\(il, kid\), 1\)/);
+  /* kutlama yalnız yeni kazanılanda; ilk açılışta eski madalyalar kutlanmaz (madalyaGor sessizce doldurulur) */
+  assert.match(app, /if \(!gorMd\) \{ il\.madalyaGor = \{\};/); assert.match(app, /else if \(sv > \(gorMd\[kid\] \|\| 0\)\) \{ yeniMd = sv;/);
+  assert.match(css, /\.ka-kb-blok\{[^}]*min-height:calc\(126px \+ \(var\(--h\) - 1\) \* 30px\)/, 'basamaklar yükselir');
+  assert.match(css, /prefers-reduced-motion:reduce\)\{\.ka-sv-gz,\.ka-kb-hale/);
+  assert.match(css, /\.ka-seviyek \.ka-yuvarlak\{color:#23304D\}/, 'kapat düğmesi koyu zeminde görünür');
+});
+
 summary();
