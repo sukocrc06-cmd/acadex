@@ -74,7 +74,7 @@ test('görünüm: telefonda kaydırılır, hareketi azaltta animasyon yok, yazd�
 test('paket: index.html yeniden üretildi, önbellek sürümü yeni', () => {
   const html = read('kids/index.html');
   assert.ok(html.includes('function dockHtml(il)') && html.includes('.ka-dock-bosluk{'), 'node kids/assets/birlestir.js');
-  assert.match(read('kids/sw.js'), /acadex-kids-2026-11-20e/);
+  assert.match(read('kids/sw.js'), /acadex-kids-2026-11-21a/);
 });
 
 summary();
