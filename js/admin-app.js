@@ -124,9 +124,9 @@
 
   /* =========================== panel iskeleti =========================== */
   var ME = null, CUR = 'overview', COUNTS = {}, TEST = null;
-  /* finans rolü (yönetici değil): yalnız Finans + Acadex ekibi (salt okunur); yetki veritabanında, bu yalnız görünüm */
+  /* finans rolü (yönetici değil): yalnız Finans + Acadex ekibi (salt okunur) + Acadex Görev (yalnız Finans görevlerinde durum/not); yetki veritabanında, bu yalnız görünüm */
   var FIN_ONLY = function () { return !!(ME && !ME.is_admin && ME.is_finance); };
-  var FIN_NAV = { finans: 1, ekip: 1 };
+  var FIN_NAV = { finans: 1, ekip: 1, gorev: 1 };
   var IC = {
     overview: '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.7 2.5 3 5.2"/>',
@@ -143,17 +143,18 @@
     sozluk: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5M9 8h7M9 11.5h5"/>',
     acadia: '<path d="M12 3l2.3 5.4 5.7.5-4.3 3.8 1.3 5.6L12 15.4l-5 2.9 1.3-5.6L4 8.9l5.7-.5z"/><path d="M9.5 21h5"/>',
     ekip: '<circle cx="12" cy="5.5" r="2.5"/><circle cx="5" cy="17.5" r="2.5"/><circle cx="19" cy="17.5" r="2.5"/><path d="M12 8v4M5 15v-3h14v3"/>',
+    gorev: '<rect x="4" y="3.5" width="16" height="18" rx="2.5"/><path d="M9 3.5V2.5h6v1M8 10l1.6 1.6L12.5 8.7M8 16l1.6 1.6 2.9-2.9M14.5 10.5H17M14.5 16.5H17"/>',
     test: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7.5 14h9"/>'
   };
   var NAV = [
     { g: 'MASA' }, { k: 'overview', t: 'Genel bakış' },
     { g: 'ÖĞRENCİLER' }, { k: 'users', t: 'Kullanıcılar' }, { k: 'reports', t: 'Şikâyetler', badge: 'open_reports' },
     { g: 'İÇERİK VE İLETİŞİM' }, { k: 'content', t: 'İçerik' }, { k: 'support', t: 'Canlı destek', badge: 'support_unread' }, { k: 'push', t: 'Bildirimler' }, { k: 'inbox', t: 'Gelen kutusu', badge: 'unread_messages' }, { k: 'news', t: 'Duyurular' },
-    { g: 'ACADEX' }, { k: 'finans', t: 'Finans' }, { k: 'kids', t: 'Acadex Kids', badge: 'kids_istek' }, { k: 'derskod', t: 'Ders kodları' }, { k: 'sozluk', t: 'Sözlük' }, { k: 'acadia', t: 'Acadia geri bildirim' }, { k: 'ekip', t: 'Acadex ekibi' },
+    { g: 'ACADEX' }, { k: 'finans', t: 'Finans' }, { k: 'kids', t: 'Acadex Kids', badge: 'kids_istek' }, { k: 'derskod', t: 'Ders kodları' }, { k: 'sozluk', t: 'Sözlük' }, { k: 'acadia', t: 'Acadia geri bildirim' }, { k: 'gorev', t: 'Acadex Görev', badge: 'gorev_gecikti' }, { k: 'ekip', t: 'Acadex ekibi' },
     { g: 'TEST' }, { k: 'test', t: 'Test paneli', badge: 'test_open_hata' },
     { g: 'SİSTEM' }, { k: 'settings', t: 'Site ayarları' }, { k: 'audit', t: 'Denetim kaydı' }
   ];
-  var TITLES = { acadia: 'Acadia geri bildirim', sozluk: 'Acadex Sözlük', kids: 'Acadex Kids', derskod: 'Ders kodları', overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', finans: 'Finans', content: 'İçerik', support: 'Canlı destek', push: 'Telefon bildirimleri', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
+  var TITLES = { gorev: 'Acadex Görev', acadia: 'Acadia geri bildirim', sozluk: 'Acadex Sözlük', kids: 'Acadex Kids', derskod: 'Ders kodları', overview: 'Genel bakış', users: 'Kullanıcılar', reports: 'Şikâyetler ve moderasyon', finans: 'Finans', content: 'İçerik', support: 'Canlı destek', push: 'Telefon bildirimleri', inbox: 'Gelen kutusu', news: 'Duyurular', settings: 'Site ayarları', audit: 'Denetim kaydı', test: 'Test paneli', ekip: 'Acadex ekibi' };
   var paintNav = function () {
     var fo = FIN_ONLY();
     $('#nav').innerHTML = NAV.filter(function (n, i) { return !fo || (n.k ? FIN_NAV[n.k] : NAV[i + 1] && FIN_NAV[NAV[i + 1].k]); }).map(function (n) {
@@ -177,6 +178,8 @@
   var refreshCounts = async function () { try { var o = await rpc('admin_overview'); try { TEST = await rpc('admin_test_overview'); o.test_open_hata = TEST.open_hata; } catch (te) { TEST = null; } 
     /* 15.11.2026: Kids › İstekler'de bekleyen "teklif al" istekleri (migration yoksa sessizce atlanır) */
     try { var ki = await rpc('kids_basvuru_liste'); o.kids_istek = (ki || []).filter(function (x) { return x.durum === 'bekliyor'; }).length; } catch (ke) { }
+    /* 21.11.2026: Acadex Görev'de teslimi geçmiş, bitmemiş görevler (tablo yoksa sessiz) */
+    try { var bg = new Date(), gs = bg.getFullYear() + '-' + String(bg.getMonth() + 1).padStart(2, '0') + '-' + String(bg.getDate()).padStart(2, '0'); var gv = await sb.from('ax_gorev').select('id', { count: 'exact', head: true }).neq('durum', 'bitti').lt('teslim', gs); if (!gv.error) o.gorev_gecikti = gv.count || 0; } catch (ge) { }
     o.support_unread = SUP.unread; COUNTS = o; paintNav(); $('#maint-pill').hidden = !(SETTINGS_CACHE && SETTINGS_CACHE.maintenance_mode && SETTINGS_CACHE.maintenance_mode.enabled); return o; } catch (e) { return null; } };
   var SETTINGS_CACHE = null;
   var start = function () {
