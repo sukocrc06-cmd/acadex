@@ -24,7 +24,11 @@
   function ustY(el) { var y = 0; while (el && el !== ana) { y += el.offsetTop; el = el.offsetParent; } return y; }
   function rastgele(t) { var x = Math.sin(t * 9301 + 49297) * 233280; return x - Math.floor(x); }   /* her yüklemede aynı yerleşim */
 
+  /* 20.11.2026: uzay yolculuğu (kids-yolculuk.js, html.kyo) açıksa gökyüzü, hero balonları ve
+     yumuşak tekerlek burada kurulmaz: zemini evren, kaydırmayı GSAP sahneleri yönetir */
+  var UZAY = function () { return D.documentElement.classList.contains('kyo'); };
   function gokKur() {
+    if (UZAY()) { ana.classList.remove('kl-gok'); ana.style.backgroundImage = ''; if (kat) { kat.remove(); kat = null; } derin = []; return; }
     var H = ana.scrollHeight, durak = [];
     DURAK.forEach(function (d, i) {
       var y = i === 0 ? 0 : i === DURAK.length - 1 ? H : (d[0] && ana.querySelector(d[0]) ? ustY(ana.querySelector(d[0])) : -1);
@@ -123,6 +127,7 @@
   }
   function yumusakKur() {
     if (SAKIN || !W.matchMedia || !W.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    if (UZAY()) return;
     yumusakAcik = true;
     W.addEventListener('wheel', function (e) {
       if (e.ctrlKey || e.defaultPrevented || D.getElementById('kl-sayfa').hidden || kaydirilabilir(e.target)) return;
@@ -167,6 +172,7 @@
       '<ellipse cx="46" cy="143" rx="4" ry="2.6" fill="#FF9E8A" opacity=".8"/><ellipse cx="74" cy="143" rx="4" ry="2.6" fill="#FF9E8A" opacity=".8"/></svg>';
   }
   function heroKur() {
+    if (UZAY()) return;
     hero = D.querySelector('.kl-hero'); sahneH = hero && hero.querySelector('.kl-hero-sahne');
     if (!sahneH || sahneH.querySelector('.kl-hero-cocuk')) return;
     var s = D.createElement('span'); s.className = 'kl-hero-cocuk'; s.innerHTML = cocuk(); sahneH.appendChild(s);

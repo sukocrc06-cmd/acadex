@@ -2394,6 +2394,10 @@ body.kr-acik{overflow:hidden}
 .kt2-el{position:absolute;right:-14%;top:-6%;width:30%;height:30%;border:3px solid var(--m);border-radius:50%;background:#FFCFA8;transform-origin:20% 100%;animation:klCocukEl 1.4s ease-in-out infinite}
 @media (max-width:860px){.kt2-kart{grid-template-columns:minmax(0,1fr)}.kt2-sahne{order:-1;min-height:220px;border-left:0;border-bottom:3px solid var(--m)}}
 @media (prefers-reduced-motion: reduce){.kyd *,.kkn *,.kt2-sahne *{animation:none!important}.kyd-kart{scale:none;filter:none}}
+/* uzay yolculuğu teması (html.kyo, kids-yolculuk.css) açıkken bu bölümlerin başlıkları gece zemininde açık renk */
+html.kyo .kl-bolum>h2,html.kyo .kl-dene h2,html.kyo .kkn-bas>h2,html.kyo #sss>h2,html.kyo .kyd>h2,html.kyo .kb>h2{color:#fff!important;text-shadow:0 3px 0 rgba(11,16,51,.55)}
+html.kyo .kl-bolum>.kl-alt,html.kyo .kl-dene-yazi>p,html.kyo .kkn-bas>p,html.kyo .kl-dene .kl-kucuk{color:#DCE2FF!important}
+html.kyo .kb-panel{padding:22px;border:3px solid var(--m);border-radius:30px;background:#FFF8E7;box-shadow:0 8px 0 #0B1033}
 
 /* ==========================================================================
    ACADEX KIDS · "Oyun dünyana gidiyorsun!" uçuşu (kids/assets/kids-ucus.css), 15.11.2026
@@ -2894,6 +2898,207 @@ html.kz-uzay .kd-komut{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 .km-ogren b{font:800 17px/1 var(--bas)}.km-ogren small{font-size:12px;opacity:.7}
 @media (prefers-reduced-motion:reduce){.km-gel .km-kart,.km-nabiz{animation:none}}
 
+/* ==========================================================================
+   ACADEX KIDS · tanıtım sayfası UZAY YOLCULUĞU (kids/assets/kids-yolculuk.css), 20.11.2026 — bkz. kids-yolculuk.js
+   Varsayılan = her sahnenin BİTMİŞ hâli (hareketi azalt / GSAP yüklenmezse böyle görünür).
+   GSAP başlangıç hâllerini kendisi verir. Önek kyo-.
+   ========================================================================== */
+@property --kyo-a{syntax:'<color>';inherits:true;initial-value:#2A1E66}
+html.kyo #kl-sayfa{position:relative;background:#0B1033;isolation:isolate}
+html.kyo #icerik{position:relative;z-index:1;background:none!important}
+html.kyo .kl-ust{position:relative;z-index:30}
+.kyo-evren{position:fixed;inset:0;z-index:0;pointer-events:none}
+.kyo-nebula{position:absolute;inset:-10%;transition:--kyo-a 1.4s ease;
+  background:radial-gradient(60% 50% at 18% 22%,color-mix(in srgb,var(--kyo-a) 85%,transparent),transparent 70%),
+    radial-gradient(55% 45% at 85% 70%,color-mix(in srgb,var(--kyo-a) 55%,#FF7AA8 25%),transparent 70%),
+    radial-gradient(50% 40% at 60% 10%,rgba(74,168,255,.18),transparent 70%),linear-gradient(180deg,#0B1033,#140C3A)}
+.kyo-yildizlar{position:absolute;inset:0;width:100%;height:100%}
+.kyo-efekt{position:fixed;inset:0;width:100%;height:100%;z-index:80;pointer-events:none}
+
+/* ---------- şişme (clay) düğmeler ve jöle ---------- */
+html.kyo .kl-dugme,html.kyo .kl-teklif{border-radius:22px;box-shadow:0 6px 0 #0B1033,inset 0 -6px 0 rgba(0,0,0,.14),inset 0 5px 0 rgba(255,255,255,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1),box-shadow .2s}
+html.kyo .kl-dugme:hover,html.kyo .kl-teklif:hover{transform:translateY(-2px) scale(1.05)}
+html.kyo .kl-dugme:active,html.kyo .kl-teklif:active{animation:kyJole .5s cubic-bezier(.3,1.6,.5,1)}
+html.kyo .kyo-kart:hover,html.kyo .kl-adimlar>li:hover,html.kyo .kl-guvenler>li:hover{animation:kyJole .55s cubic-bezier(.3,1.6,.5,1)}
+@keyframes kyJole{0%{transform:scale(1)}30%{transform:scale(1.08,.92)}50%{transform:scale(.95,1.06)}70%{transform:scale(1.03,.98)}100%{transform:scale(1)}}
+
+/* ---------- uzayda eski bölümler okunaklı ---------- */
+html.kyo .kl-hero::after,html.kyo .kf::before,html.kyo .kf::after{display:none}
+html.kyo #icerik>section{background-color:transparent!important;background-image:none!important}
+html.kyo .kl-soz blockquote p{color:#fff}html.kyo .kl-soz blockquote footer{color:#C9D3EE}
+
+/* ---------- hero: dev yazı ve dönen gezegenler ---------- */
+html.kyo .kyo-hero{position:relative;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);align-items:center;gap:24px;min-height:calc(100vh - 70px);min-height:calc(100svh - 70px);padding:clamp(28px,5vw,64px) clamp(16px,4vw,48px) 90px;color:#fff;background:none}
+.kyo-hero .kl-etiket{background:rgba(255,255,255,.12);color:#FFE9A8;border-color:rgba(255,255,255,.35)}
+.kyo-dev{margin:12px 0 8px;font:800 clamp(64px,10.5vw,148px)/.88 var(--bas);letter-spacing:-.02em}
+.kyo-dev-a{display:block;color:#fff;text-shadow:0 6px 0 #0B1033,0 0 40px rgba(142,124,240,.6)}
+.kyo-dev-k{display:inline-block;margin-top:6px;padding:0 .18em;border-radius:.2em;background:var(--sari);color:var(--m);transform:rotate(-3deg);box-shadow:0 8px 0 #0B1033}
+.kyo-slogan{margin:18px 0 6px;font:800 clamp(22px,2.6vw,32px)/1.2 var(--bas)}
+.kyo-slogan em{font-style:normal;color:var(--sari)}
+.kyo-hero .kl-giris-p{color:#DCE2FF;max-width:560px}
+.kyo-hero .kl-rozet li{color:#DCE2FF}
+.kyo-hero-sahne{position:relative;aspect-ratio:1;max-width:560px;width:100%;justify-self:center}
+.kyo-gunes{position:absolute;left:50%;top:50%;width:26%;aspect-ratio:1;margin:-13%;border-radius:50%;background:radial-gradient(circle at 40% 35%,#FFF6C8,#FFD23F 45%,#FF9F3A);box-shadow:0 0 60px 20px rgba(255,190,80,.45)}
+.kyo-hero-acd{position:absolute;left:50%;top:50%;width:18%;margin:-9%;z-index:3}
+.kyo-yorunge{position:absolute;inset:var(--i);border:2px dashed rgba(191,227,255,.28);border-radius:50%;animation:kyDon var(--s) linear infinite}
+.kyo-yorunge1{--i:18%;--s:26s}.kyo-yorunge2{--i:6%;--s:40s;animation-direction:reverse}.kyo-yorunge3{--i:-6%;--s:58s}
+.kyo-yorunge .kyo-gz{position:absolute;left:50%;top:0;width:var(--w,26%);transform:translate(-50%,-50%);animation:kyDon var(--s) linear infinite reverse}
+.kyo-yorunge2 .kyo-gz{--w:22%;animation-direction:normal}.kyo-yorunge3 .kyo-gz{--w:19%;top:100%}
+.kyo-gz .kc{width:100%;height:auto;display:block;overflow:visible}
+@keyframes kyDon{to{transform:rotate(360deg)}}
+.kyo-yorunge .kyo-gz{animation-name:kyDonTers}@keyframes kyDonTers{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
+.kyo-kaydir{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;margin:0;color:#DCE2FF;font:700 15px var(--govde)}
+.kyo-kaydir i{width:26px;height:42px;border:3px solid #DCE2FF;border-radius:14px;position:relative}
+.kyo-kaydir i::after{content:"";position:absolute;left:50%;top:7px;width:6px;height:9px;margin-left:-3px;border-radius:3px;background:var(--sari);animation:kyFare 1.6s ease-in-out infinite}
+@keyframes kyFare{0%{transform:translateY(0);opacity:1}70%{transform:translateY(14px);opacity:0}100%{opacity:0}}
+
+/* ---------- sahneler (ortak) ---------- */
+.kyo-sahne{position:relative;color:#fff}
+.kyo-pin{position:relative;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:90px clamp(16px,4vw,48px) 70px;overflow:hidden}
+.kyo-icerik{position:relative;z-index:2;width:min(1080px,100%);text-align:center}
+.kyo-icerik h2{margin:0 0 10px;font:800 clamp(32px,4.4vw,56px)/1.05 var(--bas);color:#fff;text-shadow:0 4px 0 rgba(11,16,51,.55)}
+.kyo-alt{max-width:640px;margin:0 auto 26px;color:#DCE2FF;font-size:clamp(16px,1.6vw,19px)}
+.kyo-kart{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;width:min(300px,80vw);padding:20px 26px;border:3px solid var(--m);border-radius:28px;background:#fff;color:var(--m);box-shadow:0 8px 0 #0B1033,inset 0 -8px 0 rgba(35,48,77,.06),inset 0 6px 0 rgba(255,255,255,.9);font:800 20px/1.2 var(--bas)}
+.kyo-kart>*{flex:none}.kyo-saat{font:800 13px var(--govde);letter-spacing:.06em;text-transform:uppercase;color:#8E7CF0}
+.kyo-kart-r{width:72px;height:72px}.kyo-kart-r .kc{width:100%;height:100%}
+.kyo-mini-gz{width:92px;height:auto}
+
+/* el çizimi */
+.kyo-el{display:block;width:min(560px,90%);height:auto;margin:0 auto 4px;overflow:visible}
+.kyo-el text{font:800 76px var(--bas);fill:var(--sari);stroke:var(--sari);stroke-width:2;stroke-dasharray:1400;stroke-dashoffset:0;paint-order:stroke}
+.kyo-el2 text{fill:#FF9EC0;stroke:#FF9EC0}
+.kyo-cizgi{fill:none;stroke:#FFD23F;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dashoffset:0}
+.kyo-el2 .kyo-cizgi{stroke:#FFD23F}
+
+/* 1 · dalış */
+.kyo-dalis{position:absolute;left:50%;top:50%;width:300px;height:300px;margin:-150px 0 0 -150px;z-index:1;opacity:0;pointer-events:none}
+.kyo-dalis-gz{display:block;width:100%}
+.kyo-dalis-gz .kc,.kyo-mini-gz .kc{width:100%;height:auto;display:block;overflow:visible}
+html.kyo-gsap .kyo-dalis{opacity:1}
+.kyo-ikili{display:flex;align-items:center;justify-content:center;gap:clamp(10px,2vw,24px);flex-wrap:wrap}
+.kyo-ok{width:120px}.kyo-ok svg{width:100%;height:auto;overflow:visible}
+
+/* 2 · gezegen → kart */
+.kyo-yan{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:clamp(20px,4vw,56px);align-items:center;text-align:left}
+.kyo-yan .kyo-alt{margin-left:0}
+.kyo-adim{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0;padding:0;list-style:none}
+.kyo-adim li{display:flex;align-items:center;gap:10px;padding:12px 14px;border:3px solid var(--m);border-radius:22px;background:#fff;color:var(--m);font:800 16px/1.2 var(--bas);box-shadow:0 5px 0 #0B1033}
+.kyo-adim b{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:50%;background:var(--sari);border:2.5px solid var(--m)}
+.kyo-donusum{display:grid;place-items:center;min-height:440px}
+.kyo-mkart{position:relative;width:300px;height:410px;border:3px solid var(--m);border-radius:34px;background:#fff;box-shadow:0 10px 0 #0B1033;color:var(--m)}
+.kyo-mkart-gz{position:absolute;left:50%;top:50%;width:200px;margin:-100px 0 0 -100px;transform-origin:50% 50%;z-index:2;pointer-events:none}
+html:not(.kyo-gsap) .kyo-mkart-gz{transform:translate(115%,-125%) scale(.32)}
+.kyo-mkart-gz .kc{width:100%;height:auto;overflow:visible}
+.kyo-mkart-ic{position:absolute;inset:22px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.kyo-mkart-yuz{width:96px;height:96px;border:3px solid var(--m);border-radius:50%;overflow:hidden;background:#FFF3D4}
+.kyo-mkart-yuz .kc{width:100%;height:100%}
+.kyo-mkart-ad{font:800 24px var(--bas)}
+.kyo-mkart-res{display:flex;gap:10px}
+.kyo-mkart-res span{width:64px;height:64px;padding:6px;border:3px solid var(--m);border-radius:18px;background:#F4F7FF}
+.kyo-mkart-res .kc,.kyo-mkart-res .kn-resim{width:100%;height:100%}
+.kyo-mkart-qr{width:96px;height:96px;padding:4px;border:2.5px dashed #8E7CF0;border-radius:12px}
+.kyo-mkart-qr svg{width:100%;height:100%;display:block}
+.kyo-mkart-ic small{font:800 13px var(--govde);color:#8E7CF0;letter-spacing:.08em;text-transform:uppercase}
+
+/* 3 · söyle */
+.kyo-sahne-alan{position:relative;display:grid;place-items:center;min-height:420px}
+.kyo-mik{position:relative;z-index:1;display:grid;place-items:center;width:150px;height:150px;border:4px solid var(--m);border-radius:50%;background:#FFE3E3;box-shadow:0 10px 0 #0B1033,inset 0 -10px 0 rgba(0,0,0,.08)}
+.kyo-mik .kc{width:64%;height:64%}
+.kyo-dalga{position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px;pointer-events:none}
+.kyo-dalga i{position:absolute;inset:0;border:3px solid rgba(255,214,150,.7);border-radius:50%;animation:kyDalga 2.4s ease-out infinite}
+.kyo-dalga i:nth-child(2){animation-delay:.8s}.kyo-dalga i:nth-child(3){animation-delay:1.6s}
+@keyframes kyDalga{from{transform:scale(1);opacity:.9}to{transform:scale(2.6);opacity:0}}
+.kyo-balonlar{position:absolute;inset:0;pointer-events:none}
+.kyo-balon{position:absolute;bottom:8%;width:86px;height:104px;padding:0;border:3px solid var(--m);border-radius:50% 50% 46% 46%/56% 56% 44% 44%;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.75) 0 10%,transparent 26%),var(--r);box-shadow:inset -10px -12px 0 rgba(0,0,0,.12),0 6px 0 rgba(11,16,51,.5);cursor:pointer;pointer-events:auto;animation:kySuzul 3s ease-in-out infinite alternate;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+.kyo-balon::after{content:"";position:absolute;left:50%;top:100%;width:2px;height:60px;background:rgba(255,255,255,.75)}
+.kyo-balon::before{content:"";position:absolute;left:50%;bottom:-9px;width:12px;height:10px;margin-left:-6px;background:var(--r);border:2.5px solid var(--m);border-radius:3px 3px 6px 6px}
+.kyo-balon:nth-child(1){left:6%;animation-delay:-.4s}.kyo-balon:nth-child(2){left:24%;bottom:30%;animation-delay:-1.2s}.kyo-balon:nth-child(3){right:24%;bottom:32%;animation-delay:-2s}.kyo-balon:nth-child(4){right:6%;animation-delay:-.8s}.kyo-balon:nth-child(5){left:50%;bottom:62%;margin-left:-43px;animation-delay:-1.6s}
+.kyo-balon:hover{transform:scale(1.08)}
+.kyo-balon.kyo-patladi{background:transparent;border-color:transparent;box-shadow:none;animation:none}
+.kyo-balon.kyo-patladi::before{display:none}
+.kyo-balon.kyo-patladi::after{content:attr(data-ky-yazi);left:50%;top:50%;width:auto;height:auto;background:none;transform:translate(-50%,-50%);font:800 30px/1 var(--bas);color:#fff;text-shadow:0 3px 0 #0B1033;animation:kyKelime .5s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes kyKelime{from{transform:translate(-50%,-50%) scale(.3)}}
+@keyframes kySuzul{from{translate:0 0;rotate:-4deg}to{translate:0 -12px;rotate:4deg}}
+.kyo-aferin{position:absolute;right:4%;top:6%;margin:0;opacity:0}
+.kyo-aferin span{display:inline-block;padding:10px 18px;border:3px solid var(--m);border-radius:20px;background:#E6F8EE;color:var(--m);font:800 22px var(--bas);box-shadow:0 5px 0 #0B1033}
+.kyo-aferin.kyo-gel{animation:kyAferin 1.8s ease both}
+@keyframes kyAferin{0%{opacity:0;transform:scale(.4) rotate(-10deg)}15%{opacity:1;transform:scale(1.1) rotate(3deg)}25%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
+
+/* 4 · masal */
+.kyo-kitap{display:grid;grid-template-columns:1fr 1fr;width:min(720px,100%);margin:0 auto 26px;perspective:1200px}
+.kyo-sayfa{min-height:190px;padding:22px 24px;border:3px solid var(--m);background:#FFFBEF;color:var(--m);box-shadow:0 8px 0 #0B1033;display:grid;place-items:center;transform-style:preserve-3d}
+.kyo-sayfa-sol{border-radius:24px 6px 6px 24px;transform-origin:100% 50%;font:700 19px/1.45 var(--govde);text-align:left}
+.kyo-sayfa-sag{border-radius:6px 24px 24px 6px;transform-origin:0 50%;border-left-width:1.5px}
+.kyo-sayfa mark{padding:0 .15em;border-radius:.25em;background:#FFE9A8;color:var(--m);font-weight:800}
+.kyo-kelime-kart{display:flex;align-items:center;gap:12px;padding:10px 18px 10px 10px;border:3px solid var(--m);border-radius:22px;background:#fff;box-shadow:0 5px 0 var(--m);font:800 22px var(--bas)}
+.kyo-kelime-kart span{width:64px;height:64px;border-radius:16px;background:#FFF3C4;display:grid;place-items:center}
+.kyo-kelime-kart .kn-resim{width:86%;height:86%}
+.kyo-kelime-kart em{font-style:normal;color:#6A55D9;font-size:1.25em}
+.kyo-yol-alan{position:relative;width:min(900px,100%);height:150px;margin:0 auto}
+.kyo-yol{position:absolute;left:-30%;right:-30%;bottom:0;height:46px;background:linear-gradient(#5B6684,#4A5470);border-top:3px solid var(--m);border-bottom:3px solid var(--m);transform-origin:50% 50%}
+.kyo-yol i{position:absolute;left:0;right:0;top:calc(50% - 3px);height:6px;background:repeating-linear-gradient(90deg,#FFD23F 0 34px,transparent 34px 70px);animation:kyYolAk .6s linear infinite}
+@keyframes kyYolAk{to{transform:translateX(-70px)}}
+.kyo-arac{position:absolute;left:50%;bottom:22px;width:120px;height:120px;margin-left:-60px}
+.kyo-arac .kn-resim,.kyo-arac .kc{width:100%;height:100%;display:block}
+.kyo-a-train,.kyo-a-bird{opacity:0}
+.kyo-a-bird{bottom:70px;width:84px;height:84px;margin-left:-42px}
+html:not(.kyo-gsap) .kyo-a-bus{transform:translateX(-230px)}html:not(.kyo-gsap) .kyo-a-train{opacity:1;transform:translateX(230px)}html:not(.kyo-gsap) .kyo-a-bird{opacity:1;transform:translateY(-10px)}
+html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
+
+/* ---------- astronot rehber ---------- */
+.kyo-rehber{position:fixed;right:max(18px,2vw);bottom:max(18px,4vh);z-index:70;width:clamp(64px,7vw,96px);pointer-events:none;will-change:transform}
+.kyo-r-ic{transform:rotate(var(--kyo-egim,0deg));transition:transform .3s}
+.kyo-r-ic .kz-ast{animation:kySuz2 3s ease-in-out infinite alternate}
+.kyo-rehber .kz-ast-g{width:100%;height:auto;display:block;filter:drop-shadow(0 8px 14px rgba(0,0,0,.4))}
+.kyo-r-balon{position:absolute;right:calc(100% + 8px);bottom:58%;max-width:min(240px,48vw);margin:0;padding:8px 14px;border:3px solid var(--m);border-radius:18px 18px 4px 18px;background:#fff;color:var(--m);font:800 15px/1.25 var(--bas);box-shadow:0 4px 0 #0B1033;white-space:normal;width:max-content}
+.kyo-r-balon{transition:opacity .4s,transform .4s}
+.kyo-r-balon.kyo-gel{animation:kyBalonGel .45s cubic-bezier(.3,1.6,.5,1) both}
+.kyo-r-balon.kyo-sus{opacity:0;transform:scale(.8) translateY(6px)}
+@keyframes kyBalonGel{from{opacity:0;transform:scale(.5) translateY(10px)}}
+.kyo-rehber .kz-kol{transform-box:view-box;transform-origin:70px 70px}
+.kyo-rehber.kyo-selam .kz-kol{animation:kySalla .32s ease-in-out 4 alternate}
+.kyo-rehber.kyo-isaret .kz-kol{transform:rotate(55deg)}
+@keyframes kySalla{from{transform:rotate(0)}to{transform:rotate(-55deg)}}
+@keyframes kySuz2{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-10px) rotate(4deg)}}
+#kl-sayfa[hidden]~.kyo-rehber{display:none}
+
+/* ---------- dokunulan sürprizler ---------- */
+.kyo-surpriz{position:absolute;z-index:1;width:42px;height:42px;padding:0;border:0;background:none;cursor:pointer;animation:kySuz2 4s ease-in-out infinite alternate}
+.kyo-surpriz svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 10px rgba(255,214,120,.6))}
+.kyo-s-ufo{width:70px;height:40px}
+.kyo-s-ates i{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#FFF6C8,#FFD23F 40%,#FF6B5B 75%);box-shadow:0 0 18px 6px rgba(255,140,60,.55)}
+.kyo-s-ates::after{content:"";position:absolute;right:60%;top:30%;width:70px;height:16px;border-radius:99px;background:linear-gradient(90deg,transparent,rgba(255,159,58,.75));transform:rotate(-20deg);transform-origin:100% 50%}
+.kyo-surpriz.kyo-vuruldu{animation:kyVur .5s ease forwards}
+@keyframes kyVur{40%{transform:scale(1.6)}100%{transform:scale(0);opacity:0}}
+
+/* ---------- telefon ---------- */
+@media (max-width:760px){
+  html.kyo .kyo-hero{grid-template-columns:1fr;min-height:auto;padding-bottom:110px}
+  .kyo-hero-sahne{max-width:340px}
+  .kyo-yan{grid-template-columns:1fr;text-align:center}.kyo-yan .kyo-alt{margin-left:auto}
+  .kyo-adim{grid-template-columns:1fr}
+  .kyo-pin{min-height:auto;padding:70px 16px 60px}
+  .kyo-dalis{display:none}
+  .kyo-kitap{grid-template-columns:1fr}.kyo-sayfa-sol{border-radius:24px 24px 6px 6px}.kyo-sayfa-sag{border-radius:6px 6px 24px 24px;border-left-width:3px;border-top-width:1.5px}
+  .kyo-sahne-alan{min-height:380px}.kyo-mik{width:110px;height:110px}
+  /* telefonda balonlar mikrofonun altında tek sıra */
+  .kyo-balon,.kyo-balon:nth-child(n){width:56px;height:68px;left:calc(2% + (var(--i,0) * 19.5%));right:auto;bottom:3%;margin-left:0}
+  .kyo-balon:nth-child(1){--i:0}.kyo-balon:nth-child(2){--i:1}.kyo-balon:nth-child(3){--i:2}.kyo-balon:nth-child(4){--i:3}.kyo-balon:nth-child(5){--i:4}
+  .kyo-balon::after{height:22px}.kyo-balon.kyo-patladi::after{font-size:18px}
+  html.kyo .kyo-mkart-gz{transform:translate(115%,-125%) scale(.32)!important}
+  .kyo-arac{width:84px;height:84px;margin-left:-42px}
+  .kyo-a-bus{left:22%}.kyo-a-train{left:78%;opacity:1!important}.kyo-a-bird{left:50%;bottom:70px;opacity:1!important}
+  html:not(.kyo-gsap) .kyo-a-bus,html:not(.kyo-gsap) .kyo-a-train,html:not(.kyo-gsap) .kyo-a-bird{transform:none}
+  .kyo-r-balon{font-size:13px;max-width:52vw}
+  .kyo-rehber{width:58px}
+}
+/* ---------- hareketi azalt ---------- */
+@media (prefers-reduced-motion:reduce){
+  .kyo-yorunge,.kyo-yorunge .kyo-gz,.kyo-balon,.kyo-dalga i,.kyo-yol i,.kyo-surpriz,.kyo-r-ic .kz-ast,.kyo-kaydir i::after{animation:none!important}
+  .kyo-nebula{transition:none}
+}
+@media print{.kyo-evren,.kyo-efekt,.kyo-rehber,.kyo-surpriz{display:none!important}}
+
 </style>
 </head>
 <body class="kl">
@@ -2907,19 +3112,103 @@ html.kz-uzay .kd-komut{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 </header>
 
 <main id="icerik">
-<section class="kl-hero">
-  <div class="kl-hero-yazi">
+<section class="kl-hero kyo-hero" id="ust" data-ky-renk="#2A1E66">
+  <div class="kyo-hero-yazi">
     <p class="kl-etiket">Kreş · Anaokulu · İlkokul</p>
-    <h1>Okulda öğrendi.<br><em>Evde oynayarak</em> pekiştiriyor.</h1>
-    <p class="kl-giris-p">Acadex Kids, 3-10 yaş için oyunlarla İngilizce tekrar platformu. Öğretmen günün konusunu seçer; çocuk evde o konuyu izler, dinler, oynar ve söyler.</p>
+    <h1 class="kyo-dev"><span class="kyo-dev-a">Acadex</span> <span class="kyo-dev-k">Kids</span></h1>
+    <p class="kyo-slogan">Okulda öğrendi. <em>Evde oynayarak</em> pekiştiriyor.</p>
+    <p class="kl-giris-p">3-10 yaş için İngilizce oyun dünyası. Öğretmen günün konusunu seçer; çocuk evde o konunun gezegenine uçar, izler, dinler, oynar ve söyler.</p>
     <div class="kl-cta"><a class="kl-dugme" href="#giris">Giriş yap</a><a class="kl-dugme kl-dugme-b" href="#dene">Bir oyunu deneyin</a></div>
     <ul class="kl-rozet"><li>Reklam yok</li><li>Okuma bilmeyen çocuk da kullanır</li><li>Günde 10 dakika yeter</li></ul>
   </div>
-  <div class="kl-hero-sahne" aria-hidden="true">
-    <span class="kl-bulut kl-bulut1" data-bulut></span><span class="kl-bulut kl-bulut2" data-bulut></span><span class="kl-bulut kl-bulut3" data-bulut></span>
-    <span class="kl-ada kl-ada1" data-ada="colours"></span><span class="kl-ada kl-ada2" data-ada="animals"></span><span class="kl-ada kl-ada3" data-ada="food"></span>
-    <span class="kl-hero-acd" data-acd="kutlama"></span>
-    <span class="kl-balonlar"><i data-balon="#E5484D"></i><i data-balon="#FFD23F"></i><i data-balon="#4AA8FF"></i></span>
+  <div class="kyo-hero-sahne" aria-hidden="true">
+    <div class="kyo-yorunge kyo-yorunge1"><span class="kyo-gz" data-ky-gz="colours"></span></div>
+    <div class="kyo-yorunge kyo-yorunge2"><span class="kyo-gz" data-ky-gz="animals"></span></div>
+    <div class="kyo-yorunge kyo-yorunge3"><span class="kyo-gz" data-ky-gz="food"></span></div>
+    <span class="kyo-gunes"></span>
+    <span class="kyo-hero-acd" data-acd="kutlama"></span>
+  </div>
+  <p class="kyo-kaydir" aria-hidden="true"><span>Kaydır, yolculuk başlasın</span><i></i></p>
+</section>
+
+<section class="kyo-sahne kyo-okul" id="kyo-okul" data-ky-renk="#1F3A8A" data-ky-soz="Okulda öğrendiğin kelime bu gezegende!" aria-labelledby="kyo-okul-b">
+  <div class="kyo-pin">
+    <div class="kyo-dalis" aria-hidden="true"><span class="kyo-dalis-gz" data-ky-gz="colours"></span></div>
+    <div class="kyo-icerik">
+      <svg class="kyo-el" viewBox="0 0 640 120" aria-hidden="true"><text x="8" y="88">Okulda öğrendi…</text><path class="kyo-cizgi" d="M560 40 q30 10 40 40 m-14 -6 l14 6 l6 -14"/></svg>
+      <h2 id="kyo-okul-b">Okulla aynı gün, aynı konu</h2>
+      <p class="kyo-alt">Öğretmen sabah sınıfta tek dokunuşla günün konusunu seçer. Akşam çocuk Acadex Kids'i açınca o konunun gezegeni onu bekler.</p>
+      <div class="kyo-ikili">
+        <div class="kyo-kart kyo-k1"><span class="kyo-saat">09:00 · Sınıfta</span><b>"Bugün renkleri öğrendik!"</b><span class="kyo-kart-r" data-simge="gokkusagi"></span></div>
+        <span class="kyo-ok" aria-hidden="true"><svg viewBox="0 0 120 60"><path class="kyo-cizgi" d="M6 40 Q60 -6 110 30 m-16 -12 l16 12 l-18 6"/></svg></span>
+        <div class="kyo-kart kyo-k2"><span class="kyo-saat">18:30 · Evde</span><b>Colours gezegenine uç!</b><span class="kyo-kart-r kyo-mini-gz" data-ky-gz="colours"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="kyo-sahne kyo-giris" id="kyo-giris" data-ky-renk="#5B2A86" data-ky-soz="Kartını bul, resmine dokun!" aria-labelledby="kyo-giris-b">
+  <div class="kyo-pin">
+    <div class="kyo-icerik kyo-yan">
+      <div class="kyo-metin">
+        <h2 id="kyo-giris-b">Okuma bilmeyen çocuk da kendi başına girer</h2>
+        <p class="kyo-alt">Kullanıcı adı, harfli şifre yok. Her çocuğun bir hayvan yüzü ve iki gizli resmi var. Veli karttaki QR'ı bir kez okutur, gerisi dokunmak.</p>
+        <ol class="kyo-adim"><li><b>1</b>Okul kodu ya da QR</li><li><b>2</b>"Sen hangisisin?"</li><li><b>3</b>İki gizli resim</li><li><b>4</b>Oyun dünyasına uçuş</li></ol>
+      </div>
+      <div class="kyo-donusum" aria-hidden="true">
+        <div class="kyo-mkart">
+          <span class="kyo-mkart-gz" data-ky-gz="animals"></span>
+          <div class="kyo-mkart-ic">
+            <span class="kyo-mkart-yuz" data-av="kedi"></span>
+            <b class="kyo-mkart-ad">Defne K.</b>
+            <div class="kyo-mkart-res"><span data-ky-r="apple"></span><span data-ky-r="cat"></span></div>
+            <span class="kyo-mkart-qr" data-ky-qr></span>
+            <small>Evde oyna</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="kyo-sahne kyo-soyle" id="kyo-soyle" data-ky-renk="#0E5A55" data-ky-soz="Balonları patlat, kelimeyi söyle!" aria-labelledby="kyo-soyle-b">
+  <div class="kyo-pin">
+    <div class="kyo-icerik">
+      <h2 id="kyo-soyle-b">Çocuk söyler, Acadia anlar</h2>
+      <p class="kyo-alt">"Say: red!" Çocuk söyler, Acadia dinler ve "Aferin!" der. Balonlara dokunup sen de dene.</p>
+      <div class="kyo-sahne-alan">
+        <span class="kyo-mik" data-simge="mikrofon" aria-hidden="true"></span>
+        <span class="kyo-dalga" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div class="kyo-balonlar">
+          <button type="button" class="kyo-balon" style="--r:#E5484D" data-ky-kelime="red" aria-label="Kırmızı balon: red"></button>
+          <button type="button" class="kyo-balon" style="--r:#4AA8FF" data-ky-kelime="blue" aria-label="Mavi balon: blue"></button>
+          <button type="button" class="kyo-balon" style="--r:#FFD23F" data-ky-kelime="yellow" aria-label="Sarı balon: yellow"></button>
+          <button type="button" class="kyo-balon" style="--r:#4CC38A" data-ky-kelime="green" aria-label="Yeşil balon: green"></button>
+          <button type="button" class="kyo-balon" style="--r:#A07CF0" data-ky-kelime="purple" aria-label="Mor balon: purple"></button>
+        </div>
+        <p class="kyo-aferin" aria-live="polite"><span>Aferin!</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="kyo-sahne kyo-masal" id="kyo-masal" data-ky-renk="#7A2E5A" data-ky-soz="Masal zamanı! Otobüs geliyor." aria-labelledby="kyo-masal-b">
+  <div class="kyo-pin">
+    <div class="kyo-icerik">
+      <svg class="kyo-el kyo-el2" viewBox="0 0 640 120" aria-hidden="true"><text x="8" y="88">Evde oyna!</text><path class="kyo-cizgi" d="M450 52 l10 -22 l10 22 l22 2 l-17 14 l6 22 l-21 -12 l-21 12 l6 -22 l-17 -14 z"/></svg>
+      <h2 id="kyo-masal-b">Türkçe masal, İngilizce kelime</h2>
+      <p class="kyo-alt">Acadia masalı Türkçe anlatır, öğreteceği kelimeyi İngilizce söyler. Kelimeler de gelip durmaz; kendi yolundan gelir ve yaşar.</p>
+      <div class="kyo-kitap" aria-hidden="true">
+        <div class="kyo-sayfa kyo-sayfa-sol"><p>"Dede pasta getiriyor. Önce <mark>otobüse</mark> biniyor…"</p></div>
+        <div class="kyo-sayfa kyo-sayfa-sag"><span class="kyo-kelime-kart"><span data-ky-r="bus"></span><b>Otobüs → <em lang="en">bus</em></b></span></div>
+      </div>
+      <div class="kyo-yol-alan" aria-hidden="true">
+        <span class="kyo-yol"><i></i></span>
+        <span class="kyo-arac kyo-a-bus" data-ky-r="bus"></span>
+        <span class="kyo-arac kyo-a-train" data-ky-r="train"></span>
+        <span class="kyo-arac kyo-a-bird" data-ky-r="bird"></span>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -10431,6 +10720,327 @@ html.kz-uzay .kd-komut{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
 })(window);
 
+/* ---- kids-yolculuk.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · tanıtım sayfası UZAY YOLCULUĞU (kids/assets/kids-yolculuk.js + .css), 20.11.2026
+   Kaydırmak = yolculuk. Sayfa derin uzayda geçer; her bölüm bir gezegen.
+     - Evren: üç katman yıldız (paralaks, kendi tuvali), bölümün renginde yumuşakça değişen nebula
+     - Astronot rehber: sağ altta süzülür; kaydırınca jetpack yanar, yeni bölümde el sallar,
+       konuşma balonunda "Hadi buraya!" der; ilk sahnede gezegene dalar
+     - Sahneler (masaüstünde ekrana oturur, kaydırdıkça oynar):
+         1 Okulla aynı gün: astronot gezegene dalar, gezegen ekranı kaplar, bölüm açılır
+         2 Kolay giriş: gezegen yavaşça bir giriş kartına dönüşür (yüz, iki gizli resim, QR)
+         3 Söyle: dev mikrofon, balonlar esneyerek yükselir, kaydırdıkça / dokununca patlar
+         4 Masal: kitap açılır, otobüs yolda gelir ("Otobüs → bus"), sonra tren ve kuş
+     - El çizimi sloganlar (SVG çizgi animasyonu), dokunulan sürprizler (yıldız, ateş topu,
+       UFO → yıldız patlaması), imleç yıldız tozu, şişme ve jöle düğmeler (CSS)
+   Altyapı: GSAP + ScrollTrigger yerel dosyadan (kids-gsap.js), yalnız bu sayfa açılınca yüklenir.
+   Telefonda sahneler oturmaz, hafif açılış animasyonları oynar. Hareketi azalt açıksa GSAP hiç
+   yüklenmez; her sahne bitmiş hâliyle durur (CSS'in varsayılanı bitmiş hâldir).
+   Çizimler Acadex'in kendi çizimleri (kids-ciz, kids-resim, kids-uzay); dış kaynak yok.
+   W.KIDS_YOLCULUK = { kur, durum }
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, H = D.documentElement;
+  var SAKIN = !!(W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var DAR = function () { return W.innerWidth <= 760; };
+  /* sınıf hemen: kids-scroll.js gökyüzü / hero / yumuşak tekerleği bu sayfada açmaz */
+  H.classList.add('kyo');
+  if (SAKIN) H.classList.add('kyo-statik');
+
+  var SOZ = { ust: 'Merhaba! Hadi uçalım! 🚀', nasil: 'Bir günü birlikte izleyelim!', bakis: 'Herkes kazanıyor!', baslangic: 'Üç adımda başla!', dene: 'Hadi, sen de oyna!', yas: 'Her yaşa bir dünya!', 'icerik-konular': '22 gezegen seni bekliyor!', fiyat: 'Kreşine gelelim mi?', sss: 'Merak ettiğin bir şey var mı?' };
+  var kok, rehber, balon, evrenT, efektT, nebula, gs = null, ST = null, durum = { gsap: false, sahne: '' };
+
+  /* ---------------- çizimleri yerleştir ---------------- */
+  function cizimler() {
+    var U = W.KIDS_UZAY, V = W.KIDS_VERI, R = W.KIDS_RESIM;
+    D.querySelectorAll('[data-ky-gz]').forEach(function (e, i) {
+      var k = V && V.konuBul(e.getAttribute('data-ky-gz')); if (!k || !U) return;
+      e.innerHTML = U.gezegen(k.renk, k.simge, false, 3, i + 1);
+    });
+    D.querySelectorAll('[data-ky-r]').forEach(function (e) { if (R) e.innerHTML = '<span class="kn-resim">' + R.ciz(e.getAttribute('data-ky-r')) + '</span>'; });
+    var q = D.querySelector('[data-ky-qr]'); if (q && W.KIDS_QR) try { q.innerHTML = W.KIDS_QR.svg('https://acadex.com.tr/kids', { renk: '#23304D' }); } catch (e) { }
+  }
+
+  /* ---------------- evren: yıldız katmanları ---------------- */
+  var Y = [], dpr = 1, ew = 0, eh = 0, ectx = null, sonY = -1;
+  function evrenKur() {
+    var k = D.createElement('div'); k.className = 'kyo-evren'; k.setAttribute('aria-hidden', 'true');
+    k.innerHTML = '<div class="kyo-nebula"></div><canvas class="kyo-yildizlar"></canvas>';
+    kok.insertBefore(k, kok.firstChild);
+    nebula = k.firstChild; evrenT = k.lastChild; ectx = evrenT.getContext('2d');
+    evrenBoyut(); W.addEventListener('resize', evrenBoyut, { passive: true });
+  }
+  function evrenBoyut() {
+    dpr = Math.min(2, W.devicePixelRatio || 1); ew = W.innerWidth; eh = W.innerHeight;
+    evrenT.width = Math.round(ew * dpr); evrenT.height = Math.round(eh * dpr); ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var n = Math.round(Math.min(220, Math.max(90, ew * eh / 6500))); Y = [];
+    for (var i = 0; i < n; i++) { var k = i % 3; Y.push({ x: Math.random() * ew, y: Math.random() * eh * 3, r: [0.7, 1.1, 1.8][k] * (0.8 + Math.random() * 0.4), h: [0.05, 0.16, 0.34][k], f: Math.random() * 6.28, c: ['#FFFFFF', '#FFF3B0', '#BFE3FF', '#FFC9DE'][i % 4] }); }
+    sonY = -1; yildizCiz(performance.now());
+  }
+  function yildizCiz(t) {
+    var sy = W.scrollY || 0; ectx.clearRect(0, 0, ew, eh);
+    for (var i = 0; i < Y.length; i++) {
+      var s = Y[i], y = ((s.y - sy * s.h) % (eh * 3) + eh * 3) % (eh * 3); if (y > eh + 4) continue;
+      var p = SAKIN ? 0.85 : 0.55 + 0.45 * Math.sin(t / 1000 * (1 + s.h * 3) + s.f);
+      ectx.globalAlpha = p; ectx.fillStyle = s.c; ectx.beginPath(); ectx.arc(s.x, y, s.r, 0, 6.283); ectx.fill();
+      if (s.r > 1.8 && p > 0.9) { ectx.globalAlpha = (p - 0.9) * 6; ectx.fillRect(s.x - s.r * 3, y - 0.5, s.r * 6, 1); ectx.fillRect(s.x - 0.5, y - s.r * 3, 1, s.r * 6); }
+    }
+    ectx.globalAlpha = 1;
+  }
+
+  /* ---------------- efekt tuvali: imleç yıldız tozu ve patlamalar ---------------- */
+  var P = [], fctx = null, fraf = 0;
+  function efektKur() {
+    efektT = D.createElement('canvas'); efektT.className = 'kyo-efekt'; efektT.setAttribute('aria-hidden', 'true'); kok.appendChild(efektT);
+    fctx = efektT.getContext('2d'); efektBoyut(); W.addEventListener('resize', efektBoyut, { passive: true });
+    if (SAKIN) return;
+    var son = 0;
+    W.addEventListener('pointermove', function (e) {
+      if (e.pointerType !== 'mouse' || kok.hidden) return;
+      var t = performance.now(); if (t - son < 24) return; son = t;
+      parca(e.clientX, e.clientY, 1, 0.25, ['#FFF3B0', '#FFFFFF', '#BFE3FF', '#FFC9DE']);
+    }, { passive: true });
+  }
+  function efektBoyut() { var d = Math.min(2, W.devicePixelRatio || 1); efektT.width = Math.round(W.innerWidth * d); efektT.height = Math.round(W.innerHeight * d); fctx.setTransform(d, 0, 0, d, 0, 0); }
+  function parca(x, y, n, guc, renk) {
+    for (var i = 0; i < n; i++) { var a = Math.random() * 6.283, v = (guc || 1) * (60 + Math.random() * 220); P.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - (guc < 0.5 ? 20 : 0), t: 0, s: 0.5 + Math.random() * 0.5, r: (guc < 0.5 ? 1.5 : 2.5) + Math.random() * 3, c: renk[i % renk.length], y5: i % 3 === 0 }); }
+    if (!fraf) { fson = performance.now(); fraf = W.requestAnimationFrame(efektDon); }
+  }
+  var fson = 0;
+  function yildiz5(x, y, r) { fctx.beginPath(); for (var i = 0; i < 10; i++) { var a = i * Math.PI / 5 - Math.PI / 2, rr = i % 2 ? r * 0.45 : r; fctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } fctx.closePath(); fctx.fill(); }
+  function efektDon(t) {
+    var dt = Math.min(0.05, (t - fson) / 1000); fson = t; fraf = 0;
+    fctx.clearRect(0, 0, W.innerWidth, W.innerHeight);
+    for (var i = P.length - 1; i >= 0; i--) {
+      var p = P[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - dt * 2.4; p.vy = p.vy * (1 - dt * 2.4) + 70 * dt;
+      var a = Math.max(0, 1 - p.t / p.s); fctx.globalAlpha = a; fctx.fillStyle = p.c;
+      if (p.y5) yildiz5(p.x, p.y, p.r * 1.7); else { fctx.beginPath(); fctx.arc(p.x, p.y, p.r * (0.4 + a * 0.6), 0, 6.283); fctx.fill(); }
+      if (p.t > p.s) P.splice(i, 1);
+    }
+    fctx.globalAlpha = 1;
+    if (P.length) fraf = W.requestAnimationFrame(efektDon);
+  }
+  function patlat(el, renk) { var r = el.getBoundingClientRect(); parca(r.left + r.width / 2, r.top + r.height / 2, 26, 1, renk || ['#FFD23F', '#FF9F3A', '#FFF3B0', '#FF6B5B', '#FFFFFF']); }
+
+  /* ---------------- dokunulan sürprizler: yıldız, ateş topu, UFO ---------------- */
+  var SURPRIZ = [
+    ['kyo-s-yildiz', '<svg viewBox="0 0 40 40"><path d="M20 3l5 11 12 1-9 8 3 12-11-6-11 6 3-12-9-8 12-1z" fill="#FFD23F" stroke="#23304D" stroke-width="2.5" stroke-linejoin="round"/></svg>'],
+    ['kyo-s-ates', '<i></i>'],
+    ['kyo-s-ufo', '<svg viewBox="0 0 70 40"><ellipse cx="35" cy="16" rx="12" ry="11" fill="#9FE8FF" stroke="#23304D" stroke-width="2.5"/><ellipse cx="35" cy="24" rx="32" ry="9" fill="#C3C9DD" stroke="#23304D" stroke-width="2.5"/><circle cx="18" cy="25" r="2.6" fill="#FF6B5B"/><circle cx="35" cy="27" r="2.6" fill="#FFD23F"/><circle cx="52" cy="25" r="2.6" fill="#4CC38A"/></svg>']
+  ];
+  function surprizKur() {
+    var bolum = [].slice.call(kok.querySelectorAll('#icerik > section'));
+    bolum.forEach(function (b, i) {
+      if (getComputedStyle(b).position === 'static') b.style.position = 'relative';
+      var n = DAR() ? 1 : 2;
+      for (var j = 0; j < n; j++) {
+        var s = SURPRIZ[(i + j) % SURPRIZ.length], e = D.createElement('button');
+        e.type = 'button'; e.className = 'kyo-surpriz ' + s[0]; e.tabIndex = -1; e.setAttribute('aria-hidden', 'true'); e.innerHTML = s[1];
+        /* yazıların üstüne binmesin: yalnız sağ/sol kenar şeritleri */
+        var sag = (i + j) % 2 === 1;
+        e.style.left = sag ? 'auto' : (1 + (i * 7) % 4) + '%'; e.style.right = sag ? (1 + (i * 5) % 4) + '%' : 'auto';
+        e.style.top = (12 + ((i * 23 + j * 41) % 66)) + '%';
+        b.appendChild(e);
+        var vur = function (ev) {
+          var el = ev.currentTarget; if (el.classList.contains('kyo-vuruldu')) return;
+          el.classList.add('kyo-vuruldu'); patlat(el, el.classList.contains('kyo-s-ufo') ? ['#BFF7E8', '#FFD23F', '#FFFFFF'] : null);
+          setTimeout(function () { el.classList.remove('kyo-vuruldu'); }, 3500);
+        };
+        e.addEventListener('pointerenter', function (ev) { if (ev.pointerType === 'mouse') vur(ev); });
+        e.addEventListener('pointerdown', vur);
+      }
+    });
+  }
+
+  /* ---------------- astronot rehber ---------------- */
+  var bolumler = [], simdiki = null, sonKay = 0, ucusZ = 0, dalisAktif = false;
+  function rehberKur() {
+    rehber = D.createElement('div'); rehber.className = 'kyo-rehber'; rehber.setAttribute('aria-hidden', 'true');
+    rehber.innerHTML = '<div class="kyo-r-ic">' + (W.KIDS_UZAY ? W.KIDS_UZAY.astronotHtml('kedi') : '') + '</div><p class="kyo-r-balon"></p>';
+    kok.appendChild(rehber); balon = rehber.querySelector('.kyo-r-balon');
+    bolumler = [].slice.call(kok.querySelectorAll('#icerik > section'));
+    soyle(SOZ.ust);
+  }
+  /* konuşma balonu birkaç saniye görünür, sonra içeriğin önünde durmasın diye söner */
+  var susZ = 0;
+  function soyle(s) {
+    if (!balon || balon.textContent === s && !balon.classList.contains('kyo-sus')) return;
+    balon.classList.remove('kyo-gel', 'kyo-sus'); void balon.offsetWidth; balon.textContent = s; balon.classList.add('kyo-gel');
+    clearTimeout(susZ); susZ = setTimeout(function () { balon.classList.add('kyo-sus'); }, 3800);
+  }
+  function selam() { if (SAKIN) return; rehber.classList.remove('kyo-selam'); void rehber.offsetWidth; rehber.classList.add('kyo-selam'); }
+  function bolumBak() {
+    var orta = W.innerHeight * 0.45, bul = null, ilerleme = 0;
+    for (var i = 0; i < bolumler.length; i++) { var r = bolumler[i].getBoundingClientRect(); if (r.top <= orta && r.bottom > orta) { bul = bolumler[i]; ilerleme = (orta - r.top) / Math.max(1, r.height); break; } }
+    if (!bul) return;
+    if (bul !== simdiki) {
+      simdiki = bul; durum.sahne = bul.id || '';
+      var renk = bul.getAttribute('data-ky-renk') || RENK[bul.id] || '#2A1E66';
+      if (nebula) nebula.style.setProperty('--kyo-a', renk);
+      soyle(bul.getAttribute('data-ky-soz') || SOZ[bul.id] || 'Hadi buraya!'); selam();
+    } else if (ilerleme > 0.86 && !dalisAktif) { soyle('Hadi buraya! 👇'); rehber.classList.add('kyo-isaret'); }
+    else rehber.classList.remove('kyo-isaret');
+  }
+  var RENK = { nasil: '#3B2A8A', bakis: '#24407A', baslangic: '#2B5A7A', dene: '#1F5F5A', yas: '#6A3A7A', 'icerik-konular': '#7A4A2A', fiyat: '#4A2A86', sss: '#1A1B57' };
+  /* kaydırma hızı: hızlıysa jetpack yanar, astronot öne eğilir */
+  var kare = 0;
+  function dongu(t) {
+    kare = 0; if (kok.hidden) return;
+    var y = W.scrollY, v = y - (sonY < 0 ? y : sonY); sonY = y;
+    if (Math.abs(v) > 2 && !SAKIN) { rehber.classList.add('kz-ucuyor'); rehber.style.setProperty('--kyo-egim', Math.max(-14, Math.min(14, v * 0.6)).toFixed(1) + 'deg'); clearTimeout(ucusZ); ucusZ = setTimeout(function () { rehber.classList.remove('kz-ucuyor'); rehber.style.setProperty('--kyo-egim', '0deg'); }, 260); }
+    yildizCiz(t); bolumBak();
+    if (!SAKIN) kare = W.requestAnimationFrame(dongu);
+  }
+  function dur() { if (kare) W.cancelAnimationFrame(kare); kare = 0; }
+  function basla() { if (!kare && !kok.hidden) kare = W.requestAnimationFrame(dongu); }
+
+  /* ---------------- balonlar (dokununca patlar; sahnede kaydırınca da) ---------------- */
+  function balonPatlat(b, sessiz) {
+    if (b.classList.contains('kyo-patladi')) return;
+    b.classList.add('kyo-patladi'); b.setAttribute('data-ky-yazi', b.getAttribute('data-ky-kelime'));
+    if (!sessiz) patlat(b, [getComputedStyle(b).getPropertyValue('--r').trim() || '#FFD23F', '#FFFFFF', '#FFD23F']);
+    var af = D.querySelector('.kyo-aferin'); if (af) { af.classList.remove('kyo-gel'); void af.offsetWidth; af.classList.add('kyo-gel'); }
+  }
+  function balonOnar(b) { b.classList.remove('kyo-patladi'); }
+  function balonKur() {
+    D.querySelectorAll('.kyo-balon').forEach(function (b) {
+      b.addEventListener('click', function () { if (b.classList.contains('kyo-patladi')) { balonOnar(b); return; } balonPatlat(b); });
+    });
+  }
+
+  /* ---------------- el çizimi: çizgi uzunlukları ---------------- */
+  function cizgiHazirla() {
+    D.querySelectorAll('.kyo-cizgi').forEach(function (p) { try { var L = Math.ceil(p.getTotalLength()); p.style.setProperty('--L', L); p.style.strokeDasharray = L; } catch (e) { } });
+  }
+
+  /* ---------------- GSAP sahneleri ---------------- */
+  function gsapYukle() {
+    return new Promise(function (ok, no) {
+      if (W.gsap && W.ScrollTrigger) return ok();
+      var s = D.createElement('script'); s.src = '/kids/assets/kids-gsap.js'; s.async = true;
+      s.onload = function () { W.gsap && W.ScrollTrigger ? ok() : no(new Error('gsap yok')); }; s.onerror = no; D.head.appendChild(s);
+      setTimeout(function () { no(new Error('zaman aşımı')); }, 8000);
+    });
+  }
+  function sahneler() {
+    gs = W.gsap; ST = W.ScrollTrigger; gs.registerPlugin(ST); durum.gsap = true;
+    H.classList.add('kyo-gsap');
+    var mm = gs.matchMedia();
+    /* ortak: el çizimi sloganlar, bölüm açılışları (her ekranda) */
+    mm.add('(prefers-reduced-motion: no-preference)', function () {
+      D.querySelectorAll('.kyo-el').forEach(function (svg) {
+        var t = svg.querySelector('text'), c = svg.querySelectorAll('.kyo-cizgi');
+        var tl = gs.timeline({ scrollTrigger: { trigger: svg, start: 'top 85%', toggleActions: 'play none none reverse' } });
+        if (t) tl.fromTo(t, { strokeDashoffset: 1400, fillOpacity: 0 }, { strokeDashoffset: 0, duration: 1.6, ease: 'power1.inOut' }).to(t, { fillOpacity: 1, duration: 0.4 }, '-=0.3');
+        c.forEach(function (p) { tl.fromTo(p, { strokeDashoffset: function () { return +p.style.getPropertyValue('--L') || 300; } }, { strokeDashoffset: 0, duration: 0.7, ease: 'power2.out' }, '-=0.2'); });
+      });
+      /* eski bölümler: başlık ve kartlar aşağıdan esneyerek gelir */
+      gs.utils.toArray('.kl-adimlar>li, .kl-guvenler>li, .kyo-adim>li').forEach(function (el, i) {
+        gs.from(el, { y: 50, scale: 0.9, opacity: 0, duration: 0.7, ease: 'back.out(2)', delay: (i % 4) * 0.08, scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none none' } });
+      });
+    });
+
+    /* masaüstü: sahneler ekrana oturur, kaydırdıkça oynar */
+    mm.add('(min-width: 761px) and (prefers-reduced-motion: no-preference)', function () {
+      var ortak = function (sec, uzun) { return { trigger: sec, start: 'top top', end: '+=' + uzun, pin: sec.querySelector('.kyo-pin'), scrub: 1, anticipatePin: 1, snap: W.KY_OTURTMA === false ? false : { snapTo: 'labelsDirectional', duration: { min: 0.25, max: 0.8 }, delay: 0.12, ease: 'power1.inOut' } }; };
+
+      /* 1 · dalış */
+      var s1 = D.querySelector('#kyo-okul');
+      if (s1) {
+        var gz = s1.querySelector('.kyo-dalis'), ic = s1.querySelector('.kyo-icerik');
+        var tl1 = gs.timeline({ scrollTrigger: Object.assign(ortak(s1, '160%'), { onEnter: function () { dalisAktif = true; }, onLeave: function () { dalisAktif = false; }, onEnterBack: function () { dalisAktif = true; }, onLeaveBack: function () { dalisAktif = false; } }) });
+        tl1.addLabel('bas')
+          .fromTo(gz, { scale: 0.35, rotate: -20, opacity: 1 }, { scale: 1, rotate: 0, duration: 1, ease: 'power2.out' })
+          .fromTo(rehber, { x: 0, y: 0, scale: 1 }, { x: function () { var r = rehber.getBoundingClientRect(); return W.innerWidth / 2 - (r.left + r.width / 2); }, y: function () { var r = rehber.getBoundingClientRect(); return W.innerHeight / 2 - (r.top + r.height / 2); }, scale: 0.3, duration: 1, ease: 'power2.in' }, '<0.2')
+          .addLabel('dalis')
+          .to(gz, { scale: 12, duration: 1.2, ease: 'power3.in' })
+          .to(gz, { opacity: 0, duration: 0.4 }, '-=0.35')
+          .set(rehber, { x: 0, y: 0, scale: 1 })
+          .fromTo(ic.children, { y: 70, opacity: 0, scale: 0.92 }, { y: 0, opacity: 1, scale: 1, stagger: 0.12, duration: 0.8, ease: 'back.out(1.8)' }, '-=0.1')
+          .fromTo(s1.querySelectorAll('.kyo-ok .kyo-cizgi'), { strokeDashoffset: function (i, p) { return +p.style.getPropertyValue('--L') || 200; } }, { strokeDashoffset: 0, duration: 0.6 }, '-=0.4')
+          .addLabel('son');
+      }
+
+      /* 2 · gezegen → giriş kartı */
+      var s2 = D.querySelector('#kyo-giris');
+      if (s2) {
+        var kart = s2.querySelector('.kyo-mkart'), kgz = s2.querySelector('.kyo-mkart-gz'), parcalar = s2.querySelectorAll('.kyo-mkart-ic > *'), metin = s2.querySelectorAll('.kyo-metin > *');
+        var tl2 = gs.timeline({ scrollTrigger: ortak(s2, '150%') });
+        tl2.addLabel('bas')
+          .from(metin, { x: -60, opacity: 0, stagger: 0.1, duration: 0.6, ease: 'power2.out' })
+          .fromTo(kart, { width: 230, height: 230, borderRadius: 115, backgroundColor: 'rgba(255,255,255,0)', borderColor: 'rgba(255,255,255,0)', boxShadow: '0 0 0 rgba(11,16,51,0)' }, { width: 230, height: 230, duration: 0.3 }, '<')
+          .fromTo(kgz, { x: 0, y: 0, scale: 1.6, rotate: -30, opacity: 1, xPercent: 0, yPercent: 0 }, { rotate: 20, duration: 0.8 }, '<')
+          .addLabel('donus')
+          .to(kart, { width: 300, height: 410, borderRadius: 34, backgroundColor: '#FFFFFF', borderColor: '#23304D', boxShadow: '0 10px 0 #23304D', duration: 1, ease: 'power2.inOut' })
+          .to(kgz, { scale: 0.32, xPercent: 115, yPercent: -125, rotate: 0, duration: 1, ease: 'power2.inOut' }, '<')
+          .fromTo(parcalar, { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, stagger: 0.15, duration: 0.6, ease: 'back.out(2.2)' }, '-=0.2')
+          .addLabel('son');
+      }
+
+      /* 3 · söyle: mikrofon, balonlar yükselir, sırayla patlar */
+      var s3 = D.querySelector('#kyo-soyle');
+      if (s3) {
+        var mik = s3.querySelector('.kyo-mik'), bl = gs.utils.toArray(s3.querySelectorAll('.kyo-balon')), baslik = s3.querySelectorAll('.kyo-icerik > h2, .kyo-icerik > .kyo-alt');
+        var tl3 = gs.timeline({ scrollTrigger: Object.assign(ortak(s3, '180%'), { onUpdate: function (self) {
+          var p = self.progress; bl.forEach(function (b, i) { var esik = 0.55 + i * 0.08; if (p > esik && !b.classList.contains('kyo-patladi') && self.direction > 0) balonPatlat(b); if (p < esik - 0.02 && self.direction < 0 && b.classList.contains('kyo-patladi')) balonOnar(b); });
+        } }) });
+        tl3.addLabel('bas')
+          .from(baslik, { y: 40, opacity: 0, stagger: 0.1, duration: 0.5 })
+          .fromTo(mik, { scale: 0, rotate: -25 }, { scale: 1, rotate: 0, duration: 0.8, ease: 'elastic.out(1, 0.5)' }, '<')
+          .fromTo(bl, { y: 420, scaleY: 1.25, scaleX: 0.8, opacity: 0 }, { y: 0, scaleY: 1, scaleX: 1, opacity: 1, stagger: 0.12, duration: 1, ease: 'back.out(2.4)' })
+          .addLabel('yukseldi')
+          .to({}, { duration: 2.2 })
+          .addLabel('son');
+      }
+
+      /* 4 · masal: kitap açılır, otobüs gelir, kart, tren, kuş */
+      var s4 = D.querySelector('#kyo-masal');
+      if (s4) {
+        var sol = s4.querySelector('.kyo-sayfa-sol'), sag = s4.querySelector('.kyo-sayfa-sag'), kk = s4.querySelector('.kyo-kelime-kart'), bus = s4.querySelector('.kyo-a-bus'), train = s4.querySelector('.kyo-a-train'), bird = s4.querySelector('.kyo-a-bird'), yol = s4.querySelector('.kyo-yol');
+        var tl4 = gs.timeline({ scrollTrigger: ortak(s4, '200%') });
+        tl4.addLabel('bas')
+          .fromTo(sol, { rotateY: 80, opacity: 0 }, { rotateY: 0, opacity: 1, duration: 0.7, ease: 'power2.out' })
+          .fromTo(sag, { rotateY: -80, opacity: 0 }, { rotateY: 0, opacity: 1, duration: 0.7, ease: 'power2.out' }, '<0.1')
+          .fromTo(yol, { scaleX: 0 }, { scaleX: 1, duration: 0.5 }, '<')
+          .fromTo(bus, { x: function () { return -W.innerWidth * 0.7; }, opacity: 1 }, { x: 0, duration: 1.2, ease: 'power3.out' })
+          .fromTo(kk, { scale: 0, rotate: -8 }, { scale: 1, rotate: 0, duration: 0.6, ease: 'back.out(2.5)' })
+          .addLabel('otobus')
+          .to(bus, { x: -230, duration: 0.8, ease: 'power2.inOut' }, '+=0.4')
+          .fromTo(train, { x: function () { return W.innerWidth * 0.7; }, opacity: 1 }, { x: 230, duration: 1.1, ease: 'power3.out' }, '<0.2')
+          .addLabel('tren')
+          .fromTo(bird, { x: function () { return -W.innerWidth * 0.6; }, y: 40, opacity: 0 }, { x: 0, y: -10, opacity: 1, duration: 1.1, ease: 'sine.out' }, '+=0.2')
+          .addLabel('son');
+      }
+      return function () { gs.set(rehber, { clearProps: 'transform' }); };
+    });
+
+    /* telefon: oturma yok, sahneler açılınca bir kez oynar */
+    mm.add('(max-width: 760px) and (prefers-reduced-motion: no-preference)', function () {
+      gs.utils.toArray('.kyo-sahne .kyo-icerik > *').forEach(function (el) { gs.from(el, { y: 40, opacity: 0, duration: 0.6, ease: 'back.out(1.6)', scrollTrigger: { trigger: el, start: 'top 88%' } }); });
+      var bl = gs.utils.toArray('.kyo-balon'); if (bl.length) gs.from(bl, { y: 200, opacity: 0, stagger: 0.1, duration: 0.9, ease: 'back.out(2.2)', scrollTrigger: { trigger: '.kyo-balonlar', start: 'top 85%' } });
+      var bus = D.querySelector('.kyo-a-bus'); if (bus) gs.from(bus, { xPercent: -600, duration: 1.2, ease: 'power3.out', scrollTrigger: { trigger: '.kyo-yol-alan', start: 'top 85%' } });
+    });
+    W.addEventListener('load', function () { ST.refresh(); });
+    D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') setTimeout(function () { ST.refresh(); }, 50); });
+  }
+
+  /* ---------------- çerçeve ---------------- */
+  function kur() {
+    kok = D.getElementById('kl-sayfa'); if (!kok || kok.dataset.ky) return; kok.dataset.ky = '1';
+    cizimler(); evrenKur(); efektKur(); rehberKur(); surprizKur(); balonKur(); cizgiHazirla();
+    W.addEventListener('scroll', function () { if (SAKIN) { yildizCiz(0); bolumBak(); } else basla(); }, { passive: true });
+    D.addEventListener('visibilitychange', function () { if (D.hidden) dur(); else basla(); });
+    if (W.MutationObserver) new MutationObserver(function () { if (kok.hidden) dur(); else basla(); }).observe(kok, { attributes: true, attributeFilter: ['hidden'] });
+    bolumBak(); basla();
+    if (SAKIN) return;
+    gsapYukle().then(sahneler, function (e) { H.classList.add('kyo-statik'); if (W.console) console.warn('Uzay yolculuğu sade modda:', e && e.message); });
+  }
+  if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', kur); else kur();
+  W.KIDS_YOLCULUK = { kur: kur, durum: function () { return durum; } };
+})(window);
+
 /* ---- kids-scroll.js ---- */
 /* ==========================================================================
    ACADEX KIDS · tanıtım sayfası kaydırma şöleni (kids/assets/kids-scroll.js), 15.11.2026
@@ -10458,7 +11068,11 @@ html.kz-uzay .kd-komut{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   function ustY(el) { var y = 0; while (el && el !== ana) { y += el.offsetTop; el = el.offsetParent; } return y; }
   function rastgele(t) { var x = Math.sin(t * 9301 + 49297) * 233280; return x - Math.floor(x); }   /* her yüklemede aynı yerleşim */
 
+  /* 20.11.2026: uzay yolculuğu (kids-yolculuk.js, html.kyo) açıksa gökyüzü, hero balonları ve
+     yumuşak tekerlek burada kurulmaz: zemini evren, kaydırmayı GSAP sahneleri yönetir */
+  var UZAY = function () { return D.documentElement.classList.contains('kyo'); };
   function gokKur() {
+    if (UZAY()) { ana.classList.remove('kl-gok'); ana.style.backgroundImage = ''; if (kat) { kat.remove(); kat = null; } derin = []; return; }
     var H = ana.scrollHeight, durak = [];
     DURAK.forEach(function (d, i) {
       var y = i === 0 ? 0 : i === DURAK.length - 1 ? H : (d[0] && ana.querySelector(d[0]) ? ustY(ana.querySelector(d[0])) : -1);
@@ -10557,6 +11171,7 @@ html.kz-uzay .kd-komut{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   }
   function yumusakKur() {
     if (SAKIN || !W.matchMedia || !W.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    if (UZAY()) return;
     yumusakAcik = true;
     W.addEventListener('wheel', function (e) {
       if (e.ctrlKey || e.defaultPrevented || D.getElementById('kl-sayfa').hidden || kaydirilabilir(e.target)) return;
@@ -10601,6 +11216,7 @@ html.kz-uzay .kd-komut{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
       '<ellipse cx="46" cy="143" rx="4" ry="2.6" fill="#FF9E8A" opacity=".8"/><ellipse cx="74" cy="143" rx="4" ry="2.6" fill="#FF9E8A" opacity=".8"/></svg>';
   }
   function heroKur() {
+    if (UZAY()) return;
     hero = D.querySelector('.kl-hero'); sahneH = hero && hero.querySelector('.kl-hero-sahne');
     if (!sahneH || sahneH.querySelector('.kl-hero-cocuk')) return;
     var s = D.createElement('span'); s.className = 'kl-hero-cocuk'; s.innerHTML = cocuk(); sahneH.appendChild(s);

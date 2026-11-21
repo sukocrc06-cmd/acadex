@@ -326,3 +326,7 @@
 .kt2-el{position:absolute;right:-14%;top:-6%;width:30%;height:30%;border:3px solid var(--m);border-radius:50%;background:#FFCFA8;transform-origin:20% 100%;animation:klCocukEl 1.4s ease-in-out infinite}
 @media (max-width:860px){.kt2-kart{grid-template-columns:minmax(0,1fr)}.kt2-sahne{order:-1;min-height:220px;border-left:0;border-bottom:3px solid var(--m)}}
 @media (prefers-reduced-motion: reduce){.kyd *,.kkn *,.kt2-sahne *{animation:none!important}.kyd-kart{scale:none;filter:none}}
+/* uzay yolculuğu teması (html.kyo, kids-yolculuk.css) açıkken bu bölümlerin başlıkları gece zemininde açık renk */
+html.kyo .kl-bolum>h2,html.kyo .kl-dene h2,html.kyo .kkn-bas>h2,html.kyo #sss>h2,html.kyo .kyd>h2,html.kyo .kb>h2{color:#fff!important;text-shadow:0 3px 0 rgba(11,16,51,.55)}
+html.kyo .kl-bolum>.kl-alt,html.kyo .kl-dene-yazi>p,html.kyo .kkn-bas>p,html.kyo .kl-dene .kl-kucuk{color:#DCE2FF!important}
+html.kyo .kb-panel{padding:22px;border:3px solid var(--m);border-radius:30px;background:#FFF8E7;box-shadow:0 8px 0 #0B1033}
