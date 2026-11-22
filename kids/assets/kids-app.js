@@ -208,29 +208,48 @@
       '<button type="button" class="ka-yuvarlak" data-ses aria-pressed="' + SES.acikMi() + '" aria-label="Ses">' + C.simge('ses') + '</button>' +
       '<button type="button" class="ka-cikis" data-veli aria-label="Veli köşesi">' + C.simge('veli') + '<span>Veli</span></button></header>';
   }
+  /* haritanın sol üstündeki ince cam şerit: bugünün konusu ya da serbest uçuş + tek düğme */
+  var ROKET = '<svg class="kc" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><path d="M20 3c7 5 9 13 7 22H13c-2-9 0-17 7-22z" fill="#fff" stroke="#23304D" stroke-width="2.6" stroke-linejoin="round"/><circle cx="20" cy="15" r="4" fill="#7FC4FF" stroke="#23304D" stroke-width="2.2"/><path d="M13 21l-5 6 5 1M27 21l5 6-5 1" fill="#FF6B5B" stroke="#23304D" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 27q4 10 8 0" fill="#FFB020" stroke="#23304D" stroke-width="2.2"/></svg>';
+  function gunBandi(bugun) {
+    return '<div class="ka-serit' + (bugun ? '' : ' ka-serit-serbest') + '"><span class="ka-serit-acd" aria-hidden="true">' + acd(bugun ? 'kutlama' : 'mutlu') + '</span>' +
+      '<span class="ka-serit-yazi"><small>' + (bugun ? 'Bugün' : 'Serbest uçuş') + '</small><b>' + (bugun ? '<span lang="en">' + esc(bugun.en) + '</span> <em>' + esc(bugun.tr) + '</em>' : 'Bir gezegen seç') + '</b></span>' +
+      (bugun ? '<button type="button" class="ka-serit-uc" data-konu="' + bugun.id + '" aria-label="Bugünün konusu ' + esc(bugun.en) + ': uç">Uç ' + ROKET + '</button>'
+        : '<button type="button" class="ka-serit-uc" data-surpriz aria-label="Sürpriz bir gezegene uç">Sürpriz ' + ROKET + '</button>') + '</div>';
+  }
   function panel() {
     var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : yerelKonu()), bugun = bk && bk.acik && !bk.sinifSeti ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
     il.son = Date.now(); if (!il.gorulen) il.gorulen = yeniSay(il); koy(ilAnahtar(), il);   /* öğretmen panelindeki "son giriş" */
     cihazEkle();
     /* girişten hemen sonra: "Oyun dünyana gidiyorsun!" uçuşu (kids-ucus.js); harita arkada hazır bekler */
     var ucus = S.ucus && W.KIDS_UCUS; S.ucus = false;
+    /* 22.11.2026: yeni açılan gezegen (öğretmen açtı / yeni takımada): haritada bulutu bir kez dağılır.
+       İlk kez: açık olanlar sessizce "görüldü" sayılır. */
+    var acikIds = V.KONU.filter(function (k) { return k.acik; }).map(function (k) { return k.id; }), yeniAcik = {};
+    if (!il.acikGor) { il.acikGor = acikIds.slice(); koy(ilAnahtar(), il); }
+    else acikIds.forEach(function (id) { if (il.acikGor.indexOf(id) < 0) { yeniAcik[id] = 1; il.acikGor.push(id); } });
+    if (Object.keys(yeniAcik).length) { koy(ilAnahtar(), il); setTimeout(function () { if (app.dataset.gorunum === 'harita') { SES.fx('yildiz'); SES.soyle('Yeni bir gezegen açıldı!', 'tr'); } }, 1400); }
     ciz(ustCubuk(il) +
-      (bugun ? '<section class="ka-bugun"><div class="ka-bugun-acd">' + acd('kutlama') + '</div><div class="ka-bugun-yazi"><small>Bugünün konusu</small><h1><span lang="en">' + esc(bugun.en) + '</span> <em>' + esc(bugun.tr) + '</em></h1><p>Bugün okulda bunu öğrendin! Hadi oynayarak tekrar edelim.</p></div>' +
-        '<button type="button" class="ka-buyuk ka-oyna" data-konu="' + bugun.id + '" data-odak>Oyna ' + C.simge('oynat') + '</button></section>'
-        : '<section class="ka-bugun ka-serbest"><div class="ka-bugun-acd">' + acd('mutlu') + '</div><div class="ka-bugun-yazi"><small>Serbest gün</small><h1>İstediğin adaya uç!</h1><p>Bugün için seçilmiş bir konu yok. Açık adalardan birine dokun.</p></div></section>') +
+      /* 22.11.2026: büyük sarı "bugünün konusu" kartı yerine haritanın sol üstünde ince cam şerit
+         (gunBandi). Başlık ekran okuyucu için gizli h1'de kalır. */
+      '<h1 class="ka-gizli">' + (bugun ? 'Bugünün konusu: ' + esc(bugun.en) + ', ' + esc(bugun.tr) : 'Serbest gün: istediğin gezegene uç') + '</h1>' +
       (W.KIDS_KRES ? W.KIDS_KRES.cocukBant(S) : '') +
-      '<section class="ka-harita" aria-label="Konular"><div class="ka-bulutlar" aria-hidden="true">' + C.bulut('ka-b1') + C.bulut('ka-b2') + C.bulut('ka-b3') + '</div><ol class="ka-adalar">' +
+      '<section class="ka-harita" aria-label="Konular"><div class="ka-bulutlar" aria-hidden="true">' + C.bulut('ka-b1') + C.bulut('ka-b2') + C.bulut('ka-b3') + '</div>' +
+        gunBandi(bugun) +
+        '<ol class="ka-adalar">' +
       V.KONU.map(function (k, i) {
         var n = OD.konuYildiz(il, k.id), bitti = !!il.bitti[k.id], sv = OD.seviye(il, k.id), as = OD.asama(il, k.id), us = OD.ustalik(il, k.id), np = k.acik ? paketSay(k.id) : 1, gor = (il.asamaGor || {})[k.id] || 0;
         if (k.acik && as > gor) yukselen.push(k.id);
         return (k.grup === 2 && !(V.KONU[i - 1] || {}).grup ? '</ol><h2 class="ka-takimada"><span>İkinci takımada</span><small>' + V.KONU.filter(function (x) { return x.grup === 2; }).length + ' yeni ada</small></h2><ol class="ka-adalar">' : '') + '<li style="--i:' + (i % 12) + '"><button type="button" class="ka-ada' + (k.acik ? '' : ' ka-kilitli') + (k.id === bid ? ' ka-ada-bugun' : '') + (bitti ? ' ka-ada-bitti' : '') + ' ka-as' + as + (as > gor ? ' ka-ada-yukseldi' : '') + '" ' + (k.acik ? 'data-konu="' + k.id + '"' : 'data-yakinda') + ' aria-label="' + esc(k.en + ', ' + k.tr + (k.acik ? ', ' + n + ' / ' + OD.konuMax(k.id) + ' yıldız' + (bitti ? ', bitti' : '') : ', yakında')) + '">' +
           (W.KIDS_UZAY ? W.KIDS_UZAY.gezegen(k.renk, k.simge, !k.acik, k.acik ? as : 0, i) : C.ada(k.renk, k.simge, !k.acik, k.acik ? OD.adaEk(k.id, as) : '')) + (bitti ? adaCanli(k) : '') + (as > gor ? '<span class="ka-ada-konfeti" aria-hidden="true">' + new Array(13).join('<i></i>') + '</span>' : '') + '<span class="ka-ada-ad"><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small></span>' +
-          (k.acik ? halka(n, OD.konuMax(k.id), k.renk) : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button></li>';
+          (k.acik ? halka(n, OD.konuMax(k.id), k.renk) : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button>' +
+          '</li>';
       }).join('') + '</ol></section>' + dockHtml(il), 'harita');
     app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); if (W.KIDS_UZAY && W.KIDS_UZAY.aktif()) W.KIDS_UZAY.uc(kid, function () { adaSec(kid); }); else adaSec(kid); }); });
     /* uzay teması (kids-uzay.js): çocuk kasklı astronot olarak son gittiği gezegenin yanında süzülür */
     if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid,
-      konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
+      konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, yeniAcik: !!yeniAcik[k.id], asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
+    var sz = app.querySelector('[data-surpriz]');
+    if (sz) sz.addEventListener('click', function () { var l = acikIds.filter(function (id) { return id !== (S.konu || ''); }), id = l[Math.floor(Math.random() * l.length)], b = id && app.querySelector('.ka-ada[data-konu="' + id + '"]'); jole(sz); if (b) b.click(); });
     /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
     app.querySelectorAll('[data-setoyna]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); S.seviye = 1; S.paket = 0; konuAc(b.getAttribute('data-setoyna'), 0); }); });
     /* ada büyüdüyse: bir kez kutla, sonra hatırla */
@@ -581,7 +600,7 @@
   function adaBul(kid) { return app.querySelector('.ka-ada[data-konu="' + kid + '"]'); }
   function merkez(el) { var r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height * 0.45, r: r }; }
   function ucus(kid, sonra) {
-    var ada = adaBul(kid), cikis = app.querySelector('.ka-bugun-acd') || app.querySelector('.ka-ben-av');
+    var ada = adaBul(kid), cikis = app.querySelector('.ka-serit-acd') || app.querySelector('.ka-ben-av');
     if (SAKIN || !ada || !cikis || !W.Element.prototype.animate) return sonra();
     var k = V.konuBul(kid), a = merkez(cikis), h = merkez(ada), o = D.createElement('div');
     if (h.r.bottom < 0 || h.r.top > W.innerHeight) { try { ada.scrollIntoView({ block: 'center' }); } catch (e) { } h = merkez(ada); }

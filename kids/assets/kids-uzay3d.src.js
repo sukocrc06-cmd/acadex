@@ -7,7 +7,8 @@
 
    Sahne: ortada parlayan güneş, çevresinde sarmal yıldız tozundan galaksi diski. Konular disk
    üstünde sarmal bir yol boyunca gezegen: konunun renginde, desenli, bazısı halkalı; çocuk
-   ilerledikçe bayrak (1), dönen ay (2), altın halka (3). Kilitli gezegen gri ve sisli.
+   ilerledikçe bayrak (1), dönen ay (2), altın halka (3). Kilitli gezegen renkli bulutsunun içinde;
+   yeni açılınca bulut bir kez dağılır. Roket son gidilen gezegende bekler, uçuş oradan kalkar.
    Gezegenleri ışıklı bir yol birbirine bağlar (sıra belli olsun). Kamera kampüsteki gibi
    yukarıdan eğik bakar; sürükleyince kayar, tekerlek/iki parmakla yaklaşır.
    Çocuk 3B astronot: kaskın camında kendi hayvanının yüzü, sırtında jetpack. Gezegene
@@ -117,6 +118,35 @@ function galaksi(R) {
 }
 
 /* ---------------- gezegen ---------------- */
+/* ---------------- bulutsu (22.11.2026): kilitli gezegeni saran renkli bulut kümeleri ---------------- */
+let bulutTex = null;
+function bulutDoku() {
+  if (bulutTex) return bulutTex;
+  const c = kanvas(256, 256), x = c.getContext('2d'), r = rng(5);
+  for (let j = 0; j < 9; j++) {
+    const cx = 70 + r() * 116, cy = 80 + r() * 96, rr = 38 + r() * 46, g = x.createRadialGradient(cx, cy, 0, cx, cy, rr);
+    g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(0.55, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(cx, cy, rr, 0, TAU); x.fill();
+  }
+  bulutTex = dokuDan(c); return bulutTex;
+}
+const BULUT_RENK = ['#C9B8FF', '#FFC2E0', '#B8DCFF', '#E6DCFF', '#FFD9F0'];
+function bulutsuKur(i) {
+  const g = new Group(), r = rng(i * 13 + 2), puf = [];
+  for (let j = 0; j < 9; j++) {
+    const a = j / 9 * TAU + r() * 0.5, yr = PR * (0.95 + r() * 0.45), yy = (r() - 0.45) * PR * 1.3;
+    const sp = new Sprite(new SpriteMaterial({ map: bulutDoku(), color: BULUT_RENK[(i + j) % BULUT_RENK.length], transparent: true, opacity: 0.78 + r() * 0.17, depthWrite: false }));
+    const boy = PR * (1.5 + r() * 0.9); sp.scale.set(boy, boy * 0.78, 1);
+    sp.position.set(Math.cos(a) * yr, yy, Math.sin(a) * yr); g.add(sp);
+    puf.push({ sp, ev: sp.position.clone(), boy, op: sp.material.opacity, faz: r() * TAU });
+  }
+  /* önde yoğun bir perde: gezegen yalnız bulutların arasından seçilir */
+  const on = new Sprite(new SpriteMaterial({ map: bulutDoku(), color: '#DCD2FF', transparent: true, opacity: 0.62, depthWrite: false }));
+  on.scale.set(PR * 2.7, PR * 2.2, 1); on.position.set(0, -PR * 0.1, PR * 0.6); g.add(on);
+  puf.push({ sp: on, ev: on.position.clone(), boy: PR * 2.7, op: 0.62, faz: 0 });
+  return { g, puf };
+}
+
 function gezegenKur(k, i, simgeSvg) {
   const g = new Group(), kilit = !!k.kilit, renk = kilit ? '#6B7699' : k.renk;
   const govde = new Mesh(new SphereGeometry(PR, 48, 32), new MeshStandardMaterial({ map: gezegenDoku(k.renk, i, kilit), roughness: 0.82, metalness: 0.02, emissive: new Color(renk).multiplyScalar(0.12) }));
@@ -128,11 +158,9 @@ function gezegenKur(k, i, simgeSvg) {
     const h = new Mesh(new RingGeometry(PR * 1.35, PR * 1.95, 72), new MeshBasicMaterial({ color: kilit ? '#8A94B8' : '#FFE7A3', side: DoubleSide, transparent: true, opacity: 0.8 }));
     h.rotation.x = -Math.PI / 2 + 0.42; h.rotation.y = 0.25; g.add(h);
   }
-  if (kilit) {
-    const sis = new Mesh(new SphereGeometry(PR * 1.12, 32, 20), new MeshBasicMaterial({ color: '#D5DDF5', transparent: true, opacity: 0.22, depthWrite: false }));
-    g.add(sis);
-  }
   const ek = { ay: null, altin: null };
+  /* kilitli: gezegen renkli bulutsunun içinde; yeni açılan gezegende bulut bir kez dağılır (bulutDagit) */
+  if (kilit || k.yeniAcik) { const b = bulutsuKur(i); g.add(b.g); ek.bulut = b; if (k.yeniAcik) ek.bulut.dagit = { t0: 0 }; }
   if (!kilit && k.asama >= 1) {
     const b = new Group(), dir = new Mesh(new CylinderGeometry(0.035, 0.035, 0.9, 8), new MeshStandardMaterial({ color: '#23304D' }));
     dir.position.y = 0.45; b.add(dir);
@@ -149,11 +177,17 @@ function gezegenKur(k, i, simgeSvg) {
     t.rotation.x = Math.PI / 2 - 0.25; g.add(t); ek.altin = t;
   }
   /* konunun resmi gezegenin üstünde, hep kameraya dönük */
-  const s = new Sprite(new SpriteMaterial({ map: svgDoku(simgeSvg, 256, false), transparent: true, opacity: kilit ? 0.5 : 1, depthWrite: false }));
+  const s = new Sprite(new SpriteMaterial({ map: svgDoku(simgeSvg, 256, false), transparent: true, opacity: kilit ? 0.3 : 1, depthWrite: false }));
   s.scale.set(1.9, 1.9, 1); s.position.y = PR + 0.75; g.add(s);
   if (k.bugun) {
     const halo = new Mesh(new RingGeometry(PR * 1.5, PR * 1.62, 64), new MeshBasicMaterial({ color: '#FFD23F', transparent: true, opacity: 0.9, side: DoubleSide }));
     halo.rotation.x = -Math.PI / 2; halo.position.y = -PR * 0.9; g.add(halo); ek.halo = halo;
+    /* 21.11.2026: bugünün gezegeni — yukarı uzanan altın ışık sütunu ("Bugün" yazısı Acadia'nın balonunda) */
+    const sc = kanvas(64, 256), sx = sc.getContext('2d'), sg = sx.createLinearGradient(0, 256, 0, 0);
+    sg.addColorStop(0, 'rgba(255,214,90,.75)'); sg.addColorStop(0.35, 'rgba(255,214,90,.35)'); sg.addColorStop(1, 'rgba(255,214,90,0)');
+    sx.fillStyle = sg; sx.fillRect(0, 0, 64, 256);
+    const sutun = new Mesh(new CylinderGeometry(PR * 0.55, PR * 1.05, 16, 32, 1, true), new MeshBasicMaterial({ map: dokuDan(sc), transparent: true, depthWrite: false, blending: AdditiveBlending, side: DoubleSide }));
+    sutun.position.y = 8 - PR * 0.4; g.add(sutun); ek.sutun = sutun;
   }
   return { g, govde, ek };
 }
@@ -190,6 +224,32 @@ function astronotKur(yuzSvg) {
   return { a, alevler, kL, kR };
 }
 
+/* ---------------- roket (21.11.2026): çocuk gezegenler arasında roketle, yolu izleyerek uçar ---------------- */
+function roketKur(yuzSvg) {
+  const dis = new Group(), ic = new Group(); dis.add(ic);
+  const beyaz = new MeshStandardMaterial({ color: '#FFFFFF', roughness: 0.45 }), kirmizi = new MeshStandardMaterial({ color: '#FF6B5B', roughness: 0.5 }), lac = new MeshStandardMaterial({ color: '#23304D', roughness: 0.6 });
+  const govde = new Mesh(new CylinderGeometry(0.34, 0.4, 1.3, 24), beyaz); ic.add(govde);
+  const burun = new Mesh(new ConeGeometry(0.34, 0.62, 24), kirmizi); burun.position.y = 0.96; ic.add(burun);
+  const kusak = new Mesh(new CylinderGeometry(0.41, 0.41, 0.12, 24), kirmizi); kusak.position.y = -0.42; ic.add(kusak);
+  for (let k = 0; k < 3; k++) {
+    const kanat = new Mesh(new BoxGeometry(0.06, 0.5, 0.36), kirmizi), a = k * TAU / 3;
+    kanat.position.set(Math.sin(a) * 0.42, -0.5, Math.cos(a) * 0.42); kanat.rotation.y = a; ic.add(kanat);
+  }
+  const lule = new Mesh(new CylinderGeometry(0.2, 0.28, 0.2, 16), lac); lule.position.y = -0.75; ic.add(lule);
+  /* pencere: çocuğun hayvan yüzü */
+  const cerceve = new Mesh(new TorusGeometry(0.24, 0.05, 8, 24), lac); cerceve.position.set(0, 0.2, 0.36); ic.add(cerceve);
+  const yuz = new Sprite(new SpriteMaterial({ map: svgDoku(yuzSvg, 256, true), transparent: true, depthWrite: false }));
+  yuz.scale.set(0.46, 0.46, 1); yuz.position.set(0, 0.2, 0.42); ic.add(yuz);
+  const alev = [];
+  [[0.2, 0.9, '#FFB020'], [0.11, 0.55, '#FFF3B0']].forEach(([rr, h, c]) => {
+    const m = new Mesh(new ConeGeometry(rr, h, 14), new MeshBasicMaterial({ color: c, transparent: true, opacity: 0.95 }));
+    m.rotation.x = Math.PI; m.position.y = -0.85 - h / 2; ic.add(m); alev.push(m);
+  });
+  ic.rotation.x = Math.PI / 2;   /* burun +Z'ye: lookAt ile yol yönüne döner */
+  dis.scale.setScalar(1.5); dis.visible = false;
+  return { r: dis, alev };
+}
+
 /* ======================================================================
    kur({ kap, katman, konular:[{id, renk, simge(svg), kilit, asama, bugun, el}], yuz(svg), baslangic, sakin })
    ====================================================================== */
@@ -219,26 +279,48 @@ export function kur(o) {
   const isik = new PointLight('#FFF1D0', 2.6, 0, 0); isik.position.set(0, 1.5, 0); sahne.add(isik);
   const yan = new DirectionalLight('#ffffff', 0.55); yan.position.set(-10, 18, 14); sahne.add(yan);
 
-  /* ışıklı yol: gezegenleri sırayla bağlar */
-  if (N > 1) {
-    const egri = new CatmullRomCurve3(yerler.map((v) => v.clone().setY(v.y - 0.9)));
-    const yol = new Mesh(new TubeGeometry(egri, N * 24, 0.05, 6, false), new MeshBasicMaterial({ color: '#BFE3FF', transparent: true, opacity: 0.55, blending: AdditiveBlending, depthWrite: false }));
-    sahne.add(yol);
-    const noktalar = [], adim = 1 / (N * 6);
-    for (let t = 0; t <= 1; t += adim) { const p = egri.getPointAt(t); noktalar.push(p.x, p.y + 0.02, p.z); }
-    const ng = new BufferGeometry(); ng.setAttribute('position', new Float32BufferAttribute(noktalar, 3));
-    sahne.add(new Points(ng, new PointsMaterial({ size: 0.42, color: '#FFFFFF', map: parilti('rgba(191,227,255,.9)'), transparent: true, depthWrite: false, blending: AdditiveBlending })));
+  /* uzay yolu (21.11.2026): gezegenleri sırayla bağlar. Bronzu bitmiş gezegenden sonraki bölüm altın
+     renginde parlar ve üstünde ışık topları akar; henüz gidilmeyen bölümler soluk, noktalı kalır. */
+  const egri = N > 1 ? new CatmullRomCurve3(yerler.map((v) => v.clone().setY(v.y - 0.9))) : null;
+  const tNo = (i) => (N > 1 ? i / (N - 1) : 0);
+  const akanlar = [];
+  if (egri) {
+    const yanik = o.konular.map((k) => !k.kilit && (k.asama || 0) >= 2);
+    const acikDot = [], solukDot = [];
+    for (let s2 = 0; s2 < N - 1; s2++) {
+      const ps = []; for (let j = 0; j <= 16; j++) ps.push(egri.getPoint(Math.min(1, tNo(s2) + (tNo(s2 + 1) - tNo(s2)) * j / 16)));
+      const bol = new CatmullRomCurve3(ps), lit = yanik[s2];
+      sahne.add(new Mesh(new TubeGeometry(bol, 32, lit ? 0.09 : 0.04, 6, false), new MeshBasicMaterial({ color: lit ? '#FFD23F' : '#8E9AD6', transparent: true, opacity: lit ? 0.95 : 0.35, blending: AdditiveBlending, depthWrite: false })));
+      for (let j = 0; j < 8; j++) { const p = bol.getPointAt(j / 8); (lit ? acikDot : solukDot).push(p.x, p.y + 0.02, p.z); }
+      if (lit && !sakin) {
+        const ak = new Sprite(new SpriteMaterial({ map: parilti('rgba(255,230,140,.95)'), transparent: true, depthWrite: false, blending: AdditiveBlending }));
+        ak.scale.set(0.9, 0.9, 1); sahne.add(ak); akanlar.push({ s: ak, egri: bol, faz: (s2 * 0.37) % 1 });
+      }
+    }
+    const nokta = (arr, boy, rk, op) => { if (!arr.length) return; const ng = new BufferGeometry(); ng.setAttribute('position', new Float32BufferAttribute(arr, 3)); sahne.add(new Points(ng, new PointsMaterial({ size: boy, color: rk, map: parilti('rgba(255,255,255,.9)'), transparent: true, opacity: op, depthWrite: false, blending: AdditiveBlending }))); };
+    nokta(acikDot, 0.5, '#FFE9A0', 1); nokta(solukDot, 0.3, '#BFC8F0', 0.5);
   }
 
   const G2 = o.konular.map((k, i) => { const p = gezegenKur(k, i, k.simge); p.g.position.copy(yerler[i]); sahne.add(p.g); return p; });
+  if (sakin) G2.forEach((p) => { if (p.ek.bulut && p.ek.bulut.dagit) { p.ek.bulut.g.visible = false; p.ek.bulut = null; } });
   const A = astronotKur(o.yuz); sahne.add(A.a);
+  const RK = roketKur(o.yuz); sahne.add(RK.r);
+  /* roketin ardındaki yıldız izi: küçük parıltı havuzu */
+  const iz = Array.from({ length: 36 }, () => { const sp = new Sprite(new SpriteMaterial({ map: parilti('rgba(255,210,120,.95)'), transparent: true, depthWrite: false, blending: AdditiveBlending, opacity: 0 })); sp.visible = false; sahne.add(sp); return { sp, yas: 9 }; });
+  let izSira = 0;
   const idx = (kid) => o.konular.findIndex((k) => k.id === kid);
   let suan = Math.max(0, idx(o.baslangic));
   const astYeri = (i) => yerler[i].clone().add(new Vector3(-PR * 1.35, PR * 0.35, PR * 0.95));
   A.a.position.copy(astYeri(suan)); A.a.rotation.y = 0.5;
+  /* 22.11.2026: roket son gidilen gezegende, astronotun yanında dik bekler; uçuş oradan kalkar */
+  const rokYeri = (i) => yerler[i].clone().add(new Vector3(PR * 1.5, PR * 0.15, PR * 0.85));
+  function park(i) { RK.r.visible = true; RK.r.position.copy(rokYeri(i)); RK.r.rotation.set(-Math.PI / 2, 0, 0.12); RK.alev.forEach((x) => { x.visible = false; }); }
+  park(suan);
 
   /* kamera: eğik bakış, hedef kaydırılabilir */
-  const hedef = yerler[suan].clone().setY(0), hedefSon = hedef.clone();
+  /* harita açılınca kamera bugünün gezegenine bakar (astronot son gittiği yerde bekler) */
+  const bugunI = o.konular.findIndex((k) => k.bugun);
+  const hedef = yerler[bugunI >= 0 ? bugunI : suan].clone().setY(0), hedefSon = hedef.clone();
   let uzak = 46, uzakSon = 46;
   /* ~38° eğik bakış: disk elips görünür, kampüsteki gibi derinlik */
   /* ~48° eğik bakış: derinlik kalır, yakın kollar ekranda birbirine girmez */
@@ -287,7 +369,7 @@ export function kur(o) {
       const d = yerler[i].distanceTo(kam.position), cap = Math.max(44, Math.min(190, (PR * 2.5) / (2 * d * Math.tan(MathUtils.degToRad(kam.fov / 2))) * gh));
       const gor = v.z < 1 && x > -cap && x < gw + cap && y > -cap && y < gh + cap;
       el.style.visibility = gor ? '' : 'hidden';
-      if (gor) { el.style.setProperty('--w', cap.toFixed(0) + 'px'); el.style.transform = 'translate(' + (x - cap / 2).toFixed(1) + 'px,' + (y - cap / 2).toFixed(1) + 'px)'; el.style.zIndex = String(1000 - Math.round(d * 10)); }
+      if (gor) { el.style.setProperty('--w', cap.toFixed(0) + 'px'); el.style.transform = 'translate(' + (x - cap / 2).toFixed(1) + 'px,' + (y - cap / 2).toFixed(1) + 'px)'; el.style.zIndex = String(1000 - Math.round(d * 10) + (o.konular[i].bugun ? 600 : 0)); }
     }
   }
 
@@ -307,8 +389,15 @@ export function kur(o) {
     const i = idx(kid); if (i < 0) return sonra();
     if (ucus || dalis) return;
     hedefSon.copy(yerler[i]).setY(0);
-    if (sakin) { suan = i; A.a.position.copy(astYeri(i)); hedef.copy(hedefSon); return setTimeout(sonra, 0); }
+    if (sakin) { suan = i; A.a.position.copy(astYeri(i)); park(i); hedef.copy(hedefSon); return setTimeout(sonra, 0); }
     if (i === suan) { A.a.position.copy(astYeri(i)); return dal(i, sonra); }
+    if (egri) {
+      /* roket: astronot rokete biner, gezegenler arasındaki yolu izleyerek uçar */
+      const fark = Math.abs(i - suan);
+      ucus = { roket: true, ta: tNo(suan), tb: tNo(i), t0: performance.now(), sure: Math.min(3200, Math.max(1300, 900 + fark * 230)), sonra, i, kalk: rokYeri(suan) };
+      A.a.visible = false; RK.r.visible = true; RK.r.position.copy(ucus.kalk); RK.alev.forEach((x) => { x.visible = true; });
+      return;
+    }
     const a = A.a.position.clone(), b = astYeri(i), m = a.clone().lerp(b, 0.5); m.y += 4 + a.distanceTo(b) * 0.18;
     ucus = { egri: new QuadraticBezierCurve3(a, m, b), t0: performance.now(), sure: 950 + Math.min(700, a.distanceTo(b) * 35), sonra, i };
     A.alevler.forEach((x) => { x.visible = true; });
@@ -327,7 +416,36 @@ export function kur(o) {
       G.toz.rotation.y += dt * 0.025; G.hale.material.opacity = 0.85 + Math.sin(t * 1.6) * 0.12; G.isin.material.rotation += dt * 0.12; G.gunes.rotation.y += dt * 0.1;
       G2.forEach((p, i) => { p.govde.rotation.y += dt * (0.18 + (i % 4) * 0.04); if (p.ek.ay) p.ek.ay.rotation.y += dt * 0.9; if (p.ek.altin) p.ek.altin.rotation.z += dt * 0.4; if (p.ek.bayrak) p.ek.bayrak.rotation.y = Math.sin(t * 4 + i) * 0.35; if (p.ek.halo) p.ek.halo.scale.setScalar(1 + Math.sin(t * 3) * 0.06); });
     }
-    if (ucus) {
+    if (!sakin) {
+      akanlar.forEach((x) => { const f = (t * 0.35 + x.faz) % 1; x.egri.getPointAt(f, x.s.position); x.s.position.y += 0.05; x.s.material.opacity = Math.sin(f * Math.PI); });
+      G2.forEach((p, i) => {
+        const b = p.ek.bulut; if (!b) return;
+        b.g.rotation.y += dt * 0.07;
+        if (b.dagit) {
+          /* yeni açılan gezegen: bulutlar dışa savrulup söner, gezegen ortaya çıkar */
+          if (!b.dagit.t0) b.dagit.t0 = now + 900;
+          const u = MathUtils.clamp((now - b.dagit.t0) / 1800, 0, 1), e = 1 - Math.pow(1 - u, 3);
+          b.puf.forEach((x) => { x.sp.position.copy(x.ev).multiplyScalar(1 + e * 2.2); x.sp.position.y += e * 1.2; x.sp.material.opacity = x.op * (1 - e); x.sp.scale.set(x.boy * (1 + e * 0.8), x.boy * 0.78 * (1 + e * 0.8), 1); });
+          if (u >= 1) { b.g.visible = false; p.ek.bulut = null; }
+        } else b.puf.forEach((x) => { x.sp.position.y = x.ev.y + Math.sin(t * 0.8 + x.faz) * 0.12; });
+      });
+      G2.forEach((p) => { if (p.ek.sutun) { p.ek.sutun.material.opacity = 0.75 + Math.sin(t * 2.2) * 0.25; p.ek.sutun.rotation.y += dt * 0.6; } });
+    }
+    iz.forEach((z) => { if (z.yas < 1) { z.yas += dt * 1.6; z.sp.material.opacity = 1 - z.yas; z.sp.scale.setScalar(0.55 * (1 - z.yas) + 0.1); if (z.yas >= 1) z.sp.visible = false; } });
+    if (ucus && ucus.roket) {
+      const u = Math.min(1, (now - ucus.t0) / ucus.sure), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      const yolNokta = (uu) => { const p = egri.getPoint(MathUtils.clamp(ucus.ta + (ucus.tb - ucus.ta) * uu, 0, 1));   /* kayan nokta 1'i aşmasın */ p.y += 1.6 + Math.sin(uu * Math.PI) * 2.2; return p; };
+      /* kalkış ve iniş astronotun durduğu yerden: ilk ve son %12'de yola karışır */
+      const p = yolNokta(e), kal = Math.max(0, 1 - e / 0.12), in_ = Math.max(0, (e - 0.88) / 0.12);
+      if (kal > 0) p.lerp(ucus.kalk, kal * kal);
+      if (in_ > 0) p.lerp(rokYeri(ucus.i), in_ * in_);
+      const ileri = yolNokta(Math.min(1, e + 0.02));
+      RK.r.position.copy(p); if (ileri.distanceToSquared(p) > 1e-4) RK.r.lookAt(ileri);
+      RK.alev.forEach((x, j) => { x.scale.set(1, 0.75 + Math.random() * 0.55, 1); });
+      hedefSon.copy(p).setY(0);
+      const z = iz[izSira++ % iz.length]; z.sp.visible = true; z.yas = 0; z.sp.position.copy(p).addScaledVector(RK.r.getWorldDirection(v).normalize(), -0.95);
+      if (u >= 1) { const s = ucus.sonra; suan = ucus.i; ucus = null; park(suan); A.a.position.copy(astYeri(suan)); A.a.visible = true; A.a.rotation.y = 0.5; dal(suan, s); }
+    } else if (ucus) {
       const u = Math.min(1, (now - ucus.t0) / ucus.sure), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
       A.a.position.copy(ucus.egri.getPoint(e));
       A.alevler.forEach((x, j) => { x.scale.y = 0.8 + Math.random() * 0.5; });
@@ -335,6 +453,7 @@ export function kur(o) {
       if (u >= 1) { const s = ucus.sonra; suan = ucus.i; ucus = null; A.alevler.forEach((x) => { x.visible = false; }); A.kL.rotation.z = 0.5; A.kR.rotation.z = -0.5; A.a.rotation.y = 0.5; dal(suan, s); }
     } else if (!sakin) {
       A.a.position.y = astYeri(suan).y + Math.sin(t * 1.8) * 0.12; A.a.rotation.z = Math.sin(t * 1.2) * 0.08;
+      RK.r.position.y = rokYeri(suan).y + Math.sin(t * 1.4 + 1.3) * 0.08;
     }
     const k = sakin ? 1 : 1 - Math.pow(0.002, dt);
     if (dalis) {
@@ -342,7 +461,7 @@ export function kur(o) {
       hedef.copy(dalis.h0).lerp(yerler[dalis.i], e); uzak = dalis.u0 + (PR * 1.25 - dalis.u0) * e;
       const atm = p.g.children[1]; if (atm && atm.material) { atm.material.opacity = 0.9 + e * 0.1; atm.scale.setScalar(PR * (4.2 + e * 3)); }
       p.govde.rotation.y += dt * (0.4 + e * 2);
-      A.a.visible = u < 0.45;
+      A.a.visible = u < 0.45; RK.r.visible = u < 0.45;
       if (u >= 1) {
         const s = dalis.sonra, d = dalis; dalis = null; s();
         /* konu kids-app'te harita üstünde açılır: perde kapattıktan sonra sahneyi eski haline getir,
@@ -350,7 +469,7 @@ export function kur(o) {
         setTimeout(() => {
           if (yok) return;
           const atm = p.g.children[1]; if (atm && atm.material) { atm.material.opacity = 0.9; atm.scale.setScalar(PR * 4.2); }
-          hedef.copy(yerler[d.i]).setY(0); hedefSon.copy(hedef); uzak = uzakSon = d.u0; A.a.visible = true;
+          hedef.copy(yerler[d.i]).setY(0); hedefSon.copy(hedef); uzak = uzakSon = d.u0; A.a.visible = true; park(suan);
           if (harita) harita.classList.remove('kz3-dal');
           basla();
         }, 700);

@@ -115,7 +115,7 @@
       U3 = m.kur({
         kap: kap, sakin: SAKIN, yuz: C ? C.avatar(o.hayvan, o.renk) : '',
         baslangic: yer[o.anahtar] || o.bugun || (o.konular.filter(function (k) { return !k.kilit; })[0] || {}).id,
-        konular: o.konular.map(function (k, i) { return { id: k.id, renk: k.renk, kilit: k.kilit, asama: k.asama, bugun: k.id === o.bugun, simge: C ? C.simge(k.simge) : '', el: lis[i] }; })
+        konular: o.konular.map(function (k, i) { return { id: k.id, renk: k.renk, kilit: k.kilit, yeniAcik: !!k.yeniAcik, asama: k.asama, bugun: k.id === o.bugun, simge: C ? C.simge(k.simge) : '', el: lis[i] }; })
       });
       U3.anahtar = o.anahtar; U3.harita = harita;
       harita.classList.remove('kz3-bekle'); harita.classList.add('kz3-acik');
@@ -284,7 +284,7 @@
   function dokunus(e) {
     if (mod !== 'harita' || SAKIN) return;
     var t = e.target;
-    if (!t || !t.closest || t.closest('button,a,input,select,textarea,label,[role="button"],.ka-dock,.ka-bugun')) return;
+    if (!t || !t.closest || t.closest('button,a,input,select,textarea,label,[role="button"],.ka-dock,.ka-serit')) return;
     if (!(t.closest('.ka-harita') || t === D.body || t === D.documentElement || t.id === 'kids-app' || t.hasAttribute('data-gorunum'))) return;
     var x = e.clientX, y = e.clientY, i;
     for (i = 0; i < ATES.length; i++) {

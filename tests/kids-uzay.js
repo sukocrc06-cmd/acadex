@@ -96,7 +96,7 @@ test('3B galaksi: modül yerel, önbellekte, düşerse düz harita; düğmeler g
   assert.match(css3, /\.ka-harita\.kz3-acik \.ka-ada\{[^}]*pointer-events:auto/);
   assert.match(css3, /isolation:isolate/, 'etiketler üst çubuğun üstüne taşmaz');
   assert.match(src, /if \(!kap\.isConnected\) \{ temizle\(\); return; \}/, 'harita kapanınca WebGL bırakılır');
-  assert.match(src, /if \(sakin\) \{ suan = i; A\.a\.position\.copy\(astYeri\(i\)\); hedef\.copy\(hedefSon\); return setTimeout\(sonra, 0\); \}/, 'hareketi azaltta uçuş ve dalış yok');
+  assert.match(src, /if \(sakin\) \{ suan = i; A\.a\.position\.copy\(astYeri\(i\)\); park\(i\); hedef\.copy\(hedefSon\); return setTimeout\(sonra, 0\); \}/, 'hareketi azaltta uçuş ve dalış yok');
 });
 
 /* 20.11.2026: kullanıcı ekranında Colours / Numbers / Animals üst üste binmişti */
@@ -136,7 +136,7 @@ test('canlı gökyüzü: nebula, kuyruklu yıldız, UFO; ateş topu ve UFO dokun
   for (const f of ['function nebula()', 'function kuyrukluEkle()', 'function ufoEkle()', 'function patlat(', 'function dokunus(e)']) assert.ok(js.includes(f), f);
   assert.match(js, /W\.addEventListener\('pointerdown', dokunus, true\)/, 'sürüklemeden önce yakalanır');
   assert.match(js, /if \(mod !== 'harita' \|\| SAKIN\) return;/, 'yalnız haritada, hareketi azaltta yok');
-  assert.match(js, /t\.closest\('button,a,input,select,textarea,label,\[role="button"\],\.ka-dock,\.ka-bugun'\)/, 'düğmeye dokunuş gezegeni açmaya devam eder');
+  assert.match(js, /t\.closest\('button,a,input,select,textarea,label,\[role="button"\],\.ka-dock,\.ka-serit'\)/, 'düğmeye dokunuş gezegeni açmaya devam eder');
   assert.match(js, /f\.hiz = true; f\.vx \*= 3\.4/, 'ateş topu hızlanır');
   assert.match(js, /if \(f\.hiz && f\.t > f\.bit\) \{ patlat\(/, 'sonra yıldız patlaması');
   assert.match(js, /u\.isin = 0\.9; u\.kac = true;/, 'UFO ışık saçar ve kaçar');
@@ -154,6 +154,30 @@ test('astronot arkadaşlar: gerçek düğme, sırayla el sallar / takla / zıpla
   assert.match(js, /<g class="kz-kol">/, 'sallanan kol');
   assert.match(css, /\.kz-dost\.kz-selam \.kz-kol\{animation:kzSalla/);
   assert.match(css, /prefers-reduced-motion:reduce\)\{\.kz-dost\.kz-selam/);
+});
+
+test('22.11.2026: büyük konu kartı yerine ince cam şerit; bugün ışık sütunu; roket bekler ve yol boyunca uçar; kilitli gezegen bulutsuda', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js'), mjs = read('kids/assets/kids-uzay3d.mjs');
+  /* kart kalktı; başlık ekran okuyucuda; sol üstte tek satırlık cam şerit + tek düğme (bugün: Uç, serbest: Sürpriz) */
+  assert.doesNotMatch(app, /class="ka-bugun/); assert.doesNotMatch(app, /class="ka-rehber/); assert.match(app, /<h1 class="ka-gizli">/);
+  assert.match(app, /function gunBandi\(bugun\)/); assert.match(app, /class="ka-serit-uc" data-konu="' \+ bugun\.id/); assert.match(app, /class="ka-serit-uc" data-surpriz/);
+  assert.match(app, /cikis = app\.querySelector\('\.ka-serit-acd'\)/);
+  assert.match(css, /\.ka-serit\{[^}]*min-height:56px/); assert.match(css, /backdrop-filter:blur/); assert.match(css, /prefers-reduced-motion:reduce\)\{\.ka-serit,/);
+  assert.doesNotMatch(css, /\.ka-rehber/);
+  /* yeni açılan gezegen: ilk girişte sessiz, sonra bir kez bulut dağılır */
+  assert.match(app, /if \(!il\.acikGor\) \{ il\.acikGor = acikIds\.slice\(\);/); assert.match(app, /yeniAcik: !!yeniAcik\[k\.id\]/);
+  assert.match(js, /yeniAcik: !!k\.yeniAcik/);
+  assert.match(src, /function bulutsuKur\(i\)/); assert.match(src, /if \(kilit \|\| k\.yeniAcik\)/); assert.match(src, /if \(u >= 1\) \{ b\.g\.visible = false; p\.ek\.bulut = null; \}/);
+  assert.match(src, /if \(sakin\) G2\.forEach\(\(p\) => \{ if \(p\.ek\.bulut && p\.ek\.bulut\.dagit\)/, 'hareketi azaltta dağılma beklemez');
+  /* roket son gidilen gezegende bekler, uçuş oradan kalkar, inince yine park eder */
+  assert.match(src, /function park\(i\)/); assert.match(src, /kalk: rokYeri\(suan\)/); assert.match(src, /p\.lerp\(rokYeri\(ucus\.i\), in_ \* in_\)/);
+  /* 3B: kamera bugüne bakar, sütun, roket, iz, ilerlemeye göre yol; eğri parametresi 1'i aşmaz */
+  assert.match(src, /const bugunI = o\.konular\.findIndex\(\(k\) => k\.bugun\);/);
+  assert.match(src, /ek\.sutun = sutun/); assert.match(src, /function roketKur\(yuzSvg\)/); assert.match(src, /ucus = \{ roket: true/);
+  assert.match(src, /const yanik = o\.konular\.map\(\(k\) => !k\.kilit && \(k\.asama \|\| 0\) >= 2\)/);
+  assert.match(src, /egri\.getPoint\(MathUtils\.clamp\(/);
+  assert.match(src, /if \(sakin\) \{ suan = i;[^\n]*return setTimeout\(sonra, 0\); \}\n    if \(i === suan\)/, 'hareketi azaltta roket yok, anında');
+  assert.ok(mjs.length > 100000 && /roket|BUGÜN|kayan nokta/.test(src), 'paket üretilmiş');
 });
 
 summary();

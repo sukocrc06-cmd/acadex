@@ -25,7 +25,7 @@ const TR = [
   'Hangi sınıftasın?', 'Sen hangisisin? Resmine dokun.', 'Gizli iki resmine sırayla dokun.', 'Biraz dinlenelim; birkaç dakika sonra yeniden dene.',
   'Okulunuzun Acadex Kids lisansı açık değil.', 'Bu ada yakında açılacak.', 'Bugün serbest gün. İstediğin adaya dokun.',
   'Mola zamanı! Bugün çok güzel çalıştın.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
-  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.', 'Adan büyüdü!', 'Hadi bir sahne kuralım!', 'Önce bir önceki paketi bitir.', 'Yeni bir kelime paketi açıldı!', 'Gümüş madalya kazandın!', 'Altın madalya kazandın!', 'Kelimelere dokun ve dinle.', 'Kim oynuyor? Resmine dokun.',
+  'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.', 'Adan büyüdü!', 'Yeni bir gezegen açıldı!', 'Hadi bir sahne kuralım!', 'Önce bir önceki paketi bitir.', 'Yeni bir kelime paketi açıldı!', 'Gümüş madalya kazandın!', 'Altın madalya kazandın!', 'Kelimelere dokun ve dinle.', 'Kim oynuyor? Resmine dokun.',
   /* 15.11.2026 · oyun odası çubuğu */ 'Adalara bakalım!', 'Kelimelerime bakalım!', 'Çıkartma albümüme bakalım!', 'Daha çok oyun var!'
 ];
 const EN = ['Let\'s learn our class words!', 'Great job! Our class words, done!', 'Find the pairs!', 'Say it with me!', 'Yes! Let\'s see!', 'Hmm! Let\'s see!', 'I like it too!', 'Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?', 'The end! Great reading!'];
