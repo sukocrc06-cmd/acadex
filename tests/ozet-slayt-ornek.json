@@ -1,0 +1,182 @@
+{
+  "ders": "Marketing Management · Chapter 1",
+  "baslik": "Defining Marketing for the New Realities",
+  "baslik_tr": "Yeni Gerçeklikler İçin Pazarlamayı Tanımlamak",
+  "alt": "Kotler, Keller & Chernev · Marketing Management, 16th ed.",
+  "simge": "🧭",
+  "ikidil": true,
+  "kaynak": "Chapter 1.pdf",
+  "slaytlar": [
+    {
+      "tur": "harita", "etiket": "Chapter map", "etiket_tr": "Bölüm haritası",
+      "baslik": "What is inside this chapter?", "baslik_tr": "Bu bölümde neler var? 7 soru, 7 başlık",
+      "ogeler": [
+        { "simge": "💰", "baslik": "Why marketing matters", "tr": "Pazarlama neden önemli?", "yildiz": 2 },
+        { "simge": "🎯", "baslik": "Scope: what is marketed, who markets", "tr": "Kapsam: ne pazarlanır, kim pazarlar", "yildiz": 2 },
+        { "simge": "🧩", "baslik": "Core marketing concepts", "tr": "Temel pazarlama kavramları", "yildiz": 3 },
+        { "simge": "📈", "baslik": "8 demand states", "tr": "8 talep durumu", "yildiz": 3 },
+        { "simge": "🌍", "baslik": "New marketing realities", "tr": "Yeni pazarlama gerçeklikleri", "yildiz": 3 },
+        { "simge": "🔗", "baslik": "Holistic marketing", "tr": "Bütünsel pazarlama", "yildiz": 3 },
+        { "simge": "🏛️", "baslik": "Evolution of marketing philosophies", "tr": "Pazarlama anlayışlarının evrimi", "yildiz": 3 },
+        { "simge": "🧑‍💼", "baslik": "Marketing management tasks", "tr": "Pazarlama yönetimi görevleri", "yildiz": 2 }
+      ],
+      "not": { "tur": "ipucu", "baslik": "Study tip", "metin": "Lists with a number (8 demands, 5 concepts, 4 dimensions) are favourite exam questions.", "tr": "Numaralı listeler (8 talep, 5 anlayış, 4 boyut) sınavın gözde sorularıdır." }
+    },
+    {
+      "tur": "kartlar", "etiket": "Definitions", "etiket_tr": "Tanımlar",
+      "baslik": "Marketing vs. marketing management", "baslik_tr": "Pazarlama ile pazarlama yönetimi aynı şey değil", "yildiz": 3,
+      "kartlar": [
+        { "simge": "📖", "baslik": "Marketing (AMA)", "metin": "The activity, institutions and processes for **creating, communicating, delivering and exchanging** offerings that have value for customers, partners and society.", "tr": "Değer yaratan teklifleri oluşturma, iletme, sunma ve değiş tokuş etme süreci." },
+        { "simge": "🛠️", "baslik": "Marketing management", "metin": "The **art and science** of choosing target markets and getting, keeping and growing customers through **superior customer value**.", "tr": "Hedef pazar seçip müşteri kazanma, elde tutma ve büyütme sanatı ve bilimi." },
+        { "simge": "🎯", "baslik": "Two basic goals", "maddeler": ["**Attract** new customers", "**Keep and grow** current customers"], "tr": "Yeni müşteri çek, mevcut müşteriyi tut ve büyüt." }
+      ],
+      "ornek": "**Short definition for the exam:** Marketing is about identifying and meeting human and social needs — profitably. Marketing management is how a firm does this in practice."
+    },
+    {
+      "tur": "kartlar", "etiket": "Scope", "etiket_tr": "Kapsam",
+      "baslik": "What is marketed, who markets, to whom?", "baslik_tr": "Ne pazarlanır, kim pazarlar, kime?", "yildiz": 2,
+      "kartlar": [
+        { "simge": "📦", "baslik": "10 things we market", "maddeler": ["Goods · Services · Events", "Experiences · People · Places", "Properties · Organizations", "Information · Ideas"], "tr": "Mal, hizmet, olay, deneyim, kişi, yer, mülk, kurum, bilgi, fikir." },
+        { "simge": "🙋", "baslik": "Marketer & prospect", "metin": "A **marketer** seeks a response — attention, a purchase, a vote, a donation — from another party, the **prospect**.", "tr": "Pazarlamacı karşı taraftan (aday) bir tepki ister." },
+        { "simge": "🏪", "baslik": "Market & 4 types", "metin": "A **market** is the set of actual and potential buyers who share a need.", "maddeler": ["Consumer · Business", "Global · Nonprofit & governmental"], "tr": "Pazar = ortak ihtiyacı olan gerçek ve olası alıcılar." }
+      ]
+    },
+    {
+      "tur": "kartlar", "etiket": "Core concepts", "etiket_tr": "Temel kavramlar",
+      "baslik": "Needs → wants → demands", "baslik_tr": "İhtiyaç → istek → talep zinciri", "yildiz": 3,
+      "kartlar": [
+        { "simge": "🍞", "baslik": "Needs", "metin": "Basic human requirements: **physical, social, individual**.", "tr": "Temel gereksinimler: fiziksel, sosyal, bireysel." },
+        { "simge": "🍔", "baslik": "Wants", "metin": "Needs directed to **specific objects** that might satisfy them (shaped by culture).", "tr": "İhtiyacın belirli bir ürüne yönelmesi." },
+        { "simge": "💳", "baslik": "Demands", "metin": "Wants for specific products backed by an **ability to pay**.", "tr": "Ödeme gücüyle desteklenen istek." }
+      ],
+      "not": { "tur": "bilgi", "simge": "🔎", "baslik": "5 types of needs", "metin": "Stated · Real · Unstated · Delight · Secret. Example: a customer asks for an \"inexpensive car\" (stated) but really wants low operating cost (real).", "tr": "Belirtilen, gerçek, belirtilmeyen, sevinç ve gizli ihtiyaçlar." }
+    },
+    {
+      "tur": "tablo", "etiket": "Demand states", "etiket_tr": "Talep durumları",
+      "baslik": "The 8 demand states", "baslik_tr": "8 talep durumu: tanım + pazarlamacının görevi", "yildiz": 3,
+      "sutunlar": ["Demand state", "What it means", "Marketer's task"],
+      "satirlar": [
+        ["Negative", "Customers dislike the product, even if it is useful", "Find out why; change the offer or message"],
+        ["Nonexistent", "Customers are unaware or uninterested", "Connect the product to a real need"],
+        ["Latent", "A strong need no product satisfies yet", "Develop new products"],
+        ["Declining", "Customers buy less or stop buying", "Reverse the decline: new markets, new message"],
+        ["Irregular", "Purchases vary by season, week, day or hour", "Balance demand: pricing, promotion"],
+        ["Unwholesome", "Products with bad social effects", "Discourage use (e.g. smoking campaigns)"],
+        ["Full", "Customers buy everything offered", "Keep quality and satisfaction"],
+        ["Overfull", "More people want it than can be served", "Reduce demand temporarily (demarketing)"]
+      ],
+      "satir_tr": ["Olumsuz", "Olmayan", "Gizli", "Azalan", "Düzensiz", "Zararlı", "Tam", "Aşırı"]
+    },
+    {
+      "tur": "kartlar", "etiket": "Core concepts", "etiket_tr": "Temel kavramlar",
+      "baslik": "Offer, value & satisfaction", "baslik_tr": "Teklif, değer ve tatmin", "yildiz": 3,
+      "kartlar": [
+        { "simge": "🎯", "baslik": "STP", "maddeler": ["**Segmentation**: split the market", "**Targeting**: choose segments", "**Positioning**: a clear place in the mind"], "tr": "Bölümlendir, hedefle, konumlandır." },
+        { "simge": "🎁", "baslik": "Value proposition & offering", "metin": "A **value proposition** is a set of benefits that satisfy needs. The **offering** delivers it: products, services, information, experiences. A **brand** is an offering from a known source.", "tr": "Değer önerisi = fayda seti; teklif bunu somutlaştırır." },
+        { "simge": "⚖️", "baslik": "Value & satisfaction", "metin": "**Value** = quality + service + price (the **QSP** triad). **Satisfaction** = perceived performance compared with expectations.", "tr": "Değer: kalite-hizmet-fiyat. Tatmin: algılanan performans ↔ beklenti." }
+      ]
+    },
+    {
+      "tur": "kartlar", "etiket": "Channels & media", "etiket_tr": "Kanallar ve medya",
+      "baslik": "How marketers reach customers", "baslik_tr": "Pazarlamacı müşteriye nasıl ulaşır?", "yildiz": 2,
+      "kartlar": [
+        { "simge": "📡", "baslik": "3 marketing channels", "maddeler": ["**Communication**: deliver messages", "**Distribution**: deliver the product", "**Service**: support transactions"], "tr": "İletişim, dağıtım ve hizmet kanalları." },
+        { "simge": "📺", "baslik": "Paid · Owned · Earned", "maddeler": ["**Paid**: TV, display ads, paid search", "**Owned**: website, blog, brand pages", "**Earned**: word of mouth, buzz, viral"], "tr": "Ücretli, sahip olunan, kazanılan medya." },
+        { "simge": "👀", "baslik": "Impressions vs. engagement", "metin": "An **impression** happens when a consumer sees a message. **Engagement** is active attention and involvement with it.", "tr": "Görülme ile etkileşim farklıdır." }
+      ],
+      "not": { "tur": "ipucu", "metin": "Also know: **supply chain** (raw materials → final buyer), **competition** (actual + potential rivals and substitutes), **marketing environment** (task + broad).", "tr": "Tedarik zinciri, rekabet ve pazarlama çevresi de tanım sorusu olabilir." }
+    },
+    {
+      "tur": "kartlar", "etiket": "New realities", "etiket_tr": "Yeni gerçeklikler",
+      "baslik": "4 forces changing marketing", "baslik_tr": "Pazarlamayı değiştiren 4 güç", "yildiz": 3,
+      "kartlar": [
+        { "simge": "🤖", "baslik": "Technology", "metin": "E-commerce, mobile communication and **AI** give marketers new capabilities.", "tr": "E-ticaret, mobil ve yapay zekâ." },
+        { "simge": "🌐", "baslik": "Globalization", "metin": "Geographic and political barriers fall; communication and **data mining** become almost limitless.", "tr": "Sınırlar kalkıyor, veri artıyor." },
+        { "simge": "🌱", "baslik": "Physical environment", "metin": "Two big changes: **climate change** and global **health** conditions.", "tr": "İklim değişikliği ve küresel sağlık." },
+        { "simge": "🤝", "baslik": "Social responsibility", "metin": "Poverty, pollution, injustice: firms raise the role of **CSR**.", "tr": "Kurumsal sosyal sorumluluk öne çıkıyor." }
+      ],
+      "not": { "tur": "bilgi", "simge": "📱", "baslik": "Result", "metin": "Consumers can now search, compare, share opinions and reject marketing; companies can collect richer data, target ads and cut costs. Channels change (retail transformation, disintermediation) and competition rises (private brands, mega-brands).", "tr": "Tüketici de şirket de güç kazandı; kanallar ve rekabet değişti." }
+    },
+    {
+      "tur": "kartlar", "etiket": "Holistic marketing", "etiket_tr": "Bütünsel pazarlama",
+      "baslik": "Holistic marketing: 4 dimensions", "baslik_tr": "Bütünsel pazarlama: her şey birbirine bağlı", "yildiz": 3,
+      "kartlar": [
+        { "simge": "💞", "baslik": "Relationship", "maddeler": ["Customers", "Employees", "Marketing partners", "Financial community"], "tr": "Kalıcı ilişkiler kur." },
+        { "simge": "🧩", "baslik": "Integrated", "metin": "Plan activities so that **\"the whole is greater than the sum of its parts\"** (4 Ps work together).", "tr": "Bütün, parçaların toplamından büyük." },
+        { "simge": "🧑‍🤝‍🧑", "baslik": "Internal", "metin": "Hire, train and motivate employees who **want to serve customers well**.", "tr": "Önce kendi çalışanına pazarla." },
+        { "simge": "📊", "baslik": "Performance", "maddeler": ["Financial accountability", "Social impact", "Environmental impact"], "tr": "Sonuçları ölç: finansal, sosyal, çevresel." }
+      ],
+      "not": { "tur": "ipucu", "baslik": "Modern 4 Ps", "metin": "The classic 4 Ps (product, price, place, promotion) become **People · Processes · Programs · Performance** in modern marketing management.", "tr": "Klasik 4P, modern yönetimde insan-süreç-program-performans olur." }
+    },
+    {
+      "tur": "surec", "etiket": "Philosophies", "etiket_tr": "Anlayışlar",
+      "baslik": "Evolution of marketing philosophies", "baslik_tr": "Üretimden topluma: 5 pazarlama anlayışı", "yildiz": 3,
+      "adimlar": [
+        { "baslik": "Production", "metin": "Make products available and cheap. \"The more I make, the more I sell.\"", "tr": "Üretim ve dağıtım verimliliği." },
+        { "baslik": "Product", "metin": "Best quality and features. \"A good product sells itself.\"", "tr": "Sürekli ürün iyileştirme." },
+        { "baslik": "Selling", "metin": "Big selling and promotion effort to beat resistance.", "tr": "Yoğun satış ve tutundurma." },
+        { "baslik": "Marketing", "metin": "Know target needs and satisfy them better than rivals. \"Find a need and fill it.\"", "tr": "Müşteri ihtiyacından başla.", "vurgu": true },
+        { "baslik": "Societal", "metin": "Balance consumer wants, company needs and **society's long-term interest**.", "tr": "Toplumun uzun vadeli çıkarı.", "vurgu": true }
+      ],
+      "not": { "tur": "uyari", "baslik": "Common mistake", "metin": "Selling concept ≠ marketing concept. Selling starts with the **factory** (push what we make); marketing starts with the **customer** (make what they need).", "tr": "Satış anlayışı fabrikadan, pazarlama anlayışı müşteriden başlar." }
+    },
+    {
+      "tur": "ornek", "etiket": "Model answer", "etiket_tr": "Örnek cevap", "renk": "yesil",
+      "baslik": "Write it like this: compare two concepts", "baslik_tr": "Sınavda böyle yaz: kavram + örnek + sonuç",
+      "metin": "The **selling concept** and the **marketing concept** start from different points.\n\nThe selling concept assumes that consumers will not buy enough unless the firm uses aggressive **selling and promotion**. It focuses on the products the company already makes. For example, a firm with unsold stock may run heavy discounts and ads.\n\nThe marketing concept starts with the **needs and wants of target markets**. The firm creates value and satisfies customers **better than competitors**. Its motto is \"find a need and fill it.\"\n\nIn conclusion, selling focuses on the **seller's** need to sell, while marketing focuses on the **buyer's** need to be satisfied. Today the societal concept adds society's long-term interest.",
+      "yan": { "simge": "🧩", "baslik": "Answer formula", "maddeler": ["**C**oncept: define each idea in one sentence", "**E**xample: give a firm, product or case", "**S**o what: say the key difference / result"], "tr": "Kavram → Örnek → Sonuç. Her paragrafta bir örnek." },
+      "ek": "**Bonus:** end with the societal concept to show you know the newest philosophy."
+    },
+    {
+      "tur": "kartlar", "etiket": "Organization", "etiket_tr": "Örgütlenme",
+      "baslik": "Marketing tasks & organization", "baslik_tr": "Pazarlama yönetiminin görevleri ve bölüm yapısı", "yildiz": 2,
+      "kartlar": [
+        { "simge": "✅", "baslik": "8 management tasks", "maddeler": ["Strategies & plans · Insights", "Connect with customers · Strong brands", "Create · Deliver · Communicate value", "Long-term growth"], "tr": "Strateji, içgörü, müşteri, marka, değer, büyüme." },
+        { "simge": "🏢", "baslik": "5 ways to organize", "maddeler": ["Functional · Geographic", "Product or brand", "Market · Matrix"], "tr": "Fonksiyonel, coğrafi, ürün/marka, pazar, matris." },
+        { "simge": "🔄", "baslik": "Customer-centric", "metin": "Turn the pyramid upside down: **customers** first, then frontline staff, then service managers, top management last.", "tr": "Ters piramit: en üstte müşteri." }
+      ],
+      "not": { "tur": "uyari", "baslik": "10 deadly sins (examples)", "metin": "Not customer driven · does not know target customers · weak competitor monitoring · weak brand building · poor use of technology.", "tr": "Ölümcül günahlar: müşteri odaksızlık, hedefi tanımamak, teknolojiyi kullanmamak…" }
+    },
+    {
+      "tur": "sorular", "etiket": "Practice", "etiket_tr": "Kendini sına",
+      "baslik": "Likely exam questions", "baslik_tr": "Olası sınav soruları: önce kendin cevapla",
+      "sorular": [
+        { "soru": "Define marketing management and state its two basic goals.", "tr": "Pazarlama yönetimini tanımla, iki temel amacını yaz.", "ipucu": "Art and science · attract new + keep and grow current customers.", "yildiz": 3 },
+        { "soru": "Explain four of the eight demand states with an example for each.", "tr": "8 talep durumundan dördünü örnekle açıkla.", "ipucu": "Irregular → public transport at rush hour; unwholesome → cigarettes.", "yildiz": 3 },
+        { "soru": "Compare the selling concept and the marketing concept.", "tr": "Satış ve pazarlama anlayışını karşılaştır.", "ipucu": "Starting point: factory vs. customer.", "yildiz": 3 },
+        { "soru": "What are the four dimensions of holistic marketing?", "tr": "Bütünsel pazarlamanın dört boyutu nedir?", "ipucu": "Relationship · Integrated · Internal · Performance.", "yildiz": 3 },
+        { "soru": "How have technology and globalization changed consumer and company capabilities?", "tr": "Teknoloji ve küreselleşme tüketiciyi ve şirketi nasıl değiştirdi?", "ipucu": "Search, compare, share, reject · data, targeting, efficiency.", "yildiz": 2 },
+        { "soru": "Explain paid, owned and earned media with one example each.", "tr": "Ücretli, sahip olunan ve kazanılan medyayı örnekle.", "ipucu": "TV ad · brand website · viral video.", "yildiz": 2 }
+      ]
+    },
+    {
+      "tur": "kartlar", "etiket": "Writing toolkit", "etiket_tr": "Yazım kalıpları",
+      "baslik": "Simple academic English that scores", "baslik_tr": "Kısa cümle, net kavram: bu kalıplarla kolay puan",
+      "kartlar": [
+        { "simge": "🚪", "baslik": "Define", "maddeler": ["X is defined as…", "According to Kotler, X means…"], "tr": "Tanım cümlesi" },
+        { "simge": "↔️", "baslik": "Compare", "maddeler": ["While X focuses on…, Y…", "The main difference is…"], "tr": "Karşılaştırma" },
+        { "simge": "📌", "baslik": "Example", "maddeler": ["For example, …", "A good example is…"], "tr": "Örnek verme" },
+        { "simge": "💡", "baslik": "Conclude", "maddeler": ["As a result, …", "In conclusion, …"], "tr": "Sonuç" }
+      ],
+      "not": { "tur": "uyari", "simge": "🚫", "baslik": "Avoid", "metin": "very long sentences · lists without explanation · answers with no example.", "tr": "Uzun cümle, açıklamasız liste ve örneksiz cevaptan kaçın." }
+    },
+    {
+      "tur": "tekrar", "etiket": "Cheat sheet", "etiket_tr": "5 dakikalık son tekrar",
+      "baslik": "Last review",
+      "kutular": [
+        { "simge": "📖", "baslik": "Marketing", "metin": "Meeting needs profitably. Mgmt = choose targets; get, keep, grow customers.", "tr": "Tanım + 2 amaç." },
+        { "simge": "📦", "baslik": "Scope", "metin": "10 things marketed · marketer seeks a response from a prospect.", "tr": "Ne, kim, kime." },
+        { "simge": "🍔", "baslik": "Needs chain", "metin": "Needs → wants → demands (ability to pay). 5 need types.", "tr": "İhtiyaç zinciri." },
+        { "simge": "📈", "baslik": "8 demands", "metin": "Negative, nonexistent, latent, declining, irregular, unwholesome, full, overfull.", "tr": "8 talep." },
+        { "simge": "⚖️", "baslik": "Value", "metin": "QSP triad · satisfaction = performance vs. expectation.", "tr": "Değer ve tatmin." },
+        { "simge": "📺", "baslik": "Media", "metin": "Paid · owned · earned. Impression ≠ engagement.", "tr": "Medya türleri." },
+        { "simge": "🌍", "baslik": "New realities", "metin": "Technology, globalization, physical environment, social responsibility.", "tr": "4 güç." },
+        { "simge": "🔗", "baslik": "Holistic", "metin": "Relationship, integrated, internal, performance.", "tr": "4 boyut." },
+        { "simge": "🏛️", "baslik": "Philosophies", "metin": "Production → product → selling → marketing → societal.", "tr": "5 anlayış." },
+        { "simge": "🏢", "baslik": "Organization", "metin": "Functional, geographic, product, market, matrix · customer-centric pyramid.", "tr": "Bölüm yapısı." },
+        { "simge": "✍️", "baslik": "Formula", "metin": "Concept → Example → So what. Short sentences.", "tr": "Kavram → Örnek → Sonuç." },
+        { "simge": "🍀", "baslik": "Exam tips", "metin": "Number your lists, define first, give one example per idea.", "tr": "Listeyi numarala, önce tanım, her fikre bir örnek." }
+      ]
+    }
+  ]
+}

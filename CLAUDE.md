@@ -28,6 +28,7 @@
 | **Eski kart tasarımı** (`.formula-card`, `.formula-vars-list`) | `js/dashboard.js` ~3040 — **ekranda görünmüyor**, dokunmadan önce iki kez düşün |
 | **PDF indir** (tek kart) | `js/dashboard.js` → `appendStudyCardToDoc`; tipografi `PDF_TYPE` sabitinden |
 | **Toplu PDF** ("Hepsini PDF yap") | `js/dashboard.js` → `exportAllFilteredCardsToPDF` |
+| **Akıllı çalışma slaytları** (özetin "PDF" ve "slaytlar" düğmesi, `oz-*`/`ozv-*`) | çizim + görüntüleyici + PDF isteği `js/ozet-slayt.js`; üretim + Cloudflare PDF `supabase/functions/ozet-slayt` (secret: `CF_ACCOUNT_ID`, `CF_API_TOKEN`); veri `study_cards.slayt` (`20261122d_ozet_slayt.sql`); örnek deste `tests/ozet-slayt-ornek.json` |
 | **Kapak + üst/alt şerit** | `buildPdfCoverPage`, `applyBrandedLayout` |
 | **Özet üretimi** (Gemini/Groq, kapılar, atıflar) | `supabase/functions/summarize-document/index.ts` |
 | **Haftalık Acadex önerisi** (sınav salonu, `sn-acx`, `[data-acx]`) | `js/acadex-ink.js` → `haftalık Acadex önerisi` bloğu (`acadexWeekly`, `paintAcx`) |
@@ -103,4 +104,4 @@ node tests/<dosya>.js          # iterasyon sırasında SADECE ilgili dosya
 
 - Log varsa **önce logu kodla eşleştir**, tahmin yürütme.
 - Edge function logunda zaman damgaları mikrosaniyedir; ilk `Istek alindi` satırını sıfır kabul edip çıkarırsan gerçek süre çizelgesi çıkar.
-- Bir UI hatasında "düzelttim" demeden önce o kodun **gerçekten ekrana çizen yol** olduğunu doğrula (bkz. Bölüm 4).
+- Bir UI hatasında "düzelttim" demeden önce o kodun **gerçekten ekrana çizen yol** olduğunu doğrula (bkz. Bölüm 4).
