@@ -118,7 +118,7 @@
 
   /* çocuk haritasındaki bant: bugünün etkinliği ve (varsa) sınıfın kelime seti */
   function cocukBant(S) {
-    var b = S.okul && S.okul.bulut ? { etkinlik: S.etkinlik || '', set: S.set || null } : gunBilgi(S.sinif, new Date(), { bulut: false, setler: yerelAl(V.OKUL.kod).setler });
+    var b = S.okul && S.okul.bulut ? { etkinlik: S.etkinlik || '', set: S.set || null } : gunBilgi(S.sinif, new Date(), { bulut: false, setler: yerelAl((S.okul && S.okul.kod) || V.OKUL.kod).setler });
     if (!b.etkinlik && !b.set) return '';
     var kid = b.set ? setKaydet(b.set) : null;
     return '<section class="kr-cocuk">' + (b.etkinlik ? '<p class="kr-etkinlik">' + C.simge('yildiz') + '<span><small>Bugün okulda</small><b>' + esc(b.etkinlik) + '</b></span></p>' : '') +

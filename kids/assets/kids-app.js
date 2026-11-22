@@ -25,7 +25,7 @@
   function paketSay(kid) { return K.paketSayisi(kid, V.BANT[S.sinif.bant]); }
   function paket() { return K.al(S.konu) || K.al('colours'); }
   /* örnek okulda bugünün konusu: açık plan > haftalık şablon (kids-kres.js) */
-  function yerelKonu() { return W.KIDS_KRES ? W.KIDS_KRES.gunBilgi(S.sinif, new Date(), { bulut: false, setler: W.KIDS_KRES.yerelAl(V.OKUL.kod).setler }).konu : V.gunKonu(S.sinif.id); }
+  function yerelKonu() { return W.KIDS_KRES ? W.KIDS_KRES.gunBilgi(S.sinif, new Date(), { bulut: false, setler: W.KIDS_KRES.yerelAl((S.okul && S.okul.kod) || V.OKUL.kod).setler }).konu : V.gunKonu(S.sinif.id); }
   function renkler() { return paket().ogeler(bant()); }
   function ben(il) { return C.avatarGiy(S.ogr[1], (il || ilerleme()).giysi, S.ogr[4]); }
   function dur() { if (aktif && aktif.dur) aktif.dur(); aktif = null; SES.sus(); }
@@ -39,14 +39,14 @@
     ciz('<section class="ka-giris"><div class="ka-kart">' + balon('Merhaba! Ben <b>Acadia</b>. Okul kodunu yazar mısın?') +
       '<form data-f novalidate><label class="ka-gizli" for="ka-kod">Okul kodu</label><input id="ka-kod" class="ka-girdi" data-odak autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="AY-2026" value="' + esc(al('sonKod', '')) + '">' +
       '<p class="ka-uyari" role="alert">' + (hata || '') + '</p><button type="submit" class="ka-buyuk">Devam ' + C.simge('oynat') + '</button></form>' +
-      '<p class="ka-ornek">Okul kodu, okulunun verdiği kartın altında yazar. Denemek için örnek okul: <button type="button" data-ornek>' + B.ORNEK_KOD + '</button></p><p class="ka-donus">' + (cihaz().length ? '<button type="button" class="ka-bag" data-kimler>← Kim oynuyor?</button> · ' : '') + '<a href="#">← Tanıtım sayfası</a> · <a href="#ogretmen">Öğretmen girişi</a></p></div></section>', 'giris');
+      '<p class="ka-ornek">Okul kodu, okulunun verdiği kartın altında yazar. Denemek için örnek okul: <button type="button" data-ornek="' + V.OKUL.kod + '">' + V.OKUL.kod + '</button> (anaokulu) · <button type="button" data-ornek="' + V.OKUL_ILK.kod + '">' + V.OKUL_ILK.kod + '</button> (ilkokul)</p><p class="ka-donus">' + (cihaz().length ? '<button type="button" class="ka-bag" data-kimler>← Kim oynuyor?</button> · ' : '') + '<a href="#">← Tanıtım sayfası</a> · <a href="#ogretmen">Öğretmen girişi</a></p></div></section>', 'giris');
     var f = app.querySelector('[data-f]'), inp = f.querySelector('input');
-    app.querySelector('[data-ornek]').addEventListener('click', function () { inp.value = V.OKUL.kod; SES.fx('dokun'); inp.focus(); });
+    app.querySelectorAll('[data-ornek]').forEach(function (b) { b.addEventListener('click', function () { inp.value = b.getAttribute('data-ornek'); SES.fx('dokun'); inp.focus(); }); });
     var km = app.querySelector('[data-kimler]'); if (km) km.addEventListener('click', function () { SES.fx('dokun'); kimOynuyor(); });
     f.addEventListener('submit', function (e) {
       e.preventDefault(); var k = inp.value.trim().toLocaleUpperCase('tr').replace(/\s+/g, '').replace(/İ/g, 'I');
       if (!k) return girisKod('Okul kodunu yazar mısın?');
-      if (k === V.OKUL.kod) { S.okul = V.OKUL; koy('sonKod', k); SES.fx('dogru'); return girisSinif(); }
+      if (V.ornek(k)) { S.okul = V.ornek(k); koy('sonKod', k); SES.fx('dogru'); return girisSinif(); }
       yukleniyor('Okulunu arıyorum…');
       B.okulBul(k).then(function (o) {
         if (!o.siniflar.length) return girisKod('Okulunda henüz sınıf yok. Öğretmenine haber verir misin?');
@@ -103,9 +103,9 @@
     if (!o || cihaz().length) return;
     var sd = al('sonDurum', null), x = null;
     if (o.token && sd && sd.token === o.token && sd.d && sd.d.ogr) x = { kod: sd.d.okul.kod, okul: sd.d.okul.ad, sinif: sd.d.sinif.id, sinifAd: sd.d.sinif.ad, id: sd.d.ogr.id, ad: sd.d.ogr.ad, hayvan: sd.d.ogr.hayvan, renk: sd.d.ogr.renk == null ? null : sd.d.ogr.renk, token: o.token, son: Date.now() };
-    else if (o.kod === V.OKUL.kod) {
-      var s = V.OKUL.siniflar.filter(function (z) { return z.id === o.sinif; })[0], g = s && s.ogr.filter(function (z) { return z[0] === o.ogr; })[0];
-      if (g) x = { kod: V.OKUL.kod, okul: V.OKUL.ad, sinif: s.id, sinifAd: s.ad, id: null, ad: g[0], hayvan: g[1], renk: g[4], token: null, son: Date.now() };
+    else if (V.ornek(o.kod)) {
+      var oo = V.ornek(o.kod), s = oo.siniflar.filter(function (z) { return z.id === o.sinif; })[0], g = s && s.ogr.filter(function (z) { return z[0] === o.ogr; })[0];
+      if (g) x = { kod: oo.kod, okul: oo.ad, sinif: s.id, sinifAd: s.ad, id: null, ad: g[0], hayvan: g[1], renk: g[4], token: null, son: Date.now() };
     }
     if (x) koy('cihaz', [x]);
   }
@@ -127,10 +127,10 @@
     if (!duzen) SES.soyle('Kim oynuyor? Resmine dokun.', 'tr');
   }
   function cihazGir(x) {
-    if (x.kod === V.OKUL.kod) {
-      S.okul = V.OKUL; S.sinif = V.OKUL.siniflar.filter(function (s) { return s.id === x.sinif; })[0];
+    if (V.ornek(x.kod)) {
+      S.okul = V.ornek(x.kod); S.sinif = S.okul.siniflar.filter(function (s) { return s.id === x.sinif; })[0];
       S.ogr = S.sinif && S.sinif.ogr.filter(function (g) { return g[0] === x.ad; })[0];
-      if (S.sinif && S.ogr) { koy('oturum', { kod: V.OKUL.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); S.ucus = true; return panel(); }
+      if (S.sinif && S.ogr) { koy('oturum', { kod: S.okul.kod, sinif: S.sinif.id, ogr: S.ogr[0] }); S.ucus = true; return panel(); }
       cihazSil(x); return kimOynuyor();
     }
     if (x.token) { koy('oturum', { kod: x.kod, token: x.token }); S.ucus = true; return bulutAc(x.token, x); }
@@ -218,7 +218,9 @@
   }
   /* 22.11.2026 Cümle Galaksisi (kids-cumle.js): ilkokul (Yıldızlar 7-10 yaş) ya da velinin sınıf seçtiği çocukta
      haritanın sağ üstünde dönen bir galaksi kapısı */
-  function portalAcik(il) { return !!W.KIDS_CUMLE && (il.ilkSinif > 0 || (il.ilkSinif === undefined && S.sinif && S.sinif.bant === 'yildiz')); }
+  /* 22.11.2026: ilkokulda (kurum türü) açık; tür bilinmiyorsa (eski önbellek) Yıldızlar sınıfında; veli kapatabilir ya da başka çocukta açabilir */
+  function ilkokulMu() { return S.okul && S.okul.tur ? S.okul.tur === 'ilkokul' : !!(S.sinif && S.sinif.bant === 'yildiz'); }
+  function portalAcik(il) { return !!W.KIDS_CUMLE && (il.ilkSinif > 0 || (il.ilkSinif === undefined && ilkokulMu())); }
   function portalHtml(il) {
     if (!portalAcik(il)) return '';
     return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>';
@@ -256,7 +258,7 @@
     if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid,
       konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, yeniAcik: !!yeniAcik[k.id], asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
     var cg = app.querySelector('[data-cumle]');
-    if (cg) cg.addEventListener('click', function () { SES.fx('dokun'); jole(cg); var r = W.KIDS_CUMLE.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur }); if (r && r.dur) aktif = r; });
+    if (cg) cg.addEventListener('click', function () { SES.fx('dokun'); jole(cg); var r = W.KIDS_CUMLE.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
     var sz = app.querySelector('[data-surpriz]');
     if (sz) sz.addEventListener('click', function () { var l = acikIds.filter(function (id) { return id !== (S.konu || ''); }), id = l[Math.floor(Math.random() * l.length)], b = id && app.querySelector('.ka-ada[data-konu="' + id + '"]'); jole(sz); if (b) b.click(); });
     /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
@@ -858,7 +860,7 @@
     yukleniyor('Haritanı hazırlıyorum…');
     B.durum(token).then(function (d) {
       if (d.ilerleme !== undefined) { var kd = JSON.parse(JSON.stringify(d)); delete kd.ilerleme; koy('sonDurum', { token: token, d: kd }); }
-      S.token = token; S.okul = { kod: d.okul.kod, ad: d.okul.ad, bulut: true };
+      S.token = token; S.okul = { kod: d.okul.kod, ad: d.okul.ad, tur: d.okul.tur || null, bulut: true };
       S.sinif = { id: d.sinif.id, ad: d.sinif.ad, bant: d.sinif.bant }; S.ogr = [d.ogr.ad, d.ogr.hayvan, d.ogr.id, null, d.ogr.renk == null ? null : d.ogr.renk]; S.bugun = d.bugun; S.etkinlik = d.etkinlik || ''; S.set = d.set || null;
       /* bu tarayıcıdaki kayıtla sunucudakini birleştir: hangisi daha yeniyse */
       var yerel = al(ilAnahtar(), null), uzak = d.ilerleme;

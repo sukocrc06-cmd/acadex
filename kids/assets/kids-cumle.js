@@ -128,7 +128,8 @@
 
   var oz = null, durum = null;
   function il() { return oz.il(); }
-  function sinif(i) { var s = i.ilkSinif; return s === 2 || s === 3 || s === 4 ? s : 0; }
+  /* sınıf: velinin / çocuğun seçtiği; seçilmemişse sınıf adından ("2-A" → 2) */
+  function sinif(i) { var s = i.ilkSinif; if (s === 2 || s === 3 || s === 4) return s; return oz && (oz.sinifAd === 2 || oz.sinifAd === 3 || oz.sinifAd === 4) ? oz.sinifAd : 0; }
   function kaydet(i) { oz.kaydet(i); }
 
   /* ---------------- galaksiler arası geçiş ---------------- */

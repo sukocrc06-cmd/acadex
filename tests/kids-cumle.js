@@ -65,7 +65,7 @@ test('denetim, yıldız, karıştırma', () => {
   for (let i = 0; i < 30; i++) { const k = KC.karisik(p); assert.notDeepEqual(Array.from(k), [0, 1, 2]); }
 });
 test('haritada kapı yalnız ilkokulda; veli köşesinde sınıf; oyun bağlı', () => {
-  assert.match(app, /function portalAcik\(il\) \{ return !!W\.KIDS_CUMLE && \(il\.ilkSinif > 0 \|\| \(il\.ilkSinif === undefined && S\.sinif && S\.sinif\.bant === 'yildiz'\)\); \}/);
+  assert.match(app, /function portalAcik\(il\) \{ return !!W\.KIDS_CUMLE && \(il\.ilkSinif > 0 \|\| \(il\.ilkSinif === undefined && ilkokulMu\(\)\)\); \}/);
   assert.match(app, /gunBandi\(bugun\) \+ portalHtml\(il\) \+/);
   assert.match(app, /W\.KIDS_CUMLE\.ac\(\{ kok: app, il: ilerleme, kaydet:/);
   assert.match(app, /<select data-vilk>/); assert.match(app, /x\.ilkSinif = Math\.max\(0, \+this\.value\)/);

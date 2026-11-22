@@ -19,6 +19,10 @@
   var C = window.KIDS_CIZ;
 
   var BANT = { minik: 'Minikler · 3-4 yaş', kasif: 'Kâşifler · 5-6 yaş', yildiz: 'Yıldızlar · 7-10 yaş' };
+  /* 22.11.2026 kurum türü (20261122_kids_kurum_turu.sql): sınıfın yaş dünyası türe uyar; veritabanı da denetler */
+  var TUR = { kres: 'Kreş', anaokulu: 'Anaokulu', ilkokul: 'İlkokul' };
+  var TUR_BANT = { kres: ['minik', 'kasif'], anaokulu: ['minik', 'kasif'], ilkokul: ['yildiz'] };
+  var turu = function (o) { return TUR[o && o.tur] ? o.tur : 'anaokulu'; };
   var HAYVAN = { tavsan: 'Tavşan', ayi: 'Ayı', kedi: 'Kedi', civciv: 'Civciv', panda: 'Panda', kurbaga: 'Kurbağa', tilki: 'Tilki', kopek: 'Köpek' };
   var RESIM = { kedi: 'Kedi', elma: 'Elma', top: 'Top', balik: 'Balık', cicek: 'Çiçek', ay: 'Ay', araba: 'Araba', kus: 'Kuş', cilek: 'Çilek' };
   var ODEME = { bekliyor: ['Ödeme bekliyor', 'warn'], odendi: ['Ödendi', 'ok'], deneme: ['Deneme', 'blue'] };
@@ -197,6 +201,9 @@
     A.openDrawer(yeni ? 'Yeni Kids okulu' : o.ad,
       '<form id="kd-of" class="kd-form" novalidate>' +
       f('ad', 'Okulun adı', o.ad, ' required maxlength="120" autocomplete="off"') +
+      '<fieldset class="kd-bant kd-tur"><legend>Kurum türü <small>sınıfların yaş dünyası buna göre seçilir</small></legend>' + Object.keys(TUR).map(function (k) {
+        return '<label><input type="radio" name="tur" value="' + k + '"' + (turu(o) === k ? ' checked' : '') + '><span><b>' + TUR[k] + '</b>' + TUR_BANT[k].map(function (b) { return BANT[b].split(' · ')[1]; }).join(' / ') + (k === 'ilkokul' ? ' · Cümle Galaksisi' : '') + '</span></label>';
+      }).join('') + '</fieldset>' +
       '<div class="kd-2">' + f('kod', 'Okul kodu <small>velinin bir kez yazacağı kod</small>', o.kod, ' required maxlength="13" class="in mono" autocomplete="off" spellcheck="false"') + f('ilce', 'İlçe', o.ilce) + '</div>' +
       '<div class="kd-2">' + f('yetkili_ad', 'Yetkili kişi', o.yetkili_ad) + f('yetkili_tel', 'Yetkili telefonu', o.yetkili_tel, ' type="tel" inputmode="tel"') + '</div>' +
       '<div class="kd-2">' + f('lisans_bas', 'Lisans başlangıcı', o.lisans_bas, ' type="date" required') + f('lisans_bit', 'Lisans bitişi', o.lisans_bit, ' type="date" required') + '</div>' +
@@ -217,7 +224,7 @@
       if (!/^[A-Z0-9]{2,8}-[0-9]{4}$/.test(v('kod'))) { h.textContent = 'Okul kodu AY-2026 biçiminde olmalı (2-8 harf ya da rakam, tire, 4 rakam).'; F.elements.kod.focus(); return; }
       if (!v('lisans_bas') || !v('lisans_bit') || v('lisans_bit') < v('lisans_bas')) { h.textContent = 'Lisans bitişi başlangıçtan önce olamaz.'; return; }
       var b = F.querySelector('[type=submit]'); b.disabled = true; h.textContent = '';
-      var p = { kod: v('kod'), ad: v('ad'), ilce: v('ilce'), il: o.il || 'Ankara', yetkili_ad: v('yetkili_ad'), yetkili_tel: v('yetkili_tel'), lisans_bas: v('lisans_bas'), lisans_bit: v('lisans_bit'),
+      var p = { kod: v('kod'), ad: v('ad'), tur: (F.querySelector('[name=tur]:checked') || {}).value || 'anaokulu', ilce: v('ilce'), il: o.il || 'Ankara', yetkili_ad: v('yetkili_ad'), yetkili_tel: v('yetkili_tel'), lisans_bas: v('lisans_bas'), lisans_bit: v('lisans_bit'),
         kota: parseInt(v('kota'), 10) || 100, ucret_kurus: Math.round(parseFloat(v('ucret').replace(',', '.') || '0') * 100), odeme: v('odeme'), notlar: F.elements.notlar.value };
       if (!yeni) { p.id = o.id; p.aktif = F.elements.aktif.checked; }
       try {
@@ -239,7 +246,7 @@
     m.innerHTML = '<button type="button" class="lnk kd-geri" id="kd-geri">← bütün okullar</button>' +
       '<div class="card ink kd-bas"><div class="kd-bas-sol"><span class="mono kd-kod">' + X(o.kod) + '</span><h2 class="disp">' + X(o.ad) + '</h2>' +
         '<p class="muted">' + X([o.ilce, o.il].filter(Boolean).join(', ')) + (o.yetkili_ad ? ' · ' + X(o.yetkili_ad) : '') + (o.yetkili_tel ? ' · ' + X(o.yetkili_tel) : '') + '</p>' +
-        '<div class="kd-etiket">' + lisansPill(o) + ' <span class="pill ' + ODEME[o.odeme][1] + '">' + ODEME[o.odeme][0] + ' · ' + TL(o.ucret_kurus) + '</span> <span class="pill">' + DT(o.lisans_bas) + ' → ' + DT(o.lisans_bit) + (gk >= 0 ? ' (' + NF(gk) + ' gün)' : '') + '</span></div></div>' +
+        '<div class="kd-etiket"><span class="pill blue">' + TUR[turu(o)] + '</span> ' + lisansPill(o) + ' <span class="pill ' + ODEME[o.odeme][1] + '">' + ODEME[o.odeme][0] + ' · ' + TL(o.ucret_kurus) + '</span> <span class="pill">' + DT(o.lisans_bas) + ' → ' + DT(o.lisans_bit) + (gk >= 0 ? ' (' + NF(gk) + ' gün)' : '') + '</span></div></div>' +
         '<div class="kd-bas-sag"><div class="kd-kota-b">' + kotaCubuk(o.ogrenci, o.kota) + '<small>' + (kalan > 0 ? NF(kalan) + ' öğrenci daha eklenebilir' : 'kota dolu') + '</small></div>' +
         '<div class="acts"><button type="button" class="btn ghost sm" id="kd-duz">okulu düzenle</button><button type="button" class="btn ghost sm" id="kd-sifre">' + (o.sifre_var ? 'öğretmen şifresini yenile' : 'öğretmen şifresi oluştur') + '</button>' +
         '<button type="button" class="btn ghost sm" id="kd-ysifre">' + (o.yonetici_var ? 'yönetici şifresini yenile' : 'kreş yönetici şifresi oluştur') + '</button>' +
@@ -328,9 +335,9 @@
 
   var sinifForm = function (o, s, m) {
     A.openDrawer(s ? s.ad + ' sınıfı' : 'Yeni sınıf',
-      '<form id="kd-sf" class="kd-form" novalidate><label class="fld">Sınıfın adı<input class="in" name="ad" maxlength="60" required value="' + X(s ? s.ad : '') + '" placeholder="Papatyalar, 2-A…"></label>' +
-      '<fieldset class="kd-bant"><legend>Yaş dünyası <small>zorluk ve yazı miktarı buna göre değişir</small></legend>' + Object.keys(BANT).map(function (k, i) {
-        return '<label><input type="radio" name="bant" value="' + k + '"' + ((s ? s.bant === k : i === 1) ? ' checked' : '') + '><span><b>' + BANT[k].split(' · ')[0] + '</b>' + BANT[k].split(' · ')[1] + '</span></label>';
+      '<form id="kd-sf" class="kd-form" novalidate><label class="fld">Sınıfın adı<input class="in" name="ad" maxlength="60" required value="' + X(s ? s.ad : '') + '" placeholder="' + (turu(o) === 'ilkokul' ? '2-A, 3-B…' : 'Papatyalar, Uğur Böcekleri…') + '"></label>' +
+      '<fieldset class="kd-bant"><legend>Yaş dünyası <small>' + TUR[turu(o)] + ' · zorluk ve yazı miktarı buna göre değişir</small></legend>' + TUR_BANT[turu(o)].map(function (k, i, L) {
+        return '<label><input type="radio" name="bant" value="' + k + '"' + ((s && L.indexOf(s.bant) >= 0 ? s.bant === k : i === L.length - 1) ? ' checked' : '') + '><span><b>' + BANT[k].split(' · ')[0] + '</b>' + BANT[k].split(' · ')[1] + '</span></label>';
       }).join('') + '</fieldset><p class="err" id="kd-sf-h" role="alert"></p><div class="acts"><button type="submit" class="btn">' + (s ? 'kaydet' : 'sınıfı ekle') + '</button></div></form>');
     var F = $('#kd-sf');
     F.addEventListener('submit', async function (e) {
