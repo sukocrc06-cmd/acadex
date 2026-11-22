@@ -3402,6 +3402,75 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
 @media (max-width:560px){.kc2-kart{padding:14px}.kc2-acd{width:56px;height:56px}.kc2-dinle{min-width:58px}.kc2-b{min-height:46px;padding:0 13px}.kc2-yuva{min-width:48px;min-height:46px}.kc2-loko{width:48px}.kc2 .kc2-ust{flex-wrap:wrap}.kc2-sinif-sec button{min-height:34px;padding:0 9px;font-size:12px}}
 @media (prefers-reduced-motion:reduce){.ka-portal,.ka-portal-g,.kc2-gezegenler li,.kc2-roket,.kc2-warp-c,.kc2-tren > *,.kc2-yildizlar em,.kc2-ipucu{animation:none!important}}
 
+/* ===== 22.11.2026: beş duraklı gezegen, ilerleme, yeni oyunlar, veli raporu ===== */
+.kc2-kilit .kc2-gz{cursor:not-allowed}.kc2-kilit .kc2-gz .kc{filter:grayscale(.6) brightness(.7)}
+.kc2-kilit .kc2-ad{background:rgba(70,80,126,.55);border-color:rgba(255,255,255,.25)}.kc2-kilit .kc2-ad b{color:#C9D3EE}
+.kc2-ad i u{display:inline-block;width:7px;height:7px;margin:3px 1px 0;border-radius:50%;background:rgba(255,255,255,.3);text-decoration:none}
+.kc2-ad i u.on{background:#FFD23F;box-shadow:0 0 6px rgba(255,210,63,.9)}
+.kc2-rozet{position:absolute;right:4%;top:2%;z-index:2;font-size:clamp(20px,2.4vw,30px);filter:drop-shadow(0 3px 0 rgba(11,16,51,.5));animation:kc2Suz 3s ease-in-out infinite}
+.kc2-gz.kc2-salla{animation:kc2Salla .45s}
+/* gezegen ekranı */
+.kc2-duraklar-alan{position:relative;display:grid;justify-items:center;gap:8px;width:min(980px,100%);margin:0 auto;padding:10px 16px 30px}
+.kc2-gz-buyuk{width:min(220px,46vw);animation:kc2Suz 4s ease-in-out infinite}.kc2-gz-buyuk .kc{display:block;width:100%;height:auto;filter:drop-shadow(0 0 30px color-mix(in srgb,var(--r) 70%,transparent))}
+.kc2-duraklar{position:relative;display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin:0;padding:0;list-style:none}
+.kc2-duraklar li{animation:kc2Pop .45s calc(var(--j) * .08s) cubic-bezier(.3,1.5,.5,1) both}
+.kc2-durak{display:grid;justify-items:center;gap:3px;width:150px;min-height:150px;padding:14px 8px 10px;border:3px solid #0B1033;border-radius:26px;background:#FFFDF6;box-shadow:0 6px 0 #0B1033;color:#23304D;font:inherit;cursor:pointer}
+.kc2-durak b{font:800 18px/1.1 var(--bas)}.kc2-durak small{font-weight:800;color:#7A86A6}
+.kc2-durak i{font-style:normal;font-size:18px;line-height:1}.kc2-durak em{font-style:normal;color:#D8DEEA;-webkit-text-stroke:1px #23304D}.kc2-durak em.on{color:#FFD23F}
+.kc2-d-no{display:grid;place-items:center;width:58px;height:58px;border:3px solid #23304D;border-radius:50%;background:var(--r);font-size:24px}.kc2-d-no .kc{width:32px;height:32px}
+.kc2-d-bitti{background:linear-gradient(#FFF6D6,#FFFDF6)}
+.kc2-d-simdi{box-shadow:0 6px 0 #0B1033,0 0 0 5px #FFD23F,0 0 28px rgba(255,210,63,.6);animation:kc2Ipucu 1.6s ease-in-out infinite}
+.kc2-durak[aria-disabled=true]{background:#3A4470;color:#C9D2F0;border-style:dashed;border-color:#8A94B8;box-shadow:none;cursor:not-allowed}
+.kc2-durak[aria-disabled=true] small{color:#AEB8D8}.kc2-durak[aria-disabled=true] .kc2-d-no{background:#56628A;border-color:#8A94B8}
+.kc2-durak:not([aria-disabled=true]):active{transform:translateY(4px);box-shadow:0 2px 0 #0B1033}
+.kc2-durak:focus-visible{outline:4px solid #FFD23F;outline-offset:3px}
+.kc2-rozet-k{display:grid;justify-items:center;gap:2px;margin-top:10px;padding:14px 22px;border:3px solid #23304D;border-radius:24px;background:linear-gradient(#FFE9A0,#FFD23F);color:#23304D;box-shadow:0 6px 0 #0B1033;text-align:center;animation:kc2Pop2 .6s cubic-bezier(.3,1.6,.5,1) both}
+.kc2-rozet-k span{font-size:48px;line-height:1}.kc2-rozet-k b{font:800 24px/1.1 var(--bas)}.kc2-rozet-k small{font-weight:700}
+/* seçenekler (kelime, boşluk, diyalog) */
+.kc2-secler{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:18px}
+.kc2-sec{min-height:58px;padding:0 22px;border:3px solid #23304D;border-radius:18px;background:#fff;box-shadow:0 5px 0 #23304D;color:#23304D;font:800 clamp(18px,2.2vw,24px)/1.15 var(--bas);cursor:pointer}
+.kc2-sec:active{transform:translateY(3px);box-shadow:0 2px 0 #23304D}.kc2-sec:focus-visible{outline:4px solid #FFD23F;outline-offset:2px}
+.kc2-sec-dogru{background:#C6EDCF;animation:kc2Otur .35s cubic-bezier(.3,1.6,.5,1)}
+.kc2-sec-yanlis{background:#FFD0D0;opacity:.6}
+.kc2-secler-dy{flex-direction:column;align-items:stretch}.kc2-secler-dy .kc2-sec{text-align:left;font-size:clamp(16px,2vw,21px);padding:10px 18px}
+/* kelime */
+.kc2-kelime{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap}
+.kc2-k-res{width:130px;height:130px;padding:10px;border:3px solid #23304D;border-radius:26px;background:color-mix(in srgb,var(--r) 30%,#fff)}.kc2-k-res .kc{width:100%;height:100%}
+.kc2-k-yok{background:#FFF6D6}
+.kc2-k-tr{display:grid;gap:2px;margin:0}.kc2-k-tr small{font-weight:800;color:#7A86A6;text-transform:uppercase;letter-spacing:.06em;font-size:12px}.kc2-k-tr b{font:800 clamp(28px,4vw,40px)/1.1 var(--bas)}
+/* kural */
+.kc2-kural-tr{margin:14px 0 8px;font-size:17px;font-weight:700;color:#3C4766}
+.kc2-kural-s{display:grid;gap:10px;margin:0 0 14px;padding:0;list-style:none}
+.kc2-kural-s li{display:flex;align-items:center;gap:12px;opacity:.25;transform:translateX(-10px);transition:opacity .4s,transform .4s cubic-bezier(.3,1.5,.5,1)}
+.kc2-kural-s li.kc2-ks-on{opacity:1;transform:none}
+.kc2-ks-sol,.kc2-ks-sag{padding:8px 14px;border:3px solid #23304D;border-radius:14px;font:800 clamp(16px,2vw,21px)/1.1 var(--bas)}
+.kc2-ks-sol{background:#BFE3FF}.kc2-ks-sag{background:#FFD23F;transform:scale(.8);transition:transform .35s .15s cubic-bezier(.3,1.8,.5,1)}
+.kc2-ks-on .kc2-ks-sag{transform:scale(1)}
+.kc2-kural-s i{font-style:normal;font-size:24px;font-weight:800;color:#8E5CF6}
+.kc2-kural-o{display:flex;align-items:center;gap:12px;padding:12px;border-radius:18px;background:#EEF2FB;opacity:.3;transition:opacity .4s}
+.kc2-kural-o.kc2-ks-on{opacity:1}.kc2-kural-o p{display:grid;margin:0}.kc2-kural-o b{font:800 20px/1.2 var(--bas)}.kc2-kural-o small{font-weight:700;color:#5B6788}
+/* boşluk */
+.kc2-bosluk{margin:22px 0 0;text-align:center;font:800 clamp(22px,3vw,32px)/1.5 var(--bas)}
+.kc2-gap{display:inline-block;min-width:96px;margin:0 6px;padding:0 14px;border:3px dashed #8E5CF6;border-radius:14px;background:#F2ECFF;color:#8E5CF6}
+.kc2-gap-dolu{border-style:solid;border-color:#23304D;background:#C6EDCF;color:#23304D;animation:kc2Otur .35s cubic-bezier(.3,1.6,.5,1)}
+/* diyalog */
+.kc2-diyalog{display:grid;gap:14px}
+.kc2-dy-acd{display:flex;align-items:center;gap:12px}
+.kc2-diyalog .kc2-balon b{font-size:clamp(20px,2.6vw,26px)}.kc2-diyalog .kc2-balon small{text-transform:none;letter-spacing:0;font-size:13px}
+.kc2-dy-sen{justify-self:end;min-width:min(60%,320px);padding:12px 18px;border:3px solid #23304D;border-radius:20px 20px 4px 20px;background:color-mix(in srgb,var(--r) 35%,#fff);text-align:right}
+.kc2-dy-bos{color:#7A86A6;font-weight:700}.kc2-dy-cevap{font:800 clamp(18px,2.4vw,24px)/1.2 var(--bas);animation:kc2Otur .35s cubic-bezier(.3,1.6,.5,1)}
+/* veli raporu */
+.kc2-rapor{margin-top:6px}
+.kc2-rapor h3 small{font-size:14px;color:#7A86A6}
+.kc2-r-tema{display:grid;gap:6px;margin:8px 0;padding:0;list-style:none}
+.kc2-r-tema li{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) auto;align-items:center;gap:10px;font-size:14px}
+.kc2-r-tema span{height:9px;border-radius:9px;background:#E3E8F2;overflow:hidden}.kc2-r-tema span i{display:block;height:100%;background:#8E5CF6;border-radius:9px}
+.kc2-r-tema small{font-weight:800;color:#5B6788}
+.kc2-r-kalip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0}
+.kc2-r-kalip h4,.kc2-rapor h4{margin:8px 0 4px;font-size:15px}.kc2-r-kalip ul{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:14px}
+@media (max-width:560px){.kc2-durak{width:calc(50vw - 30px);min-height:130px}.kc2-k-res{width:100px;height:100px}.kc2-r-tema li{grid-template-columns:1fr 1fr auto}}
+@media (prefers-reduced-motion:reduce){.kc2-rozet,.kc2-gz-buyuk,.kc2-duraklar li,.kc2-d-simdi,.kc2-rozet-k{animation:none!important}.kc2-kural-s li,.kc2-kural-o{opacity:1;transform:none}}
+
 </style>
 </head>
 <body class="kl">
@@ -8975,6 +9044,136 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
   W.KIDS_PANEL3 = { evcil: evcil, gunum: gunum, uyku: uyku, ac: ac, seritHtml: seritHtml, cumleler: cumleler, RUTIN: RUTIN, GECE: GECE, IHTIYAC: IHTIYAC, TUR: TUR, evcilOku: evcilOku, enDusuk: enDusuk, SAATTE: SAATTE };
 })(window);
 
+/* ---- kids-cumle2.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · CÜMLE GALAKSİSİ DURAK VERİSİ (kids/assets/kids-cumle2.js), 22.11.2026
+   Her tema (gezegen) için kids-cumle.js'in beş durağından dördünün verisi
+   (beşincisi, cümle blokları, kids-cumle.js VERI'de):
+     k  kelime bankası  [İngilizce, Türkçe]          (resim KIDS_RESIM'de varsa gösterilir)
+     r  kural kartı     { ad, tr, s: [[sol, sağ]…], o: örnek cümle, ot: örneğin Türkçesi }
+     b  boşluk doldurma [cümle "___" ile, doğru, [yanlışlar], Türkçesi, kalıp]
+     d  diyalog         [soru, doğru cevap, [yanlış cevaplar], sorunun Türkçesi, kalıp]
+   Kalıplar MEB Maarif Modeli İngilizce temalarının "Target Language Chunks"larından.
+   kalıp adları veli raporunda gruplanır (KALIP).
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var KALIP = { be: 'am / is / are', soru: 'Soru kelimeleri (what, who, where…)', yer: 'Yer: in / on / at', have: 'have got / has got', can: 'can / can\'t',
+    there: 'there is / there are', like: 'like / love / hate', cont: 'Şimdiki zaman (-ing)', simple: 'Geniş zaman (her gün…)', must: 'must / mustn\'t / should',
+    past: 'Geçmiş zaman (was, played, went)', karsi: 'Karşılaştırma (taller, the best)', will: 'will / going to', istek: 'Rica ve istek (Can I…? some / any)', tanisma: 'Selamlaşma ve tanışma' };
+  var EK = {
+    '2-okul': {
+      k: [['teacher', 'öğretmen'], ['classroom', 'sınıf'], ['garden', 'bahçe'], ['playground', 'oyun alanı'], ['library', 'kütüphane'], ['canteen', 'kantin'], ['Monday', 'pazartesi'], ['Friday', 'cuma']],
+      r: { ad: 'am / is / are', tr: '"Olmak" kişiye göre değişir. Ben → am, o → is, siz/biz/onlar → are.', s: [['I', 'am'], ['He · She · It', 'is'], ['You · We · They', 'are']], o: 'She is my teacher.', ot: 'O benim öğretmenim.' },
+      b: [['She ___ in the garden.', 'is', ['am', 'are'], 'O bahçede.', 'be'], ['I ___ Can.', 'am', ['is', 'are'], 'Ben Can\'ım.', 'be'], ['___ is he? He is my teacher.', 'Who', ['What', 'Where'], 'O kim?', 'soru'], ['Where is she? She is ___ the library.', 'in', ['on', 'at'], 'O kütüphanede.', 'yer']],
+      d: [['What\'s your name?', 'My name is Can.', ['It is Monday.', 'I am fine.'], 'Adın ne?', 'tanisma'], ['How are you?', 'I\'m fine, thanks!', ['It is a chair.', 'He is my teacher.'], 'Nasılsın?', 'tanisma'], ['What day is it today?', 'It\'s Monday today.', ['She is in the garden.', 'Nice to meet you!'], 'Bugün günlerden ne?', 'soru']]
+    },
+    '2-sinif': {
+      k: [['chair', 'sandalye'], ['desk', 'sıra'], ['board', 'tahta'], ['pencil', 'kalem'], ['ruler', 'cetvel'], ['book', 'kitap'], ['bag', 'çanta'], ['eraser', 'silgi']],
+      r: { ad: 'Çoğul: bir → birden çok + s', tr: 'Birden fazla şey için kelimenin sonuna -s gelir.', s: [['a chair', 'two chairs'], ['a book', 'five books'], ['a pencil', 'three pencils']], o: 'How many chairs? Five chairs.', ot: 'Kaç sandalye? Beş sandalye.' },
+      b: [['What ___ is it? It is blue.', 'colour', ['day', 'name'], 'O ne renk?', 'soru'], ['How many ___? Three pencils.', 'pencils', ['pencil', 'a pencil'], 'Kaç kalem?', 'soru'], ['___ I go to the bathroom, please?', 'Can', ['Is', 'Am'], 'Tuvalete gidebilir miyim?', 'can'], ['It is ___ turn!', 'my', ['I', 'me'], 'Sıra bende!', 'be']],
+      d: [['What colour is the chair?', 'The chair is blue.', ['Five chairs.', 'Yes, you can.'], 'Sandalye ne renk?', 'soru'], ['Can I go to the bathroom, please?', 'Yes, you can.', ['It is red.', 'Good luck!'], 'Tuvalete gidebilir miyim?', 'can'], ['How many books?', 'Two books.', ['It is a book.', 'It\'s my turn!'], 'Kaç kitap?', 'soru']]
+    },
+    '2-kisisel': {
+      k: [['nose', 'burun'], ['eyes', 'gözler'], ['hair', 'saç'], ['hat', 'şapka'], ['shoes', 'ayakkabı'], ['T-shirt', 'tişört'], ['cold', 'soğuk'], ['sunny', 'güneşli']],
+      r: { ad: 'have got', tr: '"Var / sahibim" demek için have got kullanılır.', s: [['I', 'have got'], ['You · We · They', 'have got'], ['He · She', 'has got']], o: 'I\'ve got blue eyes.', ot: 'Mavi gözlerim var.' },
+      b: [['I ___ blue eyes.', 'have got', ['has got', 'am'], 'Mavi gözlerim var.', 'have'], ['How old ___ you?', 'are', ['is', 'am'], 'Kaç yaşındasın?', 'be'], ['How ___ the weather? It is cold.', 'is', ['are', 'am'], 'Hava nasıl?', 'be'], ['I\'ve got ___ red hat.', 'a', ['an', 'two'], 'Kırmızı bir şapkam var.', 'have']],
+      d: [['How old are you?', 'I\'m seven.', ['It is cold.', 'I\'ve got a nose.'], 'Kaç yaşındasın?', 'be'], ['How\'s the weather?', 'It\'s sunny.', ['I\'m fine.', 'Yes, it is.'], 'Hava nasıl?', 'be'], ['What have you got?', 'I\'ve got a red hat.', ['It\'s Monday.', 'I\'m seven.'], 'Neyin var?', 'have']]
+    },
+    '2-aile': {
+      k: [['mother', 'anne'], ['father', 'baba'], ['sister', 'kız kardeş'], ['brother', 'erkek kardeş'], ['baby', 'bebek'], ['family', 'aile'], ['grandmother', 'büyükanne'], ['grandfather', 'büyükbaba']],
+      r: { ad: 'he / she · his / her', tr: 'Erkek için he (o) ve his (onun), kadın için she ve her.', s: [['father · brother', 'he'], ['mother · sister', 'she'], ['my mother has got…', 'has got']], o: 'She\'s my mother. She has got blue eyes.', ot: 'O benim annem. Mavi gözleri var.' },
+      b: [['___ is my father.', 'He', ['She', 'They'], 'O benim babam.', 'be'], ['My mother ___ blue eyes.', 'has got', ['have got', 'is'], 'Annemin mavi gözleri var.', 'have'], ['Who is ___? She is my sister.', 'she', ['he', 'it'], 'O kim? O kız kardeşim.', 'soru'], ['I ___ hungry!', 'am', ['is', 'are'], 'Acıktım!', 'be']],
+      d: [['Who is she?', 'She\'s my mother.', ['He\'s my father.', 'I\'m hungry!'], 'O kim? (kadın)', 'soru'], ['Who is he?', 'He\'s my brother.', ['She\'s my sister.', 'It\'s lunchtime!'], 'O kim? (erkek)', 'soru'], ['I\'m sorry, Mum!', 'That\'s fine!', ['You look great!', 'He\'s my father.'], 'Özür dilerim anne!', 'tanisma']]
+    },
+    '2-ev': {
+      k: [['kitchen', 'mutfak'], ['bedroom', 'yatak odası'], ['bathroom', 'banyo'], ['living room', 'oturma odası'], ['bed', 'yatak'], ['sofa', 'kanepe'], ['cat', 'kedi'], ['dog', 'köpek']],
+      r: { ad: 'Nerede? in the kitchen', tr: '"…-de / -da" demek için in the + oda adı.', s: [['mutfakta', 'in the kitchen'], ['yatak odasında', 'in the bedroom'], ['bahçede', 'in the garden']], o: 'Where\'s the cat? The cat is in the kitchen.', ot: 'Kedi nerede? Kedi mutfakta.' },
+      b: [['Where ___ the cat?', 'is', ['are', 'am'], 'Kedi nerede?', 'be'], ['The bed is ___ the bedroom.', 'in', ['on', 'at'], 'Yatak yatak odasında.', 'yer'], ['There ___ five cats in the garden.', 'are', ['is', 'am'], 'Bahçede beş kedi var.', 'there'], ['We ___ two pets.', 'have got', ['has got', 'are'], 'İki evcil hayvanımız var.', 'have']],
+      d: [['Where\'s the dog?', 'The dog is in the garden.', ['We\'ve got two pets.', 'Come and see!'], 'Köpek nerede?', 'yer'], ['Where is the sofa?', 'It\'s in the living room.', ['It\'s a cat.', 'Yes, I do.'], 'Kanepe nerede?', 'yer'], ['Have you got a pet?', 'Yes, I\'ve got a cat.', ['It\'s in the kitchen.', 'Look around!'], 'Evcil hayvanın var mı?', 'have']]
+    },
+    '2-sehir': {
+      k: [['bread', 'ekmek'], ['banana', 'muz'], ['apple', 'elma'], ['milk', 'süt'], ['egg', 'yumurta'], ['cheese', 'peynir'], ['soup', 'çorba'], ['water', 'su']],
+      r: { ad: 'Do you like…? Yes, I do. / No, I don\'t.', tr: 'Sevip sevmediğini sorarken Do you like…? Cevap: Yes, I do ya da No, I don\'t.', s: [['Do you like bread?', 'Yes, I do.'], ['Do you like beans?', 'No, I don\'t.'], ['I like', 'apples']], o: 'Do you like bananas? Yes, I do.', ot: 'Muz sever misin? Evet, severim.' },
+      b: [['___ you like bread?', 'Do', ['Is', 'Are'], 'Ekmek sever misin?', 'like'], ['No, I ___.', 'don\'t', ['do', 'not'], 'Hayır, sevmem.', 'like'], ['Is ___ a banana in the kitchen?', 'there', ['it', 'he'], 'Mutfakta muz var mı?', 'there'], ['Can I have ___ bread?', 'some', ['a', 'an'], 'Biraz ekmek alabilir miyim?', 'istek']],
+      d: [['Do you like milk?', 'Yes, I do.', ['It\'s delicious!', 'Two eggs.'], 'Süt sever misin?', 'like'], ['Can I have some soup?', 'Yes, you can.', ['No, I don\'t.', 'I\'m hungry!'], 'Biraz çorba alabilir miyim?', 'istek'], ['Is there an apple in the kitchen?', 'Yes, there is.', ['Yes, I do.', 'Enjoy your meal!'], 'Mutfakta elma var mı?', 'there']]
+    },
+    '3-okul': {
+      k: [['nurse', 'hemşire'], ['library', 'kütüphane'], ['September', 'eylül'], ['birthday', 'doğum günü'], ['rules', 'kurallar'], ['corridor', 'koridor'], ['classroom', 'sınıf'], ['teacher', 'öğretmen']],
+      r: { ad: 'must / mustn\'t', tr: 'Kurallar için: must = yapmalısın, mustn\'t = yapmamalısın.', s: [['You must', 'follow the rules'], ['You mustn\'t', 'run in the corridor'], ['You mustn\'t', 'shout']], o: 'You must listen to your teacher.', ot: 'Öğretmenini dinlemelisin.' },
+      b: [['You ___ run in the corridor.', 'mustn\'t', ['must', 'can'], 'Koridorda koşmamalısın.', 'must'], ['You ___ follow the rules.', 'must', ['mustn\'t', 'are'], 'Kurallara uymalısın.', 'must'], ['Is there a nurse ___ school?', 'at', ['in', 'on'], 'Okulda hemşire var mı?', 'yer'], ['I am eight ___ old.', 'years', ['year', 'old'], 'Sekiz yaşındayım.', 'be']],
+      d: [['What month is it now?', 'It\'s September.', ['I\'m eight years old.', 'Happy birthday!'], 'Şimdi hangi aydayız?', 'soru'], ['Where is Daphne?', 'She\'s in the library.', ['It\'s Monday.', 'See you later!'], 'Daphne nerede?', 'yer'], ['Is there a nurse at school?', 'Yes, there is.', ['Yes, I am.', 'You must.'], 'Okulda hemşire var mı?', 'there']]
+    },
+    '3-sinif': {
+      k: [['clock', 'saat'], ['ruler', 'cetvel'], ['scissors', 'makas'], ['glue', 'yapıştırıcı'], ['winter', 'kış'], ['spring', 'ilkbahar'], ['summer', 'yaz'], ['autumn', 'sonbahar']],
+      r: { ad: 'There is / There are', tr: 'Bir şey varsa there is, birden çok şey varsa there are.', s: [['bir cetvel', 'There is a ruler.'], ['iki cetvel', 'There are two rulers.'], ['var mı?', 'Is there…? / Are there…?']], o: 'There are two rulers on the table.', ot: 'Masada iki cetvel var.' },
+      b: [['There ___ two rulers on the table.', 'are', ['is', 'am'], 'Masada iki cetvel var.', 'there'], ['There ___ a clock on the wall.', 'is', ['are', 'have'], 'Duvarda bir saat var.', 'there'], ['What ___ is it? It\'s five o\'clock.', 'time', ['day', 'colour'], 'Saat kaç?', 'soru'], ['How many pencils have you ___?', 'got', ['get', 'are'], 'Kaç kalemin var?', 'have']],
+      d: [['What time is it?', 'It\'s five o\'clock.', ['It\'s Maths.', 'They are rulers.'], 'Saat kaç?', 'soru'], ['What are they?', 'They are rulers.', ['It is raining.', 'There is a clock.'], 'Onlar ne?', 'soru'], ['How\'s the weather today?', 'It\'s raining today.', ['It\'s ten o\'clock.', 'Yes, there is.'], 'Bugün hava nasıl?', 'cont']]
+    },
+    '3-kisisel': {
+      k: [['tall', 'uzun boylu'], ['short', 'kısa boylu'], ['dress', 'elbise'], ['sunglasses', 'güneş gözlüğü'], ['shoes', 'ayakkabı'], ['trousers', 'pantolon'], ['hat', 'şapka'], ['T-shirt', 'tişört']],
+      r: { ad: 'Şimdiki zaman: am / is / are + -ing', tr: 'Şu an olan şeyi anlatmak için: am/is/are + fiil + ing.', s: [['I', 'am wearing'], ['She', 'is wearing'], ['They', 'are wearing']], o: 'I\'m wearing a T-shirt today.', ot: 'Bugün tişört giyiyorum.' },
+      b: [['I am ___ a T-shirt today.', 'wearing', ['wear', 'wears'], 'Bugün tişört giyiyorum.', 'cont'], ['What ___ you wearing?', 'are', ['is', 'do'], 'Ne giyiyorsun?', 'cont'], ['___ dress is this? It\'s Jasmine\'s.', 'Whose', ['Who', 'What'], 'Bu kimin elbisesi?', 'soru'], ['I ___ big sunglasses.', 'love', ['loves', 'am love'], 'Büyük güneş gözlüklerini severim.', 'like']],
+      d: [['What does she look like?', 'She\'s tall and beautiful.', ['She\'s wearing a dress.', 'It\'s Jasmine\'s dress.'], 'O neye benziyor?', 'be'], ['Whose dress is this?', 'It\'s Jasmine\'s dress.', ['I\'m wearing a dress.', 'She is tall.'], 'Bu kimin elbisesi?', 'soru'], ['What are you wearing today?', 'I\'m wearing a T-shirt.', ['I love T-shirts.', 'It\'s my pleasure!'], 'Bugün ne giyiyorsun?', 'cont']]
+    },
+    '3-aile': {
+      k: [['cook', 'yemek yapmak'], ['swim', 'yüzmek'], ['breakfast', 'kahvaltı'], ['piano', 'piyano'], ['always', 'her zaman'], ['never', 'asla'], ['sometimes', 'bazen'], ['every morning', 'her sabah']],
+      r: { ad: 'Geniş zaman: he / she → fiil + s', tr: 'Her gün yapılan işleri anlatırken o (he/she) ile fiile -s gelir.', s: [['I', 'prepare'], ['She', 'prepares'], ['My father', 'reads']], o: 'She prepares breakfast every morning.', ot: 'O her sabah kahvaltı hazırlar.' },
+      b: [['She ___ breakfast every morning.', 'prepares', ['prepare', 'preparing'], 'O her sabah kahvaltı hazırlar.', 'simple'], ['My father ___ cook.', 'can', ['cans', 'is'], 'Babam yemek yapabilir.', 'can'], ['My sister ___ swim. She is a baby.', 'can\'t', ['can', 'is'], 'Kız kardeşim yüzemez.', 'can'], ['___ you help me, please?', 'Could', ['Do', 'Are'], 'Bana yardım eder misin lütfen?', 'istek']],
+      d: [['How old is your mother?', 'She\'s thirty-five.', ['She can cook.', 'Every morning.'], 'Annen kaç yaşında?', 'be'], ['What does she do every morning?', 'She prepares breakfast.', ['She is thirty.', 'No problem!'], 'O her sabah ne yapar?', 'simple'], ['Could you help me, please?', 'No problem!', ['She can\'t swim.', 'Follow me!'], 'Bana yardım eder misin?', 'istek']]
+    },
+    '3-ciftlik': {
+      k: [['farmer', 'çiftçi'], ['cow', 'inek'], ['hen', 'tavuk'], ['horse', 'at'], ['sheep', 'koyun'], ['tractor', 'traktör'], ['corn', 'mısır'], ['vegetables', 'sebzeler']],
+      r: { ad: 'Şimdi mi, her gün mü?', tr: 'Her gün yapılan: I milk the cows. Şu an yapılan: He is milking the cows now.', s: [['her gün', 'I milk the cows.'], ['şimdi', 'I am milking the cows.'], ['şimdi (o)', 'He is watering the vegetables.']], o: 'What is the farmer doing now? He is watering the vegetables.', ot: 'Çiftçi şimdi ne yapıyor? Sebzeleri suluyor.' },
+      b: [['There ___ five cows on our farm.', 'are', ['is', 'am'], 'Çiftliğimizde beş inek var.', 'there'], ['He is ___ the vegetables now.', 'watering', ['water', 'waters'], 'Şimdi sebzeleri suluyor.', 'cont'], ['I ___ our cows every day.', 'milk', ['milking', 'milks'], 'Her gün ineklerimizi sağarım.', 'simple'], ['The hens ___ eating corn.', 'are', ['is', 'am'], 'Tavuklar mısır yiyor.', 'cont']],
+      d: [['What is the farmer doing now?', 'He\'s watering the vegetables.', ['He waters the vegetables.', 'There is a farm.'], 'Çiftçi şimdi ne yapıyor?', 'cont'], ['What is there on your farm?', 'There\'s a farmhouse.', ['I milk the cows.', 'No way!'], 'Çiftliğinde ne var?', 'there'], ['What do you do every day?', 'I feed the hens.', ['I\'m feeding the hens now.', 'How beautiful!'], 'Her gün ne yaparsın?', 'simple']]
+    },
+    '3-sehir': {
+      k: [['salad', 'salata'], ['soup', 'çorba'], ['fruit', 'meyve'], ['olives', 'zeytin'], ['salt', 'tuz'], ['pizza', 'pizza'], ['bread', 'ekmek'], ['cheese', 'peynir']],
+      r: { ad: 'some / any', tr: 'Olumlu cümlede some, soru cümlesinde any.', s: [['I want', 'some salad'], ['Have you got', 'any olives?'], ['Yes, I\'ve got', 'some olives']], o: 'Have you got any olives? Yes, I\'ve got some.', ot: 'Zeytinin var mı? Evet, biraz var.' },
+      b: [['I want ___ salad, please.', 'some', ['any', 'a'], 'Biraz salata istiyorum lütfen.', 'istek'], ['Have you got ___ olives?', 'any', ['some', 'a'], 'Hiç zeytinin var mı?', 'istek'], ['___ I have some soup, please?', 'Can', ['Do', 'Am'], 'Biraz çorba alabilir miyim?', 'istek'], ['What ___ you want?', 'do', ['are', 'is'], 'Ne istersin?', 'simple']],
+      d: [['What do you want?', 'I want some salad, please.', ['Enjoy your meal!', 'Yes, I\'ve got some.'], 'Ne istersin?', 'istek'], ['Have you got any olives?', 'Yes, I\'ve got some olives.', ['I\'ll take some fruit.', 'Pass me the salt.'], 'Hiç zeytinin var mı?', 'istek'], ['Enjoy your meal!', 'Thank you!', ['I want some soup.', 'Yes, you can.'], 'Afiyet olsun!', 'tanisma']]
+    },
+    '4-okul': {
+      k: [['always', 'her zaman'], ['today', 'bugün'], ['music', 'müzik'], ['June', 'haziran'], ['smartest', 'en zeki'], ['favourite', 'en sevdiğim'], ['next week', 'gelecek hafta'], ['morning', 'sabah']],
+      r: { ad: 'Her zaman mı, bugün mü?', tr: 'Alışkanlık: I always read. Şu an / bugün: I am reading today.', s: [['her zaman', 'I always read books.'], ['bugün', 'I am listening to music.'], ['en …', 'the smartest group']], o: 'I always read books in the morning but I am listening to music today.', ot: 'Sabahları hep kitap okurum ama bugün müzik dinliyorum.' },
+      b: [['I always ___ books in the morning.', 'read', ['reading', 'am read'], 'Sabahları hep kitap okurum.', 'simple'], ['I am ___ to music today.', 'listening', ['listen', 'listens'], 'Bugün müzik dinliyorum.', 'cont'], ['This is the ___ group in the school.', 'smartest', ['smart', 'smarter'], 'Bu okulun en zeki grubu.', 'karsi'], ['My favourite month ___ June.', 'is', ['are', 'am'], 'En sevdiğim ay haziran.', 'be']],
+      d: [['What are you doing now?', 'I\'m listening to music.', ['I always listen to music.', 'See you next week!'], 'Şu an ne yapıyorsun?', 'cont'], ['What do you do in the morning?', 'I always read books.', ['I\'m reading a book now.', 'I can\'t wait!'], 'Sabahları ne yaparsın?', 'simple'], ['What\'s your favourite month?', 'My favourite month is June.', ['It\'s Monday today.', 'Yes, I do.'], 'En sevdiğin ay hangisi?', 'soru']]
+    },
+    '4-sinif': {
+      k: [['Maths', 'matematik'], ['glue', 'yapıştırıcı'], ['pen', 'tükenmez kalem'], ['folder', 'dosya'], ['lesson', 'ders'], ['last year', 'geçen yıl'], ['words', 'kelimeler'], ['scissors', 'makas']],
+      r: { ad: 'was / were (geçmiş)', tr: '"İdi / -dı" demek için: I/he/she → was, you/we/they → were.', s: [['I · He · She · It', 'was'], ['You · We · They', 'were'], ['şimdi', 'is / are']], o: 'My favourite lesson was Maths last year.', ot: 'Geçen yıl en sevdiğim ders matematikti.' },
+      b: [['My favourite lesson ___ Maths last year.', 'was', ['is', 'were'], 'Geçen yıl en sevdiğim ders matematikti.', 'past'], ['I like ___ new words.', 'learning', ['learn', 'learns'], 'Yeni kelimeler öğrenmeyi severim.', 'like'], ['There ___ some glue on the paper.', 'is', ['are', 'were'], 'Kağıtta biraz yapıştırıcı var.', 'there'], ['___ pens are they? They are my pens.', 'Whose', ['Who', 'Where'], 'Bunlar kimin kalemleri?', 'soru']],
+      d: [['What was your favourite lesson last year?', 'It was Maths.', ['It is ten past five.', 'They are my pens.'], 'Geçen yıl en sevdiğin ders neydi?', 'past'], ['What do you like doing in English lessons?', 'I like learning new words.', ['I was in the library.', 'There is some glue.'], 'İngilizce derslerinde ne yapmayı seversin?', 'like'], ['What\'s the time now?', 'It\'s ten past five.', ['It was Maths.', 'We do sports.'], 'Şimdi saat kaç?', 'soru']]
+    },
+    '4-kisisel': {
+      k: [['yesterday', 'dün'], ['played', 'oynadı'], ['piano', 'piyano'], ['taller', 'daha uzun'], ['cardigan', 'hırka'], ['hobby', 'hobi'], ['could', '-ebiliyordu'], ['weather', 'hava']],
+      r: { ad: 'Geçmiş zaman: fiil + ed', tr: 'Dün yapılanı anlatırken fiile -ed gelir: play → played.', s: [['play', 'played'], ['watch', 'watched'], ['can → (geçmiş)', 'could']], o: 'I played games at school yesterday.', ot: 'Dün okulda oyun oynadım.' },
+      b: [['I ___ games yesterday.', 'played', ['play', 'playing'], 'Dün oyun oynadım.', 'past'], ['What ___ you do yesterday?', 'did', ['do', 'are'], 'Dün ne yaptın?', 'past'], ['My sister is ___ than me.', 'taller', ['tall', 'tallest'], 'Kız kardeşim benden uzun.', 'karsi'], ['I ___ play the piano when I was six.', 'could', ['can', 'cans'], 'Altı yaşında piyano çalabiliyordum.', 'past']],
+      d: [['What did you do yesterday?', 'I played games.', ['I play games every day.', 'It fits like a glove!'], 'Dün ne yaptın?', 'past'], ['What could you do when you were six?', 'I could swim.', ['I can swim now.', 'I\'m wearing a cardigan.'], 'Altı yaşındayken ne yapabiliyordun?', 'past'], ['What are you wearing today?', 'I\'m wearing a blue cardigan.', ['I wore a hat.', 'My sister is taller.'], 'Bugün ne giyiyorsun?', 'cont']]
+    },
+    '4-aile': {
+      k: [['doctor', 'doktor'], ['teacher', 'öğretmen'], ['cook', 'aşçı'], ['bakery', 'fırın'], ['kindest', 'en nazik'], ['last night', 'dün gece'], ['went', 'gitti'], ['reading', 'okumak']],
+      r: { ad: 'En …: the kindest, the best', tr: 'Bir grubun en … olanı için the + sıfat + est.', s: [['kind', 'the kindest'], ['tall', 'the tallest'], ['good', 'the best']], o: 'My brother is the kindest person in our family.', ot: 'Erkek kardeşim ailemizin en nazik kişisi.' },
+      b: [['What ___ your mother do?', 'does', ['do', 'is'], 'Annen ne iş yapar?', 'simple'], ['My brother is the ___ person.', 'kindest', ['kind', 'kinder'], 'Erkek kardeşim en nazik kişi.', 'karsi'], ['She loves ___ books.', 'reading', ['read', 'reads'], 'Kitap okumayı çok sever.', 'like'], ['My dad ___ to the bakery yesterday.', 'went', ['go', 'goes'], 'Babam dün fırına gitti.', 'past']],
+      d: [['What does your father do?', 'He\'s a doctor.', ['He went to the bakery.', 'He loves reading.'], 'Baban ne iş yapar?', 'simple'], ['What does your sister love doing?', 'She loves drawing pictures.', ['She is the kindest.', 'She\'s a teacher.'], 'Kız kardeşin ne yapmayı sever?', 'like'], ['What did you read last night?', 'I read a book about animals.', ['I read every day.', 'I\'m reading now.'], 'Dün gece ne okudun?', 'past']]
+    },
+    '4-deniz': {
+      k: [['beach', 'plaj'], ['seal', 'fok'], ['dolphin', 'yunus'], ['ocean', 'okyanus'], ['plastic', 'plastik'], ['rubbish', 'çöp'], ['sunny', 'güneşli'], ['sea', 'deniz']],
+      r: { ad: 'should not / mustn\'t · will', tr: 'Tavsiye: should not (yapmamalıyız). Kural: mustn\'t. Tahmin: will (olacak).', s: [['tavsiye', 'We should not throw plastic.'], ['kural', 'You mustn\'t throw rubbish.'], ['tahmin', 'I think it will be sunny.']], o: 'We should not throw plastic in the ocean.', ot: 'Okyanusa plastik atmamalıyız.' },
+      b: [['We should ___ throw plastic in the ocean.', 'not', ['no', 'don\'t'], 'Okyanusa plastik atmamalıyız.', 'must'], ['I think it ___ be sunny tomorrow.', 'will', ['is', 'was'], 'Bence yarın hava güneşli olacak.', 'will'], ['There ___ a lot of seals on the beach last Friday.', 'were', ['are', 'is'], 'Geçen cuma plajda çok fok vardı.', 'past'], ['My sister is the ___ cook in our family.', 'best', ['good', 'better'], 'Kız kardeşim ailenin en iyi aşçısı.', 'karsi']],
+      d: [['What will the weather be like?', 'I think it will be sunny.', ['It was sunny.', 'We should swim.'], 'Hava nasıl olacak?', 'will'], ['Can I throw rubbish into the sea?', 'No, you mustn\'t.', ['Yes, there were.', 'It will be sunny.'], 'Denize çöp atabilir miyim?', 'must'], ['Where do dolphins live?', 'They live in the sea.', ['They lived on the beach.', 'There are no seals.'], 'Yunuslar nerede yaşar?', 'simple']]
+    },
+    '4-sehir': {
+      k: [['Italy', 'İtalya'], ['pasta', 'makarna'], ['pizza', 'pizza'], ['cucumber', 'salatalık'], ['holiday', 'tatil'], ['delicious', 'lezzetli'], ['starving', 'çok aç'], ['plane', 'uçak']],
+      r: { ad: 'going to (gelecek plan)', tr: 'Planlanmış gelecek için: am / is / are + going to + fiil.', s: [['I', 'am going to go'], ['We', 'are going to go'], ['She', 'is going to go']], o: 'We\'re going to go to Italy next week.', ot: 'Gelecek hafta İtalya\'ya gideceğiz.' },
+      b: [['We are going ___ go to Italy.', 'to', ['for', 'at'], 'İtalya\'ya gideceğiz.', 'will'], ['Where ___ you going to go?', 'are', ['is', 'do'], 'Nereye gideceksin?', 'will'], ['Pasta is the ___ delicious food.', 'most', ['more', 'much'], 'Makarna en lezzetli yemek.', 'karsi'], ['We are going to put a ___ cucumbers in it.', 'few', ['little', 'much'], 'İçine birkaç salatalık koyacağız.', 'istek']],
+      d: [['Where are you going to go on holiday?', 'We\'re going to go to Italy.', ['We went to Italy.', 'It tastes good!'], 'Tatilde nereye gideceksin?', 'will'], ['How is the pizza?', 'It tastes good!', ['I\'m going to eat.', 'I\'m starving.'], 'Pizza nasıl?', 'tanisma'], ['Are you hungry?', 'Yes, I\'m starving!', ['Yes, it tastes good.', 'We\'re going to Italy.'], 'Aç mısın?', 'be']]
+    }
+  };
+  W.KIDS_CUMLE_EK = { EK: EK, KALIP: KALIP };
+})(window);
+
 /* ---- kids-cumle.js ---- */
 /* ==========================================================================
    ACADEX KIDS · CÜMLE GALAKSİSİ (kids/assets/kids-cumle.js), 22.11.2026
@@ -8987,7 +9186,8 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
    (tamamlayıcı), mor soru kelimesi, gri diğer. Doğru cümle tren olup yola çıkar; yanlış bloklar
    sallanıp geri döner, doğru yerdekiler kalır; iki yanlıştan sonra sıradaki blok parlar.
    Veri biçimi: "What/q is/v it/s ?"  · kelime/görev, alt çizgi = tek blokta boşluk, son işaret sabit.
-   W.KIDS_CUMLE = { ac(oz), VERI, parcala, dogruMu, yildiz }
+   Her gezegende beş durak (22.11.2026): Kelimeler, Kural, Cümle kur, Boşluk, Konuşalım (veri: kids-cumle2.js).
+   W.KIDS_CUMLE = { ac(oz), VERI, DURAK, parcala, dogruMu, yildiz, rapor(il) }
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -9121,9 +9321,32 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
     setTimeout(function () { sonra(); o.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, fill: 'forwards' }).finished.then(function () { o.remove(); }, function () { o.remove(); }); }, 900);
   }
 
+  /* ---------------- ilerleme (22.11.2026) ----------------
+     Her gezegende beş durak sırayla açılır: Kelimeler → Kural → Cümle kur → Boşluk → Konuşalım.
+     Kural dışındakiler 1-3 yıldız verir. Beşi bitince gezegen tamam (yıldızı = puanlı dört durağın
+     ortalaması), tema rozeti gelir ve sıradaki gezegen (MEB sırası) açılır.
+     Kayıt: il.cumleD[tema][durak] = en iyi yıldız (kural 1) · il.cumle[tema] = gezegen yıldızı ·
+     il.cumleRozet[tema] · il.cumleKalip[kalıp] = {d, y} · il.cumleLog (son 60) · il.cumleKurdu (son 20) */
+  var DURAK = [['kelime', 'Kelimeler', 'Words', 'album'], ['kural', 'Kural', 'Rule', 'yildiz'], ['blok', 'Cümle kur', 'Build', 'oynat'], ['bosluk', 'Boşluğu doldur', 'Fill in', 'firca'], ['diyalog', 'Konuşalım', 'Talk', 'ses']];
+  function ek(id) { var E = W.KIDS_CUMLE_EK; return E && E.EK[id] ? E.EK[id] : null; }
+  function durakD(i, id) { return ((i.cumleD || {})[id]) || {}; }
+  function tamamMi(i, id) { var d = durakD(i, id); return DURAK.every(function (x) { return d[x[0]] > 0; }); }
+  function gezegenYildiz(d) { var n = ['kelime', 'blok', 'bosluk', 'diyalog'].map(function (k) { return d[k] || 0; }); if (n.some(function (v) { return !v; }) || !d.kural) return 0; return Math.round(n.reduce(function (a, b) { return a + b; }, 0) / n.length); }
+  function gezegenAcik(i, L, k) { return k === 0 || tamamMi(i, L[k - 1].id) || !!(i.cumle || {})[L[k].id] || Object.keys(durakD(i, L[k].id)).length > 0; }
+  function durakAcik(d, j) { return j === 0 || d[DURAK[j - 1][0]] > 0; }
+  function kalipYaz(i, kalip, ilkte) { if (!kalip) return; i.cumleKalip = i.cumleKalip || {}; var k = i.cumleKalip[kalip] = i.cumleKalip[kalip] || { d: 0, y: 0 }; if (ilkte) k.d++; else k.y++; }
+  function durakBitti(x, durak, y, hata, n) {
+    var i = il(), id = x.id; i.cumleD = i.cumleD || {}; var d = i.cumleD[id] = i.cumleD[id] || {}, ilkTamam = !tamamMi(i, id);
+    if (!(d[durak] >= y)) d[durak] = y;
+    i.cumleLog = (i.cumleLog || []).concat([{ t: Date.now(), id: id, d: durak, y: y, h: hata || 0, n: n || 0 }]).slice(-60);
+    var gy = gezegenYildiz(d); i.cumle = i.cumle || {}; if (gy > (i.cumle[id] || 0)) i.cumle[id] = gy;
+    var rozet = false; if (ilkTamam && tamamMi(i, id)) { i.cumleRozet = i.cumleRozet || {}; if (!i.cumleRozet[id]) { i.cumleRozet[id] = Date.now(); rozet = true; } }
+    kaydet(i); return rozet;
+  }
+
   /* ---------------- galaksi ---------------- */
-  function ust(geriEt, bas, alt, ek) {
-    return '<header class="ka-konu-ust kc2-ust"><button type="button" class="ka-yuvarlak" data-c2geri aria-label="' + geriEt + '">' + (C ? C.simge('ev') : '←') + '</button><h1 class="kk-bas">' + bas + (alt ? ' <small lang="en">' + alt + '</small>' : '') + '</h1>' + (ek || '<span></span>') + '</header>';
+  function ust(geriEt, bas, alt, ek_) {
+    return '<header class="ka-konu-ust kc2-ust"><button type="button" class="ka-yuvarlak" data-c2geri aria-label="' + geriEt + '">' + (C ? C.simge('ev') : '←') + '</button><h1 class="kk-bas">' + bas + (alt ? ' <small lang="en">' + alt + '</small>' : '') + '</h1>' + (ek_ || '<span></span>') + '</header>';
   }
   function sinifSec() {
     oz.kok.innerHTML = '<div class="kc2 kc2-sec">' + ust('Haritaya dön', 'Cümle Galaksisi', 'Sentence Galaxy') +
@@ -9136,21 +9359,24 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
   }
   var YER_G = [[12, 66], [27, 30], [44, 64], [60, 28], [76, 62], [89, 26]], YER_T = [[28, 9], [72, 23], [28, 39], [72, 55], [28, 71], [72, 87]];
   function galaksi() {
+    dur();
     var i = il(), s = sinif(i); if (!s) return sinifSec();
-    var L = VERI[s], dar = W.matchMedia && W.matchMedia('(max-width: 700px)').matches, Y = dar ? YER_T : YER_G, cs = i.cumle || {};
+    var L = VERI[s], dar = W.matchMedia && W.matchMedia('(max-width: 700px)').matches, Y = dar ? YER_T : YER_G, cs = i.cumle || {}, rz = i.cumleRozet || {};
     var son = L.filter(function (x) { return x.id === i.cumleSon; })[0] ? i.cumleSon : L[0].id, si = 0;
     L.forEach(function (x, k) { if (x.id === son) si = k; });
     var yol = 'M' + Y.map(function (p) { return p[0] + ' ' + p[1]; }).join(' L');
-    var toplam = L.reduce(function (n, x) { return n + (cs[x.id] || 0); }, 0);
+    var toplam = L.reduce(function (n, x) { return n + (cs[x.id] || 0); }, 0), biten = L.filter(function (x) { return tamamMi(i, x.id); }).length;
     oz.kok.innerHTML = '<div class="kc2">' + ust('Haritaya dön', 'Cümle Galaksisi', 'Sentence Galaxy',
       '<div class="kc2-sinif-sec" role="group" aria-label="Sınıf">' + [2, 3, 4].map(function (n) { return '<button type="button" data-c2s="' + n + '" aria-pressed="' + (n === s) + '">' + n + '. sınıf</button>'; }).join('') + '</div>') +
       '<main class="kc2-uzay' + (dar ? ' kc2-dar' : '') + '"><div class="kc2-nebula" aria-hidden="true"></div>' +
       '<svg class="kc2-yol" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + yol + '"/></svg>' +
-      '<p class="kc2-sayac" aria-label="' + toplam + ' / ' + L.length * 3 + ' yıldız">★ ' + toplam + ' / ' + L.length * 3 + '</p>' +
+      '<p class="kc2-sayac" aria-label="' + biten + ' / ' + L.length + ' gezegen bitti, ' + toplam + ' yıldız">🏅 ' + biten + ' / ' + L.length + ' · ★ ' + toplam + '</p>' +
       '<ol class="kc2-gezegenler">' + L.map(function (x, k) {
-        var y = cs[x.id] || 0, gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(x.renk, x.simge, false, y, k + 1) : '';
-        return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '"><button type="button" class="kc2-gz" data-c2t="' + x.id + '" aria-label="' + esc(x.en + ', ' + x.tr + ', ' + y + ' yıldız') + '">' + gz +
-          '<span class="kc2-ad"><b lang="en">' + esc(x.en) + '</b><i aria-hidden="true">' + [1, 2, 3].map(function (j) { return '<em' + (j <= y ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i></span></button></li>';
+        var y = cs[x.id] || 0, acik = gezegenAcik(i, L, k), d = durakD(i, x.id), yapilan = DURAK.filter(function (z) { return d[z[0]] > 0; }).length;
+        var gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(x.renk, x.simge, !acik, acik ? y : 0, k + 1) : '';
+        return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '"' + (acik ? '' : ' class="kc2-kilit"') + '><button type="button" class="kc2-gz" data-c2t="' + x.id + '"' + (acik ? '' : ' aria-disabled="true"') +
+          ' aria-label="' + esc(x.en + ', ' + x.tr + (acik ? ', ' + yapilan + ' / 5 durak' + (rz[x.id] ? ', rozet kazanıldı' : '') : ', kilitli')) + '">' + gz + (rz[x.id] ? '<span class="kc2-rozet" aria-hidden="true">🏅</span>' : '') +
+          '<span class="kc2-ad"><b lang="en">' + esc(x.en) + '</b><i aria-hidden="true">' + (acik ? (tamamMi(i, x.id) ? [1, 2, 3].map(function (j) { return '<em' + (j <= y ? ' class="on"' : '') + '>★</em>'; }).join('') : DURAK.map(function (z) { return '<u' + (d[z[0]] > 0 ? ' class="on"' : '') + '></u>'; }).join('')) : '🔒') + '</i></span></button></li>';
       }).join('') + '</ol><span class="kc2-roket" aria-hidden="true" style="left:' + Y[si][0] + '%;top:' + Y[si][1] + '%">' + ROKET + '</span></main></div>';
     oz.kok.dataset.gorunum = 'cumle';
     oz.kok.querySelector('[data-c2geri]').addEventListener('click', geriHarita);
@@ -9158,35 +9384,126 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
     var rk = oz.kok.querySelector('.kc2-roket'), ucuyor = false;
     oz.kok.querySelectorAll('[data-c2t]').forEach(function (b, k) {
       b.addEventListener('click', function () {
-        if (ucuyor) return; var x = L[k]; if (SES) SES.fx('dokun');
+        if (ucuyor) return; var x = L[k];
+        if (!gezegenAcik(il(), L, k)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + L[k - 1].tr + ' gezegenini bitir.', 'tr'); } b.classList.remove('kc2-salla'); void b.offsetWidth; b.classList.add('kc2-salla'); return; }
+        if (SES) SES.fx('dokun');
         var i2 = il(); i2.cumleSon = x.id; kaydet(i2);
-        if (k === si || SAKIN || !rk.animate) return oyun(s, x);
+        if (k === si || SAKIN || !rk.animate) return gezegen(s, x);
         ucuyor = true;
         if (SES) Promise.resolve(SES.soyle(x.tr + ' gezegenine yolculuk başlıyor!', 'tr')).then(function () { return SES.soyle('Let\'s go to ' + x.en + '!', 'en'); }, function () { });
         var a = Y[si], h = Y[k], ort = [(a[0] + h[0]) / 2, Math.min(a[1], h[1]) - 14], aci = Math.atan2(h[1] - a[1], h[0] - a[0]) * 180 / Math.PI + 90;
         rk.classList.add('kc2-ucuyor');
         rk.animate([{ left: a[0] + '%', top: a[1] + '%', transform: 'translate(-50%,-50%) rotate(0deg)' }, { left: ort[0] + '%', top: ort[1] + '%', transform: 'translate(-50%,-50%) rotate(' + aci + 'deg) scale(1.15)', offset: 0.5 }, { left: h[0] + '%', top: h[1] + '%', transform: 'translate(-50%,-50%) rotate(0deg)' }],
-          { duration: 1400, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }).finished.then(function () { rk.classList.remove('kc2-ucuyor'); oyun(s, x); }, function () { oyun(s, x); });
+          { duration: 1400, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }).finished.then(function () { rk.classList.remove('kc2-ucuyor'); gezegen(s, x); }, function () { gezegen(s, x); });
       });
     });
   }
   function geriHarita() { if (SES) SES.fx('dokun'); dur(); warp(function () { oz.geri(); }, true); }
 
-  /* ---------------- oyun: cümle blokları ---------------- */
-  function oyun(s, x) {
+  /* ---------------- gezegen: beş durak ---------------- */
+  function gezegen(s, x, rozet) {
+    dur();
+    var i = il(), d = durakD(i, x.id), sira = DURAK.findIndex(function (z, j) { return durakAcik(d, j) && !(d[z[0]] > 0); });
+    var gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(x.renk, x.simge, false, i.cumle && i.cumle[x.id] || 0, 2) : '';
+    oz.kok.innerHTML = '<div class="kc2 kc2-gezegen" style="--r:' + x.renk + '">' + ust('Galaksiye dön', esc(x.en), esc(x.tr)) +
+      '<main class="kc2-duraklar-alan"><div class="kc2-gz-buyuk" aria-hidden="true">' + gz + '</div>' +
+      '<ol class="kc2-duraklar">' + DURAK.map(function (z, j) {
+        var acik = durakAcik(d, j), y = d[z[0]] || 0, bitti = y > 0;
+        return '<li style="--j:' + j + '"><button type="button" class="kc2-durak' + (bitti ? ' kc2-d-bitti' : '') + (j === sira ? ' kc2-d-simdi' : '') + '" data-c2d="' + z[0] + '"' + (acik ? '' : ' aria-disabled="true"') +
+          ' aria-label="' + esc(z[1] + (bitti ? ', bitti' : acik ? '' : ', kilitli')) + '"><span class="kc2-d-no">' + (acik ? (C ? C.simge(z[3]) : j + 1) : '🔒') + '</span><b>' + z[1] + '</b><small lang="en">' + z[2] + '</small>' +
+          (bitti && z[0] !== 'kural' ? '<i>' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i>' : bitti ? '<i>✓</i>' : '') + '</button></li>';
+      }).join('') + '</ol>' + (rozet ? '<div class="kc2-rozet-k" role="status"><span aria-hidden="true">🏅</span><b>Tema rozeti!</b><small>' + esc(x.en) + ' gezegenini bitirdin. Sıradaki gezegen açıldı.</small></div>' : '') + '</main></div>';
+    oz.kok.dataset.gorunum = 'cumle';
+    oz.kok.querySelector('[data-c2geri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); galaksi(); });
+    if (rozet && SES) { SES.fx('yildiz'); SES.soyle('Tebrikler! ' + x.tr + ' rozetini kazandın!', 'tr'); }
+    else if (SES && sira >= 0) SES.soyle(x.tr + ' gezegeni. Sıradaki durak: ' + DURAK[sira][1] + '.', 'tr');
+    oz.kok.querySelectorAll('[data-c2d]').forEach(function (b, j) {
+      b.addEventListener('click', function () {
+        if (!durakAcik(durakD(il(), x.id), j)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + DURAK[j - 1][1] + ' durağını bitir.', 'tr'); } return; }
+        if (SES) SES.fx('dokun');
+        var f = { kelime: kelimeOyun, kural: kuralKart, blok: blokOyun, bosluk: boslukOyun, diyalog: diyalogOyun }[DURAK[j][0]];
+        f(s, x);
+      });
+    });
+  }
+  /* durak ekranı iskeleti: üst çubuk, ilerleme noktaları, kart */
+  function sahne(s, x, n, baslik) {
+    oz.kok.innerHTML = '<div class="kc2 kc2-oyun" style="--r:' + x.renk + '">' + ust('Gezegene dön', esc(baslik), esc(x.en),
+      n ? '<ol class="kc2-noktalar" aria-label="İlerleme">' + new Array(n + 1).join('<li></li>') + '</ol>' : '<span></span>') + '<main class="kc2-kart" data-c2kart></main></div>';
+    oz.kok.dataset.gorunum = 'cumle';
+    oz.kok.querySelector('[data-c2geri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); gezegen(s, x); });
+    var nk = [].slice.call(oz.kok.querySelectorAll('.kc2-noktalar li')); if (nk[0]) nk[0].className = 'simdi';
+    return { kart: oz.kok.querySelector('[data-c2kart]'), nokta: function (k) { if (nk[k]) nk[k].className = 'tamam'; if (nk[k + 1]) nk[k + 1].className = 'simdi'; } };
+  }
+  function bekle(ms) { return new Promise(function (r) { setTimeout(r, SAKIN ? Math.min(ms, 200) : ms); }); }
+  function bitirEkran(s, x, durak, y, hata, n, metin_) {
+    var rozet = durakBitti(x, durak, y, hata, n);
+    var j = DURAK.findIndex(function (z) { return z[0] === durak; }), sonraki = DURAK[j + 1];
+    var kart = oz.kok.querySelector('[data-c2kart]');
+    kart.innerHTML = '<div class="kc2-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><span class="kc2-acd" aria-hidden="true">' + acd('kutlama') + '</span><h2>' + (metin_ || 'Harika!') + '</h2>' +
+      (durak === 'kural' ? '' : '<p class="kc2-yildizlar" aria-label="' + y + ' yıldız">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + ' style="--j:' + q + '">★</em>'; }).join('') + '</p><p>' + n + ' soru' + (hata ? ' · ' + hata + ' yanlış deneme' : ' · hiç yanlış yok!') + '</p>') +
+      '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar</button><button type="button" class="ka-buyuk" data-c2devam>' + (sonraki && !rozet ? 'Sıradaki: ' + sonraki[1] : 'Gezegene dön') + '</button></div></div>';
+    if (SES) { SES.fx('yildiz'); if (durak !== 'kural') SES.soyle(y === 3 ? 'Mükemmel! Üç yıldız!' : 'Aferin! Durağı bitirdin!', 'tr'); }
+    kart.querySelector('[data-c2tekrar]').addEventListener('click', function () { ({ kelime: kelimeOyun, kural: kuralKart, blok: blokOyun, bosluk: boslukOyun, diyalog: diyalogOyun })[durak](s, x); });
+    kart.querySelector('[data-c2devam]').addEventListener('click', function () {
+      if (sonraki && !rozet) ({ kelime: kelimeOyun, kural: kuralKart, blok: blokOyun, bosluk: boslukOyun, diyalog: diyalogOyun })[sonraki[0]](s, x); else gezegen(s, x, rozet);
+    });
+  }
+  /* üç seçenekli soru (kelime, boşluk, diyalog ortak): sec(seçenekler, doğru, ilkte) */
+  function secenekler(kutu, sec, dogru, sonra) {
+    var ilk = true, hata = 0;
+    kutu.innerHTML = karistir(sec).map(function (t_) { return '<button type="button" class="kc2-sec">' + esc(t_) + '</button>'; }).join('');
+    kutu.onclick = function (e) {
+      var b = e.target.closest('.kc2-sec'); if (!b || b.disabled) return;
+      if (b.textContent === dogru) { if (SES) SES.fx('dogru'); b.classList.add('kc2-sec-dogru'); kutu.querySelectorAll('.kc2-sec').forEach(function (z) { z.disabled = true; }); sonra(ilk, hata); }
+      else { if (SES) SES.fx('yanlis'); hata++; ilk = false; b.classList.add('kc2-salla', 'kc2-sec-yanlis'); b.disabled = true; }
+    };
+  }
+
+  /* ---------------- 1) kelime bankası: Türkçesi (ve resmi) → İngilizcesini seç ---------------- */
+  function kelimeOyun(s, x) {
+    dur(); durum = {}; var ben = durum, E = ek(x.id); if (!E) return gezegen(s, x);
+    var R = W.KIDS_RESIM, L = karistir(E.k), n = 0, hataT = 0, sc = sahne(s, x, L.length, 'Kelimeler');
+    function resim(en) { var id = en.toLowerCase().replace(/[^a-z]/g, ''); return R && R.var && R.var(id) ? R.ciz ? R.ciz(id) : '' : ''; }
+    function tur() {
+      if (ben !== durum) return; var w = L[n], digerleri = karistir(E.k.filter(function (z) { return z[0] !== w[0]; })).slice(0, 2).map(function (z) { return z[0]; }), rs = resim(w[0]);
+      sc.kart.innerHTML = '<div class="kc2-kelime">' + (rs ? '<span class="kc2-k-res" aria-hidden="true">' + rs + '</span>' : '<span class="kc2-k-res kc2-k-yok" aria-hidden="true">' + acd('dusun') + '</span>') +
+        '<p class="kc2-k-tr"><small>İngilizcesi hangisi?</small><b>' + esc(w[1]) + '</b></p></div><div class="kc2-secler" data-c2sec></div>';
+      secenekler(sc.kart.querySelector('[data-c2sec]'), [w[0]].concat(digerleri), w[0], function (ilk, h) {
+        hataT += h; sc.nokta(n);
+        Promise.resolve(SES ? SES.soyle(w[0], 'en') : 0).then(function () { return bekle(500); }).then(function () { if (ben !== durum) return; n++; if (n >= L.length) bitirEkran(s, x, 'kelime', yildiz(hataT), hataT, L.length, 'Kelimeleri öğrendin!'); else tur(); });
+      });
+    }
+    if (SES) SES.soyle('Türkçesine bak, İngilizcesini seç.', 'tr');
+    tur();
+  }
+
+  /* ---------------- 2) kural kartı: satırlar sırayla canlanır ---------------- */
+  function kuralKart(s, x) {
+    dur(); durum = {}; var ben = durum, E = ek(x.id); if (!E) return gezegen(s, x);
+    var r = E.r, sc = sahne(s, x, 0, 'Kural');
+    sc.kart.innerHTML = '<div class="kc2-kural"><div class="kc2-soru"><span class="kc2-acd" aria-hidden="true">' + acd('dusun') + '</span><div class="kc2-balon"><small>Bugünün kuralı</small><b lang="en">' + esc(r.ad) + '</b></div></div>' +
+      '<p class="kc2-kural-tr">' + esc(r.tr) + '</p><ol class="kc2-kural-s">' + r.s.map(function (z, j) { return '<li style="--j:' + j + '"><span class="kc2-ks-sol">' + esc(z[0]) + '</span><i aria-hidden="true">→</i><span class="kc2-ks-sag" lang="en">' + esc(z[1]) + '</span></li>'; }).join('') + '</ol>' +
+      '<div class="kc2-kural-o"><button type="button" class="kc2-dinle" data-c2o aria-label="Örneği dinle">' + (C ? C.simge('ses') : '♪') + '<span>Dinle</span></button><p><b lang="en">' + esc(r.o) + '</b><small>' + esc(r.ot) + '</small></p></div>' +
+      '<div class="kc2-bitis-d"><button type="button" class="ka-buyuk" data-c2anladim>Anladım ✓</button></div></div>';
+    var satir = [].slice.call(sc.kart.querySelectorAll('.kc2-kural-s li'));
+    sc.kart.querySelector('[data-c2o]').addEventListener('click', function () { if (SES) SES.soyle(r.o, 'en'); });
+    sc.kart.querySelector('[data-c2anladim]').addEventListener('click', function () { if (SES) SES.fx('dogru'); bitirEkran(s, x, 'kural', 1, 0, 0, 'Kuralı öğrendin!'); });
+    /* anlatım: Türkçe açıklama, sonra her satır yanıp İngilizcesi söylenir, en son örnek */
+    var p = SES ? Promise.resolve(SES.soyle(r.tr, 'tr')) : Promise.resolve();
+    satir.forEach(function (li, j) { p = p.then(function () { if (ben !== durum) return; li.classList.add('kc2-ks-on'); return SES ? SES.soyle(r.s[j][1], 'en') : bekle(600); }).then(function () { return bekle(250); }); });
+    p.then(function () { if (ben !== durum) return; sc.kart.querySelector('.kc2-kural-o').classList.add('kc2-ks-on'); if (SES) SES.soyle(r.o, 'en'); }, function () { satir.forEach(function (li) { li.classList.add('kc2-ks-on'); }); });
+    if (SAKIN || !SES) satir.forEach(function (li) { li.classList.add('kc2-ks-on'); });
+  }
+
+  /* ---------------- 3) cümle blokları ---------------- */
+  function blokOyun(s, x) {
     dur();
     var sorular = karistir(x.c).slice(0, 6), n = 0, hataT = 0;
-    durum = { canli: true };
-    var ben = durum;
-    oz.kok.innerHTML = '<div class="kc2 kc2-oyun" style="--r:' + x.renk + '">' + ust('Galaksiye dön', esc(x.en), esc(x.tr),
-      '<ol class="kc2-noktalar" aria-label="İlerleme">' + sorular.map(function (q, i) { return '<li' + (i === 0 ? ' class="simdi"' : '') + '></li>'; }).join('') + '</ol>') +
-      '<main class="kc2-kart" data-c2kart></main></div>';
-    oz.kok.dataset.gorunum = 'cumle';
-    oz.kok.querySelector('[data-c2geri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); dur(); galaksi(); });
-    var kart = oz.kok.querySelector('[data-c2kart]');
+    durum = {}; var ben = durum, sc = sahne(s, x, sorular.length, 'Cümle kur'), kart = sc.kart;
     function tur() {
       if (ben !== durum) return;
-      var q = sorular[n], p = parcala(q[0]), sira = karisik(p.bloklar), dizi = [], hata = 0;
+      var q = sorular[n], p = parcala(q[0]), sira = karisik(p.bloklar), hata = 0;
       kart.innerHTML = '<div class="kc2-soru"><span class="kc2-acd" aria-hidden="true">' + acd('mutlu') + '</span><div class="kc2-balon"><small>Türkçesi</small><b>' + esc(q[1]) + '</b></div>' +
         '<button type="button" class="kc2-dinle" data-c2dinle aria-label="İngilizcesini dinle">' + (C ? C.simge('ses') : '♪') + '<span>Dinle</span></button></div>' +
         '<div class="kc2-hat" data-c2hat>' + p.bloklar.map(function (b, i) { return '<span class="kc2-yuva" data-y="' + i + '"></span>'; }).join('') + (p.son ? '<span class="kc2-son">' + p.son + '</span>' : '') + '</div>' +
@@ -9199,20 +9516,20 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
       function ipucu() { kart.querySelectorAll('.kc2-ipucu').forEach(function (e) { e.classList.remove('kc2-ipucu'); }); if (hata < 2) return; var bos = yuvalar.findIndex(function (y) { return !y.firstChild; }); if (bos < 0) return; var hedef = p.bloklar[bos].m, b = [].slice.call(havuz.children).filter(function (e) { return e.textContent === hedef; })[0]; if (b) b.classList.add('kc2-ipucu'); }
       function yerlesik() { return yuvalar.map(function (y) { return y.firstChild ? y.firstChild.textContent : null; }); }
       function bak() {
-        var d = yerlesik(); if (d.indexOf(null) >= 0) return ipucu();
-        if (dogruMu(d, q[0])) {
+        var dz = yerlesik(); if (dz.indexOf(null) >= 0) return ipucu();
+        if (dogruMu(dz, q[0])) {
           if (SES) SES.fx('dogru'); hat.classList.add('kc2-tren'); hat.insertAdjacentHTML('afterbegin', '<span class="kc2-loko" aria-hidden="true">' + LOKO + '</span>');
           kart.querySelectorAll('.kc2-b').forEach(function (b) { b.disabled = true; });
-          var nk = oz.kok.querySelectorAll('.kc2-noktalar li'); if (nk[n]) { nk[n].className = 'tamam'; }
-          Promise.resolve(SES ? SES.soyle(metin(q[0]), 'en') : 0).then(function () { return new Promise(function (r) { setTimeout(r, SAKIN ? 200 : 700); }); }).then(function () {
+          sc.nokta(n);
+          var i4 = il(); i4.cumleKurdu = (i4.cumleKurdu || []).filter(function (z) { return z !== metin(q[0]); }).concat([metin(q[0])]).slice(-20); kaydet(i4);
+          Promise.resolve(SES ? SES.soyle(metin(q[0]), 'en') : 0).then(function () { return bekle(700); }).then(function () {
             if (ben !== durum) return; hataT += hata; n++;
-            if (nk[n]) nk[n].className = 'simdi';
-            if (n >= sorular.length) bitis(); else tur();
+            if (n >= sorular.length) bitirEkran(s, x, 'blok', yildiz(hataT), hataT, sorular.length, 'Harika cümleler!'); else tur();
           });
           return;
         }
         if (SES) SES.fx('yanlis'); hata++;
-        yuvalar.forEach(function (y, i) { var b = y.firstChild; if (b && b.textContent !== p.bloklar[i].m) { b.classList.add('kc2-salla'); setTimeout(function () { b.classList.remove('kc2-salla'); havuz.appendChild(b); ipucu(); }, 480); } });
+        yuvalar.forEach(function (y, k) { var b = y.firstChild; if (b && b.textContent !== p.bloklar[k].m) { b.classList.add('kc2-salla'); setTimeout(function () { b.classList.remove('kc2-salla'); havuz.appendChild(b); ipucu(); }, 480); } });
       }
       kart.onclick = function (e) {
         var b = e.target.closest('.kc2-b'); if (!b || b.disabled) return;
@@ -9221,22 +9538,90 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
         else { havuz.appendChild(b); ipucu(); }
       };
     }
-    function bitis() {
-      var y = yildiz(hataT), i = il(); i.cumle = i.cumle || {}; var eski = i.cumle[x.id] || 0; if (y > eski) i.cumle[x.id] = y; kaydet(i);
-      kart.innerHTML = '<div class="kc2-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><span class="kc2-acd" aria-hidden="true">' + acd('kutlama') + '</span><h2>Harika cümleler!</h2>' +
-        '<p class="kc2-yildizlar" aria-label="' + y + ' yıldız">' + [1, 2, 3].map(function (j) { return '<em' + (j <= y ? ' class="on"' : '') + ' style="--j:' + j + '">★</em>'; }).join('') + '</p>' +
-        '<p>' + sorular.length + ' cümle kurdun' + (hataT ? ' · ' + hataT + ' deneme' : ' · hiç yanlış yok!') + '</p>' +
-        '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar oyna</button><button type="button" class="ka-buyuk" data-c2galaksi>Galaksiye dön</button></div></div>';
-      if (SES) { SES.fx('yildiz'); SES.soyle(y === 3 ? 'Mükemmel! Üç yıldız!' : 'Aferin! Cümleleri kurdun!', 'tr'); }
-      kart.querySelector('[data-c2tekrar]').addEventListener('click', function () { oyun(s, x); });
-      kart.querySelector('[data-c2galaksi]').addEventListener('click', function () { galaksi(); });
-    }
     tur();
   }
+
+  /* ---------------- 4) boşluk doldurma ---------------- */
+  function boslukOyun(s, x) {
+    dur(); durum = {}; var ben = durum, E = ek(x.id); if (!E) return gezegen(s, x);
+    var L = karistir(E.b), n = 0, hataT = 0, sc = sahne(s, x, L.length, 'Boşluğu doldur');
+    function tur() {
+      if (ben !== durum) return; var q = L[n], parca = q[0].split('___');
+      sc.kart.innerHTML = '<div class="kc2-soru"><span class="kc2-acd" aria-hidden="true">' + acd('mutlu') + '</span><div class="kc2-balon"><small>Türkçesi</small><b>' + esc(q[3]) + '</b></div></div>' +
+        '<p class="kc2-bosluk" lang="en">' + esc(parca[0]) + '<span class="kc2-gap" data-c2gap>?</span>' + esc(parca[1] || '') + '</p><div class="kc2-secler" data-c2sec></div>';
+      secenekler(sc.kart.querySelector('[data-c2sec]'), [q[1]].concat(q[2]), q[1], function (ilk, h) {
+        hataT += h; var g = sc.kart.querySelector('[data-c2gap]'); g.textContent = q[1]; g.classList.add('kc2-gap-dolu'); sc.nokta(n);
+        var i5 = il(); kalipYaz(i5, q[4], ilk); kaydet(i5);
+        Promise.resolve(SES ? SES.soyle(q[0].replace('___', q[1]), 'en') : 0).then(function () { return bekle(600); }).then(function () { if (ben !== durum) return; n++; if (n >= L.length) bitirEkran(s, x, 'bosluk', yildiz(hataT), hataT, L.length, 'Boşlukları doldurdun!'); else tur(); });
+      });
+    }
+    if (SES) SES.soyle('Cümleye uyan kelimeyi seç.', 'tr');
+    tur();
+  }
+
+  /* ---------------- 5) diyalog: Acadia sorar, çocuk cevabı seçer ---------------- */
+  function diyalogOyun(s, x) {
+    dur(); durum = {}; var ben = durum, E = ek(x.id); if (!E) return gezegen(s, x);
+    var L = karistir(E.d), n = 0, hataT = 0, sc = sahne(s, x, L.length, 'Konuşalım');
+    function tur() {
+      if (ben !== durum) return; var q = L[n];
+      sc.kart.innerHTML = '<div class="kc2-diyalog"><div class="kc2-dy-acd"><span class="kc2-acd" aria-hidden="true">' + acd('mutlu') + '</span><div class="kc2-balon"><b lang="en">' + esc(q[0]) + '</b><small>' + esc(q[3]) + '</small></div>' +
+        '<button type="button" class="kc2-dinle" data-c2dinle aria-label="Soruyu dinle">' + (C ? C.simge('ses') : '♪') + '<span>Dinle</span></button></div>' +
+        '<div class="kc2-dy-sen" data-c2sen><span class="kc2-dy-bos">Senin cevabın…</span></div></div><div class="kc2-secler kc2-secler-dy" data-c2sec></div>';
+      sc.kart.querySelector('[data-c2dinle]').addEventListener('click', function () { if (SES) SES.soyle(q[0], 'en'); });
+      if (SES) setTimeout(function () { if (ben === durum) SES.soyle(q[0], 'en'); }, 300);
+      secenekler(sc.kart.querySelector('[data-c2sec]'), [q[1]].concat(q[2]), q[1], function (ilk, h) {
+        hataT += h; sc.kart.querySelector('[data-c2sen]').innerHTML = '<span class="kc2-dy-cevap" lang="en">' + esc(q[1]) + '</span>'; sc.nokta(n);
+        var i6 = il(); kalipYaz(i6, q[4], ilk); kaydet(i6);
+        Promise.resolve(SES ? SES.soyle(q[1], 'en') : 0).then(function () { return bekle(700); }).then(function () { if (ben !== durum) return; n++; if (n >= L.length) bitirEkran(s, x, 'diyalog', yildiz(hataT), hataT, L.length, 'Güzel konuştun!'); else tur(); });
+      });
+    }
+    if (SES) SES.soyle('Acadia soruyor. Doğru cevabı seç.', 'tr');
+    tur();
+  }
+
   function dur() { durum = null; if (SES && SES.sus) SES.sus(); }
 
+  /* ---------------- veli raporu (Veli köşesi → Özet) ---------------- */
+  function rapor(i) {
+    var s = sinif(i) || (i.cumleD ? +(Object.keys(i.cumleD)[0] || '0').charAt(0) : 0);
+    if (!i.cumleD || !Object.keys(i.cumleD).length) return '';
+    var L = VERI[s] || [], KAL = (W.KIDS_CUMLE_EK || {}).KALIP || {}, kk = i.cumleKalip || {};
+    var hafta = Date.now() - 7 * 864e5, log = (i.cumleLog || []).filter(function (z) { return z.t >= hafta; });
+    var kal = Object.keys(kk).filter(function (k) { return kk[k].d + kk[k].y >= 2; }).map(function (k) { var t_ = kk[k].d + kk[k].y; return { k: k, ad: KAL[k] || k, o: kk[k].d / t_, t: t_ }; }).sort(function (a, b) { return b.o - a.o; });
+    var guclu = kal.filter(function (z) { return z.o >= 0.75; }).slice(0, 3), zayif = kal.filter(function (z) { return z.o < 0.6; }).slice(-3).reverse();
+    /* evde tekrar: zayıf kalıplardaki boşluk cümleleri, yoksa son kurulan cümleler */
+    var ev = [];
+    zayif.forEach(function (z) { L.forEach(function (x) { var E = ek(x.id); (E ? E.b : []).forEach(function (b) { if (b[4] === z.k && ev.length < 3 && durakD(i, x.id).bosluk) ev.push([b[0].replace('___', b[1]), b[3]]); }); }); });
+    (i.cumleKurdu || []).slice().reverse().forEach(function (m) { if (ev.length < 3) ev.push([m, '']); });
+    return '<section class="kc2-rapor"><h3>İlkokul · Cümle Galaksisi <small>' + (s ? s + '. sınıf' : '') + '</small></h3>' +
+      '<ul class="kc2-r-tema">' + L.map(function (x) { var d = durakD(i, x.id), yap = DURAK.filter(function (z) { return d[z[0]] > 0; }).length; return '<li><b lang="en">' + esc(x.en) + '</b><span><i style="width:' + (yap * 20) + '%"></i></span><small>' + (tamamMi(i, x.id) ? '🏅 ' + (i.cumle[x.id] || 0) + '★' : yap + ' / 5') + '</small></li>'; }).join('') + '</ul>' +
+      '<p class="ka-pen-alt">Bu hafta ' + log.length + ' durak oynadı' + (log.length ? ', ' + log.reduce(function (a, z) { return a + (z.n || 0); }, 0) + ' soru çözdü.' : '.') + '</p>' +
+      (guclu.length || zayif.length ? '<div class="kc2-r-kalip">' + (guclu.length ? '<div><h4>Güçlü olduğu kalıplar</h4><ul>' + guclu.map(function (z) { return '<li>✅ ' + esc(z.ad) + '</li>'; }).join('') + '</ul></div>' : '') +
+        (zayif.length ? '<div><h4>Biraz daha çalışılacak</h4><ul>' + zayif.map(function (z) { return '<li>⚠️ ' + esc(z.ad) + '</li>'; }).join('') + '</ul></div>' : '') + '</div>' : '') +
+      (ev.length ? '<h4>Evde birlikte söyleyin</h4><ul class="ka-veli-ev">' + ev.map(function (c) { return '<li><button type="button" class="ka-dinle-k" data-en="' + esc(c[0]) + '" aria-label="Dinle">' + (C ? C.simge('ses') : '♪') + '</button><b lang="en">' + esc(c[0]) + '</b>' + (c[1] ? '<small>' + esc(c[1]) + '</small>' : '') + '</li>'; }).join('') + '</ul>' : '') + '</section>';
+  }
+
+  /* seslendirme kataloğu için: galaksinin söylediği bütün cümleler (kids/ses/katalog.js) */
+  function cumleler() {
+    var tr = [], en = [];
+    [2, 3, 4].forEach(function (s) { (VERI[s] || []).forEach(function (x, k) {
+      tr.push(x.tr + ' gezegenine yolculuk başlıyor!', 'Tebrikler! ' + x.tr + ' rozetini kazandın!'); en.push('Let\'s go to ' + x.en + '!');
+      if (k) tr.push('Önce ' + VERI[s][k - 1].tr + ' gezegenini bitir.');
+      DURAK.forEach(function (d, j) { tr.push(x.tr + ' gezegeni. Sıradaki durak: ' + d[1] + '.'); if (j) tr.push('Önce ' + DURAK[j - 1][1] + ' durağını bitir.'); });
+      x.c.forEach(function (c) { en.push(metin(c[0])); });
+      var e = ek(x.id); if (!e) return;
+      e.k.forEach(function (w) { en.push(w[0]); });
+      tr.push(e.r.tr); e.r.s.forEach(function (r) { en.push(r[1]); }); en.push(e.r.o);
+      e.b.forEach(function (q) { en.push(q[0].replace('___', q[1])); });
+      e.d.forEach(function (q) { en.push(q[0], q[1]); });
+    }); });
+    return { tr: tr, en: en };
+  }
+
   function ac(o) { C = W.KIDS_CIZ; SES = W.KIDS_SES; oz = o; if (o.dur) o.dur(); warp(galaksi); return { dur: dur }; }
-  W.KIDS_CUMLE = { ac: ac, VERI: VERI, parcala: parcala, metin: metin, dogruMu: dogruMu, yildiz: yildiz, karisik: karisik };
+  W.KIDS_CUMLE = { ac: ac, VERI: VERI, DURAK: DURAK, parcala: parcala, metin: metin, dogruMu: dogruMu, yildiz: yildiz, karisik: karisik, gezegenYildiz: gezegenYildiz, gezegenAcik: gezegenAcik, durakAcik: durakAcik, tamamMi: tamamMi, cumleler: cumleler,
+    rapor: function (i) { C = C || W.KIDS_CIZ; return rapor(i); }, _oz: function (o) { oz = o; } };
 })(window);
 
 /* ---- kids-kres.js ---- */
@@ -10406,6 +10791,8 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
       return '<section><h3>' + esc(S.ogr[0]) + ' bu hafta</h3><ul class="ka-veli-ozet"><li><b>' + gun + '</b><span>gün oynadı (son 7 gün)</span></li><li><b>' + toplamYildiz(il) + '</b><span>yıldız topladı</span></li><li><b>' + biten.length + '</b><span>konu bitirdi</span></li></ul>' +
         '<ol class="ka-veli-gunler" aria-label="Son 7 gün">' + gunler.map(function (x) { var o = !!(il.gunler || {})[x.a]; return '<li class="' + (o ? 'ka-oynadi' : '') + '"><i>' + (o ? C.simge('yildiz') : '') + '</i><small>' + x.ad + '</small></li>'; }).join('') + '</ol>' +
         '<p class="ka-pen-alt">' + (gun >= 4 ? 'Harika bir hafta! Kısa ve düzenli oyun en iyisidir.' : gun ? 'Günde 10 dakika yeter; düzenli oynamak ezberden daha etkilidir.' : 'Bu hafta henüz oynamadı. Birlikte bir ada seçmeye ne dersiniz?') + '</p></section>' +
+        /* 22.11.2026: ilkokul raporu (Cümle Galaksisi oynandıysa) */
+        (W.KIDS_CUMLE && W.KIDS_CUMLE.rapor ? W.KIDS_CUMLE.rapor(il) : '') +
         (biten.length ? '<section><h3>Rozetleri</h3><ul class="ka-veli-rozet">' + biten.map(function (x) { return '<li>' + RS.rozet(x.renk, simgeIc(x.simge), false) + '<small>' + esc(x.rozet || x.tr) + '</small></li>'; }).join('') + '</ul></section>' : '') +
         '<section><h3>Konular</h3><ul class="ka-veli-konu">' + acik.map(function (x) { var n = yildizK(x); return '<li style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span><b lang="en">' + esc(x.en) + '</b><i><em style="width:' + Math.round(n / OD.konuMax(x.id) * 100) + '%"></em></i><small>' + n + '/' + OD.konuMax(x.id) + ' ★' + (il.bitti && il.bitti[x.id] ? ' · bitirdi' : '') + '</small></li>'; }).join('') + '</ul></section>' +
         '<section><h3>Zorlandığı kelimeler</h3>' + (zor.length ? '<ul class="ka-veli-kel">' + zor.map(function (o) { return '<li style="--r:' + o.hex + '">' + dinle(o.en) + (RS.var(o.id) ? '<span class="ka-veli-kr">' + RS.ciz(o.id) + '</span>' : '') + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul><p class="ka-pen-alt">Dinleyip birlikte tekrar edin; günlük hayatta gösterip sorun.</p>' : '<p class="ka-pen-alt">Henüz zorlandığı bir kelime yok.</p>') + '</section>';

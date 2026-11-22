@@ -16,7 +16,7 @@ function modulleriYukle() {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-hayvan.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js', 'kids-masal.js', 'kids-dinle.js', 'kids-konusan.js', 'kids-panel3.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-hayvan.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-oyun.js', 'kids-oyun2.js', 'kids-park.js', 'kids-kitap.js', 'kids-masal.js', 'kids-dinle.js', 'kids-konusan.js', 'kids-panel3.js', 'kids-cumle2.js', 'kids-cumle.js']) vm.runInContext(fs.readFileSync(path.join(A, f), 'utf8'), ctx);
   return W;
 }
 
@@ -26,7 +26,8 @@ const TR = [
   'Okulunuzun Acadex Kids lisansı açık değil.', 'Bu ada yakında açılacak.', 'Bugün serbest gün. İstediğin adaya dokun.',
   'Mola zamanı! Bugün çok güzel çalıştın.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
   'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.', 'Adan büyüdü!', 'Yeni bir gezegen açıldı!', 'Cümle galaksisine hoş geldin! Kaçıncı sınıftasın?', 'Dinle, sonra blokları doğru sıraya diz!', 'Mükemmel! Üç yıldız!', 'Aferin! Cümleleri kurdun!', 'Hadi bir sahne kuralım!', 'Önce bir önceki paketi bitir.', 'Yeni bir kelime paketi açıldı!', 'Gümüş madalya kazandın!', 'Altın madalya kazandın!', 'Kelimelere dokun ve dinle.', 'Kim oynuyor? Resmine dokun.',
-  /* 15.11.2026 · oyun odası çubuğu */ 'Adalara bakalım!', 'Kelimelerime bakalım!', 'Çıkartma albümüme bakalım!', 'Daha çok oyun var!'
+  /* 15.11.2026 · oyun odası çubuğu */ 'Adalara bakalım!', 'Kelimelerime bakalım!', 'Çıkartma albümüme bakalım!', 'Daha çok oyun var!',
+  /* 22.11.2026 · cümle galaksisi durakları */ 'Türkçesine bak, İngilizcesini seç.', 'Cümleye uyan kelimeyi seç.', 'Acadia soruyor. Doğru cevabı seç.', 'Aferin! Durağı bitirdin!'
 ];
 const EN = ['Let\'s learn our class words!', 'Great job! Our class words, done!', 'Find the pairs!', 'Say it with me!', 'Yes! Let\'s see!', 'Hmm! Let\'s see!', 'I like it too!', 'Good try!', 'Well done!', 'Super!', 'Let\'s count together!', 'Simon says!', 'What is it?', 'The end! Great reading!'];
 
@@ -88,6 +89,10 @@ module.exports = function katalog() {
   W.KIDS_DINLE.cumleler().forEach((m) => ekle('tr', m, 'sesli cevap'));
   /* evcil hayvanım, benim günüm, uyku vakti */
   W.KIDS_PANEL3.cumleler().forEach((m) => ekle('en', m, 'köşeler'));
+  /* Cümle Galaksisi (ilkokul): gezegen yönergeleri, kelimeler, kural, cümleler, diyaloglar */
+  const KC = W.KIDS_CUMLE.cumleler();
+  KC.tr.forEach((m) => ekle('tr', m, 'cümle galaksisi'));
+  KC.en.forEach((m) => ekle('en', m, 'cümle galaksisi'));
   return [...liste.values()];
 };
 
