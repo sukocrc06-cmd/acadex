@@ -152,16 +152,18 @@
     if (W.ResizeObserver) new ResizeObserver(function () { if (!el.classList.contains('kz-ucuyor')) koy(); }).observe(harita);
   }
   /* gezegene uç: jetpack yanar, kavisle süzülür; bitince sonra() */
-  function uc(kid, sonra) {
+  /* ucarken: gerçekten bir yolculuk başlıyorsa (başka gezegene) bir kez çağrılır — sesli rehber için */
+  function uc(kid, sonra, ucarken) {
     if (U3 && U3.harita && U3.harita.isConnected) {
       var y3 = lsAl('kids.uzay.yer', {}); y3[U3.anahtar] = kid; lsKoy('kids.uzay.yer', y3);
-      return U3.uc(kid, sonra);
+      return U3.uc(kid, sonra, ucarken);
     }
     var el = AST && AST.el;
     if (!el || !el.isConnected) return sonra();
     var kok = AST.harita.parentNode, ada = adaBul(kok, kid);
     if (!ada) return sonra();
     lsKoy('kids.uzay.yer', (function () { var y = lsAl('kids.uzay.yer', {}); y[AST.anahtar] = kid; return y; })());
+    if (AST.kid !== kid && ucarken) ucarken();
     if (AST.kid === kid || SAKIN || !el.animate) {
       AST.kid = kid; var p0 = konum(AST.harita, ada); el.style.transform = 'translate(' + p0.x.toFixed(1) + 'px,' + p0.y.toFixed(1) + 'px)';
       return sonra();

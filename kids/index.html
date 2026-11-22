@@ -2718,6 +2718,22 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
 @keyframes kaDRoket{50%{transform:translateY(-3px) rotate(-2deg)}}
 @media (prefers-reduced-motion:reduce){.ka-dunya-roket{animation:none}}
 
+/* ===== 22.11.2026: sade gezegen etiketleri (3B harita). Yalnız İngilizce ad, gezegen renginde yarı saydam hap;
+   yıldız sayısı yerine madalya kadar parlayan üç küçük yıldız. Türkçe ad ekran okuyucuda (aria-label) ve seste. ===== */
+.ka-ada-yz{display:none}
+.ka-harita.kz3-acik .ka-halka{display:none}
+.ka-harita.kz3-acik .ka-ada-ad{display:flex;flex-direction:column;align-items:center;gap:0;margin-top:4px;padding:3px 13px 4px;border:1.5px solid rgba(255,255,255,.5);border-radius:999px;
+  background:color-mix(in srgb,var(--r,#8E7CF0) 42%,rgba(16,22,64,.72));-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(5,8,30,.35),inset 0 1px 0 rgba(255,255,255,.3);transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.ka-harita.kz3-acik .ka-ada .ka-ada-ad b{color:#fff;font:800 clamp(13px,calc(var(--w,120px) * .15),19px)/1.05 var(--bas);letter-spacing:.01em;text-shadow:0 2px 0 rgba(11,16,51,.5)}
+.ka-harita.kz3-acik .ka-ada-ad small{display:none}
+.ka-harita.kz3-acik .ka-ada-yz{display:flex;gap:1px;margin-top:-1px;font-style:normal;line-height:1}
+.ka-harita.kz3-acik .ka-ada-yz em{font-style:normal;font-size:clamp(8px,calc(var(--w,120px) * .075),11px);color:rgba(255,255,255,.3)}
+.ka-harita.kz3-acik .ka-ada-yz em.on{color:#FFD23F;text-shadow:0 0 6px rgba(255,210,63,.9)}
+.ka-harita.kz3-acik .ka-ada:hover .ka-ada-ad,.ka-harita.kz3-acik .ka-ada:focus-visible .ka-ada-ad{transform:translateX(-50%) scale(1.08)}
+.ka-harita.kz3-acik .ka-ada-bugun .ka-ada-ad{border-color:#FFD23F;box-shadow:0 0 0 2px rgba(255,210,63,.35),0 0 18px rgba(255,210,63,.55)}
+.ka-harita.kz3-acik .ka-kilitli .ka-ada-ad{background:rgba(70,80,126,.55);border-color:rgba(255,255,255,.25)}
+.ka-harita.kz3-acik .ka-kilitli .ka-ada-ad b{color:#C9D3EE}
+
 /* ==========================================================================
    ACADEX KIDS · CANLI KELİMELER (kids/assets/kids-canli.css), 20.11.2026 — bkz. kids-canli.js
    .kcn-o-<hareket> : resmin durunca yaptığı hareket (svg'nin kendisinde)
@@ -6612,16 +6628,18 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
     if (W.ResizeObserver) new ResizeObserver(function () { if (!el.classList.contains('kz-ucuyor')) koy(); }).observe(harita);
   }
   /* gezegene uç: jetpack yanar, kavisle süzülür; bitince sonra() */
-  function uc(kid, sonra) {
+  /* ucarken: gerçekten bir yolculuk başlıyorsa (başka gezegene) bir kez çağrılır — sesli rehber için */
+  function uc(kid, sonra, ucarken) {
     if (U3 && U3.harita && U3.harita.isConnected) {
       var y3 = lsAl('kids.uzay.yer', {}); y3[U3.anahtar] = kid; lsKoy('kids.uzay.yer', y3);
-      return U3.uc(kid, sonra);
+      return U3.uc(kid, sonra, ucarken);
     }
     var el = AST && AST.el;
     if (!el || !el.isConnected) return sonra();
     var kok = AST.harita.parentNode, ada = adaBul(kok, kid);
     if (!ada) return sonra();
     lsKoy('kids.uzay.yer', (function () { var y = lsAl('kids.uzay.yer', {}); y[AST.anahtar] = kid; return y; })());
+    if (AST.kid !== kid && ucarken) ucarken();
     if (AST.kid === kid || SAKIN || !el.animate) {
       AST.kid = kid; var p0 = konum(AST.harita, ada); el.style.transform = 'translate(' + p0.x.toFixed(1) + 'px,' + p0.y.toFixed(1) + 'px)';
       return sonra();
@@ -9512,12 +9530,12 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
       V.KONU.map(function (k, i) {
         var n = OD.konuYildiz(il, k.id), bitti = !!il.bitti[k.id], sv = OD.seviye(il, k.id), as = OD.asama(il, k.id), us = OD.ustalik(il, k.id), np = k.acik ? paketSay(k.id) : 1, gor = (il.asamaGor || {})[k.id] || 0;
         if (k.acik && as > gor) yukselen.push(k.id);
-        return (k.grup === 2 && !(V.KONU[i - 1] || {}).grup ? '</ol><h2 class="ka-takimada"><span>İkinci takımada</span><small>' + V.KONU.filter(function (x) { return x.grup === 2; }).length + ' yeni ada</small></h2><ol class="ka-adalar">' : '') + '<li style="--i:' + (i % 12) + '"><button type="button" class="ka-ada' + (k.acik ? '' : ' ka-kilitli') + (k.id === bid ? ' ka-ada-bugun' : '') + (bitti ? ' ka-ada-bitti' : '') + ' ka-as' + as + (as > gor ? ' ka-ada-yukseldi' : '') + '" ' + (k.acik ? 'data-konu="' + k.id + '"' : 'data-yakinda') + ' aria-label="' + esc(k.en + ', ' + k.tr + (k.acik ? ', ' + n + ' / ' + OD.konuMax(k.id) + ' yıldız' + (bitti ? ', bitti' : '') : ', yakında')) + '">' +
-          (W.KIDS_UZAY ? W.KIDS_UZAY.gezegen(k.renk, k.simge, !k.acik, k.acik ? as : 0, i) : C.ada(k.renk, k.simge, !k.acik, k.acik ? OD.adaEk(k.id, as) : '')) + (bitti ? adaCanli(k) : '') + (as > gor ? '<span class="ka-ada-konfeti" aria-hidden="true">' + new Array(13).join('<i></i>') + '</span>' : '') + '<span class="ka-ada-ad"><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small></span>' +
+        return (k.grup === 2 && !(V.KONU[i - 1] || {}).grup ? '</ol><h2 class="ka-takimada"><span>İkinci takımada</span><small>' + V.KONU.filter(function (x) { return x.grup === 2; }).length + ' yeni ada</small></h2><ol class="ka-adalar">' : '') + '<li style="--i:' + (i % 12) + ';--r:' + k.renk + '"><button type="button" class="ka-ada' + (k.acik ? '' : ' ka-kilitli') + (k.id === bid ? ' ka-ada-bugun' : '') + (bitti ? ' ka-ada-bitti' : '') + ' ka-as' + as + (as > gor ? ' ka-ada-yukseldi' : '') + '" ' + (k.acik ? 'data-konu="' + k.id + '"' : 'data-yakinda') + ' aria-label="' + esc(k.en + ', ' + k.tr + (k.acik ? ', ' + n + ' / ' + OD.konuMax(k.id) + ' yıldız' + (bitti ? ', bitti' : '') : ', yakında')) + '">' +
+          (W.KIDS_UZAY ? W.KIDS_UZAY.gezegen(k.renk, k.simge, !k.acik, k.acik ? as : 0, i) : C.ada(k.renk, k.simge, !k.acik, k.acik ? OD.adaEk(k.id, as) : '')) + (bitti ? adaCanli(k) : '') + (as > gor ? '<span class="ka-ada-konfeti" aria-hidden="true">' + new Array(13).join('<i></i>') + '</span>' : '') + '<span class="ka-ada-ad"><b lang="en">' + esc(k.en) + '</b><small>' + esc(k.tr) + '</small>' + (k.acik ? '<i class="ka-ada-yz" aria-hidden="true">' + [1, 2, 3].map(function (j) { return '<em' + (j <= sv ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i>' : '') + '</span>' +
           (k.acik ? halka(n, OD.konuMax(k.id), k.renk) : '<span class="ka-ada-y ka-yakinda">Yakında</span>') + '</button>' +
           '</li>';
       }).join('') + '</ol></section>' + dockHtml(il), 'harita');
-    app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); if (W.KIDS_UZAY && W.KIDS_UZAY.aktif()) W.KIDS_UZAY.uc(kid, function () { adaSec(kid); }); else adaSec(kid); }); });
+    app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); if (W.KIDS_UZAY && W.KIDS_UZAY.aktif()) W.KIDS_UZAY.uc(kid, function () { adaSec(kid); }, function () { yolculukSesi(kid); }); else adaSec(kid); }); });
     /* uzay teması (kids-uzay.js): çocuk kasklı astronot olarak son gittiği gezegenin yanında süzülür */
     if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid,
       konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, yeniAcik: !!yeniAcik[k.id], asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
@@ -9574,11 +9592,18 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
   /* dokununca jöle gibi zıpla */
   function jole(el) { el.classList.remove('ka-jole'); void el.offsetWidth; el.classList.add('ka-jole'); }
   /* adaya dokununca: bronz bitmemişse doğrudan uç; bittiyse seviye ve kelime ustalığı penceresi */
+  /* 22.11.2026 sesli rehber: kalkışta "Hayvanlar gezegenine yolculuk başlıyor! Let's go to Animals!",
+     inişte (konu penceresi açılırken) "Hayvanlar gezegenine hoş geldin!" */
+  var hosgeldin = null;
+  function yolculukSesi(kid) {
+    var k = V.konuBul(kid); if (!k) return; hosgeldin = kid;
+    Promise.resolve(SES.soyle(k.tr + ' gezegenine yolculuk başlıyor!', 'tr')).then(function () { return SES.soyle('Let\'s go to ' + k.en + '!', 'en'); }, function () { });
+  }
   function adaSec(kid) {
     var il = ilerleme(), sv = OD.seviye(il, kid), np = paketSay(kid);
     il.paketler = il.paketler || {};
     /* hiç oynanmamış tek paketli konu: doğrudan uç */
-    if (sv < 1 && np === 1) { S.seviye = 1; S.paket = 0; return ucus(kid, function () { konuAc(kid, 0); }); }
+    if (sv < 1 && np === 1) { hosgeldin = null; S.seviye = 1; S.paket = 0; return ucus(kid, function () { konuAc(kid, 0); }); }
     var k = V.konuBul(kid), us = OD.ustalik(il, kid), secP = 0, bantA = V.BANT[S.sinif.bant];
     for (var q = 0; q < np; q++) if (OD.paketAcik(il, kid, q) && !OD.paketBitti(il, kid, q)) { secP = q; break; }
     if (S.konu === kid && S.paket != null && OD.paketAcik(il, kid, S.paket)) secP = S.paket;
@@ -9594,6 +9619,7 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
     var gorMd = il.madalyaGor || null, yeniMd = 0;
     if (!gorMd) { il.madalyaGor = {}; V.KONU.forEach(function (x) { var s0 = OD.seviye(il, x.id); if (s0) il.madalyaGor[x.id] = s0; }); koy(ilAnahtar(), il); }
     else if (sv > (gorMd[kid] || 0)) { yeniMd = sv; gorMd[kid] = sv; koy(ilAnahtar(), il); }
+    if (hosgeldin === kid) { hosgeldin = null; SES.soyle(k.tr + ' gezegenine hoş geldin!', 'tr'); }
     var gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(k.renk, k.simge, false, OD.asama(il, kid), 1) : C.ada(k.renk, k.simge, false, '');
     var p = katman('<header class="ka-pen-bas ka-sv-bas" style="--r:' + k.renk + '"><span class="ka-sv-gz" aria-hidden="true">' + gz + '</span><h2><span lang="en">' + esc(k.en) + '</span><small>' + esc(k.tr || '') + '</small></h2><button type="button" class="ka-yuvarlak" data-kapat aria-label="Kapat">×</button></header>' +
       '<div data-pkalan></div>' +

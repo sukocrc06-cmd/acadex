@@ -173,3 +173,19 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
 .kn-arka .ka-dunya-roket{display:inline;transform-box:fill-box;transform-origin:50% 100%;animation:kaDRoket 3.4s ease-in-out infinite}
 @keyframes kaDRoket{50%{transform:translateY(-3px) rotate(-2deg)}}
 @media (prefers-reduced-motion:reduce){.ka-dunya-roket{animation:none}}
+
+/* ===== 22.11.2026: sade gezegen etiketleri (3B harita). Yalnız İngilizce ad, gezegen renginde yarı saydam hap;
+   yıldız sayısı yerine madalya kadar parlayan üç küçük yıldız. Türkçe ad ekran okuyucuda (aria-label) ve seste. ===== */
+.ka-ada-yz{display:none}
+.ka-harita.kz3-acik .ka-halka{display:none}
+.ka-harita.kz3-acik .ka-ada-ad{display:flex;flex-direction:column;align-items:center;gap:0;margin-top:4px;padding:3px 13px 4px;border:1.5px solid rgba(255,255,255,.5);border-radius:999px;
+  background:color-mix(in srgb,var(--r,#8E7CF0) 42%,rgba(16,22,64,.72));-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(5,8,30,.35),inset 0 1px 0 rgba(255,255,255,.3);transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.ka-harita.kz3-acik .ka-ada .ka-ada-ad b{color:#fff;font:800 clamp(13px,calc(var(--w,120px) * .15),19px)/1.05 var(--bas);letter-spacing:.01em;text-shadow:0 2px 0 rgba(11,16,51,.5)}
+.ka-harita.kz3-acik .ka-ada-ad small{display:none}
+.ka-harita.kz3-acik .ka-ada-yz{display:flex;gap:1px;margin-top:-1px;font-style:normal;line-height:1}
+.ka-harita.kz3-acik .ka-ada-yz em{font-style:normal;font-size:clamp(8px,calc(var(--w,120px) * .075),11px);color:rgba(255,255,255,.3)}
+.ka-harita.kz3-acik .ka-ada-yz em.on{color:#FFD23F;text-shadow:0 0 6px rgba(255,210,63,.9)}
+.ka-harita.kz3-acik .ka-ada:hover .ka-ada-ad,.ka-harita.kz3-acik .ka-ada:focus-visible .ka-ada-ad{transform:translateX(-50%) scale(1.08)}
+.ka-harita.kz3-acik .ka-ada-bugun .ka-ada-ad{border-color:#FFD23F;box-shadow:0 0 0 2px rgba(255,210,63,.35),0 0 18px rgba(255,210,63,.55)}
+.ka-harita.kz3-acik .ka-kilitli .ka-ada-ad{background:rgba(70,80,126,.55);border-color:rgba(255,255,255,.25)}
+.ka-harita.kz3-acik .ka-kilitli .ka-ada-ad b{color:#C9D3EE}

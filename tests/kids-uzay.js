@@ -61,7 +61,7 @@ test('gezegen: NaN yok, degrade kimliği tek, aşama süsleri, kilitli soluk', (
 
 test('harita: gezegen çizer; astronot uçar, sonra konu açılır; Acadia ikinci kez uçmaz', () => {
   assert.match(app, /W\.KIDS_UZAY \? W\.KIDS_UZAY\.gezegen\(k\.renk, k\.simge, !k\.acik, k\.acik \? as : 0, i\) : C\.ada/);
-  assert.match(app, /W\.KIDS_UZAY\.uc\(kid, function \(\) \{ adaSec\(kid\); \}\)/);
+  assert.match(app, /W\.KIDS_UZAY\.uc\(kid, function \(\) \{ adaSec\(kid\); \}, function \(\) \{ yolculukSesi\(kid\); \}\)/);
   assert.match(app, /W\.KIDS_UZAY\.yerlestir\(app, \{ anahtar:/);
   assert.match(app, /duration: uzay \? 1 : 780/);
   assert.match(ucus, /W\.KIDS_UZAY \? W\.KIDS_UZAY\.gezegen\(/, 'giriş uçuşunda da gezegenler');
@@ -198,6 +198,21 @@ test('22.11.2026: kalkış/iniş sahnesi, hız hissi, atmosfere giriş, gezegen 
   assert.match(js, /function hafifMi\(\)/); assert.match(js, /hafif: hafifMi\(\)/);
   assert.match(src, /const n = hafif \? 2200 : 5200/); assert.match(src, /antialias: !hafif/);
   assert.match(src, /if \(ort > 34 && pr > 1\) \{ pr = 1; renderer\.setPixelRatio\(1\); boyut\(\); try \{ localStorage\.setItem\('kids\.hafif', '1'\);/);
+});
+
+test('22.11.2026: sade gezegen etiketleri ve uçuşta sesli rehber', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js');
+  /* etiket: yalnız İngilizce ad, gezegen renginde hap; yıldız sayısı yerine madalya kadar üç yıldız; Türkçe ad aria-label'da */
+  assert.match(app, /'<li style="--i:' \+ \(i % 12\) \+ ';--r:' \+ k\.renk \+ '">/);
+  assert.match(app, /<i class="ka-ada-yz" aria-hidden="true">' \+ \[1, 2, 3\]\.map\(function \(j\) \{ return '<em' \+ \(j <= sv \? ' class="on"' : ''\)/);
+  assert.match(app, /aria-label="' \+ esc\(k\.en \+ ', ' \+ k\.tr/);
+  assert.match(css, /\.ka-harita\.kz3-acik \.ka-halka\{display:none\}/); assert.match(css, /\.ka-harita\.kz3-acik \.ka-ada-ad small\{display:none\}/);
+  assert.match(css, /background:color-mix\(in srgb,var\(--r,#8E7CF0\) 42%/);
+  /* ses: yalnız gerçekten başka gezegene uçarken; inişte konu penceresinde hoş geldin */
+  assert.match(src, /if \(i !== suan && ucarken\) ucarken\(\);/); assert.match(js, /return U3\.uc\(kid, sonra, ucarken\);/);
+  assert.match(app, /SES\.soyle\(k\.tr \+ ' gezegenine yolculuk başlıyor!', 'tr'\)\)\.then\(function \(\) \{ return SES\.soyle\('Let\\'s go to ' \+ k\.en \+ '!', 'en'\);/);
+  assert.match(app, /if \(hosgeldin === kid\) \{ hosgeldin = null; SES\.soyle\(k\.tr \+ ' gezegenine hoş geldin!', 'tr'\); \}/);
+  assert.match(app, /if \(sv < 1 && np === 1\) \{ hosgeldin = null;/, 'doğrudan konuya girişte konu kendi sesini keser değil');
 });
 
 summary();

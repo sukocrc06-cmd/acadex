@@ -403,9 +403,10 @@ export function kur(o) {
 
   /* uçuş */
   let ucus = null;
-  function uc(kid, sonra) {
+  function uc(kid, sonra, ucarken) {
     const i = idx(kid); if (i < 0) return sonra();
     if (ucus || dalis) return;
+    if (i !== suan && ucarken) ucarken();
     hedefSon.copy(yerler[i]).setY(0);
     if (sakin) { suan = i; A.a.position.copy(astYeri(i)); park(i); hedef.copy(hedefSon); return setTimeout(sonra, 0); }
     if (i === suan) { A.a.position.copy(astYeri(i)); return dal(i, sonra); }
