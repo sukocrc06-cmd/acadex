@@ -150,3 +150,26 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
 @media (prefers-reduced-motion:reduce){.ka-serit,.ka-serit-acd,.ka-harita:not(.kz3-acik) .ka-ada-bugun::before{animation:none!important}}
 .ka-harita:not(.kz3-acik) .ka-ada-bugun::before{content:"";position:absolute;left:50%;bottom:30%;width:46%;height:220%;transform:translateX(-50%);border-radius:50% 50% 0 0;background:linear-gradient(0deg,rgba(255,214,90,.55),rgba(255,214,90,0));pointer-events:none;z-index:-1;animation:kaRhSutun 2.4s ease-in-out infinite}
 @keyframes kaRhSutun{50%{opacity:.55}}
+
+/* ===== 22.11.2026: roket kalkışında geri sayım ve uçuşta hız çizgileri (kids-uzay3d.src.js) ===== */
+.kz3-geri{position:absolute;left:50%;top:38%;z-index:7;pointer-events:none;font:800 clamp(64px,12vw,120px)/1 var(--bas);color:#FFD23F;-webkit-text-stroke:4px #23304D;paint-order:stroke;text-shadow:0 8px 0 rgba(11,16,51,.45);opacity:0;transform:translate(-50%,-50%)}
+.kz3-geri-on{animation:kzGeri .26s cubic-bezier(.3,1.6,.5,1) both,kzGeriSon .3s .2s ease-in forwards}
+.kz3-hiz{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .35s;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(255,255,255,.0) 0deg 5deg,rgba(255,255,255,.55) 5.4deg 5.8deg,rgba(255,255,255,0) 6.2deg 11deg);
+  -webkit-mask:radial-gradient(circle at 50% 50%,transparent 26%,#000 70%);mask:radial-gradient(circle at 50% 50%,transparent 26%,#000 70%)}
+.kz3-hizli .kz3-hiz{opacity:.55;animation:kzHiz .18s linear infinite}
+@keyframes kzGeri{from{opacity:0;transform:translate(-50%,-50%) scale(2.2)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes kzGeriSon{to{opacity:0;transform:translate(-50%,-50%) scale(.7)}}
+@keyframes kzHiz{from{transform:scale(1)}to{transform:scale(1.06) rotate(1deg)}}
+@media (prefers-reduced-motion:reduce){.kz3-geri,.kz3-hiz{display:none}}
+
+/* ===== 22.11.2026: atmosfere giriş (kids-app atmosfer()) ve gezegen dünyasında park eden roket ===== */
+.ka-atm{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden}
+.ka-atm-isik{position:absolute;inset:0;opacity:0;background:radial-gradient(circle at 50% 50%,#fff 0,color-mix(in srgb,var(--r) 55%,#fff) 34%,var(--r) 72%,color-mix(in srgb,var(--r) 70%,#23304D) 100%)}
+.ka-atm-b{position:absolute;width:52vmax;opacity:0;transform:translate(-50%,-50%) scale(.25);filter:drop-shadow(0 10px 18px rgba(35,48,77,.18))}
+.ka-atm-b .kc{display:block;width:100%;height:auto}
+.ka-atm-b .kc path{stroke:none}
+.ka-dunya-roket{display:none}
+.kn-arka .ka-dunya-roket{display:inline;transform-box:fill-box;transform-origin:50% 100%;animation:kaDRoket 3.4s ease-in-out infinite}
+@keyframes kaDRoket{50%{transform:translateY(-3px) rotate(-2deg)}}
+@media (prefers-reduced-motion:reduce){.ka-dunya-roket{animation:none}}

@@ -89,6 +89,12 @@
      Harita açılınca modül yüklenir. WebGL yoksa, cihaz çok zayıfsa ya da modül 7 sn'de gelmezse
      düz (2B) gezegen haritası kalır. kids.uzay3d = 0 (localStorage) 3B'yi kapatır. */
   var U3 = null, MOD = null;
+  /* 22.11.2026: zayıf cihaz → 3B haritada hafif mod (kids-uzay3d: az parçacık, 1x çözünürlük). Kare hızı düşen
+     cihazı harita kendisi işaretler (kids.hafif), sonraki açılışlar hafif başlar. */
+  function hafifMi() {
+    var n = W.navigator || {};
+    return lsAl('kids.hafif', 0) === 1 || !!(n.hardwareConcurrency && n.hardwareConcurrency <= 4) || !!(n.deviceMemory && n.deviceMemory <= 4);
+  }
   function uc3Uygun() {
     if (lsAl('kids.uzay3d', 1) === 0) return false;
     var n = W.navigator || {};
@@ -113,7 +119,7 @@
       clearTimeout(sure); bitti = true;
       var yer = lsAl('kids.uzay.yer', {});
       U3 = m.kur({
-        kap: kap, sakin: SAKIN, yuz: C ? C.avatar(o.hayvan, o.renk) : '',
+        kap: kap, sakin: SAKIN, hafif: hafifMi(), yuz: C ? C.avatar(o.hayvan, o.renk) : '',
         baslangic: yer[o.anahtar] || o.bugun || (o.konular.filter(function (k) { return !k.kilit; })[0] || {}).id,
         konular: o.konular.map(function (k, i) { return { id: k.id, renk: k.renk, kilit: k.kilit, yeniAcik: !!k.yeniAcik, asama: k.asama, bugun: k.id === o.bugun, simge: C ? C.simge(k.simge) : '', el: lis[i] }; })
       });
@@ -426,5 +432,5 @@
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', izle); else izle();
 
-  W.KIDS_UZAY = { aktif: aktif, gezegen: gezegen, uc: uc, yerlestir: yerlestir, astronotHtml: astronotHtml, uc3Uygun: uc3Uygun, _test: { karis: karis, dokunus: dokunus, durum: function () { return { ATES: ATES, UFO: UFO, PAR: PAR, KUY: KUY, mod: mod }; } } };
+  W.KIDS_UZAY = { aktif: aktif, gezegen: gezegen, uc: uc, yerlestir: yerlestir, astronotHtml: astronotHtml, uc3Uygun: uc3Uygun, hafifMi: hafifMi, _test: { karis: karis, dokunus: dokunus, durum: function () { return { ATES: ATES, UFO: UFO, PAR: PAR, KUY: KUY, mod: mod }; } } };
 })(window);

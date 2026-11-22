@@ -180,4 +180,24 @@ test('22.11.2026: büyük konu kartı yerine ince cam şerit; bugün ışık sü
   assert.ok(mjs.length > 100000 && /roket|BUGÜN|kayan nokta/.test(src), 'paket üretilmiş');
 });
 
+test('22.11.2026: kalkış/iniş sahnesi, hız hissi, atmosfere giriş, gezegen dünyası, hafif mod', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js'), res = read('kids/assets/kids-resim.js');
+  /* üç bölüm: KALK (astronot biner, 3-2-1, sarsıntı, duman) · UC (kamera yaklaşır, FOV, hız çizgileri) · IN (toz, astronot iner, el sallar) */
+  assert.match(src, /kalk0: 1050/); assert.match(src, /const sayi = q < 0\.36 \? 0 : q < 0\.57 \? 3 : q < 0\.78 \? 2 : 1;/);
+  assert.match(src, /dumanAt\(/); assert.match(src, /kam\.fov = 40 \+ Math\.sin\(u \* Math\.PI\) \* 9/); assert.match(src, /classList\.toggle\('kz3-hizli'/);
+  assert.match(src, /toz\.visible = true; tozYas = 0;/); assert.match(src, /A\.kR\.rotation\.z = -0\.5 - Math\.max\(0, Math\.sin\(aq \* Math\.PI \* 4\)\) \* 1\.6/);
+  assert.match(src, /if \(q >= 1\) \{ const s = ucus\.sonra; ucus = null;[^\n]*dal\(suan, s\); \}/, 'inişten sonra dalış');
+  assert.match(src, /geri\.remove\(\); hizK\.remove\(\);/, 'kapanınca HTML katmanları temizlenir');
+  assert.match(css, /\.kz3-geri-on\{/); assert.match(css, /\.kz3-hizli \.kz3-hiz\{/); assert.match(css, /prefers-reduced-motion:reduce\)\{\.kz3-geri,\.kz3-hiz\{display:none\}/);
+  /* atmosfer: uzayda düz perde yerine bulutlar; konu açılınca iki yana aralanır */
+  assert.match(app, /if \(uzay\) return atmosfer\(k, sonra\);/); assert.match(app, /function atmosfer\(k, sonra\)/); assert.match(css, /\.ka-atm-isik\{/);
+  /* gezegenin dünyası: her konu bir biyomda, roket konu sahnesinde park eder */
+  assert.match(res, /var BIYOM = \{ animals: 'doga'/); assert.match(res, /case 'deniz':/); assert.match(res, /roketPark\(28, 250\)/);
+  assert.match(css, /\.ka-dunya-roket\{display:none\}\n\.kn-arka \.ka-dunya-roket\{display:inline/);
+  /* hafif mod: zayıf cihaz ya da düşük kare hızı */
+  assert.match(js, /function hafifMi\(\)/); assert.match(js, /hafif: hafifMi\(\)/);
+  assert.match(src, /const n = hafif \? 2200 : 5200/); assert.match(src, /antialias: !hafif/);
+  assert.match(src, /if \(ort > 34 && pr > 1\) \{ pr = 1; renderer\.setPixelRatio\(1\); boyut\(\); try \{ localStorage\.setItem\('kids\.hafif', '1'\);/);
+});
+
 summary();

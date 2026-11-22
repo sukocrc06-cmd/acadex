@@ -68,10 +68,11 @@
     }
     function hikayeBasla(ad) {
       if (!ad || !KS) return;
-      hik.innerHTML = '<span class="kn-esya kn-e-' + ad + '">' + KS.esya(ad) + '</span>' + (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti' ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
-      sk.className = sk.className.replace(/ ?kn-hk-\S+/g, ''); void sk.offsetWidth; sk.classList.add('kn-hk', 'kn-hk-' + ad);
+      var ucar = KS.ucar ? KS.ucar(ad) : (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti'), gr = KS.grup ? KS.grup(ad) : '';
+      hik.innerHTML = '<span class="kn-esya kn-e-' + ad + '">' + KS.esya(ad) + '</span>' + (ucar ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
+      sk.className = sk.className.replace(/ ?kn-h[kg]-\S+/g, ''); void sk.offsetWidth; sk.classList.add('kn-hk', 'kn-hk-' + ad); if (gr) sk.classList.add('kn-hg-' + gr);
     }
-    function hikayeBitir() { hik.innerHTML = ''; obalon.hidden = true; sk.className = sk.className.replace(/ ?kn-hk(-\S+)?/g, ''); }
+    function hikayeBitir() { hik.innerHTML = ''; obalon.hidden = true; sk.className = sk.className.replace(/ ?kn-h[kg](-\S+)?/g, ''); }
     function sahneCiz(r) {
       var ic = W.KIDS_HAYVAN ? W.KIDS_HAYVAN.en(r, P) : P.gorsel(r), n = r.n || 0, ek = '';
       /* canlı kelime (kids-canli.js): kelimeye özel giriş yolu, zemin (yol/ray/deniz), parçacık */

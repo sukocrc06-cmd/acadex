@@ -105,15 +105,32 @@ test('kids CSS: her @keyframes adı tek (biri ötekini ezmesin)', () => {
 });
 
 test('eşyayla oyun ve karaoke harfler', () => {
-  assert.match(css, /\.kn-hk-top \.kn-e-top\{animation:knTop 1\.1s[^}]*kcnTopOyun 2\.6s 1\.1s ease-in-out infinite\}/, 'top gelir, sonra oyun döngüsü');
-  assert.match(css, /\.kn-sahne\.kn-hk-top \.kn-resim\{animation:kcnTopHayvan/, 'hayvan pati atar, hoplar');
-  assert.match(css, /\.kn-hk-top \.kn-hikaye\{z-index:3\}/, 'top hayvanın önünde');
+  assert.match(css, /\.kn-hg-oyun \.kn-esya\{animation:knTop 1\.1s[^}]*kcnTopOyun 2\.6s 1\.1s ease-in-out infinite\}/, 'top gelir, sonra oyun döngüsü');
+  assert.match(css, /\.kn-sahne\.kn-hg-oyun \.kn-resim\{animation:kcnTopHayvan/, 'hayvan pati atar, hoplar');
+  assert.match(css, /\.kn-hg-oyun \.kn-hikaye,/, 'top hayvanın önünde');
   assert.match(css, /\.kn-kelime span\.kn-k-on\{scale:1\.2;translate:0 -10%/, 'transform değil: harf animasyonu ezmez');
   assert.match(anlat, /await karaoke\(soyle\(r\.en \+ '!'\)\)/, 'senin sıran: harfler yanar');
   assert.match(anlat, /return karaoke\(SES\.soyle\(rs\[i\]\.en, 'en'\)\)/, 'dokununca da');
   assert.match(anlat, /if \(!yazi \|\| azHareket\(\)\) return p;/, 'yazısız yaşta ve hareketi azaltta yok');
   assert.match(anlat, /kTim\.forEach\(clearTimeout\); if \(W\.KIDS_DINLE\) W\.KIDS_DINLE\.durdur\(\); SES\.sus\(\);/, 'sahne kapanınca zamanlayıcı ve mikrofon kalmaz');
   assert.match(css, /\.kn-kelime:empty\{display:none\}/);
+});
+
+test('22.11.2026: her hayvanın kendi işi (tavşan havuç yer, köpek kemik getirir…)', () => {
+  const W2 = { document: { createElement: () => ({}) } }; W2.window = W2; vm.createContext(W2); vm.runInContext(read('kids/assets/kids-konusan.js'), W2);
+  const KS = W2.KIDS_KONUSAN, IS = KS.HAYVAN_IS;
+  for (const id of KONU.animals) {
+    const r = { id, en: id }, rp = KS.replik('animals', r, null);
+    assert.ok(rp && rp.sahne && KS.esya(rp.sahne), id + ': eşya çizimi var (' + (rp && rp.sahne) + ')');
+    assert.ok(IS[id], id + ': kendi işi tanımlı');
+    assert.match(rp.hikaye, new RegExp('^The ' + id + ' '), id + ': cümle hayvanla başlar');
+    const g = KS.grup(rp.sahne); if (rp.sahne !== 'kabarcik') assert.ok(g, id + ': davranış grubu');
+    if (g) assert.match(css, new RegExp('\\.kn-hg-' + g + ' \\.kn-esya\\{'), g + ' grubunun yerleşimi');
+  }
+  assert.equal(new Set(KONU.animals.map((id) => IS[id][1])).size, KONU.animals.length, 'cümleler birbirinden farklı');
+  assert.equal(KS.replik('animals', { id: 'rabbit', en: 'rabbit' }).hikaye, 'The rabbit eats a carrot!');
+  assert.match(css, /prefers-reduced-motion:no-preference\)\{\n  \.kn-hg-yem \.kn-esya/, 'hareketi azaltta eşyalar oynamaz');
+  assert.match(read('kids/assets/kids-anlat.js'), /if \(gr\) sk\.classList\.add\('kn-hg-' \+ gr\)/);
 });
 
 summary();

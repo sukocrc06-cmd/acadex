@@ -606,6 +606,9 @@
     if (h.r.bottom < 0 || h.r.top > W.innerHeight) { try { ada.scrollIntoView({ block: 'center' }); } catch (e) { } h = merkez(ada); }
     /* uzayda astronot gezegene zaten uçtu: Acadia ikinci kez uçmaz, renk perdesi gezegenden açılır */
     var uzay = !!(W.KIDS_UZAY && W.KIDS_UZAY.aktif() && app.querySelector('.kz-ast-yer, .kz3-acik'));
+    /* 22.11.2026 uzayda: düz renk perdesi yerine atmosfere giriş. Ekran gezegenin renginde parlar, bulut katmanları
+       üstümüzden geçer; konu açılınca bulutlar iki yana aralanır */
+    if (uzay) return atmosfer(k, sonra);
     o.className = 'ka-ucus'; o.innerHTML = '<span class="ka-ucus-acd" style="left:' + a.x + 'px;top:' + a.y + 'px' + (uzay ? ';display:none' : '') + '">' + acd('kutlama') + '</span><i class="ka-ucus-perde" style="--r:' + k.renk + '"></i>';
     D.body.appendChild(o); SES.fx('cevir');
     var ac_ = o.firstChild, dx = h.x - a.x, dy = h.y - a.y - 30;
@@ -618,6 +621,22 @@
       sonra(); ac_.remove();
       o.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' }).finished.then(function () { o.remove(); });
     }, function () { o.remove(); sonra(); });
+  }
+  function atmosfer(k, sonra) {
+    var YER = [[22, 30], [78, 24], [50, 52], [14, 74], [86, 72], [36, 12], [64, 88], [50, 30]], o = D.createElement('div');
+    o.className = 'ka-ucus ka-atm'; o.style.setProperty('--r', k.renk);
+    o.innerHTML = '<i class="ka-atm-isik"></i>' + YER.map(function (y) { return '<span class="ka-atm-b" style="left:' + y[0] + '%;top:' + y[1] + '%">' + C.bulut('') + '</span>'; }).join('');
+    D.body.appendChild(o); SES.fx('cevir');
+    var isik = o.firstChild, bl = [].slice.call(o.querySelectorAll('.ka-atm-b')), bitti = false;
+    function son() { if (bitti) return; bitti = true; sonra();
+      SES.fx('yildiz');
+      var ps = bl.map(function (b, i) { var sol = parseFloat(b.style.left) < 50; return b.animate([{ transform: 'translate(-50%,-50%) scale(1.7)', opacity: 1 }, { transform: 'translate(calc(-50% ' + (sol ? '- 90vw' : '+ 90vw') + '),-50%) scale(2.1)', opacity: 0 }], { duration: 700, delay: i * 25, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'forwards' }).finished; });
+      ps.push(isik.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 650, fill: 'forwards' }).finished);
+      Promise.all(ps).then(function () { o.remove(); }, function () { o.remove(); });
+    }
+    isik.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 480, easing: 'ease-out', fill: 'forwards' });
+    bl.forEach(function (b, i) { b.animate([{ transform: 'translate(-50%,-50%) scale(.25)', opacity: 0 }, { opacity: 1, offset: 0.35 }, { transform: 'translate(-50%,-50%) scale(1.7)', opacity: 1 }], { duration: 820, delay: i * 45, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }); });
+    setTimeout(son, 980);
   }
   /* konudan haritaya: konunun rengi adasına doğru küçülür */
   function donus(kid) {

@@ -78,10 +78,10 @@ function svgDoku(svg, boy, daire) {
 }
 
 /* ---------------- galaksi ---------------- */
-function galaksi(R) {
+function galaksi(R, hafif) {
   const g = new Group();
   /* sarmal yıldız tozu: 3 kol */
-  const n = 5200, poz = [], renk = [], r = rng(7), pal = ['#8E7CF0', '#FF7AA8', '#4AA8FF', '#FFD9F0', '#B8A8FF'].map((c) => new Color(c));
+  const n = hafif ? 2200 : 5200, poz = [], renk = [], r = rng(7), pal = ['#8E7CF0', '#FF7AA8', '#4AA8FF', '#FFD9F0', '#B8A8FF'].map((c) => new Color(c));
   for (let i = 0; i < n; i++) {
     const kol = i % 3, t = Math.pow(r(), 0.75), rad = 2.5 + t * R * 1.15, a = kol * TAU / 3 + rad * 0.32 + (r() - 0.5) * (0.9 - t * 0.5);
     const yay = (r() - 0.5) * (1.4 - t);
@@ -255,8 +255,12 @@ function roketKur(yuzSvg) {
    ====================================================================== */
 export function kur(o) {
   const kap = o.kap, sakin = !!o.sakin;
-  const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 700 ? 1.6 : 2));
+  /* 22.11.2026 hafif mod: zayıf cihazda (az çekirdek / bellek ya da önceki açılışta kare hızı düştüyse)
+     kenar yumuşatma kapalı, çözünürlük 1x, galaksi tozu az, iz kısa */
+  const hafif = !!o.hafif;
+  const renderer = new WebGLRenderer({ antialias: !hafif, alpha: true, powerPreference: hafif ? 'low-power' : 'high-performance' });
+  let pr = hafif ? 1 : Math.min(window.devicePixelRatio || 1, window.innerWidth < 700 ? 1.6 : 2);
+  renderer.setPixelRatio(pr);
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
   const cv = renderer.domElement; cv.className = 'kz3-tuval'; cv.setAttribute('aria-hidden', 'true');
@@ -273,7 +277,7 @@ export function kur(o) {
     return v;
   });
   const R = yerler.reduce((m, v) => Math.max(m, Math.hypot(v.x, v.z)), R0) + 2;
-  const G = galaksi(R); sahne.add(G.g);
+  const G = galaksi(R, hafif); sahne.add(G.g);
   sahne.add(new AmbientLight('#B8C4FF', 0.55));
   sahne.add(new HemisphereLight('#E8ECFF', '#3A2A7A', 0.65));
   const isik = new PointLight('#FFF1D0', 2.6, 0, 0); isik.position.set(0, 1.5, 0); sahne.add(isik);
@@ -306,8 +310,22 @@ export function kur(o) {
   const A = astronotKur(o.yuz); sahne.add(A.a);
   const RK = roketKur(o.yuz); sahne.add(RK.r);
   /* roketin ardındaki yıldız izi: küçük parıltı havuzu */
-  const iz = Array.from({ length: 36 }, () => { const sp = new Sprite(new SpriteMaterial({ map: parilti('rgba(255,210,120,.95)'), transparent: true, depthWrite: false, blending: AdditiveBlending, opacity: 0 })); sp.visible = false; sahne.add(sp); return { sp, yas: 9 }; });
+  const iz = Array.from({ length: hafif ? 18 : 36 }, () => { const sp = new Sprite(new SpriteMaterial({ map: parilti('rgba(255,210,120,.95)'), transparent: true, depthWrite: false, blending: AdditiveBlending, opacity: 0 })); sp.visible = false; sahne.add(sp); return { sp, yas: 9 }; });
   let izSira = 0;
+  /* kalkış dumanı (yumuşak bulut parçacıkları) ve iniş tozu halkası */
+  const duman = Array.from({ length: hafif ? 8 : 16 }, () => { const sp = new Sprite(new SpriteMaterial({ map: bulutDoku(), color: '#E9ECF6', transparent: true, depthWrite: false, opacity: 0 })); sp.visible = false; sahne.add(sp); return { sp, yas: 1, v: new Vector3() }; });
+  let dumanSira = 0;
+  function dumanAt(p, guc) {
+    const d = duman[dumanSira++ % duman.length]; d.sp.visible = true; d.yas = 0; d.sp.position.copy(p);
+    d.v.set((Math.random() - 0.5) * 1.6, -0.2 + Math.random() * 0.5, (Math.random() - 0.5) * 1.6).multiplyScalar(guc || 1);
+  }
+  const toz = new Mesh(new RingGeometry(0.5, 0.9, 40), new MeshBasicMaterial({ color: '#FFF1C9', transparent: true, opacity: 0, side: DoubleSide, depthWrite: false, blending: AdditiveBlending }));
+  toz.rotation.x = -Math.PI / 2; toz.visible = false; sahne.add(toz); let tozYas = 1;
+  /* geri sayım ve hız çizgileri: haritanın üstünde HTML (kids-uzay.css .kz3-geri / .kz3-hiz) */
+  const harita0 = kap.parentNode, geri = document.createElement('div'), hizK = document.createElement('div');
+  geri.className = 'kz3-geri'; geri.setAttribute('aria-hidden', 'true'); hizK.className = 'kz3-hiz'; hizK.setAttribute('aria-hidden', 'true');
+  if (harita0) { harita0.appendChild(geri); harita0.appendChild(hizK); }
+  function geriGoster(n) { geri.textContent = n; geri.classList.remove('kz3-geri-on'); void geri.offsetWidth; geri.classList.add('kz3-geri-on'); }
   const idx = (kid) => o.konular.findIndex((k) => k.id === kid);
   let suan = Math.max(0, idx(o.baslangic));
   const astYeri = (i) => yerler[i].clone().add(new Vector3(-PR * 1.35, PR * 0.35, PR * 0.95));
@@ -394,8 +412,10 @@ export function kur(o) {
     if (egri) {
       /* roket: astronot rokete biner, gezegenler arasındaki yolu izleyerek uçar */
       const fark = Math.abs(i - suan);
-      ucus = { roket: true, ta: tNo(suan), tb: tNo(i), t0: performance.now(), sure: Math.min(3200, Math.max(1300, 900 + fark * 230)), sonra, i, kalk: rokYeri(suan) };
-      A.a.visible = false; RK.r.visible = true; RK.r.position.copy(ucus.kalk); RK.alev.forEach((x) => { x.visible = true; });
+      /* 22.11.2026: üç bölüm. KALK: astronot rokete zıplar, geri sayım, sarsıntı ve duman · UC: yol boyunca uçuş,
+         kamera yaklaşır, görüş açısı genişler, hız çizgileri · IN: roket yavaşlayıp oturur, toz halkası, astronot iner ve el sallar */
+      ucus = { roket: true, ta: tNo(suan), tb: tNo(i), t0: performance.now(), kalk0: 1050, sure: Math.min(3000, Math.max(1300, 900 + fark * 220)), in0: 750, sonra, i, kalk: rokYeri(suan), uzak0: uzakSon, sayi: 0 };
+      RK.r.visible = true; RK.r.position.copy(ucus.kalk);
       return;
     }
     const a = A.a.position.clone(), b = astYeri(i), m = a.clone().lerp(b, 0.5); m.y += 4 + a.distanceTo(b) * 0.18;
@@ -405,13 +425,23 @@ export function kur(o) {
   }
 
   /* döngü */
-  let raf = 0, gorunur = true, son = performance.now(), yok = false;
+  let raf = 0, gorunur = true, son = performance.now(), yok = false, olcum = sakin ? null : { t0: performance.now(), son: performance.now(), n: 0, top: 0 };
   const io = window.IntersectionObserver ? new IntersectionObserver((g) => { gorunur = g[0].isIntersecting; if (gorunur) basla(); }) : null; if (io) io.observe(kap);
   function kare(now) {
     raf = 0;
     if (yok) return;
     if (!kap.isConnected) { temizle(); return; }
     const dt = Math.min(0.05, (now - son) / 1000); son = now; const t = now / 1000;
+    /* kare hızı gözcüsü: ilk saniyelerde ortalama 30 fps'in altındaysa çözünürlüğü düşür, bir dahaki açılışta hafif mod */
+    if (olcum && !ucus && !dalis) {
+      if (now - olcum.t0 > 1200) { olcum.n++; olcum.top += (now - olcum.son); }
+      olcum.son = now;
+      if (olcum.n >= 60) {
+        const ort = olcum.top / olcum.n; olcum = null;
+        if (ort > 34 && pr > 1) { pr = 1; renderer.setPixelRatio(1); boyut(); try { localStorage.setItem('kids.hafif', '1'); } catch (e2) { } }
+        else if (ort > 40) { try { localStorage.setItem('kids.hafif', '1'); } catch (e2) { } }
+      }
+    }
     if (!sakin) {
       G.toz.rotation.y += dt * 0.025; G.hale.material.opacity = 0.85 + Math.sin(t * 1.6) * 0.12; G.isin.material.rotation += dt * 0.12; G.gunes.rotation.y += dt * 0.1;
       G2.forEach((p, i) => { p.govde.rotation.y += dt * (0.18 + (i % 4) * 0.04); if (p.ek.ay) p.ek.ay.rotation.y += dt * 0.9; if (p.ek.altin) p.ek.altin.rotation.z += dt * 0.4; if (p.ek.bayrak) p.ek.bayrak.rotation.y = Math.sin(t * 4 + i) * 0.35; if (p.ek.halo) p.ek.halo.scale.setScalar(1 + Math.sin(t * 3) * 0.06); });
@@ -432,8 +462,28 @@ export function kur(o) {
       G2.forEach((p) => { if (p.ek.sutun) { p.ek.sutun.material.opacity = 0.75 + Math.sin(t * 2.2) * 0.25; p.ek.sutun.rotation.y += dt * 0.6; } });
     }
     iz.forEach((z) => { if (z.yas < 1) { z.yas += dt * 1.6; z.sp.material.opacity = 1 - z.yas; z.sp.scale.setScalar(0.55 * (1 - z.yas) + 0.1); if (z.yas >= 1) z.sp.visible = false; } });
-    if (ucus && ucus.roket) {
-      const u = Math.min(1, (now - ucus.t0) / ucus.sure), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+    duman.forEach((d) => { if (d.yas < 1) { d.yas += dt * 0.9; d.sp.position.addScaledVector(d.v, dt); d.sp.material.opacity = 0.75 * (1 - d.yas); d.sp.scale.setScalar(0.6 + d.yas * 2.4); if (d.yas >= 1) d.sp.visible = false; } });
+    if (tozYas < 1) { tozYas += dt * 1.4; toz.scale.setScalar(1 + tozYas * 3.5); toz.material.opacity = 0.8 * (1 - tozYas); if (tozYas >= 1) toz.visible = false; }
+    const ge = ucus && ucus.roket ? now - ucus.t0 : 0;
+    if (ucus && ucus.roket && ge < ucus.kalk0) {
+      /* KALK */
+      const q = ge / ucus.kalk0, bas = rokYeri(suan);
+      if (q < 0.36) { const qq = q / 0.36; A.a.visible = true; A.a.position.lerpVectors(astYeri(suan), bas, qq); A.a.position.y += Math.sin(qq * Math.PI) * 1.3; A.a.scale.setScalar(1 - qq * 0.85); A.a.rotation.y = 0.5 + qq * 2; }
+      else { A.a.visible = false; A.a.scale.setScalar(1); }
+      const sayi = q < 0.36 ? 0 : q < 0.57 ? 3 : q < 0.78 ? 2 : 1;
+      if (sayi && sayi !== ucus.sayi) { ucus.sayi = sayi; geriGoster(sayi); }
+      const sars = q > 0.36 ? (q - 0.36) * 0.16 : 0;
+      RK.r.position.copy(bas); RK.r.position.x += (Math.random() - 0.5) * sars; RK.r.position.z += (Math.random() - 0.5) * sars; RK.r.rotation.set(-Math.PI / 2, 0, 0.12);
+      RK.alev.forEach((x) => { x.visible = q > 0.5; x.scale.set(1, 0.4 + q * 0.6 + Math.random() * 0.3, 1); });
+      if (q > 0.45 && Math.random() < (hafif ? 0.35 : 0.7)) dumanAt(bas.clone().add(new Vector3(0, -1.2, 0)), 1);
+      hedefSon.copy(bas).setY(0);
+    } else if (ucus && ucus.roket && ge < ucus.kalk0 + ucus.sure) {
+      /* UC */
+      if (!ucus.ucuyor) { ucus.ucuyor = true; uzakSon = Math.max(12, ucus.uzak0 * 0.72); RK.alev.forEach((x) => { x.visible = true; }); }
+      const u = Math.min(1, (ge - ucus.kalk0) / ucus.sure), e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      if (!sakin) { kam.fov = 40 + Math.sin(u * Math.PI) * 9; kam.updateProjectionMatrix(); }
+      if (harita0) harita0.classList.toggle('kz3-hizli', u > 0.18 && u < 0.82);
+      if (u < 0.12 && Math.random() < 0.6) dumanAt(RK.r.position.clone(), 0.6);
       const yolNokta = (uu) => { const p = egri.getPoint(MathUtils.clamp(ucus.ta + (ucus.tb - ucus.ta) * uu, 0, 1));   /* kayan nokta 1'i aşmasın */ p.y += 1.6 + Math.sin(uu * Math.PI) * 2.2; return p; };
       /* kalkış ve iniş astronotun durduğu yerden: ilk ve son %12'de yola karışır */
       const p = yolNokta(e), kal = Math.max(0, 1 - e / 0.12), in_ = Math.max(0, (e - 0.88) / 0.12);
@@ -444,7 +494,22 @@ export function kur(o) {
       RK.alev.forEach((x, j) => { x.scale.set(1, 0.75 + Math.random() * 0.55, 1); });
       hedefSon.copy(p).setY(0);
       const z = iz[izSira++ % iz.length]; z.sp.visible = true; z.yas = 0; z.sp.position.copy(p).addScaledVector(RK.r.getWorldDirection(v).normalize(), -0.95);
-      if (u >= 1) { const s = ucus.sonra; suan = ucus.i; ucus = null; park(suan); A.a.position.copy(astYeri(suan)); A.a.visible = true; A.a.rotation.y = 0.5; dal(suan, s); }
+    } else if (ucus && ucus.roket) {
+      /* IN */
+      const q = Math.min(1, (ge - ucus.kalk0 - ucus.sure) / ucus.in0), hedefY = rokYeri(ucus.i);
+      if (!ucus.indi) {
+        ucus.indi = true; suan = ucus.i; park(suan); kam.fov = 40; kam.updateProjectionMatrix(); uzakSon = ucus.uzak0;
+        if (harita0) harita0.classList.remove('kz3-hizli');
+        toz.visible = true; tozYas = 0; toz.position.copy(hedefY).add(new Vector3(0, -0.9, 0));
+        for (let j = 0; j < (hafif ? 3 : 6); j++) dumanAt(hedefY.clone().add(new Vector3(0, -0.9, 0)), 1.4);
+      }
+      /* roket hafifçe sekip oturur; astronot kapıdan çıkıp yanına zıplar ve el sallar */
+      RK.r.position.copy(hedefY); RK.r.position.y += Math.max(0, Math.sin(q * Math.PI * 2) * (1 - q) * 0.35);
+      const aq = Math.max(0, (q - 0.25) / 0.75);
+      A.a.visible = aq > 0; A.a.scale.setScalar(0.15 + aq * 0.85);
+      A.a.position.lerpVectors(hedefY, astYeri(suan), aq); A.a.position.y += Math.sin(aq * Math.PI) * 1.1; A.a.rotation.y = 0.5;
+      A.kR.rotation.z = -0.5 - Math.max(0, Math.sin(aq * Math.PI * 4)) * 1.6;
+      if (q >= 1) { const s = ucus.sonra; ucus = null; A.a.scale.setScalar(1); A.a.position.copy(astYeri(suan)); A.a.visible = true; A.kR.rotation.z = -0.5; dal(suan, s); }
     } else if (ucus) {
       const u = Math.min(1, (now - ucus.t0) / ucus.sure), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
       A.a.position.copy(ucus.egri.getPoint(e));
@@ -485,7 +550,7 @@ export function kur(o) {
   document.addEventListener('visibilitychange', gor);
   function temizle() {
     if (yok) return; yok = true; if (raf) cancelAnimationFrame(raf);
-    document.removeEventListener('visibilitychange', gor); if (ro) ro.disconnect(); if (io) io.disconnect();
+    document.removeEventListener('visibilitychange', gor); if (ro) ro.disconnect(); if (io) io.disconnect(); geri.remove(); hizK.remove();
     sahne.traverse((n) => { if (n.geometry) n.geometry.dispose(); if (n.material) { if (n.material.map) n.material.map.dispose(); n.material.dispose(); } });
     renderer.dispose(); if (renderer.forceContextLoss) renderer.forceContextLoss();
   }

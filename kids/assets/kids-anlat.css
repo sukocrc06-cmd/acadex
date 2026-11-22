@@ -177,9 +177,9 @@
 .kn-ucus .kc{width:100%;height:100%}
 @keyframes knUcus{0%{opacity:0;transform:translateY(0) scale(.6)}20%{opacity:1}100%{opacity:0;transform:translateY(-320%) scale(1.1) rotate(20deg)}}
 /* top: yuvarlanarak gelir, kelime zıplar */
-.kn-e-top{width:20%;aspect-ratio:1;right:6%;bottom:10%;animation:knTop 1.1s cubic-bezier(.3,1.2,.5,1) both}
+.kn-e-top,.kn-e-yumak{width:20%;aspect-ratio:1;right:6%;bottom:10%;animation:knTop 1.1s cubic-bezier(.3,1.2,.5,1) both}
 @keyframes knTop{from{transform:translateX(260%) rotate(540deg)}to{transform:none}}
-.kn-hk-top .kn-resim{animation:knHop .45s .9s ease-in-out 3 alternate!important}
+.kn-hg-oyun .kn-resim{animation:knHop .45s .9s ease-in-out 3 alternate!important}
 @keyframes knHop{to{transform:translateY(-16%) rotate(-6deg)}}
 /* sepet: kelime sepete atlar */
 .kn-e-sepet{width:min(30%,190px);aspect-ratio:1;left:50%;margin-left:min(-15%,-95px);bottom:-2%;animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
