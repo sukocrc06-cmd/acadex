@@ -24,7 +24,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const { test, summary } = makeRunner();
 
-const W = { document: {}, console };
+const W = { document: {}, console, addEventListener(t, f, c) { if (t === 'click') W.__tik = { f, c }; } };
 W.window = W; vm.createContext(W);
 vm.runInContext(read('js/ozet-slayt.js'), W, { filename: 'ozet-slayt.js' });
 const A = W.AcadexOzetSlayt;
@@ -103,9 +103,14 @@ test('sunucu: önbellek, günlük sınır, yalnız sahibi kaydeder', () => {
 });
 test('panel: slaytlar düğmesi, PDF slayta gider, klasik A4 duruyor', () => {
   const html = read('dashboard.html'), d = read('js/dashboard.js');
-  assert.match(html, /id="btn-study-slides"/); assert.match(html, /<script src="js\/ozet-slayt\.js"><\/script>/);
+  assert.match(html, /id="btn-study-slides"/); assert.match(html, /<script src="js\/ozet-slayt\.js\?v=\d{8}"><\/script>/);
+  assert.match(html, /<script src="js\/dashboard\.js\?v=\d{8}"><\/script>/, 'eski dashboard.js tarayıcı önbelleğinden gelmesin (canlıda 4 saat max-age)');
   assert.match(d, /window\.AcadexOzetSlayt\.ac\(currentActiveStudyCard, \{ indir: true \}\);\n\s+return;/);
   assert.match(d, /await exportStudyCardToPDF\(currentActiveStudyCard\);/, 'eski yol yedek olarak duruyor');
   assert.match(js, /exportStudyCardToPDF\(kart\)/, 'görüntüleyicide Klasik A4 PDF');
+  assert.equal(W.__tik && W.__tik.c, true, 'yakalama evresinde dinlenir');
+  let durdu = false; const olay = (id) => ({ target: { closest: () => ({ id }) }, preventDefault() { durdu = true; }, stopImmediatePropagation() { durdu = true; } });
+  W.__tik.f(olay('btn-export-pdf')); assert.equal(durdu, false, 'açık özet yoksa dashboard.js kendi uyarısını verir');
+  assert.match(js, /closest\('#btn-study-slides, #btn-export-pdf'\)/); assert.match(js, /e\.stopImmediatePropagation\(\);\n\s+ac\(kart, b\.id === 'btn-export-pdf' \? \{ indir: true \} : \{\}\);\n\s+\}, true\);/, 'düğmeler dashboard.js sürümünden bağımsız');
 });
 summary();

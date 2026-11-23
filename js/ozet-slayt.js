@@ -468,5 +468,21 @@
     });
   }
 
+  /* DÜĞMELER BU DOSYADAN DA BAĞLANIR (24.11.2026). Canlıda dashboard.html yeniydi ama
+     tarayıcı dashboard.js'in 4 saat önbellekteki ESKİ kopyasını kullandı: "slaytlar"
+     düğmesinin dinleyicisi yoktu, "PDF" eski A4 dökümü indirdi. Yakalama evresinde
+     (capture) dinlenince hangi dashboard.js yüklü olursa olsun iki düğme de slayta gider. */
+  function aktifKart() {
+    try { return typeof currentActiveStudyCard !== 'undefined' ? currentActiveStudyCard : null; } catch (e) { return null; }
+  }
+  W.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('#btn-study-slides, #btn-export-pdf') : null;
+    if (!b) return;
+    var kart = aktifKart();
+    if (!kart || !kart.id) return; // kart yoksa dashboard.js kendi uyarısını versin
+    e.preventDefault(); e.stopImmediatePropagation();
+    ac(kart, b.id === 'btn-export-pdf' ? { indir: true } : {});
+  }, true);
+
   W.AcadexOzetSlayt = { ac: ac, kapat: kapat, desteHtml: desteHtml, pdfBelgesi: pdfBelgesi, normalize: normalize, sigdir: sigdir, CSS: CSS, _esc: esc, _yaz: yaz };
 })(window);
