@@ -3161,6 +3161,101 @@ async function extractVisualImagesForLongDoc(
   }
 }
 
+/* ==========================================================================
+   SAYISAL ÖRNEK BULUCU (24.11.2026) — ozet-slayt ve summarize-document'ta AYNI kopya
+   (tests/ornek-bulucu.js iki kopyanın birebir aynı olduğunu denetler).
+   NEDEN: "ITB 311 Lecture 2" kartında kaynakta iki 2×2 L/Q örneği vardı (vizede de
+   çıktı) ama Gemini zaman aşımına düşünce özet küçük modele kaldı, talimat çözümlü örneği
+   yalnız formül varken istiyordu ve kart 0 örnekle çıktı. Bu bulucu modele bağlı değil:
+   kaynak metinde örnek sayfasını kodla bulur, modele "bunları mutlaka işle" listesi olur,
+   sonunda kartın bunları gerçekten işleyip işlemediği ölçülür (ornekKapsama).
+   ========================================================================== */
+export type OrnekBlok = { baslik: string; sayfa: number | null; metin: string; sayilar: string[]; satirlar: string[][]; puan: number }
+
+const ORNEK_ACIK_RE = /\b(examples?|exercises?|illustrations?|numerical|worked|problems?|örne[kğ]i?|örnekler|alıştırma|uygulama)\b/i
+/* güçlü kurulum (ders kitabı örneği) +2; zayıf ("consider the following scenario" psikolojide düz anlatımdır) +1 */
+const ORNEK_KURULUM_RE = /\b(suppose|assume|assuming|given that|varsayalım|diyelim|farz edelim|verilsin)\b/i
+const ORNEK_ZAYIF_KURULUM_RE = /\b(consider|imagine|let us|düşünelim)\b/i
+const ORNEK_SORU_RE = /\b(calculate|compute|determine|find the|how much|how many|hesapla|hesaplayınız|bulunuz|kaç)\b/i
+const ORNEK_YONETIM_RE = /\b(mid-?term|final exam|grading|grade[sd]?|attendance|syllabus|office hours|course objectives|learning outcomes|vize|büt|devam zorunlu|not dağılımı|assessment methods)\b/i
+/* etiket (rakamsız, en çok 40 karakter) + en az iki sayı, sonrasında yazı yok */
+const ORNEK_TABLO_SATIRI_RE = /^[^\d:→=]{0,40}?(?:\s+-?\d+(?:[.,]\d+)?%?){2,}\s*$/
+
+/** Metindeki sayılar (sırasıyla). Yıl (1500-2099) ve sayfa/slayt numarası gibi tek başına satırlar sayılmaz. */
+export function ornekSayilari(s: string): string[] {
+  const out: string[] = []
+  const t = String(s || '').replace(/^[ \t]*\d+[.)][ \t]+/gm, '') // madde numarası sayı değildir
+  for (const m of t.matchAll(/(?<![\w.,])(\d+(?:[.,]\d+)?)(%?)(?![\w])/g)) {
+    const v = m[1].replace(',', '.')
+    if (/^\d{4}$/.test(v) && +v >= 1500 && +v <= 2099) continue
+    out.push(v + m[2])
+  }
+  return out
+}
+
+function ornekBolumle(metin: string): { sayfa: number | null; metin: string }[] {
+  const t = String(metin || '').replace(/\r\n/g, '\n')
+  const isaret = /^[ \t]*-{2,}\s*(?:PAGE|SAYFA|SLAYT|SLIDE)\s*(\d+)\s*-{2,}[ \t]*$/gim
+  const parcalar: { sayfa: number | null; metin: string }[] = []
+  const bol = (s: string, sayfa: number | null) => s.split(/\f|\n[ \t]*\n/).forEach((p) => { if (p.trim()) parcalar.push({ sayfa, metin: p.trim() }) })
+  let son = 0, sayfa: number | null = null, m: RegExpExecArray | null
+  while ((m = isaret.exec(t))) { bol(t.slice(son, m.index), sayfa); sayfa = +m[1]; son = m.index + m[0].length }
+  bol(t.slice(son), sayfa)
+  return parcalar
+}
+
+/** Kaynakta sayısal örnek içeren blokları bulur (en çok `enCok`, sayfa sırasıyla). */
+export function ornekBul(metin: string, enCok = 8): OrnekBlok[] {
+  const bulunan: OrnekBlok[] = [], gorulen = new Set<string>()
+  for (const b of ornekBolumle(metin)) {
+    if (b.metin.length < 60 || ORNEK_YONETIM_RE.test(b.metin)) continue
+    const satirlar = b.metin.split('\n').map((l) => l.trim()).filter(Boolean)
+    const ilk = satirlar.slice(0, 2).join(' ')
+    /* tablo satırı: kısa bir etiket + yalnız sayılar ("Country A 2 6", "Ürün X  120  45%") */
+    const tablo = satirlar.slice(1).filter((l) => l.length < 90 && ORNEK_TABLO_SATIRI_RE.test(l)).map((l) => ornekSayilari(l))
+    const hesap = satirlar.filter((l) => /\d\s*(?:[×*\/+=−-]\s*\d|%|hours?\b|units?\b|saat\b|birim\b|TL\b|USD\b|EUR\b|times\b|kez\b)|[=→]\s*\d|[$€£₺]\s?\d/i.test(l)).length
+    const puan = (ORNEK_ACIK_RE.test(ilk) || /\b(?:example|örnek)\s*:/i.test(b.metin) ? 2 : (ORNEK_ACIK_RE.test(b.metin) ? 1 : 0)) +
+      (ORNEK_KURULUM_RE.test(b.metin) ? 2 : ORNEK_ZAYIF_KURULUM_RE.test(b.metin) ? 1 : 0) + (ORNEK_SORU_RE.test(b.metin) ? 1 : 0) + (tablo.length >= 2 ? 2 : 0) + (tablo.length >= 3 ? 1 : 0) +
+      (hesap >= 4 ? 2 : hesap >= 2 ? 1 : 0)
+    const sayilar = ornekSayilari(b.metin)
+    /* yoğun sayılı paragraf (ders kitabı örneği: "Sold 8 bikes costing $91 ...") */
+    const yogun = sayilar.length >= 10 && hesap >= 3 ? 1 : 0
+    if (puan + yogun < 3 || new Set(sayilar).size < 3 || sayilar.length < 4) continue
+    /* aynı tablo bir sonraki slaytta tekrar edilir ("Remember our example"): bir kez say */
+    const anahtar = tablo.length >= 2 ? tablo.map((r) => r.join(' ')).join('|') : [...new Set(sayilar)].sort().join(' ')
+    if (gorulen.has(anahtar)) continue
+    gorulen.add(anahtar)
+    bulunan.push({ baslik: satirlar[0].replace(/^[•\-–*\s]+/, '').slice(0, 90), sayfa: b.sayfa, metin: b.metin.slice(0, 1400), sayilar, satirlar: tablo, puan: puan + yogun })
+  }
+  return bulunan.slice(0, enCok)
+}
+
+/** Kart bu örnekleri işledi mi? Yalnız çözümlü örnekler ve tablolar sayılır (bir key_point'te
+    "2" ve "4" geçmesi örneği işlemek değildir). Tablolu örnekte satır ya da sütun çiftleri
+    bir öğenin sayı dizisinde ardışık bulunmalı; tablosuzda sayıların %75'i aynı öğede olmalı. */
+export function ornekKapsama(ornekler: OrnekBlok[], kart: any): { bulunan: number; islenen: number; eksik: { baslik: string; sayfa: number | null }[] } {
+  const ogeler = [...(Array.isArray(kart?.worked_examples) ? kart.worked_examples : []), ...(Array.isArray(kart?.tables) ? kart.tables : [])]
+    .map((o) => ornekSayilari(JSON.stringify(o)))
+  const ardisik = (dizi: string[], a: string, b: string) => dizi.some((x, i) => x === a && dizi[i + 1] === b)
+  const islendi = (o: OrnekBlok) => ogeler.some((d) => {
+    if (o.satirlar.length >= 2) {
+      const ciftler = (rs: string[][]) => rs.every((r) => r.slice(1).every((v, i) => ardisik(d, r[i], v)))
+      const sutunlar = o.satirlar[0].map((_, j) => o.satirlar.map((r) => r[j]).filter((v) => v != null))
+      return ciftler(o.satirlar) || ciftler(sutunlar)
+    }
+    const hedef = [...new Set(o.sayilar)], var_ = new Set(d)
+    return hedef.filter((n) => var_.has(n)).length / hedef.length >= 0.75
+  })
+  const eksik = ornekler.filter((o) => !islendi(o)).map((o) => ({ baslik: o.baslik, sayfa: o.sayfa }))
+  return { bulunan: ornekler.length, islenen: ornekler.length - eksik.length, eksik }
+}
+
+/** Modele giden "mutlaka işle" satırı (pencere talimatının sonuna eklenir; örnek yoksa boş). */
+export function ornekTalimati(ornekler: OrnekBlok[]): string {
+  if (!ornekler.length) return ''
+  return `\n- MUST COVER: this text contains ${ornekler.length} numerical example(s) that students are examined on: ${ornekler.map((o) => `"${o.baslik}"${o.sayfa ? ` (p.${o.sayfa})` : ''}`).join('; ')}. For EACH one write a worked_example with the source's own numbers (problem_statement gives the data, steps compare/compute, final_answer states the conclusion) and copy its data table into 'tables' — even when there is no formula.`
+}
+
 function buildChunkSystemPrompt(chunkIndex: number, totalChunks: number, langLabel: string, hasPageMarkers: boolean, pageMarkerLabel: string, isDeck = false): string {
   return `You are an academic study assistant helping process a LARGE document that has been split into ${totalChunks} sequential parts because of its length. You are given ONLY part ${chunkIndex + 1} of ${totalChunks} below — you do NOT see the rest of the document, so do not reference "the whole document" or assume content beyond what's shown here.
 
@@ -14149,6 +14244,9 @@ In addition to the text below, you are shown images of this document's pages. Us
         `(${deste.reason}; ${deste.pages} isaret, isaret basina ${deste.charsPerPage} krk)`
       )
 
+      /* pencere basina kaynakta bulunan sayisal ornekler (24.11.2026, ornekBul): pencereler
+         kurulduktan sonra doldurulur, talimatin sonuna "MUST COVER" satiri olarak eklenir. */
+      let pencereOrnekleri: OrnekBlok[][] = []
       const compactWindowPrompt = (wi: number, total: number) =>
         `You extract study material from ${total === 1 ? 'a complete academic document' : `part ${wi + 1}/${total} of a long academic document`}.
 Language for all text fields: ${langLabel}.${desteTalimati}
@@ -14185,7 +14283,7 @@ Rules:
 - 'charts': only chart-worthy numeric data actually present in ${scopeWord(total)} (pick bar for category comparisons, pie for proportions of a whole, line for progression over time) — empty array if none
 - 'diagrams': when short disconnected phrases, stage names, or paired opposing terms in ${scopeWord(total)} clearly reconstruct a flowchart/comparison/hierarchy/cycle, rebuild it as valid Mermaid source (flowchart TD/LR, graph TD, sequenceDiagram, or mindmap); at most ${total === 1 ? '2-3' : '1-2'}; empty array if nothing reconstructible — never invent
 - 'formulas': EVERY equation in ${scopeWord(total)} — model forms, estimated equations with their numbers, derivatives, hypotheses (H0/H1) — latex copied from the source, each once
-- 'worked_examples': 1-3, solving ${scopeWord(total)}'s OWN examples with ITS numbers — never invent a coefficient; every "a = b" you write must compute; one action per steps item, no numbering; empty array if there is no calculation`
+- 'worked_examples': 1-3, solving ${scopeWord(total)}'s OWN examples with ITS numbers — never invent a coefficient; every "a = b" you write must compute; one action per steps item, no numbering; empty array if there is no calculation` + ornekTalimati(pencereOrnekleri[wi] || [])
 
       // Window size is bounded by this account's tokens-per-minute cap, not by
       // the HTTP payload limit — the 413 comment this constant used to carry
@@ -14333,6 +14431,11 @@ Rules:
         `Long-doc compact: ${windows.length} window(s), totalChars=${extractedText.length}, ` +
         `windowedChars=${windowedChars} (${Math.round(100 * windowedChars / Math.max(1, extractedText.length))}% of document reachable)`
       )
+      pencereOrnekleri = windows.map((w) => ornekBul(w, 4))
+      {
+        const n = pencereOrnekleri.reduce((t, l) => t + l.length, 0)
+        if (n) console.log(`Sayisal ornek bulucu: ${n} ornek (${pencereOrnekleri.map((l) => l.length).join('+')}) — pencerelere MUST COVER olarak eklendi: ${pencereOrnekleri.flat().map((o) => o.baslik).join(' | ').slice(0, 300)}`)
+      }
 
       // Which lane each window actually used, for the success log. Kept
       // beside the results rather than ON them: a stray field on the result
@@ -17430,6 +17533,15 @@ Change ONLY the sentences the issues name. Keep everything else exactly: the par
     // qualityMeta cardPayload.quality_meta ile AYNI nesne — burada eklenen
     // alan insert'e giriyor.
     {
+      /* ORNEK KAPSAMASI (24.11.2026): kaynaktaki sayisal ornekler kartta islendi mi? Karta
+         yazilir; ekran eksik varsa "ornekleri ekle" uyarisini gosterir (ozet-slayt 'ornekler'). */
+      try {
+        const ok = ornekKapsama(ornekBul(extractedText, 8), cardPayload)
+        if (ok.bulunan) {
+          ;(qualityMeta as any).ornek_kapsama = ok
+          console.log(`Ornek kapsamasi: ${ok.islenen}/${ok.bulunan} islendi${ok.eksik.length ? ' — EKSIK: ' + ok.eksik.map((e) => e.baslik).join(' | ').slice(0, 300) : ''}`)
+        }
+      } catch (e) { console.warn('Ornek kapsamasi olculemedi:', (e as any)?.message || e) }
       const kapsama = numericCoverage(olcumMetni || extractedText, cardPayload)
       /* OCR'DA BU OLCU GECERSIZ (01.11.2026, Week 8/11 kosularinda olculdu).
        *

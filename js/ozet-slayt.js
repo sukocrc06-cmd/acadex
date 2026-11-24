@@ -21,9 +21,9 @@
   var D = W.document;
   var GEN = 1280, YUK = 720;
   var FONT_URL = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Color+Emoji&display=swap';
-  var TURLER = ['harita', 'kartlar', 'surec', 'tablo', 'ornek', 'sorular', 'tekrar'];
+  var TURLER = ['harita', 'kartlar', 'surec', 'tablo', 'cozum', 'ornek', 'sorular', 'tekrar'];
   var RENKLER = ['lacivert', 'turuncu', 'yesil', 'kirmizi'];
-  var TUR_RENK = { harita: 'lacivert', kartlar: 'lacivert', surec: 'kirmizi', tablo: 'turuncu', ornek: 'yesil', sorular: 'kirmizi', tekrar: 'kirmizi' };
+  var TUR_RENK = { harita: 'lacivert', kartlar: 'lacivert', surec: 'kirmizi', tablo: 'turuncu', cozum: 'turuncu', ornek: 'yesil', sorular: 'kirmizi', tekrar: 'kirmizi' };
 
   /* ---------------- yardımcılar ---------------- */
   function esc(s) {
@@ -74,9 +74,15 @@
         x.ek = str(s.ek, 300);
       }
       if (s.tur === 'sorular') x.sorular = dizi(s.sorular, 6).map(function (q) { return { soru: str(q && q.soru, 220), tr: str(q && q.tr, 200), ipucu: str(q && q.ipucu, 200), yildiz: yildizSay(q && q.yildiz) }; }).filter(function (q) { return q.soru; });
+      if (s.tur === 'cozum') {
+        var v = s.veri && typeof s.veri === 'object' ? s.veri : {};
+        x.veri = { sutunlar: dizi(v.sutunlar, 5).map(function (c) { return str(c, 40); }), satirlar: dizi(v.satirlar, 7).map(function (r) { return dizi(r, 5).map(function (c) { return str(c, 60); }); }).filter(function (r) { return r.length; }) };
+        x.soru = str(s.soru, 260); x.adimlar = dizi(s.adimlar, 6).map(function (a) { return str(a, 200); }).filter(Boolean);
+        x.sonuc = str(s.sonuc, 260); x.sonuc_tr = str(s.sonuc_tr, 200); x.kaynak = str(s.kaynak, 60);
+      }
       if (s.tur === 'tekrar') x.kutular = dizi(s.kutular, 12).map(function (k) { return { simge: str(k && k.simge, 8), baslik: str(k && k.baslik, 40), metin: str(k && k.metin, 170), tr: str(k && k.tr, 110) }; }).filter(function (k) { return k.baslik; });
       var bos = (x.tur === 'harita' && !x.ogeler.length) || (x.tur === 'kartlar' && !x.kartlar.length) || (x.tur === 'surec' && !x.adimlar.length) ||
-        (x.tur === 'tablo' && !x.satirlar.length) || (x.tur === 'ornek' && !x.metin) || (x.tur === 'sorular' && !x.sorular.length) || (x.tur === 'tekrar' && !x.kutular.length);
+        (x.tur === 'tablo' && !x.satirlar.length) || (x.tur === 'cozum' && (!x.adimlar.length || !x.sonuc)) || (x.tur === 'ornek' && !x.metin) || (x.tur === 'sorular' && !x.sorular.length) || (x.tur === 'tekrar' && !x.kutular.length);
       if (!bos && x.baslik) out.slaytlar.push(x);
     });
     return out;
@@ -124,6 +130,15 @@
         s.satirlar.map(function (r, i) {
           return '<tr>' + r.map(function (c, j) { return '<td>' + (j ? yaz(c) : '<b>' + yaz(c) + '</b>' + (iki && s.satir_tr[i] ? '<small class="oz-tr">' + yaz(s.satir_tr[i]) + '</small>' : '')) + '</td>'; }).join('') + '</tr>';
         }).join('') + '</tbody></table>';
+    },
+    /* çözümlü sayısal örnek (24.11.2026): solda kaynağın veri tablosu, sağda adım adım çözüm, altta sonuç */
+    cozum: function (s, iki) {
+      var tablo = s.veri.satirlar.length ? '<table class="oz-tablo oz-veri">' + (s.veri.sutunlar.length ? '<thead><tr>' + s.veri.sutunlar.map(function (c) { return '<th>' + yaz(c) + '</th>'; }).join('') + '</tr></thead>' : '') +
+        '<tbody>' + s.veri.satirlar.map(function (r) { return '<tr>' + r.map(function (c, j) { return '<td>' + (j ? '<span class="oz-sayi">' + yaz(c) + '</span>' : '<b>' + yaz(c) + '</b>') + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' : '';
+      return (s.soru ? '<p class="oz-soru-satir"><span class="oz-soru-et">❓</span>' + yaz(s.soru) + '</p>' : '') +
+        '<div class="oz-cozum' + (tablo ? '' : ' oz-tek') + '">' + (tablo ? '<div class="oz-veri-k">' + tablo + (s.kaynak ? '<small class="oz-kaynak">' + esc(s.kaynak) + '</small>' : '') + '</div>' : '') +
+        '<ol class="oz-adimlar">' + s.adimlar.map(function (a, i) { return '<li><span class="oz-no">' + (i + 1) + '</span><p>' + yaz(a) + '</p></li>'; }).join('') + '</ol></div>' +
+        '<div class="oz-sonuc"><span class="oz-sonuc-et">✅</span><div><p><b>' + yaz(s.sonuc) + '</b></p>' + tr(s.sonuc_tr, iki) + '</div></div>';
     },
     ornek: function (s, iki) {
       var yan = s.yan ? '<aside class="oz-yan"><h4>' + (s.yan.simge ? esc(s.yan.simge) + ' ' : '🧩 ') + yaz(s.yan.baslik) + '</h4>' + s.yan.maddeler.map(function (m) { return '<p>' + yaz(m) + '</p>'; }).join('') + tr(s.yan.tr, iki) + '</aside>' : '';
@@ -220,6 +235,14 @@
     '.oz-sorular li{display:flex;gap:14px;background:#fff;border-radius:14px;padding:16px 20px;box-shadow:0 1px 3px rgba(30,42,74,.07);border-left:6px solid var(--kir)}',
     '.oz-sorular .oz-no{flex:none;width:30px;height:30px;font-size:14px;background:var(--kir)}.oz-soru{font-size:16.5px;line-height:1.4;font-weight:700}',
     '.oz-ipucu{margin-top:7px;font-size:13.5px;line-height:1.45;color:#5B6478}',
+    /* çözümlü sayısal örnek */
+    '.oz-soru-satir{display:flex;gap:10px;align-items:flex-start;margin-bottom:16px;font-size:17px;line-height:1.45;font-weight:600}.oz-soru-et{font-size:20px;line-height:1.2}',
+    '.oz-cozum{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.25fr);gap:20px;align-items:start}.oz-cozum.oz-tek{grid-template-columns:1fr}',
+    '.oz-veri td,.oz-veri th{text-align:center}.oz-veri td:first-child,.oz-veri th:first-child{text-align:left}.oz-sayi{font-size:20px;font-weight:800;color:var(--tur)}',
+    '.oz-kaynak{display:block;margin-top:6px;font-size:12px;color:#7A8296}',
+    '.oz-adimlar{list-style:none;display:grid;gap:10px}.oz-adimlar li{display:flex;gap:12px;align-items:flex-start;background:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 1px 3px rgba(30,42,74,.07);font-size:15.5px;line-height:1.45}',
+    '.oz-adimlar .oz-no{flex:none;background:var(--tur)}',
+    '.oz-sonuc{display:flex;gap:14px;align-items:center;margin-top:16px;padding:14px 20px;border-radius:14px;background:#E4F3EC;color:#0D5A43;font-size:16.5px;line-height:1.45}.oz-sonuc-et{font-size:26px}',
     /* son tekrar */
     '.oz-kb .oz-govde{margin-top:20px}.oz-tekrar{display:grid;gap:14px}',
     '.oz-tk{background:#fff;border-radius:14px;border-top:6px solid var(--kir);padding:14px 18px;box-shadow:0 1px 3px rgba(30,42,74,.07);font-size:14.5px;line-height:1.45}',

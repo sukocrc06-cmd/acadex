@@ -35,9 +35,9 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1/models'
 const GEMINI_MODELLERI = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']
 const GEMINI_DENEME_MS = 95_000
 const GROQ_MODEL = 'openai/gpt-oss-120b'
-const TURLER = ['harita', 'kartlar', 'surec', 'tablo', 'ornek', 'sorular', 'tekrar']
+const TURLER = ['harita', 'kartlar', 'surec', 'tablo', 'cozum', 'ornek', 'sorular', 'tekrar']
 const RENKLER = ['lacivert', 'turuncu', 'yesil', 'kirmizi']
-const TUR_RENK: Record<string, string> = { harita: 'lacivert', kartlar: 'lacivert', surec: 'kirmizi', tablo: 'turuncu', ornek: 'yesil', sorular: 'kirmizi', tekrar: 'kirmizi' }
+const TUR_RENK: Record<string, string> = { harita: 'lacivert', kartlar: 'lacivert', surec: 'kirmizi', tablo: 'turuncu', cozum: 'turuncu', ornek: 'yesil', sorular: 'kirmizi', tekrar: 'kirmizi' }
 
 function json(veri: unknown, durum = 200): Response {
   return new Response(JSON.stringify(veri), { status: durum, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
@@ -86,12 +86,18 @@ export function desteNormalize(d: any, varsayilan: { kaynak?: string; ikidil?: b
       x.ek = str(s.ek, 300)
     }
     if (s.tur === 'sorular') x.sorular = dizi(s.sorular, 6).map((q) => ({ soru: str(q?.soru, 220), tr: str(q?.tr, 200), ipucu: str(q?.ipucu, 200), yildiz: yildizSay(q?.yildiz) })).filter((q) => q.soru)
+    if (s.tur === 'cozum') {
+      const v = s.veri && typeof s.veri === 'object' ? s.veri : {}
+      x.veri = { sutunlar: dizi(v.sutunlar, 5).map((c) => str(c, 40)), satirlar: dizi(v.satirlar, 7).map((r) => dizi(r, 5).map((c) => str(c, 60))).filter((r) => r.length) }
+      x.soru = str(s.soru, 260); x.adimlar = dizi(s.adimlar, 6).map((a) => str(a, 200)).filter(Boolean)
+      x.sonuc = str(s.sonuc, 260); x.sonuc_tr = str(s.sonuc_tr, 200); x.kaynak = str(s.kaynak, 60)
+    }
     if (s.tur === 'tekrar') x.kutular = dizi(s.kutular, 12).map((k) => ({ simge: str(k?.simge, 8), baslik: str(k?.baslik, 40), metin: str(k?.metin, 170), tr: str(k?.tr, 110) })).filter((k) => k.baslik)
     const bos = (x.tur === 'harita' && !x.ogeler.length) || (x.tur === 'kartlar' && !x.kartlar.length) || (x.tur === 'surec' && !x.adimlar.length) ||
-      (x.tur === 'tablo' && !x.satirlar.length) || (x.tur === 'ornek' && !x.metin) || (x.tur === 'sorular' && !x.sorular.length) || (x.tur === 'tekrar' && !x.kutular.length)
+      (x.tur === 'tablo' && !x.satirlar.length) || (x.tur === 'cozum' && (!x.adimlar.length || !x.sonuc)) || (x.tur === 'ornek' && !x.metin) || (x.tur === 'sorular' && !x.sorular.length) || (x.tur === 'tekrar' && !x.kutular.length)
     if (!bos && x.baslik) out.slaytlar.push(x)
   }
-  if (!out.ikidil) out.slaytlar.forEach((s: any) => { s.etiket_tr = ''; s.baslik_tr = '' })
+  if (!out.ikidil) out.slaytlar.forEach((s: any) => { s.etiket_tr = ''; s.baslik_tr = ''; if (s.tur === 'cozum') s.sonuc_tr = '' })
   return out
 }
 
@@ -109,13 +115,14 @@ SLIDE TYPES (field "tur"). Every slide has: tur, etiket (2-3 word kicker in the 
 - "kartlar": 2-4 cards side by side. kartlar: [{simge, baslik, alt (optional short tag), metin (1-2 short sentences) and/or maddeler (2-4 bullets, max 10 words each), tr}], optional ornek (one sentence: a short exam-ready definition or example).
 - "surec": a sequence/evolution/process. adimlar: 3-6 {baslik, metin (max 18 words), tr, vurgu (true for the 1-2 most important steps)}.
 - "tablo": comparison or list of types. sutunlar: 2-4 headers; satirlar: 3-8 rows (arrays of cells, max 14 words per cell); satir_tr: Turkish name of each row's first cell.
+- "cozum": a NUMERICAL EXAMPLE from the source, solved step by step (one slide per example listed under NUMERICAL EXAMPLES). veri: {sutunlar: headers, satirlar: rows} = the source's data table with its REAL numbers (empty if the example has no table); soru: the task as it would be asked in an exam (1 sentence); adimlar: 3-5 steps, each one comparison or calculation with the numbers ("Wheat: A needs 2 h, B needs 4 h → A is cheaper"); sonuc: the conclusion in one sentence; sonuc_tr: its Turkish; kaynak: e.g. "p.13". Never change the numbers.
 - "ornek": model exam answer ("Write it like this"). metin: 3-5 short paragraphs separated by \\n\\n, 110-170 words, simple academic English, **bold** key terms; it must define the concept, give an example from the source, and end with "In conclusion, ...". yan: {simge, baslik:"Answer formula" or "Logic map", maddeler: 3-4 short lines, tr}. ek: optional one-line bonus tip.
 - "sorular": 4-6 likely exam questions. sorular: [{soru, tr, ipucu (keywords of the answer, not the full answer), yildiz}].
 - "tekrar": final cheat sheet. kutular: 8-12 boxes {simge, baslik (1-3 words), metin (max 18 words), tr (max 6 words)}. The last box is "Exam tips".
 not (optional callout): {tur: "ipucu"|"uyari"|"bilgi", simge (emoji), baslik (2-3 words), metin (max 30 words), tr}. Use "uyari" for common mistakes / confusions, "ipucu" for exam tips, "bilgi" for an extra fact.
 
 DECK PLAN (${yedek ? '9-12' : '12-18'} slides, in the source's order):
-1. one "harita"; 2. "kartlar" slides covering EVERY major topic of the chapter (do not skip lists, definitions, typologies); 3. at least one "tablo" when the source has types/categories/states; 4. at least one "surec" when there is an evolution, process or sequence; 5. ${yedek ? '1' : '2'} "ornek" model answers for the most likely essay questions (one may compare two concepts); 6. one "sorular"; 7. optionally one "kartlar" writing toolkit with 4 cards of useful phrases (Define / Compare / Example / Conclude); 8. one "tekrar" as the LAST slide.
+1. one "harita"; 2. "kartlar" slides covering EVERY major topic; right after the theory it illustrates, one "cozum" slide for EACH item under NUMERICAL EXAMPLES (these are exam material — never skip them, they come before any other optional slide) of the chapter (do not skip lists, definitions, typologies); 3. at least one "tablo" when the source has types/categories/states; 4. at least one "surec" when there is an evolution, process or sequence; 5. ${yedek ? '1' : '2'} "ornek" model answers for the most likely essay questions (one may compare two concepts); 6. one "sorular"; 7. optionally one "kartlar" writing toolkit with 4 cards of useful phrases (Define / Compare / Example / Conclude); 8. one "tekrar" as the LAST slide.
 
 STYLE RULES
 - Main language = the language of the source. Simple, clear English (B1-B2) if the source is English: short sentences, one idea per sentence, keep technical terms exactly as the source uses them.
@@ -123,6 +130,7 @@ STYLE RULES
 - Ground everything in the provided source and summary. Prefer examples, numbers, names and cases that appear in the source. If the source has no example for a key concept, add one short everyday example starting with "e.g.".
 - yildiz = estimated exam importance: 3 = core definition, numbered list, learning objective or repeatedly emphasised idea; 2 = important supporting idea; 1 = background; 0 = no stars (use 0 for "ornek", "sorular" slides' own yildiz and for toolkit slides).
 - Emojis: one fitting emoji per card/item; never use emojis inside sentences.
+- Keep the source's original technical terms (e.g. "price-specie-flow mechanism"); never back-translate a term from the Turkish summary.
 - Never invent statistics, quotes or page numbers. No teacher names. No markdown except **bold**.`
 }
 
@@ -221,6 +229,118 @@ async function groqUret(apiKey: string, sistem: string, kullanici: string): Prom
   }
 }
 
+/* ==========================================================================
+   SAYISAL ÖRNEK BULUCU (24.11.2026) — ozet-slayt ve summarize-document'ta AYNI kopya
+   (tests/ornek-bulucu.js iki kopyanın birebir aynı olduğunu denetler).
+   NEDEN: "ITB 311 Lecture 2" kartında kaynakta iki 2×2 L/Q örneği vardı (vizede de
+   çıktı) ama Gemini zaman aşımına düşünce özet küçük modele kaldı, talimat çözümlü örneği
+   yalnız formül varken istiyordu ve kart 0 örnekle çıktı. Bu bulucu modele bağlı değil:
+   kaynak metinde örnek sayfasını kodla bulur, modele "bunları mutlaka işle" listesi olur,
+   sonunda kartın bunları gerçekten işleyip işlemediği ölçülür (ornekKapsama).
+   ========================================================================== */
+export type OrnekBlok = { baslik: string; sayfa: number | null; metin: string; sayilar: string[]; satirlar: string[][]; puan: number }
+
+const ORNEK_ACIK_RE = /\b(examples?|exercises?|illustrations?|numerical|worked|problems?|örne[kğ]i?|örnekler|alıştırma|uygulama)\b/i
+/* güçlü kurulum (ders kitabı örneği) +2; zayıf ("consider the following scenario" psikolojide düz anlatımdır) +1 */
+const ORNEK_KURULUM_RE = /\b(suppose|assume|assuming|given that|varsayalım|diyelim|farz edelim|verilsin)\b/i
+const ORNEK_ZAYIF_KURULUM_RE = /\b(consider|imagine|let us|düşünelim)\b/i
+const ORNEK_SORU_RE = /\b(calculate|compute|determine|find the|how much|how many|hesapla|hesaplayınız|bulunuz|kaç)\b/i
+const ORNEK_YONETIM_RE = /\b(mid-?term|final exam|grading|grade[sd]?|attendance|syllabus|office hours|course objectives|learning outcomes|vize|büt|devam zorunlu|not dağılımı|assessment methods)\b/i
+/* etiket (rakamsız, en çok 40 karakter) + en az iki sayı, sonrasında yazı yok */
+const ORNEK_TABLO_SATIRI_RE = /^[^\d:→=]{0,40}?(?:\s+-?\d+(?:[.,]\d+)?%?){2,}\s*$/
+
+/** Metindeki sayılar (sırasıyla). Yıl (1500-2099) ve sayfa/slayt numarası gibi tek başına satırlar sayılmaz. */
+export function ornekSayilari(s: string): string[] {
+  const out: string[] = []
+  const t = String(s || '').replace(/^[ \t]*\d+[.)][ \t]+/gm, '') // madde numarası sayı değildir
+  for (const m of t.matchAll(/(?<![\w.,])(\d+(?:[.,]\d+)?)(%?)(?![\w])/g)) {
+    const v = m[1].replace(',', '.')
+    if (/^\d{4}$/.test(v) && +v >= 1500 && +v <= 2099) continue
+    out.push(v + m[2])
+  }
+  return out
+}
+
+function ornekBolumle(metin: string): { sayfa: number | null; metin: string }[] {
+  const t = String(metin || '').replace(/\r\n/g, '\n')
+  const isaret = /^[ \t]*-{2,}\s*(?:PAGE|SAYFA|SLAYT|SLIDE)\s*(\d+)\s*-{2,}[ \t]*$/gim
+  const parcalar: { sayfa: number | null; metin: string }[] = []
+  const bol = (s: string, sayfa: number | null) => s.split(/\f|\n[ \t]*\n/).forEach((p) => { if (p.trim()) parcalar.push({ sayfa, metin: p.trim() }) })
+  let son = 0, sayfa: number | null = null, m: RegExpExecArray | null
+  while ((m = isaret.exec(t))) { bol(t.slice(son, m.index), sayfa); sayfa = +m[1]; son = m.index + m[0].length }
+  bol(t.slice(son), sayfa)
+  return parcalar
+}
+
+/** Kaynakta sayısal örnek içeren blokları bulur (en çok `enCok`, sayfa sırasıyla). */
+export function ornekBul(metin: string, enCok = 8): OrnekBlok[] {
+  const bulunan: OrnekBlok[] = [], gorulen = new Set<string>()
+  for (const b of ornekBolumle(metin)) {
+    if (b.metin.length < 60 || ORNEK_YONETIM_RE.test(b.metin)) continue
+    const satirlar = b.metin.split('\n').map((l) => l.trim()).filter(Boolean)
+    const ilk = satirlar.slice(0, 2).join(' ')
+    /* tablo satırı: kısa bir etiket + yalnız sayılar ("Country A 2 6", "Ürün X  120  45%") */
+    const tablo = satirlar.slice(1).filter((l) => l.length < 90 && ORNEK_TABLO_SATIRI_RE.test(l)).map((l) => ornekSayilari(l))
+    const hesap = satirlar.filter((l) => /\d\s*(?:[×*\/+=−-]\s*\d|%|hours?\b|units?\b|saat\b|birim\b|TL\b|USD\b|EUR\b|times\b|kez\b)|[=→]\s*\d|[$€£₺]\s?\d/i.test(l)).length
+    const puan = (ORNEK_ACIK_RE.test(ilk) || /\b(?:example|örnek)\s*:/i.test(b.metin) ? 2 : (ORNEK_ACIK_RE.test(b.metin) ? 1 : 0)) +
+      (ORNEK_KURULUM_RE.test(b.metin) ? 2 : ORNEK_ZAYIF_KURULUM_RE.test(b.metin) ? 1 : 0) + (ORNEK_SORU_RE.test(b.metin) ? 1 : 0) + (tablo.length >= 2 ? 2 : 0) + (tablo.length >= 3 ? 1 : 0) +
+      (hesap >= 4 ? 2 : hesap >= 2 ? 1 : 0)
+    const sayilar = ornekSayilari(b.metin)
+    /* yoğun sayılı paragraf (ders kitabı örneği: "Sold 8 bikes costing $91 ...") */
+    const yogun = sayilar.length >= 10 && hesap >= 3 ? 1 : 0
+    if (puan + yogun < 3 || new Set(sayilar).size < 3 || sayilar.length < 4) continue
+    /* aynı tablo bir sonraki slaytta tekrar edilir ("Remember our example"): bir kez say */
+    const anahtar = tablo.length >= 2 ? tablo.map((r) => r.join(' ')).join('|') : [...new Set(sayilar)].sort().join(' ')
+    if (gorulen.has(anahtar)) continue
+    gorulen.add(anahtar)
+    bulunan.push({ baslik: satirlar[0].replace(/^[•\-–*\s]+/, '').slice(0, 90), sayfa: b.sayfa, metin: b.metin.slice(0, 1400), sayilar, satirlar: tablo, puan: puan + yogun })
+  }
+  return bulunan.slice(0, enCok)
+}
+
+/** Kart bu örnekleri işledi mi? Yalnız çözümlü örnekler ve tablolar sayılır (bir key_point'te
+    "2" ve "4" geçmesi örneği işlemek değildir). Tablolu örnekte satır ya da sütun çiftleri
+    bir öğenin sayı dizisinde ardışık bulunmalı; tablosuzda sayıların %75'i aynı öğede olmalı. */
+export function ornekKapsama(ornekler: OrnekBlok[], kart: any): { bulunan: number; islenen: number; eksik: { baslik: string; sayfa: number | null }[] } {
+  const ogeler = [...(Array.isArray(kart?.worked_examples) ? kart.worked_examples : []), ...(Array.isArray(kart?.tables) ? kart.tables : [])]
+    .map((o) => ornekSayilari(JSON.stringify(o)))
+  const ardisik = (dizi: string[], a: string, b: string) => dizi.some((x, i) => x === a && dizi[i + 1] === b)
+  const islendi = (o: OrnekBlok) => ogeler.some((d) => {
+    if (o.satirlar.length >= 2) {
+      const ciftler = (rs: string[][]) => rs.every((r) => r.slice(1).every((v, i) => ardisik(d, r[i], v)))
+      const sutunlar = o.satirlar[0].map((_, j) => o.satirlar.map((r) => r[j]).filter((v) => v != null))
+      return ciftler(o.satirlar) || ciftler(sutunlar)
+    }
+    const hedef = [...new Set(o.sayilar)], var_ = new Set(d)
+    return hedef.filter((n) => var_.has(n)).length / hedef.length >= 0.75
+  })
+  const eksik = ornekler.filter((o) => !islendi(o)).map((o) => ({ baslik: o.baslik, sayfa: o.sayfa }))
+  return { bulunan: ornekler.length, islenen: ornekler.length - eksik.length, eksik }
+}
+
+/** Modele giden "mutlaka işle" satırı (pencere talimatının sonuna eklenir; örnek yoksa boş). */
+export function ornekTalimati(ornekler: OrnekBlok[]): string {
+  if (!ornekler.length) return ''
+  return `\n- MUST COVER: this text contains ${ornekler.length} numerical example(s) that students are examined on: ${ornekler.map((o) => `"${o.baslik}"${o.sayfa ? ` (p.${o.sayfa})` : ''}`).join('; ')}. For EACH one write a worked_example with the source's own numbers (problem_statement gives the data, steps compare/compute, final_answer states the conclusion) and copy its data table into 'tables' — even when there is no formula.`
+}
+
+/* ---------------- eksik örnek çıkarıcı ---------------- */
+export const ORNEK_TALIMATI = `You turn numerical examples from a lecture into exam-ready worked examples. Return ONLY JSON:
+{"worked_examples": [{"title": "...", "problem_statement": "the setup with ALL the source's data", "steps": ["one comparison or calculation per step, with the numbers"], "final_answer": "the conclusion"}], "tables": [{"title": "...", "headers": ["..."], "rows": [["..."]]}]}
+Rules: one worked_example per EXAMPLE block, in order; use the source's exact numbers and units, never invent or change a number; 3-6 steps; if the example has a data table, also copy it into "tables" (first column = row label); if a step uses a rule (e.g. "with L/Q, lower is better"), state it.`
+
+export function ornekCiktisiTemizle(v: any): { worked_examples: any[]; tables: any[] } {
+  const we = dizi(v?.worked_examples, 8).map((w) => ({
+    title: str(w?.title, 140), problem_statement: str(w?.problem_statement, 1200),
+    steps: dizi(w?.steps, 10).map((x) => str(x, 400)).filter(Boolean), final_answer: str(w?.final_answer, 500)
+  })).filter((w) => w.title && w.steps.length && w.final_answer)
+  const tb = dizi(v?.tables, 8).map((t) => ({
+    title: str(t?.title, 140), headers: dizi(t?.headers, 8).map((h) => str(h, 60)),
+    rows: dizi(t?.rows, 20).map((r) => dizi(r, 8).map((c) => str(c, 80))).filter((r) => r.length)
+  })).filter((t) => t.rows.length && t.headers.length)
+  return { worked_examples: we, tables: tb }
+}
+
 /* ---------------- başlık ---------------- */
 export const BASLIK_TALIMATI = `From the first pages of a university course document, return ONLY a JSON object:
 {"ders": "course name, e.g. Marketing Management, or empty", "bolum": "chapter/week/unit label, e.g. Chapter 1 or Week 9, or empty", "baslik": "the chapter or topic title WITHOUT the label, e.g. Defining Marketing for the New Realities"}
@@ -312,6 +432,49 @@ serve(async (req) => {
       return new Response(r.pdf, { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="acadex-slaytlar.pdf"' } })
     }
 
+    /* SAYISAL ÖRNEKLER (24.11.2026). 'ornek-kontrol': kaynakta bulunan örneklerden hangileri
+       kartta işlenmemiş (yalnız veritabanı, model yok). 'ornekler': eksikleri yalnız o sayfalardan
+       çıkarıp karta çözümlü örnek + tablo olarak ekler (kartın sahibi; günlük üretim sınırına sayılır).
+       Ekleme sonrası slayt destesi silinir ki bir sonraki açılışta "cozum" slaytlarıyla yeniden üretilsin. */
+    if (islem === 'ornek-kontrol' || islem === 'ornekler') {
+      const kartId = String(govde?.kartId || '')
+      const { data: card } = await userClient.from('study_cards').select('*').eq('id', kartId).single()
+      if (!card) return json({ mesaj: 'Özet bulunamadı.' }, 404)
+      const docIds: string[] = card.is_merged && Array.isArray(card.source_documents) ? card.source_documents.map((d: any) => d?.id).filter(Boolean) : (card.document_id ? [card.document_id] : [])
+      if (!docIds.length) return json({ bulunan: 0, islenen: 0, eksik: [] })
+      const { data: parcalar } = await service.from('document_chunks').select('text, chunk_index, document_id').in('document_id', docIds).order('document_id').order('chunk_index', { ascending: true }).limit(400)
+      const belge = (parcalar || []).map((r: any) => String(r.text || '')).join('\n\n').slice(0, BELGE_SINIRI)
+      const ornekler = ornekBul(belge, 8)
+      const kapsama = ornekKapsama(ornekler, card)
+      if (islem === 'ornek-kontrol' || !kapsama.eksik.length) return json(kapsama)
+      if (card.user_id !== kullanici.id) return json({ mesaj: 'Yalnız kendi özetine örnek ekleyebilirsin.' }, 403)
+      if (await gunlukSay('uret') >= GUNLUK_URET) return json({ mesaj: 'Bugünlük sınıra ulaştın; yarın yeniden dene.' }, 429)
+      const eksikler = ornekler.filter((o) => kapsama.eksik.some((e) => e.baslik === o.baslik && e.sayfa === o.sayfa))
+      const tr = card.summary_language === 'tr'
+      const istem = `LANGUAGE for all text: ${tr ? 'Turkish (keep the source\'s English technical terms in parentheses)' : 'English'}\n\n` +
+        eksikler.map((o, i) => `=== EXAMPLE ${i + 1}${o.sayfa ? ' (p.' + o.sayfa + ')' : ''} ===\n${o.metin}`).join('\n\n')
+      let sonuc: { veri: any; model: string } | { hata: string } = { hata: 'anahtar yok' }
+      const gKey = Deno.env.get('GEMINI_API_KEY'), qKey = Deno.env.get('GROQ_API_KEY')
+      if (gKey) sonuc = await geminiUret(gKey, ORNEK_TALIMATI, istem)
+      if ('hata' in sonuc && qKey) sonuc = await groqUret(qKey, ORNEK_TALIMATI, istem)
+      if ('hata' in sonuc) return json({ mesaj: 'Örnekler şu an çıkarılamadı. Biraz sonra yeniden dene.' }, 502)
+      const ek = ornekCiktisiTemizle(sonuc.veri)
+      if (!ek.worked_examples.length) return json({ mesaj: 'Örnekler çıkarılamadı. Yeniden dene.' }, 502)
+      await kaydet('uret')
+      const yeni = {
+        worked_examples: [...(Array.isArray(card.worked_examples) ? card.worked_examples : []), ...ek.worked_examples],
+        tables: [...(Array.isArray(card.tables) ? card.tables : []), ...ek.tables]
+      }
+      const sonKapsama = ornekKapsama(ornekler, yeni)
+      const { error } = await service.from('study_cards').update({
+        ...yeni, slayt: null,
+        quality_meta: { ...(card.quality_meta && typeof card.quality_meta === 'object' ? card.quality_meta : {}), ornek_kapsama: sonKapsama }
+      }).eq('id', card.id)
+      if (error) return json({ mesaj: 'Kaydedilemedi: ' + error.message }, 500)
+      console.log(`ozet-slayt ornekler: kart ${card.id}, ${ek.worked_examples.length} ornek + ${ek.tables.length} tablo eklendi, kapsama ${sonKapsama.islenen}/${sonKapsama.bulunan} (${sonuc.model})`)
+      return json({ ...yeni, kapsama: sonKapsama, eklenen: ek.worked_examples.length })
+    }
+
     /* islem:'baslik' (24.11.2026): özet ekranının başlığı "Chapter 1" yerine belgenin gerçek
        konusu olsun. Kart başına bir kez, yalnız kartın sahibi; sonuç outline'a yazılır
        (document_title_guess, course_guess, bolum_guess) ve sonra hep oradan okunur. */
@@ -365,7 +528,9 @@ serve(async (req) => {
     const ozet = kartDokumu(card)
     if (!ozet && !belge) return json({ mesaj: 'Bu özette slayta dönüştürülecek içerik yok.' }, 400)
     const ikidil = card.summary_language !== 'tr'
-    const istem = `SOURCE FILE: ${dosya || '-'}\nSUMMARY LANGUAGE: ${card.summary_language || 'en'}\n\n=== STUDY SUMMARY (already verified) ===\n${ozet}\n\n=== SOURCE TEXT (chapter) ===\n${belge || '(not available — use the summary)'}`
+    const ornekler = ornekBul(belge, 6)
+    const ornekMetni = ornekler.length ? `\n\n=== NUMERICAL EXAMPLES (${ornekler.length}) — one "cozum" slide each ===\n` + ornekler.map((o, i) => `[${i + 1}] ${o.sayfa ? 'p.' + o.sayfa + ' ' : ''}${o.metin}`).join('\n\n') : ''
+    const istem = `SOURCE FILE: ${dosya || '-'}\nSUMMARY LANGUAGE: ${card.summary_language || 'en'}\n\n=== STUDY SUMMARY (already verified) ===\n${ozet}${ornekMetni}\n\n=== SOURCE TEXT (chapter) ===\n${belge || '(not available — use the summary)'}`
 
     let sonuc: { veri: any; model: string } | { hata: string } = { hata: 'anahtar yok' }
     const gKey = Deno.env.get('GEMINI_API_KEY')
@@ -373,7 +538,8 @@ serve(async (req) => {
     if ('hata' in sonuc) {
       const qKey = Deno.env.get('GROQ_API_KEY')
       if (qKey) {
-        const kisa = `SOURCE FILE: ${dosya || '-'}\n\n=== STUDY SUMMARY ===\n${kartDokumu(card, 6000)}`
+        /* yedek modelin bütçesi dar: özet + örnek sayfaları (örnekler en çok bunu kaybediyordu) */
+        const kisa = `SOURCE FILE: ${dosya || '-'}\n\n=== STUDY SUMMARY ===\n${kartDokumu(card, 5000)}${ornekMetni.slice(0, 3500)}`
         const g = await groqUret(qKey, sistemTalimati(ikidil, true), kisa)
         if (!('hata' in g)) sonuc = g
         else console.warn('ozet-slayt Groq basarisiz:', g.hata)

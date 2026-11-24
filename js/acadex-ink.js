@@ -11386,6 +11386,56 @@ var SBX = (function () {
     }).catch(function (e) { console.warn('Başlık alınamadı:', e && e.message); });
   }
 
+  /* ---------- eksik sayısal örnek (24.11.2026) ----------
+     Kaynakta bulunan sayısal örnekler (ozet-slayt ornekBul) kartta işlenmemişse başlıkta uyarı
+     + "ekle" düğmesi. Yeni kartlarda ölçüm quality_meta.ornek_kapsama'da hazır; eski kartlarda
+     sunucu bir kez sayar (islem:'ornek-kontrol', model çağrısı yok). Ekle: islem:'ornekler'. */
+  var axrOrnekBellek = {};
+  function axrSlaytIstek(govde) {
+    if (typeof supabaseClient === 'undefined' || typeof SUPABASE_URL === 'undefined') return Promise.resolve(null);
+    return supabaseClient.auth.getSession().then(function (r) {
+      var tok = r && r.data && r.data.session && r.data.session.access_token; if (!tok) return null;
+      return fetch(SUPABASE_URL + '/functions/v1/ozet-slayt', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok, apikey: typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : '' }, body: JSON.stringify(govde) })
+        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (j) { j = j || {}; j._ok = res.ok; return j; }); });
+    });
+  }
+  function axrOrnekKontrol(mast, c) {
+    if (!c || !c.id) return;
+    var bas = function (k) {
+      if (!k || !k.eksik || !k.eksik.length) return;
+      var kok = mast.querySelector('.axr-mastin'); if (!kok || kok.getAttribute('data-kart') !== String(c.id) || kok.querySelector('[data-ornek-ekle]')) return;
+      var kutu = kok.querySelector('.axr-chips');
+      if (!kutu) { kutu = document.createElement('div'); kutu.className = 'axr-chips'; kok.insertBefore(kutu, kok.querySelector('.axr-meta')); }
+      var n = k.eksik.length, b = document.createElement('button');
+      b.type = 'button'; b.className = 'axr-chip warn axr-ornek'; b.setAttribute('data-ornek-ekle', '');
+      b.title = 'Kaynakta olup özette olmayan örnekler: ' + k.eksik.map(function (e) { return e.baslik + (e.sayfa ? ' (s.' + e.sayfa + ')' : ''); }).join(' • ');
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5 V19 M5 12 H19"/></svg>' + X('kaynakta ' + n + ' sayısal örnek var, özette yok · ekle');
+      kutu.insertBefore(b, kutu.firstChild);
+    };
+    var qmk = c.quality_meta && c.quality_meta.ornek_kapsama;
+    if (qmk) return bas(qmk);
+    if (axrOrnekBellek[c.id]) return bas(axrOrnekBellek[c.id]);
+    axrSlaytIstek({ islem: 'ornek-kontrol', kartId: c.id }).then(function (k) { if (k && k._ok) { axrOrnekBellek[c.id] = k; bas(k); } })
+      .catch(function (e) { console.warn('Örnek kontrolü yapılamadı:', e && e.message); });
+  }
+  function axrOrnekEkle(b) {
+    var c = R.card; if (!c || !c.id || b.disabled) return;
+    b.disabled = true; b.classList.add('busy'); var eski = b.innerHTML;
+    b.textContent = 'örnekler çıkarılıyor… (20-40 sn)';
+    axrSlaytIstek({ islem: 'ornekler', kartId: c.id }).then(function (j) {
+      if (!j || !j._ok || !Array.isArray(j.worked_examples)) throw new Error((j && j.mesaj) || 'Örnekler eklenemedi.');
+      var guncelle = function (k) { if (!k) return; k.worked_examples = j.worked_examples; k.tables = j.tables; k.slayt = null; k.quality_meta = Object.assign({}, k.quality_meta || {}, { ornek_kapsama: j.kapsama }); };
+      guncelle(c);
+      try { if (typeof currentActiveStudyCard !== 'undefined' && currentActiveStudyCard && currentActiveStudyCard !== c && currentActiveStudyCard.id === c.id) guncelle(currentActiveStudyCard); } catch (e) { }
+      axrOrnekBellek[c.id] = j.kapsama;
+      renderFlow();
+      say(j.eklenen + ' çözümlü örnek eklendi. Slaytlar da bir sonraki açılışta bu örneklerle hazırlanacak.');
+    }).catch(function (e) {
+      b.disabled = false; b.classList.remove('busy'); b.innerHTML = eski;
+      say(e && e.message ? e.message : 'Örnekler eklenemedi.');
+    });
+  }
+
   /* ---------- kapak: belgenin ilk sayfası (24.11.2026) ----------
      PDF'in 1. sayfası pdf.js ile 320px genişlikte çizilir, JPEG olarak tarayıcıda saklanır
      (localStorage, belge başına bir kez). Yalnız PDF; Word/PowerPoint'te kapak yok.
@@ -12064,6 +12114,7 @@ var SBX = (function () {
       (uyariChip ? '<div class="axr-chips">' + uyariChip + '</div>' : '') +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
     axrKapak(mast, c);
+    if (own) axrOrnekKontrol(mast, c);
     if (!BB.baslik && own) axrBaslikIste(mast, c);
     /* 30 saniye + sayılar */
     var ex = String(c.summary_executive || '').trim(), nums = findNumbers(c);
@@ -12184,6 +12235,7 @@ var SBX = (function () {
       b.disabled = true; b.classList.add('busy');
       window.resummarizeFresh(b.getAttribute('data-yenile'));
     });
+    mast.addEventListener('click', function (e) { var b = e.target.closest('[data-ornek-ekle]'); if (b) axrOrnekEkle(b); });
     mast.addEventListener('pointerover', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     mast.addEventListener('focusin', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     flow.addEventListener('click', function (e) {
