@@ -21,9 +21,9 @@
   var D = W.document;
   var GEN = 1280, YUK = 720;
   var FONT_URL = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Color+Emoji&display=swap';
-  var TURLER = ['harita', 'kartlar', 'surec', 'tablo', 'cozum', 'ornek', 'sorular', 'tekrar'];
+  var TURLER = ['harita', 'kartlar', 'vurgu', 'liste', 'formul', 'surec', 'tablo', 'cozum', 'ornek', 'sorular', 'tekrar'];
   var RENKLER = ['lacivert', 'turuncu', 'yesil', 'kirmizi'];
-  var TUR_RENK = { harita: 'lacivert', kartlar: 'lacivert', surec: 'kirmizi', tablo: 'turuncu', cozum: 'turuncu', ornek: 'yesil', sorular: 'kirmizi', tekrar: 'kirmizi' };
+  var TUR_RENK = { harita: 'lacivert', kartlar: 'lacivert', surec: 'kirmizi', tablo: 'turuncu', cozum: 'turuncu', vurgu: 'kirmizi', liste: 'lacivert', formul: 'yesil', ornek: 'yesil', sorular: 'kirmizi', tekrar: 'kirmizi' };
 
   /* ---------------- yardımcılar ---------------- */
   function esc(s) {
@@ -74,6 +74,12 @@
         x.ek = str(s.ek, 300);
       }
       if (s.tur === 'sorular') x.sorular = dizi(s.sorular, 6).map(function (q) { return { soru: str(q && q.soru, 220), tr: str(q && q.tr, 200), ipucu: str(q && q.ipucu, 200), yildiz: yildizSay(q && q.yildiz) }; }).filter(function (q) { return q.soru; });
+      if (s.tur === 'vurgu') x.maddeler = dizi(s.maddeler, 8).map(function (m) { return { metin: str(m && m.metin != null ? m.metin : m, 200), tr: str(m && m.tr, 160), kaynak: str(m && m.kaynak, 20) }; }).filter(function (m) { return m.metin; });
+      if (s.tur === 'liste') { x.maddeler = dizi(s.maddeler, 10).map(function (m) { return { ad: str(m && m.ad != null ? m.ad : m, 60), aciklama: str(m && m.aciklama, 140), tr: str(m && m.tr, 90) }; }).filter(function (m) { return m.ad; }); x.ipucu = str(s.ipucu, 200); x.ipucu_tr = str(s.ipucu_tr, 160); }
+      if (s.tur === 'formul') {
+        x.formul = str(s.formul, 160); x.ad = str(s.ad, 80); x.ne_zaman = str(s.ne_zaman, 220); x.ornek = str(s.ornek, 260);
+        x.degiskenler = dizi(s.degiskenler, 8).map(function (d) { return { sembol: str(d && d.sembol, 20), anlam: str(d && d.anlam, 120), tr: str(d && d.tr, 90) }; }).filter(function (d) { return d.sembol; });
+      }
       if (s.tur === 'cozum') {
         var v = s.veri && typeof s.veri === 'object' ? s.veri : {};
         x.veri = { sutunlar: dizi(v.sutunlar, 5).map(function (c) { return str(c, 40); }), satirlar: dizi(v.satirlar, 7).map(function (r) { return dizi(r, 5).map(function (c) { return str(c, 60); }); }).filter(function (r) { return r.length; }) };
@@ -82,7 +88,7 @@
       }
       if (s.tur === 'tekrar') x.kutular = dizi(s.kutular, 12).map(function (k) { return { simge: str(k && k.simge, 8), baslik: str(k && k.baslik, 40), metin: str(k && k.metin, 170), tr: str(k && k.tr, 110) }; }).filter(function (k) { return k.baslik; });
       var bos = (x.tur === 'harita' && !x.ogeler.length) || (x.tur === 'kartlar' && !x.kartlar.length) || (x.tur === 'surec' && !x.adimlar.length) ||
-        (x.tur === 'tablo' && !x.satirlar.length) || (x.tur === 'cozum' && (!x.adimlar.length || !x.sonuc)) || (x.tur === 'ornek' && !x.metin) || (x.tur === 'sorular' && !x.sorular.length) || (x.tur === 'tekrar' && !x.kutular.length);
+        (x.tur === 'tablo' && !x.satirlar.length) || (x.tur === 'vurgu' && x.maddeler.length < 2) || (x.tur === 'liste' && x.maddeler.length < 3) || (x.tur === 'formul' && !x.formul) || (x.tur === 'cozum' && (!x.adimlar.length || !x.sonuc)) || (x.tur === 'ornek' && !x.metin) || (x.tur === 'sorular' && !x.sorular.length) || (x.tur === 'tekrar' && !x.kutular.length);
       if (!bos && x.baslik) out.slaytlar.push(x);
     });
     return out;
@@ -130,6 +136,29 @@
         s.satirlar.map(function (r, i) {
           return '<tr>' + r.map(function (c, j) { return '<td>' + (j ? yaz(c) : '<b>' + yaz(c) + '</b>' + (iki && s.satir_tr[i] ? '<small class="oz-tr">' + yaz(s.satir_tr[i]) + '</small>' : '')) + '</td>'; }).join('') + '</tr>';
         }).join('') + '</tbody></table>';
+    },
+    /* hocanın vurguları (25.11.2026): belgedeki KEY IDEA / MAIN IDEA / Remember satırları */
+    vurgu: function (s, iki) {
+      return '<ol class="oz-vurgular' + (s.maddeler.length > 4 ? ' oz-iki' : '') + '">' + s.maddeler.map(function (m, i) {
+        return '<li><span class="oz-no">' + (i + 1) + '</span><div><p class="oz-vm">' + yaz(m.metin) + (m.kaynak ? ' <small class="oz-kaynak-i">' + esc(m.kaynak) + '</small>' : '') + '</p>' + tr(m.tr, iki) + '</div></li>';
+      }).join('') + '</ol>';
+    },
+    /* ezber kartı (25.11.2026): numaralı liste, her madde bir kutu + akılda tutma ipucu */
+    liste: function (s, iki) {
+      var n = s.maddeler.length, kol = n <= 4 ? n : n <= 6 ? 3 : n <= 8 ? 4 : 5;
+      return '<div class="oz-liste" style="grid-template-columns:repeat(' + kol + ',1fr)">' + s.maddeler.map(function (m, i) {
+        return '<div class="oz-lm oz-r-' + RENKLER[i % RENKLER.length] + '"><span class="oz-lm-no">' + (i + 1) + '</span><b>' + yaz(m.ad) + '</b>' + (m.aciklama ? '<p>' + yaz(m.aciklama) + '</p>' : '') + tr(m.tr, iki) + '</div>';
+      }).join('') + '</div>' +
+        (s.ipucu ? '<div class="oz-not oz-not-ipucu"><span class="oz-not-s">🧠</span><div><p><b>' + (iki ? 'Memory trick' : 'Akılda tut') + ':</b> ' + yaz(s.ipucu) + '</p>' + tr(s.ipucu_tr, iki) + '</div></div>' : '');
+    },
+    /* formül kartı (25.11.2026): büyük formül, her sembolün anlamı, ne zaman kullanılır, mini örnek */
+    formul: function (s, iki) {
+      return '<div class="oz-formul-k">' + (s.ad ? '<p class="oz-f-ad">' + yaz(s.ad) + '</p>' : '') + '<p class="oz-f">' + esc(s.formul) + '</p></div>' +
+        '<div class="oz-f-izgara' + (s.degiskenler.length ? '' : ' oz-tek') + '">' + (s.degiskenler.length ? '<table class="oz-tablo oz-f-tab"><tbody>' + s.degiskenler.map(function (d) {
+          return '<tr><td class="oz-f-sem">' + esc(d.sembol) + '</td><td>' + yaz(d.anlam) + (iki && d.tr ? '<small class="oz-tr">' + yaz(d.tr) + '</small>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table>' : '') +
+        '<div class="oz-yan-k">' + (s.ne_zaman ? '<div class="oz-yan"><h4>🎯 ' + (iki ? 'When to use' : 'Ne zaman kullanılır') + '</h4><p>' + yaz(s.ne_zaman) + '</p></div>' : '') +
+        (s.ornek ? '<div class="oz-ek"><b>' + (iki ? 'Example' : 'Örnek') + ':</b> ' + yaz(s.ornek) + '</div>' : '') + '</div></div>';
     },
     /* çözümlü sayısal örnek (24.11.2026): solda kaynağın veri tablosu, sağda adım adım çözüm, altta sonuç */
     cozum: function (s, iki) {
@@ -235,6 +264,16 @@
     '.oz-sorular li{display:flex;gap:14px;background:#fff;border-radius:14px;padding:16px 20px;box-shadow:0 1px 3px rgba(30,42,74,.07);border-left:6px solid var(--kir)}',
     '.oz-sorular .oz-no{flex:none;width:30px;height:30px;font-size:14px;background:var(--kir)}.oz-soru{font-size:16.5px;line-height:1.4;font-weight:700}',
     '.oz-ipucu{margin-top:7px;font-size:13.5px;line-height:1.45;color:#5B6478}',
+    /* vurgu, ezber kartı, formül */
+    '.oz-vurgular{list-style:none;display:grid;gap:12px}.oz-vurgular.oz-iki{grid-template-columns:1fr 1fr}',
+    '.oz-vurgular li{display:flex;gap:14px;align-items:flex-start;background:#fff;border-radius:14px;padding:14px 18px;box-shadow:0 1px 3px rgba(30,42,74,.07);border-left:6px solid var(--kir)}',
+    '.oz-vurgular .oz-no{flex:none;width:28px;height:28px;background:var(--kir)}.oz-vm{font-size:16.5px;line-height:1.45;font-weight:600}.oz-kaynak-i{font-size:12px;font-weight:500;color:#7A8296}',
+    '.oz-liste{display:grid;gap:12px}.oz-lm{position:relative;background:#fff;border-radius:14px;border-top:6px solid var(--lac);padding:14px 16px 16px;box-shadow:0 1px 3px rgba(30,42,74,.07);font-size:14.5px;line-height:1.4}',
+    '.oz-lm b{display:block;font-size:17px;font-weight:800;margin:4px 0 4px}.oz-lm-no{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--lac);color:#fff;font-size:13px;font-weight:800}',
+    '.oz-formul-k{text-align:center;background:#fff;border-radius:16px;padding:20px 24px;box-shadow:0 1px 3px rgba(30,42,74,.07);border:2px solid #CFE8DD}',
+    '.oz-f-ad{font-size:15px;font-weight:700;color:var(--yes);letter-spacing:.04em}.oz-f{margin-top:6px;font-size:44px;font-weight:800;letter-spacing:.01em;line-height:1.15}',
+    '.oz-f-izgara{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;margin-top:18px;align-items:start}.oz-f-izgara.oz-tek{grid-template-columns:1fr}',
+    '.oz-f-sem{width:90px;text-align:center;font-size:22px;font-weight:800;color:var(--yes)}.oz-f-tab small.oz-tr{display:block;font-size:12.5px}',
     /* çözümlü sayısal örnek */
     '.oz-soru-satir{display:flex;gap:10px;align-items:flex-start;margin-bottom:16px;font-size:17px;line-height:1.45;font-weight:600}.oz-soru-et{font-size:20px;line-height:1.2}',
     '.oz-cozum{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.25fr);gap:20px;align-items:start}.oz-cozum.oz-tek{grid-template-columns:1fr}',

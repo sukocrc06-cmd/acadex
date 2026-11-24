@@ -100,13 +100,14 @@ test('kapsama: tablo çifti ardışık olmalı, key_point yetmez, Türkçe çöz
   assert.match(B.ornekTalimati(o), /^\n- MUST COVER: this text contains 4 numerical example\(s\)/); assert.equal(B.ornekTalimati([]), '');
 });
 test('iki kopya birebir aynı (summarize-document = ozet-slayt)', () => {
-  const kes = (t) => { const a = t.indexOf('SAYISAL ÖRNEK BULUCU (24.11.2026)'), b = t.indexOf('\n}', t.indexOf('export function ornekTalimati')); assert.ok(a > 0 && b > a); return t.slice(a, b); };
+  /* 25.11.2026: blok kaynak envanterini de içeriyor (tests/kaynak-envanteri.js) */
+  const kes = (t) => { const a = t.indexOf('SAYISAL ÖRNEK BULUCU (24.11.2026)'), b = t.indexOf('/* KAYNAK ENVANTERİ SONU */'); assert.ok(a > 0 && b > a); return t.slice(a, b); };
   assert.equal(kes(oz), kes(fn));
 });
 test('özet hattı: pencerelere MUST COVER, karta ornek_kapsama', () => {
   assert.match(oz, /let pencereOrnekleri: OrnekBlok\[\]\[\] = \[\]/);
   assert.match(oz, /empty array if there is no calculation` \+ ornekTalimati\(pencereOrnekleri\[wi\] \|\| \[\]\)/);
-  assert.match(oz, /pencereOrnekleri = windows\.map\(\(w\) => ornekBul\(w, 4\)\)/);
+  assert.match(oz, /pencereOrnekleri = pencereEnvanteri\.map\(\(e\) => e\.ornekler\.slice\(0, 4\)\)/);
   assert.match(oz, /;\(qualityMeta as any\)\.ornek_kapsama = ok/);
 });
 test('slayt: cozum türü talimatta, istemde örnekler, yedek model örnek sayfalarını görür', () => {
@@ -114,7 +115,7 @@ test('slayt: cozum türü talimatta, istemde örnekler, yedek model örnek sayfa
   assert.match(t, /- "cozum": a NUMERICAL EXAMPLE from the source/); assert.match(t, /one "cozum" slide for EACH item under NUMERICAL EXAMPLES/);
   assert.match(t, /never back-translate a term from the Turkish summary/, 'price-specie-flow "fiyat-parça-akış"tan geri çevrilip "price-part-flow" olmuştu');
   assert.match(fn, /const ornekler = ornekBul\(belge, 6\)/); assert.match(fn, /=== NUMERICAL EXAMPLES \(\$\{ornekler\.length\}\)/);
-  assert.match(fn, /\$\{kartDokumu\(card, 5000\)\}\$\{ornekMetni\.slice\(0, 3500\)\}/);
+  assert.match(fn, /\$\{kartDokumu\(card, 4500\)\}\$\{ornekMetni\.slice\(0, 3000\)\}\$\{envMetni\.slice\(0, 2500\)\}/);
   const d = S.desteNormalize({ slaytlar: [{ tur: 'cozum', baslik: 'A 2×2 example', veri: { sutunlar: ['', 'Rice', 'Steel'], satirlar: [['Home', '3', '9'], ['Foreign', '5', '4']] }, adimlar: ['Rice: 3 < 5'], sonuc: 'Home → rice', sonuc_tr: 'Ev pirinç' }, { tur: 'cozum', baslik: 'boş', adimlar: [] }] }, { ikidil: false });
   assert.equal(d.slaytlar.length, 1); assert.equal(d.slaytlar[0].renk, 'turuncu'); assert.equal(d.slaytlar[0].sonuc_tr, '', 'tek dilde Türkçe satır yok');
 });
@@ -127,20 +128,16 @@ test('slayt: istemci aynı normalize + çizim', () => {
   assert.match(h, /class="oz-s oz-t-cozum"/); assert.match(h, /<span class="oz-sayi">9<\/span>/); assert.match(h, /<b>3 &lt; 5<\/b>/);
   assert.match(h, /class="oz-sonuc"/); assert.match(h, /Ev pirinç ihraç eder/); assert.match(h, /p\.6/);
 });
-test('eksik örnek çıkarıcı: çıktı temizliği, yalnız sahibi, slayt yenilenir', () => {
+test('eksik örnek çıkarıcı: çıktı temizliği, yalnız sahibi, slayt yenilenir (25.11: tamamla içinde)', () => {
   const t = S.ornekCiktisiTemizle({ worked_examples: [{ title: 'x', problem_statement: 'p', steps: ['a', ''], final_answer: 'f' }, { title: 'adımsız', steps: [], final_answer: 'f' }], tables: [{ title: 't', headers: ['a'], rows: [['1']] }, { title: 'satırsız', headers: ['a'], rows: [] }] });
   assert.equal(t.worked_examples.length, 1); assert.deepEqual(t.worked_examples[0].steps, ['a']); assert.equal(t.tables.length, 1);
   assert.match(S.ORNEK_TALIMATI, /never invent or change a number/);
-  assert.match(fn, /if \(card\.user_id !== kullanici\.id\) return json\(\{ mesaj: 'Yalnız kendi özetine örnek ekleyebilirsin\.' \}, 403\)/);
-  assert.match(fn, /\.\.\.yeni, slayt: null,/);
-  assert.match(fn, /if \(islem === 'ornek-kontrol' \|\| !kapsama\.eksik\.length\) return json\(kapsama\)/, 'kontrol model çağırmaz');
+  assert.match(fn, /if \(card\.user_id !== kullanici\.id\) return json\(\{ mesaj: 'Yalnız kendi özetine ekleme yapabilirsin\.' \}, 403\)/);
+  assert.match(fn, /\.\.\.birlestir\.alanlar, slayt: null,/);
+  assert.match(fn, /if \(islem === 'ornek-kontrol'\) return json\(ornekK\)\n\s+if \(islem === 'kaynak-kontrol'\) return json\(\{ kapsama, ayniDil \}\)/, 'kontrol model çağırmaz');
 });
-test('ekran: eksikse uyarı + ekle; eklenince kart yeniden çizilir', () => {
-  assert.match(ink, /if \(own\) axrOrnekKontrol\(mast, c\);/);
-  assert.match(ink, /var qmk = c\.quality_meta && c\.quality_meta\.ornek_kapsama;/);
-  assert.match(ink, /X\('kaynakta ' \+ n \+ ' sayısal örnek var, özette yok · ekle'\)/);
-  assert.match(ink, /axrSlaytIstek\(\{ islem: 'ornekler', kartId: c\.id \}\)/);
-  assert.match(ink, /k\.slayt = null;/); assert.match(ink, /renderFlow\(\);\n\s+say\(j\.eklenen \+ ' çözümlü örnek eklendi/);
-  assert.match(ink, /closest\('\[data-ornek-ekle\]'\); if \(b\) axrOrnekEkle\(b\);/);
+test('ekran: örnek eksikse karnede görünür (25.11: kapsama karnesi, tests/kaynak-envanteri.js)', () => {
+  assert.match(ink, /\['ornekler', 'sayısal örnek'\]/);
+  assert.match(ink, /k\.slayt = null;/);
 });
 summary();

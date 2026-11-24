@@ -4236,11 +4236,11 @@ function pencerePromptu(total, desteTalimati) {
   const kotaSon = SRC.indexOf('// Compact extraction prompt', kotaBas);
   if (a < 0 || son < 0 || kotaBas < 0 || kotaSon < 0) return '';
   const kotalar = SRC.slice(kotaBas, kotaSon).replace(/: number/g, '');
-  /* 24.11.2026: sablonun sonuna ornekTalimati(pencereOrnekleri[wi]) eklendi (sayisal ornek
-     bulucu). Burada ornek YOK sayilir: olculen, ornegi olmayan pencerenin taban maliyeti;
+  /* 24-25.11.2026: sablonun sonuna ornekTalimati(pencereOrnekleri[wi]) ve
+     envanterTalimati(pencereEnvanteri[wi]) eklendi (sayisal ornek bulucu, kaynak envanteri). Burada ornek YOK sayilir: olculen, ornegi olmayan pencerenin taban maliyeti;
      ornekli pencerede cikis tavani windowCompletionFor ile zaten kendiliginden kisalir. */
   const fn = new Function('wi', 'total', 'langLabel', 'desteTalimati',
-    kotalar + '\nconst pencereOrnekleri = []; const ornekTalimati = () => \'\';\nreturn ' + SRC.slice(bas, son));
+    kotalar + '\nconst pencereOrnekleri = []; const ornekTalimati = () => \'\'; const pencereEnvanteri = []; const envanterTalimati = () => \'\'; const kaynakFarkliDil = false;\nreturn ' + SRC.slice(bas, son));
   return fn(0, total, 'English', desteTalimati);
 }
 

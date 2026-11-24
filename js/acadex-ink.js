@@ -11399,40 +11399,66 @@ var SBX = (function () {
         .then(function (res) { return res.json().catch(function () { return {}; }).then(function (j) { j = j || {}; j._ok = res.ok; return j; }); });
     });
   }
-  function axrOrnekKontrol(mast, c) {
+  /* KAPSAMA KARNESİ (25.11.2026). Kaynak envanteri (ozet-slayt kaynakEnvanteri: tanım, formül,
+     numaralı liste, hocanın vurgusu, belge sorusu, sayısal örnek, öğrenme çıktısı) kartla
+     karşılaştırılır; başlığın altında "tanım 12/14 · formül 3/3 …" satırı ve eksik varsa
+     "eksikleri ekle" (islem:'tamamla'). Yeni kartlarda ölçüm quality_meta.kaynak_kapsama'da hazır,
+     eskilerde sunucu bir kez sayar (islem:'kaynak-kontrol', model çağrısı yok).
+     Özet dili kaynaktan farklıysa sözcükle sayılamayan kategoriler yalnız "kaynakta N" görünür. */
+  var AXR_KARNE_AD = [['tanimlar', 'tanım'], ['formuller', 'formül'], ['ornekler', 'sayısal örnek'], ['listeler', 'liste'], ['vurgular', 'hoca vurgusu'], ['sorular', 'belge sorusu'], ['ciktilar', 'öğrenme çıktısı']];
+  function axrKarneEksikVar(k) {
+    return AXR_KARNE_AD.some(function (a) { var v = k[a[0]]; return v && v.olcum !== 'bilgi' && v.bulunan > 0 && (v.olcum === 'dil' ? true : v.islenen < v.bulunan); });
+  }
+  function axrKarneHtml(k) {
+    var parca = AXR_KARNE_AD.map(function (a) {
+      var v = k[a[0]]; if (!v || !v.bulunan) return '';
+      var tam = v.olcum === 'dil' || v.olcum === 'bilgi' ? '' : (v.islenen >= v.bulunan ? ' ok' : ' eksik');
+      var sayi = v.olcum === 'dil' || v.olcum === 'bilgi' ? String(v.bulunan) : v.islenen + '/' + v.bulunan;
+      var ipucu = v.olcum === 'dil' ? 'Özet dili kaynaktan farklı: sözcükle sayılamadı. "Eksikleri ekle" yapay zekâya kontrol ettirir.' :
+        (v.eksik && v.eksik.length ? 'Eksik: ' + v.eksik.slice(0, 6).join(' • ') : '');
+      return '<span class="axr-kk' + tam + '"' + (ipucu ? ' title="' + X(ipucu) + '"' : '') + '><b>' + sayi + '</b> ' + X(a[1]) + '</span>';
+    }).join('');
+    if (!parca) return '';
+    return '<span class="axr-kk-et mono">KAYNAKTAN</span>' + parca + (axrKarneEksikVar(k) ? '<button type="button" class="axr-kk-ekle" data-kaynak-tamamla=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5 V19 M5 12 H19"/></svg>eksikleri ekle</button>' : '');
+  }
+  function axrKaynakKarne(mast, c) {
     if (!c || !c.id) return;
     var bas = function (k) {
-      if (!k || !k.eksik || !k.eksik.length) return;
-      var kok = mast.querySelector('.axr-mastin'); if (!kok || kok.getAttribute('data-kart') !== String(c.id) || kok.querySelector('[data-ornek-ekle]')) return;
-      var kutu = kok.querySelector('.axr-chips');
-      if (!kutu) { kutu = document.createElement('div'); kutu.className = 'axr-chips'; kok.insertBefore(kutu, kok.querySelector('.axr-meta')); }
-      var n = k.eksik.length, b = document.createElement('button');
-      b.type = 'button'; b.className = 'axr-chip warn axr-ornek'; b.setAttribute('data-ornek-ekle', '');
-      b.title = 'Kaynakta olup özette olmayan örnekler: ' + k.eksik.map(function (e) { return e.baslik + (e.sayfa ? ' (s.' + e.sayfa + ')' : ''); }).join(' • ');
-      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5 V19 M5 12 H19"/></svg>' + X('kaynakta ' + n + ' sayısal örnek var, özette yok · ekle');
-      kutu.insertBefore(b, kutu.firstChild);
+      if (!k) return;
+      var kok = mast.querySelector('.axr-mastin'); if (!kok || kok.getAttribute('data-kart') !== String(c.id)) return;
+      var h = axrKarneHtml(k); if (!h) return;
+      var kutu = kok.querySelector('[data-karne]');
+      if (!kutu) { kutu = document.createElement('div'); kutu.className = 'axr-karne'; kutu.setAttribute('data-karne', ''); kok.insertBefore(kutu, kok.querySelector('.axr-chips') || kok.querySelector('.axr-meta')); }
+      kutu.innerHTML = h;
     };
-    var qmk = c.quality_meta && c.quality_meta.ornek_kapsama;
+    var qmk = c.quality_meta && c.quality_meta.kaynak_kapsama;
     if (qmk) return bas(qmk);
     if (axrOrnekBellek[c.id]) return bas(axrOrnekBellek[c.id]);
-    axrSlaytIstek({ islem: 'ornek-kontrol', kartId: c.id }).then(function (k) { if (k && k._ok) { axrOrnekBellek[c.id] = k; bas(k); } })
-      .catch(function (e) { console.warn('Örnek kontrolü yapılamadı:', e && e.message); });
+    axrSlaytIstek({ islem: 'kaynak-kontrol', kartId: c.id }).then(function (j) { if (j && j._ok && j.kapsama) { axrOrnekBellek[c.id] = j.kapsama; bas(j.kapsama); } })
+      .catch(function (e) { console.warn('Kaynak kontrolü yapılamadı:', e && e.message); });
   }
-  function axrOrnekEkle(b) {
+  var AXR_ALANLAR = ['key_terms', 'formulas', 'key_points', 'tables', 'quiz_questions', 'worked_examples'];
+  function axrKaynakTamamla(b) {
     var c = R.card; if (!c || !c.id || b.disabled) return;
     b.disabled = true; b.classList.add('busy'); var eski = b.innerHTML;
-    b.textContent = 'örnekler çıkarılıyor… (20-40 sn)';
-    axrSlaytIstek({ islem: 'ornekler', kartId: c.id }).then(function (j) {
-      if (!j || !j._ok || !Array.isArray(j.worked_examples)) throw new Error((j && j.mesaj) || 'Örnekler eklenemedi.');
-      var guncelle = function (k) { if (!k) return; k.worked_examples = j.worked_examples; k.tables = j.tables; k.slayt = null; k.quality_meta = Object.assign({}, k.quality_meta || {}, { ornek_kapsama: j.kapsama }); };
+    b.textContent = 'kaynakla karşılaştırılıyor… (20-60 sn)';
+    axrSlaytIstek({ islem: 'tamamla', kartId: c.id }).then(function (j) {
+      if (!j || !j._ok) throw new Error((j && j.mesaj) || 'Eksikler eklenemedi.');
+      if (!j.eklenen) { b.disabled = false; b.classList.remove('busy'); b.innerHTML = eski; say(j.mesaj || 'Eklenecek yeni bir şey bulunamadı.'); return; }
+      var guncelle = function (k) {
+        if (!k) return;
+        AXR_ALANLAR.forEach(function (a) { if (Array.isArray(j[a])) k[a] = j[a]; });
+        k.slayt = null; k.quality_meta = Object.assign({}, k.quality_meta || {}, { kaynak_kapsama: j.kapsama });
+      };
       guncelle(c);
       try { if (typeof currentActiveStudyCard !== 'undefined' && currentActiveStudyCard && currentActiveStudyCard !== c && currentActiveStudyCard.id === c.id) guncelle(currentActiveStudyCard); } catch (e) { }
       axrOrnekBellek[c.id] = j.kapsama;
       renderFlow();
-      say(j.eklenen + ' çözümlü örnek eklendi. Slaytlar da bir sonraki açılışta bu örneklerle hazırlanacak.');
+      var e = j.eklenenler || {}, ad = { key_terms: 'terim', formulas: 'formül', key_points: 'önemli nokta', tables: 'tablo', quiz_questions: 'soru', worked_examples: 'çözümlü örnek' };
+      say('Eklendi: ' + Object.keys(ad).filter(function (k) { return e[k]; }).map(function (k) { return e[k] + ' ' + ad[k]; }).join(', ') + '. Slaytlar bir sonraki açılışta bunlarla hazırlanacak.');
     }).catch(function (e) {
       b.disabled = false; b.classList.remove('busy'); b.innerHTML = eski;
-      say(e && e.message ? e.message : 'Örnekler eklenemedi.');
+      say(e && e.message ? e.message : 'Eksikler eklenemedi.');
     });
   }
 
@@ -12114,7 +12140,7 @@ var SBX = (function () {
       (uyariChip ? '<div class="axr-chips">' + uyariChip + '</div>' : '') +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
     axrKapak(mast, c);
-    if (own) axrOrnekKontrol(mast, c);
+    if (own) axrKaynakKarne(mast, c);
     if (!BB.baslik && own) axrBaslikIste(mast, c);
     /* 30 saniye + sayılar */
     var ex = String(c.summary_executive || '').trim(), nums = findNumbers(c);
@@ -12235,7 +12261,7 @@ var SBX = (function () {
       b.disabled = true; b.classList.add('busy');
       window.resummarizeFresh(b.getAttribute('data-yenile'));
     });
-    mast.addEventListener('click', function (e) { var b = e.target.closest('[data-ornek-ekle]'); if (b) axrOrnekEkle(b); });
+    mast.addEventListener('click', function (e) { var b = e.target.closest('[data-kaynak-tamamla]'); if (b) axrKaynakTamamla(b); });
     mast.addEventListener('pointerover', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     mast.addEventListener('focusin', function (e) { var b = LT_ON && e.target.closest('[data-ltl]'); if (b) warm(b.getAttribute('data-ltl')); });
     flow.addEventListener('click', function (e) {
