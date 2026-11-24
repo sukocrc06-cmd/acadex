@@ -3146,6 +3146,8 @@ window.AX_EN = {
 "kaynakta böyle bir şey yok": "there's nothing like that in the source",
 "kaynakta yok": "not in the source",
 "kaynağa bağlı": "grounded in the source",
+"kaynağa bağlı · kalite kontrollü": "grounded · quality-checked",
+"Belgenin ilk sayfası · orijinali aç": "First page of the document · open original",
 "kaynağa dön": "back to source",
 "kaynağıyla birlikte bir sayı yaz": "write a number together with its source",
 "kayıtlı sürüm": "saved version",

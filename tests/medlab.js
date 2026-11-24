@@ -55,7 +55,7 @@ test('MedLab gorunumu, Anatomi Lab karti, kapak ve "tip ogrencileri icin" notu',
 
 test('stil ve script dashboard.html\'e bagli, script acadex-ink.js\'ten sonra', () => {
   assert.match(html, /<link rel="stylesheet" href="css\/acadex-medlab.css">/);
-  const ink = html.indexOf('<script src="js/acadex-ink.js"></script>'), med = html.indexOf('<script src="js/acadex-medlab.js"></script>');
+  const ink = html.indexOf('<script src="js/acadex-ink.js'), med = html.indexOf('<script src="js/acadex-medlab.js"></script>');
   assert.ok(ink > 0 && med > ink, 'acadex-medlab.js, acadex-ink.js\'ten sonra yuklenmeli');
   assert.ok(fs.existsSync(path.join(ROOT, 'css/acadex-medlab.css')));
 });

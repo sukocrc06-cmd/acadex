@@ -8090,6 +8090,25 @@ body.axr-open #pomodoro-widget-container,body.axr-open #acadia-widget-container,
 #study-card-modal.axr .axr-meta span+span::before{content:'·';margin-right:16px;color:#C9C2B0}
 #study-card-modal.axr .axr-meta [data-left]{color:var(--blue);font-weight:700}
 #study-card-modal.axr .axr-meta [data-left]:empty{display:none}
+/* başlık bölümü (24.11.2026): tür satırı, güven rozeti, gerçek başlık, belgenin ilk sayfası */
+#study-card-modal.axr .axr-mastin{display:flow-root}
+#study-card-modal.axr .axr-h1.uzun{font-size:clamp(26px,3.3vw,40px);line-height:1.1}
+#study-card-modal.axr .axr-tagrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 12px}
+#study-card-modal.axr .axr-tags{display:flex;flex-wrap:wrap;margin:0;font-size:13px;font-weight:600;color:var(--muted)}
+#study-card-modal.axr .axr-tags span+span::before{content:'·';margin:0 8px;color:#C9C2B0}
+#study-card-modal.axr .axr-trust{display:inline-flex;align-items:center;gap:5px;padding:3px 11px 3px 8px;border-radius:999px;background:#EFF8F2;border:1px solid #B7DEC8;color:var(--green);font-size:12px;font-weight:700;line-height:1.4}
+#study-card-modal.axr .axr-trust svg{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+#study-card-modal.axr .axr-chips{align-items:center}
+#study-card-modal.axr .axr-chip{display:inline-flex;align-items:center;gap:5px;line-height:1.4}
+#study-card-modal.axr .axr-chip svg{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#study-card-modal.axr button.axr-chip{cursor:pointer;font-family:inherit}
+#study-card-modal.axr .axr-kapak{position:relative;float:right;width:136px;margin:2px 4px 14px 28px;cursor:pointer;transform:rotate(2.5deg);transition:transform .25s}
+#study-card-modal.axr .axr-ltbar~.axr-kapak{margin-top:52px}
+#study-card-modal.axr .axr-kapak img{display:block;width:100%;height:auto;border-radius:5px;border:1px solid #E2DCCB;background:#fff;box-shadow:0 12px 26px rgba(30,42,74,.16),0 2px 5px rgba(30,42,74,.08)}
+#study-card-modal.axr .axr-kapak::before{content:'';position:absolute;z-index:1;top:-9px;left:50%;width:56px;height:17px;margin-left:-28px;background:rgba(255,229,138,.8);transform:rotate(-4deg);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+#study-card-modal.axr .axr-kapak:hover{transform:rotate(0) translateY(-3px)}
+@media (max-width:640px){#study-card-modal.axr .axr-kapak{width:78px;margin:2px 2px 10px 14px}#study-card-modal.axr .axr-kapak::before{width:38px;height:12px;margin-left:-19px;top:-6px}}
+@media (prefers-reduced-motion:reduce){#study-card-modal.axr .axr-kapak{transition:none}}
 
 /* paylaş */
 #study-card-modal.axr .axr-share{display:flex!important;align-items:center;justify-content:space-between;gap:14px;margin:0 0 26px!important;padding:10px 14px!important;border:1px dashed #CFC8B6!important;border-radius:10px!important;background:#FBF9F2!important;font-size:14px;font-weight:600;color:var(--ink)}

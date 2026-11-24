@@ -53,7 +53,7 @@ test('MedLab katmani lab\'i ?medlab=1 ile acar, bagli script sirasi dogru', () =
   const med = read('js/acadex-medlab.js');
   assert.match(med, /var fsrc = L\.src \+ '\?medlab=1';/);
   assert.match(med, /newTab\.href = L\.src;/, 'yeni sekme koprusuz acilmali (lab kendi Acadia\'siyla)');
-  const a = html.indexOf('<script src="js/acadex-medlab.js"></script>'), b = html.indexOf('<script src="js/acadex-medlab-acadia.js"></script>'), d = html.indexOf('<script src="js/dashboard.js"></script>');
+  const a = html.indexOf('<script src="js/acadex-medlab.js"></script>'), b = html.indexOf('<script src="js/acadex-medlab-acadia.js"></script>'), d = html.indexOf('<script src="js/dashboard.js');
   assert.ok(d > 0 && a > d && b > a, 'dashboard.js -> acadex-medlab.js -> acadex-medlab-acadia.js');
   assert.match(read('js/dashboard.js'), /message: \(typeof window\.axAcadiaPrefix === 'function' \? window\.axAcadiaPrefix\(text\) : ''\) \+ text,/);
 });

@@ -52,7 +52,7 @@ function load(lang) {
 
 test('dashboard.html: sözlük, çeviriciden önce ve i18n.js sonrasında yükleniyor', () => {
   const a = html.indexOf('src="js/i18n.js"');
-  const b = html.indexOf('src="js/i18n-en.js"');
+  const b = html.indexOf('src="js/i18n-en.js');
   const c = html.indexOf('src="js/acadex-i18n.js"');
   assert.ok(a > -1 && b > -1 && c > -1, 'üç betik de bağlı olmalı');
   assert.ok(a < b && b < c, 'sıra: i18n.js → i18n-en.js → acadex-i18n.js');

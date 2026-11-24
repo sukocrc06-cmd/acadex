@@ -23,7 +23,7 @@ const js = read('js/acadex-takvim.js'), css = read('css/acadex-takvim.css'), htm
 
 test('sayfaya bağlı, planlayıcı kabuğundan sonra', () => {
   assert.match(html, /<link rel="stylesheet" href="css\/acadex-takvim\.css">/);
-  assert.ok(html.indexOf('src="js/acadex-ink.js"') < html.indexOf('src="js/acadex-takvim.js"'));
+  assert.ok(html.indexOf('src="js/acadex-ink.js') < html.indexOf('src="js/acadex-takvim.js"'));
   assert.match(js, /if \(!root \|\| !root\.classList\.contains\('axp'\)\) return;/);
 });
 

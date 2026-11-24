@@ -11356,6 +11356,88 @@ var SBX = (function () {
 
   /* ---------- durum ---------- */
   var R = { card: null, name: '', ro: false, words: 0, hl: [], hlCard: null, hlOK: true, charts: [], io: null, visIO: null };
+
+  /* ---------- başlık: belgenin gerçek konusu (24.11.2026) ----------
+     Sıra: özetin outline.document_title_guess'i → çalışma slaytlarının başlığı → dosya adı.
+     İkisi de yoksa ve kart öğrencinin kendisininse sunucu bir kez sorar (ozet-slayt
+     islem:'baslik': belgenin ilk sayfalarından ders + bölüm + başlık) ve outline'a yazar. */
+  function axrBaslikBilgi(c) {
+    var o = c && c.outline && typeof c.outline === 'object' ? c.outline : {}, d = c && c.slayt && c.slayt.deste ? c.slayt.deste : {};
+    var t = function (v) { return String(v || '').replace(/\s+/g, ' ').trim().slice(0, 140); };
+    var baslik = t(o.document_title_guess) || t(d.baslik);
+    var ust = [t(o.course_guess), t(o.bolum_guess)].filter(Boolean).join(' · ') || (t(o.document_title_guess) ? '' : t(d.ders));
+    return { baslik: baslik, ust: ust };
+  }
+  function axrBaslikIste(mast, c) {
+    var anah = 'axr-baslik-denendi:' + c.id;
+    try { if (sessionStorage.getItem(anah)) return; sessionStorage.setItem(anah, '1'); } catch (e) { }
+    if (typeof supabaseClient === 'undefined' || typeof SUPABASE_URL === 'undefined') return;
+    supabaseClient.auth.getSession().then(function (r) {
+      var tok = r && r.data && r.data.session && r.data.session.access_token; if (!tok) return null;
+      return fetch(SUPABASE_URL + '/functions/v1/ozet-slayt', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok, apikey: typeof SUPABASE_ANON_KEY !== 'undefined' ? SUPABASE_ANON_KEY : '' }, body: JSON.stringify({ islem: 'baslik', kartId: c.id }) })
+        .then(function (res) { return res.ok ? res.json() : null; });
+    }).then(function (j) {
+      if (!j || !j.baslik) return;
+      c.outline = Object.assign({}, c.outline && typeof c.outline === 'object' ? c.outline : {}, { document_title_guess: j.baslik, course_guess: j.ders || '', bolum_guess: j.bolum || '' });
+      var kok = mast.querySelector('.axr-mastin'); if (!kok || kok.getAttribute('data-kart') !== String(c.id)) return;
+      var h = kok.querySelector('[data-axr-baslik]'), u = kok.querySelector('[data-axr-ust]'), BB = axrBaslikBilgi(c);
+      if (h) { h.firstChild.textContent = BB.baslik; h.classList.toggle('uzun', BB.baslik.length > 42); }
+      if (u && !c.course_tag && BB.ust) u.textContent = BB.ust;
+    }).catch(function (e) { console.warn('Başlık alınamadı:', e && e.message); });
+  }
+
+  /* ---------- kapak: belgenin ilk sayfası (24.11.2026) ----------
+     PDF'in 1. sayfası pdf.js ile 320px genişlikte çizilir, JPEG olarak tarayıcıda saklanır
+     (localStorage, belge başına bir kez). Yalnız PDF; Word/PowerPoint'te kapak yok.
+     Tıklanınca orijinal belge yan panelde açılır. */
+  var AXR_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  var axrPdfJsSoz = null;
+  function axrPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (axrPdfJsSoz) return axrPdfJsSoz;
+    axrPdfJsSoz = new Promise(function (ok, hata) {
+      var s = document.createElement('script'); s.src = AXR_PDFJS + 'pdf.min.js'; s.async = true;
+      s.onload = function () { if (!window.pdfjsLib) return hata(new Error('pdf.js yok')); window.pdfjsLib.GlobalWorkerOptions.workerSrc = AXR_PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+      s.onerror = function () { axrPdfJsSoz = null; hata(new Error('pdf.js yüklenemedi')); };
+      document.head.appendChild(s);
+    });
+    return axrPdfJsSoz;
+  }
+  var axrKapakBellek = {};
+  function axrKapakKoy(mast, kartId, src) {
+    var kok = mast.querySelector('.axr-mastin'); if (!kok || kok.getAttribute('data-kart') !== String(kartId) || kok.querySelector('.axr-kapak')) return;
+    var f = document.createElement('figure'); f.className = 'axr-kapak'; f.title = 'Belgenin ilk sayfası · orijinali aç';
+    f.innerHTML = '<img alt="Belgenin ilk sayfası" src="' + src + '">';
+    f.addEventListener('click', function () { if (typeof toggleOriginalDocumentViewer === 'function') toggleOriginalDocumentViewer(); });
+    kok.insertBefore(f, kok.querySelector('.axr-kicker')); kok.classList.add('kapakli');
+  }
+  function axrKapak(mast, c) {
+    var docId = c.document_id || (Array.isArray(c.source_documents) && c.source_documents[0] && c.source_documents[0].id);
+    if (!docId || !c.id) return;
+    var anah = 'axr-kapak:' + docId, hazir = axrKapakBellek[docId];
+    if (!hazir) { try { hazir = localStorage.getItem(anah); } catch (e) { } }
+    if (hazir === '-') return;
+    if (hazir) { axrKapakBellek[docId] = hazir; axrKapakKoy(mast, c.id, hazir); return; }
+    if (typeof supabaseClient === 'undefined') return;
+    var yaz = function (v) { axrKapakBellek[docId] = v; try { localStorage.setItem(anah, v); } catch (e) { } };
+    supabaseClient.from('documents').select('storage_path, mime_type, file_name').eq('id', docId).single().then(function (r) {
+      var d = r && r.data;
+      if (!d || !d.storage_path) return null;
+      if (!(/\.pdf$/i.test(d.file_name || '') || d.mime_type === 'application/pdf')) { yaz('-'); return null; }
+      return supabaseClient.storage.from('documents').createSignedUrl(d.storage_path, 120).then(function (u) {
+        var url = u && u.data && u.data.signedUrl; if (!url) return null;
+        return axrPdfJs().then(function (pdfjs) { return pdfjs.getDocument({ url: url, disableAutoFetch: true, disableStream: true }).promise; })
+          .then(function (pdf) { return pdf.getPage(1).then(function (sayfa) {
+            var v0 = sayfa.getViewport({ scale: 1 }), v = sayfa.getViewport({ scale: 320 / v0.width });
+            var cv = document.createElement('canvas'); cv.width = Math.round(v.width); cv.height = Math.round(v.height);
+            return sayfa.render({ canvasContext: cv.getContext('2d'), viewport: v }).promise.then(function () {
+              var src = cv.toDataURL('image/jpeg', 0.8); if (pdf.destroy) pdf.destroy(); return src;
+            });
+          }); });
+      });
+    }).then(function (src) { if (src) { yaz(src); axrKapakKoy(mast, c.id, src); } })
+      .catch(function (e) { console.warn('Kapak çizilemedi:', e && e.message); });
+  }
   var scroller = Q('[data-axr-scroll]'), flow = Q('[data-axr-flow]'), mast = Q('[data-axr-mast]'), rail = Q('[data-axr-rail]'), story = Q('[data-axr-story]');
 
   /* ---------- sayılar: özetten öne çıkanlar ---------- */
@@ -11965,9 +12047,24 @@ var SBX = (function () {
         '" title="Sıfırdan yeni bir özet çıkarır (önbellek kapalı)">' + ICON.redo + 'yeniden özetle</button>';
     }
     /* R44 (28.10.2026): dil düğmesi hazır değilken ("yakında", soluk) hiç gösterilmez */
-    mast.innerHTML = '<div class="axr-mastin">' + (LT_ON ? '<div class="axr-ltbar"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span></div>' : '') + '<span class="axr-kicker hand">' + X(c.course_tag ? c.course_tag + ' dersi' : 'çalışma kartın') + '</span><h1 class="disp axr-h1"><span>' + X(baseName(R.name)) + '</span></h1>' +
-      '<div class="axr-chips">' + chip(c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '') + chip(styleLabel(c.summary_style || 'standard')) + chip(typ) + chip(len) + (c.is_quantitative ? chip('sayısal ders', 'q') : '') + (qm.grounded ? chip('kaynağa bağlı', 'ok') : '') + (qm.pass !== false && qm.grounded && !uyarilar.length ? chip('kalite kontrolünden geçti', 'ok') : '') + uyariChip + '</div>' +
+    /* BAŞLIK BÖLÜMÜ (24.11.2026). Eski hâlde 8 rozet yan yana diziliyordu ve "yeniden özetle"
+       düğmesindeki simgenin boyu yoktu: tarayıcı onu kocaman siyah bir daire çizdi, flex satırı
+       da bütün rozetleri onun boyuna uzattı. Şimdi: özet türü tek ince satır (axr-tags), güven
+       tek yeşil rozet (axr-trust), yalnız uyarılar ve "yeniden özetle" rozet olarak kalır.
+       Başlık dosya adı ("Chapter 1") değil, belgenin gerçek konusu (axrBaslikBilgi); yanında
+       belgenin ilk sayfasının küçük resmi (axrKapak). */
+    var BB = axrBaslikBilgi(c), dosyaAdi = baseName(R.name);
+    var tags = [c.summary_language === 'tr' ? 'Türkçe' : c.summary_language === 'en' ? 'English' : '', styleLabel(c.summary_style || 'standard'), typ, len, c.is_quantitative ? 'sayısal ders' : ''].filter(Boolean);
+    var guven = qm.grounded ? (qm.pass !== false && !uyarilar.length ? 'kaynağa bağlı · kalite kontrollü' : 'kaynağa bağlı') : '';
+    mast.innerHTML = '<div class="axr-mastin" data-kart="' + X(c.id || '') + '">' + (LT_ON ? '<div class="axr-ltbar"><span class="axr-ltlbl mono">ÖZETİN DİLİ</span>' + langTog('all') + '<span class="axr-ltprog hand" data-ltprog="" aria-live="polite"></span></div>' : '') +
+      '<span class="axr-kicker hand" data-axr-ust="">' + X(c.course_tag ? c.course_tag + ' dersi' : (BB.ust || 'çalışma kartın')) + '</span>' +
+      '<h1 class="disp axr-h1' + ((BB.baslik || dosyaAdi).length > 42 ? ' uzun' : '') + '" data-axr-baslik="" title="' + X(dosyaAdi) + '"><span>' + X(BB.baslik || dosyaAdi) + '</span></h1>' +
+      '<div class="axr-tagrow"><p class="axr-tags">' + tags.map(function (t) { return '<span>' + X(t) + '</span>'; }).join('') + '</p>' +
+      (guven ? '<span class="axr-trust"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 L10 17.5 L19 7"/></svg>' + X(guven) + '</span>' : '') + '</div>' +
+      (uyariChip ? '<div class="axr-chips">' + uyariChip + '</div>' : '') +
       '<p class="axr-meta mono"><span>~' + mins + ' dk okuma</span>' + (secs.length ? '<span>' + secs.length + ' bölüm</span>' : '') + (arr(c.key_terms).length ? '<span>' + arr(c.key_terms).length + ' kavram</span>' : '') + (arr(c.quiz_questions).length ? '<span>' + arr(c.quiz_questions).length + ' soru</span>' : '') + '<span data-left=""></span></p></div>';
+    axrKapak(mast, c);
+    if (!BB.baslik && own) axrBaslikIste(mast, c);
     /* 30 saniye + sayılar */
     var ex = String(c.summary_executive || '').trim(), nums = findNumbers(c);
     h += ch('hiz', '30 saniyede', '<div class="axr-pull"><span class="axr-lbl mono">30 SANİYEDE</span>' + (ex ? '<blockquote data-b="x-0">' + cleanHTML(fmtS(ex, c.footnotes)) + '</blockquote>' : '<blockquote>' + X(cut(plain(c.summary || ''), 320)) + '</blockquote>') + '</div><div class="axr-nums">' + nums.map(counterHTML).join('') + '</div>');

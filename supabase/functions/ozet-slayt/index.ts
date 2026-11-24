@@ -221,6 +221,22 @@ async function groqUret(apiKey: string, sistem: string, kullanici: string): Prom
   }
 }
 
+/* ---------------- başlık ---------------- */
+export const BASLIK_TALIMATI = `From the first pages of a university course document, return ONLY a JSON object:
+{"ders": "course name, e.g. Marketing Management, or empty", "bolum": "chapter/week/unit label, e.g. Chapter 1 or Week 9, or empty", "baslik": "the chapter or topic title WITHOUT the label, e.g. Defining Marketing for the New Realities"}
+Copy the wording used in the document (keep its language). Never return a semester, date, university, instructor or "Course Introduction" as baslik. If there is no explicit title, write the main topic in max 8 words.`
+
+export function baslikTemizle(v: any): { baslik: string; ders: string; bolum: string } {
+  const t = (x: unknown, n: number) => str(x, n).replace(/\s+/g, ' ').replace(/^["'“”]+|["'“”]+$/g, '').trim()
+  let baslik = t(v?.baslik, 140), bolum = t(v?.bolum, 40)
+  const ders = t(v?.ders, 80)
+  /* model etiketi başlığa da yazarsa ayır: "Chapter 1: Defining..." */
+  const m = baslik.match(/^((?:chapter|ch\.?|week|unit|lecture|bölüm|hafta|ünite|ders)\s*\d+[a-z]?)\s*[:.\-–—]\s*(.+)$/i)
+  if (m) { bolum = bolum || m[1]; baslik = m[2] }
+  if (/^(course introduction|introduction|giriş|ders tanıtımı)$/i.test(baslik)) baslik = ''
+  return { baslik, ders, bolum }
+}
+
 /* ---------------- PDF ---------------- */
 /* Tarayıcıdan gelen HTML yalnız slayt belgesi olabilir; betik ve olay öznitelikleri
    atılır (Cloudflare'in tarayıcısında bizim adımıza kod çalışmasın). */
@@ -294,6 +310,38 @@ serve(async (req) => {
       await kaydet('pdf')
       console.log(`ozet-slayt PDF: ${r.pdf.length} bayt, tarayici ${r.ms} ms`)
       return new Response(r.pdf, { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/pdf', 'Content-Disposition': 'attachment; filename="acadex-slaytlar.pdf"' } })
+    }
+
+    /* islem:'baslik' (24.11.2026): özet ekranının başlığı "Chapter 1" yerine belgenin gerçek
+       konusu olsun. Kart başına bir kez, yalnız kartın sahibi; sonuç outline'a yazılır
+       (document_title_guess, course_guess, bolum_guess) ve sonra hep oradan okunur. */
+    if (islem === 'baslik') {
+      const kartId = String(govde?.kartId || '')
+      const { data: card } = await userClient.from('study_cards').select('id, user_id, document_id, is_merged, source_documents, outline, slayt, summary_executive').eq('id', kartId).single()
+      if (!card) return json({ mesaj: 'Özet bulunamadı.' }, 404)
+      const o = card.outline && typeof card.outline === 'object' && !Array.isArray(card.outline) ? card.outline : {}
+      if (str(o.document_title_guess)) return json({ baslik: str(o.document_title_guess, 140), ders: str(o.course_guess, 80), bolum: str(o.bolum_guess, 40) })
+      if (card.user_id !== kullanici.id) return json({ baslik: '' })
+      let bilgi = { baslik: '', ders: '', bolum: '' }
+      if (card.slayt?.deste?.baslik) bilgi = { baslik: str(card.slayt.deste.baslik, 140), ders: str(card.slayt.deste.ders, 80), bolum: '' }
+      else {
+        const docIds: string[] = card.is_merged && Array.isArray(card.source_documents) ? card.source_documents.map((d: any) => d?.id).filter(Boolean) : (card.document_id ? [card.document_id] : [])
+        if (!docIds.length) return json({ baslik: '' })
+        const { data: docs } = await service.from('documents').select('file_name').in('id', docIds)
+        const { data: parcalar } = await service.from('document_chunks').select('text').eq('document_id', docIds[0]).order('chunk_index', { ascending: true }).limit(3)
+        const ilk = (parcalar || []).map((r: any) => String(r.text || '')).join('\n').slice(0, 5000)
+        const istem = `FILE NAME: ${(docs || []).map((d: any) => d.file_name).join(', ')}\nSUMMARY: ${str(card.summary_executive, 600)}\n\nFIRST PAGES:\n${ilk || '(not available)'}`
+        let sonuc: { veri: any; model: string } | { hata: string } = { hata: 'anahtar yok' }
+        const gKey = Deno.env.get('GEMINI_API_KEY'), qKey = Deno.env.get('GROQ_API_KEY')
+        if (gKey) sonuc = await geminiUret(gKey, BASLIK_TALIMATI, istem)
+        if ('hata' in sonuc && qKey) sonuc = await groqUret(qKey, BASLIK_TALIMATI, istem)
+        if ('hata' in sonuc) return json({ baslik: '' })
+        bilgi = baslikTemizle(sonuc.veri)
+      }
+      if (!bilgi.baslik) return json({ baslik: '' })
+      const { error } = await service.from('study_cards').update({ outline: { ...o, document_title_guess: bilgi.baslik, course_guess: bilgi.ders, bolum_guess: bilgi.bolum } }).eq('id', card.id)
+      if (error) console.warn('baslik kaydedilemedi:', error.message)
+      return json(bilgi)
     }
 
     if (islem !== 'uret') return json({ mesaj: 'Bilinmeyen işlem.' }, 400)

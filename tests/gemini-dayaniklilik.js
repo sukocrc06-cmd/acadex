@@ -863,7 +863,7 @@ test('CANLI arayuz kalite uyarilarini okuyor', () => {
 
 test('uyari varken "kalite kontrolunden gecti" BASTIRILIYOR', () => {
   /* Asil kusur ikisinin BIRLIKTE gorunmesiydi: eksik kart + yesil onay. */
-  assert.ok(/qm\.pass !== false && qm\.grounded && !uyarilar\.length/.test(INK_SRC),
+  assert.ok(/qm\.grounded \? \(qm\.pass !== false && !uyarilar\.length \?/.test(INK_SRC), // 24.11.2026: iki yeşil rozet tek 'axr-trust' rozeti oldu
     'olumlu rozet uyari varken de basiliyor');
 });
 
