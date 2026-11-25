@@ -30,9 +30,9 @@ const { test, summary } = makeRunner();
 /* Modül bir IIFE; şablon motoru saf fonksiyonlardan oluştuğu için ilgili
    dilimler kesilip küçük bir kapsamda çalıştırılır. */
 const dilim = (bas, son) => { const a = ink.indexOf(bas), b = ink.indexOf(son, a); assert.ok(a > 0 && b > a, 'dilim bulunamadı: ' + bas); return ink.slice(a, b); };
-const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#D9EFE3','#F6E7C4','#F4DDDA'],deck={tema:null};" +
-  dilim('  var rgb3 = ', '  var fontYuklu = ') + dilim('  var temaCikar = ', '  var zipLib = ') + dilim('  var IKON = {', '  var ikonSec = ') + dilim('  var ikonSec = ', '\n') +
-  ';return {TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,temaAlt,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;},deste:function(d){Object.assign(deck,d);}};';
+const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#D9EFE3','#F6E7C4','#F4DDDA'],deck={tema:null},curLang=function(){return 'en';};" +
+  dilim('  var rgb3 = ', '  var fontYuklu = ') + dilim('  var temaCikar = ', '  var zipLib = ') + dilim('  var IKON = {', '  var ikonSec = ') + dilim('  var ikonSec = ', '  /* "Eylül 2021') +
+  ';return {bag:function(t){ikonBag=t;},TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,temaAlt,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;},deste:function(d){Object.assign(deck,d);}};';
 const M = new Function('arr', src)((x) => (Array.isArray(x) ? x : []));
 
 test('hazır şablonlar: 18 tane, kimlikleri benzersiz, hepsi okunaklı', () => {
@@ -262,6 +262,24 @@ test('profesyonel görünüm: iki özgün şablon, alt bilgi ve varsayılan şab
   assert.deepEqual(V, ['ax-pitch']);
   const PT = M.TEMALAR.find((x) => x.id === 'ax-pitch'); assert.equal(PT.bg.clear, '#F8FAFC'); assert.equal(PT.bg.navy, '#0F172A'); assert.equal(PT.bic.kutu, 'golge');
   for (const id of V) { const t = M.TEMALAR.find((x) => x.id === id); assert.ok(t && !t.dark, id + ' varsayılan şablon açık zeminli olmalı'); }
+});
+
+/* CANLI DESTE 25.11 (Solar vs Wind): "Critical Risks" asetatında kupa ve taç, "Key Concepts"te
+   iki kez DNA — "wind" içindeki "win", "making" içindeki "king", "generation" içindeki "gene". */
+test('ikon anlamı: sözcük sınırı, risk bağlamında yalnız uyarı ikonları', () => {
+  const pozitif = ['trophy', 'crown', 'star', 'medal', 'gem', 'thumbs-up'];
+  const risk = ['Cost volatility: Trade tariffs could widen the LCOE gap between solar and wind.', 'Grid integration: Rapid solar deployment stresses daytime grids.', 'Data gaps: Future capacity forecasts are limited, making long-term planning uncertain.'];
+  M.bag('Critical Risks and Open Questions');      /* newSlide başlığı bağlam olarak verir */
+  risk.forEach((x, i) => { const ik = M.ikonSec(x, i); assert.ok(!pozitif.includes(ik), 'risk maddesine olumlu ikon: ' + ik); assert.ok(['alert', 'activity', 'trending-down', 'shield'].includes(ik), x + ' → ' + ik); });
+  M.bag('');
+  assert.equal(M.ikonSec('Cost volatility: tariffs could widen the gap', 0), 'trending-down', 'risk sözcüklü madde başlıksız da uyarı ikonu almalı');
+  M.bag('Risks'); assert.equal(M.ikonSec('Grid integration: stresses daytime grids', 1), 'activity'); M.bag('');
+  assert.notEqual(M.ikonSec('Capacity: Installed power that can generate electricity', 0), 'dna', '"generate" DNA sayılıyor');
+  assert.notEqual(M.ikonSec('Market share: percentage of total electricity generation', 2), 'dna');
+  assert.equal(M.ikonSec('Genetik testler ve DNA dizilimi', 0), 'dna');
+  assert.notEqual(M.ikonSec('Onshore wind remains cheaper per MWh', 0), 'trophy', '"wind" ödül sayılıyor');
+  assert.equal(M.ikonSec('Osmanlı padişahı ve hanedan', 0), 'crown');
+  assert.match(ink, /ikonBag = String\(t \|\| ''\);[\s\S]{0,120}for \(var di = 0; di < dene\.length && !alt; di\+\+\)[\s\S]{0,200}ikonBag = '';/, 'ikon seçici asetat başlığını görmüyor');
 });
 
 summary();

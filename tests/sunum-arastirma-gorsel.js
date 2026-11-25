@@ -864,7 +864,8 @@ test('CANLI DESTE 14.11 (ruh sağlığı hemşireliği) — alıntı art arda ge
    kapanışında "Sorular?" yazdı. */
 test('CANLI DESTE 25.11 (History of Money) — sorgu dili, sabit grafik, yinelenen yüzde, kapanış dili', () => {
   const ink = read('js/acadex-ink.js'), ts = read('supabase/functions/sunum-research/index.ts');
-  assert.match(ts, /The deck is written in \$\{lang === "en" \? "English" : "Turkish"\}: "the topic's language" above means/, 'sorgu planı deste dilini bilmiyor');
+  assert.match(ts, /const LQ = lang === "en" \? "English" : "Turkish";/, 'sorgu planı deste dilini bilmiyor');
+  assert.match(ts, /The deck is written in \$\{LQ\}: q1, q2, ask, aspects and aq are in \$\{LQ\}/);
   assert.match(ts, /a history topic is not ongoing and gets no year/);
   const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'pctOf', 'sigNums', 'flatChart', 'dropRepeats']);
   assert.equal(R.flatChart([1, 1, 1]), true);
@@ -1013,6 +1014,40 @@ test('CANLI DESTE 25.11 (EV) — ayraç süzgeci, sayı yazımı, olumsuz fotoğ
   assert.match(ink, /kutuGolge\(e\) \? ';background:#FFFFFF;box-shadow:0 4px 20px rgba\(15,23,42,\.06\),inset 0 4px 0 ' \+ TM\.acc/, 'gölgeli kart çizilmiyor');
   assert.match(ink, /fc = kutuGolge\(e\) \? 'FFFFFF' :/, 'PPTX kartı beyaz değil');
   assert.match(ink, /var col = function \(e\) \{ zeminKoyu = koyuMu\(s\); var c = hex\(renkSec\(e\)\); zeminKoyu = 0;/, 'PPTX koyu asetatta yazı rengi eşlenmiyor');
+});
+
+/* CANLI DESTE 25.11 (Solar vs Wind): plan İngilizce deste için Almanca alt başlık yazdı
+   (odak 0/5); "Generation Share" slaytında rüzgârın verisi Solar, güneşin verisi Wind
+   sütunundaydı; "Solar's Explosive Growth Rate" aramasına inşaat alanı fotoğrafı geldi. */
+test('CANLI DESTE 25.11 (Solar vs Wind) — plan dili, sütun öznesi, ölçü tablosu, görsel sorgusu', () => {
+  const ts = read('supabase/functions/sunum-research/index.ts');
+  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['dilDisi', 'SOYUT', 'gorselSorgu', 'sidesOf', 'BIRIM', 'ikiTablo']);
+  ['Solarenergie', 'Kostenvergleich', 'Wachstumsrate', 'Comparación de costos'].forEach((x) => assert.equal(R.dilDisi(x, 'en'), true, x + ' İngilizce sayıldı'));
+  // canlı plan kümesi: tek sözcük kaçsa da küme bütünüyle atılır
+  assert.ok(['Solarenergie', 'Windenergie', 'Kostenvergleich', 'Wachstumsrate', 'Globale Trends'].some((a) => R.dilDisi(a, 'en')));
+  ['Market growth', 'Battery technology', 'Supply chain management', 'Young workers', 'Die casting'].forEach((x) => assert.equal(R.dilDisi(x, 'en'), false, x + ' yabancı sayıldı'));
+  ['Kâr marjı', 'Güneş enerjisi', 'Rüzgâr kapasitesi'].forEach((x) => assert.equal(R.dilDisi(x, 'tr'), false, x + ' yabancı sayıldı'));
+  assert.match(ts, /if \(aspects\.some\(\(a\) => dilDisi\(a, lang\)\)\)/);
+  assert.match(ts, /"wiki":"best matching Wikipedia article title in \$\{LQ\}"/);
+  // sütun öznesi
+  const r = R.sidesOf(['Generation 2025: Solar 2,778 TWh, the first time surpassing wind.', 'Wind generation 2023: 2,304 TWh, representing 7.8% of global electricity.', 'Solar share 2023: 5.5% of the global energy mix, up from 4.6% in 2022.'], ['Solar', 'Wind'], []);
+  assert.deepEqual(r.bullets, ['Generation 2025: Solar 2,778 TWh, the first time surpassing wind.', 'Solar share 2023: 5.5% of the global energy mix, up from 4.6% in 2022.', 'Wind generation 2023: 2,304 TWh, representing 7.8% of global electricity.']);
+  assert.equal(r.split, 2, 'sınır taraf sayısından gelmeli');
+  assert.match(ts, /if \(sd\.split\) s\.n1 = sd\.split;/);
+  // aynı ölçülerle kıyas → tablo
+  const tb = R.ikiTablo(['Generation 2025: Solar 2,778 TWh', 'Share: Solar 5.5% of electricity', 'Generation 2025: Wind 2,600 TWh', 'Share: Wind 8.1% of electricity'], ['Solar', 'Wind'], 2, 'en');
+  assert.ok(tb, 'iki ortak ölçü tabloya çevrilmedi');
+  assert.deepEqual(tb.table.headers, ['Criterion', 'Solar', 'Wind']);
+  assert.deepEqual(tb.table.rows, [['Generation', '2,778 TWh (2025)', '2,600 TWh (2025)'], ['Share', '5.5%', '8.1%']]);
+  assert.equal(R.ikiTablo(['Solar is modular', 'Solar 2,778 TWh', 'Wind is steady', 'Wind 2,304 TWh'], ['Solar', 'Wind'], 2, 'en'), null, 'tek ortak ölçü tablo olmamalı');
+  assert.match(ts, /const it = warn\.length \? null : ikiTablo\(bullets, s\.heads\.map\(String\), Number\(s\.n1\) \|\| 0, lang\); if \(it\) \{ k = "table"; table = it\.table;/);
+  // görsel sorgusu
+  assert.equal(R.gorselSorgu('solar deployment growth field'), 'solar field');
+  assert.equal(R.gorselSorgu('market growth'), 'market growth', 'sözcük kalmazsa sorgu aynen kalmalı');
+  assert.match(ts, /const q = gorselSorgu\(\(h\.q \|\| h\.entity \|\| ""\)\.slice\(0, 80\)\);/);
+  const G = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['keysOf', 'GORSEL_BOS', 'gorselKok', 'gorselUyar']);
+  assert.equal(G.gorselUyar(G.gorselKok('solar panel farm aerial'), 'An aerial view of a construction site in the middle of a field'), false, '"aerial" tek başına eşleşme sayılıyor');
+  assert.match(ts, /no abstract or action words \(growth, deployment, expansion, development, market, cost\)/);
 });
 
 summary();

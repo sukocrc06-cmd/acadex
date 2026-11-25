@@ -177,7 +177,7 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
   const photos: (Photo & { i: number })[] = [];
   for (let k = 0; k < hints.length; k++) {
     const h = hints[k]; let p: Photo | null = wiki[k] ? take([wiki[k] as Photo], h.q || h.entity || "", false) : null;
-    const q = (h.q || h.entity || "").slice(0, 80).trim();
+    const q = gorselSorgu((h.q || h.entity || "").slice(0, 80));
     if (!p && q && memo.has(q)) p = take(memo.get(q) || [], q);
     if (!p && q && !memo.has(q) && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; memo.set(q, u.photos); p = take(u.photos, q); }
     if (!p && q) p = take(await pexelsSearch(q, 6, lang), q);
@@ -192,9 +192,20 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
 // karakteri çoğu sitede menü, çerez bildirimi ve giriş cümlesidir.
 /* Fotoğraf açıklamasıyla sorgu karşılaştırması: "coin" ile "coins" aynı köktür (önek),
    "close", "photo", "with" gibi her açıklamada geçen sözcükler sayılmaz. */
-const GORSEL_BOS = /^(?:with|from|close|photo|image|pictur|view|shot|backgr|detail|showin|over|into|that|this|their|while|scene|concep)$/;
+const GORSEL_BOS = /^(?:with|from|close|photo|image|pictur|view|shot|backgr|detail|showin|over|into|that|this|their|while|scene|concep|aerial|landsc|modern|minima|clean|beauti|large|small|middle)$/;
+/* Görsel sorgusunda eylem/soyut sözcük aranmaz: "solar deployment growth" aramasından ev
+   inşaatı fotoğrafı geldi (25.11.2026). Yalnız fotoğraflanabilir özne ve niteleyicisi kalır;
+   sözcük kalmazsa sorgu olduğu gibi kullanılır. */
+const SOYUT = /^(?:growth|growing|grow|deployment|deploy(?:ed|ing)?|expansion|expanding|expand|development|developing|increase|increasing|rise|rising|rate|rates|trend|trends|market|markets|cost|costs|price|prices|policy|policies|impact|adoption|revolution|future|strategy|concept|evolution|progress|boom|surge|decline|explosive|rapid|steady|slower|record|global|share|economy|economic|outlook|overview|analysis|statistics|data)$/i;
+const gorselSorgu = (q: string): string => { const w = String(q || "").trim().split(/\s+/).filter(Boolean), k = w.filter((x) => !SOYUT.test(x.replace(/[^\p{L}]/gu, ""))); return (k.length ? k : w).join(" "); };
 /* Yangın, enkaz, kaza fotoğrafı konu bunu istemedikçe konmaz: "Manufacturing Trends"
    asetatına Commons'tan "Hwaseong battery factory fire" geldi (25.11.2026). */
+/* Deste dilinde olmayan metin (planlayıcı çıktısı için): İngilizce destede aksan, Almanca/İspanyolca
+   bağlaç ve ek; Türkçe destede Türkçede olmayan aksanlar ve Almanca/İspanyolca ekler. */
+const dilDisi = (t: string, lang: string): boolean => { const x = String(t || "");
+  const ek = /[a-zäöü]{3,}(?:ung|keit|heit)\b|(?:energie|ción|ciones|idad|ización)\b|vergleich|wachstum|kosten/i;
+  return lang === "en" ? /[äöüßñáéíóúàèìòùçãõâêîôûğışİ]/i.test(x) || /\b(?:und|der|das|für|mit|von|del|los|las|des|pour|une)\b/i.test(x) || ek.test(x)
+    : /[äßñáéíóúàèìòùãõêô]/i.test(x) || /\b(?:und|das|für|mit|von|los|las|des|pour|une)\b/i.test(x) || ek.test(x); };
 const OLUMSUZ = /\b(?:fire|blaze|burn(?:ing|ed|t)?|explo(?:sion|ded|des)|disaster|wreck(?:age)?|crash(?:ed)?|destroy(?:ed)?|destruction|damaged?|ruins?|ruined|accident|collapse[ds]?|flood(?:ed|ing)?|bomb(?:ing|ed)?|corpse|dead|death|injur(?:y|ed)|riot|debris|smoke|yangın|enkaz|kaza|patlama|yıkık|yıkıntı)\b/i;
 const olumsuzFoto = (alt: string, q: string): boolean => OLUMSUZ.test(String(alt || "")) && !OLUMSUZ.test(String(q || ""));
 const gorselKok = (q: string): string[] => keysOf(q).filter((k) => !GORSEL_BOS.test(k));
@@ -328,16 +339,42 @@ const seriesOf = (bullets: string[]): { labels: string[]; values: number[]; unit
 /* "two": maddeler kendi tarafına dizilir. İstemci listeyi ortadan böler; canlı
    destede (14.11.2026) "2023: …" ve "2026: …" maddelerinin ikisi de sol kolona
    ("2023") düştü, sağda ("2026") yalnız "Fark: …" kaldı. Dizilemiyorsa dokunmaz. */
-const sidesOf = (bullets: string[], heads: string[], warn: number[]): { bullets: string[]; warn: number[] } => {
+/* 25.11.2026 ("Solar vs Wind"): sol kolonda "Wind generation 2023: 2,304 TWh", sağda "Solar share
+   2023" vardı — önek taraf adı değildi. Önek tutmazsa maddenin ÖZNESİNE bakılır: ilk 48 karakterde
+   yalnız bir tarafın anahtar sözcüğü geçiyorsa madde o taraftadır. Bütün maddeler bir tarafa
+   bağlanırsa taraf sayıları eşit olmak zorunda değildir; sınır "split" olarak döner. */
+const sidesOf = (bullets: string[], heads: string[], warn: number[]): { bullets: string[]; warn: number[]; split: number } => {
   const low = (t: string) => String(t || "").toLocaleLowerCase("tr").trim();
   const h = heads.slice(0, 2).map(low); const n = bullets.length, target = Math.ceil(n / 2);
-  if (h.length < 2 || !h[0] || !h[1] || n < 2) return { bullets, warn };
-  const side = bullets.map((b) => { const m = String(b).match(/^([^:]{2,32}):\s/); const p = m ? low(m[1]) : ""; return !p ? -1 : h[0].startsWith(p) ? 0 : h[1].startsWith(p) ? 1 : -1; });
+  if (h.length < 2 || !h[0] || !h[1] || n < 2) return { bullets, warn, split: 0 };
+  const anah = h.map((x) => (x.match(/[\p{L}\d]{3,}/gu) || []).filter((w) => !/^(?:the|and|for|için|ile|olan)$/.test(w))[0] || "");
+  const gec = (b: string, w: string) => !!w && new RegExp("(?:^|[^\\p{L}\\d])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "u").test(low(String(b).slice(0, 48)));
+  const side = bullets.map((b) => { const m = String(b).match(/^([^:]{2,32}):\s/); const p = m ? low(m[1]) : "";
+    if (p && h[0].startsWith(p)) return 0; if (p && h[1].startsWith(p)) return 1;
+    const a0 = gec(b, anah[0]), a1 = gec(b, anah[1]); return a0 && !a1 ? 0 : a1 && !a0 ? 1 : -1; });
   const ix = (k: number) => side.map((v, i) => v === k ? i : -1).filter((i) => i >= 0);
   const Lx = ix(0), Rx = ix(1), Ox = ix(-1);
-  if (!Lx.length || !Rx.length || Lx.length > target || Rx.length > n - target) return { bullets, warn };
-  const order = [...Lx, ...Ox.slice(0, target - Lx.length), ...Rx, ...Ox.slice(target - Lx.length)];
-  return { bullets: order.map((i) => bullets[i]), warn: warn.map((w) => order.indexOf(w)).filter((w) => w >= 0) };
+  if (!Lx.length || !Rx.length) return { bullets, warn, split: 0 };
+  const tam = !Ox.length;
+  if (!tam && (Lx.length > target || Rx.length > n - target)) return { bullets, warn, split: 0 };
+  const sol = tam ? Lx : [...Lx, ...Ox.slice(0, target - Lx.length)], order = tam ? [...Lx, ...Rx] : [...sol, ...Rx, ...Ox.slice(target - Lx.length)];
+  return { bullets: order.map((i) => bullets[i]), warn: warn.map((w) => order.indexOf(w)).filter((w) => w >= 0), split: sol.length };
+};
+/* İki tarafı AYNI ölçülerle (TWh, %, GW, $/MWh) kıyaslayan "two" bir ölçüt tablosudur:
+   en az iki ortak birim varsa Ölçüt | A | B tablosuna çevrilir. Hücre maddedeki sayının
+   kendisidir (yılıyla); hesap yapılmaz. Ölçü taşımayan ilk madde tablonun altına yazılır. */
+const BIRIM = /(\d[\d.,]*)\s*(TWh|GWh|MWh|GW|MW|kWh|kW|%|USD\/MWh|\$\/MWh|€\/MWh|USD\/kWh|\$\/kWh|Mt|Gt)(?![\p{L}])/u;
+const ikiTablo = (bullets: string[], heads: string[], split: number, lang: string): { table: { headers: string[]; rows: string[][] }; rest: string[] } | null => {
+  const n = bullets.length, k = split >= 1 && split < n ? split : Math.ceil(n / 2); if (heads.length < 2 || n < 4) return null;
+  const hre = new RegExp(heads.slice(0, 2).map((x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "gi");
+  const olc = (b: string) => { const m = String(b).match(BIRIM); if (!m) return null; const yil = (String(b).match(/\b(?:19|20)\d{2}\b/) || [""])[0], on = String(b).split(":")[0];
+    const ad = on !== String(b) ? on.replace(hre, "").replace(/\b(?:19|20)\d{2}\b/g, "").replace(/\s+/g, " ").trim() : ""; return { birim: m[2], deger: m[1], yil, ad }; };
+  const A = bullets.slice(0, k).map(olc), B = bullets.slice(k).map(olc);
+  const ortak = [...new Set(A.filter(Boolean).map((x) => x!.birim))].filter((u) => B.some((x) => x && x.birim === u));
+  if (ortak.length < 2) return null;
+  const hc = (x: any) => x ? (x.birim === "%" ? `${x.deger}%` : `${x.deger} ${x.birim}`) + (x.yil ? ` (${x.yil})` : "") : "—";
+  const rows = ortak.map((u) => { const a = A.find((x) => x && x.birim === u), b = B.find((x) => x && x.birim === u); return [(a && a.ad) || (b && b.ad) || u, hc(a), hc(b)]; });
+  return { table: { headers: [lang === "en" ? "Criterion" : "Ölçüt", String(heads[0]), String(heads[1])], rows }, rest: bullets.filter((b) => !olc(b)) };
 };
 const timeOk = (bullets: string[]): boolean => {
   const l = (bullets || []).map((b) => { const m = String(b).match(/^(.{2,34}?)\s*(?::|\s[–—-])\s+/); return (m && /\d/.test(m[1]) ? m[1] : (String(b).match(/\b(?:1[5-9]|20)\d{2}\b/) || [""])[0]).toLocaleLowerCase("tr").trim(); }).filter(Boolean);
@@ -638,14 +675,20 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
       // 1) Konuyu arama sorgularına aç. Tek sorgu (konu cümlesinin kendisi)
       //    dar ve tek dilli sonuç veriyordu; küçük model hızlıdır, düşerse
       //    yalnız konu aranır.
+      const LQ = lang === "en" ? "English" : "Turkish";
       const sysQ = `You plan web research for a university presentation. Given a TOPIC, return ONLY JSON:
-{"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in the topic's own language","wiki_en":"best matching English Wikipedia article title","ask":"the one question the audience expects this talk to answer, in the topic's language","aspects":["a1","a2","a3","a4","a5"],"aq":"one search query in the topic's language that names those aspects together"}
-"aspects" = the 4-6 concrete sub-topics a good talk on exactly this topic is built from, each 1-3 words in the topic's language, named specifically (for "ways to protect savings from inflation": the instruments themselves, e.g. gold, deposit interest, foreign currency, funds, stocks, real estate — NOT "inflation data" or "government policy"; for a history topic: the key people, inventions and periods by name). They are what the audience came to hear, never background.
-q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about what the topic asks for — for a how/ways topic that means data comparing those ways (their returns, costs, results), not general data about the underlying problem (same language); q3 = the topic as an English search query. If the topic asks HOW, or for ways, methods, strategies, solutions or advice, q1 and q3 must search for those ways themselves (the concrete instruments, options and their evidence), not for background data about the problem. No quotes, no site: operators.
+{"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in ${LQ}","wiki_en":"best matching English Wikipedia article title","ask":"the one question the audience expects this talk to answer, in the topic's language","aspects":["a1","a2","a3","a4","a5"],"aq":"one search query in the topic's language that names those aspects together"}
+"aspects" = the 4-6 concrete sub-topics a good talk on exactly this topic is built from, each 1-3 words in ${LQ}, named specifically (for "ways to protect savings from inflation": the instruments themselves, e.g. gold, deposit interest, foreign currency, funds, stocks, real estate — NOT "inflation data" or "government policy"; for a history topic: the key people, inventions and periods by name). They are what the audience came to hear, never background.
+q1 = the topic as a precise search query in ${LQ}; q2 = a query for concrete data, statistics, dates or a timeline about what the topic asks for — for a how/ways topic that means data comparing those ways (their returns, costs, results), not general data about the underlying problem (same language); q3 = the topic as an English search query. If the topic asks HOW, or for ways, methods, strategies, solutions or advice, q1 and q3 must search for those ways themselves (the concrete instruments, options and their evidence), not for background data about the problem. No quotes, no site: operators.
 Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing situation (economy, policy, markets, technology, a living person or organisation), q2 must ask for the latest data and include the current year; a history topic is not ongoing and gets no year.
-The deck is written in ${lang === "en" ? "English" : "Turkish"}: "the topic's language" above means ${lang === "en" ? "English" : "Turkish"}, whatever the topic looks like — q1, q2, ask, aspects and aq are in that language.`;
+The deck is written in ${LQ}: q1, q2, ask, aspects and aq are in ${LQ}, whatever the topic looks like — never German, Spanish, French or any other language.`;
       const gq = await groq(gKey, "openai/gpt-oss-20b", sysQ, `TOPIC: ${topic}`, 600);
-      try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); aspects = (Array.isArray(pq?.aspects) ? pq.aspects : []).map((x: any) => String(x || "").slice(0, 40).trim()).filter((x: string) => x.length > 2).slice(0, 6); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = String(pq?.aq || "").slice(0, 160).trim();
+      try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); aspects = (Array.isArray(pq?.aspects) ? pq.aspects : []).map((x: any) => String(x || "").slice(0, 40).trim()).filter((x: string) => x.length > 2).slice(0, 6);
+        /* İstemde dil adıyla yazılı olsa da küçük model İngilizce desteye Almanca alt başlık yazdı
+           ("Solarenergie, Kostenvergleich", 25.11.2026; odak 0/5). Başka dildeyse alt başlıklar ve
+           alt başlık sorgusu atılır, yalnız deste dilindeki sorgular kalır. */
+        if (aspects.some((a) => dilDisi(a, lang))) { console.warn(`sunum arastirma: alt basliklar baska dilde, atildi: ${JSON.stringify(aspects)}`); aspects = []; }
+        const qsDil = qs.filter((q: string) => !dilDisi(q, lang)); qs.splice(0, qs.length, ...qsDil); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = aspects.length && !dilDisi(String(pq?.aq || ""), lang) ? String(pq?.aq || "").slice(0, 160).trim() : "";
         /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
            Alt başlık sorgusu olmadan "…yolları" konusu yalnız sorunun verisini (enflasyon rakamları) buluyordu. */
         if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => yilTekil(tarihSorgu(topic, q))))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
@@ -727,7 +770,7 @@ Rules:
 - Use the established ${L} term for technical vocabulary (e.g. breccia = "breş"); if unsure, keep the original term in parentheses.
 - "src" = the source ids used on that slide. Source ids go ONLY in "src": never write "(Kaynak 2)", "(Source 2)" or "(src2)" inside titles, bullets, labels or notes.
 - "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets. Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters, and never say "X kaynağı", "X blogu" or a website's name. In Turkish say "slayt", never "slide". Notes describe the slide as it is: do not mention a chart or table the slide does not have. Fewer than 45 words is a failure.
-- "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 3-6 concrete visual words naming a physical object, place or scene that a camera can photograph, with its period or material ("ancient greek silver coin museum", not "ancient greece" or "economy"); no abstract words. "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
+- "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 3-6 concrete visual words naming a physical object, place or scene that a camera can photograph, with its period or material ("ancient greek silver coin museum", not "ancient greece" or "economy"); no abstract or action words (growth, deployment, expansion, development, market, cost) — name the physical subject itself ("solar panel farm aerial", "wind turbines offshore"). "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
 - "cover_image" = same shape, for the cover slide of the whole deck.
 Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"n1":0,"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
     // Kaynak bütçesi: toplam ~18 bin karakter, kaynak başına en çok 3 bin.
@@ -819,7 +862,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
            "2009: 1 milestone" maddeleri basıldı. Grafik atılır, değerler maddeye yazılmaz. */
         if (flatChart(vals)) { chart = null; chartOk = false; }
       }
-      const table = s.table && Array.isArray(s.table.rows) ? { headers: (s.table.headers || []).map(String).slice(0, 4), rows: s.table.rows.slice(0, 5).map((r: any) => (Array.isArray(r) ? r : []).map(String).slice(0, 4)) } : null;
+      let table = s.table && Array.isArray(s.table.rows) ? { headers: (s.table.headers || []).map(String).slice(0, 4), rows: s.table.rows.slice(0, 5).map((r: any) => (Array.isArray(r) ? r : []).map(String).slice(0, 4)) } : null;
       let k = kind;
       /* Tek eksende üç ayrı birim grafik değildir: canlı destede (14.11.2026)
          "10 mil · 7 km · 20 saniye" aynı çubuk grafikte yan yana çizildi. */
@@ -840,7 +883,8 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
       const yaz = (t: string) => yazim(t, lang);
       if (k === "two") { const hf = s.heads.map((h: any) => flat(String(h || ""))); bullets.forEach((b: string, i: number) => { bullets[i] = b.replace(/\s*\(([^()\d]{2,30})\)(?=[.!?]?\s*$)/, (m: string, a: string) => hf.some((h: string) => h && h.startsWith(flat(a))) ? "" : m); });   /* "(Developed)" taraf adını yineliyordu (25.11.2026) */
-        const sd = sidesOf(bullets, s.heads.map(String), warn); if (sd.bullets.some((b, i) => b !== bullets[i])) s.n1 = 0; /* dizildiyse sınır ortadır */ bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn); }
+        const sd = sidesOf(bullets, s.heads.map(String), warn); if (sd.split) s.n1 = sd.split; else if (sd.bullets.some((b, i) => b !== bullets[i])) s.n1 = 0; bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn);
+        const it = warn.length ? null : ikiTablo(bullets, s.heads.map(String), Number(s.n1) || 0, lang); if (it) { k = "table"; table = it.table; bullets.splice(0, bullets.length, ...it.rest.slice(0, 1)); } }
       if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
       return { title: yaz(cleanCite(String(s.title || ""))), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map((h: any) => cleanCite(String(h))) : [], split: k === "two" ? Math.max(0, Math.min(bullets.length - 1, Number(s.n1) || 0)) : 0, stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });

@@ -6768,7 +6768,19 @@ var SBX = (function () {
     ['money', /faiz|para|maliyet|fiyat|gelir|bütçe|yatırım|kredi|lira|dolar|interest|money|cost|price|revenue|budget|invest/i], ['calendar', /tarih|yıl(?:ı|ında)?\b|dönem|takvim|süre|\b(?:19|20)\d\d\b|date|year|period|timeline/i], ['people', /insan|toplum|ekip|çalışan|müşteri|tüketici|hanehalk|mürettebat|people|team|customer|consumer|society/i],
     ['globe', /dünya|küresel|uluslararası|ülke|ihracat|ithalat|world|global|international|country|export/i], ['target', /hedef|amaç|strateji|plan|odak|goal|target|strategy|objective/i], ['chart', /veri|istatistik|ölçüm|analiz|rapor|data|statistic|analysis|report/i],
     ['scale', /hukuk|kanun|yasa|adalet|denge|karşılaştır|law|legal|balance|compare/i], ['rocket', /teknoloji|yenilik|inovasyon|uzay|dijital|yazılım|technology|innovation|space|digital|software/i], ['book', /eğitim|öğren|araştırma|bilim|akademi|literatür|education|learn|research|science/i], ['bulb', /fikir|çözüm|öneri|ders|sonuç|idea|solution|lesson|insight/i]];
-  var ikonSec = function (x, i) { for (var k = 0; k < IKON_RE.length; k++) if (IKON_RE[k][1].test(String(x))) return IKON_RE[k][0]; return ['check', 'spark', 'arrow', 'bulb'][i % 4]; };
+  /* İKON ANLAMI (25.11.2026, "Solar vs Wind"): risk asetatında kupa ve taç çıktı — "wind" içindeki
+     "win" ödül, "making" içindeki "king" taç, "generation" içindeki "gene" DNA sayıldı. Eşleşme sözcük
+     başında olmalı; İngilizce destede 4 harfe kadar kalıp sözcüğün tamamı (çoğul -s olabilir).
+     Asetat başlığı ya da madde risk/sınır/belirsizlik anlatıyorsa yalnız uyarı ikonları seçilir. */
+  var ikonBag = '';
+  var RISK_BAG = /risk|challeng|volatil|\bgaps?\b|limit|threat|uncertain|barrier|weakness|concern|drawback|tehdit|zorluk|belirsiz|sınırl|kısıt|zayıf|engel|sorun/i;
+  var sozEsle = function (re, x) { var g = new RegExp(re.source, re.flags.replace('g', '') + 'g'), m, en = typeof curLang === 'function' && curLang() === 'en';
+    while ((m = g.exec(x)) !== null) { if (!m[0]) { g.lastIndex++; continue; } var on = x.charAt(m.index - 1), son = x.slice(m.index + m[0].length, m.index + m[0].length + 2);
+      if (on && /[a-zçğıöşüâîû\d]/i.test(on)) continue; if (en && m[0].length <= 4 && /^[a-z]/i.test(son) && !/^s(?![a-z])/i.test(son)) continue; return true; }
+    return false; };
+  var ikonSec = function (x, i) { x = String(x);
+    if (RISK_BAG.test(ikonBag) || RISK_BAG.test(x)) return /declin|drop|fall|loss|volatil|düş|kayıp|dalgal/i.test(x) ? 'trending-down' : /secur|protect|regulat|policy|complian|güvenlik|düzenle/i.test(x) ? 'shield' : /grid|fluctuat|integrat|intermitten|şebeke/i.test(x) ? 'activity' : ['alert', 'activity', 'trending-down', 'shield'][i % 4];
+    for (var k = 0; k < IKON_RE.length; k++) if (sozEsle(IKON_RE[k][1], x)) return IKON_RE[k][0]; return ['check', 'spark', 'arrow', 'bulb'][i % 4]; };
   /* "Eylül 2021: faiz indirimi başladı" → ['Eylül 2021', 'faiz indirimi başladı'] */
   var tarihBol = function (x) { var m = String(x).match(/^(.{2,34}?)\s*(?::|\s[–—-])\s+(.{4,})$/); return m && /\d/.test(m[1]) ? [m[1].trim(), m[2].trim()] : null; };
   var yuzde = function (v) { var m = String(v || '').replace(/\s+/g, '').match(/^(?:%(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)%)$/); if (!m) return null; var n = parseFloat(String(m[1] || m[2]).replace(',', '.')); return n >= 0 && n <= 100 ? n : null; };
@@ -6995,7 +7007,9 @@ var SBX = (function () {
        bir önceki listeyle aynı aileden olanlar sona kalır. */
     var v = c && c.v, alt = null, sira = (VARY[kind] && VSIRA[kind]) || [], at = sira.indexOf(v), dene = v && VARY[kind] ? [v].concat(sira.slice(at + 1), sira.slice(0, Math.max(0, at))).filter(function (x, i, a) { return x && a.indexOf(x) === i; }) : [];
     if (kind === 'list' && c && c.aile) dene = dene.filter(function (x, i) { return !i || LAILE[x] !== c.aile; }).concat(dene.filter(function (x, i) { return i && LAILE[x] === c.aile; }));
+    ikonBag = String(t || '');      /* ikon seçici asetat başlığını bağlam olarak görür */
     for (var di = 0; di < dene.length && !alt; di++) { var fv = VARY[kind][dene[di] - 1]; alt = fv ? fv(t, b, c) : null; if (alt) v = dene[di]; }
+    ikonBag = '';
     var sl = { id: uid(), lay: kind, bg: 'clear', notes: '', els: alt || LAY[kind].f(t, b, c) }; if (alt) sl.v = v; return sl;
   };
 
