@@ -33,9 +33,9 @@ button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:tra
 
 /* ---------- Acadia ---------- */
 .kc-acd .kc-acadia{transform-origin:50% 60%;animation:kaNefes 3.2s ease-in-out infinite}
-.kc-acd .kc-kutlama{animation:kaZipla .7s ease-in-out infinite alternate}
+.kc-acd .kc-kutlama{animation:kaAcdZipla .7s ease-in-out infinite alternate}
 @keyframes kaNefes{50%{transform:translateY(-3px) rotate(-2deg)}}
-@keyframes kaZipla{to{transform:translateY(-8px) rotate(4deg)}}
+@keyframes kaAcdZipla{to{transform:translateY(-8px) rotate(4deg)}}
 .ka-acd{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:14px;margin-bottom:18px}
 .ka-acd>.kc{width:96px;height:96px}
 .ka-balon{position:relative;margin:0;padding:14px 18px;border:3px solid var(--m);border-radius:22px;background:var(--beyaz);font:700 22px/1.25 var(--bas)}
@@ -476,8 +476,8 @@ button.ka-ben:hover{border-color:var(--m);background:var(--beyaz)}
 .ka-halka-i .kc{width:clamp(16px,1.7vw,20px);height:auto;margin-bottom:1px}
 .ka-halka-i b{font:800 clamp(14px,1.4vw,17px)/1 var(--bas);color:var(--m)}
 .ka-halka-tam .ka-halka-z{fill:#FFF3B0}
-.ka-halka-tam{animation:kaHalka 2.4s ease-in-out infinite}
-@keyframes kaHalka{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.ka-halka-tam{animation:kaHalkaNabiz 2.4s ease-in-out infinite}
+@keyframes kaHalkaNabiz{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 /* "Daha fazlası" penceresi */
 .ka-dahak .ka-pen{width:min(760px,calc(100vw - 24px))}.ka-dahak .ka-koseler{width:100%;margin:6px 0 0}
 @media (max-width:720px){

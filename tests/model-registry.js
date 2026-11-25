@@ -205,7 +205,10 @@ test('max_completion_tokens borcu BUYUMUYOR', () => {
 
      Bu test borcu KAPATMIYOR, donduruyor: listedeki 9 fonksiyon bilinen
      borc, onuncusu bu testi dusurur. */
+  /* yalnız sohbet tamamlama çağıranlar; ses yazıya dökme (audio/transcriptions,
+     kids-ses-tanima) completion üretmez, bu alanı da kabul etmez */
   const butcesiz = GROQ_FNS
+    .filter(f => /chat\/completions/.test(f.kod))
     .filter(f => !/max_completion_tokens/.test(f.kod))
     .map(f => f.ad)
     .sort();

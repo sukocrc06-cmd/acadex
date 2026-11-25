@@ -22,7 +22,12 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var ME = null, USER = null, root = null, st = null;
 
+  /* 20.11.2026: Acadex Kids da aynı düğmeyi kullanır (kids/assets/kids-test.js). Kids kendi sayfa
+     listesini, o anki sayfayı ve adresi window.ACADEX_TEST_SAYFA ile verir: { liste, bul(), adres() } */
+  var DIS = window.ACADEX_TEST_SAYFA || null;
+  if (DIS && DIS.liste && DIS.liste.length) PAGES = DIS.liste.slice();
   function curPage() {
+    if (DIS && DIS.bul) { try { var p = DIS.bul(); if (p) return p; } catch (e) {} }
     if (document.querySelector('#axa-layer .axa.in')) return 'Acadia';
     var r = document.querySelector('.axr-card'); if (r && r.getClientRects().length) return 'Özet kartı';
     var t = 'home'; try { t = currentActiveTab || 'home'; } catch (e) {}
@@ -33,7 +38,7 @@
     var kind = /iPad|Tablet/i.test(ua) || (/Macintosh/.test(ua) && touch) || (/Android/.test(ua) && !/Mobile/.test(ua)) ? 'tablet' : (/Mobi|iPhone|Android/i.test(ua) || (touch && w < 600)) ? 'telefon' : 'bilgisayar';
     var os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) || (/Macintosh/.test(ua) && touch) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '';
     var br = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /FxiOS|Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : '';
-    return { kind: kind, ortam: [os, br].filter(Boolean).join(' · '), ekran: innerWidth + '×' + innerHeight, adres: (location.pathname.split('/').pop() || '/') + (function () { try { return currentActiveTab ? '#' + currentActiveTab : location.hash; } catch (e) { return location.hash; } })() };
+    return { kind: kind, ortam: [os, br].filter(Boolean).join(' · '), ekran: innerWidth + '×' + innerHeight, adres: DIS && DIS.adres ? (function () { try { return DIS.adres(); } catch (e) { return location.pathname + location.hash; } })() : (location.pathname.split('/').pop() || '/') + (function () { try { return currentActiveTab ? '#' + currentActiveTab : location.hash; } catch (e) { return location.hash; } })() };
   }
 
   /* ---------- görüntü ---------- */

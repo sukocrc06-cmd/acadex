@@ -50,6 +50,33 @@
       '<text x="30" y="50" text-anchor="middle" font-family="\'Baloo 2\',sans-serif" font-weight="800" font-size="17" fill="' + M + '">' + (kilitli ? '?' : L) + '</text></svg>';
   }
 
+  /* ---------- parlak metal madalya (konu penceresindeki kürsü, 21.11.2026) ----------
+     durum: 'bitti' (kazanıldı) · 'sira' (oynanabilir, henüz kazanılmadı) · 'kilit'.
+     Metal dört tonlu degrade + iç kabartma yıldız + üstünden süzülen ışık şeridi (CSS: .kc-md-isik). */
+  var METAL = [['#FFD9AE', '#E59B5C', '#B8682F', '#7A3F17'], ['#FFFFFF', '#DCE3EC', '#A3AFC2', '#6E7A8F'], ['#FFF6B8', '#FFD23F', '#E8A300', '#9C6500']];
+  var mdN = 0;
+  function madalyaParlak(L, durum) {
+    var n = ++mdN, g = 'kmd' + n, gi = 'kmi' + n, cl = 'kmc' + n, kilit = durum === 'kilit';
+    var t = kilit ? ['#F1F3F8', '#D3D9E5', '#B1B9CA', '#7D879C'] : METAL[L - 1];
+    var kurdele = kilit ? ['#C3CAD8', '#AEB6C7'] : [['#FF8A5B', '#E5484D'], ['#7FC4FF', '#3A86E0'], ['#FF6B8B', '#8E5CF6']][L - 1];
+    var yildiz = 'M50 52 l5.3 10.8 11.9 1.7 -8.6 8.4 2 11.8 -10.6 -5.6 -10.6 5.6 2 -11.8 -8.6 -8.4 11.9 -1.7 z';
+    return '<svg class="kc kc-mdp kc-mdp-' + (kilit ? 'kilit' : durum) + '" viewBox="0 0 100 124" aria-hidden="true" focusable="false">' +
+      '<defs><linearGradient id="' + g + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + t[0] + '"/><stop offset=".35" stop-color="' + t[1] + '"/><stop offset=".7" stop-color="' + t[2] + '"/><stop offset="1" stop-color="' + t[3] + '"/></linearGradient>' +
+      '<linearGradient id="' + gi + '" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + t[0] + '"/><stop offset=".55" stop-color="' + t[1] + '"/><stop offset="1" stop-color="' + t[2] + '"/></linearGradient>' +
+      '<clipPath id="' + cl + '"><circle cx="50" cy="72" r="36"/></clipPath></defs>' +
+      '<path d="M30 4 h16 l10 40 h-16 z" fill="' + kurdele[0] + '" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><path d="M70 4 h-16 l-10 40 h16 z" fill="' + kurdele[1] + '" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/>' +
+      '<path d="M36 10 l6 24" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".45"/>' +
+      '<circle cx="50" cy="72" r="36" fill="url(#' + g + ')" stroke="' + M + '" stroke-width="3.4"/>' +
+      '<circle cx="50" cy="72" r="27" fill="url(#' + gi + ')" stroke="' + t[3] + '" stroke-width="2.2" opacity=".95"/>' +
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(function (i) { var a = i * Math.PI / 6, x = 50 + Math.cos(a) * 31.5, y = 72 + Math.sin(a) * 31.5; return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="1.5" fill="' + t[0] + '" opacity=".85"/>'; }).join('') +
+      (kilit ? '<g transform="translate(50 74)"><rect x="-11" y="-4" width="22" height="17" rx="4" fill="#8A94AB" stroke="' + M + '" stroke-width="2.6"/><path d="M-6.5 -4 v-5 a6.5 6.5 0 0 1 13 0 v5" fill="none" stroke="' + M + '" stroke-width="2.8"/><circle cx="0" cy="4" r="2.4" fill="' + M + '"/></g>'
+        : '<path d="' + yildiz + '" transform="translate(0 1.5)" fill="' + t[3] + '" opacity=".45"/><path d="' + yildiz + '" fill="' + t[0] + '" stroke="' + t[3] + '" stroke-width="2" stroke-linejoin="round"/>' +
+          '<text x="50" y="106" text-anchor="middle" font-family="\'Baloo 2\',sans-serif" font-weight="800" font-size="11" fill="' + t[3] + '" opacity=".9">' + L + '</text>') +
+      '<path d="M26 58 a28 28 0 0 1 22 -20" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".7"/>' +
+      (kilit ? '' : '<g clip-path="url(#' + cl + ')"><g transform="rotate(24 50 72)"><rect class="kc-md-isik" x="-10" y="10" width="14" height="130" fill="#fff" opacity=".6"/></g></g>') +
+      '</svg>';
+  }
+
   /* ---------- büyüyen ada ve sakinler (ada çiziminin 200x170 düzlemi) ---------- */
   var SAKIN = {
     colours: [['firca', 'zipla'], ['gokkusagi', 'uc']], numbers: [['top', 'zipla'], ['yildiz', 'don']], animals: [['chick', 'yuru'], ['duck', 'yuru']], family: [['pet', 'yuru'], ['kus', 'uc']],
@@ -90,5 +117,5 @@
   }
 
   W.KIDS_ODUL = { MADALYA: MADALYA, anahtar: anahtar, seviyeYildiz: seviyeYildiz, konuYildiz: konuYildiz, konuMax: konuMax, seviye: seviye, bantSeviye: bantSeviye,
-    ustalik: ustalik, ustaToplam: ustaToplam, paketBitti: paketBitti, paketAcik: paketAcik, biteniPaket: biteniPaket, asama: asama, madalya: madalya, adaEk: adaEk, SAKIN: SAKIN, YAPI: YAPI };
+    ustalik: ustalik, ustaToplam: ustaToplam, paketBitti: paketBitti, paketAcik: paketAcik, biteniPaket: biteniPaket, asama: asama, madalya: madalya, madalyaParlak: madalyaParlak, adaEk: adaEk, SAKIN: SAKIN, YAPI: YAPI };
 })(window);

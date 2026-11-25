@@ -31,7 +31,7 @@ const mod = ink.slice(a0, a1);
 
 test('kart ekranı v2 sınıfı ve stil dosyası bağlı', () => {
   assert.match(view, /^<section id="cards-view" class="dashboard-view-section axd axk kx">/);
-  const a = html.indexOf('href="css/acadex-ink.css"'), b = html.indexOf('href="css/acadex-kart.css"');
+  const a = html.indexOf('href="css/acadex-ink.css'), b = html.indexOf('href="css/acadex-kart.css"');
   assert.ok(a > 0 && b > a, 'acadex-kart.css, acadex-ink.css\'ten sonra yüklenmeli');
 });
 

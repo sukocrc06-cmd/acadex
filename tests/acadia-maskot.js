@@ -67,7 +67,7 @@ test('kit: panel kılığı yalnız "kılık değiştirsin" açıkken uygulanır
 
 test('bağlantılar: dashboard kit\'i acadex-ink.js\'ten önce, landing kit + rehberi yükler', () => {
   const html = read('dashboard.html'), idx = read('index.html'), ink = read('js/acadex-ink.js');
-  const a = html.indexOf('<script src="js/acadia-kit.js"></script>'), b = html.indexOf('<script src="js/acadex-ink.js"></script>');
+  const a = html.indexOf('<script src="js/acadia-kit.js"></script>'), b = html.indexOf('<script src="js/acadex-ink.js'); // ?v= sürüm eki olabilir (24.11.2026)
   assert.ok(a > 0 && b > a, 'acadia-kit.js, acadex-ink.js\'ten önce');
   assert.ok(html.indexOf('<script src="js/acadia-yerinde.js"></script>') > html.indexOf('<script src="js/acadex-medlab.js"></script>'));
   assert.match(html, /href="css\/acadia-kit\.css"/);

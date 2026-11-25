@@ -60,7 +60,7 @@ const K = win.AXKAYNAK._test;
 
 test('sayfaya bağlı: CSS ve JS okuma masasından sonra; özet çizimine takılır', () => {
   assert.ok(html.indexOf('css/acadex-kaynak-masa.css') < html.indexOf('css/acadex-kaynak-calis.css'));
-  assert.ok(html.indexOf('src="js/acadex-ink.js"') < html.indexOf('src="js/acadex-kaynak-calis.js"'));
+  assert.ok(html.indexOf('src="js/acadex-ink.js') < html.indexOf('src="js/acadex-kaynak-calis.js"'));
   assert.ok(html.indexOf('src="js/acadex-kaynak-masa.js"') < html.indexOf('src="js/acadex-kaynak-calis.js"'));
   assert.match(js, /renderSourceHubSummary = window\.__kcRSS/);
 });

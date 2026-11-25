@@ -13948,9 +13948,24 @@ function initPhase11Listeners() {
   if (btnStartCompare) {
     btnStartCompare.addEventListener('click', startDocumentComparison);
   }
+  /* AKILLI CALISMA SLAYTLARI (22.11.2026): "PDF" artik 16:9 calisma slaytlarini
+     indiriyor (js/ozet-slayt.js); duz A4 dokum o pencerede "Klasik A4 PDF".
+     Slayt dosyasi yuklenmemisse eski yol aynen calisir. */
+  const btnStudySlides = document.getElementById('btn-study-slides');
+  if (btnStudySlides) {
+    btnStudySlides.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!currentActiveStudyCard) { showDashboardAlert('error', 'No active study card data found to export.'); return; }
+      if (window.AcadexOzetSlayt) window.AcadexOzetSlayt.ac(currentActiveStudyCard);
+    });
+  }
   if (btnExportPdf) {
     btnExportPdf.addEventListener('click', async (e) => {
       e.preventDefault();
+      if (currentActiveStudyCard && window.AcadexOzetSlayt && currentActiveStudyCard.id) {
+        window.AcadexOzetSlayt.ac(currentActiveStudyCard, { indir: true });
+        return;
+      }
       if (currentActiveStudyCard) {
         const originalText = btnExportPdf.textContent;
         btnExportPdf.disabled = true;

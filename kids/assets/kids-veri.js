@@ -54,16 +54,32 @@
     yildiz: { ad: 'Yıldızlar', yas: '7-10 yaş', renkSay: 11, sayiSay: 20, kelimeSay: 20, paketBoy: 10, yazi: true, secenek: 5, tur: 6, cift: 6, kelimeKart: true }
   };
   var OKUL = {
-    kod: 'ORNEK-2026', ad: 'Örnek Anaokulu', ornek: true,
+    kod: 'ORNEK-2026', ad: 'Örnek Anaokulu', tur: 'anaokulu', ornek: true,
     bugun: { konu: 'colours', not: 'Bugün okulda renkleri öğrendin!' },
     siniflar: [
       { id: 'papatya', ad: 'Papatyalar', bant: 'minik', renk: '#FFD23F', ogr: [['Defne', 'tavsan'], ['Ali', 'ayi'], ['Zeynep', 'kedi'], ['Kerem', 'civciv'], ['Elif', 'panda'], ['Mert', 'kurbaga']] },
-      { id: 'ugur', ad: 'Uğur Böcekleri', bant: 'kasif', renk: '#E5484D', ogr: [['Asya', 'tilki'], ['Yusuf', 'kopek'], ['Nil', 'tavsan'], ['Aras', 'panda'], ['Ada', 'kedi'], ['Emir', 'ayi']] },
-      { id: 'ikia', ad: '2-A Sınıfı', bant: 'yildiz', renk: '#4AA8FF', ogr: [['Duru', 'kedi'], ['Kaan', 'tilki'], ['Ela', 'civciv'], ['Deniz', 'kurbaga'], ['Mira', 'tavsan'], ['Can', 'kopek']] }
+      { id: 'ugur', ad: 'Uğur Böcekleri', bant: 'kasif', renk: '#E5484D', ogr: [['Asya', 'tilki'], ['Yusuf', 'kopek'], ['Nil', 'tavsan'], ['Aras', 'panda'], ['Ada', 'kedi'], ['Emir', 'ayi']] }
     ],
     sifre: ['kedi', 'elma'],   /* örnek okulda bütün çocukların resimli şifresi aynı */
     ogretmenSifre: '1234'      /* örnek okulun öğretmen şifresi (yalnız tanıtım) */
   };
+  /* 22.11.2026 kurum türü: örnek ilkokul ayrı (2-A / 3-A / 4-A, Yıldızlar; Kids'te Cümle Galaksisi açık) */
+  var OKUL_ILK = {
+    kod: 'ORNEK-ILK', ad: 'Örnek İlkokulu', tur: 'ilkokul', ornek: true,
+    bugun: { konu: 'colours', not: 'Bugün okulda renkleri öğrendin!' },
+    siniflar: [
+      { id: 'ikia', ad: '2-A Sınıfı', bant: 'yildiz', renk: '#4AA8FF', ogr: [['Duru', 'kedi'], ['Kaan', 'tilki'], ['Ela', 'civciv'], ['Deniz', 'kurbaga'], ['Mira', 'tavsan'], ['Can', 'kopek']] },
+      { id: 'ucua', ad: '3-A Sınıfı', bant: 'yildiz', renk: '#8E5CF6', ogr: [['Ece', 'panda'], ['Arda', 'ayi'], ['Lina', 'kedi'], ['Ömer', 'kopek'], ['Su', 'tavsan'], ['Efe', 'tilki']] },
+      { id: 'dorta', ad: '4-A Sınıfı', bant: 'yildiz', renk: '#12A3A3', ogr: [['Zeynep', 'civciv'], ['Alp', 'kurbaga'], ['Nehir', 'tavsan'], ['Batu', 'ayi'], ['İpek', 'kedi'], ['Kuzey', 'tilki']] }
+    ],
+    sifre: ['kedi', 'elma'],
+    ogretmenSifre: '1234'
+  };
+  var ORNEKLER = [OKUL, OKUL_ILK];
+  function ornek(kod) { return ORNEKLER.filter(function (o) { return o.kod === kod; })[0] || null; }
+  var TUR = { kres: 'Kreş', anaokulu: 'Anaokulu', ilkokul: 'İlkokul' };
+  /* sınıf adından ilkokul sınıfı: "2-A" → 2 */
+  function ilkSinifAd(ad) { var m = /^\s*([234])\s*[-./ ]?\s*[A-ZÇĞİÖŞÜ]?/i.exec(String(ad || '')); return m ? +m[1] : 0; }
   /* örnek okulda da her çocuğun yüzü sınıfında eşsiz: [ad, hayvan, id, ilerleme, renk] */
   OKUL.siniflar.forEach(function (s) { s.ogr.forEach(function (o, i) { o[4] = (i * 3) % 8; }); });
   var SIFRE_RESIM = ['kedi', 'elma', 'top', 'balik', 'cicek', 'ay', 'araba', 'kus', 'cilek'];
@@ -101,5 +117,5 @@
   var GECICI = {};   /* kreşin kelime seti (kids-kres.js): haritada ada olarak görünmez, oynanırken konu gibi davranır */
   function geciciKonu(k) { GECICI[k.id] = k; }
   function konuBul(id) { for (var i = 0; i < KONU.length; i++) if (KONU[i].id === id) return KONU[i]; return GECICI[id] || null; }
-  W.KIDS_VERI = { SAYI: SAYI, GIYSI: GIYSI, ogeBul: ogeBul, ogeKonu: ogeKonu, RENK: RENK, KONU: KONU, BANT: BANT, OKUL: OKUL, SIFRE_RESIM: SIFRE_RESIM, al: al, koy: koy, gunAnahtar: gunAnahtar, hafta: hafta, planAl: planAl, planKoy: planKoy, planVar: planVar, gunKonu: gunKonu, konuBul: konuBul, geciciKonu: geciciKonu };
+  W.KIDS_VERI = { OKUL_ILK: OKUL_ILK, ORNEKLER: ORNEKLER, ornek: ornek, TUR: TUR, ilkSinifAd: ilkSinifAd, SAYI: SAYI, GIYSI: GIYSI, ogeBul: ogeBul, ogeKonu: ogeKonu, RENK: RENK, KONU: KONU, BANT: BANT, OKUL: OKUL, SIFRE_RESIM: SIFRE_RESIM, al: al, koy: koy, gunAnahtar: gunAnahtar, hafta: hafta, planAl: planAl, planKoy: planKoy, planVar: planVar, gunKonu: gunKonu, konuBul: konuBul, geciciKonu: geciciKonu };
 })(window);

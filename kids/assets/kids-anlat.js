@@ -50,19 +50,41 @@
       sk.classList.add('kn-oge-konus');
       return SES.soyle(metin, 'en', { perde: 1.5 }).then(function (x) { sk.classList.remove('kn-oge-konus'); return x; });
     }
+    /* karaoke: kelime söylenirken harfleri sırayla yanar; söz bitince hepsi yanık kalır, sonra söner.
+       Kaydın süresi önceden bilinmediği için harf başına ~95 ms tahmin; söz erken biterse hepsi birden yanar. */
+    var kTim = [];
+    function karaoke(p) {
+      if (!yazi || azHareket()) return p;
+      kTim.forEach(clearTimeout); kTim = [];
+      var L = [].slice.call(kel.querySelectorAll('span:not(.kn-bosluk)')); if (!L.length) return p;
+      kel.classList.remove('kn-k-bitti'); L.forEach(function (x) { x.classList.remove('kn-k-on'); });
+      var adim = Math.max(70, Math.min(160, 900 / L.length));
+      L.forEach(function (x, i) { kTim.push(setTimeout(function () { x.classList.add('kn-k-on'); }, 120 + i * adim)); });
+      return Promise.resolve(p).then(function (v) {
+        kTim.forEach(clearTimeout); kTim = []; L.forEach(function (x) { x.classList.add('kn-k-on'); });
+        kTim.push(setTimeout(function () { kel.classList.add('kn-k-bitti'); L.forEach(function (x) { x.classList.remove('kn-k-on'); }); }, 700));
+        return v;
+      });
+    }
     function hikayeBasla(ad) {
       if (!ad || !KS) return;
-      hik.innerHTML = '<span class="kn-esya kn-e-' + ad + '">' + KS.esya(ad) + '</span>' + (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti' ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
-      sk.className = sk.className.replace(/ ?kn-hk-\S+/g, ''); void sk.offsetWidth; sk.classList.add('kn-hk', 'kn-hk-' + ad);
+      var ucar = KS.ucar ? KS.ucar(ad) : (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti'), gr = KS.grup ? KS.grup(ad) : '';
+      hik.innerHTML = '<span class="kn-esya kn-e-' + ad + '">' + KS.esya(ad) + '</span>' + (ucar ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
+      sk.className = sk.className.replace(/ ?kn-h[kg]-\S+/g, ''); void sk.offsetWidth; sk.classList.add('kn-hk', 'kn-hk-' + ad); if (gr) sk.classList.add('kn-hg-' + gr);
     }
-    function hikayeBitir() { hik.innerHTML = ''; obalon.hidden = true; sk.className = sk.className.replace(/ ?kn-hk(-\S+)?/g, ''); }
+    function hikayeBitir() { hik.innerHTML = ''; obalon.hidden = true; sk.className = sk.className.replace(/ ?kn-h[kg](-\S+)?/g, ''); }
     function sahneCiz(r) {
       var ic = W.KIDS_HAYVAN ? W.KIDS_HAYVAN.en(r, P) : P.gorsel(r), n = r.n || 0, ek = '';
+      /* canlı kelime (kids-canli.js): kelimeye özel giriş yolu, zemin (yol/ray/deniz), parçacık */
+      var cn = W.KIDS_CANLI ? W.KIDS_CANLI.bilgi(r.id) : null, gir = (cn && cn.g) || hareket;
+      sk.className = sk.className.replace(/\bkn-h-\S+/, 'kn-h-' + gir);
+      sahneCiz.sure = (cn && cn.s) || 900;
       if (hareket === 'say' && n) { var s = ''; for (var i = 0; i < n; i++) s += '<i style="--s:' + i + '">' + C.simge('yildiz') + '</i>'; ek = '<div class="kn-sayilar kn-n' + (n > 10 ? 'c' : n > 5 ? 'o' : 'a') + '">' + s + '</div>'; }
       if (hareket === 'boya') ek = '<span class="kn-firca" aria-hidden="true">' + C.simge('firca') + '</span>';
-      if (hareket === 'gec' || hareket === 'yuru') ek = '<span class="kn-toz" aria-hidden="true"><i></i><i></i><i></i></span>';
-      if (hareket === 'in' && r.id !== 'sunny' && r.id !== 'sun') ek = '<span class="kn-yagis" aria-hidden="true">' + new Array(7).join('<i></i>') + '</span>';
-      oge.innerHTML = '<div class="kn-resim" style="--r:' + (r.hex || '#9AA7BD') + '">' + ic + '</div>' + ek;
+      if ((gir === 'gec' || gir === 'yuru') && !(cn && cn.z)) ek = '<span class="kn-toz" aria-hidden="true"><i></i><i></i><i></i></span>';
+      if (gir === 'in' && !(cn && cn.p) && r.id !== 'sunny' && r.id !== 'sun') ek = '<span class="kn-yagis" aria-hidden="true">' + new Array(7).join('<i></i>') + '</span>';
+      if (cn) ek += W.KIDS_CANLI.ekHtml(cn);
+      oge.innerHTML = (cn ? W.KIDS_CANLI.zeminHtml(cn) : '') + '<div class="kn-resim" style="--r:' + (r.hex || '#9AA7BD') + '">' + ic + '</div>' + ek;
       sk.style.setProperty('--r', r.hex || '#9AA7BD');
       sk.classList.remove('kn-gir', 'kn-durgun'); void sk.offsetWidth; sk.classList.add('kn-gir');
     }
@@ -72,7 +94,7 @@
       var rp = KS ? KS.replik(o.konu, r, P) : null, dur = function () { return iptal || benim !== kosu; };
       kel.innerHTML = ''; sen.hidden = true; acdK.innerHTML = o.acd('mutlu', 'isaret'); hikayeBitir();
       sahneCiz(r); SES.fx('pat');
-      await bekle(azHareket() ? 100 : 900); if (dur()) return false;
+      await bekle(azHareket() ? 100 : Math.max(900, sahneCiz.sure || 0)); if (dur()) return false;
       /* giriş bitti: konuşma/hikâye animasyonu kalkınca giriş baştan oynamasın */
       sk.classList.add('kn-durgun');
       function yaz() { kel.innerHTML = yazi ? harfler(r.en) : ''; kel.classList.remove('kn-yaz'); void kel.offsetWidth; kel.classList.add('kn-yaz'); }
@@ -87,15 +109,20 @@
         /* mini hikâye: eşya sahneye gelir, kelime onunla oynar */
         if (rp.hikaye) { acdK.innerHTML = o.acd('mutlu', 'isaret'); hikayeBasla(rp.sahne); await bekle(azHareket() ? 100 : 500); if (dur()) return false; await soyle(rp.hikaye, { hiz: 0.9 }); if (dur()) return false; await bekle(400); }
       } else {
-        yaz(); await soyle(r.en + '.'); if (dur()) return false; await bekle(250);
+        yaz(); await bekle(azHareket() ? 0 : 150 + r.en.length * 80); if (dur()) return false;
+        await karaoke(soyle(r.en + '.')); if (dur()) return false; await bekle(250);
         await soyle(P.izleCumle(r), { hiz: 0.9 }); if (dur()) return false;
       }
       hikayeBitir();
       /* senin sıran: kelime tekrar edilir, çocuk söyler */
       sen.hidden = false; acdK.innerHTML = o.acd('dusun'); sk.classList.add('kn-dinle');
       await bekle(400); if (iptal || benim !== kosu) return false;
-      await soyle(r.en + '!'); if (iptal || benim !== kosu) return false;
-      await bekle(1500); sk.classList.remove('kn-dinle'); sen.hidden = true;
+      await karaoke(soyle(r.en + '!')); if (iptal || benim !== kosu) return false;
+      /* mikrofon açıksa (veli izni, kids-dinle.js) çocuğu dinle: doğruysa "Aferin!", değilse bir daha */
+      var DN = W.KIDS_DINLE;
+      if (DN && DN.hazir()) { await DN.tekrarla({ en: r.en, kok: sen.parentNode, soyle: function () { return karaoke(soyle(r.en + '!')); } }); DN.gosterge(sen.parentNode, 'gizli'); }
+      else await bekle(1500);
+      sk.classList.remove('kn-dinle'); sen.hidden = true;
       if (iptal || benim !== kosu) return false;
       sira.children[i].classList.add('kn-gordu'); return true;
     }
@@ -108,11 +135,11 @@
     }
     /* sıradaki küçük resimlere dokunarak o kelimeye atla */
     sira.addEventListener('click', function (e) { var b = e.target.closest('[data-git]'); if (!b) return; SES.sus(); SES.fx('dokun'); oyna(+b.getAttribute('data-git')); });
-    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]), b = KS && KS.ben(o.konu, rs[i], P); (h && SES.hayvan ? SES.hayvan(h) : Promise.resolve()).then(function () { if (b) return ogeSoyle(b).then(function () { obalon.hidden = true; }); return SES.soyle(rs[i].en, 'en'); }); });
+    oge.addEventListener('click', function () { var i = [].indexOf.call(sira.children, sira.querySelector('.kn-bu')); if (i < 0) return; SES.fx('dokun'); sk.classList.remove('kn-zipla'); void sk.offsetWidth; sk.classList.add('kn-zipla'); var h = KS && KS.hayvanSesi(rs[i]), b = KS && KS.ben(o.konu, rs[i], P); (h && SES.hayvan ? SES.hayvan(h) : Promise.resolve()).then(function () { if (b) return ogeSoyle(b).then(function () { obalon.hidden = true; }); return karaoke(SES.soyle(rs[i].en, 'en')); }); });
     sahne.querySelector('[data-yeniden]').addEventListener('click', function () { SES.fx('dokun'); kok.classList.remove('kn-bitti'); oyna(0); });
     sahne.querySelector('[data-ileri]').addEventListener('click', function () { SES.fx('dokun'); o.ileri(); });
     oyna(0);
-    return { dur: function () { iptal = true; SES.sus(); } };
+    return { dur: function () { iptal = true; kTim.forEach(clearTimeout); if (W.KIDS_DINLE) W.KIDS_DINLE.durdur(); SES.sus(); } };
   }
   W.KIDS_ANLAT = { izle: izle, HAREKET: HAREKET };
 })(window);

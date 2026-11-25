@@ -37,7 +37,7 @@
   }
   /* sunucu okulunu uygulamanın beklediği biçime çevirir: ogr = [ad, hayvan, id] */
   function okulBicim(o) {
-    return { kod: o.kod, ad: o.ad, bulut: true, siniflar: (o.siniflar || []).map(function (s) {
+    return { kod: o.kod, ad: o.ad, tur: o.tur || null, bulut: true, siniflar: (o.siniflar || []).map(function (s) {
       return { id: s.id, ad: s.ad, bant: s.bant, renk: RENK[s.bant] || '#4AA8FF', ogr: (s.ogr || []).map(function (g) { return [g.ad, g.hayvan, g.id, g.ilerleme || null, g.renk == null ? null : g.renk]; }), plan: s.plan || {}, gunler: s.gunler || {}, hafta: s.hafta || {} };
     }) };
   }

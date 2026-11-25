@@ -62,9 +62,9 @@ test('panel: "Planlar ve kota" yerine Finans; eski #plans bağlantısı Finans\'
   assert.match(adm, /window\.AXADM = \{ VIEWS: VIEWS/);
   for (const t of ['pano', 'planlar', 'maliyet', 'gider', 'sim', 'gorev', 'rapor']) assert.match(fin, new RegExp("\\['" + t + "', '"), t);
 });
-test('panel: finans rolü yalnız Finans + Acadex ekibi; yönetici RPC\'leri çağrılmaz; ekip düğmeleri gizli', () => {
+test('panel: finans rolü yalnız Finans + Acadex ekibi + Acadex Görev; yönetici RPC\'leri çağrılmaz; ekip düğmeleri gizli', () => {
   assert.match(adm, /if \(!who \|\| !\(who\.is_admin \|\| who\.is_finance\)\) \{ notAdminView/);
-  assert.match(adm, /var FIN_NAV = \{ finans: 1, ekip: 1 \};/);
+  assert.match(adm, /var FIN_NAV = \{ finans: 1, ekip: 1, gorev: 1 \};/);
   assert.match(adm, /if \(FIN_ONLY\(\) && !FIN_NAV\[k\]\) k = 'finans';/);
   // start(): finans rolünde admin_settings / refreshCounts / supPulse çağrılmadan döner
   const st = adm.slice(adm.indexOf('var start = function'), adm.indexOf("document.addEventListener('click'", adm.indexOf('var start = function')));

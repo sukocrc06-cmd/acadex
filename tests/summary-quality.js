@@ -2248,9 +2248,9 @@ test('grounded: olculen kosunun degerleriyle IKI rozet de geri geliyor', () => {
 
 test('grounded: rozet kosulu hala qm.grounded a bagli (arayuz kaymasin)', () => {
   const ink = fs.readFileSync(path.join(__dirname, '..', 'js/acadex-ink.js'), 'utf8');
-  assert.ok(ink.includes("qm.grounded ? chip('kaynağa bağlı'"),
+  assert.ok(ink.includes("var guven = qm.grounded ? "), // 24.11.2026: rozet tek 'axr-trust' oldu
     'kaynaga bagli rozeti artik qm.grounded a bagli degil — bu testin dayanagi kaymis');
-  assert.ok(/qm\.pass !== false && qm\.grounded/.test(ink),
+  assert.ok(/qm\.grounded \? \(qm\.pass !== false/.test(ink),
     'kalite rozeti artik grounded a bagli degil — edge function tarafini gozden gecir');
 });
 
@@ -4236,8 +4236,11 @@ function pencerePromptu(total, desteTalimati) {
   const kotaSon = SRC.indexOf('// Compact extraction prompt', kotaBas);
   if (a < 0 || son < 0 || kotaBas < 0 || kotaSon < 0) return '';
   const kotalar = SRC.slice(kotaBas, kotaSon).replace(/: number/g, '');
+  /* 24-25.11.2026: sablonun sonuna ornekTalimati(pencereOrnekleri[wi]) ve
+     envanterTalimati(pencereEnvanteri[wi]) eklendi (sayisal ornek bulucu, kaynak envanteri). Burada ornek YOK sayilir: olculen, ornegi olmayan pencerenin taban maliyeti;
+     ornekli pencerede cikis tavani windowCompletionFor ile zaten kendiliginden kisalir. */
   const fn = new Function('wi', 'total', 'langLabel', 'desteTalimati',
-    kotalar + '\nreturn ' + SRC.slice(bas, son));
+    kotalar + '\nconst pencereOrnekleri = []; const ornekTalimati = () => \'\'; const pencereEnvanteri = []; const envanterTalimati = () => \'\'; const kaynakFarkliDil = false;\nreturn ' + SRC.slice(bas, son));
   return fn(0, total, 'English', desteTalimati);
 }
 

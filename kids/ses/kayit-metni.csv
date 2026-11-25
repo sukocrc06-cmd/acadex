@@ -13,6 +13,11 @@ tr/dolabina-hos-geldin-yildiz-topladikca-ye-32b5fe.mp3;tr;"Dolabına hoş geldin
 tr/yeni-bir-rozet-kazandin-35ff1e.mp3;tr;"Yeni bir rozet kazandın!";yönerge
 tr/kitapliga-hos-geldin-bir-kitap-sec-5b08d8.mp3;tr;"Kitaplığa hoş geldin! Bir kitap seç.";yönerge
 tr/adan-buyudu-0cb909.mp3;tr;"Adan büyüdü!";yönerge
+tr/yeni-bir-gezegen-acildi-1855f5.mp3;tr;"Yeni bir gezegen açıldı!";yönerge
+tr/cumle-galaksisine-hos-geldin-kacinci-sin-5ebf5b.mp3;tr;"Cümle galaksisine hoş geldin! Kaçıncı sınıftasın?";yönerge
+tr/dinle-sonra-bloklari-dogru-siraya-diz-b18c70.mp3;tr;"Dinle, sonra blokları doğru sıraya diz!";yönerge
+tr/mukemmel-uc-yildiz-d729ad.mp3;tr;"Mükemmel! Üç yıldız!";yönerge
+tr/aferin-cumleleri-kurdun-673522.mp3;tr;"Aferin! Cümleleri kurdun!";yönerge
 tr/hadi-bir-sahne-kuralim-47920b.mp3;tr;"Hadi bir sahne kuralım!";yönerge
 tr/once-bir-onceki-paketi-bitir-01c95d.mp3;tr;"Önce bir önceki paketi bitir.";yönerge
 tr/yeni-bir-kelime-paketi-acildi-1eb66a.mp3;tr;"Yeni bir kelime paketi açıldı!";yönerge
@@ -24,6 +29,10 @@ tr/adalara-bakalim-e5ddbd.mp3;tr;"Adalara bakalım!";yönerge
 tr/kelimelerime-bakalim-f9926b.mp3;tr;"Kelimelerime bakalım!";yönerge
 tr/cikartma-albumume-bakalim-d5d91d.mp3;tr;"Çıkartma albümüme bakalım!";yönerge
 tr/daha-cok-oyun-var-d3c231.mp3;tr;"Daha çok oyun var!";yönerge
+tr/turkcesine-bak-i-ngilizcesini-sec-2f45df.mp3;tr;"Türkçesine bak, İngilizcesini seç.";yönerge
+tr/cumleye-uyan-kelimeyi-sec-6b7d0e.mp3;tr;"Cümleye uyan kelimeyi seç.";yönerge
+tr/acadia-soruyor-dogru-cevabi-sec-55145e.mp3;tr;"Acadia soruyor. Doğru cevabı seç.";yönerge
+tr/aferin-duragi-bitirdin-d58ca3.mp3;tr;"Aferin! Durağı bitirdin!";yönerge
 en/let-s-learn-our-class-words-543539.mp3;en;"Let's learn our class words!";övgü / oyun
 en/great-job-our-class-words-done-7e801c.mp3;en;"Great job! Our class words, done!";övgü / oyun
 en/find-the-pairs-c6d0ea.mp3;en;"Find the pairs!";övgü / oyun
@@ -5759,100 +5768,98 @@ en/hi-i-m-number-twenty-3395fc.mp3;en;"Hi! I'm number twenty!";numbers · konuş
 en/who-are-you-b6197e.mp3;en;"Who are you?";animals · konuşan soru
 en/hi-i-m-a-cat-b3dc06.mp3;en;"Hi! I'm a cat!";animals · konuşan ben
 en/hello-cat-42709d.mp3;en;"Hello, cat!";animals · konuşan selam
-en/the-cat-plays-with-a-ball-28d947.mp3;en;"The cat plays with a ball!";animals · konuşan hikaye
+en/the-cat-plays-with-yarn-c76522.mp3;en;"The cat plays with yarn!";animals · konuşan hikaye
 en/hi-i-m-a-dog-3a37f6.mp3;en;"Hi! I'm a dog!";animals · konuşan ben
 en/hello-dog-2e884d.mp3;en;"Hello, dog!";animals · konuşan selam
-en/the-dog-plays-with-a-ball-40f1d4.mp3;en;"The dog plays with a ball!";animals · konuşan hikaye
+en/the-dog-gets-a-bone-806546.mp3;en;"The dog gets a bone!";animals · konuşan hikaye
 en/hi-i-m-a-fish-0f1e89.mp3;en;"Hi! I'm a fish!";animals · konuşan ben
 en/hello-fish-584a19.mp3;en;"Hello, fish!";animals · konuşan selam
-en/the-fish-plays-with-a-ball-b76098.mp3;en;"The fish plays with a ball!";animals · konuşan hikaye
+en/the-fish-blows-bubbles-e70f84.mp3;en;"The fish blows bubbles!";animals · konuşan hikaye
 en/hi-i-m-a-bird-36f1e8.mp3;en;"Hi! I'm a bird!";animals · konuşan ben
 en/hello-bird-4c585c.mp3;en;"Hello, bird!";animals · konuşan selam
-en/the-bird-plays-with-a-ball-f4ae1d.mp3;en;"The bird plays with a ball!";animals · konuşan hikaye
+en/the-bird-sings-a-song-ed36ce.mp3;en;"The bird sings a song!";animals · konuşan hikaye
 en/hi-i-m-a-rabbit-91a709.mp3;en;"Hi! I'm a rabbit!";animals · konuşan ben
 en/hello-rabbit-ec623b.mp3;en;"Hello, rabbit!";animals · konuşan selam
-en/the-rabbit-plays-with-a-ball-ee484b.mp3;en;"The rabbit plays with a ball!";animals · konuşan hikaye
+en/the-rabbit-eats-a-carrot-e8252c.mp3;en;"The rabbit eats a carrot!";animals · konuşan hikaye
 en/hi-i-m-a-frog-f26f14.mp3;en;"Hi! I'm a frog!";animals · konuşan ben
 en/hello-frog-eea537.mp3;en;"Hello, frog!";animals · konuşan selam
-en/the-frog-plays-with-a-ball-4a1a17.mp3;en;"The frog plays with a ball!";animals · konuşan hikaye
+en/the-frog-catches-a-fly-d23ea3.mp3;en;"The frog catches a fly!";animals · konuşan hikaye
 en/hi-i-m-a-cow-34bd8f.mp3;en;"Hi! I'm a cow!";animals · konuşan ben
 en/hello-cow-f8aceb.mp3;en;"Hello, cow!";animals · konuşan selam
-en/the-cow-plays-with-a-ball-c6eb1b.mp3;en;"The cow plays with a ball!";animals · konuşan hikaye
+en/the-cow-eats-grass-897dda.mp3;en;"The cow eats grass!";animals · konuşan hikaye
 en/hi-i-m-a-chick-b887ea.mp3;en;"Hi! I'm a chick!";animals · konuşan ben
 en/hello-chick-8f7a50.mp3;en;"Hello, chick!";animals · konuşan selam
-en/the-chick-plays-with-a-ball-221ffc.mp3;en;"The chick plays with a ball!";animals · konuşan hikaye
+en/the-chick-eats-seeds-305e76.mp3;en;"The chick eats seeds!";animals · konuşan hikaye
 en/hi-i-m-a-lion-20b290.mp3;en;"Hi! I'm a lion!";animals · konuşan ben
 en/hello-lion-08e165.mp3;en;"Hello, lion!";animals · konuşan selam
-en/the-lion-plays-with-a-ball-62af1d.mp3;en;"The lion plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-bear-0a9d27.mp3;en;"Hi! I'm a bear!";animals · konuşan ben
 en/hello-bear-ec6188.mp3;en;"Hello, bear!";animals · konuşan selam
-en/the-bear-plays-with-a-ball-9c56b6.mp3;en;"The bear plays with a ball!";animals · konuşan hikaye
+en/the-bear-eats-honey-e430c9.mp3;en;"The bear eats honey!";animals · konuşan hikaye
 en/hi-i-m-a-horse-be9245.mp3;en;"Hi! I'm a horse!";animals · konuşan ben
 en/hello-horse-2a3d9f.mp3;en;"Hello, horse!";animals · konuşan selam
-en/the-horse-plays-with-a-ball-19062c.mp3;en;"The horse plays with a ball!";animals · konuşan hikaye
+en/the-horse-eats-an-apple-2ba4ed.mp3;en;"The horse eats an apple!";animals · konuşan hikaye
 en/hi-i-m-a-pig-eb6bbf.mp3;en;"Hi! I'm a pig!";animals · konuşan ben
 en/hello-pig-f49a9f.mp3;en;"Hello, pig!";animals · konuşan selam
-en/the-pig-plays-with-a-ball-a57803.mp3;en;"The pig plays with a ball!";animals · konuşan hikaye
+en/the-pig-plays-in-the-mud-c9c56b.mp3;en;"The pig plays in the mud!";animals · konuşan hikaye
 en/hi-i-m-a-sheep-81d606.mp3;en;"Hi! I'm a sheep!";animals · konuşan ben
 en/hello-sheep-2ea6f4.mp3;en;"Hello, sheep!";animals · konuşan selam
-en/the-sheep-plays-with-a-ball-cfbaba.mp3;en;"The sheep plays with a ball!";animals · konuşan hikaye
+en/the-sheep-eats-grass-a6887e.mp3;en;"The sheep eats grass!";animals · konuşan hikaye
 en/hi-i-m-a-duck-171e8a.mp3;en;"Hi! I'm a duck!";animals · konuşan ben
 en/hello-duck-df31f7.mp3;en;"Hello, duck!";animals · konuşan selam
-en/the-duck-plays-with-a-ball-76f223.mp3;en;"The duck plays with a ball!";animals · konuşan hikaye
+en/the-duck-swims-in-the-pond-25d248.mp3;en;"The duck swims in the pond!";animals · konuşan hikaye
 en/hi-i-m-a-monkey-50c6c4.mp3;en;"Hi! I'm a monkey!";animals · konuşan ben
 en/hello-monkey-68e765.mp3;en;"Hello, monkey!";animals · konuşan selam
-en/the-monkey-plays-with-a-ball-0828f9.mp3;en;"The monkey plays with a ball!";animals · konuşan hikaye
+en/the-monkey-eats-a-banana-32c23e.mp3;en;"The monkey eats a banana!";animals · konuşan hikaye
 en/hi-i-m-an-elephant-2b52a9.mp3;en;"Hi! I'm an elephant!";animals · konuşan ben
 en/hello-elephant-4a2c06.mp3;en;"Hello, elephant!";animals · konuşan selam
-en/the-elephant-plays-with-a-ball-fed61b.mp3;en;"The elephant plays with a ball!";animals · konuşan hikaye
+en/the-elephant-sprays-water-353c7f.mp3;en;"The elephant sprays water!";animals · konuşan hikaye
 en/hi-i-m-a-giraffe-37febd.mp3;en;"Hi! I'm a giraffe!";animals · konuşan ben
 en/hello-giraffe-aa44ae.mp3;en;"Hello, giraffe!";animals · konuşan selam
-en/the-giraffe-plays-with-a-ball-088dd0.mp3;en;"The giraffe plays with a ball!";animals · konuşan hikaye
+en/the-giraffe-eats-leaves-785a94.mp3;en;"The giraffe eats leaves!";animals · konuşan hikaye
 en/hi-i-m-a-tiger-6551d5.mp3;en;"Hi! I'm a tiger!";animals · konuşan ben
 en/hello-tiger-0fa2a8.mp3;en;"Hello, tiger!";animals · konuşan selam
 en/the-tiger-plays-with-a-ball-ec85db.mp3;en;"The tiger plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-mouse-23f93e.mp3;en;"Hi! I'm a mouse!";animals · konuşan ben
 en/hello-mouse-95517b.mp3;en;"Hello, mouse!";animals · konuşan selam
-en/the-mouse-plays-with-a-ball-6a3a38.mp3;en;"The mouse plays with a ball!";animals · konuşan hikaye
+en/the-mouse-eats-cheese-2db2ac.mp3;en;"The mouse eats cheese!";animals · konuşan hikaye
 en/hi-i-m-a-snake-db7e69.mp3;en;"Hi! I'm a snake!";animals · konuşan ben
 en/hello-snake-55fff6.mp3;en;"Hello, snake!";animals · konuşan selam
-en/the-snake-plays-with-a-ball-787b6c.mp3;en;"The snake plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-penguin-d6c7be.mp3;en;"Hi! I'm a penguin!";animals · konuşan ben
 en/hello-penguin-1411eb.mp3;en;"Hello, penguin!";animals · konuşan selam
-en/the-penguin-plays-with-a-ball-3c0bdb.mp3;en;"The penguin plays with a ball!";animals · konuşan hikaye
+en/the-penguin-slides-on-the-ice-229e03.mp3;en;"The penguin slides on the ice!";animals · konuşan hikaye
 en/hi-i-m-an-owl-9dd0eb.mp3;en;"Hi! I'm an owl!";animals · konuşan ben
 en/hello-owl-980c72.mp3;en;"Hello, owl!";animals · konuşan selam
-en/the-owl-plays-with-a-ball-51842d.mp3;en;"The owl plays with a ball!";animals · konuşan hikaye
+en/the-owl-says-hoo-hoo-a62727.mp3;en;"The owl says hoo-hoo!";animals · konuşan hikaye
 en/hi-i-m-a-bee-66144e.mp3;en;"Hi! I'm a bee!";animals · konuşan ben
 en/hello-bee-7758e4.mp3;en;"Hello, bee!";animals · konuşan selam
-en/the-bee-plays-with-a-ball-40a8d4.mp3;en;"The bee plays with a ball!";animals · konuşan hikaye
+en/the-bee-loves-flowers-abcbc2.mp3;en;"The bee loves flowers!";animals · konuşan hikaye
 en/hi-i-m-a-butterfly-4b5bec.mp3;en;"Hi! I'm a butterfly!";animals · konuşan ben
 en/hello-butterfly-6f10aa.mp3;en;"Hello, butterfly!";animals · konuşan selam
-en/the-butterfly-plays-with-a-ball-9e6b3c.mp3;en;"The butterfly plays with a ball!";animals · konuşan hikaye
+en/the-butterfly-flies-to-a-flower-2c9914.mp3;en;"The butterfly flies to a flower!";animals · konuşan hikaye
 en/hi-i-m-a-zebra-0899ae.mp3;en;"Hi! I'm a zebra!";animals · konuşan ben
 en/hello-zebra-f8544e.mp3;en;"Hello, zebra!";animals · konuşan selam
-en/the-zebra-plays-with-a-ball-807ab6.mp3;en;"The zebra plays with a ball!";animals · konuşan hikaye
+en/the-zebra-eats-grass-be2d1f.mp3;en;"The zebra eats grass!";animals · konuşan hikaye
 en/hi-i-m-a-panda-a6c485.mp3;en;"Hi! I'm a panda!";animals · konuşan ben
 en/hello-panda-e380ca.mp3;en;"Hello, panda!";animals · konuşan selam
-en/the-panda-plays-with-a-ball-2e9727.mp3;en;"The panda plays with a ball!";animals · konuşan hikaye
+en/the-panda-eats-bamboo-7b4000.mp3;en;"The panda eats bamboo!";animals · konuşan hikaye
 en/hi-i-m-a-fox-2dd366.mp3;en;"Hi! I'm a fox!";animals · konuşan ben
 en/hello-fox-963470.mp3;en;"Hello, fox!";animals · konuşan selam
 en/the-fox-plays-with-a-ball-2f81a3.mp3;en;"The fox plays with a ball!";animals · konuşan hikaye
 en/hi-i-m-a-goat-279dae.mp3;en;"Hi! I'm a goat!";animals · konuşan ben
 en/hello-goat-531a11.mp3;en;"Hello, goat!";animals · konuşan selam
-en/the-goat-plays-with-a-ball-8c9df0.mp3;en;"The goat plays with a ball!";animals · konuşan hikaye
+en/the-goat-eats-grass-8b4812.mp3;en;"The goat eats grass!";animals · konuşan hikaye
 en/hi-i-m-a-hen-3e65d7.mp3;en;"Hi! I'm a hen!";animals · konuşan ben
 en/hello-hen-d546b7.mp3;en;"Hello, hen!";animals · konuşan selam
-en/the-hen-plays-with-a-ball-c412d5.mp3;en;"The hen plays with a ball!";animals · konuşan hikaye
+en/the-hen-eats-seeds-f372e3.mp3;en;"The hen eats seeds!";animals · konuşan hikaye
 en/hi-i-m-a-crocodile-44e4f8.mp3;en;"Hi! I'm a crocodile!";animals · konuşan ben
 en/hello-crocodile-e6e670.mp3;en;"Hello, crocodile!";animals · konuşan selam
-en/the-crocodile-plays-with-a-ball-f6c1a2.mp3;en;"The crocodile plays with a ball!";animals · konuşan hikaye
+en/the-crocodile-swims-683455.mp3;en;"The crocodile swims!";animals · konuşan hikaye
 en/hi-i-m-a-hippo-124a01.mp3;en;"Hi! I'm a hippo!";animals · konuşan ben
 en/hello-hippo-0b8683.mp3;en;"Hello, hippo!";animals · konuşan selam
-en/the-hippo-plays-with-a-ball-46e4b0.mp3;en;"The hippo plays with a ball!";animals · konuşan hikaye
+en/the-hippo-swims-in-the-water-b1256d.mp3;en;"The hippo swims in the water!";animals · konuşan hikaye
 en/hi-i-m-a-squirrel-564ece.mp3;en;"Hi! I'm a squirrel!";animals · konuşan ben
 en/hello-squirrel-a7b28a.mp3;en;"Hello, squirrel!";animals · konuşan selam
-en/the-squirrel-plays-with-a-ball-b12dc0.mp3;en;"The squirrel plays with a ball!";animals · konuşan hikaye
+en/the-squirrel-eats-a-nut-c7fc99.mp3;en;"The squirrel eats a nut!";animals · konuşan hikaye
 en/hi-i-m-mum-213ecd.mp3;en;"Hi! I'm Mum!";family · konuşan ben
 en/hello-mum-410952.mp3;en;"Hello, Mum!";family · konuşan selam
 en/i-love-my-mum-3319e7.mp3;en;"I love my mum!";family · konuşan hikaye
@@ -7423,6 +7430,390 @@ en/cab-1a3ff6.mp3;en;"cab";kitap kelimesi
 en/who-is-lost-ceb4f4.mp3;en;"Who is lost?";kitap · soru
 en/where-does-a-look-4196de.mp3;en;"Where does A look?";kitap · soru
 en/who-is-c-with-71ae57.mp3;en;"Who is C with?";kitap · soru
+tr/hadi-sen-de-soyle-4d95a5.mp3;tr;"Hadi sen de söyle!";masal
+tr/aferin-dec36f.mp3;tr;"Aferin!";masal
+tr/supersin-8989ea.mp3;tr;"Süpersin!";masal
+tr/harika-fe270d.mp3;tr;"Harika!";masal
+tr/hangisi-813da3.mp3;tr;"Hangisi";masal
+tr/masal-bitti-bugun-yeni-kelimeler-ogrendi-8d5303.mp3;tr;"Masal bitti! Bugün yeni kelimeler öğrendin.";masal
+tr/bir-masal-sec-acadia-sana-okusun-ad4d41.mp3;tr;"Bir masal seç, Acadia sana okusun.";masal
+tr/topum-nerede-f8a7dc.mp3;tr;"Topum Nerede?";masal
+tr/minik-kedi-pamuk-un-kirmizi-bir-topu-var-65c355.mp3;tr;"Minik kedi Pamuk'un kırmızı bir topu var.";masal
+tr/kirmizi-i-ngilizce-275f04.mp3;tr;"Kırmızı, İngilizce";masal
+tr/ama-top-kayboldu-pamuk-mavi-cantaya-baki-45316a.mp3;tr;"Ama top kayboldu! Pamuk mavi çantaya bakıyor. Yok!";masal
+tr/mavi-i-ngilizce-d6d20a.mp3;tr;"Mavi, İngilizce";masal
+tr/sari-sandalyenin-altinda-mi-orada-da-yok-1f2269.mp3;tr;"Sarı sandalyenin altında mı? Orada da yok!";masal
+tr/sari-i-ngilizce-9a6ebe.mp3;tr;"Sarı, İngilizce";masal
+tr/yesil-cimenlerde-ariyor-hala-yok-e3cc48.mp3;tr;"Yeşil çimenlerde arıyor. Hâlâ yok!";masal
+tr/yesil-i-ngilizce-2dc592.mp3;tr;"Yeşil, İngilizce";masal
+tr/bak-kopek-karabas-turuncu-yastigin-arkas-483e2f.mp3;tr;"Bak! Köpek Karabaş, turuncu yastığın arkasından topu getirdi.";masal
+tr/turuncu-i-ngilizce-1bf2c6.mp3;tr;"Turuncu, İngilizce";masal
+tr/pamuk-ile-karabas-birlikte-top-oynuyor-y-006dd2.mp3;tr;"Pamuk ile Karabaş birlikte top oynuyor. Yaşasın!";masal
+tr/uc-ac-civciv-76353c.mp3;tr;"Üç Aç Civciv";masal
+tr/tavuk-annenin-uc-kucuk-civcivi-var-cik-c-0d4240.mp3;tr;"Tavuk annenin üç küçük civcivi var. Cik cik cik, çok açlar!";masal
+tr/uc-i-ngilizce-75d278.mp3;tr;"Üç, İngilizce";masal
+tr/agactan-bir-elma-dustu-pat-80c52b.mp3;tr;"Ağaçtan bir elma düştü. Pat!";masal
+tr/bir-i-ngilizce-093df7.mp3;tr;"Bir, İngilizce";masal
+tr/sonra-iki-elma-daha-dustu-pat-pat-a2b269.mp3;tr;"Sonra iki elma daha düştü. Pat, pat!";masal
+tr/i-ki-i-ngilizce-6e3d14.mp3;tr;"İki, İngilizce";masal
+tr/ruzgar-esti-dort-elma-birden-dustu-2008f8.mp3;tr;"Rüzgâr esti, dört elma birden düştü!";masal
+tr/dort-i-ngilizce-be3541.mp3;tr;"Dört, İngilizce";masal
+tr/civcivler-saydi-tam-bes-elma-herkese-yet-cc2a9e.mp3;tr;"Civcivler saydı: tam beş elma! Herkese yeter.";masal
+tr/bes-i-ngilizce-478774.mp3;tr;"Beş, İngilizce";masal
+tr/civcivlerin-karni-doydu-tesekkurler-agac-e2231d.mp3;tr;"Civcivlerin karnı doydu. Teşekkürler, ağaç!";masal
+tr/kopegim-nerede-89e2cb.mp3;tr;"Köpeğim Nerede?";masal
+tr/ali-kopegini-bulamiyor-cok-uzgun-0136fc.mp3;tr;"Ali köpeğini bulamıyor. Çok üzgün.";masal
+tr/kopek-i-ngilizce-39347a.mp3;tr;"Köpek, İngilizce";masal
+tr/ahirda-bir-inek-var-moo-sen-misin-hayir-9edbb8.mp3;tr;"Ahırda bir inek var. Möö! Sen misin? Hayır!";masal
+tr/i-nek-i-ngilizce-3effc6.mp3;tr;"İnek, İngilizce";masal
+tr/golde-bir-ordek-yuzuyor-vak-vak-o-da-deg-1d7aeb.mp3;tr;"Gölde bir ördek yüzüyor. Vak vak! O da değil.";masal
+tr/ordek-i-ngilizce-f4e215.mp3;tr;"Ördek, İngilizce";masal
+tr/citin-ustunde-bir-kedi-oturuyor-miyav-ha-51e156.mp3;tr;"Çitin üstünde bir kedi oturuyor. Miyav! Hayır!";masal
+tr/kedi-i-ngilizce-29e431.mp3;tr;"Kedi, İngilizce";masal
+tr/calilardan-bir-tavsan-zipladi-arkasinda--78216b.mp3;tr;"Çalılardan bir tavşan zıpladı. Arkasında kim var? Hav hav!";masal
+tr/tavsan-i-ngilizce-9a301d.mp3;tr;"Tavşan, İngilizce";masal
+tr/ali-kopegine-sarildi-seni-cok-seviyorum-3b47e1.mp3;tr;"Ali köpeğine sarıldı. Seni çok seviyorum!";masal
+tr/buyukanneye-pasta-bafe5a.mp3;tr;"Büyükanneye Pasta";masal
+tr/bugun-buyukannenin-dogum-gunu-e79018.mp3;tr;"Bugün büyükannenin doğum günü.";masal
+tr/buyukanne-i-ngilizce-a649a7.mp3;tr;"Büyükanne, İngilizce";masal
+tr/annem-kocaman-bir-pasta-yapiyor-e1bd42.mp3;tr;"Annem kocaman bir pasta yapıyor.";masal
+tr/anne-i-ngilizce-61b5c3.mp3;tr;"Anne, İngilizce";masal
+tr/eyvah-bebek-pastaya-uzaniyor-dur-bebek-d-3ad8eb.mp3;tr;"Eyvah! Bebek pastaya uzanıyor. Dur bebek, dur!";masal
+tr/bebek-i-ngilizce-715c66.mp3;tr;"Bebek, İngilizce";masal
+tr/babam-bebegi-kucagina-aliyor-505125.mp3;tr;"Babam bebeği kucağına alıyor.";masal
+tr/baba-i-ngilizce-83aed0.mp3;tr;"Baba, İngilizce";masal
+tr/buyukbabam-mumlari-yakiyor-surpriz-2dfd1d.mp3;tr;"Büyükbabam mumları yakıyor. Sürpriz!";masal
+tr/buyukbaba-i-ngilizce-2fb172.mp3;tr;"Büyükbaba, İngilizce";masal
+tr/herkes-pasta-yiyor-i-yi-ki-dogdun-buyuka-3439ca.mp3;tr;"Herkes pasta yiyor. İyi ki doğdun, büyükanne!";masal
+tr/yika-yika-yika-7e37a6.mp3;tr;"Yıka, Yıka, Yıka!";masal
+tr/tavsan-pitircik-camura-dustu-elleri-camu-a3772f.mp3;tr;"Tavşan Pıtırcık çamura düştü. Elleri çamur oldu!";masal
+tr/eller-i-ngilizce-5f06db.mp3;tr;"Eller, İngilizce";masal
+tr/hadi-yuzunu-yikayalim-siril-siril-474cb7.mp3;tr;"Hadi yüzünü yıkayalım. Şırıl şırıl!";masal
+tr/yuz-i-ngilizce-24cef8.mp3;tr;"Yüz, İngilizce";masal
+tr/simdi-sira-burnunda-pof-38d43d.mp3;tr;"Şimdi sıra burnunda. Pof!";masal
+tr/burun-i-ngilizce-51fb14.mp3;tr;"Burun, İngilizce";masal
+tr/uzun-kulaklarini-da-yikiyor-aa8364.mp3;tr;"Uzun kulaklarını da yıkıyor.";masal
+tr/kulaklar-i-ngilizce-9cf07a.mp3;tr;"Kulaklar, İngilizce";masal
+tr/en-son-ayaklarini-yikiyor-tertemiz-e013e6.mp3;tr;"En son ayaklarını yıkıyor. Tertemiz!";masal
+tr/ayaklar-i-ngilizce-bfdfb6.mp3;tr;"Ayaklar, İngilizce";masal
+tr/pitircik-mis-gibi-kokuyor-i-yi-geceler-86884e.mp3;tr;"Pıtırcık mis gibi kokuyor. İyi geceler!";masal
+tr/ac-ayi-boncuk-9f6fa3.mp3;tr;"Aç Ayı Boncuk";masal
+tr/ayi-boncuk-cok-ac-once-bir-elma-yedi-kit-00f313.mp3;tr;"Ayı Boncuk çok aç. Önce bir elma yedi. Kıtır kıtır!";masal
+tr/elma-i-ngilizce-0dbb3b.mp3;tr;"Elma, İngilizce";masal
+tr/sonra-bir-dilim-ekmek-yedi-96e0e2.mp3;tr;"Sonra bir dilim ekmek yedi.";masal
+tr/ekmek-i-ngilizce-e9af9a.mp3;tr;"Ekmek, İngilizce";masal
+tr/ekmegin-yanina-biraz-peynir-e0a562.mp3;tr;"Ekmeğin yanına biraz peynir.";masal
+tr/peynir-i-ngilizce-0415e0.mp3;tr;"Peynir, İngilizce";masal
+tr/bir-bardak-sut-icti-lik-lik-lik-7a4a76.mp3;tr;"Bir bardak süt içti. Lık lık lık!";masal
+tr/sut-i-ngilizce-e8690f.mp3;tr;"Süt, İngilizce";masal
+tr/en-son-kocaman-bir-pasta-mmm-dd0df0.mp3;tr;"En son kocaman bir pasta! Mmm!";masal
+tr/pasta-i-ngilizce-c8fe0a.mp3;tr;"Pasta, İngilizce";masal
+tr/boncuk-un-karni-doydu-uykusu-geldi-iyy-n-9f8045.mp3;tr;"Boncuk'un karnı doydu, uykusu geldi. Iyy, ne çok yedin!";masal
+tr/ayicigim-nerede-d7d5cb.mp3;tr;"Ayıcığım Nerede?";masal
+tr/ela-oyuncak-ayisini-ariyor-138610.mp3;tr;"Ela oyuncak ayısını arıyor.";masal
+tr/oyuncak-ayi-i-ngilizce-a1708d.mp3;tr;"Oyuncak ayı, İngilizce";masal
+tr/topun-arkasinda-mi-yok-84b3fd.mp3;tr;"Topun arkasında mı? Yok.";masal
+tr/top-i-ngilizce-f73a74.mp3;tr;"Top, İngilizce";masal
+tr/robotun-yaninda-mi-yok-a8679a.mp3;tr;"Robotun yanında mı? Yok.";masal
+tr/robot-i-ngilizce-ce2830.mp3;tr;"Robot, İngilizce";masal
+tr/trenin-vagonunda-mi-o-da-yok-a32441.mp3;tr;"Trenin vagonunda mı? O da yok!";masal
+tr/tren-i-ngilizce-99510d.mp3;tr;"Tren, İngilizce";masal
+tr/ucurtmanin-altinda-bir-sey-kipirdiyor-ay-a24779.mp3;tr;"Uçurtmanın altında bir şey kıpırdıyor... Ayıcık!";masal
+tr/ucurtma-i-ngilizce-ecb704.mp3;tr;"Uçurtma, İngilizce";masal
+tr/ela-ayicigina-sarildi-i-yi-geceler-ayici-89b934.mp3;tr;"Ela ayıcığına sarıldı. İyi geceler, ayıcık!";masal
+tr/karli-gun-0d391a.mp3;tr;"Karlı Gün";masal
+tr/disarida-kar-var-ali-montunu-giyiyor-45e4e5.mp3;tr;"Dışarıda kar var! Ali montunu giyiyor.";masal
+tr/mont-i-ngilizce-de1b70.mp3;tr;"Mont, İngilizce";masal
+tr/sonra-cizmelerini-giyiyor-64bb66.mp3;tr;"Sonra çizmelerini giyiyor.";masal
+tr/cizme-i-ngilizce-50e75c.mp3;tr;"Çizme, İngilizce";masal
+tr/ellerine-eldiven-takiyor-69bde3.mp3;tr;"Ellerine eldiven takıyor.";masal
+tr/eldiven-i-ngilizce-272284.mp3;tr;"Eldiven, İngilizce";masal
+tr/basina-da-sapka-8922ee.mp3;tr;"Başına da şapka.";masal
+tr/sapka-i-ngilizce-87fabe.mp3;tr;"Şapka, İngilizce";masal
+tr/boynuna-atki-doluyor-simdi-sicacik-ab1d6b.mp3;tr;"Boynuna atkı doluyor. Şimdi sıcacık!";masal
+tr/atki-i-ngilizce-ffb5f3.mp3;tr;"Atkı, İngilizce";masal
+tr/ali-kocaman-bir-kardan-adam-yapti-669049.mp3;tr;"Ali kocaman bir kardan adam yaptı.";masal
+tr/uykucu-tekir-0a1ecf.mp3;tr;"Uykucu Tekir";masal
+tr/kedi-tekir-uyumak-istiyor-kanepeye-yatiy-0a5d94.mp3;tr;"Kedi Tekir uyumak istiyor. Kanepeye yatıyor ama televizyon çok gürültülü!";masal
+tr/kanepe-i-ngilizce-067c13.mp3;tr;"Kanepe, İngilizce";masal
+tr/mutfakta-buzdolabi-vinliyor-110389.mp3;tr;"Mutfakta buzdolabı vınlıyor.";masal
+tr/mutfak-i-ngilizce-885e6d.mp3;tr;"Mutfak, İngilizce";masal
+tr/kuvette-damlalar-sip-sip-sip-18e9fb.mp3;tr;"Küvette damlalar şıp şıp şıp!";masal
+tr/kuvet-i-ngilizce-224a55.mp3;tr;"Küvet, İngilizce";masal
+tr/masanin-alti-cok-karanlik-3c25d5.mp3;tr;"Masanın altı çok karanlık.";masal
+tr/masa-i-ngilizce-7ec086.mp3;tr;"Masa, İngilizce";masal
+tr/sonunda-yumusacik-bir-yatak-buluyor-e984ef.mp3;tr;"Sonunda yumuşacık bir yatak buluyor.";masal
+tr/yatak-i-ngilizce-dc3133.mp3;tr;"Yatak, İngilizce";masal
+tr/sss-tekir-uyuyor-i-yi-geceler-343c2c.mp3;tr;"Şşş! Tekir uyuyor. İyi geceler!";masal
+tr/okulda-i-lk-gun-14e1b8.mp3;tr;"Okulda İlk Gün";masal
+tr/bugun-okulun-ilk-gunu-ali-cantasini-aldi-8b843e.mp3;tr;"Bugün okulun ilk günü. Ali çantasını aldı.";masal
+tr/canta-i-ngilizce-abfae7.mp3;tr;"Çanta, İngilizce";masal
+tr/sinifa-girdi-sirasina-oturdu-bb7bb7.mp3;tr;"Sınıfa girdi, sırasına oturdu.";masal
+tr/sira-i-ngilizce-6e91f6.mp3;tr;"Sıra, İngilizce";masal
+tr/eyvah-kalemi-yok-ecb1ca.mp3;tr;"Eyvah, kalemi yok!";masal
+tr/kalem-i-ngilizce-faeaf8.mp3;tr;"Kalem, İngilizce";masal
+tr/ela-ona-kalem-verdi-ali-de-ona-silgisini-c08009.mp3;tr;"Ela ona kalem verdi. Ali de ona silgisini verdi.";masal
+tr/silgi-i-ngilizce-f5fc89.mp3;tr;"Silgi, İngilizce";masal
+tr/birlikte-pastel-boyalarla-resim-yaptilar-119c4b.mp3;tr;"Birlikte pastel boyalarla resim yaptılar.";masal
+tr/pastel-boya-i-ngilizce-e145c6.mp3;tr;"Pastel boya, İngilizce";masal
+tr/ali-nin-yeni-bir-arkadasi-oldu-okul-cok--bf2ec8.mp3;tr;"Ali'nin yeni bir arkadaşı oldu. Okul çok güzel!";masal
+tr/ucan-semsiye-7732ad.mp3;tr;"Uçan Şemsiye";masal
+tr/bugun-hava-yagmurlu-ordek-paytak-disari--d0100c.mp3;tr;"Bugün hava yağmurlu. Ördek Paytak dışarı çıkıyor.";masal
+tr/yagmurlu-i-ngilizce-7f887c.mp3;tr;"Yağmurlu, İngilizce";masal
+tr/paytak-kirmizi-semsiyesini-acti-4e9a8e.mp3;tr;"Paytak kırmızı şemsiyesini açtı.";masal
+tr/semsiye-i-ngilizce-a8a371.mp3;tr;"Şemsiye, İngilizce";masal
+tr/vuuu-ruzgar-semsiyeyi-ucurdu-0c6393.mp3;tr;"Vuuu! Rüzgâr şemsiyeyi uçurdu!";masal
+tr/ruzgar-i-ngilizce-933397.mp3;tr;"Rüzgâr, İngilizce";masal
+tr/semsiye-bir-bulutun-ustune-kondu-3a844c.mp3;tr;"Şemsiye bir bulutun üstüne kondu.";masal
+tr/bulut-i-ngilizce-a8f7cc.mp3;tr;"Bulut, İngilizce";masal
+tr/sonra-gunes-cikti-ruzgar-durdu-c0693f.mp3;tr;"Sonra güneş çıktı, rüzgâr durdu.";masal
+tr/gunes-i-ngilizce-19e587.mp3;tr;"Güneş, İngilizce";masal
+tr/semsiye-suzulerek-geri-geldi-bak-bir-de--bc0822.mp3;tr;"Şemsiye süzülerek geri geldi. Bak, bir de gökkuşağı!";masal
+tr/gokkusagi-i-ngilizce-4cd3ba.mp3;tr;"Gökkuşağı, İngilizce";masal
+tr/kucuk-aslan-a5d447.mp3;tr;"Küçük Aslan";masal
+tr/kucuk-aslan-bir-kule-yapti-cok-mutlu-cf55e7.mp3;tr;"Küçük Aslan bir kule yaptı. Çok mutlu!";masal
+tr/mutlu-i-ngilizce-a947b6.mp3;tr;"Mutlu, İngilizce";masal
+tr/gum-kule-yikildi-aslan-cok-sasirdi-9fd992.mp3;tr;"Güm! Kule yıkıldı. Aslan çok şaşırdı.";masal
+tr/saskin-i-ngilizce-24a493.mp3;tr;"Şaşkın, İngilizce";masal
+tr/sonra-cok-kizdi-grrr-35d6ed.mp3;tr;"Sonra çok kızdı: Grrr!";masal
+tr/kizgin-i-ngilizce-584552.mp3;tr;"Kızgın, İngilizce";masal
+tr/biraz-da-uzuldu-agladi-731f54.mp3;tr;"Biraz da üzüldü, ağladı.";masal
+tr/uzgun-i-ngilizce-a54df0.mp3;tr;"Üzgün, İngilizce";masal
+tr/annesi-dedi-ki-derin-nefes-al-aslan-saki-8f8a15.mp3;tr;"Annesi dedi ki: Derin nefes al. Aslan sakinleşti.";masal
+tr/sakin-i-ngilizce-db4650.mp3;tr;"Sakin, İngilizce";masal
+tr/yeni-bir-kule-yapti-aslan-simdi-cok-guru-dd26b5.mp3;tr;"Yeni bir kule yaptı. Aslan şimdi çok gururlu!";masal
+tr/gururlu-i-ngilizce-2c46f8.mp3;tr;"Gururlu, İngilizce";masal
+tr/kocaman-karpuz-5353b6.mp3;tr;"Kocaman Karpuz";masal
+tr/ela-annesiyle-pazara-gitti-orada-kocaman-41cb09.mp3;tr;"Ela annesiyle pazara gitti. Orada kocaman bir karpuz var!";masal
+tr/karpuz-i-ngilizce-def692.mp3;tr;"Karpuz, İngilizce";masal
+tr/annesi-uc-tane-portakal-aldi-63cf5f.mp3;tr;"Annesi üç tane portakal aldı.";masal
+tr/portakal-i-ngilizce-295c73.mp3;tr;"Portakal, İngilizce";masal
+tr/bir-salkim-uzum-aldi-b0c804.mp3;tr;"Bir salkım üzüm aldı.";masal
+tr/uzum-i-ngilizce-564008.mp3;tr;"Üzüm, İngilizce";masal
+tr/sapsari-bir-limon-aldi-33301b.mp3;tr;"Sapsarı bir limon aldı.";masal
+tr/limon-i-ngilizce-e11a46.mp3;tr;"Limon, İngilizce";masal
+tr/bir-de-tatli-tatli-kiraz-968388.mp3;tr;"Bir de tatlı tatlı kiraz.";masal
+tr/kiraz-i-ngilizce-51697e.mp3;tr;"Kiraz, İngilizce";masal
+tr/babasi-agir-karpuzu-tasidi-hep-birlikte--0a15ef.mp3;tr;"Babası ağır karpuzu taşıdı. Hep birlikte yediler. Mmm!";masal
+tr/dede-yolda-782a78.mp3;tr;"Dede Yolda";masal
+tr/dede-bize-pasta-getiriyor-once-otobuse-b-3e7cdc.mp3;tr;"Dede bize pasta getiriyor. Önce otobüse biniyor.";masal
+tr/otobus-i-ngilizce-4abc1c.mp3;tr;"Otobüs, İngilizce";masal
+tr/eyvah-otobus-bozuldu-dede-arabaya-binece-ab6c3e.mp3;tr;"Eyvah, otobüs bozuldu! Dede arabaya binecek ama yollar çok kalabalık!";masal
+tr/araba-i-ngilizce-a62f80.mp3;tr;"Araba, İngilizce";masal
+tr/onlerinde-kocaman-bir-kamyon-var-dut-dut-017cfd.mp3;tr;"Önlerinde kocaman bir kamyon var. Düt düt!";masal
+tr/kamyon-i-ngilizce-4c821b.mp3;tr;"Kamyon, İngilizce";masal
+tr/dede-bir-bisiklete-bindi-zirr-zirr-9565f6.mp3;tr;"Dede bir bisiklete bindi. Zırr zırr!";masal
+tr/bisiklet-i-ngilizce-122637.mp3;tr;"Bisiklet, İngilizce";masal
+tr/gokyuzunde-bir-ucak-ona-el-salladi-96e0da.mp3;tr;"Gökyüzünde bir uçak ona el salladı.";masal
+tr/ucak-i-ngilizce-ae3abc.mp3;tr;"Uçak, İngilizce";masal
+tr/dede-geldi-pasta-da-sapasaglam-i-yi-ki-d-853b24.mp3;tr;"Dede geldi! Pasta da sapasağlam. İyi ki doğdun!";masal
+tr/kucuk-kare-f15566.mp3;tr;"Küçük Kare";masal
+tr/kucuk-kare-uzgun-yuvarlanamiyor-3b2760.mp3;tr;"Küçük Kare üzgün; yuvarlanamıyor.";masal
+tr/kare-i-ngilizce-94f47d.mp3;tr;"Kare, İngilizce";masal
+tr/daire-tepeden-yuvarlaniyor-viiii-9efe27.mp3;tr;"Daire tepeden yuvarlanıyor. Vıııı!";masal
+tr/daire-i-ngilizce-1bbb16.mp3;tr;"Daire, İngilizce";masal
+tr/ucgen-diyor-ki-sen-cok-guclusun-gel-bir--34f6db.mp3;tr;"Üçgen diyor ki: Sen çok güçlüsün, gel bir ev yapalım!";masal
+tr/ucgen-i-ngilizce-125ced.mp3;tr;"Üçgen, İngilizce";masal
+tr/kare-duvar-oluyor-dikdortgen-de-kapi-3e0de0.mp3;tr;"Kare duvar oluyor, dikdörtgen de kapı.";masal
+tr/dikdortgen-i-ngilizce-171420.mp3;tr;"Dikdörtgen, İngilizce";masal
+tr/gece-evin-ustunde-bir-yildiz-parliyor-a462c5.mp3;tr;"Gece evin üstünde bir yıldız parlıyor.";masal
+tr/yildiz-i-ngilizce-f39f65.mp3;tr;"Yıldız, İngilizce";masal
+tr/bak-ne-guzel-bir-ev-kare-artik-cok-mutlu-59cc7d.mp3;tr;"Bak, ne güzel bir ev! Kare artık çok mutlu.";masal
+tr/kayip-kabuk-970e96.mp3;tr;"Kayıp Kabuk";masal
+tr/kucuk-yengec-agliyor-kabugunu-kaybetmis-32e0c3.mp3;tr;"Küçük yengeç ağlıyor; kabuğunu kaybetmiş.";masal
+tr/yengec-i-ngilizce-d8af42.mp3;tr;"Yengeç, İngilizce";masal
+tr/ahtapot-diyor-ki-ben-yardim-ederim-ea90c0.mp3;tr;"Ahtapot diyor ki: Ben yardım ederim!";masal
+tr/ahtapot-i-ngilizce-afd13d.mp3;tr;"Ahtapot, İngilizce";masal
+tr/kaplumbagaya-soruyorlar-onda-yok-11bd38.mp3;tr;"Kaplumbağaya soruyorlar. Onda yok.";masal
+tr/kaplumbaga-i-ngilizce-dcc00c.mp3;tr;"Kaplumbağa, İngilizce";masal
+tr/denizyildizina-soruyorlar-onda-da-yok-7e2215.mp3;tr;"Denizyıldızına soruyorlar. Onda da yok.";masal
+tr/deniz-yildizi-i-ngilizce-bc0ea0.mp3;tr;"Deniz yıldızı, İngilizce";masal
+tr/kocaman-bir-kopekbaligi-geliyor-agzinda--7b5a7a.mp3;tr;"Kocaman bir köpekbalığı geliyor... Ağzında kabuk var!";masal
+tr/kopek-baligi-i-ngilizce-a9c0b1.mp3;tr;"Köpek balığı, İngilizce";masal
+tr/tesekkurler-kopekbaligi-artik-hepsi-arka-448c7b.mp3;tr;"Teşekkürler köpekbalığı! Artık hepsi arkadaş.";masal
+tr/agactaki-kedi-0d9410.mp3;tr;"Ağaçtaki Kedi";masal
+tr/bir-kedicik-agacta-kalmis-onu-ilk-asci-g-d5d432.mp3;tr;"Bir kedicik ağaçta kalmış. Onu ilk aşçı gördü, balık getirdi.";masal
+tr/asci-i-ngilizce-0b1a94.mp3;tr;"Aşçı, İngilizce";masal
+tr/sonra-doktor-geldi-korkma-kedicik-df46af.mp3;tr;"Sonra doktor geldi: Korkma, kedicik!";masal
+tr/doktor-i-ngilizce-059b5d.mp3;tr;"Doktor, İngilizce";masal
+tr/polis-yoldaki-arabalari-durdurdu-a9a83e.mp3;tr;"Polis yoldaki arabaları durdurdu.";masal
+tr/polis-i-ngilizce-4b2f34.mp3;tr;"Polis, İngilizce";masal
+tr/i-tfaiyeci-uzun-merdivenle-yukari-tirman-9c8d26.mp3;tr;"İtfaiyeci uzun merdivenle yukarı tırmandı.";masal
+tr/i-tfaiyeci-i-ngilizce-643c9a.mp3;tr;"İtfaiyeci, İngilizce";masal
+tr/kedicik-indi-veteriner-bakti-cok-iyi-8ddfcb.mp3;tr;"Kedicik indi. Veteriner baktı: Çok iyi!";masal
+tr/veteriner-i-ngilizce-160099.mp3;tr;"Veteriner, İngilizce";masal
+tr/herkes-alkisladi-yasasin-89a2f2.mp3;tr;"Herkes alkışladı. Yaşasın!";masal
+tr/ucmak-i-steyen-maymun-1edaf2.mp3;tr;"Uçmak İsteyen Maymun";masal
+tr/maymun-cimcime-kus-gibi-ucmak-istiyor-a58907.mp3;tr;"Maymun Cimcime kuş gibi uçmak istiyor.";masal
+tr/ucmak-i-ngilizce-adb5e0.mp3;tr;"Uçmak, İngilizce";masal
+tr/zipliyor-zipliyor-ama-ucamiyor-48fa98.mp3;tr;"Zıplıyor, zıplıyor ama uçamıyor.";masal
+tr/ziplamak-i-ngilizce-1a88ff.mp3;tr;"Zıplamak, İngilizce";masal
+tr/hizli-hizli-kosuyor-yine-ucamiyor-a34b43.mp3;tr;"Hızlı hızlı koşuyor. Yine uçamıyor.";masal
+tr/kosmak-i-ngilizce-b68f1b.mp3;tr;"Koşmak, İngilizce";masal
+tr/en-yuksek-agaca-tirmaniyor-2ea87f.mp3;tr;"En yüksek ağaca tırmanıyor.";masal
+tr/tirmanmak-i-ngilizce-3a08ef.mp3;tr;"Tırmanmak, İngilizce";masal
+tr/kus-diyor-ki-ben-tirmanamam-gel-birlikte-137187.mp3;tr;"Kuş diyor ki: Ben tırmanamam! Gel birlikte dans edelim!";masal
+tr/dans-etmek-i-ngilizce-c715d9.mp3;tr;"Dans etmek, İngilizce";masal
+tr/cimcime-ile-kus-agacta-birlikte-oynuyor-68e91a.mp3;tr;"Cimcime ile kuş ağaçta birlikte oynuyor.";masal
+tr/kucuk-tohum-96eb41.mp3;tr;"Küçük Tohum";masal
+tr/kucuk-tohum-karin-altinda-uyuyor-mevsim--b1026c.mp3;tr;"Küçük tohum karın altında uyuyor. Mevsim kış.";masal
+tr/kis-i-ngilizce-8a8de5.mp3;tr;"Kış, İngilizce";masal
+tr/i-lkbaharda-gunes-seslendi-uyan-kucuk-to-f48e6d.mp3;tr;"İlkbaharda güneş seslendi: Uyan, küçük tohum!";masal
+tr/i-lkbahar-i-ngilizce-33fe3b.mp3;tr;"İlkbahar, İngilizce";masal
+tr/tohumdan-yesil-bir-yaprak-cikti-a42b3a.mp3;tr;"Tohumdan yeşil bir yaprak çıktı.";masal
+tr/yaprak-i-ngilizce-309516.mp3;tr;"Yaprak, İngilizce";masal
+tr/yazin-tohum-kocaman-sari-bir-cicek-oldu-b9faa1.mp3;tr;"Yazın tohum kocaman sarı bir çiçek oldu.";masal
+tr/cicek-i-ngilizce-2893b6.mp3;tr;"Çiçek, İngilizce";masal
+tr/sonbaharda-ruzgar-esti-yeni-tohumlar-uct-8a680b.mp3;tr;"Sonbaharda rüzgâr esti, yeni tohumlar uçtu.";masal
+tr/sonbahar-i-ngilizce-beb17a.mp3;tr;"Sonbahar, İngilizce";masal
+tr/kis-yine-geldi-i-yi-uykular-kucuk-tohuml-ced48d.mp3;tr;"Kış yine geldi. İyi uykular, küçük tohumlar!";masal
+tr/tavsanin-havucu-fd78a1.mp3;tr;"Tavşanın Havucu";masal
+tr/pazartesi-tavsan-bir-havuc-tohumu-ekti-c822ad.mp3;tr;"Pazartesi tavşan bir havuç tohumu ekti.";masal
+tr/pazartesi-i-ngilizce-54cfa9.mp3;tr;"Pazartesi, İngilizce";masal
+tr/sali-yagmur-yagdi-tohum-su-icti-f7d2d7.mp3;tr;"Salı yağmur yağdı, tohum su içti.";masal
+tr/sali-i-ngilizce-418f2a.mp3;tr;"Salı, İngilizce";masal
+tr/carsamba-kucuk-bir-yaprak-cikti-acad4c.mp3;tr;"Çarşamba küçük bir yaprak çıktı.";masal
+tr/carsamba-i-ngilizce-f7a0ff.mp3;tr;"Çarşamba, İngilizce";masal
+tr/persembe-gunes-acti-havuc-buyudu-bcf4f6.mp3;tr;"Perşembe güneş açtı, havuç büyüdü.";masal
+tr/persembe-i-ngilizce-b4e392.mp3;tr;"Perşembe, İngilizce";masal
+tr/cuma-tavsan-cekti-hop-kocaman-bir-havuc-1368cb.mp3;tr;"Cuma tavşan çekti: Hop! Kocaman bir havuç!";masal
+tr/cuma-i-ngilizce-8c4482.mp3;tr;"Cuma, İngilizce";masal
+tr/cumartesi-havuclu-kek-yapti-pazar-gunu-a-743efe.mp3;tr;"Cumartesi havuçlu kek yaptı, pazar günü arkadaşlarıyla yedi.";masal
+tr/saklambac-27a744.mp3;tr;"Saklambaç";masal
+tr/kopek-sayiyor-kedi-saklaniyor-kedi-masan-6287be.mp3;tr;"Köpek sayıyor, kedi saklanıyor. Kedi masanın altında mı? Yok!";masal
+tr/altinda-i-ngilizce-8d4a7b.mp3;tr;"Altında, İngilizce";masal
+tr/kapinin-arkasinda-mi-yok-f8281e.mp3;tr;"Kapının arkasında mı? Yok!";masal
+tr/arkasinda-i-ngilizce-b07d30.mp3;tr;"Arkasında, İngilizce";masal
+tr/cantanin-icinde-mi-yok-422abb.mp3;tr;"Çantanın içinde mi? Yok!";masal
+tr/i-cinde-i-ngilizce-1ae780.mp3;tr;"İçinde, İngilizce";masal
+tr/kanepenin-ustunde-mi-yok-51efac.mp3;tr;"Kanepenin üstünde mi? Yok!";masal
+tr/ustunde-i-ngilizce-15b3c5.mp3;tr;"Üstünde, İngilizce";masal
+tr/yatagin-yaninda-bir-kuyruk-gorunuyor-80e7ae.mp3;tr;"Yatağın yanında bir kuyruk görünüyor!";masal
+tr/yaninda-i-ngilizce-dee824.mp3;tr;"Yanında, İngilizce";masal
+tr/buldum-seni-simdi-sira-sende-kedicik-454d0b.mp3;tr;"Buldum seni! Şimdi sıra sende, kedicik.";masal
+tr/harf-avi-26aff6.mp3;tr;"Harf Avı";masal
+tr/a-harfi-bir-elma-buldu-a-elmanin-harfi-3f21c9.mp3;tr;"A harfi bir elma buldu. A, elmanın harfi!";masal
+tr/b-harfi-bir-top-buldu-38fe2e.mp3;tr;"B harfi bir top buldu.";masal
+tr/c-harfi-bir-kedi-buldu-miyav-68dda7.mp3;tr;"C harfi bir kedi buldu. Miyav!";masal
+tr/d-harfi-bir-kopek-buldu-hav-hav-c72825.mp3;tr;"D harfi bir köpek buldu. Hav hav!";masal
+tr/e-harfi-bir-yumurta-buldu-1eb304.mp3;tr;"E harfi bir yumurta buldu.";masal
+tr/yumurta-i-ngilizce-447ec8.mp3;tr;"Yumurta, İngilizce";masal
+tr/harfler-el-ele-verdi-a-b-c-d-e-ne-guzel-7151ad.mp3;tr;"Harfler el ele verdi: A, B, C, D, E! Ne güzel!";masal
+en/red-4218d4.mp3;en;"red?";masal · kelime
+en/blue-64bc44.mp3;en;"blue?";masal · kelime
+en/yellow-ca64b6.mp3;en;"yellow?";masal · kelime
+en/green-a1626b.mp3;en;"green?";masal · kelime
+en/orange-af8e29.mp3;en;"orange?";masal · kelime
+en/three-e8cd3f.mp3;en;"three?";masal · kelime
+en/one-6bc339.mp3;en;"one?";masal · kelime
+en/two-de7ba7.mp3;en;"two?";masal · kelime
+en/four-8cbe9a.mp3;en;"four?";masal · kelime
+en/five-86fde1.mp3;en;"five?";masal · kelime
+en/dog-7e720a.mp3;en;"dog?";masal · kelime
+en/cow-58464b.mp3;en;"cow?";masal · kelime
+en/duck-429b90.mp3;en;"duck?";masal · kelime
+en/cat-2ed6e0.mp3;en;"cat?";masal · kelime
+en/rabbit-85db84.mp3;en;"rabbit?";masal · kelime
+en/grandma-bcd160.mp3;en;"grandma?";masal · kelime
+en/mum-58e070.mp3;en;"mum?";masal · kelime
+en/baby-43ad57.mp3;en;"baby?";masal · kelime
+en/dad-5a059c.mp3;en;"dad?";masal · kelime
+en/grandpa-c5d71d.mp3;en;"grandpa?";masal · kelime
+en/hands-f19998.mp3;en;"hands?";masal · kelime
+en/face-360d13.mp3;en;"face?";masal · kelime
+en/nose-eba192.mp3;en;"nose?";masal · kelime
+en/ears-c18695.mp3;en;"ears?";masal · kelime
+en/feet-1c7ee8.mp3;en;"feet?";masal · kelime
+en/apple-22c394.mp3;en;"apple?";masal · kelime
+en/bread-b51948.mp3;en;"bread?";masal · kelime
+en/cheese-f2ff2b.mp3;en;"cheese?";masal · kelime
+en/milk-85a573.mp3;en;"milk?";masal · kelime
+en/cake-966dd1.mp3;en;"cake?";masal · kelime
+en/teddy-5f7aa8.mp3;en;"teddy?";masal · kelime
+en/ball-84bfac.mp3;en;"ball?";masal · kelime
+en/robot-1cb997.mp3;en;"robot?";masal · kelime
+en/train-4f33fe.mp3;en;"train?";masal · kelime
+en/kite-42f6da.mp3;en;"kite?";masal · kelime
+en/coat-0f31a7.mp3;en;"coat?";masal · kelime
+en/boots-a07f0d.mp3;en;"boots?";masal · kelime
+en/gloves-4b7bb6.mp3;en;"gloves?";masal · kelime
+en/hat-1e602a.mp3;en;"hat?";masal · kelime
+en/scarf-181632.mp3;en;"scarf?";masal · kelime
+en/sofa-735708.mp3;en;"sofa?";masal · kelime
+en/kitchen-7a833a.mp3;en;"kitchen?";masal · kelime
+en/bath-42c592.mp3;en;"bath?";masal · kelime
+en/table-995d9d.mp3;en;"table?";masal · kelime
+en/bed-53bea5.mp3;en;"bed?";masal · kelime
+en/bag-4e2b24.mp3;en;"bag?";masal · kelime
+en/desk-534c6a.mp3;en;"desk?";masal · kelime
+en/pencil-c6a3aa.mp3;en;"pencil?";masal · kelime
+en/eraser-01931f.mp3;en;"eraser?";masal · kelime
+en/crayons-410d8a.mp3;en;"crayons?";masal · kelime
+en/rainy-8c70de.mp3;en;"rainy?";masal · kelime
+en/umbrella-ae5a30.mp3;en;"umbrella?";masal · kelime
+en/wind-86d950.mp3;en;"wind?";masal · kelime
+en/cloud-21e270.mp3;en;"cloud?";masal · kelime
+en/sun-762044.mp3;en;"sun?";masal · kelime
+en/rainbow-82c713.mp3;en;"rainbow?";masal · kelime
+en/happy-6f5cd1.mp3;en;"happy?";masal · kelime
+en/surprised-84bedb.mp3;en;"surprised?";masal · kelime
+en/angry-5f29bc.mp3;en;"angry?";masal · kelime
+en/sad-2323ca.mp3;en;"sad?";masal · kelime
+en/calm-141f47.mp3;en;"calm?";masal · kelime
+en/proud-342056.mp3;en;"proud?";masal · kelime
+en/watermelon-4bd431.mp3;en;"watermelon?";masal · kelime
+en/grapes-6125c7.mp3;en;"grapes?";masal · kelime
+en/lemon-cc74a4.mp3;en;"lemon?";masal · kelime
+en/cherries-3855f6.mp3;en;"cherries?";masal · kelime
+en/bus-e353cc.mp3;en;"bus?";masal · kelime
+en/car-bd9b70.mp3;en;"car?";masal · kelime
+en/truck-0b941e.mp3;en;"truck?";masal · kelime
+en/bike-dea3de.mp3;en;"bike?";masal · kelime
+en/plane-268a3a.mp3;en;"plane?";masal · kelime
+en/square-19144f.mp3;en;"square?";masal · kelime
+en/circle-e0c6a4.mp3;en;"circle?";masal · kelime
+en/triangle-37a40a.mp3;en;"triangle?";masal · kelime
+en/rectangle-3b8bf3.mp3;en;"rectangle?";masal · kelime
+en/star-5e8c7a.mp3;en;"star?";masal · kelime
+en/crab-b139a9.mp3;en;"crab?";masal · kelime
+en/octopus-8ddfd4.mp3;en;"octopus?";masal · kelime
+en/turtle-ead1fe.mp3;en;"turtle?";masal · kelime
+en/starfish-a49cef.mp3;en;"starfish?";masal · kelime
+en/shark-93b779.mp3;en;"shark?";masal · kelime
+en/chef-f48f4b.mp3;en;"chef?";masal · kelime
+en/doctor-62b8dc.mp3;en;"doctor?";masal · kelime
+en/police-officer-c8a641.mp3;en;"police officer?";masal · kelime
+en/firefighter-be2498.mp3;en;"firefighter?";masal · kelime
+en/vet-107d1f.mp3;en;"vet?";masal · kelime
+en/fly-fdfc8f.mp3;en;"fly?";masal · kelime
+en/jump-859020.mp3;en;"jump?";masal · kelime
+en/run-383578.mp3;en;"run?";masal · kelime
+en/climb-b493c5.mp3;en;"climb?";masal · kelime
+en/dance-457d42.mp3;en;"dance?";masal · kelime
+en/winter-8363e6.mp3;en;"winter?";masal · kelime
+en/spring-0d76d0.mp3;en;"spring?";masal · kelime
+en/leaf-d1a78c.mp3;en;"leaf?";masal · kelime
+en/flower-413209.mp3;en;"flower?";masal · kelime
+en/autumn-f7125b.mp3;en;"autumn?";masal · kelime
+en/monday-06ea96.mp3;en;"Monday?";masal · kelime
+en/tuesday-c3003e.mp3;en;"Tuesday?";masal · kelime
+en/wednesday-ae6d0c.mp3;en;"Wednesday?";masal · kelime
+en/thursday-e8a4e7.mp3;en;"Thursday?";masal · kelime
+en/friday-a6be29.mp3;en;"Friday?";masal · kelime
+en/under-2ddc6c.mp3;en;"under?";masal · kelime
+en/behind-d7bb34.mp3;en;"behind?";masal · kelime
+en/in-a027d6.mp3;en;"in?";masal · kelime
+en/on-e49f82.mp3;en;"on?";masal · kelime
+en/next-to-587f07.mp3;en;"next to?";masal · kelime
+en/egg-57d281.mp3;en;"egg?";masal · kelime
+tr/harika-soyledin-c87935.mp3;tr;"Harika söyledin!";sesli cevap
+tr/cok-guzel-c142b6.mp3;tr;"Çok güzel!";sesli cevap
+tr/bir-daha-dene-db2766.mp3;tr;"Bir daha dene!";sesli cevap
+tr/cok-guzel-deneme-c4dc17.mp3;tr;"Çok güzel deneme!";sesli cevap
+tr/seni-duyamadim-bir-daha-soyler-misin-373d68.mp3;tr;"Seni duyamadım. Bir daha söyler misin?";sesli cevap
+tr/anlayamadim-bir-daha-soyler-misin-ee7898.mp3;tr;"Anlayamadım. Bir daha söyler misin?";sesli cevap
+tr/once-haritaya-donelim-402c8a.mp3;tr;"Önce haritaya dönelim.";sesli cevap
+tr/mikrofon-acilamadi-f28004.mp3;tr;"Mikrofon açılamadı.";sesli cevap
 en/choose-your-pet-7c76ba.mp3;en;"Choose your pet!";köşeler
 en/i-love-you-d5dd35.mp3;en;"I love you!";köşeler
 en/no-thank-you-ddca25.mp3;en;"No, thank you!";köşeler
@@ -7472,3 +7863,426 @@ en/the-fish-sleep-in-the-sea-96b0c9.mp3;en;"The fish sleep in the sea.";köşele
 en/the-cat-is-warm-and-sleepy-ea4436.mp3;en;"The cat is warm and sleepy.";köşeler
 en/now-close-your-eyes-like-the-moon-2940d0.mp3;en;"Now close your eyes, like the moon.";köşeler
 en/good-night-sweet-dreams-d70fa7.mp3;en;"Good night. Sweet dreams.";köşeler
+tr/okul-hayati-gezegenine-yolculuk-basliyor-025962.mp3;tr;"Okul Hayatı gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-okul-hayati-rozetini-kazandin-b17d74.mp3;tr;"Tebrikler! Okul Hayatı rozetini kazandın!";cümle galaksisi
+tr/okul-hayati-gezegeni-siradaki-durak-keli-3ee64e.mp3;tr;"Okul Hayatı gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/okul-hayati-gezegeni-siradaki-durak-kura-5997f3.mp3;tr;"Okul Hayatı gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/once-kelimeler-duragini-bitir-e816d0.mp3;tr;"Önce Kelimeler durağını bitir.";cümle galaksisi
+tr/okul-hayati-gezegeni-siradaki-durak-cuml-ee26e3.mp3;tr;"Okul Hayatı gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/once-kural-duragini-bitir-c47866.mp3;tr;"Önce Kural durağını bitir.";cümle galaksisi
+tr/okul-hayati-gezegeni-siradaki-durak-bosl-e67c8c.mp3;tr;"Okul Hayatı gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/once-cumle-kur-duragini-bitir-ad2e32.mp3;tr;"Önce Cümle kur durağını bitir.";cümle galaksisi
+tr/okul-hayati-gezegeni-siradaki-durak-konu-db3ab1.mp3;tr;"Okul Hayatı gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/once-boslugu-doldur-duragini-bitir-cb3b68.mp3;tr;"Önce Boşluğu doldur durağını bitir.";cümle galaksisi
+tr/olmak-kisiye-gore-degisir-ben-am-o-is-si-cba76c.mp3;tr;"""Olmak"" kişiye göre değişir. Ben → am, o → is, siz/biz/onlar → are.";cümle galaksisi
+tr/sinif-hayati-gezegenine-yolculuk-basliyo-d173c8.mp3;tr;"Sınıf Hayatı gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-sinif-hayati-rozetini-kazandin-51fbd0.mp3;tr;"Tebrikler! Sınıf Hayatı rozetini kazandın!";cümle galaksisi
+tr/once-okul-hayati-gezegenini-bitir-b2e24e.mp3;tr;"Önce Okul Hayatı gezegenini bitir.";cümle galaksisi
+tr/sinif-hayati-gezegeni-siradaki-durak-kel-b3ee23.mp3;tr;"Sınıf Hayatı gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/sinif-hayati-gezegeni-siradaki-durak-kur-317298.mp3;tr;"Sınıf Hayatı gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/sinif-hayati-gezegeni-siradaki-durak-cum-9a6597.mp3;tr;"Sınıf Hayatı gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/sinif-hayati-gezegeni-siradaki-durak-bos-be6400.mp3;tr;"Sınıf Hayatı gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/sinif-hayati-gezegeni-siradaki-durak-kon-3c5324.mp3;tr;"Sınıf Hayatı gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/birden-fazla-sey-icin-kelimenin-sonuna-s-c62f3e.mp3;tr;"Birden fazla şey için kelimenin sonuna -s gelir.";cümle galaksisi
+tr/kisisel-hayat-gezegenine-yolculuk-basliy-af286d.mp3;tr;"Kişisel Hayat gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-kisisel-hayat-rozetini-kazandi-57faf2.mp3;tr;"Tebrikler! Kişisel Hayat rozetini kazandın!";cümle galaksisi
+tr/once-sinif-hayati-gezegenini-bitir-885bc6.mp3;tr;"Önce Sınıf Hayatı gezegenini bitir.";cümle galaksisi
+tr/kisisel-hayat-gezegeni-siradaki-durak-ke-316608.mp3;tr;"Kişisel Hayat gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/kisisel-hayat-gezegeni-siradaki-durak-ku-af97fd.mp3;tr;"Kişisel Hayat gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/kisisel-hayat-gezegeni-siradaki-durak-cu-f77061.mp3;tr;"Kişisel Hayat gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/kisisel-hayat-gezegeni-siradaki-durak-bo-ce9072.mp3;tr;"Kişisel Hayat gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/kisisel-hayat-gezegeni-siradaki-durak-ko-174ccc.mp3;tr;"Kişisel Hayat gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/var-sahibim-demek-icin-have-got-kullanil-80b073.mp3;tr;"""Var / sahibim"" demek için have got kullanılır.";cümle galaksisi
+tr/aile-hayati-gezegenine-yolculuk-basliyor-745838.mp3;tr;"Aile Hayatı gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-aile-hayati-rozetini-kazandin-07936d.mp3;tr;"Tebrikler! Aile Hayatı rozetini kazandın!";cümle galaksisi
+tr/once-kisisel-hayat-gezegenini-bitir-250fce.mp3;tr;"Önce Kişisel Hayat gezegenini bitir.";cümle galaksisi
+tr/aile-hayati-gezegeni-siradaki-durak-keli-1ed80f.mp3;tr;"Aile Hayatı gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/aile-hayati-gezegeni-siradaki-durak-kura-8b6f48.mp3;tr;"Aile Hayatı gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/aile-hayati-gezegeni-siradaki-durak-cuml-3b44ee.mp3;tr;"Aile Hayatı gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/aile-hayati-gezegeni-siradaki-durak-bosl-8f242b.mp3;tr;"Aile Hayatı gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/aile-hayati-gezegeni-siradaki-durak-konu-97279c.mp3;tr;"Aile Hayatı gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/erkek-icin-he-o-ve-his-onun-kadin-icin-s-d5efae.mp3;tr;"Erkek için he (o) ve his (onun), kadın için she ve her.";cümle galaksisi
+tr/evler-ve-mahalle-gezegenine-yolculuk-bas-4296eb.mp3;tr;"Evler ve Mahalle gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-evler-ve-mahalle-rozetini-kaza-fbb98b.mp3;tr;"Tebrikler! Evler ve Mahalle rozetini kazandın!";cümle galaksisi
+tr/once-aile-hayati-gezegenini-bitir-678394.mp3;tr;"Önce Aile Hayatı gezegenini bitir.";cümle galaksisi
+tr/evler-ve-mahalle-gezegeni-siradaki-durak-69a87a.mp3;tr;"Evler ve Mahalle gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/evler-ve-mahalle-gezegeni-siradaki-durak-953834.mp3;tr;"Evler ve Mahalle gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/evler-ve-mahalle-gezegeni-siradaki-durak-76a221.mp3;tr;"Evler ve Mahalle gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/evler-ve-mahalle-gezegeni-siradaki-durak-b8af0d.mp3;tr;"Evler ve Mahalle gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/evler-ve-mahalle-gezegeni-siradaki-durak-2b27cd.mp3;tr;"Evler ve Mahalle gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/de-da-demek-icin-in-the-oda-adi-4d8aa8.mp3;tr;"""…-de / -da"" demek için in the + oda adı.";cümle galaksisi
+tr/sehir-ve-dunya-gezegenine-yolculuk-basli-c24391.mp3;tr;"Şehir ve Dünya gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-sehir-ve-dunya-rozetini-kazand-bd2752.mp3;tr;"Tebrikler! Şehir ve Dünya rozetini kazandın!";cümle galaksisi
+tr/once-evler-ve-mahalle-gezegenini-bitir-b7fdc6.mp3;tr;"Önce Evler ve Mahalle gezegenini bitir.";cümle galaksisi
+tr/sehir-ve-dunya-gezegeni-siradaki-durak-k-48b4a5.mp3;tr;"Şehir ve Dünya gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/sehir-ve-dunya-gezegeni-siradaki-durak-k-69f744.mp3;tr;"Şehir ve Dünya gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/sehir-ve-dunya-gezegeni-siradaki-durak-c-b9cf53.mp3;tr;"Şehir ve Dünya gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/sehir-ve-dunya-gezegeni-siradaki-durak-b-ab6964.mp3;tr;"Şehir ve Dünya gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/sehir-ve-dunya-gezegeni-siradaki-durak-k-3af16e.mp3;tr;"Şehir ve Dünya gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/sevip-sevmedigini-sorarken-do-you-like-c-c753de.mp3;tr;"Sevip sevmediğini sorarken Do you like…? Cevap: Yes, I do ya da No, I don't.";cümle galaksisi
+tr/kurallar-icin-must-yapmalisin-mustn-t-ya-d6a8c7.mp3;tr;"Kurallar için: must = yapmalısın, mustn't = yapmamalısın.";cümle galaksisi
+tr/bir-sey-varsa-there-is-birden-cok-sey-va-d87a1b.mp3;tr;"Bir şey varsa there is, birden çok şey varsa there are.";cümle galaksisi
+tr/su-an-olan-seyi-anlatmak-icin-am-is-are--6cf85e.mp3;tr;"Şu an olan şeyi anlatmak için: am/is/are + fiil + ing.";cümle galaksisi
+tr/her-gun-yapilan-isleri-anlatirken-o-he-s-ae4423.mp3;tr;"Her gün yapılan işleri anlatırken o (he/she) ile fiile -s gelir.";cümle galaksisi
+tr/kirsal-ve-ciftlik-gezegenine-yolculuk-ba-ae16ee.mp3;tr;"Kırsal ve Çiftlik gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-kirsal-ve-ciftlik-rozetini-kaz-f6e7d0.mp3;tr;"Tebrikler! Kırsal ve Çiftlik rozetini kazandın!";cümle galaksisi
+tr/kirsal-ve-ciftlik-gezegeni-siradaki-dura-99ba7b.mp3;tr;"Kırsal ve Çiftlik gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/kirsal-ve-ciftlik-gezegeni-siradaki-dura-0fc2d6.mp3;tr;"Kırsal ve Çiftlik gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/kirsal-ve-ciftlik-gezegeni-siradaki-dura-66d0f0.mp3;tr;"Kırsal ve Çiftlik gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/kirsal-ve-ciftlik-gezegeni-siradaki-dura-19ce31.mp3;tr;"Kırsal ve Çiftlik gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/kirsal-ve-ciftlik-gezegeni-siradaki-dura-86bfc8.mp3;tr;"Kırsal ve Çiftlik gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/her-gun-yapilan-i-milk-the-cows-su-an-ya-8c4b44.mp3;tr;"Her gün yapılan: I milk the cows. Şu an yapılan: He is milking the cows now.";cümle galaksisi
+tr/yemek-ve-lokanta-gezegenine-yolculuk-bas-f91b9b.mp3;tr;"Yemek ve Lokanta gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-yemek-ve-lokanta-rozetini-kaza-a83b89.mp3;tr;"Tebrikler! Yemek ve Lokanta rozetini kazandın!";cümle galaksisi
+tr/once-kirsal-ve-ciftlik-gezegenini-bitir-9e05cc.mp3;tr;"Önce Kırsal ve Çiftlik gezegenini bitir.";cümle galaksisi
+tr/yemek-ve-lokanta-gezegeni-siradaki-durak-e1c5dc.mp3;tr;"Yemek ve Lokanta gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/yemek-ve-lokanta-gezegeni-siradaki-durak-1d8b31.mp3;tr;"Yemek ve Lokanta gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/yemek-ve-lokanta-gezegeni-siradaki-durak-0d3532.mp3;tr;"Yemek ve Lokanta gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/yemek-ve-lokanta-gezegeni-siradaki-durak-c03bae.mp3;tr;"Yemek ve Lokanta gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/yemek-ve-lokanta-gezegeni-siradaki-durak-6ab6df.mp3;tr;"Yemek ve Lokanta gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/olumlu-cumlede-some-soru-cumlesinde-any-ebb98d.mp3;tr;"Olumlu cümlede some, soru cümlesinde any.";cümle galaksisi
+tr/aliskanlik-i-always-read-su-an-bugun-i-a-4af8b9.mp3;tr;"Alışkanlık: I always read. Şu an / bugün: I am reading today.";cümle galaksisi
+tr/i-di-di-demek-icin-i-he-she-was-you-we-t-e17a2b.mp3;tr;"""İdi / -dı"" demek için: I/he/she → was, you/we/they → were.";cümle galaksisi
+tr/dun-yapilani-anlatirken-fiile-ed-gelir-p-588eb0.mp3;tr;"Dün yapılanı anlatırken fiile -ed gelir: play → played.";cümle galaksisi
+tr/bir-grubun-en-olani-icin-the-sifat-est-e6c1ce.mp3;tr;"Bir grubun en … olanı için the + sıfat + est.";cümle galaksisi
+tr/deniz-kenarinda-gezegenine-yolculuk-basl-03f0a3.mp3;tr;"Deniz Kenarında gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-deniz-kenarinda-rozetini-kazan-4df50b.mp3;tr;"Tebrikler! Deniz Kenarında rozetini kazandın!";cümle galaksisi
+tr/deniz-kenarinda-gezegeni-siradaki-durak--aabafa.mp3;tr;"Deniz Kenarında gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/deniz-kenarinda-gezegeni-siradaki-durak--6c1e83.mp3;tr;"Deniz Kenarında gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/deniz-kenarinda-gezegeni-siradaki-durak--92d940.mp3;tr;"Deniz Kenarında gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/deniz-kenarinda-gezegeni-siradaki-durak--d69f3e.mp3;tr;"Deniz Kenarında gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/deniz-kenarinda-gezegeni-siradaki-durak--6543b1.mp3;tr;"Deniz Kenarında gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/tavsiye-should-not-yapmamaliyiz-kural-mu-3e0c9c.mp3;tr;"Tavsiye: should not (yapmamalıyız). Kural: mustn't. Tahmin: will (olacak).";cümle galaksisi
+tr/dunyada-hayat-gezegenine-yolculuk-basliy-f4246b.mp3;tr;"Dünyada Hayat gezegenine yolculuk başlıyor!";cümle galaksisi
+tr/tebrikler-dunyada-hayat-rozetini-kazandi-363e71.mp3;tr;"Tebrikler! Dünyada Hayat rozetini kazandın!";cümle galaksisi
+tr/once-deniz-kenarinda-gezegenini-bitir-3796d1.mp3;tr;"Önce Deniz Kenarında gezegenini bitir.";cümle galaksisi
+tr/dunyada-hayat-gezegeni-siradaki-durak-ke-a90dfd.mp3;tr;"Dünyada Hayat gezegeni. Sıradaki durak: Kelimeler.";cümle galaksisi
+tr/dunyada-hayat-gezegeni-siradaki-durak-ku-bc4795.mp3;tr;"Dünyada Hayat gezegeni. Sıradaki durak: Kural.";cümle galaksisi
+tr/dunyada-hayat-gezegeni-siradaki-durak-cu-349100.mp3;tr;"Dünyada Hayat gezegeni. Sıradaki durak: Cümle kur.";cümle galaksisi
+tr/dunyada-hayat-gezegeni-siradaki-durak-bo-2707d8.mp3;tr;"Dünyada Hayat gezegeni. Sıradaki durak: Boşluğu doldur.";cümle galaksisi
+tr/dunyada-hayat-gezegeni-siradaki-durak-ko-0fe851.mp3;tr;"Dünyada Hayat gezegeni. Sıradaki durak: Konuşalım.";cümle galaksisi
+tr/planlanmis-gelecek-icin-am-is-are-going--b1c997.mp3;tr;"Planlanmış gelecek için: am / is / are + going to + fiil.";cümle galaksisi
+en/let-s-go-to-school-life-fa4886.mp3;en;"Let's go to School Life!";cümle galaksisi
+en/my-name-is-can-8c4a3f.mp3;en;"My name is Can.";cümle galaksisi
+en/where-is-she-10b118.mp3;en;"Where is she?";cümle galaksisi
+en/she-is-in-the-garden-36b811.mp3;en;"She is in the garden.";cümle galaksisi
+en/who-is-he-fa382e.mp3;en;"Who is he?";cümle galaksisi
+en/he-is-my-teacher-93dd0c.mp3;en;"He is my teacher.";cümle galaksisi
+en/it-is-monday-today-ee7b82.mp3;en;"It is Monday today.";cümle galaksisi
+en/come-here-please-81fd63.mp3;en;"Come here, please!";cümle galaksisi
+en/library-e3c564.mp3;en;"library";cümle galaksisi
+en/canteen-9c6fbb.mp3;en;"canteen";cümle galaksisi
+en/she-is-my-teacher-4d86b6.mp3;en;"She is my teacher.";cümle galaksisi
+en/i-am-can-fcc9c0.mp3;en;"I am Can.";cümle galaksisi
+en/who-is-he-he-is-my-teacher-a81429.mp3;en;"Who is he? He is my teacher.";cümle galaksisi
+en/where-is-she-she-is-in-the-library-61a094.mp3;en;"Where is she? She is in the library.";cümle galaksisi
+en/what-s-your-name-398c57.mp3;en;"What's your name?";cümle galaksisi
+en/how-are-you-cd8633.mp3;en;"How are you?";cümle galaksisi
+en/i-m-fine-thanks-64b180.mp3;en;"I'm fine, thanks!";cümle galaksisi
+en/it-s-monday-today-2d5869.mp3;en;"It's Monday today.";cümle galaksisi
+en/let-s-go-to-classroom-life-2e65c9.mp3;en;"Let's go to Classroom Life!";cümle galaksisi
+en/the-chair-is-blue-2faa36.mp3;en;"The chair is blue.";cümle galaksisi
+en/it-is-a-chair-9cbdc4.mp3;en;"It is a chair.";cümle galaksisi
+en/how-many-chairs-b42aa8.mp3;en;"How many chairs?";cümle galaksisi
+en/can-i-go-to-the-bathroom-b7e955.mp3;en;"Can I go to the bathroom?";cümle galaksisi
+en/yes-you-can-595034.mp3;en;"Yes, you can.";cümle galaksisi
+en/it-is-my-turn-d0a9db.mp3;en;"It is my turn!";cümle galaksisi
+en/two-chairs-dc538a.mp3;en;"two chairs";cümle galaksisi
+en/five-books-7d8cf1.mp3;en;"five books";cümle galaksisi
+en/three-pencils-1b5966.mp3;en;"three pencils";cümle galaksisi
+en/how-many-chairs-five-chairs-ffd582.mp3;en;"How many chairs? Five chairs.";cümle galaksisi
+en/what-colour-is-it-it-is-blue-66164e.mp3;en;"What colour is it? It is blue.";cümle galaksisi
+en/how-many-pencils-three-pencils-07a848.mp3;en;"How many pencils? Three pencils.";cümle galaksisi
+en/can-i-go-to-the-bathroom-please-862ef2.mp3;en;"Can I go to the bathroom, please?";cümle galaksisi
+en/what-colour-is-the-chair-d0899c.mp3;en;"What colour is the chair?";cümle galaksisi
+en/how-many-books-66b5fb.mp3;en;"How many books?";cümle galaksisi
+en/two-books-5ac30f.mp3;en;"Two books.";cümle galaksisi
+en/let-s-go-to-personal-life-9387a3.mp3;en;"Let's go to Personal Life!";cümle galaksisi
+en/how-old-are-you-c1d7f5.mp3;en;"How old are you?";cümle galaksisi
+en/i-am-seven-505776.mp3;en;"I am seven.";cümle galaksisi
+en/i-have-got-blue-eyes-185f18.mp3;en;"I have got blue eyes.";cümle galaksisi
+en/how-is-the-weather-c6e02b.mp3;en;"How is the weather?";cümle galaksisi
+en/it-is-cold-11cb0c.mp3;en;"It is cold.";cümle galaksisi
+en/is-it-your-birthday-today-a6ea42.mp3;en;"Is it your birthday today?";cümle galaksisi
+en/i-have-got-a-red-hat-65fe05.mp3;en;"I have got a red hat.";cümle galaksisi
+en/have-got-1ad9ce.mp3;en;"have got";cümle galaksisi
+en/has-got-b36382.mp3;en;"has got";cümle galaksisi
+en/i-ve-got-blue-eyes-e1cee1.mp3;en;"I've got blue eyes.";cümle galaksisi
+en/how-is-the-weather-it-is-cold-f9125f.mp3;en;"How is the weather? It is cold.";cümle galaksisi
+en/i-ve-got-a-red-hat-252dec.mp3;en;"I've got a red hat.";cümle galaksisi
+en/i-m-seven-8be30d.mp3;en;"I'm seven.";cümle galaksisi
+en/how-s-the-weather-894bbe.mp3;en;"How's the weather?";cümle galaksisi
+en/it-s-sunny-b0b753.mp3;en;"It's sunny.";cümle galaksisi
+en/what-have-you-got-d4edee.mp3;en;"What have you got?";cümle galaksisi
+en/let-s-go-to-family-life-cfe0ce.mp3;en;"Let's go to Family Life!";cümle galaksisi
+en/who-is-she-a4bddd.mp3;en;"Who is she?";cümle galaksisi
+en/she-is-my-mother-a3dd06.mp3;en;"She is my mother.";cümle galaksisi
+en/he-is-my-father-2a2bb0.mp3;en;"He is my father.";cümle galaksisi
+en/my-mother-has-got-blue-eyes-b8347c.mp3;en;"My mother has got blue eyes.";cümle galaksisi
+en/my-brother-has-got-short-hair-057ef6.mp3;en;"My brother has got short hair.";cümle galaksisi
+en/i-am-hungry-bb641f.mp3;en;"I am hungry!";cümle galaksisi
+en/mother-299930.mp3;en;"mother";cümle galaksisi
+en/father-2fd66c.mp3;en;"father";cümle galaksisi
+en/grandmother-d2a5c5.mp3;en;"grandmother";cümle galaksisi
+en/grandfather-f378f0.mp3;en;"grandfather";cümle galaksisi
+en/she-s-my-mother-she-has-got-blue-eyes-26ba15.mp3;en;"She's my mother. She has got blue eyes.";cümle galaksisi
+en/who-is-she-she-is-my-sister-719ffa.mp3;en;"Who is she? She is my sister.";cümle galaksisi
+en/she-s-my-mother-190425.mp3;en;"She's my mother.";cümle galaksisi
+en/he-s-my-brother-5d2534.mp3;en;"He's my brother.";cümle galaksisi
+en/i-m-sorry-mum-aa88e3.mp3;en;"I'm sorry, Mum!";cümle galaksisi
+en/that-s-fine-1a891d.mp3;en;"That's fine!";cümle galaksisi
+en/let-s-go-to-homes-neighbourhood-ba834a.mp3;en;"Let's go to Homes & Neighbourhood!";cümle galaksisi
+en/we-have-got-two-pets-c3a7d6.mp3;en;"We have got two pets.";cümle galaksisi
+en/where-is-the-cat-112f6f.mp3;en;"Where is the cat?";cümle galaksisi
+en/the-cat-is-in-the-kitchen-b8ce9d.mp3;en;"The cat is in the kitchen.";cümle galaksisi
+en/the-bed-is-in-the-bedroom-8a4b51.mp3;en;"The bed is in the bedroom.";cümle galaksisi
+en/there-are-five-cats-in-the-garden-a1b1b9.mp3;en;"There are five cats in the garden.";cümle galaksisi
+en/we-have-got-a-big-house-d17ac1.mp3;en;"We have got a big house.";cümle galaksisi
+en/in-the-kitchen-78ec49.mp3;en;"in the kitchen";cümle galaksisi
+en/in-the-bedroom-6b9493.mp3;en;"in the bedroom";cümle galaksisi
+en/in-the-garden-416127.mp3;en;"in the garden";cümle galaksisi
+en/where-s-the-cat-the-cat-is-in-the-kitche-34d34c.mp3;en;"Where's the cat? The cat is in the kitchen.";cümle galaksisi
+en/where-s-the-dog-57b29e.mp3;en;"Where's the dog?";cümle galaksisi
+en/the-dog-is-in-the-garden-372414.mp3;en;"The dog is in the garden.";cümle galaksisi
+en/where-is-the-sofa-e05270.mp3;en;"Where is the sofa?";cümle galaksisi
+en/it-s-in-the-living-room-c89bf6.mp3;en;"It's in the living room.";cümle galaksisi
+en/have-you-got-a-pet-71a477.mp3;en;"Have you got a pet?";cümle galaksisi
+en/yes-i-ve-got-a-cat-ecdddf.mp3;en;"Yes, I've got a cat.";cümle galaksisi
+en/let-s-go-to-life-in-the-city-74ebb5.mp3;en;"Let's go to Life in the City!";cümle galaksisi
+en/do-you-like-bread-b79e01.mp3;en;"Do you like bread?";cümle galaksisi
+en/yes-i-do-665a3b.mp3;en;"Yes, I do.";cümle galaksisi
+en/no-i-don-t-f58061.mp3;en;"No, I don't.";cümle galaksisi
+en/is-there-a-banana-in-the-kitchen-afce88.mp3;en;"Is there a banana in the kitchen?";cümle galaksisi
+en/can-i-have-some-bread-8107bc.mp3;en;"Can I have some bread?";cümle galaksisi
+en/it-is-delicious-f81aa4.mp3;en;"It is delicious!";cümle galaksisi
+en/do-you-like-bananas-yes-i-do-677300.mp3;en;"Do you like bananas? Yes, I do.";cümle galaksisi
+en/do-you-like-milk-b49b3a.mp3;en;"Do you like milk?";cümle galaksisi
+en/can-i-have-some-soup-50780b.mp3;en;"Can I have some soup?";cümle galaksisi
+en/is-there-an-apple-in-the-kitchen-788fe4.mp3;en;"Is there an apple in the kitchen?";cümle galaksisi
+en/yes-there-is-8318c6.mp3;en;"Yes, there is.";cümle galaksisi
+en/where-is-daphne-2f12f3.mp3;en;"Where is Daphne?";cümle galaksisi
+en/she-is-in-the-library-aabb04.mp3;en;"She is in the library.";cümle galaksisi
+en/what-month-is-it-now-ef663c.mp3;en;"What month is it now?";cümle galaksisi
+en/it-is-september-645b29.mp3;en;"It is September.";cümle galaksisi
+en/i-am-eight-years-old-67b8c4.mp3;en;"I am eight years old.";cümle galaksisi
+en/you-must-follow-the-rules-0c8b81.mp3;en;"You must follow the rules.";cümle galaksisi
+en/you-mustn-t-run-in-the-corridor-7af9ec.mp3;en;"You mustn't run in the corridor.";cümle galaksisi
+en/is-there-a-nurse-at-school-93bf62.mp3;en;"Is there a nurse at school?";cümle galaksisi
+en/september-778411.mp3;en;"September";cümle galaksisi
+en/rules-ea0d37.mp3;en;"rules";cümle galaksisi
+en/corridor-3731df.mp3;en;"corridor";cümle galaksisi
+en/follow-the-rules-ca92bf.mp3;en;"follow the rules";cümle galaksisi
+en/run-in-the-corridor-ef1648.mp3;en;"run in the corridor";cümle galaksisi
+en/shout-b9884f.mp3;en;"shout";cümle galaksisi
+en/you-must-listen-to-your-teacher-f97863.mp3;en;"You must listen to your teacher.";cümle galaksisi
+en/it-s-september-c3be7c.mp3;en;"It's September.";cümle galaksisi
+en/she-s-in-the-library-62bea7.mp3;en;"She's in the library.";cümle galaksisi
+en/what-time-is-it-cccde6.mp3;en;"What time is it?";cümle galaksisi
+en/it-is-five-o-clock-6a06d5.mp3;en;"It is five o'clock.";cümle galaksisi
+en/what-lesson-is-it-now-aed2de.mp3;en;"What lesson is it now?";cümle galaksisi
+en/it-is-raining-today-dc4eea.mp3;en;"It is raining today.";cümle galaksisi
+en/there-are-two-rulers-on-the-table-8d124f.mp3;en;"There are two rulers on the table.";cümle galaksisi
+en/how-many-pencils-have-you-got-ff18e8.mp3;en;"How many pencils have you got?";cümle galaksisi
+en/i-have-got-two-pencils-2bf49b.mp3;en;"I have got two pencils.";cümle galaksisi
+en/there-is-a-ruler-65c172.mp3;en;"There is a ruler.";cümle galaksisi
+en/there-are-two-rulers-164f0d.mp3;en;"There are two rulers.";cümle galaksisi
+en/is-there-are-there-0a7a6c.mp3;en;"Is there…? / Are there…?";cümle galaksisi
+en/there-is-a-clock-on-the-wall-b32c49.mp3;en;"There is a clock on the wall.";cümle galaksisi
+en/what-time-is-it-it-s-five-o-clock-6018f0.mp3;en;"What time is it? It's five o'clock.";cümle galaksisi
+en/it-s-five-o-clock-09cabd.mp3;en;"It's five o'clock.";cümle galaksisi
+en/what-are-they-cc0307.mp3;en;"What are they?";cümle galaksisi
+en/they-are-rulers-a9a3aa.mp3;en;"They are rulers.";cümle galaksisi
+en/how-s-the-weather-today-5174c5.mp3;en;"How's the weather today?";cümle galaksisi
+en/it-s-raining-today-a39f65.mp3;en;"It's raining today.";cümle galaksisi
+en/she-is-tall-and-beautiful-28c400.mp3;en;"She is tall and beautiful.";cümle galaksisi
+en/i-have-got-a-small-nose-100ce2.mp3;en;"I have got a small nose.";cümle galaksisi
+en/i-love-big-sunglasses-365757.mp3;en;"I love big sunglasses.";cümle galaksisi
+en/whose-dress-is-this-723996.mp3;en;"Whose dress is this?";cümle galaksisi
+en/this-is-jasmine-s-dress-20fec4.mp3;en;"This is Jasmine's dress.";cümle galaksisi
+en/what-are-you-wearing-today-26b2fa.mp3;en;"What are you wearing today?";cümle galaksisi
+en/i-am-wearing-a-t-shirt-1a313f.mp3;en;"I am wearing a T-shirt.";cümle galaksisi
+en/short-585279.mp3;en;"short";cümle galaksisi
+en/am-wearing-c10a59.mp3;en;"am wearing";cümle galaksisi
+en/is-wearing-f1e89e.mp3;en;"is wearing";cümle galaksisi
+en/are-wearing-996e37.mp3;en;"are wearing";cümle galaksisi
+en/i-m-wearing-a-t-shirt-today-8e150a.mp3;en;"I'm wearing a T-shirt today.";cümle galaksisi
+en/i-am-wearing-a-t-shirt-today-e5c6c8.mp3;en;"I am wearing a T-shirt today.";cümle galaksisi
+en/what-are-you-wearing-d675cd.mp3;en;"What are you wearing?";cümle galaksisi
+en/whose-dress-is-this-it-s-jasmine-s-6a3a92.mp3;en;"Whose dress is this? It's Jasmine's.";cümle galaksisi
+en/what-does-she-look-like-82cafe.mp3;en;"What does she look like?";cümle galaksisi
+en/she-s-tall-and-beautiful-7cb146.mp3;en;"She's tall and beautiful.";cümle galaksisi
+en/it-s-jasmine-s-dress-b7ee71.mp3;en;"It's Jasmine's dress.";cümle galaksisi
+en/i-m-wearing-a-t-shirt-c2f570.mp3;en;"I'm wearing a T-shirt.";cümle galaksisi
+en/how-old-is-your-mother-509d97.mp3;en;"How old is your mother?";cümle galaksisi
+en/she-is-thirty-five-ed16e9.mp3;en;"She is thirty-five.";cümle galaksisi
+en/she-prepares-breakfast-every-morning-7901fd.mp3;en;"She prepares breakfast every morning.";cümle galaksisi
+en/my-father-can-cook-4d77e1.mp3;en;"My father can cook.";cümle galaksisi
+en/my-sister-can-t-swim-2afce2.mp3;en;"My sister can't swim.";cümle galaksisi
+en/could-you-help-me-please-6f532f.mp3;en;"Could you help me, please?";cümle galaksisi
+en/he-always-reads-books-924715.mp3;en;"He always reads books.";cümle galaksisi
+en/always-6275bc.mp3;en;"always";cümle galaksisi
+en/never-334570.mp3;en;"never";cümle galaksisi
+en/sometimes-444ec3.mp3;en;"sometimes";cümle galaksisi
+en/every-morning-4d03d7.mp3;en;"every morning";cümle galaksisi
+en/prepare-9e7634.mp3;en;"prepare";cümle galaksisi
+en/prepares-81f6a1.mp3;en;"prepares";cümle galaksisi
+en/my-sister-can-t-swim-she-is-a-baby-48eb1e.mp3;en;"My sister can't swim. She is a baby.";cümle galaksisi
+en/she-s-thirty-five-05378e.mp3;en;"She's thirty-five.";cümle galaksisi
+en/what-does-she-do-every-morning-e6e100.mp3;en;"What does she do every morning?";cümle galaksisi
+en/she-prepares-breakfast-abbe02.mp3;en;"She prepares breakfast.";cümle galaksisi
+en/no-problem-4d3c76.mp3;en;"No problem!";cümle galaksisi
+en/let-s-go-to-countryside-farm-ff2caa.mp3;en;"Let's go to Countryside & Farm!";cümle galaksisi
+en/there-is-a-farmhouse-on-our-farm-c13517.mp3;en;"There is a farmhouse on our farm.";cümle galaksisi
+en/there-are-five-cows-on-our-farm-c90be8.mp3;en;"There are five cows on our farm.";cümle galaksisi
+en/i-milk-our-cows-every-day-4c4db6.mp3;en;"I milk our cows every day.";cümle galaksisi
+en/what-is-the-farmer-doing-now-d154f1.mp3;en;"What is the farmer doing now?";cümle galaksisi
+en/he-is-watering-the-vegetables-3d58a6.mp3;en;"He is watering the vegetables.";cümle galaksisi
+en/the-hens-are-eating-corn-aa6bb9.mp3;en;"The hens are eating corn.";cümle galaksisi
+en/vegetables-12e544.mp3;en;"vegetables";cümle galaksisi
+en/i-milk-the-cows-339e0d.mp3;en;"I milk the cows.";cümle galaksisi
+en/i-am-milking-the-cows-d7c089.mp3;en;"I am milking the cows.";cümle galaksisi
+en/what-is-the-farmer-doing-now-he-is-water-80d853.mp3;en;"What is the farmer doing now? He is watering the vegetables.";cümle galaksisi
+en/he-is-watering-the-vegetables-now-aa5afb.mp3;en;"He is watering the vegetables now.";cümle galaksisi
+en/he-s-watering-the-vegetables-aa844d.mp3;en;"He's watering the vegetables.";cümle galaksisi
+en/what-is-there-on-your-farm-767b91.mp3;en;"What is there on your farm?";cümle galaksisi
+en/there-s-a-farmhouse-bb8afd.mp3;en;"There's a farmhouse.";cümle galaksisi
+en/what-do-you-do-every-day-e69371.mp3;en;"What do you do every day?";cümle galaksisi
+en/i-feed-the-hens-a5f1b4.mp3;en;"I feed the hens.";cümle galaksisi
+en/let-s-go-to-food-eating-out-b408ad.mp3;en;"Let's go to Food & Eating Out!";cümle galaksisi
+en/what-do-you-want-ec7e1f.mp3;en;"What do you want?";cümle galaksisi
+en/i-want-some-salad-please-4c04fa.mp3;en;"I want some salad, please.";cümle galaksisi
+en/i-ll-take-some-fruit-e730bf.mp3;en;"I'll take some fruit.";cümle galaksisi
+en/have-you-got-any-olives-9ed9a8.mp3;en;"Have you got any olives?";cümle galaksisi
+en/pass-me-the-salt-please-24eb26.mp3;en;"Pass me the salt, please.";cümle galaksisi
+en/enjoy-your-meal-8db4ee.mp3;en;"Enjoy your meal!";cümle galaksisi
+en/olives-c1e84c.mp3;en;"olives";cümle galaksisi
+en/salt-798362.mp3;en;"salt";cümle galaksisi
+en/some-salad-06578a.mp3;en;"some salad";cümle galaksisi
+en/any-olives-483de6.mp3;en;"any olives?";cümle galaksisi
+en/some-olives-da44ad.mp3;en;"some olives";cümle galaksisi
+en/have-you-got-any-olives-yes-i-ve-got-som-cf7d7e.mp3;en;"Have you got any olives? Yes, I've got some.";cümle galaksisi
+en/can-i-have-some-soup-please-2cbd6a.mp3;en;"Can I have some soup, please?";cümle galaksisi
+en/yes-i-ve-got-some-olives-8dbbcf.mp3;en;"Yes, I've got some olives.";cümle galaksisi
+en/thank-you-c32021.mp3;en;"Thank you!";cümle galaksisi
+en/i-always-read-books-in-the-morning-3cf9c7.mp3;en;"I always read books in the morning.";cümle galaksisi
+en/i-am-listening-to-music-today-cf3296.mp3;en;"I am listening to music today.";cümle galaksisi
+en/this-is-the-smartest-group-7ac423.mp3;en;"This is the smartest group.";cümle galaksisi
+en/my-favourite-month-is-june-06b88a.mp3;en;"My favourite month is June.";cümle galaksisi
+en/see-you-next-week-4d1b8f.mp3;en;"See you next week!";cümle galaksisi
+en/i-can-t-wait-9298bd.mp3;en;"I can't wait!";cümle galaksisi
+en/music-99d1a6.mp3;en;"music";cümle galaksisi
+en/june-05ef89.mp3;en;"June";cümle galaksisi
+en/smartest-e9ff1c.mp3;en;"smartest";cümle galaksisi
+en/favourite-7c4b39.mp3;en;"favourite";cümle galaksisi
+en/next-week-522696.mp3;en;"next week";cümle galaksisi
+en/morning-be555c.mp3;en;"morning";cümle galaksisi
+en/i-always-read-books-03d510.mp3;en;"I always read books.";cümle galaksisi
+en/i-am-listening-to-music-f11d72.mp3;en;"I am listening to music.";cümle galaksisi
+en/the-smartest-group-13c60f.mp3;en;"the smartest group";cümle galaksisi
+en/i-always-read-books-in-the-morning-but-i-ff1482.mp3;en;"I always read books in the morning but I am listening to music today.";cümle galaksisi
+en/this-is-the-smartest-group-in-the-school-b416c7.mp3;en;"This is the smartest group in the school.";cümle galaksisi
+en/what-are-you-doing-now-4a7608.mp3;en;"What are you doing now?";cümle galaksisi
+en/i-m-listening-to-music-0ab68f.mp3;en;"I'm listening to music.";cümle galaksisi
+en/what-do-you-do-in-the-morning-2f8b0b.mp3;en;"What do you do in the morning?";cümle galaksisi
+en/what-s-your-favourite-month-3db110.mp3;en;"What's your favourite month?";cümle galaksisi
+en/what-was-your-favourite-lesson-last-year-ad250b.mp3;en;"What was your favourite lesson last year?";cümle galaksisi
+en/my-favourite-lesson-was-maths-5aaa4f.mp3;en;"My favourite lesson was Maths.";cümle galaksisi
+en/i-like-learning-new-words-9ed0fb.mp3;en;"I like learning new words.";cümle galaksisi
+en/it-is-ten-past-five-864327.mp3;en;"It is ten past five.";cümle galaksisi
+en/there-is-some-glue-on-the-paper-4ba5b8.mp3;en;"There is some glue on the paper.";cümle galaksisi
+en/whose-pens-are-they-c0e100.mp3;en;"Whose pens are they?";cümle galaksisi
+en/they-are-my-pens-a95d38.mp3;en;"They are my pens.";cümle galaksisi
+en/maths-7b2369.mp3;en;"Maths";cümle galaksisi
+en/folder-d04633.mp3;en;"folder";cümle galaksisi
+en/lesson-791189.mp3;en;"lesson";cümle galaksisi
+en/last-year-c47fb2.mp3;en;"last year";cümle galaksisi
+en/was-fbda94.mp3;en;"was";cümle galaksisi
+en/were-b2916a.mp3;en;"were";cümle galaksisi
+en/is-are-63bc96.mp3;en;"is / are";cümle galaksisi
+en/my-favourite-lesson-was-maths-last-year-fab95b.mp3;en;"My favourite lesson was Maths last year.";cümle galaksisi
+en/whose-pens-are-they-they-are-my-pens-4c85e6.mp3;en;"Whose pens are they? They are my pens.";cümle galaksisi
+en/it-was-maths-8934d4.mp3;en;"It was Maths.";cümle galaksisi
+en/what-do-you-like-doing-in-english-lesson-10665d.mp3;en;"What do you like doing in English lessons?";cümle galaksisi
+en/what-s-the-time-now-5cf040.mp3;en;"What's the time now?";cümle galaksisi
+en/it-s-ten-past-five-792b69.mp3;en;"It's ten past five.";cümle galaksisi
+en/i-played-games-yesterday-7f49e8.mp3;en;"I played games yesterday.";cümle galaksisi
+en/what-did-you-do-yesterday-5b6353.mp3;en;"What did you do yesterday?";cümle galaksisi
+en/i-could-play-the-piano-when-i-was-six-994d7a.mp3;en;"I could play the piano when I was six.";cümle galaksisi
+en/my-sister-is-taller-than-me-82a5b7.mp3;en;"My sister is taller than me.";cümle galaksisi
+en/i-am-wearing-a-blue-cardigan-28c453.mp3;en;"I am wearing a blue cardigan.";cümle galaksisi
+en/it-fits-like-a-glove-1aa2d7.mp3;en;"It fits like a glove!";cümle galaksisi
+en/played-9a7465.mp3;en;"played";cümle galaksisi
+en/taller-a04954.mp3;en;"taller";cümle galaksisi
+en/cardigan-4d2dd2.mp3;en;"cardigan";cümle galaksisi
+en/hobby-27d0d7.mp3;en;"hobby";cümle galaksisi
+en/could-8a569d.mp3;en;"could";cümle galaksisi
+en/watched-981fc6.mp3;en;"watched";cümle galaksisi
+en/i-played-games-at-school-yesterday-019a3e.mp3;en;"I played games at school yesterday.";cümle galaksisi
+en/i-played-games-403d2d.mp3;en;"I played games.";cümle galaksisi
+en/what-could-you-do-when-you-were-six-e97c85.mp3;en;"What could you do when you were six?";cümle galaksisi
+en/i-could-swim-394355.mp3;en;"I could swim.";cümle galaksisi
+en/i-m-wearing-a-blue-cardigan-596e4d.mp3;en;"I'm wearing a blue cardigan.";cümle galaksisi
+en/what-does-your-mother-do-1235be.mp3;en;"What does your mother do?";cümle galaksisi
+en/she-is-a-teacher-9077f5.mp3;en;"She is a teacher.";cümle galaksisi
+en/my-brother-is-the-kindest-person-31f4b4.mp3;en;"My brother is the kindest person.";cümle galaksisi
+en/she-loves-reading-books-39621a.mp3;en;"She loves reading books.";cümle galaksisi
+en/i-read-a-new-book-last-night-f7fd4c.mp3;en;"I read a new book last night.";cümle galaksisi
+en/my-dad-went-to-the-bakery-10470d.mp3;en;"My dad went to the bakery.";cümle galaksisi
+en/bakery-8309d9.mp3;en;"bakery";cümle galaksisi
+en/kindest-b8a03b.mp3;en;"kindest";cümle galaksisi
+en/last-night-5fde24.mp3;en;"last night";cümle galaksisi
+en/went-1e472c.mp3;en;"went";cümle galaksisi
+en/reading-6a87ea.mp3;en;"reading";cümle galaksisi
+en/the-kindest-3df99f.mp3;en;"the kindest";cümle galaksisi
+en/the-tallest-44d9d5.mp3;en;"the tallest";cümle galaksisi
+en/the-best-eb78e2.mp3;en;"the best";cümle galaksisi
+en/my-brother-is-the-kindest-person-in-our--8f8a5b.mp3;en;"My brother is the kindest person in our family.";cümle galaksisi
+en/my-dad-went-to-the-bakery-yesterday-bc1967.mp3;en;"My dad went to the bakery yesterday.";cümle galaksisi
+en/what-does-your-father-do-9639b9.mp3;en;"What does your father do?";cümle galaksisi
+en/he-s-a-doctor-289fe9.mp3;en;"He's a doctor.";cümle galaksisi
+en/what-does-your-sister-love-doing-8477da.mp3;en;"What does your sister love doing?";cümle galaksisi
+en/she-loves-drawing-pictures-4d99c9.mp3;en;"She loves drawing pictures.";cümle galaksisi
+en/what-did-you-read-last-night-57f921.mp3;en;"What did you read last night?";cümle galaksisi
+en/i-read-a-book-about-animals-99bd35.mp3;en;"I read a book about animals.";cümle galaksisi
+en/let-s-go-to-life-by-the-sea-abbabd.mp3;en;"Let's go to Life by the Sea!";cümle galaksisi
+en/i-think-it-will-be-sunny-166c5c.mp3;en;"I think it will be sunny.";cümle galaksisi
+en/we-should-not-throw-plastic-in-the-ocean-180daf.mp3;en;"We should not throw plastic in the ocean.";cümle galaksisi
+en/you-mustn-t-throw-rubbish-into-the-sea-aa854b.mp3;en;"You mustn't throw rubbish into the sea.";cümle galaksisi
+en/there-were-a-lot-of-seals-on-the-beach-291796.mp3;en;"There were a lot of seals on the beach.";cümle galaksisi
+en/my-sister-is-the-best-cook-b813ff.mp3;en;"My sister is the best cook.";cümle galaksisi
+en/dolphins-live-in-the-sea-d66ef1.mp3;en;"Dolphins live in the sea.";cümle galaksisi
+en/ocean-da4dd2.mp3;en;"ocean";cümle galaksisi
+en/plastic-5114e7.mp3;en;"plastic";cümle galaksisi
+en/rubbish-5e5427.mp3;en;"rubbish";cümle galaksisi
+en/we-should-not-throw-plastic-382257.mp3;en;"We should not throw plastic.";cümle galaksisi
+en/you-mustn-t-throw-rubbish-a1ab0a.mp3;en;"You mustn't throw rubbish.";cümle galaksisi
+en/i-think-it-will-be-sunny-tomorrow-90f6e9.mp3;en;"I think it will be sunny tomorrow.";cümle galaksisi
+en/there-were-a-lot-of-seals-on-the-beach-l-b1964e.mp3;en;"There were a lot of seals on the beach last Friday.";cümle galaksisi
+en/my-sister-is-the-best-cook-in-our-family-fbaa7c.mp3;en;"My sister is the best cook in our family.";cümle galaksisi
+en/what-will-the-weather-be-like-2fd001.mp3;en;"What will the weather be like?";cümle galaksisi
+en/can-i-throw-rubbish-into-the-sea-484201.mp3;en;"Can I throw rubbish into the sea?";cümle galaksisi
+en/no-you-mustn-t-326a73.mp3;en;"No, you mustn't.";cümle galaksisi
+en/where-do-dolphins-live-131348.mp3;en;"Where do dolphins live?";cümle galaksisi
+en/they-live-in-the-sea-0db7c2.mp3;en;"They live in the sea.";cümle galaksisi
+en/let-s-go-to-life-in-the-world-f4a783.mp3;en;"Let's go to Life in the World!";cümle galaksisi
+en/we-are-going-to-go-to-italy-c6498a.mp3;en;"We are going to go to Italy.";cümle galaksisi
+en/where-are-you-going-to-go-5e2ae4.mp3;en;"Where are you going to go?";cümle galaksisi
+en/pasta-is-the-most-delicious-food-386888.mp3;en;"Pasta is the most delicious food.";cümle galaksisi
+en/it-tastes-good-743efe.mp3;en;"It tastes good!";cümle galaksisi
+en/i-am-starving-efa32d.mp3;en;"I am starving!";cümle galaksisi
+en/we-are-going-to-buy-a-few-cucumbers-503bc0.mp3;en;"We are going to buy a few cucumbers.";cümle galaksisi
+en/italy-9bd46b.mp3;en;"Italy";cümle galaksisi
+en/cucumber-4f0a05.mp3;en;"cucumber";cümle galaksisi
+en/holiday-2a8b58.mp3;en;"holiday";cümle galaksisi
+en/delicious-bdd38c.mp3;en;"delicious";cümle galaksisi
+en/starving-f168b7.mp3;en;"starving";cümle galaksisi
+en/am-going-to-go-6920cd.mp3;en;"am going to go";cümle galaksisi
+en/are-going-to-go-439e42.mp3;en;"are going to go";cümle galaksisi
+en/is-going-to-go-7a6cdd.mp3;en;"is going to go";cümle galaksisi
+en/we-re-going-to-go-to-italy-next-week-6f5e97.mp3;en;"We're going to go to Italy next week.";cümle galaksisi
+en/we-are-going-to-put-a-few-cucumbers-in-i-cc6aff.mp3;en;"We are going to put a few cucumbers in it.";cümle galaksisi
+en/where-are-you-going-to-go-on-holiday-960541.mp3;en;"Where are you going to go on holiday?";cümle galaksisi
+en/we-re-going-to-go-to-italy-df6649.mp3;en;"We're going to go to Italy.";cümle galaksisi
+en/how-is-the-pizza-b2556a.mp3;en;"How is the pizza?";cümle galaksisi
+en/are-you-hungry-6f8908.mp3;en;"Are you hungry?";cümle galaksisi
+en/yes-i-m-starving-8ad64c.mp3;en;"Yes, I'm starving!";cümle galaksisi

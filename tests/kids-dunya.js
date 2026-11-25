@@ -37,7 +37,7 @@ test('22 konu: paket, oyun, dünya, rozet; ikinci takımada işaretli', () => {
   for (const k of V.KONU) {
     const p = K.al(k.id); assert.ok(p && k.acik && k.rozet, k.id);
     assert.equal(typeof O[p.oyun3.id], 'function', k.id + ' oyunu');
-    assert.ok(R.DUNYA[k.id], k.id + ' dünyası'); assert.match(R.dunya(k.id), /<svg class="ka-dunya-r"/);
+    assert.ok(R.DUNYA[k.id], k.id + ' dünyası'); assert.match(R.dunya(k.id), /<svg class="ka-dunya-r[ "]/);
     for (const o of p.ogeler(V.BANT.yildiz)) assert.ok(k.id === 'colours' || k.id === 'numbers' || R.var(o.id), o.id + ' çizimi');
     assert.equal(K.yildizMax(k.id), 3 * K.oyunSay(k.id));
   }

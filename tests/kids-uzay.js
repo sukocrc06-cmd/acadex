@@ -61,7 +61,7 @@ test('gezegen: NaN yok, degrade kimliği tek, aşama süsleri, kilitli soluk', (
 
 test('harita: gezegen çizer; astronot uçar, sonra konu açılır; Acadia ikinci kez uçmaz', () => {
   assert.match(app, /W\.KIDS_UZAY \? W\.KIDS_UZAY\.gezegen\(k\.renk, k\.simge, !k\.acik, k\.acik \? as : 0, i\) : C\.ada/);
-  assert.match(app, /W\.KIDS_UZAY\.uc\(kid, function \(\) \{ adaSec\(kid\); \}\)/);
+  assert.match(app, /W\.KIDS_UZAY\.uc\(kid, function \(\) \{ adaSec\(kid\); \}, function \(\) \{ yolculukSesi\(kid\); \}\)/);
   assert.match(app, /W\.KIDS_UZAY\.yerlestir\(app, \{ anahtar:/);
   assert.match(app, /duration: uzay \? 1 : 780/);
   assert.match(ucus, /W\.KIDS_UZAY \? W\.KIDS_UZAY\.gezegen\(/, 'giriş uçuşunda da gezegenler');
@@ -96,7 +96,123 @@ test('3B galaksi: modül yerel, önbellekte, düşerse düz harita; düğmeler g
   assert.match(css3, /\.ka-harita\.kz3-acik \.ka-ada\{[^}]*pointer-events:auto/);
   assert.match(css3, /isolation:isolate/, 'etiketler üst çubuğun üstüne taşmaz');
   assert.match(src, /if \(!kap\.isConnected\) \{ temizle\(\); return; \}/, 'harita kapanınca WebGL bırakılır');
-  assert.match(src, /if \(i === suan \|\| sakin\)/, 'hareketi azaltta uçuş anında');
+  assert.match(src, /if \(sakin\) \{ suan = i; A\.a\.position\.copy\(astYeri\(i\)\); park\(i\); hedef\.copy\(hedefSon\); return setTimeout\(sonra, 0\); \}/, 'hareketi azaltta uçuş ve dalış yok');
+});
+
+/* 20.11.2026: kullanıcı ekranında Colours / Numbers / Animals üst üste binmişti */
+test('yerleşim: gezegenler eşit aralıklı sarmalda, hiçbiri ötekine binmez (22 konu)', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js');
+  const m = /const N = o\.konular\.length, R0 = ([\d.]+), B = ([\d.]+), ADIM = ([\d.]+);/.exec(src); assert.ok(m, 'sabitler');
+  const PR = +/const PR = ([\d.]+);/.exec(src)[1], R0 = +m[1], B = +m[2], ADIM = +m[3];
+  let th = 0; const P = [];
+  for (let i = 0; i < 22; i++) { const r = R0 + B * th, a = th - 0.5; P.push([Math.cos(a) * r, Math.sin(a) * r]); th += ADIM / Math.hypot(r, B); }
+  /* halkalı gezegen ~ PR*1.95 yarıçap; adı altta: iki gezegen merkezi arası en az ~4.5 PR */
+  let en = Infinity; for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) en = Math.min(en, Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]));
+  assert.ok(en >= PR * 4.5, 'en yakın iki gezegen ' + en.toFixed(2) + ' < ' + (PR * 4.5).toFixed(2));
+  assert.ok(2 * Math.PI * B >= PR * 5, 'sarmal kolları arası yeterli');
+  assert.ok(R0 > 1.7 + PR * 2.5, 'ilk gezegen güneşe değmez');
+});
+
+test('dalış: kamera gezegene iner, konu açılır, sonra harita eski haline döner', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js');
+  assert.match(src, /function dal\(i, sonra\)/);
+  assert.match(src, /A\.a\.rotation\.y = 0\.5; dal\(suan, s\); \}/, 'uçuş bitince dalış');
+  assert.match(src, /if \(i === suan\) \{ A\.a\.position\.copy\(astYeri\(i\)\); return dal\(i, sonra\); \}/, 'zaten oradaysa da dalar');
+  assert.match(src, /if \(ucus \|\| dalis\) return;/, 'çift dokunuş iki kez açmaz');
+  assert.match(src, /uzak = dalis\.u0 \+ \(PR \* 1\.25 - dalis\.u0\) \* e/, 'kamera gezegenin yüzeyine kadar iner');
+  assert.match(src, /harita\.classList\.remove\('kz3-dal'\)/, 'konu kapanınca adlar geri gelir');
+  assert.match(src, /uzak = uzakSon = d\.u0; A\.a\.visible = true;/);
+  assert.match(css, /\.ka-harita\.kz3-dal \.ka-adalar li,\.ka-harita\.kz3-dal \.kz-dostlar\{opacity:0;pointer-events:none\}/);
+});
+
+test('alt çubuk uzayda ince ve yarı saydam; harita ekranın altına uzanır', () => {
+  assert.match(css, /html\.kz-uzay \.ka-dock-r\{width:44px/);
+  assert.match(css, /html\.kz-uzay \.ka-dock-ic\{[^}]*backdrop-filter:blur/);
+  assert.match(css, /html\.kz-uzay \.ka-dock-bosluk\{height:calc\(76px/);
+  assert.match(css, /@media \(max-width:600px\)\{\s*html\.kz-uzay \.ka-dock/);
+});
+
+test('canlı gökyüzü: nebula, kuyruklu yıldız, UFO; ateş topu ve UFO dokunulur, düğmeler etkilenmez', () => {
+  for (const f of ['function nebula()', 'function kuyrukluEkle()', 'function ufoEkle()', 'function patlat(', 'function dokunus(e)']) assert.ok(js.includes(f), f);
+  assert.match(js, /W\.addEventListener\('pointerdown', dokunus, true\)/, 'sürüklemeden önce yakalanır');
+  assert.match(js, /if \(mod !== 'harita' \|\| SAKIN\) return;/, 'yalnız haritada, hareketi azaltta yok');
+  assert.match(js, /t\.closest\('button,a,input,select,textarea,label,\[role="button"\],\.ka-dock,\.ka-serit'\)/, 'düğmeye dokunuş gezegeni açmaya devam eder');
+  assert.match(js, /f\.hiz = true; f\.vx \*= 3\.4/, 'ateş topu hızlanır');
+  assert.match(js, /if \(f\.hiz && f\.t > f\.bit\) \{ patlat\(/, 'sonra yıldız patlaması');
+  assert.match(js, /u\.isin = 0\.9; u\.kac = true;/, 'UFO ışık saçar ve kaçar');
+  assert.match(js, /KAY = \[\]; ATES = \[\]; KUY = \[\]; UFO = \[\]; PAR = \[\];/, 'haritadan çıkınca temizlenir');
+});
+
+test('astronot arkadaşlar: gerçek düğme, sırayla el sallar / takla / zıplar, adların altında', () => {
+  assert.match(js, /dostlarKur\(harita, o\);/);
+  /* 20.11.2026: konudan dönünce düz harita kalıyordu; uzay sınıfı haritayı kurmadan önce açılmalı */
+  assert.match(js, /if \(app\) guncelle\(app\);\s*var harita = kok\.querySelector\('\.ka-harita'\); if \(!harita \|\| !aktif\(\)\) return;/);
+  assert.match(js, /b\.type = 'button'; b\.className = 'kz-dost';/);
+  assert.match(js, /HAREKET = \['kz-selam', 'kz-takla', 'kz-zipla'\]/);
+  assert.match(js, /C\.HAYVAN\.filter\(function \(h\) \{ return h !== o\.hayvan; \}\)/, 'çocuğun kendi hayvanı değil');
+  assert.match(js, /harita\.insertBefore\(kat, adalar \|\| null\)/, 'gezegen düğmelerinin altında');
+  assert.match(js, /<g class="kz-kol">/, 'sallanan kol');
+  assert.match(css, /\.kz-dost\.kz-selam \.kz-kol\{animation:kzSalla/);
+  assert.match(css, /prefers-reduced-motion:reduce\)\{\.kz-dost\.kz-selam/);
+});
+
+test('22.11.2026: büyük konu kartı yerine ince cam şerit; bugün ışık sütunu; roket bekler ve yol boyunca uçar; kilitli gezegen bulutsuda', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js'), mjs = read('kids/assets/kids-uzay3d.mjs');
+  /* kart kalktı; başlık ekran okuyucuda; sol üstte tek satırlık cam şerit + tek düğme (bugün: Uç, serbest: Sürpriz) */
+  assert.doesNotMatch(app, /class="ka-bugun/); assert.doesNotMatch(app, /class="ka-rehber/); assert.match(app, /<h1 class="ka-gizli">/);
+  assert.match(app, /function gunBandi\(bugun\)/); assert.match(app, /class="ka-serit-uc" data-konu="' \+ bugun\.id/); assert.match(app, /class="ka-serit-uc" data-surpriz/);
+  assert.match(app, /cikis = app\.querySelector\('\.ka-serit-acd'\)/);
+  assert.match(css, /\.ka-serit\{[^}]*min-height:56px/); assert.match(css, /backdrop-filter:blur/); assert.match(css, /prefers-reduced-motion:reduce\)\{\.ka-serit,/);
+  assert.doesNotMatch(css, /\.ka-rehber/);
+  /* yeni açılan gezegen: ilk girişte sessiz, sonra bir kez bulut dağılır */
+  assert.match(app, /if \(!il\.acikGor\) \{ il\.acikGor = acikIds\.slice\(\);/); assert.match(app, /yeniAcik: !!yeniAcik\[k\.id\]/);
+  assert.match(js, /yeniAcik: !!k\.yeniAcik/);
+  assert.match(src, /function bulutsuKur\(i\)/); assert.match(src, /if \(kilit \|\| k\.yeniAcik\)/); assert.match(src, /if \(u >= 1\) \{ b\.g\.visible = false; p\.ek\.bulut = null; \}/);
+  assert.match(src, /if \(sakin\) G2\.forEach\(\(p\) => \{ if \(p\.ek\.bulut && p\.ek\.bulut\.dagit\)/, 'hareketi azaltta dağılma beklemez');
+  /* roket son gidilen gezegende bekler, uçuş oradan kalkar, inince yine park eder */
+  assert.match(src, /function park\(i\)/); assert.match(src, /kalk: rokYeri\(suan\)/); assert.match(src, /p\.lerp\(rokYeri\(ucus\.i\), in_ \* in_\)/);
+  /* 3B: kamera bugüne bakar, sütun, roket, iz, ilerlemeye göre yol; eğri parametresi 1'i aşmaz */
+  assert.match(src, /const bugunI = o\.konular\.findIndex\(\(k\) => k\.bugun\);/);
+  assert.match(src, /ek\.sutun = sutun/); assert.match(src, /function roketKur\(yuzSvg\)/); assert.match(src, /ucus = \{ roket: true/);
+  assert.match(src, /const yanik = o\.konular\.map\(\(k\) => !k\.kilit && \(k\.asama \|\| 0\) >= 2\)/);
+  assert.match(src, /egri\.getPoint\(MathUtils\.clamp\(/);
+  assert.match(src, /if \(sakin\) \{ suan = i;[^\n]*return setTimeout\(sonra, 0\); \}\n    if \(i === suan\)/, 'hareketi azaltta roket yok, anında');
+  assert.ok(mjs.length > 100000 && /roket|BUGÜN|kayan nokta/.test(src), 'paket üretilmiş');
+});
+
+test('22.11.2026: kalkış/iniş sahnesi, hız hissi, atmosfere giriş, gezegen dünyası, hafif mod', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js'), res = read('kids/assets/kids-resim.js');
+  /* üç bölüm: KALK (astronot biner, 3-2-1, sarsıntı, duman) · UC (kamera yaklaşır, FOV, hız çizgileri) · IN (toz, astronot iner, el sallar) */
+  assert.match(src, /kalk0: 1050/); assert.match(src, /const sayi = q < 0\.36 \? 0 : q < 0\.57 \? 3 : q < 0\.78 \? 2 : 1;/);
+  assert.match(src, /dumanAt\(/); assert.match(src, /kam\.fov = 40 \+ Math\.sin\(u \* Math\.PI\) \* 9/); assert.match(src, /classList\.toggle\('kz3-hizli'/);
+  assert.match(src, /toz\.visible = true; tozYas = 0;/); assert.match(src, /A\.kR\.rotation\.z = -0\.5 - Math\.max\(0, Math\.sin\(aq \* Math\.PI \* 4\)\) \* 1\.6/);
+  assert.match(src, /if \(q >= 1\) \{ const s = ucus\.sonra; ucus = null;[^\n]*dal\(suan, s\); \}/, 'inişten sonra dalış');
+  assert.match(src, /geri\.remove\(\); hizK\.remove\(\);/, 'kapanınca HTML katmanları temizlenir');
+  assert.match(css, /\.kz3-geri-on\{/); assert.match(css, /\.kz3-hizli \.kz3-hiz\{/); assert.match(css, /prefers-reduced-motion:reduce\)\{\.kz3-geri,\.kz3-hiz\{display:none\}/);
+  /* atmosfer: uzayda düz perde yerine bulutlar; konu açılınca iki yana aralanır */
+  assert.match(app, /if \(uzay\) return atmosfer\(k, sonra\);/); assert.match(app, /function atmosfer\(k, sonra\)/); assert.match(css, /\.ka-atm-isik\{/);
+  /* gezegenin dünyası: her konu bir biyomda, roket konu sahnesinde park eder */
+  assert.match(res, /var BIYOM = \{ animals: 'doga'/); assert.match(res, /case 'deniz':/); assert.match(res, /roketPark\(28, 250\)/);
+  assert.match(css, /\.ka-dunya-roket\{display:none\}\n\.kn-arka \.ka-dunya-roket\{display:inline/);
+  /* hafif mod: zayıf cihaz ya da düşük kare hızı */
+  assert.match(js, /function hafifMi\(\)/); assert.match(js, /hafif: hafifMi\(\)/);
+  assert.match(src, /const n = hafif \? 2200 : 5200/); assert.match(src, /antialias: !hafif/);
+  assert.match(src, /if \(ort > 34 && pr > 1\) \{ pr = 1; renderer\.setPixelRatio\(1\); boyut\(\); try \{ localStorage\.setItem\('kids\.hafif', '1'\);/);
+});
+
+test('22.11.2026: sade gezegen etiketleri ve uçuşta sesli rehber', () => {
+  const src = read('kids/assets/kids-uzay3d.src.js');
+  /* etiket: yalnız İngilizce ad, gezegen renginde hap; yıldız sayısı yerine madalya kadar üç yıldız; Türkçe ad aria-label'da */
+  assert.match(app, /'<li style="--i:' \+ \(i % 12\) \+ ';--r:' \+ k\.renk \+ '">/);
+  assert.match(app, /<i class="ka-ada-yz" aria-hidden="true">' \+ \[1, 2, 3\]\.map\(function \(j\) \{ return '<em' \+ \(j <= sv \? ' class="on"' : ''\)/);
+  assert.match(app, /aria-label="' \+ esc\(k\.en \+ ', ' \+ k\.tr/);
+  assert.match(css, /\.ka-harita\.kz3-acik \.ka-halka\{display:none\}/); assert.match(css, /\.ka-harita\.kz3-acik \.ka-ada-ad small\{display:none\}/);
+  assert.match(css, /background:color-mix\(in srgb,var\(--r,#8E7CF0\) 42%/);
+  /* ses: yalnız gerçekten başka gezegene uçarken; inişte konu penceresinde hoş geldin */
+  assert.match(src, /if \(i !== suan && ucarken\) ucarken\(\);/); assert.match(js, /return U3\.uc\(kid, sonra, ucarken\);/);
+  assert.match(app, /SES\.soyle\(k\.tr \+ ' gezegenine yolculuk başlıyor!', 'tr'\)\)\.then\(function \(\) \{ return SES\.soyle\('Let\\'s go to ' \+ k\.en \+ '!', 'en'\);/);
+  assert.match(app, /if \(hosgeldin === kid\) \{ hosgeldin = null; SES\.soyle\(k\.tr \+ ' gezegenine hoş geldin!', 'tr'\); \}/);
+  assert.match(app, /if \(sv < 1 && np === 1\) \{ hosgeldin = null;/, 'doğrudan konuya girişte konu kendi sesini keser değil');
 });
 
 summary();

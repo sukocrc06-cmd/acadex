@@ -26,7 +26,7 @@ const MIG = 'supabase/migrations/20261118c_acadia_geri_bildirim.sql';
 const sql = read(MIG), ogr = read('js/acadex-acadia-geri.js'), adm = read('js/admin-acadia.js'), dash = read('dashboard.html'), admh = read('admin.html'), dj = read('js/dashboard.js');
 
 test('bağlı: sohbet düğmeleri dashboard\'da, liste yönetim panelinde', () => {
-  assert.ok(dash.indexOf('src="js/acadex-ink.js"') < dash.indexOf('src="js/acadex-acadia-geri.js"'), 'ink sarmalayıcısından sonra');
+  assert.ok(dash.indexOf('src="js/acadex-ink.js') < dash.indexOf('src="js/acadex-acadia-geri.js"'), 'ink sarmalayıcısından sonra');
   assert.ok(admh.indexOf('src="js/admin-app.js"') < admh.indexOf('src="js/admin-acadia.js"'));
   assert.match(read('js/admin-app.js'), /\{ k: 'acadia', t: 'Acadia geri bildirim' \}/);
   assert.match(dj, /window\.AXGERI\.hata\(cardId, text, errMsg\)/, 'sunucu hatası kaydolur');

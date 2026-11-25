@@ -208,7 +208,7 @@
 
   var onbellek = {};
   function ic(ad) { if (!R[ad]) return ''; if (!(ad in onbellek)) onbellek[ad] = R[ad](); return onbellek[ad]; }
-  function ciz(ad, cls) { return '<svg class="kc kc-resim ' + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' + ic(ad) + '</svg>'; }
+  function ciz(ad, cls) { return '<svg class="kc kc-resim ' + (W.KIDS_CANLI ? W.KIDS_CANLI.sinif(ad) + ' ' : '') + (cls || '') + '" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' + ic(ad) + '</svg>'; }
   /* resimli balon (balon oyunu): renkli balonun ortasında kelimenin resmi */
   function balonResim(ad, renk) {
     return '<svg class="kc kc-balon kc-rbalon" viewBox="0 0 100 150" aria-hidden="true" focusable="false"><path d="M50 104 q-6 22 4 42" fill="none" stroke="' + M + '" stroke-width="2.4" stroke-linecap="round"/>' +
@@ -275,13 +275,67 @@
     places: ['#FFF7EC', '#F2D7B0', ['under', 'in', 'on']], alphabet: ['#F0FAFF', '#CDEBFF', ['harf-a', 'harf-b', 'harf-c']]
   };
   function motif(ad) { return R[ad] ? ic(ad) : icAl(C.simge(ad)); }
+  /* 22.11.2026: her gezegenin kendi dünyası. Konu bir "biyom"a bağlı: doğa, deniz, gökyüzü, şehir, ev, okul.
+     Zemin gezegenin eğimiyle kavislenir; çocuğun roketi sol altta park etmiş bekler. Öğeler soluk: kartlar okunur kalır. */
+  var BIYOM = { animals: 'doga', fruits: 'doga', seasons: 'doga', actions: 'doga', body: 'doga', sea: 'deniz', weather: 'gok', days: 'gok', shapes: 'gok',
+    numbers: 'gok', alphabet: 'gok', colours: 'gok', transport: 'sehir', jobs: 'sehir', places: 'sehir', home: 'ev', family: 'ev', food: 'ev', clothes: 'ev',
+    toys: 'ev', feelings: 'ev', school: 'okul' };
+  var MK = '#23304D';
+  function agac(x, y, s) { return '<g transform="translate(' + x + ' ' + y + ') scale(' + s + ')"><rect x="-5" y="0" width="10" height="34" rx="4" fill="#B07A40" stroke="' + MK + '" stroke-width="2.5"/><circle cx="0" cy="-8" r="26" fill="#7BD389" stroke="' + MK + '" stroke-width="2.5"/><circle cx="-10" cy="-14" r="7" fill="#9BE3A6"/></g>'; }
+  function bulutK(x, y, s) { return '<g transform="translate(' + x + ' ' + y + ') scale(' + s + ')" fill="#fff"><ellipse cx="0" cy="0" rx="26" ry="14"/><ellipse cx="20" cy="-8" rx="18" ry="14"/><ellipse cx="-18" cy="-4" rx="14" ry="10"/></g>'; }
+  function roketPark(x, y) {
+    return '<g transform="translate(' + x + ' ' + y + ')"><g class="ka-dunya-roket"><path d="M0 -44 c12 8 15 22 12 38 h-24 c-3 -16 0 -30 12 -38z" fill="#fff" stroke="' + MK + '" stroke-width="3" stroke-linejoin="round"/>' +
+      '<circle cx="0" cy="-24" r="6" fill="#7FC4FF" stroke="' + MK + '" stroke-width="2.5"/><path d="M-12 -14 l-9 12 l9 2 M12 -14 l9 12 l-9 2" fill="#FF6B5B" stroke="' + MK + '" stroke-width="2.5" stroke-linejoin="round"/>' +
+      '<path d="M-14 -6 q14 4 28 0" fill="none" stroke="#FF6B5B" stroke-width="4"/></g><ellipse cx="0" cy="2" rx="22" ry="4" fill="' + MK + '" opacity=".18"/></g>';
+  }
+  function biyom(b, d, kid) {
+    var zemin = 'M0 238 Q200 200 400 238 V300 H0 Z';
+    switch (b) {
+      case 'deniz':
+        return '<defs><linearGradient id="kdD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CDEEFF"/><stop offset="1" stop-color="#6CC0EE"/></linearGradient></defs><rect width="400" height="300" fill="url(#kdD)"/>' +
+          '<g fill="#fff" opacity=".18"><path d="M60 0 L100 0 L40 300 L0 300z"/><path d="M200 0 L230 0 L190 300 L150 300z"/><path d="M320 0 L350 0 L330 300 L290 300z"/></g>' +
+          '<path d="' + zemin + '" fill="#F2DDAE" stroke="' + MK + '" stroke-width="2.5" opacity=".9"/>' +
+          '<g fill="none" stroke="#3FB86A" stroke-width="7" stroke-linecap="round" opacity=".75"><path d="M40 250 q-12 -26 4 -48 q14 -20 -2 -44"/><path d="M58 254 q10 -20 -2 -40"/><path d="M350 250 q12 -24 -2 -46 q-12 -18 4 -40"/></g>' +
+          '<g fill="#fff" stroke="#8FD3F5" stroke-width="2" opacity=".7"><circle cx="300" cy="120" r="7"/><circle cx="312" cy="96" r="4"/><circle cx="96" cy="140" r="5"/><circle cx="210" cy="60" r="6"/></g>';
+      case 'gok':
+        return '<defs><linearGradient id="kdG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + d[1] + '"/><stop offset="1" stop-color="' + d[0] + '"/></linearGradient></defs><rect width="400" height="300" fill="url(#kdG)"/>' +
+          (kid === 'colours' ? '<g fill="none" stroke-width="9" opacity=".35"><path d="M60 250 a140 140 0 0 1 280 0" stroke="#FF6B6B"/><path d="M69 250 a131 131 0 0 1 262 0" stroke="#FFB020"/><path d="M78 250 a122 122 0 0 1 244 0" stroke="#FFD23F"/><path d="M87 250 a113 113 0 0 1 226 0" stroke="#4CC36B"/><path d="M96 250 a104 104 0 0 1 208 0" stroke="#4AA8FF"/></g>' : '') +
+          '<g opacity=".85">' + bulutK(70, 60, 1) + bulutK(300, 44, 1.2) + bulutK(200, 110, 0.8) + '</g>' +
+          '<g fill="#fff" opacity=".8"><path d="M340 120 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/><path d="M40 130 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z"/></g>' +
+          '<path d="' + zemin + '" fill="' + d[1] + '" stroke="' + MK + '" stroke-width="2.5" opacity=".85"/>';
+      case 'sehir':
+        return '<rect width="400" height="300" fill="' + d[0] + '"/>' + bulutK(320, 50, 0.9) +
+          '<g stroke="' + MK + '" stroke-width="2.5" opacity=".55">' + [[30, 120, 46, '#B9C7FF'], [84, 90, 40, '#FFC2A1'], [130, 140, 52, '#9BE0B4'], [262, 110, 44, '#FFD98A'], [312, 80, 50, '#B9C7FF'], [368, 130, 40, '#FFB5C8']].map(function (b2) {
+            var w = b2[2], x = b2[0] - w / 2, h = 240 - b2[1], c = '';
+            for (var yy = b2[1] + 14; yy < 226; yy += 22) c += '<rect x="' + (x + 9) + '" y="' + yy + '" width="10" height="10" fill="#FFF6C9" stroke="none"/><rect x="' + (x + w - 19) + '" y="' + yy + '" width="10" height="10" fill="#FFF6C9" stroke="none"/>';
+            return '<rect x="' + x + '" y="' + b2[1] + '" width="' + w + '" height="' + h + '" rx="4" fill="' + b2[3] + '"/>' + c;
+          }).join('') + '</g>' +
+          '<path d="' + zemin + '" fill="#6B7590" stroke="' + MK + '" stroke-width="2.5" opacity=".85"/><path d="M0 262 Q200 226 400 262" fill="none" stroke="#FFD23F" stroke-width="4" stroke-dasharray="16 14" opacity=".9"/>';
+      case 'ev':
+        return '<rect width="400" height="300" fill="' + d[0] + '"/>' +
+          '<g opacity=".7"><rect x="250" y="40" width="110" height="90" rx="8" fill="#CDEEFF" stroke="' + MK + '" stroke-width="3"/>' + bulutK(290, 76, 0.6) + '<path d="M305 40 v90 M250 85 h110" stroke="' + MK + '" stroke-width="3"/></g>' +
+          '<g opacity=".55"><rect x="50" y="56" width="70" height="54" rx="4" fill="#fff" stroke="' + MK + '" stroke-width="3"/><path d="M58 102 l18 -22 14 14 10 -10 12 18z" fill="' + d[1] + '"/><circle cx="102" cy="72" r="6" fill="#FFD23F"/></g>' +
+          '<path d="M0 232 H400 V300 H0Z" fill="#EBD3AE" opacity=".9"/><path d="M0 232 H400" stroke="' + MK + '" stroke-width="2.5" opacity=".6"/>' +
+          '<ellipse cx="220" cy="268" rx="130" ry="20" fill="' + d[1] + '" opacity=".7"/>';
+      case 'okul':
+        return '<rect width="400" height="300" fill="' + d[0] + '"/>' +
+          '<g opacity=".75"><rect x="110" y="40" width="190" height="110" rx="8" fill="#3E6B52" stroke="#8A5A2A" stroke-width="8"/><text x="205" y="104" text-anchor="middle" font-family="Baloo 2,sans-serif" font-weight="800" font-size="36" fill="#fff" opacity=".85">A B C</text><path d="M126 138 h40" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".7"/></g>' +
+          '<path d="M0 232 H400 V300 H0Z" fill="#EBD3AE" opacity=".9"/><path d="M0 232 H400" stroke="' + MK + '" stroke-width="2.5" opacity=".6"/>';
+      default: /* doğa */
+        return '<rect width="400" height="300" fill="' + d[0] + '"/><circle cx="340" cy="54" r="26" fill="#FFE27A" opacity=".7"/>' + bulutK(90, 50, 0.9) +
+          '<path d="M0 220 Q90 170 190 214 Q290 170 400 214 V300 H0Z" fill="' + d[1] + '" opacity=".55"/>' +
+          '<g opacity=".8">' + agac(48, 190, 0.9) + agac(352, 186, 1) + agac(300, 200, 0.7) + '</g>' +
+          '<path d="' + zemin + '" fill="#9BE0A0" stroke="' + MK + '" stroke-width="2.5" opacity=".9"/>' +
+          '<g opacity=".8">' + [[120, 248, '#FF8FB1'], [150, 256, '#FFD23F'], [270, 250, '#B9C7FF'], [300, 258, '#FF8FB1']].map(function (f) { return '<path d="M' + f[0] + ' ' + (f[1] + 10) + ' v-10" stroke="#3FB86A" stroke-width="3"/><circle cx="' + f[0] + '" cy="' + f[1] + '" r="5" fill="' + f[2] + '" stroke="' + MK + '" stroke-width="2"/>'; }).join('') + '</g>';
+    }
+  }
   function dunya(kid) {
     var d = DUNYA[kid] || DUNYA.colours, yer = [[18, 30, 0.34], [300, 18, 0.3], [150, 60, 0.24], [330, 150, 0.32], [40, 170, 0.28], [220, 200, 0.3], [110, 120, 0.22], [250, 100, 0.26]];
-    return '<svg class="ka-dunya-r" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false"><rect width="400" height="300" fill="' + d[0] + '"/>' +
-      '<path d="M0 236 q60 -26 130 -6 q80 22 150 -4 q70 -24 120 2 V300 H0 Z" fill="' + d[1] + '"/>' +
-      yer.map(function (y, i) { return '<g transform="translate(' + y[0] + ' ' + y[1] + ') scale(' + y[2] + ') rotate(' + (i % 2 ? 8 : -8) + ' 50 50)" opacity=".2">' + motif(d[2][i % d[2].length]) + '</g>'; }).join('') + '</svg>';
+    return '<svg class="ka-dunya-r ka-dunya-' + (BIYOM[kid] || 'gok') + '" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">' + biyom(BIYOM[kid] || 'gok', d, kid) +
+      yer.map(function (y, i) { return '<g transform="translate(' + y[0] + ' ' + y[1] + ') scale(' + y[2] + ') rotate(' + (i % 2 ? 8 : -8) + ' 50 50)" opacity=".12">' + motif(d[2][i % d[2].length]) + '</g>'; }).join('') +
+      roketPark(28, 250) + '</svg>';
   }
   function ekle(ad, f) { R[ad] = f; delete onbellek[ad]; }
-  W.KIDS_RESIM = { ic: ic, ciz: ciz, boya: boya, boyanir: boyanir, cizgi: cizgi, dunya: dunya, DUNYA: DUNYA, ekle: ekle,
+  W.KIDS_RESIM = { ic: ic, ciz: ciz, boya: boya, boyanir: boyanir, cizgi: cizgi, dunya: dunya, DUNYA: DUNYA, BIYOM: BIYOM, ekle: ekle,
     A: { M: M, S: S, TEN: TEN, p: p, c: c, e: e, r: r, n: n, iz: iz, kalin: kalin, g: g, yazi: yazi, parlak: parlak, yildiz: yildiz, yildizYol: yildizYol, icAl: icAl, hazir: hazir, gunes: gunes, bulut: bulut, damla: damla, kar: kar, termometre: termometre, kisi: kisi, yuz: yuz, AILE: AILE }, var: function (ad) { return !!R[ad]; }, liste: function () { return Object.keys(R); }, balonResim: balonResim, rozet: rozet, beden: beden, giyFigur: giyFigur, cerceve: cerceve, sepet: sepet, kutu: kutu, canta: canta, ADLAR: Object.keys(R) };
 })(window);

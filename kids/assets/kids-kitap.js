@@ -117,15 +117,20 @@
 
   /* ---------------- arayüz ---------------- */
   var S = null;
+  /* 20.11.2026: üstte Türkçe masallar (kids-masal.js: Türkçe anlatım, İngilizce hedef kelime, çocuk söyler);
+     altta İngilizce okuma kitapları — Minikler (3-4 yaş) yalnız masalları görür. */
   function kitaplik(o) {
-    S = o; SES.sus();
-    var il = o.il(), okunan = il.kitap || {}, L = kitaplar(o.bant), benim = SV[o.bant] || 3;
+    S = o; SES.sus(); o.raf = function () { kitaplik(o); };
+    var il = o.il(), okunan = il.kitap || {}, L = o.bant === 'minik' ? [] : kitaplar(o.bant), benim = SV[o.bant] || 3, MS = W.KIDS_MASAL ? W.KIDS_MASAL.LISTE : [];
+    var masalRaf = MS.length ? '<h2 class="kk-raf-b">Masallar <small>Türkçe anlatım · İngilizce kelimeler</small></h2><ul class="kk-kitaplar km-raf">' + MS.map(function (b, i) { var kz = V.konuBul(b.konu), k = W.KIDS_MASAL.hedefler(b); return '<li><button type="button" class="kk-kapak' + (okunan[b.id] ? ' kk-okundu' : '') + '" data-masal="' + b.id + '" style="--r:' + kz.renk + ';--i:' + (i % 8) + '"><span class="kk-res">' + gorsel(b.sayfalar[0].r[0]) + '</span><b>' + esc(b.ad) + '</b><small lang="en">' + esc(k.slice(0, 3).map(W.KIDS_MASAL.en).join(' · ')) + '</small><em class="kk-sv kk-sv1">Masal · ' + k.length + ' kelime</em>' + (okunan[b.id] ? '<i class="ka-tik">' + C.simge('tik') + '</i>' : '') + '</button></li>'; }).join('') + '</ul>' : '';
+    var hepsi = MS.length + L.length, okuduk = MS.filter(function (b) { return okunan[b.id]; }).length + L.filter(function (b) { return okunan[b.id]; }).length;
     o.kok.innerHTML = '<div class="ka-dunya" aria-hidden="true">' + R.dunya('family') + '</div><header class="ka-konu-ust"><button type="button" class="ka-yuvarlak" data-kgeri aria-label="Haritaya dön">' + C.simge('ev') + '</button><h1 class="kk-bas">' + C.simge('book') + ' Kitaplık</h1><span></span></header>' +
-      '<main class="ka-sahne kk-raf"><p class="kk-alt">Bir kitap seç. Acadia sana okusun; kelimelere dokun, sonunda soruları cevapla. <b>' + L.filter(function (b) { return okunan[b.id]; }).length + ' / ' + L.length + '</b> kitap okudun.</p><ul class="kk-kitaplar">' +
+      '<main class="ka-sahne kk-raf"><p class="kk-alt">Bir masal seç. Acadia sana Türkçe anlatsın, yeni kelimeleri sen söyle! <b>' + okuduk + ' / ' + hepsi + '</b> kitap okudun.</p>' + masalRaf + (L.length ? '<h2 class="kk-raf-b">İngilizce okuma <small>Acadia İngilizce okur</small></h2>' : '') + '<ul class="kk-kitaplar">' +
       L.map(function (b, i) { var kz = V.konuBul(b.konu); return '<li><button type="button" class="kk-kapak' + (b.sv === benim ? ' kk-benim' : '') + (okunan[b.id] ? ' kk-okundu' : '') + '" data-kitap="' + b.id + '" style="--r:' + kz.renk + ';--i:' + (i % 8) + '"><span class="kk-res">' + gorsel(b.sayfalar[0].r[0]) + '</span><b lang="en">' + esc(b.ad) + '</b><small>' + esc(b.tr) + '</small><em class="kk-sv kk-sv' + b.sv + '">' + (b.sv === benim ? 'Senin için' : 'Kolay') + ' · ' + b.sayfalar.length + ' sayfa</em>' + (okunan[b.id] ? '<i class="ka-tik">' + C.simge('tik') + '</i>' : '') + '</button></li>'; }).join('') + '</ul></main>';
     o.kok.dataset.gorunum = 'kitap';
     o.kok.querySelector('[data-kgeri]').addEventListener('click', function () { SES.fx('dokun'); SES.sus(); o.geri(); });
     o.kok.querySelectorAll('[data-kitap]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); ac(b.getAttribute('data-kitap'), 0); }); });
+    o.kok.querySelectorAll('[data-masal]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('dokun'); W.KIDS_MASAL.ac(o, b.getAttribute('data-masal'), 0); }); });
     SES.soyle('Kitaplığa hoş geldin! Bir kitap seç.', 'tr');
   }
   function ac(id, n) {

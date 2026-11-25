@@ -46,7 +46,7 @@ test('örnek okul sunucuya gitmez; başka her kod sunucuya sorulur', () => {
   const v = read('kids/assets/kids-veri.js'), app = read('kids/assets/kids-app.js'), og = read('kids/assets/kids-ogretmen.js'), b = read('kids/assets/kids-bulut.js');
   assert.match(v, /kod: 'ORNEK-2026'/);
   assert.match(b, /ORNEK_KOD = 'ORNEK-2026'/);
-  assert.match(app, /if \(k === V\.OKUL\.kod\) \{[^}]*return girisSinif\(\); \}\s*yukleniyor[\s\S]{0,80}B\.okulBul\(k\)/);
+  assert.match(app, /if \(V\.ornek\(k\)\) \{[^}]*return girisSinif\(\); \}\s*yukleniyor[\s\S]{0,80}B\.okulBul\(k\)/);
   assert.match(og, /if \(kod === V\.OKUL\.kod\) \{[\s\S]{0,200}\}\s*var b = [\s\S]{0,200}B\.ogretmenGiris\(kod, sifre\)/);
   assert.doesNotMatch(v, /AY-2026/);   // gerçek bir müşterinin koduyla çakışmasın
 });

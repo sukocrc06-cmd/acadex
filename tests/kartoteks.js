@@ -36,7 +36,7 @@ test('Kartoteks paneli: sınıf, başlık ve stil dosyası bağlı', () => {
   assert.match(view, /<h1 class="disp">Acadex Kartoteks<\/h1>/);
   assert.match(view, /class="kt-slip" data-kx-streak=""/);
   assert.match(view, /class="kt-cab land"/);
-  const a = html.indexOf('href="css/acadex-ink.css"'), b = html.indexOf('href="css/acadex-kartoteks.css"');
+  const a = html.indexOf('href="css/acadex-ink.css'), b = html.indexOf('href="css/acadex-kartoteks.css"');
   assert.ok(a > 0 && b > a, 'acadex-kartoteks.css, acadex-ink.css\'ten sonra yüklenmeli');
 });
 
