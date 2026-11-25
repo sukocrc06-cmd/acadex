@@ -217,7 +217,7 @@ test('ASETATTA "(Kaynak 2, 8)" KALMAZ, UYDURMA GRAFİK, ÇİFT SONUÇ (14.11.202
   const f = new Function(ts.transpileModule(sr.slice(a, b), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + ';return cleanCite;')();
   assert.equal(f('Collins Columbia’da yörüngede kaldı (Kaynak 1, 2, 8)'), 'Collins Columbia’da yörüngede kaldı');
   assert.equal(f('650 milyon izleyici (NASA tahmini)'), '650 milyon izleyici (NASA tahmini)', 'kurum adı silinmemeli');
-  assert.match(sr, /\.map\(\(x: any\) => dropLead\(dropAttr\(cleanCite\(String\(x \|\| ""\)\)\)\)\)\.filter\(Boolean\)\.slice\(0, 6\)/, 'maddeler temizlenmiyor');
+  assert.match(sr, /\.map\(\(x: any\) => dropLead\(dropAttr\(dropDated\(cleanCite\(String\(x \|\| ""\)\)\)\)\)\)\.filter\(Boolean\)\.slice\(0, 6\)/, 'maddeler temizlenmiyor');
   assert.ok(sr.includes('Never split a total into parts the sources do not give'), 'yazara uydurma dağılım yasağı yok');
   assert.ok(sr.includes('a total divided into parts the source does not state is "unsupported"'), 'denetçi uydurma dağılımı geçiriyor');
   assert.match(ink, /if \(plotMeta\.via !== 'research' && !body\.slice\(-2\)\.some/, 'araştırmalı destede ikinci sonuç öneriliyor');
@@ -305,7 +305,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
   const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
   const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
-  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3]);
+  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), (d) => (d && Array.isArray(d.data) ? d.data : []));
   const B3 = ['Eylül 2021: Enflasyon %19 iken faiz indirimleri başladı', '2022 – Enflasyon %85 seviyesine yükseldi', '2023: Seçim sonrası politika değişti'];
   const B5 = B3.concat(['2024: Sıkılaşma sürdü', '2025: Dezenflasyon']);
   const icinde = (els, ad) => els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, ad + ': öğe asetatın dışına taşıyor (' + e.type + ' ' + e.x + ',' + e.y + ' ' + e.w + '×' + e.h + ')'));
@@ -341,8 +341,8 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   assert.equal(tarihBol('Bu değişim eş zamanlı gerçekleşti'), null, 'tarihsiz cümle tarih diye bölünmemeli');
   // Zaman çizelgesi: ilk iki asetat klasik OLMAYAN iki ayrı görünüm alır.
   assert.deepEqual(VSIRA.time.slice(0, 2), [2, 1]);
-  assert.match(ink, /if \(kind === 'list' && arr\(s\.warnI\)\.length\) \{ vSay\.tek = 1;/,
-    'uyarı yalnız listeyi klasikte tutmalı (zaman çizelgesi uyarı yüzünden klasiğe düşüyordu)');
+  // 25.11.2026: uyarı hiçbir türü klasiğe kilitlemez (işaret her yazı öğesine çizilir)
+  assert.doesNotMatch(ink, /arr\(s\.warnI\)\.length\) \{ vSay\.tek = 1;/, 'uyarı listeyi yine klasiğe kilitliyor');
   assert.match(ink, /if \(kind === 'list' && arr\(s\.b\)\.length && arr\(s\.b\)\.length <= 2 && !s\.img\) return vSay\.aile === LAILE\[6\] \? 0 : 6;/, 'ince asetat boş listeyle basılıyor');
   assert.match(ink, /arr\(d\.rows\)\.length <= 2 \? 27/, 'iki satırlık tablo küçük yazıyla basılıyor');
   assert.match(ink, /if \(yerTutucu\(sl\) \|\| sl\.v \|\|/, 'kartlı düzenin üstüne fotoğraf konuyor');
@@ -604,7 +604,7 @@ test('CANLI DESTE 14.11 (irade): madde içi kaynak girişi, yayın yılı öneki
   const cizelge = ['1998 – ilk deney yapıldı', '2007 – glikoz çalışması', '2016 – tekrar çalışması'];
   assert.deepEqual(dropYear(cizelge), cizelge, 'gerçek zaman çizelgesi bozulmaz');
   assert.deepEqual(dropYear(['2016 – tek madde']), ['2016 – tek madde']);
-  assert.match(sr, /dropYear\(\(Array\.isArray\(s\.bullets\)[^\n]+dropLead\(dropAttr\(cleanCite\(/, 'süzgeçler maddelere uygulanmıyor');
+  assert.match(sr, /dropYear\(\(Array\.isArray\(s\.bullets\)[^\n]+dropLead\(dropAttr\(dropDated\(cleanCite\(/, 'süzgeçler maddelere uygulanmıyor');
   assert.ok(sr.includes('never write a domain name') && sr.includes('never the publication year of the source'), 'istemde alan adı / yayın yılı yasağı yok');
   // taraf adı harf/rakam taşımıyorsa ("—", "…") "two" listeye iner — sunucuda da istemcide de
   assert.match(sr, /s\.heads\.slice\(0, 2\)\.filter\(\(h: any\) => \/\[\\p\{L\}\\d\]\/u\.test\(String\(h \|\| ""\)\)\)\.length < 2\)\) k = "list"/);
@@ -668,7 +668,8 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
   const { VARY, VSIRA, LAILE, TINT } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', ink.slice(a, b) + ';return { VARY, VSIRA, LAILE, TINT };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3]);
   // klasik + çeşitler: her türde en az 4 görünüm
-  Object.keys(VARY).forEach((k) => assert.ok(new Set(VSIRA[k]).size >= 4, k + ': ' + new Set(VSIRA[k]).size + ' görünüm var, en az 4 olmalı'));
+  /* grafik veri türüdür: klasik + çıkarımlı iki hâli yeter (25.11.2026) */
+  Object.keys(VARY).filter((k) => k !== 'chart').forEach((k) => assert.ok(new Set(VSIRA[k]).size >= 4, k + ': ' + new Set(VSIRA[k]).size + ' görünüm var, en az 4 olmalı'));
   assert.ok(VARY.list.length >= 10 && VARY.stat.length >= 4 && VARY.two.length >= 3 && VARY.quote.length >= 3);
   // kolon çeşidi artık kart değil: büyük renkli kutusu yok, kart çeşidinin var
   const KOL = ['Pomodoro: 25 dakika odak ve 5 dakika mola döngüsüyle çalışılır', 'Eisenhower: işler önem ve aciliyete göre dörde ayrılır', 'Pareto: sonuçların çoğu işlerin küçük bir bölümünden gelir'];
@@ -704,16 +705,18 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   const Q = { t: 'Peter Drucker', b: ['Ölçemediğiniz şeyi yönetemezsiniz.'], img: { q: 'clock desk' } };
   assert.equal(bas(Q, 'quote').v || 0, 0); assert.ok(bas(Q, 'quote').v > 0);
 
-  /* CANLI DESTE 14.11 (etkili ders çalışma): beş listenin beşi de uyarılıydı
-     ("veri yok"), uyarı listeyi klasiğe kilitlediği için hepsi aynı düzenle
-     basıldı. Uyarılı listeler klasik ↔ bölünmüş döner; uyarı ul'de kalır. */
+  /* CANLI DESTE 14.11 (etkili ders çalışma): beş listenin beşi de uyarılıydı ve hepsi
+     aynı düzenle basıldı. 14.11'de klasik ↔ bölünmüş dönüşüme açıldı; 25.11 "History of
+     Money" destesinde 9 listenin 6'sı yine yalnız bu iki görünümdeydi. Artık uyarılı liste
+     de bütün çeşitleri dolaşır; uyarı işareti madde listesine ve kart yazılarına çizilir. */
   bas = yeni();
-  const uyarili = [DUZ, DUZ, DUZ, DUZ, DUZ].map((bb) => bas({ t: 'Başlık', b: bb, warnI: [1] }, 'list'));
-  assert.deepEqual(uyarili.map((x) => x.v || 0), [0, 9, 0, 9, 0], 'uyarılı listeler tek düzende kalıyor');
-  uyarili.forEach((x) => assert.ok(x.els.some((e) => e.type === 'ul' && e.text.includes(DUZ[1])), 'uyarılı madde ul dışında kaldı, işaret çizilmez'));
-  // bölünmüş düzen uymuyorsa (2 madde) başka kartlı çeşide değil klasiğe düşer
-  bas = yeni(); bas({ t: 'B', b: DUZ, warnI: [0] }, 'list');
-  assert.equal(bas({ t: 'B', b: KOL.slice(0, 2), warnI: [0] }, 'list').v || 0, 0);
+  const uyarili = [DUZ, DUZ, DUZ, DUZ, DUZ].map((bb) => bas({ t: 'Başlık', b: bb, warnI: [1] }, 'list').v || 0);
+  assert.ok(new Set(uyarili).size >= 4, 'uyarılı listeler az görünümde kalıyor: ' + uyarili.join(','));
+  const uyarEs = new Function(ink.match(/var uyarEs = function \(w, t\) \{.*\};/)[0] + 'return uyarEs;')();
+  assert.equal(uyarEs('Store of value: Accepted as a claim on future purchasing power', 'Accepted as a claim on future purchasing power'), true, 'kolondaki açıklama uyarılı maddeyle eşleşmiyor');
+  assert.equal(uyarEs('Store of value: Accepted as a claim', 'Store'), false, 'kısa terim uyarılı sayılmamalı');
+  assert.match(ink, /else if \(e\.type === 't' && !e\.dz && e\.text\) \{ var w0 = wl\.filter\(function \(w\) \{ return uyarEs\(w, e\.text\); \}\)\[0\];/, 'uyarı kart yazısına taşınmıyor');
+  assert.match(ink, /if \(e\.type === 't' && e\.warn && e\.warn\.indexOf\(e\.text\) >= 0\) \{ var wy0 = /, 'kart yazısında uyarı çizilmiyor');
   /* CANLI DESTE 14.11 (kanın fizyolojik özellikleri): 14 listenin 9'u tek cümle
      kutusuyla (v6) basıldı. Sebep zincirdi: akış kontrolü dört maddelik, 420+
      karakterlik listeye "kalabalık" dedi, "ikiye böl" iki maddelik çiftler üretti,
@@ -727,13 +730,19 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   // aynı destede 5. asetat "birinci taraf / ikinci taraf" ile basıldı: taraf adı yoksa liste
   assert.match(ink, /if \(kind === 'two' && arr\(s\.b\)\.length && arr\(s\.heads\)\.filter\(function \(h\) \{ return \/\\S\/\.test\(String\(h \|\| ''\)\); \}\)\.length < 2\) kind = 'list';/);
   // aynı destede "red pen writing on book" aramasından oje süren kadın fotoğrafı geldi: sorguyla ortak sözcüğü olan öne alınır
-  const { keysOf } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['keysOf']);
-  const SQ = keysOf('person holding on red pen while writing on book');
-  const uyar = (alt) => SQ.some((k) => keysOf(alt).includes(k));
+  const G = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['keysOf', 'GORSEL_BOS', 'gorselKok', 'gorselUyar']);
+  const SQ = G.gorselKok('person holding on red pen while writing on book');
+  const uyar = (alt) => G.gorselUyar(SQ, alt);
   assert.equal(uyar('woman putting on nail polish on her finger'), false);
   assert.equal(uyar('person writing on white notebook'), true);
+  /* 25.11.2026 (History of Money): "ancient greek silver coin" aramasına kahve kupası geldi —
+     uyan yoksa ilk sonuç ALINMAZ; "coin"/"coins" aynı kök; "close", "photo" sayılmaz. */
+  const CQ = G.gorselKok('ancient greek silver coins museum close up');
+  assert.equal(G.gorselUyar(CQ, 'A ceramic mug with a spoon inside on a green marble surface'), false);
+  assert.equal(G.gorselUyar(CQ, 'close-up photo of a mug'), false, '"close" / "photo" eşleşme sayılıyor');
+  assert.equal(G.gorselUyar(CQ, 'Silver coin of Athens with owl'), true);
   const rsrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'supabase/functions/sunum-research/index.ts'), 'utf8');
-  assert.match(rsrc, /const p = \(qk\.length \? ok\.find\(fit\) : null\) \|\| ok\[0\];/, 'uyan fotoğraf yoksa ilk sonuç kalmalı');
+  assert.match(rsrc, /const p = qk\.length \? ok\.find\(\(x\) => gorselUyar\(qk, x\.alt\)\) \|\| null : ok\[0\] \|\| null;/, 'uyan fotoğraf yoksa ilgisiz ilk sonuç alınıyor');
   assert.match(rsrc, /p = take\(u\.photos, q\);/);
 
   // ---- fotoğraf biçimleri: gerçek placePhoto / placePair / placeTam ----
@@ -894,6 +903,63 @@ test('CANLI DESTE 25.11 (History of Guns) — kaynakça ızgarası, Commons yaza
   assert.equal(R.tarihSorgu('Elektrikli araçların gelişimi 2020-' + yil, 'ev satışları ' + yil), 'ev satışları ' + yil, 'konu yıl taşıyorsa sorgunun yılı kalmalı');
   assert.match(ts, /\.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => tarihSorgu\(topic, q\)\)\)\]/);
   assert.match(ts, /it never lists what the sources fail to provide/);
+});
+
+/* CANLI DESTE 25.11 (History of Money, ikinci): kapanışa ilk üç başlık basıldı
+   ("sızıntı"); 9 listenin 6'sı iki görünümde kaldı; iki sütunda madde yanlış
+   tarafa düştü; maddelerde "(Bank of England, 2018)" atıfı kaldı. Eksik şablonlar
+   (bento, süreç okları, grafik+çıkarım, matris rozetleri, editoryal kapak) mevcut
+   öğe sistemine çeşit olarak eklendi: ekran, PDF ve PPTX aynı öğeleri basar. */
+test('CANLI DESTE 25.11 (History of Money 2) — kapanış, yeni düzenler, iki sütun sınırı, rozet, kapak, yazar-tarih atıfı', () => {
+  const ink = read('js/acadex-ink.js'), css = read('css/acadex-ink.css'), ts = read('supabase/functions/sunum-research/index.ts');
+  // kapanış: önceki başlıklar basılmaz
+  assert.match(ink, /concat\(\[\{ t: 'Teşekkürler', k: 'end', b: \[\] \}\]\)/, 'kapanış şeridine başlıklar konuyor');
+  assert.doesNotMatch(ink, /text: b\.join\(' · '\), size: 18, color: SOFT, align: 'center'/, 'kapanış düzeni hâlâ başlık satırı basıyor');
+  // yeni çeşitler gerçek kodla kurulur, asetattan taşmaz
+  const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
+  let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
+  const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
+  const M = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA, LAILE, SUREC, ikiBol };')(E, head, () => [], '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), (d) => (d && Array.isArray(d.data) ? d.data : []));
+  const icinde = (els, ad) => els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, ad + ' taşıyor: ' + e.type));
+  const B = ['Barter: goods were swapped directly when both sides wanted what the other had', 'Commodity money: grain and shells carried value because people needed them', 'Coins: standard weights of metal made counting and carrying easier for traders'];
+  const bento = M.VARY.list[10]('Forms of money', B); assert.ok(bento, 'bento kurulmadı'); icinde(bento, 'bento');
+  assert.equal(M.VARY.list[10]('X', B.concat(['Paper money: notes promised metal held by a bank, travelled more easily than coins and soon replaced heavy metal in long-distance trade'])), null, '4 uzun madde bento kutusuna sığmaz');
+  assert.equal(M.VARY.list[11]('Forms of money', B), null, 'sıra bildirmeyen içerikte süreç okları çizilmemeli');
+  const sur = M.VARY.list[11]('From Barter to Digital Money', B); assert.ok(sur, 'süreç okları kurulmadı'); icinde(sur, 'süreç'); assert.equal(sur.filter((e) => e.type === 'arrow').length, 2);
+  assert.ok(M.SUREC.test("Takastan dijital paraya: paranın evrimi"), 'Türkçe "evrim" süreç sayılmıyor');
+  assert.equal(M.SUREC.test('Neden para var? Bir tarih okuması'), false, '"neden" süreç sayılıyor');
+  const ch = M.VARY.chart[0]('Paper money share', ['Cash still dominates in emerging markets', 'Card payments grew fastest after 2015'], { data: { type: 'bar', labels: ['2010', '2015', '2020'], data: [80, 70, 55] } });
+  assert.ok(ch && ch.some((e) => e.type === 'chart') && ch.filter((e) => e.type === 't').length === 2, 'grafik + çıkarım kurulmadı'); icinde(ch, 'grafik+çıkarım');
+  assert.equal(M.VARY.chart[0]('X', ['tek çıkarım'], { data: { data: [1, 2] } }), null);
+  assert.deepEqual(M.VSIRA.chart, [1, 0]);
+  [11, 12].forEach((v) => assert.ok(M.VSIRA.list.includes(v) && M.LAILE[v], v + '. çeşit sırada/ailede yok'));
+  // iki sütun sınırı: yazarın n1'i, yoksa orta
+  assert.equal(M.ikiBol(['a', 'b', 'c'], { split: 1 }), 1);
+  assert.equal(M.ikiBol(['a', 'b', 'c'], { split: 3 }), 2, 'geçersiz sınır ortaya düşmeli');
+  assert.equal(M.ikiBol(['a', 'b', 'c'], {}), 2);
+  assert.equal((ink.match(/var h = ikiBol\(b, c\)/g) || []).length, 3, 'iki sütun çizimlerinin biri hâlâ ortadan bölüyor');
+  assert.match(ink, /s\.k = 'two'; s\.heads = arr\(x\.heads\)\.map\(txt\); s\.split = \+x\.split \|\| 0;/);
+  assert.match(ink, /cx\.heads = s\.heads; cx\.split = s\.split;/);
+  assert.match(ts, /"n1" = how many bullets belong to side one/);
+  assert.match(ts, /split: k === "two" \? Math\.max\(0, Math\.min\(bullets\.length - 1, Number\(s\.n1\) \|\| 0\)\) : 0,/);
+  assert.match(ts, /if \(sd\.bullets\.some\(\(b, i\) => b !== bullets\[i\]\)\) s\.n1 = 0;/, 'sidesOf dizdiğinde yazarın sınırı geçersiz kalmalı');
+  // matris rozetleri
+  const rz = new Function('X', ink.match(/var ROZET = \[.*\];/)[0] + ink.match(/var rozet = function \(c\) \{.*\};/)[0] + 'return rozet;')((x) => String(x));
+  assert.match(rz('✓'), /sx-pill-ok/); assert.match(rz('No'), /sx-pill-no/); assert.match(rz('Yüksek'), /sx-pill-hi/); assert.match(rz('Medium'), /sx-pill-mid/);
+  assert.equal(rz('Bank of England'), 'Bank of England', 'düz metin rozet olmamalı');
+  assert.match(ink, /r\.map\(function \(c, ci\) \{ return '<td>' \+ \(ci \? rozet\(c\) : X\(c\)\) \+ '<\/td>'; \}\)/, 'ölçüt sütunu da rozetleniyor');
+  assert.match(css, /\.sx-pill-ok\{background:#D9EFE3;color:#1D6B43\}/);
+  assert.match(ts, /write a feature matrix: headers = \["Criterion", item1, item2\(, item3\)\]/);
+  // editoryal kapak
+  assert.match(ink, /bic\[made\.indexOf\(sl\)\] = sl\.lay === 'cover' \? 'tam'/);
+  assert.match(ink, /if \(sl\.lay === 'cover'\) \{\n\s+if \(\(p\.w \|\| 3\) < \(p\.h \|\| 2\) \* 1\.2\) return null;/, 'dikey fotoğraf kapağı kaplamamalı');
+  // yazar-tarih atıfı
+  const { dropDated } = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['dropDated']);
+  assert.equal(dropDated('Money’s forms span roughly 11,000 years (Bank of England, 2018).'), 'Money’s forms span roughly 11,000 years.');
+  assert.equal(dropDated('Store of value: accepted as a claim on future purchasing power (Wikipedia, 25 November 2026)'), 'Store of value: accepted as a claim on future purchasing power');
+  assert.equal(dropDated('Mesopotamian shekel (c. 2150 BC) was linked to barley'), 'Mesopotamian shekel (c. 2150 BC) was linked to barley', 'tarih ayracı atılıyor');
+  // görsel sorgusu somut
+  assert.match(ts, /"ancient greek silver coin museum", not "ancient greece" or "economy"/);
 });
 
 summary();

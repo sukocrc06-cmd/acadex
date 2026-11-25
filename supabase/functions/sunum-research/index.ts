@@ -166,9 +166,11 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
   const memo = new Map<string, Photo[]>();   // aynı sorgunun ikinci fotoğrafı yeni arama harcamaz
   /* Sorguyla ortak sözcüğü olan fotoğraf öne alınır: "person holding red pen while
      writing on book" aramasından "woman putting on nail polish" fotoğrafı ders
-     çalışma destesine kondu (canlı deste 14.11.2026). Uyan yoksa ilk sonuç kalır. */
-  const take = (list: Photo[], q = "") => { const qk = keysOf(q); const fit = (x: Photo) => { const ak = keysOf(x.alt); return qk.some((k) => ak.includes(k)); };
-    const ok = list.filter((x) => x && x.large && !used.has(x.large)); const p = (qk.length ? ok.find(fit) : null) || ok[0]; if (p) used.add(p.large); return p || null; };
+     çalışma destesine kondu (canlı deste 14.11.2026). Uyan yoksa fotoğraf ALINMAZ:
+     "Coinage Takes Hold in Ancient Greece" asetatına ilk sonuç diye kahve kupası
+     geldi (25.11.2026); sıradaki arşive (Pexels, Commons) geçilir. */
+  const take = (list: Photo[], q = "") => { const qk = gorselKok(q);
+    const ok = list.filter((x) => x && x.large && !used.has(x.large)); const p = qk.length ? ok.find((x) => gorselUyar(qk, x.alt)) || null : ok[0] || null; if (p) used.add(p.large); return p; };
   // Wikipedia aramaları paralel; stok aramaları sırayla (sınır sayacı ve tekrar denetimi için).
   const wiki = await Promise.all(hints.map((h) => h.entity ? wikiImage(h.entity) : Promise.resolve(null)));
   const photos: (Photo & { i: number })[] = [];
@@ -187,6 +189,11 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
 // ---------- kaynak metninden konuya en yakın paragraflar ----------
 // Modele kaynağın BAŞI değil, konuyla örtüşen yerleri gider: sayfanın ilk 900
 // karakteri çoğu sitede menü, çerez bildirimi ve giriş cümlesidir.
+/* Fotoğraf açıklamasıyla sorgu karşılaştırması: "coin" ile "coins" aynı köktür (önek),
+   "close", "photo", "with" gibi her açıklamada geçen sözcükler sayılmaz. */
+const GORSEL_BOS = /^(?:with|from|close|photo|image|pictur|view|shot|backgr|detail|showin|over|into|that|this|their|while|scene|concep)$/;
+const gorselKok = (q: string): string[] => keysOf(q).filter((k) => !GORSEL_BOS.test(k));
+const gorselUyar = (qk: string[], alt: string): boolean => { const ak = gorselKok(alt); return qk.some((k) => ak.some((a) => a.startsWith(k) || k.startsWith(a))); };
 const keysOf = (s: string): string[] => [...new Set((String(s || "").toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, 6)))];
 // Konunun alt başlıkları ("altın", "mevduat faizi"…) bir metinde geçiyor mu: sözcük başından kök eşleşmesi.
 // Kaynak seçiminde ve destenin konuyu yanıtlayıp yanıtlamadığını ölçmekte kullanılır.
@@ -400,6 +407,10 @@ const ABSOLUTE = /(?:^|\s)en (?:hızlı|büyük|küçük|uzun|kısa|yüksek|dü�
 const mixedUnits = (labels: string[]) => new Set((labels || []).map((l) => (String(l).match(/\(([^)]+)\)\s*$/) || [])[1]).filter(Boolean).map((u) => String(u).toLocaleLowerCase("tr").trim())).size > 1;
 // "(src1)", "(src2, src4)", "[src 3]": model kaynak alanının adını metne de yazdı
 // (canlı deste 14.11.2026, zaman yönetimi — madde, alıntı ve kolon metinlerinde).
+/* Madde sonundaki yazar-tarih atıfı atılır: "(Bank of England, 2018)", "(Wikipedia,
+   25 November 2026)" — istem yasaklıyor ama "History of Money" destesinde (25.11.2026)
+   dört maddede kaldı; "[n]" atfıyla birlikte iki ayrı atıf biçimi basılıyordu. */
+const dropDated = (b: string): string => String(b || "").replace(/\s*\((?:[^()]{2,80}),\s*(?:\d{1,2}\s+\p{L}+\s+)?(?:1[5-9]|20)\d{2}[a-z]?\)(?=[.!?;]?\s*$|[.!?;]\s)/gu, "").trim();
 const cleanCite = (t: string) => String(t || "").replace(/\s*\(\s*(?:Kaynak(?:lar)?|Sources?)\s*\d+(?:\s*(?:,|ve|and|&)\s*\d+)*\s*\)/gi, "").replace(/\s*[(\[]\s*src\s*\d+(?:\s*(?:,|;|ve|and|&)\s*(?:src\s*)?\d+)*\s*[)\]]/gi, "").trim();
 /* Üç "sayı" aynı ölçünün üç değeri değilse sayı asetatı olmaz. Aynı destede
    Pomodoro'nun 25 ve 5 dakikası "Sabah: dakika · Öğle: dakika · Akşam: dakika"
@@ -693,11 +704,11 @@ Rules:
 - The FIRST content slide hooks the audience: why this topic matters, with one concrete fact from the sources. The LAST content slide is the conclusion: kind "list" with exactly 3 takeaway bullets. Every slide must have real content — never leave bullets empty.
 - For each slide pick the layout that fits the content:
   "stat": exactly 3 key numbers from the sources (value + short label);
-  "chart": one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
-  "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names; 2-3 bullets per side, first all bullets of side one, then all of side two) — three or more people, items or groups go in a "list" or "table", never in "two";
-  "table": a small comparison table (max 5 rows, max 4 columns); "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
+  "chart": put 2-3 short insights (max 120 characters each: what the chart shows, from the sources) in "bullets"; one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
+  "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names; 2-3 bullets per side, first all bullets of side one, then all of side two; "n1" = how many bullets belong to side one — every bullet stays on its own side) — three or more people, items or groups go in a "list" or "table", never in "two";
+  "table": a small comparison table (max 5 rows, max 4 columns). For comparing 2-3 items on several criteria write a feature matrix: headers = ["Criterion", item1, item2(, item3)], one row per criterion (speed, cost, risk, adoption…), cells short ratings from the sources — "High"/"Medium"/"Low", "Yes"/"No", "✓"/"✕" — or at most 6 words; "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list".
-  Use at least 3 different layouts across the deck; never more than 2 "list" slides in a row; at most half of the slides may be "list".
+  Use at least 4 different layouts across the deck when the sources allow (a "two" or "table" comparison, a "time" chronology, a "stat" or "chart" with real numbers); never two "list" slides in a row unless the content is truly a list; at most half of the slides may be "list". Never invent a number, date or rating to fill a layout.
 - When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give a clock time only together with the time zone the source itself states — never invent or translate a time-zone abbreviation; if the source gives none, give the date without the clock time.
 - Today is ${new Date().toISOString().slice(0, 10)}. Say which period every number refers to; if the newest data in the sources is more than a year old, the conclusion slide says up to which date the deck is current. Never present old data as the present situation.
 - Do not write academic citations such as "(Yılmaz et al., 2023)" inside bullets or labels; attribution is carried by "src". Naming the reporting institution ("TCMB raporu") is fine.
@@ -708,9 +719,9 @@ Rules:
 - Use the established ${L} term for technical vocabulary (e.g. breccia = "breş"); if unsure, keep the original term in parentheses.
 - "src" = the source ids used on that slide. Source ids go ONLY in "src": never write "(Kaynak 2)", "(Source 2)" or "(src2)" inside titles, bullets, labels or notes.
 - "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets. Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters, and never say "X kaynağı", "X blogu" or a website's name. In Turkish say "slayt", never "slide". Notes describe the slide as it is: do not mention a chart or table the slide does not have. Fewer than 45 words is a failure.
-- "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 2-4 concrete visual words (objects, places, scenes; no abstract words). "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
+- "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 3-6 concrete visual words naming a physical object, place or scene that a camera can photograph, with its period or material ("ancient greek silver coin museum", not "ancient greece" or "economy"); no abstract words. "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
 - "cover_image" = same shape, for the cover slide of the whole deck.
-Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
+Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"n1":0,"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
     // Kaynak bütçesi: toplam ~18 bin karakter, kaynak başına en çok 3 bin.
     // Paragraflar konu + sorgu sözcükleriyle puanlanıp seçilir.
     const keys = keysOf([topic, topicEn, ...queries, ...aspects].join(" "));
@@ -779,7 +790,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       const ids = (Array.isArray(s.src) ? s.src : []).map((x: any) => Number(x)).filter((x: number) => srcs.some((y) => y.id === x));
       const idx = idxOf(ids);
       const kind = KINDS.includes(s.kind) ? s.kind : "list";
-      const bullets = dropYear((Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => dropLead(dropAttr(cleanCite(String(x || ""))))).filter(Boolean).slice(0, 6));
+      const bullets = dropYear((Array.isArray(s.bullets) ? s.bullets : []).map((x: any) => dropLead(dropAttr(dropDated(cleanCite(String(x || "")))))).filter(Boolean).slice(0, 6));
       if (kind === "quote" && !bullets.length) { const qt = String(s.quote || s.text || "").trim(); if (qt) bullets.push(qt); }
       if (kind === "quote" && bullets.length) bullets[0] = safeQuote(bullets[0]);
       const warn: number[] = [];
@@ -820,9 +831,9 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
       const yaz = (t: string) => yazim(t, lang);
-      if (k === "two") { const sd = sidesOf(bullets, s.heads.map(String), warn); bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn); }
+      if (k === "two") { const sd = sidesOf(bullets, s.heads.map(String), warn); if (sd.bullets.some((b, i) => b !== bullets[i])) s.n1 = 0; /* dizildiyse sınır ortadır */ bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn); }
       if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
-      return { title: yaz(cleanCite(String(s.title || ""))), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map((h: any) => cleanCite(String(h))) : [], stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
+      return { title: yaz(cleanCite(String(s.title || ""))), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map((h: any) => cleanCite(String(h))) : [], split: k === "two" ? Math.max(0, Math.min(bullets.length - 1, Number(s.n1) || 0)) : 0, stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });
 
     // İçeriği olmayan asetat (madde, sayı, grafik, tablo — hiçbiri yok) kurguya
