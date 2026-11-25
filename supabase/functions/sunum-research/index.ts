@@ -240,7 +240,11 @@ const verified = (claim: string, idx: Set<string>): boolean => {
 /* Ondalıklı sayı kısa da olsa ayırt edicidir: "%5,7 güneş" ve "%3,4 jeotermal"
    sayı asetatından sonra iki maddelik ayrı bir asetat olarak yinelendi
    (canlı deste 14.11.2026) — "57" iki hane diye sayılmıyordu. */
-const sigNums = (t: string): string[] => [...new Set(numTokens(t).filter((x) => !/^(1[5-9]|20)\d{2}$/.test(x)).filter((x) => /[.,]/.test(x) || x.length >= 3).map((x) => x.replace(/[.,]/g, "")))];
+/* İki haneli yüzde de ayırt edici sayıdır: "History of Money" destesinde (25.11.2026)
+   "%80 nakit" dört asetatta yinelendi; "80" iki hane olduğu için hiç sayılmıyordu. */
+const pctOf = (t: string): Set<string> => new Set((String(t || "").match(/%\s?\d+(?:[.,]\d+)?|\d+(?:[.,]\d+)?\s?%/g) || []).map((m) => m.replace(/[%\s.,]/g, "")));
+const sigNums = (t: string): string[] => { const pc = pctOf(t); return [...new Set(numTokens(t).filter((x) => !/^(1[5-9]|20)\d{2}$/.test(x)).filter((x) => /[.,]/.test(x) || x.length >= 3 || pc.has(x.replace(/[.,]/g, ""))).map((x) => x.replace(/[.,]/g, "")))]; };
+const flatChart = (vals: number[]): boolean => vals.length >= 2 && new Set(vals).size === 1;
 const sameStory = (a: string, b: string): boolean => {
   const x = sigNums(String(a || "").slice(0, 3000)), y = new Set(sigNums(String(b || "").slice(0, 3000)));
   if (x.length < 3 || y.size < 3) return false;
@@ -608,7 +612,8 @@ Return ONLY JSON: {"overall":"","slides":[{"n":1,"good":"","tip":"","issue":""}]
 {"queries":["q1","q2","q3"],"en":"topic in English, max 7 words","wiki":"best matching Wikipedia article title in the topic's own language","wiki_en":"best matching English Wikipedia article title","ask":"the one question the audience expects this talk to answer, in the topic's language","aspects":["a1","a2","a3","a4","a5"],"aq":"one search query in the topic's language that names those aspects together"}
 "aspects" = the 4-6 concrete sub-topics a good talk on exactly this topic is built from, each 1-3 words in the topic's language, named specifically (for "ways to protect savings from inflation": the instruments themselves, e.g. gold, deposit interest, foreign currency, funds, stocks, real estate — NOT "inflation data" or "government policy"; for a history topic: the key people, inventions and periods by name). They are what the audience came to hear, never background.
 q1 = the topic as a precise search query in its own language; q2 = a query for concrete data, statistics, dates or a timeline about what the topic asks for — for a how/ways topic that means data comparing those ways (their returns, costs, results), not general data about the underlying problem (same language); q3 = the topic as an English search query. If the topic asks HOW, or for ways, methods, strategies, solutions or advice, q1 and q3 must search for those ways themselves (the concrete instruments, options and their evidence), not for background data about the problem. No quotes, no site: operators.
-Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing situation (economy, policy, markets, technology, a living person or organisation), q2 must ask for the latest data and include the current year.`;
+Today is ${new Date().toISOString().slice(0, 10)}. If the topic is an ongoing situation (economy, policy, markets, technology, a living person or organisation), q2 must ask for the latest data and include the current year; a history topic is not ongoing and gets no year.
+The deck is written in ${lang === "en" ? "English" : "Turkish"}: "the topic's language" above means ${lang === "en" ? "English" : "Turkish"}, whatever the topic looks like — q1, q2, ask, aspects and aq are in that language.`;
       const gq = await groq(gKey, "openai/gpt-oss-20b", sysQ, `TOPIC: ${topic}`, 600);
       try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); aspects = (Array.isArray(pq?.aspects) ? pq.aspects : []).map((x: any) => String(x || "").slice(0, 40).trim()).filter((x: string) => x.length > 2).slice(0, 6); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = String(pq?.aq || "").slice(0, 160).trim();
         /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
@@ -778,6 +783,10 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
         chartOk = vals.length >= 2 && miss <= Math.floor(vals.length / 4);
         if (!chartOk) unverified += miss;
         chart = { type: chart.type || "bar", labels: (chart.labels || []).map(String).slice(0, vals.length), values: vals, unit: String(chart.unit || "") };
+        /* Bütün değerleri aynı olan grafik veri değildir: "History of Money" destesinde
+           (25.11.2026) 2009/2015/2026 yıllarına birer "milestone" çizildi, listeye inince
+           "2009: 1 milestone" maddeleri basıldı. Grafik atılır, değerler maddeye yazılmaz. */
+        if (flatChart(vals)) { chart = null; chartOk = false; }
       }
       const table = s.table && Array.isArray(s.table.rows) ? { headers: (s.table.headers || []).map(String).slice(0, 4), rows: s.table.rows.slice(0, 5).map((r: any) => (Array.isArray(r) ? r : []).map(String).slice(0, 4)) } : null;
       let k = kind;
@@ -790,7 +799,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
          sınırlılıklar asetatı "birinci taraf / ikinci taraf" yer tutucusuyla basıldı. */
       if (k === "two" && (!Array.isArray(s.heads) || s.heads.slice(0, 2).filter((h: any) => /[\p{L}\d]/u.test(String(h || ""))).length < 2)) k = "list";
       const ser = k === "list" && !warn.length ? seriesOf(bullets) : null;
-      if (ser) { k = "chart"; chart = { type: "line", ...ser }; chartOk = true; }
+      if (ser && !flatChart(ser.values)) { k = "chart"; chart = { type: "line", ...ser }; chartOk = true; }
       if (k === "chart" && (!chart || !chartOk)) k = "list";
       // Grafik listeye inince maddesi yoksa asetat boş sayılıp düşüyordu; değerler maddeye yazılır.
       if (k === "list" && kind === "chart" && chart && !bullets.length) chart.values.forEach((v: number, i: number) => { const l = String(chart.labels[i] || ""); const u = (l.match(/\(([^)]+)\)\s*$/) || [])[1] || chart.unit; bullets.push(`${l.replace(/\s*\([^)]+\)\s*$/, "")}: ${String(v).replace(".", lang === "en" ? "." : ",")} ${u}`.trim()); if (!verified(String(v), idx) && !verified(String(v), allIdx)) warn.push(bullets.length - 1); });

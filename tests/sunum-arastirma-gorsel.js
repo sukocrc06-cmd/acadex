@@ -354,7 +354,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
    21,5 milyar $) beş asetatta tekrarladı, kurum adlarının listesini "alıntı"
    diye bastı, kaynakçaya adresteki yıl aralığından "(2015)" yazdı. Kalite
    puanı yine de 92 çıktı — yani bunu ölçen bir şey yoktu. */
-const SR = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'sigNums', 'sameStory', 'dropRepeats', 'isSentence', 'seriesOf', 'timeOk', 'trDec', 'AY', 'findYear']);
+const SR = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'pctOf', 'sigNums', 'sameStory', 'dropRepeats', 'isSentence', 'seriesOf', 'timeOk', 'trDec', 'AY', 'findYear']);
 
 test('KAYNAK: aynı ajans haberinin kopyası ikinci kaynak sayılmaz', () => {
   const aa = 'Türkiye 10 yılda güneş ve rüzgardan 442,2 teravatsaat elektrik üretti. 21,5 milyar dolar ithalat önlendi, 354 milyon ton emisyon engellendi.';
@@ -846,6 +846,29 @@ test('CANLI DESTE 14.11 (ruh sağlığı hemşireliği) — alıntı art arda ge
   assert.equal((ink.match(/t: gorselAd\((?:x|d)\.title\)/g) || []).length, 3);
   assert.match(ink, /\(titleOf\(x\.sl\) \+ notOzu\(x\.sl\)\)\.length > 40/, 'alıntı asetatının notu yeniden yazılmıyor');
   assert.match(read('supabase/functions/acadia-presentation-director/index.ts'), /console\.log\(`Director deste: \$\{deck\.slides\.length\} asetat, metin kelime \[/);
+});
+
+/* CANLI DESTE 25.11 (History of Money): alt sorgular ve alt başlıklar İspanyolca
+   üretildi (kaynakların yarısı Latin Amerika sitesi, asetatta "Banco de Estocolmo",
+   odak 0/5); 2009/2015/2026'ya birer "milestone" çizen grafik "2009: 1 milestone"
+   maddelerine indi; "%80 nakit" dört asetatta yinelendi; İngilizce destenin
+   kapanışında "Sorular?" yazdı. */
+test('CANLI DESTE 25.11 (History of Money) — sorgu dili, sabit grafik, yinelenen yüzde, kapanış dili', () => {
+  const ink = read('js/acadex-ink.js'), ts = read('supabase/functions/sunum-research/index.ts');
+  assert.match(ts, /The deck is written in \$\{lang === "en" \? "English" : "Turkish"\}: "the topic's language" above means/, 'sorgu planı deste dilini bilmiyor');
+  assert.match(ts, /a history topic is not ongoing and gets no year/);
+  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['numTokens', 'pctOf', 'sigNums', 'flatChart', 'dropRepeats']);
+  assert.equal(R.flatChart([1, 1, 1]), true);
+  assert.equal(R.flatChart([2009, 2015]), false);
+  assert.match(ts, /if \(flatChart\(vals\)\) \{ chart = null; chartOk = false; \}/, 'sabit değerli grafik maddeye iniyor');
+  assert.match(ts, /if \(ser && !flatChart\(ser\.values\)\)/);
+  assert.ok(R.sigNums('Over 80% of transactions use cash').includes('80'), '%80 anlamlı sayı değil');
+  assert.ok(!R.sigNums('80 kişi katıldı').includes('80'), 'yüzdesiz iki haneli sayı yinelenme sayılmamalı');
+  const S = (kind, bullets, stats = []) => ({ kind, bullets, warn: [], stats, table: null });
+  const deste = [S('list', ['Paper dominance: Over 80% of transactions in emerging economies still use cash']), S('stat', [], [{ value: '80%' }]), S('list', ['Cash resilience: 80% usage in emerging economies suggests infrastructure gaps', 'CBDC uncertainty: still experimental']), S('list', ['Özet'])];
+  R.dropRepeats(deste);
+  assert.deepEqual(deste[2].bullets, ['CBDC uncertainty: still experimental'], 'yinelenen %80 maddesi kaldı');
+  assert.match(ink, /text: typeof curLang === 'function' && curLang\(\) === 'en' \? 'Questions\?' : 'Sorular\?'/, 'İngilizce kapanışta "Sorular?" yazıyor');
 });
 
 summary();
