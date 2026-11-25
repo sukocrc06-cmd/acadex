@@ -305,7 +305,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
   const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
   const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
-  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), (d) => (d && Array.isArray(d.data) ? d.data : []));
+  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec: function (x, i) { ikonKul = {}; return ikonSec(x, i); }, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), (d) => (d && Array.isArray(d.data) ? d.data : []));
   const B3 = ['Eylül 2021: Enflasyon %19 iken faiz indirimleri başladı', '2022 – Enflasyon %85 seviyesine yükseldi', '2023: Seçim sonrası politika değişti'];
   const B5 = B3.concat(['2024: Sıkılaşma sürdü', '2025: Dezenflasyon']);
   const icinde = (els, ad) => els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, ad + ': öğe asetatın dışına taşıyor (' + e.type + ' ' + e.x + ',' + e.y + ' ' + e.w + '×' + e.h + ')'));
@@ -1107,6 +1107,31 @@ test('DÜZEN MENÜSÜ + CANLI DESTE 25.11 (E-Commerce) — dönüştürücü, ed
   assert.equal(R.olumsuzFoto('Dashboard of a vintage car', 'vintage car dashboard'), false, 'konu arayüzse/gösterge paneliyse kalmalı');
   assert.equal(R.olumsuzFoto('Robotic arms in a fulfillment center', 'warehouse robots'), false);
   assert.match(ts, /A number shown on a "stat" or "chart" slide appears on no other slide/);
+});
+
+/* CANLI DESTE 25.11 (Fintech): kapağa Commons'tan Internet Archive Book Images'in 19. yüzyıl
+   Paris haritası geldi; "Digital-only services reshape customer experience" asetatı süreç
+   oklarıyla basıldı (maddedeki "manual steps" sıra sayıldı). */
+test('CANLI DESTE 25.11 (Fintech) — arşiv taraması süzgeci, süreç oklarının koşulu', () => {
+  const ts = read('supabase/functions/sunum-research/index.ts'), ink = read('js/acadex-ink.js');
+  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['TARIHI', 'arsivFoto']);
+  const tarama = { photographer: 'Internet Archive Book Images', source: 'Wikimedia Commons', alt: 'Identifier : parisenviro00karl ( find matches ) Title : Paris and environs, with routes from London to Paris' };
+  assert.equal(R.arsivFoto(tarama, 'fintech neobank mobile banking app Global Fintech Boom'), true);
+  assert.equal(R.arsivFoto(tarama, 'History of Paris 19th century map'), false, 'tarih konusunda arşiv görseli kalmalı');
+  assert.equal(R.arsivFoto({ photographer: 'Someone', source: 'Wikimedia Commons', alt: 'Engraving of a bank hall, 1885' }, 'traditional bank branch'), true);
+  assert.equal(R.arsivFoto({ photographer: 'Someone', source: 'Unsplash', alt: 'student reading a book in library' }, 'university library study'), false, 'Unsplash fotoğrafına kitap/harita sözcük süzgeci uygulanmamalı');
+  assert.equal(R.arsivFoto({ photographer: 'Someone', source: 'Wikimedia Commons', alt: 'Modern bank headquarters in London' }, 'bank headquarters'), false);
+  assert.match(ts, /&& !arsivFoto\(x, q \+ " " \+ topic\)/);
+  assert.match(ts, /const res = await resolveImages\(hints, lang, topicI\);/);
+  // süreç okları: sıra başlıktan ya da adım işaretli maddelerden
+  const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
+  let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
+  const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
+  const M = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY };')(E, head, () => [], '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), () => []);
+  const B = ['Friction elimination: Neobanks prioritize seamless onboarding, reducing manual steps.', 'Comprehensive offering: Traditional banks balance digital efficiency with a full suite.', 'Hybrid adoption: Some legacy banks have adopted neobank-style features.'];
+  assert.equal(M.VARY.list[11]('Digital-only services reshape customer experience', B), null, 'maddedeki "steps" sözcüğü süreç sayıldı');
+  assert.ok(M.VARY.list[11]('Account opening process', B), 'başlık süreç bildiriyorsa oklar çizilmeli');
+  assert.ok(M.VARY.list[11]('Onboarding', ['Step 1: download the app', 'Step 2: verify identity', 'Step 3: fund the account']), 'adım işaretli maddeler süreçtir');
 });
 
 summary();

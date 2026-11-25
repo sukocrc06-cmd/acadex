@@ -32,7 +32,7 @@ const { test, summary } = makeRunner();
 const dilim = (bas, son) => { const a = ink.indexOf(bas), b = ink.indexOf(son, a); assert.ok(a > 0 && b > a, 'dilim bulunamadı: ' + bas); return ink.slice(a, b); };
 const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#D9EFE3','#F6E7C4','#F4DDDA'],deck={tema:null},curLang=function(){return 'en';};" +
   dilim('  var rgb3 = ', '  var fontYuklu = ') + dilim('  var temaCikar = ', '  var zipLib = ') + dilim('  var IKON = {', '  var ikonSec = ') + dilim('  var ikonSec = ', '  /* "Eylül 2021') +
-  ';return {bag:function(t){ikonBag=t;},TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,temaAlt,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;},deste:function(d){Object.assign(deck,d);}};';
+  ';return {bag:function(t){ikonBag=t;ikonKul={};},TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,temaAlt,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;},deste:function(d){Object.assign(deck,d);}};';
 const M = new Function('arr', src)((x) => (Array.isArray(x) ? x : []));
 
 test('hazır şablonlar: 18 tane, kimlikleri benzersiz, hepsi okunaklı', () => {
@@ -280,6 +280,20 @@ test('ikon anlamı: sözcük sınırı, risk bağlamında yalnız uyarı ikonlar
   assert.notEqual(M.ikonSec('Onshore wind remains cheaper per MWh', 0), 'trophy', '"wind" ödül sayılıyor');
   assert.equal(M.ikonSec('Osmanlı padişahı ve hanedan', 0), 'crown');
   assert.match(ink, /ikonBag = String\(t \|\| ''\);[\s\S]{0,120}for \(var di = 0; di < dene\.length && !alt; di\+\+\)[\s\S]{0,200}ikonBag = '';/, 'ikon seçici asetat başlığını görmüyor');
+});
+
+/* CANLI DESTE 25.11 (Fintech): "Technology infrastructure" asetatında üç kartın ikisi aynı
+   banka ikonuydu. Bir asetatta ikon bir kez kullanılır; uyan ikinci ikon ya da yedek sıradan boş olan. */
+test('ikon tekrarı: aynı asetatta iki kart aynı ikonu almaz', () => {
+  M.bag('Technology infrastructure underpins competitive edge');
+  const ik = ['Cloud-native stack: Neobanks build on cloud platforms, APIs, and AI agents.', 'Legacy core: Traditional banks run on entrenched mainframe systems.', 'Integration path: BaaS allows neobanks to tap traditional banks’ licences and capital.'].map((x, i) => M.ikonSec(x, i));
+  assert.equal(new Set(ik).size, 3, 'aynı ikon iki kez: ' + ik.join(','));
+  assert.ok(ik.every((x) => M.IKON[x]), 'yedek ikon tanımsız: ' + ik.join(','));
+  M.bag('Critical risks');
+  const rk = ['Trust gap', 'Regulatory uncertainty: rules may change', 'Scalability limits', 'Cost volatility'].map((x, i) => M.ikonSec(x, i));
+  assert.equal(new Set(rk).size, 4, 'risk ikonları tekrarlandı: ' + rk.join(','));
+  M.bag('');
+  assert.match(ink, /ikonBag = String\(t \|\| ''\); ikonKul = \{\};/, 'yeni asetatta ikon kaydı sıfırlanmıyor');
 });
 
 summary();

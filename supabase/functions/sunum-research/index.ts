@@ -162,7 +162,7 @@ async function wikiImage(entity: string): Promise<Photo | null> {
 // 50 istek) deste başına en çok UNSPLASH_MAX arama yapılır.
 const UNSPLASH_MAX = 5;
 type Hint = { i: number; q: string; entity: string };
-async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Photo & { i: number })[]; rate: boolean }> {
+async function resolveImages(hints: Hint[], lang: string, topic = ""): Promise<{ photos: (Photo & { i: number })[]; rate: boolean }> {
   const used = new Set<string>(); let uCalls = 0, rate = false;
   const memo = new Map<string, Photo[]>();   // aynı sorgunun ikinci fotoğrafı yeni arama harcamaz
   /* Sorguyla ortak sözcüğü olan fotoğraf öne alınır: "person holding red pen while
@@ -171,7 +171,7 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
      "Coinage Takes Hold in Ancient Greece" asetatına ilk sonuç diye kahve kupası
      geldi (25.11.2026); sıradaki arşive (Pexels, Commons) geçilir. */
   const take = (list: Photo[], q = "", uysun = true) => { const qk = uysun ? gorselKok(q) : [];
-    const ok = list.filter((x) => x && x.large && !used.has(x.large) && !olumsuzFoto(x.alt, q)); const p = qk.length ? ok.find((x) => gorselUyar(qk, x.alt)) || null : ok[0] || null; if (p) used.add(p.large); return p; };
+    const ok = list.filter((x) => x && x.large && !used.has(x.large) && !olumsuzFoto(x.alt, q) && !arsivFoto(x, q + " " + topic)); const p = qk.length ? ok.find((x) => gorselUyar(qk, x.alt)) || null : ok[0] || null; if (p) used.add(p.large); return p; };
   // Wikipedia aramaları paralel; stok aramaları sırayla (sınır sayacı ve tekrar denetimi için).
   const wiki = await Promise.all(hints.map((h) => h.entity ? wikiImage(h.entity) : Promise.resolve(null)));
   const photos: (Photo & { i: number })[] = [];
@@ -210,6 +210,16 @@ const OLUMSUZ = /\b(?:fire|blaze|burn(?:ing|ed|t)?|explo(?:sion|ded|des)|disaste
 /* Ekran görüntüsü fotoğraf değildir: AI asetatına "Employer dashboard showing application trends"
    geldi (25.11.2026). Konu bir arayüzü anlatmıyorsa elenir. */
 const EKRAN = /\b(?:screenshots?|screen ?shots?|dashboards?|ui|ux|interface|website|web ?design|mock-?ups?|app screens?|admin panel|templates?|landing page|wireframes?)\b/i;
+/* Kitap taraması, harita, gravür: "Global Fintech Boom" kapağına Commons'tan Internet Archive Book
+   Images'in 19. yüzyıl Paris haritası geldi (25.11.2026). Konu ya da sorgu tarih/harita/arşiv
+   bildirmiyorsa elenir. Sözcük süzgeci yalnız Commons'a uygulanır ("reading a book" stok
+   fotoğrafı ders destesinde kalmalı). */
+const TARIHI = /\b(?:history|historical|ancient|medieval|war|wars|century|centuries|map|maps|archive|engraving|vintage|antique|tarih\w*|antik|savaş\w*|yüzyıl\w*|harita\w*|arşiv\w*|osmanlı)\b|\b1[5-9]\d{2}\b/i;
+const arsivFoto = (p: Photo, ctx: string): boolean => {
+  if (TARIHI.test(String(ctx || ""))) return false;
+  if (/internet archive book images/i.test(String(p.photographer || ""))) return true;
+  return /commons/i.test(String(p.source || "")) && /\b(?:identifier|plan|map|engraving|illustration|lithograph|woodcut|archive|book|plate|page|drawing)\b|\b1[5-9]\d{2}\b/i.test(String(p.alt || ""));
+};
 const olumsuzFoto = (alt: string, q: string): boolean => (OLUMSUZ.test(String(alt || "")) && !OLUMSUZ.test(String(q || ""))) || (EKRAN.test(String(alt || "")) && !EKRAN.test(String(q || "")));
 const gorselKok = (q: string): string[] => keysOf(q).filter((k) => !GORSEL_BOS.test(k));
 const gorselUyar = (qk: string[], alt: string): boolean => { const ak = gorselKok(alt); return qk.some((k) => ak.some((a) => a.startsWith(k) || k.startsWith(a))); };
@@ -574,7 +584,7 @@ The deck topic is given for context. Return ONLY JSON: {"r":[{"i":0,"q":"","enti
          iki fotoğraf düzeni); ikisi de aynı "i" ile gelir, istemci gruplayıp dizer. */
       const cift = new Set((Array.isArray(body?.slides) ? body.slides : []).filter((x: any) => x?.iki).map((x: any) => Number(x?.i) || 0));
       const hints: Hint[] = []; items.forEach((x: any) => { hints.push({ i: x.i, q: x.q, entity: x.entity }); if (cift.has(x.i) && x.q) hints.push({ i: x.i, q: x.q, entity: "" }); });
-      const res = await resolveImages(hints, lang);
+      const res = await resolveImages(hints, lang, topicI);
       return J({ photos: res.photos, rate: res.rate });
     }
 

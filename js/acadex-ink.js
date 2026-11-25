@@ -6772,15 +6772,18 @@ var SBX = (function () {
      "win" ödül, "making" içindeki "king" taç, "generation" içindeki "gene" DNA sayıldı. Eşleşme sözcük
      başında olmalı; İngilizce destede 4 harfe kadar kalıp sözcüğün tamamı (çoğul -s olabilir).
      Asetat başlığı ya da madde risk/sınır/belirsizlik anlatıyorsa yalnız uyarı ikonları seçilir. */
-  var ikonBag = '';
+  var ikonBag = '', ikonKul = {};      /* ikonKul: bu asetatta kullanılan ikonlar — aynı ikon iki karta düşmez (26.11.2026) */
   var RISK_BAG = /risk|challeng|volatil|\bgaps?\b|limit|threat|uncertain|barrier|weakness|concern|drawback|tehdit|zorluk|belirsiz|sınırl|kısıt|zayıf|engel|sorun/i;
   var sozEsle = function (re, x) { var g = new RegExp(re.source, re.flags.replace('g', '') + 'g'), m, en = typeof curLang === 'function' && curLang() === 'en';
     while ((m = g.exec(x)) !== null) { if (!m[0]) { g.lastIndex++; continue; } var on = x.charAt(m.index - 1), son = x.slice(m.index + m[0].length, m.index + m[0].length + 2);
       if (on && /[a-zçğıöşüâîû\d]/i.test(on)) continue; if (en && m[0].length <= 4 && /^[a-z]/i.test(son) && !/^s(?![a-z])/i.test(son)) continue; return true; }
     return false; };
-  var ikonSec = function (x, i) { x = String(x);
-    if (RISK_BAG.test(ikonBag) || RISK_BAG.test(x)) return /declin|drop|fall|loss|volatil|düş|kayıp|dalgal/i.test(x) ? 'trending-down' : /secur|protect|regulat|policy|complian|güvenlik|düzenle/i.test(x) ? 'shield' : /grid|fluctuat|integrat|intermitten|şebeke/i.test(x) ? 'activity' : ['alert', 'activity', 'trending-down', 'shield'][i % 4];
-    for (var k = 0; k < IKON_RE.length; k++) if (sozEsle(IKON_RE[k][1], x)) return IKON_RE[k][0]; return ['check', 'spark', 'arrow', 'bulb'][i % 4]; };
+  var ikonSec = function (x, i) { x = String(x); var al = function (ad) { ikonKul[ad] = 1; return ad; }, bos = function (ls) { return ls.filter(function (a) { return !ikonKul[a]; })[0]; };
+    if (RISK_BAG.test(ikonBag) || RISK_BAG.test(x)) { var r0 = /declin|drop|fall|loss|volatil|düş|kayıp|dalgal/i.test(x) ? 'trending-down' : /secur|protect|regulat|policy|complian|güvenlik|düzenle/i.test(x) ? 'shield' : /grid|fluctuat|integrat|intermitten|şebeke/i.test(x) ? 'activity' : '';
+      return al(r0 && !ikonKul[r0] ? r0 : bos(['alert', 'activity', 'trending-down', 'shield', 'circle-alert']) || r0 || 'alert'); }
+    /* uyan ilk KULLANILMAMIŞ ikon; uyanların hepsi kullanıldıysa yedek sıradan boş olan */
+    for (var k = 0; k < IKON_RE.length; k++) if (!ikonKul[IKON_RE[k][0]] && sozEsle(IKON_RE[k][1], x)) return al(IKON_RE[k][0]);
+    return al(bos(['check', 'spark', 'arrow', 'bulb', 'target', 'layers', 'puzzle']) || ['check', 'spark', 'arrow', 'bulb'][i % 4]); };
   /* "Eylül 2021: faiz indirimi başladı" → ['Eylül 2021', 'faiz indirimi başladı'] */
   var tarihBol = function (x) { var m = String(x).match(/^(.{2,34}?)\s*(?::|\s[–—-])\s+(.{4,})$/); return m && /\d/.test(m[1]) ? [m[1].trim(), m[2].trim()] : null; };
   var yuzde = function (v) { var m = String(v || '').replace(/\s+/g, '').match(/^(?:%(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)%)$/); if (!m) return null; var n = parseFloat(String(m[1] || m[2]).replace(',', '.')); return n >= 0 && n <= 100 ? n : null; };
@@ -6845,7 +6848,7 @@ var SBX = (function () {
         return out; },
       /* 12 · süreç okları: numaralı adım kartları soldan sağa, aralarında ok. Yalnız sıra bildiren
          içerikte (süreç, adım, gelişim, "X'ten Y'ye") — sıra yokken ok yanlış bir neden-sonuç söyler. */
-      function (t, b, c) { var zr = c && c.zorla; if (!kisa(b, zr ? 2 : 3, zr ? 5 : 4, 140) || (!zr && !SUREC.test(String(t) + ' ' + b.join(' ')))) return null;      /* menüden seçildiyse sıra sözcüğü aranmaz, 2-5 adım olur */
+      function (t, b, c) { var zr = c && c.zorla; if (!kisa(b, zr ? 2 : 3, zr ? 5 : 4, 140) || (!zr && !SUREC.test(String(t)) && !b.every(function (x) { return /^\s*(?:step|adım|aşama|phase|stage)\b|^\s*\d+[.)]\s/i.test(String(x)); }))) return null;      /* sıra BAŞLIKTAN ya da adım işaretli maddelerden anlaşılır: "manual steps" geçen madde süreç sayıldı (Fintech, 25.11.2026) */      /* menüden seçildiyse sıra sözcüğü aranmaz, 2-5 adım olur */
         var n = b.length, g = 34, w = Math.floor((820 - (n - 1) * g) / n), out = head(t);
         b.forEach(function (x, i) { var X0 = 70 + i * (w + g); out.push(E('rect', X0, 196, w, 290, { fill: '#EEF3FF' })); out.push(E('rect', X0, 196, w, 6, { fill: BLUE })); out.push(E('ellipse', X0 + Math.round(w / 2) - 26, 168, 52, 52, { fill: BLUE })); out.push(E('h', X0 + Math.round(w / 2) - 26, 176, 52, 36, { text: String(i + 1), size: 24, color: '#FFFFFF', align: 'center' })); out.push(E('t', X0 + 14, 236, w - 28, 236, { text: x, size: n === 4 ? 17 : 19, align: 'center' })); if (i < n - 1) out.push(E('arrow', X0 + w + 4, 330, g - 8, 22, { color: BLUE })); });
         return out; }
@@ -7009,7 +7012,7 @@ var SBX = (function () {
        bir önceki listeyle aynı aileden olanlar sona kalır. */
     var v = c && c.v, alt = null, sira = (VARY[kind] && VSIRA[kind]) || [], at = sira.indexOf(v), dene = v && VARY[kind] ? [v].concat(sira.slice(at + 1), sira.slice(0, Math.max(0, at))).filter(function (x, i, a) { return x && a.indexOf(x) === i; }) : [];
     if (kind === 'list' && c && c.aile) dene = dene.filter(function (x, i) { return !i || LAILE[x] !== c.aile; }).concat(dene.filter(function (x, i) { return i && LAILE[x] === c.aile; }));
-    ikonBag = String(t || '');      /* ikon seçici asetat başlığını bağlam olarak görür */
+    ikonBag = String(t || ''); ikonKul = {};      /* ikon seçici asetat başlığını bağlam olarak görür */
     for (var di = 0; di < dene.length && !alt; di++) { var fv = VARY[kind][dene[di] - 1]; alt = fv ? fv(t, b, c) : null; if (alt) v = dene[di]; }
     ikonBag = '';
     var sl = { id: uid(), lay: kind, bg: 'clear', notes: '', els: alt || LAY[kind].f(t, b, c) }; if (alt) sl.v = v; return sl;
@@ -7569,7 +7572,7 @@ var SBX = (function () {
     if (!c.data && k === 'diagram') { k = 'list'; v = 12; not = ' Diyagram verisi yoktu; maddeler numaralı süreç akışına çevrildi.'; }
     if (!c.data && k === 'math') { say('Bu asetatta formül yok; formül düzeni boş açılmaz.'); return; }
     push();
-    var alt = null, dn = v ? [v].concat(d.v2 ? [d.v2] : []) : []; for (var di = 0; di < dn.length && !alt && VARY[k]; di++) { ikonBag = t; alt = VARY[k][dn[di] - 1] ? VARY[k][dn[di] - 1](t, bl, c) : null; ikonBag = ''; if (alt) v = dn[di]; }
+    var alt = null, dn = v ? [v].concat(d.v2 ? [d.v2] : []) : []; for (var di = 0; di < dn.length && !alt && VARY[k]; di++) { ikonBag = t; ikonKul = {}; alt = VARY[k][dn[di] - 1] ? VARY[k][dn[di] - 1](t, bl, c) : null; ikonBag = ''; if (alt) v = dn[di]; }
     s.els = alt || LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl, c); s.lay = k; s.v = alt ? v : 0; fitSlide(s); selId = null; renderStage(); refreshThumb(); dirty();
     say('Asetat “' + d.l + '” düzenine geçti; başlığın ve yazıların taşındı.' + (v && !alt ? ' Bu düzen için madde sayısı uymadı, klasik liste kullanıldı.' : '') + not, undo);
   });
