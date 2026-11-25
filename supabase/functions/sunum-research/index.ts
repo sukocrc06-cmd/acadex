@@ -207,7 +207,10 @@ const dilDisi = (t: string, lang: string): boolean => { const x = String(t || ""
   return lang === "en" ? /[äöüßñáéíóúàèìòùçãõâêîôûğışİ]/i.test(x) || /\b(?:und|der|das|für|mit|von|del|los|las|des|pour|une)\b/i.test(x) || ek.test(x)
     : /[äßñáéíóúàèìòùãõêô]/i.test(x) || /\b(?:und|das|für|mit|von|los|las|des|pour|une)\b/i.test(x) || ek.test(x); };
 const OLUMSUZ = /\b(?:fire|blaze|burn(?:ing|ed|t)?|explo(?:sion|ded|des)|disaster|wreck(?:age)?|crash(?:ed)?|destroy(?:ed)?|destruction|damaged?|ruins?|ruined|accident|collapse[ds]?|flood(?:ed|ing)?|bomb(?:ing|ed)?|corpse|dead|death|injur(?:y|ed)|riot|debris|smoke|yangın|enkaz|kaza|patlama|yıkık|yıkıntı)\b/i;
-const olumsuzFoto = (alt: string, q: string): boolean => OLUMSUZ.test(String(alt || "")) && !OLUMSUZ.test(String(q || ""));
+/* Ekran görüntüsü fotoğraf değildir: AI asetatına "Employer dashboard showing application trends"
+   geldi (25.11.2026). Konu bir arayüzü anlatmıyorsa elenir. */
+const EKRAN = /\b(?:screenshots?|screen ?shots?|dashboards?|ui|ux|interface|website|web ?design|mock-?ups?|app screens?|admin panel|templates?|landing page|wireframes?)\b/i;
+const olumsuzFoto = (alt: string, q: string): boolean => (OLUMSUZ.test(String(alt || "")) && !OLUMSUZ.test(String(q || ""))) || (EKRAN.test(String(alt || "")) && !EKRAN.test(String(q || "")));
 const gorselKok = (q: string): string[] => keysOf(q).filter((k) => !GORSEL_BOS.test(k));
 const gorselUyar = (qk: string[], alt: string): boolean => { const ak = gorselKok(alt); return qk.some((k) => ak.some((a) => a.startsWith(k) || k.startsWith(a))); };
 const keysOf = (s: string): string[] => [...new Set((String(s || "").toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, 6)))];
@@ -288,13 +291,16 @@ const sameStory = (a: string, b: string): boolean => {
 };
 /* Aynı rakam ikinci kez madde olarak yazılmaz (son asetat özet olduğu için
    hariç). Dönen: maddesi atılan asetat sayısı. */
+/* Sayı ya da grafik asetatına ayrılmış rakam, ÖNCEKİ listede de yazılmaz: "E-Commerce" destesinde
+   (25.11.2026) %68 ve %77 giriş asetatında madde, iki asetat sonra sayı kartıydı. Liste boşalmaz. */
 const dropRepeats = (slides: any[]): number => {
   const seen = new Set<string>(); let n = 0;
+  const ayrilan = new Set<string>(); slides.forEach((s: any) => { if (s.kind === "stat" || s.kind === "chart") [...(s.stats || []).map((x: any) => String(x.value)), ...((s.chart && s.chart.values) || []).map(String)].forEach((v: string) => sigNums(v).forEach((x) => ayrilan.add(x))); });
   slides.forEach((s: any, si: number) => {
     if (s.kind === "list" && si < slides.length - 1) {
       const keep: string[] = [], warn: number[] = [];
-      s.bullets.forEach((b: string, i: number) => { const t = sigNums(b); if (t.length && t.every((v) => seen.has(v))) return; if (s.warn.includes(i)) warn.push(keep.length); keep.push(b); });
-      if (keep.length < s.bullets.length) { s.bullets = keep; s.warn = warn; n++; }
+      s.bullets.forEach((b: string, i: number) => { const t = sigNums(b); if (t.length && t.every((v) => seen.has(v) || ayrilan.has(v))) return; if (s.warn.includes(i)) warn.push(keep.length); keep.push(b); });
+      if (keep.length && keep.length < s.bullets.length) { s.bullets = keep; s.warn = warn; n++; }
     }
     [...s.bullets, ...s.stats.map((x: any) => x.value), ...(s.table ? s.table.rows.flat() : [])].forEach((b: string) => sigNums(b).forEach((v) => seen.add(v)));
   });
@@ -364,6 +370,9 @@ const sidesOf = (bullets: string[], heads: string[], warn: number[]): { bullets:
    en az iki ortak birim varsa Ölçüt | A | B tablosuna çevrilir. Hücre maddedeki sayının
    kendisidir (yılıyla); hesap yapılmaz. Ölçü taşımayan ilk madde tablonun altına yazılır. */
 const BIRIM = /(\d[\d.,]*)\s*(TWh|GWh|MWh|GW|MW|kWh|kW|%|USD\/MWh|\$\/MWh|€\/MWh|USD\/kWh|\$\/kWh|Mt|Gt)(?![\p{L}])/u;
+const onekAt = (b: string, head: string): string => { const m = String(b).match(/^([^:]{2,32}):\s+(.{6,})$/); if (!m || !head) return b; const p = m[1].toLocaleLowerCase("tr").trim(), h = head.toLocaleLowerCase("tr").trim();
+  const kis = h.split(/[\s-]+/).filter((w) => w.length > 2 || /^[a-z]+$/i.test(w)).map((w) => w[0]).join("");
+  return h.startsWith(p) || (kis.length >= 2 && p.replace(/[^\p{L}\d]/gu, "") === kis) ? m[2].charAt(0).toLocaleUpperCase("tr") + m[2].slice(1) : b; };
 const ikiTablo = (bullets: string[], heads: string[], split: number, lang: string): { table: { headers: string[]; rows: string[][] }; rest: string[] } | null => {
   const n = bullets.length, k = split >= 1 && split < n ? split : Math.ceil(n / 2); if (heads.length < 2 || n < 4) return null;
   const hre = new RegExp(heads.slice(0, 2).map((x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "gi");
@@ -758,6 +767,7 @@ Rules:
   "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names; 2-3 bullets per side, first all bullets of side one, then all of side two; "n1" = how many bullets belong to side one — every bullet stays on its own side) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns). For comparing 2-3 items on several criteria write a feature matrix: headers = ["Criterion", item1, item2(, item3)], one row per criterion (speed, cost, risk, adoption…), cells short ratings from the sources — "High"/"Medium"/"Low", "Yes"/"No", "✓"/"✕" — or at most 6 words; "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list".
+  A number shown on a "stat" or "chart" slide appears on no other slide — the hook slide uses a different fact. Prefixes never repeat the column name (no "AI: …" under "Artificial Intelligence").
   NUMBERS ARE DRAWN, NOT WRITTEN: whenever the sources give 3+ comparable values in one unit (years, countries, segments), that slide MUST be a "chart"; a share or rate in percent belongs in "stat" (drawn as a ring). Two items compared on the same criteria are a "table" (Criterion | A | B with short ratings), not "two" — "two" is only for two sides with different kinds of points. Write numbers in words a reader can say aloud: "about 2 times the 2025 level", never "~2x 2025".
   Use at least 4 different layouts across the deck when the sources allow (a "two" or "table" comparison, a "time" chronology, a "stat" or "chart" with real numbers); never two "list" slides in a row unless the content is truly a list; at most half of the slides may be "list". Never invent a number, date or rating to fill a layout.
 - When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give a clock time only together with the time zone the source itself states — never invent or translate a time-zone abbreviation; if the source gives none, give the date without the clock time.
@@ -823,7 +833,14 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
        (canlı deste 14.11.2026). Yalnız kaynak listesindeki bir site/başlık sözcüğü
        ya da genel etiket silinir; "(TÜFE)" gibi kısaltma açıklaması kalır. */
     const srcWords = " " + flat(srcs.map((x) => `${x.site} ${x.title}`).join(" ")) + " ", srcGlue = srcWords.replace(/ /g, "");
-    const dropAttr = (b: string) => b.replace(/\s*\(([^()\d]{2,30})\)(?=[.!?]?\s*$)/, (m, a) => { const f = flat(a); return /^(wikipedia|vikipedi|scientific|devlet|kaynak|source|web)$/.test(f) || (f.length >= 3 && (srcWords.includes(` ${f} `) || srcGlue.includes(f.replace(/ /g, "")))) ? "" : m; });
+    /* Ayraçta birden çok ad da atılır: "(TTi Logistics, Intexsoft, Forbes)", "(DHL report)" (25.11.2026).
+       Her parça büyük harfle başlamalı ve en az bir sözcüğü kaynak listesinde geçmeli; "report",
+       "study" gibi genel sözcükler sayılmaz. "(e.g., …)" ve küçük harfli açıklama kalır. */
+    const GENEL = /^(?:report|reports|study|survey|data|analysis|blog|article|website|site|research|raporu|verisi|araştırması|et al)$/;
+    const srcAd = (p: string) => { const w = flat(p).split(" ").filter((x) => x && !GENEL.test(x)); return !w.length || w.some((x) => x.length >= 3 && (srcWords.includes(` ${x} `) || srcGlue.includes(x))); };
+    const dropAttr = (b: string) => b.replace(/\s*\(([^()\d]{2,80})\)(?=[.!?]?\s*$)/, (m, a) => { const f = flat(a); if (/^(wikipedia|vikipedi|scientific|devlet|kaynak|source|web)$/.test(f) || (f.length >= 3 && (srcWords.includes(` ${f} `) || srcGlue.includes(f.replace(/ /g, ""))))) return "";
+      const ps = a.split(/\s*(?:,|;|&|\/|\band\b|\bve\b)\s*/).map((x: string) => x.trim()).filter(Boolean);
+      return !/^(?:e\.g|i\.e|ör|örn|such as|like|bkz)\b/i.test(a.trim()) && ps.length && ps.length <= 5 && ps.every((x: string) => /^[A-ZÇĞİÖŞÜ0-9]/.test(x) && srcAd(x)) ? "" : m; });
     /* Madde İÇİNDEKİ kaynak girişi de atılır: canlı destede (14.11.2026) maddeler
        "Kaynaklar (hiwellapp.com, 2018) gösteriyor ki, …", "Kaynak (acikbeyin.com)
        bildiriyor ki, …" diye başlıyordu. dropAttr yalnız madde SONUNDAKİ ayracı
@@ -884,6 +901,8 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       const yaz = (t: string) => yazim(t, lang);
       if (k === "two") { const hf = s.heads.map((h: any) => flat(String(h || ""))); bullets.forEach((b: string, i: number) => { bullets[i] = b.replace(/\s*\(([^()\d]{2,30})\)(?=[.!?]?\s*$)/, (m: string, a: string) => hf.some((h: string) => h && h.startsWith(flat(a))) ? "" : m); });   /* "(Developed)" taraf adını yineliyordu (25.11.2026) */
         const sd = sidesOf(bullets, s.heads.map(String), warn); if (sd.split) s.n1 = sd.split; else if (sd.bullets.some((b, i) => b !== bullets[i])) s.n1 = 0; bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn);
+        /* "Artificial Intelligence" sütununda "AI: …" (25.11.2026): taraf adını ya da kısaltmasını yineleyen önek atılır. */
+        const sn = Number(s.n1) || Math.ceil(bullets.length / 2); bullets.forEach((b: string, i: number) => { bullets[i] = onekAt(b, String(s.heads[i < sn ? 0 : 1] || "")); });
         const it = warn.length ? null : ikiTablo(bullets, s.heads.map(String), Number(s.n1) || 0, lang); if (it) { k = "table"; table = it.table; bullets.splice(0, bullets.length, ...it.rest.slice(0, 1)); } }
       if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
       return { title: yaz(cleanCite(String(s.title || ""))), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map((h: any) => cleanCite(String(h))) : [], split: k === "two" ? Math.max(0, Math.min(bullets.length - 1, Number(s.n1) || 0)) : 0, stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };

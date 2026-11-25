@@ -528,7 +528,7 @@ test('ATIF: madde sonundaki kaynak adı atılır, asetatta tek "[n]" kalır', ()
   assert.ok(sr.includes('Never put a source name in parentheses') && sr.includes('Never compute a number yourself'), 'istemde parantezli kaynak / hesaplanmış sayı yasağı yok');
   const flat = (t) => t.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   const srcs = [{ site: 'sbb.gov.tr', title: 'Enflasyon' }, { site: 'npr.org', title: 'Turks often keep gold' }, { site: 'worldbank.org', title: 'Report' }];
-  const body = sr.match(/const srcWords = [^\n]+\n\s*const dropAttr = [^\n]+/)[0].replace(/: string/g, '').replace(/\(x\) =>/, '(x) =>');
+  const body = sr.match(/const srcWords = [^\n]+\n[\s\S]*?const dropAttr = [\s\S]*?\? "" : m; \}\);/)[0].replace(/: string/g, '');
   const dropAttr = new Function('flat', 'srcs', body + '; return dropAttr;')(flat, srcs);
   assert.equal(dropAttr('TÜFE %29,77 oldu (SBB).'), 'TÜFE %29,77 oldu.');
   assert.equal(dropAttr('Zam uygulandı (World Bank)'), 'Zam uygulandı');
@@ -972,7 +972,7 @@ test('CANLI DESTE 25.11 (EV) — ayraç süzgeci, sayı yazımı, olumsuz fotoğ
   // sunucu: denetçi düzeltmesi de süzülür; taraf adını yineleyen ayraç atılır
   assert.match(ts, /else s\.bullets\[c\.bi\] = dropLead\(dropAttr\(dropDated\(cleanCite\(fix\)\)\)\);/, 'anlam denetimi düzeltmesi süzgeçten geçmiyor');
   assert.match(ts, /hf\.some\(\(h: string\) => h && h\.startsWith\(flat\(a\)\)\) \? "" : m/, '"(Developed)" taraf ayracı kalıyor');
-  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['AYLAR', 'trDec', 'yazim', 'yilTekil', 'OLUMSUZ', 'olumsuzFoto']);
+  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['AYLAR', 'trDec', 'yazim', 'yilTekil', 'OLUMSUZ', 'EKRAN', 'olumsuzFoto']);
   assert.equal(R.yazim('Lithium price early 2026 ~2x 2025 level', 'en'), 'Lithium price early 2026 about 2 times the 2025 level');
   assert.equal(R.yazim('Lityum fiyatı 2026 başında ~2x 2025', 'tr'), 'Lityum fiyatı 2026 başında yaklaşık 2025 düzeyinin 2 katı');
   assert.equal(R.yazim('Model 3x faster than 2019 hardware', 'en'), 'Model 3x faster than 2019 hardware', 'yılın hemen önünde olmayan "3x" değişmemeli');
@@ -1048,6 +1048,65 @@ test('CANLI DESTE 25.11 (Solar vs Wind) — plan dili, sütun öznesi, ölçü t
   const G = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['keysOf', 'GORSEL_BOS', 'gorselKok', 'gorselUyar']);
   assert.equal(G.gorselUyar(G.gorselKok('solar panel farm aerial'), 'An aerial view of a construction site in the middle of a field'), false, '"aerial" tek başına eşleşme sayılıyor');
   assert.match(ts, /no abstract or action words \(growth, deployment, expansion, development, market, cost\)/);
+});
+
+/* CANLI DESTE 25.11 (E-Commerce) + DÜZEN MENÜSÜ (26.11.2026): şeritte veri gerektiren düzen
+   "(veri yok)" diye kilitliydi; editörde düzen değişince kart/kolon yazıları kayboluyordu. Destede
+   %68/%77 iki kez basıldı, "(TTi Logistics, Intexsoft, Forbes)" ayraçları kaldı, "AI: …" önekleri
+   sütun adını yineledi, AI asetatına "Employer dashboard" ekran görüntüsü geldi. */
+test('DÜZEN MENÜSÜ + CANLI DESTE 25.11 (E-Commerce) — dönüştürücü, editör yazıları, sayı tekrarı, ayraç yığını, önek, ekran görüntüsü', () => {
+  const ink = read('js/acadex-ink.js'), ts = read('supabase/functions/sunum-research/index.ts');
+  const blk = ink.slice(ink.indexOf('  var DUZENLER = ['), ink.indexOf("  var laysEl = Q('[data-lays]');"));
+  const dataKind = (s, k) => k === 'chart' ? !!(s.data && Array.isArray(s.data.data) && s.data.data.length >= 2) : k === 'table' ? !!(s.data && Array.isArray(s.data.rows)) : k === 'diagram' ? !!(s.data && (s.data.svg || s.data.mermaid)) : k === 'math' ? Array.isArray(s.data) && s.data.length > 0 : true;
+  const M = new Function('arr', 'X', 'titleOf', 'dataKind', 'curLang', blk + 'return { DUZENLER, WF, wfSVG, duzenOf, sayiCek, donustur, duzenOlur, slaytMaddeleri };')((x) => (Array.isArray(x) ? x : []), (x) => String(x), (sl) => (sl.els.find((e) => e.type === 'h') || {}).text || '', dataKind, () => 'en');
+  // her düzenin küçük çizimi ve grubu var
+  M.DUZENLER.forEach((d) => { assert.ok(M.WF[d.k + ':' + d.v] || M.WF[d.k], d.l + ' çizimsiz'); assert.ok(['Metin ve kartlar', 'Veri ve tablo', 'Vurgu'].includes(d.g)); });
+  ['bento kartlar', 'süreç akışı', 'ikon kartları'].forEach((l) => assert.ok(M.DUZENLER.some((d) => d.l === l), l + ' menüde yok'));
+  // sayılar: yüzde, binlik, birim; yıl değer sayılmaz; tek birim grubu
+  const sc = M.sayiCek(['Mobile dominance: Smartphones generate 68% of retail website orders.', 'Traffic share: 77% of all retail traffic comes from mobile devices in 2026.', 'Consumer behavior: impulse purchases rise.']);
+  assert.deepEqual(sc.map((o) => [o.l, o.v, o.br]), [['Mobile dominance', 68, '%'], ['Traffic share', 77, '%']]);
+  assert.deepEqual(M.sayiCek(['Solar: 2,778 TWh in 2025', 'Wind: 2,304 TWh in 2023', 'Share: 7.8%']).map((o) => o.v), [2778, 2304], 'birimler karıştı');
+  assert.deepEqual(M.donustur('chart', ['Solar: 2,778 TWh', 'Wind: 2,304 TWh']), { type: 'bar', labels: ['Solar (TWh)', 'Wind (TWh)'], data: [2778, 2304] });
+  assert.equal(M.donustur('chart', ['Only words here', 'And here']), null);
+  assert.deepEqual(M.donustur('table', ['Return simplicity: portals raise trust', 'Price clarity: hidden costs deter checkout', 'Speed matters']), { headers: ['Item', 'Detail'], rows: [['Return simplicity', 'portals raise trust'], ['Price clarity', 'hidden costs deter checkout'], ['', 'Speed matters']] });
+  assert.deepEqual(M.donustur('table', ['First point', 'Second point']).headers, ['#', 'Detail']);
+  // menüde neden yazılır, kilit yalnız dönüştürülemezse
+  assert.equal(M.duzenOlur({ k: 'list', b: ['a 12%', 'b 30%'] }, M.duzenOf('chart')).ok, true);
+  assert.deepEqual(M.duzenOlur({ k: 'list', b: ['no numbers', 'still none'] }, M.duzenOf('chart')), { ok: false, neden: 'maddelerde aynı birimden en az iki sayı yok' });
+  assert.equal(M.duzenOlur({ k: 'list', b: ['x', 'y'] }, M.duzenOf('diagram')).ok, true, 'diyagram süreç akışına dönüşebilmeli');
+  // editör: kart/kolon/sayı yazıları toplanır, başlık ve fotoğraf yazısı alınmaz
+  const sl = { els: [{ type: 'h', text: 'Mobile commerce' }, { type: 'mark' }, { type: 'rect' }, { type: 't', text: 'Mobile dominance', bold: true }, { type: 'rect' }, { type: 't', text: 'Smartphones generate 68% of orders.' }, { type: 'h', text: '77%' }, { type: 't', text: 'of retail traffic' }, { type: 'h', text: '01' }, { type: 't', text: 'Photo: Someone / Unsplash' }] };
+  assert.deepEqual(M.slaytMaddeleri(sl), ['Mobile dominance: Smartphones generate 68% of orders.', '77% — of retail traffic']);
+  // editör ve şerit aynı listeyi kullanır; diyagram verisi yoksa süreç akışı; zorunlu çeşit basımda korunur
+  assert.match(ink, /laysEl\.innerHTML = DUZENLER\.map\(/);
+  assert.match(ink, /if \(!c\.data && k === 'diagram'\) \{ k = 'list'; v = 12;/);
+  assert.match(ink, /cx\.v = s\.vz && kind === 'list' \? s\.vz : vSec\(s, kind\); cx\.zorla = !!s\.vz;/);
+  assert.match(ink, /var zr = c && c\.zorla; if \(!kisa\(b, zr \? 2 : 3, zr \? 5 : 4, 140\) \|\| \(!zr && !SUREC\.test/);
+  assert.doesNotMatch(ink, /data-st-k=""/, 'şeritte eski <select> kaldı');
+  assert.match(ink, /aria-haspopup="listbox" aria-expanded="false"/);
+  assert.match(ink, /if \(e\.key === 'Escape' \|\| e\.key === 'Tab'\) \{ e\.preventDefault\(\); kKapat\(true\); return; \}/, 'menü klavyeyle kapanmıyor');
+  assert.match(ink, /if \(s\.dataAsil && dataKind\(\{ data: s\.dataAsil \}, d\.k\)\) s\.data = s\.dataAsil;/, 'düzen değişince yazarın verisi kayboluyor');
+  // sütun öneki: kısaltma da
+  const ot = new Function(ink.match(/var onekTaraf = function \(hd, p\) \{.*\};/)[0] + 'return onekTaraf;')();
+  assert.equal(ot('Artificial Intelligence', 'AI'), true); assert.equal(ot('Mobile Commerce', 'Mobile'), true); assert.equal(ot('Artificial Intelligence', 'Error reduction'), false);
+  assert.equal((ink.match(/m && onekTaraf\(hd, m\[1\]\)/g) || []).length, 2);
+  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['onekAt', 'numTokens', 'pctOf', 'sigNums', 'dropRepeats', 'OLUMSUZ', 'EKRAN', 'olumsuzFoto']);
+  assert.equal(R.onekAt('AI: predicts those spikes, aligns inventory ahead of demand.', 'Artificial Intelligence'), 'Predicts those spikes, aligns inventory ahead of demand.');
+  assert.equal(R.onekAt('Error reduction: fewer manual errors in picking.', 'Artificial Intelligence'), 'Error reduction: fewer manual errors in picking.');
+  // sayı asetatına ayrılan rakam önceki listede yinelenmez; liste boşalmaz
+  const S = (kind, bullets, stats = []) => ({ kind, bullets, warn: [], stats, table: null });
+  const d = [S('list', ['Mobile dominance: Smartphones generate 68% of retail website orders.', 'Traffic share: 77% of all retail traffic comes from mobile devices.', 'Consumer behavior: high penetration fuels impulse purchases.']), S('stat', [], [{ value: '68%' }, { value: '77%' }, { value: '85%' }]), S('list', ['Only 85% here'])];
+  R.dropRepeats(d);
+  assert.deepEqual(d[0].bullets, ['Consumer behavior: high penetration fuels impulse purchases.'], 'sayı kartındaki rakam giriş asetatında kaldı');
+  assert.deepEqual(d[2].bullets, ['Only 85% here'], 'liste boşaltılmamalı (ayrıca son asetat özettir)');
+  // ayraç yığını
+  assert.match(ts, /ps\.every\(\(x: string\) => \/\^\[A-ZÇĞİÖŞÜ0-9\]\/\.test\(x\) && srcAd\(x\)\)/);
+  // ekran görüntüsü
+  assert.equal(R.olumsuzFoto('Employer dashboard showing application trends and key metrics', 'warehouse robots ai forecasting'), true);
+  assert.equal(R.olumsuzFoto('Website mockup on a laptop', 'mobile shopping app'), true);
+  assert.equal(R.olumsuzFoto('Dashboard of a vintage car', 'vintage car dashboard'), false, 'konu arayüzse/gösterge paneliyse kalmalı');
+  assert.equal(R.olumsuzFoto('Robotic arms in a fulfillment center', 'warehouse robots'), false);
+  assert.match(ts, /A number shown on a "stat" or "chart" slide appears on no other slide/);
 });
 
 summary();

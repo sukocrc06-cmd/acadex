@@ -137,10 +137,12 @@ test('BOŞ GÖRSEL ÇERÇEVESİ BASILMAZ (14.11.2026)', () => {
     'tabloda dolu hücre aranmıyor — "başlık | başlık" yer tutucusu geçer');
   assert.match(ink, /if \(k === 'diagram'\) return !!\(s\.data && \(s\.data\.svg \|\| s\.data\.mermaid\)\)/,
     'boş diyagram kutusu geçer');
-  // Şeritte seçilemez olmalı; seçili tür devre dışı bırakılmamalı (yoksa select kilitlenir).
-  assert.match(ink, /var ok = k === s\.k \|\| dataKind\(s, k\);/,
-    'veri gerektiren tür veri yokken de seçilebiliyor');
-  assert.ok(ink.includes("(ok ? '' : ' (veri yok)')"), 'seçilemeyen türün nedeni yazılmıyor');
+  /* 26.11.2026: şeritte kilit yerine dönüştürme. Veri gerektiren düzen seçilince maddeler
+     dönüştürülür (tablo, grafik, süreç akışı); dönüştürülemiyorsa (ör. sayı yok) seçenek
+     aria-disabled kalır ve nedeni yazılır. Boş çerçeve yine basılmaz (aşağıdaki son savunma). */
+  assert.match(ink, /if \(d\.k === 'chart' && !var0 && sayiCek\(s\.b\)\.length < 2\) return \{ ok: false, neden: 'maddelerde aynı birimden en az iki sayı yok' \};/,
+    'sayısız grafik seçilebiliyor');
+  assert.ok(ink.includes("(n.ok ? '' : ' aria-disabled=\"true\"')") && ink.includes("(n.ok ? '' : '<small>' + X(n.neden) + '</small>')"), 'seçilemeyen düzenin nedeni yazılmıyor');
   // Son savunma: AI veri olmadan o türü döndürse bile basılmaz.
   assert.match(ink, /var kind = s\.k; if \(!dataKind\(s, kind\)\) \{ kind = 'list'; bosCerceve\+\+; \}/,
     'basarken maddeye düşürme yok — AI veri yollamazsa boş çerçeve perdeye çıkar');

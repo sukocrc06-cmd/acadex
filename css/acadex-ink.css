@@ -6191,6 +6191,21 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip input{min-height:40px;border:0;border-bottom:1.4px solid transparent;background:transparent;font:inherit;font-size:14.5px;font-weight:600;color:var(--navy);padding:0 4px;min-width:0}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip input:focus{outline:none;border-bottom-color:var(--blue)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip select{min-height:40px;border:1.2px solid #C9D1E1;border-radius:6px;background:#fff;font:inherit;font-size:13px;color:var(--ink);padding:0 6px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kbtn{display:flex;align-items:center;gap:6px;min-height:40px;min-width:0;padding:0 8px 0 4px;border:1.2px solid #C9D1E1;border-radius:6px;background:#fff;font:inherit;font-size:13px;color:var(--ink);text-align:left;cursor:pointer}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kbtn span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kbtn::after{content:'';flex:none;margin-left:auto;border:4px solid transparent;border-top-color:currentColor;transform:translateY(2px)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kbtn:focus-visible,:is(#acadexsunum-view.axu,#axu-layer) .sx-kop:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kpop{position:absolute;z-index:30;width:min(440px,calc(100% - 16px));max-height:min(70vh,520px);overflow:auto;padding:10px;background:#fff;border:1px solid #DCE2EE;border-radius:10px;box-shadow:0 18px 40px -12px rgba(13,24,56,.35)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kgr>b{display:block;margin:4px 4px 6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5A6582}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kgl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin-bottom:8px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kop{display:flex;align-items:center;gap:8px;min-width:0;padding:6px;border:1px solid transparent;border-radius:6px;background:none;font:inherit;font-size:13px;color:var(--ink);text-align:left;cursor:pointer}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kop:hover{background:#F4F6FA}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kop[aria-selected=true]{border-color:var(--blue);background:#EEF3FF}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kop[aria-disabled=true]{opacity:.6;cursor:not-allowed}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-kop small{display:block;font-size:11px;line-height:1.25;color:#5A6582}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-wf{flex:none;display:block}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-lays-g{grid-column:1/-1;margin-top:4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5A6582}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-lay svg.sx-wf{width:100%;height:30px}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip .del{width:44px;height:44px;border:0;background:none;font-size:20px;color:var(--soft);cursor:pointer;border-radius:50%}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip .del:hover{color:var(--red)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip .del:focus-visible{outline:2px solid var(--blue)}
@@ -6284,7 +6299,7 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#acadexsunum-view.axu,#axu-layer) .sx-under{grid-template-columns:minmax(0,1fr)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-srcs{grid-template-columns:minmax(0,1fr)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip{grid-template-columns:28px 26px minmax(0,1fr) 44px}
-:is(#acadexsunum-view.axu,#axu-layer) .sx-strip select{grid-column:3;grid-row:2}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip select,:is(#acadexsunum-view.axu,#axu-layer) .sx-strip .sx-kbtn{grid-column:3;grid-row:2}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-rh-main{grid-template-columns:minmax(0,1fr);overflow:auto}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-rh-t{font-size:20px}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-pbar{flex-wrap:wrap}}
