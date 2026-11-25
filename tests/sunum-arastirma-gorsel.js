@@ -40,7 +40,7 @@ test('ARAŞTIRMA: konu birden çok sorguya açılır, paralel aranır', () => {
   assert.match(sr, /Promise\.all\(queries\.map\(\(q, i\) => tavily\(q, i === 0\)\)\)/, 'sorgular paralel aranmıyor');
   /* Kuru koşuda yakalandı: [konu, q1, q2, q3] ilk üçe kesilince İngilizce
      sorgu (q3) hiç aranmıyordu. q1 zaten konunun kendisidir; son ikisi alınır. */
-  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => tarihSorgu\(topic, q\)\)\)\]\.slice\(0, 4\)/,
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => yilTekil\(tarihSorgu\(topic, q\)\)\)\)\]\.slice\(0, 4\)/,
     'konu + alt başlık + veri + İngilizce sorgu aranmalı; en çok 4 sorgu (Tavily kredisi)');
   // Plan düşerse araştırma ölmez: yalnız konu aranır.
   assert.match(sr, /let queries: string\[\] = \[topic\]/, 'sorgu planı düşünce araştırma da düşer');
@@ -575,7 +575,7 @@ test('KONUYA SADAKAT: araştırma konunun alt başlıklarını arar, kaynağı o
   // yazım değil araştırmaydı: planın q1'i atılıyor, q2 "konunun verisi" (= enflasyon rakamı) arıyor,
   // kurumsal kaynak önceliği de bireysel yatırım yazılarını eliyordu.
   assert.ok(sr.includes('"aspects":["a1","a2","a3","a4","a5"]') && sr.includes('"aq":'), 'sorgu planı alt başlık çıkarmıyor');
-  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => tarihSorgu\(topic, q\)\)\)\]\.slice\(0, 4\)/, 'alt başlık sorgusu aranmıyor');
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => yilTekil\(tarihSorgu\(topic, q\)\)\)\)\]\.slice\(0, 4\)/, 'alt başlık sorgusu aranmıyor');
   assert.match(sr, /r\._asp >= 2 \|\| all\.filter/, 'alt başlıkları taşıyan kaynak kurumsal sınıra takılıyor');
   assert.match(sr, /keysOf\(\[topic, topicEn, \.\.\.queries, \.\.\.aspects\]/, 'paragraf seçimi alt başlıkları bilmiyor');
   assert.ok(sr.includes('AUDIENCE EXPECTS and ASPECTS') && sr.includes('They are NOT facts'), 'yazar plana uymuyor ya da planı olgu sanabilir');
@@ -901,7 +901,7 @@ test('CANLI DESTE 25.11 (History of Guns) — kaynakça ızgarası, Commons yaza
   assert.equal(R.tarihSorgu('History Of Guns', 'history of firearms ' + yil), 'history of firearms');
   assert.equal(R.tarihSorgu('Kripto para piyasası', 'kripto para verileri ' + yil), 'kripto para verileri ' + yil, 'güncel konunun yılı atılıyor');
   assert.equal(R.tarihSorgu('Elektrikli araçların gelişimi 2020-' + yil, 'ev satışları ' + yil), 'ev satışları ' + yil, 'konu yıl taşıyorsa sorgunun yılı kalmalı');
-  assert.match(ts, /\.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => tarihSorgu\(topic, q\)\)\)\]/);
+  assert.match(ts, /\.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => yilTekil\(tarihSorgu\(topic, q\)\)\)\)\]/);
   assert.match(ts, /it never lists what the sources fail to provide/);
 });
 
@@ -960,6 +960,59 @@ test('CANLI DESTE 25.11 (History of Money 2) — kapanış, yeni düzenler, iki 
   assert.equal(dropDated('Mesopotamian shekel (c. 2150 BC) was linked to barley'), 'Mesopotamian shekel (c. 2150 BC) was linked to barley', 'tarih ayracı atılıyor');
   // görsel sorgusu somut
   assert.match(ts, /"ancient greek silver coin museum", not "ancient greece" or "economy"/);
+});
+
+/* CANLI DESTE 25.11 (Global EV Revolution): maddelerde "(IEA)" (anlam denetçisinin
+   düzelttiği metin süzgeçten geçmiyordu) ve "(Developed)" (taraf adı); "2 × 2025 level";
+   Commons'tan yanan fabrika fotoğrafı; sorguda "2026 … 2026"; yüzdeler yalnız yazıyla;
+   bütün asetatlar aynı açık zeminde. */
+test('CANLI DESTE 25.11 (EV) — ayraç süzgeci, sayı yazımı, olumsuz fotoğraf, halka grafik, koyu ritim, gölgeli kart', () => {
+  const ink = read('js/acadex-ink.js'), ts = read('supabase/functions/sunum-research/index.ts');
+  // sunucu: denetçi düzeltmesi de süzülür; taraf adını yineleyen ayraç atılır
+  assert.match(ts, /else s\.bullets\[c\.bi\] = dropLead\(dropAttr\(dropDated\(cleanCite\(fix\)\)\)\);/, 'anlam denetimi düzeltmesi süzgeçten geçmiyor');
+  assert.match(ts, /hf\.some\(\(h: string\) => h && h\.startsWith\(flat\(a\)\)\) \? "" : m/, '"(Developed)" taraf ayracı kalıyor');
+  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['AYLAR', 'trDec', 'yazim', 'yilTekil', 'OLUMSUZ', 'olumsuzFoto']);
+  assert.equal(R.yazim('Lithium price early 2026 ~2x 2025 level', 'en'), 'Lithium price early 2026 about 2 times the 2025 level');
+  assert.equal(R.yazim('Lityum fiyatı 2026 başında ~2x 2025', 'tr'), 'Lityum fiyatı 2026 başında yaklaşık 2025 düzeyinin 2 katı');
+  assert.equal(R.yazim('Model 3x faster than 2019 hardware', 'en'), 'Model 3x faster than 2019 hardware', 'yılın hemen önünde olmayan "3x" değişmemeli');
+  assert.equal(R.yazim('A 4x4 grid', 'en'), 'A 4x4 grid', 'yıl olmayan çarpım bozulmamalı');
+  assert.equal(R.yilTekil('2026 EV battery supply chain statistics 2026'), '2026 EV battery supply chain statistics');
+  assert.equal(R.yilTekil('EV sales 2024 vs 2025'), 'EV sales 2024 vs 2025');
+  assert.equal(R.olumsuzFoto('Hwaseong battery factory fire', 'battery factory production line'), true);
+  assert.equal(R.olumsuzFoto('Hwaseong battery factory fire', 'Great Fire of London'), false, 'konu yangınsa yangın fotoğrafı olur');
+  assert.equal(R.olumsuzFoto('Workers on a battery assembly line', 'battery factory'), false);
+  assert.match(ts, /!used\.has\(x\.large\) && !olumsuzFoto\(x\.alt, q\)/);
+  assert.match(ts, /take\(await commonsSearch\(h\.entity \|\| q, 8\), q, false\)/, 'Commons fotoğrafı olumsuz süzgeçten geçmiyor');
+  assert.match(ts, /NUMBERS ARE DRAWN, NOT WRITTEN: whenever the sources give 3\+ comparable values in one unit/);
+  assert.match(ts, /Two items compared on the same criteria are a "table"/);
+  // istemci: halka grafik ve yüzdeli sayı kartları
+  const yuzde = new Function(ink.match(/var yuzde = function \(v\) \{.*\};/)[0] + 'return yuzde;')();
+  assert.equal(yuzde('18%'), 18); assert.equal(yuzde('%45,5'), 45.5); assert.equal(yuzde('13.7 million units'), null); assert.equal(yuzde('140%'), null, '100 üstü yüzde halka olmaz');
+  const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
+  let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
+  const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
+  const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return { value: m[0], label: m[1] }; });
+  const M = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), (d) => (d && Array.isArray(d.data) ? d.data : []));
+  const hl = M.VARY.stat[4]('Market growth', ['45.5% — average annual sales growth since 2018', '13.7 million units — global EV sales in 2023', '18% — share of total vehicle sales in 2023']);
+  assert.ok(hl, 'halkalı sayı kartı kurulmadı');
+  assert.deepEqual(hl.filter((e) => e.type === 'chart').map((e) => e.chart.data[0]), [45.5, 18], 'yalnız yüzdeler halka olmalı');
+  hl.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, 'halka kartı taşıyor'));
+  assert.equal(M.VARY.stat[4]('X', ['13.7 million — a', '2.1 billion — b', '18% — c']), null, 'tek yüzde varsa halka düzeni seçilmez');
+  assert.equal(M.VSIRA.stat[0], 5);
+  assert.match(ink, /if \(type === 'ring'\) \{ var rv = Math\.max\(0, Math\.min\(100, vals\[0\]\)\)/);
+  assert.match(ink, /if \(ty === 'ring'\) \{ var rv0 = .*pp\.ChartType\.doughnut, \[\{ name: titleOf\(s\) \|\| 'Oran', labels: \['', ''\], values: \[rv0, 100 - rv0\] \}\]/, 'PPTX halka grafiği yok');
+  // koyu ritim ve gölgeli kart
+  assert.match(ink, /if \(kind === 'quote'\) return 2;/);
+  assert.match(ink, /if \(\/\^\(cover\|end\)\$\/\.test\(kind\) \|\| \(kind === 'quote' && sl\.v === 2\)\) sl\.bg = 'navy';/, 'kapak/ara vurgu/kapanış koyu değil');
+  const renkKod = ink.match(/var renkSec = function \(e\) \{[\s\S]*?return r; \};/)[0];
+  const RS = new Function('temaRenk', 'NAVY', 'SOFT', 'BLUE', 'mix', 'deck', 'koyu', 'var zeminKoyu = koyu;' + renkKod + 'return renkSec;');
+  const dk = { tema: { ink: '#0F172A', head: '#0F172A', acc: '#4F46E5', dark: false } }, tr = (c) => (c === '#0D1838' ? '#0F172A' : c);
+  assert.equal(RS(tr, '#0D1838', '#6A7593', '#2F6BFF', (x) => x, dk, 1)({ type: 't', color: '#0D1838' }), '#FFFFFF', 'koyu zeminde koyu yazı kalıyor');
+  assert.equal(RS(tr, '#0D1838', '#6A7593', '#2F6BFF', (x) => x, dk, 1)({ type: 't', color: '#6A7593' }), '#B9C3DA');
+  assert.equal(RS(tr, '#0D1838', '#6A7593', '#2F6BFF', (x) => x, dk, 0)({ type: 't', color: '#0D1838' }), '#0F172A', 'açık zeminde renk değişmemeli');
+  assert.match(ink, /kutuGolge\(e\) \? ';background:#FFFFFF;box-shadow:0 4px 20px rgba\(15,23,42,\.06\),inset 0 4px 0 ' \+ TM\.acc/, 'gölgeli kart çizilmiyor');
+  assert.match(ink, /fc = kutuGolge\(e\) \? 'FFFFFF' :/, 'PPTX kartı beyaz değil');
+  assert.match(ink, /var col = function \(e\) \{ zeminKoyu = koyuMu\(s\); var c = hex\(renkSec\(e\)\); zeminKoyu = 0;/, 'PPTX koyu asetatta yazı rengi eşlenmiyor');
 });
 
 summary();

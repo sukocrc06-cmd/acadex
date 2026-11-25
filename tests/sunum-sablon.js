@@ -36,8 +36,8 @@ const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#
 const M = new Function('arr', src)((x) => (Array.isArray(x) ? x : []));
 
 test('hazır şablonlar: 18 tane, kimlikleri benzersiz, hepsi okunaklı', () => {
-  assert.equal(M.TEMALAR.length, 18);
-  assert.equal(new Set(M.TEMALAR.map((t) => t.id)).size, 18);
+  assert.equal(M.TEMALAR.length, 19);      /* 25.11.2026: + ax-pitch */
+  assert.equal(new Set(M.TEMALAR.map((t) => t.id)).size, 19);
   for (const t of M.TEMALAR) {
     assert.ok(M.kontrast(t.ink, t.bg.clear) >= 4, t.id + ' gövde yazısı zeminde okunmuyor');
     assert.ok(M.kontrast(t.head, t.bg.clear) >= 3, t.id + ' başlık zeminde okunmuyor');
@@ -193,7 +193,8 @@ test('ikonSec: konuya göre simge — sağlık, hukuk, yapay zekâ, eğitim', ()
 });
 
 test('kaynak bağları: çizim, PPTX, bulut kaydı ve paylaşım şablonu taşır', () => {
-  assert.match(ink, /color:' \+ temaRenk\(e\.color, e\.type\)/, 'elHTML rengi şablondan geçirmeli');
+  assert.match(ink, /color:' \+ renkSec\(e\)/, 'elHTML rengi şablondan geçirmeli');
+  assert.match(ink, /var renkSec = function \(e\) \{ var r = temaRenk\(e\.color, e\.type\);/, 'renkSec şablon rengini temel almalı');
   assert.match(ink, /rows\[0\]\.content\.tema = d\.tema\.def/, 'şablon ilk asetatın content alanına yazılır');
   assert.match(ink, /d\.tema = c0 && c0\.tema \? temaKur\(c0\.tema\) : null/, 'buluttan gelen şablon temaKur ile süzülmeli');
   assert.match(ink, /st: temaSty\(s\)/, 'paylaşım görüntüsü şablon stilini taşımalı');
@@ -245,7 +246,7 @@ test('profesyonel görünüm: iki özgün şablon, alt bilgi ve varsayılan şab
   const yan = { lay: 'list', els: [{ x: 70, w: 400, y: 300, h: 230 }] }; M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, yan, son] });
   const y2 = M.temaAlt(yan); assert.deepEqual(y2.map((e) => e.type + ':' + (e.text || '')), ['t:3'], 'sol yarıya inen öğe: deste adı düşer, numara plakasız kalır');
   M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, dolu, son] });
-  assert.match(ink, /temaDekor\(s\)\.concat\(s\.els, temaAlt\(s\)\)\.map\(function \(e\) \{ return elHTML\(e, false\); \}\)\.join\(''\) \+ '<\/div>'; \};/, 'alt bilgi öğelerin altına çiziliyor (slideHTML)');
+  assert.match(ink, /temaDekor\(s\)\.concat\(s\.els, temaAlt\(s\)\)\.map\(function \(e\) \{ return elHTML\(e, false\); \}\)\.join\(''\) \+ '<\/div>'; zeminKoyu = 0; return h; \};/, 'alt bilgi öğelerin altına çiziliyor (slideHTML)');
   assert.match(ink, /var pels = temaDekor\(s\)\.concat\(s\.els, temaAlt\(s\)\);/, 'alt bilgi öğelerin altına çiziliyor (PPTX)');
   assert.match(ink, /s\.els\.map\(function \(e\) \{ return elHTML\(e, true\); \}\)\.join\(''\) \+ temaAlt\(s\)\.map/, 'alt bilgi öğelerin altına çiziliyor (sahne)');
   assert.equal(ic.els.length, 1, 'alt bilgi öğelere yazılmaz');
@@ -256,7 +257,10 @@ test('profesyonel görünüm: iki özgün şablon, alt bilgi ve varsayılan şab
   assert.match(ink, /mode !== 'append' && !deck\.tema && !deck\.temaEl/);
   assert.match(ink, /var temaSec = function \(T\) \{ deck\.temaEl = 1;/);
   const V = /var VARSAYILAN_TEMA = \[([^\]]+)\]/.exec(ink)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
-  assert.ok(V.length >= 4 && V.includes('ax-pastel') && V.includes('ax-memfis'));
+  /* 25.11.2026: Berkay tasarım sistemini tanımladı (açık içerik + gölgeli kart, koyu kapak/ara vurgu/kapanış) —
+     üretilen deste Pitch ile başlar; öteki şablonlar menüde kalır. */
+  assert.deepEqual(V, ['ax-pitch']);
+  const PT = M.TEMALAR.find((x) => x.id === 'ax-pitch'); assert.equal(PT.bg.clear, '#F8FAFC'); assert.equal(PT.bg.navy, '#0F172A'); assert.equal(PT.bic.kutu, 'golge');
   for (const id of V) { const t = M.TEMALAR.find((x) => x.id === id); assert.ok(t && !t.dark, id + ' varsayılan şablon açık zeminli olmalı'); }
 });
 

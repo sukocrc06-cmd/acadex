@@ -53,6 +53,7 @@ const stripTags = (h: string) => String(h || "").replace(/<[^>]+>/g, " ").replac
    için "history of firearms 2026" arandı (25.11.2026). Konu kendisi yıl taşımıyorsa
    ve tarih/gelişim/köken bildiriyorsa yıl sorgudan atılır. */
 const TARIH = /\b(?:history|historical|evolution|origins?|chronolog\w*|ancient|medieval)\b|tarih(?:i|çe|çesi|sel)?\b|gelişim|köken|kronoloj/i;
+const yilTekil = (q: string): string => q.replace(/\b((?:19|20)\d{2})\b(.*?)\s*\b\1\b/g, "$1$2").trim();   /* "2026 EV battery … statistics 2026" */
 const tarihSorgu = (topic: string, q: string): string => TARIH.test(topic) && !/\b(?:19|20)\d{2}\b/.test(topic) ? q.replace(new RegExp("\\s*\\b" + new Date().getFullYear() + "\\b", "g"), "").trim() || q : q;
 const artistOf = (h: string): string => {
   let a = stripTags(h); const w = a.split(" "), n = w.length;
@@ -169,18 +170,18 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
      çalışma destesine kondu (canlı deste 14.11.2026). Uyan yoksa fotoğraf ALINMAZ:
      "Coinage Takes Hold in Ancient Greece" asetatına ilk sonuç diye kahve kupası
      geldi (25.11.2026); sıradaki arşive (Pexels, Commons) geçilir. */
-  const take = (list: Photo[], q = "") => { const qk = gorselKok(q);
-    const ok = list.filter((x) => x && x.large && !used.has(x.large)); const p = qk.length ? ok.find((x) => gorselUyar(qk, x.alt)) || null : ok[0] || null; if (p) used.add(p.large); return p; };
+  const take = (list: Photo[], q = "", uysun = true) => { const qk = uysun ? gorselKok(q) : [];
+    const ok = list.filter((x) => x && x.large && !used.has(x.large) && !olumsuzFoto(x.alt, q)); const p = qk.length ? ok.find((x) => gorselUyar(qk, x.alt)) || null : ok[0] || null; if (p) used.add(p.large); return p; };
   // Wikipedia aramaları paralel; stok aramaları sırayla (sınır sayacı ve tekrar denetimi için).
   const wiki = await Promise.all(hints.map((h) => h.entity ? wikiImage(h.entity) : Promise.resolve(null)));
   const photos: (Photo & { i: number })[] = [];
   for (let k = 0; k < hints.length; k++) {
-    const h = hints[k]; let p: Photo | null = wiki[k] ? take([wiki[k] as Photo]) : null;
+    const h = hints[k]; let p: Photo | null = wiki[k] ? take([wiki[k] as Photo], h.q || h.entity || "", false) : null;
     const q = (h.q || h.entity || "").slice(0, 80).trim();
     if (!p && q && memo.has(q)) p = take(memo.get(q) || [], q);
     if (!p && q && !memo.has(q) && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; memo.set(q, u.photos); p = take(u.photos, q); }
     if (!p && q) p = take(await pexelsSearch(q, 6, lang), q);
-    if (!p && q) p = take(await commonsSearch(h.entity || q, 8));
+    if (!p && q) p = take(await commonsSearch(h.entity || q, 8), q, false);
     if (p) photos.push({ ...p, i: h.i });
   }
   return { photos, rate };
@@ -192,6 +193,10 @@ async function resolveImages(hints: Hint[], lang: string): Promise<{ photos: (Ph
 /* Fotoğraf açıklamasıyla sorgu karşılaştırması: "coin" ile "coins" aynı köktür (önek),
    "close", "photo", "with" gibi her açıklamada geçen sözcükler sayılmaz. */
 const GORSEL_BOS = /^(?:with|from|close|photo|image|pictur|view|shot|backgr|detail|showin|over|into|that|this|their|while|scene|concep)$/;
+/* Yangın, enkaz, kaza fotoğrafı konu bunu istemedikçe konmaz: "Manufacturing Trends"
+   asetatına Commons'tan "Hwaseong battery factory fire" geldi (25.11.2026). */
+const OLUMSUZ = /\b(?:fire|blaze|burn(?:ing|ed|t)?|explo(?:sion|ded|des)|disaster|wreck(?:age)?|crash(?:ed)?|destroy(?:ed)?|destruction|damaged?|ruins?|ruined|accident|collapse[ds]?|flood(?:ed|ing)?|bomb(?:ing|ed)?|corpse|dead|death|injur(?:y|ed)|riot|debris|smoke|yangın|enkaz|kaza|patlama|yıkık|yıkıntı)\b/i;
+const olumsuzFoto = (alt: string, q: string): boolean => OLUMSUZ.test(String(alt || "")) && !OLUMSUZ.test(String(q || ""));
 const gorselKok = (q: string): string[] => keysOf(q).filter((k) => !GORSEL_BOS.test(k));
 const gorselUyar = (qk: string[], alt: string): boolean => { const ak = gorselKok(alt); return qk.some((k) => ak.some((a) => a.startsWith(k) || k.startsWith(a))); };
 const keysOf = (s: string): string[] => [...new Set((String(s || "").toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, 6)))];
@@ -347,7 +352,9 @@ const AYLAR: Record<string, string[]> = { tr: ["Ocak", "Şubat", "Mart", "Nisan"
 const yazim = (t: string, lang: string): string => {
   const ay = AYLAR[lang === "en" ? "en" : "tr"];
   const x = String(t || "").replace(/[\u2010\u2011]/g, "-").replace(/\b((?:19|20)\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/g, (_m, y, m, d) => `${+d} ${ay[+m - 1]} ${y}`);
-  return lang === "en" ? x : trDec(x).replace(/(?<![\d%.,-])(\d+(?:,\d+)?(?:\s?[-–]\s?\d+(?:,\d+)?)?)\s?%(?!\s?\d)/g, "%$1");
+  /* "~2x 2025 level" → "about 2 times the 2025 level" (25.11.2026, EV destesi) */
+  const y = x.replace(/~\s*(?=\d)/g, lang === "en" ? "about " : "yaklaşık ").replace(/(\d+(?:[.,]\d+)?)\s*[x×]\s*((?:19|20)\d{2})\b/g, (_m, n, yil) => lang === "en" ? `${n} times the ${yil}` : `${yil} düzeyinin ${n} katı`);
+  return lang === "en" ? y : trDec(y).replace(/(?<![\d%.,-])(\d+(?:,\d+)?(?:\s?[-–]\s?\d+(?:,\d+)?)?)\s?%(?!\s?\d)/g, "%$1");
 };
 const trDec = (t: string) => String(t || "").replace(/(?<![\d.,])(\d+)\.(\d{1,2})(?!\d|\.\d)/g, "$1,$2");
 
@@ -641,7 +648,7 @@ The deck is written in ${lang === "en" ? "English" : "Turkish"}: "the topic's la
       try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); aspects = (Array.isArray(pq?.aspects) ? pq.aspects : []).map((x: any) => String(x || "").slice(0, 40).trim()).filter((x: string) => x.length > 2).slice(0, 6); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = String(pq?.aq || "").slice(0, 160).trim();
         /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
            Alt başlık sorgusu olmadan "…yolları" konusu yalnız sorunun verisini (enflasyon rakamları) buluyordu. */
-        if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => tarihSorgu(topic, q)))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
+        if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => yilTekil(tarihSorgu(topic, q))))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
       engine.queries = queries.length;
 
       // 2) Tavily (varsa) ve Wikipedia paralel. İlk sorgu derin, ötekiler hızlı.
@@ -708,6 +715,7 @@ Rules:
   "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names; 2-3 bullets per side, first all bullets of side one, then all of side two; "n1" = how many bullets belong to side one — every bullet stays on its own side) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns). For comparing 2-3 items on several criteria write a feature matrix: headers = ["Criterion", item1, item2(, item3)], one row per criterion (speed, cost, risk, adoption…), cells short ratings from the sources — "High"/"Medium"/"Low", "Yes"/"No", "✓"/"✕" — or at most 6 words; "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
   "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list".
+  NUMBERS ARE DRAWN, NOT WRITTEN: whenever the sources give 3+ comparable values in one unit (years, countries, segments), that slide MUST be a "chart"; a share or rate in percent belongs in "stat" (drawn as a ring). Two items compared on the same criteria are a "table" (Criterion | A | B with short ratings), not "two" — "two" is only for two sides with different kinds of points. Write numbers in words a reader can say aloud: "about 2 times the 2025 level", never "~2x 2025".
   Use at least 4 different layouts across the deck when the sources allow (a "two" or "table" comparison, a "time" chronology, a "stat" or "chart" with real numbers); never two "list" slides in a row unless the content is truly a list; at most half of the slides may be "list". Never invent a number, date or rating to fill a layout.
 - When sources disagree on a number, date or time, follow the institutional source (space agency, statistics office, museum, university, encyclopedia) over news or opinion sites, and give a clock time only together with the time zone the source itself states — never invent or translate a time-zone abbreviation; if the source gives none, give the date without the clock time.
 - Today is ${new Date().toISOString().slice(0, 10)}. Say which period every number refers to; if the newest data in the sources is more than a year old, the conclusion slide says up to which date the deck is current. Never present old data as the present situation.
@@ -831,7 +839,8 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       if (k === "table" && (!table || !table.rows.length)) k = "list";
       if (k === "list" && kind === "stat" && !bullets.length) stats.forEach((x: any) => { if (!x.ok) warn.push(bullets.length); bullets.push(`${x.value} — ${x.label}`); });
       const yaz = (t: string) => yazim(t, lang);
-      if (k === "two") { const sd = sidesOf(bullets, s.heads.map(String), warn); if (sd.bullets.some((b, i) => b !== bullets[i])) s.n1 = 0; /* dizildiyse sınır ortadır */ bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn); }
+      if (k === "two") { const hf = s.heads.map((h: any) => flat(String(h || ""))); bullets.forEach((b: string, i: number) => { bullets[i] = b.replace(/\s*\(([^()\d]{2,30})\)(?=[.!?]?\s*$)/, (m: string, a: string) => hf.some((h: string) => h && h.startsWith(flat(a))) ? "" : m); });   /* "(Developed)" taraf adını yineliyordu (25.11.2026) */
+        const sd = sidesOf(bullets, s.heads.map(String), warn); if (sd.bullets.some((b, i) => b !== bullets[i])) s.n1 = 0; /* dizildiyse sınır ortadır */ bullets.splice(0, bullets.length, ...sd.bullets); warn.splice(0, warn.length, ...sd.warn); }
       if (ser) return { title: String(s.title || "").trim(), kind: k, bullets: [], warn: [], heads: [], stats: [], chart, table: null, notes: cleanNote(s.notes), image: imgOf(null), src: ids };
       return { title: yaz(cleanCite(String(s.title || ""))), kind: k, bullets: bullets.map(yaz), warn, heads: Array.isArray(s.heads) ? s.heads.slice(0, 2).map((h: any) => cleanCite(String(h))) : [], split: k === "two" ? Math.max(0, Math.min(bullets.length - 1, Number(s.n1) || 0)) : 0, stats: stats.filter((x: any) => x.ok).slice(0, 3).map((x: any) => ({ ...x, value: yaz(x.value) })), chart: k === "chart" ? chart : null, table: k === "table" ? table : null, notes: cleanNote(s.notes), image: imgOf(s.image), src: ids };
     });
@@ -954,7 +963,7 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
           if (r.v === "mislabel" && fix && numTokens(fix).every((t) => numTokens(c.text).includes(t))) {
             meaning.fixed++;
             if (c.k.includes(".s")) { const parts = fix.split(/\s+[—–-]\s+/); if (parts.length > 1) s.stats[c.bi].label = parts.slice(1).join(" — "); }
-            else s.bullets[c.bi] = fix;
+            else s.bullets[c.bi] = dropLead(dropAttr(dropDated(cleanCite(fix))));   /* denetçi "(IEA)" gibi bildireni ayraçla ekliyordu (25.11.2026) */
             (s.fixed = s.fixed || []).push({ kind: c.k.includes(".s") ? "stat" : "bullet", i: c.bi, was: c.text, why });
           } else if (r.v === "unsupported" || r.v === "mislabel") {
             meaning.flagged++;
