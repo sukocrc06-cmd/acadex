@@ -30,14 +30,14 @@ const { test, summary } = makeRunner();
 /* Modül bir IIFE; şablon motoru saf fonksiyonlardan oluştuğu için ilgili
    dilimler kesilip küçük bir kapsamda çalıştırılır. */
 const dilim = (bas, son) => { const a = ink.indexOf(bas), b = ink.indexOf(son, a); assert.ok(a > 0 && b > a, 'dilim bulunamadı: ' + bas); return ink.slice(a, b); };
-const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#D9EFE3','#F6E7C4','#F4DDDA'],deck={tema:null};" +
-  dilim('  var rgb3 = ', '  var fontYuklu = ') + dilim('  var temaCikar = ', '  var zipLib = ') + dilim('  var IKON = {', '  var ikonSec = ') + dilim('  var ikonSec = ', '\n') +
-  ';return {TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,temaAlt,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;},deste:function(d){Object.assign(deck,d);}};';
+const src = "var NAVY='#0D1838',BLUE='#2F6BFF',SOFT='#6A7593',TINT=['#DCE6FF','#D9EFE3','#F6E7C4','#F4DDDA'],deck={tema:null},curLang=function(){return 'en';};" +
+  dilim('  var rgb3 = ', '  var fontYuklu = ') + dilim('  var temaCikar = ', '  var zipLib = ') + dilim('  var IKON = {', '  var ikonSec = ') + dilim('  var ikonSec = ', '  /* "Eylül 2021') +
+  ';return {bag:function(t){ikonBag=t;ikonKul={};},TEMALAR,temaKur,temaRenk,temaSty,temaCls,temaDekor,temaAlt,kutuCizgi,temaCikar,kontrast,IKON,IKON_L,IKON_RE,ikonSec,set:function(t){deck.tema=t;},deste:function(d){Object.assign(deck,d);}};';
 const M = new Function('arr', src)((x) => (Array.isArray(x) ? x : []));
 
 test('hazır şablonlar: 18 tane, kimlikleri benzersiz, hepsi okunaklı', () => {
-  assert.equal(M.TEMALAR.length, 18);
-  assert.equal(new Set(M.TEMALAR.map((t) => t.id)).size, 18);
+  assert.equal(M.TEMALAR.length, 19);      /* 25.11.2026: + ax-pitch */
+  assert.equal(new Set(M.TEMALAR.map((t) => t.id)).size, 19);
   for (const t of M.TEMALAR) {
     assert.ok(M.kontrast(t.ink, t.bg.clear) >= 4, t.id + ' gövde yazısı zeminde okunmuyor');
     assert.ok(M.kontrast(t.head, t.bg.clear) >= 3, t.id + ' başlık zeminde okunmuyor');
@@ -193,7 +193,8 @@ test('ikonSec: konuya göre simge — sağlık, hukuk, yapay zekâ, eğitim', ()
 });
 
 test('kaynak bağları: çizim, PPTX, bulut kaydı ve paylaşım şablonu taşır', () => {
-  assert.match(ink, /color:' \+ temaRenk\(e\.color, e\.type\)/, 'elHTML rengi şablondan geçirmeli');
+  assert.match(ink, /color:' \+ renkSec\(e\)/, 'elHTML rengi şablondan geçirmeli');
+  assert.match(ink, /var renkSec = function \(e\) \{ var r = temaRenk\(e\.color, e\.type\);/, 'renkSec şablon rengini temel almalı');
   assert.match(ink, /rows\[0\]\.content\.tema = d\.tema\.def/, 'şablon ilk asetatın content alanına yazılır');
   assert.match(ink, /d\.tema = c0 && c0\.tema \? temaKur\(c0\.tema\) : null/, 'buluttan gelen şablon temaKur ile süzülmeli');
   assert.match(ink, /st: temaSty\(s\)/, 'paylaşım görüntüsü şablon stilini taşımalı');
@@ -231,12 +232,23 @@ test('profesyonel görünüm: iki özgün şablon, alt bilgi ve varsayılan şab
   const pano = g[g.length - 1]; assert.equal(pano.fill, P.bg.clear); assert.ok(pano.x <= 70 && pano.x + pano.w >= 890 && pano.y <= 46 && pano.y + pano.h >= 510, 'içerik panonun içinde kalmalı');
   M.set(F); assert.ok(new Set(M.temaDekor({ bg: 'clear' }).map((e) => e.fill)).size >= 4, 'memfis en az üç renk + zemin kullanır');
   /* alt bilgi: kapakta ve kapanışta yok, içerikte deste adı + sayfa numarası */
-  const kapak = { lay: 'cover', els: [] }, ic = { lay: 'list', els: [{ y: 206, h: 290 }] }, dolu = { lay: 'refs', els: [{ y: 146, h: 370 }] }, son = { lay: 'end', els: [] };
+  const kapak = { lay: 'cover', els: [] }, ic = { lay: 'list', els: [{ y: 206, h: 290 }] }, dolu = { lay: 'refs', els: [{ x: 70, w: 820, y: 146, h: 370 }] }, son = { lay: 'end', els: [] };
   M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, dolu, son] });
   assert.deepEqual(M.temaAlt(kapak), []); assert.deepEqual(M.temaAlt(son), []);
   const a = M.temaAlt(ic); assert.equal(a.length, 2); assert.equal(a[0].text, 'İRADEYİ GÜÇLENDİRME'); assert.equal(a[1].text, '2');
   for (const e of a) { assert.equal(e.type, 't'); assert.ok(e.dz && e.y >= 504 && e.y + e.h <= 520 && e.x >= 70 && e.x + e.w <= 890); }
-  assert.deepEqual(M.temaAlt(dolu), [], 'asetatın kendi öğesi alt satıra iniyorsa alt bilgi basılmaz');
+  /* 25.11.2026: öğe alt satıra inince yalnız deste adı düşer; numara plakayla kalır
+     ("History of Guns" destesinde 12 içerik asetatının 5'i numarasızdı). */
+  const d = M.temaAlt(dolu);
+  assert.ok(!d.some((e) => e.text === 'İRADEYİ GÜÇLENDİRME'), 'alt satıra inen öğenin üstüne deste adı basılıyor');
+  assert.equal(d[d.length - 1].text, '3', 'sayfa numarası düştü');
+  assert.ok(d.some((e) => e.type === 'rect' && e.dz && e.x <= 850 && e.x + e.w >= 890), 'numaranın altında zemin plakası yok');
+  const yan = { lay: 'list', els: [{ x: 70, w: 400, y: 300, h: 230 }] }; M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, yan, son] });
+  const y2 = M.temaAlt(yan); assert.deepEqual(y2.map((e) => e.type + ':' + (e.text || '')), ['t:3'], 'sol yarıya inen öğe: deste adı düşer, numara plakasız kalır');
+  M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, dolu, son] });
+  assert.match(ink, /temaDekor\(s\)\.concat\(s\.els, temaAlt\(s\)\)\.map\(function \(e\) \{ return elHTML\(e, false\); \}\)\.join\(''\) \+ '<\/div>'; zeminKoyu = 0; return h; \};/, 'alt bilgi öğelerin altına çiziliyor (slideHTML)');
+  assert.match(ink, /var pels = temaDekor\(s\)\.concat\(s\.els, temaAlt\(s\)\);/, 'alt bilgi öğelerin altına çiziliyor (PPTX)');
+  assert.match(ink, /s\.els\.map\(function \(e\) \{ return elHTML\(e, true\); \}\)\.join\(''\) \+ temaAlt\(s\)\.map/, 'alt bilgi öğelerin altına çiziliyor (sahne)');
   assert.equal(ic.els.length, 1, 'alt bilgi öğelere yazılmaz');
   M.set(null); assert.deepEqual(M.temaAlt(ic), [], 'şablonsuzken alt bilgi yok');
   /* dört çizim yolu da alt bilgiyi basar */
@@ -245,8 +257,43 @@ test('profesyonel görünüm: iki özgün şablon, alt bilgi ve varsayılan şab
   assert.match(ink, /mode !== 'append' && !deck\.tema && !deck\.temaEl/);
   assert.match(ink, /var temaSec = function \(T\) \{ deck\.temaEl = 1;/);
   const V = /var VARSAYILAN_TEMA = \[([^\]]+)\]/.exec(ink)[1].split(',').map((x) => x.trim().replace(/'/g, ''));
-  assert.ok(V.length >= 4 && V.includes('ax-pastel') && V.includes('ax-memfis'));
+  /* 25.11.2026: Berkay tasarım sistemini tanımladı (açık içerik + gölgeli kart, koyu kapak/ara vurgu/kapanış) —
+     üretilen deste Pitch ile başlar; öteki şablonlar menüde kalır. */
+  assert.deepEqual(V, ['ax-pitch']);
+  const PT = M.TEMALAR.find((x) => x.id === 'ax-pitch'); assert.equal(PT.bg.clear, '#F8FAFC'); assert.equal(PT.bg.navy, '#0F172A'); assert.equal(PT.bic.kutu, 'golge');
   for (const id of V) { const t = M.TEMALAR.find((x) => x.id === id); assert.ok(t && !t.dark, id + ' varsayılan şablon açık zeminli olmalı'); }
+});
+
+/* CANLI DESTE 25.11 (Solar vs Wind): "Critical Risks" asetatında kupa ve taç, "Key Concepts"te
+   iki kez DNA — "wind" içindeki "win", "making" içindeki "king", "generation" içindeki "gene". */
+test('ikon anlamı: sözcük sınırı, risk bağlamında yalnız uyarı ikonları', () => {
+  const pozitif = ['trophy', 'crown', 'star', 'medal', 'gem', 'thumbs-up'];
+  const risk = ['Cost volatility: Trade tariffs could widen the LCOE gap between solar and wind.', 'Grid integration: Rapid solar deployment stresses daytime grids.', 'Data gaps: Future capacity forecasts are limited, making long-term planning uncertain.'];
+  M.bag('Critical Risks and Open Questions');      /* newSlide başlığı bağlam olarak verir */
+  risk.forEach((x, i) => { const ik = M.ikonSec(x, i); assert.ok(!pozitif.includes(ik), 'risk maddesine olumlu ikon: ' + ik); assert.ok(['alert', 'activity', 'trending-down', 'shield'].includes(ik), x + ' → ' + ik); });
+  M.bag('');
+  assert.equal(M.ikonSec('Cost volatility: tariffs could widen the gap', 0), 'trending-down', 'risk sözcüklü madde başlıksız da uyarı ikonu almalı');
+  M.bag('Risks'); assert.equal(M.ikonSec('Grid integration: stresses daytime grids', 1), 'activity'); M.bag('');
+  assert.notEqual(M.ikonSec('Capacity: Installed power that can generate electricity', 0), 'dna', '"generate" DNA sayılıyor');
+  assert.notEqual(M.ikonSec('Market share: percentage of total electricity generation', 2), 'dna');
+  assert.equal(M.ikonSec('Genetik testler ve DNA dizilimi', 0), 'dna');
+  assert.notEqual(M.ikonSec('Onshore wind remains cheaper per MWh', 0), 'trophy', '"wind" ödül sayılıyor');
+  assert.equal(M.ikonSec('Osmanlı padişahı ve hanedan', 0), 'crown');
+  assert.match(ink, /ikonBag = String\(t \|\| ''\);[\s\S]{0,120}for \(var di = 0; di < dene\.length && !alt; di\+\+\)[\s\S]{0,200}ikonBag = '';/, 'ikon seçici asetat başlığını görmüyor');
+});
+
+/* CANLI DESTE 25.11 (Fintech): "Technology infrastructure" asetatında üç kartın ikisi aynı
+   banka ikonuydu. Bir asetatta ikon bir kez kullanılır; uyan ikinci ikon ya da yedek sıradan boş olan. */
+test('ikon tekrarı: aynı asetatta iki kart aynı ikonu almaz', () => {
+  M.bag('Technology infrastructure underpins competitive edge');
+  const ik = ['Cloud-native stack: Neobanks build on cloud platforms, APIs, and AI agents.', 'Legacy core: Traditional banks run on entrenched mainframe systems.', 'Integration path: BaaS allows neobanks to tap traditional banks’ licences and capital.'].map((x, i) => M.ikonSec(x, i));
+  assert.equal(new Set(ik).size, 3, 'aynı ikon iki kez: ' + ik.join(','));
+  assert.ok(ik.every((x) => M.IKON[x]), 'yedek ikon tanımsız: ' + ik.join(','));
+  M.bag('Critical risks');
+  const rk = ['Trust gap', 'Regulatory uncertainty: rules may change', 'Scalability limits', 'Cost volatility'].map((x, i) => M.ikonSec(x, i));
+  assert.equal(new Set(rk).size, 4, 'risk ikonları tekrarlandı: ' + rk.join(','));
+  M.bag('');
+  assert.match(ink, /ikonBag = String\(t \|\| ''\); ikonKul = \{\};/, 'yeni asetatta ikon kaydı sıfırlanmıyor');
 });
 
 summary();
