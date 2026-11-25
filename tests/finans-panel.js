@@ -81,6 +81,25 @@ test('panel: para kuruş olarak yazılır; yüzde Türkçe biçimde (%7,5)', () 
   assert.ok(Number.isNaN(vm.runInContext("kurus('abc')", ctx)));
   assert.equal(vm.runInContext('PCT(0.075)', ctx), '%7,5');
   assert.match(vm.runInContext('TL(11990, true)', ctx), /119,90/);
+  /* 26.11.2026 (Sudegül): "5.068,78" yazılınca 5.068 kaydediliyordu (type=number + yalnız ilk virgül) */
+  const oku = (v) => vm.runInContext('sayiOku(' + JSON.stringify(v) + ')', ctx);
+  assert.equal(oku('5.068,78'), 5068.78); assert.equal(oku('5068,78'), 5068.78); assert.equal(oku('5.068'), 5068, 'tek nokta + 3 hane = binlik');
+  assert.equal(oku('1.234.567,5'), 1234567.5); assert.equal(oku('5068.78'), 5068.78); assert.equal(oku('5,068.78'), 5068.78);
+  assert.equal(oku('₺ 5.068,78'), 5068.78); assert.equal(oku('0,75'), 0.75); assert.equal(oku('149,90 TL'), 149.9);
+  assert.ok(Number.isNaN(oku('')) && Number.isNaN(oku('5,0,6x')));
+  assert.equal(vm.runInContext("kurus('5.068,78')", ctx), 506878);
+  assert.equal(vm.runInContext('sayiYaz(5068.78)', ctx), '5.068,78');
+});
+test('maliyet kalemi: ad, not, birim düzenlenir; sistem kalemi silinmez; para alanı metin', () => {
+  assert.match(fin, /var SISTEM_KALEM = \['kdv', 'odeme_komisyon', 'ai_sayfa'\];/);
+  assert.match(fin, /<input class="in sm" name="lb" maxlength="80" value="' \+ X\(c\.label\) \+ '"/);
+  assert.match(fin, /<input class="in sm fin-cost-not" name="nt" maxlength="300" value="' \+ X\(c\.note \|\| ''\) \+ '"/);
+  assert.match(fin, /var deg = \{ label: lb, note: nt \|\| null, amount: v, updated_at: new Date\(\)\.toISOString\(\) \};/);
+  assert.match(fin, /\(sis \? '' : '<button type="button" class="btn sm ghost fin-sil" data-delcost/);
+  assert.match(fin, /if \(!A\.confirmBox\('"' \+ ad \+ '" kalemi silinsin mi\? Bu geri alınamaz\.'\)\) return;/);
+  assert.match(fin, /unit: f\.un\.value, note: nt \|\| null, sort: 200/);
+  assert.ok(!/type="number"[^>]*name="am"|type="number"[^>]*name="a"|type="number"[^>]*data-bud/.test(fin), 'para alanı type=number kalmadı');
+  assert.ok(!/parseFloat\(/.test(fin), 'tutar hep sayiOku/kurus ile okunur');
 });
 test('simülatör: büyüme, kayıp ve başabaş doğru hesaplanır', () => {
   const ctx = { cost: (k) => ({ kdv: 20, odeme_komisyon: 0 })[k] || 0 }; vm.createContext(ctx);

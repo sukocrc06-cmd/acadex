@@ -16,7 +16,27 @@
   var TL = function (k, dec) { var v = Number(k || 0) / 100; return v.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 }); };
   var TLn = function (v, dec) { return TL(Math.round(Number(v || 0) * 100), dec); };
   var PCT = function (v, d) { return '%' + (Number(v || 0) * 100).toLocaleString('tr-TR', { maximumFractionDigits: d == null ? 1 : d }); };
-  var kurus = function (v) { var n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? Math.round(n * 100) : NaN; };
+  /* TUTAR GİRİŞİ (26.11.2026, Sudegül'ün bildirimi). Para alanları type="number" idi: tarayıcı
+     "5.068,78"i 5.068 okuyordu (nokta = ondalık), aylık 5.068 TL'lik gider 5 TL'ye düşüyordu;
+     kurus() da yalnız ilk virgülü noktaya çeviriyordu ("5.068.78" → 5,068). Artık para alanları
+     metin (inputmode=decimal) ve sayiOku Türkçe yazımı esas alır:
+       "5.068,78" → 5068.78   "5068,78" → 5068.78   "5.068" → 5068 (binlik)   "1.234.567" → 1234567
+       "5068.78" → 5068.78 (tek nokta + 1-2 hane: ondalık)   "5,068.78" → 5068.78 (İngilizce yazım)
+     Gösterim sayiYaz ile Türkçe: 5068.78 → "5.068,78". */
+  var sayiOku = function (v) {
+    var t = String(v == null ? '' : v).replace(/\s|₺|TL/gi, '').replace(/^\+/, '');
+    if (!t) return NaN;
+    if (!/^-?[\d.,]+$/.test(t)) return NaN;
+    var vg = t.lastIndexOf(','), nk = t.lastIndexOf('.');
+    if (vg >= 0 && nk >= 0) t = vg > nk ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+    else if (vg >= 0) t = t.match(/,/g).length > 1 ? t.replace(/,/g, '') : t.replace(',', '.');
+    else if (nk >= 0 && (t.match(/\./g).length > 1 || /^-?\d{1,3}\.\d{3}$/.test(t))) t = t.replace(/\./g, '');
+    var n = Number(t); return isFinite(n) ? n : NaN;
+  };
+  var sayiYaz = function (n, enCok) { n = Number(n); if (!isFinite(n)) return ''; return n.toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: enCok == null ? 2 : enCok }); };
+  /* metin + ondalık klavye; odaktan çıkınca Türkçe biçime getirilir (data-tutar) */
+  var TUTAR = function (ad, deger, ek) { return '<input class="in' + (ek && ek.cls ? ' ' + ek.cls : '') + '" type="text" inputmode="decimal" autocomplete="off" data-tutar="" name="' + ad + '" value="' + (deger === '' || deger == null ? '' : sayiYaz(deger, ek && ek.ondalik)) + '"' + (ek && ek.attr ? ' ' + ek.attr : '') + '>'; };
+  var kurus = function (v) { var n = sayiOku(v); return isFinite(n) ? Math.round(n * 100) : NaN; };
   var ym = function (d) { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
   var monthName = function (s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }); };
   var monthShort = function (s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, 1).toLocaleDateString('tr-TR', { month: 'short' }); };
@@ -25,8 +45,17 @@
   var lsSet = function (k, v) { try { localStorage.setItem('acadex.fin.' + k, JSON.stringify(v)); } catch (e) {} };
   var isAdmin = function () { var m = A.me(); return !!(m && m.is_admin); };
   var q = async function (p) { var r = await p; if (r.error) throw r.error; return r.data; };
+  /* tutar alanı odaktan çıkınca Türkçe biçime gelir; okunamıyorsa kırmızı çerçeve */
+  document.addEventListener('focusout', function (e) {
+    var i = e.target; if (!i || !i.matches || !i.matches('input[data-tutar]') || !i.value.trim()) return;
+    var n = sayiOku(i.value); if (isFinite(n)) i.value = sayiYaz(n, 4); else i.classList.add('hatali');
+  });
+  document.addEventListener('input', function (e) { var i = e.target; if (i && i.matches && i.matches('input[data-tutar]')) i.classList.remove('hatali'); });
 
   var PLAN = { free: 'Ücretsiz', lite: 'Lite', premium: 'Premium' };
+  /* hesapların anahtarla okuduğu maliyet kalemleri: silinmez, birimi değişmez */
+  var SISTEM_KALEM = ['kdv', 'odeme_komisyon', 'ai_sayfa'];
+  var BIRIMLER = ['TL/ay', 'TL/yıl', 'TL/sayfa', '%'];
   var PER = { week: 'Haftalık', month: 'Aylık', term: 'Dönemlik', year: 'Yıllık' };
   var CAT = { altyapi: 'Altyapı ve sunucu', yapay_zeka: 'Yapay zekâ API', pazarlama: 'Pazarlama', etkinlik: 'Etkinlik', hukuk: 'Hukuk ve şirket', personel: 'Ekip ve personel', ekipman: 'Ekipman', diger: 'Diğer' };
   var CATC = { altyapi: '#2F6BFF', yapay_zeka: '#8A5CF6', pazarlama: '#E0892A', etkinlik: '#12A3A3', hukuk: '#5B6B8C', personel: '#1E8A55', ekipman: '#C9483B', diger: '#A39E8E' };
@@ -177,8 +206,8 @@
       (o.limits || []).map(function (l) { return '<tr data-plan="' + X(l.plan) + '"><td><b>' + X(PLAN[l.plan] || l.plan) + '</b></td><td><input class="in sm" type="number" min="0" max="100000" name="mp" value="' + l.monthly_pages + '" aria-label="' + X(l.plan) + ' aylık sayfa"></td><td><input class="in sm" type="number" min="1" max="5000" name="pd" value="' + l.max_pages_per_doc + '" aria-label="' + X(l.plan) + ' belge başına sayfa"></td><td><label class="switch"><input type="checkbox" name="va"' + (l.visual_analysis ? ' checked' : '') + '><i></i></label></td><td><button type="button" class="btn sm ghost" data-savelim>kaydet</button></td></tr>'; }).join('') + '</tbody></table></div></div>' +
       '<div class="card"><h2>Fiyatlar</h2><p class="sub">KDV dahil satış fiyatı. "Aylık karşılık" farklı süreleri karşılaştırmak için; "net" KDV ve ödeme komisyonu düşülmüş tutardır.</p>' +
       '<div class="tbl-w"><table class="fin-edit"><thead><tr><th>Plan · süre</th><th>Fiyat (TL)</th><th>Gün</th><th>Aylık karşılık</th><th>Satışta</th><th></th></tr></thead><tbody>' +
-      prices.map(function (p) { return '<tr data-pp="' + X(p.plan) + '" data-per="' + X(p.period) + '"><td><b>' + X(PLAN[p.plan] || p.plan) + '</b> · ' + X(PER[p.period] || p.period) + '</td><td><input class="in sm" type="number" min="1" step="0.01" name="am" value="' + (p.amount_kurus / 100).toFixed(2) + '" aria-label="fiyat"></td><td><input class="in sm xs" type="number" min="1" max="730" name="dy" value="' + p.days + '" aria-label="gün"></td><td><span class="mono">' + TLn(p.amount_kurus / 100 * 30 / p.days) + '</span><small class="muted"> net ' + TLn(netMonthly(p)) + '</small></td><td><label class="switch"><input type="checkbox" name="ac"' + (p.active ? ' checked' : '') + '><i></i></label></td><td><button type="button" class="btn sm ghost" data-saveprice>kaydet</button></td></tr>'; }).join('') +
-      '</tbody></table></div><details class="fin-more"><summary>Yeni fiyat satırı</summary><form id="fin-np" class="fin-inline" novalidate><label class="fld">Plan<select class="in" name="pl">' + plans.map(function (p) { return '<option value="' + X(p) + '">' + X(PLAN[p] || p) + '</option>'; }).join('') + '</select></label><label class="fld">Süre<select class="in" name="pe">' + Object.keys(PER).map(function (k) { return '<option value="' + k + '">' + PER[k] + '</option>'; }).join('') + '</select></label><label class="fld">Fiyat (TL)<input class="in" type="number" step="0.01" min="1" name="am" required></label><label class="fld">Gün<input class="in" type="number" min="1" max="730" name="dy" value="30" required></label><button class="btn blue sm" type="submit">Ekle</button></form></details></div></div>' +
+      prices.map(function (p) { return '<tr data-pp="' + X(p.plan) + '" data-per="' + X(p.period) + '"><td><b>' + X(PLAN[p.plan] || p.plan) + '</b> · ' + X(PER[p.period] || p.period) + '</td><td>' + TUTAR('am', p.amount_kurus / 100, { cls: 'sm', attr: 'aria-label="fiyat"' }) + '</td><td><input class="in sm xs" type="number" min="1" max="730" name="dy" value="' + p.days + '" aria-label="gün"></td><td><span class="mono">' + TLn(p.amount_kurus / 100 * 30 / p.days) + '</span><small class="muted"> net ' + TLn(netMonthly(p)) + '</small></td><td><label class="switch"><input type="checkbox" name="ac"' + (p.active ? ' checked' : '') + '><i></i></label></td><td><button type="button" class="btn sm ghost" data-saveprice>kaydet</button></td></tr>'; }).join('') +
+      '</tbody></table></div><details class="fin-more"><summary>Yeni fiyat satırı</summary><form id="fin-np" class="fin-inline" novalidate><label class="fld">Plan<select class="in" name="pl">' + plans.map(function (p) { return '<option value="' + X(p) + '">' + X(PLAN[p] || p) + '</option>'; }).join('') + '</select></label><label class="fld">Süre<select class="in" name="pe">' + Object.keys(PER).map(function (k) { return '<option value="' + k + '">' + PER[k] + '</option>'; }).join('') + '</select></label><label class="fld">Fiyat (TL)' + TUTAR('am', '', { attr: 'required placeholder="149,90"' }) + '</label><label class="fld">Gün<input class="in" type="number" min="1" max="730" name="dy" value="30" required></label><button class="btn blue sm" type="submit">Ekle</button></form></details></div></div>' +
 
       '<div class="card" style="margin-top:16px"><div class="fin-ch"><div><h2>Kampanya ve indirim kodları</h2><p class="sub">Kod, ödeme sayfasında girilir. Gelir ve verilen indirim başarılı ödemelerden hesaplanır.</p></div><button type="button" class="btn blue sm" id="fin-newc">+ Kod</button></div>' +
       (coupons.length ? '<div class="tbl-w"><table><thead><tr><th>Kod</th><th>Kampanya</th><th>İndirim</th><th>Kullanım</th><th>Bitiş</th><th>Gelir</th><th>Verilen indirim</th><th>Durum</th></tr></thead><tbody>' + coupons.map(function (c, i) {
@@ -264,8 +293,19 @@
     var lm = rows.filter(function (r) { return r.p.plan === 'lite' && r.p.period === 'month'; })[0] || rows[0];
     var be = lm && lm.c > 0 ? Math.ceil(fixed / lm.c) : null;
     box.innerHTML = '<div class="grid g-wide"><div class="card"><h2>Maliyet kalemleri</h2><p class="sub">Bu rakamlar birim ekonomisini, panodaki maliyeti ve simülatörü besler. Gerçek faturalara göre güncel tut.</p>' +
-      '<div class="tbl-w"><table class="fin-edit"><thead><tr><th>Kalem</th><th>Tutar</th><th>Birim</th><th></th></tr></thead><tbody>' + (F.costs || []).map(function (c) { return '<tr data-ck="' + X(c.key) + '"><td><b>' + X(c.label) + '</b>' + (c.note ? '<br><small class="muted">' + X(c.note) + '</small>' : '') + '</td><td><input class="in sm" type="number" min="0" step="any" name="am" value="' + Number(c.amount) + '" aria-label="' + X(c.label) + '"></td><td class="mono">' + X(c.unit) + '</td><td><button type="button" class="btn sm ghost" data-savecost>kaydet</button></td></tr>'; }).join('') + '</tbody></table></div>' +
-      '<details class="fin-more"><summary>Yeni kalem</summary><form id="fin-nc" class="fin-inline" novalidate><label class="fld grow">Ad<input class="in" name="lb" maxlength="80" required></label><label class="fld">Tutar<input class="in" type="number" step="any" min="0" name="am" required></label><label class="fld">Birim<select class="in" name="un"><option>TL/ay</option><option>TL/yıl</option><option>TL/sayfa</option><option>%</option></select></label><button class="btn blue sm" type="submit">Ekle</button></form></details></div>' +
+      /* KALEM DÜZENLEME (26.11.2026): ad, not ve birim de düzenlenir (önce yalnız tutar vardı;
+         "Serhat'ın attığı · hep oyuncuyla ortak gider" gibi açıklama yazılamıyordu). Sistem
+         kalemleri (kdv, odeme_komisyon, ai_sayfa: hesaplar onları anahtarla okur) silinemez,
+         birimleri değişmez; adları ve notları değişebilir. */
+      '<div class="tbl-w"><table class="fin-edit fin-cost"><thead><tr><th>Kalem ve not</th><th>Tutar</th><th>Birim</th><th></th></tr></thead><tbody>' + (F.costs || []).map(function (c) {
+        var sis = SISTEM_KALEM.indexOf(c.key) >= 0;
+        return '<tr data-ck="' + X(c.key) + '"><td class="fin-cost-ad"><input class="in sm" name="lb" maxlength="80" value="' + X(c.label) + '" aria-label="Kalem adı">' +
+          '<input class="in sm fin-cost-not" name="nt" maxlength="300" value="' + X(c.note || '') + '" placeholder="not ekle (ör. ortak gider · Serhat ödedi)" aria-label="Not"></td>' +
+          '<td>' + TUTAR('am', Number(c.amount), { cls: 'sm', ondalik: 4, attr: 'aria-label="' + X(c.label) + ' tutarı"' }) + '</td>' +
+          '<td>' + (sis ? '<span class="mono">' + X(c.unit) + '</span>' : '<select class="in sm" name="un" aria-label="Birim">' + BIRIMLER.map(function (u) { return '<option' + (u === c.unit ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select>') + '</td>' +
+          '<td class="fin-cost-dg"><button type="button" class="btn sm ghost" data-savecost>kaydet</button>' + (sis ? '' : '<button type="button" class="btn sm ghost fin-sil" data-delcost title="Kalemi sil" aria-label="' + X(c.label) + ' kalemini sil">sil</button>') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<details class="fin-more"><summary>Yeni kalem</summary><form id="fin-nc" class="fin-inline" novalidate><label class="fld grow">Ad<input class="in" name="lb" maxlength="80" required></label><label class="fld">Tutar' + TUTAR('am', '', { attr: 'required placeholder="5.068,78"' }) + '</label><label class="fld">Birim<select class="in" name="un">' + BIRIMLER.map(function (u) { return '<option>' + u + '</option>'; }).join('') + '</select></label><label class="fld grow">Not<input class="in" name="nt" maxlength="300" placeholder="isteğe bağlı"></label><button class="btn blue sm" type="submit">Ekle</button></form></details></div>' +
       '<div class="card ink fin-be"><h2>Başabaş noktası</h2><p class="sub">Sabit giderleri karşılamak için gereken aylık ödeyen öğrenci (Lite aylık, ortalama kullanımla)</p>' +
       '<div class="fin-big">' + (be == null ? '—' : NF(be)) + '<small> öğrenci</small></div><dl class="kv"><dt>Sabit gider</dt><dd>' + TLn(fixed) + ' / ay</dd><dt>Öğrenci başı katkı</dt><dd>' + (lm ? TLn(lm.c, 1) : '—') + '</dd><dt>Şu an ödeyen</dt><dd>' + NF(o.active_paid) + '</dd></dl>' +
       (be != null ? '<div class="fin-q big"><i style="width:' + Math.min(100, Math.round((o.active_paid || 0) / Math.max(1, be) * 100)) + '%"></i></div><p class="muted" style="margin:6px 0 0;font-size:12.5px">' + ((o.active_paid || 0) >= be ? 'Başabaş aşıldı: sabit giderler karşılanıyor.' : 'Başabaşa ' + PCT((o.active_paid || 0) / Math.max(1, be), 0) + ' yoldasın · ' + NF(be - (o.active_paid || 0)) + ' öğrenci kaldı') + '</p>' : '<p class="muted">Katkı sıfırın altında ya da fiyat yok: önce fiyat ve maliyetleri gir.</p>') + '</div></div>' +
@@ -273,16 +313,27 @@
       (rows.length ? '<div class="tbl-w"><table><thead><tr><th>Plan · süre</th><th>Net gelir / ay</th><th>Yapay zekâ (ortalama)</th><th>Katkı</th><th>Katkı oranı</th><th>En kötü durum</th></tr></thead><tbody>' + rows.map(function (r) { return '<tr><td><b>' + X(PLAN[r.p.plan] || r.p.plan) + '</b> · ' + X(PER[r.p.period] || r.p.period) + '</td><td>' + TLn(r.net, 1) + '</td><td>' + TLn(r.aiAvg, 1) + '</td><td class="' + (r.c < 0 ? 'neg' : 'pos') + '">' + TLn(r.c, 1) + '</td><td><span class="fin-q"><i style="width:' + Math.max(0, Math.min(100, Math.round(r.c / Math.max(.01, r.net) * 100))) + '%"></i></span> ' + PCT(r.net ? r.c / r.net : 0, 0) + '</td><td class="' + (r.cMax < 0 ? 'neg' : '') + '">' + TLn(r.cMax, 1) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">Aktif fiyat yok.</div>') +
       (!ai ? '<p class="fin-note" style="margin-top:12px"><b>Yapay zekâ sayfa maliyeti 0 girili.</b> API faturasını o ay özetlenen sayfaya bölüp yukarıya gir; katkı rakamları gerçekçi olsun.</p>' : '') + '</div>';
     box.onclick = async function (e) {
-      var b = e.target.closest('[data-savecost]'); if (!b) return; var tr = b.closest('tr'), v = parseFloat($('[name=am]', tr).value);
-      if (!(v >= 0)) { toast('Tutar geçersiz.', true); return; }
-      b.disabled = true; try { await q(sb.from('fin_costs').update({ amount: v, updated_at: new Date().toISOString() }).eq('key', tr.getAttribute('data-ck'))); toast('Kaydedildi.'); await loadCosts(true); T.maliyet(box); } catch (er) { b.disabled = false; toast(errMsg(er), true); }
+      var d = e.target.closest('[data-delcost]');
+      if (d) {
+        var trd = d.closest('tr'), ad = $('[name=lb]', trd).value;
+        if (!A.confirmBox('"' + ad + '" kalemi silinsin mi? Bu geri alınamaz.')) return;
+        d.disabled = true; try { await q(sb.from('fin_costs').delete().eq('key', trd.getAttribute('data-ck'))); toast('Kalem silindi.'); await loadCosts(true); T.maliyet(box); } catch (er) { d.disabled = false; toast(errMsg(er), true); }
+        return;
+      }
+      var b = e.target.closest('[data-savecost]'); if (!b) return; var tr = b.closest('tr'), v = sayiOku($('[name=am]', tr).value);
+      var lb = $('[name=lb]', tr).value.trim(), nt = $('[name=nt]', tr).value.trim(), un = $('[name=un]', tr);
+      if (!(v >= 0)) { toast('Tutar geçersiz. Örnek: 5.068,78', true); return; }
+      if (lb.length < 2) { toast('Kalem adı en az 2 harf olmalı.', true); return; }
+      var deg = { label: lb, note: nt || null, amount: v, updated_at: new Date().toISOString() };
+      if (un) deg.unit = un.value;
+      b.disabled = true; try { await q(sb.from('fin_costs').update(deg).eq('key', tr.getAttribute('data-ck'))); toast('Kaydedildi: ' + lb + ' · ' + sayiYaz(v, 4) + (un ? ' ' + un.value : '')); await loadCosts(true); T.maliyet(box); } catch (er) { b.disabled = false; toast(errMsg(er), true); }
     };
     $('#fin-nc', box).onsubmit = async function (e) {
-      e.preventDefault(); var f = this, lb = f.lb.value.trim(), v = parseFloat(f.am.value);
-      if (lb.length < 2 || !(v >= 0)) { toast('Ad ve tutar gerekli.', true); return; }
+      e.preventDefault(); var f = this, lb = f.lb.value.trim(), v = sayiOku(f.am.value), nt = f.nt.value.trim();
+      if (lb.length < 2 || !(v >= 0)) { toast('Ad ve tutar gerekli. Örnek tutar: 5.068,78', true); return; }
       var key = lb.toLocaleLowerCase('tr').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u').replace(/[^a-z]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'kalem';
       if (key.length < 2) key = 'kalem_' + key;
-      try { await q(sb.from('fin_costs').insert({ key: key, label: lb, amount: v, unit: f.un.value, sort: 200 })); toast('Kalem eklendi.'); await loadCosts(true); T.maliyet(box); } catch (er) { toast(/duplicate|23505/.test(String(er.message || er.code)) ? 'Bu adla bir kalem zaten var.' : errMsg(er), true); }
+      try { await q(sb.from('fin_costs').insert({ key: key, label: lb, amount: v, unit: f.un.value, note: nt || null, sort: 200 })); toast('Kalem eklendi.'); await loadCosts(true); T.maliyet(box); } catch (er) { toast(/duplicate|23505/.test(String(er.message || er.code)) ? 'Bu adla bir kalem zaten var.' : errMsg(er), true); }
     };
   };
 
@@ -303,7 +354,7 @@
       '<span class="grow"></span><button type="button" class="btn ghost sm" id="fin-xcsv">CSV indir</button><button type="button" class="btn ghost sm" id="fin-copy">Tekrarlayanları bu aya kopyala</button><button type="button" class="btn blue sm" id="fin-newx">+ Gider</button></div>' +
       '<div class="kpis fin-kpis three">' + kpi('Bu ay harcanan', TL(total), NF(ex.length) + ' kayıt') + kpi('Bütçe', budTot ? TL(budTot) : '—', budTot ? PCT(total / budTot, 0) + ' kullanıldı' : 'aşağıdan kategori bütçesi gir', budTot && total > budTot ? 'alert' : '') + kpi('Kalan', budTot ? TL(budTot - total) : '—', budTot && total > budTot ? '<b class="neg">bütçe aşıldı</b>' : '', budTot && total > budTot ? 'neg-k' : '') + '</div>' +
       '<div class="grid g-wide"><div class="card"><h2>Kategoriye göre bütçe</h2><p class="sub">Çubuk harcananı, çizgi bütçeyi gösterir. Bütçeyi değiştirmek için tutara tıkla.</p><div class="fin-budget">' +
-      Object.keys(CAT).map(function (k) { var sp = byCat[k] || 0, bd = bud[k] || 0, mx = Math.max(sp, bd, 1); return '<div class="fin-bk"><span><i style="background:' + CATC[k] + '"></i>' + CAT[k] + '</span><span class="fin-bt"><b style="width:' + Math.round(sp / mx * 100) + '%;background:' + CATC[k] + (bd && sp > bd ? ';box-shadow:inset 0 0 0 2px #C9483B' : '') + '"></b>' + (bd ? '<u style="left:' + Math.round(bd / mx * 100) + '%"></u>' : '') + '</span><span class="mono">' + TL(sp) + '</span><input class="in sm" type="number" min="0" step="1" data-bud="' + k + '" value="' + (bd ? bd / 100 : '') + '" placeholder="bütçe" aria-label="' + CAT[k] + ' bütçesi (TL)"></div>'; }).join('') + '</div></div>' +
+      Object.keys(CAT).map(function (k) { var sp = byCat[k] || 0, bd = bud[k] || 0, mx = Math.max(sp, bd, 1); return '<div class="fin-bk"><span><i style="background:' + CATC[k] + '"></i>' + CAT[k] + '</span><span class="fin-bt"><b style="width:' + Math.round(sp / mx * 100) + '%;background:' + CATC[k] + (bd && sp > bd ? ';box-shadow:inset 0 0 0 2px #C9483B' : '') + '"></b>' + (bd ? '<u style="left:' + Math.round(bd / mx * 100) + '%"></u>' : '') + '</span><span class="mono">' + TL(sp) + '</span><input class="in sm" type="text" inputmode="decimal" autocomplete="off" data-tutar="" data-bud="' + k + '" value="' + (bd ? sayiYaz(bd / 100) : '') + '" placeholder="bütçe" aria-label="' + CAT[k] + ' bütçesi (TL)"></div>'; }).join('') + '</div></div>' +
       '<div class="card"><h2>Son 6 ay gider</h2><p class="sub">Bütün kategoriler toplamı</p>' + barChart(trend, { fmt: function (v) { return TLn(v); }, ca: '#E0892A', aria: 'Son 6 ayın gideri', W: 420, H: 260 }) + '</div></div>' +
       '<div class="card" style="margin-top:16px"><h2>Gider defteri</h2>' + (ex.length ? '<div class="tbl-w"><table><thead><tr><th>Tarih</th><th>Kategori</th><th>Kime</th><th>Not</th><th>Tutar</th><th></th></tr></thead><tbody>' + ex.map(function (e, i) { return '<tr class="click" data-xi="' + i + '" tabindex="0"><td>' + DT(e.spent_on) + '</td><td><span class="fin-dot" style="background:' + CATC[e.category] + '"></span>' + X(CAT[e.category] || e.category) + '</td><td>' + X(e.vendor || '—') + (e.recurring ? ' <span class="pill blue">her ay</span>' : '') + '</td><td class="muted">' + X(e.note || '') + '</td><td><b>' + TL(e.amount_kurus, true) + '</b></td><td></td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty"><span class="hand">bu ay gider yok</span>"+ Gider" ile ilk kaydı gir</div>') + '</div>';
     box.onclick = async function (e) {
@@ -325,7 +376,7 @@
     };
     box.onkeydown = function (e) { var r = e.target.closest && e.target.closest('tr[data-xi]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); expForm(box, ex[+r.getAttribute('data-xi')]); } };
     box.onchange = async function (e) {
-      var inp = e.target.closest('[data-bud]'); if (!inp) return; var v = inp.value === '' ? 0 : Math.round(parseFloat(inp.value) * 100);
+      var inp = e.target.closest('[data-bud]'); if (!inp) return; var v = inp.value === '' ? 0 : kurus(inp.value);
       if (!(v >= 0)) { toast('Bütçe geçersiz.', true); return; }
       try { await q(sb.from('fin_budgets').upsert({ month: from, category: inp.getAttribute('data-bud'), amount_kurus: v })); toast('Bütçe kaydedildi.'); T.gider(box); } catch (er) { toast(errMsg(er), true); }
     };
@@ -335,7 +386,7 @@
     A.openDrawer(x ? 'Gideri düzenle' : 'Yeni gider', '<form id="fin-xf" class="fin-form" novalidate>' +
       '<label class="fld">Tarih<input class="in" type="date" name="d" value="' + X(v.spent_on) + '" required></label>' +
       '<label class="fld">Kategori<select class="in" name="c">' + Object.keys(CAT).map(function (k) { return '<option value="' + k + '"' + (k === v.category ? ' selected' : '') + '>' + CAT[k] + '</option>'; }).join('') + '</select></label>' +
-      '<label class="fld">Tutar (TL, KDV dahil)<input class="in" type="number" min="0.01" step="0.01" name="a" value="' + (v.amount_kurus ? (v.amount_kurus / 100).toFixed(2) : '') + '" required></label>' +
+      '<label class="fld">Tutar (TL, KDV dahil)' + TUTAR('a', v.amount_kurus ? v.amount_kurus / 100 : '', { attr: 'required placeholder="5.068,78"' }) + '</label>' +
       '<label class="fld">Kime / ne için<input class="in" name="v" maxlength="120" value="' + X(v.vendor || '') + '" placeholder="Vercel, afiş baskısı, …"></label>' +
       '<label class="fld">Not<textarea class="in" name="n" maxlength="500" placeholder="fatura no, kim ödedi, …">' + X(v.note || '') + '</textarea><small>Fatura ya da dekont dosyası buraya eklenmez; şirket klasöründe tutulur.</small></label>' +
       '<label class="switch"><input type="checkbox" name="r"' + (v.recurring ? ' checked' : '') + '><i></i>Her ay tekrarlıyor</label>' +

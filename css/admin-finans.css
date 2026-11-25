@@ -174,3 +174,18 @@ table.fin-kota{min-width:0}
 .fin-pass{margin-top:14px;padding:14px 16px;border:1.5px solid var(--green);border-radius:12px;background:var(--green-l);display:flex;flex-direction:column;gap:10px;font-size:13.5px}
 .fin-pw{font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:.06em;padding:4px 10px;border-radius:8px;background:#fff;border:1px dashed var(--green);user-select:all}
 .fin-pwnote{margin:0;color:#8A5A00;background:var(--warn-l);border-radius:8px;padding:8px 10px}
+
+/* maliyet kalemi düzenleme (26.11.2026): ad + not alt alta, birim seçilir, sil */
+.fin-cost td{vertical-align:top}
+.fin-cost th:first-child{width:46%}
+.fin-cost-ad{min-width:240px}
+.fin-cost .fin-cost-ad .in{display:block;width:100%;max-width:none}
+.fin-cost td:nth-child(2) .in{width:130px}
+.fin-cost-ad .in[name=lb]{font-weight:700}
+.fin-cost-ad .fin-cost-not{margin-top:6px;font-size:12.5px;color:var(--muted,#5B6478);background:transparent;border-style:dashed}
+.fin-cost-ad .fin-cost-not:focus{background:#fff;border-style:solid}
+.fin-cost-dg{white-space:nowrap}
+.fin-cost-dg .fin-sil{color:#B4321F}
+.fin-cost-dg .fin-sil:hover{background:#FDECEC}
+input[data-tutar]{text-align:right;font-variant-numeric:tabular-nums}
+input[data-tutar].hatali{border-color:#D2475A;box-shadow:0 0 0 3px rgba(210,71,90,.15)}
