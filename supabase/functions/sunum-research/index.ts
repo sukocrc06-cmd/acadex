@@ -47,6 +47,18 @@ const tfetch = async (url: string, init: RequestInit = {}, ms = 7000): Promise<R
   try { return await fetch(url, { ...init, signal: c.signal }); } catch { return null; } finally { clearTimeout(t); }
 };
 const stripTags = (h: string) => String(h || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+/* Commons'un Artist alanı şablonla gelir: etiketler atılınca "Unknown author Unknown author"
+   kalıyordu (canlı deste 25.11.2026). Yinelenen yarı tek, "bilinmiyor" boş sayılır. */
+/* Tarih konusunun sorgusuna bu yıl eklenmez: istem kuralına rağmen "History Of Guns"
+   için "history of firearms 2026" arandı (25.11.2026). Konu kendisi yıl taşımıyorsa
+   ve tarih/gelişim/köken bildiriyorsa yıl sorgudan atılır. */
+const TARIH = /\b(?:history|historical|evolution|origins?|chronolog\w*|ancient|medieval)\b|tarih(?:i|çe|çesi|sel)?\b|gelişim|köken|kronoloj/i;
+const tarihSorgu = (topic: string, q: string): string => TARIH.test(topic) && !/\b(?:19|20)\d{2}\b/.test(topic) ? q.replace(new RegExp("\\s*\\b" + new Date().getFullYear() + "\\b", "g"), "").trim() || q : q;
+const artistOf = (h: string): string => {
+  let a = stripTags(h); const w = a.split(" "), n = w.length;
+  if (n > 1 && n % 2 === 0 && w.slice(0, n / 2).join(" ") === w.slice(n / 2).join(" ")) a = w.slice(0, n / 2).join(" ");
+  return /^(?:unknown(?: author| artist)?|author unknown|anonymous|bilinmiyor)$/i.test(a) ? "" : a.slice(0, 60);
+};
 
 // ---------- Wikipedia: anahtarsız kaynak ----------
 type Wiki = { title: string; url: string; text: string; date: string; lang: string };
@@ -117,7 +129,7 @@ async function commonsSearch(q: string, per: number): Promise<Photo[]> {
     if ((ii.height || 1) / (ii.width || 1) > 1.6) continue;                  // çok dikey görsel asetata oturmaz
     const meta = ii.extmetadata || {};
     out.push({ id: "c" + pg.pageid, alt: stripTags(meta.ImageDescription?.value || "").slice(0, 160) || q, w: ii.thumbwidth || ii.width, h: ii.thumbheight || ii.height,
-      thumb: ii.thumburl || ii.url, large: ii.thumburl || ii.url, photographer: stripTags(meta.Artist?.value || "").slice(0, 60), page: ii.descriptionurl || "",
+      thumb: ii.thumburl || ii.url, large: ii.thumburl || ii.url, photographer: artistOf(meta.Artist?.value || ""), page: ii.descriptionurl || "",
       source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org", license: stripTags(meta.LicenseShortName?.value || "") });
   }
   return out;
@@ -618,7 +630,7 @@ The deck is written in ${lang === "en" ? "English" : "Turkish"}: "the topic's la
       try { const pq = JSON.parse(gq.data?.choices?.[0]?.message?.content || ""); const qs = (Array.isArray(pq?.queries) ? pq.queries : []).map((x: any) => String(x || "").slice(0, 160).trim()).filter((x: string) => x.length > 3); aspects = (Array.isArray(pq?.aspects) ? pq.aspects : []).map((x: any) => String(x || "").slice(0, 40).trim()).filter((x: string) => x.length > 2).slice(0, 6); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = String(pq?.aq || "").slice(0, 160).trim();
         /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
            Alt başlık sorgusu olmadan "…yolları" konusu yalnız sorunun verisini (enflasyon rakamları) buluyordu. */
-        if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)])].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
+        if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => tarihSorgu(topic, q)))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
       engine.queries = queries.length;
 
       // 2) Tavily (varsa) ve Wikipedia paralel. İlk sorgu derin, ötekiler hızlı.
@@ -674,7 +686,7 @@ Rules:
 - Never start a bullet with "Kaynak", "Kaynaklar", "Source(s)" or a website name, and never write a domain name (example.com) inside a bullet: state the fact itself; the numbered "src" field already carries the attribution. A year in front of a bullet is only for an event that happened in that year, never the publication year of the source.
 - The user message may give AUDIENCE EXPECTS and ASPECTS. They are the plan of the talk: the body is organised around the aspects, and each aspect the sources cover gets its own slide (or at least its own bullet) saying what it is, the evidence the sources give for it, and its limit or risk. They are NOT facts: say nothing about an aspect that the sources do not say, and leave out an aspect the sources do not cover (name the uncovered ones on the critical slide). Slides about background that the audience did not ask for (general data on the problem, what the government or central bank does when the topic asks what a person can do) take at most two slides.
 - Never put a source name in parentheses inside a bullet ("(NPR)", "(TCMB)") — sources are cited through "src" only. Never compute a number yourself (difference, ratio, total, average): every figure appears in a source exactly as written.
-- ACADEMIC DEPTH: this is a university seminar, not a fact sheet. As far as the sources allow, the deck contains (a) one slide that defines the key concepts and the scope, (b) at least one analysis slide that explains WHY — causes, mechanisms, drivers, (c) one comparison (kind "two" or "table") of periods, countries, methods or viewpoints, and (d) one critical slide: limitations, risks, open debates, or points where the sources disagree. The conclusion states implications ("what follows from this"), not a recap of numbers.
+- ACADEMIC DEPTH: this is a university seminar, not a fact sheet. As far as the sources allow, the deck contains (a) one slide that defines the key concepts and the scope, (b) at least one analysis slide that explains WHY — causes, mechanisms, drivers, (c) one comparison (kind "two" or "table") of periods, countries, methods or viewpoints, and (d) one critical slide: limitations, risks, open debates, or points where the sources disagree. That slide is about the subject itself (its costs, risks, disputed interpretations, unresolved questions); it never lists what the sources fail to provide ("data not provided in the sources"). The conclusion states implications ("what follows from this"), not a recap of numbers.
 - A bullet is an analytical statement, not a label: 12-22 words (max 150 characters) that give a claim together with its cause, mechanism, comparison or consequence, written as a full sentence. Never write a bare number with a two-word label as a bullet ("%5,7 güneş" is a failure). On analysis, concept and critical slides start each bullet with a 2-4 word key term and a colon ("Şebeke esnekliği: ...").
 - Every "list" slide has 3-4 bullets; never write a slide with a single bullet. Use "stat" only when you have exactly 3 numbers; a lone number belongs inside a bullet of another slide.
 - For "quote", "time" and "two" slides the content goes in "bullets" (quote: bullets[0] is the sentence).

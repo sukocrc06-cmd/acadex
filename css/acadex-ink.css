@@ -6047,6 +6047,9 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el ul{margin:0;padding:0 0 0 1.1em}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el li{margin:0 0 .45em}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el li::marker{color:var(--accent,#2F6BFF)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-el ul.sx-refs{list-style:none;padding:0}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-refs li{display:grid;grid-template-columns:2.4em 1fr;gap:.35em;overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-refs li b{color:var(--accent,#2F6BFF);font-weight:700}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=rect]{border-radius:10px}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=ellipse]{border-radius:50%}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=arrow] svg,:is(#acadexsunum-view.axu,#axu-layer) .sx-el[data-type=mark] svg{display:block;width:100%;height:100%;overflow:visible}

@@ -6628,10 +6628,19 @@ var SBX = (function () {
      yok; asetatın kendi öğesi o satıra iniyorsa basılmaz. Desen gibi öğelere
      yazılmaz, dört çizim yolunda da aynı listeden gelir. */
   var temaAlt = function (s) {
-    var T = deck && deck.tema, i = arr(deck && deck.slides).indexOf(s); if (!T || i < 1 || /^(cover|end)$/.test(s.lay || '') || arr(s.els).some(function (e) { return e.y + e.h > 504; })) return [];
+    var T = deck && deck.tema, i = arr(deck && deck.slides).indexOf(s); if (!T || i < 1 || /^(cover|end)$/.test(s.lay || '')) return [];
     var c = s.bg === 'navy' ? '#B9C3DA' : SOFT, ad = String(deck.title || '').replace(/\s+/g, ' ').trim(); if (ad.length > 64) ad = ad.slice(0, 62).replace(/\s+\S*$/, '') + '…';
     var F = function (x, w, t, al) { return { id: 'ab' + x, type: 't', x: x, y: 506, w: w, h: 14, text: t, size: 10, color: c, align: al, bold: false, dz: 1 }; };
-    return (ad ? [F(70, 640, ad.toLocaleUpperCase(deck.lang === 'en' ? 'en' : 'tr'), 'left')] : []).concat([F(820, 70, String(i + 1), 'right')]);
+    /* SAYFA NUMARASI DÜŞMEZ (25.11.2026). Öğelerden biri alt satıra indiğinde
+       (fotoğraf, uzun liste, kaynakça) alt bilgi bütünüyle atılıyordu; "History
+       of Guns" destesinde 12 içerik asetatının 5'i numarasızdı. Artık yalnız
+       deste adı, kendi aralığına (70–710) bir öğe iniyorsa düşer. Numara hep
+       basılır; üstüne öğe geliyorsa küçük bir zemin plakasıyla. Alt bilgi
+       öğelerin ÜSTÜNE çizilir (slideHTML, sahne, PPTX, paylaşım). */
+    var iner = function (x0, x1) { return arr(s.els).some(function (e) { return !e.muted && e.y + e.h > 504 && e.x < x1 && e.x + e.w > x0; }); };
+    var out = ad && !iner(70, 710) ? [F(70, 640, ad.toLocaleUpperCase(deck.lang === 'en' ? 'en' : 'tr'), 'left')] : [];
+    if (iner(820, 894)) out.push({ id: 'abz', type: 'rect', x: 850, y: 504, w: 44, h: 18, fill: s.bg === 'navy' || T.dark ? '#0B1220' : '#FFFFFF', dz: 1 });
+    return out.concat([F(820, 70, String(i + 1), 'right')]);
   };
   /* Çizgili kutu: renkli zemin yerine çerçeve. Yalnız büyük, renkli (TINT) kutular; ince çizgi ve bantlar dolu kalır. Dönen: çerçeve rengi ya da ''. */
   var kutuCizgi = function (e) { var T = deck && deck.tema, i = TINT.indexOf(String(e.fill || '#DCE6FF').toUpperCase()); return T && T.bic && T.bic.kutu === 'cizgi' && e.type === 'rect' && !e.dz && i >= 0 && e.w >= 60 && e.h >= 60 ? mix(T.tint[i], T.acc, .4) : ''; };
@@ -6953,6 +6962,7 @@ var SBX = (function () {
     box: '<svg viewBox="0 0 660 290"><path pathLength="1" d="M40 230 H620"/><path class="lt" d="M100 222 V238 M220 222 V238 M340 222 V238 M460 222 V238 M580 222 V238"/><path pathLength="1" d="M110 120 H210 M450 120 H560 M110 96 V144 M560 96 V144"/><rect pathLength="1" class="b" x="210" y="80" width="240" height="80" rx="4"/><path pathLength="1" class="r" d="M310 80 V160"/><text class="lb" x="190" y="66">Q1</text><text class="lb r" x="292" y="66">medyan</text><text class="lb" x="436" y="66">Q3</text><path pathLength="1" class="a b" d="M214 186 H446 M224 178 L214 186 L224 194 M436 178 L446 186 L436 194"/><text class="lb b" x="236" y="212">çeyrekler açıklığı (Q3 − Q1)</text><text class="lb" x="80" y="78">en küçük</text><text class="lb" x="520" y="78">en büyük</text></svg>',
     curve: '<svg viewBox="0 0 660 290"><path pathLength="1" d="M50 20 V250 H630"/><path pathLength="1" class="r" d="M52 230 L610 120"/><path pathLength="1" class="b" d="M52 230 C240 224 380 196 470 150 C540 114 580 76 610 30"/><text class="lb b" x="470" y="40">bileşik faiz</text><text class="lb r" x="500" y="168">basit faiz</text><text class="lb" x="600" y="278">yıl</text><text class="lb" x="10" y="30">TL</text></svg>'
   };
+  var kaynakSatir = function (t) { var ls = String(t || '').split('\n').filter(function (l) { return l.trim(); }); return ls.length > 0 && ls.every(function (l) { return /^\s*\[\d+\]\s/.test(l); }); };
   var elInner = function (e) {
     if (e.type === 'viz') return VIZ[e.viz] || '';
     if (e.type === 'chart') return chartSVG(e.chart || {}, e.w, e.h);
@@ -6960,6 +6970,9 @@ var SBX = (function () {
     if (e.type === 'math') return '<div class="sx-math">' + mathHTML(e.latex) + '</div>';
     if (e.type === 'mmd') return e.svg ? '<div class="sx-mmd">' + e.svg + '</div>' : '<span class="ph">diyagram</span>';
     if (e.type === 'h' || e.type === 't') return X(e.text);
+    /* Kaynakça satırı "[n] …" ile başlar: madde işareti ve "[n]" üst üste biniyordu.
+       Işaretsiz, iki sütunlu (numara | künye) liste olarak çizilir; URL satıra sığar. */
+    if (e.type === 'ul' && kaynakSatir(e.text)) return '<ul class="sx-refs">' + e.text.split('\n').filter(function (l) { return l.trim(); }).map(function (l) { var m = l.match(/^\s*(\[\d+\])\s*([\s\S]*)$/); return '<li><b>' + X(m[1]) + '</b><span>' + X(m[2]) + '</span></li>'; }).join('') + '</ul>';
     if (e.type === 'ul') return '<ul>' + e.text.split('\n').filter(function (l) { return l.trim(); }).map(function (l) { var wy = e.why && e.why[l]; return e.warn && e.warn.indexOf(l) >= 0 ? '<li class="warn" data-why="' + X(wy ? String(wy).slice(0, 40) : 'kaynakta yok') + '" title="' + X(wy ? 'Acadia: ' + wy + '. Kontrol et ya da düzelt.' : 'Bu rakam kaynak metinde bulunamadı; kontrol et ya da düzelt.') + '">' + X(l) + '</li>' : '<li>' + X(l) + '</li>'; }).join('') + '</ul>';
     if (e.type === 'icon') return '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (IKON[e.icon] || IKON.check) + '"/></svg>';
     if (e.type === 'arrow') return '<svg viewBox="0 0 100 20" preserveAspectRatio="none"><path vector-effect="non-scaling-stroke" d="M1 10 H98 M90 3 L98 10 L90 17"/></svg>';
@@ -6977,7 +6990,7 @@ var SBX = (function () {
     return '<div class="sx-el' + (e.muted ? ' muted' : '') + '" data-id="' + e.id + '" data-type="' + e.type + '" style="' + st + '"' +
       (edit ? ' tabindex="0" role="button" aria-label="' + X(lab + (e.text ? ': ' + e.text.slice(0, 40) : '')) + '"' : '') + '>' + elInner(e) + (edit && e.type === 'img' && e.src ? '<b class="sx-chg" data-imchg="">resmi değiştir</b>' : '') + (edit ? '<i class="sx-rs" data-rs="" aria-hidden="true"></i>' : '') + '</div>';
   };
-  var slideHTML = function (s) { var ts = temaSty(s); return '<div class="' + temaCls(s) + '"' + (ts ? ' style="' + ts + '"' : '') + ' aria-hidden="true">' + temaDekor(s).concat(temaAlt(s), s.els).map(function (e) { return elHTML(e, false); }).join('') + '</div>'; };
+  var slideHTML = function (s) { var ts = temaSty(s); return '<div class="' + temaCls(s) + '"' + (ts ? ' style="' + ts + '"' : '') + ' aria-hidden="true">' + temaDekor(s).concat(s.els, temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('') + '</div>'; };
   /* otomatik sığdırma: taşan yazıyı asetata sığana dek küçült, taşan kutuyu asetat içine çek */
   var fitBox = null, FMIN = { h: 22, t: 12, ul: 13 };
   var fitEl = function (e) {
@@ -7099,7 +7112,7 @@ var SBX = (function () {
     var s = cur(); frame.hidden = !s; emptyEl.hidden = !!s;
     if (!s) { stage.innerHTML = ''; paintSel(); return; }
     stage.className = temaCls(s); var T0 = deck.tema, sb = s.bg || 'clear'; stage.style.background = T0 ? T0.bg[sb] || T0.bg.clear : ''; stage.style.color = T0 ? (sb === 'navy' ? '#FFFFFF' : T0.ink) : ''; stage.style.fontFamily = T0 && T0.bf ? fontCss(T0.bf) : '';
-    stage.innerHTML = temaDekor(s).concat(temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('') + s.els.map(function (e) { return elHTML(e, true); }).join('');
+    stage.innerHTML = temaDekor(s).map(function (e) { return elHTML(e, false); }).join('') + s.els.map(function (e) { return elHTML(e, true); }).join('') + temaAlt(s).map(function (e) { return elHTML(e, false); }).join('');
     if (selId) { var el = stage.querySelector('[data-id="' + selId + '"]'); if (el) el.classList.add('sel'); else selId = null; }
     applyScale(); paintSel();
     Q('[data-notes]').value = s.notes || '';
@@ -8788,12 +8801,12 @@ var SBX = (function () {
         var TX = deck.tema, ff = TX && TX.bf || 'Arial', fh = TX && TX.hf || ff; sl.background = { color: TX ? hex(TX.bg[bg] || TX.bg.clear) : BGC[bg] || 'FFFFFF' };
         off.innerHTML = slideHTML(s);
         var col = function (e) { var c = hex(temaRenk(e.color, e.type)); return dark && c === '0D1838' ? 'FFFFFF' : c; };
-        var pels = temaDekor(s).concat(temaAlt(s), s.els);
+        var pels = temaDekor(s).concat(s.els, temaAlt(s));
         for (var ei = 0; ei < pels.length; ei++) {
           var e = pels[ei]; if (e.muted) continue;
           var box = { x: IN(e.x), y: IN(e.y), w: IN(e.w), h: IN(e.h) };
           if (e.type === 'h' || e.type === 't') { if (!e.text) continue; sl.addText(e.text, Object.assign({}, box, { fontFace: e.type === 'h' ? fh : ff, fontSize: PT(e.size), bold: (e.type === 'h' && !(TX && FONT_DISPLAY.test(TX.hf))) || !!e.bold, color: col(e), align: e.align || 'left', valign: 'top', margin: 2, fit: 'shrink' })); }
-          else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; sl.addText(ls.map(function (l) { return { text: l, options: { bullet: { code: '25AA' }, breakLine: true } }; }), Object.assign({}, box, { fontFace: ff, fontSize: PT(e.size), color: col(e), valign: 'top', paraSpaceAfter: 6, margin: 2, fit: 'shrink' })); }
+          else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; sl.addText(ls.map(function (l) { return { text: l, options: { bullet: kaynakSatir(e.text) ? false : { code: '25AA' }, breakLine: true } }; }), Object.assign({}, box, { fontFace: ff, fontSize: PT(e.size), color: col(e), valign: 'top', paraSpaceAfter: 6, margin: 2, fit: 'shrink' })); }
           else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
           else if (e.type === 'arrow') sl.addShape(pp.ShapeType.line, { x: box.x, y: box.y + box.h / 2, w: box.w, h: 0, line: { color: hex(temaRenk(e.color), '#2F6BFF'), width: 3, endArrowType: 'triangle' } });
           else if (e.type === 'mark') sl.addShape(pp.ShapeType.rect, { x: box.x, y: box.y + box.h * 0.3, w: box.w, h: Math.max(0.04, box.h * 0.35), fill: { color: hex(temaRenk(e.color), '#2F6BFF'), transparency: 35 }, line: { type: 'none' } });
@@ -8825,7 +8838,7 @@ var SBX = (function () {
     } finally { off.remove(); if (btn) { btn.disabled = false; btn.textContent = 'PowerPoint indir'; } }
   };
   /* ---------- paylaşım bağlantısı (salt okunur, notlar gizli) ---------- */
-  var snapOf = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: temaDekor(s).concat(temaAlt(s), s.els).map(function (e) { return elHTML(e, false); }).join('') }; }) }; };
+  var snapOf = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: temaDekor(s).concat(s.els, temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('') }; }) }; };
   var newToken = function () { var a = new Uint8Array(24); crypto.getRandomValues(a); return btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   var shDlg = Q('[data-sharedlg]'), shFrom = null;
   var shLink = function (t) { return location.origin + '/izle.html?k=' + t; };

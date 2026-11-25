@@ -231,12 +231,23 @@ test('profesyonel görünüm: iki özgün şablon, alt bilgi ve varsayılan şab
   const pano = g[g.length - 1]; assert.equal(pano.fill, P.bg.clear); assert.ok(pano.x <= 70 && pano.x + pano.w >= 890 && pano.y <= 46 && pano.y + pano.h >= 510, 'içerik panonun içinde kalmalı');
   M.set(F); assert.ok(new Set(M.temaDekor({ bg: 'clear' }).map((e) => e.fill)).size >= 4, 'memfis en az üç renk + zemin kullanır');
   /* alt bilgi: kapakta ve kapanışta yok, içerikte deste adı + sayfa numarası */
-  const kapak = { lay: 'cover', els: [] }, ic = { lay: 'list', els: [{ y: 206, h: 290 }] }, dolu = { lay: 'refs', els: [{ y: 146, h: 370 }] }, son = { lay: 'end', els: [] };
+  const kapak = { lay: 'cover', els: [] }, ic = { lay: 'list', els: [{ y: 206, h: 290 }] }, dolu = { lay: 'refs', els: [{ x: 70, w: 820, y: 146, h: 370 }] }, son = { lay: 'end', els: [] };
   M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, dolu, son] });
   assert.deepEqual(M.temaAlt(kapak), []); assert.deepEqual(M.temaAlt(son), []);
   const a = M.temaAlt(ic); assert.equal(a.length, 2); assert.equal(a[0].text, 'İRADEYİ GÜÇLENDİRME'); assert.equal(a[1].text, '2');
   for (const e of a) { assert.equal(e.type, 't'); assert.ok(e.dz && e.y >= 504 && e.y + e.h <= 520 && e.x >= 70 && e.x + e.w <= 890); }
-  assert.deepEqual(M.temaAlt(dolu), [], 'asetatın kendi öğesi alt satıra iniyorsa alt bilgi basılmaz');
+  /* 25.11.2026: öğe alt satıra inince yalnız deste adı düşer; numara plakayla kalır
+     ("History of Guns" destesinde 12 içerik asetatının 5'i numarasızdı). */
+  const d = M.temaAlt(dolu);
+  assert.ok(!d.some((e) => e.text === 'İRADEYİ GÜÇLENDİRME'), 'alt satıra inen öğenin üstüne deste adı basılıyor');
+  assert.equal(d[d.length - 1].text, '3', 'sayfa numarası düştü');
+  assert.ok(d.some((e) => e.type === 'rect' && e.dz && e.x <= 850 && e.x + e.w >= 890), 'numaranın altında zemin plakası yok');
+  const yan = { lay: 'list', els: [{ x: 70, w: 400, y: 300, h: 230 }] }; M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, yan, son] });
+  const y2 = M.temaAlt(yan); assert.deepEqual(y2.map((e) => e.type + ':' + (e.text || '')), ['t:3'], 'sol yarıya inen öğe: deste adı düşer, numara plakasız kalır');
+  M.deste({ title: 'İradeyi güçlendirme', lang: 'tr', slides: [kapak, ic, dolu, son] });
+  assert.match(ink, /temaDekor\(s\)\.concat\(s\.els, temaAlt\(s\)\)\.map\(function \(e\) \{ return elHTML\(e, false\); \}\)\.join\(''\) \+ '<\/div>'; \};/, 'alt bilgi öğelerin altına çiziliyor (slideHTML)');
+  assert.match(ink, /var pels = temaDekor\(s\)\.concat\(s\.els, temaAlt\(s\)\);/, 'alt bilgi öğelerin altına çiziliyor (PPTX)');
+  assert.match(ink, /s\.els\.map\(function \(e\) \{ return elHTML\(e, true\); \}\)\.join\(''\) \+ temaAlt\(s\)\.map/, 'alt bilgi öğelerin altına çiziliyor (sahne)');
   assert.equal(ic.els.length, 1, 'alt bilgi öğelere yazılmaz');
   M.set(null); assert.deepEqual(M.temaAlt(ic), [], 'şablonsuzken alt bilgi yok');
   /* dört çizim yolu da alt bilgiyi basar */

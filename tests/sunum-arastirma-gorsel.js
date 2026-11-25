@@ -40,7 +40,7 @@ test('ARAŞTIRMA: konu birden çok sorguya açılır, paralel aranır', () => {
   assert.match(sr, /Promise\.all\(queries\.map\(\(q, i\) => tavily\(q, i === 0\)\)\)/, 'sorgular paralel aranmıyor');
   /* Kuru koşuda yakalandı: [konu, q1, q2, q3] ilk üçe kesilince İngilizce
      sorgu (q3) hiç aranmıyordu. q1 zaten konunun kendisidir; son ikisi alınır. */
-  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\)\]\.slice\(0, 4\)/,
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => tarihSorgu\(topic, q\)\)\)\]\.slice\(0, 4\)/,
     'konu + alt başlık + veri + İngilizce sorgu aranmalı; en çok 4 sorgu (Tavily kredisi)');
   // Plan düşerse araştırma ölmez: yalnız konu aranır.
   assert.match(sr, /let queries: string\[\] = \[topic\]/, 'sorgu planı düşünce araştırma da düşer');
@@ -575,7 +575,7 @@ test('KONUYA SADAKAT: araştırma konunun alt başlıklarını arar, kaynağı o
   // yazım değil araştırmaydı: planın q1'i atılıyor, q2 "konunun verisi" (= enflasyon rakamı) arıyor,
   // kurumsal kaynak önceliği de bireysel yatırım yazılarını eliyordu.
   assert.ok(sr.includes('"aspects":["a1","a2","a3","a4","a5"]') && sr.includes('"aq":'), 'sorgu planı alt başlık çıkarmıyor');
-  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\)\]\.slice\(0, 4\)/, 'alt başlık sorgusu aranmıyor');
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => tarihSorgu\(topic, q\)\)\)\]\.slice\(0, 4\)/, 'alt başlık sorgusu aranmıyor');
   assert.match(sr, /r\._asp >= 2 \|\| all\.filter/, 'alt başlıkları taşıyan kaynak kurumsal sınıra takılıyor');
   assert.match(sr, /keysOf\(\[topic, topicEn, \.\.\.queries, \.\.\.aspects\]/, 'paragraf seçimi alt başlıkları bilmiyor');
   assert.ok(sr.includes('AUDIENCE EXPECTS and ASPECTS') && sr.includes('They are NOT facts'), 'yazar plana uymuyor ya da planı olgu sanabilir');
@@ -869,6 +869,31 @@ test('CANLI DESTE 25.11 (History of Money) — sorgu dili, sabit grafik, yinelen
   R.dropRepeats(deste);
   assert.deepEqual(deste[2].bullets, ['CBDC uncertainty: still experimental'], 'yinelenen %80 maddesi kaldı');
   assert.match(ink, /text: typeof curLang === 'function' && curLang\(\) === 'en' \? 'Questions\?' : 'Sorular\?'/, 'İngilizce kapanışta "Sorular?" yazıyor');
+});
+
+/* CANLI DESTE 25.11 (History of Guns): kaynakçada "•" ile "[n]" üst üste;
+   iki Commons görselinde "Unknown author Unknown author"; dil düzeldi ama
+   sorguya yine "2026" eklendi; eleştiri asetatı konunun değil kaynakların
+   eksiğini anlattı ("not provided in the sources"). */
+test('CANLI DESTE 25.11 (History of Guns) — kaynakça ızgarası, Commons yazar adı, tarih sorgusunda yıl, eleştiri asetatı', () => {
+  const ink = read('js/acadex-ink.js'), css = read('css/acadex-ink.css'), ts = read('supabase/functions/sunum-research/index.ts');
+  const ks = new Function(ink.match(/var kaynakSatir = function \(t\) \{.*\};/)[0] + 'return kaynakSatir;')();
+  assert.equal(ks('[1] history.com. (n.d.). Firearms.\n[2] pbs.org. (n.d.). Guns.'), true);
+  assert.equal(ks('Matchlock emergence: 1400s\n[2] not a ref'), false, 'karışık liste kaynakça sayılıyor');
+  assert.match(ink, /if \(e\.type === 'ul' && kaynakSatir\(e\.text\)\) return '<ul class="sx-refs">'/);
+  assert.match(ink, /bullet: kaynakSatir\(e\.text\) \? false : \{ code: '25AA' \}/, 'PPTX kaynakçasında madde işareti kaldı');
+  assert.match(css, /\.sx-el ul\.sx-refs\{list-style:none;padding:0\}/);
+  assert.match(css, /\.sx-refs li\{display:grid;grid-template-columns:2\.4em 1fr;gap:\.35em;overflow-wrap:anywhere\}/);
+  const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['stripTags', 'artistOf', 'TARIH', 'tarihSorgu']);
+  assert.equal(R.artistOf('<span>Unknown author</span> <span>Unknown author</span>'), '');
+  assert.equal(R.artistOf('George Henry Taggart'), 'George Henry Taggart');
+  assert.equal(R.artistOf('Mathew Brady Mathew Brady'), 'Mathew Brady');
+  const yil = String(new Date().getFullYear());
+  assert.equal(R.tarihSorgu('History Of Guns', 'history of firearms ' + yil), 'history of firearms');
+  assert.equal(R.tarihSorgu('Kripto para piyasası', 'kripto para verileri ' + yil), 'kripto para verileri ' + yil, 'güncel konunun yılı atılıyor');
+  assert.equal(R.tarihSorgu('Elektrikli araçların gelişimi 2020-' + yil, 'ev satışları ' + yil), 'ev satışları ' + yil, 'konu yıl taşıyorsa sorgunun yılı kalmalı');
+  assert.match(ts, /\.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => tarihSorgu\(topic, q\)\)\)\]/);
+  assert.match(ts, /it never lists what the sources fail to provide/);
 });
 
 summary();
