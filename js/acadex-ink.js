@@ -6476,7 +6476,7 @@ var SBX = (function () {
   var QA = function (s, el) { return Array.prototype.slice.call((el || root).querySelectorAll(s)); };
   var X = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var G = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
-  var S = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  var S = function (k, v, rp) { try { localStorage.setItem(k, JSON.stringify(v, rp)); return true; } catch (e) { return false; } };
   var uid = function () { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); };
   var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var p2 = function (n) { return ('0' + n).slice(-2); };
@@ -6493,7 +6493,12 @@ var SBX = (function () {
     toast.hidden = false; clearTimeout(tT); tT = setTimeout(function () { toast.hidden = true; undoFn = null; }, 5600);
   };
   toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
-  toastA.addEventListener('click', function (e) { var h = toastA.getAttribute('href') || ''; if (h.charAt(0) === '#' && typeof switchDashboardView === 'function') { e.preventDefault(); toast.hidden = true; switchDashboardView(h.slice(1)); } });
+  toastA.addEventListener('click', function (e) { var h = toastA.getAttribute('href') || ''; if (h === '#sx-yazi-tipi') { e.preventDefault(); toast.hidden = true; yaziTipiTekrar(); return; } if (h.charAt(0) === '#' && typeof switchDashboardView === 'function') { e.preventDefault(); toast.hidden = true; switchDashboardView(h.slice(1)); } });
+  /* Şablon yazısı yüklenemedi (P1): kurtarılabilir bildirim; "Yeniden dene" yüklemeyi baştan çalıştırır, başarırsa yeniden sığdırır. */
+  var yaziTipiUyar = function () { say('Şablon yazı tipi yüklenemedi; varsayılan yazı tipiyle gösteriliyor.', null, '#sx-yazi-tipi', 'Yeniden dene'); };
+  /* Yazı doğrulaması bitti: yeniden sığdırma tek yoldan, yaziSonra → yaziUyum üzerinden yapılır (çift sığdırma yok). */
+  var yaziTipiDegisti = function () { if (deck) yaziSonra(function () {}, 'uyum'); };
+  var yaziTipiTekrar = function () { temaHazir(deck.tema, true).then(function (r) { if (r.ok) say('Şablon yazı tipi yüklendi.'); else yaziTipiUyar(); }); };
 
   /* ---------- deck + saving + history ---------- */
   var fresh = function () { return { id: uid(), dbId: null, title: '', slides: [], cur: 0, source: 'blank', sourceId: null }; };
@@ -6507,9 +6512,16 @@ var SBX = (function () {
   };
   var dirty = function () { clearTimeout(sT); store.dirty = true; sT = setTimeout(saveNow, 500); };
   var undoS = [], redoS = [];
-  var snap = function () { return JSON.stringify({ slides: deck.slides, cur: deck.cur, title: deck.title }); };
+  /* Geri al/yinele görüntüsü (yalnız bellekte): asetatlar ekranda göründükleri gibi, yanında öğelerin asıl boyut kaydı
+     (fit: kimlik → [asıl, sığdırılmış]) ve hangi yazı durumunda alındığı (iz). Geri yüklenince kayıt yeni kopyalara bağlanır;
+     yazı durumu o zamandan beri değiştiyse asetatlar asıl boyutlarından yeniden sığdırılır (küçülme birikmez). */
+  var snap = function () { var fit = {}; if (fitTaban) deck.slides.forEach(function (sl) { arr(sl.els).forEach(function (e) { var iz = e && fitTaban.get(e); if (iz && e.id != null) fit[e.id] = [iz.taban, iz.son]; }); }); return JSON.stringify({ slides: deck.slides, cur: deck.cur, title: deck.title, fit: fit, iz: yaziIz() }); };
   var push = function () { undoS.push(snap()); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); };
-  var restore = function (str) { var o = JSON.parse(str); deck.slides = o.slides; deck.cur = Math.min(o.cur, Math.max(0, o.slides.length - 1)); deck.title = o.title; selId = null; renderAll(); dirty(); };
+  var restore = function (str) { var o = JSON.parse(str), fit = o.fit || {};
+    if (fitTaban) o.slides.forEach(function (sl) { arr(sl.els).forEach(function (e) { var r = e && fit[e.id]; if (r && e.size === r[1]) fitTaban.set(e, { taban: r[0], son: r[1] }); }); });
+    deck.slides = o.slides; deck.cur = Math.min(o.cur, Math.max(0, o.slides.length - 1)); deck.title = o.title; selId = null;
+    if (o.iz !== yaziIz()) deck.slides.forEach(function (sl) { yaziFit(sl); });
+    renderAll(); dirty(); };
   var undo = function () { if (!undoS.length) return; redoS.push(snap()); restore(undoS.pop()); paintHist(); };
   var redo = function () { if (!redoS.length) return; undoS.push(snap()); restore(redoS.pop()); paintHist(); };
   var paintHist = function () { Q('[data-undo]').disabled = !undoS.length; Q('[data-redo]').disabled = !redoS.length; };
@@ -6649,13 +6661,97 @@ var SBX = (function () {
   var kutuCizgi = function (e) { var T = deck && deck.tema, i = TINT.indexOf(String(e.fill || '#DCE6FF').toUpperCase()); return T && T.bic && T.bic.kutu === 'cizgi' && e.type === 'rect' && !e.dz && i >= 0 && e.w >= 60 && e.h >= 60 ? mix(T.tint[i], T.acc, .4) : ''; };
   /* Gölgeli kart (Pitch): büyük renkli kutu beyaz zeminli, yumuşak gölgeli, üstünde vurgu çizgisi. Koyu asetatta uygulanmaz. */
   var kutuGolge = function (e) { var T = deck && deck.tema, f = String(e.fill || '#DCE6FF').toUpperCase(); return !!(T && T.bic && T.bic.kutu === 'golge' && !zeminKoyu && e.type === 'rect' && !e.dz && e.w >= 60 && e.h >= 60 && (TINT.indexOf(f) >= 0 || f === '#EEF3FF')); };
-  var temaSty = function (s) { var T = deck && deck.tema; if (!T) return ''; var b = s.bg || 'clear'; return 'background:' + (T.bg[b] || T.bg.clear) + ';color:' + (b === 'navy' ? '#FFFFFF' : T.ink) + (T.bf ? ';font-family:' + fontCss(T.bf) : ''); };
+  /* Şablon yazı tipi yüklenemezse (P1, 26.11.2026) bu basım için tek ortak yedek yığın: ölçüm kutusu da görünen
+     asetat da aynı yazıyla ölçülür ve çizilir; kayıtlı şablon değişmez. Başlıklar da aynı yığını alır (elHTML). */
+  var fontYedek = 0, FONT_YEDEK = "system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
+  var temaSty = function (s) { var T = deck && deck.tema; if (!T) return ''; var b = s.bg || 'clear'; return 'background:' + (T.bg[b] || T.bg.clear) + ';color:' + (b === 'navy' ? '#FFFFFF' : T.ink) + (fontYedek ? ';font-family:' + FONT_YEDEK : T.bf ? ';font-family:' + fontCss(T.bf) : ''); };
   /* Koyu şablonda tablo, çizim ve grafik yazıları "gece" asetatının kurallarını kullanır. */
   var temaCls = function (s) { var T = deck && deck.tema; return 'sx-slide bg-' + (s.bg || 'clear') + (T && T.dark && s.bg !== 'navy' ? ' bg-navy' : ''); };
   /* Yazı tipleri Bunny Fonts'tan (çerezsiz, AB'de barınan açık yazı tipi sunucusu) yalnız şablon seçilince yüklenir.
      Ad orada yoksa istek boş döner, tarayıcı yedek yazı tipine düşer; ad zaten fontAd ile süzülmüştür. */
-  var fontYuklu = {};
-  var fontYukle = function (T) { if (!T) return; [T.hf, T.bf].forEach(function (f) { if (!f || fontYuklu[f]) return; fontYuklu[f] = 1; var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.bunny.net/css?family=' + f.toLowerCase().replace(/ /g, '-') + ':400,700&display=swap'; document.head.appendChild(l); }); };
+  var fontYuklu = {}, fontLink = {};
+  /* YAZI TİPİ HAZIR OLMADAN SIĞDIRMA YOK (P1, 26.11.2026). Eskiden bağlantı eklenip hemen sığdırılıyordu: ilk destede
+     yazılar yedek yazı tipiyle ölçülüyor, ekranda şablon yazısıyla taşıyordu. Başarı ölçütü document.fonts.check değil:
+     o, CDN'de olmayan ailede de, ulaşılamayan sayfada da true; yüklü Inter'de false dönebiliyor (ölçüldü). Ölçüt:
+     stil sayfası yüklendi ve her ağırlık için document.fonts.load en az bir gerçek FontFace döndürdü. Hepsi 8 sn sınırlı. */
+  var FONT_ORNEK = 'Ağçİöşü Aa 0123', FONT_SURE = 8000;
+  var fontSure = function (p) { return Promise.race([p, new Promise(function (r) { setTimeout(function () { r(false); }, FONT_SURE); })]); };
+  var fontAile = function (f) {
+    if (fontYuklu[f]) return fontYuklu[f];
+    if (fontLink[f] && fontLink[f].parentNode) fontLink[f].parentNode.removeChild(fontLink[f]);      /* yeniden denemede eski bağlantı kalmaz */
+    var l = fontLink[f] = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.bunny.net/css?family=' + f.toLowerCase().replace(/ /g, '-') + ':400,700&display=swap';
+    var css = new Promise(function (r) { l.addEventListener('load', function () { r(true); }); l.addEventListener('error', function () { r(false); }); });
+    document.head.appendChild(l);
+    var p = fontSure(css.then(function (ok) {
+      if (!ok || !document.fonts || !document.fonts.load) return false;
+      return Promise.all(['400', '700'].map(function (w) { return document.fonts.load(w + ' 16px "' + f + '"', FONT_ORNEK).then(function (y) { return !!(y && y.length); }, function () { return false; }); })).then(function (r) { return r[0] && r[1]; });
+    }));
+    fontYuklu[f] = p.then(function (ok) { if (!ok) delete fontYuklu[f]; return ok; });      /* başarısız aile bir sonraki denemede yeniden istenir */
+    return fontYuklu[f];
+  };
+  /* Döner: { ok, aileler, hata }. Boş aile adı ('') yüklenecek yazı tipi sayılmaz: o şablon CSS'in kendi yedeğini kullanır. */
+  var fontYukle = function (T) {
+    var fs = T ? [T.hf, T.bf].filter(function (f, i, a) { return f && a.indexOf(f) === i; }) : [];
+    if (!fs.length) return Promise.resolve({ ok: true, aileler: [], hata: [] });
+    return Promise.all(fs.map(fontAile)).then(function (r) {
+      var son = { ok: r.every(Boolean), aileler: fs, hata: fs.filter(function (f, i) { return !r[i]; }) };
+      return fontSure(document.fonts && document.fonts.ready ? document.fonts.ready.then(function () { return true; }) : Promise.resolve(true)).then(function () { return son; });
+    });
+  };
+  /* Açık destenin şablon yazısı hazır mı (P1). Aynı yazı çifti için tek söz; yeni şablon ya da "yeniden dene" yenisini başlatır.
+     Sonuç fontYedek'i belirler; yazı durumu değiştiyse yaziUyum bütün asetatları bir kez yeniden sığdırıp çizer. */
+  var fontDurum = { k: null, p: null, bitti: false, ok: true };
+  var temaHazir = function (T, yeniden) {
+    var k = fontAnahtar(T);
+    if (yeniden || fontDurum.k !== k || !fontDurum.p) {
+      var d = fontDurum = { k: k, p: null, bitti: false, ok: true };
+      d.p = fontYukle(T).then(function (r) {
+        if (fontDurum === d) { d.bitti = true; d.ok = r.ok; fontYedek = r.ok ? 0 : 1; yaziTipiDegisti(); }
+        return r;
+      });
+    }
+    return fontDurum.p;
+  };
+  /* Basım sırasında şablon değişirse eski yazıyla basılmaz: söz çözülünce şablon hâlâ aynı mı diye bakılır. */
+  var temaHazirGuncel = function () { var T = deck && deck.tema; return temaHazir(T).then(function (r) { return deck && deck.tema !== T ? temaHazirGuncel() : r; }); };
+  /* YAZI HAZIR OLMADAN ÖLÇÜM YOK — DÜZENLEYİCİ DAHİL (P1 sağlamlaştırma, 26.11.2026). Sığdırma ya da ölçüm isteyen her
+     düzenleyici işi (düzen değiştir, görsel ekle/yerleştir, denetle ve düzelt, Acadia'nın soru/zenginleştirme
+     uygulaması, şablon değiştir, kayıtlı deste açma) yaziSonra'dan geçer: açık destenin GÜNCEL şablon yazısı doğrulanmışsa
+     (ya da yedek yazı gerçekten etkinse) hemen çalışır; değilse kuyruğa girer, doğrulamadan sonra güncel deste ve güncel
+     şablonla çalışır. Başka desteye geçildiyse eski işler atılır; aynı anahtarlı işten yalnız sonuncusu kalır.
+     Eskiden olduğu gibi "şimdi doğrulanmamış yazıyla sığdır, sonra bir daha" yapılmaz. */
+  var fontAnahtar = function (T) { return T ? [T.hf || '', T.bf || ''].join('|') : ''; };
+  var yaziHazirMi = function () { return !!(deck && fontDurum.bitti && fontDurum.k === fontAnahtar(deck.tema)); };
+  var yaziIz = function () { var T = deck && deck.tema; return (T ? T.id || '' : '') + '|' + fontAnahtar(T) + '|' + fontYedek; };
+  /* deste → asetatları en son hangi yazı durumunda sığdırıldı. Kaydı olmayan deste ('yok': açılmış, kayıttan gelen)
+     henüz bu cihazda sığdırılmamıştır: kayıt ASIL boyutları taşır, yazı doğrulanınca bir kez sığdırılır. Durum değişince
+     (şablon, yedek yazı, yeniden dene) bütün asetatlar BİR KEZ asıl boyutlarından yeniden sığdırılır. Sığdırma kalıcı
+     kaydı değiştirmez (kaliciJSON), bu yüzden kendisi kaydettirmez. */
+  var fitIz = typeof WeakMap === 'function' ? new WeakMap() : null;
+  var fitIzKur = function () { if (fitIz && deck && !fitIz.has(deck)) fitIz.set(deck, 'yok'); };
+  var yaziUyum = function () {
+    if (!fitIz || !deck) return false; fitIzKur();
+    var iz = yaziIz(), eski = fitIz.get(deck); if (eski === iz) return false; fitIz.set(deck, iz);
+    deck.slides.forEach(function (sl) { fitSlide(sl); }); renderStage(); renderThumbs();
+    if (fontYedek) yaziTipiUyar(); else if (deck.share && deck.snapBekle) snapTazele(deck);      /* bekleyen görüntü: yalnız görüntü yazılır, deste kaydedilmez (18B) */
+    return true;
+  };
+  var yaziKuyruk = [], yaziBekle = false;
+  var yaziSonra = function (fn, k) {
+    if (yaziHazirMi() && !yaziKuyruk.length) { yaziUyum(); fn(true); return true; }
+    if (k) yaziKuyruk = yaziKuyruk.filter(function (o) { return o.k !== k; });
+    yaziKuyruk.push({ fn: fn, k: k || '', d: deck });
+    if (!yaziBekle) { yaziBekle = true; temaHazirGuncel().then(yaziAkit, yaziAkit); }
+    return false;
+  };
+  var yaziAkit = function () {
+    yaziBekle = false;
+    if (!yaziHazirMi()) { yaziBekle = true; temaHazirGuncel().then(yaziAkit, yaziAkit); return; }
+    var q = yaziKuyruk; yaziKuyruk = []; var tumu = yaziUyum();
+    /* bütün deste yeniden sığdırıldıysa tek asetat sığdırmaları gereksiz; bir işin hatası ötekileri durdurmaz ama gizlenmez */
+    q.forEach(function (o) { if (o.d !== deck || (tumu && o.k.indexOf('fit:') === 0)) return; try { o.fn(false); } catch (er) { setTimeout(function () { throw er; }); } });
+  };
+  var yaziHazirSoz = function () { return new Promise(function (res) { yaziSonra(function () { res(); }); }); };
   var head = function (t) { return [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, { color: BLUE })]; };
   var ph = function (t) { return { text: t, muted: true }; };
   /* "4,2 milyar $ — 2023 ihracatı" biçimindeki maddelerden ya da araştırma verisinden 3 sayı */
@@ -7012,10 +7108,26 @@ var SBX = (function () {
        bir önceki listeyle aynı aileden olanlar sona kalır. */
     var v = c && c.v, alt = null, sira = (VARY[kind] && VSIRA[kind]) || [], at = sira.indexOf(v), dene = v && VARY[kind] ? [v].concat(sira.slice(at + 1), sira.slice(0, Math.max(0, at))).filter(function (x, i, a) { return x && a.indexOf(x) === i; }) : [];
     if (kind === 'list' && c && c.aile) dene = dene.filter(function (x, i) { return !i || LAILE[x] !== c.aile; }).concat(dene.filter(function (x, i) { return i && LAILE[x] === c.aile; }));
+    /* Düzen zekâsının sıralı yedeği (tek kullanımlık; tür + kırpılmış başlık + ilk çeşit eşleşmeli). Klasik (0) seçildiyse dene boş kalır;
+       sıralama ilk 0'da kesilir, çünkü klasik newSlide'ın kendi son yedeğidir. Eşleşmezse eski sıra aynen kullanılır. */
+    if (v && c && c.yedek && c.yedek.kind === kind && c.yedek.t === t && arr(c.yedek.sira)[0] === v) { var y0 = c.yedek.sira.indexOf(0); dene = c.yedek.sira.slice(0, y0 < 0 ? undefined : y0); }
     ikonBag = String(t || ''); ikonKul = {};      /* ikon seçici asetat başlığını bağlam olarak görür */
-    for (var di = 0; di < dene.length && !alt; di++) { var fv = VARY[kind][dene[di] - 1]; alt = fv ? fv(t, b, c) : null; if (alt) v = dene[di]; }
+    for (var di = 0; di < dene.length && !alt; di++) { var fv = VARY[kind][dene[di] - 1]; alt = fv ? cesitKur(fv, kind, dene[di], t, b, c) : null; if (alt) v = dene[di]; }
     ikonBag = '';
     var sl = { id: uid(), lay: kind, bg: 'clear', notes: '', els: alt || LAY[kind].f(t, b, c) }; if (alt) sl.v = v; return sl;
+  };
+  /* Bir çeşidin kurulumu bu içerikte hata fırlatırsa (26.11.2026) yalnız o çeşit bu asetat için yok sayılır ve sıradaki
+     yedeğe geçilir: ikon kaydı denemeden önceki hâline AYNI nesnede döner (sıradaki çeşit kirlenmez), hata c.hata'ya
+     (basım bağlamı, kaydedilmez) ve konsola yazılır. Yalnız çeşit kurulumu sarılır; klasik düzen (LAY) sarılmaz, hiçbir
+     yol kalmazsa hata gizlenmez. */
+  var cesitKur = function (fv, kind, v, t, b, c) {
+    var k0 = typeof ikonKul === 'object' && ikonKul !== null ? Object.assign({}, ikonKul) : null;
+    try { return fv(t, b, c); } catch (er) {
+      if (k0) { for (var k in ikonKul) if (!Object.prototype.hasOwnProperty.call(k0, k)) delete ikonKul[k]; for (var k2 in k0) ikonKul[k2] = k0[k2]; }
+      if (c) (c.hata = c.hata || []).push({ kv: kind + ':' + v, tur: (er && er.name) || 'Error', asama: 'basim' });
+      if (typeof console !== 'undefined') console.warn('acadex-sunum: çeşit kurulamadı', kind + ':' + v, er);
+      return null;
+    }
   };
 
   /* ---------- rendering ---------- */
@@ -7053,7 +7165,7 @@ var SBX = (function () {
     if (!e.color || k === NAVY || k === '#2A3550' || (T && (k === T.ink.toUpperCase() || k === T.head.toUpperCase()))) return '#FFFFFF'; if (k === SOFT) return '#B9C3DA'; if (k === BLUE && (e.type === 't' || e.type === 'h')) return mix(T ? T.acc : BLUE, '#FFFFFF', .35); return r; };
   var elHTML = function (e, edit) {
     var TM = deck && deck.tema, st = 'left:' + e.x + 'px;top:' + e.y + 'px;width:' + e.w + 'px;height:' + e.h + 'px;font-size:' + e.size + 'px;color:' + renkSec(e) + ';text-align:' + e.align + ';font-weight:' + (e.bold ? 700 : (e.type === 'h' ? (TM && FONT_DISPLAY.test(TM.hf) ? 400 : 800) : 400));
-    if (e.type === 'h' && TM && TM.hf) st += ';font-family:' + fontCss(TM.hf);
+    if (e.type === 'h' && TM && (TM.hf || fontYedek)) st += ';font-family:' + (fontYedek ? FONT_YEDEK : fontCss(TM.hf));
     if (e.type === 'rect' || e.type === 'ellipse') st += ';background:' + temaRenk(e.fill || '#DCE6FF');
     if (e.dz) st += ';pointer-events:none;border-radius:' + (e.type === 'ellipse' ? '50%' : '0');
     else if (TM && TM.bic && e.type === 'rect') { var kc = kutuCizgi(e); st += ';border-radius:' + TM.bic.r + 'px' + (kc ? ';background:transparent;box-shadow:inset 0 0 0 2px ' + kc : kutuGolge(e) ? ';background:#FFFFFF;box-shadow:0 4px 20px rgba(15,23,42,.06),inset 0 4px 0 ' + TM.acc : ''); }
@@ -7064,24 +7176,61 @@ var SBX = (function () {
   var slideHTML = function (s) { var ts = temaSty(s); zeminKoyu = koyuMu(s); var h = '<div class="' + temaCls(s) + '"' + (ts ? ' style="' + ts + '"' : '') + ' aria-hidden="true">' + temaDekor(s).concat(s.els, temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('') + '</div>'; zeminKoyu = 0; return h; };
   /* otomatik sığdırma: taşan yazıyı asetata sığana dek küçült, taşan kutuyu asetat içine çek */
   var fitBox = null, FMIN = { h: 22, t: 12, ul: 13 };
+  /* ÖLÇÜM KUTUSU = GÖRÜNEN ASETAT (P2, 26.11.2026). Kutu eskiden yalnız "sx-slide" sınıfını alıyordu: şablon stili
+     (temaSty: yazı tipi, renk) yoktu, gövde yazısı yüklenmemiş "Instrument Sans" yerine sistem yazısıyla ölçülüyor,
+     ekranda Inter ile taşıyordu. Her ölçümden önce asetatın şablon sınıfı ve stili TAMAMEN yeniden yazılır
+     (önceki şablondan iz kalmaz); kutu bir kez kurulur, display:none değil visibility:hidden (ölçüm geçerli kalır). */
+  var fitKutu = function (sl) {
+    if (!fitBox) { fitBox = document.createElement('div'); fitBox.setAttribute('aria-hidden', 'true'); LY.appendChild(fitBox); }
+    fitBox.className = temaCls(sl || {}); fitBox.setAttribute('style', (temaSty(sl || {}) || '') + ';position:fixed;left:-20000px;top:0;visibility:hidden;pointer-events:none');
+    return fitBox;
+  };
+  /* GERİ ALINABİLİR SIĞDIRMA (26.11.2026): sığdırma her seferinde öğenin ASIL boyutundan başlar, önceki sığdırmanın
+     bıraktığından değil. Asıl boyut geçici bir WeakMap'te durur (kayda, geri al/yinele görüntüsüne, paylaşıma girmez).
+     Boyutu sığdırmadan sonra başka biri değiştirdiyse (yazar, denetçinin "düzelt"i, Acadia) o yeni asıl boyut sayılır.
+     Aynı yazıyla tekrar sığdırma aynı sonucu verir; şablon A → B → A ya da yedek yazı → yeniden dene küçülmeyi
+     biriktirmez. Yalnız yazı boyutu geri alınır; asetat dışına taşan kutuyu çekme yazıdan bağımsızdır ve tekrarda aynıdır. */
+  var fitTaban = typeof WeakMap === 'function' ? new WeakMap() : null;
+  /* KALICI GÖSTERİM ≠ ÇİZİM GÖSTERİMİ (26.11.2026). Sığdırılmış boyut bu yazı tipine, bu şablona, bu cihaza özgü geçici
+     bir çizim değeridir; kalıcı kayıt (tarayıcı ve hesap) öğenin ASIL boyutunu taşır. Öğe son sığdırmadan beri
+     değişmediyse (size === son) asıl boyut taban'dır; yazar boyutu değiştirdiyse o yeni boyut asıl boyuttur; kaydı
+     olmayan öğe (eski kayıt, açılmış deste) olduğu gibi yazılır — asıl boyut tahmin edilmez. Öğe nesnesine alan
+     eklenmez: yalnız JSON kopyasında size değişir. Ekran ve PPTX sığdırılmış boyutu kullanır. */
+  var kaliciBoy = function (e) { var iz = fitTaban && e && typeof e === 'object' ? fitTaban.get(e) : null; return iz && iz.son === e.size ? iz.taban : e.size; };
+  var kaliciJSON = function (k, v) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && fitTaban && fitTaban.has(v)) { var b = kaliciBoy(v); if (b !== v.size) { var c = {}; for (var x in v) if (Object.prototype.hasOwnProperty.call(v, x)) c[x] = v[x]; c.size = b; return c; } }
+    return v;
+  };
+  /* asıl boyut kaydını kopyaya taşı (çoğaltma, Acadia'nın çalışma kopyası): boyutu aynı kalan öğe kaydını korur */
+  var fitKopya = function (a, b) { var iz = fitTaban && a && fitTaban.get(a); if (iz && b && b.size === a.size) fitTaban.set(b, { taban: iz.taban, son: iz.son }); };
+  /* YAZARIN BOYUTU AÇIKÇA İŞARETLENİR (26.11.2026). Kalem kutusundaki büyüt/küçült yazarın tercihidir: yeni boyut, son
+     sığdırmanın bıraktığı boyuta eşit olsa bile asıl boyut olur (size === son karşılaştırması bunu ayırt edemezdi).
+     Sığdırma ve öteki yollar (Acadia, denetçi, düzen) bunu çağırmaz; onlar için size !== son kuralı geçerlidir. */
+  var boyYazar = function (e, v) { e.size = v; if (fitTaban) fitTaban.set(e, { taban: v, son: v }); };
+  var fitAktar = function (eski, yeni) { var m = {}; arr(eski).forEach(function (e) { if (e && e.id != null) m[e.id] = e; }); arr(yeni).forEach(function (e) { if (e && m[e.id]) fitKopya(m[e.id], e); }); };
   var fitEl = function (e) {
     if (!FMIN[e.type] || !e.text || e.muted) return false;
-    var ch = false;
+    var ch = false, once = e.size, iz = fitTaban && fitTaban.get(e);
+    if (iz && iz.son === e.size) e.size = iz.taban; else iz = { taban: e.size };
     if (e.x + e.w > W - 8) { e.w = Math.max(120, W - 8 - e.x); ch = true; }
     if (e.y + e.h > H - 4) { e.h = Math.max(30, H - 4 - e.y); ch = true; }
-    if (!fitBox) { fitBox = document.createElement('div'); fitBox.className = 'sx-slide'; fitBox.setAttribute('aria-hidden', 'true'); fitBox.style.cssText = 'position:fixed;left:-20000px;top:0;visibility:hidden;pointer-events:none'; LY.appendChild(fitBox); }
+    if (!fitBox) fitKutu(null);
     var guard = 0;
     while (guard++ < 30) {
       fitBox.innerHTML = elHTML(e, false); var n = fitBox.firstChild; if (!n) break;
       n.style.height = 'auto'; n.style.overflow = 'visible';
       var tooTall = n.scrollHeight > e.h + 3, tooWide = n.scrollWidth > e.w + 3;
       if ((!tooTall && !tooWide) || e.size <= FMIN[e.type]) break;
-      e.size = Math.max(FMIN[e.type], Math.floor(e.size * 0.92)); ch = true;
+      e.size = Math.max(FMIN[e.type], Math.floor(e.size * 0.92));
     }
     fitBox.innerHTML = '';
-    return ch;
+    iz.son = e.size; if (fitTaban) fitTaban.set(e, iz);
+    return ch || e.size !== once;
   };
-  var fitSlide = function (sl) { var n = 0; if (sl && sl.els) sl.els.forEach(function (e) { if (fitEl(e)) n++; }); return n; };
+  var fitSlide = function (sl) { var n = 0; if (sl && sl.els) { fitKutu(sl); sl.els.forEach(function (e) { if (fitEl(e)) n++; }); } return n; };
+  /* Düzenleyicideki sığdırmalar (resim ekle, düzen değiştir, fotoğraf yerleştir): yazı doğrulanmışsa hemen; değilse
+     doğrulamadan sonra güncel şablonla bir kez (yaziSonra). Asetat silindiyse ya da deste değiştiyse yapılmaz. */
+  var yaziFit = function (sl) { var d0 = deck; return yaziSonra(function (hemen) { if (deck !== d0 || deck.slides.indexOf(sl) < 0) return; fitSlide(sl); if (!hemen) { renderStage(); renderThumbs(); dirty(); } }, 'fit:' + sl.id); };
   /* ---------- .pptx'ten şablon çıkarma ----------
      Yalnız renk ve yazı tipi adı okunur; görsel, logo ya da asetat içeriği alınmaz
      (şablon dosyasının kendisi hiçbir yere yüklenmez, tarayıcıda açılır).
@@ -7133,7 +7282,8 @@ var SBX = (function () {
   var temaKutu = Q('[data-temalar]'), temaBilgi = Q('[data-temabilgi]'), temaIn = Q('[data-temapptx]'), temaIz = null;
   var temaBenim = function () { return arr(G(store.k('temalar'), [])).map(temaKur).filter(Boolean); };
   var paintTema = function () {
-    if (!temaKutu) return; var T = deck.tema; fontYukle(T);
+    if (!temaKutu) return; var T = deck.tema; fitIzKur(); temaHazir(T);      /* açılan kayıtlı deste: yazı yüklenemezse yedek + yeniden sığdırma (P1) */
+    if (yaziHazirMi() && fitIz && fitIz.get(deck) !== yaziIz()) Promise.resolve().then(function () { yaziSonra(function () {}, 'uyum'); });      /* çizim içinden değil, hemen ardından */
     var mine = temaBenim(), tum = TEMALAR.concat(mine); if (T && !tum.some(function (t) { return t.id === T.id; })) tum.push(T);
     var iz = (T ? T.id : '') + '|' + tum.length + '|' + mine.map(function (m) { return m.id; }).join(); if (iz === temaIz) return; temaIz = iz;
     temaKutu.innerHTML = '<button type="button" class="sx-tm" role="radio" data-tema="" aria-checked="' + !T + '" title="Acadex (varsayılan)" style="background:#FFFFFF;color:#0D1838"><b>Aa</b><i style="background:#2F6BFF"></i></button>' +
@@ -7144,7 +7294,11 @@ var SBX = (function () {
   };
   /* Üretilen deste Pitch ile başlar (25.11.2026, Berkay: kapak/ara vurgu/kapanış koyu, içerik açık, gölgeli kart); şablon menüsünden değişir. */
   var VARSAYILAN_TEMA = ['ax-pitch'];
-  var temaSec = function (T) { deck.temaEl = 1; deck.tema = T ? temaKur(T.def || T) : null; renderStage(); renderThumbs(); dirty(); };
+  var temaSec = function (T) { deck.temaEl = 1; fitIzKur(); deck.tema = T ? temaKur(T.def || T) : null; renderStage(); renderThumbs(); dirty();
+    /* Yeni şablonun yazısı doğrulanınca asetatlar o yazıyla ASIL boyutlarından bir kez yeniden sığdırılır (yaziUyum).
+       Art arda seçimlerde kuyrukta tek iş kalır ve güncel şablonla çalışır; başka desteye geçildiyse atılır. */
+    yaziSonra(function () {}, 'uyum');
+  };
   if (temaKutu) temaKutu.addEventListener('click', function (ev) {
     if (ev.target.closest('[data-temaekle]')) { temaIn.value = ''; temaIn.click(); return; }
     var b = ev.target.closest('[data-tema]'); if (!b) return; var id = b.getAttribute('data-tema');
@@ -7349,13 +7503,13 @@ var SBX = (function () {
   var op = function (k) {
     var s = cur(), o = selObj(); if (!s || !o) return; var i = s.els.indexOf(o);
     push();
-    if (k === 'bigger') o.size = Math.min(160, o.size + 2);
-    else if (k === 'smaller') o.size = Math.max(10, o.size - 2);
+    if (k === 'bigger') boyYazar(o, Math.min(160, o.size + 2));
+    else if (k === 'smaller') boyYazar(o, Math.max(10, o.size - 2));
     else if (k === 'bold') o.bold = !o.bold;
     else if (k === 'left' || k === 'center' || k === 'right') o.align = k;
     else if (k === 'front') { s.els.splice(i, 1); s.els.push(o); }
     else if (k === 'back') { s.els.splice(i, 1); s.els.unshift(o); }
-    else if (k === 'dup') { var c = clone(o); c.id = uid(); c.x += 16; c.y += 16; s.els.push(c); selId = c.id; }
+    else if (k === 'dup') { var c = clone(o); fitKopya(o, c); c.id = uid(); c.x += 16; c.y += 16; s.els.push(c); selId = c.id; }
     else if (k === 'del') { s.els.splice(i, 1); selId = null; renderStage(); refreshThumb(); dirty(); stage.focus(); say(LAB[o.type] + ' silindi.', undo); return; }
     renderStage(); refreshThumb(); dirty(); var el = selEl(); if (el) el.focus({ preventScroll: true });
   };
@@ -7487,7 +7641,7 @@ var SBX = (function () {
       if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {});
       selId = old.id; renderStage(); refreshThumb(); dirty(); imgDlg.close(); say('Fotoğraf değiştirildi.', undo); return;
     }
-    s0 = ensureSlide(); var im = placePhoto(s0, p, imQ.value.trim()); fitSlide(s0); selId = im.id; renderStage(); refreshThumb(); paintMeta(); dirty(); imgDlg.close();
+    s0 = ensureSlide(); var im = placePhoto(s0, p, imQ.value.trim()); yaziFit(s0); selId = im.id; renderStage(); refreshThumb(); paintMeta(); dirty(); imgDlg.close();
     var el = selEl(); if (el) el.focus({ preventScroll: true });
     say('Fotoğraf eklendi; fotoğrafçının adı altına yazıldı.', undo);
   });
@@ -7572,8 +7726,8 @@ var SBX = (function () {
     if (!c.data && k === 'diagram') { k = 'list'; v = 12; not = ' Diyagram verisi yoktu; maddeler numaralı süreç akışına çevrildi.'; }
     if (!c.data && k === 'math') { say('Bu asetatta formül yok; formül düzeni boş açılmaz.'); return; }
     push();
-    var alt = null, dn = v ? [v].concat(d.v2 ? [d.v2] : []) : []; for (var di = 0; di < dn.length && !alt && VARY[k]; di++) { ikonBag = t; ikonKul = {}; alt = VARY[k][dn[di] - 1] ? VARY[k][dn[di] - 1](t, bl, c) : null; ikonBag = ''; if (alt) v = dn[di]; }
-    s.els = alt || LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl, c); s.lay = k; s.v = alt ? v : 0; fitSlide(s); selId = null; renderStage(); refreshThumb(); dirty();
+    var alt = null, dn = v ? [v].concat(d.v2 ? [d.v2] : []) : []; for (var di = 0; di < dn.length && !alt && VARY[k]; di++) { ikonBag = t; ikonKul = {}; alt = VARY[k][dn[di] - 1] ? cesitKur(VARY[k][dn[di] - 1], k, dn[di], t, bl, c) : null; ikonBag = ''; if (alt) v = dn[di]; }
+    s.els = alt || LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl, c); s.lay = k; s.v = alt ? v : 0; yaziFit(s); selId = null; renderStage(); refreshThumb(); dirty();
     say('Asetat “' + d.l + '” düzenine geçti; başlığın ve yazıların taşındı.' + (v && !alt ? ' Bu düzen için madde sayısı uymadı, klasik liste kullanıldı.' : '') + not, undo);
   });
   QA('[data-bg]').forEach(function (b) { b.addEventListener('click', function () {
@@ -7591,7 +7745,7 @@ var SBX = (function () {
   thumbsEl.addEventListener('click', function (e) {
     var b;
     if ((b = e.target.closest('[data-go]'))) { go(+b.getAttribute('data-go')); return; }
-    if ((b = e.target.closest('[data-tdup]'))) { var i = +b.getAttribute('data-tdup'); push(); var c = clone(deck.slides[i]); c.id = uid(); c.els.forEach(function (x) { x.id = uid(); }); deck.slides.splice(i + 1, 0, c); deck.cur = i + 1; renderAll(); dirty(); thumbsEl.querySelector('[data-go="' + (i + 1) + '"]').focus(); return; }
+    if ((b = e.target.closest('[data-tdup]'))) { var i = +b.getAttribute('data-tdup'); push(); var c = clone(deck.slides[i]); c.id = uid(); c.els.forEach(function (x, j) { fitKopya(deck.slides[i].els[j], x); x.id = uid(); }); deck.slides.splice(i + 1, 0, c); deck.cur = i + 1; renderAll(); dirty(); thumbsEl.querySelector('[data-go="' + (i + 1) + '"]').focus(); return; }
     if ((b = e.target.closest('[data-tdel]'))) { var j = +b.getAttribute('data-tdel'); push(); deck.slides.splice(j, 1); deck.cur = Math.max(0, Math.min(deck.cur, deck.slides.length - 1)); renderAll(); dirty(); say((j + 1) + '. asetat yığından alındı.', undo); var nx = thumbsEl.querySelector('[data-go="' + Math.min(j, deck.slides.length - 1) + '"]'); if (nx) nx.focus(); return; }
   });
   thumbsEl.addEventListener('keydown', function (e) {
@@ -7684,11 +7838,12 @@ var SBX = (function () {
      (markNums), sonuç önce önizlenir (preview), uygulanınca sığmayan maddeler konuşmacı notuna
      taşınır (settle). "asetatları denetle" bütün sunumu bu kurallarla tarar (audit). */
   var DECOR = { mark: 1, arrow: 1, rect: 1, ellipse: 1 };
-  var measureH = function (e) {
-    if (!fitBox) { fitBox = document.createElement('div'); fitBox.className = 'sx-slide'; fitBox.setAttribute('aria-hidden', 'true'); fitBox.style.cssText = 'position:fixed;left:-20000px;top:0;visibility:hidden;pointer-events:none'; LY.appendChild(fitBox); }
+  /* sl verilirse ölçüm o asetatın şablon sınıfı/stiliyle yapılır (P2); verilmezse kutunun son ayarı kullanılır. */
+  var measureH = function (e, sl) {
+    if (sl || !fitBox) fitKutu(sl || null);
     fitBox.innerHTML = elHTML(e, false); var n = fitBox.firstChild, h = 0; if (n) { n.style.height = 'auto'; n.style.overflow = 'visible'; h = n.scrollHeight; } fitBox.innerHTML = ''; return h;
   };
-  var overflows = function (e) { var h = measureH(e); return h > 0 && h > e.h + 3; };
+  var overflows = function (e, sl) { var h = measureH(e, sl); return h > 0 && h > e.h + 3; };
   var hit = function (a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h; };
   var capOf = function (e) { var sz = e.size || 24, cpl = Math.max(14, Math.floor(e.w / (sz * .52))); return { b: Math.max(2, Math.min(6, Math.floor(e.h / (sz * 1.25 * 2 + sz * .45)))), w: Math.max(6, Math.min(16, Math.floor(cpl * 1.8 / 7))) }; };
   var settle = function (s, e) {
@@ -7707,8 +7862,8 @@ var SBX = (function () {
     }
     if (!e.text || e.muted || (e.type !== 'ul' && e.type !== 't')) return moved;
     var min = e.type === 'ul' ? 16 : 14, g = 0;
-    while (overflows(e) && e.size > min && g++ < 30) e.size = Math.max(min, Math.floor(e.size * .93));
-    if (e.type === 'ul') { while (overflows(e)) { var L = e.text.split('\n').filter(Boolean); if (L.length <= 1) break; moved.unshift(L.pop()); e.text = L.join('\n'); } }
+    while (overflows(e, s) && e.size > min && g++ < 30) e.size = Math.max(min, Math.floor(e.size * .93));
+    if (e.type === 'ul') { while (overflows(e, s)) { var L = e.text.split('\n').filter(Boolean); if (L.length <= 1) break; moved.unshift(L.pop()); e.text = L.join('\n'); } }
     if (moved.length) s.notes = (s.notes ? String(s.notes).replace(/\s+$/, '') + '\n' : '') + (curLang() === 'en' ? 'Did not fit on the slide: ' : 'Asetata sığmayanlar: ') + moved.join(' · ');
     return moved;
   };
@@ -7738,7 +7893,7 @@ var SBX = (function () {
   };
   var addQ = function (s, text) {
     var bottom = 120;
-    s.els.forEach(function (e) { if (!DECOR[e.type] && !e.muted && e.type !== 'h') bottom = Math.max(bottom, e.y + Math.min(e.h, measureH(e) || e.h)); });
+    s.els.forEach(function (e) { if (!DECOR[e.type] && !e.muted && e.type !== 'h') bottom = Math.max(bottom, e.y + Math.min(e.h, measureH(e, s) || e.h)); });
     if (bottom + 52 > H - 8) {
       var big = null; s.els.forEach(function (e) { if ((e.type === 'ul' || e.type === 't') && !e.muted && (!big || e.h > big.h)) big = e; });
       if (big) { big.h = Math.max(70, H - 8 - 52 - big.y); settle(s, big); }
@@ -7835,7 +7990,7 @@ var SBX = (function () {
     q: function (s) {
       return fn('generate-slide-content', { action: 'question', language: curLang(), topic: deck.title || titleOf(s), slideTitle: titleOf(s), currentText: bodyOf(s) }).then(function (d) {
         var q = d && (d.question || d.content); if (!q) throw new Error('boş');
-        addQ(s, 'Soru: ' + String(q).replace(/^\s*soru\s*:\s*/i, '').trim()); return 'Acadia dinleyiciye bir soru ekledi.';
+        return yaziHazirSoz().then(function () { addQ(s, 'Soru: ' + String(q).replace(/^\s*soru\s*:\s*/i, '').trim()); return 'Acadia dinleyiciye bir soru ekledi.'; });
       });
     }
   };
@@ -7848,10 +8003,10 @@ var SBX = (function () {
     var run = REMOTE[k] ? REMOTE[k](work).catch(function (err) {
       console.warn('acadex-sunum: Acadia', k, err);
       if (k === 'rich') return null;
-      work = clone(s); var m = AI[k](work);
-      if (k === 'note') m = 'Acadia’ya ulaşılamadı; not maddelerinden yazıldı.'; if (k === 'q') m = 'Acadia’ya ulaşılamadı; genel bir soru ekledim.'; if (k === 'short') m = 'Acadia’ya ulaşılamadı; maddeleri ben kısalttım.';
-      return m;
-    }) : new Promise(function (res) { setTimeout(function () { res(AI[k](work)); }, calm ? 0 : 250); });
+      return yaziHazirSoz().then(function () { work = clone(s); var m = AI[k](work);
+        if (k === 'note') m = 'Acadia’ya ulaşılamadı; not maddelerinden yazıldı.'; if (k === 'q') m = 'Acadia’ya ulaşılamadı; genel bir soru ekledim.'; if (k === 'short') m = 'Acadia’ya ulaşılamadı; maddeleri ben kısalttım.';
+        return m; });
+    }) : new Promise(function (res) { setTimeout(res, calm ? 0 : 250); }).then(yaziHazirSoz).then(function () { return AI[k](work); });      /* addQ ölçer: doğrulanmış yazıyla (P1) */
     run.then(function (m) {
       busy(false);
       if (m === null) { say('Acadia’ya şu an ulaşılamadı; asetat değişmedi. Biraz sonra tekrar dene.'); return; }
@@ -7859,8 +8014,9 @@ var SBX = (function () {
       var changed = diffEls(s, work);
       if (!changed.length && work.notes === s.notes) { say(m); return; }
       var apply = function () {
+        if (!yaziHazirMi() || yaziKuyruk.length) { yaziSonra(apply, 'ai:' + sid); return; }      /* settle ölçer: doğrulanmış yazıyla (P1) */
         var tgt = null; deck.slides.forEach(function (x) { if (x.id === sid) tgt = x; }); if (!tgt) return;
-        var before = snap(); delete work._src; tgt.els = work.els; tgt.notes = work.notes;
+        var before = snap(); delete work._src; fitAktar(tgt.els, work.els); tgt.els = work.els; tgt.notes = work.notes;
         var moved = 0; tgt.els.forEach(function (e) { if (changed.indexOf(e.id) >= 0) moved += settle(tgt, e).length; });
         if (cur() === tgt) notesEl.value = tgt.notes || '';
         undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist();
@@ -7880,7 +8036,7 @@ var SBX = (function () {
       var vis = s.els.filter(function (e) { return !DECOR[e.type]; });
       vis.forEach(function (e) {
         if (e.x < -2 || e.y < -2 || e.x + e.w > W + 2 || e.y + e.h > H + 2) add('asetatın dışına taşan kutu', e.id);
-        if ((e.type === 'ul' || e.type === 't' || e.type === 'h') && e.text && !e.muted && overflows(e)) add('yazı kutusundan taşıyor', e.type === 'h' ? null : e.id);
+        if ((e.type === 'ul' || e.type === 't' || e.type === 'h') && e.text && !e.muted && overflows(e, s)) add('yazı kutusundan taşıyor', e.type === 'h' ? null : e.id);
         if (e.muted && e.text && e.type !== 'h') add('doldurulmamış yer tutucu: “' + e.text.split('\n')[0].slice(0, 40) + '”');
         if (e.type === 'ul' && !e.muted) e.text.split('\n').forEach(function (l) { if (l.split(/\s+/).length > 18) long++; });
         if (e.warn && e.warn.length) warnN += e.warn.length;
@@ -7900,6 +8056,7 @@ var SBX = (function () {
   var fixSlide = function (s, ids) { var moved = 0; s.els.forEach(function (e) { if (!ids || ids.indexOf(e.id) >= 0) moved += settle(s, e).length; }); return moved; };
   var openAudit = function () {
     if (!deck.slides.length) { say('Denetlenecek asetat yok.'); return; }
+    if (!yaziHazirMi() || yaziKuyruk.length) { say('Şablon yazı tipi hazırlanıyor; denetim yazı gelince açılacak.'); yaziSonra(openAudit, 'denetim'); return; }      /* ölçüm doğrulanmış yazıyla (P1) */
     commitEdit();
     if (!auDlg) { auDlg = sxDlg(); auDlg.setAttribute('aria-labelledby', 'axau-t'); }
     var paint = function () {
@@ -7912,6 +8069,7 @@ var SBX = (function () {
         '<div class="sxd-acts"><button type="button" class="sxd-b" data-au-x>kapat</button>' + (fixable ? '<button type="button" class="sxd-b pri" data-au-all>hepsini düzelt</button>' : '') + '</div></div>';
     };
     var doFix = function (list) {
+      if (!yaziHazirMi()) { yaziSonra(function () { doFix(list); }); return; }
       var before = snap(), moved = 0;
       list.forEach(function (r) { moved += fixSlide(r.s, r.iss.filter(function (x) { return x.fix; }).map(function (x) { return x.fix; })); });
       undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); renderAll(); dirty();
@@ -8466,7 +8624,7 @@ var SBX = (function () {
       } else { ph = all.slice(0, 1); kapakSinir = true; }
       var hedef = kapakSinir ? cand.filter(function (sl) { return sl.lay === 'cover'; }) : cand;
       if (!hedef.length) { say('Fotoğraf için uygun asetat bulamadım; istediğin asetatı seçip “görsel ara” diyebilirsin.'); return; }
-      var n = 0; hedef.forEach(function (sl, i) { if (!ph[i] || deck.slides.indexOf(sl) < 0) return; placePhoto(sl, ph[i], q); fitSlide(sl); n++; });
+      var n = 0; hedef.forEach(function (sl, i) { if (!ph[i] || deck.slides.indexOf(sl) < 0) return; placePhoto(sl, ph[i], q); yaziFit(sl); n++; });
       if (!n) { say('Fotoğraf yerleştirilemedi; “görsel ara” ile kendin seçebilirsin.'); return; }
       renderAll(); dirty();
       say(n + ' asetata fotoğraf önerdim' + (kapakSinir ? ' (konu İngilizceye çevrilemedi, bu yüzden yalnız kapağa)' : '') + '. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
@@ -8542,7 +8700,7 @@ var SBX = (function () {
       Object.keys(grp).forEach(function (k) {
         var sl = made[k], ps = grp[k], f = bic[k] || ''; if (!sl || deck.slides.indexOf(sl) < 0 || sl.els.some(function (e) { return e.type === 'img'; })) return;
         if (f === 'iki' && ps.length > 1) placePair(sl, ps[0], ps[1]); else placePhoto(sl, ps[0], ps[0].alt, f === 'iki' ? 'sol' : f);
-        fitSlide(sl); n++;
+        yaziFit(sl); n++;
       });
       if (!n) { autoPhotos(made, topic); return; }
       renderAll(); dirty();
@@ -8576,13 +8734,32 @@ var SBX = (function () {
     });
   };
   var basiliyor = false;
+  /* ŞABLONSUZ DESTE ÇIPLAK DURUYORDU (14.11.2026): üretilen bütün desteler
+     tema:null ile kaydedilmişti; zemin deseni, yazı tipi, alt bilgi hiç
+     görünmüyordu. Kullanıcı bu destede şablona hiç dokunmadıysa açık zeminli
+     bir hazır şablon başlıktan seçilir (aynı başlık hep aynı şablon). "Şablonsuz"
+     seçimi de bir seçimdir, ezilmez. (26.11.2026: printDeck'ten basım öncesine taşındı.) */
+  var basTemasi = function (mode) {
+    if (mode !== 'append' && !deck.tema && !deck.temaEl) { var th = 0, tb = String(plotMeta.title || deck.title || ''); for (var ti = 0; ti < tb.length; ti++) th = (th * 31 + tb.charCodeAt(ti)) >>> 0; var VT = TEMALAR.filter(function (t) { return VARSAYILAN_TEMA.indexOf(t.id) >= 0; }); deck.tema = temaKur(VT[th % VT.length].def); }
+  };
+  var basNo = 0;
   var bas = function (mode) {
     if (basiliyor) return; basiliyor = true;
+    var no = ++basNo, d0 = deck;
     var bs = [Q('[data-pl-ok]', plot), Q('[data-pl-print]', plot)], eski = bs.map(function (b) { return b.textContent; });
     if (strips.some(bosSerit) && plotMeta.via !== 'skeleton') bs.forEach(function (b) { b.disabled = true; b.textContent = 'boş şeritler yazılıyor…'; });
     hazirla().then(function (kalan) { return kalan; }, function () { return 0; }).then(function (kalan) {
-      basiliyor = false; bs.forEach(function (b, i) { b.disabled = false; b.textContent = eski[i]; });
-      printDeck(mode, kalan);
+      /* YAZI HAZIR OLMADAN BASILMAZ (P1, 26.11.2026): şablon seçilir, yazısı yüklenip doğrulanır (en çok 8 sn);
+         yüklenemezse bu basım ortak yedek yazıyla yapılır ve kullanıcıya söylenir. Bekleme sırasında başka bir basım
+         başladıysa ya da deste değiştiyse eski basım yenisinin üzerine yazılmaz. */
+      if (deck === d0) basTemasi(mode);
+      bs.forEach(function (b) { b.disabled = true; b.textContent = 'yazı tipi hazırlanıyor…'; });
+      return temaHazirGuncel().then(function (r) { return r; }, function () { return { ok: false }; }).then(function (r) {
+        basiliyor = false; bs.forEach(function (b, i) { b.disabled = false; b.textContent = eski[i]; });
+        if (no !== basNo || deck !== d0) return;
+        printDeck(mode, kalan);
+        if (!r.ok) yaziTipiUyar();
+      });
     });
   };
   /* Hazır desteyi yönetmenin eleştirmenine puanlatır (üretim yapmaz, hızlıdır).
@@ -8623,7 +8800,7 @@ var SBX = (function () {
        kalanlar: doğrulanamayan maddesi olan asetat (uyarı işareti yalnız madde
        listesinde çizilir) ve gerçek bir kişi/yer fotoğrafı bekleyen asetat. */
     var taslak = [];      /* şablon notu alan asetatlar; basımdan sonra Acadia yeniden yazar (notlariYaz) */
-    var vSay = {}, vSec = function (s, kind) {
+    var vSay = {}, vSec = function (s, kind) { vSay.yedek = null; vSay.tani = null; var v = vSecKural(s, kind); DZ.kaydet(kind, v, vSay.tani ? vSay.tani.neden : 'kural'); return v; }, vSecKural = function (s, kind) {
       /* Uyarı yalnız LİSTEYİ klasikte tutar: zaman çizelgesinde uyarı zaten
          çizilmiyordu, yine de çizelge klasiğe düşüyordu (canlı deste 14.11.2026). */
       if (!VSIRA[kind] || (/^(list|quote)$/.test(kind) && s.img && s.img.entity)) return 0;
@@ -8646,11 +8823,9 @@ var SBX = (function () {
       var kol = kind === 'list' && vSay.aile !== 's' && arr(s.b).length >= 2 && arr(s.b).length <= 4 && arr(s.b).every(function (x) { return /^[^:]{3,36}:\s+.{20,}$/.test(String(x)); });
       if (kol && !vSay.kol) { vSay.kol = 1; return 7; }      /* "Terim: açıklama" maddeleri kolonlara açılır */
       if (kind === 'list' && vSay.kol) vSay.kol = (vSay.kol + 1) % 4;      /* kolon düzeni en erken üç liste sonra yeniden gelir */
-      /* Aynı aileden görünüm art arda gelmez (canlı deste 14.11.2026: 7, 9 ve 10.
-         asetat üçü de üç sütunluk karttı); sıra bir sonraki aileye atlar. */
-      var sr = VSIRA[kind], n = vSay[kind] = (vSay[kind] || 0) + 1, v = sr[(n - 1) % sr.length];
-      if (kind === 'list') for (var q = 0; q < sr.length && LAILE[v] === vSay.aile; q++) { n = ++vSay[kind]; v = sr[(n - 1) % sr.length]; }
-      return v;
+      /* Sayaçla dönen sıra (VSIRA) yerine düzen zekâsı (DZ, aşağıda): aday çeşitler gerçekten kurulur, sığdırılıp ölçülür,
+         içerik uygunluğu ve okunurluk önce gelir; çeşitlilik ancak eşitler arasında karar verir. */
+      return DZ.sec(s, kind);
     };
     /* Alıntı düzeni art arda gelmez, destede en çok iki kez kullanılır. "Ruh sağlığı
        hemşireliği" destesinde (14.11.2026) Acadia her asetata tek cümle yazdı,
@@ -8661,6 +8836,168 @@ var SBX = (function () {
        not yazıyor, basarken hepsi "“X” konusunu anlatıyorum…" şablonuyla değişiyordu
        (aynı deste; kalite raporu "zayıf not yok" derken ekranda 16 şablon not vardı). */
     var notYeter = function (n) { n = String(n || '').trim(); var l = langOf(n); return n.split(/\s+/).length >= 15 && (!l || l === curLang()); };
+    /* ===== DÜZEN ZEKÂSI — Phase 1 Revizyon 5 (26.11.2026) =====
+       Sıradaki çeşit artık sayaçla dönmüyor: her aday GERÇEK VARY/LAY ile kurulur, üretimin fitSlide'ı ile sığdırılır
+       ve measureH ile ölçülür (P2 sayesinde ölçüm = görünen asetat). Seçim sözlük sırasıyla: U içerik uygunluğu >
+       O gerçek taşma > P sığdırma sonrası en küçük gövde yazısı (18 px'te kırpılmış) > R tahmini okunurluk > görsel aile
+       ≠ önceki > yüzey (kutulu/kutusuz) ≠ önceki > LAILE > son 4'te kullanılmamış tür:çeşit > iki önceki aile > denge >
+       W kendi kutusunu aşma uyarısı > başlık özeti. Uygunluk hiçbir çeşitlilik anahtarına feda edilmez.
+       Tablolar, sınıflandırıcı ve haritalar dondurulmuş tasarımdan BİREBİR kopyadır (ACADEX-QA-TRANSFER/scripts/rev5-module.js,
+       SHA-256 f337631…; tests/sunum-duzen-zekasi.js eşitliği denetler). Tanılama yalnız bellekte (vSay.tani, vSay.gunluk). */
+    var DZ = (function () {
+      // Type-aware perceived families [PROV]: key kind:variant → [primary, secondary]
+      var AILE = {
+        'list:0': ['bullets'], 'list:9': ['bullets'], 'list:1': ['cards'], 'list:4': ['cards'], 'list:5': ['cards'], 'list:11': ['cards'],
+        'list:2': ['typo'], 'list:7': ['typo'], 'list:3': ['insight', 'cards'], 'list:6': ['insight', 'cards'],
+        'list:8': ['sequence'], 'list:12': ['sequence', 'cards'], 'list:10': ['structural'],
+        'time:0': ['timeline'], 'time:1': ['timeline'], 'time:2': ['timeline', 'cards'], 'time:3': ['timeline', 'cards'], 'time:4': ['timeline'],
+        'stat:0': ['stat'], 'stat:1': ['stat', 'cards'], 'stat:2': ['stat', 'cards'], 'stat:3': ['stat'], 'stat:4': ['stat', 'cards'], 'stat:5': ['stat', 'cards'],
+        'two:0': ['comparison'], 'two:1': ['comparison', 'cards'], 'two:2': ['comparison'], 'two:3': ['comparison', 'cards'],
+        'quote:0': ['insight'], 'quote:1': ['insight', 'cards'], 'quote:2': ['insight'], 'quote:3': ['insight'],
+        'chart:0': ['chart'], 'chart:1': ['chart', 'cards'], 'table:0': ['table']
+      };
+      var aile = function (k, v) { return (AILE[k + ':' + (v || 0)] || [k])[0]; }, aile2 = function (k, v) { return (AILE[k + ':' + (v || 0)] || [])[1] || null; };
+      var K = function (alts) { return new RegExp('(?:^|[^\\p{L}\\p{N}])(?:' + alts + ')', 'u'); };
+      var RX = {
+        intro: K('giriş|genel bakış|introduction|overview|neden önemli|why .*matters?|bugün|background|arka plan'),
+        outro: K('sonuç|özet|çıkarım|kapanış|akılda|conclusion|summary|takeaway|key points|wrap'),
+        def: K('nedir|what is|what are|tanım|defin|kavram|concept|types of|türleri'),
+        proc: K('process|steps?\\b|stages?\\b|phases?\\b|how\\b|pipeline|workflow|süre[cç]|adım|aşama|nasıl'),
+        cmp: K('vs\\.?(?![\\p{L}])|versus|karşılaştırma|compar|karşı(?![\\p{L}])'),
+        risk: K('risk|challeng|zorluk|sınırlılık|limitation|açık soru|open question|tehdit|threat|barrier'),
+        find: K('study|studies|research|found|showed|survey|araştırma|bulgu|çalışma|gösterdi|anket'),
+        num: /(?:%\s?\d|\d[\d.,]*\s?(?:%|milyon|milyar|bin|trilyon|million|billion|thousand|tl|usd|\$|€|kat|x)(?![\p{L}])|[$€₺]\s?\d)/iu,
+        year: /(?:^|\D)(1[5-9]\d{2}|20\d{2})(?!\d)/, step: /^\s*(?:step|adım|aşama|phase|stage)(?![\p{L}])|^\s*\d+[.)]\s/iu, term: /^[^:]{3,36}:\s+.{20,}$/
+      };
+      var kucuk = function (x) { return String(x).toLocaleLowerCase('tr'); };
+      var sinifla = function (s, kon) {
+        if (s.k !== 'list') return { tur: 'data:' + s.k, kanit: 3 };
+        var B = arr(s.b).map(kucuk), T = kucuk(s.t), n = B.length, ev = {}, add = function (k, p) { ev[k] = (ev[k] || 0) + p; };
+        if (RX.intro.test(T)) add('intro', 2); if (kon.ilk) add('intro', 0.5);
+        if (RX.outro.test(T)) add('conclusion', 2); if (kon.son) add('conclusion', 0.5);
+        if (RX.def.test(T)) add('definition', 2); if (n >= 2 && B.every(function (x) { return RX.term.test(x); })) add('definition', 1);
+        if (RX.proc.test(T)) add('process', 2); if (n >= 2 && B.every(function (x) { return RX.step.test(x); })) add('process', 2);
+        var ys = B.map(function (x) { var m = x.match(RX.year); return m ? +m[1] : null; });
+        if (n >= 3 && ys.every(Boolean) && ys.every(function (y, i) { return !i || y >= ys[i - 1]; }) && ys[0] !== ys[n - 1]) add('chronology', 2.5);
+        var sayi = B.filter(function (x) { return RX.num.test(x); }).length; if (n && sayi >= 2 && sayi >= n - 1) add('statistics', 2);
+        if (RX.cmp.test(T)) add('comparison', 2);
+        if (RX.risk.test(T)) add('risks', 2);
+        if (RX.find.test(T) || B.some(function (x) { return RX.find.test(x); })) add('finding', sayi ? 2 : 1);
+        var best = Object.keys(ev).map(function (k) { return [k, ev[k]]; }).sort(function (x, y) { return y[1] - x[1]; });
+        if (!best.length || best[0][1] < 2 || (best[1] && best[1][1] === best[0][1])) return { tur: n <= 2 ? 'key-insight' : 'explanation', kanit: best.length ? best[0][1] : 0 };
+        return { tur: best[0][0], kanit: best[0][1] };
+      };
+      var U = {
+        intro: { insight: 1, bullets: 1, typo: .75, cards: .75, sequence: .25 }, conclusion: { sequence: 1, typo: 1, insight: .75, cards: .75, bullets: .75 },
+        definition: { typo: 1, cards: 1, bullets: .75, insight: .5, sequence: 0 }, process: { sequence: 1, typo: .5, cards: .5, bullets: .5, insight: .25 },
+        chronology: { typo: 1, sequence: .75, bullets: .75, cards: .5, insight: .25 }, statistics: { typo: 1, cards: 1, bullets: .5, insight: .5, sequence: 0 },
+        comparison: { cards: 1, typo: 1, bullets: .75, insight: .25, sequence: 0 }, risks: { cards: 1, typo: 1, bullets: .75, insight: .5, sequence: 0 },
+        finding: { insight: 1, typo: 1, cards: .75, bullets: .75, sequence: 0 }, 'key-insight': { insight: 1, bullets: .5, typo: .5, cards: .5 },
+        explanation: { bullets: 1, cards: 1, typo: 1, insight: .75, sequence: .25 }
+      };
+      var uyum = function (tur, k, v) { if (tur.indexOf('data:') === 0) return 1; var r = (U[tur] || U.explanation)[aile(k, v)]; return r == null ? 0 : r; };
+      var CAP = { 'list:1': 150, 'list:2': 170, 'list:3': 170, 'list:4': 160, 'list:5': 170, 'list:6': 230, 'list:7': 200, 'list:8': 140, 'list:9': 170, 'list:11': 160, 'list:12': 140 };
+      var okunur = function (s, k, v) { var B = arr(s.b).map(String), cap = CAP[k + ':' + v]; if (k !== 'list') return 1; if (!v) return B.join(' ').length > 430 ? 0 : 1; return cap && B.some(function (x) { return x.length > 0.8 * cap; }) ? 0 : 1; };
+      var hash = function (t) { var h = 2166136261; t = String(t); for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+      // ===================== REVISION 4 =====================
+      // Render-based visual family (render/rev3 + render/rev4 contact sheets, production renderer). Keyed by kind:variant.
+      var GORUNUM = {
+        'list:1': 'kart-kolon', 'list:12': 'kart-kolon', 'time:2': 'kart-kolon', 'time:3': 'kart-kolon', 'stat:1': 'kart-kolon', 'stat:5': 'kart-kolon', 'two:1': 'kart-kolon',
+        'list:5': 'kart-satir', 'stat:4': 'kart-satir', 'two:3': 'kart-satir',
+        'list:4': 'kart-izgara', 'list:11': 'kart-bento', 'stat:2': 'kart-bento',
+        'list:3': 'tek-kutu', 'list:6': 'tek-kutu', 'quote:1': 'tek-kutu', 'quote:3': 'tek-kutu',
+        'list:0': 'metin-satir', 'list:2': 'metin-satir', 'time:1': 'metin-satir', 'list:9': 'bolunmus',
+        'list:7': 'metin-kolon', 'list:8': 'metin-kolon', 'stat:0': 'metin-kolon', 'stat:3': 'metin-kolon', 'two:0': 'metin-kolon', 'two:2': 'metin-kolon',
+        'time:0': 'eksen', 'time:4': 'eksen', 'quote:0': 'alinti', 'quote:2': 'alinti',
+        'chart:0': 'grafik', 'chart:1': 'grafik', 'table:0': 'tablo', 'list:10': 'yapisal'      // chart/table: provisional (not rendered)
+      };
+      // Surface, per kind:variant (NOT per family: time:4 is an axis WITH small cards)
+      var KUTULU = { 'list:1': 1, 'list:12': 1, 'time:2': 1, 'time:3': 1, 'stat:1': 1, 'stat:5': 1, 'two:1': 1, 'list:5': 1, 'stat:4': 1, 'two:3': 1, 'list:4': 1, 'list:11': 1, 'stat:2': 1,
+        'list:3': 1, 'list:6': 1, 'quote:1': 1, 'quote:3': 1, 'time:4': 1, 'chart:1': 1 };
+      var gorunum = function (k, v) { return GORUNUM[k + ':' + (v || 0)] || k; };
+      var yuzey = function (k, v) { return KUTULU[k + ':' + (v || 0)] ? 'kutulu' : 'kutu-yok'; };
+      // smallest body text (t/ul with text) of the BUILT element list, before fitSlide (designed size, content-aware)
+      var govdePx = function (els) { var m = 999; (els || []).forEach(function (e) { if ((e.type === 't' || e.type === 'ul') && e.text && !e.muted) m = Math.min(m, e.size || 24); }); return m; };
+      var ESIK_PX = 18;      // investigation threshold (≈ 14 pt in PPTX: round(px*0.75))
+      // ---------- ölçüm: üretimin fitSlide + measureH'si (DOM yoksa — eski test düzenekleri — yalnız tasarlanan boyut) ----------
+      var olc = function (els) {
+        var px = 99, oEl = 0, oCard = 0, oSlide = 0, dom = typeof fitSlide === 'function' && typeof measureH === 'function' && typeof document !== 'undefined';
+        var sl = { els: els, bg: 'clear' }; if (dom) fitSlide(sl);
+        var SW = typeof W === 'number' ? W : 960, SH = typeof H === 'number' ? H : 540, rects = els.filter(function (r) { return r.type === 'rect' && r.w > 40 && r.h > 40; });
+        els.forEach(function (e) {
+          if (!((e.type === 't' || e.type === 'ul') && e.text && !e.muted)) return;
+          px = Math.min(px, e.size || 24); if (!dom) return;
+          var h = measureH(e, sl), bottom = e.y + h;
+          var card = rects.filter(function (r) { return e.x >= r.x - 2 && e.y >= r.y - 2 && e.x < r.x + r.w && e.y < r.y + r.h; }).sort(function (a, b) { return a.w * a.h - b.w * b.h; })[0];
+          if (h > e.h + 3) oEl++; if (card && bottom > card.y + card.h + 2) oCard++; if (bottom > SH - 2 || e.x + e.w > SW + 1) oSlide++;
+        });
+        return { px: px, oEl: oEl, oCard: oCard, oSlide: oSlide };
+      };
+      // aday denemesi: ikonKul DEĞER kopyası alınır, finally içinde aynı nesneye geri yazılır (VARY hata verse de)
+      /* Adayın KURULUMU hata fırlatırsa (26.11.2026) yalnız o aday bu asetat için yok sayılır, öteki adaylar denenir;
+         hata tanıya yazılır (vSay.tani.hata). Ölçüm (fitSlide/measureH) ve seçicinin kendi hataları sarılmaz, yukarı çıkar. */
+      var deneme = function (kind, v, s, hata) {
+        var var_ = typeof ikonKul === 'object' && ikonKul !== null, k0 = var_ ? Object.assign({}, ikonKul) : null;
+        try {
+          var c = { heads: s.heads, split: s.split, data: s.data, zorla: false }, els;
+          try { els = v ? VARY[kind][v - 1](s.t, arr(s.b).slice(), c) : (LAY[kind] ? LAY[kind].f(s.t, arr(s.b).slice(), c) : null); }
+          catch (er) { hata.push({ kv: kind + ':' + v, tur: (er && er.name) || 'Error', asama: 'aday' }); return null; }
+          if (!els) return null;
+          return { m: olc(els) };
+        } finally { if (var_) { for (var k in ikonKul) if (!Object.prototype.hasOwnProperty.call(k0, k)) delete ikonKul[k]; for (var k2 in k0) ikonKul[k2] = k0[k2]; } }
+      };
+      var siddet = function (m) { return m.oSlide ? 2 : m.oCard ? 1 : 0; };
+      // geçmiş: kapak, kapanış ve kaynakça dışındaki basılmış asetatlar (aile/yüzey belleği buradan türetilir)
+      var gecmis = [], durum = function () {
+        var n = gecmis.length, a = gecmis[n - 1], b = gecmis[n - 2], cnt = {};
+        gecmis.forEach(function (x) { cnt[x.g] = (cnt[x.g] || 0) + 1; });
+        return { prevV: a ? a.g : null, prevV2: b ? b.g : null, prevS: a ? a.y : null, cntV: cnt, n: n, son4: gecmis.slice(-4).map(function (x) { return x.k + ':' + x.v; }) };
+      };
+      var yapisal = function (kind) { return /^(cover|end|refs)$/.test(kind); };
+      // son gövde asetatı mı (kapak/kapanış/kaynakça hariç); test düzenekleri s.son verebilir
+      var sonGovde = function (s) { if (s && s.son) return true; if (typeof strips === 'undefined' || !arr(strips).length) return false; for (var i = strips.length - 1; i >= 0; i--) { if (!yapisal(strips[i].k)) return strips[i] === s; } return false; };
+      var sec = function (s, kind) {
+        var D = durum(), t0 = typeof performance !== 'undefined' ? performance.now() : 0, n = 0;
+        var sr = VSIRA[kind] || [0], tur = sinifla(s, { ilk: !D.n, son: sonGovde(s) }), cand = [], hata = [];
+        sr.concat([0], kind === 'list' ? [6, 7] : []).filter(function (v, i, a) { return a.indexOf(v) === i && !(kind === 'list' && v === 10); }).forEach(function (v) {
+          if (v && !(VARY[kind] && VARY[kind][v - 1])) return;
+          var p = deneme(kind, v, s, hata); n++; if (p) cand.push({ v: v, m: p.m });
+        });
+        var sc = cand.map(function (c) {
+          var v = c.v, g = gorunum(kind, v), y = yuzey(kind, v);
+          return { v: v, g: g, y: y, m: c.m, U: uyum(tur.tur, kind, v), O: -siddet(c.m), P: Math.min(c.m.px, ESIK_PX), R: okunur(s, kind, v),
+            ng: g !== D.prevV ? 1 : 0, ny: y !== D.prevS ? 1 : 0, nl: kind !== 'list' || (LAILE[v] || '') !== (vSay.aile || '') ? 1 : 0,
+            nv: D.son4.indexOf(kind + ':' + v) < 0 ? 1 : 0, ng2: g !== D.prevV2 ? 1 : 0, bal: D.n >= 3 && ((D.cntV[g] || 0) + 1) / (D.n + 1) > 0.35 ? 0 : 1,
+            W: c.m.oEl ? 0 : 1, h: hash(s.t + ':' + v) % 997 };
+        });
+        sc.sort(function (x, y) { return y.U - x.U || y.O - x.O || y.P - x.P || y.R - x.R || y.ng - x.ng || y.ny - x.ny || y.nl - x.nl || y.nv - x.nv || y.ng2 - x.ng2 || y.bal - x.bal || y.W - x.W || y.h - x.h; });
+        var w = sc[0], esit = function (x) { return x.U === w.U && x.O === w.O && x.P === w.P && x.R === w.R; };
+        var tekrarG = !!w && w.g === D.prevV && !sc.some(function (x) { return esit(x) && x.g !== D.prevV; });
+        var tekrarY = !!w && w.y === 'kutulu' && D.prevS === 'kutulu' && !sc.some(function (x) { return esit(x) && x.g !== D.prevV && x.y !== 'kutulu'; });
+        /* tek kullanımlık sıralı yedek: basım döngüsü hemen cx.yedek'e taşır ve siler; başlık newSlide'a giden kırpılmış başlıktır */
+        vSay.yedek = sc.length ? { kind: kind, t: String(s.t).trim(), sira: sc.map(function (x) { return x.v; }) } : null;
+        vSay.tani = { tur: tur.tur, neden: !sc.length ? 'klasik-yedek' : tekrarG ? 'tekrar-kacinilmaz' : 'en-uygun', yuzeyZorunlu: tekrarY,
+          kapasiteFont: !!w && w.m.px < ESIK_PX, kapasiteTasma: !!w && w.O < 0, olcum: w ? w.m : null, aday: n, hata: hata, ms: typeof performance !== 'undefined' ? performance.now() - t0 : 0 };
+        if (hata.length) vSay.hatalar = (vSay.hatalar || []).concat(hata.map(function (x) { return Object.assign({ t: String(s.t).trim() }, x); }));
+        return w ? w.v : 0;
+      };
+      /* kapak, kapanış ve kaynakça belleğe girmez: ölçütlerin dışındadır ve ilk İÇERİK asetatı "ilk" sayılır */
+      var kaydet = function (kind, v, neden) {
+        if (yapisal(kind)) return;
+        gecmis.push({ k: kind, v: v || 0, g: gorunum(kind, v), y: yuzey(kind, v) });
+        (vSay.gunluk = vSay.gunluk || []).push({ kind: kind, v: v || 0, gorunum: gorunum(kind, v), yuzey: yuzey(kind, v), neden: neden || 'kural' });
+      };
+      /* vSec seçtiği çeşidi kaydeder (eski düzenekler yalnız vSec + newSlide koşar, bellek orada da işlemeli);
+         basım döngüsü newSlide'dan sonra basılan çeşidi düzeltir, menü (vz) asetatını ise yeni kayıt olarak ekler */
+      var duzelt = function (kind, v, menu) {
+        if (yapisal(kind)) return;
+        if (menu) { kaydet(kind, v, 'menu'); return; }
+        var a = gecmis[gecmis.length - 1], gl = arr(vSay.gunluk)[arr(vSay.gunluk).length - 1];
+        if (a && a.k === kind && a.v !== (v || 0)) { a.v = v || 0; a.g = gorunum(kind, v); a.y = yuzey(kind, v); if (gl) { gl.v = a.v; gl.gorunum = a.g; gl.yuzey = a.y; gl.neden = 'yedek'; } }
+      };
+      return { sec: sec, kaydet: kaydet, duzelt: duzelt, gorunum: gorunum, yuzey: yuzey, sinifla: sinifla, uyum: uyum, okunur: okunur, siddet: siddet, olc: olc, ESIK_PX: ESIK_PX,
+        tablolar: { AILE: AILE, U: U, CAP: CAP, GORUNUM: GORUNUM, KUTULU: KUTULU, RX: RX } };
+    })();
     push(); var made = strips.map(function (s) { var cx = clone(plotMeta); cx.heads = s.heads; cx.split = s.split; cx.viz = s.viz; cx.data = s.data;
       var kind = s.k; if (!dataKind(s, kind)) { kind = 'list'; bosCerceve++; }      /* boş tablo/diyagram çerçevesi basılmaz */
       /* Taraf adı olmayan "two" listeye iner: tür şeritten elle "iki kolon" yapılınca
@@ -8668,7 +9005,10 @@ var SBX = (function () {
       if (kind === 'two' && arr(s.b).length && arr(s.heads).filter(function (h) { return /\S/.test(String(h || '')); }).length < 2) kind = 'list';
       kind = vTur(kind);
       cx.v = s.vz && kind === 'list' ? s.vz : vSec(s, kind); cx.zorla = !!s.vz; cx.aile = vSay.aile || ''; cx.tek = vSay.tek;      /* menüden seçilen çeşit (vz) sıraya uyulmadan basılır */
+      cx.yedek = s.vz && kind === 'list' ? null : vSay.yedek; vSay.yedek = null;      /* sıralı yedek tek kullanımlık: bu asetata taşınır, hemen silinir */
       var sl = newSlide(kind, s.t.trim(), s.b, cx); if (s.notes) sl.notes = s.notes;
+      DZ.duzelt(kind, sl.v || 0, !!(s.vz && kind === 'list'));      /* bellek BASILAN çeşidi tutar: yedeğe düştüyse o, menüden seçildiyse o */
+      if (cx.hata) { vSay.hatalar = (vSay.hatalar || []).concat(cx.hata.map(function (x) { return Object.assign({ t: s.t.trim() }, x); })); delete cx.hata; }
       if (kind === 'list') vSay.aile = LAILE[sl.v || 0] || '';
       if (/^(cover|end)$/.test(kind) || (kind === 'quote' && sl.v === 2)) sl.bg = 'navy';      /* koyu ritim (25.11.2026): kapak, ara vurgu, kapanış */
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
@@ -8714,13 +9054,10 @@ var SBX = (function () {
         ? 'Repeat the key messages once more in short sentences' + (sonB(sl).length ? ': ' + sonB(sl).join(', ') : '') + '. Thank the audience and invite questions. If nobody asks, open one yourself: “the question I hear most often is…”.'
         : 'Ana mesajları kısa cümlelerle bir kez daha tekrar et' + (sonB(sl).length ? ': ' + sonB(sl).join(', ') : '') + '. Dinleyiciye teşekkür et ve soruları davet et. Soru gelmezse “en çok merak edilen nokta şu oluyor…” diyerek ilk soruyu kendin aç.';
     });
-    /* ŞABLONSUZ DESTE ÇIPLAK DURUYORDU (14.11.2026): üretilen bütün desteler
-       tema:null ile kaydedilmişti; zemin deseni, yazı tipi, alt bilgi hiç
-       görünmüyordu. Kullanıcı bu destede şablona hiç dokunmadıysa açık zeminli
-       bir hazır şablon başlıktan seçilir (aynı başlık hep aynı şablon). "Şablonsuz"
-       seçimi de bir seçimdir, ezilmez. */
-    if (mode !== 'append' && !deck.tema && !deck.temaEl) { var th = 0, tb = String(plotMeta.title || deck.title || ''); for (var ti = 0; ti < tb.length; ti++) th = (th * 31 + tb.charCodeAt(ti)) >>> 0; var VT = TEMALAR.filter(function (t) { return VARSAYILAN_TEMA.indexOf(t.id) >= 0; }); deck.tema = temaKur(VT[th % VT.length].def); fontYukle(deck.tema); if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { renderStage(); renderThumbs(); }); }
+    /* Şablon artık basımdan ÖNCE seçilir ve yazısı beklenir (basTemasi + temaHazirGuncel, P1): düzen seçici adayları
+       ve aşağıdaki sığdırma gerçek şablon yazısıyla ölçer. */
     var fitted = 0; made.forEach(function (sl) { fitted += fitSlide(sl); });
+    fitIzKur(); if (fitIz) fitIz.set(deck, yaziIz());      /* basım doğrulanmış yazıyla sığdırdı (bas → temaHazirGuncel) */
     var start = mode === 'append' ? deck.slides.length : 0;
     if (mode === 'append') deck.slides = deck.slides.concat(made); else deck.slides = made;
     if (!deck.title || mode !== 'append') deck.title = plotMeta.title || deck.title;
@@ -8984,6 +9321,7 @@ var SBX = (function () {
   var BGC = { clear: 'FFFFFF', blue: 'EEF3FF', navy: '0D1838' };
   var exportPptx = async function (btn) {
     if (!deck.slides.length) { say('İndirilecek asetat yok.'); return; }
+    await yaziHazirSoz();      /* PPTX ekrandaki gibi doğrulanmış yazıyla sığdırılmış boyutları taşır (açılan deste önce sığdırılır) */
     commitEdit(); if (btn) { btn.disabled = true; btn.textContent = 'hazırlanıyor…'; }
     var off = document.createElement('div'); off.style.cssText = 'position:fixed;left:-20000px;top:0;width:960px;height:540px;pointer-events:none'; LY.appendChild(off);
     try {
@@ -9033,7 +9371,61 @@ var SBX = (function () {
     } finally { off.remove(); if (btn) { btn.disabled = false; btn.textContent = 'PowerPoint indir'; } }
   };
   /* ---------- paylaşım bağlantısı (salt okunur, notlar gizli) ---------- */
-  var snapOf = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: (zeminKoyu = koyuMu(s), temaDekor(s).concat(s.els, temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('')) }; }) }; zeminKoyu = 0; };
+  /* PAYLAŞIM GÖRÜNTÜSÜ YALNIZ DOĞRULANMIŞ ŞABLON YAZISIYLA (26.11.2026). Görüntü bir ÇİZİMDİR: izle.html hazır HTML'i
+     çizer, yeniden sığdırmaz ve şablon yazısını yükler; boyutlar o yazıyla sığdırılmış olmalı. Açık deste şablon
+     yazısı doğrulanıp o yazıyla sığdırılmadıysa (yedek yazı, doğrulama sürüyor, başka deste) görüntü kurulmaz (null):
+     hesaptaki son geçerli görüntü değişmez, deste snapBekle ile işaretlenir, şablon yazısıyla sığdırılınca (yaziUyum)
+     görüntü yenilenir. Yedek yazıyla ne sığdırılmış ne de asıl boyut (taşabilir) izleyiciye gider. */
+  var snapHazir = function (d) { return !!(d && d === deck && !fontYedek && yaziHazirMi() && fitIz && fitIz.get(d) === yaziIz()); };
+  var snapOf = function (d) { return snapHazir(d) ? snapKur(d) : null; };
+  /* BEKLEYEN GÖRÜNTÜ YALNIZ GÖRÜNTÜ OLARAK YENİLENİR (18B). Açılışta deste KAYDEDİLMEZ (eski yerel kopya başka cihazın
+     yeni içeriğini ezerdi). Sıra: hesaptan sürüm (updated_at) + görüntünün kurulduğu içerik sürümü okunur → asetatlar
+     okunur → hesaptaki içerik bu cihazdakiyle birebir aynı değilse ya da şablon yazısıyla sığdırılmamışsa yazılmaz →
+     görüntü yalnız share_snapshot'a, okunan sürüm hâlâ aynıysa yazılır (.eq('updated_at') tek satırda karşılaştır-ve-yaz).
+     presentation_slides'a hiç dokunulmaz. Sürüm değiştiyse deste hesaptan yeniden açılır, sığdırılınca yeniden denenir.
+     Not: tablo tetikleyicisi (presentations_set_updated_at) her UPDATE'te updated_at'i değiştirir; içerik sürümü
+     (content.surum) değişmez. */
+  var snapUcus = null, snapDeneme = {};
+  var kanon = function (x) { return JSON.stringify(x, function (k, v) { return v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce(function (o, a) { o[a] = v[a]; return o; }, {}) : v; }); };
+  var ayniIcerik = function (d, rs) {
+    if (!rs || rs.length !== d.slides.length) return false;
+    var c0 = rs[0] && rs[0].content; if (kanon((c0 && c0.tema) || null) !== kanon((d.tema && d.tema.def) || null)) return false;
+    return d.slides.every(function (sl, i) { var c = rs[i].content || {};
+      return c.id === sl.id && (c.lay || null) === (sl.lay || null) && (c.v || 0) === (sl.v || 0) && (c.bg || 'clear') === (sl.bg || 'clear') && (rs[i].speaker_notes || '') === (sl.notes || '') &&
+        kanon(c.els) === kanon(JSON.parse(JSON.stringify(sl.els, kaliciJSON))); });
+  };
+  var snapTazele = function (d) {
+    var c = sbc(); if (snapUcus || !c || !d || !d.share || !d.dbId || !store.cloud) return snapUcus;
+    var n = snapDeneme[d.id] = (snapDeneme[d.id] || 0) + 1; if (n > 3) return null;
+    var yerel = function () { delete d.snapBekle; S(store.k('d.' + d.id), d, kaliciJSON); }, okunan = null;
+    snapUcus = (async function () {
+      var p = await c.from('presentations').select('updated_at,share_token,surum:share_snapshot->>surum').eq('id', d.dbId).maybeSingle();
+      if (p.error) return 'hata';
+      if (!p.data || !p.data.share_token) return 'paylasimYok';
+      var r = await c.from('presentation_slides').select('content,speaker_notes').eq('presentation_id', d.dbId).order('order_index', { ascending: true });
+      if (r.error) return 'hata';
+      var K = r.data && r.data[0] && r.data[0].content && r.data[0].content.surum; okunan = r.data;
+      if (!K) return 'eski';                                       /* sürümsüz (eski) içerik: tahmin yok, normal kayıt yeniler */
+      if (p.data.surum === K) { yerel(); return 'guncel'; }        /* başka cihaz zaten yeniledi */
+      if (d !== deck || !snapHazir(d) || !ayniIcerik(d, r.data)) return 'farkli';
+      var sn = snapKur(d); sn.surum = K;
+      var u = await c.from('presentations').update({ share_snapshot: sn }).eq('id', d.dbId).eq('updated_at', p.data.updated_at).select('id');
+      if (u.error) return 'hata';
+      if (!u.data || !u.data.length) return 'cakisma';
+      yerel(); return 'yazildi';
+    })().catch(function () { return 'hata'; }).then(function (son) {
+      snapUcus = null;
+      if (d === deck && d.snapBekle) {
+        /* sürüm okunduktan sonra değişti: okuma anında yerel = hesap idi; yerel hâlâ okunanla aynıysa ve kaydedilmemiş iş yoksa güncel sürüm açılır ve
+           sığdırılınca yeniden denenir. İçerik farklıysa ('farkli') yeniden açılmaz: hesaba yazılamamış yerel iş silinebilirdi. */
+        if (son === 'cakisma') { if (!store.dirty && !store.timer && !store.busy && ayniIcerik(d, okunan)) openDeck(d.id, true); }
+        else if (son === 'hata') setTimeout(function () { if (deck === d) snapTazele(d); }, 15000);      /* işaret durur, yeniden denenir */
+      }
+      return son;
+    });
+    return snapUcus;
+  };
+  var snapKur = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: (zeminKoyu = koyuMu(s), temaDekor(s).concat(s.els, temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('')) }; }) }; zeminKoyu = 0; };
   var newToken = function () { var a = new Uint8Array(24); crypto.getRandomValues(a); return btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   var shDlg = Q('[data-sharedlg]'), shFrom = null;
   var shLink = function (t) { return location.origin + '/izle.html?k=' + t; };
@@ -9062,8 +9454,9 @@ var SBX = (function () {
   Q('[data-sh-on]', shDlg).addEventListener('click', async function () {
     shPaint('busy', 'bağlantı oluşturuluyor…');
     try {
-      await shReady(); var t = newToken();
-      var r = await sbc().from('presentations').update({ share_token: t, share_snapshot: snapOf(deck), shared_at: new Date().toISOString() }).eq('id', deck.dbId); if (r.error) throw r.error;
+      await shReady(); await yaziHazirSoz(); var t = newToken(), sn = snapOf(deck);
+      if (!sn) { yaziTipiUyar(); throw new Error('şablon yazı tipi bu cihazda yüklenemedi, görüntü taşabilirdi. Bildirimdeki “Yeniden dene” ile yazı tipini yükleyip tekrar paylaş.'); }
+      var r = await sbc().from('presentations').update({ share_token: t, share_snapshot: sn, shared_at: new Date().toISOString() }).eq('id', deck.dbId); if (r.error) throw r.error;
       deck.share = t; saveNow(); shPaint('', 'Bağlantı hazır. Kopyalayıp hocana ya da arkadaşına gönder.'); Q('[data-sh-copy]', shDlg).focus();
     } catch (e) { console.warn('acadex-sunum: paylaş', e); shPaint('', 'Bağlantı oluşturulamadı: ' + String(e.message || e)); }
   });
@@ -9136,8 +9529,8 @@ var SBX = (function () {
       if (!m && !d.slides.length && !d.title) return true;
       d.updated = Date.now();
       if (!m) { m = { id: d.id }; store.list.unshift(m); }
-      m.dbId = d.dbId || m.dbId || null; m.title = d.title; m.n = d.slides.length; m.updated = d.updated;
-      var ok = S(store.k('d.' + d.id), d); store.putList(); S(store.k('cur'), d.id); store.dirty = false;
+      m.dbId = d.dbId || m.dbId || null; m.title = d.title; m.n = d.slides.length; m.updated = d.updated; m.bekleyen = 1;      /* hesaba ulaşınca push kaldırır (18C) */
+      var ok = S(store.k('d.' + d.id), d, kaliciJSON); store.putList(); S(store.k('cur'), d.id); store.dirty = false;
       return ok;
     },
     queueCloud: function () { clearTimeout(store.timer); store.pend = deck; if (store.cloud) store.timer = setTimeout(function () { store.timer = 0; store.push(store.pend); }, 1500); },
@@ -9146,26 +9539,35 @@ var SBX = (function () {
       var c = sbc(), u = me(); d = d || deck; if (!c || !u || !store.cloud || !store.meta(d.id)) return;
       if (store.busy) { store.again = d; return; }
       store.busy = true; setCloud('hesabına yazılıyor…');
+      var u0 = d.updated;
       try {
         var row = { title: (d.title || 'Adsız sunum').slice(0, 140), theme: 'ink', slide_count: d.slides.length, language: d.lang || 'tr', source_type: d.source || 'blank', updated_at: new Date().toISOString() };
-        if (d.share && d.dbId) row.share_snapshot = snapOf(d);
+        var sn = d.share && d.dbId ? snapOf(d) : null, surum = uid(); if (sn) { sn.surum = surum; row.share_snapshot = sn; } else if (d.share && d.dbId) d.snapBekle = 1;      /* görüntü yoksa hesaptaki son geçerli görüntü kalır */
         /* Kalite: yönetmen 0-100 puan ve sorun listesi döndürüyordu ama hiçbir
            yere yazılmıyordu; quality_score sütunu bu yüzden hep boştu (13.11.2026). */
         if (d.quality && typeof d.quality.score === 'number') { row.quality_score = Math.max(0, Math.min(100, Math.round(d.quality.score))); row.quality_report = d.quality; }
         if (isUuid(d.sourceId)) row.source_id = d.sourceId;
-        if (!d.dbId) { row.user_id = u.id; var r = await c.from('presentations').insert(row).select('id').single(); if (r.error) throw r.error; d.dbId = r.data.id; }
-        else { var r2 = await c.from('presentations').update(row).eq('id', d.dbId); if (r2.error) throw r2.error; }
+        var yeniSatir = !d.dbId;
+        if (yeniSatir) { row.user_id = u.id; var r = await c.from('presentations').insert(row).select('id').single(); if (r.error) throw r.error; d.dbId = r.data.id; }
         var del = await c.from('presentation_slides').delete().eq('presentation_id', d.dbId); if (del.error) throw del.error;
         if (d.slides.length) {
           var rows = d.slides.map(function (sl, i) {
             return { presentation_id: d.dbId, order_index: i, title: (titleOf(sl) || '').slice(0, 200), speaker_notes: sl.notes || '', layout_type: LT[sl.lay] || 'title-content',
-              content: { ink: 1, id: sl.id, lay: sl.lay || null, v: sl.v || 0, bg: sl.bg || 'clear', els: sl.els, text: bodyOf(sl) } };
+              content: { ink: 1, id: sl.id, lay: sl.lay || null, v: sl.v || 0, bg: sl.bg || 'clear', els: JSON.parse(JSON.stringify(sl.els, kaliciJSON)), text: bodyOf(sl) } };      /* asıl boyutlar (kaliciJSON) */
           });
           /* Şablon için ayrı sütun yok; ilk asetatın content'ine yazılır, sunumla birlikte taşınır. */
           if (d.tema && d.tema.def) rows[0].content.tema = d.tema.def;
+          /* İçerik sürümü ve bekleyen görüntü işareti de ilk asetatta taşınır (yeni sütun yok, 18B): her cihaz görüntünün
+             hangi içerikten kurulduğunu (share_snapshot.surum) ve bekleyip beklemediğini hesaptan öğrenir. */
+          rows[0].content.surum = surum; if (!sn && d.share && d.dbId) rows[0].content.snapBekle = 1;
           var ins = await c.from('presentation_slides').insert(rows); if (ins.error) throw ins.error;
         }
-        var m = store.meta(d.id); if (m) { m.dbId = d.dbId; m.remote = Date.now(); m.updated = m.remote; store.putList(); S(store.k('d.' + d.id), d); }
+        /* Var olan destede satır EN SON yazılır: satırın yeni sürümü (updated_at) asetatların tamamlandığını gösterir;
+           görüntü yenileyen öbür cihaz yarım yazılmış içerikten görüntü kurup daha yenisinin üzerine yazamaz (snapTazele). */
+        if (!yeniSatir) { var r2 = await c.from('presentations').update(row).eq('id', d.dbId); if (r2.error) throw r2.error; }
+        if (sn) delete d.snapBekle;
+        var m = store.meta(d.id); if (m && d.updated === u0) delete m.bekleyen;      /* gönderim sırasında yeni yerel kayıt yoksa iş hesapta */
+        if (m) { m.surum = d.slides.length ? surum : null; m.dbId = d.dbId; m.remote = Date.now(); m.updated = m.remote; store.putList(); S(store.k('d.' + d.id), d, kaliciJSON); }
         setCloud('hesabına kaydedildi');
       } catch (e) {
         console.warn('acadex-sunum: hesaba yazılamadı', e);
@@ -9194,6 +9596,10 @@ var SBX = (function () {
         var b = String(ct.text || '').split('\n').map(cleanB).filter(Boolean).slice(0, 8), sl = newSlide(b.length ? 'list' : 'cover', row.title || 'Başlık', b); sl.notes = row.speaker_notes || ''; return sl;
       });
       var c0 = r.data && r.data[0] && r.data[0].content; d.tema = c0 && c0.tema ? temaKur(c0.tema) : null;
+      /* paylaşım bağı ve bekleyen görüntü işareti hesaptan gelir (18B): başka cihaz da görüntünün beklediğini bilir */
+      if (c0 && c0.snapBekle) d.snapBekle = 1;
+      m.surum = (c0 && c0.surum) || null;
+      var sh = await c.from('presentations').select('share_token').eq('id', m.dbId).maybeSingle(); if (!sh.error && sh.data && sh.data.share_token) d.share = sh.data.share_token;
       /* Buluttan dönen puanın parmak izi yoktur; asetatlar yüklendikten sonra
          hesaplanır, böylece bundan sonraki her düzenleme "bayat" görünür. */
       if (d.quality) d.qualityKey = deckKey(d);
@@ -9206,11 +9612,13 @@ var SBX = (function () {
     decksEl.innerHTML = opts.join(''); Q('[data-deldeck]').hidden = !store.meta(deck.id);
   };
   var opening = 0;
-  var openDeck = async function (id) {
+  var openDeck = async function (id, hesaptan) {
     var run = ++opening, m = id ? store.meta(id) : null, d = m ? G(store.k('d.' + m.id), null) : null;
-    if (m && m.dbId && store.cloud && (!d || (m.remote || 0) > (m.updated || 0) + 2000)) {
+    /* HESABA ULAŞMAMIŞ YEREL İŞ ÜZERİNE AÇILMAZ (18C): yalnız hesabın updated_at'i daha yeni diye (başka cihazın görüntü
+       yenilemesi tetikleyiciyle de ilerletir) gönderilememiş yerel düzenleme silinmez; yeniden gönderimi yerelGonder karar verir. */
+    if (m && m.dbId && store.cloud && !(m.bekleyen && d) && (hesaptan || !d || (m.remote || 0) > (m.updated || 0) + 2000)) {
       setCloud('hesabından açılıyor…'); var rd = await store.fetchDeck(m); if (run !== opening) return;
-      if (rd) { d = rd; d.updated = m.remote || Date.now(); S(store.k('d.' + m.id), d); m.updated = d.updated; m.n = d.slides.length; store.putList(); }
+      if (rd) { d = rd; d.updated = m.remote || Date.now(); S(store.k('d.' + m.id), d, kaliciJSON); m.updated = d.updated; m.n = d.slides.length; delete m.bekleyen; store.putList(); }
       setCloud(store.cloud ? 'hesabınla eşit' : '');
     }
     if (!d || !Array.isArray(d.slides)) { d = fresh(); if (m) { d.id = m.id; d.dbId = m.dbId; d.title = m.title || ''; } }
@@ -9224,6 +9632,18 @@ var SBX = (function () {
        sonuç kaydedilir ve fetchDeck ile geri gelir, tekrar ölçülmez. */
     if (!deck.quality && deck.slides.length > 2) kaliteOlc(deck);
     savedEl.textContent = deck.slides.length ? 'sunumun açıldı' : ''; savedEl.style.color = '';
+  };
+  /* Hesaba ulaşmamış yerel iş (18C). Hesaptaki içerik sürümü bu cihazın son eşitlendiği sürümle aynıysa (arada yalnız
+     görüntü yenilendi / updated_at ilerledi) yerel iş gönderilir. Değilse başka cihaz içeriği değiştirmiştir: ikisi de
+     korunur — yerel iş silinmez, hesaptakinin üzerine kendiliğinden yazılmaz, kullanıcıya söylenir. */
+  var yerelGonder = async function (m) {
+    var c = sbc(); if (!c || !m.dbId) return 'yok';
+    var r = await c.from('presentation_slides').select('surum:content->>surum').eq('presentation_id', m.dbId).eq('order_index', 0).maybeSingle();
+    if (r.error || deck.id !== m.id || !m.bekleyen) return 'yok';
+    var uzak = (r.data && r.data.surum) || null;
+    if (uzak === (m.surum || null)) { store.queueCloud(); return 'gonder'; }
+    say('Bu sunum başka bir cihazda da değişti. Bu cihazdaki hesaba gönderilmemiş değişiklikler korundu; hesaptakinin üzerine yazılmadı.');
+    return 'cakisma';
   };
   var syncList = async function () {
     var c = sbc(), u = me(); if (!c || !u || !store.cloud) return;
@@ -9240,8 +9660,9 @@ var SBX = (function () {
     store.list.forEach(function (x) { if (x.dbId && !seenDb[x.dbId]) { x.dbId = null; x.remote = 0; if (x.id === deck.id) deck.dbId = null; } });
     store.putList(); paintDecks();
     var m0 = store.meta(deck.id);
-    if ((!deck.slides.length && !m0 && store.list.length) || (m0 && !store.dirty && (m0.remote || 0) > (m0.updated || 0) + 2000)) openDeck(m0 ? m0.id : store.list[0].id);
+    if ((!deck.slides.length && !m0 && store.list.length) || (m0 && !m0.bekleyen && !store.dirty && (m0.remote || 0) > (m0.updated || 0) + 2000)) openDeck(m0 ? m0.id : store.list[0].id);
     else setCloud(store.list.some(function (x) { return x.dbId; }) ? 'hesabınla eşit' : '');
+    if (m0 && m0.bekleyen && m0.dbId && !store.dirty) yerelGonder(m0);
   };
   var boot = function () {
     var u = me(); if (!u) return;
@@ -9268,7 +9689,7 @@ var SBX = (function () {
       c.from('presentations').delete().eq('id', m.dbId).then(function (r) { if (r.error) console.warn('acadex-sunum: silinemedi', r.error); });
     }, 6200);
     openDeck(store.list[0] ? store.list[0].id : null);
-    say('“' + title + '” silindi.', function () { clearTimeout(kill); store.list.splice(ix, 0, m); S(store.k('d.' + m.id), gone); store.putList(); openDeck(m.id); });
+    say('“' + title + '” silindi.', function () { clearTimeout(kill); store.list.splice(ix, 0, m); S(store.k('d.' + m.id), gone, kaliciJSON); store.putList(); openDeck(m.id); });
   });
   if (typeof window.loadAcadexSunum === 'function' || typeof loadAcadexSunum === 'function') { loadAcadexSunum = function () { boot(); }; window.loadAcadexSunum = loadAcadexSunum; }
   renderAll(); paintHist(); paintDecks();
