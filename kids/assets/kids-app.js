@@ -110,6 +110,7 @@
     if (x) koy('cihaz', [x]);
   }
   function kimOynuyor(duzen) {
+    sureYaz();   /* önceki çocuğun süresi ona yazılsın */
     var l = cihaz();
     if (!l.length) return girisKod();
     S.token = null; koy('oturum', null);
@@ -225,7 +226,10 @@
     if (!portalAcik(il)) return '';
     return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>';
   }
+  var karsilanan = '';   /* son karşılanan çocuk|gün|konu (bellekte: sayfa yenilenince yeni giriş sayılır) */
   function panel() {
+    /* 26.11.2026: konudan dönülüyorsa harita o gezegenden "kalkışla" açılır (kids-uzay3d) */
+    var donusK = app.dataset.gorunum === 'konu' && S.konu ? S.konu : null;
     var il = ilerleme(), bk = V.konuBul(bulutMu() ? (S.bugun || '') : yerelKonu()), bugun = bk && bk.acik && !bk.sinifSeti ? bk : null, bid = bugun ? bugun.id : '', yukselen = [];
     il.son = Date.now(); if (!il.gorulen) il.gorulen = yeniSay(il); koy(ilAnahtar(), il);   /* öğretmen panelindeki "son giriş" */
     cihazEkle();
@@ -255,7 +259,8 @@
       }).join('') + '</ol></section>' + dockHtml(il), 'harita');
     app.querySelectorAll('[data-konu]').forEach(function (b) { b.addEventListener('click', function () { var kid = b.getAttribute('data-konu'); SES.fx('dokun'); jole(b); if (W.KIDS_UZAY && W.KIDS_UZAY.aktif()) W.KIDS_UZAY.uc(kid, function () { adaSec(kid); }, function () { yolculukSesi(kid); }); else adaSec(kid); }); });
     /* uzay teması (kids-uzay.js): çocuk kasklı astronot olarak son gittiği gezegenin yanında süzülür */
-    if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid,
+    S.bugunId = bid;
+    if (W.KIDS_UZAY) W.KIDS_UZAY.yerlestir(app, { anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]), hayvan: S.ogr[1], renk: S.ogr[4], bugun: bid, donus: donusK,
       konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, yeniAcik: !!yeniAcik[k.id], asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
     var cg = app.querySelector('[data-cumle]');
     if (cg) cg.addEventListener('click', function () { SES.fx('dokun'); jole(cg); var r = W.KIDS_CUMLE.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
@@ -267,7 +272,12 @@
     if (yukselen.length) { var il2 = ilerleme(); il2.asamaGor = il2.asamaGor || {}; yukselen.forEach(function (id) { il2.asamaGor[id] = OD.asama(il2, id); }); koy(ilAnahtar(), il2); setTimeout(function () { if (app.dataset.gorunum === 'harita') { SES.fx('yildiz'); SES.soyle('Adan büyüdü!', 'tr'); } }, 900); }
     app.querySelectorAll('[data-yakinda]').forEach(function (b) { b.addEventListener('click', function () { SES.fx('yanlis'); b.classList.remove('ko-salla'); void b.offsetWidth; b.classList.add('ko-salla'); SES.soyle('Bu ada yakında açılacak.', 'tr'); }); });
     cubukKur(panel);
-    var karsila = function () { if (app.dataset.gorunum === 'harita') SES.soyle(bugun ? 'Bugünün konusu ' + bugun.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!' : 'Bugün serbest gün. İstediğin adaya dokun.', 'tr'); };
+    /* 26.11.2026: karşılama yalnız girişte. panel() her geri dönüşte (gezegen, kitaplık, galaksi…) yeniden
+       çizilir; "Bugünün konusu… Hadi oynayalım!" bu oturumda bu çocuğa bugün bir kez söylenir. */
+    var kAnahtar = S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]) + '|' + new Date().toDateString() + '|' + bid;
+    var ilkKarsilama = karsilanan !== kAnahtar; karsilanan = kAnahtar;
+    var karsila = function () { if (ilkKarsilama && !uykuAcik && app.dataset.gorunum === 'harita') SES.soyle(bugun ? 'Bugünün konusu ' + bugun.tr.toLocaleLowerCase('tr') + '. Hadi oynayalım!' : 'Bugün serbest gün. İstediğin adaya dokun.', 'tr'); };
+    if (sureDoldu()) uyku();   /* günlük ekran süresi dolduysa harita gecenin altında kalır */
     if (ucus) W.KIDS_UCUS.oynat({ ad: S.ogr[0], hayvan: S.ogr[1], renk: S.ogr[4], anahtar: S.okul.kod + '|' + (S.ogr[2] || S.sinif.id + ':' + S.ogr[0]) }).then(karsila); else karsila();
   }
   function cubukKur(yeniden) {
@@ -418,12 +428,16 @@
   function ustaArtir(id) {
     if (!id || S.goruldu[id]) return; S.goruldu[id] = 1;
     var il = ilerleme(), e = il.usta[id] || 0; if (e >= 3) return;
-    il.usta[id] = e + 1; S.ustaArtti.push(id); koy(ilAnahtar(), il);
+    il.usta[id] = e + 1; S.ustaArtti.push(id);
+    /* 26.11.2026 veli raporu: kelimeyle ilk tanıştığı gün (gün numarası; bu hafta yeni kelimeler) */
+    il.kelGun = il.kelGun || {}; if (!il.kelGun[id]) il.kelGun[id] = gunNo();
+    koy(ilAnahtar(), il);
   }
   function konuAc(kid, n) {
     S.seviye = S.seviye || 1; if (n === 0 || S.konu !== kid || !S.parkSecim) S.parkSecim = OYUN.parkOyun ? OYUN.parkOyun(bant(), kid) : null;
     S.konu = kid; S.duraklar = duraklar(kid); S.goruldu = {}; S.ustaArtti = [];
     if (n >= S.duraklar.length) return konuBitti(kid);
+    if (sureDoldu()) { uyku(); return; }
     var d = S.duraklar[n];
     if (n === 0) { var il0 = ilerleme(); il0.gunler = il0.gunler || {}; il0.gunler[V.gunAnahtar()] = 1; il0.sonKonu = kid; var gk = Object.keys(il0.gunler).sort(); if (gk.length > 60) delete il0.gunler[gk[0]]; koy(ilAnahtar(), il0); }
     ciz(dunya(kid) + konuUst(n) + '<main class="ka-sahne ka-s-' + d.id + '" data-sahne></main>', 'konu');
@@ -641,6 +655,20 @@
       o.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' }).finished.then(function () { o.remove(); });
     }, function () { o.remove(); sonra(); });
   }
+  function atmosferCikis(k) {
+    if (!k) return;
+    var YER = [[22, 30], [78, 24], [50, 52], [14, 74], [86, 72], [36, 12], [64, 88], [50, 30]], o = D.createElement('div');
+    o.className = 'ka-ucus ka-atm ka-atm-cik'; o.style.setProperty('--r', k.renk); o.setAttribute('aria-hidden', 'true');
+    o.innerHTML = '<i class="ka-atm-isik"></i>' + YER.map(function (y) { return '<span class="ka-atm-b" style="left:' + y[0] + '%;top:' + y[1] + '%">' + C.bulut('') + '</span>'; }).join('');
+    D.body.appendChild(o); SES.fx('cevir');
+    var ps = [].slice.call(o.querySelectorAll('.ka-atm-b')).map(function (b, i) {
+      var sol = parseFloat(b.style.left) < 50, ust = parseFloat(b.style.top) < 50;
+      return b.animate([{ transform: 'translate(-50%,-50%) scale(1.9)', opacity: 1 }, { transform: 'translate(calc(-50% ' + (sol ? '+ 18vw' : '- 18vw') + '),calc(-50% ' + (ust ? '+ 14vh' : '- 14vh') + ')) scale(.2)', opacity: 0 }], { duration: 900, delay: 120 + i * 30, easing: 'cubic-bezier(.5,0,.6,1)', fill: 'both' }).finished;
+    });
+    ps.push(o.firstChild.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1000, delay: 150, easing: 'ease-in', fill: 'both' }).finished);
+    Promise.all(ps).then(function () { o.remove(); }, function () { o.remove(); });
+    setTimeout(function () { if (o.isConnected) o.remove(); }, 2200);
+  }
   function atmosfer(k, sonra) {
     var YER = [[22, 30], [78, 24], [50, 52], [14, 74], [86, 72], [36, 12], [64, 88], [50, 30]], o = D.createElement('div');
     o.className = 'ka-ucus ka-atm'; o.style.setProperty('--r', k.renk);
@@ -657,9 +685,12 @@
     bl.forEach(function (b, i) { b.animate([{ transform: 'translate(-50%,-50%) scale(.25)', opacity: 0 }, { opacity: 1, offset: 0.35 }, { transform: 'translate(-50%,-50%) scale(1.7)', opacity: 1 }], { duration: 820, delay: i * 45, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }); });
     setTimeout(son, 980);
   }
-  /* konudan haritaya: konunun rengi adasına doğru küçülür */
+  /* konudan haritaya: konunun rengi adasına doğru küçülür.
+     26.11.2026 uzayda: atmosferden çıkış — gezegenin renginde ışık söner, bulutlar ortaya toplanıp küçülür
+     (girişteki atmosferin tersi); bu sırada 3B kamera gezegenden geri çekilir */
   function donus(kid) {
     var ada = adaBul(kid); if (SAKIN || !ada || !W.Element.prototype.animate) return;
+    if (W.KIDS_UZAY && W.KIDS_UZAY.aktif()) return atmosferCikis(V.konuBul(kid));
     try { ada.scrollIntoView({ block: 'center' }); } catch (e) { }
     var k = V.konuBul(kid), h = merkez(ada), o = D.createElement('div');
     o.className = 'ka-ucus'; o.innerHTML = '<i class="ka-ucus-perde" style="--r:' + k.renk + '"></i>'; D.body.appendChild(o);
@@ -695,6 +726,91 @@
     SES.soyle('Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'tr');
   }
 
+  /* ======================= 26.11.2026: oyun süresi + günlük ekran süresi =======================
+     Süre çocuk başına il.sure['YYYY-AA-GG'] = saniye olarak tutulur (veli raporu ve öğretmen paneli okur;
+     son 35 gün). Sayılan: sekme görünürken, giriş ekranı dışında; konu ekranında hep (izle/şarkı), diğer
+     ekranlarda son 2 dakikada dokunuş varsa. Veli "Günlük ekran süresi"ni seçtiyse (kids.sure, dakika;
+     0 = sınırsız) süre dolunca Acadia uyur ve oyun kapanır; devam için büyüklerin işlemi çözmesi gerekir
+     (+10 / +20 dk ya da bugün sınırsız: kids.sureEk). Bitmeden 2 dakika önce bir kez haber verilir. */
+  function gunNo(d) { d = d || new Date(); return Math.floor((d.getTime() - d.getTimezoneOffset() * 6e4) / 864e5); }
+  var sureBirik = 0, sonEtkin = Date.now(), sureT = null, uykuAcik = false, SAYILMAZ = { giris: 1, '': 1 };
+  function sureLimit() { return Math.max(0, +al('sure', 0) || 0); }
+  function sureSahip() { return S.okul && S.sinif && S.ogr ? ilAnahtar() : null; }
+  function ekSn() { var e = al('sureEk', null); return e && e.gun === V.gunAnahtar() && e.kim === sureSahip() ? (e.sn || 0) : 0; }
+  function bugunSn() { var k = sureSahip(); if (!k) return 0; var il = al(k, null) || {}; return ((il.sure || {})[V.gunAnahtar()] || 0) + sureBirik; }
+  function sureDoldu() { var l = sureLimit(); return !!(l && sureSahip() && bugunSn() >= l * 60 + ekSn()); }
+  function sureYaz() {
+    var n = Math.round(sureBirik); if (!n || !sureSahip()) { sureBirik = 0; return; }
+    var il = ilerleme(), g = V.gunAnahtar(); il.sure = il.sure || {}; il.sure[g] = (il.sure[g] || 0) + n; sureBirik = 0;
+    var ks = Object.keys(il.sure).sort(); while (ks.length > 35) delete il.sure[ks.shift()];
+    koy(ilAnahtar(), il);
+  }
+  function sureSay() {
+    if (sureT) return;
+    D.addEventListener('pointerdown', function () { sonEtkin = Date.now(); }, true);
+    D.addEventListener('keydown', function () { sonEtkin = Date.now(); }, true);
+    D.addEventListener('visibilitychange', function () { if (D.hidden) sureYaz(); });
+    W.addEventListener('pagehide', sureYaz);
+    sureT = setInterval(function () {
+      if (D.hidden || !app || !app.isConnected || !app.getClientRects().length || !sureSahip() || uykuAcik) return;
+      var g = app.dataset.gorunum || ''; if (SAYILMAZ[g]) return;
+      if (g !== 'konu' && Date.now() - sonEtkin > 120000) return;
+      sureBirik += 5; if (sureBirik >= 60) sureYaz();
+      var l = sureLimit(); if (!l) return;
+      var kalan = l * 60 + ekSn() - bugunSn();
+      if (kalan <= 0) return uyku();
+      var uk = 'sureUyari'; if (kalan <= 120 && al(uk, '') !== V.gunAnahtar() + '|' + sureSahip()) { koy(uk, V.gunAnahtar() + '|' + sureSahip()); sureHaber(); }
+    }, 5000);
+  }
+  function sureHaber() {
+    var t = D.createElement('div'); t.className = 'ka-sure-tost'; t.setAttribute('role', 'status');
+    t.innerHTML = '<span class="ka-sure-kum" aria-hidden="true">' + C.simge('ay') + '</span><b>2 dakika kaldı</b>'; D.body.appendChild(t);
+    SES.soyle('İki dakika kaldı. Oyununu bitirebilirsin.', 'tr');
+    setTimeout(function () { t.classList.add('ka-gidiyor'); setTimeout(function () { t.remove(); }, 500); }, 6000);
+  }
+  /* süre doldu: gece olur, Acadia uyur, ninni çalar */
+  function uyku() {
+    if (uykuAcik || D.querySelector('.ka-uyku')) return; uykuAcik = true; sureYaz(); dur(); SES.sus();
+    var o = D.createElement('div'); o.className = 'ka-uyku'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-labelledby', 'ka-uyku-b');
+    var yz = ''; for (var i = 0; i < 22; i++) yz += '<i style="left:' + ((i * 37) % 97 + 1) + '%;top:' + ((i * 53) % 70 + 3) + '%;--g:' + ((i % 7) * 0.4) + 's"></i>';
+    o.innerHTML = '<div class="ka-uyku-gok" aria-hidden="true">' + yz + '<span class="ka-uyku-ay"></span></div>' +
+      '<div class="ka-uyku-ic"><div class="ka-uyku-acd" aria-hidden="true">' + acd('uyku') + '<span class="ka-uyku-z"><b>z</b><b>z</b><b>z</b></span></div>' +
+      '<h2 id="ka-uyku-b">Bugünlük bu kadar!</h2><p>' + esc(S.ogr ? S.ogr[0] : '') + ', bugün çok güzel oynadın. Gezegenler de uyuyor. Yarın yine görüşürüz!</p>' +
+      '<div class="ka-uyku-veli" data-uv><button type="button" class="ka-uyku-d" data-ubuyuk>Büyükler için</button></div></div>';
+    D.body.appendChild(o); D.body.classList.add('ka-gece');
+    setTimeout(function () { var b = o.querySelector('[data-ubuyuk]'); if (b) try { b.focus(); } catch (e) { } }, 60);
+    SES.soyle('Bugünlük bu kadar! Yarın yine görüşürüz.', 'tr').then(function () { if (o.isConnected && SES.ninni) SES.ninni(true); });
+    function kapat(ek) {
+      var e = al('sureEk', null); if (!e || e.gun !== V.gunAnahtar() || e.kim !== sureSahip()) e = { gun: V.gunAnahtar(), kim: sureSahip(), sn: 0 };
+      e.sn = ek < 0 ? 864e3 : Math.max(0, bugunSn() - sureLimit() * 60) + ek; koy('sureEk', e); koy('sureUyari', '');
+      if (SES.ninni) SES.ninni(false); o.remove(); D.body.classList.remove('ka-gece'); uykuAcik = false; SES.fx('yildiz'); panel();
+    }
+    o.querySelector('[data-ubuyuk]').addEventListener('click', function () {
+      veliKapisi(function () {
+        var v = o.querySelector('[data-uv]'); if (!v) return;
+        v.innerHTML = '<p>Bugün ' + Math.round(bugunSn() / 60) + ' dakika oynadı. Biraz daha süre verin ya da yarına bırakın.</p><div class="ka-uyku-sec"><button type="button" class="ka-orta" data-uek="600">+10 dakika</button><button type="button" class="ka-orta" data-uek="1200">+20 dakika</button><button type="button" class="ka-orta" data-uek="-1">Bugün sınırsız</button><button type="button" class="ka-orta" data-ukim>Başka çocuk oynasın</button></div>';
+        v.querySelectorAll('[data-uek]').forEach(function (b) { b.addEventListener('click', function () { kapat(+b.getAttribute('data-uek')); }); });
+        /* süre çocuk başına: kardeşin süresi ayrı sayılır */
+        v.querySelector('[data-ukim]').addEventListener('click', function () { if (SES.ninni) SES.ninni(false); o.remove(); D.body.classList.remove('ka-gece'); uykuAcik = false; SES.fx('dokun'); kimOynuyor(); });
+        var f = v.querySelector('button'); if (f) f.focus();
+      });
+    });
+  }
+  /* veli raporu yardımcıları: son 7 günün süresi, bu hafta tanışılan kelimeler, sıradaki konu önerisi */
+  function haftaSure(il) {
+    var g = []; for (var i = 6; i >= 0; i--) { var d = new Date(Date.now() - i * 864e5), a = V.gunAnahtar(d); g.push({ a: a, ad: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'][d.getDay()], dk: Math.round((((il.sure || {})[a] || 0) + (i === 0 && sureSahip() === ilAnahtar() ? sureBirik : 0)) / 60) }); }
+    return g;
+  }
+  function haftaKelime(il) { var bas = gunNo() - 6; return Object.keys(il.kelGun || {}).filter(function (id) { return il.kelGun[id] >= bas; }).sort(function (a, b) { return il.kelGun[b] - il.kelGun[a]; }).map(V.ogeBul).filter(Boolean); }
+  function oneri(il) {
+    var acik = V.KONU.filter(function (x) { return x.acik && !x.sinifSeti; }), yarim = acik.filter(function (x) { return !il.bitti[x.id] && OD.konuYildiz(il, x.id) > 0; });
+    if (il.sonKonu) { var sk = V.konuBul(il.sonKonu); if (sk && !il.bitti[sk.id] && yarim.indexOf(sk) > -1) return { k: sk, neden: 'Yarım kaldı: ' + OD.konuYildiz(il, sk.id) + '/' + OD.konuMax(sk.id) + ' yıldız. Bitirince rozet ve yeni giysi gelir.' }; }
+    if (yarim.length) return { k: yarim[0], neden: 'Başladı ama bitirmedi (' + OD.konuYildiz(il, yarim[0].id) + '/' + OD.konuMax(yarim[0].id) + ' yıldız).' };
+    var bg = V.konuBul(bulutMu() ? S.bugun : yerelKonu()); if (bg && bg.acik && !il.bitti[bg.id]) return { k: bg, neden: 'Okulda bugünün konusu.' };
+    var yeni = acik.filter(function (x) { return !il.bitti[x.id]; })[0];
+    return yeni ? { k: yeni, neden: 'Sıradaki yeni gezegen.' } : null;
+  }
+
   /* ---------- veli köşesi (matematik kapısının arkasında) ---------- */
   function veliKosesi() {
     var il = ilerleme(), gunler = [], gecen = V.gunAnahtar(new Date(Date.now() - 6 * 864e5));
@@ -709,10 +825,15 @@
     function konuSec() { return '<div class="ka-veli-ks" role="group" aria-label="Konu">' + acik.map(function (x) { return '<button type="button" data-vk="' + x.id + '" aria-pressed="' + (x.id === secK) + '" style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span>' + esc(x.en) + '</button>'; }).join('') + '</div>'; }
     function ozet() {
       var biten = acik.filter(function (x) { return il.bitti && il.bitti[x.id]; });
-      return '<section><h3>' + esc(S.ogr[0]) + ' bu hafta</h3><ul class="ka-veli-ozet"><li><b>' + gun + '</b><span>gün oynadı (son 7 gün)</span></li><li><b>' + toplamYildiz(il) + '</b><span>yıldız topladı</span></li><li><b>' + biten.length + '</b><span>konu bitirdi</span></li></ul>' +
+      var hs = haftaSure(il), topDk = hs.reduce(function (t, x) { return t + x.dk; }, 0), mx = Math.max(10, sureLimit(), Math.max.apply(null, hs.map(function (x) { return x.dk; }))), yk = haftaKelime(il), on = oneri(il);
+      return '<section><h3>' + esc(S.ogr[0]) + ' bu hafta</h3><ul class="ka-veli-ozet"><li><b>' + gun + '</b><span>gün oynadı (son 7 gün)</span></li><li><b>' + topDk + '</b><span>dakika oynadı</span></li><li><b>' + toplamYildiz(il) + '</b><span>yıldız topladı</span></li><li><b>' + biten.length + '</b><span>konu bitirdi</span></li></ul>' +
+        /* 26.11.2026: günlük dakika grafiği (çizgi: günlük ekran süresi sınırı) */
+        '<figure class="ka-veli-sure"><figcaption>Günlük oyun süresi <small>' + (sureLimit() ? 'sınır ' + sureLimit() + ' dk' : 'sınır yok') + '</small></figcaption><div class="ka-vs-alan">' + (sureLimit() ? '<i class="ka-vs-sinir" style="bottom:calc((100% - 18px) * ' + (sureLimit() / mx).toFixed(3) + ' + 18px)" aria-hidden="true"></i>' : '') + '<ol aria-label="Son 7 günün oyun süresi">' + hs.map(function (x) { return '<li><span class="ka-vs-bar' + (sureLimit() && x.dk >= sureLimit() ? ' ka-vs-tam' : '') + '" style="height:' + Math.round(x.dk / mx * 100) + '%"><em>' + (x.dk ? x.dk : '') + '</em></span><small>' + x.ad + '</small></li>'; }).join('') + '</ol></div></figure>' +
         '<ol class="ka-veli-gunler" aria-label="Son 7 gün">' + gunler.map(function (x) { var o = !!(il.gunler || {})[x.a]; return '<li class="' + (o ? 'ka-oynadi' : '') + '"><i>' + (o ? C.simge('yildiz') : '') + '</i><small>' + x.ad + '</small></li>'; }).join('') + '</ol>' +
         '<p class="ka-pen-alt">' + (gun >= 4 ? 'Harika bir hafta! Kısa ve düzenli oyun en iyisidir.' : gun ? 'Günde 10 dakika yeter; düzenli oynamak ezberden daha etkilidir.' : 'Bu hafta henüz oynamadı. Birlikte bir ada seçmeye ne dersiniz?') + '</p></section>' +
         /* 22.11.2026: ilkokul raporu (Cümle Galaksisi oynandıysa) */
+        (on ? '<section class="ka-veli-oneri" style="--r:' + on.k.renk + '"><span>' + C.simge(on.k.simge) + '</span><div><small>Sıradaki önerimiz</small><b lang="en">' + esc(on.k.en) + '</b> <i>' + esc(on.k.tr) + '</i><p>' + esc(on.neden) + '</p></div></section>' : '') +
+        '<section><h3>Bu hafta tanıştığı kelimeler <small>' + yk.length + '</small></h3>' + (yk.length ? '<ul class="ka-veli-kel">' + yk.slice(0, 12).map(function (o) { return '<li style="--r:' + (o.hex || '#9AA7BD') + '">' + dinle(o.en) + (RS.var(o.id) ? '<span class="ka-veli-kr">' + RS.ciz(o.id) + '</span>' : '') + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul>' + (yk.length > 12 ? '<p class="ka-pen-alt">ve ' + (yk.length - 12) + ' kelime daha. Tamamı “Kelimeler” sekmesinde.</p>' : '<p class="ka-pen-alt">Dokunun, dinleyin; akşam yemeğinde birlikte söyleyin.</p>') : '<p class="ka-pen-alt">Bu hafta yeni kelime yok. Haritadan bir gezegen seçmeye ne dersiniz?</p>') + '</section>' +
         (W.KIDS_CUMLE && W.KIDS_CUMLE.rapor ? W.KIDS_CUMLE.rapor(il) : '') +
         (biten.length ? '<section><h3>Rozetleri</h3><ul class="ka-veli-rozet">' + biten.map(function (x) { return '<li>' + RS.rozet(x.renk, simgeIc(x.simge), false) + '<small>' + esc(x.rozet || x.tr) + '</small></li>'; }).join('') + '</ul></section>' : '') +
         '<section><h3>Konular</h3><ul class="ka-veli-konu">' + acik.map(function (x) { var n = yildizK(x); return '<li style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span><b lang="en">' + esc(x.en) + '</b><i><em style="width:' + Math.round(n / OD.konuMax(x.id) * 100) + '%"></em></i><small>' + n + '/' + OD.konuMax(x.id) + ' ★' + (il.bitti && il.bitti[x.id] ? ' · bitirdi' : '') + '</small></li>'; }).join('') + '</ul></section>' +
@@ -734,6 +855,8 @@
     function ayar() {
       return '<section><h3>Ayarlar</h3><label class="ka-veli-ayar">İlkokul sınıfı (Cümle Galaksisi)<select data-vilk><option value="-1"' + (il.ilkSinif === 0 ? ' selected' : '') + '>Kapalı</option><option value=""' + (il.ilkSinif === undefined ? ' selected' : '') + '>Yaş grubuna göre</option>' + [2, 3, 4].map(function (n) { return '<option value="' + n + '"' + (il.ilkSinif === n ? ' selected' : '') + '>' + n + '. sınıf</option>'; }).join('') + '</select></label>' +
         '<label class="ka-veli-ayar">Mola hatırlatması<select data-mola>' + [10, 15, 20, 30].map(function (m) { return '<option value="' + m + '"' + (m === mola ? ' selected' : '') + '>' + m + ' dakikada bir</option>'; }).join('') + '</select></label>' +
+        '<label class="ka-veli-ayar">Günlük ekran süresi<select data-sure>' + [0, 15, 20, 30, 45, 60].map(function (m) { return '<option value="' + m + '"' + (m === sureLimit() ? ' selected' : '') + '>' + (m ? m + ' dakika' : 'Sınırsız') + '</option>'; }).join('') + '</select></label>' +
+        '<p class="ka-pen-alt">Bugün ' + Math.round(bugunSn() / 60) + ' dakika oynadı. Süre dolunca Acadia uyur ve oyun kapanır; 2 dakika önce haber verir. Devam etmek için büyüklerin işlemi çözmesi gerekir. Bu cihazdaki tüm çocuklar için geçerlidir; her çocuğun süresi ayrı sayılır.</p>' +
         (SES.kayitli() ? '<p class="ka-veli-ses">Seslendirme: kayıtlı öğretmen sesi · ' + SES.kayitli() + ' cümle · <span lang="en">tr ' + esc(String(SES.surumler().tr || '-').slice(0, 6)) + '</span></p>' : '<p class="ka-veli-ses">Seslendirme: cihazın kendi sesi</p>') +
         '<label class="ka-veli-ayar">Ses<button type="button" class="ka-orta" data-vses aria-pressed="' + SES.acikMi() + '">' + (SES.acikMi() ? 'Açık' : 'Kapalı') + '</button></label>' +
         (W.KIDS_DINLE && (W.KIDS_DINLE.destek().cihaz || W.KIDS_DINLE.destek().kayit) ? '<label class="ka-veli-ayar">Sesli cevap (mikrofon)<button type="button" class="ka-orta" data-vmik aria-pressed="' + (W.KIDS_DINLE.izin() === 'acik') + '">' + (W.KIDS_DINLE.izin() === 'acik' ? 'Açık' : 'Kapalı') + '</button></label>' +
@@ -758,6 +881,7 @@
         (function sira() { if (!k.el.isConnected) { dinleS = null; return SES.sus(); } if (dinleS !== ben_ || j >= lis.length) { if (dinleS === ben_) sus(); return; } lis.forEach(function (x) { x.classList.remove('ka-calan'); }); var li = lis[j++]; li.classList.add('ka-calan'); try { li.scrollIntoView({ block: 'nearest' }); } catch (e) { } SES.soyle(li.getAttribute('data-li'), 'en').then(function () { setTimeout(sira, 450); }); })();
       });
       var m = ic.querySelector('[data-mola]'); if (m) m.addEventListener('change', function () { koy('mola', +this.value); });
+      var sr = ic.querySelector('[data-sure]'); if (sr) sr.addEventListener('change', function () { koy('sure', +this.value); koy('sureUyari', ''); SES.fx('dokun'); });
       var vi = ic.querySelector('[data-vilk]'); if (vi) vi.addEventListener('change', function () { var x = ilerleme(); if (this.value === '') delete x.ilkSinif; else x.ilkSinif = Math.max(0, +this.value); koy(ilAnahtar(), x); il = x; });
       var vm = ic.querySelector('[data-vmik]'); if (vm) vm.addEventListener('click', function () { var ac_ = W.KIDS_DINLE.izin() !== 'acik'; W.KIDS_DINLE.izinVer(ac_ ? 'acik' : 'kapali'); this.setAttribute('aria-pressed', ac_); this.textContent = ac_ ? 'Açık' : 'Kapalı'; SES.fx('dokun'); });
       var vs = ic.querySelector('[data-vses]'); if (vs) vs.addEventListener('click', function () { var a = SES.ayar(!SES.acikMi()); this.setAttribute('aria-pressed', a); this.textContent = a ? 'Açık' : 'Kapalı'; var s = app.querySelector('[data-ses]'); if (s) s.setAttribute('aria-pressed', a); });
@@ -834,7 +958,7 @@
   }
   function kur() {
     app = D.getElementById('kids-app'); if (!app) return;
-    basla = Date.now(); molaVerildi = false;
+    basla = Date.now(); molaVerildi = false; sureSay();
     if (W.KIDS_DINLE) W.KIDS_DINLE.komutDugmesi({ kok: function () { return app; }, konular: function () { return V.KONU.filter(function (x) { return x.acik; }).map(function (x) { return { id: x.id, tr: x.tr, en: x.en }; }); }, yap: sesliKomut, secenekler: oyunSecenekleri });
     var o = al('oturum', null);
     /* evde devam: kartın QR'ı (#ev=KOD~öğrenci) doğrudan o çocuğun resim seçme adımına açar */

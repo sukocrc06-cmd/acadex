@@ -114,3 +114,31 @@
 .kt-konu-sec button{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px 0 6px;border:2px solid var(--m);border-radius:999px;background:var(--beyaz);font-weight:800}
 .kt-konu-sec button span{width:28px;height:28px}
 .kt-konu-sec button[aria-pressed="true"]{background:var(--r)}
+
+/* ===== 26.11.2026: sınıf nabzı (bugün kim girdi · destek gerekebilir) ===== */
+.kt-gizli{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.kt-nabiz{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:12px;margin:12px 0 0}
+.kt-nb-kart{padding:14px 18px;border:3px solid var(--m);border-radius:20px;background:var(--beyaz)}
+.kt-nb-kart h3{display:flex;align-items:baseline;gap:8px;font-size:20px}
+.kt-nb-kart h3 small{font:800 14px/1 var(--govde);color:var(--soluk)}
+.kt-nb-yuzler{display:flex;flex-wrap:wrap;gap:10px 12px;margin:12px 0 0;padding:0;list-style:none}
+.kt-nb-yuzler li{position:relative;display:grid;justify-items:center;gap:4px;width:62px}
+.kt-nb-yuzler small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800;font-size:13px}
+.kt-nb-av{display:block;width:48px;height:48px;border-radius:50%}
+.kt-nb-av .kc{display:block;width:100%;height:100%}
+.kt-nb-yok .kt-nb-av{filter:grayscale(1);opacity:.45}
+.kt-nb-yok small{color:var(--soluk)}
+.kt-nb-geldi .kt-nb-av{box-shadow:0 0 0 3px var(--yesil)}
+.kt-nb-tik{position:absolute;right:4px;top:-2px;display:grid;place-items:center;width:20px;height:20px;border:2px solid var(--m);border-radius:50%;background:var(--yesil);color:#fff;font:900 11px/1 var(--govde);font-style:normal}
+.kt-nb-destek{display:grid;gap:10px;margin:12px 0 0;padding:0;list-style:none}
+.kt-nb-destek li{display:flex;align-items:center;gap:10px}
+.kt-nb-destek .kt-nb-av{width:40px;height:40px;flex:none}
+.kt-nb-destek b{display:block;font-size:16px}
+.kt-nb-destek span{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
+.kt-nb-destek em{padding:3px 9px;border:2px solid var(--m);border-radius:999px;font:800 13px/1.2 var(--govde);font-style:normal}
+.kt-nb-kelime{background:#FFD9D3}
+.kt-nb-ara{background:#FFF0C2}
+.kt-nb-geri{background:#DCEBFF}
+.kt-nb-iyi{margin:12px 0 0;padding:10px 14px;border-radius:14px;background:#E3F7EC;font-weight:800}
+.kt-nabiz .kt-alt{margin:10px 0 0;font-size:14px}
+@media (max-width:820px){.kt-nabiz{grid-template-columns:1fr}}

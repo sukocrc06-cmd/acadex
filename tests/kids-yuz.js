@@ -82,7 +82,7 @@ test('giriş akışı: cihaz kimseyi kendiliğinden almaz; yüz → "Sen … mis
 });
 
 test('renk her yerde: öğretmen, tahta, yönetici, admin, kartlar', () => {
-  assert.equal((read('kids/assets/kids-ogretmen.js').match(/C\.avatar\((x\.)?og\[1\], (x\.)?og\[4\]\)/g) || []).length, 3);
+  assert.equal((read('kids/assets/kids-ogretmen.js').match(/C\.avatar\((x\.)?og\[1\], (x\.)?og\[4\]\)/g) || []).length, 4);   /* 26.11.2026: + sınıf nabzındaki yüzler */
   assert.ok(read('kids/assets/kids-tahta.js').includes('C.avatar(ogr[i].hayvan, ogr[i].renk)'));
   assert.ok(read('kids/assets/kids-yonetici.js').includes('C.avatar(g.hayvan, g.renk)'));
   assert.equal((read('js/admin-kids.js').match(/ciz\('avatar', g\.hayvan, g\.renk\)/g) || []).length, 2);

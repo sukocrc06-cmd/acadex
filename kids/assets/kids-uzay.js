@@ -13,6 +13,9 @@
    W.KIDS_UZAY = { aktif, gezegen, uc, yerlestir }
    20.11.2026: nebula, sık kayan yıldız, kuyruklu yıldız, UFO; ateş topu ve UFO'ya dokunma;
    haritada dokunulabilir astronot arkadaşlar (dostlarKur); 3B'de gezegene dalış (kids-uzay3d)
+   26.11.2026: konudan dönüşte kalkış (o.donus: 3B'de kamera atmosferden geri çekilir, 2B'de astronot
+   gezegenden fırlar); ipucu(kid): gezegen zıplar, astronot el sallar; haritada boş yere dokununca
+   yıldız tozu saçılır (sürükleme değil, kısa dokunuş).
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -104,7 +107,7 @@
   }
   function modulAl() {
     /* eski tarayıcıda sözdizimi hatası olmasın diye import() bir fonksiyonun içinde */
-    if (!MOD) { try { MOD = new Function('u', 'return import(u)')('/kids/assets/kids-uzay3d.mjs'); } catch (e) { MOD = Promise.reject(e); } }
+    if (!MOD) { try { MOD = new Function('u', 'return import(u)')('/kids/assets/kids-uzay3d.mjs?v=20261126'); } catch (e) { MOD = Promise.reject(e); } }
     return MOD;
   }
   function uc3Kur(kok, harita, o, yedek) {
@@ -120,7 +123,7 @@
       var yer = lsAl('kids.uzay.yer', {});
       U3 = m.kur({
         kap: kap, sakin: SAKIN, hafif: hafifMi(), yuz: C ? C.avatar(o.hayvan, o.renk) : '',
-        baslangic: yer[o.anahtar] || o.bugun || (o.konular.filter(function (k) { return !k.kilit; })[0] || {}).id,
+        baslangic: o.donus || yer[o.anahtar] || o.bugun || (o.konular.filter(function (k) { return !k.kilit; })[0] || {}).id, donus: o.donus || null,
         konular: o.konular.map(function (k, i) { return { id: k.id, renk: k.renk, kilit: k.kilit, yeniAcik: !!k.yeniAcik, asama: k.asama, bugun: k.id === o.bugun, simge: C ? C.simge(k.simge) : '', el: lis[i] }; })
       });
       U3.anahtar = o.anahtar; U3.harita = harita;
@@ -150,6 +153,25 @@
     var koy = function () { if (!el.isConnected) return; var p = konum(harita, adaBul(kok, AST.kid) || ada); el.style.transform = 'translate(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px)'; };
     koy(); W.requestAnimationFrame(koy);
     if (W.ResizeObserver) new ResizeObserver(function () { if (!el.classList.contains('kz-ucuyor')) koy(); }).observe(harita);
+    /* 26.11.2026 kalkış (2B): astronot döndüğü gezegenin ortasından jetpack'le fırlar, yerine konup el sallar */
+    var dada = o.donus && adaBul(kok, o.donus);
+    if (dada && !SAKIN && el.animate) W.requestAnimationFrame(function () {
+      if (!el.isConnected) return;
+      var g = (dada.querySelector('.kc-ada') || dada).getBoundingClientRect(), h = harita.getBoundingClientRect(), b = konum(harita, dada);
+      var a = { x: g.left - h.left + g.width * 0.32, y: g.top - h.top + g.height * 0.3 }, t = function (p, sc, d) { return 'translate(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px) rotate(' + d + 'deg) scale(' + sc + ')'; };
+      el.classList.add('kz-ucuyor');
+      var an = el.animate([{ transform: t(a, 0.2, 0), opacity: 0 }, { transform: t({ x: (a.x + b.x) / 2, y: Math.min(a.y, b.y) - 70 }, 0.8, -12), opacity: 1, offset: 0.55 }, { transform: t(b, 1, 0), opacity: 1 }], { duration: 950, delay: 250, easing: 'cubic-bezier(.3,.6,.3,1)', fill: 'backwards' });
+      var bit = function () { el.classList.remove('kz-ucuyor'); koy(); elSalla(); };
+      an.onfinish = bit; an.oncancel = bit;
+    });
+  }
+  function elSalla() { var el = AST && AST.el; if (!el || !el.isConnected) return; el.classList.remove('kz-el'); void el.offsetWidth; el.classList.add('kz-el'); setTimeout(function () { el.classList.remove('kz-el'); }, 1700); }
+  /* ipucu: uzun süre dokunulmazsa (kids-maskot.js) — gezegen zıplar, astronot el sallar */
+  function ipucu(kid) {
+    if (U3 && U3.harita && U3.harita.isConnected) { if (U3.ipucu) U3.ipucu(kid); return; }
+    var app = D.getElementById('kids-app'), ada = app && kid && adaBul(app, kid);
+    if (ada) { ada.classList.remove('kz-hop'); void ada.offsetWidth; ada.classList.add('kz-hop'); setTimeout(function () { ada.classList.remove('kz-hop'); }, 900); }
+    elSalla();
   }
   /* gezegene uç: jetpack yanar, kavisle süzülür; bitince sonra() */
   /* ucarken: gerçekten bir yolculuk başlıyorsa (başka gezegene) bir kez çağrılır — sesli rehber için */
@@ -242,6 +264,8 @@
     cx2 = tuval.getContext('2d');
     boyut(); W.addEventListener('resize', boyut, { passive: true });
     W.addEventListener('pointerdown', dokunus, true);
+    W.addEventListener('pointerdown', function (e) { basP = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId }; }, true);
+    W.addEventListener('pointerup', tozSac, true);
     D.addEventListener('visibilitychange', function () { if (D.hidden) dur(); else basla(); });
   }
   function boyut() {
@@ -312,6 +336,18 @@
         e.stopPropagation(); e.preventDefault(); return;
       }
     }
+  }
+  /* boş uzaya kısa dokunuş: yıldız tozu (sürükleme 3B haritayı kaydırır; ona saçılmaz) */
+  var basP = null, sonToz = 0;
+  function tozSac(e) {
+    var b = basP; basP = null;
+    if (!b || b.id !== e.pointerId || mod !== 'harita' || SAKIN || Date.now() - b.t > 350 || Math.hypot(e.clientX - b.x, e.clientY - b.y) > 8 || Date.now() - sonToz < 250) return;
+    var t = e.target;
+    if (!t || !t.closest || t.closest('button,a,input,select,textarea,label,[role="button"],.ka-dock,.ka-serit,.ka-ort')) return;
+    if (!(t.closest('.ka-harita') || t === D.body || t === D.documentElement || t.id === 'kids-app')) return;
+    sonToz = Date.now();
+    patlat(e.clientX, e.clientY, 12, ['#FFF3B0', '#BFE3FF', '#FFC9DE', '#ffffff', '#FFD23F']);
+    if (W.KIDS_SES) W.KIDS_SES.fx('cevir');
   }
   function kayanEkle() {
     var sag = Math.random() < 0.5, x = sag ? gw * (0.4 + Math.random() * 0.6) : gw * Math.random() * 0.6, y = Math.random() * gh * 0.45;
@@ -434,5 +470,5 @@
   }
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', izle); else izle();
 
-  W.KIDS_UZAY = { aktif: aktif, gezegen: gezegen, uc: uc, yerlestir: yerlestir, astronotHtml: astronotHtml, uc3Uygun: uc3Uygun, hafifMi: hafifMi, _test: { karis: karis, dokunus: dokunus, durum: function () { return { ATES: ATES, UFO: UFO, PAR: PAR, KUY: KUY, mod: mod }; } } };
+  W.KIDS_UZAY = { aktif: aktif, gezegen: gezegen, uc: uc, yerlestir: yerlestir, ipucu: ipucu, elSalla: elSalla, kalkiyor: function () { return !!(U3 && U3.kalkiyor && U3.kalkiyor()); }, astronotHtml: astronotHtml, uc3Uygun: uc3Uygun, hafifMi: hafifMi, _test: { karis: karis, dokunus: dokunus, durum: function () { return { ATES: ATES, UFO: UFO, PAR: PAR, KUY: KUY, mod: mod }; } } };
 })(window);

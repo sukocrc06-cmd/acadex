@@ -71,10 +71,25 @@ test('görünüm: telefonda kaydırılır, hareketi azaltta animasyon yok, yazd�
   assert.match(css, /\.ka-halka>svg\{/, 'halkanın içindeki yıldız simgesi etkilenmez');
 });
 
+test('karşılama: "Bugünün konusu… Hadi oynayalım!" yalnız girişte, haritaya geri dönüşte tekrar edilmez', () => {
+  assert.match(app, /var karsilanan = '';/);
+  assert.match(app, /var ilkKarsilama = karsilanan !== kAnahtar; karsilanan = kAnahtar;/);
+  assert.match(app, /var karsila = function \(\) \{ if \(ilkKarsilama && !uykuAcik && app\.dataset\.gorunum === 'harita'\)/);
+  /* davranış: panel() üç kez çağrılır (giriş, gezegenden dönüş, kitaplıktan dönüş) → bir kez konuşur */
+  const govde = app.slice(app.indexOf("var kAnahtar ="), app.indexOf("var karsila ="));
+  const S = { okul: { kod: 'K1' }, ogr: ['Ada', 'kedi', 'o1'], sinif: { id: 's' } };
+  const r = { k: '' };
+  const kos = (S2, b) => { const src = govde.replace(/karsilanan/g, 'ref.k'); return new Function('S', 'bid', 'ref', src + ' return ilkKarsilama;')(S2, b, r); };
+  assert.equal(kos(S, 'renkler'), true, 'ilk giriş');
+  assert.equal(kos(S, 'renkler'), false, 'gezegenden dönüş');
+  assert.equal(kos(S, 'renkler'), false, 'kitaplıktan dönüş');
+  assert.equal(kos({ ...S, ogr: ['Can', 'ayi', 'o2'] }, 'renkler'), true, 'başka çocuk girince yeniden');
+});
+
 test('paket: index.html yeniden üretildi, önbellek sürümü yeni', () => {
   const html = read('kids/index.html');
   assert.ok(html.includes('function dockHtml(il)') && html.includes('.ka-dock-bosluk{'), 'node kids/assets/birlestir.js');
-  assert.match(read('kids/sw.js'), /acadex-kids-2026-11-22f/);
+  assert.match(read('kids/sw.js'), /acadex-kids-2026-11-26b/);
 });
 
 summary();

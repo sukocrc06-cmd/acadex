@@ -87,8 +87,8 @@ test('3B galaksi: modül yerel, önbellekte, düşerse düz harita; düğmeler g
   assert.doesNotMatch(mjs, /(?:import|from)\s*["']https?:/, 'CDN içe aktarımı yok');
   assert.doesNotMatch(mjs, /cdn\.jsdelivr|unpkg|esm\.sh/);
   assert.match(src, /export function kur\(o\)/);
-  assert.match(sw, /'\/kids\/assets\/kids-uzay3d\.mjs'/, 'çevrimdışı önbellekte');
-  assert.match(js, /new Function\('u', 'return import\(u\)'\)\('\/kids\/assets\/kids-uzay3d\.mjs'\)/, 'eski tarayıcıda sözdizimi hatası yok');
+  assert.match(sw, /'\/kids\/assets\/kids-uzay3d\.mjs(\?v=\d+)?'/, 'çevrimdışı önbellekte');
+  assert.match(js, /new Function\('u', 'return import\(u\)'\)\('\/kids\/assets\/kids-uzay3d\.mjs(\?v=\d+)?'\)/, 'eski tarayıcıda sözdizimi hatası yok');
   assert.match(js, /var sure = setTimeout\(vazgec, 7000\)/, 'modül gelmezse düz harita');
   assert.match(js, /getContext\('webgl2'\) \|\| c\.getContext\('webgl'\)/);
   assert.match(js, /if \(U3 && U3\.harita && U3\.harita\.isConnected\)/, 'uçuş 3B astronotla');
