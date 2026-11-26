@@ -1,0 +1,25 @@
+{
+  "kaynak": "ACADEX-QA-TRANSFER/data/image-relevance.tsv (26.11.2026 canlı desteleri, denetçi yargısı). Canlı sorgular kaydedilmemişti; q/entity yazar isteminin kuralına göre (3-6 somut görsel sözcük, belirli varlıkta Wikipedia adı) SONUÇ GÖRÜLMEDEN kuruldu. 'weak' ve 'unknown' satırlar ölçüme girmez.",
+  "satirlar": [
+    { "deste": "E1", "baslik": "The Evolution of Money – From Barter to Digital", "alt": "Gold Bitcoin and silver Ethereum coins resting on a laptop keyboard before a trading chart", "kaynak": "stok", "q": "gold coins banknotes history money", "entity": "", "yargi": "ilgili" },
+    { "deste": "E1", "baslik": "Barter: The First Exchange Mechanism", "alt": "Ancient Egyptian wall painting of people working with tools and carrying baskets", "kaynak": "stok", "q": "ancient market barter goods", "entity": "", "yargi": "ilgili" },
+    { "deste": "E1", "baslik": "Barter: The First Exchange Mechanism", "alt": "Ancient relief carving of a man milking a bull", "kaynak": "stok", "q": "ancient market barter goods", "entity": "", "yargi": "ilgili" },
+    { "deste": "E1", "baslik": "Coinage Takes Hold in Ancient Greece", "alt": "A ceramic mug with a spoon inside on a green marble surface", "kaynak": "stok", "q": "ancient greek silver coin museum", "entity": "", "yargi": "ilgisiz" },
+    { "deste": "E2", "baslik": "Global EV Revolution: Markets, Batteries & Supply Chains", "alt": "red and white gas station", "kaynak": "stok", "q": "electric car charging station", "entity": "", "yargi": "ilgisiz" },
+    { "deste": "E2", "baslik": "(quote) The electric-vehicle transition is reshaping…", "alt": "Electric car engine with visible wiring and battery components", "kaynak": "stok", "q": "electric vehicle battery pack", "entity": "", "yargi": "ilgili" },
+    { "deste": "E3", "baslik": "Global EV Revolution: Markets, Batteries & Supply Chain", "alt": "Electric vehicle", "kaynak": "wiki", "q": "", "entity": "Electric vehicle", "yargi": "ilgili" },
+    { "deste": "E3", "baslik": "Battery Weight, Cost Share and Price Trend", "alt": "Electric vehicle battery", "kaynak": "wiki", "q": "", "entity": "Electric vehicle battery", "yargi": "ilgili" },
+    { "deste": "E3", "baslik": "Manufacturing Trends: Digital, Low-Carbon, Resilient", "alt": "Industrial interior with blue beams and yellow crane", "kaynak": "stok", "q": "automated factory production line", "entity": "", "yargi": "ilgili" },
+    { "deste": "E4", "baslik": "Global Renewable Energy: Solar vs. Wind Growth & Costs", "alt": "wind turbines under gray sky", "kaynak": "stok", "q": "wind turbines solar panels field", "entity": "", "yargi": "ilgili" },
+    { "deste": "E5", "baslik": "Global E-Commerce Shift: Mobile, AI & Logistics Trends", "alt": "Men observe automated conveyor belt system in warehouse", "kaynak": "stok", "q": "warehouse conveyor belt robots", "entity": "", "yargi": "ilgili" },
+    { "deste": "E5", "baslik": "Artificial intelligence reshapes fulfillment", "alt": "Employer dashboard showing application trends and key metrics", "kaynak": "stok", "q": "warehouse robots picking orders", "entity": "", "yargi": "ilgisiz" },
+    { "deste": "T1", "baslik": "İçerik Üretiminde Yapay Zeka: Yeni Nesil Araçlar", "alt": "Darci Schummer, T157 panel. Writing to Rehumanize: Collaborative Classroom Creativity in the Age of AI", "kaynak": "commons", "q": "student writing with laptop", "entity": "", "yargi": "ilgisiz" },
+    { "deste": "T2", "baslik": "Derin Öğrenme ve Yapay Sinir Ağları Kavramları", "alt": "A network of interconnected cubes and thin blue lines against a light blue background", "kaynak": "stok", "q": "neural network digital connections", "entity": "", "yargi": "ilgili" },
+    { "deste": "T3", "baslik": "Uyku ve Hafıza İlişkisi: Mekanizmalar ve Etkileri", "alt": "Sleep", "kaynak": "wiki", "q": "", "entity": "Sleep", "yargi": "ilgili" },
+    { "deste": "T3", "baslik": "Sinirsel Mekanizmalar: Sinaptik ve Glifatik İşlevler", "alt": "Some neurotransmitters travel backward across the synapse.", "kaynak": "commons", "q": "", "entity": "Synapse", "yargi": "ilgili" },
+    { "deste": "T4", "baslik": "Dünya Enerji Dönüşümünün Ana Dinamikleri", "alt": "aerial photography of grass field with blue solar panels", "kaynak": "stok", "q": "solar panels field aerial", "entity": "", "yargi": "ilgili" },
+    { "deste": "T4", "baslik": "Enerji Depolama Yatırımları Yükseliyor", "alt": "A large battery storage power station with a capacity of 6.24 MWh", "kaynak": "commons", "q": "battery energy storage station", "entity": "", "yargi": "ilgili" },
+    { "deste": "T5", "baslik": "Yerli Üretim Altyapısı: Hindistan’ın Hamleleri", "alt": "Taiwan Semiconductor Manufacturing Company Limited (TSMC), Fab 5 building, Hsinchu", "kaynak": "commons", "q": "", "entity": "Semiconductor industry in India", "yargi": "ilgisiz" },
+    { "deste": "T6", "baslik": "Bitcoin ve Finansın Geleceği", "alt": "DCE-UFRGS - Eleições 2025 - Chapa 1", "kaynak": "commons", "q": "bitcoin cryptocurrency coins", "entity": "", "yargi": "ilgisiz" }
+  ]
+}

@@ -243,12 +243,10 @@ test('FOTOĞRAF SÜZGECİ DOĞRU YÖNDE (14.11.2026)', () => {
   /* Eski kod: `if (en && kw.length) ph = ph.filter(...)` — İngilizce karşılık
      BULUNDUĞUNDA süzüyordu. Doğrusu: bulunduğunda arama zaten konulu, uyan yoksa
      ilk sonuçlar kullanılır; bulunamadığında yalnız kapağa konur. */
-  assert.match(ink, /ph = hit\.length \? hit : all;/,
-    'alt metni uymayan fotoğraflar hâlâ tamamen atılıyor — hiç fotoğraf konmaz');
-  assert.match(ink, /\} else \{ ph = all\.slice\(0, 1\); kapakSinir = true; \}/,
-    'konu İngilizceye çevrilemediğinde Türkçe arama sonuçları her asetata dağılıyor (28.10.2026 şikâyeti)');
-  assert.match(ink, /var hedef = kapakSinir \? cand\.filter\(function \(sl\) \{ return sl\.lay === 'cover'; \}\) : cand;/,
-    'kapak sınırı uygulanmıyor');
+  /* Phase 2 (26.11.2026): alakası ölçülemeyen ya da konuyla sözcük paylaşmayan fotoğraf hiç konmaz (yüzde doldurmak için alakasız görsel yok). */
+  assert.ok(!/ph = hit\.length \? hit : all;/.test(ink), 'alt metni konuya uymayan fotoğraf yine konuyor');
+  assert.match(ink, /if \(!ceviriYok\) ph = all\.filter\(function \(p\) \{ var alt = String\(p\.alt \|\| ''\)\.toLowerCase\(\); return kw\.some/, 'alt metin süzgeci yok');
+  assert.match(ink, /var ph = \[\], ceviriYok = !\(en && kw\.length\);/, 'çeviri yokken alaka ölçülmeden fotoğraf konuyor');
 });
 
 test('FOTOĞRAF ADAYLIĞI VE SESSİZ VAZGEÇME (14.11.2026)', () => {
@@ -270,8 +268,8 @@ test('FOTOĞRAF ADAYLIĞI VE SESSİZ VAZGEÇME (14.11.2026)', () => {
                    'Fotoğraf arama anahtarı tanımlı değil',
                    'Fotoğraf araması şu an yapılamadı'])
     assert.ok(ink.includes(m), 'sessiz vazgeçme: "' + m + '" bildirimi yok');
-  assert.match(ink, /kapakSinir \? ' \(konu İngilizceye çevrilemedi, bu yüzden yalnız kapağa\)' : ''/,
-    'kapakla sınırlı kalmanın nedeni söylenmiyor');
+  assert.ok(ink.includes('Konu İngilizceye çevrilemediği için fotoğrafların konuya uyduğunu doğrulayamadım'),
+    'çeviri yokken fotoğraf konmamasının nedeni söylenmiyor');
 });
 
 test('ZAMAN ÇİZELGESİ: GELEN ADIM KADAR DURAK (14.11.2026)', () => {

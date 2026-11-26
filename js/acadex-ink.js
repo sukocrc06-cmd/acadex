@@ -7155,7 +7155,8 @@ var SBX = (function () {
     if (e.type === 'icon') return '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (IKON[e.icon] || IKON.check) + '"/></svg>';
     if (e.type === 'arrow') return '<svg viewBox="0 0 100 20" preserveAspectRatio="none"><path vector-effect="non-scaling-stroke" d="M1 10 H98 M90 3 L98 10 L90 17"/></svg>';
     if (e.type === 'mark') return '<svg viewBox="0 0 100 12" preserveAspectRatio="none"><path pathLength="1" vector-effect="non-scaling-stroke" d="M2 7 C20 3 38 10 56 6 S86 4 98 8"/></svg>';
-    if (e.type === 'img') return e.src ? '<img src="' + e.src + '" alt="' + X(e.alt || 'görsel') + '">' : '<span class="ph">görsel</span>';
+    /* adres kaçışlı yazılır; açılmayan fotoğraf (kaldırılmış, ağ yok) kırık simge yerine "görsel açılmadı" gösterir (Phase 2) */
+    if (e.type === 'img') return e.src ? '<img src="' + X(e.src) + '" alt="' + X(e.alt || 'görsel') + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'\'"><span class="ph" style="display:none">görsel açılmadı</span>' : '<span class="ph">görsel</span>';
     return '';
   };
   /* Açık şablonda koyu (navy) asetat: koyu yazı beyaza, soluk yazı açık griye, vurgu yazısı
@@ -7164,6 +7165,7 @@ var SBX = (function () {
   var renkSec = function (e) { var r = temaRenk(e.color, e.type); if (!zeminKoyu || e.type === 'rect' || e.type === 'ellipse') return r; var k = String(e.color || '').slice(0, 7).toUpperCase(), T = deck && deck.tema;
     if (!e.color || k === NAVY || k === '#2A3550' || (T && (k === T.ink.toUpperCase() || k === T.head.toUpperCase()))) return '#FFFFFF'; if (k === SOFT) return '#B9C3DA'; if (k === BLUE && (e.type === 't' || e.type === 'h')) return mix(T ? T.acc : BLUE, '#FFFFFF', .35); return r; };
   var elHTML = function (e, edit) {
+    if (!edit && e.type === 'img' && !e.src) return '';      /* boş görsel kutusu yalnız düzenleyicide görünür; küçük resim, paylaşım ve PPTX'te yok (Phase 2) */
     var TM = deck && deck.tema, st = 'left:' + e.x + 'px;top:' + e.y + 'px;width:' + e.w + 'px;height:' + e.h + 'px;font-size:' + e.size + 'px;color:' + renkSec(e) + ';text-align:' + e.align + ';font-weight:' + (e.bold ? 700 : (e.type === 'h' ? (TM && FONT_DISPLAY.test(TM.hf) ? 400 : 800) : 400));
     if (e.type === 'h' && TM && (TM.hf || fontYedek)) st += ';font-family:' + (fontYedek ? FONT_YEDEK : fontCss(TM.hf));
     if (e.type === 'rect' || e.type === 'ellipse') st += ';background:' + temaRenk(e.fill || '#DCE6FF');
@@ -7387,7 +7389,7 @@ var SBX = (function () {
   /* Yerel, kesin denetimler — Acadia'ya sormaya gerek olmayanlar. Soluk (muted)
      her öğe doldurulmamış bir yer tutucudur ve perdede de görünür. */
   var GORSEL_EL = /^(img|chart|table|mmd|math|viz)$/;
-  var gorselVar = function (sl) { return /^(time|stat|swot)$/.test(sl.lay || '') || !!sl.v || sl.els.some(function (e) { return GORSEL_EL.test(e.type); }); };
+  var gorselVar = function (sl) { return /^(time|stat|swot)$/.test(sl.lay || '') || !!sl.v || sl.els.some(function (e) { return GORSEL_EL.test(e.type) && (e.type !== 'img' || !!e.src); }); };      /* boş görsel kutusu görsel sayılmaz */
   var yerTutucu = function (sl) { return sl.els.some(function (e) { return e.muted && /^(h|t|ul|math)$/.test(e.type); }); };
   var bosAsetatlar = function () { var out = []; deck.slides.forEach(function (sl, i) { if (yerTutucu(sl)) out.push(i + 1); }); return out; };
   var kaliteYazi = function (q) { return arr(q && q.issues).map(function (x) { return KALITE_TR[x] || x; }); };
@@ -7478,10 +7480,20 @@ var SBX = (function () {
       o.x = Math.max(-o.w + 20, Math.min(W - 20, nx)); o.y = Math.max(-o.h + 20, Math.min(H - 20, ny)); drag.el.style.left = o.x + 'px'; drag.el.style.top = o.y + 'px';
     }
   });
-  var endDrag = function () { if (!drag) return; if (drag.moved) { undoS.push(drag.before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); dirty(); refreshThumb(); } drag = null; };
+  var endDrag = function () { if (!drag) return; if (drag.moved) { kunyeKaydir(cur(), drag.o, drag.x, drag.y, drag.w, drag.h); undoS.push(drag.before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); dirty(); refreshThumb(); } drag = null; };
+  /* KÜNYE FOTOĞRAFINA BAĞLI (Phase 2, 26.11.2026): fotoğraf taşınıp büyüyünce künye de kayar (altındaysa yeniden altına
+     oturur), fotoğraf silinince künye de silinir, çoğaltılınca künye de çoğalır; künye tek başına silinmez. */
+  var kunyesi = function (s, o) { return s && o && o.type === 'img' && o.creditId ? s.els.filter(function (e) { return e.id === o.creditId; })[0] || null : null; };
+  var kunyeSahibi = function (s, o) { return s && o && o.type === 't' ? s.els.filter(function (e) { return e.type === 'img' && e.creditId === o.id; })[0] || null : null; };
+  var kunyeKaydir = function (s, o, ox, oy, ow, oh) {
+    var c = kunyesi(s, o); if (!c || (o.x === ox && o.y === oy && o.w === ow && o.h === oh)) return false;
+    if (Math.abs(c.y - (oy + oh + YUVA.kunye.ara)) <= 2 && Math.abs(c.x - ox) <= 2) { c.x = o.x; c.w = o.w; c.y = o.y + o.h + YUVA.kunye.ara; } else { c.x += o.x - ox; c.y += o.y - oy; }
+    var ce = stage.querySelector('[data-id="' + c.id + '"]'); if (ce) { ce.style.left = c.x + 'px'; ce.style.top = c.y + 'px'; ce.style.width = c.w + 'px'; }
+    return true;
+  };
   stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
 
-  var nudge = function (dx, dy) { var o = selObj(); if (!o) return; push(); o.x += dx; o.y += dy; var el = selEl(); el.style.left = o.x + 'px'; el.style.top = o.y + 'px'; dirty(); refreshThumb(); };
+  var nudge = function (dx, dy) { var o = selObj(); if (!o) return; push(); o.x += dx; o.y += dy; var el = selEl(); el.style.left = o.x + 'px'; el.style.top = o.y + 'px'; kunyeKaydir(cur(), o, o.x - dx, o.y - dy, o.w, o.h); dirty(); refreshThumb(); };
   document.addEventListener('keydown', function (e) {
     if (!root.offsetParent || !rh.hidden || !pr.hidden || document.querySelector('dialog[open]')) return;
     var t = e.target, typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable;
@@ -7502,6 +7514,7 @@ var SBX = (function () {
   /* ---------- pencil box ---------- */
   var op = function (k) {
     var s = cur(), o = selObj(); if (!s || !o) return; var i = s.els.indexOf(o);
+    if (k === 'del' && kunyeSahibi(s, o)) { say('Fotoğrafın künyesi tek başına silinmez; fotoğrafı seçip silersen künyesiyle birlikte gider.'); return; }
     push();
     if (k === 'bigger') boyYazar(o, Math.min(160, o.size + 2));
     else if (k === 'smaller') boyYazar(o, Math.max(10, o.size - 2));
@@ -7509,8 +7522,8 @@ var SBX = (function () {
     else if (k === 'left' || k === 'center' || k === 'right') o.align = k;
     else if (k === 'front') { s.els.splice(i, 1); s.els.push(o); }
     else if (k === 'back') { s.els.splice(i, 1); s.els.unshift(o); }
-    else if (k === 'dup') { var c = clone(o); fitKopya(o, c); c.id = uid(); c.x += 16; c.y += 16; s.els.push(c); selId = c.id; }
-    else if (k === 'del') { s.els.splice(i, 1); selId = null; renderStage(); refreshThumb(); dirty(); stage.focus(); say(LAB[o.type] + ' silindi.', undo); return; }
+    else if (k === 'dup') { var c = clone(o); fitKopya(o, c); c.id = uid(); c.x += 16; c.y += 16; s.els.push(c); selId = c.id; var kc = kunyesi(s, o); if (kc) { var cc = clone(kc); fitKopya(kc, cc); cc.id = uid(); cc.x += 16; cc.y += 16; c.creditId = cc.id; s.els.push(cc); } }
+    else if (k === 'del') { var kd = kunyesi(s, o); s.els.splice(i, 1); if (kd) s.els.splice(s.els.indexOf(kd), 1); selId = null; renderStage(); refreshThumb(); dirty(); stage.focus(); say(LAB[o.type] + ' silindi.', undo); return; }
     renderStage(); refreshThumb(); dirty(); var el = selEl(); if (el) el.focus({ preventScroll: true });
   };
   QA('[data-op]').forEach(function (b) { b.addEventListener('click', function () { op(b.getAttribute('data-op')); }); });
@@ -7579,13 +7592,33 @@ var SBX = (function () {
      'sol' solda, 'tam' alıntıda tam sayfa fotoğraf + metin panosu; iki fotoğraf
      placePair ile üst üste dizilir. Düzenler hazır sunum taslaklarının
      iskeletinden; görselin kendisi her zaman aramadan gelir. */
-  var fotoImg = function (p, x, y, w, h, alt, cr, kap) { var o = { src: p.large, alt: alt || p.alt || '', credit: p.photographer || '', creditUrl: p.page || '', creditId: cr.id }; if (kap) { o.kap = 1; o.oran = Math.round((p.w || 3) / (p.h || 2) * 100) / 100; } if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {}); return E('img', x, y, w, h, o); };
+  /* kaynak (Phase 2): sağlayıcı, kimlik, sayfa, yazar, lisans ve özgün boyut öğenin üstünde durur; yalnız gelen bilgi yazılır,
+     bilinmeyen yazar/lisans boş kalır (uydurulmaz). Künye öğesi creditId ile bağlıdır: taşıma, silme, çoğaltma birlikte yapılır. */
+  var fotoImg = function (p, x, y, w, h, alt, cr, kap) { var o = { src: p.large, alt: alt || p.alt || '', credit: p.photographer || '', creditUrl: p.page || '', creditId: cr.id }; if (kap) { o.kap = 1; o.oran = Math.round((p.w || 3) / (p.h || 2) * 100) / 100; }
+    o.kaynak = { saglayici: p.source || '', id: p.id || '', sayfa: p.page || '', yazar: p.photographer || '', lisans: p.license || '', lisansUrl: p.license_url || '', w: p.w || 0, h: p.h || 0 };
+    if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {}); return E('img', x, y, w, h, o); };
+  /* FOTOĞRAF YUVALARI (Phase 2, 26.11.2026). Fotoğrafın konabileceği yerler veridir: rol (side yan, pair üst üste iki,
+     bleed tam sayfa, center ortada, fill boş yer tutucu), kutu ölçüleri, yazının daralabileceği en dar genişlik. Kapak,
+     klasik liste ve klasik alıntı yerleşimleri eski sayılarla birebir aynıdır (testte eski blokla karşılaştırılır);
+     'yan' çeşitli düzenlerin gövdesini sola sıkıştırır, 'yer' boş görsel kutusunu doldurur. Yuvayı hangi düzenin
+     taşıdığı yuvaFormlari'nda, sığma denetimi yuvaDene'dedir. */
+  var YUVA = {
+    orta: { rol: 'center', w: 480, hMax: 330, yUst: 8 },
+    sag: { rol: 'side', w: 360, hMax: 300, kenar: 50, y: 160, bosluk: 24, metinMin: 300, isaretMin: 120 },
+    sol: { rol: 'side', x: 50, xKapak: 40, bosluk: 34, sagKenar: 60 },
+    iki: { rol: 'pair', w: 300, h: 150, kenar: 50, y: 140, adim: 174, metinMin: 300, bosluk: 24 },
+    kapak: { rol: 'side', w: 340, h: 400, kenar: 40, y: 70, genis: 420 },
+    tam: { rol: 'bleed' },
+    yan: { rol: 'side', w: 300, hMax: 260, kenar: 50, y: 160, bosluk: 24, ust: 140, oranMin: 0.55 },
+    yer: { rol: 'fill', kunye: 22 },
+    kunye: { h: 22, ara: 4, boy: 12 }
+  };
   var genisler = function (sl) { return sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't' || (sl.lay === 'quote' && e.type === 'h' && e.text.length > 1)) && e.x < 200 && e.w > 520 && e.y > 130 && !e.muted; }); };
   var placePair = function (sl, p1, p2) {
     var wide = genisler(sl); if (!wide.length || sl.lay !== 'list') return placePhoto(sl, p1, p1.alt);
-    var w = 300, h = 150, x = W - 50 - w, ilk = null;
-    wide.forEach(function (e) { e.w = Math.max(300, Math.min(e.w, x - e.x - 24)); });
-    [p1, p2].forEach(function (p, k) { var y = 140 + k * 174, cr = E('t', x, y + h + 2, w, 18, { text: credText(p), size: 10, color: SOFT, align: 'right' }), im = fotoImg(p, x, y, w, h, p.alt, cr, 1); sl.els.push(im, cr); ilk = ilk || im; });
+    var Y = YUVA.iki, w = Y.w, h = Y.h, x = W - Y.kenar - w, ilk = null;
+    wide.forEach(function (e) { e.w = Math.max(Y.metinMin, Math.min(e.w, x - e.x - Y.bosluk)); });
+    [p1, p2].forEach(function (p, k) { var y = Y.y + k * Y.adim, cr = E('t', x, y + h + 2, w, 18, { text: credText(p), size: 10, color: SOFT, align: 'right' }), im = fotoImg(p, x, y, w, h, p.alt, cr, 1); sl.els.push(im, cr); ilk = ilk || im; });
     return ilk;
   };
   var placeTam = function (sl, p, alt) {
@@ -7615,18 +7648,161 @@ var SBX = (function () {
   };
   var placePhoto = function (sl, p, alt, bicim) {
     if (bicim === 'tam') { var tm = placeTam(sl, p, alt); if (tm) return tm; }
-    var w = 480, h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > 330) { h = 330; w = Math.round(h * (p.w || 3) / (p.h || 2)); }
-    var x = Math.round((W - w) / 2), y = Math.round((H - h) / 2) - 8;
+    var O = YUVA.orta, S = YUVA.sag, K = YUVA.kapak, L = YUVA.sol, C = YUVA.kunye;
+    var w = O.w, h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > O.hMax) { h = O.hMax; w = Math.round(h * (p.w || 3) / (p.h || 2)); }
+    var x = Math.round((W - w) / 2), y = Math.round((H - h) / 2) - O.yUst;
     /* Alıntı düzeninde asıl geniş kutu büyük yazıdır (h); daralmazsa fotoğrafın altında kalır. */
     var wide = genisler(sl);
-    if (sl.lay === 'cover') { var k = fotoKutu(p, 340, 400); w = k.w; h = k.h; x = W - 40 - w; y = 70 + Math.round((400 - h) / 2); wide = sl.els.filter(function (e) { return (e.type === 'h' || e.type === 't' || e.type === 'mark') && e.w > 420; }); }
-    else if (wide.length) { w = 360; h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > 300) { h = 300; w = Math.round(h * (p.w || 3) / (p.h || 2)); } x = W - 50 - w; y = 160; }
-    if (bicim === 'sol' && wide.length && sl.lay !== 'quote') { x = sl.lay === 'cover' ? 40 : 50; wide.forEach(function (e) { e.x = x + w + 34; e.w = Math.max(e.type === 'mark' ? 120 : 300, Math.min(e.w, W - 60 - e.x)); }); }
-    else wide.forEach(function (e) { e.w = Math.max(e.type === 'mark' ? 120 : 300, Math.min(e.w, x - e.x - 24)); });
-    var cr = E('t', x, y + h + 4, w, 22, { text: credText(p), size: 12, color: SOFT, align: bicim === 'sol' ? 'left' : 'right' });
+    if (sl.lay === 'cover') { var k = fotoKutu(p, K.w, K.h); w = k.w; h = k.h; x = W - K.kenar - w; y = K.y + Math.round((K.h - h) / 2); wide = sl.els.filter(function (e) { return (e.type === 'h' || e.type === 't' || e.type === 'mark') && e.w > K.genis; }); }
+    else if (wide.length) { w = S.w; h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > S.hMax) { h = S.hMax; w = Math.round(h * (p.w || 3) / (p.h || 2)); } x = W - S.kenar - w; y = S.y; }
+    if (bicim === 'sol' && wide.length && sl.lay !== 'quote') { x = sl.lay === 'cover' ? L.xKapak : L.x; wide.forEach(function (e) { e.x = x + w + L.bosluk; e.w = Math.max(e.type === 'mark' ? S.isaretMin : S.metinMin, Math.min(e.w, W - L.sagKenar - e.x)); }); }
+    else wide.forEach(function (e) { e.w = Math.max(e.type === 'mark' ? S.isaretMin : S.metinMin, Math.min(e.w, x - e.x - S.bosluk)); });
+    var cr = E('t', x, y + h + C.ara, w, C.h, { text: credText(p), size: C.boy, color: SOFT, align: bicim === 'sol' ? 'left' : 'right' });
     var im = fotoImg(p, x, y, w, h, alt, cr);
     sl.els.push(im, cr);
     return im;
+  };
+  /* ---------- FOTOĞRAF YUVASI MOTORU (Phase 2, 26.11.2026) ----------
+     Denetim #19: fotoğraf yalnız klasik (v0) liste/alıntıya ve kapağa konabiliyordu; düzen seçici bunu bilmeden
+     çeşit seçiyor, fotoğraf sonradan metni daraltıp yeniden sığdırıyordu. Kusursuz aramada bile ipuçlu asetatların
+     %30'u fotoğraf alıyordu. Artık:
+       1) Her düzen/çeşit yuvasını bildirir (yuvaFormlari); veri asetatı, yer tutuculu asetat ve gündem yuvasızdır.
+       2) Yuva ancak gerçek ölçümle sığarsa kullanılır (yuvaDene): taşma yok, yazı-fotoğraf çakışması yok, gövde
+          yazısı 18 px altına inmez ve 4 px'ten çok küçülmez. Deneme kopyada yapılır; sığmazsa asetata dokunulmaz (yuva kapanır).
+       3) İhtiyaç puanı (varlık > somut sorgu > ipuçsuz) + deste bütçesi (içeriğin yaklaşık %40'ı) + tekil global atama
+          (macar): bir fotoğraf destede bir kez kullanılır, destede zaten olan fotoğraf yeniden gelmez.
+       4) İstek uçuştayken asetatın düzeni, çeşidi ya da yazısı değiştiyse yanıt o asetata konmaz (gorselImza).
+       5) Sonuç asetatta kalır (sl.gorsel: ipucu, hit / miss:neden, yuva, alaka) ve hesaba yazılır. */
+  var GOVDE_MIN = 18, DUSUS_MAX = 4, ALAKA_MIN = 0.35, BUTCE_ORAN = 0.4;      /* gövde yazısı en az 18 px, fotoğraf yüzünden en çok 4 px küçülür */
+  var tamSayfa = function (e) { return e.x === 0 && e.y === 0 && e.w === W && e.h === H; };
+  var yuvaFormlari = function (sl, bic) {
+    if (!sl || yerTutucu(sl)) return [];
+    if (sl.lay === 'viz') return sl.els.some(function (e) { return e.type === 'img' && !e.src; }) && !sl.els.some(function (e) { return e.type === 'viz'; }) ? ['yer'] : [];
+    if (sl.els.some(function (e) { return GORSEL_EL.test(e.type); })) return [];      /* grafik, tablo, diyagram, formül, çizim ya da fotoğraf varsa yuva yok */
+    if (sl.lay === 'cover') return ['tam'];
+    if (sl.lay === 'quote') return sl.v ? [] : ['tam'];
+    if (sl.lay === 'list') return sl.v === 10 ? [] : sl.v ? ['yan'] : [bic || ''].concat(['', 'sol'].filter(function (f) { return f !== (bic || ''); }), ['yan']);      /* klasik liste geniş fotoğrafa sığmazsa dar yan fotoğraf */
+    if (sl.lay === 'two') return ['yan'];
+    return [];
+  };
+  /* 'yan': çeşidin gövdesi (başlığın altı) sola sıkıştırılır, fotoğraf sağa konur. Daire ve simge oranını korur, yalnız
+     yeri kayar; sıkıştırma YUVA.yan.oranMin'den darsa yuva yoktur. */
+  var placeYan = function (sl, p, alt) {
+    var Y = YUVA.yan, C = YUVA.kunye, w = Y.w, h = Math.round(w * (p.h || 2) / (p.w || 3)); if (h > Y.hMax) { h = Y.hMax; w = Math.round(h * (p.w || 3) / (p.h || 2)); }
+    var x = W - Y.kenar - w, y = Y.y, sinir = x - Y.bosluk, govde = sl.els.filter(function (e) { return e.y >= Y.ust && !e.dz; });
+    if (!govde.length) return null;
+    var x0 = Math.min.apply(null, govde.map(function (e) { return e.x; })), x1 = Math.max.apply(null, govde.map(function (e) { return e.x + e.w; }));
+    if (x1 > sinir) {
+      var k = (sinir - x0) / (x1 - x0); if (k < Y.oranMin) return null;
+      govde.forEach(function (e) { if (e.type === 'icon' || e.type === 'ellipse') e.x = Math.round(x0 + (e.x + e.w / 2 - x0) * k - e.w / 2); else { e.x = Math.round(x0 + (e.x - x0) * k); e.w = Math.max(1, Math.floor(e.w * k)); } });
+    }
+    var cr = E('t', x, y + h + C.ara, w, C.h, { text: credText(p), size: C.boy, color: SOFT, align: 'right' }), im = fotoImg(p, x, y, w, h, alt, cr);
+    sl.els.push(im, cr); return im;
+  };
+  /* 'yer': boş görsel kutusu (çizim düzeninin yer tutucusu) fotoğrafla dolar; künye kutunun içinde kalır. */
+  var placeYer = function (sl, p, alt) {
+    var o = sl.els.filter(function (e) { return e.type === 'img' && !e.src; })[0]; if (!o) return null;
+    var C = YUVA.kunye, k = fotoKutu(p, o.w, o.h - C.h - C.ara), x = o.x + Math.round((o.w - k.w) / 2);
+    var cr = E('t', x, o.y + k.h + C.ara, k.w, C.h, { text: credText(p), size: C.boy, color: SOFT, align: 'right' }), im = fotoImg(p, x, o.y, k.w, k.h, alt, cr);
+    sl.els.splice(sl.els.indexOf(o), 1, im, cr); return im;
+  };
+  /* Yuvayı kopyada dener; geçerse { els, im, form, dusus } döner (asetata dokunmaz). Deneme izleme sayacını tetiklemez. */
+  var yuvaDene = function (sl, form, ps, alt) {
+    if (form === 'iki' && ps.length < 2) return null;
+    var d = { id: sl.id, lay: sl.lay, v: sl.v, bg: sl.bg, els: clone(sl.els) }, once = {};
+    fitAktar(sl.els, d.els); d.els.forEach(function (e) { once[e.id] = e.size; });
+    var q = ps.map(function (p) { return Object.assign({}, p, { track: null }); });
+    var im = form === 'iki' ? placePair(d, q[0], q[1]) : form === 'yan' ? placeYan(d, q[0], alt) : form === 'yer' ? placeYer(d, q[0], alt) : placePhoto(d, q[0], alt, form);
+    if (!im) return null;
+    fitSlide(d);
+    var kun = {}; d.els.forEach(function (e) { if (e.type === 'img' && e.creditId) kun[e.creditId] = 1; });
+    var engel = d.els.filter(function (e) { return (e.type === 'img' && e.src && !tamSayfa(e)) || kun[e.id]; }), dusus = 0, n = 0;
+    for (var i = 0; i < d.els.length; i++) {
+      var e = d.els[i]; if (!/^(h|t|ul)$/.test(e.type) || !e.text || e.muted || e.dz || kun[e.id]) continue;
+      var hd = measureH(e, d);
+      if (hd > e.h + 3 || e.y + hd > H - 2 || e.x < 0 || e.x + e.w > W + 1) return null;
+      for (var j = 0; j < engel.length; j++) { var g = engel[j]; if (e.x < g.x + g.w - 1 && e.x + e.w > g.x + 1 && e.y < g.y + g.h - 1 && e.y + hd > g.y + 1) return null; }
+      if (e.type !== 'h') { var o = once[e.id] || e.size; if ((e.size < GOVDE_MIN && e.size < o) || o - e.size > DUSUS_MAX) return null; dusus += Math.max(0, o - e.size); n++; }
+    }
+    return { els: d.els, im: im, form: form, dusus: n ? dusus / n : 0 };
+  };
+  /* Bildirilen biçimleri sırayla dener; ilk geçeni döner. Yazı doğrulanmadan ölçülmez (yaziHazirMi). */
+  var gorselSec = function (sl, ps, bic, alt) {
+    if (!yaziHazirMi()) return null;
+    var fs = yuvaFormlari(sl, bic); for (var i = 0; i < fs.length; i++) { var r = yuvaDene(sl, fs[i], ps, alt); if (r) return r; }
+    return null;
+  };
+  var gorselUygula = function (sl, r, ps) {
+    sl.els = r.els;
+    ps.slice(0, r.form === 'iki' ? 2 : 1).forEach(function (p) { if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {}); });
+    return r.im;
+  };
+  /* Bir fotoğrafın kimlikleri: adres, sağlayıcı + kimlik, kaynak sayfası. Biri destede varsa fotoğraf yinelenmiş sayılır. */
+  var fotoAnahtar = function (p) { return [String(p.large || ''), p.id ? String(p.source || '') + ':' + p.id : '', String(p.page || '')].filter(Boolean); };
+  /* öğeden fotoğraf nesnesi (düzen değişince yeniden yerleştirmek için): kaynak bilgisi korunur, uydurulmaz */
+  var fotoGeri = function (e) { var k = e.kaynak || {}; return { large: e.src, alt: e.alt || '', photographer: e.credit || k.yazar || '', page: e.creditUrl || k.sayfa || '', source: k.saglayici || '', id: k.id || '', license: k.lisans || '', license_url: k.lisansUrl || '', w: k.w || (e.oran ? Math.round(e.oran * 1000) : e.w), h: k.h || (e.oran ? 1000 : e.h) }; };
+  var destedekiFotolar = function () { var k = {}; deck.slides.forEach(function (s) { s.els.forEach(function (e) { if (e.type !== 'img' || !e.src) return; k[e.src] = 1; if (e.kaynak && e.kaynak.id) k[(e.kaynak.saglayici || '') + ':' + e.kaynak.id] = 1; if (e.creditUrl) k[e.creditUrl] = 1; }); }); return k; };
+  var ihtiyac = function (sl) { if (sl.lay === 'cover') return 4; var g = sl.imgq; return g && g.entity ? 3 : g && g.q ? 2 : 1; };
+  var gorselImza = function (sl) { return (sl.lay || '') + '|' + (sl.v || 0) + '|' + sl.els.map(function (e) { return e.id + ':' + e.type + ':' + (e.text || '') + ':' + (e.src || ''); }).join('¦'); };
+  var gorselDurum = function (sl, d, yuva, skor) { var g = sl.imgq || {}; sl.gorsel = { q: g.q || '', entity: g.entity || '', durum: d }; if (yuva != null) sl.gorsel.yuva = yuva || 'sag'; if (skor != null) sl.gorsel.skor = skor; };
+  var oranUyum = function (form, p) { var yatay = (p.w || 3) >= (p.h || 2) * 1.2; return form === 'tam' ? (yatay ? 1 : 0.8) : yatay ? 1 : 0.85; };
+  /* Macar yöntemi (en küçük maliyetli atama, n ≤ m): a[i][j] maliyet; satır → sütun dizisi döner. */
+  var macar = function (a) {
+    var n = a.length, m = a[0].length, INF = 1e18, u = [], v = [], p = [], way = [], i, j;
+    for (j = 0; j <= m; j++) { v[j] = 0; p[j] = 0; way[j] = 0; } for (i = 0; i <= n; i++) u[i] = 0;
+    for (i = 1; i <= n; i++) {
+      p[0] = i; var j0 = 0, minv = [], used = []; for (j = 0; j <= m; j++) { minv[j] = INF; used[j] = false; }
+      do {
+        used[j0] = true; var i0 = p[j0], delta = INF, j1 = 0;
+        for (j = 1; j <= m; j++) if (!used[j]) { var c = a[i0 - 1][j - 1] - u[i0] - v[j]; if (c < minv[j]) { minv[j] = c; way[j] = j0; } if (minv[j] < delta) { delta = minv[j]; j1 = j; } }
+        for (j = 0; j <= m; j++) if (used[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta;
+        j0 = j1;
+      } while (p[j0] !== 0);
+      do { var j2 = way[j0]; p[j0] = p[j2]; j0 = j2; } while (j0);
+    }
+    var r = []; for (i = 0; i < n; i++) r[i] = -1; for (j = 1; j <= m; j++) if (p[j]) r[p[j] - 1] = j - 1; return r;
+  };
+  /* Global tekil atama: satır = asetat, sütun = fotoğraf (+ satır başına bir "fotoğrafsız" sütunu); ağırlık = ihtiyaç ×
+     alaka × oran uyumu. En yüksek toplam seçilir: iyi bir fotoğraf, onu tek seçeneği olan asetata bırakılır. */
+  var gorselAta = function (satirlar) {
+    var foto = [], sut = {};
+    /* aynı fotoğraf farklı adresle gelebilir (Wikipedia küçük resmi / Commons): kimliklerden biri tutan aday aynı sütundur */
+    var sutun = function (p) { var ks = fotoAnahtar(p), j = -1; ks.forEach(function (k) { if (j < 0 && k in sut) j = sut[k]; }); if (j < 0) { j = foto.length; foto.push(p); } ks.forEach(function (k) { sut[k] = j; }); return j; };
+    satirlar.forEach(function (r) { r.adaylar.forEach(function (p) { p.__s = sutun(p); }); });
+    var n = satirlar.length, m = foto.length + n, out = {}; if (!n || !foto.length) return out;
+    var a = satirlar.map(function (r) { var row = []; for (var j = 0; j < m; j++) row.push(0); r.adaylar.forEach(function (p) { var j = p.__s; row[j] = Math.min(row[j], -Math.round(r.ihtiyac * (p.skor || 0) * oranUyum(r.form, p) * 10000)); }); return row; });
+    var es = macar(a);
+    satirlar.forEach(function (r, ri) { var j = es[ri]; if (j >= 0 && j < foto.length && a[ri][j] < 0) out[r.i] = { p: foto[j], w: -a[ri][j] }; });
+    return out;
+  };
+  /* Sunucu yanıtını yerleştirir. Yeni sunucu her asetat için alakaya göre sıralı adaylar (cands, skor) döndürür; eski
+     sunucu asetat başına tek seçim (photos) — kendi süzgecinden geçtiği için orta alaka sayılır. Döner: { yer, aday }. */
+  var gorselYerlestir = function (made, cand, bic, imza, d, butce) {
+    var liste = Array.isArray(d && d.cands) ? d.cands : arr(d && d.photos).map(function (p) { return Object.assign({ skor: 0.6 }, p); });
+    var var0 = destedekiFotolar(), gruplar = {}, gelen = {}, sonuc = { yer: 0, aday: 0 };
+    liste.forEach(function (p) { if (!p || !p.large || p.i == null) return; var i = Number(p.i); gelen[i] = 1; if (fotoAnahtar(p).some(function (k) { return var0[k]; })) return; if ((p.skor == null ? 0.6 : p.skor) < ALAKA_MIN) return; (gruplar[i] = gruplar[i] || []).push(p); });
+    var satir = [];
+    cand.forEach(function (sl) {
+      var i = made.indexOf(sl), ps = gruplar[i] || []; if (gelen[i]) sonuc.aday++;
+      if (deck.slides.indexOf(sl) < 0 || gorselImza(sl) !== imza[i]) { gorselDurum(sl, 'miss:degisti'); return; }
+      if (!ps.length) { gorselDurum(sl, gelen[i] ? 'miss:alaka' : 'miss:aday-yok'); return; }
+      satir.push({ sl: sl, i: i, ihtiyac: ihtiyac(sl), form: bic[i] || '', adaylar: ps });
+    });
+    var at = gorselAta(satir), kul = {}, govde = 0, geri = false;
+    var sira = satir.filter(function (r) { return at[r.i]; }).sort(function (a, b) { return ((b.sl.lay === 'cover') - (a.sl.lay === 'cover')) || (at[b.i].w - at[a.i].w) || (a.i - b.i); });
+    sira.forEach(function (r) { fotoAnahtar(at[r.i].p).forEach(function (k) { kul[k] = 1; }); });
+    sira.forEach(function (r) {
+      if (r.sl.lay !== 'cover' && govde >= butce) { gorselDurum(r.sl, 'miss:butce'); return; }
+      var ps = [at[r.i].p];
+      if (r.form === 'iki') { var ek = r.adaylar.filter(function (p) { return !fotoAnahtar(p).some(function (k) { return kul[k]; }); }).sort(function (a, b) { return (b.skor || 0) - (a.skor || 0); })[0]; if (ek) ps.push(ek); }
+      var y = gorselSec(r.sl, ps, r.form, ps[0].alt);
+      if (!y) { gorselDurum(r.sl, 'miss:sigmaz'); return; }
+      if (!geri) { push(); geri = true; }      /* geri al yalnız fotoğrafları kaldırır */
+      gorselUygula(r.sl, y, ps); if (y.form === 'iki') fotoAnahtar(ps[1]).forEach(function (k) { kul[k] = 1; });
+      gorselDurum(r.sl, 'hit', y.form, ps[0].skor == null ? null : ps[0].skor); if (r.sl.lay !== 'cover') govde++; sonuc.yer++;
+    });
+    satir.forEach(function (r) { if (!at[r.i]) gorselDurum(r.sl, 'miss:atanmadi'); });
+    return sonuc;
   };
   imGrid.addEventListener('click', function (e) {
     var b = e.target.closest('[data-im-i]'); if (!b) return; var p = imPhotos[+b.getAttribute('data-im-i')]; if (!p) return;
@@ -7634,6 +7810,7 @@ var SBX = (function () {
     push();
     if (old && old.type === 'img' && old.creditId) { /* seçili fotoğrafı değiştir */
       s0 = cur(); old.src = p.large; old.alt = p.alt || imQ.value.trim(); old.credit = p.photographer || ''; old.creditUrl = p.page || '';
+      old.kaynak = fotoImg(Object.assign({}, p, { track: null }), 0, 0, 0, 0, '', { id: old.creditId }).kaynak;      /* kaynak bilgisi de yenilenir */
       /* yeni fotoğrafın oranı farklıysa kutu da değişir: genişlik korunur, taşarsa daralır; ortası/sağ kenarı yerinde kalır */
       var k = fotoKutu(p, old.w, Math.max(old.h, s0.lay === 'cover' ? 400 : 300)), orta = Math.abs(old.x + old.w / 2 - W / 2) < 6;
       old.x = orta ? Math.round((W - k.w) / 2) : old.x + old.w - k.w; old.y = Math.max(20, Math.round(old.y + old.h / 2 - k.h / 2)); old.w = k.w; old.h = k.h;
@@ -7641,9 +7818,13 @@ var SBX = (function () {
       if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {});
       selId = old.id; renderStage(); refreshThumb(); dirty(); imgDlg.close(); say('Fotoğraf değiştirildi.', undo); return;
     }
-    s0 = ensureSlide(); var im = placePhoto(s0, p, imQ.value.trim()); yaziFit(s0); selId = im.id; renderStage(); refreshThumb(); paintMeta(); dirty(); imgDlg.close();
+    /* Önce asetatın yuvası denenir (boş görsel kutusu dolar, çeşitli düzen sıkışır, sığmazsa yuva kapanır). Yuvası olmayan
+       ya da sığmayan asetatta seçim kullanıcınındır: eski yerleşim yapılır ve yazıyla çakışabileceği söylenir. */
+    s0 = ensureSlide(); var yy = gorselSec(s0, [p], '', imQ.value.trim()), serbest = !yy, im = yy ? gorselUygula(s0, yy, [p]) : null;
+    if (!im) { im = placePhoto(s0, p, imQ.value.trim()); yaziFit(s0); }
+    selId = im.id; renderStage(); refreshThumb(); paintMeta(); dirty(); imgDlg.close();
     var el = selEl(); if (el) el.focus({ preventScroll: true });
-    say('Fotoğraf eklendi; fotoğrafçının adı altına yazıldı.', undo);
+    say(serbest && yuvaFormlari(s0, '').length ? 'Fotoğraf eklendi ama bu düzende yazıya tam sığmıyor; gerekirse küçült ya da düzeni değiştir.' : 'Fotoğraf eklendi; fotoğrafçının adı altına yazıldı.', undo);
   });
   /* ---------- DÜZEN MENÜSÜ: ortak liste, küçük çizimler, dönüştürücü (26.11.2026) ----------
      Kurgu şeridinde tür bir <select>'ti; tablo/grafik/diyagram veri yoksa "(veri yok)" diye
@@ -7727,8 +7908,15 @@ var SBX = (function () {
     if (!c.data && k === 'math') { say('Bu asetatta formül yok; formül düzeni boş açılmaz.'); return; }
     push();
     var alt = null, dn = v ? [v].concat(d.v2 ? [d.v2] : []) : []; for (var di = 0; di < dn.length && !alt && VARY[k]; di++) { ikonBag = t; ikonKul = {}; alt = VARY[k][dn[di] - 1] ? cesitKur(VARY[k][dn[di] - 1], k, dn[di], t, bl, c) : null; ikonBag = ''; if (alt) v = dn[di]; }
-    s.els = alt || LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl, c); s.lay = k; s.v = alt ? v : 0; yaziFit(s); selId = null; renderStage(); refreshThumb(); dirty();
-    say('Asetat “' + d.l + '” düzenine geçti; başlığın ve yazıların taşındı.' + (v && !alt ? ' Bu düzen için madde sayısı uymadı, klasik liste kullanıldı.' : '') + not, undo);
+    /* Fotoğraf yeni düzene taşınır (Phase 2): eskiden düzen değişince fotoğraf sessizce kayboluyordu. Yeni düzenin yuvasına
+       sığarsa künyesi ve kaynak bilgisiyle konur; sığmazsa kaldırıldığı söylenir (geri al getirir). */
+    var fotolar = s.els.filter(function (x) { return x.type === 'img' && x.src; }), kun0 = fotolar.map(function (x) { var kc = s.els.filter(function (y) { return y.id === x.creditId; })[0]; return kc ? kc.text : ''; }), fnot = '';
+    s.els = alt || LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl, c); s.lay = k; s.v = alt ? v : 0; yaziFit(s); selId = null;
+    if (fotolar.length) { var fp = fotolar.slice(0, 2).map(fotoGeri), fy = gorselSec(s, fp, fp.length > 1 && k === 'list' && !s.v ? 'iki' : '', fp[0].alt);
+      if (fy) { gorselUygula(s, fy, []); s.els.filter(function (x) { return x.type === 'img' && x.src; }).forEach(function (x, j) { var kc = s.els.filter(function (y) { return y.id === x.creditId; })[0]; if (kc && kun0[j]) kc.text = kun0[j]; }); }
+      else fnot = ' Fotoğraf bu düzende yazıya sığmadığı için kaldırıldı; geri al ile geri getirebilirsin.'; }
+    renderStage(); refreshThumb(); dirty();
+    say('Asetat “' + d.l + '” düzenine geçti; başlığın ve yazıların taşındı.' + (v && !alt ? ' Bu düzen için madde sayısı uymadı, klasik liste kullanıldı.' : '') + not + fnot, undo);
   });
   QA('[data-bg]').forEach(function (b) { b.addEventListener('click', function () {
     var s = ensureSlide(); push(); s.bg = b.getAttribute('data-bg');
@@ -7745,7 +7933,7 @@ var SBX = (function () {
   thumbsEl.addEventListener('click', function (e) {
     var b;
     if ((b = e.target.closest('[data-go]'))) { go(+b.getAttribute('data-go')); return; }
-    if ((b = e.target.closest('[data-tdup]'))) { var i = +b.getAttribute('data-tdup'); push(); var c = clone(deck.slides[i]); c.id = uid(); c.els.forEach(function (x, j) { fitKopya(deck.slides[i].els[j], x); x.id = uid(); }); deck.slides.splice(i + 1, 0, c); deck.cur = i + 1; renderAll(); dirty(); thumbsEl.querySelector('[data-go="' + (i + 1) + '"]').focus(); return; }
+    if ((b = e.target.closest('[data-tdup]'))) { var i = +b.getAttribute('data-tdup'); push(); var c = clone(deck.slides[i]); c.id = uid(); var yid = {}; c.els.forEach(function (x, j) { fitKopya(deck.slides[i].els[j], x); yid[x.id] = uid(); x.id = yid[x.id]; }); c.els.forEach(function (x) { if (x.creditId && yid[x.creditId]) x.creditId = yid[x.creditId]; }); deck.slides.splice(i + 1, 0, c); deck.cur = i + 1; renderAll(); dirty(); thumbsEl.querySelector('[data-go="' + (i + 1) + '"]').focus(); return; }
     if ((b = e.target.closest('[data-tdel]'))) { var j = +b.getAttribute('data-tdel'); push(); deck.slides.splice(j, 1); deck.cur = Math.max(0, Math.min(deck.cur, deck.slides.length - 1)); renderAll(); dirty(); say((j + 1) + '. asetat yığından alındı.', undo); var nx = thumbsEl.querySelector('[data-go="' + Math.min(j, deck.slides.length - 1) + '"]'); if (nx) nx.focus(); return; }
   });
   thumbsEl.addEventListener('keydown', function (e) {
@@ -8604,30 +8792,27 @@ var SBX = (function () {
        sözcüğünü içeren fotoğraf kullanılır; uyan yoksa hiç konmaz (yanlış görsel
        boş asetattan kötü). Elle "görsel ara" bundan etkilenmez. */
     var en = photoQuery(q), kw = en.split(/\s+/).filter(function (w) { return w.length >= 4; });
+    /* yanıt gelene dek asetat değişirse fotoğraf konmaz (Phase 2) */
+    var bic = {}, imza = {}; cand.forEach(function (sl) { var i = made.indexOf(sl); bic[i] = sl.lay === 'list' ? '' : 'tam'; imza[i] = gorselImza(sl); });
     fn('sunum-research', { action: 'images', query: en || q, language: curLang() }, 25000).then(function (d) {
       var all = arr(d && d.photos).filter(function (p) { return p && p.large; });
       if (!all.length) { say('Unsplash’te bu konuya uygun fotoğraf bulunamadı; “görsel ara” ile kendin seçebilirsin.'); return; }
-      /* SÜZGEÇ TERS ÇALIŞIYORDU (14.11.2026): alt metin süzgeci yalnız konu
-         İngilizceye ÇEVRİLEBİLDİĞİNDE devreye giriyordu — yani aramanın en
-         isabetli olduğu durumda. "Yazılımın Tarihsel Gelişimi" → "software"
-         araması iyi sonuç verdi ama alt metinlerinde "softw" geçmediği için
-         hepsi atıldı ve tek fotoğraf konmadı. Çeviri başarısızken (örn.
-         "Kuramsal Yaklaşımlar ve Hemşirelik Süreci") süzgeç hiç çalışmıyor,
-         Türkçe arama sonuçları olduğu gibi yerleştiriliyordu — 28.10.2026'da
-         şikâyet edilen tam buydu. Doğrusu tersi: İngilizce arama yapıldıysa
-         alt metni uyanlar öne alınır, uyan yoksa arama zaten konuluydu, ilk
-         sonuçlar kullanılır. Çeviri yoksa yalnız kapağa konur. */
-      var ph, kapakSinir = false;
-      if (en && kw.length) {
-        var hit = all.filter(function (p) { var alt = String(p.alt || '').toLowerCase(); return kw.some(function (w) { return alt.indexOf(w.slice(0, 5)) > -1; }); });
-        ph = hit.length ? hit : all;
-      } else { ph = all.slice(0, 1); kapakSinir = true; }
-      var hedef = kapakSinir ? cand.filter(function (sl) { return sl.lay === 'cover'; }) : cand;
-      if (!hedef.length) { say('Fotoğraf için uygun asetat bulamadım; istediğin asetatı seçip “görsel ara” diyebilirsin.'); return; }
-      var n = 0; hedef.forEach(function (sl, i) { if (!ph[i] || deck.slides.indexOf(sl) < 0) return; placePhoto(sl, ph[i], q); yaziFit(sl); n++; });
-      if (!n) { say('Fotoğraf yerleştirilemedi; “görsel ara” ile kendin seçebilirsin.'); return; }
-      renderAll(); dirty();
-      say(n + ' asetata fotoğraf önerdim' + (kapakSinir ? ' (konu İngilizceye çevrilemedi, bu yüzden yalnız kapağa)' : '') + '. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
+      /* SÜZGEÇ (14.11.2026 → Phase 2, 26.11.2026): 14.11'de alt metni konuya uymayan fotoğraflar "arama zaten
+         konulu" diye yine konuyordu; çeviri yoksa ilk sonuç kapağa gidiyordu. Phase 2 kuralı: alakası ölçülemeyen
+         ya da konuyla tek sözcük paylaşmayan fotoğraf hiç konmaz (yüzde doldurmak için alakasız görsel yok).
+         Çeviri yoksa (Türkçe arama) alaka ölçülemez: fotoğraf konmaz, nedeni söylenir. Kalanlar aynı motordan
+         geçer: tekil atama, sığma denetimi, destede olan fotoğraf yeniden gelmez. */
+      var ph = [], ceviriYok = !(en && kw.length);
+      if (!ceviriYok) ph = all.filter(function (p) { var alt = String(p.alt || '').toLowerCase(); return kw.some(function (w) { return alt.indexOf(w.slice(0, 5)) > -1; }); });
+      if (!ph.length) { say(ceviriYok ? 'Konu İngilizceye çevrilemediği için fotoğrafların konuya uyduğunu doğrulayamadım; “görsel ara” ile kendin seçebilirsin.' : 'Fotoğraf için uygun asetat bulamadım; istediğin asetatı seçip “görsel ara” diyebilirsin.'); return; }
+      yaziSonra(function () {
+        var aday = []; cand.forEach(function (sl) { ph.forEach(function (p) { aday.push(Object.assign({}, p, { i: made.indexOf(sl), skor: 0.5 })); }); });
+        var r = gorselYerlestir(made, cand, bic, imza, { cands: aday }, Math.max(1, cand.filter(function (sl) { return sl.lay !== 'cover'; }).length));
+        dirty();
+        if (!r.yer) { say('Fotoğraf yerleştirilemedi; “görsel ara” ile kendin seçebilirsin.'); return; }
+        renderAll();
+        say(r.yer + ' asetata fotoğraf önerdim. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
+      });
     }, function (e) {
       console.warn('acadex-sunum: otomatik görsel', e);
       /* Sessizce vazgeçmek en kötüsüydü: "fotoğraf öner" işaretliyken hiçbir
@@ -8679,32 +8864,42 @@ var SBX = (function () {
   };
   var illustrate = function (made, topic) {
     var cap = Math.min(8, Math.max(3, Math.ceil(made.length * 0.4)));
-    var cand = made.filter(function (sl) {
-      if (yerTutucu(sl) || sl.v || sl.els.some(function (e) { return GORSEL_EL.test(e.type); })) return false;   /* kartlı düzenin üstüne fotoğraf konmaz */
-      if (sl.lay === 'cover') return true;
-      if (!/^(list|quote)$/.test(sl.lay || '')) return false;
-      var t = sl.els.filter(function (e) { return (e.type === 'ul' || e.type === 't') && !e.muted; }).map(function (e) { return e.text; }).join('\n');
-      return t && t.split('\n').filter(Boolean).length <= 4 && t.length < 430;      /* 340 iken belge destesinde dört maddelik hiçbir liste aday olamadı, yalnız kapak fotoğraf aldı (14.11.2026) */
+    /* YUVA MOTORU (Phase 2): aday = bildirilen yuvası olan ve 3:2 deneme fotoğrafıyla gerçekten sığan asetat. Kapak
+       her zaman; sonra ihtiyaç (varlık > somut sorgu > ipuçsuz), az küçülme, deste sırası. İstek en çok "cap" asetat
+       (sunucu da 8'de keser), bütçenin iki fazlası: bir aday düşerse yedeği konur. Yuvası olmayan ya da sığmayan
+       asetat dokunulmadan kalır; nedeni sl.gorsel'e yazılır. */
+    var icerik = made.filter(function (sl) { return !/^(cover|end|refs)$/.test(sl.lay || ''); }), butce = icerik.length ? Math.max(1, Math.round(icerik.length * BUTCE_ORAN)) : 0;      /* içeriğin yaklaşık %40'ı (yuvarlanır), en az 1 */
+    var hazir = yaziHazirMi(), p0 = { w: 3, h: 2, large: 'about:blank', alt: '' }, adaylar = [];
+    made.forEach(function (sl, i) {
+      var fs = yuvaFormlari(sl, ''); if (!fs.length) { if (sl.imgq) gorselDurum(sl, 'miss:yuva-yok'); return; }
+      var dn = null; if (hazir) { for (var k = 0; k < fs.length && !dn; k++) dn = yuvaDene(sl, fs[k], [p0, p0], ''); if (!dn) { gorselDurum(sl, 'miss:sigmaz'); return; } }
+      adaylar.push({ sl: sl, i: i, ihtiyac: ihtiyac(sl), dusus: dn ? dn.dusus : 0 });
     });
-    /* kapak her zaman; sonra yazarın ipucu verdiği asetatlar; üst sınır destenin %40'ı */
-    cand.sort(function (a, b) { return ((b.lay === 'cover') - (a.lay === 'cover')) || ((b.imgq ? 1 : 0) - (a.imgq ? 1 : 0)); });
-    cand = cand.slice(0, cap);
+    adaylar.sort(function (a, b) { return ((b.sl.lay === 'cover') - (a.sl.lay === 'cover')) || (b.ihtiyac - a.ihtiyac) || (a.dusus - b.dusus) || (a.i - b.i); });
+    var kapak = adaylar.filter(function (x) { return x.sl.lay === 'cover'; }).slice(0, 1), gov = adaylar.filter(function (x) { return x.sl.lay !== 'cover'; }), say0 = Math.max(0, Math.min(cap - kapak.length, butce + 2));
+    gov.slice(say0).forEach(function (x) { gorselDurum(x.sl, 'miss:butce'); });
+    var cand = kapak.concat(gov.slice(0, say0)).map(function (x) { return x.sl; });
     if (!cand.length) { say('Fotoğraf için uygun asetat bulamadım; istediğin asetatı seçip “görsel ara” diyebilirsin.'); return; }
-    /* Biçim sırası: kapak başlığa göre sağ ya da sol; alıntı tam sayfa; listeler sağ → üst üste iki → sol diye döner. */
-    var bic = {}, li = 0, tp = String(topic || '');
-    cand.slice().sort(function (a, b) { return made.indexOf(a) - made.indexOf(b); }).forEach(function (sl) { bic[made.indexOf(sl)] = sl.lay === 'cover' ? 'tam' : sl.lay === 'quote' ? 'tam' : ['', 'iki', 'sol'][li++ % 3]; });
+    /* Biçim sırası: kapak başlığa göre sağ ya da sol; alıntı tam sayfa; listeler sağ → üst üste iki → sol diye döner; çeşitli düzende gövde sola sıkışır (yan). */
+    var bic = {}, li = 0, imza = {};
+    cand.slice().sort(function (a, b) { return made.indexOf(a) - made.indexOf(b); }).forEach(function (sl) { bic[made.indexOf(sl)] = sl.lay === 'cover' ? 'tam' : sl.lay === 'quote' ? 'tam' : sl.lay === 'list' && !sl.v ? ['', 'iki', 'sol'][li++ % 3] : yuvaFormlari(sl, '')[0]; imza[made.indexOf(sl)] = gorselImza(sl); });
     var payload = cand.map(function (sl) { var i = made.indexOf(sl); return { i: i, title: titleOf(sl), text: bodyOf(sl).slice(0, 300), q: sl.imgq ? sl.imgq.q || '' : '', entity: sl.imgq ? sl.imgq.entity || '' : '', iki: bic[i] === 'iki' ? 1 : 0 }; });
-    fn('sunum-research', { action: 'illustrate', topic: topic, language: curLang(), slides: payload }, 50000).then(function (d) {
-      var n = 0;
-      var grp = {}; arr(d && d.photos).forEach(function (p) { if (p && p.large) (grp[p.i] = grp[p.i] || []).push(p); });
-      Object.keys(grp).forEach(function (k) {
-        var sl = made[k], ps = grp[k], f = bic[k] || ''; if (!sl || deck.slides.indexOf(sl) < 0 || sl.els.some(function (e) { return e.type === 'img'; })) return;
-        if (f === 'iki' && ps.length > 1) placePair(sl, ps[0], ps[1]); else placePhoto(sl, ps[0], ps[0].alt, f === 'iki' ? 'sol' : f);
-        yaziFit(sl); n++;
+    /* destede zaten olan fotoğraflar (ekleme basımı, elle eklenen) sunucuya bildirilir; istemci de ayrıca eler */
+    var haric = Object.keys(destedekiFotolar()).filter(function (k) { return /^https?:/.test(k); }).slice(0, 80);
+    fn('sunum-research', { action: 'illustrate', topic: topic, language: curLang(), slides: payload, haric: haric }, 50000).then(function (d) {
+      yaziSonra(function () {
+        var r = gorselYerlestir(made, cand, bic, imza, d, butce), n = r.aday;
+        if (!n) { autoPhotos(made, topic); return; }
+        dirty(); if (r.yer) renderAll();
+        /* Kapak bir kez yeniden denenir (T5: kapaksız deste): konu İngilizce sorguya çevrilebiliyorsa, model çağrısı olmadan. */
+        var ks = cand.filter(function (sl) { return sl.lay === 'cover' && sl.gorsel && /^miss:(aday-yok|alaka)$/.test(sl.gorsel.durum); })[0], kq = ks ? photoQuery(topic || titleOf(ks)) : '';
+        var bitir = function (ek) { var top = r.yer + (ek || 0); say(top ? top + ' asetata konusuna uygun görsel yerleştirdim' + (d && d.rate ? ' (Unsplash saatlik sınırı doldu, kalanı Wikimedia’dan)' : '') + '. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.' : 'Konuya yeterince uyan ve asetata sığan fotoğraf bulamadım; yazılar olduğu gibi kaldı. “görsel ara” ile kendin seçebilirsin.'); };
+        if (!ks || !kq) { bitir(0); return; }
+        var ki = made.indexOf(ks);
+        fn('sunum-research', { action: 'illustrate', topic: topic, language: curLang(), slides: [{ i: ki, title: titleOf(ks), text: bodyOf(ks).slice(0, 300), q: kq.slice(0, 80), entity: '', iki: 0 }], haric: Object.keys(destedekiFotolar()).filter(function (k) { return /^https?:/.test(k); }).slice(0, 80) }, 50000).then(function (d2) {
+          yaziSonra(function () { var r2 = gorselYerlestir(made, [ks], bic, imza, d2, butce); dirty(); if (r2.yer) renderAll(); bitir(r2.yer); });
+        }, function () { bitir(0); });
       });
-      if (!n) { autoPhotos(made, topic); return; }
-      renderAll(); dirty();
-      say(n + ' asetata konusuna uygun görsel yerleştirdim' + (d && d.rate ? ' (Unsplash saatlik sınırı doldu, kalanı Wikimedia’dan)' : '') + '. Beğenmediğini seçip silebilir ya da “görsel ara” ile değiştirebilirsin.');
     }, function (e) { console.warn('acadex-sunum: görsel yerleştirme', e); autoPhotos(made, topic); });
   };
   /* BOŞ ŞERİT BASILMADAN ÖNCE YAZILIR (14.11.2026). "giriş ekle" / "sonuç ekle" /
@@ -8803,15 +8998,14 @@ var SBX = (function () {
     var vSay = {}, vSec = function (s, kind) { vSay.yedek = null; vSay.tani = null; var v = vSecKural(s, kind); DZ.kaydet(kind, v, vSay.tani ? vSay.tani.neden : 'kural'); return v; }, vSecKural = function (s, kind) {
       /* Uyarı yalnız LİSTEYİ klasikte tutar: zaman çizelgesinde uyarı zaten
          çizilmiyordu, yine de çizelge klasiğe düşüyordu (canlı deste 14.11.2026). */
-      if (!VSIRA[kind] || (/^(list|quote)$/.test(kind) && s.img && s.img.entity)) return 0;
+      /* FOTOĞRAF İÇİN DÜZEN AYRILMAZ (Phase 2, 26.11.2026). Eskiden üç kural ipuçlu asetatı seçiciden önce klasikte
+         tutuyordu (varlık ipucu her zaman; 3-4 maddelik ipuçlu liste dönüşümlü; ipuçlu ilk alıntı). Fotoğraf
+         gelmeyince ya da aday sınırına takılınca asetat hem çeşidini hem fotoğrafını kaybediyordu (denetim #19:
+         16-36 asetat). Artık ipuçlu asetat ipuçsuzla aynı yoldan seçilir; fotoğraf, seçilen çeşidin bildirdiği
+         yuvaya sığarsa konur (yuvaFormlari, yuvaDene), sığmazsa yuva kapanır. */
+      if (!VSIRA[kind]) return 0;
       /* Uyarılı liste de bütün çeşitleri dolaşır (25.11.2026); uyarı işareti kart yazılarına da çizilir. */
       vSay.tek = 0;
-      /* Fotoğraf ipuçlu liste dönüşümlü olarak klasikte kalır: fotoğraf yalnız klasik listeye konuyor,
-         "Semiconductor Race" destesinde (25.11.2026) listelerin hepsi kartlı çeşitle basıldı ve 12
-         içerik asetatından yalnız kapakta fotoğraf vardı. Klasik iki kez üst üste gelmez. */
-      if (kind === 'list' && s.img && s.img.q && arr(s.b).length >= 3 && arr(s.b).length <= 4 && vSay.aile !== 'k') { vSay.fo = (vSay.fo || 0) + 1; if (vSay.fo % 2) return 0; }
-      /* Fotoğraf ipucu olan ilk alıntı klasik kalır: fotoğraf gelirse tam sayfa fotoğraf + metin panosu olur (placeTam). */
-      if (kind === 'quote' && s.img && s.img.q && !vSay.qf) { vSay.qf = 1; return 0; }
       if (kind === 'quote') return 2;      /* ara vurgu: koyu zeminde ortalı tek cümle (kutulu çeşitler koyu zemine uymaz) */
       /* ince asetat: tek cümle kutusu — ama art arda değil. "Kanın fizyolojik özellikleri"
          destesinde (14.11.2026) "ikiye böl" ile oluşan on iki maddelik asetatın onu da aynı
@@ -9012,6 +9206,7 @@ var SBX = (function () {
       if (kind === 'list') vSay.aile = LAILE[sl.v || 0] || '';
       if (/^(cover|end)$/.test(kind) || (kind === 'quote' && sl.v === 2)) sl.bg = 'navy';      /* koyu ritim (25.11.2026): kapak, ara vurgu, kapanış */
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
+      if (sl.imgq) gorselDurum(sl, 'ipucu');      /* ipucu asetatla kaydedilir; fotoğraf istenirse sonucu üstüne yazılır (Phase 2) */
       var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } else if (e.type === 't' && !e.dz && e.text) { var w0 = wl.filter(function (w) { return uyarEs(w, e.text); })[0]; if (w0) { e.warn = [e.text]; e.why = {}; if (wy[w0]) e.why[e.text] = wy[w0]; } } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs' && !notYeter(s.notes)) { AI.note(sl, true); taslak.push({ sl: sl, n: sl.notes }); } if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
     /* Kapak ve kapanışın notu hiç yoktu (0 kelime): sunumun en zor iki ânı —
        açılış ve soru-cevap — hazırlıksız kalıyordu, kalite ölçümü de her destede
@@ -9319,6 +9514,25 @@ var SBX = (function () {
     });
   };
   var BGC = { clear: 'FFFFFF', blue: 'EEF3FF', navy: '0D1838' };
+  /* UZAK FOTOĞRAF ÖNCEDEN İNDİRİLİR (Phase 2, 26.11.2026): pptxgenjs adresli görselleri yazarken Promise.all ile çekiyor;
+     tek bir açılmayan ya da CORS başlığı olmayan adres dosyanın TAMAMINI düşürüyordu, 404 ise dosyaya bozuk resim olarak
+     giriyordu (denetim #19, D3). Her adres süreyle indirilir; yalnız gerçekten görsel dönen yanıt veriye çevrilir
+     (PowerPoint'in açmadığı webp/avif JPEG'e çevrilir), açılmayan fotoğraf atlanır ve sayısı söylenir. */
+  var gorselVeri = function (url, ms) {
+    return new Promise(function (res) {
+      var bitti = false, son = function (v) { if (!bitti) { bitti = true; res(v || null); } }, ac = typeof AbortController === 'function' ? new AbortController() : null;
+      setTimeout(function () { if (ac) ac.abort(); son(null); }, ms || 12000);
+      var oku = function (b) { return new Promise(function (r2) { var fr = new FileReader(); fr.onload = function () { r2(String(fr.result || '')); }; fr.onerror = function () { r2(''); }; fr.readAsDataURL(b); }); };
+      var jpeg = function (b) { return new Promise(function (r2) { var u = URL.createObjectURL(b), im = new Image(); im.onload = function () { try { var c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); r2(c.toDataURL('image/jpeg', 0.9)); } catch (e) { r2(''); } URL.revokeObjectURL(u); }; im.onerror = function () { URL.revokeObjectURL(u); r2(''); }; im.src = u; }); };
+      try {
+        fetch(url, { mode: 'cors', credentials: 'omit', signal: ac ? ac.signal : undefined }).then(function (r) {
+          var tip = String(r.headers.get('content-type') || '').toLowerCase();
+          if (!r.ok || tip.indexOf('image/') !== 0) return son(null);
+          return r.blob().then(function (b) { return /^image\/(jpeg|png|gif)/.test(tip) ? oku(b) : jpeg(b); }).then(function (v) { son(/^data:image\//.test(v) ? v : null); });
+        }).catch(function () { son(null); });
+      } catch (e) { son(null); }
+    });
+  };
   var exportPptx = async function (btn) {
     if (!deck.slides.length) { say('İndirilecek asetat yok.'); return; }
     await yaziHazirSoz();      /* PPTX ekrandaki gibi doğrulanmış yazıyla sığdırılmış boyutları taşır (açılan deste önce sığdırılır) */
@@ -9327,7 +9541,9 @@ var SBX = (function () {
     try {
       var P = await pptxLib(), pp = new P(); pp.layout = 'LAYOUT_16x9'; pp.title = deck.title || 'Acadex sunumu'; pp.author = (profile().full_name || 'Acadex'); pp.company = 'Acadex';
       var IN = function (v) { return Math.max(0, v) / 96; }, PT = function (v) { return Math.round((v || 20) * 0.75); };
-      var skipped = 0;
+      var skipped = 0, uzak = {}, veri = {}, atlanan = 0;
+      deck.slides.forEach(function (s0) { s0.els.forEach(function (e) { if (e.type === 'img' && e.src && /^https?:/.test(e.src)) uzak[e.src] = 1; }); });
+      await Promise.all(Object.keys(uzak).map(function (u) { return gorselVeri(u).then(function (v) { veri[u] = v; }); }));
       for (var si = 0; si < deck.slides.length; si++) {
         var s = deck.slides[si], sl = pp.addSlide(), bg = s.bg || 'clear', dark = bg === 'navy';
         var TX = deck.tema, ff = TX && TX.bf || 'Arial', fh = TX && TX.hf || ff; sl.background = { color: TX ? hex(TX.bg[bg] || TX.bg.clear) : BGC[bg] || 'FFFFFF' };
@@ -9342,7 +9558,7 @@ var SBX = (function () {
           else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = kutuGolge(e) ? 'FFFFFF' : hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : saydam(temaRenk(e.fill || '')) ? { color: fc, transparency: saydam(temaRenk(e.fill || '')) } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : saydam(temaRenk(e.fill || '')) ? { type: 'none' } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
           else if (e.type === 'arrow') sl.addShape(pp.ShapeType.line, { x: box.x, y: box.y + box.h / 2, w: box.w, h: 0, line: { color: hex(temaRenk(e.color), '#2F6BFF'), width: 3, endArrowType: 'triangle' } });
           else if (e.type === 'mark') sl.addShape(pp.ShapeType.rect, { x: box.x, y: box.y + box.h * 0.3, w: box.w, h: Math.max(0.04, box.h * 0.35), fill: { color: hex(temaRenk(e.color), '#2F6BFF'), transparency: 35 }, line: { type: 'none' } });
-          else if (e.type === 'img') { if (e.src) sl.addImage({ [/^https?:/.test(e.src) ? 'path' : 'data']: e.src, x: box.x, y: box.y, w: e.kap ? box.h * (e.oran || 1.5) : box.w, h: box.h, sizing: { type: e.kap ? 'cover' : 'contain', w: box.w, h: box.h } }); }   /* kap: kutuyu kırparak doldurur; w/h fotoğrafın kendi oranını taşır */
+          else if (e.type === 'img') { var isrc = e.src && /^https?:/.test(e.src) ? veri[e.src] : e.src; if (e.src && !isrc) { atlanan++; continue; } if (isrc) sl.addImage({ data: isrc, x: box.x, y: box.y, w: e.kap ? box.h * (e.oran || 1.5) : box.w, h: box.h, sizing: { type: e.kap ? 'cover' : 'contain', w: box.w, h: box.h } }); }   /* kap: kutuyu kırparak doldurur; w/h fotoğrafın kendi oranını taşır; adresli fotoğraf önceden indirildi */
           else if (e.type === 'chart') {
             var ch = e.chart || {}, vals = chartVals(ch); if (!vals.length) continue; var ty = String(ch.type || 'bar').toLowerCase();
             if (ty === 'ring') { var rv0 = Math.max(0, Math.min(100, vals[0])); sl.addChart(pp.ChartType.doughnut, [{ name: titleOf(s) || 'Oran', labels: ['', ''], values: [rv0, 100 - rv0] }], Object.assign({}, box, { chartColors: [hex(temaRenk(BLUE)), 'E4E8F1'], showLegend: false, showValue: false, holeSize: 78 })); continue; }
@@ -9365,7 +9581,7 @@ var SBX = (function () {
       }
       var name = String(deck.title || 'acadex-sunum').replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80) || 'acadex-sunum';
       await pp.writeFile({ fileName: name + '.pptx' });
-      say('PowerPoint dosyası indirildi.' + (skipped ? ' ' + skipped + ' çizim aktarılamadı; PDF çıktısında görünür.' : ''));
+      say('PowerPoint dosyası indirildi.' + (skipped ? ' ' + skipped + ' çizim aktarılamadı; PDF çıktısında görünür.' : '') + (atlanan ? ' ' + atlanan + ' fotoğraf açılamadığı için dosyaya konmadı (bağlantısı artık çalışmıyor).' : ''));
     } catch (err) {
       console.warn('acadex-sunum: pptx', err); say('PowerPoint dosyası hazırlanamadı: ' + (err && err.message || 'bilinmeyen hata') + '. PDF indirmeyi deneyebilirsin.');
     } finally { off.remove(); if (btn) { btn.disabled = false; btn.textContent = 'PowerPoint indir'; } }
@@ -9553,7 +9769,7 @@ var SBX = (function () {
         if (d.slides.length) {
           var rows = d.slides.map(function (sl, i) {
             return { presentation_id: d.dbId, order_index: i, title: (titleOf(sl) || '').slice(0, 200), speaker_notes: sl.notes || '', layout_type: LT[sl.lay] || 'title-content',
-              content: { ink: 1, id: sl.id, lay: sl.lay || null, v: sl.v || 0, bg: sl.bg || 'clear', els: JSON.parse(JSON.stringify(sl.els, kaliciJSON)), text: bodyOf(sl) } };      /* asıl boyutlar (kaliciJSON) */
+              content: Object.assign({ ink: 1, id: sl.id, lay: sl.lay || null, v: sl.v || 0, bg: sl.bg || 'clear', els: JSON.parse(JSON.stringify(sl.els, kaliciJSON)), text: bodyOf(sl) }, sl.gorsel ? { gorsel: sl.gorsel } : {}) };      /* asıl boyutlar (kaliciJSON); görsel ipucu ve sonucu (Phase 2) */
           });
           /* Şablon için ayrı sütun yok; ilk asetatın content'ine yazılır, sunumla birlikte taşınır. */
           if (d.tema && d.tema.def) rows[0].content.tema = d.tema.def;
@@ -9592,7 +9808,7 @@ var SBX = (function () {
       }
       d.slides = (r.data || []).map(function (row) {
         var ct = row.content || {};
-        if (ct.ink && Array.isArray(ct.els)) { var rs = { id: ct.id || uid(), lay: ct.lay || null, bg: ct.bg || 'clear', notes: row.speaker_notes || '', els: ct.els }; if (ct.v) rs.v = ct.v; return rs; }
+        if (ct.ink && Array.isArray(ct.els)) { var rs = { id: ct.id || uid(), lay: ct.lay || null, bg: ct.bg || 'clear', notes: row.speaker_notes || '', els: ct.els }; if (ct.v) rs.v = ct.v; if (ct.gorsel && typeof ct.gorsel === 'object') { rs.gorsel = ct.gorsel; if (ct.gorsel.q || ct.gorsel.entity) rs.imgq = { q: ct.gorsel.q || '', entity: ct.gorsel.entity || '' }; } return rs; }
         var b = String(ct.text || '').split('\n').map(cleanB).filter(Boolean).slice(0, 8), sl = newSlide(b.length ? 'list' : 'cover', row.title || 'Başlık', b); sl.notes = row.speaker_notes || ''; return sl;
       });
       var c0 = r.data && r.data[0] && r.data[0].content; d.tema = c0 && c0.tema ? temaKur(c0.tema) : null;

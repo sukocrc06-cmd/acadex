@@ -138,8 +138,11 @@ if (!CHROME) {
     assert.ok(ink.includes("var sh = await c.from('presentations').select('share_token').eq('id', m.dbId).maybeSingle(); if (!sh.error && sh.data && sh.data.share_token) d.share = sh.data.share_token;"));
     assert.ok(ink.includes('if (c0 && c0.snapBekle) d.snapBekle = 1;'));
     assert.ok(ink.includes('rows[0].content.surum = surum; if (!sn && d.share && d.dbId) rows[0].content.snapBekle = 1;'));
-    let st = ''; try { st = require('node:child_process').execFileSync('git', ['status', '--porcelain', '--', 'supabase'], { cwd: ROOT }).toString(); } catch (e) { st = 'git yok'; }
-    assert.equal(st, '', 'supabase/ (migration, fonksiyon) değişmemeli');
+    /* Phase 2 (#20): yalnız sunum-research edge function'ı değişebilir; migration, RPC ve öteki fonksiyonlar değişmez */
+    let st = ''; try { st = require('node:child_process').execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', 'supabase'], { cwd: ROOT }).toString(); } catch (e) { st = 'git yok'; }
+    const degisen = st.split('\n').filter(Boolean).map((l) => l.slice(3));
+    assert.ok(st !== 'git yok', 'git çalışmadı');
+    assert.deepEqual(degisen.filter((f) => f !== 'supabase/functions/sunum-research/index.ts'), [], 'supabase/ altında izinsiz değişiklik (migration, RPC ya da başka fonksiyon)');
   });
   summary();
 })();

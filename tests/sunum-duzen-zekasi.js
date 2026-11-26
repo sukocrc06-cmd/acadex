@@ -255,19 +255,20 @@ test('B4 newSlide yedeğe düşerse bellek BASILAN çeşidi tutar', () => {
 });
 
 /* ================================ C · KORUNAN ESKİ DAVRANIŞLAR ================================ */
-test('C1 alıntı erken dönüşleri: ilk fotoğraflı alıntı klasik, sonra koyu zemin (2); varlık fotoğraflı alıntı klasik', () => {
+test('C1 alıntı koyu zemin (2); fotoğraf ipucu düzen ayırmaz (Phase 2): ipuçlu alıntı ve varlık ipuçlu liste ipuçsuzla aynı', () => {
   const run = yap(), q = (img) => ({ t: 'Q', b: ['Kısa ve net bir cümle burada yer alır.'], img });
-  assert.equal(run.vSec(q({ q: 'kütüphane' }), 'quote'), 0); assert.equal(run.vSay.tani, null, 'kural dönüşünde aday denenmez');
+  assert.equal(run.vSec(q({ q: 'kütüphane' }), 'quote'), 2); assert.equal(run.vSay.tani, null, 'kural dönüşünde aday denenmez');
   assert.equal(run.vSec(q({ q: 'kütüphane' }), 'quote'), 2); assert.equal(run.vSec(q(null), 'quote'), 2);
-  assert.equal(run.vSec(q({ entity: 'Atatürk' }), 'quote'), 0); assert.equal(run.vSec({ t: 'L', b: DUZ, img: { entity: 'Ankara' } }, 'list'), 0);
+  assert.equal(run.vSec(q({ entity: 'Atatürk' }), 'quote'), 2);
+  assert.equal(yap().vSec({ t: 'L', b: DUZ, img: { entity: 'Ankara' } }, 'list'), yap().vSec({ t: 'L', b: DUZ }, 'list'), 'varlık ipucu liste düzenini değiştiriyor');
 });
 
-test('C2 kural 4–6: ince liste kutusu art arda gelmez, "Terim: açıklama" kolona açılır, fotoğraflı liste dönüşümlü klasik', () => {
+test('C2 kural 4–6: ince liste kutusu art arda gelmez, "Terim: açıklama" kolona açılır, fotoğraflı liste ipuçsuzla aynı (Phase 2)', () => {
   const r1 = yap(); assert.equal(r1.vSec({ t: 'A', b: ['Tek cümlelik not'] }, 'list'), 6); assert.equal(r1.vSay.tani, null, 'kural dönüşünde aday denenmez');
   r1.vSay.aile = LAILE[6]; assert.equal(r1.vSec({ t: 'B', b: ['Bir not daha'] }, 'list'), 0, 'ince liste kutusu art arda gelmez');
   assert.equal(yap().bas({ t: 'K', b: KOL }, 'list').v, 7);
-  const r3 = yap(), ph = [0, 1, 2, 3].map(() => r3.bas({ t: 'F', b: DUZ, img: { q: 'wafer' } }, 'list').v);
-  assert.equal(ph[0], 0); assert.ok(ph.filter((v) => !v).length >= 2 && !ph.some((v, i) => i && !v && !ph[i - 1]), 'fotoğraflı liste dönüşümlü klasik, iki klasik art arda değil: ' + ph.join(','));
+  const r3 = yap(), r4 = yap(), ph = [0, 1, 2, 3].map(() => r3.bas({ t: 'F', b: DUZ, img: { q: 'wafer' } }, 'list').v), ph0 = [0, 1, 2, 3].map(() => r4.bas({ t: 'F', b: DUZ }, 'list').v);
+  assert.deepEqual(ph, ph0, 'fotoğraf ipucu liste düzenini değiştiriyor: ' + ph.join(',') + ' / ' + ph0.join(','));
 });
 
 test('C3 vTur: alıntı art arda gelmez, destede en çok iki', () => {
@@ -291,7 +292,8 @@ test('C5 eski 8 liste serisi (sunum-arastirma-gorsel :686–702) Revizyon 5 ile 
 });
 
 test('C6 kural 1–6, vTur, VSIRA/VARY/LAILE ve newSlide girişi kaynakta korunur', () => {
-  assert.match(VS, /if \(!VSIRA\[kind\] \|\| \(\/\^\(list\|quote\)\$\/\.test\(kind\) && s\.img && s\.img\.entity\)\) return 0;/);
+  assert.match(VS, /if \(!VSIRA\[kind\]\) return 0;/);
+  assert.ok(!/vSay\.fo|vSay\.qf|s\.img\.entity\)\) return 0/.test(VS), 'fotoğraf için düzen ayıran kural geri geldi (Phase 2)');
   assert.match(VS, /if \(kind === 'quote'\) return 2;/);
   assert.match(VS, /return vSay\.aile === LAILE\[6\] \? 0 : 6;/);
   assert.match(VS, /if \(kol && !vSay\.kol\) \{ vSay\.kol = 1; return 7; \}/);
@@ -329,9 +331,13 @@ test('D0 P1 kaynak kuralları: check() kapı değil, sabitler, basım sırası, 
   assert.match(cut('  var temaSec = function (T) {', '\n  };\n'), /deck\.temaEl = 1; fitIzKur\(\); deck\.tema = [^\n]+\n[\s\S]*yaziSonra\(function \(\) \{\}, 'uyum'\);/);
   assert.match(ink, /var T = deck\.tema; fitIzKur\(\); temaHazir\(T\);/);
   /* sığdırma ve ölçüm yapan her yol yazı kapısından geçer */
-  ['placePhoto(s0, p, imQ.value.trim()); yaziFit(s0);', 's.v = alt ? v : 0; yaziFit(s);', 'placePhoto(sl, ph[i], q); yaziFit(sl); n++;', '        yaziFit(sl); n++;'].forEach((x) => assert.ok(ink.includes(x), 'düzenleyici sığdırması beklemeli: ' + x));
+  ['placePhoto(s0, p, imQ.value.trim()); yaziFit(s0);', 's.v = alt ? v : 0; yaziFit(s);'].forEach((x) => assert.ok(ink.includes(x), 'düzenleyici sığdırması beklemeli: ' + x));
+  /* Phase 2: otomatik fotoğraf yerleştirme yuva motorundan geçer; ölçüm yalnız doğrulanmış yazıyla (gorselSec kapısı, yanıtlar yaziSonra içinde) */
+  assert.match(ink, /var gorselSec = function \(sl, ps, bic, alt\) \{\n    if \(!yaziHazirMi\(\)\) return null;/);
+  assert.match(ink, /var dn = null; if \(hazir\) \{ for \(var k = 0; k < fs\.length && !dn; k\+\+\) dn = yuvaDene\(/);
+  assert.ok((ink.match(/yuvaDene\(/g) || []).length === 2, 'yuvaDene yalnız gorselSec ve illustrate denemesinden çağrılır');
   assert.ok(!/fitHazir/.test(ink), '"şimdi sığdır, sonra bir daha" yolu kalmamalı');
-  assert.equal(ink.split('fitSlide(').length - 1, 4, 'fitSlide çağrıları: yaziUyum, yaziFit, DZ ölçümü, printDeck — yenisi eklendiyse yazı kapısından geçmeli');
+  assert.equal(ink.split('fitSlide(').length - 1, 5, 'fitSlide çağrıları: yaziUyum, yaziFit, DZ ölçümü, printDeck, yuvaDene (Phase 2, kapıdan geçer) — yenisi eklendiyse yazı kapısından geçmeli');
   assert.match(cut('  var openAudit = function () {', '    var paint = function'), /if \(!yaziHazirMi\(\) \|\| yaziKuyruk\.length\) \{ say\([^)]*\); yaziSonra\(openAudit, 'denetim'\); return; \}/);
   assert.match(cut('    var doFix = function (list) {', '\n    };'), /if \(!yaziHazirMi\(\)\) \{ yaziSonra\(function \(\) \{ doFix\(list\); \}\); return; \}/);
   assert.match(ink, /var apply = function \(\) \{\n        if \(!yaziHazirMi\(\) \|\| yaziKuyruk\.length\) \{ yaziSonra\(apply, 'ai:' \+ sid\); return; \}/);

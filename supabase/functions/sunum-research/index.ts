@@ -83,17 +83,17 @@ async function wikiPages(lang: string, q: string, n: number): Promise<Wiki[]> {
 }
 
 // ---------- görsel kaynakları ----------
-type Photo = { id: string; alt: string; w: number; h: number; thumb: string; large: string; photographer: string; photographer_url?: string; page: string; source: string; source_url: string; track?: string; license?: string };
+type Photo = { id: string; alt: string; w: number; h: number; thumb: string; large: string; photographer: string; photographer_url?: string; page: string; source: string; source_url: string; track?: string; license?: string; license_url?: string; title?: string; desc?: string; skor?: number };
 const UTM = "utm_source=acadex&utm_medium=referral";
 const mapUnsplash = (p: any, q: string): Photo => ({
   id: String(p.id), alt: p.alt_description || p.description || q, w: p.width, h: p.height,
   thumb: p.urls?.small, large: p.urls?.regular,
   photographer: p.user?.name, photographer_url: `${p.user?.links?.html}?${UTM}`, page: `${p.links?.html}?${UTM}`,
-  source: "Unsplash", source_url: `https://unsplash.com/?${UTM}`, track: p.links?.download_location,
+  source: "Unsplash", source_url: `https://unsplash.com/?${UTM}`, track: p.links?.download_location, license: "Unsplash License", license_url: "https://unsplash.com/license",
 });
 const mapPexels = (p: any, q: string): Photo => ({
   id: String(p.id), alt: p.alt || q, w: p.width, h: p.height, thumb: p.src?.medium, large: p.src?.large,
-  photographer: p.photographer, photographer_url: p.photographer_url, page: p.url, source: "Pexels", source_url: "https://www.pexels.com",
+  photographer: p.photographer, photographer_url: p.photographer_url, page: p.url, source: "Pexels", source_url: "https://www.pexels.com", license: "Pexels License", license_url: "https://www.pexels.com/license/",
 });
 async function unsplashSearch(q: string, per: number): Promise<{ photos: Photo[]; rate: boolean; ok: boolean }> {
   const key = Deno.env.get("UNSPLASH_ACCESS_KEY"); if (!key) return { photos: [], rate: false, ok: false };
@@ -129,31 +129,51 @@ async function commonsSearch(q: string, per: number): Promise<Photo[]> {
     if ((ii.width || 0) < 700 || (ii.height || 0) < 400) continue;          // küçük görsel perdede bulanır
     if ((ii.height || 1) / (ii.width || 1) > 1.6) continue;                  // çok dikey görsel asetata oturmaz
     const meta = ii.extmetadata || {};
-    out.push({ id: "c" + pg.pageid, alt: stripTags(meta.ImageDescription?.value || "").slice(0, 160) || q, w: ii.thumbwidth || ii.width, h: ii.thumbheight || ii.height,
+    const desc = stripTags(meta.ImageDescription?.value || "").slice(0, 160);
+    out.push({ id: "c" + pg.pageid, alt: desc || q, w: ii.thumbwidth || ii.width, h: ii.thumbheight || ii.height,
       thumb: ii.thumburl || ii.url, large: ii.thumburl || ii.url, photographer: artistOf(meta.Artist?.value || ""), page: ii.descriptionurl || "",
-      source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org", license: stripTags(meta.LicenseShortName?.value || "") });
+      source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org", license: stripTags(meta.LicenseShortName?.value || ""), license_url: stripTags(meta.LicenseUrl?.value || ""),
+      title: dosyaAdi(String(pg.title || "")), desc });
   }
   return out;
 }
 // Wikipedia maddesinin kendi görseli: yalnız ÖZGÜR lisanslı (pilicense=free) —
 // adil kullanım (logo, afiş, kapak) görselleri sunuma taşınmaz.
 const wikiNotPhoto = (file: string, src: string): boolean => /\.svg/i.test(file + " " + src) || NOT_PHOTO.test(file.replace(/_/g, " "));
+/* Commons dosya adı → okunur ad ("File:Electric_vehicle_battery.jpg" → "Electric vehicle battery") */
+const dosyaAdi = (t: string): string => String(t || "").replace(/^(?:File|Dosya):/i, "").replace(/\.[a-z0-9]{2,5}$/i, "").replace(/_/g, " ").trim();
+/* Madde görselinin yazarı ve lisansı (Phase 2): pilicense=free yalnız özgür olduğunu söyler; CC BY / BY-SA yazar ve lisans
+   adı ister. Dosyanın kendi künyesi okunur; okunamazsa boş kalır (uydurulmaz). */
+async function dosyaBilgi(file: string): Promise<{ yazar: string; lisans: string; lisansUrl: string }> {
+  for (const host of ["commons.wikimedia.org", "en.wikipedia.org"]) {
+    const r = await tfetch(`https://${host}/w/api.php?format=json&origin=*&action=query&prop=imageinfo&iiprop=extmetadata&titles=${encodeURIComponent("File:" + file)}`, { headers: UA }, 5000);
+    const j: any = r && r.ok ? await r.json().catch(() => null) : null;
+    const m: any = (Object.values(j?.query?.pages || {})[0] as any)?.imageinfo?.[0]?.extmetadata;
+    if (m) return { yazar: artistOf(m.Artist?.value || ""), lisans: stripTags(m.LicenseShortName?.value || ""), lisansUrl: stripTags(m.LicenseUrl?.value || "") };
+  }
+  return { yazar: "", lisans: "", lisansUrl: "" };
+}
 async function wikiImage(entity: string): Promise<Photo | null> {
   for (const lang of ["en", "tr"]) {
     const base = `https://${lang}.wikipedia.org/w/api.php?format=json&origin=*&action=query&prop=pageimages|info&inprop=url&piprop=thumbnail|name&pithumbsize=1200&pilicense=free&redirects=1`;
     let r = await tfetch(`${base}&titles=${encodeURIComponent(entity)}`, { headers: UA }, 6000);
     let j: any = r && r.ok ? await r.json().catch(() => null) : null;
-    let pg: any = Object.values(j?.query?.pages || {})[0];
+    let pg: any = Object.values(j?.query?.pages || {})[0], skor = 0.9;
     if (!pg?.thumbnail) {
       r = await tfetch(`${base}&generator=search&gsrlimit=1&gsrsearch=${encodeURIComponent(entity)}`, { headers: UA }, 6000);
       j = r && r.ok ? await r.json().catch(() => null) : null;
-      pg = Object.values(j?.query?.pages || {})[0];
+      pg = Object.values(j?.query?.pages || {})[0]; skor = 0.75;
+      /* Aramanın ilk sonucu başka bir madde olabilir: "Bitcoin" kapağına öğrenci seçimi fotoğrafı geldi (T6). Madde adı
+         varlıkla bir kök paylaşmıyorsa alınmaz. */
+      if (pg && !gorselUyar(gorselKok(entity), String(pg.title || ""))) continue;
     }
     const th = pg?.thumbnail; if (!th?.source || (th.width || 0) < 420) continue;
     // Ülke/kurum maddelerinin baş görseli çoğu kez bayrak, arma ya da haritadır (SVG): fotoğraf değil, kapakta kırpılıp biçimsiz durur.
     if (wikiNotPhoto(String(pg.pageimage || ""), String(th.source))) continue;
-    return { id: "w" + pg.pageid, alt: String(pg.title || entity), w: th.width, h: th.height, thumb: th.source, large: th.source, photographer: "",
-      page: pg.pageimage ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(pg.pageimage)}` : String(pg.fullurl || ""), source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org" };
+    const kb = pg.pageimage ? await dosyaBilgi(String(pg.pageimage)) : { yazar: "", lisans: "", lisansUrl: "" };
+    return { id: "w" + pg.pageid, alt: String(pg.title || entity), w: th.width, h: th.height, thumb: th.source, large: th.source, photographer: kb.yazar,
+      page: pg.pageimage ? `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(pg.pageimage)}` : String(pg.fullurl || ""), source: "Wikimedia Commons", source_url: "https://commons.wikimedia.org",
+      license: kb.lisans, license_url: kb.lisansUrl, title: String(pg.title || entity), skor };
   }
   return null;
 }
@@ -161,30 +181,69 @@ async function wikiImage(entity: string): Promise<Photo | null> {
 // asetata koymaz. Unsplash'in saatlik sınırı dar olduğu için (ücretsiz katman
 // 50 istek) deste başına en çok UNSPLASH_MAX arama yapılır.
 const UNSPLASH_MAX = 5;
-type Hint = { i: number; q: string; entity: string };
-async function resolveImages(hints: Hint[], lang: string, topic = ""): Promise<{ photos: (Photo & { i: number })[]; rate: boolean }> {
-  const used = new Set<string>(); let uCalls = 0, rate = false;
+type Hint = { i: number; q: string; entity: string; t?: string };
+/* ALAKA PUANI VE ADAYLAR (Phase 2, 26.11.2026). Eskiden her asetat ilk uyan fotoğrafı alıyordu (tek kök ortaklığı, evet/
+   hayır); Wikipedia ve Commons yedeği hiç denetlenmiyordu. Artık her asetat için alakaya göre sıralı en çok ADAY_K aday
+   (cands) döner; istemci bunları bütün deste için tekil atar. Puan sorgu köklerinin fotoğraf açıklamasında (Commons'ta
+   açıklama + dosya adı) geçen oranıdır: stokta en az bir kök, Commons'ta en az iki kök (tek köklü sorguda bir) gerekir;
+   tam adıyla bulunan Wikipedia maddesi 0,9, aramayla bulunan 0,75. Ülke çelişkisi (Hindistan asetatına Tayvan fabrikası)
+   ve elektrik konusunda akaryakıt istasyonu elenir. */
+const ADAY_K = 5;
+const gorselSkor = (q: string, p: Photo, tur: string): number => {
+  if (tur === "wiki") return typeof p.skor === "number" ? p.skor : 0.9;
+  const qk = gorselKok(q); if (!qk.length) return 0.4;
+  const ak = gorselKok(tur === "commons" ? String(p.desc || "") + " " + String(p.title || "") : String(p.alt || ""));
+  const hit = qk.filter((k) => ak.some((a) => a.startsWith(k) || k.startsWith(a))).length;
+  if (hit < (tur === "commons" ? Math.min(2, qk.length) : 1)) return 0;
+  return Math.round((0.35 + 0.55 * hit / qk.length - (tur === "commons" ? 0.05 : 0)) * 100) / 100;
+};
+const ULKE: string[][] = [["india", "indian", "hindistan"], ["taiwan", "taiwanese", "tayvan"], ["china", "chinese", "çin"], ["japan", "japanese", "japonya"], ["korea", "korean", "kore"],
+  ["germany", "german", "almanya"], ["france", "french", "fransa"], ["united states", "american", "usa", "abd", "amerika"], ["united kingdom", "british", "england", "ingiltere"], ["russia", "russian", "rusya"],
+  ["brazil", "brazilian", "brezilya"], ["italy", "italian", "italya"], ["spain", "spanish", "ispanya"], ["turkey", "turkish", "türkiye"], ["vietnam", "vietnamese"], ["indonesia", "indonesian", "endonezya"],
+  ["mexico", "mexican", "meksika"], ["canada", "canadian", "kanada"], ["australia", "australian", "avustralya"], ["netherlands", "dutch", "hollanda"], ["egypt", "egyptian", "mısır"], ["iran", "iranian"], ["saudi arabia", "saudi", "suudi"]];
+const ulkeleri = (t: string): number[] => { const x = " " + String(t || "").toLocaleLowerCase("tr").replace(/[^\p{L}]+/gu, " ") + " "; return ULKE.map((u, i) => u.some((w) => x.includes(" " + w + " ")) ? i : -1).filter((i) => i >= 0); };
+const ELEKTRIK = /\b(?:electric|electrical|ev|evs|battery|batteries|charging|elektrikli)\b/i;
+const FOSIL = /\b(?:gas station|petrol|gasoline|fuel pump|filling station|diesel)\b/i;
+const celiski = (alt: string, ctx: string): boolean => {
+  const a = ulkeleri(alt), c = ulkeleri(ctx);
+  if (a.length && c.length && a.some((x) => !c.includes(x))) return true;
+  return ELEKTRIK.test(ctx) && FOSIL.test(alt) && !FOSIL.test(ctx);
+};
+async function resolveImages(hints: Hint[], lang: string, topic = "", haric: string[] = []): Promise<{ photos: (Photo & { i: number })[]; rate: boolean; cands: (Photo & { i: number; skor: number })[] }> {
+  const used = new Set<string>(haric); let uCalls = 0, rate = false, ctxNow = "";
   const memo = new Map<string, Photo[]>();   // aynı sorgunun ikinci fotoğrafı yeni arama harcamaz
+  const aday = new Map<number, (Photo & { i: number; skor: number })[]>();
   /* Sorguyla ortak sözcüğü olan fotoğraf öne alınır: "person holding red pen while
      writing on book" aramasından "woman putting on nail polish" fotoğrafı ders
      çalışma destesine kondu (canlı deste 14.11.2026). Uyan yoksa fotoğraf ALINMAZ:
      "Coinage Takes Hold in Ancient Greece" asetatına ilk sonuç diye kahve kupası
      geldi (25.11.2026); sıradaki arşive (Pexels, Commons) geçilir. */
   const take = (list: Photo[], q = "", uysun = true) => { const qk = uysun ? gorselKok(q) : [];
-    const ok = list.filter((x) => x && x.large && !used.has(x.large) && !olumsuzFoto(x.alt, q) && !arsivFoto(x, q + " " + topic)); const p = qk.length ? ok.find((x) => gorselUyar(qk, x.alt)) || null : ok[0] || null; if (p) used.add(p.large); return p; };
+    const ok = list.filter((x) => x && x.large && !used.has(x.large) && !olumsuzFoto(x.alt, q) && !arsivFoto(x, q + " " + topic) && !celiski(String(x.alt || "") + " " + String(x.title || ""), ctxNow)); const p = qk.length ? ok.find((x) => gorselUyar(qk, x.alt)) || null : ok[0] || null; if (p) used.add(p.large); return p; };
+  /* aday listesi: aynı süzgeçler (olumsuz, arşiv, çelişki, destede zaten olan) + alaka puanı; seçimden bağımsız toplanır */
+  const ekle = (i: number, list: Photo[], tur: string, q: string) => { for (const x of list) {
+    if (!x || !x.large || haric.includes(x.large) || olumsuzFoto(x.alt, q) || arsivFoto(x, q + " " + topic) || celiski(String(x.alt || "") + " " + String(x.title || ""), ctxNow)) continue;
+    const sk = gorselSkor(q, x, tur); if (sk <= 0) continue;
+    const L = aday.get(i) || []; if (!L.some((y) => y.large === x.large)) L.push({ ...x, i, skor: sk }); aday.set(i, L); } };
   // Wikipedia aramaları paralel; stok aramaları sırayla (sınır sayacı ve tekrar denetimi için).
   const wiki = await Promise.all(hints.map((h) => h.entity ? wikiImage(h.entity) : Promise.resolve(null)));
   const photos: (Photo & { i: number })[] = [];
   for (let k = 0; k < hints.length; k++) {
-    const h = hints[k]; let p: Photo | null = wiki[k] ? take([wiki[k] as Photo], h.q || h.entity || "", false) : null;
+    const h = hints[k]; ctxNow = [h.q, h.entity, h.t || "", topic].join(" ");
+    if (wiki[k]) ekle(h.i, [wiki[k] as Photo], "wiki", h.entity);
+    let p: Photo | null = wiki[k] ? take([wiki[k] as Photo], h.q || h.entity || "", false) : null;
     const q = gorselSorgu((h.q || h.entity || "").slice(0, 80));
+    if (q && memo.has(q)) ekle(h.i, memo.get(q) || [], "stok", q);
     if (!p && q && memo.has(q)) p = take(memo.get(q) || [], q);
-    if (!p && q && !memo.has(q) && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; memo.set(q, u.photos); p = take(u.photos, q); }
-    if (!p && q) p = take(await pexelsSearch(q, 6, lang), q);
-    if (!p && q) p = take(await commonsSearch(h.entity || q, 8), q, false);
+    if (!p && q && !memo.has(q) && !rate && uCalls < UNSPLASH_MAX) { uCalls++; const u = await unsplashSearch(q, 6); if (u.rate) rate = true; memo.set(q, u.photos); ekle(h.i, u.photos, "stok", q); p = take(u.photos, q); }
+    if (!p && q) { const px = await pexelsSearch(q, 6, lang); ekle(h.i, px, "stok", q); p = take(px, q); }
+    /* Commons yedeği de alakaya bakar (Phase 2): eskiden ilk sonuç alınıyordu (T1 panel fotoğrafı, T6 seçim fotoğrafı). */
+    if (!p && q) { const cq = h.entity || q, cs = await commonsSearch(cq, 8); ekle(h.i, cs, "commons", cq); p = take(cs.filter((x) => gorselSkor(cq, x, "commons") > 0), q, false); }
     if (p) photos.push({ ...p, i: h.i });
   }
-  return { photos, rate };
+  const cands: (Photo & { i: number; skor: number })[] = [];
+  aday.forEach((L) => { L.map((x, n) => ({ x, n })).sort((a, b) => (b.x.skor - a.x.skor) || (a.n - b.n)).slice(0, ADAY_K).forEach((o) => cands.push(o.x)); });
+  return { photos, rate, cands };
 }
 
 // ---------- kaynak metninden konuya en yakın paragraflar ----------
@@ -565,6 +624,8 @@ Deno.serve(async (req) => {
         i: Number(x?.i) || 0, title: String(x?.title || "").slice(0, 140), text: String(x?.text || "").slice(0, 320),
         q: String(x?.q || "").slice(0, 80).trim(), entity: String(x?.entity || "").slice(0, 80).trim(),
       }));
+      /* destede zaten olan fotoğraflar (istemci gönderir): yeniden seçilmez, aday da olmaz */
+      const haric = (Array.isArray(body?.haric) ? body.haric : []).slice(0, 80).map((x: any) => String(x || "").slice(0, 600)).filter((x: string) => /^https?:\/\//.test(x));
       if (!items.length) return J({ photos: [] });
       const topicI = String(body?.topic || "").slice(0, 160);
       const need = items.filter((x: any) => !x.q && !x.entity);
@@ -584,8 +645,10 @@ The deck topic is given for context. Return ONLY JSON: {"r":[{"i":0,"q":"","enti
          iki fotoğraf düzeni); ikisi de aynı "i" ile gelir, istemci gruplayıp dizer. */
       const cift = new Set((Array.isArray(body?.slides) ? body.slides : []).filter((x: any) => x?.iki).map((x: any) => Number(x?.i) || 0));
       const hints: Hint[] = []; items.forEach((x: any) => { hints.push({ i: x.i, q: x.q, entity: x.entity }); if (cift.has(x.i) && x.q) hints.push({ i: x.i, q: x.q, entity: "" }); });
-      const res = await resolveImages(hints, lang, topicI);
-      return J({ photos: res.photos, rate: res.rate });
+      hints.forEach((h) => { h.t = (items.find((x: any) => x.i === h.i) || {}).title || ""; });      /* asetat başlığı çelişki denetimine girer (ülke adı) */
+      const res = await resolveImages(hints, lang, topicI, haric);
+      /* photos: eski istemci için asetat başına seçim (değişmedi); cands: yeni istemci için alakaya göre sıralı adaylar */
+      return J({ photos: res.photos, rate: res.rate, cands: res.cands });
     }
 
     /* ---------------- boş şeridi KAYNAKLA yaz ----------------
