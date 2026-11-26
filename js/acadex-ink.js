@@ -8120,6 +8120,7 @@ var SBX = (function () {
       '.ax-sxd .au-h b{font:700 15px "Bricolage Grotesque",sans-serif}.ax-sxd .au-h b i{font:700 12px ui-monospace,monospace;font-style:normal;color:#2F6BFF;margin-right:6px}' +
       '.ax-sxd .au-it ul{margin:6px 0 0;font-size:13.5px;color:#3A4362}.ax-sxd .au-it li.fx::marker{color:#1E8A55}.ax-sxd .au-it li.mn::marker{color:#C9483B}' +
       '.ax-sxd .au-btns{display:flex;gap:6px}' +
+      '.ax-sxd .au-gq{margin-top:14px;padding-top:12px;border-top:1.5px dashed #E4DCC8}.ax-sxd .au-gq h4{margin:0 0 8px;font:700 15px "Bricolage Grotesque",sans-serif}.ax-sxd .au-gq small{color:#4B5675}.ax-sxd .au-gq .au-sum{flex-wrap:wrap}' +
       '.sx-audit{display:block;width:100%;margin-top:10px;min-height:40px;border:1.5px dashed #9DB8FF;border-radius:12px;background:#F7F9FF;font:700 19px "Caveat",cursive;color:#2F6BFF;cursor:pointer}' +
       '.sx-audit:hover{background:#EEF3FF}' +
       '@media (max-width:640px){.ax-sxd .pv-two{grid-template-columns:1fr}}';
@@ -8420,7 +8421,7 @@ var SBX = (function () {
   /* hesaba giden quality_report: içerik raporunun DEĞİŞMEZ kopyası + etkin puan + icerik + teknik (+ üretim yolu kodu) */
   var teknikRapor = function (d, tq) {
     var q = d.quality, et = etkinKalite(q, tq), r = {}; if (!et) return null;
-    for (var k in q) if (Object.prototype.hasOwnProperty.call(q, k) && k !== 'icerik' && k !== 'teknik' && k !== 'yol') r[k] = q[k];
+    for (var k in q) if (Object.prototype.hasOwnProperty.call(q, k) && k !== 'icerik' && k !== 'teknik' && k !== 'yol' && k !== 'gorsel') r[k] = q[k];      /* gorsel: Phase 5, ayrı eklenir */
     r.score = et.score; r.pass = et.pass;
     r.icerik = { score: q.score, pass: typeof q.pass === 'boolean' ? q.pass : q.score >= 72, issues: arr(q.issues).slice() };
     r.teknik = tq; if (d.yol && d.yol.k) r.yol = { k: String(d.yol.k), yedek: d.yol.yedek ? 1 : 0, kaynak: +d.yol.kaynak || 0, istek: +d.yol.istek || 0, uret: arr(d.yol.uret).map(String) };
@@ -8463,6 +8464,7 @@ var SBX = (function () {
         (res.length ? '<p class="au-sum">' + deck.slides.length + ' asetat tarandı · ' + res.length + ' asetatta ' + nIss + ' konu' + (fixable ? ' · ' + fixable + ' tanesini ben düzeltebilirim' : '') + '</p>' : '<p class="au-sum ok">✓ ' + deck.slides.length + ' asetat tarandı; taşan, üst üste binen ya da boş asetat yok.</p>') +
         '<ul class="au-list">' + res.map(function (r) { var fx = r.iss.some(function (x) { return x.fix; });
           return '<li class="au-it"><div class="au-h"><b><i>' + (r.i + 1) + '.</i>' + X(titleOf(r.s) || 'başlıksız asetat') + '</b><span class="au-btns"><button type="button" class="sxd-b sm" data-au-go="' + r.i + '">asetata git</button>' + (fx ? '<button type="button" class="sxd-b sm pri" data-au-fix="' + r.i + '">düzelt</button>' : '') + '</span></div><ul>' + r.iss.map(function (x) { return '<li class="' + (x.fix ? 'fx' : 'mn') + '">' + X(x.t) + '</li>'; }).join('') + '</ul></li>'; }).join('') + '</ul>' +
+        gorselBolum() +      /* Phase 5: görsel denetim bölümü */
         '<p class="sxd-sub" style="margin:10px 0 0">Yeşil noktalı konuları ben düzeltirim (kutuyu asetata ve başlığın altına çeker, yazıyı küçültür, sığmayan maddeyi konuşmacı notuna taşır). Kırmızılar senin kararın.</p>' +
         '<div class="sxd-acts"><button type="button" class="sxd-b" data-au-x>kapat</button>' + (fixable ? '<button type="button" class="sxd-b pri" data-au-all>hepsini düzelt</button>' : '') + '</div></div>';
     };
@@ -8476,13 +8478,218 @@ var SBX = (function () {
     auDlg.onclick = function (e) {
       var t = e.target.closest('button'); if (!t) return;
       if (t.hasAttribute('data-au-x')) { auDlg.close(); return; }
+      if (t.hasAttribute('data-gq-run')) { gorselQA(); return; }
       if (t.hasAttribute('data-au-go')) { auDlg.close(); go(+t.getAttribute('data-au-go')); return; }
       if (t.hasAttribute('data-au-fix')) { var i = +t.getAttribute('data-au-fix'); doFix(audit().filter(function (r) { return r.i === i; })); return; }
       if (t.hasAttribute('data-au-all')) doFix(audit());
     };
+    gqPaint = function () { var g = auDlg && auDlg.open && auDlg.querySelector('[data-gq]'); if (g) g.outerHTML = gorselBolum(); };
     paint(); auDlg.showModal(); var f = auDlg.querySelector('[data-au-all],[data-au-x]'); if (f) f.focus();
   };
   (function () { var acs = Q('.sx-acs'); if (!acs || Q('[data-audit]')) return; sxCss(); acs.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit" data-audit>✓ asetatları denetle</button>'); Q('[data-audit]').addEventListener('click', openAudit); })();
+
+  /* ---------- PHASE 5: GEMINI GÖRSEL DENETİM (gorselQA, 26.11.2026, #33) ----------
+     Asetatlar ekrandaki gibi çizilir (slideHTML, doğrulanmış şablon yazısıyla), html2canvas@1.4.1 ile 768×432 JPEG'e
+     çevrilir ve sunum-research 'gorsel_qa' eylemine en çok 8'lik toplu isteklerle gider; Gemini Flash-Lite kapalı kod
+     listesinden bulgu döndürür. YALNIZ RAPORLAR: desteyi değiştirmez, kaydettirmez (kirli işaret/yerel kayıt/push yok), düzenlemeyi
+     bekletmez, Phase 4 bulgularına ve etkin puana dokunmaz, düzeltmez. Elle başlatılır (denetim penceresi). Sunucunun
+     yanıtı burada YENİDEN doğrulanır (kod, asetat, tekrar) ve asetat türüne göre bilinçli sade/yoğun asetat muafiyeti
+     uygulanır. Gemini yoksa/hata verirse sonuç 'unavailable'dır, asla 'pass' değildir; denetlenemeyen asetat
+     VQ_PARTIAL uyarısıyla sayılır. Konuşmacı notu, başlık metni, kimlik, adres gönderilmez; yalnız görüntü + sıra + tür.
+     Kalıcı özet (kodlar ve sayılar) zaten yapılan hesap kaydına quality_report.gorsel olarak eklenir. */
+  var GORSEL = {      /* kod → [önem, TR, EN]; önem sunucudaki GQ_ONEM ile aynı */
+    VQ_TEXT_DENSE: ['warning', 'asetatta çok fazla yazı var', 'too much text on the slide'],
+    VQ_HIERARCHY: ['warning', 'başlık ile gövde ayrımı zayıf', 'weak visual hierarchy'],
+    VQ_ALIGNMENT: ['warning', 'hizalama ya da boşluklar düzensiz', 'uneven alignment or spacing'],
+    VQ_BALANCE: ['warning', 'yazı ile görsel dengesiz', 'text and image are unbalanced'],
+    VQ_SMALL_TEXT: ['warning', 'yazı yansıtınca okunmayacak kadar küçük', 'text too small to read when projected'],
+    VQ_IMAGE: ['warning', 'görselin yeri ya da vurgusu yanlış', 'image placement or emphasis is off'],
+    VQ_INCONSISTENT: ['warning', 'öteki asetatlarla görsel dil uyuşmuyor', 'visual style differs from the other slides'],
+    VQ_CONTRAST: ['warning', 'yazı zeminden zor okunuyor', 'low contrast, hard to read'],
+    VQ_COMPOSITION: ['warning', 'yerleşim dengesiz ya da gereksiz boşluk var', 'awkward composition or empty space'],
+    VQ_BROKEN: ['error', 'asetat bozuk ya da eksik görünüyor', 'slide looks broken or incomplete'],
+    VQ_PARTIAL: ['warning', 'bazı asetatlar görsel denetime girmedi', 'some slides were not visually checked']
+  };
+  /* bilinçli sade (kapak, kapanış, alıntı) ve yoğun (kaynakça, veri) asetatta bu kodlar sayılmaz */
+  var GQ_SADE = ['VQ_TEXT_DENSE', 'VQ_BALANCE', 'VQ_COMPOSITION'];
+  var GQ_MUAF = { cover: GQ_SADE, section: GQ_SADE, closing: GQ_SADE, minimal: GQ_SADE, references: ['VQ_TEXT_DENSE', 'VQ_SMALL_TEXT', 'VQ_BALANCE', 'VQ_COMPOSITION'], data: ['VQ_TEXT_DENSE'] };
+  var GQ_PARTI = 8, GQ_TAVAN = 24, GQ_EN = 768, GQ_BOY = 432, GQ_IMG_MAX = 300000, GQ_TOPLAM = 1700000, GQ_BULGU = 3, GQ_NEDEN = 140;
+  var GQ_DUR = { kapali: 1, kota: 1, sinir: 1, devre: 1 };      /* bu durumlarda kalan partiler gönderilmez */
+  var gorselIz = typeof WeakMap === 'function' ? new WeakMap() : null;      /* deste → { anahtar, sonuc } */
+  var gorselYuklu = typeof WeakMap === 'function' ? new WeakMap() : null;   /* deste → hesaptan gelen kısa özet */
+  var gorselKos = null, gqPaint = null;
+  var gorselTur = function (s) { var l = s && s.lay; return l === 'cover' ? 'cover' : l === 'end' ? 'closing' : l === 'refs' ? 'references' : l === 'quote' ? 'minimal' : /^(chart|table|stat)$/.test(l || '') ? 'data' : !l || l === 'none' ? 'free' : 'content'; };
+  var gqDil = function () { try { return localStorage.getItem('acadexUILang') === 'en' ? 'en' : 'tr'; } catch (_) { return 'tr'; } };
+  /* görünüm parmak izi: asetatlar + şablon + yedek yazı (paylaşım durumu görünümü değiştirmez). Anahtarlar sıralanır ve
+     notlar çıkarılır: hesaptan dönen deste (jsonb anahtar sırası, boş notes) aynı görünümse aynı izi verir. */
+  var gorselAnahtar = function (d) {
+    var s = JSON.stringify([arr(d && d.slides), (d && d.tema) || null, fontYedek ? 1 : 0], function (k, v) {
+      if (typeof v === 'string' && v.length > 200) return v.length + ':' + v.slice(0, 60) + '|' + v.slice(-60);
+      if (v && typeof v === 'object' && !Array.isArray(v)) { var o = {}; Object.keys(v).sort().forEach(function (x) { if (x !== 'notes') o[x] = v[x]; }); return o; }
+      return v; });
+    var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16) + ':' + s.length;
+  };
+  var gorselTaze = function (d) { var c = gorselIz && d && gorselIz.get(d); return c && c.anahtar === gorselAnahtar(d) ? c.sonuc : null; };
+  var h2cLib = function () { return window.html2canvas ? Promise.resolve(window.html2canvas) : loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').then(function () { if (!window.html2canvas) throw new Error('html2canvas yok'); return window.html2canvas; }); };
+  /* html2canvas@1.4.1 inset gölgeyi şerit değil tüm kutuyu boyayarak çizer (kutu biçimindeki "0 4px 0 0 inset" üst
+     şerit → dolu renkli kart; model bunu haklı olarak VQ_BROKEN sayıyordu). Bulanıksız/yayılmasız inset gölge aynı
+     görünümde arka plan şeridine çevrilir, ötekisi atılır; dış gölgeler kalır. Yalnız yakalama klonunda uygulanır. */
+  var gqInset = function (sh) {
+    var dis = [], img = [], pos = [];
+    String(sh || '').split(/,(?![^(]*\))/).forEach(function (p) {
+      p = p.trim(); if (!p || p === 'none') return;
+      if (!/\binset\b/.test(p)) { dis.push(p); return; }
+      var renk = (p.match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}\b/i) || [''])[0];
+      var n = p.replace(renk, ' ').replace(/\binset\b/, ' ').trim().split(/\s+/).map(parseFloat);
+      if (!renk || n.length < 2 || n.some(isNaN) || n[2] || n[3]) return;
+      var g = 'linear-gradient(' + renk + ', ' + renk + ')';
+      if (n[1]) { img.push(g); pos.push((n[1] > 0 ? 'top' : 'bottom') + ' / 100% ' + Math.abs(n[1]) + 'px'); }
+      if (n[0]) { img.push(g); pos.push((n[0] > 0 ? 'left' : 'right') + ' / ' + Math.abs(n[0]) + 'px 100%'); }
+    });
+    return { golge: dis.join(', ') || 'none', img: img, pos: pos };
+  };
+  var gqGolge = function (o) {
+    var w = o.ownerDocument.defaultView, el = o.querySelectorAll('*');
+    for (var k = 0; k < el.length; k++) {
+      var cs = w.getComputedStyle(el[k]); if (cs.boxShadow.indexOf('inset') < 0) continue;
+      var r = gqInset(cs.boxShadow); el[k].style.boxShadow = r.golge;
+      if (r.img.length && cs.backgroundImage === 'none') {
+        el[k].style.backgroundImage = r.img.join(', ');
+        el[k].style.backgroundPosition = r.pos.map(function (x) { return x.split(' / ')[0]; }).join(', ');
+        el[k].style.backgroundSize = r.pos.map(function (x) { return x.split(' / ')[1]; }).join(', ');
+        el[k].style.backgroundRepeat = 'no-repeat';
+      }
+    }
+  };
+  /* Bir asetatın görüntüsü. Uzak fotoğraf önce veriye çevrilir; açılmayan fotoğraflı asetat atlanır (boş çerçeveyi
+     "bozuk" diye bildirmemek için). Dönüş: { img } ya da { atla: neden }. */
+  var gorselCek = async function (s, h2c, off) {
+    try {
+      off.innerHTML = slideHTML(s);
+      var kok = off.firstChild, im = kok ? kok.querySelectorAll('img') : [];
+      if (!kok) return { atla: 'yakalama' };
+      for (var k = 0; k < im.length; k++) {
+        var u = im[k].getAttribute('src') || ''; if (!u) continue;
+        if (!/^data:image\//i.test(u)) { var v = await gorselVeri(u, 8000); if (!v) return { atla: 'gorsel' }; im[k].setAttribute('src', v); }
+        if (im[k].decode) await im[k].decode();
+      }
+      var c = await h2c(kok, { scale: GQ_EN / W, width: W, height: H, x: 0, y: 0, scrollX: 0, scrollY: 0, windowWidth: W, windowHeight: H, backgroundColor: '#FFFFFF', logging: false, useCORS: false, allowTaint: false, imageTimeout: 8000,
+        ignoreElements: function (n) { return !(n.contains(off) || off.contains(n) || n === document.head || document.head.contains(n) || n.tagName === 'STYLE' || n.tagName === 'LINK'); },
+        onclone: function (doc) { var o = doc.querySelector('[data-gq-off]'); if (o) { o.style.left = '0px'; o.style.top = '0px'; gqGolge(o); } } });
+      if (!c || c.width !== GQ_EN || c.height !== GQ_BOY) return { atla: 'boyut' };
+      var img = c.toDataURL('image/jpeg', 0.72); if (img.length > GQ_IMG_MAX) img = c.toDataURL('image/jpeg', 0.5);
+      return img.length > GQ_IMG_MAX || img.indexOf('data:image/jpeg;base64,') ? { atla: 'boyut' } : { img: img };
+    } catch (e) { return { atla: 'yakalama' }; }
+  };
+  /* Sunucu yanıtının istemcide yeniden doğrulanması: yalnız bu partide gönderilen asetatlar, bilinen kodlar, asetat başına
+     kod bir kez ve en çok GQ_BULGU; önem tablodan; türe göre muafiyet. Yanıtta olmayan asetat denetlenmemiş sayılır. */
+  var gorselDogrula = function (parti, r) {
+    var out = { bulgu: [], gorulen: {}, red: 0, muaf: 0 }, idx = {};
+    parti.forEach(function (p) { idx[p.i] = p; });
+    var S = r && r.gorsel && r.gorsel.v === 1 && Array.isArray(r.gorsel.s) ? r.gorsel.s : null; if (!S) return null;
+    S.forEach(function (x) {
+      var p = x && idx[x.i]; if (!p || out.gorulen[x.i] || !Array.isArray(x.f)) { out.red++; return; }
+      out.gorulen[x.i] = 1; var kod = {};
+      x.f.forEach(function (f) {
+        var c = f && String(f.c || ''); if (!GORSEL[c] || c === 'VQ_PARTIAL' || kod[c] || Object.keys(kod).length >= GQ_BULGU) { out.red++; return; }
+        kod[c] = 1; if ((GQ_MUAF[p.tur] || []).indexOf(c) >= 0) { out.muaf++; return; }
+        out.bulgu.push({ code: c, severity: GORSEL[c][0], slide: p.i, id: p.id, why: String(f.why == null ? '' : f.why).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, GQ_NEDEN) });
+      });
+    });
+    return out;
+  };
+  /* Çalıştırma: yazı hazır olunca çizer, partileri SIRAYLA gönderir (aynı anda tek istek), sonucu WeakMap'e yazar. */
+  var gorselQA = async function () {
+    var d = deck; if (gorselKos || !d || !d.slides.length) return;
+    gorselKos = { d: d, yapilan: 0, toplam: Math.min(d.slides.length, GQ_TAVAN) }; if (gqPaint) gqPaint();
+    var t0 = Date.now(), atla = {}, bulgu = [], kontrol = 0, istek = 0, ms = 0, tok = { gir: 0, cik: 0 }, model = null, red = 0, muaf = 0, dur = null, bayt = 0, off = null;
+    var atlaSay = function (neden, n) { atla[neden] = (atla[neden] || 0) + n; };
+    try {
+      await yaziHazirSoz();
+      var anahtar = gorselAnahtar(d), h2c = null;
+      try { h2c = await h2cLib(); } catch (_) { dur = 'kutuphane'; }
+      if (h2c) {
+        off = document.createElement('div'); off.setAttribute('data-gq-off', ''); off.setAttribute('aria-hidden', 'true');
+        off.style.cssText = 'position:fixed;left:-20000px;top:0;width:' + W + 'px;height:' + H + 'px;pointer-events:none;overflow:hidden'; LY.appendChild(off);
+        var parti = [], boy = 0;
+        var gonder = async function () {
+          if (!parti.length) return; var p = parti; parti = []; boy = 0;
+          if (dur) { atlaSay(dur, p.length); return; }
+          var r = null; istek++; bayt += p.reduce(function (t, x) { return t + x.img.length; }, 0);
+          try { r = await fn('sunum-research', { action: 'gorsel_qa', v: 1, dil: gqDil(), asetatlar: p.map(function (x) { return { i: x.i, tur: x.tur, img: x.img }; }) }, 60000); } catch (_) { r = null; }
+          if (r && typeof r.ms === 'number') ms += r.ms;
+          if (r && r.tok) { tok.gir += +r.tok.gir || 0; tok.cik += +r.tok.cik || 0; }
+          if (r && r.model) model = String(r.model).slice(0, 60);
+          var v = r && r.durum === 'tamam' ? gorselDogrula(p, r) : null;
+          if (!v) { var ne = r && r.durum === 'tamam' ? 'yanit' : r && typeof r.durum === 'string' && /^[a-z]{2,12}$/.test(r.durum) ? r.durum : 'hata'; atlaSay(ne, p.length); if (GQ_DUR[ne]) dur = ne; return; }
+          red += v.red + (+r.red || 0); muaf += v.muaf; bulgu = bulgu.concat(v.bulgu);
+          p.forEach(function (x) { if (v.gorulen[x.i]) kontrol++; else atlaSay('yanit', 1); });
+        };
+        for (var i = 0; i < gorselKos.toplam; i++) {
+          var s = d.slides[i]; if (!s) { atlaSay('degisti', 1); continue; }
+          var g = await gorselCek(s, h2c, off); gorselKos.yapilan = i + 1; if (gqPaint) gqPaint();
+          if (!g.img) { atlaSay(g.atla, 1); continue; }
+          if (parti.length && (parti.length >= GQ_PARTI || boy + g.img.length > GQ_TOPLAM)) await gonder();
+          parti.push({ i: i + 1, id: s.id == null ? null : String(s.id), tur: gorselTur(s), img: g.img }); boy += g.img.length;
+        }
+        await gonder();
+      } else atlaSay(dur, gorselKos.toplam);
+      if (d.slides.length > GQ_TAVAN) atlaSay('tavan', d.slides.length - GQ_TAVAN);
+      var seen = {}; bulgu = bulgu.filter(function (z) { var k = z.slide + '|' + z.code; if (seen[k]) return false; seen[k] = 1; return true; })
+        .sort(function (a, b) { return a.slide - b.slide || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0); });
+      var atlanan = Object.keys(atla).reduce(function (t, k) { return t + atla[k]; }, 0);
+      if (kontrol && atlanan) bulgu.push({ code: 'VQ_PARTIAL', severity: 'warning', slide: null, id: null, why: '' });
+      var say0 = { error: 0, warning: 0 }; bulgu.forEach(function (z) { say0[z.severity]++; });
+      var codes = []; bulgu.forEach(function (z) { if (codes.indexOf(z.code) < 0) codes.push(z.code); }); codes.sort();
+      var sonuc = { v: 1, status: !kontrol ? 'unavailable' : say0.error ? 'error' : say0.warning ? 'warn' : 'pass', checkedSlides: kontrol, skippedSlides: atlanan, totalSlides: d.slides.length,
+        errors: say0.error, warnings: say0.warning, codes: codes, issues: bulgu, skipped: atla, olcum: { istek: istek, ms: ms, sure: Date.now() - t0, bayt: bayt, tok: tok, model: model, red: red, muaf: muaf } };
+      if (gorselIz) gorselIz.set(d, { anahtar: anahtar, sonuc: sonuc });
+    } catch (e) { console.warn('acadex-sunum: görsel denetim', e && e.message); }
+    finally { if (off && off.parentNode) off.parentNode.removeChild(off); gorselKos = null; if (gqPaint) gqPaint(); }
+  };
+  /* Kalıcı özet: yalnız sürüm, durum, sayılar, kodlar, [asetat, kod] çiftleri ve görünüm parmak izi. Açıklama yok.
+     Güncel sonuç yoksa hesaptan gelen özet ancak deste aynı görünüyorsa korunur; yoksa yazılmaz (bayat özet taşınmaz). */
+  var gorselOzet = function (d) {
+    var r = gorselTaze(d);
+    if (r) return { v: 1, status: r.status, checked: r.checkedSlides, skipped: r.skippedSlides, errors: r.errors, warnings: r.warnings, codes: r.codes.slice(),
+      issues: r.issues.filter(function (z) { return z.slide != null; }).slice(0, 60).map(function (z) { return [z.slide, z.code]; }), h: gorselAnahtar(d) };
+    var y = gorselYuklu && d && gorselYuklu.get(d);
+    return y && y.v === 1 && y.h === gorselAnahtar(d) ? y : null;
+  };
+  /* denetim penceresindeki bölüm (D2 gibi: yeni büyük arayüz yok) */
+  var gorselSozluk = function () {
+    var A = window.AX_EN && window.AX_EN.t; if (!A || A['Görsel denetim (Gemini)']) return;
+    var ek = { 'Görsel denetim (Gemini)': 'Visual check (Gemini)', 'görsel denetimi başlat': 'start visual check', 'yeniden denetle': 'check again',
+      'Denetim için asetat görüntüleri Google’ın Gemini hizmetine gönderilir; yalnız rapor edilir, deste değişmez.': 'For this check, slide images are sent to Google’s Gemini service; results are only reported and the deck is not changed.',
+      'görsel denetim sürüyor… {#}/{#} asetat': 'visual check running… {#}/{#} slides', '{#} asetat görsel olarak denetlendi': '{#} slides visually checked',
+      '{#} görsel hata': '{#} visual errors', '{#} görsel uyarı': '{#} visual warnings', '{#} asetat denetlenmedi': '{#} slides not checked',
+      'görsel sorun bulunmadı': 'no visual issues found', 'Görsel denetim şu an yapılamadı; teknik denetim etkilenmez.': 'Visual check is unavailable right now; the technical check is unaffected.',
+      'Deste son görsel denetimden sonra değişti.': 'The deck changed after the last visual check.', 'deste geneli': 'whole deck' };
+    Object.keys(GORSEL).forEach(function (c) { ek[GORSEL[c][1]] = GORSEL[c][2]; });
+    Object.keys(ek).forEach(function (k) { if (A[k] == null) A[k] = ek[k]; });
+  };
+  /* Gizlilik bildirimi: her "denetle" düğmesinin yanında, ilk istekten önce görünür (#34). */
+  var GQ_BILGI = 'Denetim için asetat görüntüleri Google’ın Gemini hizmetine gönderilir; yalnız rapor edilir, deste değişmez.';
+  var gqBilgi = function () { return '<p class="sxd-sub" data-gq-bilgi>' + GQ_BILGI + '</p>'; };
+  var gorselBolum = function () {
+    gorselSozluk();
+    var k = gorselKos && gorselKos.d === deck ? gorselKos : null, r = gorselTaze(deck), eski = !r && gorselIz && gorselIz.get(deck);
+    var h = '<div class="au-gq" data-gq><h4>Görsel denetim (Gemini)</h4>';
+    if (k) return h + '<p class="au-sum" data-gq-durum="checking">görsel denetim sürüyor… ' + k.yapilan + '/' + k.toplam + ' asetat</p></div>';
+    if (!r) return h + '<p class="sxd-sub" data-gq-durum="none">' + (eski ? 'Deste son görsel denetimden sonra değişti.' : GQ_BILGI) + '</p>' + (eski ? gqBilgi() : '') +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-gq-run>' + (eski ? 'yeniden denetle' : 'görsel denetimi başlat') + '</button></div></div>';
+    if (r.status === 'unavailable') return h + '<p class="au-sum" data-gq-durum="unavailable">Görsel denetim şu an yapılamadı; teknik denetim etkilenmez.</p>' + gqBilgi() + '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-gq-run>yeniden denetle</button></div></div>';
+    var gr = {}; r.issues.forEach(function (z) { var key = z.slide == null ? 0 : z.slide; (gr[key] = gr[key] || []).push(z); });
+    h += '<p class="au-sum' + (r.status === 'pass' ? ' ok' : '') + '" data-gq-durum="completed"><span>' + r.checkedSlides + ' asetat görsel olarak denetlendi</span>' + (r.errors ? '<span>' + r.errors + ' görsel hata</span>' : '') + (r.warnings ? '<span>' + r.warnings + ' görsel uyarı</span>' : '') +
+      (r.skippedSlides ? '<span>' + r.skippedSlides + ' asetat denetlenmedi</span>' : '') + (r.status === 'pass' ? '<span>görsel sorun bulunmadı</span>' : '') + '</p>';
+    h += '<ul class="au-list">' + Object.keys(gr).map(Number).sort(function (a, b) { return a - b; }).map(function (n) {
+      var s = n ? deck.slides[n - 1] : null;
+      return '<li class="au-it" data-gq-asetat="' + n + '"><div class="au-h"><b>' + (n ? '<i>' + n + '.</i>' + X(titleOf(s) || 'başlıksız asetat') : 'deste geneli') + '</b>' + (n && s ? '<span class="au-btns"><button type="button" class="sxd-b sm" data-au-go="' + (n - 1) + '">asetata git</button></span>' : '') + '</div><ul>' +
+        gr[n].map(function (z) { return '<li class="mn" data-gq-kod="' + z.code + '"><span>' + X(GORSEL[z.code][1]) + '</span>' + (z.why ? ' <small>' + X(z.why) + '</small>' : '') + '</li>'; }).join('') + '</ul></li>';
+    }).join('') + '</ul>';
+    return h + (r.status === 'pass' || !r.skippedSlides ? '' : gqBilgi() + '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-gq-run>yeniden denetle</button></div>') + '</div>';
+  };
 
   /* ---------- Acadia: kurgu masası (outline first) ---------- */
   /* ---------- sunum dili: kilit ---------- */
@@ -10051,6 +10258,8 @@ var SBX = (function () {
         if (d.quality && typeof d.quality.score === 'number') { row.quality_score = Math.max(0, Math.min(100, Math.round(d.quality.score))); row.quality_report = d.quality; }
         /* Phase 4 (D1): teknik denetim etkin puanı düşürür; içerik puanı quality_report.icerik, teknik özet .teknik içinde kalır. */
         if (row.quality_report) { var tq = teknikOzet(d), et = etkinKalite(d.quality, tq); row.quality_score = Math.max(0, Math.min(100, Math.round(et.score))); row.quality_report = teknikRapor(d, tq) || d.quality; }
+        /* Phase 5: görsel denetimin kısa özeti (.gorsel) yalnız zaten yapılan bu kayda eklenir; ayrı kayıt ya da yeniden ölçüm yok */
+        if (row.quality_report && row.quality_report !== d.quality) { var gq = gorselOzet(d); if (gq) row.quality_report.gorsel = gq; }
         if (isUuid(d.sourceId)) row.source_id = d.sourceId;
         var yeniSatir = !d.dbId;
         if (yeniSatir) { row.user_id = u.id; var r = await c.from('presentations').insert(row).select('id').single(); if (r.error) throw r.error; d.dbId = r.data.id; }
@@ -10093,7 +10302,8 @@ var SBX = (function () {
       if (!pr.error && pr.data) {
         var qq = pr.data.quality_report;
         if (qq && typeof qq.score === 'number') d.quality = qq;
-        if (qq && qq.icerik && typeof qq.icerik.score === 'number') { var qi = {}; for (var qk in qq) if (Object.prototype.hasOwnProperty.call(qq, qk) && qk !== 'icerik' && qk !== 'teknik' && qk !== 'yol') qi[qk] = qq[qk]; qi.score = qq.icerik.score; qi.pass = qq.icerik.pass; qi.issues = arr(qq.icerik.issues); d.quality = qi; }      /* Phase 4: içerik puanı geri gelir; teknik kısım açılışta yeniden ölçülür */
+        if (qq && qq.icerik && typeof qq.icerik.score === 'number') { var qi = {}; for (var qk in qq) if (Object.prototype.hasOwnProperty.call(qq, qk) && qk !== 'icerik' && qk !== 'teknik' && qk !== 'yol' && qk !== 'gorsel') qi[qk] = qq[qk]; qi.score = qq.icerik.score; qi.pass = qq.icerik.pass; qi.issues = arr(qq.icerik.issues); d.quality = qi; }      /* Phase 4: içerik puanı geri gelir; teknik kısım açılışta yeniden ölçülür */
+        if (qq && qq.gorsel && typeof qq.gorsel === 'object' && gorselYuklu) gorselYuklu.set(d, qq.gorsel);      /* Phase 5: yalnız deste aynı görünüyorsa yeniden yazılır */
         if (qq && qq.yol && qq.yol.k) d.yol = { k: String(qq.yol.k), yedek: qq.yol.yedek ? 1 : 0, kaynak: +qq.yol.kaynak || 0, istek: +qq.yol.istek || 0, uret: arr(qq.yol.uret).map(String) };
         d.source = pr.data.source_type || 'blank'; d.sourceId = pr.data.source_id || null;
       }
