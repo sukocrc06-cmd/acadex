@@ -92,6 +92,18 @@ test('HER ÜRETİM YOLU PUANLANIR (13.11.2026, canlı ölçüm)', () => {
   // critique üretim yapmaz: yönetmende kaynak yüklemeden önce döner.
   assert.match(dir, /if \(action === 'critique'\)[\s\S]{0,700}const source = await loadSource/,
     'critique kaynak yüklemesinden sonra çalışıyor — gereksiz yere pahalı');
+  /* PHASE 4 (26.11.2026, F1): yönetmenin 'generate' puanı has_visual/placeholder ölçmeden hesaplanır; yedek yoldan
+     gelen deste ölçülmeden 100 alıyordu (T6). Bu yolda puan nihai DEĞİLDİR: kaynakKalite'ye taşınır, quality boşalır,
+     böylece basımda kaliteOlc (critique, ölçümlü) çalışır. Yönetmen yolu değilse (legacy) puan eskisi gibi kalır. */
+  assert.match(ink, /plotMeta\.quality = r\.quality \|\| null;[\s\S]{0,900}?\n\s*if \(plotMeta\.yolDir\) \{ plotMeta\.kaynakKalite = plotMeta\.quality; plotMeta\.quality = null; \}/,
+    'yönetmen yedeğinin ölçümsüz puanı nihai sayılıyor (F1)');
+  assert.ok(ink.includes('plotMeta.yolDir = 1'), 'yönetmen yedeği işaretlenmiyor');
+  /* F2: istenen sayı yalnız eksikte ve normalizeDeck eşiğinin (asetat ≥ %75 × sayı, yoksa INCOMPLETE_PRESENTATION) altında gider */
+  assert.ok(ink.includes('slideCount: ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length }'), 'istenen sayı critique’e gitmiyor ya da sınırsız');
+  assert.match(dir, /if \(rawSlides\.length < Math\.max\(4, Math\.ceil\(slideCount \* 0\.75\)\)\) throw new Error\('INCOMPLETE_PRESENTATION'\)/,
+    'yönetmen eşiği değişti — istemcinin 4/3 sınırı yeniden hesaplanmalı');
+  /* Puanlama ve teknik denetim aynı basımda: önce içerik (critique), sonra teknik (D1 tavanı) */
+  assert.ok(ink.includes("if (mode !== 'append' && !deck.quality && deck.slides.length) kaliteOlc(deck);\n    teknikQA(deck, 'deste');"), 'basılan deste teknik denetlenmiyor');
 });
 
 /* --------------------------------------------------------------------------
@@ -225,6 +237,14 @@ test('ESKİ PUAN YENİ DESTEYE YAPIŞMAZ (14.11.2026)', () => {
     'yeniden üretimde eski puan temizlenmiyor — açılışta ölçülen puan yeni destenin üstünde kalır');
   assert.match(ink, /else if \(plotMeta\.quality\) deck\.quality = plotMeta\.quality;/,
     'ekleme kipinde var olan puan korunmalı');
+  /* PHASE 4: üretim yolu da puan gibi yeni basımda sıfırlanır (eski destenin "yedek yol" uyarısı yeni desteye geçmez),
+     ekleme kipinde korunur. Hesaba giden puan etkin puandır; açılışta İÇERİK puanı geri okunur — tavanlı (≤ 59) etkin
+     puan içerik puanı sanılıp düzeltilmiş destede kalmaz. */
+  assert.match(ink, /if \(mode !== 'append'\) \{ if \(plotMeta\.yol && plotMeta\.yol\.k\) deck\.yol = \{[^\n]*\}; else delete deck\.yol; \}/,
+    'eski üretim yolu yeni desteye yapışıyor');
+  assert.ok(ink.includes('row.quality_score = Math.max(0, Math.min(100, Math.round(et.score))); row.quality_report = teknikRapor(d, tq) || d.quality;'), 'etkin puan kaydedilmiyor');
+  assert.match(ink, /if \(qq && qq\.icerik && typeof qq\.icerik\.score === 'number'\) \{[^\n]*qi\.score = qq\.icerik\.score;[^\n]*d\.quality = qi; \}/,
+    'açılışta etkin puan içerik puanı sanılıyor');
 });
 
 test('BAYAT PUAN BAYAT DİYE GÖRÜNÜR (14.11.2026)', () => {

@@ -7408,13 +7408,16 @@ var SBX = (function () {
     var q = deck.quality, has = q && typeof q.score === 'number', cift = ciftBasliklar();
     var bayat = has && deck.qualityKey && deck.qualityKey !== deckKey(deck);
     el.hidden = !deck.slides.length; el.disabled = !!busy;
-    el.textContent = busy ? 'ölçülüyor…' : has ? 'kalite ' + Math.round(q.score) + '/100' + (bayat ? ' · bayat' : '') : 'kaliteyi ölç';
+    var tk = teknikTazeSonuc(deck), et = has ? etkinKalite(q, tk) : null;      /* Phase 4 (D1): gösterilen puan etkin puandır */
+    if (!tk && deck.slides.length) teknikPlanla();
+    teknikRozet(tk);
+    el.textContent = busy ? 'ölçülüyor…' : has ? 'kalite ' + Math.round(et.score) + '/100' + (bayat ? ' · bayat' : '') : 'kaliteyi ölç';
     var iss = bayat ? [] : kaliteYazi(q).filter(function (x) { return !(cift.length && x === KALITE_TR.duplicate_titles); });
     if (cift.length) iss.unshift('aynı başlık: ' + cift.join(', '));
     var bos = bosAsetatlar(); if (bos.length) iss.unshift('doldurulmamış yer: ' + bos.join('., ') + '. asetat');
     el.classList.toggle('warn', !busy && (!!iss.length || !!bayat));
     el.title = busy ? '' : bayat ? 'Bu puan ölçümden sonraki değişiklikleri kapsamıyor. Yeniden ölçmek için tıkla.' + (iss.length ? ' Şu an: ' + iss.join('; ') + '.' : '')
-      : (has ? 'Acadia’nın notu ' + Math.round(q.score) + '/100. ' : '') +
+      : (has ? 'Acadia’nın notu ' + Math.round(et.score) + '/100. ' : '') +
         (iss.length ? 'Bulunanlar: ' + iss.join('; ') + '. ' : has ? 'Sorun bulunmadı. ' : '') +
         (has ? 'Yeniden ölçmek için tıkla.' : 'Acadia desteyi puanlasın.');
   };
@@ -8241,6 +8244,213 @@ var SBX = (function () {
     });
     return out;
   };
+  /* ---------- PHASE 4: TEKNİK DESTE DENETİMİ (teknikQA, 26.11.2026, #30–#31) ----------
+     "Acadex sunumu oluşturdum diyor; deste teknik olarak geçerli, eksiksiz ve dışa aktarılabilir mi?" sorusunun
+     deterministik yanıtı. YALNIZ RAPORLAR: desteyi değiştirmez, kaydettirmez (dirty/saveLocal/push yok), görüntü
+     yenilemez, geri al geçmişine dokunmaz, ağ isteği yapmaz, düzeltmez, dışa aktarmayı engellemez. Sonuç desteye değil
+     WeakMap'e yazılır; kalıcı özet (yalnız kodlar ve sayılar) zaten yapılan hesap kaydına quality_report.teknik olarak
+     eklenir. audit()'in yardımcılarını ve eşiklerini aynen kullanır (overflows, hit, DECOR, GORSEL_EL, gorselVar,
+     yerTutucu; ±2 px, 3 px, %15); audit() ve diyaloğu değişmez. Geometri (sınır, taşma, en küçük yazı, çakışma) yalnız
+     şablon yazısı doğrulanıp o yazıyla sığdırılmışken ölçülür (snapHazir ile aynı koşul); değilse 'skipped' — ne geçti
+     ne kaldı, yedek yazıyla sahte taşma üretilmez. Phase 1 sığdırır; Phase 4 yalnız sığdırmanın çözemediğini söyler. */
+  var TEKNIK = {      /* kod → [önem, TR, EN] — kodlar kararlıdır, metin yalnız bu tablodan üretilir */
+    DECK_EMPTY: ['error', 'sunumda asetat yok', 'the deck has no slides'],
+    DECK_SKELETON: ['error', 'sunum iskelet hâlinde', 'the deck is still a skeleton'],
+    SLIDE_EMPTY: ['error', 'boş asetat', 'empty slide'],
+    PLACEHOLDER_LEFT: ['error', 'doldurulmamış yer tutucu', 'unfilled placeholder'],
+    SLIDE_ID_DUP: ['error', 'aynı kimlikli iki asetat', 'two slides share an id'],
+    EL_ID_DUP: ['error', 'aynı kimlikli iki öğe', 'two elements share an id'],
+    EL_GEOMETRY_INVALID: ['error', 'geçersiz öğe boyutu ya da konumu', 'invalid element size or position'],
+    LAYOUT_INVALID: ['error', 'tanınmayan düzen', 'unknown layout'],
+    CHART_EMPTY: ['error', 'verisiz grafik', 'chart without data'],
+    TABLE_EMPTY: ['error', 'boş tablo', 'empty table'],
+    IMG_NO_SRC: ['warning', 'boş görsel çerçevesi', 'empty image frame'],
+    IMG_SRC_INVALID: ['error', 'geçersiz görsel adresi', 'invalid image address'],
+    CREDIT_MISSING: ['error', 'fotoğrafın kaynak satırı yok', 'photo credit missing'],
+    IMG_DUPLICATE: ['warning', 'aynı fotoğraf iki kez kullanılmış', 'the same photo is used twice'],
+    EL_OUT_OF_BOUNDS: ['error', 'asetatın dışına taşan kutu', 'box outside the slide'],
+    TEXT_OVERFLOW: ['error', 'yazı kutusundan taşıyor', 'text overflows its box'],
+    FONT_AT_MIN: ['warning', 'yazı en küçük boyuta indi', 'text shrunk to the minimum size'],
+    EL_OVERLAP: ['warning', 'iki öğe üst üste biniyor', 'two elements overlap'],
+    REFS_MISSING: ['warning', 'kaynakça asetatı yok', 'references slide missing'],
+    FALLBACK_PATH: ['warning', 'yedek yoldan üretildi', 'generated through a fallback path'],
+    SNAPSHOT_PENDING: ['info', 'paylaşım görüntüsü bekliyor', 'share snapshot pending'],
+    EXPORT_FAILED: ['error', 'PowerPoint dosyası hazırlanamadı', 'PowerPoint export failed'],
+    EXPORT_IMG_DROPPED: ['error', 'fotoğraf dışa aktarılamadı', 'photo could not be exported'],
+    EXPORT_DRAWING_DROPPED: ['warning', 'çizim dışa aktarılamadı', 'drawing could not be exported'],
+    EXPORT_CHART_SKIPPED: ['error', 'grafik dışa aktarılmadı', 'chart was not exported'],
+    EXPORT_TABLE_SKIPPED: ['error', 'tablo dışa aktarılmadı', 'table was not exported'],
+    PDF_PAGE_MISMATCH: ['error', 'PDF sayfa sayısı asetat sayısını tutmuyor', 'PDF page count does not match the slides']
+  };
+  var teknikIz = typeof WeakMap === 'function' ? new WeakMap() : null;      /* deste → { anahtar, olc, sonuc } */
+  var teknikDisa = typeof WeakMap === 'function' ? new WeakMap() : null;    /* deste → { anahtar, tur: { pptx|pdf: [sorun] } } */
+  var teknikSure = 0, YAPI_DISI = /^(cover|end|refs)$/;
+  var teknikSay = function (n) { return typeof n === 'number' && isFinite(n); };
+  /* İçerik parmak izi: asetatlar (ekrandaki sığdırılmış boyutlarla), üretim yolu, paylaşım/görüntü durumu. Uzun
+     dizgiler (data: görseller) kısaltılarak katılır; deste değişince eski sonuç geçerliymiş gibi gösterilmez. */
+  var teknikAnahtar = function (d) {
+    var s = JSON.stringify([arr(d && d.slides), (d && d.yol) || null, !!(d && d.share), d && d.snapBekle ? 1 : 0], function (k, v) { return typeof v === 'string' && v.length > 200 ? v.length + ':' + v.slice(0, 60) + '|' + v.slice(-60) : v; });
+    var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16) + ':' + s.length;
+  };
+  var teknikSorun = function (code, sev, slide, el) { return { code: code, severity: sev || TEKNIK[code][0], slide: slide == null ? null : slide, element: el == null ? null : String(el) }; };
+  /* B — geometri: audit() ile aynı eşikler. Tam sayfa fotoğraf zemindir (Phase 2 'tam': kapak/alıntı panosu üstünde
+     durur), fotoğrafla kendi kaynak satırı ve halka grafiğin ortasındaki sayı (stat:5) birliktedir; bunlar çakışma
+     sayılmaz. Süs öğeleri (DECOR) dışarıda. */
+  var teknikGeo = function (s, n, els, add) {
+    var tam = function (e) { return e.type === 'img' && e.x <= 2 && e.y <= 2 && e.x + e.w >= W - 2 && e.y + e.h >= H - 2; };
+    var halka = function (a, b) { return a.type === 'chart' && String((a.chart || {}).type || '').toLowerCase() === 'ring' && (b.type === 'h' || b.type === 't') && b.x >= a.x - 2 && b.y >= a.y - 2 && b.x + b.w <= a.x + a.w + 2 && b.y + b.h <= a.y + a.h + 2; };
+    var vis = els.filter(function (e) { return e && !DECOR[e.type] && teknikSay(e.x) && teknikSay(e.y) && teknikSay(e.w) && teknikSay(e.h); });
+    vis.forEach(function (e) {
+      if (e.x < -2 || e.y < -2 || e.x + e.w > W + 2 || e.y + e.h > H + 2) add('EL_OUT_OF_BOUNDS', null, n, e.id);
+      if (e.muted) return;
+      if ((e.type === 'ul' || e.type === 't' || e.type === 'h') && e.text && overflows(e, s)) add('TEXT_OVERFLOW', null, n, e.id);
+      var iz = FMIN[e.type] && fitTaban ? fitTaban.get(e) : null;      /* sığdırma bu öğeyi en küçük boyuta indirdi (tasarımı zaten küçük olan değil) */
+      if (iz && iz.son === e.size && iz.taban > e.size && e.size <= FMIN[e.type]) add('FONT_AT_MIN', null, n, e.id);
+    });
+    var on = vis.filter(function (e) { return !e.muted && !tam(e); });
+    for (var a = 0; a < on.length; a++) for (var b = a + 1; b < on.length; b++) {
+      var A = on[a], B = on[b]; if (!hit(A, B)) continue;
+      if ((A.type === 'img' && A.creditId != null && A.creditId === B.id) || (B.type === 'img' && B.creditId != null && B.creditId === A.id) || halka(A, B) || halka(B, A)) continue;
+      var ix = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x), iy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+      if (ix * iy > .15 * Math.min(A.w * A.h, B.w * B.h)) add('EL_OVERLAP', null, n, B.id);
+    }
+  };
+  /* A + C + E — yapı, görsel ve bütün deste (DOM'suz). geo: geometri de ölçülsün mü. */
+  var teknikTemel = function (d, geo) {
+    var out = [], seen = {}, add = function (code, sev, si, el) { var k = code + '|' + si + '|' + (el == null ? '' : el); if (seen[k]) return; seen[k] = 1; out.push(teknikSorun(code, sev, si, el)); };
+    var sl = arr(d.slides); if (!sl.length) { add('DECK_EMPTY', null, null, null); return out; }
+    var yol = d.yol && typeof d.yol === 'object' ? d.yol : null, sid = {}, src = {}, icerik = 0, yerli = 0, uret = {};
+    arr(yol && yol.uret).forEach(function (x) { uret[x] = 1; });
+    sl.forEach(function (s, i) {
+      var n = i + 1, els = arr(s && s.els), eid = {}, elle = !!(s && !uret[String(s.id)]), yer = false;      /* basımda olmayan asetat elle eklenmiştir */
+      if (!s || typeof s !== 'object') { add('SLIDE_EMPTY', null, n, null); return; }
+      if (s.id != null) { if (sid[s.id]) add('SLIDE_ID_DUP', null, n, null); sid[s.id] = 1; }
+      /* serbest asetatın düzeni yoktur (lay yok / 'none'): hata değildir */
+      if (s.lay && s.lay !== 'none' && (!LAY[s.lay] || (s.v && !(VARY[s.lay] && Math.floor(s.v) === s.v && s.v >= 1 && s.v <= VARY[s.lay].length)))) add('LAYOUT_INVALID', null, n, null);
+      els.forEach(function (e) {
+        if (!e || typeof e !== 'object') { add('EL_GEOMETRY_INVALID', null, n, null); return; }
+        if (e.id != null) { if (eid[e.id]) add('EL_ID_DUP', null, n, e.id); eid[e.id] = 1; }
+        if (!teknikSay(e.x) || !teknikSay(e.y) || !teknikSay(e.w) || !teknikSay(e.h) || e.w <= 0 || (e.h <= 0 && !DECOR[e.type])) add('EL_GEOMETRY_INVALID', null, n, e.id);
+        /* basılmış (üretilmiş) destede kalan yer tutucu hatadır; düzenleyicide elle eklenmiş ya da elle kurulan destede uyarı */
+        if (e.muted && /^(h|t|ul|math)$/.test(e.type)) { yer = true; add('PLACEHOLDER_LEFT', yol && !elle ? 'error' : 'warning', n, e.id); }
+        if (e.muted) return;
+        if (e.type === 'chart' && !chartVals(e.chart || {}).length) add('CHART_EMPTY', null, n, e.id);
+        if (e.type === 'table') { var tb = e.table || {}, nc = Math.max(arr(tb.headers).length, arr(tb.rows).reduce(function (m, r) { return Math.max(m, arr(r).length); }, 0)); if (!nc) add('TABLE_EMPTY', null, n, e.id); }
+        if (e.type === 'img') {
+          var u = String(e.src || '');
+          if (!u) add('IMG_NO_SRC', null, n, e.id);      /* boş çerçeve basılmaz (Phase 2); dışa aktarmada da atlanır — dışa aktarma hatası değildir */
+          else if (!/^(https?:\/\/|data:image\/)/i.test(u)) add('IMG_SRC_INVALID', null, n, e.id);
+          else {
+            /* uzak fotoğrafın kaynak satırı aynı asetatta gerçekten var olmalı; kullanıcının yüklediği data: görseli için aranmaz */
+            if (/^https?:/i.test(u) && !(e.creditId != null && els.some(function (x) { return x && x.id === e.creditId && x.type === 't'; }))) add('CREDIT_MISSING', null, n, e.id);
+            if (src[u]) add('IMG_DUPLICATE', null, n, e.id); src[u] = 1;
+          }
+        }
+      });
+      if (!YAPI_DISI.test(s.lay || '')) {
+        if (!elle) { icerik++; if (yer) yerli++; }
+        /* yalnız görsel taşıyan içerik asetatı boş değildir; kapak, kapanış ve kaynakça istisnadır. Yer tutucu gibi: elle eklenen
+           asetatta ya da elle kurulan destede (düzenleme sürüyor) uyarı, basılmış asetatta hata. */
+        if (!els.some(function (e) { return e && !DECOR[e.type] && !e.muted && (String(e.text || '').trim() || e.chart || e.table || e.latex || e.svg || e.src || e.viz); })) add('SLIDE_EMPTY', yol && !elle ? null : 'warning', n, null);
+      }
+      if (geo) teknikGeo(s, n, els, add);
+    });
+    /* İSKELET: iskelet yolundan gelip hâlâ yer tutucu taşıyan ya da içerik asetatlarının en az yarısı yer tutucu olan
+       üretilmiş deste. Kullanıcı iskeleti tamamen doldurduysa iskelet değildir (yedek yol uyarısı kalır). */
+    if (yol && ((yol.k === 'skeleton' && yerli) || (icerik && yerli / icerik >= 0.5))) add('DECK_SKELETON', null, null, null);
+    if (yol && yol.yedek) add('FALLBACK_PATH', null, null, null);
+    if (yol && yol.kaynak > 0 && !sl.some(function (s) { return s && s.lay === 'refs'; })) add('REFS_MISSING', null, null, null);
+    if (d.share && d.snapBekle) add('SNAPSHOT_PENDING', null, null, null);      /* görüntü kurulmaz, yalnız durumu söylenir */
+    return out;
+  };
+  /* kapsam: 'deste' (yapı + ölçülebiliyorsa geometri), 'yapi' (yalnız DOM'suz denetimler), 'disa' (ek = { tur: 'pptx'|'pdf',
+     kayit: [[kod, asetat sırası (0'dan), öğe]] }: o türün son aktarım kaydı ÖNCEKİNİN YERİNE yazılır, sonra deste denetlenir). */
+  var teknikQA = function (d, kapsam, ek) {
+    if (!d) return null;
+    var t0 = typeof performance !== 'undefined' ? performance.now() : Date.now(), anahtar = teknikAnahtar(d);
+    if (kapsam === 'disa') {
+      if (teknikDisa && ek && ek.tur) { var x = teknikDisa.get(d); if (!x || x.anahtar !== anahtar) x = { anahtar: anahtar, tur: {} };
+        x.tur[ek.tur] = arr(ek.kayit).map(function (k) { return teknikSorun(k[0], null, k[1] == null ? null : k[1] + 1, k[2]); }); teknikDisa.set(d, x); }
+      kapsam = 'deste';
+    }
+    var geo = kapsam !== 'yapi' && snapHazir(d), issues = teknikTemel(d, geo), seen = {};
+    var dx = teknikDisa && teknikDisa.get(d); if (dx && dx.anahtar === anahtar) Object.keys(dx.tur).sort().forEach(function (k) { issues = issues.concat(dx.tur[k]); });
+    issues = issues.filter(function (z) { var k = z.code + '|' + z.slide + '|' + z.element; if (seen[k]) return false; seen[k] = 1; return true; })
+      .sort(function (a, b) { return (a.slide || 0) - (b.slide || 0) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0) || (a.element == null ? (b.element == null ? 0 : -1) : b.element == null ? 1 : a.element < b.element ? -1 : a.element > b.element ? 1 : 0); });
+    var say0 = { error: 0, warning: 0, info: 0 }; issues.forEach(function (z) { say0[z.severity]++; });
+    var sonuc = { v: 1, status: say0.error ? 'error' : say0.warning ? 'warn' : 'pass',
+      olcum: { geometri: geo ? 'tamam' : 'skipped', yazi: fontYedek ? 'yedek' : d === deck && yaziHazirMi() ? 'sablon' : 'bekliyor' },
+      summary: { errors: say0.error, warnings: say0.warning, info: say0.info, checkedSlides: arr(d.slides).length, skipped: geo ? [] : ['geometri'] },
+      issues: issues };
+    if (teknikIz) teknikIz.set(d, { anahtar: anahtar, olc: geo ? yaziIz() : 'skip', sonuc: sonuc });
+    teknikSure = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+    return sonuc;
+  };
+  /* Güncel sonuç: içerik aynı ve ölçüm koşulu aynıysa (geometri ölçülebiliyorken atlanmış sonuç bayattır). Yoksa null. */
+  var teknikTazeSonuc = function (d) {
+    var c = teknikIz && d && teknikIz.get(d); if (!c || c.anahtar !== teknikAnahtar(d)) return null;
+    return c.olc === (snapHazir(d) ? yaziIz() : 'skip') || (c.olc !== 'skip' && !snapHazir(d)) ? c.sonuc : null;
+  };
+  /* Bayat sonuç boşta yeniden ölçülür (tek zamanlayıcı; içerik aynıysa ölçülmez). Kaydettirmez, yalnız rozeti boyar.
+     Şablon yazısı henüz doğrulanmadıysa geometri atlanır ve ölçüm yazı kuyruğuna (yaziSonra) bırakılır: yazı gelip
+     deste sığdırılınca bir kez daha ölçülür. Yedek yazıda beklenmez (geometri 'skipped' kalır). */
+  var teknikT = 0;
+  var teknikPlanla = function () {
+    if (teknikT) return;
+    teknikT = setTimeout(function () {
+      teknikT = 0; if (!deck || !deck.slides.length) return;
+      if (!teknikTazeSonuc(deck)) { teknikQA(deck, 'deste'); paintKalite(); }
+      if (!snapHazir(deck) && !fontYedek && fitIz) yaziSonra(teknikPlanla, 'teknik');
+    }, 800);
+  };
+  /* Kalıcı özet (D1/§8): yalnız sürüm, durum, sayılar ve kodlar. Güncel sonuç yoksa (kayıt düzenlemeden hemen sonra
+     geldiyse) yalnız DOM'suz denetimler bir kez yeniden hesaplanır — geometri ölçülmeden 'geçti' sayılmaz. */
+  var teknikOzet = function (d) {
+    var r = teknikTazeSonuc(d) || teknikQA(d, 'yapi'), codes = [];
+    r.issues.forEach(function (z) { if (codes.indexOf(z.code) < 0) codes.push(z.code); }); codes.sort();
+    return { v: 1, status: r.status, errors: r.summary.errors, warnings: r.summary.warnings, codes: codes };
+  };
+  /* D1: teknik hata varsa etkin puan en çok 59 ve geçmez; uyarı/bilgi içerik puanını düşürmez. İçerik puanı ayrı kalır. */
+  var etkinKalite = function (q, t) {
+    if (!q || typeof q.score !== 'number') return null;
+    var hata = !!(t && t.status === 'error'), ip = typeof q.pass === 'boolean' ? q.pass : q.score >= 72;
+    return { score: hata ? Math.min(q.score, 59) : q.score, pass: hata ? false : ip };
+  };
+  /* hesaba giden quality_report: içerik raporunun DEĞİŞMEZ kopyası + etkin puan + icerik + teknik (+ üretim yolu kodu) */
+  var teknikRapor = function (d, tq) {
+    var q = d.quality, et = etkinKalite(q, tq), r = {}; if (!et) return null;
+    for (var k in q) if (Object.prototype.hasOwnProperty.call(q, k) && k !== 'icerik' && k !== 'teknik' && k !== 'yol') r[k] = q[k];
+    r.score = et.score; r.pass = et.pass;
+    r.icerik = { score: q.score, pass: typeof q.pass === 'boolean' ? q.pass : q.score >= 72, issues: arr(q.issues).slice() };
+    r.teknik = tq; if (d.yol && d.yol.k) r.yol = { k: String(d.yol.k), yedek: d.yol.yedek ? 1 : 0, kaynak: +d.yol.kaynak || 0, istek: +d.yol.istek || 0, uret: arr(d.yol.uret).map(String) };
+    return r;
+  };
+  /* D2: kalite rozetinin yanında "teknik hata (N)" / "teknik uyarı (N)"; tıklayınca var olan Asetat denetimi açılır.
+     İngilizcesi ortak sözlüğe (AX_EN, acadex-i18n.js) çalışırken eklenir; sözlükte olan anahtarın üzerine yazılmaz. */
+  var teknikSozluk = function () {
+    var A = window.AX_EN && window.AX_EN.t; if (!A || A['teknik hata ({#})']) return;
+    var ek = { 'teknik hata ({#})': 'technical error ({#})', 'teknik uyarı ({#})': 'technical warning ({#})', 'Teknik denetim': 'Technical check', '{#} teknik hata': '{#} technical errors',
+      '{#} teknik uyarı': '{#} technical warnings', 'geometri ölçülmedi': 'geometry not measured', 'ayrıntılar için tıkla': 'click for details' };
+    Object.keys(TEKNIK).forEach(function (c) { ek[TEKNIK[c][1]] = TEKNIK[c][2]; });
+    Object.keys(ek).forEach(function (k) { if (A[k] == null) A[k] = ek[k]; });
+  };
+  /* dışa aktarım kaydı: denetim hatası aktarımı asla bozmaz */
+  var teknikDisaKaydet = function (d, tur, kayit) { try { teknikQA(d, 'disa', { tur: tur, kayit: kayit }); if (d === deck) paintKalite(); } catch (_) {} };
+  var tkBtn = null;
+  var teknikRozet = function (t) {
+    var kb = Q('[data-kalite]'); if (!kb || !kb.parentNode) return;
+    if (!tkBtn) { tkBtn = document.createElement('button'); tkBtn.type = 'button'; tkBtn.className = 'sx-lnk sx-kal warn'; tkBtn.setAttribute('data-teknik', ''); tkBtn.hidden = true;
+      kb.parentNode.insertBefore(tkBtn, kb.nextSibling); tkBtn.addEventListener('click', function () { openAudit(); }); }
+    teknikSozluk();
+    var ne = t && t.status !== 'pass' && deck.slides.length ? t : null; tkBtn.hidden = !ne;
+    if (!ne) { tkBtn.textContent = ''; tkBtn.removeAttribute('title'); return; }
+    var e = ne.summary.errors, w = ne.summary.warnings, kod = [];
+    ne.issues.forEach(function (z) { if (z.severity !== 'info' && kod.indexOf(z.code) < 0) kod.push(z.code); });
+    tkBtn.textContent = e ? 'teknik hata (' + e + ')' : 'teknik uyarı (' + w + ')';
+    tkBtn.title = ['Teknik denetim'].concat(e ? [e + ' teknik hata'] : [], w ? [w + ' teknik uyarı'] : [], kod.map(function (c) { return TEKNIK[c][1]; }),
+      ne.olcum.geometri !== 'tamam' ? ['geometri ölçülmedi'] : [], ['ayrıntılar için tıkla']).join(' · ');
+  };
   var fixSlide = function (s, ids) { var moved = 0; s.els.forEach(function (e) { if (!ids || ids.indexOf(e.id) >= 0) moved += settle(s, e).length; }); return moved; };
   var openAudit = function () {
     if (!deck.slides.length) { say('Denetlenecek asetat yok.'); return; }
@@ -8535,18 +8745,18 @@ var SBX = (function () {
         if (!c) { say('Önce Belgelerim’de bir belgeyi özetle.', null, '#docs', 'belgelere git →'); return null; }
         var title = baseName(c.documents && c.documents.file_name);
         plotMeta = { sub: [c.course_tag, subLine()].filter(Boolean).join(' · '), source: 'study_card', sourceId: c.id };
-        var viaDir = function () { return fn('acadia-presentation-director', { action: 'generate', sourceType: 'study_card', sourceId: c.id, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(function (d) { var r = fromDirector(d); plotMeta.via = 'ai'; o.ai = true; return shape(r.items, o, r.title || title); }); };
-        var st0 = o.story && o.story !== 'auto' && cardText(c).length > 200 ? fn('sunum-research', { action: 'research', topic: title, sourceTitle: title, sourceText: cardText(c), story: o.story, slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch).then(function (r) { plotMeta.via = 'docstory'; plotMeta.check = r.check; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) { console.warn('acadex-sunum: belge iskeleti', e); return viaDir(); }) : viaDir();
+        var viaDir = function () { return fn('acadia-presentation-director', { action: 'generate', sourceType: 'study_card', sourceId: c.id, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(function (d) { var r = fromDirector(d); plotMeta.via = 'ai'; plotMeta.yol = { k: 'director', yedek: plotMeta.yolYedek ? 1 : 0 }; o.ai = true; return shape(r.items, o, r.title || title); }); };
+        var st0 = o.story && o.story !== 'auto' && cardText(c).length > 200 ? fn('sunum-research', { action: 'research', topic: title, sourceTitle: title, sourceText: cardText(c), story: o.story, slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch).then(function (r) { plotMeta.via = 'docstory'; plotMeta.yol = { k: 'docstory', yedek: 0 }; plotMeta.check = r.check; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) { console.warn('acadex-sunum: belge iskeleti', e); plotMeta.yolYedek = 1; return viaDir(); }) : viaDir();
         return st0
           .then(function (st) { return st; },
-                function (e) { console.warn('acadex-sunum: director', e); plotMeta.via = 'local'; return shape(fromCard(c), o, title); })
+                function (e) { console.warn('acadex-sunum: director', e); plotMeta.via = 'local'; plotMeta.yol = { k: 'local', yedek: 1 }; return shape(fromCard(c), o, title); })
           .then(function (st) { o.card = c; return st; });
       });
     }
     if (o.src === 'cards') {
       return loadSrc().then(function () {
         var c = cards(); if (!c.length) { say('Önce Bilgi kartlarında bir deste oluştur.', null, '#cards', 'kartlara git →'); return null; }
-        plotMeta = { sub: c.length + ' bilgi kartından · ' + subLine(), source: 'blank', sourceId: null, via: 'cards' };
+        plotMeta = { sub: c.length + ' bilgi kartından · ' + subLine(), source: 'blank', sourceId: null, via: 'cards', yol: { k: 'cards', yedek: 0 } };
         return shape(c.slice(0, n).map(function (k) { return { t: k.front, k: 'list', b: [k.back] }; }), o, 'Ders kartlarımdan');
       });
     }
@@ -8555,16 +8765,24 @@ var SBX = (function () {
     plotMeta = { sub: subLine(), source: 'topic', sourceId: null };
     var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = web ? 'Acadia konuyu birkaç sorguya açıyor, webde ve Wikipedia’da arıyor, okuyup kurguyu çiziyor… (30–60 sn)' : 'Acadia kurguyu çiziyor…';
     var research = web ? fn('sunum-research', { action: 'research', topic: tp, story: o.story || 'auto', slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch) : Promise.reject(new Error('kapalı'));
-    return research.then(function (r) { plotMeta.via = 'research'; plotMeta.sources = r.sources; plotMeta.check = r.check; plotMeta.cover = r.cover; plotMeta.engine = r.engine; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) {
+    return research.then(function (r) { plotMeta.via = 'research'; plotMeta.yol = { k: 'research', yedek: 0 }; plotMeta.sources = r.sources; plotMeta.check = r.check; plotMeta.cover = r.cover; plotMeta.engine = r.engine; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) {
       if (web) { console.warn('acadex-sunum: research', e); plotMeta.webFail = true; }
       return legacyTopic(tp, o, title);
     });
   };
   var legacyTopic = function (tp, o, title) {
     return fn('generate-presentation', { topic: tp, tone: TONE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr' }, 75000).then(fromLegacy)
-      .catch(function (e) { console.warn('acadex-sunum: generate-presentation', e); return fn('acadia-presentation-director', { action: 'generate', sourceType: 'topic', topic: tp, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(fromDirector); })
-      .then(function (r) { plotMeta.via = 'ai'; plotMeta.quality = r.quality || null; o.ai = true; return shape(r.items, o, r.title || title); },
-            function (e) { console.warn('acadex-sunum: topic', e); plotMeta.via = 'skeleton'; return shape(generic(tp), o, title); });
+      .catch(function (e) { console.warn('acadex-sunum: generate-presentation', e); plotMeta.yolDir = 1; return fn('acadia-presentation-director', { action: 'generate', sourceType: 'topic', topic: tp, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(fromDirector); })
+      .then(function (r) { plotMeta.via = 'ai'; plotMeta.quality = r.quality || null; o.ai = true;
+              /* PHASE 4 — F1 (26.11.2026, #30): yönetmenin 'generate' puanı ÖLÇÜMSÜZDÜR — boş asetat, görsel, ince asetat ve
+                 yinelenen rakam ölçütleri istemcinin ölçtüğü alanlar (has_visual/placeholder) olmadan çalışmaz; 5 asetatı boş
+                 T6 benzeri deste 100/100 'geçti' alıyordu. Bu puan nihai sayılmaz: kaynak bilgisi olarak kaynakKalite'de
+                 durur, deste basılınca critique gerçek asetatları ölçer (printDeck → kaliteOlc). Yedek zinciri yolu da yazılır:
+                 web açıkken araştırma düştüyse eski motor da yedektir; web kapalıysa eski motor asıl yoldur. */
+              if (plotMeta.yolDir) { plotMeta.kaynakKalite = plotMeta.quality; plotMeta.quality = null; }
+              plotMeta.yol = plotMeta.yolDir ? { k: 'director', yedek: 1 } : { k: 'legacy', yedek: plotMeta.webFail ? 1 : 0 };
+              return shape(r.items, o, r.title || title); },
+            function (e) { console.warn('acadex-sunum: topic', e); plotMeta.via = 'skeleton'; plotMeta.yol = { k: 'skeleton', yedek: 1 }; return shape(generic(tp), o, title); });
   };
   /* asetat içi atıf: kaynak numarası kaynakçadaki sırayla; rakamlı maddelere, yoksa son maddeye */
   var cite = function (st, srcs) {
@@ -8586,6 +8804,7 @@ var SBX = (function () {
     var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = 'Acadia kurguyu çiziyor…';
     return makeOutline0(o).then(function (st) {
       if (!st) return st;
+      plotMeta.istek = o.n > 0 ? +o.n : 0;      /* Phase 4 (F2): kullanıcının istediği sayfa sayısı (kapak + içerik + kapanış) */
       if (!o.researched) st.forEach(smartKind);
       var head0 = st[0] && st[0].k === 'cover' ? st.shift() : null, tail = st.length && st[st.length - 1].k === 'end' ? st.pop() : null;
       var vis = o.card ? cardVisuals(o.card, o.lang) : Promise.resolve([]);
@@ -8968,7 +9187,11 @@ var SBX = (function () {
     });
     if (!sl.length) return;
     kaliteBusy = true; paintKalite(true);
-    fn('acadia-presentation-director', { action: 'critique', presentation: { title: d.title || '', slides: sl }, sourceType: d.source || 'topic', slideCount: sl.length }, 30000)
+    /* PHASE 4 (F2): istenen sayfa sayısı biliniyorsa gönderilir — yalnız EKSİK yönde: kaynakça ve gündem asetatı sayılmaz,
+       fazlası (görsel, kaynakça) eksiklik değildir. İstek bilinmiyorsa (elle kurulan, eski deste) uydurulmaz.
+       Üst sınır 4/3 × asetat: yönetmenin normalizeDeck'i asetat < %75 × sayı ise INCOMPLETE_PRESENTATION atar, puan hiç oluşmazdı. */
+    var ist = d.yol && d.yol.istek > 0 ? d.yol.istek : 0, uretilen = arr(d.slides).filter(function (x) { return x.lay !== 'refs' && !(x.lay === 'list' && x.v === 10); }).length;
+    fn('acadia-presentation-director', { action: 'critique', presentation: { title: d.title || '', slides: sl }, sourceType: d.source || 'topic', slideCount: ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length }, 30000)
       .then(function (r) {
         kaliteBusy = false;
         var q = r && r.quality; if (!q || typeof q.score !== 'number' || d !== deck) { paintKalite(); return; }
@@ -8976,7 +9199,8 @@ var SBX = (function () {
         /* Puan tek başına yetmez: sorunlar adıyla görünmeli, yoksa "96 almışım"
            deyip eksik deste öyle kalır (13.11.2026 dersi). */
         var iss = kaliteYazi(q);
-        if (loud || iss.length) say('Acadia kalite notu: ' + Math.round(q.score) + '/100' + (iss.length ? ' — ' + iss.join(', ') : ' — sorun bulunmadı.'));
+        var tk = teknikTazeSonuc(d), et = etkinKalite(q, tk) || q, th = tk && tk.summary.errors ? ' · teknik hata (' + tk.summary.errors + ')' : '';      /* Phase 4: gösterilen puan etkin puandır (teknik hata varsa en çok 59) */
+        if (loud || iss.length) say('Acadia kalite notu: ' + Math.round(et.score) + '/100' + (iss.length ? ' — ' + iss.join(', ') : th ? '' : ' — sorun bulunmadı.') + th);
       }, function (e) {
         kaliteBusy = false; paintKalite(); console.warn('acadex-sunum: kalite ölçülemedi', e);
         if (loud) say('Acadia şu an puanlayamadı; biraz sonra tekrar dene.');
@@ -9325,7 +9549,12 @@ var SBX = (function () {
        yalnız yönetmen döndürüyordu — en çok kullanılan araştırma yolunda puan
        hiç oluşmuyordu. Yönetmenin 'critique' eylemi hazır desteyi puanlıyor,
        üretim yapmıyor; deste basıldıktan sonra arka planda çağrılır. */
+    /* PHASE 4: üretim yolu (provenance) desteyle taşınır — yeni basım eskisini siler, ekleme kipi korur. Yalnız kısa
+       kodlar ve sayılar: hangi yol, yedek mi, kaç kaynak, kaç sayfa istendi (F2). Metin/URL yok. uret: basılan asetatların kimlikleri — sonradan elle eklenen asetat
+       (cihaz değişse de) üretilmiş sayılmaz, yer tutucusu hata değil uyarıdır. */
+    if (mode !== 'append') { if (plotMeta.yol && plotMeta.yol.k) deck.yol = { k: String(plotMeta.yol.k), yedek: plotMeta.yol.yedek ? 1 : 0, kaynak: arr(plotMeta.sources).length, istek: plotMeta.istek > 0 ? plotMeta.istek : 0, uret: deck.slides.map(function (s) { return String(s.id); }) }; else delete deck.yol; }
     if (mode !== 'append' && !deck.quality && deck.slides.length) kaliteOlc(deck);
+    teknikQA(deck, 'deste');      /* Phase 4 (A): basılan destenin ilk teknik durumu — sığdırmadan sonra, yalnız okur */
     deck.cur = start; selId = null; plotFrom = null; plot.close(); renderAll(); dirty();
     QA('.sx-th', thumbsEl).slice(start).forEach(function (li, i) { if (!calm) { li.classList.add('printed'); li.querySelector('.sx-thb').style.animationDelay = (i * 120) + 'ms'; } });
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
@@ -9527,6 +9756,7 @@ var SBX = (function () {
   Q('[data-pdf]').addEventListener('click', function () {
     if (!deck.slides.length) { say('İndirilecek asetat yok.'); return; }
     commitEdit(); printBox.innerHTML = deck.slides.map(slideHTML).join('');
+    teknikDisaKaydet(deck, 'pdf', printBox.children.length !== deck.slides.length ? [['PDF_PAGE_MISMATCH', null, null]] : []);
     var pg = document.createElement('style'); pg.id = 'axu-page'; pg.textContent = '@page{size:960px 540px;margin:0}'; document.head.appendChild(pg);
     document.body.classList.add('axu-print');
     say('Yazdırma penceresinde hedef olarak “PDF olarak kaydet”i seç.');
@@ -9593,6 +9823,7 @@ var SBX = (function () {
     await yaziHazirSoz();      /* PPTX ekrandaki gibi doğrulanmış yazıyla sığdırılmış boyutları taşır (açılan deste önce sığdırılır) */
     commitEdit(); if (btn) { btn.disabled = true; btn.textContent = 'hazırlanıyor…'; }
     var off = document.createElement('div'); off.style.cssText = 'position:fixed;left:-20000px;top:0;width:960px;height:540px;pointer-events:none'; LY.appendChild(off);
+    var qaK = [], d0 = deck;      /* Phase 4: aktarılamayan öğeler teknik denetime (her aktarım bir öncekinin yerine geçer) */
     try {
       var P = await pptxLib(), pp = new P(); pp.layout = 'LAYOUT_16x9'; pp.title = deck.title || 'Acadex sunumu'; pp.author = (profile().full_name || 'Acadex'); pp.company = 'Acadex';
       var IN = function (v) { return Math.max(0, v) / 96; }, PT = function (v) { return Math.round((v || 20) * 0.75); };
@@ -9613,15 +9844,15 @@ var SBX = (function () {
           else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = kutuGolge(e) ? 'FFFFFF' : hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : saydam(temaRenk(e.fill || '')) ? { color: fc, transparency: saydam(temaRenk(e.fill || '')) } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : saydam(temaRenk(e.fill || '')) ? { type: 'none' } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
           else if (e.type === 'arrow') sl.addShape(pp.ShapeType.line, { x: box.x, y: box.y + box.h / 2, w: box.w, h: 0, line: { color: hex(temaRenk(e.color), '#2F6BFF'), width: 3, endArrowType: 'triangle' } });
           else if (e.type === 'mark') sl.addShape(pp.ShapeType.rect, { x: box.x, y: box.y + box.h * 0.3, w: box.w, h: Math.max(0.04, box.h * 0.35), fill: { color: hex(temaRenk(e.color), '#2F6BFF'), transparency: 35 }, line: { type: 'none' } });
-          else if (e.type === 'img') { var isrc = e.src && /^https?:/.test(e.src) ? veri[e.src] : e.src; if (e.src && !isrc) { atlanan++; continue; } if (isrc) sl.addImage({ data: isrc, x: box.x, y: box.y, w: e.kap ? box.h * (e.oran || 1.5) : box.w, h: box.h, sizing: { type: e.kap ? 'cover' : 'contain', w: box.w, h: box.h } }); }   /* kap: kutuyu kırparak doldurur; w/h fotoğrafın kendi oranını taşır; adresli fotoğraf önceden indirildi */
+          else if (e.type === 'img') { var isrc = e.src && /^https?:/.test(e.src) ? veri[e.src] : e.src; if (e.src && !isrc) qaK.push(['EXPORT_IMG_DROPPED', si, e.id]); if (e.src && !isrc) { atlanan++; continue; } if (isrc) sl.addImage({ data: isrc, x: box.x, y: box.y, w: e.kap ? box.h * (e.oran || 1.5) : box.w, h: box.h, sizing: { type: e.kap ? 'cover' : 'contain', w: box.w, h: box.h } }); }   /* kap: kutuyu kırparak doldurur; w/h fotoğrafın kendi oranını taşır; adresli fotoğraf önceden indirildi */
           else if (e.type === 'chart') {
-            var ch = e.chart || {}, vals = chartVals(ch); if (!vals.length) continue; var ty = String(ch.type || 'bar').toLowerCase();
+            var ch = e.chart || {}, vals = chartVals(ch); if (!vals.length) { qaK.push(['EXPORT_CHART_SKIPPED', si, e.id]); continue; } var ty = String(ch.type || 'bar').toLowerCase();
             if (ty === 'ring') { var rv0 = Math.max(0, Math.min(100, vals[0])); sl.addChart(pp.ChartType.doughnut, [{ name: titleOf(s) || 'Oran', labels: ['', ''], values: [rv0, 100 - rv0] }], Object.assign({}, box, { chartColors: [hex(temaRenk(BLUE)), 'E4E8F1'], showLegend: false, showValue: false, holeSize: 78 })); continue; }
             var ct = /doughnut/.test(ty) ? pp.ChartType.doughnut : /pie|pasta/.test(ty) ? pp.ChartType.pie : /line|çizgi/.test(ty) ? pp.ChartType.line : pp.ChartType.bar;
             sl.addChart(ct, [{ name: titleOf(s) || 'Seri', labels: chartLabels(ch, vals.length), values: vals }], Object.assign({}, box, { barDir: 'col', chartColors: ct === pp.ChartType.pie || ct === pp.ChartType.doughnut ? PAL.map(function (c) { return c.slice(1); }) : ['2F6BFF'], showValue: true, dataLabelFontSize: 10, catAxisLabelFontSize: 10, valAxisLabelFontSize: 9, showLegend: ct === pp.ChartType.pie || ct === pp.ChartType.doughnut, legendPos: 'r', legendFontSize: 10, lineSize: 3 }));
           }
           else if (e.type === 'table') {
-            var tb = e.table || {}, hd = arr(tb.headers), rows = arr(tb.rows), nc = Math.max(hd.length, rows.reduce(function (m, r) { return Math.max(m, arr(r).length); }, 0)); if (!nc) continue;
+            var tb = e.table || {}, hd = arr(tb.headers), rows = arr(tb.rows), nc = Math.max(hd.length, rows.reduce(function (m, r) { return Math.max(m, arr(r).length); }, 0)); if (!nc) { qaK.push(['EXPORT_TABLE_SKIPPED', si, e.id]); continue; }
             var pad = function (r) { r = arr(r).slice(0, nc); while (r.length < nc) r.push(''); return r; };
             var data = (hd.length ? [pad(hd).map(function (c) { return { text: String(c), options: { bold: true, fill: { color: hex(temaRenk(BLUE)) }, color: kontrast('#FFFFFF', temaRenk(BLUE)) >= 3 ? 'FFFFFF' : '0D1838' } }; })] : []).concat(rows.map(function (r) { return pad(r).map(function (c) { return { text: String(c), options: { color: col({ color: '#0D1838' }) } }; }); }));
             sl.addTable(data, { x: box.x, y: box.y, w: box.w, colW: Array(nc).fill(box.w / nc), fontFace: ff, fontSize: Math.max(9, PT(e.size || 18) - 2), border: { type: 'solid', color: 'DCD6C6', pt: 1 }, autoPage: false });
@@ -9629,7 +9860,7 @@ var SBX = (function () {
           else if (e.type === 'math') { var lt = latexText(e.latex); if (lt) sl.addText(lt, Object.assign({}, box, { fontFace: 'Cambria Math', fontSize: PT(e.size || 28), color: col(e), align: 'left', valign: 'middle', fit: 'shrink' })); }
           else if (e.type === 'viz' || e.type === 'mmd' || e.type === 'icon') {
             var node = off.querySelectorAll('.sx-el')[ei], png = node ? await svgPng(node, e.w, e.h) : null;
-            if (png) sl.addImage({ data: png, x: box.x, y: box.y, w: box.w, h: box.h }); else skipped++;
+            if (png) sl.addImage({ data: png, x: box.x, y: box.y, w: box.w, h: box.h }); else { skipped++; qaK.push(['EXPORT_DRAWING_DROPPED', si, e.id]); }
           }
         }
         if (s.notes) sl.addNotes(s.notes);
@@ -9637,8 +9868,9 @@ var SBX = (function () {
       var name = String(deck.title || 'acadex-sunum').replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80) || 'acadex-sunum';
       await pp.writeFile({ fileName: name + '.pptx' });
       say('PowerPoint dosyası indirildi.' + (skipped ? ' ' + skipped + ' çizim aktarılamadı; PDF çıktısında görünür.' : '') + (atlanan ? ' ' + atlanan + ' fotoğraf açılamadığı için dosyaya konmadı (bağlantısı artık çalışmıyor).' : ''));
+      teknikDisaKaydet(d0, 'pptx', qaK);
     } catch (err) {
-      console.warn('acadex-sunum: pptx', err); say('PowerPoint dosyası hazırlanamadı: ' + (err && err.message || 'bilinmeyen hata') + '. PDF indirmeyi deneyebilirsin.');
+      console.warn('acadex-sunum: pptx', err); teknikDisaKaydet(d0, 'pptx', [['EXPORT_FAILED', null, null]]); say('PowerPoint dosyası hazırlanamadı: ' + (err && err.message || 'bilinmeyen hata') + '. PDF indirmeyi deneyebilirsin.');
     } finally { off.remove(); if (btn) { btn.disabled = false; btn.textContent = 'PowerPoint indir'; } }
   };
   /* ---------- paylaşım bağlantısı (salt okunur, notlar gizli) ---------- */
@@ -9817,6 +10049,8 @@ var SBX = (function () {
         /* Kalite: yönetmen 0-100 puan ve sorun listesi döndürüyordu ama hiçbir
            yere yazılmıyordu; quality_score sütunu bu yüzden hep boştu (13.11.2026). */
         if (d.quality && typeof d.quality.score === 'number') { row.quality_score = Math.max(0, Math.min(100, Math.round(d.quality.score))); row.quality_report = d.quality; }
+        /* Phase 4 (D1): teknik denetim etkin puanı düşürür; içerik puanı quality_report.icerik, teknik özet .teknik içinde kalır. */
+        if (row.quality_report) { var tq = teknikOzet(d), et = etkinKalite(d.quality, tq); row.quality_score = Math.max(0, Math.min(100, Math.round(et.score))); row.quality_report = teknikRapor(d, tq) || d.quality; }
         if (isUuid(d.sourceId)) row.source_id = d.sourceId;
         var yeniSatir = !d.dbId;
         if (yeniSatir) { row.user_id = u.id; var r = await c.from('presentations').insert(row).select('id').single(); if (r.error) throw r.error; d.dbId = r.data.id; }
@@ -9859,6 +10093,8 @@ var SBX = (function () {
       if (!pr.error && pr.data) {
         var qq = pr.data.quality_report;
         if (qq && typeof qq.score === 'number') d.quality = qq;
+        if (qq && qq.icerik && typeof qq.icerik.score === 'number') { var qi = {}; for (var qk in qq) if (Object.prototype.hasOwnProperty.call(qq, qk) && qk !== 'icerik' && qk !== 'teknik' && qk !== 'yol') qi[qk] = qq[qk]; qi.score = qq.icerik.score; qi.pass = qq.icerik.pass; qi.issues = arr(qq.icerik.issues); d.quality = qi; }      /* Phase 4: içerik puanı geri gelir; teknik kısım açılışta yeniden ölçülür */
+        if (qq && qq.yol && qq.yol.k) d.yol = { k: String(qq.yol.k), yedek: qq.yol.yedek ? 1 : 0, kaynak: +qq.yol.kaynak || 0, istek: +qq.yol.istek || 0, uret: arr(qq.yol.uret).map(String) };
         d.source = pr.data.source_type || 'blank'; d.sourceId = pr.data.source_id || null;
       }
       d.slides = (r.data || []).map(function (row) {
@@ -9895,7 +10131,7 @@ var SBX = (function () {
     if (!d || !Array.isArray(d.slides)) { d = fresh(); if (m) { d.id = m.id; d.dbId = m.dbId; d.title = m.title || ''; } }
     if (d.cur >= d.slides.length) d.cur = Math.max(0, d.slides.length - 1);
     commitEdit(); deck = d; undoS = []; redoS = []; selId = null; S(store.k('cur'), deck.id);
-    renderAll(); paintHist(); paintDecks();
+    renderAll(); paintHist(); paintDecks(); teknikPlanla();      /* Phase 4 (C): açılan destenin teknik durumu */
     /* HAZIR DESTE DE PUANLANIR (14.11.2026): kaliteOlc yalnız printDeck'ten,
        yani üretim penceresinden çağrılıyordu. Kütüphaneden açılan desteye
        ulaşan hiçbir yol yoktu; push'tan önce üretilmiş destelerin puanı hep
