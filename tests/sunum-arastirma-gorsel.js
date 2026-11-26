@@ -345,7 +345,9 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   assert.doesNotMatch(ink, /arr\(s\.warnI\)\.length\) \{ vSay\.tek = 1;/, 'uyarı listeyi yine klasiğe kilitliyor');
   assert.match(ink, /if \(kind === 'list' && arr\(s\.b\)\.length && arr\(s\.b\)\.length <= 2 && !s\.img\) return vSay\.aile === LAILE\[6\] \? 0 : 6;/, 'ince asetat boş listeyle basılıyor');
   assert.match(ink, /arr\(d\.rows\)\.length <= 2 \? 27/, 'iki satırlık tablo küçük yazıyla basılıyor');
-  assert.match(ink, /if \(yerTutucu\(sl\) \|\| sl\.v \|\|/, 'kartlı düzenin üstüne fotoğraf konuyor');
+  /* Phase 2 (26.11.2026): kartlı düzene fotoğraf yalnız ölçülen 'yan' yuvasıyla konur; sığmazsa yuva kapanır (yuvaDene). */
+  assert.match(ink, /if \(sl\.lay === 'list'\) return sl\.v === 10 \? \[\] : sl\.v \? \['yan'\]/, 'kartlı düzene fotoğraf sığma denetimsiz konuyor');
+  assert.match(ink, /if \(!sl \|\| yerTutucu\(sl\)\) return \[\];/, 'yer tutuculu asetata fotoğraf konuyor');
   assert.match(ink, /lay: sl\.lay \|\| null, v: sl\.v \|\| 0,/, 'çeşit kaydedilmiyor');
 });
 
@@ -700,10 +702,11 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   bas = yeni();
   const canli = [KOL, KOL, KOL].map((bb) => bas({ t: 'B', b: bb }, 'list').v || 0);
   assert.ok(canli.filter((v) => LAILE[v] === 's').length <= 2 && LAILE[canli[0]] !== LAILE[canli[1]] && LAILE[canli[1]] !== LAILE[canli[2]], 'kolon maddeleri üç kez aynı aileyle basıldı: ' + canli.join(','));
-  // fotoğraf ipucu olan ilk alıntı klasik kalır (tam sayfa fotoğrafa aday), ikincisi kutulu çeşit alır
+  // Phase 2 (26.11.2026): fotoğraf ipucu alıntının düzenini değiştirmez (fotoğraf için klasik ayrılmaz)
   bas = yeni();
   const Q = { t: 'Peter Drucker', b: ['Ölçemediğiniz şeyi yönetemezsiniz.'], img: { q: 'clock desk' } };
-  assert.equal(bas(Q, 'quote').v || 0, 0); assert.ok(bas(Q, 'quote').v > 0);
+  const qIpuclu = [bas(Q, 'quote').v || 0, bas(Q, 'quote').v || 0]; bas = yeni();
+  assert.deepEqual(qIpuclu, [bas(Object.assign({}, Q, { img: null }), 'quote').v || 0, bas(Object.assign({}, Q, { img: null }), 'quote').v || 0], 'fotoğraf ipucu alıntının düzenini değiştiriyor');
 
   /* CANLI DESTE 14.11 (etkili ders çalışma): beş listenin beşi de uyarılıydı ve hepsi
      aynı düzenle basıldı. 14.11'de klasik ↔ bölünmüş dönüşüme açıldı; 25.11 "History of
@@ -777,7 +780,7 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   // gündem ve kapanış notu
   assert.match(ink, /var gs = newSlide\('list', ENn \? 'Agenda' : 'Gündem', gb, \{ v: 10 \}\);/);
   assert.match(ink, /made\[0\]\.lay === 'cover' && govde\.length >= 5 &&/);
-  assert.match(ink, /String\(tt\.text\)\.split\(' · '\)\.filter\(Boolean\)\.slice\(0, 3\) : govde\.slice\(-3\)/, 'kapanış notu asetattaki maddeleri okumuyor');
+  assert.match(ink, /if \(tt\) return String\(tt\.text\)\.split\(' · '\)\.filter\(Boolean\)\.slice\(0, 3\);/, 'kapanış notu asetattaki maddeleri okumuyor');
   // tablo: başlık satırı vurgu rengiyle dolu — ekranda ve PPTX'te
   assert.match(ink, /var ac = temaRenk\(BLUE\), th = '<th style="background:' \+ ac/);
   assert.match(ink, /fill: \{ color: hex\(temaRenk\(BLUE\)\) \}/);
@@ -814,7 +817,8 @@ test('CANLI DESTE 14.11 (kanın fizyolojik özellikleri) — şablon notu yenide
   assert.match(ink, /String\(x\.sl\.notes \|\| ''\)\.indexOf\(x\.n\) !== 0\) return;/, 'kullanıcının değiştirdiği not eziliyor');
   assert.match(ink, /x\.sl\.notes = String\(r\.notes\)\.trim\(\) \+ x\.sl\.notes\.slice\(x\.n\.length\)/, '"Asetata sığmayanlar" eki kayboluyor');
   assert.match(ink, /b\.push\(e\.text\.replace\(\/\\s\*\\n\\s\*\/g, '; '\)\);/, 'nota ham satır sonu düşüyor');
-  assert.match(ink, /length <= 4 && t\.length < 430;/, 'dört maddelik liste fotoğrafa aday değil');
+  /* Phase 2: aday olmak madde/karakter sayısına değil, yuvanın gerçekten sığmasına bağlı */
+  assert.match(ink, /var fs = yuvaFormlari\(sl, ''\); if \(!fs\.length\) \{ if \(sl\.imgq\) gorselDurum\(sl, 'miss:yuva-yok'\); return; \}/, 'aday asetatlar yuvaya göre seçilmiyor');
   // sunucu: yalnız asetatta yazandan; asetatta geçmeyen sayı taşıyan cümle atılır, kısa kalan not dönmez
   const blok = ts.slice(ts.indexOf('if (action === "notes") {'), ts.indexOf('// ---------------- prova yorumu'));
   assert.ok(blok.length > 500, '"notes" eylemi yok');
@@ -983,7 +987,7 @@ test('CANLI DESTE 25.11 (EV) — ayraç süzgeci, sayı yazımı, olumsuz fotoğ
   assert.equal(R.olumsuzFoto('Hwaseong battery factory fire', 'Great Fire of London'), false, 'konu yangınsa yangın fotoğrafı olur');
   assert.equal(R.olumsuzFoto('Workers on a battery assembly line', 'battery factory'), false);
   assert.match(ts, /!used\.has\(x\.large\) && !olumsuzFoto\(x\.alt, q\)/);
-  assert.match(ts, /take\(await commonsSearch\(h\.entity \|\| q, 8\), q, false\)/, 'Commons fotoğrafı olumsuz süzgeçten geçmiyor');
+  assert.match(ts, /p = take\(cs\.filter\(\(x\) => gorselSkor\(cq, x, "commons"\) > 0\), q, false\)/, 'Commons fotoğrafı olumsuz süzgeçten geçmiyor');
   assert.match(ts, /NUMBERS ARE DRAWN, NOT WRITTEN: whenever the sources give 3\+ comparable values in one unit/);
   assert.match(ts, /Two items compared on the same criteria are a "table"/);
   // istemci: halka grafik ve yüzdeli sayı kartları
@@ -1122,7 +1126,7 @@ test('CANLI DESTE 25.11 (Fintech) — arşiv taraması süzgeci, süreç okları
   assert.equal(R.arsivFoto({ photographer: 'Someone', source: 'Unsplash', alt: 'student reading a book in library' }, 'university library study'), false, 'Unsplash fotoğrafına kitap/harita sözcük süzgeci uygulanmamalı');
   assert.equal(R.arsivFoto({ photographer: 'Someone', source: 'Wikimedia Commons', alt: 'Modern bank headquarters in London' }, 'bank headquarters'), false);
   assert.match(ts, /&& !arsivFoto\(x, q \+ " " \+ topic\)/);
-  assert.match(ts, /const res = await resolveImages\(hints, lang, topicI\);/);
+  assert.match(ts, /const res = await resolveImages\(hints, lang, topicI, haric\);/);
   // süreç okları: sıra başlıktan ya da adım işaretli maddelerden
   const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
   let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
@@ -1132,6 +1136,43 @@ test('CANLI DESTE 25.11 (Fintech) — arşiv taraması süzgeci, süreç okları
   assert.equal(M.VARY.list[11]('Digital-only services reshape customer experience', B), null, 'maddedeki "steps" sözcüğü süreç sayıldı');
   assert.ok(M.VARY.list[11]('Account opening process', B), 'başlık süreç bildiriyorsa oklar çizilmeli');
   assert.ok(M.VARY.list[11]('Onboarding', ['Step 1: download the app', 'Step 2: verify identity', 'Step 3: fund the account']), 'adım işaretli maddeler süreçtir');
+});
+
+/* CANLI DESTE 25.11 (Semiconductor Race): 12 içerik asetatından yalnız kapakta fotoğraf vardı —
+   fotoğraf yalnız klasik listeye konuyor, listelerin hepsi kartlı çeşitle basılmıştı. Kapanış notu
+   son üç asetatın başlığını "ana mesaj" diye sayıyordu. */
+test('CANLI DESTE 25.11 (Semiconductor) — fotoğraf ipuçlu listeler dönüşümlü klasik, kapanış notu sonuçtan', () => {
+  const ink = read('js/acadex-ink.js');
+  const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
+  let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
+  const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  const { VARY, VSIRA, LAILE } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA, LAILE };')(E, head, () => [], '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], arr, () => []);
+  const vs = ink.slice(ink.indexOf('var vSay = {}, vSec'), ink.indexOf('push(); var made = strips.map'));
+  const ns = ink.slice(ink.indexOf('  var newSlide = function (kind, t, b, c) {'), ink.indexOf('  /* ---------- rendering ---------- */'));
+  const LAY = { list: { f: (t, bb) => head(t).concat([E('ul', 90, 160, 780, 340, { text: bb.join('\n') })]) } };
+  const yap = () => new Function('VSIRA', 'VARY', 'LAILE', 'arr', 'LAY', 'uid', 'ikonBag', 'ikonKul', vs + ns + ';return function (s, kind) { var cx = { heads: s.heads }; cx.v = vSec(s, kind); cx.aile = vSay.aile || ""; var sl = newSlide(kind, s.t, s.b, cx); if (kind === "list") vSay.aile = LAILE[sl.v || 0] || ""; return sl; };')(VSIRA, VARY, LAILE, arr, LAY, () => ++id, '', {});
+  const D = ['Planlama güne başlamadan önce yapılırsa öncelikler netleşir', 'Kesintileri azaltmak odak süresini belirgin biçimde uzatır', 'Haftalık gözden geçirme sapmaları erken gösterir'];
+  /* Phase 2 (26.11.2026): ipuçlu liste fotoğraf için klasikte tutulmaz; çeşidi ipuçsuz listeyle aynı seçilir, fotoğraf o çeşidin yuvasına sığarsa konur. */
+  const b1 = yap(), b0 = yap();
+  const seri = [0, 1, 2, 3, 4, 5].map(() => b1({ t: 'Başlık', b: D, img: { q: 'semiconductor wafer fab' } }, 'list').v || 0);
+  const seri0 = [0, 1, 2, 3, 4, 5].map(() => b0({ t: 'Başlık', b: D }, 'list').v || 0);
+  assert.deepEqual(seri, seri0, 'fotoğraf ipucu liste düzenini değiştiriyor: ' + seri.join(',') + ' / ' + seri0.join(','));
+  assert.match(ink, /var sonuc = made\.filter\(function \(x\) \{ return !\/\^\(cover\|end\|refs\)\$\/\.test\(x\.lay \|\| ''\); \}\)\.slice\(-1\)\[0\];/, 'kapanış notu sonuç asetatına bakmıyor');
+  assert.match(ink, /return sm\.length \? sm : govde\.slice\(-3\); \};/);
+});
+
+/* PPTX + Keynote denetimi (26.11.2026, "Key Drivers of the Global Semiconductor Race"): kapak panosu
+   #0B1220D9 PPTX'te açık lavantaya düştü (hex 8 haneyi reddediyordu), beyaz başlık okunmadı. */
+test('PPTX: saydamlıklı renk koyu kalır, saydamlık yüzdesi yazılır', () => {
+  const ink = read('js/acadex-ink.js');
+  const f = new Function(ink.match(/var hex = function \(c, d\) \{.*\};/)[0] + ink.match(/var saydam = function \(c\) \{.*\};/)[0] + 'return { hex, saydam };')();
+  assert.equal(f.hex('#0B1220D9', '#DCE6FF'), '0B1220', '8 haneli renk açık varsayılana düşüyor');
+  assert.equal(f.saydam('#0B1220D9'), 15);
+  assert.equal(f.saydam('#0B122099'), 40);
+  assert.equal(f.saydam('#0B1220'), 0);
+  assert.match(ink, /saydam\(temaRenk\(e\.fill \|\| ''\)\) \? \{ color: fc, transparency: saydam\(temaRenk\(e\.fill \|\| ''\)\) \}/);
+  assert.match(ink, /saydam\(temaRenk\(e\.fill \|\| ''\)\) \? \{ type: 'none' \} : \{ color: fc \}/, 'saydam dolgunun kenarı opak çiziliyor');
 });
 
 summary();
