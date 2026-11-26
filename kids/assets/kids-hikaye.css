@@ -1,0 +1,109 @@
+/* ==========================================================================
+   ACADEX KIDS · kelimeye özel mini hikâye davranışları (kids/assets/kids-hikaye.css), 26.11.2026
+   bkz. kids-hikaye.js. .kn-sahne.kn-hg-<davranış>: eşyanın yeri + resmin ve eşyanın hareketi.
+   Hareketi azalt: eşya yerinde durur, resim oynamaz, kopyalar görünmez (kids-anlat.css .kn-ucus).
+   Keyframe adları hk- önekli (başka dosyalarla çakışmaz: tests/kids-canli.js).
+   ========================================================================== */
+/* ---------- eşyanın yeri ---------- */
+.kn-hg-isir .kn-esya,.kn-hg-kir .kn-esya,.kn-hg-zipla .kn-esya,.kn-hg-buyu .kn-esya,.kn-hg-titre .kn-esya,.kn-hg-don .kn-esya,.kn-hg-parla .kn-esya,.kn-hg-yan .kn-esya,.kn-hg-sallan .kn-esya{right:9%;top:12%;width:16%;aspect-ratio:1}
+.kn-hg-gel .kn-esya,.kn-hg-kes .kn-esya,.kn-hg-ciz .kn-esya{right:7%;bottom:8%;width:24%;aspect-ratio:1}
+.kn-hg-buhar .kn-esya,.kn-hg-uyu .kn-esya{left:56%;top:4%;width:18%;aspect-ratio:1}
+.kn-hg-dok .kn-esya,.kn-hg-eri .kn-esya,.kn-hg-yagis .kn-esya{left:8%;top:6%;width:18%;aspect-ratio:1}
+.kn-hg-dus .kn-esya{left:14%;top:8%;width:16%;aspect-ratio:1}
+.kn-hg-dal .kn-esya,.kn-hg-yika .kn-esya,.kn-hg-kalp .kn-esya{left:10%;bottom:10%;width:16%;aspect-ratio:1}
+.kn-hg-atla .kn-esya,.kn-hg-suzul .kn-esya,.kn-hg-cik .kn-esya{left:6%;right:6%;bottom:-2%;height:24%}
+.kn-hg-atla .kn-esya .kc,.kn-hg-suzul .kn-esya .kc,.kn-hg-cik .kn-esya .kc{width:100%;height:100%}
+.kn-hg-hizli .kn-esya,.kn-hg-sur .kn-esya{left:6%;top:42%;width:20%;aspect-ratio:1}
+.kn-hg-uc .kn-esya{right:10%;top:6%;width:24%;aspect-ratio:1}
+.kn-hg-etraf .kn-esya{left:50%;top:50%;width:14%;aspect-ratio:1;margin:-7% 0 0 -7%}
+.kn-hg-saklan .kn-esya{left:50%;bottom:4%;width:46%;aspect-ratio:1;translate:-50% 0}
+.kn-hg-bak .kn-esya{left:50%;top:40%;width:26%;aspect-ratio:1;translate:-50% -50%}
+/* eşya resmin önünde olanlar */
+.kn-hg-saklan .kn-hikaye,.kn-hg-bak .kn-hikaye,.kn-hg-etraf .kn-hikaye,.kn-hg-gel .kn-hikaye,.kn-hg-kes .kn-hikaye{z-index:3}
+/* yağan kopyalar (damla, kar, yağmur) aşağı düşer; buhar/zzz/köpük/kalp yukarı uçar (kids-anlat.css) */
+.kn-hg-dok .kn-ucus i,.kn-hg-eri .kn-ucus i,.kn-hg-yagis .kn-ucus i{bottom:auto;top:-10%;width:7%}
+
+@media (prefers-reduced-motion:no-preference){
+  /* eşyalar */
+  .kn-hg-isir .kn-esya,.kn-hg-kir .kn-esya,.kn-hg-parla .kn-esya,.kn-hg-buyu .kn-esya{animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both,hkParilti 1.4s .5s ease-in-out infinite}
+  .kn-hg-gel .kn-esya{animation:hkGel .8s cubic-bezier(.3,1.4,.5,1) both,hkSek 1.8s .8s ease-in-out infinite}
+  .kn-hg-dus .kn-esya{animation:hkDusEsya 2.4s ease-in infinite}
+  .kn-hg-etraf .kn-esya{animation:hkEtraf 3.2s linear infinite}
+  .kn-hg-saklan .kn-esya{animation:knYuksel .5s both}
+  .kn-hg-bak .kn-esya{animation:hkBak 3s ease-in-out infinite}
+  .kn-hg-hizli .kn-esya,.kn-hg-sur .kn-esya{animation:hkHizCizgi .5s linear infinite}
+  .kn-hg-uc .kn-esya,.kn-hg-sallan .kn-esya{animation:hkBulut 3s ease-in-out infinite alternate}
+  .kn-hg-atla .kn-esya,.kn-hg-suzul .kn-esya,.kn-hg-cik .kn-esya,.kn-hg-dal .kn-esya,.kn-hg-yika .kn-esya,.kn-hg-kalp .kn-esya,.kn-hg-buhar .kn-esya,.kn-hg-uyu .kn-esya,.kn-hg-dok .kn-esya,.kn-hg-eri .kn-esya,.kn-hg-yagis .kn-esya,.kn-hg-kes .kn-esya,.kn-hg-ciz .kn-esya,.kn-hg-zipla .kn-esya,.kn-hg-titre .kn-esya,.kn-hg-don .kn-esya,.kn-hg-yan .kn-esya{animation:knYuksel .5s cubic-bezier(.3,1.5,.5,1) both}
+  .kn-hg-ciz .kn-cizgi{stroke-dasharray:120;stroke-dashoffset:120;animation:hkCiz 2.2s .5s ease-in-out infinite}
+  .kn-hg-dok .kn-ucus i,.kn-hg-eri .kn-ucus i,.kn-hg-yagis .kn-ucus i{left:calc(8% + var(--u,0) * 20%);animation:hkYag 1.6s calc(var(--u,0) * .3s) ease-in infinite}
+  .kn-hg-buhar .kn-ucus i,.kn-hg-uyu .kn-ucus i{left:calc(52% + var(--u,0) * 6%);bottom:44%}
+  .kn-hg-dal .kn-ucus i{left:calc(36% + var(--u,0) * 7%);bottom:20%}
+  /* resim */
+  .kn-sahne.kn-hg-isir .kn-resim{animation:hkIsir 2.6s .4s steps(1) infinite!important}
+  .kn-sahne.kn-hg-dus .kn-resim{animation:hkDus 2.4s ease-in infinite!important}
+  .kn-sahne.kn-hg-buhar .kn-resim{animation:hkNefes 2.4s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-dok .kn-resim{animation:hkDok 2.4s ease-in-out infinite!important;transform-origin:30% 80%}
+  .kn-sahne.kn-hg-kir .kn-resim{animation:hkKir 2.2s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-eri .kn-resim{animation:hkEri 2.8s ease-in-out infinite!important;transform-origin:50% 100%}
+  .kn-sahne.kn-hg-parla .kn-resim{animation:hkParla 1.6s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-don .kn-resim{animation:hkDon 2.2s cubic-bezier(.5,0,.3,1) infinite!important}
+  .kn-sahne.kn-hg-zipla .kn-resim{animation:hkZipla .7s cubic-bezier(.3,0,.5,1) infinite alternate!important;transform-origin:50% 100%}
+  .kn-sahne.kn-hg-buyu .kn-resim{animation:hkBuyu 2s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-titre .kn-resim{animation:hkTitre .14s linear infinite alternate!important}
+  .kn-sahne.kn-hg-uyu .kn-resim{animation:hkUyu 3.2s ease-in-out infinite!important;transform-origin:50% 100%}
+  .kn-sahne.kn-hg-gel .kn-resim{animation:hkBak2 1.8s .8s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-etraf .kn-resim{animation:hkNefes 3.2s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-sallan .kn-resim{animation:hkSallan 1.8s ease-in-out infinite alternate!important;transform-origin:50% 10%}
+  .kn-sahne.kn-hg-suzul .kn-resim{animation:hkSuzul 4s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-hizli .kn-resim{animation:hkHizli 1.8s cubic-bezier(.6,0,.4,1) infinite!important}
+  .kn-sahne.kn-hg-sur .kn-resim{animation:hkSur 2.6s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-uc .kn-resim{animation:hkUc 3s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-dal .kn-resim{animation:hkDal 2.6s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-atla .kn-resim{animation:hkAtla 1.8s cubic-bezier(.4,0,.6,1) infinite!important}
+  .kn-sahne.kn-hg-yan .kn-resim{animation:hkYan 1.6s ease-in-out infinite alternate!important}
+  .kn-sahne.kn-hg-saklan .kn-resim{animation:hkSaklan 3s ease-in-out infinite!important;transform-origin:50% 100%}
+  .kn-sahne.kn-hg-bak .kn-resim{animation:hkNefes 3s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-yika .kn-resim{animation:hkYika .3s ease-in-out infinite alternate!important}
+  .kn-sahne.kn-hg-kalp .kn-resim{animation:hkKalp 1s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-cik .kn-resim{animation:hkCik 2.6s cubic-bezier(.3,1.3,.5,1) infinite!important;transform-origin:50% 100%}
+  .kn-sahne.kn-hg-kes .kn-resim{animation:hkKes .45s ease-in-out infinite alternate!important}
+  .kn-sahne.kn-hg-ciz .kn-resim{animation:hkCizKalem 2.2s .5s ease-in-out infinite!important}
+  .kn-sahne.kn-hg-yagis .kn-resim{animation:hkTitre .2s linear 6 alternate!important}
+}
+@keyframes hkParilti{0%,100%{scale:1;rotate:0deg}50%{scale:1.18;rotate:14deg}}
+@keyframes hkGel{from{translate:140% 0;rotate:30deg;opacity:0}to{translate:0 0;rotate:0deg;opacity:1}}
+@keyframes hkSek{0%,100%{translate:0 0}50%{translate:0 -10%}}
+@keyframes hkDusEsya{0%{translate:0 -60%;opacity:0}15%{opacity:1}55%{translate:40% 260%;rotate:80deg;opacity:1}70%,100%{translate:40% 260%;rotate:90deg;opacity:0}}
+@keyframes hkEtraf{from{transform:rotate(0deg) translateX(230%) rotate(0deg)}to{transform:rotate(360deg) translateX(230%) rotate(-360deg)}}
+@keyframes hkBak{0%,100%{translate:-90% -70%}33%{translate:10% -30%}66%{translate:-50% 10%}}
+@keyframes hkHizCizgi{from{translate:20% 0;opacity:.9}to{translate:-30% 0;opacity:.3}}
+@keyframes hkBulut{from{translate:-8% 0}to{translate:8% 4%}}
+@keyframes hkCiz{0%{stroke-dashoffset:120}60%,100%{stroke-dashoffset:0}}
+@keyframes hkYag{0%{opacity:0;translate:0 0}15%{opacity:1}100%{opacity:0;translate:0 820%}}
+@keyframes hkIsir{0%{clip-path:inset(0)}35%{clip-path:polygon(0 0,70% 0,78% 10%,72% 22%,82% 30%,100% 30%,100% 100%,0 100%)}65%{clip-path:polygon(0 0,52% 0,60% 12%,52% 26%,64% 34%,58% 48%,100% 50%,100% 100%,0 100%)}100%{clip-path:inset(0)}}
+@keyframes hkDus{0%{translate:0 -70%;opacity:0}20%{opacity:1}45%{translate:0 0;scale:1.08 .9}55%{translate:0 -12%;scale:1}65%,100%{translate:0 0}}
+@keyframes hkNefes{0%,100%{scale:1}50%{scale:1.04 .97}}
+@keyframes hkDok{0%,15%{rotate:0deg}40%,70%{rotate:-38deg}90%,100%{rotate:0deg}}
+@keyframes hkKir{0%,30%{scale:1;rotate:0deg}38%{rotate:-6deg}46%{rotate:6deg}54%{rotate:-4deg}62%{scale:1.12;rotate:0deg}75%,100%{scale:1}}
+@keyframes hkEri{0%,10%{scale:1 1}60%{scale:1.12 .78}85%,100%{scale:1 1}}
+@keyframes hkParla{0%,100%{filter:drop-shadow(0 0 0 rgba(255,210,63,0)) brightness(1)}50%{filter:drop-shadow(0 0 22px rgba(255,210,63,.95)) brightness(1.15)}}
+@keyframes hkDon{0%{rotate:0deg}70%,100%{rotate:360deg}}
+@keyframes hkZipla{from{translate:0 0;scale:1.06 .94}to{translate:0 -16%;scale:.97 1.04}}
+@keyframes hkBuyu{0%,100%{scale:1}45%{scale:1.22}60%{scale:1.16}}
+@keyframes hkTitre{from{translate:-2% 0;rotate:-2deg}to{translate:2% 0;rotate:2deg}}
+@keyframes hkUyu{0%,100%{rotate:-6deg;scale:1 1}50%{rotate:-6deg;scale:1.03 .97}}
+@keyframes hkBak2{0%,100%{rotate:0deg}50%{rotate:-8deg}}
+@keyframes hkSallan{from{rotate:-9deg}to{rotate:9deg}}
+@keyframes hkSuzul{0%,100%{translate:-22% 0;rotate:-4deg}50%{translate:22% -4%;rotate:4deg}}
+@keyframes hkHizli{0%{translate:0 0}35%{translate:120% 0;opacity:1}36%{translate:120% 0;opacity:0}37%{translate:-120% 0;opacity:0}38%{opacity:1}70%,100%{translate:0 0}}
+@keyframes hkSur{0%,100%{translate:-18% 0}45%,55%{translate:18% 0}50%{translate:18% -3%}}
+@keyframes hkUc{0%,100%{translate:0 6%;rotate:-4deg}50%{translate:6% -24%;rotate:6deg}}
+@keyframes hkDal{0%,100%{translate:0 0}50%{translate:0 26%;rotate:6deg}}
+@keyframes hkAtla{0%,100%{translate:-24% 10%;rotate:-20deg}50%{translate:0 -30%;rotate:0deg}99%{translate:24% 10%;rotate:20deg}}
+@keyframes hkYan{from{translate:-18% 0;rotate:-5deg}to{translate:18% 0;rotate:5deg}}
+@keyframes hkSaklan{0%,15%{translate:0 0;scale:1}35%,60%{translate:0 40%;scale:.6}75%{translate:0 10%;scale:.95}100%{translate:0 0;scale:1}}
+@keyframes hkYika{from{rotate:-4deg;translate:-2% 0}to{rotate:4deg;translate:2% 0}}
+@keyframes hkKalp{0%,100%{scale:1}15%{scale:1.1}30%{scale:1}45%{scale:1.08}}
+@keyframes hkCik{0%{translate:0 40%;scale:.7;opacity:.4}45%,100%{translate:0 0;scale:1;opacity:1}}
+@keyframes hkKes{from{scale:1 1;rotate:-4deg}to{scale:1.06 .94;rotate:4deg}}
+@keyframes hkCizKalem{0%{translate:-14% 10%;rotate:-8deg}60%{translate:14% -4%;rotate:8deg}100%{translate:-14% 10%;rotate:-8deg}}

@@ -5,6 +5,17 @@
    adres kendiliğinden yazılır. Kayıtlar acadex.com.tr/panel'e düşer.
    Veri ve yetki: supabase tp_items + "test-panel" deposu (test-paneli.sql).
    Tablo yoksa ya da kullanıcı ekipte değilse hiçbir şey çizmez.
+   27.11.2026:
+   - "Kim bildiriyor?": ekipten kişi seçilir (cihaz hatırlar). Kayıt panelde o kişinin adıyla
+     görünür (tp_items.reporter_email); gönderen hesap author_email'de kalır. Cihazı paylaşan test
+     ekibi (Şevval, Şükrü'nün tabletinde) artık kendi adıyla bildirir.
+   - Gönderirken o anki oturum okunur ve tazelenir. Eskiden sayfa açılırken alınan kullanıcı
+     kullanılıyordu; tarayıcıda hesap değişmiş ya da oturum düşmüşse görüntü yanlış klasöre
+     gidiyor, depo "new row violates row-level security policy" diyerek reddediyordu ve
+     görüntü yüklenemeyince BÜTÜN kayıt kayboluyordu.
+   - Kayıt kaybolmaz: görüntü yüklenemezse kayıt görüntüsüz gider (haber verilir); bağlantı ya
+     da oturum yoksa kayıt bu cihazda bekler, düğmede "1 bekliyor" yazar, ilk fırsatta gider.
+   - Hatalar Türkçe ve ne yapılacağını söyler.
    ========================================================================== */
 (function () {
   'use strict';
@@ -20,7 +31,21 @@
 
   var sb = function () { try { return supabaseClient; } catch (e) { return null; } };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-  var ME = null, USER = null, root = null, st = null;
+  var ME = null, USER = null, root = null, st = null, EKIP = [];
+  var LS_BILDIREN = 'axt-bildiren', LS_KUYRUK = 'axt-kuyruk';
+  var lsAl = function (k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  var lsKoy = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  function uye(email) { email = String(email || '').toLowerCase(); for (var i = 0; i < EKIP.length; i++) if (EKIP[i].email === email) return EKIP[i]; return null; }
+  function bildiren() { var e = st && st.bildiren || lsAl(LS_BILDIREN, '') || (ME && ME.email); return uye(e) || ME; }
+  /* teknik hata → Türkçe, ne yapılacağını söyleyen cümle */
+  function turkce(e) {
+    var m = String((e && (e.message || e.error_description || e.error)) || e || '');
+    if (/Failed to fetch|NetworkError|network|Load failed|ERR_INTERNET|timeout/i.test(m)) return 'İnternet bağlantısı yok gibi görünüyor. Kayıt bu cihazda bekliyor; bağlantı gelince kendiliğinden gönderilecek.';
+    if (/row-level security|violates row|permission denied|42501|not authorized|Unauthorized|JWT|jwt|token/i.test(m)) return 'Oturum doğrulanamadı (bu tarayıcıda giriş süresi dolmuş ya da hesap değişmiş olabilir). Kayıt bu cihazda bekliyor; acadex.com.tr\'de yeniden giriş yapınca kendiliğinden gönderilecek.';
+    if (/Payload too large|413|exceeded the maximum|too large/i.test(m)) return 'Görüntü çok büyük. Daha küçük bir görüntü seç ya da görüntüsüz gönder.';
+    if (/duplicate key/i.test(m)) return 'Bu kayıt zaten gönderilmiş.';
+    return 'Gönderilemedi: ' + m + '. Kayıt bu cihazda bekliyor, tekrar denenecek.';
+  }
 
   /* 20.11.2026: Acadex Kids da aynı düğmeyi kullanır (kids/assets/kids-test.js). Kids kendi sayfa
      listesini, o anki sayfayı ve adresi window.ACADEX_TEST_SAYFA ile verir: { liste, bul(), adres() } */
@@ -91,6 +116,11 @@
     '#axt .bd{overflow:auto;padding:16px 18px;overscroll-behavior:contain}' +
     '#axt .ft{display:flex;align-items:center;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid #E4DECF;background:var(--card);border-radius:0 0 16px 16px}' +
     '#axt .ft .m{margin-right:auto;font-size:12.5px;color:var(--soft)}' +
+    '#axt .kim{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 14px}#axt .kim>span{width:100%;font-weight:700;font-size:13.5px}' +
+    '#axt .kc{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:4px 12px 4px 4px;border:2px solid var(--line);border-radius:999px;background:var(--card);font:700 14px "Instrument Sans",system-ui,sans-serif;color:var(--navy);cursor:pointer}' +
+    '#axt .kc i{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--c);color:#fff;font:800 14px/1 "Bricolage Grotesque",system-ui,sans-serif;font-style:normal}' +
+    '#axt .kc[aria-pressed="true"]{border-color:var(--c);box-shadow:2px 2px 0 var(--c);background:#fff}' +
+    '#axt .fab .bek{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--hata);color:#fff;font-size:12px}' +
     '#axt .kinds{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}' +
     '#axt .k{min-height:46px;border:2px solid var(--line);border-radius:12px;background:var(--card);font:800 14.5px "Bricolage Grotesque",system-ui,sans-serif;color:var(--navy);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}' +
     '#axt .k i{width:10px;height:10px;border-radius:50%;background:var(--c)}' +
@@ -146,11 +176,14 @@
     if (!v) { v = document.createElement('div'); v.className = 'veil'; v.setAttribute('data-axt-close', ''); root.appendChild(v); }
     if (!b) { b = document.createElement('div'); b.className = 'box'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-modal', 'true'); b.setAttribute('aria-label', 'Test Paneline bildir'); root.appendChild(b); }
     if (st.done) {
-      b.innerHTML = '<div class="hd"><h3>Gönderildi</h3><button type="button" class="x" data-axt-close aria-label="Kapat">×</button></div><div class="bd"><div class="ok"><b>#' + st.done.no + ' Test Paneline eklendi</b><p>' + esc(st.done.title) + '</p><div class="acts"><a class="btn" href="' + PANEL_URL + '#k-' + st.done.no + '" target="_blank" rel="noopener">Panelde aç</a><button type="button" class="btn go" data-axt-again>Bir tane daha</button></div></div></div>';
+      if (st.done.bekliyor) { b.innerHTML = '<div class="hd"><h3>Kaydedildi, bekliyor</h3><button type="button" class="x" data-axt-close aria-label="Kapat">×</button></div><div class="bd"><div class="ok"><b>Kayıt kaybolmadı</b><p>' + esc(st.done.neden) + '</p><div class="acts"><button type="button" class="btn go" data-axt-again>Bir tane daha</button></div></div></div>'; return; }
+      b.innerHTML = '<div class="hd"><h3>Gönderildi</h3><button type="button" class="x" data-axt-close aria-label="Kapat">×</button></div><div class="bd"><div class="ok"><b>#' + st.done.no + ' Test Paneline eklendi</b><p>' + esc(st.done.title) + (st.done.kim ? ' · ' + esc(st.done.kim) + ' adına' : '') + '</p>' + (st.done.eksik ? '<p class="err">' + st.done.eksik + ' görüntü yüklenemedi; kayıt görüntüsüz gönderildi. Panelde kayda görüntü ekleyebilirsin.</p>' : '') + '<div class="acts"><a class="btn" href="' + PANEL_URL + '#k-' + st.done.no + '" target="_blank" rel="noopener">Panelde aç</a><button type="button" class="btn go" data-axt-again>Bir tane daha</button></div></div></div>';
       return;
     }
     var k = st.kind, K = k ? KIND[k] : null;
+    var bk = bildiren();
     var h = (st.err ? '<p class="err" role="alert">' + esc(st.err) + '</p>' : '') +
+      (EKIP.length > 1 ? '<div class="kim" role="radiogroup" aria-label="Kim bildiriyor?"><span>Kim bildiriyor?</span>' + EKIP.map(function (m) { var on = bk && m.email === bk.email; return '<button type="button" class="kc" data-axt-kim="' + esc(m.email) + '" role="radio" aria-checked="' + on + '" aria-pressed="' + on + '" style="--c:' + esc(m.color || '#1A2A5C') + '"><i>' + esc((m.name || m.email).charAt(0).toLocaleUpperCase('tr')) + '</i>' + esc(m.name || m.email) + '</button>'; }).join('') + '</div>' : '') +
       '<div class="kinds" role="radiogroup" aria-label="Tür">' + Object.keys(KIND).map(function (x) { return '<button type="button" class="k ' + x + '" data-axt-kind="' + x + '" role="radio" aria-pressed="' + (k === x) + '" aria-checked="' + (k === x) + '"><i></i>' + (x === 'tasarim' ? 'Tasarım' : KIND[x].l) + '</button>'; }).join('') + '</div>';
     if (K) {
       h += '<label class="f"><span>Başlık</span><input class="in" data-k="title" maxlength="160" placeholder="' + esc(K.ph) + '" value="' + esc(st.v.title) + '"></label>' +
@@ -163,9 +196,9 @@
           (st.shots.length < 6 ? (canCapture() ? '<button type="button" class="btn" data-axt-cap>Ekranı yakala</button>' : '') + '<label class="btn gh">Görüntü seç<input type="file" accept="image/*" multiple hidden data-axt-file></label>' : '') +
         '</div></div>';
     }
-    b.innerHTML = '<div class="hd"><div><h3>Test Paneline bildir</h3><small>' + esc(ME.name) + ' olarak</small></div><button type="button" class="x" data-axt-close aria-label="Kapat">×</button></div>' +
+    b.innerHTML = '<div class="hd"><div><h3>Test Paneline bildir</h3><small>' + esc((bk || ME).name) + ' adına' + (bk && ME && bk.email !== ME.email ? ' · ' + esc(ME.name) + ' hesabından' : '') + '</small></div><button type="button" class="x" data-axt-close aria-label="Kapat">×</button></div>' +
       '<div class="bd">' + h + '</div>' +
-      '<div class="ft"><span class="m">' + (canCapture() ? 'Ctrl+V ile görüntü yapıştırabilirsin' : '') + '</span><button type="button" class="btn gh" data-axt-close>Vazgeç</button>' +
+      '<div class="ft"><span class="m">' + (kuyruk().length ? kuyruk().length + ' kayıt bu cihazda bekliyor' : canCapture() ? 'Ctrl+V ile görüntü yapıştırabilirsin' : '') + '</span><button type="button" class="btn gh" data-axt-close>Vazgeç</button>' +
       '<button type="button" class="btn go' + (k ? ' ' + k : '') + '" data-axt-save' + (!k || st.saving ? ' disabled' : '') + '>' + (st.saving ? 'Gönderiliyor…' : 'Gönder') + '</button></div>';
     var bd = b.querySelector('.bd'); if (bd) bd.scrollTop = sc;
     var sp = b.querySelector('[data-axt-page]'); if (sp) sp.addEventListener('change', function () { st.page = this.value; });
@@ -179,30 +212,79 @@
     }
     if (st) paint();
   }
+  /* o anki oturum: tarayıcıda hesap değişmiş olabilir, süresi dolmuş olabilir → oku, gerekirse tazele */
+  async function oturum(c) {
+    var s1 = null;
+    try { var a = await c.auth.getSession(); s1 = a && a.data && a.data.session; } catch (e) {}
+    if (!s1 || (s1.expires_at && s1.expires_at * 1000 < Date.now() + 30000)) {
+      try { var b = await c.auth.refreshSession(); s1 = (b && b.data && b.data.session) || s1; } catch (e) {}
+    }
+    return s1 && s1.user ? s1 : null;
+  }
+  function blobUrl(b) { return new Promise(function (ok) { var r = new FileReader(); r.onload = function () { ok(r.result); }; r.onerror = function () { ok(null); }; r.readAsDataURL(b); }); }
+  function urlBlob(u) { try { var p = u.split(','), m = /data:([^;]+)/.exec(p[0]), bin = atob(p[1]), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: m ? m[1] : 'image/jpeg' }); } catch (e) { return null; } }
+  function kuyruk() { var k = lsAl(LS_KUYRUK, []); return Array.isArray(k) ? k : []; }
+  function rozet() { var f = root && root.querySelector('.fab'); if (!f) return; var n = kuyruk().length, b = f.querySelector('.bek'); if (n && !b) { b = document.createElement('span'); b.className = 'bek'; f.appendChild(b); } if (b) { if (n) { b.textContent = n; f.title = n + ' kayıt bu cihazda bekliyor'; } else { b.remove(); f.title = 'Test Paneline bildir'; } } }
+  /* bir kaydı gönder: görüntü yüklenemezse görüntüsüz gider; satır eklenemezse hata fırlatır */
+  async function gonder(c, kayit, gorseller) {
+    var s1 = await oturum(c); if (!s1) throw new Error('JWT oturum yok');
+    var email = String(s1.user.email || '').toLowerCase();
+    if (!uye(email) && !(ME && ME.email === email)) { var mr = await c.from('tp_members').select('email').eq('email', email).maybeSingle(); if (!mr.data) throw new Error('permission denied: ekipte değil'); }
+    var up = [], eksik = 0;
+    for (var i = 0; i < gorseller.length; i++) {
+      var x = gorseller[i], path = s1.user.id + '/' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.' + (x.ext || 'jpg');
+      try { var r = await c.storage.from(BUCKET).upload(path, x.blob, { contentType: x.type, upsert: false, cacheControl: '31536000' }); if (r.error) throw r.error; up.push(path); }
+      catch (e) { eksik++; if (/Failed to fetch|network/i.test(e.message || '')) { if (up.length) c.storage.from(BUCKET).remove(up).catch(function () {}); throw e; } }
+    }
+    var row = Object.assign({}, kayit, { shots: up }), res = await c.from('tp_items').insert(row).select('no,title').single();
+    /* veritabanı henüz güncellenmediyse (reporter_email yok): bildiren detaya yazılır */
+    if (res.error && /reporter_email/.test(res.error.message || '')) { delete row.reporter_email; row.detail = Object.assign({}, row.detail, { bildiren: kayit.reporter_email }); res = await c.from('tp_items').insert(row).select('no,title').single(); }
+    if (res.error && /source/.test(res.error.message || '')) { delete row.source; res = await c.from('tp_items').insert(row).select('no,title').single(); }
+    if (res.error) { if (up.length) c.storage.from(BUCKET).remove(up).catch(function () {}); throw res.error; }
+    return { no: res.data.no, title: res.data.title, eksik: eksik };
+  }
+  /* bekleyenler: bağlantı/oturum gelince sırayla gider */
+  var bosaltiyor = false;
+  async function bosalt() {
+    if (bosaltiyor) return; var k = kuyruk(); if (!k.length) return rozet();
+    var c = sb(); if (!c) return; bosaltiyor = true;
+    try {
+      while (k.length) {
+        var x = k[0];
+        try { await gonder(c, x.kayit, (x.gorsel || []).map(function (g) { var b = urlBlob(g.url); return b ? { blob: b, type: g.type, ext: g.ext } : null; }).filter(Boolean)); }
+        catch (e) { break; }
+        k.shift(); lsKoy(LS_KUYRUK, k);
+      }
+    } finally { bosaltiyor = false; rozet(); if (st && !st.done) paint(); }
+  }
+  async function beklet(kayit, gorseller) {
+    var g = [];
+    for (var i = 0; i < gorseller.length; i++) { var u = await blobUrl(gorseller[i].blob); if (u) g.push({ url: u, type: gorseller[i].type, ext: gorseller[i].ext }); }
+    var k = kuyruk(); k.push({ kayit: kayit, gorsel: g, t: Date.now() });
+    if (!lsKoy(LS_KUYRUK, k)) { k[k.length - 1].gorsel = []; if (!lsKoy(LS_KUYRUK, k)) return false; }   /* yer yoksa görüntüsüz sakla */
+    rozet(); return true;
+  }
   async function save() {
     if (!st || st.saving) return;
     var title = String(st.v.title || '').trim();
     st.err = title.length < 3 ? 'Kısa bir başlık yaz (en az 3 harf).' : '';
     if (st.err) { paint(); return; }
     st.saving = true; paint();
-    var c = sb(), up = [];
+    var c = sb(), bk = bildiren();
+    var d = { ortam: st.v.ortam || st.env.ortam, ekran: st.env.ekran, adres: st.env.adres };
+    KIND[st.kind].f.forEach(function (f) { var v = String(st.v[f[0]] || '').trim(); if (v) d[f[0]] = v; });
+    var kayit = { kind: st.kind, title: title, page: st.page, device: st.device, detail: d, source: 'uygulama', reporter_email: bk ? bk.email : null };
     try {
-      for (var i = 0; i < st.shots.length; i++) {
-        var x = st.shots[i], path = USER.id + '/' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.' + x.ext;
-        var r = await c.storage.from(BUCKET).upload(path, x.blob, { contentType: x.type, upsert: false, cacheControl: '31536000' });
-        if (r.error) throw r.error;
-        up.push(path);
-      }
-      var d = { ortam: st.v.ortam || st.env.ortam, ekran: st.env.ekran, adres: st.env.adres };
-      KIND[st.kind].f.forEach(function (f) { var v = String(st.v[f[0]] || '').trim(); if (v) d[f[0]] = v; });
-      var res = await c.from('tp_items').insert({ kind: st.kind, title: title, page: st.page, device: st.device, detail: d, shots: up, source: 'uygulama' }).select('no,title').single();
-      if (res.error && /source/.test(res.error.message || '')) res = await c.from('tp_items').insert({ kind: st.kind, title: title, page: st.page, device: st.device, detail: d, shots: up }).select('no,title').single();
-      if (res.error) throw res.error;
+      var sonuc = await gonder(c, kayit, st.shots);
       st.shots.forEach(function (s) { URL.revokeObjectURL(s.url); });
-      st.done = res.data; st.saving = false; paint();
+      st.done = { no: sonuc.no, title: sonuc.title, eksik: sonuc.eksik, kim: bk && ME && bk.email !== ME.email ? bk.name : '' }; st.saving = false; paint();
+      bosalt();
     } catch (e) {
-      if (up.length) c.storage.from(BUCKET).remove(up).catch(function () {});
-      st.saving = false; st.err = /Failed to fetch|network/i.test(e.message || '') ? 'Bağlantı yok gibi görünüyor; tekrar dene.' : (e.message || 'Gönderilemedi.'); paint();
+      var neden = turkce(e), ok = await beklet(kayit, st.shots);
+      st.saving = false;
+      if (ok) { st.shots.forEach(function (s) { URL.revokeObjectURL(s.url); }); st.done = { bekliyor: true, neden: neden }; }
+      else st.err = neden.replace(/Kayıt bu cihazda bekliyor[^.]*\./, 'Cihazda yer olmadığı için saklanamadı; tekrar dene.');
+      paint();
     }
   }
   async function onClick(e) {
@@ -211,6 +293,7 @@
     if (!st) return;
     if (t.closest('[data-axt-close]')) { close(); return; }
     if (t.closest('[data-axt-again]')) { open(); return; }
+    if ((x = t.closest('[data-axt-kim]'))) { st.bildiren = x.getAttribute('data-axt-kim'); lsKoy(LS_BILDIREN, st.bildiren); paint(); return; }
     if ((x = t.closest('[data-axt-kind]'))) { st.kind = x.getAttribute('data-axt-kind'); st.err = ''; paint(); var ti = root.querySelector('[data-k="title"]'); if (ti && !ti.value) ti.focus(); return; }
     if ((x = t.closest('[data-axt-rm]'))) { var r = st.shots.splice(+x.getAttribute('data-axt-rm'), 1)[0]; if (r) URL.revokeObjectURL(r.url); paint(); return; }
     if (t.closest('[data-axt-cap]')) {
@@ -229,7 +312,12 @@
       var email = String(u.email || '').toLowerCase();
       var r = await c.from('tp_members').select('email,name,color').eq('email', email).maybeSingle();
       if (r.error || !r.data) return;   // tablo yok ya da ekipte değil: sessiz
-      USER = u; ME = r.data; mount();
+      USER = u; ME = r.data;
+      var ek = await c.from('tp_members').select('email,name,color').order('name'); EKIP = (ek.data || []).map(function (m) { return { email: String(m.email).toLowerCase(), name: m.name, color: m.color }; });
+      if (!uye(ME.email)) EKIP.unshift({ email: ME.email, name: ME.name, color: ME.color });
+      mount(); rozet(); bosalt();
+      window.addEventListener('online', bosalt);
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) bosalt(); });
     } catch (e) { /* sessiz */ }
   }
   window.acadexTest = { open: function () { if (ME) open(); } };

@@ -478,7 +478,10 @@ textarea.inp{min-height:84px;resize:vertical;line-height:1.45}
   var app = $('#app');
   var memberOf = function (email) { email = trLower(email); for (var i = 0; i < S.members.length; i++) if (S.members[i].email === email) return S.members[i]; return { email: email, name: email.split('@')[0], color: '#5B6B8C' }; };
   var isOwner = function () { return !!(S.me && S.me.role === 'owner'); };
-  var canEdit = function (it) { return isOwner() || (S.me && it.author_email === S.me.email); };
+  /* 27.11.2026: kaydı kim bildirdi? Bildir penceresinde seçilen kişi (reporter_email; veritabanı
+     güncellenmeden gelenlerde detail.bildiren), yoksa gönderen hesap. author_email = gönderen hesap. */
+  var kimin = function (it) { return String(it.reporter_email || (it.detail && it.detail.bildiren) || it.author_email || '').toLowerCase(); };
+  var canEdit = function (it) { return isOwner() || (S.me && (it.author_email === S.me.email || kimin(it) === S.me.email)); };
 
   /* ======================= GİRİŞ ======================= */
   function renderLogin(msg, ok) {
@@ -637,13 +640,13 @@ textarea.inp{min-height:84px;resize:vertical;line-height:1.45}
     var f = S.f, q = trLower(f.q).trim(), qn = q.replace(/^#/, '');
     return S.items.filter(function (it) {
       if (f.kinds.length && f.kinds.indexOf(it.kind) < 0) return false;
-      if (f.people.length && f.people.indexOf(it.author_email) < 0) return false;
-      if (f.mine && it.author_email !== S.me.email) return false;
+      if (f.people.length && f.people.indexOf(kimin(it)) < 0) return false;
+      if (f.mine && kimin(it) !== S.me.email) return false;
       if (f.page && it.page !== f.page) return false;
       if (f.device && it.device !== f.device) return false;
       if (q) {
         if (/^\d+$/.test(qn) && String(it.no) === qn) return true;
-        var d = it.detail || {}, hay = trLower([it.title, it.page, memberOf(it.author_email).name, d.olan, d.beklenen, d.aciklama, d.olmali, d.neden, (d.adimlar || []).join(' ')].join(' '));
+        var d = it.detail || {}, hay = trLower([it.title, it.page, memberOf(kimin(it)).name, d.olan, d.beklenen, d.aciklama, d.olmali, d.neden, (d.adimlar || []).join(' ')].join(' '));
         if (hay.indexOf(q) < 0) return false;
       }
       return true;
@@ -684,7 +687,7 @@ textarea.inp{min-height:84px;resize:vertical;line-height:1.45}
     var sl = $('#sumline'); if (sl) sl.innerHTML = S.loaded ? (today ? '<b>Bugün ' + today + ' yeni kayıt.</b> ' : '') + new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }) : 'kayıtlar yükleniyor…';
   }
   function cardHTML(it) {
-    var m = memberOf(it.author_email), sh = it.shots || [], drag = matchMedia('(hover:hover) and (pointer:fine)').matches;
+    var m = memberOf(kimin(it)), sh = it.shots || [], drag = matchMedia('(hover:hover) and (pointer:fine)').matches;
     return '<div role="button" tabindex="0" class="it ' + it.kind + (it.status === 'dogrulandi' ? ' done' : '') + '" data-id="' + it.id + '"' + (drag ? ' draggable="true"' : '') + ' aria-label="' + esc(KIND[it.kind].long + ' #' + it.no + ': ' + it.title) + '">' +
       '<div class="r1"><span class="kb ' + it.kind + '"><i></i>' + KIND[it.kind].l + '</span>' + (it.status === 'dogrulandi' ? '<span class="ok">✓ kapandı</span>' : '') + '<span class="no">#' + it.no + '</span></div>' +
       '<h3>' + esc(it.title) + '</h3>' +
@@ -709,7 +712,7 @@ textarea.inp{min-height:84px;resize:vertical;line-height:1.45}
     if (!L.length) return '<div class="list"><div class="empty">' + (S.items.length ? 'bu süzgeçlerle kayıt yok' : 'masa boş, ilk kaydı sen aç') + '</div></div>';
     return '<div class="list" role="list"><div class="row h" aria-hidden="true"><span>no</span><span class="c-kind">tür</span><span>başlık</span><span class="c-page">sayfa</span><span class="c-dev">cihaz</span><span class="c-st">durum</span><span class="c-time">zaman</span></div>' +
       L.map(function (it) {
-        var m = memberOf(it.author_email);
+        var m = memberOf(kimin(it));
         return '<button type="button" class="row" role="listitem" data-id="' + it.id + '"><span class="mono" style="color:var(--soft);font-size:13px">#' + it.no + '</span>' +
           '<span class="c-kind"><span class="kb ' + it.kind + '"><i></i>' + KIND[it.kind].l + '</span></span>' +
           '<span style="min-width:0"><span class="t">' + esc(it.title) + '</span><span class="who"><span class="av" style="--c:' + esc(m.color) + '">' + esc(initials(m.name)) + '</span><span>' + esc(m.name) + '</span></span></span>' +
@@ -760,7 +763,7 @@ textarea.inp{min-height:84px;resize:vertical;line-height:1.45}
   }
   function refreshDetail(it) {
     if (!layer || S.open !== it.id) return;
-    var p = layer.p, m = memberOf(it.author_email), d = it.detail || {}, sh = it.shots || [], cur = ST[it.status].i;
+    var p = layer.p, m = memberOf(kimin(it)), d = it.detail || {}, sh = it.shots || [], cur = ST[it.status].i;
     $('.dh', p).innerHTML = '<span class="kb ' + it.kind + '"><i></i>' + KIND[it.kind].long + '</span><span class="mono" style="color:var(--soft);font-size:13px">#' + it.no + '</span><span class="sp"></span>' +
       '<button class="ib" type="button" data-copy title="Bağlantıyı kopyala" aria-label="Bağlantıyı kopyala">' + I.link + '</button>' +
       '<button class="ib" type="button" data-close title="Kapat" aria-label="Kapat">' + I.x + '</button>';
@@ -783,7 +786,7 @@ textarea.inp{min-height:84px;resize:vertical;line-height:1.45}
       (it.status_by ? '<p class="hint">Son durum değişikliği: ' + esc(memberOf(it.status_by).name) + ', ' + fullDate(it.status_at) + '</p>' : '');
     $('.db', p).innerHTML =
       '<h2>' + esc(it.title) + '</h2>' +
-      '<div class="dmeta"><span><span class="av" style="--c:' + esc(m.color) + ';width:22px;height:22px;font-size:9.5px;vertical-align:-6px">' + esc(initials(m.name)) + '</span> <b>' + esc(m.name) + '</b></span>' +
+      '<div class="dmeta"><span><span class="av" style="--c:' + esc(m.color) + ';width:22px;height:22px;font-size:9.5px;vertical-align:-6px">' + esc(initials(m.name)) + '</span> <b>' + esc(m.name) + '</b>' + (it.author_email && String(it.author_email).toLowerCase() !== kimin(it) ? ' <small style="color:var(--soft,#6A7593)">(' + esc(memberOf(it.author_email).name) + ' hesabından)</small>' : '') + '</span>' +
         '<span>' + fullDate(it.created_at) + '</span>' + (it.page ? '<span>Sayfa: <b>' + esc(it.page) + '</b></span>' : '') + (it.device ? '<span>Cihaz: <b>' + esc(DEV[it.device] || it.device) + '</b>' + (d.ortam ? ' (' + esc(d.ortam) + ')' : '') + '</span>' : '') + '</div>' +
       '<div class="sec"><h4>Durum</h4>' + steps + '</div>' +
       (sh.length ? '<div class="sec"><h4>Ekran görüntüleri · ' + sh.length + '</h4><div class="gal">' + sh.map(function (s, i) { return '<button type="button" data-shot="' + i + '" aria-label="Görüntü ' + (i + 1) + '"><img alt="" data-p="' + esc(s) + '"></button>'; }).join('') + '</div></div>' : '') +

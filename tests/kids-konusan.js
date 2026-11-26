@@ -25,7 +25,7 @@ const yukle = () => {
   const W = { document: {}, addEventListener() {}, matchMedia: () => ({ matches: false }), KIDS_SES: {} };
   W.window = W;
   const ctx = vm.createContext({ window: W, localStorage: { getItem: () => null, setItem() {} }, console });
-  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-konusan.js']) vm.runInContext(read('kids/assets/' + f), ctx);
+  for (const f of ['kids-ciz.js', 'kids-resim.js', 'kids-resim2.js', 'kids-resim3.js', 'kids-veri.js', 'kids-konu.js', 'kids-temalar.js', 'kids-temalar2.js', 'kids-temalar3.js', 'kids-hikaye.js', 'kids-konusan.js']) vm.runInContext(read('kids/assets/' + f), ctx);
   return W;
 };
 
@@ -52,7 +52,7 @@ test('her kelimenin diyaloğu var ve İngilizcesi düzgün', () => {
   assert.equal(b('fruits', 'grapes').ben, 'Hi! We are grapes!');
   assert.equal(b('sea', 'octopus').ben, 'Hi! I\'m an octopus!');
   assert.equal(b('animals', 'dog').selam, 'Hello, dog!');
-  assert.equal(b('fruits', 'orange').sahne, 'sepet');
+  assert.equal(b('fruits', 'orange').sahne, 'pirilti'); assert.equal(b('fruits', 'orange').grup, 'don', '26.11.2026: her meyvenin kendi hikâyesi (kids-hikaye.js)');
 });
 
 test('diyalog cümleleri ses kataloğunda', () => {

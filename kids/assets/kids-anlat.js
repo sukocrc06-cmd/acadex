@@ -66,11 +66,13 @@
         return v;
       });
     }
-    function hikayeBasla(ad) {
+    /* gr: kelimeye özel davranış (kids-hikaye.js); yoksa eşyanın kendi grubu (hayvanlar) */
+    function hikayeBasla(ad, gr) {
       if (!ad || !KS) return;
-      var ucar = KS.ucar ? KS.ucar(ad) : (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti'), gr = KS.grup ? KS.grup(ad) : '';
-      hik.innerHTML = '<span class="kn-esya kn-e-' + ad + '">' + KS.esya(ad) + '</span>' + (ucar ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
-      sk.className = sk.className.replace(/ ?kn-h[kg]-\S+/g, ''); void sk.offsetWidth; sk.classList.add('kn-hk', 'kn-hk-' + ad); if (gr) sk.classList.add('kn-hg-' + gr);
+      gr = gr || (KS.grup ? KS.grup(ad) : '');
+      var ucar = KS.ucar ? KS.ucar(ad, gr) : (ad === 'kalp' || ad === 'kabarcik' || ad === 'pirilti'), sn = String(ad).replace(/[^a-z0-9-]/gi, '-');
+      hik.innerHTML = '<span class="kn-esya kn-e-' + sn + '">' + KS.esya(ad) + '</span>' + (ucar ? '<span class="kn-ucus">' + new Array(6).join('<i>' + KS.esya(ad) + '</i>') + '</span>' : '');
+      sk.className = sk.className.replace(/ ?kn-h[kg]-\S+/g, ''); void sk.offsetWidth; sk.classList.add('kn-hk', 'kn-hk-' + sn); if (gr) sk.classList.add('kn-hg-' + gr);
     }
     function hikayeBitir() { hik.innerHTML = ''; obalon.hidden = true; sk.className = sk.className.replace(/ ?kn-h[kg](-\S+)?/g, ''); }
     function sahneCiz(r) {
@@ -107,7 +109,12 @@
         if (rp.selam) { acdK.innerHTML = o.acd('mutlu', 'el'); await soyle(rp.selam); if (dur()) return false; }
         obalon.hidden = true;
         /* mini hikâye: eşya sahneye gelir, kelime onunla oynar */
-        if (rp.hikaye) { acdK.innerHTML = o.acd('mutlu', 'isaret'); hikayeBasla(rp.sahne); await bekle(azHareket() ? 100 : 500); if (dur()) return false; await soyle(rp.hikaye, { hiz: 0.9 }); if (dur()) return false; await bekle(400); }
+        if (rp.hikaye) {
+          acdK.innerHTML = o.acd('mutlu', 'isaret'); hikayeBasla(rp.sahne, rp.grup); await bekle(azHareket() ? 100 : 500); if (dur()) return false;
+          /* 26.11.2026: kelimenin kendi çizgi film sesi (taşıtın motoru, davul, zil…); en çok 2,5 sn beklenir */
+          if (rp.fx && SES.hayvan) { await Promise.race([SES.hayvan(rp.fx), bekle(2500)]); if (dur()) return false; }
+          await soyle(rp.hikaye, { hiz: 0.9 }); if (dur()) return false; await bekle(400);
+        }
       } else {
         yaz(); await bekle(azHareket() ? 0 : 150 + r.en.length * 80); if (dur()) return false;
         await karaoke(soyle(r.en + '.')); if (dur()) return false; await bekle(250);

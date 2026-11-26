@@ -83,8 +83,13 @@
       '<path d="M40 162 h40 l-4 10 h-32 z" fill="#8E7CF0" stroke="' + M + '" stroke-width="3.5" stroke-linejoin="round"/><circle cx="60" cy="78" r="25" fill="#CDEBFF" stroke="' + M + '" stroke-width="4"/></svg>';
   }
 
-  /* ---------- kaydırma ---------- */
-  function ilerleme() { var r = bolum.getBoundingClientRect(), yol = r.height - W.innerHeight; return yol > 0 ? cl(-r.top / yol) : 0; }
+  /* ---------- kaydırma ----------
+     27.11.2026 telefon/tablet: ilerleme W.innerHeight ile değil sabit (sticky) çerçevenin yüksekliğiyle
+     hesaplanır. Telefonda adres çubuğu kayarken innerHeight değişir; eskiden film bir anda ileri/geri
+     sıçrıyordu. Çerçeve 100svh (küçük görünüm alanı) olduğu için kaydırma boyunca sabittir. */
+  function cerceve(el) { if (!el) return W.innerHeight; var t = parseFloat(W.getComputedStyle(el).top) || 0; return el.offsetHeight + t; }
+  function yolu(kap, ic) { return kap.getBoundingClientRect().height - cerceve(ic); }
+  function ilerleme() { var r = bolum.getBoundingClientRect(), yol = r.height - cerceve(yap); return yol > 0 ? cl(-r.top / yol) : 0; }
   function ciz() {
     bekliyor = false;
     if (!bolum || D.getElementById('kl-sayfa').hidden) return;
@@ -105,7 +110,7 @@
     noktalar.forEach(function (b, n) { b.classList.toggle('kf-aktif', n === i); if (n === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); });
   }
   function git(n) {
-    var r = bolum.getBoundingClientRect(), yol = r.height - W.innerHeight, hedef = W.scrollY + r.top + yol * (n + 0.62) / N;
+    var r = bolum.getBoundingClientRect(), yol = r.height - cerceve(yap), hedef = W.scrollY + r.top + yol * (n + 0.62) / N;
     if (W.KIDS_SCROLL && W.KIDS_SCROLL.kaydir) W.KIDS_SCROLL.kaydir(hedef); else W.scrollTo({ top: hedef, behavior: SAKIN ? 'auto' : 'smooth' });
   }
   function iste() { if (!bekliyor) { bekliyor = true; W.requestAnimationFrame(ciz); } }
@@ -180,7 +185,7 @@
   }
   function konuCiz() {
     if (!kk || SAKIN) return;
-    var r = kk.getBoundingClientRect(), yol = r.height - W.innerHeight, p = yol > 0 ? cl(-r.top / yol) : 0;
+    var r = kk.getBoundingClientRect(), yol = yolu(kk, kk.querySelector('.kkn-yap')), p = yol > 0 ? cl(-r.top / yol) : 0;
     kkSerit.style.transform = 'translate3d(' + (-p * kkYol).toFixed(1) + 'px,0,0)';
     if (kkCubuk) kkCubuk.style.transform = 'scaleX(' + p.toFixed(4) + ')';
   }
@@ -203,7 +208,8 @@
     if (SAKIN) return;
     iste2();
     W.addEventListener('scroll', iste2, { passive: true });
-    W.addEventListener('resize', function () { konuOlc(); iste2(); });
+    /* adres çubuğu (yalnız yükseklik değişir) şeridi yeniden ölçtürmez */
+    var gen = W.innerWidth; W.addEventListener('resize', function () { if (W.innerWidth !== gen) { gen = W.innerWidth; konuOlc(); } iste2(); });
     if (D.fonts && D.fonts.ready) D.fonts.ready.then(function () { konuOlc(); iste2(); });
     D.addEventListener('kids:gorunum', function (e) { if (e.detail === 'tanitim') setTimeout(function () { konuOlc(); iste2(); }, 40); });
   }

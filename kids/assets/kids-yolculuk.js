@@ -12,7 +12,12 @@
      - El çizimi sloganlar (SVG çizgi animasyonu), dokunulan sürprizler (yıldız, ateş topu,
        UFO → yıldız patlaması), imleç yıldız tozu, şişme ve jöle düğmeler (CSS)
    Altyapı: GSAP + ScrollTrigger yerel dosyadan (kids-gsap.js), yalnız bu sayfa açılınca yüklenir.
-   Telefonda sahneler oturmaz, hafif açılış animasyonları oynar. Hareketi azalt açıksa GSAP hiç
+   Telefonda sahneler oturmaz, hafif açılış animasyonları oynar.
+   27.11.2026 telefon/tablet akıcılığı: sahneleri ekrana oturtma (pin) + kaydırmayla oynatma (scrub) +
+   yakalama (snap) yalnız fare/izleme dörtgeni olan geniş ekranda. Dokunmatik tablette aynı dört sahne
+   bölüm görününce kendiliğinden bir kez oynar; parmağın kaydırması asla geri çekilmez/oturtulmaz.
+   Adres çubuğu kayarken (yalnız yükseklik değişir) ScrollTrigger yenilenmez, yıldızlar yeniden
+   dağılmaz; dokunmatik cihazda kaydırma yokken yıldız döngüsü seyrekleşir (pil). Hareketi azalt açıksa GSAP hiç
    yüklenmez; her sahne bitmiş hâliyle durur (CSS'in varsayılanı bitmiş hâldir).
    Çizimler Acadex'in kendi çizimleri (kids-ciz, kids-resim, kids-uzay); dış kaynak yok.
    W.KIDS_YOLCULUK = { kur, durum }
@@ -50,6 +55,10 @@
     evrenBoyut(); W.addEventListener('resize', evrenBoyut, { passive: true });
   }
   function evrenBoyut() {
+    /* adres çubuğu: yalnız yükseklik değiştiyse yıldızlar yerinde kalır, tuval boyu güncellenir */
+    if (Y.length && W.innerWidth === ew && Math.abs(W.innerHeight - eh) < 220) {
+      eh = W.innerHeight; evrenT.height = Math.round(eh * dpr); ectx.setTransform(dpr, 0, 0, dpr, 0, 0); yildizCiz(performance.now()); return;
+    }
     dpr = Math.min(2, W.devicePixelRatio || 1); ew = W.innerWidth; eh = W.innerHeight;
     evrenT.width = Math.round(ew * dpr); evrenT.height = Math.round(eh * dpr); ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var n = Math.round(Math.min(220, Math.max(90, ew * eh / 6500))); Y = [];
@@ -162,10 +171,14 @@
   }
   var RENK = { nasil: '#3B2A8A', bakis: '#24407A', baslangic: '#2B5A7A', dene: '#1F5F5A', yas: '#6A3A7A', 'icerik-konular': '#7A4A2A', fiyat: '#4A2A86', sss: '#1A1B57' };
   /* kaydırma hızı: hızlıysa jetpack yanar, astronot öne eğilir */
-  var kare = 0;
+  var kare = 0, bosKare = 0, sonOynama = 0;
+  var DOKUN = !!(W.matchMedia && W.matchMedia('(pointer: coarse)').matches);
   function dongu(t) {
     kare = 0; if (kok.hidden) return;
     var y = W.scrollY, v = y - (sonY < 0 ? y : sonY); sonY = y;
+    if (v) sonOynama = t;
+    /* dokunmatik cihazda kaydırma yoksa yıldızlar 3 karede bir çizilir (pil, ısınma) */
+    if (DOKUN && !v && t - sonOynama > 1200 && (++bosKare % 3)) { kare = W.requestAnimationFrame(dongu); return; }
     if (Math.abs(v) > 2 && !SAKIN) { rehber.classList.add('kz-ucuyor'); rehber.style.setProperty('--kyo-egim', Math.max(-14, Math.min(14, v * 0.6)).toFixed(1) + 'deg'); clearTimeout(ucusZ); ucusZ = setTimeout(function () { rehber.classList.remove('kz-ucuyor'); rehber.style.setProperty('--kyo-egim', '0deg'); }, 260); }
     yildizCiz(t); bolumBak();
     if (!SAKIN) kare = W.requestAnimationFrame(dongu);
@@ -203,6 +216,8 @@
   }
   function sahneler() {
     gs = W.gsap; ST = W.ScrollTrigger; gs.registerPlugin(ST); durum.gsap = true;
+    /* telefonda adres çubuğu kayınca yalnız yükseklik değişir: yenileme yok (zıplama/titreme olmasın) */
+    ST.config({ ignoreMobileResize: true });
     H.classList.add('kyo-gsap');
     var mm = gs.matchMedia();
     /* ortak: el çizimi sloganlar, bölüm açılışları (her ekranda) */
@@ -214,27 +229,37 @@
         c.forEach(function (p) { tl.fromTo(p, { strokeDashoffset: function () { return +p.style.getPropertyValue('--L') || 300; } }, { strokeDashoffset: 0, duration: 0.7, ease: 'power2.out' }, '-=0.2'); });
       });
       /* eski bölümler: başlık ve kartlar aşağıdan esneyerek gelir */
+      /* 27.11.2026: bu öğeler kids-scroll'un eski girişinde de (.kl-gir: opacity 0) işaretliydi. gs.from bitiş değeri
+         olarak o anki gizli hâli alıyor, adımlar telefon/tablette (ve GSAP geç yüklenince masaüstünde) görünmez
+         kalıyordu. Artık eski giriş bu öğeleri bırakır, bitiş değerleri açıkça verilir. */
       gs.utils.toArray('.kl-adimlar>li, .kl-guvenler>li, .kyo-adim>li').forEach(function (el, i) {
-        gs.from(el, { y: 50, scale: 0.9, opacity: 0, duration: 0.7, ease: 'back.out(2)', delay: (i % 4) * 0.08, scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none none' } });
+        el.classList.remove('kl-gir', 'kl-geldi');
+        gs.fromTo(el, { y: 50, scale: 0.9, opacity: 0 }, { y: 0, scale: 1, opacity: 1, duration: 0.7, ease: 'back.out(2)', delay: (i % 4) * 0.08, scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none none' } });
       });
     });
 
-    /* masaüstü: sahneler ekrana oturur, kaydırdıkça oynar */
-    mm.add('(min-width: 761px) and (prefers-reduced-motion: no-preference)', function () {
-      var ortak = function (sec, uzun) { return { trigger: sec, start: 'top top', end: '+=' + uzun, pin: sec.querySelector('.kyo-pin'), scrub: 1, anticipatePin: 1, snap: W.KY_OTURTMA === false ? false : { snapTo: 'labelsDirectional', duration: { min: 0.25, max: 0.8 }, delay: 0.12, ease: 'power1.inOut' } }; };
+    /* geniş ekran sahneleri. oto=false: fare/izleme dörtgeni — sahne ekrana oturur, kaydırdıkça oynar,
+       etikete yakalanır. oto=true: dokunmatik tablet — oturma ve yakalama yok, bölüm görününce sahne
+       kendiliğinden bir kez oynar (iOS/Android'de parmakla kaydırma hiç geri çekilmez). */
+    function sahneKur(oto) {
+      var ortak = function (sec, uzun) {
+        if (oto) return { trigger: sec, start: 'top 72%', toggleActions: 'play none none none' };
+        return { trigger: sec, start: 'top top', end: '+=' + uzun, pin: sec.querySelector('.kyo-pin'), scrub: 1, anticipatePin: 1, snap: W.KY_OTURTMA === false ? false : { snapTo: 'labelsDirectional', duration: { min: 0.25, max: 0.8 }, delay: 0.12, ease: 'power1.inOut' } };
+      };
+      var reh = oto ? {} : rehber;   /* tablette rehber köşesinde kalır */
 
       /* 1 · dalış */
       var s1 = D.querySelector('#kyo-okul');
       if (s1) {
         var gz = s1.querySelector('.kyo-dalis'), ic = s1.querySelector('.kyo-icerik');
-        var tl1 = gs.timeline({ scrollTrigger: Object.assign(ortak(s1, '160%'), { onEnter: function () { dalisAktif = true; }, onLeave: function () { dalisAktif = false; }, onEnterBack: function () { dalisAktif = true; }, onLeaveBack: function () { dalisAktif = false; } }) });
+        var tl1 = gs.timeline({ scrollTrigger: oto ? ortak(s1) : Object.assign(ortak(s1, '160%'), { onEnter: function () { dalisAktif = true; }, onLeave: function () { dalisAktif = false; }, onEnterBack: function () { dalisAktif = true; }, onLeaveBack: function () { dalisAktif = false; } }) });
         tl1.addLabel('bas')
           .fromTo(gz, { scale: 0.35, rotate: -20, opacity: 1 }, { scale: 1, rotate: 0, duration: 1, ease: 'power2.out' })
-          .fromTo(rehber, { x: 0, y: 0, scale: 1 }, { x: function () { var r = rehber.getBoundingClientRect(); return W.innerWidth / 2 - (r.left + r.width / 2); }, y: function () { var r = rehber.getBoundingClientRect(); return W.innerHeight / 2 - (r.top + r.height / 2); }, scale: 0.3, duration: 1, ease: 'power2.in' }, '<0.2')
+          .fromTo(reh, { x: 0, y: 0, scale: 1 }, { x: function () { var r = rehber.getBoundingClientRect(); return W.innerWidth / 2 - (r.left + r.width / 2); }, y: function () { var r = rehber.getBoundingClientRect(); return W.innerHeight / 2 - (r.top + r.height / 2); }, scale: 0.3, duration: 1, ease: 'power2.in' }, '<0.2')
           .addLabel('dalis')
           .to(gz, { scale: 12, duration: 1.2, ease: 'power3.in' })
           .to(gz, { opacity: 0, duration: 0.4 }, '-=0.35')
-          .set(rehber, { x: 0, y: 0, scale: 1 })
+          .set(reh, { x: 0, y: 0, scale: 1 })
           .fromTo(ic.children, { y: 70, opacity: 0, scale: 0.92 }, { y: 0, opacity: 1, scale: 1, stagger: 0.12, duration: 0.8, ease: 'back.out(1.8)' }, '-=0.1')
           .fromTo(s1.querySelectorAll('.kyo-ok .kyo-cizgi'), { strokeDashoffset: function (i, p) { return +p.style.getPropertyValue('--L') || 200; } }, { strokeDashoffset: 0, duration: 0.6 }, '-=0.4')
           .addLabel('son');
@@ -260,7 +285,7 @@
       var s3 = D.querySelector('#kyo-soyle');
       if (s3) {
         var mik = s3.querySelector('.kyo-mik'), bl = gs.utils.toArray(s3.querySelectorAll('.kyo-balon')), baslik = s3.querySelectorAll('.kyo-icerik > h2, .kyo-icerik > .kyo-alt');
-        var tl3 = gs.timeline({ scrollTrigger: Object.assign(ortak(s3, '180%'), { onUpdate: function (self) {
+        var tl3 = gs.timeline({ scrollTrigger: oto ? ortak(s3) : Object.assign(ortak(s3, '180%'), { onUpdate: function (self) {
           var p = self.progress; bl.forEach(function (b, i) { var esik = 0.55 + i * 0.08; if (p > esik && !b.classList.contains('kyo-patladi') && self.direction > 0) balonPatlat(b); if (p < esik - 0.02 && self.direction < 0 && b.classList.contains('kyo-patladi')) balonOnar(b); });
         } }) });
         tl3.addLabel('bas')
@@ -270,6 +295,8 @@
           .addLabel('yukseldi')
           .to({}, { duration: 2.2 })
           .addLabel('son');
+        /* tablet: balonlar yükselince sırayla kendiliğinden patlar */
+        if (oto) bl.forEach(function (b, i) { tl3.call(function () { balonPatlat(b); }, null, 'yukseldi+=' + (0.3 + i * 0.35).toFixed(2)); });
       }
 
       /* 4 · masal: kitap açılır, otobüs gelir, kart, tren, kuş */
@@ -291,7 +318,9 @@
           .addLabel('son');
       }
       return function () { gs.set(rehber, { clearProps: 'transform' }); };
-    });
+    }
+    mm.add('(min-width: 761px) and (pointer: fine) and (prefers-reduced-motion: no-preference)', function () { return sahneKur(false); });
+    mm.add('(min-width: 761px) and (pointer: coarse) and (prefers-reduced-motion: no-preference), (min-width: 761px) and (pointer: none) and (prefers-reduced-motion: no-preference)', function () { return sahneKur(true); });
 
     /* telefon: oturma yok, sahneler açılınca bir kez oynar */
     mm.add('(max-width: 760px) and (prefers-reduced-motion: no-preference)', function () {

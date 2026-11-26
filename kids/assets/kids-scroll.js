@@ -144,12 +144,31 @@
   /* ---------- fare ve telefon eğimi: --mx, --my (-1..1) ---------- */
   function egimKur() {
     if (SAKIN) return;
-    var kok = D.getElementById('kl-sayfa'), hx = 0, hy = 0, x = 0, y = 0, donuyor = false;
-    var don = function () { x += (hx - x) * 0.08; y += (hy - y) * 0.08; kok.style.setProperty('--mx', x.toFixed(3)); kok.style.setProperty('--my', y.toFixed(3)); if (Math.abs(hx - x) > 0.002 || Math.abs(hy - y) > 0.002) W.requestAnimationFrame(don); else donuyor = false; };
+    var kok = D.getElementById('kl-sayfa'), hx = 0, hy = 0, x = 0, y = 0, donuyor = false, yx = '', yy = '';
+    /* 27.11.2026 telefon/tablet: eğim sayfanın köküne değil yalnız filmin çerçevesine yazılır, film ekrandayken
+       ve kaydırma yokken; değer 0,02 adımına yuvarlanır. Eskiden sensör gürültüsü saniyede 60 kez bütün
+       sayfanın stilini yeniden hesaplatıyor, Android'de kaydırma takılıyordu. */
+    var DOKUN = !!(W.matchMedia && W.matchMedia('(pointer: coarse)').matches), hedef = kok, gorunur = true, sonKay = 0;
+    if (DOKUN) {
+      hedef = D.querySelector('[data-kf-yap]'); gorunur = false;
+      if (hedef && W.IntersectionObserver) new W.IntersectionObserver(function (g) { gorunur = g[0].isIntersecting; }).observe(hedef);
+      W.addEventListener('scroll', function () { sonKay = Date.now(); }, { passive: true });
+    }
+    var don = function () {
+      x += (hx - x) * 0.08; y += (hy - y) * 0.08;
+      var qx = (Math.round(x * 50) / 50).toFixed(2), qy = (Math.round(y * 50) / 50).toFixed(2);
+      if (qx !== yx) { yx = qx; hedef.style.setProperty('--mx', qx); } if (qy !== yy) { yy = qy; hedef.style.setProperty('--my', qy); }
+      if (Math.abs(hx - x) > 0.01 || Math.abs(hy - y) > 0.01) W.requestAnimationFrame(don); else donuyor = false;
+    };
     var iste2 = function () { if (!donuyor) { donuyor = true; W.requestAnimationFrame(don); } };
     W.addEventListener('pointermove', function (e) { if (e.pointerType !== 'mouse' || kok.hidden) return; hx = (e.clientX / W.innerWidth) * 2 - 1; hy = (e.clientY / W.innerHeight) * 2 - 1; iste2(); }, { passive: true });
     /* telefon: izin istemeyen tarayıcılarda (Android) eğim; iOS izin penceresi açılmaz */
-    W.addEventListener('deviceorientation', function (e) { if (e.gamma == null || kok.hidden) return; hx = Math.max(-1, Math.min(1, e.gamma / 25)); hy = Math.max(-1, Math.min(1, (e.beta - 40) / 25)); iste2(); }, { passive: true });
+    W.addEventListener('deviceorientation', function (e) {
+      if (e.gamma == null || kok.hidden || !hedef || !gorunur || Date.now() - sonKay < 300) return;
+      var nx = Math.max(-1, Math.min(1, e.gamma / 25)), ny = Math.max(-1, Math.min(1, (e.beta - 40) / 25));
+      if (Math.abs(nx - hx) < 0.03 && Math.abs(ny - hy) < 0.03) return;   /* titreme eşiği */
+      hx = nx; hy = ny; iste2();
+    }, { passive: true });
   }
 
   /* ---------- 3) hero: açılan adalar ve balonlu çocuk ---------- */

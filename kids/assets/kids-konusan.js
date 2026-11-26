@@ -7,6 +7,8 @@
        Acadia hikâye cümlesini söyler ("The dog plays with a ball!").
    replik(konu, oge) → {soru, ben, selam, hikaye, sahne}; boş alanlar atlanır.
    Bütün cümleler ses kataloğuna (kids/ses/katalog.js) eklenir.
+   26.11.2026: hayvanlar dışındaki 15 konuda da her kelimenin kendi cümlesi, eşyası ve hareketi var
+   (kids-hikaye.js; yoksa aşağıdaki konu kalıbı yedek). replik → {…, grup, fx}.
    ========================================================================== */
 (function (W) {
   'use strict';
@@ -70,7 +72,8 @@
   /* uçuşan küçük kopyalar (kn-ucus) çıkan eşyalar */
   var UCAN = { kalp: 1, kabarcik: 1, pirilti: 1, nota: 1, kukre: 1, sss: 1, damla: 1 };
   function grup(ad) { return ESYA_GRUP[ad] || ''; }
-  function ucar(ad) { return !!UCAN[ad]; }
+  /* gr: kelimeye özel davranış (kids-hikaye); buhar, uyku, köpük, kalp, dalış, damla… kopyalar uçar/yağar */
+  function ucar(ad, gr) { var HK = W.KIDS_HIKAYE; return !!UCAN[ad] || !!(gr && HK && HK.UCAN_GRUP[gr]); }
 
   /* konu → Acadia'nın sorusu */
   var SORU = {
@@ -109,9 +112,14 @@
     var soru = SORU[kid] || 'Who are you?';
     if (kid === 'weather' && SIFAT.indexOf(' ' + r.en + ' ') >= 0) soru = 'What\'s the weather like?';
     if (kid === 'days' && GUN.indexOf(' ' + r.id.toLowerCase() + ' ') >= 0) soru = 'What day is it?';
+    var selam = SELAMSIZ[kid] ? null : 'Hello, ' + (BUYUK[r.id] || r.en) + '!';
+    /* kelimeye özel hikâye (kids-hikaye.js) */
+    var oz = W.KIDS_HIKAYE && W.KIDS_HIKAYE.al(kid, r.id);
+    if (oz) return { soru: soru, ben: b, selam: selam, hikaye: oz.c, sahne: oz.e, grup: oz.g, fx: oz.fx };
     var H = HIKAYE[kid], hk = H ? H.c(r) : null, eski = P && P.izleCumle ? P.izleCumle(r) : null;
     if (!hk && eski && eski !== b) hk = eski;
-    return { soru: soru, ben: b, selam: SELAMSIZ[kid] ? null : 'Hello, ' + (BUYUK[r.id] || r.en) + '!', hikaye: hk, sahne: H && hk && hk !== eski ? (typeof H.sahne === 'function' ? H.sahne(r) : H.sahne) : (hk ? 'pirilti' : null) };
+    var sh = H && hk && hk !== eski ? (typeof H.sahne === 'function' ? H.sahne(r) : H.sahne) : (hk ? 'pirilti' : null);
+    return { soru: soru, ben: b, selam: selam, hikaye: hk, sahne: sh, grup: sh ? grup(sh) : '', fx: null };
   }
 
   /* hikâye eşyaları (küçük satır içi çizimler) */
@@ -153,10 +161,18 @@
     su: svg('<ellipse cx="50" cy="66" rx="48" ry="20" fill="#7FC4FF" stroke="' + M + '" stroke-width="4"/><path d="M20 64 q8 -5 16 0 q8 5 16 0 M52 72 q8 -5 16 0 q8 5 16 0" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>', ' preserveAspectRatio="none"'),
     buz: svg('<path d="M2 64 L98 64 L92 84 L8 84 Z" fill="#CFEFFF" stroke="' + M + '" stroke-width="4" stroke-linejoin="round"/><path d="M14 70 l18 0 M58 74 l22 0" stroke="#fff" stroke-width="4" stroke-linecap="round"/>', ' preserveAspectRatio="none"')
   };
-  function esya(ad) { return ESYA[ad] || ''; }
+  /* eşya: 'r:<id>' kelime resmi (KIDS_RESIM), 's:<ad>' arayüz simgesi (KIDS_CIZ), düz ad çizim */
+  function esya(ad) {
+    ad = String(ad || '');
+    if (ad.indexOf('r:') === 0) return W.KIDS_RESIM && W.KIDS_RESIM.var(ad.slice(2)) ? W.KIDS_RESIM.ciz(ad.slice(2)) : ESYA.pirilti;
+    if (ad.indexOf('s:') === 0) return W.KIDS_CIZ ? W.KIDS_CIZ.simge(ad.slice(2)) : ESYA.pirilti;
+    return ESYA[ad] || (W.KIDS_HIKAYE && W.KIDS_HIKAYE.ESYA[ad]) || '';
+  }
 
   /* hangi hayvan sesi çalınır (kids-ses.js FX.hayvan) */
-  var HAYVAN = { cat: 1, dog: 1, bird: 1, frog: 1, cow: 1, chick: 1, lion: 1, horse: 1, pig: 1, sheep: 1, duck: 1, monkey: 1, elephant: 1, mouse: 1, snake: 1, owl: 1, bee: 1, goat: 1, hen: 1, crocodile: 1, whale: 1, dolphin: 1, seal: 1, walrus: 1, tiger: 1, bear: 1, rabbit: 1 };
+  var HAYVAN = { cat: 1, dog: 1, bird: 1, frog: 1, cow: 1, chick: 1, lion: 1, horse: 1, pig: 1, sheep: 1, duck: 1, monkey: 1, elephant: 1, mouse: 1, snake: 1, owl: 1, bee: 1, goat: 1, hen: 1, crocodile: 1, whale: 1, dolphin: 1, seal: 1, walrus: 1, tiger: 1, bear: 1, rabbit: 1,
+    /* 26.11.2026 deniz: her canlının kendi sesi (kids/ses/efektler.js, yedeği kids-ses.js) */
+    octopus: 1, crab: 1, turtle: 1, starfish: 1, shark: 1, jellyfish: 1, seahorse: 1, shell: 1, squid: 1, lobster: 1, coral: 1, seaweed: 1, stingray: 1, swordfish: 1, clownfish: 1, pufferfish: 1, eel: 1, anchor: 1 };
   function hayvanSesi(r) { return r && HAYVAN[r.id] ? r.id : null; }
 
   W.KIDS_KONUSAN = { replik: replik, ben: ben, esya: esya, grup: grup, ucar: ucar, hayvanSesi: hayvanSesi, ESYA: ESYA, HAYVAN_IS: HAYVAN_IS, adli: adli };
