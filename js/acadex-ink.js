@@ -8123,7 +8123,17 @@ var SBX = (function () {
       '.ax-sxd .au-gq{margin-top:14px;padding-top:12px;border-top:1.5px dashed #E4DCC8}.ax-sxd .au-gq h4{margin:0 0 8px;font:700 15px "Bricolage Grotesque",sans-serif}.ax-sxd .au-gq small{color:#4B5675}.ax-sxd .au-gq .au-sum{flex-wrap:wrap}' +
       '.sx-audit{display:block;width:100%;margin-top:10px;min-height:40px;border:1.5px dashed #9DB8FF;border-radius:12px;background:#F7F9FF;font:700 19px "Caveat",cursive;color:#2F6BFF;cursor:pointer}' +
       '.sx-audit:hover{background:#EEF3FF}' +
-      '@media (max-width:640px){.ax-sxd .pv-two{grid-template-columns:1fr}}';
+      '.ax-sxd .qa-ov .au-sum{flex-wrap:wrap}.ax-sxd .qa-p{display:inline-block;padding:1px 8px;border-radius:99px;font:700 11.5px "Instrument Sans",sans-serif;background:#EEF3FF;color:#1A2A5C}' +
+      '.ax-sxd .qa-p.p-kritik{background:#C9483B;color:#fff}.ax-sxd .qa-p.p-yuksek{background:#FBE3DF;color:#9A2F24}.ax-sxd .qa-p.p-orta{background:#FFF1C2;color:#7A5A06}.ax-sxd .qa-p.p-dusuk{background:#EEF1F6;color:#4B5675}' +
+      '.ax-sxd .qa-cks{list-style:none;padding:0;margin:0 0 12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ax-sxd .qa-cks li{margin:0;padding:8px 10px;border:1.5px solid #E4DCC8;border-radius:12px;background:#fff;display:flex;flex-direction:column;gap:2px;font-size:13px}' +
+      '.ax-sxd .qa-cks b{font:700 13.5px "Bricolage Grotesque",sans-serif}.ax-sxd .qa-cks small{color:#4B5675}.ax-sxd .qa-st{font-weight:700}.ax-sxd .st-passed{color:#1E6A42}.ax-sxd .st-error{color:#C9483B}.ax-sxd .st-warning,.ax-sxd .st-partial{color:#8A6A12}.ax-sxd .st-stale,.ax-sxd .st-uncertain,.ax-sxd .st-not_checked,.ax-sxd .st-unavailable{color:#6A7593}' +
+      '.ax-sxd .qa-flt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px;font-size:12.5px}.ax-sxd .qa-flt span{font-weight:700;color:#4B5675;margin-left:4px}.ax-sxd .qa-flt button{min-height:32px;padding:2px 10px;border:1.5px solid #E4DCC8;border-radius:99px;background:#fff;color:#1A2A5C;font:600 12.5px "Instrument Sans",sans-serif;cursor:pointer}.ax-sxd .qa-flt button[aria-pressed=true]{background:#0D1838;border-color:#0D1838;color:#fff}' +
+      '.ax-sxd .qa-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:12px;align-items:start}.ax-sxd .qa-list{max-height:46vh}.ax-sxd .qa-it{display:flex;flex-direction:column;gap:6px;padding:8px 10px}.ax-sxd .qa-it.on{border-color:#2F6BFF;box-shadow:0 0 0 1px #2F6BFF}.ax-sxd .qa-it .sxd-b{align-self:flex-end}' +
+      '.ax-sxd .qa-sel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;width:100%;min-height:40px;padding:0;border:0;background:none;text-align:left;font:inherit;font-size:13.5px;color:#0D1838;cursor:pointer}.ax-sxd .qa-m{flex:1 1 180px}.ax-sxd .qa-m i{font:700 12px ui-monospace,monospace;font-style:normal;color:#2F6BFF;margin-right:6px}.ax-sxd .qa-m small,.ax-sxd .qa-why small{display:block;color:#4B5675}.ax-sxd .qa-src{font-size:11.5px;color:#6A7593}' +
+      '.ax-sxd .qa-det{border:1.5px solid #E4DCC8;border-radius:12px;padding:12px;background:#fff;font-size:13.5px;min-width:0}.ax-sxd .qa-det h4{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px;font:700 15px "Bricolage Grotesque",sans-serif}.ax-sxd .qa-det p{margin:6px 0}' +
+      '.ax-sxd .qa-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0}.ax-sxd .qa-dl dt{font-weight:700;color:#4B5675}.ax-sxd .qa-dl dd{margin:0;min-width:0;overflow-wrap:anywhere}.ax-sxd .qa-no{color:#8A6A12}.ax-sxd .qa-ok{color:#1E6A42;font-weight:700}.ax-sxd .qa-bos{color:#4B5675;padding:8px 0}' +
+      '.ax-sxd .qa-pv .pv-old,.ax-sxd .qa-pv .pv-new{padding:8px}.ax-sxd .qa-pv .sx-thv{display:block;position:relative;overflow:hidden;aspect-ratio:16/9;border-radius:6px}.ax-sxd .qa-pv ul{margin:8px 0 0}' +
+      '@media (max-width:640px){.ax-sxd .pv-two{grid-template-columns:1fr}.ax-sxd .qa-grid,.ax-sxd .qa-cks{grid-template-columns:1fr}.ax-sxd .qa-list{max-height:none}}';
     document.head.appendChild(st);
   };
   var sxDlg = function () { sxCss(); var d = document.createElement('dialog'); d.className = 'sx-dlg ax-sxd'; document.body.appendChild(d); return d; };
@@ -8218,40 +8228,15 @@ var SBX = (function () {
       if (PREV[k] && changed.length) preview(k, s, work, changed, m, apply, function () { b.click(); }); else apply();
     }, function (err) { busy(false); console.warn('acadex-sunum: Acadia', k, err); say('Bir şeyler ters gitti; asetat değişmedi.'); });
   }); });
-  /* ---------- asetat denetçisi ---------- */
+  /* ---------- asetat denetçisi (pencere: openAudit; bulgular: Phase 6 birleşik denetim) ---------- */
   var auDlg = null;
-  var audit = function () {
-    var out = [];
-    deck.slides.forEach(function (s, i) {
-      var iss = [], seen = {}, long = 0, warnN = 0;
-      var add = function (t, fixId) { if (seen[t + (fixId || '')]) return; seen[t + (fixId || '')] = 1; iss.push({ t: t, fix: fixId || null }); };
-      var vis = s.els.filter(function (e) { return !DECOR[e.type]; });
-      vis.forEach(function (e) {
-        if (e.x < -2 || e.y < -2 || e.x + e.w > W + 2 || e.y + e.h > H + 2) add('asetatın dışına taşan kutu', e.id);
-        if ((e.type === 'ul' || e.type === 't' || e.type === 'h') && e.text && !e.muted && overflows(e, s)) add('yazı kutusundan taşıyor', e.type === 'h' ? null : e.id);
-        if (e.muted && e.text && e.type !== 'h') add('doldurulmamış yer tutucu: “' + e.text.split('\n')[0].slice(0, 40) + '”');
-        if (e.type === 'ul' && !e.muted) e.text.split('\n').forEach(function (l) { if (l.split(/\s+/).length > 18) long++; });
-        if (e.warn && e.warn.length) warnN += e.warn.length;
-      });
-      for (var a = 0; a < vis.length; a++) for (var b = a + 1; b < vis.length; b++) {
-        var A = vis[a], B = vis[b]; if (A.muted || B.muted || !hit(A, B)) continue;
-        var ix = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x), iy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
-        if (ix * iy > .15 * Math.min(A.w * A.h, B.w * B.h)) { var hdr = A.type === 'h' ? B : B.type === 'h' ? A : null; add(hdr ? 'başlığın üstüne binen kutu' : 'iki öğe üst üste biniyor', hdr && hdr.type !== 'h' ? hdr.id : null); }
-      }
-      if (long) add(long + ' madde çok uzun (18 kelimeden fazla); asetatı açıp “kısalt”a bas');
-      if (warnN) add(warnN + ' maddede doğrulanmamış sayı (sarı)');
-      if (!vis.some(function (e) { return !e.muted && (e.text || e.chart || e.table || e.latex || e.svg || e.src || e.viz); })) add('asetat boş');
-      if (iss.length) out.push({ i: i, s: s, iss: iss });
-    });
-    return out;
-  };
   /* ---------- PHASE 4: TEKNİK DESTE DENETİMİ (teknikQA, 26.11.2026, #30–#31) ----------
      "Acadex sunumu oluşturdum diyor; deste teknik olarak geçerli, eksiksiz ve dışa aktarılabilir mi?" sorusunun
      deterministik yanıtı. YALNIZ RAPORLAR: desteyi değiştirmez, kaydettirmez (dirty/saveLocal/push yok), görüntü
      yenilemez, geri al geçmişine dokunmaz, ağ isteği yapmaz, düzeltmez, dışa aktarmayı engellemez. Sonuç desteye değil
      WeakMap'e yazılır; kalıcı özet (yalnız kodlar ve sayılar) zaten yapılan hesap kaydına quality_report.teknik olarak
-     eklenir. audit()'in yardımcılarını ve eşiklerini aynen kullanır (overflows, hit, DECOR, GORSEL_EL, gorselVar,
-     yerTutucu; ±2 px, 3 px, %15); audit() ve diyaloğu değişmez. Geometri (sınır, taşma, en küçük yazı, çakışma) yalnız
+     eklenir. eski audit()'in yardımcılarını ve eşiklerini aynen kullanır (overflows, hit, DECOR, GORSEL_EL, gorselVar,
+     yerTutucu; ±2 px, 3 px, %15); rapor Phase 6 denetim penceresinde okunur. Geometri (sınır, taşma, en küçük yazı, çakışma) yalnız
      şablon yazısı doğrulanıp o yazıyla sığdırılmışken ölçülür (snapHazir ile aynı koşul); değilse 'skipped' — ne geçti
      ne kaldı, yedek yazıyla sahte taşma üretilmez. Phase 1 sığdırır; Phase 4 yalnız sığdırmanın çözemediğini söyler. */
   var TEKNIK = {      /* kod → [önem, TR, EN] — kodlar kararlıdır, metin yalnız bu tablodan üretilir */
@@ -8452,39 +8437,26 @@ var SBX = (function () {
     tkBtn.title = ['Teknik denetim'].concat(e ? [e + ' teknik hata'] : [], w ? [w + ' teknik uyarı'] : [], kod.map(function (c) { return TEKNIK[c][1]; }),
       ne.olcum.geometri !== 'tamam' ? ['geometri ölçülmedi'] : [], ['ayrıntılar için tıkla']).join(' · ');
   };
-  var fixSlide = function (s, ids) { var moved = 0; s.els.forEach(function (e) { if (!ids || ids.indexOf(e.id) >= 0) moved += settle(s, e).length; }); return moved; };
+  /* Denetim penceresi (Phase 6, #35): içerik + teknik + görsel bulgular tek listede (qaBoya). Eski "düzelt / hepsini
+     düzelt" kaldırıldı: yerleştirme (settle) sığmayan maddeyi konuşmacı notuna taşıyordu (metni değiştirir) ve onaysız topluca
+     çalışıyordu. Onarım artık tek bulgu için, önizlemeli ve onaylı (qaTikla). Pencere katmana (LY) eklenir: önizleme
+     asetatları ekrandaki şablon stiliyle çizilsin. */
   var openAudit = function () {
     if (!deck.slides.length) { say('Denetlenecek asetat yok.'); return; }
     if (!yaziHazirMi() || yaziKuyruk.length) { say('Şablon yazı tipi hazırlanıyor; denetim yazı gelince açılacak.'); yaziSonra(openAudit, 'denetim'); return; }      /* ölçüm doğrulanmış yazıyla (P1) */
     commitEdit();
-    if (!auDlg) { auDlg = sxDlg(); auDlg.setAttribute('aria-labelledby', 'axau-t'); }
-    var paint = function () {
-      var res = audit(), nIss = 0, fixable = 0; res.forEach(function (r) { nIss += r.iss.length; r.iss.forEach(function (x) { if (x.fix) fixable++; }); });
-      auDlg.innerHTML = '<div class="sxd-in"><button type="button" class="sxd-x" data-au-x aria-label="Kapat">×</button><span class="sxd-eyb">Acadia · denetçi</span><h3 id="axau-t">Asetat denetimi</h3>' +
-        (res.length ? '<p class="au-sum">' + deck.slides.length + ' asetat tarandı · ' + res.length + ' asetatta ' + nIss + ' konu' + (fixable ? ' · ' + fixable + ' tanesini ben düzeltebilirim' : '') + '</p>' : '<p class="au-sum ok">✓ ' + deck.slides.length + ' asetat tarandı; taşan, üst üste binen ya da boş asetat yok.</p>') +
-        '<ul class="au-list">' + res.map(function (r) { var fx = r.iss.some(function (x) { return x.fix; });
-          return '<li class="au-it"><div class="au-h"><b><i>' + (r.i + 1) + '.</i>' + X(titleOf(r.s) || 'başlıksız asetat') + '</b><span class="au-btns"><button type="button" class="sxd-b sm" data-au-go="' + r.i + '">asetata git</button>' + (fx ? '<button type="button" class="sxd-b sm pri" data-au-fix="' + r.i + '">düzelt</button>' : '') + '</span></div><ul>' + r.iss.map(function (x) { return '<li class="' + (x.fix ? 'fx' : 'mn') + '">' + X(x.t) + '</li>'; }).join('') + '</ul></li>'; }).join('') + '</ul>' +
-        gorselBolum() +      /* Phase 5: görsel denetim bölümü */
-        '<p class="sxd-sub" style="margin:10px 0 0">Yeşil noktalı konuları ben düzeltirim (kutuyu asetata ve başlığın altına çeker, yazıyı küçültür, sığmayan maddeyi konuşmacı notuna taşır). Kırmızılar senin kararın.</p>' +
-        '<div class="sxd-acts"><button type="button" class="sxd-b" data-au-x>kapat</button>' + (fixable ? '<button type="button" class="sxd-b pri" data-au-all>hepsini düzelt</button>' : '') + '</div></div>';
-    };
-    var doFix = function (list) {
-      if (!yaziHazirMi()) { yaziSonra(function () { doFix(list); }); return; }
-      var before = snap(), moved = 0;
-      list.forEach(function (r) { moved += fixSlide(r.s, r.iss.filter(function (x) { return x.fix; }).map(function (x) { return x.fix; })); });
-      undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); renderAll(); dirty();
-      say(list.length + ' asetat düzeltildi.' + (moved ? ' ' + moved + ' madde konuşmacı notuna taşındı.' : ''), undo); paint();
-    };
+    if (!auDlg) { auDlg = sxDlg(); auDlg.setAttribute('aria-labelledby', 'axau-t'); LY.appendChild(auDlg); }
+    qaOn = null; qaSon = null;
+    var paint = function (odak) { qaBoya(auDlg, odak); };
     auDlg.onclick = function (e) {
       var t = e.target.closest('button'); if (!t) return;
       if (t.hasAttribute('data-au-x')) { auDlg.close(); return; }
       if (t.hasAttribute('data-gq-run')) { gorselQA(); return; }
       if (t.hasAttribute('data-au-go')) { auDlg.close(); go(+t.getAttribute('data-au-go')); return; }
-      if (t.hasAttribute('data-au-fix')) { var i = +t.getAttribute('data-au-fix'); doFix(audit().filter(function (r) { return r.i === i; })); return; }
-      if (t.hasAttribute('data-au-all')) doFix(audit());
+      qaTikla(t, paint);
     };
-    gqPaint = function () { var g = auDlg && auDlg.open && auDlg.querySelector('[data-gq]'); if (g) g.outerHTML = gorselBolum(); };
-    paint(); auDlg.showModal(); var f = auDlg.querySelector('[data-au-all],[data-au-x]'); if (f) f.focus();
+    gqPaint = function () { if (!auDlg || !auDlg.open) return; var g = auDlg.querySelector('[data-gq]'); if (gorselKos && gorselKos.yapilan && g) g.outerHTML = gorselBolum(1); else paint(); };
+    paint(); auDlg.showModal(); var f = auDlg.querySelector('[data-au-x]'); if (f) f.focus();
   };
   (function () { var acs = Q('.sx-acs'); if (!acs || Q('[data-audit]')) return; sxCss(); acs.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit" data-audit>✓ asetatları denetle</button>'); Q('[data-audit]').addEventListener('click', openAudit); })();
 
@@ -8672,7 +8644,7 @@ var SBX = (function () {
   /* Gizlilik bildirimi: her "denetle" düğmesinin yanında, ilk istekten önce görünür (#34). */
   var GQ_BILGI = 'Denetim için asetat görüntüleri Google’ın Gemini hizmetine gönderilir; yalnız rapor edilir, deste değişmez.';
   var gqBilgi = function () { return '<p class="sxd-sub" data-gq-bilgi>' + GQ_BILGI + '</p>'; };
-  var gorselBolum = function () {
+  var gorselBolum = function (birlesik) {      /* birlesik: Phase 6 penceresi; asetat bulguları orada tek listede */
     gorselSozluk();
     var k = gorselKos && gorselKos.d === deck ? gorselKos : null, r = gorselTaze(deck), eski = !r && gorselIz && gorselIz.get(deck);
     var h = '<div class="au-gq" data-gq><h4>Görsel denetim (Gemini)</h4>';
@@ -8683,12 +8655,329 @@ var SBX = (function () {
     var gr = {}; r.issues.forEach(function (z) { var key = z.slide == null ? 0 : z.slide; (gr[key] = gr[key] || []).push(z); });
     h += '<p class="au-sum' + (r.status === 'pass' ? ' ok' : '') + '" data-gq-durum="completed"><span>' + r.checkedSlides + ' asetat görsel olarak denetlendi</span>' + (r.errors ? '<span>' + r.errors + ' görsel hata</span>' : '') + (r.warnings ? '<span>' + r.warnings + ' görsel uyarı</span>' : '') +
       (r.skippedSlides ? '<span>' + r.skippedSlides + ' asetat denetlenmedi</span>' : '') + (r.status === 'pass' ? '<span>görsel sorun bulunmadı</span>' : '') + '</p>';
-    h += '<ul class="au-list">' + Object.keys(gr).map(Number).sort(function (a, b) { return a - b; }).map(function (n) {
+    if (!birlesik) h += '<ul class="au-list">' + Object.keys(gr).map(Number).sort(function (a, b) { return a - b; }).map(function (n) {
       var s = n ? deck.slides[n - 1] : null;
       return '<li class="au-it" data-gq-asetat="' + n + '"><div class="au-h"><b>' + (n ? '<i>' + n + '.</i>' + X(titleOf(s) || 'başlıksız asetat') : 'deste geneli') + '</b>' + (n && s ? '<span class="au-btns"><button type="button" class="sxd-b sm" data-au-go="' + (n - 1) + '">asetata git</button></span>' : '') + '</div><ul>' +
         gr[n].map(function (z) { return '<li class="mn" data-gq-kod="' + z.code + '"><span>' + X(GORSEL[z.code][1]) + '</span>' + (z.why ? ' <small>' + X(z.why) + '</small>' : '') + '</li>'; }).join('') + '</ul></li>';
     }).join('') + '</ul>';
     return h + (r.status === 'pass' || !r.skippedSlides ? '' : gqBilgi() + '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-gq-run>yeniden denetle</button></div>') + '</div>';
+  };
+
+  /* ---------- PHASE 6: BİRLEŞİK DENETİM VE GÜVENLİ ONARIM (27.11.2026, #35) ----------
+     Denetim penceresi üç raporu tek listede okur: içerik (Acadia puanı + yerel içerik denetimleri), teknik (Phase 4
+     teknikQA; pencere açılınca bayatsa deterministik yeniden çalışır) ve görsel (Phase 5 sonucu ya da hesaptan gelen
+     kısa özet). Raporların kopyası tutulmaz, her boyamada kaynağından okunur; eksik, bayat ya da okunamayan rapor asla
+     "geçti" sayılmaz. Öncelik tek tablodan (qaOncelik). Aynı asetatta aynı kod tek bulgudur, kaynakları korunur.
+     ONARIM: yalnız teknik TEXT_OVERFLOW ve yalnız doğrulanmış şablon yazısıyla (snapHazir). Phase 1 sığdırması (fitEl)
+     asetatın KOPYASINDA denenir, sığmazsa kutu asetat içinde aşağı uzatılır; teknikGeo ile doğrulanır (hedef taşma
+     kalkmalı, yeni bulgu çıkmamalı). Önizleme canlı desteye dokunmaz; onaylanınca yalnız o öğelerin size/w/h değeri
+     tek geri alma adımı olarak yazılır, hata olursa eski değerler geri konur. Metin, sıra, grafik, tablo, sayı, kaynak,
+     görsel değişmez. Kendiliğinden onarım yok, toplu onarım yok, görsel bulgu düzeltilmez. Ağ isteği yok. */
+  var QA_KRITIK = { DECK_EMPTY: 1, DECK_SKELETON: 1, EXPORT_FAILED: 1, PDF_PAGE_MISMATCH: 1 };
+  var QA_PRI = ['kritik', 'yuksek', 'orta', 'dusuk'], QA_ONEM = { error: 3, warning: 2, info: 1 };
+  var QA_PRI_TR = { kritik: 'Kritik', yuksek: 'Yüksek', orta: 'Orta', dusuk: 'Düşük' };
+  var QA_KAYNAK = ['technical', 'content', 'visual'];
+  var QA_KAYNAK_TR = { technical: 'teknik', content: 'içerik', visual: 'görünüm' };
+  var QA_KONTROL_TR = { technical: 'Teknik denetim', content: 'İçerik denetimi', visual: 'Görsel denetim' };
+  var QA_DURUM_TR = { passed: 'geçti', warning: 'uyarı', error: 'hata', partial: 'kısmi', not_checked: 'denetlenmedi', unavailable: 'kullanılamadı', stale: 'bayat', uncertain: 'belirsiz' };
+  /* eski asetat denetiminin yerel içerik denetimleri — kod → [önem, TR, EN] */
+  var ICERIK = {
+    DUPLICATE_TITLE: ['warning', 'aynı başlık başka asetatta da var', 'the same title is used on another slide'],
+    LONG_BULLETS: ['info', 'madde çok uzun (18 kelimeden fazla)', 'bullet too long (more than 18 words)'],
+    UNVERIFIED_NUMBERS: ['warning', 'doğrulanmamış sayı (sarı)', 'unverified number (yellow)']
+  };
+  var KALITE_EN = { slide_count_mismatch: 'slide count does not match your request', duplicate_titles: 'the same title on several slides',
+    weak_speaker_notes: 'speaker notes are short', dense_slides: 'some slides are too dense', visual_repetition: 'the same layout back to back',
+    weak_grounding: 'some slides are not tied to the source', empty_slides: 'empty or unfilled slides', few_visuals: 'few visuals (less than a third of the slides)',
+    thin_slides: 'some slides are very thin (a few words)', repeated_facts: 'the same figure repeats on several slides' };
+  var QA_ONERI = {      /* kod → [TR, EN] */
+    DECK_EMPTY: ['Asetat ekle ya da sunumu yeniden oluştur.', 'Add slides or generate the deck again.'],
+    DECK_SKELETON: ['Yer tutucuları doldur ya da sunumu kaynaktan yeniden oluştur.', 'Fill the placeholders or generate the deck again from the source.'],
+    SLIDE_EMPTY: ['Asetata içerik ekle ya da asetatı sil.', 'Add content to the slide or delete it.'],
+    PLACEHOLDER_LEFT: ['Soluk yer tutucu yazıyı kendi içeriğinle değiştir ya da sil.', 'Replace the faded placeholder text with your own content or delete it.'],
+    SLIDE_ID_DUP: ['Aynı kimlikli asetatlardan birini silip yeniden ekle.', 'Delete one of the slides with the same id and add it again.'],
+    EL_ID_DUP: ['Aynı kimlikli öğelerden birini silip yeniden ekle.', 'Delete one of the elements with the same id and add it again.'],
+    EL_GEOMETRY_INVALID: ['Öğeyi yeniden boyutlandır ya da sil.', 'Resize the element or delete it.'],
+    LAYOUT_INVALID: ['Asetat için listeden bir düzen seç.', 'Pick a layout for the slide from the list.'],
+    CHART_EMPTY: ['Grafiğe veri gir ya da grafiği sil.', 'Enter data for the chart or delete it.'],
+    TABLE_EMPTY: ['Tabloyu doldur ya da sil.', 'Fill in the table or delete it.'],
+    IMG_NO_SRC: ['Çerçeveye görsel yerleştir ya da çerçeveyi sil.', 'Place an image in the frame or delete the frame.'],
+    IMG_SRC_INVALID: ['Görseli yeniden yükle.', 'Upload the image again.'],
+    CREDIT_MISSING: ['Fotoğrafın kaynak satırını geri ekle.', 'Add the photo credit line back.'],
+    IMG_DUPLICATE: ['Yinelenen fotoğraflardan birini değiştir.', 'Replace one of the repeated photos.'],
+    EL_OUT_OF_BOUNDS: ['Kutuyu asetatın içine sürükle.', 'Drag the box back onto the slide.'],
+    TEXT_OVERFLOW: ['Yazıyı kısalt ya da kutuyu büyüt.', 'Shorten the text or enlarge the box.'],
+    FONT_AT_MIN: ['Yazıyı kısalt ya da iki asetata böl; daha fazla küçültülemez.', 'Shorten the text or split it over two slides; it cannot shrink further.'],
+    EL_OVERLAP: ['Öğelerden birini taşı ya da küçült.', 'Move or shrink one of the elements.'],
+    REFS_MISSING: ['Sona bir kaynakça asetatı ekle.', 'Add a references slide at the end.'],
+    FALLBACK_PATH: ['İçeriği kaynakla karşılaştır; gerekirse yeniden oluştur.', 'Check the content against the source; generate again if needed.'],
+    SNAPSHOT_PENDING: ['Paylaşım görüntüsü kendiliğinden hazırlanır; bir şey yapman gerekmez.', 'The share snapshot is prepared automatically; no action needed.'],
+    EXPORT_FAILED: ['PowerPoint’i yeniden indir; sürerse kaydedip sayfayı yenile.', 'Download the PowerPoint again; if it keeps failing, save and reload the page.'],
+    EXPORT_IMG_DROPPED: ['Fotoğrafı yeniden yükleyip yeniden dışa aktar.', 'Upload the photo again and export again.'],
+    EXPORT_DRAWING_DROPPED: ['Çizimi kontrol edip yeniden dışa aktar.', 'Check the drawing and export again.'],
+    EXPORT_CHART_SKIPPED: ['Grafik verisini kontrol edip yeniden dışa aktar.', 'Check the chart data and export again.'],
+    EXPORT_TABLE_SKIPPED: ['Tabloyu kontrol edip yeniden dışa aktar.', 'Check the table and export again.'],
+    PDF_PAGE_MISMATCH: ['PDF’i yeniden indir.', 'Download the PDF again.'],
+    VQ_TEXT_DENSE: ['Maddeleri kısalt ya da asetatı ikiye böl.', 'Shorten the bullets or split the slide in two.'],
+    VQ_HIERARCHY: ['Başlığı belirginleştir, gövdeyi sadeleştir.', 'Make the title stand out and simplify the body.'],
+    VQ_ALIGNMENT: ['Kutuları aynı kenara hizala.', 'Align the boxes to the same edge.'],
+    VQ_BALANCE: ['Yazı ile görselin yerini ya da boyutunu dengele.', 'Balance the position or size of text and image.'],
+    VQ_SMALL_TEXT: ['Yazıyı kısaltıp büyüt.', 'Shorten the text and make it larger.'],
+    VQ_IMAGE: ['Görseli taşı ya da değiştir.', 'Move or replace the image.'],
+    VQ_INCONSISTENT: ['Asetata destenin şablonunu ve düzenini uygula.', 'Apply the deck’s template and layout to the slide.'],
+    VQ_CONTRAST: ['Yazı rengini ya da zemini değiştir.', 'Change the text colour or the background.'],
+    VQ_COMPOSITION: ['Boşluğu azalt ya da öğeleri yeniden yerleştir.', 'Reduce empty space or rearrange the elements.'],
+    VQ_BROKEN: ['Asetatı aç; eksik ya da bozuk öğeyi düzelt.', 'Open the slide and fix the missing or broken element.'],
+    VQ_PARTIAL: ['Görsel denetimi yeniden çalıştır.', 'Run the visual check again.'],
+    DUPLICATE_TITLE: ['Başlıklardan birini değiştir.', 'Change one of the titles.'],
+    LONG_BULLETS: ['Asetatı açıp “kısalt”a bas.', 'Open the slide and press “shorten”.'],
+    UNVERIFIED_NUMBERS: ['Sarı sayıları kaynakla karşılaştır.', 'Check the yellow numbers against the source.'],
+    slide_count_mismatch: ['Asetat ekle ya da çıkar.', 'Add or remove slides.'],
+    duplicate_titles: ['Başlıklardan birini değiştir.', 'Change one of the titles.'],
+    weak_speaker_notes: ['Konuşma notlarını genişlet.', 'Expand the speaker notes.'],
+    dense_slides: ['Yoğun asetatları kısalt ya da böl.', 'Shorten or split the dense slides.'],
+    visual_repetition: ['Arka arkaya gelen asetatlardan birinin düzenini değiştir.', 'Change the layout of one of the back-to-back slides.'],
+    weak_grounding: ['Kaynağa bağlı olmayan iddiaları kaynakla karşılaştır.', 'Check claims without a source against the document.'],
+    empty_slides: ['Boş asetatları doldur ya da sil.', 'Fill or delete the empty slides.'],
+    few_visuals: ['Birkaç asetata görsel, grafik ya da tablo ekle.', 'Add an image, chart or table to a few slides.'],
+    thin_slides: ['İnce asetatlara içerik ekle ya da birleştir.', 'Add content to the thin slides or merge them.'],
+    repeated_facts: ['Yinelenen rakamı tek asetatta bırak.', 'Keep the repeated figure on one slide.']
+  };
+  var QA_GENEL = ['Asetatı açıp bu bulguyu gözden geçir.', 'Open the slide and review this finding.'];
+  var qaOwn = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+  /* TEK öncelik tablosu: kritik kodlar → Kritik; VQ_PARTIAL → Düşük; yoksa önem: error → Yüksek, warning → Orta,
+     info → Düşük; bilinmeyen önem Orta (eksik bilgi düşük sayılmaz) */
+  var qaOncelik = function (kod, onem) { return qaOwn(QA_KRITIK, kod) ? 'kritik' : kod === 'VQ_PARTIAL' ? 'dusuk' : onem === 'error' ? 'yuksek' : onem === 'info' ? 'dusuk' : 'orta'; };
+  var qaMetin = function (src, kod) {
+    var t = src === 'technical' ? TEKNIK : src === 'visual' ? GORSEL : ICERIK;
+    return qaOwn(t, kod) ? t[kod][1] : src === 'content' && qaOwn(KALITE_TR, kod) ? KALITE_TR[kod] : String(kod);      /* bilinmeyen kod ham hâliyle */
+  };
+  var qaOneri = function (kod) { return (qaOwn(QA_ONERI, kod) ? QA_ONERI[kod] : QA_GENEL)[0]; };
+  /* kaynaklar: { durum, not, bulgu: [{ code, severity, slide (1'den | null), el, why }] } */
+  var qaIcerik = function (d) {
+    var q = d.quality, out = { durum: 'not_checked', not: 'Acadia puanı henüz ölçülmedi.', bulgu: [] }, seen = {}, cift = false;
+    arr(d.slides).forEach(function (s, i) {
+      if (!s || !Array.isArray(s.els)) return;
+      var n = i + 1, k = titleKey(titleOf(s));
+      if (k.length >= 4) { if (seen[k]) { cift = true; out.bulgu.push({ code: 'DUPLICATE_TITLE', severity: ICERIK.DUPLICATE_TITLE[0], slide: n, el: null }); } else seen[k] = n; }
+      s.els.forEach(function (e) {
+        if (!e || e.muted || DECOR[e.type]) return;
+        if (e.type === 'ul' && typeof e.text === 'string' && e.text.split('\n').some(function (l) { return l.split(/\s+/).length > 18; })) out.bulgu.push({ code: 'LONG_BULLETS', severity: ICERIK.LONG_BULLETS[0], slide: n, el: e.id });
+        if (e.warn && e.warn.length) out.bulgu.push({ code: 'UNVERIFIED_NUMBERS', severity: ICERIK.UNVERIFIED_NUMBERS[0], slide: n, el: e.id });
+      });
+    });
+    var yerel = out.bulgu.some(function (z) { return z.severity !== 'info'; });
+    if (q == null) return out;
+    if (typeof q !== 'object' || typeof q.score !== 'number' || !isFinite(q.score)) { out.durum = 'uncertain'; out.not = 'Kayıtlı içerik raporu okunamadı.'; return out; }
+    if (d.qualityKey && d.qualityKey !== deckKey(d)) { out.durum = 'stale'; out.not = 'Puan ölçüldükten sonra deste değişti; yeniden ölçmek için kalite rozetine bas.'; return out; }
+    var iss = arr(q.issues).filter(function (c) { return typeof c === 'string' && c; });
+    iss.forEach(function (c) { if (!(c === 'duplicate_titles' && cift)) out.bulgu.push({ code: c, severity: 'warning', slide: null, el: null }); });      /* yerel çift başlık asetat numarasıyla zaten var */
+    out.not = 'Acadia puanı ' + Math.round(q.score) + '/100';
+    if (!d.qualityKey) { out.durum = 'uncertain'; out.not = 'Puanın hangi deste için ölçüldüğü bilinmiyor.'; return out; }
+    out.durum = iss.length || yerel || (typeof q.pass === 'boolean' ? !q.pass : q.score < 72) ? 'warning' : 'passed';
+    return out;
+  };
+  var qaTeknik = function (d) {
+    var r = null; try { r = teknikTazeSonuc(d) || teknikQA(d, 'deste'); } catch (e) { console.warn('acadex-sunum: teknik denetim', e && e.message); }
+    if (!r || !r.summary || !Array.isArray(r.issues)) return { durum: 'uncertain', not: 'Teknik denetim okunamadı.', bulgu: [] };
+    var geo = r.olcum && r.olcum.geometri === 'tamam';
+    return { durum: r.summary.errors ? 'error' : !geo ? 'partial' : r.summary.warnings ? 'warning' : 'passed', not: geo ? '' : 'geometri ölçülmedi',
+      bulgu: r.issues.map(function (z) { return { code: z.code, severity: z.severity, slide: z.slide, el: z.element }; }) };
+  };
+  var qaGorsel = function (d) {
+    if (gorselKos && gorselKos.d === d) return { durum: 'not_checked', not: 'Görsel denetim sürüyor.', bulgu: [] };
+    var r = gorselTaze(d);
+    if (r) return { durum: r.status === 'unavailable' ? 'unavailable' : r.errors ? 'error' : r.skippedSlides ? 'partial' : r.warnings ? 'warning' : 'passed',
+      not: r.status === 'unavailable' ? 'Görsel denetim şu an yapılamadı; teknik denetim etkilenmez.' : r.skippedSlides ? r.skippedSlides + ' asetat denetlenmedi' : '',
+      bulgu: r.status === 'unavailable' ? [] : r.issues.map(function (z) { return { code: z.code, severity: z.severity, slide: z.slide, el: null, why: z.why }; }) };
+    if (gorselIz && gorselIz.get(d)) return { durum: 'stale', not: 'Deste son görsel denetimden sonra değişti.', bulgu: [] };
+    var y = gorselYuklu && gorselYuklu.get(d);
+    if (!y) return { durum: 'not_checked', not: 'Görsel denetim yalnız elle başlatılır.', bulgu: [] };
+    if (y.v !== 1 || typeof y.h !== 'string' || !Array.isArray(y.issues)) return { durum: 'uncertain', not: 'Kayıtlı görsel özet okunamadı.', bulgu: [] };
+    if (y.h !== gorselAnahtar(d)) return { durum: 'stale', not: 'Deste son görsel denetimden sonra değişti.', bulgu: [] };
+    var b = [];      /* hesaptaki özet yalnız [asetat, kod] taşır; açıklama yok */
+    y.issues.forEach(function (p) { if (Array.isArray(p) && typeof p[0] === 'number' && p[0] >= 1 && typeof p[1] === 'string') b.push({ code: p[1], severity: qaOwn(GORSEL, p[1]) ? GORSEL[p[1]][0] : null, slide: p[0], el: null }); });
+    if (arr(y.codes).indexOf('VQ_PARTIAL') >= 0) b.push({ code: 'VQ_PARTIAL', severity: 'warning', slide: null, el: null });
+    return { durum: y.status === 'unavailable' ? 'unavailable' : y.errors ? 'error' : y.skipped ? 'partial' : y.warnings ? 'warning' : y.status === 'pass' ? 'passed' : 'uncertain',
+      not: 'Hesaptaki son görsel denetimden.', bulgu: y.status === 'unavailable' ? [] : b };
+  };
+  /* Bağdaştırıcı: normalize bulgu listesi { id, source, code, severity, slideIndex (0'dan | null), message, recommendation,
+     repairable, sources, priority } + kontrol durumları. Aynı kod + aynı asetat birleşir (öğeler, açıklamalar, kaynaklar). */
+  var qaListe = function (d) {
+    var K = { technical: qaTeknik(d), content: qaIcerik(d), visual: qaGorsel(d) }, m = {}, out = [];
+    QA_KAYNAK.forEach(function (src) { K[src].bulgu.forEach(function (z) {
+      if (!z || typeof z.code !== 'string' || !z.code) return;
+      var sl = typeof z.slide === 'number' && z.slide >= 1 ? z.slide : null, key = z.code + '@' + (sl || 0), x = m[key];
+      if (!x) { x = m[key] = { id: key, source: src, code: z.code, severity: z.severity, slideIndex: sl ? sl - 1 : null, message: qaMetin(src, z.code), recommendation: qaOneri(z.code), repairable: false, sources: [src], els: [], why: [] }; out.push(x); }
+      else if (x.sources.indexOf(src) < 0) x.sources.push(src);
+      if ((QA_ONEM[z.severity] || 0) > (QA_ONEM[x.severity] || 0)) x.severity = z.severity;
+      if (z.el != null && x.els.indexOf(String(z.el)) < 0) x.els.push(String(z.el));
+      if (z.why && x.why.indexOf(z.why) < 0) x.why.push(z.why);
+    }); });
+    out.forEach(function (x) { x.priority = qaOncelik(x.code, x.severity); x.repairable = !!qaHedef(x); });
+    out.sort(function (a, b) { return QA_PRI.indexOf(a.priority) - QA_PRI.indexOf(b.priority) || (a.slideIndex == null ? -1 : a.slideIndex) - (b.slideIndex == null ? -1 : b.slideIndex) ||
+      QA_KAYNAK.indexOf(a.source) - QA_KAYNAK.indexOf(b.source) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0); });
+    return { kontrol: K, bulgu: out };
+  };
+  /* onarılabilir mi: yalnız teknik TEXT_OVERFLOW, doğrulanmış yazı, asetatta duran dolu yazı öğeleri */
+  var qaHedef = function (x) {
+    var s = x.code === 'TEXT_OVERFLOW' && x.sources.length === 1 && x.source === 'technical' && x.slideIndex != null && x.els.length && snapHazir(deck) ? deck.slides[x.slideIndex] : null;
+    if (!s || !Array.isArray(s.els)) return null;
+    var els = s.els.filter(function (e) { return e && x.els.indexOf(String(e.id)) >= 0; });
+    return els.length === x.els.length && els.every(function (e) { return FMIN[e.type] && e.text && !e.muted; }) ? { s: s, els: els } : null;
+  };
+  var qaGeo = function (s, n, els) { var out = []; teknikGeo(s, n, els, function (code, sev, si, el) { out.push(code + '|' + (el == null ? '' : el)); }); return out; };
+  /* Plan kopyada kurulur; canlı deste, geri al geçmişi ve kayıt değişmez. Önce yazı boyutu korunup kutu asetat içinde
+     uzatılır (şablonun yazı boyutu kalır); doğrulamadan geçmezse (ör. alttaki öğeyle çakışır) Phase 1 sığdırması denenir. */
+  var qaPlan = function (x) {
+    var hd = qaHedef(x); if (!hd) return { ok: false };
+    var s = hd.s, n = x.slideIndex + 1, once = qaGeo(s, n, s.els);
+    var dene = function (kutu) {
+      var yeni = {}, degis = [];
+      for (var k in s) if (qaOwn(s, k)) yeni[k] = s[k];
+      yeni.els = s.els.map(function (e) { if (hd.els.indexOf(e) < 0) return e; var c = JSON.parse(JSON.stringify(e)); fitKopya(e, c); return c; });
+      yeni.els.forEach(function (c, i) {
+        var e = s.els[i]; if (c === e) return;
+        if (!kutu) { fitKutu(yeni); fitEl(c); }      /* Phase 1 sığdırması, asıl boyuttan */
+        if (overflows(c, yeni)) { var mh = measureH(c, yeni); if (mh > 0 && c.y + mh + 4 <= H - 8) c.h = Math.ceil(mh) + 4; }      /* kutu asetat içinde aşağı uzar */
+        if (c.size !== e.size || c.w !== e.w || c.h !== e.h) degis.push({ id: String(e.id), once: { size: e.size, w: e.w, h: e.h }, sonra: { size: c.size, w: c.w, h: c.h }, iz: fitTaban ? fitTaban.get(c) : null });
+      });
+      var sonra = qaGeo(yeni, n, yeni.els), enKucuk = [];
+      var kalan = sonra.filter(function (z) { return z.indexOf('TEXT_OVERFLOW|') === 0 && x.els.indexOf(z.slice(14)) >= 0; });
+      var ek = sonra.filter(function (z) { if (once.indexOf(z) >= 0) return false; if (z.indexOf('FONT_AT_MIN|') === 0 && x.els.indexOf(z.slice(12)) >= 0) { enKucuk.push(z.slice(12)); return false; } return true; });
+      if (!degis.length || kalan.length || ek.length) return null;
+      return { ok: true, id: x.id, i: x.slideIndex, sid: s.id, anahtar: teknikAnahtar(deck), degis: degis, yeni: yeni, enKucuk: enKucuk };
+    };
+    return dene(true) || dene(false) || { ok: false };
+  };
+  /* Onay: deste önizlemeden beri aynıysa yalnız plandaki öğelerin size/w/h değeri yazılır; hata olursa hepsi geri konur. */
+  var qaUygula = function (p) {
+    var s = deck.slides[p.i];
+    if (!s || s.id !== p.sid || teknikAnahtar(deck) !== p.anahtar || !snapHazir(deck)) return { hata: 'degisti' };
+    var hd = p.degis.map(function (g) { return { e: arr(s.els).filter(function (e) { return e && String(e.id) === g.id; })[0], g: g }; });
+    if (hd.some(function (h) { return !h.e; })) return { hata: 'degisti' };
+    var before = snap(), eski = hd.map(function (h) { return { size: h.e.size, w: h.e.w, h: h.e.h, iz: fitTaban ? fitTaban.get(h.e) : null }; });
+    try {
+      hd.forEach(function (h) { h.e.size = h.g.sonra.size; h.e.w = h.g.sonra.w; h.e.h = h.g.sonra.h; if (fitTaban && h.g.iz) fitTaban.set(h.e, { taban: h.g.iz.taban, son: h.g.iz.son }); });
+    } catch (err) {
+      hd.forEach(function (h, k) { var o = eski[k]; try { h.e.size = o.size; h.e.w = o.w; h.e.h = o.h; if (fitTaban) { if (o.iz) fitTaban.set(h.e, o.iz); else fitTaban.delete(h.e); } } catch (_) {} });
+      console.warn('acadex-sunum: onarım', err && err.message); return { hata: 'hata' };
+    }
+    undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); renderAll(); dirty();
+    return { before: before };
+  };
+  var birlesikSozluk = function () {
+    teknikSozluk(); gorselSozluk();
+    var A = window.AX_EN && window.AX_EN.t; if (!A || A['İçerik denetimi']) return;
+    var ek = { 'İçerik denetimi': 'Content check', 'Teknik denetim': 'Technical check', 'Görsel denetim': 'Visual check', 'teknik': 'technical', 'içerik': 'content', 'görünüm': 'visual',
+      'Kritik': 'Critical', 'Yüksek': 'High', 'Orta': 'Medium', 'Düşük': 'Low', 'geçti': 'passed', 'uyarı': 'warning', 'hata': 'error', 'kısmi': 'partial', 'denetlenmedi': 'not checked',
+      'kullanılamadı': 'unavailable', 'bayat': 'stale', 'belirsiz': 'uncertain', 'Asetat denetimi': 'Slide check', '{#} asetat · {#} bulgu': '{#} slides · {#} findings',
+      'İçerik, teknik ve görsel denetimin bulguları tek listede. Hiçbir düzeltme kendiliğinden yapılmaz: önce önizler, sonra onaylarsın.': 'Findings from the content, technical and visual checks in one list. Nothing is fixed automatically: you preview first, then confirm.',
+      'Süzgeç': 'Filter', 'Kaynak': 'Source', 'Öncelik': 'Priority', 'tümü': 'all', 'Bu süzgeçte bulgu yok.': 'No findings for this filter.', 'Bulgu yok.': 'No findings.',
+      'Ayrıntı ve öneri için listeden bir bulgu seç.': 'Select a finding from the list for details and a suggestion.', 'Asetat': 'Slide', 'Kod': 'Code', 'Öneri': 'Suggestion',
+      'deste geneli': 'whole deck', 'başlıksız asetat': 'untitled slide', 'asetata git': 'go to slide', 'kapat': 'close', 'vazgeç': 'cancel', 'geri al': 'undo', 'şimdi': 'now',
+      'düzeltilince': 'after the fix', 'düzeltmeyi önizle': 'preview the fix', 'onayla ve uygula': 'confirm and apply',
+      'Yazı boyutunu ya da kutu yüksekliğini ayarlayarak sığdırabilirim; önce önizlersin, onaylamadan hiçbir şey değişmez.': 'I can fit it by adjusting the font size or the box height; you preview first and nothing changes until you confirm.',
+      'yazı boyutu {#} → {#}': 'font size {#} → {#}', 'kutu yüksekliği {#} → {#}': 'box height {#} → {#}', 'kutu genişliği {#} → {#}': 'box width {#} → {#}',
+      'Yazı en küçük boyuta indi; kısaltmak daha okunaklı olur.': 'The text is at its minimum size; shortening it would read better.',
+      'Yalnız yazı boyutu ve kutu ölçüsü değişir; metin, sıra, grafik, tablo, sayı, kaynak ve görsel aynı kalır. Geri alınabilir.': 'Only the font size and box size change; text, order, charts, tables, numbers, sources and images stay the same. It can be undone.',
+      'Güvenli bir düzeltme bulunamadı; deste değişmedi. Yazıyı kısaltmayı dene.': 'No safe fix was found; the deck is unchanged. Try shortening the text.',
+      'Düzeltme uygulandı.': 'Fix applied.', 'Düzeltme geri alındı.': 'Fix undone.', 'Düzeltme uygulanamadı; deste değişmedi.': 'The fix could not be applied; the deck is unchanged.',
+      'Deste önizlemeden sonra değişti; düzeltme uygulanmadı.': 'The deck changed after the preview; the fix was not applied.',
+      'Görsel bulgular kendiliğinden düzeltilmez; öneriyi elle uygula.': 'Visual findings are never fixed automatically; apply the suggestion yourself.',
+      'Bu bulgu için otomatik düzeltme yok; öneriyi elle uygula.': 'There is no automatic fix for this finding; apply the suggestion yourself.',
+      'Yazı tipi doğrulanmadan bu taşma için düzeltme önerilmez.': 'No fix is offered for this overflow until the font is verified.',
+      'Acadia puanı henüz ölçülmedi.': 'The Acadia score has not been measured yet.', 'Kayıtlı içerik raporu okunamadı.': 'The saved content report could not be read.',
+      'Puan ölçüldükten sonra deste değişti; yeniden ölçmek için kalite rozetine bas.': 'The deck changed after scoring; press the quality badge to score again.',
+      'Acadia puanı {#}/{#}': 'Acadia score {#}/{#}', 'Puanın hangi deste için ölçüldüğü bilinmiyor.': 'It is unknown which version of the deck was scored.',
+      'Teknik denetim okunamadı.': 'The technical check could not be read.', 'geometri ölçülmedi': 'geometry not measured', 'Görsel denetim sürüyor.': 'The visual check is running.',
+      'Görsel denetim yalnız elle başlatılır.': 'The visual check only starts when you ask.', 'Kayıtlı görsel özet okunamadı.': 'The saved visual summary could not be read.',
+      'Hesaptaki son görsel denetimden.': 'From the last visual check saved to your account.', 'Düzeltme uygulandı': 'Fix applied' };
+    Object.keys(ICERIK).forEach(function (c) { ek[ICERIK[c][1]] = ICERIK[c][2]; });
+    Object.keys(KALITE_EN).forEach(function (c) { ek[KALITE_TR[c]] = KALITE_EN[c]; });
+    Object.keys(QA_ONERI).forEach(function (c) { ek[QA_ONERI[c][0]] = QA_ONERI[c][1]; }); ek[QA_GENEL[0]] = QA_GENEL[1];
+    Object.keys(ek).forEach(function (k) { if (A[k] == null) A[k] = ek[k]; });
+  };
+  /* pencere durumu: süzgeç, seçili bulgu, açık önizleme, son onarım (deste değil; yalnız bu oturumun ekranı) */
+  var qaF = { src: 'all', pri: 'all' }, qaSec = null, qaOn = null, qaSon = null;
+  var qaDug = function (f, v, t) { return '<button type="button" data-qa-f="' + f + '" data-v="' + v + '" aria-pressed="' + (qaF[f] === v) + '">' + t + '</button>'; };
+  var qaSatir = function (x) {
+    var n = x.slideIndex == null ? 0 : x.slideIndex + 1, on = x.id === qaSec;
+    return '<li class="au-it qa-it' + (on ? ' on' : '') + '" data-qa-id="' + X(x.id) + '" data-qa-src="' + x.source + '" data-qa-pri="' + x.priority + '"' + (x.repairable ? ' data-qa-onar' : '') +
+      (x.source === 'visual' ? ' data-gq-asetat="' + n + '" data-gq-kod="' + X(x.code) + '"' : '') + '><button type="button" class="qa-sel" data-qa-sel="' + X(x.id) + '" aria-pressed="' + on + '">' +
+      '<span class="qa-p p-' + x.priority + '">' + QA_PRI_TR[x.priority] + '</span><span class="qa-m">' + (n ? '<i>' + n + '.</i>' : '<i>∗</i>') + '<span>' + X(x.message) + '</span>' +
+      (x.why.length ? ' <small>' + X(x.why.join(' · ')) + '</small>' : '') + '</span><span class="qa-src">' + x.sources.map(function (k) { return '<span>' + QA_KAYNAK_TR[k] + '</span>'; }).join(' + ') + '</span></button>' +
+      (n && deck.slides[n - 1] ? '<button type="button" class="sxd-b sm" data-au-go="' + (n - 1) + '">asetata git</button>' : '') + '</li>';
+  };
+  var qaOnizHTML = function (p) {
+    var s = deck.slides[p.i], r = function (v) { return Math.round(v); };
+    return '<div class="qa-pv" data-qa-pv><div class="pv-two"><div class="pv-old"><span class="pv-k">şimdi</span><span class="sx-thv">' + slideHTML(s) + '</span></div>' +
+      '<div class="pv-new"><span class="pv-k">düzeltilince</span><span class="sx-thv">' + slideHTML(p.yeni) + '</span></div></div><ul>' +
+      p.degis.map(function (g) { return (g.once.size !== g.sonra.size ? '<li>yazı boyutu ' + r(g.once.size) + ' → ' + r(g.sonra.size) + '</li>' : '') + (g.once.h !== g.sonra.h ? '<li>kutu yüksekliği ' + r(g.once.h) + ' → ' + r(g.sonra.h) + '</li>' : '') +
+        (g.once.w !== g.sonra.w ? '<li>kutu genişliği ' + r(g.once.w) + ' → ' + r(g.sonra.w) + '</li>' : ''); }).join('') + '</ul>' +
+      (p.enKucuk.length ? '<p class="qa-no">Yazı en küçük boyuta indi; kısaltmak daha okunaklı olur.</p>' : '') +
+      '<p class="sxd-sub" style="margin:6px 0 0">Yalnız yazı boyutu ve kutu ölçüsü değişir; metin, sıra, grafik, tablo, sayı, kaynak ve görsel aynı kalır. Geri alınabilir.</p>' +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-qa-no>vazgeç</button><button type="button" class="sxd-b sm pri" data-qa-ok>onayla ve uygula</button></div></div>';
+  };
+  var qaDetay = function (x) {
+    var h = '';
+    if (qaSon) h += qaSon.before ? '<p class="qa-ok" data-qa-son="ok">Düzeltme uygulandı.</p>' + (undoS[undoS.length - 1] === qaSon.before ? '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-qa-undo>geri al</button></div>' : '')
+      : '<p class="qa-no" data-qa-son="' + qaSon.hata + '">' + (qaSon.hata === 'geri' ? 'Düzeltme geri alındı.' : qaSon.hata === 'degisti' ? 'Deste önizlemeden sonra değişti; düzeltme uygulanmadı.' : 'Düzeltme uygulanamadı; deste değişmedi.') + '</p>';
+    if (!x) return h + (qaSon ? '' : '<p class="sxd-sub" style="margin:0">Ayrıntı ve öneri için listeden bir bulgu seç.</p>');
+    var n = x.slideIndex == null ? 0 : x.slideIndex + 1, s = n ? deck.slides[n - 1] : null;
+    h += '<h4><span class="qa-p p-' + x.priority + '">' + QA_PRI_TR[x.priority] + '</span><span>' + X(x.message) + '</span></h4><dl class="qa-dl">' +
+      '<dt>Asetat</dt><dd>' + (n ? '<i>' + n + '.</i> <span>' + X((s && titleOf(s)) || 'başlıksız asetat') + '</span>' : '<span>deste geneli</span>') + '</dd>' +
+      '<dt>Kaynak</dt><dd>' + x.sources.map(function (k) { return '<span>' + QA_KONTROL_TR[k] + '</span>'; }).join(', ') + '</dd>' +
+      '<dt>Kod</dt><dd><code>' + X(x.code) + '</code></dd><dt>Öneri</dt><dd>' + X(x.recommendation) + '</dd></dl>' +
+      (x.why.length ? '<p class="qa-why"><small>' + X(x.why.join(' · ')) + '</small></p>' : '');
+    if (x.sources.indexOf('visual') >= 0) h += '<p class="qa-no">Görsel bulgular kendiliğinden düzeltilmez; öneriyi elle uygula.</p>';
+    else if (!x.repairable) h += '<p class="qa-no">' + (x.code === 'TEXT_OVERFLOW' && !snapHazir(deck) ? 'Yazı tipi doğrulanmadan bu taşma için düzeltme önerilmez.' : 'Bu bulgu için otomatik düzeltme yok; öneriyi elle uygula.') + '</p>';
+    else if (qaOn && qaOn.id === x.id) h += qaOn.plan.ok ? qaOnizHTML(qaOn.plan) : '<p class="qa-no" data-qa-plan="yok">Güvenli bir düzeltme bulunamadı; deste değişmedi. Yazıyı kısaltmayı dene.</p>';
+    else h += '<p>Yazı boyutunu ya da kutu yüksekliğini ayarlayarak sığdırabilirim; önce önizlersin, onaylamadan hiçbir şey değişmez.</p><div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-qa-pre>düzeltmeyi önizle</button></div>';
+    return h + (n && s && !(qaOn && qaOn.id === x.id && qaOn.plan.ok) ? '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-au-go="' + (n - 1) + '">asetata git</button></div>' : '');
+  };
+  var qaBoya = function (dlg, odak) {
+    birlesikSozluk();
+    var L = qaListe(deck), K = L.kontrol, sp = {}, sec = null, ic = dlg.contains(document.activeElement);
+    QA_PRI.forEach(function (p) { sp[p] = 0; }); L.bulgu.forEach(function (x) { sp[x.priority]++; if (x.id === qaSec) sec = x; });
+    var gor = L.bulgu.filter(function (x) { return (qaF.src === 'all' || x.sources.indexOf(qaF.src) >= 0) && (qaF.pri === 'all' || x.priority === qaF.pri); });
+    var tamam = !L.bulgu.length && QA_KAYNAK.every(function (k) { return K[k].durum === 'passed'; });
+    var lst = dlg.querySelector('.qa-list'), y0 = dlg.scrollTop, y1 = lst ? lst.scrollTop : 0;
+    dlg.innerHTML = '<div class="sxd-in"><button type="button" class="sxd-x" data-au-x aria-label="Kapat">×</button><span class="sxd-eyb">Acadia · denetçi</span><h3 id="axau-t">Asetat denetimi</h3>' +
+      '<p class="sxd-sub">İçerik, teknik ve görsel denetimin bulguları tek listede. Hiçbir düzeltme kendiliğinden yapılmaz: önce önizler, sonra onaylarsın.</p>' +
+      '<div class="qa-ov" data-qa-ov><p class="au-sum' + (tamam ? ' ok' : '') + '"><span>' + deck.slides.length + ' asetat · ' + L.bulgu.length + ' bulgu</span>' +
+      QA_PRI.map(function (p) { return sp[p] ? '<span class="qa-p p-' + p + '" data-qa-say="' + p + '"><b>' + QA_PRI_TR[p] + '</b> ' + sp[p] + '</span>' : ''; }).join('') + '</p>' +
+      '<ul class="qa-cks">' + QA_KAYNAK.map(function (k) { var c = K[k]; return '<li data-qa-ck="' + k + '" data-qa-durum="' + c.durum + '"><b>' + QA_KONTROL_TR[k] + '</b><span class="qa-st st-' + c.durum + '">' + QA_DURUM_TR[c.durum] + '</span>' + (c.not ? '<small>' + X(c.not) + '</small>' : '') + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="qa-flt" role="group" aria-label="Süzgeç"><span>Kaynak</span>' + ['all'].concat(QA_KAYNAK).map(function (k) { return qaDug('src', k, k === 'all' ? 'tümü' : QA_KAYNAK_TR[k]); }).join('') +
+      '<span>Öncelik</span>' + ['all'].concat(QA_PRI).map(function (p) { return qaDug('pri', p, p === 'all' ? 'tümü' : QA_PRI_TR[p]); }).join('') + '</div>' +
+      '<div class="qa-grid"><ul class="au-list qa-list" data-qa-list>' + (gor.length ? gor.map(qaSatir).join('') : '<li class="qa-bos">' + (L.bulgu.length ? 'Bu süzgeçte bulgu yok.' : 'Bulgu yok.') + '</li>') + '</ul>' +
+      '<div class="qa-det" data-qa-det tabindex="-1" aria-live="polite">' + qaDetay(sec) + '</div></div>' +
+      gorselBolum(1) +      /* Phase 5 bölümü: açıklama, gizlilik bildirimi, elle başlatma düğmesi */
+      '<div class="sxd-acts"><button type="button" class="sxd-b" data-au-x>kapat</button></div></div>';
+    dlg.scrollTop = y0; var l2 = dlg.querySelector('.qa-list'); if (l2) l2.scrollTop = y1;
+    Array.prototype.forEach.call(dlg.querySelectorAll('.qa-pv .sx-thv'), fitInto);
+    var f = (odak && dlg.querySelector(odak)) || (ic && !dlg.contains(document.activeElement) ? dlg.querySelector('[data-qa-det]') : null); if (f) f.focus();
+  };
+  var qaBul = function (id) { return qaListe(deck).bulgu.filter(function (x) { return x.id === id; })[0] || null; };
+  var qaSecici = function (a, v) { return '[' + a + '="' + (window.CSS && CSS.escape ? CSS.escape(v) : v) + '"]'; };
+  /* pencere düğmeleri; her onarım adımı kullanıcının tıklamasıyla, tek bulgu için */
+  var qaTikla = function (t, paint) {
+    if (t.hasAttribute('data-qa-f')) { var f = t.getAttribute('data-qa-f'), v = t.getAttribute('data-v'); qaF[f] = v; paint('[data-qa-f="' + f + '"]' + qaSecici('data-v', v)); return true; }
+    if (t.hasAttribute('data-qa-sel')) { qaSec = t.getAttribute('data-qa-sel'); qaOn = null; qaSon = null; paint(qaSecici('data-qa-sel', qaSec)); return true; }
+    if (t.hasAttribute('data-qa-pre')) {
+      var x = qaBul(qaSec), p = { ok: false };
+      try { if (x && x.repairable) p = qaPlan(x); } catch (e) { console.warn('acadex-sunum: onarım planı', e && e.message); p = { ok: false }; }
+      qaOn = { id: qaSec, plan: p }; paint(p.ok ? '[data-qa-ok]' : '[data-qa-det]'); return true;
+    }
+    if (t.hasAttribute('data-qa-no')) { qaOn = null; paint('[data-qa-pre]'); return true; }
+    if (t.hasAttribute('data-qa-ok')) {
+      var pl = qaOn && qaOn.plan; qaOn = null; if (!pl || !pl.ok) { paint('[data-qa-det]'); return true; }
+      var r = qaUygula(pl); qaSon = r.before ? { before: r.before } : { hata: r.hata };
+      if (r.before) { paintKalite(); say('Düzeltme uygulandı.', undo); }
+      paint(r.before ? '[data-qa-undo]' : '[data-qa-det]'); return true;
+    }
+    if (t.hasAttribute('data-qa-undo')) { if (qaSon && qaSon.before && undoS[undoS.length - 1] === qaSon.before) { undo(); qaSon = { hata: 'geri' }; } paint('[data-qa-det]'); return true; }
+    return false;
   };
 
   /* ---------- Acadia: kurgu masası (outline first) ---------- */

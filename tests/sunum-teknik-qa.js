@@ -32,7 +32,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const ink = read('js/acadex-ink.js');
 const cut = (a, b) => { const i = ink.indexOf(a); assert.ok(i >= 0, 'bulunamadı: ' + a); const j = ink.indexOf(b, i + a.length); assert.ok(j > i, 'son bulunamadı: ' + b); return ink.slice(i, j); };
-const BLOK = cut('  var TEKNIK = {', '  var fixSlide = function');
+const BLOK = cut('  var TEKNIK = {', '  /* Denetim penceresi (Phase 6, #35)');
 const QA_FN = cut('  var teknikQA = function (d, kapsam, ek) {', '\n  };\n');
 
 /* ------------------------------ A: kaynak kuralları ------------------------------ */
@@ -44,7 +44,7 @@ test('T1 teknikQA yalnız okur: kaydettirmez, çizmez, sığdırmaz, bildirim g�
   const hedef = [...BLOK.matchAll(/\b([A-Za-z_$][\w$]*)\.[\w$.]+(\[[^\]]*\])?\s*=(?!=)/g)].map((m) => m[1]);
   assert.ok(hedef.length && hedef.every((h) => /^(x|r|tkBtn)$/.test(h)), 'teknik blok nesne alanına yazıyor: ' + hedef.join(','));
   assert.ok(!/\b(d|s|e|sl|els|q|t|tq|deck)\[[^\]]*\]\s*=(?!=)/.test(BLOK), 'teknik blok desteye yazıyor');
-  const au = cut('  var audit = function', '\n  };\n'); assert.ok(!/teknik/.test(au), 'audit() değişti');
+  assert.ok(!/var audit = function|var fixSlide = function/.test(ink), 'eski audit()/fixSlide yerine Phase 6 birleşik denetim (tests/sunum-birlesik-qa.js)');
 });
 
 test('T2 kodlar tek tabloda: kullanılan her kod TEKNIK\'te, TEKNIK\'teki her kod bir yerde üretiliyor; sayısal teknik puan yok', () => {

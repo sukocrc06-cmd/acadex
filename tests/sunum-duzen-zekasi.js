@@ -339,12 +339,12 @@ test('D0 P1 kaynak kuralları: check() kapı değil, sabitler, basım sırası, 
   assert.ok(!/fitHazir/.test(ink), '"şimdi sığdır, sonra bir daha" yolu kalmamalı');
   assert.equal(ink.split('fitSlide(').length - 1, 5, 'fitSlide çağrıları: yaziUyum, yaziFit, DZ ölçümü, printDeck, yuvaDene (Phase 2, kapıdan geçer) — yenisi eklendiyse yazı kapısından geçmeli');
   assert.match(cut('  var openAudit = function () {', '    var paint = function'), /if \(!yaziHazirMi\(\) \|\| yaziKuyruk\.length\) \{ say\([^)]*\); yaziSonra\(openAudit, 'denetim'\); return; \}/);
-  assert.match(cut('    var doFix = function (list) {', '\n    };'), /if \(!yaziHazirMi\(\)\) \{ yaziSonra\(function \(\) \{ doFix\(list\); \}\); return; \}/);
+  assert.match(cut('  var qaHedef = function (x) {', '\n  };\n'), /x\.els\.length && snapHazir\(deck\)/, 'denetim onarımı (fitEl) yalnız doğrulanmış şablon yazısıyla');
   assert.match(ink, /var apply = function \(\) \{\n        if \(!yaziHazirMi\(\) \|\| yaziKuyruk\.length\) \{ yaziSonra\(apply, 'ai:' \+ sid\); return; \}/);
   assert.match(ink, /return yaziHazirSoz\(\)\.then\(function \(\) \{ addQ\(s, 'Soru: '/);
   assert.match(ink, /setTimeout\(res, calm \? 0 : 250\); \}\)\.then\(yaziHazirSoz\)\.then\(function \(\) \{ return AI\[k\]\(work\); \}\);/);
   assert.match(ink, /return yaziHazirSoz\(\)\.then\(function \(\) \{ work = clone\(s\); var m = AI\[k\]\(work\);/);
-  assert.equal((ink.match(/\bsettle\(/g) || []).length, 4, 'settle çağıranları: addQ ×2, Acadia apply, fixSlide (hepsi kapıdan geçer)');
+  assert.equal((ink.match(/\bsettle\(/g) || []).length, 3, 'settle çağıranları: addQ ×2, Acadia apply (hepsi kapıdan geçer; denetçinin düzelt\'i Phase 6 ile kalktı)');
   assert.equal((ink.match(/\baddQ\(/g) || []).length, 2, 'addQ çağıranları: AI.q ve REMOTE.q (ikisi de kapıdan geçer)');
   /* #18: paylaşım görüntüsü yalnız doğrulanmış şablon yazısıyla sığdırılmış açık desteden; yoksa hesaptaki görüntü kalır */
   assert.match(ink, /var snapHazir = function \(d\) \{ return !!\(d && d === deck && !fontYedek && yaziHazirMi\(\) && fitIz && fitIz\.get\(d\) === yaziIz\(\)\); \};\n  var snapOf = function \(d\) \{ return snapHazir\(d\) \? snapKur\(d\) : null; \};/, 'paylaşım görüntüsü yedek yazıyla kurulmamalı');
