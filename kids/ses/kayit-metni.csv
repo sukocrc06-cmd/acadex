@@ -5715,37 +5715,37 @@ en/great-picture-d16e83.mp3;en;"Great picture!";sahne kur
 en/what-colour-are-you-8c2041.mp3;en;"What colour are you?";colours · konuşan soru
 en/hi-i-m-red-4fc1b3.mp3;en;"Hi! I'm red!";colours · konuşan ben
 en/hello-red-70652a.mp3;en;"Hello, red!";colours · konuşan selam
-en/splash-everything-is-red-36d6b4.mp3;en;"Splash! Everything is red!";colours · konuşan hikaye
+en/red-like-a-shiny-apple-3de194.mp3;en;"Red like a shiny apple!";colours · konuşan hikaye
 en/hi-i-m-yellow-7093eb.mp3;en;"Hi! I'm yellow!";colours · konuşan ben
 en/hello-yellow-f135a9.mp3;en;"Hello, yellow!";colours · konuşan selam
-en/splash-everything-is-yellow-b149d3.mp3;en;"Splash! Everything is yellow!";colours · konuşan hikaye
+en/yellow-like-the-bright-sun-fbaa6f.mp3;en;"Yellow like the bright sun!";colours · konuşan hikaye
 en/hi-i-m-blue-4334ae.mp3;en;"Hi! I'm blue!";colours · konuşan ben
 en/hello-blue-702315.mp3;en;"Hello, blue!";colours · konuşan selam
-en/splash-everything-is-blue-40832a.mp3;en;"Splash! Everything is blue!";colours · konuşan hikaye
+en/blue-like-the-big-sea-1738c3.mp3;en;"Blue like the big sea!";colours · konuşan hikaye
 en/hi-i-m-green-f109a4.mp3;en;"Hi! I'm green!";colours · konuşan ben
 en/hello-green-98ddd4.mp3;en;"Hello, green!";colours · konuşan selam
-en/splash-everything-is-green-22bc31.mp3;en;"Splash! Everything is green!";colours · konuşan hikaye
+en/green-like-the-grass-in-the-garden-2dd858.mp3;en;"Green like the grass in the garden!";colours · konuşan hikaye
 en/hi-i-m-orange-b5d925.mp3;en;"Hi! I'm orange!";colours · konuşan ben
 en/hello-orange-386778.mp3;en;"Hello, orange!";colours · konuşan selam
-en/splash-everything-is-orange-240fe7.mp3;en;"Splash! Everything is orange!";colours · konuşan hikaye
+en/orange-like-a-crunchy-carrot-08aea3.mp3;en;"Orange like a crunchy carrot!";colours · konuşan hikaye
 en/hi-i-m-purple-8d74ef.mp3;en;"Hi! I'm purple!";colours · konuşan ben
 en/hello-purple-6b282c.mp3;en;"Hello, purple!";colours · konuşan selam
-en/splash-everything-is-purple-e51fad.mp3;en;"Splash! Everything is purple!";colours · konuşan hikaye
+en/purple-like-sweet-grapes-6e49bf.mp3;en;"Purple like sweet grapes!";colours · konuşan hikaye
 en/hi-i-m-pink-d7e8ca.mp3;en;"Hi! I'm pink!";colours · konuşan ben
 en/hello-pink-0c8bb4.mp3;en;"Hello, pink!";colours · konuşan selam
-en/splash-everything-is-pink-07aad2.mp3;en;"Splash! Everything is pink!";colours · konuşan hikaye
+en/pink-like-a-pretty-flower-8ddedd.mp3;en;"Pink like a pretty flower!";colours · konuşan hikaye
 en/hi-i-m-brown-3fc2e8.mp3;en;"Hi! I'm brown!";colours · konuşan ben
 en/hello-brown-7e637b.mp3;en;"Hello, brown!";colours · konuşan selam
-en/splash-everything-is-brown-d181df.mp3;en;"Splash! Everything is brown!";colours · konuşan hikaye
+en/brown-like-a-little-nut-b4b475.mp3;en;"Brown like a little nut!";colours · konuşan hikaye
 en/hi-i-m-black-64996c.mp3;en;"Hi! I'm black!";colours · konuşan ben
 en/hello-black-90af2e.mp3;en;"Hello, black!";colours · konuşan selam
-en/splash-everything-is-black-0885b4.mp3;en;"Splash! Everything is black!";colours · konuşan hikaye
+en/black-like-the-night-sky-fb7ee4.mp3;en;"Black like the night sky!";colours · konuşan hikaye
 en/hi-i-m-white-bedb21.mp3;en;"Hi! I'm white!";colours · konuşan ben
 en/hello-white-1ca582.mp3;en;"Hello, white!";colours · konuşan selam
-en/splash-everything-is-white-e34d8a.mp3;en;"Splash! Everything is white!";colours · konuşan hikaye
+en/white-like-the-snow-c9a63b.mp3;en;"White like the snow!";colours · konuşan hikaye
 en/hi-i-m-grey-0e1d57.mp3;en;"Hi! I'm grey!";colours · konuşan ben
 en/hello-grey-babdfb.mp3;en;"Hello, grey!";colours · konuşan selam
-en/splash-everything-is-grey-e6567b.mp3;en;"Splash! Everything is grey!";colours · konuşan hikaye
+en/grey-like-a-rainy-cloud-aeeaaf.mp3;en;"Grey like a rainy cloud!";colours · konuşan hikaye
 en/what-number-are-you-d2b6c9.mp3;en;"What number are you?";numbers · konuşan soru
 en/hi-i-m-number-one-cfdc06.mp3;en;"Hi! I'm number one!";numbers · konuşan ben
 en/hi-i-m-number-two-faab4b.mp3;en;"Hi! I'm number two!";numbers · konuşan ben
@@ -5864,496 +5864,619 @@ en/hello-squirrel-a7b28a.mp3;en;"Hello, squirrel!";animals · konuşan selam
 en/the-squirrel-eats-a-nut-c7fc99.mp3;en;"The squirrel eats a nut!";animals · konuşan hikaye
 en/hi-i-m-mum-213ecd.mp3;en;"Hi! I'm Mum!";family · konuşan ben
 en/hello-mum-410952.mp3;en;"Hello, Mum!";family · konuşan selam
-en/i-love-my-mum-3319e7.mp3;en;"I love my mum!";family · konuşan hikaye
+en/mum-bakes-a-cake-with-me-077072.mp3;en;"Mum bakes a cake with me!";family · konuşan hikaye
 en/hi-i-m-dad-097bae.mp3;en;"Hi! I'm Dad!";family · konuşan ben
 en/hello-dad-72815e.mp3;en;"Hello, Dad!";family · konuşan selam
-en/i-love-my-dad-073f05.mp3;en;"I love my dad!";family · konuşan hikaye
+en/dad-plays-football-with-me-91cac9.mp3;en;"Dad plays football with me!";family · konuşan hikaye
 en/hi-i-m-a-baby-85e708.mp3;en;"Hi! I'm a baby!";family · konuşan ben
 en/hello-baby-3149d1.mp3;en;"Hello, baby!";family · konuşan selam
-en/i-love-my-baby-cce2e7.mp3;en;"I love my baby!";family · konuşan hikaye
+en/shh-the-baby-is-sleeping-0d91b9.mp3;en;"Shh! The baby is sleeping!";family · konuşan hikaye
 en/hi-i-m-a-sister-1d8b62.mp3;en;"Hi! I'm a sister!";family · konuşan ben
 en/hello-sister-914f39.mp3;en;"Hello, sister!";family · konuşan selam
-en/i-love-my-sister-b93952.mp3;en;"I love my sister!";family · konuşan hikaye
+en/my-sister-and-i-play-hide-and-seek-5838f8.mp3;en;"My sister and I play hide-and-seek!";family · konuşan hikaye
 en/hi-i-m-a-brother-a953e5.mp3;en;"Hi! I'm a brother!";family · konuşan ben
 en/hello-brother-3a3ef5.mp3;en;"Hello, brother!";family · konuşan selam
-en/i-love-my-brother-fa3c2e.mp3;en;"I love my brother!";family · konuşan hikaye
+en/my-brother-can-jump-so-high-8bf5a8.mp3;en;"My brother can jump so high!";family · konuşan hikaye
 en/hi-i-m-grandma-204503.mp3;en;"Hi! I'm Grandma!";family · konuşan ben
 en/hello-grandma-6960e1.mp3;en;"Hello, Grandma!";family · konuşan selam
-en/i-love-my-grandma-d46eb8.mp3;en;"I love my grandma!";family · konuşan hikaye
+en/grandma-makes-yummy-cookies-f232f8.mp3;en;"Grandma makes yummy cookies!";family · konuşan hikaye
 en/hi-i-m-grandpa-f7c550.mp3;en;"Hi! I'm Grandpa!";family · konuşan ben
 en/hello-grandpa-eea78b.mp3;en;"Hello, Grandpa!";family · konuşan selam
-en/i-love-my-grandpa-000a1e.mp3;en;"I love my grandpa!";family · konuşan hikaye
+en/grandpa-tells-me-a-story-cd6f4d.mp3;en;"Grandpa tells me a story!";family · konuşan hikaye
 en/hi-we-are-a-family-77b87f.mp3;en;"Hi! We are a family!";family · konuşan ben
 en/hello-family-771f53.mp3;en;"Hello, family!";family · konuşan selam
-en/i-love-my-family-579bca.mp3;en;"I love my family!";family · konuşan hikaye
+en/we-love-each-other-we-are-a-family-28d0bc.mp3;en;"We love each other! We are a family!";family · konuşan hikaye
 en/hi-i-m-an-aunt-b6a44e.mp3;en;"Hi! I'm an aunt!";family · konuşan ben
 en/hello-aunt-551dbb.mp3;en;"Hello, aunt!";family · konuşan selam
-en/i-love-my-aunt-653877.mp3;en;"I love my aunt!";family · konuşan hikaye
+en/my-aunt-brings-me-a-present-423104.mp3;en;"My aunt brings me a present!";family · konuşan hikaye
 en/hi-i-m-an-uncle-dd3473.mp3;en;"Hi! I'm an uncle!";family · konuşan ben
 en/hello-uncle-7e8bcd.mp3;en;"Hello, uncle!";family · konuşan selam
-en/i-love-my-uncle-cd32e5.mp3;en;"I love my uncle!";family · konuşan hikaye
+en/my-uncle-flies-a-kite-with-me-65f318.mp3;en;"My uncle flies a kite with me!";family · konuşan hikaye
 en/hi-i-m-a-boy-36651d.mp3;en;"Hi! I'm a boy!";family · konuşan ben
 en/hello-boy-f6ccfa.mp3;en;"Hello, boy!";family · konuşan selam
-en/hello-friend-a8bc88.mp3;en;"Hello, friend!";family · konuşan hikaye
+en/the-boy-kicks-the-ball-high-0808d7.mp3;en;"The boy kicks the ball high!";family · konuşan hikaye
 en/hi-i-m-a-girl-6daa5a.mp3;en;"Hi! I'm a girl!";family · konuşan ben
 en/hello-girl-272e88.mp3;en;"Hello, girl!";family · konuşan selam
+en/the-girl-rides-her-bike-fe7d40.mp3;en;"The girl rides her bike!";family · konuşan hikaye
 en/hi-i-m-a-man-2adf21.mp3;en;"Hi! I'm a man!";family · konuşan ben
 en/hello-man-4375e0.mp3;en;"Hello, man!";family · konuşan selam
+en/the-man-reads-the-newspaper-f84cbf.mp3;en;"The man reads the newspaper!";family · konuşan hikaye
 en/hi-i-m-a-woman-0f6eac.mp3;en;"Hi! I'm a woman!";family · konuşan ben
 en/hello-woman-932d0e.mp3;en;"Hello, woman!";family · konuşan selam
+en/the-woman-waters-the-flowers-7be87a.mp3;en;"The woman waters the flowers!";family · konuşan hikaye
 en/hi-i-m-a-friend-c49a94.mp3;en;"Hi! I'm a friend!";family · konuşan ben
-en/i-love-my-friend-4b7f39.mp3;en;"I love my friend!";family · konuşan hikaye
+en/hello-friend-a8bc88.mp3;en;"Hello, friend!";family · konuşan selam
+en/hello-friend-let-s-play-together-194e61.mp3;en;"Hello, friend! Let's play together!";family · konuşan hikaye
 en/hi-i-m-a-cousin-7170fd.mp3;en;"Hi! I'm a cousin!";family · konuşan ben
 en/hello-cousin-db3f5a.mp3;en;"Hello, cousin!";family · konuşan selam
-en/i-love-my-cousin-3e51d1.mp3;en;"I love my cousin!";family · konuşan hikaye
+en/my-cousin-comes-to-visit-hooray-135dfe.mp3;en;"My cousin comes to visit! Hooray!";family · konuşan hikaye
 en/hi-we-are-parents-a2b09d.mp3;en;"Hi! We are parents!";family · konuşan ben
 en/hello-parents-e6aead.mp3;en;"Hello, parents!";family · konuşan selam
-en/i-love-my-parents-36b91b.mp3;en;"I love my parents!";family · konuşan hikaye
+en/mum-and-dad-hold-my-hands-4c6d51.mp3;en;"Mum and Dad hold my hands!";family · konuşan hikaye
 en/hi-we-are-grandparents-872cb7.mp3;en;"Hi! We are grandparents!";family · konuşan ben
 en/hello-grandparents-85e962.mp3;en;"Hello, grandparents!";family · konuşan selam
-en/i-love-my-grandparents-26f803.mp3;en;"I love my grandparents!";family · konuşan hikaye
+en/we-visit-grandma-and-grandpa-2c4002.mp3;en;"We visit Grandma and Grandpa!";family · konuşan hikaye
 en/hi-we-are-twins-d786a5.mp3;en;"Hi! We are twins!";family · konuşan ben
 en/hello-twins-a0ad91.mp3;en;"Hello, twins!";family · konuşan selam
-en/i-love-my-twins-8431eb.mp3;en;"I love my twins!";family · konuşan hikaye
+en/the-twins-look-the-same-which-is-which-14185f.mp3;en;"The twins look the same! Which is which?";family · konuşan hikaye
 en/hi-i-m-a-pet-e2d823.mp3;en;"Hi! I'm a pet!";family · konuşan ben
 en/hello-pet-f42d8f.mp3;en;"Hello, pet!";family · konuşan selam
-en/i-love-my-pet-605790.mp3;en;"I love my pet!";family · konuşan hikaye
+en/my-pet-dog-loves-his-bone-4d1584.mp3;en;"My pet dog loves his bone!";family · konuşan hikaye
 en/hi-it-s-me-3c4daf.mp3;en;"Hi! It's me!";family · konuşan ben
 en/hello-me-be9c70.mp3;en;"Hello, me!";family · konuşan selam
+en/this-is-me-i-m-growing-big-b69ef9.mp3;en;"This is me! I'm growing big!";family · konuşan hikaye
 en/hi-i-m-a-son-6a3500.mp3;en;"Hi! I'm a son!";family · konuşan ben
 en/hello-son-0228ac.mp3;en;"Hello, son!";family · konuşan selam
-en/i-love-my-son-1aedf4.mp3;en;"I love my son!";family · konuşan hikaye
+en/the-son-helps-his-dad-in-the-garden-468d98.mp3;en;"The son helps his dad in the garden!";family · konuşan hikaye
 en/hi-i-m-a-daughter-ea5c8c.mp3;en;"Hi! I'm a daughter!";family · konuşan ben
 en/hello-daughter-a54c7c.mp3;en;"Hello, daughter!";family · konuşan selam
-en/i-love-my-daughter-30517d.mp3;en;"I love my daughter!";family · konuşan hikaye
+en/the-daughter-reads-with-her-mum-7355dd.mp3;en;"The daughter reads with her mum!";family · konuşan hikaye
 en/hi-we-are-children-bb17f9.mp3;en;"Hi! We are children!";family · konuşan ben
 en/hello-children-62c39d.mp3;en;"Hello, children!";family · konuşan selam
-en/i-love-my-children-a11aec.mp3;en;"I love my children!";family · konuşan hikaye
+en/the-children-sing-and-play-in-the-park-d84702.mp3;en;"The children sing and play in the park!";family · konuşan hikaye
 en/hi-we-are-people-693b74.mp3;en;"Hi! We are people!";family · konuşan ben
 en/hello-people-01e792.mp3;en;"Hello, people!";family · konuşan selam
+en/so-many-people-at-the-market-5ec3e8.mp3;en;"So many people at the market!";family · konuşan hikaye
 en/hi-i-m-a-neighbour-b476fa.mp3;en;"Hi! I'm a neighbour!";family · konuşan ben
 en/hello-neighbour-7a91c1.mp3;en;"Hello, neighbour!";family · konuşan selam
-en/i-love-my-neighbour-8018eb.mp3;en;"I love my neighbour!";family · konuşan hikaye
+en/hello-neighbour-good-morning-121e92.mp3;en;"Hello, neighbour! Good morning!";family · konuşan hikaye
 en/hi-i-m-your-head-552d2a.mp3;en;"Hi! I'm your head!";body · konuşan ben
 en/hello-head-96fde9.mp3;en;"Hello, head!";body · konuşan selam
+en/i-put-a-hat-on-my-head-8bcddc.mp3;en;"I put a hat on my head!";body · konuşan hikaye
 en/hi-we-are-your-eyes-4e50a5.mp3;en;"Hi! We are your eyes!";body · konuşan ben
 en/hello-eyes-30bafa.mp3;en;"Hello, eyes!";body · konuşan selam
+en/i-see-with-my-eyes-blink-blink-f2dcac.mp3;en;"I see with my eyes! Blink, blink!";body · konuşan hikaye
 en/hi-we-are-your-ears-5ab9c9.mp3;en;"Hi! We are your ears!";body · konuşan ben
 en/hello-ears-7cc352.mp3;en;"Hello, ears!";body · konuşan selam
+en/i-hear-music-with-my-ears-6b9d86.mp3;en;"I hear music with my ears!";body · konuşan hikaye
 en/hi-i-m-your-nose-1e3a2e.mp3;en;"Hi! I'm your nose!";body · konuşan ben
 en/hello-nose-afa861.mp3;en;"Hello, nose!";body · konuşan selam
+en/sniff-sniff-i-smell-a-flower-with-my-nos-e07b6d.mp3;en;"Sniff, sniff! I smell a flower with my nose!";body · konuşan hikaye
 en/hi-i-m-your-mouth-dca92e.mp3;en;"Hi! I'm your mouth!";body · konuşan ben
 en/hello-mouth-5f708a.mp3;en;"Hello, mouth!";body · konuşan selam
+en/open-your-mouth-and-say-aah-358f19.mp3;en;"Open your mouth and say aah!";body · konuşan hikaye
 en/hi-we-are-your-hands-fa8026.mp3;en;"Hi! We are your hands!";body · konuşan ben
 en/hello-hands-256e4b.mp3;en;"Hello, hands!";body · konuşan selam
+en/wash-your-hands-with-soap-and-water-de497f.mp3;en;"Wash your hands with soap and water!";body · konuşan hikaye
 en/hi-i-m-your-hair-71d4d0.mp3;en;"Hi! I'm your hair!";body · konuşan ben
 en/hello-hair-82fe38.mp3;en;"Hello, hair!";body · konuşan selam
+en/brush-your-hair-swish-swish-a45717.mp3;en;"Brush your hair, swish, swish!";body · konuşan hikaye
 en/hi-we-are-your-feet-751489.mp3;en;"Hi! We are your feet!";body · konuşan ben
 en/hello-feet-2436a8.mp3;en;"Hello, feet!";body · konuşan selam
+en/kick-the-ball-with-your-feet-13844e.mp3;en;"Kick the ball with your feet!";body · konuşan hikaye
 en/hi-we-are-your-arms-f46300.mp3;en;"Hi! We are your arms!";body · konuşan ben
 en/hello-arms-a0499c.mp3;en;"Hello, arms!";body · konuşan selam
+en/open-your-arms-for-a-big-hug-ad0594.mp3;en;"Open your arms for a big hug!";body · konuşan hikaye
 en/hi-we-are-your-legs-2def33.mp3;en;"Hi! We are your legs!";body · konuşan ben
 en/hello-legs-e6ced5.mp3;en;"Hello, legs!";body · konuşan selam
+en/my-legs-can-run-so-fast-22265d.mp3;en;"My legs can run so fast!";body · konuşan hikaye
 en/hi-i-m-your-face-4eb3ec.mp3;en;"Hi! I'm your face!";body · konuşan ben
 en/hello-face-8d6e83.mp3;en;"Hello, face!";body · konuşan selam
+en/look-in-the-mirror-and-smile-b7d5ee.mp3;en;"Look in the mirror and smile!";body · konuşan hikaye
 en/hi-we-are-your-fingers-d3f2fa.mp3;en;"Hi! We are your fingers!";body · konuşan ben
 en/hello-fingers-cc8c58.mp3;en;"Hello, fingers!";body · konuşan selam
+en/one-two-three-four-five-fingers-f2af62.mp3;en;"One, two, three, four, five fingers!";body · konuşan hikaye
 en/hi-we-are-your-toes-96f049.mp3;en;"Hi! We are your toes!";body · konuşan ben
 en/hello-toes-bb32ce.mp3;en;"Hello, toes!";body · konuşan selam
+en/wiggle-your-toes-in-the-sand-ace31c.mp3;en;"Wiggle your toes in the sand!";body · konuşan hikaye
 en/hi-we-are-your-teeth-67044e.mp3;en;"Hi! We are your teeth!";body · konuşan ben
 en/hello-teeth-49cc3a.mp3;en;"Hello, teeth!";body · konuşan selam
+en/brush-your-teeth-up-and-down-7c66ca.mp3;en;"Brush your teeth, up and down!";body · konuşan hikaye
 en/hi-i-m-your-tongue-c2db3c.mp3;en;"Hi! I'm your tongue!";body · konuşan ben
 en/hello-tongue-c44428.mp3;en;"Hello, tongue!";body · konuşan selam
+en/stick-out-your-tongue-and-lick-the-ice-c-f8e933.mp3;en;"Stick out your tongue and lick the ice cream!";body · konuşan hikaye
 en/hi-i-m-your-neck-f25d60.mp3;en;"Hi! I'm your neck!";body · konuşan ben
 en/hello-neck-0c8728.mp3;en;"Hello, neck!";body · konuşan selam
+en/the-giraffe-has-a-long-neck-to-reach-the-a05bfb.mp3;en;"The giraffe has a long neck to reach the leaves!";body · konuşan hikaye
 en/hi-we-are-your-shoulders-4cab24.mp3;en;"Hi! We are your shoulders!";body · konuşan ben
 en/hello-shoulders-8c6884.mp3;en;"Hello, shoulders!";body · konuşan selam
+en/shrug-your-shoulders-i-don-t-know-98b32b.mp3;en;"Shrug your shoulders! I don't know!";body · konuşan hikaye
 en/hi-we-are-your-knees-225115.mp3;en;"Hi! We are your knees!";body · konuşan ben
 en/hello-knees-703311.mp3;en;"Hello, knees!";body · konuşan selam
+en/oops-a-bandage-for-my-knee-7543fa.mp3;en;"Oops! A bandage for my knee!";body · konuşan hikaye
 en/hi-i-m-your-tummy-440595.mp3;en;"Hi! I'm your tummy!";body · konuşan ben
 en/hello-tummy-b66a64.mp3;en;"Hello, tummy!";body · konuşan selam
+en/my-tummy-says-rumble-rumble-i-m-hungry-0ef5b4.mp3;en;"My tummy says rumble, rumble! I'm hungry!";body · konuşan hikaye
 en/hi-we-are-your-cheeks-bfecb3.mp3;en;"Hi! We are your cheeks!";body · konuşan ben
 en/hello-cheeks-d0425a.mp3;en;"Hello, cheeks!";body · konuşan selam
+en/my-cheeks-go-pink-when-i-laugh-576e0a.mp3;en;"My cheeks go pink when I laugh!";body · konuşan hikaye
 en/hi-i-m-your-chin-c75841.mp3;en;"Hi! I'm your chin!";body · konuşan ben
 en/hello-chin-566f98.mp3;en;"Hello, chin!";body · konuşan selam
+en/hmm-i-tap-my-chin-and-think-de945f.mp3;en;"Hmm! I tap my chin and think!";body · konuşan hikaye
 en/hi-we-are-your-eyebrows-91f654.mp3;en;"Hi! We are your eyebrows!";body · konuşan ben
 en/hello-eyebrows-5175b5.mp3;en;"Hello, eyebrows!";body · konuşan selam
+en/up-go-my-eyebrows-what-a-surprise-e26fe3.mp3;en;"Up go my eyebrows! What a surprise!";body · konuşan hikaye
 en/hi-we-are-your-lips-ae014f.mp3;en;"Hi! We are your lips!";body · konuşan ben
 en/hello-lips-bd0320.mp3;en;"Hello, lips!";body · konuşan selam
+en/pucker-your-lips-and-blow-a-kiss-2fd21e.mp3;en;"Pucker your lips and blow a kiss!";body · konuşan hikaye
 en/hi-i-m-your-thumb-74dc7c.mp3;en;"Hi! I'm your thumb!";body · konuşan ben
 en/hello-thumb-daeef0.mp3;en;"Hello, thumb!";body · konuşan selam
+en/thumbs-up-good-job-061c0c.mp3;en;"Thumbs up! Good job!";body · konuşan hikaye
 en/hi-we-are-your-nails-56f5ff.mp3;en;"Hi! We are your nails!";body · konuşan ben
 en/hello-nails-5d6a5b.mp3;en;"Hello, nails!";body · konuşan selam
+en/snip-keep-your-nails-short-and-clean-4b05e9.mp3;en;"Snip! Keep your nails short and clean!";body · konuşan hikaye
 en/hi-i-m-your-elbow-019bf5.mp3;en;"Hi! I'm your elbow!";body · konuşan ben
 en/hello-elbow-25133f.mp3;en;"Hello, elbow!";body · konuşan selam
+en/bend-your-elbow-up-and-down-68aa8c.mp3;en;"Bend your elbow, up and down!";body · konuşan hikaye
 en/hi-i-m-your-back-794e1f.mp3;en;"Hi! I'm your back!";body · konuşan ben
 en/hello-back-4f030e.mp3;en;"Hello, back!";body · konuşan selam
+en/i-carry-my-bag-on-my-back-c26712.mp3;en;"I carry my bag on my back!";body · konuşan hikaye
 en/hi-i-m-an-apple-39633e.mp3;en;"Hi! I'm an apple!";food · konuşan ben
 en/hello-apple-60944d.mp3;en;"Hello, apple!";food · konuşan selam
-en/mmm-i-like-apples-c39bb9.mp3;en;"Mmm! I like apples!";food · konuşan hikaye
+en/the-apple-falls-from-the-tree-bonk-126c02.mp3;en;"The apple falls from the tree! Bonk!";food · konuşan hikaye
 en/hi-i-m-a-banana-8b4852.mp3;en;"Hi! I'm a banana!";food · konuşan ben
 en/hello-banana-9ec2f0.mp3;en;"Hello, banana!";food · konuşan selam
-en/mmm-i-like-bananas-ddaaad.mp3;en;"Mmm! I like bananas!";food · konuşan hikaye
+en/peel-the-banana-and-take-a-bite-yum-896456.mp3;en;"Peel the banana and take a bite! Yum!";food · konuşan hikaye
 en/hi-i-m-bread-8b505e.mp3;en;"Hi! I'm bread!";food · konuşan ben
 en/hello-bread-6c53d6.mp3;en;"Hello, bread!";food · konuşan selam
-en/mmm-i-like-bread-1e2204.mp3;en;"Mmm! I like bread!";food · konuşan hikaye
+en/warm-bread-from-the-oven-smell-it-e52acf.mp3;en;"Warm bread from the oven! Smell it!";food · konuşan hikaye
 en/hi-i-m-milk-2e5563.mp3;en;"Hi! I'm milk!";food · konuşan ben
 en/hello-milk-702db7.mp3;en;"Hello, milk!";food · konuşan selam
-en/mmm-i-like-milk-47afa0.mp3;en;"Mmm! I like milk!";food · konuşan hikaye
+en/pour-the-milk-into-a-cup-glug-glug-753dd7.mp3;en;"Pour the milk into a cup! Glug, glug!";food · konuşan hikaye
 en/hi-i-m-an-egg-b45028.mp3;en;"Hi! I'm an egg!";food · konuşan ben
 en/hello-egg-c67cd8.mp3;en;"Hello, egg!";food · konuşan selam
-en/mmm-i-like-eggs-269098.mp3;en;"Mmm! I like eggs!";food · konuşan hikaye
+en/crack-the-egg-breaks-open-96f960.mp3;en;"Crack! The egg breaks open!";food · konuşan hikaye
 en/hi-i-m-a-cake-0ec881.mp3;en;"Hi! I'm a cake!";food · konuşan ben
 en/hello-cake-041bca.mp3;en;"Hello, cake!";food · konuşan selam
-en/mmm-i-like-cake-884858.mp3;en;"Mmm! I like cake!";food · konuşan hikaye
+en/make-a-wish-and-blow-out-the-candles-38272a.mp3;en;"Make a wish and blow out the candles!";food · konuşan hikaye
 en/hi-i-m-cheese-545900.mp3;en;"Hi! I'm cheese!";food · konuşan ben
 en/hello-cheese-efc508.mp3;en;"Hello, cheese!";food · konuşan selam
-en/mmm-i-like-cheese-d28347.mp3;en;"Mmm! I like cheese!";food · konuşan hikaye
+en/a-little-mouse-comes-for-the-cheese-9214c4.mp3;en;"A little mouse comes for the cheese!";food · konuşan hikaye
 en/hi-i-m-a-carrot-f24adb.mp3;en;"Hi! I'm a carrot!";food · konuşan ben
 en/hello-carrot-bff17f.mp3;en;"Hello, carrot!";food · konuşan selam
-en/mmm-i-like-carrots-7a0913.mp3;en;"Mmm! I like carrots!";food · konuşan hikaye
+en/crunch-crunch-carrots-help-you-see-1cc2dc.mp3;en;"Crunch, crunch! Carrots help you see!";food · konuşan hikaye
 en/hi-i-m-a-strawberry-739aab.mp3;en;"Hi! I'm a strawberry!";food · konuşan ben
 en/hello-strawberry-97fc57.mp3;en;"Hello, strawberry!";food · konuşan selam
-en/mmm-i-like-strawberries-38f567.mp3;en;"Mmm! I like strawberries!";food · konuşan hikaye
+en/a-sweet-red-strawberry-from-the-garden-73addf.mp3;en;"A sweet red strawberry from the garden!";food · konuşan hikaye
 en/hi-i-m-juice-efd784.mp3;en;"Hi! I'm juice!";food · konuşan ben
 en/hello-juice-6a3522.mp3;en;"Hello, juice!";food · konuşan selam
-en/mmm-i-like-juice-ce217e.mp3;en;"Mmm! I like juice!";food · konuşan hikaye
+en/squeeze-the-fruit-and-make-juice-51bccb.mp3;en;"Squeeze the fruit and make juice!";food · konuşan hikaye
 en/hi-i-m-pizza-d44df1.mp3;en;"Hi! I'm pizza!";food · konuşan ben
 en/hello-pizza-349216.mp3;en;"Hello, pizza!";food · konuşan selam
-en/mmm-i-like-pizza-b2ee57.mp3;en;"Mmm! I like pizza!";food · konuşan hikaye
+en/hot-pizza-with-lots-of-cheese-careful-532b11.mp3;en;"Hot pizza with lots of cheese! Careful!";food · konuşan hikaye
 en/hi-i-m-a-sandwich-54d3a5.mp3;en;"Hi! I'm a sandwich!";food · konuşan ben
 en/hello-sandwich-80545f.mp3;en;"Hello, sandwich!";food · konuşan selam
-en/mmm-i-like-sandwiches-cea548.mp3;en;"Mmm! I like sandwiches!";food · konuşan hikaye
+en/a-big-sandwich-can-you-open-your-mouth-w-a4db89.mp3;en;"A big sandwich! Can you open your mouth wide?";food · konuşan hikaye
 en/hi-i-m-soup-5a560b.mp3;en;"Hi! I'm soup!";food · konuşan ben
 en/hello-soup-14faf2.mp3;en;"Hello, soup!";food · konuşan selam
-en/mmm-i-like-soup-5d704a.mp3;en;"Mmm! I like soup!";food · konuşan hikaye
+en/blow-on-the-soup-it-s-hot-phew-e9c6d8.mp3;en;"Blow on the soup. It's hot! Phew!";food · konuşan hikaye
 en/hi-i-m-rice-ece22f.mp3;en;"Hi! I'm rice!";food · konuşan ben
 en/hello-rice-68ae24.mp3;en;"Hello, rice!";food · konuşan selam
-en/mmm-i-like-rice-53dc5b.mp3;en;"Mmm! I like rice!";food · konuşan hikaye
+en/rice-with-a-spoon-one-big-bite-16e108.mp3;en;"Rice with a spoon, one big bite!";food · konuşan hikaye
 en/hi-i-m-a-cookie-3fb0e0.mp3;en;"Hi! I'm a cookie!";food · konuşan ben
 en/hello-cookie-a1a39e.mp3;en;"Hello, cookie!";food · konuşan selam
-en/mmm-i-like-cookies-6846c5.mp3;en;"Mmm! I like cookies!";food · konuşan hikaye
+en/crunch-cookie-crumbs-everywhere-decdb5.mp3;en;"Crunch! Cookie crumbs everywhere!";food · konuşan hikaye
 en/hi-i-m-ice-cream-fe33f4.mp3;en;"Hi! I'm ice cream!";food · konuşan ben
 en/hello-ice-cream-7f09e3.mp3;en;"Hello, ice cream!";food · konuşan selam
-en/mmm-i-like-ice-cream-54432a.mp3;en;"Mmm! I like ice cream!";food · konuşan hikaye
+en/lick-it-fast-the-ice-cream-is-melting-a93176.mp3;en;"Lick it fast! The ice cream is melting!";food · konuşan hikaye
 en/hi-i-m-chicken-528af8.mp3;en;"Hi! I'm chicken!";food · konuşan ben
 en/hello-chicken-dbd5b8.mp3;en;"Hello, chicken!";food · konuşan selam
-en/mmm-i-like-chicken-2ad0cc.mp3;en;"Mmm! I like chicken!";food · konuşan hikaye
+en/chicken-for-dinner-it-smells-so-good-e3903d.mp3;en;"Chicken for dinner! It smells so good!";food · konuşan hikaye
 en/hi-i-m-pasta-81fcae.mp3;en;"Hi! I'm pasta!";food · konuşan ben
 en/hello-pasta-aaa1a4.mp3;en;"Hello, pasta!";food · konuşan selam
-en/mmm-i-like-pasta-2968aa.mp3;en;"Mmm! I like pasta!";food · konuşan hikaye
+en/twirl-the-pasta-round-and-round-7e6675.mp3;en;"Twirl the pasta round and round!";food · konuşan hikaye
 en/hi-i-m-honey-96361d.mp3;en;"Hi! I'm honey!";food · konuşan ben
 en/hello-honey-035cfd.mp3;en;"Hello, honey!";food · konuşan selam
-en/mmm-i-like-honey-24fb1d.mp3;en;"Mmm! I like honey!";food · konuşan hikaye
+en/drip-drop-sweet-honey-from-the-bees-92738a.mp3;en;"Drip, drop! Sweet honey from the bees!";food · konuşan hikaye
 en/hi-i-m-chocolate-3dd226.mp3;en;"Hi! I'm chocolate!";food · konuşan ben
 en/hello-chocolate-7c5956.mp3;en;"Hello, chocolate!";food · konuşan selam
-en/mmm-i-like-chocolate-fdf624.mp3;en;"Mmm! I like chocolate!";food · konuşan hikaye
+en/oh-no-the-chocolate-melts-in-the-sun-4d0cb5.mp3;en;"Oh no! The chocolate melts in the sun!";food · konuşan hikaye
 en/hi-i-m-a-burger-e6bf24.mp3;en;"Hi! I'm a burger!";food · konuşan ben
 en/hello-burger-9f3618.mp3;en;"Hello, burger!";food · konuşan selam
-en/mmm-i-like-burgers-50d692.mp3;en;"Mmm! I like burgers!";food · konuşan hikaye
+en/a-tall-burger-bread-cheese-and-more-baad5e.mp3;en;"A tall burger! Bread, cheese and more!";food · konuşan hikaye
 en/hi-we-are-chips-d08bc2.mp3;en;"Hi! We are chips!";food · konuşan ben
 en/hello-chips-e4e75b.mp3;en;"Hello, chips!";food · konuşan selam
-en/mmm-i-like-chips-9a8e61.mp3;en;"Mmm! I like chips!";food · konuşan hikaye
+en/crispy-chips-crunch-crunch-166c7f.mp3;en;"Crispy chips! Crunch, crunch!";food · konuşan hikaye
 en/hi-i-m-salad-2b8e7e.mp3;en;"Hi! I'm salad!";food · konuşan ben
 en/hello-salad-956c1f.mp3;en;"Hello, salad!";food · konuşan selam
-en/mmm-i-like-salad-e7a72e.mp3;en;"Mmm! I like salad!";food · konuşan hikaye
+en/mix-the-salad-green-and-good-for-you-2ea575.mp3;en;"Mix the salad! Green and good for you!";food · konuşan hikaye
 en/hi-i-m-a-tomato-95cb09.mp3;en;"Hi! I'm a tomato!";food · konuşan ben
 en/hello-tomato-68ee5b.mp3;en;"Hello, tomato!";food · konuşan selam
-en/mmm-i-like-tomatoes-00117b.mp3;en;"Mmm! I like tomatoes!";food · konuşan hikaye
+en/a-round-red-tomato-so-squishy-24d264.mp3;en;"A round red tomato! So squishy!";food · konuşan hikaye
 en/hi-i-m-a-potato-6b23d5.mp3;en;"Hi! I'm a potato!";food · konuşan ben
 en/hello-potato-5f14ae.mp3;en;"Hello, potato!";food · konuşan selam
-en/mmm-i-like-potatoes-026e12.mp3;en;"Mmm! I like potatoes!";food · konuşan hikaye
+en/dig-dig-potatoes-grow-under-the-ground-00c45d.mp3;en;"Dig, dig! Potatoes grow under the ground!";food · konuşan hikaye
 en/hi-i-m-corn-76bccc.mp3;en;"Hi! I'm corn!";food · konuşan ben
 en/hello-corn-8065d2.mp3;en;"Hello, corn!";food · konuşan selam
-en/mmm-i-like-corn-9dcfbe.mp3;en;"Mmm! I like corn!";food · konuşan hikaye
+en/yellow-corn-grows-tall-in-the-sun-1b2ffe.mp3;en;"Yellow corn grows tall in the sun!";food · konuşan hikaye
 en/hi-i-m-a-pancake-091356.mp3;en;"Hi! I'm a pancake!";food · konuşan ben
 en/hello-pancake-d18a65.mp3;en;"Hello, pancake!";food · konuşan selam
-en/mmm-i-like-pancakes-ec9b1b.mp3;en;"Mmm! I like pancakes!";food · konuşan hikaye
+en/flip-the-pancake-up-up-and-catch-b761f6.mp3;en;"Flip the pancake! Up, up and catch!";food · konuşan hikaye
 en/hi-i-m-yoghurt-00fe6b.mp3;en;"Hi! I'm yoghurt!";food · konuşan ben
 en/hello-yoghurt-210a62.mp3;en;"Hello, yoghurt!";food · konuşan selam
-en/mmm-i-like-yoghurt-0cf0a1.mp3;en;"Mmm! I like yoghurt!";food · konuşan hikaye
+en/cold-yoghurt-with-a-spoon-brr-yum-20305d.mp3;en;"Cold yoghurt with a spoon! Brr, yum!";food · konuşan hikaye
 en/hi-i-m-popcorn-9fe05e.mp3;en;"Hi! I'm popcorn!";food · konuşan ben
 en/hello-popcorn-7faf56.mp3;en;"Hello, popcorn!";food · konuşan selam
-en/mmm-i-like-popcorn-916791.mp3;en;"Mmm! I like popcorn!";food · konuşan hikaye
+en/pop-pop-pop-the-popcorn-jumps-93a51f.mp3;en;"Pop, pop, pop! The popcorn jumps!";food · konuşan hikaye
 en/hi-we-are-sweets-a82adc.mp3;en;"Hi! We are sweets!";food · konuşan ben
 en/hello-sweets-1ec98a.mp3;en;"Hello, sweets!";food · konuşan selam
-en/mmm-i-like-sweets-b94d45.mp3;en;"Mmm! I like sweets!";food · konuşan hikaye
+en/just-one-sweet-then-brush-your-teeth-2251d4.mp3;en;"Just one sweet, then brush your teeth!";food · konuşan hikaye
 en/hi-i-m-a-lollipop-441776.mp3;en;"Hi! I'm a lollipop!";food · konuşan ben
 en/hello-lollipop-5b37a7.mp3;en;"Hello, lollipop!";food · konuşan selam
-en/mmm-i-like-lollipops-b1dd24.mp3;en;"Mmm! I like lollipops!";food · konuşan hikaye
+en/lick-the-lollipop-it-s-a-sweet-swirl-729b9d.mp3;en;"Lick the lollipop! It's a sweet swirl!";food · konuşan hikaye
 en/hi-i-m-a-sausage-52d85d.mp3;en;"Hi! I'm a sausage!";food · konuşan ben
 en/hello-sausage-f87e2e.mp3;en;"Hello, sausage!";food · konuşan selam
-en/mmm-i-like-sausages-e45359.mp3;en;"Mmm! I like sausages!";food · konuşan hikaye
+en/sizzle-sizzle-sausages-in-the-pan-797c85.mp3;en;"Sizzle, sizzle! Sausages in the pan!";food · konuşan hikaye
 en/hi-i-m-a-ball-3ebb48.mp3;en;"Hi! I'm a ball!";toys · konuşan ben
 en/hello-ball-440df1.mp3;en;"Hello, ball!";toys · konuşan selam
-en/let-s-play-with-the-ball-dda379.mp3;en;"Let's play with the ball!";toys · konuşan hikaye
+en/bounce-the-ball-boing-boing-boing-dfca79.mp3;en;"Bounce the ball! Boing, boing, boing!";toys · konuşan hikaye
 en/hi-i-m-a-car-f442e6.mp3;en;"Hi! I'm a car!";toys · konuşan ben
 en/hello-car-1968ca.mp3;en;"Hello, car!";toys · konuşan selam
-en/let-s-play-with-the-car-0b0515.mp3;en;"Let's play with the car!";toys · konuşan hikaye
+en/vroom-the-toy-car-wins-the-race-d996b6.mp3;en;"Vroom! The toy car wins the race!";toys · konuşan hikaye
 en/hi-i-m-a-teddy-741cbf.mp3;en;"Hi! I'm a teddy!";toys · konuşan ben
 en/hello-teddy-eb225d.mp3;en;"Hello, teddy!";toys · konuşan selam
-en/let-s-play-with-the-teddy-6f7fe6.mp3;en;"Let's play with the teddy!";toys · konuşan hikaye
+en/give-your-teddy-a-big-hug-edfdc3.mp3;en;"Give your teddy a big hug!";toys · konuşan hikaye
 en/hi-i-m-a-doll-23333a.mp3;en;"Hi! I'm a doll!";toys · konuşan ben
 en/hello-doll-a29d86.mp3;en;"Hello, doll!";toys · konuşan selam
-en/let-s-play-with-the-doll-05d1b4.mp3;en;"Let's play with the doll!";toys · konuşan hikaye
+en/the-doll-has-a-pretty-pink-bow-635dd3.mp3;en;"The doll has a pretty pink bow!";toys · konuşan hikaye
 en/hi-i-m-a-kite-12941e.mp3;en;"Hi! I'm a kite!";toys · konuşan ben
 en/hello-kite-27cf6e.mp3;en;"Hello, kite!";toys · konuşan selam
-en/let-s-play-with-the-kite-0567fa.mp3;en;"Let's play with the kite!";toys · konuşan hikaye
+en/the-kite-flies-high-in-the-windy-sky-8c3400.mp3;en;"The kite flies high in the windy sky!";toys · konuşan hikaye
 en/hi-we-are-blocks-22156c.mp3;en;"Hi! We are blocks!";toys · konuşan ben
 en/hello-blocks-529fbb.mp3;en;"Hello, blocks!";toys · konuşan selam
-en/let-s-play-with-the-blocks-3bc52e.mp3;en;"Let's play with the blocks!";toys · konuşan hikaye
+en/build-a-tall-tower-oops-it-falls-down-02931a.mp3;en;"Build a tall tower! Oops, it falls down!";toys · konuşan hikaye
 en/hi-i-m-a-train-e5c72f.mp3;en;"Hi! I'm a train!";toys · konuşan ben
 en/hello-train-5ff19f.mp3;en;"Hello, train!";toys · konuşan selam
-en/let-s-play-with-the-train-b286bd.mp3;en;"Let's play with the train!";toys · konuşan hikaye
+en/choo-choo-all-aboard-the-toy-train-b426d7.mp3;en;"Choo-choo! All aboard the toy train!";toys · konuşan hikaye
 en/hi-i-m-a-robot-286252.mp3;en;"Hi! I'm a robot!";toys · konuşan ben
 en/hello-robot-b32a95.mp3;en;"Hello, robot!";toys · konuşan selam
-en/let-s-play-with-the-robot-bcced6.mp3;en;"Let's play with the robot!";toys · konuşan hikaye
+en/beep-boop-the-robot-does-a-robot-dance-f53a28.mp3;en;"Beep, boop! The robot does a robot dance!";toys · konuşan hikaye
 en/hi-i-m-a-drum-d9d77a.mp3;en;"Hi! I'm a drum!";toys · konuşan ben
 en/hello-drum-765cac.mp3;en;"Hello, drum!";toys · konuşan selam
-en/let-s-play-with-the-drum-831c66.mp3;en;"Let's play with the drum!";toys · konuşan hikaye
+en/boom-boom-boom-play-the-drum-cf6beb.mp3;en;"Boom, boom, boom! Play the drum!";toys · konuşan hikaye
 en/hi-i-m-a-balloon-672c4a.mp3;en;"Hi! I'm a balloon!";toys · konuşan ben
 en/hello-balloon-e3425c.mp3;en;"Hello, balloon!";toys · konuşan selam
-en/let-s-play-with-the-balloon-79c606.mp3;en;"Let's play with the balloon!";toys · konuşan hikaye
+en/hold-on-tight-the-balloon-floats-away-9a3adc.mp3;en;"Hold on tight! The balloon floats away!";toys · konuşan hikaye
 en/hi-i-m-a-puzzle-50f05c.mp3;en;"Hi! I'm a puzzle!";toys · konuşan ben
 en/hello-puzzle-e5a21e.mp3;en;"Hello, puzzle!";toys · konuşan selam
-en/let-s-play-with-the-puzzle-ac16f9.mp3;en;"Let's play with the puzzle!";toys · konuşan hikaye
+en/find-the-last-piece-the-puzzle-is-finish-f15255.mp3;en;"Find the last piece! The puzzle is finished!";toys · konuşan hikaye
 en/hi-i-m-a-yo-yo-a2af6d.mp3;en;"Hi! I'm a yo-yo!";toys · konuşan ben
 en/hello-yo-yo-c67ff4.mp3;en;"Hello, yo-yo!";toys · konuşan selam
-en/let-s-play-with-the-yo-yo-2ed628.mp3;en;"Let's play with the yo-yo!";toys · konuşan hikaye
+en/down-and-up-goes-the-yo-yo-3a2239.mp3;en;"Down and up goes the yo-yo!";toys · konuşan hikaye
 en/hi-i-m-a-dinosaur-52e91c.mp3;en;"Hi! I'm a dinosaur!";toys · konuşan ben
 en/hello-dinosaur-136b01.mp3;en;"Hello, dinosaur!";toys · konuşan selam
-en/let-s-play-with-the-dinosaur-e08009.mp3;en;"Let's play with the dinosaur!";toys · konuşan hikaye
+en/roar-the-little-dinosaur-stomps-around-927f87.mp3;en;"Roar! The little dinosaur stomps around!";toys · konuşan hikaye
 en/hi-we-are-bubbles-dd82ce.mp3;en;"Hi! We are bubbles!";toys · konuşan ben
 en/hello-bubbles-0d3873.mp3;en;"Hello, bubbles!";toys · konuşan selam
-en/let-s-play-with-the-bubbles-388d99.mp3;en;"Let's play with the bubbles!";toys · konuşan hikaye
+en/blow-bubbles-pop-pop-pop-13a3da.mp3;en;"Blow bubbles! Pop, pop, pop!";toys · konuşan hikaye
 en/hi-i-m-a-skateboard-d1ff3d.mp3;en;"Hi! I'm a skateboard!";toys · konuşan ben
 en/hello-skateboard-66d77b.mp3;en;"Hello, skateboard!";toys · konuşan selam
-en/let-s-play-with-the-skateboard-8d8720.mp3;en;"Let's play with the skateboard!";toys · konuşan hikaye
+en/whee-roll-down-the-hill-on-the-skateboar-7c2fdf.mp3;en;"Whee! Roll down the hill on the skateboard!";toys · konuşan hikaye
 en/hi-i-m-a-dice-f70572.mp3;en;"Hi! I'm a dice!";toys · konuşan ben
 en/hello-dice-659e5b.mp3;en;"Hello, dice!";toys · konuşan selam
-en/let-s-play-with-the-dice-9dfa4f.mp3;en;"Let's play with the dice!";toys · konuşan hikaye
+en/roll-the-dice-what-number-is-it-4d2e2d.mp3;en;"Roll the dice! What number is it?";toys · konuşan hikaye
 en/hi-we-are-marbles-88dfef.mp3;en;"Hi! We are marbles!";toys · konuşan ben
 en/hello-marbles-9f7bce.mp3;en;"Hello, marbles!";toys · konuşan selam
-en/let-s-play-with-the-marbles-ec2062.mp3;en;"Let's play with the marbles!";toys · konuşan hikaye
+en/clink-clink-the-marbles-roll-and-bump-e33251.mp3;en;"Clink, clink! The marbles roll and bump!";toys · konuşan hikaye
 en/hi-i-m-a-piano-9fbd38.mp3;en;"Hi! I'm a piano!";toys · konuşan ben
 en/hello-piano-a15f49.mp3;en;"Hello, piano!";toys · konuşan selam
-en/let-s-play-with-the-piano-7b8725.mp3;en;"Let's play with the piano!";toys · konuşan hikaye
+en/play-the-piano-do-re-mi-45a7ee.mp3;en;"Play the piano! Do, re, mi!";toys · konuşan hikaye
 en/hi-i-m-a-whistle-1be6bb.mp3;en;"Hi! I'm a whistle!";toys · konuşan ben
 en/hello-whistle-c91bcf.mp3;en;"Hello, whistle!";toys · konuşan selam
-en/let-s-play-with-the-whistle-10bee4.mp3;en;"Let's play with the whistle!";toys · konuşan hikaye
+en/tweet-blow-the-whistle-and-start-the-gam-badaa1.mp3;en;"Tweet! Blow the whistle and start the game!";toys · konuşan hikaye
 en/hi-i-m-a-puppet-fff779.mp3;en;"Hi! I'm a puppet!";toys · konuşan ben
 en/hello-puppet-c27b5a.mp3;en;"Hello, puppet!";toys · konuşan selam
-en/let-s-play-with-the-puppet-313a2d.mp3;en;"Let's play with the puppet!";toys · konuşan hikaye
+en/the-puppet-waves-hello-to-you-9c0f38.mp3;en;"The puppet waves hello to you!";toys · konuşan hikaye
 en/hi-i-m-a-spinning-top-d4dbbc.mp3;en;"Hi! I'm a spinning top!";toys · konuşan ben
 en/hello-spinning-top-dde678.mp3;en;"Hello, spinning top!";toys · konuşan selam
-en/let-s-play-with-the-spinning-top-c4031c.mp3;en;"Let's play with the spinning top!";toys · konuşan hikaye
+en/spin-spin-spin-the-top-goes-round-08ce78.mp3;en;"Spin, spin, spin! The top goes round!";toys · konuşan hikaye
 en/hi-i-m-a-swing-115129.mp3;en;"Hi! I'm a swing!";toys · konuşan ben
 en/hello-swing-6f38df.mp3;en;"Hello, swing!";toys · konuşan selam
-en/let-s-play-with-the-swing-0c0b9d.mp3;en;"Let's play with the swing!";toys · konuşan hikaye
+en/swing-high-up-to-the-sky-and-back-f4698e.mp3;en;"Swing high, up to the sky and back!";toys · konuşan hikaye
 en/hi-i-m-a-slide-f47ed9.mp3;en;"Hi! I'm a slide!";toys · konuşan ben
 en/hello-slide-bd9dd0.mp3;en;"Hello, slide!";toys · konuşan selam
-en/let-s-play-with-the-slide-400aad.mp3;en;"Let's play with the slide!";toys · konuşan hikaye
+en/wheee-down-the-slide-we-go-6556d0.mp3;en;"Wheee! Down the slide we go!";toys · konuşan hikaye
 en/hi-i-m-a-bucket-be425b.mp3;en;"Hi! I'm a bucket!";toys · konuşan ben
 en/hello-bucket-784955.mp3;en;"Hello, bucket!";toys · konuşan selam
-en/let-s-play-with-the-bucket-715f9c.mp3;en;"Let's play with the bucket!";toys · konuşan hikaye
+en/fill-the-bucket-with-sand-and-make-a-cas-dbe7b7.mp3;en;"Fill the bucket with sand and make a castle!";toys · konuşan hikaye
 en/hi-i-m-a-rocking-horse-ee4445.mp3;en;"Hi! I'm a rocking horse!";toys · konuşan ben
 en/hello-rocking-horse-b02fe3.mp3;en;"Hello, rocking horse!";toys · konuşan selam
-en/let-s-play-with-the-rocking-horse-3c0b0e.mp3;en;"Let's play with the rocking horse!";toys · konuşan hikaye
+en/giddy-up-rock-rock-rock-c42005.mp3;en;"Giddy-up! Rock, rock, rock!";toys · konuşan hikaye
 en/hi-i-m-a-boat-9abb8d.mp3;en;"Hi! I'm a boat!";toys · konuşan ben
 en/hello-boat-92e964.mp3;en;"Hello, boat!";toys · konuşan selam
-en/let-s-play-with-the-boat-9f3daa.mp3;en;"Let's play with the boat!";toys · konuşan hikaye
+en/the-little-boat-floats-in-the-bath-e5f8d3.mp3;en;"The little boat floats in the bath!";toys · konuşan hikaye
 en/hi-i-m-a-xylophone-40c99d.mp3;en;"Hi! I'm a xylophone!";toys · konuşan ben
 en/hello-xylophone-9a09df.mp3;en;"Hello, xylophone!";toys · konuşan selam
-en/let-s-play-with-the-xylophone-2ab7a3.mp3;en;"Let's play with the xylophone!";toys · konuşan hikaye
+en/ding-ding-ding-tap-the-xylophone-4573e5.mp3;en;"Ding, ding, ding! Tap the xylophone!";toys · konuşan hikaye
 en/hi-i-m-a-guitar-442807.mp3;en;"Hi! I'm a guitar!";toys · konuşan ben
 en/hello-guitar-ef42f3.mp3;en;"Hello, guitar!";toys · konuşan selam
-en/let-s-play-with-the-guitar-68cb6d.mp3;en;"Let's play with the guitar!";toys · konuşan hikaye
+en/strum-the-guitar-and-sing-a-song-a83c21.mp3;en;"Strum the guitar and sing a song!";toys · konuşan hikaye
 en/hi-i-m-a-trumpet-39a4de.mp3;en;"Hi! I'm a trumpet!";toys · konuşan ben
 en/hello-trumpet-b58730.mp3;en;"Hello, trumpet!";toys · konuşan selam
-en/let-s-play-with-the-trumpet-41e5a7.mp3;en;"Let's play with the trumpet!";toys · konuşan hikaye
+en/toot-toot-blow-the-trumpet-loud-1c2f0b.mp3;en;"Toot, toot! Blow the trumpet loud!";toys · konuşan hikaye
 en/hi-i-m-a-jump-rope-e94d9e.mp3;en;"Hi! I'm a jump rope!";toys · konuşan ben
 en/hello-jump-rope-e2c52c.mp3;en;"Hello, jump rope!";toys · konuşan selam
-en/let-s-play-with-the-jump-rope-1ebd9a.mp3;en;"Let's play with the jump rope!";toys · konuşan hikaye
+en/jump-over-the-rope-one-two-three-ecb943.mp3;en;"Jump over the rope! One, two, three!";toys · konuşan hikaye
 en/hi-i-m-a-hat-2e4964.mp3;en;"Hi! I'm a hat!";clothes · konuşan ben
 en/hello-hat-8f667e.mp3;en;"Hello, hat!";clothes · konuşan selam
+en/wear-a-hat-in-the-hot-sun-5ec2ad.mp3;en;"Wear a hat in the hot sun!";clothes · konuşan hikaye
 en/hi-i-m-a-t-shirt-c75f3d.mp3;en;"Hi! I'm a T-shirt!";clothes · konuşan ben
 en/hello-t-shirt-54d82f.mp3;en;"Hello, T-shirt!";clothes · konuşan selam
+en/a-t-shirt-for-a-sunny-day-03d11e.mp3;en;"A T-shirt for a sunny day!";clothes · konuşan hikaye
 en/hi-i-m-a-dress-8a4189.mp3;en;"Hi! I'm a dress!";clothes · konuşan ben
 en/hello-dress-cfd39c.mp3;en;"Hello, dress!";clothes · konuşan selam
+en/twirl-around-in-your-pretty-dress-6f410a.mp3;en;"Twirl around in your pretty dress!";clothes · konuşan hikaye
 en/hi-we-are-shoes-c54914.mp3;en;"Hi! We are shoes!";clothes · konuşan ben
 en/hello-shoes-84a4ae.mp3;en;"Hello, shoes!";clothes · konuşan selam
+en/put-on-your-shoes-and-run-outside-3e1b6c.mp3;en;"Put on your shoes and run outside!";clothes · konuşan hikaye
 en/hi-we-are-socks-75d275.mp3;en;"Hi! We are socks!";clothes · konuşan ben
 en/hello-socks-96ea2c.mp3;en;"Hello, socks!";clothes · konuşan selam
+en/warm-socks-for-cold-toes-c7d449.mp3;en;"Warm socks for cold toes!";clothes · konuşan hikaye
 en/hi-i-m-a-coat-ca9203.mp3;en;"Hi! I'm a coat!";clothes · konuşan ben
 en/hello-coat-b23b51.mp3;en;"Hello, coat!";clothes · konuşan selam
+en/put-on-your-coat-it-s-snowing-4f2dda.mp3;en;"Put on your coat! It's snowing!";clothes · konuşan hikaye
 en/hi-i-m-a-scarf-669368.mp3;en;"Hi! I'm a scarf!";clothes · konuşan ben
 en/hello-scarf-eb68b0.mp3;en;"Hello, scarf!";clothes · konuşan selam
+en/wrap-your-scarf-around-your-neck-brr-6c9ffb.mp3;en;"Wrap your scarf around your neck! Brr!";clothes · konuşan hikaye
 en/hi-we-are-gloves-d5d563.mp3;en;"Hi! We are gloves!";clothes · konuşan ben
 en/hello-gloves-fd32ed.mp3;en;"Hello, gloves!";clothes · konuşan selam
+en/gloves-keep-your-fingers-warm-in-the-sno-cc92be.mp3;en;"Gloves keep your fingers warm in the snow!";clothes · konuşan hikaye
 en/hi-we-are-trousers-503466.mp3;en;"Hi! We are trousers!";clothes · konuşan ben
 en/hello-trousers-eb8af2.mp3;en;"Hello, trousers!";clothes · konuşan selam
+en/one-leg-two-legs-put-on-your-trousers-043f84.mp3;en;"One leg, two legs! Put on your trousers!";clothes · konuşan hikaye
 en/hi-we-are-boots-90a4ad.mp3;en;"Hi! We are boots!";clothes · konuşan ben
 en/hello-boots-adfd3a.mp3;en;"Hello, boots!";clothes · konuşan selam
+en/splash-jump-in-the-puddles-with-your-boo-b967a2.mp3;en;"Splash! Jump in the puddles with your boots!";clothes · konuşan hikaye
 en/hi-i-m-a-skirt-cf36f5.mp3;en;"Hi! I'm a skirt!";clothes · konuşan ben
 en/hello-skirt-706379.mp3;en;"Hello, skirt!";clothes · konuşan selam
+en/swish-swish-goes-my-skirt-58530c.mp3;en;"Swish, swish goes my skirt!";clothes · konuşan hikaye
 en/hi-we-are-shorts-3a88d1.mp3;en;"Hi! We are shorts!";clothes · konuşan ben
 en/hello-shorts-f3c96e.mp3;en;"Hello, shorts!";clothes · konuşan selam
+en/it-s-very-hot-wear-your-shorts-6c29e5.mp3;en;"It's very hot! Wear your shorts!";clothes · konuşan hikaye
 en/hi-i-m-a-jacket-4da12e.mp3;en;"Hi! I'm a jacket!";clothes · konuşan ben
 en/hello-jacket-1b5a0b.mp3;en;"Hello, jacket!";clothes · konuşan selam
+en/it-s-windy-zip-up-your-jacket-e4dd60.mp3;en;"It's windy! Zip up your jacket!";clothes · konuşan hikaye
 en/hi-i-m-a-sweater-c63308.mp3;en;"Hi! I'm a sweater!";clothes · konuşan ben
 en/hello-sweater-519cf0.mp3;en;"Hello, sweater!";clothes · konuşan selam
+en/a-cosy-sweater-so-warm-and-soft-2b1adc.mp3;en;"A cosy sweater! So warm and soft!";clothes · konuşan hikaye
 en/hi-we-are-pyjamas-9403de.mp3;en;"Hi! We are pyjamas!";clothes · konuşan ben
 en/hello-pyjamas-f07b09.mp3;en;"Hello, pyjamas!";clothes · konuşan selam
+en/pyjamas-on-it-s-time-for-bed-82ce0e.mp3;en;"Pyjamas on! It's time for bed!";clothes · konuşan hikaye
 en/hi-i-m-a-cap-78c7e9.mp3;en;"Hi! I'm a cap!";clothes · konuşan ben
 en/hello-cap-2d9236.mp3;en;"Hello, cap!";clothes · konuşan selam
+en/wear-your-cap-and-play-ball-a5f7eb.mp3;en;"Wear your cap and play ball!";clothes · konuşan hikaye
 en/hi-we-are-sunglasses-4a17ff.mp3;en;"Hi! We are sunglasses!";clothes · konuşan ben
 en/hello-sunglasses-ceb2b5.mp3;en;"Hello, sunglasses!";clothes · konuşan selam
+en/cool-sunglasses-for-the-bright-sun-3b2131.mp3;en;"Cool sunglasses for the bright sun!";clothes · konuşan hikaye
 en/hi-i-m-a-belt-0b4caa.mp3;en;"Hi! I'm a belt!";clothes · konuşan ben
 en/hello-belt-e87f36.mp3;en;"Hello, belt!";clothes · konuşan selam
+en/the-trousers-are-too-big-use-a-belt-6f02cd.mp3;en;"The trousers are too big! Use a belt!";clothes · konuşan hikaye
 en/hi-we-are-sandals-9ec6c0.mp3;en;"Hi! We are sandals!";clothes · konuşan ben
 en/hello-sandals-ccccef.mp3;en;"Hello, sandals!";clothes · konuşan selam
+en/sandals-for-walking-on-the-beach-494373.mp3;en;"Sandals for walking on the beach!";clothes · konuşan hikaye
 en/hi-i-m-a-swimsuit-067f47.mp3;en;"Hi! I'm a swimsuit!";clothes · konuşan ben
 en/hello-swimsuit-4b874e.mp3;en;"Hello, swimsuit!";clothes · konuşan selam
+en/put-on-your-swimsuit-and-jump-in-splash-94ab59.mp3;en;"Put on your swimsuit and jump in! Splash!";clothes · konuşan hikaye
 en/hi-i-m-a-shirt-5698b4.mp3;en;"Hi! I'm a shirt!";clothes · konuşan ben
 en/hello-shirt-ef82c5.mp3;en;"Hello, shirt!";clothes · konuşan selam
+en/button-up-your-shirt-one-two-three-f72010.mp3;en;"Button up your shirt, one, two, three!";clothes · konuşan hikaye
 en/hi-we-are-jeans-b580ee.mp3;en;"Hi! We are jeans!";clothes · konuşan ben
 en/hello-jeans-2487a1.mp3;en;"Hello, jeans!";clothes · konuşan selam
+en/blue-jeans-for-playing-outside-551778.mp3;en;"Blue jeans for playing outside!";clothes · konuşan hikaye
 en/hi-i-m-a-raincoat-5a99d7.mp3;en;"Hi! I'm a raincoat!";clothes · konuşan ben
 en/hello-raincoat-6af133.mp3;en;"Hello, raincoat!";clothes · konuşan selam
+en/rain-rain-wear-your-raincoat-202ffa.mp3;en;"Rain, rain! Wear your raincoat!";clothes · konuşan hikaye
 en/hi-we-are-slippers-5cbf8a.mp3;en;"Hi! We are slippers!";clothes · konuşan ben
 en/hello-slippers-0d4e25.mp3;en;"Hello, slippers!";clothes · konuşan selam
+en/soft-slippers-for-inside-the-house-2d3a6b.mp3;en;"Soft slippers for inside the house!";clothes · konuşan hikaye
 en/hi-i-m-a-tie-35fb38.mp3;en;"Hi! I'm a tie!";clothes · konuşan ben
 en/hello-tie-1ab39f.mp3;en;"Hello, tie!";clothes · konuşan selam
+en/dad-wears-a-tie-to-work-bf5304.mp3;en;"Dad wears a tie to work!";clothes · konuşan hikaye
 en/hi-i-m-a-watch-942923.mp3;en;"Hi! I'm a watch!";clothes · konuşan ben
 en/hello-watch-03c275.mp3;en;"Hello, watch!";clothes · konuşan selam
+en/tick-tock-what-time-is-it-b60dd0.mp3;en;"Tick, tock! What time is it?";clothes · konuşan hikaye
 en/hi-i-m-a-necklace-297b1b.mp3;en;"Hi! I'm a necklace!";clothes · konuşan ben
 en/hello-necklace-6f6785.mp3;en;"Hello, necklace!";clothes · konuşan selam
+en/a-shiny-necklace-for-the-party-571240.mp3;en;"A shiny necklace for the party!";clothes · konuşan hikaye
 en/hi-i-m-a-helmet-7565f1.mp3;en;"Hi! I'm a helmet!";clothes · konuşan ben
 en/hello-helmet-d0b5f7.mp3;en;"Hello, helmet!";clothes · konuşan selam
+en/wear-a-helmet-when-you-ride-your-bike-80fc60.mp3;en;"Wear a helmet when you ride your bike!";clothes · konuşan hikaye
 en/hi-i-m-an-apron-a729ea.mp3;en;"Hi! I'm an apron!";clothes · konuşan ben
 en/hello-apron-1a9425.mp3;en;"Hello, apron!";clothes · konuşan selam
+en/put-on-an-apron-let-s-cook-814d81.mp3;en;"Put on an apron! Let's cook!";clothes · konuşan hikaye
 en/hi-i-m-a-ribbon-f4bd4d.mp3;en;"Hi! I'm a ribbon!";clothes · konuşan ben
 en/hello-ribbon-77b75d.mp3;en;"Hello, ribbon!";clothes · konuşan selam
+en/a-pretty-ribbon-in-my-hair-7159c1.mp3;en;"A pretty ribbon in my hair!";clothes · konuşan hikaye
 en/hi-i-m-a-bed-691f4e.mp3;en;"Hi! I'm a bed!";home · konuşan ben
 en/hello-bed-ba50b0.mp3;en;"Hello, bed!";home · konuşan selam
+en/jump-into-bed-good-night-f77d03.mp3;en;"Jump into bed! Good night!";home · konuşan hikaye
 en/hi-i-m-a-sofa-1d2c39.mp3;en;"Hi! I'm a sofa!";home · konuşan ben
 en/hello-sofa-70c6f8.mp3;en;"Hello, sofa!";home · konuşan selam
+en/sit-on-the-soft-sofa-boing-a8b6cf.mp3;en;"Sit on the soft sofa! Boing!";home · konuşan hikaye
 en/hi-i-m-a-table-f05626.mp3;en;"Hi! I'm a table!";home · konuşan ben
 en/hello-table-44d6e3.mp3;en;"Hello, table!";home · konuşan selam
+en/put-the-cake-on-the-table-dinner-time-25fdba.mp3;en;"Put the cake on the table! Dinner time!";home · konuşan hikaye
 en/hi-i-m-a-chair-1fa562.mp3;en;"Hi! I'm a chair!";home · konuşan ben
 en/hello-chair-74053f.mp3;en;"Hello, chair!";home · konuşan selam
+en/sit-down-on-the-chair-please-1229ee.mp3;en;"Sit down on the chair, please!";home · konuşan hikaye
 en/hi-i-m-a-bath-bf594f.mp3;en;"Hi! I'm a bath!";home · konuşan ben
 en/hello-bath-89c189.mp3;en;"Hello, bath!";home · konuşan selam
+en/splish-splash-bubbles-in-the-bath-bd2c59.mp3;en;"Splish, splash! Bubbles in the bath!";home · konuşan hikaye
 en/hi-i-m-a-lamp-cd6e64.mp3;en;"Hi! I'm a lamp!";home · konuşan ben
 en/hello-lamp-4103ce.mp3;en;"Hello, lamp!";home · konuşan selam
+en/click-turn-on-the-lamp-now-it-s-bright-71302d.mp3;en;"Click! Turn on the lamp! Now it's bright!";home · konuşan hikaye
 en/hi-i-m-a-fridge-4fbfbb.mp3;en;"Hi! I'm a fridge!";home · konuşan ben
 en/hello-fridge-9dab53.mp3;en;"Hello, fridge!";home · konuşan selam
+en/brr-it-s-cold-inside-the-fridge-c2d7ef.mp3;en;"Brr! It's cold inside the fridge!";home · konuşan hikaye
 en/hi-i-m-a-door-8a3f19.mp3;en;"Hi! I'm a door!";home · konuşan ben
 en/hello-door-7bbe60.mp3;en;"Hello, door!";home · konuşan selam
+en/knock-knock-who-is-at-the-door-87200d.mp3;en;"Knock, knock! Who is at the door?";home · konuşan hikaye
 en/hi-i-m-a-window-5a815f.mp3;en;"Hi! I'm a window!";home · konuşan ben
 en/hello-window-f8c804.mp3;en;"Hello, window!";home · konuşan selam
+en/open-the-window-hello-sunshine-18a1ae.mp3;en;"Open the window! Hello, sunshine!";home · konuşan hikaye
 en/hi-i-m-a-clock-5edae2.mp3;en;"Hi! I'm a clock!";home · konuşan ben
 en/hello-clock-903186.mp3;en;"Hello, clock!";home · konuşan selam
+en/tick-tock-goes-the-clock-08a334.mp3;en;"Tick, tock goes the clock!";home · konuşan hikaye
 en/hi-i-m-a-tv-f8b3ce.mp3;en;"Hi! I'm a TV!";home · konuşan ben
 en/hello-tv-db789e.mp3;en;"Hello, TV!";home · konuşan selam
+en/let-s-watch-cartoons-on-tv-799dfd.mp3;en;"Let's watch cartoons on TV!";home · konuşan hikaye
 en/hi-i-m-a-mirror-a9b1b1.mp3;en;"Hi! I'm a mirror!";home · konuşan ben
 en/hello-mirror-8e8c3d.mp3;en;"Hello, mirror!";home · konuşan selam
+en/look-in-the-mirror-who-is-that-it-s-me-c2a25d.mp3;en;"Look in the mirror! Who is that? It's me!";home · konuşan hikaye
 en/hi-i-m-a-shower-ead2a9.mp3;en;"Hi! I'm a shower!";home · konuşan ben
 en/hello-shower-94d6be.mp3;en;"Hello, shower!";home · konuşan selam
+en/drip-drop-wash-in-the-shower-5ab899.mp3;en;"Drip, drop! Wash in the shower!";home · konuşan hikaye
 en/hi-i-m-a-sink-2c4633.mp3;en;"Hi! I'm a sink!";home · konuşan ben
 en/hello-sink-c09ae9.mp3;en;"Hello, sink!";home · konuşan selam
+en/wash-your-hands-in-the-sink-9a53b8.mp3;en;"Wash your hands in the sink!";home · konuşan hikaye
 en/hi-i-m-a-cooker-ffd0fe.mp3;en;"Hi! I'm a cooker!";home · konuşan ben
 en/hello-cooker-26f737.mp3;en;"Hello, cooker!";home · konuşan selam
+en/mum-cooks-soup-on-the-cooker-careful-hot-8244c0.mp3;en;"Mum cooks soup on the cooker! Careful, hot!";home · konuşan hikaye
 en/hi-i-m-a-wardrobe-9248a8.mp3;en;"Hi! I'm a wardrobe!";home · konuşan ben
 en/hello-wardrobe-6746e5.mp3;en;"Hello, wardrobe!";home · konuşan selam
+en/peekaboo-i-hide-in-the-wardrobe-72dce4.mp3;en;"Peekaboo! I hide in the wardrobe!";home · konuşan hikaye
 en/hi-i-m-a-carpet-d71660.mp3;en;"Hi! I'm a carpet!";home · konuşan ben
 en/hello-carpet-9785be.mp3;en;"Hello, carpet!";home · konuşan selam
+en/a-soft-carpet-let-s-sit-and-play-099953.mp3;en;"A soft carpet! Let's sit and play!";home · konuşan hikaye
 en/hi-we-are-stairs-f750c5.mp3;en;"Hi! We are stairs!";home · konuşan ben
 en/hello-stairs-bbad62.mp3;en;"Hello, stairs!";home · konuşan selam
+en/up-the-stairs-one-step-at-a-time-1a67b9.mp3;en;"Up the stairs, one step at a time!";home · konuşan hikaye
 en/hi-i-m-a-plant-86bfb8.mp3;en;"Hi! I'm a plant!";home · konuşan ben
 en/hello-plant-14d74e.mp3;en;"Hello, plant!";home · konuşan selam
+en/water-the-plant-and-watch-it-grow-36ba86.mp3;en;"Water the plant and watch it grow!";home · konuşan hikaye
 en/hi-i-m-a-pillow-45523f.mp3;en;"Hi! I'm a pillow!";home · konuşan ben
 en/hello-pillow-d2e2a9.mp3;en;"Hello, pillow!";home · konuşan selam
+en/pillow-fight-bop-bop-b54941.mp3;en;"Pillow fight! Bop, bop!";home · konuşan hikaye
 en/hi-i-m-a-kitchen-a117d5.mp3;en;"Hi! I'm a kitchen!";home · konuşan ben
 en/hello-kitchen-ddc4f4.mp3;en;"Hello, kitchen!";home · konuşan selam
+en/something-smells-good-in-the-kitchen-39ed16.mp3;en;"Something smells good in the kitchen!";home · konuşan hikaye
 en/hi-i-m-a-bathroom-e09965.mp3;en;"Hi! I'm a bathroom!";home · konuşan ben
 en/hello-bathroom-68ed25.mp3;en;"Hello, bathroom!";home · konuşan selam
+en/brush-your-teeth-in-the-bathroom-3caa87.mp3;en;"Brush your teeth in the bathroom!";home · konuşan hikaye
 en/hi-i-m-a-bedroom-5ffd53.mp3;en;"Hi! I'm a bedroom!";home · konuşan ben
 en/hello-bedroom-b0d324.mp3;en;"Hello, bedroom!";home · konuşan selam
+en/this-is-my-bedroom-my-toys-live-here-49adb2.mp3;en;"This is my bedroom! My toys live here!";home · konuşan hikaye
 en/hi-i-m-a-living-room-471a82.mp3;en;"Hi! I'm a living room!";home · konuşan ben
 en/hello-living-room-f5cce7.mp3;en;"Hello, living room!";home · konuşan selam
+en/the-family-sits-together-in-the-living-r-4159d5.mp3;en;"The family sits together in the living room!";home · konuşan hikaye
 en/hi-i-m-a-garden-9f952d.mp3;en;"Hi! I'm a garden!";home · konuşan ben
 en/hello-garden-f7aee6.mp3;en;"Hello, garden!";home · konuşan selam
+en/flowers-grow-in-the-garden-0bf338.mp3;en;"Flowers grow in the garden!";home · konuşan hikaye
 en/hi-i-m-a-roof-04a647.mp3;en;"Hi! I'm a roof!";home · konuşan ben
 en/hello-roof-a2a417.mp3;en;"Hello, roof!";home · konuşan selam
+en/a-little-bird-sings-on-the-roof-tweet-834f90.mp3;en;"A little bird sings on the roof! Tweet!";home · konuşan hikaye
 en/hi-i-m-a-key-b3cf5d.mp3;en;"Hi! I'm a key!";home · konuşan ben
 en/hello-key-bee5a8.mp3;en;"Hello, key!";home · konuşan selam
+en/turn-the-key-click-the-door-opens-61e091.mp3;en;"Turn the key! Click! The door opens!";home · konuşan hikaye
 en/hi-i-m-a-phone-7dd0cf.mp3;en;"Hi! I'm a phone!";home · konuşan ben
 en/hello-phone-56ae3f.mp3;en;"Hello, phone!";home · konuşan selam
+en/ring-ring-hello-grandma-29097d.mp3;en;"Ring, ring! Hello, Grandma!";home · konuşan hikaye
 en/hi-i-m-a-shelf-490385.mp3;en;"Hi! I'm a shelf!";home · konuşan ben
 en/hello-shelf-9505f1.mp3;en;"Hello, shelf!";home · konuşan selam
+en/put-the-books-back-on-the-shelf-a40f2f.mp3;en;"Put the books back on the shelf!";home · konuşan hikaye
 en/hi-we-are-curtains-fd5be3.mp3;en;"Hi! We are curtains!";home · konuşan ben
 en/hello-curtains-eb0bf2.mp3;en;"Hello, curtains!";home · konuşan selam
+en/open-the-curtains-good-morning-739ade.mp3;en;"Open the curtains! Good morning!";home · konuşan hikaye
 en/hi-i-m-a-pencil-9cb81a.mp3;en;"Hi! I'm a pencil!";school · konuşan ben
 en/hello-pencil-b92e19.mp3;en;"Hello, pencil!";school · konuşan selam
+en/draw-a-line-with-your-pencil-5c77f9.mp3;en;"Draw a line with your pencil!";school · konuşan hikaye
 en/hi-i-m-a-book-708958.mp3;en;"Hi! I'm a book!";school · konuşan ben
 en/hello-book-86cbe7.mp3;en;"Hello, book!";school · konuşan selam
+en/open-the-book-once-upon-a-time-80fae7.mp3;en;"Open the book! Once upon a time…";school · konuşan hikaye
 en/hi-i-m-a-bag-37735f.mp3;en;"Hi! I'm a bag!";school · konuşan ben
 en/hello-bag-1b0861.mp3;en;"Hello, bag!";school · konuşan selam
+en/put-your-books-in-your-school-bag-8f6b72.mp3;en;"Put your books in your school bag!";school · konuşan hikaye
 en/hi-we-are-crayons-40a70d.mp3;en;"Hi! We are crayons!";school · konuşan ben
 en/hello-crayons-99e4f8.mp3;en;"Hello, crayons!";school · konuşan selam
+en/colour-a-rainbow-with-your-crayons-2f5644.mp3;en;"Colour a rainbow with your crayons!";school · konuşan hikaye
 en/hi-we-are-scissors-ce02ac.mp3;en;"Hi! We are scissors!";school · konuşan ben
 en/hello-scissors-635d8f.mp3;en;"Hello, scissors!";school · konuşan selam
+en/snip-snip-cut-the-paper-carefully-7e27a3.mp3;en;"Snip, snip! Cut the paper carefully!";school · konuşan hikaye
 en/hi-i-m-glue-16a3bb.mp3;en;"Hi! I'm glue!";school · konuşan ben
 en/hello-glue-336eff.mp3;en;"Hello, glue!";school · konuşan selam
+en/stick-it-with-glue-press-press-350840.mp3;en;"Stick it with glue! Press, press!";school · konuşan hikaye
 en/hi-i-m-a-ruler-75334f.mp3;en;"Hi! I'm a ruler!";school · konuşan ben
 en/hello-ruler-5cd9f2.mp3;en;"Hello, ruler!";school · konuşan selam
+en/how-long-is-it-measure-it-with-the-ruler-bbcc69.mp3;en;"How long is it? Measure it with the ruler!";school · konuşan hikaye
 en/hi-i-m-an-eraser-b44d9b.mp3;en;"Hi! I'm an eraser!";school · konuşan ben
 en/hello-eraser-cc1c4a.mp3;en;"Hello, eraser!";school · konuşan selam
+en/oops-rub-it-out-with-the-eraser-fb64ba.mp3;en;"Oops! Rub it out with the eraser!";school · konuşan hikaye
 en/hi-i-m-a-desk-3eb9bf.mp3;en;"Hi! I'm a desk!";school · konuşan ben
 en/hello-desk-ac400c.mp3;en;"Hello, desk!";school · konuşan selam
+en/sit-at-your-desk-and-open-your-book-2459af.mp3;en;"Sit at your desk and open your book!";school · konuşan hikaye
 en/hi-i-m-a-board-925442.mp3;en;"Hi! I'm a board!";school · konuşan ben
 en/hello-board-5abd02.mp3;en;"Hello, board!";school · konuşan selam
+en/the-teacher-writes-on-the-board-650718.mp3;en;"The teacher writes on the board!";school · konuşan hikaye
 en/hi-i-m-a-notebook-25cb2f.mp3;en;"Hi! I'm a notebook!";school · konuşan ben
 en/hello-notebook-fc6fa0.mp3;en;"Hello, notebook!";school · konuşan selam
+en/write-your-name-in-your-notebook-69b7a5.mp3;en;"Write your name in your notebook!";school · konuşan hikaye
 en/hi-i-m-a-pen-cf6cfa.mp3;en;"Hi! I'm a pen!";school · konuşan ben
 en/hello-pen-3731ce.mp3;en;"Hello, pen!";school · konuşan selam
+en/write-a-letter-with-your-pen-f8f2d9.mp3;en;"Write a letter with your pen!";school · konuşan hikaye
 en/hi-i-m-a-sharpener-35b5db.mp3;en;"Hi! I'm a sharpener!";school · konuşan ben
 en/hello-sharpener-662f4c.mp3;en;"Hello, sharpener!";school · konuşan selam
+en/twist-twist-sharpen-your-pencil-244b68.mp3;en;"Twist, twist! Sharpen your pencil!";school · konuşan hikaye
 en/hi-i-m-chalk-f36ad3.mp3;en;"Hi! I'm chalk!";school · konuşan ben
 en/hello-chalk-bf48e1.mp3;en;"Hello, chalk!";school · konuşan selam
+en/draw-a-hopscotch-on-the-ground-with-chal-ba6739.mp3;en;"Draw a hopscotch on the ground with chalk!";school · konuşan hikaye
 en/hi-we-are-paints-f763f1.mp3;en;"Hi! We are paints!";school · konuşan ben
 en/hello-paints-051570.mp3;en;"Hello, paints!";school · konuşan selam
+en/splish-splash-paint-a-big-yellow-sun-389f93.mp3;en;"Splish, splash! Paint a big yellow sun!";school · konuşan hikaye
 en/hi-i-m-a-globe-6f76e0.mp3;en;"Hi! I'm a globe!";school · konuşan ben
 en/hello-globe-ae6d45.mp3;en;"Hello, globe!";school · konuşan selam
+en/spin-the-globe-where-is-turkey-e3f222.mp3;en;"Spin the globe! Where is Turkey?";school · konuşan hikaye
 en/hi-i-m-a-computer-abafeb.mp3;en;"Hi! I'm a computer!";school · konuşan ben
 en/hello-computer-4fb8f9.mp3;en;"Hello, computer!";school · konuşan selam
+en/click-click-play-a-game-on-the-computer-50e1ce.mp3;en;"Click, click! Play a game on the computer!";school · konuşan hikaye
 en/hi-i-m-a-lunchbox-ddb63a.mp3;en;"Hi! I'm a lunchbox!";school · konuşan ben
 en/hello-lunchbox-af5627.mp3;en;"Hello, lunchbox!";school · konuşan selam
+en/open-your-lunchbox-an-apple-for-you-ed40c1.mp3;en;"Open your lunchbox! An apple for you!";school · konuşan hikaye
 en/hi-i-m-a-stapler-39c3b1.mp3;en;"Hi! I'm a stapler!";school · konuşan ben
 en/hello-stapler-b2c40e.mp3;en;"Hello, stapler!";school · konuşan selam
+en/click-staple-the-papers-together-3a55c6.mp3;en;"Click! Staple the papers together!";school · konuşan hikaye
 en/hi-i-m-paper-f92684.mp3;en;"Hi! I'm paper!";school · konuşan ben
 en/hello-paper-4541f4.mp3;en;"Hello, paper!";school · konuşan selam
+en/fold-the-paper-and-make-a-plane-cf3949.mp3;en;"Fold the paper and make a plane!";school · konuşan hikaye
 en/hi-i-m-a-pencil-case-608706.mp3;en;"Hi! I'm a pencil case!";school · konuşan ben
 en/hello-pencil-case-3f27cd.mp3;en;"Hello, pencil case!";school · konuşan selam
+en/the-pencils-hide-in-the-pencil-case-201e26.mp3;en;"The pencils hide in the pencil case!";school · konuşan hikaye
 en/hi-i-m-a-marker-152163.mp3;en;"Hi! I'm a marker!";school · konuşan ben
 en/hello-marker-c52dc1.mp3;en;"Hello, marker!";school · konuşan selam
+en/draw-a-big-smile-with-the-marker-9895da.mp3;en;"Draw a big smile with the marker!";school · konuşan hikaye
 en/hi-i-m-a-map-6be5e3.mp3;en;"Hi! I'm a map!";school · konuşan ben
 en/hello-map-22755f.mp3;en;"Hello, map!";school · konuşan selam
+en/look-at-the-map-where-is-the-treasure-c48e80.mp3;en;"Look at the map! Where is the treasure?";school · konuşan hikaye
 en/hi-i-m-a-calculator-86fae5.mp3;en;"Hi! I'm a calculator!";school · konuşan ben
 en/hello-calculator-4160b4.mp3;en;"Hello, calculator!";school · konuşan selam
+en/one-plus-one-is-two-b0133c.mp3;en;"One plus one is two!";school · konuşan hikaye
 en/hi-i-m-a-bell-c7b9a0.mp3;en;"Hi! I'm a bell!";school · konuşan ben
 en/hello-bell-0152bc.mp3;en;"Hello, bell!";school · konuşan selam
+en/ding-dong-the-bell-rings-playtime-504ae2.mp3;en;"Ding, dong! The bell rings! Playtime!";school · konuşan hikaye
 en/hi-i-m-a-playground-6a4cd3.mp3;en;"Hi! I'm a playground!";school · konuşan ben
 en/hello-playground-8b6fd5.mp3;en;"Hello, playground!";school · konuşan selam
+en/run-and-play-on-the-playground-0f4ea4.mp3;en;"Run and play on the playground!";school · konuşan hikaye
 en/hi-i-m-a-classroom-f2f297.mp3;en;"Hi! I'm a classroom!";school · konuşan ben
 en/hello-classroom-73c349.mp3;en;"Hello, classroom!";school · konuşan selam
+en/good-morning-everyone-welcome-to-class-eb97d8.mp3;en;"Good morning, everyone! Welcome to class!";school · konuşan hikaye
 en/hi-i-m-tape-92815d.mp3;en;"Hi! I'm tape!";school · konuşan ben
 en/hello-tape-0b9a4c.mp3;en;"Hello, tape!";school · konuşan selam
+en/stick-the-picture-on-the-wall-with-tape-15b26f.mp3;en;"Stick the picture on the wall with tape!";school · konuşan hikaye
 en/hi-i-m-a-sticker-129b8c.mp3;en;"Hi! I'm a sticker!";school · konuşan ben
 en/hello-sticker-18ec39.mp3;en;"Hello, sticker!";school · konuşan selam
+en/a-gold-star-sticker-well-done-b2c07d.mp3;en;"A gold star sticker! Well done!";school · konuşan hikaye
 en/hi-i-m-a-magnifying-glass-dfc5a0.mp3;en;"Hi! I'm a magnifying glass!";school · konuşan ben
 en/hello-magnifying-glass-304c6c.mp3;en;"Hello, magnifying glass!";school · konuşan selam
+en/look-closer-a-tiny-bug-8adbc0.mp3;en;"Look closer! A tiny bug!";school · konuşan hikaye
 en/hi-i-m-a-rainbow-754faa.mp3;en;"Hi! I'm a rainbow!";weather · konuşan ben
 en/hi-i-m-the-sun-d7d7ac.mp3;en;"Hi! I'm the sun!";weather · konuşan ben
 en/hi-i-m-a-cloud-92b69d.mp3;en;"Hi! I'm a cloud!";weather · konuşan ben
@@ -6371,324 +6494,325 @@ en/hi-i-m-the-night-sky-4a71ed.mp3;en;"Hi! I'm the night sky!";weather · konuş
 en/hi-i-m-a-sunrise-281c92.mp3;en;"Hi! I'm a sunrise!";weather · konuşan ben
 en/hi-i-m-a-tornado-1cbc28.mp3;en;"Hi! I'm a tornado!";weather · konuşan ben
 en/hi-i-m-hail-806307.mp3;en;"Hi! I'm hail!";weather · konuşan ben
-en/let-s-make-a-happy-face-f49f63.mp3;en;"Let's make a happy face!";feelings · konuşan hikaye
-en/let-s-make-a-sad-face-a9be83.mp3;en;"Let's make a sad face!";feelings · konuşan hikaye
-en/let-s-make-an-angry-face-ea2f2e.mp3;en;"Let's make an angry face!";feelings · konuşan hikaye
-en/let-s-make-a-scared-face-0cbf25.mp3;en;"Let's make a scared face!";feelings · konuşan hikaye
-en/let-s-make-a-surprised-face-f5aae6.mp3;en;"Let's make a surprised face!";feelings · konuşan hikaye
-en/let-s-make-a-tired-face-1a8b9b.mp3;en;"Let's make a tired face!";feelings · konuşan hikaye
-en/let-s-make-a-hungry-face-d9119c.mp3;en;"Let's make a hungry face!";feelings · konuşan hikaye
-en/let-s-make-an-excited-face-5af3f9.mp3;en;"Let's make an excited face!";feelings · konuşan hikaye
-en/let-s-make-a-shy-face-d577a3.mp3;en;"Let's make a shy face!";feelings · konuşan hikaye
-en/let-s-make-a-bored-face-2f5b03.mp3;en;"Let's make a bored face!";feelings · konuşan hikaye
-en/let-s-make-a-proud-face-e74bce.mp3;en;"Let's make a proud face!";feelings · konuşan hikaye
-en/let-s-make-a-worried-face-f61968.mp3;en;"Let's make a worried face!";feelings · konuşan hikaye
-en/let-s-make-a-silly-face-84f6c7.mp3;en;"Let's make a silly face!";feelings · konuşan hikaye
-en/let-s-make-a-brave-face-b1ddee.mp3;en;"Let's make a brave face!";feelings · konuşan hikaye
-en/let-s-make-a-loved-face-5b48dd.mp3;en;"Let's make a loved face!";feelings · konuşan hikaye
-en/let-s-make-a-calm-face-6e7229.mp3;en;"Let's make a calm face!";feelings · konuşan hikaye
-en/let-s-make-a-nervous-face-0cb6ac.mp3;en;"Let's make a nervous face!";feelings · konuşan hikaye
-en/let-s-make-a-sick-face-fd8c3a.mp3;en;"Let's make a sick face!";feelings · konuşan hikaye
-en/let-s-make-a-thirsty-face-4fb7df.mp3;en;"Let's make a thirsty face!";feelings · konuşan hikaye
-en/let-s-make-a-sleepy-face-878f9b.mp3;en;"Let's make a sleepy face!";feelings · konuşan hikaye
-en/let-s-make-a-lonely-face-1832b6.mp3;en;"Let's make a lonely face!";feelings · konuşan hikaye
-en/let-s-make-a-confused-face-9daec0.mp3;en;"Let's make a confused face!";feelings · konuşan hikaye
-en/let-s-make-a-curious-face-4f1554.mp3;en;"Let's make a curious face!";feelings · konuşan hikaye
-en/let-s-make-a-grumpy-face-839589.mp3;en;"Let's make a grumpy face!";feelings · konuşan hikaye
-en/let-s-make-an-embarrassed-face-1825e6.mp3;en;"Let's make an embarrassed face!";feelings · konuşan hikaye
-en/let-s-make-a-hurt-face-e336bd.mp3;en;"Let's make a hurt face!";feelings · konuşan hikaye
+en/i-m-so-happy-i-jump-for-joy-bc09bd.mp3;en;"I'm so happy, I jump for joy!";feelings · konuşan hikaye
+en/when-i-m-sad-a-hug-helps-394358.mp3;en;"When I'm sad, a hug helps!";feelings · konuşan hikaye
+en/grr-take-a-deep-breath-one-two-three-31866f.mp3;en;"Grr! Take a deep breath, one, two, three!";feelings · konuşan hikaye
+en/hide-under-the-blanket-it-s-just-the-win-9d76d8.mp3;en;"Hide under the blanket! It's just the wind!";feelings · konuşan hikaye
+en/wow-a-surprise-what-is-it-b1a3c5.mp3;en;"Wow! A surprise! What is it?";feelings · konuşan hikaye
+en/yawn-i-m-tired-time-for-a-nap-53eb31.mp3;en;"Yawn! I'm tired. Time for a nap!";feelings · konuşan hikaye
+en/my-tummy-is-rumbling-i-m-hungry-d7e691.mp3;en;"My tummy is rumbling! I'm hungry!";feelings · konuşan hikaye
+en/yay-we-re-going-to-the-park-27b0e9.mp3;en;"Yay! We're going to the park!";feelings · konuşan hikaye
+en/peekaboo-i-m-a-little-bit-shy-942587.mp3;en;"Peekaboo! I'm a little bit shy!";feelings · konuşan hikaye
+en/i-m-bored-let-s-play-a-new-game-25d80f.mp3;en;"I'm bored. Let's play a new game!";feelings · konuşan hikaye
+en/look-what-i-made-i-m-so-proud-b95568.mp3;en;"Look what I made! I'm so proud!";feelings · konuşan hikaye
+en/don-t-worry-everything-will-be-ok-4a3b50.mp3;en;"Don't worry! Everything will be OK!";feelings · konuşan hikaye
+en/let-s-make-silly-faces-blah-102ba8.mp3;en;"Let's make silly faces! Blah!";feelings · konuşan hikaye
+en/i-m-brave-i-m-not-afraid-of-the-dark-6acf10.mp3;en;"I'm brave! I'm not afraid of the dark!";feelings · konuşan hikaye
+en/i-love-you-so-much-96a47a.mp3;en;"I love you so much!";feelings · konuşan hikaye
+en/breathe-in-breathe-out-nice-and-calm-02ad6e.mp3;en;"Breathe in, breathe out. Nice and calm.";feelings · konuşan hikaye
+en/my-first-day-at-school-i-m-a-little-nerv-5c40dc.mp3;en;"My first day at school! I'm a little nervous.";feelings · konuşan hikaye
+en/i-feel-sick-rest-in-bed-and-get-well-soo-8202af.mp3;en;"I feel sick. Rest in bed and get well soon!";feelings · konuşan hikaye
+en/i-m-thirsty-a-glass-of-water-please-ae069b.mp3;en;"I'm thirsty! A glass of water, please!";feelings · konuşan hikaye
+en/the-moon-is-out-i-m-sleepy-good-night-b220d7.mp3;en;"The moon is out. I'm sleepy. Good night!";feelings · konuşan hikaye
+en/i-m-lonely-will-you-play-with-me-f6d323.mp3;en;"I'm lonely. Will you play with me?";feelings · konuşan hikaye
+en/hmm-which-way-i-m-confused-32dbbb.mp3;en;"Hmm? Which way? I'm confused!";feelings · konuşan hikaye
+en/what-s-this-i-m-curious-d8d2aa.mp3;en;"What's this? I'm curious!";feelings · konuşan hikaye
+en/grumpy-face-who-can-make-me-smile-8d5e7d.mp3;en;"Grumpy face! Who can make me smile?";feelings · konuşan hikaye
+en/oops-my-cheeks-are-red-a43133.mp3;en;"Oops! My cheeks are red!";feelings · konuşan hikaye
+en/ouch-i-hurt-my-knee-a-bandage-please-e1b000.mp3;en;"Ouch! I hurt my knee. A bandage, please!";feelings · konuşan hikaye
 en/hi-i-m-an-orange-c00b5c.mp3;en;"Hi! I'm an orange!";fruits · konuşan ben
-en/the-orange-jumps-into-the-basket-75e536.mp3;en;"The orange jumps into the basket!";fruits · konuşan hikaye
+en/peel-the-orange-it-smells-so-fresh-3fb064.mp3;en;"Peel the orange! It smells so fresh!";fruits · konuşan hikaye
 en/hi-we-are-grapes-238c4c.mp3;en;"Hi! We are grapes!";fruits · konuşan ben
 en/hello-grapes-b309af.mp3;en;"Hello, grapes!";fruits · konuşan selam
-en/grapes-jump-into-the-basket-c9bd1a.mp3;en;"Grapes jump into the basket!";fruits · konuşan hikaye
+en/pop-the-grapes-in-your-mouth-one-by-one-52344d.mp3;en;"Pop the grapes in your mouth, one by one!";fruits · konuşan hikaye
 en/hi-i-m-a-pear-3e3e41.mp3;en;"Hi! I'm a pear!";fruits · konuşan ben
 en/hello-pear-deaaf6.mp3;en;"Hello, pear!";fruits · konuşan selam
-en/the-pear-jumps-into-the-basket-50d055.mp3;en;"The pear jumps into the basket!";fruits · konuşan hikaye
+en/a-green-pear-hangs-on-the-tree-7bbf0a.mp3;en;"A green pear hangs on the tree!";fruits · konuşan hikaye
 en/hi-i-m-a-lemon-431e11.mp3;en;"Hi! I'm a lemon!";fruits · konuşan ben
 en/hello-lemon-c1e898.mp3;en;"Hello, lemon!";fruits · konuşan selam
-en/the-lemon-jumps-into-the-basket-9cd14d.mp3;en;"The lemon jumps into the basket!";fruits · konuşan hikaye
+en/squeeze-the-lemons-and-make-lemonade-24e7db.mp3;en;"Squeeze the lemons and make lemonade!";fruits · konuşan hikaye
 en/hi-i-m-a-watermelon-330b32.mp3;en;"Hi! I'm a watermelon!";fruits · konuşan ben
 en/hello-watermelon-a2390b.mp3;en;"Hello, watermelon!";fruits · konuşan selam
-en/the-watermelon-jumps-into-the-basket-0bb562.mp3;en;"The watermelon jumps into the basket!";fruits · konuşan hikaye
+en/crack-green-outside-red-inside-adf3db.mp3;en;"Crack! Green outside, red inside!";fruits · konuşan hikaye
 en/hi-we-are-cherries-75f1fb.mp3;en;"Hi! We are cherries!";fruits · konuşan ben
 en/hello-cherries-e09eee.mp3;en;"Hello, cherries!";fruits · konuşan selam
-en/cherries-jump-into-the-basket-2997d5.mp3;en;"Cherries jump into the basket!";fruits · konuşan hikaye
+en/two-cherries-on-top-of-the-cake-4b92ce.mp3;en;"Two cherries on top of the cake!";fruits · konuşan hikaye
 en/hi-i-m-a-pineapple-2a59fa.mp3;en;"Hi! I'm a pineapple!";fruits · konuşan ben
 en/hello-pineapple-863ff2.mp3;en;"Hello, pineapple!";fruits · konuşan selam
-en/the-pineapple-jumps-into-the-basket-fdc172.mp3;en;"The pineapple jumps into the basket!";fruits · konuşan hikaye
+en/the-pineapple-wears-a-spiky-green-crown-6ad68a.mp3;en;"The pineapple wears a spiky green crown!";fruits · konuşan hikaye
 en/hi-i-m-a-peach-07ad76.mp3;en;"Hi! I'm a peach!";fruits · konuşan ben
 en/hello-peach-b770d9.mp3;en;"Hello, peach!";fruits · konuşan selam
-en/the-peach-jumps-into-the-basket-4f0c32.mp3;en;"The peach jumps into the basket!";fruits · konuşan hikaye
+en/a-soft-fuzzy-peach-so-sweet-998c73.mp3;en;"A soft, fuzzy peach! So sweet!";fruits · konuşan hikaye
 en/hi-i-m-a-kiwi-f8d4ac.mp3;en;"Hi! I'm a kiwi!";fruits · konuşan ben
 en/hello-kiwi-976b68.mp3;en;"Hello, kiwi!";fruits · konuşan selam
-en/the-kiwi-jumps-into-the-basket-51899a.mp3;en;"The kiwi jumps into the basket!";fruits · konuşan hikaye
+en/cut-the-kiwi-green-with-tiny-black-seeds-3fcd60.mp3;en;"Cut the kiwi! Green with tiny black seeds!";fruits · konuşan hikaye
 en/hi-i-m-a-mango-071ee3.mp3;en;"Hi! I'm a mango!";fruits · konuşan ben
 en/hello-mango-13df87.mp3;en;"Hello, mango!";fruits · konuşan selam
-en/the-mango-jumps-into-the-basket-d8f22e.mp3;en;"The mango jumps into the basket!";fruits · konuşan hikaye
+en/a-sunny-yellow-mango-so-juicy-7416d8.mp3;en;"A sunny yellow mango! So juicy!";fruits · konuşan hikaye
 en/hi-i-m-a-plum-968ce6.mp3;en;"Hi! I'm a plum!";fruits · konuşan ben
 en/hello-plum-ceab80.mp3;en;"Hello, plum!";fruits · konuşan selam
-en/the-plum-jumps-into-the-basket-93e56b.mp3;en;"The plum jumps into the basket!";fruits · konuşan hikaye
+en/a-little-purple-plum-bounces-boing-d828d4.mp3;en;"A little purple plum bounces! Boing!";fruits · konuşan hikaye
 en/hi-i-m-an-apricot-ee846a.mp3;en;"Hi! I'm an apricot!";fruits · konuşan ben
 en/hello-apricot-6f7a5b.mp3;en;"Hello, apricot!";fruits · konuşan selam
-en/the-apricot-jumps-into-the-basket-7b8955.mp3;en;"The apricot jumps into the basket!";fruits · konuşan hikaye
+en/little-orange-apricots-dry-in-the-sun-a36a40.mp3;en;"Little orange apricots dry in the sun!";fruits · konuşan hikaye
 en/hi-i-m-a-fig-5b7bc5.mp3;en;"Hi! I'm a fig!";fruits · konuşan ben
 en/hello-fig-dbd716.mp3;en;"Hello, fig!";fruits · konuşan selam
-en/the-fig-jumps-into-the-basket-056a20.mp3;en;"The fig jumps into the basket!";fruits · konuşan hikaye
+en/open-the-fig-it-has-lots-of-tiny-seeds-4e5c1a.mp3;en;"Open the fig! It has lots of tiny seeds!";fruits · konuşan hikaye
 en/hi-i-m-a-melon-09e99d.mp3;en;"Hi! I'm a melon!";fruits · konuşan ben
 en/hello-melon-47aa7b.mp3;en;"Hello, melon!";fruits · konuşan selam
-en/the-melon-jumps-into-the-basket-7d026a.mp3;en;"The melon jumps into the basket!";fruits · konuşan hikaye
+en/knock-knock-on-the-melon-is-it-ready-861519.mp3;en;"Knock, knock on the melon! Is it ready?";fruits · konuşan hikaye
 en/hi-i-m-a-raspberry-17b906.mp3;en;"Hi! I'm a raspberry!";fruits · konuşan ben
 en/hello-raspberry-3966e4.mp3;en;"Hello, raspberry!";fruits · konuşan selam
-en/the-raspberry-jumps-into-the-basket-9043ff.mp3;en;"The raspberry jumps into the basket!";fruits · konuşan hikaye
+en/a-raspberry-on-my-finger-like-a-little-h-340cf6.mp3;en;"A raspberry on my finger, like a little hat!";fruits · konuşan hikaye
 en/hi-we-are-blueberries-de6bcc.mp3;en;"Hi! We are blueberries!";fruits · konuşan ben
 en/hello-blueberries-835307.mp3;en;"Hello, blueberries!";fruits · konuşan selam
-en/blueberries-jump-into-the-basket-744831.mp3;en;"Blueberries jump into the basket!";fruits · konuşan hikaye
+en/count-the-blueberries-one-two-three-cc0700.mp3;en;"Count the blueberries! One, two, three!";fruits · konuşan hikaye
 en/hi-i-m-a-coconut-f0db58.mp3;en;"Hi! I'm a coconut!";fruits · konuşan ben
 en/hello-coconut-b4804a.mp3;en;"Hello, coconut!";fruits · konuşan selam
-en/the-coconut-jumps-into-the-basket-1d3481.mp3;en;"The coconut jumps into the basket!";fruits · konuşan hikaye
+en/bonk-a-coconut-falls-from-the-palm-tree-acb2b0.mp3;en;"Bonk! A coconut falls from the palm tree!";fruits · konuşan hikaye
 en/hi-i-m-an-avocado-9c85ea.mp3;en;"Hi! I'm an avocado!";fruits · konuşan ben
 en/hello-avocado-db22b9.mp3;en;"Hello, avocado!";fruits · konuşan selam
-en/the-avocado-jumps-into-the-basket-99ff82.mp3;en;"The avocado jumps into the basket!";fruits · konuşan hikaye
+en/cut-the-avocado-it-has-a-big-seed-inside-25e6b2.mp3;en;"Cut the avocado! It has a big seed inside!";fruits · konuşan hikaye
 en/hi-i-m-a-pomegranate-7b24e3.mp3;en;"Hi! I'm a pomegranate!";fruits · konuşan ben
 en/hello-pomegranate-467fb5.mp3;en;"Hello, pomegranate!";fruits · konuşan selam
-en/the-pomegranate-jumps-into-the-basket-532e2d.mp3;en;"The pomegranate jumps into the basket!";fruits · konuşan hikaye
+en/open-the-pomegranate-lots-of-red-jewels-b72365.mp3;en;"Open the pomegranate! Lots of red jewels!";fruits · konuşan hikaye
 en/hi-i-m-a-lime-e633cc.mp3;en;"Hi! I'm a lime!";fruits · konuşan ben
 en/hello-lime-e6c65d.mp3;en;"Hello, lime!";fruits · konuşan selam
-en/the-lime-jumps-into-the-basket-eb110c.mp3;en;"The lime jumps into the basket!";fruits · konuşan hikaye
+en/a-little-green-lime-sour-sour-sour-b9bcc9.mp3;en;"A little green lime! Sour, sour, sour!";fruits · konuşan hikaye
 en/hi-i-m-a-tangerine-379a6e.mp3;en;"Hi! I'm a tangerine!";fruits · konuşan ben
 en/hello-tangerine-8231f3.mp3;en;"Hello, tangerine!";fruits · konuşan selam
-en/the-tangerine-jumps-into-the-basket-45e5e2.mp3;en;"The tangerine jumps into the basket!";fruits · konuşan hikaye
+en/a-tangerine-is-easy-to-peel-d128b3.mp3;en;"A tangerine is easy to peel!";fruits · konuşan hikaye
 en/hi-i-m-a-quince-f81ddf.mp3;en;"Hi! I'm a quince!";fruits · konuşan ben
 en/hello-quince-b66bdc.mp3;en;"Hello, quince!";fruits · konuşan selam
-en/the-quince-jumps-into-the-basket-45653f.mp3;en;"The quince jumps into the basket!";fruits · konuşan hikaye
+en/grandma-cooks-quince-with-sugar-yum-ced9f0.mp3;en;"Grandma cooks quince with sugar! Yum!";fruits · konuşan hikaye
 en/beep-beep-i-m-a-bus-109982.mp3;en;"Beep, beep! I'm a bus!";transport · konuşan ben
 en/hello-bus-aaccfb.mp3;en;"Hello, bus!";transport · konuşan selam
-en/off-we-go-bye-bye-bus-9ddc6b.mp3;en;"Off we go! Bye-bye, bus!";transport · konuşan hikaye
+en/the-bus-stops-and-everybody-gets-on-65c7ab.mp3;en;"The bus stops and everybody gets on!";transport · konuşan hikaye
 en/whoosh-whoosh-i-m-a-plane-4f1ddb.mp3;en;"Whoosh, whoosh! I'm a plane!";transport · konuşan ben
 en/hello-plane-fa2639.mp3;en;"Hello, plane!";transport · konuşan selam
-en/off-we-go-bye-bye-plane-353f2f.mp3;en;"Off we go! Bye-bye, plane!";transport · konuşan hikaye
+en/the-plane-flies-above-the-clouds-6fe089.mp3;en;"The plane flies above the clouds!";transport · konuşan hikaye
 en/toot-toot-i-m-a-ship-bc6de6.mp3;en;"Toot, toot! I'm a ship!";transport · konuşan ben
 en/hello-ship-ce74cb.mp3;en;"Hello, ship!";transport · konuşan selam
-en/off-we-go-bye-bye-ship-453769.mp3;en;"Off we go! Bye-bye, ship!";transport · konuşan hikaye
+en/the-big-ship-sails-across-the-sea-c4b506.mp3;en;"The big ship sails across the sea!";transport · konuşan hikaye
 en/ring-ring-i-m-a-bike-294ced.mp3;en;"Ring, ring! I'm a bike!";transport · konuşan ben
 en/hello-bike-d3e108.mp3;en;"Hello, bike!";transport · konuşan selam
-en/off-we-go-bye-bye-bike-9517cb.mp3;en;"Off we go! Bye-bye, bike!";transport · konuşan hikaye
+en/ring-ring-ride-your-bike-to-the-park-61758e.mp3;en;"Ring, ring! Ride your bike to the park!";transport · konuşan hikaye
 en/chop-chop-chop-i-m-a-helicopter-80b6ef.mp3;en;"Chop, chop, chop! I'm a helicopter!";transport · konuşan ben
 en/hello-helicopter-c4d5be.mp3;en;"Hello, helicopter!";transport · konuşan selam
-en/off-we-go-bye-bye-helicopter-46e315.mp3;en;"Off we go! Bye-bye, helicopter!";transport · konuşan hikaye
+en/the-helicopter-goes-straight-up-fae951.mp3;en;"The helicopter goes straight up!";transport · konuşan hikaye
 en/honk-honk-i-m-a-taxi-6c1f6f.mp3;en;"Honk, honk! I'm a taxi!";transport · konuşan ben
 en/hello-taxi-095c23.mp3;en;"Hello, taxi!";transport · konuşan selam
-en/off-we-go-bye-bye-taxi-c69ea8.mp3;en;"Off we go! Bye-bye, taxi!";transport · konuşan hikaye
+en/taxi-please-take-me-home-3764a2.mp3;en;"Taxi! Please take me home!";transport · konuşan hikaye
 en/putt-putt-i-m-a-tractor-da4efc.mp3;en;"Putt, putt! I'm a tractor!";transport · konuşan ben
 en/hello-tractor-4b25d4.mp3;en;"Hello, tractor!";transport · konuşan selam
-en/off-we-go-bye-bye-tractor-3a2d5c.mp3;en;"Off we go! Bye-bye, tractor!";transport · konuşan hikaye
+en/the-tractor-drives-through-the-muddy-fie-a95231.mp3;en;"The tractor drives through the muddy field!";transport · konuşan hikaye
 en/vroom-vroom-i-m-a-truck-f5914c.mp3;en;"Vroom, vroom! I'm a truck!";transport · konuşan ben
 en/hello-truck-5a38c5.mp3;en;"Hello, truck!";transport · konuşan selam
-en/off-we-go-bye-bye-truck-ce0817.mp3;en;"Off we go! Bye-bye, truck!";transport · konuşan hikaye
+en/the-big-truck-carries-lots-of-boxes-f6f346.mp3;en;"The big truck carries lots of boxes!";transport · konuşan hikaye
 en/three-two-one-blast-off-i-m-a-rocket-160135.mp3;en;"Three, two, one, blast off! I'm a rocket!";transport · konuşan ben
 en/hello-rocket-117b89.mp3;en;"Hello, rocket!";transport · konuşan selam
-en/off-we-go-bye-bye-rocket-3180c8.mp3;en;"Off we go! Bye-bye, rocket!";transport · konuşan hikaye
+en/three-two-one-the-rocket-blasts-off-to-t-614a3c.mp3;en;"Three, two, one! The rocket blasts off to the moon!";transport · konuşan hikaye
 en/brrm-brrm-i-m-a-motorbike-7d85f5.mp3;en;"Brrm, brrm! I'm a motorbike!";transport · konuşan ben
 en/hello-motorbike-a80f16.mp3;en;"Hello, motorbike!";transport · konuşan selam
-en/off-we-go-bye-bye-motorbike-f623ae.mp3;en;"Off we go! Bye-bye, motorbike!";transport · konuşan hikaye
+en/vroom-vroom-the-motorbike-is-very-fast-e1aa66.mp3;en;"Vroom, vroom! The motorbike is very fast!";transport · konuşan hikaye
 en/nee-naw-nee-naw-i-m-an-ambulance-cfd4d1.mp3;en;"Nee-naw, nee-naw! I'm an ambulance!";transport · konuşan ben
 en/hello-ambulance-3d9bad.mp3;en;"Hello, ambulance!";transport · konuşan selam
-en/off-we-go-bye-bye-ambulance-8e3a1d.mp3;en;"Off we go! Bye-bye, ambulance!";transport · konuşan hikaye
+en/nee-naw-the-ambulance-hurries-to-help-c7e0a9.mp3;en;"Nee-naw! The ambulance hurries to help!";transport · konuşan hikaye
 en/hi-i-m-a-fire-engine-909004.mp3;en;"Hi! I'm a fire engine!";transport · konuşan ben
 en/hello-fire-engine-7fd4ae.mp3;en;"Hello, fire engine!";transport · konuşan selam
-en/off-we-go-bye-bye-fire-engine-326ff5.mp3;en;"Off we go! Bye-bye, fire engine!";transport · konuşan hikaye
+en/the-fire-engine-sprays-water-on-the-fire-fad9b4.mp3;en;"The fire engine sprays water on the fire!";transport · konuşan hikaye
 en/wee-woo-wee-woo-i-m-a-police-car-f10d8e.mp3;en;"Wee-woo, wee-woo! I'm a police car!";transport · konuşan ben
 en/hello-police-car-be1d6f.mp3;en;"Hello, police car!";transport · konuşan selam
-en/off-we-go-bye-bye-police-car-8775ae.mp3;en;"Off we go! Bye-bye, police car!";transport · konuşan hikaye
+en/wee-woo-the-police-car-lights-flash-blue-88b1a7.mp3;en;"Wee-woo! The police car lights flash blue!";transport · konuşan hikaye
 en/hi-i-m-a-scooter-d86d4b.mp3;en;"Hi! I'm a scooter!";transport · konuşan ben
 en/hello-scooter-2be88e.mp3;en;"Hello, scooter!";transport · konuşan selam
-en/off-we-go-bye-bye-scooter-ff995e.mp3;en;"Off we go! Bye-bye, scooter!";transport · konuşan hikaye
+en/push-push-and-glide-ride-the-scooter-cc06e7.mp3;en;"Push, push and glide! Ride the scooter!";transport · konuşan hikaye
 en/blub-blub-i-m-a-submarine-4d1af7.mp3;en;"Blub, blub! I'm a submarine!";transport · konuşan ben
 en/hello-submarine-5e45e4.mp3;en;"Hello, submarine!";transport · konuşan selam
-en/off-we-go-bye-bye-submarine-accc44.mp3;en;"Off we go! Bye-bye, submarine!";transport · konuşan hikaye
+en/the-submarine-dives-deep-under-the-sea-85e01a.mp3;en;"The submarine dives deep under the sea!";transport · konuşan hikaye
 en/hi-i-m-a-hot-air-balloon-3a6907.mp3;en;"Hi! I'm a hot-air balloon!";transport · konuşan ben
 en/hello-hot-air-balloon-b72262.mp3;en;"Hello, hot-air balloon!";transport · konuşan selam
-en/off-we-go-bye-bye-hot-air-balloon-da824a.mp3;en;"Off we go! Bye-bye, hot-air balloon!";transport · konuşan hikaye
+en/whoosh-hot-air-lifts-the-balloon-up-94552a.mp3;en;"Whoosh! Hot air lifts the balloon up!";transport · konuşan hikaye
 en/clang-clang-i-m-a-tram-ef668d.mp3;en;"Clang, clang! I'm a tram!";transport · konuşan ben
 en/hello-tram-9f5c12.mp3;en;"Hello, tram!";transport · konuşan selam
-en/off-we-go-bye-bye-tram-f2f956.mp3;en;"Off we go! Bye-bye, tram!";transport · konuşan hikaye
+en/clang-clang-the-tram-rolls-along-the-tra-f72a13.mp3;en;"Clang, clang! The tram rolls along the track!";transport · konuşan hikaye
 en/hi-i-m-a-van-e021bb.mp3;en;"Hi! I'm a van!";transport · konuşan ben
 en/hello-van-f387cd.mp3;en;"Hello, van!";transport · konuşan selam
-en/off-we-go-bye-bye-van-e2ccd6.mp3;en;"Off we go! Bye-bye, van!";transport · konuşan hikaye
+en/the-van-brings-a-big-parcel-to-our-door-162e4e.mp3;en;"The van brings a big parcel to our door!";transport · konuşan hikaye
 en/hi-i-m-a-sailboat-e6a57a.mp3;en;"Hi! I'm a sailboat!";transport · konuşan ben
 en/hello-sailboat-d5af67.mp3;en;"Hello, sailboat!";transport · konuşan selam
-en/off-we-go-bye-bye-sailboat-42750f.mp3;en;"Off we go! Bye-bye, sailboat!";transport · konuşan hikaye
+en/the-wind-blows-the-sail-off-we-go-acf2d9.mp3;en;"The wind blows the sail! Off we go!";transport · konuşan hikaye
 en/splash-splash-i-m-a-canoe-27a59f.mp3;en;"Splash, splash! I'm a canoe!";transport · konuşan ben
 en/hello-canoe-6a6e95.mp3;en;"Hello, canoe!";transport · konuşan selam
-en/off-we-go-bye-bye-canoe-259b31.mp3;en;"Off we go! Bye-bye, canoe!";transport · konuşan hikaye
+en/paddle-paddle-the-canoe-goes-down-the-ri-e4ddd3.mp3;en;"Paddle, paddle! The canoe goes down the river!";transport · konuşan hikaye
 en/hi-i-m-a-jeep-700b60.mp3;en;"Hi! I'm a jeep!";transport · konuşan ben
 en/hello-jeep-2f903d.mp3;en;"Hello, jeep!";transport · konuşan selam
-en/off-we-go-bye-bye-jeep-c83191.mp3;en;"Off we go! Bye-bye, jeep!";transport · konuşan hikaye
+en/the-jeep-bumps-over-the-rocks-bumpy-bump-c422db.mp3;en;"The jeep bumps over the rocks! Bumpy, bumpy!";transport · konuşan hikaye
 en/dig-dig-dig-i-m-a-digger-43f891.mp3;en;"Dig, dig, dig! I'm a digger!";transport · konuşan ben
 en/hello-digger-c33e2a.mp3;en;"Hello, digger!";transport · konuşan selam
-en/off-we-go-bye-bye-digger-98f91d.mp3;en;"Off we go! Bye-bye, digger!";transport · konuşan hikaye
+en/the-digger-digs-a-big-hole-scoop-d51d57.mp3;en;"The digger digs a big hole! Scoop!";transport · konuşan hikaye
 en/hi-i-m-a-circle-e0ce4a.mp3;en;"Hi! I'm a circle!";shapes · konuşan ben
 en/hello-circle-04166c.mp3;en;"Hello, circle!";shapes · konuşan selam
-en/can-you-find-a-circle-b5b9fe.mp3;en;"Can you find a circle?";shapes · konuşan hikaye
+en/a-circle-is-round-like-a-ball-e4ad2c.mp3;en;"A circle is round like a ball!";shapes · konuşan hikaye
 en/hi-i-m-a-square-1ff168.mp3;en;"Hi! I'm a square!";shapes · konuşan ben
 en/hello-square-451878.mp3;en;"Hello, square!";shapes · konuşan selam
-en/can-you-find-a-square-41a1b8.mp3;en;"Can you find a square?";shapes · konuşan hikaye
+en/this-window-is-a-square-e08e7e.mp3;en;"This window is a square!";shapes · konuşan hikaye
 en/hi-i-m-a-triangle-b89565.mp3;en;"Hi! I'm a triangle!";shapes · konuşan ben
 en/hello-triangle-2e2cbc.mp3;en;"Hello, triangle!";shapes · konuşan selam
-en/can-you-find-a-triangle-2d908e.mp3;en;"Can you find a triangle?";shapes · konuşan hikaye
+en/a-tent-is-a-triangle-5deb68.mp3;en;"A tent is a triangle!";shapes · konuşan hikaye
 en/hi-i-m-a-star-467a80.mp3;en;"Hi! I'm a star!";shapes · konuşan ben
 en/hello-star-131cc1.mp3;en;"Hello, star!";shapes · konuşan selam
-en/can-you-find-a-star-900c59.mp3;en;"Can you find a star?";shapes · konuşan hikaye
+en/twinkle-twinkle-little-star-ab13e0.mp3;en;"Twinkle, twinkle, little star!";shapes · konuşan hikaye
 en/hi-i-m-a-rectangle-930f9b.mp3;en;"Hi! I'm a rectangle!";shapes · konuşan ben
 en/hello-rectangle-6f9ae4.mp3;en;"Hello, rectangle!";shapes · konuşan selam
-en/can-you-find-a-rectangle-19e396.mp3;en;"Can you find a rectangle?";shapes · konuşan hikaye
+en/a-door-is-a-rectangle-bf08a1.mp3;en;"A door is a rectangle!";shapes · konuşan hikaye
 en/hi-i-m-a-heart-8da8f5.mp3;en;"Hi! I'm a heart!";shapes · konuşan ben
 en/hello-heart-f93aef.mp3;en;"Hello, heart!";shapes · konuşan selam
-en/can-you-find-a-heart-857641.mp3;en;"Can you find a heart?";shapes · konuşan hikaye
+en/a-heart-says-i-love-you-5aa1f4.mp3;en;"A heart says I love you!";shapes · konuşan hikaye
 en/hi-i-m-an-oval-3f52f5.mp3;en;"Hi! I'm an oval!";shapes · konuşan ben
 en/hello-oval-268c35.mp3;en;"Hello, oval!";shapes · konuşan selam
-en/can-you-find-an-oval-f5b04f.mp3;en;"Can you find an oval?";shapes · konuşan hikaye
+en/an-egg-is-an-oval-6f6a2f.mp3;en;"An egg is an oval!";shapes · konuşan hikaye
 en/hi-i-m-a-diamond-0352c7.mp3;en;"Hi! I'm a diamond!";shapes · konuşan ben
 en/hello-diamond-91d763.mp3;en;"Hello, diamond!";shapes · konuşan selam
-en/can-you-find-a-diamond-91bdcb.mp3;en;"Can you find a diamond?";shapes · konuşan hikaye
+en/a-diamond-sparkles-and-shines-fa73ac.mp3;en;"A diamond sparkles and shines!";shapes · konuşan hikaye
 en/hi-i-m-a-hexagon-59b24b.mp3;en;"Hi! I'm a hexagon!";shapes · konuşan ben
 en/hello-hexagon-d42fe5.mp3;en;"Hello, hexagon!";shapes · konuşan selam
-en/can-you-find-a-hexagon-4c42c5.mp3;en;"Can you find a hexagon?";shapes · konuşan hikaye
+en/bees-make-hexagons-in-the-honeycomb-52df83.mp3;en;"Bees make hexagons in the honeycomb!";shapes · konuşan hikaye
 en/hi-i-m-a-pentagon-5255f6.mp3;en;"Hi! I'm a pentagon!";shapes · konuşan ben
 en/hello-pentagon-d04ba2.mp3;en;"Hello, pentagon!";shapes · konuşan selam
-en/can-you-find-a-pentagon-504cf4.mp3;en;"Can you find a pentagon?";shapes · konuşan hikaye
+en/a-football-has-pentagons-on-it-7194de.mp3;en;"A football has pentagons on it!";shapes · konuşan hikaye
 en/hi-i-m-a-semicircle-0d748f.mp3;en;"Hi! I'm a semicircle!";shapes · konuşan ben
 en/hello-semicircle-b92636.mp3;en;"Hello, semicircle!";shapes · konuşan selam
-en/can-you-find-a-semicircle-8ab75c.mp3;en;"Can you find a semicircle?";shapes · konuşan hikaye
+en/a-rainbow-is-a-semicircle-25388c.mp3;en;"A rainbow is a semicircle!";shapes · konuşan hikaye
 en/hi-i-m-a-crescent-f14290.mp3;en;"Hi! I'm a crescent!";shapes · konuşan ben
 en/hello-crescent-6c1201.mp3;en;"Hello, crescent!";shapes · konuşan selam
-en/can-you-find-a-crescent-e28414.mp3;en;"Can you find a crescent?";shapes · konuşan hikaye
+en/the-moon-is-a-crescent-tonight-eb142c.mp3;en;"The moon is a crescent tonight!";shapes · konuşan hikaye
 en/hi-i-m-a-cube-fe8330.mp3;en;"Hi! I'm a cube!";shapes · konuşan ben
 en/hello-cube-64c72e.mp3;en;"Hello, cube!";shapes · konuşan selam
-en/can-you-find-a-cube-c5cc1d.mp3;en;"Can you find a cube?";shapes · konuşan hikaye
+en/a-dice-is-a-cube-roll-it-af896b.mp3;en;"A dice is a cube! Roll it!";shapes · konuşan hikaye
 en/hi-i-m-a-cone-49f78e.mp3;en;"Hi! I'm a cone!";shapes · konuşan ben
 en/hello-cone-d26ac0.mp3;en;"Hello, cone!";shapes · konuşan selam
-en/can-you-find-a-cone-d448b3.mp3;en;"Can you find a cone?";shapes · konuşan hikaye
+en/an-ice-cream-cone-yum-3f1e3d.mp3;en;"An ice cream cone! Yum!";shapes · konuşan hikaye
 en/hi-i-m-a-cylinder-9d6839.mp3;en;"Hi! I'm a cylinder!";shapes · konuşan ben
 en/hello-cylinder-c49a59.mp3;en;"Hello, cylinder!";shapes · konuşan selam
-en/can-you-find-a-cylinder-923a37.mp3;en;"Can you find a cylinder?";shapes · konuşan hikaye
+en/a-can-is-a-cylinder-roll-it-along-bbf1c3.mp3;en;"A can is a cylinder! Roll it along!";shapes · konuşan hikaye
 en/hi-i-m-an-arrow-2bcb5a.mp3;en;"Hi! I'm an arrow!";shapes · konuşan ben
 en/hello-arrow-7ab496.mp3;en;"Hello, arrow!";shapes · konuşan selam
-en/can-you-find-an-arrow-5188f7.mp3;en;"Can you find an arrow?";shapes · konuşan hikaye
+en/follow-the-arrow-this-way-e50799.mp3;en;"Follow the arrow! This way!";shapes · konuşan hikaye
 en/hi-i-m-a-whale-ba0bab.mp3;en;"Hi! I'm a whale!";sea · konuşan ben
 en/hello-whale-c8634c.mp3;en;"Hello, whale!";sea · konuşan selam
-en/look-a-whale-under-the-sea-ec2ea7.mp3;en;"Look! A whale under the sea!";sea · konuşan hikaye
+en/the-whale-sprays-water-up-high-whoosh-08758a.mp3;en;"The whale sprays water up high! Whoosh!";sea · konuşan hikaye
 en/hi-i-m-a-dolphin-d72dd2.mp3;en;"Hi! I'm a dolphin!";sea · konuşan ben
 en/hello-dolphin-aea058.mp3;en;"Hello, dolphin!";sea · konuşan selam
-en/look-a-dolphin-under-the-sea-67cabc.mp3;en;"Look! A dolphin under the sea!";sea · konuşan hikaye
+en/the-dolphin-jumps-over-the-waves-c6ea92.mp3;en;"The dolphin jumps over the waves!";sea · konuşan hikaye
 en/hi-i-m-an-octopus-a13988.mp3;en;"Hi! I'm an octopus!";sea · konuşan ben
 en/hello-octopus-f106b7.mp3;en;"Hello, octopus!";sea · konuşan selam
-en/look-an-octopus-under-the-sea-fe248f.mp3;en;"Look! An octopus under the sea!";sea · konuşan hikaye
+en/the-octopus-hides-in-a-cloud-of-ink-7c9e92.mp3;en;"The octopus hides in a cloud of ink!";sea · konuşan hikaye
 en/hi-i-m-a-crab-14ac75.mp3;en;"Hi! I'm a crab!";sea · konuşan ben
 en/hello-crab-546152.mp3;en;"Hello, crab!";sea · konuşan selam
-en/look-a-crab-under-the-sea-48a6c5.mp3;en;"Look! A crab under the sea!";sea · konuşan hikaye
+en/the-crab-walks-sideways-on-the-sand-526543.mp3;en;"The crab walks sideways on the sand!";sea · konuşan hikaye
 en/hi-i-m-a-turtle-bc08f7.mp3;en;"Hi! I'm a turtle!";sea · konuşan ben
 en/hello-turtle-96ddf4.mp3;en;"Hello, turtle!";sea · konuşan selam
-en/look-a-turtle-under-the-sea-8c54e0.mp3;en;"Look! A turtle under the sea!";sea · konuşan hikaye
+en/the-turtle-hides-in-its-shell-peekaboo-d412be.mp3;en;"The turtle hides in its shell! Peekaboo!";sea · konuşan hikaye
 en/hi-i-m-a-starfish-2ee2b0.mp3;en;"Hi! I'm a starfish!";sea · konuşan ben
 en/hello-starfish-684f02.mp3;en;"Hello, starfish!";sea · konuşan selam
-en/look-a-starfish-under-the-sea-d1ccda.mp3;en;"Look! A starfish under the sea!";sea · konuşan hikaye
+en/the-starfish-spins-like-a-little-star-6546b4.mp3;en;"The starfish spins like a little star!";sea · konuşan hikaye
 en/hi-i-m-a-shark-37e6eb.mp3;en;"Hi! I'm a shark!";sea · konuşan ben
 en/hello-shark-e25e66.mp3;en;"Hello, shark!";sea · konuşan selam
-en/look-a-shark-under-the-sea-a9ee88.mp3;en;"Look! A shark under the sea!";sea · konuşan hikaye
+en/the-shark-swims-super-fast-zoom-a30438.mp3;en;"The shark swims super fast! Zoom!";sea · konuşan hikaye
 en/hi-i-m-a-jellyfish-59fc00.mp3;en;"Hi! I'm a jellyfish!";sea · konuşan ben
 en/hello-jellyfish-c21af0.mp3;en;"Hello, jellyfish!";sea · konuşan selam
-en/look-a-jellyfish-under-the-sea-f0a350.mp3;en;"Look! A jellyfish under the sea!";sea · konuşan hikaye
+en/the-jellyfish-glows-in-the-dark-sea-0ce487.mp3;en;"The jellyfish glows in the dark sea!";sea · konuşan hikaye
 en/hi-i-m-a-seahorse-850a5d.mp3;en;"Hi! I'm a seahorse!";sea · konuşan ben
 en/hello-seahorse-12d8a8.mp3;en;"Hello, seahorse!";sea · konuşan selam
-en/look-a-seahorse-under-the-sea-151215.mp3;en;"Look! A seahorse under the sea!";sea · konuşan hikaye
+en/the-seahorse-bobs-up-and-down-13789a.mp3;en;"The seahorse bobs up and down!";sea · konuşan hikaye
 en/hi-i-m-a-shell-79efcb.mp3;en;"Hi! I'm a shell!";sea · konuşan ben
 en/hello-shell-43a708.mp3;en;"Hello, shell!";sea · konuşan selam
-en/look-a-shell-under-the-sea-7e5eb0.mp3;en;"Look! A shell under the sea!";sea · konuşan hikaye
+en/look-inside-the-shell-a-shiny-pearl-a3130e.mp3;en;"Look inside the shell! A shiny pearl!";sea · konuşan hikaye
 en/hi-i-m-a-seal-8e0fa9.mp3;en;"Hi! I'm a seal!";sea · konuşan ben
 en/hello-seal-b28c4b.mp3;en;"Hello, seal!";sea · konuşan selam
-en/look-a-seal-under-the-sea-e5c7e9.mp3;en;"Look! A seal under the sea!";sea · konuşan hikaye
+en/the-seal-plays-with-a-ball-on-its-nose-35688c.mp3;en;"The seal plays with a ball on its nose!";sea · konuşan hikaye
 en/hi-i-m-a-squid-3313c9.mp3;en;"Hi! I'm a squid!";sea · konuşan ben
 en/hello-squid-c5f3aa.mp3;en;"Hello, squid!";sea · konuşan selam
-en/look-a-squid-under-the-sea-ffaeb1.mp3;en;"Look! A squid under the sea!";sea · konuşan hikaye
+en/the-squid-squirts-ink-and-zooms-away-abc8e9.mp3;en;"The squid squirts ink and zooms away!";sea · konuşan hikaye
 en/hi-i-m-a-lobster-868ff5.mp3;en;"Hi! I'm a lobster!";sea · konuşan ben
 en/hello-lobster-ddb6d3.mp3;en;"Hello, lobster!";sea · konuşan selam
-en/look-a-lobster-under-the-sea-1419dc.mp3;en;"Look! A lobster under the sea!";sea · konuşan hikaye
+en/the-lobster-snaps-its-big-claws-snap-sna-6ec07c.mp3;en;"The lobster snaps its big claws! Snap, snap!";sea · konuşan hikaye
 en/hi-i-m-a-coral-dd7be8.mp3;en;"Hi! I'm a coral!";sea · konuşan ben
 en/hello-coral-81c0e8.mp3;en;"Hello, coral!";sea · konuşan selam
-en/look-a-coral-under-the-sea-f669b0.mp3;en;"Look! A coral under the sea!";sea · konuşan hikaye
+en/little-fish-swim-around-the-coral-377b1a.mp3;en;"Little fish swim around the coral!";sea · konuşan hikaye
 en/hi-i-m-a-seaweed-fde093.mp3;en;"Hi! I'm a seaweed!";sea · konuşan ben
 en/hello-seaweed-cc3a23.mp3;en;"Hello, seaweed!";sea · konuşan selam
-en/look-a-seaweed-under-the-sea-faed81.mp3;en;"Look! A seaweed under the sea!";sea · konuşan hikaye
+en/the-seaweed-waves-in-the-water-f55222.mp3;en;"The seaweed waves in the water!";sea · konuşan hikaye
 en/hi-i-m-a-stingray-f8e265.mp3;en;"Hi! I'm a stingray!";sea · konuşan ben
 en/hello-stingray-11f467.mp3;en;"Hello, stingray!";sea · konuşan selam
-en/look-a-stingray-under-the-sea-d0828d.mp3;en;"Look! A stingray under the sea!";sea · konuşan hikaye
+en/the-stingray-glides-over-the-sand-like-a-26d26d.mp3;en;"The stingray glides over the sand like a kite!";sea · konuşan hikaye
 en/hi-i-m-a-swordfish-e9c613.mp3;en;"Hi! I'm a swordfish!";sea · konuşan ben
 en/hello-swordfish-b0336c.mp3;en;"Hello, swordfish!";sea · konuşan selam
-en/look-a-swordfish-under-the-sea-44c3c5.mp3;en;"Look! A swordfish under the sea!";sea · konuşan hikaye
+en/look-the-swordfish-has-a-long-pointy-nos-2c7dd0.mp3;en;"Look! The swordfish has a long, pointy nose!";sea · konuşan hikaye
 en/hi-i-m-a-clownfish-fb8eb4.mp3;en;"Hi! I'm a clownfish!";sea · konuşan ben
 en/hello-clownfish-53416a.mp3;en;"Hello, clownfish!";sea · konuşan selam
-en/look-a-clownfish-under-the-sea-f004b6.mp3;en;"Look! A clownfish under the sea!";sea · konuşan hikaye
+en/the-clownfish-plays-hide-and-seek-in-the-35c442.mp3;en;"The clownfish plays hide-and-seek in the seaweed!";sea · konuşan hikaye
 en/hi-i-m-a-pufferfish-cb0b1a.mp3;en;"Hi! I'm a pufferfish!";sea · konuşan ben
 en/hello-pufferfish-fb07a9.mp3;en;"Hello, pufferfish!";sea · konuşan selam
-en/look-a-pufferfish-under-the-sea-5ef8fb.mp3;en;"Look! A pufferfish under the sea!";sea · konuşan hikaye
+en/the-pufferfish-puffs-up-like-a-ball-c02183.mp3;en;"The pufferfish puffs up like a ball!";sea · konuşan hikaye
 en/hi-i-m-an-eel-69d6b7.mp3;en;"Hi! I'm an eel!";sea · konuşan ben
 en/hello-eel-2a6b4b.mp3;en;"Hello, eel!";sea · konuşan selam
-en/look-an-eel-under-the-sea-a1afbd.mp3;en;"Look! An eel under the sea!";sea · konuşan hikaye
+en/the-eel-wiggles-and-wiggles-zzzap-7b6493.mp3;en;"The eel wiggles and wiggles! Zzzap!";sea · konuşan hikaye
 en/hi-i-m-a-walrus-4313fe.mp3;en;"Hi! I'm a walrus!";sea · konuşan ben
 en/hello-walrus-ea88fe.mp3;en;"Hello, walrus!";sea · konuşan selam
-en/look-a-walrus-under-the-sea-e4edf0.mp3;en;"Look! A walrus under the sea!";sea · konuşan hikaye
+en/the-walrus-naps-on-the-ice-snore-28ea9e.mp3;en;"The walrus naps on the ice! Snore!";sea · konuşan hikaye
 en/hi-i-m-an-anchor-6a0af6.mp3;en;"Hi! I'm an anchor!";sea · konuşan ben
 en/hello-anchor-63e3ba.mp3;en;"Hello, anchor!";sea · konuşan selam
-en/look-an-anchor-under-the-sea-033708.mp3;en;"Look! An anchor under the sea!";sea · konuşan hikaye
+en/splash-the-anchor-sinks-down-down-down-d07934.mp3;en;"Splash! The anchor sinks down, down, down!";sea · konuşan hikaye
 en/what-s-your-job-c34c6b.mp3;en;"What's your job?";jobs · konuşan soru
-en/thank-you-doctor-6c1d80.mp3;en;"Thank you, doctor!";jobs · konuşan hikaye
-en/thank-you-teacher-79fec8.mp3;en;"Thank you, teacher!";jobs · konuşan hikaye
-en/thank-you-firefighter-44841d.mp3;en;"Thank you, firefighter!";jobs · konuşan hikaye
-en/thank-you-police-officer-eb50e0.mp3;en;"Thank you, police officer!";jobs · konuşan hikaye
-en/thank-you-farmer-35de61.mp3;en;"Thank you, farmer!";jobs · konuşan hikaye
-en/thank-you-pilot-45bb38.mp3;en;"Thank you, pilot!";jobs · konuşan hikaye
-en/thank-you-builder-780ab1.mp3;en;"Thank you, builder!";jobs · konuşan hikaye
-en/thank-you-nurse-d90de4.mp3;en;"Thank you, nurse!";jobs · konuşan hikaye
-en/thank-you-vet-65994f.mp3;en;"Thank you, vet!";jobs · konuşan hikaye
-en/thank-you-dentist-c3fc4e.mp3;en;"Thank you, dentist!";jobs · konuşan hikaye
-en/thank-you-artist-6cb2f1.mp3;en;"Thank you, artist!";jobs · konuşan hikaye
-en/thank-you-singer-9b03a2.mp3;en;"Thank you, singer!";jobs · konuşan hikaye
-en/thank-you-postman-0d1525.mp3;en;"Thank you, postman!";jobs · konuşan hikaye
-en/thank-you-mechanic-4fbba4.mp3;en;"Thank you, mechanic!";jobs · konuşan hikaye
-en/thank-you-scientist-d815e2.mp3;en;"Thank you, scientist!";jobs · konuşan hikaye
-en/thank-you-astronaut-941a53.mp3;en;"Thank you, astronaut!";jobs · konuşan hikaye
-en/thank-you-waiter-f7674f.mp3;en;"Thank you, waiter!";jobs · konuşan hikaye
-en/thank-you-baker-0a89b7.mp3;en;"Thank you, baker!";jobs · konuşan hikaye
-en/thank-you-hairdresser-5997cb.mp3;en;"Thank you, hairdresser!";jobs · konuşan hikaye
-en/thank-you-bus-driver-19c459.mp3;en;"Thank you, bus driver!";jobs · konuşan hikaye
-en/thank-you-gardener-a45e07.mp3;en;"Thank you, gardener!";jobs · konuşan hikaye
+en/the-doctor-listens-to-your-heart-thump-t-ba7e0a.mp3;en;"The doctor listens to your heart! Thump, thump!";jobs · konuşan hikaye
+en/the-teacher-reads-us-a-story-4c2444.mp3;en;"The teacher reads us a story!";jobs · konuşan hikaye
+en/the-chef-cooks-yummy-soup-in-the-kitchen-2e733b.mp3;en;"The chef cooks yummy soup in the kitchen!";jobs · konuşan hikaye
+en/the-firefighter-puts-out-the-fire-splash-5a2734.mp3;en;"The firefighter puts out the fire! Splash!";jobs · konuşan hikaye
+en/the-police-officer-helps-us-cross-the-ro-bc4b07.mp3;en;"The police officer helps us cross the road!";jobs · konuşan hikaye
+en/the-farmer-grows-carrots-in-the-field-2fcfdf.mp3;en;"The farmer grows carrots in the field!";jobs · konuşan hikaye
+en/the-pilot-flies-the-plane-up-high-07fa10.mp3;en;"The pilot flies the plane up high!";jobs · konuşan hikaye
+en/bang-bang-the-builder-builds-a-house-ea7c1d.mp3;en;"Bang, bang! The builder builds a house!";jobs · konuşan hikaye
+en/the-nurse-puts-a-bandage-on-my-arm-e9ce63.mp3;en;"The nurse puts a bandage on my arm!";jobs · konuşan hikaye
+en/the-vet-makes-the-puppy-feel-better-3449ab.mp3;en;"The vet makes the puppy feel better!";jobs · konuşan hikaye
+en/the-dentist-says-open-wide-shiny-teeth-4b1d59.mp3;en;"The dentist says open wide! Shiny teeth!";jobs · konuşan hikaye
+en/the-artist-paints-a-colourful-picture-957e25.mp3;en;"The artist paints a colourful picture!";jobs · konuşan hikaye
+en/the-singer-sings-a-happy-song-la-la-la-f581b5.mp3;en;"The singer sings a happy song! La, la, la!";jobs · konuşan hikaye
+en/the-postman-brings-a-letter-for-you-aa07ee.mp3;en;"The postman brings a letter for you!";jobs · konuşan hikaye
+en/the-mechanic-fixes-the-broken-car-219d15.mp3;en;"The mechanic fixes the broken car!";jobs · konuşan hikaye
+en/the-scientist-mixes-colours-fizz-bubble--189dd2.mp3;en;"The scientist mixes colours! Fizz, bubble, pop!";jobs · konuşan hikaye
+en/the-astronaut-flies-all-the-way-to-the-m-698af7.mp3;en;"The astronaut flies all the way to the moon!";jobs · konuşan hikaye
+en/the-waiter-brings-us-cake-thank-you-befb3b.mp3;en;"The waiter brings us cake! Thank you!";jobs · konuşan hikaye
+en/the-baker-bakes-fresh-bread-every-mornin-bd1a7d.mp3;en;"The baker bakes fresh bread every morning!";jobs · konuşan hikaye
+en/snip-snip-the-hairdresser-cuts-my-hair-30d3b4.mp3;en;"Snip, snip! The hairdresser cuts my hair!";jobs · konuşan hikaye
+en/the-bus-driver-stops-at-every-stop-96978c.mp3;en;"The bus driver stops at every stop!";jobs · konuşan hikaye
+en/the-gardener-plants-seeds-and-flowers-gr-81fee8.mp3;en;"The gardener plants seeds and flowers grow!";jobs · konuşan hikaye
 en/what-can-you-do-a7d5af.mp3;en;"What can you do?";actions · konuşan soru
-en/let-s-run-together-878205.mp3;en;"Let's run together!";actions · konuşan hikaye
-en/let-s-jump-together-0eca42.mp3;en;"Let's jump together!";actions · konuşan hikaye
-en/let-s-swim-together-0dcce2.mp3;en;"Let's swim together!";actions · konuşan hikaye
-en/let-s-sing-together-5c8e78.mp3;en;"Let's sing together!";actions · konuşan hikaye
-en/let-s-dance-together-608fee.mp3;en;"Let's dance together!";actions · konuşan hikaye
-en/shh-let-s-sleep-869acc.mp3;en;"Shh! Let's sleep!";actions · konuşan hikaye
-en/let-s-eat-together-88c72f.mp3;en;"Let's eat together!";actions · konuşan hikaye
-en/let-s-read-together-bfaad9.mp3;en;"Let's read together!";actions · konuşan hikaye
-en/let-s-draw-together-3a0d05.mp3;en;"Let's draw together!";actions · konuşan hikaye
-en/let-s-climb-together-289aef.mp3;en;"Let's climb together!";actions · konuşan hikaye
-en/let-s-walk-together-6a430e.mp3;en;"Let's walk together!";actions · konuşan hikaye
-en/let-s-sit-together-1df8af.mp3;en;"Let's sit together!";actions · konuşan hikaye
-en/let-s-stand-together-dad54d.mp3;en;"Let's stand together!";actions · konuşan hikaye
-en/let-s-clap-together-6a8cf8.mp3;en;"Let's clap together!";actions · konuşan hikaye
-en/let-s-kick-together-1fa936.mp3;en;"Let's kick together!";actions · konuşan hikaye
-en/let-s-throw-together-2bb734.mp3;en;"Let's throw together!";actions · konuşan hikaye
-en/let-s-catch-together-d02c25.mp3;en;"Let's catch together!";actions · konuşan hikaye
-en/let-s-fly-together-87f28b.mp3;en;"Let's fly together!";actions · konuşan hikaye
-en/oh-no-don-t-cry-51e025.mp3;en;"Oh no! Don't cry!";actions · konuşan hikaye
-en/let-s-laugh-together-ce8d49.mp3;en;"Let's laugh together!";actions · konuşan hikaye
-en/let-s-write-together-94eb77.mp3;en;"Let's write together!";actions · konuşan hikaye
-en/let-s-cook-together-7ab73a.mp3;en;"Let's cook together!";actions · konuşan hikaye
-en/let-s-wash-together-b0d56e.mp3;en;"Let's wash together!";actions · konuşan hikaye
-en/let-s-ride-a-bike-together-f27b1d.mp3;en;"Let's ride a bike together!";actions · konuşan hikaye
+en/run-run-as-fast-as-you-can-57ff5d.mp3;en;"Run, run, as fast as you can!";actions · konuşan hikaye
+en/jump-up-high-one-two-three-jump-e409d6.mp3;en;"Jump up high! One, two, three, jump!";actions · konuşan hikaye
+en/swim-like-a-fish-splash-splash-c42b46.mp3;en;"Swim like a fish! Splash, splash!";actions · konuşan hikaye
+en/la-la-la-let-s-sing-a-song-d3b0b9.mp3;en;"La, la, la! Let's sing a song!";actions · konuşan hikaye
+en/dance-to-the-music-and-spin-around-8a674b.mp3;en;"Dance to the music and spin around!";actions · konuşan hikaye
+en/shh-close-your-eyes-and-sleep-837cdc.mp3;en;"Shh! Close your eyes and sleep!";actions · konuşan hikaye
+en/eat-your-apple-crunch-c3aa40.mp3;en;"Eat your apple! Crunch!";actions · konuşan hikaye
+en/read-a-story-with-me-286872.mp3;en;"Read a story with me!";actions · konuşan hikaye
+en/draw-a-big-house-with-a-pencil-a06d7d.mp3;en;"Draw a big house with a pencil!";actions · konuşan hikaye
+en/climb-up-the-tree-higher-and-higher-2398ac.mp3;en;"Climb up the tree, higher and higher!";actions · konuşan hikaye
+en/walk-to-the-park-step-step-step-6b6407.mp3;en;"Walk to the park, step, step, step!";actions · konuşan hikaye
+en/sit-down-on-the-floor-please-c1f2d5.mp3;en;"Sit down on the floor, please!";actions · konuşan hikaye
+en/stand-up-tall-like-a-tree-64847f.mp3;en;"Stand up tall like a tree!";actions · konuşan hikaye
+en/clap-your-hands-clap-clap-clap-81340e.mp3;en;"Clap your hands! Clap, clap, clap!";actions · konuşan hikaye
+en/kick-the-ball-into-the-goal-03e0f6.mp3;en;"Kick the ball into the goal!";actions · konuşan hikaye
+en/throw-the-ball-up-high-f67790.mp3;en;"Throw the ball up high!";actions · konuşan hikaye
+en/catch-the-ball-got-it-1e806c.mp3;en;"Catch the ball! Got it!";actions · konuşan hikaye
+en/flap-your-arms-and-fly-like-a-bird-49e502.mp3;en;"Flap your arms and fly like a bird!";actions · konuşan hikaye
+en/don-t-cry-here-s-a-tissue-25a4af.mp3;en;"Don't cry! Here's a tissue!";actions · konuşan hikaye
+en/ha-ha-ha-that-s-so-funny-27becd.mp3;en;"Ha, ha, ha! That's so funny!";actions · konuşan hikaye
+en/write-your-name-a-b-c-12cee0.mp3;en;"Write your name, A, B, C!";actions · konuşan hikaye
+en/stir-the-soup-and-cook-dinner-887b22.mp3;en;"Stir the soup and cook dinner!";actions · konuşan hikaye
+en/wash-your-face-with-soap-and-water-da3d2b.mp3;en;"Wash your face with soap and water!";actions · konuşan hikaye
+en/ride-your-bike-to-the-park-dc9bae.mp3;en;"Ride your bike to the park!";actions · konuşan hikaye
 en/hi-i-m-spring-4b81ff.mp3;en;"Hi! I'm spring!";seasons · konuşan ben
 en/hello-spring-aec3b5.mp3;en;"Hello, spring!";seasons · konuşan selam
 en/i-love-spring-9ad360.mp3;en;"I love spring!";seasons · konuşan hikaye
@@ -7839,6 +7963,14 @@ en/wash-my-face-c5ea39.mp3;en;"Wash my face!";köşeler
 en/wash-my-tummy-b95a0b.mp3;en;"Wash my tummy!";köşeler
 en/wash-my-feet-f559b4.mp3;en;"Wash my feet!";köşeler
 en/that-was-fun-3ce910.mp3;en;"That was fun!";köşeler
+en/let-s-play-with-the-ball-dda379.mp3;en;"Let's play with the ball!";köşeler
+en/let-s-play-with-the-kite-0567fa.mp3;en;"Let's play with the kite!";köşeler
+en/let-s-play-with-the-teddy-6f7fe6.mp3;en;"Let's play with the teddy!";köşeler
+en/let-s-play-with-the-balloon-79c606.mp3;en;"Let's play with the balloon!";köşeler
+en/let-s-play-with-the-robot-bcced6.mp3;en;"Let's play with the robot!";köşeler
+en/let-s-play-with-the-car-0b0515.mp3;en;"Let's play with the car!";köşeler
+en/let-s-play-with-the-drum-831c66.mp3;en;"Let's play with the drum!";köşeler
+en/let-s-play-with-the-train-b286bd.mp3;en;"Let's play with the train!";köşeler
 en/good-night-ca97ff.mp3;en;"Good night!";köşeler
 en/i-want-my-bed-5ae287.mp3;en;"I want my bed!";köşeler
 en/i-wake-up-cb9df3.mp3;en;"I wake up.";köşeler

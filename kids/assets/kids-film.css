@@ -4,7 +4,7 @@
    Zamanlama kids-film.js'in verdiği --t, --k1..--k4 (0..1) ve data-perde ile yapılır.
    ========================================================================== */
 .kf{position:relative;height:700vh;margin-top:clamp(48px,7vw,88px)}
-.kf-yap{position:sticky;top:69px;height:calc(100vh - 69px);height:calc(100dvh - 69px);overflow:hidden;--t:0;--k1:0;--k2:0;--k3:0;--k4:0}
+.kf-yap{position:sticky;top:69px;height:calc(100vh - 69px);height:calc(100svh - 69px);overflow:hidden;--t:0;--k1:0;--k2:0;--k3:0;--k4:0}
 .kf-sahne{position:absolute;inset:0}
 .kf-sahne i{display:block}
 
@@ -37,7 +37,7 @@
 
 /* ---------- cihaz maketi: tablet ↔ telefon ---------- */
 .kf-cihaz{position:absolute;left:64%;top:50%;width:min(560px,44vw);aspect-ratio:4/3;translate:calc(-50% + var(--mx) * 12px) calc(-50% + var(--my) * 10px);transition:width .8s cubic-bezier(.65,0,.35,1),aspect-ratio .8s cubic-bezier(.65,0,.35,1);z-index:2}
-.kf-yap[data-perde="1"] .kf-cihaz,.kf-yap[data-perde="2"] .kf-cihaz,.kf-yap[data-perde="3"] .kf-cihaz,.kf-yap[data-perde="4"] .kf-cihaz{width:min(290px,22vw,calc((100dvh - 180px) * .48));aspect-ratio:9/18.5}
+.kf-yap[data-perde="1"] .kf-cihaz,.kf-yap[data-perde="2"] .kf-cihaz,.kf-yap[data-perde="3"] .kf-cihaz,.kf-yap[data-perde="4"] .kf-cihaz{width:min(290px,22vw,calc((100svh - 180px) * .48));aspect-ratio:9/18.5}
 .kf-yap[data-perde="2"] .kf-cihaz{transform:scale(calc(1 + var(--k1) * 3.2));opacity:calc(1 - var(--k2))}
 .kf-cerceve{width:100%;height:100%;padding:3.2%;border-radius:clamp(18px,2.6vw,34px);background:var(--m);box-shadow:0 30px 60px -10px rgba(35,48,77,.45),0 10px 0 #101829}
 .kf-yap[data-perde="1"] .kf-cerceve,.kf-yap[data-perde="2"] .kf-cerceve,.kf-yap[data-perde="3"] .kf-cerceve,.kf-yap[data-perde="4"] .kf-cerceve{padding:5%;border-radius:clamp(24px,3.4vw,40px)}
@@ -163,9 +163,9 @@
 /* ---------- telefon ve dar ekran ---------- */
 @media (max-width:760px){
   .kf{height:640vh}
-  .kf-yap{top:66px;height:calc(100dvh - 66px)}
-  .kf-cihaz{left:50%;top:33%;width:min(78vw,calc((100dvh - 66px) * .5))}
-  .kf-yap[data-perde="1"] .kf-cihaz,.kf-yap[data-perde="2"] .kf-cihaz,.kf-yap[data-perde="3"] .kf-cihaz,.kf-yap[data-perde="4"] .kf-cihaz{width:min(46vw,calc((100dvh - 66px) * .27))}
+  .kf-yap{top:66px;height:calc(100svh - 66px)}
+  .kf-cihaz{left:50%;top:33%;width:min(78vw,calc((100svh - 66px) * .5))}
+  .kf-yap[data-perde="1"] .kf-cihaz,.kf-yap[data-perde="2"] .kf-cihaz,.kf-yap[data-perde="3"] .kf-cihaz,.kf-yap[data-perde="4"] .kf-cihaz{width:min(46vw,calc((100svh - 66px) * .27))}
   .kf-roket{left:50%;top:33%;width:28vw}
   .kf-yazi{left:12px;right:12px;top:auto;bottom:18px;width:auto;translate:none}
   .kf-ust{display:none}
@@ -281,7 +281,7 @@
 
 /* ---------- konular: yana akan şerit ---------- */
 .kkn{position:relative;margin-top:clamp(48px,7vw,88px)}
-.kkn-yap{position:sticky;top:69px;height:calc(100vh - 69px);height:calc(100dvh - 69px);display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;align-content:center;overflow:hidden}
+.kkn-yap{position:sticky;top:69px;height:calc(100vh - 69px);height:calc(100svh - 69px);display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;align-content:center;overflow:hidden}
 .kkn-bas{padding-top:clamp(12px,3vh,32px)!important}
 .kkn-bas h2{font-size:clamp(32px,4.4vw,52px);font-weight:800}
 .kkn-pencere{position:relative;display:flex;align-items:center;min-height:0;min-width:0;overflow:hidden}
@@ -301,7 +301,7 @@
 .kkn-duragan .kkn-yap{position:static;height:auto}
 .kkn-duragan .kkn-pencere{overflow-x:auto}
 .kkn-duragan .kkn-cubuk{display:none}
-@media (max-width:760px){.kkn-yap{top:66px;height:calc(100dvh - 66px)}.kkn-serit{grid-auto-columns:76vw}.kkn-kart>b{font-size:19px}}
+@media (max-width:760px){.kkn-yap{top:66px;height:calc(100svh - 66px)}.kkn-serit{grid-auto-columns:76vw}.kkn-kart>b{font-size:19px}}
 
 /* ---------- Kreşinize özel teklif ---------- */
 .kt2-kart{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);border:3px solid var(--m);border-radius:36px;overflow:hidden;background:var(--krem);box-shadow:0 12px 0 #101829,0 40px 80px -20px rgba(0,0,0,.5)}

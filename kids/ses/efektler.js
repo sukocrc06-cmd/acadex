@@ -21,5 +21,29 @@ module.exports = [
   e('seal', 'A seal barking twice, arf arf'), e('walrus', 'A walrus grunting once, deep and funny', 2),
   /* evcil hayvanım paneli */
   e('rabbit', 'A bunny making tiny sniffing and soft squeak sounds', 1), e('purr', 'A cat purring contentedly, close up', 2), e('munch', 'Comic crunchy eating sound, nom nom nom', 1.5),
-  e('splash', 'Water splashing and bubbles popping in a bath, playful', 2), e('snore', 'A tiny cute snore with a soft whistle', 2)
+  e('splash', 'Water splashing and bubbles popping in a bath, playful', 2), e('snore', 'A tiny cute snore with a soft whistle', 2),
+  /* 26.11.2026 deniz canlıları (İzle durağında kendini tanıtmadan önce) */
+  e('octopus', 'An octopus making bubbly blub blub sounds underwater'), e('crab', 'A little crab clicking its claws, click clack click'), e('turtle', 'A sea turtle swimming slowly, gentle underwater bubbles', 2),
+  e('starfish', 'A magical twinkle chime, like a sparkling star'), e('shark', 'A deep underwater swoosh as a fish swims past fast, not scary'), e('jellyfish', 'A wobbly jelly boing sound, soft and funny'),
+  e('seahorse', 'Tiny squeaky bubbles popping, very small and cute', 1), e('shell', 'Soft ocean waves heard inside a seashell', 2), e('squid', 'A quick squirt of water and a whoosh', 1),
+  e('lobster', 'Two loud claw snaps, snap snap', 1), e('coral', 'Little bubbles rising through water, gentle', 1.5), e('seaweed', 'Gentle underwater current, soft swish', 2),
+  e('stingray', 'A smooth gliding swoosh through water', 1.5), e('swordfish', 'A fast whoosh through water like a sword', 1), e('clownfish', 'Playful bubble pops and a tiny giggle', 1.5),
+  e('pufferfish', 'A balloon inflating quickly then a tiny pop', 1.5), e('eel', 'A comic electric zap with a buzz', 1), e('anchor', 'A metal chain rattling and a heavy splash into water', 2),
+  /* taşıtlar: hikâyede (otobüs durur, itfaiye su sıkar…) */
+  e('bus', 'A friendly bus horn, beep beep, and doors opening hiss', 2), e('plane', 'An airplane flying overhead, smooth jet whoosh', 2), e('ship', 'A big ship horn, long and low, toot', 2),
+  e('bike', 'A bicycle bell ringing twice, ring ring', 1), e('helicopter', 'A helicopter rotor chop chop chop taking off', 2), e('taxi', 'A car horn honking twice, honk honk', 1),
+  e('tractor', 'A tractor engine putt putt putt', 2), e('truck', 'A big truck engine rumbling and a short horn', 2), e('rocket', 'A rocket countdown rumble and blast off whoosh', 3),
+  e('motorbike', 'A motorbike revving vroom vroom', 2), e('ambulance', 'An ambulance siren nee naw nee naw, short', 2), e('fireengine', 'A fire engine siren and water hose spraying', 2),
+  e('policecar', 'A police car siren wee woo wee woo, short', 2), e('scooter', 'A kick scooter rolling on the pavement', 1.5), e('submarine', 'A submarine sonar ping ping underwater', 2),
+  e('hotairballoon', 'A hot air balloon burner whooshing flame', 1.5), e('tram', 'A tram bell clang clang and wheels on rails', 2), e('van', 'A delivery van horn beep and engine', 1.5),
+  e('sailboat', 'Wind filling a sail and gentle waves', 2), e('canoe', 'A paddle splashing in the water twice', 1.5), e('jeep', 'A jeep bumping over rocks, engine and bumps', 2),
+  e('digger', 'A digger engine and a scoop of earth', 2),
+  /* oyuncaklar ve okul zili */
+  e('ball', 'A rubber ball bouncing three times, boing', 1.5), e('car', 'A toy car vroom with tiny wheels', 1.5), e('train', 'A toy train choo choo whistle and chugging', 2),
+  e('robot', 'A toy robot beep boop with a whirring motor', 1.5), e('drum', 'A children\'s drum boom boom boom', 1.5), e('balloon', 'A balloon being let go, fluttering away', 1.5),
+  e('yoyo', 'A yo-yo whirring down and up', 1), e('dinosaur', 'A cute baby dinosaur roar, silly not scary', 1.5), e('bubbles', 'Soap bubbles popping, pop pop pop', 1.5),
+  e('dice', 'Dice rolling on a wooden table', 1), e('marbles', 'Glass marbles clinking together', 1), e('piano', 'A child playing do re mi on a piano', 2),
+  e('whistle', 'A sports whistle, one short tweet', 1), e('spintop', 'A spinning top whirring', 1.5), e('rockinghorse', 'A wooden rocking horse creaking back and forth', 1.5),
+  e('xylophone', 'A xylophone playing four rising notes', 1.5), e('guitar', 'An acoustic guitar strum, happy chord', 1.5), e('trumpet', 'A toy trumpet tooting twice', 1.5),
+  e('bell', 'A school bell ringing ding dong', 1.5)
 ];

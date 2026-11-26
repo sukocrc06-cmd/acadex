@@ -79,4 +79,23 @@ test('önek kyo-: yazdırma modülünün ky- sınıflarıyla çakışmaz', () =>
   assert.doesNotMatch(css, /(^|[^a-z-])\.ky-/m); assert.doesNotMatch(html, /class="[^"]*\bky-/);
   assert.match(js, /classList\.add\('kyo'\)/); assert.match(scr, /classList\.contains\('kyo'\)/);
 });
+test('27.11.2026 telefon/tablet: oturtma yalnız farede, tablette sahneler kendiliğinden; adres çubuğu zıplatmaz', () => {
+  assert.match(js, /mm\.add\('\(min-width: 761px\) and \(pointer: fine\) and \(prefers-reduced-motion: no-preference\)', function \(\) \{ return sahneKur\(false\); \}\);/, 'pin + snap yalnız fare/izleme dörtgeni');
+  assert.match(js, /\(min-width: 761px\) and \(pointer: coarse\)[^']*', function \(\) \{ return sahneKur\(true\); \}\);/, 'dokunmatik tablet: oto');
+  assert.match(js, /if \(oto\) return \{ trigger: sec, start: 'top 72%', toggleActions: 'play none none none' \};/, 'tablette pin/snap yok');
+  assert.doesNotMatch(js, /mm\.add\('\(min-width: 761px\) and \(prefers-reduced-motion: no-preference\)'/, 'eski: her geniş ekranda pin');
+  assert.match(js, /ST\.config\(\{ ignoreMobileResize: true \}\)/);
+  assert.match(js, /if \(Y\.length && W\.innerWidth === ew && Math\.abs\(W\.innerHeight - eh\) < 220\)/, 'yıldızlar adres çubuğunda yeniden dağılmaz');
+  assert.match(js, /if \(oto\) bl\.forEach\(function \(b, i\) \{ tl3\.call\(function \(\) \{ balonPatlat\(b\); \}/, 'tablette balonlar kendiliğinden patlar');
+  /* eski giriş (.kl-gir opacity 0) ile GSAP çakışması: adımlar görünmez kalıyordu */
+  assert.match(js, /el\.classList\.remove\('kl-gir', 'kl-geldi'\);\s*gs\.fromTo\(el, \{ y: 50, scale: 0\.9, opacity: 0 \}, \{ y: 0, scale: 1, opacity: 1,/);
+  assert.doesNotMatch(js, /gs\.from\(el, \{ y: 50, scale: 0\.9, opacity: 0/);
+  /* film: ilerleme innerHeight değil sticky çerçeveyle; çerçeveler svh */
+  const film = read('kids/assets/kids-film.js'), fcss = read('kids/assets/kids-film.css');
+  assert.match(film, /function ilerleme\(\) \{ var r = bolum\.getBoundingClientRect\(\), yol = r\.height - cerceve\(yap\);/);
+  assert.doesNotMatch(film, /yol = r\.height - W\.innerHeight/);
+  assert.doesNotMatch(fcss, /100dvh/, 'sticky çerçeve kaydırırken boy değiştirmez');
+  /* eğim: dokunmatikte yalnız film çerçevesine, kaydırma yokken, yuvarlanmış */
+  assert.match(scr, /hedef = D\.querySelector\('\[data-kf-yap\]'\)/); assert.match(scr, /Date\.now\(\) - sonKay < 300\) return;/); assert.match(scr, /Math\.round\(x \* 50\) \/ 50/);
+});
 summary();
