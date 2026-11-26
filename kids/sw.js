@@ -11,8 +11,8 @@
    modül değişince SURUM değiştirilmeli.
    ========================================================================== */
 'use strict';
-const SURUM = 'acadex-kids-2026-11-22f';
-const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png', '/kids/assets/kids-uzay3d.mjs', '/kids/assets/kids-gsap.js'];
+const SURUM = 'acadex-kids-2026-11-26b';
+const DOSYALAR = ['/kids/', '/kids/manifest.webmanifest', '/kids/assets/ikon-192.png', '/kids/assets/ikon-512.png', '/kids/assets/kids-uzay3d.mjs?v=20261126', '/kids/assets/kids-gsap.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SURUM).then((c) => c.addAll(DOSYALAR)).then(() => self.skipWaiting()));

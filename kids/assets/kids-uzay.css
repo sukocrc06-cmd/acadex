@@ -189,3 +189,14 @@ html.kz-uzay .ka-harita.kz3-bekle,html.kz-uzay .ka-harita.kz3-acik{height:clamp(
 .ka-harita.kz3-acik .ka-ada-bugun .ka-ada-ad{border-color:#FFD23F;box-shadow:0 0 0 2px rgba(255,210,63,.35),0 0 18px rgba(255,210,63,.55)}
 .ka-harita.kz3-acik .ka-kilitli .ka-ada-ad{background:rgba(70,80,126,.55);border-color:rgba(255,255,255,.25)}
 .ka-harita.kz3-acik .ka-kilitli .ka-ada-ad b{color:#C9D3EE}
+
+/* ===== 26.11.2026: canlı harita (2B yedek) + ipucu + el sallama ===== */
+@media (prefers-reduced-motion:no-preference){
+  html.kz-uzay .ka-harita:not(.kz3-acik) .ka-ada:not(.ka-kilitli) .kz-gz{animation:kzGzSuz 5.5s ease-in-out infinite alternate;animation-delay:calc(var(--i,0) * -.7s)}
+  .ka-ada.kz-hop .kz-gz{animation:kzHop .8s cubic-bezier(.3,1.6,.5,1) both!important}
+  .kz-ast-yer.kz-el .kz-kol{animation:kzSalla .32s ease-in-out 5 alternate}
+}
+.ka-harita.kz3-acik .ka-ada.kz-hop .ka-ada-ad{animation:kzAdHop .8s cubic-bezier(.3,1.6,.5,1)}
+@keyframes kzGzSuz{from{transform:translateY(-4px) rotate(-1.5deg)}to{transform:translateY(5px) rotate(1.5deg)}}
+@keyframes kzHop{0%{transform:none}18%{transform:scale(1.12,.86)}50%{transform:translateY(-22px) scale(.94,1.08)}78%{transform:translateY(0) scale(1.06,.94)}100%{transform:none}}
+@keyframes kzAdHop{0%,100%{transform:translateX(-50%)}45%{transform:translateX(-50%) translateY(-10px) scale(1.08)}}

@@ -188,7 +188,11 @@
     seri: function (n) { var g = [0, 2, 4, 5, 7, 9, 11, 12][Math.min(7, Math.max(0, (n || 1) - 1))]; nota(523.25 * Math.pow(2, g / 12), 0, 0.18, 'triangle', 0.12); nota(523.25 * Math.pow(2, (g + 7) / 12), 0.06, 0.16, 'sine', 0.06); },
     duduk: function () { nota(587, 0, 0.35, 'square', 0.05); nota(740, 0, 0.35, 'square', 0.04); nota(587, 0.42, 0.25, 'square', 0.05); }
   };
-  function fx(ad, x) { if (FX[ad]) FX[ad](x); }
+  /* 26.11.2026: efekt dinleyicileri — maskot doğru/yanlış/seri efektine tepki verir (kids-maskot.js).
+     Ses kapalıyken de çağrılır: görsel tepki sese bağlı değil. */
+  var FXD = [];
+  function fx(ad, x) { if (FX[ad]) FX[ad](x); for (var i = 0; i < FXD.length; i++) { try { FXD[i](ad, x); } catch (e) { } } }
+  function fxDinle(f) { FXD.push(f); return function () { var j = FXD.indexOf(f); if (j > -1) FXD.splice(j, 1); }; }
   /* şarkı altyapısı: kısa, yumuşak bir ezgi döngüsü (WebAudio, dosya yok). muzik(true) başlatır, muzik(false) durdurur */
   var muzikT = null, EZGI = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1047, 784, 659, 587, 523];
   function muzik(ac_) {
@@ -212,5 +216,5 @@
     if (kayitliMi(tam, dil) || !LISTE || !parcalar.every(function (x) { return kayitliMi(x, dil); })) return soyle(tam, dil);
     var i = 0; return (function sira() { if (i >= parcalar.length || !acik) return Promise.resolve(true); return soyle(parcalar[i++], dil).then(function (ok) { return ok === false ? false : sira(); }); })();
   }
-  W.KIDS_SES = { ninni: ninni, hayvan: hayvan, kayitliMi: kayitliMi, dizi: dizi, surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
+  W.KIDS_SES = { fxDinle: fxDinle, ninni: ninni, hayvan: hayvan, kayitliMi: kayitliMi, dizi: dizi, surumler: function () { return SURUMLER; }, kayitli: function () { return LISTE ? Object.keys(LISTE).length : 0; }, eksikler: function () { return Object.keys(eksik); }, soyle: soyle, sus: sus, fx: fx, muzik: muzik, ayar: ayar, acikMi: function () { return acik; }, trVar: function () { return !!sesSec('tr'); } };
 })(window);

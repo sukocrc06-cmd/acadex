@@ -24,7 +24,7 @@ function modulleriYukle() {
 const TR = [
   'Hangi sınıftasın?', 'Sen hangisisin? Resmine dokun.', 'Gizli iki resmine sırayla dokun.', 'Biraz dinlenelim; birkaç dakika sonra yeniden dene.',
   'Okulunuzun Acadex Kids lisansı açık değil.', 'Bu ada yakında açılacak.', 'Bugün serbest gün. İstediğin adaya dokun.',
-  'Mola zamanı! Bugün çok güzel çalıştın.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
+  'Mola zamanı! Bugün çok güzel çalıştın.', 'Bugünlük bu kadar! Yarın yine görüşürüz.', 'İki dakika kaldı. Oyununu bitirebilirsin.', 'Dolabına yeni bir şey geldi!', 'Hadi birlikte şarkı söyleyelim!',
   'Dolabına hoş geldin! Yıldız topladıkça yeni şeyler açılır.', 'Yeni bir rozet kazandın!', 'Kitaplığa hoş geldin! Bir kitap seç.', 'Adan büyüdü!', 'Yeni bir gezegen açıldı!', 'Cümle galaksisine hoş geldin! Kaçıncı sınıftasın?', 'Dinle, sonra blokları doğru sıraya diz!', 'Mükemmel! Üç yıldız!', 'Aferin! Cümleleri kurdun!', 'Hadi bir sahne kuralım!', 'Önce bir önceki paketi bitir.', 'Yeni bir kelime paketi açıldı!', 'Gümüş madalya kazandın!', 'Altın madalya kazandın!', 'Kelimelere dokun ve dinle.', 'Kim oynuyor? Resmine dokun.',
   /* 15.11.2026 · oyun odası çubuğu */ 'Adalara bakalım!', 'Kelimelerime bakalım!', 'Çıkartma albümüme bakalım!', 'Daha çok oyun var!',
   /* 22.11.2026 · cümle galaksisi durakları */ 'Türkçesine bak, İngilizcesini seç.', 'Cümleye uyan kelimeyi seç.', 'Acadia soruyor. Doğru cevabı seç.', 'Aferin! Durağı bitirdin!'

@@ -1,0 +1,88 @@
+/* ==========================================================================
+   ACADEX KIDS · maskot, ekran süresi, veli raporu (kids/assets/kids-maskot.css), 26.11.2026
+   bkz. kids-maskot.js ve kids-app.js (uyku, sureHaber, veli köşesi "Bu hafta")
+   ========================================================================== */
+/* ---------- konu ekranındaki maskot (sol alt) ---------- */
+.kms{position:fixed;left:max(10px,env(safe-area-inset-left));bottom:max(10px,env(safe-area-inset-bottom));z-index:24;width:clamp(56px,7vw,78px);pointer-events:none}
+.kms-ic{display:block;transform-origin:50% 90%}
+.kms .kz-ast{animation:kzSuz 3.2s ease-in-out infinite alternate}
+.kms-balon{position:absolute;left:88%;bottom:72%;padding:5px 11px;border:2.5px solid var(--m);border-radius:14px 14px 14px 4px;background:#fff;color:var(--m);font:800 15px/1.15 var(--bas);white-space:nowrap;box-shadow:0 3px 0 var(--m);opacity:0;transform:scale(.6) translateY(8px);transform-origin:0 100%;transition:opacity .18s,transform .22s cubic-bezier(.3,1.6,.5,1)}
+.kms-balon.ac{opacity:1;transform:none}
+.kms.kms-zipla .kms-ic{animation:kmsZipla .7s cubic-bezier(.3,1.5,.5,1)}
+.kms.kms-takla .kms-ic{animation:kmsTakla .9s cubic-bezier(.4,0,.3,1)}
+.kms.kms-hmm .kms-ic{animation:kmsHmm 1.2s ease-in-out}
+.kms.kms-hmm .kz-kol{animation:kmsKasi .25s ease-in-out 4 alternate}
+.kms.kms-dans .kms-ic{animation:kmsDans .5s ease-in-out 3 alternate}
+.kms.kms-el .kz-kol{animation:kzSalla .32s ease-in-out 5 alternate}
+@keyframes kmsZipla{0%{transform:none}20%{transform:scale(1.12,.86)}55%{transform:translateY(-34px) scale(.94,1.08)}80%{transform:translateY(0) scale(1.06,.94)}100%{transform:none}}
+@keyframes kmsTakla{0%{transform:none}40%{transform:translateY(-46px) rotate(-180deg)}75%{transform:translateY(-10px) rotate(-340deg)}100%{transform:rotate(-360deg)}}
+@keyframes kmsHmm{0%,100%{transform:none}25%,75%{transform:rotate(-9deg)}50%{transform:rotate(7deg)}}
+@keyframes kmsKasi{from{transform:rotate(-60deg)}to{transform:rotate(-95deg)}}
+@keyframes kmsDans{from{transform:rotate(-10deg) translateY(0)}to{transform:rotate(10deg) translateY(-14px)}}
+/* ipucu: "Tekrar dinle" düğmesi nabız gibi atar */
+.kms-nabiz{animation:kmsNabiz .6s ease-in-out 4 alternate;position:relative;z-index:2}
+@keyframes kmsNabiz{from{transform:scale(1);box-shadow:0 0 0 0 rgba(255,210,63,.9)}to{transform:scale(1.16);box-shadow:0 0 0 12px rgba(255,210,63,0)}}
+@media (prefers-reduced-motion:reduce){.kms .kz-ast,.kms .kms-ic,.kms .kz-kol,.kms-nabiz{animation:none!important}.kms-nabiz{outline:4px solid #FFD23F;outline-offset:3px}}
+@media (max-width:600px){.kms{width:52px}.kms-balon{font-size:13px}}
+@media print{.kms{display:none}}
+
+/* ---------- ekran süresi: 2 dakika kaldı ---------- */
+.ka-sure-tost{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));z-index:70;display:flex;align-items:center;gap:10px;padding:10px 18px 10px 12px;border:3px solid var(--m);border-radius:999px;background:#FFF3B0;color:var(--m);font:800 18px/1 var(--bas);box-shadow:var(--golge);transform:translateX(-50%);animation:kmsTostGel .45s cubic-bezier(.3,1.5,.5,1)}
+.ka-sure-tost.ka-gidiyor{opacity:0;transform:translate(-50%,-20px);transition:opacity .4s,transform .4s}
+.ka-sure-kum{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#23304D}
+.ka-sure-kum .kc{width:24px;height:24px}
+@keyframes kmsTostGel{from{opacity:0;transform:translate(-50%,-30px) scale(.8)}to{opacity:1;transform:translateX(-50%)}}
+
+/* ---------- ekran süresi doldu: gece, Acadia uyur ---------- */
+.ka-uyku{position:fixed;inset:0;z-index:55;display:grid;place-items:center;padding:20px;overflow:hidden;color:#fff;background:radial-gradient(900px 600px at 50% 110%,#2B3A7A,transparent 70%),linear-gradient(#0B1033,#18225A);animation:kmsGece 1.2s ease-out}
+.ka-uyku-gok i{position:absolute;width:4px;height:4px;border-radius:50%;background:#FFF3B0;box-shadow:0 0 8px #FFF3B0;animation:kmsParla 2.8s ease-in-out infinite alternate;animation-delay:var(--g,0s)}
+.ka-uyku-ay{position:absolute;right:10%;top:10%;width:clamp(70px,11vw,130px);aspect-ratio:1;border-radius:50%;background:#FFF3B0;box-shadow:inset -22px -10px 0 #F2D98A,0 0 60px rgba(255,243,176,.55)}
+.ka-uyku-ic{position:relative;display:grid;justify-items:center;gap:10px;max-width:520px;text-align:center}
+.ka-uyku-acd{position:relative;width:clamp(140px,22vw,200px);aspect-ratio:1;animation:kmsNefes 3.6s ease-in-out infinite}
+.ka-uyku-acd>svg{width:100%;height:100%}
+.ka-uyku-z{position:absolute;right:-6%;top:-4%}
+.ka-uyku-z b{position:absolute;font:800 26px/1 var(--bas);color:#BFE3FF;opacity:0;animation:kmsZ 3s ease-out infinite}
+.ka-uyku-z b:nth-child(2){animation-delay:1s;font-size:20px}
+.ka-uyku-z b:nth-child(3){animation-delay:2s;font-size:15px}
+.ka-uyku h2{margin:4px 0 0;font:800 clamp(28px,5vw,40px)/1.1 var(--bas)}
+.ka-uyku p{margin:0;font-size:18px;line-height:1.45;color:#DDE5FF}
+.ka-uyku-veli{display:grid;gap:10px;justify-items:center;margin-top:14px}
+.ka-uyku-d{padding:8px 16px;border:2px solid rgba(255,255,255,.45);border-radius:999px;background:transparent;color:#DDE5FF;font:700 14px/1 var(--govde);cursor:pointer}
+.ka-uyku-d:focus-visible,.ka-uyku-sec .ka-orta:focus-visible{outline:3px solid #FFD23F;outline-offset:3px}
+.ka-uyku-sec{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.ka-uyku-sec .ka-orta{color:var(--m);cursor:pointer}
+/* gece açıkken sesli komut düğmesi ve maskot gizli (çocuk geceyi geçemesin) */
+body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
+@keyframes kmsGece{from{opacity:0}to{opacity:1}}
+@keyframes kmsParla{from{opacity:.25;transform:scale(.7)}to{opacity:1;transform:scale(1.2)}}
+@keyframes kmsNefes{0%,100%{transform:scale(1)}50%{transform:scale(1.04) translateY(-3px)}}
+@keyframes kmsZ{0%{opacity:0;transform:translate(0,0)}20%{opacity:1}100%{opacity:0;transform:translate(26px,-60px)}}
+@media (prefers-reduced-motion:reduce){.ka-uyku,.ka-uyku-acd,.ka-uyku-gok i,.ka-uyku-z b,.ka-sure-tost{animation:none}.ka-uyku-z b{opacity:.8}.ka-uyku-z b:nth-child(2){transform:translate(14px,-22px)}.ka-uyku-z b:nth-child(3){transform:translate(26px,-42px)}}
+
+/* ---------- veli köşesi: günlük süre grafiği, öneri ---------- */
+.ka-veli-sure{position:relative;margin:14px 0 0;padding:12px 14px 10px;border:2.5px solid var(--m);border-radius:16px;background:#fff}
+.ka-veli-sure figcaption{display:flex;justify-content:space-between;gap:8px;font:800 15px/1.2 var(--bas);color:var(--m)}
+.ka-veli-sure figcaption small{font:700 12px/1.2 var(--govde);color:var(--soluk)}
+.ka-vs-alan{position:relative;height:130px;margin:12px 0 0}
+.ka-veli-sure ol{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;height:100%;margin:0;padding:0;list-style:none;align-items:end}
+.ka-veli-sure li{display:grid;grid-template-rows:1fr 14px;height:100%;align-items:end;justify-items:center;gap:4px}
+.ka-vs-bar{position:relative;display:block;width:min(34px,80%);min-height:3px;border:2px solid var(--m);border-bottom-width:2px;border-radius:8px 8px 3px 3px;background:var(--mavi)}
+.ka-vs-bar.ka-vs-tam{background:var(--sari)}
+.ka-vs-bar em{position:absolute;left:50%;bottom:calc(100% + 2px);transform:translateX(-50%);font:800 12px/1 var(--govde);font-style:normal;color:var(--m)}
+.ka-veli-sure li small{font:700 12px/1 var(--govde);color:var(--soluk)}
+.ka-vs-sinir{position:absolute;left:0;right:0;z-index:1;border-top:2px dashed var(--mercan);pointer-events:none}
+.ka-veli .ka-veli-oneri{display:flex;gap:12px;align-items:center;margin:14px 0 0;padding:12px 14px;border:2.5px solid var(--m);border-radius:16px;background:color-mix(in srgb,var(--r) 18%,#fff)}
+.ka-veli-oneri>span{flex:none;display:grid;place-items:center;width:56px;height:56px;border:2.5px solid var(--m);border-radius:50%;background:#fff}
+.ka-veli-oneri>span .kc{width:38px;height:38px}
+.ka-veli-oneri small{display:block;font:800 12px/1.2 var(--govde);letter-spacing:.04em;text-transform:uppercase;color:var(--soluk)}
+.ka-veli-oneri b{font:800 20px/1.2 var(--bas);color:var(--m)}
+.ka-veli-oneri i{font-style:normal;color:var(--soluk)}
+.ka-veli-oneri p{margin:2px 0 0;font-size:14px}
+.ka-veli h3 small{font:700 13px/1 var(--govde);color:var(--soluk)}
+
+/* ---------- uzayda konudan çıkış (atmosferin tersi, kids-app atmosferCikis) ---------- */
+.ka-atm-cik .ka-atm-isik{opacity:1}
+.ka-atm-cik .ka-atm-b{opacity:1;transform:translate(-50%,-50%) scale(1.9)}
+/* 26.11.2026: özet artık dört kutu (dakika eklendi) */
+.ka-veli .ka-veli-ozet{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:560px){.ka-veli .ka-veli-ozet{grid-template-columns:repeat(2,minmax(0,1fr))}}

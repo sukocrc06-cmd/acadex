@@ -10,6 +10,9 @@
      kelimede zorlanıyor) ve yazdırılabilir haftalık veli bülteni (kişisel veri içermez).
    - Akıllı tahta: sınıfta yansıtmak için kartlar, şarkı, Simon says, çocuk seçen çark (kids-tahta.js).
    Kreşin günü (14.11.2026, kids-kres.js): etkinlik takvimi, kelime setleri, "Bugün ne öğrendik" kartı.
+   26.11.2026 Sınıf nabzı (seçili konu için): bugün kim girdi kim girmedi, "destek gerekebilir" listesi
+     (bir kelimede 3+ yanlış · 5+ gündür girmedi · yıldızı sınıf ortalamasının yarısından az) ve tabloda
+     bu haftaki oyun süresi (çocuk oturumu il.sure'ye saniye yazar, kids-app.js). Not / sıralama yok.
    Gerçek okul: okul kodu + okul şifresi ya da öğretmenin kişisel PIN'i (kids-bulut.js → Supabase);
    plan ve ilerleme sunucudan gelir. Örnek okul (ORNEK-2026 / 1234) yalnız tanıtım
    içindir ve bu tarayıcıda çalışır. Önek kt-. W.KIDS_OGRETMEN
@@ -51,7 +54,9 @@
       yil[kid] = yy; if (t % 4 && yy.balon + yy.hafiza + yy[o3] >= 6) { bit[kid] = 1; cik.push(p.cikartma[0]); }
       zor[ol[t % ol.length].id] = 1 + t % 3; if (t % 5 === 1) zor[ol[(t + 3) % ol.length].id] = 1;
     });
-    return { ornek: true, yildiz: yil, bitti: bit, zor: zor, cikartma: cik, son: Date.now() - (h % 4) * 864e5 - (h % 9) * 36e5 };
+    /* örnek oyun süresi: son 7 günde birkaç gün, 5-25 dakika */
+    var sure = {}; for (var g = 0; g < 7; g++) { var tg = tohum(sinif.id + ad + 'g' + g); if (tg % 3 && (g || !(h % 4))) sure[V.gunAnahtar(new Date(Date.now() - g * 864e5))] = 300 + (tg % 21) * 60; }
+    return { ornek: true, yildiz: yil, bitti: bit, zor: zor, cikartma: cik, sure: sure, son: Date.now() - (h % 4) * 864e5 - (h % 9) * 36e5 };
   }
   /* İlerlemeyi çocuk oturumu yazar, bu ekran onu HTML'e basar. Çocuk anahtarı
      ele geçerse (resimli şifre dar bir havuzdur) sayı yerine HTML yazılıp
@@ -66,14 +71,14 @@
     if (u.yildiz && typeof u.yildiz === 'object') Object.keys(u.yildiz).forEach(function (k) { if (kimlik(k)) yildiz[k] = sayiHarita(u.yildiz[k]); });
     if (u.bitti && typeof u.bitti === 'object') Object.keys(u.bitti).forEach(function (k) { if (kimlik(k) && u.bitti[k]) bitti[k] = 1; });
     return { yildiz: yildiz, bitti: bitti, zor: sayiHarita(u.zor), usta: sayiHarita(u.usta),
-      seviye: sayiHarita(u.seviye), kitap: sayiHarita(u.kitap), gunler: sayiHarita(u.gunler),
+      seviye: sayiHarita(u.seviye), kitap: sayiHarita(u.kitap), gunler: sayiHarita(u.gunler), sure: sayiHarita(u.sure),
       cikartma: Array.isArray(u.cikartma) ? u.cikartma.filter(function (c) { return typeof c === 'string' && kimlik(c); }) : [], son: sayi(u.son) };
   }
   function kayit(sinif, og) {
     var ad = og[0];
     if (BU) return temizKayit(og[3]);
     var g = V.al('il.' + V.OKUL.kod + '.' + sinif.id + '.' + ad, null);
-    if (g && (g.son || (g.yildiz && Object.keys(g.yildiz).length))) { g.yildiz = g.yildiz || {}; g.bitti = g.bitti || {}; g.zor = g.zor || {}; g.cikartma = g.cikartma || []; return g; }
+    if (g && (g.son || (g.yildiz && Object.keys(g.yildiz).length))) { g.yildiz = g.yildiz || {}; g.bitti = g.bitti || {}; g.zor = g.zor || {}; g.cikartma = g.cikartma || []; g.sure = g.sure || {}; return g; }
     return ornekGoster ? ornekKayit(sinif, ad) : { yildiz: {}, bitti: {}, zor: {}, cikartma: [], son: 0 };
   }
   function yildizSay(k, konu) { var y = (k.yildiz || {})[konu] || {}; return Object.keys(y).reduce(function (t, o) { return t + y[o]; }, 0); }
@@ -85,6 +90,26 @@
     return fark <= 0 ? 'Bugün' : fark === 1 ? 'Dün' : fark + ' gün önce';
   }
   function renkBul(id) { return V.ogeBul(id); }
+  /* ---------- 26.11.2026 sınıf nabzı ---------- */
+  function haftaDk(k) { var t = 0; for (var g = 0; g < 7; g++) t += ((k.sure || {})[V.gunAnahtar(new Date(Date.now() - g * 864e5))] || 0); return Math.round(t / 60); }
+  function gunFark(ts) { if (!ts) return Infinity; var b = new Date(), g = new Date(ts); return Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()) - new Date(g.getFullYear(), g.getMonth(), g.getDate())) / 864e5); }
+  function destekNedenleri(k, konu, ort) {
+    var r = [], kz = konuZor(k.zor, konu), z = enZor(kz), zo = z && renkBul(z), y = yildizSay(k, konu), f = gunFark(k.son);
+    if (z && kz[z] >= 3) r.push({ t: 'kelime', y: '“' + (zo ? zo.en : z) + '” kelimesinde ' + kz[z] + ' yanlış' });
+    if (k.son && f >= 5) r.push({ t: 'ara', y: f + ' gündür girmedi' });
+    if (y > 0 && ort >= 3 && y <= ort * 0.5) r.push({ t: 'geri', y: 'Yıldızı sınıf ortalamasının yarısından az (' + y + ')' });
+    return r;
+  }
+  function nabiz(sinif, konu, o) {
+    var ks = sinif.ogr.map(function (og) { return { og: og, k: kayit(sinif, og) }; }), bugun = ks.filter(function (x) { return gunFark(x.k.son) === 0; });
+    var destek = ks.map(function (x) { return { og: x.og, r: destekNedenleri(x.k, konu, o.ort) }; }).filter(function (x) { return x.r.length; }).sort(function (a, b) { return b.r.length - a.r.length; });
+    var yuz = function (og) { return '<span class="kt-nb-av">' + C.avatar(og[1], og[4]) + '</span>'; };
+    return '<div class="kt-nabiz"><section class="kt-nb-kart" aria-labelledby="kt-nb1"><h3 id="kt-nb1">Bugün <small>' + bugun.length + '/' + ks.length + ' çocuk girdi</small></h3><ul class="kt-nb-yuzler">' +
+      ks.map(function (x) { var var_ = gunFark(x.k.son) === 0; return '<li class="' + (var_ ? 'kt-nb-geldi' : 'kt-nb-yok') + '" title="' + esc(x.og[0] + (var_ ? ': bugün girdi' : ': bugün girmedi')) + '">' + yuz(x.og) + '<small>' + esc(x.og[0]) + '</small>' + (var_ ? '<i class="kt-nb-tik" aria-label="bugün girdi">✓</i>' : '<span class="kt-gizli">bugün girmedi</span>') + '</li>'; }).join('') + '</ul></section>' +
+      '<section class="kt-nb-kart" aria-labelledby="kt-nb2"><h3 id="kt-nb2">Destek gerekebilir <small>' + destek.length + '</small></h3>' +
+      (destek.length ? '<ul class="kt-nb-destek">' + destek.map(function (x) { return '<li>' + yuz(x.og) + '<div><b>' + esc(x.og[0]) + '</b><span>' + x.r.map(function (r) { return '<em class="kt-nb-' + r.t + '">' + esc(r.y) + '</em>'; }).join('') + '</span></div></li>'; }).join('') + '</ul><p class="kt-alt">Öneri: bu çocuklarla tahtada kısa bir tekrar yapın ya da veli bülteninde o kelimeyi vurgulayın.</p>'
+        : '<p class="kt-nb-iyi">Şu an destek gerektiren bir durum yok. Sınıf yolunda.</p>') + '</section></div>';
+  }
   /* zorlanılan kelimelerden yalnız seçili konununkiler */
   function konuZor(z, konu) { var p = W.KIDS_KONU && W.KIDS_KONU.al(konu), ids = {}; if (!p) return z || {}; W.KIDS_KONU.hepsi(konu).forEach(function (o) { ids[o.id] = 1; }); var r = {}; Object.keys(z || {}).forEach(function (k) { if (ids[k]) r[k] = z[k]; }); return r; }
   function ozet(sinif, konu) {
@@ -158,10 +183,11 @@
       '<ul class="kt-ozet"><li><b>' + o.oynayan + '<small>/' + o.n + '</small></b><span>bu hafta oynadı</span></li><li><b>' + (Math.round(o.ort * 10) / 10).toString().replace('.', ',') + '<small>/' + W.KIDS_KONU.yildizMax(kz) + ' ★</small></b><span>ortalama yıldız</span></li><li><b>' + o.biten + '<small>/' + o.n + '</small></b><span>konuyu bitirdi</span></li>' +
       '<li' + (zr ? ' style="--r:' + zr.hex + '"' : '') + ' class="kt-ozet-zor"><b>' + (zr ? '<i></i><span lang="en">' + zr.en + '</span>' : '—') + '</b><span>en çok zorlanılan kelime</span></li></ul>' +
       (o.girmeyen.length ? '<p class="kt-girmeyen"><b>Henüz girmeyenler:</b> ' + o.girmeyen.map(esc).join(', ') + '</p>' : '') +
-      '<div class="kt-tablo-sar"><table class="kt-tablo"><thead><tr><th scope="col">Öğrenci</th><th scope="col">Son giriş</th><th scope="col">Yıldız</th><th scope="col">Oyunlar</th><th scope="col">Zorlandığı kelime</th><th scope="col">Çıkartma</th></tr></thead><tbody>' +
+      nabiz(sinif, kz, o) +
+      '<div class="kt-tablo-sar"><table class="kt-tablo"><thead><tr><th scope="col">Öğrenci</th><th scope="col">Son giriş</th><th scope="col">Bu hafta</th><th scope="col">Yıldız</th><th scope="col">Oyunlar</th><th scope="col">Zorlandığı kelime</th><th scope="col">Çıkartma</th></tr></thead><tbody>' +
       sinif.ogr.map(function (og) {
         var k = kayit(sinif, og), y = yildizSay(k, kz), kzor = konuZor(k.zor, kz), z = enZor(kzor), zrk = z && renkBul(z);
-        return '<tr' + (k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(og[1], og[4]) + '<b>' + esc(og[0]) + '</b>' + (k.ornek ? '<i class="kt-ornek-e">örnek</i>' : '') + '</span></th><td>' + sonYazi(k.son) + '</td>' +
+        return '<tr' + (k.son ? '' : ' class="kt-pasif"') + '><th scope="row"><span class="kt-ogr">' + C.avatar(og[1], og[4]) + '<b>' + esc(og[0]) + '</b>' + (k.ornek ? '<i class="kt-ornek-e">örnek</i>' : '') + '</span></th><td>' + sonYazi(k.son) + '</td><td>' + (haftaDk(k) ? haftaDk(k) + ' dk' : '<span class="kt-yok">—</span>') + '</td>' +
           '<td><span class="kt-cubuk" role="img" aria-label="' + y + ' / ' + W.KIDS_KONU.yildizMax(kz) + ' yıldız"><i style="width:' + Math.round(100 * y / W.KIDS_KONU.yildizMax(kz)) + '%"></i></span><span class="kt-sayi">' + y + '/' + W.KIDS_KONU.yildizMax(kz) + '</span></td>' +
           '<td>' + oyunSay(k, kz) + '/' + W.KIDS_KONU.oyunSay(kz) + (k.bitti[kz] ? ' <span class="kt-tamam">bitirdi</span>' : '') + '</td>' +
           '<td>' + (zrk ? '<span class="kt-kelime" style="--r:' + zrk.hex + '"><i></i><span lang="en">' + zrk.en + '</span> <small>' + kzor[z] + ' yanlış</small></span>' : '<span class="kt-yok">—</span>') + '</td><td>' + k.cikartma.length + '</td></tr>';
