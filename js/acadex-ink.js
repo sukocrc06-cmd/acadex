@@ -8627,11 +8627,12 @@ var SBX = (function () {
       /* Uyarı yalnız LİSTEYİ klasikte tutar: zaman çizelgesinde uyarı zaten
          çizilmiyordu, yine de çizelge klasiğe düşüyordu (canlı deste 14.11.2026). */
       if (!VSIRA[kind] || (/^(list|quote)$/.test(kind) && s.img && s.img.entity)) return 0;
-      /* Uyarılı liste hep klasikte kalınca çeşit hiç çıkmıyordu: "Etkili ders çalışma"
-         destesinde (14.11.2026) beş listenin beşi de uyarılıydı, hepsi aynı düzenle
-         basıldı. Uyarı işareti madde listesinde (ul) çizilir; bölünmüş düzen (9)
-         maddeleri ul olarak taşır, bu yüzden uyarılı listeler klasik ↔ bölünmüş döner. */
+      /* Uyarılı liste de bütün çeşitleri dolaşır (25.11.2026); uyarı işareti kart yazılarına da çizilir. */
       vSay.tek = 0;
+      /* Fotoğraf ipuçlu liste dönüşümlü olarak klasikte kalır: fotoğraf yalnız klasik listeye konuyor,
+         "Semiconductor Race" destesinde (25.11.2026) listelerin hepsi kartlı çeşitle basıldı ve 12
+         içerik asetatından yalnız kapakta fotoğraf vardı. Klasik iki kez üst üste gelmez. */
+      if (kind === 'list' && s.img && s.img.q && arr(s.b).length >= 3 && arr(s.b).length <= 4 && vSay.aile !== 'k') { vSay.fo = (vSay.fo || 0) + 1; if (vSay.fo % 2) return 0; }
       /* Fotoğraf ipucu olan ilk alıntı klasik kalır: fotoğraf gelirse tam sayfa fotoğraf + metin panosu olur (placeTam). */
       if (kind === 'quote' && s.img && s.img.q && !vSay.qf) { vSay.qf = 1; return 0; }
       if (kind === 'quote') return 2;      /* ara vurgu: koyu zeminde ortalı tek cümle (kutulu çeşitler koyu zemine uymaz) */
@@ -8681,7 +8682,12 @@ var SBX = (function () {
     var sonB = function (sl) { var u = sl.els.filter(function (e) { return e.type === 'ul' && !e.muted && e.text; })[0]; if (u) return String(u.text).split('\n').filter(Boolean).slice(0, 3);
       /* kapanış düzeni maddeleri tek metinde " · " ile yazar; "ul" arayan ilk düzeltme onu bulamayıp yine son üç başlığa düşüyordu */
       var tt = sl.els.filter(function (e) { return e.type === 't' && !e.muted && String(e.text).indexOf(' · ') > 0; })[0];
-      return tt ? String(tt.text).split(' · ').filter(Boolean).slice(0, 3) : govde.slice(-3); };
+      if (tt) return String(tt.text).split(' · ').filter(Boolean).slice(0, 3);
+      /* Kapanışta başlık satırı artık yok (25.11.2026): not son üç asetatın BAŞLIĞINI sayıyordu
+         ("Comparing Centralized…, Critical Risks…"). Sonuç asetatının kendi mesajları söylenir. */
+      var sonuc = made.filter(function (x) { return !/^(cover|end|refs)$/.test(x.lay || ''); }).slice(-1)[0];
+      var sm = sonuc ? slaytMaddeleri(sonuc).slice(0, 3).map(function (x) { var m = String(x).match(/^([^:]{3,40}):/), w = String(x).split(/\s+/); return m ? m[1].trim() : w.slice(0, 7).join(' ').replace(/[.,;:]+$/, '') + (w.length > 7 ? '…' : ''); }) : [];
+      return sm.length ? sm : govde.slice(-3); };
     /* GÜNDEM (14.11.2026): kapaktan sonra akışı gösteren asetat — hazır sunum
        taslaklarının hepsinde var, bizde kapaktan doğrudan ilk konuya geçiliyordu.
        Yeni destede, en az 5 gövde asetatı varsa ve yazar zaten bir gündem
@@ -8942,7 +8948,10 @@ var SBX = (function () {
   /* ---------- PowerPoint (.pptx): düzenlenebilir metin, gerçek grafik ve tablo, konuşmacı notları ---------- */
   var loadScript = function (src) { return new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = src; sc.async = true; sc.onload = res; sc.onerror = function () { rej(new Error('yüklenemedi: ' + src)); }; document.head.appendChild(sc); }); };
   var pptxLib = function () { return window.PptxGenJS ? Promise.resolve(window.PptxGenJS) : loadScript('https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js').then(function () { if (!window.PptxGenJS) throw new Error('PptxGenJS yok'); return window.PptxGenJS; }); };
-  var hex = function (c, d) { c = String(c || d || '#0D1838').replace('#', ''); if (c.length === 3) c = c.split('').map(function (x) { return x + x; }).join(''); return /^[0-9a-f]{6}$/i.test(c) ? c.toUpperCase() : (d || '0D1838').replace('#', ''); };
+  var hex = function (c, d) { c = String(c || d || '#0D1838').replace('#', ''); if (c.length === 3) c = c.split('').map(function (x) { return x + x; }).join(''); if (/^[0-9a-f]{8}$/i.test(c)) c = c.slice(0, 6); return /^[0-9a-f]{6}$/i.test(c) ? c.toUpperCase() : (d || '0D1838').replace('#', ''); };
+  /* Saydamlıklı renk (#RRGGBBAA): PPTX'te 8 haneli renk yok; renk + saydamlık yüzdesi yazılır. Eskiden açık varsayılana
+     düşüyordu: editoryal kapağın koyu panosu PPTX'te açık lavanta çıktı, beyaz başlık okunmadı (Semiconductor, 26.11.2026). */
+  var saydam = function (c) { var m = String(c || '').replace('#', '').match(/^[0-9a-f]{6}([0-9a-f]{2})$/i); return m ? Math.round((1 - parseInt(m[1], 16) / 255) * 100) : 0; };
   var GREEK = { alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', Delta: 'Δ', epsilon: 'ε', theta: 'θ', lambda: 'λ', mu: 'μ', pi: 'π', rho: 'ρ', sigma: 'σ', Sigma: 'Σ', tau: 'τ', phi: 'φ', omega: 'ω', Omega: 'Ω', beta_: 'β' };
   var SUP = { '=': '⁼', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '+': '⁺', '-': '⁻', 'n': 'ⁿ', 't': 'ᵗ' }, SUB = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', 'i': 'ᵢ', 't': 'ₜ', 'n': 'ₙ' };
   var latexText = function (l) {
@@ -8992,7 +9001,7 @@ var SBX = (function () {
           var box = { x: IN(e.x), y: IN(e.y), w: IN(e.w), h: IN(e.h) };
           if (e.type === 'h' || e.type === 't') { if (!e.text) continue; sl.addText(e.text, Object.assign({}, box, { fontFace: e.type === 'h' ? fh : ff, fontSize: PT(e.size), bold: (e.type === 'h' && !(TX && FONT_DISPLAY.test(TX.hf))) || !!e.bold, color: col(e), align: e.align || 'left', valign: 'top', margin: 2, fit: 'shrink' })); }
           else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; sl.addText(ls.map(function (l) { return { text: l, options: { bullet: kaynakSatir(e.text) ? false : { code: '25AA' }, breakLine: true } }; }), Object.assign({}, box, { fontFace: ff, fontSize: PT(e.size), color: col(e), valign: 'top', paraSpaceAfter: 6, margin: 2, fit: 'shrink' })); }
-          else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = kutuGolge(e) ? 'FFFFFF' : hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
+          else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = kutuGolge(e) ? 'FFFFFF' : hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : saydam(temaRenk(e.fill || '')) ? { color: fc, transparency: saydam(temaRenk(e.fill || '')) } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : saydam(temaRenk(e.fill || '')) ? { type: 'none' } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
           else if (e.type === 'arrow') sl.addShape(pp.ShapeType.line, { x: box.x, y: box.y + box.h / 2, w: box.w, h: 0, line: { color: hex(temaRenk(e.color), '#2F6BFF'), width: 3, endArrowType: 'triangle' } });
           else if (e.type === 'mark') sl.addShape(pp.ShapeType.rect, { x: box.x, y: box.y + box.h * 0.3, w: box.w, h: Math.max(0.04, box.h * 0.35), fill: { color: hex(temaRenk(e.color), '#2F6BFF'), transparency: 35 }, line: { type: 'none' } });
           else if (e.type === 'img') { if (e.src) sl.addImage({ [/^https?:/.test(e.src) ? 'path' : 'data']: e.src, x: box.x, y: box.y, w: e.kap ? box.h * (e.oran || 1.5) : box.w, h: box.h, sizing: { type: e.kap ? 'cover' : 'contain', w: box.w, h: box.h } }); }   /* kap: kutuyu kırparak doldurur; w/h fotoğrafın kendi oranını taşır */

@@ -777,7 +777,7 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   // gündem ve kapanış notu
   assert.match(ink, /var gs = newSlide\('list', ENn \? 'Agenda' : 'Gündem', gb, \{ v: 10 \}\);/);
   assert.match(ink, /made\[0\]\.lay === 'cover' && govde\.length >= 5 &&/);
-  assert.match(ink, /String\(tt\.text\)\.split\(' · '\)\.filter\(Boolean\)\.slice\(0, 3\) : govde\.slice\(-3\)/, 'kapanış notu asetattaki maddeleri okumuyor');
+  assert.match(ink, /if \(tt\) return String\(tt\.text\)\.split\(' · '\)\.filter\(Boolean\)\.slice\(0, 3\);/, 'kapanış notu asetattaki maddeleri okumuyor');
   // tablo: başlık satırı vurgu rengiyle dolu — ekranda ve PPTX'te
   assert.match(ink, /var ac = temaRenk\(BLUE\), th = '<th style="background:' \+ ac/);
   assert.match(ink, /fill: \{ color: hex\(temaRenk\(BLUE\)\) \}/);
@@ -1132,6 +1132,41 @@ test('CANLI DESTE 25.11 (Fintech) — arşiv taraması süzgeci, süreç okları
   assert.equal(M.VARY.list[11]('Digital-only services reshape customer experience', B), null, 'maddedeki "steps" sözcüğü süreç sayıldı');
   assert.ok(M.VARY.list[11]('Account opening process', B), 'başlık süreç bildiriyorsa oklar çizilmeli');
   assert.ok(M.VARY.list[11]('Onboarding', ['Step 1: download the app', 'Step 2: verify identity', 'Step 3: fund the account']), 'adım işaretli maddeler süreçtir');
+});
+
+/* CANLI DESTE 25.11 (Semiconductor Race): 12 içerik asetatından yalnız kapakta fotoğraf vardı —
+   fotoğraf yalnız klasik listeye konuyor, listelerin hepsi kartlı çeşitle basılmıştı. Kapanış notu
+   son üç asetatın başlığını "ana mesaj" diye sayıyordu. */
+test('CANLI DESTE 25.11 (Semiconductor) — fotoğraf ipuçlu listeler dönüşümlü klasik, kapanış notu sonuçtan', () => {
+  const ink = read('js/acadex-ink.js');
+  const a = ink.indexOf("var TINT = ['#DCE6FF'"), b = ink.indexOf('/* ---------- özetten taşınan zenginlik');
+  let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
+  const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  const { VARY, VSIRA, LAILE } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA, LAILE };')(E, head, () => [], '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], arr, () => []);
+  const vs = ink.slice(ink.indexOf('var vSay = {}, vSec'), ink.indexOf('push(); var made = strips.map'));
+  const ns = ink.slice(ink.indexOf('  var newSlide = function (kind, t, b, c) {'), ink.indexOf('  /* ---------- rendering ---------- */'));
+  const LAY = { list: { f: (t, bb) => head(t).concat([E('ul', 90, 160, 780, 340, { text: bb.join('\n') })]) } };
+  const bas = new Function('VSIRA', 'VARY', 'LAILE', 'arr', 'LAY', 'uid', 'ikonBag', 'ikonKul', vs + ns + ';return function (s, kind) { var cx = { heads: s.heads }; cx.v = vSec(s, kind); cx.aile = vSay.aile || ""; var sl = newSlide(kind, s.t, s.b, cx); if (kind === "list") vSay.aile = LAILE[sl.v || 0] || ""; return sl; };')(VSIRA, VARY, LAILE, arr, LAY, () => ++id, '', {});
+  const D = ['Planlama güne başlamadan önce yapılırsa öncelikler netleşir', 'Kesintileri azaltmak odak süresini belirgin biçimde uzatır', 'Haftalık gözden geçirme sapmaları erken gösterir'];
+  const seri = [0, 1, 2, 3, 4, 5].map(() => bas({ t: 'Başlık', b: D, img: { q: 'semiconductor wafer fab' } }, 'list').v || 0);
+  assert.ok(seri.filter((v) => v === 0).length >= 2, 'fotoğraf ipuçlu listelerin hiçbiri klasikte kalmadı: ' + seri.join(','));
+  seri.forEach((v, i) => { if (i) assert.ok(!(v === 0 && seri[i - 1] === 0), 'iki klasik üst üste: ' + seri.join(',')); });
+  assert.match(ink, /var sonuc = made\.filter\(function \(x\) \{ return !\/\^\(cover\|end\|refs\)\$\/\.test\(x\.lay \|\| ''\); \}\)\.slice\(-1\)\[0\];/, 'kapanış notu sonuç asetatına bakmıyor');
+  assert.match(ink, /return sm\.length \? sm : govde\.slice\(-3\); \};/);
+});
+
+/* PPTX + Keynote denetimi (26.11.2026, "Key Drivers of the Global Semiconductor Race"): kapak panosu
+   #0B1220D9 PPTX'te açık lavantaya düştü (hex 8 haneyi reddediyordu), beyaz başlık okunmadı. */
+test('PPTX: saydamlıklı renk koyu kalır, saydamlık yüzdesi yazılır', () => {
+  const ink = read('js/acadex-ink.js');
+  const f = new Function(ink.match(/var hex = function \(c, d\) \{.*\};/)[0] + ink.match(/var saydam = function \(c\) \{.*\};/)[0] + 'return { hex, saydam };')();
+  assert.equal(f.hex('#0B1220D9', '#DCE6FF'), '0B1220', '8 haneli renk açık varsayılana düşüyor');
+  assert.equal(f.saydam('#0B1220D9'), 15);
+  assert.equal(f.saydam('#0B122099'), 40);
+  assert.equal(f.saydam('#0B1220'), 0);
+  assert.match(ink, /saydam\(temaRenk\(e\.fill \|\| ''\)\) \? \{ color: fc, transparency: saydam\(temaRenk\(e\.fill \|\| ''\)\) \}/);
+  assert.match(ink, /saydam\(temaRenk\(e\.fill \|\| ''\)\) \? \{ type: 'none' \} : \{ color: fc \}/, 'saydam dolgunun kenarı opak çiziliyor');
 });
 
 summary();
