@@ -8988,6 +8988,59 @@ var SBX = (function () {
     deck.quality = null; deck.qualityKey = null;           /* elle istenen ölçüm her zaman yeniden sorar */
     kaliteOlc(deck, true);
   });
+  /* ---------- PHASE 3: GEMINI ANLAMSAL PLANLAYICI — GÖLGE (26.11.2026, #22–#26) ----------
+     Basılan destenin içerik asetatları sunucuya (sunum-research 'plan') gider; Gemini asetat başına anlamsal rol, aile
+     ve görsel ihtiyacı önerir. YALNIZ GÖLGE: sonuç hiçbir kararı değiştirmez, desteye/asetata yazılmaz, kaydı (dirty,
+     saveLocal, push, görüntü) tetiklemez, ekranda görünmez. İstemci yalnız deterministik kararlarla (DZ.sinifla rolü,
+     basılan aile, Phase 2 yuva uygunluğu) karşılaştırıp sayaç gönderir ('plan_sonuc'). Sunucu varsayılan kapalıdır
+     (SUNUM_PLAN_MODU); "kapali" yanıtı gelince bu oturumda bir daha istenmez. Aynı içerik oturumda bir kez gider. */
+  var PLAN_DISI = /^(cover|end|refs)$/, planGorulen = {}, planKapali = false;
+  var planOzet = function (t) { var h = 2166136261; t = String(t); for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return ('0000000' + (h >>> 0).toString(16)).slice(-8); };
+  var planKisa = function (x, n) { return String(x == null ? '' : x).replace(/\s+/g, ' ').trim().slice(0, n); };
+  /* Salt okunur yakalama: şerit + basılan asetat çiftlerinden KOPYA değerler; hiçbir nesneye yazılmaz. Kapak, kapanış,
+     kaynakça ve gündem dışarıda; en çok 20 içerik asetatı. */
+  var planKayit = function (cift, dz) {
+    var ic = arr(cift).filter(function (c) { return c && c.sl && !PLAN_DISI.test(c.sl.lay || '') && !(c.sl.lay === 'list' && c.sl.v === 10); }).slice(0, 20);
+    return ic.map(function (c, n) {
+      var kind = c.sl.lay || 'list', v = c.sl.v || 0, s = c.s || {}, b = arr(s.b).map(function (x) { return String(x == null ? '' : x); }), t = String(s.t || titleOf(c.sl) || '');
+      var sf = dz.sinifla({ t: t, k: kind, b: b }, { ilk: n === 0, son: n === ic.length - 1 });
+      return { i: n + 1, kind: kind, v: v, aile: (dz.AILE[kind + ':' + v] || [kind])[0], rol0: sf.tur, kanit: sf.kanit, yuva: yuvaFormlari(c.sl, '').length > 0,
+        t: planKisa(t, 120), b: b.slice(0, 6).map(function (x) { return planKisa(x, 160); }), veri: /^(chart|table|stat)$/.test(kind), ipucu: planKisa(c.sl.imgq ? (c.sl.imgq.q || c.sl.imgq.entity) : '', 80) };
+    });
+  };
+  /* Saf karşılaştırma: girdileri değiştirmez; yalnız sayaç döner. Rol ve uyum yalnız liste asetatlarında (sinifla yalnız
+     listeye rol verir; U tablosu liste aileleri içindir). */
+  var planKarsilastir = function (ozet, a, uyumFn) {
+    var by = {}, gor = {}, s = { n: 0, liste: 0, rolEs: 0, dusukKanit: 0, dusukKanitRolEs: 0, aileEs: 0, uyumAlt1: 0, gorselEksik: 0, gorselFazla: 0 };
+    arr(ozet).forEach(function (k) { by[k.i] = k; });
+    arr(a).forEach(function (r) {
+      var k = r && by[r.i]; if (!k || gor[r.i]) return; gor[r.i] = 1; s.n++;
+      if (r.aile === k.aile) s.aileEs++;
+      if (r.gorsel !== 'yok' && !k.yuva) s.gorselEksik++; else if (r.gorsel === 'yok' && k.yuva) s.gorselFazla++;
+      if (k.kind !== 'list') return;
+      s.liste++; var es = r.rol === k.rol0; if (es) s.rolEs++;
+      if (k.kanit < 2) { s.dusukKanit++; if (es) s.dusukKanitRolEs++; }
+      if (uyumFn(r.rol, k.kind, k.v) < 1) s.uyumAlt1++;
+    });
+    return s.n ? s : null;
+  };
+  /* Ateşle-unut: hata, zaman aşımı (25 sn) ve geç yanıt sessizce yok sayılır. */
+  var golgePlan = function (cift, dz, konu) {
+    try {
+      if (planKapali) return;
+      var kayit = planKayit(cift, dz); if (kayit.length < 3) return;
+      var istek = { action: 'plan', v: 2, dil: curLang() === 'en' ? 'en' : 'tr', konu: planKisa(konu, 160), asetatlar: kayit.map(function (k) { return { i: k.i, k: k.kind, t: k.t, b: k.b, veri: k.veri, ipucu: k.ipucu }; }) };
+      var h = planOzet(JSON.stringify([istek.dil, istek.konu, istek.asetatlar])); if (!/^[0-9a-f]{8}$/.test(h) || planGorulen[h]) return;
+      planGorulen[h] = 1; istek.h = h;
+      var ozet = kayit.map(function (k) { return { i: k.i, kind: k.kind, v: k.v, aile: k.aile, rol0: k.rol0, kanit: k.kanit, yuva: k.yuva }; });
+      fn('sunum-research', istek, 25000).then(function (d) {
+        if (!d) return; if (d.durum === 'kapali') { planKapali = true; return; }
+        if (d.durum !== 'tamam' || !d.plan || !Array.isArray(d.plan.a) || !/^[a-z0-9]{12}$/.test(String(d.rid || ''))) return;
+        var s = planKarsilastir(ozet, d.plan.a, dz.uyum); if (!s) return;
+        fn('sunum-research', { action: 'plan_sonuc', rid: d.rid, sonuc: s }, 15000).catch(function () {});
+      }, function () {});
+    } catch (e) { /* gölge: hiçbir hata üretimi etkilemez */ }
+  };
   var printDeck = function (mode, kalanBos) {
     strips = strips.filter(function (s) { return s.t.trim() || s.k === 'end'; }); if (!strips.length) return;
     var bosCerceve = 0;
@@ -9208,6 +9261,7 @@ var SBX = (function () {
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
       if (sl.imgq) gorselDurum(sl, 'ipucu');      /* ipucu asetatla kaydedilir; fotoğraf istenirse sonucu üstüne yazılır (Phase 2) */
       var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } else if (e.type === 't' && !e.dz && e.text) { var w0 = wl.filter(function (w) { return uyarEs(w, e.text); })[0]; if (w0) { e.warn = [e.text]; e.why = {}; if (wy[w0]) e.why[e.text] = wy[w0]; } } }); if (arr(s.src).length) sl.src = s.src; else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs' && !notYeter(s.notes)) { AI.note(sl, true); taslak.push({ sl: sl, n: sl.notes }); } if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+    var golgeCift = made.map(function (sl, n) { return { s: strips[n], sl: sl }; });      /* Phase 3 gölge planlayıcı: şerit ↔ asetat, yalnız okunur */
     /* Kapak ve kapanışın notu hiç yoktu (0 kelime): sunumun en zor iki ânı —
        açılış ve soru-cevap — hazırlıksız kalıyordu, kalite ölçümü de her destede
        bu ikisini "kısa not" sayıyordu. Destenin kendi başlıklarından yazılır. */
@@ -9276,6 +9330,7 @@ var SBX = (function () {
     QA('.sx-th', thumbsEl).slice(start).forEach(function (li, i) { if (!calm) { li.classList.add('printed'); li.querySelector('.sx-thb').style.animationDelay = (i * 120) + 'ms'; } });
     var b = thumbsEl.querySelector('[data-go="' + start + '"]'); if (b) b.focus();
     if (!calm) { glass.classList.remove('printing'); void glass.offsetWidth; glass.classList.add('printing'); } flipGlass();
+    if (plotMeta.via !== 'skeleton' && plotMeta.via !== 'cards') golgePlan(golgeCift, { sinifla: DZ.sinifla, uyum: DZ.uyum, AILE: DZ.tablolar.AILE }, plotMeta.title || deck.title);      /* Phase 3: gölge, fotoğraftan ÖNCE yakalanır */
     var wantPh = Q('[data-pl-photo]', plot); if (wantPh && wantPh.checked) illustrate(made, plotMeta.title || deck.title);
     if (plotMeta.via !== 'skeleton') notlariYaz(taslak, plotMeta.title || deck.title);
     say(made.length + ' asetat basıldı.' + (fitted ? ' ' + fitted + ' yazı asetata sığacak şekilde ayarlandı.' : '') + (bosCerceve ? ' ' + bosCerceve + ' asetatın tablo/diyagram verisi gelmediği için madde düzenine alındı.' : '') + (kalanBos ? (kaynakli() ? ' ' + kalanBos + ' boş şerit kaynaklardan yazılamadığı için basılmadı.' : ' ' + kalanBos + ' asetatı Acadia yazamadı; soluk yerleri sen doldur ya da asetatı seçip “zenginleştir” de.') : '') + (plotMeta.via === 'skeleton' ? ' Soluk yerler senin; asetatı seçip “zenginleştir” dersen Acadia doldurur.' : ''), undo);
