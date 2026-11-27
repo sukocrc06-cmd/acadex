@@ -577,7 +577,14 @@ const noteEchoes = (slides: any[]): number => {
 const kelimeSay = (t: string): number => (String(t || "").trim().match(/\S+/g) || []).length;
 /* bölünen ikinci parça öncekine bağlaçla ya da zamirle bağlıysa ("Bu nedenle…", "This…") bölünmez: neden-sonuç bağı kopar */
 const BAGLI = /^(?:bu|bunun|bunu|bunlar\p{L}*|böylece|ancak|fakat|ama|çünkü|zira|dolayısıyla|yani|oysa|ise|this|these|that|those|it|its|they|their|thus|so|therefore|hence|however|but|because|which|while|yet|and|or)(?![\p{L}])/iu;
-const KISALTMA = /(?:^|[\s(])(?:vb|vs|örn|bkz|yy|Dr|Prof|Doç|St|Mr|Mrs|Ms|No|ca|etc|e\.g|i\.e|U\.S|A\.Ş)\.$/i;
+/* #47: nokta ancak gerçek cümle sonuysa sınırdır. Kısaltma/şirket eki (Inc., Ltd., vd.) ve harf-nokta dizisi
+   (baş harf "F.", "J. R. R.", "M.Ö.", "B.C.", "e.g.") cümle bitirmez; adı ya da ifadeyi ikiye bölmek yerine madde bölünmez. */
+const KISALTMA = /(?:^|[\s(])(?:(?:\p{L}\.)+|(?:vb|vd|vs|örn|bkz|yy|Dr|Prof|Doç|St|Mr|Mrs|Ms|No|ca|etc|Jr|Sr|Inc|Ltd|Corp|Co|Şti)\.)$/iu;
+/* Türkçede 1-3 haneli sayıdan sonra nokta sıra sayısıdır ("2. Dünya Savaşı", "II. Mahmut"); İngilizcede sıra "2nd" yazılır,
+   orada cümle sonu kalır. Türkçe cümle fiille biter: sayıdan hemen önce çekimli fiil (-yor, -dı, -mış, -dır) varsa nokta
+   cümle sonudur ("… yapıyor 3. İkinci …"). Yıl (4 hane) sıra sayılmaz. */
+const SIRA = /(?:^|[\s(])(?:\d{1,3}|[IVXLCDM]{2,})\.$/u;
+const FIILSAYI = /\p{L}(?:yor|[dt][ıiuü]|m[ıiuü]ş|[dt][ıiuü]r)\s+\d{1,3}\.$/u;
 /* 7.2 UZUN MADDE BÖLÜNÜR, KISALTILMAZ: 18 kelimeyi aşan madde (istemcinin LONG_BULLETS eşiği) yalnız kendi cümle ya da
    noktalı virgül sınırından ikiye ayrılır; ortaya en yakın sınır seçilir. Her parça en az 6 kelime; sözcük atılmaz,
    sayı kaybolmaz. Sınır yoksa madde olduğu gibi kalır (istemci önerir, kesmez). */
@@ -585,7 +592,7 @@ const bolNokta = (b: string, lang: string): string[] | null => {
   const t = String(b || "").trim(), loc = lang === "en" ? "en" : "tr", aday: { a: string; b: string; d: number }[] = [];
   for (const m of t.matchAll(/([.!?;])\s+(?=\S)/g)) {
     const i = m.index!, sol = t.slice(0, i + 1), sag = t.slice(i + m[0].length);
-    if (m[1] !== ";" && (KISALTMA.test(sol) || !/^[\p{Lu}\d"“«]/u.test(sag))) continue;
+    if (m[1] !== ";" && (KISALTMA.test(sol) || (loc === "tr" && SIRA.test(sol) && !FIILSAYI.test(sol)) || !/^[\p{Lu}\d"“«]/u.test(sag))) continue;
     if (BAGLI.test(sag) || kelimeSay(sol) < 6 || kelimeSay(sag) < 6) continue;
     const a = m[1] === ";" ? sol.slice(0, -1).trimEnd() + (/[.!?]$/.test(t) ? "." : "") : sol;
     aday.push({ a, b: sag.charAt(0).toLocaleUpperCase(loc) + sag.slice(1), d: Math.abs(kelimeSay(sol) - kelimeSay(sag)) });
