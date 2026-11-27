@@ -34,7 +34,7 @@ const kel = (t) => (String(t || '').trim().match(/\S+/g) || []).length;
 const sayilar = (t) => (String(t || '').match(/\d+(?:[.,]\d+)*/g) || []);
 const kopya = (x) => JSON.parse(JSON.stringify(x));
 
-const F = loadFromSource(SRV_PATH, ['numTokens', 'timeOk', 'sidesOf', 'onekAt', 'kelimeSay', 'BAGLI', 'KISALTMA', 'bolNokta', 'uzunBol', 'TARIHBAS', 'tarihliMi', 'KARSI', 'ikiTaraf', 'anlatiBicim', 'META_NOT', 'kok5', 'notSade']);
+const F = loadFromSource(SRV_PATH, ['numTokens', 'timeOk', 'sidesOf', 'onekAt', 'kelimeSay', 'BAGLI', 'KISALTMA', 'SIRA', 'FIILSAYI', 'bolNokta', 'uzunBol', 'TARIHBAS', 'tarihliMi', 'KARSI', 'ikiTaraf', 'anlatiBicim', 'META_NOT', 'kok5', 'notSade']);
 /* üretimdeki bağlama sırasının aynısı (A3 kaynakta doğrular) */
 const gecis = (slides, lang) => {
   const anlati = Object.assign({}, F.anlatiBicim(slides, lang), { bolunen: 0, notCumle: 0 });
@@ -168,6 +168,85 @@ test('B5 doğrulanmamış sayı uyarısı ve neden (why) sayıyı taşıyan par�
   assert.deepEqual(s.warn, [2, 3]);
   assert.deepEqual(s.why, { 2: 'kaynakta yok', 3: 'yuvarlanmış' });
   assert.ok(/1\.240/.test(s.bullets[2]));
+});
+/* #47 (27.11.2026): #46 kabul taraması dört sınırı yanlış buldu ("başlayan 2. | Dünya Savaşı", "John F. | Kennedy",
+   "M.Ö. | 2560", "Apple Inc. | Within"). Sözcük kaybolmuyordu ama ad ikiye bölünüyordu. Kural: sıra sayısı (TR), baş harf,
+   harf-nokta dizisi ve kısaltma/şirket eki cümle bitirmez; güvenli sınır yoksa madde bölünmez. */
+const naifSinir = (b) => [...b.matchAll(/[.!?]\s+(?=[\p{Lu}\d])/gu)].some((m) => kel(b.slice(0, m.index + 1)) >= 6 && kel(b.slice(m.index + 1)) >= 6);
+const KORU = [
+  ['tr', 'Almanya’nın Polonya’yı işgal etmesiyle 1939 yılında başlayan 2. Dünya Savaşı altı yıl sürdü ve milyonlarca sivilin ölümüne yol açtı', '2. Dünya Savaşı'],
+  ['tr', 'Osmanlı Devleti’nde anayasal düzene geçiş denemesi olarak 1876 yılında ilan edilen 1. Meşrutiyet kısa sürede askıya alındı ve meclis kapatıldı', '1. Meşrutiyet'],
+  ['tr', 'Yeniçeri Ocağını kaldırıp ordunun modernleşmesini başlatan ve yönetimde köklü reformlar yapan II. Mahmut merkezi otoriteyi taşrada da yeniden güçlendirmeye çalıştı', 'II. Mahmut'],
+  ['tr', 'Mısırlılar Giza platosundaki büyük piramidi yaklaşık olarak M.Ö. 2560 yılında tamamladı ve yapı binlerce yıl en yüksek yapı oldu', 'M.Ö. 2560'],
+  ['tr', 'Roma İmparatorluğu Hristiyanlığı resmi din olarak kabul ettiğinde takvim M.S. 380 yılını gösteriyordu ve kilise örgütü kentlerde hızla büyüdü', 'M.S. 380'],
+  ['tr', 'Okuma alışkanlıklarını inceleyen ve sonuçlarını iki makalede yayımlayan Yılmaz vd. Ankara ile İzmir okullarında öğrencileri iki yıl boyunca izledi', 'vd. Ankara'],
+  ['tr', 'Çalışmanın yürütücüsü olan ve yıllardır bu alanda araştırma yapan Prof. Ayşe Demir sonuçları uluslararası bir konferansta ilk kez kamuoyuyla paylaştı', 'Prof. Ayşe'],
+  ['tr', 'Kırtasiye ürünleri, defterler, kalemler, boya setleri vb. Ürünler okul açılmadan önceki iki haftada her yıl en yüksek satış rakamlarına ulaşıyor', 'vb. Ürünler'],
+  ['en', 'The space programme gained momentum after President John F. Kennedy announced in 1961 that America would land a man on the Moon', 'John F. Kennedy'],
+  ['en', 'The original survey of coastal erosion was led by the geologist A. B. Smith and later extended to every harbour along the northern coast', 'A. B. Smith'],
+  ['en', 'Many readers first met the fantasy genre through the novels written by J. R. R. Tolkien, whose invented languages still inspire linguists', 'J. R. R. Tolkien'],
+  ['en', 'The first commercial smartphone platform was released by Apple Inc. Within two years more than 100 thousand apps were available in its store', 'Apple Inc. Within'],
+  ['en', 'The long term maintenance contract was signed with Example Ltd. Following the audit the remaining suppliers were asked to renew their agreements', 'Example Ltd. Following'],
+  ['en', 'Several cheap and simple classroom interventions, e.g. Spaced practice and retrieval quizzes, raised average scores in most of the observed schools over two terms', 'e.g. Spaced'],
+  ['en', 'Most teams adopted the smaller model, i.e. The one that fitted on a single consumer graphics card, because hosting costs mattered more than accuracy', 'i.e. The'],
+  ['en', 'According to tradition the city of Rome was founded around 753 B.C. By its first king, who gave the settlement his own name and built walls', 'B.C. By'],
+  ['en', 'The eruption of the volcano in the year 79 A.D. Buried the towns of Pompeii and Herculaneum under metres of ash and preserved them', 'A.D. Buried'],
+];
+test('B6 #47 sıra sayısı, baş harf, M.Ö./M.S., vd./vb./Prof., Inc./Ltd., e.g./i.e., B.C./A.D. cümle sınırı sayılmaz: ad ya da ifade bölünmez, madde olduğu gibi kalır', () => {
+  KORU.forEach(([l, b, ifade]) => {
+    assert.ok(kel(b) > 18 && b.includes(ifade), 'fikstür: ' + ifade);
+    assert.ok(naifSinir(b), 'fikstürde naif kurala göre bölünebilir bir nokta olmalı: ' + ifade);
+    assert.equal(F.bolNokta(b, l), null, ifade + ' bölündü');
+    const s = S('T', [b, 'İkinci madde yeterince uzun ve anlamlı bir cümledir burada']);
+    assert.equal(F.uzunBol(s, l), 0, ifade);
+    assert.equal(s.bullets[0], b);
+  });
+});
+test('B7 #47 gerçek cümle sonu hâlâ sınırdır (korunan ifade içerde kalır); noktalı virgül çalışır; ondalık, sürüm, yıl ve EN sayı sonu doğru', () => {
+  const GERCEK = [
+    ['tr', '1939 yılında başlayan 2. Dünya Savaşı altı yıl sürdü ve Avrupa’yı derinden yıktı. Savaşın ardından kurulan Birleşmiş Milletler barışı korumayı amaçladı', 'yıktı.', '2. Dünya Savaşı'],
+    ['tr', 'Mısırlılar büyük piramidi yaklaşık olarak M.Ö. 2560 yılında tamamladı ve yapı çok uzun süre ayakta kaldı. Bugün Giza platosu her yıl milyonlarca ziyaretçi ağırlıyor', 'kaldı.', 'M.Ö. 2560'],
+    ['tr', 'Ölçülen ortalama büyüme hızı 3.5 birim olarak hesaplandı ve önceki yılın 2,75 değerinin belirgin biçimde üzerinde kaldı. Araştırmacılar bu farkı daha sıcak geçen ilkbahara bağlıyor', 'kaldı.', '3.5 birim'],
+    ['tr', 'Birinci cümle burada yeterince uzun bir açıklama yapıyor 3. İkinci cümle de en az altı kelimeden oluşan bağımsız bir düşünce.', 'yapıyor 3.', 'yapıyor 3.'],
+    ['tr', 'Ülkede ilk modern nüfus sayımı yapıldığında kayıtlı şehir sayısı oldukça azdı ve sayım yılı 1927. Sonraki sayımlar her beş yılda bir düzenli olarak yapıldı', '1927.', 'yılı 1927.'],
+    ['en', 'President John F. Kennedy set an ambitious goal for the national space programme in a famous speech. Eight years later Apollo 11 reached the lunar surface with three astronauts', 'speech.', 'John F. Kennedy'],
+    ['en', 'The release notes for version v2.1 describe a faster parser and several fixes for memory leaks in the server. Users of the older 1.9 branch should upgrade within six months', 'server.', 'v2.1'],
+    ['en', 'Over the last decade the number of member states in the regional economic alliance rose to 24. Analysts expect further enlargement once the current negotiations conclude next year', 'to 24.', 'to 24.'],
+  ];
+  GERCEK.forEach(([l, b, son, ifade]) => {
+    assert.ok(kel(b) > 18, 'fikstür uzun: ' + son);
+    const p = F.bolNokta(b, l);
+    assert.ok(p, 'gerçek sınır bulunmalı: ' + son);
+    assert.ok(p[0].endsWith(son), son + ' → ' + JSON.stringify(p));
+    assert.equal(p[0] + ' ' + p[1], b, 'sözcük ve sayı aynen korunur');
+    assert.ok(p.some((x) => x.includes(ifade)), ifade + ' bir parçada bütün');
+    assert.deepEqual(sayilar(p.join(' ')), sayilar(b));
+  });
+  const nv = F.bolNokta('Çalışmayı Prof. Ayşe Demir ve ekibi iki yıl boyunca yürüttü; sonuçlar uluslararası bir dergide yayımlandı ve geniş ilgi gördü', 'tr');
+  assert.deepEqual(nv, ['Çalışmayı Prof. Ayşe Demir ve ekibi iki yıl boyunca yürüttü', 'Sonuçlar uluslararası bir dergide yayımlandı ve geniş ilgi gördü']);
+});
+test('B8 #47 korunan ifade varken warn/why sayıyı taşıyan parçaya geçer; bölünmeyen maddede indisler aynen kalır', () => {
+  const b = 'President John F. Kennedy set an ambitious goal for the national space programme in a famous speech. Eight years later Apollo 11 reached the lunar surface with three astronauts';
+  const s = S('Space', ['A short but adequate opening bullet stays here', b, 'The last bullet mentions 300 launches and stays short'], '', { warn: [1, 2], why: { 1: 'not in source', 2: 'rounded' } });
+  assert.equal(F.uzunBol(s, 'en'), 1);
+  assert.equal(s.bullets.length, 4);
+  assert.ok(s.bullets[1].includes('John F. Kennedy') && /Apollo 11/.test(s.bullets[2]));
+  assert.deepEqual(s.warn, [2, 3]);
+  assert.deepEqual(s.why, { 2: 'not in source', 3: 'rounded' });
+  const k = S('Savaş', ['Kısa ama yeterli uzunlukta bir giriş maddesi burada duruyor', KORU[0][1]], '', { warn: [1], why: { 1: 'kaynakta yok' } });
+  assert.equal(F.uzunBol(k, 'tr'), 0);
+  assert.deepEqual([k.warn, k.why, k.bullets[1]], [[1], { 1: 'kaynakta yok' }, KORU[0][1]]);
+});
+test('B9 #47 deterministik ve kararlı: aynı girdi → aynı çıktı; güvenli bölünmüş liste ikinci geçişte değişmez', () => {
+  const liste = () => S('Karışık', [KORU[0][1], 'Birinci cümle burada yeterince uzun bir açıklama yapıyor 3. İkinci cümle de en az altı kelimeden oluşan bağımsız bir düşünce.', 'Mısırlılar büyük piramidi yaklaşık olarak M.Ö. 2560 yılında tamamladı ve yapı çok uzun süre ayakta kaldı. Bugün Giza platosu her yıl milyonlarca ziyaretçi ağırlıyor']);
+  const x = liste(), y = liste();
+  assert.equal(F.uzunBol(x, 'tr'), 2); F.uzunBol(y, 'tr');
+  assert.deepEqual(x, y);
+  assert.ok(x.bullets.every((t) => kel(t) <= 18 || t === KORU[0][1]), 'parçalar eşiğin altında: ' + JSON.stringify(x.bullets));
+  const once = kopya(x);
+  assert.equal(F.uzunBol(x, 'tr'), 0, 'ikinci geçiş bölmez');
+  assert.deepEqual(x, once);
+  KORU.forEach(([l, b]) => { const s = S('T', [b]); F.uzunBol(s, l); F.uzunBol(s, l); assert.deepEqual(s.bullets, [b]); });
 });
 
 /* ================================ C · İÇERİK BİÇİMİ ================================ */
