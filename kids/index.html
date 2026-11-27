@@ -3775,6 +3775,229 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
 @media (max-width:600px){.kc3-met{min-width:78px}.kc3-met-tas{width:56px;height:52px}.kc3-met b{font-size:15px;padding:4px 9px}}
 
 /* ==========================================================================
+   ACADEX KIDS · ZAMAN MAKİNESİ KASABASI (kids/assets/kids-gramer.css), 27.11.2026 — bkz. kids-gramer.js
+   Önek kzm- (kg- kids sitesinde kullanılıyor). Haritadaki kapı: .ka-portal.kzm-portal
+   Seviye = günün saati: Kolay sabah (açık mavi gök), Orta öğle (sıcak sarı), Zor akşam (mor-turuncu).
+   ========================================================================== */
+.ka-portal.kzm-portal{top:84px;background:linear-gradient(135deg,rgba(255,179,71,.35),rgba(255,107,91,.25))}
+.kzm-portal-g{position:relative;flex:none;width:42px;height:42px;border-radius:50%;background:#FFF8E7;border:3px solid #23304D;box-shadow:inset 0 0 0 3px #FFD23F}
+.kzm-portal-g i{position:absolute;left:50%;top:50%;width:3px;border-radius:2px;background:#23304D;transform-origin:50% 100%}
+.kzm-portal-g i:nth-child(1){height:12px;margin:-12px 0 0 -1.5px}
+.kzm-portal-g i:nth-child(2){height:9px;margin:-9px 0 0 -1.5px;background:#E5484D;transform:rotate(90deg)}
+@media (prefers-reduced-motion:no-preference){.kzm-portal-g i:nth-child(1){animation:kzmDon 4s linear infinite}.kzm-portal-g i:nth-child(2){animation:kzmDon 48s linear infinite}}
+@media (max-width:760px){.ka-portal.kzm-portal{top:136px}}
+@keyframes kzmDon{to{transform:rotate(360deg)}}
+
+/* ---------------- kök ve üst çubuk ---------------- */
+.kzm{--gok1:#BFE6FF;--gok2:#E9F7FF;--zemin:#9BDB8C;--zemin2:#7CC56E;position:relative;min-height:100dvh;padding:0 0 24px;color:#23304D;background:linear-gradient(180deg,var(--gok1),var(--gok2) 55%,#F6FFF0)}
+.kzm.kzm-sv3{--gok1:#FFE08A;--gok2:#FFF4CF;--zemin:#B7E07A;--zemin2:#97C95B}
+.kzm.kzm-sv4{--gok1:#7C5BD6;--gok2:#FF9E7A;--zemin:#6FAF7A;--zemin2:#4F8E62;color:#23304D}
+.kzm .kzm-ust{position:relative;z-index:3;background:rgba(255,255,255,.72);border-bottom:2px solid rgba(35,48,77,.12);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.kzm-sv-sec{display:flex;gap:6px}
+.kzm-sv-sec button{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46px;min-width:74px;padding:2px 12px;border:2.5px solid #23304D;border-radius:16px;background:#fff;color:#23304D;font:800 15px/1 var(--bas);cursor:pointer;box-shadow:0 3px 0 #23304D}
+.kzm-sv-sec button small{font-size:11px;font-weight:700;opacity:.75;margin-top:2px}
+.kzm-sv-sec button[data-kzmsv="2"][aria-pressed=true]{background:#4CC38A}
+.kzm-sv-sec button[data-kzmsv="3"][aria-pressed=true]{background:#FFC233}
+.kzm-sv-sec button[data-kzmsv="4"][aria-pressed=true]{background:#FF8A6B}
+.kzm-sv-sec button[aria-disabled=true]{opacity:.55}
+.kzm-sv-sec button:focus-visible{outline:4px solid #4AA8FF;outline-offset:2px}
+
+/* ---------------- kasaba sahnesi ---------------- */
+.kzm-kasaba{position:relative;width:min(1180px,100%);height:clamp(480px,calc(100dvh - 120px),780px);margin:0 auto}
+.kzm-kasaba.kzm-dar{height:max(1040px,calc(100dvh - 120px))}
+.kzm-dar .kzm-kule-y{display:none}.kzm-dar .kzm-ray{top:11%}.kzm-dar .kzm-gunes{top:40px;width:60px;height:60px}
+.kzm-gok{position:absolute;left:50%;width:100vw;top:-80px;bottom:-24px;transform:translateX(-50%);overflow:hidden;pointer-events:none}
+.kzm:has(.kzm-gok){overflow-x:clip}
+.kzm-gunes{position:absolute;right:8%;top:70px;width:86px;height:86px;border-radius:50%;background:radial-gradient(circle,#FFF6B8,#FFD23F 60%,#FFB020);box-shadow:0 0 60px rgba(255,210,63,.8)}
+.kzm-sv4 .kzm-gunes{top:auto;bottom:34%;background:radial-gradient(circle,#FFE0B8,#FF9E57 60%,#FF6B5B);box-shadow:0 0 80px rgba(255,120,80,.8)}
+.kzm-bulut{position:absolute;width:150px;height:46px;border-radius:999px;background:#fff;opacity:.9;box-shadow:30px -18px 0 -4px #fff,70px -6px 0 -6px #fff}
+.kzm-b1{left:6%;top:90px}.kzm-b2{left:58%;top:150px;transform:scale(.7)}
+.kzm-tepe{position:absolute;left:-10%;right:-10%;bottom:0;height:62%;border-radius:50% 50% 0 0 / 22% 22% 0 0;background:radial-gradient(ellipse at 30% 0,var(--zemin),var(--zemin2) 70%)}
+@media (prefers-reduced-motion:no-preference){.kzm-bulut{animation:kzmBulut 40s linear infinite alternate}.kzm-b2{animation-duration:55s}}
+@keyframes kzmBulut{to{translate:80px 0}}
+/* zaman treni ve saat kulesi */
+.kzm-ray{position:absolute;left:0;right:0;top:22%;height:10px;border-top:4px solid #8B5E34;background:repeating-linear-gradient(90deg,#8B5E34 0 4px,transparent 4px 18px);opacity:.75;pointer-events:none}
+.kzm-tren{position:absolute;left:-12%;top:-42px;width:84px}
+.kzm-tren svg{display:block;width:100%;height:auto}
+@media (prefers-reduced-motion:no-preference){.kzm-tren{animation:kzmTren 16s linear infinite}}
+@keyframes kzmTren{0%{left:-12%}60%{left:104%}100%{left:104%}}
+.kzm-kule-y{position:absolute;left:50%;top:-6px;width:clamp(70px,8vw,100px);transform:translateX(-50%);pointer-events:none;z-index:1}
+.kzm-kule{display:block;width:100%;height:auto;filter:drop-shadow(0 6px 0 rgba(35,48,77,.18))}
+.kzm-akrep,.kzm-yelkovan{transform-origin:60px 102px}
+@media (prefers-reduced-motion:no-preference){.kzm-yelkovan{animation:kzmDon 6s linear infinite}.kzm-akrep{animation:kzmDon 72s linear infinite}}
+.kzm-tabela{position:absolute;left:14px;top:12px;z-index:2;margin:0;display:flex;flex-direction:column;padding:8px 14px;border:3px solid #23304D;border-radius:14px;background:#FFF8E7;box-shadow:0 4px 0 #23304D;transform:rotate(-2deg)}
+.kzm-tabela b{font:800 18px/1.1 var(--bas)}.kzm-tabela span{font:700 13px/1.3 var(--bas);color:#5B6788}
+.kzm-yol{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.kzm-yol path{fill:none;stroke:#F3E2B8;stroke-width:22;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+/* binalar */
+.kzm-evler{margin:0;padding:0;list-style:none}
+.kzm-evler li{position:absolute;z-index:2;width:clamp(92px,11vw,132px);transform:translate(-50%,-62%)}
+@media (prefers-reduced-motion:no-preference){.kzm-evler li{animation:kzmGel .5s calc(var(--i) * .06s) cubic-bezier(.3,1.5,.5,1) both}}
+@keyframes kzmGel{from{opacity:0;transform:translate(-50%,-40%) scale(.6)}}
+.kzm-ev{position:relative;display:block;width:100%;padding:0;border:0;background:none;cursor:pointer;font:inherit;color:#23304D}
+.kzm-ev-s{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 6px 0 rgba(35,48,77,.22));transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+.kzm-ev:hover .kzm-ev-s,.kzm-ev:focus-visible .kzm-ev-s{transform:translateY(-6px) scale(1.05)}
+.kzm-ev:focus-visible{outline:none}.kzm-ev:focus-visible .kzm-ad{outline:4px solid #4AA8FF;outline-offset:2px}
+.kzm-duman circle{opacity:.7}
+@media (prefers-reduced-motion:no-preference){.kzm-duman circle{animation:kzmDuman 2.6s ease-out infinite}.kzm-duman circle:nth-child(2){animation-delay:1.3s}}
+@keyframes kzmDuman{0%{transform:translate(0,6px) scale(.6);opacity:0}30%{opacity:.8}100%{transform:translate(6px,-14px) scale(1.3);opacity:0}}
+.kzm-saat-r{position:absolute;right:2px;top:-4px;font-size:22px;filter:drop-shadow(0 2px 0 rgba(35,48,77,.3))}
+.kzm-ad{display:flex;flex-direction:column;align-items:center;width:max-content;max-width:170px;margin:-2px auto 0;padding:4px 12px 5px;border:2.5px solid #23304D;border-radius:14px;background:#fff;box-shadow:0 3px 0 #23304D;line-height:1.1}
+.kzm-ad b{font:800 clamp(12px,1.3vw,15px)/1.1 var(--bas);text-align:center}
+.kzm-ad small{font:700 11px/1.2 var(--bas);color:#5B6788}
+.kzm-ad i{display:flex;gap:2px;font-style:normal;margin-top:2px}
+.kzm-y em,.kzm-yb em{font-style:normal;color:#D8DEEA}
+.kzm-y em{font-size:12px;-webkit-text-stroke:.6px #23304D}.kzm-y em.on,.kzm-yb em.on{color:#FFD23F}
+.kzm-adim u{display:inline-block;width:8px;height:8px;border-radius:50%;background:#D8DEEA;border:1.5px solid #23304D}
+.kzm-adim u.on{background:#4CC38A}
+.kzm-kilit .kzm-ev{cursor:not-allowed}.kzm-kilit .kzm-ad{background:#E6E9F2;color:#6B7392}
+.kzm-sira .kzm-ev-s{filter:drop-shadow(0 0 14px rgba(255,210,63,.95)) drop-shadow(0 6px 0 rgba(35,48,77,.22))}
+@media (prefers-reduced-motion:no-preference){.kzm-sira .kzm-ev{animation:kzmZipla 1.6s ease-in-out infinite}}
+@keyframes kzmZipla{0%,100%{translate:0 0}50%{translate:0 -8px}}
+.kzm-sira .kzm-ad{background:#FFD23F}
+.kzm-bayrak{transform-origin:60px 14px}
+@media (prefers-reduced-motion:no-preference){.kzm-bayrak path:last-child{animation:kzmBayrak 1.4s ease-in-out infinite;transform-origin:61px -6px}}
+@keyframes kzmBayrak{50%{transform:skewY(-8deg) scaleX(.9)}}
+.kzm-yuruyen{position:absolute;z-index:3;width:clamp(44px,5vw,60px);transform:translate(10%,-150%);pointer-events:none}
+.kzm-yuruyen .kc{display:block;width:100%;height:auto}
+@media (prefers-reduced-motion:no-preference){.kzm-yuruyen{animation:kzmZipla 2.2s ease-in-out infinite}}
+.kzm-salla{outline:3px solid #E5484D;outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.kzm-salla{animation:kzmSalla .45s ease-in-out}}
+@keyframes kzmSalla{20%,60%{transform:translateX(-7px) rotate(-3deg)}40%,80%{transform:translateX(7px) rotate(3deg)}}
+
+/* ---------------- bina ekranı ---------------- */
+.kzm-konu-alan{display:flex;flex-direction:column;align-items:center;gap:18px;padding:40px 14px 16px}
+.kzm-ev-buyuk{width:min(200px,44vw)}
+@media (prefers-reduced-motion:no-preference){.kzm-ev-buyuk{animation:kzmZipla 3.4s ease-in-out infinite}}
+.kzm-adimlar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;width:min(760px,100%);margin:0;padding:0;list-style:none}
+.kzm-adim-b{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;min-height:150px;padding:14px 10px 12px;border:3px solid #23304D;border-radius:24px;background:#fff;box-shadow:0 6px 0 #23304D;color:#23304D;font:inherit;cursor:pointer;transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.kzm-adim-b:hover{transform:translateY(-3px)}.kzm-adim-b:focus-visible{outline:4px solid #4AA8FF;outline-offset:3px}
+.kzm-adim-b[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.kzm-a-no{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;border:3px solid #23304D;background:var(--r);font-size:24px}
+.kzm-a-no .kc-simge{width:32px;height:32px}
+.kzm-adim-b b{font:800 22px/1.1 var(--bas)}.kzm-adim-b small{font:700 14px/1 var(--bas);color:#5B6788}
+.kzm-adim-b .kzm-y em{font-size:20px}
+.kzm-a-bitti{background:#F0FBF3}
+.kzm-a-simdi{border-color:#23304D;background:#FFF6CC}
+@media (prefers-reduced-motion:no-preference){.kzm-a-simdi{animation:kzmZipla 1.6s ease-in-out infinite}}
+.kzm-yeni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 20px;border:3px solid #23304D;border-radius:20px;background:#FFD23F;box-shadow:0 5px 0 #23304D}
+.kzm-yeni span{font-size:30px}.kzm-yeni b{font:800 22px/1 var(--bas)}.kzm-yeni small{font-weight:700}
+@media (prefers-reduced-motion:no-preference){.kzm-yeni{animation:kzmGelK .6s cubic-bezier(.3,1.6,.5,1) both}}
+@keyframes kzmGelK{from{transform:scale(.4);opacity:0}}
+@media (max-width:560px){.kzm-adimlar{grid-template-columns:1fr}.kzm-adim-b{min-height:0;flex-direction:row;justify-content:flex-start;gap:12px;text-align:left}}
+
+/* ---------------- oyun kartı ---------------- */
+.kzm-noktalar{display:flex;gap:6px;margin:0;padding:0;list-style:none}
+.kzm-noktalar li{width:12px;height:12px;border-radius:50%;background:#D8DEEA;border:1.5px solid #23304D}
+.kzm-noktalar li.simdi{background:#fff;box-shadow:0 0 0 3px rgba(74,168,255,.45)}
+.kzm-noktalar li.tamam{background:#FFD23F}
+.kzm-kart{position:relative;width:min(920px,calc(100% - 24px));margin:12px auto 0;padding:20px;border:3px solid #23304D;border-radius:30px;background:#FFFDF6;box-shadow:0 8px 0 #23304D}
+@media (max-width:560px){.kzm .kzm-ust .kk-bas small{display:none}.kzm-kart{padding:14px}.kzm .kzm-ust{flex-wrap:wrap}.kzm-sv-sec button{min-width:60px;min-height:40px;font-size:13px}}
+
+/* canlı kelime karakterleri: rol renkleri Cümle Galaksisi ile aynı */
+.kzm-b{position:relative;display:inline-flex;align-items:center;gap:0;min-height:52px;margin:6px 4px;padding:0 16px;border:3px solid #23304D;border-radius:16px;background:var(--bg,#E8ECF5);color:#23304D;box-shadow:0 4px 0 #23304D;font:800 clamp(18px,2.6vw,28px)/1.1 var(--bas);white-space:nowrap}
+.kzm-r-s{--bg:#BFE3FF}.kzm-r-v{--bg:#FFC2BD}.kzm-r-o{--bg:#C6EDCF}.kzm-r-q{--bg:#DCD3FF}.kzm-r-x{--bg:#E8ECF5}
+.kzm-goz{position:absolute;left:50%;top:-9px;width:22px;height:12px;transform:translateX(-50%);background:radial-gradient(circle at 25% 60%,#23304D 2.4px,#fff 2.6px 5px,transparent 5.2px),radial-gradient(circle at 75% 60%,#23304D 2.4px,#fff 2.6px 5px,transparent 5.2px)}
+.kzm-cumle{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;margin:10px 0;min-height:70px}
+.kzm-son{font:800 clamp(22px,3vw,32px)/1 var(--bas);margin-left:2px}
+@media (prefers-reduced-motion:no-preference){.kzm-cumle .kzm-b{animation:kzmB .5s calc(var(--j) * .12s) cubic-bezier(.3,1.6,.5,1) both}
+  .kzm-goz{animation:kzmGoz 4s calc(var(--j,0) * .3s) infinite}}
+@keyframes kzmB{from{opacity:0;transform:translateY(-26px) scale(.6)}}
+@keyframes kzmGoz{0%,92%,100%{transform:translateX(-50%) scaleY(1)}95%{transform:translateX(-50%) scaleY(.1)}}
+/* ek: turuncu blok uçarak köke yapışır */
+.kzm-ek{display:inline-block;margin-left:2px;padding:2px 6px;border-radius:9px;background:#FFB020;color:#23304D;box-shadow:inset 0 -3px 0 rgba(0,0,0,.12)}
+@media (prefers-reduced-motion:no-preference){.kzm-ekli .kzm-ek{animation:kzmEk 1.1s calc(var(--j) * .12s + .7s) cubic-bezier(.3,1.5,.5,1) both}}
+@keyframes kzmEk{0%{opacity:0;transform:translate(40px,-60px) rotate(25deg) scale(1.4)}60%{opacity:1;transform:translate(0,4px) rotate(-6deg)}100%{transform:none}}
+/* dönüşüm: eski kelime çevrilir, yenisi gelir */
+.kzm-don{position:relative;display:inline-grid}
+.kzm-don > span{grid-area:1 / 1}
+.kzm-eski{opacity:0;text-decoration:line-through;text-decoration-color:#E5484D}
+.kzm-yeni-k{color:#23304D}
+@media (prefers-reduced-motion:no-preference){.kzm-donen .kzm-eski{animation:kzmEski 1.6s calc(var(--j) * .12s + .5s) both}.kzm-donen .kzm-yeni-k{animation:kzmYeni 1.6s calc(var(--j) * .12s + .5s) both}}
+@keyframes kzmEski{0%,35%{opacity:1;transform:none}60%,100%{opacity:0;transform:rotateX(90deg)}}
+@keyframes kzmYeni{0%,55%{opacity:0;transform:rotateX(-90deg)}100%{opacity:1;transform:none}}
+.kzm-donen{background:linear-gradient(var(--bg),var(--bg)) padding-box,linear-gradient(90deg,#FFB020,#FF6B5B) border-box;border-color:transparent}
+
+/* izle */
+.kzm-izle{display:flex;flex-direction:column;align-items:center;gap:8px}
+.kzm-sahne{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%}
+.kzm-res{width:clamp(90px,16vw,140px)}.kzm-res svg,.kzm-res .kc{display:block;width:100%;height:auto}
+@media (prefers-reduced-motion:no-preference){.kzm-res{animation:kzmGelK .5s cubic-bezier(.3,1.6,.5,1) both}}
+.kzm-anlat{margin:4px 0 0;max-width:640px;font:700 clamp(17px,2.2vw,21px)/1.4 var(--bas);text-align:center;color:#23304D}
+.kzm-tablo{border-collapse:separate;border-spacing:0 6px;margin:2px auto}
+.kzm-tablo th,.kzm-tablo td{padding:6px 14px;border:2.5px solid #23304D;font:800 16px/1.2 var(--bas)}
+.kzm-tablo th{border-radius:12px 0 0 12px;background:#BFE3FF;text-align:right}
+.kzm-tablo td{border-left:0;border-radius:0 12px 12px 0;background:#FFC2BD}
+@media (prefers-reduced-motion:no-preference){.kzm-tablo tr{animation:kzmB .45s calc(.9s + var(--q) * .2s) cubic-bezier(.3,1.6,.5,1) both}}
+.kzm-boy{display:flex;align-items:flex-end;gap:22px;min-height:120px}
+.kzm-boy span{display:flex;flex-direction:column;align-items:center;gap:4px}
+.kzm-boy i{display:block;width:calc(34px + var(--q) * 26px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#C6EDCF,#4CC38A);border:3px solid #23304D}
+.kzm-boy b{font:800 16px/1 var(--bas)}
+@media (prefers-reduced-motion:no-preference){.kzm-boy span{animation:kzmB .5s calc(var(--q) * .35s) cubic-bezier(.3,1.6,.5,1) both}}
+.kzm-izle-d{display:flex;align-items:center;gap:10px;margin-top:8px}
+.kzm-izle-d [disabled]{opacity:.4}
+.kzm-dinle{display:grid;place-items:center;width:58px;height:58px;border:3px solid #23304D;border-radius:50%;background:#FFD23F;box-shadow:0 4px 0 #23304D;cursor:pointer}
+.kzm-dinle .kc-simge{width:30px;height:30px}
+.kzm-dinle:focus-visible,.kzm-izle-d button:focus-visible{outline:4px solid #4AA8FF;outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){.kzm-hazir{animation:kzmZipla 1s ease-in-out infinite}}
+/* zaman treni şeridi */
+.kzm-zaman{position:relative;width:min(720px,100%);height:86px;margin:0 auto 4px}
+.kzm-z-ray{position:absolute;left:4%;right:4%;top:46px;height:8px;border-top:4px solid #8B5E34;background:repeating-linear-gradient(90deg,#8B5E34 0 4px,transparent 4px 16px)}
+.kzm-ist{position:absolute;top:58px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;padding:2px 8px;border:2px solid #23304D;border-radius:10px;background:#fff;line-height:1.05}
+.kzm-ist b{font:800 13px/1 var(--bas)}.kzm-ist small{font:700 10px/1 var(--bas);color:#5B6788}
+.kzm-ist.on{background:#FFD23F;transform:translateX(-50%) scale(1.12)}
+.kzm-z-tren{position:absolute;left:var(--p);top:2px;width:86px;transform:translateX(-50%)}
+.kzm-z-tren svg{display:block;width:100%;height:auto}
+@media (prefers-reduced-motion:no-preference){.kzm-z-git .kzm-z-tren{animation:kzmZGit 1.2s cubic-bezier(.45,0,.25,1) both}}
+@keyframes kzmZGit{from{left:var(--p0)}to{left:var(--p)}}
+
+/* dene ve oyna */
+.kzm-dene,.kzm-oy{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.kzm-oy-tip{padding:4px 12px;border-radius:999px;background:#E8ECF5;font:800 14px/1.2 var(--bas)}
+.kzm-d-tr{margin:0;font:700 17px/1.3 var(--bas);color:#5B6788}
+.kzm-d-cumle{margin:6px 0;font:800 clamp(22px,3.4vw,34px)/1.5 var(--bas)}
+.kzm-d-ip{margin:0;font:700 14px/1.3 var(--bas);color:#8A93AB}
+.kzm-bosluk{display:inline-flex;align-items:center;justify-content:center;min-width:110px;min-height:52px;margin:0 6px;padding:0 12px;border:3px dashed #23304D;border-radius:14px;background:#fff;color:#8A93AB;vertical-align:middle;transition:transform .2s,background .2s}
+.kzm-bosluk.kzm-hedef{background:#FFF6CC;transform:scale(1.08)}
+.kzm-bosluk.kzm-dolu{border-style:solid;background:#C6EDCF;color:#23304D}
+@media (prefers-reduced-motion:no-preference){.kzm-bosluk.kzm-dolu{animation:kzmGelK .4s cubic-bezier(.3,1.6,.5,1)}}
+.kzm-d-bloklar{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px}
+.kzm-d-bloklar .kzm-b{cursor:grab;touch-action:none;transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.kzm-d-bloklar .kzm-b:focus-visible{outline:4px solid #4AA8FF;outline-offset:2px}
+.kzm-tutuldu{z-index:5;cursor:grabbing;transition:none!important;box-shadow:0 12px 0 rgba(35,48,77,.35)}
+.kzm-gitti{visibility:hidden}
+.kzm-ipucu{box-shadow:0 0 0 5px #FFD23F,0 4px 0 #23304D}
+@media (prefers-reduced-motion:no-preference){.kzm-ipucu{animation:kzmZipla .8s ease-in-out infinite}}
+.kzm-dizi{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;min-height:66px;margin:4px 0;padding:4px 10px;border:3px dashed #C9CFE2;border-radius:18px;min-width:min(520px,100%)}
+.kzm-secler{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:6px}
+.kzm-sec{min-height:58px;padding:0 22px;border:3px solid #23304D;border-radius:18px;background:#fff;box-shadow:0 5px 0 #23304D;color:#23304D;font:800 clamp(18px,2.2vw,24px)/1.15 var(--bas);cursor:pointer}
+.kzm-sec:focus-visible,.kzm-dy-b:focus-visible{outline:4px solid #4AA8FF;outline-offset:2px}
+.kzm-s-dogru{background:#C6EDCF!important}
+.kzm-s-yanlis{background:#FFD0D0!important;opacity:.7}
+.kzm-y-tabela{position:relative;margin:6px 0;padding:14px 22px;border:3px solid #23304D;border-radius:16px;background:#fff;box-shadow:0 5px 0 #23304D;font:800 clamp(20px,3vw,30px)/1.3 var(--bas)}
+.kzm-y-tabela.kzm-ciz{color:#B23B33;text-decoration:line-through;text-decoration-thickness:3px}
+.kzm-dy{display:flex;gap:14px}
+.kzm-dy-b{display:flex;align-items:center;gap:8px;min-height:62px;padding:0 26px;border:3px solid #23304D;border-radius:20px;box-shadow:0 5px 0 #23304D;font:800 22px/1 var(--bas);cursor:pointer}
+.kzm-dy-b span{font-size:28px}
+.kzm-dy-e{background:#C6EDCF}.kzm-dy-h{background:#FFD0D0}
+.kzm-duzelt{min-height:1.4em;margin:0;font:700 18px/1.3 var(--bas)}.kzm-duzelt b{color:#1E8A55}
+.kzm-bitis{position:relative;display:grid;justify-items:center;gap:10px;padding:10px 0;text-align:center;overflow:hidden}
+.kzm-bitis h2{margin:0;font:800 30px/1.1 var(--bas)}
+.kzm-bitis p{margin:0;font-weight:700;color:#5B6788}
+.kzm-acd{width:84px;height:84px}.kzm-acd .kc{width:100%;height:100%}
+.kzm-yildizlar{margin:0}.kzm-yb{display:flex;gap:8px;font-style:normal;font-size:54px;line-height:1}
+.kzm-yb em{-webkit-text-stroke:2px #23304D}
+@media (prefers-reduced-motion:no-preference){.kzm-yb em{animation:kzmGelK .5s cubic-bezier(.3,1.6,.5,1) both}.kzm-yb em:nth-child(2){animation-delay:.25s}.kzm-yb em:nth-child(3){animation-delay:.5s}}
+.kzm-bitis-d{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:6px}
+/* veli raporu */
+.kzm-rapor{margin-top:14px}.kzm-rapor h3{margin:0 0 6px;font:800 18px/1.2 var(--bas)}.kzm-rapor h3 small{font-size:13px;color:#5B6788}
+.kzm-r-sv{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.kzm-r-sv li{display:grid;grid-template-columns:120px 1fr 52px;align-items:center;gap:8px}
+.kzm-r-sv span{height:10px;border-radius:999px;background:#E8ECF5;overflow:hidden}.kzm-r-sv span i{display:block;height:100%;background:#4CC38A}
+.kzm-r-sv em{font-style:normal;font-weight:800}
+@media (max-width:560px){.kzm-b{min-height:46px;padding:0 12px}.kzm-bosluk{min-width:84px;min-height:46px}.kzm-dy-b{padding:0 18px;font-size:18px}}
+
+/* ==========================================================================
    ACADEX KIDS · maskot, ekran süresi, veli raporu (kids/assets/kids-maskot.css), 26.11.2026
    bkz. kids-maskot.js ve kids-app.js (uyku, sureHaber, veli köşesi "Bu hafta")
    ========================================================================== */
@@ -10851,6 +11074,651 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
     rapor: function (i) { C = C || W.KIDS_CIZ; return rapor(i); }, _oz: function (o) { oz = o; } };
 })(window);
 
+/* ---- kids-gramer2.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · ZAMAN MAKİNESİ KASABASI: KONU VERİSİ (kids/assets/kids-gramer2.js), 27.11.2026
+   İlkokul İngilizce dil bilgisi, kolaydan zora 30 konu. Seviye = sınıf:
+     Kolay (2. sınıf) ~ Cambridge Pre A1 Starters · Orta (3. sınıf) ~ A1 Movers · Zor (4. sınıf) ~ A2 Flyers başı.
+   Sıra MEB Maarif Modeli İngilizce kalıplarıyla (Target Language Chunks) uyumlu: önce olmak, sahiplik,
+   yer; sonra geniş/şimdiki zaman; en son geçmiş ve gelecek.
+   Her konu üç adım: İZLE (animasyonlu anlatım) → DENE (boşluğa bloğu sürükle) → OYNA (6 soruluk oyun).
+   Biçim:
+     iz  [{ t: Türkçe anlatım, s: cümle, ... }]   s: "She/s is/v happy/o ."  kelime/rol, _ = tek blokta boşluk
+         rol: s kim (mavi) · v ne yapar (kırmızı) · o ne/nerede (yeşil) · q soru (mor) · x diğer (gri)
+         "play+s/v"  kök + ek: ek uçarak köke yapışır · "go>went/v" dönüşüm: kelime değişir
+         z: 'dun' | 'simdi' | 'yarin' | 'her'  → zaman treni o istasyona gider
+         r: resim (KIDS_RESIM) · tab: [[sol, sağ]…] eşleşme tablosu · b: [kelime…] büyüyen nesneler
+     de  [boşluklu cümle, doğru, [yanlışlar], Türkçesi]                   (5 tane)
+     oy  "s|cümle|doğru|yanlış,yanlış|Türkçe"  seç
+         "y|cümle|1 ya da 0|doğrusu|Türkçe"     doğru mu yanlış mı
+         "d|kelime/rol …|Türkçe"                 kelimeleri sırala
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  function k(id, sv, en, tr, renk, ikon, iz, de, oy, zaman) { return { id: id, sv: sv, en: en, tr: tr, renk: renk, ikon: ikon, iz: iz, de: de, oy: oy, zaman: zaman || '' }; }
+  var KONU = [
+    /* =================== KOLAY · 2. sınıf =================== */
+    k('k-be', 2, 'am / is / are', 'Olmak', '#4AA8FF', 'be', [
+      { t: '"Olmak" kelimesi İngilizcede kişiye göre değişir. Ben için "am" deriz.', s: 'I/s am/v happy/o .', r: 'happy' },
+      { t: 'O (kız), o (erkek) ve o (şey) için "is" deriz.', s: 'She/s is/v my_teacher/o .', r: 'teacher' },
+      { t: 'Sen, biz ve onlar için "are" deriz.', s: 'We/s are/v friends/o .', r: 'friend' },
+      { t: 'Hepsini bir arada görelim.', s: 'It/s is/v a_cat/o .', tab: [['I', 'am'], ['He · She · It', 'is'], ['You · We · They', 'are']], r: 'cat' }
+    ], [['I ___ seven.', 'am', ['is', 'are'], 'Ben yedi yaşındayım.'], ['He ___ my brother.', 'is', ['am', 'are'], 'O benim kardeşim.'], ['They ___ happy.', 'are', ['is', 'am'], 'Onlar mutlu.'],
+      ['It ___ a dog.', 'is', ['are', 'am'], 'O bir köpek.'], ['You ___ my friend.', 'are', ['am', 'is'], 'Sen benim arkadaşımsın.']],
+    ['s|She ___ hungry.|is|am,are|O aç.', 's|We ___ in the garden.|are|is,am|Biz bahçedeyiz.', 'y|I is happy.|0|I am happy.|Ben mutluyum.', 'y|They are at school.|1||Onlar okulda.',
+      'd|He/s is/v tall/o .|O uzun boylu.', 's|___ am eight.|I|She,They|Ben sekiz yaşındayım.']),
+    k('k-aan', 2, 'a / an', 'Bir', '#FF9E57', 'aan', [
+      { t: 'Bir tane şeyden söz ederken kelimenin önüne "a" koyarız.', s: 'It/s is/v a_ball/o .', r: 'ball' },
+      { t: 'Kelime a, e, i, o, u sesiyle başlıyorsa "an" deriz. Söylemesi kolay olsun diye.', s: 'It/s is/v an_apple/o .', r: 'apple' },
+      { t: 'Elephant "e" sesiyle başlıyor; o yüzden "an elephant".', s: 'It/s is/v an_elephant/o .', r: 'elephant' },
+      { t: 'Book "b" sesiyle başlıyor; "a book".', s: 'I/s have_got/v a_book/o .', r: 'book', tab: [['a', 'ball · cat · book'], ['an', 'apple · egg · umbrella']] }
+    ], [['It is ___ egg.', 'an', ['a'], 'Bu bir yumurta.'], ['It is ___ dog.', 'a', ['an'], 'Bu bir köpek.'], ['I have got ___ umbrella.', 'an', ['a'], 'Bir şemsiyem var.'],
+      ['She has got ___ bike.', 'a', ['an'], 'Onun bir bisikleti var.'], ['It is ___ orange.', 'an', ['a'], 'Bu bir portakal.']],
+    ['s|It is ___ apple.|an|a|Bu bir elma.', 's|It is ___ car.|a|an|Bu bir araba.', 'y|It is a egg.|0|It is an egg.|Bu bir yumurta.', 'y|It is a cat.|1||Bu bir kedi.',
+      'd|It/s is/v an/x elephant/o .|Bu bir fil.', 's|I want ___ banana.|a|an|Bir muz istiyorum.']),
+    k('k-cogul', 2, 'cat → cats', 'Çoğul: -s', '#4CC38A', 'cogul', [
+      { t: 'Bir tane kedi: a cat.', s: 'It/s is/v a_cat/o .', r: 'cat' },
+      { t: 'Birden fazla olunca kelimenin sonuna "s" ekleriz. İzle, s geliyor!', s: 'two/x cat+s/o', r: 'cat' },
+      { t: 'Kitaplar da öyle: book, books.', s: 'three/x book+s/o', r: 'book' },
+      { t: 'Box gibi kelimelere "es" gelir: boxes.', s: 'two/x box+es/o' },
+      { t: 'Bazı kelimeler kuralı bozar! Bir çocuk "child", çocuklar "children".', s: 'two/x child>children/o', r: 'children' }
+    ], [['two ___', 'dogs', ['dog', 'a dog'], 'iki köpek'], ['three ___', 'apples', ['apple', 'an apple'], 'üç elma'], ['a ___', 'pencil', ['pencils', 'pencilss'], 'bir kalem'],
+      ['five ___', 'boxes', ['boxs', 'box'], 'beş kutu'], ['four ___', 'children', ['childs', 'child'], 'dört çocuk']],
+    ['s|six ___|cats|cat,a cat|altı kedi', 's|one ___|ball|balls,ballses|bir top', 'y|two book|0|two books|iki kitap', 'y|three birds|1||üç kuş',
+      'd|I/s have_got/v two/x pencils/o .|İki kalemim var.', 's|two ___|children|childs,childrens|iki çocuk']),
+    k('k-this', 2, 'this / that', 'Bu / Şu', '#B57BFF', 'this', [
+      { t: 'Yakınımızdaki şeyi gösterirken "this" deriz: bu.', s: 'This/s is/v my_bag/o .', r: 'bag' },
+      { t: 'Uzaktaki şeyi gösterirken "that" deriz: şu.', s: 'That/s is/v a_bird/o .', r: 'bird' },
+      { t: 'Birden fazla yakın şey için "these", uzak şeyler için "those".', s: 'These/s are/v my_books/o .', r: 'book', tab: [['yakın', 'this · these'], ['uzak', 'that · those']] },
+      { t: 'Soru da sorabiliriz: Bu ne?', s: 'What/q is/v this/s ?' }
+    ], [['___ is my pencil. (yakın)', 'This', ['That', 'These'], 'Bu benim kalemim.'], ['___ is a plane. (uzak)', 'That', ['This', 'Those'], 'Şu bir uçak.'],
+      ['___ are my shoes. (yakın)', 'These', ['This', 'Those'], 'Bunlar benim ayakkabılarım.'], ['___ are birds. (uzak)', 'Those', ['These', 'That'], 'Şunlar kuş.'], ['What is ___? (yakın)', 'this', ['these', 'those'], 'Bu ne?']],
+    ['s|___ is my cat. (yakın)|This|These,Those|Bu benim kedim.', 's|___ is the sun. (uzak)|That|This,These|Şu güneş.', 'y|These is my book.|0|This is my book.|Bu benim kitabım.', 'y|Those are stars.|1||Şunlar yıldız.',
+      'd|What/q is/v that/s ?|Şu ne?', 's|___ are my friends. (yakın)|These|This,That|Bunlar benim arkadaşlarım.']),
+    k('k-my', 2, 'my / your / his / her', 'Benim, senin...', '#FF6B9A', 'my', [
+      { t: 'Bir şey bizimse "my" deriz: benim.', s: 'This/s is/v my/x bag/o .', r: 'bag' },
+      { t: 'Karşımızdakininse "your": senin.', s: 'Is/q this/s your/x pencil/o ?', r: 'pencil' },
+      { t: 'Bir erkeğinse "his", bir kızınsa "her".', s: 'His/x name/s is/v Can/o .', tab: [['I', 'my'], ['you', 'your'], ['he', 'his'], ['she', 'her'], ['we', 'our'], ['they', 'their']] },
+      { t: 'Kızın şapkası: her hat.', s: 'Her/x hat/s is/v red/o .', r: 'hat' }
+    ], [['I have got a dog. ___ dog is big.', 'My', ['Your', 'Her'], 'Benim köpeğim büyük.'], ['Ayşe is my friend. ___ eyes are blue.', 'Her', ['His', 'My'], 'Onun gözleri mavi.'],
+      ['Ali is here. ___ bag is red.', 'His', ['Her', 'Your'], 'Onun çantası kırmızı.'], ['Is this ___ book? (sen)', 'your', ['my', 'his'], 'Bu senin kitabın mı?'], ['We love ___ school.', 'our', ['their', 'your'], 'Okulumuzu seviyoruz.']],
+    ['s|She is Elif. ___ name is Elif.|Her|His,My|Onun adı Elif.', 's|He is Can. ___ name is Can.|His|Her,Your|Onun adı Can.', 'y|I love my mum.|1||Annemi seviyorum.', 'y|Ali and his sister: her name is Ece.|1||Kız kardeşinin adı Ece.',
+      'd|This/s is/v my/x teddy/o .|Bu benim oyuncak ayım.', 's|They are in ___ garden.|their|our,her|Onlar bahçelerinde.']),
+    k('k-have', 2, 'have got / has got', 'Sahip olmak', '#2FB7B0', 'have', [
+      { t: 'Bir şeyimiz olduğunu söylerken "have got" deriz.', s: 'I/s have_got/v a_cat/o .', r: 'cat' },
+      { t: 'O (kız, erkek, şey) için "has got" olur.', s: 'She/s has_got/v a_kite/o .', r: 'kite' },
+      { t: 'Olmayan şey için "haven\'t got" ya da "hasn\'t got".', s: 'He/s hasn\'t_got/v a_bike/o .', r: 'bike', tab: [['I · you · we · they', 'have got'], ['he · she · it', 'has got']] },
+      { t: 'Soru sorarken başa alırız: Have you got...?', s: 'Have/q you/s got/v a_pen/o ?' }
+    ], [['I ___ two brothers.', 'have got', ['has got', 'is'], 'İki erkek kardeşim var.'], ['She ___ long hair.', 'has got', ['have got', 'are'], 'Onun uzun saçı var.'], ['We ___ a big house.', 'have got', ['has got', 'am'], 'Büyük bir evimiz var.'],
+      ['___ you got a pet?', 'Have', ['Has', 'Are'], 'Evcil hayvanın var mı?'], ['The dog ___ a ball.', 'has got', ['have got', 'are'], 'Köpeğin bir topu var.']],
+    ['s|He ___ a robot.|has got|have got,am|Onun bir robotu var.', 's|They ___ a car.|have got|has got,is|Onların bir arabası var.', 'y|She have got a doll.|0|She has got a doll.|Onun bir bebeği var.', 'y|I have got blue eyes.|1||Mavi gözlerim var.',
+      'd|Have/q you/s got/v a/x ruler/o ?|Cetvelin var mı?', 's|It ___ four legs.|has got|have got,are|Onun dört bacağı var.']),
+    k('k-can', 2, 'can / can\'t', 'Yapabilmek', '#FFC233', 'can', [
+      { t: 'Yapabildiğimiz şeyler için "can" deriz.', s: 'I/s can/v swim/v .', r: 'swim' },
+      { t: '"Can" herkes için aynıdır, hiç değişmez!', s: 'She/s can/v dance/v .', r: 'dance' },
+      { t: 'Yapamadığımız şeyler için "can\'t".', s: 'A_fish/s can\'t/v climb/v .', r: 'fish' },
+      { t: 'İzin isterken de kullanırız: ...-ebilir miyim?', s: 'Can/q I/s open/v the_window/o ?', r: 'window' }
+    ], [['Birds ___ fly.', 'can', ['can\'t', 'are'], 'Kuşlar uçabilir.'], ['A cat ___ read.', 'can\'t', ['can', 'is'], 'Kedi okuyamaz.'], ['___ I go out, please?', 'Can', ['Am', 'Is'], 'Dışarı çıkabilir miyim?'],
+      ['He can ___ fast.', 'run', ['runs', 'running'], 'O hızlı koşabilir.'], ['Fish ___ swim.', 'can', ['can\'t', 'has'], 'Balıklar yüzebilir.']],
+    ['s|She can ___ the piano.|play|plays,playing|Piyano çalabilir.', 's|A dog ___ talk.|can\'t|can,is|Köpek konuşamaz.', 'y|He cans jump.|0|He can jump.|O zıplayabilir.', 'y|I can draw a cat.|1||Kedi çizebilirim.',
+      'd|Can/q you/s sing/v ?|Şarkı söyleyebilir misin?', 's|Monkeys ___ climb trees.|can|can\'t,are|Maymunlar ağaca tırmanabilir.']),
+    k('k-emir', 2, 'Sit down! Don\'t run!', 'Emir cümleleri', '#FF6B5B', 'emir', [
+      { t: 'Birinden bir şey yapmasını isterken fiille başlarız.', s: 'Sit/v down/o !', r: 'chair' },
+      { t: 'Kibar olmak için "please" ekleriz.', s: 'Open/v the_door,/o please/x !', r: 'door' },
+      { t: 'Yapmamasını isterken başa "Don\'t" koyarız.', s: 'Don\'t/v run/v !', r: 'run' },
+      { t: 'Birlikte bir şey yapalım derken "Let\'s".', s: 'Let\'s/v play/v !', r: 'ball' }
+    ], [['___ your book, please.', 'Open', ['Opens', 'Opening'], 'Kitabını aç lütfen.'], ['___ shout! (yapma)', 'Don\'t', ['Not', 'No'], 'Bağırma!'], ['___ play football!', 'Let\'s', ['Lets', 'Let'], 'Hadi futbol oynayalım!'],
+      ['Stand ___!', 'up', ['down', 'in'], 'Ayağa kalk!'], ['Don\'t ___ in the classroom.', 'eat', ['eats', 'eating'], 'Sınıfta yemek yeme.']],
+    ['s|___ down, please.|Sit|Sits,Sitting|Otur lütfen.', 's|___ touch it!|Don\'t|Not,No|Ona dokunma!', 'y|Close the window, please.|1||Pencereyi kapat lütfen.', 'y|Don\'t runs!|0|Don\'t run!|Koşma!',
+      'd|Let\'s/v sing/v a_song/o !|Hadi bir şarkı söyleyelim!', 's|___ your hands!|Wash|Washes,Washing|Ellerini yıka!']),
+    k('k-yer', 2, 'in / on / under / next to', 'Nerede?', '#8BC34A', 'yer', [
+      { t: 'Bir şeyin içindeyse "in".', s: 'The_ball/s is/v in/o the_box/o .', yer: 'in', r: 'in' },
+      { t: 'Üstündeyse "on".', s: 'The_ball/s is/v on/o the_box/o .', yer: 'on', r: 'on' },
+      { t: 'Altındaysa "under".', s: 'The_ball/s is/v under/o the_box/o .', yer: 'under', r: 'under' },
+      { t: 'Yanındaysa "next to".', s: 'The_ball/s is/v next_to/o the_box/o .', yer: 'next', r: 'next' }
+    ], [['The cat is ___ the bed. (altında)', 'under', ['on', 'in'], 'Kedi yatağın altında.'], ['The book is ___ the table. (üstünde)', 'on', ['under', 'in'], 'Kitap masanın üstünde.'],
+      ['The fish is ___ the water. (içinde)', 'in', ['on', 'under'], 'Balık suyun içinde.'], ['The lamp is ___ the bed. (yanında)', 'next to', ['under', 'in'], 'Lamba yatağın yanında.'], ['My pencil is ___ my bag. (içinde)', 'in', ['on', 'next to'], 'Kalemim çantamın içinde.']],
+    ['s|The bird is ___ the tree. (üstünde)|on|under,in|Kuş ağacın üstünde.', 's|The dog is ___ the table. (altında)|under|on,in|Köpek masanın altında.', 'y|The milk is in the fridge.|1||Süt buzdolabının içinde.', 'y|The hat is in my head.|0|The hat is on my head.|Şapka başımın üstünde.',
+      'd|Where/q is/v the_cat/s ?|Kedi nerede?', 's|Sit ___ me. (yanımda)|next to|in,under|Yanıma otur.']),
+    k('k-soru', 2, 'what / who / where / how many', 'Soru kelimeleri', '#7E8CFF', 'soru', [
+      { t: 'Bir şeyi sorarken "what": ne?', s: 'What/q is/v your_name/s ?' },
+      { t: 'Bir kişiyi sorarken "who": kim?', s: 'Who/q is/v she/s ?', r: 'girl' },
+      { t: 'Bir yeri sorarken "where": nerede?', s: 'Where/q is/v my_bag/s ?', r: 'bag' },
+      { t: 'Sayıyı sorarken "how many": kaç tane?', s: 'How_many/q cats/o are_there/v ?', r: 'cat', tab: [['ne?', 'what'], ['kim?', 'who'], ['nerede?', 'where'], ['kaç tane?', 'how many'], ['kaç yaşında?', 'how old']] }
+    ], [['___ is your teacher? (kim)', 'Who', ['What', 'Where'], 'Öğretmenin kim?'], ['___ is the cat? (nerede)', 'Where', ['Who', 'What'], 'Kedi nerede?'], ['___ colour is it? (ne)', 'What', ['Who', 'Where'], 'O ne renk?'],
+      ['___ pencils have you got? (kaç)', 'How many', ['What', 'Who'], 'Kaç kalemin var?'], ['___ are you? (kaç yaşında)', 'How old', ['How many', 'Where'], 'Kaç yaşındasın?']],
+    ['s|___ is that boy? He is my brother.|Who|What,Where|O çocuk kim? O benim kardeşim.', 's|___ is my book? It is on the table.|Where|Who,What|Kitabım nerede? Masanın üstünde.', 'y|What is your name?|1||Adın ne?', 'y|Who is the ball? It is red.|0|What colour is the ball? It is red.|Top ne renk? Kırmızı.',
+      'd|Where/q is/v the_dog/s ?|Köpek nerede?', 's|___ apples? Three apples.|How many|What,Who|Kaç elma? Üç elma.']),
+
+    /* =================== ORTA · 3. sınıf =================== */
+    k('o-genis', 3, 'I play / She plays', 'Geniş zaman', '#4AA8FF', 'saat', [
+      { t: 'Her gün, her zaman yaptığımız şeyleri geniş zamanla anlatırız.', s: 'I/s play/v football/o every_day/x .', z: 'her', r: 'ball' },
+      { t: 'O (kız, erkek, şey) için fiilin sonuna "s" gelir. İzle!', s: 'She/s play+s/v football/o .', z: 'her' },
+      { t: 'Bazı fiillere "es" gelir: go → goes, watch → watches.', s: 'He/s go+es/v to_school/o .', z: 'her', r: 'bus' },
+      { t: 'Ben, sen, biz, onlar için ek yok.', s: 'They/s eat/v breakfast/o .', z: 'her', tab: [['I · you · we · they', 'play'], ['he · she · it', 'plays']] }
+    ], [['My mum ___ tea every morning.', 'drinks', ['drink', 'drinking'], 'Annem her sabah çay içer.'], ['I ___ to school by bus.', 'go', ['goes', 'going'], 'Okula otobüsle giderim.'], ['The cat ___ a lot.', 'sleeps', ['sleep', 'sleeping'], 'Kedi çok uyur.'],
+      ['We ___ English on Monday.', 'have', ['has', 'having'], 'Pazartesi İngilizce dersimiz var.'], ['He ___ TV after school.', 'watches', ['watchs', 'watch'], 'Okuldan sonra televizyon izler.']],
+    ['s|She ___ to music.|listens|listen,listening|O müzik dinler.', 's|They ___ in the park.|play|plays,playing|Onlar parkta oynar.', 'y|He like apples.|0|He likes apples.|O elmaları sever.', 'y|My dad works in a hospital.|1||Babam hastanede çalışır.',
+      'd|She/s reads/v a_book/o every_night/x .|O her gece kitap okur.', 's|The sun ___ in the morning.|rises|rise,rising|Güneş sabah doğar.'], 'her'),
+    k('o-simdiki', 3, 'I am playing', 'Şimdiki zaman', '#FF6B5B', 'simdi', [
+      { t: 'Şu anda, tam şimdi yaptığımız şeyi şimdiki zamanla anlatırız.', s: 'I/s am/v play+ing/v now/x .', z: 'simdi', r: 'ball' },
+      { t: 'Önce am, is ya da are; sonra fiilin sonuna "ing".', s: 'She/s is/v read+ing/v .', z: 'simdi', r: 'read' },
+      { t: 'Onlar şu anda yüzüyor.', s: 'They/s are/v swim+ming/v .', z: 'simdi', r: 'swim' },
+      { t: 'Soru: Ne yapıyorsun?', s: 'What/q are/v you/s do+ing/v ?', z: 'simdi' }
+    ], [['Look! The baby ___ sleeping.', 'is', ['are', 'am'], 'Bak! Bebek uyuyor.'], ['We are ___ a cake now.', 'making', ['make', 'makes'], 'Şimdi kek yapıyoruz.'], ['I am ___ a picture.', 'drawing', ['draw', 'draws'], 'Resim çiziyorum.'],
+      ['The children ___ singing.', 'are', ['is', 'am'], 'Çocuklar şarkı söylüyor.'], ['He is ___ his teeth.', 'brushing', ['brush', 'brushes'], 'Dişlerini fırçalıyor.']],
+    ['s|Listen! She ___ singing.|is|are,am|Dinle! O şarkı söylüyor.', 's|They are ___ football now.|playing|play,plays|Şu anda futbol oynuyorlar.', 'y|I am eating an apple now.|1||Şu anda elma yiyorum.', 'y|He running now.|0|He is running now.|O şimdi koşuyor.',
+      'd|The_dog/s is/v jumping/v .|Köpek zıplıyor.', 's|What ___ you doing?|are|is,am|Ne yapıyorsun?'], 'simdi'),
+    k('o-there', 3, 'there is / there are', '...var', '#4CC38A', 'there', [
+      { t: 'Bir yerde bir şey var demek için "there is" deriz.', s: 'There_is/v a_cat/o in_the_garden/o .', r: 'cat' },
+      { t: 'Birden fazlaysa "there are".', s: 'There_are/v three_birds/o on_the_tree/o .', r: 'bird' },
+      { t: 'Yoksa "there isn\'t" ya da "there aren\'t".', s: 'There_isn\'t/v a_TV/o in_my_room/o .', tab: [['bir tane', 'there is'], ['birden çok', 'there are']] },
+      { t: 'Sorarken: Is there...? Are there...?', s: 'Is_there/q a_park/o near_here/x ?' }
+    ], [['___ a lamp on the desk.', 'There is', ['There are', 'They are'], 'Masada bir lamba var.'], ['___ five apples in the bag.', 'There are', ['There is', 'It is'], 'Çantada beş elma var.'], ['___ a library at school?', 'Is there', ['Are there', 'There is'], 'Okulda kütüphane var mı?'],
+      ['There ___ two beds in my room.', 'are', ['is', 'am'], 'Odamda iki yatak var.'], ['There ___ a dog under the table.', 'is', ['are', 'am'], 'Masanın altında bir köpek var.']],
+    ['s|___ a clock on the wall.|There is|There are,They are|Duvarda bir saat var.', 's|There ___ many stars in the sky.|are|is,am|Gökyüzünde çok yıldız var.', 'y|There are a cat on the bed.|0|There is a cat on the bed.|Yatakta bir kedi var.', 'y|There are two windows.|1||İki pencere var.',
+      'd|Is_there/q a/x pool/o ?|Havuz var mı?', 's|___ any milk? Yes, there is.|Is there|Are there,There is|Süt var mı? Evet var.']),
+    k('o-some', 3, 'some / any', 'Biraz, hiç', '#FFC233', 'some', [
+      { t: 'Olumlu cümlede "some" deriz: biraz, birkaç.', s: 'I/s have_got/v some/x apples/o .', r: 'apple' },
+      { t: 'Soru sorarken "any" deriz.', s: 'Have/q you/s got/v any/x milk/o ?', r: 'milk' },
+      { t: 'Olumsuz cümlede de "any": hiç.', s: 'There_isn\'t/v any/x bread/o .', r: 'bread', tab: [['olumlu', 'some'], ['soru', 'any'], ['olumsuz', 'any']] },
+      { t: 'Bir şey isterken kibarca "some" kullanırız.', s: 'Can/q I/s have/v some/x water/o ?' }
+    ], [['There are ___ eggs in the fridge.', 'some', ['any', 'a'], 'Buzdolabında birkaç yumurta var.'], ['Have you got ___ sisters?', 'any', ['some', 'a'], 'Kız kardeşin var mı?'], ['I haven\'t got ___ money.', 'any', ['some', 'an'], 'Hiç param yok.'],
+      ['Can I have ___ juice, please?', 'some', ['any', 'an'], 'Biraz meyve suyu alabilir miyim?'], ['Are there ___ books on the shelf?', 'any', ['some', 'a'], 'Rafta kitap var mı?']],
+    ['s|I want ___ grapes.|some|any,an|Biraz üzüm istiyorum.', 's|There aren\'t ___ cars.|any|some,a|Hiç araba yok.', 'y|Is there any cheese?|1||Peynir var mı?', 'y|I haven\'t got some pens.|0|I haven\'t got any pens.|Hiç kalemim yok.',
+      'd|We/s have_got/v some/x cookies/o .|Biraz kurabiyemiz var.', 's|Are there ___ cats in the garden?|any|some,a|Bahçede kedi var mı?']),
+    k('o-sifat', 3, 'a big red ball', 'Sıfatlar', '#B57BFF', 'sifat', [
+      { t: 'Sıfatlar bir şeyin nasıl olduğunu anlatır: büyük, kırmızı, mutlu.', s: 'It/s is/v a_big/x ball/o .', r: 'ball' },
+      { t: 'İngilizcede sıfat, ismin önüne gelir.', s: 'I/s have_got/v a_red/x hat/o .', r: 'hat' },
+      { t: 'Sıfat "is" ten sonra da gelebilir.', s: 'The_elephant/s is/v big/x .', r: 'elephant' },
+      { t: 'Sıfatlar çoğul olmaz! Kırmızı arabalar: red cars, "reds" yok.', s: 'two/x red/x cars/o', r: 'car' }
+    ], [['It is a ___ dog.', 'small', ['smalls', 'dog small'], 'O küçük bir köpek.'], ['The sky is ___.', 'blue', ['blues', 'a blue'], 'Gökyüzü mavi.'], ['I have got ___ shoes.', 'new', ['news', 'a new'], 'Yeni ayakkabılarım var.'],
+      ['She is ___.', 'happy', ['a happy', 'happys'], 'O mutlu.'], ['It is a ___ cat.', 'black', ['blacks', 'cat black'], 'O siyah bir kedi.']],
+    ['s|It is a ___ car.|fast|fasts,car fast|O hızlı bir araba.', 's|My bag is ___.|heavy|heavys,a heavy|Çantam ağır.', 'y|I have got a cat white.|0|I have got a white cat.|Beyaz bir kedim var.', 'y|They are tall girls.|1||Onlar uzun boylu kızlar.',
+      'd|It/s is/v a/x small/x mouse/o .|O küçük bir fare.', 's|The soup is ___.|hot|hots,a hot|Çorba sıcak.']),
+    k('o-like', 3, 'I like swimming', 'Sevmek + -ing', '#FF6B9A', 'like', [
+      { t: 'Sevdiğimiz bir şeyi söylerken "like" deriz.', s: 'I/s like/v apples/o .', r: 'apple' },
+      { t: 'Sevdiğimiz bir eylemse fiile "ing" ekleriz.', s: 'I/s like/v swim+ming/o .', r: 'swim' },
+      { t: 'Çok seviyorsak "love", hiç sevmiyorsak "hate".', s: 'She/s love+s/v dance>dancing/o .', r: 'dance' },
+      { t: 'Sevmiyorsak "don\'t like".', s: 'I/s don\'t_like/v getting_up_early/o .', tab: [['çok severim', 'love'], ['severim', 'like'], ['sevmem', 'don\'t like'], ['nefret ederim', 'hate']] }
+    ], [['I like ___ books.', 'reading', ['read', 'reads'], 'Kitap okumayı severim.'], ['She loves ___.', 'singing', ['sing', 'sings'], 'Şarkı söylemeyi çok sever.'], ['They ___ playing chess.', 'like', ['likes', 'liking'], 'Satranç oynamayı severler.'],
+      ['He ___ like swimming.', 'doesn\'t', ['don\'t', 'isn\'t'], 'Yüzmeyi sevmez.'], ['Do you like ___?', 'drawing', ['draw', 'draws'], 'Resim çizmeyi sever misin?']],
+    ['s|I love ___ my bike.|riding|ride,rides|Bisiklet sürmeyi çok severim.', 's|My brother ___ cooking.|likes|like,liking|Kardeşim yemek yapmayı sever.', 'y|She likes dance.|0|She likes dancing.|Dans etmeyi sever.', 'y|I hate waiting.|1||Beklemekten nefret ederim.',
+      'd|We/s like/v playing/o football/o .|Futbol oynamayı severiz.', 's|Do you like ___?|skating|skate,skates|Paten kaymayı sever misin?']),
+    k('o-must', 3, 'must / mustn\'t', 'Kurallar', '#2FB7B0', 'must', [
+      { t: 'Bir kurala uymak gerekiyorsa "must" deriz: -meli, -malı.', s: 'You/s must/v wash/v your_hands/o .', r: 'hands' },
+      { t: 'Yasaksa "mustn\'t": -memeli, -mamalı.', s: 'You/s mustn\'t/v run/v in_the_corridor/o .', r: 'run' },
+      { t: '"Must" herkes için aynı, sonra fiil ek almaz.', s: 'She/s must/v listen/v .', tab: [['yapmalısın', 'must'], ['yapmamalısın', 'mustn\'t']] },
+      { t: 'Okul kuralı: Sınıfta yemek yememeliyiz.', s: 'We/s mustn\'t/v eat/v in_class/o .' }
+    ], [['You ___ be quiet in the library.', 'must', ['mustn\'t', 'can\'t'], 'Kütüphanede sessiz olmalısın.'], ['You ___ touch the fire!', 'mustn\'t', ['must', 'can'], 'Ateşe dokunmamalısın!'], ['We must ___ the rules.', 'follow', ['follows', 'following'], 'Kurallara uymalıyız.'],
+      ['He ___ brush his teeth.', 'must', ['musts', 'mustn\'t'], 'Dişlerini fırçalamalı.'], ['You ___ shout in class.', 'mustn\'t', ['must', 'musts'], 'Sınıfta bağırmamalısın.']],
+    ['s|You ___ wear a helmet on a bike.|must|mustn\'t,musts|Bisiklette kask takmalısın.', 's|You ___ throw rubbish.|mustn\'t|must,can|Çöp atmamalısın.', 'y|She musts go to bed.|0|She must go to bed.|Yatmalı.', 'y|We must help each other.|1||Birbirimize yardım etmeliyiz.',
+      'd|You/s mustn\'t/v be/v late/o .|Geç kalmamalısın.', 's|Children ___ cross the road alone.|mustn\'t|must,musts|Çocuklar karşıya yalnız geçmemeli.']),
+    k('o-iyelik', 3, 'Ali\'s bag', 'Kimin?: \'s', '#FF9E57', 'iyelik', [
+      { t: 'Bir şeyin kime ait olduğunu söylemek için isimden sonra "\'s" ekleriz.', s: 'This/s is/v Ali+\'s/x bag/o .', r: 'bag' },
+      { t: 'Annemin arabası: my mum\'s car.', s: 'It/s is/v my_mum+\'s/x car/o .', r: 'car' },
+      { t: 'Kimin diye sorarken "whose".', s: 'Whose/q pencil/o is/v this/s ?', r: 'pencil' },
+      { t: 'Cevap: It\'s Elif\'s. (Elif\'in)', s: 'It/s is/v Elif+\'s/x .' }
+    ], [['This is ___ hat. (Can\'in)', 'Can\'s', ['Cans', 'Can'], 'Bu Can\'ın şapkası.'], ['___ book is this?', 'Whose', ['Who', 'What'], 'Bu kimin kitabı?'], ['It is my ___ house. (büyükannemin)', 'grandma\'s', ['grandmas', 'grandma'], 'Büyükannemin evi.'],
+      ['The ___ tail is long. (kedinin)', 'cat\'s', ['cats', 'cat'], 'Kedinin kuyruğu uzun.'], ['That is ___ room. (Ece\'nin)', 'Ece\'s', ['Eces', 'Ece'], 'Şu Ece\'nin odası.']],
+    ['s|This is my ___ phone. (babamın)|dad\'s|dads,dad|Bu babamın telefonu.', 's|___ shoes are these?|Whose|Who,Where|Bunlar kimin ayakkabıları?', 'y|It is Mert\'s ball.|1||Bu Mert\'in topu.', 'y|This is Ayşe bag.|0|This is Ayşe\'s bag.|Bu Ayşe\'nin çantası.',
+      'd|Whose/q coat/o is/v this/s ?|Bu kimin montu?', 's|The ___ name is Max. (köpeğin)|dog\'s|dogs,dog|Köpeğin adı Max.']),
+    k('o-zamanedat', 3, 'at 3 o\'clock / on Monday / in May', 'Zamanda at, on, in', '#7E8CFF', 'takvim', [
+      { t: 'Saatlerden önce "at".', s: 'I/s get_up/v at/x seven_o\'clock/o .', r: 'clock' },
+      { t: 'Günlerden önce "on".', s: 'We/s have/v art/o on/x Monday/o .', r: 'monday' },
+      { t: 'Aylar ve mevsimlerden önce "in".', s: 'It/s snows/v in/x winter/o .', r: 'winter' },
+      { t: 'Hepsi bir arada.', s: 'My_birthday/s is/v in/x May/o .', tab: [['saat', 'at 3 o\'clock'], ['gün', 'on Friday'], ['ay · mevsim', 'in June · in summer']] }
+    ], [['School starts ___ 9 o\'clock.', 'at', ['on', 'in'], 'Okul saat dokuzda başlar.'], ['We go swimming ___ Saturday.', 'on', ['in', 'at'], 'Cumartesi yüzmeye gideriz.'], ['It is hot ___ summer.', 'in', ['on', 'at'], 'Yazın hava sıcak.'],
+      ['My birthday is ___ April.', 'in', ['on', 'at'], 'Doğum günüm nisanda.'], ['I have lunch ___ 12 o\'clock.', 'at', ['in', 'on'], 'Saat on ikide öğle yemeği yerim.']],
+    ['s|Leaves fall ___ autumn.|in|on,at|Sonbaharda yapraklar düşer.', 's|We have music ___ Tuesday.|on|in,at|Salı günü müzik dersimiz var.', 'y|I go to bed in 9 o\'clock.|0|I go to bed at 9 o\'clock.|Saat dokuzda yatarım.', 'y|It snows in January.|1||Ocakta kar yağar.',
+      'd|The_film/s starts/v at/x five/o .|Film beşte başlıyor.', 's|We go to the park ___ Sunday.|on|at,in|Pazar günü parka gideriz.']),
+    k('o-siklik', 3, 'always / usually / sometimes / never', 'Ne sıklıkla?', '#8BC34A', 'siklik', [
+      { t: 'Bir şeyi ne sıklıkla yaptığımızı bu kelimelerle anlatırız.', s: 'I/s always/x brush/v my_teeth/o .', z: 'her', tab: [['her zaman', 'always'], ['genellikle', 'usually'], ['bazen', 'sometimes'], ['asla', 'never']] },
+      { t: 'Bu kelime fiilin önüne gelir.', s: 'She/s usually/x walk+s/v to_school/o .', z: 'her' },
+      { t: 'Ama "is, am, are" den sonra gelir.', s: 'He/s is/v never/x late/o .', z: 'her' },
+      { t: 'Soru: Ne sıklıkla?', s: 'How_often/q do/v you/s swim/v ?', z: 'her' }
+    ], [['I ___ eat breakfast. (her zaman)', 'always', ['never', 'sometimes'], 'Her zaman kahvaltı yaparım.'], ['She ___ plays tennis. (bazen)', 'sometimes', ['always', 'never'], 'Bazen tenis oynar.'], ['We ___ go to school on Sunday. (asla)', 'never', ['always', 'usually'], 'Pazar günü asla okula gitmeyiz.'],
+      ['He is ___ happy. (genellikle)', 'usually', ['never', 'always'], 'Genellikle mutludur.'], ['___ do you read? Every day.', 'How often', ['How many', 'What'], 'Ne sıklıkla okursun? Her gün.']],
+    ['s|I ___ drink milk. (genellikle)|usually|never,always|Genellikle süt içerim.', 's|Cats ___ fly. (asla)|never|always,usually|Kediler asla uçmaz.', 'y|She always is happy.|0|She is always happy.|O her zaman mutludur.', 'y|We sometimes go to the cinema.|1||Bazen sinemaya gideriz.',
+      'd|He/s never/x eats/v fish/o .|O asla balık yemez.', 's|___ do you visit your grandma?|How often|How many,Where|Büyükanneni ne sıklıkla ziyaret edersin?'], 'her'),
+
+    /* =================== ZOR · 4. sınıf =================== */
+    k('z-was', 4, 'was / were', 'Geçmişte olmak', '#4AA8FF', 'dun', [
+      { t: 'Zaman treni dün istasyonuna gidiyor! Geçmişte "am" ve "is", "was" olur.', s: 'I/s am>was/v happy/o yesterday/x .', z: 'dun' },
+      { t: 'O için de "was".', s: 'She/s was/v at_school/o yesterday/x .', z: 'dun' },
+      { t: '"are" geçmişte "were" olur.', s: 'They/s are>were/v at_home/o .', z: 'dun', tab: [['am · is', 'was'], ['are', 'were']] },
+      { t: 'Olumsuz: wasn\'t, weren\'t.', s: 'It/s wasn\'t/v cold/o yesterday/x .', z: 'dun' }
+    ], [['I ___ tired yesterday.', 'was', ['were', 'am'], 'Dün yorgundum.'], ['We ___ in the park last Sunday.', 'were', ['was', 'are'], 'Geçen pazar parktaydık.'], ['The film ___ funny.', 'was', ['were', 'are'], 'Film komikti.'],
+      ['___ you at home yesterday?', 'Were', ['Was', 'Are'], 'Dün evde miydin?'], ['They ___ at school. (değildi)', 'weren\'t', ['wasn\'t', 'aren\'t'], 'Okulda değillerdi.']],
+    ['s|My grandpa ___ a teacher.|was|were,are|Dedem öğretmendi.', 's|The children ___ happy.|were|was,is|Çocuklar mutluydu.', 'y|She were at the zoo.|0|She was at the zoo.|Hayvanat bahçesindeydi.', 'y|It was sunny yesterday.|1||Dün hava güneşliydi.',
+      'd|Where/q were/v you/s ?|Neredeydin?', 's|___ he at the party?|Was|Were,Is|O partide miydi?'], 'dun'),
+    k('z-ed', 4, 'play → played', 'Geçmiş zaman: -ed', '#FF6B5B', 'dun', [
+      { t: 'Geçmişte yaptığımız şeyler için fiilin sonuna "ed" ekleriz.', s: 'I/s play+ed/v football/o yesterday/x .', z: 'dun', r: 'ball' },
+      { t: 'Geçmişte herkes için aynı! She played, they played.', s: 'She/s watch+ed/v a_film/o .', z: 'dun', r: 'tv' },
+      { t: '"e" ile biten fiillere sadece "d" gelir.', s: 'We/s dance+d/v at_the_party/o .', z: 'dun', r: 'dance' },
+      { t: 'Dün, geçen hafta gibi zaman kelimeleri ipucu verir.', s: 'They/s visit+ed/v the_museum/o last_week/x .', z: 'dun', tab: [['play', 'played'], ['watch', 'watched'], ['dance', 'danced'], ['visit', 'visited']] }
+    ], [['I ___ my room yesterday.', 'cleaned', ['clean', 'cleans'], 'Dün odamı temizledim.'], ['She ___ to music last night.', 'listened', ['listens', 'listen'], 'Dün gece müzik dinledi.'], ['We ___ in the park.', 'walked', ['walk', 'walks'], 'Parkta yürüdük.'],
+      ['He ___ the door.', 'opened', ['open', 'opening'], 'Kapıyı açtı.'], ['They ___ a cake.', 'baked', ['bake', 'bakeed'], 'Kek pişirdiler.']],
+    ['s|I ___ my grandma last Sunday.|visited|visit,visits|Geçen pazar büyükannemi ziyaret ettim.', 's|It ___ all day yesterday.|rained|rains,rain|Dün bütün gün yağmur yağdı.', 'y|She play tennis yesterday.|0|She played tennis yesterday.|Dün tenis oynadı.', 'y|We watched a cartoon.|1||Çizgi film izledik.',
+      'd|He/s jumped/v into_the_pool/o .|Havuza atladı.', 's|They ___ at the joke.|laughed|laugh,laughs|Şakaya güldüler.'], 'dun'),
+    k('z-duzensiz', 4, 'go → went', 'Düzensiz fiiller', '#B57BFF', 'dun', [
+      { t: 'Bazı fiiller "ed" almaz, tamamen değişir! Go, went olur.', s: 'I/s go>went/v to_the_zoo/o yesterday/x .', z: 'dun' },
+      { t: 'Eat, ate olur.', s: 'She/s eat>ate/v a_pizza/o .', z: 'dun', r: 'pizza' },
+      { t: 'See, saw olur.', s: 'We/s see>saw/v a_lion/o .', z: 'dun', r: 'lion' },
+      { t: 'Bunları ezberlemek oyun gibi!', s: 'They/s have>had/v fun/o .', z: 'dun', tab: [['go', 'went'], ['eat', 'ate'], ['see', 'saw'], ['have', 'had'], ['make', 'made'], ['swim', 'swam']] }
+    ], [['We ___ to the beach last summer.', 'went', ['goed', 'go'], 'Geçen yaz plaja gittik.'], ['I ___ a big fish.', 'saw', ['seed', 'see'], 'Büyük bir balık gördüm.'], ['She ___ a sandwich.', 'ate', ['eated', 'eats'], 'Bir sandviç yedi.'],
+      ['He ___ a kite.', 'made', ['maked', 'make'], 'Bir uçurtma yaptı.'], ['They ___ in the sea.', 'swam', ['swimmed', 'swim'], 'Denizde yüzdüler.']],
+    ['s|I ___ a new bike for my birthday.|got|getted,get|Doğum günümde yeni bisiklet aldım.', 's|We ___ a good time.|had|haved,have|İyi vakit geçirdik.', 'y|He goed home.|0|He went home.|Eve gitti.', 'y|She drank some juice.|1||Biraz meyve suyu içti.',
+      'd|We/s saw/v a/x rainbow/o .|Bir gökkuşağı gördük.', 's|The baby ___ all night.|slept|sleeped,sleep|Bebek bütün gece uyudu.'], 'dun'),
+    k('z-did', 4, 'Did you...? / didn\'t', 'Geçmişte soru', '#2FB7B0', 'dun', [
+      { t: 'Geçmişte soru sorarken başa "Did" koyarız.', s: 'Did/q you/s play/v football/o ?', z: 'dun' },
+      { t: '"Did" varsa fiil eski hâline döner: played değil, play!', s: 'Did/q she/s went>go/v to_school/o ?', z: 'dun' },
+      { t: 'Olumsuz için "didn\'t" ve fiilin ilk hâli.', s: 'I/s didn\'t/v watch/v TV/o .', z: 'dun' },
+      { t: 'Kısa cevaplar: Yes, I did. No, I didn\'t.', s: 'Yes,/x I/s did/v .', z: 'dun', tab: [['soru', 'Did you ...?'], ['evet', 'Yes, I did.'], ['hayır', 'No, I didn\'t.']] }
+    ], [['___ you see the film?', 'Did', ['Do', 'Were'], 'Filmi gördün mü?'], ['Did he ___ his homework?', 'do', ['did', 'does'], 'Ödevini yaptı mı?'], ['We ___ go to the cinema.', 'didn\'t', ['don\'t', 'wasn\'t'], 'Sinemaya gitmedik.'],
+      ['Did you like it? Yes, I ___.', 'did', ['do', 'liked'], 'Beğendin mi? Evet.'], ['She didn\'t ___ the bus.', 'catch', ['caught', 'catches'], 'Otobüse yetişemedi.']],
+    ['s|___ they win the match?|Did|Do,Were|Maçı kazandılar mı?', 's|I didn\'t ___ my lunch.|eat|ate,eats|Öğle yemeğimi yemedim.', 'y|Did you went to the park?|0|Did you go to the park?|Parka gittin mi?', 'y|No, she didn\'t.|1||Hayır, gitmedi.',
+      'd|Did/q you/s enjoy/v the_party/o ?|Partiden hoşlandın mı?', 's|He ___ call me yesterday.|didn\'t|doesn\'t,wasn\'t|Dün beni aramadı.'], 'dun'),
+    k('z-will', 4, 'will', 'Gelecek: will', '#FFC233', 'yarin', [
+      { t: 'Zaman treni yarın istasyonuna gidiyor! Gelecekte olacakları "will" ile söyleriz.', s: 'It/s will/v rain/v tomorrow/x .', z: 'yarin', r: 'rainy' },
+      { t: '"Will" herkes için aynı, fiil ek almaz.', s: 'She/s will/v be/v ten/o next_year/x .', z: 'yarin' },
+      { t: 'Olumsuz: won\'t.', s: 'I/s won\'t/v forget/v .', z: 'yarin' },
+      { t: 'Tahmin ve söz için de kullanırız.', s: 'I/s will/v help/v you/o .', z: 'yarin', tab: [['yapacağım', 'I will'], ['yapmayacağım', 'I won\'t'], ['yapacak mısın?', 'Will you ...?']] }
+    ], [['I ___ call you tomorrow.', 'will', ['was', 'did'], 'Yarın seni arayacağım.'], ['People ___ live on Mars one day.', 'will', ['were', 'did'], 'İnsanlar bir gün Mars\'ta yaşayacak.'], ['It ___ be cold tomorrow. (olmayacak)', 'won\'t', ['will', 'didn\'t'], 'Yarın hava soğuk olmayacak.'],
+      ['Will you ___ to my party?', 'come', ['came', 'comes'], 'Partime gelecek misin?'], ['She will ___ a doctor.', 'be', ['is', 'was'], 'O doktor olacak.']],
+    ['s|We ___ visit Antalya next summer.|will|did,were|Gelecek yaz Antalya\'yı ziyaret edeceğiz.', 's|Don\'t worry, I ___ tell anyone.|won\'t|will,didn\'t|Merak etme, kimseye söylemeyeceğim.', 'y|He will plays tomorrow.|0|He will play tomorrow.|Yarın oynayacak.', 'y|It will be sunny.|1||Hava güneşli olacak.',
+      'd|Will/q you/s help/v me/o ?|Bana yardım edecek misin?', 's|Robots ___ do our homework.|will|did,was|Robotlar ödevimizi yapacak.'], 'yarin'),
+    k('z-going', 4, 'going to', 'Gelecek: plan', '#FF9E57', 'yarin', [
+      { t: 'Önceden planladığımız şeyler için "going to" deriz.', s: 'I/s am/v going_to/v visit/v my_grandma/o .', z: 'yarin', r: 'grandma' },
+      { t: 'Önce am, is, are; sonra going to; sonra fiil.', s: 'She/s is/v going_to/v buy/v a_dress/o .', z: 'yarin', r: 'dress' },
+      { t: 'Bulutları görünce: yağmur yağacak!', s: 'It/s is/v going_to/v rain/v .', z: 'yarin', r: 'cloud' },
+      { t: 'Soru: Ne yapacaksın?', s: 'What/q are/v you/s going_to/v do/v ?', z: 'yarin', tab: [['I', 'am going to'], ['he · she · it', 'is going to'], ['you · we · they', 'are going to']] }
+    ], [['We are going to ___ a picnic.', 'have', ['had', 'having'], 'Piknik yapacağız.'], ['He ___ going to play chess.', 'is', ['are', 'am'], 'Satranç oynayacak.'], ['I am ___ to learn French.', 'going', ['go', 'went'], 'Fransızca öğreneceğim.'],
+      ['They ___ going to travel.', 'are', ['is', 'am'], 'Seyahat edecekler.'], ['Look! The cat is going to ___.', 'jump', ['jumped', 'jumps'], 'Bak! Kedi zıplayacak.']],
+    ['s|She ___ going to paint her room.|is|are,am|Odasını boyayacak.', 's|We are going to ___ a cake.|make|made,makes|Kek yapacağız.', 'y|I am going to read this book.|1||Bu kitabı okuyacağım.', 'y|They is going to swim.|0|They are going to swim.|Yüzecekler.',
+      'd|What/q are/v you/s going_to/v wear/v ?|Ne giyeceksin?', 's|It is going to ___. Look at the clouds!|rain|rained,rains|Yağmur yağacak. Bulutlara bak!'], 'yarin'),
+    k('z-er', 4, 'big → bigger → biggest', 'Karşılaştırma', '#4CC38A', 'boy', [
+      { t: 'İki şeyi karşılaştırırken sıfata "er" ekleriz ve "than" deriz.', s: 'A_horse/s is/v big+ger/x than/x a_dog/o .', b: ['big', 'bigger', 'biggest'] },
+      { t: 'En ... olanı söylerken "the" ve "est".', s: 'The_elephant/s is/v the/x big+gest/x .', b: ['big', 'bigger', 'biggest'], r: 'elephant' },
+      { t: 'Uzun sıfatlarda "more" ve "the most".', s: 'This_book/s is/v more/x interesting/x .', tab: [['tall', 'taller · the tallest'], ['happy', 'happier · the happiest'], ['beautiful', 'more beautiful · the most beautiful']] },
+      { t: 'Bazıları kuralı bozar: good, better, best.', s: 'You/s are/v my/x good>best/x friend/o .' }
+    ], [['A cheetah is ___ than a cat.', 'faster', ['fast', 'fastest'], 'Çita kediden hızlıdır.'], ['Ali is the ___ boy in the class.', 'tallest', ['taller', 'tall'], 'Ali sınıftaki en uzun çocuk.'], ['My bag is ___ than yours.', 'heavier', ['heavyer', 'heaviest'], 'Çantam seninkinden ağır.'],
+      ['This is the ___ film.', 'best', ['goodest', 'better'], 'Bu en iyi film.'], ['Summer is ___ than winter.', 'hotter', ['hoter', 'hottest'], 'Yaz kıştan sıcaktır.']],
+    ['s|An elephant is ___ than a mouse.|bigger|big,biggest|Fil fareden büyüktür.', 's|Everest is the ___ mountain.|highest|higher,high|Everest en yüksek dağdır.', 'y|My dog is more small than your dog.|0|My dog is smaller than your dog.|Köpeğim seninkinden küçük.', 'y|She is the happiest girl.|1||O en mutlu kız.',
+      'd|A/x car/s is/v faster/x than/x a_bike/o .|Araba bisikletten hızlıdır.', 's|This is the ___ beautiful flower.|most|more,very|Bu en güzel çiçek.']),
+    k('z-should', 4, 'should / shouldn\'t', 'Öğüt vermek', '#FF6B9A', 'should', [
+      { t: 'Birine öğüt verirken "should" deriz: -sen iyi olur.', s: 'You/s should/v drink/v water/o .', r: 'thirsty' },
+      { t: 'Yapmaması iyi olur derken "shouldn\'t".', s: 'You/s shouldn\'t/v eat/v too_many_sweets/o .', r: 'sweets' },
+      { t: 'Hasta arkadaşa öğüt: dinlenmelisin.', s: 'You/s should/v go_to_bed/v .', r: 'sick' },
+      { t: 'Soru: Ne yapmalıyım?', s: 'What/q should/v I/s do/v ?', tab: [['iyi olur', 'should'], ['iyi olmaz', 'shouldn\'t'], ['kural', 'must']] }
+    ], [['You are tired. You ___ sleep.', 'should', ['shouldn\'t', 'shoulds'], 'Yorgunsun. Uyumalısın.'], ['You ___ watch TV all day.', 'shouldn\'t', ['should', 'shoulds'], 'Bütün gün televizyon izlememelisin.'], ['He should ___ a coat. It\'s cold.', 'wear', ['wears', 'wearing'], 'Mont giymeli. Hava soğuk.'],
+      ['___ I call the doctor?', 'Should', ['Shall', 'Did'], 'Doktoru aramalı mıyım?'], ['We ___ eat fruit every day.', 'should', ['shouldn\'t', 'shoulds'], 'Her gün meyve yemeliyiz.']],
+    ['s|You have a cold. You ___ stay at home.|should|shouldn\'t,shoulds|Nezlesin. Evde kalmalısın.', 's|You ___ play with matches.|shouldn\'t|should,shoulds|Kibritle oynamamalısın.', 'y|She should studies more.|0|She should study more.|Daha çok çalışmalı.', 'y|We should be kind.|1||Nazik olmalıyız.',
+      'd|You/s should/v ask/v your_teacher/o .|Öğretmenine sormalısın.', 's|What ___ I wear?|should|shoulds,did|Ne giymeliyim?']),
+    k('z-could', 4, 'could / couldn\'t', 'Geçmişte yapabilmek', '#7E8CFF', 'dun', [
+      { t: '"Can" geçmişte "could" olur: -ebildim.', s: 'I/s can>could/v swim/v when_I_was_five/o .', z: 'dun', r: 'swim' },
+      { t: 'Yapamadıysak "couldn\'t".', s: 'She/s couldn\'t/v find/v her_keys/o .', z: 'dun', r: 'key' },
+      { t: 'Kibar rica için de "could": ... -ebilir misin?', s: 'Could/q you/s help/v me,/o please/x ?' },
+      { t: '"Could" dan sonra fiil ek almaz.', s: 'We/s could/v see/v the_stars/o .', z: 'dun', tab: [['şimdi', 'can · can\'t'], ['geçmişte', 'could · couldn\'t']] }
+    ], [['When I was three, I ___ read.', 'couldn\'t', ['can\'t', 'could'], 'Üç yaşındayken okuyamazdım.'], ['Yesterday we ___ see the moon.', 'could', ['can', 'cans'], 'Dün ayı görebildik.'], ['___ you open the window, please?', 'Could', ['Did', 'Were'], 'Pencereyi açabilir misin lütfen?'],
+      ['He could ___ very fast.', 'run', ['ran', 'runs'], 'Çok hızlı koşabilirdi.'], ['I ___ sleep last night. It was noisy.', 'couldn\'t', ['could', 'can'], 'Dün gece uyuyamadım. Gürültülüydü.']],
+    ['s|My grandma ___ dance very well.|could|cans,can\'t|Büyükannem çok iyi dans edebilirdi.', 's|___ you pass the salt, please?|Could|Did,Were|Tuzu uzatabilir misin lütfen?', 'y|She could swims.|0|She could swim.|Yüzebilirdi.', 'y|I couldn\'t find my ball.|1||Topumu bulamadım.',
+      'd|Could/q I/s have/v some_water/o ?|Biraz su alabilir miyim?', 's|We ___ go out. It was raining.|couldn\'t|could,can|Dışarı çıkamadık. Yağmur yağıyordu.'], 'dun'),
+    k('z-zaman', 4, 'yesterday · today · tomorrow', 'Dün, bugün, yarın', '#FF6B5B', 'saat', [
+      { t: 'Zaman treniyle üç istasyonu gezelim. Her gün: geniş zaman.', s: 'I/s play/v football/o every_day/x .', z: 'her', r: 'ball' },
+      { t: 'Şu anda: şimdiki zaman.', s: 'I/s am/v playing/v football/o now/x .', z: 'simdi' },
+      { t: 'Dün: geçmiş zaman.', s: 'I/s played/v football/o yesterday/x .', z: 'dun' },
+      { t: 'Yarın: gelecek zaman.', s: 'I/s will/v play/v football/o tomorrow/x .', z: 'yarin', tab: [['every day', 'play'], ['now', 'am playing'], ['yesterday', 'played'], ['tomorrow', 'will play']] }
+    ], [['Yesterday I ___ a cake.', 'made', ['make', 'will make'], 'Dün kek yaptım.'], ['Tomorrow we ___ go to the zoo.', 'will', ['did', 'are'], 'Yarın hayvanat bahçesine gideceğiz.'], ['Look! It ___ snowing now.', 'is', ['was', 'will'], 'Bak! Şimdi kar yağıyor.'],
+      ['She ___ to school every day.', 'walks', ['walked', 'will walk'], 'Her gün okula yürür.'], ['Last week they ___ a museum.', 'visited', ['visit', 'will visit'], 'Geçen hafta bir müze gezdiler.']],
+    ['s|I ___ my homework yesterday.|did|do,will do|Dün ödevimi yaptım.', 's|We ___ a picnic next Sunday.|will have|had,have|Gelecek pazar piknik yapacağız.', 'y|He is reading now.|1||O şimdi okuyor.', 'y|Tomorrow I visited my aunt.|0|Tomorrow I will visit my aunt.|Yarın teyzemi ziyaret edeceğim.',
+      'd|They/s played/v chess/o yesterday/x .|Dün satranç oynadılar.', 's|Every morning she ___ milk.|drinks|drank,will drink|Her sabah süt içer.'], 'hepsi')
+  ];
+  var SEVIYE = { 2: { ad: 'Kolay', sinif: '2. sınıf', renk: '#4CC38A', mahalle: 'Sabah Mahallesi' }, 3: { ad: 'Orta', sinif: '3. sınıf', renk: '#FFC233', mahalle: 'Öğle Meydanı' }, 4: { ad: 'Zor', sinif: '4. sınıf', renk: '#FF6B5B', mahalle: 'Akşam Garı' } };
+  W.KIDS_GRAMER_VERI = { KONU: KONU, SEVIYE: SEVIYE };
+})(window);
+
+/* ---- kids-gramer.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · ZAMAN MAKİNESİ KASABASI (kids/assets/kids-gramer.js + kids-gramer.css), 27.11.2026
+   İlkokul İngilizce dil bilgisi: 30 konu, üç seviye (Kolay 2. sınıf · Orta 3. sınıf · Zor 4. sınıf).
+   Kasabada her konu bir bina; binalar sırayla açılır. Zaman konularında Zaman Treni dün / her gün /
+   şimdi / yarın istasyonlarına gider. Kelimeler Cümle Galaksisi'nin renkleriyle canlı karakterlerdir:
+   mavi kim, kırmızı ne yapar, yeşil ne / nerede, mor soru, gri diğer; ekler turuncu.
+   Her konu üç adım: İZLE (animasyonlu anlatım, sesli) → DENE (bloğu boşluğa koy) → OYNA (6 soru, 1-3 yıldız).
+   Veri: kids-gramer2.js (KIDS_GRAMER_VERI).
+   Kayıt: il.gramer[konu] = { izle: 1, dene: yıldız, oyna: yıldız } · il.gramerSon · il.gramerSv · il.gramerLog (son 60)
+   W.KIDS_GRAMER = { ac(oz), parca, yildiz, konuAcik, seviyeAcik, bittiMi, rapor(il), cumleler() }
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var D = W.document, C = W.KIDS_CIZ, SES = null, R = null, M = '#23304D';
+  var SAKIN = !!(W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  function V() { return W.KIDS_GRAMER_VERI || { KONU: [], SEVIYE: {} }; }
+  function liste(sv) { return V().KONU.filter(function (k) { return k.sv === sv; }); }
+  var ROL = { s: 'kim', v: 'ne yapar', o: 'ne / nerede', q: 'soru', x: 'diğer' };
+
+  /* ---------------- saf yardımcılar (tests/kids-gramer.js) ---------------- */
+  /* "She/s play+s/v go>went/v ." → bloklar: { m: görünen, kok, ek, eski, r } */
+  function parca(s) {
+    s = String(s || '').trim(); var son = s.slice(-1), ic = /[.?!]/.test(son) && / [.?!]$/.test(s) ? s.slice(0, -1).trim() : s;
+    if (!/[.?!]/.test(son) || !/ [.?!]$/.test(s)) son = '';
+    return { son: son, bloklar: ic.split(/\s+/).filter(Boolean).map(function (p) {
+      var i = p.lastIndexOf('/'), m = i > 0 ? p.slice(0, i) : p, r = i > 0 ? p.slice(i + 1) : 'x', b = { r: ROL[r] ? r : 'x' };
+      m = m.replace(/_/g, ' ');
+      if (m.indexOf('+') > 0) { var a = m.split('+'); b.kok = a[0]; b.ek = a.slice(1).join(''); b.m = b.kok + b.ek; }
+      else if (m.indexOf('>') > 0) { var g = m.split('>'); b.eski = g[0]; b.m = g[1]; }
+      else b.m = m;
+      return b;
+    }) };
+  }
+  function metin(s) { var p = parca(s); return p.bloklar.map(function (b) { return b.m; }).join(' ').replace(/ ([,'])/g, '$1') + p.son; }
+  function yildiz(hata) { return hata <= 1 ? 3 : hata <= 3 ? 2 : 1; }
+  function karistir(a) { var b = a.slice(); for (var i = b.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var x = b[i]; b[i] = b[j]; b[j] = x; } return b; }
+  function kd(i, id) { return ((i.gramer || {})[id]) || {}; }
+  function bittiMi(i, id) { return kd(i, id).oyna > 0; }
+  function konuAcik(i, L, k) { return k === 0 || bittiMi(i, L[k - 1].id) || Object.keys(kd(i, L[k].id)).length > 0; }
+  function sinifOf(i) { var s = i && i.ilkSinif; return s === 2 || s === 3 || s === 4 ? s : (oz && (oz.sinifAd === 2 || oz.sinifAd === 3 || oz.sinifAd === 4) ? oz.sinifAd : 2); }
+  /* seviye: kendi sınıfı ve altı açık; üstü, bir alt seviyenin bütün binaları bitince açılır */
+  function seviyeAcik(i, sv) { return sv <= sinifOf(i) || liste(sv - 1).every(function (x) { return bittiMi(i, x.id); }); }
+  function adimAcik(d, a) { return a === 'izle' || (a === 'dene' && d.izle > 0) || (a === 'oyna' && d.dene > 0); }
+  function oyCoz(o) { var p = o.split('|'); return p[0] === 's' ? { t: 's', c: p[1], d: p[2], y: p[3].split(','), tr: p[4] } : p[0] === 'y' ? { t: 'y', c: p[1], ok: p[2] === '1', dz: p[3], tr: p[4] } : { t: 'd', s: p[1], tr: p[2] }; }
+
+  /* ---------------- çizimler ---------------- */
+  function acd(m, poz) { return C && C.acadia ? C.acadia({ mood: m || 'mutlu', pose: poz }) : ''; }
+  function resim(id) { return id && R && R.var && R.var(id) && R.ciz ? R.ciz(id) : ''; }
+  function ev(renk, kilit, bitti, i) {
+    var c = kilit ? '#9AA3BE' : renk, cati = kilit ? '#7C86A6' : ['#E5484D', '#8E7CF0', '#2FB7B0', '#FF9E57'][i % 4];
+    return '<svg class="kzm-ev-s" viewBox="0 0 120 120" aria-hidden="true" focusable="false">' +
+      '<rect x="18" y="52" width="84" height="60" rx="6" fill="' + c + '" stroke="' + M + '" stroke-width="3.5"/>' +
+      '<path d="M8 56 L60 14 L112 56 Z" fill="' + cati + '" stroke="' + M + '" stroke-width="3.5" stroke-linejoin="round"/>' +
+      '<rect x="80" y="20" width="12" height="22" rx="2" fill="' + cati + '" stroke="' + M + '" stroke-width="3"/>' +
+      (kilit ? '' : '<g class="kzm-duman"><circle cx="86" cy="12" r="5" fill="#fff" opacity=".8"/><circle cx="92" cy="4" r="4" fill="#fff" opacity=".6"/></g>') +
+      '<rect x="48" y="78" width="24" height="34" rx="4" fill="' + (kilit ? '#6B7392' : '#FFF8E7') + '" stroke="' + M + '" stroke-width="3"/>' +
+      '<circle cx="66" cy="96" r="2.4" fill="' + M + '"/>' +
+      '<rect x="26" y="64" width="16" height="16" rx="3" fill="' + (kilit ? '#C9CFE2' : '#BFE3FF') + '" stroke="' + M + '" stroke-width="2.6"/>' +
+      '<rect x="78" y="64" width="16" height="16" rx="3" fill="' + (kilit ? '#C9CFE2' : '#BFE3FF') + '" stroke="' + M + '" stroke-width="2.6"/>' +
+      (kilit ? '<path d="M44 82 L76 104 M76 82 L44 104" stroke="#8B5E34" stroke-width="6" stroke-linecap="round"/>' : '') +
+      (bitti ? '<g class="kzm-bayrak"><path d="M60 14 V-6" stroke="' + M + '" stroke-width="3" stroke-linecap="round"/><path d="M61 -6 q12 -4 22 3 q-10 7 -22 3z" fill="#FFD23F" stroke="' + M + '" stroke-width="2.4" stroke-linejoin="round"/></g>' : '') + '</svg>';
+  }
+  var TREN = '<svg viewBox="0 0 96 48" aria-hidden="true" focusable="false"><rect x="4" y="14" width="40" height="24" rx="6" fill="#FF6B5B" stroke="' + M + '" stroke-width="3"/><rect x="32" y="4" width="18" height="34" rx="4" fill="#FFD23F" stroke="' + M + '" stroke-width="3"/><rect x="36" y="9" width="10" height="9" rx="2" fill="#BFE3FF" stroke="' + M + '" stroke-width="2"/><path d="M50 30 h14 l5 8 h-19z" fill="#7FC4FF" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><rect x="10" y="4" width="8" height="12" rx="2" fill="' + M + '"/><circle cx="16" cy="40" r="6" fill="#fff" stroke="' + M + '" stroke-width="3"/><circle cx="38" cy="40" r="6" fill="#fff" stroke="' + M + '" stroke-width="3"/><circle cx="72" cy="22" r="10" fill="#fff" stroke="' + M + '" stroke-width="3"/><path d="M72 15 v7 l5 3" stroke="' + M + '" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>';
+  var SAAT = '<svg class="kzm-kule" viewBox="0 0 120 200" aria-hidden="true" focusable="false"><path d="M30 70 L60 22 L90 70Z" fill="#8E7CF0" stroke="' + M + '" stroke-width="4" stroke-linejoin="round"/><rect x="34" y="66" width="52" height="128" rx="4" fill="#FFE7B8" stroke="' + M + '" stroke-width="4"/>' +
+    '<circle cx="60" cy="102" r="22" fill="#fff" stroke="' + M + '" stroke-width="4"/><g class="kzm-akrep"><path d="M60 102 V88" stroke="' + M + '" stroke-width="4" stroke-linecap="round"/></g><g class="kzm-yelkovan"><path d="M60 102 H76" stroke="#E5484D" stroke-width="3" stroke-linecap="round"/></g><circle cx="60" cy="102" r="3" fill="' + M + '"/>' +
+    '<rect x="50" y="150" width="20" height="44" rx="10" fill="#8B5E34" stroke="' + M + '" stroke-width="3"/><path d="M60 22 V6" stroke="' + M + '" stroke-width="3"/><path d="M61 6 q10 -3 18 2 q-8 6 -18 2z" fill="#FF6B5B" stroke="' + M + '" stroke-width="2"/></svg>';
+
+  var oz = null, durum = null;
+  function il() { return oz.il(); }
+  function kaydet(i) { oz.kaydet(i); }
+  function dur() { durum = null; if (SES && SES.sus) SES.sus(); }
+  function bekle(ms) { return new Promise(function (r) { setTimeout(r, SAKIN ? Math.min(ms, 200) : ms); }); }
+  function soyle(t, dil) { return SES ? Promise.resolve(SES.soyle(t, dil)).catch(function () { }) : Promise.resolve(); }
+  function ust(geriEt, bas, alt, ek) {
+    return '<header class="ka-konu-ust kzm-ust"><button type="button" class="ka-yuvarlak" data-kzmgeri aria-label="' + geriEt + '">' + (C ? C.simge('ev') : '←') + '</button><h1 class="kk-bas">' + bas + (alt ? ' <small>' + alt + '</small>' : '') + '</h1>' + (ek || '<span></span>') + '</header>';
+  }
+  function yildizHtml(y, cls) { return '<i class="' + (cls || 'kzm-y') + '" aria-label="' + y + ' yıldız">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i>'; }
+
+  /* ---------------- kasaba ---------------- */
+  var YER_G = [[8, 74], [20, 52], [31, 76], [42, 50], [53, 78], [64, 52], [74, 78], [84, 54], [92, 80], [96, 46]],
+    YER_T = [[28, 19], [72, 27], [28, 35], [72, 43], [28, 51], [72, 59], [28, 67], [72, 75], [28, 83], [72, 91]];
+  function kasaba() {
+    dur();
+    var i = il(), sv = i.gramerSv && seviyeAcik(i, i.gramerSv) ? i.gramerSv : sinifOf(i), L = liste(sv), S = V().SEVIYE[sv] || {};
+    var dar = W.matchMedia && W.matchMedia('(max-width: 700px)').matches, Y = dar ? YER_T : YER_G;
+    var sira = L.findIndex(function (x, k) { return konuAcik(i, L, k) && !bittiMi(i, x.id); }), biten = L.filter(function (x) { return bittiMi(i, x.id); }).length;
+    var son = L.findIndex(function (x) { return x.id === i.gramerSon; }); if (son < 0) son = Math.max(0, sira);
+    var yol = 'M' + Y.map(function (p) { return p[0] + ' ' + p[1]; }).join(' L');
+    var toplam = L.reduce(function (n, x) { var d = kd(i, x.id); return n + (d.oyna || 0); }, 0);
+    oz.kok.innerHTML = '<div class="kzm kzm-sv' + sv + '">' + ust('Haritaya dön', 'Zaman Makinesi Kasabası', 'Grammar Town',
+      '<div class="kzm-sv-sec" role="group" aria-label="Seviye">' + [2, 3, 4].map(function (n) { var a = seviyeAcik(i, n), s_ = V().SEVIYE[n]; return '<button type="button" data-kzmsv="' + n + '" aria-pressed="' + (n === sv) + '"' + (a ? '' : ' aria-disabled="true"') + '><b>' + s_.ad + '</b><small>' + (a ? s_.sinif : '🔒') + '</small></button>'; }).join('') + '</div>') +
+      '<main class="kzm-kasaba' + (dar ? ' kzm-dar' : '') + '"><div class="kzm-gok" aria-hidden="true"><span class="kzm-gunes"></span><span class="kzm-bulut kzm-b1"></span><span class="kzm-bulut kzm-b2"></span><span class="kzm-tepe"></span></div>' +
+      '<div class="kzm-ray" aria-hidden="true"><span class="kzm-tren">' + TREN + '</span></div>' +
+      '<div class="kzm-kule-y" aria-hidden="true">' + SAAT + '</div>' +
+      '<p class="kzm-tabela"><b>' + esc(S.mahalle || '') + '</b><span>' + biten + ' / ' + L.length + ' bina · ★ ' + toplam + '</span></p>' +
+      '<svg class="kzm-yol" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + yol + '"/></svg>' +
+      '<ol class="kzm-evler">' + L.map(function (x, k) {
+        var acik = konuAcik(i, L, k), d = kd(i, x.id), bitti = bittiMi(i, x.id);
+        return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '" class="' + (acik ? '' : 'kzm-kilit') + (k === sira ? ' kzm-sira' : '') + '"><button type="button" class="kzm-ev" data-kzmk="' + x.id + '"' + (acik ? '' : ' aria-disabled="true"') +
+          ' aria-label="' + esc(x.en + ', ' + x.tr + (acik ? (bitti ? ', bitti, ' + d.oyna + ' yıldız' : '') : ', kilitli')) + '">' + ev(x.renk, !acik, bitti, k) + (x.zaman ? '<span class="kzm-saat-r" aria-hidden="true">⏰</span>' : '') +
+          '<span class="kzm-ad"><b lang="en">' + esc(x.en) + '</b><small>' + esc(x.tr) + '</small>' + (acik ? (bitti ? yildizHtml(d.oyna) : '<i class="kzm-adim">' + ['izle', 'dene', 'oyna'].map(function (a) { return '<u' + (d[a] > 0 ? ' class="on"' : '') + '></u>'; }).join('') + '</i>') : '<i>🔒</i>') + '</span></button></li>';
+      }).join('') + '</ol><span class="kzm-yuruyen" aria-hidden="true" style="left:' + Y[son][0] + '%;top:' + Y[son][1] + '%">' + acd('mutlu', 'el') + '</span></main></div>';
+    oz.kok.dataset.gorunum = 'gramer';
+    oz.kok.querySelector('[data-kzmgeri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); dur(); oz.geri(); });
+    oz.kok.querySelectorAll('[data-kzmsv]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var n = +b.getAttribute('data-kzmsv'), i2 = il();
+        if (!seviyeAcik(i2, n)) { if (SES) { SES.fx('yanlis'); SES.soyle('Bu seviye için önce bir önceki mahalledeki bütün binaları bitir.', 'tr'); } return; }
+        i2.gramerSv = n; kaydet(i2); if (SES) SES.fx('dokun'); kasaba();
+      });
+    });
+    var yr = oz.kok.querySelector('.kzm-yuruyen'), gidiyor = false;
+    oz.kok.querySelectorAll('[data-kzmk]').forEach(function (b, k) {
+      b.addEventListener('click', function () {
+        if (gidiyor) return; var x = L[k];
+        if (!konuAcik(il(), L, k)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + L[k - 1].tr + ' binasını bitir.', 'tr'); } b.classList.remove('kzm-salla'); void b.offsetWidth; b.classList.add('kzm-salla'); return; }
+        if (SES) SES.fx('dokun'); var i2 = il(); i2.gramerSon = x.id; kaydet(i2);
+        if (k === son || SAKIN || !yr.animate) return konu(x);
+        gidiyor = true; var a = Y[son], h = Y[k];
+        yr.animate([{ left: a[0] + '%', top: a[1] + '%' }, { left: h[0] + '%', top: h[1] + '%' }], { duration: 900, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' }).finished.then(function () { konu(x); }, function () { konu(x); });
+      });
+    });
+    if (SES && sira >= 0) SES.soyle((S.mahalle || '') + '! Sıradaki bina: ' + L[sira].tr + '.', 'tr');
+  }
+
+  /* ---------------- bina: üç adım ---------------- */
+  var ADIM = [['izle', 'İzle', 'Watch', 'oynat'], ['dene', 'Dene', 'Try', 'firca'], ['oyna', 'Oyna', 'Play', 'yildiz']];
+  function konu(x, yeni) {
+    dur();
+    var i = il(), d = kd(i, x.id), sira = ADIM.findIndex(function (a) { return adimAcik(d, a[0]) && !(d[a[0]] > 0); });
+    oz.kok.innerHTML = '<div class="kzm kzm-konu kzm-sv' + x.sv + '" style="--r:' + x.renk + '">' + ust('Kasabaya dön', esc(x.en), esc(x.tr)) +
+      '<main class="kzm-konu-alan"><div class="kzm-ev-buyuk" aria-hidden="true">' + ev(x.renk, false, bittiMi(i, x.id), 0) + '</div>' +
+      '<ol class="kzm-adimlar">' + ADIM.map(function (a, j) {
+        var ac = adimAcik(d, a[0]), y = d[a[0]] || 0, bitti = y > 0;
+        return '<li style="--j:' + j + '"><button type="button" class="kzm-adim-b' + (bitti ? ' kzm-a-bitti' : '') + (j === sira ? ' kzm-a-simdi' : '') + '" data-kzma="' + a[0] + '"' + (ac ? '' : ' aria-disabled="true"') + ' aria-label="' + esc((j + 1) + '. adım: ' + a[1] + (bitti ? ', bitti' : ac ? '' : ', kilitli')) + '">' +
+          '<span class="kzm-a-no">' + (ac ? (C ? C.simge(a[3]) : j + 1) : '🔒') + '</span><b>' + (j + 1) + '. ' + a[1] + '</b><small lang="en">' + a[2] + '</small>' + (bitti ? (a[0] === 'izle' ? '<i class="kzm-y">✓</i>' : yildizHtml(y)) : '') + '</button></li>';
+      }).join('') + '</ol>' + (yeni ? '<div class="kzm-yeni" role="status"><span aria-hidden="true">🏠</span><b>Bina tamam!</b><small>' + (yeni === 'sonuncu' ? 'Mahallenin bütün binalarını bitirdin!' : 'Sıradaki bina açıldı.') + '</small></div>' : '') + '</main></div>';
+    oz.kok.dataset.gorunum = 'gramer';
+    oz.kok.querySelector('[data-kzmgeri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); kasaba(); });
+    if (yeni && SES) { SES.fx('yildiz'); SES.soyle('Tebrikler! ' + x.tr + ' binası tamam!', 'tr'); }
+    else if (SES && sira >= 0) SES.soyle(x.tr + '. Sıradaki adım: ' + ADIM[sira][1] + '.', 'tr');
+    oz.kok.querySelectorAll('[data-kzma]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var a = b.getAttribute('data-kzma');
+        if (!adimAcik(kd(il(), x.id), a)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce bir önceki adımı bitir.', 'tr'); } return; }
+        if (SES) SES.fx('dokun'); ({ izle: izle, dene: dene, oyna: oyna })[a](x);
+      });
+    });
+  }
+  function adimBitti(x, a, y, hata, n) {
+    var i = il(); i.gramer = i.gramer || {}; var d = i.gramer[x.id] = i.gramer[x.id] || {}, once = bittiMi(i, x.id);
+    if (!(d[a] >= y)) d[a] = y;
+    i.gramerLog = (i.gramerLog || []).concat([{ t: Date.now(), id: x.id, a: a, y: y, h: hata || 0, n: n || 0 }]).slice(-60);
+    kaydet(i);
+    if (!once && bittiMi(i, x.id)) { var L = liste(x.sv); return L[L.length - 1].id === x.id ? 'sonuncu' : 'yeni'; }
+    return '';
+  }
+  function sahne(x, n, baslik) {
+    oz.kok.innerHTML = '<div class="kzm kzm-oyun kzm-sv' + x.sv + '" style="--r:' + x.renk + '">' + ust('Binaya dön', esc(baslik), esc(x.en),
+      n ? '<ol class="kzm-noktalar" aria-label="İlerleme">' + new Array(n + 1).join('<li></li>') + '</ol>' : '<span></span>') + '<main class="kzm-kart" data-kzmkart></main></div>';
+    oz.kok.dataset.gorunum = 'gramer';
+    oz.kok.querySelector('[data-kzmgeri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); konu(x); });
+    var nk = [].slice.call(oz.kok.querySelectorAll('.kzm-noktalar li')); if (nk[0]) nk[0].className = 'simdi';
+    return { kart: oz.kok.querySelector('[data-kzmkart]'), nokta: function (k) { if (nk[k]) nk[k].className = 'tamam'; if (nk[k + 1]) nk[k + 1].className = 'simdi'; } };
+  }
+  function bitis(x, a, y, hata, n, baslik) {
+    var yeni = adimBitti(x, a, y, hata, n), j = ADIM.findIndex(function (z) { return z[0] === a; }), sonraki = ADIM[j + 1];
+    var kart = oz.kok.querySelector('[data-kzmkart]');
+    kart.innerHTML = '<div class="kzm-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><span class="kzm-acd" aria-hidden="true">' + acd('kutlama') + '</span><h2>' + esc(baslik || 'Harika!') + '</h2>' +
+      (a === 'izle' ? '' : '<p class="kzm-yildizlar">' + yildizHtml(y, 'kzm-yb') + '</p><p>' + n + ' soru' + (hata ? ' · ' + hata + ' yanlış deneme' : ' · hiç yanlış yok!') + '</p>') +
+      '<div class="kzm-bitis-d"><button type="button" class="ka-orta" data-kzmtekrar>Tekrar</button><button type="button" class="ka-buyuk" data-kzmdevam>' + (sonraki && !yeni ? 'Sıradaki: ' + sonraki[1] : 'Binaya dön') + '</button></div></div>';
+    if (SES) { SES.fx('yildiz'); if (a !== 'izle') SES.soyle(y === 3 ? 'Mükemmel! Üç yıldız!' : 'Aferin! Adımı bitirdin!', 'tr'); }
+    kart.querySelector('[data-kzmtekrar]').addEventListener('click', function () { ({ izle: izle, dene: dene, oyna: oyna })[a](x); });
+    kart.querySelector('[data-kzmdevam]').addEventListener('click', function () { if (sonraki && !yeni) ({ izle: izle, dene: dene, oyna: oyna })[sonraki[0]](x); else konu(x, yeni); });
+  }
+
+  /* ---------------- canlı kelime karakterleri ---------------- */
+  function blokHtml(b, j) {
+    var ic = b.kok != null ? '<span class="kzm-kok">' + esc(b.kok) + '</span><span class="kzm-ek">' + esc(b.ek) + '</span>'
+      : b.eski != null ? '<span class="kzm-don"><span class="kzm-eski">' + esc(b.eski) + '</span><span class="kzm-yeni-k">' + esc(b.m) + '</span></span>' : esc(b.m);
+    return '<span class="kzm-b kzm-r-' + b.r + (b.kok != null ? ' kzm-ekli' : '') + (b.eski != null ? ' kzm-donen' : '') + '" style="--j:' + j + '" title="' + ROL[b.r] + '"><i class="kzm-goz" aria-hidden="true"></i>' + ic + '</span>';
+  }
+  function cumleHtml(s) { var p = parca(s); return '<p class="kzm-cumle" lang="en" aria-label="' + esc(metin(s)) + '">' + p.bloklar.map(blokHtml).join('') + (p.son ? '<span class="kzm-son">' + p.son + '</span>' : '') + '</p>'; }
+  var ISTASYON = [['dun', 'dün', 'yesterday', 12], ['her', 'her gün', 'every day', 37], ['simdi', 'şimdi', 'now', 62], ['yarin', 'yarın', 'tomorrow', 88]];
+  function zamanHtml(z) {
+    var p = (ISTASYON.filter(function (s) { return s[0] === z; })[0] || ISTASYON[2])[3];
+    return '<div class="kzm-zaman" style="--p:' + p + '%" aria-label="Zaman treni: ' + esc((ISTASYON.filter(function (s) { return s[0] === z; })[0] || [])[1] || '') + '"><span class="kzm-z-ray"></span>' +
+      ISTASYON.map(function (s) { return '<span class="kzm-ist' + (s[0] === z ? ' on' : '') + '" style="left:' + s[3] + '%"><b>' + s[1] + '</b><small lang="en">' + s[2] + '</small></span>'; }).join('') + '<span class="kzm-z-tren">' + TREN + '</span></div>';
+  }
+
+  /* ---------------- 1) İZLE ---------------- */
+  function izle(x) {
+    dur(); durum = {}; var ben = durum, F = x.iz, n = 0, sc = sahne(x, F.length, 'İzle'), sonZ = '';
+    function kare() {
+      if (ben !== durum) return; var f = F[n];
+      var zt = f.z ? zamanHtml(f.z) : '';
+      sc.kart.innerHTML = '<div class="kzm-izle">' + zt + '<div class="kzm-sahne">' + (f.r && resim(f.r) ? '<span class="kzm-res" aria-hidden="true">' + resim(f.r) + '</span>' : '') +
+        (f.b ? '<div class="kzm-boy" aria-hidden="true">' + f.b.map(function (w, q) { return '<span style="--q:' + q + '"><i></i><b lang="en">' + esc(w) + '</b></span>'; }).join('') + '</div>' : '') +
+        cumleHtml(f.s) + '</div><p class="kzm-anlat">' + esc(f.t) + '</p>' +
+        (f.tab ? '<table class="kzm-tablo"><tbody>' + f.tab.map(function (r, q) { return '<tr style="--q:' + q + '"><th>' + esc(r[0]) + '</th><td lang="en">' + esc(r[1]) + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
+        '<div class="kzm-izle-d"><button type="button" class="ka-orta" data-kzmonce' + (n ? '' : ' disabled') + ' aria-label="Önceki">◀</button><button type="button" class="kzm-dinle" data-kzmdinle aria-label="Tekrar dinle">' + (C ? C.simge('ses') : '♪') + '</button>' +
+        '<button type="button" class="ka-buyuk" data-kzmileri>' + (n === F.length - 1 ? 'Bitti!' : 'İleri ▶') + '</button></div></div>';
+      var zz = sc.kart.querySelector('.kzm-zaman');
+      if (zz && sonZ && sonZ !== f.z && !SAKIN) { var eskiP = (ISTASYON.filter(function (s) { return s[0] === sonZ; })[0] || [])[3]; if (eskiP != null) { zz.style.setProperty('--p0', eskiP + '%'); zz.classList.add('kzm-z-git'); } }
+      sonZ = f.z || sonZ;
+      var konus = function () { return soyle(f.t, 'tr').then(function () { return bekle(250); }).then(function () { if (ben === durum) return soyle(metin(f.s), 'en'); }).then(function () { if (ben === durum) { var b = sc.kart.querySelector('[data-kzmileri]'); if (b) b.classList.add('kzm-hazir'); } }); };
+      konus();
+      sc.kart.querySelector('[data-kzmdinle]').addEventListener('click', function () { if (SES) SES.sus(); konus(); });
+      sc.kart.querySelector('[data-kzmonce]').addEventListener('click', function () { if (n > 0) { if (SES) SES.sus(); n--; kare(); } });
+      sc.kart.querySelector('[data-kzmileri]').addEventListener('click', function () { if (SES) { SES.sus(); SES.fx('dokun'); } sc.nokta(n); n++; if (n >= F.length) bitis(x, 'izle', 1, 0, F.length, 'Kuralı öğrendin!'); else kare(); });
+    }
+    kare();
+  }
+
+  /* ---------------- 2) DENE: bloğu boşluğa koy ---------------- */
+  function dene(x) {
+    dur(); durum = {}; var ben = durum, L = x.de, n = 0, hataT = 0, sc = sahne(x, L.length, 'Dene');
+    function tur() {
+      if (ben !== durum) return; var q = L[n], yanlis = 0, secenek = karistir([q[1]].concat(q[2]));
+      var p = q[0].split('___');
+      sc.kart.innerHTML = '<div class="kzm-dene"><p class="kzm-d-tr">' + esc(q[3]) + '</p><p class="kzm-d-cumle" lang="en">' + esc(p[0]) + '<span class="kzm-bosluk" data-kzmbos aria-label="boşluk">?</span>' + esc(p[1] || '') + '</p>' +
+        '<p class="kzm-d-ip">Doğru bloğu boşluğa sürükle ya da dokun.</p><div class="kzm-d-bloklar">' + secenek.map(function (s, j) { return '<button type="button" class="kzm-b kzm-r-o kzm-surukle" data-kzms="' + esc(s) + '" style="--j:' + j + '"><i class="kzm-goz" aria-hidden="true"></i>' + esc(s) + '</button>'; }).join('') + '</div></div>';
+      var bos = sc.kart.querySelector('[data-kzmbos]'), bitti = false;
+      function dene_(b) {
+        if (bitti || ben !== durum) return; var s = b.getAttribute('data-kzms');
+        if (s === q[1]) {
+          bitti = true; if (SES) SES.fx('dogru'); bos.textContent = s; bos.classList.add('kzm-dolu'); b.classList.add('kzm-gitti'); sc.nokta(n);
+          soyle(q[0].replace('___', q[1]).replace(/ \((.*?)\)$/, ''), 'en').then(function () { return bekle(450); }).then(function () { if (ben !== durum) return; n++; if (n >= L.length) bitis(x, 'dene', yildiz(hataT), hataT, L.length, 'Denedin, başardın!'); else tur(); });
+        } else {
+          hataT++; yanlis++; if (SES) SES.fx('yanlis'); b.classList.remove('kzm-salla'); void b.offsetWidth; b.classList.add('kzm-salla');
+          if (yanlis >= 2) { var d = sc.kart.querySelector('[data-kzms="' + q[1].replace(/"/g, '\\"') + '"]'); if (d) d.classList.add('kzm-ipucu'); }
+        }
+      }
+      sc.kart.querySelectorAll('[data-kzms]').forEach(function (b) {
+        b.addEventListener('click', function (e) { if (b.__suruklendi) { b.__suruklendi = false; return; } dene_(b); });
+        /* sürükle-bırak: işaretçiyle; boşluğun üstüne bırakılırsa dener, değilse yerine döner */
+        b.addEventListener('pointerdown', function (e) {
+          if (bitti || e.button !== 0) return; var x0 = e.clientX, y0 = e.clientY, oynadi = false;
+          var hareket = function (ev) { var dx = ev.clientX - x0, dy = ev.clientY - y0; if (!oynadi && Math.abs(dx) + Math.abs(dy) < 8) return; oynadi = true; b.classList.add('kzm-tutuldu'); b.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(-4deg)'; var r = bos.getBoundingClientRect(); bos.classList.toggle('kzm-hedef', ev.clientX > r.left - 20 && ev.clientX < r.right + 20 && ev.clientY > r.top - 30 && ev.clientY < r.bottom + 30); };
+          var birak = function (ev) {
+            W.removeEventListener('pointermove', hareket); W.removeEventListener('pointerup', birak); W.removeEventListener('pointercancel', birak);
+            if (!oynadi) return; b.__suruklendi = true; var ustte = bos.classList.contains('kzm-hedef'); bos.classList.remove('kzm-hedef'); b.classList.remove('kzm-tutuldu'); b.style.transform = '';
+            if (ustte) dene_(b);
+          };
+          W.addEventListener('pointermove', hareket); W.addEventListener('pointerup', birak); W.addEventListener('pointercancel', birak);
+        });
+      });
+      soyle(q[3], 'tr');
+    }
+    tur();
+  }
+
+  /* ---------------- 3) OYNA: seç · doğru mu · sırala ---------------- */
+  function oyna(x) {
+    dur(); durum = {}; var ben = durum, L = karistir(x.oy.map(oyCoz)), n = 0, hataT = 0, sc = sahne(x, L.length, 'Oyna');
+    function sonraki() { sc.nokta(n); return bekle(650).then(function () { if (ben !== durum) return; n++; if (n >= L.length) bitis(x, 'oyna', yildiz(hataT), hataT, L.length, 'Binayı bitirdin!'); else tur(); }); }
+    function tur() {
+      if (ben !== durum) return; var q = L[n];
+      if (q.t === 's') {
+        var p = q.c.split('___');
+        sc.kart.innerHTML = '<div class="kzm-oy"><span class="kzm-oy-tip">Boşluğa hangisi gelir?</span><p class="kzm-d-cumle" lang="en">' + esc(p[0]) + '<span class="kzm-bosluk">?</span>' + esc(p[1] || '') + '</p><p class="kzm-d-tr">' + esc(q.tr) + '</p><div class="kzm-secler">' +
+          karistir([q.d].concat(q.y)).map(function (s) { return '<button type="button" class="kzm-sec" data-kzmo="' + esc(s) + '" lang="en">' + esc(s) + '</button>'; }).join('') + '</div></div>';
+        var cozdu = false;
+        sc.kart.querySelector('.kzm-secler').addEventListener('click', function (e) {
+          var b = e.target.closest('[data-kzmo]'); if (!b || b.disabled || cozdu) return;
+          if (b.getAttribute('data-kzmo') === q.d) { cozdu = true; if (SES) SES.fx('dogru'); b.classList.add('kzm-s-dogru'); sc.kart.querySelector('.kzm-bosluk').textContent = q.d; sc.kart.querySelector('.kzm-bosluk').classList.add('kzm-dolu'); soyle(q.c.replace('___', q.d).replace(/ \((.*?)\)$/, ''), 'en').then(sonraki); }
+          else { hataT++; b.disabled = true; b.classList.add('kzm-s-yanlis', 'kzm-salla'); if (SES) SES.fx('yanlis'); }
+        });
+      } else if (q.t === 'y') {
+        sc.kart.innerHTML = '<div class="kzm-oy"><span class="kzm-oy-tip">Bu cümle doğru mu?</span><p class="kzm-y-tabela" lang="en">' + esc(q.c) + '</p><p class="kzm-d-tr">' + esc(q.tr) + '</p>' +
+          '<div class="kzm-dy"><button type="button" class="kzm-dy-b kzm-dy-e" data-kzmy="1"><span aria-hidden="true">✓</span>Doğru</button><button type="button" class="kzm-dy-b kzm-dy-h" data-kzmy="0"><span aria-hidden="true">✗</span>Yanlış</button></div><p class="kzm-duzelt" aria-live="polite"></p></div>';
+        var bitti = false;
+        sc.kart.querySelector('.kzm-dy').addEventListener('click', function (e) {
+          var b = e.target.closest('[data-kzmy]'); if (!b || bitti) return; bitti = true;
+          var dogru = (b.getAttribute('data-kzmy') === '1') === q.ok, dz = sc.kart.querySelector('.kzm-duzelt'), tab = sc.kart.querySelector('.kzm-y-tabela');
+          if (dogru) { if (SES) SES.fx('dogru'); b.classList.add('kzm-s-dogru'); } else { hataT++; if (SES) SES.fx('yanlis'); b.classList.add('kzm-s-yanlis', 'kzm-salla'); }
+          if (!q.ok) { tab.classList.add('kzm-ciz'); dz.innerHTML = '<span>Doğrusu:</span> <b lang="en">' + esc(q.dz) + '</b>'; soyle(q.dz, 'en').then(function () { return bekle(500); }).then(sonraki); }
+          else { dz.innerHTML = '<span>Bu cümle doğru!</span>'; soyle(q.c, 'en').then(sonraki); }
+        });
+      } else {
+        var P = parca(q.s), sira = P.bloklar.map(function (b) { return b.m; }), kar = karistir(sira.map(function (m, j) { return j; })), k = 0;
+        if (kar.every(function (v, j) { return v === j; }) && kar.length > 1) kar.reverse();
+        sc.kart.innerHTML = '<div class="kzm-oy"><span class="kzm-oy-tip">Kelimeleri sırayla diz.</span><p class="kzm-d-tr">' + esc(q.tr) + '</p><p class="kzm-dizi" lang="en" aria-live="polite"></p><div class="kzm-d-bloklar">' +
+          kar.map(function (j) { var b = P.bloklar[j]; return '<button type="button" class="kzm-b kzm-r-' + b.r + '" data-kzmd="' + j + '"><i class="kzm-goz" aria-hidden="true"></i>' + esc(b.m) + '</button>'; }).join('') + '</div></div>';
+        var dizi = sc.kart.querySelector('.kzm-dizi'), yanlis = 0;
+        sc.kart.querySelector('.kzm-d-bloklar').addEventListener('click', function (e) {
+          var b = e.target.closest('[data-kzmd]'); if (!b || b.disabled) return;
+          if (b.textContent === sira[k]) {
+            if (SES) SES.fx('dokun'); b.disabled = true; b.classList.add('kzm-gitti'); dizi.insertAdjacentHTML('beforeend', blokHtml(P.bloklar[k], k)); k++; yanlis = 0;
+            sc.kart.querySelectorAll('.kzm-ipucu').forEach(function (z) { z.classList.remove('kzm-ipucu'); });
+            if (k >= sira.length) { if (P.son) dizi.insertAdjacentHTML('beforeend', '<span class="kzm-son">' + P.son + '</span>'); if (SES) SES.fx('dogru'); soyle(metin(q.s), 'en').then(sonraki); }
+          } else {
+            hataT++; yanlis++; if (SES) SES.fx('yanlis'); b.classList.remove('kzm-salla'); void b.offsetWidth; b.classList.add('kzm-salla');
+            if (yanlis >= 2) sc.kart.querySelectorAll('[data-kzmd]').forEach(function (z) { if (!z.disabled && z.textContent === sira[k]) z.classList.add('kzm-ipucu'); });
+          }
+        });
+      }
+      if (SES) SES.soyle(q.t === 's' ? 'Boşluğa hangisi gelir?' : q.t === 'y' ? 'Bu cümle doğru mu?' : 'Kelimeleri sırayla diz.', 'tr');
+    }
+    tur();
+  }
+
+  /* ---------------- veli raporu ---------------- */
+  function rapor(i) {
+    var g = i.gramer || {}; if (!Object.keys(g).length) return '';
+    var hafta = Date.now() - 7 * 864e5, log = (i.gramerLog || []).filter(function (z) { return z.t >= hafta; });
+    var zayif = V().KONU.filter(function (x) { return g[x.id] && g[x.id].oyna > 0 && g[x.id].oyna < 2; }).slice(0, 3);
+    return '<section class="kzm-rapor"><h3>İlkokul · Zaman Makinesi Kasabası <small>dil bilgisi</small></h3><ul class="kzm-r-sv">' + [2, 3, 4].map(function (sv) {
+      var L = liste(sv), b = L.filter(function (x) { return bittiMi(i, x.id); }).length, S = V().SEVIYE[sv];
+      return '<li><b>' + S.ad + ' <small>' + S.sinif + '</small></b><span><i style="width:' + Math.round(b / L.length * 100) + '%"></i></span><em>' + b + ' / ' + L.length + '</em></li>';
+    }).join('') + '</ul><p class="ka-pen-alt">Bu hafta ' + log.length + ' adım tamamladı.</p>' +
+      (zayif.length ? '<h4>Biraz daha tekrar</h4><ul>' + zayif.map(function (x) { return '<li>⚠️ <span lang="en">' + esc(x.en) + '</span> · ' + esc(x.tr) + '</li>'; }).join('') + '</ul>' : '') + '</section>';
+  }
+
+  /* seslendirme kataloğu: kasabanın söylediği bütün cümleler */
+  function cumleler() {
+    var tr = ['Bu seviye için önce bir önceki mahalledeki bütün binaları bitir.', 'Önce bir önceki adımı bitir.', 'Boşluğa hangisi gelir?', 'Bu cümle doğru mu?', 'Kelimeleri sırayla diz.', 'Mükemmel! Üç yıldız!', 'Aferin! Adımı bitirdin!', 'Zaman Makinesi Kasabasına hoş geldin!'], en = [];
+    [2, 3, 4].forEach(function (sv) {
+      var L = liste(sv), S = V().SEVIYE[sv];
+      L.forEach(function (x, k) {
+        tr.push(S.mahalle + '! Sıradaki bina: ' + x.tr + '.', 'Tebrikler! ' + x.tr + ' binası tamam!'); if (k) tr.push('Önce ' + L[k - 1].tr + ' binasını bitir.');
+        ADIM.forEach(function (a) { tr.push(x.tr + '. Sıradaki adım: ' + a[1] + '.'); });
+        x.iz.forEach(function (f) { tr.push(f.t); en.push(metin(f.s)); });
+        x.de.forEach(function (q) { tr.push(q[3]); en.push(q[0].replace('___', q[1]).replace(/ \((.*?)\)$/, '')); });
+        x.oy.map(oyCoz).forEach(function (q) { if (q.t === 's') en.push(q.c.replace('___', q.d).replace(/ \((.*?)\)$/, '')); else if (q.t === 'y') en.push(q.ok ? q.c : q.dz); else en.push(metin(q.s)); });
+      });
+    });
+    var u = function (a) { return a.filter(function (v, j) { return a.indexOf(v) === j; }); };
+    return { tr: u(tr), en: u(en) };
+  }
+
+  function ac(o) {
+    C = W.KIDS_CIZ; SES = W.KIDS_SES; R = W.KIDS_RESIM; oz = o; if (o.dur) o.dur();
+    kasaba();
+    return { dur: dur };
+  }
+  W.KIDS_GRAMER = { ac: ac, parca: parca, metin: metin, yildiz: yildiz, konuAcik: konuAcik, seviyeAcik: seviyeAcik, bittiMi: bittiMi, adimAcik: adimAcik, oyCoz: oyCoz, rapor: rapor, cumleler: cumleler, _oz: function (x) { oz = x; } };
+})(window);
+
 /* ---- kids-kres.js ---- */
 /* ==========================================================================
    ACADEX KIDS · kreşin kendi haftası (kids/assets/kids-kres.js), 14.11.2026
@@ -11530,7 +12398,9 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
   function portalAcik(il) { return !!W.KIDS_CUMLE && (il.ilkSinif > 0 || (il.ilkSinif === undefined && ilkokulMu())); }
   function portalHtml(il) {
     if (!portalAcik(il)) return '';
-    return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>';
+    return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>' +
+      /* 27.11.2026 Zaman Makinesi Kasabası (kids-gramer.js): dil bilgisi, kolay/orta/zor */
+      (W.KIDS_GRAMER ? '<button type="button" class="ka-portal kzm-portal" data-gramer aria-label="Zaman Makinesi Kasabasına git"><span class="kzm-portal-g" aria-hidden="true"><i></i><i></i></span><span class="ka-portal-y"><small>Dil bilgisi</small><b>Zaman Kasabası</b></span></button>' : '');
   }
   var karsilanan = '';   /* son karşılanan çocuk|gün|konu (bellekte: sayfa yenilenince yeni giriş sayılır) */
   function panel() {
@@ -11570,6 +12440,8 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
       konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, yeniAcik: !!yeniAcik[k.id], asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
     var cg = app.querySelector('[data-cumle]');
     if (cg) cg.addEventListener('click', function () { SES.fx('dokun'); jole(cg); var r = W.KIDS_CUMLE.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
+    var gk = app.querySelector('[data-gramer]');
+    if (gk) gk.addEventListener('click', function () { SES.fx('dokun'); jole(gk); var r = W.KIDS_GRAMER.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
     var sz = app.querySelector('[data-surpriz]');
     if (sz) sz.addEventListener('click', function () { var l = acikIds.filter(function (id) { return id !== (S.konu || ''); }), id = l[Math.floor(Math.random() * l.length)], b = id && app.querySelector('.ka-ada[data-konu="' + id + '"]'); jole(sz); if (b) b.click(); });
     /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
@@ -12140,7 +13012,7 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
         /* 22.11.2026: ilkokul raporu (Cümle Galaksisi oynandıysa) */
         (on ? '<section class="ka-veli-oneri" style="--r:' + on.k.renk + '"><span>' + C.simge(on.k.simge) + '</span><div><small>Sıradaki önerimiz</small><b lang="en">' + esc(on.k.en) + '</b> <i>' + esc(on.k.tr) + '</i><p>' + esc(on.neden) + '</p></div></section>' : '') +
         '<section><h3>Bu hafta tanıştığı kelimeler <small>' + yk.length + '</small></h3>' + (yk.length ? '<ul class="ka-veli-kel">' + yk.slice(0, 12).map(function (o) { return '<li style="--r:' + (o.hex || '#9AA7BD') + '">' + dinle(o.en) + (RS.var(o.id) ? '<span class="ka-veli-kr">' + RS.ciz(o.id) + '</span>' : '') + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul>' + (yk.length > 12 ? '<p class="ka-pen-alt">ve ' + (yk.length - 12) + ' kelime daha. Tamamı “Kelimeler” sekmesinde.</p>' : '<p class="ka-pen-alt">Dokunun, dinleyin; akşam yemeğinde birlikte söyleyin.</p>') : '<p class="ka-pen-alt">Bu hafta yeni kelime yok. Haritadan bir gezegen seçmeye ne dersiniz?</p>') + '</section>' +
-        (W.KIDS_CUMLE && W.KIDS_CUMLE.rapor ? W.KIDS_CUMLE.rapor(il) : '') +
+        (W.KIDS_CUMLE && W.KIDS_CUMLE.rapor ? W.KIDS_CUMLE.rapor(il) : '') + (W.KIDS_GRAMER && W.KIDS_GRAMER.rapor ? W.KIDS_GRAMER.rapor(il) : '') +
         (biten.length ? '<section><h3>Rozetleri</h3><ul class="ka-veli-rozet">' + biten.map(function (x) { return '<li>' + RS.rozet(x.renk, simgeIc(x.simge), false) + '<small>' + esc(x.rozet || x.tr) + '</small></li>'; }).join('') + '</ul></section>' : '') +
         '<section><h3>Konular</h3><ul class="ka-veli-konu">' + acik.map(function (x) { var n = yildizK(x); return '<li style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span><b lang="en">' + esc(x.en) + '</b><i><em style="width:' + Math.round(n / OD.konuMax(x.id) * 100) + '%"></em></i><small>' + n + '/' + OD.konuMax(x.id) + ' ★' + (il.bitti && il.bitti[x.id] ? ' · bitirdi' : '') + '</small></li>'; }).join('') + '</ul></section>' +
         '<section><h3>Zorlandığı kelimeler</h3>' + (zor.length ? '<ul class="ka-veli-kel">' + zor.map(function (o) { return '<li style="--r:' + o.hex + '">' + dinle(o.en) + (RS.var(o.id) ? '<span class="ka-veli-kr">' + RS.ciz(o.id) + '</span>' : '') + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul><p class="ka-pen-alt">Dinleyip birlikte tekrar edin; günlük hayatta gösterip sorun.</p>' : '<p class="ka-pen-alt">Henüz zorlandığı bir kelime yok.</p>') + '</section>';
