@@ -8013,6 +8013,219 @@ var SBX = (function () {
     for (var x in ek) if (!A[x]) A[x] = ek[x];
   };
   /* ---------- #50 son ---------- */
+  /* ---------- #52 (Phase 8.3) KAYNAK KALİTESİ, BAĞIMSIZLIK VE ÇAPRAZ KAYNAK (27.11.2026) ----------
+     Üç ayrı kavram, biri ötekinin yerine geçmez: kaynak niteliği (kalite: liste, tür, tarih), bağımsızlık (aynı haberin kopyası mı) ve
+     iddia desteği (#50 kontrolü). Listede olmamak "güvenilmez" değildir (unknown = bilgi yetersiz), Vikipedi bir türdür, eski kaynak
+     kendiliğinden kötü değildir, tarih uydurulmaz. Birden çok kaynak birden çok bağımsız doğrulama değildir; farklı değer tek başına
+     çelişki değildir: yalnız aynı varlık, özellik, dönem, tanım/kapsam ve birimde, gerçek kayıtlı parçalarda (#49 sid/pid, idParcaSec)
+     ve kopya olmayan kaynaklarda kesin çelişki (CLAIM_SOURCE_CONFLICT) çıkar; ötekiler bilgi notudur. Deterministik; ağ, model, günlük
+     yok. durum/kontrol alanına yazılmaz, metin/sayı/kaynak değiştirilmez, puan ve deckKey'e girmez.
+     Numara (§7): sid kalıcı, n baskı başına sid → n eşlemesi (kkNumara); satır içi [n] ile kaynakça aynı eşlemeden.
+     PPTX bağlantısı (§8): yalnız kayıttaki gerçek http(s) adresi (kkBag), kullanıcı/parola ve öteki şemalar reddedilir. */
+  var KK_SURUM = 1;
+  var KK_GUVEN = /(\.edu(\.[a-z]{2})?|\.gov(\.[a-z]{2})?|\.ac\.[a-z]{2}|\.int|\.k12\.tr)$|(^|\.)(nasa\.gov|esa\.int|si\.edu|britannica\.com|tuik\.gov\.tr|tcmb\.gov\.tr|oecd\.org|worldbank\.org|imf\.org|un\.org|who\.int|europa\.eu|nature\.com|sciencedirect\.com|springer\.com|jstor\.org|dergipark\.org\.tr|tubitak\.gov\.tr|history\.com|nationalgeographic\.com|bbc\.com|bbc\.co\.uk|reuters\.com|aa\.com\.tr|trthaber\.com)$/i;      /* sunum-research TRUSTED ile birebir (test eşler) */
+  var KK_ENGEL = ["youtube.com", "youtu.be", "facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "quora.com", "pinterest.com", "linkedin.com", "eksisozluk.com", "uludagsozluk.com", "incisozluk.com.tr", "dailymotion.com", "vimeo.com", "scribd.com", "slideshare.net"];      /* sunum-research BLOCK ile birebir */
+  var KK_RESMI = /(\.gov(\.[a-z]{2})?|\.int|\.mil(\.[a-z]{2})?)$|(^|\.)(tuik\.gov\.tr|tcmb\.gov\.tr|oecd\.org|worldbank\.org|imf\.org|un\.org|who\.int|europa\.eu|esa\.int|nasa\.gov|tubitak\.gov\.tr)$/i;
+  var KK_AKADEMIK = /(\.edu(\.[a-z]{2})?|\.ac\.[a-z]{2})$|(^|\.)(nature\.com|sciencedirect\.com|springer\.com|jstor\.org|dergipark\.org\.tr|arxiv\.org|doi\.org)$/i;
+  var KK_ANSIK = /(^|\.)(wikipedia\.org|britannica\.com)$/i, KK_HABER = /(^|\.)(bbc\.com|bbc\.co\.uk|reuters\.com|aa\.com\.tr|trthaber\.com|apnews\.com|afp\.com)$/i;
+  var KK_BLOG = /(^|\.)(medium\.com|blogspot\.com|wordpress\.com|substack\.com|tumblr\.com|blogger\.com|wixsite\.com)$/i;
+  /* ajans imzası (idKat metninde): yalnız açık künye/ad; konu, kişi ya da olay benzerliği kopya sayılmaz */
+  var KK_AJANS = { aa: /\(aa\)|anadolu ajansi/, dha: /\(dha\)|demiroren haber ajansi/, iha: /\(iha\)|ihlas haber ajansi/, anka: /\(anka\)|anka haber ajansi/, reuters: /(^|[^a-z])reuters([^a-z]|$)/, ap: /\(ap\)|associated press/, afp: /\(afp\)|agence france.presse/, dpa: /\(dpa\)/ };
+  var KK_AJANS_SITE = { 'aa.com.tr': 'aa', 'reuters.com': 'reuters', 'apnews.com': 'ap', 'afp.com': 'afp', 'dha.com.tr': 'dha', 'iha.com.tr': 'iha' };
+  /* tanım/kapsam anahtarları: Türkçe kök yalnız baştan sınırlı (ek alır), kısa İngilizce sözcük iki yandan */
+  var KK_TANIM = [['kayitli', /(^|[^a-z])(kayitli|registered)/], ['aktif', /(^|[^a-z])(aktif|active([^a-z]|$))/], ['brut', /(^|[^a-z])(brut|gross([^a-z]|$))/], ['net', /(^|[^a-z])net([^a-z]|$)/],
+    ['aylik', /(^|[^a-z])(aylik|monthly|per month)/], ['yillik', /(^|[^a-z])(yillik|annual|yearly|per year)/], ['nominal', /(^|[^a-z])nominal/], ['reel', /(^|[^a-z])(reel([^a-z]|$)|real terms|inflation.adjusted)/],
+    ['kisibasi', /(^|[^a-z])(kisi basi|per capita|per person)/], ['cari', /(^|[^a-z])(cari fiyat|current prices)/], ['sabit', /(^|[^a-z])(sabit fiyat|constant prices)/],
+    ['kentsel', /(^|[^a-z])(kentsel|urban([^a-z]|$))/], ['kirsal', /(^|[^a-z])(kirsal|rural([^a-z]|$))/], ['kadin', /(^|[^a-z])(kadin|women([^a-z]|$)|female([^a-z]|$))/], ['erkek', /(^|[^a-z])(erkek|men([^a-z]|$)|male([^a-z]|$))/],
+    ['cocuk', /(^|[^a-z])(cocuk|child)/], ['genc', /(^|[^a-z])(genc|youth([^a-z]|$))/], ['yasli', /(^|[^a-z])(yasli|elderly)/], ['buyuksehir', /(^|[^a-z])(buyuksehir|metropolitan)/],
+    ['yabanci', /(^|[^a-z])(yabanci|foreign)/], ['gocmen', /(^|[^a-z])(gocmen|migrant|immigrant)/], ['multeci', /(^|[^a-z])(multeci|refugee)/], ['calisma', /(^|[^a-z])(calisma cagi|working.age)/]];
+  var KK_ON = /(on veri|ilk veri|gecici|preliminary|provisional|interim|flash)/, KK_SIMDI = /(^|[^a-z])(guncel|bugun|su an|current([^a-z]|ly)|today|now([^a-z]|$))/;
+  var kkHost = function (u) { var x; try { x = new URL(String(u || '').trim()); } catch (e) { return ''; } return /^https?:$/.test(x.protocol) && x.hostname ? x.hostname.toLowerCase().replace(/^www\./, '') : ''; };
+  var kkEngel = function (h) { return !!h && KK_ENGEL.some(function (b) { return h === b || h.slice(-b.length - 1) === '.' + b; }); };
+  var kkYil = function (t) { var m = String(t || '').match(/(^|[^0-9])(1[89][0-9]{2}|20[0-9]{2}|2100)(?![0-9])/); return m ? +m[2] : null; };
+  var kkImza = function (k) { return kyHash(KK_SURUM + '|' + String(k.url || '') + '|' + String(k.tarih || '') + '|' + String(k.tur || '') + '|' + String(k.site || '')); };
+  /* kayıt → kalite {guvenilir (true | null, asla false), sendika, surum, durum, tur, yil, tarih: var | cozulemedi | yok, imza} */
+  var kaliteKur = function (k, sendika) {
+    var h = k && (k.tur === 'web' || k.tur === 'wiki') ? kkHost(k.url) : '', t = String(k && k.tarih || '').trim(), yil = kkYil(t), tarih = !t ? 'yok' : yil ? 'var' : 'cozulemedi';
+    var resmi = !!h && KK_RESMI.test(h), akad = !!h && KK_AKADEMIK.test(h), guv = !!h && KK_GUVEN.test(h), wiki = !!h && (k.tur === 'wiki' || /(^|\.)wikipedia\.org$/.test(h));
+    var tur = !h ? 'bilinmiyor' : resmi ? 'resmi' : akad ? 'akademik' : wiki || KK_ANSIK.test(h) ? 'ansiklopedi' : KK_HABER.test(h) ? 'haber' : KK_BLOG.test(h) ? 'blog' : 'bilinmiyor';
+    var durum = !h ? 'unknown' : kkEngel(h) ? 'blocked' : resmi ? 'official' : akad ? 'academic' : guv ? 'trusted_known' : wiki ? 'wiki' : tarih !== 'var' ? 'undated' : 'unknown';
+    return { guvenilir: resmi || akad || guv ? true : null, sendika: sendika || null, surum: KK_SURUM, durum: durum, tur: tur, yil: yil, tarih: tarih, imza: kkImza(k || {}) };
+  };
+  var kkKalite = function (k) { var q = k && k.kalite; return q && q.surum === KK_SURUM && q.imza === kkImza(k) ? q : kaliteKur(k || {}, q && q.sendika); };      /* sürüm ya da adres/tarih/tür değiştiyse bayat: yeniden hesaplanır, yazılmaz */
+  /* metin benzerliği: aynı normal metin (≥40) → 1; ≥12 ayrı sözcükte kapsama oranı; kısa parça kopya kanıtı değildir */
+  var kkTok = function (t) { var n = idKat(t).replace(/[^a-z0-9]+/g, ' ').trim(), s = {}, c = 0; n.split(' ').forEach(function (w) { if (w.length > 1 && !s[w]) { s[w] = 1; c++; } }); return { n: n, s: s, c: c }; };
+  var kkBenzerT = function (a, b) { if (a.n.length >= 40 && a.n === b.n) return 1; if (a.c < 12 || b.c < 12) return 0; var o = 0; for (var w in a.s) if (b.s[w]) o++; return o / Math.min(a.c, b.c); };
+  var kkBenzer = function (a, b) { return kkBenzerT(kkTok(a), kkTok(b)); };
+  var kkAjans = function (t) { var k = idKat(t), out = []; for (var a in KK_AJANS) if (KK_AJANS[a].test(k)) out.push(a); return out; };
+  var kkOzet = function (k) {
+    var h = k.tur === 'web' || k.tur === 'wiki' ? kkHost(k.url) : '', ps = arr(k.parca).filter(function (p) { return p && kyParca(p.metin) && !ID_ENJ.test(idKat(p.metin)); }).map(function (p) { return p.metin; });
+    var aj = kkAjans([k.baslik || ''].concat(ps).join('\n')); if (h && KK_AJANS_SITE[h] && aj.indexOf(KK_AJANS_SITE[h]) < 0) aj.push(KK_AJANS_SITE[h]);
+    return { kan: h ? kyKanon(k.url).replace(/^(https?:\/\/)www\./, '$1') : '',      /* www. aynı adres (sid #49 kanoniğinden, değişmez) */
+      bas: kkTok(k.baslik).n, host: h, ajans: aj, ps: ps.map(kkTok), ozel: k.tur === 'belge' || k.tur === 'kart' };
+  };
+  /* iki kaynak: ayni (yüksek güvenli kopya imi) | olasi (bağımsızlık belirsiz) | ayri */
+  var kkIliski = function (a, b) {
+    if (a.kan && a.kan === b.kan) return { r: 'ayni', neden: 'adres' };
+    if (a.bas.length >= 20 && a.bas === b.bas) return { r: 'ayni', neden: 'baslik' };
+    var bz = 0, aj = a.ajans.some(function (x) { return b.ajans.indexOf(x) >= 0; }); a.ps.forEach(function (x) { b.ps.forEach(function (y) { bz = Math.max(bz, kkBenzerT(x, y)); }); });
+    if (bz >= 0.9) return { r: 'ayni', neden: 'metin' };
+    if (aj && bz >= 0.5) return { r: 'ayni', neden: 'ajans' };
+    if (a.ozel && b.ozel) return { r: 'olasi', neden: 'ozel' };      /* kart belgeden türer: iki özel kaynak bağımsız sayılmaz */
+    if (!a.ozel && !b.ozel && (!a.kan || !b.kan)) return { r: 'olasi', neden: 'adres_yok' };
+    if (bz >= 0.6) return { r: 'olasi', neden: 'benzer' };
+    if (aj) return { r: 'olasi', neden: 'ajans' };
+    if (a.host && a.host === b.host) return { r: 'olasi', neden: 'site' };
+    return { r: 'ayri', neden: '' };
+  };
+  var kkBellek = { a: null, v: null };
+  /* kayıt → aynı-haber grupları (birleşim-bul; yalnız "ayni" birleştirir) {kok, uye, grup: sid → g… | null, iliski(a, b), neden(a, b)} */
+  var kkGruplar = function (reg) {
+    var ids = Object.keys(reg || {}).sort(), imza = kyHash(ids.map(function (s) { var k = reg[s]; return s + '|' + (k.url || '') + '|' + (k.baslik || '') + '|' + k.tur + '|' + arr(k.parca).map(function (p) { return p && p.pid; }).join(','); }).join('\n'));
+    if (kkBellek.a === imza) return kkBellek.v;
+    var oz = {}, ana = {}, ili = {};
+    ids.forEach(function (s) { oz[s] = kkOzet(reg[s]); ana[s] = s; });
+    var bul = function (s) { while (ana[s] !== s) s = ana[s] = ana[ana[s]]; return s; };
+    ids.forEach(function (a, i) { ids.slice(i + 1).forEach(function (b) { var r = kkIliski(oz[a], oz[b]); if (r.r === 'ayri') return; ili[a + '|' + b] = r; if (r.r === 'ayni') { var x = bul(a), y = bul(b); if (x !== y) { if (x < y) ana[y] = x; else ana[x] = y; } } }); });
+    var kok = {}, uye = {}; ids.forEach(function (s) { var r = bul(s); kok[s] = r; (uye[r] = uye[r] || []).push(s); });
+    var grup = {}; ids.forEach(function (s) { var u = uye[kok[s]]; grup[s] = u.length > 1 ? 'g' + kyHash(u.join('|')) : null; });
+    var ik = function (a, b) { return ili[a < b ? a + '|' + b : b + '|' + a]; };
+    var v = { kok: kok, uye: uye, grup: grup, iliski: function (a, b) { if (!kok[a] || !kok[b]) return 'olasi'; if (kok[a] === kok[b]) return 'ayni'; var r = ik(a, b); return r ? r.r : 'ayri'; }, neden: function (a, b) { var r = ik(a, b); return r ? r.neden : ''; } };
+    kkBellek = { a: imza, v: v }; return v;
+  };
+  /* baskıda kalite yazılır (sid/pid/cid değişmez; tam metin yok, yalnız etiketler) */
+  var kkKaydet = function (list) { var reg = {}; arr(list).forEach(function (k) { if (k && typeof k.sid === 'string') reg[k.sid] = k; }); var G = kkGruplar(reg); Object.keys(reg).forEach(function (s) { reg[s].kalite = kaliteKur(reg[s], G.grup[s]); }); return list; };
+  var kkKullan = function (kn, reg) { var kay = kn && reg[kn.sid], p = kay && arr(kay.parca).filter(function (x) { return x && x.pid === kn.pid; })[0]; return !!(p && typeof p.metin === 'string' && p.pid === 'p' + kyHash(kay.sid + '|' + p.metin) && p.metin.length <= KY_BOY && !KY_GUVENSIZ.test(p.metin) && !ID_ENJ.test(idKat(p.metin))); };
+  /* iddia → çeşitlilik göstergesi (doğruluk değil): ilgili, kullanılabilir, grup, aynı haber grubu, belirsiz, bağımsız */
+  var kkBagimsiz = function (r, reg, G) {
+    var top = [], kul = []; arr(r && r.kanit).forEach(function (kn) { if (!kn || !reg[kn.sid]) return; if (top.indexOf(kn.sid) < 0) top.push(kn.sid); if (kul.indexOf(kn.sid) < 0 && kkKullan(kn, reg)) kul.push(kn.sid); });
+    var gr = {}; kul.forEach(function (s) { (gr[G.kok[s]] = gr[G.kok[s]] || []).push(s); });
+    var ks = Object.keys(gr).sort(), bil = ks.filter(function (g) { return gr[g].some(function (s) { return ks.some(function (h) { return h !== g && gr[h].some(function (t) { return G.iliski(s, t) === 'olasi'; }); }); }); });
+    return { toplam: top.length, kullanilabilir: kul.length, grup: ks.length, ayniHaber: ks.filter(function (g) { return gr[g].length > 1; }).length, bilinmeyen: bil.length, bagimsiz: ks.length - bil.length, sinirli: !idParcaSec(r, reg).tam, gruplar: ks.map(function (g) { return gr[g]; }) };
+  };
+  var kkDeger = function (t, q) { t = String(t || ''); var a = q.bas || 0; if (a > 0 && /[%$€₺£]/.test(t.charAt(a - 1))) a--; var m = t.slice(a).match(/^\S+(?:\s+[^\s\d]\S*)?/); return (m ? m[0] : '').replace(/[.,;:)'’]+$/, '').slice(0, 40); };
+  var kkTanim = function (k) { return KK_TANIM.filter(function (x) { return x[1].test(k); }).map(function (x) { return x[0]; }).join(','); };
+  var kkNit = function (k) { return ID_NITELIK.test(k) ? (KK_ON.test(k) ? 'on' : 'tahmin') : ''; };
+  var kkYan = function (v) { return { sid: v.sid, pid: v.pid, metin: v.metin, deger: v.deger, don: v.don }; };
+  /* iddia × kendi kayıtlı parçaları (idParcaSec: ≤3, gerçek pid) → kaynaklar arası fark. Yalnız tek sayısal ölçülü, tek dönemli iddia.
+     Kaynak başına tek değer (birden çok farklı değer: belirsiz, atlanır). Çift: farklı aynı-haber grubu, aynı tür/birim (idUyum), değerler
+     olcuKarsi'yla iki yönden de esit/yakin değil. Sıra: birim/para → tanım; dönem farkı; ön/kesin; tanım/kapsam/toplam farkı; aynı dönem,
+     iki yanda kesin veri, kaynaklar ayrı ve kapsam tam → çelişki; kapsam ya da bağımsızlık belirsizse yalnız sinirliFark. */
+  var kkCapraz = function (r, reg, G) {
+    var bos = { bulgu: [], sinirli: true, sinirliFark: [], kaynak: 0 };
+    if (!r || r.bayat || typeof r.text !== 'string' || ID_ENJ.test(idKat(r.text))) return bos;
+    var C = sayiCoz(r.text), O = C.filter(function (o) { return !idTarihMi(o); }), ck = idKokler(r.text), kim = idKimlik(r.text);
+    if (O.length !== 1 || O[0].belirsiz || O[0].olcekBelirsiz || idDonemCok(C) || !ck.length) return bos;
+    var o = O[0], cDon = idDonem(C), sec = idParcaSec(r, reg), ad = {};
+    sec.parcalar.forEach(function (p) {
+      if (ID_ENJ.test(idKat(p.metin))) return;      /* talimat taşıyan parça karşılaştırılmaz */
+      var pDon = idDonem(sayiCoz(p.metin), 1);
+      idCumle(p.metin).forEach(function (cl) {
+        var ki = idKat(cl.c); if (!(idKapsam(ck, cl.t) >= 0.5) || kim.some(function (x) { return !new RegExp('(^|[^a-z0-9])' + x + '([^a-z0-9]|$)').test(ki); })) return;      /* idKarar'ın konu süzgeci */
+        var Q = sayiCoz(cl.t), don = idDonem(Q, 1); if (don == null) don = pDon;
+        var nit = kkNit(ki), top = ID_TOPLAM.test(ki), tanim = kkTanim(ki);
+        Q.forEach(function (q) { if (idTarihMi(q) || q.belirsiz || q.olcekBelirsiz || idUyum(o, q) === 'yok') return; (ad[p.sid] = ad[p.sid] || []).push({ sid: p.sid, pid: p.pid, metin: cl.t, q: q, deger: kkDeger(cl.t, q), don: don, nit: nit, top: top, tanim: tanim }); });
+      });
+    });
+    var tek = {};
+    Object.keys(ad).forEach(function (s) {
+      var L = ad[s]; if (cDon != null) { var e = L.filter(function (v) { return v.don === cDon; }); L = e.length ? e : L.filter(function (v) { return v.don != null; }); }
+      var f = {}; L.forEach(function (v) { var c = idCarp(v.q); f[[v.q.tur, v.q.deger != null ? v.q.deger * c : v.q.alt * c + '-' + v.q.ust * c, v.q.para || '', v.q.boyut || '', v.don, v.nit, v.tanim, v.top].join('|')] = v; });
+      var k = Object.keys(f); if (k.length === 1) tek[s] = f[k[0]];
+    });
+    var S = Object.keys(tek).sort(), out = [], gor = {}, sf = [];
+    var ekle = function (code, a, b) { if (gor[code]) return; gor[code] = 1; out.push({ code: code, a: kkYan(a), b: kkYan(b) }); };
+    S.forEach(function (x, i) { S.slice(i + 1).forEach(function (y) {
+      if (G.kok[x] && G.kok[x] === G.kok[y]) return;      /* aynı haberin kopyaları birbirini sınamaz */
+      var a = tek[x], b = tek[y], u = idUyum(a.q, b.q); if (u === 'yok') return;
+      if (u === 'puan' || u === 'para') { ekle('CLAIM_DEFINITION_DIFFERENCE', a, b); return; }      /* % ↔ puan, TL ↔ USD */
+      var r1 = olcuKarsi(a.q, b.q), r2 = olcuKarsi(b.q, a.q), R = [r1, r2];
+      if (R.some(function (z) { return z === 'esit' || z === 'yakin'; }) || R.some(function (z) { return z === 'belirsiz' || z === 'uyumsuz'; })) return;      /* uyuşan ya da karşılaştırılamayan değer çelişki değildir */
+      if (a.don != null && b.don != null && a.don !== b.don) { ekle('CLAIM_PERIOD_DIFFERENCE', a, b); return; }
+      if (a.nit !== b.nit) { if (a.nit && b.nit) return; ekle((a.nit || b.nit) === 'on' ? 'CLAIM_PRELIMINARY_FINAL' : 'CLAIM_DEFINITION_DIFFERENCE', a, b); return; }
+      if (a.nit || b.nit) return;
+      if (a.tanim !== b.tanim || a.top !== b.top) { ekle('CLAIM_DEFINITION_DIFFERENCE', a, b); return; }
+      if (a.don == null || b.don == null || (cDon != null && a.don !== cDon)) return;      /* dönem belirsiz: karar yok */
+      var il = G.iliski(x, y);
+      if (il === 'ayri' && sec.tam) ekle('CLAIM_SOURCE_CONFLICT', a, b);
+      else sf.push({ neden: il === 'ayri' ? 'kapsam' : 'bagimsizlik', a: kkYan(a), b: kkYan(b) });
+    }); });
+    return { bulgu: out, sinirli: !sec.tam, sinirliFark: sf, kaynak: S.length };
+  };
+  var kkNo = function (reg, sid) { var k = reg[sid]; return k && k.n > 0 ? '[' + k.n + ']' : '[?]'; };
+  var kkYanMetin = function (reg, v) { return kkNo(reg, v.sid) + ' ' + v.deger + (v.don != null ? ' (' + v.don + ')' : ''); };
+  /* asetat → QA bulguları (qaIcerik içinden; ctx = {reg, G} bir kez). Anahtar asetat|cid-ya-da-sid|kod; why dilden bağımsız kısa iz */
+  var kkBulgu = function (s, n, bulgu, ctx) {
+    var reg = ctx && ctx.reg; if (!s || !Array.isArray(s.els) || !reg || !Object.keys(reg).length) return;
+    var G = ctx.G, gor = {}, sids = [];
+    var it = function (code, el, why, sid, cid) { var k = n + '|' + (cid || sid || '') + '|' + code; if (gor[k]) return; gor[k] = 1; var z = { code: code, severity: ICERIK[code][0], slide: n, el: el == null ? null : el, why: why || '' }; if (sid) z.sid = sid; if (cid) z.cid = cid; bulgu.push(z); };
+    var ekS = function (x) { if (typeof x === 'string' && reg[x] && sids.indexOf(x) < 0) sids.push(x); };
+    arr(s.src).forEach(ekS);
+    var R = []; s.els.forEach(function (e) { if (e && !e.muted) arr(e.iddia).forEach(function (r) { if (r && typeof r.cid === 'string') { R.push({ e: e, r: r }); arr(r.kanit).forEach(function (k) { if (k) ekS(k.sid); }); } }); });
+    sids.forEach(function (x) { var q = kkKalite(reg[x]), h = kkHost(reg[x].url); if (q.durum === 'blocked') it('SOURCE_BLOCKED', null, kkNo(reg, x) + ' ' + h, x); else if (q.durum === 'wiki') it('SOURCE_WIKI', null, kkNo(reg, x) + ' ' + h, x); });
+    var kg = {}; sids.forEach(function (x) { var g = G.kok[x]; (kg[g] = kg[g] || []).push(x); });
+    Object.keys(kg).sort().forEach(function (g) { if (kg[g].length > 1) it('SOURCE_SYNDICATED', null, kg[g].map(function (x) { return kkNo(reg, x); }).join(' ↔ '), kg[g][0]); });
+    R.forEach(function (o) {
+      var r = o.r, C = sayiCoz(r.text); if (r.bayat || !C.some(function (x) { return !idTarihMi(x); })) return;
+      var bag = []; arr(r.kanit).forEach(function (k) { if (k && reg[k.sid] && bag.indexOf(k.sid) < 0) bag.push(k.sid); });
+      var web = bag.filter(function (x) { return reg[x].tur === 'web' || reg[x].tur === 'wiki'; });
+      var tz = web.filter(function (x) { return kkKalite(reg[x]).tarih !== 'var'; }); if (tz.length) it('SOURCE_UNDATED', o.e.id, tz.map(function (x) { return kkNo(reg, x); }).join(' '), tz[0], r.cid);
+      var dn = idDonemCok(C) ? null : idDonem(C), cy = dn == null ? null : +String(dn).split('-').pop(), simdi = KK_SIMDI.test(idKat(r.text));
+      var es = web.filter(function (x) { var y = kkKalite(reg[x]).yil, ey = kkYil(reg[x].erisim); return y && ((cy && cy > y) || (!cy && simdi && ey && ey - y >= 3)); });
+      if (es.length) it('SOURCE_STALE', o.e.id, es.map(function (x) { return kkNo(reg, x) + ' ' + kkKalite(reg[x]).yil; }).join(' · ') + (cy ? ' < ' + cy : ''), es[0], r.cid);
+      var b = kkBagimsiz(r, reg, G); if (b.kullanilabilir >= 2 && b.bagimsiz <= 1) it('SOURCE_LOW_INDEPENDENCE', o.e.id, b.gruplar.map(function (g) { return g.map(function (x) { return kkNo(reg, x); }).join('='); }).join(' · '), null, r.cid);
+      kkCapraz(r, reg, G).bulgu.forEach(function (f) { it(f.code, o.e.id, kkYanMetin(reg, f.a) + ' ↔ ' + kkYanMetin(reg, f.b), null, r.cid); });
+    });
+  };
+  /* §7 baskı numarası: eski sid'ler n'ini korur, yeni sid sıradaki boş numarayı alır (eski destede elle yazılmış [n] satırları da
+     dolu sayılır); aynı sid iki numara almaz. Döner {n: sid → n, esle: geçici sıra (1…) → n}; ilk baskıda birim eşleme */
+  var kkNumara = function (eskiKay, eskiSl, cited, harita) {
+    var n = {}, esle = {}, ust = 0;
+    arr(eskiKay).forEach(function (k) { if (k && typeof k.sid === 'string' && k.n > 0) { n[k.sid] = +k.n; ust = Math.max(ust, +k.n); } });
+    arr(eskiSl).forEach(function (s) { arr(s && s.els).forEach(function (e) { if (e && kaynakSatir(e.text)) String(e.text).split('\n').forEach(function (l) { var m = l.match(/^\s*\[(\d+)\]\s/); if (m) ust = Math.max(ust, +m[1]); }); }); });
+    var tam = arr(cited).every(function (x) { var h = x && harita && harita[x.id]; return !!(h && h.sid); });
+    if (!tam) return { n: {}, esle: {}, tam: false };      /* sid'i çözülmeyen kaynak varsa numara başka kaynağa bağlanmasın: baskı olduğu gibi */
+    arr(cited).forEach(function (x, i) { var sid = harita[x.id].sid; if (!n[sid]) n[sid] = ++ust; esle[i + 1] = n[sid]; });
+    return { n: n, esle: esle, tam: true };
+  };
+  /* şeritleri yerinde eşler, geri alma işlevi döner (şerit plan anındaki sıra numarasını korur: yeniden baskı iki kez eşlemesin).
+     Satır içi: yalnız cite()'ın ürettiği biçimde biten ve bütün numaraları eşlenen etiket. Kaynakça: eşlenen satır yeni numarasını
+     alır; aynı numaraya düşen kopya yalnız üretilmiş metniyle birebir aynıysa düşer; elle değişmiş satır ve eşlenemeyen satır olduğu gibi */
+  var kkSeritNo = function (st, cited, esle) {
+    var bir = Object.keys(esle).every(function (k) { return +k === esle[k]; });
+    if (bir) return function () {};
+    var eski = [];
+    var tagYap = function (ns) { var u = []; ns.forEach(function (x) { if (u.indexOf(x) < 0) u.push(x); }); return ' [' + u.sort(function (a, b) { return a - b; }).join(', ') + ']'; };
+    var cev = function (l) { var m = l.match(/ \[(\d+(?:, \d+)*)\]$/); if (!m) return l; var ns = m[1].split(', ').map(Number); if (!ns.every(function (x) { return esle[x]; })) return l; return l.slice(0, m.index) + tagYap(ns.map(function (x) { return esle[x]; })); };
+    arr(st).forEach(function (s) {
+      if (!s || !Array.isArray(s.b)) return; eski.push([s, s.b]);
+      if (s.k === 'refs') {
+        var satir = s.b.map(function (l, i) { var m = String(l).match(/^\[(\d+)\] ([\s\S]*)$/), x = m && arr(cited)[+m[1] - 1]; return { l: l, m: m && esle[+m[1]] ? esle[+m[1]] : null, uret: !!(m && x && m[2] === String(x.apa || x.url)), i: i }; });
+        var gor = {}, yeni = satir.filter(function (z) { if (z.m == null) return true; if (gor[z.m]) return !z.uret; gor[z.m] = 1; return true; }).map(function (z) { return z.m == null ? z : { l: '[' + z.m + '] ' + z.l.replace(/^\[\d+\] /, ''), m: z.m, i: z.i }; });
+        if (yeni.every(function (z) { return z.m != null; })) yeni.sort(function (a, b) { return a.m - b.m || a.i - b.i; });
+        s.b = yeni.map(function (z) { return z.l; });
+      } else if (s.k !== 'cover' && s.k !== 'end') s.b = s.b.map(function (l) { return typeof l === 'string' ? cev(l) : l; });
+    });
+    return function () { eski.forEach(function (p) { p[0].b = p[1]; }); };
+  };
+  /* §8 bağlantı: yalnız http(s), ana bilgisayar var, kullanıcı/parola yok, boşluk/denetim/tırnak yok → normal href; değilse '' */
+  var kkBag = function (u) {
+    u = String(u == null ? '' : u).trim(); if (!u || !/^https?:\/\/[^\/?#]/i.test(u) || /[\s"<>\\^`{|}]/.test(u) || KY_GUVENSIZ.test(u)) return '';      /* boş yetkili (https:///yol) yok */
+    var x; try { x = new URL(u); } catch (e) { return ''; }
+    return /^https?:$/.test(x.protocol) && x.hostname && !x.username && !x.password ? u : '';      /* hedef kayıttaki adresle birebir (href biçimlemez) */
+  };
+  /* kaynakça satırları → PptxGenJS koşuları: satırda kayıt adresi (kayıttaki gerçek url, sınırlarıyla) geçiyorsa satır o adrese bağlanır.
+     Satır tek koşu kalır: PptxGenJS 3.12 paragraftaki her koşuya ayrı <a:pPr> yazar (şemaya aykırı), bu yüzden adres bölünmez.
+     Bağlantı koşusu yazı rengini miras almaz ve kendiliğinden altı çizilir: renk açıkça, alt çizgi 'none' → görünüm aynı kalır */
+  var kkRunlar = function (ls, reg, renk) {
+    var U = [], gor = {}; Object.keys(reg || {}).forEach(function (s) { var u = String(reg[s].url || '').trim(), h = kkBag(u); if (h && !gor[u]) { gor[u] = 1; U.push({ u: u, h: h }); } });
+    U.sort(function (a, b) { return b.u.length - a.u.length || (a.u < b.u ? -1 : 1); });
+    return ls.map(function (l) {
+      var hit = null; U.some(function (x) { var i = -1; while ((i = l.indexOf(x.u, i + 1)) >= 0) { var on = i ? l.charAt(i - 1) : ' ', son = l.slice(i + x.u.length); if (/[\s(]/.test(on) && /^($|[\s)\]]|[.,;](\s|$))/.test(son)) { hit = x; return true; } } return false; });
+      return { text: l, options: hit ? { bullet: false, breakLine: true, hyperlink: { url: hit.h }, color: renk, underline: { style: 'none' } } : { bullet: false, breakLine: true } };
+    });
+  };
+  /* ---------- #52 son ---------- */
   var deckKey = function (d) { return arr(d.slides).length + '|' + arr(d.slides).map(function (sl) { return (sl.lay || '') + ':' + titleOf(sl) + ':' + String(sl.notes || '').length; }).join('|'); };
   var titleKey = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
   var ciftBasliklar = function () {
@@ -8992,7 +9205,8 @@ var SBX = (function () {
     }
     if (yol && yol.k === 'research' && !(yol.kaynak > 0)) add('NO_SOURCES', null, null, null);
     var refs = -1, R = 0, kul = {};
-    sl.forEach(function (s, i) { if (s && s.lay === 'refs' && refs < 0) { refs = i; yazi(s).forEach(function (e) { String(e.text).split('\n').forEach(function (l) { var m = l.match(/^\s*\[(\d+)\]/); if (m) R = Math.max(R, +m[1]); }); }); } });
+    var refNo = {};      /* #52 (8.3): ekleme kipinde birden çok kaynakça: numaralar hepsinden, yalnız yazılı olanlar sayılır */
+    sl.forEach(function (s, i) { if (s && s.lay === 'refs') { if (refs < 0) refs = i; yazi(s).forEach(function (e) { String(e.text).split('\n').forEach(function (l) { var m = l.match(/^\s*\[(\d+)\]/); if (m) { R = Math.max(R, +m[1]); refNo[+m[1]] = 1; } }); }); } });
     sl.forEach(function (s, i) {
       if (!s || s.lay === 'refs') return; var n = i + 1;
       yazi(s).forEach(function (e) {
@@ -9010,7 +9224,7 @@ var SBX = (function () {
         }
       });
     });
-    if (refs >= 0 && R) { for (var k = 1; k <= R; k++) if (!kul[k]) { add('REF_UNUSED', null, refs + 1, null); break; } }
+    if (refs >= 0 && R) { for (var k = 1; k <= R; k++) if (refNo[k] && !kul[k]) { add('REF_UNUSED', null, refs + 1, null); break; } }
   };
   /* A + C + E — yapı, görsel ve bütün deste (DOM'suz). geo: geometri de ölçülsün mü. */
   var teknikTemel = function (d, geo) {
@@ -9157,7 +9371,7 @@ var SBX = (function () {
     if (!yaziHazirMi() || yaziKuyruk.length) { say('Şablon yazı tipi hazırlanıyor; denetim yazı gelince açılacak.'); yaziSonra(openAudit, 'denetim'); return; }      /* ölçüm doğrulanmış yazıyla (P1) */
     commitEdit();
     if (!auDlg) { auDlg = sxDlg(); auDlg.setAttribute('aria-labelledby', 'axau-t'); LY.appendChild(auDlg); }
-    qaOn = null; qaSon = null; kyAs = null; idOnayAcik = false;
+    qaOn = null; qaSon = null; kyAs = null; kyVurgu = null; idOnayAcik = false;
     var paint = function (odak) { qaBoya(auDlg, odak); };
     auDlg.onclick = function (e) {
       var t = e.target.closest('button'); if (!t) return;
@@ -9438,7 +9652,18 @@ var SBX = (function () {
     HIERARCHY_INVERTED: ['info', 'gövde yazısı başlık kadar ya da daha büyük', 'body text is as large as or larger than the title'],
     TITLE_SIZE_DRIFT: ['info', 'içerik başlıklarının boyu desteden desteye çok değişiyor', 'content titles vary a lot in size across the deck'],
     /* #49 (8.1): asetatın bir kaynak bağı kayıtta yok; başka kaynak yerine konmaz, yalnız bildirilir (info) */
-    SOURCE_UNRESOLVED: ['info', 'asetatın bir kaynak bağı kaynak kaydında bulunamadı', 'a source link on this slide was not found in the source registry']
+    SOURCE_UNRESOLVED: ['info', 'asetatın bir kaynak bağı kaynak kaydında bulunamadı', 'a source link on this slide was not found in the source registry'],
+    /* #52 (8.3): kaynak niteliği ve kaynaklar arası fark; yalnız gerçek çelişki warning, ötekiler bilgi notu */
+    SOURCE_BLOCKED: ['warning', 'asetatın bir kaynağı sunucunun engellediği türden (sosyal ağ, video, forum)', 'a source on this slide is of a type the server blocks (social network, video, forum)'],
+    SOURCE_WIKI: ['info', 'asetatın bir kaynağı Vikipedi; birincil kaynağa bakmak iyi olur', 'a source on this slide is Wikipedia; checking the primary source is a good idea'],
+    SOURCE_UNDATED: ['info', 'sayısal iddianın kaynağında tarih yok', 'the source of a numeric claim has no date'],
+    SOURCE_STALE: ['info', 'kaynak, iddiadaki dönemden eski olabilir', 'the source may be older than the period in the claim'],
+    SOURCE_SYNDICATED: ['info', 'iki kaynak aynı haberin kopyası; bağımsız sayılmaz', 'two sources are copies of the same story; they do not count as independent'],
+    SOURCE_LOW_INDEPENDENCE: ['info', 'iddianın kaynakları birbirinden bağımsız değil ya da bağımsızlığı belirsiz', 'the claim\'s sources are not independent of each other, or their independence is unclear'],
+    CLAIM_PERIOD_DIFFERENCE: ['info', 'kaynaklar farklı dönemler için farklı değer veriyor', 'the sources give different values for different periods'],
+    CLAIM_DEFINITION_DIFFERENCE: ['info', 'kaynaklar farklı tanım, birim ya da kapsamla ölçüyor', 'the sources measure with a different definition, unit or scope'],
+    CLAIM_PRELIMINARY_FINAL: ['info', 'bir kaynak ön ya da tahmini veri, öteki kesin veri veriyor', 'one source gives preliminary or estimated data, the other final data'],
+    CLAIM_SOURCE_CONFLICT: ['warning', 'iki bağımsız kaynak aynı dönem ve birim için farklı değer veriyor', 'two independent sources give different values for the same period and unit']
   };
   var KALITE_EN = { slide_count_mismatch: 'slide count does not match your request', duplicate_titles: 'the same title on several slides',
     weak_speaker_notes: 'speaker notes are short', dense_slides: 'some slides are too dense', visual_repetition: 'the same layout back to back',
@@ -9501,6 +9726,16 @@ var SBX = (function () {
     HIERARCHY_INVERTED: ['Başlığı büyüt ya da gövde yazısını küçült; başlık asetatın en büyük yazısı olmalı.', 'Enlarge the title or shrink the body text; the title should be the largest text on the slide.'],
     TITLE_SIZE_DRIFT: ['Uzun başlıkları kısalt; böylece başlıklar benzer boyda kalır.', 'Shorten the long titles so the titles stay a similar size.'],
     SOURCE_UNRESOLVED: ['Kaynakçayı kontrol et; gerekirse sunumu kaynaklarla yeniden oluştur.', 'Check the references; if needed, generate the deck again with its sources.'],
+    SOURCE_BLOCKED: ['Bu kaynağın yerine kurum, akademik ya da haber kaynağı bulmayı düşün.', 'Consider replacing this source with an institutional, academic or news source.'],
+    SOURCE_WIKI: ['Vikipedi maddesinin gösterdiği birincil kaynağı aç ve gerekirse onu ekle.', 'Open the primary source the Wikipedia article cites and add it if needed.'],
+    SOURCE_UNDATED: ['Kaynağın yayın tarihini kontrol et; tarih uydurulmaz.', 'Check the source\'s publication date; no date is invented.'],
+    SOURCE_STALE: ['Daha yeni bir kaynak var mı bak; eski kaynak kendiliğinden yanlış değildir.', 'See whether a newer source exists; an old source is not wrong by itself.'],
+    SOURCE_SYNDICATED: ['Kopyalardan birini bırak ya da bağımsız bir kaynak ekle.', 'Keep one of the copies or add an independent source.'],
+    SOURCE_LOW_INDEPENDENCE: ['Mümkünse bağımsız ikinci bir kaynak ekle. Bu bir doğruluk kararı değildir.', 'If possible, add a second independent source. This is not a verdict on accuracy.'],
+    CLAIM_PERIOD_DIFFERENCE: ['İddiadaki dönemi açıkça yaz; değerler farklı yıllara ait.', 'State the claim\'s period clearly; the values belong to different years.'],
+    CLAIM_DEFINITION_DIFFERENCE: ['Hangi tanımı (birim, kapsam, brüt/net) kullandığını belirt.', 'Say which definition (unit, scope, gross/net) you use.'],
+    CLAIM_PRELIMINARY_FINAL: ['Kesin veri yayımlandıysa onu kullan ve dönemini yaz.', 'If final data has been published, use it and state its period.'],
+    CLAIM_SOURCE_CONFLICT: ['İki kaynağın parçasını karşılaştır ve hangisini kullandığını açıkça belirt. İddia kendiliğinden yanlış sayılmaz.', 'Compare the two sources\' passages and state which one you use. The claim is not marked false.'],
     REPEATED_LAYOUT: ['Bu asetatın ya da önceki ikisinden birinin düzenini şeritten değiştir.', 'Change the layout of this slide or one of the two before it from the strip.'],
     slide_count_mismatch: ['Asetat ekle ya da çıkar.', 'Add or remove slides.'],
     duplicate_titles: ['Başlıklardan birini değiştir.', 'Change one of the titles.'],
@@ -9525,7 +9760,8 @@ var SBX = (function () {
   var qaOneri = function (kod) { return (qaOwn(QA_ONERI, kod) ? QA_ONERI[kod] : QA_GENEL)[0]; };
   /* kaynaklar: { durum, not, bulgu: [{ code, severity, slide (1'den | null), el, why }] } */
   var qaIcerik = function (d) {
-    var q = d.quality, out = { durum: 'not_checked', not: 'Acadia puanı henüz ölçülmedi.', bulgu: [] }, seen = {}, cift = false, sira = [], kreg = {};
+    var q = d.quality, out = { durum: 'not_checked', not: 'Acadia puanı henüz ölçülmedi.', bulgu: [] }, seen = {}, cift = false, sira = [], kreg = {}, kkx = null;
+    if (arr(d.kaynaklar).length) { var kreg2 = kyKayit(d); kkx = { reg: kreg2, G: kkGruplar(kreg2) }; }      /* #52: kayıt yoksa nitelik/çelişki bulgusu da yok; gruplar bir kez */
     arr(d.kaynaklar).forEach(function (k) { if (k && typeof k.sid === 'string') kreg[k.sid] = 1; });      /* #49: kaynak kaydı (kyKayit ile aynı) */
     arr(d.slides).forEach(function (s, i) {
       if (!s || !Array.isArray(s.els)) return;
@@ -9538,6 +9774,7 @@ var SBX = (function () {
       });
       qaAnlati(s, n, out.bulgu, sira);
       if (+s.srcEksik > 0 || arr(s.src).some(function (x) { return typeof x === 'string' && !kreg[x]; })) out.bulgu.push({ code: 'SOURCE_UNRESOLVED', severity: ICERIK.SOURCE_UNRESOLVED[0], slide: n, el: null });      /* #49: yalnız info */
+      if (kkx) kkBulgu(s, n, out.bulgu, kkx);      /* #52 (8.3): kaynak niteliği, bağımsızlık, kaynaklar arası fark */
     });
     var yerel = out.bulgu.some(function (z) { return z.severity !== 'info'; });
     if (q == null) return out;
@@ -9632,6 +9869,8 @@ var SBX = (function () {
       if ((QA_ONEM[z.severity] || 0) > (QA_ONEM[x.severity] || 0)) x.severity = z.severity;
       if (z.el != null && x.els.indexOf(String(z.el)) < 0) x.els.push(String(z.el));
       if (z.why && x.why.indexOf(z.why) < 0) x.why.push(z.why);
+      if (z.sid) { x.sids = x.sids || []; if (x.sids.indexOf(z.sid) < 0) x.sids.push(z.sid); }      /* #52: kaynağa/iddiaya git */
+      if (z.cid) { x.cids = x.cids || []; if (x.cids.indexOf(z.cid) < 0) x.cids.push(z.cid); }
     }); });
     out.forEach(function (x) { x.priority = qaOncelik(x.code, x.severity); x.repairable = !!qaHedef(x); });
     out.sort(function (a, b) { return QA_PRI.indexOf(a.priority) - QA_PRI.indexOf(b.priority) || (a.slideIndex == null ? -1 : a.slideIndex) - (b.slideIndex == null ? -1 : b.slideIndex) ||
@@ -9753,21 +9992,53 @@ var SBX = (function () {
     else if (!x.repairable) h += '<p class="qa-no">' + (x.code === 'TEXT_OVERFLOW' && !snapHazir(deck) ? 'Yazı tipi doğrulanmadan bu taşma için düzeltme önerilmez.' : 'Bu bulgu için otomatik düzeltme yok; öneriyi elle uygula.') + '</p>';
     else if (qaOn && qaOn.id === x.id) h += qaOn.plan.ok ? qaOnizHTML(qaOn.plan) : '<p class="qa-no" data-qa-plan="yok">Güvenli bir düzeltme bulunamadı; deste değişmedi. Yazıyı kısaltmayı dene.</p>';
     else h += '<p>Yazı boyutunu ya da kutu yüksekliğini ayarlayarak sığdırabilirim; önce önizlersin, onaylamadan hiçbir şey değişmez.</p><div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-qa-pre>düzeltmeyi önizle</button></div>';
+    var hedef = (x.cids && x.cids[0]) || (x.sids && x.sids[0]);      /* #52: bulgu → kaynak bölümünde ilgili iddia/kaynak */
+    if (hedef && n && s) h += '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-ky-git="' + (n - 1) + '" data-ky-yon="0" data-ky-hedef="' + X(hedef) + '">kaynaklara git</button></div>';
     return h + (n && s && !(qaOn && qaOn.id === x.id && qaOn.plan.ok) ? '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-au-go="' + (n - 1) + '">asetata git</button></div>' : '');
   };
   /* #49 (8.1): denetim penceresinde kaynak ve iddia bölümü — salt okur, ağ yok. Bağlantı yalnız http(s); başlık, parça ve iddia
      kullanıcı/kaynak içeriğidir: X() ile kaçar, çeviriye girmez (data-no-i18n). "Destekleniyor" denmez: kanıt kontrolü 8.2'de. */
-  var kyAs = null;
+  var kyAs = null, kyVurgu = null;
   var kyLink = function (u) { var x; try { x = new URL(String(u || '')); } catch (e) { return ''; } return /^https?:$/.test(x.protocol) ? x.href : ''; };
+  /* #52 (8.3): kaynak satırında nitelik, tür, tarih, kopya durumu; iddia satırında çeşitlilik ve kaynaklar arası fark. Salt okur.
+     "güvenilir değil" denmez: bilinmiyor = bilgi yetersiz. Kaynak içeriği (site, değer, parça) X() ile kaçar ve çeviriye girmez */
+  var KQ_DURUM = { trusted_known: ['Bilinen kaynak listesinde', 'Sunucunun bilinen kaynak listesinde; içerik yine de kontrol edilir.'], official: ['Resmî kurum', 'Resmî kurum adresi; değerin dönemine yine bak.'],
+    academic: ['Akademik', 'Akademik yayın ya da kurum adresi.'], wiki: ['Vikipedi', 'Ansiklopedi maddesi; yanlış sayılmaz, birincil kaynağa bakmak iyi olur.'],
+    blocked: ['Engellenen türden', 'Sosyal ağ, video ya da forum türünden; sunucu bunları normalde almaz.'], undated: ['Tarihsiz', 'Kaynakta tarih yok; tarih uydurulmaz.'],
+    unknown: ['Bilinmiyor', 'Bilgi yetersiz; bu düşük güvenilirlik demek değildir.'] };
+  var KQ_TUR = { resmi: 'resmî', akademik: 'akademik', ansiklopedi: 'ansiklopedi', haber: 'haber', blog: 'blog / kişisel', bilinmiyor: 'bilinmiyor' };
+  var KQ_NEDEN = { adres: 'aynı adres', baslik: 'aynı başlık', metin: 'çok benzer metin', ajans: 'aynı ajans' };
+  var KQ_UYARI = 'Uyarı: iki bağımsız kaynak aynı varlık, dönem, tanım ve birimde farklı değer veriyor. İddia yanlış sayılmaz; kontrol önerilir.';
+  var KQ_BILGI = 'Bilgi notu: değerler karşılaştırılabilir değil (dönem, tanım, birim ya da veri türü farklı); bu bir çelişki değildir.';
+  var kqSatir = function (k, reg, G) {
+    if (k.tur !== 'web' && k.tur !== 'wiki') return '';
+    var q = kkKalite(k), d = KQ_DURUM[q.durum] || KQ_DURUM.unknown, es = (G.uye[G.kok[k.sid]] || []).filter(function (x) { return x !== k.sid; }), ne = '';
+    es.some(function (x) { ne = G.neden(k.sid, x); return !!KQ_NEDEN[ne]; });
+    return '<div class="au-kq" data-kq-durum="' + q.durum + '"><small><b>' + d[0] + '</b> · <span>' + d[1] + '</span></small> <small>tür: <span>' + (KQ_TUR[q.tur] || KQ_TUR.bilinmiyor) + '</span></small> <small data-kq-tarih="' + q.tarih + '">' +
+      (q.tarih === 'var' ? 'Tarih <span data-no-i18n>' + X(q.yil) + '</span>' : q.tarih === 'cozulemedi' ? 'tarih okunamadı' : 'tarih yok') + '</small>' +
+      (es.length ? ' <small data-kq-kopya><span>başka bir kaynakla aynı haber</span> · <span>' + (KQ_NEDEN[ne] || 'aynı haber grubu') + '</span> <span data-no-i18n>' + X(es.map(function (x) { return kkNo(reg, x); }).join(' ')) + '</span></small>' : '') + '</div>';
+  };
+  var kqYan = function (reg, v) { var k = reg[v.sid] || {}; return '<blockquote data-kq-yan><i data-no-i18n>' + X(kkNo(reg, v.sid)) + '</i> <span data-no-i18n>' + X(k.site || kkHost(k.url) || '') + ' · <b>' + X(v.deger) + '</b>' + (v.don != null ? ' (' + X(v.don) + ')' : '') + '</span> <q data-no-i18n>' + X(v.metin) + '</q></blockquote>'; };
+  var kqIddia = function (r, reg, G) {
+    if (!r.cid || r.bayat || !sayiCoz(r.text).some(function (o) { return !idTarihMi(o); })) return '';
+    var b = kkBagimsiz(r, reg, G); if (!b.toplam) return '';
+    var c = kkCapraz(r, reg, G), h = '<div class="au-kq-i" data-kq-bag><small>' + b.toplam + ' ilgili kaynak · ' + b.kullanilabilir + ' kullanılabilir · ' + b.ayniHaber + ' aynı haber grubu · ' + b.bagimsiz + ' bağımsız grup · ' + b.bilinmeyen + ' bağımsızlığı belirsiz</small> <small>Çeşitlilik göstergesidir; doğruluk değildir.</small>' +
+      (c.sinirli ? ' <small data-kq-sinirli>Kaynak kapsamı sınırlı; kesin çelişki kararı verilmez.</small>' : '') + '</div>';
+    c.bulgu.forEach(function (f) { var on = ICERIK[f.code][0]; h += '<div class="au-kq-f" data-kq-kod="' + f.code + '" data-kq-onem="' + on + '"><p><b>' + ICERIK[f.code][1] + '</b></p><p><small>' + (on === 'warning' ? KQ_UYARI : KQ_BILGI) + '</small></p>' + kqYan(reg, f.a) + kqYan(reg, f.b) + '</div>'; });
+    if (c.sinirliFark.length) h += '<p class="au-kq-s" data-kq-sinirlifark><small>Kaynaklarda farklı değerler var, ama kapsam ya da bağımsızlık belirsiz olduğu için çelişki denmedi.</small></p>';
+    return h;
+  };
   var kaynakBolum = function () {
     var N = deck.slides.length; if (!N) return '';
     var i = kyAs == null ? Math.max(0, Math.min(N - 1, deck.cur || 0)) : Math.max(0, Math.min(N - 1, kyAs)), sl = deck.slides[i], reg = kyKayit(deck), g = kyGoster(sl);
     var ks = arr(sl.src).filter(function (x) { return typeof x === 'string' && reg[x]; }).map(function (x) { return reg[x]; }), eksik = kyEksik(sl, reg);
     arr(g.l).forEach(function (r) { arr(r.kanit).forEach(function (k) { if (reg[k.sid] && ks.indexOf(reg[k.sid]) < 0) ks.push(reg[k.sid]); }); });
-    var kay = function (k) { var h = kyLink(k.url), ad = X(k.baslik || k.site || k.url || (k.tur === 'kart' ? 'Ders kartı' : 'Belge')); return '<li data-ky-sid="' + X(k.sid) + '">' + (k.n ? '<i>[' + k.n + ']</i> ' : '') + '<span data-no-i18n>' + (h ? '<a href="' + X(h) + '" target="_blank" rel="noopener noreferrer">' + ad + '</a>' : ad) + (k.site && k.site !== k.baslik ? ' · ' + X(k.site) : '') + '</span></li>'; };
+    var G = kkGruplar(reg), vok = !!kyVurgu && (ks.some(function (k) { return k.sid === kyVurgu; }) || g.l.some(function (r) { return r.cid === kyVurgu; }));
+    var vur = function (id) { return vok && id && id === kyVurgu ? ' data-ky-vurgu tabindex="-1"' : ''; };      /* #52: bulgudan gelen hedef */
+    var kay = function (k) { var h = kyLink(k.url), ad = X(k.baslik || k.site || k.url || (k.tur === 'kart' ? 'Ders kartı' : 'Belge')); return '<li data-ky-sid="' + X(k.sid) + '"' + vur(k.sid) + '>' + (k.n ? '<i>[' + k.n + ']</i> ' : '') + '<span data-no-i18n>' + (h ? '<a href="' + X(h) + '" target="_blank" rel="noopener noreferrer">' + ad + '</a>' : ad) + (k.site && k.site !== k.baslik ? ' · ' + X(k.site) : '') + '</span>' + kqSatir(k, reg, G) + '</li>'; };
     var par = function (k) { var r = reg[k.sid], p = r && arr(r.parca).filter(function (x) { return x.pid === k.pid; })[0]; if (!p) return ''; return '<blockquote data-ky-rol="' + (k.rol === 'aday' ? 'aday' : 'baglam') + '"><b>' + (k.rol === 'aday' ? 'Kaynak' : 'Bağlam') + '</b>' + (r.n ? ' <i>[' + r.n + ']</i>' : '') + ' <q data-no-i18n>' + X(p.metin) + '</q></blockquote>'; };
-    var idd = function (r) { var kk = r.cid ? kontrolParca(r, reg) : null; return '<li data-ky-cid="' + X(r.cid || '') + '"><p><span data-no-i18n>' + X(r.text) + '</span> ' + (r.cid ? kontrolSatir(r, reg) : '<span class="au-ky-d">Doğrulanmadı</span>') + (r.bayat ? '<small class="au-ky-b">metin değişti</small>' : '') + '</p>' + (kk != null ? kk : arr(r.kanit).map(par).join('')) + '</li>'; };      /* #50: güncel kontrolde kullanılan parçalar, yoksa #49 bağları */
-    return '<div class="au-ky" data-ky="' + i + '"><h4>Kaynaklar ve iddialar</h4>' +
+    var idd = function (r) { var kk = r.cid ? kontrolParca(r, reg) : null; return '<li data-ky-cid="' + X(r.cid || '') + '"' + vur(r.cid) + '><p><span data-no-i18n>' + X(r.text) + '</span> ' + (r.cid ? kontrolSatir(r, reg) : '<span class="au-ky-d">Doğrulanmadı</span>') + (r.bayat ? '<small class="au-ky-b">metin değişti</small>' : '') + '</p>' + (kk != null ? kk : arr(r.kanit).map(par).join('')) + kqIddia(r, reg, G) + '</li>'; };      /* #50: güncel kontrolde kullanılan parçalar, yoksa #49 bağları */
+    return '<div class="au-ky" data-ky="' + i + '"' + (kyVurgu && !vok ? ' data-ky-vurgu tabindex="-1"' : '') + '><h4>Kaynaklar ve iddialar</h4>' +
       '<div class="au-ky-nav"><button type="button" class="sxd-b" data-ky-git="' + (i - 1) + '" data-ky-yon="-1" aria-label="önceki asetat"' + (i ? '' : ' disabled') + '>‹</button>' +
       '<span><b>Asetat</b> ' + (i + 1) + ' / ' + N + ' · <span data-no-i18n>' + X(titleOf(sl) || '') + '</span></span>' +
       '<button type="button" class="sxd-b" data-ky-git="' + (i + 1) + '" data-ky-yon="1" aria-label="sonraki asetat"' + (i < N - 1 ? '' : ' disabled') + '>›</button></div>' +
@@ -9781,7 +10052,9 @@ var SBX = (function () {
     var ek = { 'Kaynaklar ve iddialar': 'Sources and claims', 'İddialar': 'Claims', 'Bağlam': 'Context', 'Doğrulanmadı': 'Not verified', 'metin değişti': 'text changed',
       'Bu asetata bağlı kaynak yok.': 'No sources are linked to this slide.', 'Bazı kaynak bağları çözülemedi.': 'Some source links could not be resolved.',
       'Yapısal asetat; iddia yok.': 'Structural slide; no claims.', 'Bu asetatta iddia yok.': 'No claims on this slide.',
-      'önceki asetat': 'previous slide', 'sonraki asetat': 'next slide', 'Ders kartı': 'Study card', 'Belge': 'Document', '‹': '‹', '›': '›' };
+      'önceki asetat': 'previous slide', 'sonraki asetat': 'next slide', 'Ders kartı': 'Study card', 'Belge': 'Document', '‹': '‹', '›': '›',
+      /* #52 (8.3) */
+      'Bilinen kaynak listesinde': 'On the known-source list', 'Sunucunun bilinen kaynak listesinde; içerik yine de kontrol edilir.': 'On the server\'s known-source list; the content is still checked.', 'Resmî kurum': 'Official body', 'Resmî kurum adresi; değerin dönemine yine bak.': 'Official body address; still check the value\'s period.', 'Akademik': 'Academic', 'Akademik yayın ya da kurum adresi.': 'Academic publication or institution address.', 'Vikipedi': 'Wikipedia', 'Ansiklopedi maddesi; yanlış sayılmaz, birincil kaynağa bakmak iyi olur.': 'Encyclopedia article; not counted as wrong, checking the primary source is a good idea.', 'Engellenen türden': 'Of a blocked type', 'Sosyal ağ, video ya da forum türünden; sunucu bunları normalde almaz.': 'A social network, video or forum source; the server normally does not take these.', 'Tarihsiz': 'Undated', 'Kaynakta tarih yok; tarih uydurulmaz.': 'The source has no date; no date is invented.', 'Bilinmiyor': 'Unknown', 'Bilgi yetersiz; bu düşük güvenilirlik demek değildir.': 'Not enough information; this does not mean low reliability.', 'tür': 'type', 'tür:': 'type:', 'resmî': 'official', 'akademik': 'academic', 'ansiklopedi': 'encyclopedia', 'haber': 'news', 'blog / kişisel': 'blog / personal', 'bilinmiyor': 'unknown', 'Tarih': 'Date', 'tarih okunamadı': 'date could not be read', 'tarih yok': 'no date', 'başka bir kaynakla aynı haber': 'same story as another source', 'aynı adres': 'same address', 'aynı başlık': 'same title', 'çok benzer metin': 'very similar text', 'aynı ajans': 'same agency', 'aynı haber grubu': 'same-story group', '{#} ilgili kaynak · {#} kullanılabilir · {#} aynı haber grubu · {#} bağımsız grup · {#} bağımsızlığı belirsiz': '{#} related sources · {#} usable · {#} same-story groups · {#} independent groups · {#} unclear independence', 'Çeşitlilik göstergesidir; doğruluk değildir.': 'This shows diversity, not accuracy.', 'Kaynak kapsamı sınırlı; kesin çelişki kararı verilmez.': 'Source coverage is limited; no definite conflict verdict is given.', 'Uyarı: iki bağımsız kaynak aynı varlık, dönem, tanım ve birimde farklı değer veriyor. İddia yanlış sayılmaz; kontrol önerilir.': 'Warning: two independent sources give different values for the same entity, period, definition and unit. The claim is not marked false; checking it is recommended.', 'Bilgi notu: değerler karşılaştırılabilir değil (dönem, tanım, birim ya da veri türü farklı); bu bir çelişki değildir.': 'Note: the values are not comparable (different period, definition, unit or data type); this is not a conflict.', 'Kaynaklarda farklı değerler var, ama kapsam ya da bağımsızlık belirsiz olduğu için çelişki denmedi.': 'The sources have different values, but coverage or independence is unclear, so no conflict is declared.', 'kaynaklara git': 'go to sources' };
     for (var k in ek) if (!A[k]) A[k] = ek[k];
   };
   var qaBoya = function (dlg, odak) {
@@ -9829,7 +10102,8 @@ var SBX = (function () {
     if (t.hasAttribute('data-kk-onay')) { idOnayAcik = false; iddiaKontrol(true); paint('[data-kk]'); return true; }
     if (t.hasAttribute('data-kk-yerel')) { idOnayAcik = false; iddiaKontrol(false); paint('[data-kk-run]'); return true; }
     if (t.hasAttribute('data-kk-vazgec')) { idOnayAcik = false; paint('[data-kk-run]'); return true; }
-    if (t.hasAttribute('data-ky-git')) { kyAs = +t.getAttribute('data-ky-git'); paint('[data-ky-yon="' + t.getAttribute('data-ky-yon') + '"]:not([disabled]), [data-ky]'); return true; }      /* #49 */
+    if (t.hasAttribute('data-ky-git') && t.hasAttribute('data-ky-hedef')) { kyAs = +t.getAttribute('data-ky-git'); kyVurgu = t.getAttribute('data-ky-hedef'); paint('[data-ky-vurgu], [data-ky]'); return true; }      /* #52 */
+    if (t.hasAttribute('data-ky-git')) { kyAs = +t.getAttribute('data-ky-git'); kyVurgu = null; paint('[data-ky-yon="' + t.getAttribute('data-ky-yon') + '"]:not([disabled]), [data-ky]'); return true; }      /* #49 */
     if (t.hasAttribute('data-qa-undo')) { if (qaSon && qaSon.before && undoS[undoS.length - 1] === qaSon.before) { undo(); qaSon = { hata: 'geri' }; } paint('[data-qa-det]'); return true; }
     return false;
   };
@@ -10936,6 +11210,9 @@ var SBX = (function () {
     if (mode !== 'append' && plotMeta.lang) deck.lang = plotMeta.lang;
     var bosCerceve = 0;
     var kyR = kaynakKur(mode === 'append' ? deck.kaynaklar : [], kaynakListe(plotMeta));      /* #49 (8.1): geçici kaynak numarası → kalıcı sid */
+    var kkN = kkNumara(mode === 'append' ? deck.kaynaklar : [], mode === 'append' ? deck.slides : [], plotMeta.cited, kyR.harita);      /* #52 (8.3): sid → baskı numarası */
+    kyR.kaynaklar.forEach(function (k) { if (kkN.n[k.sid]) k.n = kkN.n[k.sid]; }); kkKaydet(kyR.kaynaklar);
+    var kkGeri = kkSeritNo(strips, plotMeta.cited, kkN.esle); try {      /* #52: şerit numaraları baskı boyunca eşlenir; finally geri alır (şeritler düzenleyicinindir) */
     /* Düzen çeşidi: türün destedeki kaçıncı asetatı olduğuna göre döner. Klasik
        kalanlar: doğrulanamayan maddesi olan asetat (uyarı işareti yalnız madde
        listesinde çizilir) ve gerçek bir kişi/yer fotoğrafı bekleyen asetat. */
@@ -11153,6 +11430,7 @@ var SBX = (function () {
       if (s.k === 'cover' && plotMeta.cover && (plotMeta.cover.q || plotMeta.cover.entity)) sl.imgq = plotMeta.cover; else if (s.img) sl.imgq = s.img;
       if (sl.imgq) gorselDurum(sl, 'ipucu');      /* ipucu asetatla kaydedilir; fotoğraf istenirse sonucu üstüne yazılır (Phase 2) */
       var wl = arr(s.warnI).map(function (i) { return s.b && s.b[i]; }).filter(Boolean), wy = {}; arr(s.warnI).forEach(function (i) { if (s.b && s.b[i] && s.why && s.why[i]) wy[s.b[i]] = String(s.why[i]); }); if (wl.length) sl.els.forEach(function (e) { if (e.type === 'ul') { e.warn = wl; e.why = wy; } else if (e.type === 't' && !e.dz && e.text) { var w0 = wl.filter(function (w) { return uyarEs(w, e.text); })[0]; if (w0) { e.warn = [e.text]; e.why = {}; if (wy[w0]) e.why[e.text] = wy[w0]; } } }); iddiaKur(sl, s, kyR.harita); if (arr(s.src).length) { var km = kaynakEsle(s.src, kyR.harita); sl.src = km.sid; if (km.eksik) sl.srcEksik = km.eksik; } else if (s.k !== 'cover' && s.k !== 'end' && s.k !== 'refs' && !notYeter(s.notes)) { AI.note(sl, true); taslak.push({ sl: sl, n: sl.notes }); } if (s.k === 'cover') sl.els.forEach(function (e) { if (e.type === 't') e.text = plotMeta.sub || e.text; }); return sl; });
+    } finally { kkGeri(); }
     var golgeCift = made.map(function (sl, n) { return { s: strips[n], sl: sl }; });      /* Phase 3 gölge planlayıcı: şerit ↔ asetat, yalnız okunur */
     /* Kapak ve kapanışın notu hiç yoktu (0 kelime): sunumun en zor iki ânı —
        açılış ve soru-cevap — hazırlıksız kalıyordu, kalite ölçümü de her destede
@@ -11490,6 +11768,7 @@ var SBX = (function () {
   var tasmaGit = [];
   var exportPptx = async function (btn) {
     if (!deck.slides.length) { say('İndirilecek asetat yok.'); return; }
+    var kkReg = null;      /* #52: kaynak kaydı bir kez */
     await yaziHazirSoz();      /* PPTX ekrandaki gibi doğrulanmış yazıyla sığdırılmış boyutları taşır (açılan deste önce sığdırılır) */
     commitEdit();
     /* TAŞMA UYARISI (#38, P2): çözülmemiş TEXT_OVERFLOW varken indirme önce uyarır, taşan asetatları sayar ve oraya götürür.
@@ -11528,7 +11807,7 @@ var SBX = (function () {
           var e = pels[ei]; if (e.muted) continue;
           var box = { x: IN(e.x), y: IN(e.y), w: IN(e.w), h: IN(e.h) };
           if (e.type === 'h' || e.type === 't') { if (!e.text) continue; sl.addText(e.text, Object.assign(yaziKut(e, box), { fontFace: e.type === 'h' ? fh : ff, bold: (e.type === 'h' && !(TX && FONT_DISPLAY.test(TX.hf))) || !!e.bold, color: col(e), align: e.align || 'left' })); }
-          else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; var up = PT(e.size); sl.addText(ls.map(function (l) { return { text: l, options: { bullet: kaynakSatir(e.text) ? false : { code: '25AA', indent: Math.round(up * 1.1 * 100) / 100 }, breakLine: true } }; }), Object.assign(yaziKut(e, box), { fontFace: ff, color: col(e), paraSpaceAfter: Math.round(up * 0.45 * 100) / 100 })); }
+          else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; var up = PT(e.size); sl.addText(kaynakSatir(e.text) ? kkRunlar(ls, kkReg || (kkReg = kyKayit(deck)), col(e)) : ls.map(function (l) { return { text: l, options: { bullet: { code: '25AA', indent: Math.round(up * 1.1 * 100) / 100 }, breakLine: true } }; }), Object.assign(yaziKut(e, box), { fontFace: ff, color: col(e), paraSpaceAfter: Math.round(up * 0.45 * 100) / 100 })); }      /* #52 (8.3): kaynakça satırı kayıttaki güvenli adrese bağlanır */
           else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = kutuGolge(e) ? 'FFFFFF' : hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : saydam(temaRenk(e.fill || '')) ? { color: fc, transparency: saydam(temaRenk(e.fill || '')) } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : saydam(temaRenk(e.fill || '')) ? { type: 'none' } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
           else if (e.type === 'arrow') sl.addShape(pp.ShapeType.line, { x: box.x, y: box.y + box.h / 2, w: box.w, h: 0, line: { color: hex(temaRenk(e.color), '#2F6BFF'), width: 3, endArrowType: 'triangle' } });
           else if (e.type === 'mark') sl.addShape(pp.ShapeType.rect, { x: box.x, y: box.y + box.h * 0.3, w: box.w, h: Math.max(0.04, box.h * 0.35), fill: { color: hex(temaRenk(e.color), '#2F6BFF'), transparency: 35 }, line: { type: 'none' } });
