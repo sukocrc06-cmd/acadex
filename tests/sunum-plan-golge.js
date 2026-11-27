@@ -290,14 +290,14 @@ if (!CHROME) {
     d.querySelector('[data-pptx]').click(); await bekle(1500);
     /* aynı içerik ikinci kez basılır: ikinci plan çağrısı olmamalı */
     S.set(${STRIPS}, { title: 'Golge', sub: 't', lang: 'tr', source: 'topic', sourceId: null }); S.bas('new'); await sakin(); await bekle(4000); await dur(1500);
-    var temiz = function (k, v) { return /^(id|creditId|sid|updated|surum|dbId)$/.test(k) ? undefined : v; };
+    var temiz = function (k, v) { return /^(id|creditId|sid|updated|surum|dbId|cid|es)$/.test(k) ? undefined : v; };
     R.slaytlar = JSON.stringify(S.deck().slides, temiz);
     R.html = Array.prototype.slice.call(d.querySelectorAll('.sx-thv')).map(function (x) { return x.innerHTML.replace(/ data-id="[^"]*"/g, ''); }).join('\\n');
     R.pptx = JSON.stringify(PPTX); R.say = window.__say; R.inv = window.__inv; R.planGovde = window.__planGovde; R.hata = window.__hata; R.toast = window.__toast;
-    R.yerel = (localStorage.getItem(S.store.k('d.' + S.deck().id)) || '').replace(/"(id|creditId|updated|surum|dbId|share)":("[^"]*"|\\d+),?/g, '');
+    R.yerel = (localStorage.getItem(S.store.k('d.' + S.deck().id)) || '').replace(/"(id|creditId|updated|surum|dbId|share|cid|es)":("[^"]*"|\\d+),?/g, '');
   `;
   const esit = (a, b, ad) => { if (a === b) return; let i = 0; while (i < a.length && a[i] === b[i]) i++; assert.fail(ad + ' farklı @' + i + ': …' + String(a).slice(Math.max(0, i - 80), i + 80) + '… ≠ …' + String(b).slice(Math.max(0, i - 80), i + 80) + '…'); };
-  const temizDB = (x) => JSON.parse(JSON.stringify(x, (k, v) => (/^(id|presentation_id|user_id|updated_at|created_at|surum|share_token|creditId|dbId)$/.test(k) ? undefined : typeof v === 'string' ? v.replace(/ data-id="[^"]*"/g, '') : v)));
+  const temizDB = (x) => JSON.parse(JSON.stringify(x, (k, v) => (/^(id|presentation_id|user_id|updated_at|created_at|surum|share_token|creditId|dbId|cid|es)$/.test(k) ? undefined : typeof v === 'string' ? v.replace(/ data-id="[^"]*"/g, '') : v)));
   const kosu = async (sen) => {
     const H = yeniSunucu({ senkron: true }); await new Promise((r) => H.srv.listen(0, '127.0.0.1', r));
     try {

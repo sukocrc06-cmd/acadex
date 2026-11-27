@@ -701,6 +701,71 @@ const PLAN_ENUM: Record<string, string[]> = {
   aile: ["bullets", "cards", "typo", "insight", "sequence", "timeline", "stat", "comparison", "chart", "table"],
   gorsel: ["yok", "destek", "gerekli"], gtur: ["yok", "foto", "sema", "veri"],
 };
+/* #49 (Phase 8.1) KAYNAK PARÇASI — iddianın kaynağından BİREBİR alıntı; model çağrısı, ağ, yeniden deneme yok. Anlam
+   denetiminden ve bütün dönüşümlerden SONRA, son içerik üzerinde çalışır; denetimin sonucunu (warn/why) okumaz, değiştirmez.
+   Parça kaynak metninin tam alt dizisidir: pencere sözcük sınırına ve güvensiz denetim/yön karakterine göre DARALTILIR, metin
+   değiştirilmez. Rol yalnız "aday" (iddianın en az iki anahtarı ya da sınırlı bir sayısı pencerede) ya da "baglam" (zayıf ya da
+   hiç eşleşme yok; ctxFor'un yedeği gibi kaynağın başı). "destek" YOK: kanıt kontrolü Phase 8.2'nindir. Konum uydurulmaz:
+   sayfa/bölüm bilinmiyor, yer hep null. Yalnız asetatın kendi atıf ettiği kaynaklara bakılır, başka kaynak yerine konmaz.
+   Sınır: kaynak başına 6, parça en çok 300 karakter, deste başına 40; önce "aday"lar, kalan yer "baglam"a. Log yok. */
+const PARCA_KAYNAK = 6;
+const PARCA_BOY = 300;
+const PARCA_TOPLAM = 40;
+const GUVENSIZ = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u206F\uFEFF\uFFF9-\uFFFC]/;
+const parcaPencere = (text: string, at: number, klen: number): { bas: number; son: number } | null => {
+  if (!text || at < 0 || at + klen > text.length) return null;
+  let a = Math.max(0, at - Math.floor((PARCA_BOY - klen) / 2)), b = Math.min(text.length, a + PARCA_BOY); a = Math.max(0, b - PARCA_BOY);
+  for (let i = at - 1; i >= a; i--) if (GUVENSIZ.test(text[i])) { a = i + 1; break; }
+  for (let i = at; i < b; i++) if (GUVENSIZ.test(text[i])) { b = i; break; }
+  if (b < at + klen) return null;      /* güvensiz karakter anahtarın içinde */
+  if (a > 0 && /\S/.test(text[a - 1])) { const m = text.slice(a, at).search(/\s/); if (m >= 0) a += m + 1; }
+  if (b < text.length && /\S/.test(text[b])) { const m = text.slice(at + klen, b).search(/\s\S*$/); if (m >= 0) b = at + klen + m; }
+  while (a < b && /\s/.test(text[a])) a++;
+  while (b > a && /\s/.test(text[b - 1])) b--;
+  if (a < b && /[\uDC00-\uDFFF]/.test(text[a])) a++;      /* vekil çifti bölünmez */
+  if (b > a && /[\uD800-\uDBFF]/.test(text[b - 1])) b--;
+  return b - a >= 20 ? { bas: a, son: b } : null;
+};
+const parcaAnahtar = (t: string): string[] => (String(t || "").match(/\d+(?:[.,]\d+)*|[\p{L}]{6,}/gu) || []).slice(0, 6);
+const parcaSayi = (metin: string, k: string) => /\d/.test(k) && new RegExp("(?<![\\d.,])" + k.replace(/[.,]/g, "[.,]") + "(?![\\d]|[.,]\\d)").test(metin);
+const parcaIddia = (s: any): { t: string; i: number; text: string }[] => [
+  ...(s.bullets || []).map((x: any, i: number) => ({ t: "b", i, text: String(x || "") })),
+  ...(s.stats || []).map((x: any, i: number) => ({ t: "s", i, text: `${x.value} — ${x.label}` })),
+  ...(s.chart && Array.isArray(s.chart.values) ? s.chart.values.map((v: any, i: number) => ({ t: "c", i, text: `${(s.chart.labels || [])[i] || ""}: ${v}${s.chart.unit ? " " + s.chart.unit : ""}` })) : []),
+  ...(s.table && Array.isArray(s.table.rows) ? s.table.rows.map((r: any, i: number) => ({ t: "r", i, text: (Array.isArray(r) ? r : []).map(String).join(" · ") })) : []),
+].filter((c) => c.text.trim().length > 3);
+const parcaKur = (slides: any[], srcs: { id: number; text: string; snippet: string }[]) => {
+  const kay = new Map<number, { s: { id: number; text: string; snippet: string }; low: string }>(srcs.map((s) => [s.id, { s, low: "" }])), parca = new Map<number, { metin: string; yer: null; tur: string }[]>();
+  let toplam = 0;
+  const ekle = (id: number, metin: string, tur: string): number => {
+    const l = parca.get(id) || [], i = l.findIndex((p) => p.metin === metin); if (i >= 0) return i;
+    if (l.length >= PARCA_KAYNAK || toplam >= PARCA_TOPLAM) return -1;
+    l.push({ metin, yer: null, tur }); parca.set(id, l); toplam++; return l.length - 1;
+  };
+  const bul = (id: number, keys: string[]) => {
+    const k0 = kay.get(id); if (!k0 || !k0.s.text || !keys.length) return null;
+    const text = k0.s.text, low = k0.low || (k0.low = text.toLocaleLowerCase("tr")); let en: { metin: string; puan: number; sayi: boolean } | null = null;
+    for (const k of keys) {
+      const kl = k.toLocaleLowerCase("tr"), at = low.indexOf(kl); if (at < 0 || text.slice(at, at + kl.length).toLocaleLowerCase("tr") !== kl) continue;      /* küçük harf boyu değiştiyse konum güvenilmez */
+      const w = parcaPencere(text, at, kl.length); if (!w) continue;
+      const metin = text.slice(w.bas, w.son), ml = metin.toLocaleLowerCase("tr");
+      const puan = keys.filter((x) => ml.includes(x.toLocaleLowerCase("tr"))).length, sayi = keys.some((x) => parcaSayi(ml, x));
+      if (!en || puan > en.puan || (puan === en.puan && sayi && !en.sayi)) en = { metin, puan, sayi };
+    }
+    return en;
+  };
+  const prov = slides.map((s: any) => parcaIddia(s).map((c) => ({ ...c, kanit: [] as { id: number; p: number; rol: string }[] })));
+  const ids = (s: any): number[] => [...new Set<number>((Array.isArray(s.src) ? s.src : []).map(Number))].filter((id) => kay.has(id));
+  slides.forEach((s: any, si: number) => prov[si].forEach((c) => { const keys = parcaAnahtar(c.text);
+    ids(s).forEach((id) => { const w = bul(id, keys); if (w && (w.puan >= 2 || w.sayi)) { const p = ekle(id, w.metin, "pasaj"); if (p >= 0) c.kanit.push({ id, p, rol: "aday" }); } }); }));
+  slides.forEach((s: any, si: number) => prov[si].forEach((c) => { if (c.kanit.length) return; const keys = parcaAnahtar(c.text);
+    ids(s).forEach((id) => {
+      const w = bul(id, keys), sn = String(kay.get(id)!.s.snippet || ""), h = w ? null : parcaPencere(sn, 0, 0);
+      const p = w ? ekle(id, w.metin, "pasaj") : h ? ekle(id, sn.slice(h.bas, h.son), "snippet") : -1;
+      if (p >= 0) c.kanit.push({ id, p, rol: "baglam" });
+    }); }));
+  return { prov, parca };
+};
 const PLAN_KIND = ["list", "two", "time", "stat", "chart", "table", "quote"];
 /* aile–tür uyumu (#24 §5, dondurulmuş). İstemcinin AILE tablosuyla (DZ) karşılaştırıldı (#26): birincil ailelerin hepsi
    kapsanır; iki İKİNCİL aile kapsanmaz — quote:1 ve chart:1 "cards" (bu türlerde Gemini "cards" derse kayıt reddedilir;
@@ -1495,15 +1560,18 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
       if (s._cw && s.chart) { s.chart.values.forEach((v: number, i: number) => { const bi = s.bullets.length; s.bullets.push(yazim(`${s.chart.labels[i] || ""}: ${v}${s.chart.unit === "%" ? "%" : " " + (s.chart.unit || "")}`.trim(), lang)); if (s._cw[i]) { s.warn.push(bi); (s.why = s.why || {})[bi] = s._cw[i]; } }); s.chart = null; s.kind = "list"; }
       delete s._cw;
     });
+    /* #49 (8.1): kaynak parçaları ve iddia bağları SON içerikten (anlam denetimi değişmedi, ek çağrı yok); log yok */
+    const kp = parcaKur(slides, srcs);
+    slides.forEach((s: any, i: number) => { s.prov = kp.prov[i]; });
 
     const accessed = new Date().toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "numeric", month: "long", year: "numeric" });
     const used = new Set<number>(); slides.forEach((s: any) => s.src.forEach((x: number) => used.add(x)));
-    const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed), ctx: s.snippet.slice(0, 1200) }));
+    const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed), ctx: s.snippet.slice(0, 1200), erisim: accessed, parca: kp.parca.get(s.id) || [] }));
     // Deste konuyu yanıtladı mı: alt başlıkların kaçı asetatlara girdi. Log teşhis içindir (sorgular + kaynaklar + odak tek satırda).
     const body2 = slides.map((x: any) => [x.title, ...(x.bullets || []), ...(x.stats || []).map((y: any) => y.label), ...((x.table?.rows || []).flat())].join(" ")).join(" ");
     const focus = { aspects: aspects.length, sources: aspects.filter((a) => aspHit([a], srcs.map((x) => x.text).join(" ").slice(0, 200000))).length, covered: aspects.filter((a) => aspHit([a], body2)).length };
     console.log(`sunum arastirma: "${topic.slice(0, 60)}" | sorgular ${JSON.stringify(queries)} | alt basliklar ${JSON.stringify(aspects)} | kaynak ${srcs.map((x) => x.site).join(",")} | odak ${focus.covered}/${focus.aspects} (kaynakta ${focus.sources}) | anlati ${JSON.stringify(anlati)}`);
-    return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning }, engine: { ...engine, focus } });
+    return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, belge: docText ? { parca: kp.parca.get(1) || [] } : undefined, check: { checked, unverified, meaning }, engine: { ...engine, focus } });
   } catch (e) {
     console.error("sunum-research", e);
     return J({ error: String((e as Error)?.message || e).slice(0, 200) }, 500);
