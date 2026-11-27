@@ -7571,6 +7571,7 @@ var SBX = (function () {
   ];
   var ID_KISI = /^(kisi[a-z]*|people|persons?|insan[a-z]*|residents?|employees?|calisan[a-z]*|ogrenci[a-z]*|students?)(?![a-z])/;
   var ID_YAKLASIK = /(yaklasik|about|around|circa|ca\.|c\.|~|≈|nearly|roughly|almost|neredeyse|civarinda|kadari|some)\s*$/;
+  var ID_YAK_PAY = 0.05;      /* #51: yalnız açık "yaklaşık" iddiada göreli pay; kesin sayıya uygulanmaz */
   var ID_FAZLA = /(more than|over|above|at least|en az|exceeding|in excess of)\s*$/, ID_AZ = /(less than|under|below|at most|up to|en fazla|en cok)\s*$/;
   var ID_NITELIK = /(on veri|ilk veri|gecici|tahmin|ongoru|beklen|hedef|preliminary|provisional|estimate|forecast|projected|expected|target|interim)/;
   var ID_TOPLAM = /(toplam|total|combined|altogether|in sum|sum of)/;
@@ -7670,6 +7671,13 @@ var SBX = (function () {
     return 'yok';
   };
   var idCarp = function (o) { return o.olcek * o.carpan; };
+  /* #51 gösterim hassasiyeti: adim = yazılan son basamağın değeri (ölçek ve birim çarpanıyla). Yuvarlama aralığı (±adim/2) yalnız
+     ≥2 anlamlı basamakta güvenli; tek anlamlı basamakta (2 milyon, %5, 3–5 gün) hassasiyet belirlenemez → yalnız birebir eşitlik */
+  var idHassas = function (o) {
+    var on = o.ondalik || 0, v = o.deger != null ? Math.abs(o.deger) : Math.min(Math.abs(o.alt || 0), Math.abs(o.ust || 0)), adim = Math.pow(10, -on) * idCarp(o);
+    return { adim: adim, yarim: adim / 2, guvenli: v.toFixed(on).replace('.', '').replace(/^0+/, '').length >= 2 };
+  };
+  var idAyni = function (x, y) { return Math.abs(x - y) <= 1e-9 * Math.max(Math.abs(x), Math.abs(y), 1); };
   /* iki sayısal ölçü: esit | yakin | birim | farkli | uyumsuz | belirsiz */
   var olcuKarsi = function (c, p) {
     var u = idUyum(c, p); if (u === 'yok') return 'uyumsuz';
@@ -7681,9 +7689,18 @@ var SBX = (function () {
       if (net.deger == null || net.ondalik || idCarp(net) !== idCarp(bel) || net.deger !== bel.adaylar[0]) return 'belirsiz';
       return u === 'ok' ? 'esit' : 'birim';
     }
-    var f = idCarp(c), g = idCarp(p);
-    var tolC = 0.5 * Math.pow(10, -(c.ondalik || 0)) * f, tolP = 0.5 * Math.pow(10, -(p.ondalik || 0)) * g;
-    var bir = function (x, y, tol, yak) { var d = Math.abs(x - y), r = d / Math.max(Math.abs(x), Math.abs(y), 1e-9); if (yak) return r <= 0.05 ? 'esit' : r <= 0.15 ? 'yakin' : 'farkli'; if (d <= tol + 1e-9 * Math.abs(x) && r <= 0.05) return 'esit'; return r <= 0.05 ? 'yakin' : 'farkli'; };      /* #50: yaklaşık iddia göreli; yuvarlama payı %5'i aşamaz (3 milyon ≠ 3,4 milyon) */
+    var f = idCarp(c), g = idCarp(p), hc = idHassas(c), hp = idHassas(p), ic = function (d, y) { return d < y * (1 - 1e-9); };
+    var tolC = hc.guvenli ? hc.yarim : 0, tolP = hp.guvenli ? hp.yarim : 0;
+    var oran = function (x, y) { return Math.abs(x - y) / Math.max(Math.abs(x), Math.abs(y), 1e-9); };
+    var bir = function (x, y) {      /* #51 kesin iddia: birebir ya da iddianın güvenli yuvarlama aralığı; genel göreli pay yok (100 ≠ 104) */
+      var d = Math.abs(x - y); if (idAyni(x, y) || (hc.guvenli && ic(d, hc.yarim))) return 'esit';
+      return oran(x, y) <= ID_YAK_PAY || ic(d, hc.yarim) ? 'yakin' : 'farkli';      /* tek anlamlı basamakta yuvarlama olası: yakın, çelişki değil */
+    };
+    var yak = function (x, y) {      /* #51 açık "yaklaşık" iddia: ±ID_YAK_PAY göreli; parça iddiadan kaba yazılmışsa eşit değil (about 3 million ≠ 3,4 milyon) */
+      var r = oran(x, y); if (r <= ID_YAK_PAY) return hp.adim <= hc.adim * (1 + 1e-9) ? 'esit' : 'yakin';
+      return r <= 0.15 ? 'yakin' : 'farkli';
+    };
+    var kaba = function (x, y) { return oran(x, y) <= 0.15 || ic(Math.abs(x - y), Math.max(hc.yarim, hp.yarim)) ? 'yakin' : 'farkli'; };      /* #51 parça yaklaşık, iddia kesin: kesinlik parçadan çıkmaz → en çok yakın */
     var sonuc;
     if (c.alt != null && p.alt != null) { var ca = c.alt * f, cu = c.ust * f, pa = p.alt * g, pu = p.ust * g; sonuc = Math.abs(ca - pa) <= tolC && Math.abs(cu - pu) <= tolC ? 'esit' : ca <= pa + tolC && cu >= pu - tolC ? 'esit' : ca <= pu && pa <= cu ? 'yakin' : 'farkli'; }
     else if (c.alt != null) { var x = pv * g; sonuc = x >= c.alt * f - tolC && x <= c.ust * f + tolC ? 'esit' : 'farkli'; }
@@ -7693,9 +7710,9 @@ var SBX = (function () {
       else if (c.yon) sonuc = (c.yon === '>' ? pv * g > cv * f : pv * g < cv * f) ? 'esit' : 'belirsiz';
       else sonuc = 'belirsiz';
     }
-    else if (c.yaklasik) sonuc = bir(cv * f, pv * g, tolC, 1);
-    else if (p.yaklasik) { sonuc = bir(cv * f, pv * g, Math.max(tolC, tolP), 0); }
-    else sonuc = bir(cv * f, pv * g, tolC, 0);
+    else if (c.yaklasik) sonuc = yak(cv * f, pv * g);
+    else if (p.yaklasik) sonuc = kaba(cv * f, pv * g);
+    else sonuc = bir(cv * f, pv * g);
     return u === 'ok' ? sonuc : sonuc === 'esit' ? 'birim' : 'uyumsuz';
   };
   /* tarih/yıl: esit | yakin (iddia daha ayrıntılı) | farkli | belirsiz (bir yanda M.Ö., ötekinde dönem işareti yok) */
@@ -7736,7 +7753,10 @@ var SBX = (function () {
     });
     return out;
   };
-  var idDonem = function (ol, gevsek) { var y = []; ol.forEach(function (o) { var v = o.tur === 'tarih' ? o.y : o.tur === 'yil' && o.deger != null && !o.era ? o.deger : gevsek && o.tur === 'sayi' && o.deger != null && !o.ondalik && o.olcek === 1 && !o.olcekBelirsiz && o.deger >= 1900 && o.deger <= 2100 && o.deger % 1 === 0 ? o.deger : null; if (v != null && y.indexOf(v) < 0) y.push(v); }); return y.length === 1 ? y[0] : null; };
+  /* #51 dönemler: tarih yılı, yıl (dönem işaretli de), yıl aralığı ("2024-2026" tek dönem); gevşek: parçada yalın 1900–2100 tamsayı */
+  var idDonemler = function (ol, gevsek) { var y = []; ol.forEach(function (o) { var v = o.tur === 'tarih' ? o.y : o.tur === 'yil' ? (o.deger != null ? o.deger : o.alt != null ? o.alt + '-' + o.ust : null) : gevsek && o.tur === 'sayi' && o.deger != null && !o.ondalik && o.olcek === 1 && !o.olcekBelirsiz && o.deger >= 1900 && o.deger <= 2100 && o.deger % 1 === 0 ? o.deger : null; if (v != null && y.indexOf(v) < 0) y.push(v); }); return y; };
+  var idDonemCok = function (ol) { var k = idDonemler(ol); return k.length > 1 || (k.length === 1 && idDonemler(ol, 1).length > 1); };      /* #51 iddiada işaretli dönemin yanında yalın yıl ("2023 ve 2024'te") da birden çok dönemdir */
+  var idDonem = function (ol, gevsek) { var y = idDonemler(ol, gevsek); return y.length === 1 ? y[0] : null; };
   var ID_NA = /^(gundem|icindekiler|agenda|outline|contents|kaynaklar|kaynakca|references|bibliography|tesekkurler|tesekkur ederim|thank you|thanks|sorular|questions)[.!:]?$/;
   var idOlguDegil = function (t) {
     var s = String(t || '').trim(), k = idKat(s); if (!s || /\d/.test(s)) return false;
@@ -7749,8 +7769,8 @@ var SBX = (function () {
     if (!P.length) return { durum: null, kod: 'kanit_yok', kullanilan: [] };
     var sayisal = C.filter(function (o) { return !idTarihMi(o); }), olc = sayisal.length ? sayisal : C;
     if (!olc.length) return { durum: null, kod: 'sayi_yok_iddia', kullanilan: [] };
-    var cDon = sayisal.length ? idDonem(C) : null, nit = ID_NITELIK.test(kc), top = ID_TOPLAM.test(kc), K = sayisal.length ? olcuKarsi : tarihKarsi;
-    var kul = [], destek = 0, kismi = null, celiski = 0, herhangiEsit = 0, ilgiliOlcu = 0, belirsiz = 0, enj = 0;
+    var cDL = sayisal.length ? idDonemler(C) : [], cDon = cDL.length === 1 ? cDL[0] : null, cCok = sayisal.length > 0 && idDonemCok(C), nit = ID_NITELIK.test(kc), top = ID_TOPLAM.test(kc), K = sayisal.length ? olcuKarsi : tarihKarsi;
+    var kul = [], destek = 0, kismi = null, celiski = 0, herhangiEsit = 0, ilgiliOlcu = 0, belirsiz = 0, enj = 0, yok = false;
     var ekle = function (p, il) { if (!kul.some(function (x) { return x.pid === p.pid; })) kul.push({ sid: p.sid, pid: p.pid, iliski: il }); };
     var siralama = { esit: 5, yakin: 4, birim: 3, farkli: 2, belirsiz: 1, uyumsuz: 0 };
     olc.forEach(function (o) { if (o.belirsiz || o.olcekBelirsiz) belirsiz = 1; });
@@ -7766,14 +7786,14 @@ var SBX = (function () {
         var en = olc.map(function (o) { var b = 'uyumsuz'; Q.forEach(function (q) { var r = K(o, q); if (siralama[r] > siralama[b]) b = r; }); return b; });
         var clDon = idDonem(sayiCoz(cl.t), 1); if (clDon == null) clDon = pDon;
         var donFark = cDon != null && clDon != null && cDon !== clDon, donYok = cDon != null && clDon == null, clNit = ID_NITELIK.test(idKat(cl.c));
-        if (en.every(function (r) { return r === 'esit'; })) { if (donFark) { kismi = kismi || 'donem'; ekle(p, 'qualifies'); } else if (donYok) { kismi = kismi || 'donem_yok'; ekle(p, 'qualifies'); } else if (clNit && !nit) { kismi = kismi || 'nitelik'; ekle(p, 'qualifies'); } else { destek = 1; ekle(p, 'supports'); } return; }
+        if (en.every(function (r) { return r === 'esit'; })) { if (cCok) { kismi = kismi || 'donem_belirsiz'; ekle(p, 'qualifies'); } else if (donFark) { kismi = kismi || 'donem'; ekle(p, 'qualifies'); } else if (donYok) { kismi = kismi || 'donem_yok'; ekle(p, 'qualifies'); } else if (clNit && !nit) { kismi = kismi || 'nitelik'; ekle(p, 'qualifies'); } else { destek = 1; ekle(p, 'supports'); } return; }
         if (en.some(function (r) { return r === 'esit'; }) && en.every(function (r) { return r === 'esit' || r === 'uyumsuz' || r === 'belirsiz'; })) { kismi = kismi || 'eksik'; ekle(p, 'qualifies'); return; }
         if (en.some(function (r) { return r === 'birim'; }) && en.every(function (r) { return r === 'esit' || r === 'birim'; })) { kismi = kismi || 'birim'; ekle(p, 'qualifies'); return; }
         if (en.some(function (r) { return r === 'yakin'; }) && en.every(function (r) { return r === 'esit' || r === 'yakin' || r === 'birim'; })) { kismi = kismi || (sayisal.length ? 'yakin' : 'tarih_ayrinti'); ekle(p, 'qualifies'); return; }
-        if (en.some(function (r) { return r === 'farkli'; }) && !(cDon != null && clDon !== cDon) && !nit && !clNit && !top && !belirsiz) { celiski = 1; ekle(p, 'conflicts'); }
+        if (en.some(function (r) { return r === 'farkli'; }) && !cCok && !(cDon != null && clDon !== cDon) && !nit && !clNit && !top && !belirsiz) { celiski = 1; ekle(p, 'conflicts'); }
       });
     });
-    var sonuc = function (d, kod) { return { durum: d, kod: kod, kullanilan: d ? kul.filter(function (x) { return d === 'supported' ? x.iliski === 'supports' : d === 'contradicted' ? x.iliski === 'conflicts' : true; }) : [], esit: herhangiEsit }; };
+    var sonuc = function (d, kod) { return { durum: d, kod: kod, kullanilan: d ? kul.filter(function (x) { return d === 'supported' ? x.iliski === 'supports' : d === 'contradicted' ? x.iliski === 'conflicts' : true; }) : [], esit: herhangiEsit, yok: !!yok }; };
     if (enj && !destek && !kismi && !celiski) return sonuc(null, 'enjeksiyon');
     if (destek && !celiski) return sonuc('supported', 'eslesti');
     if (celiski && (destek || kismi)) return sonuc(null, 'karisik');
@@ -7789,8 +7809,9 @@ var SBX = (function () {
         if (t.deger != null && Math.abs(top2 - t.deger * idCarp(t)) <= tol) { bul = p; return true; } return false; }); });
       if (bul) { kul = [{ sid: bul.sid, pid: bul.pid, iliski: 'qualifies' }]; return sonuc('partially_supported', 'turetilmis'); }
     }
-    if (sec.tam && !belirsiz && !ilgiliOlcu && !herhangiEsit && sayisal.length && !P.some(function (p) { var w = idKat(p.metin).replace(/\d+(?:[.,]\d+)*/g, ' '); return ID_SOZ.test(w); }) &&
-      !P.some(function (p) { return sayiCoz(p.metin).some(function (q) { return sayisal.some(function (o) { var r = olcuKarsi(o, q); return r === 'esit' || r === 'yakin' || r === 'birim'; }); }); })) return sonuc('unsupported', 'sayi_yok');
+    yok = !belirsiz && !ilgiliOlcu && !herhangiEsit && sayisal.length && !P.some(function (p) { var w = idKat(p.metin).replace(/\d+(?:[.,]\d+)*/g, ' '); return ID_SOZ.test(w); }) &&
+      !P.some(function (p) { return sayiCoz(p.metin).some(function (q) { return sayisal.some(function (o) { var r = olcuKarsi(o, q); return r === 'esit' || r === 'yakin' || r === 'birim'; }); }); });
+    if (sec.tam && yok) return sonuc('unsupported', 'sayi_yok');      /* #51: tam kapsam (idParcaSec) olmadan desteklenmiyor yok */
     return sonuc(null, belirsiz ? 'belirsiz' : 'karar_yok');
   };
   /* parça seçimi: yalnız iddianın #49 bağları; kayıtta çözülen, bütünlüğü (pid) tutan, tekrar etmeyen; önce aday sonra bağlam, ≤3.
@@ -7804,6 +7825,10 @@ var SBX = (function () {
       (k.rol === 'aday' ? A : B).push({ sid: kay.sid, pid: p.pid, metin: p.metin, tur: kay.tur });
     });
     var hep = A.concat(B); if (hep.length > ID_PARCA) tam = false;
+    /* #51 tam kapsam: bağlı kaynakların kayıttaki bütün parçalarına bakıldı ve kayıt sınırda değil (kaynak başına KY_PARCA, deste KY_TOPLAM: kırpılmış olabilir) */
+    var bak = {}, top = 0, sid = {}; hep.slice(0, ID_PARCA).forEach(function (p) { bak[p.pid] = 1; sid[p.sid] = 1; });
+    Object.keys(reg || {}).forEach(function (s) { top += arr(reg[s] && reg[s].parca).length; }); if (top >= KY_TOPLAM) tam = false;
+    Object.keys(sid).forEach(function (s) { var ps = arr(reg[s].parca); if (ps.length >= KY_PARCA || ps.some(function (x) { return !x || !bak[x.pid]; })) tam = false; });
     return { parcalar: hep.slice(0, ID_PARCA), tam: tam && hep.length > 0 };
   };
   var idHashR = function (r) { return kyHash(String(r.cid) + '|' + r.h + '|' + r.text); };
@@ -7822,20 +7847,32 @@ var SBX = (function () {
     var degerVar = function (p) { var Q = sayiCoz(p.metin).filter(function (q) { return idTarihMi(q) === !sayisal.length; }); return olc.every(function (o) { return Q.some(function (q) { return K(o, q) === 'esit'; }); }); };
     var herhangi = sec.parcalar.some(function (p) { var Q = sayiCoz(p.metin); return olc.some(function (o) { return Q.some(function (q) { var r = K(o, q); return r === 'esit' || r === 'yakin' || r === 'birim'; }); }); });
     var temiz = function (p) { return !ID_ENJ.test(idKat(p.metin)); };
+    var cDL = sayisal.length ? idDonemler(C) : [], cCok = sayisal.length > 0 && idDonemCok(C);
+    var donemOk = function (p) {      /* #51 idKarar ile aynı ilke: dönemli iddiada değerleri taşıyan cümlenin (yoksa parçanın) dönemi aynı olmalı; birden çok dönem → hayır */
+      if (cCok) return false; if (!cDL.length) return true; var pD = idDonem(sayiCoz(p.metin), 1);
+      return idCumle(p.metin).some(function (cl) { var T = sayiCoz(cl.t), dn = idDonem(T, 1), Q = T.filter(function (q) { return !idTarihMi(q); });
+        return olc.every(function (o) { return Q.some(function (q) { return K(o, q) === 'esit'; }); }) && (dn != null ? dn : pD) === cDL[0]; });
+    };
     var MUT = idMutlak(metin), mutlak = function (p) { var w = idKat(p.metin); return MUT.every(function (x) { return new RegExp('(^|[^a-z])' + x + '([^a-z]|$)').test(w); }); };
     if ((m.karar === 'supported' || m.karar === 'contradicted') && idKarar(metin, sec).kod === 'karisik') return U;      /* parçalar hem tutan hem tutmayan değer taşıyor: modelin kesin kararı kabul edilmez */
     if (m.karar === 'supported') {
-      var ok = kul.some(function (k) { var p = P[k.pid]; return k.iliski === 'supports' && temiz(p) && mutlak(p) && (!olc.length || degerVar(p)) && (!ck.length || idKapsam(ck, p.metin) >= 0.34) && !(sayisal.length && idDonem(C) != null && idDonem(sayiCoz(p.metin)) !== idDonem(C)); });
+      var ok = kul.some(function (k) { var p = P[k.pid]; return k.iliski === 'supports' && temiz(p) && mutlak(p) && (!olc.length || degerVar(p)) && (!ck.length || idKapsam(ck, p.metin) >= 0.34) && donemOk(p); });
       return ok ? { durum: 'supported', kod: 'model', kullanilan: kul.filter(function (k) { return k.iliski === 'supports'; }) } : U;
     }
     if (m.karar === 'partially_supported') return kul.length && kul.every(function (k) { return temiz(P[k.pid]); }) ? { durum: 'partially_supported', kod: 'model', kullanilan: kul } : U;
     if (m.karar === 'contradicted') {
       var cDon = sayisal.length ? idDonem(C) : null;
-      var ok2 = !ID_NITELIK.test(kc) && !ID_TOPLAM.test(kc) && !(olc.length && sec.parcalar.some(degerVar)) && kul.some(function (k) { var p = P[k.pid], pd = idDonem(sayiCoz(p.metin), 1); return k.iliski === 'conflicts' && temiz(p) && !ID_NITELIK.test(idKat(p.metin)) && !(cDon != null && pd !== cDon) &&
+      var ok2 = !cCok && !ID_NITELIK.test(kc) && !ID_TOPLAM.test(kc) && !(olc.length && sec.parcalar.some(degerVar)) && kul.some(function (k) { var p = P[k.pid], pd = idDonem(sayiCoz(p.metin), 1); return k.iliski === 'conflicts' && temiz(p) && !ID_NITELIK.test(idKat(p.metin)) && !(cDon != null && pd !== cDon) &&
           sayiCoz(p.metin).some(function (q) { return olc.some(function (o) { return idTarihMi(q) === idTarihMi(o) && K(o, q) === 'farkli'; }); });      /* çelişki karşılaştırılabilir farklı bir değer ister; sayısız iddiada model çelişkisi doğrulanmadı kalır */      /* dönemli iddiada çelişki yalnız aynı, bilinen dönemde */ });
       return ok2 ? { durum: 'contradicted', kod: 'model', kullanilan: kul.filter(function (k) { return k.iliski === 'conflicts'; }) } : U;
     }
-    if (m.karar === 'unsupported') return sec.tam && !herhangi && sec.parcalar.every(temiz) ? { durum: 'unsupported', kod: 'model', kullanilan: [] } : U;
+    if (m.karar === 'unsupported') {      /* #51: yalnız tam kapsamda; karşılaştırılabilir değer, sayı sözcüğü, belirsiz yazım, destek/çelişki kanıtı ya da yerel bulgu varsa reddedilir */
+      var det = idKarar(metin, sec), kars = sec.parcalar.some(function (p) { return sayiCoz(p.metin).some(function (q) { return olc.some(function (o) { return idTarihMi(q) === idTarihMi(o) && K(o, q) !== 'uyumsuz'; }); }); });
+      var soz = sayisal.length && sec.parcalar.some(function (p) { return ID_SOZ.test(idKat(p.metin).replace(/\d+(?:[.,]\d+)*/g, ' ')); });
+      var ok3 = sec.tam && sec.parcalar.length && sec.parcalar.every(temiz) && !herhangi && !kars && !soz && kul.every(function (k) { return k.iliski === 'qualifies'; }) &&
+        !olc.some(function (o) { return o.belirsiz || o.olcekBelirsiz; }) && (!det.durum || det.durum === 'unsupported') && ['karisik', 'belirsiz', 'enjeksiyon'].indexOf(det.kod) < 0 && (!sayisal.length || det.yok);
+      return ok3 ? { durum: 'unsupported', kod: 'model', kullanilan: [] } : U;
+    }
     return U;      /* model "olgu değil" ya da "doğrulanmadı" derse: doğrulanmadı */
   };
   var idKayit = function (r, sec, k, motor, aciklama, hata) {
@@ -7897,7 +7934,7 @@ var SBX = (function () {
     return idKos.p;
   };
   var ID_KOD = { eslesti: 'Değer, birim ve dönem parçayla aynı.', farkli: 'Parça aynı konu, birim ve dönem için farklı bir değer veriyor.', donem: 'Değer tutuyor ama parça başka bir dönemden.',
-    donem_yok: 'Değer tutuyor ama parçada dönem belirtilmemiş.', nitelik: 'Parçadaki değer ön ya da tahmini veri olarak geçiyor.', eksik: 'İddianın yalnız bir bölümü parçada var.', birim: 'Sayı aynı ama birim ya da para birimi farklı.',
+    donem_yok: 'Değer tutuyor ama parçada dönem belirtilmemiş.', donem_belirsiz: 'Değer tutuyor ama iddiadaki dönemler parçayla eşleştirilemedi.', nitelik: 'Parçadaki değer ön ya da tahmini veri olarak geçiyor.', eksik: 'İddianın yalnız bir bölümü parçada var.', birim: 'Sayı aynı ama birim ya da para birimi farklı.',
     yakin: 'Parçadaki değer yakın ama aynı değil.', tarih_ayrinti: 'Tarih parçada daha az ayrıntılı ya da aralık olarak geçiyor.', turetilmis: 'Toplam parçada yazmıyor; bileşenlerden hesaplandı.',
     sayi_yok: 'Seçilen parçalarda bu değer geçmiyor.', olgu_degil: 'Soru, geçiş ya da yorum; doğrulanacak bir olgu yok.', kanit_yok: 'Bu iddiaya bağlı kaynak parçası yok.', karisik: 'Parçalar hem destekleyen hem çelişen değerler içeriyor.',
     belirsiz: 'Sayının yazımı belirsiz; tahmin edilmedi.', karar_yok: 'Yerel kontrol karar veremedi.', sayi_yok_iddia: 'Yerel kontrol yalnız sayı ve tarihlere bakar.', enjeksiyon: 'Parça talimat içeriyor; kanıt sayılmadı.', bekci: 'Model yanıtı parçalarla doğrulanamadı.',
@@ -7967,7 +8004,7 @@ var SBX = (function () {
       '{#} yerel karar · {#} Groq kararı · {#} doğrulanmadı': '{#} local decisions · {#} Groq decisions · {#} not verified', '{#} iddia sınır nedeniyle gönderilmedi (en çok 20).': '{#} claims were not sent because of the limit (at most 20).',
       '{#} iddia gönderim boyutuna sığmadı.': '{#} claims did not fit the request size.' };
     var tr = ID_KOD, en = { eslesti: 'Value, unit and period match the passage.', farkli: 'The passage gives a different value for the same subject, unit and period.', donem: 'The value matches but the passage is from another period.',
-      donem_yok: 'The value matches but the passage states no period.', nitelik: 'The passage gives the value as preliminary or estimated.', eksik: 'Only part of the claim is in the passage.', birim: 'Same number but a different unit or currency.',
+      donem_yok: 'The value matches but the passage states no period.', donem_belirsiz: 'The value matches but the claim\'s periods could not be matched to the passage.', nitelik: 'The passage gives the value as preliminary or estimated.', eksik: 'Only part of the claim is in the passage.', birim: 'Same number but a different unit or currency.',
       yakin: 'The passage value is close but not the same.', tarih_ayrinti: 'The passage gives the date with less detail or as a range.', turetilmis: 'The total is not stated; it was computed from components.',
       sayi_yok: 'This value does not appear in the selected passages.', olgu_degil: 'A question, transition or opinion; nothing factual to verify.', kanit_yok: 'No source passage is linked to this claim.', karisik: 'The passages contain both supporting and conflicting values.',
       belirsiz: 'The number format is ambiguous; it was not guessed.', karar_yok: 'The local check could not decide.', sayi_yok_iddia: 'The local check only looks at numbers and dates.', enjeksiyon: 'The passage contains instructions; it was not used as evidence.', bekci: 'The model answer could not be confirmed against the passages.',

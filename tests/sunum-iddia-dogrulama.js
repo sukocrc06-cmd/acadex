@@ -9,8 +9,10 @@
      - Groq ('iddia_dogrula', sunum-research): site_settings.iddia_dogrulama kapısı, ≤20 iddia, ≤2 istek, istek başına ≤10,
        iddia başına ≤3 × 300, gövde ≤12 KB; yeniden deneme yok; yanıt sunucuda şemadan, istemcide bekçiden (idBekci) geçer.
      - Sonuç e.iddia[].kontrol'e yazılır (durum'a değil), metin/kaynak değişince bayat; görüntüye/PPTX'e girmez.
+     - #51: kesin sayıda genel %5 pay yok (yalnız gösterim hassasiyeti; 100 ≠ 104), açık "yaklaşık" ayrı pay; dönem farkı ve dönemsiz
+       parça destek değil, çelişki de değil (yerel ve bekçi); unsupported yalnız tam kapsamda (bütün bağlı parçalar bakıldı, sınırda değil).
    Bölümler:  A ayrıştırma · B tarih · C kanıt bütünlüğü · D model yanıtı güvenliği · E sınırlar · F kayıt, arayüz, TR/EN,
-              gizlilik · G 44 maddelik küme · H tarayıcı (başsız Chrome, onay, ağ, kalıcılık, EN).
+              gizlilik · I #51 kesinlik/dönem/kapsam · G 44 maddelik küme · H tarayıcı (başsız Chrome, onay, ağ, kalıcılık, EN).
    Canlı Groq çağrısı yok; bütün yanıtlar sahte.
    Çalıştırma:  node tests/sunum-iddia-dogrulama.js
    ========================================================================== */
@@ -120,9 +122,9 @@ test('A3 negatif, aralık, yön, yaklaşık ("yaklaşık %24" önek simgeden ön
   assert.equal(K('more than 500 people', '620 people'), 'esit'); assert.equal(K('more than 500 people', '480 people'), 'belirsiz', 'yönlü iddia çelişki üretmez');
 });
 
-test('A4 yuvarlama: kesinlik payı ≤ %5 göreli; yaklaşık iddia göreli (about 3 million ≠ 3,4 milyon); 24 ↔ 24,6 yakın, 25 ↔ 24,6 eşit', () => {
+test('A4 yuvarlama: kesin sayıda yalnız gösterim hassasiyeti (#51); yaklaşık iddia göreli (about 3 million ≠ 3,4 milyon); 24 ↔ 24,6 yakın, 25 ↔ 24,6 eşit', () => {
   assert.equal(K('about 3 million', '3.4 million'), 'yakin', 'fix: yaklaşık iddiada %13 fark eşit değil');
-  assert.equal(K('3 milyon', '3,4 milyon'), 'farkli', 'fix: yuvarlama payı (0,5 milyon) %5 sınırını aşamaz');
+  assert.equal(K('3 milyon', '3,4 milyon'), 'yakin', '#51: tek anlamlı basamak, hassasiyet belirsiz → eşit değil, çelişki de değil');
   assert.equal(K('%24', '%24,6'), 'yakin'); assert.equal(K('%25', '%24,6'), 'esit'); assert.equal(K('yaklaşık %24', '%24,6'), 'esit');
   assert.equal(K('2,5 milyon', '2.500.000'), 'esit'); assert.equal(K('3,2 milyar $', '3,2 milyar $'), 'esit');
   assert.equal(karar('About 3 million visitors.', ['The museum had 3.4 million visitors.']), 'partially_supported', '#48 satır 10: destek değil');
@@ -191,7 +193,8 @@ test('C1 parça seçimi: yalnız #49 bağları; uydurma pid, başka sid altına 
   const a = w(1), b = w(2), pa = [P(a, 'Bir.'), P(a, 'İki.'), P(a, 'Üç.'), P(a, 'Dört.')], pb = P(b, 'Beş.');
   const reg = { [a]: { sid: a, tur: 'web', parca: pa }, [b]: { sid: b, tur: 'web', parca: [pb] } };
   let s = F.idParcaSec({ kanit: [{ sid: a, pid: pa[0].pid, rol: 'baglam' }, { sid: b, pid: pb.pid, rol: 'aday' }] }, reg);
-  assert.deepEqual(s.parcalar.map((p) => p.metin), ['Beş.', 'Bir.'], 'aday önce'); assert.equal(s.tam, true);
+  assert.deepEqual(s.parcalar.map((p) => p.metin), ['Beş.', 'Bir.'], 'aday önce'); assert.equal(s.tam, false, '#51: a kaynağının 3 parçasına bakılmadı');
+  assert.equal(F.idParcaSec({ kanit: [{ sid: a, pid: pa[0].pid, rol: 'baglam' }, { sid: a, pid: pa[1].pid, rol: 'aday' }, { sid: b, pid: pb.pid, rol: 'aday' }] }, { [a]: { sid: a, tur: 'web', parca: pa.slice(0, 2) }, [b]: reg[b] }).tam, true, 'bağlı kaynakların bütün parçaları bakıldı');
   s = F.idParcaSec({ kanit: pa.map((p) => ({ sid: a, pid: p.pid, rol: 'aday' })) }, reg); assert.equal(s.parcalar.length, 3); assert.equal(s.tam, false, '3 üstü: tam değil');
   s = F.idParcaSec({ kanit: [{ sid: a, pid: 'pzzzzzz', rol: 'aday' }, { sid: a, pid: pb.pid, rol: 'aday' }] }, reg); assert.deepEqual(s.parcalar, [], 'uydurma pid ve başka sid altındaki pid'); assert.equal(s.tam, false);
   const bozuk = kopya(reg); bozuk[a].parca[0].metin = 'Bir değişti.'; s = F.idParcaSec({ kanit: [{ sid: a, pid: pa[0].pid, rol: 'aday' }] }, bozuk); assert.deepEqual(s.parcalar, [], 'pid metinle tutmuyor');
@@ -461,6 +464,100 @@ test('F6 gizlilik: sunucu günlüğü yalnız sayılar (iddia, parça, adres, ki
   const dk = ink.match(/  var deckKey = function[^\n]+/)[0]; assert.ok(!/kontrol|iddia|kaynak/.test(dk), 'deckKey kontrol sonucundan etkilenmez');
   const F = kur(), d = desteKur(F, [{ metin: 'Satış %12 arttı.', parcalar: ['Satış %12 arttı.'] }]); d.quality = { score: 80 }; const dq = JSON.stringify(d.quality); await F.iddiaKontrol(false, { deck: d }); assert.equal(JSON.stringify(d.quality), dq, 'kalite değişmez');
   assert.ok(/SOURCE_UNRESOLVED/.test(ink) && !/SOURCE_UNRESOLVED/.test(IB), 'SOURCE_UNRESOLVED #50 tarafından değiştirilmez');
+});
+
+/* ------------------------------ I: #51 kesinlik, dönem ve tam kapsam ------------------------------ */
+const Bk = (m, ps, kar, il, tam) => { const s = sec(ps, tam); return C.idBekci(m, s, { karar: kar, kanit: s.parcalar.map((p) => ({ sid: p.sid, pid: p.pid, iliski: il })) }).durum; };
+/* tek desteli kayıt: kaynak başına parça listesi; sec yerine gerçek idParcaSec ile tam bayrağı */
+const kayitKur = (F, liste) => { const reg = {}; liste.forEach((ms, i) => { const sid = 'w' + F.kyHash('ik' + i); reg[sid] = { sid, tur: 'web', parca: ms.map((m) => ({ pid: 'p' + F.kyHash(sid + '|' + m), metin: m, tur: 'pasaj' })) }; }); return reg; };
+const bagla = (reg, secim) => ({ kanit: secim.map(([si, pi]) => { const k = Object.values(reg)[si]; return { sid: k.sid, pid: k.parca[pi].pid, rol: 'aday' }; }) });
+
+test('I1 kesin sayı: genel %5 pay yok; 100 kişi ↔ 104 kişi destek değil, 100 ↔ 100 ve 1,2 milyon ↔ 1,2 milyon eşit; %15 ↔ 15 puan, 24,5 ↔ 245 eşleşmez', () => {
+  assert.equal(K('100 kişi', '104 kişi'), 'yakin', 'fix #51: #50 %5 payıyla eşit sayıyordu'); assert.equal(karar('Etkinliğe 100 kişi katıldı.', ['Etkinliğe 104 kişi katıldı.']), 'partially_supported');
+  assert.equal(K('100', '100'), 'esit'); assert.equal(karar('Etkinliğe 100 kişi katıldı.', ['Etkinliğe 100 kişi katıldı.']), 'supported');
+  assert.equal(K('1,2 milyon', '1,2 milyon'), 'esit'); assert.equal(K('1,2 milyon', '1.200.000'), 'esit');
+  assert.equal(K('%15', '15 puan'), 'birim'); assert.notEqual(karar('İşsizlik %15 arttı.', ['İşsizlik 15 puan arttı.']), 'supported');
+  assert.equal(K('24,5', '245'), 'farkli'); assert.notEqual(karar('Oran %24,5.', ['Oran 245.']), 'supported');
+  assert.equal(K('100 kişi', 'yaklaşık 100 kişi'), 'yakin', 'fix #51: yaklaşık parça kesin iddiayı doğrulamaz'); assert.equal(K('100', 'yaklaşık 104'), 'yakin');
+});
+
+test('I2 açık "yaklaşık": yalnız ID_YAK_PAY (%5) göreli pay; kesin sayıya hiç uygulanmaz; parça iddiadan kabaysa eşit değil', () => {
+  assert.ok(/var ID_YAK_PAY = 0\.05;/.test(ink), 'adlı sabit'); assert.ok(!/r <= 0\.05 \? 'esit'/.test(cut(ink, 'var olcuKarsi = function', 'var tarihKarsi')), '#50 genel pay kalktı');
+  assert.equal(K('yaklaşık 100', '104'), 'esit'); assert.equal(K('yaklaşık 100', '105'), 'esit'); assert.equal(K('yaklaşık 100', '106'), 'yakin'); assert.equal(K('yaklaşık 100', '120'), 'farkli');
+  assert.equal(karar('Etkinliğe yaklaşık 100 kişi katıldı.', ['Etkinliğe 104 kişi katıldı.']), 'supported'); assert.equal(karar('Etkinliğe 100 kişi katıldı.', ['Etkinliğe 104 kişi katıldı.']), 'partially_supported', 'aynı fark kesin iddiada destek değil');
+  assert.equal(K('about 3 million', '3.4 million'), 'yakin'); assert.equal(K('yaklaşık %24', '%24,6'), 'esit');
+});
+
+test('I3 ondalık hassasiyet: yazılan son basamağın yarısı (kesin yarım hariç) güvenli yuvarlamadır; daha fazlası destek değil', () => {
+  assert.equal(K('1,2 milyon', '1,24 milyon'), 'esit'); assert.equal(K('1,2 milyon', '1,16 milyon'), 'esit'); assert.equal(K('1,2 milyon', '1,25 milyon'), 'yakin', 'tam yarım: yuvarlama yönü belirsiz');
+  assert.equal(K('%24,6', '%24,64'), 'esit'); assert.equal(K('%24,6', '%24,7'), 'yakin'); assert.equal(K('%25', '%24,6'), 'esit'); assert.equal(K('%24', '%24,6'), 'yakin');
+  assert.equal(karar('Nüfus 1,2 milyon.', ['Nüfus 1,24 milyon.']), 'supported'); assert.equal(karar('Nüfus 1,2 milyon.', ['Nüfus 1,26 milyon.']), 'partially_supported');
+});
+
+test('I4 belirsiz hassasiyet (tek anlamlı basamak: 2 milyon, %5): yalnız birebir eşitlik destek; yuvarlama olası fark yakın, çelişki değil', () => {
+  assert.equal(K('2 milyon', '2 milyon'), 'esit'); assert.equal(K('2 milyon', '2,4 milyon'), 'yakin'); assert.equal(K('%5', '%5,4'), 'yakin'); assert.equal(K('3 milyon', '3,4 milyon'), 'yakin');
+  assert.equal(karar('Nüfus 2 milyon.', ['Nüfus 2,4 milyon.']), 'partially_supported'); assert.equal(karar('Enflasyon %5.', ['Enflasyon %5,4 oldu.']), 'partially_supported');
+  assert.notEqual(Bk('Nüfus 2 milyon.', ['Nüfus 2,4 milyon.'], 'supported', 'supports'), 'supported', 'bekçi de birebir ister');
+  assert.equal(K('2 milyon', '2,6 milyon'), 'farkli', 'yuvarlama aralığı dışı');
+});
+
+test('I5 dönem: aynı değer farklı dönemde destek değil, çelişki de değil (yerel ve bekçi)', () => {
+  assert.equal(karar("2024'te satış 120 bin adet.", ['2023 satışı 120 bin adet.']), 'partially_supported');
+  assert.equal(Bk("2024'te satış 120 bin adet.", ['2023 satışı 120 bin adet.'], 'supported', 'supports'), 'unverified');
+  assert.equal(Bk("2024'te satış 150 bin adet.", ['2023 satışı 120 bin adet.'], 'contradicted', 'conflicts'), 'unverified');
+  assert.equal(Bk("2024'te satış 120 bin adet.", ['2023 satışı 120 bin adet; 2024 satışı 90 bin adet.'], 'supported', 'supports'), 'unverified', 'değeri taşıyan cümlenin dönemi 2023');
+  const d = C.idKarar("2023 ve 2024'te satış 150 bin adet.", sec(['2024 satışı 120 bin adet.'])); assert.notEqual(d.durum, 'contradicted', 'fix #51: çok dönemli iddia çelişki üretmez');
+  assert.equal(Bk("2023 ve 2024'te satış 150 bin adet.", ['2024 satışı 120 bin adet.'], 'contradicted', 'conflicts'), 'unverified');
+  const r = C.idKarar('2023 ve 2024 yıllarında satış 120 bin adet.', sec(['2024 satışı 120 bin adet.'])); assert.notEqual(r.durum, 'supported');
+});
+
+test('I6 dönemli iddia, dönemsiz parça: doğrulanmış sayılmaz (yerel donem_yok, bekçi reddeder)', () => {
+  const d = C.idKarar("2024'te satış 120 bin adet.", sec(['Satış 120 bin adet.'])); assert.deepEqual([d.durum, d.kod], ['partially_supported', 'donem_yok']);
+  assert.equal(Bk("2024'te satış 120 bin adet.", ['Satış 120 bin adet.'], 'supported', 'supports'), 'unverified', 'fix #51: #50 bekçisi dönemsiz parçayı kabul ediyordu');
+});
+
+test('I7 aynı dönem, kapsam ve tanım: desteklenebilir (yerel ve bekçi)', () => {
+  assert.equal(karar("2024'te satış 120 bin adet.", ['2024 satışı 120 bin adet.']), 'supported');
+  assert.equal(Bk("2024'te satış 120 bin adet.", ['2024 satışı 120 bin adet.'], 'supported', 'supports'), 'supported');
+  assert.equal(Bk("2024'te satış 120 bin adet.", ['Rapor: 2023 satışı 90 bin adet. 2024 satışı 120 bin adet.'], 'supported', 'supports'), 'supported', 'doğru dönemli cümle');
+  assert.equal(karar('In 2023 output hit 40 GW.', ['Output: 2023: 40 GW; 2024: 46 GW']), 'supported');
+});
+
+test('I8 tam kapsam: 3 üstü ilgili parça ya da bağlı kaynağın bakılmamış parçası varken desteklenmiyor yok; kaynak/deste sınırındaki kayıt tam değil', () => {
+  const F = kur(), H = 'Hava bugün güzeldi.';
+  let reg = kayitKur(F, [[H, 'Rüzgar hafifti.', 'Gökyüzü açıktı.', 'Deniz sakindi.']]);
+  let s = F.idParcaSec(bagla(reg, [[0, 0], [0, 1], [0, 2], [0, 3]]), reg); assert.equal(s.parcalar.length, 3); assert.equal(s.tam, false, '4 ilgili parça, 3 bakıldı');
+  assert.equal(F.idKarar('Şirkette 500 çalışan var.', s).durum, null, 'yerel desteklenmiyor yok');
+  s = F.idParcaSec(bagla(reg, [[0, 0]]), reg); assert.equal(s.tam, false, 'fix #51: aynı kaynağın 3 parçası bakılmadı');
+  reg = kayitKur(F, [[H, 'Rüzgar hafifti.']]); s = F.idParcaSec(bagla(reg, [[0, 0], [0, 1]]), reg); assert.equal(s.tam, true); assert.equal(F.idKarar('Şirkette 500 çalışan var.', s).durum, 'unsupported');
+  reg = kayitKur(F, [['a1.', 'a2.', 'a3.', 'a4.', 'a5.', 'a6.']]); assert.equal(F.idParcaSec(bagla(reg, [[0, 0]]), reg).tam, false, 'kaynak başına 6: kırpılmış olabilir');
+  const cok = []; for (let i = 0; i < 20; i++) cok.push(['k' + i + 'a.', 'k' + i + 'b.']); reg = kayitKur(F, cok);
+  assert.equal(F.idParcaSec(bagla(reg, [[0, 0], [0, 1]]), reg).tam, false, 'deste 40 parçada: kırpılmış olabilir');
+  reg = kayitKur(F, cok.slice(0, 19)); assert.equal(F.idParcaSec(bagla(reg, [[0, 0], [0, 1]]), reg).tam, true, '38 parça: sınırın altında');
+});
+
+test('I9 istek sınırı yüzünden eksik kanıt tam kapsam değildir: sığmayan iddia kayıt almaz; 3 sınırında kesilmiş kanıtla modelin desteklenmiyor\'u reddedilir', async () => {
+  const F = kur(), d = desteKur(F, [{ metin: 'Proje başarılı oldu.', parcalar: ['Hava bugün güzeldi.'] }, { metin: 'Ekip ödül aldı.', parcalar: ['Deniz sakindi.'] },
+    { metin: 'Takım kupayı kazandı.', parcalar: ['Rüzgar hafifti.', 'Gökyüzü açıktı.', 'Deniz sakindi.', 'Kuşlar uçtu.'].map((m) => ({ metin: m, kaynak: 900 })) }]);
+  const fn = sahteFn((g) => { const [x, y, z] = g.iddialar; return { v: 1, durum: 'kismi', sonuc: [x, z].map((c) => ({ cid: c.cid, karar: 'unsupported', neden: 'x', kanit: [] })), sigmadi: [y.cid], atlanan: [] }; });
+  const oz = await F.iddiaKontrol(true, { deck: d, fn }), [a1, b1, c1] = iddiaOf(d);
+  assert.equal(fn.g[0].iddialar[2].parcalar.length, 3, 'gönderim 3 parçayla sınırlı');
+  assert.equal(a1.kontrol.durum, 'unsupported', 'tam bakılmış ve gönderilmiş'); assert.equal(b1.kontrol, undefined, 'sığmadı: kayıt yok'); assert.equal(sonDurum(b1), 'unverified'); assert.equal(oz.sigmadi, 1);
+  assert.equal(c1.kontrol.durum, 'unverified', 'fix #51: 4 parçanın 3ü gönderildi, desteklenmiyor değil');
+  assert.equal(C.idKarar('Şirkette 500 çalışan var.', sec(['Hava bugün güzeldi.'], false)).durum, null);
+  assert.equal(Bk('Şirkette 500 çalışan var.', ['Hava bugün güzeldi.'], 'unsupported', 'qualifies', false), 'unverified');
+});
+
+test('I10 bekçi sahte "desteklenmiyor"u reddeder: eksik kapsam, karşılaştırılabilir değer, sayı sözcüğü, destek/çelişki kanıtı, boş parça', () => {
+  assert.equal(Bk('Satış %12 arttı.', ['Satış verisi açıklanmadı.'], 'unsupported', 'qualifies'), 'unsupported', 'geçerli olan kalır');
+  assert.equal(Bk('Satış %12 arttı.', ['Satış verisi açıklanmadı.'], 'unsupported', 'qualifies', false), 'unverified', 'eksik kapsam');
+  assert.equal(Bk('Etkinliğe 100 kişi katıldı.', ['Etkinliğe 104 kişi katıldı.'], 'unsupported', 'qualifies'), 'unverified', 'karşılaştırılabilir değer var');
+  assert.equal(Bk('Satış %12 arttı.', ['Satış on iki yüzde arttı.'], 'unsupported', 'qualifies'), 'unverified', 'sayı sözcüğü');
+  assert.equal(Bk('Satış %12 arttı.', ['Satış verisi açıklanmadı.'], 'unsupported', 'supports'), 'unverified', 'destek kanıtıyla desteklenmiyor çelişkili');
+  assert.equal(Bk('Satış %12 arttı.', ['Satış verisi açıklanmadı.'], 'unsupported', 'conflicts'), 'unverified');
+  assert.equal(C.idBekci('Satış %12 arttı.', { parcalar: [], tam: true }, { karar: 'unsupported', kanit: [] }).durum, 'unverified', 'parçasız');
+  const F = kur(), reg = kayitKur(F, [['Hava bugün güzeldi.', 'Rüzgar hafifti.', 'Gökyüzü açıktı.', 'Deniz sakindi.']]), s = F.idParcaSec(bagla(reg, [[0, 0], [0, 1], [0, 2], [0, 3]]), reg);
+  assert.equal(F.idBekci('Şirkette 500 çalışan var.', s, { karar: 'unsupported', kanit: [] }).durum, 'unverified', '3 sınırıyla kesilmiş seçim');
 });
 
 /* ------------------------------ G: 44 maddelik küme ------------------------------ */
