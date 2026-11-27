@@ -865,6 +865,5 @@ if (GOMULU) {
 if (RM) { setInterval(baslatDongu, 1000); }
 W.__kampus = { dok: () => { const say = {}; scene.children.forEach((c, i) => { let n = 0; c.traverse(o => { if ((o.isMesh || o.isLine || o.isPoints || o.isSprite) && gorunurMu(o)) n++; }); if (n) { const ad = (Object.entries(binaGrup).find(([k, g]) => g === c) || [])[0] || (c.isInstancedMesh ? 'IM' : c.type) + i; say[ad] = n; } }); return say; }, kademe: () => KADEME_AD, fps: () => sonFps, info: () => { let n = 0, mat = new Set(), pl = 0; scene.traverse(o => { if (o.isMesh) { n++; [].concat(o.material).forEach(m => mat.add(m)); } if (o.isPointLight) pl++; }); renderer.render(scene, kamera); return { mesh: n, malzeme: mat.size, nokta: pl, cizim: renderer.info.render.calls, ucgen: renderer.info.render.triangles }; }, ac, gir, geri, vakit: (h) => { SAAT = h; akan = false; }, hava: (h) => { hava = h; havaAktif = h; havaOp[h] = 1; } };
 </script>
-<script src="../../js/acadex-sozluk.js" defer></script>
 </body>
 </html>

@@ -26,7 +26,9 @@ test('sayfaya bağlı ve eski çizicinin yerine geçiyor', () => {
   const at = (f) => html.indexOf('src="js/' + f + '"');
   assert.ok(at('dashboard.js') < at('acadex-rozet.js') && at('achievements.js') < at('acadex-rozet.js'));
   assert.match(js, /renderStreakAndAchievements = render;/); assert.match(js, /W\.renderStreakAndAchievements = render;/);
-  assert.match(html, /id="home-achievements-list"/);
+  /* 27.11.2026: vitrin kartı ana sayfadan kalktı; betik kapsayıcı yoksa sessizce çıkar */
+  assert.doesNotMatch(html, /id="home-achievements-list"/);
+  assert.match(js, /getElementById\('home-achievements-list'\); if \(!box\) return;/);
 });
 
 test('her rozetin Türkçe başlığı, açıklaması ve kademesi var', () => {

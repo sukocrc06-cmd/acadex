@@ -15,7 +15,6 @@
 #home-view.axd .grid > .card[aria-labelledby="t-facts"]{--acc:#8E6638}
 #home-view.axd .grid > .card[aria-labelledby="t-short"]{--acc:#8A5CC8}
 #home-view.axd .grid > .card[aria-labelledby="t-news"]{--acc:#1E8A55}
-#home-view.axd .grid > .card[aria-labelledby="t-badge"]{--acc:#B8862F}
 #home-view.axd .grid > .card[aria-labelledby="t-sched"]{--acc:#0E8C9B}
 #home-view.axd .grid > .card > .card-h .hd{position:relative;background:none}
 #home-view.axd .grid > .card > .card-h .hd::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:var(--acc);-webkit-mask:var(--inkline) no-repeat 0 0/100% 100%;mask:var(--inkline) no-repeat 0 0/100% 100%}

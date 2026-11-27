@@ -133,8 +133,8 @@ test('yüzen öğeler: telefonda ip çocuğu yok, Acadia balonu masaüstünde 4,
 });
 
 /* 07.11.2026 Acadingo: masa kartı "şu anki durak" (dashboard.html, js/acadingo-kart.js) */
-test('dashboard: Acadingo kartı yarım genişlik, rozetlerden sonra, saatlerden önce', () => {
-  const d = read('dashboard.html'), k = d.indexOf('data-acg-kart'), w = d.indexOf('id="home-weak-topics-card"'), s = d.indexOf('<section class="card sched land"');
+test('dashboard: Acadingo kartı yarım genişlik, panodan sonra, saatlerden önce', () => {
+  const d = read('dashboard.html'), k = d.indexOf('data-acg-kart'), w = d.indexOf('aria-labelledby="t-news"'), s = d.indexOf('<section class="card sched land"');
   assert.ok(w < k && k < s);
   assert.match(d, /<section class="card c-6 land acg-kart" data-acg-kart/);
   assert.match(d, /<a class="acg-k-btn" data-acg-git href="ingilizce\/">Acadingo'ya git →<\/a>/);
