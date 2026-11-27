@@ -7495,7 +7495,8 @@ var SBX = (function () {
   var kunyeKaydir = function (s, o, ox, oy, ow, oh) {
     var c = kunyesi(s, o); if (!c || (o.x === ox && o.y === oy && o.w === ow && o.h === oh)) return false;
     if (Math.abs(c.y - (oy + oh + YUVA.kunye.ara)) <= 2 && Math.abs(c.x - ox) <= 2) { c.x = o.x; c.w = o.w; c.y = o.y + o.h + YUVA.kunye.ara; } else { c.x += o.x - ox; c.y += o.y - oy; }
-    var ce = stage.querySelector('[data-id="' + c.id + '"]'); if (ce) { ce.style.left = c.x + 'px'; ce.style.top = c.y + 'px'; ce.style.width = c.w + 'px'; }
+    if (o.w !== ow) kunyeBoy(s, c);      /* daralan fotoğrafın künyesi bir satır daha alabilir (#43.1) */
+    var ce = stage.querySelector('[data-id="' + c.id + '"]'); if (ce) { ce.style.left = c.x + 'px'; ce.style.top = c.y + 'px'; ce.style.width = c.w + 'px'; ce.style.height = c.h + 'px'; }
     return true;
   };
   stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
@@ -7594,6 +7595,32 @@ var SBX = (function () {
   var credText = function (p) { var src = p.source || 'Unsplash'; return (curLang() === 'en' ? 'Photo: ' : 'Fotoğraf: ') + (p.photographer ? p.photographer + ' / ' : '') + src + (p.license ? ' · ' + p.license : ''); };
   /* Kutu fotoğrafın kendi oranını taşır: sabit kutu yatay bir görseli (bayrak, manzara) dikine kırpıyordu. */
   var fotoKutu = function (p, mw, mh) { var r = (p.h || 2) / (p.w || 3), w = mw, h = Math.round(w * r); if (h > mh) { h = mh; w = Math.round(h / r); } return { w: w, h: h }; };
+  /* KÜNYE YÜKSEKLİĞİ İÇERİKTEN (#43.1, 27.11.2026). Künye kutusu tek satırlık sabitti (YUVA.kunye.h 22): uzun fotoğrafçı
+     adı + kaynak + lisans 300 px'te iki satıra kırılıyor (~30 px), teknik denetim haklı olarak TEXT_OVERFLOW veriyordu
+     (canlı destede 3, 4 ve 8. asetat). Künye kısaltılmaz, yazı küçültülmez: kutu ölçülen yüksekliğe uzar — Phase 6
+     onarımıyla aynı kural (ceil(ölçüm) + 4). Sığan künye kompakt kalır. taban: kutu alt kenarından yukarı uzar (tam sayfa
+     fotoğrafta alt şerit), yoksa fotoğrafın altında aşağı. Asetat dışına çıkacaksa uzamaz (taşma görünür kalır, yuva
+     denemesi reddeder). Yazı doğrulanmadan ölçülmez: kutu kompakt kalır, ölçüm kunyeSonra ile yazı hazır olunca yapılır.
+     Yerleşim işlevleri (placePhoto/placePair/placeTam/placeYan) saf geometri kalır; boy, yerleşimden sonra kunyeUydur ile
+     verilir (yuvaDene, elle ekleme). Yalnız placeYer kutuyu içeriden paylaştığı için künyeyi kendisi ölçer. */
+  var kunyeBoy = function (sl, c, taban) {
+    if (!c || !c.text || !yaziHazirMi()) return 0;
+    var mh = measureH(c, sl); if (!(mh > c.h + 3)) return 0;
+    var h = Math.ceil(mh) + 4, y = taban ? c.y + c.h - h : c.y;
+    if (y < 0 || y + h > H - 8) return 0;
+    var ek = h - c.h; c.y = y; c.h = h; return ek;
+  };
+  /* asetatın künyeleri (yalnız: tek künye): tam sayfa fotoğrafın künyesi yukarı uzar, arkasındaki koyu şerit (dz) de onunla */
+  var kunyeUydur = function (sl, yalniz) {
+    var ek = 0;
+    sl.els.forEach(function (o) {
+      var c = o.type === 'img' && o.creditId ? sl.els.filter(function (e) { return e.id === o.creditId; })[0] : null; if (!c || (yalniz && c !== yalniz)) return;
+      var taban = tamSayfa(o), y0 = c.y, h0 = c.h, n = kunyeBoy(sl, c, taban); if (!n) return; ek += n;
+      if (taban) sl.els.forEach(function (r) { if (r.type === 'rect' && r.dz && r.x <= c.x && r.x + r.w >= c.x + c.w && r.y <= y0 && r.y + r.h >= y0 + h0) { r.y -= n; r.h += n; } });
+    });
+    return ek;
+  };
+  var kunyeSonra = function (sl, c) { var d0 = deck; if (c) yaziSonra(function (hemen) { if (deck !== d0 || deck.slides.indexOf(sl) < 0 || sl.els.indexOf(c) < 0) return; if (kunyeUydur(sl, c) && !hemen) { renderStage(); renderThumbs(); dirty(); } }, 'kunye:' + c.id); };
   /* FOTOĞRAF BİÇİMLERİ (14.11.2026): her fotoğraf "liste + sağda fotoğraf" diye
      basılıyordu (canlı destede 2, 3 ve 5. asetat). bicim: '' sağda (eski yol),
      'sol' solda, 'tam' alıntıda tam sayfa fotoğraf + metin panosu; iki fotoğraf
@@ -7709,8 +7736,11 @@ var SBX = (function () {
   /* 'yer': boş görsel kutusu (çizim düzeninin yer tutucusu) fotoğrafla dolar; künye kutunun içinde kalır. */
   var placeYer = function (sl, p, alt) {
     var o = sl.els.filter(function (e) { return e.type === 'img' && !e.src; })[0]; if (!o) return null;
-    var C = YUVA.kunye, k = fotoKutu(p, o.w, o.h - C.h - C.ara), x = o.x + Math.round((o.w - k.w) / 2);
-    var cr = E('t', x, o.y + k.h + C.ara, k.w, C.h, { text: credText(p), size: C.boy, color: SOFT, align: 'right' }), im = fotoImg(p, x, o.y, k.w, k.h, alt, cr);
+    var C = YUVA.kunye, cr = E('t', o.x, o.y, o.w, C.h, { text: credText(p), size: C.boy, color: SOFT, align: 'right' }), k, x;
+    /* künye kutunun içinde kalır: uzarsa fotoğraf küçülür, daralan künye yeniden ölçülür (en çok üç tur) */
+    for (var g = 0; g < 3; g++) { k = fotoKutu(p, o.w, o.h - cr.h - C.ara); x = o.x + Math.round((o.w - k.w) / 2); cr.x = x; cr.w = k.w; cr.y = o.y + k.h + C.ara; if (!kunyeBoy(sl, cr)) break; }
+    k = fotoKutu(p, o.w, o.h - cr.h - C.ara); x = o.x + Math.round((o.w - k.w) / 2); cr.x = x; cr.w = k.w; cr.y = o.y + k.h + C.ara;
+    var im = fotoImg(p, x, o.y, k.w, k.h, alt, cr);
     sl.els.splice(sl.els.indexOf(o), 1, im, cr); return im;
   };
   /* Yuvayı kopyada dener; geçerse { els, im, form, dusus } döner (asetata dokunmaz). Deneme izleme sayacını tetiklemez. */
@@ -7721,9 +7751,13 @@ var SBX = (function () {
     var q = ps.map(function (p) { return Object.assign({}, p, { track: null }); });
     var im = form === 'iki' ? placePair(d, q[0], q[1]) : form === 'yan' ? placeYan(d, q[0], alt) : form === 'yer' ? placeYer(d, q[0], alt) : placePhoto(d, q[0], alt, form);
     if (!im) return null;
-    fitSlide(d);
+    fitSlide(d); kunyeUydur(d);
     var kun = {}; d.els.forEach(function (e) { if (e.type === 'img' && e.creditId) kun[e.creditId] = 1; });
     var engel = d.els.filter(function (e) { return (e.type === 'img' && e.src && !tamSayfa(e)) || kun[e.id]; }), dusus = 0, n = 0;
+    /* #43.1: künye kendi kutusuna sığar, asetat içinde kalır, başka fotoğrafın üstüne binmez; sığmıyorsa bu yuva yoktur */
+    for (var c = 0; c < d.els.length; c++) { var ce = d.els[c]; if (!kun[ce.id] || !ce.text) continue;
+      if (measureH(ce, d) > ce.h + 3 || ce.y < 0 || ce.y + ce.h > H - 2) return null;
+      if (engel.some(function (g) { return g !== ce && g.type === 'img' && g.creditId !== ce.id && ce.x < g.x + g.w - 1 && ce.x + ce.w > g.x + 1 && ce.y < g.y + g.h - 1 && ce.y + ce.h > g.y + 1; })) return null; }
     for (var i = 0; i < d.els.length; i++) {
       var e = d.els[i]; if (!/^(h|t|ul)$/.test(e.type) || !e.text || e.muted || e.dz || kun[e.id]) continue;
       var hd = measureH(e, d);
@@ -7821,14 +7855,14 @@ var SBX = (function () {
       /* yeni fotoğrafın oranı farklıysa kutu da değişir: genişlik korunur, taşarsa daralır; ortası/sağ kenarı yerinde kalır */
       var k = fotoKutu(p, old.w, Math.max(old.h, s0.lay === 'cover' ? 400 : 300)), orta = Math.abs(old.x + old.w / 2 - W / 2) < 6;
       old.x = orta ? Math.round((W - k.w) / 2) : old.x + old.w - k.w; old.y = Math.max(20, Math.round(old.y + old.h / 2 - k.h / 2)); old.w = k.w; old.h = k.h;
-      s0.els.forEach(function (x) { if (x.id === old.creditId) { x.text = credText(p); x.x = old.x; x.w = old.w; x.y = old.y + old.h + 4; } });
+      s0.els.forEach(function (x) { if (x.id === old.creditId) { x.text = credText(p); x.x = old.x; x.w = old.w; x.y = old.y + old.h + 4; kunyeSonra(s0, x); } });
       if (p.track) fn('sunum-research', { action: 'track', url: p.track }, 15000).catch(function () {});
       selId = old.id; renderStage(); refreshThumb(); dirty(); imgDlg.close(); say('Fotoğraf değiştirildi.', undo); return;
     }
     /* Önce asetatın yuvası denenir (boş görsel kutusu dolar, çeşitli düzen sıkışır, sığmazsa yuva kapanır). Yuvası olmayan
        ya da sığmayan asetatta seçim kullanıcınındır: eski yerleşim yapılır ve yazıyla çakışabileceği söylenir. */
     s0 = ensureSlide(); var yy = gorselSec(s0, [p], '', imQ.value.trim()), serbest = !yy, im = yy ? gorselUygula(s0, yy, [p]) : null;
-    if (!im) { im = placePhoto(s0, p, imQ.value.trim()); yaziFit(s0); }
+    if (!im) { im = placePhoto(s0, p, imQ.value.trim()); yaziFit(s0); kunyeSonra(s0, kunyesi(s0, im)); }
     selId = im.id; renderStage(); refreshThumb(); paintMeta(); dirty(); imgDlg.close();
     var el = selEl(); if (el) el.focus({ preventScroll: true });
     say(serbest && yuvaFormlari(s0, '').length ? 'Fotoğraf eklendi ama bu düzende yazıya tam sığmıyor; gerekirse küçült ya da düzeni değiştir.' : 'Fotoğraf eklendi; fotoğrafçının adı altına yazıldı.', undo);
@@ -7920,7 +7954,7 @@ var SBX = (function () {
     var fotolar = s.els.filter(function (x) { return x.type === 'img' && x.src; }), kun0 = fotolar.map(function (x) { var kc = s.els.filter(function (y) { return y.id === x.creditId; })[0]; return kc ? kc.text : ''; }), fnot = '';
     s.els = alt || LAY[k].f(t || (k === 'end' ? 'Teşekkürler' : 'Başlık'), bl, c); s.lay = k; s.v = alt ? v : 0; yaziFit(s); selId = null;
     if (fotolar.length) { var fp = fotolar.slice(0, 2).map(fotoGeri), fy = gorselSec(s, fp, fp.length > 1 && k === 'list' && !s.v ? 'iki' : '', fp[0].alt);
-      if (fy) { gorselUygula(s, fy, []); s.els.filter(function (x) { return x.type === 'img' && x.src; }).forEach(function (x, j) { var kc = s.els.filter(function (y) { return y.id === x.creditId; })[0]; if (kc && kun0[j]) kc.text = kun0[j]; }); }
+      if (fy) { gorselUygula(s, fy, []); s.els.filter(function (x) { return x.type === 'img' && x.src; }).forEach(function (x, j) { var kc = s.els.filter(function (y) { return y.id === x.creditId; })[0]; if (kc && kun0[j]) { kc.text = kun0[j]; kunyeUydur(s, kc); } }); }
       else fnot = ' Fotoğraf bu düzende yazıya sığmadığı için kaldırıldı; geri al ile geri getirebilirsin.'; }
     renderStage(); refreshThumb(); dirty();
     say('Asetat “' + d.l + '” düzenine geçti; başlığın ve yazıların taşındı.' + (v && !alt ? ' Bu düzen için madde sayısı uymadı, klasik liste kullanıldı.' : '') + not + fnot, undo);
@@ -8719,6 +8753,37 @@ var SBX = (function () {
     return h + (r.status === 'pass' || !r.skippedSlides ? '' : gqBilgi() + '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-gq-run>yeniden denetle</button></div>') + '</div>';
   };
 
+  /* #44 Phase 7.1/7.2 — anlatı ve yoğunluk önerileri (yalnız info; notlar ve düzen DEĞİŞTİRİLMEZ, yalnız söylenir).
+     Salt okuyan çözümleyici: Phase 6 bloğunun (onarım) DIŞINDA durur, qaIcerik bulgularını ICERIK tablosundaki kodlarla ekler.
+     Kapak, kapanış, kaynakça ve gündem dışarıda; alıntı/sayı/grafik/tablo kısa olabilir, yalnız LİSTE ince sayılır.
+     ince: gövdede 10 kelimeden az — tek cümlelik ana mesaj (en az 6 kelime, nokta ile biter) hariç.
+     not yinelemesi: not cümlelerinin en az %60'ı bir maddeyi (köklerin %80'i) ya da yalnız başlığı tekrar ediyor.
+     art arda düzen: üç liste art arda aynı çeşitte ya da üçü de düz madde (0/9); sıra (8/12) bilinçli süreçtir, hariç. */
+  var qaKok = function (t) { var m = String(t || '').toLocaleLowerCase('tr').match(/[\p{L}\p{N}]{4,}/gu) || []; return m.map(function (w) { return w.slice(0, 5); }).filter(function (w, i, a) { return a.indexOf(w) === i; }); };
+  var qaAnlati = function (s, n, bulgu, sira) {
+    var lay = s.lay, v = s.v || 0, t = titleOf(s), yapi = /^(cover|end|refs)$/.test(lay) || (lay === 'list' && (v === 10 || /^(gündem|içindekiler|akış|sunum akışı|agenda|outline|contents)\b/i.test(String(t || '').trim())));
+    if (yapi) return;
+    var satir = [];
+    s.els.forEach(function (e) {
+      if (!e || e.muted || DECOR[e.type] || typeof e.text !== 'string') return;
+      if (e.type === 'ul') e.text.split('\n').forEach(function (l) { if (l.trim()) satir.push(l.trim()); });
+      else if (e.type === 't' && (e.size || 24) >= 16 && !kunyeSahibi(s, e) && e.text.trim()) satir.push(e.text.trim());
+    });
+    var kel = satir.join(' ').split(/\s+/).filter(Boolean).length;
+    if (lay === 'list' && kel && kel < 10 && !(satir.length === 1 && kel >= 6 && /[.!?…]["”»']?$/.test(satir[0]))) bulgu.push({ code: 'THIN_SLIDE', severity: ICERIK.THIN_SLIDE[0], slide: n, el: null });
+    var cum = String(s.notes || '').split(/(?<=[.!?])\s+/).filter(function (x) { return x.trim(); });
+    if (cum.length && satir.length) {
+      var tk = qaKok(t), bk = satir.map(qaKok).filter(function (k) { return k.length >= 4; });
+      var yin = cum.filter(function (c) { var k = qaKok(c); if (!k.length) return false;
+        if (k.every(function (w) { return tk.indexOf(w) >= 0; })) return true;
+        return k.length >= 4 && bk.some(function (b) { return k.filter(function (w) { return b.indexOf(w) >= 0; }).length / k.length >= 0.8; }); }).length;
+      if (yin && yin >= Math.ceil(cum.length * 0.6)) bulgu.push({ code: 'NOTES_ECHO', severity: ICERIK.NOTES_ECHO[0], slide: n, el: null });
+    }
+    sira.push(lay === 'list' && v !== 8 && v !== 12 ? 'list:' + v : null);
+    var son = sira.slice(-3), dizi = son.length === 3 && son.every(Boolean) && (son[0] === son[1] && son[1] === son[2] || son.every(function (x) { return x === 'list:0' || x === 'list:9'; }));
+    if (dizi && !sira.dizi) bulgu.push({ code: 'REPEATED_LAYOUT', severity: ICERIK.REPEATED_LAYOUT[0], slide: n, el: null });      /* dizi başına bir kez */
+    sira.dizi = dizi;
+  };
   /* ---------- PHASE 6: BİRLEŞİK DENETİM VE GÜVENLİ ONARIM (27.11.2026, #35) ----------
      Denetim penceresi üç raporu tek listede okur: içerik (Acadia puanı + yerel içerik denetimleri), teknik (Phase 4
      teknikQA; pencere açılınca bayatsa deterministik yeniden çalışır) ve görsel (Phase 5 sonucu ya da hesaptan gelen
@@ -8740,7 +8805,12 @@ var SBX = (function () {
   var ICERIK = {
     DUPLICATE_TITLE: ['warning', 'aynı başlık başka asetatta da var', 'the same title is used on another slide'],
     LONG_BULLETS: ['info', 'madde çok uzun (18 kelimeden fazla)', 'bullet too long (more than 18 words)'],
-    UNVERIFIED_NUMBERS: ['warning', 'doğrulanmamış sayı (sarı)', 'unverified number (yellow)']
+    UNVERIFIED_NUMBERS: ['warning', 'doğrulanmamış sayı (sarı)', 'unverified number (yellow)'],
+    /* #44 (Phase 7.2/7.1): yalnız ÖNERİ (info) — durum, puan ve onarım bunlardan etkilenmez. Alıntı, sayı, grafik, tablo,
+       kapak, kapanış, kaynakça ve gündem kısa olmak üzere tasarlanmıştır, denetlenmez. */
+    THIN_SLIDE: ['info', 'asetat çok ince (birkaç kelime)', 'slide is very thin (a few words)'],
+    NOTES_ECHO: ['info', 'konuşma notu maddeleri ya da başlığı yineliyor', 'speaker notes repeat the bullets or the title'],
+    REPEATED_LAYOUT: ['info', 'üç asetat art arda aynı düzende', 'three slides in a row use the same layout']
   };
   var KALITE_EN = { slide_count_mismatch: 'slide count does not match your request', duplicate_titles: 'the same title on several slides',
     weak_speaker_notes: 'speaker notes are short', dense_slides: 'some slides are too dense', visual_repetition: 'the same layout back to back',
@@ -8796,6 +8866,9 @@ var SBX = (function () {
     DUPLICATE_TITLE: ['Başlıklardan birini değiştir.', 'Change one of the titles.'],
     LONG_BULLETS: ['Asetatı açıp “kısalt”a bas.', 'Open the slide and press “shorten”.'],
     UNVERIFIED_NUMBERS: ['Sarı sayıları kaynakla karşılaştır.', 'Check the yellow numbers against the source.'],
+    THIN_SLIDE: ['Bir açıklama ya da örnek ekle, ya da asetatı komşusuyla birleştir.', 'Add an explanation or example, or merge the slide with its neighbour.'],
+    NOTES_ECHO: ['Nota asetatta yazmayan bir açıklama, örnek ya da bağlam ekle.', 'Add context, an example or an explanation that is not on the slide.'],
+    REPEATED_LAYOUT: ['Bu asetatın ya da önceki ikisinden birinin düzenini şeritten değiştir.', 'Change the layout of this slide or one of the two before it from the strip.'],
     slide_count_mismatch: ['Asetat ekle ya da çıkar.', 'Add or remove slides.'],
     duplicate_titles: ['Başlıklardan birini değiştir.', 'Change one of the titles.'],
     weak_speaker_notes: ['Konuşma notlarını genişlet.', 'Expand the speaker notes.'],
@@ -8819,7 +8892,7 @@ var SBX = (function () {
   var qaOneri = function (kod) { return (qaOwn(QA_ONERI, kod) ? QA_ONERI[kod] : QA_GENEL)[0]; };
   /* kaynaklar: { durum, not, bulgu: [{ code, severity, slide (1'den | null), el, why }] } */
   var qaIcerik = function (d) {
-    var q = d.quality, out = { durum: 'not_checked', not: 'Acadia puanı henüz ölçülmedi.', bulgu: [] }, seen = {}, cift = false;
+    var q = d.quality, out = { durum: 'not_checked', not: 'Acadia puanı henüz ölçülmedi.', bulgu: [] }, seen = {}, cift = false, sira = [];
     arr(d.slides).forEach(function (s, i) {
       if (!s || !Array.isArray(s.els)) return;
       var n = i + 1, k = titleKey(titleOf(s));
@@ -8829,6 +8902,7 @@ var SBX = (function () {
         if (e.type === 'ul' && typeof e.text === 'string' && e.text.split('\n').some(function (l) { return l.split(/\s+/).length > 18; })) out.bulgu.push({ code: 'LONG_BULLETS', severity: ICERIK.LONG_BULLETS[0], slide: n, el: e.id });
         if (e.warn && e.warn.length) out.bulgu.push({ code: 'UNVERIFIED_NUMBERS', severity: ICERIK.UNVERIFIED_NUMBERS[0], slide: n, el: e.id });
       });
+      qaAnlati(s, n, out.bulgu, sira);
     });
     var yerel = out.bulgu.some(function (z) { return z.severity !== 'info'; });
     if (q == null) return out;
