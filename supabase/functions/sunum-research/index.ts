@@ -1162,7 +1162,7 @@ const ON_FIIL_ES: [string, RegExp][] = [["degis", /(^|[^a-z])(ayni|sabit) (kal|d
 const ON_EK_UYARI = ["(kaynaklar farklı değerler veriyor)", "(sources give different values)", "(kaynaklar farklı tanım ya da kapsam kullanıyor)", "(sources use different definitions or scope)", "(kaynak tarihsiz)", "(source undated)",
   "(eski tarihli kaynak)", "(older source)", "(sınırlı kaynak çeşitliliği)", "(limited source diversity)", "(kaynaklarca kısmen destekleniyor)", "(partly supported by sources)", "(kaynaklarla doğrulanmadı)",
   "(unverified against sources)", "(kaynaklar farklı bir değer veriyor)", "(sources give a different value)"];      /* istemci ON_EK'in parantezli uyarıları */
-const onSay = (re: RegExp, t: string) => { re.lastIndex = 0; const k = onKat(t); let n = 0; while (re.exec(k)) n++; return n; };
+const onSay = (re: RegExp, t: string) => { re.lastIndex = 0; return (onKat(t).match(re) || []).length; };      /* g bayraklı; döngü yok (P9/V5 yeniden deneme denetimi) */
 type OnFiil = { neg: { w: string; kok: string }[]; soz: string[] };
 const onFiiller = (t: string): OnFiil => { const o: OnFiil = { neg: [], soz: [] }; for (const w of onKat(t).match(/[a-z]+/g) || []) { o.soz.push(w); const m = !ON_FIIL_DEGIL[w] && ON_FIIL.exec(w); if (m) o.neg.push({ w, kok: m[1] }); } return o; };
 const onKokler = (k: string) => { const v = [k], y = ({ p: "b", t: "d", k: "g" } as Record<string, string>)[k.slice(-1)]; if (y) v.push(k.slice(0, -1) + y); if (/[aeiou]$/.test(k) && k.length >= 4) v.push(k.slice(0, -1)); return v.filter((x) => x.length >= 3); };
