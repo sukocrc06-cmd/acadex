@@ -130,6 +130,7 @@
     '.mal-u h2{margin:0;font:800 20px "Bricolage Grotesque","Instrument Sans",sans-serif}.mal-u small{display:block;color:#6A7593;font-size:12.5px;font-weight:500}',
     '.mal-u .sag{margin-left:auto;display:flex;gap:8px}',
     '.mal-b{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border:1.5px solid #0D1838;border-radius:999px;background:#fff;color:#0D1838;font-weight:700;font-size:14px;cursor:pointer}',
+    'a.mal-b{text-decoration:none}',
     '.mal-b.pri{background:#0D1838;color:#fff}.mal-b:disabled{opacity:.4;cursor:default}',
     '.mal-x{width:40px;height:40px;border:0;border-radius:12px;background:#EEF2F5;font-size:20px;cursor:pointer;color:#0D1838}',
     '.mal-g{flex:1;overflow:auto;padding:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;align-content:start}',
@@ -191,7 +192,7 @@
   };
   var liste = function () {
     govde({ cls: 'mal-g', h: ALET.map(function (a) { return '<button type="button" class="mal-c" data-ac="' + a.id + '" style="--ac:' + a.renk + '">' + svg(a) + '<b>' + X(a.ad) + '</b><span>' + X(a.kisa) + '</span>' + (gor.indexOf(a.id) >= 0 ? '<i>✓ incelendi</i>' : '') + '</button>'; }).join('') },
-      'Alet dolabı · muayene aletleri', gor.length + ' / ' + ALET.length + ' alet incelendi' + (ls.get('enIyi', null) != null ? ' · sınavda en iyi ' + ls.get('enIyi') + ' / 8' : ''), '<button type="button" class="mal-b pri" data-a="sinav">Kendini dene</button>');
+      'Alet dolabı · muayene aletleri', gor.length + ' / ' + ALET.length + ' alet incelendi' + (ls.get('enIyi', null) != null ? ' · sınavda en iyi ' + ls.get('enIyi') + ' / 8' : ''), '<a class="mal-b" href="../depo/index.html">Bütün bölümler: Cihaz Deposu →</a><button type="button" class="mal-b pri" data-a="sinav">Kendini dene</button>');
     setTimeout(function () { var b = EL && EL.querySelector('.mal-c'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }, 30);
   };
   var detay = function (id, secP) {

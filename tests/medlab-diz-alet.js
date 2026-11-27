@@ -25,7 +25,13 @@ const kemikAdlari = () => {
 const dizKurali = () => {
   const a = anat.indexOf('const DIZ_RAF = ['), b = anat.indexOf('const dizRaf = ');
   assert.ok(a > 0 && b > a, 'DIZ_RAF tanımı bulunamadı');
-  return new Function(anat.slice(a, b) + '\nreturn { DIZ_RAF, DIZ_DISI, dizAgirlik };')();
+  const DIZ = { kume: 'iskelet' };
+  return Object.assign(new Function('DIZ', anat.slice(a, b) + '\nreturn { DIZ_RAF, DIZ_DISI, dizAgirlik, KUME };')(DIZ), { DIZ });
+};
+const adlar = (sys) => {
+  const ctx = { window: {} }; new Function('window', read('labs/anatomi/data/ax-' + sys + '.js'))(ctx.window);
+  const b = Buffer.from(ctx.window.AXD[sys], 'base64'), jl = b.readUInt32LE(0);
+  return JSON.parse(b.subarray(4, 4 + jl).toString()).map(i => i.n);
 };
 
 test('Diz: modeldeki kemikler 9 rafa dağılır ve sayım tam 206', () => {
@@ -42,8 +48,26 @@ test('Diz: modeldeki kemikler 9 rafa dağılır ve sayım tam 206', () => {
   assert.ok(adlar.filter(n => DIZ_DISI.test(n)).every(n => /tooth|incisor|canine|premolar|cartilage|Sinus|cells of ethmoid/.test(n)));
 });
 
+test('Organ dizilimi: 55 parça 8 sisteme dağılır; zarlar ve karaciğer segmentleri dizilmez', () => {
+  const { KUME, DIZ } = dizKurali(), K = KUME.organ, A = adlar('organ'); DIZ.kume = 'organ';
+  const rafli = A.filter(n => !K.disi.test(n)), ilk = n => K.raf.findIndex(r => r[1].test(n));
+  assert.deepEqual(rafli.filter(n => ilk(n) < 0), [], 'sistemi olmayan organ');
+  assert.deepEqual(K.raf.map((r, i) => rafli.filter(n => ilk(n) === i).length), [9, 3, 7, 3, 8, 5, 10, 10]);
+  assert.ok(A.filter(n => /segment of liver/.test(n)).every(n => K.disi.test(n)), 'segmentler tüm karaciğerle çakışmasın');
+  assert.ok(['Liver', 'Stomach', 'Trachea', 'Kidney.l', 'Thyroid gland'].every(n => ilk(n) >= 0));
+});
+
+test('Yerine koy oyunu: sürükleme yalnız raftaki parçada, doğru bırakma ekran uzaklığıyla; ikinci hatada ipucu', () => {
+  assert.match(anat, /if \(!DIZ\.on \|\| !DIZ\.oyun \|\| e\.button !== 0 \|\| e\.target !== el\) return;/);
+  assert.match(anat, /if \(!h \|\| !DIZ\.rafta\.has\(h\.mesh\) \|\| DIZ\.ucan\.has\(h\.mesh\)\) return;/);
+  assert.match(anat, /e\.stopPropagation\(\); e\.preventDefault\(\);/, 'sürüklerken kamera dönmez');
+  assert.match(anat, /if \(d <= tol\) \{/); assert.match(anat, /if \(n >= 2\) \{ dizIpucu\(hedef\);/);
+  assert.match(anat, /controls\.enabled = true; dizIpucu\(null\);/, 'kapanınca kamera serbest');
+  assert.match(anat, /applyVis\(\); dizBar\(\);   \/\* solma yok/, 'yeni görünen organlar hemen tıklanabilir (solma sırasında pickables dışında kalıyordu)');
+});
+
 test('Diz: düğme, tıklama kancası, görünürlük kancası ve kapanışta konumlar sıfırlanır', () => {
-  assert.match(anat, /<button id="dizBtn" aria-pressed="false"[^>]*>Diz<\/button>/);
+  assert.match(anat, /<button id="dizBtn" aria-pressed="false"[^>]*>Diz<\/button>/); assert.match(anat, /data-kume="iskelet"[\s\S]*data-kume="organ"/);
   assert.match(anat, /if \(window\.__axDiz && window\.__axDiz\.on && window\.__axDiz\.tik\(h\)\) return;/);
   assert.match(anat, /if \(window\.__axDiz && window\.__axDiz\.on\) \{ if \(window\.__axDiz\.set\.has\(m\)\) \{ on = true; a = 1; \} else on = false; \}/);
   assert.match(anat, /DIZ\.list\.forEach\(m => \{ m\.position\.set\(0, 0, 0\); m\.scale\.setScalar\(1\); m\.userData\._diz = null; \}\);/);
@@ -94,6 +118,42 @@ test('alet dolabı: 8 alet, parçalar çizimin içinde, adımlar ve sınav sorul
   assert.ok(A.DURUM.length >= 8 && A.DURUM.every(d => ids.has(d[1])));
   const med = read('labs/medica/index.html');
   assert.match(med, /id="md-alet"/); assert.match(med, /<script src="medica\.js"><\/script>\n<script src="medica-alet\.js"><\/script>/);
+});
+
+/* ---------------- Cihaz Deposu ---------------- */
+const depoYukle = () => { const W = {}; new Function('window', 'globalThis', read('labs/depo/depo-veri.js') + '\n' + read('labs/depo/depo-sim.js'))(W, W); return W; };
+test('Cihaz Deposu: 9 bölüm, 58 cihaz + 8 muayene aleti; her cihazın içeriği ve parçaları çizimin içinde', () => {
+  const W = depoYukle(), V = W.AXDEPO;
+  assert.equal(V.BOLUM.length, 9); assert.equal(V.CIHAZ.length, 58);
+  const ids = new Set(); V.CIHAZ.forEach(c => {
+    assert.ok(!ids.has(c.id), 'tekrar: ' + c.id); ids.add(c.id); assert.match(c.id, /^[a-z0-9-]+$/, 'url için güvenli kimlik: ' + c.id);
+    assert.ok(V.BOLUM.some(b => b.id === c.b), c.id + ' bölüm');
+    assert.ok(c.ciz && c.ciz.length > 80 && c.ne.length > 60 && c.adim.length >= 3 && c.dikkat.length >= 1, c.id + ' içerik');
+    (c.parca || []).forEach(p => assert.ok(p[1] >= 4 && p[1] <= 236 && p[2] >= 4 && p[2] <= 158, c.id + ' parça konumu ' + p[0]));
+  });
+  V.BOLUM.filter(b => b.id !== 'muayene').forEach(b => assert.ok(V.CIHAZ.filter(c => c.b === b.id).length >= 6, b.id + ' en az 6 cihaz'));
+  const sims = V.CIHAZ.filter(c => c.sim).map(c => c.sim).sort();
+  assert.deepEqual(sims, ['defib', 'enj', 'gluko', 'gonyo', 'odyo', 'pompa', 'vent']);
+  sims.forEach(s => assert.equal(typeof W.DEPOSIM[s].baslat, 'function'));
+});
+
+test('Cihaz Deposu simülasyon hesapları: İVA, hız, damla, hacim, enjektör, fleksiyon', () => {
+  const H = depoYukle().DEPOSIM.hesap;
+  assert.equal(H.iva('E', 180), 75.1); assert.equal(H.iva('K', 160), 52.4);
+  assert.equal(H.hiz(1000, 8), 125); assert.equal(H.hiz(100, 0.5), 200);
+  assert.equal(H.damla(1000, 480, 20), 42); assert.equal(H.damla(500, 360, 60), 83);
+  assert.equal(H.hacim(750, 250), 3); assert.equal(H.hacim(300, 24), 12.5); assert.equal(H.hacim(4, 10), 0.4);
+  assert.equal(H.enjektor(0.4), 1); assert.equal(H.enjektor(2), 3); assert.equal(H.enjektor(12.5), 20);
+  assert.equal(H.fleksiyon([80, 150], [250, 150], [410, 150]), 0, 'düz diz 0°');
+  assert.equal(H.fleksiyon([80, 150], [250, 150], [250, 310]), 90);
+});
+
+test('Cihaz Deposu MedLab’e bağlı: kart, lab kaydı, kampüs turu durağı', () => {
+  const dash = read('dashboard.html'), ml = read('js/acadex-medlab.js'), idx = read('index.html');
+  assert.match(dash, /data-medlab-open="depo"/); assert.match(ml, /depo: \{ t: 'Cihaz Deposu', src: 'labs\/depo\/index\.html' \}/);
+  assert.match(idx, /<article class="kt-st" data-st="dpo"/); assert.match(idx, /data-kt-git="9" aria-label="Acadex Medica durağına git"/);
+  const sim = read('labs/depo/depo-sim.js'); assert.doesNotMatch(sim, /data-c[ =]/, 'depo.js [data-c] ile kart açar; simülasyon bu adı kullanmamalı');
+  assert.match(read('labs/depo/index.html'), /<script src="\.\.\/medica\/medica-alet\.js"><\/script>/);
 });
 
 summary();
