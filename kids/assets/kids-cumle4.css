@@ -1,0 +1,24 @@
+/* ==========================================================================
+   ACADEX KIDS · CÜMLE GALAKSİSİ: GRAMER İSTASYONU VE CANLI KURAL (kids/assets/kids-cumle4.css), 27.11.2026
+   bkz. kids-cumle4.js. Canlı kelime karakterleri kids-gramer.css'teki kzm- sınıflarıyla çizilir.
+   ========================================================================== */
+.kc4-istasyon{width:min(560px,100%);margin:18px auto 0;padding:14px 16px 16px;border:2.5px solid rgba(143,211,255,.7);border-radius:24px;background:linear-gradient(160deg,rgba(74,168,255,.22),rgba(142,124,240,.18));color:#fff}
+.kc4-istasyon h2{display:flex;align-items:center;gap:8px;margin:0 0 10px;font:800 21px/1.1 var(--bas)}
+.kc4-istasyon h2 small{font-size:14px;color:#C9D2F0;font-weight:700}
+.kc4-ist-l{display:grid;gap:10px}
+.kc4-ders{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;border:3px solid #0B1033;border-radius:18px;background:#FFFDF6;color:#23304D;box-shadow:0 5px 0 #0B1033;font:inherit;text-align:left;cursor:pointer;transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.kc4-ders:hover{transform:translateY(-3px)}
+.kc4-ders:focus-visible{outline:4px solid #FFD23F;outline-offset:3px}
+.kc4-d-ev{position:relative;flex:none;width:44px;height:44px;border-radius:12px;background:var(--r);border:3px solid #23304D}
+.kc4-d-ev i{position:absolute;left:50%;top:50%;width:3px;height:14px;margin:-14px 0 0 -1.5px;border-radius:2px;background:#23304D;transform-origin:50% 100%}
+.kc4-d-ev::after{content:"";position:absolute;left:50%;top:50%;width:10px;height:3px;margin:-1.5px 0 0;border-radius:2px;background:#E5484D}
+@media (prefers-reduced-motion:no-preference){.kc4-d-ev i{animation:kc4Don 3s linear infinite}}
+@keyframes kc4Don{to{transform:rotate(360deg)}}
+.kc4-d-t{display:flex;flex-direction:column;flex:1;line-height:1.15}
+.kc4-d-t b{font:800 19px/1.15 var(--bas)}.kc4-d-t small{font:700 13px/1.2 var(--bas);color:#5B6788}
+.kc4-d-a{display:flex;gap:4px;font-style:normal}
+.kc4-d-a u{width:12px;height:12px;border-radius:50%;border:2px solid #23304D;background:#E8ECF5}
+.kc4-d-a u.on{background:#4CC38A}
+.kc4-bitti{background:#F0FBF3}
+.kc4-canli{display:flex;flex-direction:column;align-items:center;margin:4px 0 6px}
+.kc4-canli .kzm-cumle{margin:4px 0}

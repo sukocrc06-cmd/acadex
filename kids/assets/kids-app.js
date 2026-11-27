@@ -221,10 +221,15 @@
      haritanın sağ üstünde dönen bir galaksi kapısı */
   /* 22.11.2026: ilkokulda (kurum türü) açık; tür bilinmiyorsa (eski önbellek) Yıldızlar sınıfında; veli kapatabilir ya da başka çocukta açabilir */
   function ilkokulMu() { return S.okul && S.okul.tur ? S.okul.tur === 'ilkokul' : !!(S.sinif && S.sinif.bant === 'yildiz'); }
-  function portalAcik(il) { return !!W.KIDS_CUMLE && (il.ilkSinif > 0 || (il.ilkSinif === undefined && ilkokulMu())); }
+  function portalAcik(il) { return !!W.KIDS_CUMLE && (!!W.KIDS_EKIP || il.ilkSinif > 0 || (il.ilkSinif === undefined && ilkokulMu())); }
   function portalHtml(il) {
     if (!portalAcik(il)) return '';
-    return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>';
+    return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>' +
+      /* 27.11.2026 Zaman Makinesi Kasabası (kids-gramer.js): dil bilgisi, kolay/orta/zor */
+      /* geliştirmede: yalnız test ekibi (W.KIDS_EKIP, kids-test.js); diğer kullanıcılarda kapı hiç çizilmez */
+      (W.KIDS_GRAMER && W.KIDS_EKIP ? '<button type="button" class="ka-portal kzm-portal" data-gramer aria-label="Zaman Makinesi Kasabasına git"><span class="kzm-portal-g" aria-hidden="true"><i></i><i></i></span><span class="ka-portal-y"><small>Dil bilgisi</small><b>Zaman Kasabası</b></span></button>' : '') +
+      /* 27.11.2026 Dinle ve Bul (kids-dinlebul.js): anaokulu, yazısız; dinle, resme dokun. Yalnız test ekibi */
+      (W.KIDS_DINLEBUL && W.KIDS_EKIP ? '<button type="button" class="ka-portal kdb-portal" data-dinlebul aria-label="Dinle ve Bul"><span class="kdb-portal-g" aria-hidden="true"><i></i></span><span class="ka-portal-y"><small>Anaokulu</small><b>Dinle ve Bul</b></span></button>' : '');
   }
   var karsilanan = '';   /* son karşılanan çocuk|gün|konu (bellekte: sayfa yenilenince yeni giriş sayılır) */
   function panel() {
@@ -264,6 +269,11 @@
       konular: V.KONU.map(function (k) { return { id: k.id, renk: k.renk, simge: k.simge, kilit: !k.acik, yeniAcik: !!yeniAcik[k.id], asama: k.acik ? OD.asama(il, k.id) : 0 }; }) });
     var cg = app.querySelector('[data-cumle]');
     if (cg) cg.addEventListener('click', function () { SES.fx('dokun'); jole(cg); var r = W.KIDS_CUMLE.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
+    var gk = app.querySelector('[data-gramer]');
+    if (!gk && !W.__kidsEkipDinle) { W.__kidsEkipDinle = true; D.addEventListener('kids:ekip', function () { if (app.dataset.gorunum === 'harita' && !app.querySelector('[data-gramer]')) panel(); }); }
+    if (gk) gk.addEventListener('click', function () { SES.fx('dokun'); jole(gk); var r = W.KIDS_GRAMER.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
+    var db = app.querySelector('[data-dinlebul]');
+    if (db) db.addEventListener('click', function () { SES.fx('dokun'); jole(db); var r = W.KIDS_DINLEBUL.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur }); if (r && r.dur) aktif = r; });
     var sz = app.querySelector('[data-surpriz]');
     if (sz) sz.addEventListener('click', function () { var l = acikIds.filter(function (id) { return id !== (S.konu || ''); }), id = l[Math.floor(Math.random() * l.length)], b = id && app.querySelector('.ka-ada[data-konu="' + id + '"]'); jole(sz); if (b) b.click(); });
     /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
@@ -834,7 +844,7 @@
         /* 22.11.2026: ilkokul raporu (Cümle Galaksisi oynandıysa) */
         (on ? '<section class="ka-veli-oneri" style="--r:' + on.k.renk + '"><span>' + C.simge(on.k.simge) + '</span><div><small>Sıradaki önerimiz</small><b lang="en">' + esc(on.k.en) + '</b> <i>' + esc(on.k.tr) + '</i><p>' + esc(on.neden) + '</p></div></section>' : '') +
         '<section><h3>Bu hafta tanıştığı kelimeler <small>' + yk.length + '</small></h3>' + (yk.length ? '<ul class="ka-veli-kel">' + yk.slice(0, 12).map(function (o) { return '<li style="--r:' + (o.hex || '#9AA7BD') + '">' + dinle(o.en) + (RS.var(o.id) ? '<span class="ka-veli-kr">' + RS.ciz(o.id) + '</span>' : '') + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul>' + (yk.length > 12 ? '<p class="ka-pen-alt">ve ' + (yk.length - 12) + ' kelime daha. Tamamı “Kelimeler” sekmesinde.</p>' : '<p class="ka-pen-alt">Dokunun, dinleyin; akşam yemeğinde birlikte söyleyin.</p>') : '<p class="ka-pen-alt">Bu hafta yeni kelime yok. Haritadan bir gezegen seçmeye ne dersiniz?</p>') + '</section>' +
-        (W.KIDS_CUMLE && W.KIDS_CUMLE.rapor ? W.KIDS_CUMLE.rapor(il) : '') +
+        (W.KIDS_CUMLE && W.KIDS_CUMLE.rapor ? W.KIDS_CUMLE.rapor(il) : '') + (W.KIDS_GRAMER && W.KIDS_GRAMER.rapor ? W.KIDS_GRAMER.rapor(il) : '') +
         (biten.length ? '<section><h3>Rozetleri</h3><ul class="ka-veli-rozet">' + biten.map(function (x) { return '<li>' + RS.rozet(x.renk, simgeIc(x.simge), false) + '<small>' + esc(x.rozet || x.tr) + '</small></li>'; }).join('') + '</ul></section>' : '') +
         '<section><h3>Konular</h3><ul class="ka-veli-konu">' + acik.map(function (x) { var n = yildizK(x); return '<li style="--r:' + x.renk + '"><span>' + C.simge(x.simge) + '</span><b lang="en">' + esc(x.en) + '</b><i><em style="width:' + Math.round(n / OD.konuMax(x.id) * 100) + '%"></em></i><small>' + n + '/' + OD.konuMax(x.id) + ' ★' + (il.bitti && il.bitti[x.id] ? ' · bitirdi' : '') + '</small></li>'; }).join('') + '</ul></section>' +
         '<section><h3>Zorlandığı kelimeler</h3>' + (zor.length ? '<ul class="ka-veli-kel">' + zor.map(function (o) { return '<li style="--r:' + o.hex + '">' + dinle(o.en) + (RS.var(o.id) ? '<span class="ka-veli-kr">' + RS.ciz(o.id) + '</span>' : '') + '<b lang="en">' + esc(o.en) + '</b><small>' + esc(o.tr) + '</small></li>'; }).join('') + '</ul><p class="ka-pen-alt">Dinleyip birlikte tekrar edin; günlük hayatta gösterip sorun.</p>' : '<p class="ka-pen-alt">Henüz zorlandığı bir kelime yok.</p>') + '</section>';

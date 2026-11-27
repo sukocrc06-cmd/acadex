@@ -1,0 +1,89 @@
+/* ==========================================================================
+   ACADEX KIDS · DİNLE VE BUL (kids/assets/kids-dinlebul.css), 27.11.2026 — bkz. kids-dinlebul.js
+   Önek kdb-. Yazısız, büyük dokunma alanları (en az 96 px kart, 64 px düğme), yumuşak pastel bahçe.
+   Haritadaki kapı: .ka-portal.kdb-portal
+   ========================================================================== */
+.ka-portal.kdb-portal{top:154px;background:linear-gradient(135deg,rgba(255,158,181,.35),rgba(255,210,63,.3))}
+.kdb-portal-g{position:relative;flex:none;width:42px;height:42px;border-radius:50%;background:#FFD23F;border:3px solid #23304D;display:grid;place-items:center}
+.kdb-portal-g i{width:18px;height:18px;border-radius:50% 50% 50% 10%;border:3px solid #23304D;border-right-color:transparent;border-bottom-color:transparent;transform:rotate(45deg)}
+@media (prefers-reduced-motion:no-preference){.kdb-portal-g{animation:kdbNabiz 1.8s ease-in-out infinite}}
+@media (max-width:760px){.ka-portal.kdb-portal{top:196px}}
+@keyframes kdbNabiz{50%{transform:scale(1.1)}}
+
+.kdb{position:relative;min-height:100dvh;padding:0 0 24px;color:#23304D;background:linear-gradient(180deg,#CDEBFF,#F2FAFF 55%,#F4FFE9)}
+.kdb-gizli{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.kdb-ust{position:relative;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
+.kdb-yuv{display:grid;place-items:center;width:64px;height:64px;border:4px solid #23304D;border-radius:50%;background:#fff;box-shadow:0 5px 0 #23304D;color:#23304D;font:800 30px/1 var(--bas);cursor:pointer}
+.kdb-yuv .kc-simge{width:34px;height:34px}
+.kdb-yuv:active{transform:translateY(4px);box-shadow:0 1px 0 #23304D}
+.kdb-yuv:focus-visible,.kdb-balon:focus-visible,.kdb-kart:focus-visible,.kdb-dinle:focus-visible{outline:5px solid #FF6B9A;outline-offset:3px}
+.kdb-ses-b{background:#FFD23F}
+.kdb-ust-acd{width:84px}.kdb-ust-acd .kc{width:100%;height:auto;display:block}
+@media (prefers-reduced-motion:no-preference){.kdb-ust-acd{animation:kdbSuz 3s ease-in-out infinite}}
+@keyframes kdbSuz{50%{translate:0 -8px}}
+
+/* bahçe: balonlar */
+.kdb-bahce{position:relative;width:min(1100px,100%);margin:0 auto;padding:10px 14px 40px;min-height:calc(100dvh - 110px)}
+.kdb-gunes{position:absolute;right:6%;top:-10px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,#FFF6B8,#FFD23F 60%,#FFB020);box-shadow:0 0 60px rgba(255,210,63,.8);pointer-events:none}
+.kdb-cimen{position:fixed;left:0;right:0;bottom:0;height:26vh;border-radius:50% 50% 0 0 / 30% 30% 0 0;background:linear-gradient(180deg,#A8E28A,#7CC56E);pointer-events:none;z-index:0}
+.kdb-balonlar{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:26px 20px;margin:0;padding:20px 0 0;list-style:none}
+.kdb-balonlar li{display:flex;justify-content:center}
+@media (prefers-reduced-motion:no-preference){.kdb-balonlar li{animation:kdbGel .6s calc(var(--i) * .07s) cubic-bezier(.3,1.5,.5,1) both}
+  .kdb-balon:not(.kdb-kilit){animation:kdbSuz calc(3s + var(--i) * .25s) ease-in-out infinite}}
+@keyframes kdbGel{from{opacity:0;transform:translateY(40px) scale(.5)}}
+.kdb-balon{position:relative;display:flex;flex-direction:column;align-items:center;width:150px;height:170px;padding:0;border:0;background:none;cursor:pointer}
+.kdb-balon::before{content:"";position:absolute;left:5px;top:0;width:140px;height:150px;border-radius:50% 50% 48% 48% / 55% 55% 45% 45%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.85) 0 10%,transparent 11%),var(--r);border:4px solid #23304D;box-shadow:inset -10px -12px 0 rgba(0,0,0,.12)}
+.kdb-ip{position:absolute;left:50%;top:150px;width:2px;height:40px;background:#23304D;transform:translateX(-50%)}
+.kdb-ip::before{content:"";position:absolute;left:-7px;top:-6px;border:8px solid transparent;border-bottom-color:#23304D;transform:scaleY(.8)}
+.kdb-b-ic{position:relative;z-index:1;display:grid;place-items:center;width:100px;height:100px;margin-top:20px;border-radius:50%;background:#fff;border:3px solid #23304D}
+.kdb-b-ic > *{width:84px;height:84px}
+.kdb-b-y{position:relative;z-index:1;display:flex;gap:1px;margin-top:-6px;padding:2px 6px;border-radius:12px;background:#fff;border:2.5px solid #23304D;font-size:18px;line-height:1}
+.kdb-b-y i{font-style:normal;color:#E8ECF5;-webkit-text-stroke:1.2px #23304D}.kdb-b-y i.on{color:#FFD23F}
+.kdb-kilit::before{filter:grayscale(.85) brightness(.95)}.kdb-kilit .kdb-b-ic{filter:grayscale(1);opacity:.6}
+.kdb-pat::before{transform:scale(1.25);opacity:0;transition:transform .35s,opacity .35s}
+.kdb-salla{outline:4px solid #E5484D;outline-offset:2px;border-radius:30px}
+@media (prefers-reduced-motion:no-preference){.kdb-salla{outline:0;animation:kdbSalla .45s ease-in-out}}
+@keyframes kdbSalla{20%,60%{transform:translateX(-9px) rotate(-4deg)}40%,80%{transform:translateX(9px) rotate(4deg)}}
+
+/* oyun */
+.kdb-nokta{display:flex;gap:8px;margin:0;padding:0;list-style:none}
+.kdb-nokta li{width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #23304D}
+.kdb-nokta li.simdi{background:#FFD23F}
+.kdb-nokta li.tamam{background:#4CC38A}
+@media (prefers-reduced-motion:no-preference){.kdb-nokta li.simdi{animation:kdbNabiz 1s ease-in-out infinite}}
+.kdb-alan{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:22px;width:min(1000px,100%);margin:0 auto;padding:6px 14px}
+.kdb-soru{display:flex;align-items:center;gap:18px}
+.kdb-acd{width:110px}.kdb-acd .kc{width:100%;height:auto;display:block}
+.kdb-dinle{display:grid;place-items:center;width:110px;height:110px;border:5px solid #23304D;border-radius:50%;background:#FFD23F;box-shadow:0 7px 0 #23304D;cursor:pointer}
+.kdb-dinle .kc-simge{width:60px;height:60px}
+.kdb-dinle:active{transform:translateY(5px);box-shadow:0 2px 0 #23304D}
+@media (prefers-reduced-motion:no-preference){.kdb-konusuyor{animation:kdbDalga .8s ease-in-out infinite}}
+@keyframes kdbDalga{0%,100%{box-shadow:0 7px 0 #23304D,0 0 0 0 rgba(255,210,63,.7)}50%{box-shadow:0 7px 0 #23304D,0 0 0 18px rgba(255,210,63,0)}}
+.kdb-kartlar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;width:100%}
+.kdb-kart{position:relative;display:grid;place-items:center;aspect-ratio:1;min-height:110px;padding:12px;border:5px solid #23304D;border-radius:32px;background:#fff;box-shadow:0 8px 0 #23304D;cursor:pointer;transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.kdb-kart:hover{transform:translateY(-4px)}
+.kdb-kart:active{transform:translateY(6px);box-shadow:0 2px 0 #23304D}
+@media (prefers-reduced-motion:no-preference){.kdb-kart{animation:kdbGel .5s calc(var(--j) * .12s) cubic-bezier(.3,1.5,.5,1) both}}
+.kdb-res,.kdb-top{display:block;width:80%;height:80%}
+.kdb-res .kc,.kdb-res svg{width:100%;height:100%;display:block}
+.kdb-say{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;width:100%;height:100%}
+.kdb-say-i{display:block;width:44%}.kdb-say1 .kdb-say-i{width:70%}.kdb-say3 .kdb-say-i{width:40%}
+.kdb-say-i .kc,.kdb-say-i svg{width:100%;height:auto;display:block}
+.kdb-boy{display:grid;place-items:center;width:100%;height:100%}
+.kdb-boy .kc,.kdb-boy svg{display:block;height:auto}
+.kdb-b .kc,.kdb-b svg{width:92%}.kdb-k .kc,.kdb-k svg{width:38%}
+.kdb-dogru{background:#C6EDCF;border-color:#1E8A55;box-shadow:0 8px 0 #1E8A55}
+@media (prefers-reduced-motion:no-preference){.kdb-dogru{animation:kdbZipla .6s cubic-bezier(.3,1.6,.5,1)}}
+@keyframes kdbZipla{40%{transform:translateY(-24px) scale(1.08) rotate(-3deg)}}
+.kdb-sonuk{opacity:.35;filter:grayscale(.6)}
+.kdb-ipucu{box-shadow:0 0 0 8px #FFD23F,0 8px 0 #23304D}
+@media (prefers-reduced-motion:no-preference){.kdb-ipucu{animation:kdbNabiz .9s ease-in-out infinite}}
+.kdb-bitis{position:relative;display:grid;justify-items:center;gap:16px;width:100%;padding:20px 0;overflow:hidden}
+.kdb-bitis-acd{width:150px}.kdb-bitis-acd .kc{width:100%;height:auto;display:block}
+.kdb-yildiz{display:flex;gap:12px;margin:0;font-size:80px;line-height:1}
+.kdb-yildiz i{font-style:normal;color:#E8ECF5;-webkit-text-stroke:3px #23304D}.kdb-yildiz i.on{color:#FFD23F}
+@media (prefers-reduced-motion:no-preference){.kdb-yildiz i{animation:kdbGel .5s calc(var(--q) * .3s) cubic-bezier(.3,1.6,.5,1) both}}
+.kdb-bitis-d{display:flex;gap:22px}
+.kdb-yuv-b{width:92px;height:92px;font-size:44px}.kdb-yuv-b .kc-simge{width:46px;height:46px}
+.kdb-yesil{background:#4CC38A}
+@media (max-width:600px){.kdb-kartlar{grid-template-columns:1fr;justify-items:center;gap:14px}.kdb-kart{width:min(62vw,21vh);min-height:0;border-radius:24px;border-width:4px}.kdb-alan{gap:14px}.kdb-acd{width:80px}.kdb-dinle{width:90px;height:90px}.kdb-balon{transform:scale(.9)}.kdb-balonlar{grid-template-columns:repeat(2,minmax(0,1fr))}}

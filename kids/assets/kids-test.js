@@ -20,7 +20,17 @@
       return !!(s && (s.access_token || s.refresh_token) && s.user && s.user.email);
     } catch (e) { return false; }
   }
-  if (!oturumVar()) return;
+  /* 27.11.2026: geliştirmedeki bölümler (Zaman Makinesi Kasabası, galaksinin gramer içeriği) yalnız test ekibine
+     (tp_members) açık. Oturum yoksa bayrak da yok; varsa önceki doğrulama hemen kullanılır, sonra yeniden sorulur. */
+  var EKIP_LS = 'acadex.kids.ekip';
+  function ekipYaz(email) {
+    var onceki = !!W.KIDS_EKIP; W.KIDS_EKIP = email ? { email: email } : null;
+    try { if (email) W.localStorage.setItem(EKIP_LS, email); else W.localStorage.removeItem(EKIP_LS); } catch (e) { }
+    if (!!W.KIDS_EKIP !== onceki) { try { D.dispatchEvent(new CustomEvent('kids:ekip', { detail: W.KIDS_EKIP })); } catch (e) { } }
+  }
+  function oturumEposta() { try { var j = JSON.parse(W.localStorage.getItem(LS)), s = j && (j.currentSession || j); return s && s.user && s.user.email ? String(s.user.email).toLowerCase() : ''; } catch (e) { return ''; } }
+  if (!oturumVar()) { try { W.localStorage.removeItem(EKIP_LS); } catch (e) { } W.KIDS_EKIP = null; return; }
+  (function () { var e = oturumEposta(), k = ''; try { k = W.localStorage.getItem(EKIP_LS) || ''; } catch (er) { } if (e && k === e) W.KIDS_EKIP = { email: e }; })();
 
   var DURAK = { izle: 'Kids · İzle', sarki: 'Kids · Şarkı', soyle: 'Kids · Söyle', dokun: 'Kids · Oyunlar' };
   var GOR = { giris: 'Kids · Giriş', harita: 'Kids · Harita', sahnekur: 'Kids · Resim yap', sozluk: 'Kids · Kelimelerim', dolap: 'Kids · Dolabım', album: 'Kids · Albüm', daha: 'Kids · Daha fazlası' };
@@ -59,7 +69,12 @@
   function yukle(src) { return new Promise(function (ok, no) { var s = D.createElement('script'); s.src = src; s.async = true; s.onload = ok; s.onerror = no; D.head.appendChild(s); }); }
   setTimeout(function () {
     (W.supabase && W.supabase.createClient ? Promise.resolve() : yukle('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'))
-      .then(function () { if (!W.supabaseClient) W.supabaseClient = W.supabase.createClient(URL_, ANAHTAR); return yukle('/js/acadex-test.js'); })
+      .then(function () {
+        if (!W.supabaseClient) W.supabaseClient = W.supabase.createClient(URL_, ANAHTAR);
+        var e = oturumEposta();
+        if (e) W.supabaseClient.from('tp_members').select('email').eq('email', e).maybeSingle().then(function (r) { ekipYaz(r && r.data ? e : ''); }, function () { });
+        return yukle('/js/acadex-test.js');
+      })
       .catch(function () { /* çevrimdışı ya da engelli: sessiz */ });
   }, 1500);
 })(window);

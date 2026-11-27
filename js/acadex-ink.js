@@ -661,7 +661,7 @@ window.axNotify = function (title, opts) {
     var sun = new Date(mon); sun.setDate(mon.getDate() + 6);
     var p = prof() || {};
     var q = await Promise.all([
-      sb.from('documents').select('id, file_name, uploaded_at, status').eq('user_id', u.id).order('uploaded_at', { ascending: false }).limit(40),
+      sb.from('documents').select('id, file_name, uploaded_at, status, course_tag').eq('user_id', u.id).order('uploaded_at', { ascending: false }).limit(40),
       sb.from('study_cards').select('id, document_id, created_at, summary_style, key_terms, documents(file_name)').eq('user_id', u.id).order('created_at', { ascending: false }).limit(40),
       sb.from('exams').select('id, grade, completed_at, created_at, study_card_id').eq('user_id', u.id).order('created_at', { ascending: false }).limit(40),
       sb.from('study_events').select('id, title, event_date, event_type, is_done').eq('user_id', u.id).gte('event_date', ymd(mon)).lte('event_date', ymd(sun) + 'T23:59:59').order('event_date', { ascending: true }),
@@ -877,6 +877,7 @@ window.axNotify = function (title, opts) {
       var D = await fetchAll(); if (!D) return;
       DATA = D;
       renderDesk(D); renderWeek(D); renderPassport(D); renderLog(D); renderShelf(D); renderPano(D); renderHours(D);
+      try { document.dispatchEvent(new CustomEvent('acx:home', { detail: D })); } catch (e2) {} /* masa renkleri (js/acadex-masa-renk.js) */
       requestAnimationFrame(edges);
       setTimeout(function () { var al = document.getElementById('home-achievements-list'); if (al && !al.children.length) al.innerHTML = '<p class="hand ach-empty" style="font-size:20px;color:#6A7593;margin:0">ilk rozetin, ilk belgeni özetlediğinde buraya iğnelenecek.</p>'; }, 2500);
     } catch (e) { console.warn('acadex-ink: Bugün çizilemedi', e); }

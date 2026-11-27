@@ -67,7 +67,7 @@ test('denetim, yıldız, karıştırma', () => {
   for (let i = 0; i < 30; i++) { const k = KC.karisik(p); assert.notDeepEqual(Array.from(k), [0, 1, 2]); }
 });
 test('haritada kapı yalnız ilkokulda; veli köşesinde sınıf; oyun bağlı', () => {
-  assert.match(app, /function portalAcik\(il\) \{ return !!W\.KIDS_CUMLE && \(il\.ilkSinif > 0 \|\| \(il\.ilkSinif === undefined && ilkokulMu\(\)\)\); \}/);
+  assert.match(app, /function portalAcik\(il\) \{ return !!W\.KIDS_CUMLE && \(!!W\.KIDS_EKIP \|\| il\.ilkSinif > 0 \|\| \(il\.ilkSinif === undefined && ilkokulMu\(\)\)\); \}/);
   assert.match(app, /gunBandi\(bugun\) \+ portalHtml\(il\) \+/);
   assert.match(app, /W\.KIDS_CUMLE\.ac\(\{ kok: app, il: ilerleme, kaydet:/);
   assert.match(app, /<select data-vilk>/); assert.match(app, /x\.ilkSinif = Math\.max\(0, \+this\.value\)/);
@@ -141,4 +141,72 @@ test('galaksinin söylediği cümleler katalogda; durak verisi paketten önce', 
   assert.ok(c.en.includes('She is my teacher.') && c.en.includes('playground'));
   assert.ok(bir.indexOf("'kids-cumle2.js'") > 0 && bir.indexOf("'kids-cumle2.js'") < bir.indexOf("'kids-cumle.js'"));
 });
+/* ---------------- 27.11.2026: canlı uzay, roket garajı, meteor avı (kids-cumle3.js) ---------------- */
+const js3 = read('kids/assets/kids-cumle3.js'), css3 = read('kids/assets/kids-cumle3.css');
+vm.runInContext(js3, W, { filename: 'kids-cumle3.js' });
+const K3 = W.KIDS_CUMLE3;
+test('garaj: yıldız toplamı durak + meteor, kural sayılmaz, eşikler artan, kilitli seçim klasiğe düşer', () => {
+  const il = { cumleD: { '3-okul': { kelime: 3, kural: 1, blok: 2, bosluk: 3, diyalog: 2 }, '3-sinif': { kelime: 9 } }, cumleMeteor: { '3-okul': 2 } };
+  assert.equal(K3.toplamYildiz(il), 3 + 2 + 3 + 2 + 3 + 2, 'kural yok, 3 üstü kırpılır');
+  assert.equal(K3.toplamYildiz({}), 0);
+  for (const t of ['renk', 'alev', 'cikartma']) {
+    const L = K3.GARAJ[t]; assert.equal(K3.esik(L[0]), 0, t + ' ilk parça hep açık');
+    for (let i = 1; i < L.length; i++) assert.ok(K3.esik(L[i]) > K3.esik(L[i - 1]), t + ' eşikler artan');
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(K3.secili({ cumleRoket: { renk: 'altin', alev: 'mavi', cikartma: 'yildiz' }, cumleMeteor: { a: 3, b: 3, c: 3 } }))), { renk: 'klasik', alev: 'mavi', cikartma: 'yildiz' });
+  const svg = K3.roket({ renk: 'nane', alev: 'gokkusagi', cikartma: 'kalp' });
+  assert.match(svg, /#C8F5DE/); assert.match(svg, /url\(#kc3-gk\)/); assert.match(svg, /class="kc2-alev"/);
+});
+test('canlı uzay: aynı tohum aynı gökyüzü; buz kırılınca parçalar dağılır', () => {
+  assert.equal(K3.gok('galaksi3'), K3.gok('galaksi3')); assert.notEqual(K3.gok('galaksi3'), K3.gok('galaksi4'));
+  assert.equal((K3.gok('x').match(/class="kc3-kayan"/g) || []).length, 3);
+  assert.match(K3.buz(true), /kc3-buz kc3-kirik/); assert.doesNotMatch(K3.buz(false), /kc3-kirik/);
+  assert.match(js, /if \(!Array\.isArray\(gordu\)\) \{ i\.cumleGordu = /, 'ilk görüşte açık gezegenler sessizce kaydedilir');
+});
+test('meteor avı: kelimeler durağından sonra, doğru kelime seçeneklerde, açılışı etkilemez', () => {
+  const E = EK.EK['3-okul'], L = KC.meteorTurlari(E, 8);
+  assert.equal(L.length, Math.min(8, E.k.length)); assert.equal(new Set(L.map((w) => w[0])).size, L.length);
+  for (const w of L) { const s = KC.meteorSecenek(E, w, 4); assert.equal(s.length, 4); assert.ok(s.includes(w[0])); assert.equal(new Set(s).size, 4); }
+  assert.ok(KC.METEOR_SURE[2] > KC.METEOR_SURE[3] && KC.METEOR_SURE[3] > KC.METEOR_SURE[4], 'küçük sınıfa daha yavaş meteor');
+  assert.ok(!KC.DURAK.some((d) => d[0] === 'meteor'), 'meteor durak değil: gezegen kilidini değiştirmez');
+  assert.match(js, /if \(!tumAcik\(\) && !\(durakD\(il\(\), x\.id\)\.kelime > 0\)\)/, 'ekip dışında kelimeler şartı');
+});
+test('paket ve hareket: kids-cumle3 dosyaları sırada, önek kc3, animasyonlar reduced-motion korumalı', () => {
+  assert.ok(bir.indexOf("'kids-cumle3.js'") > bir.indexOf("'kids-cumle2.js'") && bir.indexOf("'kids-cumle3.js'") < bir.indexOf("'kids-cumle.js'"));
+  assert.ok(bir.indexOf("'kids-cumle3.css'") > bir.indexOf("'kids-cumle.css'"));
+  const kurallar = css3.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@keyframes[^{]+\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g, '');
+  const bloklar = kurallar.split(/(?=@media)/);
+  for (const b of bloklar) if (/animation:/.test(b) && !/^@media \(prefers-reduced-motion:no-preference\)/.test(b.trim())) {
+    for (const l of b.split('}')) if (/animation:/.test(l) && !/animation:none/.test(l)) assert.fail('korumasız animasyon: ' + l.trim().slice(0, 90));
+  }
+  const sec = kurallar.split('}').map((r) => r.split('{').slice(-2, -1)[0] || '').map((x) => x.trim()).filter((x) => x && !/^(from|to|\d|@)/.test(x));
+  for (const x of sec) for (const parca of x.split(',')) assert.match(parca, /kc3|kc2/, 'önek: ' + parca);
+});
+
+/* ---------------- 27.11.2026: gramer yoğunluğu (kids-cumle4.js) ve test ekibi erişimi ---------------- */
+test('gramer yoğunluğu: yalnız ekipte, her gezegende 2 ders ve 7 yeni sağlam cümle, canlı kural', () => {
+  for (const f of ['kids-cumle4.js', 'kids-gramer2.js']) vm.runInContext(read('kids/assets/' + f), W, { filename: f });
+  const K4 = W.KIDS_CUMLE4, GV = W.KIDS_GRAMER_VERI;
+  assert.match(read('kids/assets/kids-cumle4.js'), /var ACIK = false;/, 'herkese açık değil');
+  W.KIDS_EKIP = null; assert.equal(K4.acikMi(), false); W.KIDS_EKIP = { email: 'x@y' }; assert.equal(K4.acikMi(), true); W.KIDS_EKIP = null;
+  for (const s of [2, 3, 4]) for (const x of KC.VERI[s]) {
+    const g = K4.GRAMER[x.id]; assert.equal(g.length, 2, x.id);
+    for (const id of g) { const t = GV.KONU.find((k) => k.id === id); assert.ok(t, x.id + ' konu yok: ' + id); assert.equal(t.sv, s, x.id + ' sınıfa uygun: ' + id); }
+    const L = K4.EKC[x.id]; assert.equal(L.length, 7, x.id + ' 7 yeni cümle');
+    const eski = new Set(x.c.map((c) => KC.metin(c[0])));
+    for (const c of L) { const p = KC.parcala(c[0]); assert.ok(p.bloklar.length >= 2 && c[1], x.id + ' ' + c[0]); assert.ok(!eski.has(KC.metin(c[0])), x.id + ' tekrar: ' + c[0]); for (const b of p.bloklar) assert.ok(b.m.trim() && !/[/]/.test(b.m), x.id + ' blok: ' + c[0]); }
+    assert.ok(K4.KA[x.id] && K4.KA[x.id].s, x.id + ' canlı kural');
+  }
+  assert.match(js, /function tumAcik\(\) \{ return !!W\.KIDS_EKIP; \}/);
+  assert.match(js, /var sorular = karistir\(cumleListe\(x\)\)/);
+  assert.match(js, /gramerKart\(i, x\)/); assert.match(js, /W\.KIDS_GRAMER\.acDers\(/);
+  assert.ok(bir.indexOf("'kids-cumle4.js'") > bir.indexOf("'kids-cumle3.js'") && bir.indexOf("'kids-cumle4.js'") < bir.indexOf("'kids-cumle.js'"));
+});
+test('test ekibi: yalnız tp_members üyesinde bayrak; oturum yoksa bayrak silinir', () => {
+  const kt = read('kids/assets/kids-test.js');
+  assert.match(kt, /from\('tp_members'\)\.select\('email'\)\.eq\('email', e\)\.maybeSingle\(\)\.then\(function \(r\) \{ ekipYaz\(r && r\.data \? e : ''\); \}/);
+  assert.match(kt, /if \(!oturumVar\(\)\) \{ try \{ W\.localStorage\.removeItem\(EKIP_LS\); \} catch \(e\) \{ \} W\.KIDS_EKIP = null; return; \}/);
+  assert.match(kt, /if \(e && k === e\) W\.KIDS_EKIP = \{ email: e \}/, 'önbellek yalnız aynı e-postaya');
+});
+
 summary();

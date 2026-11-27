@@ -126,6 +126,9 @@
   var ROKET = '<svg viewBox="0 0 40 56" aria-hidden="true" focusable="false"><path d="M20 3c8 6 11 16 9 30H11C9 19 12 9 20 3z" fill="#fff" stroke="' + M + '" stroke-width="2.6" stroke-linejoin="round"/><circle cx="20" cy="18" r="5" fill="#7FC4FF" stroke="' + M + '" stroke-width="2.2"/><path d="M11 26l-7 9 7 2M29 26l7 9-7 2" fill="#FF6B5B" stroke="' + M + '" stroke-width="2.2" stroke-linejoin="round"/><path class="kc2-alev" d="M15 34q5 18 10 0" fill="#FFB020" stroke="' + M + '" stroke-width="2"/></svg>';
   var LOKO = '<svg viewBox="0 0 64 48" aria-hidden="true" focusable="false"><rect x="4" y="14" width="38" height="24" rx="5" fill="#FF6B5B" stroke="' + M + '" stroke-width="3"/><rect x="30" y="4" width="16" height="34" rx="4" fill="#FFD23F" stroke="' + M + '" stroke-width="3"/><rect x="34" y="9" width="8" height="8" rx="2" fill="#BFE3FF" stroke="' + M + '" stroke-width="2"/><path d="M42 30 h14 l4 8 h-18z" fill="#7FC4FF" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><rect x="10" y="4" width="8" height="12" rx="2" fill="' + M + '"/><circle cx="16" cy="40" r="6" fill="#fff" stroke="' + M + '" stroke-width="3"/><circle cx="38" cy="40" r="6" fill="#fff" stroke="' + M + '" stroke-width="3"/></svg>';
   function acd(m) { return C && C.acadia ? C.acadia({ mood: m || 'mutlu' }) : ''; }
+  /* 27.11.2026: canlı uzay, roket garajı, meteor avı (kids-cumle3.js) */
+  function K3() { return W.KIDS_CUMLE3 || null; }
+  function roketim() { var K = K3(); return K && oz ? K.roket(K.secili(il())) : ROKET; }
 
   var oz = null, durum = null;
   function il() { return oz.il(); }
@@ -136,7 +139,7 @@
   /* ---------------- galaksiler arası geçiş ---------------- */
   function warp(sonra, geri) {
     if (SAKIN || !W.Element.prototype.animate) return sonra();
-    var o = D.createElement('div'); o.className = 'kc2-warp' + (geri ? ' kc2-warp-geri' : ''); o.innerHTML = '<i class="kc2-warp-c"></i><span class="kc2-warp-r">' + ROKET + '</span>';
+    var o = D.createElement('div'); o.className = 'kc2-warp' + (geri ? ' kc2-warp-geri' : ''); o.innerHTML = '<i class="kc2-warp-c"></i><span class="kc2-warp-r">' + roketim() + '</span>';
     D.body.appendChild(o); if (SES) SES.fx('cevir');
     var r = o.lastChild;
     o.animate([{ opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 1 }], { duration: 1000, fill: 'forwards' });
@@ -157,6 +160,12 @@
   function gezegenYildiz(d) { var n = ['kelime', 'blok', 'bosluk', 'diyalog'].map(function (k) { return d[k] || 0; }); if (n.some(function (v) { return !v; }) || !d.kural) return 0; return Math.round(n.reduce(function (a, b) { return a + b; }, 0) / n.length); }
   function gezegenAcik(i, L, k) { return k === 0 || tamamMi(i, L[k - 1].id) || !!(i.cumle || {})[L[k].id] || Object.keys(durakD(i, L[k].id)).length > 0; }
   function durakAcik(d, j) { return j === 0 || d[DURAK[j - 1][0]] > 0; }
+  /* 27.11.2026: test ekibinde (W.KIDS_EKIP, kids-test.js) bütün gezegen ve duraklar açık; yeni gramer içeriği (kids-cumle4.js) şimdilik yalnız ekipte */
+  function tumAcik() { return !!W.KIDS_EKIP; }
+  function K4() { var k = W.KIDS_CUMLE4; return k && k.acikMi() ? k : null; }
+  function gAcik(i, L, k) { return tumAcik() || gezegenAcik(i, L, k); }
+  function dAcik(d, j) { return tumAcik() || durakAcik(d, j); }
+  function cumleListe(x) { var k = K4(); return x.c.concat(k && k.EKC[x.id] ? k.EKC[x.id] : []); }
   function kalipYaz(i, kalip, ilkte) { if (!kalip) return; i.cumleKalip = i.cumleKalip || {}; var k = i.cumleKalip[kalip] = i.cumleKalip[kalip] || { d: 0, y: 0 }; if (ilkte) k.d++; else k.y++; }
   function durakBitti(x, durak, y, hata, n) {
     var i = il(), id = x.id; i.cumleD = i.cumleD || {}; var d = i.cumleD[id] = i.cumleD[id] || {}, ilkTamam = !tamamMi(i, id);
@@ -189,26 +198,36 @@
     L.forEach(function (x, k) { if (x.id === son) si = k; });
     var yol = 'M' + Y.map(function (p) { return p[0] + ' ' + p[1]; }).join(' L');
     var toplam = L.reduce(function (n, x) { return n + (cs[x.id] || 0); }, 0), biten = L.filter(function (x) { return tamamMi(i, x.id); }).length;
+    var K = K3(), acikL = L.map(function (x, k) { return gAcik(i, L, k); }), sonAcik = acikL.lastIndexOf(true), sira = L.findIndex(function (x, k) { return acikL[k] && !tamamMi(i, x.id); });
+    /* kilidi yeni açılan gezegen: buz kırılarak açılır (bir kez). İlk görüşte o an açık olanlar sessizce kaydedilir. */
+    var gordu = i.cumleGordu, yeni = {};
+    if (!Array.isArray(gordu)) { i.cumleGordu = L.filter(function (x, k) { return acikL[k]; }).map(function (x) { return x.id; }); kaydet(i); gordu = i.cumleGordu; }
+    else { L.forEach(function (x, k) { if (acikL[k] && gordu.indexOf(x.id) < 0) yeni[x.id] = 1; }); if (Object.keys(yeni).length) { i.cumleGordu = gordu.concat(Object.keys(yeni)); kaydet(i); } }
+    var isik = sonAcik > 0 ? 'M' + Y.slice(0, sonAcik + 1).map(function (p) { return p[0] + ' ' + p[1]; }).join(' L') : '';
     oz.kok.innerHTML = '<div class="kc2">' + ust('Haritaya dön', 'Cümle Galaksisi', 'Sentence Galaxy',
       '<div class="kc2-sinif-sec" role="group" aria-label="Sınıf">' + [2, 3, 4].map(function (n) { return '<button type="button" data-c2s="' + n + '" aria-pressed="' + (n === s) + '">' + n + '. sınıf</button>'; }).join('') + '</div>') +
-      '<main class="kc2-uzay' + (dar ? ' kc2-dar' : '') + '"><div class="kc2-nebula" aria-hidden="true"></div>' +
-      '<svg class="kc2-yol" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + yol + '"/></svg>' +
+      '<main class="kc2-uzay' + (dar ? ' kc2-dar' : '') + '">' + (K ? K.gok('galaksi' + s) : '<div class="kc2-nebula" aria-hidden="true"></div>') +
+      '<svg class="kc2-yol" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + yol + '"/>' + (isik ? '<path class="kc3-isik" d="' + isik + '"/>' : '') + '</svg>' +
+      (K ? '<button type="button" class="kc3-garaj-b" data-c3garaj aria-label="Roket garajı: ' + K.toplamYildiz(i) + ' yıldız"><span aria-hidden="true">' + roketim() + '</span><b>Garaj</b><small>★ ' + K.toplamYildiz(i) + '</small></button>' : '') +
       '<p class="kc2-sayac" aria-label="' + biten + ' / ' + L.length + ' gezegen bitti, ' + toplam + ' yıldız">🏅 ' + biten + ' / ' + L.length + ' · ★ ' + toplam + '</p>' +
       '<ol class="kc2-gezegenler">' + L.map(function (x, k) {
-        var y = cs[x.id] || 0, acik = gezegenAcik(i, L, k), d = durakD(i, x.id), yapilan = DURAK.filter(function (z) { return d[z[0]] > 0; }).length;
+        var y = cs[x.id] || 0, acik = gAcik(i, L, k), d = durakD(i, x.id), yapilan = DURAK.filter(function (z) { return d[z[0]] > 0; }).length;
         var gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(x.renk, x.simge, !acik, acik ? y : 0, k + 1) : '';
-        return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '"' + (acik ? '' : ' class="kc2-kilit"') + '><button type="button" class="kc2-gz" data-c2t="' + x.id + '"' + (acik ? '' : ' aria-disabled="true"') +
-          ' aria-label="' + esc(x.en + ', ' + x.tr + (acik ? ', ' + yapilan + ' / 5 durak' + (rz[x.id] ? ', rozet kazanıldı' : '') : ', kilitli')) + '">' + gz + (rz[x.id] ? '<span class="kc2-rozet" aria-hidden="true">🏅</span>' : '') +
+        var cl = (acik ? '' : 'kc2-kilit') + (k === sira ? ' kc3-sira' : '') + (yeni[x.id] ? ' kc3-yeni' : '');
+        return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '"' + (cl.trim() ? ' class="' + cl.trim() + '"' : '') + '><button type="button" class="kc2-gz" data-c2t="' + x.id + '"' + (acik ? '' : ' aria-disabled="true"') +
+          ' aria-label="' + esc(x.en + ', ' + x.tr + (acik ? ', ' + yapilan + ' / 5 durak' + (rz[x.id] ? ', rozet kazanıldı' : '') : ', kilitli')) + '">' + gz + (K && (!acik || yeni[x.id]) ? K.buz(!!yeni[x.id]) : '') + (rz[x.id] ? '<span class="kc2-rozet" aria-hidden="true">🏅</span>' : '') +
           '<span class="kc2-ad"><b lang="en">' + esc(x.en) + '</b><i aria-hidden="true">' + (acik ? (tamamMi(i, x.id) ? [1, 2, 3].map(function (j) { return '<em' + (j <= y ? ' class="on"' : '') + '>★</em>'; }).join('') : DURAK.map(function (z) { return '<u' + (d[z[0]] > 0 ? ' class="on"' : '') + '></u>'; }).join('')) : '🔒') + '</i></span></button></li>';
-      }).join('') + '</ol><span class="kc2-roket" aria-hidden="true" style="left:' + Y[si][0] + '%;top:' + Y[si][1] + '%">' + ROKET + '</span></main></div>';
+      }).join('') + '</ol><span class="kc2-roket" aria-hidden="true" style="left:' + Y[si][0] + '%;top:' + Y[si][1] + '%">' + roketim() + '</span></main></div>';
     oz.kok.dataset.gorunum = 'cumle';
     oz.kok.querySelector('[data-c2geri]').addEventListener('click', geriHarita);
     oz.kok.querySelectorAll('[data-c2s]').forEach(function (b) { b.addEventListener('click', function () { var i2 = il(); i2.ilkSinif = +b.getAttribute('data-c2s'); kaydet(i2); if (SES) SES.fx('dokun'); galaksi(); }); });
+    var gb = oz.kok.querySelector('[data-c3garaj]'); if (gb) gb.addEventListener('click', function () { if (SES) SES.fx('dokun'); garaj(); });
+    if (Object.keys(yeni).length && SES) setTimeout(function () { SES.fx('yildiz'); SES.soyle('Buz kırıldı! Yeni gezegen açıldı!', 'tr'); }, SAKIN ? 0 : 700);
     var rk = oz.kok.querySelector('.kc2-roket'), ucuyor = false;
     oz.kok.querySelectorAll('[data-c2t]').forEach(function (b, k) {
       b.addEventListener('click', function () {
         if (ucuyor) return; var x = L[k];
-        if (!gezegenAcik(il(), L, k)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + L[k - 1].tr + ' gezegenini bitir.', 'tr'); } b.classList.remove('kc2-salla'); void b.offsetWidth; b.classList.add('kc2-salla'); return; }
+        if (!gAcik(il(), L, k)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + L[k - 1].tr + ' gezegenini bitir.', 'tr'); } b.classList.remove('kc2-salla'); void b.offsetWidth; b.classList.add('kc2-salla'); return; }
         if (SES) SES.fx('dokun');
         var i2 = il(); i2.cumleSon = x.id; kaydet(i2);
         if (k === si || SAKIN || !rk.animate) return gezegen(s, x);
@@ -226,23 +245,34 @@
   /* ---------------- gezegen: beş durak ---------------- */
   function gezegen(s, x, rozet) {
     dur();
-    var i = il(), d = durakD(i, x.id), sira = DURAK.findIndex(function (z, j) { return durakAcik(d, j) && !(d[z[0]] > 0); });
+    var i = il(), d = durakD(i, x.id), sira = DURAK.findIndex(function (z, j) { return dAcik(d, j) && !(d[z[0]] > 0); });
     var gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(x.renk, x.simge, false, i.cumle && i.cumle[x.id] || 0, 2) : '';
     oz.kok.innerHTML = '<div class="kc2 kc2-gezegen" style="--r:' + x.renk + '">' + ust('Galaksiye dön', esc(x.en), esc(x.tr)) +
       '<main class="kc2-duraklar-alan"><div class="kc2-gz-buyuk" aria-hidden="true">' + gz + '</div>' +
       '<ol class="kc2-duraklar">' + DURAK.map(function (z, j) {
-        var acik = durakAcik(d, j), y = d[z[0]] || 0, bitti = y > 0;
+        var acik = dAcik(d, j), y = d[z[0]] || 0, bitti = y > 0;
         return '<li style="--j:' + j + '"><button type="button" class="kc2-durak' + (bitti ? ' kc2-d-bitti' : '') + (j === sira ? ' kc2-d-simdi' : '') + '" data-c2d="' + z[0] + '"' + (acik ? '' : ' aria-disabled="true"') +
           ' aria-label="' + esc(z[1] + (bitti ? ', bitti' : acik ? '' : ', kilitli')) + '"><span class="kc2-d-no">' + (acik ? (C ? C.simge(z[3]) : j + 1) : '🔒') + '</span><b>' + z[1] + '</b><small lang="en">' + z[2] + '</small>' +
           (bitti && z[0] !== 'kural' ? '<i>' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i>' : bitti ? '<i>✓</i>' : '') + '</button></li>';
-      }).join('') + '</ol>' + (rozet ? '<div class="kc2-rozet-k" role="status"><span aria-hidden="true">🏅</span><b>Tema rozeti!</b><small>' + esc(x.en) + ' gezegenini bitirdin. Sıradaki gezegen açıldı.</small></div>' : '') + '</main></div>';
+      }).join('') + '</ol>' + meteorKart(i, x) + gramerKart(i, x) + (rozet ? '<div class="kc2-rozet-k" role="status"><span aria-hidden="true">🏅</span><b>Tema rozeti!</b><small>' + esc(x.en) + ' gezegenini bitirdin. Sıradaki gezegen açıldı.</small></div>' : '') + '</main></div>';
     oz.kok.dataset.gorunum = 'cumle';
     oz.kok.querySelector('[data-c2geri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); galaksi(); });
     if (rozet && SES) { SES.fx('yildiz'); SES.soyle('Tebrikler! ' + x.tr + ' rozetini kazandın!', 'tr'); }
     else if (SES && sira >= 0) SES.soyle(x.tr + ' gezegeni. Sıradaki durak: ' + DURAK[sira][1] + '.', 'tr');
+    oz.kok.querySelectorAll('[data-c4g]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (SES) SES.fx('dokun'); dur();
+        W.KIDS_GRAMER.acDers({ kok: oz.kok, il: oz.il, kaydet: oz.kaydet, sinifAd: oz.sinifAd }, b.getAttribute('data-c4g'), function () { gezegen(s, x); });
+      });
+    });
+    var mb = oz.kok.querySelector('[data-c3meteor]');
+    if (mb) mb.addEventListener('click', function () {
+      if (!tumAcik() && !(durakD(il(), x.id).kelime > 0)) { if (SES) { SES.fx('yanlis'); SES.soyle('Meteor avı için önce Kelimeler durağını bitir.', 'tr'); } return; }
+      if (SES) SES.fx('dokun'); meteorOyun(s, x);
+    });
     oz.kok.querySelectorAll('[data-c2d]').forEach(function (b, j) {
       b.addEventListener('click', function () {
-        if (!durakAcik(durakD(il(), x.id), j)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + DURAK[j - 1][1] + ' durağını bitir.', 'tr'); } return; }
+        if (!dAcik(durakD(il(), x.id), j)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + DURAK[j - 1][1] + ' durağını bitir.', 'tr'); } return; }
         if (SES) SES.fx('dokun');
         var f = { kelime: kelimeOyun, kural: kuralKart, blok: blokOyun, bosluk: boslukOyun, diyalog: diyalogOyun }[DURAK[j][0]];
         f(s, x);
@@ -260,12 +290,12 @@
   }
   function bekle(ms) { return new Promise(function (r) { setTimeout(r, SAKIN ? Math.min(ms, 200) : ms); }); }
   function bitirEkran(s, x, durak, y, hata, n, metin_) {
-    var rozet = durakBitti(x, durak, y, hata, n);
+    var once = K3() ? K3().toplamYildiz(il()) : 0, rozet = durakBitti(x, durak, y, hata, n);
     var j = DURAK.findIndex(function (z) { return z[0] === durak; }), sonraki = DURAK[j + 1];
     var kart = oz.kok.querySelector('[data-c2kart]');
     kart.innerHTML = '<div class="kc2-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><span class="kc2-acd" aria-hidden="true">' + acd('kutlama') + '</span><h2>' + (metin_ || 'Harika!') + '</h2>' +
       (durak === 'kural' ? '' : '<p class="kc2-yildizlar" aria-label="' + y + ' yıldız">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + ' style="--j:' + q + '">★</em>'; }).join('') + '</p><p>' + n + ' soru' + (hata ? ' · ' + hata + ' yanlış deneme' : ' · hiç yanlış yok!') + '</p>') +
-      '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar</button><button type="button" class="ka-buyuk" data-c2devam>' + (sonraki && !rozet ? 'Sıradaki: ' + sonraki[1] : 'Gezegene dön') + '</button></div></div>';
+      yeniParcaHtml(once) + '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar</button><button type="button" class="ka-buyuk" data-c2devam>' + (sonraki && !rozet ? 'Sıradaki: ' + sonraki[1] : 'Gezegene dön') + '</button></div></div>';
     if (SES) { SES.fx('yildiz'); if (durak !== 'kural') SES.soyle(y === 3 ? 'Mükemmel! Üç yıldız!' : 'Aferin! Durağı bitirdin!', 'tr'); }
     kart.querySelector('[data-c2tekrar]').addEventListener('click', function () { ({ kelime: kelimeOyun, kural: kuralKart, blok: blokOyun, bosluk: boslukOyun, diyalog: diyalogOyun })[durak](s, x); });
     kart.querySelector('[data-c2devam]').addEventListener('click', function () {
@@ -306,7 +336,7 @@
     dur(); durum = {}; var ben = durum, E = ek(x.id); if (!E) return gezegen(s, x);
     var r = E.r, sc = sahne(s, x, 0, 'Kural');
     sc.kart.innerHTML = '<div class="kc2-kural"><div class="kc2-soru"><span class="kc2-acd" aria-hidden="true">' + acd('dusun') + '</span><div class="kc2-balon"><small>Bugünün kuralı</small><b lang="en">' + esc(r.ad) + '</b></div></div>' +
-      '<p class="kc2-kural-tr">' + esc(r.tr) + '</p><ol class="kc2-kural-s">' + r.s.map(function (z, j) { return '<li style="--j:' + j + '"><span class="kc2-ks-sol">' + esc(z[0]) + '</span><i aria-hidden="true">→</i><span class="kc2-ks-sag" lang="en">' + esc(z[1]) + '</span></li>'; }).join('') + '</ol>' +
+      kuralCanli(x) + '<p class="kc2-kural-tr">' + esc(r.tr) + '</p><ol class="kc2-kural-s">' + r.s.map(function (z, j) { return '<li style="--j:' + j + '"><span class="kc2-ks-sol">' + esc(z[0]) + '</span><i aria-hidden="true">→</i><span class="kc2-ks-sag" lang="en">' + esc(z[1]) + '</span></li>'; }).join('') + '</ol>' +
       '<div class="kc2-kural-o"><button type="button" class="kc2-dinle" data-c2o aria-label="Örneği dinle">' + (C ? C.simge('ses') : '♪') + '<span>Dinle</span></button><p><b lang="en">' + esc(r.o) + '</b><small>' + esc(r.ot) + '</small></p></div>' +
       '<div class="kc2-bitis-d"><button type="button" class="ka-buyuk" data-c2anladim>Anladım ✓</button></div></div>';
     var satir = [].slice.call(sc.kart.querySelectorAll('.kc2-kural-s li'));
@@ -322,7 +352,7 @@
   /* ---------------- 3) cümle blokları ---------------- */
   function blokOyun(s, x) {
     dur();
-    var sorular = karistir(x.c).slice(0, 6), n = 0, hataT = 0;
+    var sorular = karistir(cumleListe(x)).slice(0, cumleListe(x).length > x.c.length ? 8 : 6), n = 0, hataT = 0;
     durum = {}; var ben = durum, sc = sahne(s, x, sorular.length, 'Cümle kur'), kart = sc.kart;
     function tur() {
       if (ben !== durum) return;
@@ -403,6 +433,160 @@
     tur();
   }
 
+  /* ---------------- roket garajı (27.11.2026) ----------------
+     Yıldızlar harcanmaz: toplam yıldız bir eşiği geçince parça açılır (renk, alev, çıkartma).
+     Seçim il.cumleRoket'te; haritadaki, geçişteki ve meteor avındaki roket aynı roket. */
+  function yeniParcalar(once) {
+    var K = K3(); if (!K) return []; var son = K.toplamYildiz(il()), L = [];
+    ['renk', 'alev', 'cikartma'].forEach(function (t_) { K.GARAJ[t_].forEach(function (p) { var e = K.esik(p); if (e > once && e <= son) L.push(p[1]); }); });
+    return L;
+  }
+  function yeniParcaHtml(once) {
+    var L = yeniParcalar(once); if (!L.length) return '';
+    if (SES) setTimeout(function () { SES.soyle('Garajda yeni bir roket parçası açıldı!', 'tr'); }, 1600);
+    return '<p class="kc3-yeni-parca" role="status"><span aria-hidden="true">🚀</span> Garajda açıldı: <b>' + L.map(esc).join(', ') + '</b></p>';
+  }
+  var GARAJ_AD = { renk: ['Renk', 'Color'], alev: ['Alev', 'Flame'], cikartma: ['Çıkartma', 'Sticker'] };
+  function garaj() {
+    dur(); var K = K3(); if (!K) return galaksi();
+    var i = il(), top = K.toplamYildiz(i), sec = K.secili(i);
+    function ornek(t_, p) {
+      if (t_ === 'renk') return '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="16" fill="' + p[2] + '" stroke="' + M + '" stroke-width="2.6"/><path d="M20 4a16 16 0 0 1 0 32" fill="' + p[3] + '" stroke="' + M + '" stroke-width="2.6"/></svg>';
+      if (t_ === 'alev') return '<svg viewBox="0 0 40 40" aria-hidden="true">' + (p[0] === 'gokkusagi' ? '<defs><linearGradient id="kc3-gko" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF5B5B"/><stop offset=".5" stop-color="#FFD23F"/><stop offset="1" stop-color="#4FC3FF"/></linearGradient></defs>' : '') +
+        '<path d="M20 4c8 10 12 16 12 22a12 12 0 0 1-24 0c0-6 4-12 12-22z" fill="' + (p[0] === 'gokkusagi' ? 'url(#kc3-gko)' : p[2]) + '" stroke="' + M + '" stroke-width="2.4"/><path d="M20 18c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z" fill="' + p[3] + '"/></svg>';
+      return '<svg viewBox="-10 -10 20 20" aria-hidden="true">' + (p[2] ? '<path d="' + p[2] + '" fill="#FFD23F" stroke="' + M + '" stroke-width="1.2" stroke-linejoin="round"/>' : '<path d="M-5 -5 L5 5 M5 -5 L-5 5" stroke="#9AA6C8" stroke-width="2" stroke-linecap="round"/>') + '</svg>';
+    }
+    function bolum(t_) {
+      return '<section class="kc3-g-bol"><h2>' + GARAJ_AD[t_][0] + ' <small lang="en">' + GARAJ_AD[t_][1] + '</small></h2><div class="kc3-g-sec" role="radiogroup" aria-label="' + GARAJ_AD[t_][0] + '">' + K.GARAJ[t_].map(function (p) {
+        var acik = top >= K.esik(p), on = sec[t_] === p[0];
+        return '<button type="button" role="radio" aria-checked="' + on + '" class="kc3-g-p' + (acik ? '' : ' kc3-g-kilit') + '" data-c3t="' + t_ + '" data-c3p="' + p[0] + '" aria-label="' + esc(p[1] + (acik ? '' : ', ' + K.esik(p) + ' yıldızda açılır')) + '">' + ornek(t_, p) +
+          '<b>' + esc(p[1]) + '</b>' + (acik ? '' : '<small>🔒 ' + K.esik(p) + '★</small>') + '</button>';
+      }).join('') + '</div></section>';
+    }
+    var sonraki = [];
+    ['renk', 'alev', 'cikartma'].forEach(function (t_) { K.GARAJ[t_].forEach(function (p) { if (K.esik(p) > top) sonraki.push(K.esik(p)); }); });
+    var hedef = sonraki.length ? Math.min.apply(null, sonraki) : 0;
+    oz.kok.innerHTML = '<div class="kc2 kc3-garaj">' + ust('Galaksiye dön', 'Roket Garajı', 'Rocket Garage') +
+      '<main class="kc3-g-alan"><div class="kc3-g-on"><div class="kc3-g-pist" aria-hidden="true">' + K.gok('garaj') + '<span class="kc3-g-roket">' + roketim() + '</span></div>' +
+      '<p class="kc3-g-top"><b>★ ' + top + '</b> yıldız' + (hedef ? '<small>Sıradaki parça ' + hedef + ' yıldızda</small><span class="kc3-g-bar"><i style="width:' + Math.round(top / hedef * 100) + '%"></i></span>' : '<small>Bütün parçaları açtın!</small>') + '</p></div>' +
+      '<div class="kc3-g-raf">' + bolum('renk') + bolum('alev') + bolum('cikartma') + '</div></main></div>';
+    oz.kok.dataset.gorunum = 'cumle';
+    oz.kok.querySelector('[data-c2geri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); galaksi(); });
+    if (SES) SES.soyle('Roket garajına hoş geldin! Roketini süsle.', 'tr');
+    oz.kok.querySelector('.kc3-g-raf').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-c3p]'); if (!b) return; var t_ = b.getAttribute('data-c3t'), id = b.getAttribute('data-c3p');
+      if (!K.acikMi(il(), t_, id)) { if (SES) { SES.fx('yanlis'); SES.soyle('Bu parça için daha çok yıldız topla.', 'tr'); } b.classList.remove('kc2-salla'); void b.offsetWidth; b.classList.add('kc2-salla'); setTimeout(function () { b.classList.remove('kc2-salla'); }, 500); return; }
+      var i2 = il(); i2.cumleRoket = i2.cumleRoket || {}; i2.cumleRoket[t_] = id; kaydet(i2); if (SES) SES.fx('dogru');
+      oz.kok.querySelectorAll('[data-c3t="' + t_ + '"]').forEach(function (z) { z.setAttribute('aria-checked', String(z === b)); });
+      var r = oz.kok.querySelector('.kc3-g-roket'); r.innerHTML = roketim(); r.classList.remove('kc3-g-hop'); void r.offsetWidth; r.classList.add('kc3-g-hop');
+    });
+  }
+
+  /* ---------------- meteor avı (27.11.2026) ----------------
+     Bonus oyun: gezegenin kelimeleri İngilizce okunur, çocuk doğru kelimeyi taşıyan meteoru vurur.
+     Meteorlar yukarıdan aşağı süzülür; doğru meteor kaçarsa tur yeniden başlar (hata sayılır).
+     Kelimeler durağından sonra açılır; gezegenin açılmasını etkilemez, yıldızı garaja sayılır.
+     Hareketi azaltmada meteorlar yerinde durur, kaçma yok. Kayıt: il.cumleMeteor[tema] = en iyi yıldız. */
+  var METEOR_SURE = { 2: 7600, 3: 6600, 4: 5600 };
+  function meteorKart(i, x) {
+    var E = ek(x.id); if (!E || !E.k || E.k.length < 3) return '';
+    var acik = tumAcik() || durakD(i, x.id).kelime > 0, y = (i.cumleMeteor || {})[x.id] || 0;
+    return '<button type="button" class="kc3-meteor-k' + (acik ? '' : ' kc3-mk-kilit') + '" data-c3meteor' + (acik ? '' : ' aria-disabled="true"') + ' aria-label="Bonus: Meteor avı' + (acik ? (y ? ', ' + y + ' yıldız' : '') : ', Kelimeler durağından sonra açılır') + '">' +
+      '<span class="kc3-mk-ic" aria-hidden="true"><i></i><i></i><i></i></span><span class="kc3-mk-t"><small>Bonus</small><b>Meteor avı</b><em lang="en">Meteor Hunt</em></span>' +
+      (acik ? (y ? '<i class="kc3-mk-y">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i>' : '<i class="kc3-mk-y kc3-mk-yeni">Yeni!</i>') : '<i class="kc3-mk-y">🔒</i>') + '</button>';
+  }
+  function meteorTurlari(E, n, r) { return karistir(E.k, r).slice(0, Math.min(n || 8, E.k.length)); }
+  function meteorSecenek(E, w, adet, r) { return karistir([w[0]].concat(karistir(E.k.filter(function (z) { return z[0] !== w[0]; }), r).slice(0, adet - 1).map(function (z) { return z[0]; })), r); }
+  function meteorOyun(s, x) {
+    dur(); durum = {}; var ben = durum, E = ek(x.id); if (!E) return gezegen(s, x);
+    var K = K3(), L = meteorTurlari(E, 8), n = 0, hataT = 0, adet = s === 4 ? 4 : 3, sure = METEOR_SURE[s] || 6600, once = K ? K.toplamYildiz(il()) : 0;
+    var sc = sahne(s, x, L.length, 'Meteor avı');
+    sc.kart.classList.add('kc3-m-kart');
+    sc.kart.innerHTML = '<div class="kc3-m-ust"><button type="button" class="kc3-m-dinle" data-c3dinle aria-label="Kelimeyi tekrar dinle">' + (C ? C.simge('ses') : '♪') + '</button><p class="kc3-m-soru" aria-live="polite">Duyduğun kelimeyi taşıyan meteoru vur!</p></div>' +
+      '<div class="kc3-m-alan" data-c3alan>' + (K ? K.gok('meteor' + x.id) : '') + '<span class="kc3-m-roket" aria-hidden="true">' + roketim() + '</span></div>';
+    var alan = sc.kart.querySelector('[data-c3alan]'), soru = sc.kart.querySelector('.kc3-m-soru'), rkt = sc.kart.querySelector('.kc3-m-roket');
+    sc.kart.querySelector('[data-c3dinle]').addEventListener('click', function () { if (SES && L[n]) SES.soyle(L[n][0], 'en'); });
+    var aktif = [];
+    function temizle() { aktif.forEach(function (a) { try { a.cancel(); } catch (e) { } }); aktif = []; alan.querySelectorAll('.kc3-met').forEach(function (m) { m.remove(); }); }
+    function lazer(hedef) {
+      var ar = alan.getBoundingClientRect(), a = rkt.getBoundingClientRect(), h = hedef.getBoundingClientRect();
+      var x1 = a.left + a.width / 2 - ar.left, y1 = a.top - ar.top, x2 = h.left + h.width / 2 - ar.left, y2 = h.top + h.height / 2 - ar.top;
+      var l = D.createElement('i'); l.className = 'kc3-lazer'; l.style.left = x1 + 'px'; l.style.top = y1 + 'px'; l.style.width = Math.hypot(x2 - x1, y2 - y1) + 'px';
+      l.style.transform = 'rotate(' + (Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI) + 'deg)'; alan.appendChild(l); setTimeout(function () { l.remove(); }, 320);
+      rkt.style.left = (x2 / ar.width * 100).toFixed(1) + '%';
+    }
+    function patla(m) {
+      var p = D.createElement('span'); p.className = 'kc3-patla'; p.innerHTML = new Array(11).join('<i></i>'); var r = m.getBoundingClientRect(), ar = alan.getBoundingClientRect();
+      p.style.left = (r.left + r.width / 2 - ar.left) + 'px'; p.style.top = (r.top + r.height / 2 - ar.top) + 'px'; alan.appendChild(p); setTimeout(function () { p.remove(); }, 900);
+    }
+    function tur() {
+      if (ben !== durum) return; temizle();
+      var w = L[n], sec = meteorSecenek(E, w, adet), cozuldu = false, hataTur = 0;
+      soru.textContent = 'Duyduğun kelimeyi taşıyan meteoru vur!';
+      sec.forEach(function (kel, j) {
+        var m = D.createElement('button'); m.type = 'button'; m.className = 'kc3-met'; m.setAttribute('data-c3m', kel); m.style.setProperty('--x', ((j + 0.5) * (100 / adet)) + '%'); m.style.setProperty('--d', (j * 0.18).toFixed(2));
+        m.innerHTML = '<span class="kc3-met-kuyruk" aria-hidden="true"></span><span class="kc3-met-tas" aria-hidden="true"><i></i><i></i><i></i></span><b lang="en">' + esc(kel) + '</b>';
+        alan.appendChild(m);
+        if (!SAKIN && m.animate) {
+          var gec = (j * 420 + Math.random() * 300) | 0;
+          var an = m.animate([{ transform: 'translate(-50%,-140%) rotate(-6deg)' }, { transform: 'translate(-50%,' + (alan.clientHeight * 0.78) + 'px) rotate(6deg)' }], { duration: sure, delay: gec, easing: 'linear', fill: 'forwards' });
+          aktif.push(an);
+          if (kel === w[0]) an.finished.then(function () {
+            if (ben !== durum || cozuldu) return; cozuldu = true; hataT++; if (SES) SES.fx('yanlis');
+            soru.textContent = 'Kaçtı! Bir daha dinle: ' + w[1] + ' → ' + w[0]; m.classList.add('kc3-kacti');
+            setTimeout(function () { if (ben === durum) tur(); }, 1500);
+          }, function () { });
+        } else m.classList.add('kc3-sabit');
+      });
+      alan.onclick = function (e) {
+        var m = e.target.closest('.kc3-met'); if (!m || cozuldu || m.disabled || ben !== durum) return;
+        lazer(m);
+        if (m.getAttribute('data-c3m') === w[0]) {
+          cozuldu = true; if (SES) { SES.fx('pat'); setTimeout(function () { SES.fx('dogru'); }, 120); }
+          aktif.forEach(function (a) { try { a.pause(); } catch (er) { } });
+          patla(m); m.classList.add('kc3-vuruldu'); sc.nokta(n); soru.innerHTML = '<b lang="en">' + esc(w[0]) + '</b> = ' + esc(w[1]) + ' ✨';
+          Promise.resolve(SES ? SES.soyle(w[0], 'en') : 0).then(function () { return bekle(700); }).then(function () {
+            if (ben !== durum) return; n++; if (n >= L.length) meteorBitti(s, x, yildiz(hataT), hataT, L.length, once); else tur();
+          });
+        } else {
+          hataT++; hataTur++; m.disabled = true; m.classList.add('kc3-iska'); if (SES) SES.fx('yanlis');
+          soru.textContent = hataTur > 1 ? 'İpucu: ' + w[1] + ' → İngilizcesi hangisi?' : 'Olmadı! Bir daha dinle.';
+          if (SES) setTimeout(function () { if (ben === durum && !cozuldu) SES.soyle(w[0], 'en'); }, 450);
+        }
+      };
+      if (SES) setTimeout(function () { if (ben === durum) SES.soyle(w[0], 'en'); }, 350);
+    }
+    if (SES) Promise.resolve(SES.soyle('Meteor avı! Duyduğun kelimeyi vur.', 'tr')).then(function () { tur(); }, function () { tur(); }); else tur();
+  }
+  function meteorBitti(s, x, y, hata, n, once) {
+    var i = il(); i.cumleMeteor = i.cumleMeteor || {}; if (!(i.cumleMeteor[x.id] >= y)) i.cumleMeteor[x.id] = y;
+    i.cumleLog = (i.cumleLog || []).concat([{ t: Date.now(), id: x.id, d: 'meteor', y: y, h: hata || 0, n: n || 0 }]).slice(-60); kaydet(i);
+    var kart = oz.kok.querySelector('[data-c2kart]'); kart.classList.remove('kc3-m-kart');
+    kart.innerHTML = '<div class="kc2-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><span class="kc2-acd" aria-hidden="true">' + acd('kutlama') + '</span><h2>Meteor yağmurunu durdurdun!</h2>' +
+      '<p class="kc2-yildizlar" aria-label="' + y + ' yıldız">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + ' style="--j:' + q + '">★</em>'; }).join('') + '</p><p>' + n + ' meteor' + (hata ? ' · ' + hata + ' ıska' : ' · hiç ıska yok!') + '</p>' +
+      yeniParcaHtml(once) + '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar</button><button type="button" class="ka-buyuk" data-c2devam>Gezegene dön</button></div></div>';
+    if (SES) { SES.fx('yildiz'); SES.soyle(y === 3 ? 'Mükemmel! Üç yıldız!' : 'Aferin! Durağı bitirdin!', 'tr'); }
+    kart.querySelector('[data-c2tekrar]').addEventListener('click', function () { meteorOyun(s, x); });
+    kart.querySelector('[data-c2devam]').addEventListener('click', function () { gezegen(s, x); });
+  }
+
+  /* ---------------- gramer istasyonu ve canlı kural (27.11.2026, kids-cumle4.js; şimdilik yalnız ekip) ---------------- */
+  function gramerKart(i, x) {
+    var k = K4(), G = W.KIDS_GRAMER, V_ = W.KIDS_GRAMER_VERI; if (!k || !G || !G.acDers || !V_ || !k.GRAMER[x.id]) return '';
+    var g = i.gramer || {};
+    return '<section class="kc4-istasyon" aria-label="Gramer istasyonu"><h2><span aria-hidden="true">⏰</span> Gramer istasyonu <small lang="en">Grammar Station</small></h2><div class="kc4-ist-l">' +
+      k.GRAMER[x.id].map(function (id) {
+        var t = V_.KONU.filter(function (z) { return z.id === id; })[0]; if (!t) return '';
+        var d = g[id] || {}, ad = ['izle', 'dene', 'oyna'].filter(function (a) { return d[a] > 0; }).length;
+        return '<button type="button" class="kc4-ders' + (d.oyna > 0 ? ' kc4-bitti' : '') + '" data-c4g="' + id + '" style="--r:' + t.renk + '" aria-label="' + esc(t.en + ', ' + t.tr + ', ' + ad + ' / 3 adım') + '">' +
+          '<span class="kc4-d-ev" aria-hidden="true"><i></i></span><span class="kc4-d-t"><b lang="en">' + esc(t.en) + '</b><small>' + esc(t.tr) + '</small></span>' +
+          '<i class="kc4-d-a">' + [0, 1, 2].map(function (q) { return '<u' + (q < ad ? ' class="on"' : '') + '></u>'; }).join('') + '</i></button>';
+      }).join('') + '</div></section>';
+  }
+  function kuralCanli(x) {
+    var k = K4(), G = W.KIDS_GRAMER, a = k && k.KA[x.id]; if (!a || !G || !G.cumleHtml) return '';
+    return '<div class="kc4-canli" aria-hidden="true">' + (a.z && G.zamanHtml ? G.zamanHtml(a.z) : '') + G.cumleHtml(a.s) + '</div>';
+  }
   function dur() { durum = null; if (SES && SES.sus) SES.sus(); }
 
   /* ---------------- veli raporu (Veli köşesi → Özet) ---------------- */
@@ -427,12 +611,13 @@
 
   /* seslendirme kataloğu için: galaksinin söylediği bütün cümleler (kids/ses/katalog.js) */
   function cumleler() {
-    var tr = [], en = [];
+    var tr = ['Buz kırıldı! Yeni gezegen açıldı!', 'Garajda yeni bir roket parçası açıldı!', 'Roket garajına hoş geldin! Roketini süsle.', 'Bu parça için daha çok yıldız topla.', 'Meteor avı! Duyduğun kelimeyi vur.', 'Meteor avı için önce Kelimeler durağını bitir.'], en = [];
     [2, 3, 4].forEach(function (s) { (VERI[s] || []).forEach(function (x, k) {
       tr.push(x.tr + ' gezegenine yolculuk başlıyor!', 'Tebrikler! ' + x.tr + ' rozetini kazandın!'); en.push('Let\'s go to ' + x.en + '!');
       if (k) tr.push('Önce ' + VERI[s][k - 1].tr + ' gezegenini bitir.');
       DURAK.forEach(function (d, j) { tr.push(x.tr + ' gezegeni. Sıradaki durak: ' + d[1] + '.'); if (j) tr.push('Önce ' + DURAK[j - 1][1] + ' durağını bitir.'); });
       x.c.forEach(function (c) { en.push(metin(c[0])); });
+      var k4 = W.KIDS_CUMLE4; if (k4 && k4.EKC[x.id]) k4.EKC[x.id].forEach(function (c) { en.push(metin(c[0])); });
       var e = ek(x.id); if (!e) return;
       e.k.forEach(function (w) { en.push(w[0]); });
       tr.push(e.r.tr); e.r.s.forEach(function (r) { en.push(r[1]); }); en.push(e.r.o);
@@ -444,5 +629,6 @@
 
   function ac(o) { C = W.KIDS_CIZ; SES = W.KIDS_SES; oz = o; if (o.dur) o.dur(); warp(galaksi); return { dur: dur }; }
   W.KIDS_CUMLE = { ac: ac, VERI: VERI, DURAK: DURAK, parcala: parcala, metin: metin, dogruMu: dogruMu, yildiz: yildiz, karisik: karisik, gezegenYildiz: gezegenYildiz, gezegenAcik: gezegenAcik, durakAcik: durakAcik, tamamMi: tamamMi, cumleler: cumleler,
+    meteorTurlari: meteorTurlari, meteorSecenek: meteorSecenek, METEOR_SURE: METEOR_SURE, yeniParcalar: yeniParcalar,
     rapor: function (i) { C = C || W.KIDS_CIZ; return rapor(i); }, _oz: function (o) { oz = o; } };
 })(window);
