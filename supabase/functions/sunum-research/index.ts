@@ -569,6 +569,103 @@ const noteEchoes = (slides: any[]): number => {
   });
   return n;
 };
+/* ===== #44 Phase 7.1 + 7.2: ANLATI VE YOĞUNLUK (27.11.2026) =====
+   Yazarın çıktısı üzerinde deterministik son geçiş: model çağrısı, yeniden deneme, ikinci düzen seçicisi YOK.
+   Tür yalnız içerik kanıtıyla değişir (tarihli adımlar → "time", iki taraf öneki → "two"); grafik, sayı, alıntı,
+   tablo ya da görsel uydurulmaz, sıra ve kurgu (story) değişmez. Çeşidi (kart, kolon, sıra…) istemcinin düzen
+   zekâsı seçer. Yalnız yeni üretimde çalışır; kayıtlı desteye dokunmaz. */
+const kelimeSay = (t: string): number => (String(t || "").trim().match(/\S+/g) || []).length;
+/* bölünen ikinci parça öncekine bağlaçla ya da zamirle bağlıysa ("Bu nedenle…", "This…") bölünmez: neden-sonuç bağı kopar */
+const BAGLI = /^(?:bu|bunun|bunu|bunlar\p{L}*|böylece|ancak|fakat|ama|çünkü|zira|dolayısıyla|yani|oysa|ise|this|these|that|those|it|its|they|their|thus|so|therefore|hence|however|but|because|which|while|yet|and|or)(?![\p{L}])/iu;
+const KISALTMA = /(?:^|[\s(])(?:vb|vs|örn|bkz|yy|Dr|Prof|Doç|St|Mr|Mrs|Ms|No|ca|etc|e\.g|i\.e|U\.S|A\.Ş)\.$/i;
+/* 7.2 UZUN MADDE BÖLÜNÜR, KISALTILMAZ: 18 kelimeyi aşan madde (istemcinin LONG_BULLETS eşiği) yalnız kendi cümle ya da
+   noktalı virgül sınırından ikiye ayrılır; ortaya en yakın sınır seçilir. Her parça en az 6 kelime; sözcük atılmaz,
+   sayı kaybolmaz. Sınır yoksa madde olduğu gibi kalır (istemci önerir, kesmez). */
+const bolNokta = (b: string, lang: string): string[] | null => {
+  const t = String(b || "").trim(), loc = lang === "en" ? "en" : "tr", aday: { a: string; b: string; d: number }[] = [];
+  for (const m of t.matchAll(/([.!?;])\s+(?=\S)/g)) {
+    const i = m.index!, sol = t.slice(0, i + 1), sag = t.slice(i + m[0].length);
+    if (m[1] !== ";" && (KISALTMA.test(sol) || !/^[\p{Lu}\d"“«]/u.test(sag))) continue;
+    if (BAGLI.test(sag) || kelimeSay(sol) < 6 || kelimeSay(sag) < 6) continue;
+    const a = m[1] === ";" ? sol.slice(0, -1).trimEnd() + (/[.!?]$/.test(t) ? "." : "") : sol;
+    aday.push({ a, b: sag.charAt(0).toLocaleUpperCase(loc) + sag.slice(1), d: Math.abs(kelimeSay(sol) - kelimeSay(sag)) });
+  }
+  aday.sort((x, y) => x.d - y.d);
+  return aday.length ? [aday[0].a, aday[0].b] : null;
+};
+/* Terim kolonlu liste ("Şebeke esnekliği: …" her maddede) bölünmez: ikinci parça terimsiz kalır, kolon düzeni bozulur.
+   Liste en çok 5 maddeye çıkar, asetat başına en çok iki bölme (aşırı parçalama yok). Uyarı (doğrulanmamış sayı)
+   sayıyı taşıyan parçaya geçer; ikisinde de sayı yoksa ikisi de uyarılı kalır. */
+const uzunBol = (s: any, lang: string): number => {
+  if (!s || s.kind !== "list" || !Array.isArray(s.bullets) || s.chart || s.table) return 0;
+  if (s.bullets.length >= 2 && s.bullets.every((b: string) => /^[^:]{3,36}:\s+\S/.test(String(b)))) return 0;
+  let n = 0;
+  for (let g = 0; g < 2 && s.bullets.length < 5; g++) {
+    let at = -1, parca: string[] | null = null;
+    s.bullets.forEach((b: string, i: number) => { if (kelimeSay(b) <= 18 || (at >= 0 && kelimeSay(b) <= kelimeSay(s.bullets[at]))) return; const p = bolNokta(b, lang); if (p) { at = i; parca = p; } });
+    if (at < 0 || !parca) break;
+    const p: string[] = parca, sayili = p.map((x, j) => (numTokens(x).length ? at + j : -1)).filter((x) => x >= 0);
+    s.bullets.splice(at, 1, ...p);
+    s.warn = (s.warn || []).flatMap((w: number) => (w < at ? [w] : w > at ? [w + 1] : sayili.length ? sayili : [at, at + 1]));
+    if (s.why && typeof s.why === "object") { const y: any = {}; Object.keys(s.why).forEach((k) => { const w = Number(k); if (w < at) y[w] = s.why[k]; else if (w > at) y[w + 1] = s.why[k]; else (sayili.length ? sayili : [at, at + 1]).forEach((z) => { y[z] = s.why[k]; }); }); s.why = y; }
+    n++;
+  }
+  return n;
+};
+/* 7.1 İÇERİĞİN KENDİ BİÇİMİ: istemcinin smartKind'ı belge/kart destelerinde tarihli maddeleri zaman çizelgesi yapıyor,
+   araştırmalı destede (o.researched) çalışmıyordu — aynı ölçüt burada: 3-4 madde, HER BİRİ kendi tarihiyle başlıyor,
+   tarihler ileri gidiyor ve ayrı (timeOk). Uyarılı liste çevrilmez (çizelge uyarı işaretini çizmez), son asetat
+   (sonuç) liste kalır. Tarihsiz bir madde varsa liste kalır. */
+const TARIHBAS = /^\s*((?:1[5-9]|20)\d{2})(?:\s*[–—-]\s*(?:1[5-9]|20)?\d{2,4})?(?:'?\p{L}{0,4})?\s*(?::|\s[–—-])\s+\S/u;
+const tarihliMi = (bs: string[]): boolean => {
+  if (!Array.isArray(bs) || bs.length < 3 || bs.length > 4) return false;
+  const ys = bs.map((b) => { const m = String(b).match(TARIHBAS); return m ? +m[1] : null; });
+  return ys.every((y) => y !== null) && ys.every((y, i) => !i || y! >= ys[i - 1]!) && ys[0] !== ys[ys.length - 1] && timeOk(bs);
+};
+/* İki tarafın adı maddelerin önekinde: başlık bir karşılaştırma ("A ile B", "A vs B", "karşılaştırma") ve 4-6 maddenin
+   HEPSİ yalnız iki ayrı önekten biriyle başlıyor, her tarafta en az iki madde → "two"; taraf adları önekin kendisidir. */
+const KARSI = /(?:^|[^\p{L}])(?:vs\.?|versus|karşılaştır\p{L}*|kıyas\p{L}*|compar\p{L}*|farkı|farkları|differences?)(?![\p{L}])/iu;
+const ikiTaraf = (s: any): string[] | null => {
+  const bs: string[] = (s && s.bullets) || []; if (!KARSI.test(String(s && s.title || "")) || bs.length < 4 || bs.length > 6) return null;
+  const on = bs.map((b) => (String(b).match(/^([^:]{2,32}):\s+\S/) || [])[1]?.trim() || "");
+  if (on.some((x) => !x)) return null;
+  const say: Record<string, number> = {}; on.forEach((x) => { const k = x.toLocaleLowerCase("tr"); say[k] = (say[k] || 0) + 1; });
+  const ks = Object.keys(say); if (ks.length !== 2 || ks.some((k) => say[k] < 2)) return null;
+  return ks.map((k) => on.find((x) => x.toLocaleLowerCase("tr") === k)!);
+};
+const anlatiBicim = (slides: any[], lang: string): { time: number; two: number } => {
+  const r = { time: 0, two: 0 };
+  slides.forEach((s: any, i: number) => {
+    if (!s || s.kind !== "list" || s.chart || s.table || i === slides.length - 1 || (s.warn || []).length) return;
+    if (tarihliMi(s.bullets)) { s.kind = "time"; r.time++; return; }
+    const h = ikiTaraf(s); if (!h) return;
+    const sd = sidesOf(s.bullets, h, s.warn || []); if (!sd.split) return;
+    s.kind = "two"; s.heads = h; s.bullets = sd.bullets.map((b: string, j: number) => onekAt(b, h[j < sd.split ? 0 : 1])); s.warn = sd.warn; s.split = sd.split; r.two++;
+  });
+  return r;
+};
+/* 7.2 NOT EKLER, YİNELEMEZ: konuşmacı notunun bir maddeyi ya da başlığı tekrar eden cümlesi atılır — madde kökleriyle
+   en az %80 örtüşen cümle (en az 4 kök) ya da "bu asetatta X'i ele alıyoruz" türü, başlığın ötesinde bir şey söylemeyen
+   meta cümle. Köprü (son cümle) hep kalır, en az iki cümle kalır; not 45 kelimeyi aşıyorsa atımdan sonra da aşmalıdır
+   (yoksa var olan not uzatma çağrısı yeniden tetiklenirdi: ek çağrı yok). Not kısa diye dolgu eklenmez. */
+const META_NOT = /(?:bu (?:asetat|slayt|bölüm)(?:da|ta|de|te)|(?:in|on) this slide|this slide (?:shows|covers|is about|presents)|şimdi (?:size )?(?:anlatacağım|bahsedeceğim)|let me (?:now )?(?:talk|explain))/iu;
+const kok5 = (t: string): string[] => [...new Set((String(t || "").toLocaleLowerCase("tr").match(/[\p{L}\d]{4,}/gu) || []).map((w) => w.slice(0, 5)))];
+const notSade = (s: any): number => {
+  const c = String(s && s.notes || "").split(/(?<=[.!?])\s+/).filter(Boolean); if (c.length < 3) return 0;
+  const bk = [...(s.bullets || []), ...(s.stats || []).map((x: any) => `${x.value} ${x.label}`)].map(kok5).filter((k) => k.length >= 4), tk = kok5(s.title);
+  const yineler = (x: string, i: number) => {
+    if (i === c.length - 1) return false;
+    const k = kok5(x);
+    if (k.length >= 4 && bk.some((b) => k.filter((w) => b.includes(w)).length / k.length >= 0.8)) return true;
+    return META_NOT.test(x) && !/\d/.test(x) && k.filter((w) => !tk.includes(w) && !kok5("asetat slayt slide bölüm anlatac bahsed konusu konusunu alıyoruz konuşacağız bakalım talk explain shows covers about presents this that these with will what here look going discuss").includes(w)).length <= 1;
+  };
+  const keep = c.filter((x, i) => !yineler(x, i));
+  if (keep.length === c.length || keep.length < 2) return 0;
+  const once = kelimeSay(s.notes), sonra = kelimeSay(keep.join(" "));
+  if (once >= 45 && sonra < 45) return 0;
+  s.notes = keep.join(" ");
+  return c.length - keep.length;
+};
 async function groq(key: string, model: string, sys: string, user: string, maxTok: number) {
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -1040,7 +1137,12 @@ The deck is written in ${LQ}: q1, q2, ask, aspects and aq are in ${LQ}, whatever
         const qsDil = qs.filter((q: string) => !dilDisi(q, lang)); qs.splice(0, qs.length, ...qsDil); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = aspects.length && !dilDisi(String(pq?.aq || ""), lang) ? String(pq?.aq || "").slice(0, 160).trim() : "";
         /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
            Alt başlık sorgusu olmadan "…yolları" konusu yalnız sorunun verisini (enflasyon rakamları) buluyordu. */
-        if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => yilTekil(tarihSorgu(topic, q))))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
+        /* #38: İngilizce deste + Türkçe konu: derin ilk sorgu Türkçe konunun kendisiydi; kaynakların çoğu Türkçe geliyordu.
+           Planlayıcının İngilizce q1'i (yoksa "en") ilk sorgu olur. Ek çağrı yok; planlayıcı düşerse konu aranır. */
+        const trKonu = lang === "en" && (dilDisi(topic, "en") || /\b(?:ve|ile|için|icin|nasıl|nasil|nedir|neden|etkileri?|yolları|üzerine|alanında|önemi)\b/i.test(topic));
+        const ilk = trKonu ? (qs[0] || String(pq?.en || "").slice(0, 160).trim() || topic) : topic;
+        if (trKonu) console.log("sunum arastirma: Turkce konu, ingilizce ilk sorgu: " + (ilk !== topic));
+        if (gq.ok && qs.length) queries = [...new Set([ilk, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => yilTekil(tarihSorgu(topic, q))))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
       engine.queries = queries.length;
 
       // 2) Tavily (varsa) ve Wikipedia paralel. İlk sorgu derin, ötekiler hızlı.
@@ -1098,7 +1200,7 @@ Rules:
 - Never put a source name in parentheses inside a bullet ("(NPR)", "(TCMB)") — sources are cited through "src" only. Never compute a number yourself (difference, ratio, total, average): every figure appears in a source exactly as written.
 - ACADEMIC DEPTH: this is a university seminar, not a fact sheet. As far as the sources allow, the deck contains (a) one slide that defines the key concepts and the scope, (b) at least one analysis slide that explains WHY — causes, mechanisms, drivers, (c) one comparison (kind "two" or "table") of periods, countries, methods or viewpoints, and (d) one critical slide: limitations, risks, open debates, or points where the sources disagree. That slide is about the subject itself (its costs, risks, disputed interpretations, unresolved questions); it never lists what the sources fail to provide ("data not provided in the sources"). The conclusion states implications ("what follows from this"), not a recap of numbers.
 - A bullet is an analytical statement, not a label: 12-22 words (max 150 characters) that give a claim together with its cause, mechanism, comparison or consequence, written as a full sentence. Never write a bare number with a two-word label as a bullet ("%5,7 güneş" is a failure). On analysis, concept and critical slides start each bullet with a 2-4 word key term and a colon ("Şebeke esnekliği: ...").
-- Every "list" slide has 3-4 bullets; never write a slide with a single bullet. Use "stat" only when you have exactly 3 numbers; a lone number belongs inside a bullet of another slide.
+- Every "list" slide has 3-4 bullets; never write a slide with a single bullet. Use "stat" only when you have exactly 3 numbers; a lone number belongs inside a bullet of another slide. Density follows the role: explanation and analysis slides carry 3-4 full bullets, while "quote", "stat" and "chart" slides stay short on purpose. One bullet is one idea: a point that needs two sentences becomes two bullets.
 - For "quote", "time" and "two" slides the content goes in "bullets" (quote: bullets[0] is the sentence).
 - The FIRST content slide hooks the audience: why this topic matters, with one concrete fact from the sources. The LAST content slide is the conclusion: kind "list" with exactly 3 takeaway bullets. Every slide must have real content — never leave bullets empty.
 - For each slide pick the layout that fits the content:
@@ -1106,7 +1208,7 @@ Rules:
   "chart": put 2-3 short insights (max 120 characters each: what the chart shows, from the sources) in "bullets"; one quantity in ONE unit across comparable categories or over time (never mix miles, km and seconds in one chart) — a numeric series of 3-8 points that the sources state point by point (labels + numeric values, same unit). Never split a total into parts the sources do not give, and never invent a per-day or per-year breakdown;
   "time": 3-4 chronological steps, EACH starting with its own date or period (the year alone unless the source itself states the month or day — never invent a day or month) — statements without a date belong in a "list"; "two": a comparison of exactly two sides (heads = the two side names; 2-3 bullets per side, first all bullets of side one, then all of side two; "n1" = how many bullets belong to side one — every bullet stays on its own side) — three or more people, items or groups go in a "list" or "table", never in "two";
   "table": a small comparison table (max 5 rows, max 4 columns). For comparing 2-3 items on several criteria write a feature matrix: headers = ["Criterion", item1, item2(, item3)], one row per criterion (speed, cost, risk, adoption…), cells short ratings from the sources — "High"/"Medium"/"Low", "Yes"/"No", "✓"/"✕" — or at most 6 words; "quote": one striking sentence or definition. Attribute it to a person ONLY if that exact sentence appears word for word in the sources as that person's words; otherwise write it as a plain statement with no quotation marks and no name. Never invent or paraphrase a quotation;
-  "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list".
+  "list": 3-4 analytical bullets as described above. A list of years with bare values is a "chart", not a "list". A step-by-step process is one "list" whose title names the process and whose bullets start "Step 1:", "Step 2:"… in order (Turkish: "Adım 1:").
   A number shown on a "stat" or "chart" slide appears on no other slide — the hook slide uses a different fact. Prefixes never repeat the column name (no "AI: …" under "Artificial Intelligence").
   NUMBERS ARE DRAWN, NOT WRITTEN: whenever the sources give 3+ comparable values in one unit (years, countries, segments), that slide MUST be a "chart"; a share or rate in percent belongs in "stat" (drawn as a ring). Two items compared on the same criteria are a "table" (Criterion | A | B with short ratings), not "two" — "two" is only for two sides with different kinds of points. Write numbers in words a reader can say aloud: "about 2 times the 2025 level", never "~2x 2025".
   Use at least 4 different layouts across the deck when the sources allow (a "two" or "table" comparison, a "time" chronology, a "stat" or "chart" with real numbers); never two "list" slides in a row unless the content is truly a list; at most half of the slides may be "list". Never invent a number, date or rating to fill a layout.
@@ -1119,7 +1221,7 @@ Rules:
 - No superlatives or absolute claims ("the fastest", "the first", "proved", "en hızlı", "kanıtladı") unless a source states exactly that — this applies to notes too.
 - Use the established ${L} term for technical vocabulary (e.g. breccia = "breş"); if unsure, keep the original term in parentheses.
 - "src" = the source ids used on that slide. Source ids go ONLY in "src": never write "(Kaynak 2)", "(Source 2)" or "(src2)" inside titles, bullets, labels or notes.
-- "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets. Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters, and never say "X kaynağı", "X blogu" or a website's name. In Turkish say "slayt", never "slide". Notes describe the slide as it is: do not mention a chart or table the slide does not have. Fewer than 45 words is a failure.
+- "notes" = what the presenter SAYS: 3-4 natural spoken sentences, 45-80 words. Explain the slide, add one detail or example from the sources that is NOT written on the slide, and end with a one-sentence bridge to the next slide. Never just repeat the bullets or the title, and never open with "In this slide" / "Bu slaytta". Notes are spoken aloud: never mention source numbers or labels in them (no "Source 1", "Kaynak 2", "[3]"); name the institution or author instead if the origin matters, and never say "X kaynağı", "X blogu" or a website's name. In Turkish say "slayt", never "slide". Notes describe the slide as it is: do not mention a chart or table the slide does not have. Fewer than 45 words is a failure.
 - "image" = a picture that would genuinely help this slide, or empty strings if the slide is a chart/table/stat. "q": ENGLISH stock-photo query, 3-6 concrete visual words naming a physical object, place or scene that a camera can photograph, with its period or material ("ancient greek silver coin museum", not "ancient greece" or "economy"); no abstract or action words (growth, deployment, expansion, development, market, cost) — name the physical subject itself ("solar panel farm aerial", "wind turbines offshore"). "entity": the exact English Wikipedia article title if the slide is mainly about one specific person, machine, product, building, place, organisation or event (e.g. "ENIAC", "Grace Hopper"); otherwise "".
 - "cover_image" = same shape, for the cover slide of the whole deck.
 Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""},"slides":[{"title":"","kind":"list|two|time|stat|chart|quote|table","bullets":[""],"heads":["",""],"n1":0,"stats":[{"value":"","label":""}],"chart":{"type":"bar|line|pie","labels":[""],"values":[0],"unit":""},"table":{"headers":[""],"rows":[[""]]},"notes":"","image":{"q":"","entity":""},"src":[1]}]}`;
@@ -1272,6 +1374,9 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
       t.bullets.push(x.bullets[0]); t.src = [...new Set([...t.src, ...x.src])];
       dropAt(i);
     }
+    /* #44: içerik biçimi → uzun madde bölme → not yinelemesi (deterministik; anlam denetimi ve not uzatma bunları görür) */
+    const anlati = { ...anlatiBicim(slides, lang), bolunen: 0, notCumle: 0 };
+    slides.forEach((x: any, i: number) => { if (i < slides.length - 1) anlati.bolunen += uzunBol(x, lang); anlati.notCumle += notSade(x); });
     if (!slides.length) return J({ error: "Acadia yanıtı okunamadı" }, 502);
 
     // ---------- anlam doğrulaması: her iddia kaynağın ilgili paragrafıyla karşılaştırılır ----------
@@ -1390,7 +1495,7 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
     // Deste konuyu yanıtladı mı: alt başlıkların kaçı asetatlara girdi. Log teşhis içindir (sorgular + kaynaklar + odak tek satırda).
     const body2 = slides.map((x: any) => [x.title, ...(x.bullets || []), ...(x.stats || []).map((y: any) => y.label), ...((x.table?.rows || []).flat())].join(" ")).join(" ");
     const focus = { aspects: aspects.length, sources: aspects.filter((a) => aspHit([a], srcs.map((x) => x.text).join(" ").slice(0, 200000))).length, covered: aspects.filter((a) => aspHit([a], body2)).length };
-    console.log(`sunum arastirma: "${topic.slice(0, 60)}" | sorgular ${JSON.stringify(queries)} | alt basliklar ${JSON.stringify(aspects)} | kaynak ${srcs.map((x) => x.site).join(",")} | odak ${focus.covered}/${focus.aspects} (kaynakta ${focus.sources})`);
+    console.log(`sunum arastirma: "${topic.slice(0, 60)}" | sorgular ${JSON.stringify(queries)} | alt basliklar ${JSON.stringify(aspects)} | kaynak ${srcs.map((x) => x.site).join(",")} | odak ${focus.covered}/${focus.aspects} (kaynakta ${focus.sources}) | anlati ${JSON.stringify(anlati)}`);
     return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, check: { checked, unverified, meaning }, engine: { ...engine, focus } });
   } catch (e) {
     console.error("sunum-research", e);

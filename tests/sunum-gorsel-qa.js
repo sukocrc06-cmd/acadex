@@ -188,8 +188,8 @@ test('V9 Phase 3 planlayıcı sabitleri değişmedi (aynı model/uç/geri çekil
 });
 
 /* ------------------------------ B: istemci ------------------------------ */
-const P5 = ink.slice(ink.indexOf('/* ---------- PHASE 5: GEMINI GÖRSEL DENETİM'), ink.indexOf('  var gorselBolum = function () {'));
-const P5B = ink.slice(ink.indexOf('/* ---------- PHASE 5: GEMINI GÖRSEL DENETİM'), ink.indexOf('\n  };\n', ink.indexOf('  var gorselBolum = function () {')) + 5);
+const P5 = ink.slice(ink.indexOf('/* ---------- PHASE 5: GEMINI GÖRSEL DENETİM'), ink.indexOf('  var gorselBolum = function ('));
+const P5B = ink.slice(ink.indexOf('/* ---------- PHASE 5: GEMINI GÖRSEL DENETİM'), ink.indexOf('\n  };\n', ink.indexOf('  var gorselBolum = function (')) + 5);
 const C = new Function('var arr = function (x) { return Array.isArray(x) ? x : []; }, fontYedek = 0, W = 960, H = 540, window = {}, document = {};\n' +
   P5.slice(P5.indexOf('  var GORSEL = {'), P5.indexOf('  /* Çalıştırma:')) + '\nreturn { gqInset: gqInset, GORSEL: GORSEL, GQ_MUAF: GQ_MUAF, gorselTur: gorselTur, gorselAnahtar: gorselAnahtar, gorselDogrula: gorselDogrula, sabit: { GQ_PARTI: GQ_PARTI, GQ_TAVAN: GQ_TAVAN, GQ_EN: GQ_EN, GQ_BOY: GQ_BOY, GQ_IMG_MAX: GQ_IMG_MAX, GQ_TOPLAM: GQ_TOPLAM, GQ_BULGU: GQ_BULGU, GQ_NEDEN: GQ_NEDEN } };')();
 
@@ -332,9 +332,14 @@ if (!CHROME) {
         ${YANIT[sen]} }
       return Promise.resolve({ data: {} }); };
     new MutationObserver(function () { var t = (d.querySelector('[data-toast-t]') || {}).textContent || ''; if (t && window.__toast[window.__toast.length - 1] !== t) window.__toast.push(t); }).observe(d.body, { subtree: true, childList: true, characterData: true });
-    var durumGQ = function () { var g = d.querySelector('[data-gq]'); return g ? { durum: (g.querySelector('[data-gq-durum]') || {}).getAttribute ? g.querySelector('[data-gq-durum]').getAttribute('data-gq-durum') : null, metin: g.textContent.replace(/\\s+/g, ' ').trim(), run: !!g.querySelector('[data-gq-run]'),
-      asetat: Array.prototype.map.call(g.querySelectorAll('[data-gq-asetat]'), function (x) { return x.getAttribute('data-gq-asetat'); }), kod: Array.prototype.map.call(g.querySelectorAll('[data-gq-kod]'), function (x) { return x.getAttribute('data-gq-kod'); }),
-      git: Array.prototype.map.call(g.querySelectorAll('[data-au-go]'), function (x) { return x.getAttribute('data-au-go'); }) } : null; };
+    /* Phase 6 (#35): görsel bulgular birleşik denetim listesinde (data-qa-src=visual); [data-gq] özet + gizlilik + düğme */
+    var durumGQ = function () { var g = d.querySelector('[data-gq]'); if (!g) return null;
+      var it = Array.prototype.slice.call(d.querySelectorAll('[data-qa-src="visual"]')).sort(function (a, b) { return a.getAttribute('data-gq-asetat') - b.getAttribute('data-gq-asetat'); });
+      var tek = function (a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }); };
+      return { durum: g.querySelector('[data-gq-durum]') ? g.querySelector('[data-gq-durum]').getAttribute('data-gq-durum') : null,
+        metin: (g.textContent + ' ' + it.map(function (x) { return x.textContent; }).join(' ')).replace(/\\s+/g, ' ').trim(), run: !!g.querySelector('[data-gq-run]'),
+        asetat: tek(it.map(function (x) { return x.getAttribute('data-gq-asetat'); })), kod: it.map(function (x) { return x.getAttribute('data-gq-kod'); }),
+        git: it.map(function (x) { return x.querySelector('[data-au-go]'); }).filter(Boolean).map(function (x) { return x.getAttribute('data-au-go'); }) }; };
     var bitir = async function () { for (var k = 0; k < 1800 && GQ.kos(); k++) await bekle(100); await bekle(200); };
     var temiz = function (r) { return r ? JSON.parse(JSON.stringify(r, function (k, v) { return k === 'olcum' ? undefined : v; })) : r; };
     var s0 = S.store.saveLocal, p0 = S.store.push;

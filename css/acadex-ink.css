@@ -6182,6 +6182,12 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#acadexsunum-view.axu,#axu-layer) .sx-pl-help{margin:0 0 10px;font-size:13.5px;color:var(--muted)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strips{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-direction:column;gap:8px;counter-reset:sp}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip{counter-increment:sp;position:relative;display:grid;grid-template-columns:28px 34px minmax(0,1fr) 150px 44px;align-items:center;gap:8px;padding:6px 8px;background:linear-gradient(115deg,rgba(255,255,255,.7),rgba(255,255,255,0) 40%),rgba(220,230,255,.55);border:1px solid rgba(47,107,255,.28);border-radius:2px;box-shadow:0 6px 10px -8px rgba(13,24,56,.6);transform:rotate(var(--r,0deg))}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto{counter-increment:sp;display:grid;grid-template-columns:28px 34px minmax(0,1fr);align-items:center;column-gap:8px;min-height:40px;padding:4px 8px;border:1px dashed rgba(47,107,255,.45);border-radius:2px;color:var(--navy);font-size:14.5px;font-weight:600}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto::before{content:counter(sp);grid-column:2;font-family:"Caveat",cursive;font-weight:700;font-size:24px;color:var(--blue);text-align:center}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto span{grid-column:3;min-width:0;padding:0 4px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto small{grid-column:3;padding:0 4px;font-size:12px;font-weight:400;color:var(--muted);overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-pl-sayi{margin:0 0 8px;font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-pl-sayi[hidden]{display:none}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip.dragging{opacity:.4}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip.over{box-shadow:0 -3px 0 var(--blue),0 6px 10px -8px rgba(13,24,56,.6)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-grip{width:28px;height:40px;border:0;background:radial-gradient(circle,#8A93AB 1.4px,transparent 1.8px) 0 0/7px 7px;cursor:grab;opacity:.7}
@@ -9315,3 +9321,35 @@ body.axb-deco #feed-view.axb .bp-stk-x,body.axb-deco .bp-stk-x{display:flex}
    "ana fikri yaz…", "4. adım" gibi yazılar düzenleme ekranında yol gösterir,
    sunumda ise yarım iş gibi görünür. */
 :is(#acadexsunum-view.axu,#axu-layer) :is(.sx-pr,.sx-print) .sx-el.muted,.sx-pr .sx-el.muted,.sx-print .sx-el.muted{visibility:hidden}
+
+/* Kurgu önerisi (#41, 27.11.2026): "Acadia'dan öneri al" kurgu seçicisinin altında. Seçiciyi kendisi değiştirmez;
+   kart yalnız tıklamadan sonra açılır. Düğmeler 44px dokunma hedefi, dar ekranda tek sütun ve yatay taşma yok. */
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri{margin:-4px 0 14px;min-width:0;max-width:100%}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri[hidden],:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-kart[hidden]{display:none}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-ust{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-ust small{flex:1 1 220px;min-width:0;font-size:13px;color:var(--muted);line-height:1.35;overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri button{min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri button[disabled]{opacity:.55;cursor:not-allowed}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-kart{margin-top:8px;padding:10px 12px;border:1.4px solid #C9D3E8;border-radius:5px 7px 6px 4px;background:#F7F9FD;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-kart p{margin:0 0 6px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-bas b{color:var(--navy)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-ned,:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-is,:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-alt{color:var(--muted)}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-is q{display:inline-block;margin:0 4px 2px 0;padding:0 6px;border-radius:4px;background:#E8EEFA;color:var(--ink);quotes:none}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-uyar{color:#8A5A00}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-ok{color:#1F7A4D;font-weight:600}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-b{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-ana{border-color:var(--blue);font-weight:600}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-zaten{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);font-size:13px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 0;border-top:1px dashed #C9D3E8;min-width:0}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep small{flex:1 1 100%;color:var(--muted);font-size:13px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep em{font-style:normal;font-size:12px;padding:0 6px;border-radius:4px;background:#E8EEFA;color:var(--navy)}
+/* #42: seçili kurgu öneriden ayrı (yeşil ✓, öneri mavi). ✓ CSS'te: ekran okuyucu "Seçili" der, işaret sözlüğü bozmaz */
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;margin:0 0 8px;min-width:0;font-size:13.5px;line-height:1.35;color:var(--navy);overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec:empty{display:none}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec span,:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-secili{display:inline-flex;align-items:center;gap:3px;padding:0 7px;border-radius:4px;background:#E3F4EA;color:#1F7A4D;font-weight:700;font-size:12px;font-style:normal;white-space:nowrap}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec span::before,:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-secili::before{content:"✓";content:"✓" / ""}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec b{min-width:0;font-weight:600}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep em.sx-oneri-secili{background:#E3F4EA;color:#1F7A4D}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep li.sx-oneri-li-sec{box-shadow:inset 3px 0 0 #1F7A4D;padding-left:9px;background:#F3FAF6}
+@media (max-width:640px){:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-b{flex-direction:column;align-items:stretch}:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-ust button{flex:1 1 100%}}

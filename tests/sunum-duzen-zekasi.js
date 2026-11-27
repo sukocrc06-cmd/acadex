@@ -30,6 +30,8 @@ const { makeRunner } = require('./_ts-extract.js');
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const ink = read('js/acadex-ink.js');
+/* #38: düzenler ilk harfi deste dilinde büyütür (ilkBuyuk); dilimli düzeneğe gerçek tanım + Türkçe deste verilir */
+const ILK = "var deck = { lang: 'tr' };" + ink.match(/  var ilkBuyuk = function[^\n]+/)[0] + '\n';
 const { test, summary } = makeRunner();
 const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
 const cut = (a, b, from) => { const i = ink.indexOf(a, from || 0); assert.ok(i >= 0, 'bulunamadı: ' + a.slice(0, 50)); const j = ink.indexOf(b, i + a.length); assert.ok(j > i, 'bulunamadı: ' + b.slice(0, 50)); return ink.slice(i, j); };
@@ -41,7 +43,7 @@ const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 7
 const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
 const arr = (x) => (Array.isArray(x) ? x : []);
 const { VARY, VSIRA, LAILE } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'txt',
-  cut("var TINT = ['#DCE6FF'", '/* ---------- özetten taşınan zenginlik') + ';return { VARY, VSIRA, LAILE };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], arr, (x) => String(x == null ? '' : x).trim());
+  ILK + cut("var TINT = ['#DCE6FF'", '/* ---------- özetten taşınan zenginlik') + ';return { VARY, VSIRA, LAILE };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], arr, (x) => String(x == null ? '' : x).trim());
 const VS = cut('var vSay = {}, vSec', 'push(); var made = strips.map');
 const NS = cut('  var newSlide = function (kind, t, b, c) {', '  /* ---------- rendering ---------- */');
 const LAY = {};
@@ -339,12 +341,12 @@ test('D0 P1 kaynak kuralları: check() kapı değil, sabitler, basım sırası, 
   assert.ok(!/fitHazir/.test(ink), '"şimdi sığdır, sonra bir daha" yolu kalmamalı');
   assert.equal(ink.split('fitSlide(').length - 1, 5, 'fitSlide çağrıları: yaziUyum, yaziFit, DZ ölçümü, printDeck, yuvaDene (Phase 2, kapıdan geçer) — yenisi eklendiyse yazı kapısından geçmeli');
   assert.match(cut('  var openAudit = function () {', '    var paint = function'), /if \(!yaziHazirMi\(\) \|\| yaziKuyruk\.length\) \{ say\([^)]*\); yaziSonra\(openAudit, 'denetim'\); return; \}/);
-  assert.match(cut('    var doFix = function (list) {', '\n    };'), /if \(!yaziHazirMi\(\)\) \{ yaziSonra\(function \(\) \{ doFix\(list\); \}\); return; \}/);
+  assert.match(cut('  var qaHedef = function (x) {', '\n  };\n'), /x\.els\.length && snapHazir\(deck\)/, 'denetim onarımı (fitEl) yalnız doğrulanmış şablon yazısıyla');
   assert.match(ink, /var apply = function \(\) \{\n        if \(!yaziHazirMi\(\) \|\| yaziKuyruk\.length\) \{ yaziSonra\(apply, 'ai:' \+ sid\); return; \}/);
   assert.match(ink, /return yaziHazirSoz\(\)\.then\(function \(\) \{ addQ\(s, 'Soru: '/);
   assert.match(ink, /setTimeout\(res, calm \? 0 : 250\); \}\)\.then\(yaziHazirSoz\)\.then\(function \(\) \{ return AI\[k\]\(work\); \}\);/);
   assert.match(ink, /return yaziHazirSoz\(\)\.then\(function \(\) \{ work = clone\(s\); var m = AI\[k\]\(work\);/);
-  assert.equal((ink.match(/\bsettle\(/g) || []).length, 4, 'settle çağıranları: addQ ×2, Acadia apply, fixSlide (hepsi kapıdan geçer)');
+  assert.equal((ink.match(/\bsettle\(/g) || []).length, 3, 'settle çağıranları: addQ ×2, Acadia apply (hepsi kapıdan geçer; denetçinin düzelt\'i Phase 6 ile kalktı)');
   assert.equal((ink.match(/\baddQ\(/g) || []).length, 2, 'addQ çağıranları: AI.q ve REMOTE.q (ikisi de kapıdan geçer)');
   /* #18: paylaşım görüntüsü yalnız doğrulanmış şablon yazısıyla sığdırılmış açık desteden; yoksa hesaptaki görüntü kalır */
   assert.match(ink, /var snapHazir = function \(d\) \{ return !!\(d && d === deck && !fontYedek && yaziHazirMi\(\) && fitIz && fitIz\.get\(d\) === yaziIz\(\)\); \};\n  var snapOf = function \(d\) \{ return snapHazir\(d\) \? snapKur\(d\) : null; \};/, 'paylaşım görüntüsü yedek yazıyla kurulmamalı');
