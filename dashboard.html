@@ -77,6 +77,7 @@
 <link rel="stylesheet" href="css/acadex-medlab.css">
 <link rel="stylesheet" href="css/acadex-finans.css">
 <link rel="stylesheet" href="css/acadex-sinav.css">
+<link rel="stylesheet" href="css/acadex-masa-renk.css">
 
   <!-- Supabase CDN & Config (Route Guard) -->
   <!-- defer + ana sürüm sabit: grafik yalnızca kart açılınca çiziliyor -->
@@ -288,6 +289,16 @@
 <div id="home-exam-banners-container" class="ax-banners"></div>
 <div class="grid">
 
+<section class="card c-full land mr-gun" data-mr-gun aria-labelledby="t-gun">
+<div class="card-h"><h2 class="hd" id="t-gun">bugünün hedefi</h2><span class="mr-gun-alt hand">üç küçük adım, bir seri, sınavlara kalan günler</span></div>
+<div class="mr-gun-in">
+<div class="mr-hedef" data-mr-hedef><p class="hand mr-yuk">masanı hazırlıyorum…</p></div>
+<div class="mr-seri" data-mr-seri></div>
+<div class="mr-sinav"><h3 class="hand">sınavlara kalan</h3><div data-mr-sinav-l><p class="hand mr-yuk">takvimine bakıyorum…</p></div>
+<div class="mr-ac"><span class="mr-acadia" data-acadia data-mood="mutlu" data-pose="selam" data-size="76"></span><p class="mr-ac-say hand" data-mr-say aria-live="polite"></p></div></div>
+</div>
+</section>
+
 <section class="card c-full land" aria-labelledby="t-week">
 <div class="card-h"><h2 class="hd" id="t-week">bu hafta</h2><a class="more" href="#planner" data-go="planner">planlayıcıyı aç →</a></div>
 <svg class="doodle star drw" viewBox="0 0 30 30" aria-hidden="true"><path d="M15 3 C15.5 9 16 11 17 13 C21 13.5 24 14 27 15 C23 16 20 16.5 17 17.5 C16 21 15.5 24 15 27 C14 23 13.5 20 12.5 17.5 C9 16.5 6 16 3 15 C7 14 10 13.5 13 12.5 C14 10 14.5 7 15 3 Z"/></svg>
@@ -329,12 +340,12 @@
 <section class="card c-6 land" aria-labelledby="t-short">
 <div class="card-h"><h2 class="hd" id="t-short">kısayollar</h2></div>
 <div class="shorts" data-reveal="">
-<a class="tile" href="#docs" data-go="docs"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M10 28 V39 H38 V28"/><path d="M24 31 V9"/><path d="M16 16 C19 13 21 11 24 8 C27 11 29 13 32 16"/><path d="M15 34 H33" class="lt"/></svg>Belge yükle</a>
-<a class="tile" href="#notebook" data-go="notebook"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M12 7 H34 C36 7 37 8 37 10 V41 H14 C12 41 11 40 11 38 V8"/><path d="M17 15 H31 M17 21 H31 M17 27 H26" class="lt"/><path d="M30 33 L40 20 L43 23 L33 36 L29 37 Z"/></svg>Çalışma defteri</a>
-<a class="tile" href="#exams" data-go="exams"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M11 6 H31 L37 12 V42 H11 Z"/><path d="M15 17 L17 19 L21 14 M25 17 H32 M15 27 L17 29 L21 24 M25 27 H32" class="lt"/><path d="M15 35 H21 M25 37 H32"/></svg>Deneme sınavı</a>
-<a class="tile" href="#feed" data-go="feed"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="17" r="6"/><path d="M6 39 C7 31 11 27 17 27 C23 27 27 31 28 39"/><circle cx="33" cy="19" r="4.5"/><path d="M30 28 C36 27 41 31 42 38" class="lt"/></svg>Bölüm akışı</a>
-<a class="tile" href="#planner" data-go="planner"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 12 H40 V41 H8 Z"/><path d="M16 7 V16 M32 7 V16 M8 20 H40"/><path d="M14 28 H18 M22 28 H26 M30 28 H34 M14 34 H18 M22 34 H26" class="lt"/><circle cx="32" cy="34" r="3.2"/></svg>Planlayıcı</a>
-<a class="tile" href="#settings" data-go="settings"><svg class="drw" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="6"/><path d="M24 7 V13 M24 35 V41 M7 24 H13 M35 24 H41 M12 12 L16 16 M32 32 L36 36 M36 12 L32 16 M16 32 L12 36"/><circle cx="24" cy="24" r="12" class="lt"/></svg>Ayarlar</a>
+<a class="tile" href="#docs" data-go="docs" style="--tc:#FFF0CC;--tk:#D9900F"><svg class="mr-ic" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 14c0-2 1.4-3.4 3.4-3.4h8.2l3.4 3.8h14c2 0 3.4 1.4 3.4 3.4V36c0 2-1.4 3.4-3.4 3.4H11.4C9.4 39.4 8 38 8 36Z" fill="#FFC94D" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/><path d="M8 19.5h32.4" stroke="#1A2A5C" stroke-width="2.2"/><circle cx="24" cy="29" r="7.5" fill="#fff" stroke="#1A2A5C" stroke-width="2.2"/><path d="M24 33v-8M20.6 28.2 24 24.8l3.4 3.4" fill="none" stroke="#2F6BFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Belge yükle</a>
+<a class="tile" href="#notebook" data-go="notebook" style="--tc:#E3ECFF;--tk:#2F6BFF"><svg class="mr-ic" viewBox="0 0 48 48" aria-hidden="true"><rect x="10" y="6" width="26" height="36" rx="3" fill="#6E95FF" stroke="#1A2A5C" stroke-width="2.2"/><rect x="14" y="6" width="22" height="36" rx="2" fill="#fff" stroke="#1A2A5C" stroke-width="2.2"/><path d="M18 15h13M18 21h13M18 27h8" stroke="#9DB8FF" stroke-width="2.2" stroke-linecap="round"/><path d="M29 37 41 22.5l3.4 2.8L32.6 40l-4.6 1.4Z" fill="#FFB27A" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/></svg>Çalışma defteri</a>
+<a class="tile" href="#exams" data-go="exams" style="--tc:#FDE6E3;--tk:#E5544A"><svg class="mr-ic" viewBox="0 0 48 48" aria-hidden="true"><path d="M11 6h19l7 7v29H11Z" fill="#fff" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/><path d="M30 6v7h7" fill="#FDE6E3" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/><path d="m15.5 19 2.4 2.4 4.4-5" fill="none" stroke="#1E8A55" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M25 19h8M25 28h8M16 37h6M25 37h8" stroke="#C2CADB" stroke-width="2.2" stroke-linecap="round"/><path d="m16 26 5 5m0-5-5 5" stroke="#E5544A" stroke-width="2.6" stroke-linecap="round"/></svg>Deneme sınavı</a>
+<a class="tile" href="#feed" data-go="feed" style="--tc:#EFE6FB;--tk:#8A5CC8"><svg class="mr-ic" viewBox="0 0 48 48" aria-hidden="true"><circle cx="31" cy="17" r="6" fill="#FFC59E" stroke="#1A2A5C" stroke-width="2.2"/><path d="M21 39c1-7 4.6-11 10-11s9 4 10 11Z" fill="#C9B8FF" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/><circle cx="17" cy="19" r="6.5" fill="#FFD86B" stroke="#1A2A5C" stroke-width="2.2"/><path d="M5 40c1-8 5.4-12.4 12-12.4S28 32 29 40Z" fill="#8A5CC8" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/></svg>Bölüm akışı</a>
+<a class="tile" href="#planner" data-go="planner" style="--tc:#DCF2E6;--tk:#1E8A55"><svg class="mr-ic" viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="10" width="34" height="31" rx="4" fill="#fff" stroke="#1A2A5C" stroke-width="2.2"/><path d="M7 14c0-2.2 1.8-4 4-4h26c2.2 0 4 1.8 4 4v5H7Z" fill="#3DBB7C" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/><path d="M16 6v8M32 6v8" stroke="#1A2A5C" stroke-width="2.6" stroke-linecap="round"/><path d="M13 26h4M22 26h4M31 26h4M13 33h4M22 33h4" stroke="#B9C2D6" stroke-width="2.4" stroke-linecap="round"/><circle cx="33" cy="33" r="4" fill="#E5544A"/></svg>Planlayıcı</a>
+<a class="tile" href="#settings" data-go="settings" style="--tc:#DAF1F3;--tk:#0E8C9B"><svg class="mr-ic" viewBox="0 0 48 48" aria-hidden="true"><path d="M21 5h6l1 5 3.6 1.5 4.3-2.8 4.2 4.2-2.8 4.3L38 21l5 1v6l-5 1-1.5 3.6 2.8 4.3-4.2 4.2-4.3-2.8L27 38l-1 5h-6l-1-5-3.6-1.5-4.3 2.8-4.2-4.2 2.8-4.3L10 27l-5-1v-6l5-1 1.5-3.6-2.8-4.3 4.2-4.2 4.3 2.8L21 10Z" fill="#5CC6D2" stroke="#1A2A5C" stroke-width="2.2" stroke-linejoin="round"/><circle cx="24" cy="24" r="6.5" fill="#fff" stroke="#1A2A5C" stroke-width="2.2"/></svg>Ayarlar</a>
 </div>
 </section>
 
@@ -3215,6 +3226,7 @@
   <script src="js/dashboard.js?v=20261124"></script>
 <script src="js/acadia-kit.js"></script>
   <script src="js/acadex-ink.js?v=20261126"></script>
+  <script src="js/acadex-masa-renk.js"></script>
 <script src="js/acadex-defter-plus.js"></script>
 <script src="js/acadex-rozet.js"></script>
 <script src="js/acadex-takvim.js"></script>
