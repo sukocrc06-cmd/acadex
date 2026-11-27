@@ -141,6 +141,11 @@
     '.axk .breath{animation:axk-br 3.6s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}',
     '@keyframes axk-br{50%{transform:scaleY(1.015)}}',
     '.axk .talk .mouth{animation:axk-talk .22s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}',
+    '.axk .bebek{transition:transform .35s ease}',
+    '.axk .bas{animation:axk-bas 7s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 92%}',
+    '@keyframes axk-bas{30%{transform:rotate(-1.4deg)}70%{transform:rotate(1.2deg)}}',
+    '.axk .talk .bas{animation-duration:2.4s}',
+    '.axk .dinle .bas{animation:none;transform:rotate(-5deg);transition:transform .4s ease}',
     '@keyframes axk-talk{to{transform:scaleY(.25)}}',
     '.axk .walk{animation:axk-walk 1.3s cubic-bezier(.2,.8,.2,1) both}',
     '@keyframes axk-walk{from{transform:translateX(-260px);opacity:0}to{transform:none;opacity:1}}',
@@ -188,6 +193,15 @@
     '.axk-serbest input{flex:1;min-width:0;min-height:42px;padding:0 12px;border:1.5px solid #9AA6BC;border-radius:12px;font:15px "Instrument Sans",system-ui,sans-serif;background:#fff;color:#0D1838}',
     '.axk-serbest input:focus{outline:none;border-color:#2F6BFF;box-shadow:0 0 0 3px rgba(47,107,255,.18)}',
     '.axk-serbest button{min-height:42px;padding:0 14px;border:1.5px solid #0D1838;border-radius:12px;background:#0D1838;color:#fff;font-weight:700;cursor:pointer}',
+    '.axk-sg{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}',
+    '.axk-sg .sg{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 13px;border:1.5px solid #0D1838;border-radius:999px;background:#fff;color:#0D1838;font-weight:700;font-size:13.5px;cursor:pointer}',
+    '.axk-sg .sg i{width:10px;height:10px;border-radius:50%;background:#9AA6BC}.axk-sg .sg[aria-pressed=true]{background:#2E8E5B;border-color:#2E8E5B;color:#fff}.axk-sg .sg[aria-pressed=true] i{background:#fff;animation:axk-nwp 1.4s infinite}',
+    '.axk-sg .sg-d{font-size:12.5px;color:#46506A;line-height:1.4}',
+    '.axk-dinle{position:absolute;z-index:3;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:min(86%,560px);padding:9px 15px;border-radius:999px;background:rgba(13,24,56,.86);color:#fff;font-size:14px;box-shadow:0 14px 30px -14px rgba(0,0,0,.55)}',
+    '.axk-dinle b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7FE0C2}.axk-dinle .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.axk-dinle .dl{display:inline-flex;align-items:center;gap:2px;height:18px}.axk-dinle .dl i{width:3px;height:6px;border-radius:2px;background:#7FE0C2;animation:axk-dl .9s ease-in-out infinite}',
+    '.axk-dinle .dl i:nth-child(2){animation-delay:.12s}.axk-dinle .dl i:nth-child(3){animation-delay:.24s}.axk-dinle .dl i:nth-child(4){animation-delay:.36s}.axk-dinle .dl i:nth-child(5){animation-delay:.48s}',
+    '@keyframes axk-dl{50%{height:17px}}',
     '.axk-serbest button.mik{background:#fff;color:#0D1838;padding:0 10px}.axk-serbest button.mik.on{background:#C9483B;border-color:#C9483B;color:#fff;animation:axk-nwp 1s infinite}',
     '.axk-serbest-n{margin:4px 0 0;font-size:12px;color:#6A7593}',
     '.axk-scene svg.room{transition:transform .9s cubic-bezier(.3,.7,.2,1)}',
@@ -200,76 +214,146 @@
 
   /* ----------------------------- karakterler ----------------------------- */
   var TEN = ['#F2C7A1', '#E8B48A', '#D49A6A', '#B97E52'];
+  /* 27.11.2026 · Defne Hoca kalitesinde çizim: yumuşak ışık-gölge (gradyan), ince kontur, gerçek göz
+     (beyaz, iris, bebek, parıltı; .bebek grubu sahnede konuşana / imlece bakar), kulak, burun, saç parlaması.
+     Sınıflar ve koordinatlar eskisiyle aynı (kisi, breath, kolL, kolR, bas, blink, mouth, data-yz),
+     böylece sahneler, Medica bekleme salonu ve animasyonlar değişmeden çalışır. */
+  var KQ = 0, KONTUR = '#2B2340', DUDAK = '#C24E5A';
+  var ton = function (h, k) {
+    h = String(h || '#888').replace('#', ''); if (h.length === 3) h = h.replace(/./g, '$&$&');
+    var n = parseInt(h, 16), c = [n >> 16 & 255, n >> 8 & 255, n & 255];
+    return '#' + c.map(function (v) { v = Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k)); return ('0' + Math.max(0, Math.min(255, v)).toString(16)).slice(-2); }).join('');
+  };
+  var IRIS = ['#5B3A26', '#3E2A1E', '#4C6E8E', '#5E7A3E'];
+  var irisOf = function (o) { if (o.goz) return o.goz; var s = String(o.ad || '') + String(o.sac || '') + String(o.kiyafet || ''), h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 97; return IRIS[h % 7 < 5 ? (h % 2) : 2 + h % 2]; };
+  var gradyan = function (id, ten, sac, kiy, pan, doktor) {
+    return '<defs>' +
+      '<radialGradient id="' + id + 't" cx="42%" cy="34%" r="74%"><stop offset="0" stop-color="' + ton(ten, .24) + '"/><stop offset=".6" stop-color="' + ten + '"/><stop offset="1" stop-color="' + ton(ten, -.17) + '"/></radialGradient>' +
+      '<linearGradient id="' + id + 's" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="' + ton(sac, .3) + '"/><stop offset=".55" stop-color="' + sac + '"/><stop offset="1" stop-color="' + ton(sac, -.28) + '"/></linearGradient>' +
+      '<linearGradient id="' + id + 'k" x1="0" y1="0" x2="1" y2=".6"><stop offset="0" stop-color="' + ton(kiy, .2) + '"/><stop offset=".55" stop-color="' + kiy + '"/><stop offset="1" stop-color="' + ton(kiy, -.24) + '"/></linearGradient>' +
+      '<linearGradient id="' + id + 'p" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="' + ton(pan, .14) + '"/><stop offset="1" stop-color="' + ton(pan, -.22) + '"/></linearGradient>' +
+      (doktor ? '<linearGradient id="' + id + 'b" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".68" stop-color="#F3F6FA"/><stop offset="1" stop-color="#D9E0EA"/></linearGradient>' : '') +
+      '</defs>';
+  };
+  /* göz: beyaz, iris, bebek, parıltı; üst kapak çizgisi (kadında kirpik) */
+  var gozler = function (gy, iris, k, yasli) {
+    var s = '<g class="blink">';
+    [-12, 12].forEach(function (x) { s += '<ellipse cx="' + x + '" cy="' + gy + '" rx="5.4" ry="' + (yasli ? 5 : 6) + '" fill="#FFFFFF" stroke="' + KONTUR + '" stroke-width=".8" stroke-opacity=".35"/>'; });
+    s += '<g class="bebek">';
+    [-12, 12].forEach(function (x) { s += '<circle cx="' + x + '" cy="' + (gy + .4) + '" r="3.7" fill="' + iris + '"/><circle cx="' + x + '" cy="' + (gy + .4) + '" r="1.9" fill="#0D1838"/><circle cx="' + (x + 1.3) + '" cy="' + (gy - 1.2) + '" r="1.2" fill="#FFFFFF"/>'; });
+    s += '</g>';
+    s += '<path d="M-17.8 ' + (gy - 1.6) + ' Q-12 ' + (gy - 7.6) + ' -6.2 ' + (gy - 1.6) + ' M17.8 ' + (gy - 1.6) + ' Q12 ' + (gy - 7.6) + ' 6.2 ' + (gy - 1.6) + '" stroke="#0D1838" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
+    if (k) s += '<path d="M-17.6 ' + (gy - 2) + ' l-3 -1.6 M17.6 ' + (gy - 2) + ' l3 -1.6 M-16 ' + (gy - 4.6) + ' l-1.8 -2.4 M16 ' + (gy - 4.6) + ' l1.8 -2.4" stroke="#0D1838" stroke-width="1.7" stroke-linecap="round"/>';
+    if (yasli) s += '<path d="M-18 ' + (gy + 5) + ' q6 3 11 1 M18 ' + (gy + 5) + ' q-6 3 -11 1" stroke="#0D1838" stroke-width="1" fill="none" opacity=".25"/>';
+    return s + '</g>';
+  };
+  /* kol: koyu kenar + kumaş + ışık çizgisi */
+  var kolCiz = function (d, w, ana, kenar) { return '<path d="' + d + '" stroke="' + kenar + '" stroke-width="' + (w + 4) + '" stroke-linecap="round" fill="none"/><path d="' + d + '" stroke="' + ana + '" stroke-width="' + w + '" stroke-linecap="round" fill="none"/>'; };
+  var el = function (x, y, id, ten) { return '<ellipse cx="' + x + '" cy="' + y + '" rx="10" ry="11" fill="url(#' + id + 't)" stroke="' + ton(ten, -.3) + '" stroke-width="1" stroke-opacity=".5"/><path d="M' + (x - 6) + ' ' + (y + 4) + ' q6 5 12 0" stroke="' + ton(ten, -.25) + '" stroke-width="1.2" fill="none" opacity=".6"/>'; };
   /* yüz ifadeleri (ayakta/oturan figür): kaş + ağız (+ ter damlası / yanak) */
-  var KAS = function (d, w) { return '<path d="' + d + '" stroke="#0D1838" stroke-width="' + (w || 2.4) + '" fill="none" stroke-linecap="round"/>'; };
-  var AGIZ = function (d, dolu) { return '<path class="mouth" d="' + d + '" stroke="#7A2E22" stroke-width="3" fill="' + (dolu ? '#B5463A' : 'none') + '" stroke-linecap="round"/>'; };
+  var KAS = function (d, w) { return '<path d="' + d + '" stroke="#3A2A22" stroke-width="' + (w || 2.4) + '" fill="none" stroke-linecap="round"/>'; };
+  var AGIZ = function (d, dolu) { return '<path class="mouth" d="' + d + '" stroke="#7A2E22" stroke-width="' + (dolu ? 1.4 : 2.6) + '" fill="' + (dolu ? DUDAK : 'none') + '" stroke-linecap="round" stroke-linejoin="round"/>'; };
   var YUZ = {
-    normal: KAS('M-20 -304 q8 -4 14 -1 M20 -304 q-8 -4 -14 -1') + AGIZ('M-10 -274 q10 9 20 0', true),
-    agri: KAS('M-20 -304 l12 4 M20 -304 l-12 4', 2.6) + AGIZ('M-9 -270 q9 -6 18 0') + '<path d="M-30 -312 l-6 3 M-30 -292 l-7 -1" stroke="#0D1838" stroke-width="1.6" stroke-linecap="round" opacity=".6"/><path d="M31 -322 q5 8 0 11 q-5 -3 0 -11z" fill="#7DB7E8"/>',
-    uzgun: KAS('M-20 -302 l12 -3 M20 -302 l-12 -3') + AGIZ('M-9 -270 q9 -6 18 0'),
-    endise: KAS('M-21 -307 q6 -6 13 -3 M21 -307 q-6 -6 -13 -3') + AGIZ('M-8 -272 q4 -4 8 0 q4 4 8 0') + '<path d="M28 -318 q4 7 0 10 q-4 -3 0 -10z" fill="#7DB7E8" opacity=".85"/>',
-    rahat: KAS('M-20 -306 q8 -6 14 -2 M20 -306 q-8 -6 -14 -2') + AGIZ('M-12 -276 q12 13 24 0 z', true) + '<ellipse cx="-22" cy="-280" rx="6" ry="3.6" fill="#E8826F" opacity=".5"/><ellipse cx="22" cy="-280" rx="6" ry="3.6" fill="#E8826F" opacity=".5"/>'
+    normal: KAS('M-20 -305 q8 -5 14 -1 M20 -305 q-8 -5 -14 -1') + AGIZ('M-9.5 -273 Q0 -262.5 9.5 -273 Q4 -270.6 0 -271.4 Q-4 -270.6 -9.5 -273 Z', true) + '<path d="M-5.6 -271.4 Q0 -269.6 5.6 -271.4" stroke="#fff" stroke-width="1.4" fill="none" opacity=".85"/>',
+    agri: KAS('M-20 -305 l12 4 M20 -305 l-12 4', 2.6) + AGIZ('M-10 -268 q10 -7 20 0 q-10 -3 -20 0 z', true) + '<path d="M-7 -268.6 h14" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><path d="M-30 -313 l-6 3 M-30 -293 l-7 -1" stroke="#0D1838" stroke-width="1.6" stroke-linecap="round" opacity=".55"/><path d="M31 -322 q5 8 0 11 q-5 -3 0 -11z" fill="#7DB7E8"/>',
+    uzgun: KAS('M-20 -303 l12 -3 M20 -303 l-12 -3') + AGIZ('M-9 -269 q9 -6 18 0'),
+    endise: KAS('M-21 -308 q6 -6 13 -3 M21 -308 q-6 -6 -13 -3') + AGIZ('M-8 -271 q4 -4 8 0 q4 4 8 0') + '<path d="M28 -318 q4 7 0 10 q-4 -3 0 -10z" fill="#7DB7E8" opacity=".85"/>',
+    rahat: KAS('M-20 -307 q8 -6 14 -2 M20 -307 q-8 -6 -14 -2') + AGIZ('M-12 -275 Q0 -259 12 -275 Q0 -271 -12 -275 Z', true) + '<path d="M-8 -273 Q0 -270.6 8 -273" stroke="#fff" stroke-width="1.6" fill="none"/><ellipse cx="-22" cy="-280" rx="6.5" ry="3.8" fill="#E8826F" opacity=".5"/><ellipse cx="22" cy="-280" rx="6.5" ry="3.8" fill="#E8826F" opacity=".5"/>'
   };
   /* yatan figür (yan görünüş): kaş + ağız */
   var YUZY = {
     normal: '<path class="mouth" d="M24 -14 q5 3 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
-    agri: '<path d="M13 -40 l10 4" stroke="#0D1838" stroke-width="2.4" stroke-linecap="round"/><path class="mouth" d="M24 -12 q5 -4 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M4 -52 q4 7 0 10 q-4 -3 0 -10z" fill="#7DB7E8"/>',
-    uzgun: '<path d="M14 -37 l10 -3" stroke="#0D1838" stroke-width="2.2" stroke-linecap="round"/><path class="mouth" d="M24 -12 q5 -4 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
-    endise: '<path d="M13 -41 q5 -4 11 -1" stroke="#0D1838" stroke-width="2.2" fill="none" stroke-linecap="round"/><path class="mouth" d="M23 -13 q2.5 -3 5 0 q2.5 3 5 0" stroke="#7A2E22" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
-    rahat: '<path d="M13 -41 q6 -5 12 -1" stroke="#0D1838" stroke-width="2.2" fill="none" stroke-linecap="round"/><path class="mouth" d="M22 -16 q6 7 12 0 z" stroke="#7A2E22" stroke-width="2.4" fill="#B5463A" stroke-linecap="round"/>'
+    agri: '<path d="M13 -40 l10 4" stroke="#3A2A22" stroke-width="2.4" stroke-linecap="round"/><path class="mouth" d="M24 -12 q5 -4 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M4 -52 q4 7 0 10 q-4 -3 0 -10z" fill="#7DB7E8"/>',
+    uzgun: '<path d="M14 -37 l10 -3" stroke="#3A2A22" stroke-width="2.2" stroke-linecap="round"/><path class="mouth" d="M24 -12 q5 -4 9 0" stroke="#7A2E22" stroke-width="2.6" fill="none" stroke-linecap="round"/>',
+    endise: '<path d="M13 -41 q5 -4 11 -1" stroke="#3A2A22" stroke-width="2.2" fill="none" stroke-linecap="round"/><path class="mouth" d="M23 -13 q2.5 -3 5 0 q2.5 3 5 0" stroke="#7A2E22" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
+    rahat: '<path d="M13 -41 q6 -5 12 -1" stroke="#3A2A22" stroke-width="2.2" fill="none" stroke-linecap="round"/><path class="mouth" d="M22 -16 q6 7 12 0 z" stroke="#7A2E22" stroke-width="2" fill="' + DUDAK + '" stroke-linecap="round"/>'
   };
   var kisi = function (o) {
     /* ayakta / oturan figür; ayaklar (0,0), yetişkin ≈ 300 birim */
     var g = o.gorunum || 'yetiskin', k = o.cins === 'K', sc = g === 'cocuk' ? (o.yas && o.yas < 7 ? 0.58 : 0.72) : g === 'genc' ? 0.95 : 1;
     var ten = o.ten || TEN[0], sac = o.sac || (g === 'yasli' ? '#C9C4BA' : k ? '#5A3A22' : '#2E241C'), kiy = o.kiyafet || (k ? '#C8573A' : '#4E7AA8');
-    var otur = o.poz === 'otur', ifade = o.ifade || 'normal', doktor = o.rol === 'mentor';
-    var s = '<g class="kisi ' + (o.cls || '') + '" transform="translate(' + o.x + ' ' + o.y + ') scale(' + (o.flip ? -sc : sc) + ' ' + sc + ')">';
-    /* bacaklar */
-    if (otur) s += '<rect x="-34" y="-136" width="112" height="26" rx="12" fill="#2A3554"/><rect x="-30" y="-130" width="112" height="24" rx="11" fill="#2E3A5C"/><rect x="56" y="-120" width="22" height="110" rx="10" fill="#2A3554"/><rect x="62" y="-118" width="22" height="108" rx="10" fill="#2E3A5C"/><rect x="58" y="-14" width="40" height="12" rx="6" fill="#1D2438"/>';
-    else s += '<rect x="-30" y="-130" width="24" height="122" rx="10" fill="' + (doktor ? '#2E3A5C' : '#2E3A5C') + '"/><rect x="6" y="-130" width="24" height="122" rx="10" fill="#2E3A5C"/><rect x="-36" y="-14" width="32" height="12" rx="6" fill="#1D2438"/><rect x="4" y="-14" width="32" height="12" rx="6" fill="#1D2438"/>';
+    var otur = o.poz === 'otur', ifade = o.ifade || 'normal', doktor = o.rol === 'mentor', yasli = g === 'yasli';
+    var id = 'kq' + (++KQ), pan = doktor ? ton(o.ic || '#3E9A86', -.32) : (o.alt || '#2E3A5C'), ust = doktor ? (o.ic || '#3E9A86') : kiy;
+    var tenK = ton(ten, -.2), kiyK = ton(ust, -.28), sacK = ton(sac, -.3);
+    var s = '<g class="kisi ' + (o.cls || '') + '" transform="translate(' + o.x + ' ' + o.y + ') scale(' + (o.flip ? -sc : sc) + ' ' + sc + ')">' + gradyan(id, ten, sac, ust, pan, doktor);
+    s += '<ellipse cx="' + (otur ? 26 : 0) + '" cy="0" rx="' + (otur ? 70 : 56) + '" ry="9" fill="#0D1838" opacity=".12"/>';
+    /* bacaklar ve ayakkabılar */
+    var ayk = doktor ? '#FFFFFF' : '#1D2438', aykK = doktor ? '#CDD6E2' : '#0D1424';
+    if (otur) s += '<rect x="-34" y="-136" width="112" height="26" rx="12" fill="' + ton(pan, -.12) + '"/><rect x="-30" y="-130" width="112" height="24" rx="11" fill="url(#' + id + 'p)"/><rect x="56" y="-120" width="22" height="110" rx="10" fill="' + ton(pan, -.12) + '"/><rect x="62" y="-118" width="22" height="108" rx="10" fill="url(#' + id + 'p)"/><path d="M56 -2 q0 -14 14 -14 h18 q6 0 8 6 v8 z" fill="' + ayk + '" stroke="' + aykK + '" stroke-width="1.5"/><path d="M64 -11 h10" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".28"/>';
+    else s += '<rect x="-30" y="-132" width="24" height="124" rx="10" fill="url(#' + id + 'p)"/><rect x="6" y="-132" width="24" height="124" rx="10" fill="url(#' + id + 'p)"/><path d="M-18 -122 v100 M18 -122 v100" stroke="' + ton(pan, -.4) + '" stroke-width="1.4" opacity=".35"/>' +
+      '<path d="M-38 -1 q0 -15 15 -15 h13 q4 0 4 6 v9 z M38 -1 q0 -15 -15 -15 h-13 q-4 0 -4 6 v9 z" fill="' + ayk + '" stroke="' + aykK + '" stroke-width="1.6"/><path d="M-30 -11 h8 M22 -11 h8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".3"/>';
     /* gövde */
-    var bel = o.gebe ? '<ellipse cx="6" cy="-150" rx="40" ry="34" fill="' + kiy + '"/>' : '';
-    s += '<g class="breath"><path d="M-42 -230 C-44 -250 44 -250 42 -230 L46 -128 C46 -120 -46 -120 -46 -128 Z" fill="' + (doktor ? '#FFFFFF' : kiy) + '" stroke="' + (doktor ? '#D5DCE8' : 'none') + '" stroke-width="2"/>' + bel;
-    if (doktor) s += '<path d="M-14 -246 L0 -206 L14 -246" fill="' + (o.ic || '#7FA6E0') + '"/><path d="M-20 -240 C-26 -200 -10 -186 4 -186 C18 -186 22 -200 20 -214" fill="none" stroke="#2E3A5C" stroke-width="4" stroke-linecap="round"/><circle cx="20" cy="-214" r="6" fill="#9AA6BC" stroke="#2E3A5C" stroke-width="2"/><rect x="18" y="-206" width="16" height="22" rx="3" fill="#F1F4FA" stroke="#C7CFDD"/><path d="M0 -246 V-130" stroke="#E2E7F0" stroke-width="2"/>';
+    s += '<g class="breath">';
+    if (doktor) {
+      /* forma, açık önlük, yaka, cepler, kalem, yaka kartı, steteskop (Dr. Ela çizim dili) */
+      s += '<path d="M-42 -240 C-44 -252 44 -252 42 -240 L44 -126 L-44 -126 Z" fill="url(#' + id + 'k)"/><path d="M-14 -250 L0 -226 L14 -250" fill="' + kiyK + '"/><path d="M-11 -251 L0 -232 L11 -251 Z" fill="url(#' + id + 't)"/>';
+      s += '<path d="M-46 -244 C-53 -246 -57 -240 -57 -230 L-62 -104 L-14 -104 L-12 -214 L-22 -249 Z M46 -244 C53 -246 57 -240 57 -230 L62 -104 L14 -104 L12 -214 L22 -249 Z" fill="url(#' + id + 'b)" stroke="#CDD6E2" stroke-width="2.4" stroke-linejoin="round"/>';
+      s += '<path d="M-22 -249 L-12 -214 L-21 -196 M22 -249 L12 -214 L21 -196 M-52 -150 h25 v18 h-25 z M27 -150 h25 v18 h-25 z M28 -201 h18" stroke="#CDD6E2" stroke-width="2.4" fill="none" stroke-linejoin="round"/>';
+      s += '<rect x="34" y="-214" width="4.5" height="17" rx="2" fill="#2F6BFF"/><rect x="40" y="-212" width="4.5" height="15" rx="2" fill="#E5544A"/>';
+      s += '<path d="M-37 -214 v-7" stroke="#9AA6B8" stroke-width="2"/><rect x="-50" y="-214" width="26" height="31" rx="3" fill="#fff" stroke="#CDD6E2" stroke-width="2"/><rect x="-50" y="-214" width="26" height="8" rx="3" fill="' + (o.ic || '#2E9C86') + '"/><circle cx="-37" cy="-197" r="5" fill="' + ten + '"/><path d="M-41 -199 q4 -7 8 0" fill="' + sac + '"/><rect x="-46" y="-189" width="18" height="2.6" rx="1" fill="#9AA6B8"/>';
+      s += '<g fill="none" stroke="#2E3A5C" stroke-width="3.5" stroke-linecap="round"><path d="M-19 -252 C-28 -226 -20 -204 -4 -200 M19 -252 C28 -226 20 -204 4 -200 M-4 -200 C2 -199 5 -196 5 -190 C5 -176 11 -172 11 -165"/></g><circle cx="11" cy="-159" r="7" fill="#C9D1DC" stroke="#2E3A5C" stroke-width="3"/><circle cx="9" cy="-161" r="2" fill="#fff" opacity=".8"/>';
+    } else {
+      s += '<path d="M-42 -232 C-44 -250 44 -250 42 -232 L46 -128 C46 -120 -46 -120 -46 -128 Z" fill="url(#' + id + 'k)" stroke="' + kiyK + '" stroke-width="1.4"/>';
+      s += '<path d="M22 -244 C38 -240 42 -226 45 -130 L30 -124 C33 -170 33 -214 22 -244 Z" fill="#0D1838" opacity=".08"/>';
+      s += '<path d="M-45 -136 C-20 -129 20 -129 45 -136" stroke="' + kiyK + '" stroke-width="2" fill="none" opacity=".5"/>';
+      if (g === 'cocuk') s += '<path d="M-15 -249 Q0 -236 15 -249" fill="url(#' + id + 't)" stroke="' + kiyK + '" stroke-width="2.5"/><path d="M-24 -196 h48" stroke="#fff" stroke-width="5" opacity=".35"/>';
+      else if (k) s += '<path d="M-13 -250 L0 -232 L13 -250 Z" fill="url(#' + id + 't)"/><path d="M-13 -250 L0 -232 L13 -250" stroke="' + kiyK + '" stroke-width="2" fill="none"/><circle cx="0" cy="-226" r="2.4" fill="#E8C36A"/>';
+      else s += '<path d="M-11 -250 L0 -234 L11 -250 Z" fill="url(#' + id + 't)"/><path d="M-17 -251 L-3 -235 L-21 -231 Z M17 -251 L3 -235 L21 -231 Z" fill="' + ton(ust, .25) + '" stroke="' + kiyK + '" stroke-width="1.3" stroke-linejoin="round"/><circle cx="0" cy="-221" r="2" fill="' + kiyK + '"/><circle cx="0" cy="-204" r="2" fill="' + kiyK + '"/>';
+      if (o.gebe) s += '<ellipse cx="6" cy="-150" rx="40" ry="34" fill="url(#' + id + 'k)" stroke="' + kiyK + '" stroke-width="1.4"/><path d="M-10 -170 q10 -8 24 -6" stroke="#fff" stroke-width="3" fill="none" opacity=".35" stroke-linecap="round"/>';
+    }
     s += '</g>';
     /* kollar */
-    var kol = doktor ? '#FFFFFF' : kiy;
-    s += '<g class="kolL"><path d="M-42 -232 C-62 -220 -64 -170 -58 -140" stroke="' + kol + '" stroke-width="20" stroke-linecap="round" fill="none"/><circle cx="-58" cy="-134" r="10" fill="' + ten + '"/></g>';
-    s += '<g class="kolR"><path d="M42 -232 C62 -220 64 -170 58 -140" stroke="' + kol + '" stroke-width="20" stroke-linecap="round" fill="none"/><circle cx="58" cy="-134" r="10" fill="' + ten + '"/></g>';
+    var kol = doktor ? '#FFFFFF' : 'url(#' + id + 'k)', kolK = doktor ? '#CDD6E2' : kiyK;
+    s += '<g class="kolL">' + kolCiz('M-44 -232 C-62 -220 -64 -170 -58 -144', 20, kol, kolK) + el(-58, -134, id, ten) + '</g>';
+    s += '<g class="kolR">' + kolCiz('M44 -232 C62 -220 64 -170 58 -144', 20, kol, kolK) + el(58, -134, id, ten) + '</g>';
     /* boyun ve baş */
-    s += '<rect x="-9" y="-262" width="18" height="20" fill="' + ten + '"/>';
+    s += '<rect x="-9" y="-266" width="18" height="22" rx="4" fill="url(#' + id + 't)"/><path d="M-9 -252 q9 6 18 0" stroke="' + tenK + '" stroke-width="2" fill="none" opacity=".55"/>';
     s += '<g class="bas">';
-    if (k && g !== 'cocuk') s += '<path d="M-38 -304 C-48 -272 -46 -244 -34 -236 L-24 -240 C-30 -262 -30 -284 -26 -304 Z M38 -304 C48 -272 46 -244 34 -236 L24 -240 C30 -262 30 -284 26 -304 Z" fill="' + sac + '"/>';
-    if (k && g === 'cocuk') s += '<circle cx="-38" cy="-300" r="12" fill="' + sac + '"/><circle cx="38" cy="-300" r="12" fill="' + sac + '"/>';
-    s += '<ellipse cx="0" cy="-294" rx="34" ry="38" fill="' + ten + '"/>';
-    s += k ? '<path d="M-36 -296 C-38 -340 38 -340 36 -296 C30 -318 10 -324 -6 -316 C-18 -312 -30 -306 -36 -296 Z" fill="' + sac + '"/>' : (g === 'yasli' ? '<path d="M-34 -300 C-34 -316 -26 -326 -14 -330 M14 -330 C26 -326 34 -316 34 -300" stroke="' + sac + '" stroke-width="9" fill="none" stroke-linecap="round"/>' : '<path d="M-35 -298 C-38 -338 38 -338 35 -298 C30 -314 14 -318 0 -316 C-14 -318 -30 -314 -35 -298 Z" fill="' + sac + '"/>');
-    if (doktor && o.bone) s += '<path d="M-37 -306 C-37 -344 37 -344 37 -306 Z" fill="' + o.bone + '"/>';
+    if (k && g !== 'cocuk') s += '<path d="M-38 -304 C-48 -272 -46 -244 -34 -236 L-24 -240 C-30 -262 -30 -284 -26 -304 Z M38 -304 C48 -272 46 -244 34 -236 L24 -240 C30 -262 30 -284 26 -304 Z" fill="url(#' + id + 's)"/>';
+    if (k && g === 'cocuk') s += '<circle cx="-38" cy="-300" r="12" fill="url(#' + id + 's)"/><circle cx="38" cy="-300" r="12" fill="url(#' + id + 's)"/><circle cx="-30" cy="-304" r="3.5" fill="#E5544A"/><circle cx="30" cy="-304" r="3.5" fill="#E5544A"/>';
+    /* kulaklar */
+    s += '<ellipse cx="-33" cy="-291" rx="6" ry="9" fill="url(#' + id + 't)"/><ellipse cx="33" cy="-291" rx="6" ry="9" fill="url(#' + id + 't)"/><path d="M-34 -296 q-2 5 1 9 M34 -296 q2 5 -1 9" stroke="' + tenK + '" stroke-width="1.6" fill="none" opacity=".7"/>';
+    if (k && g !== 'cocuk' && !doktor) s += '<circle cx="-33" cy="-281" r="2.4" fill="#E8B53A"/><circle cx="33" cy="-281" r="2.4" fill="#E8B53A"/>';
     /* yüz */
+    s += '<ellipse cx="0" cy="-294" rx="33" ry="37" fill="url(#' + id + 't)" stroke="' + KONTUR + '" stroke-width="1.2" stroke-opacity=".28"/>';
+    if (yasli) s += '<path d="M-14 -318 q14 -4 28 0 M-10 -312 q10 -3 20 0" stroke="' + tenK + '" stroke-width="1.4" fill="none" opacity=".7"/><path d="M-13 -283 q-5 8 -1 14 M13 -283 q5 8 1 14" stroke="' + tenK + '" stroke-width="1.4" fill="none" opacity=".65"/>';
+    /* saç (ön) */
+    if (k) s += '<path d="M-36 -296 C-38 -340 38 -340 36 -296 C30 -318 10 -324 -6 -316 C-18 -312 -30 -306 -36 -296 Z" fill="url(#' + id + 's)"/><path d="M-16 -326 C-6 -331 9 -331 18 -325" stroke="' + ton(sac, .4) + '" stroke-width="2.6" fill="none" stroke-linecap="round" opacity=".8"/>';
+    else if (yasli) s += '<path d="M-34 -300 C-34 -316 -26 -326 -14 -330 M14 -330 C26 -326 34 -316 34 -300" stroke="url(#' + id + 's)" stroke-width="9" fill="none" stroke-linecap="round"/><ellipse cx="-8" cy="-322" rx="9" ry="4" fill="#fff" opacity=".28"/>';
+    else s += '<path d="M-35 -298 C-38 -338 38 -338 35 -298 C30 -314 14 -318 0 -316 C-14 -318 -30 -314 -35 -298 Z" fill="url(#' + id + 's)"/><path d="M-12 -323 C-3 -328 9 -327 16 -322" stroke="' + ton(sac, .35) + '" stroke-width="2.2" fill="none" stroke-linecap="round" opacity=".45"/>';
+    if (doktor && o.bone) s += '<path d="M-37 -306 C-37 -344 37 -344 37 -306 Z" fill="' + o.bone + '"/><path d="M-30 -312 C-20 -318 20 -318 30 -312" stroke="#fff" stroke-width="2" fill="none" opacity=".35"/>';
+    /* göz, burun, yanak */
     var gy = -292;
     if (ifade === 'uyku') s += '<path d="M-19 ' + gy + ' q7 5 14 0 M5 ' + gy + ' q7 5 14 0" stroke="#0D1838" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
-    else s += '<g class="blink"><ellipse cx="-12" cy="' + gy + '" rx="3.6" ry="4.6" fill="#0D1838"/><ellipse cx="12" cy="' + gy + '" rx="3.6" ry="4.6" fill="#0D1838"/></g>';
-    if (o.gozluk || g === 'yasli') s += '<g fill="none" stroke="#2E3A5C" stroke-width="2.2"><circle cx="-12" cy="' + gy + '" r="9"/><circle cx="12" cy="' + gy + '" r="9"/><path d="M-3 ' + gy + ' h6"/></g>';
-    s += '<ellipse cx="-22" cy="-280" rx="5" ry="3" fill="#E89A8A" opacity=".45"/><ellipse cx="22" cy="-280" rx="5" ry="3" fill="#E89A8A" opacity=".45"/>';
+    else s += gozler(gy, irisOf(o), k, yasli);
+    if (o.gozluk || yasli) s += '<g fill="rgba(200,228,255,.18)" stroke="#2E3A5C" stroke-width="2"><rect x="-22" y="' + (gy - 8) + '" width="19" height="15" rx="6"/><rect x="3" y="' + (gy - 8) + '" width="19" height="15" rx="6"/></g><path d="M-3 ' + (gy - 2) + ' h6 M-22 ' + (gy - 3) + ' l-9 -2 M22 ' + (gy - 3) + ' l9 -2" stroke="#2E3A5C" stroke-width="2" fill="none"/>';
+    s += '<path d="M0 -287 q-3.5 8 1 10" stroke="' + tenK + '" stroke-width="2" fill="none" stroke-linecap="round"/>';
+    s += '<ellipse cx="-21" cy="-279" rx="6" ry="3.4" fill="#F08A8A" opacity=".38"/><ellipse cx="21" cy="-279" rx="6" ry="3.4" fill="#F08A8A" opacity=".38"/>';
+    if (yasli && !k) s += '<path d="M-13 -278 Q0 -285 13 -278 Q6 -276 0 -278 Q-6 -276 -13 -278 Z" fill="' + sac + '" stroke="' + sacK + '" stroke-width=".8"/>';
     /* kaş + ağız: her ifade ayrı katman; sahnede ifadeYap() yalnızca görünürlüğü değiştirir (CSS gerektirmez) */
-    if (ifade === 'uyku') s += '<path d="M-20 -304 q8 -4 14 -1 M20 -304 q-8 -4 -14 -1" stroke="#0D1838" stroke-width="2.4" fill="none" stroke-linecap="round"/><path class="mouth" d="M-6 -272 h12" stroke="#7A2E22" stroke-width="3" fill="none" stroke-linecap="round"/>';
-    else Object.keys(YUZ).forEach(function (k) { s += '<g data-yz="' + k + '"' + (k === (YUZ[ifade] ? ifade : 'normal') ? '' : ' display="none"') + '>' + YUZ[k] + '</g>'; });
-    if (doktor && o.maske) s += '<path d="M-26 -286 h52 v20 c0 12 -52 12 -52 0 z" fill="' + o.maske + '"/>';
+    if (ifade === 'uyku') s += KAS('M-20 -304 q8 -4 14 -1 M20 -304 q-8 -4 -14 -1') + '<path class="mouth" d="M-6 -272 h12" stroke="#7A2E22" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    else Object.keys(YUZ).forEach(function (y) { s += '<g data-yz="' + y + '"' + (y === (YUZ[ifade] ? ifade : 'normal') ? '' : ' display="none"') + '>' + YUZ[y] + '</g>'; });
+    if (doktor && o.maske) s += '<path d="M-26 -286 h52 v20 c0 12 -52 12 -52 0 z" fill="' + o.maske + '"/><path d="M-26 -280 h52 M-26 -273 h52" stroke="#fff" stroke-width="1.4" opacity=".45"/><path d="M-26 -284 L-33 -291 M26 -284 L33 -291" stroke="#fff" stroke-width="1.6"/>';
     s += '</g></g>';
     return s;
   };
   /* yatan hasta (yan görünüş): baş solda, beden çarşaf altında */
   var yatan = function (o) {
-    var ten = o.ten || TEN[0], sac = o.sac || '#5A3A22', sc = o.gorunum === 'cocuk' ? 0.75 : 1;
-    var s = '<g class="kisi" transform="translate(' + o.x + ' ' + o.y + ') scale(' + sc + ')">';
-    s += '<ellipse cx="0" cy="-6" rx="46" ry="16" fill="#FFFFFF" stroke="#DCE2EC" stroke-width="2"/>';                 /* yastık */
-    s += '<ellipse cx="6" cy="-26" rx="30" ry="27" fill="' + ten + '"/><path d="M-22 -36 C-18 -62 26 -64 34 -40 C20 -50 0 -50 -22 -36 Z" fill="' + sac + '"/>';
-    s += (o.ifade === 'uyku' || o.uyutuldu) ? '<path d="M14 -30 q6 4 12 0" stroke="#0D1838" stroke-width="2.4" fill="none" stroke-linecap="round"/>' : '<g class="blink"><ellipse cx="20" cy="-30" rx="3" ry="4" fill="#0D1838"/></g>';
+    var ten = o.ten || TEN[0], sac = o.sac || '#5A3A22', sc = o.gorunum === 'cocuk' ? 0.75 : 1, id = 'kq' + (++KQ), ortu = o.ortu || '#9CC6E8', tenK = ton(ten, -.2);
+    var s = '<g class="kisi" transform="translate(' + o.x + ' ' + o.y + ') scale(' + sc + ')">' + gradyan(id, ten, sac, ortu, '#2E3A5C', false);
+    s += '<ellipse cx="0" cy="-6" rx="46" ry="16" fill="#FFFFFF" stroke="#DCE2EC" stroke-width="2"/><path d="M-36 -2 q36 10 72 0" stroke="#DCE2EC" stroke-width="2" fill="none"/>';                 /* yastık */
+    s += '<ellipse cx="6" cy="-26" rx="30" ry="27" fill="url(#' + id + 't)" stroke="' + KONTUR + '" stroke-width="1.1" stroke-opacity=".28"/><ellipse cx="-2" cy="-24" rx="6" ry="8" fill="url(#' + id + 't)" stroke="' + tenK + '" stroke-width="1.2"/>';
+    s += '<path d="M-22 -36 C-18 -62 26 -64 34 -40 C20 -50 0 -50 -22 -36 Z" fill="url(#' + id + 's)"/><path d="M-6 -54 C6 -58 18 -56 26 -48" stroke="' + ton(sac, .4) + '" stroke-width="2" fill="none" opacity=".7" stroke-linecap="round"/>';
+    s += '<path d="M33 -30 q6 4 2 9" stroke="' + tenK + '" stroke-width="2" fill="none" stroke-linecap="round"/>';
+    s += (o.ifade === 'uyku' || o.uyutuldu) ? '<path d="M14 -30 q6 4 12 0" stroke="#0D1838" stroke-width="2.4" fill="none" stroke-linecap="round"/>' :
+      '<g class="blink"><ellipse cx="20" cy="-30" rx="4.2" ry="4.8" fill="#fff" stroke="' + KONTUR + '" stroke-width=".7" stroke-opacity=".35"/><g class="bebek"><circle cx="21" cy="-29.6" r="2.8" fill="' + irisOf(o) + '"/><circle cx="21" cy="-29.6" r="1.4" fill="#0D1838"/><circle cx="22" cy="-30.8" r=".9" fill="#fff"/></g><path d="M15.6 -32 Q20 -36.6 24.4 -32" stroke="#0D1838" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>';
+    s += '<ellipse cx="22" cy="-18" rx="5" ry="3" fill="#F08A8A" opacity=".35"/>';
     if (o.ifade === 'uyku' || o.uyutuldu) s += YUZY.normal;
-    else { var yi = YUZY[o.ifade] ? o.ifade : 'normal'; Object.keys(YUZY).forEach(function (k) { s += '<g data-yz="' + k + '"' + (k === yi ? '' : ' display="none"') + '>' + YUZY[k] + '</g>'; }); }
+    else { var yi = YUZY[o.ifade] ? o.ifade : 'normal'; Object.keys(YUZY).forEach(function (y) { s += '<g data-yz="' + y + '"' + (y === yi ? '' : ' display="none"') + '>' + YUZY[y] + '</g>'; }); }
     if (o.ng) s += '<path d="M34 -24 C46 -22 48 -8 60 2 C90 24 120 40 150 40" stroke="#E7B14A" stroke-width="3" fill="none"/>';
     if (o.maske) s += '<path d="M20 -20 h22 v14 h-22z" fill="#9FD8D0" opacity=".8"/>';
-    s += '<g class="breath"><path d="M36 -12 C60 -50 120 -46 170 -40 L420 -36 C440 -36 446 -6 430 0 L36 0 Z" fill="' + (o.ortu || '#9CC6E8') + '"/><path d="M60 -30 C120 -38 260 -34 420 -30" stroke="rgba(255,255,255,.55)" stroke-width="3" fill="none"/></g>';
-    if (o.kol !== false) s += '<path d="M120 -20 C150 -10 190 -10 220 -16" stroke="' + ten + '" stroke-width="14" stroke-linecap="round" fill="none"/>';
+    s += '<g class="breath"><path d="M36 -12 C60 -50 120 -46 170 -40 L420 -36 C440 -36 446 -6 430 0 L36 0 Z" fill="url(#' + id + 'k)" stroke="' + ton(ortu, -.25) + '" stroke-width="1.4"/><path d="M60 -30 C120 -38 260 -34 420 -30" stroke="rgba(255,255,255,.55)" stroke-width="3" fill="none"/><path d="M150 -10 C200 -18 260 -16 320 -8 M240 -4 C300 -12 360 -12 410 -6" stroke="' + ton(ortu, -.3) + '" stroke-width="1.6" fill="none" opacity=".4"/></g>';
+    if (o.kol !== false) s += kolCiz('M120 -20 C150 -10 190 -10 220 -16', 12, ten, ton(ten, -.22));
     s += '</g>';
     return s;
   };
@@ -500,10 +584,32 @@
       if (k === 'agri' && vit.nabiz != null && !o.vital) { MON.ek = 6; vitalYaz(MON.sonAlarm); }
       ifadeYap(k, 3200);
     };
-    var konusan = function (kim, on) { var g = ov.querySelector('[data-who="' + kim + '"]'); if (g) g.classList.toggle('talk', !!on); };
+    var konusan = function (kim, on) { var g = ov.querySelector('[data-who="' + kim + '"]'); if (g) g.classList.toggle('talk', !!on); if (on) konusanaBak(kim); };
+    /* bakış (27.11.2026): biri konuşurken diğerleri ona bakar; imleç sahnede gezinirken herkes imlece bakar */
+    var BAK = { kim: null, t: 0, z: null };
+    var gozCevir = function (hedefOf) {
+      if (RM) return;
+      Array.prototype.forEach.call(ov.querySelectorAll('[data-who]'), function (w) {
+        var kg = w.querySelector('.kisi'), bb = kg && kg.querySelectorAll('.bebek'); if (!bb || !bb.length) return;
+        var bas = kg.querySelector('.bas') || kg.querySelector('.blink'), r = bas.getBoundingClientRect(); if (!r.width) return;
+        var cx = r.left + r.width / 2, cy = r.top + r.height * .45, h = hedefOf(w), dx = 0, dy = 0;
+        if (h) { var vx = h.x - cx, vy = h.y - cy, L = Math.sqrt(vx * vx + vy * vy); if (L > 6) { dx = vx / L; dy = vy / L; } }
+        var m = kg.getScreenCTM && kg.getScreenCTM(), fx = m && m.a < 0 ? -1 : 1;
+        Array.prototype.forEach.call(bb, function (b) { b.setAttribute('transform', 'translate(' + (dx * 2.2 * fx).toFixed(2) + ' ' + (dy * 1.4).toFixed(2) + ')'); });
+      });
+    };
+    var basMerkez = function (kim) { var b = ov.querySelector('[data-who="' + kim + '"] .bas') || ov.querySelector('[data-who="' + kim + '"] .blink'); if (!b) return null; var r = b.getBoundingClientRect(); return r.width ? { x: r.left + r.width / 2, y: r.top + r.height * .45 } : null; };
+    var konusanaBak = function (kim) { BAK.kim = kim; var h = kim && basMerkez(kim); gozCevir(function (w) { return w.getAttribute('data-who') === kim ? null : h; }); };
+    scene.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch') return; var now = Date.now(); if (now - BAK.t < 70) return; BAK.t = now;
+      gozCevir(function () { return { x: e.clientX, y: e.clientY }; });
+      clearTimeout(BAK.z); BAK.z = setTimeout(function () { konusanaBak(BAK.kim); }, 2200);
+    });
     /* sinematik kamera: konuşana hafifçe yaklaş (geniş ekranda; hareket azaltmada yok) */
     var MU = null, TTS = { on: false };
     try { TTS.on = W.localStorage.getItem('axk.tts') === '1'; } catch (e) {}
+    var SG = { on: false };
+    try { SG.on = W.localStorage.getItem('axk.sesgor') === '1'; } catch (e) {}
     var kamera = function (kim) {
       var sv = scene.querySelector('svg.room'); if (!sv || RM || W.innerWidth < 900) return;
       var g = kim && ov.querySelector('[data-who="' + kim + '"]'), b = null;
@@ -512,17 +618,28 @@
       sv.style.transformOrigin = ((b.x + b.width / 2) / 10).toFixed(1) + '% ' + ((b.y + b.height * 0.3) / 5.6).toFixed(1) + '%';
       sv.style.transform = 'scale(1.07)';
     };
+    /* ses seçimi (27.11.2026): Türkçe sesler arasında doğal (neural/online) olanı ve cinsiyete uyanı öne al */
+    var sesSec = function (erkek) {
+      var vs = W.speechSynthesis.getVoices().filter(function (v) { return /^tr/i.test(v.lang); }); if (!vs.length) return null;
+      var E = /ahmet|tolga|cem|kerem|erkek|\bmale/i, K = /emel|seda|yelda|filiz|female|kadın|google/i;
+      var puan = function (v) { var n = v.name || ''; return (/natural|online|neural|premium|enhanced/i.test(n) ? 4 : 0) + ((erkek ? E : K).test(n) && !(erkek && /female/i.test(n)) ? 3 : 0); };
+      var en = vs.slice().sort(function (a, b) { return puan(b) - puan(a); })[0];
+      return { ses: en, uygun: puan(en) % 4 >= 3 };
+    };
     /* sesli sahne: konuşan karakter Türkçe sesle okunur (tarayıcının kendi sesi; kadın/erkek, yaşa göre ton) */
     var sesliOku = function (kim, metin) {
       if (!TTS.on || !W.speechSynthesis || !W.SpeechSynthesisUtterance || kim === 'anlatici' || kim === 'sen') return;
       try {
         W.speechSynthesis.cancel();
         var u = new W.SpeechSynthesisUtterance(metin), kk = kim === 'mentor' ? sen.mentor : kim === 'refakat' ? (sen.refakat || {}) : sen.hasta;
-        u.lang = 'tr-TR'; u.rate = 1.02;
-        u.pitch = (kk.cins === 'E' ? 0.85 : 1.15) + (kk.gorunum === 'cocuk' ? 0.35 : kk.gorunum === 'yasli' ? -0.15 : 0);
-        var vs = W.speechSynthesis.getVoices().filter(function (v) { return /^tr/i.test(v.lang); }); if (vs.length) u.voice = vs[0];
+        u.lang = 'tr-TR'; u.rate = kk.gorunum === 'yasli' ? 0.94 : 1.02;
+        var v = sesSec(kk.cins === 'E'), uyar = v && v.uygun ? 0 : (kk.cins === 'E' ? -0.15 : 0.15);
+        u.pitch = Math.max(0.5, Math.min(1.8, 1 + uyar + (kk.gorunum === 'cocuk' ? 0.35 : kk.gorunum === 'yasli' ? -0.12 : 0)));
+        if (v) u.voice = v.ses;
         W.speechSynthesis.speak(u);
+        return u;
       } catch (e) {}
+      return null;
     };
     var KIM = { hasta: sen.hasta.hitap || sen.hasta.ad, mentor: (sen.mentor.unvan ? sen.mentor.unvan + ' ' : '') + sen.mentor.ad, refakat: sen.refakat ? sen.refakat.ad : 'Refakatçi', sen: 'Sen', anlatici: 'Sahne' };
     /* konuşma balonu: daktilo efekti; tıklayınca tamamlanır */
@@ -532,8 +649,9 @@
       box.innerHTML = '<span class="who ' + kim + '">' + X(KIM[kim] || kim) + '</span><p></p>';
       panel.innerHTML = ''; panel.appendChild(box);
       var p = box.querySelector('p'), i = 0, bitti = false;
-      var bitir = function () { if (bitti) return; bitti = true; clearInterval(S.yaz); p.textContent = metin; konusan(kim, false); if (sonra) sonra(); };
-      konusan(kim, true); kamera(kim === 'hasta' || kim === 'mentor' || kim === 'refakat' ? kim : null); sesliOku(kim, metin);
+      var u = null, bitir = function () { if (bitti) return; bitti = true; clearInterval(S.yaz); p.textContent = metin; if (!u) konusan(kim, false); if (sonra) sonra(); };
+      konusan(kim, true); kamera(kim === 'hasta' || kim === 'mentor' || kim === 'refakat' ? kim : null); u = sesliOku(kim, metin);
+      if (u) { var sus = function () { clearTimeout(u.t); if (S.sesli === u) S.sesli = null; konusan(kim, false); }; S.sesli = u; u.onend = u.onerror = sus; u.t = setTimeout(sus, metin.length * 95 + 3000); }   /* ağız ses bitene kadar oynar */
       if (RM) { bitir(); return box; }
       S.yaz = setInterval(function () { i += 2; p.innerHTML = X(metin.slice(0, i)) + '<span class="cur"></span>'; if (i >= metin.length) bitir(); }, 22);
       box.addEventListener('click', bitir);
@@ -581,22 +699,52 @@
         if (!W.AXFIZ) return;
         var dolu = a.hak && kalan() <= 0;
         var f = D.createElement('form'); f.className = 'axk-serbest'; f.setAttribute('novalidate', '');
-        var SR = W.SpeechRecognition || W.webkitSpeechRecognition;
+        var SR = W.SpeechRecognition || W.webkitSpeechRecognition, SGV = !!(SR && W.speechSynthesis && W.SpeechSynthesisUtterance);
         f.innerHTML = '<input type="text" maxlength="240" autocomplete="off" aria-label="Kendi sorunu yaz" placeholder="' + (dolu ? 'Soru hakkın doldu' : 'Kendi sorunu yaz… (ör. Ağrı nasıl başladı?)') + '"' + (dolu ? ' disabled' : '') + '>' +
           (SR && !dolu ? '<button type="button" class="mik" aria-label="Sesle sor" title="Sesle sor">Mikrofon</button>' : '') + '<button type="submit"' + (dolu ? ' disabled' : '') + '>Sor</button>';
         w.appendChild(f);
+        /* sesli görüşme (27.11.2026): açıkken hasta sesli cevap verir, cevap bitince mikrofon kendiliğinden dinler;
+           eller serbest bir anamnez. Desteklemeyen tarayıcıda yazarak devam edilir. */
+        var sgRow = D.createElement('div'); sgRow.className = 'axk-sg';
+        sgRow.innerHTML = SGV ? '<button type="button" class="sg" aria-pressed="' + (SG.on ? 'true' : 'false') + '"><i aria-hidden="true"></i>Sesli görüşme</button><span class="sg-d" aria-live="polite">' + (SG.on ? 'Açık: hasta konuşup bitirince mikrofon seni dinler.' : 'Aç: soruyu söyle, hasta sesli cevap versin.') + '</span>'
+          : '<span class="sg-d">Sesli görüşme için Chrome ya da Edge kullan; burada yazarak sorabilirsin.</span>';
+        if (!dolu) w.insertBefore(sgRow, f);
+        var sgD = sgRow.querySelector('.sg-d');
         var nt = D.createElement('p'); nt.className = 'axk-serbest-n'; nt.textContent = opt.aiSor ? 'Hasta senin sorunu anlayıp kendi sözleriyle cevaplar; denk gelen soru hakkından düşer.' : 'Sorun hazır sorularla eşlenir; denk gelen soru hakkından düşer.'; w.appendChild(nt);
         var inp = f.querySelector('input');
         var mik = f.querySelector('.mik');
+        var HATA = { 'not-allowed': 'Mikrofon izni yok. Adres çubuğundaki mikrofon simgesinden izin verip yeniden dene.', 'service-not-allowed': 'Bu tarayıcı ses tanımaya izin vermiyor; yazarak sorabilirsin.', 'no-speech': 'Sesini duyamadım. Mikrofona dokunup yeniden söyle ya da yaz.', 'audio-capture': 'Mikrofon bulunamadı. Bağlı olduğundan emin ol.', network: 'Ses tanıma için internet bağlantısı gerekiyor.' };
+        var balon = function (t) {
+          var b = scene.querySelector('.axk-dinle');
+          if (t == null) { if (b) b.remove(); var hg = ov.querySelector('[data-who="hasta"]'); if (hg) hg.classList.remove('dinle'); return; }
+          if (!b) { b = D.createElement('div'); b.className = 'axk-dinle'; b.setAttribute('aria-hidden', 'true'); b.innerHTML = '<span class="dl"><i></i><i></i><i></i><i></i><i></i></span><b>Sen</b><span class="tx"></span>'; scene.appendChild(b); }
+          b.querySelector('.tx').textContent = t || 'Dinliyorum…';
+          var hg2 = ov.querySelector('[data-who="hasta"]'); if (hg2) hg2.classList.add('dinle');
+        };
         if (mik) mik.onclick = function () {
           if (S.tanima) { try { S.tanima.stop(); } catch (e) {} return; }
+          if (W.speechSynthesis && W.speechSynthesis.speaking) W.speechSynthesis.cancel();
           try {
-            var t = new SR(); t.lang = 'tr-TR'; t.interimResults = true; t.maxAlternatives = 1; S.tanima = t; mik.classList.add('on'); mik.textContent = 'Dinliyorum';
-            t.onresult = function (ev) { var r = ev.results[ev.results.length - 1]; inp.value = r[0].transcript; if (r.isFinal) { try { t.stop(); } catch (e) {} f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit')); } };
-            t.onend = t.onerror = function () { S.tanima = null; mik.classList.remove('on'); mik.textContent = 'Mikrofon'; };
+            var t = new SR(), son = ''; t.lang = 'tr-TR'; t.interimResults = true; t.maxAlternatives = 1; S.tanima = t; mik.classList.add('on'); mik.textContent = 'Dinliyorum'; balon('');
+            t.onresult = function (ev) { var r = ev.results[ev.results.length - 1]; son = r[0].transcript; inp.value = son; balon(son); if (r.isFinal) { try { t.stop(); } catch (e) {} balon(null); f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit')); } };
+            t.onerror = function (ev) { var h = HATA[ev && ev.error]; if (h) { nt.textContent = h; if (sgD) sgD.textContent = h; } if (ev && /not-allowed/.test(ev.error)) { SG.on = false; try { W.localStorage.setItem('axk.sesgor', '0'); } catch (e) {} var sb = sgRow.querySelector('.sg'); if (sb) sb.setAttribute('aria-pressed', 'false'); } };
+            t.onend = function () { S.tanima = null; mik.classList.remove('on'); mik.textContent = 'Mikrofon'; balon(null); };
             t.start();
-          } catch (e) { S.tanima = null; mik.classList.remove('on'); }
+          } catch (e) { S.tanima = null; mik.classList.remove('on'); balon(null); }
         };
+        var ttsAc = function () { if (TTS.on) return; TTS.on = true; try { W.localStorage.setItem('axk.tts', '1'); } catch (e) {} var tb = ov.querySelector('[data-k="tts"]'); if (tb) { tb.setAttribute('aria-pressed', 'true'); tb.textContent = 'Sesli açık'; } };
+        /* hasta konuşmasını bitirince dinlemeye başla (kendi sesini duymasın diye sesin bitmesini bekler) */
+        var dinleSonra = function () {
+          if (!SG.on || dolu || !mik || S.tanima) return; var n = 0; clearInterval(S.sgT);
+          S.sgT = setInterval(function () { if (!D.body.contains(f)) { clearInterval(S.sgT); return; } if ((W.speechSynthesis && (W.speechSynthesis.speaking || W.speechSynthesis.pending)) || n++ < 3) return; clearInterval(S.sgT); if (!S.tanima) mik.onclick(); }, 250);
+        };
+        var sgb = sgRow.querySelector('.sg');
+        if (sgb) sgb.onclick = function () {
+          SG.on = !SG.on; try { W.localStorage.setItem('axk.sesgor', SG.on ? '1' : '0'); } catch (e) {}
+          sgb.setAttribute('aria-pressed', SG.on ? 'true' : 'false'); sgD.textContent = SG.on ? 'Açık: hasta konuşup bitirince mikrofon seni dinler.' : 'Kapalı: mikrofona dokunarak ya da yazarak sorabilirsin.';
+          if (SG.on) { ttsAc(); dinleSonra(); } else { clearInterval(S.sgT); if (S.tanima) try { S.tanima.abort(); } catch (e) {} }
+        };
+        if (SG.on && SGV) { ttsAc(); dinleSonra(); }
         f.onsubmit = function (ev) {
           ev.preventDefault(); var q = inp.value.trim(); if (q.length < 3 || dolu) return;
           inp.disabled = true; Array.prototype.forEach.call(f.querySelectorAll('button'), function (b) { b.disabled = true; });
@@ -706,7 +854,7 @@
       soyle('mentor', a.metin, kutu);
     };
     var kapat = function (sessiz) {
-      clearInterval(S.yaz); clearTimeout(S.pt); clearInterval(MON.jt); clearTimeout(IF.t); if (MON.raf) W.cancelAnimationFrame(MON.raf); clearInterval(FZK && FZK.iv); if (MU) MU.kapat(); if (S.tanima) try { S.tanima.abort(); } catch (e) {} if (W.speechSynthesis) W.speechSynthesis.cancel();
+      clearInterval(S.yaz); clearTimeout(S.pt); clearInterval(MON.jt); clearTimeout(IF.t); if (MON.raf) W.cancelAnimationFrame(MON.raf); clearInterval(FZK && FZK.iv); if (MU) MU.kapat(); if (S.tanima) try { S.tanima.abort(); } catch (e) {} if (W.speechSynthesis) W.speechSynthesis.cancel(); clearInterval(S.sgT); clearTimeout(BAK.z);
       D.removeEventListener('keydown', key, true);
       if (ov.parentNode) ov.parentNode.removeChild(ov);
       ACIK = null;
