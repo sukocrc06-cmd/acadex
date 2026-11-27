@@ -42,7 +42,7 @@ const SRV_JS = ts.transpileModule(readSource(SRV_PATH), { compilerOptions: { tar
 const SRV_BAS = SRV_AD.filter((n) => new RegExp('(const\\s+' + n + '\\s*=|function\\s+' + n + '\\s*\\()').test(SRV_JS));
 const sunucu = () => new Function(SRV_BAS.map((n) => sliceDeclaration(SRV_JS, n)).join('\n\n') + '\nreturn { ' + SRV_AD.join(', ') + ' };')();
 const S0 = sunucu();
-const SRVBLOK = cut(srv, '/* ---------- #50 (Phase 8.2) İDDİA DOĞRULAMA', '\nDeno.serve(');
+const SRVBLOK = cut(srv, '/* ---------- #50 (Phase 8.2) İDDİA DOĞRULAMA', srv.indexOf('/* ---------- #53 (Phase 9)') > 0 ? '/* ---------- #53 (Phase 9)' : '\nDeno.serve(');      /* #53 bloğu araya girdi; #50'nin tek çağrı yeri ayrı sayılır (28.11.2026) */
 const sParca = (sid, m) => ({ sid, pid: 'p' + S0.idHash(sid + '|' + m), metin: m });
 const sIddia = (i, metin, ps) => ({ cid: 'c' + S0.idHash('iddia' + i), metin, parcalar: ps.map((m, j) => sParca('w' + S0.idHash('k' + i + '.' + j), m)) });
 const govde = (iddialar, ek) => Object.assign({ action: 'iddia_dogrula', v: 1, dil: 'tr', iddialar }, ek || {});

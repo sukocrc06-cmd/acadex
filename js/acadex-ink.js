@@ -8227,6 +8227,448 @@ var SBX = (function () {
     });
   };
   /* ---------- #52 son ---------- */
+  /* ---------- #53 (Phase 9) AKILLI İÇERİK ONARIMI (27.11.2026) ----------
+     Tek bulgu, tek asetat, tek öğe, yalnız metin (t/h/ul). Öneri uygulama değildir: uygulama kullanıcının tıklamasıyla, tazelik denetiminden
+     sonra atomik yapılır ve tek geri alma adımıdır. Model önerisi kanıt değildir: değişen iddia yeni cid alır, durum 'unverified', kontrol taşınmaz.
+     Ağ yalnız açık onayla ('icerik_onar', tek istek, yeniden deneme yok); denetimi açmak ya da bulgu seçmek model çağırmaz. Toplu onarım yok.
+     Acadex öneri hazırlayabilir, ancak kullanıcı adına karar veremez. */
+  var ON_MS = 60000, ON_HEDEF = 3, ON_PARCA = 6, ON_BAGLAM = 3, ON_BAGLAM_BOY = 300, ON_BAYT = 12 * 1024, ON_YENI = 1500, ON_METIN = 1200;
+  var ON_KONTROL = { partially_supported: 'KONTROL_PARTIAL', unsupported: 'KONTROL_UNSUPPORTED', unverified: 'KONTROL_UNVERIFIED', contradicted: 'KONTROL_CONTRADICTED' };
+  var ON_IDDIA = { CLAIM_SOURCE_CONFLICT: 1, CLAIM_PERIOD_DIFFERENCE: 1, CLAIM_DEFINITION_DIFFERENCE: 1, CLAIM_PRELIMINARY_FINAL: 1, SOURCE_STALE: 1, SOURCE_UNDATED: 1, SOURCE_LOW_INDEPENDENCE: 1,
+    KONTROL_PARTIAL: 1, KONTROL_UNSUPPORTED: 1, KONTROL_UNVERIFIED: 1, KONTROL_CONTRADICTED: 1 };      /* hedef bir iddia (cid) */
+  var ON_ASETAT = { THIN_SLIDE: 1, LONG_BULLETS: 1, DUPLICATE_TITLE: 1, NOTES_ECHO: 1 };      /* hedef asetatın bir öğesi; REPEATED_LAYOUT hariç (düzen) */
+  var ON_MODELE = { CLAIM_SOURCE_CONFLICT: 1, CLAIM_PERIOD_DIFFERENCE: 1, CLAIM_DEFINITION_DIFFERENCE: 1, CLAIM_PRELIMINARY_FINAL: 1, SOURCE_STALE: 1, SOURCE_UNDATED: 1, SOURCE_LOW_INDEPENDENCE: 1,
+    KONTROL_PARTIAL: 1, KONTROL_UNSUPPORTED: 1, KONTROL_UNVERIFIED: 1, THIN_SLIDE: 1, LONG_BULLETS: 1, DUPLICATE_TITLE: 1 };      /* çelişki (contradicted) ve not yinelemesi modele gitmez */
+  var ON_TUR = { wording_only: 1, source_qualified: 1, fact_revision: 1, insufficient_evidence: 1 };
+  var ON_ALAN = ['issue_code', 'proposal_type', 'targets', 'evidence', 'preserved_facts', 'added_facts', 'reason', 'limitations'];
+  var ON_ATIF = /\s*\[\d+(?:,\s*\d+)*\]/g, ON_SONATIF = /\s*\[\d+(?:,\s*\d+)*\]\s*$/;
+  var ON_EK = { tarafsiz: ['(kaynaklar farklı değerler veriyor)', '(sources give different values)'], tanim: ['(kaynaklar farklı tanım ya da kapsam kullanıyor)', '(sources use different definitions or scope)'],
+    tarihsiz: ['(kaynak tarihsiz)', '(source undated)'], eski: ['(eski tarihli kaynak)', '(older source)'], cesit: ['(sınırlı kaynak çeşitliliği)', '(limited source diversity)'],
+    kismen: ['(kaynaklarca kısmen destekleniyor)', '(partly supported by sources)'], temkin: ['(kaynaklarla doğrulanmadı)', '(unverified against sources)'], celiski: ['(kaynaklar farklı bir değer veriyor)', '(sources give a different value)'],
+    kaynaklarda: ['kaynaklarda', 'in sources'], on: ['ön veri', 'preliminary'], kesin: ['kesin veri', 'final'], tarih: ['kaynak tarihi', 'source date'] };
+  var ON_OLUMSUZ = /(^|[^a-z])(degil[a-z]*|yok[a-z]*|hic[a-z]*|asla|not|no|never|none|without|olmad[a-z]*|olmay[a-z]*|olmaz[a-z]*|isn't|aren't|doesn't|didn't|won't|cannot|can't)(?=[^a-z]|$)/g;
+  var ON_KOSUL = /(^|[^a-z])(eger|ise|sartiyla|takdirde|halinde|if|unless|provided|when)(?=[^a-z]|$)/g;
+  var ON_NEDEN = /(^|[^a-z])(cunku|nedeniyle|yuzunden|dolayi|sayesinde|sonucunda|because|due|caused|causes|therefore|thus|hence|leads|led)(?=[^a-z]|$)/g;
+  var ON_KARSI = /(^|[^a-z])(daha|kat|than|more|less|greater|fewer|higher|lower|larger|smaller)(?=[^a-z]|$)/g;
+  var ON_KESIN = /(^|[^a-z])(kesinlikle|mutlaka|tamamen|suphesiz|definitely|certainly|absolutely|undoubtedly)(?=[^a-z]|$)/g;      /* idMutlak'ta olmayan kesinlik sözcükleri (#50 listesi değişmez; 28.11.2026) */
+  var onSay = function (re, t) { re.lastIndex = 0; var k = idKat(t), n = 0; while (re.exec(k)) n++; return n; };
+  var onSayilar = function (t) { return (String(t || '').replace(ON_ATIF, ' ').match(/\d+(?:[.,]\d+)*/g) || []).map(function (x) { return x.replace(/[.,]+$/, ''); }); };
+  var onTip = function (t) { return sayiCoz(String(t || '').replace(ON_ATIF, ' ')).filter(function (o) { return o.tur !== 'sayi' || o.deger != null; }).map(function (o) { return [o.tur, o.deger != null ? o.deger : o.y != null ? o.y : '', o.olcek || 1, o.olcekBelirsiz || '', o.boyut || '', o.carpan || 1, o.para || '', o.yon || '', o.yaklasik ? 1 : 0].join(':'); }); };      /* ölçek (milyon/bin), birim, para, yön ve yaklaşıklık da olgudur (28.11.2026) */
+  var onAdlar = function (t) { var out = []; String(t || '').replace(/[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü'’-]+/g, function (w) { w = idKat(w.replace(/['’].*$/, '')); if (out.indexOf(w) < 0) out.push(w); return w; }); return out; };
+  var onSozcuk = function (t) { var s = {}; idKat(t).replace(/[a-z0-9]+/g, function (w) { s[w] = 1; return w; }); return s; };
+  var onAtiflar = function (t) { return (String(t || '').match(ON_ATIF) || []).map(function (q) { return q.replace(/\s+/g, ''); }); };
+  var onUrl = function (t) { return String(t || '').match(/(https?:\/\/|www\.)[^\s)]+/gi) || []; };
+  var onDil = function (d) { return d && d.lang === 'en' ? 1 : 0; };
+  var onEl = function (s, id) { return arr(s && s.els).filter(function (e) { return e && String(e.id) === String(id); })[0] || null; };
+  var onYazi = function (s, e) { return !!(e && (e.type === 't' || e.type === 'h' || e.type === 'ul') && typeof e.text === 'string' && !e.muted && !e.dz && !DECOR[e.type] && !(e.type === 't' && kunyeSahibi(s, e))); };
+  /* deste anahtarı: asetat/öğe kimliği, sırası, türü, metni ve notları; biri değişince öneri bayat */
+  var onAnahtar = function (d) { return kyHash(JSON.stringify(arr(d && d.slides).map(function (s) { return [s.id, String(s.notes || ''), arr(s.els).map(function (e) { return e ? [e.id, e.type, typeof e.text === 'string' ? e.text : ''] : null; })]; }))); };
+  /* kaynak imzası: iddianın seçilen parçaları (#50 idImza) + bağlı kaynakların nitelik imzası (#52 kkImza) */
+  var onImza = function (r, reg) { var sids = []; arr(r && r.kanit).forEach(function (k) { if (k && reg[k.sid] && sids.indexOf(k.sid) < 0) sids.push(k.sid); }); sids.sort(); return idImza(idParcaSec(r, reg)) + '|' + sids.map(function (x) { return x + ':' + kkImza(reg[x]); }).join(','); };
+  var onBul = function (s, cid) { var o = null; arr(s && s.els).forEach(function (e) { arr(e && e.iddia).forEach(function (r) { if (!o && r && r.cid === cid) o = { e: e, r: r }; }); }); return o; };
+  /* iddianın madde satırı: aynı çapa birden çok satırdaysa iddianın sırası (o) satırı seçer */
+  var onSatir = function (e, r) {
+    if (e.type !== 'ul') return kyHash(kyNorm(e.text)) === r.h ? -1 : null;
+    var o = 0, ls = e.text.split('\n'), j; arr(e.iddia).some(function (x) { if (x === r) return true; if (x.h === r.h) o++; return false; });
+    for (j = 0; j < ls.length; j++) if (kyHash(kyNorm(ls[j])) === r.h && o-- === 0) return j;
+    return null;
+  };
+  var onKontrolKod = function (r, reg) { var k = r && r.kontrol; return k && !k.hata && idGuncel(r, reg) ? ON_KONTROL[k.durum] || null : null; };
+  /* bulgu → hedef. Uygun değilse {yok: neden}. Birleşmiş bulguda (aynı kod, aynı asetat) ilk uygun iddia hedeftir */
+  var onHedef = function (x, d) {
+    if (!x || !(ON_IDDIA[x.code] || ON_ASETAT[x.code])) return { yok: 'kod' };
+    if (x.sources.indexOf('visual') >= 0 || x.slideIndex == null) return { yok: 'kod' };
+    var s = d.slides[x.slideIndex]; if (!s || !Array.isArray(s.els)) return { yok: 'asetat' };
+    if (kyYapi(s)) return { yok: 'yapi' };
+    var reg = kyKayit(d), T = { kod: x.code, qaId: x.id, as: x.slideIndex, slId: s.id, cid: null, satir: -1, imza: '', why: x.why.join(' · ').slice(0, 200), kimza: {}, anahtar: onAnahtar(d) }, e = null;
+    if (ON_IDDIA[x.code]) {
+      iddiaTazele(s);
+      var o = null; arr(x.cids).some(function (c) { var b = onBul(s, c); if (b && b.r.tur === 'madde' && !b.r.es && !b.r.bayat && onYazi(s, b.e) && onSatir(b.e, b.r) != null) { o = b; return true; } return false; });
+      if (!o) return { yok: 'iddia' };
+      e = o.e; T.cid = o.r.cid; T.satir = onSatir(e, o.r); T.imza = onImza(o.r, reg);
+      arr(o.r.kanit).forEach(function (k) { if (k && reg[k.sid]) T.kimza[k.sid] = kkImza(reg[k.sid]); });
+    } else if (x.code === 'LONG_BULLETS') {
+      e = onEl(s, x.els[0]); if (!onYazi(s, e) || e.type !== 'ul') return { yok: 'oge' };
+      T.satir = -1; e.text.split('\n').some(function (l, j) { if (l.split(/\s+/).length > 18) { T.satir = j; return true; } return false; }); if (T.satir < 0) return { yok: 'oge' };
+    } else if (x.code === 'DUPLICATE_TITLE') {
+      e = s.els.filter(function (z) { return z && z.type === 'h' && onYazi(s, z) && z.text === titleOf(s); })[0]; if (!e) return { yok: 'oge' };
+    } else if (x.code === 'THIN_SLIDE') {
+      e = s.els.filter(function (z) { return onYazi(s, z) && z.type === 'ul'; })[0] || s.els.filter(function (z) { return onYazi(s, z) && z.type === 't'; })[0]; if (!e) return { yok: 'oge' };
+    } else if (x.code === 'NOTES_ECHO') { if (!String(s.notes || '').trim()) return { yok: 'oge' }; T.not = 1; return T; }
+    if (String(e.id).length > 40 || e.text.length > ON_METIN) return { yok: 'boy' };
+    T.elId = String(e.id); T.metinHash = kyHash(e.text);
+    return T;
+  };
+  /* kontrol sonucundan sahte bulgu: kaynak panelindeki iddia satırı → aynı ayrıntı penceresi (yeni kategori yok, puana girmez) */
+  var onSahte = function (id, d) {
+    if (typeof id !== 'string' || id.indexOf('K@') !== 0) return null; d = d || deck;
+    var cid = id.slice(2), reg = kyKayit(d), n = -1, o = null;
+    arr(d.slides).some(function (s, i) { var b = onBul(s, cid); if (b) { n = i; o = b; } return !!b; });
+    var kod = o && onKontrolKod(o.r, reg); if (!kod) return null;
+    return { id: id, source: 'content', code: kod, severity: kod === 'KONTROL_CONTRADICTED' ? 'warning' : 'info', slideIndex: n, message: 'Kanıt kontrolü: ' + ID_ETIKET[o.r.kontrol.durum], recommendation: kod === 'KONTROL_CONTRADICTED' ? 'Önce kaynakları incele; değer otomatik değiştirilmez.' : 'İfadeyi temkinli yap, iddiayı kaldır ya da kaynak ekle; yeni sayı eklenmez.',
+      repairable: false, sources: ['content'], els: [String(o.e.id)], cids: [cid], why: [], priority: kod === 'KONTROL_CONTRADICTED' ? 'orta' : 'dusuk' };
+  };
+  /* yeni öğe metni: hedef satır (ul) ya da bütün metin değişir; sondaki [n] atfı korunur */
+  var onYaz = function (e, satir, f) {
+    if (e.type !== 'ul' || satir < 0) { var m = e.text.match(ON_SONATIF); return f(e.text.replace(ON_SONATIF, ''), m ? m[0] : ''); }
+    var ls = e.text.split('\n'), m2 = ls[satir].match(ON_SONATIF), y = f(ls[satir].replace(ON_SONATIF, ''), m2 ? m2[0] : '');
+    return ls.slice(0, satir).concat(y == null ? [] : String(y).split('\n')).concat(ls.slice(satir + 1)).join('\n');
+  };
+  var onHedefSatir = function (e, satir) { return e.type === 'ul' && satir >= 0 ? e.text.split('\n')[satir] : e.text; };
+  /* parçanın sayı öğesi kkCapraz değerine (deger) karşılık gelen metin aralığı */
+  var onParcaDeger = function (v) { var C = sayiCoz(v.metin).filter(function (q) { return !idTarihMi(q) && kkDeger(v.metin, q) === v.deger; }); return C.length === 1 ? v.metin.slice(C[0].bas, C[0].son) : null; };
+  /* yerel (deterministik) öneriler: ağ yok, model yok. Her öneri: {tur, motor:'yerel', secenek, hedefler, kanit, korunan, eklenen, neden, sinir, meta?} */
+  var onYerel = function (T, d) {
+    var s = d.slides[T.as], reg = kyKayit(d), L = onDil(d), out = [];
+    if (T.not) {
+      var t = titleOf(s), sat = []; s.els.forEach(function (e) { if (onYazi(s, e)) e.text.split('\n').forEach(function (l) { if (l.trim()) sat.push(l); }); });
+      var tk = qaKok(t), bk = sat.map(qaKok), cum = String(s.notes || '').split(/([.!?]+\s+)/), kal = [], at = 0;
+      for (var c = 0; c < cum.length; c += 2) { var cc = cum[c] + (cum[c + 1] || ''), k = qaKok(cc); if (!cc.trim()) continue;
+        if (k.length && (k.every(function (w) { return tk.indexOf(w) >= 0; }) || (k.length >= 4 && bk.some(function (b) { return k.filter(function (w) { return b.indexOf(w) >= 0; }).length / k.length >= 0.8; })))) at++; else kal.push(cc.trim()); }
+      if (!at) return { guvenilmez: 1 };
+      return [{ tur: 'wording_only', motor: 'yerel', secenek: 'not', yalnizOneri: 1, notMetni: kal.join(' '), hedefler: [], kanit: [], korunan: [], eklenen: [], neden: at + ' not cümlesi asetattaki maddeyi ya da başlığı yineliyor.', sinir: ['Konuşma notları otomatik değiştirilmez; öneriyi elle uygula.'] }];
+    }
+    var e = onEl(s, T.elId), b = onBul(s, T.cid), r = b && b.r;
+    var ekle = function (secenek, tur, yeni, kanit, ek) { if (yeni == null || yeni === e.text) return; out.push(Object.assign({ tur: tur, motor: 'yerel', secenek: secenek, hedefler: [{ element_id: T.elId, expected_text_hash: T.metinHash, replacement_text: yeni }], kanit: kanit || [], korunan: onSayilar(onHedefSatir(e, T.satir)), eklenen: [], neden: '', sinir: [] }, ek || {})); };
+    var sonEk = function (ek) { return onYaz(e, T.satir, function (m, atif) { return m.replace(/[\s.]+$/, '') + ' ' + ek + atif; }); };
+    var kanitOf = function (vs) { var k = []; vs.forEach(function (v) { if (v && kkKullan(v, reg) && !k.some(function (z) { return z.pid === v.pid; })) k.push({ sid: v.sid, pid: v.pid }); }); return k; };
+    var yan = function (v, etiket) { return kkNo(reg, v.sid) + ' ' + v.deger + (v.don != null ? ' (' + v.don + ')' : '') + (etiket ? ' ' + etiket : ''); };
+    var f = null; if (r && /^CLAIM_/.test(T.kod)) kkCapraz(r, reg, kkGruplar(reg)).bulgu.some(function (z) { if (z.code === T.kod) { f = z; return true; } return false; });
+    if (/^CLAIM_/.test(T.kod) && !f) return { guvenilmez: 1 };
+    if (T.kod === 'CLAIM_SOURCE_CONFLICT') {
+      ekle('tarafsiz', 'wording_only', sonEk(ON_EK.tarafsiz[L]), [], { neden: 'Kaynak seçilmeden farkın varlığı belirtilir.' });
+      ekle('iki', 'source_qualified', sonEk('(' + ON_EK.kaynaklarda[L] + ': ' + yan(f.a) + '; ' + yan(f.b) + ')'), kanitOf([f.a, f.b]), { eklenen: [yan(f.a), yan(f.b)], neden: 'İki kaynağın değeri de yazılır; biri seçilmez.' });
+      var C = sayiCoz(onHedefSatir(e, T.satir).replace(ON_SONATIF, '')).filter(function (q) { return !idTarihMi(q); });
+      if (C.length === 1) [f.a, f.b].forEach(function (v, i) {
+        var yd = onParcaDeger(v); if (!yd) return; var q = C[0], eskiD = null;
+        var yeni = onYaz(e, T.satir, function (m, atif) { eskiD = m.slice(q.bas, q.son); return m.slice(0, q.bas) + yd + m.slice(q.son) + ' ' + kkNo(reg, v.sid) + atif; });
+        if (eskiD && eskiD !== yd) ekle('tek' + i, 'fact_revision', yeni, kanitOf([v]), { secimGerek: 1, degisen: onSayilar(eskiD), eklenen: [yan(v)], neden: 'Değer yalnız ' + kkNo(reg, v.sid) + ' kaynağına göre yazılır; bu bir kaynak seçimidir.', sinir: ['Öteki kaynağın değeri metinden çıkar.'] });
+      });
+    } else if (T.kod === 'CLAIM_PERIOD_DIFFERENCE') {
+      var es = [f.a, f.b].filter(function (v) { return v.don != null && onSayilar(v.deger).some(function (n) { return onSayilar(r.text).indexOf(n) >= 0; }); });
+      if (es.length === 1) ekle('donem', 'source_qualified', sonEk('(' + es[0].don + ' ' + kkNo(reg, es[0].sid) + ')'), kanitOf([es[0]]), { eklenen: [String(es[0].don)], neden: 'Dönem, değeri veren kaynak parçasından alınır.' });
+      ekle('iki', 'source_qualified', sonEk('(' + ON_EK.kaynaklarda[L] + ': ' + yan(f.a) + '; ' + yan(f.b) + ')'), kanitOf([f.a, f.b]), { eklenen: [yan(f.a), yan(f.b)], neden: 'İki kaynağın değeri dönemleriyle yazılır.' });
+    } else if (T.kod === 'CLAIM_DEFINITION_DIFFERENCE') {
+      ekle('tanim', 'wording_only', sonEk(ON_EK.tanim[L]), [], { neden: 'Yalnız açıklama eklenir; tanımlar arasında dönüşüm yapılmaz.' });
+      ekle('iki', 'source_qualified', sonEk('(' + ON_EK.kaynaklarda[L] + ': ' + yan(f.a) + '; ' + yan(f.b) + ')'), kanitOf([f.a, f.b]), { eklenen: [yan(f.a), yan(f.b)], neden: 'İki tanımın değeri yan yana yazılır; dönüşüm yapılmaz.' });
+    } else if (T.kod === 'CLAIM_PRELIMINARY_FINAL') {
+      var et = function (v) { return kkNit(idKat(v.metin)) ? ON_EK.on[L] : ON_EK.kesin[L]; };
+      ekle('onkesin', 'source_qualified', sonEk('(' + yan(f.a, et(f.a)) + '; ' + yan(f.b, et(f.b)) + ')'), kanitOf([f.a, f.b]), { eklenen: [yan(f.a, et(f.a)), yan(f.b, et(f.b))], neden: 'Ön ve kesin veri ayrı ayrı yazılır.' });
+    } else if (T.kod === 'SOURCE_STALE') {
+      var ys = []; arr(r.kanit).forEach(function (k) { var q = reg[k.sid] && kkKalite(reg[k.sid]); if (q && q.yil && kkKullan(k, reg) && !ys.some(function (z) { return z.sid === k.sid; })) ys.push({ sid: k.sid, pid: k.pid, yil: q.yil }); });
+      if (ys.length) ekle('tarih', 'source_qualified', sonEk('(' + ON_EK.tarih[L] + ': ' + ys.map(function (y) { return kkNo(reg, y.sid) + ' ' + y.yil; }).join(', ') + ')'), ys.map(function (y) { return { sid: y.sid, pid: y.pid }; }), { meta: ys.map(function (y) { return String(y.yil); }), eklenen: ys.map(function (y) { return kkNo(reg, y.sid) + ' ' + y.yil; }), neden: 'Kaynağın tarihi kayıttaki tarihten yazılır; yıl uydurulmaz.' });
+      ekle('eski', 'wording_only', sonEk(ON_EK.eski[L]), [], { neden: 'Kaynağın eski olabileceği belirtilir.' });
+    } else if (T.kod === 'SOURCE_UNDATED') ekle('tarihsiz', 'wording_only', sonEk(ON_EK.tarihsiz[L]), [], { neden: 'Kaynakta tarih olmadığı belirtilir; tarih uydurulmaz.' });
+    else if (T.kod === 'SOURCE_LOW_INDEPENDENCE') ekle('cesit', 'wording_only', sonEk(ON_EK.cesit[L]), [], { neden: 'Kaynakların bağımsız olmayabileceği belirtilir; bu doğruluk kararı değildir.' });
+    else if (/^KONTROL_/.test(T.kod)) {
+      var kp = T.kod === 'KONTROL_PARTIAL' ? 'kismen' : T.kod === 'KONTROL_CONTRADICTED' ? 'celiski' : 'temkin';
+      ekle('temkinli', 'wording_only', sonEk(ON_EK[kp][L]), [], { neden: T.kod === 'KONTROL_CONTRADICTED' ? 'Değer değiştirilmez; kaynakların farklı söylediği belirtilir.' : 'Bulunamamak yanlış demek değildir; ifade temkinli yapılır.' });
+      if (T.kod !== 'KONTROL_PARTIAL' && T.kod !== 'KONTROL_CONTRADICTED' && e.type === 'ul' && e.text.split('\n').length >= 2) {
+        var sil = e.text.split('\n')[T.satir]; ekle('kaldir', 'wording_only', onYaz(e, T.satir, function () { return null; }), [], { kaldir: sil, korunan: [], neden: 'Bu madde asetattan çıkarılır; öteki maddeler aynı kalır.' });
+      }
+      if (T.kod !== 'KONTROL_PARTIAL') out.push({ tur: 'insufficient_evidence', motor: 'yerel', secenek: 'kaynak', hedefler: [], kanit: [], korunan: [], eklenen: [], neden: 'Bu iddia için kaynak ekle ya da kaynağı elle kontrol et.', sinir: [] });
+    } else if (T.kod === 'LONG_BULLETS' || T.kod === 'THIN_SLIDE' || T.kod === 'DUPLICATE_TITLE') {
+      var hs = onHedefSatir(e, T.satir), parca = null;
+      if (T.kod === 'LONG_BULLETS') { var m = hs.replace(ON_SONATIF, ''), at2 = (hs.match(ON_SONATIF) || [''])[0], re = /(; | — |\. (?=[A-ZÇĞİÖŞÜ]))/g, x2, iyi = null, w = function (z) { return z.trim().split(/\s+/).length; };
+        while ((x2 = re.exec(m))) { var a = m.slice(0, x2.index).replace(/[\s;—]+$/, ''), bb = m.slice(x2.index + x2[0].length); if (w(a) >= 4 && w(bb) >= 4 && (!iyi || Math.abs(w(a) - w(bb)) < Math.abs(w(iyi[0]) - w(iyi[1])))) iyi = [a + (x2[0].charAt(0) === '.' ? '.' : ''), bb]; }
+        if (iyi) parca = iyi[0] + '\n' + iyi[1].charAt(0).toLocaleUpperCase(L ? 'en' : 'tr') + iyi[1].slice(1) + at2; }
+      if (parca) ekle('bol', 'wording_only', onYaz(e, T.satir, function () { return parca; }), [], { neden: 'Uzun madde güvenli bir cümle sınırından ikiye bölünür; sözcükler değişmez.' });
+      var cs = idCumle(e.text).map(function (z) { return z.t; }), gor = {}, tek = []; cs.forEach(function (z) { var k = kyNorm(z); if (!gor[k]) { gor[k] = 1; tek.push(z); } });
+      if (tek.length < cs.length && e.type !== 'ul') ekle('yinele', 'wording_only', tek.join('. ').replace(/\.\.+/g, '.'), [], { neden: 'Aynı cümlenin yinelemesi çıkarılır.' });
+      if (!out.length) return { guvenilmez: 1 };
+    }
+    return out.length ? out : { guvenilmez: 1 };
+  };
+  /* öneri denetimi (yerel, model ve kullanıcı düzenlemesi için aynı): ihlal → neden kodu, geçerse null */
+  var onDenetle = function (P, T, d) {
+    if (!P || !ON_TUR[P.tur]) return 'tur';
+    var s = d.slides[T.as], reg = kyKayit(d), H = arr(P.hedefler); if (!s) return 'hedef';
+    if (H.length > ON_HEDEF || (P.tur === 'insufficient_evidence') !== !H.length) return 'hedef';
+    if (H.some(function (h) { return String(h.element_id) !== T.elId; })) return 'hedef';      /* tek hedef öğe: bulgunun öğesi */
+    if (arr(P.kanit).length > ON_PARCA || arr(P.kanit).some(function (k) { return !k || !kkKullan(k, reg); })) return 'kanit';
+    if ((P.tur === 'source_qualified' || P.tur === 'fact_revision') && !arr(P.kanit).length) return 'kanit';
+    if (P.tur === 'wording_only' && arr(P.eklenen).length) return 'tur';
+    var pm = arr(P.kanit).map(function (k) { return arr(reg[k.sid].parca).filter(function (p) { return p.pid === k.pid; })[0].metin; }).join('\n');
+    for (var i = 0; i < H.length; i++) {
+      var h = H[i], e = onEl(s, h.element_id), y = h.replacement_text;
+      if (!onYazi(s, e)) return 'hedef';
+      if (String(h.expected_text_hash) !== kyHash(e.text)) return 'hash';
+      if (typeof y !== 'string' || !y.trim() || y.length > ON_YENI || y === e.text) return 'metin';
+      if (/[<>]|javascript:|data:text/i.test(y) || KY_GUVENSIZ.test(y) || ID_ENJ.test(idKat(y))) return 'guvensiz';
+      if (onUrl(y).some(function (u) { return e.text.indexOf(u) < 0; })) return 'url';
+      var atIzin = onAtiflar(e.text).concat(arr(P.kanit).map(function (k) { return kkNo(reg, k.sid); })); if (onAtiflar(y).some(function (q) { return atIzin.indexOf(q) < 0; })) return 'atif';      /* yeni [n] yalnız kanıt kaynağının numarası */
+      if (e.type !== 'ul' && y.indexOf('\n') >= 0) return 'metin';
+      var eski = P.kaldir ? e.text.split('\n').filter(function (l) { return l !== P.kaldir; }).join('\n') : e.text, izin = onSayilar(e.text).concat(arr(P.meta)).concat(P.tur === 'wording_only' ? [] : onSayilar(pm));
+      if (onSayilar(y).some(function (n) { return izin.indexOf(n) < 0; })) return 'sayi';
+      if (onSayilar(eski).some(function (n) { return arr(P.degisen).indexOf(n) < 0 && onSayilar(y).indexOf(n) < 0; })) return 'sayi';
+      var yt = onTip(y); if (!P.degisen && onTip(eski).some(function (k) { return yt.indexOf(k) < 0; })) return 'olgu';
+      if (onSay(ON_OLUMSUZ, eski) !== onSay(ON_OLUMSUZ, y)) return 'olumsuz';
+      if (onSay(ON_KOSUL, eski) !== onSay(ON_KOSUL, y)) return 'kosul';
+      if (onSay(ON_NEDEN, eski) !== onSay(ON_NEDEN, y)) return 'neden';
+      if (onSay(ON_KARSI, eski) !== onSay(ON_KARSI, y)) return 'karsi';
+      if (onSay(ON_KESIN, eski) !== onSay(ON_KESIN, y)) return 'mutlak';
+      var ma = idMutlak(eski), mb = idMutlak(y); if (ma.some(function (w) { return mb.indexOf(w) < 0; }) || mb.some(function (w) { return ma.indexOf(w) < 0; })) return 'mutlak';
+      var kb = idKimlik(y), ka = idKimlik(eski), kp = idKimlik(pm); if (ka.some(function (w) { return kb.indexOf(w) < 0; }) || kb.some(function (w) { return ka.indexOf(w) < 0 && (P.tur === 'wording_only' || kp.indexOf(w) < 0); })) return 'ad';
+      var sz = onSozcuk(e.text + '\n' + (P.tur === 'wording_only' ? '' : pm) + '\n' + ON_EK.kaynaklarda.join(' ')), adA = onAdlar(eski), adB = onAdlar(y);
+      if (adB.some(function (w) { return !sz[w]; }) || adA.some(function (w) { return adB.indexOf(w) < 0 && !onSozcuk(y)[w]; })) return 'ad';
+    }
+    return null;
+  };
+  /* model yanıtı → öneri: sunucu şemasının istemci kopyası; tek hatalı alan bütün öneriyi düşürür */
+  var onSema = function (o, T, istek) {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+    var ks = Object.keys(o); if (ks.length !== ON_ALAN.length || ON_ALAN.some(function (k) { return ks.indexOf(k) < 0; })) return null;
+    if (o.issue_code !== T.kod || !ON_TUR[o.proposal_type]) return null;
+    var dz = function (a, n) { return Array.isArray(a) && a.length <= n && a.every(function (x) { return typeof x === 'string' && x.length <= 200 && !/[<>]/.test(x) && !KY_GUVENSIZ.test(x); }); };
+    if (!dz(o.preserved_facts, 12) || !dz(o.added_facts, 12) || !dz(o.limitations, 6) || typeof o.reason !== 'string' || o.reason.length > 300 || /[<>]/.test(o.reason) || KY_GUVENSIZ.test(o.reason)) return null;
+    var pp = {}; istek.parcalar.forEach(function (p) { pp[p.pid] = p.sid; });
+    if (!Array.isArray(o.evidence) || o.evidence.length > ON_PARCA || o.evidence.some(function (k, i) { return !k || typeof k !== 'object' || Object.keys(k).length !== 2 || pp[k.pid] !== k.sid || o.evidence.slice(0, i).some(function (z) { return z.pid === k.pid; }); })) return null;
+    var hh = {}; istek.hedefler.forEach(function (h) { hh[h.element_id] = h.hash; });
+    if (!Array.isArray(o.targets) || o.targets.length > ON_HEDEF || o.targets.some(function (t, i) { return !t || typeof t !== 'object' || Object.keys(t).length !== 3 || hh[t.element_id] !== t.expected_text_hash || typeof t.replacement_text !== 'string' || o.targets.slice(0, i).some(function (z) { return z.element_id === t.element_id; }); })) return null;
+    return { tur: o.proposal_type, motor: 'groq', secenek: 'model', hedefler: o.targets.map(function (t) { return { element_id: t.element_id, expected_text_hash: t.expected_text_hash, replacement_text: t.replacement_text }; }),
+      kanit: o.evidence.map(function (k) { return { sid: k.sid, pid: k.pid }; }), korunan: o.preserved_facts.slice(), eklenen: o.added_facts.slice(), neden: o.reason, sinir: o.limitations.slice(), secimGerek: o.proposal_type === 'fact_revision' ? 1 : 0 };
+  };
+  /* model isteği: hedef öğe, en çok 3 komşu bağlam (başlıklar), iddianın gerçek parçaları (≤6). Kısaltılan ve gönderilmeyen sayılır, gizlenmez */
+  var onIstek = function (T, d) {
+    var s = d.slides[T.as], e = onEl(s, T.elId), reg = kyKayit(d), b = T.cid && onBul(s, T.cid), P = [], top = 0, ozel = 0, kis = 0;
+    var kn = b ? arr(b.r.kanit) : []; if (!b) s.els.forEach(function (z) { if (z === e) arr(z.iddia).forEach(function (r) { kn = kn.concat(arr(r.kanit)); }); });
+    kn.forEach(function (k) { if (!k || !kkKullan(k, reg) || P.some(function (p) { return p.pid === k.pid; })) return; top++; if (P.length >= ON_PARCA) return; var p = arr(reg[k.sid].parca).filter(function (x) { return x.pid === k.pid; })[0]; P.push({ sid: k.sid, pid: k.pid, metin: p.metin }); if (reg[k.sid].tur === 'belge' || reg[k.sid].tur === 'kart') ozel = 1; });
+    var bg = []; [d.slides[T.as - 1], d.slides[T.as + 1]].forEach(function (z) { var t = z && titleOf(z); if (t) { if (t.length > ON_BAGLAM_BOY) kis++; bg.push(t.slice(0, ON_BAGLAM_BOY)); } });
+    var govde = { action: 'icerik_onar', v: 1, dil: onDil(d) ? 'en' : 'tr', kod: T.kod, neden: T.why.slice(0, 200), baslik: String(titleOf(s) || '').slice(0, 200), hedefler: [{ element_id: T.elId, hash: kyHash(e.text), metin: e.text }], baglam: bg.slice(0, ON_BAGLAM), parcalar: P };
+    var bayt = typeof TextEncoder === 'function' ? new TextEncoder().encode(JSON.stringify(govde)).length : unescape(encodeURIComponent(JSON.stringify(govde))).length;
+    return { govde: govde, hedef: 1, parca: P.length, fazlaParca: top - P.length, baglam: govde.baglam.length, kisaltilan: kis, ozel: ozel, bayt: bayt, sigar: bayt <= ON_BAYT && /^[A-Za-z0-9_-]{1,40}$/.test(T.elId) };
+  };
+  var onKapali = false;
+  /* tek istek; yeniden deneme ve yedek yok. Döner {durum, P?, neden?} */
+  var onModel = function (T, d, cagir) {
+    var I = onIstek(T, d); if (!I.sigar) return Promise.resolve({ durum: 'sigmadi' });
+    return Promise.resolve().then(function () { return (cagir || fn)('sunum-research', I.govde, ON_MS); }).then(function (y) {
+      if (!y || y.durum === 'kapali') { onKapali = !!y; return { durum: y ? 'kapali' : 'hata' }; }
+      if (y.durum !== 'tamam') return { durum: ['kota', 'sinir', 'zaman', 'gecersiz', 'sigmadi', 'yanit'].indexOf(y.durum) >= 0 ? y.durum : 'hata' };
+      var P = onSema(y.oneri, T, I.govde); if (!P) return { durum: 'yanit' };
+      if (P.tur !== 'insufficient_evidence') { var v = onDenetle(P, T, d); if (v) return { durum: 'reddedildi', neden: v }; }
+      return { durum: 'tamam', P: P };
+    }, function (err) { return { durum: /zaman|timeout|abort/i.test(String(err && err.message)) ? 'zaman' : 'hata' }; });
+  };
+  /* tazelik: asetat/öğe kimliği, metin, deste, iddia bayatlığı, kaynak imzası, bulgunun sürmesi */
+  var onBayat = function (T, d, liste) {
+    var s = d.slides[T.as]; if (!s || s.id !== T.slId) return 'asetat';
+    if (T.not) return 'not';
+    var e = onEl(s, T.elId); if (!e) return 'asetat';
+    if (kyHash(e.text) !== T.metinHash) return 'metin';
+    if (onAnahtar(d) !== T.anahtar) return 'deste';
+    var reg = kyKayit(d);
+    if (T.cid) { iddiaTazele(s); var b = onBul(s, T.cid); if (!b || b.r.bayat || b.e !== e) return 'iddia'; if (onImza(b.r, reg) !== T.imza) return 'kaynak';
+      if (Object.keys(T.kimza).some(function (x) { return !reg[x] || kkImza(reg[x]) !== T.kimza[x]; })) return 'kaynak'; }
+    if (T.qaId.indexOf('K@') === 0) { var z = onSahte(T.qaId, d); if (!z || z.code !== T.kod) return 'cozuldu'; }
+    else if (!(liste || qaListe(d).bulgu).some(function (x) { return x.id === T.qaId && (!T.cid || arr(x.cids).indexOf(T.cid) >= 0) && (T.cid || x.code !== 'LONG_BULLETS' || x.els.indexOf(T.elId) >= 0); })) return 'cozuldu';
+    return null;
+  };
+  /* değişen satırlara yeni iddia: yeni cid, durum unverified, kontrol yok; kanıt yalnız aynı, hâlâ kullanılabilir ve imzası aynı parçalardan */
+  var onIddia = function (s, e, once, T, reg) {
+    var eskiC = {}; once.forEach(function (c) { eskiC[c] = (eskiC[c] || 0) + 1; });
+    var yeniC = kyCapa(e).filter(function (c) { if (eskiC[c]) { eskiC[c]--; return false; } return c.length >= 2; });
+    var giden = arr(e.iddia).filter(function (r) { return r.bayat && !r.es && r.__on; });
+    arr(e.iddia).forEach(function (r) { delete r.__on; });
+    if (!giden.length) return 0;
+    var say = 0; yeniC.forEach(function (c, i) {
+      var r0 = giden[Math.min(i, giden.length - 1)], h = kyHash(c), o = arr(e.iddia).filter(function (r) { return r.h === h; }).length;
+      var kanit = arr(r0.kanit).filter(function (k) { return k && kkKullan(k, reg) && (!(k.sid in T.kimza) || T.kimza[k.sid] === kkImza(reg[k.sid])); }).map(function (k) { return Object.assign({}, k); });
+      var satir = e.type === 'ul' ? e.text.split('\n').filter(function (l) { return kyNorm(l) === c; })[0] : e.text;
+      e.iddia = arr(e.iddia).concat([{ cid: 'c' + kyHash(s.id + '|' + e.id + '|' + h + '|' + o), text: String(satir || c).replace(ON_SONATIF, '').trim(), h: h, tur: 'madde', durum: 'unverified', kanit: kanit }]); say++;
+    });
+    return say;
+  };
+  /* metin ve iddia dışındaki her şeyin imzası: uygulama yalnız hedef öğenin metnini ve iddia kaydını değiştirebilir */
+  var onIz = function (d, s, ids) { return JSON.stringify({ k: d.kaynaklar, t: d.title, s: arr(d.slides).map(function (z) { return z !== s ? z : Object.assign({}, z, { els: z.els.map(function (e) { if (!e || ids.indexOf(String(e.id)) < 0) return e; var c = Object.assign({}, e); delete c.text; delete c.iddia; return c; }) }); }) }); };
+  var onKalan = function (T, d, L) { return T.qaId.indexOf('K@') === 0 ? !!onSahte(T.qaId, d) : L.some(function (x) { return x.id === T.qaId && (!T.cid || arr(x.cids).indexOf(T.cid) >= 0); }); };
+  /* atomik uygulama: tazelik + denetim → yaz → iddia → imza; hata olursa her şey geri, geçmişe yazılmaz. O = {deck, liste, snap, gecmis, ara?} */
+  var onUygula = function (P, T, O) {
+    var d = O.deck, L0 = O.liste(d), bay = onBayat(T, d, L0); if (bay) return { hata: 'bayat', neden: bay };
+    if (!P || P.yalnizOneri || P.tur === 'insufficient_evidence' || !arr(P.hedefler).length) return { hata: 'uygun' };
+    if (P.secimGerek && !P.secim) return { hata: 'secim' };
+    var v = onDenetle(P, T, d); if (v) return { hata: 'gecersiz', neden: v };
+    var s = d.slides[T.as], reg = kyKayit(d), H = P.hedefler.map(function (h) { return { e: onEl(s, h.element_id), h: h }; }), ids = H.map(function (x) { return String(x.e.id); });
+    var before = O.snap(), iz = onIz(d, s, ids), kVar = Object.prototype.hasOwnProperty.call(d, 'kaynaklar'), yedek = JSON.stringify({ k: kVar ? d.kaynaklar : null, t: d.title === undefined ? null : d.title, s: d.slides });
+    /* hata olursa bütün deste yedekten geri yazılır; öğe nesneleri yerinde kalır (fitTaban WeakMap'i öğeye bağlı). Yalnız hedef değil, yan etki de geri alınır (28.11.2026) */
+    var geri = function () { var o = JSON.parse(yedek); if (kVar) d.kaynaklar = o.k; else delete d.kaynaklar; if (o.t !== null) d.title = o.t; if (d.slides.length !== o.s.length) { d.slides = o.s; return; }
+      d.slides.forEach(function (z, i) { var y = o.s[i]; if (JSON.stringify(z) === JSON.stringify(y)) return; if (!z || !y || arr(z.els).length !== arr(y.els).length) { d.slides[i] = y; return; }
+        var zl = z.els; Object.keys(z).forEach(function (k) { delete z[k]; }); Object.keys(y).forEach(function (k) { z[k] = k === 'els' && zl ? zl : y[k]; });
+        arr(z.els).forEach(function (e, j) { if (JSON.stringify(e) === JSON.stringify(y.els[j])) return; if (!e || !y.els[j]) { z.els[j] = y.els[j]; return; } Object.keys(e).forEach(function (k) { delete e[k]; }); Object.assign(e, y.els[j]); }); }); };
+    var yeni = 0;
+    try {
+      H.forEach(function (x) { var once = kyCapa(x.e); arr(x.e.iddia).forEach(function (r) { if (!r.bayat) r.__on = 1; }); x.e.text = x.h.replacement_text; iddiaTazele(s); yeni += onIddia(s, x.e, once, T, reg); });
+      if (O.ara) O.ara(d, s);
+      if (onIz(d, s, ids) !== iz) throw new Error('imza');
+      if (H.some(function (x) { return x.e.text !== x.h.replacement_text; })) throw new Error('metin');
+    } catch (err) { geri(); if (typeof console !== 'undefined') console.warn('acadex-sunum: içerik onarımı', err && err.message); return { hata: 'hata' }; }
+    O.gecmis(before);
+    var L1 = O.liste(d), onceId = L0.map(function (x) { return x.id; });
+    return { before: before, kalan: onKalan(T, d, L1), yeni: L1.filter(function (x) { return onceId.indexOf(x.id) < 0; }).map(function (x) { return x.code; }), el: T.elId, iddia: yeni };
+  };
+  /* basit sözcük farkı (LCS); metin kullanıcı içeriğidir, X() ile kaçar */
+  var onFark = function (a, b) {
+    var A = String(a).split(/(\s+)/), B = String(b).split(/(\s+)/), n = A.length, m = B.length; if (n * m > 40000) return '<del data-no-i18n>' + X(a) + '</del> <ins data-no-i18n>' + X(b) + '</ins>';
+    var D = [], i, j; for (i = 0; i <= n; i++) { D.push(new Array(m + 1).fill(0)); }
+    for (i = n - 1; i >= 0; i--) for (j = m - 1; j >= 0; j--) D[i][j] = A[i] === B[j] ? D[i + 1][j + 1] + 1 : Math.max(D[i + 1][j], D[i][j + 1]);
+    var h = ''; i = 0; j = 0;
+    while (i < n || j < m) { if (i < n && j < m && A[i] === B[j]) { h += X(A[i]); i++; j++; } else if (j < m && (i >= n || D[i][j + 1] >= D[i + 1][j])) { h += '<ins>' + X(B[j]) + '</ins>'; j++; } else { h += '<del>' + X(A[i]) + '</del>'; i++; } }
+    return '<span data-no-i18n>' + h.replace(/\n/g, '<br>') + '</span>';
+  };
+  /* ---- arayüz: bulgu ayrıntısının içinde; yeni pencere yok. Çevrilecek her cümle kendi metin düğümünde (AX_EN birebir eşler) ---- */
+  var onS = null, onPaint = null;
+  var ON_YOK_TR = { kod: 'Bu bulgu türü yalnız elle düzeltilir.', asetat: 'Asetat bulunamadı.', yapi: 'Yapısal asetat (kapak, gündem, kaynakça) onarılmaz.', iddia: 'İddia bulunamadı, metni değişmiş ya da madde iddiası değil (grafik, tablo ve istatistik verisi onarılmaz).', oge: 'Düzeltilebilir bir yazı öğesi yok.', boy: 'Öğe metni öneri sınırını aşıyor.' };
+  var ON_BAYAT_TR = { asetat: 'Asetat ya da öğe değişti.', metin: 'Öğenin metni değişti.', deste: 'Sunum değişti.', iddia: 'İddia değişti ya da bayatladı.', kaynak: 'Kaynak ya da parça değişti.', cozuldu: 'Bulgu artık yok.', not: 'Konuşma notu önerisi uygulanmaz.' };
+  var ON_RED_TR = { tur: 'Öneri türü kurala uymuyor.', hedef: 'Öneri bu bulgunun öğesine ait değil.', hash: 'Öğe metni değişmiş.', metin: 'Önerilen metin boş, aynı ya da çok uzun.', guvensiz: 'Önerilen metin güvensiz içerik taşıyor.', url: 'Önerilen metin yeni bağlantı ekliyor.', atif: 'Önerilen metin yeni bir kaynak numarası ekliyor.',
+    kanit: 'Kaynak parçası gerçek değil ya da eksik.', sayi: 'Sayı eklenmiş ya da korunmamış.', olgu: 'Sayı, tarih, birim ya da para korunmamış.', olumsuz: 'Olumsuzluk değişmiş.', kosul: 'Koşul değişmiş.', neden: 'Neden-sonuç ilişkisi değişmiş.', karsi: 'Karşılaştırma değişmiş.', mutlak: 'Mutlak ifade değişmiş.', ad: 'Ad ya da kısaltma değişmiş.' };
+  var ON_HATA_TR = { kapali: 'İçerik onarımı şu an kapalı; hiçbir şey gönderilmedi.', kota: 'Öneri hizmetinin kotası doldu.', sinir: 'Çok sık öneri istendi; birkaç dakika sonra yeniden dene.', zaman: 'Öneri zaman aşımına uğradı.', hata: 'Öneri hizmetine ulaşılamadı.',
+    yanit: 'Öneri hizmetinin yanıtı geçersizdi; öneri gösterilmedi.', gecersiz: 'İstek geçersiz sayıldı.', sigmadi: 'Seçilen metin gönderim sınırına sığmadı; hiçbir şey gönderilmedi.', reddedildi: 'Öneri güvenlik denetiminden geçmedi; uygulanmadı.', guvenilmez: 'Bu sorun için güvenilir bir yerel öneri yok.',
+    uygun: 'Bu öneri uygulanamaz.', secim: 'Tek kaynak seçimi için açık onay gerekir.' };
+  var ON_TUR_TR = { wording_only: 'Yalnız ifade', source_qualified: 'Kaynakla nitelenmiş', fact_revision: 'Olgu değişikliği (kaynak seçimi)', insufficient_evidence: 'Kanıt yetersiz' };
+  var onP = function () { return onS && onS.P && onS.P[onS.sec || 0]; };
+  var onSp = function (t, yerel) { return '<span' + (yerel ? '' : ' data-no-i18n') + '>' + X(t) + '</span>'; };      /* yerel öneri metinleri sistem metnidir (çevrilir); model/kullanıcı metni çevrilmez */
+  var onListe = function (a, yerel) { return a.map(function (z) { return '<li' + (yerel ? '' : ' data-no-i18n') + '>' + X(z) + '</li>'; }).join(''); };
+  var onParcaHTML = function (P, reg) { return arr(P.kanit).map(function (k) { var kay = reg[k.sid], p = kay && arr(kay.parca).filter(function (x) { return x.pid === k.pid; })[0]; if (!p) return ''; return '<blockquote data-on-kanit="' + X(k.pid) + '"><i data-no-i18n>' + X(kkNo(reg, k.sid)) + '</i> <span data-no-i18n>' + X(kay.baslik || kay.site || kkHost(kay.url) || (kay.tur === 'kart' ? 'Ders kartı' : 'Belge')) + '</span> <q data-no-i18n>' + X(p.metin) + '</q></blockquote>'; }).join(''); };
+  var onDug = function (P) { return '<div class="sxd-acts on-acts">' + (P.yalnizOneri || P.tur === 'insufficient_evidence' ? '' : '<button type="button" class="sxd-b sm pri" data-on-uygula' + (P.secimGerek && !P.secim ? ' disabled' : '') + '>Uygula</button>' + (onS.duzen ? '' : '<button type="button" class="sxd-b sm" data-on-duzen>Öneriyi düzenle</button>')) +
+    '<button type="button" class="sxd-b sm" data-on-yeniden>Yeniden öner</button><button type="button" class="sxd-b sm" data-on-iptal>Vazgeç</button></div>'; };
+  var onOnizle = function (P, T) {
+    var s = deck.slides[T.as], reg = kyKayit(deck), yr = P.motor === 'yerel', h = '<div class="on-pv" data-on-tur="' + X(P.tur) + '" data-on-motor="' + X(P.motor) + '">';
+    if (onS.P.length > 1) h += '<div class="on-sec" role="group" aria-label="Öneriler">' + onS.P.map(function (q, i) { return '<button type="button" class="sxd-b sm" data-on-sec="' + i + '" aria-pressed="' + (i === (onS.sec || 0)) + '">' + ON_TUR_TR[q.tur] + '</button>'; }).join('') + '</div>';
+    h += '<p><b>' + ON_TUR_TR[P.tur] + '</b> · <small>' + (P.motor === 'groq' ? 'Groq önerisi' : P.motor === 'kullanici' ? 'senin düzenlemen' : 'yerel öneri') + '</small></p>';
+    if (T.kod === 'KONTROL_CONTRADICTED') { var b0 = onBul(s, T.cid), kp = b0 && kontrolParca(b0.r, reg); h += '<div data-on-celiski><p class="qa-no">Değer otomatik değiştirilmez; önce kaynakları incele.</p>' + (kp || '') + '</div>'; }
+    var ned = P.neden ? '<p><small>Neden:</small> <small>' + onSp(P.neden, yr) + '</small></p>' : '', sin = P.sinir.length ? '<p><small>Belirsiz ya da sınırlı</small></p><ul class="on-l">' + onListe(P.sinir, yr) + '</ul>' : '';
+    if (P.yalnizOneri) return h + '<p class="qa-no" data-on-yalniz>Konuşma notları otomatik değiştirilmez; öneriyi elle uygula.</p><p><small>Önerilen not</small></p><p class="on-yeni" data-no-i18n>' + X(P.notMetni || '') + '</p>' + ned + onDug(P) + '</div>';
+    if (P.tur === 'insufficient_evidence') return h + '<p class="qa-no" data-on-yetersiz>Kanıt yetersiz; kaynak destekli bir öneri yok. Metin değişmez.</p>' + ned + sin + onDug(P) + '</div>';
+    var hd = P.hedefler[0], e = onEl(s, hd.element_id);
+    h += '<dl class="qa-dl"><dt>Şimdi</dt><dd class="on-eski" data-no-i18n>' + X(e ? e.text : '').replace(/\n/g, '<br>') + '</dd><dt>Öneri</dt><dd class="on-yeni" data-on-yeni data-no-i18n>' + X(hd.replacement_text).replace(/\n/g, '<br>') + '</dd><dt>Fark</dt><dd class="on-fark">' + onFark(e ? e.text : '', hd.replacement_text) + '</dd></dl>';
+    h += ned + onParcaHTML(P, reg);
+    if (P.korunan.length) h += '<p><small>Korunan olgular</small></p><ul class="on-l">' + onListe(P.korunan) + '</ul>';
+    h += P.eklenen.length ? '<p><small data-on-eklenen>Eklenen bilgi (ifade değişikliğinden ayrı)</small></p><ul class="on-l">' + onListe(P.eklenen) + '</ul>' : '<p><small data-on-ifade>Yeni bilgi eklenmez; yalnız ifade değişir.</small></p>';
+    h += sin + '<p class="sxd-sub" style="margin:6px 0 0" data-on-sinir>Yalnız bu öğenin metni değişir; konum, boyut, yazı tipi, renk, grafik, tablo, görsel, kaynakça ve notlar aynı kalır. Değişen iddia yeniden doğrulanmadı sayılır. Geri alınabilir.</p>';
+    if (P.secimGerek) h += '<p class="qa-no" data-on-tek>Bu öneri tek bir kaynağı seçer. Uygulamak için bu seçimi açıkça onayla.</p><div class="sxd-acts"><button type="button" class="sxd-b sm" data-on-tekonay aria-pressed="' + !!P.secim + '">' + (P.secim ? '✓ kaynak seçimini onayladım' : 'kaynak seçimini onaylıyorum') + '</button></div>';
+    if (onS.duzen) h += '<label class="on-duz"><small>Öneriyi düzenle</small><textarea data-on-metin rows="4" data-no-i18n>' + X(hd.replacement_text) + '</textarea></label>' + (onS.red ? '<p class="qa-no" data-on-red="' + X(onS.red) + '"><span>Düzenleme denetimden geçmedi.</span> <small>' + (ON_RED_TR[onS.red] || '') + '</small></p>' : '') +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-on-duzenvaz>vazgeç</button><button type="button" class="sxd-b sm pri" data-on-duzenok>denetle ve kullan</button></div>';
+    return h + onDug(P) + '</div>';
+  };
+  var onBolum = function (x) {
+    var S = onS && onS.id === x.id ? onS : null;
+    if (!S || S.durum === 'ready') {
+      var T = onHedef(x, deck);
+      if (T.yok) return '<div class="on" data-on data-on-durum="not_available"><p class="qa-no">Bu sorun otomatik düzeltmeye uygun değil.</p><p><small>' + (ON_YOK_TR[T.yok] || ON_YOK_TR.kod) + '</small></p></div>';
+      return '<div class="on" data-on data-on-durum="ready"><p>Bu sorun için bir düzeltme önerisi hazırlayabilirim. Öneri uygulanmadan önce gösterilir; kararı sen verirsin.</p><div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-on-olustur>Düzeltme önerisi oluştur</button></div></div>';
+    }
+    var du = S.durum, h = '<div class="on" data-on data-on-durum="' + du + '">';
+    if (du === 'confirming') { var I = S.I, G = I.govde;
+      return h + '<div class="au-kk-onay" data-on-onay-kutu><p>Bu öneriyi oluşturmak için seçilen slaytın metni, ilgili denetim bulgusu ve seçilen kaynak parçaları Groq hizmetine gönderilir. Tam belge, tam kaynak metni veya bütün sunum gönderilmez. Oluşturulan öneri uygulanmadan önce size gösterilir.</p>' +
+        (I.ozel ? '<p data-on-ozel>Belge veya kart kaynaklarından seçilen parçalar özel içerik barındırabilir. Yalnızca gönderilmesini onayladığınız parçalar dış hizmete iletilir.</p>' : '') +
+        '<p><small data-on-ozet>' + I.hedef + ' öğe · ' + I.parca + ' kaynak parçası · ' + I.baglam + ' komşu başlık</small></p>' + (I.fazlaParca ? '<p><small data-on-fazla>' + I.fazlaParca + ' parça sınır nedeniyle gönderilmez (en çok ' + ON_PARCA + ').</small></p>' : '') + (I.kisaltilan ? '<p><small data-on-kisa>' + I.kisaltilan + ' komşu başlık ' + ON_BAGLAM_BOY + ' karaktere kısaltıldı.</small></p>' : '') +
+        '<details class="on-gon"><summary>Gönderilecek metin</summary><p class="on-eski" data-no-i18n>' + X(G.hedefler[0].metin).replace(/\n/g, '<br>') + '</p>' + G.parcalar.map(function (p) { return '<blockquote data-on-gid="' + X(p.pid) + '"><q data-no-i18n>' + X(p.metin) + '</q></blockquote>'; }).join('') + '</details>' +
+        '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-on-vazgec>Vazgeç</button><button type="button" class="sxd-b sm" data-on-yerel>Yalnız yerel/deterministik öneri</button><button type="button" class="sxd-b sm pri" data-on-onay>Onayla ve öneri oluştur</button></div></div></div>'; }
+    if (du === 'generating') return h + '<p class="au-sum" data-on-yukleniyor>Öneri hazırlanıyor…</p></div>';
+    if (du === 'proposal_ready') return h + onOnizle(onP(), S.T) + '</div>';
+    if (du === 'stale') return h + '<p class="qa-no"><span>Öneri bayatladı; uygulanmadı.</span> <small data-on-bayat="' + X(S.neden || '') + '">' + (ON_BAYAT_TR[S.neden] || ON_BAYAT_TR.deste) + '</small></p><div class="sxd-acts"><button type="button" class="sxd-b sm" data-on-yeniden>Yeniden öner</button></div></div>';
+    if (du === 'applying') return h + '<p class="au-sum">Uygulanıyor…</p></div>';
+    if (du === 'applied') { var R = S.sonuc;
+      return h + '<p class="qa-ok" data-on-son="ok">Düzeltme uygulandı.</p><p><small>Değişen öğe:</small> <code data-no-i18n>' + X(R.el) + '</code></p>' + (R.iddia ? '<p><small data-on-yeniddia>' + R.iddia + ' değişen iddia doğrulanmadı olarak kaydedildi; eski kontrol taşınmadı.</small></p>' : '') +
+        '<p data-on-kalan="' + (R.kalan ? 1 : 0) + '"><small>' + (R.kalan ? 'Bulgu yeniden denetimde hâlâ görünüyor.' : 'Bulgu yeniden denetimde görünmüyor.') + '</small></p>' + (R.yeni.length ? '<p class="qa-no" data-on-yenibulgu><span>Yeni bulgu:</span> <code data-no-i18n>' + X(R.yeni.join(', ')) + '</code></p>' : '') +
+        '<div class="sxd-acts">' + (undoS[undoS.length - 1] === R.before ? '<button type="button" class="sxd-b sm" data-on-geri>geri al</button>' : '') + '<button type="button" class="sxd-b sm" data-on-denet>yeniden denetle</button></div></div>'; }
+    if (du === 'failed') return h + '<p class="qa-no" data-on-hata="' + X(S.hata) + '"><span>' + (ON_HATA_TR[S.hata] || ON_HATA_TR.hata) + '</span>' + (S.neden && ON_RED_TR[S.neden] ? ' <small>' + ON_RED_TR[S.neden] + '</small>' : '') + ' <span>Sunum değişmedi.</span></p>' +
+      '<div class="sxd-acts">' + (S.yerelVar === false ? '' : '<button type="button" class="sxd-b sm" data-on-yerel>Yalnız yerel/deterministik öneri</button>') + '<button type="button" class="sxd-b sm" data-on-iptal>Vazgeç</button></div></div>';
+    return h + '<p class="qa-no" data-on-iptal-son>' + (S.geri ? 'Düzeltme geri alındı.' : 'Vazgeçildi; sunum değişmedi.') + '</p><div class="sxd-acts"><button type="button" class="sxd-b sm" data-on-olustur>Düzeltme önerisi oluştur</button></div></div>';
+  };
+  /* uygulama ortamı: geçmişe tek adım (qaUygula ile aynı), redo temizlenir. Testler onUygula'ya kendi ortamını verir */
+  var onOrtam = function () { return { deck: deck, liste: function (d) { return qaListe(d).bulgu; }, snap: snap, gecmis: function (before) { undoS.push(before); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); renderAll(); dirty(); } }; };
+  var onYerelKur = function (S) { var p = onYerel(S.T, deck); if (Array.isArray(p)) { S.P = p; S.sec = 0; S.durum = 'proposal_ready'; } else { S.durum = 'failed'; S.hata = 'guvenilmez'; S.yerelVar = false; } };
+  /* onay her öneride yeniden sorulur, saklanmaz; kapı kapalı bilinirse doğrudan yerel öneri */
+  var onBasla = function (x) {
+    var T = onHedef(x, deck); if (T.yok) return;
+    onS = { id: x.id, x: x, T: T, durum: 'ready' };
+    if (ON_MODELE[T.kod] && !T.not && !onKapali) { onS.I = onIstek(T, deck); if (onS.I.sigar) onS.durum = 'confirming'; else { onS.durum = 'failed'; onS.hata = 'sigmadi'; } return; }      /* sessiz kısaltma yok */
+    onYerelKur(onS);
+  };
+  var onTikla = function (t, paint, secF) {
+    var a = function (k) { return t.hasAttribute(k); }, S = onS;
+    if (a('data-on-iddia')) { qaSec = 'K@' + t.getAttribute('data-on-iddia'); qaOn = null; qaSon = null; onS = null; paint('[data-qa-det]'); return true; }
+    if (a('data-on-olustur') || a('data-on-yeniden')) { var x = secF(); if (x) onBasla(x); paint('[data-on-onay], [data-on-uygula], [data-on] button, [data-qa-det]'); return true; }
+    if (!S || S.id !== qaSec) return false;
+    if (a('data-on-vazgec') || a('data-on-iptal')) { onS = { id: S.id, x: S.x, T: S.T, durum: 'cancelled' }; paint('[data-on] button'); return true; }
+    if (a('data-on-yerel')) { onYerelKur(S); paint('[data-on] button'); return true; }
+    if (a('data-on-onay')) {
+      if (S.durum !== 'confirming') return true;
+      var b = onBayat(S.T, deck); if (b) { S.durum = 'stale'; S.neden = b; paint('[data-on] button'); return true; }
+      S.durum = 'generating'; paint('[data-on]');
+      onModel(S.T, deck).then(function (r) { if (onS !== S) return; if (r.durum === 'tamam') { S.P = [r.P]; S.sec = 0; S.durum = 'proposal_ready'; } else { S.durum = 'failed'; S.hata = r.durum; S.neden = r.neden; } if (onPaint) onPaint(); });
+      return true;
+    }
+    if (S.durum !== 'proposal_ready' && !a('data-on-geri') && !a('data-on-denet')) return true;
+    if (a('data-on-sec')) { S.sec = Math.max(0, Math.min(S.P.length - 1, +t.getAttribute('data-on-sec') || 0)); S.duzen = false; S.red = null; paint('[data-on-sec="' + S.sec + '"]'); return true; }
+    if (a('data-on-tekonay')) { var p0 = onP(); if (p0) p0.secim = !p0.secim; paint('[data-on-tekonay]'); return true; }
+    if (a('data-on-duzen')) { S.duzen = true; S.red = null; paint('[data-on-metin]'); return true; }
+    if (a('data-on-duzenvaz')) { S.duzen = false; S.red = null; paint('[data-on-duzen]'); return true; }
+    if (a('data-on-duzenok')) {
+      var kap = t.closest('[data-on]'), ta = kap && kap.querySelector('[data-on-metin]'), p1 = onP(); if (!ta || !p1) return true;
+      var P2 = Object.assign({}, p1, { motor: 'kullanici', secim: false, hedefler: p1.hedefler.map(function (h, i) { return i ? h : Object.assign({}, h, { replacement_text: ta.value }); }) });
+      var v = onDenetle(P2, S.T, deck); if (v) { S.red = v; paint('[data-on-metin]'); return true; }
+      S.P[S.sec || 0] = P2; S.duzen = false; S.red = null; paint('[data-on-uygula]'); return true;
+    }
+    if (a('data-on-uygula')) {
+      var P = onP(); if (!P) return true;
+      S.durum = 'applying'; var r = onUygula(P, S.T, onOrtam());
+      if (r.before) { S.durum = 'applied'; S.sonuc = r; paintKalite(); say('Düzeltme uygulandı.', undo); }
+      else if (r.hata === 'bayat') { S.durum = 'stale'; S.neden = r.neden; }
+      else { S.durum = 'failed'; S.hata = r.hata === 'gecersiz' ? 'reddedildi' : r.hata; S.neden = r.neden; }
+      paint(r.before ? '[data-on-geri], [data-on-denet]' : '[data-on] button'); return true;
+    }
+    if (a('data-on-geri')) { if (S.sonuc && undoS[undoS.length - 1] === S.sonuc.before) { undo(); onS = { id: S.id, x: S.x, T: S.T, durum: 'cancelled', geri: 1 }; } paint('[data-on] button'); return true; }
+    if (a('data-on-denet')) { if (S.sonuc) S.sonuc.kalan = onKalan(S.T, deck, qaListe(deck).bulgu); paint('[data-on-denet]'); return true; }
+    return false;
+  };
+  var onarSozluk = function () {
+    var A = window.AX_EN && window.AX_EN.t; if (!A || A['Düzeltme önerisi oluştur']) return;
+    var ek = { 'Düzeltme önerisi oluştur': 'Create a fix proposal', 'düzeltme öner': 'propose a fix', 'Bu sorun otomatik düzeltmeye uygun değil.': 'This issue is not eligible for an automatic fix.',
+      'Bu bulgu türü yalnız elle düzeltilir.': 'This finding type is fixed by hand only.', 'Asetat bulunamadı.': 'Slide not found.', 'Yapısal asetat (kapak, gündem, kaynakça) onarılmaz.': 'Structural slides (cover, agenda, references) are not repaired.',
+      'İddia bulunamadı, metni değişmiş ya da madde iddiası değil (grafik, tablo ve istatistik verisi onarılmaz).': 'Claim not found, its text changed, or it is not a bullet claim (chart, table and statistics data are not repaired).',
+      'Düzeltilebilir bir yazı öğesi yok.': 'No editable text element.', 'Öğe metni öneri sınırını aşıyor.': 'The element text exceeds the proposal limit.',
+      'Bu sorun için bir düzeltme önerisi hazırlayabilirim. Öneri uygulanmadan önce gösterilir; kararı sen verirsin.': 'I can prepare a fix proposal for this issue. It is shown before anything is applied; you decide.',
+      'Bu öneriyi oluşturmak için seçilen slaytın metni, ilgili denetim bulgusu ve seçilen kaynak parçaları Groq hizmetine gönderilir. Tam belge, tam kaynak metni veya bütün sunum gönderilmez. Oluşturulan öneri uygulanmadan önce size gösterilir.': 'To create this proposal, the selected slide\'s text, the related audit finding and the selected source passages are sent to the Groq service. The full document, the full source text or the whole presentation is not sent. The proposal is shown to you before it is applied.',
+      'Belge veya kart kaynaklarından seçilen parçalar özel içerik barındırabilir. Yalnızca gönderilmesini onayladığınız parçalar dış hizmete iletilir.': 'Passages selected from document or card sources may contain private content. Only the passages you approve are sent to the external service.',
+      '{#} öğe · {#} kaynak parçası · {#} komşu başlık': '{#} element · {#} source passages · {#} neighbouring titles', '{#} parça sınır nedeniyle gönderilmez (en çok {#}).': '{#} passages are not sent because of the limit (at most {#}).',
+      '{#} komşu başlık {#} karaktere kısaltıldı.': '{#} neighbouring titles were shortened to {#} characters.', 'Gönderilecek metin': 'Text to be sent',
+      'Onayla ve öneri oluştur': 'Approve and create proposal', 'Yalnız yerel/deterministik öneri': 'Local/deterministic proposal only', 'Vazgeç': 'Cancel', 'Uygula': 'Apply', 'Öneriyi düzenle': 'Edit proposal', 'Yeniden öner': 'Propose again',
+      'Öneri hazırlanıyor…': 'Preparing proposal…', 'Uygulanıyor…': 'Applying…', 'Öneri bayatladı; uygulanmadı.': 'The proposal is stale; it was not applied.',
+      'Asetat ya da öğe değişti.': 'The slide or element changed.', 'Öğenin metni değişti.': 'The element text changed.', 'Sunum değişti.': 'The presentation changed.', 'İddia değişti ya da bayatladı.': 'The claim changed or went stale.',
+      'Kaynak ya da parça değişti.': 'A source or passage changed.', 'Bulgu artık yok.': 'The issue no longer exists.', 'Konuşma notu önerisi uygulanmaz.': 'Speaker-notes suggestions are not applied.',
+      'Düzeltme uygulandı.': 'Fix applied.', 'Değişen öğe:': 'Changed element:', '{#} değişen iddia doğrulanmadı olarak kaydedildi; eski kontrol taşınmadı.': '{#} changed claims were recorded as unverified; the old check was not carried over.',
+      'Bulgu yeniden denetimde hâlâ görünüyor.': 'The issue still appears after re-audit.', 'Bulgu yeniden denetimde görünmüyor.': 'The issue no longer appears after re-audit.', 'Yeni bulgu:': 'New finding:', 'geri al': 'undo', 'yeniden denetle': 're-audit',
+      'İçerik onarımı şu an kapalı; hiçbir şey gönderilmedi.': 'Content repair is off right now; nothing was sent.', 'Öneri hizmetinin kotası doldu.': 'The proposal service quota is used up.', 'Çok sık öneri istendi; birkaç dakika sonra yeniden dene.': 'Too many proposals requested; try again in a few minutes.',
+      'Öneri zaman aşımına uğradı.': 'The proposal timed out.', 'Öneri hizmetine ulaşılamadı.': 'The proposal service could not be reached.', 'Öneri hizmetinin yanıtı geçersizdi; öneri gösterilmedi.': 'The proposal service response was invalid; no proposal is shown.',
+      'İstek geçersiz sayıldı.': 'The request was rejected as invalid.', 'Seçilen metin gönderim sınırına sığmadı; hiçbir şey gönderilmedi.': 'The selected text does not fit the send limit; nothing was sent.', 'Öneri güvenlik denetiminden geçmedi; uygulanmadı.': 'The proposal failed the safety check; it was not applied.',
+      'Bu sorun için güvenilir bir yerel öneri yok.': 'There is no reliable local proposal for this issue.', 'Bu öneri uygulanamaz.': 'This proposal cannot be applied.', 'Tek kaynak seçimi için açık onay gerekir.': 'A single-source choice needs explicit confirmation.', 'Sunum değişmedi.': 'The presentation did not change.',
+      'Öneri türü kurala uymuyor.': 'The proposal type breaks the rules.', 'Öneri bu bulgunun öğesine ait değil.': 'The proposal is not for this issue\'s element.', 'Öğe metni değişmiş.': 'The element text has changed.', 'Önerilen metin boş, aynı ya da çok uzun.': 'The proposed text is empty, unchanged or too long.',
+      'Önerilen metin güvensiz içerik taşıyor.': 'The proposed text carries unsafe content.', 'Önerilen metin yeni bağlantı ekliyor.': 'The proposed text adds a new link.', 'Önerilen metin yeni bir kaynak numarası ekliyor.': 'The proposed text adds a new source number.', 'Kaynak parçası gerçek değil ya da eksik.': 'A source passage is not real or is missing.', 'Sayı eklenmiş ya da korunmamış.': 'A number was added or not preserved.',
+      'Sayı, tarih, birim ya da para korunmamış.': 'A number, date, unit or amount was not preserved.', 'Olumsuzluk değişmiş.': 'A negation changed.', 'Koşul değişmiş.': 'A condition changed.', 'Neden-sonuç ilişkisi değişmiş.': 'A cause-effect relation changed.', 'Karşılaştırma değişmiş.': 'A comparison changed.',
+      'Mutlak ifade değişmiş.': 'An absolute statement changed.', 'Ad ya da kısaltma değişmiş.': 'A name or acronym changed.', 'Düzenleme denetimden geçmedi.': 'The edit failed the check.',
+      'Düzeltme geri alındı.': 'Fix undone.', 'Vazgeçildi; sunum değişmedi.': 'Cancelled; the presentation did not change.', 'Yalnız ifade': 'Wording only', 'Kaynakla nitelenmiş': 'Source-qualified', 'Olgu değişikliği (kaynak seçimi)': 'Fact revision (source choice)', 'Kanıt yetersiz': 'Insufficient evidence', 'Öneriler': 'Proposals',
+      'Groq önerisi': 'Groq proposal', 'senin düzenlemen': 'your edit', 'yerel öneri': 'local proposal', 'Şimdi': 'Now', 'Öneri': 'Proposal', 'Fark': 'Difference', 'Neden:': 'Reason:', 'Korunan olgular': 'Preserved facts',
+      'Eklenen bilgi (ifade değişikliğinden ayrı)': 'Added information (separate from rewording)', 'Yeni bilgi eklenmez; yalnız ifade değişir.': 'No new information is added; only the wording changes.', 'Belirsiz ya da sınırlı': 'Uncertain or limited',
+      'Yalnız bu öğenin metni değişir; konum, boyut, yazı tipi, renk, grafik, tablo, görsel, kaynakça ve notlar aynı kalır. Değişen iddia yeniden doğrulanmadı sayılır. Geri alınabilir.': 'Only this element\'s text changes; position, size, font, colour, charts, tables, images, references and notes stay the same. The changed claim counts as unverified again. It can be undone.',
+      'Bu öneri tek bir kaynağı seçer. Uygulamak için bu seçimi açıkça onayla.': 'This proposal picks a single source. Confirm that choice explicitly to apply it.', 'kaynak seçimini onaylıyorum': 'I confirm the source choice', '✓ kaynak seçimini onayladım': '✓ source choice confirmed',
+      'vazgeç': 'cancel', 'denetle ve kullan': 'check and use', 'Değer otomatik değiştirilmez; önce kaynakları incele.': 'The value is not changed automatically; review the sources first.',
+      'Konuşma notları otomatik değiştirilmez; öneriyi elle uygula.': 'Speaker notes are not changed automatically; apply the suggestion by hand.', 'Önerilen not': 'Suggested notes', 'Kanıt yetersiz; kaynak destekli bir öneri yok. Metin değişmez.': 'Insufficient evidence; there is no source-backed proposal. The text does not change.',
+      'Kanıt kontrolü: {*}': 'Evidence check: {*}', 'Önce kaynakları incele; değer otomatik değiştirilmez.': 'Review the sources first; the value is not changed automatically.', 'İfadeyi temkinli yap, iddiayı kaldır ya da kaynak ekle; yeni sayı eklenmez.': 'Make the wording cautious, remove the claim or add a source; no new number is added.',
+      'Kaynak seçilmeden farkın varlığı belirtilir.': 'The difference is stated without choosing a source.', 'İki kaynağın değeri de yazılır; biri seçilmez.': 'Both sources\' values are written; neither is chosen.',
+      'Değer yalnız [{#}] kaynağına göre yazılır; bu bir kaynak seçimidir.': 'The value follows source [{#}] only; this is a source choice.', 'Öteki kaynağın değeri metinden çıkar.': 'The other source\'s value leaves the text.',
+      'Dönem, değeri veren kaynak parçasından alınır.': 'The period comes from the source passage that gives the value.', 'İki kaynağın değeri dönemleriyle yazılır.': 'Both sources\' values are written with their periods.',
+      'Yalnız açıklama eklenir; tanımlar arasında dönüşüm yapılmaz.': 'Only a clarification is added; no conversion between definitions.', 'İki tanımın değeri yan yana yazılır; dönüşüm yapılmaz.': 'The values of both definitions are written side by side; no conversion.',
+      'Ön ve kesin veri ayrı ayrı yazılır.': 'Preliminary and final data are written separately.', 'Kaynağın tarihi kayıttaki tarihten yazılır; yıl uydurulmaz.': 'The source date comes from the record; no year is invented.', 'Kaynağın eski olabileceği belirtilir.': 'It is noted that the source may be old.',
+      'Kaynakta tarih olmadığı belirtilir; tarih uydurulmaz.': 'It is noted that the source is undated; no date is invented.', 'Kaynakların bağımsız olmayabileceği belirtilir; bu doğruluk kararı değildir.': 'It is noted that the sources may not be independent; this is not an accuracy verdict.',
+      'Değer değiştirilmez; kaynakların farklı söylediği belirtilir.': 'The value is not changed; it is noted that sources say otherwise.', 'Bulunamamak yanlış demek değildir; ifade temkinli yapılır.': 'Not found does not mean wrong; the wording is made cautious.',
+      'Bu madde asetattan çıkarılır; öteki maddeler aynı kalır.': 'This bullet is removed from the slide; the other bullets stay the same.', 'Bu iddia için kaynak ekle ya da kaynağı elle kontrol et.': 'Add a source for this claim or check the source by hand.',
+      'Uzun madde güvenli bir cümle sınırından ikiye bölünür; sözcükler değişmez.': 'The long bullet is split in two at a safe sentence boundary; the words do not change.', 'Aynı cümlenin yinelemesi çıkarılır.': 'The repeated sentence is removed.',
+      '{#} not cümlesi asetattaki maddeyi ya da başlığı yineliyor.': '{#} notes sentences repeat a bullet or the title on the slide.' };
+    for (var k in ek) if (!A[k]) A[k] = ek[k];
+  };
+  /* ---------- #53 son ---------- */
   var deckKey = function (d) { return arr(d.slides).length + '|' + arr(d.slides).map(function (sl) { return (sl.lay || '') + ':' + titleOf(sl) + ':' + String(sl.notes || '').length; }).join('|'); };
   var titleKey = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
   var ciftBasliklar = function () {
@@ -9003,6 +9445,7 @@ var SBX = (function () {
       '.ax-sxd .qa-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:12px;align-items:start}.ax-sxd .qa-list{max-height:46vh}.ax-sxd .qa-it{display:flex;flex-direction:column;gap:6px;padding:8px 10px}.ax-sxd .qa-it.on{border-color:#2F6BFF;box-shadow:0 0 0 1px #2F6BFF}.ax-sxd .qa-it .sxd-b{align-self:flex-end}' +
       '.ax-sxd .qa-sel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;width:100%;min-height:40px;padding:0;border:0;background:none;text-align:left;font:inherit;font-size:13.5px;color:#0D1838;cursor:pointer}.ax-sxd .qa-m{flex:1 1 180px}.ax-sxd .qa-m i{font:700 12px ui-monospace,monospace;font-style:normal;color:#2F6BFF;margin-right:6px}.ax-sxd .qa-m small,.ax-sxd .qa-why small{display:block;color:#4B5675}.ax-sxd .qa-src{font-size:11.5px;color:#6A7593}' +
       '.ax-sxd .qa-det{border:1.5px solid #E4DCC8;border-radius:12px;padding:12px;background:#fff;font-size:13.5px;min-width:0}.ax-sxd .qa-det h4{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px;font:700 15px "Bricolage Grotesque",sans-serif}.ax-sxd .qa-det p{margin:6px 0}' +
+      '.ax-sxd .on{margin-top:8px}.ax-sxd .on .on-fark ins{background:#DDF3E4;text-decoration:none}.ax-sxd .on .on-fark del{background:#FBE3E1}.ax-sxd .on dd,.ax-sxd .on .on-yeni,.ax-sxd .on q{overflow-wrap:anywhere;word-break:break-word}.ax-sxd .on textarea{width:100%;box-sizing:border-box;font:inherit;padding:6px;border:1.5px solid #E4DCC8;border-radius:8px}.ax-sxd .on .on-l{margin:2px 0 6px;padding-left:18px}.ax-sxd .on .on-sec,.ax-sxd .on .sxd-acts{flex-wrap:wrap}.ax-sxd .on blockquote{margin:4px 0;padding:4px 8px;border-left:3px solid #E4DCC8}.ax-sxd .on details summary{cursor:pointer}' +      /* #53 */
       '.ax-sxd .qa-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0}.ax-sxd .qa-dl dt{font-weight:700;color:#4B5675}.ax-sxd .qa-dl dd{margin:0;min-width:0;overflow-wrap:anywhere}.ax-sxd .qa-no{color:#8A6A12}.ax-sxd .qa-ok{color:#1E6A42;font-weight:700}.ax-sxd .qa-bos{color:#4B5675;padding:8px 0}' +
       '.ax-sxd .qa-pv .pv-old,.ax-sxd .qa-pv .pv-new{padding:8px}.ax-sxd .qa-pv .sx-thv{display:block;position:relative;overflow:hidden;aspect-ratio:16/9;border-radius:6px}.ax-sxd .qa-pv ul{margin:8px 0 0}' +
       '@media (max-width:640px){.ax-sxd .pv-two{grid-template-columns:1fr}.ax-sxd .qa-grid,.ax-sxd .qa-cks{grid-template-columns:1fr}.ax-sxd .qa-list{max-height:none}}';
@@ -9372,7 +9815,7 @@ var SBX = (function () {
     if (!yaziHazirMi() || yaziKuyruk.length) { say('Şablon yazı tipi hazırlanıyor; denetim yazı gelince açılacak.'); yaziSonra(openAudit, 'denetim'); return; }      /* ölçüm doğrulanmış yazıyla (P1) */
     commitEdit();
     if (!auDlg) { auDlg = sxDlg(); auDlg.setAttribute('aria-labelledby', 'axau-t'); LY.appendChild(auDlg); }
-    qaOn = null; qaSon = null; kyAs = null; kyVurgu = null; idOnayAcik = false;
+    qaOn = null; qaSon = null; kyAs = null; kyVurgu = null; idOnayAcik = false; onS = null;
     var paint = function (odak) { qaBoya(auDlg, odak); };
     auDlg.onclick = function (e) {
       var t = e.target.closest('button'); if (!t) return;
@@ -9382,6 +9825,7 @@ var SBX = (function () {
       qaTikla(t, paint);
     };
     idPaint = function () { if (auDlg && auDlg.open) paint(); };      /* #50: zaman uyumsuz kontrol bitince */
+    onPaint = function () { if (auDlg && auDlg.open) paint('[data-on] button'); };      /* #53: model önerisi gelince */
     gqPaint = function () { if (!auDlg || !auDlg.open) return; var g = auDlg.querySelector('[data-gq]'); if (gorselKos && gorselKos.yapilan && g) g.outerHTML = gorselBolum(1); else paint(); };
     paint(); auDlg.showModal(); var f = auDlg.querySelector('[data-au-x]'); if (f) f.focus();
   };
@@ -9990,6 +10434,7 @@ var SBX = (function () {
       '<dt>Kod</dt><dd><code>' + X(x.code) + '</code></dd><dt>Öneri</dt><dd>' + X(x.recommendation) + '</dd></dl>' +
       (x.why.length ? '<p class="qa-why"><small>' + X(x.why.join(' · ')) + '</small></p>' : '');
     if (x.sources.indexOf('visual') >= 0) h += '<p class="qa-no">Görsel bulgular kendiliğinden düzeltilmez; öneriyi elle uygula.</p>';
+    else if (!x.repairable && (ON_IDDIA[x.code] || ON_ASETAT[x.code] || x.code === 'REPEATED_LAYOUT')) h += onBolum(x);      /* #53: öneri → onay → uygula; REPEATED_LAYOUT uygun değil */
     else if (!x.repairable) h += '<p class="qa-no">' + (x.code === 'TEXT_OVERFLOW' && !snapHazir(deck) ? 'Yazı tipi doğrulanmadan bu taşma için düzeltme önerilmez.' : 'Bu bulgu için otomatik düzeltme yok; öneriyi elle uygula.') + '</p>';
     else if (qaOn && qaOn.id === x.id) h += qaOn.plan.ok ? qaOnizHTML(qaOn.plan) : '<p class="qa-no" data-qa-plan="yok">Güvenli bir düzeltme bulunamadı; deste değişmedi. Yazıyı kısaltmayı dene.</p>';
     else h += '<p>Yazı boyutunu ya da kutu yüksekliğini ayarlayarak sığdırabilirim; önce önizlersin, onaylamadan hiçbir şey değişmez.</p><div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-qa-pre>düzeltmeyi önizle</button></div>';
@@ -10038,7 +10483,7 @@ var SBX = (function () {
     var vur = function (id) { return vok && id && id === kyVurgu ? ' data-ky-vurgu tabindex="-1"' : ''; };      /* #52: bulgudan gelen hedef */
     var kay = function (k) { var h = kyLink(k.url), ad = X(k.baslik || k.site || k.url || (k.tur === 'kart' ? 'Ders kartı' : 'Belge')); return '<li data-ky-sid="' + X(k.sid) + '"' + vur(k.sid) + '>' + (k.n ? '<i>[' + k.n + ']</i> ' : '') + '<span data-no-i18n>' + (h ? '<a href="' + X(h) + '" target="_blank" rel="noopener noreferrer">' + ad + '</a>' : ad) + (k.site && k.site !== k.baslik ? ' · ' + X(k.site) : '') + '</span>' + kqSatir(k, reg, G) + '</li>'; };
     var par = function (k) { var r = reg[k.sid], p = r && arr(r.parca).filter(function (x) { return x.pid === k.pid; })[0]; if (!p) return ''; return '<blockquote data-ky-rol="' + (k.rol === 'aday' ? 'aday' : 'baglam') + '"><b>' + (k.rol === 'aday' ? 'Kaynak' : 'Bağlam') + '</b>' + (r.n ? ' <i>[' + r.n + ']</i>' : '') + ' <q data-no-i18n>' + X(p.metin) + '</q></blockquote>'; };
-    var idd = function (r) { var kk = r.cid ? kontrolParca(r, reg) : null; return '<li data-ky-cid="' + X(r.cid || '') + '"' + vur(r.cid) + '><p><span data-no-i18n>' + X(r.text) + '</span> ' + (r.cid ? kontrolSatir(r, reg) : '<span class="au-ky-d">Doğrulanmadı</span>') + (r.bayat ? '<small class="au-ky-b">metin değişti</small>' : '') + '</p>' + (kk != null ? kk : arr(r.kanit).map(par).join('')) + kqIddia(r, reg, G) + '</li>'; };      /* #50: güncel kontrolde kullanılan parçalar, yoksa #49 bağları */
+    var idd = function (r) { var kk = r.cid ? kontrolParca(r, reg) : null; return '<li data-ky-cid="' + X(r.cid || '') + '"' + vur(r.cid) + '><p><span data-no-i18n>' + X(r.text) + '</span> ' + (r.cid ? kontrolSatir(r, reg) : '<span class="au-ky-d">Doğrulanmadı</span>') + (r.bayat ? '<small class="au-ky-b">metin değişti</small>' : '') + (r.cid && onKontrolKod(r, reg) ? ' <button type="button" class="sxd-b sm" data-on-iddia="' + X(r.cid) + '">düzeltme öner</button>' : '') + '</p>' + (kk != null ? kk : arr(r.kanit).map(par).join('')) + kqIddia(r, reg, G) + '</li>'; };      /* #50: güncel kontrolde kullanılan parçalar, yoksa #49 bağları */
     return '<div class="au-ky" data-ky="' + i + '"' + (kyVurgu && !vok ? ' data-ky-vurgu tabindex="-1"' : '') + '><h4>Kaynaklar ve iddialar</h4>' +
       '<div class="au-ky-nav"><button type="button" class="sxd-b" data-ky-git="' + (i - 1) + '" data-ky-yon="-1" aria-label="önceki asetat"' + (i ? '' : ' disabled') + '>‹</button>' +
       '<span><b>Asetat</b> ' + (i + 1) + ' / ' + N + ' · <span data-no-i18n>' + X(titleOf(sl) || '') + '</span></span>' +
@@ -10059,7 +10504,7 @@ var SBX = (function () {
     for (var k in ek) if (!A[k]) A[k] = ek[k];
   };
   var qaBoya = function (dlg, odak) {
-    birlesikSozluk(); kaynakSozluk(); kontrolSozluk();
+    birlesikSozluk(); kaynakSozluk(); kontrolSozluk(); onarSozluk();
     var L = qaListe(deck), K = L.kontrol, sp = {}, sec = null, ic = dlg.contains(document.activeElement);
     QA_PRI.forEach(function (p) { sp[p] = 0; }); L.bulgu.forEach(function (x) { sp[x.priority]++; if (x.id === qaSec) sec = x; });
     var gor = L.bulgu.filter(function (x) { return (qaF.src === 'all' || x.sources.indexOf(qaF.src) >= 0) && (qaF.pri === 'all' || x.priority === qaF.pri); });
@@ -10073,7 +10518,7 @@ var SBX = (function () {
       '<div class="qa-flt" role="group" aria-label="Süzgeç"><span>Kaynak</span>' + ['all'].concat(QA_KAYNAK).map(function (k) { return qaDug('src', k, k === 'all' ? 'tümü' : QA_KAYNAK_TR[k]); }).join('') +
       '<span>Öncelik</span>' + ['all'].concat(QA_PRI).map(function (p) { return qaDug('pri', p, p === 'all' ? 'tümü' : QA_PRI_TR[p]); }).join('') + '</div>' +
       '<div class="qa-grid"><ul class="au-list qa-list" data-qa-list>' + (gor.length ? gor.map(qaSatir).join('') : '<li class="qa-bos">' + (L.bulgu.length ? 'Bu süzgeçte bulgu yok.' : 'Bulgu yok.') + '</li>') + '</ul>' +
-      '<div class="qa-det" data-qa-det tabindex="-1" aria-live="polite">' + qaDetay(sec) + '</div></div>' +
+      '<div class="qa-det" data-qa-det tabindex="-1" aria-live="polite">' + qaDetay(sec || onSahte(qaSec) || (onS && onS.id === qaSec && onS.x) || null) + '</div></div>' +
       gorselBolum(1) +      /* Phase 5 bölümü: açıklama, gizlilik bildirimi, elle başlatma düğmesi */
       kaynakBolum() +      /* #49 (8.1) */
       '<div class="sxd-acts"><button type="button" class="sxd-b" data-au-x>kapat</button></div></div>';
@@ -10086,7 +10531,7 @@ var SBX = (function () {
   /* pencere düğmeleri; her onarım adımı kullanıcının tıklamasıyla, tek bulgu için */
   var qaTikla = function (t, paint) {
     if (t.hasAttribute('data-qa-f')) { var f = t.getAttribute('data-qa-f'), v = t.getAttribute('data-v'); qaF[f] = v; paint('[data-qa-f="' + f + '"]' + qaSecici('data-v', v)); return true; }
-    if (t.hasAttribute('data-qa-sel')) { qaSec = t.getAttribute('data-qa-sel'); qaOn = null; qaSon = null; paint(qaSecici('data-qa-sel', qaSec)); return true; }
+    if (t.hasAttribute('data-qa-sel')) { qaSec = t.getAttribute('data-qa-sel'); qaOn = null; qaSon = null; onS = null; paint(qaSecici('data-qa-sel', qaSec)); return true; }
     if (t.hasAttribute('data-qa-pre')) {
       var x = qaBul(qaSec), p = { ok: false };
       try { if (x && x.repairable) p = qaPlan(x); } catch (e) { console.warn('acadex-sunum: onarım planı', e && e.message); p = { ok: false }; }
@@ -10106,6 +10551,7 @@ var SBX = (function () {
     if (t.hasAttribute('data-ky-git') && t.hasAttribute('data-ky-hedef')) { kyAs = +t.getAttribute('data-ky-git'); kyVurgu = t.getAttribute('data-ky-hedef'); paint('[data-ky-vurgu], [data-ky]'); return true; }      /* #52 */
     if (t.hasAttribute('data-ky-git')) { kyAs = +t.getAttribute('data-ky-git'); kyVurgu = null; paint('[data-ky-yon="' + t.getAttribute('data-ky-yon') + '"]:not([disabled]), [data-ky]'); return true; }      /* #49 */
     if (t.hasAttribute('data-qa-undo')) { if (qaSon && qaSon.before && undoS[undoS.length - 1] === qaSon.before) { undo(); qaSon = { hata: 'geri' }; } paint('[data-qa-det]'); return true; }
+    if (onTikla(t, paint, function () { return qaBul(qaSec) || onSahte(qaSec); })) return true;      /* #53 */
     return false;
   };
 
