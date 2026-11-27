@@ -7522,7 +7522,7 @@ var SBX = (function () {
   var iddiaYenile = function (sl, yid, els) {
     arr(els || (sl && sl.els)).forEach(function (e) {
       if (!e || !Array.isArray(e.iddia)) return; var say = {};
-      e.iddia = e.iddia.map(function (r) { var o = say[r.h] = say[r.h] == null ? 0 : say[r.h] + 1, z = Object.assign({}, r, { cid: 'c' + kyHash(sl.id + '|' + e.id + '|' + r.h + '|' + o), kanit: arr(r.kanit).map(function (k) { return Object.assign({}, k); }) }); if (z.es && yid && yid[z.es]) z.es = yid[z.es]; return z; });
+      e.iddia = e.iddia.map(function (r) { var o = say[r.h] = say[r.h] == null ? 0 : say[r.h] + 1, z = Object.assign({}, r, { cid: 'c' + kyHash(sl.id + '|' + e.id + '|' + r.h + '|' + o), kanit: arr(r.kanit).map(function (k) { return Object.assign({}, k); }) }); delete z.kontrol; if (z.es && yid && yid[z.es]) z.es = yid[z.es]; return z; });      /* #50: kontrol sonucu yeni cid'e taşınmaz */
     });
   };
   var kyKayit = function (d) { var reg = {}; arr(d && d.kaynaklar).forEach(function (k) { if (k && typeof k.sid === 'string') reg[k.sid] = k; }); return reg; };
@@ -7540,6 +7540,442 @@ var SBX = (function () {
   };
   var kySrc = function (sl) { var z = arr(sl.src).filter(function (x) { return typeof x === 'string'; }), o = {}; if (z.length) o.src = z; if (+sl.srcEksik > 0) { o.src = z; o.srcEksik = +sl.srcEksik; } return o; };      /* bulut satırı için */
   /* ---------- #49 son ---------- */
+  /* ---------- #50 (Phase 8.2) İDDİA, SAYI, TARİH VE BİRİM DOĞRULAMA (27.11.2026) ----------
+     Yalnız kullanıcının "Kanıtları kontrol et" düğmesiyle çalışır; üretimde, kayıtta, basımda, PPTX'te çağrılmaz. Kanıt yalnız
+     #49 parçalarıdır (deck.kaynaklar[].parca[], sid/pid ile; pid = 'p' + kyHash(sid|metin) burada yeniden sınanır). Eski kalite
+     alanları (warn/why/fixed, meaningCheck) ve aday/baglam rolü kanıt sayılmaz. Bayat iddia kontrol edilmez.
+     sayiCoz bağımsız bir ayrıştırıcıdır (verified/numTokens/buildNumIndex'e dokunmaz): TR 1.234,5 ve EN 1,234.5 → 1234,5;
+     tek ayırıcıdan sonra tam 3 hane (1.234) belirsizdir, tahmin edilmez; % ≠ puan; para birimleri ayrı, dönüştürülmez;
+     yalnız aynı fiziksel boyutta birim çevrilir; tarih, ay, yıl aralığı, M.Ö./M.S. ayrı. Sayı eşleşmesi tek başına yetmez:
+     parçanın iddiayla aynı konuyu söyleyen cümle/yan cümlesi (sözcük kökü kapsaması) gerekir. Farklı dönem, birim, payda ya da
+     ön/geçici veri çelişki değildir. Emin olunmayan her durum 'unverified'. Groq yanıtı istemcide deterministik bekçiden
+     (idBekci) yeniden geçer; e.iddia[].durum'a yazılmaz, yalnız e.iddia[].kontrol'e. Kayıt paylaşım görüntüsüne, PPTX'e,
+     konuşmacı notuna girmez; deckKey ve kalite değişmez. Günlük yok. */
+  var ID_MAX = 20, ID_PARCA = 3, ID_METIN = 400, ID_MS = 70000;
+  var ID_ETIKET = { supported: 'Destekleniyor', partially_supported: 'Kısmen destekleniyor', unsupported: 'Desteklenmiyor', contradicted: 'Çelişki bulundu', unverified: 'Doğrulanmadı', not_applicable: 'Olgu iddiası değil' };
+  var ID_KAT = { 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i', 'û': 'u' };
+  var idKat = function (t) { return String(t == null ? '' : t).toLowerCase().split(String.fromCharCode(775)).join('').replace(/[çğıöşüâîû]/g, function (c) { return ID_KAT[c]; }); };      /* uzunluğu korur (İ → i) */
+  var ID_AY = { ocak: 1, subat: 2, mart: 3, nisan: 4, mayis: 5, haziran: 6, temmuz: 7, agustos: 8, eylul: 9, ekim: 10, kasim: 11, aralik: 12, january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+  var ID_AYK = '(ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik|january|february|march|april|may|june|july|august|september|october|november|december)';
+  var ID_OLCEK = [[/^(bin(?:de|den|e|i|in|lerce|lik)?|thousands?)(?![a-z])/, 1e3], [/^(milyon[a-z]*|millions?|mn)(?![a-z])/, 1e6], [/^(milyar[a-z]*|billions?|bn)(?![a-z])/, 1e9], [/^(trilyon[a-z]*|trillions?|tn)(?![a-z])/, 1e12]];
+  var ID_PARA = [[/^(\$|usd|dolar[a-z]*|dollars?|us\$)/, 'USD'], [/^(€|eur|euros?|avro[a-z]*)(?![a-z])/, 'EUR'], [/^(₺|tl|try|lira[a-z]*|turk lirasi)(?![a-z])/, 'TRY'], [/^(£|gbp|sterlin[a-z]*|pounds?)(?![a-z])/, 'GBP']];
+  var ID_BIRIM = [      /* [kalıp, boyut, çarpan] — yalnız aynı boyutta çevrilir; ay ve yıl gün sayısına çevrilmez */
+    [/^(km2|km²|kilometrekare[a-z]*|square kilomet(?:er|re)s?)(?![a-z0-9])/, 'alan', 1e6], [/^(m2|m²|metrekare[a-z]*|square met(?:er|re)s?)(?![a-z0-9])/, 'alan', 1], [/^(hektar[a-z]*|hectares?)(?![a-z])/, 'alan', 1e4],
+    [/^(km|kilomet(?:re|er)s?|kilometre[a-z]*)(?![a-z0-9])/, 'uzunluk', 1e3], [/^(cm|santimetre[a-z]*|centimet(?:er|re)s?)(?![a-z0-9])/, 'uzunluk', 0.01], [/^(mm|milimetre[a-z]*|millimet(?:er|re)s?)(?![a-z0-9])/, 'uzunluk', 0.001], [/^(metre[a-z]*|met(?:er|re)s?)(?![a-z])/, 'uzunluk', 1],
+    [/^(ton(?:u|luk|dan|a|da|lar[a-z]*)?|tonnes?|tons?)(?![a-z])/, 'kutle', 1e3], [/^(kg|kilogram[a-z]*)(?![a-z0-9])/, 'kutle', 1], [/^(gram[a-z]*|grams?)(?![a-z])/, 'kutle', 1e-3],
+    [/^twh(?![a-z])/, 'enerji', 1e12], [/^gwh(?![a-z])/, 'enerji', 1e9], [/^mwh(?![a-z])/, 'enerji', 1e6], [/^kwh(?![a-z])/, 'enerji', 1e3],
+    [/^gw(?![a-z])/, 'guc', 1e9], [/^mw(?![a-z])/, 'guc', 1e6], [/^kw(?![a-z])/, 'guc', 1e3],
+    [/^(saat[a-z]*|hours?|hrs?)(?![a-z])/, 'sure', 3600], [/^(dakika[a-z]*|dk|minutes?|mins?)(?![a-z])/, 'sure', 60], [/^(saniye[a-z]*|sn|seconds?|secs?)(?![a-z])/, 'sure', 1],
+    [/^(gun|gunu|gunde|gunluk|gunun|gunluk|days?)(?![a-z])/, 'sure', 86400], [/^(hafta[a-z]*|weeks?)(?![a-z])/, 'sure', 604800], [/^(ay|aylik|months?)(?![a-z])/, 'ay', 1], [/^(yil(?:i|in|da|dir|lik|lar[a-z]*)?|years?)(?![a-z])/, 'yilsure', 1],
+    [/^(°c|° c|derece[a-z]*|degrees? celsius)(?![a-z])/, 'sicaklik', 1]
+  ];
+  var ID_KISI = /^(kisi[a-z]*|people|persons?|insan[a-z]*|residents?|employees?|calisan[a-z]*|ogrenci[a-z]*|students?)(?![a-z])/;
+  var ID_YAKLASIK = /(yaklasik|about|around|circa|ca\.|c\.|~|≈|nearly|roughly|almost|neredeyse|civarinda|kadari|some)\s*$/;
+  var ID_FAZLA = /(more than|over|above|at least|en az|exceeding|in excess of)\s*$/, ID_AZ = /(less than|under|below|at most|up to|en fazla|en cok)\s*$/;
+  var ID_NITELIK = /(on veri|ilk veri|gecici|tahmin|ongoru|beklen|hedef|preliminary|provisional|estimate|forecast|projected|expected|target|interim)/;
+  var ID_TOPLAM = /(toplam|total|combined|altogether|in sum|sum of)/;
+  var ID_ENJ = /(ignore (all |any |the )?(prior|previous|above|earlier)|disregard (all |the )?(prior|previous|above)|onceki (tum )?(talimat|kural)|system prompt|mark (all|every)( claims?)? (as )?supported|you are now)/;
+  var ID_SOZ = /(^|[^a-z])(iki|uc|dort|bes|alti|yedi|sekiz|dokuz|yirmi|otuz|kirk|elli|altmis|yetmis|seksen|doksan|yuz|bin|milyon|milyar|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|half|yarim|cift)([^a-z]|$)/;
+  var ID_DUR = { ve: 1, ile: 1, bir: 1, bu: 1, su: 1, o: 1, da: 1, de: 1, ki: 1, icin: 1, gibi: 1, kadar: 1, olan: 1, olarak: 1, oldu: 1, olur: 1, var: 1, yok: 1, en: 1, cok: 1, daha: 1, ise: 1, veya: 1, ya: 1, her: 1, gore: 1, sonra: 1, once: 1, ayni: 1, tum: 1, yaklasik: 1, neredeyse: 1, civarinda: 1,
+    the: 1, and: 1, for: 1, with: 1, was: 1, were: 1, are: 1, has: 1, had: 1, have: 1, that: 1, this: 1, from: 1, its: 1, into: 1, than: 1, about: 1, around: 1, over: 1, under: 1, more: 1, less: 1, nearly: 1, roughly: 1, some: 1, been: 1, which: 1, their: 1, also: 1, between: 1, per: 1, cent: 1, percent: 1,
+    yuzde: 1, puan: 1, percentage: 1, points: 1, point: 1, toplam: 1, total: 1, combined: 1, altogether: 1, ila: 1, arasi: 1, arasinda: 1 };
+  var ID_BIRIMKOK = /^(bin|thous|milyo|milli|milya|billi|trily|trill|dolar|dolla|euro|avro|lira|ton|tonne|kg|kilog|gram|km|kilom|metre|meter|santi|milim|hekta|hecta|saat|hour|dakik|minut|saniy|secon|gun|gunu|gunde|day|days|hafta|week|weeks|ay|aylik|month|yil|yili|yilin|year|years|kisi|peopl|perso|derec|degre|twh|gwh|mwh|kwh|gw|mw|kw|usd|eur|tl|try|gbp|pound|sterl|ocak|subat|mart|nisan|mayis|hazir|temmu|agust|eylul|ekim|kasim|arali|janua|febru|march|april|may|june|july|augus|septe|octob|novem|decem|bc|bce|ce|ad|ms|mo)$/;
+  /* sayı yazımı: iki ayırıcı → sonuncusu ondalık, ötekiler 3'lü gruplar; tekrarlanan tek ayırıcı → binlik; tek ayırıcıdan sonra
+     3 haneden başka sayı → ondalık; tam 3 hane → belirsiz (1.234 bin iki yüz otuz dört de olabilir, bir virgül iki de) */
+  var idDeger = function (s) {
+    var nok = s.split('.').length - 1, vir = s.split(',').length - 1, g, son, ond;
+    if (!nok && !vir) return { deger: +s, ondalik: 0 };
+    if (nok && vir) {
+      son = s.lastIndexOf('.') > s.lastIndexOf(',') ? '.' : ','; var bin = son === '.' ? ',' : '.';
+      if (s.split(son).length - 1 !== 1) return { gecersiz: 1 };
+      var p = s.split(son); g = p[0].split(bin); ond = p[1];
+      if (!/^\d{1,3}$/.test(g[0]) || g.slice(1).some(function (x) { return !/^\d{3}$/.test(x); })) return { gecersiz: 1 };
+      return { deger: +(g.join('') + '.' + ond), ondalik: ond.length };
+    }
+    var ay = nok ? '.' : ','; g = s.split(ay);
+    if (g.length > 2) { if (!/^\d{1,3}$/.test(g[0]) || g.slice(1).some(function (x) { return !/^\d{3}$/.test(x); })) return { gecersiz: 1 }; return { deger: +g.join(''), ondalik: 0 }; }
+    if (g[1].length !== 3 || g[0] === '0') return { deger: +(g[0] + '.' + g[1]), ondalik: g[1].length };
+    return { belirsiz: 1, adaylar: [+(g[0] + g[1]), +(g[0] + '.' + g[1])], ondalik: 0, yazim: s };
+  };
+  /* metin → ölçü listesi. Ölçü: {tur: yuzde|puan|para|olcu|kisi|sayi|yil|tarih, deger|alt,ust|adaylar, olcek, para, boyut, carpan,
+     yaklasik, yon, belirsiz, olcekBelirsiz, ondalik, era, y,a,g (tarih), bas, son (konum)} */
+  var sayiCoz = function (metin) {
+    var k = idKat(metin), out = [], m, re, maske = k.split('');
+    var ort = function (a, b) { for (var i = a; i < b; i++) maske[i] = ' '; };
+    var tarih = function (a, b, o) { o.bas = a; o.son = b; out.push(o); ort(a, b); };
+    re = /(^|[^0-9.])(\d{1,2})[./](\d{1,2})[./](\d{4})(?![0-9])/g;
+    while ((m = re.exec(k))) { var gg = +m[2], aa = +m[3]; if (gg >= 1 && gg <= 31 && aa >= 1 && aa <= 12) tarih(m.index + m[1].length, re.lastIndex, { tur: 'tarih', y: +m[4], a: aa, g: gg }); }
+    re = /(^|[^0-9])(\d{4})-(\d{2})-(\d{2})(?![0-9])/g;
+    while ((m = re.exec(k))) tarih(m.index + m[1].length, re.lastIndex, { tur: 'tarih', y: +m[2], a: +m[3], g: +m[4] });
+    re = new RegExp('(^|[^0-9a-z])(\\d{1,2})\\s+' + ID_AYK + '[a-z]*\\s+(\\d{4})(?![0-9])', 'g');
+    while ((m = re.exec(maske.join('')))) tarih(m.index + m[1].length, re.lastIndex, { tur: 'tarih', y: +m[4], a: ID_AY[m[3]], g: +m[2] });
+    re = new RegExp('(^|[^a-z])' + ID_AYK + '\\s+(\\d{1,2}),?\\s+(\\d{4})(?![0-9])', 'g');
+    while ((m = re.exec(maske.join('')))) tarih(m.index + m[1].length, re.lastIndex, { tur: 'tarih', y: +m[4], a: ID_AY[m[2]], g: +m[3] });
+    re = new RegExp('(^|[^a-z])' + ID_AYK + "[a-z']*\\s+(\\d{4})(?![0-9])", 'g');
+    while ((m = re.exec(maske.join('')))) tarih(m.index + m[1].length, re.lastIndex, { tur: 'tarih', y: +m[3], a: ID_AY[m[2]] });
+    re = /(^|[^0-9.,])(1\d{3}|20\d{2}|2100)\s*[–—-]\s*(1\d{3}|20\d{2}|2100|\d{2})(?![0-9%])/g;
+    while ((m = re.exec(maske.join('')))) { var y1 = +m[2], y2 = m[3].length === 2 ? Math.floor(y1 / 100) * 100 + +m[3] : +m[3]; if (y2 > y1 && !idBirimli(k.slice(re.lastIndex)) && !/[$€₺£]\s*$/.test(k.slice(0, m.index + m[1].length))) tarih(m.index + m[1].length, re.lastIndex, { tur: 'yil', alt: y1, ust: y2 }); }
+    re = /(^|[^a-z0-9])(m\.\s?o\.|m\.o|mo|m\.\s?s\.|m\.s|ms|a\.d\.|milattan once|milattan sonra)\s*(\d{1,4})(?![0-9.,])/g;
+    while ((m = re.exec(maske.join('')))) { var once = /o/.test(m[2].replace('milattan', '')) && !/sonra/.test(m[2]); tarih(m.index + m[1].length, re.lastIndex, { tur: 'yil', deger: once ? -m[3] : +m[3], era: once ? 'mo' : 'ms', yaklasik: ID_YAKLASIK.test(k.slice(0, m.index + m[1].length)) }); }
+    re = /(^|[^0-9.,])(\d{1,4})\s*(bc|bce|b\.c\.|m\.\s?o\.|ce|a\.d\.|m\.\s?s\.)(?![a-z])/g;
+    while ((m = re.exec(maske.join('')))) { var bc = /^(bc|bce|b\.c\.|m\.\s?o\.)$/.test(m[3]); tarih(m.index + m[1].length, re.lastIndex, { tur: 'yil', deger: bc ? -m[2] : +m[2], era: bc ? 'mo' : 'ms', yaklasik: ID_YAKLASIK.test(k.slice(0, m.index + m[1].length)) }); }
+    var w = maske.join('');
+    re = /\d+(?:[.,]\d+)*/g;
+    while ((m = re.exec(w))) {
+      var a = m.index, b = re.lastIndex, ham = m[0], on = w.slice(Math.max(0, a - 40), a), on1 = a ? w.charAt(a - 1) : '';
+      if (/[0-9a-z]/.test(on1) && !/[$€₺£%]/.test(on1)) continue;
+      if (/[.,]$/.test(ham)) { ham = ham.replace(/[.,]+$/, ''); b = a + ham.length; }
+      var v = idDeger(ham); if (v.gecersiz) continue;
+      var o = { tur: 'sayi', ondalik: v.ondalik, olcek: 1, carpan: 1, bas: a };
+      if (v.belirsiz) { o.belirsiz = 1; o.adaylar = v.adaylar; o.yazim = v.yazim; } else o.deger = v.deger;
+      if (/(^|[\s(])[-−]$/.test(on) && !o.belirsiz) o.deger = -o.deger;
+      var sonra = w.slice(b), r2 = sonra.match(/^\s*(?:[–—-]|ila|ile|to|and|-)\s*(\d+(?:[.,]\d+)*)/);
+      if (r2 && (/(ila|ile|to|and)/.test(r2[0]) ? /(between|arasinda|from)\s*$/.test(on) || /ila/.test(r2[0]) : true)) {
+        var v2 = idDeger(r2[1].replace(/[.,]+$/, ''));
+        if (!v2.gecersiz && !v2.belirsiz && !o.belirsiz) { o.alt = o.deger; o.ust = v2.deger; delete o.deger; o.ondalik = Math.max(o.ondalik, v2.ondalik); b += r2[0].length - (r2[1].length - r2[1].replace(/[.,]+$/, '').length); sonra = w.slice(b); re.lastIndex = b; }
+      }
+      var on2 = on.replace(/(us\$|[$€₺£%])\s*$/, '');      /* önek simgeden önceki niteleyici (yaklaşık %24, about $3) */
+      if (ID_YAKLASIK.test(on2)) o.yaklasik = 1;
+      if (ID_FAZLA.test(on2)) o.yon = '>'; else if (ID_AZ.test(on2)) o.yon = '<';
+      if (/(^|[^a-z])(yuzde|percent)\s*$/.test(on) || /%\s*$/.test(on)) o.tur = 'yuzde';
+      var yap = sonra.match(/^(k|m|b)(?![a-z0-9²³])/), j;
+      if (yap) { o.olcekBelirsiz = yap[1]; sonra = sonra.slice(1); }
+      else if (/^(bn|mn|tn)(?![a-z])/.test(sonra)) { o.olcek = { bn: 1e9, mn: 1e6, tn: 1e12 }[sonra.slice(0, 2)]; sonra = sonra.slice(2); }
+      else { var s1 = sonra.replace(/^\s+/, ''); for (j = 0; j < ID_OLCEK.length; j++) { var mo = s1.match(ID_OLCEK[j][0]); if (mo) { o.olcek = ID_OLCEK[j][1]; sonra = s1.slice(mo[0].length); break; } } }
+      var s2 = sonra.replace(/^\s+/, '').replace(/^'/, '');
+      if (/^(yuzde puan|percentage points?|pp|puan[a-z]*|points?)(?![a-z])/.test(s2) && o.tur !== 'yuzde') o.tur = 'puan';
+      else if (/^(%|percent|per cent)/.test(s2)) o.tur = 'yuzde';
+      if (o.tur === 'sayi') {
+        var ps = on.match(/(us\$|[$€₺£]|(^|[^a-z])(usd|eur|gbp)\s)\s*$/), para = ps ? { 'us$': 'USD', '$': 'USD', '€': 'EUR', '₺': 'TRY', '£': 'GBP', usd: 'USD', eur: 'EUR', gbp: 'GBP' }[ps[3] || ps[1]] : null;
+        if (!para) for (j = 0; j < ID_PARA.length; j++) if (ID_PARA[j][0].test(s2)) { para = ID_PARA[j][1]; break; }
+        if (para) { o.tur = 'para'; o.para = para; }
+      }
+      if (o.tur === 'sayi') {
+        for (j = 0; j < ID_BIRIM.length; j++) if (ID_BIRIM[j][0].test(s2)) { o.tur = 'olcu'; o.boyut = ID_BIRIM[j][1]; o.carpan = ID_BIRIM[j][2]; break; }
+        if (o.tur === 'sayi' && ID_KISI.test(s2)) o.tur = 'kisi';
+        if (o.tur === 'sayi' && o.deger != null && !o.ondalik && o.olcek === 1 && !o.olcekBelirsiz && ham.length === 4 && o.deger >= 1000 && o.deger <= 2100 &&
+          (/^('|’|:|\)|,|\.|;|\s*$|\s+(yil|year))/.test(w.slice(b)) || /(^|[^a-z])(in|since|by|until|yilinda|yili|yilindan|\()\s*$/.test(on))) o.tur = 'yil';
+      }
+      o.son = b; out.push(o);
+    }
+    out.sort(function (x, y) { return x.bas - y.bas; });
+    return out;
+  };
+  var idBirimli = function (s) { s = String(s).replace(/^\s+/, ''); if (/^(%|percent|yuzde|puan|points?|pp)(?![a-z])/.test(s) || ID_KISI.test(s)) return true; return ID_OLCEK.concat(ID_PARA).some(function (b) { return b[0].test(s); }) || ID_BIRIM.some(function (b) { return b[1] !== 'yilsure' && b[0].test(s); }); };
+  var idTarihMi = function (o) { return o.tur === 'yil' || o.tur === 'tarih'; };
+  var idUyum = function (c, p) {      /* tür/birim uyumu: kişi ile yalın sayı uyumlu sayılır */
+    if (c.tur === p.tur) return c.tur === 'para' ? (c.para === p.para ? 'ok' : 'para') : c.tur === 'olcu' ? (c.boyut === p.boyut ? 'ok' : 'yok') : 'ok';
+    if ((c.tur === 'yuzde' && p.tur === 'puan') || (c.tur === 'puan' && p.tur === 'yuzde')) return 'puan';
+    if ((c.tur === 'kisi' && p.tur === 'sayi') || (c.tur === 'sayi' && p.tur === 'kisi')) return 'ok';
+    return 'yok';
+  };
+  var idCarp = function (o) { return o.olcek * o.carpan; };
+  /* iki sayısal ölçü: esit | yakin | birim | farkli | uyumsuz | belirsiz */
+  var olcuKarsi = function (c, p) {
+    var u = idUyum(c, p); if (u === 'yok') return 'uyumsuz';
+    if (c.olcekBelirsiz || p.olcekBelirsiz) return c.olcekBelirsiz && c.olcekBelirsiz === p.olcekBelirsiz && c.deger != null && c.deger === p.deger ? (u === 'ok' ? 'esit' : 'birim') : 'belirsiz';
+    var cv = c.deger, pv = p.deger;
+    if (c.belirsiz || p.belirsiz) {      /* belirsiz yazım çelişki üretmez; yalnız aynı yazım ya da binlik okunuşu tam tutan tamsayı */
+      if (c.belirsiz && p.belirsiz) return c.yazim === p.yazim && c.olcek === p.olcek && c.carpan === p.carpan ? (u === 'ok' ? 'esit' : 'birim') : 'belirsiz';
+      var bel = c.belirsiz ? c : p, net = c.belirsiz ? p : c;
+      if (net.deger == null || net.ondalik || idCarp(net) !== idCarp(bel) || net.deger !== bel.adaylar[0]) return 'belirsiz';
+      return u === 'ok' ? 'esit' : 'birim';
+    }
+    var f = idCarp(c), g = idCarp(p);
+    var tolC = 0.5 * Math.pow(10, -(c.ondalik || 0)) * f, tolP = 0.5 * Math.pow(10, -(p.ondalik || 0)) * g;
+    var bir = function (x, y, tol, yak) { var d = Math.abs(x - y), r = d / Math.max(Math.abs(x), Math.abs(y), 1e-9); if (yak) return r <= 0.05 ? 'esit' : r <= 0.15 ? 'yakin' : 'farkli'; if (d <= tol + 1e-9 * Math.abs(x) && r <= 0.05) return 'esit'; return r <= 0.05 ? 'yakin' : 'farkli'; };      /* #50: yaklaşık iddia göreli; yuvarlama payı %5'i aşamaz (3 milyon ≠ 3,4 milyon) */
+    var sonuc;
+    if (c.alt != null && p.alt != null) { var ca = c.alt * f, cu = c.ust * f, pa = p.alt * g, pu = p.ust * g; sonuc = Math.abs(ca - pa) <= tolC && Math.abs(cu - pu) <= tolC ? 'esit' : ca <= pa + tolC && cu >= pu - tolC ? 'esit' : ca <= pu && pa <= cu ? 'yakin' : 'farkli'; }
+    else if (c.alt != null) { var x = pv * g; sonuc = x >= c.alt * f - tolC && x <= c.ust * f + tolC ? 'esit' : 'farkli'; }
+    else if (p.alt != null) { var y = cv * f; sonuc = y >= p.alt * g - tolP && y <= p.ust * g + tolP ? 'yakin' : 'farkli'; }
+    else if (c.yon || p.yon) {
+      if (c.yon && p.yon) sonuc = c.yon === p.yon && Math.abs(cv * f - pv * g) <= tolC ? 'esit' : 'belirsiz';
+      else if (c.yon) sonuc = (c.yon === '>' ? pv * g > cv * f : pv * g < cv * f) ? 'esit' : 'belirsiz';
+      else sonuc = 'belirsiz';
+    }
+    else if (c.yaklasik) sonuc = bir(cv * f, pv * g, tolC, 1);
+    else if (p.yaklasik) { sonuc = bir(cv * f, pv * g, Math.max(tolC, tolP), 0); }
+    else sonuc = bir(cv * f, pv * g, tolC, 0);
+    return u === 'ok' ? sonuc : sonuc === 'esit' ? 'birim' : 'uyumsuz';
+  };
+  /* tarih/yıl: esit | yakin (iddia daha ayrıntılı) | farkli | belirsiz (bir yanda M.Ö., ötekinde dönem işareti yok) */
+  var tarihKarsi = function (c, p) {
+    var cy = c.tur === 'tarih' ? c.y : c.deger, py = p.tur === 'tarih' ? p.y : p.deger;
+    if (c.alt != null || p.alt != null) {
+      if (c.alt != null && p.alt != null) return c.alt === p.alt && c.ust === p.ust ? 'esit' : c.alt <= p.ust && p.alt <= c.ust ? 'yakin' : 'farkli';
+      if (c.alt != null) return py != null && py >= c.alt && py <= c.ust ? 'esit' : py != null ? 'farkli' : 'belirsiz';
+      return cy != null && cy >= p.alt && cy <= p.ust ? 'yakin' : cy != null ? 'farkli' : 'belirsiz';
+    }
+    if (cy == null || py == null) return 'belirsiz';
+    if ((c.era === 'mo') !== (p.era === 'mo') && !(c.era && p.era)) return 'belirsiz';
+    if (cy !== py) return c.yaklasik || p.yaklasik ? (Math.abs(cy - py) <= Math.max(5, Math.abs(cy) * 0.02) ? 'yakin' : 'farkli') : 'farkli';
+    var ca = c.tur === 'tarih' ? c.a : null, pa = p.tur === 'tarih' ? p.a : null, cg = c.tur === 'tarih' ? c.g : null, pg = p.tur === 'tarih' ? p.g : null;
+    if (ca != null && pa != null && ca !== pa) return 'farkli';
+    if (cg != null && pg != null && cg !== pg) return 'farkli';
+    if ((ca != null && pa == null) || (cg != null && pg == null)) return 'yakin';
+    return 'esit';
+  };
+  /* anlamsal katman: içerik sözcüğü kökleri (5 harf), ayrıştırıcı sözcükleri (A, B, AB gibi büyük harf kısaltmalar) */
+  var idKokler = function (t) {
+    var out = []; String(idKat(t)).replace(/[a-z]+/g, function (s) { if (s.length < 3 || ID_DUR[s] || ID_BIRIM.some(function (b) { return b[0].test(s); })) return s; var k = s.slice(0, 5); if (ID_BIRIMKOK.test(k) || ID_BIRIMKOK.test(s)) return s; if (out.indexOf(k) < 0) out.push(k); return s; });
+    return out;
+  };
+  var idKimlik = function (t) {
+    var out = []; String(t || '').replace(/(^|[^A-Za-zÇĞİÖŞÜçğıöşü])(M\.\s?[ÖS]\.?|B\.\s?C\.?|A\.\s?D\.?)/g, '$1 ').replace(/(^|[^A-Za-zÇĞİÖŞÜçğıöşü])([A-ZÇĞİÖŞÜ]{1,6})(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, function (_, a, s) { var f = idKat(s); if (s !== 'I' && !ID_BIRIMKOK.test(f) && out.indexOf(f) < 0) out.push(f); return _; });
+    return out;
+  };
+  var kokEs = function (a, b) { if (a === b) return true; var n = 0; while (n < a.length && n < b.length && a.charAt(n) === b.charAt(n)) n++; return n >= 4; };
+  var idKapsam = function (ck, t) { if (!ck.length) return 0; var pk = idKokler(t); return ck.filter(function (k) { return pk.some(function (p) { return kokEs(k, p); }); }).length / ck.length; };
+  /* parça → cümleler (; ve büyük harfle başlayan cümle sonu) → yan cümleler (", " ile; her parçada sayı varsa) */
+  var ID_KISA = /(^|[\s(])(m\.ö|m\.s|mö|ms|c|ca|yy|no|vs|dr|prof|st|yak|vb|vd|bkz|approx)\.\s+/gi, ID_KORU = String.fromCharCode(1);      /* kısaltmadan sonra cümle bölünmez (c. 300 BC, M.Ö. 300) */
+  var idCumle = function (t) {
+    var out = [];
+    String(t || '').replace(ID_KISA, function (m, a, k) { return a + k + '.' + ID_KORU; }).split(/;\s*|[.!?]\s+(?=[A-ZÇĞİÖŞÜ0-9"“(])|\s+[·•]\s+|\n+/).forEach(function (c) {
+      c = c.split(ID_KORU).join(' ').trim(); if (!c) return;
+      var y = c.split(/,\s+(?=\D)/); if (y.length > 1 && y.every(function (x) { return /\d/.test(x); })) y.forEach(function (x) { out.push({ t: x, c: c }); }); else out.push({ t: c, c: c });
+    });
+    return out;
+  };
+  var idDonem = function (ol, gevsek) { var y = []; ol.forEach(function (o) { var v = o.tur === 'tarih' ? o.y : o.tur === 'yil' && o.deger != null && !o.era ? o.deger : gevsek && o.tur === 'sayi' && o.deger != null && !o.ondalik && o.olcek === 1 && !o.olcekBelirsiz && o.deger >= 1900 && o.deger <= 2100 && o.deger % 1 === 0 ? o.deger : null; if (v != null && y.indexOf(v) < 0) y.push(v); }); return y.length === 1 ? y[0] : null; };
+  var ID_NA = /^(gundem|icindekiler|agenda|outline|contents|kaynaklar|kaynakca|references|bibliography|tesekkurler|tesekkur ederim|thank you|thanks|sorular|questions)[.!:]?$/;
+  var idOlguDegil = function (t) {
+    var s = String(t || '').trim(), k = idKat(s); if (!s || /\d/.test(s)) return false;
+    return /\?\s*$/.test(s) || /^(let's|lets|let us|now let's|simdi|gelin|haydi|hadi)\b/.test(k) || ID_NA.test(k) || /^(bence|bana gore|kanimca|i think|i believe|in my opinion|personally)\b/.test(k);
+  };
+  /* iddia × seçilmiş parçalar → deterministik karar {durum|null, kod, kullanilan[{sid,pid,iliski}], esit (bir değer parçada birebir var mı)} */
+  var idKarar = function (metin, sec) {
+    var C = sayiCoz(metin), ck = idKokler(metin), kim = idKimlik(metin), kc = idKat(metin), P = arr(sec && sec.parcalar);
+    if (!C.length && idOlguDegil(metin)) return { durum: 'not_applicable', kod: 'olgu_degil', kullanilan: [] };
+    if (!P.length) return { durum: null, kod: 'kanit_yok', kullanilan: [] };
+    var sayisal = C.filter(function (o) { return !idTarihMi(o); }), olc = sayisal.length ? sayisal : C;
+    if (!olc.length) return { durum: null, kod: 'sayi_yok_iddia', kullanilan: [] };
+    var cDon = sayisal.length ? idDonem(C) : null, nit = ID_NITELIK.test(kc), top = ID_TOPLAM.test(kc), K = sayisal.length ? olcuKarsi : tarihKarsi;
+    var kul = [], destek = 0, kismi = null, celiski = 0, herhangiEsit = 0, ilgiliOlcu = 0, belirsiz = 0, enj = 0;
+    var ekle = function (p, il) { if (!kul.some(function (x) { return x.pid === p.pid; })) kul.push({ sid: p.sid, pid: p.pid, iliski: il }); };
+    var siralama = { esit: 5, yakin: 4, birim: 3, farkli: 2, belirsiz: 1, uyumsuz: 0 };
+    olc.forEach(function (o) { if (o.belirsiz || o.olcekBelirsiz) belirsiz = 1; });
+    P.forEach(function (p) {
+      if (ID_ENJ.test(idKat(p.metin))) { enj = 1; return; }      /* talimat taşıyan parça kanıt sayılmaz */
+      var tum = sayiCoz(p.metin), pDon = idDonem(tum, 1);      /* parçada dönem: "2024 üretimi" gibi yalın yıl da (gevşek) */
+      olc.forEach(function (o) { tum.forEach(function (q) { if (idTarihMi(q) === idTarihMi(o) && K(o, q) === 'esit') herhangiEsit = 1; }); });
+      idCumle(p.metin).forEach(function (cl) {
+        var kap = idKapsam(ck, cl.t), ki = idKat(cl.c);
+        if (!(ck.length && kap >= 0.5) || kim.some(function (x) { return !new RegExp('(^|[^a-z0-9])' + x + '([^a-z0-9]|$)').test(ki); })) return;
+        var Q = sayiCoz(cl.t).filter(function (q) { return idTarihMi(q) === !sayisal.length; }); if (!Q.length) return;
+        var ilgili = Q.some(function (q) { return olc.some(function (o) { return K(o, q) !== 'uyumsuz'; }); }); if (ilgili) ilgiliOlcu = 1;
+        var en = olc.map(function (o) { var b = 'uyumsuz'; Q.forEach(function (q) { var r = K(o, q); if (siralama[r] > siralama[b]) b = r; }); return b; });
+        var clDon = idDonem(sayiCoz(cl.t), 1); if (clDon == null) clDon = pDon;
+        var donFark = cDon != null && clDon != null && cDon !== clDon, donYok = cDon != null && clDon == null, clNit = ID_NITELIK.test(idKat(cl.c));
+        if (en.every(function (r) { return r === 'esit'; })) { if (donFark) { kismi = kismi || 'donem'; ekle(p, 'qualifies'); } else if (donYok) { kismi = kismi || 'donem_yok'; ekle(p, 'qualifies'); } else if (clNit && !nit) { kismi = kismi || 'nitelik'; ekle(p, 'qualifies'); } else { destek = 1; ekle(p, 'supports'); } return; }
+        if (en.some(function (r) { return r === 'esit'; }) && en.every(function (r) { return r === 'esit' || r === 'uyumsuz' || r === 'belirsiz'; })) { kismi = kismi || 'eksik'; ekle(p, 'qualifies'); return; }
+        if (en.some(function (r) { return r === 'birim'; }) && en.every(function (r) { return r === 'esit' || r === 'birim'; })) { kismi = kismi || 'birim'; ekle(p, 'qualifies'); return; }
+        if (en.some(function (r) { return r === 'yakin'; }) && en.every(function (r) { return r === 'esit' || r === 'yakin' || r === 'birim'; })) { kismi = kismi || (sayisal.length ? 'yakin' : 'tarih_ayrinti'); ekle(p, 'qualifies'); return; }
+        if (en.some(function (r) { return r === 'farkli'; }) && !(cDon != null && clDon !== cDon) && !nit && !clNit && !top && !belirsiz) { celiski = 1; ekle(p, 'conflicts'); }
+      });
+    });
+    var sonuc = function (d, kod) { return { durum: d, kod: kod, kullanilan: d ? kul.filter(function (x) { return d === 'supported' ? x.iliski === 'supports' : d === 'contradicted' ? x.iliski === 'conflicts' : true; }) : [], esit: herhangiEsit }; };
+    if (enj && !destek && !kismi && !celiski) return sonuc(null, 'enjeksiyon');
+    if (destek && !celiski) return sonuc('supported', 'eslesti');
+    if (celiski && (destek || kismi)) return sonuc(null, 'karisik');
+    if (celiski) return herhangiEsit ? sonuc(null, 'karisik') : sonuc('contradicted', 'farkli');
+    if (kismi) return sonuc('partially_supported', kismi);
+    if (top && sayisal.length === 1 && !belirsiz) {      /* türetilmiş toplam: aynı cümlede aynı tür/birimde ≥2 bileşen, toplamı tutuyor */
+      var t = sayisal[0], bul = null;
+      P.some(function (p) { var gor = {}; return idCumle(p.metin).some(function (cl) { if (gor[cl.c]) return false; gor[cl.c] = 1; var T = sayiCoz(cl.c), yl = [];
+        T.forEach(function (q) { var v = q.tur === 'tarih' ? q.y : q.tur === 'yil' ? (q.deger != null ? q.deger : 'aralik') : null; if (v != null && yl.indexOf(v) < 0) yl.push(v); });
+        if (yl.length > 1 || (cDon != null && yl.length && yl[0] !== cDon)) return false;
+        var Q = T.filter(function (q) { return !idTarihMi(q) && q.deger != null && !q.belirsiz && !q.olcekBelirsiz && q.alt == null && !q.yon && idUyum(t, q) === 'ok'; });
+        if (Q.length < 2 || idKapsam(ck, cl.c) < 0.5) return false; var top2 = Q.reduce(function (s, q) { return s + q.deger * idCarp(q); }, 0), tol = 0.5 * Math.pow(10, -(t.ondalik || 0)) * idCarp(t);
+        if (t.deger != null && Math.abs(top2 - t.deger * idCarp(t)) <= tol) { bul = p; return true; } return false; }); });
+      if (bul) { kul = [{ sid: bul.sid, pid: bul.pid, iliski: 'qualifies' }]; return sonuc('partially_supported', 'turetilmis'); }
+    }
+    if (sec.tam && !belirsiz && !ilgiliOlcu && !herhangiEsit && sayisal.length && !P.some(function (p) { var w = idKat(p.metin).replace(/\d+(?:[.,]\d+)*/g, ' '); return ID_SOZ.test(w); }) &&
+      !P.some(function (p) { return sayiCoz(p.metin).some(function (q) { return sayisal.some(function (o) { var r = olcuKarsi(o, q); return r === 'esit' || r === 'yakin' || r === 'birim'; }); }); })) return sonuc('unsupported', 'sayi_yok');
+    return sonuc(null, belirsiz ? 'belirsiz' : 'karar_yok');
+  };
+  /* parça seçimi: yalnız iddianın #49 bağları; kayıtta çözülen, bütünlüğü (pid) tutan, tekrar etmeyen; önce aday sonra bağlam, ≤3.
+     tam = bağlı bütün geçerli parçalar seçime sığdı ve hiçbiri bozuk değil (desteklenmiyor yalnız bu durumda) */
+  var idParcaSec = function (r, reg) {
+    var gor = {}, A = [], B = [], tam = true;
+    arr(r && r.kanit).forEach(function (k) {
+      var kay = k && reg[k.sid], p = kay && arr(kay.parca).filter(function (x) { return x && x.pid === k.pid; })[0];
+      if (!p || typeof p.metin !== 'string' || p.pid !== 'p' + kyHash(kay.sid + '|' + p.metin) || p.metin.length > KY_BOY || KY_GUVENSIZ.test(p.metin)) { tam = false; return; }
+      if (gor[p.pid]) return; gor[p.pid] = 1;
+      (k.rol === 'aday' ? A : B).push({ sid: kay.sid, pid: p.pid, metin: p.metin, tur: kay.tur });
+    });
+    var hep = A.concat(B); if (hep.length > ID_PARCA) tam = false;
+    return { parcalar: hep.slice(0, ID_PARCA), tam: tam && hep.length > 0 };
+  };
+  var idHashR = function (r) { return kyHash(String(r.cid) + '|' + r.h + '|' + r.text); };
+  var idImza = function (sec) { return kyHash(sec.parcalar.map(function (p) { return p.sid + '|' + p.pid + '|' + p.metin; }).join('\n') + '|' + (sec.tam ? 1 : 0)); };
+  var idGuncel = function (r, reg) { var k = r && r.kontrol; return !!(k && k.surum === 1 && !r.bayat && k.metinHash === idHashR(r) && k.kaynakImza === idImza(idParcaSec(r, reg))); };
+  /* mutlak/üstünlük işaretleri: iddiada varsa destekleyen parçada da olmalı ("en hızlı" ≠ "hızlı trenlerden biri") */
+  var ID_MUTLAK = /(^|[^a-z])(en|ilk|tek|yegane|hicbir|asla|daima|her zaman|tamami|kanitla[a-z]*|first|only|sole|never|always|every|most|least|best|largest|biggest|highest|lowest|fastest|proved|proven)(?=[^a-z]|$)/g;
+  var idMutlak = function (t) { var out = [], m, k = idKat(t); ID_MUTLAK.lastIndex = 0; while ((m = ID_MUTLAK.exec(k))) if (out.indexOf(m[2]) < 0) out.push(m[2]); return out; };
+  /* model yanıtının bekçisi: sunucu şemayı süzdü; burada karar parçaların kendisiyle yeniden sınanır. Geçemeyen → unverified */
+  var idBekci = function (metin, sec, m) {
+    var U = { durum: 'unverified', kod: 'bekci', kullanilan: [] }; if (!m || ID_ETIKET[m.karar] == null) return U;
+    var P = {}, kul = []; sec.parcalar.forEach(function (p) { P[p.pid] = p; });
+    if (arr(m.kanit).some(function (k) { return !P[k.pid] || P[k.pid].sid !== k.sid || ['supports', 'qualifies', 'conflicts'].indexOf(k.iliski) < 0; })) return U;
+    arr(m.kanit).forEach(function (k) { kul.push({ sid: k.sid, pid: k.pid, iliski: k.iliski }); });
+    var C = sayiCoz(metin), sayisal = C.filter(function (o) { return !idTarihMi(o); }), olc = sayisal.length ? sayisal : C, K = sayisal.length ? olcuKarsi : tarihKarsi, ck = idKokler(metin), kc = idKat(metin);
+    var degerVar = function (p) { var Q = sayiCoz(p.metin).filter(function (q) { return idTarihMi(q) === !sayisal.length; }); return olc.every(function (o) { return Q.some(function (q) { return K(o, q) === 'esit'; }); }); };
+    var herhangi = sec.parcalar.some(function (p) { var Q = sayiCoz(p.metin); return olc.some(function (o) { return Q.some(function (q) { var r = K(o, q); return r === 'esit' || r === 'yakin' || r === 'birim'; }); }); });
+    var temiz = function (p) { return !ID_ENJ.test(idKat(p.metin)); };
+    var MUT = idMutlak(metin), mutlak = function (p) { var w = idKat(p.metin); return MUT.every(function (x) { return new RegExp('(^|[^a-z])' + x + '([^a-z]|$)').test(w); }); };
+    if ((m.karar === 'supported' || m.karar === 'contradicted') && idKarar(metin, sec).kod === 'karisik') return U;      /* parçalar hem tutan hem tutmayan değer taşıyor: modelin kesin kararı kabul edilmez */
+    if (m.karar === 'supported') {
+      var ok = kul.some(function (k) { var p = P[k.pid]; return k.iliski === 'supports' && temiz(p) && mutlak(p) && (!olc.length || degerVar(p)) && (!ck.length || idKapsam(ck, p.metin) >= 0.34) && !(sayisal.length && idDonem(C) != null && idDonem(sayiCoz(p.metin)) !== idDonem(C)); });
+      return ok ? { durum: 'supported', kod: 'model', kullanilan: kul.filter(function (k) { return k.iliski === 'supports'; }) } : U;
+    }
+    if (m.karar === 'partially_supported') return kul.length && kul.every(function (k) { return temiz(P[k.pid]); }) ? { durum: 'partially_supported', kod: 'model', kullanilan: kul } : U;
+    if (m.karar === 'contradicted') {
+      var cDon = sayisal.length ? idDonem(C) : null;
+      var ok2 = !ID_NITELIK.test(kc) && !ID_TOPLAM.test(kc) && !(olc.length && sec.parcalar.some(degerVar)) && kul.some(function (k) { var p = P[k.pid], pd = idDonem(sayiCoz(p.metin), 1); return k.iliski === 'conflicts' && temiz(p) && !ID_NITELIK.test(idKat(p.metin)) && !(cDon != null && pd !== cDon) &&
+          sayiCoz(p.metin).some(function (q) { return olc.some(function (o) { return idTarihMi(q) === idTarihMi(o) && K(o, q) === 'farkli'; }); });      /* çelişki karşılaştırılabilir farklı bir değer ister; sayısız iddiada model çelişkisi doğrulanmadı kalır */      /* dönemli iddiada çelişki yalnız aynı, bilinen dönemde */ });
+      return ok2 ? { durum: 'contradicted', kod: 'model', kullanilan: kul.filter(function (k) { return k.iliski === 'conflicts'; }) } : U;
+    }
+    if (m.karar === 'unsupported') return sec.tam && !herhangi && sec.parcalar.every(temiz) ? { durum: 'unsupported', kod: 'model', kullanilan: [] } : U;
+    return U;      /* model "olgu değil" ya da "doğrulanmadı" derse: doğrulanmadı */
+  };
+  var idKayit = function (r, sec, k, motor, aciklama, hata) {
+    var o = { surum: 1, durum: k.durum || 'unverified', motor: motor, kod: k.kod || '', aciklama: String(aciklama || '').slice(0, 160), kullanilan: arr(k.kullanilan).map(function (x) { return { sid: x.sid, pid: x.pid, iliski: x.iliski }; }),
+      bakilan: sec.parcalar.map(function (p) { return { sid: p.sid, pid: p.pid }; }), metinHash: idHashR(r), kaynakImza: idImza(sec), tarih: new Date().toISOString() };
+    if (hata) o.hata = hata;
+    return o;
+  };
+  var idYaz = function (r, o, reg) { if (o.hata && idGuncel(r, reg) && !r.kontrol.hata) return 0; r.kontrol = o; return 1; };      /* güncel iyi sonuç hatayla ezilmez */
+  /* koşu planı: bayat, kopya cid ve kayıtsız (eski) iddialar dışarıda */
+  var idPlan = function (d) {
+    var reg = kyKayit(d), gor = {}, L = [];
+    arr(d && d.slides).forEach(function (sl, i) { if (kyYapi(sl)) return; arr(sl.els).forEach(function (e) { arr(e && e.iddia).forEach(function (r) {
+      if (!r || typeof r.cid !== 'string' || r.bayat || gor[r.cid]) return; gor[r.cid] = 1;
+      var sec = idParcaSec(r, reg); L.push({ r: r, sec: sec, det: idKarar(r.text, sec), as: i });
+    }); }); });
+    return { reg: reg, L: L };
+  };
+  var idKos = null, idKapali = false, idOnayAcik = false, idSon = typeof WeakMap === 'function' ? new WeakMap() : null, idPaint = null;
+  var idDil = function () { return gqDil(); };
+  /* gonder=false: yalnız yerel kontrol, ağ yok. gonder=true: onaydan sonra, karar verilemeyen ve parçası olan iddialar (≤20) */
+  var iddiaKontrol = function (gonder, deps) {
+    deps = deps || {}; var D = deps.deck || deck, cagir = deps.fn || fn;
+    if (idKos) return idKos.p;
+    arr(D.slides).forEach(iddiaTazele);
+    var pl = idPlan(D), reg = pl.reg, ozet = { durum: 'yerel', det: 0, gonderilen: 0, groq: 0, kalan: 0, fazla: 0, sigmadi: 0 }, aday = [];
+    pl.L.forEach(function (x) {
+      if (x.det.durum) { idYaz(x.r, idKayit(x.r, x.sec, x.det, 'deterministik', ''), reg); ozet.det++; return; }
+      if (x.r.kontrol && x.r.kontrol.motor === 'groq' && !x.r.kontrol.hata && idGuncel(x.r, reg)) { ozet.groq++; return; }
+      if (gonder && !idKapali && x.sec.parcalar.length && String(x.r.text).length <= ID_METIN && !KY_GUVENSIZ.test(x.r.text) && x.sec.parcalar.every(function (p) { return /^[wbk][0-9a-z]{4,40}$/.test(p.sid); })) {
+        if (aday.length < ID_MAX) { aday.push(x); return; } ozet.fazla++;
+      }
+      idYaz(x.r, idKayit(x.r, x.sec, { durum: 'unverified', kod: x.det.kod }, 'deterministik', ''), reg); ozet.kalan++;
+    });
+    var bit = function () { idKos = null; if (idSon) idSon.set(D, ozet); if (!deps.deck) { dirty(); if (idPaint) idPaint(); } return ozet; };
+    if (!aday.length) { if (gonder && idKapali) ozet.durum = 'kapali'; return Promise.resolve(bit()); }
+    var bas = function (neden) { aday.forEach(function (x) { if (idYaz(x.r, idKayit(x.r, x.sec, { durum: 'unverified', kod: neden }, 'groq', '', neden), reg)) ozet.kalan++; }); };
+    var govde = { action: 'iddia_dogrula', v: 1, dil: idDil(), iddialar: aday.map(function (x) { return { cid: x.r.cid, metin: String(x.r.text), parcalar: x.sec.parcalar.map(function (p) { return { sid: p.sid, pid: p.pid, metin: p.metin }; }) }; }) };
+    ozet.gonderilen = aday.length; ozet.durum = 'yukleniyor';
+    idKos = { p: null };
+    idKos.p = Promise.resolve().then(function () { return cagir('sunum-research', govde, ID_MS); }).then(function (y) {
+      y = y && typeof y === 'object' ? y : {};
+      if (y.durum === 'kapali') { idKapali = true; ozet.durum = 'kapali'; aday.forEach(function (x) { idYaz(x.r, idKayit(x.r, x.sec, { durum: 'unverified', kod: x.det.kod }, 'deterministik', ''), reg); }); ozet.kalan += aday.length; return bit(); }
+      var S = {}, gecerli = {}; aday.forEach(function (x) { gecerli[x.r.cid] = x; });
+      arr(y.sonuc).forEach(function (s) { if (s && gecerli[s.cid] && !S[s.cid]) S[s.cid] = s; });
+      var at = {}; arr(y.atlanan).forEach(function (a) { if (a && gecerli[a.cid]) at[a.cid] = String(a.neden || 'hata'); });
+      var sg = {}; arr(y.sigmadi).forEach(function (c) { if (gecerli[c]) sg[c] = 1; });
+      aday.forEach(function (x) {
+        var s = S[x.r.cid];
+        if (s) { var b = idBekci(x.r.text, x.sec, s); idYaz(x.r, idKayit(x.r, x.sec, b, 'groq', b.kod === 'model' ? s.neden : ''), reg); ozet.groq++; return; }
+        if (sg[x.r.cid]) { ozet.sigmadi++; return; }      /* pakete sığmadı: kayıt yok, yalnız özet */
+        if (idYaz(x.r, idKayit(x.r, x.sec, { durum: 'unverified', kod: at[x.r.cid] || 'yanit' }, 'groq', '', at[x.r.cid] || 'yanit'), reg)) ozet.kalan++;
+      });
+      var d = String(y.durum || '');
+      ozet.durum = d === 'tamam' && !ozet.sigmadi ? 'tamam' : /^(kota|sinir|zaman|gecersiz|hata|yanit)$/.test(d) && !arr(y.sonuc).length ? d : arr(y.sonuc).length ? 'kismi' : d === 'sigmadi' ? 'sigmadi' : 'hata';
+      return bit();
+    }, function (e) { bas(/zaman/.test(idKat(e && e.message)) ? 'zaman' : 'hata'); ozet.durum = /zaman/.test(idKat(e && e.message)) ? 'zaman' : 'hata'; return bit(); });
+    if (!deps.deck && idPaint) idPaint();
+    return idKos.p;
+  };
+  var ID_KOD = { eslesti: 'Değer, birim ve dönem parçayla aynı.', farkli: 'Parça aynı konu, birim ve dönem için farklı bir değer veriyor.', donem: 'Değer tutuyor ama parça başka bir dönemden.',
+    donem_yok: 'Değer tutuyor ama parçada dönem belirtilmemiş.', nitelik: 'Parçadaki değer ön ya da tahmini veri olarak geçiyor.', eksik: 'İddianın yalnız bir bölümü parçada var.', birim: 'Sayı aynı ama birim ya da para birimi farklı.',
+    yakin: 'Parçadaki değer yakın ama aynı değil.', tarih_ayrinti: 'Tarih parçada daha az ayrıntılı ya da aralık olarak geçiyor.', turetilmis: 'Toplam parçada yazmıyor; bileşenlerden hesaplandı.',
+    sayi_yok: 'Seçilen parçalarda bu değer geçmiyor.', olgu_degil: 'Soru, geçiş ya da yorum; doğrulanacak bir olgu yok.', kanit_yok: 'Bu iddiaya bağlı kaynak parçası yok.', karisik: 'Parçalar hem destekleyen hem çelişen değerler içeriyor.',
+    belirsiz: 'Sayının yazımı belirsiz; tahmin edilmedi.', karar_yok: 'Yerel kontrol karar veremedi.', sayi_yok_iddia: 'Yerel kontrol yalnız sayı ve tarihlere bakar.', enjeksiyon: 'Parça talimat içeriyor; kanıt sayılmadı.', bekci: 'Model yanıtı parçalarla doğrulanamadı.',
+    kota: 'Kontrol hizmetinin kotası doldu.', zaman: 'Kontrol zaman aşımına uğradı.', hata: 'Kontrol hizmetine ulaşılamadı.', yanit: 'Kontrol hizmetinin yanıtı geçersizdi.', sinir: 'Çok sık kontrol istendi.', gecersiz: 'İstek geçersiz sayıldı.', kapali: 'Kanıt kontrolü kapalı.' };
+  var ID_ILISKI_TR = { supports: 'destekliyor', qualifies: 'sınırlıyor', conflicts: 'çelişiyor' };
+  var idSatirDurum = function (r, reg) {
+    var k = r.kontrol; if (!k) return { e: 'Doğrulanmadı', c: 'unverified' };
+    if (r.bayat || !idGuncel(r, reg)) return { e: 'Kontrol güncel değil', c: 'stale' };
+    if (k.hata) return { e: 'Kontrol yapılamadı', c: 'failed' };
+    return { e: ID_ETIKET[k.durum] || 'Doğrulanmadı', c: ID_ETIKET[k.durum] ? k.durum : 'unverified' };
+  };
+  /* dış hizmete gidecek iddia var mı: karar verilemeyen, parçası olan, güncel Groq sonucu olmayan; yoksa onay sorulmaz, yalnız yerel kontrol */
+  var idGonderilecek = function () { if (idKapali) return false; arr(deck.slides).forEach(iddiaTazele); var pl = idPlan(deck); return pl.L.some(function (x) { return !x.det.durum && x.sec.parcalar.length && !(x.r.kontrol && x.r.kontrol.motor === 'groq' && !x.r.kontrol.hata && idGuncel(x.r, pl.reg)); }); };
+  var idOzelVar = function () { var pl = idPlan(deck); return pl.L.some(function (x) { return !x.det.durum && x.sec.parcalar.some(function (p) { return p.tur === 'belge' || p.tur === 'kart'; }); }); };
+  var kontrolBolum = function () {
+    var o = idSon && idSon.get(deck), h = '<div class="au-kk" data-kk data-kk-durum="' + (idKos ? 'yukleniyor' : idOnayAcik ? 'onay' : o ? o.durum : 'bos') + '"><h5>Kanıt kontrolü</h5>' +
+      '<p class="au-ky-bos"><small>Desteklenmiyor: seçilen kaynak parçalarında bu iddia yok. Çelişki bulundu: parça aynı konu, dönem ve birim için başka bir değer söylüyor.</small></p>' +
+      '<p class="au-ky-bos"><small>Doğrulanmadı ya da Kontrol yapılamadı, iddianın yanlış olduğu anlamına gelmez. Sunum içeriği otomatik değiştirilmez.</small></p>';
+    if (idKos) return h + '<p class="au-sum" data-kk-yukleniyor>Kanıtlar kontrol ediliyor…</p></div>';
+    if (idOnayAcik) return h + '<div class="au-kk-onay" data-kk-onay-kutu><p>Bu kontrol sırasında iddia metinleri ve seçilmiş kaynak parçaları Groq hizmetine gönderilir. Tam belge veya tam kaynak metni gönderilmez. Kontrol sonucu yalnızca raporlanır; sunum içeriği otomatik değiştirilmez.</p>' +
+      (idOzelVar() ? '<p data-kk-ozel>Belge veya kart kaynaklarından seçilen parçalar özel içerik barındırabilir. Yalnızca göndermeyi onayladığınız parçalar dış hizmete iletilir.</p>' : '') +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-kk-vazgec>vazgeç</button><button type="button" class="sxd-b sm" data-kk-yerel>yalnız yerel kontrol</button><button type="button" class="sxd-b sm pri" data-kk-onay>onayla ve gönder</button></div></div></div>';
+    if (o) {
+      var M = { yerel: 'Yalnız yerel sayı, tarih ve birim kontrolü yapıldı; hiçbir şey dış hizmete gönderilmedi.', tamam: 'Kontrol tamamlandı.', kismi: 'Kontrol kısmen tamamlandı; bazı iddialar kontrol edilemedi.',
+        kapali: 'Kanıt kontrolü şu an kapalı; iddialar dış hizmete gönderilmedi. Yerel kontrol yapıldı.', kota: 'Kontrol hizmetinin kotası doldu; bir süre sonra yeniden dene.', sinir: 'Çok sık kontrol istendi; birkaç dakika sonra yeniden dene.',
+        zaman: 'Kontrol zaman aşımına uğradı; iddialar doğrulanmadı olarak kaldı.', hata: 'Kontrol yapılamadı; iddialar doğrulanmadı olarak kaldı.', yanit: 'Kontrol yapılamadı; iddialar doğrulanmadı olarak kaldı.', gecersiz: 'Kontrol yapılamadı; iddialar doğrulanmadı olarak kaldı.', sigmadi: 'İddialar gönderim sınırına sığmadı; doğrulanmadı olarak kaldı.' };
+      h += '<p class="au-sum" data-kk-son="' + X(o.durum) + '">' + (M[o.durum] || M.hata) + '</p>' +
+        '<p class="au-ky-bos" data-kk-say><small>' + o.det + ' yerel karar · ' + o.groq + ' Groq kararı · ' + o.kalan + ' doğrulanmadı</small></p>' +
+        (o.fazla ? '<p class="au-ky-bos" data-kk-fazla><small>' + o.fazla + ' iddia sınır nedeniyle gönderilmedi (en çok 20).</small></p>' : '') +
+        (o.sigmadi ? '<p class="au-ky-bos" data-kk-sigmadi><small>' + o.sigmadi + ' iddia gönderim boyutuna sığmadı.</small></p>' : '');
+    }
+    return h + '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-kk-run>Kanıtları kontrol et</button></div></div>';
+  };
+  /* iddia satırı: güncel metin, durum, motor, kısa gerekçe, gerçek parça (pid), kaynak adı/site, bayat uyarısı */
+  var kontrolSatir = function (r, reg) {
+    var d = idSatirDurum(r, reg), k = r.kontrol, h = '<span class="au-ky-d" data-kk-st="' + d.c + '">' + d.e + '</span>';
+    if (!k || d.c === 'stale') return h + (k && d.c === 'stale' ? '<small class="au-ky-b" data-kk-bayat>kontrol sonrası metin ya da kaynak değişti</small>' : '');
+    h += ' <small class="au-kk-m" data-kk-motor="' + (k.motor === 'groq' ? 'groq' : 'yerel') + '">' + (k.motor === 'groq' ? 'Groq' : 'yerel kontrol') + '</small>';
+    var neden = k.motor === 'groq' && k.kod === 'model' && k.aciklama ? '<span data-no-i18n>' + X(k.aciklama) + '</span>' : X(ID_KOD[k.hata || k.kod] || '');
+    if (neden) h += '<br><small class="au-kk-n">' + neden + '</small>';
+    return h;
+  };
+  var kontrolParca = function (r, reg) {
+    var k = r.kontrol; if (!k || !idGuncel(r, reg) || k.hata || !arr(k.kullanilan).length) return null;
+    return arr(k.kullanilan).map(function (u) {
+      var kay = reg[u.sid], p = kay && arr(kay.parca).filter(function (x) { return x.pid === u.pid; })[0]; if (!p) return '';
+      return '<blockquote data-kk-il="' + X(u.iliski) + '"><b>' + (ID_ILISKI_TR[u.iliski] || '') + '</b>' + (kay.n ? ' <i>[' + kay.n + ']</i>' : '') + ' <span data-no-i18n>' + X(kay.baslik || kay.site || (kay.tur === 'kart' ? 'Ders kartı' : 'Belge')) + (kay.site && kay.site !== kay.baslik ? ' · ' + X(kay.site) : '') + '</span> <q data-no-i18n>' + X(p.metin) + '</q></blockquote>';
+    }).join('');
+  };
+  var kontrolSozluk = function () {
+    var A = window.AX_EN && window.AX_EN.t; if (!A || A['Kanıt kontrolü']) return;
+    var ek = { 'Kanıt kontrolü': 'Evidence check', 'Kanıtları kontrol et': 'Check evidence', 'Destekleniyor': 'Supported', 'Kısmen destekleniyor': 'Partly supported', 'Desteklenmiyor': 'Not supported', 'Çelişki bulundu': 'Contradiction found',
+      'Olgu iddiası değil': 'Not a factual claim', 'Kontrol güncel değil': 'Check out of date', 'Kontrol yapılamadı': 'Check could not run', 'yerel kontrol': 'local check', 'Groq': 'Groq',
+      'destekliyor': 'supports', 'sınırlıyor': 'qualifies', 'çelişiyor': 'conflicts', 'kontrol sonrası metin ya da kaynak değişti': 'text or source changed after the check',
+      'Desteklenmiyor: seçilen kaynak parçalarında bu iddia yok. Çelişki bulundu: parça aynı konu, dönem ve birim için başka bir değer söylüyor.': 'Not supported: the selected source passages do not state this claim. Contradiction found: a passage gives a different value for the same subject, period and unit.',
+      'Doğrulanmadı ya da Kontrol yapılamadı, iddianın yanlış olduğu anlamına gelmez. Sunum içeriği otomatik değiştirilmez.': 'Not verified or Check could not run does not mean the claim is false. The presentation is never changed automatically.',
+      'Kanıtlar kontrol ediliyor…': 'Checking evidence…',
+      'Bu kontrol sırasında iddia metinleri ve seçilmiş kaynak parçaları Groq hizmetine gönderilir. Tam belge veya tam kaynak metni gönderilmez. Kontrol sonucu yalnızca raporlanır; sunum içeriği otomatik değiştirilmez.': 'During this check, claim texts and selected source passages are sent to the Groq service. The full document or full source text is not sent. The result is only reported; the presentation is not changed automatically.',
+      'Belge veya kart kaynaklarından seçilen parçalar özel içerik barındırabilir. Yalnızca göndermeyi onayladığınız parçalar dış hizmete iletilir.': 'Passages selected from document or card sources may contain private content. Only the passages you agree to send are passed to the external service.',
+      'vazgeç': 'cancel', 'yalnız yerel kontrol': 'local check only', 'onayla ve gönder': 'agree and send',
+      'Yalnız yerel sayı, tarih ve birim kontrolü yapıldı; hiçbir şey dış hizmete gönderilmedi.': 'Only the local number, date and unit check ran; nothing was sent to an external service.',
+      'Kontrol tamamlandı.': 'Check complete.', 'Kontrol kısmen tamamlandı; bazı iddialar kontrol edilemedi.': 'Check partly complete; some claims could not be checked.',
+      'Kanıt kontrolü şu an kapalı; iddialar dış hizmete gönderilmedi. Yerel kontrol yapıldı.': 'Evidence checking is switched off right now; claims were not sent to an external service. The local check ran.',
+      'Kontrol hizmetinin kotası doldu; bir süre sonra yeniden dene.': 'The check service quota is used up; try again later.', 'Çok sık kontrol istendi; birkaç dakika sonra yeniden dene.': 'Too many checks requested; try again in a few minutes.',
+      'Kontrol zaman aşımına uğradı; iddialar doğrulanmadı olarak kaldı.': 'The check timed out; claims stay not verified.', 'Kontrol yapılamadı; iddialar doğrulanmadı olarak kaldı.': 'The check could not run; claims stay not verified.',
+      'İddialar gönderim sınırına sığmadı; doğrulanmadı olarak kaldı.': 'The claims did not fit the sending limit; they stay not verified.',
+      '{#} yerel karar · {#} Groq kararı · {#} doğrulanmadı': '{#} local decisions · {#} Groq decisions · {#} not verified', '{#} iddia sınır nedeniyle gönderilmedi (en çok 20).': '{#} claims were not sent because of the limit (at most 20).',
+      '{#} iddia gönderim boyutuna sığmadı.': '{#} claims did not fit the request size.' };
+    var tr = ID_KOD, en = { eslesti: 'Value, unit and period match the passage.', farkli: 'The passage gives a different value for the same subject, unit and period.', donem: 'The value matches but the passage is from another period.',
+      donem_yok: 'The value matches but the passage states no period.', nitelik: 'The passage gives the value as preliminary or estimated.', eksik: 'Only part of the claim is in the passage.', birim: 'Same number but a different unit or currency.',
+      yakin: 'The passage value is close but not the same.', tarih_ayrinti: 'The passage gives the date with less detail or as a range.', turetilmis: 'The total is not stated; it was computed from components.',
+      sayi_yok: 'This value does not appear in the selected passages.', olgu_degil: 'A question, transition or opinion; nothing factual to verify.', kanit_yok: 'No source passage is linked to this claim.', karisik: 'The passages contain both supporting and conflicting values.',
+      belirsiz: 'The number format is ambiguous; it was not guessed.', karar_yok: 'The local check could not decide.', sayi_yok_iddia: 'The local check only looks at numbers and dates.', enjeksiyon: 'The passage contains instructions; it was not used as evidence.', bekci: 'The model answer could not be confirmed against the passages.',
+      kota: 'The check service quota is used up.', zaman: 'The check timed out.', hata: 'The check service could not be reached.', yanit: 'The check service returned an invalid answer.', sinir: 'Too many checks requested.', gecersiz: 'The request was rejected as invalid.', kapali: 'Evidence checking is switched off.' };
+    for (var c in tr) ek[tr[c]] = en[c];
+    for (var x in ek) if (!A[x]) A[x] = ek[x];
+  };
+  /* ---------- #50 son ---------- */
   var deckKey = function (d) { return arr(d.slides).length + '|' + arr(d.slides).map(function (sl) { return (sl.lay || '') + ':' + titleOf(sl) + ':' + String(sl.notes || '').length; }).join('|'); };
   var titleKey = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
   var ciftBasliklar = function () {
@@ -8304,6 +8740,8 @@ var SBX = (function () {
       '.ax-sxd .au-ky-nav{display:flex;align-items:center;gap:8px;margin:0 0 6px}.ax-sxd .au-ky-nav span{flex:1;min-width:0;overflow-wrap:anywhere}.ax-sxd .au-ky ul{margin:0;padding-left:18px}.ax-sxd .au-ky li{margin:4px 0;overflow-wrap:anywhere}.ax-sxd .au-ky li p{margin:2px 0}' +
       '.ax-sxd .au-ky-d{display:inline-block;font:700 11px/1.6 system-ui,sans-serif;padding:0 7px;border-radius:9px;background:#EEF0F5;color:#4B5675}.ax-sxd .au-ky-b{margin-left:6px;color:#8A5A00}' +
       '.ax-sxd .au-ky blockquote{margin:4px 0 4px 6px;padding:4px 8px;border-left:3px solid #D5DAE6;font-size:13px;color:#2B3350;white-space:pre-wrap;overflow-wrap:anywhere}.ax-sxd .au-ky blockquote[data-ky-rol="baglam"]{border-left-style:dashed;color:#4B5675}.ax-sxd .au-ky-bos{margin:2px 0;color:#4B5675}' +
+      '.ax-sxd .au-kk{margin-top:10px;padding:8px 10px;border:1.5px solid #E4DCC8;border-radius:10px;background:#FFFDF8}.ax-sxd .au-kk h5{margin:0 0 4px}.ax-sxd .au-kk-onay{margin:6px 0;padding:8px 10px;border-radius:8px;background:#FFF6E0;color:#3A2E10;font-size:13px}.ax-sxd .au-kk-m{margin-left:6px;color:#4B5675;font-size:11px}.ax-sxd .au-kk-n{color:#4B5675}' +
+      '.ax-sxd .au-ky-d[data-kk-st="supported"]{background:#E2F4E8;color:#17643A}.ax-sxd .au-ky-d[data-kk-st="partially_supported"]{background:#EEF4DC;color:#4D5E12}.ax-sxd .au-ky-d[data-kk-st="unsupported"]{background:#F3EEE4;color:#6B4E16}.ax-sxd .au-ky-d[data-kk-st="contradicted"]{background:#FBE4E2;color:#9B2318}.ax-sxd .au-ky-d[data-kk-st="stale"],.ax-sxd .au-ky-d[data-kk-st="failed"]{background:#FFF1D6;color:#8A5A00}.ax-sxd .au-ky blockquote[data-kk-il="conflicts"]{border-left-color:#D9695E}.ax-sxd .au-ky blockquote[data-kk-il="supports"]{border-left-color:#5AAE7C}' +
       '.sx-audit{display:block;width:100%;margin-top:10px;min-height:40px;border:1.5px dashed #9DB8FF;border-radius:12px;background:#F7F9FF;font:700 19px "Caveat",cursive;color:#2F6BFF;cursor:pointer}' +
       '.sx-audit:hover{background:#EEF3FF}' +
       '.ax-sxd .qa-ov .au-sum{flex-wrap:wrap}.ax-sxd .qa-p{display:inline-block;padding:1px 8px;border-radius:99px;font:700 11.5px "Instrument Sans",sans-serif;background:#EEF3FF;color:#1A2A5C}' +
@@ -8682,7 +9120,7 @@ var SBX = (function () {
     if (!yaziHazirMi() || yaziKuyruk.length) { say('Şablon yazı tipi hazırlanıyor; denetim yazı gelince açılacak.'); yaziSonra(openAudit, 'denetim'); return; }      /* ölçüm doğrulanmış yazıyla (P1) */
     commitEdit();
     if (!auDlg) { auDlg = sxDlg(); auDlg.setAttribute('aria-labelledby', 'axau-t'); LY.appendChild(auDlg); }
-    qaOn = null; qaSon = null; kyAs = null;
+    qaOn = null; qaSon = null; kyAs = null; idOnayAcik = false;
     var paint = function (odak) { qaBoya(auDlg, odak); };
     auDlg.onclick = function (e) {
       var t = e.target.closest('button'); if (!t) return;
@@ -8691,6 +9129,7 @@ var SBX = (function () {
       if (t.hasAttribute('data-au-go')) { auDlg.close(); go(+t.getAttribute('data-au-go')); return; }
       qaTikla(t, paint);
     };
+    idPaint = function () { if (auDlg && auDlg.open) paint(); };      /* #50: zaman uyumsuz kontrol bitince */
     gqPaint = function () { if (!auDlg || !auDlg.open) return; var g = auDlg.querySelector('[data-gq]'); if (gorselKos && gorselKos.yapilan && g) g.outerHTML = gorselBolum(1); else paint(); };
     paint(); auDlg.showModal(); var f = auDlg.querySelector('[data-au-x]'); if (f) f.focus();
   };
@@ -9290,7 +9729,7 @@ var SBX = (function () {
     arr(g.l).forEach(function (r) { arr(r.kanit).forEach(function (k) { if (reg[k.sid] && ks.indexOf(reg[k.sid]) < 0) ks.push(reg[k.sid]); }); });
     var kay = function (k) { var h = kyLink(k.url), ad = X(k.baslik || k.site || k.url || (k.tur === 'kart' ? 'Ders kartı' : 'Belge')); return '<li data-ky-sid="' + X(k.sid) + '">' + (k.n ? '<i>[' + k.n + ']</i> ' : '') + '<span data-no-i18n>' + (h ? '<a href="' + X(h) + '" target="_blank" rel="noopener noreferrer">' + ad + '</a>' : ad) + (k.site && k.site !== k.baslik ? ' · ' + X(k.site) : '') + '</span></li>'; };
     var par = function (k) { var r = reg[k.sid], p = r && arr(r.parca).filter(function (x) { return x.pid === k.pid; })[0]; if (!p) return ''; return '<blockquote data-ky-rol="' + (k.rol === 'aday' ? 'aday' : 'baglam') + '"><b>' + (k.rol === 'aday' ? 'Kaynak' : 'Bağlam') + '</b>' + (r.n ? ' <i>[' + r.n + ']</i>' : '') + ' <q data-no-i18n>' + X(p.metin) + '</q></blockquote>'; };
-    var idd = function (r) { return '<li data-ky-cid="' + X(r.cid || '') + '"><p><span data-no-i18n>' + X(r.text) + '</span> <span class="au-ky-d">Doğrulanmadı</span>' + (r.bayat ? '<small class="au-ky-b">metin değişti</small>' : '') + '</p>' + arr(r.kanit).map(par).join('') + '</li>'; };
+    var idd = function (r) { var kk = r.cid ? kontrolParca(r, reg) : null; return '<li data-ky-cid="' + X(r.cid || '') + '"><p><span data-no-i18n>' + X(r.text) + '</span> ' + (r.cid ? kontrolSatir(r, reg) : '<span class="au-ky-d">Doğrulanmadı</span>') + (r.bayat ? '<small class="au-ky-b">metin değişti</small>' : '') + '</p>' + (kk != null ? kk : arr(r.kanit).map(par).join('')) + '</li>'; };      /* #50: güncel kontrolde kullanılan parçalar, yoksa #49 bağları */
     return '<div class="au-ky" data-ky="' + i + '"><h4>Kaynaklar ve iddialar</h4>' +
       '<div class="au-ky-nav"><button type="button" class="sxd-b" data-ky-git="' + (i - 1) + '" data-ky-yon="-1" aria-label="önceki asetat"' + (i ? '' : ' disabled') + '>‹</button>' +
       '<span><b>Asetat</b> ' + (i + 1) + ' / ' + N + ' · <span data-no-i18n>' + X(titleOf(sl) || '') + '</span></span>' +
@@ -9298,18 +9737,18 @@ var SBX = (function () {
       '<h5>Kaynak</h5>' + (ks.length ? '<ul data-ky-kaynak>' + ks.map(kay).join('') + '</ul>' : '<p class="au-ky-bos">Bu asetata bağlı kaynak yok.</p>') +
       (eksik ? '<p class="au-ky-bos" data-ky-eksik>Bazı kaynak bağları çözülemedi.</p>' : '') +
       '<h5>İddialar</h5>' + (g.l.length ? '<ul data-ky-iddia' + (g.kayitli ? '' : ' data-ky-eski') + '>' + g.l.map(idd).join('') + '</ul>' : '<p class="au-ky-bos">' + (kyYapi(sl) ? 'Yapısal asetat; iddia yok.' : 'Bu asetatta iddia yok.') + '</p>') +
-      '<p class="au-ky-bos"><small>Kanıt kontrolü Phase 8.2\'de yapılacak.</small></p></div>';
+      kontrolBolum() + '</div>';      /* #50 (8.2) */
   };
   var kaynakSozluk = function () {
     var A = window.AX_EN && window.AX_EN.t; if (!A || A['Kaynaklar ve iddialar']) return;
     var ek = { 'Kaynaklar ve iddialar': 'Sources and claims', 'İddialar': 'Claims', 'Bağlam': 'Context', 'Doğrulanmadı': 'Not verified', 'metin değişti': 'text changed',
       'Bu asetata bağlı kaynak yok.': 'No sources are linked to this slide.', 'Bazı kaynak bağları çözülemedi.': 'Some source links could not be resolved.',
-      'Yapısal asetat; iddia yok.': 'Structural slide; no claims.', 'Bu asetatta iddia yok.': 'No claims on this slide.', 'Kanıt kontrolü Phase 8.2\'de yapılacak.': 'Evidence checking comes in Phase 8.2.',
+      'Yapısal asetat; iddia yok.': 'Structural slide; no claims.', 'Bu asetatta iddia yok.': 'No claims on this slide.',
       'önceki asetat': 'previous slide', 'sonraki asetat': 'next slide', 'Ders kartı': 'Study card', 'Belge': 'Document', '‹': '‹', '›': '›' };
     for (var k in ek) if (!A[k]) A[k] = ek[k];
   };
   var qaBoya = function (dlg, odak) {
-    birlesikSozluk(); kaynakSozluk();
+    birlesikSozluk(); kaynakSozluk(); kontrolSozluk();
     var L = qaListe(deck), K = L.kontrol, sp = {}, sec = null, ic = dlg.contains(document.activeElement);
     QA_PRI.forEach(function (p) { sp[p] = 0; }); L.bulgu.forEach(function (x) { sp[x.priority]++; if (x.id === qaSec) sec = x; });
     var gor = L.bulgu.filter(function (x) { return (qaF.src === 'all' || x.sources.indexOf(qaF.src) >= 0) && (qaF.pri === 'all' || x.priority === qaF.pri); });
@@ -9349,6 +9788,10 @@ var SBX = (function () {
       if (r.before) { paintKalite(); say('Düzeltme uygulandı.', undo); }
       paint(r.before ? '[data-qa-undo]' : '[data-qa-det]'); return true;
     }
+    if (t.hasAttribute('data-kk-run')) { if (idKos) return true; if (idGonderilecek()) { idOnayAcik = true; paint('[data-kk-onay]'); } else { iddiaKontrol(false); paint('[data-kk-run]'); } return true; }      /* #50: onay her koşuda sorulur, saklanmaz */
+    if (t.hasAttribute('data-kk-onay')) { idOnayAcik = false; iddiaKontrol(true); paint('[data-kk]'); return true; }
+    if (t.hasAttribute('data-kk-yerel')) { idOnayAcik = false; iddiaKontrol(false); paint('[data-kk-run]'); return true; }
+    if (t.hasAttribute('data-kk-vazgec')) { idOnayAcik = false; paint('[data-kk-run]'); return true; }
     if (t.hasAttribute('data-ky-git')) { kyAs = +t.getAttribute('data-ky-git'); paint('[data-ky-yon="' + t.getAttribute('data-ky-yon') + '"]:not([disabled]), [data-ky]'); return true; }      /* #49 */
     if (t.hasAttribute('data-qa-undo')) { if (qaSon && qaSon.before && undoS[undoS.length - 1] === qaSon.before) { undo(); qaSon = { hata: 'geri' }; } paint('[data-qa-det]'); return true; }
     return false;

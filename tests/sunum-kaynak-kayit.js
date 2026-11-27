@@ -240,7 +240,8 @@ test('D2 yapısal asetat (kapak, kapanış, kaynakça, gündem) iddia taşımaz;
     assert.ok(K.kyYapi(sl), sl.lay); assert.equal(K.iddiaKur(sl, { t: titleOf(sl), k: 'list', b: ['Giriş bölümü', 'Sonuç bölümü', '[1] Örnek (2024).'] }, H), 0);
     assert.deepEqual(K.kyGoster(sl), { kayitli: false, l: [] });
   });
-  assert.ok(!/not_applicable/.test(ink), 'istemci not_applicable üretmemeli');
+  const i50 = ink.indexOf('  /* ---------- #50 (Phase 8.2)'), j50 = ink.indexOf('  /* ---------- #50 son ---------- */');      /* #50: not_applicable yalnız kontrol kaydında (e.iddia[].kontrol), iddia durumunda değil */
+  assert.ok(i50 > 0 && j50 > i50 && !/not_applicable/.test(ink.slice(0, i50) + ink.slice(j50)), 'istemci not_applicable üretmemeli (#50 bloğu dışında)');
 });
 
 test('D3 sunucu: parçalar anlam denetiminden SONRA, son içerikten; denetimin warn/why sonucu aynen kalır; yanıt sözleşmesi genişler, daralmaz', () => {
@@ -343,7 +344,7 @@ if (!CHROME) {
     var cevir = function (t) { if (Aen[t] != null) return true; var r = t.replace(/[0-9]+/g, '{#}'); if (Aen[r] != null) return true; return false; };
     var tw = d.createTreeWalker(g, NodeFilter.SHOW_TEXT), n; while ((n = tw.nextNode())) { var t = n.nodeValue.replace(/\\s+/g, ' ').trim(); if (!t || /^[0-9 .·/\\[\\]—]*$/.test(t) || n.parentNode.closest('[data-no-i18n]')) continue; yaz.push(t); if (!cevir(t)) eksik.push(t); }
     Array.prototype.forEach.call(g.querySelectorAll('[aria-label]'), function (b) { if (!cevir(b.getAttribute('aria-label'))) eksik.push(b.getAttribute('aria-label')); });
-    R.eksik = eksik; R.yaz = yaz; R.en = ['Kaynaklar ve iddialar', 'İddialar', 'Bağlam', 'Doğrulanmadı', 'metin değişti', 'Kanıt kontrolü Phase 8.2\\'de yapılacak.'].map(function (k) { return Aen[k]; }); R.hata = window.__hata;
+    R.eksik = eksik; R.yaz = yaz; R.en = ['Kaynaklar ve iddialar', 'İddialar', 'Bağlam', 'Doğrulanmadı', 'metin değişti', 'Kanıt kontrolü'].map(function (k) { return Aen[k]; }); R.hata = window.__hata;
   `;
   let RA, RB, RL, RE, snap, SATIR;
   const satir = () => H.DB.presentation_slides.filter((r) => r.presentation_id === H.P().id).sort((a, b) => a.order_index - b.order_index);
@@ -396,16 +397,18 @@ if (!CHROME) {
     assert.ok(satir().every((r) => !r.content.kaynaklar && (r.content.els || []).every((e) => !e.iddia)));
   });
 
-  test('G1 pencere: tek pencere içinde bölüm; Kaynak/Bağlam/Doğrulanmadı; "destekleniyor" yok; bağlantı yalnız http(s) ve noopener; kaynak içeriği kaçar; çözülemedi bildirimi', () => {
+  test('G1 pencere: tek pencere içinde bölüm; Kaynak/Bağlam/Doğrulanmadı; kontrolsüz satırda "destekleniyor" yok (#50 açıklaması hariç); bağlantı yalnız http(s) ve noopener; kaynak içeriği kaçar; çözülemedi bildirimi', () => {
     const P = RA.panel; assert.equal(P.length, 6); assert.deepEqual(P.map((p) => p.i), [0, 1, 2, 3, 4, 5]);
     assert.ok(/Yapısal asetat; iddia yok\./.test(P[0].metin) && /Yapısal asetat/.test(P[4].metin));
-    assert.equal(P[1].cid.length, 3); assert.deepEqual(P[1].rol, ['aday:Kaynak', 'baglam:Bağlam']); assert.ok((P[1].metin.match(/Doğrulanmadı/g) || []).length === 3);
+    assert.equal(P[1].cid.length, 3); assert.deepEqual(P[1].rol, ['aday:Kaynak', 'baglam:Bağlam']); assert.equal((P[1].html.match(/data-kk-st="unverified">Doğrulanmadı</g) || []).length, 3);
     assert.deepEqual(P[1].a, [['https://ornek.org/rapor?id=7&utm_source=x', '_blank', 'noopener noreferrer']]);
     assert.deepEqual(P[2].a, [], 'javascript: bağlantı olmamalı'); assert.equal(P[2].img, 0, 'kaynak içeriği öğe üretmemeli'); assert.ok(P[2].metin.includes('<img src=x onerror="window.__xss=1">'), 'metin olarak görünmeli'); assert.ok(RA.kaynaklar[1].baslik.startsWith('Zararlı <b') && P[2].metin.includes(RA.kaynaklar[1].baslik) && !/<b>başlık/.test(P[2].html), 'başlık metin olarak, kaçmış');
     assert.equal(RA.qa, 0, 'betik çalışmamalı');
     assert.ok(P[3].eksik && /Bazı kaynak bağları çözülemedi\./.test(P[3].metin));
-    assert.ok(P.every((p) => /Kanıt kontrolü Phase 8\.2'de yapılacak\./.test(p.metin)));
-    assert.ok(!/destekleniyor|desteklen|supported|doğrulandı/i.test(RA.dlgMetin), 'destek dili yok');
+    /* #50: Phase 8.2 kontrol paneli; destek sözcükleri yalnız açıklamada, kontrol edilmemiş satırda yok */
+    assert.ok(P.every((p) => /Kanıt kontrolü/.test(p.metin) && /data-kk-run/.test(p.html)));
+    const ACK = ['Desteklenmiyor: seçilen kaynak parçalarında bu iddia yok. Çelişki bulundu: parça aynı konu, dönem ve birim için başka bir değer söylüyor.', 'Doğrulanmadı ya da Kontrol yapılamadı, iddianın yanlış olduğu anlamına gelmez. Sunum içeriği otomatik değiştirilmez.'];
+    assert.ok(!/destekleniyor|desteklen|supported|doğrulandı/i.test(ACK.reduce((t, a) => t.split(a).join(''), RA.dlgMetin)), 'destek dili yok');
     assert.ok(/asetatın bir kaynak bağı kaynak kaydında bulunamadı/.test(RA.dlgMetin), 'SOURCE_UNRESOLVED bilgi bulgusu listede');
     assert.equal(RA.iddia[1][1].uyari, true, 'eski anlam uyarısı (warn) yerinde kalır');
   });
@@ -421,7 +424,7 @@ if (!CHROME) {
   test('G3 EN: bölümdeki her arayüz yazısının karşılığı var; kaynak/iddia içeriği çeviriye girmez (data-no-i18n)', () => {
     assert.ok(!RE.hata.length, RE.hata.join(' | '));
     assert.deepEqual(RE.eksik, [], 'çevirisi olmayan: ' + RE.eksik.join(' | ')); assert.ok(RE.yaz.length >= 5);
-    assert.deepEqual(RE.en, ['Sources and claims', 'Claims', 'Context', 'Not verified', 'text changed', 'Evidence checking comes in Phase 8.2.']);
+    assert.deepEqual(RE.en, ['Sources and claims', 'Claims', 'Context', 'Not verified', 'text changed', 'Evidence check']);
     assert.ok(/data-no-i18n/.test(cut(ink, '  var kaynakBolum = function', '\n  };\n')));
   });
 
