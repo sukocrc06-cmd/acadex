@@ -53,11 +53,11 @@ test('her MedLab kartı turda bir durak; giriş başta, Medica sonda', () => {
 });
 
 test('maskotlar dashboard kapaklarıyla aynı çizim', () => {
-  for (const k of ['axm-med', 'axm-ana', 'axm-fiz', 'axm-ody', 'axm-dyt', 'axm-dkt', 'axm-ecz', 'axm-hem']) {
+  for (const k of ['axm-med', 'axm-ana', 'axm-fiz', 'axm-ody', 'axm-dyt', 'axm-dkt', 'axm-ecz', 'axm-hem', 'axm-dpo']) {
     const a = dash.match(new RegExp('<svg class="' + k + '".*?</svg>', 's')), b = sec.match(new RegExp('<svg class="' + k + '".*?</svg>', 's'));
     assert.ok(a && b, k); assert.equal(b[0], a[0], k + ' kapağı dashboard ile aynı olmalı');
   }
-  assert.equal((sec.match(/class="kt-cv" role="img" aria-label="[^"]+"/g) || []).length, 8, 'her kapağın erişilebilir adı var');
+  assert.equal((sec.match(/class="kt-cv" role="img" aria-label="[^"]+"/g) || []).length, 9, 'her kapağın erişilebilir adı var');
 });
 
 test('maskot hareketleri MedLab kapak CSS\'iyle eşleşiyor (üretilmiş dosya güncel)', () => {

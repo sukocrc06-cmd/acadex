@@ -169,7 +169,7 @@ input[type=range]{width:100%;accent-color:var(--blue);height:28px;margin:0}
 
 /* spot */
 .dz-et{position:absolute;inset:0;pointer-events:none;z-index:4}
-.dz-et span{position:absolute;left:0;top:0;white-space:nowrap;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:#E9DFC9;background:rgba(13,24,56,.62);padding:3px 8px;border-radius:6px;opacity:0;transition:opacity .4s}
+.dz-et span{position:absolute;left:0;top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:#E9DFC9;background:rgba(13,24,56,.62);padding:3px 8px;border-radius:6px;opacity:0;transition:opacity .4s}
 .dz-et span.on{opacity:1}.dz-et b{color:#FFC94A;margin-left:4px}
 .dz-bar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:7;width:min(520px,calc(100% - 24px));padding:12px 14px}
 .dz-ust{display:flex;align-items:baseline;gap:10px}.dz-ust b{font-size:14px}.dz-say{margin-left:auto;font:500 12px var(--mono);color:rgba(255,255,255,.75)}.dz-say em{font-style:normal;color:#fff;font-weight:700}
@@ -177,6 +177,13 @@ input[type=range]{width:100%;accent-color:var(--blue);height:28px;margin:0}
 .dz-not{margin:0 0 10px;font-size:13px;line-height:1.45;color:rgba(255,255,255,.86);min-height:19px}.dz-not b{color:#fff}
 .dz-dg{display:flex;gap:8px}.dz-dg button{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;font-weight:600;font-size:13px;border-radius:9px;padding:7px 14px;min-height:36px}
 .dz-dg button[data-dz=topla]{background:#fff;color:var(--navy);border-color:#fff}.dz-dg button:disabled{opacity:.45}.dz-dg .x{margin-left:auto;width:36px;padding:0;color:#fff}
+.dz-sec{position:absolute;z-index:8;display:flex;flex-direction:column;gap:4px;padding:6px;min-width:230px}
+.dz-sec button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;border:0;background:none;color:#fff;text-align:left;padding:8px 12px;border-radius:9px}
+.dz-sec button:hover,.dz-sec button:focus-visible{background:rgba(255,255,255,.12)}.dz-sec b{font-size:14px}.dz-sec small{font-size:12px;color:rgba(255,255,255,.7)}
+.dz-dg button[data-dz=oyun][aria-pressed=true]{background:#FFC94A;border-color:#FFC94A;color:var(--navy)}
+.vp.dz-oyun canvas{cursor:grab}
+.dz-hedef{position:absolute;z-index:5;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #FFC94A;box-shadow:0 0 0 6px rgba(255,201,74,.25);pointer-events:none;animation:dz-hedef 1s ease-in-out infinite}
+@keyframes dz-hedef{50%{transform:scale(1.35);opacity:.55}}
 .vp.diz .spotbar,.vp.diz .bmap{display:none}
 @media (max-width:640px){.dz-et span{font-size:9px;padding:2px 5px;letter-spacing:.03em}.dz-bar{bottom:8px;padding:9px 11px}.dz-not{font-size:12px;margin-bottom:7px}.dz-dg button{min-height:32px;padding:5px 11px;font-size:12px}.dz-ust b{font-size:13px}.dz-say{font-size:11px}}
 @media (prefers-reduced-motion:reduce){.dz-et span,.dz-cub i{transition:none}}
@@ -1190,7 +1197,7 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
       <div class="tl">
         <div class="glass gseg" id="views3"><button data-v="on">Ön</button><button data-v="arka">Arka</button><button data-v="yan">Yan</button><button data-v="ust">Üst</button></div>
         <div class="glass gseg" id="tools"><button data-tool="sec" aria-pressed="true">Seç</button><button data-tool="soy" aria-pressed="false">Soy</button><button data-tool="not" aria-pressed="false">+ Not</button></div>
-        <div class="glass gseg"><button id="lblBtn" aria-pressed="false">Etiketler</button><button id="expBtn" aria-pressed="false">Patlat</button><button id="dizBtn" aria-pressed="false" title="İskeleti patlat ve kemikleri sırayla rafa diz">Diz</button></div>
+        <div class="glass gseg"><button id="lblBtn" aria-pressed="false">Etiketler</button><button id="expBtn" aria-pressed="false">Patlat</button><button id="dizBtn" aria-pressed="false" title="Kemikleri ya da organları patlat ve sırayla rafa diz">Diz</button></div>
       </div>
       <div class="tr" id="states"></div>
       <div class="bl"><div class="glass legend" id="legend" hidden></div></div>
@@ -3103,8 +3110,9 @@ function regionIntro(b) {
 /* ===================== v5 (27.11.2026): patlat ve sırayla diz ===================== */
 /* İskelet havaya dağılır, kemikler bölge bölge (kafatası → … → ayak) bir rafa dizilir.
    Raftaki kemiğe dokununca adı çıkar ve vücuttaki yerine uçar; "Topla" hepsini birleştirir.
-   Sayım 206'ya göre: göğüs kemiği 3 parça ama 1 kemik, ayak sesamoidleri sayılmaz; dişler ve kıkırdaklar dizilmez. */
-const DIZ = window.__axDiz = { on: false, set: new Set(), list: [], raf: [], ucan: new Map(), yerde: new Set(), rafta: new Set(), toplam: 0, raflar: null, et: null, bar: null, gen: 0 };
+   Sayım 206'ya göre: göğüs kemiği 3 parça ama 1 kemik, ayak sesamoidleri sayılmaz; dişler ve kıkırdaklar dizilmez.
+   v6 (27.11.2026): organlar da sistem sistem dizilir (ORG_RAF); "Yerine koy" oyununda parça sürüklenip doğru yere bırakılır. */
+const DIZ = window.__axDiz = { kume: 'iskelet', oyun: false, og: null, on: false, set: new Set(), list: [], raf: [], ucan: new Map(), yerde: new Set(), rafta: new Set(), toplam: 0, raflar: null, et: null, bar: null, gen: 0 };
 const DIZ_RAF = [
   ['Kafatası', /^(Frontal bone|Parietal bone|Occipital bone|Temporal bone|Sphenoid bone|Ethmoid bone)/],
   ['Yüz kemikleri', /^(Nasal bone|Lacrimal bone|Zygomatic bone|Maxilla|Palatine bone|Inferior nasal concha|Vomer|Mandible)/],
@@ -3117,26 +3125,43 @@ const DIZ_RAF = [
   ['Ayak', /(of foot|metatarsal|^(Talus|Calcaneus|Navicular bone|Cuboid bone|.*cuneiform bone))/]
 ];
 const DIZ_DISI = /tooth|incisor|canine|premolar|cartilage|^Sinus|cells of ethmoid/;
-const dizAgirlik = n => /^Sesamoid/.test(n) || /^(Body of sternum|Xiphoid)/.test(n) ? 0 : 1;
-const dizRaf = n => DIZ_DISI.test(n) ? -1 : DIZ_RAF.findIndex(r => r[1].test(n));
+const dizAgirlik = n => DIZ.kume !== 'iskelet' ? 1 : /^Sesamoid/.test(n) || /^(Body of sternum|Xiphoid)/.test(n) ? 0 : 1;
+/* organlar: sistem sistem; zarlar (periton, plevra), karaciğer segmentleri ve tenya çizgileri dizilmez */
+const ORG_RAF = [
+  ['Ağız ve tükürük bezleri', /^(Tongue|Soft palate|Uvula|Parotid gland|Submandibular gland|Sublingual gland)/],
+  ['Yutak', /pharynx$/],
+  ['Mide ve bağırsaklar', /^(Stomach|Duodenum|Vermiform appendix|Ascending colon|Transverse colon|Descending colon|Sigmoid colon)/],
+  ['Karaciğer, safra kesesi, pankreas', /^(Liver|Gallbladder|Pancreas)$/],
+  ['Solunum', /^(Mucosa of nasal cavity|Epiglottis|Trachea|\w+ lobe of (right|left) lung)/],
+  ['Boşaltım', /^(Kidney|Renal pelvis|Urinary bladder)/],
+  ['Erkek üreme', /^(Testis|Epididymis|Seminal gland|Prostate|Glans penis|Corpus (cavernosum|spongiosum))/],
+  ['Endokrin bezler', /^(Adenohypophysis|Neurohypophysis|Pineal gland|Thyroid gland|\w+ parathyroid gland|Suprarenal gland)/]
+];
+const ORG_DISI = /segment of liver|taenia|omentum|Mesocolon|Meso-appendix|^Pleura|Gingiva|Accessory parotid/;
+const KUME = {
+  iskelet: { sys: 'iskelet', raf: DIZ_RAF, disi: DIZ_DISI, kol2: 5, birim: 'kemik', baslik: 'Kemik dizilimi', dagil: 'İskelet dağılıyor…', tamam: 'İskelet tamam', donus: 'Kemikler yerine dönüyor…' },
+  organ: { sys: 'organ', raf: ORG_RAF, disi: ORG_DISI, kol2: 4, birim: 'organ', baslik: 'Organ dizilimi', dagil: 'Organlar dağılıyor…', tamam: 'Organlar yerinde', donus: 'Organlar yerine dönüyor…' }
+};
+const KM = () => KUME[DIZ.kume];
+const dizRaf = n => KM().disi.test(n) ? -1 : KM().raf.findIndex(r => r[1].test(n));
 function dizDuzen(o) {
   /* her kemiğe raf yuvası: aynı raftakiler yukarıdan aşağı, soldan sağa (sağ-sol çift yan yana).
      o.W raf genişliği; o.alt: raflar vücudun altında (dar ekran), değilse sağında */
   /* o.kol 2: eksen iskeleti solda, üye iskeleti sağda iki sütun */
   const WMAX = o.W, K2 = o.kol === 2, TOP = K2 ? 2 * WMAX + .14 : WMAX, XB = o.alt ? -TOP / 2 : .42, GAP = .016, BASLIK = .1;
   const yB = o.alt ? -.1 : 1.9, yTopK = [yB, yB]; const raflar = [];
-  const kem = meshesAll.filter(m => m.userData.sys === 'iskelet' && dizRaf(m.name) >= 0);
-  DIZ_RAF.forEach((r, ri) => {
-    const ki = K2 && ri >= 5 ? 1 : 0, X0 = XB + ki * (WMAX + .14); let yTop = yTopK[ki];
+  const kem = meshesAll.filter(m => m.userData.sys === KM().sys && dizRaf(m.name) >= 0);
+  KM().raf.forEach((r, ri) => {
+    const ki = K2 && ri >= KM().kol2 ? 1 : 0, X0 = XB + ki * (WMAX + .14); let yTop = yTopK[ki];
     const L = kem.filter(m => dizRaf(m.name) === ri).map(m => {
       const bb = m.geometry.boundingBox, c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
       const s = Math.min(6, Math.max(1, .016 / Math.max(sz.x, sz.y, 1e-4)));
       return { m, c, w: sz.x * s, h: sz.y * s, s };
-    }).sort((a, b) => ri === 3 ? b.c.y - a.c.y : (Math.abs(b.c.y - a.c.y) > .006 ? b.c.y - a.c.y : a.c.x - b.c.x));
+    }).sort((a, b) => DIZ.kume === 'iskelet' && ri === 3 ? b.c.y - a.c.y : (Math.abs(b.c.y - a.c.y) > .006 ? b.c.y - a.c.y : a.c.x - b.c.x));
     const satirlar = []; let sat = [], gen = 0;
     L.forEach(it => { if (sat.length && gen + it.w > WMAX) { satirlar.push(sat); sat = []; gen = 0; } sat.push(it); gen += it.w + GAP; });
     if (sat.length) satirlar.push(sat);
-    const raf = { ad: r[0], x: X0, y: yTop, kemik: L.map(i => i.m), tahta: [] };
+    const raf = { ad: r[0], x: X0, y: yTop, w: WMAX, kemik: L.map(i => i.m), tahta: [] };
     let y = yTop - BASLIK;
     satirlar.forEach(S2 => {
       const h = Math.max(...S2.map(i => i.h)); let x = X0;
@@ -3193,7 +3218,7 @@ FRAME_HOOKS.add(now => {
 });
 function dizEtiketYer() {
   const r = vp.getBoundingClientRect(), v = new THREE.Vector3();
-  DIZ.raf.forEach((rf, i) => { const el = DIZ.et.children[i]; if (!el) return; v.set(rf.x, rf.y, 0).project(camera); el.style.transform = `translate(${(v.x * .5 + .5) * r.width}px,${(1 - (v.y * .5 + .5)) * r.height}px)`; });
+  DIZ.raf.forEach((rf, i) => { const el = DIZ.et.children[i]; if (!el) return; v.set(rf.x + rf.w, rf.y, 0).project(camera); const x1 = (v.x * .5 + .5) * r.width; v.set(rf.x, rf.y, 0).project(camera); const x0 = (v.x * .5 + .5) * r.width; el.style.transform = `translate(${x0}px,${(1 - (v.y * .5 + .5)) * r.height}px)`; el.style.maxWidth = Math.max(60, x1 - x0) + 'px'; });
 }
 const dizSay = () => { let a = 0, b = 0; DIZ.rafta.forEach(m => a += dizAgirlik(m.name)); DIZ.yerde.forEach(m => b += dizAgirlik(m.name)); return { a, b }; };
 function dizBar() {
@@ -3203,14 +3228,15 @@ function dizBar() {
   DIZ.bar.querySelector('.dz-cub').dataset.k = b ? 'yer' : 'raf';
   DIZ.bar.querySelector('[data-dz=topla]').disabled = !DIZ.hazir || !DIZ.rafta.size;
 }
-async function dizBasla() {
+async function dizBasla(kume) {
   if (DIZ.on) return;
-  if ((st.spot && st.spot.run) || CASE.run || TOUR.on) { toast('Önce açık olan çalışmayı bitir, sonra kemikleri dizebilirsin.'); return; }
-  if (!loaded.iskelet) await withLoader('iskelet');
+  if ((st.spot && st.spot.run) || CASE.run || TOUR.on) { toast('Önce açık olan çalışmayı bitir, sonra dizilime geç.'); return; }
+  DIZ.kume = KUME[kume] ? kume : DIZ.kume; const K = KM(); DIZ.oyun = false; DIZ.og = null;
+  if (!loaded[K.sys]) await withLoader(K.sys);
   if (EXP.on) setExplode(false, { force: true });
   await new Promise(r => setTimeout(r, EXP.list.length ? 880 : 0));
   if (st.sel) select(null);
-  if (!st.layers.iskelet.on) { st.layers.iskelet.on = true; renderLayers(); }
+  if (!st.layers[K.sys].on) { st.layers[K.sys].on = true; renderLayers(); }
   const gen = ++DIZ.gen;
   DIZ.raf = dizEnIyi(); DIZ.list = DIZ.raf.flatMap(r => r.kemik); DIZ.set = new Set(DIZ.list); DIZ.yerde.clear(); DIZ.rafta.clear(); DIZ.hazir = false;
   DIZ.toplam = DIZ.list.reduce((t, m) => t + dizAgirlik(m.name), 0);
@@ -3219,13 +3245,13 @@ async function dizBasla() {
   /* raf başlıkları ve alt çubuk */
   DIZ.et = document.createElement('div'); DIZ.et.className = 'dz-et'; DIZ.et.setAttribute('aria-hidden', 'true');
   DIZ.et.innerHTML = DIZ.raf.map(r => `<span>${esc(r.ad)} <b>${r.kemik.reduce((t, m) => t + dizAgirlik(m.name), 0)}</b></span>`).join(''); vp.appendChild(DIZ.et);
-  DIZ.bar = document.createElement('div'); DIZ.bar.className = 'glass dz-bar'; DIZ.bar.setAttribute('role', 'region'); DIZ.bar.setAttribute('aria-label', 'Kemik dizilimi');
-  DIZ.bar.innerHTML = `<div class="dz-ust"><b>Kemik dizilimi</b><span class="dz-say"><em data-a>0</em> rafta · <em data-b>0</em> yerinde · ${DIZ.toplam}</span></div><div class="dz-cub"><i></i></div>
-    <p class="dz-not" aria-live="polite">İskelet dağılıyor…</p>
-    <div class="dz-dg"><button type="button" data-dz="topla">Topla</button><button type="button" data-dz="yeniden">Yeniden patlat</button><button type="button" data-dz="kapat" class="x" aria-label="Dizilimi kapat">✕</button></div>`;
+  DIZ.bar = document.createElement('div'); DIZ.bar.className = 'glass dz-bar'; DIZ.bar.setAttribute('role', 'region'); DIZ.bar.setAttribute('aria-label', K.baslik);
+  DIZ.bar.innerHTML = `<div class="dz-ust"><b>${K.baslik}</b><span class="dz-say"><em data-a>0</em> rafta · <em data-b>0</em> yerinde · ${DIZ.toplam}</span></div><div class="dz-cub"><i></i></div>
+    <p class="dz-not" aria-live="polite">${K.dagil}</p>
+    <div class="dz-dg"><button type="button" data-dz="oyun" aria-pressed="false" disabled>Yerine koy</button><button type="button" data-dz="topla">Topla</button><button type="button" data-dz="yeniden">Yeniden patlat</button><button type="button" data-dz="kapat" class="x" aria-label="Dizilimi kapat">✕</button></div>`;
   vp.appendChild(DIZ.bar);
-  DIZ.bar.addEventListener('click', e => { const b = e.target.closest('[data-dz]'); if (!b) return; const k = b.dataset.dz; if (k === 'topla') dizTopla(); else if (k === 'yeniden') { dizBitir(true).then(dizBasla); } else dizBitir(); });
-  applyVis({ fade: true }); dizBar();
+  DIZ.bar.addEventListener('click', e => { const b = e.target.closest('[data-dz]'); if (!b) return; const k = b.dataset.dz; if (k === 'topla') dizTopla(); else if (k === 'oyun') dizOyun(!DIZ.oyun); else if (k === 'yeniden') { const ku = DIZ.kume; dizBitir(true).then(() => dizBasla(ku)); } else dizBitir(); });
+  applyVis(); dizBar();   /* solma yok: yeni görünen parçalar (ör. organlar) hemen tıklanabilir olsun */
   /* kamera: vücut + raflar */
   DIZ.maxD = controls.maxDistance; controls.maxDistance = 12; DIZ.genis = false; dizKamera(DIZ.raf.kutuRaf);
   /* 1) patla: her kemik merkezden dışa, biraz yukarı */
@@ -3240,28 +3266,34 @@ async function dizBasla() {
     await new Promise(r => setTimeout(r, RM.matches ? 20 : 520));
   }
   await new Promise(r => setTimeout(r, RM.matches ? 20 : 800)); if (gen !== DIZ.gen) return;
-  DIZ.hazir = true; dizBar();
-  not.innerHTML = '<b>' + DIZ.toplam + ' kemik rafta.</b> Bir kemiğe dokun: adını gör, iskeletteki yerine uçsun. <b>Topla</b> hepsini birleştirir.';
+  DIZ.hazir = true; dizBar(); DIZ.bar.querySelector('[data-dz=oyun]').disabled = false;
+  not.innerHTML = '<b>' + DIZ.toplam + ' ' + K.birim + ' rafta.</b> Dokun: adını gör, yerine uçsun. <b>Yerine koy</b> ile sürükleyip kendin yerleştir; <b>Topla</b> hepsini birleştirir.';
 }
 function dizTik(h) {
   if (!DIZ.on) return false;
   if (!h || !DIZ.set.has(h.mesh)) return false;
   const m = h.mesh;
-  if (!DIZ.rafta.has(m) || DIZ.ucan.has(m)) { selectMesh(m, DIZ.ucan.has(m) ? {} : { point: h.point }); return true; }
+  if (!DIZ.rafta.has(m) || DIZ.ucan.has(m) || DIZ.oyun) { selectMesh(m, DIZ.ucan.has(m) || DIZ.rafta.has(m) ? {} : { point: h.point }); return true; }
   DIZ.rafta.delete(m); selectMesh(m); if (!DIZ.genis) { DIZ.genis = true; dizKamera(DIZ.raf.kutu); }
   const not = DIZ.bar.querySelector('.dz-not'); const sd = SIDE[m.userData.side];
-  not.innerHTML = '<b>' + esc(nameTR(m)) + (sd ? ' · ' + sd : '') + '</b> → ' + esc(DIZ_RAF[m.userData._diz.raf][0].toLocaleLowerCase('tr')) + ' bölgesindeki yerine';
+  not.innerHTML = '<b>' + esc(nameTR(m)) + (sd ? ' · ' + sd : '') + '</b> → ' + esc(KM().raf[m.userData._diz.raf][0].toLocaleLowerCase('tr')) + ' bölgesindeki yerine';
   dizUc(m, ZERO0, 1, 820, 0, mm => { DIZ.yerde.add(mm); dizBar(); if (!DIZ.rafta.size) dizTamam(); });
   dizBar(); return true;
 }
 function dizTopla() {
-  if (!DIZ.on) return; let k = 0; if (!DIZ.genis) { DIZ.genis = true; dizKamera(DIZ.raf.kutu); }
+  if (!DIZ.on) return; if (DIZ.oyun) dizOyun(false, true); let k = 0; if (!DIZ.genis) { DIZ.genis = true; dizKamera(DIZ.raf.kutu); }
   DIZ.list.forEach(m => { if (!DIZ.rafta.has(m)) return; DIZ.rafta.delete(m); dizUc(m, ZERO0, 1, 900, k++ * (RM.matches ? 0 : 9), mm => { DIZ.yerde.add(mm); dizBar(); if (!DIZ.rafta.size && !DIZ.ucan.size) dizTamam(); }); });
-  DIZ.bar.querySelector('.dz-not').textContent = 'Kemikler yerine dönüyor…'; dizBar();
+  DIZ.bar.querySelector('.dz-not').textContent = KM().donus; dizBar();
 }
 function dizTamam() {
   if (!DIZ.on) return;
-  DIZ.bar.querySelector('.dz-not').innerHTML = '<b>İskelet tamam: ' + DIZ.toplam + ' kemik yerinde.</b> İstersen yeniden patlat ya da kapat.';
+  const og = DIZ.oyun && DIZ.og;
+  if (og) {
+    const sn = Math.round((performance.now() - og.t0) / 1000), yild = og.hata <= DIZ.list.length * .1 ? 3 : og.hata <= DIZ.list.length * .3 ? 2 : 1;
+    const en = LS.get('dizOyun.' + DIZ.kume, null); if (!en || og.hata < en.hata || (og.hata === en.hata && sn < en.sn)) LS.set('dizOyun.' + DIZ.kume, { hata: og.hata, sn });
+    DIZ.bar.querySelector('.dz-not').innerHTML = '<b>' + '★'.repeat(yild) + '☆'.repeat(3 - yild) + ' Hepsini yerleştirdin!</b> ' + og.dogru + ' parça, ' + og.hata + ' hatalı bırakma, ' + Math.floor(sn / 60) + ' dk ' + (sn % 60) + ' sn.';
+    dizOyun(false, true);
+  } else DIZ.bar.querySelector('.dz-not').innerHTML = '<b>' + KM().tamam + ': ' + DIZ.toplam + ' ' + KM().birim + ' yerinde.</b> İstersen yeniden patlat ya da kapat.';
   pulse(); outline.selectedObjects = []; need();
 }
 function dizBitir(hizli) {
@@ -3270,7 +3302,7 @@ function dizBitir(hizli) {
     DIZ.gen++; const kalan = DIZ.list.filter(m => m.position.lengthSq() > 1e-10 || m.scale.x !== 1);
     let say = kalan.length; const son = () => {
       DIZ.ucan.clear(); DIZ.list.forEach(m => { m.position.set(0, 0, 0); m.scale.setScalar(1); m.userData._diz = null; });
-      DIZ.on = false; DIZ.set.clear(); DIZ.rafta.clear(); DIZ.yerde.clear(); vp.classList.remove('diz');
+      DIZ.on = false; DIZ.oyun = false; DIZ.og = null; controls.enabled = true; dizIpucu(null); DIZ.set.clear(); DIZ.rafta.clear(); DIZ.yerde.clear(); vp.classList.remove('diz');
       if (DIZ.raflar) DIZ.raflar.visible = false; DIZ.et && DIZ.et.remove(); DIZ.bar && DIZ.bar.remove(); DIZ.et = DIZ.bar = null;
       $('#dizBtn').setAttribute('aria-pressed', 'false'); $('#expBtn').disabled = false; if (DIZ.maxD) controls.maxDistance = DIZ.maxD;
       applyVis({ fade: !hizli }); if (!hizli) HOME(); res();
@@ -3280,7 +3312,81 @@ function dizBitir(hizli) {
   });
 }
 
-DIZ.tik = dizTik;
+/* ---------- Yerine koy oyunu: raftaki parçayı sürükle, doğru yere bırak ---------- */
+function dizOyun(ac, sessiz) {
+  if (!DIZ.on || !DIZ.hazir) return;
+  DIZ.oyun = !!ac; const b = DIZ.bar && DIZ.bar.querySelector('[data-dz=oyun]'); if (b) b.setAttribute('aria-pressed', DIZ.oyun);
+  vp.classList.toggle('dz-oyun', DIZ.oyun);
+  if (DIZ.oyun) {
+    DIZ.og = { dogru: 0, hata: 0, t0: performance.now(), deneme: new Map() };
+    if (!DIZ.genis) { DIZ.genis = true; dizKamera(DIZ.raf.kutu); }
+    const en = LS.get('dizOyun.' + DIZ.kume, null);
+    DIZ.bar.querySelector('.dz-not').innerHTML = '<b>Yerine koy:</b> raftaki bir parçayı tut, gövdede doğru yerine sürükleyip bırak. Dokunursan adını gösterir.' + (en ? ' En iyi: ' + en.hata + ' hata.' : '');
+  } else { dizIpucu(null); if (!sessiz) DIZ.bar.querySelector('.dz-not').textContent = 'Oyun kapandı. Raftaki parçalara dokunarak yerine gönderebilirsin.'; }
+}
+const DRAG = { m: null, plane: new THREE.Plane(), hit: new THREE.Vector3(), c: null, sx: 0, sy: 0, moved: false };
+const dzNdc = e => { const r = el.getBoundingClientRect(); return new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); };
+const dzEkran = v => { const r = vp.getBoundingClientRect(), q = v.clone().project(camera); return [(q.x * .5 + .5) * r.width, (1 - (q.y * .5 + .5)) * r.height]; };
+function dizIpucu(v) {
+  let h = vp.querySelector('.dz-hedef');
+  if (!v) { if (h) h.remove(); return; }
+  if (!h) { h = document.createElement('div'); h.className = 'dz-hedef'; h.setAttribute('aria-hidden', 'true'); vp.appendChild(h); }
+  const [x, y] = dzEkran(v); h.style.left = x + 'px'; h.style.top = y + 'px';
+  clearTimeout(dizIpucu.t); dizIpucu.t = setTimeout(() => h.remove(), 2600);
+}
+vp.addEventListener('pointerdown', e => {
+  if (!DIZ.on || !DIZ.oyun || e.button !== 0 || e.target !== el) return;
+  const h = gpuPick(e.clientX, e.clientY); if (!h || !DIZ.rafta.has(h.mesh) || DIZ.ucan.has(h.mesh)) return;
+  e.stopPropagation(); e.preventDefault();
+  const m = h.mesh; DRAG.m = m; DRAG.sx = e.clientX; DRAG.sy = e.clientY; DRAG.moved = false; DRAG.pid = e.pointerId;
+  DRAG.c = m.geometry.boundingBox.getCenter(new THREE.Vector3());
+  const cw = DRAG.c.clone().multiplyScalar(m.scale.x).add(m.position);
+  DRAG.plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()).negate(), cw);
+  controls.enabled = false; hideTip();
+}, true);
+window.addEventListener('pointermove', e => {
+  if (!DRAG.m || e.pointerId !== DRAG.pid) return;
+  if (!DRAG.moved && Math.hypot(e.clientX - DRAG.sx, e.clientY - DRAG.sy) < 6) return;
+  DRAG.moved = true; ray.setFromCamera(dzNdc(e), camera);
+  if (ray.ray.intersectPlane(DRAG.plane, DRAG.hit)) { const m = DRAG.m; m.position.copy(DRAG.hit).sub(DRAG.c.clone().multiplyScalar(m.scale.x)); need(); schedLabels(); }
+});
+window.addEventListener('pointerup', e => {
+  if (!DRAG.m || e.pointerId !== DRAG.pid) return;
+  const m = DRAG.m, og = DIZ.og; DRAG.m = null; controls.enabled = true;
+  if (!DRAG.moved || !og) { selectMesh(m); const sd = SIDE[m.userData.side]; DIZ.bar.querySelector('.dz-not').innerHTML = '<b>' + esc(nameTR(m)) + (sd ? ' · ' + sd : '') + '</b>: sürükleyip yerine bırak.'; return; }
+  /* doğru mu? bırakılan nokta ile gerçek yerin ekrandaki uzaklığı */
+  const hedef = DRAG.c.clone(), [ax, ay] = dzEkran(DRAG.hit), [bx, by] = dzEkran(hedef);
+  m.geometry.computeBoundingSphere(); const kenar = hedef.clone().add(new THREE.Vector3(m.geometry.boundingSphere.radius, 0, 0)), [kx] = dzEkran(kenar);
+  const tol = Math.max(24, Math.abs(kx - bx) * .9), d = Math.hypot(ax - bx, ay - by), sd = SIDE[m.userData.side], ad = esc(nameTR(m)) + (sd ? ' · ' + sd : '');
+  if (d <= tol) {
+    og.dogru++; DIZ.rafta.delete(m); selectMesh(m); dizIpucu(null);
+    dizUc(m, ZERO0, 1, 260, 0, mm => { DIZ.yerde.add(mm); dizBar(); if (!DIZ.rafta.size && !DIZ.ucan.size) dizTamam(); });
+    DIZ.bar.querySelector('.dz-not').innerHTML = '<b>Doğru: ' + ad + '.</b> ' + DIZ.rafta.size + ' parça kaldı.';
+  } else {
+    og.hata++; const n = (og.deneme.get(m) || 0) + 1; og.deneme.set(m, n);
+    /* karşı taraftaki eşinin yerine mi bırakıldı? */
+    const es = m.userData.side && byName.get(baseOf(m.name) + (m.userData.side === 'L' ? '.r' : '.l'));
+    let not = 'Burası değil. ' + esc(KM().raf[m.userData._diz.raf][0]) + ' bölgesinde ara.';
+    if (es) { const ec = es.geometry.boundingBox.getCenter(new THREE.Vector3()), [ex, ey] = dzEkran(ec); if (Math.hypot(ax - ex, ay - ey) <= tol) not = 'Karşı taraf! Bu ' + (sd || '') + ' tarafın parçası.'; }
+    if (n >= 2) { dizIpucu(hedef); not += ' Yanıp sönen halka doğru yeri gösteriyor.'; }
+    const z = m.userData._diz; dizUc(m, z.p, z.s, 420, 0);
+    DIZ.bar.querySelector('.dz-not').innerHTML = '<b>' + ad + ':</b> ' + not;
+  }
+  dizBar();
+});
+/* Diz düğmesi: kemik mi organ mı? */
+function dizSecici() {
+  let p = vp.querySelector('.dz-sec'); if (p) { p.remove(); return; }
+  p = document.createElement('div'); p.className = 'glass dz-sec'; p.setAttribute('role', 'menu');
+  const en = k => { const o = LS.get('dizOyun.' + k, null); return o ? ' · en iyi ' + o.hata + ' hata' : ''; };
+  p.innerHTML = `<button type="button" role="menuitem" data-kume="iskelet"><b>Kemikler</b><small>206 kemik, bölge bölge${en('iskelet')}</small></button><button type="button" role="menuitem" data-kume="organ"><b>Organlar</b><small>sistem sistem${en('organ')}</small></button>`;
+  const tl = $('#vp .tl').getBoundingClientRect(), r = vp.getBoundingClientRect(); p.style.top = (tl.bottom - r.top + 6) + 'px'; p.style.left = (tl.left - r.left) + 'px';
+  vp.appendChild(p); setTimeout(() => { const b = p.querySelector('button'); b && b.focus(); }, 20);
+  p.addEventListener('click', e => { const b = e.target.closest('[data-kume]'); if (!b) return; p.remove(); dizBasla(b.dataset.kume); });
+  const kapa = e => { if (!p.isConnected) { document.removeEventListener('pointerdown', kapa, true); document.removeEventListener('keydown', kapa, true); return; } if (e.type === 'keydown' ? e.key === 'Escape' : !p.contains(e.target) && e.target !== $('#dizBtn')) { p.remove(); } };
+  document.addEventListener('pointerdown', kapa, true); document.addEventListener('keydown', kapa, true);
+}
+DIZ.tik = dizTik; DIZ.ekran = dzEkran;   /* ekran konumu (vp içinde): testler ve ipucu için */
 /* ===================== v4: spot efektleri ===================== */
 function spotFx(ok, sid) {
   const sp = st.spot; if (!sp || !sp.pin) return;
@@ -3963,7 +4069,7 @@ renderTabs();
 /* ===================== başlat ===================== */
 (async () => {
   { const fl = $('#flowOn'); if (fl) { fl.checked = !!FLOW.value; fl.addEventListener('change', () => { FLOW.value = fl.checked ? 1 : 0; LS.set('flow', fl.checked); need(); }); } }
-  $('#expBtn').addEventListener('click', () => setExplode(!EXP.on)); $('#dizBtn').addEventListener('click', () => DIZ.on ? dizBitir() : dizBasla());
+  $('#expBtn').addEventListener('click', () => setExplode(!EXP.on)); $('#dizBtn').addEventListener('click', () => DIZ.on ? dizBitir() : dizSecici());
   { const fd = $('#focusDim'); if (fd) { fd.checked = st.focusDim; fd.addEventListener('change', () => { st.focusDim = fd.checked; LS.set('focusDim', st.focusDim); applyVis(); }); } }
   renderLayers(); clipUI(); renderNotes(); renderCard(); renderAcadia(); renderStates(); renderKurul(); renderSpotSetup(); renderTabs(); setQuality(st.quality); resize();
   requestAnimationFrame(loop);

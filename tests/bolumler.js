@@ -7,7 +7,7 @@
        kısıtı reddediyordu. Liste artık iki yerde: js/acadex-bolumler.js ve
        supabase/migrations/20261031_bolumler.sql (acadex_departments()).
        İkisi ayrışırsa bir bölüm ekranda görünür ama kaydedilemez.
-     - Yan menüde bölüme uymayan lab "diğer laboratuvarlar" altında katlanır;
+     - Yan menüde bütün lab'lar görünür, bölüme uyanlar üstte (katlama 27.11.2026'da kalktı);
        bölüm yoksa ya da "Other" ise hepsi açık kalmalı.
      - Eski getDepartmentShortName/ColorClass "business" kelimesine bakıyordu;
        Uluslararası Ticaret İşletme rozetini alıyordu, yeni bölümler "DEPT".
@@ -110,10 +110,12 @@ test('sayfalar modülü yüklüyor ve kullanıyor', () => {
   assert.match(read('js/admin-app.js'), /window\.AX_BOLUM\.all\(\)/);
 });
 
-test('yan menü: katlanan lab erişilebilir kalıyor (gizli değil, katlı)', () => {
-  assert.match(modSrc, /aria-expanded/);
-  assert.match(modSrc, /activeFolded/, 'katlı lab açıkken grup kendiliğinden açılmalı');
-  assert.match(modSrc, /KEY_ALL = 'acadexLabsAll'/);
+test('yan menü: "diğer laboratuvarlar" katlaması yok, bütün lab\'lar görünür, bölüme uyanlar üstte (27.11.2026)', () => {
+  assert.doesNotMatch(modSrc.replace(/\/\*[\s\S]*?\*\//g, ''), /diğer laboratuvar/, 'arayüzde metin kalmadı (yorumlar hariç)');
+  assert.doesNotMatch(modSrc, /ax-lab-off\{display:none\}/);
+  assert.match(modSrc, /li\.classList\.remove\('ax-lab-fold', 'ax-lab-off'\)/);
+  assert.match(modSrc, /want\.concat\(LABS\.filter/, 'bölüme uyanlar önce');
+  assert.match(modSrc, /var eski = D\.getElementById\('side-labs-more'\); if \(eski\) eski\.remove\(\);/);
 });
 
 summary();

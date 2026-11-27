@@ -10,10 +10,9 @@
    Yeni bölüm eklerken: buraya ekle + supabase/migrations/20261031_bolumler.sql
    içindeki acadex_departments() listesine ekle (SQL Editor'da çalıştır).
 
-   Laboratuvarlar: yan menüde yalnızca bölüme uyan lab'lar görünür; diğerleri
-   "diğer laboratuvarlar" başlığı altında katlı durur. Bölüm seçilmemişse ya da
-   "Other" ise hepsi açıktır. Ayarlar'daki "tüm laboratuvarları göster"
-   (localStorage acadexLabsAll) katlamayı kapatır.
+   Laboratuvarlar: yan menüde bütün lab'lar her zaman görünür; bölüme uyanlar
+   Study Lab'ın hemen ardından gelir (27.11.2026'da "diğer laboratuvarlar"
+   katlaması kaldırıldı).
    ========================================================================== */
 (function () {
   'use strict';
@@ -102,80 +101,32 @@
   W.AX_BOLUM = api;
 
   /* -------------------- yan menü: bölüme göre lab'lar -------------------- */
-  var KEY_ALL = 'acadexLabsAll', KEY_OPEN = 'acadexLabsMoreOpen';
-  var showAll = function () { return lsafe(function () { return localStorage.getItem(KEY_ALL) === '1'; }, false); };
   var profile = function () { return lsafe(function () { return W.currentUserProfile; }, null); };
 
   var css = [
-    'body .ax-side .sidebar-item.ax-lab-off{display:none}',
-    'body .ax-side .ax-lab-more a{color:#4B5675}',
-    'body .ax-side .ax-lab-more a .ax-chev{transition:transform .2s}',
-    'body .ax-side .ax-lab-more[data-open="1"] a .ax-chev{transform:rotate(90deg)}',
-    'body .ax-side .sidebar-item.ax-lab-fold{padding-left:10px}',
-    '.ax-labs-all{grid-column:1/-1;display:flex!important;flex-direction:row!important;gap:10px;align-items:flex-start;font-weight:500;cursor:pointer}',
-    '.ax-labs-all input[type=checkbox]{width:20px!important;height:20px!important;min-height:0!important;margin:2px 0 0!important;padding:0!important;border:0!important;box-shadow:none!important;background:none!important;flex:none;accent-color:#2F6BFF}',
-    '.ax-labs-all small{display:block;color:#4B5675;font-weight:400}',
     '.ax-dept-card{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 16px;padding:12px 16px;border:1.5px dashed #9FB4E8;border-radius:8px;background:#F5F8FF;color:#1A2A5C;font-size:15px;line-height:1.45}',
     '.ax-dept-card b{font-weight:700}',
     '.ax-dept-card .ax-dc-a{display:flex;gap:8px;align-items:center}',
     '.ax-dept-card button{min-height:40px;border-radius:999px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer}',
     '.ax-dept-card .go{border:0;background:#2F6BFF;color:#fff}',
     '.ax-dept-card .x{border:0;background:none;color:#4B5675;text-decoration:underline;text-underline-offset:3px}',
-    '@media (prefers-reduced-motion: reduce){body .ax-side .ax-lab-more a .ax-chev{transition:none}}'
   ].join('\n');
 
-  var more = null;
-  var ensureMore = function () {
-    if (more && more.isConnected) return more;
-    var anchor = D.getElementById('side-studylab') || D.getElementById('side-medlab');
-    if (!anchor || !anchor.parentNode) return null;
-    if (!D.getElementById('ax-bolum-css')) { var st = D.createElement('style'); st.id = 'ax-bolum-css'; st.textContent = css; D.head.appendChild(st); }
-    more = D.createElement('li');
-    more.className = 'sidebar-item ax-lab-more ax-lab-off';
-    more.id = 'side-labs-more';
-    more.innerHTML = '<a href="#" role="button" aria-expanded="false" aria-controls="side-medlab side-finans"><svg class="ax-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5 L15.5 12 L9 18.5"/></svg><span class="lbl">diğer laboratuvarlar</span></a>';
-    /* katlı lab'ların hemen önüne koy: lab'lar her zaman Study Lab'dan sonra gelir */
-    var labsLis = LABS.map(function (k) { return D.getElementById('side-' + k); }).filter(Boolean);
-    var last = labsLis.length ? labsLis[labsLis.length - 1] : anchor;
-    last.parentNode.insertBefore(more, last.nextSibling);
-    more.querySelector('a').addEventListener('click', function (e) {
-      e.preventDefault();
-      var open = more.getAttribute('data-open') !== '1';
-      lsafe(function () { localStorage.setItem(KEY_OPEN, open ? '1' : '0'); });
-      apply();
-    });
-    return more;
-  };
-
+  /* 27.11.2026: "diğer laboratuvarlar" katlaması kaldırıldı. Bütün lab'lar her zaman görünür;
+     bölüme uyanlar Study Lab'ın hemen ardından, diğerleri onların altında sıralanır. */
   var lastSig = '';
   var apply = function () {
     var p = profile();
     var dept = p ? (p.department || '') : null;
-    var m = ensureMore(); if (!m) return;
-    var want = dept == null || showAll() ? null : api.labsFor(dept);
-    var folded = want ? LABS.filter(function (k) { return want.indexOf(k) < 0 && D.getElementById('side-' + k); }) : [];
-    /* katlı bir lab açıkken (Ctrl+K, bağlantı) grubu kendiliğinden aç */
-    var activeFolded = folded.some(function (k) { var li = D.getElementById('side-' + k); return li && li.classList.contains('active'); });
-    var open = activeFolded || lsafe(function () { return localStorage.getItem(KEY_OPEN) === '1'; }, false);
-    LABS.forEach(function (k) {
-      var li = D.getElementById('side-' + k); if (!li) return;
-      var f = folded.indexOf(k) > -1;
-      li.classList.toggle('ax-lab-fold', f);
-      li.classList.toggle('ax-lab-off', f && !open);
-    });
-    /* öne çıkan lab'lar Study Lab'ın hemen ardından, katlılar "diğer"in altında */
-    var ul = m.parentNode, sl = D.getElementById('side-studylab');
-    if (want && sl && sl.parentNode === ul) {
-      var after = sl;
-      want.forEach(function (k) { var li = D.getElementById('side-' + k); if (li && li.parentNode === ul) { ul.insertBefore(li, after.nextSibling); after = li; } });
-      ul.insertBefore(m, after.nextSibling); after = m;
-      folded.forEach(function (k) { var li = D.getElementById('side-' + k); if (li) { ul.insertBefore(li, after.nextSibling); after = li; } });
+    if (!D.getElementById('ax-bolum-css')) { var st = D.createElement('style'); st.id = 'ax-bolum-css'; st.textContent = css; D.head.appendChild(st); }
+    var eski = D.getElementById('side-labs-more'); if (eski) eski.remove();
+    var want = dept == null ? null : api.labsFor(dept);
+    LABS.forEach(function (k) { var li = D.getElementById('side-' + k); if (li) li.classList.remove('ax-lab-fold', 'ax-lab-off'); });
+    var sl = D.getElementById('side-studylab');
+    if (want && sl && sl.parentNode) {
+      var ul = sl.parentNode, after = sl;
+      want.concat(LABS.filter(function (k) { return want.indexOf(k) < 0; })).forEach(function (k) { var li = D.getElementById('side-' + k); if (li && li.parentNode === ul) { ul.insertBefore(li, after.nextSibling); after = li; } });
     }
-    m.classList.toggle('ax-lab-off', !folded.length);
-    m.setAttribute('data-open', open ? '1' : '0');
-    var a = m.querySelector('a'); a.setAttribute('aria-expanded', open ? 'true' : 'false');
-    a.setAttribute('aria-controls', folded.map(function (k) { return 'side-' + k; }).join(' '));
-    a.querySelector('.lbl').textContent = (folded.length === 1 ? 'diğer laboratuvar' : 'diğer laboratuvarlar') + ' (' + folded.length + ')';
     D.documentElement.setAttribute('data-ax-faculty', dept ? api.faculty(dept) || 'diger' : 'none');
     deptCard(p);
   };
@@ -202,14 +153,7 @@
       s.__axBolum = true;
       var p = profile();
       api.fill(s, p && p.department ? p.department : s.value);
-      var lab = s.closest('label');
-      if (lab && !D.getElementById('settings-labs-all')) {
-        var w = D.createElement('label'); w.className = 'fld ax-labs-all';
-        w.innerHTML = '<input type="checkbox" id="settings-labs-all"><span>Tüm laboratuvarları menüde göster <small>kapalıyken bölümüne uymayanlar “diğer laboratuvarlar” altında durur</small></span>';
-        lab.parentNode.insertBefore(w, lab.nextSibling);
-        var cb = w.querySelector('input'); cb.checked = showAll();
-        cb.addEventListener('change', function () { lsafe(function () { localStorage.setItem(KEY_ALL, cb.checked ? '1' : '0'); }); apply(); });
-      }
+      var eskiK = D.getElementById('settings-labs-all'); if (eskiK) { var lw = eskiK.closest('label'); if (lw) lw.remove(); }
     }
     /* loadSettingsView değeri sonradan yazar; listede yoksa eklensin */
     if (s) { var pp = profile(); if (pp && pp.department && s.value !== pp.department && !s.matches(':focus')) api.fill(s, pp.department); }
@@ -217,7 +161,7 @@
 
   var tick = function () {
     var p = profile();
-    var sig = (p ? 'p:' + (p.department || '') : 'none') + '|' + showAll() + '|' + LABS.map(function (k) { var li = D.getElementById('side-' + k); return li && li.classList.contains('active') ? 1 : 0; }).join('');
+    var sig = (p ? 'p:' + (p.department || '') : 'none') + '|' + LABS.map(function (k) { var li = D.getElementById('side-' + k); return li && li.classList.contains('active') ? 1 : 0; }).join('');
     settings();
     if (sig !== lastSig) { lastSig = sig; lsafe(apply); }
   };
