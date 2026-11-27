@@ -49,7 +49,7 @@ test('T1 teknikQA yalnız okur: kaydettirmez, çizmez, sığdırmaz, bildirim g�
 
 test('T2 kodlar tek tabloda: kullanılan her kod TEKNIK\'te, TEKNIK\'teki her kod bir yerde üretiliyor; sayısal teknik puan yok', () => {
   const tablo = Object.keys(Function('return ' + BLOK.slice(BLOK.indexOf('{'), BLOK.indexOf('\n  };\n') + 4))());
-  assert.equal(tablo.length, 27);
+  assert.equal(tablo.length, 35);      /* #38: +8 deterministik kural (sayı ×2, meta, yerel ayar, kaynaksız, atıf ×3) */
   const govde = ink.replace(BLOK.slice(0, BLOK.indexOf('\n  };\n')), '');
   const kullanilan = new Set((govde.match(/'([A-Z][A-Z_]{4,})'/g) || []).map((x) => x.slice(1, -1)).filter((x) => /_/.test(x) && tablo.includes(x) || /^(DECK|SLIDE|PLACEHOLDER|EL|LAYOUT|CHART|TABLE|IMG|CREDIT|TEXT|FONT|REFS|FALLBACK|SNAPSHOT|EXPORT|PDF)_/.test(x)));
   kullanilan.forEach((k) => assert.ok(tablo.includes(k), 'tabloda olmayan kod: ' + k));
@@ -86,7 +86,8 @@ test('T5 F1/F2/F3 kaynakta: yönetmen puanı nihai değil, istek eksik yönde ve
   assert.ok(ink.includes('if (plotMeta.yolDir) { plotMeta.kaynakKalite = plotMeta.quality; plotMeta.quality = null; }'));
   assert.ok(ink.includes("plotMeta.yol = plotMeta.yolDir ? { k: 'director', yedek: 1 } : { k: 'legacy', yedek: plotMeta.webFail ? 1 : 0 };"));
   assert.ok(ink.includes('plotMeta.istek = o.n > 0 ? +o.n : 0;'));
-  assert.ok(ink.includes("slideCount: ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length }"));
+  /* #38: ifade "adet" değişkenine taşındı; kesin sayılı destede (yol.tam) istek toplamdır ve fazla yönü yerel SLIDE_COUNT_OVER söyler */
+  assert.ok(ink.includes("var adet = ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length;") && ink.includes('slideCount: adet }'));
   assert.deepEqual(ink.match(/plotMeta\.via = '\w+'/g), ['ai', 'docstory', 'local', 'research', 'ai', 'skeleton'].map((v) => "plotMeta.via = '" + v + "'"), 'via değiştirildi (Phase 4 ayrı alan kullanır)');
 });
 
@@ -95,7 +96,7 @@ const DIR = loadFromSource('supabase/functions/acadia-presentation-director/inde
   'normalizeCards', 'normalizeChart', 'normalizeDiagram', 'normalizeSteps', 'normalizeTable', 'normalizeSlide', 'normalizeDeck', 'restoreMeasured', 'qualityDeck']);
 /* critique eylemi (index.ts 662) birebir: sayı → normalizeDeck → restoreMeasured → qualityDeck */
 const critique = (body) => { const raw = body.presentation, count = DIR.clampInt(body.slideCount ?? raw.slides.length, 1, 30, raw.slides.length || 1), deck = DIR.normalizeDeck(raw, count, 'topic'); DIR.restoreMeasured(deck, raw); return DIR.qualityDeck(deck, count, 'topic'); };
-const istemciSayi = Function('ist', 'uretilen', 'sl', 'return ' + ink.match(/slideCount: (ist > uretilen \? Math\.min\(sl\.length \+ \(ist - uretilen\), Math\.floor\(sl\.length \* 4 \/ 3\)\) : sl\.length) \}/)[1] + ';');
+const istemciSayi = Function('ist', 'uretilen', 'sl', 'return ' + ink.match(/var adet = (ist > uretilen \? Math\.min\(sl\.length \+ \(ist - uretilen\), Math\.floor\(sl\.length \* 4 \/ 3\)\) : sl\.length);/)[1] + ';');
 const T6 = [48, 46, 0, 15, 0, 17, 0, 37, 0, 0, 6, 37];
 const kelime = (n) => Array.from({ length: n }, (_, i) => ['enerji', 'verim', 'şehir', 'ölçüm', 'kaynak', 'yatırım', 'iklim', 'uyum'][i % 8] + (i + 1)).join(' ');
 const t6Govde = (olcumlu) => ({ title: 'T6', slides: T6.map((n, i) => ({ title: 'Asetat ' + (i + 1), speaker_notes: kelime(30), content: Object.assign({ text: kelime(n), design_variant: i === 0 ? 'cover' : 'list', look: (i === 0 ? 'cover' : 'list') + ':' + (i % 3) }, olcumlu ? { has_visual: false, placeholder: false } : {}) })) });
@@ -150,7 +151,8 @@ if (!CHROME) {
     { k: 'time', t: 'Kent planının tarihçesi', b: ['1985: ilk yeşil alan yönetmeliği', '2004: bisiklet yolu planı', '2019: ısı haritası', '2023: iklim uyum eylem planı'] },
     { k: 'list', t: 'Sonuç ve öneriler', b: ['Isı haritası olmadan yatırım önceliklendirilmemeli', 'Gölge ve su çözümleri birlikte planlanmalı', 'Her proje ölçümle izlenmeli'] },
     { k: 'end', t: 'Teşekkürler', b: [] }];
-  const PM = { title: 'Teknik', sub: 't', lang: 'tr', source: 'topic', sourceId: null, yol: { k: 'research', yedek: 0 }, sources: [], istek: 7 };
+  /* #38: kaynaksız araştırma destesi artık NO_SOURCES (sıfır kaynak temiz geçmez); geçerli deste fikstürü kaynak gerektirmeyen yedeksiz yoldan */
+  const PM = { title: 'Teknik', sub: 't', lang: 'tr', source: 'topic', sourceId: null, yol: { k: 'legacy', yedek: 0 }, sources: [], istek: 7 };
   const KALITE = { version: 11, quality: { score: 84, issues: ['weak_speaker_notes'], pass: true } };
   const ONCU = (kalite) => `
     window.__inv = []; window.__body = []; window.__hata = []; window.__toast = []; window.__say = { save: 0, push: 0 }; window.__print = 0; var QA = window.__QA;
@@ -351,7 +353,7 @@ if (!CHROME) {
     assert.deepEqual(Object.keys(q.teknik).sort(), ['codes', 'errors', 'status', 'v', 'warnings']);
     assert.equal(q.teknik.v, 1); assert.equal(q.teknik.errors, 0); assert.notEqual(q.teknik.status, 'error');
     assert.deepEqual(q.icerik, { score: 84, pass: true, issues: ['weak_speaker_notes'] }); assert.equal(q.score, 84); assert.equal(s, 84); assert.deepEqual(q.issues, ['weak_speaker_notes']); assert.equal(q.pass, true);
-    assert.deepEqual(Object.keys(q.yol).sort(), ['istek', 'k', 'kaynak', 'uret', 'yedek']); assert.equal(q.yol.k, 'research'); assert.equal(q.yol.istek, 7); assert.equal(q.yol.uret.length, A.acik.yol.uret.length);
+    assert.deepEqual(Object.keys(q.yol).sort(), ['istek', 'k', 'kaynak', 'tam', 'uret', 'yedek']); assert.equal(q.yol.k, 'legacy'); assert.equal(q.yol.istek, 7); assert.equal(q.yol.uret.length, A.acik.yol.uret.length);
     assert.ok(!/https?:|Şehir|şehir/.test(JSON.stringify(q.teknik) + JSON.stringify(q.yol)), 'teknik özette kullanıcı metni/URL');
     const k = A.kapali.satir.quality_report; assert.deepEqual(k.teknik, { v: 1, status: 'pass', errors: 0, warnings: 0, codes: [] }); assert.equal(A.kapali.satir.quality_score, 84);
     assert.equal(A.acik.rozet.kalite, 'kalite 84/100');

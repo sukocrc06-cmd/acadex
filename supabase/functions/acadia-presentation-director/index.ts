@@ -463,9 +463,27 @@ function normalizeDeck(value: Record<string, unknown>, slideCount: number, sourc
 }
 
 function words(value: string) { return cleanText(value).split(/\s+/).filter(Boolean).length }
-function repeatedFacts(texts: string[]) {
+// #38: "%72", "%73", "%69" iki haneli olduğu için sayılmıyordu; grafik rakamları da hiç gelmiyordu (yalnız madde yazısı).
+// Yüzde işaretli iki haneli sayı ayırt edicidir; grafik verisinde 10 ve üstü (yıl değil) değer de sayılır.
+// Yüzdesiz iki haneli sayı ("12 ülke") hâlâ sayılmaz.
+function repeatedFacts(texts: string[], charts: unknown[][] = []) {
   const seen = new Map<string, number>()
-  texts.forEach(text => { new Set((text.match(/\d+(?:[.,]\d+)*/g) || []).filter(x => !/^(1[5-9]|20)\d{2}$/.test(x) && (/[.,]/.test(x) || x.length >= 3)).map(x => x.replace(/[.,]/g, ''))).forEach(x => seen.set(x, (seen.get(x) || 0) + 1)) })
+  const isYear = (x: string) => /^(1[5-9]|20)\d{2}$/.test(x)
+  texts.forEach((text, i) => {
+    const keys = new Set<string>()
+    ;(text.match(/%\s?\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*(?:\s?%)?/g) || []).forEach(raw => {
+      const pct = raw.includes('%'), x = raw.replace(/[%\s]/g, '')
+      if (isYear(x)) return
+      if (/[.,]/.test(x) || x.length >= 3 || (pct && x.length >= 2)) keys.add(x.replace(/[.,]/g, ''))
+    })
+    ;(charts[i] || []).forEach(v => {
+      const n = Number(v)
+      if (!Number.isFinite(n) || Math.abs(n) < 10) return
+      const x = String(n).replace('-', '')
+      if (!isYear(x)) keys.add(x.replace(/[.,]/g, ''))
+    })
+    keys.forEach(x => seen.set(x, (seen.get(x) || 0) + 1))
+  })
   return [...seen.values()].filter(n => n > 1).length
 }
 // CRITIQUE ÖLÇÜMÜ CANLIDA ÖLÜYDÜ (14.11.2026): normalizeSlide istemcinin gönderdiği
@@ -527,7 +545,8 @@ function qualityDeck(deck: { title: string; slides: any[] }, requestedCount: num
     const body = deck.slides.filter((slide, index) => index > 0 && index < last && !['cover','refs','end'].includes(String(slide.content?.design_variant)))
     const thin = body.filter(slide => ['list','two','time'].includes(String(slide.content?.design_variant)) && slide.content?.placeholder !== true && words(String(slide.content?.text || '')) > 0 && words(String(slide.content?.text || '')) < 15).length
     if (thin) { score -= Math.min(18, thin * 6); issues.push('thin_slides') }
-    const repeated = repeatedFacts(body.slice(0, -1).map(slide => String(slide.content?.text || '')))
+    const rb = body.slice(0, -1)
+    const repeated = repeatedFacts(rb.map(slide => String(slide.content?.text || '')), rb.map(slide => Array.isArray((slide.content as any)?.chart?.data) ? (slide.content as any).chart.data : []))
     if (repeated >= 2) { score -= Math.min(15, repeated * 3); issues.push('repeated_facts') }
   }
   if (sourceType !== 'topic') {

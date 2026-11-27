@@ -6462,8 +6462,12 @@ var SBX = (function () {
     return Promise.race([c.functions.invoke(name, { body: body }), new Promise(function (_, rej) { setTimeout(function () { rej(new Error('zaman aşımı')); }, ms || 45000); })])
       .then(function (r) { if (r.error) throw r.error; var d = r.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) {} } if (d && d.error) throw new Error(d.error); return d; });
   };
-  var deptName = function () { var p = profile(); if (!p.department) return ''; return lsafe(function () { return translateDepartment(p.department); }, p.department) || p.department; };
-  var subLine = function () { var p = profile(); return [deptName(), p.full_name].filter(Boolean).join(' · ') || 'Acadex'; };
+  /* İNGİLİZCE KAPAK (#38): İngilizce destede bölüm adı yalnız güvenilir İngilizce karşılığıyla yazılır. profiles.department
+     kayıtlı İngilizce bölüm adıdır (AX_BOLUM); listede yoksa (elle yazılmış ad) İngilizce kapağa Türkçe ad konmaz. */
+  var deptName = function (lang) { var p = profile(); if (!p.department) return ''; if (lang === 'en') return window.AX_BOLUM && window.AX_BOLUM.valid(p.department) ? String(p.department) : ''; return lsafe(function () { return translateDepartment(p.department); }, p.department) || p.department; };
+  var subLine = function (lang) { var p = profile(); return [deptName(lang), p.full_name].filter(Boolean).join(' · ') || 'Acadex'; };
+  /* deste dilinde ilk harf (#38): tr kuralı İngilizce "it" maddesini "İt", "immune"u "İmmune" yapıyordu */
+  var ilkBuyuk = function (t, lang) { t = String(t || ''); return t.charAt(0).toLocaleUpperCase((lang || (deck && deck.lang)) === 'en' ? 'en' : 'tr') + t.slice(1); };
   /* görünen ad kodsuz (R40/R63, window.axDocTitle dashboard.js'te) */
   var baseName = function (n) { if (window.axDocTitle) return window.axDocTitle(n); n = String(n || '').replace(/\.[a-z0-9]{2,5}$/i, ''); var m = n.match(/^\d{10,}_(?:\d{10,}_)?(.+)$/); if (m) n = m[1]; return n.replace(/_+/g, ' ').trim() || 'İsimsiz belge'; };
   var stripMd = function (t) { return String(t || '').replace(/\$\$?[^$]*\$\$?/g, ' ').replace(/[#*_`>|]/g, '').replace(/\[(\d+)\]/g, '').replace(/\s+/g, ' ').trim(); };
@@ -6493,7 +6497,7 @@ var SBX = (function () {
     toast.hidden = false; clearTimeout(tT); tT = setTimeout(function () { toast.hidden = true; undoFn = null; }, 5600);
   };
   toastB.addEventListener('click', function () { if (undoFn) undoFn(); toast.hidden = true; undoFn = null; });
-  toastA.addEventListener('click', function (e) { var h = toastA.getAttribute('href') || ''; if (h === '#sx-yazi-tipi') { e.preventDefault(); toast.hidden = true; yaziTipiTekrar(); return; } if (h.charAt(0) === '#' && typeof switchDashboardView === 'function') { e.preventDefault(); toast.hidden = true; switchDashboardView(h.slice(1)); } });
+  toastA.addEventListener('click', function (e) { var h = toastA.getAttribute('href') || ''; if (h === '#sx-yazi-tipi') { e.preventDefault(); toast.hidden = true; yaziTipiTekrar(); return; } if (h === '#sx-tasma') { e.preventDefault(); toast.hidden = true; if (tasmaGit.length) go(tasmaGit[0] - 1); return; } if (h.charAt(0) === '#' && typeof switchDashboardView === 'function') { e.preventDefault(); toast.hidden = true; switchDashboardView(h.slice(1)); } });
   /* Şablon yazısı yüklenemedi (P1): kurtarılabilir bildirim; "Yeniden dene" yüklemeyi baştan çalıştırır, başarırsa yeniden sığdırır. */
   var yaziTipiUyar = function () { say('Şablon yazı tipi yüklenemedi; varsayılan yazı tipiyle gösteriliyor.', null, '#sx-yazi-tipi', 'Yeniden dene'); };
   /* Yazı doğrulaması bitti: yeniden sığdırma tek yoldan, yaziSonra → yaziUyum üzerinden yapılır (çift sığdırma yok). */
@@ -6764,7 +6768,7 @@ var SBX = (function () {
     var d = c && c.data && arr(c.data.stats); return d && d.length ? d.slice(0, 3) : fromB;
   };
   var LAY = {
-    cover: { l: 'kapak', f: function (t, b, c) { return [E('h', 80, 150, 800, 150, { text: t, size: 60 }), E('mark', 80, 300, 300, 22, { color: BLUE }), E('t', 80, 340, 800, 40, { text: (c && c.sub) || subLine(), size: 22, color: SOFT })]; } },
+    cover: { l: 'kapak', f: function (t, b, c) { return [E('h', 80, 150, 800, 150, { text: t, size: 60 }), E('mark', 80, 300, 300, 22, { color: BLUE }), E('t', 80, 340, 800, 40, { text: (c && c.sub) || subLine(deck.lang), size: 22, color: SOFT })]; } },
     list: { l: 'madde', f: function (t, b) { return head(t).concat([E('ul', 90, 160, 780, 340, b && b.length ? { text: b.join('\n'), size: 26 } : { text: 'ana fikri yaz\nbir örnek ver\nneden önemli?', size: 26, muted: true })]); } },
     two: { l: 'iki kolon', f: function (t, b, c) { b = b || []; var h = ikiBol(b, c); return head(t).concat([
       E('t', 70, 160, 390, 40, { text: (c && c.heads && c.heads[0]) || 'birinci taraf', size: 22, color: BLUE, bold: true }), E('ul', 70, 206, 390, 290, b.length ? { text: b.slice(0, h).join('\n'), size: 22 } : { text: 'madde\nmadde', size: 22, muted: true }),
@@ -6892,7 +6896,7 @@ var SBX = (function () {
   /* sütun adını ya da kısaltmasını yineleyen önek: "Artificial Intelligence" altında "AI: …" (25.11.2026) */
   var onekTaraf = function (hd, p) { var h = String(hd || '').toLocaleLowerCase('tr').trim(), q = String(p || '').toLocaleLowerCase('tr').trim(), kis = h.split(/[\s-]+/).filter(Boolean).map(function (w) { return w.charAt(0); }).join(''); return !!q && (h.indexOf(q) === 0 || (kis.length >= 2 && q.replace(/[^\p{L}\d]/gu, '') === kis)); };
   var taraflar = function (b, c) { var h = ikiBol(b, c); return [b.slice(0, h), b.slice(h)].map(function (bb, k) { var hd = (c && c.heads && c.heads[k]) || (k ? 'ikinci taraf' : 'birinci taraf');
-    return { hd: hd, it: bb.map(function (x) { var m = String(x).match(/^([^:]{3,32}):\s+(.{8,})$/); return m && onekTaraf(hd, m[1]) ? m[2].charAt(0).toLocaleUpperCase('tr') + m[2].slice(1) : x; }) }; }); };
+    return { hd: hd, it: bb.map(function (x) { var m = String(x).match(/^([^:]{3,32}):\s+(.{8,})$/); return m && onekTaraf(hd, m[1]) ? ilkBuyuk(m[2]) : x; }) }; }); };
   var VARY = {
     list: [
       /* 1 · kartlar: 3-4 kısa madde yan yana numaralı kutularda */
@@ -6924,7 +6928,7 @@ var SBX = (function () {
          (kartlar) ayırt edilemiyordu — canlı destede (14.11.2026) 7, 9 ve 10. asetat aynı üç kart gibi göründü. */
       function (t, b) { if (!kisa(b, 2, 4, 200)) return null; var ps = b.map(function (x) { return String(x).match(/^([^:]{3,36}):\s+(.{20,})$/); }); if (!ps.every(Boolean)) return null;
         var n = b.length, w = Math.floor((820 - (n - 1) * 30) / n), out = head(t);
-        ps.forEach(function (m, i) { var X0 = 70 + i * (w + 30); out.push(E('rect', X0, 164, w, 5, { fill: BLUE })); out.push(E('t', X0, 184, w, 66, { text: m[1].trim(), size: n > 3 ? 20 : 24, bold: true, color: NAVY })); out.push(E('rect', X0, 258, 44, 3, { fill: '#DCE6FF' })); out.push(E('t', X0, 274, w, 214, { text: m[2].charAt(0).toLocaleUpperCase('tr') + m[2].slice(1), size: n > 3 ? 17 : n > 2 ? 20 : 23 })); });
+        ps.forEach(function (m, i) { var X0 = 70 + i * (w + 30); out.push(E('rect', X0, 164, w, 5, { fill: BLUE })); out.push(E('t', X0, 184, w, 66, { text: m[1].trim(), size: n > 3 ? 20 : 24, bold: true, color: NAVY })); out.push(E('rect', X0, 258, 44, 3, { fill: '#DCE6FF' })); out.push(E('t', X0, 274, w, 214, { text: ilkBuyuk(m[2]), size: n > 3 ? 17 : n > 2 ? 20 : 23 })); });
         return out; },
       /* 8 · daireler: numaralı daireler bir çizgiye dizili, metin altında ortalı (hazır taslakların "Süreç" iskeleti) */
       function (t, b) { if (!kisa(b, 3, 4, 140)) return null; var n = b.length, w = Math.floor(820 / n), yr = Math.round(w / 2), out = head(t).concat([E('rect', 70 + yr, 205, w * (n - 1), 3, { fill: '#DCE6FF' })]);
@@ -7017,7 +7021,7 @@ var SBX = (function () {
          (canlı deste 14.11.2026: iki kolonun altı boştu, önek başlığın aynısıydı). */
       function (t, b, c) { b = b || []; if (b.length < 2) return null; var h = ikiBol(b, c), out = head(t);
         [[70, b.slice(0, h), 0], [500, b.slice(h), 1]].forEach(function (k) { var hd = (c && c.heads && c.heads[k[2]]) || (k[2] ? 'ikinci taraf' : 'birinci taraf');
-          var it = k[1].map(function (x) { var m = String(x).match(/^([^:]{3,32}):\s+(.{8,})$/); return m && onekTaraf(hd, m[1]) ? m[2].charAt(0).toLocaleUpperCase('tr') + m[2].slice(1) : x; });
+          var it = k[1].map(function (x) { var m = String(x).match(/^([^:]{3,32}):\s+(.{8,})$/); return m && onekTaraf(hd, m[1]) ? ilkBuyuk(m[2]) : x; });
           out.push(E('rect', k[0], 160, 390, 330, { fill: '#EEF3FF' })); out.push(E('rect', k[0], 160, 390, 54, { fill: TINT[k[2]] })); out.push(E('t', k[0] + 18, 172, 354, 32, { text: hd, size: 21, bold: true }));
           out.push(it.length === 1 ? E('t', k[0] + 20, 236, 350, 236, { text: it[0], size: 24 }) : E('ul', k[0] + 10, 232, 370, 246, { text: it.join('\n'), size: 21 })); });
         return out; },
@@ -8260,6 +8264,14 @@ var SBX = (function () {
     EL_OVERLAP: ['warning', 'iki öğe üst üste biniyor', 'two elements overlap'],
     REFS_MISSING: ['warning', 'kaynakça asetatı yok', 'references slide missing'],
     FALLBACK_PATH: ['warning', 'yedek yoldan üretildi', 'generated through a fallback path'],
+    SLIDE_COUNT_OVER: ['warning', 'istenenden fazla sayfa', 'more slides than requested'],
+    SLIDE_COUNT_UNDER: ['warning', 'istenenden az sayfa', 'fewer slides than requested'],
+    META_TEXT: ['warning', 'asetatta sunuma değil üretime ait yazı', 'slide text talks about the generation, not the topic'],
+    LOCALE_CASE: ['warning', 'İngilizce yazıda Türkçe büyük İ', 'Turkish dotted capital İ in English text'],
+    NO_SOURCES: ['error', 'araştırma destesinde kaynak yok', 'research deck has no sources'],
+    CITE_UNMAPPED: ['warning', 'kaynakçada karşılığı olmayan atıf', 'citation with no matching reference'],
+    REF_UNUSED: ['info', 'hiç atıf yapılmayan kaynak', 'reference never cited'],
+    CITE_FORMAT: ['warning', 'bozuk atıf biçimi', 'malformed citation'],
     SNAPSHOT_PENDING: ['info', 'paylaşım görüntüsü bekliyor', 'share snapshot pending'],
     EXPORT_FAILED: ['error', 'PowerPoint dosyası hazırlanamadı', 'PowerPoint export failed'],
     EXPORT_IMG_DROPPED: ['error', 'fotoğraf dışa aktarılamadı', 'photo could not be exported'],
@@ -8301,6 +8313,49 @@ var SBX = (function () {
       var ix = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x), iy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
       if (ix * iy > .15 * Math.min(A.w * A.h, B.w * B.h)) add('EL_OVERLAP', null, n, B.id);
     }
+  };
+  /* DETERMİNİSTİK İÇERİK KURALLARI (#38): yazının doğruluğuna bakılmaz (model çağrısı yok); yalnız sayı, dil kalıbı ve
+     atıf eşlemesi. Kapsam: görünen h/t/ul yazısı (soluk yer tutucu dışarıda). */
+  var META_RE = /\b(as an ai|as a language model|this slide (will|should|shows how)|here is (a|the|your) (slide|presentation|deck)|in this presentation,? (i|we) will|lorem ipsum|insert (text|image|chart) here|speaker notes?:|slide \d+ of \d+)\b|\b(yapay zek[âa] olarak|bu asetatta (şunları )?(göreceğiz|anlatacağım)|işte (sunum|asetat)|buraya (metin|görsel|grafik) (ekle|gelecek)|konuşmacı notu:)/i;
+  /* İngilizce sözcük gövdeleri: kısa olanlar tam sözcük (İstanbul "is", İnönü "in" diye yakalanmasın) */
+  var EN_I_RE = /^((it|its|in|into|is|if|instead|internet)$|immun|import|impact|improv|includ|increas|inform|integrat|intellig|internation|internet|invest|issue|identif|idea|imag|implement|industr|innovat|instead|interest|individual|initial|introduc|income|inflation|institut|interact|infrastructure)/i;
+  var ATIF_KAYNAK = '\\[\\s*([\\d\\s,–-]*)\\s*\\]';
+  /* İngilizce destede Türkçe kuralla büyütülmüş sözcük: "İt", "İmmune", "INTEGRATİNG". Türkçe özel adlar (İstanbul, İnönü,
+     EDİRNE, TÜRKİYE) korunur: başka Türkçe harf taşıyan ya da İngilizce kalıba uymayan sözcük işaretlenmez. */
+  var localeHata = function (w) {
+    if (w.length < 2 || w.indexOf('İ') < 0 || /[çğıöşüÇĞÖŞÜ]/.test(w)) return false;
+    if (w.charAt(0) === 'İ' && w.slice(1) !== w.slice(1).toLocaleUpperCase('tr')) return EN_I_RE.test('i' + w.slice(1));
+    if (w === w.toLocaleUpperCase('tr')) return /[QWX]/.test(w) || /(İNG|TİON|TİES|İTY|İVE|İCS|İSM)$/.test(w) || (w.match(/İ/g) || []).length >= 2 || EN_I_RE.test(w.replace(/İ/g, 'I').toLowerCase()) && /^(IT|ITS|IN|INTO|IS|IF)$/.test(w.replace(/İ/g, 'I'));
+    return false;
+  };
+  var teknikIcerik = function (d, sl, yol, uret, add) {
+    var yazi = function (s) { return arr(s && s.els).filter(function (e) { return e && !e.muted && /^(h|t|ul)$/.test(e.type) && e.text; }); };
+    /* sayı: kesin sayılı basımda istek toplamdır (kapak, gündem, kaynakça, kapanış dahil); elle eklenen/silinen asetat sayılmaz */
+    if (yol && yol.tam && yol.istek > 0) {
+      var ur = sl.filter(function (s) { return s && uret[String(s.id)]; }).length;
+      if (ur > yol.istek) add('SLIDE_COUNT_OVER', null, null, null); else if (ur < yol.istek && ur === arr(yol.uret).length) add('SLIDE_COUNT_UNDER', null, null, null);
+    }
+    if (yol && yol.k === 'research' && !(yol.kaynak > 0)) add('NO_SOURCES', null, null, null);
+    var refs = -1, R = 0, kul = {};
+    sl.forEach(function (s, i) { if (s && s.lay === 'refs' && refs < 0) { refs = i; yazi(s).forEach(function (e) { String(e.text).split('\n').forEach(function (l) { var m = l.match(/^\s*\[(\d+)\]/); if (m) R = Math.max(R, +m[1]); }); }); } });
+    sl.forEach(function (s, i) {
+      if (!s || s.lay === 'refs') return; var n = i + 1;
+      yazi(s).forEach(function (e) {
+        var t = String(e.text);
+        if (META_RE.test(t)) add('META_TEXT', null, n, e.id);
+        if (d.lang === 'en' && t.split(/[^A-Za-zÇĞİÖŞÜçğıöşüâîû]+/).some(localeHata)) add('LOCALE_CASE', null, n, e.id);
+        var m, atif = new RegExp(ATIF_KAYNAK, 'g');      /* her yazıya taze desen: paylaşılan /g deseninin konumu taşınmasın */
+        while ((m = atif.exec(t))) {
+          var ic = m[1].trim(); if (!ic && !/^\[\s*\]$/.test(m[0])) continue;
+          if (!ic || /^[,–-]|[,–-]$|,\s*,/.test(ic) || !/^\d/.test(ic)) { add('CITE_FORMAT', null, n, e.id); continue; }
+          var nums = []; ic.split(',').forEach(function (p) { var r = p.split(/[–-]/).map(function (x) { return +x.trim(); }); if (r.length === 2 && r[0] && r[1] >= r[0] && r[1] - r[0] < 50) for (var k = r[0]; k <= r[1]; k++) nums.push(k); else nums.push(r[0]); });
+          if (nums.some(function (k) { return !(k >= 1); })) { add('CITE_FORMAT', null, n, e.id); continue; }
+          nums.forEach(function (k) { kul[k] = 1; });
+          if (R ? nums.some(function (k) { return k > R; }) : !!yol) add('CITE_UNMAPPED', null, n, e.id);      /* kaynakçasız elle destedeki "[1, 2, 3]" (kod listesi) atıf sayılmaz */
+        }
+      });
+    });
+    if (refs >= 0 && R) { for (var k = 1; k <= R; k++) if (!kul[k]) { add('REF_UNUSED', null, refs + 1, null); break; } }
   };
   /* A + C + E — yapı, görsel ve bütün deste (DOM'suz). geo: geometri de ölçülsün mü. */
   var teknikTemel = function (d, geo) {
@@ -8347,6 +8402,7 @@ var SBX = (function () {
     if (yol && ((yol.k === 'skeleton' && yerli) || (icerik && yerli / icerik >= 0.5))) add('DECK_SKELETON', null, null, null);
     if (yol && yol.yedek) add('FALLBACK_PATH', null, null, null);
     if (yol && yol.kaynak > 0 && !sl.some(function (s) { return s && s.lay === 'refs'; })) add('REFS_MISSING', null, null, null);
+    teknikIcerik(d, sl, yol, uret, add);
     if (d.share && d.snapBekle) add('SNAPSHOT_PENDING', null, null, null);      /* görüntü kurulmaz, yalnız durumu söylenir */
     return out;
   };
@@ -8409,7 +8465,7 @@ var SBX = (function () {
     for (var k in q) if (Object.prototype.hasOwnProperty.call(q, k) && k !== 'icerik' && k !== 'teknik' && k !== 'yol' && k !== 'gorsel') r[k] = q[k];      /* gorsel: Phase 5, ayrı eklenir */
     r.score = et.score; r.pass = et.pass;
     r.icerik = { score: q.score, pass: typeof q.pass === 'boolean' ? q.pass : q.score >= 72, issues: arr(q.issues).slice() };
-    r.teknik = tq; if (d.yol && d.yol.k) r.yol = { k: String(d.yol.k), yedek: d.yol.yedek ? 1 : 0, kaynak: +d.yol.kaynak || 0, istek: +d.yol.istek || 0, uret: arr(d.yol.uret).map(String) };
+    r.teknik = tq; if (d.yol && d.yol.k) r.yol = { k: String(d.yol.k), yedek: d.yol.yedek ? 1 : 0, kaynak: +d.yol.kaynak || 0, istek: +d.yol.istek || 0, tam: d.yol.tam ? 1 : 0, uret: arr(d.yol.uret).map(String) };
     return r;
   };
   /* D2: kalite rozetinin yanında "teknik hata (N)" / "teknik uyarı (N)"; tıklayınca var olan Asetat denetimi açılır.
@@ -8711,6 +8767,14 @@ var SBX = (function () {
     EL_OVERLAP: ['Öğelerden birini taşı ya da küçült.', 'Move or shrink one of the elements.'],
     REFS_MISSING: ['Sona bir kaynakça asetatı ekle.', 'Add a references slide at the end.'],
     FALLBACK_PATH: ['İçeriği kaynakla karşılaştır; gerekirse yeniden oluştur.', 'Check the content against the source; generate again if needed.'],
+    SLIDE_COUNT_OVER: ['Fazla asetatları sil ya da birleştir.', 'Delete or merge the extra slides.'],
+    SLIDE_COUNT_UNDER: ['Eksik konuları elle ekle ya da daha az sayfa iste.', 'Add the missing topics yourself or ask for fewer slides.'],
+    META_TEXT: ['Bu cümleyi konunun kendisiyle değiştir ya da sil.', 'Replace the sentence with content about the topic or delete it.'],
+    LOCALE_CASE: ['"İ" harfini İngilizce "I" ile değiştir.', 'Replace the "İ" with an English "I".'],
+    NO_SOURCES: ['Araştırmayı yeniden dene ya da rakamları kendin doğrulayıp kaynak ekle.', 'Run the research again, or verify the numbers yourself and add sources.'],
+    CITE_UNMAPPED: ['Atıf numarasını kaynakçadaki bir satırla eşle ya da sil.', 'Match the citation number to a line in the references or delete it.'],
+    REF_UNUSED: ['Kaynağa bir asetatta atıf yap ya da kaynakçadan çıkar.', 'Cite the source on a slide or remove it from the references.'],
+    CITE_FORMAT: ['Atıfı [1] ya da [1, 2] biçiminde yaz.', 'Write the citation as [1] or [1, 2].'],
     SNAPSHOT_PENDING: ['Paylaşım görüntüsü kendiliğinden hazırlanır; bir şey yapman gerekmez.', 'The share snapshot is prepared automatically; no action needed.'],
     EXPORT_FAILED: ['PowerPoint’i yeniden indir; sürerse kaydedip sayfayı yenile.', 'Download the PowerPoint again; if it keeps failing, save and reload the page.'],
     EXPORT_IMG_DROPPED: ['Fotoğrafı yeniden yükleyip yeniden dışa aktar.', 'Upload the photo again and export again.'],
@@ -8995,6 +9059,83 @@ var SBX = (function () {
     if (/\s(the|of|and|in|to|for|with|on|an|a|how|what|why|introduction|analysis|market|theory|history|overview)\s/.test(t)) return 'en';
     return null;
   };
+  /* ---------- #41: KURGU ÖNERİSİ (Phase 1, yerel ve deterministik) ----------
+     "Acadia'dan öneri al" yalnız tıklanınca konu başlığındaki SÖZCÜK İŞARETLERİNE bakar; anlam çıkarmaz, ağ ve model çağrısı
+     yoktur. Kimlikler kurgu seçicisinin (data-pl-story) ve sunum-research STORY haritasının değerleridir. Güçlü işaret 2,
+     zayıf 1 puan; en yüksek ≥2 ve ikinciden en az 1 fazlaysa "clear", değilse "uncertain" ve otomatik önerilir. Anlatım
+     yalnız eşitlikte sırayı belirler, net kararı çevirmez. Yüzde ya da güven sayısı yoktur. Bu kısım DOM'a dokunmaz; ekran
+     ve yaşam döngüsü openPlot'tan sonraki blokta. Ayrı tutulan ölçüt listesi: tests/sunum-kurgu-oneri.js. */
+  var KURGU_ID = ['auto', 'problem', 'scqa', 'compare', 'chrono'];
+  var KURGU = {
+    auto: { ad: 'otomatik (giriş → gelişme → sonuç)', uyar: 'bir kavramı ya da alanı tanıtırken', neden: 'Başlık bir kavramı ya da alanı tanıtıyor; giriş → gelişme → sonuç düz ve anlaşılır akar.' },
+    problem: { ad: 'problem → çözüm → sonuç', uyar: 'bir sorun ve çözüm yolları anlatılırken', neden: 'Başlık bir sorunu ve onu çözme yollarını işaret ediyor; önce sorun, sonra çözümler izleyiciyi sonuca taşır.' },
+    scqa: { ad: 'durum → sorun → soru → cevap (SCQA)', uyar: 'bir vaka, olay ya da açık bir soru ele alınırken', neden: 'Başlık bir vakayı ya da açık bir soruyu işaret ediyor; durum → sorun → soru → cevap gerilimi korur.' },
+    compare: { ad: 'karşılaştırma (A mı, B mi?)', uyar: 'iki ya da daha çok seçenek tartılırken', neden: 'Başlık seçenekleri karşı karşıya koyuyor; ölçüt ölçüt karşılaştırma kararı izleyiciye gösterir.' },
+    chrono: { ad: 'kronolojik (dün → bugün → yarın)', uyar: 'bir şeyin zaman içindeki değişimi anlatılırken', neden: 'Başlık zaman içindeki bir değişimi anlatıyor; dün → bugün → yarın sırası dönüm noktalarını görünür kılar.' }
+  };
+  var KURGU_BELIRSIZ = 'Başlıkta belirgin bir kurgu işareti yok; otomatik iskelet güvenli seçim, alternatif de uyabilir.';
+  var KURGU_ALT = { compare: 'problem', chrono: 'auto', problem: 'scqa', scqa: 'problem', auto: 'problem' };
+  var KURGU_TON = { hikaye: ['scqa', 'chrono'], kurumsal: ['problem'], ozet: ['auto'] };
+  /* [kurgu, puan, kalıp, ham (sınır ekleme), gösterilen ad]. Sınır "harf/rakam değil": \b Türkçe harfte çalışmaz. Çıplak
+     "problem", "ile", "and", "evolution", "comparative" bilerek güçlü işaret DEĞİL (Problem-based learning, Python ile veri
+     analizi, Supply and demand, Theory of Evolution). */
+  var KURGU_IS = [
+    ['compare', 2, 'vs\\.?|versus|compar(?:ed|ing)|comparison|differences? between|pros and cons|advantages and disadvantages|karşılaştırma\\p{L}*|kıyasla\\p{L}*|farkları|farklar\\p{L}*|arasındaki fark\\p{L}*|avantaj\\p{L}* ve dezavantaj\\p{L}*|karşısında'],
+    ['compare', 2, '(?:^|\\s)(?:mı|mi|mu|mü)[,;]?\\s.+\\s(?:mı|mi|mu|mü)\\s*\\??\\s*$', 1, '… mı, … mı'],
+    ['compare', 1, 'or|which|better than|worse than|hangisi|daha iyi'],
+    ['compare', 1, '(?:traditional|conventional|geleneksel)(?:\\s.*\\s|\\s)(?:digital|modern|online|ai|dijital|yeni)', 0, 'geleneksel … yeni'],
+    ['chrono', 2, 'history|histories|historical|has evolved|have evolved|evolved|evolution of|timeline|chronolog\\p{L}*|kronoloj\\p{L}*|tarih\\p{L}*|dünden bugüne|geçmişten günümüze|günümüze kadar'],
+    ['chrono', 2, 'from\\s.+\\sto\\s.+', 0, 'from … to …'],
+    ['chrono', 2, '(?:1[5-9]|20)\\d{2}s?\\s*(?:-|–|—|to|and|until|ile|ve)\\s*(?:1[5-9]|20)\\d{2}|since\\s+(?:the\\s+)?(?:1[5-9]|20)\\d{2}', 1, 'yıl aralığı'],
+    ['chrono', 2, "\\p{L}'(?:dan|den|tan|ten)\\s.*\\p{L}'(?:y?a|y?e|na|ne)(?![\\p{L}\\p{N}])", 1, "…'dan …'e"],
+    ['chrono', 1, 'evolution|evolving|origins?|rise of|rise and fall|century|centuries|decades?|changed|changing|transformation|köken\\p{L}*|gelişim\\p{L}*|evrim\\p{L}*|yüzyıl\\p{L}*|dönüşüm\\p{L}*|değişim\\p{L}*'],
+    ['problem', 2, 'how to|ways to|ways of|strategies (?:for|to)|solutions?|solving|tackling|tackle|preventing|prevent|reducing|reduce|overcoming|overcome|combating|combat|fighting|addressing|mitigating|dealing with|coping with|çözüm\\p{L}*|çözme\\p{L}*|önle\\p{L}*|önlem\\p{L}*|azalt\\p{L}*|mücadele\\p{L}*|başa çık\\p{L}*|yolları|stratejileri|nasıl (?:önlenir|azaltılır|çözülür|çözülebilir|aşılır)'],
+    ['problem', 1, 'problem of|problems (?:of|in|with|facing)|challenges?|risks?|threats?|barriers?|resilience|improving|improve|sorun\\p{L}*|risk\\p{L}*|tehdit\\p{L}*|engel\\p{L}*|yöntemleri'],
+    ['problem', 1, 'crisis|incident|attack\\p{L}*|kriz\\p{L}*|saldırı\\p{L}*'],
+    ['scqa', 2, 'responding to|response to|case study|case of|lessons? (?:from|learned|of)|what (?:should|went wrong|can we learn)|should|vaka\\p{L}*|örnek olay\\p{L}*|ne yapmal\\p{L}*|\\p{L}*(?:malı|meli)\\s+(?:mı|mi)\\p{L}*|\\p{L}+(?:malı|meli)\\p{L}*\\s*\\?'],
+    ['scqa', 1, '\\?\\s*$', 1, 'soru işareti'],
+    ['scqa', 1, 'crisis|incident|attack\\p{L}*|breach|scandal|decline|collapse|failure|fall of|kriz\\p{L}*|saldırı\\p{L}*|sızıntı\\p{L}*|skandal\\p{L}*|çöküş\\p{L}*|batış\\p{L}*|iflas\\p{L}*'],
+    ['auto', 2, 'what is|what are|introduction to|an introduction|introducing|overview of|an overview|basics of|fundamentals of|principles of|nedir|nelerdir|giriş|temel\\p{L}*|kavram\\p{L}*|ilkeleri']
+  ];
+  var KURGU_RE = null;
+  /* saf: konu → { v, recommended_structure, alternative_structure, reason, signals, confidence } ya da boş konuda null */
+  var kurguOner = function (topic, tone, dil) {
+    var ham = String(topic == null ? '' : topic).normalize('NFC').replace(/[’‘`´]/g, "'").replace(/["“”«»]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!ham) return null;
+    if (!KURGU_RE) KURGU_RE = KURGU_IS.map(function (r) { return new RegExp(r[3] ? r[2] : '(?<![\\p{L}\\p{N}])(?:' + r[2] + ')(?![\\p{L}\\p{N}])', 'u'); });
+    /* İngilizce "Is" tr kuralıyla "ıs" olur: tr/bilinmeyen dilde iki küçültme de denenir, kural bir kez sayılır */
+    var metin = [ham.toLowerCase()]; if (dil !== 'en') metin.push(ham.toLocaleLowerCase('tr'));
+    var puan = {}, isaret = {}, bonus = KURGU_TON[tone] || [];
+    KURGU_ID.forEach(function (k) { puan[k] = 0; isaret[k] = []; });
+    KURGU_IS.forEach(function (r, i) {
+      var m = null; for (var j = 0; j < metin.length && !m; j++) m = KURGU_RE[i].exec(metin[j]);
+      if (!m) return;
+      puan[r[0]] += r[1];
+      var s = (r[4] || m[0]).trim().slice(0, 40); if (s && isaret[r[0]].indexOf(s) < 0) isaret[r[0]].push(s);
+    });
+    var sira = KURGU_ID.slice().sort(function (a, b) { return (puan[b] - puan[a]) || ((bonus.indexOf(b) > -1) - (bonus.indexOf(a) > -1)) || (KURGU_ID.indexOf(a) - KURGU_ID.indexOf(b)); });
+    var net = puan[sira[0]] >= 2 && puan[sira[0]] - puan[sira[1]] >= 1;
+    var oneri = net ? sira[0] : 'auto';
+    var alt = net ? (puan[sira[1]] > 0 ? sira[1] : KURGU_ALT[oneri]) : sira.filter(function (k) { return k !== 'auto'; })[0];
+    var sig = (net ? isaret[oneri] : isaret[alt].concat(isaret.auto)).filter(function (s, i, a) { return a.indexOf(s) === i; }).slice(0, 4);
+    return { v: 1, recommended_structure: oneri, alternative_structure: alt, reason: net ? KURGU[oneri].neden : KURGU_BELIRSIZ, signals: sig, confidence: net ? 'clear' : 'uncertain' };
+  };
+  /* saf: sıkı sözleşme. Onarmaz, reddeder; bilinmeyen alan, kimlik, aynı alternatif, boş/uzun gerekçe, yüzde ya da sayısal güven */
+  var KURGU_ALAN = ['v', 'recommended_structure', 'alternative_structure', 'reason', 'signals', 'confidence'];
+  var kurguDogrula = function (ham) {
+    var j = ham, red = function (n) { return { ok: false, neden: n }; };
+    if (typeof j === 'string') { try { j = JSON.parse(j); } catch (e) { return red('json'); } }
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return red('nesne');
+    if (Object.keys(j).some(function (k) { return KURGU_ALAN.indexOf(k) < 0; })) return red('fazla-alan');
+    if (j.v !== 1) return red('surum');
+    if (KURGU_ID.indexOf(j.recommended_structure) < 0) return red('oneri');
+    if (j.alternative_structure !== null && (KURGU_ID.indexOf(j.alternative_structure) < 0 || j.alternative_structure === j.recommended_structure)) return red('alternatif');
+    var r = j.reason; if (typeof r !== 'string' || /[\r\n]/.test(r) || r.trim().length < 8 || r.trim().length > 160) return red('gerekce');
+    if (/\d\s*%|%\s*\d|(?:confidence|güven)\s*[:=]?\s*\d/i.test(r)) return red('yuzde');
+    if (!Array.isArray(j.signals) || j.signals.length > 4 || j.signals.some(function (s) { return typeof s !== 'string' || !s.trim() || s.trim().length > 40; })) return red('isaret');
+    if (j.confidence !== 'clear' && j.confidence !== 'uncertain') return red('guven');
+    return { ok: true, sonuc: { v: 1, recommended_structure: j.recommended_structure, alternative_structure: j.alternative_structure, reason: r.trim(), signals: j.signals.map(function (s) { return s.trim(); }), confidence: j.confidence } };
+  };
   var curLang = function () { return deck.lang || plotLang(); };
   var TRW = /(^|[\s,.;:(])(ve|bir|bu|için|ile|olarak|da|de|olan|daha|çok|gibi|ise|veya|nedir|nasıl|neden|temel|kavram\w*)(?=[\s,.;:)!?]|$)/gi, ENW = /\b(the|and|of|to|in|is|for|with|are|that|this|as|by|an|on|or|how|why|what|from|its)\b/gi;
   var ENS = /[a-z](tion|sion|ing|ment|ness|ity|ive|ics|ance|ence|ship|ed|ous|al)s?\b/gi, TRS = /[a-zçğıöşü](lar|ler|ları|leri|nın|nin|nun|nün|dır|dir|sı|si|ı|i|ımız|imiz|mak|mek)\b/gi;
@@ -9111,9 +9252,10 @@ var SBX = (function () {
     cn.innerHTML = !SRC ? 'kartların açılıyor…' : c.length ? c.length + ' bilgi kartın var; her kart bir asetat olur (en fazla ' + (Q('[data-pl-n]', plot).value - 2) + ').' : 'Henüz bilgi kartın yok. <button type="button" data-gov="cards">Önce bir deste oluştur →</button>';
     dn.hidden = v !== 'doc' || (!!SRC && dl > 0); dn.innerHTML = !SRC ? 'belgelerin açılıyor…' : 'Özeti çıkarılmış bir belgen yok. <button type="button" data-gov="docs">Belgelerim’e git →</button>';
     var sel = Q('[data-pl-doc]', plot); sel.disabled = !dl; Q('[data-pl-go]', plot).disabled = (v === 'doc' && !dl) || (v === 'cards' && !c.length);
+    if (oneriBoya) oneriBoya();
   };
   var openPlot = function (from) {
-    plotFrom = from; fillDocs();
+    plotFrom = from; if (oneriSifirla) oneriSifirla(); fillDocs();
     step(1); paintSrc(); if (plot.showModal) plot.showModal(); else plot.setAttribute('open', '');
     loadSrc().then(function () { fillDocs(); paintSrc(); });
     plot.querySelector('input[name=pl-src]:checked').focus();
@@ -9136,9 +9278,123 @@ var SBX = (function () {
   plot.addEventListener('click', function (e) { var g = e.target.closest('[data-gov]'); if (g) { plot.close(); if (typeof switchDashboardView === 'function') switchDashboardView(g.getAttribute('data-gov')); } });
   plot.addEventListener('change', function (e) { if (e.target.name === 'pl-src') paintSrc(); });
   Q('[data-pl-n]', plot).addEventListener('input', function (e) { Q('[data-pl-nv]', plot).textContent = e.target.value; paintSrc(); });
-  Q('[data-pl-x]', plot).addEventListener('click', function () { plot.close(); });
-  Q('[data-pl-no]', plot).addEventListener('click', function () { plot.close(); });
+  Q('[data-pl-x]', plot).addEventListener('click', function () { plotBirak(); plot.close(); });
+  Q('[data-pl-no]', plot).addEventListener('click', function () { plotBirak(); plot.close(); });
   plot.addEventListener('close', function () { if (plotFrom && document.contains(plotFrom)) plotFrom.focus(); });
+  /* #41 kurgu önerisi: ekran ve yaşam döngüsü. Yalnız tıklamayla çalışır (açılış, yazma, anlatım, dil, axSunumPlot çalıştırmaz).
+     Anahtar = kaynak + konu + anlatım + web; dil anahtarda yok. Anahtar değişince eski sonuç "bayat" olur, akım gösterilmez.
+     Seçiciyi (data-pl-story) yalnız oneriKullan / oneriGeri yazar; elle seçim hep korunur. Web kapalıyken legacyTopic kurguyu
+     kullanmadığı için öneri ve uygulama kapalıdır, üretim etkilenmez. oneriNo + anahtar + plot.open denetimi ileride eşzamansız
+     bir kaynakta da geç gelen sonucu düşürür; şimdilik kaynak kurguOner ve eşzamanlı. */
+  var oneriNo = 0, oneri = null;
+  var normKonu = function (t) { return String(t || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('tr'); };
+  var tonVal = function () { var t = plot.querySelector('input[name=pl-tone]:checked'); return t ? t.value : 'akademik'; };
+  var webAcik = function () { var w = Q('[data-pl-web]', plot); return !!(w && w.checked); };
+  var oneriAnahtar = function () { return [srcVal(), normKonu(Q('[data-pl-topic]', plot).value), tonVal(), webAcik() ? 'web' : 'yerel'].join('|'); };
+  var oneriSifirla = function () { oneriNo++; oneri = null; oneriBoya(); };
+  /* girdi değiştiyse eski öneri geçersiz: kaynak/web/boş konu → tümden düşer, öteki değişiklik → bayat (geri alma da düşer) */
+  var oneriDenetle = function () {
+    if (!oneri) return;
+    if (srcVal() !== 'topic' || !webAcik() || !normKonu(Q('[data-pl-topic]', plot).value)) { oneriNo++; oneri = null; return; }
+    if (oneri.durum !== 'bayat' && oneri.anahtar !== oneriAnahtar()) { oneriNo++; oneri = { no: oneriNo, durum: 'bayat', anahtar: oneri.anahtar, sonuc: null, acik: false, uygulandi: null, onceki: null }; }
+  };
+  var oneriDug = function (cls, attr, yazi) { return '<button type="button" class="bp-ghost sx-ghost' + cls + '" ' + attr + '>' + yazi + '</button>'; };
+  var oneriBoya = function (odak) {
+    var kut = Q('[data-oneri]', plot); if (!kut) return;
+    oneriDenetle();
+    var al = Q('[data-oneri-al]', plot), not = Q('[data-oneri-not]', plot), kart = Q('[data-oneri-kart]', plot), sel = Q('[data-pl-story]', plot);
+    var d = srcVal() !== 'topic' ? 'gizli' : !webAcik() ? 'kapali' : !normKonu(Q('[data-pl-topic]', plot).value) ? 'bos' : oneri ? oneri.durum : 'hazir';
+    kut.setAttribute('data-oneri-durum', d);
+    al.disabled = d === 'gizli' || d === 'kapali' || d === 'bos' || d === 'yukleniyor';
+    if (d === 'yukleniyor') al.setAttribute('aria-busy', 'true'); else al.removeAttribute('aria-busy');
+    not.textContent = d === 'kapali' ? 'Web araştırması kapalıyken kurgu iskeleti uygulanmaz; öneri için webde araştır’ı aç.' : d === 'bos' ? 'önce bir konu yaz' :
+      d === 'yukleniyor' ? 'Acadia başlığa bakıyor…' : 'Başlıktaki işaretlere bakar; seçimini sen onaylamadan değiştirmez.';
+    var h = '';
+    if (d === 'bayat') h = '<p class="sx-oneri-uyar">Konu ya da ayarlar değişti; önceki öneri bu girdi için geçerli değil.</p>';
+    else if (d === 'hata') h = '<p class="sx-oneri-uyar">Öneri çıkarılamadı. Kurguyu öneri olmadan da çıkarabilirsin.</p>';
+    else if (d === 'tamam') {
+      var s = oneri.sonuc, net = s.confidence === 'clear', r = s.recommended_structure, a = s.alternative_structure, v = sel.value;
+      kut.setAttribute('data-oneri-guven', s.confidence);
+      h = '<p class="sx-oneri-bas">' + (net ? '<b>Önerim:</b> ' : '<b>Net bir işaret yok.</b> <span>Güvenli seçim:</span> ') + '<span>' + X(KURGU[r].ad) + '</span></p>' +
+        '<p class="sx-oneri-ned">' + X(s.reason) + '</p>' +
+        (s.signals.length ? '<p class="sx-oneri-is"><span>işaret:</span> ' + s.signals.map(function (x) { return '<q>' + X(x) + '</q>'; }).join(' ') + '</p>' : '') +
+        (a ? '<p class="sx-oneri-alt"><span>alternatif:</span> <span>' + X(KURGU[a].ad) + '</span></p>' : '') +
+        (oneri.uygulandi && v === oneri.uygulandi ? '<p class="sx-oneri-ok" role="status"><span>✓ kullanılıyor:</span> <span>' + X(KURGU[v].ad) + '</span></p>' : '') +
+        '<div class="sx-oneri-b">' + (v === r ? '<span class="sx-oneri-zaten">bu kurgu zaten seçili</span>' : oneriDug(' sx-oneri-ana', 'data-oneri-kullan="' + r + '"', 'Bu kurguyu kullan')) +
+        (a && v !== a ? oneriDug('', 'data-oneri-kullan="' + a + '"', 'alternatifi kullan') : '') +
+        oneriDug('', 'data-oneri-hep aria-expanded="' + !!oneri.acik + '"', oneri.acik ? 'listeyi gizle' : 'beşini de gör') +
+        (oneri.onceki != null ? oneriDug('', 'data-oneri-geri', 'geri al') : '') + '</div>' +
+        (oneri.acik ? '<ul class="sx-oneri-hep">' + KURGU_ID.map(function (k) {
+          return '<li><span class="sx-oneri-ad">' + X(KURGU[k].ad) + '</span>' + (k === r ? ' <em>önerilen</em>' : k === a ? ' <em>alternatif</em>' : '') + (k === v ? ' <em>seçili</em>' : '') +
+            '<small>' + X(KURGU[k].uyar) + '</small>' + (k === v ? '' : oneriDug(' sm', 'data-oneri-kullan="' + k + '"', 'kullan')) + '</li>';
+        }).join('') + '</ul>' : '');
+    }
+    if (d !== 'tamam') kut.removeAttribute('data-oneri-guven');
+    kart.innerHTML = h; kart.hidden = !h;
+    var f = odak && Q(odak, kart); if (f) f.focus();
+  };
+  var oneriSonuc = function (my, anahtar, ham) {
+    if (my !== oneriNo || !oneri || oneri.no !== my || !plot.open || anahtar !== oneriAnahtar()) return;
+    var dg = kurguDogrula(ham); oneri.durum = dg.ok ? 'tamam' : 'hata'; oneri.sonuc = dg.ok ? dg.sonuc : null; oneriBoya();
+  };
+  var oneriAl = function () {
+    if (oneri && oneri.durum === 'yukleniyor') return;
+    var konu = Q('[data-pl-topic]', plot).value;
+    if (srcVal() !== 'topic' || !webAcik() || !normKonu(konu)) return oneriBoya();
+    var my = ++oneriNo, anahtar = oneriAnahtar();
+    oneri = { no: my, durum: 'yukleniyor', anahtar: anahtar, sonuc: null, acik: false, uygulandi: null, onceki: null }; oneriBoya();
+    var ham = null; try { ham = kurguOner(konu, tonVal(), topicLang(konu)); } catch (e) { ham = null; }
+    oneriSonuc(my, anahtar, ham);
+  };
+  /* uygula: ilk uygulamadan önceki değer saklanır, "geri al" ona döner (tek düzey) */
+  var oneriKullan = function (id) {
+    var sel = Q('[data-pl-story]', plot);
+    if (!oneri || oneri.durum !== 'tamam' || oneri.anahtar !== oneriAnahtar() || !webAcik() || KURGU_ID.indexOf(id) < 0 || sel.value === id) return oneriBoya();
+    if (oneri.onceki == null) oneri.onceki = sel.value;
+    sel.value = id; oneri.uygulandi = id; oneriBoya('[data-oneri-geri]');
+  };
+  var oneriGeri = function () {
+    if (!oneri || oneri.onceki == null) return oneriBoya();
+    Q('[data-pl-story]', plot).value = oneri.onceki; oneri.onceki = null; oneri.uygulandi = null; oneriBoya('[data-oneri-kullan]');
+  };
+  var oneriSozluk = function () {
+    var A = window.AX_EN && window.AX_EN.t; if (!A || A["Acadia'dan öneri al"]) return;
+    var ek = { "Acadia'dan öneri al": 'Get a suggestion from Acadia', 'önce bir konu yaz': 'write a topic first', 'Acadia başlığa bakıyor…': 'Acadia is reading the title…',
+      'Web araştırması kapalıyken kurgu iskeleti uygulanmaz; öneri için webde araştır’ı aç.': 'The outline structure is not applied while web research is off; turn on web research to get a suggestion.',
+      'Başlıktaki işaretlere bakar; seçimini sen onaylamadan değiştirmez.': 'Looks at cues in the title; never changes your choice until you confirm.',
+      'Konu ya da ayarlar değişti; önceki öneri bu girdi için geçerli değil.': 'The topic or settings changed; the previous suggestion does not apply to this input.',
+      'Öneri çıkarılamadı. Kurguyu öneri olmadan da çıkarabilirsin.': 'No suggestion could be made. You can still build the outline without one.',
+      'Önerim:': 'My suggestion:', 'Net bir işaret yok.': 'No clear cue.', 'Güvenli seçim:': 'Safe choice:', 'işaret:': 'cue:', 'alternatif:': 'alternative:', '✓ kullanılıyor:': '✓ in use:',
+      'bu kurgu zaten seçili': 'this structure is already selected', 'Bu kurguyu kullan': 'Use this structure', 'alternatifi kullan': 'use the alternative', 'beşini de gör': 'see all five',
+      'listeyi gizle': 'hide the list', 'geri al': 'undo', 'önerilen': 'suggested', 'alternatif': 'alternative', 'seçili': 'selected', 'kullan': 'use', 'kurgu önerisi': 'structure suggestion',
+      'Başlıkta belirgin bir kurgu işareti yok; otomatik iskelet güvenli seçim, alternatif de uyabilir.': 'The title has no clear structure cue; the automatic outline is the safe choice, and the alternative may also fit.',
+      'Başlık bir kavramı ya da alanı tanıtıyor; giriş → gelişme → sonuç düz ve anlaşılır akar.': 'The title introduces a concept or field; intro → body → conclusion flows plainly and clearly.',
+      'Başlık bir sorunu ve onu çözme yollarını işaret ediyor; önce sorun, sonra çözümler izleyiciyi sonuca taşır.': 'The title points to a problem and ways to solve it; problem first, then solutions, carries the audience to a conclusion.',
+      'Başlık bir vakayı ya da açık bir soruyu işaret ediyor; durum → sorun → soru → cevap gerilimi korur.': 'The title points to a case or an open question; situation → complication → question → answer keeps the tension.',
+      'Başlık seçenekleri karşı karşıya koyuyor; ölçüt ölçüt karşılaştırma kararı izleyiciye gösterir.': 'The title sets options against each other; comparing criterion by criterion shows the audience the decision.',
+      'Başlık zaman içindeki bir değişimi anlatıyor; dün → bugün → yarın sırası dönüm noktalarını görünür kılar.': 'The title describes change over time; the yesterday → today → tomorrow order makes the turning points visible.',
+      'bir kavramı ya da alanı tanıtırken': 'when introducing a concept or field', 'bir sorun ve çözüm yolları anlatılırken': 'when presenting a problem and ways to solve it',
+      'bir vaka, olay ya da açık bir soru ele alınırken': 'when covering a case, an event or an open question', 'iki ya da daha çok seçenek tartılırken': 'when weighing two or more options',
+      'bir şeyin zaman içindeki değişimi anlatılırken': 'when describing how something changed over time' };
+    Object.keys(ek).forEach(function (k) { if (A[k] == null) A[k] = ek[k]; });
+  };
+  oneriSozluk();
+  (function () {
+    var kut = Q('[data-oneri]', plot); if (!kut) return;
+    Q('[data-oneri-al]', plot).addEventListener('click', oneriAl);
+    kut.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b || !kut.contains(b)) return;
+      if (b.hasAttribute('data-oneri-kullan')) oneriKullan(b.getAttribute('data-oneri-kullan'));
+      else if (b.hasAttribute('data-oneri-geri')) oneriGeri();
+      else if (b.hasAttribute('data-oneri-hep') && oneri && oneri.durum === 'tamam') { oneri.acik = !oneri.acik; oneriBoya('[data-oneri-hep]'); }
+    });
+    Q('[data-pl-topic]', plot).addEventListener('input', function () { oneriBoya(); });
+    plot.addEventListener('change', function (e) { if (e.target.name === 'pl-tone' || e.target.hasAttribute('data-pl-web')) oneriBoya(); });
+    /* elle seçim: öneri onu ezmez, "geri al" da artık eski değere dönmez */
+    Q('[data-pl-story]', plot).addEventListener('change', function () { if (oneri) { oneri.onceki = null; oneri.uygulandi = null; } oneriBoya(); });
+    plot.addEventListener('close', oneriSifirla);
+    oneriBoya();
+  })();
   var norm = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim(); };
   var sentences2 = function (t) { return stripMd(t).split(/(?<=[.!?])\s+/).map(function (x) { return x.trim(); }).filter(function (x) { return x.length > 3; }); };
   var generic = function (topic) { return [['Giriş: neden ' + topic.toLocaleLowerCase('tr') + '?', 'list'], ['Temel kavramlar', 'list'], ['Nasıl işler?', 'time'], ['Bir örnek üzerinden', 'list'], ['Karşılaştırma', 'two'], ['Güçlü ve zayıf yanlar', 'swot'], ['Rakamlarla', 'stat'], ['Akılda kalacak tek cümle', 'quote'], ['Sık yapılan hatalar', 'list'], ['Özet', 'list']].map(function (x) { return { t: x[0], k: x[1], b: [] }; }); };
@@ -9221,7 +9477,7 @@ var SBX = (function () {
     return { title: '', items: sl.map(function (x) { var b = arr(x.bullets).map(txt).filter(Boolean); if (!b.length) b = sentences2(x.content || x.text || ''); return { t: txt(x.title) || 'Asetat', k: 'list', b: b.slice(0, 6), notes: txt(x.notes || x.speaker_notes) }; }) };
   };
   var shape = function (out, o, title) {
-    var mid = Math.max(1, o.n - 2), tone = o.tone;
+    var plotMeta = o.pm, mid = Math.max(1, o.n - 2), tone = o.tone;      /* #38: bu çalıştırmanın künyesi (makeOutline) */
     out = out.filter(function (x) { return x.t; });
     if (!o.ai) {
       if (tone === 'hikaye') out.splice(0, 0, { t: 'Bir sahneyle başlayalım', k: 'quote', b: [] });
@@ -9234,13 +9490,16 @@ var SBX = (function () {
   };
   /* opts: { src: 'doc'|'cards'|'topic', topic, docId, n, tone } → Promise<şeritler|null> */
   var makeOutline0 = function (o) {
-    var n = Math.max(1, o.n - 2);
+    /* ÇALIŞMA KÜNYESİ (#38): üretim artık ortak plotMeta'ya değil kendi künyesine (o.pm) yazar. Geç dönen eski bir
+       araştırma yeni çalıştırmanın kaynaklarını, kapağını, başlığını eziyordu. Künye makeOutline'da, yalnız aynı
+       çalıştırma hâlâ günceldeyse plotMeta olur. */
+    var plotMeta, n = Math.max(1, o.n - 2);
     if (o.src === 'doc') {
       return loadSrc().then(function () {
         var c = docs().filter(function (x) { return String(x.id) === String(o.docId); })[0] || docs()[0];
         if (!c) { say('Önce Belgelerim’de bir belgeyi özetle.', null, '#docs', 'belgelere git →'); return null; }
         var title = baseName(c.documents && c.documents.file_name);
-        plotMeta = { sub: [c.course_tag, subLine()].filter(Boolean).join(' · '), source: 'study_card', sourceId: c.id };
+        plotMeta = o.pm = { sub: [c.course_tag, subLine(o.lang)].filter(Boolean).join(' · '), source: 'study_card', sourceId: c.id };
         var viaDir = function () { return fn('acadia-presentation-director', { action: 'generate', sourceType: 'study_card', sourceId: c.id, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(function (d) { var r = fromDirector(d); plotMeta.via = 'ai'; plotMeta.yol = { k: 'director', yedek: plotMeta.yolYedek ? 1 : 0 }; o.ai = true; return shape(r.items, o, r.title || title); }); };
         var st0 = o.story && o.story !== 'auto' && cardText(c).length > 200 ? fn('sunum-research', { action: 'research', topic: title, sourceTitle: title, sourceText: cardText(c), story: o.story, slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch).then(function (r) { plotMeta.via = 'docstory'; plotMeta.yol = { k: 'docstory', yedek: 0 }; plotMeta.check = r.check; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) { console.warn('acadex-sunum: belge iskeleti', e); plotMeta.yolYedek = 1; return viaDir(); }) : viaDir();
         return st0
@@ -9252,21 +9511,26 @@ var SBX = (function () {
     if (o.src === 'cards') {
       return loadSrc().then(function () {
         var c = cards(); if (!c.length) { say('Önce Bilgi kartlarında bir deste oluştur.', null, '#cards', 'kartlara git →'); return null; }
-        plotMeta = { sub: c.length + ' bilgi kartından · ' + subLine(), source: 'blank', sourceId: null, via: 'cards', yol: { k: 'cards', yedek: 0 } };
+        plotMeta = o.pm = { sub: (o.lang === 'en' ? c.length + ' flashcards · ' : c.length + ' bilgi kartından · ') + subLine(o.lang), source: 'blank', sourceId: null, via: 'cards', yol: { k: 'cards', yedek: 0 } };
         return shape(c.slice(0, n).map(function (k) { return { t: k.front, k: 'list', b: [k.back] }; }), o, 'Ders kartlarımdan');
       });
     }
     var tp = (o.topic || '').trim(); if (!tp) return Promise.resolve(null);
-    var title = tp.charAt(0).toLocaleUpperCase('tr') + tp.slice(1), web = o.web !== false;
-    plotMeta = { sub: subLine(), source: 'topic', sourceId: null };
+    var title = ilkBuyuk(tp, o.lang), web = o.web !== false;
+    plotMeta = o.pm = { sub: subLine(o.lang), source: 'topic', sourceId: null };
+    /* KAYNAKSIZ YAZIM YALNIZ AÇIK SEÇİMLE (#38, P0): araştırma 429/502/zaman aşımıyla düşünce eski motor kendiliğinden
+       çağrılıyordu; deste kaynaksız çıkıyor, kullanıcı bunu fark etmiyordu (FinTech, 27.11.2026). Artık hata söylenir,
+       konu ve ayarlar durur; eski motor yalnız "kaynaksız yaz" düğmesiyle (o.legacy) çalışır ve öyle etiketlenir. */
+    if (o.legacy) { plotMeta.webFail = true; plotMeta.secim = 1; return legacyTopic(tp, o, title); }
     var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = web ? 'Acadia konuyu birkaç sorguya açıyor, webde ve Wikipedia’da arıyor, okuyup kurguyu çiziyor… (30–60 sn)' : 'Acadia kurguyu çiziyor…';
     var research = web ? fn('sunum-research', { action: 'research', topic: tp, story: o.story || 'auto', slideCount: o.n, tone: TONE[o.tone] || 'academic', language: o.lang || 'tr' }, 95000).then(fromResearch) : Promise.reject(new Error('kapalı'));
-    return research.then(function (r) { plotMeta.via = 'research'; plotMeta.yol = { k: 'research', yedek: 0 }; plotMeta.sources = r.sources; plotMeta.check = r.check; plotMeta.cover = r.cover; plotMeta.engine = r.engine; o.ai = true; o.researched = true; return shape(r.items, o, r.title || title); }, function (e) {
-      if (web) { console.warn('acadex-sunum: research', e); plotMeta.webFail = true; }
-      return legacyTopic(tp, o, title);
+    return research.then(function (r) { plotMeta.via = 'research'; plotMeta.yol = { k: 'research', yedek: 0 }; plotMeta.sources = r.sources; plotMeta.check = r.check; plotMeta.cover = r.cover; plotMeta.engine = r.engine; o.ai = true; o.researched = true; if (!arr(r.sources).length) plotMeta.kaynaksiz = 1; return shape(r.items, o, r.title || title); }, function (e) {
+      if (!web) return legacyTopic(tp, o, title);      /* web kapalıysa eski motor asıl yoldur */
+      console.warn('acadex-sunum: research', e); return { hata: hataTuru(e) };
     });
   };
   var legacyTopic = function (tp, o, title) {
+    var plotMeta = o.pm;
     return fn('generate-presentation', { topic: tp, tone: TONE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr' }, 75000).then(fromLegacy)
       .catch(function (e) { console.warn('acadex-sunum: generate-presentation', e); plotMeta.yolDir = 1; return fn('acadia-presentation-director', { action: 'generate', sourceType: 'topic', topic: tp, mode: MODE[o.tone] || 'academic', slideCount: o.n, language: o.lang || 'tr', detailLevel: 'detailed' }, 75000).then(fromDirector); })
       .then(function (r) { plotMeta.via = 'ai'; plotMeta.quality = r.quality || null; o.ai = true;
@@ -9294,12 +9558,43 @@ var SBX = (function () {
       if (son >= 0) { s.b = b.slice(); s.b[son] += tag; }
     });
   };
+  /* araştırma hatasının türü (yalnız ekranda söylemek için; yeniden deneme kullanıcınındır) */
+  var hataTuru = function (e) {
+    var st = e && e.context && +e.context.status, m = String((e && (e.message || e)) || '') + ' ' + String((e && e.name) || '');
+    if (st === 429 || /\b429\b|kota|quota|rate.?limit|too many/i.test(m)) return 'kota';
+    if (st === 504 || st === 408 || /zaman aşımı|timeout|timed out/i.test(m)) return 'zaman';
+    if (st >= 500 || /\b5\d\d\b/.test(m)) return 'sunucu';
+    if (/bağlantı yok|failed to fetch|network|FunctionsFetchError|FunctionsRelayError/i.test(m)) return 'ag';
+    return 'diger';
+  };
+  /* KESİN SAYFA SAYISI (#38, P1): istenen sayı son PPTX'in TOPLAMIDIR — kapak, gündem, içerik, kaynakça ve kapanış.
+     Kaynakça sayımdan sonra ekleniyor, gündem basımda ayrıca geliyordu: 10 istenen deste 11–12 çıktı. Gündem burada
+     öngörülür (basım aynı kararı pm.gundem'den okur); fazla gövde asetatı sondan, sonuç asetatı korunarak atılır. Eksik
+     ya da imkânsız sayı uydurma asetatla doldurulmaz, söylenir. */
+  var GUNDEM_RE = /^(gündem|içindekiler|akış|sunum akışı|agenda|outline|contents)\b/i;
+  var sayiAyarla = function (out, n, pm, ek) {      /* ek: bundan sonra eklenecek sabit asetat (kaynakça) */
+    ek = ek || 0;
+    var sabit = function (s) { return /^(cover|end|refs)$/.test(s.k); }, govde = out.filter(function (s) { return !sabit(s); });
+    var oda = n - (out.length - govde.length) - ek, b = Math.min(govde.length, oda - 1);
+    pm.gundem = out[0] && out[0].k === 'cover' && b >= 5 && !govde.some(function (s) { return GUNDEM_RE.test(String(s.t || '').trim()); }) ? 1 : 0;
+    var hedef = Math.max(1, oda - pm.gundem), dus = govde.length > hedef ? govde.slice(hedef - 1, govde.length - 1) : [];
+    dus.forEach(function (s) { out.splice(out.indexOf(s), 1); });
+    var toplam = out.length + ek + pm.gundem;
+    pm.sayi = { istek: n, toplam: toplam, kesilen: dus.length, eksik: Math.max(0, n - toplam), imkansiz: oda < 1 ? 1 : 0, serit: out.length + ek };
+    return out;
+  };
+  var outlineNo = 0, plotSon = null;
+  var plotMetaKur = function (pm) { plotMeta = pm; };
   var makeOutline = function (o) {
     if (!o.lang && !langTouched && o.topic && (!o.src || o.src === 'topic')) { var tl = topicLang(o.topic); if (tl) { o.lang = tl; var lr = document.querySelector('[data-plotdlg] input[name=pl-lang][value=' + tl + ']'); if (lr) lr.checked = true; } }
     o.lang = o.lang || plotLang();
+    var my = ++outlineNo; o.pm = {};      /* #38: çalıştırma numarası; geç gelen eski sonuç atılır */
+    plotSon = { src: o.src, story: o.story, web: o.web, topic: o.topic, docId: o.docId, n: o.n, tone: o.tone, lang: o.lang };      /* "tekrar dene" aynı girdiyle */
     var tt = Q('[data-think-t]', plot); if (tt) tt.textContent = 'Acadia kurguyu çiziyor…';
     return makeOutline0(o).then(function (st) {
-      if (!st) return st;
+      var plotMeta = o.pm;
+      if (my !== outlineNo) return null;
+      if (!st || st.hata) { plotMetaKur(plotMeta); return st; }
       plotMeta.istek = o.n > 0 ? +o.n : 0;      /* Phase 4 (F2): kullanıcının istediği sayfa sayısı (kapak + içerik + kapanış) */
       if (!o.researched) st.forEach(smartKind);
       var head0 = st[0] && st[0].k === 'cover' ? st.shift() : null, tail = st.length && st[st.length - 1].k === 'end' ? st.pop() : null;
@@ -9312,8 +9607,12 @@ var SBX = (function () {
         var all = (head0 ? [head0] : []).concat(st).concat(tail ? [tail] : []);
         return lockLang(all, o.lang, plotMeta.title).then(function (r) { if (r.title) { plotMeta.title = r.title; if (head0) head0.t = r.title; } plotMeta.fixed.lang = r.n; plotMeta.lang = o.lang;
           var out = r.strips, srcs = arr(plotMeta.sources);
+          /* #38: sayı atıflardan ÖNCE ayarlanır; kesilen asetatın tek kaynağı kaynakçada kullanılmadan kalmasın */
+          if (o.n > 0) sayiAyarla(out, +o.n, plotMeta, srcs.length ? 1 : 0);
+          if (srcs.length && o.n > 0) { var kul = {}; out.forEach(function (s) { arr(s.src).forEach(function (id) { kul[id] = 1; }); }); var srcs2 = srcs.filter(function (x) { return kul[x.id]; }); if (srcs2.length) srcs = srcs2; }
           if (srcs.length) { cite(out, srcs); var at = out.length && out[out.length - 1].k === 'end' ? out.length - 1 : out.length; out.splice(at, 0, { t: o.lang === 'en' ? 'References' : 'Kaynakça', k: 'refs', b: srcs.map(function (x, i) { return '[' + (i + 1) + '] ' + String(x.apa || x.url); }), notes: o.lang === 'en' ? 'Do not read the list aloud. Say that every fact and number in the deck comes from these sources and that you can share the links afterwards, then move on to the closing slide.' : 'Listeyi sesli okuma. Sunumdaki her bilgi ve rakamın bu kaynaklardan geldiğini, bağlantıların slaytta durduğunu ve isteyenle paylaşabileceğini söyle; sonra kapanış slaytına geç.' }); }
-          return out; });
+          if (my !== outlineNo) return null;
+          plotMetaKur(plotMeta); return out; });
       });
     });
   };
@@ -9332,16 +9631,29 @@ var SBX = (function () {
     cards: 'Her bilgi kartın bir asetat oldu. Sırala, düzelt, türünü değiştir.',
     skeleton: 'Acadia’ya şu an ulaşılamadı; konu için bir iskelet çıkardım. Soluk kalan yerleri sen doldurursun.'
   };
-  var plotRun = 0;
+  var plotRun = 0, plotHazir = false;
+  /* #38: araştırma düşünce ne olduğu açıkça söylenir; sunum oluşturulmaz, kendiliğinden yeniden denenmez */
+  var HATA_TR = { kota: 'arama ve yazım servisinin dakikalık kotası doldu (429); bir dakika bekleyip tekrar dene', sunucu: 'araştırma sunucusu yanıt veremedi (sunucu hatası); biraz sonra tekrar dene', zaman: 'yanıt süre sınırında gelmedi; tekrar deneyebilirsin', ag: 'bağlantı kurulamadı; internetini kontrol edip tekrar dene', diger: 'beklenmeyen bir hata oldu; tekrar deneyebilirsin' };
+  /* ÖNERİ PANELİ YAŞAM DÖNGÜSÜ (#38, P1): akış önerileri yalnız AYNI çalıştırma başarıyla bitip bütün şeritler geldikten
+     sonra çizilir (plotHazir). Yeni üretim başlarken, hata ve vazgeçişte eski öneriler silinir; bekleyen gecikmeli boyama
+     ve geç dönen "giriş/sonuç ekle" yazımı yeni çalıştırmaya çizmez. Destenin kayıtlı kalite raporuna dokunulmaz. */
+  var akisTemizle = function () { clearTimeout(flowEl._t); flowList = []; flowEl.hidden = true; flowEl.innerHTML = ''; flowEl.removeAttribute('aria-busy'); };
   var showStrips = function (p) {
-    var run = ++plotRun; step(2);
-    var th = Q('[data-think]', plot), help = Q('[data-plhelp]', plot), ok = Q('[data-pl-ok]', plot); th.hidden = false; help.hidden = true; stripsEl.innerHTML = ''; ok.disabled = true;
+    var run = ++plotRun; step(2); plotHazir = false; strips = []; akisTemizle();
+    var th = Q('[data-think]', plot), help = Q('[data-plhelp]', plot), ok = Q('[data-pl-ok]', plot); th.hidden = false; help.hidden = true; help.textContent = ''; stripsEl.innerHTML = ''; ok.disabled = true;
     var t0 = Date.now();
+    var hataGoster = function (neden) {
+      th.hidden = true; help.hidden = false;
+      help.innerHTML = '<b>Araştırma şu an yapılamadı:</b> ' + X(neden) + '. Konun ve ayarların duruyor; sunum oluşturulmadı ve kendiliğinden yeniden denenmeyecek. ' +
+        '<span class="sx-pl-act"><button type="button" class="sx-lnk" data-pl-retry="">tekrar dene</button> <button type="button" class="sx-lnk" data-pl-legacy="">kaynaksız yaz (eski motor, kaynakça olmaz)</button></span>';
+    };
     Promise.resolve(p).then(function (o) {
       if (run !== plotRun) return;
       setTimeout(function () {
         if (run !== plotRun) return;
-        th.hidden = true; ok.disabled = false;
+        th.hidden = true;
+        if (o && o.hata) { hataGoster(HATA_TR[o.hata] || HATA_TR.diger); return; }
+        ok.disabled = false;
         if (!o) { step(1); return; }
         strips = o; help.hidden = false; var fx = plotMeta.fixed || {}, extra = [];
         if (fx.lang > 0) extra.push(fx.lang + ' başlık/madde seçtiğin dile çevrildi');
@@ -9362,9 +9674,21 @@ var SBX = (function () {
         if (plotMeta.webFail) extra.push('web araştırması şu an yapılamadı, bu yüzden kaynakça yok');
         var en0 = plotMeta.engine; if (en0 && (en0.web || en0.wiki)) extra.push((en0.queries || 1) + ' sorguyla ' + (en0.web || 0) + ' web' + (en0.wiki ? ' + ' + en0.wiki + ' Wikipedia' : '') + ' kaynağı okundu');
         var sk = strips.filter(function (x) { return /^(stat|time|quote)$/.test(x.k); }).length; if (sk && !ck) extra.push(sk + ' asetata madde yerine daha uygun düzen seçildi');
-        help.textContent = (plotMeta.webFail ? 'Acadia konuyu genel bilgisiyle yazdı. Sırala, düzelt, türünü değiştir.' : VIA[plotMeta.via] || VIA.ai) + (extra.length ? ' · ' + extra.join(' · ') + '.' : '');
-        paintStrips(true); var f = stripsEl.querySelector('input'); if (f) f.focus();
+        var sy = plotMeta.sayi;
+        if (sy && sy.imkansiz) extra.push('istediğin ' + sy.istek + ' sayfa kapak, kaynakça ve kapanışa bile yetmiyor; deste ' + sy.toplam + ' sayfa olacak');
+        else if (sy && sy.eksik) extra.push('istediğin ' + sy.istek + ' sayfanın ' + sy.toplam + ' tanesi çıkabildi (' + sy.eksik + ' eksik; boş asetatla doldurulmadı)');
+        else if (sy) extra.push('toplam ' + sy.toplam + ' sayfa: kapak' + (plotMeta.gundem ? ', gündem' : '') + (strips.some(function (x) { return x.k === 'refs'; }) ? ', kaynakça' : '') + ' ve kapanış dahil' + (sy.kesilen ? ' (' + sy.kesilen + ' fazla asetat çıkarıldı)' : ''));
+        /* KAYNAKSIZ "ARAŞTIRMA" (#38): araştırma döndü ama kullanılabilir kaynak yok — "webde araştırdı" denmez, basmadan önce onay istenir */
+        var bas0 = plotMeta.secim ? 'Kaynaksız yazıldı (senin seçiminle, eski motor): Acadia konuyu genel bilgisiyle yazdı; bu destede kaynakça yok, rakamları kendin doğrula. Sırala, düzelt, türünü değiştir.'
+          : plotMeta.kaynaksiz ? 'Web araştırması kullanılabilir kaynak bulamadı: bu deste kaynaksız, kaynakçası yok ve araştırılmış sayılmaz. Basmadan önce bunu onayla.'
+          : plotMeta.webFail ? 'Acadia konuyu genel bilgisiyle yazdı. Sırala, düzelt, türünü değiştir.' : VIA[plotMeta.via] || VIA.ai;
+        help.textContent = bas0 + (extra.length ? ' · ' + extra.join(' · ') + '.' : '');
+        if (plotMeta.kaynaksiz && !plotMeta.secim) { ok.disabled = true; help.insertAdjacentHTML('beforeend', ' <span class="sx-pl-act"><button type="button" class="sx-lnk" data-pl-ack="">kaynaksız olarak devam et</button></span>'); }
+        plotHazir = true; paintStrips(true); var f = stripsEl.querySelector('input'); if (f) f.focus();
       }, calm ? 0 : Math.max(0, 700 - (Date.now() - t0)));
+    }, function (e) {
+      if (run !== plotRun) return;
+      console.warn('acadex-sunum: kurgu', e); hataGoster(HATA_TR[hataTuru(e)] || HATA_TR.diger);
     });
   };
   var stripHTML = function (s, i) {
@@ -9415,12 +9739,14 @@ var SBX = (function () {
     var ns = it.fix === 'intro' ? { t: en ? 'Why does it matter?' : 'Giriş: neden önemli?', k: 'list', b: [], ctx: strips.filter(function (x) { return !/^(cover|end|refs)$/.test(x.k); }).map(function (x) { return x.t; }).join('\n') }
       : { t: en ? 'Conclusion: key messages' : 'Sonuç: akılda kalacak 3 mesaj', k: 'list', b: [], ctx: strips.filter(function (x) { return !/^(cover|end|refs)$/.test(x.k); }).map(function (x) { return x.t + ': ' + (x.b || []).slice(0, 2).join('; '); }).join('\n') };
     var at = it.fix === 'intro' ? Math.max(1, strips.findIndex(function (x) { return x.k !== 'cover'; })) : (function () { var k = strips.length; while (k > 0 && /^(end|refs)$/.test(strips[k - 1].k)) k--; return k; })();
-    strips.splice(at, 0, ns); paintStrips(); flowEl.setAttribute('aria-busy', 'true');
-    ask(ns).then(function () { if (it.fix === 'outro') ns.b = ns.b.slice(0, 3);   /* başlık "3 mesaj" der; 4 madde basılıyordu */
+    strips.splice(at, 0, ns); paintStrips(); flowEl.setAttribute('aria-busy', 'true'); var r0 = plotRun;
+    ask(ns).then(function () { if (r0 !== plotRun) return;      /* #38: bu arada yeni üretim başladıysa eski şerit ona çizilmez */
+      if (it.fix === 'outro') ns.b = ns.b.slice(0, 3);   /* başlık "3 mesaj" der; 4 madde basılıyordu */
       flowEl.removeAttribute('aria-busy'); paintStrips(); if (!ns.b.length) say('Acadia şu an içerik yazamadı; şerit boş kaldı, basınca sen doldurursun.'); });
   };
   var flowList = [];
   var paintFlow = function () {
+    if (!plotHazir) { flowList = []; flowEl.hidden = true; flowEl.innerHTML = ''; return; }      /* #38: tamamlanmamış çalıştırmaya öneri yok */
     flowList = flowIssues(); flowEl.hidden = !strips.length;
     flowEl.innerHTML = flowList.length ? '<p class="sx-flow-h"><b>akış kontrolü</b> · ' + flowList.length + ' öneri</p><ul>' + flowList.map(function (it, k) { return '<li><span>' + X(it.msg) + '</span>' + (it.fix ? '<button type="button" class="sx-lnk" data-flow-fix="' + k + '">' + X(it.btn) + '</button>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="sx-flow-h ok"><b>akış kontrolü</b> · giriş, gelişme ve sonuç yerinde; tekrar ya da kalabalık asetat yok.</p>';
     QA('.sx-strip', stripsEl).forEach(function (li) { var i = +li.getAttribute('data-i'); li.classList.toggle('flag', flowList.some(function (it) { return it.i === i; })); });
@@ -9434,7 +9760,18 @@ var SBX = (function () {
     if (anim && !calm) QA('.sx-strip', stripsEl).forEach(function (li, i) { li.classList.add('drawn'); li.style.animationDelay = (i * 90) + 'ms'; });
   };
   Q('[data-pl-go]', plot).addEventListener('click', function () { var o = buildOutline(); if (o) showStrips(o); });
-  plot.addEventListener('close', function () { plotRun++; });
+  /* #38: vazgeç/kapat anında geçersizleştir — close olayı sonraki görevde gelir; bekleyen sonuç o arada yazılmasın */
+  var plotBirak = function () { plotRun++; outlineNo++; plotHazir = false; akisTemizle(); };
+  plot.addEventListener('cancel', plotBirak); plot.addEventListener('close', plotBirak);
+  /* #38: hata satırındaki düğmeler — aynı girdiyle tekrar, ya da açık seçimle kaynaksız eski motor; tek tık tek çalıştırma
+     (satır yeni çalıştırmada silinir, ikinci tık kalmaz) */
+  Q('[data-plhelp]', plot).addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.hasAttribute('data-pl-ack')) { Q('[data-pl-ok]', plot).disabled = false; b.parentNode.remove(); return; }
+    if (!plotSon) return;
+    if (b.hasAttribute('data-pl-retry')) showStrips(makeOutline(Object.assign({}, plotSon)));
+    else if (b.hasAttribute('data-pl-legacy')) showStrips(makeOutline(Object.assign({}, plotSon, { legacy: true })));
+  });
   stripsEl.addEventListener('input', function (e) { var li = e.target.closest('.sx-strip'); if (!li) return; var i = +li.getAttribute('data-i'); if (e.target.matches('[data-st-t]')) { strips[i].t = e.target.value; clearTimeout(flowEl._t); flowEl._t = setTimeout(paintFlow, 400); } });
   /* şeridin düzen menüsü: gruplu, küçük çizimli; ok tuşları, Home/End, Esc; dışarı tıklayınca kapanır */
   var kPop = document.createElement('div'); kPop.className = 'sx-kpop'; kPop.hidden = true; kPop.setAttribute('role', 'listbox'); plot.appendChild(kPop);
@@ -9675,21 +10012,29 @@ var SBX = (function () {
   /* Hazır desteyi yönetmenin eleştirmenine puanlatır (üretim yapmaz, hızlıdır).
      Sonuç desteye yazılır, kaydedilir ve üretim özetinde görünür. Başarısız
      olursa sessizce geçilir: puan yokluğu sunumu engellemez. */
-  var kaliteBusy = false;
+  var kaliteBusy = null;      /* #38: ölçülen deste — bekleyen A ölçümü yeni B destesinin ölçümünü engellemez */
   var kaliteOlc = function (d, loud) {
-    if (kaliteBusy) return;
+    if (kaliteBusy === d) return;
     var sl = arr(d.slides).map(function (x) {
-      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: { text: bodyOf(x) || '', design_variant: x.lay || 'section', look: (x.lay || 'section') + ':' + (x.v || 0), has_visual: gorselVar(x), placeholder: yerTutucu(x) } };
+      var ch = x.els.filter(function (e) { return e.type === 'chart' && !e.muted && e.chart; })[0], cv = ch ? chartVals(ch.chart) : [];      /* #38: grafiğin rakamları da yinelenen rakam ölçütüne girer */
+      var co = { text: bodyOf(x) || '', design_variant: x.lay || 'section', look: (x.lay || 'section') + ':' + (x.v || 0), has_visual: gorselVar(x), placeholder: yerTutucu(x) };
+      if (cv.length >= 2) co.chart = { type: 'bar', labels: cv.map(function (v, i) { return String(arr(ch.chart.labels)[i] || i + 1); }), data: cv };
+      return { title: titleOf(x) || '', speaker_notes: x.notes || '', content: co };
     });
     if (!sl.length) return;
-    kaliteBusy = true; paintKalite(true);
+    kaliteBusy = d; paintKalite(true);
     /* PHASE 4 (F2): istenen sayfa sayısı biliniyorsa gönderilir — yalnız EKSİK yönde: kaynakça ve gündem asetatı sayılmaz,
        fazlası (görsel, kaynakça) eksiklik değildir. İstek bilinmiyorsa (elle kurulan, eski deste) uydurulmaz.
        Üst sınır 4/3 × asetat: yönetmenin normalizeDeck'i asetat < %75 × sayı ise INCOMPLETE_PRESENTATION atar, puan hiç oluşmazdı. */
     var ist = d.yol && d.yol.istek > 0 ? d.yol.istek : 0, uretilen = arr(d.slides).filter(function (x) { return x.lay !== 'refs' && !(x.lay === 'list' && x.v === 10); }).length;
-    fn('acadia-presentation-director', { action: 'critique', presentation: { title: d.title || '', slides: sl }, sourceType: d.source || 'topic', slideCount: ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length }, 30000)
+    /* #38: kesin sayılı destede (yol.tam) istek TOPLAMDIR — kaynakça ve gündem de sayılır, elle eklenen asetat isteğe eklenir.
+       Fazla yönü yönetmen göremez (normalizeDeck fazlasını keser, puanlamadan düşerdi): fazla ise bütün asetatlar
+       gönderilir, fazlalığı yerel teknik denetim söyler (SLIDE_COUNT_OVER). */
+    if (d.yol && d.yol.tam && ist) { var ur0 = {}; arr(d.yol.uret).forEach(function (x) { ur0[x] = 1; }); ist += arr(d.slides).filter(function (x) { return !ur0[String(x.id)]; }).length; uretilen = sl.length; }
+    var adet = ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length;
+    fn('acadia-presentation-director', { action: 'critique', presentation: { title: d.title || '', slides: sl }, sourceType: d.source || 'topic', slideCount: adet }, 30000)
       .then(function (r) {
-        kaliteBusy = false;
+        if (kaliteBusy === d) kaliteBusy = null;
         var q = r && r.quality; if (!q || typeof q.score !== 'number' || d !== deck) { paintKalite(); return; }
         d.quality = q; d.qualityKey = deckKey(d); dirty(); paintKalite();
         /* Puan tek başına yetmez: sorunlar adıyla görünmeli, yoksa "96 almışım"
@@ -9698,7 +10043,7 @@ var SBX = (function () {
         var tk = teknikTazeSonuc(d), et = etkinKalite(q, tk) || q, th = tk && tk.summary.errors ? ' · teknik hata (' + tk.summary.errors + ')' : '';      /* Phase 4: gösterilen puan etkin puandır (teknik hata varsa en çok 59) */
         if (loud || iss.length) say('Acadia kalite notu: ' + Math.round(et.score) + '/100' + (iss.length ? ' — ' + iss.join(', ') : th ? '' : ' — sorun bulunmadı.') + th);
       }, function (e) {
-        kaliteBusy = false; paintKalite(); console.warn('acadex-sunum: kalite ölçülemedi', e);
+        if (kaliteBusy === d) kaliteBusy = null; paintKalite(); console.warn('acadex-sunum: kalite ölçülemedi', e);
         if (loud) say('Acadia şu an puanlayamadı; biraz sonra tekrar dene.');
       });
   };
@@ -9763,6 +10108,9 @@ var SBX = (function () {
   };
   var printDeck = function (mode, kalanBos) {
     strips = strips.filter(function (s) { return s.t.trim() || s.k === 'end'; }); if (!strips.length) return;
+    /* #38: deste dili düzenler kurulmadan ÖNCE yazılır — curLang()/ilkBuyuk önceki destenin dilini okuyordu (Türkçe
+       destenin ardından basılan İngilizce destede "Gündem", "İt") */
+    if (mode !== 'append' && plotMeta.lang) deck.lang = plotMeta.lang;
     var bosCerceve = 0;
     /* Düzen çeşidi: türün destedeki kaçıncı asetatı olduğuna göre döner. Klasik
        kalanlar: doğrulanamayan maddesi olan asetat (uyarı işareti yalnız madde
@@ -10001,7 +10349,7 @@ var SBX = (function () {
        taslaklarının hepsinde var, bizde kapaktan doğrudan ilk konuya geçiliyordu.
        Yeni destede, en az 5 gövde asetatı varsa ve yazar zaten bir gündem
        yazmadıysa eklenir; başlıklar destenin kendi başlıklarıdır. */
-    if (mode !== 'append' && made.length && made[0].lay === 'cover' && govde.length >= 5 && !govde.some(function (x) { return /^(gündem|içindekiler|akış|sunum akışı|agenda|outline|contents)\b/i.test(x); })) {
+    if (mode !== 'append' && made.length && made[0].lay === 'cover' && govde.length >= 5 && plotMeta.gundem !== 0 && !govde.some(function (x) { return /^(gündem|içindekiler|akış|sunum akışı|agenda|outline|contents)\b/i.test(x); })) {
       var gb = govde.filter(function (x) { return !/\((devam|cont\.)\)\s*$/i.test(x); }).slice(0, 8).map(function (x) { x = String(x).replace(/\s+/g, ' ').trim(); return x.length > 62 ? x.slice(0, 60).replace(/\s+\S*$/, '') + '…' : x; });
       var gs = newSlide('list', ENn ? 'Agenda' : 'Gündem', gb, { v: 10 });
       if (gs.v === 10) { gs.notes = ENn
@@ -10048,7 +10396,7 @@ var SBX = (function () {
     /* PHASE 4: üretim yolu (provenance) desteyle taşınır — yeni basım eskisini siler, ekleme kipi korur. Yalnız kısa
        kodlar ve sayılar: hangi yol, yedek mi, kaç kaynak, kaç sayfa istendi (F2). Metin/URL yok. uret: basılan asetatların kimlikleri — sonradan elle eklenen asetat
        (cihaz değişse de) üretilmiş sayılmaz, yer tutucusu hata değil uyarıdır. */
-    if (mode !== 'append') { if (plotMeta.yol && plotMeta.yol.k) deck.yol = { k: String(plotMeta.yol.k), yedek: plotMeta.yol.yedek ? 1 : 0, kaynak: arr(plotMeta.sources).length, istek: plotMeta.istek > 0 ? plotMeta.istek : 0, uret: deck.slides.map(function (s) { return String(s.id); }) }; else delete deck.yol; }
+    if (mode !== 'append') { if (plotMeta.yol && plotMeta.yol.k) deck.yol = { k: String(plotMeta.yol.k), yedek: plotMeta.yol.yedek ? 1 : 0, kaynak: arr(plotMeta.sources).length, istek: plotMeta.istek > 0 ? plotMeta.istek : 0, tam: plotMeta.sayi && plotMeta.sayi.serit === strips.length ? 1 : 0, uret: deck.slides.map(function (s) { return String(s.id); }) }; else delete deck.yol; }
     if (mode !== 'append' && !deck.quality && deck.slides.length) kaliteOlc(deck);
     teknikQA(deck, 'deste');      /* Phase 4 (A): basılan destenin ilk teknik durumu — sığdırmadan sonra, yalnız okur */
     deck.cur = start; selId = null; plotFrom = null; plot.close(); renderAll(); dirty();
@@ -10314,10 +10662,23 @@ var SBX = (function () {
       } catch (e) { son(null); }
     });
   };
+  var tasmaGit = [];
   var exportPptx = async function (btn) {
     if (!deck.slides.length) { say('İndirilecek asetat yok.'); return; }
     await yaziHazirSoz();      /* PPTX ekrandaki gibi doğrulanmış yazıyla sığdırılmış boyutları taşır (açılan deste önce sığdırılır) */
-    commitEdit(); if (btn) { btn.disabled = true; btn.textContent = 'hazırlanıyor…'; }
+    commitEdit();
+    /* TAŞMA UYARISI (#38, P2): çözülmemiş TEXT_OVERFLOW varken indirme önce uyarır, taşan asetatları sayar ve oraya götürür.
+       Hiçbir şey silinmez ya da kendiliğinden düzeltilmez (onarım Phase 6 denetiminde, önizlemeli ve geri alınabilir).
+       Aynı deste için ikinci basış uyarıyı geçer. */
+    var tq = teknikTazeSonuc(deck) || teknikQA(deck, 'deste'), ak = teknikAnahtar(deck);
+    var tas = arr(tq && tq.issues).filter(function (x) { return x.code === 'TEXT_OVERFLOW' && x.slide; }).map(function (x) { return x.slide; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort(function (a, b) { return a - b; });
+    if (tas.length && exportPptx._izin !== ak) {
+      exportPptx._izin = ak; tasmaGit = tas;
+      say(tas.length + ' asetatta yazı kutusundan taşıyor (asetat ' + tas.join(', ') + '). PowerPoint’te de taşar; yine de indirmek için PowerPoint’e bir kez daha bas.', null, '#sx-tasma', 'asetat ' + tas[0] + '’e git');
+      return;
+    }
+    exportPptx._izin = null;
+    if (btn) { btn.disabled = true; btn.textContent = 'hazırlanıyor…'; }
     var off = document.createElement('div'); off.style.cssText = 'position:fixed;left:-20000px;top:0;width:960px;height:540px;pointer-events:none'; LY.appendChild(off);
     var qaK = [], d0 = deck;      /* Phase 4: aktarılamayan öğeler teknik denetime (her aktarım bir öncekinin yerine geçer) */
     try {
@@ -10528,7 +10889,7 @@ var SBX = (function () {
       if (!m && !d.slides.length && !d.title) return true;
       d.updated = Date.now();
       if (!m) { m = { id: d.id }; store.list.unshift(m); }
-      m.dbId = d.dbId || m.dbId || null; m.title = d.title; m.n = d.slides.length; m.updated = d.updated; m.bekleyen = 1;      /* hesaba ulaşınca push kaldırır (18C) */
+      m.dbId = d.dbId || m.dbId || null; m.title = d.title; m.n = d.slides.length; m.updated = d.updated; m.bekleyen = 1; if (d.lang) m.lang = d.lang;      /* #38: dil açılışta kaybolmasın */      /* hesaba ulaşınca push kaldırır (18C) */
       var ok = S(store.k('d.' + d.id), d, kaliciJSON); store.putList(); S(store.k('cur'), d.id); store.dirty = false;
       return ok;
     },
@@ -10587,13 +10948,14 @@ var SBX = (function () {
       /* quality_report yazılıyordu ama hiç okunmuyordu: buluttan açılan her
          deste puansız görünüyor, açılışta boşuna yeniden ölçülüyordu
          (14.11.2026). Kaynak bağı da aynı şekilde kayboluyordu. */
-      var pr = await c.from('presentations').select('quality_report,source_type,source_id').eq('id', m.dbId).maybeSingle();
+      var pr = await c.from('presentations').select('quality_report,source_type,source_id,language').eq('id', m.dbId).maybeSingle();
       if (!pr.error && pr.data) {
+        if (pr.data.language === 'en' || pr.data.language === 'tr') d.lang = pr.data.language;      /* #38: buluttan açılan İngilizce deste Türkçe kuralla çizilip 'tr' diye geri yazılıyordu */
         var qq = pr.data.quality_report;
         if (qq && typeof qq.score === 'number') d.quality = qq;
         if (qq && qq.icerik && typeof qq.icerik.score === 'number') { var qi = {}; for (var qk in qq) if (Object.prototype.hasOwnProperty.call(qq, qk) && qk !== 'icerik' && qk !== 'teknik' && qk !== 'yol' && qk !== 'gorsel') qi[qk] = qq[qk]; qi.score = qq.icerik.score; qi.pass = qq.icerik.pass; qi.issues = arr(qq.icerik.issues); d.quality = qi; }      /* Phase 4: içerik puanı geri gelir; teknik kısım açılışta yeniden ölçülür */
         if (qq && qq.gorsel && typeof qq.gorsel === 'object' && gorselYuklu) gorselYuklu.set(d, qq.gorsel);      /* Phase 5: yalnız deste aynı görünüyorsa yeniden yazılır */
-        if (qq && qq.yol && qq.yol.k) d.yol = { k: String(qq.yol.k), yedek: qq.yol.yedek ? 1 : 0, kaynak: +qq.yol.kaynak || 0, istek: +qq.yol.istek || 0, uret: arr(qq.yol.uret).map(String) };
+        if (qq && qq.yol && qq.yol.k) d.yol = { k: String(qq.yol.k), yedek: qq.yol.yedek ? 1 : 0, kaynak: +qq.yol.kaynak || 0, istek: +qq.yol.istek || 0, tam: qq.yol.tam ? 1 : 0, uret: arr(qq.yol.uret).map(String) };
         d.source = pr.data.source_type || 'blank'; d.sourceId = pr.data.source_id || null;
       }
       d.slides = (r.data || []).map(function (row) {
@@ -10660,7 +11022,7 @@ var SBX = (function () {
       seenDb[row.id] = 1; var ru = Date.parse(row.updated_at) || 0, m = null;
       store.list.forEach(function (x) { if (x.dbId === row.id) m = x; });
       if (!m) store.list.push({ id: 'db-' + row.id, dbId: row.id, title: row.title, n: row.slide_count, lang: row.language, updated: 0, remote: ru });
-      else { m.remote = ru; if (ru > (m.updated || 0) + 2000) { m.title = row.title; m.n = row.slide_count; } }
+      else { m.remote = ru; if (!m.lang && row.language) m.lang = row.language; if (ru > (m.updated || 0) + 2000) { m.title = row.title; m.n = row.slide_count; if (row.language) m.lang = row.language; } }
     });
     /* hesabından silinmiş sunumların bulut bağını kopar (yerel kopya kalır) */
     store.list.forEach(function (x) { if (x.dbId && !seenDb[x.dbId]) { x.dbId = null; x.remote = 0; if (x.id === deck.id) deck.dbId = null; } });

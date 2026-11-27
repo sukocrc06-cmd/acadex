@@ -99,7 +99,7 @@ test('HER ÜRETİM YOLU PUANLANIR (13.11.2026, canlı ölçüm)', () => {
     'yönetmen yedeğinin ölçümsüz puanı nihai sayılıyor (F1)');
   assert.ok(ink.includes('plotMeta.yolDir = 1'), 'yönetmen yedeği işaretlenmiyor');
   /* F2: istenen sayı yalnız eksikte ve normalizeDeck eşiğinin (asetat ≥ %75 × sayı, yoksa INCOMPLETE_PRESENTATION) altında gider */
-  assert.ok(ink.includes('slideCount: ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length }'), 'istenen sayı critique’e gitmiyor ya da sınırsız');
+  assert.ok(ink.includes('var adet = ist > uretilen ? Math.min(sl.length + (ist - uretilen), Math.floor(sl.length * 4 / 3)) : sl.length;') && ink.includes('slideCount: adet }'), 'istenen sayı critique’e gitmiyor ya da sınırsız');
   assert.match(dir, /if \(rawSlides\.length < Math\.max\(4, Math\.ceil\(slideCount \* 0\.75\)\)\) throw new Error\('INCOMPLETE_PRESENTATION'\)/,
     'yönetmen eşiği değişti — istemcinin 4/3 sınırı yeniden hesaplanmalı');
   /* Puanlama ve teknik denetim aynı basımda: önce içerik (critique), sonra teknik (D1 tavanı) */
@@ -128,14 +128,15 @@ test('HAZIR DESTE AÇILINCA PUANLANIR (14.11.2026)', () => {
     'elle yeniden ölçme düğmesi yok (deste düzenlenince puan bayatlar)');
   assert.match(ink, /deck\.quality = null; deck\.qualityKey = null;\s*\/\* elle istenen ölçüm/,
     'elle ölçüm eski puanı ve parmak izini temizlemiyor — kaliteOlc hemen döner');
-  assert.match(ink, /if \(kaliteBusy\) return;/, 'çift ölçüm engeli yok');
+  /* #38: engel deste başınadır — bekleyen A ölçümü yeni B destesini kilitlemez */
+  assert.match(ink, /if \(kaliteBusy === d\) return;/, 'çift ölçüm engeli yok');
   assert.ok(html.includes('data-kalite='), 'sunum başlığında kalite rozeti yok');
 });
 
 test('KAYDEDİLEN KALİTE RAPORU GERİ OKUNUR (14.11.2026)', () => {
   /* quality_report 13.11'de yazılmaya başladı ama fetchDeck yalnız
      presentation_slides çekiyordu: puan buluttan dönmüyordu. */
-  assert.match(ink, /select\('quality_report,source_type,source_id'\)\.eq\('id', m\.dbId\)/,
+  assert.match(ink, /select\('quality_report,source_type,source_id,language'\)\.eq\('id', m\.dbId\)/,
     'fetchDeck kalite raporunu çekmiyor — her açılışta boşuna yeniden ölçülür');
   assert.match(ink, /if \(qq && typeof qq\.score === 'number'\) d\.quality = qq;/,
     'rapor desteye yazılmıyor');

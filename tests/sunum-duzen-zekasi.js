@@ -30,6 +30,8 @@ const { makeRunner } = require('./_ts-extract.js');
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const ink = read('js/acadex-ink.js');
+/* #38: düzenler ilk harfi deste dilinde büyütür (ilkBuyuk); dilimli düzeneğe gerçek tanım + Türkçe deste verilir */
+const ILK = "var deck = { lang: 'tr' };" + ink.match(/  var ilkBuyuk = function[^\n]+/)[0] + '\n';
 const { test, summary } = makeRunner();
 const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
 const cut = (a, b, from) => { const i = ink.indexOf(a, from || 0); assert.ok(i >= 0, 'bulunamadı: ' + a.slice(0, 50)); const j = ink.indexOf(b, i + a.length); assert.ok(j > i, 'bulunamadı: ' + b.slice(0, 50)); return ink.slice(i, j); };
@@ -41,7 +43,7 @@ const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 7
 const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
 const arr = (x) => (Array.isArray(x) ? x : []);
 const { VARY, VSIRA, LAILE } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'txt',
-  cut("var TINT = ['#DCE6FF'", '/* ---------- özetten taşınan zenginlik') + ';return { VARY, VSIRA, LAILE };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], arr, (x) => String(x == null ? '' : x).trim());
+  ILK + cut("var TINT = ['#DCE6FF'", '/* ---------- özetten taşınan zenginlik') + ';return { VARY, VSIRA, LAILE };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], arr, (x) => String(x == null ? '' : x).trim());
 const VS = cut('var vSay = {}, vSec', 'push(); var made = strips.map');
 const NS = cut('  var newSlide = function (kind, t, b, c) {', '  /* ---------- rendering ---------- */');
 const LAY = {};

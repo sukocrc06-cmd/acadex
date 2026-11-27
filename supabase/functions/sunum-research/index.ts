@@ -1040,7 +1040,12 @@ The deck is written in ${LQ}: q1, q2, ask, aspects and aq are in ${LQ}, whatever
         const qsDil = qs.filter((q: string) => !dilDisi(q, lang)); qs.splice(0, qs.length, ...qsDil); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = aspects.length && !dilDisi(String(pq?.aq || ""), lang) ? String(pq?.aq || "").slice(0, 160).trim() : "";
         /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
            Alt başlık sorgusu olmadan "…yolları" konusu yalnız sorunun verisini (enflasyon rakamları) buluyordu. */
-        if (gq.ok && qs.length) queries = [...new Set([topic, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => yilTekil(tarihSorgu(topic, q))))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
+        /* #38: İngilizce deste + Türkçe konu: derin ilk sorgu Türkçe konunun kendisiydi; kaynakların çoğu Türkçe geliyordu.
+           Planlayıcının İngilizce q1'i (yoksa "en") ilk sorgu olur. Ek çağrı yok; planlayıcı düşerse konu aranır. */
+        const trKonu = lang === "en" && (dilDisi(topic, "en") || /\b(?:ve|ile|için|icin|nasıl|nasil|nedir|neden|etkileri?|yolları|üzerine|alanında|önemi)\b/i.test(topic));
+        const ilk = trKonu ? (qs[0] || String(pq?.en || "").slice(0, 160).trim() || topic) : topic;
+        if (trKonu) console.log("sunum arastirma: Turkce konu, ingilizce ilk sorgu: " + (ilk !== topic));
+        if (gq.ok && qs.length) queries = [...new Set([ilk, ...(aq.length > 3 ? [aq] : []), ...qs.slice(-2)].map((q) => yilTekil(tarihSorgu(topic, q))))].slice(0, 4); topicEn = String(pq?.en || "").slice(0, 80).trim(); wikiT = String(pq?.wiki || "").slice(0, 80).trim(); wikiE = String(pq?.wiki_en || "").slice(0, 80).trim(); } catch { /* yalnız konu aranır */ }
       engine.queries = queries.length;
 
       // 2) Tavily (varsa) ve Wikipedia paralel. İlk sorgu derin, ötekiler hızlı.

@@ -142,7 +142,8 @@ if (!CHROME) {
     let st = ''; try { st = require('node:child_process').execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', 'supabase'], { cwd: ROOT }).toString(); } catch (e) { st = 'git yok'; }
     const degisen = st.split('\n').filter(Boolean).map((l) => l.slice(3));
     assert.ok(st !== 'git yok', 'git çalışmadı');
-    assert.deepEqual(degisen.filter((f) => f !== 'supabase/functions/sunum-research/index.ts'), [], 'supabase/ altında izinsiz değişiklik (migration, RPC ya da başka fonksiyon)');
+    /* #38: yönetmenin repeatedFacts düzeltmesi (yüzdeli iki haneli + grafik rakamı) izinli; migration/RPC yine yasak */
+    assert.deepEqual(degisen.filter((f) => f !== 'supabase/functions/sunum-research/index.ts' && f !== 'supabase/functions/acadia-presentation-director/index.ts'), [], 'supabase/ altında izinsiz değişiklik (migration, RPC ya da başka fonksiyon)');
   });
   summary();
 })();

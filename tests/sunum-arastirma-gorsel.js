@@ -30,6 +30,8 @@ const { test, summary } = makeRunner();
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const ink = read('js/acadex-ink.js');
+/* #38: düzenler ilk harfi deste dilinde büyütür (ilkBuyuk); dilimli düzeneğe gerçek tanım + Türkçe deste verilir */
+const ILK = "var deck = { lang: 'tr' };" + ink.match(/  var ilkBuyuk = function[^\n]+/)[0] + '\n';
 const sr = read('supabase/functions/sunum-research/index.ts');
 const dir = read('supabase/functions/acadia-presentation-director/index.ts');
 const gsc = read('supabase/functions/generate-slide-content/index.ts');
@@ -40,7 +42,7 @@ test('ARAŞTIRMA: konu birden çok sorguya açılır, paralel aranır', () => {
   assert.match(sr, /Promise\.all\(queries\.map\(\(q, i\) => tavily\(q, i === 0\)\)\)/, 'sorgular paralel aranmıyor');
   /* Kuru koşuda yakalandı: [konu, q1, q2, q3] ilk üçe kesilince İngilizce
      sorgu (q3) hiç aranmıyordu. q1 zaten konunun kendisidir; son ikisi alınır. */
-  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => yilTekil\(tarihSorgu\(topic, q\)\)\)\)\]\.slice\(0, 4\)/,
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[ilk, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => yilTekil\(tarihSorgu\(topic, q\)\)\)\)\]\.slice\(0, 4\)/,
     'konu + alt başlık + veri + İngilizce sorgu aranmalı; en çok 4 sorgu (Tavily kredisi)');
   // Plan düşerse araştırma ölmez: yalnız konu aranır.
   assert.match(sr, /let queries: string\[\] = \[topic\]/, 'sorgu planı düşünce araştırma da düşer');
@@ -305,7 +307,7 @@ test('DÜZEN ÇEŞİTLERİ: aynı tür art arda farklı görünümle basılır (
   const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
   const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
   const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
-  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec: function (x, i) { ikonKul = {}; return ikonSec(x, i); }, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), (d) => (d && Array.isArray(d.data) ? d.data : []));
+  const { VARY, VSIRA, tarihBol, ikonSec, IKON } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', 'arr', 'chartVals', ILK + ink.slice(a, b) + ';return { VARY, VSIRA, tarihBol, ikonSec: function (x, i) { ikonKul = {}; return ikonSec(x, i); }, IKON };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3], (x) => (Array.isArray(x) ? x : []), (d) => (d && Array.isArray(d.data) ? d.data : []));
   const B3 = ['Eylül 2021: Enflasyon %19 iken faiz indirimleri başladı', '2022 – Enflasyon %85 seviyesine yükseldi', '2023: Seçim sonrası politika değişti'];
   const B5 = B3.concat(['2024: Sıkılaşma sürdü', '2025: Dezenflasyon']);
   const icinde = (els, ad) => els.forEach((e) => assert.ok(e.x >= 0 && e.y >= 0 && e.x + e.w <= 960 && e.y + e.h <= 540, ad + ': öğe asetatın dışına taşıyor (' + e.type + ' ' + e.x + ',' + e.y + ' ' + e.w + '×' + e.h + ')'));
@@ -438,7 +440,7 @@ test('DÜZEN: kolonlu içerik, almaşık çizelge, tek punto sayılar', () => {
   let id = 0; const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o), head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 })];
   const statsOf = (bb) => bb.map((x) => { const m = String(x).split(' — '); return { value: m[0], label: m[1] }; });
   const sb = ink.match(/var statBoy = function[^\n]+/)[0];
-  const { VARY, statBoy } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'TINT', 'ikonSec', 'kisa', sb + ';' + ink.slice(a, b).replace(/var (ikonSec|kisa) = /g, 'var _$1 = ') + ';return { VARY, statBoy };')(E, head, statsOf, '#0', '#1', '#2', ['a', 'b', 'c', 'd'], () => 'check', (bb, lo, hi, max) => bb && bb.length >= lo && bb.length <= hi && bb.every((x) => String(x).length <= max));
+  const { VARY, statBoy } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'TINT', 'ikonSec', 'kisa', ILK + sb + ';' + ink.slice(a, b).replace(/var (ikonSec|kisa) = /g, 'var _$1 = ') + ';return { VARY, statBoy };')(E, head, statsOf, '#0', '#1', '#2', ['a', 'b', 'c', 'd'], () => 'check', (bb, lo, hi, max) => bb && bb.length >= lo && bb.length <= hi && bb.every((x) => String(x).length <= max));
   const K = ['Şebeke esnekliği: depolama ve talep yönetimi olmadan güneş üretimi öğle saatinde kesilir', 'Finansman maliyeti: yüksek faiz, sermaye yoğun rüzgâr projelerini geciktirir', 'İthalat bağımlılığı: panel ve türbin tedariki döviz kuruna duyarlıdır'];
   const kol = VARY.list[6]('B', K);
   assert.equal(kol.filter((e) => e.bold).length, 3, 'her kolonun alt başlığı olmalı');
@@ -577,7 +579,7 @@ test('KONUYA SADAKAT: araştırma konunun alt başlıklarını arar, kaynağı o
   // yazım değil araştırmaydı: planın q1'i atılıyor, q2 "konunun verisi" (= enflasyon rakamı) arıyor,
   // kurumsal kaynak önceliği de bireysel yatırım yazılarını eliyordu.
   assert.ok(sr.includes('"aspects":["a1","a2","a3","a4","a5"]') && sr.includes('"aq":'), 'sorgu planı alt başlık çıkarmıyor');
-  assert.match(sr, /queries = \[\.\.\.new Set\(\[topic, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => yilTekil\(tarihSorgu\(topic, q\)\)\)\)\]\.slice\(0, 4\)/, 'alt başlık sorgusu aranmıyor');
+  assert.match(sr, /queries = \[\.\.\.new Set\(\[ilk, \.\.\.\(aq\.length > 3 \? \[aq\] : \[\]\), \.\.\.qs\.slice\(-2\)\]\.map\(\(q\) => yilTekil\(tarihSorgu\(topic, q\)\)\)\)\]\.slice\(0, 4\)/, 'alt başlık sorgusu aranmıyor');
   assert.match(sr, /r\._asp >= 2 \|\| all\.filter/, 'alt başlıkları taşıyan kaynak kurumsal sınıra takılıyor');
   assert.match(sr, /keysOf\(\[topic, topicEn, \.\.\.queries, \.\.\.aspects\]/, 'paragraf seçimi alt başlıkları bilmiyor');
   assert.ok(sr.includes('AUDIENCE EXPECTS and ASPECTS') && sr.includes('They are NOT facts'), 'yazar plana uymuyor ya da planı olgu sanabilir');
@@ -668,7 +670,7 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   const E = (type, x, y, w, h, o) => Object.assign({ id: ++id, type, x, y, w, h, text: '', size: 24 }, o);
   const head = (t) => [E('h', 70, 46, 820, 74, { text: t, size: 42 }), E('mark', 70, 118, 190, 16, {})];
   const statsOf = (bb) => (bb || []).map((x) => { const m = String(x).split(' — '); return m.length > 1 ? { value: m[0], label: m[1] } : null; }).filter(Boolean);
-  const { VARY, VSIRA, LAILE, TINT } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', ink.slice(a, b) + ';return { VARY, VSIRA, LAILE, TINT };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3]);
+  const { VARY, VSIRA, LAILE, TINT } = new Function('E', 'head', 'statsOf', 'NAVY', 'BLUE', 'SOFT', 'statBoy', ILK + ink.slice(a, b) + ';return { VARY, VSIRA, LAILE, TINT };')(E, head, statsOf, '#0D1838', '#2F6BFF', '#6A7593', (ss, o) => o[3]);
   // klasik + çeşitler: her türde en az 4 görünüm
   /* grafik veri türüdür: klasik + çıkarımlı iki hâli yeter (25.11.2026) */
   Object.keys(VARY).filter((k) => k !== 'chart').forEach((k) => assert.ok(new Set(VSIRA[k]).size >= 4, k + ': ' + new Set(VSIRA[k]).size + ' görünüm var, en az 4 olmalı'));
