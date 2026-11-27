@@ -9338,4 +9338,12 @@ body.axb-deco #feed-view.axb .bp-stk-x,body.axb-deco .bp-stk-x{display:flex}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 0;border-top:1px dashed #C9D3E8;min-width:0}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep small{flex:1 1 100%;color:var(--muted);font-size:13px}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep em{font-style:normal;font-size:12px;padding:0 6px;border-radius:4px;background:#E8EEFA;color:var(--navy)}
+/* #42: seçili kurgu öneriden ayrı (yeşil ✓, öneri mavi). ✓ CSS'te: ekran okuyucu "Seçili" der, işaret sözlüğü bozmaz */
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;margin:0 0 8px;min-width:0;font-size:13.5px;line-height:1.35;color:var(--navy);overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec:empty{display:none}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec span,:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-secili{display:inline-flex;align-items:center;gap:3px;padding:0 7px;border-radius:4px;background:#E3F4EA;color:#1F7A4D;font-weight:700;font-size:12px;font-style:normal;white-space:nowrap}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec span::before,:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-secili::before{content:"✓";content:"✓" / ""}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-sec b{min-width:0;font-weight:600}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep em.sx-oneri-secili{background:#E3F4EA;color:#1F7A4D}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-hep li.sx-oneri-li-sec{box-shadow:inset 3px 0 0 #1F7A4D;padding-left:9px;background:#F3FAF6}
 @media (max-width:640px){:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-b{flex-direction:column;align-items:stretch}:is(#acadexsunum-view.axu,#axu-layer) .sx-oneri-ust button{flex:1 1 100%}}

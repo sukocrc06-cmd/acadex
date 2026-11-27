@@ -9303,6 +9303,8 @@ var SBX = (function () {
     var kut = Q('[data-oneri]', plot); if (!kut) return;
     oneriDenetle();
     var al = Q('[data-oneri-al]', plot), not = Q('[data-oneri-not]', plot), kart = Q('[data-oneri-kart]', plot), sel = Q('[data-pl-story]', plot);
+    /* #42: seçili kurgu her durumda öneriden ayrı görünür; yalnız seçicinin değerini okur, öneri kartına bağlı değil */
+    var sec = Q('[data-oneri-sec]', plot); if (sec) sec.innerHTML = KURGU[sel.value] ? '<span>Seçili:</span> <b>' + X(KURGU[sel.value].ad) + '</b>' : '';
     var d = srcVal() !== 'topic' ? 'gizli' : !webAcik() ? 'kapali' : !normKonu(Q('[data-pl-topic]', plot).value) ? 'bos' : oneri ? oneri.durum : 'hazir';
     kut.setAttribute('data-oneri-durum', d);
     al.disabled = d === 'gizli' || d === 'kapali' || d === 'bos' || d === 'yukleniyor';
@@ -9325,7 +9327,7 @@ var SBX = (function () {
         oneriDug('', 'data-oneri-hep aria-expanded="' + !!oneri.acik + '"', oneri.acik ? 'listeyi gizle' : 'beşini de gör') +
         (oneri.onceki != null ? oneriDug('', 'data-oneri-geri', 'geri al') : '') + '</div>' +
         (oneri.acik ? '<ul class="sx-oneri-hep">' + KURGU_ID.map(function (k) {
-          return '<li><span class="sx-oneri-ad">' + X(KURGU[k].ad) + '</span>' + (k === r ? ' <em>önerilen</em>' : k === a ? ' <em>alternatif</em>' : '') + (k === v ? ' <em>seçili</em>' : '') +
+          return '<li' + (k === v ? ' class="sx-oneri-li-sec" aria-current="true"' : '') + '><span class="sx-oneri-ad">' + X(KURGU[k].ad) + '</span>' + (k === r ? ' <em>önerilen</em>' : k === a ? ' <em>alternatif</em>' : '') + (k === v ? ' <em class="sx-oneri-secili">seçili</em>' : '') +
             '<small>' + X(KURGU[k].uyar) + '</small>' + (k === v ? '' : oneriDug(' sm', 'data-oneri-kullan="' + k + '"', 'kullan')) + '</li>';
         }).join('') + '</ul>' : '');
     }
@@ -9366,7 +9368,7 @@ var SBX = (function () {
       'Öneri çıkarılamadı. Kurguyu öneri olmadan da çıkarabilirsin.': 'No suggestion could be made. You can still build the outline without one.',
       'Önerim:': 'My suggestion:', 'Net bir işaret yok.': 'No clear cue.', 'Güvenli seçim:': 'Safe choice:', 'işaret:': 'cue:', 'alternatif:': 'alternative:', '✓ kullanılıyor:': '✓ in use:',
       'bu kurgu zaten seçili': 'this structure is already selected', 'Bu kurguyu kullan': 'Use this structure', 'alternatifi kullan': 'use the alternative', 'beşini de gör': 'see all five',
-      'listeyi gizle': 'hide the list', 'geri al': 'undo', 'önerilen': 'suggested', 'alternatif': 'alternative', 'seçili': 'selected', 'kullan': 'use', 'kurgu önerisi': 'structure suggestion',
+      'listeyi gizle': 'hide the list', 'geri al': 'undo', 'önerilen': 'suggested', 'alternatif': 'alternative', 'seçili': 'selected', 'Seçili:': 'Selected:', 'kullan': 'use', 'kurgu önerisi': 'structure suggestion',
       'Başlıkta belirgin bir kurgu işareti yok; otomatik iskelet güvenli seçim, alternatif de uyabilir.': 'The title has no clear structure cue; the automatic outline is the safe choice, and the alternative may also fit.',
       'Başlık bir kavramı ya da alanı tanıtıyor; giriş → gelişme → sonuç düz ve anlaşılır akar.': 'The title introduces a concept or field; intro → body → conclusion flows plainly and clearly.',
       'Başlık bir sorunu ve onu çözme yollarını işaret ediyor; önce sorun, sonra çözümler izleyiciyi sonuca taşır.': 'The title points to a problem and ways to solve it; problem first, then solutions, carries the audience to a conclusion.',

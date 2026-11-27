@@ -89,13 +89,13 @@ test('A4 #38 korunur: plotBirak aynı; üretim yolu kurguyu seçiciden okumaya d
 });
 
 test('A5 işaretleme: düğme seçicinin hemen altında, yalnız konu kaynağında; kart aria-live; İngilizce sözlükte her ekran yazısı var', () => {
-  assert.match(html, /<\/select><\/label>\n<div class="sx-oneri" data-srcf="topic" data-oneri hidden role="group" aria-label="kurgu önerisi">\n<div class="sx-oneri-ust"><button type="button" class="bp-ghost sx-ghost" data-oneri-al>Acadia'dan öneri al<\/button><small data-oneri-not><\/small><\/div>\n<div class="sx-oneri-kart" data-oneri-kart aria-live="polite" hidden><\/div>\n<\/div>\n<fieldset class="sx-f sx-tones"><legend>sunum dili<\/legend>/);
+  assert.match(html, /<\/select><\/label>\n<div class="sx-oneri" data-srcf="topic" data-oneri hidden role="group" aria-label="kurgu önerisi">\n<p class="sx-oneri-sec" data-oneri-sec><\/p>\n<div class="sx-oneri-ust"><button type="button" class="bp-ghost sx-ghost" data-oneri-al>Acadia'dan öneri al<\/button><small data-oneri-not><\/small><\/div>\n<div class="sx-oneri-kart" data-oneri-kart aria-live="polite" hidden><\/div>\n<\/div>\n<fieldset class="sx-f sx-tones"><legend>sunum dili<\/legend>/);
   const so = cut('  var oneriSozluk = function () {', '  oneriSozluk();'), A = {};
   Function('window', so + '\noneriSozluk();')({ AX_EN: { t: A } });
   const yazilar = ["Acadia'dan öneri al", 'önce bir konu yaz', 'Acadia başlığa bakıyor…', 'Web araştırması kapalıyken kurgu iskeleti uygulanmaz; öneri için webde araştır’ı aç.',
     'Başlıktaki işaretlere bakar; seçimini sen onaylamadan değiştirmez.', 'Konu ya da ayarlar değişti; önceki öneri bu girdi için geçerli değil.', 'Öneri çıkarılamadı. Kurguyu öneri olmadan da çıkarabilirsin.',
     'Önerim:', 'Net bir işaret yok.', 'Güvenli seçim:', 'işaret:', 'alternatif:', '✓ kullanılıyor:', 'bu kurgu zaten seçili', 'Bu kurguyu kullan', 'alternatifi kullan', 'beşini de gör', 'listeyi gizle',
-    'geri al', 'önerilen', 'seçili', 'kullan', K.KURGU_BELIRSIZ].concat(ID.map((k) => K.KURGU[k].neden), ID.map((k) => K.KURGU[k].uyar));
+    'geri al', 'önerilen', 'seçili', 'Seçili:', 'kullan', K.KURGU_BELIRSIZ].concat(ID.map((k) => K.KURGU[k].neden), ID.map((k) => K.KURGU[k].uyar));
   for (const y of yazilar) { assert.ok(A[y], 'EN anahtarı yok: ' + y); if (!ID.some((k) => K.KURGU[k].neden === y || K.KURGU[k].uyar === y) && y !== K.KURGU_BELIRSIZ) assert.ok(EKRAN.includes(y) || html.includes(y), 'ekranda yok: ' + y); }
   const B = { "Acadia'dan öneri al": 'önceden' }; Function('window', so + '\noneriSozluk();')({ AX_EN: { t: B } });
   assert.deepEqual(B, { "Acadia'dan öneri al": 'önceden' }, 'koruma: ilk anahtar varsa sözlüğe dokunmaz');
@@ -107,6 +107,17 @@ test('A6 CSS: kapsamlı seçiciler, 44px dokunma hedefi, taşma koruması ve dar
   assert.match(c, /\.sx-oneri button\{min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere/);
   assert.match(c, /@media \(max-width:640px\)\{[^\n]*\.sx-oneri-b\{flex-direction:column/);
   assert.ok(c.split('\n').filter((l) => /^[^/@\s].*\{/.test(l)).every((l) => l.startsWith(':is(#acadexsunum-view.axu,#axu-layer) .sx-oneri')), 'kapsam dışı seçici');
+});
+
+test('A7 #42 seçili göstergesi: yalnız seçicinin değerini okur, seçiciye yazmaz; liste satırı aria-current; ✓ CSS içeriği (sözlük anahtarı bozulmaz)', () => {
+  const kod = EKRAN.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(kod, /var sec = Q\('\[data-oneri-sec\]', plot\); if \(sec\) sec\.innerHTML = KURGU\[sel\.value\] \? '<span>Seçili:<\/span> <b>' \+ X\(KURGU\[sel\.value\]\.ad\) \+ '<\/b>' : '';/);
+  assert.match(kod, /\(k === v \? ' class="sx-oneri-li-sec" aria-current="true"' : ''\)/);
+  assert.match(kod, /\(k === v \? ' <em class="sx-oneri-secili">seçili<\/em>' : ''\)/);
+  assert.ok(!/✓\s*Seçili/.test(kod), '✓ metne girmemeli (CSS ::before)');
+  const css = read('css/acadex-ink.css'), c = css.slice(css.indexOf('/* Kurgu önerisi (#41'));
+  assert.match(c, /\.sx-oneri-sec span::before,[^{]*\.sx-oneri-secili::before\{content:"✓";content:"✓" \/ ""\}/);
+  assert.match(c, /\.sx-oneri-sec\{[^}]*min-width:0[^}]*overflow-wrap:anywhere/);
 });
 
 /* ------------------------------ B: saf işlevler ------------------------------ */
@@ -224,6 +235,10 @@ if (!CHROME) {
       return { durum: k.getAttribute('data-oneri-durum'), guven: k.getAttribute('data-oneri-guven'), gizli: k.hidden, al: Qp('[data-oneri-al]').disabled, not: Qp('[data-oneri-not]').textContent,
         kart: kart.hidden ? '' : kart.textContent, kullan: Array.prototype.map.call(kart.querySelectorAll('[data-oneri-kullan]'), function (b) { return b.getAttribute('data-oneri-kullan'); }),
         geri: !!kart.querySelector('[data-oneri-geri]'), sec: Qp('[data-pl-story]').value, odak: d.activeElement && d.activeElement.getAttribute ? (d.activeElement.hasAttribute('data-oneri-geri') ? 'geri' : d.activeElement.getAttribute('data-oneri-kullan') || d.activeElement.tagName) : '' }; };
+    var secili = function () { var s = Qp('[data-oneri-sec]'), sp = s.querySelector('span'), kart = Qp('[data-oneri-kart]'), lis = kart.querySelectorAll('.sx-oneri-hep li'), on = kart.querySelector('.sx-oneri-hep em:not(.sx-oneri-secili)'), cs = s.getBoundingClientRect();
+      return { yazi: s.textContent.trim(), gor: !!(cs.width && cs.height) && getComputedStyle(s).display !== 'none', tik: sp ? getComputedStyle(sp, '::before').content : '', zemin: sp ? getComputedStyle(sp).backgroundColor : '',
+        oneriZemin: on ? getComputedStyle(on).backgroundColor : '', liSec: Array.prototype.filter.call(lis, function (l) { return l.getAttribute('aria-current') === 'true'; }).map(function (l) { return l.querySelector('.sx-oneri-ad').textContent; }),
+        cip: kart.querySelectorAll('.sx-oneri-secili').length, bas: (kart.querySelector('.sx-oneri-bas') || {}).textContent || '', alt: (kart.querySelector('.sx-oneri-alt') || {}).textContent || '', sec: Qp('[data-pl-story]').value }; };
     var yaz = function (t) { var i = Qp('[data-pl-topic]'); i.value = t; i.dispatchEvent(new Event('input', { bubbles: true })); };
     var ton = function (v) { Qp('input[name=pl-tone][value=' + v + ']').click(); };
     var web = function (acik) { var w = Qp('[data-pl-web]'); if (w.checked !== acik) w.click(); };
@@ -286,6 +301,28 @@ if (!CHROME) {
     await ac(); kaynak('topic'); web(true); yaz('Agile vs Waterfall'); ton('akademik'); R.oneriYok = !Qp('[data-oneri]');
     R.kullanilmadan = await uret(); kapat(); await bekle(200); R.hatalar = HATALAR;
   `;
+  /* #42: seçili göstergesi; yaz/öner/uygula/alternatif/geri al/elle/yeniden öner/kapat-aç */
+  const SEC = ONCU + `
+    await ac(); kaynak('topic'); web(true); R.ilk = secili();
+    R.elle = {}; ['problem', 'scqa', 'compare', 'chrono', 'auto'].forEach(function (k) { elle(k); R.elle[k] = secili(); });
+    yaz('Agile vs Waterfall'); al(); Qp('[data-oneri-hep]').click(); R.oner = secili();
+    kullan('compare'); R.uygula = secili(); tdk(); R.geri = secili();
+    var ab = Array.prototype.filter.call(Qp('[data-oneri-kart]').querySelectorAll('[data-oneri-kullan]'), function (b) { return b.textContent.trim() === 'alternatifi kullan'; })[0];
+    R.altId = ab ? ab.getAttribute('data-oneri-kullan') : null; if (ab) ab.click(); R.alt = secili(); tdk(); R.altGeri = secili();
+    kullan('compare'); elle('scqa'); R.elleSonra = secili(); R.elleGeri = !!Qp('[data-oneri-kart] [data-oneri-geri]');
+    al(); R.yenidenOner = secili();
+    kapat(); await bekle(100); await ac(); R.yenidenAc = secili(); R.yenidenAcKart = Qp('[data-oneri-kart]').hidden;
+    al(); R.acSonraOner = secili(); kapat(); await bekle(100);
+    R.hatalar = HATALAR;
+  `;
+  /* #42: başsız Chrome penceresi 500 px altına inmiyor; pencere (dialog) 320 px telefon genişliğine sıkıştırılır, en uzun ad seçili ve liste açık */
+  const SECDAR = ONCU + `
+    await ac(); var sayfa0 = d.documentElement.scrollWidth; plot.style.width = plot.style.maxWidth = '320px'; kaynak('topic'); web(true); elle('scqa'); yaz('Türkiye ve Almanya karşılaştırması: mesleki eğitim, çıraklık ve istihdam sonuçları'.slice(0, 80)); al(); Qp('[data-oneri-hep]').click(); await bekle(200);
+    var k = Qp('[data-oneri]'), pr = plot.getBoundingClientRect(), tasan = [];
+    k.querySelectorAll('*').forEach(function (e) { var r = e.getBoundingClientRect(); if (r.width && (r.right > pr.right + 1 || r.left < pr.left - 1 || r.right > innerWidth + 1)) tasan.push(e.tagName + '.' + e.className + ' ' + Math.round(r.left) + '-' + Math.round(r.right)); });
+    R.d = { en: innerWidth, sayfa0: sayfa0, pw: Math.round(pr.width), sayfa: d.documentElement.scrollWidth, plotSW: plot.scrollWidth, plotCW: plot.clientWidth, tasan: tasan, ham: k.scrollWidth - k.clientWidth, sec: secili() };
+    R.hatalar = HATALAR;
+  `;
   const DAR = ONCU + `
     await ac(); kaynak('topic'); web(true); await bekle(200); var sayfa0 = d.documentElement.scrollWidth, genis = function () { var o = []; d.querySelectorAll('body *').forEach(function (e) { var r = e.getBoundingClientRect(); if (r.width && r.right > innerWidth + 1 && !e.closest('[data-plotdlg]')) o.push(e.tagName + '.' + String(e.className).slice(0, 40) + ':' + Math.round(r.right)); }); return o.slice(0, 6); }; yaz('Türkiye ve Almanya karşılaştırması: mesleki eğitim, çıraklık ve istihdam sonuçları'.slice(0, 80)); al(); kullan('compare');
     Qp('[data-oneri-hep]').click(); await bekle(200);
@@ -301,8 +338,8 @@ if (!CHROME) {
     try { let h = sayfa('ok', H.srv.address().port, 0, govde); if (html) h = html(h); return await kosK('k41-' + ad + '.html', 'k41-' + ad, h, gen); } finally { H.srv.close(); }
   };
   const isaretsiz = (h) => { const a = h.indexOf('<div class="sx-oneri" data-srcf="topic" data-oneri'), b = h.indexOf('</div>\n</div>\n', a); assert.ok(a > 0 && b > a, 'işaretleme kesilemedi'); return h.slice(0, a) + h.slice(b + '</div>\n</div>\n'.length); };
-  let A, G, Y, N;
-  try { [A, G, Y, N] = await Promise.all([kosSahne('akis', AKIS), kosSahne('govde', GOVDE), kosSahne('yok', YOK, 1280, isaretsiz), kosSahne('dar', DAR, 500)]); } catch (e) { A = G = Y = N = { hata: String(e && e.stack || e) }; }
+  let A, G, Y, N, S, SD;
+  try { [A, G, Y, N, S, SD] = await Promise.all([kosSahne('akis', AKIS), kosSahne('govde', GOVDE), kosSahne('yok', YOK, 1280, isaretsiz), kosSahne('dar', DAR, 500), kosSahne('sec', SEC), kosSahne('secdar', SECDAR, 500)]); } catch (e) { A = G = Y = N = S = SD = { hata: String(e && e.stack || e) }; }
   const ozet = (x) => JSON.stringify(x).slice(0, 600);
 
   test('D1 ağ yalıtımı: açılış, yazma, anlatım/dil değişimi ve öneri/uygula/geri al sıfır istek; hiçbir yerde model/arama adresi yok', () => {
@@ -372,6 +409,45 @@ if (!CHROME) {
     assert.deepEqual(r.tasan, [], j); assert.ok(r.hamTasma <= 1, j); assert.ok(r.kut[1] <= r.plot[1], j);
     assert.ok(r.dug.length >= 5, j); for (const [ad, w, h] of r.dug) { assert.ok(h >= 44, ad + ' yükseklik ' + h); assert.ok(w >= 44, ad + ' genişlik ' + w); }
     assert.deepEqual(N.hatalar, []);
+  });
+
+  const AD = { auto: 'otomatik (giriş → gelişme → sonuç)', problem: 'problem → çözüm → sonuç', scqa: 'durum → sorun → soru → cevap (SCQA)', compare: 'karşılaştırma (A mı, B mi?)', chrono: 'kronolojik (dün → bugün → yarın)' };
+  const goster = (x, id, ne) => { assert.equal(x.sec, id, ne + ' seçici'); assert.equal(x.yazi, 'Seçili: ' + AD[id], ne + ' gösterge: ' + ozet(x)); assert.ok(x.gor, ne + ' görünmüyor'); assert.ok(/^"✓"/.test(x.tik), ne + ' ✓ yok: ' + x.tik); };
+
+  test('E1 #42 ilk açılış: otomatik öneri istenmeden ✓ Seçili ile görünür; öteki dört kurgu elle seçilince gösterge hemen değişir', () => {
+    assert.ok(!S.hata, S.hata); goster(S.ilk, 'auto', 'ilk');
+    for (const k of ['problem', 'scqa', 'compare', 'chrono', 'auto']) goster(S.elle[k], k, 'elle ' + k);
+    assert.deepEqual(S.hatalar, []);
+  });
+
+  test('E2 #42 seçili öneriden ayrı: öneri karşılaştırma, seçili otomatik; liste yalnız seçili satırı aria-current ve yeşil çiple işaretler', () => {
+    assert.ok(!S.hata, S.hata); goster(S.oner, 'auto', 'öner'); assert.match(S.oner.bas, /Önerim:\s*karşılaştırma/);
+    assert.deepEqual(S.oner.liSec, [AD.auto]); assert.equal(S.oner.cip, 1); assert.ok(S.oner.zemin && S.oner.oneriZemin && S.oner.zemin !== S.oner.oneriZemin, 'seçili ve öneri çipi aynı renk: ' + ozet(S.oner));
+  });
+
+  test('E3 #42 öneriyi ya da alternatifi uygulamak göstergeyi hemen değiştirir; öneri kartı aynı öneriyi göstermeye devam eder; geri al önceki göstergeyi getirir', () => {
+    assert.ok(!S.hata, S.hata);
+    goster(S.uygula, 'compare', 'uygula'); assert.deepEqual(S.uygula.liSec, [AD.compare]); assert.match(S.uygula.bas, /Önerim:\s*karşılaştırma/);
+    goster(S.geri, 'auto', 'geri al'); assert.deepEqual(S.geri.liSec, [AD.auto]);
+    assert.ok(S.altId && S.altId !== 'compare', 'alternatif düğmesi yok: ' + ozet(S));
+    goster(S.alt, S.altId, 'alternatif'); assert.deepEqual(S.alt.liSec, [AD[S.altId]]); assert.match(S.alt.bas, /Önerim:\s*karşılaştırma/); assert.ok(S.alt.alt.includes(AD[S.altId]), 'alternatif satırı');
+    goster(S.altGeri, 'auto', 'alternatif geri al');
+  });
+
+  test('E4 #42 elle seçim belirleyici: uygulamadan sonra elle seçim göstergeyi alır, geri al kalkar; yeniden öner seçimi ve göstergeyi değiştirmez', () => {
+    assert.ok(!S.hata, S.hata); goster(S.elleSonra, 'scqa', 'elle'); assert.equal(S.elleGeri, false);
+    goster(S.yenidenOner, 'scqa', 'yeniden öner'); assert.match(S.yenidenOner.bas, /Önerim:\s*karşılaştırma/); assert.deepEqual(S.yenidenOner.liSec, [], 'liste kapanmış olmalı (yeni öneri)');
+  });
+
+  test('E5 #42 kapat/aç: seçim ve göstergesi kalır, öneri kartı sıfırlanır; yeniden önerince seçim yine değişmez', () => {
+    assert.ok(!S.hata, S.hata); goster(S.yenidenAc, 'scqa', 'yeniden aç'); assert.equal(S.yenidenAcKart, true); assert.equal(S.yenidenAc.bas, '');
+    goster(S.acSonraOner, 'scqa', 'açtıktan sonra öner');
+  });
+
+  test('E6 #42 320 px pencere (500 px görünüm): en uzun ad seçili ve liste açıkken yatay taşma yok', () => {
+    assert.ok(!SD.hata, SD.hata); const r = SD.d, j = ozet(r);
+    assert.ok(r.en <= 520 && r.pw <= 320, j); goster(r.sec, 'scqa', 'dar'); assert.deepEqual(r.tasan, [], j); assert.ok(r.ham <= 1, j);
+    assert.ok(r.plotSW <= r.plotCW + 1, j); assert.ok(r.sayfa <= Math.max(r.en, r.sayfa0), j); assert.deepEqual(SD.hatalar, []);
   });
 
   temizle(); summary();
