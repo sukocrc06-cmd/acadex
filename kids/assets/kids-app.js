@@ -227,7 +227,9 @@
     return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>' +
       /* 27.11.2026 Zaman Makinesi Kasabası (kids-gramer.js): dil bilgisi, kolay/orta/zor */
       /* geliştirmede: yalnız test ekibi (W.KIDS_EKIP, kids-test.js); diğer kullanıcılarda kapı hiç çizilmez */
-      (W.KIDS_GRAMER && W.KIDS_EKIP ? '<button type="button" class="ka-portal kzm-portal" data-gramer aria-label="Zaman Makinesi Kasabasına git"><span class="kzm-portal-g" aria-hidden="true"><i></i><i></i></span><span class="ka-portal-y"><small>Dil bilgisi</small><b>Zaman Kasabası</b></span></button>' : '');
+      (W.KIDS_GRAMER && W.KIDS_EKIP ? '<button type="button" class="ka-portal kzm-portal" data-gramer aria-label="Zaman Makinesi Kasabasına git"><span class="kzm-portal-g" aria-hidden="true"><i></i><i></i></span><span class="ka-portal-y"><small>Dil bilgisi</small><b>Zaman Kasabası</b></span></button>' : '') +
+      /* 27.11.2026 Dinle ve Bul (kids-dinlebul.js): anaokulu, yazısız; dinle, resme dokun. Yalnız test ekibi */
+      (W.KIDS_DINLEBUL && W.KIDS_EKIP ? '<button type="button" class="ka-portal kdb-portal" data-dinlebul aria-label="Dinle ve Bul"><span class="kdb-portal-g" aria-hidden="true"><i></i></span><span class="ka-portal-y"><small>Anaokulu</small><b>Dinle ve Bul</b></span></button>' : '');
   }
   var karsilanan = '';   /* son karşılanan çocuk|gün|konu (bellekte: sayfa yenilenince yeni giriş sayılır) */
   function panel() {
@@ -270,6 +272,8 @@
     var gk = app.querySelector('[data-gramer]');
     if (!gk && !W.__kidsEkipDinle) { W.__kidsEkipDinle = true; D.addEventListener('kids:ekip', function () { if (app.dataset.gorunum === 'harita' && !app.querySelector('[data-gramer]')) panel(); }); }
     if (gk) gk.addEventListener('click', function () { SES.fx('dokun'); jole(gk); var r = W.KIDS_GRAMER.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
+    var db = app.querySelector('[data-dinlebul]');
+    if (db) db.addEventListener('click', function () { SES.fx('dokun'); jole(db); var r = W.KIDS_DINLEBUL.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur }); if (r && r.dur) aktif = r; });
     var sz = app.querySelector('[data-surpriz]');
     if (sz) sz.addEventListener('click', function () { var l = acikIds.filter(function (id) { return id !== (S.konu || ''); }), id = l[Math.floor(Math.random() * l.length)], b = id && app.querySelector('.ka-ada[data-konu="' + id + '"]'); jole(sz); if (b) b.click(); });
     /* kreşin kelime seti: ayrı ada gibi, doğrudan ilk durak (madalya/paket seçimi yok) */
