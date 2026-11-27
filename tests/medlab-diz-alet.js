@@ -103,38 +103,29 @@ test('sesli görüşme: hasta konuşurken mikrofon açılmaz, ağız ses bitene 
   assert.match(kl, /W\.localStorage\.getItem\('axk\.sesgor'\) === '1'/);
 });
 
-test('alet dolabı: 8 alet, parçalar çizimin içinde, adımlar ve sınav soruları tutarlı', () => {
-  const W = {}; const D = { getElementById: () => null };
-  new Function('window', 'document', read('labs/medica/medica-alet.js'))(W, D);
-  const A = W.AXALET; assert.ok(A);
-  assert.equal(A.ALET.length, 8);
-  assert.deepEqual(A.ALET.map(a => a.id).sort(), ['abeslang', 'cekic', 'oftalmoskop', 'oksimetre', 'otoskop', 'steteskop', 'tansiyon', 'termometre']);
-  A.ALET.forEach(a => {
-    assert.ok(A.CIZ[a.id], a.id + ' çizimi');
-    assert.ok(a.parca.length >= 2 && a.parca.every(p => p[1] >= 6 && p[1] <= 234 && p[2] >= 6 && p[2] <= 154), a.id + ' parça konumu');
-    assert.ok(a.adim.length >= 4 && a.dikkat.length >= 2 && a.nerede.length >= 2 && a.ne.length > 60, a.id + ' içerik');
-  });
-  const ids = new Set(A.ALET.map(a => a.id));
-  assert.ok(A.DURUM.length >= 8 && A.DURUM.every(d => ids.has(d[1])));
+test('Medica: hastane içindeki Aletler paneli kaldırıldı; aletler Cihaz Deposu’nda', () => {
   const med = read('labs/medica/index.html');
-  assert.match(med, /id="md-alet"/); assert.match(med, /<script src="medica\.js"><\/script>\n<script src="medica-alet\.js"><\/script>/);
+  assert.doesNotMatch(med, /id="md-alet"/); assert.doesNotMatch(med, /medica-alet\.js/);
 });
 
 /* ---------------- Cihaz Deposu ---------------- */
-const depoYukle = () => { const W = {}; new Function('window', 'globalThis', read('labs/depo/depo-veri.js') + '\n' + read('labs/depo/depo-sim.js'))(W, W); return W; };
-test('Cihaz Deposu: 9 bölüm, 58 cihaz + 8 muayene aleti; her cihazın içeriği ve parçaları çizimin içinde', () => {
+const DEPO_JS = ['depo-veri.js', 'depo-muayene.js', 'depo-ek-1.js', 'depo-ek-2.js', 'depo-ek-3.js', 'depo-ek-4.js', 'depo-sim.js'];
+const depoYukle = () => { const W = {}; new Function('window', 'globalThis', DEPO_JS.map(f => read('labs/depo/' + f)).join('\n'))(W, W); return W; };
+test('Cihaz Deposu: 11 bölüm, 250 cihaz; her cihazın içeriği ve parçaları çizimin içinde', () => {
   const W = depoYukle(), V = W.AXDEPO;
-  assert.equal(V.BOLUM.length, 9); assert.equal(V.CIHAZ.length, 58);
+  assert.equal(V.BOLUM.length, 11); assert.equal(V.CIHAZ.length, 250);
   const ids = new Set(); V.CIHAZ.forEach(c => {
     assert.ok(!ids.has(c.id), 'tekrar: ' + c.id); ids.add(c.id); assert.match(c.id, /^[a-z0-9-]+$/, 'url için güvenli kimlik: ' + c.id);
     assert.ok(V.BOLUM.some(b => b.id === c.b), c.id + ' bölüm');
-    assert.ok(c.ciz && c.ciz.length > 80 && c.ne.length > 60 && c.adim.length >= 3 && c.dikkat.length >= 1, c.id + ' içerik');
+    assert.ok(c.ciz && c.ciz.length > 80 && !/undefined|NaN/.test(c.ciz) && c.ne.length > 60 && c.adim.length >= 3 && c.dikkat.length >= 1, c.id + ' içerik');
     (c.parca || []).forEach(p => assert.ok(p[1] >= 4 && p[1] <= 236 && p[2] >= 4 && p[2] <= 158, c.id + ' parça konumu ' + p[0]));
   });
-  V.BOLUM.filter(b => b.id !== 'muayene').forEach(b => assert.ok(V.CIHAZ.filter(c => c.b === b.id).length >= 6, b.id + ' en az 6 cihaz'));
+  V.BOLUM.forEach(b => assert.ok(V.CIHAZ.filter(c => c.b === b.id).length >= 12, b.id + ' en az 12 cihaz'));
   const sims = V.CIHAZ.filter(c => c.sim).map(c => c.sim).sort();
   assert.deepEqual(sims, ['defib', 'enj', 'gluko', 'gonyo', 'odyo', 'pompa', 'vent']);
   sims.forEach(s => assert.equal(typeof W.DEPOSIM[s].baslat, 'function'));
+  const html = read('labs/depo/index.html'), sira = DEPO_JS.map(f => html.indexOf('<script src="' + f + '"></script>'));
+  assert.ok(sira.every((v, i) => v > 0 && (i === 0 || v > sira[i - 1])), 'depo betikleri sırayla yüklenir');
 });
 
 test('Cihaz Deposu simülasyon hesapları: İVA, hız, damla, hacim, enjektör, fleksiyon', () => {
@@ -153,7 +144,8 @@ test('Cihaz Deposu MedLab’e bağlı: kart, lab kaydı, kampüs turu durağı',
   assert.match(dash, /data-medlab-open="depo"/); assert.match(ml, /depo: \{ t: 'Cihaz Deposu', src: 'labs\/depo\/index\.html' \}/);
   assert.match(idx, /<article class="kt-st" data-st="dpo"/); assert.match(idx, /data-kt-git="9" aria-label="Acadex Medica durağına git"/);
   const sim = read('labs/depo/depo-sim.js'); assert.doesNotMatch(sim, /data-c[ =]/, 'depo.js [data-c] ile kart açar; simülasyon bu adı kullanmamalı');
-  assert.match(read('labs/depo/index.html'), /<script src="\.\.\/medica\/medica-alet\.js"><\/script>/);
+  assert.doesNotMatch(read('labs/depo/index.html'), /medica-alet\.js/);
+  assert.match(dash, /250 alet ve cihaz/); assert.match(idx, /<li>250 alet ve cihaz, 11 bölüm<\/li>/);
 });
 
 summary();

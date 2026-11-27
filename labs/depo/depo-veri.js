@@ -2,7 +2,7 @@
    ACADEX MEDLAB · CİHAZ DEPOSU verisi (labs/depo/depo-veri.js), 27.11.2026
    Bölümlerin alet ve cihazları. Her cihaz: bölüm, kısa tanım, ne işe yarar, adım adım kullanım,
    dikkat / sık hatalar, çizim (viewBox 0 0 240 160) ve numaralı parçalar; bazılarında kullanım
-   simülasyonu (sim). Muayene bölümü Medica alet dolabının verisini kullanır (../medica/medica-alet.js).
+   simülasyonu (sim). Muayene aletleri depo-muayene.js’te; ek bölüm dosyaları (depo-ek-*.js) listeye ekler.
    İçerik eğitim amaçlıdır; klinik uygulamada kurum protokolü, üretici talimatı ve eğitmen gözetimi esastır.
    ========================================================================== */
 (function (root) {
@@ -21,13 +21,13 @@
 
   var BOLUM = [
     { id: 'ameliyat', ad: 'Ameliyathane', kisa: 'Cerrahi aletler', renk: '#2F7F6E' },
-    { id: 'acil', ad: 'Acil ve yoğun bakım', kisa: 'Resüsitasyon ve solunum', renk: '#D64545' },
+    { id: 'acil', ad: 'Acil ve yoğun bakım', etiket: 'Acil-YB', kisa: 'Resüsitasyon ve solunum', renk: '#D64545' },
     { id: 'muayene', ad: 'Muayene', kisa: 'Fizik muayene aletleri', renk: '#2E9C86' },
     { id: 'hem', ad: 'Hemşirelik', kisa: 'Hasta başı uygulamalar', renk: '#3B7DD8' },
     { id: 'fizyo', ad: 'Fizyoterapi', kisa: 'Ölçme ve tedavi', renk: '#1E8A55' },
     { id: 'odyo', ad: 'Odyoloji', kisa: 'İşitme değerlendirme', renk: '#D68A1E' },
-    { id: 'diyet', ad: 'Beslenme ve diyet', kisa: 'Antropometri ve beslenme', renk: '#D9472B' },
-    { id: 'dkt', ad: 'Dil ve konuşma', kisa: 'Ses, akıcılık, yutma', renk: '#E0705A' },
+    { id: 'diyet', ad: 'Beslenme ve diyet', etiket: 'Beslenme', kisa: 'Antropometri ve beslenme', renk: '#D9472B' },
+    { id: 'dkt', ad: 'Dil ve konuşma', etiket: 'Dil-konuşma', kisa: 'Ses, akıcılık, yutma', renk: '#E0705A' },
     { id: 'ecz', ad: 'Eczacılık', kisa: 'Majistral laboratuvar', renk: '#7A4FA8' }
   ];
 
@@ -397,5 +397,7 @@
       dikkat: ['Ağızla pipetleme zehirlenme ve enfeksiyon riskidir.', 'Pipeti yatay tutmak sıvının puara kaçmasına yol açar.'] }
   ];
 
-  root.AXDEPO = { BOLUM: BOLUM, CIHAZ: CIHAZ };
+  /* ek bölüm dosyaları (depo-ek-*.js) aynı çizim yardımcılarını kullanır; K(...) kısa kayıt kurar */
+  var K = function (id, b, ad, kisa, ne, adim, dikkat, ciz, parca, ek) { var c = { id: id, b: b, ad: ad, kisa: kisa, ne: ne, adim: adim, dikkat: dikkat, ciz: ciz, parca: parca || [] }; if (ek) for (var k in ek) c[k] = ek[k]; return c; };
+  root.AXDEPO = { BOLUM: BOLUM, CIHAZ: CIHAZ, H: { R: R, C: C, P: P, F: F, T: T, PARL: PARL, halka: halka, makasGovde: makasGovde, K: K, INK: INK, MET: MET, METK: METK, KOY: KOY } };
 })(typeof window !== 'undefined' ? window : globalThis);

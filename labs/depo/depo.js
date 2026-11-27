@@ -2,7 +2,7 @@
    ACADEX MEDLAB · CİHAZ DEPOSU (labs/depo/depo.js), 27.11.2026
    Depo sahnesi (bölüm dolapları) → bölüm şeridi → katalog → cihaz kartı (numaralı parçalar,
    ne işe yarar, kullanım, dikkat) → kullanım simülasyonu (depo-sim.js, DEPOSIM).
-   Veri: depo-veri.js (AXDEPO) + Medica alet dolabının muayene aletleri (AXALET).
+   Veri: depo-veri.js (AXDEPO) + bölüm dosyaları (depo-muayene.js, depo-ek-*.js) aynı listeye ekler.
    İncelenen cihazlar ve simülasyon puanları cihazda saklanır (acadex.depo.*).
    ========================================================================== */
 (function () {
@@ -17,10 +17,7 @@
   };
   var norm = function (t) { return String(t || '').toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i'); };
 
-  /* muayene aletleri Medica alet dolabından gelir */
-  var A = W.AXALET;
   var CIHAZ = V.CIHAZ.slice();
-  if (A) A.ALET.forEach(function (a) { CIHAZ.push({ id: 'm-' + a.id, b: 'muayene', ad: a.ad, kisa: a.kisa, ne: a.ne, adim: a.adim, dikkat: a.dikkat, nerede: a.nerede, parca: a.parca, ciz: A.CIZ[a.id] }); });
   var BOL = V.BOLUM, bolum = function (id) { return BOL.filter(function (b) { return b.id === id; })[0]; };
   var bul = function (id) { return CIHAZ.filter(function (c) { return c.id === id; })[0]; };
   var gor = ls.get('gor', []), simP = ls.get('sim', {});
@@ -32,9 +29,9 @@
     return s + '</svg>';
   };
 
-  /* ---------------- depo sahnesi: 9 dolap ---------------- */
+  /* ---------------- depo sahnesi: bölüm başına bir dolap ---------------- */
   var sahne = function () {
-    var w = 1200, h = 420, n = BOL.length, dw = 112, gap = (w - 60 - n * dw) / (n - 1), s = '';
+    var w = 1200, h = 420, n = BOL.length, dw = Math.min(112, (w - 60 - (n - 1) * 10) / n), gap = (w - 60 - n * dw) / (n - 1), s = '';
     s += '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="Depo: bölüm dolapları">';
     s += '<defs><linearGradient id="dpz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9D0D8"/><stop offset="1" stop-color="#AEB7C2"/></linearGradient><linearGradient id="dpd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EEF1F4"/><stop offset="1" stop-color="#DDE3EA"/></linearGradient><linearGradient id="dpk" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#D5DCE4"/><stop offset=".5" stop-color="#EEF2F6"/><stop offset="1" stop-color="#C8D0DA"/></linearGradient></defs>';
     s += '<rect width="' + w + '" height="' + h + '" fill="url(#dpd)"/><rect y="336" width="' + w + '" height="84" fill="url(#dpz)"/><path d="M0 336H' + w + '" stroke="#8D98A8" stroke-width="3"/>';
@@ -45,8 +42,8 @@
       var x = 30 + i * (dw + gap), y = 92, dh = 244, say = CIHAZ.filter(function (c) { return c.b === b.id; }).length;
       var ic = '';
       CIHAZ.filter(function (c) { return c.b === b.id; }).slice(0, 6).forEach(function (c, j) {
-        var cx = x + 8 + (j % 2) * 50, cy = y + 34 + Math.floor(j / 2) * 64;
-        ic += '<svg x="' + cx + '" y="' + cy + '" width="48" height="32" viewBox="0 0 240 160">' + c.ciz + '</svg>';
+        var iw = (dw - 12) / 2, cx = x + 4 + (j % 2) * (iw + 4), cy = y + 34 + Math.floor(j / 2) * 64;
+        ic += '<svg x="' + cx + '" y="' + cy + '" width="' + iw + '" height="' + (iw * 2 / 3) + '" viewBox="0 0 240 160">' + c.ciz + '</svg>';
       });
       s += '<g class="dp-dolap' + (S.b === b.id ? ' acik' : '') + '" data-b="' + b.id + '" tabindex="0" role="button" aria-label="' + X(b.ad) + ' dolabı: ' + say + ' cihaz">';
       s += '<rect class="cerceve" x="' + x + '" y="' + y + '" width="' + dw + '" height="' + dh + '" rx="6" fill="#F7F9FB" stroke="#8D98A8" stroke-width="3"/>';
@@ -54,7 +51,7 @@
       s += '<g class="ic">' + ic + '</g>';
       s += '<g class="kapi kapiL"><rect x="' + x + '" y="' + (y + 22) + '" width="' + dw / 2 + '" height="' + (dh - 22) + '" fill="url(#dpk)" stroke="#8D98A8" stroke-width="2"/><rect x="' + (x + dw / 2 - 10) + '" y="' + (y + 120) + '" width="5" height="26" rx="2" fill="#6E7A90"/></g>';
       s += '<g class="kapi kapiR"><rect x="' + (x + dw / 2) + '" y="' + (y + 22) + '" width="' + dw / 2 + '" height="' + (dh - 22) + '" fill="url(#dpk)" stroke="#8D98A8" stroke-width="2"/><rect x="' + (x + dw / 2 + 5) + '" y="' + (y + 120) + '" width="5" height="26" rx="2" fill="#6E7A90"/></g>';
-      s += '<rect x="' + x + '" y="' + y + '" width="' + dw + '" height="22" rx="6" fill="' + b.renk + '"/><text x="' + (x + dw / 2) + '" y="' + (y + 15) + '" text-anchor="middle" font-family="Instrument Sans,sans-serif" font-size="11.5" font-weight="700" fill="#fff">' + X(b.ad.length > 16 ? b.ad.split(' ')[0] : b.ad) + '</text>';
+      s += '<rect x="' + x + '" y="' + y + '" width="' + dw + '" height="22" rx="6" fill="' + b.renk + '"/><text x="' + (x + dw / 2) + '" y="' + (y + 15) + '" text-anchor="middle" font-family="Instrument Sans,sans-serif" font-size="' + (dw < 100 ? 10.5 : 11.5) + '" font-weight="700" fill="#fff">' + X(b.etiket || (b.ad.length > (dw < 100 ? 13 : 16) ? b.ad.split(' ')[0] : b.ad)) + '</text>';
       s += '<rect x="' + (x + dw / 2 - 18) + '" y="' + (y + dh + 6) + '" width="36" height="18" rx="9" fill="#fff" stroke="' + b.renk + '" stroke-width="2"/><text x="' + (x + dw / 2) + '" y="' + (y + dh + 19) + '" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0D1838">' + say + '</text>';
       s += '</g>';
     });
