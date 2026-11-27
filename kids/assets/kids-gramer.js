@@ -42,6 +42,11 @@
   /* seviye: kendi sınıfı ve altı açık; üstü, bir alt seviyenin bütün binaları bitince açılır */
   function seviyeAcik(i, sv) { return sv <= sinifOf(i) || liste(sv - 1).every(function (x) { return bittiMi(i, x.id); }); }
   function adimAcik(d, a) { return a === 'izle' || (a === 'dene' && d.izle > 0) || (a === 'oyna' && d.dene > 0); }
+  /* 27.11.2026: test ekibinde (W.KIDS_EKIP, kids-test.js) her seviye, bina ve adım açık; ekran bunları kullanır */
+  function ekip() { return !!W.KIDS_EKIP; }
+  function kAcik(i, L, k) { return ekip() || konuAcik(i, L, k); }
+  function sAcik(i, sv) { return ekip() || seviyeAcik(i, sv); }
+  function aAcik(d, a) { return ekip() || adimAcik(d, a); }
   function oyCoz(o) { var p = o.split('|'); return p[0] === 's' ? { t: 's', c: p[1], d: p[2], y: p[3].split(','), tr: p[4] } : p[0] === 'y' ? { t: 'y', c: p[1], ok: p[2] === '1', dz: p[3], tr: p[4] } : { t: 'd', s: p[1], tr: p[2] }; }
 
   /* ---------------- çizimler ---------------- */
@@ -82,21 +87,21 @@
     YER_T = [[28, 19], [72, 27], [28, 35], [72, 43], [28, 51], [72, 59], [28, 67], [72, 75], [28, 83], [72, 91]];
   function kasaba() {
     dur();
-    var i = il(), sv = i.gramerSv && seviyeAcik(i, i.gramerSv) ? i.gramerSv : sinifOf(i), L = liste(sv), S = V().SEVIYE[sv] || {};
+    var i = il(), sv = i.gramerSv && sAcik(i, i.gramerSv) ? i.gramerSv : sinifOf(i), L = liste(sv), S = V().SEVIYE[sv] || {};
     var dar = W.matchMedia && W.matchMedia('(max-width: 700px)').matches, Y = dar ? YER_T : YER_G;
-    var sira = L.findIndex(function (x, k) { return konuAcik(i, L, k) && !bittiMi(i, x.id); }), biten = L.filter(function (x) { return bittiMi(i, x.id); }).length;
+    var sira = L.findIndex(function (x, k) { return kAcik(i, L, k) && !bittiMi(i, x.id); }), biten = L.filter(function (x) { return bittiMi(i, x.id); }).length;
     var son = L.findIndex(function (x) { return x.id === i.gramerSon; }); if (son < 0) son = Math.max(0, sira);
     var yol = 'M' + Y.map(function (p) { return p[0] + ' ' + p[1]; }).join(' L');
     var toplam = L.reduce(function (n, x) { var d = kd(i, x.id); return n + (d.oyna || 0); }, 0);
     oz.kok.innerHTML = '<div class="kzm kzm-sv' + sv + '">' + ust('Haritaya dön', 'Zaman Makinesi Kasabası', 'Grammar Town',
-      '<div class="kzm-sv-sec" role="group" aria-label="Seviye">' + [2, 3, 4].map(function (n) { var a = seviyeAcik(i, n), s_ = V().SEVIYE[n]; return '<button type="button" data-kzmsv="' + n + '" aria-pressed="' + (n === sv) + '"' + (a ? '' : ' aria-disabled="true"') + '><b>' + s_.ad + '</b><small>' + (a ? s_.sinif : '🔒') + '</small></button>'; }).join('') + '</div>') +
+      '<div class="kzm-sv-sec" role="group" aria-label="Seviye">' + [2, 3, 4].map(function (n) { var a = sAcik(i, n), s_ = V().SEVIYE[n]; return '<button type="button" data-kzmsv="' + n + '" aria-pressed="' + (n === sv) + '"' + (a ? '' : ' aria-disabled="true"') + '><b>' + s_.ad + '</b><small>' + (a ? s_.sinif : '🔒') + '</small></button>'; }).join('') + '</div>') +
       '<main class="kzm-kasaba' + (dar ? ' kzm-dar' : '') + '"><div class="kzm-gok" aria-hidden="true"><span class="kzm-gunes"></span><span class="kzm-bulut kzm-b1"></span><span class="kzm-bulut kzm-b2"></span><span class="kzm-tepe"></span></div>' +
       '<div class="kzm-ray" aria-hidden="true"><span class="kzm-tren">' + TREN + '</span></div>' +
       '<div class="kzm-kule-y" aria-hidden="true">' + SAAT + '</div>' +
       '<p class="kzm-tabela"><b>' + esc(S.mahalle || '') + '</b><span>' + biten + ' / ' + L.length + ' bina · ★ ' + toplam + '</span></p>' +
       '<svg class="kzm-yol" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + yol + '"/></svg>' +
       '<ol class="kzm-evler">' + L.map(function (x, k) {
-        var acik = konuAcik(i, L, k), d = kd(i, x.id), bitti = bittiMi(i, x.id);
+        var acik = kAcik(i, L, k), d = kd(i, x.id), bitti = bittiMi(i, x.id);
         return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '" class="' + (acik ? '' : 'kzm-kilit') + (k === sira ? ' kzm-sira' : '') + '"><button type="button" class="kzm-ev" data-kzmk="' + x.id + '"' + (acik ? '' : ' aria-disabled="true"') +
           ' aria-label="' + esc(x.en + ', ' + x.tr + (acik ? (bitti ? ', bitti, ' + d.oyna + ' yıldız' : '') : ', kilitli')) + '">' + ev(x.renk, !acik, bitti, k) + (x.zaman ? '<span class="kzm-saat-r" aria-hidden="true">⏰</span>' : '') +
           '<span class="kzm-ad"><b lang="en">' + esc(x.en) + '</b><small>' + esc(x.tr) + '</small>' + (acik ? (bitti ? yildizHtml(d.oyna) : '<i class="kzm-adim">' + ['izle', 'dene', 'oyna'].map(function (a) { return '<u' + (d[a] > 0 ? ' class="on"' : '') + '></u>'; }).join('') + '</i>') : '<i>🔒</i>') + '</span></button></li>';
@@ -106,7 +111,7 @@
     oz.kok.querySelectorAll('[data-kzmsv]').forEach(function (b) {
       b.addEventListener('click', function () {
         var n = +b.getAttribute('data-kzmsv'), i2 = il();
-        if (!seviyeAcik(i2, n)) { if (SES) { SES.fx('yanlis'); SES.soyle('Bu seviye için önce bir önceki mahalledeki bütün binaları bitir.', 'tr'); } return; }
+        if (!sAcik(i2, n)) { if (SES) { SES.fx('yanlis'); SES.soyle('Bu seviye için önce bir önceki mahalledeki bütün binaları bitir.', 'tr'); } return; }
         i2.gramerSv = n; kaydet(i2); if (SES) SES.fx('dokun'); kasaba();
       });
     });
@@ -114,7 +119,7 @@
     oz.kok.querySelectorAll('[data-kzmk]').forEach(function (b, k) {
       b.addEventListener('click', function () {
         if (gidiyor) return; var x = L[k];
-        if (!konuAcik(il(), L, k)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + L[k - 1].tr + ' binasını bitir.', 'tr'); } b.classList.remove('kzm-salla'); void b.offsetWidth; b.classList.add('kzm-salla'); return; }
+        if (!kAcik(il(), L, k)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + L[k - 1].tr + ' binasını bitir.', 'tr'); } b.classList.remove('kzm-salla'); void b.offsetWidth; b.classList.add('kzm-salla'); return; }
         if (SES) SES.fx('dokun'); var i2 = il(); i2.gramerSon = x.id; kaydet(i2);
         if (k === son || SAKIN || !yr.animate) return konu(x);
         gidiyor = true; var a = Y[son], h = Y[k];
@@ -128,22 +133,22 @@
   var ADIM = [['izle', 'İzle', 'Watch', 'oynat'], ['dene', 'Dene', 'Try', 'firca'], ['oyna', 'Oyna', 'Play', 'yildiz']];
   function konu(x, yeni) {
     dur();
-    var i = il(), d = kd(i, x.id), sira = ADIM.findIndex(function (a) { return adimAcik(d, a[0]) && !(d[a[0]] > 0); });
-    oz.kok.innerHTML = '<div class="kzm kzm-konu kzm-sv' + x.sv + '" style="--r:' + x.renk + '">' + ust('Kasabaya dön', esc(x.en), esc(x.tr)) +
+    var i = il(), d = kd(i, x.id), sira = ADIM.findIndex(function (a) { return aAcik(d, a[0]) && !(d[a[0]] > 0); });
+    oz.kok.innerHTML = '<div class="kzm kzm-konu kzm-sv' + x.sv + (donus ? ' kzm-uzayda' : '') + '" style="--r:' + x.renk + '">' + ust(donus ? 'Gezegene dön' : 'Kasabaya dön', esc(x.en), esc(x.tr)) +
       '<main class="kzm-konu-alan"><div class="kzm-ev-buyuk" aria-hidden="true">' + ev(x.renk, false, bittiMi(i, x.id), 0) + '</div>' +
       '<ol class="kzm-adimlar">' + ADIM.map(function (a, j) {
-        var ac = adimAcik(d, a[0]), y = d[a[0]] || 0, bitti = y > 0;
+        var ac = aAcik(d, a[0]), y = d[a[0]] || 0, bitti = y > 0;
         return '<li style="--j:' + j + '"><button type="button" class="kzm-adim-b' + (bitti ? ' kzm-a-bitti' : '') + (j === sira ? ' kzm-a-simdi' : '') + '" data-kzma="' + a[0] + '"' + (ac ? '' : ' aria-disabled="true"') + ' aria-label="' + esc((j + 1) + '. adım: ' + a[1] + (bitti ? ', bitti' : ac ? '' : ', kilitli')) + '">' +
           '<span class="kzm-a-no">' + (ac ? (C ? C.simge(a[3]) : j + 1) : '🔒') + '</span><b>' + (j + 1) + '. ' + a[1] + '</b><small lang="en">' + a[2] + '</small>' + (bitti ? (a[0] === 'izle' ? '<i class="kzm-y">✓</i>' : yildizHtml(y)) : '') + '</button></li>';
-      }).join('') + '</ol>' + (yeni ? '<div class="kzm-yeni" role="status"><span aria-hidden="true">🏠</span><b>Bina tamam!</b><small>' + (yeni === 'sonuncu' ? 'Mahallenin bütün binalarını bitirdin!' : 'Sıradaki bina açıldı.') + '</small></div>' : '') + '</main></div>';
+      }).join('') + '</ol>' + (yeni ? '<div class="kzm-yeni" role="status"><span aria-hidden="true">🏠</span><b>Bina tamam!</b><small>' + (donus ? 'Gramer istasyonundaki dersi bitirdin!' : yeni === 'sonuncu' ? 'Mahallenin bütün binalarını bitirdin!' : 'Sıradaki bina açıldı.') + '</small></div>' : '') + '</main></div>';
     oz.kok.dataset.gorunum = 'gramer';
-    oz.kok.querySelector('[data-kzmgeri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); kasaba(); });
+    oz.kok.querySelector('[data-kzmgeri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); if (donus) { dur(); donus(); } else kasaba(); });
     if (yeni && SES) { SES.fx('yildiz'); SES.soyle('Tebrikler! ' + x.tr + ' binası tamam!', 'tr'); }
     else if (SES && sira >= 0) SES.soyle(x.tr + '. Sıradaki adım: ' + ADIM[sira][1] + '.', 'tr');
     oz.kok.querySelectorAll('[data-kzma]').forEach(function (b) {
       b.addEventListener('click', function () {
         var a = b.getAttribute('data-kzma');
-        if (!adimAcik(kd(il(), x.id), a)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce bir önceki adımı bitir.', 'tr'); } return; }
+        if (!aAcik(kd(il(), x.id), a)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce bir önceki adımı bitir.', 'tr'); } return; }
         if (SES) SES.fx('dokun'); ({ izle: izle, dene: dene, oyna: oyna })[a](x);
       });
     });
@@ -157,7 +162,7 @@
     return '';
   }
   function sahne(x, n, baslik) {
-    oz.kok.innerHTML = '<div class="kzm kzm-oyun kzm-sv' + x.sv + '" style="--r:' + x.renk + '">' + ust('Binaya dön', esc(baslik), esc(x.en),
+    oz.kok.innerHTML = '<div class="kzm kzm-oyun kzm-sv' + x.sv + (donus ? ' kzm-uzayda' : '') + '" style="--r:' + x.renk + '">' + ust('Binaya dön', esc(baslik), esc(x.en),
       n ? '<ol class="kzm-noktalar" aria-label="İlerleme">' + new Array(n + 1).join('<li></li>') + '</ol>' : '<span></span>') + '<main class="kzm-kart" data-kzmkart></main></div>';
     oz.kok.dataset.gorunum = 'gramer';
     oz.kok.querySelector('[data-kzmgeri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); konu(x); });
@@ -330,10 +335,17 @@
     return { tr: u(tr), en: u(en) };
   }
 
-  function ac(o) {
+  /* Cümle Galaksisi'nin Gramer istasyonu (kids-cumle.js): tek bir konuyu galaksi temasıyla açar, "geri" gezegene döner */
+  var donus = null;
+  function acDers(o, id, geri) {
+    C = W.KIDS_CIZ; SES = W.KIDS_SES; R = W.KIDS_RESIM; oz = o; donus = geri || null;
+    var x = V().KONU.filter(function (k) { return k.id === id; })[0]; if (!x) { if (geri) geri(); return; }
+    konu(x);
+  }
+  function ac(o) { donus = null;
     C = W.KIDS_CIZ; SES = W.KIDS_SES; R = W.KIDS_RESIM; oz = o; if (o.dur) o.dur();
     kasaba();
     return { dur: dur };
   }
-  W.KIDS_GRAMER = { ac: ac, parca: parca, metin: metin, yildiz: yildiz, konuAcik: konuAcik, seviyeAcik: seviyeAcik, bittiMi: bittiMi, adimAcik: adimAcik, oyCoz: oyCoz, rapor: rapor, cumleler: cumleler, _oz: function (x) { oz = x; } };
+  W.KIDS_GRAMER = { ac: ac, acDers: acDers, cumleHtml: cumleHtml, zamanHtml: zamanHtml, ekip: ekip, parca: parca, metin: metin, yildiz: yildiz, konuAcik: konuAcik, seviyeAcik: seviyeAcik, bittiMi: bittiMi, adimAcik: adimAcik, oyCoz: oyCoz, rapor: rapor, cumleler: cumleler, _oz: function (x) { oz = x; } };
 })(window);

@@ -220,3 +220,9 @@
 .kzm-r-sv span{height:10px;border-radius:999px;background:#E8ECF5;overflow:hidden}.kzm-r-sv span i{display:block;height:100%;background:#4CC38A}
 .kzm-r-sv em{font-style:normal;font-weight:800}
 @media (max-width:560px){.kzm-b{min-height:46px;padding:0 12px}.kzm-bosluk{min-width:84px;min-height:46px}.kzm-dy-b{padding:0 18px;font-size:18px}}
+/* Cümle Galaksisi'nin Gramer istasyonundan açılınca: uzay teması (kids-cumle4.js) */
+.kzm.kzm-uzayda{background:radial-gradient(ellipse 70% 50% at 20% 10%,rgba(255,122,168,.25),transparent 70%),radial-gradient(ellipse 60% 50% at 90% 60%,rgba(74,168,255,.25),transparent 70%),linear-gradient(170deg,#241A63,#121848 55%,#0A0E30);color:#fff}
+.kzm.kzm-uzayda .kzm-ust{background:rgba(10,14,48,.55);border-bottom-color:rgba(255,255,255,.12)}
+.kzm.kzm-uzayda .kzm-ust .kk-bas{color:#fff}.kzm.kzm-uzayda .kzm-ust .kk-bas small{color:#C9D2F0}
+.kzm.kzm-uzayda .kzm-kart{border-color:#0B1033;box-shadow:0 8px 0 #0B1033;color:#23304D}
+.kzm.kzm-uzayda .kzm-konu-alan .kzm-adim-b{color:#23304D}

@@ -67,7 +67,7 @@ test('denetim, yıldız, karıştırma', () => {
   for (let i = 0; i < 30; i++) { const k = KC.karisik(p); assert.notDeepEqual(Array.from(k), [0, 1, 2]); }
 });
 test('haritada kapı yalnız ilkokulda; veli köşesinde sınıf; oyun bağlı', () => {
-  assert.match(app, /function portalAcik\(il\) \{ return !!W\.KIDS_CUMLE && \(il\.ilkSinif > 0 \|\| \(il\.ilkSinif === undefined && ilkokulMu\(\)\)\); \}/);
+  assert.match(app, /function portalAcik\(il\) \{ return !!W\.KIDS_CUMLE && \(!!W\.KIDS_EKIP \|\| il\.ilkSinif > 0 \|\| \(il\.ilkSinif === undefined && ilkokulMu\(\)\)\); \}/);
   assert.match(app, /gunBandi\(bugun\) \+ portalHtml\(il\) \+/);
   assert.match(app, /W\.KIDS_CUMLE\.ac\(\{ kok: app, il: ilerleme, kaydet:/);
   assert.match(app, /<select data-vilk>/); assert.match(app, /x\.ilkSinif = Math\.max\(0, \+this\.value\)/);
@@ -169,7 +169,7 @@ test('meteor avı: kelimeler durağından sonra, doğru kelime seçeneklerde, a�
   for (const w of L) { const s = KC.meteorSecenek(E, w, 4); assert.equal(s.length, 4); assert.ok(s.includes(w[0])); assert.equal(new Set(s).size, 4); }
   assert.ok(KC.METEOR_SURE[2] > KC.METEOR_SURE[3] && KC.METEOR_SURE[3] > KC.METEOR_SURE[4], 'küçük sınıfa daha yavaş meteor');
   assert.ok(!KC.DURAK.some((d) => d[0] === 'meteor'), 'meteor durak değil: gezegen kilidini değiştirmez');
-  assert.match(js, /if \(!\(durakD\(il\(\), x\.id\)\.kelime > 0\)\)/);
+  assert.match(js, /if \(!tumAcik\(\) && !\(durakD\(il\(\), x\.id\)\.kelime > 0\)\)/, 'ekip dışında kelimeler şartı');
 });
 test('paket ve hareket: kids-cumle3 dosyaları sırada, önek kc3, animasyonlar reduced-motion korumalı', () => {
   assert.ok(bir.indexOf("'kids-cumle3.js'") > bir.indexOf("'kids-cumle2.js'") && bir.indexOf("'kids-cumle3.js'") < bir.indexOf("'kids-cumle.js'"));
@@ -181,6 +181,32 @@ test('paket ve hareket: kids-cumle3 dosyaları sırada, önek kc3, animasyonlar 
   }
   const sec = kurallar.split('}').map((r) => r.split('{').slice(-2, -1)[0] || '').map((x) => x.trim()).filter((x) => x && !/^(from|to|\d|@)/.test(x));
   for (const x of sec) for (const parca of x.split(',')) assert.match(parca, /kc3|kc2/, 'önek: ' + parca);
+});
+
+/* ---------------- 27.11.2026: gramer yoğunluğu (kids-cumle4.js) ve test ekibi erişimi ---------------- */
+test('gramer yoğunluğu: yalnız ekipte, her gezegende 2 ders ve 7 yeni sağlam cümle, canlı kural', () => {
+  for (const f of ['kids-cumle4.js', 'kids-gramer2.js']) vm.runInContext(read('kids/assets/' + f), W, { filename: f });
+  const K4 = W.KIDS_CUMLE4, GV = W.KIDS_GRAMER_VERI;
+  assert.match(read('kids/assets/kids-cumle4.js'), /var ACIK = false;/, 'herkese açık değil');
+  W.KIDS_EKIP = null; assert.equal(K4.acikMi(), false); W.KIDS_EKIP = { email: 'x@y' }; assert.equal(K4.acikMi(), true); W.KIDS_EKIP = null;
+  for (const s of [2, 3, 4]) for (const x of KC.VERI[s]) {
+    const g = K4.GRAMER[x.id]; assert.equal(g.length, 2, x.id);
+    for (const id of g) { const t = GV.KONU.find((k) => k.id === id); assert.ok(t, x.id + ' konu yok: ' + id); assert.equal(t.sv, s, x.id + ' sınıfa uygun: ' + id); }
+    const L = K4.EKC[x.id]; assert.equal(L.length, 7, x.id + ' 7 yeni cümle');
+    const eski = new Set(x.c.map((c) => KC.metin(c[0])));
+    for (const c of L) { const p = KC.parcala(c[0]); assert.ok(p.bloklar.length >= 2 && c[1], x.id + ' ' + c[0]); assert.ok(!eski.has(KC.metin(c[0])), x.id + ' tekrar: ' + c[0]); for (const b of p.bloklar) assert.ok(b.m.trim() && !/[/]/.test(b.m), x.id + ' blok: ' + c[0]); }
+    assert.ok(K4.KA[x.id] && K4.KA[x.id].s, x.id + ' canlı kural');
+  }
+  assert.match(js, /function tumAcik\(\) \{ return !!W\.KIDS_EKIP; \}/);
+  assert.match(js, /var sorular = karistir\(cumleListe\(x\)\)/);
+  assert.match(js, /gramerKart\(i, x\)/); assert.match(js, /W\.KIDS_GRAMER\.acDers\(/);
+  assert.ok(bir.indexOf("'kids-cumle4.js'") > bir.indexOf("'kids-cumle3.js'") && bir.indexOf("'kids-cumle4.js'") < bir.indexOf("'kids-cumle.js'"));
+});
+test('test ekibi: yalnız tp_members üyesinde bayrak; oturum yoksa bayrak silinir', () => {
+  const kt = read('kids/assets/kids-test.js');
+  assert.match(kt, /from\('tp_members'\)\.select\('email'\)\.eq\('email', e\)\.maybeSingle\(\)\.then\(function \(r\) \{ ekipYaz\(r && r\.data \? e : ''\); \}/);
+  assert.match(kt, /if \(!oturumVar\(\)\) \{ try \{ W\.localStorage\.removeItem\(EKIP_LS\); \} catch \(e\) \{ \} W\.KIDS_EKIP = null; return; \}/);
+  assert.match(kt, /if \(e && k === e\) W\.KIDS_EKIP = \{ email: e \}/, 'önbellek yalnız aynı e-postaya');
 });
 
 summary();

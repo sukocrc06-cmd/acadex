@@ -82,6 +82,8 @@ test('ilerleme: bina ve adım sırası, seviye kilidi', () => {
 
 test('haritaya bağlı, pakette, veli raporunda; önek kzm, hareketi azalt', () => {
   assert.match(app, /data-gramer aria-label="Zaman Makinesi Kasabasına git"/);
+  assert.match(app, /\(W\.KIDS_GRAMER && W\.KIDS_EKIP \? '<button type="button" class="ka-portal kzm-portal"/, 'kapı yalnız test ekibinde');
+  assert.match(js, /function kAcik\(i, L, k\) \{ return ekip\(\) \|\| konuAcik\(i, L, k\); \}/, 'ekipte hepsi açık');
   assert.match(app, /W\.KIDS_GRAMER\.ac\(\{ kok: app, il: ilerleme/);
   assert.match(app, /W\.KIDS_GRAMER && W\.KIDS_GRAMER\.rapor \? W\.KIDS_GRAMER\.rapor\(il\)/);
   assert.ok(bir.indexOf("'kids-gramer2.js'") > 0 && bir.indexOf("'kids-gramer2.js'") < bir.indexOf("'kids-gramer.js'") && bir.indexOf("'kids-gramer.js'") < bir.indexOf("'kids-app.js'"));

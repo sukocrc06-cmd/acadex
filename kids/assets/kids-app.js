@@ -221,12 +221,13 @@
      haritanın sağ üstünde dönen bir galaksi kapısı */
   /* 22.11.2026: ilkokulda (kurum türü) açık; tür bilinmiyorsa (eski önbellek) Yıldızlar sınıfında; veli kapatabilir ya da başka çocukta açabilir */
   function ilkokulMu() { return S.okul && S.okul.tur ? S.okul.tur === 'ilkokul' : !!(S.sinif && S.sinif.bant === 'yildiz'); }
-  function portalAcik(il) { return !!W.KIDS_CUMLE && (il.ilkSinif > 0 || (il.ilkSinif === undefined && ilkokulMu())); }
+  function portalAcik(il) { return !!W.KIDS_CUMLE && (!!W.KIDS_EKIP || il.ilkSinif > 0 || (il.ilkSinif === undefined && ilkokulMu())); }
   function portalHtml(il) {
     if (!portalAcik(il)) return '';
     return '<button type="button" class="ka-portal" data-cumle aria-label="Cümle Galaksisine uç"><span class="ka-portal-g" aria-hidden="true"><i></i><i></i><i></i></span><span class="ka-portal-y"><small>İlkokul</small><b>Cümle Galaksisi</b></span></button>' +
       /* 27.11.2026 Zaman Makinesi Kasabası (kids-gramer.js): dil bilgisi, kolay/orta/zor */
-      (W.KIDS_GRAMER ? '<button type="button" class="ka-portal kzm-portal" data-gramer aria-label="Zaman Makinesi Kasabasına git"><span class="kzm-portal-g" aria-hidden="true"><i></i><i></i></span><span class="ka-portal-y"><small>Dil bilgisi</small><b>Zaman Kasabası</b></span></button>' : '');
+      /* geliştirmede: yalnız test ekibi (W.KIDS_EKIP, kids-test.js); diğer kullanıcılarda kapı hiç çizilmez */
+      (W.KIDS_GRAMER && W.KIDS_EKIP ? '<button type="button" class="ka-portal kzm-portal" data-gramer aria-label="Zaman Makinesi Kasabasına git"><span class="kzm-portal-g" aria-hidden="true"><i></i><i></i></span><span class="ka-portal-y"><small>Dil bilgisi</small><b>Zaman Kasabası</b></span></button>' : '');
   }
   var karsilanan = '';   /* son karşılanan çocuk|gün|konu (bellekte: sayfa yenilenince yeni giriş sayılır) */
   function panel() {
@@ -267,6 +268,7 @@
     var cg = app.querySelector('[data-cumle]');
     if (cg) cg.addEventListener('click', function () { SES.fx('dokun'); jole(cg); var r = W.KIDS_CUMLE.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
     var gk = app.querySelector('[data-gramer]');
+    if (!gk && !W.__kidsEkipDinle) { W.__kidsEkipDinle = true; D.addEventListener('kids:ekip', function () { if (app.dataset.gorunum === 'harita' && !app.querySelector('[data-gramer]')) panel(); }); }
     if (gk) gk.addEventListener('click', function () { SES.fx('dokun'); jole(gk); var r = W.KIDS_GRAMER.ac({ kok: app, il: ilerleme, kaydet: function (x) { koy(ilAnahtar(), x); }, geri: panel, dur: dur, sinifAd: V.ilkSinifAd(S.sinif && S.sinif.ad) }); if (r && r.dur) aktif = r; });
     var sz = app.querySelector('[data-surpriz]');
     if (sz) sz.addEventListener('click', function () { var l = acikIds.filter(function (id) { return id !== (S.konu || ''); }), id = l[Math.floor(Math.random() * l.length)], b = id && app.querySelector('.ka-ada[data-konu="' + id + '"]'); jole(sz); if (b) b.click(); });
