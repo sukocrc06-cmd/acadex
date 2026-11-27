@@ -8252,6 +8252,24 @@ var SBX = (function () {
   var ON_KARSI = /(^|[^a-z])(daha|kat|than|more|less|greater|fewer|higher|lower|larger|smaller)(?=[^a-z]|$)/g;
   var ON_KESIN = /(^|[^a-z])(kesinlikle|mutlaka|tamamen|suphesiz|definitely|certainly|absolutely|undoubtedly)(?=[^a-z]|$)/g;      /* idMutlak'ta olmayan kesinlik sözcükleri (#50 listesi değişmez; 28.11.2026) */
   var onSay = function (re, t) { re.lastIndex = 0; var k = idKat(t), n = 0; while (re.exec(k)) n++; return n; };
+  /* #54: Türkçe fiil olumsuzluğu (28.11.2026). Kök + -ma/-me + zaman eki: "artmadı", "artmıyor", "azalmayacak", "gerçekleşmemiş", "artmamaktadır", "değişmez". Sözcük sonundaki -ma/-me
+     (artma, değişme) addır, sayılmaz. Muhafazakâr: olumsuz fiil sayısı değişirse, olumsuz kökün olumlu biçimi (t→d, k→ğ, p→b, ç→c, -iyor daralması; "artış" de) öteki metinde artarsa
+     ya da kök 3 harften kısaysa ve sözcük birebir korunmadıysa (demedi, etmedi) kutup değişmiş sayılır. Olumsuzluğu koruyan başka fiil (artmadı → yükselmedi) geçer; olumsuz fiilin
+     olumlu eş anlamı yalnız ON_FIIL_ES'te. ON_EK uyarıları ("doğrulanmadı") sayılmaz. Sunucudaki onKutup bunun kopyasıdır: biri değişirse öteki de (test L). */
+  var ON_FIIL = /^([a-z]{2,}?)(m[ae]d[iu]|m[iu]yor|m[ae]y[ae]c[ae][kg]|m[ae]m[iu]s|m[ae]m[ae][a-z]|m[ae]z(l[ae]r)?(d[iu]r|t[iu]r|d[iu]|t[iu]|s[ae])?$)/, ON_FIIL_DEGIL = { tamamen: 1, komedi: 1, yilmaz: 1 };
+  var ON_FIIL_ES = [['degis', /(^|[^a-z])(ayni|sabit) (kal|dur)[a-z]*/g]];
+  var onFiiller = function (t) { var o = { neg: [], soz: [] }; (idKat(t).match(/[a-z]+/g) || []).forEach(function (w) { o.soz.push(w); var m = !ON_FIIL_DEGIL[w] && ON_FIIL.exec(w); if (m) o.neg.push({ w: w, kok: m[1] }); }); return o; };
+  var onKokler = function (k) { var v = [k], y = { p: 'b', t: 'd', k: 'g' }[k.slice(-1)]; if (y) v.push(k.slice(0, -1) + y); if (/[aeiou]$/.test(k) && k.length >= 4) v.push(k.slice(0, -1)); return v.filter(function (x) { return x.length >= 3; }); };
+  var onOlumlu = function (F, k) { var v = onKokler(k); return F.soz.filter(function (w) { return v.some(function (x) { return w.indexOf(x) === 0; }) && !F.neg.some(function (n) { return n.w === w; }); }).length; };
+  var onKutup = function (a, b) {
+    var ekSil = function (t) { var x = String(t || ''); Object.keys(ON_EK).forEach(function (k) { ON_EK[k].forEach(function (q) { if (q.charAt(0) === '(') x = x.split(q).join(' '); }); }); return x; };
+    a = ekSil(a); b = ekSil(b); var A = onFiiller(a), B = onFiiller(b), nA = A.neg.length, nB = B.neg.length, kotu = false;
+    ON_FIIL_ES.forEach(function (q) { var x = onSay(q[1], a), y = onSay(q[1], b), kk = function (n) { return n.kok === q[0]; }; nA += x; nB += y; if ((x || y) && A.neg.filter(kk).length + x !== B.neg.filter(kk).length + y) kotu = true; });
+    if (kotu || nA !== nB) return true;
+    var say = function (L, w) { return L.filter(function (z) { return z === w; }).length; }, kisa = function (F, G) { return F.neg.some(function (n) { return n.kok.length < 3 && say(G.soz, n.w) < say(F.soz, n.w); }); };
+    if (kisa(A, B) || kisa(B, A)) return true;
+    return A.neg.some(function (n) { return n.kok.length >= 3 && onOlumlu(B, n.kok) > onOlumlu(A, n.kok); }) || B.neg.some(function (n) { return n.kok.length >= 3 && onOlumlu(A, n.kok) > onOlumlu(B, n.kok); });
+  };
   var onSayilar = function (t) { return (String(t || '').replace(ON_ATIF, ' ').match(/\d+(?:[.,]\d+)*/g) || []).map(function (x) { return x.replace(/[.,]+$/, ''); }); };
   var onTip = function (t) { return sayiCoz(String(t || '').replace(ON_ATIF, ' ')).filter(function (o) { return o.tur !== 'sayi' || o.deger != null; }).map(function (o) { return [o.tur, o.deger != null ? o.deger : o.y != null ? o.y : '', o.olcek || 1, o.olcekBelirsiz || '', o.boyut || '', o.carpan || 1, o.para || '', o.yon || '', o.yaklasik ? 1 : 0].join(':'); }); };      /* ölçek (milyon/bin), birim, para, yön ve yaklaşıklık da olgudur (28.11.2026) */
   var onAdlar = function (t) { var out = []; String(t || '').replace(/[A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü'’-]+/g, function (w) { w = idKat(w.replace(/['’].*$/, '')); if (out.indexOf(w) < 0) out.push(w); return w; }); return out; };
@@ -8402,7 +8420,7 @@ var SBX = (function () {
       if (onSayilar(y).some(function (n) { return izin.indexOf(n) < 0; })) return 'sayi';
       if (onSayilar(eski).some(function (n) { return arr(P.degisen).indexOf(n) < 0 && onSayilar(y).indexOf(n) < 0; })) return 'sayi';
       var yt = onTip(y); if (!P.degisen && onTip(eski).some(function (k) { return yt.indexOf(k) < 0; })) return 'olgu';
-      if (onSay(ON_OLUMSUZ, eski) !== onSay(ON_OLUMSUZ, y)) return 'olumsuz';
+      if (onSay(ON_OLUMSUZ, eski) !== onSay(ON_OLUMSUZ, y) || onKutup(eski, y)) return 'olumsuz';
       if (onSay(ON_KOSUL, eski) !== onSay(ON_KOSUL, y)) return 'kosul';
       if (onSay(ON_NEDEN, eski) !== onSay(ON_NEDEN, y)) return 'neden';
       if (onSay(ON_KARSI, eski) !== onSay(ON_KARSI, y)) return 'karsi';

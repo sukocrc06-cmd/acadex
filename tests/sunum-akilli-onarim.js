@@ -46,7 +46,7 @@ let AG = 0; global.fetch = () => { AG++; return Promise.reject(new Error('ağ yo
 /* ---------- sunucu: her test kendi örneğini alır (onDurum modül durumu) ---------- */
 const SRV_AD = ['GUVENSIZ', 'ID_MODEL', 'ID_UC', 'ID_ZAMAN_MS', 'ID_MAX_YANIT', 'ID_NEDEN', 'ID_KULLANICI_N', 'ID_KULLANICI_MS', 'ID_GERI_MS', 'ID_KONTROL', 'idHash', 'idAcik', 'idBayt',
   'ON_MAX_HEDEF', 'ON_MAX_PARCA', 'ON_PARCA_BOY', 'ON_HEDEF_BOY', 'ON_BAGLAM_N', 'ON_BAGLAM_BOY', 'ON_MAX_BAYT', 'ON_YENI_BOY', 'ON_MAX_YANIT', 'ON_KOD', 'ON_TUR', 'ON_ALAN', 'ON_ATIF',
-  'onSayilar', 'onAtiflar', 'ON_SISTEM', 'onIstekTemizle', 'onGovde', 'onDogrula', 'onDurum', 'icerikOnar'];
+  'onSayilar', 'onAtiflar', 'ON_SISTEM', 'onIstekTemizle', 'onGovde', 'ON_KAT', 'onKat', 'ON_OLUMSUZ', 'ON_FIIL', 'ON_FIIL_ES', 'ON_EK_UYARI', 'onSay', 'onFiiller', 'onKokler', 'onOlumlu', 'onKutup', 'onDogrula', 'onDurum', 'icerikOnar'];
 const SRV_JS = ts.transpileModule(readSource(SRV_PATH), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 const SRV_BAS = SRV_AD.filter((n) => new RegExp('(const\\s+' + n + '\\s*=|function\\s+' + n + '\\s*\\()').test(SRV_JS));
 const sunucu = () => new Function(SRV_BAS.map((n) => sliceDeclaration(SRV_JS, n)).join('\n\n') + '\nreturn { ' + SRV_AD.join(', ') + ' };')();
@@ -91,7 +91,7 @@ const STUB = `
   var snapHazir = function () { return true; }, FMIN = { t: 1, h: 1, ul: 1 };
 `;
 const ADLAR = ['kyHash', 'kyNorm', 'kyCapa', 'kyKayit', 'iddiaKur', 'iddiaTazele', 'idKayit', 'idParcaSec', 'idGuncel', 'kkImza', 'kkKullan', 'kontrolSatir',
-  'qaListe', 'qaHedef', 'onHedef', 'onSahte', 'onYerel', 'onDenetle', 'onSema', 'onIstek', 'onModel', 'onBayat', 'onUygula', 'onFark', 'onBolum', 'onBasla', 'onTikla', 'onarSozluk', 'onOrtam', 'onSayilar', 'onBul',
+  'qaListe', 'qaHedef', 'onHedef', 'onSahte', 'onYerel', 'onDenetle', 'onSema', 'onIstek', 'onModel', 'onBayat', 'onUygula', 'onFark', 'onBolum', 'onBasla', 'onTikla', 'onarSozluk', 'onOrtam', 'onSayilar', 'onBul', 'onKutup',
   'ON_IDDIA', 'ON_ASETAT', 'ON_MODELE', 'ON_RED_TR', 'ON_HATA_TR', 'ON_BAYAT_TR', 'ON_YOK_TR'];
 const FAB = new Function('arr', 'txt', 'titleOf', 'DECOR', 'kunyeSahibi', 'deck', 'fn', 'gqDil', 'X', 'window', 'ICERIK', 'TEK', KS + KB + IB + K52 + B53 + QA + STUB + ';return {' + ADLAR.map((a) => a + ':' + a).join(',') +
   ', ayarla: function (d) { deck = d; }, get deck() { return deck; }, get onS() { return onS; }, set onS(v) { onS = v; }, get qaSec() { return qaSec; }, set qaSec(v) { qaSec = v; }, get onKapali() { return onKapali; }, set onKapali(v) { onKapali = v; },' +
@@ -668,6 +668,31 @@ test('K2 sunucu #53 bloğu: tek istek, yeniden deneme yok, katı şema, iddia_do
   assert.equal(S.onDogrula(tm, o({ proposal_type: 'insufficient_evidence' })).hata, 'hedef'); assert.equal(S.onDogrula(tm, o({ added_facts: ['x'] })).hata, 'olgu');
   assert.equal(S.onDogrula(tm, o({ issue_code: 'LONG_BULLETS' })).hata, 'tur');
   assert.equal(S.onIstekTemizle(Object.assign(kopya(tm), { v: 1, tam_belge: 'x' })).hata, 'alan');
+});
+
+/* ---------- L: #54 Türkçe fiil olumsuzluğu (istemci onKutup = sunucu onKutup) ve sunucu bekçisi ---------- */
+const RED54 = [['artmadı', 'arttı'], ['gelmedi', 'geldi'], ['azalmadı', 'azaldı'], ['değişmedi', 'değişti'], ['önlenmedi', 'önlendi'], ['yapılmadı', 'yapıldı'], ['artmıyor', 'artıyor'], ['azalmayacak', 'azalacak'], ['gerçekleşmedi', 'gerçekleşti'], ['desteklenmedi', 'desteklendi']];
+const KABUL54 = [['artmadı', 'yükselmedi'], ['gelmedi', 'ulaşmadı'], ['değişmedi', 'aynı kaldı']];
+test('L1 fiil olumsuzluğu: 10 çift reddedilir, eş anlamlı olumsuz kabul, ad biçimi artma sayılmaz; istemci = sunucu', () => {
+  const S = sunucu(), c = F0.onKutup, cum = (v) => 'Bölgede göç bu yıl ' + v + '.';
+  RED54.forEach(([a, b]) => { assert.equal(c(cum(a), cum(b)), true, a + '→' + b); assert.equal(S.onKutup(cum(a), cum(b)), true, 'sunucu ' + a); assert.equal(c(cum(b), cum(a)), true, b + '→' + a); });
+  KABUL54.forEach(([a, b]) => { assert.equal(c(cum(a), cum(b)), false, a + '→' + b); assert.equal(S.onKutup(cum(a), cum(b)), false, 'sunucu ' + a); });
+  assert.equal(c('Fiyatlarda artma eğilimi var.', 'Fiyatlarda yükselme eğilimi var.'), false, 'ad biçimi');
+  assert.equal(c('Fiyatlarda değişme görülmedi.', 'Fiyatlarda değişme görüldü.'), true);
+  assert.equal(c('Bakan bunu demedi.', 'Bakan bunu söylemedi.'), true, 'kısa kök belirsiz → red');
+  assert.equal(c('Göç artmadı.', 'Göçte artış oldu.'), true);
+  assert.equal(c('Göç arttı (kaynaklarla doğrulanmadı).', 'Göç arttı.'), false, 'ON_EK uyarısı sayılmaz');
+  assert.equal(S.ON_FIIL.source, ink.match(/var ON_FIIL = \/(.+?)\/, ON_FIIL_DEGIL/)[1]);
+});
+test('L2 model yanıtı olumsuzluğu çevirirse sunucu onDogrula reddeder (olumsuz)', () => {
+  const S = sunucu(), gv = kur({ deck: D.catisma() }), x = bul(gv, 'CLAIM_SOURCE_CONFLICT'), tm = S.onIstekTemizle(kopya(gv.onIstek(gv.onHedef(x, gv.deck), gv.deck).govde));
+  const o = (m) => JSON.stringify({ issue_code: tm.kod, proposal_type: 'wording_only', targets: [{ element_id: 'u1', expected_text_hash: tm.hedefler[0].hash, replacement_text: m }], evidence: [], preserved_facts: [], added_facts: [], reason: 'r', limitations: [] });
+  const t0 = tm.hedefler[0].metin; tm.hedefler[0].metin = t0 + ' Göç artmadı.';
+  assert.equal(S.onDogrula(tm, o(t0 + ' Göç arttı.')).hata, 'olumsuz'); assert.ok(S.onDogrula(tm, o(t0 + ' Göç yükselmedi.')).oneri);
+});
+test('L3 sunucu yolu: misafir oturum 403 icerik_onar rotasında, oturumsuz 401 eylemden önce', () => {
+  const r = cut(srv, 'if (action === "icerik_onar") {', 'icerikOnar('); assert.ok(r.includes("is_anonymous) return J(") && r.includes("403)"));
+  assert.ok(srv.indexOf('Oturum gerekli') < srv.indexOf('action === "icerik_onar"'));
 });
 
 summary();
