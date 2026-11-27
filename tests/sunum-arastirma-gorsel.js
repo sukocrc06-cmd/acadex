@@ -778,10 +778,15 @@ test('ÇEŞİTLİLİK 14.11: her türün en az 3-4 hâli, aynı aile art arda ge
   assert.equal(izler.length, 6, 'her fotoğrafın izleme çağrısı yapılmalı (Unsplash koşulu)');
   assert.match(ink, /\['', 'iki', 'sol'\]\[li\+\+ % 3\]/, 'liste fotoğrafları biçim değiştirmiyor');
   assert.match(ink, /iki: bic\[i\] === 'iki' \? 1 : 0/);
-  assert.match(ink, /sizing: \{ type: e\.kap \? 'cover' : 'contain', w: box\.w, h: box\.h \}/, 'PPTX kırpılan fotoğrafı sıkıştırarak basar');
+  /* #45 (7.4): editör her fotoğrafı object-fit:cover ile çizer (.sx-el[data-type=img] img); kapsız fotoğraf 'contain' ile kutu oranında
+     basılınca PowerPoint'te boşluklu/farklı görünüyordu. Artık hep 'cover', w/h fotoğrafın kendi oranı (gerilme yok). Amaç aynı: kırpılan fotoğraf sıkıştırılmaz. */
+  assert.match(ink, /sl\.addImage\(\{ data: isrc, x: box\.x, y: box\.y, w: box\.h \* nr, h: box\.h, sizing: \{ type: 'cover', w: box\.w, h: box\.h \} \}\)/, 'PPTX kırpılan fotoğrafı sıkıştırarak basar');
+  assert.doesNotMatch(ink, /type: e\.kap \? 'cover' : 'contain'/, 'PPTX fotoğrafı editörden farklı sığdırıyor');
   // gündem ve kapanış notu
   assert.match(ink, /var gs = newSlide\('list', ENn \? 'Agenda' : 'Gündem', gb, \{ v: 10 \}\);/);
-  assert.match(ink, /made\[0\]\.lay === 'cover' && govde\.length >= 5 &&/);
+  /* #45 (7.3): gündem koşulu (kapak + en az 5 gövde başlığı) tek yere, gundemVar'a taşındı; basım onu çağırır */
+  assert.match(ink, /made\[0\]\.lay === 'cover' && gundemVar\(strips\[0\]\.k, seritGovde\(strips\), plotMeta\)/);
+  assert.match(ink, /var gundemVar = function \(ilk, basliklar, pm\) \{\s*return ilk === 'cover' && basliklar\.length >= 5 &&/);
   assert.match(ink, /if \(tt\) return String\(tt\.text\)\.split\(' · '\)\.filter\(Boolean\)\.slice\(0, 3\);/, 'kapanış notu asetattaki maddeleri okumuyor');
   // tablo: başlık satırı vurgu rengiyle dolu — ekranda ve PPTX'te
   assert.match(ink, /var ac = temaRenk\(BLUE\), th = '<th style="background:' \+ ac/);
@@ -897,7 +902,8 @@ test('CANLI DESTE 25.11 (History of Guns) — kaynakça ızgarası, Commons yaza
   assert.equal(ks('[1] history.com. (n.d.). Firearms.\n[2] pbs.org. (n.d.). Guns.'), true);
   assert.equal(ks('Matchlock emergence: 1400s\n[2] not a ref'), false, 'karışık liste kaynakça sayılıyor');
   assert.match(ink, /if \(e\.type === 'ul' && kaynakSatir\(e\.text\)\) return '<ul class="sx-refs">'/);
-  assert.match(ink, /bullet: kaynakSatir\(e\.text\) \? false : \{ code: '25AA' \}/, 'PPTX kaynakçasında madde işareti kaldı');
+  /* #45 (7.3/7.4): madde girintisi editördeki 1,1 em ile eşitlendi (indent); kaynakçada madde işareti yine yok */
+  assert.match(ink, /bullet: kaynakSatir\(e\.text\) \? false : \{ code: '25AA', indent: /, 'PPTX kaynakçasında madde işareti kaldı');
   assert.match(css, /\.sx-el ul\.sx-refs\{list-style:none;padding:0\}/);
   assert.match(css, /\.sx-refs li\{display:grid;grid-template-columns:2\.4em 1fr;gap:\.35em;overflow-wrap:anywhere\}/);
   const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['stripTags', 'artistOf', 'TARIH', 'tarihSorgu']);

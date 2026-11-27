@@ -8312,6 +8312,7 @@ var SBX = (function () {
     EXPORT_DRAWING_DROPPED: ['warning', 'çizim dışa aktarılamadı', 'drawing could not be exported'],
     EXPORT_CHART_SKIPPED: ['error', 'grafik dışa aktarılmadı', 'chart was not exported'],
     EXPORT_TABLE_SKIPPED: ['error', 'tablo dışa aktarılmadı', 'table was not exported'],
+    EXPORT_ELEMENT_SKIPPED: ['warning', 'öğe türü dışa aktarılamadı', 'element type could not be exported'],
     PDF_PAGE_MISMATCH: ['error', 'PDF sayfa sayısı asetat sayısını tutmuyor', 'PDF page count does not match the slides']
   };
   var teknikIz = typeof WeakMap === 'function' ? new WeakMap() : null;      /* deste → { anahtar, olc, sonuc } */
@@ -8810,7 +8811,11 @@ var SBX = (function () {
        kapak, kapanış, kaynakça ve gündem kısa olmak üzere tasarlanmıştır, denetlenmez. */
     THIN_SLIDE: ['info', 'asetat çok ince (birkaç kelime)', 'slide is very thin (a few words)'],
     NOTES_ECHO: ['info', 'konuşma notu maddeleri ya da başlığı yineliyor', 'speaker notes repeat the bullets or the title'],
-    REPEATED_LAYOUT: ['info', 'üç asetat art arda aynı düzende', 'three slides in a row use the same layout']
+    REPEATED_LAYOUT: ['info', 'üç asetat art arda aynı düzende', 'three slides in a row use the same layout'],
+    /* #45 (7.4) görünüm önerileri (qaGorunum): yalnız info, ölçülür; renk ve boyut DEĞİŞTİRİLMEZ */
+    LOW_CONTRAST: ['info', 'yazı ile zemini arasında karşıtlık düşük', 'low contrast between text and background'],
+    HIERARCHY_INVERTED: ['info', 'gövde yazısı başlık kadar ya da daha büyük', 'body text is as large as or larger than the title'],
+    TITLE_SIZE_DRIFT: ['info', 'içerik başlıklarının boyu desteden desteye çok değişiyor', 'content titles vary a lot in size across the deck']
   };
   var KALITE_EN = { slide_count_mismatch: 'slide count does not match your request', duplicate_titles: 'the same title on several slides',
     weak_speaker_notes: 'speaker notes are short', dense_slides: 'some slides are too dense', visual_repetition: 'the same layout back to back',
@@ -8851,6 +8856,7 @@ var SBX = (function () {
     EXPORT_DRAWING_DROPPED: ['Çizimi kontrol edip yeniden dışa aktar.', 'Check the drawing and export again.'],
     EXPORT_CHART_SKIPPED: ['Grafik verisini kontrol edip yeniden dışa aktar.', 'Check the chart data and export again.'],
     EXPORT_TABLE_SKIPPED: ['Tabloyu kontrol edip yeniden dışa aktar.', 'Check the table and export again.'],
+    EXPORT_ELEMENT_SKIPPED: ['Öğeyi metin, şekil ya da görsel olarak yeniden ekleyip yeniden dışa aktar.', 'Re-add the element as text, a shape or an image and export again.'],
     PDF_PAGE_MISMATCH: ['PDF’i yeniden indir.', 'Download the PDF again.'],
     VQ_TEXT_DENSE: ['Maddeleri kısalt ya da asetatı ikiye böl.', 'Shorten the bullets or split the slide in two.'],
     VQ_HIERARCHY: ['Başlığı belirginleştir, gövdeyi sadeleştir.', 'Make the title stand out and simplify the body.'],
@@ -8868,6 +8874,9 @@ var SBX = (function () {
     UNVERIFIED_NUMBERS: ['Sarı sayıları kaynakla karşılaştır.', 'Check the yellow numbers against the source.'],
     THIN_SLIDE: ['Bir açıklama ya da örnek ekle, ya da asetatı komşusuyla birleştir.', 'Add an explanation or example, or merge the slide with its neighbour.'],
     NOTES_ECHO: ['Nota asetatta yazmayan bir açıklama, örnek ya da bağlam ekle.', 'Add context, an example or an explanation that is not on the slide.'],
+    LOW_CONTRAST: ['Yazı rengini ya da asetatın zeminini değiştir; şablon renkleri kendiliğinden değiştirilmez.', 'Change the text colour or the slide background; theme colours are never changed automatically.'],
+    HIERARCHY_INVERTED: ['Başlığı büyüt ya da gövde yazısını küçült; başlık asetatın en büyük yazısı olmalı.', 'Enlarge the title or shrink the body text; the title should be the largest text on the slide.'],
+    TITLE_SIZE_DRIFT: ['Uzun başlıkları kısalt; böylece başlıklar benzer boyda kalır.', 'Shorten the long titles so the titles stay a similar size.'],
     REPEATED_LAYOUT: ['Bu asetatın ya da önceki ikisinden birinin düzenini şeritten değiştir.', 'Change the layout of this slide or one of the two before it from the strip.'],
     slide_count_mismatch: ['Asetat ekle ya da çıkar.', 'Add or remove slides.'],
     duplicate_titles: ['Başlıklardan birini değiştir.', 'Change one of the titles.'],
@@ -8941,8 +8950,54 @@ var SBX = (function () {
   };
   /* Bağdaştırıcı: normalize bulgu listesi { id, source, code, severity, slideIndex (0'dan | null), message, recommendation,
      repairable, sources, priority } + kontrol durumları. Aynı kod + aynı asetat birleşir (öğeler, açıklamalar, kaynaklar). */
+  /* #45 (7.4) GÖRÜNÜM ÖNERİLERİ — yalnız info, ölçülebilir, salt okur: tema, renk, boyut ve düzen DEĞİŞTİRİLMEZ; durum ve
+     puan etkilenmez (içerik durumunu qaIcerik önceden verir). Yalnız ekrandaki deste için (renkler deck.tema ile çözülür).
+     LOW_CONTRAST: yazının ekrandaki rengi (renkSec) ile hemen arkasındaki zemin (üstteki dolu kutu, yoksa asetat zemini)
+       arasında WCAG oranı 4,5:1'in altı (büyük yazı ≥24 px ya da kalın ≥18,67 px: 3:1). Arkada fotoğraf, grafik, tablo, çizim
+       ya da yarı saydam kutu varsa zemin bilinmez: ölçülmez (yanlış bulgu yerine sessizlik).
+     HIERARCHY_INVERTED: içerik asetatında gövde yazısı (madde/metin, künye hariç) başlık boyunda ya da büyük.
+     TITLE_SIZE_DRIFT: içerik başlıklarının en büyüğü en küçüğünün 1,5 katından büyük; deste başına bir kez, en küçükte.
+     İçerik asetatı: kapak, kapanış, kaynakça, gündem, alıntı ve 3 sayı dışı (onlarda büyük yazı tasarımın kendisidir). */
+  var qaGorunum = function (d) {
+    var b = [], T = d && d.tema, z0 = zeminKoyu, bas = [];
+    if (!d || d !== deck) return b;
+    var ic = function (a, e) { var cx = e.x + e.w / 2, cy = e.y + Math.min(e.h, 2 * (e.size || 24)) / 2; return cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h; };
+    try {
+      arr(d.slides).forEach(function (s, i) {
+        if (!s || !Array.isArray(s.els)) return;
+        var n = i + 1, sb = s.bg || 'clear', zem = T ? T.bg[sb] || T.bg.clear : '#' + (BGC[sb] || 'FFFFFF'), kat = temaDekor(s).concat(s.els);
+        var ici = !/^(cover|end|refs|quote|stat)$/.test(s.lay || '') && !(s.lay === 'list' && (s.v === 10 || GUNDEM_RE.test(String(titleOf(s) || '').trim())));
+        zeminKoyu = koyuMu(s);
+        kat.forEach(function (e, k) {
+          if (!e || e.muted || e.dz || !/^(h|t|ul)$/.test(e.type) || !String(e.text || '').trim() || !teknikSay(e.size)) return;
+          var arka = zem;
+          for (var j = k - 1; j >= 0; j--) { var a = kat[j]; if (!a || a.muted || !teknikSay(a.x) || !teknikSay(a.w) || !ic(a, e)) continue;
+            if (/^(img|chart|table|viz|mmd|math|icon)$/.test(a.type)) { arka = null; break; }
+            if (a.type !== 'rect' && a.type !== 'ellipse') continue;
+            if (kutuCizgi(a)) continue;
+            var f = kutuGolge(a) ? '#FFFFFF' : temaRenk(a.fill || '#DCE6FF');
+            if (!/^#[0-9a-f]{6}([fF]{2})?$/i.test(f)) { arka = null; break; }
+            arka = f; break; }
+          var on = renkSec(e);
+          if (arka && /^#[0-9a-f]{6}([fF]{2})?$/i.test(on)) {
+            var kal = e.bold || (e.type === 'h' && !(T && FONT_DISPLAY.test(T.hf))), r = kontrast(on, arka), es = e.size >= 24 || (kal && e.size >= 18.67) ? 3 : 4.5;
+            if (r < es) b.push({ code: 'LOW_CONTRAST', severity: ICERIK.LOW_CONTRAST[0], slide: n, el: e.id, why: (Math.floor(r * 100) / 100) + ':1 < ' + es + ':1' });
+          }
+        });
+        var h = s.els.filter(function (e) { return e && !e.muted && e.type === 'h' && String(e.text || '').trim() && teknikSay(e.size); })[0];
+        if (!ici || !h) return;
+        bas.push([h.size, n]);
+        var buyuk = s.els.filter(function (e) { return e && !e.muted && (e.type === 't' || e.type === 'ul') && String(e.text || '').trim() && !kunyeSahibi(s, e) && e.size >= h.size; })[0];
+        if (buyuk) b.push({ code: 'HIERARCHY_INVERTED', severity: ICERIK.HIERARCHY_INVERTED[0], slide: n, el: buyuk.id, why: buyuk.size + ' px ≥ ' + h.size + ' px' });
+      });
+    } finally { zeminKoyu = z0; }
+    if (bas.length >= 3) { var mn = bas.reduce(function (m, x) { return x[0] < m[0] ? x : m; }), mx = bas.reduce(function (m, x) { return x[0] > m[0] ? x : m; });
+      if (mx[0] > mn[0] * 1.5) b.push({ code: 'TITLE_SIZE_DRIFT', severity: ICERIK.TITLE_SIZE_DRIFT[0], slide: mn[1], el: null, why: mn[0] + '–' + mx[0] + ' px' }); }
+    return b;
+  };
   var qaListe = function (d) {
     var K = { technical: qaTeknik(d), content: qaIcerik(d), visual: qaGorsel(d) }, m = {}, out = [];
+    K.content.bulgu = K.content.bulgu.concat(qaGorunum(d));      /* #45: görünüm önerileri (info) içerik durumunu değiştirmez */
     QA_KAYNAK.forEach(function (src) { K[src].bulgu.forEach(function (z) {
       if (!z || typeof z.code !== 'string' || !z.code) return;
       var sl = typeof z.slide === 'number' && z.slide >= 1 ? z.slide : null, key = z.code + '@' + (sl || 0), x = m[key];
@@ -9323,7 +9378,9 @@ var SBX = (function () {
   var paintSrc = function () {
     var v = srcVal(); QA('[data-srcf]', plot).forEach(function (f) { f.hidden = f.getAttribute('data-srcf') !== v; });
     var c = cards(), cn = Q('[data-cardsnote]', plot), dn = Q('[data-docnote]', plot), dl = docs().length;
-    cn.innerHTML = !SRC ? 'kartların açılıyor…' : c.length ? c.length + ' bilgi kartın var; her kart bir asetat olur (en fazla ' + (Q('[data-pl-n]', plot).value - 2) + ').' : 'Henüz bilgi kartın yok. <button type="button" data-gov="cards">Önce bir deste oluştur →</button>';
+    /* #45 (7.3): "en fazla n − 2" gündemi saymıyordu; 5+ kartta gündem de bir sayfadır (sayiAyarla ile aynı sınır) */
+    var nn = +Q('[data-pl-n]', plot).value, mx = Math.min(c.length, nn - 3) >= 5 ? nn - 3 : nn - 2;
+    cn.innerHTML = !SRC ? 'kartların açılıyor…' : c.length ? c.length + ' bilgi kartın var; her kart bir asetat olur (en fazla ' + mx + '; kapak' + (mx === nn - 3 ? ', gündem' : '') + ' ve kapanışla ' + nn + ' sayfa).' : 'Henüz bilgi kartın yok. <button type="button" data-gov="cards">Önce bir deste oluştur →</button>';
     dn.hidden = v !== 'doc' || (!!SRC && dl > 0); dn.innerHTML = !SRC ? 'belgelerin açılıyor…' : 'Özeti çıkarılmış bir belgen yok. <button type="button" data-gov="docs">Belgelerim’e git →</button>';
     var sel = Q('[data-pl-doc]', plot); sel.disabled = !dl; Q('[data-pl-go]', plot).disabled = (v === 'doc' && !dl) || (v === 'cards' && !c.length);
     if (oneriBoya) oneriBoya();
@@ -9648,11 +9705,17 @@ var SBX = (function () {
      öngörülür (basım aynı kararı pm.gundem'den okur); fazla gövde asetatı sondan, sonuç asetatı korunarak atılır. Eksik
      ya da imkânsız sayı uydurma asetatla doldurulmaz, söylenir. */
   var GUNDEM_RE = /^(gündem|içindekiler|akış|sunum akışı|agenda|outline|contents)\b/i;
+  /* #45 (7.3): gündem kuralı TEK yerde — öngörü (sayiAyarla), şerit sayacı (paintSayi) ve basım (printDeck) aynı kararı
+     verir; şerit eklenip silinince sayaç basılacak sayıyı söyler. pm.gundem === 0: sayım gündeme yer bırakmadı. */
+  var gundemVar = function (ilk, basliklar, pm) {
+    return ilk === 'cover' && basliklar.length >= 5 && !(pm && pm.gundem === 0) && !basliklar.some(function (t) { return GUNDEM_RE.test(String(t || '').trim()); });
+  };
+  var seritGovde = function (st) { return st.filter(function (s) { return !/^(cover|end|refs)$/.test(s.k) && String(s.t || '').trim(); }).map(function (s) { return String(s.t).trim(); }); };
   var sayiAyarla = function (out, n, pm, ek) {      /* ek: bundan sonra eklenecek sabit asetat (kaynakça) */
     ek = ek || 0;
     var sabit = function (s) { return /^(cover|end|refs)$/.test(s.k); }, govde = out.filter(function (s) { return !sabit(s); });
     var oda = n - (out.length - govde.length) - ek, b = Math.min(govde.length, oda - 1);
-    pm.gundem = out[0] && out[0].k === 'cover' && b >= 5 && !govde.some(function (s) { return GUNDEM_RE.test(String(s.t || '').trim()); }) ? 1 : 0;
+    pm.gundem = b >= 5 && gundemVar(out[0] && out[0].k, govde.map(function (s) { return s.t; })) ? 1 : 0;
     var hedef = Math.max(1, oda - pm.gundem), dus = govde.length > hedef ? govde.slice(hedef - 1, govde.length - 1) : [];
     dus.forEach(function (s) { out.splice(out.indexOf(s), 1); });
     var toplam = out.length + ek + pm.gundem;
@@ -9753,7 +9816,7 @@ var SBX = (function () {
         var sy = plotMeta.sayi;
         if (sy && sy.imkansiz) extra.push('istediğin ' + sy.istek + ' sayfa kapak, kaynakça ve kapanışa bile yetmiyor; deste ' + sy.toplam + ' sayfa olacak');
         else if (sy && sy.eksik) extra.push('istediğin ' + sy.istek + ' sayfanın ' + sy.toplam + ' tanesi çıkabildi (' + sy.eksik + ' eksik; boş asetatla doldurulmadı)');
-        else if (sy) extra.push('toplam ' + sy.toplam + ' sayfa: kapak' + (plotMeta.gundem ? ', gündem' : '') + (strips.some(function (x) { return x.k === 'refs'; }) ? ', kaynakça' : '') + ' ve kapanış dahil' + (sy.kesilen ? ' (' + sy.kesilen + ' fazla asetat çıkarıldı)' : ''));
+        else if (sy && sy.kesilen) extra.push(sy.istek + ' sayfaya sığması için ' + sy.kesilen + ' fazla asetat çıkarıldı');      /* #45: toplam bir kez yazılıp eskiyordu; sayacı paintSayi tutar */
         /* KAYNAKSIZ "ARAŞTIRMA" (#38): araştırma döndü ama kullanılabilir kaynak yok — "webde araştırdı" denmez, basmadan önce onay istenir */
         var bas0 = plotMeta.secim ? 'Kaynaksız yazıldı (senin seçiminle, eski motor): Acadia konuyu genel bilgisiyle yazdı; bu destede kaynakça yok, rakamları kendin doğrula. Sırala, düzelt, türünü değiştir.'
           : plotMeta.kaynaksiz ? 'Web araştırması kullanılabilir kaynak bulamadı: bu deste kaynaksız, kaynakçası yok ve araştırılmış sayılmaz. Basmadan önce bunu onayla.'
@@ -9779,6 +9842,8 @@ var SBX = (function () {
   var OUTRO = /sonuç|özet|değerlendirme|çıkarım|kapanış|akılda|conclusion|summary|takeaway|key points|wrap/i;
   var normT = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
   var flowIssues = function () {
+    /* mesajdaki numara şerit penceresinin gösterdiği numaradır: otomatik gündem satırı ilk şeritten sonra bir numara alır (#45) */
+    var no = function (i) { return i + (i > 0 && Q('.sx-strip-oto', stripsEl) ? 2 : 1); };
     var en = curLang() === 'en', out = [], body = []; strips.forEach(function (s, i) { if (!/^(cover|end|refs)$/.test(s.k)) body.push(i); });
     if (body.length >= 3) {
       /* Araştırmalı destede ilk asetat zaten kancadır (yazara öyle söylenir) ama
@@ -9788,9 +9853,9 @@ var SBX = (function () {
       if (plotMeta.via !== 'research' && !body.slice(0, 2).some(function (i) { return INTRO.test(strips[i].t); })) out.push({ i: body[0], msg: 'Giriş asetatı yok: dinleyici konunun neden önemli olduğunu duymadan içeriğe giriyor.', fix: 'intro', btn: 'giriş ekle' });
       if (plotMeta.via !== 'research' && !body.slice(-2).some(function (i) { return OUTRO.test(strips[i].t); })) out.push({ i: body[body.length - 1], msg: 'Sonuç asetatı yok: sunum ana mesajları toparlamadan bitiyor.', fix: 'outro', btn: 'sonuç ekle' });
     }
-    var seen = {}; body.forEach(function (i) { var k = normT(strips[i].t).split(' ').slice(0, 3).join(' '); if (k.length > 3 && seen[k] != null) out.push({ i: i, msg: (seen[k] + 1) + '. ve ' + (i + 1) + '. asetatın başlığı neredeyse aynı; tekrar ediyor olabilir.', fix: 'del', btn: (i + 1) + '. asetatı sil' }); else seen[k] = i; });
-    body.forEach(function (i) { var s = strips[i], b = s.b || [], len = b.join(' ').length; if (s.k === 'list' && (b.length > 5 || len > 560)) out.push({ i: i, msg: (i + 1) + '. asetat kalabalık (' + b.length + ' madde); dinleyici okumaya başlar, seni dinlemez.', fix: 'split', btn: 'ikiye böl' }); });
-    var run = 0; body.forEach(function (i, j) { if (strips[i].k === 'list') run = j > 0 && body[j - 1] === i - 1 && strips[i - 1].k === 'list' ? run + 1 : 1; else run = 0; if (run === 3) { var fx = [i - 1, i - 2, i].filter(function (k) { var c = JSON.parse(JSON.stringify(strips[k])); smartKind(c); return c.k !== 'list'; })[0]; out.push(fx != null ? { i: i, j: fx, msg: (i - 1) + '–' + (i + 1) + '. asetatların hepsi madde listesi; ' + (fx + 1) + '. asetat başka bir düzene daha iyi uyuyor.', fix: 'kind', btn: 'düzeni değiştir' } : { i: i, msg: (i - 1) + '–' + (i + 1) + '. asetatların hepsi madde listesi; birinin türünü grafik, tablo ya da alıntı yapmak akışı canlandırır.' }); } });
+    var seen = {}; body.forEach(function (i) { var k = normT(strips[i].t).split(' ').slice(0, 3).join(' '); if (k.length > 3 && seen[k] != null) out.push({ i: i, msg: no(seen[k]) + '. ve ' + no(i) + '. asetatın başlığı neredeyse aynı; tekrar ediyor olabilir.', fix: 'del', btn: no(i) + '. asetatı sil' }); else seen[k] = i; });
+    body.forEach(function (i) { var s = strips[i], b = s.b || [], len = b.join(' ').length; if (s.k === 'list' && (b.length > 5 || len > 560)) out.push({ i: i, msg: no(i) + '. asetat kalabalık (' + b.length + ' madde); dinleyici okumaya başlar, seni dinlemez.', fix: 'split', btn: 'ikiye böl' }); });
+    var run = 0; body.forEach(function (i, j) { if (strips[i].k === 'list') run = j > 0 && body[j - 1] === i - 1 && strips[i - 1].k === 'list' ? run + 1 : 1; else run = 0; if (run === 3) { var fx = [i - 1, i - 2, i].filter(function (k) { var c = JSON.parse(JSON.stringify(strips[k])); smartKind(c); return c.k !== 'list'; })[0]; out.push(fx != null ? { i: i, j: fx, msg: no(i - 2) + '–' + no(i) + '. asetatların hepsi madde listesi; ' + no(fx) + '. asetat başka bir düzene daha iyi uyuyor.', fix: 'kind', btn: 'düzeni değiştir' } : { i: i, msg: no(i - 2) + '–' + no(i) + '. asetatların hepsi madde listesi; birinin türünü grafik, tablo ya da alıntı yapmak akışı canlandırır.' }); } });
     return out;
   };
   /* BOŞ ŞERİDİ YAZDIR. Araştırmalı destede şerit AYNI KAYNAKLARDAN yazılır:
@@ -9820,8 +9885,25 @@ var SBX = (function () {
       if (it.fix === 'outro') ns.b = ns.b.slice(0, 3);   /* başlık "3 mesaj" der; 4 madde basılıyordu */
       flowEl.removeAttribute('aria-busy'); paintStrips(); if (!ns.b.length) say('Acadia şu an içerik yazamadı; şerit boş kaldı, basınca sen doldurursun.'); });
   };
+  /* SAYFA SAYACI (#45, 7.3): şerit eklenince/silinince/bölününce yardım satırındaki "toplam" eskiyordu; gündem şerit
+     listesinde hiç görünmüyordu ("9 şerit" görülüp 10 sayfa basılıyordu). Sayım printDeck'in kendisiyle aynıdır:
+     başlığı boş şerit basılmaz, gündem gundemVar'dan. Otomatik gündem satırı düzenlenemez, şerit değildir (data-i yok). */
+  var paintSayi = function () {
+    var el = Q('[data-pl-sayi]', plot), oto = Q('.sx-strip-oto', stripsEl); if (!el) return;
+    if (!plotHazir || !strips.length) { el.hidden = true; el.textContent = ''; if (oto) oto.remove(); return; }
+    var bas0 = strips.filter(function (s) { return String(s.t || '').trim() || s.k === 'end'; }), g = bas0.length && gundemVar(bas0[0].k, seritGovde(bas0), plotMeta) ? 1 : 0;
+    var top = bas0.length + g, bos = strips.length - bas0.length, ist = +plotMeta.istek || 0, en = plotMeta.lang === 'en';
+    if (g) { var ilk = Q('.sx-strip', stripsEl); if (!oto) { oto = document.createElement('li'); oto.className = 'sx-strip-oto'; }
+      oto.innerHTML = '<span>' + (en ? 'Agenda' : 'Gündem') + '</span><small>otomatik · başlıklardan basılır, düzenlenemez</small>';
+      if (ilk && ilk.nextSibling !== oto) stripsEl.insertBefore(oto, ilk.nextSibling); }
+    else if (oto) oto.remove();
+    el.hidden = false;
+    el.innerHTML = 'Basılınca <b>' + top + ' sayfa</b>: ' + bas0.length + ' şerit' + (g ? ' + 1 otomatik gündem' : '') + (bos ? ' · başlığı boş ' + bos + ' şerit basılmaz' : '') +
+      (ist ? ' · istediğin ' + ist + (top === ist ? '' : ' (' + Math.abs(top - ist) + (top > ist ? ' fazla' : ' eksik') + ')') : '') + (deck.slides.length && g ? ' · var olan destenin sonuna eklenirse gündem eklenmez' : '') + '.';
+  };
   var flowList = [];
   var paintFlow = function () {
+    paintSayi();
     if (!plotHazir) { flowList = []; flowEl.hidden = true; flowEl.innerHTML = ''; return; }      /* #38: tamamlanmamış çalıştırmaya öneri yok */
     flowList = flowIssues(); flowEl.hidden = !strips.length;
     flowEl.innerHTML = flowList.length ? '<p class="sx-flow-h"><b>akış kontrolü</b> · ' + flowList.length + ' öneri</p><ul>' + flowList.map(function (it, k) { return '<li><span>' + X(it.msg) + '</span>' + (it.fix ? '<button type="button" class="sx-lnk" data-flow-fix="' + k + '">' + X(it.btn) + '</button>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="sx-flow-h ok"><b>akış kontrolü</b> · giriş, gelişme ve sonuç yerinde; tekrar ya da kalabalık asetat yok.</p>';
@@ -10425,7 +10507,7 @@ var SBX = (function () {
        taslaklarının hepsinde var, bizde kapaktan doğrudan ilk konuya geçiliyordu.
        Yeni destede, en az 5 gövde asetatı varsa ve yazar zaten bir gündem
        yazmadıysa eklenir; başlıklar destenin kendi başlıklarıdır. */
-    if (mode !== 'append' && made.length && made[0].lay === 'cover' && govde.length >= 5 && plotMeta.gundem !== 0 && !govde.some(function (x) { return /^(gündem|içindekiler|akış|sunum akışı|agenda|outline|contents)\b/i.test(x); })) {
+    if (mode !== 'append' && made.length && made[0].lay === 'cover' && gundemVar(strips[0].k, seritGovde(strips), plotMeta)) {
       var gb = govde.filter(function (x) { return !/\((devam|cont\.)\)\s*$/i.test(x); }).slice(0, 8).map(function (x) { x = String(x).replace(/\s+/g, ' ').trim(); return x.length > 62 ? x.slice(0, 60).replace(/\s+\S*$/, '') + '…' : x; });
       var gs = newSlide('list', ENn ? 'Agenda' : 'Gündem', gb, { v: 10 });
       if (gs.v === 10) { gs.notes = ENn
@@ -10759,8 +10841,14 @@ var SBX = (function () {
     var qaK = [], d0 = deck;      /* Phase 4: aktarılamayan öğeler teknik denetime (her aktarım bir öncekinin yerine geçer) */
     try {
       var P = await pptxLib(), pp = new P(); pp.layout = 'LAYOUT_16x9'; pp.title = deck.title || 'Acadex sunumu'; pp.author = (profile().full_name || 'Acadex'); pp.company = 'Acadex';
-      var IN = function (v) { return Math.max(0, v) / 96; }, PT = function (v) { return Math.round((v || 20) * 0.75); };
-      var skipped = 0, uzak = {}, veri = {}, atlanan = 0;
+      var IN = function (v) { return Math.max(0, v) / 96; }, PT = function (v) { return Math.round((v || 20) * 3) / 4; };      /* #45: px × 0,75 tam (çeyrek punto); tam sayıya yuvarlamak 22 px'i 17 pt (+%3) yapıp PowerPoint'te taşırıyordu */
+      /* EDİTÖR = POWERPOINT METRİKLERİ (#45, 7.4): .sx-el dolgusuzdur (iç boşluk 0), satır yüksekliği 1,25 (başlık 1,08, harf
+         aralığı −0,015 em), madde girintisi 1,1 em, madde arası 0,45 em. PowerPoint'e aynısı punto olarak yazılır; yazı
+         tipinden bağımsızdır. Eskiden 2 pt iç boşluk + 27 pt sabit madde girintisi metin alanını daraltıyor, satır aralığı
+         yazı tipinin kendi aralığına kalıyordu: ekranda sığan madde PowerPoint'te bir satır fazla kırılıyordu. */
+      var yaziKut = function (e, box) { var p = PT(e.size), h = e.type === 'h'; return Object.assign({}, box, { fontSize: p, valign: 'top', inset: 0, fit: 'shrink', lineSpacing: Math.round(p * (h ? 1.08 : 1.25) * 100) / 100 }, h ? { charSpacing: Math.round(p * -0.015 * 100) / 100 } : {}); };
+      var oranOf = function (src) { return new Promise(function (r) { var im = new Image(); im.onload = function () { r(im.naturalWidth && im.naturalHeight ? im.naturalWidth / im.naturalHeight : 0); }; im.onerror = function () { r(0); }; im.src = src; }); };
+      var skipped = 0, uzak = {}, veri = {}, atlanan = 0, oge = 0;
       deck.slides.forEach(function (s0) { s0.els.forEach(function (e) { if (e.type === 'img' && e.src && /^https?:/.test(e.src)) uzak[e.src] = 1; }); });
       await Promise.all(Object.keys(uzak).map(function (u) { return gorselVeri(u).then(function (v) { veri[u] = v; }); }));
       for (var si = 0; si < deck.slides.length; si++) {
@@ -10772,12 +10860,17 @@ var SBX = (function () {
         for (var ei = 0; ei < pels.length; ei++) {
           var e = pels[ei]; if (e.muted) continue;
           var box = { x: IN(e.x), y: IN(e.y), w: IN(e.w), h: IN(e.h) };
-          if (e.type === 'h' || e.type === 't') { if (!e.text) continue; sl.addText(e.text, Object.assign({}, box, { fontFace: e.type === 'h' ? fh : ff, fontSize: PT(e.size), bold: (e.type === 'h' && !(TX && FONT_DISPLAY.test(TX.hf))) || !!e.bold, color: col(e), align: e.align || 'left', valign: 'top', margin: 2, fit: 'shrink' })); }
-          else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; sl.addText(ls.map(function (l) { return { text: l, options: { bullet: kaynakSatir(e.text) ? false : { code: '25AA' }, breakLine: true } }; }), Object.assign({}, box, { fontFace: ff, fontSize: PT(e.size), color: col(e), valign: 'top', paraSpaceAfter: 6, margin: 2, fit: 'shrink' })); }
+          if (e.type === 'h' || e.type === 't') { if (!e.text) continue; sl.addText(e.text, Object.assign(yaziKut(e, box), { fontFace: e.type === 'h' ? fh : ff, bold: (e.type === 'h' && !(TX && FONT_DISPLAY.test(TX.hf))) || !!e.bold, color: col(e), align: e.align || 'left' })); }
+          else if (e.type === 'ul') { var ls = String(e.text || '').split('\n').filter(function (x) { return x.trim(); }); if (!ls.length) continue; var up = PT(e.size); sl.addText(ls.map(function (l) { return { text: l, options: { bullet: kaynakSatir(e.text) ? false : { code: '25AA', indent: Math.round(up * 1.1 * 100) / 100 }, breakLine: true } }; }), Object.assign(yaziKut(e, box), { fontFace: ff, color: col(e), paraSpaceAfter: Math.round(up * 0.45 * 100) / 100 })); }
           else if (e.type === 'rect' || e.type === 'ellipse') { var kc = kutuCizgi(e), fc = kutuGolge(e) ? 'FFFFFF' : hex(temaRenk(e.fill || '#DCE6FF'), '#DCE6FF'), rr = e.dz ? 0 : TX && TX.bic ? TX.bic.r : 10; sl.addShape(e.type === 'ellipse' ? pp.ShapeType.ellipse : rr ? pp.ShapeType.roundRect : pp.ShapeType.rect, Object.assign({}, box, { fill: kc ? { color: fc, transparency: 100 } : saydam(temaRenk(e.fill || '')) ? { color: fc, transparency: saydam(temaRenk(e.fill || '')) } : { color: fc }, line: kc ? { color: hex(kc, fc), width: 1.5 } : saydam(temaRenk(e.fill || '')) ? { type: 'none' } : { color: fc }, rectRadius: Math.min(rr / 96, box.w / 2, box.h / 2) })); }
           else if (e.type === 'arrow') sl.addShape(pp.ShapeType.line, { x: box.x, y: box.y + box.h / 2, w: box.w, h: 0, line: { color: hex(temaRenk(e.color), '#2F6BFF'), width: 3, endArrowType: 'triangle' } });
           else if (e.type === 'mark') sl.addShape(pp.ShapeType.rect, { x: box.x, y: box.y + box.h * 0.3, w: box.w, h: Math.max(0.04, box.h * 0.35), fill: { color: hex(temaRenk(e.color), '#2F6BFF'), transparency: 35 }, line: { type: 'none' } });
-          else if (e.type === 'img') { var isrc = e.src && /^https?:/.test(e.src) ? veri[e.src] : e.src; if (e.src && !isrc) qaK.push(['EXPORT_IMG_DROPPED', si, e.id]); if (e.src && !isrc) { atlanan++; continue; } if (isrc) sl.addImage({ data: isrc, x: box.x, y: box.y, w: e.kap ? box.h * (e.oran || 1.5) : box.w, h: box.h, sizing: { type: e.kap ? 'cover' : 'contain', w: box.w, h: box.h } }); }   /* kap: kutuyu kırparak doldurur; w/h fotoğrafın kendi oranını taşır; adresli fotoğraf önceden indirildi */
+          else if (e.type === 'img') { var isrc = e.src && /^https?:/.test(e.src) ? veri[e.src] : e.src; if (e.src && !isrc) qaK.push(['EXPORT_IMG_DROPPED', si, e.id]); if (e.src && !isrc) { atlanan++; continue; } if (!isrc) continue;
+            /* #45 (7.4): editör her fotoğrafı object-fit:cover ile ortalayıp kırpar. Kapsız fotoğraf kutu oranıyla "contain"
+               veriliyordu: pptxgenjs kutu = fotoğraf sayıp kırpmıyor, fotoğraf kutuya GERİLİYORDU. Artık fotoğrafın kendi oranı
+               (kap: e.oran; yoksa kaynak w/h; yoksa çözülen dosya) ile "cover"; oran bilinmezse eski davranış (kutu oranı). */
+            var ko = e.kaynak && e.kaynak.w > 0 && e.kaynak.h > 0 ? e.kaynak.w / e.kaynak.h : 0, nr = e.kap ? e.oran || 1.5 : ko || await oranOf(isrc) || (box.h ? box.w / box.h : 1);
+            sl.addImage({ data: isrc, x: box.x, y: box.y, w: box.h * nr, h: box.h, sizing: { type: 'cover', w: box.w, h: box.h } }); }   /* w/h fotoğrafın kendi oranını taşır; adresli fotoğraf önceden indirildi */
           else if (e.type === 'chart') {
             var ch = e.chart || {}, vals = chartVals(ch); if (!vals.length) { qaK.push(['EXPORT_CHART_SKIPPED', si, e.id]); continue; } var ty = String(ch.type || 'bar').toLowerCase();
             if (ty === 'ring') { var rv0 = Math.max(0, Math.min(100, vals[0])); sl.addChart(pp.ChartType.doughnut, [{ name: titleOf(s) || 'Oran', labels: ['', ''], values: [rv0, 100 - rv0] }], Object.assign({}, box, { chartColors: [hex(temaRenk(BLUE)), 'E4E8F1'], showLegend: false, showValue: false, holeSize: 78 })); continue; }
@@ -10790,17 +10883,18 @@ var SBX = (function () {
             var data = (hd.length ? [pad(hd).map(function (c) { return { text: String(c), options: { bold: true, fill: { color: hex(temaRenk(BLUE)) }, color: kontrast('#FFFFFF', temaRenk(BLUE)) >= 3 ? 'FFFFFF' : '0D1838' } }; })] : []).concat(rows.map(function (r) { return pad(r).map(function (c) { return { text: String(c), options: { color: col({ color: '#0D1838' }) } }; }); }));
             sl.addTable(data, { x: box.x, y: box.y, w: box.w, colW: Array(nc).fill(box.w / nc), fontFace: ff, fontSize: Math.max(9, PT(e.size || 18) - 2), border: { type: 'solid', color: 'DCD6C6', pt: 1 }, autoPage: false });
           }
-          else if (e.type === 'math') { var lt = latexText(e.latex); if (lt) sl.addText(lt, Object.assign({}, box, { fontFace: 'Cambria Math', fontSize: PT(e.size || 28), color: col(e), align: 'left', valign: 'middle', fit: 'shrink' })); }
+          else if (e.type === 'math') { var lt = latexText(e.latex); if (lt) sl.addText(lt, Object.assign({}, box, { fontFace: 'Cambria Math', fontSize: PT(e.size || 28), color: col(e), align: 'left', valign: 'middle', fit: 'shrink' })); else if (String(e.latex || '').trim()) { oge++; qaK.push(['EXPORT_ELEMENT_SKIPPED', si, e.id]); } }
           else if (e.type === 'viz' || e.type === 'mmd' || e.type === 'icon') {
             var node = off.querySelectorAll('.sx-el')[ei], png = node ? await svgPng(node, e.w, e.h) : null;
             if (png) sl.addImage({ data: png, x: box.x, y: box.y, w: box.w, h: box.h }); else { skipped++; qaK.push(['EXPORT_DRAWING_DROPPED', si, e.id]); }
           }
+          else { oge++; qaK.push(['EXPORT_ELEMENT_SKIPPED', si, e.id]); }      /* #45 (7.3): tanınmayan öğe türü sessizce düşmez */
         }
         if (s.notes) sl.addNotes(s.notes);
       }
       var name = String(deck.title || 'acadex-sunum').replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80) || 'acadex-sunum';
       await pp.writeFile({ fileName: name + '.pptx' });
-      say('PowerPoint dosyası indirildi.' + (skipped ? ' ' + skipped + ' çizim aktarılamadı; PDF çıktısında görünür.' : '') + (atlanan ? ' ' + atlanan + ' fotoğraf açılamadığı için dosyaya konmadı (bağlantısı artık çalışmıyor).' : ''));
+      say('PowerPoint dosyası indirildi.' + (skipped ? ' ' + skipped + ' çizim aktarılamadı; PDF çıktısında görünür.' : '') + (oge ? ' ' + oge + ' öğe PowerPoint’e aktarılamadı; denetim penceresinde görünür.' : '') + (atlanan ? ' ' + atlanan + ' fotoğraf açılamadığı için dosyaya konmadı (bağlantısı artık çalışmıyor).' : ''));
       teknikDisaKaydet(d0, 'pptx', qaK);
     } catch (err) {
       console.warn('acadex-sunum: pptx', err); teknikDisaKaydet(d0, 'pptx', [['EXPORT_FAILED', null, null]]); say('PowerPoint dosyası hazırlanamadı: ' + (err && err.message || 'bilinmeyen hata') + '. PDF indirmeyi deneyebilirsin.');

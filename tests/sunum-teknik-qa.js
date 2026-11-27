@@ -49,7 +49,7 @@ test('T1 teknikQA yalnız okur: kaydettirmez, çizmez, sığdırmaz, bildirim g�
 
 test('T2 kodlar tek tabloda: kullanılan her kod TEKNIK\'te, TEKNIK\'teki her kod bir yerde üretiliyor; sayısal teknik puan yok', () => {
   const tablo = Object.keys(Function('return ' + BLOK.slice(BLOK.indexOf('{'), BLOK.indexOf('\n  };\n') + 4))());
-  assert.equal(tablo.length, 35);      /* #38: +8 deterministik kural (sayı ×2, meta, yerel ayar, kaynaksız, atıf ×3) */
+  assert.equal(tablo.length, 36);      /* #38: +8 deterministik kural (sayı ×2, meta, yerel ayar, kaynaksız, atıf ×3); #45: +1 EXPORT_ELEMENT_SKIPPED (tanınmayan öğe PPTX'te sessizce düşmez) */
   const govde = ink.replace(BLOK.slice(0, BLOK.indexOf('\n  };\n')), '');
   const kullanilan = new Set((govde.match(/'([A-Z][A-Z_]{4,})'/g) || []).map((x) => x.slice(1, -1)).filter((x) => /_/.test(x) && tablo.includes(x) || /^(DECK|SLIDE|PLACEHOLDER|EL|LAYOUT|CHART|TABLE|IMG|CREDIT|TEXT|FONT|REFS|FALLBACK|SNAPSHOT|EXPORT|PDF)_/.test(x)));
   kullanilan.forEach((k) => assert.ok(tablo.includes(k), 'tabloda olmayan kod: ' + k));
@@ -70,7 +70,7 @@ test('T3 çalışma noktaları: basım (A), açılış (C), PPTX başarı+hata v
   const sv = cut('    saveLocal: function (d) {', '\n    },\n'); assert.ok(!/teknik/.test(sv), 'her yerel kayıtta denetim (E)');
   const yu = cut('  var yaziUyum = function () {', '\n  };\n'); assert.ok(!/teknik/.test(yu), 'kesilen dilimde (yaziUyum) teknik çağrı: düzenekler kırılır');
   /* dışa aktarmanın kendisi ve bildirimleri değişmez (Phase 2 hoşgörüsü) */
-  assert.ok(ink.includes("say('PowerPoint dosyası indirildi.' + (skipped ? ' ' + skipped + ' çizim aktarılamadı; PDF çıktısında görünür.' : '') + (atlanan ? ' ' + atlanan + ' fotoğraf açılamadığı için dosyaya konmadı (bağlantısı artık çalışmıyor).' : ''));"));
+  assert.ok(ink.includes("say('PowerPoint dosyası indirildi.' + (skipped ? ' ' + skipped + ' çizim aktarılamadı; PDF çıktısında görünür.' : '') + (oge ? ' ' + oge + ' öğe PowerPoint’e aktarılamadı; denetim penceresinde görünür.' : '') + (atlanan ? ' ' + atlanan + ' fotoğraf açılamadığı için dosyaya konmadı (bağlantısı artık çalışmıyor).' : ''));"));
   assert.match(ink, /if \(e\.src && !isrc\) \{ atlanan\+\+; continue; \}/);
 });
 

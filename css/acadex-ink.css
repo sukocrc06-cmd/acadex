@@ -6182,6 +6182,12 @@ body.acx .t-arrow path{stroke-dashoffset:0 !important;transition:none !important
 :is(#acadexsunum-view.axu,#axu-layer) .sx-pl-help{margin:0 0 10px;font-size:13.5px;color:var(--muted)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strips{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-direction:column;gap:8px;counter-reset:sp}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip{counter-increment:sp;position:relative;display:grid;grid-template-columns:28px 34px minmax(0,1fr) 150px 44px;align-items:center;gap:8px;padding:6px 8px;background:linear-gradient(115deg,rgba(255,255,255,.7),rgba(255,255,255,0) 40%),rgba(220,230,255,.55);border:1px solid rgba(47,107,255,.28);border-radius:2px;box-shadow:0 6px 10px -8px rgba(13,24,56,.6);transform:rotate(var(--r,0deg))}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto{counter-increment:sp;display:grid;grid-template-columns:28px 34px minmax(0,1fr);align-items:center;column-gap:8px;min-height:40px;padding:4px 8px;border:1px dashed rgba(47,107,255,.45);border-radius:2px;color:var(--navy);font-size:14.5px;font-weight:600}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto::before{content:counter(sp);grid-column:2;font-family:"Caveat",cursive;font-weight:700;font-size:24px;color:var(--blue);text-align:center}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto span{grid-column:3;min-width:0;padding:0 4px}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-strip-oto small{grid-column:3;padding:0 4px;font-size:12px;font-weight:400;color:var(--muted);overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-pl-sayi{margin:0 0 8px;font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
+:is(#acadexsunum-view.axu,#axu-layer) .sx-pl-sayi[hidden]{display:none}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip.dragging{opacity:.4}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-strip.over{box-shadow:0 -3px 0 var(--blue),0 6px 10px -8px rgba(13,24,56,.6)}
 :is(#acadexsunum-view.axu,#axu-layer) .sx-grip{width:28px;height:40px;border:0;background:radial-gradient(circle,#8A93AB 1.4px,transparent 1.8px) 0 0/7px 7px;cursor:grab;opacity:.7}
