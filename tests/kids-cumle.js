@@ -141,4 +141,46 @@ test('galaksinin söylediği cümleler katalogda; durak verisi paketten önce', 
   assert.ok(c.en.includes('She is my teacher.') && c.en.includes('playground'));
   assert.ok(bir.indexOf("'kids-cumle2.js'") > 0 && bir.indexOf("'kids-cumle2.js'") < bir.indexOf("'kids-cumle.js'"));
 });
+/* ---------------- 27.11.2026: canlı uzay, roket garajı, meteor avı (kids-cumle3.js) ---------------- */
+const js3 = read('kids/assets/kids-cumle3.js'), css3 = read('kids/assets/kids-cumle3.css');
+vm.runInContext(js3, W, { filename: 'kids-cumle3.js' });
+const K3 = W.KIDS_CUMLE3;
+test('garaj: yıldız toplamı durak + meteor, kural sayılmaz, eşikler artan, kilitli seçim klasiğe düşer', () => {
+  const il = { cumleD: { '3-okul': { kelime: 3, kural: 1, blok: 2, bosluk: 3, diyalog: 2 }, '3-sinif': { kelime: 9 } }, cumleMeteor: { '3-okul': 2 } };
+  assert.equal(K3.toplamYildiz(il), 3 + 2 + 3 + 2 + 3 + 2, 'kural yok, 3 üstü kırpılır');
+  assert.equal(K3.toplamYildiz({}), 0);
+  for (const t of ['renk', 'alev', 'cikartma']) {
+    const L = K3.GARAJ[t]; assert.equal(K3.esik(L[0]), 0, t + ' ilk parça hep açık');
+    for (let i = 1; i < L.length; i++) assert.ok(K3.esik(L[i]) > K3.esik(L[i - 1]), t + ' eşikler artan');
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(K3.secili({ cumleRoket: { renk: 'altin', alev: 'mavi', cikartma: 'yildiz' }, cumleMeteor: { a: 3, b: 3, c: 3 } }))), { renk: 'klasik', alev: 'mavi', cikartma: 'yildiz' });
+  const svg = K3.roket({ renk: 'nane', alev: 'gokkusagi', cikartma: 'kalp' });
+  assert.match(svg, /#C8F5DE/); assert.match(svg, /url\(#kc3-gk\)/); assert.match(svg, /class="kc2-alev"/);
+});
+test('canlı uzay: aynı tohum aynı gökyüzü; buz kırılınca parçalar dağılır', () => {
+  assert.equal(K3.gok('galaksi3'), K3.gok('galaksi3')); assert.notEqual(K3.gok('galaksi3'), K3.gok('galaksi4'));
+  assert.equal((K3.gok('x').match(/class="kc3-kayan"/g) || []).length, 3);
+  assert.match(K3.buz(true), /kc3-buz kc3-kirik/); assert.doesNotMatch(K3.buz(false), /kc3-kirik/);
+  assert.match(js, /if \(!Array\.isArray\(gordu\)\) \{ i\.cumleGordu = /, 'ilk görüşte açık gezegenler sessizce kaydedilir');
+});
+test('meteor avı: kelimeler durağından sonra, doğru kelime seçeneklerde, açılışı etkilemez', () => {
+  const E = EK.EK['3-okul'], L = KC.meteorTurlari(E, 8);
+  assert.equal(L.length, Math.min(8, E.k.length)); assert.equal(new Set(L.map((w) => w[0])).size, L.length);
+  for (const w of L) { const s = KC.meteorSecenek(E, w, 4); assert.equal(s.length, 4); assert.ok(s.includes(w[0])); assert.equal(new Set(s).size, 4); }
+  assert.ok(KC.METEOR_SURE[2] > KC.METEOR_SURE[3] && KC.METEOR_SURE[3] > KC.METEOR_SURE[4], 'küçük sınıfa daha yavaş meteor');
+  assert.ok(!KC.DURAK.some((d) => d[0] === 'meteor'), 'meteor durak değil: gezegen kilidini değiştirmez');
+  assert.match(js, /if \(!\(durakD\(il\(\), x\.id\)\.kelime > 0\)\)/);
+});
+test('paket ve hareket: kids-cumle3 dosyaları sırada, önek kc3, animasyonlar reduced-motion korumalı', () => {
+  assert.ok(bir.indexOf("'kids-cumle3.js'") > bir.indexOf("'kids-cumle2.js'") && bir.indexOf("'kids-cumle3.js'") < bir.indexOf("'kids-cumle.js'"));
+  assert.ok(bir.indexOf("'kids-cumle3.css'") > bir.indexOf("'kids-cumle.css'"));
+  const kurallar = css3.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@keyframes[^{]+\{(?:[^{}]*\{[^}]*\})*[^}]*\}/g, '');
+  const bloklar = kurallar.split(/(?=@media)/);
+  for (const b of bloklar) if (/animation:/.test(b) && !/^@media \(prefers-reduced-motion:no-preference\)/.test(b.trim())) {
+    for (const l of b.split('}')) if (/animation:/.test(l) && !/animation:none/.test(l)) assert.fail('korumasız animasyon: ' + l.trim().slice(0, 90));
+  }
+  const sec = kurallar.split('}').map((r) => r.split('{').slice(-2, -1)[0] || '').map((x) => x.trim()).filter((x) => x && !/^(from|to|\d|@)/.test(x));
+  for (const x of sec) for (const parca of x.split(',')) assert.match(parca, /kc3|kc2/, 'önek: ' + parca);
+});
+
 summary();

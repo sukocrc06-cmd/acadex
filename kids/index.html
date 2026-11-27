@@ -3621,6 +3621,160 @@ html.kyo-gsap .kyo-a-train,html.kyo-gsap .kyo-a-bird{opacity:1}
 @media (prefers-reduced-motion:reduce){.kc2-rozet,.kc2-gz-buyuk,.kc2-duraklar li,.kc2-d-simdi,.kc2-rozet-k{animation:none!important}.kc2-kural-s li,.kc2-kural-o{opacity:1;transform:none}}
 
 /* ==========================================================================
+   ACADEX KIDS · CÜMLE GALAKSİSİ: CANLI UZAY, ROKET GARAJI, METEOR AVI
+   (kids/assets/kids-cumle3.css), 27.11.2026 — bkz. kids-cumle3.js ve kids-cumle.js
+   ========================================================================== */
+
+/* ---------------- canlı gökyüzü ---------------- */
+.kc3-gok{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:inherit}
+/* haritada gökyüzü bütün ekranı kaplar; kutu kenarı görünmez */
+.kc2-uzay > .kc3-gok{left:50%;right:auto;width:100vw;transform:translateX(-50%);top:-80px;bottom:-40px}
+.kc2:has(.kc2-uzay > .kc3-gok){overflow-x:clip}
+.kc3-neb{position:absolute;border-radius:50%;filter:blur(40px);opacity:.55;mix-blend-mode:screen}
+.kc3-neb1{left:-8%;top:-12%;width:52%;height:62%;background:radial-gradient(circle,#B05CFF 0,rgba(176,92,255,.25) 45%,transparent 70%)}
+.kc3-neb2{right:-12%;top:28%;width:56%;height:70%;background:radial-gradient(circle,#2FA8FF 0,rgba(47,168,255,.22) 45%,transparent 70%)}
+.kc3-neb3{left:30%;bottom:-30%;width:46%;height:55%;background:radial-gradient(circle,#FF6FA8 0,rgba(255,111,168,.18) 45%,transparent 70%)}
+.kc3-toz{position:absolute;inset:-20%;background:radial-gradient(1px 1px at 12% 18%,rgba(255,255,255,.7) 50%,transparent 52%),radial-gradient(1px 1px at 42% 62%,rgba(255,255,255,.6) 50%,transparent 52%),
+ radial-gradient(1px 1px at 72% 28%,rgba(255,255,255,.7) 50%,transparent 52%),radial-gradient(1px 1px at 88% 82%,rgba(255,255,255,.5) 50%,transparent 52%),radial-gradient(1px 1px at 22% 88%,rgba(255,255,255,.6) 50%,transparent 52%);background-size:340px 300px;opacity:.7}
+.kc3-yildizlar i{position:absolute;width:var(--b);height:var(--b);border-radius:50%;background:#fff;box-shadow:0 0 calc(var(--b) * 3) rgba(255,255,255,.8)}
+.kc3-kayan{position:absolute;width:120px;height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff);opacity:0;transform:rotate(-24deg)}
+@media (prefers-reduced-motion:no-preference){
+  .kc3-neb1{animation:kc3Neb 18s ease-in-out infinite alternate}.kc3-neb2{animation:kc3Neb 22s ease-in-out infinite alternate-reverse}.kc3-neb3{animation:kc3Neb 26s ease-in-out infinite alternate}
+  .kc3-toz{animation:kc3Toz 90s linear infinite}
+  .kc3-yildizlar i{animation:kc3Goz var(--s) ease-in-out var(--g) infinite}
+  .kc3-kayan{animation:kc3Kay 7s ease-in calc(var(--k) * 2.4s + 1.2s) infinite}
+}
+@keyframes kc3Neb{to{transform:translate(6%,4%) scale(1.12)}}
+@keyframes kc3Toz{to{transform:translate(340px,300px)}}
+@keyframes kc3Goz{50%{opacity:.25;transform:scale(.6)}}
+@keyframes kc3Kay{0%{opacity:0;translate:0 0}3%{opacity:1}12%{opacity:0;translate:-260px 120px}100%{opacity:0;translate:-260px 120px}}
+
+/* ---------------- ışıklı yol, sıradaki gezegen, süzülen gezegenler ---------------- */
+.kc2-yol path.kc3-isik{stroke:#FFD23F;stroke-width:5;stroke-dasharray:none;filter:drop-shadow(0 0 6px rgba(255,210,63,.9));opacity:.9}
+@media (prefers-reduced-motion:no-preference){.kc2-yol path.kc3-isik{animation:kc3Yol 1.2s ease-out .3s both}
+  .kc2-gezegenler li:not(.kc2-kilit) .kc2-gz .kc{animation:kc3Yuz 5s ease-in-out calc(var(--i) * -.8s) infinite}}
+@keyframes kc3Yol{from{opacity:0;stroke-width:1}}
+@keyframes kc3Yuz{50%{translate:0 -7px;rotate:2deg}}
+.kc3-sira .kc2-gz::before{content:"";position:absolute;left:50%;top:44%;width:86%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);border:3px solid #FFD23F;box-shadow:0 0 18px rgba(255,210,63,.7);pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.kc3-sira .kc2-gz::before{animation:kc3Halka 1.8s ease-out infinite}}
+@keyframes kc3Halka{0%{opacity:.9;transform:translate(-50%,-50%) scale(.8)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}}
+.kc3-sira .kc2-ad{border-color:#FFD23F;box-shadow:0 0 0 3px rgba(255,210,63,.35),0 4px 14px rgba(5,8,30,.35)}
+
+/* ---------------- buz kabuğu (kilitli gezegen) ---------------- */
+.kc2-gz .kc3-buz{position:absolute;left:0;top:0;width:100%;height:auto;pointer-events:none;overflow:visible}
+.kc3-buz .kc3-p{transform-box:fill-box;transform-origin:center}
+.kc3-buz .kc3-parilti{opacity:.9}
+@media (prefers-reduced-motion:no-preference){.kc3-buz:not(.kc3-kirik) .kc3-parilti{animation:kc3Par 2.6s ease-in-out infinite}
+  .kc3-kirik .kc3-p{animation:kc3Kir 1.1s cubic-bezier(.2,.8,.3,1) calc(.45s + var(--j) * .04s) forwards}
+  .kc3-kirik circle,.kc3-kirik .kc3-parilti{animation:kc3Sol .6s ease-out .45s forwards}
+  .kc3-yeni .kc2-gz .kc{animation:kc3Uyan 1.4s ease-out both}
+  .kc3-yeni .kc2-gz::after{content:"";position:absolute;left:50%;top:44%;width:30%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle,#fff,rgba(255,255,255,0) 70%);pointer-events:none;animation:kc3Flas .9s ease-out .4s both}}
+@media (prefers-reduced-motion:reduce){.kc3-kirik{display:none}}
+@keyframes kc3Par{50%{opacity:.2}}
+@keyframes kc3Kir{0%{transform:none;opacity:1}30%{transform:translate(calc(var(--dx) * .1),calc(var(--dy) * .1))}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--dr)) scale(.6);opacity:0}}
+@keyframes kc3Sol{to{opacity:0}}
+@keyframes kc3Uyan{0%{filter:grayscale(1) brightness(.7)}35%{filter:grayscale(1) brightness(.7)}100%{filter:drop-shadow(0 0 18px color-mix(in srgb,var(--r) 60%,transparent))}}
+@keyframes kc3Flas{0%{opacity:0;width:30%}40%{opacity:1}100%{opacity:0;width:220%}}
+
+/* ---------------- garaj düğmesi (harita) ---------------- */
+.kc3-garaj-b{position:absolute;left:14px;top:8px;z-index:4;display:flex;align-items:center;gap:8px;min-height:48px;padding:4px 14px 4px 6px;border:2px solid rgba(255,255,255,.55);border-radius:999px;
+ background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.08));color:#fff;font:800 15px/1 var(--bas);cursor:pointer;backdrop-filter:blur(4px);transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.kc3-garaj-b span{display:block;width:30px;transform:rotate(30deg)}
+.kc3-garaj-b svg{display:block;width:100%;height:auto}
+.kc3-garaj-b small{font:800 13px/1 var(--bas);color:#FFE9A0}
+.kc3-garaj-b:hover{transform:translateY(-2px) scale(1.04)}
+.kc3-garaj-b:focus-visible{outline:4px solid #FFD23F;outline-offset:2px}
+.kc2-dar .kc3-garaj-b{top:auto;bottom:6px;left:10px}
+.kc2-roket .kc2-alev{opacity:0}
+
+/* ---------------- roket garajı ekranı ---------------- */
+.kc3-g-alan{display:grid;grid-template-columns:minmax(240px,360px) minmax(0,1fr);gap:26px;width:min(1100px,100%);margin:0 auto;padding:14px 18px 0}
+.kc3-g-on{display:flex;flex-direction:column;gap:12px}
+.kc3-g-pist{position:relative;height:clamp(260px,44vh,380px);border-radius:28px;border:2px solid rgba(255,255,255,.35);background:radial-gradient(ellipse at 50% 100%,#3B2C8F,#16124A 70%);overflow:hidden;display:grid;place-items:center}
+.kc3-g-pist::after{content:"";position:absolute;left:18%;right:18%;bottom:18px;height:22px;border-radius:50%;background:radial-gradient(ellipse,rgba(255,210,63,.45),transparent 70%)}
+.kc3-g-roket{position:relative;z-index:1;width:clamp(110px,40%,150px)}
+.kc3-g-roket svg{display:block;width:100%;height:auto;filter:drop-shadow(0 8px 0 rgba(11,16,51,.35))}
+@media (prefers-reduced-motion:no-preference){.kc3-g-roket{animation:kc2Suz 2.4s ease-in-out infinite}.kc3-g-roket .kc2-alev{animation:kc2Alev .14s linear infinite alternate;transform-origin:50% 0}
+  .kc3-g-roket.kc3-g-hop{animation:kc3Hop .6s cubic-bezier(.3,1.6,.5,1)}}
+@keyframes kc3Hop{40%{transform:translateY(-26px) rotate(-6deg) scale(1.08)}}
+.kc3-g-top{margin:0;padding:12px 16px;border-radius:18px;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.25);display:flex;flex-direction:column;gap:4px;color:#fff;font:700 16px/1.2 var(--bas)}
+.kc3-g-top b{font-size:30px;color:#FFD23F;text-shadow:0 0 10px rgba(255,210,63,.6)}
+.kc3-g-top small{font-size:14px;color:#C9D3EE}
+.kc3-g-bar{display:block;height:10px;border-radius:999px;background:rgba(255,255,255,.15);overflow:hidden}.kc3-g-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#FFB020,#FFD23F)}
+.kc3-g-raf{display:flex;flex-direction:column;gap:18px}
+.kc3-g-bol h2{margin:0 0 8px;font:800 22px/1 var(--bas);color:#fff}.kc3-g-bol h2 small{font-size:15px;color:#9FB0E8;margin-left:4px}
+.kc3-g-sec{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px}
+.kc3-g-p{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:104px;padding:10px 6px 8px;border:2.5px solid rgba(255,255,255,.25);border-radius:18px;background:rgba(255,255,255,.08);color:#fff;font:800 13px/1.1 var(--bas);cursor:pointer;
+ transition:transform .2s cubic-bezier(.3,1.6,.5,1),border-color .2s,background .2s}
+.kc3-g-p svg{width:46px;height:46px}
+.kc3-g-p:hover{transform:translateY(-3px)}
+.kc3-g-p[aria-checked="true"]{border-color:#FFD23F;background:rgba(255,210,63,.16);box-shadow:0 0 0 3px rgba(255,210,63,.3)}
+.kc3-g-p[aria-checked="true"]::after{content:"✓";position:absolute;right:6px;top:4px;width:22px;height:22px;border-radius:50%;background:#FFD23F;color:#23304D;font-size:14px;line-height:22px}
+.kc3-g-p:focus-visible{outline:4px solid #FFD23F;outline-offset:2px}
+.kc3-g-kilit{opacity:.6}.kc3-g-kilit svg{filter:grayscale(.8)}
+.kc3-g-p small{font-size:12px;color:#FFE9A0}
+@media (max-width:760px){.kc3-g-alan{grid-template-columns:1fr}.kc3-g-pist{height:220px}}
+
+/* yeni parça bildirimi (bitiş ekranları) */
+.kc3-yeni-parca{margin:6px auto 4px;padding:8px 14px;border-radius:999px;background:#FFF3C4;color:#5A3A00;font:700 15px/1.3 var(--bas);width:max-content;max-width:100%}
+@media (prefers-reduced-motion:no-preference){.kc3-yeni-parca{animation:kc2Pop2 .6s cubic-bezier(.3,1.6,.5,1) .6s both}}
+
+/* ---------------- meteor avı: gezegen kartı ---------------- */
+.kc3-meteor-k{display:flex;align-items:center;gap:14px;width:min(560px,100%);margin:18px auto 0;padding:12px 18px;border:2.5px dashed rgba(255,210,63,.8);border-radius:22px;background:linear-gradient(110deg,rgba(255,138,76,.25),rgba(255,210,63,.12));color:#fff;font:inherit;cursor:pointer;text-align:left;
+ transition:transform .2s cubic-bezier(.3,1.6,.5,1)}
+.kc3-meteor-k:hover{transform:translateY(-3px) rotate(-.6deg)}
+.kc3-meteor-k:focus-visible{outline:4px solid #FFD23F;outline-offset:3px}
+.kc3-mk-kilit{opacity:.55;cursor:not-allowed;border-color:rgba(255,255,255,.35)}
+.kc3-mk-ic{position:relative;width:56px;height:56px;flex:none}
+.kc3-mk-ic i{position:absolute;width:20px;height:20px;border-radius:46% 54% 50% 48%;background:#A86A3D;border:2.5px solid #23304D;box-shadow:-8px 6px 0 -3px rgba(255,176,32,.7)}
+.kc3-mk-ic i:nth-child(1){left:26px;top:4px}.kc3-mk-ic i:nth-child(2){left:6px;top:22px;width:16px;height:16px}.kc3-mk-ic i:nth-child(3){left:30px;top:32px;width:14px;height:14px}
+@media (prefers-reduced-motion:no-preference){.kc3-meteor-k:not(.kc3-mk-kilit) .kc3-mk-ic i{animation:kc3Dus 1.8s ease-in-out infinite}.kc3-mk-ic i:nth-child(2){animation-delay:-.6s!important}.kc3-mk-ic i:nth-child(3){animation-delay:-1.2s!important}}
+@keyframes kc3Dus{50%{translate:-4px 5px}}
+.kc3-mk-t{display:flex;flex-direction:column;flex:1;line-height:1.1}
+.kc3-mk-t small{font:800 12px/1 var(--bas);letter-spacing:.08em;text-transform:uppercase;color:#FFD23F}
+.kc3-mk-t b{font:800 22px/1.1 var(--bas)}.kc3-mk-t em{font-style:normal;font-size:14px;color:#C9D3EE}
+.kc3-mk-y{font-style:normal;display:flex;gap:2px}.kc3-mk-y em{font-style:normal;color:rgba(255,255,255,.3);font-size:18px}.kc3-mk-y em.on{color:#FFD23F}
+.kc3-mk-yeni{padding:4px 10px;border-radius:999px;background:#FF6B5B;font:800 13px/1 var(--bas)}
+
+/* ---------------- meteor avı: oyun alanı ---------------- */
+.kc2-kart.kc3-m-kart{width:min(980px,100%);padding:10px 12px 14px}
+.kc3-m-ust{display:flex;align-items:center;justify-content:center;gap:12px;margin:2px 0 10px}
+.kc3-m-dinle{width:56px;height:56px;border-radius:50%;border:3px solid #23304D;background:#FFD23F;cursor:pointer;display:grid;place-items:center;box-shadow:0 4px 0 #23304D}
+.kc3-m-dinle .kc-simge{width:30px;height:30px}
+.kc3-m-dinle:active{transform:translateY(3px);box-shadow:0 1px 0 #23304D}
+.kc3-m-soru{margin:0;font:800 clamp(16px,2.4vw,22px)/1.2 var(--bas);color:#23304D;text-align:center}
+.kc3-m-alan{position:relative;height:clamp(360px,58vh,560px);border-radius:26px;overflow:hidden;background:linear-gradient(180deg,#120E3C,#1C1660 60%,#2A1F7A);border:2px solid rgba(255,255,255,.25);touch-action:manipulation}
+.kc3-m-roket{position:absolute;left:50%;bottom:8px;width:48px;transform:translateX(-50%);transition:left .25s cubic-bezier(.3,1.2,.5,1);z-index:2}
+.kc3-m-roket svg{display:block;width:100%;height:auto}
+.kc3-m-roket .kc2-alev{opacity:1}
+@media (prefers-reduced-motion:no-preference){.kc3-m-roket .kc2-alev{animation:kc2Alev .14s linear infinite alternate;transform-origin:50% 0}}
+.kc3-met{position:absolute;left:var(--x);top:0;z-index:3;display:flex;flex-direction:column;align-items:center;gap:0;min-width:96px;padding:0;border:0;background:none;cursor:pointer;color:#23304D;font:inherit;transform:translate(-50%,-140%)}
+.kc3-met.kc3-sabit{top:28%;transform:translate(-50%,0)}
+.kc3-met-tas{position:relative;width:72px;height:66px;border-radius:46% 54% 50% 48% / 52% 46% 54% 48%;background:radial-gradient(circle at 35% 30%,#D69A6A,#A86A3D 55%,#6E4222);border:3px solid #23304D;box-shadow:inset -6px -6px 0 rgba(0,0,0,.18)}
+.kc3-met-tas i{position:absolute;border-radius:50%;background:rgba(60,32,14,.45)}
+.kc3-met-tas i:nth-child(1){left:14px;top:14px;width:14px;height:12px}.kc3-met-tas i:nth-child(2){left:40px;top:30px;width:10px;height:9px}.kc3-met-tas i:nth-child(3){left:22px;top:40px;width:8px;height:7px}
+.kc3-met-kuyruk{position:absolute;left:50%;top:-46px;width:34px;height:58px;transform:translateX(-50%);border-radius:50% 50% 40% 40%;background:linear-gradient(0deg,rgba(255,176,32,.95),rgba(255,107,91,.6) 50%,transparent);filter:blur(1px)}
+.kc3-met b{margin-top:-8px;padding:5px 12px;border-radius:999px;background:#fff;border:2.5px solid #23304D;font:800 clamp(15px,2vw,19px)/1.1 var(--bas);white-space:nowrap;box-shadow:0 3px 0 #23304D}
+.kc3-met:focus-visible b{outline:4px solid #FFD23F;outline-offset:2px}
+.kc3-met:hover .kc3-met-tas{filter:brightness(1.1)}
+.kc3-met.kc3-iska{pointer-events:none}.kc3-met.kc3-iska b{background:#FF8A8A;text-decoration:line-through}.kc3-met.kc3-iska .kc3-met-tas{filter:grayscale(.6)}
+@media (prefers-reduced-motion:no-preference){.kc3-met.kc3-iska .kc3-met-tas{animation:kc2Salla .45s}}
+.kc3-met.kc3-vuruldu{pointer-events:none}.kc3-met.kc3-vuruldu .kc3-met-tas,.kc3-met.kc3-vuruldu .kc3-met-kuyruk{opacity:0;transition:opacity .2s}
+.kc3-met.kc3-vuruldu b{background:#7CE3A1}
+.kc3-met.kc3-kacti b{background:#FFD23F}
+.kc3-lazer{position:absolute;z-index:2;height:5px;margin-top:-2px;border-radius:3px;transform-origin:0 50%;background:linear-gradient(90deg,rgba(255,255,255,.2),#7FF5FF,#fff);box-shadow:0 0 12px #7FF5FF;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){.kc3-lazer{animation:kc3Laz .3s ease-out forwards}}
+@keyframes kc3Laz{to{opacity:0}}
+.kc3-patla{position:absolute;z-index:4;width:0;height:0;pointer-events:none}
+.kc3-patla i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:#FFD23F;box-shadow:0 0 10px #FFB020}
+.kc3-patla i:nth-child(3n){background:#FF6B5B}.kc3-patla i:nth-child(3n+1){background:#7FF5FF}
+@media (prefers-reduced-motion:no-preference){.kc3-patla i{animation:kc3Kivilcim .8s cubic-bezier(.2,.8,.3,1) forwards}
+  .kc3-patla i:nth-child(1){--a:0deg}.kc3-patla i:nth-child(2){--a:36deg}.kc3-patla i:nth-child(3){--a:72deg}.kc3-patla i:nth-child(4){--a:108deg}.kc3-patla i:nth-child(5){--a:144deg}
+  .kc3-patla i:nth-child(6){--a:180deg}.kc3-patla i:nth-child(7){--a:216deg}.kc3-patla i:nth-child(8){--a:252deg}.kc3-patla i:nth-child(9){--a:288deg}.kc3-patla i:nth-child(10){--a:324deg}}
+@keyframes kc3Kivilcim{to{transform:rotate(var(--a)) translateX(70px) scale(.2);opacity:0}}
+@media (max-width:600px){.kc3-met{min-width:78px}.kc3-met-tas{width:56px;height:52px}.kc3-met b{font-size:15px;padding:4px 9px}}
+
+/* ==========================================================================
    ACADEX KIDS · maskot, ekran süresi, veli raporu (kids/assets/kids-maskot.css), 26.11.2026
    bkz. kids-maskot.js ve kids-app.js (uyku, sureHaber, veli köşesi "Bu hafta")
    ========================================================================== */
@@ -10008,6 +10162,89 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
   W.KIDS_CUMLE_EK = { EK: EK, KALIP: KALIP };
 })(window);
 
+/* ---- kids-cumle3.js ---- */
+/* ==========================================================================
+   ACADEX KIDS · CÜMLE GALAKSİSİ: CANLI UZAY, ROKET GARAJI, METEOR AVI VERİSİ
+   (kids/assets/kids-cumle3.js), 27.11.2026. kids-cumle.js bunları çalışırken okur.
+     gok(tohum)          haritanın canlı gökyüzü: göz kırpan yıldızlar, kayan yıldızlar, nebula
+     buz(kirik)          kilitli gezegenin buz kabuğu; kirik=true → parçalar dağılır (kilit açıldı)
+     roket(cfg)          garajda seçilen renk / alev / çıkartmayla roket SVG'si
+     GARAJ               { renk, alev, cikartma }: [id, ad, ..., eşik yıldız]
+     toplamYildiz(il)    garaj eşikleri için toplam: durak yıldızları (kural hariç) + meteor yıldızları
+     acikMi(il, tur, id) o parça açık mı · secili(il) seçili, açık parçalar
+   Kayıt: il.cumleRoket = { renk, alev, cikartma } · il.cumleMeteor[tema] = en iyi yıldız ·
+          il.cumleGordu = [açılışı oynatılmış gezegen kimlikleri]
+   ========================================================================== */
+(function (W) {
+  'use strict';
+  var M = '#23304D';
+
+  /* ---------------- canlı gökyüzü ---------------- */
+  function rng(t) { var s = 0; for (var i = 0; i < String(t).length; i++) s = (s * 31 + String(t).charCodeAt(i)) >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function gok(tohum) {
+    var r = rng(tohum || 'galaksi'), y = '';
+    for (var i = 0; i < 46; i++) {
+      var b = r() < 0.18 ? 3 : r() < 0.5 ? 2 : 1.2;
+      y += '<i style="left:' + (r() * 100).toFixed(1) + '%;top:' + (r() * 100).toFixed(1) + '%;--b:' + b + 'px;--g:' + (r() * 4).toFixed(2) + 's;--s:' + (2 + r() * 3).toFixed(2) + 's"></i>';
+    }
+    var kay = [0, 1, 2].map(function (k) { return '<b class="kc3-kayan" style="--k:' + k + ';left:' + (20 + k * 27 + r() * 10).toFixed(0) + '%;top:' + (6 + r() * 26).toFixed(0) + '%"></b>'; }).join('');
+    return '<div class="kc3-gok" aria-hidden="true"><span class="kc3-neb kc3-neb1"></span><span class="kc3-neb kc3-neb2"></span><span class="kc3-neb kc3-neb3"></span>' +
+      '<span class="kc3-toz"></span><span class="kc3-yildizlar">' + y + '</span>' + kay + '</div>';
+  }
+
+  /* ---------------- buz kabuğu ---------------- */
+  var PARCA = [
+    ['M60 70 L86 52 L100 74 L78 92 Z', -60, -50, -40], ['M100 74 L120 46 L144 66 L122 96 Z', 50, -60, 35], ['M78 92 L100 74 L122 96 L104 122 Z', -20, 60, -25],
+    ['M122 96 L144 66 L158 100 L140 130 Z', 70, 30, 50], ['M52 110 L78 92 L104 122 L70 140 Z', -70, 40, -55], ['M104 122 L140 130 L118 154 L86 150 Z', 20, 80, 30],
+    ['M86 52 L104 40 L120 46 L100 74 Z', -10, -80, -20]
+  ];
+  function buz(kirik) {
+    return '<svg class="kc3-buz' + (kirik ? ' kc3-kirik' : '') + '" viewBox="0 0 200 170" aria-hidden="true" focusable="false">' +
+      '<circle cx="100" cy="108" r="66" fill="rgba(200,232,255,.22)"/>' +
+      PARCA.map(function (p, j) { return '<path class="kc3-p" style="--dx:' + p[1] + 'px;--dy:' + p[2] + 'px;--dr:' + p[3] + 'deg;--j:' + j + '" d="' + p[0] + '" fill="rgba(214,238,255,.55)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>'; }).join('') +
+      '<path class="kc3-parilti" d="M70 64 l4 9 9 4 -9 4 -4 9 -4 -9 -9 -4 9 -4z M138 120 l3 6 6 3 -6 3 -3 6 -3 -6 -6 -3 6 -3z" fill="#fff"/></svg>';
+  }
+
+  /* ---------------- roket garajı ---------------- */
+  var GARAJ = {
+    renk: [['klasik', 'Klasik', '#FFFFFF', '#FF6B5B', 0], ['gok', 'Gök mavisi', '#BFE3FF', '#2F80ED', 4], ['nane', 'Nane', '#C8F5DE', '#1FA463', 9], ['lavanta', 'Lavanta', '#E5DBFF', '#8A5CF6', 15],
+      ['gunes', 'Güneş', '#FFF1B8', '#F59E0B', 22], ['pembe', 'Pembe', '#FFD6E8', '#E5488C', 30], ['gece', 'Gece', '#3E4F8F', '#FFD23F', 42], ['altin', 'Altın', '#FFE08A', '#B7791F', 60]],
+    alev: [['turuncu', 'Turuncu', '#FFB020', '#FFF3B0', 0], ['mavi', 'Mavi', '#4FC3FF', '#E0F7FF', 6], ['yesil', 'Yeşil', '#3DDC84', '#E2FFE9', 14], ['mor', 'Mor', '#B57BFF', '#F1E6FF', 24], ['gokkusagi', 'Gökkuşağı', 'url(#kc3-gk)', '#FFFFFF', 48]],
+    cikartma: [['yok', 'Yok', '', 0], ['yildiz', 'Yıldız', 'M0 -6 l1.8 3.8 4.2 .6 -3 3 .7 4.2 -3.7 -2 -3.7 2 .7 -4.2 -3 -3 4.2 -.6z', 2], ['kalp', 'Kalp', 'M0 5 C-7 0 -6 -6 -2.5 -6 C-1 -6 0 -5 0 -4 C0 -5 1 -6 2.5 -6 C6 -6 7 0 0 5z', 8],
+      ['simsek', 'Şimşek', 'M1.5 -7 L-4 1 H0 L-1.5 7 L4 -1 H0z', 12], ['ay', 'Ay', 'M2 -6 A6.5 6.5 0 1 0 2 6 A5 5 0 1 1 2 -6z', 20], ['cicek', 'Çiçek', 'M0 -6 a2.6 2.6 0 0 1 0 5 a2.6 2.6 0 0 1 5 0 a2.6 2.6 0 0 1 -5 0 a2.6 2.6 0 0 1 0 5 a2.6 2.6 0 0 1 -5 0 a2.6 2.6 0 0 1 5 0z', 34],
+      ['tac', 'Taç', 'M-6 4 L-6 -3 L-3 0 L0 -6 L3 0 L6 -3 L6 4z', 52]]
+  };
+  function bul(tur, id) { return GARAJ[tur].filter(function (x) { return x[0] === id; })[0] || GARAJ[tur][0]; }
+  function esik(x) { return x[x.length - 1]; }
+  function toplamYildiz(il) {
+    var t = 0, d = il && il.cumleD || {}, m = il && il.cumleMeteor || {};
+    Object.keys(d).forEach(function (id) { Object.keys(d[id] || {}).forEach(function (k) { if (k !== 'kural') t += Math.max(0, Math.min(3, +d[id][k] || 0)); }); });
+    Object.keys(m).forEach(function (id) { t += Math.max(0, Math.min(3, +m[id] || 0)); });
+    return t;
+  }
+  function acikMi(il, tur, id) { return toplamYildiz(il) >= esik(bul(tur, id)); }
+  function secili(il) {
+    var s = (il && il.cumleRoket) || {}, o = {};
+    ['renk', 'alev', 'cikartma'].forEach(function (k) { var x = bul(k, s[k]); o[k] = acikMi(il, k, x[0]) ? x[0] : GARAJ[k][0][0]; });
+    return o;
+  }
+  var uid = 0;
+  function roket(cfg) {
+    cfg = cfg || {}; var r = bul('renk', cfg.renk), a = bul('alev', cfg.alev), c = bul('cikartma', cfg.cikartma), n = ++uid;
+    var gk = a[0] === 'gokkusagi' ? '<defs><linearGradient id="kc3-gk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF5B5B"/><stop offset=".35" stop-color="#FFD23F"/><stop offset=".7" stop-color="#3DDC84"/><stop offset="1" stop-color="#4FC3FF"/></linearGradient></defs>' : '';
+    var alevRenk = a[0] === 'gokkusagi' ? 'url(#kc3-gk)' : a[2];
+    return '<svg viewBox="0 0 40 60" aria-hidden="true" focusable="false" data-roket="' + n + '">' + gk +
+      '<path class="kc2-alev" d="M14 34q6 24 12 0" fill="' + alevRenk + '" stroke="' + M + '" stroke-width="2"/><path class="kc2-alev kc3-alev-i" d="M17 35q3 12 6 0" fill="' + a[3] + '"/>' +
+      '<path d="M20 3c8 6 11 16 9 30H11C9 19 12 9 20 3z" fill="' + r[2] + '" stroke="' + M + '" stroke-width="2.6" stroke-linejoin="round"/>' +
+      '<circle cx="20" cy="17" r="5" fill="#7FC4FF" stroke="' + M + '" stroke-width="2.2"/><path d="M17.5 15.5a3 3 0 0 1 3-2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<path d="M11 26l-7 9 7 2M29 26l7 9-7 2" fill="' + r[3] + '" stroke="' + M + '" stroke-width="2.2" stroke-linejoin="round"/>' +
+      '<path d="M15 33h10" stroke="' + M + '" stroke-width="2.2" stroke-linecap="round"/>' +
+      (c[2] ? '<path transform="translate(20 27) scale(.62)" d="' + c[2] + '" fill="' + (r[0] === 'gece' ? '#FFD23F' : r[3]) + '" stroke="' + M + '" stroke-width="1.6" stroke-linejoin="round"/>' : '') + '</svg>';
+  }
+
+  W.KIDS_CUMLE3 = { gok: gok, buz: buz, roket: roket, GARAJ: GARAJ, toplamYildiz: toplamYildiz, acikMi: acikMi, secili: secili, esik: esik, bul: bul };
+})(window);
+
 /* ---- kids-cumle.js ---- */
 /* ==========================================================================
    ACADEX KIDS · CÜMLE GALAKSİSİ (kids/assets/kids-cumle.js), 22.11.2026
@@ -10137,6 +10374,9 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
   var ROKET = '<svg viewBox="0 0 40 56" aria-hidden="true" focusable="false"><path d="M20 3c8 6 11 16 9 30H11C9 19 12 9 20 3z" fill="#fff" stroke="' + M + '" stroke-width="2.6" stroke-linejoin="round"/><circle cx="20" cy="18" r="5" fill="#7FC4FF" stroke="' + M + '" stroke-width="2.2"/><path d="M11 26l-7 9 7 2M29 26l7 9-7 2" fill="#FF6B5B" stroke="' + M + '" stroke-width="2.2" stroke-linejoin="round"/><path class="kc2-alev" d="M15 34q5 18 10 0" fill="#FFB020" stroke="' + M + '" stroke-width="2"/></svg>';
   var LOKO = '<svg viewBox="0 0 64 48" aria-hidden="true" focusable="false"><rect x="4" y="14" width="38" height="24" rx="5" fill="#FF6B5B" stroke="' + M + '" stroke-width="3"/><rect x="30" y="4" width="16" height="34" rx="4" fill="#FFD23F" stroke="' + M + '" stroke-width="3"/><rect x="34" y="9" width="8" height="8" rx="2" fill="#BFE3FF" stroke="' + M + '" stroke-width="2"/><path d="M42 30 h14 l4 8 h-18z" fill="#7FC4FF" stroke="' + M + '" stroke-width="3" stroke-linejoin="round"/><rect x="10" y="4" width="8" height="12" rx="2" fill="' + M + '"/><circle cx="16" cy="40" r="6" fill="#fff" stroke="' + M + '" stroke-width="3"/><circle cx="38" cy="40" r="6" fill="#fff" stroke="' + M + '" stroke-width="3"/></svg>';
   function acd(m) { return C && C.acadia ? C.acadia({ mood: m || 'mutlu' }) : ''; }
+  /* 27.11.2026: canlı uzay, roket garajı, meteor avı (kids-cumle3.js) */
+  function K3() { return W.KIDS_CUMLE3 || null; }
+  function roketim() { var K = K3(); return K && oz ? K.roket(K.secili(il())) : ROKET; }
 
   var oz = null, durum = null;
   function il() { return oz.il(); }
@@ -10147,7 +10387,7 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
   /* ---------------- galaksiler arası geçiş ---------------- */
   function warp(sonra, geri) {
     if (SAKIN || !W.Element.prototype.animate) return sonra();
-    var o = D.createElement('div'); o.className = 'kc2-warp' + (geri ? ' kc2-warp-geri' : ''); o.innerHTML = '<i class="kc2-warp-c"></i><span class="kc2-warp-r">' + ROKET + '</span>';
+    var o = D.createElement('div'); o.className = 'kc2-warp' + (geri ? ' kc2-warp-geri' : ''); o.innerHTML = '<i class="kc2-warp-c"></i><span class="kc2-warp-r">' + roketim() + '</span>';
     D.body.appendChild(o); if (SES) SES.fx('cevir');
     var r = o.lastChild;
     o.animate([{ opacity: 0 }, { opacity: 1, offset: 0.25 }, { opacity: 1 }], { duration: 1000, fill: 'forwards' });
@@ -10200,21 +10440,31 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
     L.forEach(function (x, k) { if (x.id === son) si = k; });
     var yol = 'M' + Y.map(function (p) { return p[0] + ' ' + p[1]; }).join(' L');
     var toplam = L.reduce(function (n, x) { return n + (cs[x.id] || 0); }, 0), biten = L.filter(function (x) { return tamamMi(i, x.id); }).length;
+    var K = K3(), acikL = L.map(function (x, k) { return gezegenAcik(i, L, k); }), sonAcik = acikL.lastIndexOf(true), sira = L.findIndex(function (x, k) { return acikL[k] && !tamamMi(i, x.id); });
+    /* kilidi yeni açılan gezegen: buz kırılarak açılır (bir kez). İlk görüşte o an açık olanlar sessizce kaydedilir. */
+    var gordu = i.cumleGordu, yeni = {};
+    if (!Array.isArray(gordu)) { i.cumleGordu = L.filter(function (x, k) { return acikL[k]; }).map(function (x) { return x.id; }); kaydet(i); gordu = i.cumleGordu; }
+    else { L.forEach(function (x, k) { if (acikL[k] && gordu.indexOf(x.id) < 0) yeni[x.id] = 1; }); if (Object.keys(yeni).length) { i.cumleGordu = gordu.concat(Object.keys(yeni)); kaydet(i); } }
+    var isik = sonAcik > 0 ? 'M' + Y.slice(0, sonAcik + 1).map(function (p) { return p[0] + ' ' + p[1]; }).join(' L') : '';
     oz.kok.innerHTML = '<div class="kc2">' + ust('Haritaya dön', 'Cümle Galaksisi', 'Sentence Galaxy',
       '<div class="kc2-sinif-sec" role="group" aria-label="Sınıf">' + [2, 3, 4].map(function (n) { return '<button type="button" data-c2s="' + n + '" aria-pressed="' + (n === s) + '">' + n + '. sınıf</button>'; }).join('') + '</div>') +
-      '<main class="kc2-uzay' + (dar ? ' kc2-dar' : '') + '"><div class="kc2-nebula" aria-hidden="true"></div>' +
-      '<svg class="kc2-yol" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + yol + '"/></svg>' +
+      '<main class="kc2-uzay' + (dar ? ' kc2-dar' : '') + '">' + (K ? K.gok('galaksi' + s) : '<div class="kc2-nebula" aria-hidden="true"></div>') +
+      '<svg class="kc2-yol" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + yol + '"/>' + (isik ? '<path class="kc3-isik" d="' + isik + '"/>' : '') + '</svg>' +
+      (K ? '<button type="button" class="kc3-garaj-b" data-c3garaj aria-label="Roket garajı: ' + K.toplamYildiz(i) + ' yıldız"><span aria-hidden="true">' + roketim() + '</span><b>Garaj</b><small>★ ' + K.toplamYildiz(i) + '</small></button>' : '') +
       '<p class="kc2-sayac" aria-label="' + biten + ' / ' + L.length + ' gezegen bitti, ' + toplam + ' yıldız">🏅 ' + biten + ' / ' + L.length + ' · ★ ' + toplam + '</p>' +
       '<ol class="kc2-gezegenler">' + L.map(function (x, k) {
         var y = cs[x.id] || 0, acik = gezegenAcik(i, L, k), d = durakD(i, x.id), yapilan = DURAK.filter(function (z) { return d[z[0]] > 0; }).length;
         var gz = W.KIDS_UZAY && W.KIDS_UZAY.gezegen ? W.KIDS_UZAY.gezegen(x.renk, x.simge, !acik, acik ? y : 0, k + 1) : '';
-        return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '"' + (acik ? '' : ' class="kc2-kilit"') + '><button type="button" class="kc2-gz" data-c2t="' + x.id + '"' + (acik ? '' : ' aria-disabled="true"') +
-          ' aria-label="' + esc(x.en + ', ' + x.tr + (acik ? ', ' + yapilan + ' / 5 durak' + (rz[x.id] ? ', rozet kazanıldı' : '') : ', kilitli')) + '">' + gz + (rz[x.id] ? '<span class="kc2-rozet" aria-hidden="true">🏅</span>' : '') +
+        var cl = (acik ? '' : 'kc2-kilit') + (k === sira ? ' kc3-sira' : '') + (yeni[x.id] ? ' kc3-yeni' : '');
+        return '<li style="left:' + Y[k][0] + '%;top:' + Y[k][1] + '%;--r:' + x.renk + ';--i:' + k + '"' + (cl.trim() ? ' class="' + cl.trim() + '"' : '') + '><button type="button" class="kc2-gz" data-c2t="' + x.id + '"' + (acik ? '' : ' aria-disabled="true"') +
+          ' aria-label="' + esc(x.en + ', ' + x.tr + (acik ? ', ' + yapilan + ' / 5 durak' + (rz[x.id] ? ', rozet kazanıldı' : '') : ', kilitli')) + '">' + gz + (K && (!acik || yeni[x.id]) ? K.buz(!!yeni[x.id]) : '') + (rz[x.id] ? '<span class="kc2-rozet" aria-hidden="true">🏅</span>' : '') +
           '<span class="kc2-ad"><b lang="en">' + esc(x.en) + '</b><i aria-hidden="true">' + (acik ? (tamamMi(i, x.id) ? [1, 2, 3].map(function (j) { return '<em' + (j <= y ? ' class="on"' : '') + '>★</em>'; }).join('') : DURAK.map(function (z) { return '<u' + (d[z[0]] > 0 ? ' class="on"' : '') + '></u>'; }).join('')) : '🔒') + '</i></span></button></li>';
-      }).join('') + '</ol><span class="kc2-roket" aria-hidden="true" style="left:' + Y[si][0] + '%;top:' + Y[si][1] + '%">' + ROKET + '</span></main></div>';
+      }).join('') + '</ol><span class="kc2-roket" aria-hidden="true" style="left:' + Y[si][0] + '%;top:' + Y[si][1] + '%">' + roketim() + '</span></main></div>';
     oz.kok.dataset.gorunum = 'cumle';
     oz.kok.querySelector('[data-c2geri]').addEventListener('click', geriHarita);
     oz.kok.querySelectorAll('[data-c2s]').forEach(function (b) { b.addEventListener('click', function () { var i2 = il(); i2.ilkSinif = +b.getAttribute('data-c2s'); kaydet(i2); if (SES) SES.fx('dokun'); galaksi(); }); });
+    var gb = oz.kok.querySelector('[data-c3garaj]'); if (gb) gb.addEventListener('click', function () { if (SES) SES.fx('dokun'); garaj(); });
+    if (Object.keys(yeni).length && SES) setTimeout(function () { SES.fx('yildiz'); SES.soyle('Buz kırıldı! Yeni gezegen açıldı!', 'tr'); }, SAKIN ? 0 : 700);
     var rk = oz.kok.querySelector('.kc2-roket'), ucuyor = false;
     oz.kok.querySelectorAll('[data-c2t]').forEach(function (b, k) {
       b.addEventListener('click', function () {
@@ -10246,11 +10496,16 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
         return '<li style="--j:' + j + '"><button type="button" class="kc2-durak' + (bitti ? ' kc2-d-bitti' : '') + (j === sira ? ' kc2-d-simdi' : '') + '" data-c2d="' + z[0] + '"' + (acik ? '' : ' aria-disabled="true"') +
           ' aria-label="' + esc(z[1] + (bitti ? ', bitti' : acik ? '' : ', kilitli')) + '"><span class="kc2-d-no">' + (acik ? (C ? C.simge(z[3]) : j + 1) : '🔒') + '</span><b>' + z[1] + '</b><small lang="en">' + z[2] + '</small>' +
           (bitti && z[0] !== 'kural' ? '<i>' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i>' : bitti ? '<i>✓</i>' : '') + '</button></li>';
-      }).join('') + '</ol>' + (rozet ? '<div class="kc2-rozet-k" role="status"><span aria-hidden="true">🏅</span><b>Tema rozeti!</b><small>' + esc(x.en) + ' gezegenini bitirdin. Sıradaki gezegen açıldı.</small></div>' : '') + '</main></div>';
+      }).join('') + '</ol>' + meteorKart(i, x) + (rozet ? '<div class="kc2-rozet-k" role="status"><span aria-hidden="true">🏅</span><b>Tema rozeti!</b><small>' + esc(x.en) + ' gezegenini bitirdin. Sıradaki gezegen açıldı.</small></div>' : '') + '</main></div>';
     oz.kok.dataset.gorunum = 'cumle';
     oz.kok.querySelector('[data-c2geri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); galaksi(); });
     if (rozet && SES) { SES.fx('yildiz'); SES.soyle('Tebrikler! ' + x.tr + ' rozetini kazandın!', 'tr'); }
     else if (SES && sira >= 0) SES.soyle(x.tr + ' gezegeni. Sıradaki durak: ' + DURAK[sira][1] + '.', 'tr');
+    var mb = oz.kok.querySelector('[data-c3meteor]');
+    if (mb) mb.addEventListener('click', function () {
+      if (!(durakD(il(), x.id).kelime > 0)) { if (SES) { SES.fx('yanlis'); SES.soyle('Meteor avı için önce Kelimeler durağını bitir.', 'tr'); } return; }
+      if (SES) SES.fx('dokun'); meteorOyun(s, x);
+    });
     oz.kok.querySelectorAll('[data-c2d]').forEach(function (b, j) {
       b.addEventListener('click', function () {
         if (!durakAcik(durakD(il(), x.id), j)) { if (SES) { SES.fx('yanlis'); SES.soyle('Önce ' + DURAK[j - 1][1] + ' durağını bitir.', 'tr'); } return; }
@@ -10271,12 +10526,12 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
   }
   function bekle(ms) { return new Promise(function (r) { setTimeout(r, SAKIN ? Math.min(ms, 200) : ms); }); }
   function bitirEkran(s, x, durak, y, hata, n, metin_) {
-    var rozet = durakBitti(x, durak, y, hata, n);
+    var once = K3() ? K3().toplamYildiz(il()) : 0, rozet = durakBitti(x, durak, y, hata, n);
     var j = DURAK.findIndex(function (z) { return z[0] === durak; }), sonraki = DURAK[j + 1];
     var kart = oz.kok.querySelector('[data-c2kart]');
     kart.innerHTML = '<div class="kc2-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><span class="kc2-acd" aria-hidden="true">' + acd('kutlama') + '</span><h2>' + (metin_ || 'Harika!') + '</h2>' +
       (durak === 'kural' ? '' : '<p class="kc2-yildizlar" aria-label="' + y + ' yıldız">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + ' style="--j:' + q + '">★</em>'; }).join('') + '</p><p>' + n + ' soru' + (hata ? ' · ' + hata + ' yanlış deneme' : ' · hiç yanlış yok!') + '</p>') +
-      '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar</button><button type="button" class="ka-buyuk" data-c2devam>' + (sonraki && !rozet ? 'Sıradaki: ' + sonraki[1] : 'Gezegene dön') + '</button></div></div>';
+      yeniParcaHtml(once) + '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar</button><button type="button" class="ka-buyuk" data-c2devam>' + (sonraki && !rozet ? 'Sıradaki: ' + sonraki[1] : 'Gezegene dön') + '</button></div></div>';
     if (SES) { SES.fx('yildiz'); if (durak !== 'kural') SES.soyle(y === 3 ? 'Mükemmel! Üç yıldız!' : 'Aferin! Durağı bitirdin!', 'tr'); }
     kart.querySelector('[data-c2tekrar]').addEventListener('click', function () { ({ kelime: kelimeOyun, kural: kuralKart, blok: blokOyun, bosluk: boslukOyun, diyalog: diyalogOyun })[durak](s, x); });
     kart.querySelector('[data-c2devam]').addEventListener('click', function () {
@@ -10414,6 +10669,143 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
     tur();
   }
 
+  /* ---------------- roket garajı (27.11.2026) ----------------
+     Yıldızlar harcanmaz: toplam yıldız bir eşiği geçince parça açılır (renk, alev, çıkartma).
+     Seçim il.cumleRoket'te; haritadaki, geçişteki ve meteor avındaki roket aynı roket. */
+  function yeniParcalar(once) {
+    var K = K3(); if (!K) return []; var son = K.toplamYildiz(il()), L = [];
+    ['renk', 'alev', 'cikartma'].forEach(function (t_) { K.GARAJ[t_].forEach(function (p) { var e = K.esik(p); if (e > once && e <= son) L.push(p[1]); }); });
+    return L;
+  }
+  function yeniParcaHtml(once) {
+    var L = yeniParcalar(once); if (!L.length) return '';
+    if (SES) setTimeout(function () { SES.soyle('Garajda yeni bir roket parçası açıldı!', 'tr'); }, 1600);
+    return '<p class="kc3-yeni-parca" role="status"><span aria-hidden="true">🚀</span> Garajda açıldı: <b>' + L.map(esc).join(', ') + '</b></p>';
+  }
+  var GARAJ_AD = { renk: ['Renk', 'Color'], alev: ['Alev', 'Flame'], cikartma: ['Çıkartma', 'Sticker'] };
+  function garaj() {
+    dur(); var K = K3(); if (!K) return galaksi();
+    var i = il(), top = K.toplamYildiz(i), sec = K.secili(i);
+    function ornek(t_, p) {
+      if (t_ === 'renk') return '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="16" fill="' + p[2] + '" stroke="' + M + '" stroke-width="2.6"/><path d="M20 4a16 16 0 0 1 0 32" fill="' + p[3] + '" stroke="' + M + '" stroke-width="2.6"/></svg>';
+      if (t_ === 'alev') return '<svg viewBox="0 0 40 40" aria-hidden="true">' + (p[0] === 'gokkusagi' ? '<defs><linearGradient id="kc3-gko" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF5B5B"/><stop offset=".5" stop-color="#FFD23F"/><stop offset="1" stop-color="#4FC3FF"/></linearGradient></defs>' : '') +
+        '<path d="M20 4c8 10 12 16 12 22a12 12 0 0 1-24 0c0-6 4-12 12-22z" fill="' + (p[0] === 'gokkusagi' ? 'url(#kc3-gko)' : p[2]) + '" stroke="' + M + '" stroke-width="2.4"/><path d="M20 18c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z" fill="' + p[3] + '"/></svg>';
+      return '<svg viewBox="-10 -10 20 20" aria-hidden="true">' + (p[2] ? '<path d="' + p[2] + '" fill="#FFD23F" stroke="' + M + '" stroke-width="1.2" stroke-linejoin="round"/>' : '<path d="M-5 -5 L5 5 M5 -5 L-5 5" stroke="#9AA6C8" stroke-width="2" stroke-linecap="round"/>') + '</svg>';
+    }
+    function bolum(t_) {
+      return '<section class="kc3-g-bol"><h2>' + GARAJ_AD[t_][0] + ' <small lang="en">' + GARAJ_AD[t_][1] + '</small></h2><div class="kc3-g-sec" role="radiogroup" aria-label="' + GARAJ_AD[t_][0] + '">' + K.GARAJ[t_].map(function (p) {
+        var acik = top >= K.esik(p), on = sec[t_] === p[0];
+        return '<button type="button" role="radio" aria-checked="' + on + '" class="kc3-g-p' + (acik ? '' : ' kc3-g-kilit') + '" data-c3t="' + t_ + '" data-c3p="' + p[0] + '" aria-label="' + esc(p[1] + (acik ? '' : ', ' + K.esik(p) + ' yıldızda açılır')) + '">' + ornek(t_, p) +
+          '<b>' + esc(p[1]) + '</b>' + (acik ? '' : '<small>🔒 ' + K.esik(p) + '★</small>') + '</button>';
+      }).join('') + '</div></section>';
+    }
+    var sonraki = [];
+    ['renk', 'alev', 'cikartma'].forEach(function (t_) { K.GARAJ[t_].forEach(function (p) { if (K.esik(p) > top) sonraki.push(K.esik(p)); }); });
+    var hedef = sonraki.length ? Math.min.apply(null, sonraki) : 0;
+    oz.kok.innerHTML = '<div class="kc2 kc3-garaj">' + ust('Galaksiye dön', 'Roket Garajı', 'Rocket Garage') +
+      '<main class="kc3-g-alan"><div class="kc3-g-on"><div class="kc3-g-pist" aria-hidden="true">' + K.gok('garaj') + '<span class="kc3-g-roket">' + roketim() + '</span></div>' +
+      '<p class="kc3-g-top"><b>★ ' + top + '</b> yıldız' + (hedef ? '<small>Sıradaki parça ' + hedef + ' yıldızda</small><span class="kc3-g-bar"><i style="width:' + Math.round(top / hedef * 100) + '%"></i></span>' : '<small>Bütün parçaları açtın!</small>') + '</p></div>' +
+      '<div class="kc3-g-raf">' + bolum('renk') + bolum('alev') + bolum('cikartma') + '</div></main></div>';
+    oz.kok.dataset.gorunum = 'cumle';
+    oz.kok.querySelector('[data-c2geri]').addEventListener('click', function () { if (SES) SES.fx('dokun'); galaksi(); });
+    if (SES) SES.soyle('Roket garajına hoş geldin! Roketini süsle.', 'tr');
+    oz.kok.querySelector('.kc3-g-raf').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-c3p]'); if (!b) return; var t_ = b.getAttribute('data-c3t'), id = b.getAttribute('data-c3p');
+      if (!K.acikMi(il(), t_, id)) { if (SES) { SES.fx('yanlis'); SES.soyle('Bu parça için daha çok yıldız topla.', 'tr'); } b.classList.remove('kc2-salla'); void b.offsetWidth; b.classList.add('kc2-salla'); setTimeout(function () { b.classList.remove('kc2-salla'); }, 500); return; }
+      var i2 = il(); i2.cumleRoket = i2.cumleRoket || {}; i2.cumleRoket[t_] = id; kaydet(i2); if (SES) SES.fx('dogru');
+      oz.kok.querySelectorAll('[data-c3t="' + t_ + '"]').forEach(function (z) { z.setAttribute('aria-checked', String(z === b)); });
+      var r = oz.kok.querySelector('.kc3-g-roket'); r.innerHTML = roketim(); r.classList.remove('kc3-g-hop'); void r.offsetWidth; r.classList.add('kc3-g-hop');
+    });
+  }
+
+  /* ---------------- meteor avı (27.11.2026) ----------------
+     Bonus oyun: gezegenin kelimeleri İngilizce okunur, çocuk doğru kelimeyi taşıyan meteoru vurur.
+     Meteorlar yukarıdan aşağı süzülür; doğru meteor kaçarsa tur yeniden başlar (hata sayılır).
+     Kelimeler durağından sonra açılır; gezegenin açılmasını etkilemez, yıldızı garaja sayılır.
+     Hareketi azaltmada meteorlar yerinde durur, kaçma yok. Kayıt: il.cumleMeteor[tema] = en iyi yıldız. */
+  var METEOR_SURE = { 2: 7600, 3: 6600, 4: 5600 };
+  function meteorKart(i, x) {
+    var E = ek(x.id); if (!E || !E.k || E.k.length < 3) return '';
+    var acik = durakD(i, x.id).kelime > 0, y = (i.cumleMeteor || {})[x.id] || 0;
+    return '<button type="button" class="kc3-meteor-k' + (acik ? '' : ' kc3-mk-kilit') + '" data-c3meteor' + (acik ? '' : ' aria-disabled="true"') + ' aria-label="Bonus: Meteor avı' + (acik ? (y ? ', ' + y + ' yıldız' : '') : ', Kelimeler durağından sonra açılır') + '">' +
+      '<span class="kc3-mk-ic" aria-hidden="true"><i></i><i></i><i></i></span><span class="kc3-mk-t"><small>Bonus</small><b>Meteor avı</b><em lang="en">Meteor Hunt</em></span>' +
+      (acik ? (y ? '<i class="kc3-mk-y">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + '>★</em>'; }).join('') + '</i>' : '<i class="kc3-mk-y kc3-mk-yeni">Yeni!</i>') : '<i class="kc3-mk-y">🔒</i>') + '</button>';
+  }
+  function meteorTurlari(E, n, r) { return karistir(E.k, r).slice(0, Math.min(n || 8, E.k.length)); }
+  function meteorSecenek(E, w, adet, r) { return karistir([w[0]].concat(karistir(E.k.filter(function (z) { return z[0] !== w[0]; }), r).slice(0, adet - 1).map(function (z) { return z[0]; })), r); }
+  function meteorOyun(s, x) {
+    dur(); durum = {}; var ben = durum, E = ek(x.id); if (!E) return gezegen(s, x);
+    var K = K3(), L = meteorTurlari(E, 8), n = 0, hataT = 0, adet = s === 4 ? 4 : 3, sure = METEOR_SURE[s] || 6600, once = K ? K.toplamYildiz(il()) : 0;
+    var sc = sahne(s, x, L.length, 'Meteor avı');
+    sc.kart.classList.add('kc3-m-kart');
+    sc.kart.innerHTML = '<div class="kc3-m-ust"><button type="button" class="kc3-m-dinle" data-c3dinle aria-label="Kelimeyi tekrar dinle">' + (C ? C.simge('ses') : '♪') + '</button><p class="kc3-m-soru" aria-live="polite">Duyduğun kelimeyi taşıyan meteoru vur!</p></div>' +
+      '<div class="kc3-m-alan" data-c3alan>' + (K ? K.gok('meteor' + x.id) : '') + '<span class="kc3-m-roket" aria-hidden="true">' + roketim() + '</span></div>';
+    var alan = sc.kart.querySelector('[data-c3alan]'), soru = sc.kart.querySelector('.kc3-m-soru'), rkt = sc.kart.querySelector('.kc3-m-roket');
+    sc.kart.querySelector('[data-c3dinle]').addEventListener('click', function () { if (SES && L[n]) SES.soyle(L[n][0], 'en'); });
+    var aktif = [];
+    function temizle() { aktif.forEach(function (a) { try { a.cancel(); } catch (e) { } }); aktif = []; alan.querySelectorAll('.kc3-met').forEach(function (m) { m.remove(); }); }
+    function lazer(hedef) {
+      var ar = alan.getBoundingClientRect(), a = rkt.getBoundingClientRect(), h = hedef.getBoundingClientRect();
+      var x1 = a.left + a.width / 2 - ar.left, y1 = a.top - ar.top, x2 = h.left + h.width / 2 - ar.left, y2 = h.top + h.height / 2 - ar.top;
+      var l = D.createElement('i'); l.className = 'kc3-lazer'; l.style.left = x1 + 'px'; l.style.top = y1 + 'px'; l.style.width = Math.hypot(x2 - x1, y2 - y1) + 'px';
+      l.style.transform = 'rotate(' + (Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI) + 'deg)'; alan.appendChild(l); setTimeout(function () { l.remove(); }, 320);
+      rkt.style.left = (x2 / ar.width * 100).toFixed(1) + '%';
+    }
+    function patla(m) {
+      var p = D.createElement('span'); p.className = 'kc3-patla'; p.innerHTML = new Array(11).join('<i></i>'); var r = m.getBoundingClientRect(), ar = alan.getBoundingClientRect();
+      p.style.left = (r.left + r.width / 2 - ar.left) + 'px'; p.style.top = (r.top + r.height / 2 - ar.top) + 'px'; alan.appendChild(p); setTimeout(function () { p.remove(); }, 900);
+    }
+    function tur() {
+      if (ben !== durum) return; temizle();
+      var w = L[n], sec = meteorSecenek(E, w, adet), cozuldu = false, hataTur = 0;
+      soru.textContent = 'Duyduğun kelimeyi taşıyan meteoru vur!';
+      sec.forEach(function (kel, j) {
+        var m = D.createElement('button'); m.type = 'button'; m.className = 'kc3-met'; m.setAttribute('data-c3m', kel); m.style.setProperty('--x', ((j + 0.5) * (100 / adet)) + '%'); m.style.setProperty('--d', (j * 0.18).toFixed(2));
+        m.innerHTML = '<span class="kc3-met-kuyruk" aria-hidden="true"></span><span class="kc3-met-tas" aria-hidden="true"><i></i><i></i><i></i></span><b lang="en">' + esc(kel) + '</b>';
+        alan.appendChild(m);
+        if (!SAKIN && m.animate) {
+          var gec = (j * 420 + Math.random() * 300) | 0;
+          var an = m.animate([{ transform: 'translate(-50%,-140%) rotate(-6deg)' }, { transform: 'translate(-50%,' + (alan.clientHeight * 0.78) + 'px) rotate(6deg)' }], { duration: sure, delay: gec, easing: 'linear', fill: 'forwards' });
+          aktif.push(an);
+          if (kel === w[0]) an.finished.then(function () {
+            if (ben !== durum || cozuldu) return; cozuldu = true; hataT++; if (SES) SES.fx('yanlis');
+            soru.textContent = 'Kaçtı! Bir daha dinle: ' + w[1] + ' → ' + w[0]; m.classList.add('kc3-kacti');
+            setTimeout(function () { if (ben === durum) tur(); }, 1500);
+          }, function () { });
+        } else m.classList.add('kc3-sabit');
+      });
+      alan.onclick = function (e) {
+        var m = e.target.closest('.kc3-met'); if (!m || cozuldu || m.disabled || ben !== durum) return;
+        lazer(m);
+        if (m.getAttribute('data-c3m') === w[0]) {
+          cozuldu = true; if (SES) { SES.fx('pat'); setTimeout(function () { SES.fx('dogru'); }, 120); }
+          aktif.forEach(function (a) { try { a.pause(); } catch (er) { } });
+          patla(m); m.classList.add('kc3-vuruldu'); sc.nokta(n); soru.innerHTML = '<b lang="en">' + esc(w[0]) + '</b> = ' + esc(w[1]) + ' ✨';
+          Promise.resolve(SES ? SES.soyle(w[0], 'en') : 0).then(function () { return bekle(700); }).then(function () {
+            if (ben !== durum) return; n++; if (n >= L.length) meteorBitti(s, x, yildiz(hataT), hataT, L.length, once); else tur();
+          });
+        } else {
+          hataT++; hataTur++; m.disabled = true; m.classList.add('kc3-iska'); if (SES) SES.fx('yanlis');
+          soru.textContent = hataTur > 1 ? 'İpucu: ' + w[1] + ' → İngilizcesi hangisi?' : 'Olmadı! Bir daha dinle.';
+          if (SES) setTimeout(function () { if (ben === durum && !cozuldu) SES.soyle(w[0], 'en'); }, 450);
+        }
+      };
+      if (SES) setTimeout(function () { if (ben === durum) SES.soyle(w[0], 'en'); }, 350);
+    }
+    if (SES) Promise.resolve(SES.soyle('Meteor avı! Duyduğun kelimeyi vur.', 'tr')).then(function () { tur(); }, function () { tur(); }); else tur();
+  }
+  function meteorBitti(s, x, y, hata, n, once) {
+    var i = il(); i.cumleMeteor = i.cumleMeteor || {}; if (!(i.cumleMeteor[x.id] >= y)) i.cumleMeteor[x.id] = y;
+    i.cumleLog = (i.cumleLog || []).concat([{ t: Date.now(), id: x.id, d: 'meteor', y: y, h: hata || 0, n: n || 0 }]).slice(-60); kaydet(i);
+    var kart = oz.kok.querySelector('[data-c2kart]'); kart.classList.remove('kc3-m-kart');
+    kart.innerHTML = '<div class="kc2-bitis"><div class="ka-konfeti" aria-hidden="true">' + new Array(20).join('<i></i>') + '</div><span class="kc2-acd" aria-hidden="true">' + acd('kutlama') + '</span><h2>Meteor yağmurunu durdurdun!</h2>' +
+      '<p class="kc2-yildizlar" aria-label="' + y + ' yıldız">' + [1, 2, 3].map(function (q) { return '<em' + (q <= y ? ' class="on"' : '') + ' style="--j:' + q + '">★</em>'; }).join('') + '</p><p>' + n + ' meteor' + (hata ? ' · ' + hata + ' ıska' : ' · hiç ıska yok!') + '</p>' +
+      yeniParcaHtml(once) + '<div class="kc2-bitis-d"><button type="button" class="ka-orta" data-c2tekrar>Tekrar</button><button type="button" class="ka-buyuk" data-c2devam>Gezegene dön</button></div></div>';
+    if (SES) { SES.fx('yildiz'); SES.soyle(y === 3 ? 'Mükemmel! Üç yıldız!' : 'Aferin! Durağı bitirdin!', 'tr'); }
+    kart.querySelector('[data-c2tekrar]').addEventListener('click', function () { meteorOyun(s, x); });
+    kart.querySelector('[data-c2devam]').addEventListener('click', function () { gezegen(s, x); });
+  }
+
   function dur() { durum = null; if (SES && SES.sus) SES.sus(); }
 
   /* ---------------- veli raporu (Veli köşesi → Özet) ---------------- */
@@ -10438,7 +10830,7 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
 
   /* seslendirme kataloğu için: galaksinin söylediği bütün cümleler (kids/ses/katalog.js) */
   function cumleler() {
-    var tr = [], en = [];
+    var tr = ['Buz kırıldı! Yeni gezegen açıldı!', 'Garajda yeni bir roket parçası açıldı!', 'Roket garajına hoş geldin! Roketini süsle.', 'Bu parça için daha çok yıldız topla.', 'Meteor avı! Duyduğun kelimeyi vur.', 'Meteor avı için önce Kelimeler durağını bitir.'], en = [];
     [2, 3, 4].forEach(function (s) { (VERI[s] || []).forEach(function (x, k) {
       tr.push(x.tr + ' gezegenine yolculuk başlıyor!', 'Tebrikler! ' + x.tr + ' rozetini kazandın!'); en.push('Let\'s go to ' + x.en + '!');
       if (k) tr.push('Önce ' + VERI[s][k - 1].tr + ' gezegenini bitir.');
@@ -10455,6 +10847,7 @@ body.ka-gece .kd-komut,body.ka-gece .kms{display:none}
 
   function ac(o) { C = W.KIDS_CIZ; SES = W.KIDS_SES; oz = o; if (o.dur) o.dur(); warp(galaksi); return { dur: dur }; }
   W.KIDS_CUMLE = { ac: ac, VERI: VERI, DURAK: DURAK, parcala: parcala, metin: metin, dogruMu: dogruMu, yildiz: yildiz, karisik: karisik, gezegenYildiz: gezegenYildiz, gezegenAcik: gezegenAcik, durakAcik: durakAcik, tamamMi: tamamMi, cumleler: cumleler,
+    meteorTurlari: meteorTurlari, meteorSecenek: meteorSecenek, METEOR_SURE: METEOR_SURE, yeniParcalar: yeniParcalar,
     rapor: function (i) { C = C || W.KIDS_CIZ; return rapor(i); }, _oz: function (o) { oz = o; } };
 })(window);
 
