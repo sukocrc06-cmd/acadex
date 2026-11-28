@@ -660,7 +660,7 @@ test('K1 #53 bloğu: fn yalnız onModel içinde, fetch yok, lookbehind ve \\u ka
   assert.doesNotMatch(B53, /durum:\s*'(supported|verified|dogrulandi)'/, 'öneri iddiayı doğrulanmış yazmaz');
 });
 test('K2 sunucu #53 bloğu: tek istek, yeniden deneme yok, katı şema, iddia_dogrulama sayacından ayrı', () => {
-  const blok = yorumsuz(cut(srv, '/* ---------- #53 (Phase 9)', 'Deno.serve('));
+  const blok = yorumsuz(cut(srv, '/* ---------- #53 (Phase 9)', srv.includes('/* ---------- #55 (Phase 10)') ? '/* ---------- #55 (Phase 10)' : 'Deno.serve('));      /* #55 kendi tek çağrısıyla ardından gelir; o blok tests/sunum-sohbet-editor.js F7'de sayılır (28.11.2026) */
   assert.equal((blok.match(/o\.fetch\(/g) || []).length, 1); assert.doesNotMatch(blok, /for\s*\([^)]*;[^)]*;[^)]*\)\s*\{[^}]*fetch|retry|yeniden dene/i);
   assert.match(blok, /onDurum = \{ geriCekilme: 0, kullanici: new Map/); assert.doesNotMatch(blok, /idDurum\./);
   const S = sunucu(); assert.deepEqual(S.ON_ALAN, ['issue_code', 'proposal_type', 'targets', 'evidence', 'preserved_facts', 'added_facts', 'reason', 'limitations']);

@@ -8711,7 +8711,7 @@ var SBX = (function () {
     ['kisalt', /(^|[^a-z0-9])(kisalt|kisa|ozetle|shorten|shorter|concise|trim|tighten|condense)/]];
   var SD_ACIKLA = /(^|[^a-z0-9])(neden zayif|niye zayif|zayif yan|why .{0,30}weak|ne sorun|sorun ne|explain|acikla(?=[^a-z]|$)|aciklar misin|degistirme(?=[^a-z]|$)|degistirmeden|don't change|do not change|dont change|not yet)/;
   var SD_YOK = { veri: /(^|[^a-z0-9])(grafi[gk]|chart|tablo|table)/, gorsel: /(^|[^a-z0-9])(gorsel|resim|fotograf|image|photo|picture|ikon|icon)/,
-    bicim: /(^|[^a-z0-9])(yazi tipi|font|renk|colou?r|punto|boyut|konum|hizala|align|layout|yerlesim|tasarim|redesign|tema(?=[^a-z]|$)|temayi|theme|kalin|bold|italik|italic)/,
+    bicim: /(^|[^a-z0-9])(yazi tipi|font|ren[kg]|colou?r|punto|boyut|konum|hizala|align|layout|yerlesim|tasarim|redesign|tema(?=[^a-z]|$)|temayi|theme|kalin|bold|italik|italic)/,
     asetat: /(^|[^a-z0-9])(slayt ekle|asetat ekle|yeni slayt|yeni asetat|slayti sil|asetati sil|slayt sil|asetat sil|add (a |new )?slide|new slide|delete (the |this )?slide|remove (the |this )?slide)/,
     not: /(^|[^a-z0-9])(konusma not|konusmaci not|speaker note)/, arastirma: /(^|[^a-z0-9])(arastir|internette|webde|guncel veri|son veri|research|look up|search the web|latest data)/,
     kaynak: /(^|[^a-z0-9])(kaynak ekle|yeni kaynak|kaynakca|bibliograph|add (a )?sources?|new sources?|cite)/, sayi: /(^|[^a-z0-9])(rakam ekle|sayi ekle|istatistik ekle|add (a |some )?(numbers?|statistics?|figures?))/ };
@@ -8805,6 +8805,8 @@ var SBX = (function () {
     return out; };
   var sdSozler = function (t) { return idKat(t).match(/[a-z0-9]+/g) || []; };
   var sdBasHarf = function (t) { var W = String(t).match(/\p{L}{4,}/gu) || []; return W.length >= 2 && W.filter(function (w) { return /^[A-ZÇĞİÖŞÜ]/.test(w); }).length / W.length >= 0.6; };
+  /* Türkçe ekle kurulan neden (-dığı için) ve koşul (-sa/-se) onDenetle sözcük listesinde yok; sohbet yeniden yazımı bunları da korur (28.11.2026) */
+  var SD_NEDEN_EK = /[a-z]{2,}(dig|dug|tig|tug)[iu][a-z]{0,3} icin(?=[^a-z]|$)/g, SD_KOSUL_EK = /[a-z]{2,}(ir|ur|ar|er|az|ez|di|du|ti|tu|mis|mus|acak|ecek|yor)s[ae](k|niz|lar|ler|m|n)?(?=[^a-z]|$)/g;
   var sdAd = function (eski, yeni, pm, tip) {
     if (tip === 'h' && (sdBasHarf(yeni) || sdBasHarf(eski))) return null;
     var sz = sdSozler(eski + '\n' + pm + '\n' + ON_EK.kaynaklarda.join(' ')), yz = sdSozler(yeni), es = function (w, L) { return L.some(function (z) { return w.length < 4 ? z === w : kokEs(w, z); }); };
@@ -8904,6 +8906,8 @@ var SBX = (function () {
       if (K.yapi === 'terim') { var tr = sdTerimDegis(e.text, K.terim.x, K.terim.y); if (!tr.n || tr.t !== y) return 'yapi'; continue; }
       var v = onDenetle({ tur: kn.length ? 'source_qualified' : 'wording_only', hedefler: [{ element_id: h.element_id, expected_text_hash: h.expected_text_hash, replacement_text: y }], kanit: kn, eklenen: [], adSerbest: 1 }, { as: ix, elId: String(h.element_id) }, d);
       if (v) return v;
+      if (onSay(SD_NEDEN_EK, e.text) !== onSay(SD_NEDEN_EK, y)) return 'neden';
+      if (onSay(SD_KOSUL_EK, e.text) !== onSay(SD_KOSUL_EK, y)) return 'kosul';
       if (sdAd(e.text, y, sdPm(kn, reg), e.type)) return 'ad';
     }
     return null;
@@ -8984,7 +8988,7 @@ var SBX = (function () {
       return { durum: 'tamam', R: R, K: K };
     }, function (err) { return { durum: /zaman|timeout|abort/i.test(String(err && err.message)) ? 'zaman' : 'hata' }; });
   };
-  var sdIz = function (d, H) { var hed = H.map(function (x) { return x.e; }); return JSON.stringify({ k: d.kaynaklar, t: d.title, s: arr(d.slides).map(function (z) { return Object.assign({}, z, { els: arr(z.els).map(function (e) { if (hed.indexOf(e) < 0) return e; var c = Object.assign({}, e); delete c.text; delete c.iddia; return c; }) }); }) }); };
+  var sdIz = function (d, H) { var hed = H.map(function (x) { return x.e; }); return JSON.stringify({ k: d.kaynaklar, t: d.title, s: arr(d.slides).map(function (z) { return Object.assign({}, z, { els: arr(z.els).map(function (e) { if (hed.indexOf(e) < 0) return e && Array.isArray(e.iddia) ? Object.assign({}, e, { iddia: e.iddia.map(function (r) { var z = Object.assign({}, r); delete z.bayat; return z; }) }) : e; var c = Object.assign({}, e); delete c.text; delete c.iddia; return c; }) }); }) }); };      /* bayat türetilmiş bayraktır: iddiaTazele aynı asetattaki öğede onu yenileyebilir (28.11.2026) */
   /* atomik uygulama (onUygula'nın çok asetatlı biçimi): tazelik + denetim → yedek → yalnız metin + iddia → imza ve metin sınaması; hata olursa bütün deste geri, geçmişe tek adım */
   var sdUygula = function (K, O) {
     var d = O.deck, L0 = O.liste(d), b = sdBayat(K, d); if (b) return { hata: 'bayat', neden: b };
@@ -9187,6 +9191,7 @@ var SBX = (function () {
   var sdAc = function (ac) {
     var P = Q('[data-sh]'), b = Q('[data-sh-ac]'); if (!P) return; sohbetSozluk(); sdDeste();
     SH.acik = ac = ac == null ? P.hidden : !!ac; P.hidden = !ac; root.classList.toggle('sh-acik', ac); if (b) b.setAttribute('aria-expanded', String(ac));
+    if (typeof applyScale === 'function') { applyScale(); fitThumbs(); }      /* panel sahneyi daraltır: ölçek yalnız pencere boyutunda yenileniyordu, sahne panelin altına taşıyordu (28.11.2026) */
     var ta = P.querySelector('[data-sh-in]'); ta.placeholder = gqDil() === 'en' ? 'e.g. shorten slide 3' : 'örn. 3. slaytı kısalt';
     sdBoya(); if (ac) ta.focus(); else if (b) b.focus();
   };
@@ -9201,11 +9206,12 @@ var SBX = (function () {
       '.sx-sh .sh-alt{padding:8px 12px 12px;border-top:1.5px dashed #E4DCC8}.sx-sh .sh-alt textarea{width:100%;min-height:56px;resize:vertical;font:inherit;padding:8px;border:1.5px solid #E4DCC8;border-radius:10px;background:#fff}' +
       '.sx-sh .sh-alt-r{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}.sx-sh .sh-alt-r small{color:#4B5675;min-width:0;overflow-wrap:anywhere}.sx-sh .sh-ozel{display:flex;gap:6px;align-items:flex-start;margin:4px 0}.sx-sh .on-duz textarea{width:100%}' +
       '.sx-sh .sxd-acts{justify-content:flex-start}.sx-sh .sh-sec .sxd-b{text-align:left;max-width:100%;overflow-wrap:anywhere}' +
-      '@media (min-width:1101px){#sunum.sh-acik{padding-right:396px}}' +
+      '@media (min-width:1101px){#sunum.sunum.sh-acik{padding-right:396px}}' +      /* .sunum: :is(#acadexsunum-view.axu,…) .sunum dolgusu (1,2,0) bunu eziyordu (28.11.2026) */
       '@media (max-width:720px){.sx-sh{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:72vh;border-radius:16px 16px 0 0;box-shadow:0 -4px 0 #1A2A5C}}';
     document.head.appendChild(st);
   };
   var sohbetSozluk = function () {
+    onarSozluk();      /* öneri kartı #53 sözcüklerini (Şimdi/Öneri/Fark, Uygula/Vazgeç) paylaşır; onarım paneli hiç açılmadıysa onlar da yüklenir (28.11.2026) */
     var A = window.AX_EN && window.AX_EN.t; if (!A || A['Sohbetle düzenle']) return;
     var ek = { 'Sohbetle düzenle': 'Edit by chat', '✎ sohbetle düzenle': '✎ edit by chat', 'Kapat': 'Close', 'Gönder': 'Send', 'Hedef:': 'Target:', '{#}. asetat': 'slide {#}', '{#}–{#}. asetatlar': 'slides {#}–{#}', 'önceki:': 'previous:', 'şimdiki:': 'current:',
       'Sunumun metnini doğal dille düzenle. Önce öneri gösteririm; sen onaylamadan hiçbir şey değişmez.': 'Edit the presentation text in plain language. I show a proposal first; nothing changes until you approve.',
