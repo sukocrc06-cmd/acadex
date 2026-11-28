@@ -7378,6 +7378,7 @@ var SBX = (function () {
     Q('[data-pos]').textContent = n ? (deck.cur + 1) + ' / ' + n : '';
     var ti = Q('[data-deck-title]'); if (document.activeElement !== ti) ti.value = deck.title || '';
     paintKalite();
+    if (typeof sdDeste === 'function') sdDeste();      /* #55: yeni deste sohbeti siler */
   };
   /* ---------- kalite rozeti ----------
      NEDEN (14.11.2026): yönetmenin kalite raporu yalnız üretim penceresinde,
@@ -8427,6 +8428,7 @@ var SBX = (function () {
       if (onSay(ON_KESIN, eski) !== onSay(ON_KESIN, y)) return 'mutlak';
       var ma = idMutlak(eski), mb = idMutlak(y); if (ma.some(function (w) { return mb.indexOf(w) < 0; }) || mb.some(function (w) { return ma.indexOf(w) < 0; })) return 'mutlak';
       var kb = idKimlik(y), ka = idKimlik(eski), kp = idKimlik(pm); if (ka.some(function (w) { return kb.indexOf(w) < 0; }) || kb.some(function (w) { return ka.indexOf(w) < 0 && (P.tur === 'wording_only' || kp.indexOf(w) < 0); })) return 'ad';
+      if (P.adSerbest) continue;      /* #55: sohbet yeniden yazımında büyük harfli sözcük denetimini sdAd yapar (cümle başı, ek); kısaltma denetimi yukarıda kalır (28.11.2026) */
       var sz = onSozcuk(e.text + '\n' + (P.tur === 'wording_only' ? '' : pm) + '\n' + ON_EK.kaynaklarda.join(' ')), adA = onAdlar(eski), adB = onAdlar(y);
       if (adB.some(function (w) { return !sz[w]; }) || adA.some(function (w) { return adB.indexOf(w) < 0 && !onSozcuk(y)[w]; })) return 'ad';
     }
@@ -8500,6 +8502,15 @@ var SBX = (function () {
   /* metin ve iddia dışındaki her şeyin imzası: uygulama yalnız hedef öğenin metnini ve iddia kaydını değiştirebilir */
   var onIz = function (d, s, ids) { return JSON.stringify({ k: d.kaynaklar, t: d.title, s: arr(d.slides).map(function (z) { return z !== s ? z : Object.assign({}, z, { els: z.els.map(function (e) { if (!e || ids.indexOf(String(e.id)) < 0) return e; var c = Object.assign({}, e); delete c.text; delete c.iddia; return c; }) }); }) }); };
   var onKalan = function (T, d, L) { return T.qaId.indexOf('K@') === 0 ? !!onSahte(T.qaId, d) : L.some(function (x) { return x.id === T.qaId && (!T.cid || arr(x.cids).indexOf(T.cid) >= 0); }); };
+  /* deste yedeği: dönen işlev bütün desteyi yerinde geri yazar (#53'ten ayrıldı, #55 de kullanır) */
+  var onYedek = function (d) {
+    var kVar = Object.prototype.hasOwnProperty.call(d, 'kaynaklar'), yedek = JSON.stringify({ k: kVar ? d.kaynaklar : null, t: d.title === undefined ? null : d.title, s: d.slides });
+    /* hata olursa bütün deste yedekten geri yazılır; öğe nesneleri yerinde kalır (fitTaban WeakMap'i öğeye bağlı). Yalnız hedef değil, yan etki de geri alınır (28.11.2026) */
+    return function () { var o = JSON.parse(yedek); if (kVar) d.kaynaklar = o.k; else delete d.kaynaklar; if (o.t !== null) d.title = o.t; if (d.slides.length !== o.s.length) { d.slides = o.s; return; }
+      d.slides.forEach(function (z, i) { var y = o.s[i]; if (JSON.stringify(z) === JSON.stringify(y)) return; if (!z || !y || arr(z.els).length !== arr(y.els).length) { d.slides[i] = y; return; }
+        var zl = z.els; Object.keys(z).forEach(function (k) { delete z[k]; }); Object.keys(y).forEach(function (k) { z[k] = k === 'els' && zl ? zl : y[k]; });
+        arr(z.els).forEach(function (e, j) { if (JSON.stringify(e) === JSON.stringify(y.els[j])) return; if (!e || !y.els[j]) { z.els[j] = y.els[j]; return; } Object.keys(e).forEach(function (k) { delete e[k]; }); Object.assign(e, y.els[j]); }); }); };
+  };
   /* atomik uygulama: tazelik + denetim → yaz → iddia → imza; hata olursa her şey geri, geçmişe yazılmaz. O = {deck, liste, snap, gecmis, ara?} */
   var onUygula = function (P, T, O) {
     var d = O.deck, L0 = O.liste(d), bay = onBayat(T, d, L0); if (bay) return { hata: 'bayat', neden: bay };
@@ -8507,12 +8518,7 @@ var SBX = (function () {
     if (P.secimGerek && !P.secim) return { hata: 'secim' };
     var v = onDenetle(P, T, d); if (v) return { hata: 'gecersiz', neden: v };
     var s = d.slides[T.as], reg = kyKayit(d), H = P.hedefler.map(function (h) { return { e: onEl(s, h.element_id), h: h }; }), ids = H.map(function (x) { return String(x.e.id); });
-    var before = O.snap(), iz = onIz(d, s, ids), kVar = Object.prototype.hasOwnProperty.call(d, 'kaynaklar'), yedek = JSON.stringify({ k: kVar ? d.kaynaklar : null, t: d.title === undefined ? null : d.title, s: d.slides });
-    /* hata olursa bütün deste yedekten geri yazılır; öğe nesneleri yerinde kalır (fitTaban WeakMap'i öğeye bağlı). Yalnız hedef değil, yan etki de geri alınır (28.11.2026) */
-    var geri = function () { var o = JSON.parse(yedek); if (kVar) d.kaynaklar = o.k; else delete d.kaynaklar; if (o.t !== null) d.title = o.t; if (d.slides.length !== o.s.length) { d.slides = o.s; return; }
-      d.slides.forEach(function (z, i) { var y = o.s[i]; if (JSON.stringify(z) === JSON.stringify(y)) return; if (!z || !y || arr(z.els).length !== arr(y.els).length) { d.slides[i] = y; return; }
-        var zl = z.els; Object.keys(z).forEach(function (k) { delete z[k]; }); Object.keys(y).forEach(function (k) { z[k] = k === 'els' && zl ? zl : y[k]; });
-        arr(z.els).forEach(function (e, j) { if (JSON.stringify(e) === JSON.stringify(y.els[j])) return; if (!e || !y.els[j]) { z.els[j] = y.els[j]; return; } Object.keys(e).forEach(function (k) { delete e[k]; }); Object.assign(e, y.els[j]); }); }); };
+    var before = O.snap(), iz = onIz(d, s, ids), geri = onYedek(d);
     var yeni = 0;
     try {
       H.forEach(function (x) { var once = kyCapa(x.e); arr(x.e.iddia).forEach(function (r) { if (!r.bayat) r.__on = 1; }); x.e.text = x.h.replacement_text; iddiaTazele(s); yeni += onIddia(s, x.e, once, T, reg); });
@@ -8687,6 +8693,573 @@ var SBX = (function () {
     for (var k in ek) if (!A[k]) A[k] = ek[k];
   };
   /* ---------- #53 son ---------- */
+  /* ---------- #55 (Phase 10) SOHBET EDİTÖRÜ (28.11.2026) ----------
+     Düzenleyicide doğal dille metin düzenleme. İkinci bir sistem değil: #53'ün denetimi (onDenetle + onKutup), deste yedeği (onYedek),
+     iddia kökeni (iddiaTazele + onIddia), fark (onFark) ve geçmiş (onOrtam) birden çok asetata genişletilir. Yalnız var olan t/h/ul
+     öğelerinin metni değişir (onYazi); grafik/tablo verisi, görsel, biçim, not, asetat ekleme/silme ve bütün deste yok.
+     Önce yerel: birebir yineleme, dolgu sözcüğü kısaltma, madde bölme, terim değiştirme, madde sırası, QA açıklaması, sunum verisinden yanıt.
+     Model yalnız açık onaydan sonra, mesaj başına tek istek: sunum-research 'sohbet_duzenle' (kapı site_settings.akilli_editor).
+     Modelin "yaptım" demesi uygulama değildir: her öneri önizlenir, yalnız Uygula yazar; bütün hedefler birlikte, hata olursa hiçbiri.
+     Bellek oturumda (≤8 çift), veritabanı yok; yeni deste sohbeti siler. Paylaşım görüntüsüne, PPTX'e, nota, deckKey'e girmez. */
+  var SD_MS = 60000, SD_AS = 5, SD_OGE = 3, SD_TOP = 10, SD_KOMUT = 400, SD_CIFT = 8, SD_PARCA = 6, SD_PARCA_BOY = 300, SD_BAYT = 12 * 1024, SD_BULGU = 10, SD_METIN = 1200, SD_YENI = 1500;
+  var SD_IS = [['terim', /(^|[^a-z0-9])(yerine|replace|instead of|terminoloji|terim|terminology)/], ['yineleme', /(^|[^a-z0-9])(tekrari|tekrarlar|tekrarlan|tekrar eden|yinele|repetit|repeat|duplicat|redundan)/],
+    ['sirala', /(^|[^a-z0-9])(sirala|siralama|sirasini|reorder|sort|alfabe|alphabet|basa al|sona al|en basa|en sona|to the top|to the bottom|ters cevir|reverse)/], ['baslik', /(^|[^a-z0-9])(baslig|baslik(?!l)|title|heading)/],
+    ['gecis', /(^|[^a-z0-9])(gecis|transition|baglac)/], ['kaynakli', /(^|[^a-z0-9])(kaynakla(?=[^a-z]|$)|kaynaklarla|kaynaga gore|kaynaklara gore|source-backed|based on the sources?|according to the sources?)/],
+    ['akademik', /(^|[^a-z0-9])(akademik|academic|bilimsel|scholarly|formal)/], ['kurumsal', /(^|[^a-z0-9])(kurumsal|corporate|profesyonel|professional|business)/],
+    ['ogrenci', /(^|[^a-z0-9])(ogrenci|student|lise|ortaokul|beginner)/], ['sade', /(^|[^a-z0-9])(sadelestir|sade(?=[^a-z]|$)|basitlestir|simplif|plain|anlasilir)/],
+    ['guclendir', /(^|[^a-z0-9])(guclendir|guclu|stronger|strengthen|etkili|ikna|persuasive|impactful)/], ['netlestir', /(^|[^a-z0-9])(netlestir|daha net|aciklastir|clarify|clearer)/],
+    ['kisalt', /(^|[^a-z0-9])(kisalt|kisa|ozetle|shorten|shorter|concise|trim|tighten|condense)/]];
+  var SD_ACIKLA = /(^|[^a-z0-9])(neden zayif|niye zayif|zayif yan|why .{0,30}weak|ne sorun|sorun ne|explain|acikla(?=[^a-z]|$)|aciklar misin|degistirme(?=[^a-z]|$)|degistirmeden|don't change|do not change|dont change|not yet)/;
+  var SD_YOK = { veri: /(^|[^a-z0-9])(grafi[gk]|chart|tablo|table)/, gorsel: /(^|[^a-z0-9])(gorsel|resim|fotograf|image|photo|picture|ikon|icon)/,
+    bicim: /(^|[^a-z0-9])(yazi tipi|font|renk|colou?r|punto|boyut|konum|hizala|align|layout|yerlesim|tasarim|redesign|tema(?=[^a-z]|$)|temayi|theme|kalin|bold|italik|italic)/,
+    asetat: /(^|[^a-z0-9])(slayt ekle|asetat ekle|yeni slayt|yeni asetat|slayti sil|asetati sil|slayt sil|asetat sil|add (a |new )?slide|new slide|delete (the |this )?slide|remove (the |this )?slide)/,
+    not: /(^|[^a-z0-9])(konusma not|konusmaci not|speaker note)/, arastirma: /(^|[^a-z0-9])(arastir|internette|webde|guncel veri|son veri|research|look up|search the web|latest data)/,
+    kaynak: /(^|[^a-z0-9])(kaynak ekle|yeni kaynak|kaynakca|bibliograph|add (a )?sources?|new sources?|cite)/, sayi: /(^|[^a-z0-9])(rakam ekle|sayi ekle|istatistik ekle|add (a |some )?(numbers?|statistics?|figures?))/ };
+  var SD_TUM = /(^|[^a-z0-9])((tum|butun|her) ?(sunum|deste|slayt|asetat)|sunumun tamami|sunumu bastan|(whole|entire|all|every) (the )?(deck|presentation|slides?))/;
+  var SD_SORU = /^(kac|ne |neler|hangi|nedir|var mi|how many|what|which|is there|are there|do |does |list )/;
+  var SD_DEVAM = /(^|[^a-z0-9])(biraz daha|daha da|bir tik|a bit|a little|even more|slightly|more so)/;
+  var SD_BOLUM = { giris: /(^|[^a-z0-9])(giris|introduction|intro)/, sonuc: /(^|[^a-z0-9])(sonuc|conclusion|kapanis|closing)/, yontem: /(^|[^a-z0-9])(yontem|metodoloji|method)/,
+    bulgu: /(^|[^a-z0-9])(bulgu|findings|results)/, tartisma: /(^|[^a-z0-9])(tartisma|discussion)/, arka: /(^|[^a-z0-9])(arka ?plan|background|tarihce|literatur|literature)/ };
+  var SD_DOLGU = /(^|[^a-z0-9])(aslinda|esasen|bilindigi gibi|acikcasi|sunu belirtmek gerekir ki|belirtmek gerekir ki|soylemek gerekirse|basically|actually|essentially|needless to say|it should be noted that|it is worth noting that|it is important to note that)(?=[^a-z0-9]|$)/g;
+  var SD_DOLGU2 = [[/(^|[^a-z0-9])(in order to)(?=[^a-z0-9])/g, 'to'], [/(^|[^a-z0-9])(due to the fact that)(?=[^a-z0-9])/g, 'because']];
+  var SD_YEREL = { yineleme: 1, kisalt: 1, netlestir: 1, terim: 1, sirala: 1 }, SD_KANITLI = { kaynakli: 1, netlestir: 1, guclendir: 1, akademik: 1 };
+  var SD_HARF = /[\p{L}\p{N}]/u, SD_Q = '["“”«»‘’]', SD_QI = '([^"“”«»‘’\\n]{1,60})';
+  var sdAs = function (d, id) { for (var i = 0; i < arr(d && d.slides).length; i++) if (d.slides[i] && d.slides[i].id === id) return i; return -1; };
+  var sdN = function (t) { return cleanB(String(t || '').replace(/[\s.!?…;:]+$/, '')).toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim(); };      /* [n] korunur: atıfı farklı iki madde yineleme değildir */
+  var sdUzun = function (n) { return n.length >= 12 && n.split(' ').length >= 3; };
+  var sdBuyuk = function (s, en) { return String(s).replace(/^(\s*)(\S)/, function (m, a, c) { return a + (en ? c.toUpperCase() : c.toLocaleUpperCase('tr')); }); };
+  /* cümle parçaları: ayırıcı (noktalama + boşluk) önceki parçada kalır; kısaltma (ID_KISA) sınır değildir */
+  var sdCumle = function (t) { var P = String(t || '').replace(ID_KISA, function (m, a, k) { return a + k + '.' + ID_KORU; }).split(/([.!?]+\s+)(?=[A-ZÇĞİÖŞÜ0-9"“(])/), out = [];
+    for (var i = 0; i < P.length; i += 2) out.push({ s: P[i].split(ID_KORU).join(' '), sep: P[i + 1] || '' }); return out; };
+  var sdKur = function (P) { return P.map(function (p, i) { return p.s + (i < P.length - 1 ? p.sep : p.sep.replace(/\s+$/, '')); }).join(''); };
+  var sdBirim = function (t, ul) { return ul ? String(t).split('\n').map(function (s) { return { s: s, sep: '' }; }) : sdCumle(t); };
+  var sdDiger = function (s, e) { var n = []; arr(s.els).forEach(function (z) { if (z !== e && onYazi(s, z)) sdBirim(z.text, z.type === 'ul').forEach(function (b) { n.push(sdN(b.s)); }); }); return n; };
+  /* yineleme: yeni metin eski birimlerin sırası bozulmamış alt dizisi; düşen her birim (≥12 karakter, ≥3 sözcük) kalan metinde ya da asetattaki başka öğede birebir var */
+  var sdTekil = function (eski, yeni, ul, diger) {
+    var A = sdBirim(eski, ul), B = sdBirim(yeni, ul), j = 0, tut = [], dus = [], v = {};
+    if (!B.length || B.length >= A.length) return false;
+    A.forEach(function (a) { if (j < B.length && a.s === B[j].s) { tut.push(a); j++; } else dus.push(a); });
+    if (j !== B.length || (ul ? tut.map(function (x) { return x.s; }).join('\n') : sdKur(tut)) !== yeni) return false;
+    tut.forEach(function (x) { v[sdN(x.s)] = 1; }); diger.forEach(function (n) { v[n] = 1; });
+    return dus.every(function (x) { var n = sdN(x.s); return sdUzun(n) && v[n]; });
+  };
+  var sdTekrar = function (s, els) { var gor = {}, out = {};
+    els.forEach(function (e) { var ul = e.type === 'ul', B = sdBirim(e.text, ul), K = B.filter(function (b) { var n = sdN(b.s); if (sdUzun(n) && gor[n]) return false; gor[n] = 1; return true; });
+      if (K.length && K.length < B.length) out[e.id] = ul ? K.map(function (x) { return x.s; }).join('\n') : sdKur(K); });
+    return out; };
+  var sdAyni = function (a, b) { var x = String(a).split('\n'), y = String(b).split('\n'); return x.length === y.length && a !== b && x.slice().sort().join('\n') === y.slice().sort().join('\n'); };      /* yalnız sıra */
+  /* basit kısaltma: anlam taşımayan dolgu sözcükleri (derece/kesinlik/neden sözcükleri listede yok); konumlar idKat ile bulunur (uzunluk korunur) */
+  var sdDolgu = function (t, en) {
+    var F = idKat(t), kes = [], m; if (F.length !== t.length) return null;
+    SD_DOLGU.lastIndex = 0; while ((m = SD_DOLGU.exec(F))) { var b = m.index + m[1].length, e = b + m[2].length; if (F.charAt(e) === ',') e++; while (F.charAt(e) === ' ') e++; kes.push([b, e, '']); }
+    SD_DOLGU2.forEach(function (r) { r[0].lastIndex = 0; while ((m = r[0].exec(F))) { var b2 = m.index + m[1].length; kes.push([b2, b2 + m[2].length, r[1]]); } });
+    if (!kes.length) return null;
+    kes.sort(function (a, b) { return a[0] - b[0]; });
+    var out = '', i = 0, cap = false;
+    kes.forEach(function (k) { if (k[0] < i) return; var seg = t.slice(i, k[0]); if (cap) { seg = sdBuyuk(seg, en); cap = false; } out += seg; var y = k[2], ust = t.charAt(k[0]) !== t.charAt(k[0]).toLowerCase();
+      if (y) out += ust ? sdBuyuk(y, en) : y; else if (ust || /(^|[.!?:]\s+|\n\s*)$/.test(out)) cap = true; i = k[1]; });
+    var son = t.slice(i); out += cap ? sdBuyuk(son, en) : son;
+    out = out.replace(/[ \t]{2,}/g, ' ').replace(/ ([,.;:!?])/g, '$1').split('\n').map(function (l) { return l.trim(); }).join('\n').trim();
+    return out && out !== t ? out : null;
+  };
+  var sdBol = function (t) { var Y = [], n = 0; String(t).split('\n').forEach(function (l) { var P = sdCumle(l); if (P.length < 2) { Y.push(l); return; } n++; P.forEach(function (p) { Y.push((p.s + p.sep).trim()); }); }); return n ? Y.join('\n') : null; };
+  /* terim: yalnız tırnaklı çift ya da tek sözcüklü yalın komut ("X yerine Y kullan"); tahmin yok */
+  var sdTerimBul = function (ham) {
+    var q = SD_Q, I = SD_QI, m = ham.match(new RegExp(q + I + q + '\\s*(?:terimi |ifadesi |sözcüğü )?yerine\\s*' + q + I + q, 'i')); if (m) return { x: m[1].trim(), y: m[2].trim() };
+    m = ham.match(new RegExp('replace\\s+' + q + I + q + '\\s+with\\s+' + q + I + q, 'i')); if (m) return { x: m[1].trim(), y: m[2].trim() };
+    m = ham.match(new RegExp('use\\s+' + q + I + q + '\\s+instead of\\s+' + q + I + q, 'i')); if (m) return { x: m[2].trim(), y: m[1].trim() };
+    var y = String(ham).replace(/^\s*(?:\d+\s*\.?\s*(?:slayt|asetat)\S*|(?:slayt|asetat|slide)\s*\d+\S*|(?:in|on) slide \d+)\s*,?\s*/i, '').trim();
+    m = y.match(/^([\p{L}-]{2,40})\s+yerine\s+([\p{L}-]{2,40})\s+(?:kullan|yaz|de)\S*\s*[.!]?$/iu) || y.match(/^replace\s+([\p{L}-]{2,40})\s+with\s+([\p{L}-]{2,40})\s*[.!]?$/iu); if (m) return { x: m[1], y: m[2] };
+    m = y.match(/^use\s+([\p{L}-]{2,40})\s+instead of\s+([\p{L}-]{2,40})\s*[.!]?$/iu); return m ? { x: m[2], y: m[1] } : null;
+  };
+  var sdTerimOk = function (T) { if (!T || typeof T.x !== 'string' || typeof T.y !== 'string') return false; var x = T.x.trim(), y = T.y.trim();
+    if (!x || !y || x.length > 60 || y.length > 60 || idKat(x) === idKat(y) || /[\d<>\[\]\n]|https?:|www\./i.test(x + y) || KY_GUVENSIZ.test(x + y) || ID_ENJ.test(idKat(y))) return false;
+    return [ON_OLUMSUZ, ON_KOSUL, ON_NEDEN, ON_KARSI, ON_KESIN].every(function (re) { return !onSay(re, x) && !onSay(re, y); }) && !idMutlak(x + ' ' + y).length && !onKutup(x, y); };
+  /* yalnız tam sözcük; ekli kullanım (veriler, API'nin) atlanır ve sayılır */
+  var sdTerimDegis = function (t, x, y) {
+    var F = idKat(t), fx = idKat(String(x).trim()), out = '', i = 0, j = 0, n = 0, ek = 0, p; if (!fx || F.length !== t.length) return { t: t, n: 0, ek: 0 };
+    while ((p = F.indexOf(fx, j)) >= 0) {
+      var on = p ? t.charAt(p - 1) : '', son = t.charAt(p + fx.length), son2 = t.charAt(p + fx.length + 1); j = p + 1;
+      if (on && SD_HARF.test(on)) continue;
+      if ((son && SD_HARF.test(son)) || (/['’]/.test(son) && SD_HARF.test(son2))) { ek++; continue; }
+      var w = String(y).trim(); if (t.charAt(p) !== t.charAt(p).toLocaleLowerCase('tr')) w = sdBuyuk(w);
+      out += t.slice(i, p) + w; i = p + fx.length; j = i; n++;
+    }
+    return { t: out + t.slice(i), n: n, ek: ek };
+  };
+  /* madde sırası: ters, alfabetik, "N. maddeyi başa/sona al", açık permütasyon (1..n). Döner sıra dizisi ya da null */
+  var sdSiraBul = function (k, n) {
+    var r = []; for (var i = 0; i < n; i++) r.push(i);
+    if (/(^|[^a-z])(ters|reverse)/.test(k)) return r.reverse();
+    if (/(alfabe|alphabet)/.test(k)) return 'alfa';
+    var m = k.match(/(\d+)\s*\.?\s*(?:madde|bullet|item|satir)[a-z]*\s+(?:en\s+)?(bas|ust|son|alt)/) || k.match(/(?:bullet|item|point)\s*(\d+)\s+(?:to\s+the\s+)?(top|start|beginning|first|bottom|end|last)/);
+    if (m) { var a = +m[1] - 1; if (a < 0 || a >= n) return null; r.splice(a, 1); if (/^(bas|ust|top|start|beginning|first)$/.test(m[2])) r.unshift(a); else r.push(a); return r; }
+    m = k.match(/(\d+(?:\s*,\s*\d+)+)/); if (!m) return null;
+    var p = m[1].split(/\s*,\s*/).map(function (x) { return +x - 1; }); return p.length === n && p.slice().sort(function (a, b) { return a - b; }).every(function (x, i) { return x === i; }) ? p : null;
+  };
+  /* adlar: cümle başı olmayan büyük harfli sözcükler. Yeni ad eski metinde, parçada ya da ON_EK'te kök eşiyle bulunmalı; eski ad kalmalı.
+     Başlık biçimli (Her Sözcük Büyük) başlıkta denetlenmez; kısaltmalar onDenetle'de (idKimlik) yine denetlenir */
+  var sdAdlar = function (t) { var out = [], s = String(t || '');
+    s.replace(/[\p{L}\p{N}'’-]+/gu, function (w, i) { var on = s.slice(0, i), oz = on.replace(/[\s"“”«»(\[]+$/, ''), bas = !oz || /[.!?:;•·–—-]$/.test(oz) || /\n[\s"“(]*$/.test(on);
+      if (!bas && /^[A-ZÇĞİÖŞÜ]/.test(w)) { var k = idKat(w).replace(/['’].*$/, '').split(/[^a-z0-9]+/)[0]; if (k && out.indexOf(k) < 0) out.push(k); } return w; });
+    return out; };
+  var sdSozler = function (t) { return idKat(t).match(/[a-z0-9]+/g) || []; };
+  var sdBasHarf = function (t) { var W = String(t).match(/\p{L}{4,}/gu) || []; return W.length >= 2 && W.filter(function (w) { return /^[A-ZÇĞİÖŞÜ]/.test(w); }).length / W.length >= 0.6; };
+  var sdAd = function (eski, yeni, pm, tip) {
+    if (tip === 'h' && (sdBasHarf(yeni) || sdBasHarf(eski))) return null;
+    var sz = sdSozler(eski + '\n' + pm + '\n' + ON_EK.kaynaklarda.join(' ')), yz = sdSozler(yeni), es = function (w, L) { return L.some(function (z) { return w.length < 4 ? z === w : kokEs(w, z); }); };
+    if (sdAdlar(yeni).some(function (w) { return !es(w, sz); })) return 'yeni';
+    if (sdAdlar(eski).some(function (w) { return !es(w, yz); })) return 'eksik';
+    return null;
+  };
+  var sdPm = function (kn, reg) { return arr(kn).map(function (k) { var p = reg[k.sid] && arr(reg[k.sid].parca).filter(function (x) { return x.pid === k.pid; })[0]; return p ? p.metin : ''; }).join('\n'); };
+  /* hedef asetatlar: numara yalnız slayt/asetat sözcüğünün yanında; tırnaklı başlık; bölüm ailesi (ardışık asetat dizisi); "son/bu slayt". Tahmin yok */
+  var sdHedef = function (ham, kq, d, A) {
+    var n = d.slides.length, N = [], liste = function (g) { var a = []; g.replace(/(\d+)\s*\.?\s*(?:-|–|to)\s*(\d+)|(\d+)/g, function (m, x, y, z) { if (z) a.push(+z); else for (var i = +x; i <= +y && a.length < 50; i++) a.push(i); return m; }); return a; };
+    var SEP = '(?:\\s*\\.?\\s*(?:,|ve|and|ile|&|-|–|to)\\s*\\d+)*';
+    kq.replace(new RegExp('(?:slayt|asetat|slide|sayfa)(?:lar|lari|larda|lardaki|s)?\\s*(?:no\\.?\\s*)?(\\d+' + SEP + ')', 'g'), function (m, g) { N = N.concat(liste(g)); return m; });
+    kq.replace(new RegExp('(\\d+' + SEP + ')\\s*\\.?\\s*(?:\'?(?:inci|nci|uncu|ncu|st|nd|rd|th))?\\s*(?:slayt|asetat|slide|sayfa)', 'g'), function (m, g) { N = N.concat(liste(g)); return m; });
+    if (/(^|[^a-z])(son|last) (slayt|asetat|slide)/.test(kq) && n) N.push(n);
+    if (N.length) { var bad = N.filter(function (x) { return x < 1 || x > n; }); if (bad.length) return { as: [], hata: 'aralik', no: bad[0] };
+      var u = []; N.forEach(function (x) { if (u.indexOf(x - 1) < 0) u.push(x - 1); }); return { as: u.sort(function (a, b) { return a - b; }), tur: 'acik' }; }
+    var qs = [], m, re = new RegExp(SD_Q + '([^"“”«»‘’\\n]{2,80})' + SD_Q, 'g'), T = A.terim;
+    while ((m = re.exec(ham))) if (!T || (m[1].trim() !== T.x && m[1].trim() !== T.y)) qs.push(m[1].trim());
+    for (var qi = 0; qi < qs.length; qi++) { var qn = kyNorm(qs[qi]), es = [];
+      d.slides.forEach(function (s, i) { if (kyNorm(titleOf(s)) === qn) es.push(i); });
+      if (!es.length && qn.length >= 4) d.slides.forEach(function (s, i) { if (kyNorm(titleOf(s)).indexOf(qn) >= 0) es.push(i); });
+      if (es.length === 1) return { as: es, tur: 'baslik' };
+      if (es.length > 1) return { as: [], aday: es.map(function (i) { return [i]; }) }; }
+    var kb = kq.replace(/neden[- ]sonuc[a-z]*|cause[- ]and[- ]effect/g, ' ');
+    for (var f in SD_BOLUM) { if (!SD_BOLUM[f].test(kb)) continue;
+      var runs = [], last = -2; d.slides.forEach(function (s, i) { if (kyYapi(s) || !SD_BOLUM[f].test(idKat(titleOf(s)))) return; if (i === last + 1) runs[runs.length - 1].push(i); else runs.push([i]); last = i; });
+      if (!runs.length) return { as: [], hata: 'bolum-yok' };
+      if (runs.length > 1) return { as: [], aday: runs };
+      if (runs[0].length > SD_AS) return { as: [], hata: 'fazla' };
+      return { as: runs[0], tur: 'bolum' }; }
+    if (/(^|[^a-z])(bu|bu |secili|mevcut|this|current|selected) ?(slayt|asetat|slide)/.test(kq)) return { as: [d.cur], tur: 'secili' };
+    return { as: [] };
+  };
+  /* komut → niyet + hedef. B: bekleyen açıklama sorusu; yanıt bağlamla birleşir, son talimat kazanır */
+  var sdAnla = function (ham, d, B, S) {
+    var k = idKat(ham).replace(/\s+/g, ' ').trim(), kq = k.replace(new RegExp(SD_Q + '[^"“”«»‘’]*' + SD_Q, 'g'), ' " '), A = { ham: ham, komut: ham, k: k, kq: kq };
+    if (SD_ACIKLA.test(kq)) A.acikla = 1;
+    for (var i = 0; i < SD_IS.length && !A.is; i++) if (SD_IS[i][1].test(kq)) A.is = SD_IS[i][0];
+    if (A.is === 'terim') A.terim = sdTerimBul(ham);
+    if (!A.acikla) for (var y in SD_YOK) if (SD_YOK[y].test(kq)) { A.yok = y; break; }
+    if (SD_TUM.test(kq) && !(A.is === 'terim' && A.terim)) A.tum = 1;
+    A.soru = !A.is && !A.acikla && (/\?\s*$/.test(ham) || SD_SORU.test(k)) ? 1 : 0;
+    if (B && B.A && !A.soru) { if (!A.is && !A.acikla) { A.is = B.A.is; A.acikla = B.A.acikla; A.terim = A.terim || B.A.terim; } A.komut = (B.A.komut + ' → ' + ham); }
+    var T = sdHedef(ham, kq, d, A); A.tur = T.tur; A.as = T.as; A.aday = T.aday; A.hata = T.hata; A.no = T.no;
+    if (!A.as.length && !A.aday && !A.hata && B && B.A && B.A.as && B.A.as.length) { A.as = B.A.as.slice(); A.tur = B.A.tur; A.elIds = B.A.elIds; }
+    if (!A.as.length && !A.aday && !A.hata && A.is === 'terim' && A.terim) {      /* terim: açık hedef yoksa metninde terim geçen asetatlar (sınır içinde) */
+      d.slides.forEach(function (s, ix) { if (!kyYapi(s) && arr(s.els).some(function (e) { return onYazi(s, e) && sdTerimDegis(e.text, A.terim.x, A.terim.y).n; })) A.as.push(ix); });
+      A.tur = 'terim'; if (!A.as.length) A.hata = 'terim-yok'; }
+    var K = S && S.son, kayIx = K ? K.hedefler.map(function (h) { return sdAs(d, h.slide_id); }).filter(function (x, i, a) { return x >= 0 && a.indexOf(x) === i; }) : [];
+    if (!A.as.length && !A.aday && !A.hata && kayIx.length && !A.soru) {
+      if (SD_DEVAM.test(kq) || S.durum === 'proposal_ready') { A.as = kayIx; A.tur = 'onceki'; A.elIds = K.hedefler.map(function (h) { return String(h.element_id); }); if (S.durum === 'proposal_ready') A.onceki = K.hedefler.map(function (h) { return { slide_id: h.slide_id, element_id: String(h.element_id), metin: h.replacement_text }; }); if (!A.is) A.is = K.is; }
+      else if (kayIx.indexOf(d.cur) < 0) A.kayma = kayIx;      /* asetat değişti: hedef sessizce değişmez, sorulur */
+    }
+    if (!A.as.length && !A.aday && !A.hata && !A.kayma) { A.as = d.slides.length ? [d.cur] : []; A.tur = 'secili'; }
+    return A;
+  };
+  /* hedef öğeler: başlık işinde h; madde/sıra işinde ul; terimde terimi taşıyanlar; öteki işlerde t + ul (yoksa h). Tek asetatta seçili öğe daraltır */
+  var sdOgeler = function (A, d) {
+    var H = [], tek = A.as.length === 1, soru = null, hata = null;
+    A.as.forEach(function (ix) { var s = d.slides[ix], E = arr(s.els).filter(function (e) { return onYazi(s, e) && e.text.trim(); });
+      if (A.elIds) E = E.filter(function (e) { return A.elIds.indexOf(String(e.id)) >= 0; });
+      else if (A.is === 'baslik') E = E.filter(function (e) { return e.type === 'h'; }).slice(0, 1);
+      else if (A.is === 'sirala' || /(^|[^a-z])(madde|bullet|liste|list)/.test(A.kq)) E = E.filter(function (e) { return e.type === 'ul'; });
+      else if (A.is === 'terim') E = E.filter(function (e) { return sdTerimDegis(e.text, A.terim.x, A.terim.y).n; });
+      else { var g = E.filter(function (e) { return e.type !== 'h'; }); if (g.length) E = g; }
+      if (tek && !A.elIds && selId && ix === d.cur) { var z = E.filter(function (e) { return String(e.id) === String(selId); }); if (z.length) E = z; }
+      if (E.length > SD_OGE) { if (tek && !A.elIds) soru = { ix: ix, E: E }; else hata = 'fazla'; return; }
+      E.forEach(function (e) { if (e.text.length > SD_METIN) hata = 'uzun'; H.push({ ix: ix, s: s, e: e }); }); });
+    if (hata) return { hata: hata }; if (soru) return { soru: soru };
+    if (!H.length) return { hata: 'oge' }; if (H.length > SD_TOP) return { hata: 'fazla' };
+    return { H: H };
+  };
+  var sdKimza = function (d, T, kn) { var reg = kyKayit(d), z = {};
+    T.forEach(function (h) { var s = d.slides[sdAs(d, h.slide_id)], e = s && onEl(s, h.element_id); arr(e && e.iddia).forEach(function (r) { arr(r.kanit).forEach(function (k) { if (k && reg[k.sid]) z[k.sid] = kkImza(reg[k.sid]); }); }); });
+    arr(kn).forEach(function (k) { if (k && reg[k.sid]) z[k.sid] = kkImza(reg[k.sid]); }); return z; };
+  var sdKapsam = function (d, A, T, o) { return { deste: d, deckId: d.id, komut: A.komut, is: A.is, motor: o.motor, mesaj: o.mesaj || '', hedefler: T, kanit: o.kanit || [], sinir: o.sinir || [], yapi: o.yapi || null, terim: A.terim || null, kimza: sdKimza(d, T, o.kanit), A: A }; };
+  var sdHed = function (x, y, neden) { return { slide_id: x.s.id, element_id: String(x.e.id), expected_text_hash: kyHash(x.e.text), operation: 'replace_text', replacement_text: y, reason: neden }; };
+  /* öneri denetimi: deste, gerçek kimlik, sınırlar, hash, güvenlik; yapısal işler kendi denetimiyle, öteki her yeniden yazım onDenetle (sayı, olgu, olumsuzluk + onKutup, koşul, neden, karşılaştırma, mutlak, kısaltma) + sdAd */
+  var sdDenetle = function (K, d) {
+    if (!K || !d || K.deste !== d) return 'deste';
+    var H = arr(K.hedefler), reg = kyKayit(d), gr = {}, ng = 0, gor = {}, i, h;
+    if (!H.length) return 'hedef'; if (H.length > SD_TOP) return 'sinir';
+    for (i = 0; i < H.length; i++) { h = H[i]; if (!h || typeof h !== 'object') return 'hedef'; var key = h.slide_id + '|' + h.element_id; if (gor[key]) return 'hedef'; gor[key] = 1; if (!gr[h.slide_id]) { gr[h.slide_id] = 0; ng++; } if (++gr[h.slide_id] > SD_OGE) return 'sinir'; }
+    if (ng > SD_AS) return 'sinir';
+    var kn = arr(K.kanit); if (kn.length > SD_PARCA || kn.some(function (z) { return !z || !kkKullan(z, reg); })) return 'kanit';
+    if (K.yapi === 'terim' && !sdTerimOk(K.terim)) return 'terim';
+    for (i = 0; i < H.length; i++) {
+      h = H[i]; var ix = sdAs(d, h.slide_id), s = d.slides[ix], e = s && onEl(s, h.element_id), y = h.replacement_text;
+      if (!s || kyYapi(s) || !onYazi(s, e)) return 'hedef';
+      if (h.operation !== 'replace_text') return 'tur';
+      if (String(h.expected_text_hash) !== kyHash(e.text)) return 'hash';
+      if (typeof y !== 'string' || !y.trim() || y.length > SD_YENI || y === e.text) return 'metin';
+      if (/[<>]|javascript:|data:text/i.test(y) || KY_GUVENSIZ.test(y) || ID_ENJ.test(idKat(y))) return 'guvensiz';
+      if (K.yapi === 'tekil') { if (!sdTekil(e.text, y, e.type === 'ul', sdDiger(s, e))) return 'yapi'; continue; }
+      if (K.yapi === 'sira') { if (e.type !== 'ul' || !sdAyni(e.text, y)) return 'yapi'; continue; }
+      if (K.yapi === 'terim') { var tr = sdTerimDegis(e.text, K.terim.x, K.terim.y); if (!tr.n || tr.t !== y) return 'yapi'; continue; }
+      var v = onDenetle({ tur: kn.length ? 'source_qualified' : 'wording_only', hedefler: [{ element_id: h.element_id, expected_text_hash: h.expected_text_hash, replacement_text: y }], kanit: kn, eklenen: [], adSerbest: 1 }, { as: ix, elId: String(h.element_id) }, d);
+      if (v) return v;
+      if (sdAd(e.text, y, sdPm(kn, reg), e.type)) return 'ad';
+    }
+    return null;
+  };
+  /* tazelik: aynı deste nesnesi, asetat/öğe kimliği, metin, kaynak imzası, parça */
+  var sdBayat = function (K, d) {
+    if (!K || !d || K.deste !== d) return 'deste';
+    for (var i = 0; i < K.hedefler.length; i++) { var h = K.hedefler[i], ix = sdAs(d, h.slide_id); if (ix < 0) return 'asetat'; var e = onEl(d.slides[ix], h.element_id); if (!e) return 'oge'; if (typeof e.text !== 'string' || kyHash(e.text) !== h.expected_text_hash) return 'metin'; }
+    var reg = kyKayit(d); if (Object.keys(K.kimza || {}).some(function (x) { return !reg[x] || kkImza(reg[x]) !== K.kimza[x]; }) || arr(K.kanit).some(function (k) { return !kkKullan(k, reg); })) return 'kaynak';
+    return null;
+  };
+  /* yerel öneri: yerel iş değilse ya da değişiklik çıkmazsa null (model yolu); yerel-yalnız işte boş sonuç bir açıklamadır */
+  var sdYerel = function (A, d) {
+    if (A.model || A.onceki || !SD_YEREL[A.is]) return null;
+    var en = onDil(d), T = [], o = { motor: 'yerel', sinir: [] };
+    if (A.is === 'yineleme') { var gr = {}; A.H.forEach(function (x) { (gr[x.ix] = gr[x.ix] || []).push(x); });
+      Object.keys(gr).forEach(function (ix) { var L = gr[ix], m = sdTekrar(L[0].s, L.map(function (x) { return x.e; })); L.forEach(function (x) { if (m[x.e.id] != null) T.push(sdHed(x, m[x.e.id], 'Birebir yinelenen cümle ya da madde çıkarıldı.')); }); });
+      o.yapi = 'tekil'; o.mesaj = 'Birebir yinelenen cümle ve maddeleri çıkardım; öteki metin aynı.'; }
+    else if (A.is === 'kisalt') { A.H.forEach(function (x) { var y = sdDolgu(x.e.text, en); if (y) T.push(sdHed(x, y, 'Anlam taşımayan dolgu sözcükleri çıkarıldı.')); }); o.mesaj = 'Anlam taşımayan dolgu sözcüklerini çıkardım; sayılar, adlar ve iddialar aynı.'; }
+    else if (A.is === 'netlestir') { A.H.forEach(function (x) { var y = x.e.type === 'ul' && sdBol(x.e.text); if (y) T.push(sdHed(x, y, 'Birden çok cümle taşıyan madde güvenli cümle sınırından bölündü.')); }); o.mesaj = 'Birden çok cümle taşıyan maddeleri ayrı maddelere böldüm; sözcükler aynı.'; }
+    else if (A.is === 'terim') { if (!A.terim) return { bos: 'terim-cift' }; var ek = 0;
+      A.H.forEach(function (x) { var r = sdTerimDegis(x.e.text, A.terim.x, A.terim.y); ek += r.ek; if (r.n) T.push(sdHed(x, r.t, 'Terim birliği: tam sözcük olarak değiştirildi.')); });
+      if (ek) o.sinir.push(ek + ' ekli kullanım değiştirilmedi; ek uyumunu elle kontrol et.'); o.yapi = 'terim'; o.mesaj = 'Terimi yalnız tam sözcük olarak değiştirdim.'; if (!T.length) return { bos: ek ? 'terim-ek' : 'terim-yok' }; }
+    else if (A.is === 'sirala') { var U = A.H.filter(function (x) { return x.e.type === 'ul'; }); if (U.length !== 1) return { bos: 'sira-liste' };
+      var x = U[0], L2 = x.e.text.split('\n'), p = sdSiraBul(A.k, L2.length); if (!p) return null;
+      var Y = p === 'alfa' ? L2.slice().sort(function (a, b) { return cleanB(a).localeCompare(cleanB(b), en ? 'en' : 'tr'); }) : p.map(function (i) { return L2[i]; });
+      if (Y.join('\n') === x.e.text) return { bos: 'sira-ayni' }; T.push(sdHed(x, Y.join('\n'), 'Yalnız madde sırası değişti.')); o.yapi = 'sira'; o.mesaj = 'Maddelerin yalnız sırasını değiştirdim.'; }
+    if (!T.length) return null;
+    var K = sdKapsam(d, A, T, o), v = sdDenetle(K, d);
+    if (v) return A.is === 'terim' || A.is === 'sirala' ? { bos: 'red', neden: v } : null;      /* yerel öneri denetimden geçmezse gösterilmez */
+    return K;
+  };
+  /* model isteği: hedef metinler, hedef ±1 başlık, gerçek sid/pid parçaları (≤6×300; belge/kart yalnız açık onayla), hedef asetatların QA kodları, ≤8 çift geçmiş */
+  var sdIstek = function (A, d, ozel, S) {
+    var reg = kyKayit(d), P = [], gor = {}, top = 0, ozelVar = 0, ozelAtla = 0, uzun = 0, kis = 0, ixs = [];
+    A.H.forEach(function (x) { if (ixs.indexOf(x.ix) < 0) ixs.push(x.ix); });
+    if (SD_KANITLI[A.is]) A.H.forEach(function (x) { arr(x.e.iddia).forEach(function (r) { if (r.bayat) return; arr(r.kanit).forEach(function (k) {
+      if (!k || gor[k.pid] || !kkKullan(k, reg)) return; gor[k.pid] = 1; var kay = reg[k.sid], oz = kay.tur === 'belge' || kay.tur === 'kart', p = arr(kay.parca).filter(function (z) { return z.pid === k.pid; })[0];
+      if (oz) ozelVar = 1; if (oz && !ozel) { ozelAtla++; return; } if (String(p.metin).length > SD_PARCA_BOY) { uzun++; return; } top++; if (P.length < SD_PARCA) P.push({ sid: k.sid, pid: k.pid, metin: p.metin }); }); }); });
+    var bas = [], bg = []; ixs.forEach(function (ix) { [ix - 1, ix, ix + 1].forEach(function (j) { if (j >= 0 && j < d.slides.length && bg.indexOf(j) < 0) bg.push(j); }); });
+    bg.sort(function (a, b) { return a - b; }).forEach(function (j) { var t = String(titleOf(d.slides[j]) || ''); if (t.length > 200) kis++; bas.push({ slide_id: d.slides[j].id, no: j + 1, baslik: t.slice(0, 200) }); });
+    var Lb = qaListe(d).bulgu.filter(function (z) { return ixs.indexOf(z.slideIndex) >= 0; }), bul = Lb.slice(0, SD_BULGU).map(function (z) { return { slide_id: d.slides[z.slideIndex].id, kod: z.code }; });
+    var gov = { action: 'sohbet_duzenle', v: 1, dil: onDil(d) ? 'en' : 'tr', is: A.is || 'genel', komut: A.komut, gecmis: arr(S && S.cift).slice(-SD_CIFT), hedefler: A.H.map(function (x) { return { slide_id: x.s.id, element_id: String(x.e.id), hash: kyHash(x.e.text), tur: x.e.type, metin: x.e.text }; }),
+      basliklar: bas, parcalar: P, bulgular: bul, onceki: arr(A.onceki) };
+    var js = JSON.stringify(gov), bayt = typeof TextEncoder === 'function' ? new TextEncoder().encode(js).length : unescape(encodeURIComponent(js)).length;
+    var idOk = gov.hedefler.concat(bas).every(function (h) { return /^[A-Za-z0-9_-]{1,40}$/.test(String(h.slide_id)) && (h.element_id == null || /^[A-Za-z0-9_-]{1,40}$/.test(h.element_id)); });
+    return { govde: gov, hedef: gov.hedefler.length, asetat: ixs.length, parca: P.length, fazlaParca: top - P.length, uzunParca: uzun, ozelVar: ozelVar, ozelAtla: ozelAtla, baglam: bas.length, kisaltilan: kis, bulgu: bul.length, fazlaBulgu: Lb.length - bul.length, bayt: bayt, sigar: bayt <= SD_BAYT && idOk && String(A.komut).length <= 2 * SD_KOMUT };
+  };
+  /* model planı: sunucu şemasının istemci kopyası; fazla alan, bilinmeyen işlem, uydurma kimlik/parça bütün planı düşürür */
+  var SD_ALAN = ['intent', 'assistant_message', 'clarification', 'proposal'], SD_PALAN = ['scope', 'targets', 'evidence', 'limitations'], SD_HALAN = ['slide_id', 'element_id', 'expected_text_hash', 'operation', 'replacement_text', 'reason'];
+  var SD_NIYET = { answer: 1, clarify: 1, edit_proposal: 1, explain_issue: 1, unsupported: 1 }, SD_KAPSAM = { element: 1, slide: 1, slides: 1, section: 1 };
+  var sdTam = function (o, ks) { if (!o || typeof o !== 'object' || Array.isArray(o)) return false; var k = Object.keys(o); return k.length === ks.length && ks.every(function (x) { return k.indexOf(x) >= 0; }); };
+  var sdDz = function (x, n) { return typeof x === 'string' && x.length <= n && !/[<>]/.test(x) && !KY_GUVENSIZ.test(x); };
+  var sdSema = function (o, G) {
+    if (!sdTam(o, SD_ALAN) || !SD_NIYET[o.intent] || !sdDz(o.assistant_message, 600) || !o.assistant_message.trim()) return null;
+    var c = o.clarification, p = o.proposal;
+    if (c !== null && !(sdTam(c, ['question', 'options']) && sdDz(c.question, 300) && c.question.trim() && Array.isArray(c.options) && c.options.length <= 4 && c.options.every(function (z) { return sdDz(z, 80) && z.trim(); }))) return null;
+    if ((o.intent === 'clarify') !== (c !== null) || (o.intent === 'edit_proposal') !== (p !== null)) return null;
+    if (p === null) return { niyet: o.intent, mesaj: o.assistant_message, soru: c };
+    if (!sdTam(p, SD_PALAN) || !SD_KAPSAM[p.scope] || !Array.isArray(p.targets) || !p.targets.length || p.targets.length > SD_TOP || !Array.isArray(p.evidence) || p.evidence.length > SD_PARCA || !Array.isArray(p.limitations) || p.limitations.length > 6 || !p.limitations.every(function (z) { return sdDz(z, 200); })) return null;
+    var hh = {}, pp = {}; G.hedefler.forEach(function (h) { hh[h.slide_id + '|' + h.element_id] = h.hash; }); G.parcalar.forEach(function (q) { pp[q.pid] = q.sid; });
+    if (p.evidence.some(function (k, i) { return !sdTam(k, ['sid', 'pid']) || typeof k.pid !== 'string' || pp[k.pid] !== k.sid || p.evidence.slice(0, i).some(function (z) { return z.pid === k.pid; }); })) return null;
+    if (p.targets.some(function (t, i) { return !sdTam(t, SD_HALAN) || t.operation !== 'replace_text' || typeof t.slide_id !== 'string' || typeof t.element_id !== 'string' || hh[t.slide_id + '|' + t.element_id] !== t.expected_text_hash || typeof t.replacement_text !== 'string' || !sdDz(t.reason, 300) || p.targets.slice(0, i).some(function (z) { return z.slide_id === t.slide_id && z.element_id === t.element_id; }); })) return null;
+    return { niyet: o.intent, mesaj: o.assistant_message, soru: null, hedefler: p.targets.map(function (t) { return { slide_id: t.slide_id, element_id: t.element_id, expected_text_hash: t.expected_text_hash, operation: 'replace_text', replacement_text: t.replacement_text, reason: t.reason }; }),
+      kanit: p.evidence.map(function (k) { return { sid: k.sid, pid: k.pid }; }), sinir: p.limitations.slice() };
+  };
+  var sdKapali = false;
+  /* tek istek; yeniden deneme ve yedek yok. Döner {durum, R?, K?, neden?} */
+  var sdModel = function (A, I, d, cagir) {
+    if (!I.sigar) return Promise.resolve({ durum: 'sigmadi' });
+    return Promise.resolve().then(function () { return (cagir || fn)('sunum-research', I.govde, SD_MS); }).then(function (y) {
+      if (!y || y.durum === 'kapali') { sdKapali = !!y; return { durum: y ? 'kapali' : 'hata' }; }
+      if (y.durum !== 'tamam') return { durum: ['kota', 'sinir', 'zaman', 'gecersiz', 'sigmadi', 'yanit'].indexOf(y.durum) >= 0 ? y.durum : 'hata' };
+      var R = sdSema(y.plan, I.govde); if (!R) return { durum: 'yanit' };
+      if (R.niyet !== 'edit_proposal') return { durum: 'tamam', R: R };
+      var K = sdKapsam(d, A, R.hedefler, { motor: 'groq', mesaj: R.mesaj, kanit: R.kanit, sinir: R.sinir, yapi: A.is === 'sirala' ? 'sira' : null });      /* sırada model yalnız permütasyon önerebilir */
+      var v = sdDenetle(K, d); if (v) return { durum: 'reddedildi', neden: v };
+      return { durum: 'tamam', R: R, K: K };
+    }, function (err) { return { durum: /zaman|timeout|abort/i.test(String(err && err.message)) ? 'zaman' : 'hata' }; });
+  };
+  var sdIz = function (d, H) { var hed = H.map(function (x) { return x.e; }); return JSON.stringify({ k: d.kaynaklar, t: d.title, s: arr(d.slides).map(function (z) { return Object.assign({}, z, { els: arr(z.els).map(function (e) { if (hed.indexOf(e) < 0) return e; var c = Object.assign({}, e); delete c.text; delete c.iddia; return c; }) }); }) }); };
+  /* atomik uygulama (onUygula'nın çok asetatlı biçimi): tazelik + denetim → yedek → yalnız metin + iddia → imza ve metin sınaması; hata olursa bütün deste geri, geçmişe tek adım */
+  var sdUygula = function (K, O) {
+    var d = O.deck, L0 = O.liste(d), b = sdBayat(K, d); if (b) return { hata: 'bayat', neden: b };
+    var v = sdDenetle(K, d); if (v) return { hata: 'gecersiz', neden: v };
+    var reg = kyKayit(d), H = K.hedefler.map(function (h) { var s = d.slides[sdAs(d, h.slide_id)]; return { s: s, e: onEl(s, h.element_id), h: h }; }), T = { kimza: K.kimza || {} };
+    var before = O.snap(), iz = sdIz(d, H), geri = onYedek(d), yeni = 0;
+    try {
+      H.forEach(function (x) { var once = kyCapa(x.e); arr(x.e.iddia).forEach(function (r) { if (!r.bayat) r.__on = 1; }); x.e.text = x.h.replacement_text; iddiaTazele(x.s); yeni += onIddia(x.s, x.e, once, T, reg); });
+      if (O.ara) O.ara(d, H);
+      if (sdIz(d, H) !== iz) throw new Error('imza');
+      if (H.some(function (x) { return x.e.text !== x.h.replacement_text; })) throw new Error('metin');
+    } catch (err) { geri(); if (typeof console !== 'undefined') console.warn('acadex-sunum: sohbet düzenleme', err && err.message); return { hata: 'hata' }; }
+    O.gecmis(before);
+    var ixs = []; H.forEach(function (x) { var i = d.slides.indexOf(x.s); if (ixs.indexOf(i) < 0) ixs.push(i); });
+    var L1 = O.liste(d), id0 = L0.map(function (x) { return x.id; }), id1 = L1.map(function (x) { return x.id; }), ilg = function (x) { return ixs.indexOf(x.slideIndex) >= 0; };
+    return { before: before, oge: H.length, as: ixs.length, iddia: yeni, cozulen: L0.filter(function (x) { return ilg(x) && id1.indexOf(x.id) < 0; }).map(function (x) { return x.code; }), yeni: L1.filter(function (x) { return id0.indexOf(x.id) < 0; }).map(function (x) { return x.code; }) };
+  };
+  /* ---- sunum verisinden yerel yanıt ve açıklama (ağ yok) ---- */
+  var sdSp = function (t) { return '<span>' + X(t) + '</span>'; }, sdUs = function (t) { return '<span data-no-i18n>' + X(t) + '</span>'; };
+  var sdNo = function (ix, d) { return '<span>' + (ix + 1) + '. asetat</span> ' + sdUs(String(titleOf(d.slides[ix]) || '').slice(0, 80)); };
+  var sdYanit = function (A, d) {
+    var k = A.k, reg = kyKayit(d), canli = '<p><small>Canlı araştırma yapmıyorum; yalnız bu sunumdaki verilerden yanıtlarım.</small></p>';
+    if (/(guncel|bugun|son dakika|latest|current|today|news|haber)/.test(k)) return '<p>' + sdSp('Bunu yanıtlamak için canlı veri gerekir; canlı araştırma yapmıyorum.') + '</p>' + canli;
+    if (/(kac|how many|sayisi)/.test(k) && /(slayt|asetat|slide|sayfa)/.test(k)) return '<p>' + sdSp('Sunumda ' + d.slides.length + ' asetat var.') + '</p>' + canli;
+    if (/(kaynak|source|referans|reference)/.test(k)) { var ks = Object.keys(reg).map(function (x) { return reg[x]; });
+      return '<p>' + sdSp('Sunumda ' + ks.length + ' kayıtlı kaynak var.') + '</p>' + (ks.length ? '<ul class="on-l">' + ks.slice(0, 6).map(function (z) { return '<li data-no-i18n>' + X(kkNo(reg, z.sid) + ' ' + (z.baslik || z.site || kkHost(z.url) || '')) + '</li>'; }).join('') + '</ul>' : '') + canli; }
+    if (/(iddia|claim|dogrula|verif|kanit|evidence)/.test(k)) { var say = { unverified: 0, kontrol: 0, bayat: 0 }, n = 0;
+      d.slides.forEach(function (s) { arr(s.els).forEach(function (e) { arr(e && e.iddia).forEach(function (r) { n++; if (r.bayat) say.bayat++; else if (r.kontrol) say.kontrol++; else say.unverified++; }); }); });
+      return '<p>' + sdSp('Kayıtlı ' + n + ' iddia: ' + say.unverified + ' kontrol edilmedi, ' + say.kontrol + ' kontrol edildi, ' + say.bayat + ' bayat.') + '</p><p><small>Kanıtları denetim penceresindeki “Kanıtları kontrol et” ile sen başlatırsın.</small></p>' + canli; }
+    if (/(sorun|bulgu|issue|problem|hata|kalite|quality|uyari|warning)/.test(k)) { var L = qaListe(d).bulgu;
+      return '<p>' + sdSp('Denetimde ' + L.length + ' bulgu var.') + '</p>' + (L.length ? '<ul class="on-l">' + L.slice(0, 6).map(function (z) { return '<li><code data-no-i18n>' + X(z.code) + '</code> ' + sdSp(z.message) + '</li>'; }).join('') + '</ul>' : '') + canli; }
+    return '<p>' + sdSp('Bu sunumun metinlerini düzenleyebilirim: kısaltma, netleştirme, akademik ya da sade ton, başlık, geçiş, madde sırası, tekrar azaltma, terim birliği.') + '</p><p><small>Örnek: “3. slaytı kısalt”, “sonuç bölümünü güçlendir”, “"veri seti" yerine "veri kümesi" kullan”.</small></p>' + canli;
+  };
+  var sdAcikla = function (A, d) {
+    var L = qaListe(d).bulgu.filter(function (z) { return A.as.indexOf(z.slideIndex) >= 0; }).slice(0, SD_BULGU), h = '', uz = 0, mad = 0;
+    A.as.forEach(function (ix) { var s = d.slides[ix]; arr(s.els).forEach(function (e) { if (!onYazi(s, e)) return; if (e.type === 'ul') e.text.split('\n').forEach(function (l) { if (!l.trim()) return; mad++; if (l.split(/\s+/).length > 20) uz++; }); }); });
+    h += '<p>' + A.as.map(function (ix) { return sdNo(ix, d); }).join(', ') + '</p>';
+    h += L.length ? '<ul class="on-l" data-sh-bulgu>' + L.map(function (z) { return '<li><code data-no-i18n>' + X(z.code) + '</code> ' + sdSp(z.message) + (z.recommendation ? ' <small>' + X(z.recommendation) + '</small>' : '') + '</li>'; }).join('') + '</ul>' : '<p>' + sdSp('Denetimde bu asetatlar için bulgu yok.') + '</p>';
+    if (mad > 6) h += '<p>' + sdSp(mad + ' madde var; 6’dan çok madde dinleyiciyi yorar.') + '</p>';
+    if (uz) h += '<p>' + sdSp(uz + ' madde 20 sözcükten uzun.') + '</p>';
+    return h + '<p><small>Henüz hiçbir şeyi değiştirmedim. İstersen ne yapmamı istediğini yaz.</small></p>';
+  };
+  /* ---- arayüz: düzenleyicinin yanında kalıcı panel (masaüstü), dar ekranda alt panel. Çevrilecek her cümle kendi metin düğümünde ---- */
+  var SH = { deste: null, log: [], cift: [], durum: 'idle', son: null, bekle: null, I: null, A: null, ozel: false, duzen: false, red: null, oturum: 0 };
+  var SD_DURUM_TR = { idle: '', sending: 'Gönderiliyor…', thinking: 'Düşünüyorum…', confirming: 'Gönderim onayı bekleniyor.', clarification_required: 'Yanıtını bekliyorum.', proposal_ready: 'Öneri hazır; onayını bekliyor.', applying: 'Uygulanıyor…', applied: 'Uygulandı.', stale: 'Öneri bayatladı.', failed: 'Olmadı; sunum değişmedi.', cancelled: 'Vazgeçildi.' };
+  var SD_HATA_TR = { kapali: 'Akıllı editör şu an kapalı; hiçbir şey gönderilmedi. Yerel işlemler (tekrar azaltma, basit kısaltma, madde bölme, terim değiştirme, madde sırası, açıklama) çalışıyor.', kota: 'Öneri hizmetinin kotası doldu.', sinir: 'Çok sık öneri istendi; birkaç dakika sonra yeniden dene.',
+    zaman: 'Öneri zaman aşımına uğradı.', hata: 'Öneri hizmetine ulaşılamadı.', yanit: 'Öneri hizmetinin yanıtı geçersizdi; öneri gösterilmedi.', gecersiz: 'İstek geçersiz sayıldı.', sigmadi: 'Seçilen metinler gönderim sınırına sığmıyor; hiçbir şey gönderilmedi. Daha az asetat ya da öğe seç.',
+    reddedildi: 'Öneri güvenlik denetiminden geçmedi; uygulanmadı.', bayat: 'Öneri bayatladı; uygulanmadı.', uzun: 'Komut 400 karakteri aşıyor; kısalt.', mesgul: 'Önceki istek sürüyor.' };
+  var SD_RED_TR = { deste: 'Sunum değişti.', sinir: 'Toplu düzenleme sınırı aşıldı.', yapi: 'Yapısal değişiklik denetimden geçmedi.', terim: 'Terim değişikliği güvenli değil.' };
+  var SD_BAYAT_TR = { deste: 'Sunum değişti.', asetat: 'Asetat değişti ya da silindi.', oge: 'Öğe silindi.', metin: 'Öğenin metni değişti.', kaynak: 'Kaynak ya da parça değişti.' };
+  var SD_YOK_TR = { veri: 'Grafik ve tablo verisini sohbetle değiştirmiyorum. Veriyi öğeyi seçip elle düzenleyebilirsin; yanındaki metni kısaltmamı ya da netleştirmemi isteyebilirsin.',
+    gorsel: 'Görsel ekleyip değiştirmiyorum. Görseli düzenleyicide elle değiştirebilirsin; asetattaki metni düzenlememi isteyebilirsin.',
+    bicim: 'Yazı tipi, renk, boyut, konum ve düzeni sohbetle değiştirmiyorum. Bunlar için şablonları ve düzenleyici araçlarını kullan; metni yeniden yazmamı isteyebilirsin.',
+    asetat: 'Asetat eklemiyor ve silmiyorum. Bunu küçük resim panelinden yapabilirsin; var olan asetatın metnini düzenleyebilirim.', not: 'Konuşma notlarını sohbetle değiştirmiyorum. Notları elle düzenleyebilirsin.',
+    arastirma: 'Canlı araştırma yapmıyorum; yalnız bu sunumdaki metin ve kayıtlı kaynak parçalarıyla çalışırım.', kaynak: 'Yeni kaynak ya da kaynakça satırı eklemiyorum. Kayıtlı kaynak parçalarına dayanarak netleştirmemi isteyebilirsin (“kaynaklarla netleştir”).',
+    sayi: 'Yeni sayı ya da istatistik eklemiyorum; var olan sayılar korunur.', tum: 'Bütün sunumu tek seferde düzenlemiyorum. En çok 5 asetat seç: örneğin “2-4. slaytları kısalt” ya da “sonuç bölümünü güçlendir”.' };
+  var SD_HEDEF_TR = { aralik: 'Bu numarada asetat yok; hiçbir şey değişmedi.', 'bolum-yok': 'Bu adla bir bölüm bulamadım. Hangi asetat? Numarasını yazabilirsin (örn. “4. slayt”).', fazla: 'Seçim toplu sınırı aşıyor (en çok 5 asetat, asetat başına 3 öğe, toplam 10 öğe). Daha dar bir seçim yaz.',
+    uzun: 'Öğe metni öneri sınırını aşıyor (1200 karakter); daha küçük bir öğe seç.', oge: 'Bu asetatlarda düzenlenebilir bir yazı öğesi yok (kapak, gündem, kaynakça, künye, grafik ve tablo dışarıda).', yapi: 'Kapak, gündem ve kaynakça asetatları sohbetle düzenlenmez.',
+    'terim-yok': 'Bu terimi düzenlenebilir metinlerde tam sözcük olarak bulamadım; hiçbir şey değişmedi.', 'terim-ek': 'Terim yalnız ekli biçimde geçiyor; ek uyumu bozulmasın diye değiştirmedim.', 'terim-cift': 'Hangi terimi hangisiyle değiştireyim? Tırnakla yaz: "eski terim" yerine "yeni terim".',
+    'sira-liste': 'Sıralamak için tek bir madde listesi seç.', 'sira-ayni': 'Maddeler zaten bu sırada; hiçbir şey değişmedi.', red: 'Yerel öneri denetimden geçmedi; hiçbir şey değişmedi.', bos: 'Bu metinlerde güvenle yapılacak yerel bir değişiklik bulamadım.' };
+  var sdIsMesgul = function () { return SH.durum === 'sending' || SH.durum === 'thinking' || SH.durum === 'applying'; };
+  /* yeni deste → sohbet silinir (paintMeta'dan çağrılır) */
+  var sdDeste = function () { if (SH.deste === deck) return; var ac = SH.acik; SH = { deste: deck, log: [], cift: [], durum: 'idle', son: null, bekle: null, I: null, A: null, ozel: false, duzen: false, red: null, oturum: SH.oturum + 1, acik: ac }; sdBoya(); };
+  var sdEkle = function (m, ozet) { SH.log.push(m); if (ozet != null) { var u = ''; for (var i = SH.log.length - 1; i >= 0; i--) if (SH.log[i].m === 'user') { u = SH.log[i].t; break; } SH.cift.push({ u: String(u).slice(0, 2 * SD_KOMUT), a: String(ozet).slice(0, 600) }); if (SH.cift.length > SD_CIFT) SH.cift.shift(); } };
+  var sdSor = function (A, h, sec, ozet) { SH.bekle = { A: A }; SH.durum = 'clarification_required'; sdEkle({ m: 'clarify', h: h, sec: sec || [] }, ozet); };
+  var sdHataEkle = function (kod, neden, nedenTR) { SH.durum = kod === 'bayat' ? 'stale' : 'failed'; sdEkle({ m: 'error', kod: kod, h: '<p class="qa-no" data-sh-hata="' + X(kod) + '"><span>' + (SD_HATA_TR[kod] || SD_HATA_TR.hata) + '</span>' + (neden && nedenTR ? ' <small data-sh-neden="' + X(neden) + '">' + nedenTR + '</small>' : '') + ' <span>Sunum değişmedi.</span></p>' }, 'hata:' + kod); };
+  var sdBilgi = function (h, ozet, durum) { SH.durum = durum || 'idle'; sdEkle({ m: 'assistant', h: h }, ozet); };
+  /* niyet işleme: soru, desteklenmeyen, hedef sorunları, açıklama, yerel öneri, model onayı. Soru ve açıklama sıfır değişiklik */
+  var sdIlerle = function (A) {
+    var d = deck; SH.A = A;
+    if (A.yok) return sdBilgi('<p data-sh-yok="' + A.yok + '">' + sdSp(SD_YOK_TR[A.yok]) + '</p>', 'desteklenmiyor:' + A.yok, 'idle');
+    if (A.tum) return sdBilgi('<p data-sh-yok="tum">' + sdSp(SD_YOK_TR.tum) + '</p>', 'desteklenmiyor:tum', 'idle');
+    if (A.soru) return sdBilgi('<div data-sh-yanit>' + sdYanit(A, d) + '</div>', 'yanit', 'idle');
+    if (A.hata === 'aralik') return sdBilgi('<p data-sh-hedef-hata="aralik">' + sdSp('Sunumda ' + d.slides.length + ' asetat var.') + ' ' + sdSp(SD_HEDEF_TR.aralik) + '</p>', 'hedef yok', 'idle');
+    if (A.hata === 'bolum-yok') return sdSor(A, '<p data-sh-soru="bolum">' + sdSp(SD_HEDEF_TR['bolum-yok']) + '</p>', [], 'soru:bolum');
+    if (A.hata) return sdBilgi('<p data-sh-hedef-hata="' + X(A.hata) + '">' + sdSp(SD_HEDEF_TR[A.hata] || SD_HEDEF_TR.fazla) + '</p>', 'hedef:' + A.hata, 'idle');
+    if (A.aday) return sdSor(A, '<p data-sh-soru="aday">' + sdSp('Birden çok eşleşme var. Hangisini kastediyorsun?') + '</p>', A.aday.slice(0, 4).map(function (r) { return { h: r.length > 1 ? '<span>' + (r[0] + 1) + '–' + (r[r.length - 1] + 1) + '. asetatlar</span> ' + sdUs(titleOf(d.slides[r[0]])) : sdNo(r[0], d), v: { as: r, aday: null, tur: 'acik' } }; }), 'soru:aday');
+    if (A.kayma) return sdSor(A, '<p data-sh-soru="kayma">' + sdSp('Önceki öneri başka bir asetattaydı. Hangisinde çalışayım?') + '</p>', [{ h: '<span>önceki:</span> ' + sdNo(A.kayma[0], d), v: { as: A.kayma, kayma: null, tur: 'acik' } }, { h: '<span>şimdiki:</span> ' + sdNo(d.cur, d), v: { as: [d.cur], kayma: null, tur: 'acik' } }], 'soru:kayma');
+    if (!A.as.length) return sdBilgi('<p>' + sdSp('Sunumda asetat yok.') + '</p>', 'bos', 'idle');
+    if (A.as.some(function (ix) { return kyYapi(d.slides[ix]); })) return sdBilgi('<p data-sh-hedef-hata="yapi">' + sdSp(SD_HEDEF_TR.yapi) + '</p>', 'hedef:yapi', 'idle');
+    if (A.as.length > SD_AS) return sdBilgi('<p data-sh-hedef-hata="fazla">' + sdSp(SD_HEDEF_TR.fazla) + '</p>', 'hedef:fazla', 'idle');
+    if (A.acikla) return sdBilgi('<div data-sh-acikla>' + sdAcikla(A, d) + '</div>', 'aciklama', 'idle');
+    if (!A.is) return sdSor(A, '<p data-sh-soru="is">' + sdSp('Bu metinle ne yapmamı istersin?') + '</p>', [['kisalt', 'kısalt'], ['netlestir', 'netleştir'], ['akademik', 'akademik yap'], ['guclendir', 'güçlendir']].map(function (z) { return { h: '<span>' + z[1] + '</span>', v: { is: z[0] } }; }), 'soru:is');
+    if (A.is === 'terim' && !A.terim) return sdSor(A, '<p data-sh-soru="terim">' + sdSp(SD_HEDEF_TR['terim-cift']) + '</p>', [], 'soru:terim');
+    var O = sdOgeler(A, d);
+    if (O.soru) return sdSor(A, '<p data-sh-soru="oge">' + sdSp('Bu asetatta 3’ten çok metin öğesi var. Hangisini düzenleyeyim?') + '</p>', O.soru.E.slice(0, 4).map(function (e) { return { h: sdUs(String(e.text).replace(/\s+/g, ' ').slice(0, 48)), v: { as: [O.soru.ix], elIds: [String(e.id)] } }; }), 'soru:oge');
+    if (O.hata) return sdBilgi('<p data-sh-hedef-hata="' + O.hata + '">' + sdSp(SD_HEDEF_TR[O.hata]) + '</p>', 'hedef:' + O.hata, 'idle');
+    A.H = O.H;
+    var K = sdYerel(A, d);
+    if (K && K.bos) return sdBilgi('<p data-sh-yerel-bos="' + K.bos + '">' + sdSp(SD_HEDEF_TR[K.bos] || SD_HEDEF_TR.bos) + '</p>', 'yerel:' + K.bos, 'idle');
+    if (K) { SH.son = K; SH.duzen = false; SH.red = null; SH.durum = 'proposal_ready'; sdEkle({ m: 'plan', K: K }, 'oneri:yerel:' + K.hedefler.length); return; }
+    if (sdKapali) return sdHataEkle('kapali');
+    SH.ozel = false; SH.I = sdIstek(A, d, false, SH);
+    if (!SH.I.sigar) return sdHataEkle('sigmadi');
+    SH.durum = 'confirming'; sdEkle({ m: 'onay', A: A, yerelYok: SD_YEREL[A.is] && !A.onceki && !A.model ? 1 : 0 });
+  };
+  var sdGonder = function (metin, sec) {
+    sdDeste(); if (sdIsMesgul()) return false;
+    var B = SH.bekle;
+    if (sec) { SH.bekle = null; sdEkle({ m: 'user', t: sec.t }); SH.durum = 'sending'; sdIlerle(sec.v.metin != null ? sdAnla(sec.v.metin, deck, B, SH) : Object.assign({}, B ? B.A : {}, sec.v)); sdBoya(); return true; }
+    metin = String(metin == null ? '' : metin).trim(); if (!metin) return false;
+    if (metin.length > SD_KOMUT) { sdHataEkle('uzun'); sdBoya(); return false; }
+    SH.bekle = null; sdEkle({ m: 'user', t: metin }); SH.durum = 'sending';
+    sdIlerle(sdAnla(metin, deck, B, SH)); sdBoya(); return true;
+  };
+  var sdOnayla = function (cagir) {
+    if (SH.durum !== 'confirming' || !SH.I || !SH.A) return null;
+    var A = SH.A, I = sdIstek(A, deck, SH.ozel, SH), o = SH.oturum; SH.I = I;
+    if (!I.sigar) { sdHataEkle('sigmadi'); sdBoya(); return null; }
+    SH.durum = 'thinking'; sdBoya();
+    return sdModel(A, I, deck, cagir).then(function (r) {
+      if (SH.oturum !== o) return r;      /* deste değişti: yanıt atılır */
+      if (r.durum !== 'tamam') { sdHataEkle(r.durum, r.neden, r.neden ? (ON_RED_TR[r.neden] || SD_RED_TR[r.neden] || '') : ''); }
+      else if (r.K) { SH.son = r.K; SH.duzen = false; SH.red = null; SH.durum = 'proposal_ready'; sdEkle({ m: 'plan', K: r.K }, 'oneri:groq:' + r.K.hedefler.length); }
+      else if (r.R.niyet === 'clarify') sdSor(A, '<p data-sh-soru="model" data-no-i18n>' + X(r.R.soru.question) + '</p>', r.R.soru.options.map(function (z) { return { h: sdUs(z), t: z, v: { metin: z } }; }), r.R.mesaj);
+      else sdBilgi('<p data-sh-model="' + X(r.R.niyet) + '" data-no-i18n>' + X(r.R.mesaj) + '</p>', r.R.mesaj, 'idle');
+      sdBoya(); return r;
+    });
+  };
+  var sdKartPlan = function (K, akt) {
+    var d = deck, reg = kyKayit(d), yr = K.motor === 'yerel', gr = [], h = '<div class="on sh-plan" data-sh-plan data-sh-motor="' + K.motor + '">';
+    K.hedefler.forEach(function (t, i) { var ix = sdAs(d, t.slide_id), g = gr.filter(function (z) { return z.ix === ix; })[0]; if (!g) gr.push(g = { ix: ix, L: [] }); g.L.push({ t: t, i: i }); });
+    h += '<p><b>Değişiklik önerisi</b> · <small>' + (K.motor === 'groq' ? 'Groq önerisi' : K.motor === 'kullanici' ? 'senin düzenlemen' : 'yerel öneri') + '</small></p>' + (K.mesaj ? '<p>' + (yr ? sdSp(K.mesaj) : sdUs(K.mesaj)) + '</p>' : '');
+    h += '<p><small>' + sdSp(K.hedefler.length + ' öğe · ' + gr.length + ' asetat') + '</small></p>';
+    gr.forEach(function (g) { h += '<section class="sh-as" data-sh-as="' + X(g.ix >= 0 ? d.slides[g.ix].id : '') + '"><h5>' + (g.ix >= 0 ? sdNo(g.ix, d) : '') + '</h5>';
+      g.L.forEach(function (z) { var s = d.slides[g.ix], e = s && onEl(s, z.t.element_id), eski = e ? e.text : '';
+        h += '<dl class="qa-dl" data-sh-oge="' + X(z.t.element_id) + '"><dt>Şimdi</dt><dd class="on-eski" data-no-i18n>' + X(eski).replace(/\n/g, '<br>') + '</dd><dt>Öneri</dt><dd class="on-yeni" data-sh-yeni data-no-i18n>' + X(z.t.replacement_text).replace(/\n/g, '<br>') + '</dd><dt>Fark</dt><dd class="on-fark">' + onFark(eski, z.t.replacement_text) + '</dd>' + (z.t.reason ? '<dt>Neden</dt><dd>' + (yr ? sdSp(z.t.reason) : sdUs(z.t.reason)) + '</dd>' : '') + '</dl>';
+        if (akt && SH.duzen) h += '<label class="on-duz"><small>Öneriyi düzenle</small><textarea data-sh-metin="' + z.i + '" rows="3" data-no-i18n>' + X(z.t.replacement_text) + '</textarea></label>'; });
+      h += '</section>'; });
+    h += K.kanit.length ? '<p><small>Kaynak parçaları</small></p>' + onParcaHTML({ kanit: K.kanit }, reg) : '<p><small data-sh-ifade>Yeni bilgi eklenmez; yalnız ifade değişir.</small></p>';
+    if (K.sinir.length) h += '<p><small>Sınırlar</small></p><ul class="on-l">' + onListe(K.sinir, yr) + '</ul>';
+    h += '<p class="sxd-sub" style="margin:6px 0 0" data-sh-sinir>Yalnız bu öğelerin metni değişir; konum, boyut, yazı tipi, renk, grafik, tablo, görsel, kaynakça ve notlar aynı kalır. Değişen iddialar doğrulanmadı sayılır. Hepsi birlikte uygulanır ve tek adımda geri alınır.</p>';
+    if (!akt) return h + '</div>';
+    if (SH.duzen) return h + (SH.red ? '<p class="qa-no" data-sh-red="' + X(SH.red) + '"><span>Düzenleme denetimden geçmedi.</span> <small>' + (ON_RED_TR[SH.red] || SD_RED_TR[SH.red] || '') + '</small></p>' : '') + '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-sh-duzenvaz>vazgeç</button><button type="button" class="sxd-b sm pri" data-sh-duzenok>denetle ve kullan</button></div></div>';
+    return h + '<div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-sh-uygula>Uygula</button><button type="button" class="sxd-b sm" data-sh-duzen>Öneriyi düzenle</button><button type="button" class="sxd-b sm" data-sh-yeniden>Yeniden öner</button><button type="button" class="sxd-b sm" data-sh-vazgec>Vazgeç</button></div></div>';
+  };
+  var sdKartOnay = function (m, akt) {
+    var I = SH.I, G = I && I.govde;
+    if (!akt || !I) return '<p><small>Gönderim onayı istendi.</small></p>';
+    return '<div class="au-kk-onay" data-sh-onay-kutu><p>Bu düzenleme önerisi için yazdığınız komut ve seçilen slaytların gerekli metinleri Groq hizmetine gönderilir. Yalnızca ilgili bağlam ve seçilmiş kaynak parçaları paylaşılır; tam sunum ve tam belgeler gönderilmez. Herhangi bir değişiklik uygulanmadan önce önizleme ve onay sunulur.</p>' +
+      (I.ozelVar ? '<p data-sh-ozel-not>Belge veya kart kaynaklarından seçilen pasajlar özel içerik barındırabilir. Yalnızca gönderilmesini onayladığınız pasajlar dış hizmete iletilir.</p><label class="sh-ozel"><input type="checkbox" data-sh-ozel' + (SH.ozel ? ' checked' : '') + '> <span>Belge ve kart pasajlarını da gönder</span></label>' : '') +
+      (m.yerelYok ? '<p><small>Yerel yol güvenli bir değişiklik bulamadı; öneri için model gerekir.</small></p>' : '') +
+      '<p><small data-sh-ozet>' + I.hedef + ' öğe · ' + I.asetat + ' asetat · ' + I.parca + ' kaynak parçası · ' + I.baglam + ' komşu başlık</small></p>' +
+      (I.fazlaParca ? '<p><small>' + I.fazlaParca + ' parça sınır nedeniyle gönderilmez (en çok ' + SD_PARCA + ').</small></p>' : '') + (I.ozelAtla ? '<p><small data-sh-ozel-atla>' + I.ozelAtla + ' belge/kart pasajı onaysız gönderilmez.</small></p>' : '') + (I.uzunParca ? '<p><small>' + I.uzunParca + ' uzun parça gönderilmez.</small></p>' : '') + (I.kisaltilan ? '<p><small>' + I.kisaltilan + ' komşu başlık 200 karaktere kısaltıldı.</small></p>' : '') + (I.fazlaBulgu ? '<p><small>' + I.fazlaBulgu + ' denetim kodu sınır nedeniyle gönderilmez.</small></p>' : '') +
+      '<details class="on-gon"><summary>Gönderilecek metin</summary><p class="on-eski" data-no-i18n>' + X(G.komut) + '</p>' + G.hedefler.map(function (h) { return '<p class="on-eski" data-no-i18n>' + X(h.metin).replace(/\n/g, '<br>') + '</p>'; }).join('') + G.parcalar.map(function (p) { return '<blockquote data-sh-gid="' + X(p.pid) + '"><q data-no-i18n>' + X(p.metin) + '</q></blockquote>'; }).join('') + '</details>' +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-sh-vazgec>Vazgeç</button><button type="button" class="sxd-b sm pri" data-sh-onay>Onayla ve gönder</button></div></div>';
+  };
+  var sdKartSonuc = function (R, akt) {
+    return '<p class="qa-ok" data-sh-son="ok">Değişiklik uygulandı.</p><p><small>' + sdSp(R.oge + ' öğe · ' + R.as + ' asetat değişti.') + '</small></p>' +
+      (R.iddia ? '<p><small data-sh-yeniddia>' + sdSp(R.iddia + ' değişen iddia doğrulanmadı olarak kaydedildi; eski kontrol taşınmadı.') + '</small> <small>Kanıtları denetim penceresindeki “Kanıtları kontrol et” ile yeniden kontrol edebilirsin.</small></p>' : '') +
+      (R.cozulen.length ? '<p data-sh-cozulen><small>Çözülen bulgu:</small> <code data-no-i18n>' + X(R.cozulen.join(', ')) + '</code></p>' : '') +
+      (R.yeni.length ? '<p class="qa-no" data-sh-yenibulgu><small>Yeni bulgu:</small> <code data-no-i18n>' + X(R.yeni.join(', ')) + '</code></p>' : '<p><small>Yeni bulgu yok.</small></p>') +
+      (akt && undoS[undoS.length - 1] === R.before ? '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-sh-geri>geri al</button></div>' : '');
+  };
+  var sdKart = function (m, akt) {
+    var b = '<li class="sh-m sh-' + m.m + '" data-sh-m="' + (m.m === 'onay' ? 'plan' : m.m) + '"' + (m.m === 'onay' ? ' data-sh-onay-m' : '') + '>';
+    if (m.m === 'user') return b + '<p data-no-i18n>' + X(m.t) + '</p></li>';
+    if (m.m === 'clarify') return b + m.h + (akt && SH.durum === 'clarification_required' && m.sec.length ? '<div class="sxd-acts sh-sec">' + m.sec.map(function (z, i) { return '<button type="button" class="sxd-b sm" data-sh-sec="' + i + '">' + z.h + '</button>'; }).join('') + '</div>' : '') + '</li>';
+    if (m.m === 'onay') return b + sdKartOnay(m, akt && SH.durum === 'confirming') + '</li>';
+    if (m.m === 'plan') return b + sdKartPlan(m.K, akt && SH.durum === 'proposal_ready' && SH.son === m.K) + '</li>';
+    if (m.m === 'result') return b + sdKartSonuc(m.R, akt) + '</li>';
+    return b + m.h + '</li>';
+  };
+  var sdBoya = function () {
+    var P = Q('[data-sh]'); if (!P) return;
+    P.setAttribute('data-sh-st', SH.durum);
+    var log = P.querySelector('[data-sh-log]'), st = P.querySelector('[data-sh-durum]'), hd = P.querySelector('[data-sh-hedef]'), g = P.querySelector('[data-sh-gonder]'), ta = P.querySelector('[data-sh-in]');
+    var bos = '<li class="sh-m sh-assistant sh-bos" data-sh-m="assistant"><p>Sunumun metnini doğal dille düzenle. Önce öneri gösteririm; sen onaylamadan hiçbir şey değişmez.</p><p><small>Örnek: “3. slaytı kısalt”, “sonuç bölümünü güçlendir”, “bu slaytı öğrenciler için sadeleştir”, “neden zayıf, henüz değiştirme”.</small></p></li>';
+    log.innerHTML = SH.log.length ? SH.log.map(function (m, i) { return sdKart(m, i === SH.log.length - 1); }).join('') : bos;
+    st.textContent = SD_DURUM_TR[SH.durum] || ''; g.disabled = ta.disabled = sdIsMesgul();
+    var K = SH.durum === 'proposal_ready' && SH.son, ix = K ? K.hedefler.map(function (h) { return sdAs(deck, h.slide_id); }).filter(function (x, i, a) { return x >= 0 && a.indexOf(x) === i; }) : (deck.slides.length ? [deck.cur] : []);
+    hd.innerHTML = ix.length ? '<small>Hedef:</small> ' + ix.slice(0, 5).map(function (x) { return '<span>' + (x + 1) + '. asetat</span>'; }).join(', ') : '';
+    log.scrollTop = log.scrollHeight;
+  };
+  var sdTikla = function (t) {
+    var a = function (k) { return t.hasAttribute(k); };
+    if (a('data-sh-kapat')) { sdAc(false); return; }
+    if (a('data-sh-sec')) { var m = SH.log[SH.log.length - 1], z = m && m.m === 'clarify' && m.sec[+t.getAttribute('data-sh-sec')]; if (z) sdGonder(null, { t: z.t || t.textContent.trim(), v: z.v }); return; }
+    if (a('data-sh-onay')) { sdOnayla(); return; }
+    if (a('data-sh-vazgec')) { if (SH.durum === 'confirming' || SH.durum === 'proposal_ready') { SH.durum = 'cancelled'; SH.I = null; SH.son = null; sdEkle({ m: 'assistant', h: '<p data-sh-vazgecildi>' + sdSp('Vazgeçildi; sunum değişmedi.') + '</p>' }, 'vazgecildi'); } sdBoya(); return; }
+    if (a('data-sh-yeniden')) { if (SH.durum !== 'proposal_ready' || !SH.son) return; var A = Object.assign({}, SH.son.A, { model: 1, onceki: null }); SH.son = null; sdEkle({ m: 'user', t: t.textContent.trim() }); sdIlerle(A); sdBoya(); return; }
+    if (a('data-sh-duzen')) { if (SH.durum === 'proposal_ready') { SH.duzen = true; SH.red = null; } sdBoya(); return; }
+    if (a('data-sh-duzenvaz')) { SH.duzen = false; SH.red = null; sdBoya(); return; }
+    if (a('data-sh-duzenok')) {
+      var K = SH.son; if (!K || SH.durum !== 'proposal_ready') return;
+      var P = Q('[data-sh]'), K2 = Object.assign({}, K, { motor: 'kullanici', yapi: null, hedefler: K.hedefler.map(function (h, i) { var ta = P.querySelector('[data-sh-metin="' + i + '"]'); return Object.assign({}, h, { replacement_text: ta ? ta.value : h.replacement_text }); }) });
+      var v = sdDenetle(K2, deck); if (v) { SH.red = v; sdBoya(); return; }
+      K2.kimza = sdKimza(deck, K2.hedefler, K2.kanit); SH.son = K2; SH.duzen = false; SH.red = null; sdEkle({ m: 'plan', K: K2 }); sdBoya(); return;
+    }
+    if (a('data-sh-uygula')) {
+      if (SH.durum !== 'proposal_ready' || !SH.son) return;
+      SH.durum = 'applying'; var r = sdUygula(SH.son, onOrtam());
+      if (r.before) { SH.durum = 'applied'; sdEkle({ m: 'result', R: r }, 'uygulandi:' + r.oge); paintKalite(); say('Değişiklik uygulandı.', undo); }
+      else if (r.hata === 'bayat') sdHataEkle('bayat', r.neden, SD_BAYAT_TR[r.neden]);
+      else sdHataEkle(r.hata === 'gecersiz' ? 'reddedildi' : 'hata', r.neden, r.neden ? (ON_RED_TR[r.neden] || SD_RED_TR[r.neden] || '') : '');
+      sdBoya(); return;
+    }
+    if (a('data-sh-geri')) { var R = SH.log[SH.log.length - 1]; if (R && R.m === 'result' && undoS[undoS.length - 1] === R.R.before) { undo(); SH.durum = 'cancelled'; SH.son = null; sdEkle({ m: 'assistant', h: '<p data-sh-geri-son>' + sdSp('Değişiklik geri alındı.') + '</p>' }, 'geri alindi'); } sdBoya(); return; }
+  };
+  var sdAc = function (ac) {
+    var P = Q('[data-sh]'), b = Q('[data-sh-ac]'); if (!P) return; sohbetSozluk(); sdDeste();
+    SH.acik = ac = ac == null ? P.hidden : !!ac; P.hidden = !ac; root.classList.toggle('sh-acik', ac); if (b) b.setAttribute('aria-expanded', String(ac));
+    var ta = P.querySelector('[data-sh-in]'); ta.placeholder = gqDil() === 'en' ? 'e.g. shorten slide 3' : 'örn. 3. slaytı kısalt';
+    sdBoya(); if (ac) ta.focus(); else if (b) b.focus();
+  };
+  var sdCss = function () {
+    if (document.getElementById('ax-sh-css')) return; var st = document.createElement('style'); st.id = 'ax-sh-css';
+    st.textContent = '.sx-sh{position:fixed;right:12px;top:72px;bottom:12px;width:380px;max-width:calc(100vw - 24px);z-index:60;display:flex;flex-direction:column;background:#FFFDF7;border:1.5px solid #1A2A5C;border-radius:16px;box-shadow:4px 5px 0 #1A2A5C;color:#0D1838;font:14px/1.45 "Instrument Sans",system-ui,sans-serif;box-sizing:border-box}' +
+      '.sx-sh[hidden]{display:none}.sx-sh *{box-sizing:border-box}.sx-sh .sh-ust{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1.5px dashed #E4DCC8}.sx-sh .sh-ust b{font:800 16px "Bricolage Grotesque",sans-serif}' +
+      '.sx-sh .sh-hedef{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4B5675;font-size:12.5px}.sx-sh .sh-x{width:32px;height:32px;border:0;border-radius:50%;background:#F1ECDF;color:#1A2A5C;font-size:18px;cursor:pointer;flex:none}' +
+      '.sx-sh .sh-log{list-style:none;margin:0;padding:10px 12px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:8px}.sx-sh .sh-m{margin:0;padding:8px 10px;border-radius:12px;max-width:100%;overflow-wrap:anywhere;word-break:break-word}' +
+      '.sx-sh .sh-m p{margin:0 0 4px}.sx-sh .sh-user{align-self:flex-end;background:#0D1838;color:#fff;max-width:88%}.sx-sh .sh-assistant,.sx-sh .sh-clarify{background:#F3F0E7}.sx-sh .sh-plan,.sx-sh .sh-onay,.sx-sh .sh-result{background:#fff;border:1.5px solid #E4DCC8}.sx-sh .sh-error{background:#FBE9E6}' +
+      '.sx-sh .sh-as{margin:6px 0;padding-top:6px;border-top:1px dashed #E4DCC8}.sx-sh .sh-as h5{margin:0 0 4px;font:700 13px "Bricolage Grotesque",sans-serif}.sx-sh .qa-dl{grid-template-columns:auto minmax(0,1fr)}.sx-sh code{overflow-wrap:anywhere}' +
+      '.sx-sh .sh-alt{padding:8px 12px 12px;border-top:1.5px dashed #E4DCC8}.sx-sh .sh-alt textarea{width:100%;min-height:56px;resize:vertical;font:inherit;padding:8px;border:1.5px solid #E4DCC8;border-radius:10px;background:#fff}' +
+      '.sx-sh .sh-alt-r{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}.sx-sh .sh-alt-r small{color:#4B5675;min-width:0;overflow-wrap:anywhere}.sx-sh .sh-ozel{display:flex;gap:6px;align-items:flex-start;margin:4px 0}.sx-sh .on-duz textarea{width:100%}' +
+      '.sx-sh .sxd-acts{justify-content:flex-start}.sx-sh .sh-sec .sxd-b{text-align:left;max-width:100%;overflow-wrap:anywhere}' +
+      '@media (min-width:1101px){#sunum.sh-acik{padding-right:396px}}' +
+      '@media (max-width:720px){.sx-sh{left:0;right:0;top:auto;bottom:0;width:auto;max-width:none;max-height:72vh;border-radius:16px 16px 0 0;box-shadow:0 -4px 0 #1A2A5C}}';
+    document.head.appendChild(st);
+  };
+  var sohbetSozluk = function () {
+    var A = window.AX_EN && window.AX_EN.t; if (!A || A['Sohbetle düzenle']) return;
+    var ek = { 'Sohbetle düzenle': 'Edit by chat', '✎ sohbetle düzenle': '✎ edit by chat', 'Kapat': 'Close', 'Gönder': 'Send', 'Hedef:': 'Target:', '{#}. asetat': 'slide {#}', '{#}–{#}. asetatlar': 'slides {#}–{#}', 'önceki:': 'previous:', 'şimdiki:': 'current:',
+      'Sunumun metnini doğal dille düzenle. Önce öneri gösteririm; sen onaylamadan hiçbir şey değişmez.': 'Edit the presentation text in plain language. I show a proposal first; nothing changes until you approve.',
+      'Örnek: “3. slaytı kısalt”, “sonuç bölümünü güçlendir”, “bu slaytı öğrenciler için sadeleştir”, “neden zayıf, henüz değiştirme”.': 'Examples: “shorten slide 3”, “strengthen the conclusion section”, “simplify this slide for students”, “why is it weak, don\'t change yet”.',
+      'Gönderiliyor…': 'Sending…', 'Düşünüyorum…': 'Thinking…', 'Gönderim onayı bekleniyor.': 'Waiting for send approval.', 'Yanıtını bekliyorum.': 'Waiting for your answer.', 'Öneri hazır; onayını bekliyor.': 'Proposal ready; waiting for your approval.', 'Uygulanıyor…': 'Applying…', 'Uygulandı.': 'Applied.', 'Öneri bayatladı.': 'The proposal is stale.', 'Olmadı; sunum değişmedi.': 'That did not work; the presentation did not change.', 'Vazgeçildi.': 'Cancelled.',
+      'Akıllı editör şu an kapalı; hiçbir şey gönderilmedi. Yerel işlemler (tekrar azaltma, basit kısaltma, madde bölme, terim değiştirme, madde sırası, açıklama) çalışıyor.': 'The smart editor is off right now; nothing was sent. Local actions (reducing repetition, simple shortening, splitting bullets, replacing terms, bullet order, explanations) still work.',
+      'Seçilen metinler gönderim sınırına sığmıyor; hiçbir şey gönderilmedi. Daha az asetat ya da öğe seç.': 'The selected texts do not fit the send limit; nothing was sent. Pick fewer slides or elements.', 'Öneri bayatladı; uygulanmadı.': 'The proposal is stale; it was not applied.', 'Komut 400 karakteri aşıyor; kısalt.': 'The command is over 400 characters; shorten it.', 'Önceki istek sürüyor.': 'The previous request is still running.',
+      'Toplu düzenleme sınırı aşıldı.': 'The batch edit limit was exceeded.', 'Yapısal değişiklik denetimden geçmedi.': 'The structural change failed the check.', 'Terim değişikliği güvenli değil.': 'The term replacement is not safe.', 'Asetat değişti ya da silindi.': 'The slide changed or was deleted.', 'Öğe silindi.': 'The element was deleted.',
+      'Grafik ve tablo verisini sohbetle değiştirmiyorum. Veriyi öğeyi seçip elle düzenleyebilirsin; yanındaki metni kısaltmamı ya da netleştirmemi isteyebilirsin.': 'I do not change chart or table data by chat. Select the element to edit the data by hand; you can ask me to shorten or clarify the text next to it.',
+      'Görsel ekleyip değiştirmiyorum. Görseli düzenleyicide elle değiştirebilirsin; asetattaki metni düzenlememi isteyebilirsin.': 'I do not add or change images. Change the image by hand in the editor; you can ask me to edit the slide text.',
+      'Yazı tipi, renk, boyut, konum ve düzeni sohbetle değiştirmiyorum. Bunlar için şablonları ve düzenleyici araçlarını kullan; metni yeniden yazmamı isteyebilirsin.': 'I do not change font, colour, size, position or layout by chat. Use the templates and editor tools for that; you can ask me to rewrite the text.',
+      'Asetat eklemiyor ve silmiyorum. Bunu küçük resim panelinden yapabilirsin; var olan asetatın metnini düzenleyebilirim.': 'I do not add or delete slides. Do that from the thumbnail panel; I can edit the text of an existing slide.', 'Konuşma notlarını sohbetle değiştirmiyorum. Notları elle düzenleyebilirsin.': 'I do not change speaker notes by chat. Edit the notes by hand.',
+      'Canlı araştırma yapmıyorum; yalnız bu sunumdaki metin ve kayıtlı kaynak parçalarıyla çalışırım.': 'I do not do live research; I only work with this presentation\'s text and its recorded source passages.',
+      'Yeni kaynak ya da kaynakça satırı eklemiyorum. Kayıtlı kaynak parçalarına dayanarak netleştirmemi isteyebilirsin (“kaynaklarla netleştir”).': 'I do not add new sources or reference lines. You can ask me to clarify based on the recorded source passages (“clarify with sources”).',
+      'Yeni sayı ya da istatistik eklemiyorum; var olan sayılar korunur.': 'I do not add new numbers or statistics; existing numbers are preserved.', 'Bütün sunumu tek seferde düzenlemiyorum. En çok 5 asetat seç: örneğin “2-4. slaytları kısalt” ya da “sonuç bölümünü güçlendir”.': 'I do not edit the whole presentation at once. Pick at most 5 slides: for example “shorten slides 2-4” or “strengthen the conclusion section”.',
+      'Bu numarada asetat yok; hiçbir şey değişmedi.': 'There is no slide with that number; nothing changed.', 'Sunumda {#} asetat var.': 'The presentation has {#} slides.', 'Bu adla bir bölüm bulamadım. Hangi asetat? Numarasını yazabilirsin (örn. “4. slayt”).': 'I could not find a section with that name. Which slide? You can type its number (e.g. “slide 4”).',
+      'Seçim toplu sınırı aşıyor (en çok 5 asetat, asetat başına 3 öğe, toplam 10 öğe). Daha dar bir seçim yaz.': 'The selection exceeds the batch limit (at most 5 slides, 3 elements per slide, 10 elements in total). Type a narrower selection.',
+      'Öğe metni öneri sınırını aşıyor (1200 karakter); daha küçük bir öğe seç.': 'The element text exceeds the proposal limit (1200 characters); pick a smaller element.', 'Bu asetatlarda düzenlenebilir bir yazı öğesi yok (kapak, gündem, kaynakça, künye, grafik ve tablo dışarıda).': 'These slides have no editable text element (cover, agenda, references, credits, charts and tables are excluded).',
+      'Kapak, gündem ve kaynakça asetatları sohbetle düzenlenmez.': 'Cover, agenda and reference slides are not edited by chat.', 'Bu terimi düzenlenebilir metinlerde tam sözcük olarak bulamadım; hiçbir şey değişmedi.': 'I could not find this term as a whole word in the editable texts; nothing changed.',
+      'Terim yalnız ekli biçimde geçiyor; ek uyumu bozulmasın diye değiştirmedim.': 'The term only appears with suffixes; I did not change it so the suffixes stay correct.', 'Hangi terimi hangisiyle değiştireyim? Tırnakla yaz: "eski terim" yerine "yeni terim".': 'Which term should I replace with which? Use quotes: replace "old term" with "new term".',
+      'Sıralamak için tek bir madde listesi seç.': 'Pick a single bullet list to reorder.', 'Maddeler zaten bu sırada; hiçbir şey değişmedi.': 'The bullets are already in this order; nothing changed.', 'Yerel öneri denetimden geçmedi; hiçbir şey değişmedi.': 'The local proposal failed the check; nothing changed.', 'Bu metinlerde güvenle yapılacak yerel bir değişiklik bulamadım.': 'I found no safe local change in these texts.',
+      'Birden çok eşleşme var. Hangisini kastediyorsun?': 'There is more than one match. Which one do you mean?', 'Önceki öneri başka bir asetattaydı. Hangisinde çalışayım?': 'The previous proposal was on another slide. Which one should I work on?', 'Sunumda asetat yok.': 'The presentation has no slides.',
+      'Bu metinle ne yapmamı istersin?': 'What should I do with this text?', 'kısalt': 'shorten', 'netleştir': 'clarify', 'akademik yap': 'make academic', 'güçlendir': 'strengthen', 'Bu asetatta 3’ten çok metin öğesi var. Hangisini düzenleyeyim?': 'This slide has more than 3 text elements. Which one should I edit?',
+      'Birebir yinelenen cümle ya da madde çıkarıldı.': 'An exactly repeated sentence or bullet was removed.', 'Birebir yinelenen cümle ve maddeleri çıkardım; öteki metin aynı.': 'I removed exactly repeated sentences and bullets; the rest of the text is unchanged.', 'Anlam taşımayan dolgu sözcükleri çıkarıldı.': 'Filler words without meaning were removed.',
+      'Anlam taşımayan dolgu sözcüklerini çıkardım; sayılar, adlar ve iddialar aynı.': 'I removed filler words without meaning; numbers, names and claims are unchanged.', 'Birden çok cümle taşıyan madde güvenli cümle sınırından bölündü.': 'A bullet with several sentences was split at a safe sentence boundary.',
+      'Birden çok cümle taşıyan maddeleri ayrı maddelere böldüm; sözcükler aynı.': 'I split bullets with several sentences into separate bullets; the words are unchanged.', 'Terim birliği: tam sözcük olarak değiştirildi.': 'Consistent terminology: replaced as a whole word.', 'Terimi yalnız tam sözcük olarak değiştirdim.': 'I replaced the term as a whole word only.',
+      '{#} ekli kullanım değiştirilmedi; ek uyumunu elle kontrol et.': '{#} suffixed uses were not changed; check the suffixes by hand.', 'Yalnız madde sırası değişti.': 'Only the bullet order changed.', 'Maddelerin yalnız sırasını değiştirdim.': 'I only changed the order of the bullets.',
+      'Bunu yanıtlamak için canlı veri gerekir; canlı araştırma yapmıyorum.': 'Answering this needs live data; I do not do live research.', 'Canlı araştırma yapmıyorum; yalnız bu sunumdaki verilerden yanıtlarım.': 'I do not do live research; I only answer from this presentation\'s data.', 'Sunumda {#} kayıtlı kaynak var.': 'The presentation has {#} recorded sources.',
+      'Kayıtlı {#} iddia: {#} kontrol edilmedi, {#} kontrol edildi, {#} bayat.': '{#} recorded claims: {#} not checked, {#} checked, {#} stale.', 'Kanıtları denetim penceresindeki “Kanıtları kontrol et” ile sen başlatırsın.': 'You start the evidence check yourself with “Check evidence” in the audit window.', 'Denetimde {#} bulgu var.': 'The audit has {#} findings.',
+      'Bu sunumun metinlerini düzenleyebilirim: kısaltma, netleştirme, akademik ya da sade ton, başlık, geçiş, madde sırası, tekrar azaltma, terim birliği.': 'I can edit this presentation\'s text: shortening, clarifying, academic or plain tone, titles, transitions, bullet order, reducing repetition, consistent terminology.',
+      'Örnek: “3. slaytı kısalt”, “sonuç bölümünü güçlendir”, “"veri seti" yerine "veri kümesi" kullan”.': 'Examples: “shorten slide 3”, “strengthen the conclusion section”, “use "dataset" instead of "data set"”.', 'Denetimde bu asetatlar için bulgu yok.': 'The audit has no findings for these slides.',
+      '{#} madde var; 6’dan çok madde dinleyiciyi yorar.': 'There are {#} bullets; more than 6 bullets tire the audience.', '{#} madde 20 sözcükten uzun.': '{#} bullets are longer than 20 words.', 'Henüz hiçbir şeyi değiştirmedim. İstersen ne yapmamı istediğini yaz.': 'I have not changed anything yet. Tell me what you want me to do if you like.',
+      'Değişiklik önerisi': 'Change proposal', '{#} öğe · {#} asetat': '{#} elements · {#} slides', 'Neden': 'Reason', 'Kaynak parçaları': 'Source passages', 'Sınırlar': 'Limitations',
+      'Yalnız bu öğelerin metni değişir; konum, boyut, yazı tipi, renk, grafik, tablo, görsel, kaynakça ve notlar aynı kalır. Değişen iddialar doğrulanmadı sayılır. Hepsi birlikte uygulanır ve tek adımda geri alınır.': 'Only these elements\' text changes; position, size, font, colour, charts, tables, images, references and notes stay the same. Changed claims count as unverified. Everything is applied together and undone in one step.',
+      'Gönderim onayı istendi.': 'Send approval was requested.',
+      'Bu düzenleme önerisi için yazdığınız komut ve seçilen slaytların gerekli metinleri Groq hizmetine gönderilir. Yalnızca ilgili bağlam ve seçilmiş kaynak parçaları paylaşılır; tam sunum ve tam belgeler gönderilmez. Herhangi bir değişiklik uygulanmadan önce önizleme ve onay sunulur.': 'For this edit proposal, the command you typed and the necessary text of the selected slides are sent to the Groq service. Only the relevant context and selected source passages are shared; the full presentation and full documents are not sent. A preview and approval are shown before any change is applied.',
+      'Belge veya kart kaynaklarından seçilen pasajlar özel içerik barındırabilir. Yalnızca gönderilmesini onayladığınız pasajlar dış hizmete iletilir.': 'Passages selected from document or card sources may contain private content. Only the passages you approve are sent to the external service.',
+      'Belge ve kart pasajlarını da gönder': 'Also send document and card passages', 'Yerel yol güvenli bir değişiklik bulamadı; öneri için model gerekir.': 'The local path found no safe change; a proposal needs the model.', '{#} öğe · {#} asetat · {#} kaynak parçası · {#} komşu başlık': '{#} elements · {#} slides · {#} source passages · {#} neighbouring titles',
+      '{#} belge/kart pasajı onaysız gönderilmez.': '{#} document/card passages are not sent without approval.', '{#} uzun parça gönderilmez.': '{#} long passages are not sent.', '{#} komşu başlık 200 karaktere kısaltıldı.': '{#} neighbouring titles were shortened to 200 characters.', '{#} denetim kodu sınır nedeniyle gönderilmez.': '{#} audit codes are not sent because of the limit.',
+      'Onayla ve gönder': 'Approve and send', 'Değişiklik uygulandı.': 'Change applied.', '{#} öğe · {#} asetat değişti.': '{#} elements · {#} slides changed.', '{#} değişen iddia doğrulanmadı olarak kaydedildi; eski kontrol taşınmadı.': '{#} changed claims were recorded as unverified; the old check was not carried over.',
+      'Kanıtları denetim penceresindeki “Kanıtları kontrol et” ile yeniden kontrol edebilirsin.': 'You can check the evidence again with “Check evidence” in the audit window.', 'Çözülen bulgu:': 'Resolved finding:', 'Yeni bulgu yok.': 'No new findings.', 'Değişiklik geri alındı.': 'Change undone.' };
+    for (var k in ek) if (!A[k]) A[k] = ek[k];
+  };
+  (function () {
+    if (Q('[data-sh]')) return; sdCss();
+    root.insertAdjacentHTML('beforeend', '<aside class="sx-sh ax-sxd" id="ax-sh" data-sh hidden aria-label="Sohbetle düzenle" data-sh-st="idle"><header class="sh-ust"><b>Sohbetle düzenle</b><span class="sh-hedef" data-sh-hedef></span><button type="button" class="sh-x" data-sh-kapat aria-label="Kapat">×</button></header>' +
+      '<ol class="sh-log" data-sh-log aria-live="polite"></ol><form class="sh-alt" data-sh-form><textarea data-sh-in rows="2" maxlength="' + SD_KOMUT + '" aria-label="Sohbetle düzenle" data-no-i18n></textarea><div class="sh-alt-r"><small data-sh-durum role="status"></small><button type="submit" class="sxd-b sm pri" data-sh-gonder>Gönder</button></div></form></aside>');
+    var P = Q('[data-sh]'), ta = P.querySelector('[data-sh-in]');
+    P.addEventListener('click', function (e) { var t = e.target.closest('button'); if (t && P.contains(t)) sdTikla(t); });
+    P.addEventListener('change', function (e) { if (e.target.hasAttribute('data-sh-ozel') && SH.durum === 'confirming') { SH.ozel = !!e.target.checked; SH.I = sdIstek(SH.A, deck, SH.ozel, SH); sdBoya(); } });
+    P.querySelector('[data-sh-form]').addEventListener('submit', function (e) { e.preventDefault(); if (sdGonder(ta.value)) ta.value = ''; ta.focus(); });
+    ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (sdGonder(ta.value)) ta.value = ''; } });
+  })();
+  /* ---------- #55 son ---------- */
   var deckKey = function (d) { return arr(d.slides).length + '|' + arr(d.slides).map(function (sl) { return (sl.lay || '') + ':' + titleOf(sl) + ':' + String(sl.notes || '').length; }).join('|'); };
   var titleKey = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
   var ciftBasliklar = function () {
@@ -9848,6 +10421,7 @@ var SBX = (function () {
     paint(); auDlg.showModal(); var f = auDlg.querySelector('[data-au-x]'); if (f) f.focus();
   };
   (function () { var acs = Q('.sx-acs'); if (!acs || Q('[data-audit]')) return; sxCss(); acs.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit" data-audit>✓ asetatları denetle</button>'); Q('[data-audit]').addEventListener('click', openAudit); })();
+  (function () { var au = Q('[data-audit]'); if (!au || Q('[data-sh-ac]')) return; au.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit sx-sh-ac" data-sh-ac aria-expanded="false" aria-controls="ax-sh">✎ sohbetle düzenle</button>'); Q('[data-sh-ac]').addEventListener('click', function () { sxCss(); sdAc(); }); })();      /* #55 */
 
   /* ---------- PHASE 5: GEMINI GÖRSEL DENETİM (gorselQA, 26.11.2026, #33) ----------
      Asetatlar ekrandaki gibi çizilir (slideHTML, doğrulanmış şablon yazısıyla), html2canvas@1.4.1 ile 768×432 JPEG'e
@@ -10522,7 +11096,7 @@ var SBX = (function () {
     for (var k in ek) if (!A[k]) A[k] = ek[k];
   };
   var qaBoya = function (dlg, odak) {
-    birlesikSozluk(); kaynakSozluk(); kontrolSozluk(); onarSozluk();
+    birlesikSozluk(); kaynakSozluk(); kontrolSozluk(); onarSozluk(); sohbetSozluk();
     var L = qaListe(deck), K = L.kontrol, sp = {}, sec = null, ic = dlg.contains(document.activeElement);
     QA_PRI.forEach(function (p) { sp[p] = 0; }); L.bulgu.forEach(function (x) { sp[x.priority]++; if (x.id === qaSec) sec = x; });
     var gor = L.bulgu.filter(function (x) { return (qaF.src === 'all' || x.sources.indexOf(qaF.src) >= 0) && (qaF.pri === 'all' || x.priority === qaF.pri); });
