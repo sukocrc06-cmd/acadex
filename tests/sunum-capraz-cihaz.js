@@ -143,7 +143,9 @@ if (!CHROME) {
     const degisen = st.split('\n').filter(Boolean).map((l) => l.slice(3));
     assert.ok(st !== 'git yok', 'git çalışmadı');
     /* #38: yönetmenin repeatedFacts düzeltmesi (yüzdeli iki haneli + grafik rakamı) izinli; migration/RPC yine yasak */
-    assert.deepEqual(degisen.filter((f) => f !== 'supabase/functions/sunum-research/index.ts' && f !== 'supabase/functions/acadia-presentation-director/index.ts'), [], 'supabase/ altında izinsiz değişiklik (migration, RPC ya da başka fonksiyon)');
+    /* #58 (28.11.2026): Faz 12 iki migration ister (marka kiti + inceleme/RLS); hazırlanır, çalıştırılmaz. Öteki migration/RPC yine yasak */
+    const P12 = ['supabase/migrations/20261128_sunum_marka_kiti.sql', 'supabase/migrations/20261128b_sunum_inceleme.sql'];
+    assert.deepEqual(degisen.filter((f) => f !== 'supabase/functions/sunum-research/index.ts' && f !== 'supabase/functions/acadia-presentation-director/index.ts' && !P12.includes(f)), [], 'supabase/ altında izinsiz değişiklik (migration, RPC ya da başka fonksiyon)');
   });
   summary();
 })();

@@ -6524,15 +6524,16 @@ var SBX = (function () {
   /* Geri al/yinele görüntüsü (yalnız bellekte): asetatlar ekranda göründükleri gibi, yanında öğelerin asıl boyut kaydı
      (fit: kimlik → [asıl, sığdırılmış]) ve hangi yazı durumunda alındığı (iz). Geri yüklenince kayıt yeni kopyalara bağlanır;
      yazı durumu o zamandan beri değiştiyse asetatlar asıl boyutlarından yeniden sığdırılır (küçülme birikmez). */
-  var snap = function () { var fit = {}; if (fitTaban) deck.slides.forEach(function (sl) { arr(sl.els).forEach(function (e) { var iz = e && fitTaban.get(e); if (iz && e.id != null) fit[e.id] = [iz.taban, iz.son]; }); }); return JSON.stringify({ slides: deck.slides, cur: deck.cur, title: deck.title, fit: fit, iz: yaziIz() }); };
+  var snap = function (tm) { var fit = {}; if (fitTaban) deck.slides.forEach(function (sl) { arr(sl.els).forEach(function (e) { var iz = e && fitTaban.get(e); if (iz && e.id != null) fit[e.id] = [iz.taban, iz.son]; }); }); return JSON.stringify(Object.assign(tm ? { tm: deck.tema ? deck.tema.def : null, mk: deck.marka || null, kt: deck.kitle || null, ky: deck.kaynaklar === undefined ? null : deck.kaynaklar, te: deck.temaEl || 0 } : {}, { slides: deck.slides, cur: deck.cur, title: deck.title, fit: fit, iz: yaziIz() })); };      /* #58: tm → tema/marka adımı */
   var push = function () { undoS.push(snap()); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); };
   var restore = function (str) { var o = JSON.parse(str), fit = o.fit || {};
     if (fitTaban) o.slides.forEach(function (sl) { arr(sl.els).forEach(function (e) { var r = e && fit[e.id]; if (r && e.size === r[1]) fitTaban.set(e, { taban: r[0], son: r[1] }); }); });
     deck.slides = o.slides; deck.cur = Math.min(o.cur, Math.max(0, o.slides.length - 1)); deck.title = o.title; selId = null;
+    if ('tm' in o) { fitIzKur(); deck.tema = o.tm ? temaKur(o.tm) : null; if (o.mk) deck.marka = o.mk; else delete deck.marka; if (o.kt) deck.kitle = o.kt; else delete deck.kitle; if (o.ky) deck.kaynaklar = o.ky; else delete deck.kaynaklar; deck.temaEl = o.te || 0; }      /* #58 */
     if (o.iz !== yaziIz()) deck.slides.forEach(function (sl) { yaziFit(sl); });
     renderAll(); dirty(); };
-  var undo = function () { if (!undoS.length) return; redoS.push(snap()); restore(undoS.pop()); paintHist(); };
-  var redo = function () { if (!redoS.length) return; undoS.push(snap()); restore(redoS.pop()); paintHist(); };
+  var undo = function () { if (!undoS.length) return; redoS.push(snap(undoS[undoS.length - 1].slice(0, 6) === '{"tm":')); restore(undoS.pop()); paintHist(); };
+  var redo = function () { if (!redoS.length) return; undoS.push(snap(redoS[redoS.length - 1].slice(0, 6) === '{"tm":')); restore(redoS.pop()); paintHist(); };
   var paintHist = function () { Q('[data-undo]').disabled = !undoS.length; Q('[data-redo]').disabled = !redoS.length; };
   var cur = function () { return deck.slides[deck.cur] || null; };
 
@@ -6573,17 +6574,18 @@ var SBX = (function () {
   };
   var temaKur = function (o) {
     if (!o || typeof o !== 'object') return null;
-    var bg = hx6(o.bg, '#FFFFFF'), dark = lum(bg) < .3, ink = hx6(o.ink, dark ? '#F4F4F4' : '#1B1B1B'); if (kontrast(ink, bg) < 4) ink = dark ? '#F4F4F4' : '#1B1B1B';
-    var head = hx6(o.head, ink); if (kontrast(head, bg) < 3) head = ink;
+    var bg = hx6(o.bg, '#FFFFFF'), dark = lum(bg) < .3, ink = hx6(o.ink, dark ? '#F4F4F4' : '#1B1B1B'); if (!o.mk && kontrast(ink, bg) < 4) ink = dark ? '#F4F4F4' : '#1B1B1B';
+    var head = hx6(o.head, ink); if (!o.mk && kontrast(head, bg) < 3) head = ink;
     /* Vurgu rengi zeminde görünmüyorsa (açık zeminde sarı gibi) sıradaki vurguya geçilir. */
-    var accs = [o.acc].concat(Array.isArray(o.accs) ? o.accs : []).map(function (c) { return hx6(c, null); }).filter(function (c, i, a) { return c && a.indexOf(c) === i; }), iyi = accs.filter(function (c) { return kontrast(c, bg) >= 2.2; });
-    var acc = iyi[0] || (dark ? '#7FB0FF' : '#2F6BFF'); if (kontrast(acc, bg) < 3.2) acc = mix(acc, dark ? '#FFFFFF' : '#000000', dark ? .38 : .28);
+    var accs = [o.acc].concat(Array.isArray(o.accs) ? o.accs : []).map(function (c) { return hx6(c, null); }).filter(function (c, i, a) { return c && a.indexOf(c) === i; }), iyi = o.mk ? accs : accs.filter(function (c) { return kontrast(c, bg) >= 2.2; });
+    var acc = iyi[0] || (dark ? '#7FB0FF' : '#2F6BFF'); if (!o.mk && kontrast(acc, bg) < 3.2) acc = mix(acc, dark ? '#FFFFFF' : '#000000', dark ? .38 : .28);
     var boya = iyi.concat(accs.filter(function (c) { return iyi.indexOf(c) < 0 && kontrast(c, bg) >= 1.25; }), [acc, '#1E8A55', '#C88A1C', '#C9483B']).filter(function (c, i, a) { return a.indexOf(c) === i; }).slice(0, 4);
     var hf = fontAd(FONT_ES[o.hf] || o.hf), bf = fontAd(FONT_ES[o.bf] || o.bf);
     var def = { id: String(o.id || 'ozel').replace(/[^\w\-]/g, '').slice(0, 40), ad: String(o.ad || 'Şablon').slice(0, 40), bg: bg, ink: ink, head: head, acc: acc, accs: boya, hf: hf, bf: bf, src: String(o.src || '').slice(0, 90), navy: hx6(o.navy, null) || undefined };
     def.bic = bicKur(o.bic, def.id);
-    return { id: def.id, ad: def.ad, src: def.src, def: def, bic: def.bic, dark: dark, ink: ink, head: head, acc: acc, hf: hf, bf: bf, soft: mix(ink, bg, .36),
-      bg: { clear: bg, blue: mix(bg, acc, dark ? .16 : .09), navy: hx6(o.navy, null) || (dark ? mix(bg, '#000000', .5) : lum(ink) < .12 ? mix(ink, acc, .14) : '#0D1838') },
+    if (o.mk) { def.mk = String(o.mk); def.soft = hx6(o.soft, null) || undefined; def.surf = hx6(o.surf, null) || undefined; def.line = hx6(o.line, null) || undefined; def.hfP = FONT_ES[o.hfP || o.hf] ? (o.hfP || o.hf) : undefined; def.bfP = FONT_ES[o.bfP || o.bf] ? (o.bfP || o.bf) : undefined; def.af = o.af && FONT_ES[o.af] ? o.af : undefined; }      /* #58 marka kiti: 9 rol + PPTX yazı tipi adı */
+    return { id: def.id, ad: def.ad, src: def.src, def: def, bic: def.bic, dark: dark, ink: ink, head: head, acc: acc, hf: hf, bf: bf, soft: def.soft || mix(ink, bg, .36), line: def.line || null, hfP: def.hfP || null, bfP: def.bfP || null,
+      bg: { clear: bg, blue: def.surf || mix(bg, acc, dark ? .16 : .09), navy: hx6(o.navy, null) || (dark ? mix(bg, '#000000', .5) : lum(ink) < .12 ? mix(ink, acc, .14) : '#0D1838') },
       tint: boya.map(function (c) { return mix(bg, c, dark ? .3 : .17); }) };
   };
   var TEMALAR = [
@@ -6616,7 +6618,7 @@ var SBX = (function () {
   var temaRenk = function (c, tip) {
     var T = deck && deck.tema; if (!T || !c) return c;
     var k = String(c).slice(0, 7).toUpperCase(), a = String(c).slice(7), i = TINT.indexOf(k);
-    var r = i >= 0 ? T.tint[i] : k === NAVY || k === '#2A3550' ? (tip === 'h' ? T.head : T.ink) : k === BLUE ? T.acc : k === SOFT ? T.soft : k === '#EEF3FF' ? T.bg.blue : k === '#E4E8F1' ? mix(T.bg.clear, T.ink, .14) : k === '#9DB8FF' ? mix(T.acc, T.bg.clear, .45) : null;
+    var r = i >= 0 ? T.tint[i] : k === NAVY || k === '#2A3550' ? (tip === 'h' ? T.head : T.ink) : k === BLUE ? T.acc : k === SOFT ? T.soft : k === '#EEF3FF' ? T.bg.blue : k === '#E4E8F1' ? (T.line || mix(T.bg.clear, T.ink, .14)) : k === '#9DB8FF' ? mix(T.acc, T.bg.clear, .45) : null;
     return r ? r + a : c;
   };
   /* Zemin deseni: şablonun kendi öğe türlerimizle (kutu, daire) çizilen
@@ -8726,7 +8728,7 @@ var SBX = (function () {
     bulgu: /(^|[^a-z0-9])(bulgu|findings|results)/, tartisma: /(^|[^a-z0-9])(tartisma|discussion)/, arka: /(^|[^a-z0-9])(arka ?plan|background|tarihce|literatur|literature)/ };
   var SD_DOLGU = /(^|[^a-z0-9])(aslinda|esasen|bilindigi gibi|acikcasi|sunu belirtmek gerekir ki|belirtmek gerekir ki|soylemek gerekirse|basically|actually|essentially|needless to say|it should be noted that|it is worth noting that|it is important to note that)(?=[^a-z0-9]|$)/g;
   var SD_DOLGU2 = [[/(^|[^a-z0-9])(in order to)(?=[^a-z0-9])/g, 'to'], [/(^|[^a-z0-9])(due to the fact that)(?=[^a-z0-9])/g, 'because']];
-  var SD_YEREL = { yineleme: 1, kisalt: 1, netlestir: 1, terim: 1, sirala: 1 }, SD_KANITLI = { kaynakli: 1, netlestir: 1, guclendir: 1, akademik: 1 };
+  var SD_YEREL = { yineleme: 1, kisalt: 1, netlestir: 1, terim: 1, sirala: 1 }, SD_KANITLI = { kaynakli: 1, netlestir: 1, guclendir: 1, akademik: 1, uyarla: 1, derin: 1, yalin: 1, terimac: 1, akis: 1 };
   var SD_HARF = /[\p{L}\p{N}]/u, SD_Q = '["“”«»‘’]', SD_QI = '([^"“”«»‘’\\n]{1,60})';
   var sdAs = function (d, id) { for (var i = 0; i < arr(d && d.slides).length; i++) if (d.slides[i] && d.slides[i].id === id) return i; return -1; };
   var sdN = function (t) { return cleanB(String(t || '').replace(/[\s.!?…;:]+$/, '')).toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim(); };      /* [n] korunur: atıfı farklı iki madde yineleme değildir */
@@ -8850,6 +8852,7 @@ var SBX = (function () {
     var k = idKat(ham).replace(/\s+/g, ' ').trim(), kq = k.replace(new RegExp(SD_Q + '[^"“”«»‘’]*' + SD_Q, 'g'), ' " '), A = { ham: ham, komut: ham, k: k, kq: kq };
     if (SD_ACIKLA.test(kq)) A.acikla = 1;
     for (var i = 0; i < SD_IS.length && !A.is; i++) if (SD_IS[i][1].test(kq)) A.is = SD_IS[i][0];
+    if (typeof HK === 'object' && HK.zorla) { A.is = HK.zorla; A.acikla = 0; A.hk = 1; HK.zorla = null; }      /* #58: profil düğmesinin işi */
     if (A.is === 'terim') A.terim = sdTerimBul(ham);
     if (!A.acikla) for (var y in SD_YOK) if (SD_YOK[y].test(kq)) { A.yok = y; break; }
     if (SD_TUM.test(kq) && !(A.is === 'terim' && A.terim)) A.tum = 1;
@@ -8910,6 +8913,7 @@ var SBX = (function () {
       if (K.yapi === 'terim') { var tr = sdTerimDegis(e.text, K.terim.x, K.terim.y); if (!tr.n || tr.t !== y) return 'yapi'; continue; }
       var v = onDenetle({ tur: kn.length ? 'source_qualified' : 'wording_only', hedefler: [{ element_id: h.element_id, expected_text_hash: h.expected_text_hash, replacement_text: y }], kanit: kn, eklenen: [], adSerbest: 1 }, { as: ix, elId: String(h.element_id) }, d);
       if (v) return v;
+      if (typeof HK_IS === 'object' && HK_IS[K.is] && onAtiflar(e.text).some(function (q) { return onAtiflar(y).indexOf(q) < 0; })) return 'atif';      /* #58: hedef kitle işleri atıf düşüremez (köken korunur; 28.11.2026) */
       if (onSay(SD_NEDEN_EK, e.text) !== onSay(SD_NEDEN_EK, y)) return 'neden';
       if (onSay(SD_KOSUL_EK, e.text) !== onSay(SD_KOSUL_EK, y)) return 'kosul';
       if (sdAd(e.text, y, sdPm(kn, reg), e.type)) return 'ad';
@@ -8955,7 +8959,7 @@ var SBX = (function () {
     bg.sort(function (a, b) { return a - b; }).forEach(function (j) { var t = String(titleOf(d.slides[j]) || ''); if (t.length > 200) kis++; bas.push({ slide_id: d.slides[j].id, no: j + 1, baslik: t.slice(0, 200) }); });
     var Lb = qaListe(d).bulgu.filter(function (z) { return ixs.indexOf(z.slideIndex) >= 0; }), bul = Lb.slice(0, SD_BULGU).map(function (z) { return { slide_id: d.slides[z.slideIndex].id, kod: z.code }; });
     var gov = { action: 'sohbet_duzenle', v: 1, dil: onDil(d) ? 'en' : 'tr', is: A.is || 'genel', komut: A.komut, gecmis: arr(S && S.cift).slice(-SD_CIFT), hedefler: A.H.map(function (x) { return { slide_id: x.s.id, element_id: String(x.e.id), hash: kyHash(x.e.text), tur: x.e.type, metin: x.e.text }; }),
-      basliklar: bas, parcalar: P, bulgular: bul, onceki: arr(A.onceki) };
+      basliklar: bas, parcalar: P, bulgular: bul, onceki: arr(A.onceki) }; var pf = typeof hkGonder === 'function' && hkGonder(d); if (pf) gov.profil = pf;      /* #58 */
     var js = JSON.stringify(gov), bayt = typeof TextEncoder === 'function' ? new TextEncoder().encode(js).length : unescape(encodeURIComponent(js)).length;
     var idOk = gov.hedefler.concat(bas).every(function (h) { return /^[A-Za-z0-9_-]{1,40}$/.test(String(h.slide_id)) && (h.element_id == null || /^[A-Za-z0-9_-]{1,40}$/.test(h.element_id)); });
     return { govde: gov, hedef: gov.hedefler.length, asetat: ixs.length, parca: P.length, fazlaParca: top - P.length, uzunParca: uzun, ozelVar: ozelVar, ozelAtla: ozelAtla, baglam: bas.length, kisaltilan: kis, bulgu: bul.length, fazlaBulgu: Lb.length - bul.length, bayt: bayt, sigar: bayt <= SD_BAYT && idOk && String(A.komut).length <= 2 * SD_KOMUT };
@@ -9122,6 +9126,7 @@ var SBX = (function () {
         h += '<dl class="qa-dl" data-sh-oge="' + X(z.t.element_id) + '"><dt>Şimdi</dt><dd class="on-eski" data-no-i18n>' + X(eski).replace(/\n/g, '<br>') + '</dd><dt>Öneri</dt><dd class="on-yeni" data-sh-yeni data-no-i18n>' + X(z.t.replacement_text).replace(/\n/g, '<br>') + '</dd><dt>Fark</dt><dd class="on-fark">' + onFark(eski, z.t.replacement_text) + '</dd>' + (z.t.reason ? '<dt>Neden</dt><dd>' + (yr ? sdSp(z.t.reason) : sdUs(z.t.reason)) + '</dd>' : '') + '</dl>';
         if (akt && SH.duzen) h += '<label class="on-duz"><small>Öneriyi düzenle</small><textarea data-sh-metin="' + z.i + '" rows="3" data-no-i18n>' + X(z.t.replacement_text) + '</textarea></label>'; });
       h += '</section>'; });
+    if (typeof hkCikanHTML === 'function') h += hkCikanHTML(K, d);      /* #58 (#55 tek başına da çalışır) */
     h += K.kanit.length ? '<p><small>Kaynak parçaları</small></p>' + onParcaHTML({ kanit: K.kanit }, reg) : '<p><small data-sh-ifade>Yeni bilgi eklenmez; yalnız ifade değişir.</small></p>';
     if (K.sinir.length) h += '<p><small>Sınırlar</small></p><ul class="on-l">' + onListe(K.sinir, yr) + '</ul>';
     h += '<p class="sxd-sub" style="margin:6px 0 0" data-sh-sinir>Yalnız bu öğelerin metni değişir; konum, boyut, yazı tipi, renk, grafik, tablo, görsel, kaynakça ve notlar aynı kalır. Değişen iddialar doğrulanmadı sayılır. Hepsi birlikte uygulanır ve tek adımda geri alınır.</p>';
@@ -9135,7 +9140,7 @@ var SBX = (function () {
     return '<div class="au-kk-onay" data-sh-onay-kutu><p>Bu düzenleme önerisi için yazdığınız komut ve seçilen slaytların gerekli metinleri Groq hizmetine gönderilir. Yalnızca ilgili bağlam ve seçilmiş kaynak parçaları paylaşılır; tam sunum ve tam belgeler gönderilmez. Herhangi bir değişiklik uygulanmadan önce önizleme ve onay sunulur.</p>' +
       (I.ozelVar ? '<p data-sh-ozel-not>Belge veya kart kaynaklarından seçilen pasajlar özel içerik barındırabilir. Yalnızca gönderilmesini onayladığınız pasajlar dış hizmete iletilir.</p><label class="sh-ozel"><input type="checkbox" data-sh-ozel' + (SH.ozel ? ' checked' : '') + '> <span>Belge ve kart pasajlarını da gönder</span></label>' : '') +
       (m.yerelYok ? '<p><small>Yerel yol güvenli bir değişiklik bulamadı; öneri için model gerekir.</small></p>' : '') +
-      '<p><small data-sh-ozet>' + I.hedef + ' öğe · ' + I.asetat + ' asetat · ' + I.parca + ' kaynak parçası · ' + I.baglam + ' komşu başlık</small></p>' +
+      (typeof hkOnayHTML === 'function' ? hkOnayHTML(G) : '') + '<p><small data-sh-ozet>' + I.hedef + ' öğe · ' + I.asetat + ' asetat · ' + I.parca + ' kaynak parçası · ' + I.baglam + ' komşu başlık</small></p>' +
       (I.fazlaParca ? '<p><small>' + I.fazlaParca + ' parça sınır nedeniyle gönderilmez (en çok ' + SD_PARCA + ').</small></p>' : '') + (I.ozelAtla ? '<p><small data-sh-ozel-atla>' + I.ozelAtla + ' belge/kart pasajı onaysız gönderilmez.</small></p>' : '') + (I.uzunParca ? '<p><small>' + I.uzunParca + ' uzun parça gönderilmez.</small></p>' : '') + (I.kisaltilan ? '<p><small>' + I.kisaltilan + ' komşu başlık 200 karaktere kısaltıldı.</small></p>' : '') + (I.fazlaBulgu ? '<p><small>' + I.fazlaBulgu + ' denetim kodu sınır nedeniyle gönderilmez.</small></p>' : '') +
       '<details class="on-gon"><summary>Gönderilecek metin</summary><p class="on-eski" data-no-i18n>' + X(G.komut) + '</p>' + G.hedefler.map(function (h) { return '<p class="on-eski" data-no-i18n>' + X(h.metin).replace(/\n/g, '<br>') + '</p>'; }).join('') + G.parcalar.map(function (p) { return '<blockquote data-sh-gid="' + X(p.pid) + '"><q data-no-i18n>' + X(p.metin) + '</q></blockquote>'; }).join('') + '</details>' +
       '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-sh-vazgec>Vazgeç</button><button type="button" class="sxd-b sm pri" data-sh-onay>Onayla ve gönder</button></div></div>';
@@ -9270,6 +9275,670 @@ var SBX = (function () {
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (sdGonder(ta.value)) ta.value = ''; } });
   })();
   /* ---------- #55 son ---------- */
+  /* ---------- #58 (Phase 12) PROFESYONEL KİŞİSELLEŞTİRME (28.11.2026) ----------
+     Tek pencere (araç çubuğunda "◆ profesyonel", [data-pq-ac]) dört bölüm: marka kiti (mk*), hedef kitle (hk*), konuşmacı koçu (kc*),
+     sürümler ve inceleme (sv*, ib*). Yeni altyapı yok: tema temaKur/temaRenk ile çizilir (öğeler hep temel palette kalır), metin uyarlaması
+     #55 sohbet editörünün kendisidir (sdGonder + sunucu 'sohbet_duzenle', yalnız profil alanı eklenir), geri alma mevcut undoS yığınıdır
+     (snap(1) teması/markayı/kaynak kaydını da taşır), sürümler var olan presentation_versions tablosudur, inceleme 20261128b RPC'leridir.
+     Kurallar: onaysız içerik değişmez; her uygulama tek adım ve tek geri al; uygulama sırasında hata olursa deste yedekten geri gelir;
+     model yalnız #55 düğmeleriyle; koç yerel (ağ yok, yeni sayı yok; kamera/mikrofon yok, var olan coach/[data-rh-mic] dokunulmaz);
+     rol yalnız sunucuda (sunum_rol). Kitle profili paylaşım görüntüsüne, inceleme bağlantısına ve PPTX'e girmez; logo paylaşıma yalnız izinle. */
+  var pqT = function (tr, en) { return gqDil() === 'en' ? en : tr; };
+  var pqOnay = function (m) { try { return window.confirm(m); } catch (_) { return false; } };
+  var pushTm = function () { undoS.push(snap(1)); if (undoS.length > 60) undoS.shift(); redoS = []; paintHist(); };      /* tema/marka/kaynak kaydını da taşıyan geri al adımı */
+  var pqBayt = function (s) { s = String(s); return typeof TextEncoder === 'function' ? new TextEncoder().encode(s).length : unescape(encodeURIComponent(s)).length; };
+
+  /* ---- 12.1 marka kiti ---- */
+  var MK_ROL = ['bg', 'ink', 'head', 'acc', 'acc2', 'soft', 'surf', 'line', 'navy'], MK_MAX = 10, MK_LOGO = ['ana', 'alt', 'acik', 'koyu'], MK_LOGO_BAYT = 350000, MK_DOSYA_BAYT = 2000000, MK_KENAR = 480;
+  var MK_VARS = { bg: '#FFFFFF', ink: '#1B1B1B', head: '#0D1838', acc: '#2F6BFF', acc2: '#1E8A55', soft: '#6A7593', surf: '#EEF3FF', line: '#E4E8F1', navy: '#0D1838' };
+  var MK_ROL_AD = { bg: ['zemin', 'background'], ink: ['metin', 'text'], head: ['başlık', 'heading'], acc: ['vurgu', 'accent'], acc2: ['ikinci vurgu', 'second accent'], soft: ['ikincil metin', 'secondary text'], surf: ['yüzey', 'surface'], line: ['çizgi', 'line'], navy: ['koyu zemin', 'dark background'] };
+  var MK_LOGO_AD = { ana: ['ana logo', 'main logo'], alt: ['alternatif logo', 'alternate logo'], acik: ['açık zemin logosu', 'logo for light backgrounds'], koyu: ['koyu zemin logosu', 'logo for dark backgrounds'] };
+  var MK_FONT = Object.keys(FONT_ES);      /* yalnız PowerPoint/sistem adları: PPTX adıyla yazılır, ekranda ölçüsü aynı açık karşılık çizilir */
+  var MK_CIFT = [['ink', 'bg', 4.5], ['head', 'bg', 3], ['acc', 'bg', 3], ['soft', 'bg', 4.5], ['ink', 'surf', 4.5], ['#FFFFFF', 'navy', 4.5]];      /* WCAG: normal yazı 4,5:1, büyük yazı/grafik 3:1; yalnız uyarı */
+  var MK_KOR = { protan: [[.152286, 1.052583, -.204868], [.114503, .786281, .099216], [-.003882, -.048116, 1.051998]], deutan: [[.367322, .860646, -.227968], [.280085, .672501, .047413], [-.01182, .04294, .968881]], tritan: [[1.255528, -.076749, -.178779], [-.078411, .930809, .147602], [.004733, .691367, .3039]] };      /* Machado 2009, şiddet 1,0 */
+  var MK_SVG_YASAK = [/<\s*(script|foreignobject|iframe|embed|object|audio|video|canvas|link|meta|base|handler|listener|set|animate[a-z]*)(?=[\s>\/])/i, /<!entity/i, /<!doctype[^>]*\[/i, /[\s\/"']on[a-z]+\s*=/i, /&#/, /(javascript|vbscript)\s*:/i, /@import/i, /url\(\s*(?!['"]?#)/i,
+    /\s(xlink:)?href\s*=\s*(['"])(?!#|data:image\/(png|jpe?g|webp);base64,)/i, /\s(xlink:)?href\s*=\s*(?!['"])/i];
+  var mkHex = function (c) { return typeof c === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c.trim()) ? hx6(c.trim(), null) : null; };
+  var mkFont = function (f, zorunlu) { return typeof f === 'string' && Object.prototype.hasOwnProperty.call(FONT_ES, f) ? f : zorunlu ? 'Arial' : null; };
+  var mkBayt = function (src) { var b = String(src).split(',')[1] || ''; return Math.max(0, Math.floor(b.length * 3 / 4) - (/==$/.test(b) ? 2 : /=$/.test(b) ? 1 : 0)); };
+  var mkTemiz = function (k) {
+    if (!k || typeof k !== 'object') return null;
+    var ad = String(k.ad == null ? '' : k.ad).replace(/\s+/g, ' ').trim().slice(0, 60); if (!ad) return null;
+    var o = { id: /^[A-Za-z0-9_-]{1,40}$/.test(String(k.id || '')) ? String(k.id) : uid(), ad: ad, marka: String(k.marka || '').replace(/\s+/g, ' ').trim().slice(0, 60), aciklama: String(k.aciklama || '').trim().slice(0, 300), varsayilan: !!k.varsayilan,
+      olustu: +k.olustu || Date.now(), guncel: +k.guncel || Date.now(), surum: Math.max(1, Math.min(100000, Math.floor(+k.surum || 1))), dbId: isUuid(k.dbId) ? k.dbId : null, renk: {}, font: {}, logo: {}, gorsel: {} };
+    MK_ROL.forEach(function (r) { o.renk[r] = mkHex(k.renk && k.renk[r]) || MK_VARS[r]; });
+    var f = k.font || {}; o.font = { baslik: mkFont(f.baslik, 1), govde: mkFont(f.govde, 1), vurgu: mkFont(f.vurgu, 0) };
+    MK_LOGO.forEach(function (x) { var l = k.logo && k.logo[x], g = l && k.gorsel && k.gorsel[l.hash];
+      if (l && typeof g === 'string' && /^data:image\/png;base64,[A-Za-z0-9+\/]+={0,2}$/.test(g) && mkBayt(g) <= MK_LOGO_BAYT && +l.w >= 1 && +l.h >= 1 && +l.w <= MK_KENAR && +l.h <= MK_KENAR && kyHash(g) === l.hash) { o.logo[x] = { hash: l.hash, w: Math.round(+l.w), h: Math.round(+l.h) }; o.gorsel[l.hash] = g; } });
+    return o;
+  };
+  var mkImza = function (k) { return kyHash(JSON.stringify([k.ad, k.marka, k.aciklama, k.renk, k.font, k.logo])); };
+  /* dosya türü uzantıdan değil baytlardan: PNG, JPEG, WebP ya da SVG metni */
+  var mkTur = function (b) {
+    if (b.length > 8 && b[0] === 137 && b[1] === 80 && b[2] === 78 && b[3] === 71) return 'png';
+    if (b.length > 3 && b[0] === 255 && b[1] === 216 && b[2] === 255) return 'jpeg';
+    if (b.length > 12 && b[0] === 82 && b[1] === 73 && b[2] === 70 && b[3] === 70 && b[8] === 87 && b[9] === 69 && b[10] === 66 && b[11] === 80) return 'webp';
+    var i = b[0] === 239 && b[1] === 187 && b[2] === 191 ? 3 : 0; while (i < b.length && i < 64 && (b[i] === 32 || b[i] === 9 || b[i] === 10 || b[i] === 13)) i++;
+    var bas = String.fromCharCode.apply(null, Array.prototype.slice.call(b, i, i + 1024)).toLowerCase();
+    return bas.charAt(0) === '<' && bas.indexOf('<svg') >= 0 ? 'svg' : null;
+  };
+  var mkSvgGuvenli = function (t) { t = String(t || ''); return /<svg[\s>]/i.test(t) && !MK_SVG_YASAK.some(function (r) { return r.test(t); }); };      /* etkin içerik (betik, olay, dış bağlantı, varlık) → red */
+  var mkOlcu = function (w, h) { w = +w; h = +h; if (!(w >= 16 && h >= 16 && w <= 8000 && h <= 8000) || Math.max(w, h) / Math.min(w, h) > 12) return null; var k = Math.min(1, MK_KENAR / Math.max(w, h)); return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) }; };
+  /* logo her zaman PNG'ye çizilerek saklanır (SVG bile): kayıtta betik taşıyabilecek biçim kalmaz; uzun kenar ≤480, ≤350 KB */
+  var mkLogoOku = function (file) {
+    return new Promise(function (ok, red) {
+      var hata = function (k) { red(new Error(k)); };
+      if (!file || !file.size) return hata('bos'); if (file.size > MK_DOSYA_BAYT) return hata('buyuk');
+      var fr = new FileReader(); fr.onerror = function () { hata('okunamadi'); };
+      fr.onload = function () {
+        var b = new Uint8Array(fr.result), tur = mkTur(b), blob; if (!tur) return hata('tur');
+        if (tur === 'svg') { var t = ''; try { t = new TextDecoder('utf-8', { fatal: true }).decode(b); } catch (_) { return hata('svg'); } if (!mkSvgGuvenli(t)) return hata('svg'); blob = new Blob([t], { type: 'image/svg+xml' }); }
+        else blob = new Blob([b], { type: 'image/' + tur });
+        var url = URL.createObjectURL(blob), im = new Image();
+        im.onerror = function () { URL.revokeObjectURL(url); hata('okunamadi'); };
+        im.onload = function () {
+          URL.revokeObjectURL(url); var o = mkOlcu(im.naturalWidth || im.width, im.naturalHeight || im.height); if (!o) return hata('olcu');
+          var k = 1, src = '', w = 0, h = 0;
+          try { for (var i = 0; i < 5; i++) { w = Math.max(1, Math.round(o.w * k)); h = Math.max(1, Math.round(o.h * k)); var cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(im, 0, 0, w, h); src = cv.toDataURL('image/png'); if (mkBayt(src) <= MK_LOGO_BAYT) break; src = ''; k *= .7; } } catch (_) { return hata('okunamadi'); }
+          if (!/^data:image\/png;base64,/.test(src)) return hata('buyuk'); ok({ src: src, w: w, h: h, hash: kyHash(src) });
+        };
+        im.src = url;
+      };
+      fr.readAsArrayBuffer(file);
+    });
+  };
+  var MK_HATA = { bos: ['Dosya boş.', 'The file is empty.'], buyuk: ['Dosya çok büyük (en çok 2 MB; saklanan logo ≤350 KB).', 'The file is too large (max 2 MB; stored logo ≤350 KB).'], tur: ['Yalnız PNG, JPEG, WebP ya da SVG.', 'Only PNG, JPEG, WebP or SVG.'],
+    svg: ['SVG etkin içerik (betik, olay, dış bağlantı) taşıyor; yüklenmedi.', 'The SVG carries active content (script, event, external link); not uploaded.'], olcu: ['Logo ölçüsü uygun değil (kenar 16–8000 px, en/boy oranı ≤12).', 'Logo size not allowed (side 16–8000 px, aspect ratio ≤12).'], okunamadi: ['Görsel okunamadı.', 'The image could not be read.'] };
+  var mkElle = function (e) { var o = {}; MK_ROL.forEach(function (r) { var c = mkHex(e && e[r]); if (c) o[r] = c; }); return o; };
+  var mkRenk = function (kit, elle) { return Object.assign({}, kit.renk, mkElle(elle)); };
+  var mkTemaDef = function (kit, taban, elle) {
+    var R = mkRenk(kit, elle), f = kit.font;
+    return { id: 'mk-' + kit.id, ad: kit.ad, mk: kit.id, bg: R.bg, ink: R.ink, head: R.head, acc: R.acc, accs: [R.acc2], soft: R.soft, surf: R.surf, line: R.line, navy: R.navy,
+      hf: f.baslik, bf: f.govde, af: f.vurgu || null, src: 'Marka kiti · ' + kit.ad, bic: taban && taban.def && taban.def.bic && !taban.def.mk ? taban.def.bic : taban && taban.def && taban.def.mk && taban.def.bic ? taban.def.bic : { dz: 'yok', kutu: 'dolu', r: 10 } };
+  };
+  var mkKontrast = function (R) { return MK_CIFT.map(function (p) { var a = p[0].charAt(0) === '#' ? p[0] : R[p[0]], b = R[p[1]], o = kontrast(a, b); return { a: p[0], b: p[1], esik: p[2], oran: Math.round(o * 100) / 100, ok: o >= p[2] }; }); };
+  var mkLin = function (v) { v /= 255; return v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); };
+  var mkGam = function (v) { v = Math.max(0, Math.min(1, v)); return Math.round((v <= .0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - .055) * 255); };
+  var mkKor = function (c, M) { var l = rgb3(c).map(mkLin); return '#' + M.map(function (r) { return ('0' + mkGam(r[0] * l[0] + r[1] * l[1] + r[2] * l[2]).toString(16)).slice(-2); }).join('').toUpperCase(); };
+  /* 28.11.2026: ayrım parlaklık oranıyla değil benzetilmiş renklerin CIE76 ΔE farkıyla ölçülür (mavi/yeşil aynı parlaklıkta ama ayırt edilir); eşik 20 */
+  var mkLab = function (c) { var l = rgb3(c).map(mkLin), f = function (t) { return t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; }, X = f((.4124 * l[0] + .3576 * l[1] + .1805 * l[2]) / .95047), Y = f(.2126 * l[0] + .7152 * l[1] + .0722 * l[2]), Z = f((.0193 * l[0] + .1192 * l[1] + .9505 * l[2]) / 1.08883); return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)]; };
+  var MK_KOR_DE = 20, mkDE = function (a, b) { var x = mkLab(a), y = mkLab(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]); };
+  var mkRenkKor = function (R) { var out = [];
+    Object.keys(MK_KOR).forEach(function (t) { var M = MK_KOR[t], a = mkKor(R.acc, M), a2 = mkKor(R.acc2, M), bg = mkKor(R.bg, M);
+      if (mkDE(a, a2) < MK_KOR_DE) out.push({ tur: t, kod: 'vurgu_ayrim' }); if (kontrast(a, bg) < 3) out.push({ tur: t, kod: 'vurgu_zemin' }); });
+    return out; };
+  var MK_KOR_AD = { protan: ['protanopi', 'protanopia'], deutan: ['döteranopi', 'deuteranopia'], tritan: ['tritanopi', 'tritanopia'] };
+  var MK_KOR_KOD = { vurgu_ayrim: ['iki vurgu rengi birbirinden ayırt edilemeyebilir', 'the two accents may be indistinguishable'], vurgu_zemin: ['vurgu zeminde zayıf görünebilir', 'the accent may look weak on the background'] };
+  /* depolama: yerel (store.k('markalar')) + hesap (brand_kits; tablo yoksa yalnız yerel) */
+  var mkBulutYok = false;
+  var mkListe = function () { var L = store.uid ? G(store.k('markalar'), []) : []; return (Array.isArray(L) ? L : []).map(mkTemiz).filter(Boolean).slice(0, MK_MAX); };
+  var mkYaz = function (L) { return store.uid ? S(store.k('markalar'), L.slice(0, MK_MAX)) : false; };
+  var mkBul = function (id) { return mkListe().filter(function (k) { return k.id === id; })[0] || null; };
+  var mkBulut = async function (k, sil) {
+    var c = sbc(), u = me(); if (!c || !u || mkBulutYok || (u.is_anonymous)) return false;
+    try {
+      if (sil) { if (!k.dbId) return true; var rs = await c.from('brand_kits').delete().eq('id', k.dbId); if (rs.error) throw rs.error; return true; }
+      if (k.varsayilan) { var r0 = await c.from('brand_kits').update({ varsayilan: false }).eq('user_id', u.id).eq('varsayilan', true); if (r0.error) throw r0.error; }
+      var row = { ad: k.ad, marka: k.marka, aciklama: k.aciklama, varsayilan: k.varsayilan, surum: k.surum, veri: { id: k.id, renk: k.renk, font: k.font, logo: k.logo, gorsel: k.gorsel }, updated_at: new Date().toISOString() };
+      if (k.dbId) { var r1 = await c.from('brand_kits').update(row).eq('id', k.dbId); if (r1.error) throw r1.error; }
+      else { row.user_id = u.id; var r2 = await c.from('brand_kits').insert(row).select('id').single(); if (r2.error) throw r2.error; var L = mkListe(); L.forEach(function (x) { if (x.id === k.id) x.dbId = r2.data.id; }); mkYaz(L); }
+      return true;
+    } catch (e) { if (MISSING(e)) mkBulutYok = true; console.warn('acadex-sunum: marka kiti hesaba yazılamadı', e && e.code); return false; }
+  };
+  var mkCek = async function () {
+    var c = sbc(), u = me(); if (!c || !u || mkBulutYok) return false;
+    var r = await c.from('brand_kits').select('id,ad,marka,aciklama,varsayilan,surum,veri,created_at,updated_at').eq('user_id', u.id).order('updated_at', { ascending: false }).limit(MK_MAX);
+    if (r.error) { if (MISSING(r.error)) mkBulutYok = true; return false; }
+    var L = mkListe();
+    (r.data || []).forEach(function (row) { var v = row.veri || {}, k = mkTemiz({ id: v.id, ad: row.ad, marka: row.marka, aciklama: row.aciklama, varsayilan: row.varsayilan, surum: row.surum, dbId: row.id, renk: v.renk, font: v.font, logo: v.logo, gorsel: v.gorsel, olustu: Date.parse(row.created_at), guncel: Date.parse(row.updated_at) });
+      if (!k) return; var i = -1; L.forEach(function (x, j) { if (x.id === k.id || x.dbId === row.id) i = j; }); if (i < 0) { if (L.length < MK_MAX) L.push(k); } else if (k.surum >= L[i].surum) L[i] = k; });
+    if (L.some(function (x) { return x.varsayilan; })) { var ilk = 0; L.forEach(function (x) { if (x.varsayilan) { if (ilk) x.varsayilan = false; ilk = 1; } }); }
+    mkYaz(L); return true;
+  };
+  /* kaydet: ≤10 kit, tek varsayılan; içerik değişince sürüm artar. Kiti düzenlemek desteleri KENDİLİĞİNDEN güncellemez */
+  var mkKaydet = function (ham) {
+    var k = mkTemiz(ham); if (!k) return { ok: false, hata: 'ad' };
+    var L = mkListe(), i = -1; L.forEach(function (x, j) { if (x.id === k.id) i = j; });
+    if (i < 0 && L.length >= MK_MAX) return { ok: false, hata: 'sinir' };
+    if (i >= 0) { k.olustu = L[i].olustu; k.dbId = L[i].dbId; k.surum = mkImza(L[i]) === mkImza(k) ? L[i].surum : L[i].surum + 1; }
+    k.guncel = Date.now(); if (k.varsayilan) L.forEach(function (x) { x.varsayilan = false; });
+    if (i < 0) L.push(k); else L[i] = k;
+    if (!mkYaz(L)) return { ok: false, hata: 'alan' };
+    mkBulut(k); return { ok: true, kit: k };
+  };
+  var mkKopya = function (id) { var k = mkBul(id); if (!k) return { ok: false, hata: 'yok' }; var c2 = clone(k); c2.id = uid(); c2.dbId = null; c2.varsayilan = false; c2.surum = 1; c2.olustu = Date.now(); c2.ad = (k.ad + ' ' + pqT('(kopya)', '(copy)')).slice(0, 60); return mkKaydet(c2); };
+  var mkSil = function (id) { var L = mkListe(), k = L.filter(function (x) { return x.id === id; })[0]; if (!k) return false; mkYaz(L.filter(function (x) { return x.id !== id; })); mkBulut(k, true); return true; };      /* desteler değişmez: tema destede kayıtlı */
+  var mkVarsayilan = function (id) { var L = mkListe(), k = null; L.forEach(function (x) { x.varsayilan = x.id === id ? !x.varsayilan : false; if (x.id === id) k = x; }); if (!k || !mkYaz(L)) return false; mkBulut(k); return true; };
+  /* logo yerleşimi: sağ üst köşe, yükseklik ≤32, genişlik ≤140; asetattaki herhangi bir öğeyle (pay 6/4) çakışıyorsa asetat uygun değildir — düzen değişmez */
+  var mkLogoSec = function (kit, koyu) { var L = kit.logo || {}, s = koyu ? ['koyu', 'alt', 'ana'] : ['acik', 'ana', 'alt']; for (var i = 0; i < s.length; i++) if (L[s[i]] && kit.gorsel[L[s[i]].hash]) return { x: s[i], l: L[s[i]], src: kit.gorsel[L[s[i]].hash] }; return null; };
+  var mkYer = function (s, lg) {
+    var h = Math.min(32, lg.l.h), w = Math.max(1, Math.round(lg.l.w * h / lg.l.h)); if (w > 140) { w = 140; h = Math.max(1, Math.round(lg.l.h * w / lg.l.w)); }
+    var r = { x: W - 24 - w, y: 8, w: w, h: h };
+    return arr(s.els).some(function (e) { return e && !e.mrk && e.x < r.x + r.w + 6 && e.x + e.w > r.x - 6 && e.y < r.y + r.h + 4 && e.y + e.h > r.y - 4; }) ? null : r;
+  };
+  var mkUygun = function (d, kit, kapsam, T) {
+    var u = [], n = [], var0 = MK_LOGO.some(function (x) { return kit.logo[x]; });
+    if (kapsam !== 'tum' || !var0) return { uygun: u, uygunsuz: n, logosuz: var0 ? 0 : 1 };
+    d.slides.forEach(function (s, i) { var lg = mkLogoSec(kit, s.bg === 'navy' || !!(T && T.dark)); if (!lg) return n.push({ i: i, neden: 'logo' }); var r = mkYer(s, lg); if (!r) return n.push({ i: i, neden: 'cakisma' }); u.push({ i: i, r: r, lg: lg }); });
+    return { uygun: u, uygunsuz: n, logosuz: 0 };
+  };
+  /* uygula: önce otomatik sürüm, sonra tek geri al adımı; yalnız tema (kit alanları) ve 'tum' kapsamında logo öğesi değişir. Öğe renkleri temel
+     palette kaldığı için elle verilmiş renkler korunur. Hata → yedekten geri. Ardından yazı uyumu (fit) ve teknik denetim yeniden. */
+  var mkUygula = function (ham, kapsam, elle) {
+    var d = deck, kit = mkTemiz(ham); if (!kit || !d) return { ok: false, hata: 'kit' };
+    kapsam = kapsam === 'tum' ? 'tum' : 'genel';
+    var eski = d.marka, U = null, n0 = undoS.length;
+    svOtomatik(pqT('Marka kiti öncesi', 'Before brand kit'));
+    pushTm();
+    try {
+      var T = temaKur(mkTemaDef(kit, d.tema, elle)); if (!T) throw new Error('tema');
+      U = mkUygun(d, kit, kapsam, T);
+      d.temaEl = 1; fitIzKur(); d.tema = T;
+      if (kapsam === 'tum') {
+        d.slides.forEach(function (s) { s.els = arr(s.els).filter(function (e) { return !e.mrk; }); });
+        U.uygun.forEach(function (x) { var s = d.slides[x.i]; s.els.push(E('img', x.r.x, x.r.y, x.r.w, x.r.h, { src: x.lg.src, alt: (kit.marka || kit.ad) + ' logosu', mrk: kit.id, kaynak: { w: x.lg.l.w, h: x.lg.l.h } })); });
+      }
+      d.marka = { kit: kit.id, ad: kit.ad, surum: kit.surum, t: Date.now(), kapsam: kapsam, elle: mkElle(elle), paylas: !!(eski && eski.kit === kit.id && eski.paylas), logolu: U.uygun.length };
+      if (pqUygulaHata) { pqUygulaHata = 0; throw new Error('deneme'); }      /* yalnız test: hata yolunu sınar */
+    } catch (err) { if (undoS.length > n0) { restore(undoS.pop()); paintHist(); } return { ok: false, hata: 'hata' }; }
+    selId = null; renderAll(); dirty(); yaziSonra(function () {}, 'uyum'); teknikPlanla();
+    return { ok: true, uygun: U.uygun.map(function (x) { return x.i; }), uygunsuz: U.uygunsuz, logosuz: U.logosuz, qa: qaListe(d).bulgu.length };
+  };
+  var pqUygulaHata = 0;
+  var mkPay = function (d, els) { return d && d.marka && d.marka.paylas ? els : els.filter(function (e) { return !e.mrk; }); };      /* paylaşım görüntüsünde logo yalnız izinle */
+  var mkDurum = function (d) { var m = d && d.marka; if (!m) return null; var k = mkBul(m.kit); return { ad: m.ad, surum: m.surum, kapsam: m.kapsam, paylas: !!m.paylas, yeni: !!(k && k.surum > m.surum), silindi: !k }; };
+  /* önizleme: örnek kapak + içerik asetatı, gerçek çizim yoluyla (slideHTML) ve geçici deste ile; yazı tipi yüklenmesi beklenmez (fontAile, en iyi çaba) */
+  var mkOrnekler = function (kit, elle, d0) {
+    var T = temaKur(mkTemaDef(kit, d0 && d0.tema, elle)), a = newSlide('cover', kit.marka || kit.ad, null, { sub: kit.aciklama || pqT('Örnek kapak', 'Sample cover') }), b = newSlide('list', pqT('Örnek içerik', 'Sample content'), [pqT('Birinci madde', 'First point'), pqT('İkinci madde', 'Second point'), pqT('Üçüncü madde', 'Third point')]);
+    var gd = { tema: T, slides: [a, b], title: kit.ad }; [a, b].forEach(function (s) { var lg = mkLogoSec(kit, s.bg === 'navy' || T.dark), r = lg && mkYer(s, lg); if (r) s.els.push(E('img', r.x, r.y, r.w, r.h, { src: lg.src, alt: '', mrk: kit.id, kaynak: { w: lg.l.w, h: lg.l.h } })); });
+    return gd;
+  };
+  var mkOrnekCiz = function (kutu, kit, elle) {
+    var gd = mkOrnekler(kit, elle, deck), d0 = deck, hs = [];
+    try { deck = gd; hs = gd.slides.map(function (s) { return slideHTML(s); }); } finally { deck = d0; }
+    Array.prototype.forEach.call(kutu.querySelectorAll('[data-mk-ornek]'), function (b, i) { b.innerHTML = hs[i] || ''; fitInto(b); });
+    try { if (gd.tema.hf) fontAile(gd.tema.hf); if (gd.tema.bf) fontAile(gd.tema.bf); } catch (_) {}
+  };
+
+  /* ---- 12.2 hedef kitle profili (#55'in profili; sunucudaki SD_PROFIL ile birebir, test H1) ---- */
+  var SD_PROFIL = { kitle: ['genel', 'ogrenci', 'uzman', 'yonetici', 'yatirimci', 'musteri', 'juri', 'ekip'], seviye: ['baslangic', 'orta', 'ileri'], amac: ['bilgilendir', 'ikna', 'ogret', 'karar', 'rapor'], ton: ['resmi', 'samimi', 'notr', 'enerjik'],
+    derinlik: ['dusuk', 'orta', 'yuksek'], ornek: ['az', 'orta', 'cok'], terim: ['sade', 'alan'], yogunluk: ['seyrek', 'orta', 'yogun'], uslup: ['akademik', 'kurumsal', 'yonetici', 'egitim', 'minimalist', 'ikna', 'arastirma', 'yatirimci', 'musteri'] };
+  var HK_ALAN = { kitle: ['Dinleyici', 'Audience'], seviye: ['Bilgi düzeyi', 'Knowledge level'], amac: ['Amaç', 'Purpose'], ton: ['Ton', 'Tone'], derinlik: ['Derinlik', 'Depth'], ornek: ['Örnek', 'Examples'], terim: ['Terim', 'Terminology'], yogunluk: ['Yoğunluk', 'Density'], uslup: ['Üslup', 'Style'] };
+  var HK_AD = { genel: ['genel', 'general'], ogrenci: ['öğrenci', 'students'], uzman: ['uzman', 'experts'], yonetici: ['yönetici', 'executive'], yatirimci: ['yatırımcı', 'investor'], musteri: ['müşteri', 'customer'], juri: ['jüri', 'jury'], ekip: ['ekip içi', 'internal team'],
+    baslangic: ['başlangıç', 'beginner'], orta: ['orta', 'medium'], ileri: ['ileri', 'advanced'], bilgilendir: ['bilgilendirme', 'inform'], ikna: ['ikna', 'persuasive'], ogret: ['öğretme', 'teach'], karar: ['karar', 'decision'], rapor: ['rapor', 'report'],
+    resmi: ['resmî', 'formal'], samimi: ['samimi', 'friendly'], notr: ['nötr', 'neutral'], enerjik: ['enerjik', 'energetic'], dusuk: ['düşük', 'low'], yuksek: ['yüksek', 'high'], az: ['az', 'few'], cok: ['çok', 'many'], sade: ['sade', 'plain'], alan: ['alan dili', 'field terms'],
+    seyrek: ['seyrek', 'sparse'], yogun: ['yoğun', 'dense'], akademik: ['akademik', 'academic'], kurumsal: ['kurumsal', 'corporate'], egitim: ['eğitim', 'educational'], minimalist: ['minimalist', 'minimalist'], arastirma: ['araştırma', 'research'] };
+  /* hassas kişisel özellik çıkarımı yok: serbest not bu kategorileri taşıyorsa kaydedilmez (kısa sözcükler tam sözcük, uzunlar kök) */
+  var HK_HASSAS = /(^|[^a-zçğıöşü])(din|dini|ırk|ırkı|mezhep|etnik|kürt|alevi|sünni|gay|lgbt[a-z+]*|hiv)(?=[^a-zçğıöşü]|$)|(sağlık|hastalık|engelli|cinsel|siyasi|gebe|hamile|religio|ethnic|health|disab|sexual|political|pregnan)/;
+  var hkTemiz = function (p) {
+    if (!p || typeof p !== 'object') return null; var o = {}, n = 0;
+    Object.keys(SD_PROFIL).forEach(function (k) { if (SD_PROFIL[k].indexOf(String(p[k])) >= 0) { o[k] = String(p[k]); n++; } });
+    var s = String(p.serbest || '').replace(/[\x00-\x1f\x7f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (s && !hkHassas(s)) { o.serbest = s; n++; }
+    if (!n) return null; o.izin = !!p.izin; return o;
+  };
+  var hkHassas = function (s) { s = String(s || ''); return HK_HASSAS.test(s.toLocaleLowerCase('tr')) || HK_HASSAS.test(s.toLowerCase()); };      /* 28.11.2026: "ETHNIC" tr küçültmede "ethnıc" olur; iki küçültme de sınanır */
+  var hkVarsayilan = function () { return store.uid ? hkTemiz(G(store.k('kitle'), null)) : null; };
+  var hkVarsayilanYaz = async function (p) {
+    p = hkTemiz(p); if (!store.uid) return false; var ok = p ? S(store.k('kitle'), p) : (function () { try { localStorage.removeItem(store.k('kitle')); return true; } catch (_) { return false; } })();
+    /* 28.11.2026: hesap kopyası yalnız gönderim izniyle; izin kalkınca (ya da profil silinince) hesaptaki kopya boşaltılır */
+    var c = sbc(), u = me(); if (c && u && !u.is_anonymous) { try { var iz = !!(p && p.izin), r = iz ? await c.from('presentation_user_prefs').upsert({ user_id: u.id, kitle: p, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }) : await c.from('presentation_user_prefs').update({ kitle: null, updated_at: new Date().toISOString() }).eq('user_id', u.id); if (r.error && !MISSING(r.error)) console.warn('acadex-sunum: kitle varsayılanı', r.error.code); } catch (_) {} }
+    return ok;
+  };
+  /* istek: yalnız destede kayıtlı ve gönderim onayı verilmiş profil; izin alanı gitmez */
+  var hkGonder = function (d) { var p = d && d.kitle && hkTemiz(d.kitle); if (!p || !p.izin) return null; var o = {}; Object.keys(p).forEach(function (k) { if (k !== 'izin') o[k] = p[k]; }); return o; };
+  var hkOzet = function (p) { if (!p) return ''; return Object.keys(SD_PROFIL).filter(function (k) { return p[k]; }).map(function (k) { return pqT(HK_ALAN[k][0], HK_ALAN[k][1]) + ': ' + pqT((HK_AD[p[k]] || [p[k]])[0], (HK_AD[p[k]] || [p[k], p[k]])[1]); }).join(' · ') + (p.serbest ? ' · “' + p.serbest + '”' : ''); };
+  var hkKaydet = function (p) { var d = deck, q = hkTemiz(p); if (!d) return false; if (q) d.kitle = q; else delete d.kitle; dirty(); return true; };      /* profil değişince metin KENDİLİĞİNDEN yeniden yazılmaz */
+  var HK = { zorla: null };
+  var HK_IS = { uyarla: ['hedef kitleye uyarla', 'adapt to the audience'], derin: ['teknik derinliği artır', 'raise the technical depth'], yalin: ['teknik dili sadeleştir', 'lower the technical depth'], terimac: ['terimleri anlaşılır kıl', 'make the terms understandable'], akis: ['akışı iyileştir', 'improve the flow'] };
+  /* komut #55'e gider: hedef numara/aralıkla (≤5 asetat, ≤10 öğe sınırı #55'te), iş HK.zorla ile sabitlenir; önizleme/onay/uygula/geri al #55'in */
+  var hkKomut = function (is, a, b) {
+    if (!HK_IS[is] || !deck.slides.length) return false;
+    a = Math.max(1, Math.min(deck.slides.length, Math.floor(+a || deck.cur + 1))); b = Math.max(a, Math.min(deck.slides.length, Math.floor(+b || a)));
+    if (b - a + 1 > SD_AS) return false;
+    var en = gqDil() === 'en', t = (a === b ? (en ? 'slide ' + a + ': ' : a + '. slaytı ') : (en ? 'slides ' + a + '-' + b + ': ' : a + '-' + b + '. slaytları ')) + (en ? HK_IS[is][1] : HK_IS[is][0]);
+    HK.zorla = is; sdAc(true); var ok = sdGonder(t); if (!ok) HK.zorla = null; return ok;
+  };
+  /* önizlemede: eski metinde olup öneride olmayan önemli bilgi (sayı, ad, atıf, adres; olumsuzluk/koşul/neden/karşılaştırma/kesinlik işaretinin azalması) */
+  var hkCikan = function (K, d) {
+    var out = [];
+    arr(K && K.hedefler).forEach(function (h) { var s = d.slides[sdAs(d, h.slide_id)], e = s && onEl(s, h.element_id); if (!e) return; var es = String(e.text || ''), ys = String(h.replacement_text || '');
+      [['sayi', onSayilar], ['ad', onAdlar], ['atif', onAtiflar], ['adres', onUrl]].forEach(function (z) { var y = z[1](ys); z[1](es).forEach(function (v) { if (y.indexOf(v) < 0) out.push({ tur: z[0], v: v }); }); });
+      [['olumsuz', ON_OLUMSUZ], ['kosul', ON_KOSUL], ['neden', ON_NEDEN], ['karsi', ON_KARSI], ['kesin', ON_KESIN]].forEach(function (z) { if (onSay(z[1], ys) < onSay(z[1], es) || (z[0] === 'olumsuz' && onKutup(es, ys))) out.push({ tur: z[0], v: '' }); }); });      /* fiil olumsuzluğu (-ma/-me) yalnız onKutup ile görünür (28.11.2026) */
+    return out.filter(function (x, i, a) { return a.findIndex(function (y) { return y.tur === x.tur && y.v === x.v; }) === i; });
+  };
+  var HK_CIKAN = { sayi: ['sayı', 'number'], ad: ['ad', 'name'], atif: ['atıf', 'citation'], adres: ['adres', 'link'], olumsuz: ['olumsuzluk azaldı', 'fewer negations'], kosul: ['koşul azaldı', 'fewer conditions'], neden: ['neden-sonuç azaldı', 'less causality'], karsi: ['karşılaştırma azaldı', 'fewer comparisons'], kesin: ['kesinlik sözcüğü azaldı', 'fewer certainty words'] };
+  /* #55 paneline giden satırlar oradaki düzenle yazılır: Türkçe metin + AX_EN sözlüğü (pqSozluk); profil özeti zaten seçili dilde, çevrilmez */
+  var hkCikanHTML = function (K, d) {
+    pqSozluk(); var L = hkCikan(K, d); if (!L.length) return '<p><small data-hk-cikan="0">Önemli bilgi düşmedi (sayı, ad, atıf, adres, olumsuzluk, koşul, neden, karşılaştırma, kesinlik).</small></p>';
+    return '<div class="qa-no" data-hk-cikan="' + L.length + '"><p><small>Öneride çıkan önemli bilgi — uygulamadan önce bak:</small></p><ul class="on-l">' + L.slice(0, 12).map(function (x) { return '<li data-hk-cikan-tur="' + x.tur + '">' + X(HK_CIKAN[x.tur][0]) + (x.v ? ': <code data-no-i18n>' + X(x.v) + '</code>' : '') + '</li>'; }).join('') + '</ul></div>';
+  };
+  var hkOnayHTML = function (G0) { pqSozluk(); return G0 && G0.profil ? '<p><small data-hk-gonder>Hedef kitle profili de gönderilir: <span data-no-i18n>' + X(hkOzet(G0.profil)) + '</span></small></p>' : ''; };
+  /* ---- 12.3a konuşmacı koçu (yerel; ağ, model, yeni sayı yok) ---- */
+  var kcSozcuk = function (s) { var n = 0; arr(s.els).forEach(function (e) { if (e && /^(h|t|ul)$/.test(e.type) && !e.muted && e.text) n += String(e.text).split(/\s+/).filter(Boolean).length; }); return n; };
+  /* süre dağıtımı: taban 20 sn + sözcük başına 0,6 sn ağırlıkla; en büyük kalan yöntemiyle saniyeler TOPLAMA BİREBİR eşit. Tahmindir. */
+  var kcSure = function (d, dk) {
+    var n = d.slides.length, top = Math.round(Math.max(1, +dk || 10) * 60); if (!n) return [];
+    var w = d.slides.map(function (s) { return kyYapi(s) ? 8 : 20 + kcSozcuk(s) * .6; }), tw = w.reduce(function (a, b) { return a + b; }, 0);
+    var ham = w.map(function (x) { return x / tw * top; }), tam = ham.map(Math.floor), kalan = top - tam.reduce(function (a, b) { return a + b; }, 0);
+    ham.map(function (x, i) { return { i: i, f: x - Math.floor(x) }; }).sort(function (a, b) { return b.f - a.f || a.i - b.i; }).slice(0, kalan).forEach(function (z) { tam[z.i]++; });
+    return tam;
+  };
+  var KC = { dk: 10, sureler: null, ozel: 0 };
+  var kcCumleler = function (s) { var out = []; arr(s.els).forEach(function (e) { if (e && (e.type === 't' || e.type === 'ul') && !e.muted && e.text) String(e.text).replace(e.type === 'ul' ? /$^/ : /([.!?])\s+/g, '$1\n').split('\n').forEach(function (x) { x = cleanB(x); if (x) out.push(x); }); }); return out; };
+  var kcKoc = function (d, i) {
+    var s = d.slides[i]; if (!s) return null;
+    var sure = (KC.sureler || kcSure(d, KC.dk))[i] || 0, C = kcCumleler(s), T0 = titleOf(s) || '', nx = d.slides[i + 1], reg = kyKayit(d), terim = keyTerms(s).slice(0, 4);
+    var sayili = C.filter(function (c) { return onSayilar(c).length; });
+    var kaynakli = []; arr(s.els).forEach(function (e) { arr(e && e.iddia).forEach(function (r) { if (r.bayat || kaynakli.length >= 3) return; var k0 = arr(r.kanit).filter(function (k) { return kkKullan(k, reg); })[0]; if (k0) kaynakli.push({ metin: String(r.metin || e.text || '').slice(0, 160), no: kkNo(reg, k0.sid) }); }); });
+    C.forEach(function (c) { if (kaynakli.length < 3 && onAtiflar(c).length && !kaynakli.some(function (z) { return z.metin === c.slice(0, 160); })) kaynakli.push({ metin: c.slice(0, 160), no: onAtiflar(c).join(' ') }); });
+    var soru = [];
+    if (terim[0]) soru.push(pqT('“' + terim[0] + '” tam olarak ne demek?', 'What exactly does “' + terim[0] + '” mean?'));
+    if (sayili[0]) soru.push(pqT('Bu sayının kaynağı ne? (' + onSayilar(sayili[0])[0] + ')', 'What is the source of this number? (' + onSayilar(sayili[0])[0] + ')'));
+    if (C.length > 1) soru.push(pqT('Bunun pratikteki sonucu ne?', 'What is the practical consequence?'));
+    /* 28.11.2026: kapak ve kapanış da kyYapi sayılır; ilk/son asetatın amacı yapıdan önce gelir */
+    return { i: i, mesaj: T0 || C[0] || '', amac: i === 0 ? pqT('Konuyu ve neden önemli olduğunu tanıtmak', 'Introduce the topic and why it matters') : !nx ? pqT('Özetleyip kapatmak', 'Summarise and close') : kyYapi(s) ? pqT('Yapıyı göstermek', 'Show the structure') : pqT('Bu fikri açıklamak', 'Explain this idea'),
+      sure: sure, akilda: C[0] || T0, gecis: nx ? pqT('Sıradaki: ', 'Next: ') + (titleOf(nx) || pqT('sonraki asetat', 'next slide')) : pqT('Kapanış: soruları al.', 'Close: take questions.'), terim: terim, soru: soru.slice(0, 3), kaynakli: kaynakli };
+  };
+  var kcNotMetni = function (k) {
+    var L = [pqT('— Koç notu —', '— Coach note —'), pqT('Ana mesaj: ', 'Key message: ') + k.mesaj, pqT('Amaç: ', 'Goal: ') + k.amac, pqT('Süre (tahmini): ', 'Time (estimate): ') + mmss(k.sure * 1000), pqT('Akılda kalacak: ', 'Takeaway: ') + k.akilda, k.gecis];
+    if (k.terim.length) L.push(pqT('Terimler: ', 'Terms: ') + k.terim.join(', '));
+    if (k.soru.length) L.push(pqT('Olası sorular: ', 'Likely questions: ') + k.soru.join(' / '));
+    k.kaynakli.forEach(function (z) { L.push(pqT('Kaynaklı: ', 'Sourced: ') + z.metin + (z.no ? ' ' + z.no : '')); });
+    return L.join('\n');
+  };
+  /* koç notu: yalnız seçili asetat, var olan not KORUNUR (sona eklenir), tek geri al; işlem türü 'koc_not' olarak kaydedilir; PPTX notlarına aynı alan gider */
+  var kcNotUygula = function (i, metin) {
+    var d = deck, s = d.slides[i]; if (!s || !metin) return { ok: false };
+    var once = s.notes || ''; push();
+    try { s.notes = once ? once.replace(/\s+$/, '') + '\n\n' + metin : metin; if (s.notes.indexOf(once.replace(/\s+$/, '')) !== 0) throw new Error('not'); d.islemler = arr(d.islemler).concat([{ tur: 'koc_not', sid: s.id, t: Date.now() }]).slice(-50); }
+    catch (err) { restore(undoS.pop()); paintHist(); return { ok: false }; }
+    renderAll(); dirty(); return { ok: true };
+  };
+  var kcProvaBoya = function () {
+    var yan = Q('.sx-rh-side', rh); if (!yan) return; var b = Q('[data-kc-prova]', rh);
+    if (!b) { var nav = Q('.sx-rh-nav', rh); b = document.createElement('div'); b.className = 'kc-prova'; b.setAttribute('data-kc-prova', ''); yan.insertBefore(b, nav); }
+    var gd = Math.round(+Q('[data-rh-goal]', rh).value || 10), su = kcSure(deck, gd)[rhI] || 0, n = deck.slides.length;
+    b.innerHTML = '<p class="sx-k">' + X(pqT('önerilen (tahmini)', 'suggested (estimate)')) + '</p><p class="kc-pr-s" data-kc-oneri="' + su + '">' + mmss(su * 1000) + '</p><p class="sx-k">' + X(pqT('tamamlanan', 'completed')) + '</p><p class="kc-pr-t" data-kc-tamam="' + (rhI + 1) + '/' + n + '">' + (rhI + 1) + ' / ' + n + ' · %' + Math.round((rhI + 1) / n * 100) + '</p>';
+  };
+  var kcProvaSaat = function (tot, goal, now) { var b = Q('[data-kc-oneri]', rh); if (!b) return; var su = +b.getAttribute('data-kc-oneri') * 1000, gec = rhAcc[rhI] + now - rhSlideT0; b.classList.toggle('over', su > 0 && gec > su); };
+  var kcOzelSure = function (dk) { dk = Math.floor(+dk); if (!(dk >= 1 && dk <= 180)) return false; var sel = Q('[data-rh-goal]', rh), o = sel.querySelector('[data-kc-ozel]'); if (!o) { o = document.createElement('option'); o.setAttribute('data-kc-ozel', ''); sel.appendChild(o); } o.value = String(dk); o.textContent = dk + ' dk'; sel.value = String(dk); KC.dk = dk; KC.ozel = dk; return true; };
+
+  /* ---- 12.3b sürümler (elle kayıt; otomatik yalnız onaylanmış büyük değişiklikten önce; her tuşta değil) ---- */
+  var SV_YEREL = 8;
+  var svDeste = function (d) { return { title: d.title || '', lang: d.lang || 'tr', slides: JSON.parse(JSON.stringify(d.slides, kaliciJSON)), tema: d.tema ? d.tema.def : null, marka: d.marka || null, kitle: d.kitle || null, kaynaklar: d.kaynaklar === undefined ? null : d.kaynaklar }; };
+  var svImza = function (D) { return kyHash(JSON.stringify([D.title, D.slides, D.tema, D.marka, D.kaynaklar])); };
+  var svSnap = function (d) { var D = svDeste(d); return { v: 1, deste: D, imza: svImza(D) }; };
+  var svListe = function (d) { var L = store.uid && d ? G(store.k('surum.' + d.id), []) : []; return Array.isArray(L) ? L.filter(function (v) { return v && v.snapshot && v.snapshot.deste && Array.isArray(v.snapshot.deste.slides); }) : []; };
+  var svYerelYaz = function (d, L) { if (!store.uid) return false; while (L.length) { if (S(store.k('surum.' + d.id), L)) return true; L = L.slice(1); } return false; };      /* alan dolarsa en eski sürüm düşer */
+  var svYeni = function (d, ad, ac, oto) { var u = me(), sn = svSnap(d); return { id: uid(), deck: d.id, ad: String(ad || '').replace(/\s+/g, ' ').trim().slice(0, 80) || pqT('Adsız sürüm', 'Untitled version'), aciklama: String(ac || '').trim().slice(0, 300), t: Date.now(), kim: u ? u.id : null, imza: sn.imza, oto: oto ? 1 : 0, snapshot: sn }; };
+  var svOtomatik = function (neden) { var d = deck; if (!d || !d.slides.length || !store.uid) return null; var v = svYeni(d, neden, '', 1), L = svListe(d); if (L.length && L[L.length - 1].imza === v.imza) return L[L.length - 1]; L.push(v); var oto = L.filter(function (x) { return x.oto; }); if (oto.length > 3) L.splice(L.indexOf(oto[0]), 1); svYerelYaz(d, L.slice(-SV_YEREL)); return v; };
+  var svBulutYok = false;
+  var svKaydet = async function (ad, ac) {
+    var d = deck; if (!d.slides.length) return { ok: false, hata: 'bos' };
+    var v = svYeni(d, ad, ac, 0), L = svListe(d); L.push(v); if (!svYerelYaz(d, L.slice(-SV_YEREL))) return { ok: false, hata: 'alan' };
+    var c = sbc(), u = me(); if (!c || !u || u.is_anonymous || !d.dbId || svBulutYok) return { ok: true, v: v, bulut: false };
+    try {
+      for (var deneme = 0; deneme < 2; deneme++) {
+        var r0 = await c.from('presentation_versions').select('version_no').eq('presentation_id', d.dbId).order('version_no', { ascending: false }).limit(1); if (r0.error) throw r0.error;
+        var no = ((r0.data && r0.data[0] && r0.data[0].version_no) || 0) + 1;
+        var r = await c.from('presentation_versions').insert({ presentation_id: d.dbId, version_no: no, reason: 'manual_snapshot', created_by_type: 'user', snapshot: v.snapshot, name: v.ad, description: v.aciklama, signature: v.imza, created_by: u.id }).select('id,version_no').single();
+        if (!r.error) { v.dbId = r.data.id; v.no = r.data.version_no; svYerelYaz(d, svListe(d).map(function (x) { return x.id === v.id ? v : x; })); return { ok: true, v: v, bulut: true }; }
+        if (r.error.code !== '23505') throw r.error;
+      }
+      return { ok: true, v: v, bulut: false };
+    } catch (e) { if (MISSING(e)) svBulutYok = true; console.warn('acadex-sunum: sürüm hesaba yazılamadı', e && e.code); return { ok: true, v: v, bulut: false }; }
+  };
+  var svBulut = async function (d) {
+    var c = sbc(); if (!c || !d.dbId || svBulutYok) return [];
+    var r = await c.from('presentation_versions').select('id,version_no,name,description,signature,created_by,created_at,snapshot').eq('presentation_id', d.dbId).order('version_no', { ascending: false }).limit(20);
+    if (r.error) { if (MISSING(r.error)) svBulutYok = true; return []; }
+    return (r.data || []).filter(function (x) { return x.snapshot && x.snapshot.deste && Array.isArray(x.snapshot.deste.slides); }).map(function (x) { return { id: 'db-' + x.id, dbId: x.id, no: x.version_no, ad: x.name || ('#' + x.version_no), aciklama: x.description || '', t: Date.parse(x.created_at) || 0, kim: x.created_by, imza: x.signature, snapshot: x.snapshot }; });
+  };
+  /* karşılaştırma: asetat (kimlikle), başlık, metin, kaynak/iddia, şablon/kit */
+  var svFark = function (A, B) {
+    var a = arr(A && A.slides), b = arr(B && B.slides), ia = {}, ib2 = {}, o = { eklenen: [], silinen: [], baslik: [], metin: [], sira: false, kaynak: 0, iddia: 0, tema: false, marka: false };
+    a.forEach(function (s, i) { ia[s.id] = i; }); b.forEach(function (s, i) { ib2[s.id] = i; });
+    b.forEach(function (s, i) { if (!(s.id in ia)) o.eklenen.push(i); }); a.forEach(function (s, i) { if (!(s.id in ib2)) o.silinen.push(i); });
+    var ortak = b.filter(function (s) { return s.id in ia; }); o.sira = ortak.some(function (s, k) { return k > 0 && ia[s.id] < ia[ortak[k - 1].id]; });
+    var yazi = function (s) { return arr(s.els).filter(function (e) { return e && /^(t|ul)$/.test(e.type); }).map(function (e) { return e.id + ':' + e.text; }).join('\n'); };
+    var idd = function (s) { var n = 0; arr(s.els).forEach(function (e) { n += arr(e && e.iddia).length; }); return n; };
+    ortak.forEach(function (s) { var x = a[ia[s.id]], j = ib2[s.id]; if ((titleOf(x) || '') !== (titleOf(s) || '')) o.baslik.push(j); if (yazi(x) !== yazi(s)) o.metin.push(j); });
+    o.kaynak = arr(B && B.kaynaklar).length - arr(A && A.kaynaklar).length; o.iddia = b.reduce(function (t, s) { return t + idd(s); }, 0) - a.reduce(function (t, s) { return t + idd(s); }, 0);
+    o.tema = JSON.stringify((A && A.tema) || null) !== JSON.stringify((B && B.tema) || null); o.marka = JSON.stringify((A && A.marka) || null) !== JSON.stringify((B && B.marka) || null);
+    o.ayni = !o.eklenen.length && !o.silinen.length && !o.baslik.length && !o.metin.length && !o.sira && !o.kaynak && !o.iddia && !o.tema && !o.marka;
+    return o;
+  };
+  /* geri yükleme: önce otomatik sürüm, tek geri al; metni farklılaşan öğenin eski doğrulaması (kontrol) taşınmaz; hata → geri */
+  var svGeriYukle = function (v) {
+    var D = v && v.snapshot && v.snapshot.deste; if (!D || !Array.isArray(D.slides)) return { ok: false, hata: 'bozuk' };
+    var d = deck, n0 = undoS.length; svOtomatik(pqT('Geri yükleme öncesi', 'Before restore')); pushTm();
+    try {
+      var es = {}; d.slides.forEach(function (s) { arr(s.els).forEach(function (e) { if (e) es[s.id + '|' + e.id] = e.text; }); });
+      var S2 = clone(D.slides); S2.forEach(function (s) { if (!s || !s.id || !Array.isArray(s.els)) throw new Error('yapi'); s.els.forEach(function (e) { if (e && es[s.id + '|' + e.id] !== e.text) arr(e.iddia).forEach(function (r) { delete r.kontrol; }); }); });
+      d.slides = S2; d.title = String(D.title || ''); d.temaEl = 1; fitIzKur(); d.tema = D.tema ? temaKur(D.tema) : null;
+      if (D.marka) d.marka = D.marka; else delete d.marka;
+      if (Array.isArray(D.kaynaklar)) d.kaynaklar = clone(D.kaynaklar); else delete d.kaynaklar;
+      d.cur = Math.min(d.cur || 0, Math.max(0, d.slides.length - 1)); d.slides.forEach(iddiaTazele);
+      if (pqUygulaHata) { pqUygulaHata = 0; throw new Error('deneme'); }
+    } catch (err) { if (undoS.length > n0) { restore(undoS.pop()); paintHist(); } return { ok: false, hata: 'hata' }; }
+    selId = null; renderAll(); dirty(); yaziSonra(function () {}, 'uyum'); teknikPlanla(); return { ok: true };
+  };
+  /* yeni deste olarak kaydet: geçerli deste değişmez; yeni destede bütün doğrulamalar düşer (kanıt kaydı kalır) */
+  var svYeniDeste = function (v) {
+    var D = v && v.snapshot && v.snapshot.deste; if (!D || !Array.isArray(D.slides)) return null;
+    commitEdit(); if (store.dirty) { clearTimeout(sT); saveNow(); } store.flush();
+    var d = fresh(); d.title = (String(D.title || pqT('Adsız sunum', 'Untitled')) + ' · ' + String(v.ad || '')).slice(0, 140); d.lang = D.lang === 'en' ? 'en' : 'tr'; d.slides = clone(D.slides); d.slides.forEach(function (s) { arr(s.els).forEach(function (e) { arr(e && e.iddia).forEach(function (r) { delete r.kontrol; }); }); });
+    d.tema = D.tema ? temaKur(D.tema) : null; if (D.marka) d.marka = clone(D.marka); if (Array.isArray(D.kaynaklar)) d.kaynaklar = clone(D.kaynaklar);
+    opening++; deck = d; undoS = []; redoS = []; selId = null; renderAll(); paintHist(); saveNow(); return d;
+  };
+
+  /* ---- 12.3c inceleme (20261128b; rol sunucuda, istemcinin söylediği rol kullanılmaz) ---- */
+  var IB = { veri: null, yorum: [], baglanti: [], uye: [], token: null, rol: null };
+  var ibHata = function (e) { var k = e && (e.code || ''), m = String(e && e.message || ''); return k === '42501' || /yetki|oturum/.test(m) ? 'yetki' : k === '22023' || /gecersiz/.test(m) ? 'gecersiz' : MISSING(e) ? 'yok' : 'hata'; };
+  var IB_HATA = { yetki: ['Bu işlem için yetkin yok.', 'You are not allowed to do this.'], gecersiz: ['Bağlantı geçersiz, süresi dolmuş ya da geri alınmış.', 'The link is invalid, expired or revoked.'], yok: ['İnceleme altyapısı henüz kurulmadı (migration çalıştırılmadı).', 'Review is not set up yet (migration not run).'], hata: ['Hesaba ulaşılamadı; hiçbir şey değişmedi.', 'Could not reach the account; nothing changed.'], kayit: ['Önce sunumu hesabına kaydet.', 'Save the presentation to your account first.'], misafir: ['Misafir oturumu inceleme kullanamaz.', 'Guest sessions cannot use review.'] };
+  var ibIstemci = function () { var c = sbc(), u = me(); if (!c || !u) return { hata: 'hata' }; if (u.is_anonymous) return { hata: 'misafir' }; return { c: c, u: u }; };
+  var ibBaglantiKur = async function (rol, surumId, gun, notlar) {
+    var d = deck, I = ibIstemci(); if (I.hata) return { ok: false, hata: I.hata }; if (!d.dbId) return { ok: false, hata: 'kayit' };
+    var r = await I.c.rpc('review_link_create', { p_presentation: d.dbId, p_role: rol === 'editor' ? 'editor' : 'reviewer', p_version: surumId || null, p_days: Math.max(1, Math.min(30, Math.floor(+gun || 7))), p_notlar: !!notlar });
+    if (r.error) return { ok: false, hata: ibHata(r.error) };
+    if (rol === 'editor') { var m = store.meta(d.id); if (m) { m.ortak = 'owner'; store.putList(); } }
+    return { ok: true, id: r.data.id, url: location.origin + location.pathname + '?inceleme=' + encodeURIComponent(r.data.token), bitis: r.data.expires_at };
+  };
+  var ibGeriAl = async function (id) { var I = ibIstemci(); if (I.hata) return { ok: false, hata: I.hata }; var r = await I.c.rpc('review_link_revoke', { p_link: id }); return r.error ? { ok: false, hata: ibHata(r.error) } : { ok: true }; };
+  var ibListe = async function (d) {
+    var I = ibIstemci(); if (I.hata || !d.dbId) return { ok: false, hata: I.hata || 'kayit' };
+    var a = await I.c.from('presentation_review_links').select('id,role,version_id,notlar,expires_at,revoked_at,created_at').eq('presentation_id', d.dbId).order('created_at', { ascending: false }).limit(30);
+    var b = await I.c.from('presentation_members').select('user_id,role,link_id,created_at').eq('presentation_id', d.dbId).limit(50);
+    if (a.error || b.error) return { ok: false, hata: ibHata(a.error || b.error) };
+    IB.baglanti = a.data || []; IB.uye = b.data || []; return { ok: true };
+  };
+  var ibUyeSil = async function (d, kim) { var I = ibIstemci(); if (I.hata) return { ok: false, hata: I.hata }; var r = await I.c.from('presentation_members').delete().eq('presentation_id', d.dbId).eq('user_id', kim); return r.error ? { ok: false, hata: ibHata(r.error) } : { ok: true }; };
+  var ibYorumlar = async function (pid) { var I = ibIstemci(); if (I.hata) return { ok: false, hata: I.hata }; var r = await I.c.from('presentation_comments').select('id,version_id,scope,slide_id,element_id,body,parent_id,author_id,resolved_at,created_at').eq('presentation_id', pid).order('created_at', { ascending: true }).limit(200); if (r.error) return { ok: false, hata: ibHata(r.error) }; IB.yorum = r.data || []; return { ok: true }; };
+  /* yorum metne dokunmaz: ayrı tablo; kapsam deste / asetat / öğe */
+  var ibYorumYaz = async function (pid, o) {
+    var I = ibIstemci(); if (I.hata) return { ok: false, hata: I.hata };
+    var body = String(o.body || '').trim().slice(0, 2000); if (!body) return { ok: false, hata: 'bos' };
+    var sc = o.element_id ? 'element' : o.slide_id ? 'slide' : 'deck', row = { presentation_id: pid, scope: sc, body: body, author_id: I.u.id };
+    if (o.slide_id) row.slide_id = String(o.slide_id); if (o.element_id) row.element_id = String(o.element_id); if (isUuid(o.version_id)) row.version_id = o.version_id; if (isUuid(o.parent_id)) row.parent_id = o.parent_id;
+    var r = await I.c.from('presentation_comments').insert(row); return r.error ? { ok: false, hata: ibHata(r.error) } : { ok: true };
+  };
+  var ibCoz = async function (id, coz) { var I = ibIstemci(); if (I.hata) return { ok: false, hata: I.hata }; var r = await I.c.rpc('comment_resolve', { p_id: id, p_cozuldu: !!coz }); return r.error ? { ok: false, hata: ibHata(r.error) } : { ok: true }; };
+  /* çakışma: ortak destede hesaptaki içerik sürümü bu cihazın bildiğinden farklıysa yazılmaz; yerel iş "çakışma kopyası" olarak ayrı desteye
+     kaydedilir, hesaptaki korunur (ikisi de kalır). Denetim ile yazım arasında kısa bir pencere kalır (TOCTOU; raporda). */
+  var ibCakisma = async function (c, d) {
+    var m = store.meta(d.id); if (!m || !m.ortak || !d.dbId) return false;
+    var r = await c.from('presentation_slides').select('surum:content->>surum').eq('presentation_id', d.dbId).eq('order_index', 0).maybeSingle(); if (r.error) throw r.error;
+    var uzak = (r.data && r.data.surum) || null; if (uzak === (m.surum || null)) return false;
+    var k = clone(d); k.id = uid(); k.dbId = null; delete k.share; delete k.snapBekle; k.title = (String(d.title || pqT('Adsız sunum', 'Untitled')) + ' ' + pqT('(çakışma kopyası)', '(conflict copy)')).slice(0, 140); k.updated = Date.now();
+    if (S(store.k('d.' + k.id), k, kaliciJSON)) { store.list.unshift({ id: k.id, dbId: null, title: k.title, n: k.slides.length, updated: k.updated, bekleyen: 1 }); delete m.bekleyen; m.updated = 0; store.putList(); }
+    say(pqT('Bu sunum başka biri tarafından da değiştirildi. Senin değişikliklerin “çakışma kopyası” olarak ayrı kaydedildi; hesaptaki sürümün üzerine yazılmadı.', 'Someone else changed this presentation too. Your changes were saved separately as a “conflict copy”; the account version was not overwritten.'));
+    setTimeout(function () { if (deck.id === m.id) openDeck(m.id, true); paintDecks(); }, 0);
+    return true;
+  };
+  /* ortak deste açılmadan önce rol yeniden sorulur: erişim kesildiyse hesaptan boş deste çekilip yerel kopyanın üzerine yazılmaz */
+  var ibErisim = async function (m) {
+    if (!m || !m.ortak || m.ortak === 'owner') return true; var c = sbc(); if (!c) return false;
+    var r = await c.rpc('sunum_rol', { p: m.dbId }); var ok = !r.error && (r.data === 'editor' || r.data === 'owner');
+    if (!ok) { m.dbId = null; m.remote = 0; m.ortak = null; store.putList(); say(pqT('Bu ortak sunuma erişimin kaldırıldı; bu tarayıcıdaki kopya yalnız sende duruyor.', 'Your access to this shared presentation was removed; the copy in this browser stays only with you.')); }
+    return ok;
+  };
+  var ibBaslatildi = false;
+  var ibBoot = async function () {
+    if (ibBaslatildi) return; var t = null; try { t = new URLSearchParams(location.search).get('inceleme'); } catch (_) {} if (!t) return; ibBaslatildi = true;
+    try { var q = new URLSearchParams(location.search); q.delete('inceleme'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : '') + location.hash); } catch (_) {}      /* belirteç adres çubuğunda kalmaz */
+    if (!/^[0-9a-f]{48}$/.test(t)) { say(pqT(IB_HATA.gecersiz[0], IB_HATA.gecersiz[1])); return; }
+    var I = ibIstemci(); if (I.hata) { say(pqT(IB_HATA[I.hata][0], IB_HATA[I.hata][1])); return; }
+    var r = await I.c.rpc('review_open', { p_token: t }); if (r.error) { var h = ibHata(r.error); say(pqT(IB_HATA[h][0], IB_HATA[h][1])); return; }
+    var o = r.data || {}; IB.veri = o; IB.rol = o.role;
+    if (o.role === 'editor' && isUuid(o.presentation_id)) {
+      var m = null; store.list.forEach(function (x) { if (x.dbId === o.presentation_id) m = x; });
+      if (!m) { m = { id: 'db-' + o.presentation_id, dbId: o.presentation_id, title: o.title || '', n: 0, updated: 0, remote: Date.now(), ortak: 'editor' }; store.list.unshift(m); } else if (!m.ortak) m.ortak = 'editor';
+      store.putList(); paintDecks(); openDeck(m.id, true); say(pqT('Ortak sunum düzenleyici olarak açıldı. Değişiklikler sahibin hesabına yazılır.', 'Shared presentation opened as editor. Changes are written to the owner’s account.')); return;
+    }
+    if (o.role === 'owner' && isUuid(o.presentation_id)) { var m2 = null; store.list.forEach(function (x) { if (x.dbId === o.presentation_id) m2 = x; }); if (m2) openDeck(m2.id); }
+    if (o.version) ibIzleyici(o);
+  };
+  /* inceleyici görünümü: salt okunur sürüm görüntüsü (notlar/profil sunucuda çıkarılmış), yorum yazma; içerik değişmez */
+  var ibDlg = null, ibAs = 0;
+  var ibIzleyici = function (o) {
+    pqCss(); if (!ibDlg) { ibDlg = sxDlg(); ibDlg.classList.add('pq-dlg'); ibDlg.setAttribute('aria-label', pqT('İnceleme', 'Review')); LY.appendChild(ibDlg); }
+    ibAs = 0; var D = o.version.snapshot.deste, T = D.tema ? temaKur(D.tema) : null;
+    var boya = async function () {
+      await ibYorumlar(o.presentation_id);
+      var s = D.slides[ibAs], gd = { tema: T, slides: D.slides, title: D.title }, d0 = deck, html = '';
+      try { deck = gd; html = s ? slideHTML(s) : ''; } finally { deck = d0; }
+      var Y = IB.yorum.filter(function (y) { return !y.parent_id && (y.scope === 'deck' || y.slide_id === (s && s.id)); });
+      ibDlg.innerHTML = '<div class="sxd-in"><span class="sxd-eyb">' + X(pqT('inceleme', 'review')) + '</span><h3 data-no-i18n>' + X(o.title || D.title || '') + '</h3><p class="sxd-sub">' + X(pqT('Salt okunur sürüm: ', 'Read-only version: ') + (o.version.name || ('#' + o.version.version_no))) + ' · ' + X(pqT('rol: ', 'role: ') + (o.role === 'owner' ? pqT('sahip', 'owner') : o.role === 'editor' ? pqT('düzenleyici', 'editor') : pqT('inceleyici', 'reviewer'))) + '</p><button type="button" class="sxd-x" data-ib-x aria-label="' + X(pqT('Kapat', 'Close')) + '">×</button>' +
+        '<div class="pq-ib-sahne"><div class="pq-ornek" data-ib-sahne>' + html + '</div></div><div class="sxd-acts"><button type="button" class="sxd-b sm" data-ib-as="-1"' + (ibAs ? '' : ' disabled') + '>←</button><span data-ib-no>' + (ibAs + 1) + ' / ' + D.slides.length + '</span><button type="button" class="sxd-b sm" data-ib-as="1"' + (ibAs < D.slides.length - 1 ? '' : ' disabled') + '>→</button></div>' +
+        '<h4>' + X(pqT('Yorumlar', 'Comments')) + '</h4><ul class="pq-yl" data-ib-yorumlar>' + Y.map(function (y) { return ibYorumLi(y, o.role); }).join('') + '</ul>' +
+        '<label class="pq-f"><span>' + X(pqT('Yorum yaz (metin değişmez)', 'Write a comment (text does not change)')) + '</span><textarea data-ib-metin rows="2" maxlength="2000"></textarea></label><div class="pq-sat"><label><input type="radio" name="ib-k" value="slide" checked> ' + X(pqT('bu asetat', 'this slide')) + '</label><label><input type="radio" name="ib-k" value="deck"> ' + X(pqT('bütün sunum', 'whole deck')) + '</label>' +
+        '<select data-ib-oge><option value="">' + X(pqT('öğe seçme (isteğe bağlı)', 'no element (optional)')) + '</option>' + arr(s && s.els).filter(function (e) { return e && /^(h|t|ul)$/.test(e.type) && /^[A-Za-z0-9_-]{1,64}$/.test(String(e.id)); }).map(function (e) { return '<option value="' + X(e.id) + '" data-no-i18n>' + X(String(e.text || '').slice(0, 40)) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-ib-yaz>' + X(pqT('Yorumu gönder', 'Send comment')) + '</button></div><p class="pq-dur" data-ib-dur role="status"></p></div>';
+      var sh = ibDlg.querySelector('[data-ib-sahne]'); if (sh) fitInto(sh);
+    };
+    ibDlg.onclick = async function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.hasAttribute('data-ib-x')) { ibDlg.close(); return; }
+      if (b.hasAttribute('data-ib-as')) { ibAs = Math.max(0, Math.min(D.slides.length - 1, ibAs + +b.getAttribute('data-ib-as'))); boya(); return; }
+      if (b.hasAttribute('data-ib-yaz')) { var k = (ibDlg.querySelector('[name="ib-k"]:checked') || {}).value, s = D.slides[ibAs], el = ibDlg.querySelector('[data-ib-oge]').value;
+        var r = await ibYorumYaz(o.presentation_id, { body: ibDlg.querySelector('[data-ib-metin]').value, version_id: o.version.id, slide_id: k === 'deck' ? null : s && s.id, element_id: k === 'deck' ? null : el || null });
+        if (!r.ok) { ibDlg.querySelector('[data-ib-dur]').textContent = r.hata === 'bos' ? pqT('Yorum boş.', 'The comment is empty.') : pqT(IB_HATA[r.hata][0], IB_HATA[r.hata][1]); return; } boya(); return; }
+      if (b.hasAttribute('data-ib-coz')) { var r2 = await ibCoz(b.getAttribute('data-ib-coz'), b.getAttribute('data-ib-durum') === '1'); if (!r2.ok) { ibDlg.querySelector('[data-ib-dur]').textContent = pqT(IB_HATA[r2.hata][0], IB_HATA[r2.hata][1]); return; } boya(); }
+    };
+    boya().then(function () { if (!ibDlg.open) ibDlg.showModal(); });
+  };
+  var ibYorumLi = function (y, rol) {
+    var yan = IB.yorum.filter(function (z) { return z.parent_id === y.id; }), sc = y.scope === 'deck' ? pqT('sunum', 'deck') : y.scope === 'slide' ? pqT('asetat', 'slide') : pqT('öğe', 'element');
+    return '<li data-ib-yorum="' + X(y.id) + '"' + (y.resolved_at ? ' class="coz"' : '') + '><small>' + X(sc) + (y.resolved_at ? ' · ' + X(pqT('çözüldü', 'resolved')) : '') + '</small><p data-no-i18n>' + X(y.body) + '</p>' + yan.map(function (z) { return '<p class="yan" data-no-i18n>↳ ' + X(z.body) + '</p>'; }).join('') +
+      (rol === 'owner' || rol === 'editor' ? '<button type="button" class="sxd-b sm" data-ib-coz="' + X(y.id) + '" data-ib-durum="' + (y.resolved_at ? '0' : '1') + '">' + X(y.resolved_at ? pqT('yeniden aç', 'reopen') : pqT('çözüldü işaretle', 'mark resolved')) + '</button>' : '') + (rol === 'owner' ? '<button type="button" class="sxd-b sm" data-pq-yanit="' + X(y.id) + '">' + X(pqT('yanıtla', 'reply')) + '</button>' : '') + '</li>';
+  };
+
+  /* ---- pencere ---- */
+  var PQ = { dlg: null, sekme: 'mk', kirli: false, mk: { duzen: null, elle: {}, kapsam: 'genel', son: null, hata: '' }, kc: { as: 0, oneri: null }, sv: { liste: [], fark: null, link: null }, mesaj: '' };
+  var pqCss = function () {
+    if (document.getElementById('ax-pq-css')) return; sxCss();
+    var st = document.createElement('style'); st.id = 'ax-pq-css';
+    st.textContent = '.ax-sxd.pq-dlg .sxd-in{width:min(900px,calc(100vw - 24px));max-height:calc(100vh - 32px);overflow:auto}' +
+      '.pq-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}.pq-tabs button{border:1.5px solid #1A2A5C;background:#FFF;border-radius:999px;padding:6px 12px;font:600 13px "Instrument Sans",sans-serif;color:#1A2A5C;cursor:pointer;min-height:36px}.pq-tabs button[aria-selected="true"]{background:#1A2A5C;color:#FFF}' +
+      '.pq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.pq-kart{border:1.5px solid #D9D3C3;border-radius:14px;padding:10px 12px;background:#FFF}.pq-kart h5{margin:0 0 4px;font:700 15px "Bricolage Grotesque",sans-serif}' +
+      '.pq-sw{display:flex;gap:3px;margin:6px 0}.pq-sw i{width:18px;height:18px;border-radius:5px;border:1px solid rgba(0,0,0,.15);display:inline-block}' +
+      '.pq-f{display:flex;flex-direction:column;gap:4px;margin:0 0 10px;font-size:13px}.pq-f input[type=text],.pq-f input[type=number],.pq-f textarea,.pq-f select,.pq-sat select{font:inherit;padding:7px 9px;border:1.5px solid #CFC8B6;border-radius:10px;background:#FFF;max-width:100%;box-sizing:border-box}' +
+      '.pq-renk{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.pq-renk label{display:flex;align-items:center;gap:6px;font-size:12.5px}.pq-renk input[type=color]{width:34px;height:30px;border:0;padding:0;background:none}.pq-renk input[type=text]{width:84px;font:12.5px ui-monospace,monospace;padding:5px 6px;border:1.5px solid #CFC8B6;border-radius:8px}' +
+      '.pq-ornekler{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:8px 0}.pq-ornek{position:relative;aspect-ratio:16/9;width:100%;overflow:hidden;border:1.5px solid #D9D3C3;border-radius:10px;background:#FFF}.pq-ornek>.sx-slide{position:absolute;left:0;top:0;transform-origin:0 0}.pq-grid>*{min-width:0}.pq-kart input[type=file]{max-width:100%;min-width:0;font-size:12px}' + /* 28.11.2026: fitInto ölçeği sol üstten (yoksa önizleme kayar); dar ekranda dosya seçici kartı taşırmaz */
+      '.pq-ib-sahne{max-width:640px;margin:0 auto 8px}.pq-sat{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 8px;font-size:13px}.pq-dur{min-height:1.2em;font-size:13px;color:#4B5675}.pq-dur.no{color:#B3261E}' +
+      '.pq-tab{width:100%;border-collapse:collapse;font-size:13px}.pq-tab td,.pq-tab th{border-bottom:1px solid #EDE7D8;padding:5px 6px;text-align:left}.pq-tab td:last-child{text-align:right;font-variant-numeric:tabular-nums}' +
+      '.pq-yl{list-style:none;padding:0;margin:0 0 10px}.pq-yl li{border:1px solid #EDE7D8;border-radius:10px;padding:8px 10px;margin:0 0 6px;background:#FFF}.pq-yl li.coz{opacity:.65}.pq-yl p{margin:4px 0}.pq-yl .yan{padding-left:12px;color:#4B5675}' +
+      '.pq-uy{margin:6px 0;font-size:13px}.pq-uy.no{color:#8A5A00}.pq-koc dt{font-weight:700;font-size:12.5px;color:#2F6BFF;margin-top:6px}.pq-koc dd{margin:0 0 2px;font-size:13.5px}' +
+      '.kc-prova .kc-pr-s.over{color:#C9483B}.pq-url{display:flex;gap:6px}.pq-url input{flex:1;min-width:0;font:12.5px ui-monospace,monospace}' +
+      '@media (max-width:560px){.ax-sxd.pq-dlg .sxd-in{padding:16px 14px;border-radius:14px}.pq-grid,.pq-renk{grid-template-columns:1fr 1fr}.pq-ornekler{grid-template-columns:1fr}.ax-sxd.pq-dlg h3{font-size:20px}}';
+    document.head.appendChild(st);
+  };
+  var pqSozluk = function () { var A = window.AX_EN && window.AX_EN.t; if (!A || A['◆ profesyonel']) return; var ek = { '◆ profesyonel': '◆ professional', 'Önemli bilgi düşmedi (sayı, ad, atıf, adres, olumsuzluk, koşul, neden, karşılaştırma, kesinlik).': 'No important information dropped (numbers, names, citations, links, negation, conditions, causality, comparisons, certainty).', 'Öneride çıkan önemli bilgi — uygulamadan önce bak:': 'Important information removed in the proposal — check before applying:', 'Hedef kitle profili de gönderilir:': 'The audience profile is sent too:' };
+    Object.keys(HK_CIKAN).forEach(function (k) { ek[HK_CIKAN[k][0]] = HK_CIKAN[k][1]; }); Object.keys(ek).forEach(function (k) { if (A[k] == null) A[k] = ek[k]; }); };
+  var pqSekmeler = [['mk', ['Marka kiti', 'Brand kit']], ['hk', ['Hedef kitle', 'Audience']], ['kc', ['Konuşmacı koçu', 'Speaker coach']], ['sv', ['Sürümler ve inceleme', 'Versions & review']]];
+  var pqDurum = function (m, no) { PQ.mesaj = m || ''; var p = PQ.dlg && PQ.dlg.querySelector('[data-pq-dur]'); if (p) { p.textContent = PQ.mesaj; p.classList.toggle('no', !!no); } };
+  var pqHex = function (r, c) { return '<label><input type="color" value="' + X(c) + '" data-mk-renk="' + r + '"><input type="text" value="' + X(c) + '" data-mk-hex="' + r + '" maxlength="7" spellcheck="false" aria-label="' + X(pqT(MK_ROL_AD[r][0], MK_ROL_AD[r][1])) + '"><span>' + X(pqT(MK_ROL_AD[r][0], MK_ROL_AD[r][1])) + '</span></label>'; };
+  var pqFontSec = function (ad, deger, bos) { return '<select data-mk-font="' + ad + '">' + (bos ? '<option value="">' + X(pqT('yok', 'none')) + '</option>' : '') + MK_FONT.map(function (f) { return '<option' + (f === deger ? ' selected' : '') + ' data-no-i18n>' + X(f) + '</option>'; }).join('') + '</select>'; };
+  var pqKontrastHTML = function (R) {
+    var K = mkKontrast(R), KB = mkRenkKor(R), ad = function (x) { return x.charAt(0) === '#' ? pqT('beyaz', 'white') : pqT(MK_ROL_AD[x][0], MK_ROL_AD[x][1]); };
+    return '<div data-mk-kontrast>' + K.map(function (k) { return '<p class="pq-uy' + (k.ok ? '' : ' no') + '" data-mk-kt="' + k.a + '-' + k.b + '" data-ok="' + (k.ok ? 1 : 0) + '">' + (k.ok ? '✓ ' : '⚠ ') + X(ad(k.a) + ' / ' + ad(k.b) + ' · ' + k.oran.toFixed(2) + ':1 (' + pqT('eşik ', 'threshold ') + k.esik + ':1)') + '</p>'; }).join('') +
+      (KB.length ? KB.map(function (z) { return '<p class="pq-uy no" data-mk-kor="' + z.tur + '-' + z.kod + '">⚠ ' + X(pqT(MK_KOR_AD[z.tur][0], MK_KOR_AD[z.tur][1]) + ': ' + pqT(MK_KOR_KOD[z.kod][0], MK_KOR_KOD[z.kod][1])) + '</p>'; }).join('') : '<p class="pq-uy" data-mk-kor="0">✓ ' + X(pqT('Renk körlüğü benzetiminde vurgular ayırt ediliyor.', 'Accents stay distinguishable in colour-blindness simulation.')) + '</p>') +
+      '<p><small>' + X(pqT('Kontrast yalnız uyarıdır; marka renkleri kendiliğinden değiştirilmez.', 'Contrast is a warning only; brand colours are never changed automatically.')) + '</small></p></div>';
+  };
+  var pqMk = function () {
+    var L = mkListe(), M = PQ.mk, dur = mkDurum(deck), h = '';
+    h += '<p class="sxd-sub">' + X(pqT('Renk, yazı tipi ve logoyu bir kez tanımla; sunuma önizleyerek uygula. Kit sonradan değişse de sunumlar kendiliğinden değişmez.', 'Define colours, fonts and logos once; apply to a deck after a preview. Editing a kit never changes decks by itself.')) + '</p>';
+    if (dur) h += '<div class="pq-kart" data-mk-deste><b>' + X(pqT('Bu sunumda: ', 'In this deck: ')) + '</b><span data-no-i18n>' + X(dur.ad) + '</span> · ' + X(pqT('sürüm ', 'version ') + dur.surum) + (dur.yeni ? ' <span class="pq-uy no" data-mk-guncel>' + X(pqT('kit güncellendi; istersen yeniden uygula', 'kit updated; re-apply if you want')) + '</span>' : '') + (dur.silindi ? ' <small>' + X(pqT('(kit silindi; sunum aynı kalır)', '(kit deleted; deck unchanged)')) + '</small>' : '') +
+      '<label class="pq-sat"><input type="checkbox" data-mk-paylas' + (dur.paylas ? ' checked' : '') + '> ' + X(pqT('Paylaşım bağlantısında ve inceleme görüntüsünde logo görünsün', 'Show the logo in share links and review views')) + '</label></div>';
+    if (M.duzen) {
+      var k = M.duzen, R = k.renk;
+      h += '<div class="pq-kart" data-mk-form><h5>' + X(k.__yeni ? pqT('Yeni marka kiti', 'New brand kit') : pqT('Kiti düzenle', 'Edit kit')) + '</h5>' +
+        '<label class="pq-f"><span>' + X(pqT('Kit adı', 'Kit name')) + ' *</span><input type="text" data-mk-ad maxlength="60" value="' + X(k.ad || '') + '"></label><label class="pq-f"><span>' + X(pqT('Marka', 'Brand')) + '</span><input type="text" data-mk-marka maxlength="60" value="' + X(k.marka || '') + '"></label>' +
+        '<label class="pq-f"><span>' + X(pqT('Açıklama', 'Description')) + '</span><textarea data-mk-aciklama maxlength="300" rows="2">' + X(k.aciklama || '') + '</textarea></label><label class="pq-sat"><input type="checkbox" data-mk-vars' + (k.varsayilan ? ' checked' : '') + '> ' + X(pqT('varsayılan kit', 'default kit')) + '</label>' +
+        '<h5>' + X(pqT('Renkler', 'Colours')) + '</h5><div class="pq-renk">' + MK_ROL.map(function (r) { return pqHex(r, R[r]); }).join('') + '</div>' +
+        '<h5>' + X(pqT('Yazı tipleri', 'Fonts')) + '</h5><div class="pq-sat"><label>' + X(pqT('başlık', 'heading')) + ' ' + pqFontSec('baslik', k.font.baslik) + '</label><label>' + X(pqT('gövde', 'body')) + ' ' + pqFontSec('govde', k.font.govde) + '</label><label>' + X(pqT('vurgu', 'accent')) + ' ' + pqFontSec('vurgu', k.font.vurgu, 1) + '</label></div>' +
+        '<p><small>' + X(pqT('PPTX’e adıyla yazılır (gömülmez); bilgisayarda yoksa PowerPoint yedeğe düşer. Ekranda ölçüsü aynı açık karşılığı çizilir. Vurgu yazı tipi kitte saklanır, asetatta henüz kullanılmaz.', 'Written to PPTX by name (not embedded); PowerPoint falls back if missing. On screen a metric-compatible open font is drawn. The accent font is stored but not yet used on slides.')) + '</small></p>' +
+        '<h5>' + X(pqT('Logolar', 'Logos')) + '</h5><div class="pq-grid">' + MK_LOGO.map(function (x) { var l = k.logo[x]; return '<div class="pq-kart" data-mk-logo="' + x + '"><small>' + X(pqT(MK_LOGO_AD[x][0], MK_LOGO_AD[x][1])) + '</small>' + (l ? '<p><img alt="" style="max-height:40px;max-width:100%" src="' + X(k.gorsel[l.hash]) + '"></p><button type="button" class="sxd-b sm" data-mk-logosil="' + x + '">' + X(pqT('kaldır', 'remove')) + '</button>' : '<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-mk-dosya="' + x + '">') + '</div>'; }).join('') + '</div>' +
+        '<p><small>' + X(pqT('PNG, JPEG, WebP ya da güvenli SVG; en çok 2 MB, kenar 16–8000 px. Logo PNG olarak saklanır (uzun kenar ≤480 px).', 'PNG, JPEG, WebP or safe SVG; max 2 MB, side 16–8000 px. Stored as PNG (long side ≤480 px).')) + '</small></p>' +
+        '<h5>' + X(pqT('Erişilebilirlik', 'Accessibility')) + '</h5>' + pqKontrastHTML(R) +
+        '<h5>' + X(pqT('Önizleme', 'Preview')) + '</h5><div class="pq-ornekler"><div class="pq-ornek" data-mk-ornek="0"></div><div class="pq-ornek" data-mk-ornek="1"></div></div>' +
+        (M.hata ? '<p class="pq-dur no" data-mk-hata>' + X(M.hata) + '</p>' : '') + '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-mk-vazgec>' + X(pqT('vazgeç', 'cancel')) + '</button><button type="button" class="sxd-b sm pri" data-mk-kaydet>' + X(pqT('kiti kaydet', 'save kit')) + '</button></div></div>';
+      return h;
+    }
+    if (M.uygula) {
+      var ku = mkBul(M.uygula); if (!ku) { M.uygula = null; return pqMk(); }
+      var T = temaKur(mkTemaDef(ku, deck.tema, M.elle)), U = mkUygun(deck, ku, M.kapsam, T);
+      h += '<div class="pq-kart" data-mk-uygula-k><h5 data-no-i18n>' + X(ku.ad) + '</h5><div class="pq-sat"><label><input type="radio" name="mk-k" value="genel"' + (M.kapsam === 'genel' ? ' checked' : '') + '> ' + X(pqT('yalnız genel tema', 'general theme only')) + '</label><label><input type="radio" name="mk-k" value="tum"' + (M.kapsam === 'tum' ? ' checked' : '') + '> ' + X(pqT('uygun tüm slaytlar (logo)', 'all suitable slides (logo)')) + '</label></div>' +
+        '<details><summary>' + X(pqT('bu sunum için elle değiştir', 'override for this deck')) + '</summary><div class="pq-renk">' + MK_ROL.map(function (r) { return pqHex(r, mkRenk(ku, M.elle)[r]); }).join('') + '</div></details>' +
+        '<div class="pq-ornekler"><div class="pq-ornek" data-mk-ornek="0"></div><div class="pq-ornek" data-mk-ornek="1"></div></div>' + pqKontrastHTML(mkRenk(ku, M.elle)) +
+        (M.kapsam === 'tum' ? (U.logosuz ? '<p class="pq-uy no" data-mk-logosuz>' + X(pqT('Bu kitte logo yok; yalnız tema uygulanır.', 'This kit has no logo; only the theme is applied.')) + '</p>' : '<p class="pq-uy" data-mk-uygun="' + U.uygun.length + '">' + X(pqT('Logo eklenecek asetat: ', 'Slides that get the logo: ') + U.uygun.length) + '</p>' + (U.uygunsuz.length ? '<p class="pq-uy no" data-mk-uygunsuz="' + U.uygunsuz.length + '">' + X(pqT('Uygun olmayan asetatlar (dokunulmaz): ', 'Unsuitable slides (left alone): ') + U.uygunsuz.map(function (z) { return (z.i + 1) + ' (' + (z.neden === 'logo' ? pqT('bu zemine logo yok', 'no logo for this background') : pqT('köşe dolu', 'corner occupied')) + ')'; }).join(', ')) + '</p>' : '')) : '') +
+        '<p><small>' + X(pqT('Önce otomatik sürüm alınır. Düzen ve metin değişmez; tek adımda geri alınır. Ardından yazı sığdırma ve denetim yeniden çalışır.', 'An automatic version is saved first. Layout and text stay; undo is one step. Fitting and checks run again afterwards.')) + '</small></p>' +
+        '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-mk-vazgec>' + X(pqT('vazgeç', 'cancel')) + '</button><button type="button" class="sxd-b sm pri" data-mk-uygulaok>' + X(pqT('Uygula', 'Apply')) + '</button></div></div>';
+      return h;
+    }
+    if (M.son) h += '<div class="pq-kart" data-mk-son><p class="qa-ok">' + X(pqT('Marka kiti uygulandı.', 'Brand kit applied.')) + '</p><p><small>' + X(pqT('Logo eklenen asetat: ', 'Slides with logo: ') + M.son.uygun.length + (M.son.uygunsuz.length ? ' · ' + pqT('uygun olmayan: ', 'unsuitable: ') + M.son.uygunsuz.map(function (z) { return z.i + 1; }).join(', ') : '') + ' · ' + pqT('denetim bulgusu: ', 'check findings: ') + M.son.qa) + '</small></p><div class="sxd-acts"><button type="button" class="sxd-b sm" data-pq-geri>' + X(pqT('geri al', 'undo')) + '</button></div></div>';
+    h += '<div class="pq-grid" data-mk-liste>' + L.map(function (k) { return '<div class="pq-kart" data-mk-kit="' + X(k.id) + '"><h5 data-no-i18n>' + X(k.ad) + (k.varsayilan ? ' ★' : '') + '</h5><small data-no-i18n>' + X(k.marka || '') + '</small><div class="pq-sw">' + MK_ROL.map(function (r) { return '<i style="background:' + k.renk[r] + '" title="' + X(r) + '"></i>'; }).join('') + '</div><small>' + X(pqT('sürüm ', 'version ') + k.surum) + '</small>' +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-mk-uygula="' + X(k.id) + '">' + X(pqT('uygula', 'apply')) + '</button><button type="button" class="sxd-b sm" data-mk-duzenle="' + X(k.id) + '">' + X(pqT('düzenle', 'edit')) + '</button><button type="button" class="sxd-b sm" data-mk-kopya="' + X(k.id) + '">' + X(pqT('kopyala', 'duplicate')) + '</button><button type="button" class="sxd-b sm" data-mk-vars-yap="' + X(k.id) + '">' + X(k.varsayilan ? pqT('varsayılanı kaldır', 'unset default') : pqT('varsayılan yap', 'set default')) + '</button><button type="button" class="sxd-b sm" data-mk-sil="' + X(k.id) + '">' + X(pqT('sil', 'delete')) + '</button></div></div>'; }).join('') + '</div>' +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-mk-yeni' + (L.length >= MK_MAX ? ' disabled' : '') + '>' + X(pqT('+ yeni kit', '+ new kit')) + '</button><small>' + X(L.length + ' / ' + MK_MAX) + '</small></div>';
+    return h;
+  };
+  var pqHk = function () {
+    var p = (deck.kitle && hkTemiz(deck.kitle)) || null, v = hkVarsayilan(), g = p || v || {}, h = '';
+    h += '<p class="sxd-sub">' + X(pqT('Sunumun kime anlatıldığını seç. Profil yalnız düzenleme isteklerinde kullanılır; kendiliğinden hiçbir metni yeniden yazmaz, yeni bilgi eklemez. Hassas kişisel özellik (sağlık, din, etnik köken, siyasi görüş…) sorulmaz ve not olarak kaydedilmez.', 'Choose who the deck is for. The profile is only used in edit requests; it never rewrites text by itself or adds new facts. Sensitive personal traits (health, religion, ethnicity, politics…) are never asked or stored.')) + '</p>';
+    if (!p && v) h += '<p class="pq-uy" data-hk-vars>' + X(pqT('Varsayılan profilin forma getirildi; bu sunuma kaydetmek için “bu sunum için kaydet”e bas.', 'Your default profile is filled in; press “save for this deck” to use it here.')) + '</p>';
+    h += '<div class="pq-grid">' + Object.keys(SD_PROFIL).map(function (k) { return '<label class="pq-f"><span>' + X(pqT(HK_ALAN[k][0], HK_ALAN[k][1])) + '</span><select data-hk="' + k + '"><option value="">—</option>' + SD_PROFIL[k].map(function (x) { return '<option value="' + x + '"' + (g[k] === x ? ' selected' : '') + '>' + X(pqT(HK_AD[x][0], HK_AD[x][1])) + '</option>'; }).join('') + '</select></label>'; }).join('') + '</div>' +
+      '<label class="pq-f"><span>' + X(pqT('Serbest not (≤200)', 'Free note (≤200)')) + '</span><textarea data-hk-serbest maxlength="200" rows="2">' + X(g.serbest || '') + '</textarea></label>' +
+      '<label class="pq-sat"><input type="checkbox" data-hk-izin' + (g.izin ? ' checked' : '') + '> ' + X(pqT('Düzenleme isteğinde profil Groq’a gönderilebilir (yalnız seçimler ve not; ad, e-posta gitmez).', 'The profile may be sent to Groq with edit requests (choices and note only; no name or e-mail).')) + '</label>' +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm pri" data-hk-kaydet>' + X(pqT('bu sunum için kaydet', 'save for this deck')) + '</button><button type="button" class="sxd-b sm" data-hk-vars-yap>' + X(pqT('varsayılanım yap', 'make my default')) + '</button><button type="button" class="sxd-b sm" data-hk-temizle>' + X(pqT('profili kaldır', 'remove profile')) + '</button></div>';
+    var hazir = p && p.izin, n = deck.slides.length;
+    h += '<h4>' + X(pqT('Profile göre uyarla (önizleme + onay)', 'Adapt to the profile (preview + approval)')) + '</h4>' + (hazir ? '' : '<p class="pq-uy no" data-hk-hazir="0">' + X(pqT('Önce profili bu sunuma gönderim izniyle kaydet.', 'First save the profile for this deck with send permission.')) + '</p>') +
+      '<div class="pq-sat"><label>' + X(pqT('asetat', 'slides')) + ' <input type="number" data-hk-a min="1" max="' + n + '" value="' + (deck.cur + 1) + '" style="width:64px"></label><label>– <input type="number" data-hk-b min="1" max="' + n + '" value="' + (deck.cur + 1) + '" style="width:64px"></label><small>' + X(pqT('en çok 5 asetat, 10 öğe', 'max 5 slides, 10 elements')) + '</small></div>' +
+      '<div class="sxd-acts">' + Object.keys(HK_IS).map(function (k) { return '<button type="button" class="sxd-b sm" data-hk-is="' + k + '"' + (hazir && n ? '' : ' disabled') + '>' + X(pqT(HK_IS[k][0], HK_IS[k][1])) + '</button>'; }).join('') + '</div>' +
+      '<p><small>' + X(pqT('Sayılar, tarihler, birimler, adlar, atıflar, neden-sonuç, olumsuzluk, koşul, karşılaştırma ve kesinlik korunur; düşen önemli bilgi önizlemede listelenir. Yeni bilgi yalnız gerçek kaynak parçasıyla; değişen iddia doğrulanmadı sayılır.', 'Numbers, dates, units, names, citations, causality, negation, conditions, comparisons and certainty are preserved; dropped information is listed in the preview. New facts only with a real source passage; changed claims become unverified.')) + '</small></p>';
+    return h;
+  };
+  var pqKc = function () {
+    var n = deck.slides.length; if (!n) return '<p class="sxd-sub">' + X(pqT('Koç için önce asetat hazırla.', 'Prepare some slides first.')) + '</p>';
+    KC.sureler = kcSure(deck, KC.dk); var top = KC.sureler.reduce(function (a, b) { return a + b; }, 0), i = Math.min(PQ.kc.as, n - 1), k = kcKoc(deck, i), h = '';
+    h += '<p class="sxd-sub">' + X(pqT('Asetat başına ana mesaj, süre, geçiş ve olası sorular — sunumdaki metinden, yerelde. Yeni istatistik üretilmez; süreler tahminidir. Kamera ve mikrofon kullanılmaz.', 'Per-slide key message, time, transition and likely questions — from the deck text, locally. No new statistics; times are estimates. No camera or microphone.')) + '</p>' +
+      '<div class="pq-sat"><label>' + X(pqT('toplam süre', 'total time')) + ' <select data-kc-dk>' + [5, 10, 15, 20].map(function (x) { return '<option value="' + x + '"' + (KC.dk === x ? ' selected' : '') + '>' + x + ' dk</option>'; }).join('') + (KC.ozel && [5, 10, 15, 20].indexOf(KC.ozel) < 0 ? '<option value="' + KC.ozel + '" selected>' + KC.ozel + ' dk</option>' : '') + '</select></label><label>' + X(pqT('özel', 'custom')) + ' <input type="number" min="1" max="180" data-kc-ozel style="width:70px"></label><button type="button" class="sxd-b sm" data-kc-ozel-ok>' + X(pqT('kullan', 'use')) + '</button></div>' +
+      '<table class="pq-tab" data-kc-tablo data-kc-toplam="' + top + '"><thead><tr><th>#</th><th>' + X(pqT('asetat', 'slide')) + '</th><th>' + X(pqT('tahmini', 'estimate')) + '</th></tr></thead><tbody>' + deck.slides.map(function (s, j) { return '<tr' + (j === i ? ' aria-current="true"' : '') + '><td>' + (j + 1) + '</td><td data-no-i18n><button type="button" class="sxd-b sm" data-kc-as="' + j + '">' + X(String(titleOf(s) || '—').slice(0, 50)) + '</button></td><td data-kc-sn="' + KC.sureler[j] + '">' + mmss(KC.sureler[j] * 1000) + '</td></tr>'; }).join('') + '<tr><th></th><th>' + X(pqT('toplam', 'total')) + '</th><td>' + mmss(top * 1000) + '</td></tr></tbody></table>' +
+      '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-kc-prova-ac>' + X(pqT('bu süreyle provaya başla', 'rehearse with this time')) + '</button></div>';
+    h += '<div class="pq-kart pq-koc" data-kc-kart="' + i + '"><h5>' + X((i + 1) + '. ' + pqT('asetat', 'slide')) + '</h5><dl><dt>' + X(pqT('Ana mesaj', 'Key message')) + '</dt><dd data-no-i18n>' + X(k.mesaj) + '</dd><dt>' + X(pqT('Amaç', 'Goal')) + '</dt><dd>' + X(k.amac) + '</dd><dt>' + X(pqT('Süre (tahmini)', 'Time (estimate)')) + '</dt><dd>' + mmss(k.sure * 1000) + '</dd><dt>' + X(pqT('Akılda kalacak', 'Takeaway')) + '</dt><dd data-no-i18n>' + X(k.akilda) + '</dd><dt>' + X(pqT('Geçiş', 'Transition')) + '</dt><dd data-no-i18n>' + X(k.gecis) + '</dd>' +
+      (k.terim.length ? '<dt>' + X(pqT('Terimler', 'Terms')) + '</dt><dd data-no-i18n>' + X(k.terim.join(', ')) + '</dd>' : '') + (k.soru.length ? '<dt>' + X(pqT('Olası sorular', 'Likely questions')) + '</dt><dd data-no-i18n>' + k.soru.map(X).join('<br>') + '</dd>' : '') + '<dt>' + X(pqT('Kaynaklı olgular', 'Sourced facts')) + '</dt><dd data-kc-kaynakli="' + k.kaynakli.length + '" data-no-i18n>' + (k.kaynakli.length ? k.kaynakli.map(function (z) { return X(z.metin + (z.no ? ' ' + z.no : '')); }).join('<br>') : X(pqT('kayıtlı kaynağa bağlı olgu yok', 'no fact tied to a recorded source'))) + '</dd></dl>';
+    if (PQ.kc.oneri && PQ.kc.oneri.i === i) h += '<p><small>' + X(pqT('Konuşma notuna eklenecek (var olan not korunur):', 'Will be appended to the speaker notes (existing notes kept):')) + '</small></p><pre class="on-eski" data-kc-onizle data-no-i18n style="white-space:pre-wrap">' + X(PQ.kc.oneri.metin) + '</pre><div class="sxd-acts"><button type="button" class="sxd-b sm" data-kc-vazgec>' + X(pqT('vazgeç', 'cancel')) + '</button><button type="button" class="sxd-b sm pri" data-kc-uygula>' + X(pqT('nota ekle', 'append to notes')) + '</button></div>';
+    else h += '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-kc-oner>' + X(pqT('koç notunu önizle', 'preview coach note')) + '</button></div>';
+    return h + '</div>';
+  };
+  var pqTarih = function (t) { var d = new Date(t || 0); return p2(d.getDate()) + '.' + p2(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()); };
+  var pqFarkHTML = function (f) {
+    if (f.ayni) return '<p class="pq-uy" data-sv-fark="ayni">' + X(pqT('Bu sürüm şimdiki sunumla aynı.', 'This version matches the current deck.')) + '</p>';
+    var L = []; if (f.eklenen.length) L.push(pqT('şimdi fazladan asetat: ', 'extra slides now: ') + f.eklenen.map(function (i) { return i + 1; }).join(', ')); if (f.silinen.length) L.push(pqT('sürümde olup şimdi olmayan: ', 'in version, missing now: ') + f.silinen.length);
+    if (f.baslik.length) L.push(pqT('başlığı farklı: ', 'title differs: ') + f.baslik.map(function (i) { return i + 1; }).join(', ')); if (f.metin.length) L.push(pqT('metni farklı: ', 'text differs: ') + f.metin.map(function (i) { return i + 1; }).join(', ')); if (f.sira) L.push(pqT('asetat sırası farklı', 'slide order differs'));
+    if (f.kaynak) L.push(pqT('kaynak sayısı farkı: ', 'source count difference: ') + (f.kaynak > 0 ? '+' : '') + f.kaynak); if (f.iddia) L.push(pqT('iddia sayısı farkı: ', 'claim count difference: ') + (f.iddia > 0 ? '+' : '') + f.iddia); if (f.tema) L.push(pqT('şablon farklı', 'theme differs')); if (f.marka) L.push(pqT('marka kiti farklı', 'brand kit differs'));
+    return '<ul class="on-l" data-sv-fark="' + L.length + '">' + L.map(function (x) { return '<li>' + X(x) + '</li>'; }).join('') + '</ul>';
+  };
+  var pqSv = function () {
+    var d = deck, V = PQ.sv.liste, h = '', m = store.meta(d.id), sahip = !(m && m.ortak === 'editor');
+    h += '<p class="sxd-sub">' + X(pqT('Sürümü elle kaydet; her tuşta otomatik kayıt yok. Otomatik sürüm yalnız onayladığın büyük bir değişiklikten (marka kiti, geri yükleme) önce alınır.', 'Save versions by hand; there is no per-keystroke autosave. An automatic version is taken only before a big change you approve (brand kit, restore).')) + '</p>' +
+      '<div class="pq-sat"><input type="text" data-sv-ad maxlength="80" placeholder="' + X(pqT('sürüm adı', 'version name')) + '"><input type="text" data-sv-ac maxlength="300" placeholder="' + X(pqT('açıklama (isteğe bağlı)', 'description (optional)')) + '"><button type="button" class="sxd-b sm pri" data-sv-kaydet' + (d.slides.length ? '' : ' disabled') + '>' + X(pqT('sürümü kaydet', 'save version')) + '</button></div>' +
+      '<ul class="pq-yl" data-sv-liste>' + V.map(function (v, i) { return '<li data-sv="' + X(v.id) + '"><b data-no-i18n>' + X(v.ad) + '</b> <small>' + X(pqTarih(v.t) + (v.oto ? ' · ' + pqT('otomatik', 'automatic') : '') + (v.dbId ? ' · ' + pqT('hesapta', 'in account') : ' · ' + pqT('bu tarayıcıda', 'this browser'))) + '</small>' + (v.aciklama ? '<p data-no-i18n>' + X(v.aciklama) + '</p>' : '') +
+        '<div class="sxd-acts"><button type="button" class="sxd-b sm" data-sv-karsi="' + i + '">' + X(pqT('karşılaştır', 'compare')) + '</button><button type="button" class="sxd-b sm" data-sv-geri="' + i + '">' + X(pqT('geri yükle', 'restore')) + '</button><button type="button" class="sxd-b sm" data-sv-yeni="' + i + '">' + X(pqT('yeni sunum olarak aç', 'open as new deck')) + '</button></div>' + (PQ.sv.fark && PQ.sv.fark.i === i ? pqFarkHTML(PQ.sv.fark.f) : '') + '</li>'; }).join('') + '</ul>';
+    if (!V.length) h += '<p><small data-sv-bos>' + X(pqT('Henüz sürüm yok.', 'No versions yet.')) + '</small></p>';
+    h += '<h4>' + X(pqT('İnceleme ve ortak çalışma', 'Review and collaboration')) + '</h4>';
+    if (!d.dbId) return h + '<p class="pq-uy no" data-ib-kayit>' + X(pqT(IB_HATA.kayit[0], IB_HATA.kayit[1])) + '</p>';
+    if (!sahip) return h + '<p class="pq-uy" data-ib-rol="editor">' + X(pqT('Bu sunumda düzenleyicisin. Bağlantıları yalnız sahip yönetir.', 'You are an editor on this deck. Only the owner manages links.')) + '</p>';
+    var bulutV = V.filter(function (v) { return v.dbId; });
+    h += '<p><small>' + X(pqT('İnceleyici yalnız seçtiğin sürümü görür ve yorum bırakır; metni değiştiremez. Düzenleyici sunumu düzenleyebilir, silemez ve paylaşamaz. Bağlantı süreli ve geri alınabilir; geri alınca erişim sunucuda kesilir.', 'A reviewer sees only the chosen version and can comment; cannot change text. An editor can edit, but not delete or share. Links expire and can be revoked; revoking cuts access on the server.')) + '</small></p>' +
+      '<div class="pq-sat"><select data-ib-rol-sec><option value="reviewer">' + X(pqT('inceleyici', 'reviewer')) + '</option><option value="editor">' + X(pqT('düzenleyici', 'editor')) + '</option></select><select data-ib-surum><option value="">' + X(pqT('sürüm seç', 'choose version')) + '</option>' + bulutV.map(function (v) { return '<option value="' + X(v.dbId) + '" data-no-i18n>' + X(v.ad) + '</option>'; }).join('') + '</select><label><input type="number" min="1" max="30" value="7" data-ib-gun style="width:60px"> ' + X(pqT('gün', 'days')) + '</label><label><input type="checkbox" data-ib-notlar> ' + X(pqT('konuşmacı notları dahil', 'include speaker notes')) + '</label><button type="button" class="sxd-b sm pri" data-ib-kur>' + X(pqT('bağlantı oluştur', 'create link')) + '</button></div>' +
+      (PQ.sv.link ? '<div class="pq-url" data-ib-url><input type="text" readonly value="' + X(PQ.sv.link.url) + '" data-no-i18n><button type="button" class="sxd-b sm" data-ib-kopya>' + X(pqT('kopyala', 'copy')) + '</button></div><p><small>' + X(pqT('Bağlantı yalnız şimdi gösterilir; sunucuda yalnız özeti saklanır.', 'The link is shown only now; the server stores only its hash.')) + '</small></p>' : '') +
+      '<ul class="pq-yl" data-ib-baglantilar>' + IB.baglanti.map(function (l) { var bitti = l.revoked_at || Date.parse(l.expires_at) <= Date.now(); return '<li data-ib-link="' + X(l.id) + '"' + (bitti ? ' class="coz"' : '') + '><small>' + X((l.role === 'editor' ? pqT('düzenleyici', 'editor') : pqT('inceleyici', 'reviewer')) + ' · ' + (l.revoked_at ? pqT('geri alındı', 'revoked') : bitti ? pqT('süresi doldu', 'expired') : pqT('bitiş ', 'expires ') + pqTarih(Date.parse(l.expires_at))) + (l.notlar ? ' · ' + pqT('notlar dahil', 'notes included') : '')) + '</small>' + (bitti ? '' : ' <button type="button" class="sxd-b sm" data-ib-geri="' + X(l.id) + '">' + X(pqT('geri al', 'revoke')) + '</button>') + '</li>'; }).join('') + '</ul>' +
+      (IB.uye.length ? '<p><small>' + X(pqT('Üyeler: ', 'Members: ') + IB.uye.length) + '</small></p><ul class="pq-yl">' + IB.uye.map(function (u) { return '<li><small>' + X(u.role === 'editor' ? pqT('düzenleyici', 'editor') : pqT('inceleyici', 'reviewer')) + ' · ' + X(pqTarih(Date.parse(u.created_at))) + '</small> <button type="button" class="sxd-b sm" data-ib-uyesil="' + X(u.user_id) + '">' + X(pqT('çıkar', 'remove')) + '</button></li>'; }).join('') + '</ul>' : '') +
+      '<h4>' + X(pqT('Yorumlar', 'Comments')) + '</h4><ul class="pq-yl" data-ib-yorumlar>' + IB.yorum.filter(function (y) { return !y.parent_id; }).map(function (y) { return ibYorumLi(y, 'owner'); }).join('') + '</ul>' + (IB.yorum.length ? '' : '<p><small>' + X(pqT('Yorum yok.', 'No comments.')) + '</small></p>') +
+      (PQ.sv.yanit ? '<label class="pq-f"><span>' + X(pqT('Yanıt', 'Reply')) + '</span><textarea data-ib-yanit-metin rows="2" maxlength="2000"></textarea></label><div class="sxd-acts"><button type="button" class="sxd-b sm" data-ib-yanit-vaz>' + X(pqT('vazgeç', 'cancel')) + '</button><button type="button" class="sxd-b sm pri" data-ib-yanit-ok>' + X(pqT('yanıtı gönder', 'send reply')) + '</button></div>' : '');
+    return h;
+  };
+  var pqBoya = function () {
+    var D = PQ.dlg; if (!D) return; var y = D.scrollTop, B = PQ.sekme === 'mk' ? pqMk() : PQ.sekme === 'hk' ? pqHk() : PQ.sekme === 'kc' ? pqKc() : pqSv();
+    D.innerHTML = '<div class="sxd-in" data-pq="' + PQ.sekme + '"><span class="sxd-eyb">' + X(pqT('profesyonel', 'professional')) + '</span><h3 id="axpq-t">' + X(pqT('Kişiselleştirme ve sunum deneyimi', 'Personalisation & presentation experience')) + '</h3><button type="button" class="sxd-x" data-pq-x aria-label="' + X(pqT('Kapat', 'Close')) + '">×</button>' +
+      '<div class="pq-tabs" role="tablist">' + pqSekmeler.map(function (s) { return '<button type="button" role="tab" data-pq-tab="' + s[0] + '" aria-selected="' + (PQ.sekme === s[0]) + '">' + X(pqT(s[1][0], s[1][1])) + '</button>'; }).join('') + '</div><div role="tabpanel">' + B + '</div><p class="pq-dur" data-pq-dur role="status" aria-live="polite">' + X(PQ.mesaj) + '</p></div>';
+    D.scrollTop = y; var k = PQ.sekme === 'mk' && (PQ.mk.duzen || (PQ.mk.uygula && mkBul(PQ.mk.uygula)));
+    if (k) mkOrnekCiz(D, PQ.mk.duzen ? mkTemiz(Object.assign({}, PQ.mk.duzen, { ad: PQ.mk.duzen.ad || '—' })) : k, PQ.mk.duzen ? {} : PQ.mk.elle);
+  };
+  var pqKirliMi = function () { return PQ.kirli && !pqOnay(pqT('Kaydedilmemiş değişiklikler var. Yine de çıkılsın mı?', 'There are unsaved changes. Leave anyway?')) ? false : (PQ.kirli = false, true); };
+  var pqFormOku = function () { var D = PQ.dlg, k = PQ.mk.duzen; if (!D || !k) return; var v = function (s) { var e = D.querySelector(s); return e ? e.value : ''; };
+    k.ad = v('[data-mk-ad]'); k.marka = v('[data-mk-marka]'); k.aciklama = v('[data-mk-aciklama]'); var vr = D.querySelector('[data-mk-vars]'); k.varsayilan = !!(vr && vr.checked);
+    ['baslik', 'govde', 'vurgu'].forEach(function (f) { var e = D.querySelector('[data-mk-font="' + f + '"]'); if (e) k.font[f] = e.value || null; }); };
+  var pqSvYukle = async function () { var d = deck, L = svListe(d).slice().reverse(), B = await svBulut(d); B.forEach(function (b) { if (!L.some(function (x) { return x.dbId === b.dbId; })) L.push(b); }); L.sort(function (a, b) { return b.t - a.t; }); PQ.sv.liste = L; if (d.dbId && !(store.meta(d.id) && store.meta(d.id).ortak === 'editor')) { await ibListe(d); await ibYorumlar(d.dbId); } };
+  var pqTikla = async function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) return; var D = PQ.dlg, M = PQ.mk, at = function (n) { return b.getAttribute(n); };
+    if (b.hasAttribute('data-pq-x')) { if (pqKirliMi()) D.close(); return; }
+    if (b.hasAttribute('data-pq-tab')) { if (!pqKirliMi()) return; PQ.sekme = at('data-pq-tab'); PQ.mesaj = ''; M.duzen = null; M.uygula = null; if (PQ.sekme === 'sv') await pqSvYukle(); pqBoya(); return; }
+    if (b.hasAttribute('data-pq-geri')) { undo(); M.son = null; pqDurum(pqT('Geri alındı.', 'Undone.')); pqBoya(); return; }
+    /* marka kiti */
+    if (b.hasAttribute('data-mk-yeni')) { M.duzen = Object.assign(mkTemiz({ ad: '—' }), { ad: '', __yeni: 1 }); M.hata = ''; M.son = null; pqBoya(); return; }
+    if (b.hasAttribute('data-mk-duzenle')) { M.duzen = clone(mkBul(at('data-mk-duzenle'))); M.hata = ''; M.son = null; pqBoya(); return; }
+    if (b.hasAttribute('data-mk-vazgec')) { if (!pqKirliMi()) return; M.duzen = null; M.uygula = null; M.elle = {}; pqBoya(); return; }
+    if (b.hasAttribute('data-mk-kaydet')) { pqFormOku(); var r = mkKaydet(M.duzen); if (!r.ok) { M.hata = r.hata === 'ad' ? pqT('Kit adı gerekli.', 'A kit name is required.') : r.hata === 'sinir' ? pqT('En çok 10 kit.', 'At most 10 kits.') : pqT('Tarayıcı alanı dolu; kit kaydedilmedi.', 'Browser storage is full; kit not saved.'); pqBoya(); return; } PQ.kirli = false; M.duzen = null; pqDurum(pqT('Kit kaydedildi. Sunumlar kendiliğinden değişmedi.', 'Kit saved. Decks did not change by themselves.')); pqBoya(); return; }
+    if (b.hasAttribute('data-mk-logosil')) { pqFormOku(); var x = at('data-mk-logosil'), hs = M.duzen.logo[x] && M.duzen.logo[x].hash; delete M.duzen.logo[x]; if (hs && !MK_LOGO.some(function (y) { return M.duzen.logo[y] && M.duzen.logo[y].hash === hs; })) delete M.duzen.gorsel[hs]; PQ.kirli = true; pqBoya(); return; }
+    if (b.hasAttribute('data-mk-kopya')) { var r2 = mkKopya(at('data-mk-kopya')); pqDurum(r2.ok ? pqT('Kit kopyalandı.', 'Kit duplicated.') : pqT('Kopyalanamadı (en çok 10 kit).', 'Could not duplicate (max 10 kits).'), !r2.ok); pqBoya(); return; }
+    if (b.hasAttribute('data-mk-vars-yap')) { mkVarsayilan(at('data-mk-vars-yap')); pqBoya(); return; }
+    if (b.hasAttribute('data-mk-sil')) { var ks = mkBul(at('data-mk-sil')); if (!ks || !pqOnay(pqT('“' + ks.ad + '” silinsin mi? Bu geri alınamaz. Bu kiti kullanan sunumlar değişmez.', 'Delete “' + ks.ad + '”? This cannot be undone. Decks using it stay as they are.'))) return; mkSil(ks.id); pqDurum(pqT('Kit silindi; sunumlar değişmedi.', 'Kit deleted; decks unchanged.')); pqBoya(); return; }
+    if (b.hasAttribute('data-mk-uygula')) { M.uygula = at('data-mk-uygula'); M.elle = {}; M.kapsam = 'genel'; M.son = null; pqBoya(); return; }
+    if (b.hasAttribute('data-mk-uygulaok')) { var r3 = mkUygula(mkBul(M.uygula), M.kapsam, M.elle); if (!r3.ok) { pqDurum(pqT('Uygulanamadı; sunum değişmedi.', 'Could not apply; the deck did not change.'), 1); return; } PQ.kirli = false; M.uygula = null; M.son = r3; pqDurum(pqT('Uygulandı; tek adımda geri alınabilir.', 'Applied; can be undone in one step.')); pqBoya(); return; }
+    /* hedef kitle */
+    if (b.hasAttribute('data-hk-kaydet') || b.hasAttribute('data-hk-vars-yap')) {
+      var p = {}; Object.keys(SD_PROFIL).forEach(function (k) { var s = D.querySelector('[data-hk="' + k + '"]'); if (s && s.value) p[k] = s.value; }); p.serbest = D.querySelector('[data-hk-serbest]').value; p.izin = D.querySelector('[data-hk-izin]').checked;
+      if (p.serbest && hkHassas(p.serbest)) { pqDurum(pqT('Serbest not hassas kişisel özellik içeriyor; kaydedilmedi.', 'The free note contains a sensitive personal trait; not saved.'), 1); return; }
+      if (b.hasAttribute('data-hk-kaydet')) { hkKaydet(p); pqDurum(pqT('Profil bu sunuma kaydedildi. Hiçbir metin değişmedi.', 'Profile saved for this deck. No text changed.')); }
+      else { await hkVarsayilanYaz(p); pqDurum(pqT('Varsayılan profil kaydedildi.', 'Default profile saved.')); }
+      PQ.kirli = false; pqBoya(); return; }
+    if (b.hasAttribute('data-hk-temizle')) { hkKaydet(null); PQ.kirli = false; pqDurum(pqT('Profil bu sunumdan kaldırıldı.', 'Profile removed from this deck.')); pqBoya(); return; }
+    if (b.hasAttribute('data-hk-is')) { var a = +D.querySelector('[data-hk-a]').value, c2 = +D.querySelector('[data-hk-b]').value; if (c2 - a + 1 > SD_AS || c2 < a) { pqDurum(pqT('En çok 5 asetatlık bir aralık seç.', 'Choose a range of at most 5 slides.'), 1); return; } if (!pqKirliMi()) return; D.close(); hkKomut(at('data-hk-is'), a, c2); return; }
+    /* koç */
+    if (b.hasAttribute('data-kc-as')) { PQ.kc.as = +at('data-kc-as'); PQ.kc.oneri = null; pqBoya(); return; }
+    if (b.hasAttribute('data-kc-ozel-ok')) { if (!kcOzelSure(D.querySelector('[data-kc-ozel]').value)) { pqDurum(pqT('1–180 dakika arası bir süre yaz.', 'Enter 1–180 minutes.'), 1); return; } pqBoya(); return; }
+    if (b.hasAttribute('data-kc-prova-ac')) { var sel = Q('[data-rh-goal]', rh); if ([5, 10, 15, 20].indexOf(KC.dk) >= 0) sel.value = String(KC.dk); else kcOzelSure(KC.dk); D.close(); rhOpen(Q('[data-pq-ac]')); return; }
+    if (b.hasAttribute('data-kc-oner')) { var i = PQ.kc.as, k2 = kcKoc(deck, i); PQ.kc.oneri = { i: i, sid: deck.slides[i].id, metin: kcNotMetni(k2) }; pqBoya(); return; }
+    if (b.hasAttribute('data-kc-vazgec')) { PQ.kc.oneri = null; pqBoya(); return; }
+    if (b.hasAttribute('data-kc-uygula')) { var O = PQ.kc.oneri; if (!O || !deck.slides[O.i] || deck.slides[O.i].id !== O.sid) { PQ.kc.oneri = null; pqDurum(pqT('Asetat değişti; öneri bayatladı.', 'The slide changed; the proposal is stale.'), 1); pqBoya(); return; } var r4 = kcNotUygula(O.i, O.metin); PQ.kc.oneri = null; pqDurum(r4.ok ? pqT('Koç notu konuşma notuna eklendi; geri alınabilir.', 'Coach note appended to the speaker notes; can be undone.') : pqT('Eklenemedi; not değişmedi.', 'Could not append; notes unchanged.'), !r4.ok); pqBoya(); return; }
+    /* sürümler */
+    if (b.hasAttribute('data-sv-kaydet')) { b.disabled = true; pqDurum(pqT('Kaydediliyor…', 'Saving…')); var r5 = await svKaydet(D.querySelector('[data-sv-ad]').value, D.querySelector('[data-sv-ac]').value); if (!r5.ok) { pqDurum(r5.hata === 'alan' ? pqT('Tarayıcı alanı dolu; sürüm kaydedilmedi.', 'Browser storage is full; version not saved.') : pqT('Kaydedilecek asetat yok.', 'Nothing to save.'), 1); pqBoya(); return; } await pqSvYukle(); pqDurum(r5.bulut ? pqT('Sürüm kaydedildi (hesapta).', 'Version saved (in account).') : pqT('Sürüm bu tarayıcıya kaydedildi; hesaba yazılamadı.', 'Version saved in this browser; not written to the account.'), !r5.bulut); pqBoya(); return; }
+    if (b.hasAttribute('data-sv-karsi')) { var v = PQ.sv.liste[+at('data-sv-karsi')]; PQ.sv.fark = v ? { i: +at('data-sv-karsi'), f: svFark(svDeste(deck), v.snapshot.deste) } : null; pqBoya(); return; }
+    if (b.hasAttribute('data-sv-geri')) { var v2 = PQ.sv.liste[+at('data-sv-geri')]; if (!v2 || !pqOnay(pqT('“' + v2.ad + '” geri yüklensin mi? Önce şimdiki hâl otomatik sürüm olarak saklanır; tek adımda geri alınabilir. Değişen metinlerin eski doğrulaması taşınmaz.', 'Restore “' + v2.ad + '”? The current state is saved as an automatic version first; one-step undo. Old verification on changed text is dropped.'))) return; var r6 = svGeriYukle(v2); await pqSvYukle(); pqDurum(r6.ok ? pqT('Sürüm geri yüklendi.', 'Version restored.') : pqT('Geri yüklenemedi; sunum değişmedi.', 'Could not restore; the deck did not change.'), !r6.ok); pqBoya(); return; }
+    if (b.hasAttribute('data-sv-yeni')) { var v3 = PQ.sv.liste[+at('data-sv-yeni')]; if (!v3) return; var nd = svYeniDeste(v3); PQ.sv.fark = null; PQ.sv.liste = []; pqDurum(nd ? pqT('Sürüm yeni sunum olarak açıldı; önceki sunum değişmedi.', 'Version opened as a new deck; the previous deck is unchanged.') : pqT('Açılamadı.', 'Could not open.'), !nd); await pqSvYukle(); pqBoya(); return; }
+    /* inceleme */
+    if (b.hasAttribute('data-ib-kur')) { var rol = D.querySelector('[data-ib-rol-sec]').value, sv = D.querySelector('[data-ib-surum]').value; if (rol === 'reviewer' && !sv) { pqDurum(pqT('İnceleyici bağlantısı bir sürüme bağlıdır; önce sürüm seç (hesaba kaydedilmiş).', 'A reviewer link is tied to a version; choose a saved version first.'), 1); return; }
+      var r7 = await ibBaglantiKur(rol, sv || null, D.querySelector('[data-ib-gun]').value, D.querySelector('[data-ib-notlar]').checked); if (!r7.ok) { pqDurum(pqT(IB_HATA[r7.hata][0], IB_HATA[r7.hata][1]), 1); return; } PQ.sv.link = r7; await ibListe(deck); pqDurum(pqT('Bağlantı oluşturuldu.', 'Link created.')); pqBoya(); return; }
+    if (b.hasAttribute('data-ib-kopya')) { var inp = D.querySelector('[data-ib-url] input'); try { await navigator.clipboard.writeText(inp.value); pqDurum(pqT('Kopyalandı.', 'Copied.')); } catch (_) { inp.select(); pqDurum(pqT('Kopyalanamadı; seçili metni elle kopyala.', 'Could not copy; copy the selected text manually.'), 1); } return; }
+    if (b.hasAttribute('data-ib-geri')) { if (!pqOnay(pqT('Bağlantı geri alınsın mı? Bu bağlantıyla katılan herkesin erişimi kesilir.', 'Revoke the link? Everyone who joined through it loses access.'))) return; var r8 = await ibGeriAl(at('data-ib-geri')); if (!r8.ok) { pqDurum(pqT(IB_HATA[r8.hata][0], IB_HATA[r8.hata][1]), 1); return; } PQ.sv.link = null; await ibListe(deck); pqDurum(pqT('Bağlantı geri alındı; erişim kesildi.', 'Link revoked; access removed.')); pqBoya(); return; }
+    if (b.hasAttribute('data-ib-uyesil')) { if (!pqOnay(pqT('Üye çıkarılsın mı?', 'Remove this member?'))) return; var r9 = await ibUyeSil(deck, at('data-ib-uyesil')); if (!r9.ok) { pqDurum(pqT(IB_HATA[r9.hata][0], IB_HATA[r9.hata][1]), 1); return; } await ibListe(deck); pqBoya(); return; }
+    if (b.hasAttribute('data-ib-coz')) { var r10 = await ibCoz(at('data-ib-coz'), at('data-ib-durum') === '1'); if (!r10.ok) { pqDurum(pqT(IB_HATA[r10.hata][0], IB_HATA[r10.hata][1]), 1); return; } await ibYorumlar(deck.dbId); pqBoya(); return; }
+    if (b.hasAttribute('data-pq-yanit')) { PQ.sv.yanit = at('data-pq-yanit'); pqBoya(); return; }
+    if (b.hasAttribute('data-ib-yanit-vaz')) { PQ.sv.yanit = null; pqBoya(); return; }
+    if (b.hasAttribute('data-ib-yanit-ok')) { var r11 = await ibYorumYaz(deck.dbId, { body: D.querySelector('[data-ib-yanit-metin]').value, parent_id: PQ.sv.yanit }); if (!r11.ok) { pqDurum(r11.hata === 'bos' ? pqT('Yanıt boş.', 'The reply is empty.') : pqT(IB_HATA[r11.hata][0], IB_HATA[r11.hata][1]), 1); return; } PQ.sv.yanit = null; await ibYorumlar(deck.dbId); pqBoya(); }
+  };
+  var pqDegis = async function (e) {
+    var t = e.target, D = PQ.dlg, M = PQ.mk;
+    if (t.matches('[data-mk-renk],[data-mk-hex]')) { var r = t.getAttribute('data-mk-renk') || t.getAttribute('data-mk-hex'), c = mkHex(t.value); if (!c) { if (e.type === 'change') t.setAttribute('aria-invalid', 'true'); return; } t.removeAttribute('aria-invalid');
+      if (M.duzen) { pqFormOku(); M.duzen.renk[r] = c; } else M.elle[r] = c; PQ.kirli = true; if (e.type === 'change') pqBoya(); return; }
+    if (t.matches('[data-mk-dosya]')) { pqFormOku(); var x = t.getAttribute('data-mk-dosya'); try { var o = await mkLogoOku(t.files && t.files[0]); M.duzen.gorsel[o.hash] = o.src; M.duzen.logo[x] = { hash: o.hash, w: o.w, h: o.h }; M.hata = ''; PQ.kirli = true; } catch (err) { var hk2 = MK_HATA[err && err.message] || MK_HATA.okunamadi; M.hata = pqT(hk2[0], hk2[1]); } pqBoya(); return; }
+    if (t.matches('[name="mk-k"]')) { M.kapsam = t.value === 'tum' ? 'tum' : 'genel'; pqBoya(); return; }
+    if (t.matches('[data-mk-paylas]')) { if (deck.marka) { deck.marka.paylas = !!t.checked; dirty(); pqDurum(t.checked ? pqT('Logo paylaşım görüntüsüne girecek (bir sonraki kayıtta).', 'The logo will appear in shares (from the next save).') : pqT('Logo paylaşım görüntüsünden çıkarılacak.', 'The logo will be removed from shares.')); } return; }
+    if (t.matches('[data-kc-dk]')) { KC.dk = +t.value; PQ.kc.oneri = null; pqBoya(); return; }
+    if (t.matches('[data-mk-ad],[data-mk-marka],[data-mk-aciklama],[data-mk-font],[data-mk-vars],[data-hk],[data-hk-serbest],[data-hk-izin]')) { PQ.kirli = true; if (t.matches('[data-mk-font]') && e.type === 'change') { pqFormOku(); pqBoya(); } }
+  };
+  var pqAc = function (sekme) {
+    commitEdit(); pqCss(); pqSozluk();
+    if (!PQ.dlg) { PQ.dlg = sxDlg(); PQ.dlg.classList.add('pq-dlg'); PQ.dlg.setAttribute('aria-labelledby', 'axpq-t'); LY.appendChild(PQ.dlg); PQ.dlg.addEventListener('click', pqTikla); PQ.dlg.addEventListener('input', pqDegis); PQ.dlg.addEventListener('change', pqDegis);
+      PQ.dlg.addEventListener('cancel', function (e) { if (!pqKirliMi()) e.preventDefault(); }); }
+    PQ.sekme = sekme || PQ.sekme || 'mk'; PQ.mesaj = ''; PQ.kirli = false; PQ.mk.duzen = null; PQ.mk.uygula = null; PQ.mk.son = null; PQ.kc.as = deck.cur || 0; PQ.kc.oneri = null; PQ.sv.link = null; PQ.sv.fark = null; PQ.sv.yanit = null;
+    pqBoya(); if (!PQ.dlg.open) PQ.dlg.showModal();
+    mkCek().then(function (ok) { if (ok && PQ.dlg.open && PQ.sekme === 'mk' && !PQ.mk.duzen) pqBoya(); });
+    if (PQ.sekme === 'sv') pqSvYukle().then(pqBoya);
+  };
+  /* ---------- #58 son ---------- */
   var deckKey = function (d) { return arr(d.slides).length + '|' + arr(d.slides).map(function (sl) { return (sl.lay || '') + ':' + titleOf(sl) + ':' + String(sl.notes || '').length; }).join('|'); };
   var titleKey = function (t) { return String(t || '').toLocaleLowerCase('tr').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim(); };
   var ciftBasliklar = function () {
@@ -10299,7 +10968,7 @@ var SBX = (function () {
           else {
             /* uzak fotoğrafın kaynak satırı aynı asetatta gerçekten var olmalı; kullanıcının yüklediği data: görseli için aranmaz */
             if (/^https?:/i.test(u) && !(e.creditId != null && els.some(function (x) { return x && x.id === e.creditId && x.type === 't'; }))) add('CREDIT_MISSING', null, n, e.id);
-            if (src[u]) add('IMG_DUPLICATE', null, n, e.id); src[u] = 1;
+            if (src[u] && !e.mrk) add('IMG_DUPLICATE', null, n, e.id); src[u] = 1;
           }
         }
       });
@@ -10432,6 +11101,7 @@ var SBX = (function () {
   };
   (function () { var acs = Q('.sx-acs'); if (!acs || Q('[data-audit]')) return; sxCss(); acs.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit" data-audit>✓ asetatları denetle</button>'); Q('[data-audit]').addEventListener('click', openAudit); })();
   (function () { var au = Q('[data-audit]'); if (!au || Q('[data-sh-ac]')) return; au.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit sx-sh-ac" data-sh-ac aria-expanded="false" aria-controls="ax-sh">✎ sohbetle düzenle</button>'); Q('[data-sh-ac]').addEventListener('click', function () { sxCss(); sdAc(); }); })();      /* #55 */
+  (function () { var sh = Q('[data-sh-ac]'); if (!sh || Q('[data-pq-ac]')) return; sh.insertAdjacentHTML('afterend', '<button type="button" class="sx-audit sx-pq-ac" data-pq-ac title="Marka kiti, hedef kitle, konuşmacı koçu, sürümler ve inceleme">◆ profesyonel</button>'); Q('[data-pq-ac]').addEventListener('click', function () { pqAc(); }); })();      /* #58 */
 
   /* ---------- PHASE 5: GEMINI GÖRSEL DENETİM (gorselQA, 26.11.2026, #33) ----------
      Asetatlar ekrandaki gibi çizilir (slideHTML, doğrulanmış şablon yazısıyla), html2canvas@1.4.1 ile 768×432 JPEG'e
@@ -12623,6 +13293,7 @@ var SBX = (function () {
     var nx = Q('[data-rh-next]', rh); if (!deck.slides[rhI + 1]) nx.innerHTML = '<p style="margin:0;padding:14px;color:#6A7593;font-family:Caveat,cursive;font-size:22px">son asetat</p>';
     var no = Q('[data-rh-notes]', rh); no.textContent = s.notes || 'bu asetat için not yok'; no.classList.toggle('none', !s.notes);
     Q('[data-rh-pos]', rh).textContent = (rhI + 1) + ' / ' + deck.slides.length + (titleOf(s) ? ' · ' + titleOf(s) : '');
+    kcProvaBoya();      /* #58 */
   };
   var rhStep = function (d) { var j = rhI + d; if (j < 0) return; var now = Date.now(); rhAcc[rhI] += now - rhSlideT0; rhSlideT0 = now; if (j >= deck.slides.length) { rhEnd(); return; } rhI = j; rhPaint(); };
   var rhLoop = function () {
@@ -12630,6 +13301,7 @@ var SBX = (function () {
     var now = Date.now(), tot = now - rhT0, goal = +Q('[data-rh-goal]', rh).value * 60000;
     Q('[data-rh-total]', rh).textContent = mmss(tot); Q('[data-rh-slide]', rh).textContent = mmss(rhAcc[rhI] + now - rhSlideT0);
     var bar = Q('[data-rh-bar]', rh); bar.style.width = Math.min(100, tot / goal * 100) + '%'; bar.classList.toggle('over', tot > goal);
+    kcProvaSaat(tot, goal, now);      /* #58 */
   };
   var rhOpen = function (from) {
     if (!deck.slides.length) { say('Prova için önce birkaç asetat hazırla.'); return; }
@@ -12848,7 +13520,7 @@ var SBX = (function () {
       await Promise.all(Object.keys(uzak).map(function (u) { return gorselVeri(u).then(function (v) { veri[u] = v; }); }));
       for (var si = 0; si < deck.slides.length; si++) {
         var s = deck.slides[si], sl = pp.addSlide(), bg = s.bg || 'clear', dark = bg === 'navy';
-        var TX = deck.tema, ff = TX && TX.bf || 'Arial', fh = TX && TX.hf || ff; sl.background = { color: TX ? hex(TX.bg[bg] || TX.bg.clear) : BGC[bg] || 'FFFFFF' };
+        var TX = deck.tema, ff = TX && (TX.bfP || TX.bf) || 'Arial', fh = TX && (TX.hfP || TX.hf) || ff; sl.background = { color: TX ? hex(TX.bg[bg] || TX.bg.clear) : BGC[bg] || 'FFFFFF' };
         off.innerHTML = slideHTML(s);
         var col = function (e) { zeminKoyu = koyuMu(s); var c = hex(renkSec(e)); zeminKoyu = 0; return dark && c === '0D1838' ? 'FFFFFF' : c; };
         var pels = temaDekor(s).concat(s.els, temaAlt(s));
@@ -12953,7 +13625,7 @@ var SBX = (function () {
     });
     return snapUcus;
   };
-  var snapKur = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: (zeminKoyu = koyuMu(s), temaDekor(s).concat(s.els, temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('')) }; }) }; zeminKoyu = 0; };
+  var snapKur = function (d) { var T = d.tema; return { v: 1, fonts: T ? [T.hf, T.bf].filter(Boolean) : [], slides: d.slides.map(function (s) { return { bg: s.bg || 'clear', st: temaSty(s), dk: T && T.dark && s.bg !== 'navy' ? 1 : 0, html: (zeminKoyu = koyuMu(s), temaDekor(s).concat(mkPay(d, s.els), temaAlt(s)).map(function (e) { return elHTML(e, false); }).join('')) }; }) }; zeminKoyu = 0; };
   var newToken = function () { var a = new Uint8Array(24); crypto.getRandomValues(a); return btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   var shDlg = Q('[data-sharedlg]'), shFrom = null;
   var shLink = function (t) { return location.origin + '/izle.html?k=' + t; };
@@ -13081,7 +13753,7 @@ var SBX = (function () {
         /* Phase 5: görsel denetimin kısa özeti (.gorsel) yalnız zaten yapılan bu kayda eklenir; ayrı kayıt ya da yeniden ölçüm yok */
         if (row.quality_report && row.quality_report !== d.quality) { var gq = gorselOzet(d); if (gq) row.quality_report.gorsel = gq; }
         if (isUuid(d.sourceId)) row.source_id = d.sourceId;
-        var yeniSatir = !d.dbId;
+        var yeniSatir = !d.dbId; if (!yeniSatir && (await ibCakisma(c, d))) throw new Error('cakisma');      /* #58: ortak destede sessiz üzerine yazma yok */
         if (yeniSatir) { row.user_id = u.id; var r = await c.from('presentations').insert(row).select('id').single(); if (r.error) throw r.error; d.dbId = r.data.id; }
         var del = await c.from('presentation_slides').delete().eq('presentation_id', d.dbId); if (del.error) throw del.error;
         if (d.slides.length) {
@@ -13091,7 +13763,7 @@ var SBX = (function () {
               content: Object.assign({ ink: 1, id: sl.id, lay: sl.lay || null, v: sl.v || 0, bg: sl.bg || 'clear', els: JSON.parse(JSON.stringify(sl.els, kaliciJSON)), text: bodyOf(sl) }, sl.gorsel ? { gorsel: sl.gorsel } : {}, kySrc(sl)) };      /* #49: asetatın kaynak bağları (sid) */      /* asıl boyutlar (kaliciJSON); görsel ipucu ve sonucu (Phase 2) */
           });
           /* Şablon için ayrı sütun yok; ilk asetatın content'ine yazılır, sunumla birlikte taşınır. */
-          if (d.tema && d.tema.def) rows[0].content.tema = d.tema.def;
+          if (d.tema && d.tema.def) rows[0].content.tema = d.tema.def; if (d.marka) rows[0].content.marka = d.marka; if (d.kitle) rows[0].content.kitle = d.kitle;      /* #58 */
           /* #49 (8.1): kaynak kaydı da her kayıtta O ANKİ ilk asetatta (yeni sütun/tablo yok); ilk asetat silinse ya da yer değiştirse de taşınır */
           if (arr(d.kaynaklar).length) rows[0].content.kaynaklar = d.kaynaklar;
           /* İçerik sürümü ve bekleyen görüntü işareti de ilk asetatta taşınır (yeni sütun yok, 18B): her cihaz görüntünün
@@ -13136,7 +13808,7 @@ var SBX = (function () {
         if (ct.ink && Array.isArray(ct.els)) { var rs = { id: ct.id || uid(), lay: ct.lay || null, bg: ct.bg || 'clear', notes: row.speaker_notes || '', els: ct.els }; if (ct.v) rs.v = ct.v; if (Array.isArray(ct.src)) { rs.src = ct.src.filter(function (x) { return typeof x === 'string'; }); if (+ct.srcEksik > 0) rs.srcEksik = +ct.srcEksik; } if (ct.gorsel && typeof ct.gorsel === 'object') { rs.gorsel = ct.gorsel; if (ct.gorsel.q || ct.gorsel.entity) rs.imgq = { q: ct.gorsel.q || '', entity: ct.gorsel.entity || '' }; } return rs; }
         var b = String(ct.text || '').split('\n').map(cleanB).filter(Boolean).slice(0, 8), sl = newSlide(b.length ? 'list' : 'cover', row.title || 'Başlık', b); sl.notes = row.speaker_notes || ''; return sl;
       });
-      var c0 = r.data && r.data[0] && r.data[0].content; d.tema = c0 && c0.tema ? temaKur(c0.tema) : null;
+      var c0 = r.data && r.data[0] && r.data[0].content; d.tema = c0 && c0.tema ? temaKur(c0.tema) : null; if (c0 && c0.marka) d.marka = c0.marka; if (c0 && c0.kitle) d.kitle = c0.kitle;      /* #58 */
       var kr = (r.data || []).map(function (row) { return row.content && row.content.kaynaklar; }).filter(Array.isArray)[0]; if (kr) d.kaynaklar = kr; else delete d.kaynaklar;      /* #49: eski destede kayıt yok, uydurulmaz */
       /* paylaşım bağı ve bekleyen görüntü işareti hesaptan gelir (18B): başka cihaz da görüntünün beklediğini bilir */
       if (c0 && c0.snapBekle) d.snapBekle = 1;
@@ -13156,6 +13828,7 @@ var SBX = (function () {
   var opening = 0;
   var openDeck = async function (id, hesaptan) {
     var run = ++opening, m = id ? store.meta(id) : null, d = m ? G(store.k('d.' + m.id), null) : null;
+    if (m && m.dbId && m.ortak && m.ortak !== 'owner' && store.cloud && !(await ibErisim(m))) { if (run !== opening) return; if (d) d.dbId = null; }      /* #58: erişimi kesilen ortak deste hesaptan çekilmez */
     /* HESABA ULAŞMAMIŞ YEREL İŞ ÜZERİNE AÇILMAZ (18C): yalnız hesabın updated_at'i daha yeni diye (başka cihazın görüntü
        yenilemesi tetikleyiciyle de ilerletir) gönderilememiş yerel düzenleme silinmez; yeniden gönderimi yerelGonder karar verir. */
     if (m && m.dbId && store.cloud && !(m.bekleyen && d) && (hesaptan || !d || (m.remote || 0) > (m.updated || 0) + 2000)) {
@@ -13199,7 +13872,7 @@ var SBX = (function () {
       else { m.remote = ru; if (!m.lang && row.language) m.lang = row.language; if (ru > (m.updated || 0) + 2000) { m.title = row.title; m.n = row.slide_count; if (row.language) m.lang = row.language; } }
     });
     /* hesabından silinmiş sunumların bulut bağını kopar (yerel kopya kalır) */
-    store.list.forEach(function (x) { if (x.dbId && !seenDb[x.dbId]) { x.dbId = null; x.remote = 0; if (x.id === deck.id) deck.dbId = null; } });
+    store.list.forEach(function (x) { if (x.dbId && !seenDb[x.dbId] && !x.ortak) { x.dbId = null; x.remote = 0; if (x.id === deck.id) deck.dbId = null; } });
     store.putList(); paintDecks();
     var m0 = store.meta(deck.id);
     if ((!deck.slides.length && !m0 && store.list.length) || (m0 && !m0.bekleyen && !store.dirty && (m0.remote || 0) > (m0.updated || 0) + 2000)) openDeck(m0 ? m0.id : store.list[0].id);
@@ -13214,6 +13887,7 @@ var SBX = (function () {
     }
     syncList().catch(function (e) { console.warn('acadex-sunum: liste', e); });
     loadSrc();
+    ibBoot();      /* #58: ?inceleme= */
   };
   decksEl.addEventListener('change', function () { commitEdit(); if (store.dirty) { clearTimeout(sT); saveNow(); } store.flush(); openDeck(decksEl.value); });
   Q('[data-newdeck]').addEventListener('click', function () {

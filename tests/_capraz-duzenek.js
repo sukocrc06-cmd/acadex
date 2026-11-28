@@ -14,6 +14,9 @@
      sayfada window.__casOnce     koşullu görüntü yazımı gönderilmeden hemen önce bir kez çalışır (söz döndürebilir)
      sayfada window.__pushOnce    deste kaydının satır güncellemesi gönderilmeden hemen önce bir kez çalışır
      sayfada window.__sonraCevrimdisi  bundan sonraki ilk yanıttan itibaren istemci çevrimdışı olur
+   #58 (28.11.2026): Faz 12 tabloları (brand_kits, presentation_user_prefs, presentation_versions, presentation_review_links,
+     presentation_members, presentation_comments), upsert, neq/in/is süzgeçleri ve ada göre RPC (AYAR.rpc[ad](a, DB, q)). Burada
+     yetki yoktur: RLS/RPC yetkisi gerçek migration'larla PGlite'ta sınanır (tests/sunum-surum-isbirligi.js). window.__S.p12 kancası.
    ========================================================================== */
 'use strict';
 
@@ -32,18 +35,20 @@ const CHROME = [process.env.CHROME_BIN, '/Applications/Google Chrome.app/Content
 /* ---------------- durumlu sahte hesap ---------------- */
 const yeniSunucu = (secenek) => {
   const SEC = secenek || {};
-  const DB = { presentations: [], presentation_slides: [] }, LOG = [], YAZIM = [], AYAR = { hata: false, araya: null, pushHata: false };
+  const DB = { presentations: [], presentation_slides: [], brand_kits: [], presentation_user_prefs: [], presentation_versions: [], presentation_review_links: [], presentation_members: [], presentation_comments: [] }, LOG = [], YAZIM = [], AYAR = { hata: false, araya: null, pushHata: false, rpc: {} };
   let saat = Date.now(), gorulen = 0;
   const simdi = () => { saat = Math.max(saat + (SEC.senkron ? 3000 : 1), Date.now(), SEC.senkron ? gorulen + 3000 : 0); return new Date(saat).toISOString().replace('Z', '000+00:00'); };      /* timestamptz metni (mikrosaniye) */
   const sirala = (x) => (Array.isArray(x) ? x.map(sirala) : x && typeof x === 'object' ? Object.keys(x).sort((a, b) => a.length - b.length || (a < b ? -1 : 1)).reduce((o, k) => { o[k] = sirala(x[k]); return o; }, {}) : x);      /* jsonb anahtar sırası */
   const kopya = (x) => JSON.parse(JSON.stringify(x));
-  const uygun = (r, f) => f.every(([k, v]) => r[k] === v);
+  const uygun = (r, f) => f.every(([k, v, op]) => (op === 'neq' ? r[k] !== v : op === 'in' ? v.includes(r[k]) : op === 'is' ? (r[k] == null ? null : r[k]) === v : r[k] === v));
   const icerikSurum = (pid) => { const r0 = DB.presentation_slides.filter((r) => r.presentation_id === pid).sort((a, b) => a.order_index - b.order_index)[0]; return r0 && r0.content ? r0.content.surum || null : null; };
   const takma = (sel, r) => { String(sel || '').split(',').forEach((p) => { const m = p.trim().match(/^(\w+):(\w+)->>(\w+)$/); if (m) r[m[1]] = r[m[2]] && r[m[2]][m[3]] != null ? String(r[m[2]][m[3]]) : null; }); return r; };
   const isle = (q) => {
     if (q.saat) gorulen = Math.max(gorulen, q.saat);
     if (q.rpc) {
-      LOG.push({ rpc: q.rpc });
+      LOG.push({ rpc: q.rpc, a: q.a });
+      if (AYAR.rpc[q.rpc]) { try { return AYAR.rpc[q.rpc](q.a || {}, DB, q); } catch (e) { return { data: null, error: { message: String(e.message || e), code: e.code || 'P0001' } }; } }      /* #58 */
+      if (q.rpc !== 'get_shared_presentation') return { data: null, error: { message: 'rpc yok ' + q.rpc, code: 'PGRST202' } };
       const t = q.a && q.a.p_token, p = /^[A-Za-z0-9_-]{24,64}$/.test(t || '') ? DB.presentations.find((r) => r.share_token === t && r.share_snapshot) : null;
       return { data: p ? { title: p.title, language: p.language, shared_at: p.shared_at, slides: (p.share_snapshot && p.share_snapshot.slides) || [] } : null, error: null };
     }
@@ -51,9 +56,13 @@ const yeniSunucu = (secenek) => {
     const keys = q.x && !Array.isArray(q.x) ? Object.keys(q.x) : null;
     LOG.push({ t: q.t, op: q.op, keys, f: q.f.map((x) => x[0]) });
     if (AYAR.pushHata && q.t === 'presentation_slides' && q.op !== 'select') return { data: null, error: { message: 'test: kayıt reddedildi' } };
+    if (q.op === 'upsert') {      /* #58: onConflict anahtarına göre (varsayılan id) */
+      const ks = String(q.oc || 'id').split(','), xs = (Array.isArray(q.x) ? q.x : [q.x]).map((x) => { const v = kopya(x), e = T.find((r) => ks.every((k) => r[k] === v[k])); if (e) { Object.assign(e, sirala(v)); return e; } const y = sirala(Object.assign({ id: crypto.randomUUID() }, v)); T.push(y); return y; });
+      return { data: q.tek ? xs[0] : xs, error: null };
+    }
     if (q.op === 'insert') {
       const xs = (Array.isArray(q.x) ? q.x : [q.x]).map((x) => sirala(Object.assign({ id: crypto.randomUUID() }, kopya(x), q.t === 'presentations' && !x.updated_at ? { updated_at: simdi() } : {})));
-      T.push(...xs); return { data: q.tek ? xs[0] : xs, error: null };
+      T.push(...xs); return { data: kopya(q.tek ? xs[0] : xs), error: null };
     }
     if (q.op === 'update') {
       if (q.t === 'presentations' && keys && keys.includes('share_snapshot')) {
@@ -69,7 +78,9 @@ const yeniSunucu = (secenek) => {
     }
     if (q.op === 'delete') { DB[q.t] = T.filter((r) => !uygun(r, q.f)); return { data: [], error: null }; }
     let rows = T.filter((r) => uygun(r, q.f));
+    if (q.lim) rows = rows.slice(0, 1e9);
     if (q.ord) { const [k, asc] = q.ord; rows = rows.slice().sort((a, b) => (a[k] < b[k] ? -1 : a[k] > b[k] ? 1 : 0) * (asc ? 1 : -1)); }
+    if (q.lim) rows = rows.slice(0, q.lim);
     rows = kopya(rows).map((r) => takma(q.sel, r));
     return { data: q.tek ? rows[0] || null : rows, error: null };
   };
@@ -77,6 +88,8 @@ const yeniSunucu = (secenek) => {
     let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => {
       res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', '*');
       if (req.method === 'OPTIONS') { res.end(); return; }
+      let q0 = null; try { q0 = JSON.parse(b); } catch (e) { /* aşağıda hata */ }
+      if (q0 && q0.bekle) { setTimeout(() => res.end('{}'), Math.min(+q0.bekle || 0, 2000)); return; }      /* #58: bekleyen istek sanal saati durdurur (görsel çözme gerçek saatte sürer) */
       let out; try { out = isle(JSON.parse(b)); } catch (e) { out = { data: null, error: { message: String(e) } }; }
       res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(out));
     });
@@ -101,7 +114,12 @@ const LATEXT = 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D
 const yuz = (fam, dosya) => ['400', '700'].map((w) => `@font-face{font-family:"${fam}";font-weight:${w};src:url("${fontUrl(dosya + '-latin.woff2')}") format("woff2");unicode-range:${LATIN}}@font-face{font-family:"${fam}";font-weight:${w};src:url("${fontUrl(dosya + '-latin-ext.woff2')}") format("woff2");unicode-range:${LATEXT}}`).join('');
 const KANCA = `  window.__S = { set: function (st, pm) { strips = st; plotMeta = pm; }, bas: bas, deck: function () { return deck; }, temaSec: temaSec, TEMALAR: TEMALAR, store: store,
     yedek: function () { return fontYedek; }, basiliyor: function () { return basiliyor; }, kuyruk: function () { return yaziKuyruk.length; }, hazirMi: function () { return yaziHazirMi(); }, dirty: function () { dirty(); }, ucus: function () { return snapUcus; },
-    saveNow: saveNow, syncList: syncList };\n`;
+    saveNow: saveNow, syncList: syncList,
+    p12: typeof mkUygula === 'function' ? function () { return { mkHex: mkHex, mkFont: mkFont, mkTemiz: mkTemiz, mkImza: mkImza, mkTur: mkTur, mkSvgGuvenli: mkSvgGuvenli, mkOlcu: mkOlcu, mkLogoOku: mkLogoOku, mkRenk: mkRenk, mkTemaDef: mkTemaDef, mkKontrast: mkKontrast, mkRenkKor: mkRenkKor, mkListe: mkListe, mkBul: mkBul, mkKaydet: mkKaydet, mkKopya: mkKopya, mkSil: mkSil, mkVarsayilan: mkVarsayilan, mkCek: mkCek, mkYer: mkYer, mkUygun: mkUygun, mkUygula: mkUygula, mkPay: mkPay, mkDurum: mkDurum, mkOrnekler: mkOrnekler, MK_ROL: MK_ROL, MK_MAX: MK_MAX, MK_LOGO_BAYT: MK_LOGO_BAYT, MK_KENAR: MK_KENAR, MK_FONT: MK_FONT,
+      SD_PROFIL: SD_PROFIL, hkTemiz: hkTemiz, hkHassas: hkHassas, hkVarsayilan: hkVarsayilan, hkVarsayilanYaz: hkVarsayilanYaz, hkGonder: hkGonder, hkOzet: hkOzet, hkKaydet: hkKaydet, HK: HK, hkKomut: hkKomut, hkCikan: hkCikan,
+      kcSure: kcSure, kcKoc: kcKoc, kcNotMetni: kcNotMetni, kcNotUygula: kcNotUygula, kcOzelSure: kcOzelSure, KC: KC, svSnap: svSnap, svListe: svListe, svYeni: svYeni, svOtomatik: svOtomatik, svKaydet: svKaydet, svBulut: svBulut, svFark: svFark, svGeriYukle: svGeriYukle, svYeniDeste: svYeniDeste, svImza: svImza,
+      ibBaglantiKur: ibBaglantiKur, ibGeriAl: ibGeriAl, ibListe: ibListe, ibYorumlar: ibYorumlar, ibYorumYaz: ibYorumYaz, ibCoz: ibCoz, ibCakisma: ibCakisma, ibErisim: ibErisim, ibBoot: ibBoot, IB: IB, pqAc: pqAc, PQ: PQ, undo: undo, undoN: function () { return undoS.length; }, renderAll: renderAll, exportPptx: exportPptx, openDeck: openDeck, qaListe: qaListe, snapKur: snapKur,
+      uygulaHata: function (v) { pqUygulaHata = v; }, sesBul: function () { return !!(window.MediaRecorder && window.__mikrofon); } }; } : null };\n`;
 const ORTAK = `
   var S = window.__S, R = {}, d = document, bekle = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   var sakin = async function () { for (var k = 0; k < 160 && (!S.deck() || S.kuyruk() || !S.hazirMi() || S.basiliyor()); k++) await bekle(50); await bekle(120); };
@@ -114,13 +132,14 @@ const ORTAK = `
       ekran: D.slides.map(function (s) { return s.els.filter(function (e) { return (e.type === 't' || e.type === 'ul' || e.type === 'h') && e.text && !e.dz; }).map(function (e) { return [e.id, e.size]; }); }) }; };
 `;
 const istemci = (port, gecik) => `<script>
-(function () { var SRV = 'http://127.0.0.1:${port}/';
+(function () { var SRV = window.__SRV = 'http://127.0.0.1:${port}/';
   var istek = function (body) { body.saat = Date.now(); if (window.__cevrimdisi) return Promise.resolve({ data: null, error: { message: 'TypeError: Failed to fetch' } });
     return new Promise(function (res) { var x = new XMLHttpRequest(); x.open('POST', SRV); x.setRequestHeader('Content-Type', 'text/plain'); x.onload = function () { res(JSON.parse(x.responseText)); }; x.onerror = function () { res({ data: null, error: { message: 'ag' } }); }; x.send(JSON.stringify(body)); }); };
   window.supabaseClient = { functions: { invoke: function () { return Promise.reject(new Error('test: model yok')); } },
     rpc: function (n, a) { return istek({ rpc: n, a: a }); },
     from: function (t) { var q = { t: t, op: 'select', f: [], ord: null, tek: 0, sel: '' }, o = {
-      select: function (c) { q.sel = c || ''; return o; }, eq: function (k, v) { q.f.push([k, v]); return o; }, order: function (k, op) { q.ord = [k, !op || op.ascending !== false]; return o; }, limit: function () { return o; },
+      select: function (c) { q.sel = c || ''; return o; }, eq: function (k, v) { q.f.push([k, v]); return o; }, order: function (k, op) { q.ord = [k, !op || op.ascending !== false]; return o; }, limit: function (n) { q.lim = n; return o; },
+      neq: function (k, v) { q.f.push([k, v, 'neq']); return o; }, in: function (k, v) { q.f.push([k, v, 'in']); return o; }, is: function (k, v) { q.f.push([k, v, 'is']); return o; }, upsert: function (x, op) { q.op = 'upsert'; q.x = x; q.oc = op && op.onConflict; return o; },      /* #58 */
       single: function () { q.tek = 1; return o; }, maybeSingle: function () { q.tek = 2; return o; }, insert: function (x) { q.op = 'insert'; q.x = x; return o; }, update: function (x) { q.op = 'update'; q.x = x; return o; }, delete: function () { q.op = 'delete'; return o; },
       then: function (a, b) { var g = ${gecik || 0} && q.t === 'presentations' && q.f.some(function (f) { return f[0] === 'user_id'; }) ? ${gecik || 0} : 0;      /* yavaş ağ: hesap listesi (syncList) geç gelir */
         var cas = q.op === 'update' && q.f.some(function (f) { return f[0] === 'updated_at'; }) && window.__casOnce, h = cas ? window.__casOnce : null; if (cas) window.__casOnce = null;
@@ -181,9 +200,9 @@ ${govde}
   R.n = n; R.metin = t.join(' | '); R.ag = window.__ag; document.getElementById('diag').textContent = JSON.stringify(R); })();
 </script>\n</body>`);
   };
-  const kos = (dosya, prof, icerik) => new Promise((res, rej) => {
+  const kos = (dosya, prof, icerik, ek) => new Promise((res, rej) => {      /* ek: ek Chrome argümanları (#58: --window-size; --virtual-time-budget verilirse varsayılan 60 sn yerine o) */
     fs.writeFileSync(path.join(W, dosya), icerik);
-    execFile(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--user-data-dir=' + path.join(W, 'prof-' + prof), '--allow-file-access-from-files', '--virtual-time-budget=60000', '--dump-dom', pathToFileURL(path.join(W, dosya)).href], { maxBuffer: 64 << 20, timeout: 180000 }, (e, out) => {
+    execFile(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--user-data-dir=' + path.join(W, 'prof-' + prof), '--allow-file-access-from-files', ...((ek || []).some((x) => /^--virtual-time-budget=/.test(x)) ? [] : ['--virtual-time-budget=60000']), ...(ek || []), '--dump-dom', pathToFileURL(path.join(W, dosya)).href], { maxBuffer: 64 << 20, timeout: 180000 }, (e, out) => {
       if (e) return rej(e); const m = String(out).match(/<pre id="diag">([\s\S]*?)<\/pre>/); if (!m) return rej(new Error(dosya + ': diag yok'));
       res(JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&amp;/g, '&')));
     });
