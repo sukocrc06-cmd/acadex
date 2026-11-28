@@ -903,7 +903,9 @@ test('CANLI DESTE 25.11 (History of Guns) — kaynakça ızgarası, Commons yaza
   assert.equal(ks('Matchlock emergence: 1400s\n[2] not a ref'), false, 'karışık liste kaynakça sayılıyor');
   assert.match(ink, /if \(e\.type === 'ul' && kaynakSatir\(e\.text\)\) return '<ul class="sx-refs">'/);
   /* #45 (7.3/7.4): madde girintisi editördeki 1,1 em ile eşitlendi (indent); kaynakçada madde işareti yine yok */
-  assert.match(ink, /bullet: kaynakSatir\(e\.text\) \? false : \{ code: '25AA', indent: /, 'PPTX kaynakçasında madde işareti kaldı');
+  /* #52 (8.3): kaynakça satırları kkRunlar'dan gelir (bullet: false; sunum-kaynak-kalite F2), öteki listeler 25AA girintili */
+  assert.match(ink, /sl\.addText\(kaynakSatir\(e\.text\) \? kkRunlar\(ls, kkReg \|\| \(kkReg = kyKayit\(deck\)\), col\(e\)\) : ls\.map\(function \(l\) \{ return \{ text: l, options: \{ bullet: \{ code: '25AA', indent: /, 'PPTX kaynakçasında madde işareti kaldı');
+  assert.match(ink, /return \{ text: l, options: hit \? \{ bullet: false, [^\n]+: \{ bullet: false, breakLine: true \} \};/, 'kkRunlar kaynakçada madde işareti koymaz');
   assert.match(css, /\.sx-el ul\.sx-refs\{list-style:none;padding:0\}/);
   assert.match(css, /\.sx-refs li\{display:grid;grid-template-columns:2\.4em 1fr;gap:\.35em;overflow-wrap:anywhere\}/);
   const R = require('./_ts-extract.js').loadFromSource('supabase/functions/sunum-research/index.ts', ['stripTags', 'artistOf', 'TARIH', 'tarihSorgu']);
