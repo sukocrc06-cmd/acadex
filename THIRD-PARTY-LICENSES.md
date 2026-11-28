@@ -119,6 +119,13 @@ SOFTWARE.
 (fonts.bunny.net) üzerinden yüklenir. Her yazı tipi kendi açık lisansını
 (çoğunlukla SIL Open Font License 1.1) taşır.
 
+## Anatomi Lab 3B modelleri
+
+- Z-Anatomy ve BodyParts3D (DBCLS): CC BY-SA 4.0 / CC BY-SA 2.1 JP. Ayrıntı: labs/anatomi/data/LISANS.txt
+- Human Reference Atlas (HRA) 3D Reference Object Library, HuBMAP / CNS Indiana University, NIH 3D
+  (https://humanatlas.io): CC BY 4.0. Kadın üreme organları ve kadın mesanesi (labs/anatomi/data/ax-kadin.js);
+  parça seçimi, üçgen azaltma ve kalça kemiğine göre ölçekleme yapıldı. Sayfadaki kaynak satırı kaldırılmaz.
+
 ## Alınmayanlar
 
 - unDraw: lisansı çizimlerin başka bir uygulamaya kütüphane olarak eklenmesini

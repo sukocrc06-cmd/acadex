@@ -60,6 +60,7 @@
   var close = function (now) {
     if (run.hidden) return;
     cur = null; kampusMesaj({ type: 'gorunur', v: true }); kampusMesaj({ type: 'geri' });
+    lsafe(function () { window.dispatchEvent(new Event('acadex:medlab-kapandi')); });   /* profil kartı XP'yi yeniden hesaplar */
     if (typeof window.axMedLabHook === 'function') lsafe(function () { window.axMedLabHook(null, frame); });
     var b = lastBtn, fin = function () { run.hidden = true; document.body.classList.remove('axm-open'); if (b && now !== true) lsafe(function () { b.focus(); }); };
     if (now !== true && sec.classList.contains('active')) grow(b, true, fin); else { clearTimeout(grow.t); run.classList.remove('axm-grow'); if (run.style) run.style.clipPath = ''; fin(); }

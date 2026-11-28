@@ -1115,6 +1115,8 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
       <section class="sec" data-mode="atlas" data-tab="katman">
         <h3>Anatomi tezgâhı <span class="hn">aç, kapat</span></h3>
         <div id="layers"></div>
+        <div class="row"><div class="seg2" id="cinsSec" role="group" aria-label="Model cinsiyeti"><button data-cins="e" aria-pressed="true">Erkek</button><button data-cins="k" aria-pressed="false">Kadın</button></div></div>
+        <p class="mini" id="cinsNot" style="margin:8px 0 0">Erkek üreme organları gösteriliyor.</p>
       </section>
       <section class="sec" data-mode="atlas" data-tab="katman">
         <h3>Diseksiyon <span class="hn">katman katman</span></h3>
@@ -1216,7 +1218,7 @@ input[type=range]{accent-color:var(--mc,#2F6BFF)}
       <div class="casebar" id="casebar" role="region" aria-label="Klinik vaka" aria-live="polite"></div>
       <div class="res" id="res"><div class="card" role="dialog" aria-labelledby="resH"></div></div>
       <div class="load" id="load"><b>Anatomi modeli hazırlanıyor</b><div class="bar"><i id="loadBar"></i></div><span id="loadT">hazırlanıyor…</span></div>
-      <div class="attr">3D model: <a href="https://github.com/Z-Anatomy/Models-of-human-anatomy" target="_blank" rel="noopener">Z-Anatomy</a> · BodyParts3D (DBCLS) · CC BY-SA 4.0</div>
+      <div class="attr">3D model: <a href="https://github.com/Z-Anatomy/Models-of-human-anatomy" target="_blank" rel="noopener">Z-Anatomy</a> · BodyParts3D (DBCLS) · CC BY-SA 4.0 · kadın üreme organları: <a href="https://humanatlas.io" target="_blank" rel="noopener">Human Reference Atlas</a> (NIH 3D) · CC BY 4.0</div>
       <div class="nogl" id="nogl">Bu cihazda 3D görünüm açılamadı (WebGL kapalı). Kartlar, kurul yolu ve notlar yine çalışır.</div>
     </section>
 
@@ -1775,6 +1777,7 @@ const st = {
   quality: matchMedia('(pointer:coarse)').matches ? 'hizli' : 'dengeli',
   friend: { on: false, sel: null, follow: false }, spot: null,
   seen: new Set(LS.get('seen', [])), ok: new Set(LS.get('ok', [])), yanlis: LS.get('yanlis', []), notes: LS.get('notes', []), views: LS.get('views', []),
+  cins: LS.get('cins', 'e') === 'k' ? 'k' : 'e',   /* 28.11.2026: Erkek/Kadın modeli (kadın üreme: data/ax-kadin.js) */
   mtab: 'yapi', spotCfg: { reg: 'ust', n: 8, t: 60 }, focusDim: LS.get('focusDim', true)
 };
 const LAYER_UI = [['iskelet', 'İskelet', '#E9DFC9'], ['kas', 'Kaslar', '#A8342C'], ['kasek', 'Fasya ve bursalar', '#E6DCCB'], ['organ', 'İç organlar', '#B66A6A'], ['damar', 'Damarlar', '#C42232'], ['sinir', 'Sinirler ve beyin', '#F1D27C']];
@@ -1896,6 +1899,7 @@ function mat(kind, color, o = {}) {
   const pair = { normal, ghost, dim, fade, fadeIn, layerOp: new Map(), kind }; matCache.set(k, pair); return pair;
 }
 const ORG_COL = [
+  [/uterine tube/, '#E09A98', { cc: .55, rough: .35 }], [/of uterus/, '#C9767C', { cc: .55, rough: .36 }], [/^Ovary/, '#E6C4AE', { cc: .4, rough: .45 }],
   [/liver|Liver/, '#6F2722', { cc: .5, rough: .38 }], [/lung/, '#D7978F', { cc: .3, rough: .55 }], [/Stomach|Duodenum|Oesophag|Esophag/, '#C8786A', { cc: .6, rough: .35 }],
   [/colon|Caecum|Cecum|Rectum|appendix|taenia|Mesocolon/, '#C49A80', { cc: .5, rough: .4 }], [/Kidney|Ureter|Renal/, '#7E2F2B', { cc: .5, rough: .38 }],
   [/bladder/, '#D4B06A', { cc: .5 }], [/Gallbladder/, '#4F7A4A', { cc: .6 }], [/Pancreas/, '#E1B78E', { cc: .3 }], [/Spleen/, '#6A2733', { cc: .5 }],
@@ -1932,8 +1936,59 @@ function styleFor(name, sys, ek) {
   return mat('org', '#C98F88', { cc: .4, rough: .4, vary: .08, freq: 250 });
 }
 
+/* ===================== Erkek / Kadın modeli (28.11.2026) =====================
+   Ana model (Z-Anatomy) erkek. Kadın üreme organları (rahim, tüpler, yumurtalıklar) ve kadın mesanesi
+   Human Reference Atlas'tan (NIH 3D, CC BY 4.0) alındı; data/ax-kadin.js, organ katmanıyla birlikte yüklenir.
+   HRA koordinatları kalça kemiği kutusuna eksen eksen oturtuldu (ölçek ≈ 0,85 · 1,02 · 0,86). İskelet ortak.
+   m.userData.cins: 'e' erkeğe, 'k' kadına özgü; boşsa ikisinde de görünür. Seçim st.cins (LS 'cins'). */
+const ERKEK_RX = /^(Testis|Epididymis|Seminal gland|Prostate|Glans penis|Corpus (cavernosum|spongiosum) of penis|Urinary bladder)(\.[lr])?$|of penis|testicular (artery|vein)/i;
+const cinsOf = (n, info) => info && info.cins ? info.cins : ERKEK_RX.test(n) ? 'e' : '';
+const KADIN_AD = (() => {
+  const o = {}, k = (n, la, id) => { o[n] = { s: 'organ', la, cins: 'k' }; if (id) o[n].id = id; };
+  k('Fundus of uterus', 'Fundus uteri'); k('Body of uterus', 'Corpus uteri'); k('Isthmus of uterus', 'Isthmus uteri'); k('Cervix of uterus', 'Cervix uteri');
+  for (const t of ['l', 'r']) {
+    k('Ampulla of uterine tube.' + t, 'Ampulla tubae uterinae'); k('Isthmus of uterine tube.' + t, 'Isthmus tubae uterinae');
+    k('Infundibulum of uterine tube.' + t, 'Infundibulum tubae uterinae'); k('Fimbriae of uterine tube.' + t, 'Fimbriae tubae uterinae'); k('Ovary.' + t, 'Ovarium');
+  }
+  k('Urinary bladder (female)', 'Vesica urinaria', 'vesica'); k('Base of urinary bladder (female)', 'Vesica urinaria', 'vesica'); k('Neck of urinary bladder (female)', 'Vesica urinaria', 'vesica');
+  return o;
+})();
+Object.assign(TR, {
+  'Fundus uteri': { t: 'Rahim tabanı (fundus uteri)', r: [['Konum', 'Tubaların rahme girdiği hattın üstünde kalan, kubbe biçimli üst kısım.'], ['Klinik', 'Gebelikte simfizden fundusa ölçülen yükseklik (cm) 20–36. haftalar arasında kabaca gebelik haftasına eşittir; bebeğin büyümesini izlemekte kullanılır. Doğumdan sonra fundus her gün yaklaşık 1 cm iner (involüsyon).']], a: ['rahim', 'fundus', 'uterus'] },
+  'Corpus uteri': { t: 'Rahim gövdesi (corpus uteri)', r: [['Konum', 'Mesanenin arka-üstünde, rektumun önünde. Normalde öne eğik (anteversiyon) ve öne bükük (antefleksiyon) durur.'], ['Yapı', 'Üç tabaka: endometrium (adet döngüsünde dökülen iç tabaka), myometrium (düz kas), perimetrium (periton örtüsü).'], ['Destek', 'Lig. latum, lig. teres uteri, lig. cardinale ve lig. uterosacrale; asıl destek pelvik taban kaslarıdır.'], ['Klinik', 'Myom (leiomyom) myometriumun en sık iyi huylu tümörüdür. Menopoz sonrası kanama endometrium kanseri açısından araştırılır.']], a: ['rahim', 'uterus', 'myom', 'endometrium'] },
+  'Isthmus uteri': { t: 'Rahim istmusu (isthmus uteri)', r: [['Konum', 'Gövde ile serviks arasındaki yaklaşık 1 cm\'lik daralma; iç ağız (ostium internum) hizasında.'], ['Klinik', 'Gebeliğin sonunda uzayıp incelerek alt uterin segmenti oluşturur. Sezaryende kesi çoğunlukla bu segmentten, yatay yapılır.']], a: ['alt segment', 'sezaryen'] },
+  'Cervix uteri': { t: 'Rahim ağzı (cervix uteri)', r: [['Yapı', 'Servikal kanal; rahme açılan iç ağız ve vajinaya açılan dış ağız. Dış yüzü çok katlı yassı, kanal içi tek katlı silindirik epitel; ikisinin birleştiği yer değişim (transformasyon) bölgesi.'], ['İşlev', 'Mukusu döngüye göre değişir: yumurtlamada ince ve kaygan, diğer zamanlarda koyu. Doğumda silinir ve 10 cm\'ye kadar açılır.'], ['Klinik', 'Serviks kanserinin büyük çoğunluğu HPV ile ilişkilidir ve değişim bölgesinde başlar; smear/HPV taraması ve HPV aşısıyla büyük ölçüde önlenebilir.']], a: ['serviks', 'hpv', 'smear', 'rahim agzi'] },
+  'Ampulla tubae uterinae': { t: 'Tuba ampullası (ampulla tubae uterinae)', r: [['Konum', 'Tuba uterinanın en uzun ve en geniş kısmı; istmus ile infundibulum arasında.'], ['İşlev', 'Döllenme çoğunlukla burada olur; siller ve kas kasılmaları embriyoyu rahme taşır.'], ['Klinik', 'Dış (ektopik) gebelik en sık ampullaya yerleşir. Yırtılırsa ani karın ağrısı ve iç kanamayla acil cerrahi gerekir.']], a: ['tuba', 'fallop', 'ektopik', 'dis gebelik'] },
+  'Isthmus tubae uterinae': { t: 'Tuba istmusu (isthmus tubae uterinae)', r: [['Konum', 'Rahme bitişik, dar ve kas duvarı kalın kısım; rahim duvarı içindeki kısım (pars uterina) ile devam eder.'], ['Klinik', 'Tüp ligasyonu (kalıcı korunma) çoğunlukla bu bölgeye yapılır.']], a: ['tuba', 'ligasyon'] },
+  'Infundibulum tubae uterinae': { t: 'Tuba infundibulumu (infundibulum tubae uterinae)', r: [['Konum', 'Tubanın huni biçimli dış ucu; karın boşluğuna ostium abdominale ile açılır.'], ['Klinik', 'Tuba karın boşluğuna açık olduğundan genital enfeksiyonlar pelvise yayılabilir (pelvik inflamatuvar hastalık).']], a: ['tuba'] },
+  'Fimbriae tubae uterinae': { t: 'Tuba saçakları (fimbriae tubae uterinae)', r: [['İşlev', 'Yumurtlama sırasında yumurtalığın yüzeyini süpürüp oositi tubaya alır. En uzun saçak (fimbria ovarica) yumurtalığa tutunur.'], ['Klinik', 'Enfeksiyon sonrası yapışıklıklar saçakları kapatıp kısırlık yapabilir. Yüksek dereceli seröz over kanserlerinin önemli kısmının tuba saçaklarından başladığı düşünülür.']], a: ['tuba', 'fimbria'] },
+  'Ovarium': { t: 'Yumurtalık (ovarium)', r: [['Konum', 'Pelvis yan duvarında, fossa ovarica\'da. Lig. suspensorium ovarii (içinde a./v. ovarica) ile pelvis duvarına, lig. ovarii proprium ile rahme bağlıdır.'], ['İşlev', 'Folikül gelişimi ve yumurtlama; östrojen ve progesteron üretimi.'], ['Klinik', 'Over torsiyonu ani, şiddetli alt karın ağrısı yapar ve acil cerrahi gerektirir. Polikistik over sendromu (PKOS) adet düzensizliği, androjen fazlalığı ve çok sayıda küçük folikülle tanınır.']], a: ['over', 'yumurtalik', 'pkos', 'torsiyon'] }
+});
+const CINS_NOT = { e: 'Erkek üreme organları gösteriliyor.', k: 'Rahim, tüpler ve yumurtalıklar gösteriliyor. İskelet ve kaslar ortak modelden.' };
+function cinsUI() {
+  $$('#cinsSec [data-cins]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cins === st.cins)));
+  const n = $('#cinsNot'); if (n) n.textContent = CINS_NOT[st.cins];
+}
+function setCins(c, sessiz) {
+  if ((c !== 'e' && c !== 'k') || st.cins === c) return;
+  if (typeof DIZ !== 'undefined' && DIZ.on) dizBitir(true);
+  st.cins = c; LS.set('cins', c); cinsUI();
+  if (st.ghost && /üreme organları$/.test(st.ghostWhy)) { st.ghost = null; st.ghostWhy = ''; renderStates(); }   /* önceki geçişin hayaleti */
+  if (sessiz) { applyVis(); return; }
+  (async () => {
+    if (!st.layers.organ.on) st.layers.organ.on = true;
+    if (!loaded.organ) await withLoader('organ');
+    renderLayers(); applyVis({ fade: true });
+    const ureme = meshesAll.filter(m => m.userData.cins === c && m.userData.sys === 'organ' && !/bladder/i.test(m.name));
+    if (ureme.length) { st.ghost = new Set(ureme); st.ghostWhy = 'Hayalet: ' + (c === 'k' ? 'kadın' : 'erkek') + ' üreme organları'; applyVis(); renderStates(); userMoved = true; frame(ureme, { dir: DIRS.on, k: c === 'k' ? 1.7 : 1.4 }); }
+    toast(c === 'k' ? 'Kadın modeli: rahim, tüpler ve yumurtalıklar eklendi.' : 'Erkek modeli: testis, prostat ve penis yapıları geri geldi.', 'Tüm vücut', () => { st.ghost = null; st.ghostWhy = ''; applyVis(); renderStates(); });
+  })();
+}
+$('#cinsSec').addEventListener('click', e => { const b = e.target.closest('[data-cins]'); if (b) setCins(b.dataset.cins); });
+cinsUI();
+
 /* ===================== veri yükleme ===================== */
-const FILES = { meta: 'data/ax-meta.js', iskelet: 'data/ax-iskelet.js', kas: 'data/ax-kas.js', insersiyo: 'data/ax-insersiyo.js', organ: 'data/ax-organ.js', sinir: 'data/ax-sinir.js', damar: 'data/ax-damar.js', tubes: 'data/ax-tubes.js' };
+const FILES = { meta: 'data/ax-meta.js', iskelet: 'data/ax-iskelet.js', kas: 'data/ax-kas.js', insersiyo: 'data/ax-insersiyo.js', organ: 'data/ax-organ.js', sinir: 'data/ax-sinir.js', damar: 'data/ax-damar.js', tubes: 'data/ax-tubes.js', kadin: 'data/ax-kadin.js' };
 const SIZES = { iskelet: '1,5 MB', kas: '2,8 MB', insersiyo: '0,6 MB', organ: '0,4 MB', sinir: '1,2 MB', damar: '1,2 MB' };
 const AXD = window.AXD = window.AXD || {};
 function loadScript(k) {
@@ -1959,7 +2014,8 @@ function muscleAttr(geo) {
 async function loadSys(sys, prog) {
   if (loaded[sys]) return; if (loading[sys]) return loading[sys];
   return loading[sys] = (async () => {
-    const buf = new Uint8Array(await b64(await loadScript(sys)));
+    for (const key of sys === 'organ' ? ['organ', 'kadin'] : [sys]) {   /* organ sistemi: Z-Anatomy + kadın üreme (HRA) */
+    let buf; try { buf = new Uint8Array(await b64(await loadScript(key))); } catch (e) { if (key === sys) throw e; console.warn('kadın paketi yüklenemedi', e); continue; }
     await MeshoptDecoder.ready;
     const jl = new DataView(buf.buffer).getUint32(0, true), items = JSON.parse(new TextDecoder().decode(buf.subarray(4, 4 + jl)));
     const base = 4 + jl + ((4 - (4 + jl) % 4) % 4);
@@ -1973,10 +2029,11 @@ async function loadSys(sys, prog) {
       g.computeVertexNormals(); g.computeBoundingSphere(); g.computeBoundingBox();
       const info = NAMES[it.n] || {}; const ek = !!info.ek;
       const pair = styleFor(it.n, sys, ek); if (pair.kind === 'kas') muscleAttr(g); const m = new THREE.Mesh(g, pair.normal);
-      m.name = it.n; m.userData = { sys, sid: info.id, la: info.la, ek, d: info.d, sup: info.sup, side: sideOf(it.n), pair, layer: sys === 'kas' && ek ? 'kasek' : sys };
+      m.name = it.n; m.userData = { sys, sid: info.id, la: info.la, ek, d: info.d, sup: info.sup, side: sideOf(it.n), pair, layer: sys === 'kas' && ek ? 'kasek' : sys, cins: cinsOf(it.n, info) };
       if (sys === 'insersiyo') { m.material = pair.normal; m.visible = false; m.renderOrder = 2; m.userData.noAO = true; pair.normal.polygonOffset = true; pair.normal.polygonOffsetFactor = -2; pair.normal.polygonOffsetUnits = -2; const r = /^(.*)\.(o|e)(\d*)(l|r)?$/.exec(it.n); m.userData.ins = r ? { base: r[1], t: r[2], side: (r[4] || '').toUpperCase() } : null; }
       body.add(m); regMesh(m);
       if (++i % 40 === 0) { prog && prog(i / items.length); await tick(); }
+    }
     }
     if (sys === 'damar' || sys === 'sinir') await loadTubes(sys);
     loaded[sys] = true; setQuality(st.quality); applyVis();
@@ -1993,7 +2050,7 @@ async function loadTubes(sys) {
     const geos = t.p.map(path => { let rev = src(path[0]) > src(path[path.length - 1]); if (vein) rev = !rev; return tubeGeo(path, rev); }).filter(Boolean); if (!geos.length) continue;
     const g = geos.length === 1 ? geos[0] : mergeGeos(geos);
     const info = NAMES[t.n] || {}; const pair = styleFor(t.n, sys, false); const m = new THREE.Mesh(g, pair.normal);
-    m.name = t.n; m.userData = { sys, sid: info.id, la: info.la, side: sideOf(t.n), pair, layer: sys, tube: true };
+    m.name = t.n; m.userData = { sys, sid: info.id, la: info.la, side: sideOf(t.n), pair, layer: sys, tube: true, cins: cinsOf(t.n, info) };
     body.add(m); regMesh(m); if (++n % 60 === 0) await tick();
   }
 }
@@ -2067,6 +2124,7 @@ function applyVis(opt = {}) {
       if (st.heat) { if (st.heat.has(u.sid)) { on = true; a = 1; } else if (u.sys !== 'iskelet') a = Math.min(a, .085); }
       if (window.__axDiz && window.__axDiz.on) { if (window.__axDiz.set.has(m)) { on = true; a = 1; } else on = false; }   /* kemik dizilimi */
     }
+    if (u.cins && u.cins !== st.cins) on = false;   /* öteki cinsiyetin organları */
     const vis = on && a > .01;
     if (!vis && m.visible && !sp && fadeOK) { fadeOut.push(m); m.visible = true; m.material = u.pair.fade; continue; }
     const was = m.visible; m.visible = vis;
@@ -2278,6 +2336,7 @@ function select(key, opt = {}) {
   st.sel = key; st.selMesh = opt.mesh || (key ? selMeshes()[0] : null);
   if (!opt.point) pickPoint = null;
   if (key && !key.startsWith('#')) { st.seen.add(key); LS.set('seen', [...st.seen]); }
+  if (key) { const ms0 = selMeshes(); if (ms0.length && ms0.every(m => m.userData.cins && m.userData.cins !== st.cins)) setCins(ms0[0].userData.cins, true); }
   if (key) { const ms = selMeshes(); let ch = false; ms.forEach(m => { if (st.hidden.has(m.name)) { st.hidden.delete(m.name); ch = true; } }); const ly = ms[0] && ms[0].userData.layer; if (ly && st.layers[ly] && !st.layers[ly].on) { st.layers[ly].on = true; renderLayers(); } }
   applyVis(); renderCard(); renderAcadia(); renderStates(); renderKurul(); renderSelChip();
   if (key && opt.frame) { const ms = selMeshes(); const one = ms.filter(m => m.userData.side === 'L'); const list = one.length ? one : ms; frame(list, { dir: dirFor(list), k: 1.8 }); }
@@ -3134,16 +3193,17 @@ const ORG_RAF = [
   ['Karaciğer, safra kesesi, pankreas', /^(Liver|Gallbladder|Pancreas)$/],
   ['Solunum', /^(Mucosa of nasal cavity|Epiglottis|Trachea|\w+ lobe of (right|left) lung)/],
   ['Boşaltım', /^(Kidney|Renal pelvis|Urinary bladder)/],
-  ['Erkek üreme', /^(Testis|Epididymis|Seminal gland|Prostate|Glans penis|Corpus (cavernosum|spongiosum))/],
+  ['Erkek üreme', /^(Testis|Epididymis|Seminal gland|Prostate|Glans penis|Corpus (cavernosum|spongiosum))/, 'e'],
+  ['Kadın üreme', /of uterus$|of uterine tube|^Ovary/, 'k'],
   ['Endokrin bezler', /^(Adenohypophysis|Neurohypophysis|Pineal gland|Thyroid gland|\w+ parathyroid gland|Suprarenal gland)/]
 ];
 const ORG_DISI = /segment of liver|taenia|omentum|Mesocolon|Meso-appendix|^Pleura|Gingiva|Accessory parotid/;
 const KUME = {
   iskelet: { sys: 'iskelet', raf: DIZ_RAF, disi: DIZ_DISI, kol2: 5, birim: 'kemik', baslik: 'Kemik dizilimi', dagil: 'İskelet dağılıyor…', tamam: 'İskelet tamam', donus: 'Kemikler yerine dönüyor…' },
-  organ: { sys: 'organ', raf: ORG_RAF, disi: ORG_DISI, kol2: 4, birim: 'organ', baslik: 'Organ dizilimi', dagil: 'Organlar dağılıyor…', tamam: 'Organlar yerinde', donus: 'Organlar yerine dönüyor…' }
+  organ: { sys: 'organ', get raf() { return ORG_RAF.filter(r => !r[2] || r[2] === st.cins); }, disi: ORG_DISI, kol2: 4, birim: 'organ', baslik: 'Organ dizilimi', dagil: 'Organlar dağılıyor…', tamam: 'Organlar yerinde', donus: 'Organlar yerine dönüyor…' }
 };
 const KM = () => KUME[DIZ.kume];
-const dizRaf = n => KM().disi.test(n) ? -1 : KM().raf.findIndex(r => r[1].test(n));
+const dizRaf = n => { const m = byName.get(n); if (m && m.userData.cins && m.userData.cins !== st.cins) return -1; return KM().disi.test(n) ? -1 : KM().raf.findIndex(r => r[1].test(n)); };
 function dizDuzen(o) {
   /* her kemiğe raf yuvası: aynı raftakiler yukarıdan aşağı, soldan sağa (sağ-sol çift yan yana).
      o.W raf genişliği; o.alt: raflar vücudun altında (dar ekran), değilse sağında */
@@ -4075,7 +4135,7 @@ renderTabs();
   requestAnimationFrame(loop);
   $('#loadT').textContent = 'yapı adları'; $('#loadBar').style.width = '4%'; if (!RM.matches) { REV.bone.value = -.05; REV.kas.value = -.05; }
   try {
-    const meta = JSON.parse(new TextDecoder().decode(await b64(await loadScript('meta')))); NAMES = meta.names; LMS = meta.landmarks;
+    const meta = JSON.parse(new TextDecoder().decode(await b64(await loadScript('meta')))); NAMES = Object.assign(meta.names, KADIN_AD); LMS = meta.landmarks;
     $('#loadT').textContent = 'iskelet · ' + SIZES.iskelet; await loadSys('iskelet', p => $('#loadBar').style.width = (5 + p * 40) + '%');
     $('#loadT').textContent = 'kaslar · ' + SIZES.kas; await loadSys('kas', p => $('#loadBar').style.width = (45 + p * 50) + '%');
   } catch (e) { console.error(e); $('#loadT').textContent = 'Model dosyaları bulunamadı. data klasörü bu dosyanın yanında olmalı.'; return; }

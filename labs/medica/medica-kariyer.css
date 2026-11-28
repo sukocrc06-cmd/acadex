@@ -1,0 +1,62 @@
+/* ===== Acadex Medica · hastane kariyeri ve başarım vitrini (labs/medica/medica-kariyer.js), 28.11.2026 ===== */
+/* lobide asılı yaka kartı */
+.mk-yaka{position:absolute;left:18px;top:22px;z-index:3;display:grid;justify-items:center;gap:3px;width:118px;padding:22px 10px 10px;border:2px solid var(--uc);border-radius:12px;background:#fff;box-shadow:0 10px 22px -12px rgba(13,24,56,.55);transform:rotate(-4deg);transform-origin:50% -18px;font:inherit;color:var(--ink)}
+.mk-yaka::before{content:"";position:absolute;left:0;right:0;top:0;height:14px;border-radius:9px 9px 0 0;background:var(--uc)}
+.mk-ip{position:absolute;left:50%;top:-18px;width:16px;height:24px;margin-left:-8px;border:3px solid #8C97A8;border-bottom:0;border-radius:8px 8px 0 0}
+.mk-foto{display:grid;place-items:center;width:50px;height:50px;border-radius:10px;background:#EEF2F6}
+.mk-foto svg{width:38px;height:38px;fill:none;stroke:var(--uc);stroke-width:2.6;stroke-linecap:round}
+.mk-yaka b{font:800 12.5px/1.1 'Bricolage Grotesque',sans-serif;letter-spacing:.06em;color:var(--uc)}
+.mk-yaka small{max-width:100%;font-size:10.5px;line-height:1.2;color:var(--muted);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mk-xp{display:block;width:100%;height:6px;margin-top:3px;border-radius:999px;background:#E8EDF2;overflow:hidden}
+.mk-xp i{display:block;height:100%;background:var(--uc)}
+.mk-yaka em{font:600 11px/1 'JetBrains Mono',monospace;font-style:normal;color:var(--ink2)}
+.mk-yaka:hover{box-shadow:0 14px 26px -12px rgba(13,24,56,.6)}
+@media (prefers-reduced-motion:no-preference){
+  .mk-yaka{animation:mk-sallan 5s ease-in-out infinite}
+  .mk-yaka:hover{animation-play-state:paused}
+  .md-tb.mk-yeni{animation:mk-parla 1.2s ease-in-out 3}
+  .mk-m.ok .mk-mi{animation:mk-gel .5s calc(var(--n,0) * 30ms) cubic-bezier(.3,1.5,.5,1) both}
+}
+@keyframes mk-sallan{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(-1deg)}}
+@keyframes mk-parla{50%{box-shadow:0 0 0 6px rgba(46,156,134,.3);border-color:#2E9C86}}
+@keyframes mk-gel{from{transform:scale(.6);opacity:0}}
+/* asansörde kilitli kat */
+.md-asn-b button[disabled]{opacity:.55;cursor:not-allowed;filter:grayscale(.6)}
+.md-asn-b button{position:relative}
+.mk-kilit{margin-left:auto;flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#EEF2F6}
+.mk-kilit svg,.mk-ac i svg,.mk-nbt em svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+/* kariyer penceresi */
+.mk-pen h2{margin:2px 0 12px;font-family:'Bricolage Grotesque',sans-serif;font-size:26px;color:var(--uc,var(--ink))}
+.mk-ust{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start}
+.mk-yaka.mk-buyuk{position:relative;left:auto;top:auto;margin-top:16px;width:128px;animation:none;transform:rotate(-3deg)}
+.mk-xpk p{margin:0 0 6px;font-size:14px}.mk-xpk .sub{margin-top:8px}
+.mk-bar{height:10px;border-radius:999px;background:#E8EDF2;overflow:hidden}.mk-bar i{display:block;height:100%;background:var(--uc)}
+.mk-ac{display:grid;gap:5px;margin:10px 0 0;padding:0;list-style:none}
+.mk-ac li{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;padding:6px 9px;border-radius:10px;background:#F7F9FB;color:var(--muted);font-size:13px}
+.mk-ac li b{font-size:12.5px}.mk-ac li.ok{background:var(--mint-s);color:var(--ink)}.mk-ac li.ok b{color:var(--mint)}
+.mk-vt{display:flex;align-items:baseline;gap:8px;margin:18px 0 8px;font-family:'Bricolage Grotesque',sans-serif;font-size:18px}
+.mk-vt small{font:600 12px 'JetBrains Mono',monospace;color:var(--muted)}
+.mk-vitrin{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:0 0 14px;padding:12px;list-style:none;border-radius:14px;background:linear-gradient(#F4EFE6,#EBE3D4);box-shadow:inset 0 0 0 2px #D9CDB8}
+.mk-m{display:flex;gap:9px;align-items:center;padding:7px 8px;border-radius:10px;background:rgba(255,255,255,.7)}
+.mk-mi{position:relative;flex:none;width:44px;height:44px}
+.mk-mi svg{width:44px;height:44px}
+.mk-mi .kurdele{fill:#C8D3DC}.mk-mi circle{fill:#D9DFE6}.mk-mi circle.ic{fill:#EEF2F6}
+.mk-mi b{position:absolute;left:0;right:0;top:20px;text-align:center;font:800 11px/1 'Bricolage Grotesque',sans-serif;color:#9AA6B4}
+.mk-m.ok .kurdele{fill:#E5544A}.mk-m.ok .mk-mi circle{fill:#E0A21B}.mk-m.ok .mk-mi circle.ic{fill:#F7D36A}.mk-m.ok .mk-mi b{color:#7A5208}
+.mk-mt{min-width:0}.mk-mt b{display:block;font-size:13px;line-height:1.2}.mk-mt small{display:block;font-size:11.5px;line-height:1.3;color:var(--muted)}
+.mk-m:not(.ok) .mk-mt b{color:var(--muted)}
+/* nöbet türü */
+.mk-nb{display:grid;gap:8px;margin-top:6px}
+.mk-nbt{display:grid;gap:3px;text-align:left;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:#fff}
+.mk-nbt b{font-size:15px}.mk-nbt span{font-size:13px;color:var(--ink2)}
+.mk-nbt:not([disabled]):hover{border-color:var(--mint);background:var(--mint-s)}
+.mk-nbt[disabled]{cursor:not-allowed;background:#F7F9FB;color:var(--muted)}
+.mk-nbt em{display:inline-flex;gap:5px;align-items:center;font-style:normal;font-size:12px;font-weight:700;color:var(--bad)}
+@media (max-width:760px){
+  .mk-yaka{left:10px;top:auto;bottom:12px;width:84px;padding:18px 6px 8px}
+  .mk-yaka .mk-foto{width:36px;height:36px}.mk-yaka .mk-foto svg{width:28px;height:28px}
+  .mk-yaka small{display:none}
+  .mk-ust{grid-template-columns:1fr}.mk-yaka.mk-buyuk{display:none}
+  .mk-ac li{grid-template-columns:64px 1fr auto;font-size:12.5px}
+  .mk-vitrin{grid-template-columns:1fr 1fr;padding:8px}.mk-m{flex-direction:column;text-align:center}
+}
