@@ -1,0 +1,41 @@
+/* ===== MedLab ortak profil kartı (dashboard.html → #medlab-view [data-medlab-profil], js/acadex-medlab-profil.js), 28.11.2026 ===== */
+#medlab-view.axm .axm-profil{margin:0 0 16px}
+#medlab-view.axm .axp-kart{position:relative;display:grid;grid-template-columns:auto 1fr;gap:18px 22px;align-items:center;padding:16px 20px;border-radius:18px;background:var(--card,#FFFDF7);border:1.5px solid rgba(13,24,56,.12);box-shadow:0 2px 0 rgba(13,24,56,.08),0 10px 30px -18px rgba(13,24,56,.35)}
+#medlab-view.axm .axp-yaka{position:relative;display:grid;justify-items:center;gap:4px;width:112px;padding:22px 10px 12px;border-radius:12px;background:#fff;border:2px solid var(--uc);box-shadow:0 6px 14px -8px rgba(13,24,56,.4);transform:rotate(-3deg)}
+#medlab-view.axm .axp-yaka::before{content:"";position:absolute;left:0;right:0;top:0;height:14px;border-radius:10px 10px 0 0;background:var(--uc)}
+#medlab-view.axm .axp-ip{position:absolute;left:50%;top:-16px;width:16px;height:22px;margin-left:-8px;border:3px solid #8C97A8;border-bottom:0;border-radius:8px 8px 0 0}
+#medlab-view.axm .axp-foto{display:grid;place-items:center;width:52px;height:52px;border-radius:10px;background:#EEF2F6}
+#medlab-view.axm .axp-foto svg{width:40px;height:40px;fill:none;stroke:var(--uc);stroke-width:2.6;stroke-linecap:round}
+#medlab-view.axm .axp-yaka b{font:800 12.5px/1.1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:.06em;color:var(--uc)}
+#medlab-view.axm .axp-yaka small{font:600 8.5px/1 "JetBrains Mono",monospace;letter-spacing:.12em;color:#8C97A8}
+#medlab-view.axm .axp-g{min-width:0}
+#medlab-view.axm .axp-e{display:block;font-size:20px;color:var(--scrub);line-height:1}
+#medlab-view.axm .axp-g h2{margin:2px 0 0;font-size:clamp(24px,2.4vw,30px);font-weight:800;color:var(--navy,#0D1838);letter-spacing:-.01em}
+#medlab-view.axm .axp-rozet{display:inline-block;margin-left:6px;padding:3px 9px;border-radius:999px;background:var(--uc);color:#fff;font:700 12px/1.2 "Instrument Sans",system-ui,sans-serif;font-style:normal;vertical-align:middle}
+#medlab-view.axm .axp-s{margin:4px 0 8px;color:#46506A;font-size:14px}
+#medlab-view.axm .axp-s b{color:var(--navy,#0D1838)}
+#medlab-view.axm .axp-bar{height:10px;border-radius:999px;background:#E8EDF2;overflow:hidden}
+#medlab-view.axm .axp-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--uc),color-mix(in srgb,var(--uc) 60%,#fff))}
+#medlab-view.axm .axp-merd{display:flex;gap:4px;margin:10px 0 0;padding:0;list-style:none;flex-wrap:wrap}
+#medlab-view.axm .axp-merd li{display:flex;align-items:center;gap:5px;padding:3px 9px 3px 5px;border-radius:999px;background:#F1F4F7;color:#8C97A8;font-size:12px;font-weight:700}
+#medlab-view.axm .axp-merd li i{width:10px;height:10px;border-radius:50%;background:#C8D3DC}
+#medlab-view.axm .axp-merd li.gecti{color:#46506A}#medlab-view.axm .axp-merd li.gecti i{background:var(--c)}
+#medlab-view.axm .axp-merd li.simdi{background:var(--c);color:#fff}#medlab-view.axm .axp-merd li.simdi i{background:#fff}
+#medlab-view.axm .axp-lab{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;padding:0;list-style:none}
+#medlab-view.axm .axp-lab li{display:flex;gap:6px;align-items:baseline;padding:4px 10px;border-radius:8px;border:1px dashed rgba(13,24,56,.18);font-size:12.5px;color:#46506A}
+#medlab-view.axm .axp-lab b{color:var(--navy,#0D1838);font-size:12px}
+#medlab-view.axm .axp-bos{margin:10px 0 0;font-size:13px;color:#6B7590}
+@media (prefers-reduced-motion:no-preference){
+  #medlab-view.axm .axp-bar i{transition:width .8s cubic-bezier(.3,1.2,.5,1)}
+  #medlab-view.axm .axp-yeni .axp-yaka{animation:axp-salla 1.2s cubic-bezier(.3,1.6,.5,1) 2}
+  #medlab-view.axm .axp-yeni .axp-rozet{animation:axp-parla 1.6s ease-in-out infinite}
+}
+@keyframes axp-salla{0%,100%{transform:rotate(-3deg)}30%{transform:rotate(6deg) scale(1.06)}60%{transform:rotate(-6deg)}}
+@keyframes axp-parla{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--uc) 25%,transparent)}}
+@media (max-width:600px){
+  #medlab-view.axm .axp-kart{grid-template-columns:1fr;padding:14px}
+  #medlab-view.axm .axp-yaka{position:absolute;right:12px;top:14px;width:74px;padding:16px 6px 8px;transform:rotate(4deg)}
+  #medlab-view.axm .axp-yaka small,#medlab-view.axm .axp-foto{display:none}
+  #medlab-view.axm .axp-g h2{padding-right:84px}
+  #medlab-view.axm .axp-merd li span{display:none}#medlab-view.axm .axp-merd li.simdi span{display:inline}
+}

@@ -26,7 +26,8 @@ const dizKurali = () => {
   const a = anat.indexOf('const DIZ_RAF = ['), b = anat.indexOf('const dizRaf = ');
   assert.ok(a > 0 && b > a, 'DIZ_RAF tanımı bulunamadı');
   const DIZ = { kume: 'iskelet' };
-  return Object.assign(new Function('DIZ', anat.slice(a, b) + '\nreturn { DIZ_RAF, DIZ_DISI, dizAgirlik, KUME };')(DIZ), { DIZ });
+  const st = { cins: 'e' };   /* 28.11.2026: organ rafları Erkek/Kadın modeline göre süzülür */
+  return Object.assign(new Function('DIZ', 'st', anat.slice(a, b) + '\nreturn { DIZ_RAF, DIZ_DISI, dizAgirlik, KUME };')(DIZ, st), { DIZ, st });
 };
 const adlar = (sys) => {
   const ctx = { window: {} }; new Function('window', read('labs/anatomi/data/ax-' + sys + '.js'))(ctx.window);
@@ -55,6 +56,7 @@ test('Organ dizilimi: 55 parça 8 sisteme dağılır; zarlar ve karaciğer segme
   assert.deepEqual(K.raf.map((r, i) => rafli.filter(n => ilk(n) === i).length), [9, 3, 7, 3, 8, 5, 10, 10]);
   assert.ok(A.filter(n => /segment of liver/.test(n)).every(n => K.disi.test(n)), 'segmentler tüm karaciğerle çakışmasın');
   assert.ok(['Liver', 'Stomach', 'Trachea', 'Kidney.l', 'Thyroid gland'].every(n => ilk(n) >= 0));
+  const R = dizKurali(); R.st.cins = 'k'; assert.deepEqual(R.KUME.organ.raf.map(r => r[0]).filter(x => /üreme/.test(x)), ['Kadın üreme'], 'kadın modelinde kadın rafı');
 });
 
 test('Yerine koy oyunu: sürükleme yalnız raftaki parçada, doğru bırakma ekran uzaklığıyla; ikinci hatada ipucu', () => {

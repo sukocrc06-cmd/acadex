@@ -40,7 +40,7 @@
     aktif: null,                                  /* odadaki / lab'daki hasta: {sen, sahne, lab} */
     lab: null                                     /* iç çerçevede açık lab */
   };
-  var kaydet = function () { ls.set('gorulen', S.gorulen); ls.set('nobet', S.nobet); ls.set('defter', S.defter.slice(-40)); ls.set('sevk', S.sevk); };
+  var kaydet = function () { ls.set('gorulen', S.gorulen); ls.set('nobet', S.nobet); ls.set('defter', S.defter.slice(-40)); ls.set('sevk', S.sevk); if (typeof kariyerBak === 'function') kariyerBak(); };
   /* her girişte farklı hastalar: ziyaret tohumu (süren nöbette nöbetin tohumu) → yeni ad ve görünüm,
      yakınma gruplarından bu ziyarette gelen tanı, katta karışık sıra (medica-veri.js → ziyaret) */
   var TOHUM = (S.nobet && S.nobet.tohum) || (Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
@@ -290,6 +290,7 @@
     else nb.hidden = true;
     saatCiz();
     bridge();
+    if (typeof kariyerBak === 'function') kariyerBak();   /* başka lab'dan gelen XP ile unvan atladıysa söyle */
   };
 
   /* =========================== ekranlar =========================== */
@@ -306,6 +307,7 @@
     m.className = 'md-ekran lobi';
     m.innerHTML = '<div class="md-sahne-k">' + lobiSVG() + '</div><div class="md-panel" data-panel aria-live="polite"></div>';
     if (dar()) $('.sahne', m).setAttribute('viewBox', '270 30 600 530');              /* telefonda Dr. Ela'ya ve danışmaya yaklaş */
+    if (W.AXKARIYER) { var bk = S.bolum && V.katBul(S.bolum); $('.md-sahne-k', m).insertAdjacentHTML('beforeend', W.AXKARIYER.yakaHtml(null, bk ? bk.bolum : null)); }   /* 28.11.2026: asılı yaka kartı → kariyer ve başarım vitrini */
     var panel = $('[data-panel]', m), ad = V.REHBER.unvan + ' ' + V.REHBER.ad;
     var secim = function (row) {
       row.classList.add('bolum');
@@ -368,11 +370,11 @@
   /* ---------- asansör ---------- */
   var panelAsansor = function () {
     var md = modal('<div class="md-asn-panel"><span class="k">asansör</span><h2 id="md-mt">Hangi kata?</h2><div class="md-asn-b">' +
-      V.KAT.slice().reverse().map(function (k) { return '<button type="button" data-kat="' + k.id + '" style="--kc:' + k.renk + '"' + (S.kat === k.id ? ' aria-current="true"' : '') + '><b>' + k.no + '</b><span>' + X(k.ad) + '<small>' + X(k.bolum) + (S.bolum === k.id ? ' · senin bölümün' : '') + '</small></span></button>'; }).join('') +
+      V.KAT.slice().reverse().map(function (k) { var ac = katAc(k); return '<button type="button" data-kat="' + k.id + '" style="--kc:' + k.renk + '"' + (S.kat === k.id ? ' aria-current="true"' : '') + (ac ? '' : ' disabled aria-disabled="true"') + '><b>' + k.no + '</b><span>' + X(k.ad) + '<small>' + X(k.bolum) + (S.bolum === k.id ? ' · senin bölümün' : '') + (ac ? '' : ' · İntörn olunca açılır') + '</small></span>' + (ac ? '' : '<i class="mk-kilit">' + W.AXKARIYER.kilit + '</i>') + '</button>'; }).join('') +
       '<button type="button" data-kat="lobi" style="--kc:#2E9C86"' + (S.ekran === 'lobi' ? ' aria-current="true"' : '') + '><b>G</b><span>Giriş holü<small>danışma ve rehber hekim</small></span></button></div>' +
       (V.ARAKAT && V.ARAKAT.length ? '<h3 class="md-asn-ara-t">Anatomi ara katları <small>1. katın üstü · her sistem ayrı · radyoloji ve diseksiyon salonu</small></h3><div class="md-asn-b md-asn-ara">' +
-        V.ARAKAT.map(function (k) { return '<button type="button" data-kat="' + k.id + '" style="--kc:' + k.renk + '"' + (S.kat === k.id ? ' aria-current="true"' : '') + '><b>' + k.etiket + '</b><span>' + X(k.ad) + '<small>' + hastalar(k).length + ' hasta · ' + X(k.mentor) + '</small></span></button>'; }).join('') + '</div>' : '') + '</div>');
-    md.addEventListener('click', function (e) { var b = e.target.closest('[data-kat]'); if (!b) return; kapatModal(); var k = b.getAttribute('data-kat'); if (k === 'lobi') { if (S.ekran !== 'lobi') asansor(null); } else if (k !== S.kat || S.ekran !== 'kat') asansor(k); });
+        V.ARAKAT.map(function (k) { var ac = katAc(k); return '<button type="button" data-kat="' + k.id + '" style="--kc:' + k.renk + '"' + (S.kat === k.id ? ' aria-current="true"' : '') + (ac ? '' : ' disabled aria-disabled="true"') + '><b>' + k.etiket + '</b><span>' + X(k.ad) + '<small>' + hastalar(k).length + ' hasta · ' + X(k.mentor) + (ac ? '' : ' · İntörn olunca') + '</small></span>' + (ac ? '' : '<i class="mk-kilit">' + W.AXKARIYER.kilit + '</i>') + '</button>'; }).join('') + '</div>' : '') + '</div>');
+    md.addEventListener('click', function (e) { var b = e.target.closest('[data-kat]'); if (!b || b.disabled) return; kapatModal(); var k = b.getAttribute('data-kat'); if (k === 'lobi') { if (S.ekran !== 'lobi') asansor(null); } else if (k !== S.kat || S.ekran !== 'kat') asansor(k); });
   };
   var asansor = function (katId, sonra) {
     var ov = $('#md-asansor'), g = $('.gosterge b', ov), ok = $('.gosterge i', ov);
@@ -558,13 +560,38 @@
     if (a && tamam !== false && a.sahne != null && V.sevkSoru(a.sen.id)) sevkSor(a.sen.id, sonra); else sonra();
   };
 
+  /* =========================== hastane kariyeri (28.11.2026, medica-kariyer.js) =========================== */
+  var katAc = function (k) { return !W.AXKARIYER || W.AXKARIYER.katAcik(k, S.bolum); };
+  var kariyerBak = function () {
+    if (!W.AXKARIYER) return; clearTimeout(kariyerBak.t);
+    kariyerBak.t = setTimeout(function () {
+      var KR = W.AXKARIYER, p = KR.profil(), yeni = KR.kontrol({ S: S, V: V, hastalar: hastalar, p: p }), u = KR.unvanDegisti(p);
+      var msj = u ? 'Yeni unvan: ' + u.ad + '! Kariyer penceresinde açılanlara bak.' : yeni.length ? 'Başarım kazandın: ' + yeni.map(function (b) { return b.ad; }).join(', ') : '';
+      if (!msj) return;
+      var tb = $('#toast'), goster = function () { toast(msj); var kb = $('#md-kar'); if (kb) { kb.classList.remove('mk-yeni'); void kb.offsetWidth; kb.classList.add('mk-yeni'); } };
+      if (tb && tb.classList.contains('on')) setTimeout(goster, 3300); else goster();
+    }, 700);
+  };
+  var kariyerAc = function () {
+    if (!W.AXKARIYER) return; var bk = S.bolum && V.katBul(S.bolum);
+    modal(W.AXKARIYER.pencereHtml({ bolumAd: bk ? bk.bolum : null }));
+  };
+  var nobetSec = function (kat) {
+    var md = modal(W.AXKARIYER.nobetSecHtml({ katAd: kat.ad, hastaSay: hastalar(kat).length }));
+    md.addEventListener('click', function (e) { var b = e.target.closest('[data-nobet-tur]'); if (!b || b.disabled) return; kapatModal(true); nobetBasla(kat, b.getAttribute('data-nobet-tur')); });
+  };
+
   /* =========================== nöbet =========================== */
-  var nobetBasla = function (kat) {
+  var nobetBasla = function (kat, tur) {
+    /* 28.11.2026: nöbet türü (medica-kariyer.js). İntörn ve üstünde önce tür sorulur; Stajyer doğrudan gündüz nöbetine girer */
+    var KR = W.AXKARIYER;
+    if (!tur && KR && KR.enAz('intorn')) { nobetSec(kat); return; }
+    var T = KR ? KR.nobetTur(tur || 'gunduz') : { id: 'gunduz', hasta: V.NOBET_HASTA, basla: V.NOBET_BASLA };
     var L = hastalar(kat).slice(), sec = [];
-    var gorulmemis = L.filter(function (s) { return !S.gorulen[s.id]; }), havuz = gorulmemis.length >= Math.min(V.NOBET_HASTA, L.length) ? gorulmemis : L;
-    havuz = havuz.slice(); while (sec.length < Math.min(V.NOBET_HASTA, L.length) && havuz.length) sec.push(havuz.splice(Math.floor(Math.random() * havuz.length), 1)[0]);
-    S.nobet = { kat: kat.id, basla: Date.now(), saat: V.NOBET_BASLA, i: 0, hastalar: sec.map(function (s) { return { id: s.id, sahne: null, lab: null }; }), triyaj: null, kod: V.kodPlan(kat.id, sec.length), tohum: TOHUM };
-    kaydet(); ekran('kat', kat.id); live('Nöbet başladı: ' + sec.length + ' hasta. Saat ' + V.saat(V.NOBET_BASLA));
+    var gorulmemis = L.filter(function (s) { return !S.gorulen[s.id]; }), havuz = gorulmemis.length >= Math.min(T.hasta, L.length) ? gorulmemis : L;
+    havuz = havuz.slice(); while (sec.length < Math.min(T.hasta, L.length) && havuz.length) sec.push(havuz.splice(Math.floor(Math.random() * havuz.length), 1)[0]);
+    S.nobet = { kat: kat.id, tur: T.id, bas: T.basla, basla: Date.now(), saat: T.basla, i: 0, hastalar: sec.map(function (s) { return { id: s.id, sahne: null, lab: null }; }), triyaj: null, kod: V.kodPlan(kat.id, sec.length), tohum: TOHUM };
+    kaydet(); ekran('kat', kat.id); live((T.ad || 'Nöbet') + ' başladı: ' + sec.length + ' hasta. Saat ' + V.saat(T.basla));
     setTimeout(triyajMasasi, RM ? 0 : 500);
   };
   var nobetKutu = function (kat) {
@@ -603,7 +630,7 @@
   var karne = function (n) {
     var o = V.nobetOzet(n), kat = V.katBul(n.kat);
     var satir = n.hastalar.map(function (h) { var s = K.SEN[h.id]; if (!s) return ''; var p = V.hastaPuan(h); return '<tr><td><b>' + X(s.hasta.hitap || s.hasta.ad) + '</b><small>' + X(s.baslik) + '</small>' + (h.kacan && h.kacan.length ? '<small class="kc">kaçan: ' + X(h.kacan.join('; ')) + '</small>' : '') + (h.ipucu ? '<small>rehber hekime danıştın (−' + h.ipucu + ')</small>' : '') + '</td><td class="n">' + (h.sahne != null ? h.sahne : '—') + '</td><td class="n">' + (h.lab != null ? h.lab : '—') + '</td><td class="n"><b>' + (p != null ? p : 'görülmedi') + '</b></td></tr>'; }).join('');
-    modal('<div class="md-karne">' + damga(o.ort) + '<span class="k">nöbet karnesi · ' + X(kat.ad) + '</span><h2 id="md-mt">' + o.gorulen + ' / ' + o.toplam + ' hasta · ortalama ' + o.ort + '</h2><p class="sub">' + V.saat(V.NOBET_BASLA) + ' – ' + V.saat(n.saat) + ' · ' + new Date(n.bitis || Date.now()).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + '</p>' +
+    modal('<div class="md-karne">' + damga(o.ort) + '<span class="k">nöbet karnesi · ' + X(kat.ad) + '</span><h2 id="md-mt">' + o.gorulen + ' / ' + o.toplam + ' hasta · ortalama ' + o.ort + '</h2><p class="sub">' + (n.tur && W.AXKARIYER ? X(W.AXKARIYER.nobetTur(n.tur).ad) + ' · ' : '') + V.saat(n.bas != null ? n.bas : V.NOBET_BASLA) + ' – ' + V.saat(n.saat) + ' · ' + new Date(n.bitis || Date.now()).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) + '</p>' +
       '<div class="tw"><table><thead><tr><th>Hasta</th><th class="n">Görüşme</th><th class="n">Lab</th><th class="n">Puan</th></tr></thead><tbody>' + satir + '</tbody></table></div>' +
       ((n.triyaj || n.kod) ? '<div class="md-ek">' + (n.triyaj ? '<div><span class="k">triyaj masası</span><b>' + (n.triyaj.atlandi ? 'atlandı' : n.triyaj.dogru + ' / ' + n.triyaj.toplam + ' doğru') + '</b><small>' + (n.triyaj.atlandi ? '—' : n.triyaj.puan) + '</small></div>' : '') +
         (n.kod ? '<div style="--kr:' + V.KOD[n.kod.tip].renk + '"><span class="k">acil kod</span><b>' + X(V.KOD[n.kod.tip].ad) + '</b><small>' + (n.kod.puan != null ? n.kod.puan + ' · ' + (n.kod.hata || 0) + ' hata' : 'gerçekleşmedi') + '</small></div>' : '') + '</div>' : '') +
@@ -809,6 +836,7 @@
     if (e.target.closest('[data-servis]')) { var sv = $('#md-servis'); if (sv) sv.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); return; }
     if (e.target.closest('[data-nobet-basla]')) { nobetBasla(V.katBul(S.kat)); return; }
     if (e.target.closest('[data-nobet-bitir]')) { nobetBitir(); return; }
+    if (e.target.closest('[data-kariyer]')) { kariyerAc(); return; }
     if (e.target.closest('[data-nobet-kat]')) { asansor(S.nobet.kat); return; }
   });
   D.addEventListener('keydown', function (e) {
@@ -817,6 +845,7 @@
   });
   $('#md-asn').addEventListener('click', panelAsansor);
   $('#md-def').addEventListener('click', defter);
+  if ($('#md-kar')) { if (W.AXKARIYER) $('#md-kar').addEventListener('click', kariyerAc); else $('#md-kar').hidden = true; }
   $('#md-ort').addEventListener('click', function () { ortam(!ORT.on); toast(ORT.on ? 'Ortam sesi açık: anonslar sesli okunur.' : 'Ortam sesi kapalı.'); });
   if (ORT.on) { var ortB = $('#md-ort'); if (ortB) ortB.setAttribute('aria-pressed', 'true'); D.addEventListener('pointerdown', function ilk() { D.removeEventListener('pointerdown', ilk); if (ORT.on) ortam(true); }); }
   $('#md-kon').addEventListener('click', konsultPanel);
