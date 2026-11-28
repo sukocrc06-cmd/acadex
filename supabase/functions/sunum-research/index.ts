@@ -1425,7 +1425,10 @@ Deno.serve(async (req) => {
     if (!u?.user) return J({ error: "Oturum gerekli" }, 401);
     if (Number(req.headers.get("content-length") || 0) > GQ_MAX_GOVDE) return J({ error: "Istek cok buyuk" }, 413);      /* Phase 5: görüntülü istek sınırı; öteki eylemler küçük */
 
-    const body = await req.json().catch(() => ({}));
+    /* #56 (28.11.2026): Content-Length başlığı olmayan (akışlı) gövde de sınırı aşamaz; okuma sınırda kesilir, model çağrısından önce */
+    const okuyucu = req.body ? req.body.getReader() : null, parcalar: Uint8Array[] = []; let boy = 0;
+    if (okuyucu) for (;;) { const { done, value } = await okuyucu.read(); if (done) break; boy += value.byteLength; if (boy > GQ_MAX_GOVDE) { okuyucu.cancel().catch(() => {}); return J({ error: "Istek cok buyuk" }, 413); } parcalar.push(value); }
+    let body: any = {}; try { const ham = new Uint8Array(boy); let o = 0; for (const c of parcalar) { ham.set(c, o); o += c.byteLength; } body = JSON.parse(new TextDecoder().decode(ham)) || {}; } catch { body = {}; }
     const action = String(body?.action || "research");
     const lang = body?.language === "en" ? "en" : "tr";
 
@@ -1647,7 +1650,7 @@ The deck is written in ${LQ}: q1, q2, ask, aspects and aq are in ${LQ}, whatever
         /* İstemde dil adıyla yazılı olsa da küçük model İngilizce desteye Almanca alt başlık yazdı
            ("Solarenergie, Kostenvergleich", 25.11.2026; odak 0/5). Başka dildeyse alt başlıklar ve
            alt başlık sorgusu atılır, yalnız deste dilindeki sorgular kalır. */
-        if (aspects.some((a) => dilDisi(a, lang))) { console.warn(`sunum arastirma: alt basliklar baska dilde, atildi: ${JSON.stringify(aspects)}`); aspects = []; }
+        if (aspects.some((a) => dilDisi(a, lang))) { console.warn(`sunum arastirma: alt basliklar baska dilde, atildi: ${aspects.length}`);      /* #56: içerik değil sayı */ aspects = []; }
         const qsDil = qs.filter((q: string) => !dilDisi(q, lang)); qs.splice(0, qs.length, ...qsDil); ask = String(pq?.ask || "").slice(0, 200).trim(); const aq = aspects.length && !dilDisi(String(pq?.aq || ""), lang) ? String(pq?.aq || "").slice(0, 160).trim() : "";
         /* konu + alt başlık sorgusu + veri sorgusu + İngilizce sorgu; q1 konunun kendisiyle aynı işi görür.
            Alt başlık sorgusu olmadan "…yolları" konusu yalnız sorunun verisini (enflasyon rakamları) buluyordu. */
@@ -1664,7 +1667,7 @@ The deck is written in ${LQ}: q1, q2, ask, aspects and aq are in ${LQ}, whatever
         if (!tKey) return [];
         const r = await tfetch("https://api.tavily.com/search", { method: "POST", headers: { "Authorization": `Bearer ${tKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({ query: q, search_depth: deep ? "advanced" : "basic", max_results: deep ? 8 : 5, include_raw_content: true, include_answer: false, ...(deep ? { chunks_per_source: 3 } : {}), exclude_domains: BLOCK }) }, 20000);
-        if (!r || !r.ok) { console.error("tavily", r?.status, q.slice(0, 60)); return []; }
+        if (!r || !r.ok) { console.error("tavily", r?.status, q.length); return []; }
         const j: any = await r.json().catch(() => null); return Array.isArray(j?.results) ? j.results : [];
       };
       const [tv, wTr, wEn] = await Promise.all([
@@ -1759,7 +1762,7 @@ Return ONLY JSON: {"title":"short deck title","cover_image":{"q":"","entity":""}
     if (!g.ok && g.status === 413) g = await groq(gKey, "openai/gpt-oss-120b", sys, `TOPIC: ${topic}${plan}\n\nSOURCES:\n` + srcBlock(9000), 7000);
     // Yedek: küçük model + yarı bütçe. Büyük model meşgulken ya da istek
     // dakikalık token sınırına takıldığında aynı isteği yinelemek işe yaramaz.
-    if (!g.ok) { console.warn("groq 120b", g.status, JSON.stringify(g.data).slice(0, 300)); g = await groq(gKey, "openai/gpt-oss-20b", sys, `TOPIC: ${topic}${plan}\n\nSOURCES:\n` + srcBlock(9000), 6000); }
+    if (!g.ok) { console.warn("groq 120b", g.status, String(g.data?.error?.code || g.data?.error?.type || "").slice(0, 40));      /* #56: yanıt gövdesi değil hata kodu */ g = await groq(gKey, "openai/gpt-oss-20b", sys, `TOPIC: ${topic}${plan}\n\nSOURCES:\n` + srcBlock(9000), 6000); }
     if (!g.ok) return J({ error: "Acadia sunumu yazamadı", status: g.status }, 502);
     let out: any = null;
     try { out = JSON.parse(g.data?.choices?.[0]?.message?.content || ""); } catch { out = null; }
@@ -2009,13 +2012,13 @@ Be lenient on paraphrase and rounding; be strict on meaning. Return ONLY JSON: {
     const accessed = new Date().toLocaleDateString(lang === "en" ? "en-US" : "tr-TR", { day: "numeric", month: "long", year: "numeric" });
     const used = new Set<number>(); slides.forEach((s: any) => s.src.forEach((x: number) => used.add(x)));
     const sources = srcs.filter((s) => used.has(s.id) || !used.size).map((s) => ({ id: s.id, title: s.title, url: s.url, site: s.site, date: s.date, apa: apa(s, lang, accessed), ctx: s.snippet.slice(0, 1200), erisim: accessed, parca: kp.parca.get(s.id) || [] }));
-    // Deste konuyu yanıtladı mı: alt başlıkların kaçı asetatlara girdi. Log teşhis içindir (sorgular + kaynaklar + odak tek satırda).
+    // Deste konuyu yanıtladı mı: alt başlıkların kaçı asetatlara girdi. Log teşhis içindir; #56 (28.11.2026): yalnız sayılar (konu/sorgu/alt başlık metni ve kaynak adı yazılmaz).
     const body2 = slides.map((x: any) => [x.title, ...(x.bullets || []), ...(x.stats || []).map((y: any) => y.label), ...((x.table?.rows || []).flat())].join(" ")).join(" ");
     const focus = { aspects: aspects.length, sources: aspects.filter((a) => aspHit([a], srcs.map((x) => x.text).join(" ").slice(0, 200000))).length, covered: aspects.filter((a) => aspHit([a], body2)).length };
-    console.log(`sunum arastirma: "${topic.slice(0, 60)}" | sorgular ${JSON.stringify(queries)} | alt basliklar ${JSON.stringify(aspects)} | kaynak ${srcs.map((x) => x.site).join(",")} | odak ${focus.covered}/${focus.aspects} (kaynakta ${focus.sources}) | anlati ${JSON.stringify(anlati)}`);
+    console.log(`sunum arastirma: konu ${topic.length} | sorgular ${queries.length} | alt basliklar ${aspects.length} | kaynak ${srcs.length} | odak ${focus.covered}/${focus.aspects} (kaynakta ${focus.sources}) | anlati ${JSON.stringify(anlati)}`);
     return J({ title: String(out.title || topic).trim(), cover_image: imgOf(out.cover_image), slides, sources: docText ? [] : sources, belge: docText ? { parca: kp.parca.get(1) || [] } : undefined, check: { checked, unverified, meaning }, engine: { ...engine, focus } });
   } catch (e) {
-    console.error("sunum-research", e);
-    return J({ error: String((e as Error)?.message || e).slice(0, 200) }, 500);
+    console.error("sunum-research", String((e as Error)?.name || "hata").slice(0, 40));      /* #56: istisna metni/yığını (adres, içerik) günlüğe ve yanıta girmez */
+    return J({ error: "Sunucu hatasi", durum: "hata" }, 500);
   }
 });

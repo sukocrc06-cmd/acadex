@@ -816,7 +816,7 @@ ${govde}
     const ex = cut('  var exportPptx = async function (btn) {', '  /* ---------- paylaşım bağlantısı');
     assert.match(ex, /await yaziHazirSoz\(\);/); assert.ok(!/kaliciBoy|kaliciJSON/.test(ex), 'PPTX sığdırılmış (ekrandaki) boyutu kullanmalı');
     ["S(store.k('d.' + d.id), d, kaliciJSON)", "S(store.k('d.' + m.id), d, kaliciJSON)", "S(store.k('d.' + m.id), gone, kaliciJSON)", 'els: JSON.parse(JSON.stringify(sl.els, kaliciJSON))'].forEach((x) => assert.ok(ink.includes(x), 'kalıcı yol asıl boyutu yazmalı: ' + x));
-    assert.equal((ink.match(/S\(store\.k\('d\.'/g) || []).length, 5, 'deste kaydı yolları: saveLocal, push sonrası, buluttan önbellek, silmeyi geri al, görüntü yenileme (işaret silinir)');
+    assert.equal((ink.match(/S\(store\.k\('d\.'/g) || []).length, 6, 'deste kaydı yolları: saveLocal, push sonrası, buluttan önbellek, silmeyi geri al, görüntü yenileme (işaret silinir), gezinme saveCur (#56)');      /* #56: saveCur de kaliciJSON ile yazar */
     assert.ok(ink.includes("var yerel = function () { delete d.snapBekle; S(store.k('d.' + d.id), d, kaliciJSON); }"), 'görüntü yenileme de asıl boyutu yazmalı');
   });
   /* ---------------- V sayfaları: GERÇEK izleyici (izle.html) — paylaşım görüntüsünü açar, her asetatta taşmayı ölçer ----------------

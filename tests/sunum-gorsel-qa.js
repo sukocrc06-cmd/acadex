@@ -173,7 +173,7 @@ test('V7 Log beyaz listesi ve sızıntı: yalnız sayı/durum alanları; görün
 
 test('V8 Sunucu bağlantısı: auth → 413 gövde sınırı → gövde okuma sırası; gorsel_qa eylemi; kesici yalnız okunur; mevcut eylemler yerinde', () => {
   const sv = sr.slice(sr.indexOf('\nDeno.serve('));
-  const a = sv.indexOf('if (!u?.user) return J({ error: "Oturum gerekli" }, 401);'), b = sv.indexOf('> GQ_MAX_GOVDE) return J({ error: "Istek cok buyuk" }, 413);'), c = sv.indexOf('const body = await req.json()');
+  const a = sv.indexOf('if (!u?.user) return J({ error: "Oturum gerekli" }, 401);'), b = sv.indexOf('> GQ_MAX_GOVDE) return J({ error: "Istek cok buyuk" }, 413);'), c = sv.indexOf('body = JSON.parse(new TextDecoder().decode(ham))');      /* #56: gövde sınırda kesilerek okunur */
   assert.ok(a > 0 && b > a && c > b, 'sıra: auth, 413, gövde');
   const g = sv.slice(sv.indexOf('if (action === "gorsel_qa")'), sv.indexOf('if (action === "gorsel_qa")') + 900);
   assert.ok(g.includes('await gorselIsle(body, u.user.id, {') && /if \(r\.log\) console\.log\(JSON\.stringify\(r\.log\)\);\s+return J\(r\.yanit\);/.test(g));

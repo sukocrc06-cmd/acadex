@@ -130,8 +130,8 @@ const istemci = (port, gecik) => `<script>
 })();
 </script>`;
 
-const duzenek = () => {
-  const ink = read('js/acadex-ink.js'), html = read('dashboard.html').split('\n'), izle = read('izle.html');
+const duzenek = (o) => {      /* o.ink: başka bir acadex-ink.js metni (#56 önce/sonra ölçümü) */
+  const ink = (o && o.ink) || read('js/acadex-ink.js'), html = read('dashboard.html').split('\n'), izle = read('izle.html');
   const i0 = html.findIndex((l) => l.includes('<section id="acadexsunum-view"')), i1 = html.findIndex((l, i) => i > i0 && l.includes('<div id="axu-layer">'));
   const ma = ink.indexOf("  (function () {\n  var root = document.getElementById('sunum'); if (!root) return;"), son = '  if (me()) boot();\n\n  })();', mb = ink.indexOf(son, ma);
   if (i0 < 0 || i1 < 0 || ma < 0 || mb < 0) throw new Error('düzenek: dilim sınırları bulunamadı');

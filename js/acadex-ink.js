@@ -6516,6 +6516,10 @@ var SBX = (function () {
     store.queueCloud(); paintDecks();
   };
   var dirty = function () { clearTimeout(sT); store.dirty = true; sT = setTimeout(saveNow, 500); };
+  /* #56 (28.11.2026): asetat değiştirmek yalnız deck.cur değiştirir; cur hesaba yazılmaz. Gezinme artık tam kayıt (updated, bekleyen,
+     1,5 sn sonra bütün asetat satırlarını silip yeniden ekleyen push) tetiklemez, yalnız yerel cur yazılır. Bekleyen gerçek kayıt
+     varsa ona dokunmaz (o zaten cur ile birlikte yazar). Ölçüm tests/sunum-performans-optimizasyon.js */
+  var curT = 0, curSakla = function () { clearTimeout(curT); curT = setTimeout(function () { curT = 0; if (store.dirty) return; store.saveCur(deck); }, 500); };
   var undoS = [], redoS = [];
   /* Geri al/yinele görüntüsü (yalnız bellekte): asetatlar ekranda göründükleri gibi, yanında öğelerin asıl boyut kaydı
      (fit: kimlik → [asıl, sığdırılmış]) ve hangi yazı durumunda alındığı (iz). Geri yüklenince kayıt yeni kopyalara bağlanır;
@@ -9298,7 +9302,7 @@ var SBX = (function () {
     QA('.sx-th').forEach(function (li, k) { if (k === i) li.setAttribute('aria-current', 'true'); else li.removeAttribute('aria-current'); });
     flipGlass();
     if (focusThumb) { var b = thumbsEl.querySelector('[data-go="' + i + '"]'); if (b) b.focus(); }
-    dirty();
+    curSakla();
   };
   if ('ResizeObserver' in window) { new ResizeObserver(function () { applyScale(); }).observe(fit); new ResizeObserver(fitThumbs).observe(thumbsEl); }
   window.addEventListener('resize', function () { applyScale(); fitThumbs(); });
@@ -13058,6 +13062,7 @@ var SBX = (function () {
       var ok = S(store.k('d.' + d.id), d, kaliciJSON); store.putList(); S(store.k('cur'), d.id); store.dirty = false;
       return ok;
     },
+    saveCur: function (d) { if (!d || !store.uid || !store.meta(d.id)) return false; var ok = S(store.k('d.' + d.id), d, kaliciJSON); S(store.k('cur'), d.id); return ok; },      /* #56: yalnız gezinme; updated/bekleyen/hesap yok */
     queueCloud: function () { clearTimeout(store.timer); store.pend = deck; if (store.cloud) store.timer = setTimeout(function () { store.timer = 0; store.push(store.pend); }, 1500); },
     flush: function () { if (store.timer) { clearTimeout(store.timer); store.timer = 0; store.push(store.pend); } },
     push: async function (d) {
@@ -13099,7 +13104,7 @@ var SBX = (function () {
         if (!yeniSatir) { var r2 = await c.from('presentations').update(row).eq('id', d.dbId); if (r2.error) throw r2.error; }
         if (sn) delete d.snapBekle;
         var m = store.meta(d.id); if (m && d.updated === u0) delete m.bekleyen;      /* gönderim sırasında yeni yerel kayıt yoksa iş hesapta */
-        if (m) { m.surum = d.slides.length ? surum : null; m.dbId = d.dbId; m.remote = Date.now(); m.updated = m.remote; store.putList(); S(store.k('d.' + d.id), d, kaliciJSON); }
+        if (m) { m.surum = d.slides.length ? surum : null; m.dbId = d.dbId; m.remote = Date.now(); m.updated = m.remote; if (!S(store.k('d.' + d.id), d, kaliciJSON)) m.updated = 0; store.putList(); }      /* #56 (28.11.2026): yerel alan doluysa yerelde eski kopya kalır; updated 0 → sonraki açılış hesaptan (eski kopya üstüne açılmaz) */
         setCloud('hesabına kaydedildi');
       } catch (e) {
         console.warn('acadex-sunum: hesaba yazılamadı', e);
@@ -13155,7 +13160,7 @@ var SBX = (function () {
        yenilemesi tetikleyiciyle de ilerletir) gönderilememiş yerel düzenleme silinmez; yeniden gönderimi yerelGonder karar verir. */
     if (m && m.dbId && store.cloud && !(m.bekleyen && d) && (hesaptan || !d || (m.remote || 0) > (m.updated || 0) + 2000)) {
       setCloud('hesabından açılıyor…'); var rd = await store.fetchDeck(m); if (run !== opening) return;
-      if (rd) { d = rd; d.updated = m.remote || Date.now(); S(store.k('d.' + m.id), d, kaliciJSON); m.updated = d.updated; m.n = d.slides.length; delete m.bekleyen; store.putList(); }
+      if (rd) { d = rd; d.updated = m.remote || Date.now(); m.updated = S(store.k('d.' + m.id), d, kaliciJSON) ? d.updated : 0; m.n = d.slides.length;      /* #56: yazılamadıysa yerel kopya eski */ delete m.bekleyen; store.putList(); }
       setCloud(store.cloud ? 'hesabınla eşit' : '');
     }
     if (!d || !Array.isArray(d.slides)) { d = fresh(); if (m) { d.id = m.id; d.dbId = m.dbId; d.title = m.title || ''; } }
